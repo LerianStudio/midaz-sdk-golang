@@ -223,11 +223,17 @@ func TestFormatDateTimeWithOptions(t *testing.T) {
 	assert.Equal(t, "0001-01-01 00:00:00", formatted)
 
 	// Test with UTC conversion
-	localTime := time.Date(2023, 5, 15, 10, 30, 45, 0, time.Local)
-	formatted, err = format.FormatDateTimeWithOptions(localTime, format.WithUTC(true))
+	nonUTCLocation, err := time.LoadLocation("America/New_York")
 	assert.NoError(t, err)
-	// The exact output depends on the local timezone, but it should be different from the local time
-	assert.NotEqual(t, "2023-05-15 10:30:45", formatted)
+	nonUTCTime := time.Date(2023, 5, 15, 10, 30, 45, 0, nonUTCLocation)
+	formatted, err = format.FormatDateTimeWithOptions(nonUTCTime, format.WithUTC(true))
+	assert.NoError(t, err)
+	
+	// The UTC time should be different from the non-UTC time
+	nonUTCFormatted := nonUTCTime.Format("2006-01-02 15:04:05")
+	utcFormatted := nonUTCTime.UTC().Format("2006-01-02 15:04:05")
+	assert.Equal(t, utcFormatted, formatted)
+	assert.NotEqual(t, nonUTCFormatted, formatted)
 
 	// Test with error
 	_, err = format.FormatDateTimeWithOptions(now, func(o *format.DateTimeOptions) error {
