@@ -1,3 +1,9 @@
+## 1.0.0 (2025-04-08)
+
+### Features
+
+* **sdk:** init repo ([709cb58](https://github.com/LerianStudio/midaz-sdk-golang/commit/709cb5813927c4c505cd7d3da45cbf370cc67273))
+
 # Changelog
 
 All notable changes to the Midaz Go SDK will be documented in this file.
