@@ -1,3 +1,9 @@
+## [1.0.6](https://github.com/LerianStudio/midaz-sdk-golang/compare/v1.0.5...v1.0.6) (2025-04-08)
+
+### Bug Fixes
+
+* **readme:** minor ([590a02e](https://github.com/LerianStudio/midaz-sdk-golang/commit/590a02e9b584380949420501a6b2446ac7688cb5))
+
 ## [1.0.5](https://github.com/LerianStudio/midaz-sdk-golang/compare/v1.0.4...v1.0.5) (2025-04-08)
 
 ### Bug Fixes
