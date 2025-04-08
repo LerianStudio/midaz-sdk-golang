@@ -1,3 +1,9 @@
+## [1.0.1](https://github.com/LerianStudio/midaz-sdk-golang/compare/v1.0.0...v1.0.1) (2025-04-08)
+
+### Bug Fixes
+
+* **pipeline:** artifacts version ([6bb53f2](https://github.com/LerianStudio/midaz-sdk-golang/commit/6bb53f2891d45ea6dc15b8a4f79c9fdbe97807e5))
+
 ## 1.0.0 (2025-04-08)
 
 ### Features
