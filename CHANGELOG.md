@@ -1,3 +1,9 @@
+## [1.0.5](https://github.com/LerianStudio/midaz-sdk-golang/compare/v1.0.4...v1.0.5) (2025-04-08)
+
+### Bug Fixes
+
+* **readme:** banner image ([c362c6c](https://github.com/LerianStudio/midaz-sdk-golang/commit/c362c6c32f1a929641025854066fa943fbd92c6b))
+
 ## [1.0.4](https://github.com/LerianStudio/midaz-sdk-golang/compare/v1.0.3...v1.0.4) (2025-04-08)
 
 ### Bug Fixes
