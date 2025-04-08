@@ -1,10 +1,14 @@
 ![banner](image/midaz-banner.png)
 
+<div align="center">
+
 [![Latest Release](https://img.shields.io/github/v/release/LerianStudio/midaz-sdk-golang?include_prereleases)](https://github.com/LerianStudio/midaz-sdk-golang/releases)
 [![Go Report](https://goreportcard.com/badge/github.com/lerianstudio/midaz-sdk-golang)](https://goreportcard.com/report/github.com/lerianstudio/midaz-sdk-golang)
 [![Discord](https://img.shields.io/badge/Discord-Lerian%20Studio-%237289da.svg?logo=discord)](https://discord.gg/DnhqKwkGv3)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/LerianStudio/midaz-sdk-golang)](https://golang.org/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE.md)
+
+</div>
 
 # Midaz Go SDK
 
