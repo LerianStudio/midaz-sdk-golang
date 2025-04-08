@@ -1,3 +1,10 @@
+## [1.0.7](https://github.com/LerianStudio/midaz-sdk-golang/compare/v1.0.6...v1.0.7) (2025-04-08)
+
+### Bug Fixes
+
+* **readme:** alignment ([bb62be1](https://github.com/LerianStudio/midaz-sdk-golang/commit/bb62be17112245645e80747f7f24761af40ce62f))
+* **readme:** alignment ([a4ce92c](https://github.com/LerianStudio/midaz-sdk-golang/commit/a4ce92cca5efbf322e0f14d3fc03b49deb1a71b0))
+
 ## [1.0.6](https://github.com/LerianStudio/midaz-sdk-golang/compare/v1.0.5...v1.0.6) (2025-04-08)
 
 ### Bug Fixes
