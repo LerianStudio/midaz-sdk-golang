@@ -19,7 +19,7 @@ import (
 
 // Version is the current version of the SDK.
 // This is automatically updated during the release process.
-const Version = "1.0.1"
+const Version = "1.0.2"
 
 // Client is the main entry point for using the Midaz API.
 // It provides access to all API services, connection management,

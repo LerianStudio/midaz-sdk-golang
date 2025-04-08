@@ -1,3 +1,10 @@
+## [1.0.2](https://github.com/LerianStudio/midaz-sdk-golang/compare/v1.0.1...v1.0.2) (2025-04-08)
+
+### Bug Fixes
+
+* **tests:** time tests to comply with pipeline machine time ([1912dd0](https://github.com/LerianStudio/midaz-sdk-golang/commit/1912dd0b994bdb7d06e2522bf1451b1014865c05))
+* **tests:** time tests to comply with pipeline machine time ([bb7806f](https://github.com/LerianStudio/midaz-sdk-golang/commit/bb7806ff4e381c3c82bdaec47b60f19d50445cf7))
+
 ## [1.0.1](https://github.com/LerianStudio/midaz-sdk-golang/compare/v1.0.0...v1.0.1) (2025-04-08)
 
 ### Bug Fixes
