@@ -1,0 +1,181 @@
+package models // import "github.com/LerianStudio/midaz-sdk-golang/models"
+
+Package models defines the data models used by the Midaz SDK.
+
+Package models defines the data models used by the Midaz SDK.
+
+Package models defines the data models used by the Midaz SDK.
+
+This package provides models that either: 1. Directly align with backend types
+from pkg/mmodel where possible 2. Implement SDK-specific types only where
+necessary
+
+The goal is to maintain a simple, direct approach without unnecessary
+abstraction layers while ensuring the SDK interfaces cleanly with the backend
+API.
+
+Key Model Types:
+
+Account: Represents an account in the Midaz system, which is a fundamental
+entity for tracking assets and balances. Accounts belong to organizations and
+ledgers.
+
+Asset: Represents a type of value that can be tracked and transferred within the
+Midaz system, such as currencies, securities, or other financial instruments.
+
+Balance: Represents the current state of an account's holdings for a specific
+asset, including total, available, and on-hold amounts.
+
+Ledger: Represents a collection of accounts and transactions within an
+organization, providing a complete record of financial activities.
+
+Organization: Represents a business entity that owns ledgers, accounts,
+and other resources within the Midaz system.
+
+Portfolio: Represents a collection of accounts that belong to a specific entity
+within an organization and ledger, used for grouping and management.
+
+Segment: Represents a categorization unit for more granular organization of
+accounts or other entities within a ledger.
+
+Transaction: Represents a financial event that affects one or more accounts
+through a series of operations (debits and credits).
+
+Operation: Represents an individual accounting entry within a transaction,
+typically a debit or credit to a specific account.
+
+Queue: Represents a transaction queue for temporarily storing transaction data
+before processing, allowing for batched or asynchronous handling.
+
+Each model type includes constructors, conversion methods between SDK and
+backend models, and utility methods for setting optional fields. Input
+structures for creating and updating resources are also provided.
+
+Package models defines the data models used by the Midaz SDK.
+
+const TransactionStatusPending = "pending" ...
+const StatusActive = "ACTIVE" ...
+const DefaultLimit = 10 ...
+const QueryParamLimit = "limit" ...
+type Account struct{ ... }
+    func FromMmodelAccount(account mmodel.Account) Account
+    func NewAccount(id, name, assetCode, organizationID, ledgerID, accountType string, ...) *Account
+type AccountFilter struct{ ... }
+type Accounts struct{ ... }
+    func FromMmodelAccounts(accounts mmodel.Accounts) Accounts
+type Address struct{ ... }
+    func FromMmodelAddress(modelAddress mmodel.Address) Address
+    func NewAddress(line1, zipCode, city, state, country string) Address
+type Amount struct{ ... }
+type AmountInput struct{ ... }
+type Asset struct{ ... }
+    func FromMmodelAsset(asset mmodel.Asset) Asset
+    func NewAsset(id, name, code, organizationID, ledgerID string, status Status) *Asset
+type AssetFilter struct{ ... }
+type AssetRate struct{ ... }
+    func NewAssetRate(id, fromAsset, toAsset string, rate float64, ...) *AssetRate
+type Assets struct{ ... }
+    func FromMmodelAssets(assets mmodel.Assets) Assets
+type Balance struct{ ... }
+    func FromMmodelBalance(balance mmodel.Balance) Balance
+type Balances struct{ ... }
+    func FromMmodelBalances(balances mmodel.Balances) Balances
+type BaseResponse struct{ ... }
+type CreateAccountInput struct{ ... }
+    func NewCreateAccountInput(name, assetCode, accountType string) *CreateAccountInput
+type CreateAssetInput struct{ ... }
+    func NewCreateAssetInput(name, code string) *CreateAssetInput
+type CreateLedgerInput struct{ ... }
+    func NewCreateLedgerInput(name string) *CreateLedgerInput
+type CreateOperationInput struct{ ... }
+type CreateOrganizationInput struct{ ... }
+    func NewCreateOrganizationInput(legalName, legalDocument, doingBusinessAs string) *CreateOrganizationInput
+type CreatePortfolioInput struct{ ... }
+    func NewCreatePortfolioInput(entityID, name string) *CreatePortfolioInput
+type CreateSegmentInput struct{ ... }
+    func NewCreateSegmentInput(name string) *CreateSegmentInput
+type CreateTransactionInput struct{ ... }
+type DSLAccountRef struct{ ... }
+type DSLAmount struct{ ... }
+type DSLDistribute struct{ ... }
+type DSLFromTo struct{ ... }
+type DSLSend struct{ ... }
+type DSLSource struct{ ... }
+type Destination struct{ ... }
+type DistributeInput struct{ ... }
+type ErrorResponse struct{ ... }
+type FromToInput struct{ ... }
+type Ledger struct{ ... }
+    func FromMmodelLedger(ledger mmodel.Ledger) Ledger
+    func NewLedger(id, name, organizationID string, status Status) *Ledger
+type LedgerFilter struct{ ... }
+type Ledgers struct{ ... }
+    func FromMmodelLedgers(ledgers mmodel.Ledgers) Ledgers
+type ListAccountInput struct{ ... }
+type ListAccountResponse struct{ ... }
+type ListAssetInput struct{ ... }
+type ListAssetResponse struct{ ... }
+type ListLedgerInput struct{ ... }
+type ListLedgerResponse struct{ ... }
+type ListOptions struct{ ... }
+    func NewListOptions() *ListOptions
+type ListOrganizationInput struct{ ... }
+type ListOrganizationResponse struct{ ... }
+type ListResponse[T any] struct{ ... }
+type Metadata map[string]any
+type ObjectWithMetadata struct{ ... }
+type Operation struct{ ... }
+    func FromMmodelOperation(operation any) Operation
+type OperationType string
+    const OperationTypeDebit OperationType = "DEBIT" ...
+type Organization struct{ ... }
+    func FromMmodelOrganization(org mmodel.Organization) Organization
+    func NewOrganization(id, legalName, legalDocument, doingBusinessAs string, status Status) *Organization
+type OrganizationFilter struct{ ... }
+type Organizations struct{ ... }
+    func FromMmodelOrganizations(orgs mmodel.Organizations) Organizations
+type Pagination struct{ ... }
+type Portfolio struct{ ... }
+    func FromMmodelPortfolio(portfolio mmodel.Portfolio) Portfolio
+    func NewPortfolio(id, name, entityID, ledgerID, organizationID string, status Status) *Portfolio
+type Portfolios struct{ ... }
+    func FromMmodelPortfolios(portfolios mmodel.Portfolios) Portfolios
+type Queue struct{ ... }
+    func FromMmodelQueue(queue mmodel.Queue) Queue
+    func NewQueue(orgID, ledgerID, auditID, accountID uuid.UUID) *Queue
+type QueueData struct{ ... }
+type Rate struct{ ... }
+type Segment struct{ ... }
+    func FromMmodelSegment(segment mmodel.Segment) Segment
+    func NewSegment(id, name, ledgerID, organizationID string, status Status) *Segment
+type SendInput struct{ ... }
+type Share struct{ ... }
+type SortDirection string
+    const SortAscending SortDirection = "asc" ...
+type Source struct{ ... }
+type SourceInput struct{ ... }
+type Status struct{ ... }
+    func FromMmodelStatus(modelStatus mmodel.Status) Status
+    func NewStatus(code string) Status
+type Timestamps struct{ ... }
+type Transaction struct{ ... }
+type TransactionDSLInput struct{ ... }
+    func FromTransactionMap(data map[string]interface{}) *TransactionDSLInput
+type UpdateAccountInput struct{ ... }
+    func NewUpdateAccountInput() *UpdateAccountInput
+type UpdateAssetInput struct{ ... }
+    func NewUpdateAssetInput() *UpdateAssetInput
+type UpdateAssetRateInput struct{ ... }
+    func NewUpdateAssetRateInput(fromAsset, toAsset string, rate float64, effectiveAt, expirationAt time.Time) *UpdateAssetRateInput
+type UpdateBalanceInput struct{ ... }
+    func NewUpdateBalanceInput() *UpdateBalanceInput
+type UpdateLedgerInput struct{ ... }
+    func NewUpdateLedgerInput() *UpdateLedgerInput
+type UpdateOrganizationInput struct{ ... }
+    func FromMmodelUpdateOrganizationInput(input mmodel.UpdateOrganizationInput) UpdateOrganizationInput
+    func NewUpdateOrganizationInput() *UpdateOrganizationInput
+type UpdatePortfolioInput struct{ ... }
+    func NewUpdatePortfolioInput() *UpdatePortfolioInput
+type UpdateSegmentInput struct{ ... }
+    func NewUpdateSegmentInput() *UpdateSegmentInput
+type UpdateTransactionInput struct{ ... }

@@ -1,0 +1,30 @@
+package client // import "github.com/LerianStudio/midaz-sdk-golang"
+
+Package client provides a client for the Midaz API. It is the top-level entry
+point for interacting with the SDK.
+
+const Version = "1.0.0"
+type Client struct{ ... }
+    func New(options ...Option) (*Client, error)
+type Option func(*Client) error
+    func DisableRetries() Option
+    func UseAllAPIs() Option
+    func UseEntity() Option
+    func UseEntityAPI() Option
+    func WithAPIToken(token string) Option
+    func WithAuthToken(token string) Option
+    func WithBaseURL(baseURL string) Option
+    func WithCollectorEndpoint(endpoint string) Option
+    func WithConfig(cfg *config.Config) Option
+    func WithContext(ctx context.Context) Option
+    func WithCustomRetryPolicy(shouldRetry func(*http.Response, error) bool) Option
+    func WithDebug(enable bool) Option
+    func WithEnvironment(env config.Environment) Option
+    func WithHTTPClient(client *http.Client) Option
+    func WithObservability(enableTracing, enableMetrics, enableLogging bool) Option
+    func WithObservabilityOptions(options ...observability.Option) Option
+    func WithObservabilityProvider(provider observability.Provider) Option
+    func WithOnboardingURL(url string) Option
+    func WithRetries(maxRetries int, minBackoff, maxBackoff time.Duration) Option
+    func WithTimeout(timeout time.Duration) Option
+    func WithTransactionURL(url string) Option

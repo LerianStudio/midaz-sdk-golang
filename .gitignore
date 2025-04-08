@@ -1,0 +1,87 @@
+# Go-specific ignores
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+*.prof
+*.trace
+*.o
+*.a
+*.log
+
+# Go workspace file
+go.work
+go.work.sum
+
+# Binaries and build artifacts
+/bin/
+/artifacts/
+/dist/
+/tmp/
+/coverage.out
+/coverage.html
+/mocks/
+
+# Environment files
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+.history/
+*.sublime-workspace
+*.sublime-project
+
+# Dependency directories
+/vendor/
+
+# Debug files
+debug
+debug.test
+
+# Auto-generated files
+*.pb.go
+swagger.json
+*_gen.go
+*_easyjson.go
+*_string.go
+
+# Testing artifacts
+test-results/
+junit-report.xml
+profile.cov
+coverage.xml
+.test_coverage.txt
+
+# Documentation artifacts
+/docs/godoc # Since it's auto-generated during the CI/CD process
+/doc/tmp/
+/docs/tmp/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Icon?
+ehthumbs.db
+Thumbs.db
+
+# Misc
+TODO
+NOTES
+
+# Specific to this project
+/sdks/go-sdk/.cache/

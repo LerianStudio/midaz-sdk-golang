@@ -1,0 +1,51 @@
+package concurrent // import "github.com/LerianStudio/midaz-sdk-golang/pkg/concurrent"
+
+Package concurrent provides utilities for working with concurrent operations in
+the Midaz SDK.
+
+This package implements common concurrency patterns such as worker pools,
+rate limiters, and batch operations to help users work efficiently with the
+Midaz API.
+
+Package concurrent provides utilities for parallel processing and batch
+operations.
+
+func BatchCreateAccounts(ctx context.Context, ...) ([]*models.Account, error)
+func BulkFetchResourceMap[K comparable, V any](ctx context.Context, fetchFn func(ctx context.Context, id K) (V, error), ...) (map[K]V, error)
+func FetchAccountsInParallel(ctx context.Context, ...) (map[string]*models.Account, error)
+func ForEach[T any](ctx context.Context, items []T, fn func(ctx context.Context, item T) error, ...) error
+func ProcessTransactionsInParallel(ctx context.Context, ...) ([]*models.Transaction, []error)
+func RunConcurrentOperations(ctx context.Context, operations []func(context.Context) error) []error
+type DefaultJSONMarshaler struct{}
+type HTTPBatchOption func(*HTTPBatchOptions) error
+    func WithBatchContinueOnError(continueOnError bool) HTTPBatchOption
+    func WithBatchRetryBackoff(backoff time.Duration) HTTPBatchOption
+    func WithBatchRetryCount(count int) HTTPBatchOption
+    func WithBatchTimeout(timeout time.Duration) HTTPBatchOption
+    func WithBatchWorkers(workers int) HTTPBatchOption
+    func WithHighReliabilityBatch() HTTPBatchOption
+    func WithHighThroughputBatch() HTTPBatchOption
+    func WithLowLatencyBatch() HTTPBatchOption
+    func WithMaxBatchSize(size int) HTTPBatchOption
+type HTTPBatchOptions struct{ ... }
+    func DefaultHTTPBatchOptions() *HTTPBatchOptions
+type HTTPBatchProcessor struct{ ... }
+    func NewHTTPBatchProcessor(client *http.Client, baseURL string, opts ...HTTPBatchOption) *HTTPBatchProcessor
+type HTTPBatchProcessorWithRetry struct{ ... }
+    func NewHTTPBatchProcessorWithRetry(client *http.Client, baseURL string, opts ...HTTPBatchOption) *HTTPBatchProcessorWithRetry
+type HTTPBatchRequest struct{ ... }
+type HTTPBatchResponse struct{ ... }
+type HTTPBatchResult struct{ ... }
+type JSONMarshaler interface{ ... }
+type PoolOption func(*poolOptions)
+    func WithBufferSize(size int) PoolOption
+    func WithRateLimit(operationsPerSecond int) PoolOption
+    func WithUnorderedResults() PoolOption
+    func WithWaitGroup(wg *sync.WaitGroup) PoolOption
+    func WithWorkers(workers int) PoolOption
+type RateLimiter struct{ ... }
+    func NewRateLimiter(opsPerSecond int, maxBurst int) *RateLimiter
+type Result[T, R any] struct{ ... }
+    func Batch[T, R any](ctx context.Context, items []T, batchSize int, ...) []Result[T, R]
+    func WorkerPool[T, R any](ctx context.Context, items []T, workFn WorkFunc[T, R], opts ...PoolOption) []Result[T, R]
+type WorkFunc[T, R any] func(ctx context.Context, item T) (R, error)

@@ -1,0 +1,33 @@
+#!/bin/bash
+
+# Find the project root directory
+PROJECT_ROOT=$(git rev-parse --show-toplevel)
+
+# Source utility scripts
+source "$PROJECT_ROOT/scripts/utils/colors.sh"
+source "$PROJECT_ROOT/scripts/utils/ascii.sh"
+
+zero_commit="0000000000000000000000000000000000000000"
+
+# Check that pushes to main are only from release branches
+while read oldrev newrev refname; do
+    if [[ $oldrev == $zero_commit ]]; then
+        continue
+    fi
+
+    if [[ $refname == "refs/heads/main" && $newrev != $zero_commit ]]; then
+        # Get the branch name that is being merged into main
+        merge_source=$(git show -s --pretty=%B $newrev | grep -o "Merge branch '.*'" | sed "s/Merge branch '//g" | sed "s/'.*//g")
+        
+        if [[ $merge_source == release/* ]]; then
+            echo -e "${bold_green}Merging from release branch into main: $merge_source${nc}"
+            continue
+        else
+            echo -e "${bold_red}Error: You can only merge branches that start with 'release/' into the main branch.${nc}"
+            echo -e "${bold_yellow}Current source: $merge_source${nc}"
+            exit 1
+        fi
+    fi
+done
+
+exit 0

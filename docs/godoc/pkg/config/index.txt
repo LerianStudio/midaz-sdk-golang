@@ -1,0 +1,37 @@
+package config // import "github.com/LerianStudio/midaz-sdk-golang/pkg/config"
+
+Package config provides configuration management for the Midaz SDK.
+
+This package centralizes all configuration options for the SDK, including:
+- API endpoints and authentication - HTTP client settings like timeouts and
+retries - Feature flags and behavior controls
+
+It uses the functional options pattern for flexible, type-safe configuration.
+
+const DefaultUserAgent = "midaz-go-sdk/1.0.0" ...
+type Config struct{ ... }
+    func DefaultConfig() *Config
+    func NewConfig(options ...Option) (*Config, error)
+    func NewLocalConfig(authToken string, options ...Option) (*Config, error)
+type Environment string
+    const EnvironmentLocal Environment = "local" ...
+type Option func(*Config) error
+    func FromEnvironment() Option
+    func WithAuthToken(token string) Option
+    func WithBaseURL(baseURL string) Option
+    func WithDebug(enable bool) Option
+    func WithEnvironment(env Environment) Option
+    func WithHTTPClient(client *http.Client) Option
+    func WithIdempotency(enable bool) Option
+    func WithMaxRetries(maxRetries int) Option
+    func WithObservabilityProvider(provider observability.Provider) Option
+    func WithOnboardingURL(url string) Option
+    func WithRetries(enable bool) Option
+    func WithRetryConfig(maxRetries int, minWait, maxWait time.Duration) Option
+    func WithRetryWaitMax(waitTime time.Duration) Option
+    func WithRetryWaitMin(waitTime time.Duration) Option
+    func WithTimeout(timeout time.Duration) Option
+    func WithTransactionURL(url string) Option
+    func WithUserAgent(userAgent string) Option
+type ServiceType string
+    const ServiceOnboarding ServiceType = "onboarding" ...

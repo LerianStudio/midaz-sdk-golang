@@ -1,0 +1,34 @@
+#!/bin/bash
+
+# Find the project root directory
+PROJECT_ROOT=$(git rev-parse --show-toplevel)
+
+# Source utility scripts
+source "$PROJECT_ROOT/scripts/utils/colors.sh"
+source "$PROJECT_ROOT/scripts/utils/ascii.sh"
+
+# Validate branch naming convention
+while read local_ref local_sha remote_ref remote_sha; do
+    if [[ "$local_ref" =~ ^refs/heads/ ]]; then
+        branch_name=$(echo "$local_ref" | sed 's|^refs/heads/||')
+
+        # Check branch name format
+        if [[ ! "$branch_name" =~ ^(feature|fix|hotfix|docs|refactor|build|test)/.*$ ]]; then
+            echo -e "${bold_red}Branch names must start with 'feature/', 'fix/', 'refactor/', 'docs/', 'test/' or 'hotfix/' followed by a feature name.${nc}"
+            echo -e "${bold_yellow}Example: feature/add-user-authentication${nc}"
+            exit 1
+        fi
+    fi
+done
+
+# Run tests before push
+echo -e "${bold}Running tests before push...${nc}"
+make test-fast
+if [ $? -ne 0 ]; then
+    echo -e "${bold_red}Tests failed. Please fix the issues before pushing.${nc}"
+    echo -e "${bold_yellow}To bypass this check, use 'git push --no-verify'${nc}"
+    exit 1
+fi
+
+echo -e "${bold_green}All checks passed. Pushing changes...${nc}"
+exit 0

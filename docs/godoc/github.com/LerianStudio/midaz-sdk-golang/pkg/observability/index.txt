@@ -1,0 +1,73 @@
+package observability // import "github.com/LerianStudio/midaz-sdk-golang/pkg/observability"
+
+Package observability provides utilities for adding observability capabilities
+to the Midaz SDK, including metrics, logging, and distributed tracing.
+
+const KeySDKVersion = "midaz.sdk.version" ...
+func AddAttribute(ctx context.Context, key string, value interface{})
+func AddEvent(ctx context.Context, name string, attrs map[string]string)
+func AddSpanAttributes(ctx context.Context, attrs ...attribute.KeyValue)
+func AddSpanEvent(ctx context.Context, name string, attrs ...attribute.KeyValue)
+func ExtractContext(ctx context.Context, headers map[string]string) context.Context
+func GetBaggageItem(ctx context.Context, key string) string
+func InjectContext(ctx context.Context, headers map[string]string)
+func NewHTTPMiddleware(provider Provider, opts ...HTTPOption) func(http.RoundTripper) http.RoundTripper
+func RecordDuration(ctx context.Context, provider Provider, name string, start time.Time, ...)
+func RecordError(ctx context.Context, err error, eventName string, attrs ...map[string]string)
+func RecordMetric(ctx context.Context, provider Provider, name string, value float64, ...)
+func RecordSpanMetric(ctx context.Context, name string, value float64)
+func SpanID(ctx context.Context) string
+func Start(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span)
+func StartSpan(ctx context.Context, name string) (context.Context, trace.Span)
+func TraceID(ctx context.Context) string
+func WithBaggageItem(ctx context.Context, key, value string) (context.Context, error)
+func WithProvider(ctx context.Context, provider Provider) context.Context
+func WithSpan(ctx context.Context, provider Provider, name string, ...) error
+func WithSpanAttributes(ctx context.Context, attrs ...attribute.KeyValue) context.Context
+func WithTraceID(ctx context.Context, traceID string) context.Context
+type Config struct{ ... }
+    func DefaultConfig() *Config
+type ContextKey string
+    const ProviderKey ContextKey = "midaz-observability-provider"
+type EnabledComponents struct{ ... }
+type HTTPOption func(*httpMiddleware) error
+    func WithDefaultSensitiveHeaders() HTTPOption
+    func WithDefaultSensitiveParams() HTTPOption
+    func WithHideRequestBody(hide bool) HTTPOption
+    func WithIgnoreHeaders(headers ...string) HTTPOption
+    func WithIgnorePaths(paths ...string) HTTPOption
+    func WithMaskedParams(params ...string) HTTPOption
+    func WithSecurityDefaults() HTTPOption
+type LogLevel int
+    const DebugLevel LogLevel = iota ...
+type Logger interface{ ... }
+    func Log(ctx context.Context) Logger
+    func NewLogger(level LogLevel, output io.Writer, resource *sdkresource.Resource) Logger
+    func NewNoopLogger() Logger
+type LoggerImpl struct{ ... }
+type MetricsCollector struct{ ... }
+    func NewMetricsCollector(provider Provider) (*MetricsCollector, error)
+type MidazProvider struct{ ... }
+type NoopLogger struct{}
+type Option func(*Config) error
+    func WithAttributes(attrs ...attribute.KeyValue) Option
+    func WithCollectorEndpoint(endpoint string) Option
+    func WithComponentEnabled(tracing, metrics, logging bool) Option
+    func WithDevelopmentDefaults() Option
+    func WithEnvironment(env string) Option
+    func WithFullTracingSampling() Option
+    func WithHighTracingSampling() Option
+    func WithLogLevel(level LogLevel) Option
+    func WithLogOutput(output io.Writer) Option
+    func WithProductionDefaults() Option
+    func WithPropagationHeaders(headers ...string) Option
+    func WithPropagators(propagators ...propagation.TextMapPropagator) Option
+    func WithSDKVersion(version string) Option
+    func WithServiceName(name string) Option
+    func WithServiceVersion(version string) Option
+    func WithTraceSampleRate(rate float64) Option
+type Provider interface{ ... }
+    func GetProvider(ctx context.Context) Provider
+    func New(ctx context.Context, opts ...Option) (Provider, error)
+    func NewWithConfig(ctx context.Context, config *Config) (Provider, error)
+type Timer struct{ ... }

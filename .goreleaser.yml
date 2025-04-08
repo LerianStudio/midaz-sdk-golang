@@ -1,0 +1,90 @@
+version: 2
+
+builds:
+  - skip: true # Skip building binaries as this is a library, not an executable
+
+archives:
+  - id: go-sdk
+    name_template: >-
+      midaz-go-sdk_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+    format: zip
+    files:
+      - LICENSE.md
+      - README.md
+      - CHANGELOG.md
+      - examples/**/*
+      - client.go
+      - entities/**/*.go
+      - models/**/*.go
+      - pkg/**/*.go
+      - go.mod
+      - go.sum
+    wrap_in_directory: true
+
+checksum:
+  name_template: "checksums.txt"
+
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+
+release:
+  github:
+    owner: LerianStudio
+    name: midaz-sdk-golang
+  prerelease: auto
+  draft: false
+  name_template: "Midaz Go SDK v{{.Version}}"
+  header: |
+    ## Midaz Go SDK v{{.Version}}
+
+    This release includes the latest updates to the Midaz Go SDK.
+  footer: |
+    ## Installation
+
+    ```
+    go get github.com/LerianStudio/midaz-sdk-golang@v{{.Version}}
+    ```
+
+    ## Import
+
+    ```go
+    import "github.com/LerianStudio/midaz-sdk-golang"
+    ```
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "merge conflict"
+      - "Merge pull request"
+      - "Merge remote-tracking branch"
+      - "Merge branch"
+      - "go mod tidy"
+  groups:
+    - title: "Breaking Changes"
+      regexp: "^.*breaking[(\\w)]*:+.*$"
+      order: 0
+    - title: "New Features"
+      regexp: "^.*feat[(\\w)]*:+.*$"
+      order: 10
+    - title: "Improvements"
+      regexp: "^.*chore[(\\w)]*:+.*$"
+      order: 20
+    - title: "Bug Fixes"
+      regexp: "^.*fix[(\\w)]*:+.*$"
+      order: 30
+    - title: "Security Updates"
+      regexp: '^.*?sec(\([[:word:]]+\))??!?:.+$'
+      order: 40
+    - title: "Documentation Updates"
+      regexp: '^.*?docs(\([[:word:]]+\))??!?:.+$'
+      order: 50
+    - title: "Tests"
+      regexp: '^.*?(test(s)?(\([[:word:]]+\))?)!?:.+$'
+      order: 60
+    - title: "Other Work"
+      order: 999

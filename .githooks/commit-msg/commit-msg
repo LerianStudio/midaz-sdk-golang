@@ -1,0 +1,62 @@
+#!/bin/bash
+
+# Find the project root directory
+PROJECT_ROOT=$(git rev-parse --show-toplevel)
+
+# Source utility scripts
+source "$PROJECT_ROOT/scripts/utils/colors.sh"
+
+# Add a specific emoji to the end of the first line in every commit message
+# based on the conventional commits keyword.
+
+if [ ! -f "$1" ] || grep -q "fixup!" "$1"; then
+    # Exit if we didn't get a target file for some reason
+    # or we have a fixup commit
+    exit 0
+fi
+
+KEYWORD=$(head -n 1 "$1" | awk '{print $1}' | sed -e 's/://' | sed -e 's/(.*)$//')
+
+case $KEYWORD in
+    "feat")
+        EMOJI="✨"
+        ;;
+    "fix")
+        EMOJI="🐛"
+        ;;
+    "docs")
+        EMOJI="📚"
+        ;;
+    "style")
+        EMOJI="💎"
+        ;;
+    "refactor")
+        EMOJI="🔨"
+        ;;
+    "perf")
+        EMOJI="🚀"
+        ;;
+    "test")
+        EMOJI="🔄"
+        ;;
+    "build")
+        EMOJI="📦"
+        ;;
+    "ci")
+        EMOJI="👷"
+        ;;
+    "chore")
+        EMOJI="🔧"
+        ;;
+    *)
+        EMOJI=""
+        ;;
+esac
+
+if [ -n "$EMOJI" ]; then
+    # Add the emoji at the end of the first line
+    sed -i.bak -E "1s/(.*)$/\1 $EMOJI/" "$1"
+    rm "$1.bak"
+fi
+
+exit 0

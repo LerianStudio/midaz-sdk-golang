@@ -1,0 +1,71 @@
+package errors // import "github.com/LerianStudio/midaz-sdk-golang/pkg/errors"
+
+Package errors provides error handling utilities for the Midaz SDK.
+
+var ErrValidation = &Error{ ... } ...
+func CategorizeTransactionError(err error) string
+func CheckAccountEligibilityError(err error) bool
+func CheckAssetMismatchError(err error) bool
+func CheckAuthenticationError(err error) bool
+func CheckAuthorizationError(err error) bool
+func CheckCancellationError(err error) bool
+func CheckConflictError(err error) bool
+func CheckIdempotencyError(err error) bool
+func CheckInsufficientBalanceError(err error) bool
+func CheckInternalError(err error) bool
+func CheckNetworkError(err error) bool
+func CheckNotFoundError(err error) bool
+func CheckRateLimitError(err error) bool
+func CheckTimeoutError(err error) bool
+func CheckValidationError(err error) bool
+func ErrorFromHTTPResponse(statusCode int, requestID, message, code, entityType, resourceID string) error
+func FormatErrorDetails(err error) string
+func FormatErrorForDisplay(err error) string
+func FormatOperationError(err error, operation string) string
+func FormatTransactionError(err error, operationType string) string
+func FormatUnifiedTransactionError(err error, operationType string) string
+func GetErrorStatusCode(err error) int
+func GetStatusCode(err error) int
+func IsAccountEligibilityError(err error) bool
+func IsAlreadyExistsError(err error) bool
+func IsAssetMismatchError(err error) bool
+func IsAuthenticationError(err error) bool
+func IsAuthorizationError(err error) bool
+func IsCancellationError(err error) bool
+func IsConflictError(err error) bool
+func IsIdempotencyError(err error) bool
+func IsInsufficientBalanceError(err error) bool
+func IsInternalError(err error) bool
+func IsNetworkError(err error) bool
+func IsNotFoundError(err error) bool
+func IsPermissionError(err error) bool
+func IsRateLimitError(err error) bool
+func IsTimeoutError(err error) bool
+func IsValidationError(err error) bool
+func ValueOfOriginalType(err error, value interface{}) error
+type Error struct{ ... }
+    func NewAccountEligibilityError(operation, accountID string, err error) *Error
+    func NewAssetMismatchError(operation, expected, actual string, err error) *Error
+    func NewAuthenticationError(operation, message string, err error) *Error
+    func NewAuthorizationError(operation, message string, err error) *Error
+    func NewCancellationError(operation string, err error) *Error
+    func NewConflictError(operation, resource, resourceID string, err error) *Error
+    func NewInsufficientBalanceError(operation, accountID string, err error) *Error
+    func NewInternalError(operation string, err error) *Error
+    func NewInvalidInputError(operation string, err error) *Error
+    func NewMissingParameterError(operation, paramName string) *Error
+    func NewNetworkError(operation string, err error) *Error
+    func NewNotFoundError(operation, resource, resourceID string, err error) *Error
+    func NewRateLimitError(operation, message string, err error) *Error
+    func NewTimeoutError(operation, message string, err error) *Error
+    func NewUnprocessableError(operation, resource string, err error) *Error
+    func NewValidationError(operation, message string, err error) *Error
+type ErrorCategory string
+    const CategoryValidation ErrorCategory = "validation" ...
+    func GetErrorCategory(err error) ErrorCategory
+type ErrorCode string
+    const CodeValidation ErrorCode = "validation_error" ...
+type ErrorDetails struct{ ... }
+    func GetErrorDetails(err error) ErrorDetails
+type MidazError struct{ ... }
+    func NewMidazError(code ErrorCode, err error) *MidazError

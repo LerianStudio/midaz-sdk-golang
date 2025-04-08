@@ -1,0 +1,92 @@
+plugins:
+  [
+    # Analyze commit messages to determine version bump based on conventional commits
+    [
+      "@semantic-release/commit-analyzer",
+      {
+        "preset": "conventionalcommits",
+        "parserOpts":
+          { "noteKeywords": ["BREAKING CHANGE", "BREAKING CHANGES"] },
+        "releaseRules":
+          [
+            # Go SDK should follow semver strictly - breaking changes only in major releases
+            { "type": "feat", "release": "minor" },
+            { "type": "fix", "release": "patch" },
+            { "type": "docs", "release": "patch" },
+            { "type": "style", "release": "patch" },
+            { "type": "refactor", "release": "patch" },
+            { "type": "perf", "release": "patch" },
+            { "type": "test", "release": "patch" },
+            { "type": "ci", "release": "patch" },
+            { "type": "build", "release": "patch" },
+            { "type": "chore", "release": "patch" },
+            # Breaking changes must be explicitly marked as breaking
+            { "type": "breaking", "release": "major" },
+            { "breaking": true, "release": "major" },
+          ],
+      },
+    ],
+    
+    # Generate release notes
+    [
+      "@semantic-release/release-notes-generator",
+      {
+        "preset": "conventionalcommits",
+        "parserOpts":
+          {
+            "noteKeywords": ["BREAKING CHANGE", "BREAKING CHANGES", "BREAKING"],
+          },
+        "writerOpts": { 
+          "commitsSort": ["subject", "scope"],
+          "groupBy": "type",
+          "commitGroupsSort": [
+            "feat",
+            "fix",
+            "perf",
+            "refactor",
+            "docs",
+            "test",
+            "chore",
+            "build",
+            "ci"
+          ],
+        },
+      },
+    ],
+    
+    # Update changelog file
+    ["@semantic-release/changelog", { "changelogFile": "CHANGELOG.md" }],
+    
+    # Modify the version in the client.go file (SDK version)
+    [
+      "@semantic-release/exec",
+      {
+        "prepareCmd": "sed -i.bak 's/const Version = \".*\"/const Version = \"${nextRelease.version}\"/' client.go && rm client.go.bak",
+      },
+    ],
+    
+    # Commit changes back to the repository
+    [
+      "@semantic-release/git",
+      {
+        "message": "chore(release): ${nextRelease.version}\n\n${nextRelease.notes}",
+        "assets": ["CHANGELOG.md", "client.go"],
+      },
+    ],
+    
+    # Create GitHub release
+    ["@semantic-release/github", {
+      "repositoryUrl": "https://github.com/LerianStudio/midaz-sdk-golang.git"
+    }],
+  ]
+
+# Which branches should trigger releases
+branches:
+  # Main branch releases create proper releases
+  - main
+  # Feature branches can create pre-releases
+  - name: feature/*
+    prerelease: "beta"
+  # Hotfix branches can create hot fix releases
+  - name: hotfix/*
+    prerelease: "hf"
