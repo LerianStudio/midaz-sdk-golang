@@ -2,6 +2,75 @@
 //
 // This package implements common concurrency patterns such as worker pools, rate limiters,
 // and batch operations to help users work efficiently with the Midaz API.
+//
+// Use Cases:
+//
+//  1. High-Volume Payment Processing:
+//     When processing thousands of payment transactions, use WorkerPool with
+//     appropriate concurrency settings to maximize throughput while respecting API limits:
+//
+//     ```go
+//     // Process 10,000 payments concurrently with controlled parallelism
+//     payments := fetchPendingPayments() // e.g., 10,000 payments
+//
+//     results := concurrent.WorkerPool(ctx, payments,
+//     func(ctx context.Context, payment Payment) (PaymentResult, error) {
+//     return processPayment(ctx, payment)
+//     },
+//     concurrent.WithWorkers(20),              // Use 20 concurrent workers
+//     concurrent.WithBufferSize(100),          // Buffer 100 items
+//     concurrent.WithRateLimit(1000),          // Max 1000 ops/second
+//     concurrent.WithUnorderedResults(),       // Process in any order
+//     )
+//
+//     // Handle results
+//     for _, result := range results {
+//     if result.Error != nil {
+//     logPaymentError(result.Item, result.Error)
+//     } else {
+//     recordSuccessfulPayment(result.Item, result.Value)
+//     }
+//     }
+//     ```
+//
+//  2. Batch Account Updates:
+//     When performing batch updates to many accounts, use the Batch function
+//     to group operations efficiently:
+//
+//     ```go
+//     // Update 5,000 accounts in batches of 50
+//     accounts := fetchAccountsToUpdate() // e.g., 5,000 accounts
+//
+//     results := concurrent.Batch(ctx, accounts, 50,
+//     func(ctx context.Context, batch []Account) ([]UpdateResult, error) {
+//     // API call that can process up to 50 accounts at once
+//     return client.BulkUpdateAccounts(ctx, batch)
+//     },
+//     )
+//
+//     // Process results...
+//     ```
+//
+//  3. API Rate Limiting:
+//     When calling an API with strict rate limits, use RateLimiter to prevent
+//     exceeding those limits and triggering throttling or blocks:
+//
+//     ```go
+//     // Create a rate limiter for an API limited to 100 requests per second
+//     rateLimiter := concurrent.NewRateLimiter(100, 20)
+//     defer rateLimiter.Stop()
+//
+//     // In your request function
+//     func makeAPIRequest(ctx context.Context, req Request) (Response, error) {
+//     // Wait for a rate limiter token before proceeding
+//     if err := rateLimiter.Wait(ctx); err != nil {
+//     return Response{}, err
+//     }
+//
+//     // Now make the API call, knowing it respects rate limits
+//     return client.SendRequest(ctx, req)
+//     }
+//     ```
 package concurrent
 
 import (
@@ -14,6 +83,12 @@ import (
 type WorkFunc[T, R any] func(ctx context.Context, item T) (R, error)
 
 // Result holds the result of a processed item along with any error that occurred.
+//
+// The Result struct provides complete context about a processed operation:
+// - The original input item
+// - The generated output value (if successful)
+// - Any error that occurred during processing
+// - The original index from the input slice (for ordered results)
 type Result[T, R any] struct {
 	// Item is the original item being processed.
 	Item T
@@ -31,6 +106,11 @@ type Result[T, R any] struct {
 // WorkerPool creates a pool of workers for parallel processing.
 // It accepts a slice of items and processes them using the provided work function.
 //
+// This is ideal for scenarios such as:
+// - Processing a large number of independent API calls concurrently
+// - Performing batch operations where each operation is independent
+// - Distributing work across multiple cores for CPU-intensive tasks
+//
 // Parameters:
 //   - ctx: The context for the operation, which can be used to cancel all workers.
 //   - items: The slice of items to process.
@@ -38,7 +118,18 @@ type Result[T, R any] struct {
 //   - opts: Optional worker pool options.
 //
 // Returns:
-//   - []Result: A slice of results, in the same order as the input items.
+//   - []Result: A slice of results, in the same order as the input items unless WithUnorderedResults is used.
+//
+// Example use case: Processing thousands of account validation requests in parallel:
+//
+//	accountIDs := fetchAccountsToValidate() // e.g., 10,000 account IDs
+//
+//	results := concurrent.WorkerPool(ctx, accountIDs,
+//	    func(ctx context.Context, accountID string) (ValidationResult, error) {
+//	        return validateAccount(ctx, accountID)
+//	    },
+//	    concurrent.WithWorkers(25),  // Use 25 concurrent workers
+//	)
 func WorkerPool[T, R any](
 	ctx context.Context,
 	items []T,
@@ -170,6 +261,16 @@ func defaultPoolOptions() *poolOptions {
 }
 
 // WithWorkers sets the number of worker goroutines.
+//
+// The optimal number of workers depends on the workload:
+// - For I/O-bound tasks (like API calls), a higher number (10-50) often works best
+// - For CPU-bound tasks, a number close to available CPU cores is usually optimal
+// - For mixed workloads, start with 2-3x CPU cores and adjust based on performance tests
+//
+// Example use case: When processing I/O-bound transactions that involve network calls:
+//
+//	// Use more workers for I/O-bound operations to maximize throughput
+//	concurrent.WithWorkers(30)
 func WithWorkers(workers int) PoolOption {
 	return func(o *poolOptions) {
 		if workers > 0 {
@@ -179,6 +280,19 @@ func WithWorkers(workers int) PoolOption {
 }
 
 // WithBufferSize sets the size of the channel buffers.
+//
+// Larger buffer sizes can improve throughput by:
+// - Reducing time workers spend waiting for new items
+// - Allowing more items to be queued for processing
+// - Smoothing out processing of items that vary in completion time
+//
+// However, larger buffers also consume more memory. Choose a buffer size that
+// balances throughput needs with memory constraints.
+//
+// Example use case: When processing a large batch of items with variable processing times:
+//
+//	// Use a larger buffer for variable-time operations
+//	concurrent.WithBufferSize(500)
 func WithBufferSize(size int) PoolOption {
 	return func(o *poolOptions) {
 		if size > 0 {
@@ -189,6 +303,16 @@ func WithBufferSize(size int) PoolOption {
 
 // WithUnorderedResults configures the pool to return results as they are completed,
 // rather than maintaining the original order.
+//
+// This can significantly improve performance when:
+// - Processing time varies widely between items
+// - You don't need results in the same order as inputs
+// - You want to start handling results as soon as they're available
+//
+// Example use case: When processing independent transactions where order doesn't matter:
+//
+//	// Process transactions in any order for maximum throughput
+//	concurrent.WithUnorderedResults()
 func WithUnorderedResults() PoolOption {
 	return func(o *poolOptions) {
 		o.ordered = false
@@ -310,6 +434,12 @@ func ForEach[T any](
 
 // RateLimiter provides a simple mechanism to limit the rate of operations.
 // It can be used to ensure API rate limits are respected across goroutines.
+//
+// Common applications include:
+// - Respecting third-party API rate limits
+// - Preventing database or service overload
+// - Implementing fair resource allocation in multi-tenant systems
+// - Smoothing traffic patterns to avoid spikes
 type RateLimiter struct {
 	ticker   *time.Ticker
 	stopCh   chan struct{}
@@ -325,6 +455,13 @@ type RateLimiter struct {
 //
 // Returns:
 //   - *RateLimiter: A new rate limiter instance.
+//
+// Example use case: When calling a third-party API with a documented rate limit:
+//
+//	// Create a rate limiter for an API limited to 5 requests/second with burst of 10
+//	// (e.g., a payment processor that allows brief bursts of higher throughput)
+//	rateLimiter := concurrent.NewRateLimiter(5, 10)
+//	defer rateLimiter.Stop()
 func NewRateLimiter(opsPerSecond int, maxBurst int) *RateLimiter {
 	if opsPerSecond <= 0 {
 		opsPerSecond = 1 // Minimum 1 op per second
@@ -366,14 +503,30 @@ func NewRateLimiter(opsPerSecond int, maxBurst int) *RateLimiter {
 
 // Wait blocks until a token is available or the context is cancelled.
 //
+// This method is thread-safe and can be called concurrently from multiple goroutines.
+// It implements a non-busy wait using channels, efficiently parking the goroutine
+// until a token becomes available.
+//
 // Parameters:
 //   - ctx: The context that can be used to cancel the wait.
 //
 // Returns:
 //   - error: Context error if the context was cancelled, nil otherwise.
-func (rl *RateLimiter) Wait(ctx context.Context) error {
+//
+// Example use case: Ensuring an API call respects rate limits:
+//
+//	func callRateLimitedAPI(ctx context.Context, req Request) (Response, error) {
+//	    // Wait for a rate limiter token before proceeding
+//	    if err := rateLimiter.Wait(ctx); err != nil {
+//	        return Response{}, fmt.Errorf("rate limit wait canceled: %w", err)
+//	    }
+//
+//	    // Now make the API call, knowing it respects rate limits
+//	    return apiClient.Call(ctx, req)
+//	}
+func (r *RateLimiter) Wait(ctx context.Context) error {
 	select {
-	case <-rl.tokensCh:
+	case <-r.tokensCh:
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
@@ -381,10 +534,10 @@ func (rl *RateLimiter) Wait(ctx context.Context) error {
 }
 
 // Stop stops the rate limiter and releases resources.
-func (rl *RateLimiter) Stop() {
-	close(rl.stopCh)
-	rl.ticker.Stop()
-	rl.wg.Wait()
+func (r *RateLimiter) Stop() {
+	close(r.stopCh)
+	r.ticker.Stop()
+	r.wg.Wait()
 }
 
 // WithWaitGroup creates a worker pool that utilizes an external wait group

@@ -1,6 +1,54 @@
 // Package retry provides utilities for implementing retry logic with exponential backoff
 // and jitter for resilient operations. It allows for configurable retry strategies,
 // context-aware cancellation, and flexible error handling.
+//
+// Real-World Use Cases:
+//
+//  1. API Call Resilience:
+//     When integrating with third-party financial APIs that may experience temporary
+//     outages or rate limiting, retry logic ensures operation completion:
+//
+//     ```go
+//     // Attempt to process a payment with retry logic for transient failures
+//     err := retry.Do(ctx, func() error {
+//     return paymentProcessor.ProcessTransaction(ctx, transaction)
+//     },
+//     retry.WithMaxRetries(5),                   // Try up to 5 times
+//     retry.WithInitialDelay(200*time.Millisecond), // Start with 200ms delay
+//     retry.WithBackoffFactor(2.0))              // Double delay after each failure
+//     ```
+//
+//  2. Database Operation Retries:
+//     When performing critical database operations that might experience transient
+//     failures like deadlocks or connection issues:
+//
+//     ```go
+//     // Configure context with high-reliability retry options for database operations
+//     dbCtx := retry.WithOptionsContext(ctx, &retry.Options{
+//     MaxRetries:      5,
+//     InitialDelay:    100 * time.Millisecond,
+//     BackoffFactor:   1.5,
+//     RetryableErrors: []string{"deadlock", "connection reset", "lock timeout"},
+//     })
+//
+//     // Any function using DoWithContext will use these options
+//     err := retry.DoWithContext(dbCtx, func() error {
+//     return db.ExecuteTransaction(dbCtx, operations)
+//     })
+//     ```
+//
+//  3. Distributed Systems Communication:
+//     When services communicate across network boundaries, retries with jitter help
+//     prevent thundering herd problems during recovery:
+//
+//     ```go
+//     // Configure retries with jitter for service-to-service communication
+//     err := retry.Do(ctx, func() error {
+//     return serviceClient.FetchData(ctx, request)
+//     },
+//     retry.WithMaxRetries(3),
+//     retry.WithJitterFactor(0.3))  // Add 0-30% random variation to delays
+//     ```
 package retry
 
 import (
@@ -14,6 +62,11 @@ import (
 )
 
 // Options configures the retry behavior
+//
+// This struct allows you to fine-tune retry strategies for different scenarios:
+// - MaxRetries and timing parameters control how long and how often to retry
+// - RetryableErrors and RetryableHTTPCodes determine which failures trigger retries
+// - JitterFactor helps prevent thundering herd problems in distributed systems
 type Options struct {
 	// MaxRetries is the maximum number of retries to attempt
 	MaxRetries int
@@ -77,9 +130,20 @@ type Option func(*Options) error
 // WithMaxRetries returns an Option that sets the maximum number of retry attempts.
 // The value must be non-negative.
 //
-// Example:
+// Example use case: For critical financial operations where completion is essential
+// but should not retry indefinitely:
 //
-//	err := retry.Do(ctx, myFunction, retry.WithMaxRetries(5))
+//	// Configure payment processing to retry several times before giving up
+//	err := retry.Do(ctx, submitPayment, retry.WithMaxRetries(5))
+//
+//	// For less critical operations, fewer retries may be appropriate
+//	err := retry.Do(ctx, updateUserProfile, retry.WithMaxRetries(2))
+//
+// Impact of different values:
+// - 0: No retries (function only runs once)
+// - 1-3: Suitable for most operations with transient failures
+// - 4-10: For critical operations or highly unreliable networks
+// - >10: Rarely needed and may indicate deeper problems if required
 func WithMaxRetries(maxRetries int) Option {
 	return func(o *Options) error {
 		if maxRetries < 0 {
@@ -189,9 +253,19 @@ func WithJitterFactor(factor float64) Option {
 // WithHighReliability returns an Option that configures retry options for high reliability.
 // This increases timeouts, retry counts, and adds jitter for maximum resilience.
 //
-// Example:
+// Example use case: For mission-critical operations where completion is essential
+// even in degraded network conditions:
 //
-//	err := retry.Do(ctx, myFunction, retry.WithHighReliability())
+//	// Process an important financial transaction with high-reliability settings
+//	err := retry.Do(ctx, func() error {
+//	    return processCriticalTransaction(ctx, transaction)
+//	}, retry.WithHighReliability())
+//
+// This preset configures:
+// - 5 retry attempts (6 total attempts)
+// - Initial delay of 200ms, increasing to max 30 seconds
+// - Aggressive backoff factor of 2.5
+// - 40% jitter to prevent thundering herd problems
 func WithHighReliability() Option {
 	return func(o *Options) error {
 		o.MaxRetries = 5
@@ -249,11 +323,24 @@ func GetOptionsFromContext(ctx context.Context) *Options {
 // Do executes the given function with retries based on the provided options.
 // It returns the error from the last attempt or nil if the function succeeded.
 //
-// Example:
+// Example use case: When making external API calls that may experience
+// transient network or service unavailability:
 //
+//	// Retry an external API call with custom retry configuration
 //	err := retry.Do(ctx, func() error {
-//	    return makeAPIRequest()
-//	}, retry.WithMaxRetries(3), retry.WithInitialDelay(100*time.Millisecond))
+//	    resp, err := http.Get("https://api.example.com/data")
+//	    if err != nil {
+//	        return err
+//	    }
+//	    defer resp.Body.Close()
+//
+//	    if resp.StatusCode >= 500 {
+//	        return fmt.Errorf("server error: %d", resp.StatusCode)
+//	    }
+//
+//	    // Process successful response...
+//	    return nil
+//	}, retry.WithMaxRetries(3), retry.WithInitialDelay(250*time.Millisecond))
 func Do(ctx context.Context, fn func() error, opts ...Option) error {
 	// Start with default options
 	options := DefaultOptions()
@@ -333,6 +420,33 @@ func doWithOptions(ctx context.Context, fn func() error, options *Options) error
 }
 
 // IsRetryableError checks if an error is retryable based on the provided options
+//
+// This function examines the error message for patterns defined in Options.RetryableErrors
+// and checks HTTP status codes against Options.RetryableHTTPCodes.
+//
+// Example use case: When implementing custom retry logic that needs to determine
+// whether to retry based on specific error conditions:
+//
+//	func processWithCustomRetry(ctx context.Context) error {
+//	    options := retry.DefaultOptions()
+//	    // Add custom retryable error patterns
+//	    options.RetryableErrors = append(options.RetryableErrors,
+//	        "insufficient funds", "account locked")
+//
+//	    // Custom retry loop
+//	    var err error
+//	    for attempt := 0; attempt <= options.MaxRetries; attempt++ {
+//	        err = doOperation()
+//
+//	        // Check if error is retryable
+//	        if err == nil || !retry.IsRetryableError(err, options) {
+//	            break
+//	        }
+//
+//	        // Wait before next attempt using exponential backoff...
+//	    }
+//	    return err
+//	}
 func IsRetryableError(err error, options *Options) bool {
 	if err == nil {
 		return false
