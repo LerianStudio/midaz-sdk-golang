@@ -43,6 +43,7 @@ LDFLAGS := -ldflags "-X main.Version=$(VERSION)"
 
 # Environment variables
 ENV_FILE := $(PROJECT_ROOT)/.env
+ENV_EXAMPLE_FILE := $(PROJECT_ROOT)/.env.example
 
 # Load environment variables if .env exists
 ifneq (,$(wildcard .env))
@@ -60,6 +61,7 @@ help:
 	@echo ""
 	@echo "Core Commands:"
 	@echo "  make help                        - Display this help message"
+	@echo "  make setup-env                   - Create .env file from .env.example if it doesn't exist"
 	@echo "  make test                        - Run all tests"
 	@echo "  make test-fast                   - Run tests with -short flag"
 	@echo "  make clean                       - Clean build artifacts"
@@ -80,6 +82,32 @@ help:
 	@echo "  make godoc-static                - Generate static documentation files"
 	@echo "  make docs                        - Generate comprehensive documentation (includes godoc-static)"
 	@echo ""
+
+#-------------------------------------------------------
+# Environment Setup
+#-------------------------------------------------------
+
+.PHONY: setup-env
+
+setup-env:
+	$(call print_header,"Setting up environment")
+	@if [ ! -f "$(ENV_FILE)" ] && [ -f "$(ENV_EXAMPLE_FILE)" ]; then \
+		echo "$(YELLOW)No .env file found. Creating from .env.example...$(NC)"; \
+		cp $(ENV_EXAMPLE_FILE) $(ENV_FILE); \
+		echo "$(GREEN)[ok]$(NC) Created .env file from .env.example$(GREEN) ✔️$(NC)"; \
+	elif [ ! -f "$(ENV_FILE)" ] && [ ! -f "$(ENV_EXAMPLE_FILE)" ]; then \
+		echo "$(RED)[error]$(NC) Neither .env nor .env.example files found$(RED) ❌$(NC)"; \
+		exit 1; \
+	elif [ -f "$(ENV_FILE)" ]; then \
+		read -t 10 -p "$(YELLOW).env file already exists. Overwrite with .env.example? [Y/n] (auto-yes in 10s)$(NC) " answer || answer="Y"; \
+		answer=$${answer:-Y}; \
+		if [[ $$answer =~ ^[Yy] ]]; then \
+			cp $(ENV_EXAMPLE_FILE) $(ENV_FILE); \
+			echo "$(GREEN)[ok]$(NC) Overwrote .env file with .env.example$(GREEN) ✔️$(NC)"; \
+		else \
+			echo "$(YELLOW)[skipped]$(NC) Kept existing .env file$(YELLOW) ⚠️$(NC)"; \
+		fi; \
+	fi
 
 #-------------------------------------------------------
 # SDK Quality Check Targets
