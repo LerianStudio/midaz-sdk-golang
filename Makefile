@@ -43,6 +43,7 @@ LDFLAGS := -ldflags "-X main.Version=$(VERSION)"
 
 # Environment variables
 ENV_FILE := $(PROJECT_ROOT)/.env
+ENV_EXAMPLE := $(PROJECT_ROOT)/.env.example
 
 # Load environment variables if .env exists
 ifneq (,$(wildcard .env))
@@ -60,6 +61,7 @@ help:
 	@echo ""
 	@echo "Core Commands:"
 	@echo "  make help                        - Display this help message"
+	@echo "  make setup-env                   - Create .env file from .env.example if it doesn't exist"
 	@echo "  make test                        - Run all tests"
 	@echo "  make test-fast                   - Run tests with -short flag"
 	@echo "  make clean                       - Clean build artifacts"
@@ -160,6 +162,41 @@ tidy:
 	@echo "$(GREEN)[ok]$(NC) Dependencies cleaned successfully$(GREEN) ✔️$(NC)"
 
 #-------------------------------------------------------
+# Environment Setup
+#-------------------------------------------------------
+
+.PHONY: setup-env
+
+setup-env:
+	$(call print_header,"Setting up environment")
+	@if [ ! -f "$(ENV_FILE)" ]; then \
+		if [ -f "$(ENV_EXAMPLE)" ]; then \
+			echo "$(CYAN)Creating $(ENV_FILE) from $(ENV_EXAMPLE)...$(NC)"; \
+			cp $(ENV_EXAMPLE) $(ENV_FILE); \
+			echo "$(GREEN)[ok]$(NC) Created .env file in project root directory$(GREEN) ✔️$(NC)"; \
+		else \
+			echo "$(RED)Error: $(ENV_EXAMPLE) does not exist. Cannot create .env file.$(NC)"; \
+			exit 1; \
+		fi \
+	else \
+		echo "$(YELLOW)A .env file already exists.$(NC)"; \
+		echo "$(CYAN)Overwrite with .env.example? [Y/n] (Default: Y in 5 seconds)$(NC)"; \
+		read -t 5 -n 1 answer; \
+		echo ""; \
+		if [ "$$?" -gt 128 ] || [ "$$answer" = "y" ] || [ "$$answer" = "Y" ] || [ "$$answer" = "" ]; then \
+			if [ -f "$(ENV_EXAMPLE)" ]; then \
+				cp $(ENV_EXAMPLE) $(ENV_FILE); \
+				echo "$(GREEN)[ok]$(NC) Overwritten .env file with .env.example$(GREEN) ✔️$(NC)"; \
+			else \
+				echo "$(RED)Error: $(ENV_EXAMPLE) does not exist. Cannot overwrite .env file.$(NC)"; \
+				exit 1; \
+			fi \
+		else \
+			echo "$(CYAN)Keeping existing .env file.$(NC)"; \
+		fi \
+	fi
+
+#-------------------------------------------------------
 # Clean Commands
 #-------------------------------------------------------
 
@@ -178,7 +215,7 @@ clean:
 
 .PHONY: example
 
-example:
+example: setup-env
 	$(call print_header,"Running Complete Workflow Example")
 	$(call print_header,"Make sure the Midaz Stack is running --default is localhost")
 	@cp $(ENV_FILE) examples/workflow-with-entities/.env
