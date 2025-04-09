@@ -1,3 +1,9 @@
+## [1.1.0-beta.1](https://github.com/LerianStudio/midaz-sdk-golang/compare/v1.0.7...v1.1.0-beta.1) (2025-04-09)
+
+### Features
+
+* **docs:** improve documentation on auxiliary packages ([9cd23e8](https://github.com/LerianStudio/midaz-sdk-golang/commit/9cd23e8251bbcf9080d4f6bd73d8b6b79d7f665f))
+
 ## [1.0.7](https://github.com/LerianStudio/midaz-sdk-golang/compare/v1.0.6...v1.0.7) (2025-04-08)
 
 ### Bug Fixes
