@@ -1,3 +1,9 @@
+## [1.1.0-beta.2](https://github.com/LerianStudio/midaz-sdk-golang/compare/v1.1.0-beta.1...v1.1.0-beta.2) (2025-04-09)
+
+### Bug Fixes
+
+* **hooks:** fixing lint params ([4e039d8](https://github.com/LerianStudio/midaz-sdk-golang/commit/4e039d8208fe9b15d8fac50615d656af26e890c0))
+
 ## [1.1.0-beta.1](https://github.com/LerianStudio/midaz-sdk-golang/compare/v1.0.7...v1.1.0-beta.1) (2025-04-09)
 
 ### Features
