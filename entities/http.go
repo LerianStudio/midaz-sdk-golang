@@ -200,7 +200,7 @@ func (c *HTTPClient) doRequest(ctx context.Context, method, requestURL string, h
 
 	// Add authorization if there's a token
 	if c.authToken != "" {
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.authToken))
+		req.Header.Set("Authorization", c.authToken)
 	}
 
 	// Add custom headers

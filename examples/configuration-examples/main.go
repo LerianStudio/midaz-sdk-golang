@@ -52,7 +52,6 @@ func basicConfiguration() {
 
 	// Create a client with minimal configuration
 	c, err := client.New(
-		client.WithAuthToken("example-token"),
 		client.UseAllAPIs(),
 	)
 
@@ -61,7 +60,13 @@ func basicConfiguration() {
 	}
 
 	// In a real application, you would use the client here
-	fmt.Printf("Client created successfully with auth token: %s\n", c.GetConfig().AuthToken)
+	// Note: AuthToken is now stored internally and accessed through plugin auth configuration
+	pluginAuth := c.GetConfig().GetPluginAuth()
+	if pluginAuth.Enabled {
+		fmt.Printf("Client created successfully with plugin auth at address: %s\n", pluginAuth.Address)
+	} else {
+		fmt.Printf("Client created successfully with no plugin auth enabled\n")
+	}
 	fmt.Printf("Using onboarding URL: %s\n", c.GetConfig().ServiceURLs[config.ServiceOnboarding])
 	fmt.Printf("Using transaction URL: %s\n", c.GetConfig().ServiceURLs[config.ServiceTransaction])
 	fmt.Println()
@@ -75,7 +80,6 @@ func environmentBasedConfiguration() {
 
 	// Local development environment
 	localClient, err := client.New(
-		client.WithAuthToken("local-token"),
 		client.WithEnvironment(config.EnvironmentLocal),
 		client.UseAllAPIs(),
 	)
@@ -85,7 +89,6 @@ func environmentBasedConfiguration() {
 
 	// Staging/Development environment
 	stagingClient, err := client.New(
-		client.WithAuthToken("staging-token"),
 		client.WithEnvironment(config.EnvironmentDevelopment),
 		client.UseAllAPIs(),
 	)
@@ -95,7 +98,6 @@ func environmentBasedConfiguration() {
 
 	// Production environment
 	productionClient, err := client.New(
-		client.WithAuthToken("production-token"),
 		client.WithEnvironment(config.EnvironmentProduction),
 		client.UseAllAPIs(),
 	)
@@ -126,7 +128,8 @@ func configurationFromEnvironment() {
 
 	// Set environment variables for demonstration
 	// In a real application, these would be set externally
-	os.Setenv("MIDAZ_AUTH_TOKEN", "env-token")
+	os.Setenv("MIDAZ_CLIENT_ID", "1234567890")
+	os.Setenv("MIDAZ_CLIENT_SECRET", "1234567890")
 	os.Setenv("MIDAZ_ENVIRONMENT", "development")
 	os.Setenv("MIDAZ_DEBUG", "true")
 
@@ -140,7 +143,9 @@ func configurationFromEnvironment() {
 	}
 
 	// Display the configuration loaded from environment variables
-	fmt.Printf("Auth Token (from env): %s\n", c.GetConfig().AuthToken)
+	pluginAuth := c.GetConfig().GetPluginAuth()
+	fmt.Printf("Plugin Auth Enabled (from env): %t\n", pluginAuth.Enabled)
+	fmt.Printf("Plugin Auth Address (from env): %s\n", pluginAuth.Address)
 	fmt.Printf("Environment (from env): %s\n", c.GetConfig().Environment)
 	fmt.Printf("Debug Mode (from env): %t\n", c.GetConfig().Debug)
 	fmt.Printf("Onboarding URL: %s\n", c.GetConfig().ServiceURLs[config.ServiceOnboarding])
@@ -148,7 +153,8 @@ func configurationFromEnvironment() {
 	fmt.Println()
 
 	// Clean up environment variables after demonstration
-	os.Unsetenv("MIDAZ_AUTH_TOKEN")
+	os.Unsetenv("PLUGIN_AUTH_ENABLED")
+	os.Unsetenv("PLUGIN_AUTH_ADDRESS")
 	os.Unsetenv("MIDAZ_ENVIRONMENT")
 	os.Unsetenv("MIDAZ_DEBUG")
 }
@@ -175,7 +181,6 @@ func advancedHttpConfiguration() {
 
 	// Create a client with the custom HTTP client
 	c, err := client.New(
-		client.WithAuthToken("http-token"),
 		client.WithHTTPClient(customClient),
 		client.WithTimeout(45*time.Second), // Can be redundant if set on HTTPClient
 		client.UseAllAPIs(),
@@ -205,7 +210,6 @@ func comprehensiveConfiguration() {
 
 	// Create a configuration with extensive options
 	cfg, err := config.NewConfig(
-		config.WithAuthToken("advanced-token"),
 		config.WithEnvironment(config.EnvironmentProduction),
 		config.WithUserAgent("MyApp/1.0"),
 		config.WithTimeout(45*time.Second),
@@ -227,7 +231,7 @@ func comprehensiveConfiguration() {
 	}
 
 	// Display the comprehensive configuration settings
-	fmt.Printf("Auth Token: %s\n", c.GetConfig().AuthToken)
+	fmt.Printf("Plugin Auth Enabled: %t\n", c.GetConfig().GetPluginAuth().Enabled)
 	fmt.Printf("Environment: %s\n", c.GetConfig().Environment)
 	fmt.Printf("User Agent: %s\n", c.GetConfig().UserAgent)
 	fmt.Printf("Timeout: %s\n", c.GetConfig().Timeout)

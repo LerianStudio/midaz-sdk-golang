@@ -35,6 +35,9 @@ type Client struct {
 	// API interface flags
 	useEntity bool
 
+	// Authentication token for direct auth mode
+	setupAuthToken string
+
 	// Observability provider
 	observability observability.Provider
 	metrics       *observability.MetricsCollector
@@ -103,12 +106,18 @@ func (c *Client) setupEntity() error {
 	}
 
 	// Create the entity API with service-specific URLs
-	entity, err := entities.NewWithServiceURLs(
-		serviceURLs,
-		entities.WithAuthToken(c.config.GetAuthToken()),
+	options := []entities.Option{
 		entities.WithObservability(c.observability),
 		entities.WithContext(c.ctx),
-	)
+	}
+
+	// Add plugin auth if enabled
+	pluginAuth := c.config.GetPluginAuth()
+	if pluginAuth.Enabled {
+		options = append(options, entities.WithPluginAuth(pluginAuth))
+	}
+
+	entity, err := entities.NewWithServiceURLs(serviceURLs, options...)
 	if err != nil {
 		return err
 	}
@@ -135,35 +144,6 @@ func WithBaseURL(baseURL string) Option {
 		// Apply to config
 		return config.WithBaseURL(baseURL)(c.config)
 	}
-}
-
-// WithAPIToken sets the API token for authentication.
-//
-// Parameters:
-//   - token: The API token for authentication.
-//
-// Returns:
-//   - Option: A function that sets the API token on the Client
-func WithAPIToken(token string) Option {
-	return func(c *Client) error {
-		// Apply to config directly
-		if token == "" {
-			return fmt.Errorf("auth token cannot be empty")
-		}
-		c.config.AuthToken = token
-		return nil
-	}
-}
-
-// WithAuthToken is an alias for WithAPIToken for backward compatibility.
-//
-// Parameters:
-//   - token: The auth token for authentication.
-//
-// Returns:
-//   - Option: A function that sets the auth token on the Client
-func WithAuthToken(token string) Option {
-	return WithAPIToken(token)
 }
 
 // WithTimeout sets the request timeout for API requests.
@@ -221,7 +201,7 @@ func WithCustomRetryPolicy(shouldRetry func(*http.Response, error) bool) Option 
 	return func(c *Client) error {
 		// Custom retry policy will be applied when creating entities
 		if c.Entity != nil {
-			httpClient := c.Entity.GetHTTPClient()
+			httpClient := c.Entity.GetEntityHTTPClient()
 			if httpClient != nil {
 				httpClient.WithRetryOption(retry.WithMaxRetries(c.config.MaxRetries))
 				httpClient.WithRetryOption(retry.WithInitialDelay(c.config.RetryWaitMin))
@@ -321,7 +301,7 @@ func WithObservability(enableTracing, enableMetrics, enableLogging bool) Option 
 
 		// If HTTP client is already configured, wrap with observability middleware
 		if c.Entity != nil && provider.IsEnabled() {
-			httpClient := c.Entity.GetHTTPClient()
+			httpClient := c.Entity.GetEntityHTTPClient()
 			if httpClient != nil {
 				client := &http.Client{
 					Transport: observability.NewHTTPMiddleware(provider)(http.DefaultTransport),

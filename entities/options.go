@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
+	auth "github.com/LerianStudio/midaz-sdk-golang/pkg/access-manager"
 	"github.com/LerianStudio/midaz-sdk-golang/pkg/observability"
 )
 
@@ -25,23 +26,6 @@ func WithDebug(debug bool) Option {
 func WithUserAgent(userAgent string) Option {
 	return func(e *Entity) error {
 		e.httpClient.userAgent = userAgent
-		return nil
-	}
-}
-
-// WithAuthToken returns an Option that sets the authentication token for the Entity.
-func WithAuthToken(token string) Option {
-	return func(e *Entity) error {
-		if token == "" {
-			return fmt.Errorf("auth token cannot be empty")
-		}
-
-		// Update the HTTP client with the new token
-		e.httpClient.authToken = token
-
-		// Re-initialize services to update the token
-		e.initServices()
-
 		return nil
 	}
 }
@@ -101,5 +85,14 @@ func WithHTTPClient(client *http.Client) Option {
 		e.initServices()
 
 		return nil
+	}
+}
+
+// WithPluginAuth returns an Option that configures plugin-based authentication.
+// This is a wrapper around auth.WithPluginAuth to make it compatible with entities.Option.
+func WithPluginAuth(pluginAuth auth.PluginAuth) Option {
+	return func(e *Entity) error {
+		// Call the auth.WithPluginAuth function with the entity
+		return auth.WithPluginAuth(pluginAuth)(e)
 	}
 }

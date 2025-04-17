@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	sdkentities "github.com/LerianStudio/midaz-sdk-golang/entities"
+	client "github.com/LerianStudio/midaz-sdk-golang"
 	"github.com/LerianStudio/midaz-sdk-golang/models"
 )
 
@@ -23,14 +23,14 @@ import (
 //   - *models.Account: The dummy 1 account model
 //   - *models.Account: The dummy 2 account model
 //   - error: Any error encountered during the operation
-func CreateAccounts(ctx context.Context, entity *sdkentities.Entity, orgID, ledgerID string) (*models.Account, *models.Account, *models.Account, *models.Account, error) {
+func CreateAccounts(ctx context.Context, client *client.Client, orgID, ledgerID string) (*models.Account, *models.Account, *models.Account, *models.Account, error) {
 	fmt.Println("\n\n📂 STEP 4: ACCOUNT CREATION")
 	fmt.Println(strings.Repeat("=", 50))
 
 	// Create customer account
 	fmt.Println("Creating customer account...")
 
-	customerAccount, err := entity.Accounts.CreateAccount(
+	customerAccount, err := client.Entity.Accounts.CreateAccount(
 		ctx, orgID, ledgerID, &models.CreateAccountInput{
 			Name:      "Customer Account",
 			Type:      "deposit",
@@ -57,7 +57,7 @@ func CreateAccounts(ctx context.Context, entity *sdkentities.Entity, orgID, ledg
 	// Create merchant account
 	fmt.Println("Creating merchant account...")
 
-	merchantAccount, err := entity.Accounts.CreateAccount(
+	merchantAccount, err := client.Entity.Accounts.CreateAccount(
 		ctx, orgID, ledgerID, &models.CreateAccountInput{
 			Name:      "Merchant Account",
 			Type:      "marketplace",
@@ -82,7 +82,7 @@ func CreateAccounts(ctx context.Context, entity *sdkentities.Entity, orgID, ledg
 	// Create Dummy 1 account
 	fmt.Println("Creating dummy 1 account...")
 
-	dummyOneAccount, err := entity.Accounts.CreateAccount(
+	dummyOneAccount, err := client.Entity.Accounts.CreateAccount(
 		ctx, orgID, ledgerID, &models.CreateAccountInput{
 			Name:      "Dummy 1 Account",
 			Type:      "deposit",
@@ -107,7 +107,7 @@ func CreateAccounts(ctx context.Context, entity *sdkentities.Entity, orgID, ledg
 	// Create Dummy 2 account
 	fmt.Println("Creating dummy 2 account...")
 
-	dummyTwoAccount, err := entity.Accounts.CreateAccount(
+	dummyTwoAccount, err := client.Entity.Accounts.CreateAccount(
 		ctx, orgID, ledgerID, &models.CreateAccountInput{
 			Name:      "Dummy 2 Account",
 			Type:      "deposit",

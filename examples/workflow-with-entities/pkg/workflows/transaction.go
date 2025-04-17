@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	sdkentities "github.com/LerianStudio/midaz-sdk-golang/entities"
+	client "github.com/LerianStudio/midaz-sdk-golang"
 	"github.com/LerianStudio/midaz-sdk-golang/models"
 	"github.com/LerianStudio/midaz-sdk-golang/pkg/conversion"
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/pkg/errors"
@@ -30,7 +30,7 @@ import (
 //
 // Returns:
 //   - error: Any error encountered during the operation
-func ExecuteTransactions(ctx context.Context, entity *sdkentities.Entity, orgID, ledgerID string, customerAccount, merchantAccount *models.Account) error {
+func ExecuteTransactions(ctx context.Context, client *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account) error {
 	// Create a span for observability
 	ctx, span := observability.StartSpan(ctx, "ExecuteTransactions")
 	defer span.End()
@@ -68,7 +68,7 @@ func ExecuteTransactions(ctx context.Context, entity *sdkentities.Entity, orgID,
 
 	// Execute initial deposit
 	depositCtx, depositSpan := observability.StartSpan(ctx, "InitialDeposit")
-	if err := ExecuteInitialDeposit(depositCtx, entity, orgID, ledgerID, customerAccount, externalAccountID); err != nil {
+	if err := ExecuteInitialDeposit(depositCtx, client, orgID, ledgerID, customerAccount, externalAccountID); err != nil {
 		depositSpan.End()
 		observability.RecordError(ctx, err, "initial_deposit_failed")
 		return err
@@ -77,7 +77,7 @@ func ExecuteTransactions(ctx context.Context, entity *sdkentities.Entity, orgID,
 
 	// Execute multiple deposits to both accounts
 	multiDepositCtx, multiDepositSpan := observability.StartSpan(ctx, "MultipleDeposits")
-	if err := ExecuteMultipleDeposits(multiDepositCtx, entity, orgID, ledgerID, customerAccount, merchantAccount, externalAccountID); err != nil {
+	if err := ExecuteMultipleDeposits(multiDepositCtx, client, orgID, ledgerID, customerAccount, merchantAccount, externalAccountID); err != nil {
 		multiDepositSpan.End()
 		observability.RecordError(ctx, err, "multiple_deposits_failed")
 		return err
@@ -86,7 +86,7 @@ func ExecuteTransactions(ctx context.Context, entity *sdkentities.Entity, orgID,
 
 	// Execute single transfer from customer to merchant
 	singleTransferCtx, singleTransferSpan := observability.StartSpan(ctx, "SingleTransfer")
-	if err := ExecuteSingleTransfer(singleTransferCtx, entity, orgID, ledgerID, customerAccount, merchantAccount); err != nil {
+	if err := ExecuteSingleTransfer(singleTransferCtx, client, orgID, ledgerID, customerAccount, merchantAccount); err != nil {
 		singleTransferSpan.End()
 		observability.RecordError(ctx, err, "single_transfer_failed")
 		return err
@@ -95,7 +95,7 @@ func ExecuteTransactions(ctx context.Context, entity *sdkentities.Entity, orgID,
 
 	// Execute multiple transfers between accounts
 	multiTransferCtx, multiTransferSpan := observability.StartSpan(ctx, "MultipleTransfers")
-	if err := ExecuteMultipleTransfers(multiTransferCtx, entity, orgID, ledgerID, customerAccount, merchantAccount); err != nil {
+	if err := ExecuteMultipleTransfers(multiTransferCtx, client, orgID, ledgerID, customerAccount, merchantAccount); err != nil {
 		multiTransferSpan.End()
 		observability.RecordError(ctx, err, "multiple_transfers_failed")
 		return err
@@ -104,7 +104,7 @@ func ExecuteTransactions(ctx context.Context, entity *sdkentities.Entity, orgID,
 
 	// Execute withdrawals to external account
 	withdrawalCtx, withdrawalSpan := observability.StartSpan(ctx, "Withdrawals")
-	if err := ExecuteWithdrawals(withdrawalCtx, entity, orgID, ledgerID, customerAccount, merchantAccount, externalAccountID); err != nil {
+	if err := ExecuteWithdrawals(withdrawalCtx, client, orgID, ledgerID, customerAccount, merchantAccount, externalAccountID); err != nil {
 		withdrawalSpan.End()
 		observability.RecordError(ctx, err, "withdrawals_failed")
 		return err
@@ -113,7 +113,7 @@ func ExecuteTransactions(ctx context.Context, entity *sdkentities.Entity, orgID,
 
 	// Execute concurrent transactions for TPS testing
 	concurrentCtx, concurrentSpan := observability.StartSpan(ctx, "ConcurrentTransactions")
-	if err := ExecuteConcurrentTransactions(concurrentCtx, entity, orgID, ledgerID, customerAccount, merchantAccount); err != nil {
+	if err := ExecuteConcurrentTransactions(concurrentCtx, client, orgID, ledgerID, customerAccount, merchantAccount); err != nil {
 		concurrentSpan.End()
 		observability.RecordError(ctx, err, "concurrent_transactions_failed")
 		return err
@@ -122,7 +122,7 @@ func ExecuteTransactions(ctx context.Context, entity *sdkentities.Entity, orgID,
 
 	// Test transactions with insufficient funds
 	insufficientCtx, insufficientSpan := observability.StartSpan(ctx, "InsufficientFundsTest")
-	ExecuteInsufficientFundsTransactions(insufficientCtx, entity, orgID, ledgerID, customerAccount, merchantAccount, externalAccountID)
+	ExecuteInsufficientFundsTransactions(insufficientCtx, client, orgID, ledgerID, customerAccount, merchantAccount, externalAccountID)
 	insufficientSpan.End()
 
 	fmt.Println("\n💰 All transactions completed successfully!")
@@ -141,7 +141,7 @@ func ExecuteTransactions(ctx context.Context, entity *sdkentities.Entity, orgID,
 //
 // Returns:
 //   - error: Any error encountered during the operation
-func ExecuteInitialDeposit(ctx context.Context, entity *sdkentities.Entity, orgID, ledgerID string, customerAccount *models.Account, externalAccountID string) error {
+func ExecuteInitialDeposit(ctx context.Context, client *client.Client, orgID, ledgerID string, customerAccount *models.Account, externalAccountID string) error {
 	// Create a span for this function
 	ctx, span := observability.StartSpan(ctx, "ExecuteInitialDeposit")
 	defer span.End()
@@ -215,7 +215,7 @@ func ExecuteInitialDeposit(ctx context.Context, entity *sdkentities.Entity, orgI
 	retryCtx := retry.WithOptionsContext(ctx, retryOptions)
 
 	// Execute the transaction with retries
-	depositTransaction, err := entity.Transactions.CreateTransaction(retryCtx, orgID, ledgerID, depositInput)
+	depositTransaction, err := client.Entity.Transactions.CreateTransaction(retryCtx, orgID, ledgerID, depositInput)
 
 	// Record the duration for observability
 	duration := time.Since(startTime)
@@ -278,7 +278,7 @@ func ExecuteInitialDeposit(ctx context.Context, entity *sdkentities.Entity, orgI
 //
 // Returns:
 //   - error: Any error encountered during the operation
-func ExecuteMultipleDeposits(ctx context.Context, entity *sdkentities.Entity, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, externalAccountID string) error {
+func ExecuteMultipleDeposits(ctx context.Context, client *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, externalAccountID string) error {
 	// Create span for this operation
 	ctx, span := observability.StartSpan(ctx, "ExecuteMultipleDeposits")
 	defer span.End()
@@ -329,7 +329,7 @@ func ExecuteMultipleDeposits(ctx context.Context, entity *sdkentities.Entity, or
 		txCtx, txSpan := observability.StartSpan(customerCtx, "CustomerDeposit")
 		startTime := time.Now()
 
-		tx, err := entity.Transactions.CreateTransaction(txCtx, orgID, ledgerID, depositInput)
+		tx, err := client.Entity.Transactions.CreateTransaction(txCtx, orgID, ledgerID, depositInput)
 
 		duration := time.Since(startTime)
 		observability.RecordSpanMetric(txCtx, "customer_deposit_duration_ms", float64(duration.Milliseconds()))
@@ -381,7 +381,7 @@ func ExecuteMultipleDeposits(ctx context.Context, entity *sdkentities.Entity, or
 		txCtx, txSpan := observability.StartSpan(merchantCtx, "MerchantDeposit")
 		startTime := time.Now()
 
-		tx, err := entity.Transactions.CreateTransaction(txCtx, orgID, ledgerID, depositInput)
+		tx, err := client.Entity.Transactions.CreateTransaction(txCtx, orgID, ledgerID, depositInput)
 
 		duration := time.Since(startTime)
 		observability.RecordSpanMetric(txCtx, "merchant_deposit_duration_ms", float64(duration.Milliseconds()))
@@ -479,7 +479,7 @@ func CreateDepositInput(description string, amount int64, sourceAccountID, desti
 //
 // Returns:
 //   - error: Any error encountered during the operation
-func ExecuteSingleTransfer(ctx context.Context, entity *sdkentities.Entity, orgID, ledgerID string, customerAccount, merchantAccount *models.Account) error {
+func ExecuteSingleTransfer(ctx context.Context, client *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account) error {
 	ctx, span := observability.StartSpan(ctx, "ExecuteSingleTransfer")
 	defer span.End()
 
@@ -553,7 +553,7 @@ func ExecuteSingleTransfer(ctx context.Context, entity *sdkentities.Entity, orgI
 	// Record the start time for performance measurement
 	startTime := time.Now()
 
-	transaction, err := entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, transferInput)
+	transaction, err := client.Entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, transferInput)
 
 	// Record transaction duration
 	duration := time.Since(startTime)
@@ -694,7 +694,7 @@ func CreateTransferInput(description string, amount int64, fromAccountID, toAcco
 //
 // Returns:
 //   - error: Any error encountered during the operation
-func ExecuteMultipleTransfers(ctx context.Context, entity *sdkentities.Entity, orgID, ledgerID string, customerAccount, merchantAccount *models.Account) error {
+func ExecuteMultipleTransfers(ctx context.Context, client *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account) error {
 	ctx, span := observability.StartSpan(ctx, "ExecuteMultipleTransfers")
 	defer span.End()
 
@@ -772,7 +772,7 @@ func ExecuteMultipleTransfers(ctx context.Context, entity *sdkentities.Entity, o
 		// Record transaction start time
 		startTime := time.Now()
 
-		tx, err := entity.Transactions.CreateTransaction(txCtx, orgID, ledgerID, transferInput)
+		tx, err := client.Entity.Transactions.CreateTransaction(txCtx, orgID, ledgerID, transferInput)
 
 		// Record transaction duration
 		duration := time.Since(startTime)
@@ -819,7 +819,7 @@ func ExecuteMultipleTransfers(ctx context.Context, entity *sdkentities.Entity, o
 //
 // Returns:
 //   - error: Any error encountered during the operation
-func ExecuteWithdrawals(ctx context.Context, entity *sdkentities.Entity, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, externalAccountID string) error {
+func ExecuteWithdrawals(ctx context.Context, client *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, externalAccountID string) error {
 	ctx, span := observability.StartSpan(ctx, "ExecuteWithdrawals")
 	defer span.End()
 
@@ -904,7 +904,7 @@ func ExecuteWithdrawals(ctx context.Context, entity *sdkentities.Entity, orgID, 
 		// Record start time for performance measurement
 		startTime := time.Now()
 
-		tx, err := entity.Transactions.CreateTransaction(txCtx, orgID, ledgerID, withdrawalInput)
+		tx, err := client.Entity.Transactions.CreateTransaction(txCtx, orgID, ledgerID, withdrawalInput)
 
 		// Record transaction duration
 		duration := time.Since(startTime)
