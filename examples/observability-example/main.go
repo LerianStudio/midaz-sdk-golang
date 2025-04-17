@@ -45,7 +45,6 @@ func main() {
 
 	// Create a client that uses the observability provider
 	c, err := client.New(
-		client.WithAuthToken("test-token"),
 		client.WithEnvironment(config.EnvironmentDevelopment),
 		client.WithObservabilityProvider(provider), // Attach the provider to the client
 		client.UseAllAPIs(),

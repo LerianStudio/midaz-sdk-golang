@@ -43,7 +43,6 @@ func defaultRetryExample() {
 
 	// Create a client with default retry settings
 	c, err := client.New(
-		client.WithAuthToken("test-token"),
 		client.WithEnvironment(config.EnvironmentLocal),
 		client.UseAllAPIs(),
 	)
@@ -80,7 +79,6 @@ func customRetryConfigExample() {
 
 	// Create a client with custom retry settings
 	c, err := client.New(
-		client.WithAuthToken("test-token"),
 		client.WithEnvironment(config.EnvironmentLocal),
 		// Configure a more aggressive retry strategy
 		client.WithRetries(5, 200*time.Millisecond, 10*time.Second),
@@ -130,7 +128,6 @@ func customRetryPolicyExample() {
 
 	// Create a client with the custom retry policy
 	c, err := client.New(
-		client.WithAuthToken("test-token"),
 		client.WithEnvironment(config.EnvironmentLocal),
 		client.WithRetries(3, 100*time.Millisecond, 1*time.Second),
 		client.WithCustomRetryPolicy(customShouldRetry),
@@ -158,7 +155,6 @@ func disableRetriesExample() {
 
 	// Create a client with retries disabled
 	c, err := client.New(
-		client.WithAuthToken("test-token"),
 		client.WithEnvironment(config.EnvironmentLocal),
 		client.DisableRetries(),
 		client.UseAllAPIs(),

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	sdkentities "github.com/LerianStudio/midaz-sdk-golang/entities"
+	client "github.com/LerianStudio/midaz-sdk-golang"
 	ourEntities "github.com/LerianStudio/midaz-sdk-golang/examples/workflow-with-entities/pkg/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/models"
 	"github.com/LerianStudio/midaz-sdk-golang/pkg/format"
@@ -26,7 +26,7 @@ import (
 //
 // Returns:
 //   - error: Any error encountered during the operation
-func DemonstrateTransactionHelpers(ctx context.Context, entity *sdkentities.Entity, orgID, ledgerID string, customerAccount, merchantAccount, dummyOneAccount, dummyTwoAccount *models.Account) error {
+func DemonstrateTransactionHelpers(ctx context.Context, client *client.Client, orgID, ledgerID string, customerAccount, merchantAccount, dummyOneAccount, dummyTwoAccount *models.Account) error {
 	// Create a span for observability
 	ctx, span := observability.StartSpan(ctx, "DemonstrateTransactionHelpers")
 	defer span.End()
@@ -44,7 +44,7 @@ func DemonstrateTransactionHelpers(ctx context.Context, entity *sdkentities.Enti
 
 	tx, err := ourEntities.ExecuteTransferWithHelper(
 		transferCtx,
-		entity,
+		client,
 		orgID,
 		ledgerID,
 		customerAccount.ID,
@@ -72,7 +72,7 @@ func DemonstrateTransactionHelpers(ctx context.Context, entity *sdkentities.Enti
 
 	depositTx, err := ourEntities.ExecuteDepositWithHelper(
 		depositCtx,
-		entity,
+		client,
 		orgID,
 		ledgerID,
 		customerAccount.ID,
@@ -99,7 +99,7 @@ func DemonstrateTransactionHelpers(ctx context.Context, entity *sdkentities.Enti
 
 	withdrawalTx, err := ourEntities.ExecuteWithdrawalWithHelper(
 		withdrawalCtx,
-		entity,
+		client,
 		orgID,
 		ledgerID,
 		merchantAccount.ID,
@@ -137,7 +137,7 @@ func DemonstrateTransactionHelpers(ctx context.Context, entity *sdkentities.Enti
 
 	multiTx, err := ourEntities.ExecuteMultiAccountTransferWithHelper(
 		multiCtx,
-		entity,
+		client,
 		orgID,
 		ledgerID,
 		sourceAccounts,
@@ -215,7 +215,7 @@ func DemonstrateTransactionHelpers(ctx context.Context, entity *sdkentities.Enti
 	// Execute the batch
 	_, summary, err := ourEntities.ExecuteBatchTransactionsWithHelper(
 		batchCtx,
-		entity,
+		client,
 		orgID,
 		ledgerID,
 		batchInputs,
