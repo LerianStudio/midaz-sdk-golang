@@ -27,7 +27,6 @@ func main() {
 
 	// Create a client with a default auth token for examples
 	c, err := client.New(
-		client.WithAuthToken("test-token"),
 		client.WithEnvironment(config.EnvironmentLocal),
 		client.UseAllAPIs(),
 	)
@@ -109,7 +108,6 @@ func operationGroupExample(c *client.Client) {
 
 	// Create a new client with the timeout context
 	timeoutClient, err := client.New(
-		client.WithAuthToken("test-token"),
 		client.WithEnvironment(config.EnvironmentLocal),
 		client.WithContext(ctx), // Set the context on the client
 		client.UseAllAPIs(),

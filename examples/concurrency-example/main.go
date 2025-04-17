@@ -27,7 +27,6 @@ func main() {
 
 	// Create a client for use in examples
 	c, err := client.New(
-		client.WithAuthToken("test-token"),
 		client.WithEnvironment(config.EnvironmentLocal),
 		client.UseAllAPIs(),
 	)

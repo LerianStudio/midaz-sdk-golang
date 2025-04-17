@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	auth "github.com/LerianStudio/midaz-sdk-golang/pkg/access-manager"
 	"github.com/LerianStudio/midaz-sdk-golang/pkg/observability"
 )
 
@@ -76,6 +77,10 @@ const (
 // Config holds the configuration for the Midaz SDK.
 // It centralizes all settings needed to interact with the Midaz API.
 type Config struct {
+
+	// PluginAuth configuration for authentication
+	PluginAuth auth.PluginAuth
+
 	// Environment specifies which Midaz environment to connect to.
 	// This affects the default URLs used if not explicitly overridden.
 	Environment Environment
@@ -83,9 +88,6 @@ type Config struct {
 	// ServiceURLs maps service types to their base URLs.
 	// These take precedence over Environment-based URLs.
 	ServiceURLs map[ServiceType]string
-
-	// AuthToken is the bearer token for authentication.
-	AuthToken string
 
 	// HTTPClient is the HTTP client to use for requests.
 	// If nil, a default client will be created with the configured timeout.
@@ -214,23 +216,6 @@ func WithBaseURL(baseURL string) Option {
 			c.ServiceURLs[ServiceTransaction] = fmt.Sprintf("%s/transaction", baseURL)
 		}
 
-		return nil
-	}
-}
-
-// WithAuthToken sets the bearer token for authentication.
-//
-// Parameters:
-//   - token: The authentication token
-//
-// Returns:
-//   - Option: A function that sets the authentication token on a Config
-func WithAuthToken(token string) Option {
-	return func(c *Config) error {
-		if token == "" {
-			return fmt.Errorf("auth token cannot be empty")
-		}
-		c.AuthToken = token
 		return nil
 	}
 }
@@ -372,6 +357,20 @@ func WithIdempotency(enable bool) Option {
 	}
 }
 
+// WithPluginAuth sets the plugin authentication configuration.
+//
+// Parameters:
+//   - pluginAuth: The plugin authentication configuration
+//
+// Returns:
+//   - Option: A function that sets the plugin authentication on a Config
+func WithPluginAuth(pluginAuth auth.PluginAuth) Option {
+	return func(c *Config) error {
+		c.PluginAuth = pluginAuth
+		return nil
+	}
+}
+
 // FromEnvironment loads configuration from environment variables.
 // This allows for configuration without code changes.
 //
@@ -405,8 +404,11 @@ func FromEnvironment() Option {
 			}
 		}
 
-		if token := os.Getenv("MIDAZ_AUTH_TOKEN"); token != "" {
-			c.AuthToken = token
+		if enable := os.Getenv("PLUGIN_AUTH_ENABLED"); enable != "" {
+			c.PluginAuth.Address = os.Getenv("PLUGIN_AUTH_ADDRESS")
+			c.PluginAuth.ClientID = os.Getenv("MIDAZ_CLIENT_ID")
+			c.PluginAuth.ClientSecret = os.Getenv("MIDAZ_CLIENT_SECRET")
+			c.PluginAuth.Enabled = enable == "true"
 		}
 
 		// Set user agent from environment if available
@@ -485,6 +487,7 @@ func parseEnvInt(value string) (int, error) {
 func NewConfig(options ...Option) (*Config, error) {
 	// Create a config with default values
 	config := &Config{
+		PluginAuth:        auth.PluginAuth{},
 		Environment:       EnvironmentLocal,
 		ServiceURLs:       make(map[ServiceType]string),
 		Timeout:           DefaultTimeout * time.Second,
@@ -556,11 +559,11 @@ func validateConfig(config *Config) error {
 		return fmt.Errorf("transaction URL is required")
 	}
 
-	// In the normal case, we require an auth token
-	if config.AuthToken == "" {
+	// When plugin auth is enabled, we require the plugin auth address
+	if config.PluginAuth.Enabled && config.PluginAuth.Address == "" {
 		// But for tests, we'll skip this check
 		if os.Getenv("MIDAZ_SKIP_AUTH_CHECK") != "true" {
-			return fmt.Errorf("auth token is required")
+			return fmt.Errorf("plugin auth address is required")
 		}
 	}
 
@@ -581,9 +584,15 @@ func (c *Config) GetHTTPClient() *http.Client {
 	return c.HTTPClient
 }
 
-// GetAuthToken returns the authentication token.
-func (c *Config) GetAuthToken() string {
-	return c.AuthToken
+// GetPluginAuth returns the plugin authentication configuration.
+func (c *Config) GetPluginAuth() auth.PluginAuth {
+	// Return a copy of the plugin auth configuration
+	return auth.PluginAuth{
+		Address:      c.PluginAuth.Address,
+		ClientID:     c.PluginAuth.ClientID,
+		ClientSecret: c.PluginAuth.ClientSecret,
+		Enabled:      c.PluginAuth.Enabled,
+	}
 }
 
 // GetObservabilityProvider returns the observability provider.
@@ -695,18 +704,45 @@ func WithRetryWaitMax(waitTime time.Duration) Option {
 // This is a convenience function for quickly setting up a local configuration.
 //
 // Parameters:
-//   - authToken: The authentication token to use
+//   - authToken: The authentication token to use (deprecated, use PLUGIN_AUTH_ADDRESS env var instead)
 //   - options: Additional options to apply
 //
 // Returns:
 //   - *Config: A configuration for local development
 //   - error: An error if configuration fails
-func NewLocalConfig(authToken string, options ...Option) (*Config, error) {
+func NewLocalConfig(options ...Option) (*Config, error) {
+	// Get plugin auth values from environment
+	pluginAuthEnabled := false
+	pluginAuthAddress := "" // Default to authToken for backward compatibility
+	pluginAuthClientID := ""
+	pluginAuthClientSecret := ""
+
+	if enabled := os.Getenv("PLUGIN_AUTH_ENABLED"); enabled != "" {
+		pluginAuthEnabled = enabled == "true" || enabled == "1"
+	}
+
+	if address := os.Getenv("PLUGIN_AUTH_ADDRESS"); address != "" {
+		pluginAuthAddress = address
+	}
+
+	if clientID := os.Getenv("MIDAZ_CLIENT_ID"); clientID != "" {
+		pluginAuthClientID = clientID
+	}
+
+	if clientSecret := os.Getenv("MIDAZ_CLIENT_SECRET"); clientSecret != "" {
+		pluginAuthClientSecret = clientSecret
+	}
+
 	// Start with local environment
 	localOptions := append(
 		[]Option{
 			WithEnvironment(EnvironmentLocal),
-			WithAuthToken(authToken),
+			WithPluginAuth(auth.PluginAuth{
+				Enabled:      pluginAuthEnabled,
+				Address:      pluginAuthAddress,
+				ClientID:     pluginAuthClientID,
+				ClientSecret: pluginAuthClientSecret,
+			}),
 		},
 		options...,
 	)

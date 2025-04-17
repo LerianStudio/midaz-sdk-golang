@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	sdkentities "github.com/LerianStudio/midaz-sdk-golang/entities"
+	client "github.com/LerianStudio/midaz-sdk-golang"
 	"github.com/LerianStudio/midaz-sdk-golang/models"
 )
 
@@ -14,18 +14,20 @@ import (
 //
 // Parameters:
 //   - ctx: The context for the operation, which can be used for cancellation
-//   - entity: The initialized Midaz SDK entity client
+//   - client: The initialized Midaz SDK client
 //
 // Returns:
 //   - string: The ID of the created organization
 //   - error: Any error encountered during the operation
-func CreateOrganization(ctx context.Context, entity *sdkentities.Entity) (string, error) {
+func CreateOrganization(ctx context.Context, client *client.Client) (string, error) {
 	fmt.Println("\n\n🏢 STEP 1: ORGANIZATION CREATION")
 	fmt.Println(strings.Repeat("=", 50))
 
 	fmt.Println("\nCreating organization...")
 
-	organization, err := entity.Organizations.CreateOrganization(ctx, &models.CreateOrganizationInput{
+	// Get plugin auth configuration from environment variables
+
+	organization, err := client.Entity.Organizations.CreateOrganization(ctx, &models.CreateOrganizationInput{
 		LegalName:     "Example Corp",
 		LegalDocument: "123456789",
 		Address: models.Address{
@@ -64,20 +66,20 @@ func CreateOrganization(ctx context.Context, entity *sdkentities.Entity) (string
 //
 // Returns:
 //   - error: Any error encountered during the operation
-func UpdateOrganization(ctx context.Context, entity *sdkentities.Entity, orgID string) error {
+func UpdateOrganization(ctx context.Context, client *client.Client, orgID string) error {
 	fmt.Println("\n\n🔄 STEP 9: ORGANIZATION UPDATE")
 	fmt.Println(strings.Repeat("=", 50))
 
 	fmt.Println("\nUpdating organization...")
 
 	// Get the organization first
-	org, err := entity.Organizations.GetOrganization(ctx, orgID)
+	org, err := client.Entity.Organizations.GetOrganization(ctx, orgID)
 	if err != nil {
 		return fmt.Errorf("failed to get organization: %w", err)
 	}
 
 	// Update the organization metadata
-	updatedOrg, err := entity.Organizations.UpdateOrganization(ctx, orgID, &models.UpdateOrganizationInput{
+	updatedOrg, err := client.Entity.Organizations.UpdateOrganization(ctx, orgID, &models.UpdateOrganizationInput{
 		LegalName:       org.LegalName,
 		DoingBusinessAs: org.DoingBusinessAs,
 		Address:         org.Address,
@@ -109,13 +111,13 @@ func UpdateOrganization(ctx context.Context, entity *sdkentities.Entity, orgID s
 //
 // Returns:
 //   - error: Any error encountered during the operation
-func RetrieveOrganization(ctx context.Context, entity *sdkentities.Entity, orgID string) error {
+func RetrieveOrganization(ctx context.Context, client *client.Client, orgID string) error {
 	fmt.Println("\n\n🔍 STEP 10: ORGANIZATION RETRIEVAL")
 	fmt.Println(strings.Repeat("=", 50))
 
 	fmt.Println("\nRetrieving organization...")
 
-	org, err := entity.Organizations.GetOrganization(ctx, orgID)
+	org, err := client.Entity.Organizations.GetOrganization(ctx, orgID)
 	if err != nil {
 		return fmt.Errorf("failed to get organization: %w", err)
 	}

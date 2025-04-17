@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	sdkentities "github.com/LerianStudio/midaz-sdk-golang/entities"
+	client "github.com/LerianStudio/midaz-sdk-golang"
 	"github.com/LerianStudio/midaz-sdk-golang/models"
 )
 
@@ -13,20 +13,21 @@ import (
 //
 // Parameters:
 //   - ctx: The context for the operation, which can be used for cancellation
-//   - entity: The initialized Midaz SDK entity client
+//   - cfg: The configuration object
+//   - client: The initialized Midaz SDK client
 //   - orgID: The ID of the organization
 //
 // Returns:
 //   - string: The ID of the created ledger
 //   - error: Any error encountered during the operation
-func CreateLedger(ctx context.Context, entity *sdkentities.Entity, orgID string) (string, error) {
+func CreateLedger(ctx context.Context, client *client.Client, orgID string) (string, error) {
 	fmt.Println("\n\n📒 STEP 2: LEDGER CREATION")
 	fmt.Println(strings.Repeat("=", 50))
 
 	fmt.Println("\nCreating ledger...")
 
 	// Create a ledger with the organization ID
-	ledger, err := entity.Ledgers.CreateLedger(ctx, orgID, &models.CreateLedgerInput{
+	ledger, err := client.Entity.Ledgers.CreateLedger(ctx, orgID, &models.CreateLedgerInput{
 		Name: "Main Ledger",
 		Metadata: map[string]any{
 			"purpose": "example",

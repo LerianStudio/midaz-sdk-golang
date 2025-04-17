@@ -5,6 +5,8 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	auth "github.com/LerianStudio/midaz-sdk-golang/pkg/access-manager"
 )
 
 func TestDefaultValues(t *testing.T) {
@@ -32,7 +34,7 @@ func TestDefaultValues(t *testing.T) {
 
 func TestNewConfig(t *testing.T) {
 	// Test creating a new config with default values
-	config, err := NewConfig(WithAuthToken("test-token"))
+	config, err := NewConfig(WithPluginAuth(auth.PluginAuth{Enabled: false, Address: ""}))
 	if err != nil {
 		t.Fatalf("Failed to create config: %v", err)
 	}
@@ -80,7 +82,7 @@ func TestNewConfig(t *testing.T) {
 func TestWithOnboardingURL(t *testing.T) {
 	// Test setting a custom onboarding URL
 	customURL := "https://api.example.com/onboarding"
-	config, err := NewConfig(WithOnboardingURL(customURL), WithAuthToken("test-token"))
+	config, err := NewConfig(WithOnboardingURL(customURL), WithPluginAuth(auth.PluginAuth{Enabled: false, Address: ""}))
 	if err != nil {
 		t.Fatalf("Failed to create config: %v", err)
 	}
@@ -93,7 +95,7 @@ func TestWithOnboardingURL(t *testing.T) {
 func TestWithTransactionURL(t *testing.T) {
 	// Test setting a custom transaction URL
 	customURL := "https://api.example.com/transaction"
-	config, err := NewConfig(WithTransactionURL(customURL), WithAuthToken("test-token"))
+	config, err := NewConfig(WithTransactionURL(customURL), WithPluginAuth(auth.PluginAuth{Enabled: false, Address: ""}))
 	if err != nil {
 		t.Fatalf("Failed to create config: %v", err)
 	}
@@ -106,7 +108,7 @@ func TestWithTransactionURL(t *testing.T) {
 func TestWithBaseURL(t *testing.T) {
 	// Test setting a base URL that affects both onboarding and transaction URLs
 	baseURL := "https://api.example.com"
-	config, err := NewConfig(WithBaseURL(baseURL), WithAuthToken("test-token"))
+	config, err := NewConfig(WithBaseURL(baseURL), WithPluginAuth(auth.PluginAuth{Enabled: false, Address: ""}))
 	if err != nil {
 		t.Fatalf("Failed to create config: %v", err)
 	}
@@ -144,7 +146,7 @@ func TestWithEnvironment(t *testing.T) {
 	}
 
 	for _, tc := range environments {
-		config, err := NewConfig(WithEnvironment(tc.env), WithAuthToken("test-token"))
+		config, err := NewConfig(WithEnvironment(tc.env), WithPluginAuth(auth.PluginAuth{Enabled: false, Address: ""}))
 		if err != nil {
 			t.Fatalf("Failed to create config with environment %s: %v", tc.env, err)
 		}
@@ -155,16 +157,15 @@ func TestWithEnvironment(t *testing.T) {
 	}
 }
 
-func TestWithAuthToken(t *testing.T) {
+func TestPluginAuth(t *testing.T) {
 	// Test setting an auth token
-	token := "test-auth-token"
-	config, err := NewConfig(WithAuthToken(token))
+	config, err := NewConfig(WithPluginAuth(auth.PluginAuth{Enabled: false, Address: ""}))
 	if err != nil {
 		t.Fatalf("Failed to create config: %v", err)
 	}
 
-	if config.AuthToken != token {
-		t.Errorf("Expected AuthToken to be %s, got %s", token, config.AuthToken)
+	if config.PluginAuth.Address != "" {
+		t.Errorf("Expected PluginAuth.Address to be empty, got %s", config.PluginAuth.Address)
 	}
 }
 
@@ -174,7 +175,7 @@ func TestWithHTTPClient(t *testing.T) {
 		Timeout: 120 * time.Second,
 	}
 
-	config, err := NewConfig(WithHTTPClient(httpClient), WithAuthToken("test-token"))
+	config, err := NewConfig(WithHTTPClient(httpClient), WithPluginAuth(auth.PluginAuth{Enabled: false, Address: ""}))
 	if err != nil {
 		t.Fatalf("Failed to create config: %v", err)
 	}
@@ -187,7 +188,7 @@ func TestWithHTTPClient(t *testing.T) {
 func TestWithTimeout(t *testing.T) {
 	// Test setting a custom timeout
 	timeout := 30 * time.Second
-	config, err := NewConfig(WithTimeout(timeout), WithAuthToken("test-token"))
+	config, err := NewConfig(WithTimeout(timeout), WithPluginAuth(auth.PluginAuth{Enabled: false, Address: ""}))
 	if err != nil {
 		t.Fatalf("Failed to create config: %v", err)
 	}
@@ -200,7 +201,7 @@ func TestWithTimeout(t *testing.T) {
 func TestWithUserAgent(t *testing.T) {
 	// Test setting a custom user agent
 	userAgent := "custom-user-agent/1.0"
-	config, err := NewConfig(WithUserAgent(userAgent), WithAuthToken("test-token"))
+	config, err := NewConfig(WithUserAgent(userAgent), WithPluginAuth(auth.PluginAuth{Enabled: false, Address: ""}))
 	if err != nil {
 		t.Fatalf("Failed to create config: %v", err)
 	}
@@ -216,7 +217,7 @@ func TestWithRetryConfig(t *testing.T) {
 	minWait := 2 * time.Second
 	maxWait := 60 * time.Second
 
-	config, err := NewConfig(WithRetryConfig(maxRetries, minWait, maxWait), WithAuthToken("test-token"))
+	config, err := NewConfig(WithRetryConfig(maxRetries, minWait, maxWait), WithPluginAuth(auth.PluginAuth{Enabled: false, Address: ""}))
 	if err != nil {
 		t.Fatalf("Failed to create config: %v", err)
 	}
@@ -236,7 +237,7 @@ func TestWithRetryConfig(t *testing.T) {
 
 func TestWithRetries(t *testing.T) {
 	// Test enabling and disabling retries
-	config, err := NewConfig(WithRetries(false), WithAuthToken("test-token"))
+	config, err := NewConfig(WithRetries(false), WithPluginAuth(auth.PluginAuth{Enabled: false, Address: ""}))
 	if err != nil {
 		t.Fatalf("Failed to create config: %v", err)
 	}
@@ -245,7 +246,7 @@ func TestWithRetries(t *testing.T) {
 		t.Errorf("Expected EnableRetries to be false, got true")
 	}
 
-	config, err = NewConfig(WithRetries(true), WithAuthToken("test-token"))
+	config, err = NewConfig(WithRetries(true), WithPluginAuth(auth.PluginAuth{Enabled: false, Address: ""}))
 	if err != nil {
 		t.Fatalf("Failed to create config: %v", err)
 	}
@@ -257,7 +258,7 @@ func TestWithRetries(t *testing.T) {
 
 func TestWithDebug(t *testing.T) {
 	// Test enabling debug mode
-	config, err := NewConfig(WithDebug(true), WithAuthToken("test-token"))
+	config, err := NewConfig(WithDebug(true), WithPluginAuth(auth.PluginAuth{Enabled: false, Address: ""}))
 	if err != nil {
 		t.Fatalf("Failed to create config: %v", err)
 	}
@@ -267,7 +268,7 @@ func TestWithDebug(t *testing.T) {
 	}
 
 	// Test disabling debug mode
-	config, err = NewConfig(WithDebug(false), WithAuthToken("test-token"))
+	config, err = NewConfig(WithDebug(false), WithPluginAuth(auth.PluginAuth{Enabled: false, Address: ""}))
 	if err != nil {
 		t.Fatalf("Failed to create config: %v", err)
 	}
@@ -279,7 +280,7 @@ func TestWithDebug(t *testing.T) {
 
 func TestWithIdempotency(t *testing.T) {
 	// Test enabling and disabling idempotency
-	config, err := NewConfig(WithIdempotency(false), WithAuthToken("test-token"))
+	config, err := NewConfig(WithIdempotency(false), WithPluginAuth(auth.PluginAuth{Enabled: false, Address: ""}))
 	if err != nil {
 		t.Fatalf("Failed to create config: %v", err)
 	}
@@ -288,7 +289,7 @@ func TestWithIdempotency(t *testing.T) {
 		t.Errorf("Expected EnableIdempotency to be false, got true")
 	}
 
-	config, err = NewConfig(WithIdempotency(true), WithAuthToken("test-token"))
+	config, err = NewConfig(WithIdempotency(true), WithPluginAuth(auth.PluginAuth{Enabled: false, Address: ""}))
 	if err != nil {
 		t.Fatalf("Failed to create config: %v", err)
 	}
@@ -300,8 +301,7 @@ func TestWithIdempotency(t *testing.T) {
 
 func TestNewLocalConfig(t *testing.T) {
 	// Test creating a local configuration
-	token := "test-local-token"
-	config, err := NewLocalConfig(token)
+	config, err := NewLocalConfig(WithPluginAuth(auth.PluginAuth{Enabled: false, Address: ""}))
 	if err != nil {
 		t.Fatalf("Failed to create local config: %v", err)
 	}
@@ -311,8 +311,8 @@ func TestNewLocalConfig(t *testing.T) {
 		t.Errorf("Expected Environment to be local, got %s", config.Environment)
 	}
 
-	if config.AuthToken != token {
-		t.Errorf("Expected AuthToken to be %s, got %s", token, config.AuthToken)
+	if config.PluginAuth.Enabled {
+		t.Errorf("Expected PluginAuth.Enabled to be false, got true")
 	}
 }
 
@@ -364,8 +364,8 @@ func TestFromEnvironment(t *testing.T) {
 		t.Errorf("Expected Environment to be development, got %s", config.Environment)
 	}
 
-	if config.AuthToken != "env-token" {
-		t.Errorf("Expected AuthToken to be env-token, got %s", config.AuthToken)
+	if config.PluginAuth.Address != "" {
+		t.Errorf("Expected PluginAuth.Address to be empty, got %s", config.PluginAuth.Address)
 	}
 
 	if config.ServiceURLs[ServiceOnboarding] != "https://env.example.com/onboarding" {
@@ -394,7 +394,7 @@ func TestMultipleOptions(t *testing.T) {
 	config, err := NewConfig(
 		WithOnboardingURL("https://api.example.com/onboarding"),
 		WithTransactionURL("https://api.example.com/transaction"),
-		WithAuthToken("test-token"),
+		WithPluginAuth(auth.PluginAuth{Enabled: false, Address: ""}),
 		WithTimeout(30*time.Second),
 		WithUserAgent("custom-agent/1.0"),
 		WithRetryConfig(5, 2*time.Second, 60*time.Second),
@@ -414,8 +414,8 @@ func TestMultipleOptions(t *testing.T) {
 		t.Errorf("Expected transaction URL to be https://api.example.com/transaction, got %s", config.ServiceURLs[ServiceTransaction])
 	}
 
-	if config.AuthToken != "test-token" {
-		t.Errorf("Expected AuthToken to be test-token, got %s", config.AuthToken)
+	if config.PluginAuth.Enabled {
+		t.Errorf("Expected PluginAuth.Enabled to be false, got true")
 	}
 
 	if config.Timeout != 30*time.Second {
@@ -452,7 +452,7 @@ func TestOptionOverrides(t *testing.T) {
 	config, err := NewConfig(
 		WithOnboardingURL("https://api1.example.com"),
 		WithOnboardingURL("https://api2.example.com"),
-		WithAuthToken("test-token"),
+		WithPluginAuth(auth.PluginAuth{Enabled: false, Address: ""}),
 	)
 	if err != nil {
 		t.Fatalf("Failed to create config with overriding options: %v", err)
@@ -466,7 +466,7 @@ func TestOptionOverrides(t *testing.T) {
 	config, err = NewConfig(
 		WithOnboardingURL("https://api.example.com/onboarding"),
 		WithBaseURL("https://base.example.com"),
-		WithAuthToken("test-token"),
+		WithPluginAuth(auth.PluginAuth{Enabled: false, Address: ""}),
 	)
 	if err != nil {
 		t.Fatalf("Failed to create config with base URL override: %v", err)
@@ -487,13 +487,12 @@ func TestOptionOverrides(t *testing.T) {
 func TestGetterMethods(t *testing.T) {
 	// Test the getter methods on Config
 	httpClient := &http.Client{Timeout: 60 * time.Second}
-	authToken := "test-getter-token"
 	onboardingURL := "https://api.example.com/onboarding"
 	transactionURL := "https://api.example.com/transaction"
 
 	config, err := NewConfig(
 		WithHTTPClient(httpClient),
-		WithAuthToken(authToken),
+		WithPluginAuth(auth.PluginAuth{Enabled: false, Address: ""}),
 		WithOnboardingURL(onboardingURL),
 		WithTransactionURL(transactionURL),
 	)
@@ -504,11 +503,6 @@ func TestGetterMethods(t *testing.T) {
 	// Test GetHTTPClient
 	if config.GetHTTPClient() != httpClient {
 		t.Errorf("Expected GetHTTPClient to return the custom client")
-	}
-
-	// Test GetAuthToken
-	if config.GetAuthToken() != authToken {
-		t.Errorf("Expected GetAuthToken to return %s, got %s", authToken, config.GetAuthToken())
 	}
 
 	// Test GetBaseURLs

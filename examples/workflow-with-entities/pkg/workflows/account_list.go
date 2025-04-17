@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	sdkentities "github.com/LerianStudio/midaz-sdk-golang/entities"
+	client "github.com/LerianStudio/midaz-sdk-golang"
 	"github.com/LerianStudio/midaz-sdk-golang/models"
 	"github.com/LerianStudio/midaz-sdk-golang/pkg/concurrent"
 	"github.com/LerianStudio/midaz-sdk-golang/pkg/errors"
@@ -17,13 +17,14 @@ import (
 //
 // Parameters:
 //   - ctx: The context for the operation, which can be used for cancellation
-//   - entity: The initialized Midaz SDK entity client
+//   - cfg: The configuration object
+//   - client: The initialized Midaz SDK client
 //   - orgID: The ID of the organization
 //   - ledgerID: The ID of the ledger
 //
 // Returns:
 //   - error: Any error encountered during the operation
-func ListAccounts(ctx context.Context, entity *sdkentities.Entity, orgID, ledgerID string) error {
+func ListAccounts(ctx context.Context, client *client.Client, orgID, ledgerID string) error {
 	fmt.Println("\n\n📋 STEP 8: ACCOUNT LISTING")
 	fmt.Println(strings.Repeat("=", 50))
 
@@ -40,7 +41,7 @@ func ListAccounts(ctx context.Context, entity *sdkentities.Entity, orgID, ledger
 					WithFilter("status", models.StatusActive) // Filter by status
 
 	// Call the API with our pagination options
-	accounts, err := entity.Accounts.ListAccounts(ctx, orgID, ledgerID, listOptions)
+	accounts, err := client.Entity.Accounts.ListAccounts(ctx, orgID, ledgerID, listOptions)
 	if err != nil {
 		return fmt.Errorf("failed to list accounts: %w", err)
 	}
@@ -60,7 +61,7 @@ func ListAccounts(ctx context.Context, entity *sdkentities.Entity, orgID, ledger
 
 		// Get options for the next page
 		nextPageOptions := accounts.Pagination.NextPageOptions()
-		nextPage, err := entity.Accounts.ListAccounts(ctx, orgID, ledgerID, nextPageOptions)
+		nextPage, err := client.Entity.Accounts.ListAccounts(ctx, orgID, ledgerID, nextPageOptions)
 		if err != nil {
 			return fmt.Errorf("failed to fetch next page: %w", err)
 		}
@@ -80,7 +81,7 @@ func ListAccounts(ctx context.Context, entity *sdkentities.Entity, orgID, ledger
 
 			// Get options for the previous page (which is the first page in this case)
 			prevPageOptions := nextPage.Pagination.PrevPageOptions()
-			prevPage, err := entity.Accounts.ListAccounts(ctx, orgID, ledgerID, prevPageOptions)
+			prevPage, err := client.Entity.Accounts.ListAccounts(ctx, orgID, ledgerID, prevPageOptions)
 			if err != nil {
 				return fmt.Errorf("failed to fetch previous page: %w", err)
 			}
@@ -104,7 +105,7 @@ func ListAccounts(ctx context.Context, entity *sdkentities.Entity, orgID, ledger
 
 	// First page fetch to get pagination info
 	fmt.Println("1️⃣ Fetching first page to determine pagination...")
-	firstPage, err := entity.Accounts.ListAccounts(listCtx, orgID, ledgerID, iterationOptions)
+	firstPage, err := client.Entity.Accounts.ListAccounts(listCtx, orgID, ledgerID, iterationOptions)
 	if err != nil {
 		if errors.IsCancellationError(err) {
 			fmt.Println("⚠️ Operation cancelled due to timeout")
@@ -164,7 +165,7 @@ func ListAccounts(ctx context.Context, entity *sdkentities.Entity, orgID, ledger
 					options.Page, delay.Milliseconds())
 
 				// Fetch the page with automatic retries handled by SDK's HTTP client
-				page, err := entity.Accounts.ListAccounts(ctx, orgID, ledgerID, options)
+				page, err := client.Entity.Accounts.ListAccounts(ctx, orgID, ledgerID, options)
 				if err != nil {
 					return nil, err
 				}
@@ -230,7 +231,7 @@ func ListAccounts(ctx context.Context, entity *sdkentities.Entity, orgID, ledger
 	}()
 
 	// Attempt to fetch accounts with the context that will be cancelled
-	_, err = entity.Accounts.ListAccounts(cancelCtx, orgID, ledgerID, models.NewListOptions())
+	_, err = client.Entity.Accounts.ListAccounts(cancelCtx, orgID, ledgerID, models.NewListOptions())
 
 	// Check for cancellation error
 	if err != nil {

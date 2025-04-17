@@ -4,9 +4,11 @@
 package entities
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 
+	auth "github.com/LerianStudio/midaz-sdk-golang/pkg/access-manager"
 	"github.com/LerianStudio/midaz-sdk-golang/pkg/observability"
 )
 
@@ -16,14 +18,14 @@ type Config interface {
 	// GetHTTPClient returns the HTTP client to use for requests.
 	GetHTTPClient() *http.Client
 
-	// GetAuthToken returns the authentication token.
-	GetAuthToken() string
-
 	// GetBaseURLs returns the map of service names to base URLs.
 	GetBaseURLs() map[string]string
 
 	// GetObservabilityProvider returns the observability provider.
 	GetObservabilityProvider() observability.Provider
+
+	// GetPluginAuth returns the plugin authentication configuration.
+	GetPluginAuth() auth.PluginAuth
 }
 
 // Entity provides a centralized access point to all entity types in the Midaz SDK.
@@ -157,10 +159,22 @@ func NewEntityWithConfig(config Config, options ...Option) (*Entity, error) {
 	if config == nil {
 		return nil, fmt.Errorf("config cannot be nil")
 	}
+	// Check if plugin auth is enabled
+	var authToken string
+	pluginAuth := config.GetPluginAuth()
+	if pluginAuth.Enabled {
+		// Get a token from the plugin auth service
+		token, err := auth.GetTokenFromPluginAuth(context.Background(), pluginAuth, config.GetHTTPClient())
+		if err != nil {
+			return nil, fmt.Errorf("failed to get token from plugin auth service: %w", err)
+		}
+		// Use the token from the plugin auth service
+		authToken = token
+	}
 
 	// Create a new entity using values from the config
 	entity := &Entity{
-		httpClient:    NewHTTPClient(config.GetHTTPClient(), config.GetAuthToken(), config.GetObservabilityProvider()),
+		httpClient:    NewHTTPClient(config.GetHTTPClient(), authToken, config.GetObservabilityProvider()),
 		baseURLs:      config.GetBaseURLs(),
 		observability: config.GetObservabilityProvider(),
 	}
@@ -207,13 +221,28 @@ func (e *Entity) initServices() {
 	e.Transactions = NewTransactionsEntity(client, token, e.baseURLs)
 }
 
-// GetHTTPClient returns the HTTP client used by the entity.
+// InitServices initializes the service interfaces for the entity.
+// This is an exported version of initServices required for the plugin auth interface.
+func (e *Entity) InitServices() {
+	e.initServices()
+}
+
+// GetEntityHTTPClient returns the custom HTTP client used by the entity.
 // This allows for configuration of the HTTP client after the entity is created.
-//
+// 
 // Returns:
 //   - *HTTPClient: The HTTP client used by the entity for API requests.
-func (e *Entity) GetHTTPClient() *HTTPClient {
+func (e *Entity) GetEntityHTTPClient() *HTTPClient {
 	return e.httpClient
+}
+
+// GetHTTPClient returns the standard HTTP client used by the entity.
+// This is required for the plugin auth interface.
+//
+// Returns:
+//   - *http.Client: The standard HTTP client used by the entity for API requests.
+func (e *Entity) GetHTTPClient() *http.Client {
+	return e.httpClient.client
 }
 
 // GetObservabilityProvider returns the observability provider used by the entity.
@@ -239,6 +268,18 @@ func (e *Entity) SetHTTPClient(client *http.Client) {
 
 	// Re-initialize services with the new HTTP client
 	e.initServices()
+}
+
+// SetAuthToken sets the authentication token for the entity.
+// This is required for the plugin auth interface.
+//
+// Parameters:
+//   - token: The authentication token to use for API requests.
+func (e *Entity) SetAuthToken(token string) {
+	if token != "" {
+		// Set the token directly on the HTTP client
+		e.httpClient.authToken = token
+	}
 }
 
 // New creates a new Entity with the provided base URL and options.

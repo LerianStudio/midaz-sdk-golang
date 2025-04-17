@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	client "github.com/LerianStudio/midaz-sdk-golang"
 	"github.com/LerianStudio/midaz-sdk-golang/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/models"
 	"github.com/LerianStudio/midaz-sdk-golang/pkg/transaction"
@@ -164,7 +165,7 @@ func TransferFunds(
 //   - error: Any error encountered during the operation
 func ExecuteTransferWithHelper(
 	ctx context.Context,
-	entity *entities.Entity,
+	client *client.Client,
 	orgID, ledgerID string,
 	sourceAccountID, destAccountID string,
 	amount, scale int64,
@@ -183,7 +184,7 @@ func ExecuteTransferWithHelper(
 	// Execute the transfer using the helper
 	tx, err := transaction.Transfer(
 		ctx,
-		entity,
+		client,
 		orgID,
 		ledgerID,
 		sourceAccountID,
@@ -217,7 +218,7 @@ func ExecuteTransferWithHelper(
 //   - error: Any error encountered during the operation
 func ExecuteDepositWithHelper(
 	ctx context.Context,
-	entity *entities.Entity,
+	client *client.Client,
 	orgID, ledgerID string,
 	accountID string,
 	amount, scale int64,
@@ -236,7 +237,7 @@ func ExecuteDepositWithHelper(
 	// Execute the deposit using the helper
 	tx, err := transaction.Deposit(
 		ctx,
-		entity,
+		client,
 		orgID,
 		ledgerID,
 		accountID,
@@ -269,7 +270,7 @@ func ExecuteDepositWithHelper(
 //   - error: Any error encountered during the operation
 func ExecuteWithdrawalWithHelper(
 	ctx context.Context,
-	entity *entities.Entity,
+	client *client.Client,
 	orgID, ledgerID string,
 	accountID string,
 	amount, scale int64,
@@ -288,7 +289,7 @@ func ExecuteWithdrawalWithHelper(
 	// Execute the withdrawal using the helper
 	tx, err := transaction.Withdrawal(
 		ctx,
-		entity,
+		client,
 		orgID,
 		ledgerID,
 		accountID,
@@ -322,7 +323,7 @@ func ExecuteWithdrawalWithHelper(
 //   - error: Any error encountered during the operation
 func ExecuteMultiAccountTransferWithHelper(
 	ctx context.Context,
-	entity *entities.Entity,
+	client *client.Client,
 	orgID, ledgerID string,
 	sourceAccounts map[string]int64,
 	destAccounts map[string]int64,
@@ -342,7 +343,7 @@ func ExecuteMultiAccountTransferWithHelper(
 	// Execute the multi-account transfer using the helper
 	tx, err := transaction.MultiAccountTransfer(
 		ctx,
-		entity,
+		client,
 		orgID,
 		ledgerID,
 		sourceAccounts,
@@ -374,7 +375,7 @@ func ExecuteMultiAccountTransferWithHelper(
 //   - error: Any error encountered during the operation
 func ExecuteBatchTransactionsWithHelper(
 	ctx context.Context,
-	entity *entities.Entity,
+	client *client.Client,
 	orgID, ledgerID string,
 	inputs []*models.CreateTransactionInput,
 ) ([]transaction.BatchResult, *transaction.BatchSummary, error) {
@@ -398,7 +399,7 @@ func ExecuteBatchTransactionsWithHelper(
 	// Execute the batch operation
 	results, err := transaction.BatchTransactions(
 		ctx,
-		entity,
+		client,
 		orgID,
 		ledgerID,
 		inputs,

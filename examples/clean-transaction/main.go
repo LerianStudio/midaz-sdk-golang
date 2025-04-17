@@ -26,7 +26,6 @@ func main() {
 
 	// Setup SDK client with the observability provider using the standardized options pattern
 	c, err := client.New(
-		client.WithAuthToken("test-token"),
 		client.WithEnvironment(config.EnvironmentLocal),
 		client.WithObservabilityProvider(observabilityProvider),
 		client.WithOnboardingURL("http://localhost:3000/v1"),

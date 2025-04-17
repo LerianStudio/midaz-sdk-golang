@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"time"
 
+	client "github.com/LerianStudio/midaz-sdk-golang"
 	"github.com/LerianStudio/midaz-sdk-golang/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/models"
 	"github.com/google/uuid"
@@ -58,7 +59,7 @@ func DefaultTransferOptions() *TransferOptions {
 //   - An error if the operation fails
 func Transfer(
 	ctx context.Context,
-	entity *entities.Entity,
+	client *client.Client,
 	orgID, ledgerID string,
 	fromAccountID, toAccountID string,
 	amount int64,
@@ -120,7 +121,7 @@ func Transfer(
 	}
 
 	// Create the transaction
-	transaction, err := entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, transferInput)
+	transaction, err := client.Entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, transferInput)
 	if err != nil {
 		return nil, fmt.Errorf("transfer transaction failed: %w", err)
 	}
@@ -175,7 +176,7 @@ func DefaultDepositOptions() *DepositOptions {
 //   - An error if the operation fails
 func Deposit(
 	ctx context.Context,
-	entity *entities.Entity,
+	client *client.Client,
 	orgID, ledgerID string,
 	toAccountID string,
 	amount int64,
@@ -243,7 +244,7 @@ func Deposit(
 	}
 
 	// Create the transaction
-	transaction, err := entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, depositInput)
+	transaction, err := client.Entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, depositInput)
 	if err != nil {
 		return nil, fmt.Errorf("deposit transaction failed: %w", err)
 	}
@@ -298,7 +299,7 @@ func DefaultWithdrawalOptions() *WithdrawalOptions {
 //   - An error if the operation fails
 func Withdrawal(
 	ctx context.Context,
-	entity *entities.Entity,
+	client *client.Client,
 	orgID, ledgerID string,
 	fromAccountID string,
 	amount int64,
@@ -366,7 +367,7 @@ func Withdrawal(
 	}
 
 	// Create the transaction
-	transaction, err := entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, withdrawalInput)
+	transaction, err := client.Entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, withdrawalInput)
 	if err != nil {
 		return nil, fmt.Errorf("withdrawal transaction failed: %w", err)
 	}
@@ -419,7 +420,7 @@ func DefaultMultiTransferOptions() *MultiTransferOptions {
 //   - An error if the operation fails
 func MultiAccountTransfer(
 	ctx context.Context,
-	entity *entities.Entity,
+	client *client.Client,
 	orgID, ledgerID string,
 	sourceAccounts map[string]int64,
 	destAccounts map[string]int64,
@@ -525,7 +526,7 @@ func MultiAccountTransfer(
 	}
 
 	// Create the transaction
-	transaction, err := entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, multiTransferInput)
+	transaction, err := client.Entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, multiTransferInput)
 	if err != nil {
 		return nil, fmt.Errorf("multi-account transfer failed: %w", err)
 	}
