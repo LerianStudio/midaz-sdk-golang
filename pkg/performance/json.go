@@ -4,6 +4,52 @@
 // - JSON encoder/decoder pooling to reduce memory allocations
 // - Connection pooling for efficient HTTP requests
 // - Request batching for bulk operations
+//
+// JSON Performance Use Cases:
+//
+//  1. High-Frequency API Operations:
+//     When your application makes frequent API calls with JSON payloads, using the JSONPool
+//     can significantly reduce memory allocations and garbage collection pressure:
+//
+//     ```go
+//     // Create a dedicated pool for a high-traffic service
+//     pool := performance.NewJSONPool()
+//
+//     // Process thousands of API responses with minimal GC impact
+//     for _, response := range apiResponses {
+//     var result MyResultType
+//     err := pool.Unmarshal(response, &result)
+//     // Process result...
+//     }
+//     ```
+//
+//  2. Large JSON Document Processing:
+//     When working with large JSON documents (e.g., bulk data exports/imports),
+//     pooled encoders/decoders reduce memory fragmentation:
+//
+//     ```go
+//     // Export large data set as JSON with minimal memory overhead
+//     data := fetchLargeDataSet() // e.g., thousands of records
+//     jsonBytes, err := performance.Marshal(data)
+//     // Write jsonBytes to file or send over network...
+//     ```
+//
+//  3. JSON Streaming in Web Services:
+//     For web servers handling many concurrent JSON requests, encoder pooling
+//     reduces GC pause times, improving response time consistency:
+//
+//     ```go
+//     // In an HTTP handler function
+//     func handleAPIRequest(w http.ResponseWriter, r *http.Request) {
+//     // Get a pooled encoder that writes to the response
+//     enc := performance.NewEncoder(w)
+//     defer performance.ReleaseEncoder(enc)
+//
+//     // Process and encode the result directly to the response
+//     result := processRequest(r)
+//     enc.Encode(result)
+//     }
+//     ```
 package performance
 
 import (
@@ -15,6 +61,11 @@ import (
 
 // JSONPool provides a pool of JSON encoders and decoders to reduce allocations.
 // This is particularly useful for high-throughput applications that make many API calls.
+//
+// Performance Impact:
+// - Reduces memory allocations by reusing encoder/decoder objects
+// - Decreases garbage collection pressure in high-frequency JSON operations
+// - Improves throughput for applications processing many small JSON documents
 type JSONPool struct {
 	encoderPool sync.Pool
 	decoderPool sync.Pool
@@ -22,6 +73,15 @@ type JSONPool struct {
 }
 
 // NewJSONPool creates a new JSONPool with initialized pools.
+//
+// Example use case: When creating a dedicated service for high-volume
+// data processing with specific JSON handling requirements:
+//
+//	// Create a dedicated pool for a reporting service
+//	reportingPool := performance.NewJSONPool()
+//
+//	// Use this pool for all JSON operations in the reporting service
+//	jsonData, err := reportingPool.Marshal(reportData)
 func NewJSONPool() *JSONPool {
 	return &JSONPool{
 		encoderPool: sync.Pool{
@@ -47,6 +107,15 @@ var DefaultJSONPool = NewJSONPool()
 
 // Marshal encodes the value to JSON using a pooled encoder.
 // This reduces allocations compared to json.Marshal.
+//
+// Example use case: When serializing thousands of transactions
+// for a batch processing operation:
+//
+//	transactions := fetchPendingTransactions() // e.g., 5000 transactions
+//
+//	// Efficiently serialize with minimal GC overhead
+//	jsonData, err := performance.Marshal(transactions)
+//	// Send jsonData to API endpoint...
 func (p *JSONPool) Marshal(v interface{}) ([]byte, error) {
 	buf := p.getBuffer()
 	defer p.putBuffer(buf)
@@ -65,6 +134,18 @@ func (p *JSONPool) Marshal(v interface{}) ([]byte, error) {
 
 // Unmarshal decodes JSON data into the value using a pooled decoder.
 // This reduces allocations compared to json.Unmarshal.
+//
+// Example use case: When processing a large batch of incoming
+// transaction records from an API:
+//
+//	// Process a large batch of transaction notifications
+//	var transactions []Transaction
+//	err := performance.Unmarshal(responseData, &transactions)
+//
+//	// Process each transaction with reduced memory overhead
+//	for _, tx := range transactions {
+//	    processTransaction(tx)
+//	}
 func (p *JSONPool) Unmarshal(data []byte, v interface{}) error {
 	dec := p.getDecoder(bytes.NewReader(data))
 	err := dec.Decode(v)

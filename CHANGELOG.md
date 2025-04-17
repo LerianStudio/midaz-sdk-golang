@@ -1,3 +1,15 @@
+## [1.1.0-beta.2](https://github.com/LerianStudio/midaz-sdk-golang/compare/v1.1.0-beta.1...v1.1.0-beta.2) (2025-04-09)
+
+### Bug Fixes
+
+* **hooks:** fixing lint params ([4e039d8](https://github.com/LerianStudio/midaz-sdk-golang/commit/4e039d8208fe9b15d8fac50615d656af26e890c0))
+
+## [1.1.0-beta.1](https://github.com/LerianStudio/midaz-sdk-golang/compare/v1.0.7...v1.1.0-beta.1) (2025-04-09)
+
+### Features
+
+* **docs:** improve documentation on auxiliary packages ([9cd23e8](https://github.com/LerianStudio/midaz-sdk-golang/commit/9cd23e8251bbcf9080d4f6bd73d8b6b79d7f665f))
+
 ## [1.0.7](https://github.com/LerianStudio/midaz-sdk-golang/compare/v1.0.6...v1.0.7) (2025-04-08)
 
 ### Bug Fixes
