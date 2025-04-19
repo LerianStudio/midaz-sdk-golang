@@ -65,9 +65,7 @@ coverage.xml
 .test_coverage.txt
 
 # Documentation artifacts
-/docs/godoc/
-/doc/tmp/
-/docs/tmp/
+docs/godoc/
 
 # OS generated files
 .DS_Store
