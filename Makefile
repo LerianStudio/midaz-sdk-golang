@@ -1,13 +1,5 @@
 # Midaz Go SDK Makefile
 
-# Color definitions - empty to disable colors
-YELLOW := 
-GREEN := 
-CYAN := 
-RED := 
-NC := 
-BOLD := 
-
 # Component-specific variables
 SERVICE_NAME := Midaz Go SDK
 BIN_DIR := ./bin
@@ -92,20 +84,20 @@ help:
 setup-env:
 	$(call print_header,"Setting up environment")
 	@if [ ! -f "$(ENV_FILE)" ] && [ -f "$(ENV_EXAMPLE_FILE)" ]; then \
-		echo "$(YELLOW)No .env file found. Creating from .env.example...$(NC)"; \
+		echo "No .env file found. Creating from .env.example..."; \
 		cp $(ENV_EXAMPLE_FILE) $(ENV_FILE); \
-		echo "$(GREEN)[ok]$(NC) Created .env file from .env.example$(GREEN) ✔️$(NC)"; \
+		echo "[ok] Created .env file from .env.example "; \
 	elif [ ! -f "$(ENV_FILE)" ] && [ ! -f "$(ENV_EXAMPLE_FILE)" ]; then \
-		echo "$(RED)[error]$(NC) Neither .env nor .env.example files found$(RED) ❌$(NC)"; \
+		echo "[error] Neither .env nor .env.example files found"; \
 		exit 1; \
 	elif [ -f "$(ENV_FILE)" ]; then \
-		read -t 10 -p "$(YELLOW).env file already exists. Overwrite with .env.example? [Y/n] (auto-yes in 10s)$(NC) " answer || answer="Y"; \
+		read -t 10 -p ".env file already exists. Overwrite with .env.example? [Y/n] (auto-yes in 10s) " answer || answer="Y"; \
 		answer=$${answer:-Y}; \
 		if [[ $$answer =~ ^[Yy] ]]; then \
 			cp $(ENV_EXAMPLE_FILE) $(ENV_FILE); \
-			echo "$(GREEN)[ok]$(NC) Overwrote .env file with .env.example$(GREEN) ✔️$(NC)"; \
+			echo "[ok] Overwrote .env file with .env.example "; \
 		else \
-			echo "$(YELLOW)[skipped]$(NC) Kept existing .env file$(YELLOW) ⚠️$(NC)"; \
+			echo "[skipped] Kept existing .env file"; \
 		fi; \
 	fi
 
@@ -117,19 +109,19 @@ setup-env:
 
 # Check that no lib-commons references appear in public packages
 check-references:
-	@echo "$(YELLOW)Checking for lib-commons references in public API...$(NC)"
-	@! grep -r "lib-commons" --include="*.go" ./models ./entities | grep -v "//.*lib-commons" || (echo "$(RED)❌ Found lib-commons references in public API!$(NC)" && exit 1)
-	@echo "$(GREEN)✅ No lib-commons references found in public API$(NC)"
+	@echo "Checking for lib-commons references in public API..."
+	@! grep -r "lib-commons" --include="*.go" ./models ./entities | grep -v "//.*lib-commons" || (echo " Found lib-commons references in public API!" && exit 1)
+	@echo " No lib-commons references found in public API"
 
 # Verify that our refactoring doesn't break API compatibility
 check-api-compatibility:
-	@echo "$(YELLOW)Checking API compatibility...$(NC)"
+	@echo "Checking API compatibility..."
 	@go build ./models ./entities ./internal/...
-	@echo "$(GREEN)✅ API builds successfully$(NC)"
+	@echo " API builds successfully"
 
 # Verify our implementation
 verify-sdk: check-references check-api-compatibility
-	@echo "$(GREEN)✅ All SDK quality checks passed!$(NC)"
+	@echo " All SDK quality checks passed!"
 
 # Install git hooks
 hooks:
@@ -156,7 +148,7 @@ coverage:
 	@$(GOTEST) -coverprofile=$(ARTIFACTS_DIR)/coverage.out ./...
 	@$(GOTOOL) cover -html=$(ARTIFACTS_DIR)/coverage.out -o $(ARTIFACTS_DIR)/coverage.html
 	@echo "Coverage report generated at $(ARTIFACTS_DIR)/coverage.html"
-	@echo "$(GREEN)[ok]$(NC) Coverage report generated successfully"
+	@echo "[ok] Coverage report generated successfully"
 
 #-------------------------------------------------------
 # Code Quality Commands
@@ -168,24 +160,24 @@ lint:
 	$(call print_header,"Running linters")
 	@if find . -name "*.go" -type f | grep -q .; then \
 		if ! command -v $(GOLINT) > /dev/null; then \
-			echo "$(YELLOW)Installing golangci-lint...$(NC)"; \
+			echo "Installing golangci-lint..."; \
 			go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest; \
 		fi; \
 		$(GOLINT) run; \
-		echo "$(GREEN)[ok]$(NC) Linting completed successfully$(GREEN) ✔️$(NC)"; \
+		echo "[ok] Linting completed successfully "; \
 	else \
-		echo "$(YELLOW)No Go files found, skipping linting$(NC)"; \
+		echo "No Go files found, skipping linting"; \
 	fi
 
 fmt:
 	$(call print_header,"Formatting code")
 	@$(GOFMT) -s -w .
-	@echo "$(GREEN)[ok]$(NC) Formatting completed successfully$(GREEN) ✔️$(NC)"
+	@echo "[ok] Formatting completed successfully "
 
 tidy:
 	$(call print_header,"Cleaning dependencies")
 	@$(GOMOD) tidy
-	@echo "$(GREEN)[ok]$(NC) Dependencies cleaned successfully$(GREEN) ✔️$(NC)"
+	@echo "[ok] Dependencies cleaned successfully "
 
 #-------------------------------------------------------
 # Clean Commands
@@ -195,10 +187,10 @@ tidy:
 
 clean:
 	$(call print_header,"Cleaning build artifacts")
-	@echo "$(CYAN)Cleaning build artifacts...$(NC)"
+	@echo "Cleaning build artifacts..."
 	@$(GOCLEAN)
 	@rm -rf $(BIN_DIR)/ $(ARTIFACTS_DIR)/coverage.out $(ARTIFACTS_DIR)/coverage.html
-	@echo "$(GREEN)[ok]$(NC) Artifacts cleaned successfully$(GREEN) ✔️$(NC)"
+	@echo "[ok] Artifacts cleaned successfully "
 
 #-------------------------------------------------------
 # Example Commands
@@ -220,9 +212,9 @@ example:
 
 godoc:
 	$(call print_header,"Starting godoc server")
-	@echo "$(CYAN)Starting godoc server at http://localhost:6060/pkg/github.com/LerianStudio/midaz-sdk-golang/$(NC)"
+	@echo "Starting godoc server at http://localhost:6060/pkg/github.com/LerianStudio/midaz-sdk-golang/"
 	@if ! command -v godoc > /dev/null; then \
-		echo "$(YELLOW)Installing godoc...$(NC)"; \
+		echo "Installing godoc..."; \
 		go install golang.org/x/tools/cmd/godoc@latest; \
 	fi
 	@godoc -http=:6060
@@ -245,11 +237,11 @@ PACKAGES := \
 
 godoc-static:
 	$(call print_header,"Generating static documentation")
-	@echo "$(CYAN)Generating static documentation...$(NC)"
+	@echo "Generating static documentation..."
 	@mkdir -p $(DOCS_DIR)
 	@# Process each package
 	@for pkg in $(PACKAGES) ; do \
-		echo "$(CYAN)Generating documentation for $${pkg}...$(NC)" ; \
+		echo "Generating documentation for $${pkg}..." ; \
 		pkg_path=$${pkg#github.com/LerianStudio/midaz-sdk-golang/} ; \
 		if [ "$${pkg_path}" = "github.com/LerianStudio/midaz-sdk-golang" ]; then \
 			pkg_path="." ; \
@@ -258,9 +250,9 @@ godoc-static:
 		mkdir -p $${pkg_dir} ; \
 		go doc $${pkg} > $${pkg_dir}/index.txt ; \
 	done
-	@echo "$(GREEN)[ok]$(NC) Static documentation generated successfully in $(DOCS_DIR)$(GREEN) ✔️$(NC)"
+	@echo "[ok] Static documentation generated successfully in $(DOCS_DIR) "
 
 # Just run godoc-static for now, as we have manually edited README.md
 docs: godoc-static
 	$(call print_header,"Documentation generation complete")
-	@echo "$(GREEN)[ok]$(NC) Documentation generated successfully$(GREEN) ✔️$(NC)"
+	@echo "[ok] Documentation generated successfully "
