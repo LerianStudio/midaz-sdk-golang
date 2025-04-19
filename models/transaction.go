@@ -267,6 +267,58 @@ func (input *TransactionDSLInput) GetMetadata() map[string]any {
 	return input.Metadata
 }
 
+// ValidateWithProvider validates the transaction DSL input with a specific validator provider.
+// This allows for customizing validation behavior based on the active validator in the SDK.
+//
+// Parameters:
+//   - provider: The validator provider to use for validation. If nil, uses the default validator.
+//
+// Returns:
+//   - error: Validation error if any, nil if validation passes.
+func (input *TransactionDSLInput) ValidateWithProvider(provider validation.ValidatorProvider) error {
+	// Run basic validation first
+	if err := input.Validate(); err != nil {
+		return err
+	}
+
+	// Create a validator that uses the specific provider
+	validator := &ValidationProvider{provider: provider}
+
+	// Run validation with the specific provider
+	if err := validator.ValidateAssetType(input.GetAsset()); err != nil {
+		return err
+	}
+
+	// Additional validations using the provider can be added here
+
+	return nil
+}
+
+// ValidationProvider is a wrapper around a ValidatorProvider that provides
+// transaction-specific validation methods.
+type ValidationProvider struct {
+	provider validation.ValidatorProvider
+}
+
+// ValidateAssetType validates if an asset type is valid using the wrapped provider.
+func (v *ValidationProvider) ValidateAssetType(assetType string) error {
+	if assetType == "" {
+		return fmt.Errorf("asset type is required")
+	}
+
+	// If no provider is available, fall back to core validation
+	if v.provider == nil {
+		return core.ValidateAssetCode(assetType)
+	}
+
+	// Use the provider to validate the asset type
+	if err := v.provider.ValidateType(assetType); err != nil {
+		return fmt.Errorf("invalid asset type: %s", assetType)
+	}
+
+	return nil
+}
+
 // Share represents the sharing configuration for a transaction.
 type Share struct {
 	Percentage             int64 `json:"percentage"`

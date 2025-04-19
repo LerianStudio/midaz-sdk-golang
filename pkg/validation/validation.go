@@ -41,27 +41,77 @@ import (
 // Validator is a configurable validation instance that can be used to perform validations
 // with specific configuration options.
 type Validator struct {
-	config *core.ValidationConfig
+	config    *core.ValidationConfig
+	validator core.ValidatorProvider
 }
 
 // DefaultValidator returns a new validator with default configuration
 func DefaultValidator() *Validator {
 	config := core.DefaultValidationConfig()
+
+	// By default, use lib-commons validator
+	// This maintains backwards compatibility while allowing for future changes
 	return &Validator{
-		config: config,
+		config:    config,
+		validator: &libCommonsValidator{},
+	}
+}
+
+// libCommonsValidator is an internal implementation using lib-commons directly
+// This avoids a circular import with the adapters package
+type libCommonsValidator struct{}
+
+func (v *libCommonsValidator) ValidateType(assetType string) error {
+	return commons.ValidateType(strings.ToLower(assetType))
+}
+
+func (v *libCommonsValidator) ValidateAccountType(accountType string) error {
+	return commons.ValidateAccountType(accountType)
+}
+
+func (v *libCommonsValidator) ValidateCurrency(code string) error {
+	return commons.ValidateCurrency(code)
+}
+
+func (v *libCommonsValidator) ValidateCountryAddress(code string) error {
+	return commons.ValidateCountryAddress(code)
+}
+
+// ValidatorOption is a function type for configuring a Validator
+type ValidatorOption func(*Validator) error
+
+// WithValidatorProviderOption sets a custom validator provider
+func WithValidatorProviderOption(provider core.ValidatorProvider) ValidatorOption {
+	return func(v *Validator) error {
+		if provider == nil {
+			return fmt.Errorf("validator provider cannot be nil")
+		}
+		v.validator = provider
+		return nil
 	}
 }
 
 // NewValidator creates a new Validator with the provided options
-func NewValidator(options ...core.ValidationOption) (*Validator, error) {
-	config, err := core.NewValidationConfig(options...)
+func NewValidator(configOptions []core.ValidationOption, validatorOptions ...ValidatorOption) (*Validator, error) {
+	config, err := core.NewValidationConfig(configOptions...)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Validator{
-		config: config,
-	}, nil
+	// Create validator with default lib-commons validator
+	validator := &Validator{
+		config:    config,
+		validator: &libCommonsValidator{},
+	}
+
+	// Apply validator options
+	for _, option := range validatorOptions {
+		if err := option(validator); err != nil {
+			return nil, fmt.Errorf("failed to apply validator option: %w", err)
+		}
+	}
+
+	return validator, nil
 }
 
 // The package also provides standalone functions for backward compatibility.
@@ -683,13 +733,17 @@ func validateAdditionalTransactionFields(summary *ValidationSummary, input map[s
 // ValidateAssetType validates if the asset type is one of the supported types
 // in the Midaz system.
 func ValidateAssetType(assetType string) error {
+	return defaultValidator.ValidateAssetType(assetType)
+}
+
+// ValidateAssetType validates if the asset type is one of the supported types
+// in the Midaz system using this validator's configuration.
+func (v *Validator) ValidateAssetType(assetType string) error {
 	if assetType == "" {
 		return fmt.Errorf("asset type is required")
 	}
 
-	// Use commons.ValidateType to ensure consistency with backend APIs
-	// Note: commons.ValidateType expects lowercase types, so we convert to lowercase
-	if err := commons.ValidateType(strings.ToLower(assetType)); err != nil {
+	if err := v.validator.ValidateType(assetType); err != nil {
 		// Create a list of valid types for the error message
 		validTypes := []string{"crypto", "currency", "commodity", "others"}
 
@@ -703,12 +757,17 @@ func ValidateAssetType(assetType string) error {
 // ValidateAccountType validates if the account type is one of the supported types
 // in the Midaz system.
 func ValidateAccountType(accountType string) error {
+	return defaultValidator.ValidateAccountType(accountType)
+}
+
+// ValidateAccountType validates if the account type is one of the supported types
+// in the Midaz system using this validator's configuration.
+func (v *Validator) ValidateAccountType(accountType string) error {
 	if accountType == "" {
 		return fmt.Errorf("account type is required")
 	}
 
-	// Use commons.ValidateAccountType to ensure consistency with backend APIs
-	if err := commons.ValidateAccountType(accountType); err != nil {
+	if err := v.validator.ValidateAccountType(accountType); err != nil {
 		// Convert the error to a more user-friendly message
 		// Create a list of valid types for the error message
 		validTypes := []string{"deposit", "savings", "loans", "marketplace", "creditCard"}
@@ -722,12 +781,17 @@ func ValidateAccountType(accountType string) error {
 
 // ValidateCurrencyCode checks if the currency code is valid according to ISO 4217.
 func ValidateCurrencyCode(code string) error {
+	return defaultValidator.ValidateCurrencyCode(code)
+}
+
+// ValidateCurrencyCode checks if the currency code is valid according to ISO 4217
+// using this validator's configuration.
+func (v *Validator) ValidateCurrencyCode(code string) error {
 	if code == "" {
 		return fmt.Errorf("currency code cannot be empty")
 	}
 
-	// Use commons.ValidateCurrency to ensure consistency with backend APIs
-	if err := commons.ValidateCurrency(code); err != nil {
+	if err := v.validator.ValidateCurrency(code); err != nil {
 		return fmt.Errorf("invalid currency code: %s", code)
 	}
 
@@ -736,12 +800,17 @@ func ValidateCurrencyCode(code string) error {
 
 // ValidateCountryCode checks if the country code is valid according to ISO 3166-1 alpha-2.
 func ValidateCountryCode(code string) error {
+	return defaultValidator.ValidateCountryCode(code)
+}
+
+// ValidateCountryCode checks if the country code is valid according to ISO 3166-1 alpha-2
+// using this validator's configuration.
+func (v *Validator) ValidateCountryCode(code string) error {
 	if code == "" {
 		return fmt.Errorf("country code cannot be empty")
 	}
 
-	// Use commons.ValidateCountryAddress to ensure consistency with backend APIs
-	if err := commons.ValidateCountryAddress(code); err != nil {
+	if err := v.validator.ValidateCountryAddress(code); err != nil {
 		return fmt.Errorf("invalid country code: %s (must be a valid ISO 3166-1 alpha-2 code)", code)
 	}
 

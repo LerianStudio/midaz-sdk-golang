@@ -15,11 +15,12 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/pkg/config"
 	"github.com/LerianStudio/midaz-sdk-golang/pkg/observability"
 	"github.com/LerianStudio/midaz-sdk-golang/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/pkg/validation/core"
 )
 
 // Version is the current version of the SDK.
 // This is automatically updated during the release process.
-const Version = "1.1.0-beta.2"
+const Version = "2.0.0-beta.1"
 
 // Client is the main entry point for using the Midaz API.
 // It provides access to all API services, connection management,
@@ -41,6 +42,24 @@ type Client struct {
 	// Observability provider
 	observability observability.Provider
 	metrics       *observability.MetricsCollector
+
+	// Validation provider
+	validatorProvider core.ValidatorProvider
+}
+
+// SetValidatorProvider sets the validator provider for the client.
+// This method is used by the WithValidatorProvider option.
+func (c *Client) SetValidatorProvider(provider core.ValidatorProvider) {
+	c.validatorProvider = provider
+}
+
+// GetValidatorProvider returns the validator provider for the client.
+// If no provider has been set, it returns the default provider.
+func (c *Client) GetValidatorProvider() core.ValidatorProvider {
+	if c.validatorProvider == nil {
+		c.validatorProvider = core.DefaultValidatorProvider()
+	}
+	return c.validatorProvider
 }
 
 // New creates a new Midaz client with the provided options.
@@ -115,6 +134,11 @@ func (c *Client) setupEntity() error {
 	pluginAuth := c.config.GetPluginAuth()
 	if pluginAuth.Enabled {
 		options = append(options, entities.WithPluginAuth(pluginAuth))
+	}
+
+	// Add validator provider if available
+	if c.validatorProvider != nil {
+		options = append(options, entities.WithValidatorProvider(c.validatorProvider))
 	}
 
 	entity, err := entities.NewWithServiceURLs(serviceURLs, options...)
@@ -533,6 +557,21 @@ func WithDebug(enable bool) Option {
 //   - Option: A function that enables the Entity API on the Client
 func UseEntity() Option {
 	return UseEntityAPI()
+}
+
+// WithValidatorProvider sets a custom validator provider for the client.
+// This allows for custom validation logic to be used throughout the SDK.
+//
+// Parameters:
+//   - provider: The validator provider to use
+//
+// Returns:
+//   - Option: A function that sets the validator provider on the Client
+func WithValidatorProvider(provider core.ValidatorProvider) Option {
+	return func(c *Client) error {
+		c.SetValidatorProvider(provider)
+		return nil
+	}
 }
 
 // Shutdown gracefully shuts down the client, releasing any resources.

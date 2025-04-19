@@ -7,6 +7,7 @@ import (
 
 	auth "github.com/LerianStudio/midaz-sdk-golang/pkg/access-manager"
 	"github.com/LerianStudio/midaz-sdk-golang/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/pkg/validation/core"
 )
 
 // Option is a function that configures an Entity.
@@ -94,5 +95,42 @@ func WithPluginAuth(pluginAuth auth.PluginAuth) Option {
 	return func(e *Entity) error {
 		// Call the auth.WithPluginAuth function with the entity
 		return auth.WithPluginAuth(pluginAuth)(e)
+	}
+}
+
+// WithValidatorProvider returns an Option that sets the validator provider for the Entity.
+// This option allows you to customize validation behavior by providing a custom implementation
+// of the validation.ValidatorProvider interface.
+//
+// Parameters:
+//   - provider: The validator provider to use. If nil, the default provider will be used.
+//
+// Returns:
+//   - Option: An Option that can be passed to NewEntity or similar functions.
+//
+// Example:
+//
+//	// Create a custom validator provider
+//	myValidator := &CustomValidator{}
+//
+//	// Create a new entity with the custom validator
+//	entity, err := entities.NewEntity(
+//	    client,
+//	    authToken,
+//	    baseURLs,
+//	    observabilityProvider,
+//	    entities.WithValidatorProvider(myValidator),
+//	)
+func WithValidatorProvider(provider core.ValidatorProvider) Option {
+	return func(e *Entity) error {
+		// If provider is nil, use the default
+		if provider == nil {
+			provider = core.DefaultValidatorProvider()
+		}
+
+		// Set the validator provider on the entity
+		e.validator = provider
+
+		return nil
 	}
 }

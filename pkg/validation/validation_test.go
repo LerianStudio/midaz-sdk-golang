@@ -624,9 +624,8 @@ func TestValidateDateRange(t *testing.T) {
 func TestValidatorWithOptions(t *testing.T) {
 	// Create validator with custom options
 	validator, err := validation.NewValidator(
-		core.WithMaxStringLength(10),
-		core.WithMaxMetadataSize(100),
-		core.WithStrictMode(true),
+		[]core.ValidationOption{core.WithMaxStringLength(10)},
+		validation.WithValidatorProviderOption(core.DefaultValidatorProvider()),
 	)
 	if err != nil {
 		t.Fatalf("Failed to create validator: %v", err)
@@ -679,7 +678,7 @@ func TestValidatorWithOptions(t *testing.T) {
 	t.Run("Address validation with custom line length", func(t *testing.T) {
 		// Create a custom validator with small address line length
 		smallLinesValidator, err := validation.NewValidator(
-			core.WithMaxAddressLineLength(20),
+			[]core.ValidationOption{core.WithMaxAddressLineLength(20)},
 		)
 		if err != nil {
 			t.Fatalf("Failed to create smallLinesValidator: %v", err)

@@ -10,6 +10,7 @@ import (
 
 	auth "github.com/LerianStudio/midaz-sdk-golang/pkg/access-manager"
 	"github.com/LerianStudio/midaz-sdk-golang/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/pkg/validation/core"
 )
 
 // Config is an interface for accessing configuration values.
@@ -26,6 +27,9 @@ type Config interface {
 
 	// GetPluginAuth returns the plugin authentication configuration.
 	GetPluginAuth() auth.PluginAuth
+
+	// GetValidatorProvider returns the validator provider.
+	GetValidatorProvider() core.ValidatorProvider
 }
 
 // Entity provides a centralized access point to all entity types in the Midaz SDK.
@@ -38,6 +42,9 @@ type Entity struct {
 
 	// Observability provider for tracing, metrics, and logging
 	observability observability.Provider
+
+	// Validator provider for validation operations
+	validator core.ValidatorProvider
 
 	// Service interfaces for different resource types
 	Accounts      AccountsService
@@ -123,12 +130,18 @@ type Entity struct {
 //	}
 //
 //	fmt.Printf("Ledger created: %s\n", ledger.ID)
-func NewEntity(client *http.Client, authToken string, baseURLs map[string]string, observabilityProvider observability.Provider, options ...Option) (*Entity, error) {
+func NewEntity(client *http.Client, authToken string, baseURLs map[string]string, observabilityProvider observability.Provider, validatorProvider core.ValidatorProvider, options ...Option) (*Entity, error) {
+	// If no validator provider is specified, use the default
+	if validatorProvider == nil {
+		validatorProvider = core.DefaultValidatorProvider()
+	}
+
 	// Create a new entity with the provided configuration
 	entity := &Entity{
 		httpClient:    NewHTTPClient(client, authToken, observabilityProvider),
 		baseURLs:      baseURLs,
 		observability: observabilityProvider,
+		validator:     validatorProvider,
 	}
 
 	// Apply the provided options
@@ -177,6 +190,7 @@ func NewEntityWithConfig(config Config, options ...Option) (*Entity, error) {
 		httpClient:    NewHTTPClient(config.GetHTTPClient(), authToken, config.GetObservabilityProvider()),
 		baseURLs:      config.GetBaseURLs(),
 		observability: config.GetObservabilityProvider(),
+		validator:     config.GetValidatorProvider(),
 	}
 
 	// Apply any additional options
@@ -229,7 +243,7 @@ func (e *Entity) InitServices() {
 
 // GetEntityHTTPClient returns the custom HTTP client used by the entity.
 // This allows for configuration of the HTTP client after the entity is created.
-// 
+//
 // Returns:
 //   - *HTTPClient: The HTTP client used by the entity for API requests.
 func (e *Entity) GetEntityHTTPClient() *HTTPClient {
@@ -251,6 +265,27 @@ func (e *Entity) GetHTTPClient() *http.Client {
 //   - observability.Provider: The observability provider used by the entity.
 func (e *Entity) GetObservabilityProvider() observability.Provider {
 	return e.observability
+}
+
+// GetValidatorProvider returns the validator provider used by the entity.
+//
+// Returns:
+//   - core.ValidatorProvider: The validator provider used by the entity.
+func (e *Entity) GetValidatorProvider() core.ValidatorProvider {
+	if e.validator == nil {
+		e.validator = core.DefaultValidatorProvider()
+	}
+	return e.validator
+}
+
+// SetValidatorProvider sets the validator provider for the entity.
+//
+// Parameters:
+//   - provider: The validator provider to use for validation operations.
+func (e *Entity) SetValidatorProvider(provider core.ValidatorProvider) {
+	if provider != nil {
+		e.validator = provider
+	}
 }
 
 // SetHTTPClient sets the HTTP client for the entity.
@@ -314,6 +349,7 @@ func New(baseURL string, options ...Option) (*Entity, error) {
 		httpClient:    NewHTTPClient(client, "", nil),
 		baseURLs:      baseURLs,
 		observability: nil,
+		validator:     core.DefaultValidatorProvider(),
 	}
 
 	// Apply any options
@@ -364,6 +400,7 @@ func NewWithServiceURLs(serviceURLs map[string]string, options ...Option) (*Enti
 		httpClient:    NewHTTPClient(client, "", nil),
 		baseURLs:      serviceURLs,
 		observability: nil,
+		validator:     core.DefaultValidatorProvider(),
 	}
 
 	// Apply any options

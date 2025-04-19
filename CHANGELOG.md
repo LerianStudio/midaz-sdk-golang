@@ -1,3 +1,16 @@
+## [2.0.0-beta.1](https://github.com/LerianStudio/midaz-sdk-golang/compare/v1.0.7...v2.0.0-beta.1) (2025-04-19)
+
+### ⚠ BREAKING CHANGES
+
+* **validation:** The validation system now uses a provider-based
+approach, which may require updates to existing code to specify
+custom validators if needed.
+
+### Features
+
+* Improve Docs for Aux Packages ([#8](https://github.com/LerianStudio/midaz-sdk-golang/issues/8)) ([047ce48](https://github.com/LerianStudio/midaz-sdk-golang/commit/047ce4822c4f7eb4f8e97f6d81cd69c4c998c7c4))
+* **validation:** introduce customizable validation system with provider support ([af2d9fe](https://github.com/LerianStudio/midaz-sdk-golang/commit/af2d9fe377bae2a859edd5e2afb8a31ffc0d224f))
+
 ## [1.1.0-beta.2](https://github.com/LerianStudio/midaz-sdk-golang/compare/v1.1.0-beta.1...v1.1.0-beta.2) (2025-04-09)
 
 ### Bug Fixes

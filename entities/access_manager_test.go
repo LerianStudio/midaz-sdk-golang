@@ -8,15 +8,17 @@ import (
 
 	auth "github.com/LerianStudio/midaz-sdk-golang/pkg/access-manager"
 	"github.com/LerianStudio/midaz-sdk-golang/pkg/observability"
+	validation "github.com/LerianStudio/midaz-sdk-golang/pkg/validation"
 	"github.com/stretchr/testify/assert"
 )
 
 // mockConfig implements the Config interface for testing
 type mockPluginAuthConfig struct {
-	httpClient     *http.Client
-	baseURLs       map[string]string
-	pluginAuth     auth.PluginAuth
-	observability  observability.Provider
+	httpClient    *http.Client
+	baseURLs      map[string]string
+	pluginAuth    auth.PluginAuth
+	observability observability.Provider
+	validator     validation.ValidatorProvider
 }
 
 func (m *mockPluginAuthConfig) GetHTTPClient() *http.Client {
@@ -33,6 +35,32 @@ func (m *mockPluginAuthConfig) GetObservabilityProvider() observability.Provider
 
 func (m *mockPluginAuthConfig) GetPluginAuth() auth.PluginAuth {
 	return m.pluginAuth
+}
+
+func (m *mockPluginAuthConfig) GetValidatorProvider() validation.ValidatorProvider {
+	return m.validator
+}
+
+type mockValidator struct{}
+
+func (m *mockValidator) Validate(data interface{}) error {
+	return nil
+}
+
+func (m *mockValidator) ValidateType(assetType string) error {
+	return nil
+}
+
+func (m *mockValidator) ValidateAccountType(accountType string) error {
+	return nil
+}
+
+func (m *mockValidator) ValidateCurrency(code string) error {
+	return nil
+}
+
+func (m *mockValidator) ValidateCountryAddress(code string) error {
+	return nil
 }
 
 func TestEntityWithPluginAuth(t *testing.T) {
@@ -87,16 +115,16 @@ func TestEntityWithPluginAuth(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create a mock server to simulate the auth service
 			var server *httptest.Server
-			
+
 			if tt.pluginAuth.Enabled && tt.pluginAuth.Address != "" {
 				server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					// Verify request method and path
 					assert.Equal(t, http.MethodPost, r.Method)
 					assert.Equal(t, "/v1/login/oauth/access_token", r.URL.Path)
-					
+
 					// Set response status code
 					w.WriteHeader(tt.mockStatusCode)
-					
+
 					// If we have a mock response, return it
 					if tt.mockResponse != nil && tt.mockStatusCode == http.StatusOK {
 						json.NewEncoder(w).Encode(tt.mockResponse)
@@ -106,11 +134,11 @@ func TestEntityWithPluginAuth(t *testing.T) {
 					}
 				}))
 				defer server.Close()
-				
+
 				// Override the address to use the test server
 				tt.pluginAuth.Address = server.URL
 			}
-			
+
 			// Create a mock config
 			mockConfig := &mockPluginAuthConfig{
 				httpClient: &http.Client{},
@@ -119,18 +147,19 @@ func TestEntityWithPluginAuth(t *testing.T) {
 					"transaction": "http://localhost:3001/v1",
 				},
 				pluginAuth: tt.pluginAuth,
+				validator:  &mockValidator{},
 			}
-			
+
 			// Create an entity with the mock config
 			entity, err := NewEntityWithConfig(mockConfig)
-			
+
 			if tt.expectError {
 				assert.Error(t, err)
 				assert.Nil(t, entity)
 			} else {
 				assert.NoError(t, err)
 				assert.NotNil(t, entity)
-				
+
 				// If plugin auth is enabled and successful, the auth token should be set
 				if tt.pluginAuth.Enabled && tt.mockStatusCode == http.StatusOK {
 					assert.Equal(t, "test-access-token", entity.httpClient.authToken)
@@ -196,27 +225,27 @@ func TestWithPluginAuthOption(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Create a mock server to simulate the auth service
 			var server *httptest.Server
-			
+
 			if tt.pluginAuth.Enabled && tt.pluginAuth.Address != "" {
 				server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					// Verify request method and path
 					assert.Equal(t, http.MethodPost, r.Method)
 					assert.Equal(t, "/v1/login/oauth/access_token", r.URL.Path)
-					
+
 					// Set response status code
 					w.WriteHeader(tt.mockStatusCode)
-					
+
 					// If we have a mock response, return it
 					if tt.mockResponse != nil && tt.mockStatusCode == http.StatusOK {
 						json.NewEncoder(w).Encode(tt.mockResponse)
 					}
 				}))
 				defer server.Close()
-				
+
 				// Override the address to use the test server
 				tt.pluginAuth.Address = server.URL
 			}
-			
+
 			// Create a basic entity
 			entity := &Entity{
 				httpClient: NewHTTPClient(&http.Client{}, "", nil),
@@ -225,19 +254,19 @@ func TestWithPluginAuthOption(t *testing.T) {
 					"transaction": "http://localhost:3001/v1",
 				},
 			}
-			
+
 			// Initialize services to avoid nil pointers
 			entity.initServices()
-			
+
 			// Call the function under test
 			err := WithPluginAuth(tt.pluginAuth)(entity)
-			
+
 			// Check the results
 			if tt.expectError {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
-				
+
 				// If plugin auth is enabled and successful, the auth token should be set
 				if tt.pluginAuth.Enabled && tt.expectedToken != "" {
 					assert.Equal(t, tt.expectedToken, entity.httpClient.authToken)

@@ -82,6 +82,11 @@ Thumbs.db
 # Misc
 TODO
 NOTES
+midaz/
+CLAUDE.md
+.windsurfrules
+.cursorrules
+cursor/
 
 # Specific to this project
 /sdks/go-sdk/.cache/
