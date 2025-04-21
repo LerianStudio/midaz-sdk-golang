@@ -3,7 +3,7 @@ module github.com/LerianStudio/midaz-sdk-golang
 go 1.24.2
 
 require (
-	github.com/LerianStudio/lib-commons v1.6.0
+	github.com/LerianStudio/lib-commons v1.7.0
 	github.com/LerianStudio/midaz v1.51.0
 	github.com/golang/mock v1.6.0
 	github.com/google/uuid v1.6.0
@@ -37,7 +37,7 @@ require (
 	go.opentelemetry.io/otel/log v0.11.0 // indirect
 	go.opentelemetry.io/otel/sdk/log v0.11.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.5.0 // indirect
-	go.uber.org/mock v0.5.0 // indirect
+	go.uber.org/mock v0.5.1 // indirect
 	golang.org/x/net v0.38.0 // indirect
 	golang.org/x/sys v0.31.0 // indirect
 	golang.org/x/text v0.24.0 // indirect
