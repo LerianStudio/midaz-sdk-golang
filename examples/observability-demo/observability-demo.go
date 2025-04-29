@@ -121,10 +121,9 @@ func main() {
 
 	// Create an HTTP client with the middleware
 	client := &http.Client{Transport: transport}
-
-	// This is just to show that the middleware is applied - not actually making a request
-	logger.Info("Created HTTP client with middleware (transport wrapped with tracing)")
+	_ = client.Transport // prevent unused write to field Transport
 	_ = client // prevent unused variable warning
 
+	logger.Info("Created HTTP client with middleware (transport wrapped with tracing)")
 	logger.Info("Observability demo completed")
 }

@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"os"
 	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/entities"
@@ -616,19 +615,6 @@ func (c *Client) GetContext() context.Context {
 	return c.ctx
 }
 
-// =========================================================
-// Debug Helpers
-// =========================================================
-
-// debugLog is a helper function for logging debug messages.
-// It only logs the message if the debug flag is enabled.
-func debugLog(format string, args ...interface{}) {
-	debugFlag := os.Getenv("MIDAZ_DEBUG")
-	if debugFlag == "true" {
-		fmt.Fprintf(os.Stderr, "[Midaz SDK] "+format+"\n", args...)
-	}
-}
-
 // GetConfiguration returns the client configuration.
 // This is useful for debugging and testing.
 //
@@ -646,10 +632,6 @@ func (c *Client) GetConfiguration() *config.Config {
 func (c *Client) GetConfig() *config.Config {
 	return c.config
 }
-
-// =========================================================
-// Helper Types for Construction
-// =========================================================
 
 // Helper method to construct a basic account
 func (c *Client) NewAccount() *models.Account {
