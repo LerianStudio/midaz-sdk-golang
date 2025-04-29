@@ -1,92 +1,60 @@
 plugins:
-  [
-    # Analyze commit messages to determine version bump based on conventional commits
-    [
-      "@semantic-release/commit-analyzer",
-      {
-        "preset": "conventionalcommits",
-        "parserOpts":
-          { "noteKeywords": ["BREAKING CHANGE", "BREAKING CHANGES"] },
-        "releaseRules":
-          [
-            # Go SDK should follow semver strictly - breaking changes only in major releases
-            { "type": "feat", "release": "minor" },
-            { "type": "fix", "release": "patch" },
-            { "type": "docs", "release": "patch" },
-            { "type": "style", "release": "patch" },
-            { "type": "refactor", "release": "patch" },
-            { "type": "perf", "release": "patch" },
-            { "type": "test", "release": "patch" },
-            { "type": "ci", "release": "patch" },
-            { "type": "build", "release": "patch" },
-            { "type": "chore", "release": "patch" },
-            # Breaking changes must be explicitly marked as breaking
-            { "type": "breaking", "release": "major" },
-            { "breaking": true, "release": "major" },
-          ],
-      },
-    ],
-    
-    # Generate release notes
-    [
-      "@semantic-release/release-notes-generator",
-      {
-        "preset": "conventionalcommits",
-        "parserOpts":
-          {
-            "noteKeywords": ["BREAKING CHANGE", "BREAKING CHANGES", "BREAKING"],
-          },
-        "writerOpts": { 
-          "commitsSort": ["subject", "scope"],
-          "groupBy": "type",
-          "commitGroupsSort": [
-            "feat",
-            "fix",
-            "perf",
-            "refactor",
-            "docs",
-            "test",
-            "chore",
-            "build",
-            "ci"
-          ],
-        },
-      },
-    ],
-    
-    # Update changelog file
-    ["@semantic-release/changelog", { "changelogFile": "CHANGELOG.md" }],
-    
-    # Modify the version in the client.go file (SDK version)
-    [
-      "@semantic-release/exec",
-      {
-        "prepareCmd": "sed -i.bak 's/const Version = \".*\"/const Version = \"${nextRelease.version}\"/' client.go && rm client.go.bak",
-      },
-    ],
-    
-    # Commit changes back to the repository
-    [
-      "@semantic-release/git",
-      {
-        "message": "chore(release): ${nextRelease.version}\n\n${nextRelease.notes}",
-        "assets": ["CHANGELOG.md", "client.go"],
-      },
-    ],
-    
-    # Create GitHub release
-    ["@semantic-release/github", {
-      "repositoryUrl": "https://github.com/LerianStudio/midaz-sdk-golang.git"
-    }],
-  ]
+  - path: "@semantic-release/commit-analyzer"
+    preset: conventionalcommits
+    parserOpts:
+      noteKeywords:
+        - "BREAKING CHANGE"
+        - "BREAKING CHANGES"
+    releaseRules:
+      - type: feat
+        release: minor
+      - type: perf
+        release: minor
+      - type: build
+        release: minor
+      - type: chore
+        release: patch
+      - type: ci
+        release: patch
+      - type: test
+        release: patch
+      - type: fix
+        release: minor
+      - type: refactor
+        release: minor
+      - type: docs
+        release: patch
+      - breaking: true
+        release: major
+        
+  # Plugin to version the CHANGELOG.md
+  - path: "@semantic-release/git"
+    assets:
+      - CHANGELOG.md
+    message: "chore(release): ${nextRelease.version}\n\nChangelog atualizado."
 
-# Which branches should trigger releases
+  # Plugin to publish the CHANGELOG.md as an asset in the GitHub release
+  - path: "@semantic-release/github"
+    assets:
+      - path: CHANGELOG.md
+        label: "Changelog"
+  
+ # Plugin to perform the backmerge between the 'main' and 'develop' branches
+  - path: "@saithodev/semantic-release-backmerge"
+    backmergeBranches:
+      - from: main
+        to: develop
+    message: "chore(release): Preparations for next release [skip ci]"
+
+  - path: "@semantic-release/exec"
+    backmergeBranches:
+      - from: main 
+        to: develop
+    message: "chore(release): Preparations for next release [skip ci]"
+
 branches:
-  # Main branch releases create proper releases
   - main
-  # Feature branches can create pre-releases
-  - name: feature/*
-    prerelease: "beta"
-  # Hotfix branches can create hot fix releases
+  - name: develop
+    prerelease: beta
   - name: hotfix/*
-    prerelease: "hf"
+    prerelease: hf
