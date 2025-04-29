@@ -49,7 +49,7 @@ type HTTPBatchProcessorWithRetry struct {
 //	processor := concurrent.NewHTTPBatchProcessorWithRetry(client, "https://api.example.com",
 //	    concurrent.WithBatchRetryCount(5),
 //	    concurrent.WithBatchContinueOnError(true))
-func NewHTTPBatchProcessorWithRetry(client *http.Client, baseURL string, opts ...HTTPBatchOption) *HTTPBatchProcessorWithRetry {
+func NewHTTPBatchProcessorWithRetry(client *http.Client, baseURL string, opts ...HTTPBatchOption) (*HTTPBatchProcessorWithRetry, error) {
 	// Start with default options
 	options := DefaultHTTPBatchOptions()
 
@@ -68,12 +68,24 @@ func NewHTTPBatchProcessorWithRetry(client *http.Client, baseURL string, opts ..
 	// Convert batch options to retry options
 	retryOptions := retry.DefaultHTTPOptions()
 	// Apply retry options from batch options
-	retry.WithHTTPMaxRetries(options.RetryCount)(retryOptions)
-	retry.WithHTTPInitialDelay(options.RetryBackoff)(retryOptions)
-	retry.WithHTTPMaxDelay(options.RetryBackoff * 10)(retryOptions) // Scale up max delay
-	retry.WithHTTPBackoffFactor(2.0)(retryOptions)
-	retry.WithHTTPRetryAllServerErrors(true)(retryOptions)
-	retry.WithHTTPRetryOn4xx([]int{429})(retryOptions) // Too Many Requests
+	if err := retry.WithHTTPMaxRetries(options.RetryCount)(retryOptions); err != nil {
+		return nil, fmt.Errorf("failed to set max retries: %w", err)
+	}
+	if err := retry.WithHTTPInitialDelay(options.RetryBackoff)(retryOptions); err != nil {
+		return nil, fmt.Errorf("failed to set initial delay: %w", err)
+	}
+	if err := retry.WithHTTPMaxDelay(options.RetryBackoff * 10)(retryOptions); err != nil { // Scale up max delay
+		return nil, fmt.Errorf("failed to set max delay: %w", err)
+	}
+	if err := retry.WithHTTPBackoffFactor(2.0)(retryOptions); err != nil {
+		return nil, fmt.Errorf("failed to set backoff factor: %w", err)
+	}
+	if err := retry.WithHTTPRetryAllServerErrors(true)(retryOptions); err != nil {
+		return nil, fmt.Errorf("failed to set retry all server errors: %w", err)
+	}
+	if err := retry.WithHTTPRetryOn4xx([]int{429})(retryOptions); err != nil { // Too Many Requests
+		return nil, fmt.Errorf("failed to set retry on 4xx: %w", err)
+	}
 
 	return &HTTPBatchProcessorWithRetry{
 		httpClient:     client,
@@ -82,7 +94,7 @@ func NewHTTPBatchProcessorWithRetry(client *http.Client, baseURL string, opts ..
 		options:        options,
 		jsonMarshaler:  &DefaultJSONMarshaler{},
 		retryOptions:   *retryOptions,
-	}
+	}, nil
 }
 
 // SetJSONMarshaler sets a custom JSON marshaler implementation.

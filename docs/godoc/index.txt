@@ -3,7 +3,7 @@ package client // import "github.com/LerianStudio/midaz-sdk-golang"
 Package client provides a client for the Midaz API. It is the top-level entry
 point for interacting with the SDK.
 
-const Version = "1.0.0"
+const Version = "1.1.0-beta.2"
 type Client struct{ ... }
     func New(options ...Option) (*Client, error)
 type Option func(*Client) error
@@ -11,8 +11,6 @@ type Option func(*Client) error
     func UseAllAPIs() Option
     func UseEntity() Option
     func UseEntityAPI() Option
-    func WithAPIToken(token string) Option
-    func WithAuthToken(token string) Option
     func WithBaseURL(baseURL string) Option
     func WithCollectorEndpoint(endpoint string) Option
     func WithConfig(cfg *config.Config) Option

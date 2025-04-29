@@ -100,9 +100,15 @@ func (c *Client) setupEntity() error {
 	var retryOptions *retry.Options
 	if c.config.EnableRetries {
 		retryOptions = retry.DefaultOptions()
-		retry.WithMaxRetries(c.config.MaxRetries)(retryOptions)
-		retry.WithInitialDelay(c.config.RetryWaitMin)(retryOptions)
-		retry.WithMaxDelay(c.config.RetryWaitMax)(retryOptions)
+		if err := retry.WithMaxRetries(c.config.MaxRetries)(retryOptions); err != nil {
+			return fmt.Errorf("failed to set max retries: %w", err)
+		}
+		if err := retry.WithInitialDelay(c.config.RetryWaitMin)(retryOptions); err != nil {
+			return fmt.Errorf("failed to set initial delay: %w", err)
+		}
+		if err := retry.WithMaxDelay(c.config.RetryWaitMax)(retryOptions); err != nil {
+			return fmt.Errorf("failed to set max delay: %w", err)
+		}
 	}
 
 	// Create the entity API with service-specific URLs
