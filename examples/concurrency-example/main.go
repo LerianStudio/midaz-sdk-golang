@@ -9,9 +9,10 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
 	"log"
-	"math/rand"
+	"math/big"
 	"sync/atomic"
 	"time"
 
@@ -48,7 +49,7 @@ func main() {
 }
 
 // workerPoolExample demonstrates using a worker pool to process items in parallel.
-func workerPoolExample(c *client.Client) {
+func workerPoolExample(_ *client.Client) {
 	fmt.Println("\nExample 1: Worker Pool for Parallel Processing")
 	fmt.Println("-------------------------------------------")
 
@@ -75,7 +76,18 @@ func workerPoolExample(c *client.Client) {
 			time.Sleep(200 * time.Millisecond) // Simulate network delay
 
 			// Simulate some failures to demonstrate error handling
-			if rand.Intn(10) < 2 { // 20% chance of failure
+			// Use crypto/rand for secure random number generation
+			randomNum, err := rand.Int(rand.Reader, big.NewInt(10))
+			if err != nil {
+				log.Printf("Error generating random number: %v", err)
+				// Fallback to a simple deterministic approach if random fails
+				return &models.Account{
+					ID:   accountID,
+					Name: fmt.Sprintf("Account %s", accountID),
+				}, nil
+			}
+
+			if randomNum.Int64() < 2 { // 20% chance of failure
 				return nil, fmt.Errorf("failed to get account %s", accountID)
 			}
 
@@ -122,7 +134,7 @@ func workerPoolExample(c *client.Client) {
 }
 
 // batchProcessingExample demonstrates processing items in batches.
-func batchProcessingExample(c *client.Client) {
+func batchProcessingExample(_ *client.Client) {
 	fmt.Println("\nExample 2: Batch Processing")
 	fmt.Println("-------------------------")
 
@@ -183,7 +195,7 @@ func batchProcessingExample(c *client.Client) {
 }
 
 // forEachExample demonstrates using forEach for simple parallel operations.
-func forEachExample(c *client.Client) {
+func forEachExample(_ *client.Client) {
 	fmt.Println("\nExample 3: ForEach for Simple Operations")
 	fmt.Println("--------------------------------------")
 
@@ -213,7 +225,13 @@ func forEachExample(c *client.Client) {
 			time.Sleep(150 * time.Millisecond) // Simulate network delay
 
 			// Simulate a random failure
-			if rand.Intn(10) < 1 { // 10% chance of failure
+			randomNum, err := rand.Int(rand.Reader, big.NewInt(10))
+			if err != nil {
+				log.Printf("Error generating random number: %v", err)
+				// Fallback to a simple deterministic approach if random fails
+				return nil
+			}
+			if randomNum.Int64() < 1 { // 10% chance of failure
 				return fmt.Errorf("failed to update portfolio %s", portfolioID)
 			}
 
@@ -243,7 +261,7 @@ func forEachExample(c *client.Client) {
 }
 
 // rateLimitingExample demonstrates using a rate limiter to control API call frequency.
-func rateLimitingExample(c *client.Client) {
+func rateLimitingExample(_ *client.Client) {
 	fmt.Println("\nExample 4: Rate Limiting")
 	fmt.Println("---------------------")
 

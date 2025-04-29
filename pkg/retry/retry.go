@@ -53,9 +53,10 @@ package retry
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/binary"
 	"fmt"
 	"math"
-	"math/rand"
 	"net/http"
 	"strings"
 	"time"
@@ -500,12 +501,25 @@ func calculateBackoff(attempt int, options *Options) time.Duration {
 // addJitter adds random jitter to the delay to avoid thundering herd
 func addJitter(delay time.Duration, factor float64) time.Duration {
 	// Add jitter based on the factor
-	jitterF := rand.Float64() * factor
+	jitterF := getSecureRandomFloat64() * factor
 	jitter := time.Duration(float64(delay) * jitterF)
 
 	// Randomly add or subtract jitter
-	if rand.Float64() > 0.5 {
+	if getSecureRandomFloat64() > 0.5 {
 		return delay + jitter
 	}
 	return delay - jitter
+}
+
+// getSecureRandomFloat64 returns a cryptographically secure random float64 between 0 and 1
+func getSecureRandomFloat64() float64 {
+	var buf [8]byte
+	_, err := rand.Read(buf[:])
+	if err != nil {
+		// If crypto/rand fails, return a safe default
+		return 0.5
+	}
+
+	// Convert bytes to uint64, then to float64 between 0 and 1
+	return float64(binary.BigEndian.Uint64(buf[:])) / float64(math.MaxUint64)
 }

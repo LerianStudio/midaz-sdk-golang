@@ -128,10 +128,18 @@ func configurationFromEnvironment() {
 
 	// Set environment variables for demonstration
 	// In a real application, these would be set externally
-	os.Setenv("MIDAZ_CLIENT_ID", "1234567890")
-	os.Setenv("MIDAZ_CLIENT_SECRET", "1234567890")
-	os.Setenv("MIDAZ_ENVIRONMENT", "development")
-	os.Setenv("MIDAZ_DEBUG", "true")
+	if err := os.Setenv("MIDAZ_CLIENT_ID", "1234567890"); err != nil {
+		fmt.Printf("Error setting environment variable: %v\n", err)
+	}
+	if err := os.Setenv("MIDAZ_CLIENT_SECRET", "1234567890"); err != nil {
+		fmt.Printf("Error setting environment variable: %v\n", err)
+	}
+	if err := os.Setenv("MIDAZ_ENVIRONMENT", "development"); err != nil {
+		fmt.Printf("Error setting environment variable: %v\n", err)
+	}
+	if err := os.Setenv("MIDAZ_DEBUG", "true"); err != nil {
+		fmt.Printf("Error setting environment variable: %v\n", err)
+	}
 
 	// Create a client that loads configuration from environment variables
 	c, err := client.New(
