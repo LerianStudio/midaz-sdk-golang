@@ -6,7 +6,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"math/rand"
+	"log"
+	"os"
 	"sync"
 	"time"
 
@@ -48,7 +49,7 @@ func ExecuteConcurrentTransactions(ctx context.Context, client *client.Client, o
 	ctx, span := observability.StartSpan(ctx, "ExecuteConcurrentTransactions")
 	defer span.End()
 
-	fmt.Println("\n🚀 Executing concurrent transactions for TPS testing...")
+	fmt.Println("\n Executing concurrent transactions for TPS testing...")
 
 	// Record transaction parameters in observability
 	observability.AddAttribute(ctx, "organization_id", orgID)
@@ -57,9 +58,6 @@ func ExecuteConcurrentTransactions(ctx context.Context, client *client.Client, o
 	observability.AddAttribute(ctx, "merchant_account_id", merchantAccount.ID)
 	observability.AddAttribute(ctx, "c2m_tx_count", concurrentCustomerToMerchantTxs)
 	observability.AddAttribute(ctx, "m2c_tx_count", concurrentMerchantToCustomerTxs)
-
-	// Seed the random number generator with a secure random source
-	rand.Seed(time.Now().UnixNano())
 
 	// Validate account IDs
 	if !validation.IsValidUUID(customerAccount.ID) || !validation.IsValidUUID(merchantAccount.ID) {
@@ -87,7 +85,7 @@ func ExecuteConcurrentTransactions(ctx context.Context, client *client.Client, o
 	observability.RecordSpanMetric(ctx, "c2m_transaction_duration_seconds", customerToMerchantDuration.Seconds())
 	observability.RecordSpanMetric(ctx, "c2m_transactions_per_second", customerToMerchantTPS)
 
-	fmt.Printf("✅ Completed %d customer to merchant transactions in %.2f seconds (%.2f TPS)\n\n",
+	fmt.Printf(" Completed %d customer to merchant transactions in %.2f seconds (%.2f TPS)\n\n",
 		concurrentCustomerToMerchantTxs, customerToMerchantDuration.Seconds(), customerToMerchantTPS)
 
 	// Execute concurrent transactions from merchant to customer
@@ -109,7 +107,7 @@ func ExecuteConcurrentTransactions(ctx context.Context, client *client.Client, o
 	observability.RecordSpanMetric(ctx, "m2c_transaction_duration_seconds", merchantToCustomerDuration.Seconds())
 	observability.RecordSpanMetric(ctx, "m2c_transactions_per_second", merchantToCustomerTPS)
 
-	fmt.Printf("✅ Completed %d merchant to customer transactions in %.2f seconds (%.2f TPS)\n\n",
+	fmt.Printf(" Completed %d merchant to customer transactions in %.2f seconds (%.2f TPS)\n\n",
 		concurrentMerchantToCustomerTxs, merchantToCustomerDuration.Seconds(), merchantToCustomerTPS)
 
 	return nil
@@ -143,8 +141,23 @@ func GenerateUniqueIdempotencyKey(prefix string, index int) string {
 	randomBytes := make([]byte, 16)
 	_, err := cryptorand.Read(randomBytes)
 	if err != nil {
-		// Fallback to non-cryptographic random if crypto/rand fails
-		rand.Read(randomBytes)
+		log.Printf("Warning: Failed to generate cryptographically secure random bytes: %v", err)
+		// Fallback to a more secure approach than math/rand.Read
+		// Use current time and process-specific values to create entropy
+		timeNow := time.Now()
+		fallbackSource := []byte(fmt.Sprintf("%d-%d-%d-%d-%s-%d",
+			timeNow.UnixNano(),
+			os.Getpid(),
+			os.Getppid(),
+			timeNow.Year(),
+			timeNow.Location().String(),
+			index))
+
+		// Hash the fallback source to get random bytes
+		hasher := sha256.New()
+		hasher.Write(fallbackSource)
+		copy(randomBytes, hasher.Sum(nil)[:16])
+		log.Printf("Warning: Using fallback method for random bytes generation")
 	}
 	h.Write(randomBytes)
 

@@ -44,7 +44,7 @@ func main() {
 	metrics, _ := observability.NewMetricsCollector(provider)
 
 	// Demonstrate using spans
-	err = observability.WithSpan(ctx, provider, "main_operation", func(ctx context.Context) error {
+	if err := observability.WithSpan(ctx, provider, "main_operation", func(ctx context.Context) error {
 		// Get a logger with span context
 		spanLogger := observability.Log(ctx)
 		spanLogger.Info("Starting main operation")
@@ -73,14 +73,12 @@ func main() {
 		)
 
 		return nil
-	})
-
-	if err != nil {
+	}); err != nil {
 		logger.Errorf("Error in main operation: %v", err)
 	}
 
 	// Demonstrate error handling in spans
-	err = observability.WithSpan(ctx, provider, "error_operation", func(ctx context.Context) error {
+	if err := observability.WithSpan(ctx, provider, "error_operation", func(ctx context.Context) error {
 		// Record a metric
 		metrics.RecordRequest(ctx, "error_operation", "example", 500, 5*time.Millisecond)
 
@@ -91,9 +89,7 @@ func main() {
 
 		// Return an error
 		return fmt.Errorf("example error for demonstration")
-	})
-
-	if err != nil {
+	}); err != nil {
 		logger.Warnf("Expected error occurred: %v", err)
 	}
 
@@ -107,13 +103,15 @@ func main() {
 	ctx, _ = observability.WithBaggageItem(ctx, "tenant", "example-tenant")
 
 	// Use the baggage in a span
-	observability.WithSpan(ctx, provider, "baggage_operation", func(ctx context.Context) error {
+	if err := observability.WithSpan(ctx, provider, "baggage_operation", func(ctx context.Context) error {
 		user := observability.GetBaggageItem(ctx, "user")
 		tenant := observability.GetBaggageItem(ctx, "tenant")
 
 		observability.Log(ctx).Infof("Operation for user=%s, tenant=%s", user, tenant)
 		return nil
-	})
+	}); err != nil {
+		logger.Errorf("Error in baggage operation: %v", err)
+	}
 
 	// Using HTTP middleware (demonstrating how it would be used)
 	transport := observability.NewHTTPMiddleware(provider,
@@ -123,10 +121,9 @@ func main() {
 
 	// Create an HTTP client with the middleware
 	client := &http.Client{Transport: transport}
-
-	// This is just to show that the middleware is applied - not actually making a request
-	logger.Info("Created HTTP client with middleware (transport wrapped with tracing)")
+	_ = client.Transport // prevent unused write to field Transport
 	_ = client // prevent unused variable warning
 
+	logger.Info("Created HTTP client with middleware (transport wrapped with tracing)")
 	logger.Info("Observability demo completed")
 }

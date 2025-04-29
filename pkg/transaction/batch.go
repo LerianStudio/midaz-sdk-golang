@@ -123,7 +123,27 @@ func BatchTransactions(
 		for attempt = 0; attempt <= options.RetryCount; attempt++ {
 			if attempt > 0 {
 				// Exponential backoff for retries
-				backoffDuration := time.Duration(1<<uint(attempt-1)) * options.RetryDelay
+				var backoffFactor uint
+				if attempt > 0 {
+					// Safe conversion - we've already checked that attempt > 0
+					attemptValue := attempt
+					if attemptValue <= 0 {
+						// This shouldn't happen based on the check above, but just to be safe
+						attemptValue = 1
+					}
+
+					if attemptValue <= 31 {
+						// Safe conversion - we know attemptValue is positive and <= 31
+						// Use a temporary variable to avoid direct int-to-uint conversion
+						positiveValue := attemptValue - 1
+						if positiveValue >= 0 {
+							backoffFactor = uint(positiveValue)
+						}
+					} else {
+						backoffFactor = 30 // Cap at a reasonable maximum to prevent overflow
+					}
+				}
+				backoffDuration := time.Duration(1<<backoffFactor) * options.RetryDelay
 				select {
 				case <-ctx.Done():
 					return ctx.Err()

@@ -231,7 +231,9 @@ func setupObservability() func() {
 	// Return function to shut down observability when done
 	return func() {
 		if obsProvider != nil {
-			obsProvider.Shutdown(context.Background())
+			if err := obsProvider.Shutdown(context.Background()); err != nil {
+				log.Printf("Warning: Failed to shut down observability provider: %v", err)
+			}
 		}
 	}
 }
@@ -244,11 +246,21 @@ func setupRetryOptions() *retry.Options {
 	options := retry.DefaultOptions()
 
 	// Apply specific options
-	retry.WithMaxRetries(maxRetries)(options)
-	retry.WithInitialDelay(100 * time.Millisecond)(options)
-	retry.WithMaxDelay(2 * time.Second)(options)
-	retry.WithBackoffFactor(2.0)(options)
-	retry.WithRetryableErrors(retry.DefaultRetryableErrors)(options)
+	if err := retry.WithMaxRetries(maxRetries)(options); err != nil {
+		log.Printf("Warning: Failed to set max retries: %v", err)
+	}
+	if err := retry.WithInitialDelay(100 * time.Millisecond)(options); err != nil {
+		log.Printf("Warning: Failed to set initial delay: %v", err)
+	}
+	if err := retry.WithMaxDelay(2 * time.Second)(options); err != nil {
+		log.Printf("Warning: Failed to set max delay: %v", err)
+	}
+	if err := retry.WithBackoffFactor(2.0)(options); err != nil {
+		log.Printf("Warning: Failed to set backoff factor: %v", err)
+	}
+	if err := retry.WithRetryableErrors(retry.DefaultRetryableErrors)(options); err != nil {
+		log.Printf("Warning: Failed to set retryable errors: %v", err)
+	}
 
 	return options
 }

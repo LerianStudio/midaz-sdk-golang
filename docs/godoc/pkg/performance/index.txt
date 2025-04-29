@@ -7,6 +7,76 @@ This package implements various performance optimizations including: - JSON
 encoder/decoder pooling to reduce memory allocations - Connection pooling for
 efficient HTTP requests - Request batching for bulk operations
 
+JSON Performance Use Cases:
+
+ 1. High-Frequency API Operations: When your application makes frequent API
+    calls with JSON payloads, using the JSONPool can significantly reduce memory
+    allocations and garbage collection pressure:
+
+    ```go // Create a dedicated pool for a high-traffic service pool :=
+    performance.NewJSONPool()
+
+    // Process thousands of API responses with minimal GC impact for _,
+    response := range apiResponses { var result MyResultType err :=
+    pool.Unmarshal(response, &result) // Process result... } ```
+
+ 2. Large JSON Document Processing: When working with large JSON documents
+    (e.g., bulk data exports/imports), pooled encoders/decoders reduce memory
+    fragmentation:
+
+    ```go // Export large data set as JSON with minimal memory overhead data
+    := fetchLargeDataSet() // e.g., thousands of records jsonBytes, err :=
+    performance.Marshal(data) // Write jsonBytes to file or send over network...
+    ```
+
+ 3. JSON Streaming in Web Services: For web servers handling many concurrent
+    JSON requests, encoder pooling reduces GC pause times, improving response
+    time consistency:
+
+    ```go // In an HTTP handler function func handleAPIRequest(w
+    http.ResponseWriter, r *http.Request) { // Get a pooled encoder
+    that writes to the response enc := performance.NewEncoder(w) defer
+    performance.ReleaseEncoder(enc)
+
+    // Process and encode the result directly to the response result :=
+    processRequest(r) enc.Encode(result) } ```
+
+Package performance provides utilities for optimizing the performance of the
+Midaz SDK.
+
+This package implements various performance optimizations, including:
+- Configurable batch processing for efficiently handling bulk operations - HTTP
+connection pooling to reduce connection overhead - JSON processing optimizations
+to minimize serialization costs
+
+Use Cases:
+
+ 1. High-Volume Transaction Processing: When processing thousands of
+    transactions per second, use batch processing to reduce API call overhead
+    and connection pooling to maintain efficiency:
+
+    ```go // Configure for high-volume transaction processing
+    options := performance.Options{ BatchSize: 100, // Process 100
+    transactions at once EnableHTTPPooling: true, // Reuse connections
+    MaxIdleConnsPerHost: 20, // Keep more idle connections }
+    performance.ApplyGlobalPerformanceOptions(options) ```
+
+ 2. Memory-Constrained Environments: When running in environments with limited
+    memory (e.g., serverless functions), tune settings to minimize memory usage:
+
+    ```go // Configure for memory-efficient processing options
+    := performance.Options{ BatchSize: 25, // Smaller batches
+    to reduce memory spikes EnableHTTPPooling: true, // Reuse
+    connections MaxIdleConnsPerHost: 5, // Limit idle connections }
+    performance.ApplyGlobalPerformanceOptions(options) ```
+
+ 3. Processing Large Data Volumes: When working with large datasets, use optimal
+    batch sizing to increase throughput:
+
+    ```go // Calculate ideal batch size for a large export operation
+    totalRecords := 10000 // Find optimal batch size that divides records evenly
+    batchSize := performance.GetOptimalBatchSize(totalRecords, 200) ```
+
 const DefaultMaxIdleConns = 100 ...
 var DefaultJSONPool = NewJSONPool()
 func ApplyBatchingOptions(options Options)
