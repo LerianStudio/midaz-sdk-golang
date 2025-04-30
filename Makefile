@@ -73,6 +73,7 @@ help:
 	@echo "  make tidy                        - Clean dependencies"
 	@echo "  make verify-sdk                  - Run SDK quality checks"
 	@echo "  make hooks                       - Install git hooks"
+	@echo "  make gosec                       - Run security checks with gosec"
 	@echo ""
 	@echo "Example Commands:"
 	@echo "  make example                     - Run complete workflow example"
@@ -162,7 +163,7 @@ coverage:
 # Code Quality Commands
 #-------------------------------------------------------
 
-.PHONY: lint fmt tidy
+.PHONY: lint fmt tidy gosec
 
 lint:
 	$(call print_header,"Running linters")
@@ -186,6 +187,16 @@ tidy:
 	$(call print_header,"Cleaning dependencies")
 	@$(GOMOD) tidy
 	@echo "$(GREEN)[ok]$(NC) Dependencies cleaned successfully$(GREEN) ✔️$(NC)"
+
+gosec:
+	$(call print_header,"Running security checks")
+	@if ! command -v gosec > /dev/null; then \
+		echo "$(YELLOW)Installing gosec...$(NC)"; \
+		go install github.com/securego/gosec/v2/cmd/gosec@latest; \
+	fi
+	@echo "$(CYAN)Running gosec security scanner...$(NC)"
+	@gosec -quiet ./...
+	@echo "$(GREEN)[ok]$(NC) Security checks completed successfully$(GREEN) ✔️$(NC)"
 
 #-------------------------------------------------------
 # Clean Commands

@@ -7,6 +7,42 @@ Package retry provides utilities for implementing retry logic with exponential
 backoff and jitter for resilient operations. It allows for configurable retry
 strategies, context-aware cancellation, and flexible error handling.
 
+Real-World Use Cases:
+
+ 1. API Call Resilience: When integrating with third-party financial APIs that
+    may experience temporary outages or rate limiting, retry logic ensures
+    operation completion:
+
+    ```go // Attempt to process a payment with retry logic
+    for transient failures err := retry.Do(ctx, func()
+    error { return paymentProcessor.ProcessTransaction(ctx,
+    transaction) }, retry.WithMaxRetries(5), // Try up to 5 times
+    retry.WithInitialDelay(200*time.Millisecond), // Start with 200ms delay
+    retry.WithBackoffFactor(2.0)) // Double delay after each failure ```
+
+ 2. Database Operation Retries: When performing critical database operations
+    that might experience transient failures like deadlocks or connection
+    issues:
+
+    ```go // Configure context with high-reliability retry options for
+    database operations dbCtx := retry.WithOptionsContext(ctx, &retry.Options{
+    MaxRetries: 5, InitialDelay: 100 * time.Millisecond, BackoffFactor: 1.5,
+    RetryableErrors: []string{"deadlock", "connection reset", "lock timeout"},
+    })
+
+    // Any function using DoWithContext will use these options
+    err := retry.DoWithContext(dbCtx, func() error { return
+    db.ExecuteTransaction(dbCtx, operations) }) ```
+
+ 3. Distributed Systems Communication: When services communicate across network
+    boundaries, retries with jitter help prevent thundering herd problems during
+    recovery:
+
+    ```go // Configure retries with jitter for service-to-service communication
+    err := retry.Do(ctx, func() error { return serviceClient.FetchData(ctx,
+    request) }, retry.WithMaxRetries(3), retry.WithJitterFactor(0.3)) // Add
+    0-30% random variation to delays ```
+
 var DefaultRetryableErrors = []string{ ... }
 var DefaultRetryableHTTPCodes = []int{ ... }
 func Do(ctx context.Context, fn func() error, opts ...Option) error

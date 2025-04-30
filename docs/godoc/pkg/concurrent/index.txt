@@ -7,6 +7,65 @@ This package implements common concurrency patterns such as worker pools,
 rate limiters, and batch operations to help users work efficiently with the
 Midaz API.
 
+Use Cases:
+
+ 1. High-Volume Payment Processing: When processing thousands of payment
+    transactions, use WorkerPool with appropriate concurrency settings to
+    maximize throughput while respecting API limits:
+
+    ```go // Process 10,000 payments concurrently with controlled parallelism
+    payments := fetchPendingPayments() // e.g., 10,000 payments
+
+    results := concurrent.WorkerPool(ctx, payments, func(ctx
+    context.Context, payment Payment) (PaymentResult, error) { return
+    processPayment(ctx, payment) }, concurrent.WithWorkers(20),
+    // Use 20 concurrent workers concurrent.WithBufferSize(100), // Buffer
+    100 items concurrent.WithRateLimit(1000), // Max 1000 ops/second
+    concurrent.WithUnorderedResults(), // Process in any order )
+
+    // Handle results for _, result := range results { if result.Error
+    != nil { logPaymentError(result.Item, result.Error) } else {
+    recordSuccessfulPayment(result.Item, result.Value) } } ```
+
+ 2. Batch Account Updates: When performing batch updates to many accounts,
+    use the Batch function to group operations efficiently:
+
+    ```go // Update 5,000 accounts in batches of 50 accounts :=
+    fetchAccountsToUpdate() // e.g., 5,000 accounts
+
+    results := concurrent.Batch(ctx, accounts, 50, func(ctx context.Context,
+    batch []Account) ([]UpdateResult, error) { // API call that can process up
+    to 50 accounts at once return client.BulkUpdateAccounts(ctx, batch) }, )
+
+    // Process results... ```
+
+ 3. API Rate Limiting: When calling an API with strict rate limits, use
+    RateLimiter to prevent exceeding those limits and triggering throttling or
+    blocks:
+
+    ```go // Create a rate limiter for an API limited to 100 requests per second
+    rateLimiter := concurrent.NewRateLimiter(100, 20) defer rateLimiter.Stop()
+
+    // In your request function func makeAPIRequest(ctx context.Context,
+    req Request) (Response, error) { // Wait for a rate limiter token before
+    proceeding if err := rateLimiter.Wait(ctx); err != nil { return Response{},
+    err }
+
+    // Now make the API call, knowing it respects rate limits return
+    client.SendRequest(ctx, req) } ```
+
+Package concurrent provides utilities for working with concurrent operations in
+the Midaz SDK.
+
+This file contains high-level helper functions built on top of the core
+concurrent primitives, offering ready-to-use solutions for common financial
+operations: - Parallel account fetching and creation - Concurrent transaction
+processing - Generic resource fetching - Mixed operation coordination
+
+These helpers are designed to simplify common concurrency patterns in financial
+applications without requiring detailed knowledge of the underlying concurrency
+mechanisms.
+
 Package concurrent provides utilities for parallel processing and batch
 operations.
 
@@ -32,7 +91,7 @@ type HTTPBatchOptions struct{ ... }
 type HTTPBatchProcessor struct{ ... }
     func NewHTTPBatchProcessor(client *http.Client, baseURL string, opts ...HTTPBatchOption) *HTTPBatchProcessor
 type HTTPBatchProcessorWithRetry struct{ ... }
-    func NewHTTPBatchProcessorWithRetry(client *http.Client, baseURL string, opts ...HTTPBatchOption) *HTTPBatchProcessorWithRetry
+    func NewHTTPBatchProcessorWithRetry(client *http.Client, baseURL string, opts ...HTTPBatchOption) (*HTTPBatchProcessorWithRetry, error)
 type HTTPBatchRequest struct{ ... }
 type HTTPBatchResponse struct{ ... }
 type HTTPBatchResult struct{ ... }

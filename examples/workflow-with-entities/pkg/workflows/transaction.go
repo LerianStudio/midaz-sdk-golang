@@ -16,6 +16,7 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/pkg/retry"
 	"github.com/LerianStudio/midaz-sdk-golang/pkg/validation"
 	"github.com/google/uuid"
+	"log"
 )
 
 // ExecuteTransactions executes various transactions between accounts
@@ -206,10 +207,18 @@ func ExecuteInitialDeposit(ctx context.Context, client *client.Client, orgID, le
 
 	// Configure retry options for this critical transaction using functional options
 	retryOptions := retry.DefaultOptions()
-	retry.WithMaxRetries(5)(retryOptions)
-	retry.WithInitialDelay(100 * time.Millisecond)(retryOptions)
-	retry.WithMaxDelay(2 * time.Second)(retryOptions)
-	retry.WithBackoffFactor(2.0)(retryOptions)
+	if err := retry.WithMaxRetries(5)(retryOptions); err != nil {
+		log.Printf("Warning: Failed to set max retries: %v", err)
+	}
+	if err := retry.WithInitialDelay(100 * time.Millisecond)(retryOptions); err != nil {
+		log.Printf("Warning: Failed to set initial delay: %v", err)
+	}
+	if err := retry.WithMaxDelay(2 * time.Second)(retryOptions); err != nil {
+		log.Printf("Warning: Failed to set max delay: %v", err)
+	}
+	if err := retry.WithBackoffFactor(2.0)(retryOptions); err != nil {
+		log.Printf("Warning: Failed to set backoff factor: %v", err)
+	}
 
 	// Create a retry context with the options
 	retryCtx := retry.WithOptionsContext(ctx, retryOptions)
