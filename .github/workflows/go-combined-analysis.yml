@@ -1,0 +1,122 @@
+name: Go SDK CI
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+    types:
+      - opened
+      - edited
+      - synchronize
+      - reopened
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+  actions: read
+  security-events: write
+
+
+jobs:
+  GolangCI-Lint:
+    name: Run GolangCI-Lint to SDK
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # Using GolangCI-Lint Module
+      - name: Run GoLangCI Lint
+        uses: LerianStudio/github-actions-golangci-lint@main
+        with:
+          lerian_studio_midaz_push_bot_app_id: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_APP_ID }}
+          lerian_studio_midaz_push_bot_private_key: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_PRIVATE_KEY }}
+          lerian_ci_cd_user_gpg_key: ${{ secrets.LERIAN_CI_CD_USER_GPG_KEY }}
+          lerian_ci_cd_user_gpg_key_password: ${{ secrets.LERIAN_CI_CD_USER_GPG_KEY_PASSWORD }}
+          lerian_ci_cd_user_name: ${{ secrets.LERIAN_CI_CD_USER_NAME }}
+          lerian_ci_cd_user_email: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
+          go_version: '1.23'  # Versão do Go, se necessário alterar
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          golangci_lint_version: 'v2.0.2'  # Versão do GolangCI-Lint, se necessário mude para a versão desejada
+  
+  GoSec:
+    name: Run GoSec to SDK
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: false
+
+      - name: Gosec Scanner
+        uses: securego/gosec@master
+        with:
+          args: ./...        
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: true
+
+      - name: Run tests
+        run: make test
+
+      - name: Generate test coverage
+        run: make coverage
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: artifacts/coverage.html
+
+  verify:
+    name: Verify SDK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: true
+
+      - name: Verify SDK
+        run: make verify-sdk
+
+  docs:
+    name: Generate Docs
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/feature/')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: true
+
+      - name: Generate static documentation
+        run: make godoc-static
+
+      - name: Upload documentation
+        uses: actions/upload-artifact@v4
+        with:
+          name: godoc
+          path: docs/godoc/

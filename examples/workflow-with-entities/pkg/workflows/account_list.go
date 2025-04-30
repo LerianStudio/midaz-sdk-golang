@@ -2,8 +2,9 @@ package workflows
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/binary"
 	"fmt"
-	"math/rand"
 	"strings"
 	"time"
 
@@ -157,12 +158,26 @@ func ListAccounts(ctx context.Context, client *client.Client, orgID, ledgerID st
 				}
 
 				// Add random delay to simulate network variability (just for demo)
-				delay := time.Duration(50+rand.Intn(150)) * time.Millisecond
-				time.Sleep(delay)
+				var randomBytes [2]byte
+				_, err = rand.Read(randomBytes[:])
+				if err != nil {
+					// If crypto/rand fails, use a default value
+					delay := time.Duration(125) * time.Millisecond
+					time.Sleep(delay)
+					fmt.Printf("🔄 Fetching page %d (with %dms default latency due to random generation error)...\n",
+						options.Page, delay.Milliseconds())
+				} else {
+					// Convert random bytes to a number between 50 and 200
+					randomNum := int(binary.BigEndian.Uint16(randomBytes[:]))%150 + 50
+					delay := time.Duration(randomNum) * time.Millisecond
+					time.Sleep(delay)
+					fmt.Printf("🔄 Fetching page %d (with %dms simulated latency)...\n",
+						options.Page, delay.Milliseconds())
+				}
 
 				// Log the attempt (this would normally be debug-level logging)
-				fmt.Printf("🔄 Fetching page %d (with %dms simulated latency)...\n",
-					options.Page, delay.Milliseconds())
+				fmt.Printf("🔄 Fetching page %d...\n",
+					options.Page)
 
 				// Fetch the page with automatic retries handled by SDK's HTTP client
 				page, err := client.Entity.Accounts.ListAccounts(ctx, orgID, ledgerID, options)

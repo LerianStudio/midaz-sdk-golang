@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	auth "github.com/LerianStudio/midaz-sdk-golang/pkg/access-manager"
 	"github.com/LerianStudio/midaz-sdk-golang/pkg/observability"
@@ -125,8 +126,10 @@ type Entity struct {
 //	fmt.Printf("Ledger created: %s\n", ledger.ID)
 func NewEntity(client *http.Client, authToken string, baseURLs map[string]string, observabilityProvider observability.Provider, options ...Option) (*Entity, error) {
 	// Create a new entity with the provided configuration
+	httpClient := NewHTTPClient(client, authToken, observabilityProvider)
+
 	entity := &Entity{
-		httpClient:    NewHTTPClient(client, authToken, observabilityProvider),
+		httpClient:    httpClient,
 		baseURLs:      baseURLs,
 		observability: observabilityProvider,
 	}
@@ -159,9 +162,11 @@ func NewEntityWithConfig(config Config, options ...Option) (*Entity, error) {
 	if config == nil {
 		return nil, fmt.Errorf("config cannot be nil")
 	}
+
 	// Check if plugin auth is enabled
 	var authToken string
 	pluginAuth := config.GetPluginAuth()
+
 	if pluginAuth.Enabled {
 		// Get a token from the plugin auth service
 		token, err := auth.GetTokenFromPluginAuth(context.Background(), pluginAuth, config.GetHTTPClient())
@@ -172,9 +177,11 @@ func NewEntityWithConfig(config Config, options ...Option) (*Entity, error) {
 		authToken = token
 	}
 
-	// Create a new entity using values from the config
+	// Create a new entity with the provided configuration
+	httpClient := NewHTTPClient(config.GetHTTPClient(), authToken, config.GetObservabilityProvider())
+
 	entity := &Entity{
-		httpClient:    NewHTTPClient(config.GetHTTPClient(), authToken, config.GetObservabilityProvider()),
+		httpClient:    httpClient,
 		baseURLs:      config.GetBaseURLs(),
 		observability: config.GetObservabilityProvider(),
 	}
@@ -194,31 +201,17 @@ func NewEntityWithConfig(config Config, options ...Option) (*Entity, error) {
 
 // initServices initializes the service interfaces for the entity.
 func (e *Entity) initServices() {
-	// Initialize service interfaces with the entity configuration
-	client := e.httpClient.client
-	token := e.httpClient.authToken
-
-	// Make sure we have the observability provider correctly set in the HTTP client
-	if e.httpClient.observability == nil && e.observability != nil {
-		e.httpClient.observability = e.observability
-
-		// Create metrics collector if needed
-		if e.observability.IsEnabled() {
-			e.httpClient.metrics, _ = observability.NewMetricsCollector(e.observability)
-		}
-	}
-
-	// Initialize service interfaces with the new HTTP client
-	e.Accounts = NewAccountsEntity(client, token, e.baseURLs)
-	e.Assets = NewAssetsEntity(client, token, e.baseURLs)
-	e.AssetRates = NewAssetRatesEntity(client, token, e.baseURLs)
-	e.Balances = NewBalancesEntity(client, token, e.baseURLs)
-	e.Ledgers = NewLedgersEntity(client, token, e.baseURLs)
-	e.Operations = NewOperationsEntity(client, token, e.baseURLs)
-	e.Organizations = NewOrganizationsEntity(client, token, e.baseURLs)
-	e.Portfolios = NewPortfoliosEntity(client, token, e.baseURLs)
-	e.Segments = NewSegmentsEntity(client, token, e.baseURLs)
-	e.Transactions = NewTransactionsEntity(client, token, e.baseURLs)
+	// Create the service interfaces
+	e.Transactions = NewTransactionsEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
+	e.Accounts = NewAccountsEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
+	e.Assets = NewAssetsEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
+	e.AssetRates = NewAssetRatesEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
+	e.Balances = NewBalancesEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
+	e.Ledgers = NewLedgersEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
+	e.Operations = NewOperationsEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
+	e.Organizations = NewOrganizationsEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
+	e.Portfolios = NewPortfoliosEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
+	e.Segments = NewSegmentsEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
 }
 
 // InitServices initializes the service interfaces for the entity.
@@ -229,7 +222,7 @@ func (e *Entity) InitServices() {
 
 // GetEntityHTTPClient returns the custom HTTP client used by the entity.
 // This allows for configuration of the HTTP client after the entity is created.
-// 
+//
 // Returns:
 //   - *HTTPClient: The HTTP client used by the entity for API requests.
 func (e *Entity) GetEntityHTTPClient() *HTTPClient {
@@ -306,14 +299,16 @@ func New(baseURL string, options ...Option) (*Entity, error) {
 
 	// Create a default HTTP client
 	client := &http.Client{
-		Timeout: 30 * 1000000000, // 30 seconds in nanoseconds
+		Timeout: 30 * time.Second,
 	}
 
-	// Create a new entity with default values
+	// Create a new HTTP client
+	httpClient := NewHTTPClient(client, "", nil)
+
+	// Create a new entity with the provided base URL
 	entity := &Entity{
-		httpClient:    NewHTTPClient(client, "", nil),
-		baseURLs:      baseURLs,
-		observability: nil,
+		httpClient: httpClient,
+		baseURLs:   baseURLs,
 	}
 
 	// Apply any options
@@ -356,14 +351,16 @@ func NewWithServiceURLs(serviceURLs map[string]string, options ...Option) (*Enti
 
 	// Create a default HTTP client
 	client := &http.Client{
-		Timeout: 30 * 1000000000, // 30 seconds in nanoseconds
+		Timeout: 30 * time.Second,
 	}
 
-	// Create a new entity with default values and service-specific URLs
+	// Create a new HTTP client
+	httpClient := NewHTTPClient(client, "", nil)
+
+	// Create a new entity with the provided service URLs
 	entity := &Entity{
-		httpClient:    NewHTTPClient(client, "", nil),
-		baseURLs:      serviceURLs,
-		observability: nil,
+		httpClient: httpClient,
+		baseURLs:   serviceURLs,
 	}
 
 	// Apply any options

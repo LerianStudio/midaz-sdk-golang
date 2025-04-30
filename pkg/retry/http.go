@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"time"
 )
@@ -434,7 +435,9 @@ func doHTTPRequestWithOptions(ctx context.Context, client *http.Client, req *htt
 		if resp.Body != nil {
 			var readErr error
 			respBody, readErr = io.ReadAll(resp.Body)
-			resp.Body.Close() // Always close the body
+			if closeErr := resp.Body.Close(); closeErr != nil { // Always close the body
+				log.Printf("Warning: Failed to close response body: %v", closeErr)
+			}
 
 			if readErr != nil {
 				httpResp.Error = readErr

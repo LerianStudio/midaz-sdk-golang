@@ -44,7 +44,7 @@ type HTTPClient struct {
 	authToken     string
 	userAgent     string
 	debug         bool
-	retryOptions  *retry.Options
+	retryOptions  *retry.Options        // Retry options for the client
 	jsonPool      *performance.JSONPool // Pool for JSON encoding/decoding
 	metrics       *observability.MetricsCollector
 	observability observability.Provider
@@ -64,19 +64,29 @@ func NewHTTPClient(client *http.Client, authToken string, provider observability
 		debug = true
 	}
 
-	// Initialize with default retry options
+	// Initialize retry options with defaults
 	retryOptions := retry.DefaultOptions()
 
 	// Check for retry configuration in environment variables
 	if maxRetries := os.Getenv("MIDAZ_MAX_RETRIES"); maxRetries != "" {
 		if val, err := parseInt(maxRetries); err == nil && val >= 0 {
-			retry.WithMaxRetries(val)(retryOptions)
+			if err := retry.WithMaxRetries(val)(retryOptions); err != nil {
+				// Log the error if observability is enabled
+				if provider != nil && provider.IsEnabled() {
+					provider.Logger().Errorf("Failed to set max retries: %v", err)
+				}
+			}
 		}
 	}
 
 	// Check if retries are disabled
 	if retryEnv := os.Getenv("MIDAZ_ENABLE_RETRIES"); retryEnv == "false" {
-		retry.WithMaxRetries(0)(retryOptions)
+		if err := retry.WithMaxRetries(0)(retryOptions); err != nil {
+			// Log the error if observability is enabled
+			if provider != nil && provider.IsEnabled() {
+				provider.Logger().Errorf("Failed to disable retries: %v", err)
+			}
+		}
 	}
 
 	// Initialize metrics collector if observability is provided
@@ -85,11 +95,16 @@ func NewHTTPClient(client *http.Client, authToken string, provider observability
 		metrics, _ = observability.NewMetricsCollector(provider)
 	}
 
-	// Optimize the client with connection pooling if not already configured
-	optimizedClient := performance.OptimizeClient(client, nil)
+	// Use the default client if none is provided
+	if client == nil {
+		client = &http.Client{
+			Timeout: 30 * time.Second,
+		}
+	}
 
+	// Create the HTTP client
 	return &HTTPClient{
-		client:        optimizedClient,
+		client:        client,
 		authToken:     authToken,
 		userAgent:     getUserAgent(),
 		debug:         debug,
@@ -230,7 +245,12 @@ func (c *HTTPClient) doRequest(ctx context.Context, method, requestURL string, h
 
 			// Read the response body
 			responseBody, err = io.ReadAll(resp.Body)
-			resp.Body.Close() // Always close the body
+			if closeErr := resp.Body.Close(); closeErr != nil { // Always close the body
+				// Log the error but continue with the response
+				if c.debug {
+					c.debugLog("Failed to close response body: %v", closeErr)
+				}
+			}
 
 			// Return an error if the status code indicates a problem
 			if resp.StatusCode >= 400 {
@@ -304,7 +324,12 @@ func (c *HTTPClient) sendRequest(req *http.Request, v interface{}) error {
 		}
 
 		// Close the body
-		req.Body.Close()
+		if closeErr := req.Body.Close(); closeErr != nil {
+			// Log the error but continue with the request
+			if c.debug {
+				c.debugLog("Failed to close request body: %v", closeErr)
+			}
+		}
 
 		// Unmarshal the body if not empty
 		if len(bodyBytes) > 0 {
