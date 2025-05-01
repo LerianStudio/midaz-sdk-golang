@@ -23,6 +23,7 @@ permissions:
   pull-requests: write
 
 jobs:
+  # Publish release using the lerian-studio/github-actions-go-pipeline-template
   publish-release:
     uses: LerianStudio/github-actions-go-pipeline-template/.github/workflows/release.yml@main
     secrets:
@@ -32,7 +33,8 @@ jobs:
       lerian_ci_cd_user_gpg_key_password: ${{ secrets.LERIAN_CI_CD_USER_GPG_KEY_PASSWORD }}
       lerian_ci_cd_user_name: ${{ secrets.LERIAN_CI_CD_USER_NAME }}
       lerian_ci_cd_user_email: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
-
+  
+  # Execute post steps after the release is published
   post-release-steps:
     name: 📦 Post Release Tasks
     runs-on: ubuntu-22.04
@@ -54,7 +56,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GPG_FINGERPRINT: ${{ needs.publish-release.outputs.gpg_fingerprint }}
-
+          
+  #Generate changelog using the lerian-studio/github-actions-gptchangelog custom module
   generate_changelog:
     name: 📝 Generate AI-powered Changelog
     runs-on: ubuntu-22.04
