@@ -293,6 +293,7 @@ func TestGetTokenFromPluginAuth(t *testing.T) {
 			// Call the function under test
 			token, err := GetTokenFromPluginAccessManager(context.Background(), tt.pluginAuth, &http.Client{})
 
+
 			// Check the results
 			if tt.expectError {
 				assert.Error(t, err)
