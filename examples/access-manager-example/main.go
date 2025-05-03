@@ -30,7 +30,7 @@ func main() {
 	clientSecret := os.Getenv("MIDAZ_CLIENT_SECRET")
 
 	//Configure plugin auth
-	pluginAuth := auth.PluginAuth{
+	pluginAuth := auth.PluginAccessManager{
 		Enabled:      pluginAuthEnabled,
 		Address:      pluginAuthAddress,
 		ClientID:     clientID,
@@ -39,7 +39,7 @@ func main() {
 
 	// Create a configuration with plugin auth
 	cfg, err := config.NewConfig(
-		config.WithPluginAuth(pluginAuth),
+		config.WithPluginAccessManager(pluginAuth),
 	)
 	if err != nil {
 		log.Fatalf("Failed to create config: %v", err)
