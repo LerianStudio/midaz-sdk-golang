@@ -48,6 +48,7 @@ The SDK provides detailed API documentation for all packages. You can browse thi
    - [Models Package](./godoc/models/index.txt)
    - [Config Package](./godoc/pkg/config/index.txt)
    - [Concurrent Package](./godoc/pkg/concurrent/index.txt)
+   - [Access Manager Package](./godoc/pkg/access-manager/index.txt)
    - [Observability Package](./godoc/pkg/observability/index.txt)
    - [Pagination Package](./godoc/pkg/pagination/index.txt)
    - [Validation Package](./godoc/pkg/validation/index.txt)
@@ -96,6 +97,7 @@ The SDK includes several utility packages in the `pkg` directory:
 
 - **config**: Configuration utilities for the SDK
 - **concurrent**: Utilities for concurrent operations
+- **access-manager**: Plugin-based authentication for integrating with external identity providers
 - **observability**: Observability tools for tracing, metrics, and logging
 - **pagination**: Utilities for paginated API requests
 - **validation**: Validation utilities for SDK models

@@ -12,18 +12,18 @@ import (
 // EntityOption is a function that configures an entity with authentication.
 type EntityOption func(e interface{}) error
 
-// WithPluginAuth returns an EntityOption that configures plugin-based authentication.
-// When plugin auth is enabled, the function will make a request to the plugin auth service
+// WithPluginAccessManager returns an EntityOption that configures plugin-based authentication.
+// When plugin-based authentication is enabled, the function will make a request to the authentication service
 // to retrieve an authentication token before interacting with Midaz.
 //
 // Parameters:
-//   - pluginAuth: The plugin authentication configuration.
+//   - pluginAccessManager: The plugin authentication configuration.
 //
 // Returns:
 //   - EntityOption: A function that configures plugin authentication.
 
-// PluginAuth represents the configuration for plugin-based authentication.
-type PluginAuth struct {
+// PluginAccessManager represents the configuration for plugin-based authentication.
+type PluginAccessManager struct {
 	Enabled      bool
 	Address      string
 	ClientID     string
@@ -39,7 +39,7 @@ type TokenResponse struct {
 	ExpiresAt    string `json:"expiresAt,omitempty"`
 }
 
-func WithPluginAuth(pluginAuth PluginAuth) EntityOption {
+func WithPluginAccessManager(pluginAccessManager PluginAccessManager) EntityOption {
 	return func(e interface{}) error {
 		// Type assertion to access the required methods
 		type entityWithAuth interface {
@@ -54,17 +54,17 @@ func WithPluginAuth(pluginAuth PluginAuth) EntityOption {
 		}
 
 		// If plugin auth is not enabled, nothing to do
-		if !pluginAuth.Enabled {
+		if !pluginAccessManager.Enabled {
 			return nil
 		}
 
 		// Validate plugin auth configuration
-		if pluginAuth.Address == "" {
+		if pluginAccessManager.Address == "" {
 			return fmt.Errorf("plugin auth address is required when plugin auth is enabled")
 		}
 
 		// Get a token from the plugin auth service
-		token, err := GetTokenFromPluginAuth(context.Background(), pluginAuth, entity.GetHTTPClient())
+		token, err := GetTokenFromPluginAccessManager(context.Background(), pluginAccessManager, entity.GetHTTPClient())
 		if err != nil {
 			return fmt.Errorf("failed to get token from plugin auth service: %w", err)
 		}
@@ -79,31 +79,31 @@ func WithPluginAuth(pluginAuth PluginAuth) EntityOption {
 	}
 }
 
-// GetTokenFromPluginAuth retrieves an authentication token from the plugin auth service
+// GetTokenFromPluginAccessManager retrieves an authentication token from the plugin auth service
 // when plugin authentication is enabled.
 //
 // Parameters:
 //   - ctx: The context for the operation, which can be used for cancellation and timeouts.
-//   - pluginAuth: The plugin authentication configuration.
+//   - pluginAccessManager: The plugin access manager configuration.
 //   - httpClient: The HTTP client to use for the request.
 //
 // Returns:
 //   - string: The authentication token retrieved from the plugin auth service.
 //   - error: An error if the token retrieval fails.
-func GetTokenFromPluginAuth(ctx context.Context, pluginAuth PluginAuth, httpClient *http.Client) (string, error) {
-	if !pluginAuth.Enabled {
+func GetTokenFromPluginAccessManager(ctx context.Context, pluginAccessManager PluginAccessManager, httpClient *http.Client) (string, error) {
+	if !pluginAccessManager.Enabled {
 		return "", fmt.Errorf("plugin authentication is not enabled")
 	}
 
-	if pluginAuth.Address == "" {
+	if pluginAccessManager.Address == "" {
 		return "", fmt.Errorf("plugin auth address is required when plugin auth is enabled")
 	}
 
 	// Create the request payload
 	payload := map[string]string{
 		"grantType":    "client_credentials",
-		"clientId":     pluginAuth.ClientID,
-		"clientSecret": pluginAuth.ClientSecret,
+		"clientId":     pluginAccessManager.ClientID,
+		"clientSecret": pluginAccessManager.ClientSecret,
 	}
 
 	// Marshal the payload to JSON
@@ -113,10 +113,11 @@ func GetTokenFromPluginAuth(ctx context.Context, pluginAuth PluginAuth, httpClie
 	}
 
 	// Create a request to the plugin auth service with the payload
+	url := fmt.Sprintf("%s/v1/login/oauth/access_token", pluginAccessManager.Address)
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
-		pluginAuth.Address+"/v1/login/oauth/access_token",
+		url,
 		bytes.NewBuffer(payloadBytes),
 	)
 	if err != nil {

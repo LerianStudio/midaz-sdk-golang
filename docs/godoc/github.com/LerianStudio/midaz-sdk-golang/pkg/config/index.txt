@@ -17,7 +17,7 @@ type Environment string
     const EnvironmentLocal Environment = "local" ...
 type Option func(*Config) error
     func FromEnvironment() Option
-    func WithAuthToken(token string) Option
+    func WithPluginAccessManager(token string) Option
     func WithBaseURL(baseURL string) Option
     func WithDebug(enable bool) Option
     func WithEnvironment(env Environment) Option

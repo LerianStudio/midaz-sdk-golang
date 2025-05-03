@@ -33,7 +33,7 @@ type LedgersService interface{ ... }
 type OperationsService interface{ ... }
     func NewOperationsEntity(client *http.Client, authToken string, baseURLs map[string]string) OperationsService
 type Option func(*Entity) error
-    func WithAuthToken(token string) Option
+    func WithPluginAccessManager(token string) Option
     func WithContext(ctx context.Context) Option
     func WithDebug(debug bool) Option
     func WithHTTPClient(client *http.Client) Option
