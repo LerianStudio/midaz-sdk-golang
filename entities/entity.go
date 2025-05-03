@@ -26,7 +26,7 @@ type Config interface {
 	GetObservabilityProvider() observability.Provider
 
 	// GetPluginAuth returns the plugin authentication configuration.
-	GetPluginAuth() auth.PluginAuth
+	GetPluginAuth() auth.PluginAccessManager
 }
 
 // Entity provides a centralized access point to all entity types in the Midaz SDK.
@@ -169,7 +169,7 @@ func NewEntityWithConfig(config Config, options ...Option) (*Entity, error) {
 
 	if pluginAuth.Enabled {
 		// Get a token from the plugin auth service
-		token, err := auth.GetTokenFromPluginAuth(context.Background(), pluginAuth, config.GetHTTPClient())
+		token, err := auth.GetTokenFromPluginAccessManager(context.Background(), pluginAuth, config.GetHTTPClient())
 		if err != nil {
 			return nil, fmt.Errorf("failed to get token from plugin auth service: %w", err)
 		}
