@@ -1,10 +1,37 @@
-## [1.1.0-beta.2](https://github.com/LerianStudio/midaz-sdk-golang/compare/v1.1.0-beta.1...v1.1.0-beta.2) (2025-04-09)
+# Changelog
 
-### Bug Fixes
+All notable changes to the Midaz Go SDK will be documented in this file.
 
-* **hooks:** fixing lint params ([4e039d8](https://github.com/LerianStudio/midaz-sdk-golang/commit/4e039d8208fe9b15d8fac50615d656af26e890c0))
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.1.0-beta.1](https://github.com/LerianStudio/midaz-sdk-golang/compare/v1.0.7...v1.1.0-beta.1) (2025-04-09)
+import "github.com/LerianStudio/midaz-sdk-golang"
+
+## [v1.0.0-beta.2] - 2025-05-03
+
+### ✨ Features
+- Configure CI workflow with CodeQL and gosec security checks to enhance security and code quality (#17).
+
+### 🐛 Bug Fixes
+- Improve error handling in `setupEntity` to surface configuration errors more effectively.
+- Add error handling for setting environment variables in examples to prevent configuration issues.
+- Ensure HTTP response bodies are closed properly to prevent resource leaks.
+- Enhance error handling in retry option configuration for increased robustness.
+- Add jitter to retry backoff using secure random number generation to improve retry logic.
+
+### 🔧 Maintenance
+- Rename `pluginAuth` to `pluginAccessManager` and update related documentation for clarity.
+- Use `crypto/rand` for secure random number generation in examples to enhance security.
+- Simplify `initServices` in `entity.go` to improve maintainability.
+- Clean up code by removing unused parameters and functions to streamline the codebase.
+
+### 📚 Documentation
+- Update documentation with new use cases and examples for concurrency and performance improvements.
+
+### 🔄 Changes
+- Adjust logging in `observability-demo.go` to improve code clarity and maintainability.
+
+ianStudio/midaz-sdk-golang/compare/v1.0.7...v1.1.0-beta.1) (2025-04-09)
 
 ### Features
 
@@ -63,9 +90,7 @@ All notable changes to the Midaz Go SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-```go
 import "github.com/LerianStudio/midaz-sdk-golang"
-```
 
 ## [Unreleased]
 
