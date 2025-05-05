@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 import "github.com/LerianStudio/midaz-sdk-golang"
 
+## [v1.3.0-beta.1] - 2025-05-05
+
+### ✨ Features
+- Update `goreleaser` configuration to improve release flow, enhancing the efficiency and reliability of the release process.
+
+### 📚 Documentation
+- Update CHANGELOG with recent changes to ensure it reflects the latest updates and improvements.
+
 ## [v1.2.0] - 2025-05-05
 
 ### 🔧 Maintenance
