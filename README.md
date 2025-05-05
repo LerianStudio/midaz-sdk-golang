@@ -24,7 +24,7 @@ A comprehensive Go client for the Midaz financial ledger API. This SDK provides 
 - **Observability**: Integrated tracing, metrics, and logging capabilities.
 - **Pagination**: Generic pagination utilities that support both offset and cursor-based pagination.
 - **Retry Mechanism**: Configurable retry mechanism with exponential backoff for resilient API interactions.
-- **Environment Support**: Seamless switching between local, development, and production environments.
+- **Environment Support**: Seamless swclient.**WithAccessManager**(**"**your-auth-token**"**),itching between local, development, and production environments.
 - **Idiomatic Go Design**: Follows Go best practices for a natural fit in your Go applications.
 
 ## Documentation
@@ -55,7 +55,7 @@ import (
 
 func main() {
 	// Configure plugin access manager
-	pluginAccessManager := auth.PluginAccessManager{
+	AccessManager := auth.AccessManager{
 		Enabled:      true,
 		Address:      "https://your-auth-service.com",
 		ClientID:     "your-client-id",
@@ -64,7 +64,7 @@ func main() {
 
 	// Create a configuration with plugin access manager
 	cfg, err := config.NewConfig(
-		config.WithPluginAccessManager(pluginAccessManager),
+		config.WithAccessManager(AccessManager),
 	)
 	if err != nil {
 		log.Fatalf("Failed to create config: %v", err)
@@ -175,7 +175,7 @@ client, err := client.New(
 )
 
 // Plugin-based authentication configuration
-pluginAccessManager := auth.PluginAccessManager{
+AccessManager := auth.AccessManager{
 	Enabled:      true,
 	Address:      "https://your-auth-service.com",
 	ClientID:     "your-client-id",
@@ -296,7 +296,7 @@ import (
 )
 
 // Configure plugin auth
-pluginAccessManager := auth.PluginAccessManager{
+AccessManager := auth.AccessManager{
     Enabled:      true,
     Address:      "https://your-auth-service.com",
     ClientID:     "your-client-id",
@@ -305,7 +305,7 @@ pluginAccessManager := auth.PluginAccessManager{
 
 // Create a configuration with plugin auth
 cfg, err := config.NewConfig(
-    config.WithPluginAccessManager(pluginAccessManager),
+    config.WithAccessManager(AccessManager),
 )
 if err != nil {
     log.Fatalf("Failed to create config: %v", err)
@@ -332,14 +332,14 @@ MIDAZ_CLIENT_SECRET=your-client-secret
 Then load them in your application:
 
 ```go
-pluginAccessManagerEnabled := os.Getenv("PLUGIN_AUTH_ENABLED") == "true"
-pluginAccessManagerAddress := os.Getenv("PLUGIN_AUTH_ADDRESS")
+AccessManagerEnabled := os.Getenv("PLUGIN_AUTH_ENABLED") == "true"
+AccessManagerAddress := os.Getenv("PLUGIN_AUTH_ADDRESS")
 clientID := os.Getenv("MIDAZ_CLIENT_ID")
 clientSecret := os.Getenv("MIDAZ_CLIENT_SECRET")
 
-pluginAccessManager := auth.PluginAccessManager{
-    Enabled:      pluginAccessManagerEnabled,
-    Address:      pluginAccessManagerAddress,
+AccessManager := auth.AccessManager{
+    Enabled:      AccessManagerEnabled,
+    Address:      AccessManagerAddress,
     ClientID:     clientID,
     ClientSecret: clientSecret,
 }
@@ -474,7 +474,6 @@ Enable detailed observability for monitoring and debugging:
 ```go
 // Create a client with observability enabled
 client, err := client.New(
-	client.WithPluginAccessManager("your-auth-token"),
 	client.WithObservability(true, true, true), // Enable tracing, metrics, and logging
 	client.UseAllAPIs(),
 )
@@ -555,7 +554,7 @@ if err != nil {
     case errors.IsValidationError(err):
         // Handle validation error
         fmt.Println("Validation error:", err)
-      
+    
         // Get field-level errors
         if fieldErrs := errors.GetFieldErrors(err); len(fieldErrs) > 0 {
             for _, fieldErr := range fieldErrs {
