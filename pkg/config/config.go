@@ -78,8 +78,8 @@ const (
 // It centralizes all settings needed to interact with the Midaz API.
 type Config struct {
 
-	// PluginAccessManager configuration for authentication
-	PluginAccessManager auth.PluginAccessManager
+	// AccessManager configuration for authentication
+	AccessManager auth.AccessManager
 
 	// Environment specifies which Midaz environment to connect to.
 	// This affects the default URLs used if not explicitly overridden.
@@ -357,16 +357,16 @@ func WithIdempotency(enable bool) Option {
 	}
 }
 
-// WithPluginAccessManager sets the plugin-based authentication configuration.
+// WithAccessManager sets the plugin-based authentication configuration.
 //
 // Parameters:
-//   - pluginAccessManager: The plugin authentication configuration
+//   - AccessManager: The plugin authentication configuration
 //
 // Returns:
 //   - Option: A function that sets the plugin authentication on a Config
-func WithPluginAccessManager(pluginAccessManager auth.PluginAccessManager) Option {
+func WithAccessManager(AccessManager auth.AccessManager) Option {
 	return func(c *Config) error {
-		c.PluginAccessManager = pluginAccessManager
+		c.AccessManager = AccessManager
 		return nil
 	}
 }
@@ -405,10 +405,10 @@ func FromEnvironment() Option {
 		}
 
 		if enable := os.Getenv("PLUGIN_AUTH_ENABLED"); enable != "" {
-			c.PluginAccessManager.Address = os.Getenv("PLUGIN_AUTH_ADDRESS")
-			c.PluginAccessManager.ClientID = os.Getenv("MIDAZ_CLIENT_ID")
-			c.PluginAccessManager.ClientSecret = os.Getenv("MIDAZ_CLIENT_SECRET")
-			c.PluginAccessManager.Enabled = enable == "true"
+			c.AccessManager.Address = os.Getenv("PLUGIN_AUTH_ADDRESS")
+			c.AccessManager.ClientID = os.Getenv("MIDAZ_CLIENT_ID")
+			c.AccessManager.ClientSecret = os.Getenv("MIDAZ_CLIENT_SECRET")
+			c.AccessManager.Enabled = enable == "true"
 		}
 
 		// Set user agent from environment if available
@@ -487,16 +487,16 @@ func parseEnvInt(value string) (int, error) {
 func NewConfig(options ...Option) (*Config, error) {
 	// Create a config with default values
 	config := &Config{
-		PluginAccessManager: auth.PluginAccessManager{},
-		Environment:         EnvironmentLocal,
-		ServiceURLs:         make(map[ServiceType]string),
-		Timeout:             DefaultTimeout * time.Second,
-		UserAgent:           DefaultUserAgent,
-		MaxRetries:          DefaultMaxRetries,
-		RetryWaitMin:        DefaultRetryWaitMin,
-		RetryWaitMax:        DefaultRetryWaitMax,
-		EnableRetries:       DefaultEnableRetries,
-		EnableIdempotency:   DefaultEnableIdempotency,
+		AccessManager:     auth.AccessManager{},
+		Environment:       EnvironmentLocal,
+		ServiceURLs:       make(map[ServiceType]string),
+		Timeout:           DefaultTimeout * time.Second,
+		UserAgent:         DefaultUserAgent,
+		MaxRetries:        DefaultMaxRetries,
+		RetryWaitMin:      DefaultRetryWaitMin,
+		RetryWaitMax:      DefaultRetryWaitMax,
+		EnableRetries:     DefaultEnableRetries,
+		EnableIdempotency: DefaultEnableIdempotency,
 	}
 
 	// Apply default URLs based on environment
@@ -560,7 +560,7 @@ func validateConfig(config *Config) error {
 	}
 
 	// When plugin auth is enabled, we require the plugin auth address
-	if config.PluginAccessManager.Enabled && config.PluginAccessManager.Address == "" {
+	if config.AccessManager.Enabled && config.AccessManager.Address == "" {
 		// But for tests, we'll skip this check
 		if os.Getenv("MIDAZ_SKIP_AUTH_CHECK") != "true" {
 			return fmt.Errorf("plugin auth address is required")
@@ -585,13 +585,13 @@ func (c *Config) GetHTTPClient() *http.Client {
 }
 
 // GetPluginAuth returns the plugin authentication configuration.
-func (c *Config) GetPluginAuth() auth.PluginAccessManager {
+func (c *Config) GetPluginAuth() auth.AccessManager {
 	// Return a copy of the plugin auth configuration
-	return auth.PluginAccessManager{
-		Address:      c.PluginAccessManager.Address,
-		ClientID:     c.PluginAccessManager.ClientID,
-		ClientSecret: c.PluginAccessManager.ClientSecret,
-		Enabled:      c.PluginAccessManager.Enabled,
+	return auth.AccessManager{
+		Address:      c.AccessManager.Address,
+		ClientID:     c.AccessManager.ClientID,
+		ClientSecret: c.AccessManager.ClientSecret,
+		Enabled:      c.AccessManager.Enabled,
 	}
 }
 
@@ -737,7 +737,7 @@ func NewLocalConfig(options ...Option) (*Config, error) {
 	localOptions := append(
 		[]Option{
 			WithEnvironment(EnvironmentLocal),
-			WithPluginAccessManager(auth.PluginAccessManager{
+			WithAccessManager(auth.AccessManager{
 				Enabled:      pluginAuthEnabled,
 				Address:      pluginAuthAddress,
 				ClientID:     pluginAuthClientID,

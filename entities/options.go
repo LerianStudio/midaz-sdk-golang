@@ -90,9 +90,9 @@ func WithHTTPClient(client *http.Client) Option {
 
 // WithPluginAuth returns an Option that configures plugin-based authentication.
 // This is a wrapper around auth.WithPluginAuth to make it compatible with entities.Option.
-func WithPluginAuth(pluginAuth auth.PluginAccessManager) Option {
+func WithPluginAuth(pluginAuth auth.AccessManager) Option {
 	return func(e *Entity) error {
 		// Call the auth.WithPluginAuth function with the entity
-		return auth.WithPluginAccessManager(pluginAuth)(e)
+		return auth.WithAccessManager(pluginAuth)(e)
 	}
 }
