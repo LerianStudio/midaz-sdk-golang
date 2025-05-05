@@ -40,7 +40,7 @@ func RunCompleteWorkflow(ctx context.Context, entity *sdkentities.Entity, custom
 	clientSecret := os.Getenv("MIDAZ_CLIENT_SECRET")
 
 	//Configure plugin auth
-	pluginAuth := auth.PluginAuth{
+	pluginAuth := auth.AccessManager{
 		Enabled:      pluginAuthEnabled,
 		Address:      pluginAuthAddress,
 		ClientID:     clientID,
@@ -48,7 +48,7 @@ func RunCompleteWorkflow(ctx context.Context, entity *sdkentities.Entity, custom
 	}
 
 	cfg, err := config.NewConfig(
-		config.WithPluginAuth(pluginAuth),
+		config.WithAccessManager(pluginAuth),
 	)
 	if err != nil {
 		log.Fatalf("Failed to create config: %v", err)

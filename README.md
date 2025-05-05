@@ -18,12 +18,13 @@ A comprehensive Go client for the Midaz financial ledger API. This SDK provides 
 
 - **Comprehensive API Coverage**: Complete support for all Midaz API endpoints, including organizations, ledgers, accounts, transactions, portfolios, segments, and assets.
 - **Functional Options Pattern**: Flexible configuration with type-safe, chainable options.
+- **Plugin-based Authentication**: Secure authentication through the Access Manager for seamless integration with identity providers.
 - **Robust Error Handling**: Detailed error information with field-level validation errors and helpful suggestions.
 - **Concurrency Support**: Built-in utilities for parallel processing, batching, and rate limiting.
 - **Observability**: Integrated tracing, metrics, and logging capabilities.
 - **Pagination**: Generic pagination utilities that support both offset and cursor-based pagination.
 - **Retry Mechanism**: Configurable retry mechanism with exponential backoff for resilient API interactions.
-- **Environment Support**: Seamless switching between local, development, and production environments.
+- **Environment Support**: Seamless swclient.**WithAccessManager**(**"**your-auth-token**"**),itching between local, development, and production environments.
 - **Idiomatic Go Design**: Follows Go best practices for a natural fit in your Go applications.
 
 ## Documentation
@@ -48,13 +49,30 @@ import (
 
 	client "github.com/LerianStudio/midaz-sdk-golang"
 	"github.com/LerianStudio/midaz-sdk-golang/models"
+	auth "github.com/LerianStudio/midaz-sdk-golang/pkg/access-manager"
 	"github.com/LerianStudio/midaz-sdk-golang/pkg/config"
 )
 
 func main() {
+	// Configure plugin access manager
+	AccessManager := auth.AccessManager{
+		Enabled:      true,
+		Address:      "https://your-auth-service.com",
+		ClientID:     "your-client-id",
+		ClientSecret: "your-client-secret",
+	}
+
+	// Create a configuration with plugin access manager
+	cfg, err := config.NewConfig(
+		config.WithAccessManager(AccessManager),
+	)
+	if err != nil {
+		log.Fatalf("Failed to create config: %v", err)
+	}
+
 	// Create a client
 	c, err := client.New(
-		client.WithAuthToken("your-auth-token"),
+		client.WithConfig(cfg),
 		client.WithEnvironment(config.EnvironmentProduction),
 		client.UseAllAPIs(),
 	)
@@ -92,25 +110,87 @@ func main() {
 The SDK uses the functional options pattern for flexible configuration:
 
 ```go
-// Basic configuration
+// Basic configuration with plugin auth
+pluginAuth := auth.PluginAuth{
+	Enabled:      true,
+	Address:      "https://your-auth-service.com",
+	ClientID:     "your-client-id",
+	ClientSecret: "your-client-secret",
+}
+
+cfg, err := config.NewConfig(
+	config.WithPluginAuth(pluginAuth),
+)
+if err != nil {
+	log.Fatalf("Failed to create config: %v", err)
+}
+
 client, err := client.New(
-	client.WithAuthToken("your-auth-token"),
+	client.WithConfig(cfg),
 	client.UseAllAPIs(),
 )
 
 // Environment-specific configuration
+pluginAuth := auth.PluginAuth{
+	Enabled:      true,
+	Address:      "https://your-auth-service.com",
+	ClientID:     "your-client-id",
+	ClientSecret: "your-client-secret",
+}
+
+cfg, err := config.NewConfig(
+	config.WithPluginAuth(pluginAuth),
+)
+if err != nil {
+	log.Fatalf("Failed to create config: %v", err)
+}
+
 client, err := client.New(
-	client.WithAuthToken("your-auth-token"),
+	client.WithConfig(cfg),
 	client.WithEnvironment(config.EnvironmentProduction),
 	client.UseAllAPIs(),
 )
 
 // Advanced configuration
+pluginAuth := auth.PluginAuth{
+	Enabled:      true,
+	Address:      "https://your-auth-service.com",
+	ClientID:     "your-client-id",
+	ClientSecret: "your-client-secret",
+}
+
+cfg, err := config.NewConfig(
+	config.WithPluginAuth(pluginAuth),
+)
+if err != nil {
+	log.Fatalf("Failed to create config: %v", err)
+}
+
 client, err := client.New(
-	client.WithAuthToken("your-auth-token"),
+	client.WithConfig(cfg),
 	client.WithTimeout(30 * time.Second),
 	client.WithRetries(3, 100*time.Millisecond, 1*time.Second),
 	client.WithObservability(true, true, true), // Enable tracing, metrics, and logging
+	client.UseAllAPIs(),
+)
+
+// Plugin-based authentication configuration
+AccessManager := auth.AccessManager{
+	Enabled:      true,
+	Address:      "https://your-auth-service.com",
+	ClientID:     "your-client-id",
+	ClientSecret: "your-client-secret",
+}
+
+cfg, err := config.NewConfig(
+	config.WithPluginAuth(pluginAuth),
+)
+if err != nil {
+	log.Fatalf("Failed to create config: %v", err)
+}
+
+client, err := client.New(
+	client.WithConfig(cfg),
 	client.UseAllAPIs(),
 )
 ```
@@ -122,7 +202,7 @@ The Midaz Go SDK is organized into three main components:
 - **Client**: The top-level entry point that provides access to all API services.
 - **Entities**: Service interfaces for interacting with Midaz resources.
 - **Models**: Data structures representing Midaz resources.
-- **Utility Packages**: Helper packages for configuration, concurrency, observability, etc.
+- **Utility Packages**: Helper packages for configuration, concurrency, observability, access management, etc.
 
 ### Models
 
@@ -200,6 +280,87 @@ account, err := client.Entity.Accounts.CreateAccount(ctx, "org-id", "ledger-id",
 balance, err := client.Entity.Accounts.GetBalance(ctx, "org-id", "ledger-id", "account-id")
 ```
 
+## Access Manager
+
+The Access Manager provides a plugin-based authentication mechanism that allows you to integrate with external identity providers. This feature eliminates the need to hardcode authentication tokens in your application, enhancing security and flexibility.
+
+### Configuration
+
+To use the Access Manager, you need to configure it with the address of your authentication service and your client credentials:
+
+```go
+// Import the access manager package
+import (
+    auth "github.com/LerianStudio/midaz-sdk-golang/pkg/access-manager"
+    "github.com/LerianStudio/midaz-sdk-golang/pkg/config"
+)
+
+// Configure plugin auth
+AccessManager := auth.AccessManager{
+    Enabled:      true,
+    Address:      "https://your-auth-service.com",
+    ClientID:     "your-client-id",
+    ClientSecret: "your-client-secret",
+}
+
+// Create a configuration with plugin auth
+cfg, err := config.NewConfig(
+    config.WithAccessManager(AccessManager),
+)
+if err != nil {
+    log.Fatalf("Failed to create config: %v", err)
+}
+
+// Create a client with the configuration
+client, err := client.New(
+    client.WithConfig(cfg),
+    client.UseAllAPIs(),
+)
+```
+
+### Environment Variables
+
+You can also configure the Access Manager using environment variables:
+
+```
+PLUGIN_AUTH_ENABLED=true
+PLUGIN_AUTH_ADDRESS=https://your-auth-service.com
+MIDAZ_CLIENT_ID=your-client-id
+MIDAZ_CLIENT_SECRET=your-client-secret
+```
+
+Then load them in your application:
+
+```go
+AccessManagerEnabled := os.Getenv("PLUGIN_AUTH_ENABLED") == "true"
+AccessManagerAddress := os.Getenv("PLUGIN_AUTH_ADDRESS")
+clientID := os.Getenv("MIDAZ_CLIENT_ID")
+clientSecret := os.Getenv("MIDAZ_CLIENT_SECRET")
+
+AccessManager := auth.AccessManager{
+    Enabled:      AccessManagerEnabled,
+    Address:      AccessManagerAddress,
+    ClientID:     clientID,
+    ClientSecret: clientSecret,
+}
+```
+
+### How It Works
+
+When plugin-based authentication is enabled, the SDK will:
+
+1. Make a request to your authentication service using the provided client credentials
+2. Retrieve an authentication token
+3. Use this token for all subsequent API calls to the Midaz platform
+4. Handle token refresh automatically when needed
+
+This approach provides several benefits:
+
+- **Security**: No hardcoded tokens in your application code
+- **Flexibility**: Easily switch between different authentication providers
+- **Centralized Management**: Manage all your authentication settings in one place
+- **Automatic Token Refresh**: Tokens are automatically refreshed when they expire
+
 ### Transactions
 
 ```go
@@ -270,7 +431,7 @@ for paginator.HasNext() {
 	if err != nil {
 		// Handle error
 	}
-	
+
 	for _, account := range accounts.Items {
 		// Process each account
 	}
@@ -313,7 +474,6 @@ Enable detailed observability for monitoring and debugging:
 ```go
 // Create a client with observability enabled
 client, err := client.New(
-	client.WithAuthToken("your-auth-token"),
 	client.WithObservability(true, true, true), // Enable tracing, metrics, and logging
 	client.UseAllAPIs(),
 )
@@ -394,7 +554,7 @@ if err != nil {
     case errors.IsValidationError(err):
         // Handle validation error
         fmt.Println("Validation error:", err)
-        
+    
         // Get field-level errors
         if fieldErrs := errors.GetFieldErrors(err); len(fieldErrs) > 0 {
             for _, fieldErr := range fieldErrs {

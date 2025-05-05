@@ -16,7 +16,7 @@ func createTestConfig() *config.Config {
 	os.Setenv("MIDAZ_SKIP_AUTH_CHECK", "true")
 
 	cfg, _ := config.NewConfig(
-		config.WithPluginAuth(auth.PluginAuth{Enabled: false, Address: ""}),
+		config.WithAccessManager(auth.AccessManager{Enabled: false, Address: ""}),
 		config.WithEnvironment(config.EnvironmentLocal),
 	)
 	return cfg
@@ -63,8 +63,8 @@ func TestNewClient(t *testing.T) {
 	}
 
 	// Check that all options were applied
-	if client.config.PluginAuth.Enabled != false {
-		t.Errorf("Expected PluginAuth.Enabled to be false, got true")
+	if client.config.AccessManager.Enabled != false {
+		t.Errorf("Expected AccessManager.Enabled to be false, got true")
 	}
 
 	if client.config.HTTPClient != customHTTPClient {
@@ -85,7 +85,7 @@ func TestNewClient(t *testing.T) {
 
 	// Test creating a client with a complete config
 	cfg, err := config.NewConfig(
-		config.WithPluginAuth(auth.PluginAuth{Enabled: false, Address: ""}),
+		config.WithAccessManager(auth.AccessManager{Enabled: false, Address: ""}),
 		config.WithEnvironment(config.EnvironmentProduction),
 	)
 	if err != nil {

@@ -60,7 +60,7 @@ jobs:
           GPG_FINGERPRINT: ${{ needs.publish-release.outputs.gpg_fingerprint }}
           
   #Generate changelog using the lerian-studio/github-actions-gptchangelog custom module
-  generate_changelog:
+  generate-changelog:
     name: 📝 Generate AI-powered Changelog
     runs-on: ubuntu-22.04
     needs: post-release-steps

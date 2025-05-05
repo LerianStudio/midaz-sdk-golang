@@ -12,7 +12,7 @@ type Option func(*Client) error
     func UseEntity() Option
     func UseEntityAPI() Option
     func WithAPIToken(token string) Option
-    func WithAuthToken(token string) Option
+    func WithAccessManager(token string) Option
     func WithBaseURL(baseURL string) Option
     func WithCollectorEndpoint(endpoint string) Option
     func WithConfig(cfg *config.Config) Option
