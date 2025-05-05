@@ -24,7 +24,7 @@ A comprehensive Go client for the Midaz financial ledger API. This SDK provides 
 - **Observability**: Integrated tracing, metrics, and logging capabilities.
 - **Pagination**: Generic pagination utilities that support both offset and cursor-based pagination.
 - **Retry Mechanism**: Configurable retry mechanism with exponential backoff for resilient API interactions.
-- **Environment Support**: Seamless switching between local, development, and production environments.
+- **Environment Support**: Seamless swclient.**WithAccessManager**(**"**your-auth-token**"**),itching between local, development, and production environments.
 - **Idiomatic Go Design**: Follows Go best practices for a natural fit in your Go applications.
 
 ## Documentation
@@ -474,7 +474,6 @@ Enable detailed observability for monitoring and debugging:
 ```go
 // Create a client with observability enabled
 client, err := client.New(
-	client.WithAccessManager("your-auth-token"),
 	client.WithObservability(true, true, true), // Enable tracing, metrics, and logging
 	client.UseAllAPIs(),
 )
@@ -555,7 +554,7 @@ if err != nil {
     case errors.IsValidationError(err):
         // Handle validation error
         fmt.Println("Validation error:", err)
-      
+    
         // Get field-level errors
         if fieldErrs := errors.GetFieldErrors(err); len(fieldErrs) > 0 {
             for _, fieldErr := range fieldErrs {

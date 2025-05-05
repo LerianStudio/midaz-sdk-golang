@@ -12,7 +12,6 @@ import (
 
 // Create a client with default options
 c, err := client.New(
-	client.WithAccessManager("your-auth-token"),
 	client.WithEnvironment(config.EnvironmentProduction),
 	client.UseAllAPIs(),
 )
