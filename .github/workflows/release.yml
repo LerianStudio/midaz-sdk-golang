@@ -44,9 +44,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Clean untracked files on repo
-        run: git clean -fd
+      
+      - name: Clean repo (reset + clean)
+        run: |
+          git reset --hard
+          git clean -fd
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
