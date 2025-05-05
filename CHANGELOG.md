@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 import "github.com/LerianStudio/midaz-sdk-golang"
 
+## [v1.2.0] - 2025-05-05
+
+### 🔧 Maintenance
+- Rename `pluginAccessManager` to `AccessManager` and update related documentation for clarity and consistency.
+
+### 📚 Documentation
+- Update CHANGELOG to reflect recent changes and improvements in the project.
+
 ## [v1.1.0] - 2025-05-03
 
 ### ✨ Features
