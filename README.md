@@ -55,7 +55,7 @@ import (
 
 func main() {
 	// Configure plugin access manager
-	pluginAccessManager := auth.PluginAccessManager{
+	AccessManager := auth.AccessManager{
 		Enabled:      true,
 		Address:      "https://your-auth-service.com",
 		ClientID:     "your-client-id",
@@ -64,7 +64,7 @@ func main() {
 
 	// Create a configuration with plugin access manager
 	cfg, err := config.NewConfig(
-		config.WithPluginAccessManager(pluginAccessManager),
+		config.WithAccessManager(AccessManager),
 	)
 	if err != nil {
 		log.Fatalf("Failed to create config: %v", err)
@@ -175,7 +175,7 @@ client, err := client.New(
 )
 
 // Plugin-based authentication configuration
-pluginAccessManager := auth.PluginAccessManager{
+AccessManager := auth.AccessManager{
 	Enabled:      true,
 	Address:      "https://your-auth-service.com",
 	ClientID:     "your-client-id",
@@ -296,7 +296,7 @@ import (
 )
 
 // Configure plugin auth
-pluginAccessManager := auth.PluginAccessManager{
+AccessManager := auth.AccessManager{
     Enabled:      true,
     Address:      "https://your-auth-service.com",
     ClientID:     "your-client-id",
@@ -305,7 +305,7 @@ pluginAccessManager := auth.PluginAccessManager{
 
 // Create a configuration with plugin auth
 cfg, err := config.NewConfig(
-    config.WithPluginAccessManager(pluginAccessManager),
+    config.WithAccessManager(AccessManager),
 )
 if err != nil {
     log.Fatalf("Failed to create config: %v", err)
@@ -332,14 +332,14 @@ MIDAZ_CLIENT_SECRET=your-client-secret
 Then load them in your application:
 
 ```go
-pluginAccessManagerEnabled := os.Getenv("PLUGIN_AUTH_ENABLED") == "true"
-pluginAccessManagerAddress := os.Getenv("PLUGIN_AUTH_ADDRESS")
+AccessManagerEnabled := os.Getenv("PLUGIN_AUTH_ENABLED") == "true"
+AccessManagerAddress := os.Getenv("PLUGIN_AUTH_ADDRESS")
 clientID := os.Getenv("MIDAZ_CLIENT_ID")
 clientSecret := os.Getenv("MIDAZ_CLIENT_SECRET")
 
-pluginAccessManager := auth.PluginAccessManager{
-    Enabled:      pluginAccessManagerEnabled,
-    Address:      pluginAccessManagerAddress,
+AccessManager := auth.AccessManager{
+    Enabled:      AccessManagerEnabled,
+    Address:      AccessManagerAddress,
     ClientID:     clientID,
     ClientSecret: clientSecret,
 }
@@ -474,7 +474,7 @@ Enable detailed observability for monitoring and debugging:
 ```go
 // Create a client with observability enabled
 client, err := client.New(
-	client.WithPluginAccessManager("your-auth-token"),
+	client.WithAccessManager("your-auth-token"),
 	client.WithObservability(true, true, true), // Enable tracing, metrics, and logging
 	client.UseAllAPIs(),
 )

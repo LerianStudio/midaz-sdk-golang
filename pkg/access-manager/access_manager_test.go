@@ -33,7 +33,7 @@ func (m *mockEntity) InitServices() {
 func TestWithPluginAuth(t *testing.T) {
 	tests := []struct {
 		name           string
-		pluginAuth     PluginAccessManager
+		pluginAuth     AccessManager
 		mockResponse   *TokenResponse
 		mockStatusCode int
 		expectError    bool
@@ -41,7 +41,7 @@ func TestWithPluginAuth(t *testing.T) {
 	}{
 		{
 			name: "Success",
-			pluginAuth: PluginAccessManager{
+			pluginAuth: AccessManager{
 				Enabled:      true,
 				Address:      "http://localhost:4000",
 				ClientID:     "test-client-id",
@@ -59,7 +59,7 @@ func TestWithPluginAuth(t *testing.T) {
 		},
 		{
 			name: "PluginAuthDisabled",
-			pluginAuth: PluginAccessManager{
+			pluginAuth: AccessManager{
 				Enabled: false,
 			},
 			mockResponse:   nil,
@@ -69,7 +69,7 @@ func TestWithPluginAuth(t *testing.T) {
 		},
 		{
 			name: "MissingAddress",
-			pluginAuth: PluginAccessManager{
+			pluginAuth: AccessManager{
 				Enabled:      true,
 				Address:      "",
 				ClientID:     "test-client-id",
@@ -82,7 +82,7 @@ func TestWithPluginAuth(t *testing.T) {
 		},
 		{
 			name: "AuthServiceError",
-			pluginAuth: PluginAccessManager{
+			pluginAuth: AccessManager{
 				Enabled:      true,
 				Address:      "http://localhost:4000",
 				ClientID:     "invalid-client-id",
@@ -133,7 +133,7 @@ func TestWithPluginAuth(t *testing.T) {
 			}
 
 			// Call the function under test
-			err := WithPluginAccessManager(tt.pluginAuth)(mockEntity)
+			err := WithAccessManager(tt.pluginAuth)(mockEntity)
 
 			// Check the results
 			if tt.expectError {
@@ -154,7 +154,7 @@ func TestWithPluginAuth(t *testing.T) {
 func TestGetTokenFromPluginAuth(t *testing.T) {
 	tests := []struct {
 		name           string
-		pluginAuth     PluginAccessManager
+		pluginAuth     AccessManager
 		mockResponse   *TokenResponse
 		mockStatusCode int
 		expectError    bool
@@ -162,7 +162,7 @@ func TestGetTokenFromPluginAuth(t *testing.T) {
 	}{
 		{
 			name: "Success",
-			pluginAuth: PluginAccessManager{
+			pluginAuth: AccessManager{
 				Enabled:      true,
 				Address:      "http://localhost:4000",
 				ClientID:     "test-client-id",
@@ -180,7 +180,7 @@ func TestGetTokenFromPluginAuth(t *testing.T) {
 		},
 		{
 			name: "PluginAuthDisabled",
-			pluginAuth: PluginAccessManager{
+			pluginAuth: AccessManager{
 				Enabled: false,
 			},
 			mockResponse:   nil,
@@ -190,7 +190,7 @@ func TestGetTokenFromPluginAuth(t *testing.T) {
 		},
 		{
 			name: "MissingAddress",
-			pluginAuth: PluginAccessManager{
+			pluginAuth: AccessManager{
 				Enabled:      true,
 				Address:      "",
 				ClientID:     "test-client-id",
@@ -203,7 +203,7 @@ func TestGetTokenFromPluginAuth(t *testing.T) {
 		},
 		{
 			name: "EmptyAccessToken",
-			pluginAuth: PluginAccessManager{
+			pluginAuth: AccessManager{
 				Enabled:      true,
 				Address:      "http://localhost:4000",
 				ClientID:     "test-client-id",
@@ -221,7 +221,7 @@ func TestGetTokenFromPluginAuth(t *testing.T) {
 		},
 		{
 			name: "InvalidResponse",
-			pluginAuth: PluginAccessManager{
+			pluginAuth: AccessManager{
 				Enabled:      true,
 				Address:      "http://localhost:4000",
 				ClientID:     "test-client-id",
@@ -234,7 +234,7 @@ func TestGetTokenFromPluginAuth(t *testing.T) {
 		},
 		{
 			name: "ServerError",
-			pluginAuth: PluginAccessManager{
+			pluginAuth: AccessManager{
 				Enabled:      true,
 				Address:      "http://localhost:4000",
 				ClientID:     "test-client-id",
@@ -291,8 +291,7 @@ func TestGetTokenFromPluginAuth(t *testing.T) {
 			}
 
 			// Call the function under test
-			token, err := GetTokenFromPluginAccessManager(context.Background(), tt.pluginAuth, &http.Client{})
-
+			token, err := GetTokenFromAccessManager(context.Background(), tt.pluginAuth, &http.Client{})
 
 			// Check the results
 			if tt.expectError {
