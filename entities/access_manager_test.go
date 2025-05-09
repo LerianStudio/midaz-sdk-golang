@@ -15,7 +15,7 @@ import (
 type mockPluginAuthConfig struct {
 	httpClient    *http.Client
 	baseURLs      map[string]string
-	pluginAuth    auth.PluginAccessManager
+	pluginAuth    auth.AccessManager
 	observability observability.Provider
 }
 
@@ -31,21 +31,21 @@ func (m *mockPluginAuthConfig) GetObservabilityProvider() observability.Provider
 	return m.observability
 }
 
-func (m *mockPluginAuthConfig) GetPluginAuth() auth.PluginAccessManager {
+func (m *mockPluginAuthConfig) GetPluginAuth() auth.AccessManager {
 	return m.pluginAuth
 }
 
 func TestEntityWithPluginAuth(t *testing.T) {
 	tests := []struct {
 		name           string
-		pluginAuth     auth.PluginAccessManager
+		pluginAuth     auth.AccessManager
 		mockResponse   *auth.TokenResponse
 		mockStatusCode int
 		expectError    bool
 	}{
 		{
 			name: "SuccessfulPluginAuth",
-			pluginAuth: auth.PluginAccessManager{
+			pluginAuth: auth.AccessManager{
 				Enabled:      true,
 				Address:      "http://localhost:4000",
 				ClientID:     "test-client-id",
@@ -62,7 +62,7 @@ func TestEntityWithPluginAuth(t *testing.T) {
 		},
 		{
 			name: "PluginAuthDisabled",
-			pluginAuth: auth.PluginAccessManager{
+			pluginAuth: auth.AccessManager{
 				Enabled: false,
 			},
 			mockResponse:   nil,
@@ -71,7 +71,7 @@ func TestEntityWithPluginAuth(t *testing.T) {
 		},
 		{
 			name: "PluginAuthError",
-			pluginAuth: auth.PluginAccessManager{
+			pluginAuth: auth.AccessManager{
 				Enabled:      true,
 				Address:      "http://localhost:4000",
 				ClientID:     "invalid-client-id",
@@ -143,7 +143,7 @@ func TestEntityWithPluginAuth(t *testing.T) {
 func TestWithPluginAuthOption(t *testing.T) {
 	tests := []struct {
 		name           string
-		pluginAuth     auth.PluginAccessManager
+		pluginAuth     auth.AccessManager
 		mockResponse   *auth.TokenResponse
 		mockStatusCode int
 		expectError    bool
@@ -151,7 +151,7 @@ func TestWithPluginAuthOption(t *testing.T) {
 	}{
 		{
 			name: "SuccessfulPluginAuth",
-			pluginAuth: auth.PluginAccessManager{
+			pluginAuth: auth.AccessManager{
 				Enabled:      true,
 				Address:      "http://localhost:4000",
 				ClientID:     "test-client-id",
@@ -169,7 +169,7 @@ func TestWithPluginAuthOption(t *testing.T) {
 		},
 		{
 			name: "PluginAuthDisabled",
-			pluginAuth: auth.PluginAccessManager{
+			pluginAuth: auth.AccessManager{
 				Enabled: false,
 			},
 			mockResponse:   nil,
@@ -179,7 +179,7 @@ func TestWithPluginAuthOption(t *testing.T) {
 		},
 		{
 			name: "MissingAddress",
-			pluginAuth: auth.PluginAccessManager{
+			pluginAuth: auth.AccessManager{
 				Enabled:      true,
 				Address:      "",
 				ClientID:     "test-client-id",

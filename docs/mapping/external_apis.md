@@ -22,7 +22,7 @@ The client package provides the main entry point for the Midaz SDK.
 ### Client
 
 - `New()` - Creates a new Midaz client with the provided options
-- `WithPluginAccessManager()` - Sets the authentication token for the client
+- `WithAccessManager()` - Sets the authentication token for the client
 - `WithOnboardingURL()` - Sets the base URL for the onboarding API
 - `WithTransactionURL()` - Sets the base URL for the transaction API
 - `WithServiceURLs()` - Sets a map of service-specific URLs for different API services
@@ -208,7 +208,7 @@ The config package provides configuration management for the Midaz SDK.
 ### Configuration Options
 
 - `WithEnvironment(env Environment) Option` - Sets the environment (local, development, production)
-- `WithPluginAccessManager(token string) Option` - Sets the authentication token
+- `WithAccessManager(token string) Option` - Sets the authentication token
 - `WithOnboardingURL(url string) Option` - Sets the base URL for the Onboarding API
 - `WithTransactionURL(url string) Option` - Sets the base URL for the Transaction API
 - `WithBaseURL(baseURL string) Option` - Sets a common base URL for all services
