@@ -31,30 +31,6 @@ checksum:
 snapshot:
   name_template: "{{ incpatch .Version }}-next"
 
-release:
-  github:
-    owner: LerianStudio
-    name: midaz-sdk-golang
-  prerelease: auto
-  draft: false
-  name_template: "Midaz Go SDK v{{.Version}}"
-  header: |
-    ## Midaz Go SDK v{{.Version}}
-
-    This release includes the latest updates to the Midaz Go SDK.
-  footer: |
-    ## Installation
-
-    ```
-    go get github.com/LerianStudio/midaz-sdk-golang@v{{.Version}}
-    ```
-
-    ## Import
-
-    ```go
-    import "github.com/LerianStudio/midaz-sdk-golang"
-    ```
-
 changelog:
   sort: asc
   filters:
