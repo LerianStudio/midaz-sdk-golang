@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 import "github.com/LerianStudio/midaz-sdk-golang"
 
+## [v1.3.0-beta.2] - 2025-05-27
+
+### 🔧 Maintenance
+- Bump `go.opentelemetry.io/otel/trace` from version 1.35.0 to 1.36.0 to ensure compatibility with the latest features and improvements (#38).
+- Update CHANGELOG to reflect recent changes and maintain accurate project documentation.
+
 ## [v1.3.0-beta.1] - 2025-05-05
 
 ### ✨ Features
