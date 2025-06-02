@@ -40,19 +40,15 @@ jobs:
     runs-on: ubuntu-22.04
     needs: publish-release
     steps:
-      - uses: actions/create-github-app-token@v1
-        id: app-token
-        with:
-          app-id: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_APP_ID }}
-          private-key: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_PRIVATE_KEY }}
-
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ steps.app-token.outputs.token }}
-      - name: Clean untracked files on repo
-        run: git clean -fd
+      
+      - name: Clean repo (reset + clean)
+        run: |
+          git reset --hard
+          git clean -fd
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
@@ -64,7 +60,7 @@ jobs:
           GPG_FINGERPRINT: ${{ needs.publish-release.outputs.gpg_fingerprint }}
           
   #Generate changelog using the lerian-studio/github-actions-gptchangelog custom module
-  generate_changelog:
+  generate-changelog:
     name: 📝 Generate AI-powered Changelog
     runs-on: ubuntu-22.04
     needs: post-release-steps
