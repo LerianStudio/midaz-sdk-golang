@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 import "github.com/LerianStudio/midaz-sdk-golang"
 
+## [v1.3.0] - 2025-06-02
+
+### ✨ Features
+- Improve release flow by fixing the goreleaser file, enhancing the overall release process.
+
+### 🔧 Maintenance
+- Bump `go.opentelemetry.io/otel` from version 1.35.0 to 1.36.0.
+- Bump `go.opentelemetry.io/otel/metric` from version 1.35.0 to 1.36.0.
+- Bump `go.opentelemetry.io/otel/trace` from version 1.35.0 to 1.36.0.
+
 ## [v1.3.0-beta.2] - 2025-05-27
 
 ### 🔧 Maintenance
