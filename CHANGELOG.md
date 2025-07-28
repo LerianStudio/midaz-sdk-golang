@@ -34,7 +34,7 @@ import "github.com/LerianStudio/midaz-sdk-golang"
 ## [v1.2.0] - 2025-05-05
 
 ### 🔧 Maintenance
-- Rename `pluginAccessManager` to `AccessManager` and update related documentation for clarity and consistency.
+- Rename `pluginAuth` to `AccessManager` and update related documentation for clarity and consistency.
 
 ### 📚 Documentation
 - Update CHANGELOG to reflect recent changes and improvements in the project.
@@ -49,7 +49,7 @@ import "github.com/LerianStudio/midaz-sdk-golang"
 - Correct goreleaser step in the release process to ensure successful builds.
 
 ### 🔄 Changes
-- Rename `pluginAuth` to `pluginAccessManager` and update related documentation for clarity.
+- Rename `pluginAuth` to `pluginAuth` and update related documentation for clarity.
 - Adjust logging in `observability-demo.go` to prevent unused variable warnings.
 
 ### 🔧 Maintenance
@@ -59,7 +59,7 @@ import "github.com/LerianStudio/midaz-sdk-golang"
 - Remove unused `debugLog` function from `client.go` and replace unused client parameter with underscore in `main.go` for cleaner code.
 
 ### 📚 Documentation
-- Update documentation to reflect changes in `pluginAccessManager`.
+- Update documentation to reflect changes in `pluginAuth`.
 
 
 ianStudio/midaz-sdk-golang/compare/v1.0.7...v1.1.0-beta.1) (2025-04-09)

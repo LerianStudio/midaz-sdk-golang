@@ -112,6 +112,11 @@ type SegmentsService interface {
 	// The id parameter is the unique identifier of the segment to delete.
 	// Returns an error if the operation fails.
 	DeleteSegment(ctx context.Context, organizationID, ledgerID, id string) error
+
+	// GetSegmentsMetricsCount retrieves the count metrics for segments in a ledger.
+	// The organizationID and ledgerID parameters specify which organization and ledger to get metrics for.
+	// Returns the metrics count if successful, or an error if the operation fails.
+	GetSegmentsMetricsCount(ctx context.Context, organizationID, ledgerID string) (*models.MetricsCount, error)
 }
 
 // segmentsEntity implements the SegmentsService interface.
@@ -342,6 +347,33 @@ func (e *segmentsEntity) DeleteSegment(
 	return nil
 }
 
+// GetSegmentsMetricsCount gets the count metrics for segments in a ledger.
+func (e *segmentsEntity) GetSegmentsMetricsCount(ctx context.Context, organizationID, ledgerID string) (*models.MetricsCount, error) {
+	const operation = "GetSegmentsMetricsCount"
+
+	if organizationID == "" {
+		return nil, errors.NewMissingParameterError(operation, "organizationID")
+	}
+
+	if ledgerID == "" {
+		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+	}
+
+	url := e.buildMetricsURL(organizationID, ledgerID)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	var metrics models.MetricsCount
+	if err := e.HTTPClient.sendRequest(req, &metrics); err != nil {
+		return nil, err
+	}
+
+	return &metrics, nil
+}
+
 // buildURL builds the URL for segments API calls.
 func (e *segmentsEntity) buildURL(organizationID, ledgerID, segmentID string) string {
 	baseURL := e.baseURLs["onboarding"]
@@ -352,4 +384,10 @@ func (e *segmentsEntity) buildURL(organizationID, ledgerID, segmentID string) st
 	}
 
 	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/segments/%s", baseURL, organizationID, ledgerID, segmentID)
+}
+
+// buildMetricsURL builds the URL for segments metrics API calls.
+func (e *segmentsEntity) buildMetricsURL(organizationID, ledgerID string) string {
+	baseURL := e.baseURLs["onboarding"]
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/segments/metrics/count", baseURL, organizationID, ledgerID)
 }

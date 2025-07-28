@@ -116,6 +116,11 @@ type AssetsService interface {
 	// The id parameter is the unique identifier of the asset to delete.
 	// Returns an error if the operation fails.
 	DeleteAsset(ctx context.Context, organizationID, ledgerID, id string) error
+
+	// GetAssetsMetricsCount retrieves the count metrics for assets in a ledger.
+	// The organizationID and ledgerID parameters specify which organization and ledger to get metrics for.
+	// Returns the metrics count if successful, or an error if the operation fails.
+	GetAssetsMetricsCount(ctx context.Context, organizationID, ledgerID string) (*models.MetricsCount, error)
 }
 
 // assetsEntity implements the AssetsService interface.
@@ -400,6 +405,33 @@ func (e *assetsEntity) DeleteAsset(
 	return nil
 }
 
+// GetAssetsMetricsCount gets the count metrics for assets in a ledger.
+func (e *assetsEntity) GetAssetsMetricsCount(ctx context.Context, organizationID, ledgerID string) (*models.MetricsCount, error) {
+	const operation = "GetAssetsMetricsCount"
+
+	if organizationID == "" {
+		return nil, errors.NewMissingParameterError(operation, "organizationID")
+	}
+
+	if ledgerID == "" {
+		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+	}
+
+	url := e.buildMetricsURL(organizationID, ledgerID)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	var metrics models.MetricsCount
+	if err := e.httpClient.sendRequest(req, &metrics); err != nil {
+		return nil, err
+	}
+
+	return &metrics, nil
+}
+
 // buildURL builds the URL for assets API calls.
 // The organizationID and ledgerID parameters specify which organization and ledger to query.
 // The assetID parameter is the unique identifier of the asset to retrieve, or an empty string for a list of assets.
@@ -412,4 +444,10 @@ func (e *assetsEntity) buildURL(organizationID, ledgerID, assetID string) string
 	}
 
 	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/assets/%s", baseURL, organizationID, ledgerID, assetID)
+}
+
+// buildMetricsURL builds the URL for assets metrics API calls.
+func (e *assetsEntity) buildMetricsURL(organizationID, ledgerID string) string {
+	baseURL := e.baseURLs["onboarding"]
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/assets/metrics/count", baseURL, organizationID, ledgerID)
 }

@@ -32,12 +32,12 @@ func (m *mockEntity) InitServices() {
 
 func TestWithPluginAuth(t *testing.T) {
 	tests := []struct {
-		name           string
+		name                    string
 		pluginAuth     AccessManager
-		mockResponse   *TokenResponse
-		mockStatusCode int
-		expectError    bool
-		expectedToken  string
+		mockResponse            *TokenResponse
+		mockStatusCode          int
+		expectError             bool
+		expectedToken           string
 	}{
 		{
 			name: "Success",
@@ -153,12 +153,12 @@ func TestWithPluginAuth(t *testing.T) {
 
 func TestGetTokenFromPluginAuth(t *testing.T) {
 	tests := []struct {
-		name           string
+		name                    string
 		pluginAuth     AccessManager
-		mockResponse   *TokenResponse
-		mockStatusCode int
-		expectError    bool
-		expectedToken  string
+		mockResponse            *TokenResponse
+		mockStatusCode          int
+		expectError             bool
+		expectedToken           string
 	}{
 		{
 			name: "Success",

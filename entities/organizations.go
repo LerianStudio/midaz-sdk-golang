@@ -125,6 +125,11 @@ type OrganizationsService interface {
 	// The id parameter is the unique identifier of the organization to delete.
 	// Returns an error if the operation fails.
 	DeleteOrganization(ctx context.Context, id string) error
+
+	// GetOrganizationsMetricsCount retrieves the count metrics for organizations.
+	// This method returns aggregate statistics about the number of organizations in the system.
+	// Returns the metrics count if successful, or an error if the operation fails.
+	GetOrganizationsMetricsCount(ctx context.Context) (*models.MetricsCount, error)
 }
 
 // organizationsEntity implements the OrganizationsService interface.
@@ -348,6 +353,25 @@ func (e *organizationsEntity) DeleteOrganization(ctx context.Context, id string)
 	return nil
 }
 
+// GetOrganizationsMetricsCount gets the count metrics for organizations.
+func (e *organizationsEntity) GetOrganizationsMetricsCount(ctx context.Context) (*models.MetricsCount, error) {
+	const operation = "GetOrganizationsMetricsCount"
+
+	url := e.buildMetricsURL()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	var metrics models.MetricsCount
+	if err := e.HTTPClient.sendRequest(req, &metrics); err != nil {
+		return nil, err
+	}
+
+	return &metrics, nil
+}
+
 // buildURL builds the URL for organizations API calls.
 func (e *organizationsEntity) buildURL(id string) string {
 	baseURL := e.baseURLs["onboarding"]
@@ -357,4 +381,10 @@ func (e *organizationsEntity) buildURL(id string) string {
 	}
 
 	return fmt.Sprintf("%s/organizations/%s", baseURL, id)
+}
+
+// buildMetricsURL builds the URL for organizations metrics API calls.
+func (e *organizationsEntity) buildMetricsURL() string {
+	baseURL := e.baseURLs["onboarding"]
+	return fmt.Sprintf("%s/organizations/metrics/count", baseURL)
 }
