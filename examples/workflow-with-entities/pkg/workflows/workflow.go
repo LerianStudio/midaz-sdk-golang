@@ -9,6 +9,7 @@ import (
 
 	client "github.com/LerianStudio/midaz-sdk-golang"
 	sdkentities "github.com/LerianStudio/midaz-sdk-golang/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/models"
 	auth "github.com/LerianStudio/midaz-sdk-golang/pkg/access-manager"
 	"github.com/LerianStudio/midaz-sdk-golang/pkg/config"
 )
@@ -85,14 +86,62 @@ func RunCompleteWorkflow(ctx context.Context, entity *sdkentities.Entity, custom
 		return err
 	}
 
-	// Step 5: Create accounts
-	customerAccount, merchantAccount, dummyOneAccount, dummyTwoAccount, err := CreateAccounts(ctx, client, orgID, ledgerID)
+	// Step 4.1: Create account type
+	accountType, err := CreateAccountType(ctx, client, orgID, ledgerID)
 	if err != nil {
 		return err
 	}
 
-	// Step 6: Execute transactions
-	if err := ExecuteTransactions(ctx, client, orgID, ledgerID, customerAccount, merchantAccount); err != nil {
+	// Step 4.2: Update account type
+	if err := UpdateAccountType(ctx, client, orgID, ledgerID, accountType.ID); err != nil {
+		return err
+	}
+
+	// Step 4.3: Get account type
+	if err := GetAccountType(ctx, client, orgID, ledgerID, accountType.ID); err != nil {
+		return err
+	}
+
+	// Step 4.4: List account types
+	if err := ListAccountTypes(ctx, client, orgID, ledgerID); err != nil {
+		return err
+	}
+
+	// Step 4.5: Create operation routes for enhanced transactions
+	fmt.Printf("🔍 Testing operation routes API availability...\n")
+	sourceOperationRoute, destinationOperationRoute, err := CreateOperationRoutes(ctx, client, orgID, ledgerID, accountType)
+	if err != nil {
+		fmt.Printf("⚠️  Operation routes API not available on server: %v\n", err)
+		fmt.Printf("   Note: SDK has full operation routes implementation, but server endpoint not ready\n")
+		fmt.Printf("   Note: Continuing with transaction routes only\n")
+		sourceOperationRoute = nil
+		destinationOperationRoute = nil
+	} else {
+		// Step 4.5.1: Demonstrate Operation Route CRUD operations
+		fmt.Printf("🧪 Demonstrating Operation Route CRUD operations...\n")
+		if err := demonstrateOperationRouteCRUD(ctx, client, orgID, ledgerID, accountType, sourceOperationRoute, destinationOperationRoute); err != nil {
+			fmt.Printf("⚠️  Operation Route CRUD demonstration failed: %v\n", err)
+		}
+	}
+
+	// Step 4.6: Create transaction routes linked to operation routes
+	fmt.Printf("🔍 Testing transaction routes API availability...\n")
+	paymentTransactionRoute, refundTransactionRoute, err := CreateTransactionRoutesWithOperationRoutes(ctx, client, orgID, ledgerID, sourceOperationRoute, destinationOperationRoute)
+	if err != nil {
+		fmt.Printf("⚠️  Transaction routes API not available on server: %v\n", err)
+		fmt.Printf("   Note: SDK has full transaction routes implementation, but server endpoint not ready\n")
+		// Create mock routes for demonstration
+		paymentTransactionRoute, refundTransactionRoute = CreateMockTransactionRoutes(orgID, ledgerID)
+	}
+
+	// Step 5: Create accounts (pass accountTypeID to link accounts to the account type)
+	customerAccount, merchantAccount, dummyOneAccount, dummyTwoAccount, err := CreateAccountsWithType(ctx, client, orgID, ledgerID, accountType.ID)
+	if err != nil {
+		return err
+	}
+
+	// Step 6: Execute transactions with enhanced parameters (now with real routes)
+	if err := ExecuteTransactionsWithRoutes(ctx, client, orgID, ledgerID, customerAccount, merchantAccount, sourceOperationRoute, destinationOperationRoute, paymentTransactionRoute, refundTransactionRoute); err != nil {
 		return err
 	}
 
@@ -139,6 +188,111 @@ func RunCompleteWorkflow(ctx context.Context, entity *sdkentities.Entity, custom
 
 	fmt.Println("\n\n✅ COMPLETE WORKFLOW FINISHED SUCCESSFULLY")
 	fmt.Println(strings.Repeat("=", 50))
+	return nil
+}
+
+// CreateMockTransactionRoutes creates mock transaction routes when server API is not available
+func CreateMockTransactionRoutes(orgID, ledgerID string) (*models.TransactionRoute, *models.TransactionRoute) {
+	fmt.Println("🔧 Creating mock transaction routes (server API not available)...")
+	
+	paymentRoute := &models.TransactionRoute{
+		ID:             "payment-route-" + orgID[:8],
+		Title:          "Payment Transaction Route", 
+		Description:    "Transaction route for payment operations",
+		OrganizationID: orgID,
+		LedgerID:       ledgerID,
+		Metadata: map[string]any{
+			"type": "payment",
+			"demo": true,
+		},
+	}
+	
+	refundRoute := &models.TransactionRoute{
+		ID:             "refund-route-" + orgID[:8],
+		Title:          "Refund Transaction Route",
+		Description:    "Transaction route for refund operations", 
+		OrganizationID: orgID,
+		LedgerID:       ledgerID,
+		Metadata: map[string]any{
+			"type": "refund",
+			"demo": true,
+		},
+	}
+	
+	fmt.Printf("✅ Mock transaction routes created:\n")
+	fmt.Printf("   Payment: %s (%s)\n", paymentRoute.Title, paymentRoute.ID)
+	fmt.Printf("   Refund: %s (%s)\n", refundRoute.Title, refundRoute.ID)
+	
+	return paymentRoute, refundRoute
+}
+
+// demonstrateOperationRouteCRUD demonstrates all CRUD operations for Operation Routes
+func demonstrateOperationRouteCRUD(ctx context.Context, client *client.Client, orgID, ledgerID string, accountType *models.AccountType, sourceRoute, destinationRoute *models.OperationRoute) error {
+	fmt.Println("\n\n🛤️  OPERATION ROUTE CRUD DEMONSTRATION")
+	fmt.Println(strings.Repeat("=", 50))
+
+	// Step 1: List existing operation routes
+	fmt.Println("\n📋 Step 1: LIST existing Operation Routes")
+	_, err := ListOperationRoutes(ctx, client, orgID, ledgerID)
+	if err != nil {
+		return fmt.Errorf("failed to list operation routes: %w", err)
+	}
+
+	// Step 2: Get operation route by ID (using the source route)
+	if sourceRoute != nil {
+		fmt.Println("\n🔍 Step 2: GET Operation Route by ID")
+		_, err := GetOperationRoute(ctx, client, orgID, ledgerID, sourceRoute.ID)
+		if err != nil {
+			return fmt.Errorf("failed to get operation route: %w", err)
+		}
+	}
+
+	// Step 3: Update operation route (using the destination route)
+	if destinationRoute != nil {
+		fmt.Println("\n✏️  Step 3: UPDATE Operation Route")
+		_, err := UpdateOperationRoute(ctx, client, orgID, ledgerID, destinationRoute.ID, 
+			"Updated Cash-out Route", 
+			"Updated route for cash-out operations with enhanced features",
+			[]string{"liability", "revenue", "expense"})
+		if err != nil {
+			return fmt.Errorf("failed to update operation route: %w", err)
+		}
+
+		// Verify the update by getting it again
+		fmt.Println("\n🔄 Step 3.1: VERIFY Update by Getting Again")
+		_, err = GetOperationRoute(ctx, client, orgID, ledgerID, destinationRoute.ID)
+		if err != nil {
+			return fmt.Errorf("failed to verify updated operation route: %w", err)
+		}
+	}
+
+	// Step 4: Create a new operation route for deletion demonstration
+	fmt.Println("\n📝 Step 4: CREATE Operation Route for Deletion Demo")
+	demoInput := models.NewCreateOperationRouteInput(
+		"Demo Route for Deletion",
+		"This route will be deleted to demonstrate DELETE operation",
+		"source",
+	).WithAccountTypes([]string{"demo_type"}).WithMetadata(map[string]any{
+		"demo": true,
+		"purpose": "deletion_test",
+	})
+
+	demoRoute, err := client.Entity.OperationRoutes.CreateOperationRoute(ctx, orgID, ledgerID, demoInput)
+	if err != nil {
+		return fmt.Errorf("failed to create demo operation route: %w", err)
+	}
+
+	fmt.Printf("✅ Demo operation route created for deletion: %s\n", demoRoute.Title)
+	fmt.Printf("   ID: %s\n", demoRoute.ID)
+
+	// Step 5: Delete the demo operation route
+	fmt.Println("\n🗑️  Step 5: DELETE Operation Route")
+	err = DeleteOperationRoute(ctx, client, orgID, ledgerID, demoRoute.ID)
+	if err != nil {
+		return fmt.Errorf("failed to delete operation route: %w", err)
+	}
+
+	fmt.Println("\n🎉 All Operation Route CRUD operations demonstrated successfully!")
 	return nil
 }
 

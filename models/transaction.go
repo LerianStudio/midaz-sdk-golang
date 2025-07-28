@@ -2,6 +2,7 @@ package models
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/pkg/validation"
@@ -33,8 +34,8 @@ import (
 //
 //	// Iterating through operations
 //	for i, op := range transaction.Operations {
-//	    fmt.Printf("Operation %d: %s %s %d (scale: %d) on account %s\n",
-//	        i+1, op.Type, op.Amount.AssetCode, op.Amount.Value, op.Amount.Scale, op.AccountID)
+//	    fmt.Printf("Operation %d: %s %s %s on account %s\n",
+//	        i+1, op.Type, op.AssetCode, op.Amount, op.AccountID)
 //	}
 //
 //	// Accessing metadata
@@ -51,22 +52,37 @@ type Transaction struct {
 	// structures and validation rules
 	Template string `json:"template,omitempty"`
 
-	// Amount is the numeric value of the transaction
-	// This represents the total value of the transaction as a fixed-point integer
-	// The actual amount is calculated as Amount / 10^Scale
-	Amount int64 `json:"amount"`
-
-	// Scale represents the decimal precision for the amount
-	// For example, a scale of 2 means the amount is in cents (100 = $1.00)
-	Scale int64 `json:"scale"`
+	// Amount is the numeric value of the transaction as a decimal string
+	// This represents the total value of the transaction (e.g., "100.50" for $100.50)
+	Amount string `json:"amount"`
 
 	// AssetCode identifies the currency or asset type for this transaction
 	// Common examples include "USD", "EUR", "BTC", etc.
 	AssetCode string `json:"assetCode"`
 
+	// Route is the transaction route identifier that defines the overall flow
+	// of the transaction, including the structure of operations to be executed
+	Route string `json:"route,omitempty"`
+
 	// Status indicates the current processing status of the transaction
 	// See the Status enum for possible values (PENDING, COMPLETED, FAILED, CANCELED)
 	Status Status `json:"status"`
+
+	// ChartOfAccountsGroupName specifies the chart of accounts group to use
+	// This categorizes the transaction under a specific group for accounting purposes
+	ChartOfAccountsGroupName string `json:"chartOfAccountsGroupName,omitempty"`
+
+	// Source contains the list of source account aliases used in this transaction
+	// These are the accounts from which funds are debited
+	Source []string `json:"source,omitempty"`
+
+	// Destination contains the list of destination account aliases used in this transaction
+	// These are the accounts to which funds are credited
+	Destination []string `json:"destination,omitempty"`
+
+	// Pending indicates whether the transaction is in a pending state
+	// Pending transactions require explicit commitment before affecting account balances
+	Pending bool `json:"pending,omitempty"`
 
 	// LedgerID identifies the ledger this transaction belongs to
 	// A ledger is a collection of accounts and transactions within an organization
@@ -106,14 +122,11 @@ type Transaction struct {
 	Description string `json:"description,omitempty"`
 }
 
-// DSLAmount represents an amount with a value, scale, and asset code for DSL transactions.
+// DSLAmount represents an amount with a value and asset code for DSL transactions.
 // This is aligned with the lib-commons Amount structure.
 type DSLAmount struct {
-	// Value is the numeric value of the amount
-	Value int64 `json:"value"`
-
-	// Scale represents the decimal precision for the amount
-	Scale int64 `json:"scale"`
+	// Value is the numeric value of the amount as a decimal string
+	Value string `json:"value"`
 
 	// Asset is the asset code for the amount
 	Asset string `json:"asset,omitempty"`
@@ -173,11 +186,8 @@ type DSLSend struct {
 	// Asset identifies the currency or asset type for this transaction
 	Asset string `json:"asset"`
 
-	// Value is the numeric value of the transaction
-	Value int64 `json:"value"`
-
-	// Scale represents the decimal precision for the amount
-	Scale int64 `json:"scale"`
+	// Value is the numeric value of the transaction as a decimal string
+	Value string `json:"value"`
 
 	// Source specifies where the funds come from
 	Source *DSLSource `json:"source,omitempty"`
@@ -233,7 +243,12 @@ func (input *TransactionDSLInput) GetValue() float64 {
 		return 0
 	}
 
-	return float64(input.Send.Value)
+	// Convert string value to float64
+	value, err := strconv.ParseFloat(input.Send.Value, 64)
+	if err != nil {
+		return 0
+	}
+	return value
 }
 
 // GetSourceAccounts returns the source accounts for the transaction
@@ -277,8 +292,7 @@ type Share struct {
 type Rate struct {
 	From       string `json:"from"`
 	To         string `json:"to"`
-	Value      int64  `json:"value"`
-	Scale      int64  `json:"scale"`
+	Value      string `json:"value"`
 	ExternalID string `json:"externalId"`
 }
 
@@ -294,12 +308,8 @@ func (send *DSLSend) Validate() error {
 		return err
 	}
 
-	if send.Value <= 0 {
+	if send.Value == "" || send.Value == "0" {
 		return fmt.Errorf("value must be greater than 0")
-	}
-
-	if send.Scale < 0 || send.Scale > 18 {
-		return fmt.Errorf("scale must be between 0 and 18")
 	}
 
 	// Validate source
@@ -456,7 +466,6 @@ func (input *TransactionDSLInput) sendToMap() map[string]interface{} {
 	send := map[string]interface{}{
 		"asset": input.Send.Asset,
 		"value": input.Send.Value,
-		"scale": input.Send.Scale,
 	}
 
 	// Add Source if present
@@ -535,7 +544,6 @@ func fromToToMap(from DSLFromTo) map[string]interface{} {
 		fromMap["amount"] = map[string]interface{}{
 			"asset": from.Amount.Asset,
 			"value": from.Amount.Value,
-			"scale": from.Amount.Scale,
 		}
 	}
 
@@ -570,7 +578,6 @@ func fromToToMap(from DSLFromTo) map[string]interface{} {
 			"from":       from.Rate.From,
 			"to":         from.Rate.To,
 			"value":      from.Rate.Value,
-			"scale":      from.Rate.Scale,
 			"externalId": from.Rate.ExternalID,
 		}
 	}
@@ -618,12 +625,10 @@ func extractSend(data map[string]interface{}) *DSLSend {
 	send.Asset = getStringFromMap(data, "asset")
 
 	// Extract numeric values
-	if value, ok := data["value"].(float64); ok {
-		send.Value = int64(value)
-	}
-
-	if scale, ok := data["scale"].(float64); ok {
-		send.Scale = int64(scale)
+	if value, ok := data["value"].(string); ok {
+		send.Value = value
+	} else if value, ok := data["value"].(float64); ok {
+		send.Value = fmt.Sprintf("%.2f", value)
 	}
 
 	// Extract Source
@@ -708,12 +713,10 @@ func extractFromTo(data map[string]interface{}) DSLFromTo {
 		}
 
 		// Extract numeric values
-		if value, ok := amountMap["value"].(float64); ok {
-			amount.Value = int64(value)
-		}
-
-		if scale, ok := amountMap["scale"].(float64); ok {
-			amount.Scale = int64(scale)
+		if value, ok := amountMap["value"].(string); ok {
+			amount.Value = value
+		} else if value, ok := amountMap["value"].(float64); ok {
+			amount.Value = fmt.Sprintf("%.2f", value)
 		}
 
 		from.Amount = amount
@@ -743,11 +746,7 @@ func extractFromTo(data map[string]interface{}) DSLFromTo {
 		}
 
 		if value, ok := rateMap["value"].(float64); ok {
-			rate.Value = int64(value)
-		}
-
-		if scale, ok := rateMap["scale"].(float64); ok {
-			rate.Scale = int64(scale)
+			rate.Value = fmt.Sprintf("%.2f", value)
 		}
 
 		from.Rate = rate
@@ -849,7 +848,6 @@ func getMetadataFromMap(m map[string]interface{}) map[string]any {
 //	            Scale:       2,
 //	        },
 //	    },
-//	    Pending: true, // Create as pending, requiring explicit commitment
 //	    Metadata: map[string]any{
 //	        "requires_approval": true,
 //	        "approval_level": "manager",
@@ -868,57 +866,62 @@ type CreateTransactionInput struct {
 	// Template is an optional identifier for the transaction template to use
 	// Templates can be used to create standardized transactions with predefined
 	// structures and validation rules
-	Template string `json:"template,omitempty"`
+	// Note: This is used for SDK logic but not sent in the API request
+	Template string
 
-	// Amount is the numeric value of the transaction
-	// This represents the total value of the transaction as a fixed-point integer
-	// The actual amount is calculated as Amount / 10^Scale
-	Amount int64 `json:"amount"`
-
-	// Scale represents the decimal precision for the amount
-	// For example, a scale of 2 means the amount is in cents (100 = $1.00)
-	Scale int64 `json:"scale"`
+	// Amount is the numeric value of the transaction as a decimal string
+	// This represents the total value of the transaction (e.g., "100.50" for $100.50)
+	// Note: This is used for validation but sent within the Send structure
+	Amount string
 
 	// AssetCode identifies the currency or asset type for this transaction
 	// Common examples include "USD", "EUR", "BTC", etc.
-	AssetCode string `json:"assetCode"`
+	// Note: This is used for validation but sent within the Send structure
+	AssetCode string
 
 	// Operations contains the individual debit and credit operations
 	// Each operation represents a single accounting entry (debit or credit)
 	// The sum of all operations for each asset must balance to zero
-	Operations []CreateOperationInput `json:"operations,omitempty"`
+	// Note: Operations are an alternative to Send and should not be serialized when Send is used
+	Operations []CreateOperationInput
+
+	// ChartOfAccountsGroupName is REQUIRED by the API specification
+	// This categorizes the transaction under a specific chart of accounts group
+	ChartOfAccountsGroupName string `json:"chartOfAccountsGroupName"`
+
+	// Description is a human-readable description of the transaction (REQUIRED by API)
+	// This should provide context about the purpose or nature of the transaction
+	Description string `json:"description"`
+
+	// Pending indicates whether the transaction should be created in a pending state
+	// Pending transactions require explicit commitment before affecting account balances
+	Pending bool `json:"pending,omitempty"`
+
+	// Route is the transaction route identifier (optional)
+	// This defines the overall flow of the transaction structure
+	Route string `json:"route,omitempty"`
 
 	// Metadata contains additional custom data for the transaction
 	// This can be used to store application-specific information
 	// such as references to external systems, tags, or other contextual data
 	Metadata map[string]any `json:"metadata,omitempty"`
 
-	// ChartOfAccountsGroupName specifies the chart of accounts group to use
-	// This is used when integrating with traditional accounting systems
-	ChartOfAccountsGroupName string `json:"chartOfAccountsGroupName,omitempty"`
-
-	// Description is a human-readable description of the transaction
-	// This should provide context about the purpose or nature of the transaction
-	Description string `json:"description,omitempty"`
-
 	// ExternalID is an optional identifier for linking to external systems
 	// This can be used to correlate transactions with records in other systems
 	// and to prevent duplicate transactions
-	ExternalID string `json:"externalId,omitempty"`
-
-	// Pending indicates whether the transaction should be created in a pending state
-	// Pending transactions require explicit commitment before they affect account balances
-	Pending bool `json:"pending,omitempty"`
+	// Note: This is handled separately, not in request body for Send format
+	ExternalID string
 
 	// IdempotencyKey is a client-generated key to ensure transaction uniqueness
 	// If a transaction with the same idempotency key already exists, that transaction
 	// will be returned instead of creating a new one
-	IdempotencyKey string `json:"idempotencyKey,omitempty"`
+	// Note: This is sent as a header (X-Idempotency), not in the request body
+	IdempotencyKey string
 
-	// Send contains the source and distribution information for the transaction
+	// Send contains the source and distribution information for the transaction (REQUIRED by API)
 	// This is an alternative to using Operations and provides a more structured way
 	// to define the transaction flow
-	Send *SendInput `json:"send,omitempty"`
+	Send *SendInput `json:"send"`
 }
 
 // SendInput represents the send information for a transaction.
@@ -927,11 +930,8 @@ type SendInput struct {
 	// Asset identifies the currency or asset type for this transaction
 	Asset string `json:"asset"`
 
-	// Value is the numeric value of the transaction
-	Value int64 `json:"value"`
-
-	// Scale represents the decimal precision for the amount
-	Scale int64 `json:"scale"`
+	// Value is the numeric value of the transaction as a decimal string
+	Value string `json:"value"`
 
 	// Source contains the source accounts for the transaction
 	Source *SourceInput `json:"source"`
@@ -962,30 +962,39 @@ type FromToInput struct {
 
 	// Amount specifies the amount details for this operation
 	Amount AmountInput `json:"amount"`
+
+	// Route is the operation route identifier for this operation (optional)
+	// This links the operation to a specific routing rule
+	Route string `json:"route,omitempty"`
+
+	// Description provides additional context for this operation (optional)
+	Description string `json:"description,omitempty"`
+
+	// ChartOfAccounts specifies the chart of accounts for this operation (optional)
+	ChartOfAccounts string `json:"chartOfAccounts,omitempty"`
+
+	// AccountAlias provides an alternative account identifier (optional)
+	AccountAlias string `json:"accountAlias,omitempty"`
+
+	// Metadata contains additional custom data for this operation
+	Metadata map[string]any `json:"metadata,omitempty"`
 }
 
 // AmountInput represents the amount details for an operation.
-// This structure contains the value, scale, and asset code for an amount.
+// This structure contains the value and asset code for an amount.
 type AmountInput struct {
 	// Asset identifies the currency or asset type for this amount
 	Asset string `json:"asset"`
 
-	// Value is the numeric value of the amount
-	Value int64 `json:"value"`
-
-	// Scale represents the decimal precision for the amount
-	Scale int64 `json:"scale"`
+	// Value is the numeric value of the amount as a decimal string
+	Value string `json:"value"`
 }
 
 // Validate checks that the CreateTransactionInput meets all validation requirements.
 // It returns an error if any of the validation checks fail.
 func (input *CreateTransactionInput) Validate() error {
-	if input.Amount <= 0 {
+	if input.Amount == "" || input.Amount == "0" {
 		return fmt.Errorf("amount must be greater than zero")
-	}
-
-	if input.Scale < 0 || input.Scale > 18 {
-		return fmt.Errorf("scale must be between 0 and 18")
 	}
 
 	if input.AssetCode == "" {
@@ -1021,6 +1030,50 @@ func (input *CreateTransactionInput) Validate() error {
 	return nil
 }
 
+// NewCreateTransactionInput creates a new CreateTransactionInput with required fields.
+// This constructor ensures that all mandatory fields are provided when creating a transaction input.
+func NewCreateTransactionInput(assetCode string, amount string) *CreateTransactionInput {
+	return &CreateTransactionInput{
+		AssetCode: assetCode,
+		Amount:    amount,
+	}
+}
+
+// WithDescription sets the description.
+// This adds a human-readable description to the transaction.
+func (input *CreateTransactionInput) WithDescription(description string) *CreateTransactionInput {
+	input.Description = description
+	return input
+}
+
+// WithMetadata sets the metadata.
+// This adds custom key-value data to the transaction.
+func (input *CreateTransactionInput) WithMetadata(metadata map[string]any) *CreateTransactionInput {
+	input.Metadata = metadata
+	return input
+}
+
+// WithExternalID sets the external ID.
+// This links the transaction to external systems.
+func (input *CreateTransactionInput) WithExternalID(externalID string) *CreateTransactionInput {
+	input.ExternalID = externalID
+	return input
+}
+
+// WithOperations sets the operations list.
+// This defines the individual debit and credit operations.
+func (input *CreateTransactionInput) WithOperations(operations []CreateOperationInput) *CreateTransactionInput {
+	input.Operations = operations
+	return input
+}
+
+// WithSend sets the send structure.
+// This provides an alternative way to define transaction flow.
+func (input *CreateTransactionInput) WithSend(send *SendInput) *CreateTransactionInput {
+	input.Send = send
+	return input
+}
+
 // Validate checks that the SendInput meets all validation requirements.
 // It returns an error if any of the validation checks fail.
 func (input *SendInput) Validate() error {
@@ -1030,13 +1083,8 @@ func (input *SendInput) Validate() error {
 	}
 
 	// Validate value
-	if input.Value <= 0 {
+	if input.Value == "" || input.Value == "0" {
 		return fmt.Errorf("value must be greater than zero")
-	}
-
-	// Validate scale
-	if input.Scale < 0 || input.Scale > 18 {
-		return fmt.Errorf("scale must be between 0 and 18")
 	}
 
 	// Validate source
@@ -1119,13 +1167,8 @@ func (input *AmountInput) Validate() error {
 	}
 
 	// Validate value
-	if input.Value <= 0 {
+	if input.Value == "" || input.Value == "0" {
 		return fmt.Errorf("value must be greater than zero")
-	}
-
-	// Validate scale
-	if input.Scale < 0 || input.Scale > 18 {
-		return fmt.Errorf("scale must be between 0 and 18")
 	}
 
 	return nil
@@ -1139,24 +1182,36 @@ func (input *CreateTransactionInput) ToLibTransaction() map[string]interface{} {
 	}
 
 	// Create a map to hold the transaction data
-	tx := map[string]interface{}{
-		"description": input.Description,
-		"metadata":    input.Metadata,
-	}
+	tx := map[string]interface{}{}
 
-	// Add chart of accounts group name if present
+	// Add chart of accounts group name if provided (required by API)
 	if input.ChartOfAccountsGroupName != "" {
 		tx["chartOfAccountsGroupName"] = input.ChartOfAccountsGroupName
 	}
 
-	// Add pending flag if true
+	// Only add description if provided (required by API)
+	if input.Description != "" {
+		tx["description"] = input.Description
+	}
+
+	// Add pending field if set
 	if input.Pending {
 		tx["pending"] = input.Pending
 	}
 
-	// Add send information if present
+	// Add route if provided
+	if input.Route != "" {
+		tx["route"] = input.Route
+	}
+
+	// Add send information if present (required by API)
 	if input.Send != nil {
 		tx["send"] = input.Send.ToMap()
+	}
+
+	// Only add metadata if provided
+	if input.Metadata != nil && len(input.Metadata) > 0 {
+		tx["metadata"] = input.Metadata
 	}
 
 	return tx
@@ -1171,8 +1226,7 @@ func (input *SendInput) ToMap() map[string]interface{} {
 
 	send := map[string]interface{}{
 		"asset": input.Asset,
-		"value": input.Value,
-		"scale": input.Scale,
+		"value": input.Value, // API expects value as string
 	}
 
 	// Add source information if present
@@ -1234,11 +1288,16 @@ func (input *DistributeInput) ToMap() map[string]interface{} {
 // This is used internally by the SDK to convert the input to the format expected by the backend.
 func (input FromToInput) ToMap() map[string]interface{} {
 	fromTo := map[string]interface{}{
-		"account": input.Account,
+		"accountAlias": input.Account, // API expects accountAlias, not account
 	}
 
 	// Add amount information
 	fromTo["amount"] = input.Amount.ToMap()
+
+	// Add route information if provided
+	if input.Route != "" {
+		fromTo["route"] = input.Route
+	}
 
 	return fromTo
 }
@@ -1248,8 +1307,7 @@ func (input FromToInput) ToMap() map[string]interface{} {
 func (input *AmountInput) ToMap() map[string]interface{} {
 	return map[string]interface{}{
 		"asset": input.Asset,
-		"value": input.Value,
-		"scale": input.Scale,
+		"value": input.Value, // API expects value as string
 	}
 }
 
@@ -1269,7 +1327,6 @@ func (t *Transaction) ToTransactionMap() map[string]interface{} {
 	send := map[string]interface{}{
 		"asset": t.AssetCode,
 		"value": t.Amount,
-		"scale": t.Scale,
 	}
 
 	// Source (debits)
@@ -1285,9 +1342,8 @@ func (t *Transaction) ToTransactionMap() map[string]interface{} {
 		entry := map[string]interface{}{
 			"account": op.AccountID,
 			"amount": map[string]interface{}{
-				"value": op.Amount.Value,
-				"scale": op.Amount.Scale,
-				"asset": op.Amount.AssetCode,
+				"value": op.Amount,
+				"asset": op.AssetCode,
 			},
 		}
 
@@ -1386,4 +1442,53 @@ func (input *UpdateTransactionInput) Validate() error {
 	}
 
 	return nil
+}
+
+// NewUpdateTransactionInput creates a new UpdateTransactionInput.
+// This constructor initializes an empty update input that can be customized
+// using the With* methods for a fluent API experience.
+//
+// Returns:
+//   - A pointer to the newly created UpdateTransactionInput
+func NewUpdateTransactionInput() *UpdateTransactionInput {
+	return &UpdateTransactionInput{}
+}
+
+// WithMetadata sets the metadata.
+// This method allows updating the custom metadata associated with the transaction.
+//
+// Parameters:
+//   - metadata: A map of key-value pairs to store as transaction metadata
+//
+// Returns:
+//   - A pointer to the modified UpdateTransactionInput for method chaining
+func (input *UpdateTransactionInput) WithMetadata(metadata map[string]any) *UpdateTransactionInput {
+	input.Metadata = metadata
+	return input
+}
+
+// WithDescription sets the description.
+// This method allows updating the human-readable description of the transaction.
+//
+// Parameters:
+//   - description: The new description for the transaction
+//
+// Returns:
+//   - A pointer to the modified UpdateTransactionInput for method chaining
+func (input *UpdateTransactionInput) WithDescription(description string) *UpdateTransactionInput {
+	input.Description = description
+	return input
+}
+
+// WithExternalID sets the external ID.
+// This method allows setting or updating the external system identifier for the transaction.
+//
+// Parameters:
+//   - externalID: The external identifier for linking to other systems
+//
+// Returns:
+//   - A pointer to the modified UpdateTransactionInput for method chaining
+func (input *UpdateTransactionInput) WithExternalID(externalID string) *UpdateTransactionInput {
+	input.ExternalID = externalID
+	return input
 }

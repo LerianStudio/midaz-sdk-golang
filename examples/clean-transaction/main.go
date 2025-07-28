@@ -60,16 +60,14 @@ func createDSLTransaction(ctx context.Context, txService entities.TransactionsSe
 		},
 		Send: &models.DSLSend{
 			Asset: "USD",
-			Value: 100_00, // $100.00
-			Scale: 2,
+			Value: "100.00", // $100.00
 			Source: &models.DSLSource{
 				From: []models.DSLFromTo{
 					{
 						Account: "account123",
 						Amount: &models.DSLAmount{
 							Asset: "USD",
-							Value: 100_00, // $100.00
-							Scale: 2,
+							Value: "100.00", // $100.00
 						},
 					},
 				},
@@ -80,8 +78,7 @@ func createDSLTransaction(ctx context.Context, txService entities.TransactionsSe
 						Account: "account456",
 						Amount: &models.DSLAmount{
 							Asset: "USD",
-							Value: 100_00, // $100.00
-							Scale: 2,
+							Value: "100.00", // $100.00
 						},
 					},
 				},

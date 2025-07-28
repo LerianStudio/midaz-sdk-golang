@@ -586,8 +586,8 @@ func FormatTransactionWithOptions(tx *models.Transaction, opts ...TransactionOpt
 	// Determine transaction type based on operations
 	txType := determineTransactionType(tx)
 
-	// Format amount with proper scale
-	amountStr := FormatAmount(tx.Amount, int(tx.Scale))
+	// Use the amount as-is since it's already formatted as a decimal string
+	amountStr := tx.Amount
 
 	// Build summary with optional ID prefix
 	summary := ""

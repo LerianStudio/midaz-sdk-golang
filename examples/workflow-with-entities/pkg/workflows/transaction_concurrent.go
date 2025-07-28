@@ -261,8 +261,8 @@ func ExecuteCustomerToMerchantConcurrent(ctx context.Context, client *client.Cli
 		idempotencyKey := GenerateUniqueIdempotencyKey("c2m", index)
 
 		// Validate the transaction input values using the validation package
-		amountValid := validation.IsValidAmount(1, 2)
-		if !amountValid {
+		amount := "0.01"
+		if amount == "" || amount == "0" {
 			err := fmt.Errorf("invalid transaction amount")
 			observability.RecordError(txCtx, err, "invalid_amount")
 			return "", err
@@ -270,10 +270,10 @@ func ExecuteCustomerToMerchantConcurrent(ctx context.Context, client *client.Cli
 
 		// Create a transfer transaction with a unique idempotency key
 		transferInput := &midazmodels.CreateTransactionInput{
-			Description: fmt.Sprintf("Concurrent customer to merchant transfer #%d", index+1),
-			Amount:      1, // $0.01
-			Scale:       2, // 2 decimal places (cents)
-			AssetCode:   "USD",
+			ChartOfAccountsGroupName: "default_chart_group", // Required by API specification
+			Description:              fmt.Sprintf("Concurrent customer to merchant transfer #%d", index+1),
+			Amount:                   "0.01", // $0.01
+			AssetCode:                "USD",
 			Metadata: map[string]any{
 				"source": "go-sdk-example",
 				"type":   "transfer",
@@ -281,16 +281,14 @@ func ExecuteCustomerToMerchantConcurrent(ctx context.Context, client *client.Cli
 			},
 			Send: &midazmodels.SendInput{
 				Asset: "USD",
-				Value: 1, // $0.01
-				Scale: 2, // 2 decimal places
+				Value: "0.01", // $0.01
 				Source: &midazmodels.SourceInput{
 					From: []midazmodels.FromToInput{
 						{
 							Account: customerAccount.ID,
 							Amount: midazmodels.AmountInput{
 								Asset: "USD",
-								Value: 1,
-								Scale: 2,
+								Value: "0.01",
 							},
 						},
 					},
@@ -301,8 +299,7 @@ func ExecuteCustomerToMerchantConcurrent(ctx context.Context, client *client.Cli
 							Account: merchantAccount.ID,
 							Amount: midazmodels.AmountInput{
 								Asset: "USD",
-								Value: 1,
-								Scale: 2,
+								Value: "0.01",
 							},
 						},
 					},
@@ -415,10 +412,10 @@ func ExecuteMerchantToCustomerConcurrent(ctx context.Context, client *client.Cli
 
 		// Create a transfer transaction input
 		transactionInputs[i] = &midazmodels.CreateTransactionInput{
-			Description: fmt.Sprintf("Concurrent merchant to customer transfer #%d", i+1),
-			Amount:      1, // $0.01
-			Scale:       2, // 2 decimal places (cents)
-			AssetCode:   "USD",
+			ChartOfAccountsGroupName: "default_chart_group", // Required by API specification
+			Description:              fmt.Sprintf("Concurrent merchant to customer transfer #%d", i+1),
+			Amount:                   "0.01", // $0.01
+			AssetCode:                "USD",
 			Metadata: map[string]any{
 				"source": "go-sdk-example",
 				"type":   "transfer",
@@ -426,16 +423,14 @@ func ExecuteMerchantToCustomerConcurrent(ctx context.Context, client *client.Cli
 			},
 			Send: &midazmodels.SendInput{
 				Asset: "USD",
-				Value: 1, // $0.01
-				Scale: 2, // 2 decimal places
+				Value: "0.01", // $0.01
 				Source: &midazmodels.SourceInput{
 					From: []midazmodels.FromToInput{
 						{
 							Account: merchantAccount.ID,
 							Amount: midazmodels.AmountInput{
 								Asset: "USD",
-								Value: 1,
-								Scale: 2,
+								Value: "0.01",
 							},
 						},
 					},
@@ -446,8 +441,7 @@ func ExecuteMerchantToCustomerConcurrent(ctx context.Context, client *client.Cli
 							Account: customerAccount.ID,
 							Amount: midazmodels.AmountInput{
 								Asset: "USD",
-								Value: 1,
-								Scale: 2,
+								Value: "0.01",
 							},
 						},
 					},

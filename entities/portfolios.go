@@ -125,6 +125,11 @@ type PortfoliosService interface {
 	// The id parameter is the unique identifier of the portfolio to delete.
 	// Returns an error if the operation fails.
 	DeletePortfolio(ctx context.Context, organizationID, ledgerID, id string) error
+
+	// GetPortfoliosMetricsCount retrieves the count metrics for portfolios in a ledger.
+	// The organizationID and ledgerID parameters specify which organization and ledger to get metrics for.
+	// Returns the metrics count if successful, or an error if the operation fails.
+	GetPortfoliosMetricsCount(ctx context.Context, organizationID, ledgerID string) (*models.MetricsCount, error)
 }
 
 // portfoliosEntity implements the PortfoliosService interface.
@@ -331,6 +336,33 @@ func (e *portfoliosEntity) DeletePortfolio(ctx context.Context, organizationID, 
 	return nil
 }
 
+// GetPortfoliosMetricsCount gets the count metrics for portfolios in a ledger.
+func (e *portfoliosEntity) GetPortfoliosMetricsCount(ctx context.Context, organizationID, ledgerID string) (*models.MetricsCount, error) {
+	const operation = "GetPortfoliosMetricsCount"
+
+	if organizationID == "" {
+		return nil, errors.NewMissingParameterError(operation, "organizationID")
+	}
+
+	if ledgerID == "" {
+		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+	}
+
+	url := e.buildMetricsURL(organizationID, ledgerID)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	var metrics models.MetricsCount
+	if err := e.HTTPClient.sendRequest(req, &metrics); err != nil {
+		return nil, err
+	}
+
+	return &metrics, nil
+}
+
 // buildURL builds the URL for portfolios API calls.
 func (e *portfoliosEntity) buildURL(organizationID, ledgerID, portfolioID string) string {
 	baseURL := e.baseURLs["onboarding"]
@@ -340,4 +372,10 @@ func (e *portfoliosEntity) buildURL(organizationID, ledgerID, portfolioID string
 	}
 
 	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/portfolios/%s", baseURL, organizationID, ledgerID, portfolioID)
+}
+
+// buildMetricsURL builds the URL for portfolios metrics API calls.
+func (e *portfoliosEntity) buildMetricsURL(organizationID, ledgerID string) string {
+	baseURL := e.baseURLs["onboarding"]
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/portfolios/metrics/count", baseURL, organizationID, ledgerID)
 }
