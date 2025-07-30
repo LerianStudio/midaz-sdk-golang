@@ -7,7 +7,7 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/pkg/conversion"
 	"github.com/LerianStudio/midaz-sdk-golang/pkg/validation/core"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
 // Organization represents an organization in the Midaz Ledger.
@@ -151,7 +151,7 @@ func FromMmodelOrganization(org mmodel.Organization) Organization {
 			LegalDocument:        org.LegalDocument,
 			ParentOrganizationID: org.ParentOrganizationID,
 			DoingBusinessAs:      doingBusinessAs,
-			Status:               FromMmodelStatus(org.Status),
+			Status:               org.Status,
 			Address:              FromMmodelAddress(org.Address),
 			Metadata:             org.Metadata,
 			CreatedAt:            org.CreatedAt,
@@ -192,7 +192,7 @@ func (o Organization) ToMmodelOrganization() mmodel.Organization {
 			LegalDocument:        o.LegalDocument,
 			ParentOrganizationID: o.ParentOrganizationID,
 			DoingBusinessAs:      doingBusinessAs,
-			Status:               o.Status.ToMmodelStatus(),
+			Status:               o.Status,
 			Address:              o.Address.ToMmodelAddress(),
 			Metadata:             o.Metadata,
 			CreatedAt:            o.CreatedAt,
@@ -208,7 +208,7 @@ func (o Organization) ToMmodelOrganization() mmodel.Organization {
 	}
 
 	// Handle Status and Address manually since they are not automatically converted
-	result.Status = o.Status.ToMmodelStatus()
+	result.Status = o.Status
 	result.Address = o.Address.ToMmodelAddress()
 
 	return result
@@ -352,7 +352,7 @@ func (input CreateOrganizationInput) ToMmodelCreateOrganizationInput() mmodel.Cr
 	conversion.UnmapStruct(resultMap, &result)
 
 	// Handle Status and Address manually since they require special conversion
-	result.Status = input.Status.ToMmodelStatus()
+	result.Status = input.Status
 	result.Address = input.Address.ToMmodelAddress()
 
 	return result
@@ -579,7 +579,7 @@ func (input UpdateOrganizationInput) ToMmodelUpdateOrganizationInput() mmodel.Up
 		ParentOrganizationID: input.ParentOrganizationID,
 		DoingBusinessAs:      input.DoingBusinessAs, // No conversion needed, both are string
 		Address:              input.Address.ToMmodelAddress(),
-		Status:               input.Status.ToMmodelStatus(),
+		Status:               input.Status,
 		Metadata:             input.Metadata,
 	}
 }
@@ -673,7 +673,7 @@ func FromMmodelUpdateOrganizationInput(input mmodel.UpdateOrganizationInput) Upd
 		ParentOrganizationID: input.ParentOrganizationID,
 		DoingBusinessAs:      input.DoingBusinessAs,
 		Address:              FromMmodelAddress(input.Address),
-		Status:               FromMmodelStatus(input.Status),
+		Status:               input.Status,
 		Metadata:             input.Metadata,
 	}
 }

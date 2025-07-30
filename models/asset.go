@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/pkg/validation/core"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
 // Asset represents an asset in the Midaz Ledger.
@@ -181,7 +181,7 @@ func FromMmodelAsset(asset mmodel.Asset) Asset {
 		Name:           asset.Name,
 		Type:           asset.Type,
 		Code:           asset.Code,
-		Status:         FromMmodelStatus(asset.Status),
+		Status:         asset.Status,
 		LedgerID:       asset.LedgerID,
 		OrganizationID: asset.OrganizationID,
 		CreatedAt:      asset.CreatedAt,
@@ -209,7 +209,7 @@ func (a *Asset) ToMmodelAsset() mmodel.Asset {
 		Name:           a.Name,
 		Type:           a.Type,
 		Code:           a.Code,
-		Status:         a.Status.ToMmodelStatus(),
+		Status:         a.Status,
 		LedgerID:       a.LedgerID,
 		OrganizationID: a.OrganizationID,
 		CreatedAt:      a.CreatedAt,
@@ -357,7 +357,7 @@ func (c *CreateAssetInput) ToMmodelCreateAssetInput() mmodel.CreateAssetInput {
 	}
 
 	if !c.Status.IsEmpty() {
-		result.Status = c.Status.ToMmodelStatus()
+		result.Status = c.Status
 	}
 
 	return result
@@ -459,7 +459,7 @@ func (u *UpdateAssetInput) ToMmodelUpdateAssetInput() mmodel.UpdateAssetInput {
 	}
 
 	if !u.Status.IsEmpty() {
-		result.Status = u.Status.ToMmodelStatus()
+		result.Status = u.Status
 	}
 
 	return result

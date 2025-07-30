@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
 // Segment represents a segment in the Midaz system for more granular organization.
@@ -90,7 +90,7 @@ func FromMmodelSegment(segment mmodel.Segment) Segment {
 		Name:           segment.Name,
 		LedgerID:       segment.LedgerID,
 		OrganizationID: segment.OrganizationID,
-		Status:         FromMmodelStatus(segment.Status),
+		Status:         segment.Status,
 		CreatedAt:      segment.CreatedAt,
 		UpdatedAt:      segment.UpdatedAt,
 		Metadata:       segment.Metadata,
@@ -116,7 +116,7 @@ func (s *Segment) ToMmodelSegment() mmodel.Segment {
 		Name:           s.Name,
 		LedgerID:       s.LedgerID,
 		OrganizationID: s.OrganizationID,
-		Status:         s.Status.ToMmodelStatus(),
+		Status:         s.Status,
 		CreatedAt:      s.CreatedAt,
 		UpdatedAt:      s.UpdatedAt,
 		Metadata:       s.Metadata,
@@ -230,7 +230,7 @@ func (c *CreateSegmentInput) ToMmodelCreateSegmentInput() mmodel.CreateSegmentIn
 	}
 
 	if !c.Status.IsEmpty() {
-		result.Status = c.Status.ToMmodelStatus()
+		result.Status = c.Status
 	}
 
 	return result
@@ -340,7 +340,7 @@ func (u *UpdateSegmentInput) ToMmodelUpdateSegmentInput() mmodel.UpdateSegmentIn
 	}
 
 	if !u.Status.IsEmpty() {
-		result.Status = u.Status.ToMmodelStatus()
+		result.Status = u.Status
 	}
 
 	return result

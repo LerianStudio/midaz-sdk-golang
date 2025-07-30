@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
 // Portfolio represents a portfolio in the Midaz system.
@@ -97,7 +97,7 @@ func FromMmodelPortfolio(portfolio mmodel.Portfolio) Portfolio {
 		EntityID:       portfolio.EntityID,
 		LedgerID:       portfolio.LedgerID,
 		OrganizationID: portfolio.OrganizationID,
-		Status:         FromMmodelStatus(portfolio.Status),
+		Status:         portfolio.Status,
 		CreatedAt:      portfolio.CreatedAt,
 		UpdatedAt:      portfolio.UpdatedAt,
 		Metadata:       portfolio.Metadata,
@@ -124,7 +124,7 @@ func (p *Portfolio) ToMmodelPortfolio() mmodel.Portfolio {
 		EntityID:       p.EntityID,
 		LedgerID:       p.LedgerID,
 		OrganizationID: p.OrganizationID,
-		Status:         p.Status.ToMmodelStatus(),
+		Status:         p.Status,
 		CreatedAt:      p.CreatedAt,
 		UpdatedAt:      p.UpdatedAt,
 		Metadata:       p.Metadata,
@@ -236,7 +236,7 @@ func (c *CreatePortfolioInput) ToMmodelCreatePortfolioInput() mmodel.CreatePortf
 	}
 
 	if !c.Status.IsEmpty() {
-		result.Status = c.Status.ToMmodelStatus()
+		result.Status = c.Status
 	}
 
 	return result
@@ -332,7 +332,7 @@ func (u *UpdatePortfolioInput) ToMmodelUpdatePortfolioInput() mmodel.UpdatePortf
 	}
 
 	if !u.Status.IsEmpty() {
-		result.Status = u.Status.ToMmodelStatus()
+		result.Status = u.Status
 	}
 
 	return result

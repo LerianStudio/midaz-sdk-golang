@@ -3,7 +3,7 @@ package models
 import (
 	"encoding/json"
 
-	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 )
 

@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/pkg/validation/core"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
 // Ledger represents a ledger in the Midaz system.
@@ -89,7 +89,7 @@ func FromMmodelLedger(ledger mmodel.Ledger) Ledger {
 		ID:             ledger.ID,
 		Name:           ledger.Name,
 		OrganizationID: ledger.OrganizationID,
-		Status:         FromMmodelStatus(ledger.Status),
+		Status:         ledger.Status,
 		Metadata:       ledger.Metadata,
 		CreatedAt:      ledger.CreatedAt,
 		UpdatedAt:      ledger.UpdatedAt,
@@ -107,7 +107,7 @@ func (l Ledger) ToMmodelLedger() mmodel.Ledger {
 		ID:             l.ID,
 		Name:           l.Name,
 		OrganizationID: l.OrganizationID,
-		Status:         l.Status.ToMmodelStatus(),
+		Status:         l.Status,
 		Metadata:       l.Metadata,
 		CreatedAt:      l.CreatedAt,
 		UpdatedAt:      l.UpdatedAt,
@@ -225,7 +225,7 @@ func (input *CreateLedgerInput) Validate() error {
 func (input CreateLedgerInput) ToMmodelCreateLedgerInput() mmodel.CreateLedgerInput {
 	return mmodel.CreateLedgerInput{
 		Name:     input.Name,
-		Status:   input.Status.ToMmodelStatus(),
+		Status:   input.Status,
 		Metadata: input.Metadata,
 	}
 }
@@ -350,7 +350,7 @@ func (input *UpdateLedgerInput) Validate() error {
 func (input UpdateLedgerInput) ToMmodelUpdateLedgerInput() mmodel.UpdateLedgerInput {
 	return mmodel.UpdateLedgerInput{
 		Name:     input.Name,
-		Status:   input.Status.ToMmodelStatus(),
+		Status:   input.Status,
 		Metadata: input.Metadata,
 	}
 }
