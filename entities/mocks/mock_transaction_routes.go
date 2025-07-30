@@ -41,7 +41,7 @@ func (m *MockTransactionRoutesService) CreateTransactionRoute(ctx context.Contex
 }
 
 // CreateTransactionRoute indicates an expected call of CreateTransactionRoute.
-func (mr *MockTransactionRoutesServiceMockRecorder) CreateTransactionRoute(ctx, organizationID, ledgerID, input interface{}) *gomock.Call {
+func (mr *MockTransactionRoutesServiceMockRecorder) CreateTransactionRoute(ctx, organizationID, ledgerID, input any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateTransactionRoute", reflect.TypeOf((*MockTransactionRoutesService)(nil).CreateTransactionRoute), ctx, organizationID, ledgerID, input)
 }
@@ -55,7 +55,7 @@ func (m *MockTransactionRoutesService) DeleteTransactionRoute(ctx context.Contex
 }
 
 // DeleteTransactionRoute indicates an expected call of DeleteTransactionRoute.
-func (mr *MockTransactionRoutesServiceMockRecorder) DeleteTransactionRoute(ctx, organizationID, ledgerID, transactionRouteID interface{}) *gomock.Call {
+func (mr *MockTransactionRoutesServiceMockRecorder) DeleteTransactionRoute(ctx, organizationID, ledgerID, transactionRouteID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTransactionRoute", reflect.TypeOf((*MockTransactionRoutesService)(nil).DeleteTransactionRoute), ctx, organizationID, ledgerID, transactionRouteID)
 }
@@ -70,7 +70,7 @@ func (m *MockTransactionRoutesService) GetTransactionRoute(ctx context.Context, 
 }
 
 // GetTransactionRoute indicates an expected call of GetTransactionRoute.
-func (mr *MockTransactionRoutesServiceMockRecorder) GetTransactionRoute(ctx, organizationID, ledgerID, transactionRouteID interface{}) *gomock.Call {
+func (mr *MockTransactionRoutesServiceMockRecorder) GetTransactionRoute(ctx, organizationID, ledgerID, transactionRouteID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTransactionRoute", reflect.TypeOf((*MockTransactionRoutesService)(nil).GetTransactionRoute), ctx, organizationID, ledgerID, transactionRouteID)
 }
@@ -85,7 +85,7 @@ func (m *MockTransactionRoutesService) ListTransactionRoutes(ctx context.Context
 }
 
 // ListTransactionRoutes indicates an expected call of ListTransactionRoutes.
-func (mr *MockTransactionRoutesServiceMockRecorder) ListTransactionRoutes(ctx, organizationID, ledgerID, opts interface{}) *gomock.Call {
+func (mr *MockTransactionRoutesServiceMockRecorder) ListTransactionRoutes(ctx, organizationID, ledgerID, opts any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListTransactionRoutes", reflect.TypeOf((*MockTransactionRoutesService)(nil).ListTransactionRoutes), ctx, organizationID, ledgerID, opts)
 }
@@ -100,7 +100,7 @@ func (m *MockTransactionRoutesService) UpdateTransactionRoute(ctx context.Contex
 }
 
 // UpdateTransactionRoute indicates an expected call of UpdateTransactionRoute.
-func (mr *MockTransactionRoutesServiceMockRecorder) UpdateTransactionRoute(ctx, organizationID, ledgerID, transactionRouteID, input interface{}) *gomock.Call {
+func (mr *MockTransactionRoutesServiceMockRecorder) UpdateTransactionRoute(ctx, organizationID, ledgerID, transactionRouteID, input any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTransactionRoute", reflect.TypeOf((*MockTransactionRoutesService)(nil).UpdateTransactionRoute), ctx, organizationID, ledgerID, transactionRouteID, input)
 }

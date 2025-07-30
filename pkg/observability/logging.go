@@ -50,27 +50,27 @@ func (l LogLevel) String() string {
 // Logger is the interface for all logging operations
 type Logger interface {
 	// Debug logs a message at debug level
-	Debug(args ...interface{})
+	Debug(args ...any)
 	// Debugf logs a formatted message at debug level
-	Debugf(format string, args ...interface{})
+	Debugf(format string, args ...any)
 	// Info logs a message at info level
-	Info(args ...interface{})
+	Info(args ...any)
 	// Infof logs a formatted message at info level
-	Infof(format string, args ...interface{})
+	Infof(format string, args ...any)
 	// Warn logs a message at warn level
-	Warn(args ...interface{})
+	Warn(args ...any)
 	// Warnf logs a formatted message at warn level
-	Warnf(format string, args ...interface{})
+	Warnf(format string, args ...any)
 	// Error logs a message at error level
-	Error(args ...interface{})
+	Error(args ...any)
 	// Errorf logs a formatted message at error level
-	Errorf(format string, args ...interface{})
+	Errorf(format string, args ...any)
 	// Fatal logs a message at fatal level
-	Fatal(args ...interface{})
+	Fatal(args ...any)
 	// Fatalf logs a formatted message at fatal level
-	Fatalf(format string, args ...interface{})
+	Fatalf(format string, args ...any)
 	// With returns a logger with added structured fields
-	With(fields map[string]interface{}) Logger
+	With(fields map[string]any) Logger
 	// WithContext returns a logger with context information (trace ID, etc.)
 	WithContext(ctx trace.SpanContext) Logger
 	// WithSpan returns a logger with span information (span ID, trace ID, etc.)
@@ -81,7 +81,7 @@ type Logger interface {
 type LoggerImpl struct {
 	level  LogLevel
 	output io.Writer
-	fields map[string]interface{}
+	fields map[string]any
 }
 
 // NewLogger creates a new logger with the specified level and output
@@ -90,7 +90,7 @@ func NewLogger(level LogLevel, output io.Writer, resource *sdkresource.Resource)
 		output = os.Stderr
 	}
 
-	fields := make(map[string]interface{})
+	fields := make(map[string]any)
 	if resource != nil {
 		// Add resource attributes to fields
 		for _, kv := range resource.Attributes() {
@@ -123,7 +123,7 @@ func (l *LoggerImpl) log(level LogLevel, msg string) {
 	}
 
 	// Create log entry
-	entry := map[string]interface{}{
+	entry := map[string]any{
 		"timestamp": time.Now().Format(time.RFC3339),
 		"level":     level.String(),
 		"message":   msg,
@@ -156,59 +156,59 @@ func (l *LoggerImpl) log(level LogLevel, msg string) {
 }
 
 // Debug logs a message at debug level
-func (l *LoggerImpl) Debug(args ...interface{}) {
+func (l *LoggerImpl) Debug(args ...any) {
 	l.log(DebugLevel, fmt.Sprint(args...))
 }
 
 // Debugf logs a formatted message at debug level
-func (l *LoggerImpl) Debugf(format string, args ...interface{}) {
+func (l *LoggerImpl) Debugf(format string, args ...any) {
 	l.log(DebugLevel, fmt.Sprintf(format, args...))
 }
 
 // Info logs a message at info level
-func (l *LoggerImpl) Info(args ...interface{}) {
+func (l *LoggerImpl) Info(args ...any) {
 	l.log(InfoLevel, fmt.Sprint(args...))
 }
 
 // Infof logs a formatted message at info level
-func (l *LoggerImpl) Infof(format string, args ...interface{}) {
+func (l *LoggerImpl) Infof(format string, args ...any) {
 	l.log(InfoLevel, fmt.Sprintf(format, args...))
 }
 
 // Warn logs a message at warn level
-func (l *LoggerImpl) Warn(args ...interface{}) {
+func (l *LoggerImpl) Warn(args ...any) {
 	l.log(WarnLevel, fmt.Sprint(args...))
 }
 
 // Warnf logs a formatted message at warn level
-func (l *LoggerImpl) Warnf(format string, args ...interface{}) {
+func (l *LoggerImpl) Warnf(format string, args ...any) {
 	l.log(WarnLevel, fmt.Sprintf(format, args...))
 }
 
 // Error logs a message at error level
-func (l *LoggerImpl) Error(args ...interface{}) {
+func (l *LoggerImpl) Error(args ...any) {
 	l.log(ErrorLevel, fmt.Sprint(args...))
 }
 
 // Errorf logs a formatted message at error level
-func (l *LoggerImpl) Errorf(format string, args ...interface{}) {
+func (l *LoggerImpl) Errorf(format string, args ...any) {
 	l.log(ErrorLevel, fmt.Sprintf(format, args...))
 }
 
 // Fatal logs a message at fatal level
-func (l *LoggerImpl) Fatal(args ...interface{}) {
+func (l *LoggerImpl) Fatal(args ...any) {
 	l.log(FatalLevel, fmt.Sprint(args...))
 }
 
 // Fatalf logs a formatted message at fatal level
-func (l *LoggerImpl) Fatalf(format string, args ...interface{}) {
+func (l *LoggerImpl) Fatalf(format string, args ...any) {
 	l.log(FatalLevel, fmt.Sprintf(format, args...))
 }
 
 // With returns a logger with added structured fields
-func (l *LoggerImpl) With(fields map[string]interface{}) Logger {
+func (l *LoggerImpl) With(fields map[string]any) Logger {
 	// Create a new map with existing fields
-	newFields := make(map[string]interface{}, len(l.fields)+len(fields))
+	newFields := make(map[string]any, len(l.fields)+len(fields))
 	for k, v := range l.fields {
 		newFields[k] = v
 	}
@@ -230,7 +230,7 @@ func (l *LoggerImpl) WithContext(ctx trace.SpanContext) Logger {
 		return l
 	}
 
-	fields := map[string]interface{}{
+	fields := map[string]any{
 		"trace_id": ctx.TraceID().String(),
 	}
 	if ctx.HasSpanID() {
@@ -260,37 +260,37 @@ func NewNoopLogger() Logger {
 }
 
 // Debug is a no-op
-func (l *NoopLogger) Debug(args ...interface{}) {}
+func (l *NoopLogger) Debug(args ...any) {}
 
 // Debugf is a no-op
-func (l *NoopLogger) Debugf(format string, args ...interface{}) {}
+func (l *NoopLogger) Debugf(format string, args ...any) {}
 
 // Info is a no-op
-func (l *NoopLogger) Info(args ...interface{}) {}
+func (l *NoopLogger) Info(args ...any) {}
 
 // Infof is a no-op
-func (l *NoopLogger) Infof(format string, args ...interface{}) {}
+func (l *NoopLogger) Infof(format string, args ...any) {}
 
 // Warn is a no-op
-func (l *NoopLogger) Warn(args ...interface{}) {}
+func (l *NoopLogger) Warn(args ...any) {}
 
 // Warnf is a no-op
-func (l *NoopLogger) Warnf(format string, args ...interface{}) {}
+func (l *NoopLogger) Warnf(format string, args ...any) {}
 
 // Error is a no-op
-func (l *NoopLogger) Error(args ...interface{}) {}
+func (l *NoopLogger) Error(args ...any) {}
 
 // Errorf is a no-op
-func (l *NoopLogger) Errorf(format string, args ...interface{}) {}
+func (l *NoopLogger) Errorf(format string, args ...any) {}
 
 // Fatal is a no-op
-func (l *NoopLogger) Fatal(args ...interface{}) {}
+func (l *NoopLogger) Fatal(args ...any) {}
 
 // Fatalf is a no-op
-func (l *NoopLogger) Fatalf(format string, args ...interface{}) {}
+func (l *NoopLogger) Fatalf(format string, args ...any) {}
 
 // With returns the same no-op logger
-func (l *NoopLogger) With(fields map[string]interface{}) Logger {
+func (l *NoopLogger) With(fields map[string]any) Logger {
 	return l
 }
 

@@ -30,7 +30,7 @@ const (
 )
 
 // GetCommonSuggestions returns suggestions for common validation issues
-func GetCommonSuggestions(field string, value interface{}, sugType SuggestionType) []string {
+func GetCommonSuggestions(field string, value any, sugType SuggestionType) []string {
 	switch sugType {
 	case Format:
 		return getFormatSuggestions(field, value)
@@ -50,7 +50,7 @@ func GetCommonSuggestions(field string, value interface{}, sugType SuggestionTyp
 }
 
 // getFormatSuggestions provides suggestions for format issues
-func getFormatSuggestions(field string, value interface{}) []string {
+func getFormatSuggestions(field string, value any) []string {
 	// Convert field to lowercase for matching
 	fieldLower := strings.ToLower(field)
 
@@ -161,7 +161,7 @@ func getRequiredSuggestions(field string) []string {
 }
 
 // getRangeSuggestions provides suggestions for range issues (min/max values)
-func getRangeSuggestions(field string, value interface{}) []string {
+func getRangeSuggestions(field string, value any) []string {
 	// Convert field to lowercase for matching
 	fieldLower := strings.ToLower(field)
 
@@ -201,7 +201,7 @@ func getRangeSuggestions(field string, value interface{}) []string {
 }
 
 // getEnumerationSuggestions provides suggestions for enumeration issues (invalid value from a set)
-func getEnumerationSuggestions(field string, value interface{}) []string {
+func getEnumerationSuggestions(field string, value any) []string {
 	// Convert field to lowercase for matching
 	fieldLower := strings.ToLower(field)
 

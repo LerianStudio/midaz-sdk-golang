@@ -146,7 +146,7 @@ func createOrganization(ctx context.Context, provider observability.Provider) (*
 			ZipCode: "12345",
 			Country: "US",
 		},
-		Metadata: map[string]interface{}{
+		Metadata: map[string]any{
 			"createdBy": "observability-example",
 		},
 	}
@@ -191,7 +191,7 @@ func createLedger(ctx context.Context, provider observability.Provider, orgID st
 		ID:             "ledger-" + fmt.Sprintf("%d", time.Now().UnixNano()),
 		OrganizationID: orgID,
 		Name:           "Example Ledger",
-		Metadata: map[string]interface{}{
+		Metadata: map[string]any{
 			"description": "Ledger for observability example",
 		},
 		Status: models.Status{

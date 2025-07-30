@@ -41,7 +41,7 @@ func (m *MockOperationRoutesService) CreateOperationRoute(ctx context.Context, o
 }
 
 // CreateOperationRoute indicates an expected call of CreateOperationRoute.
-func (mr *MockOperationRoutesServiceMockRecorder) CreateOperationRoute(ctx, organizationID, ledgerID, input interface{}) *gomock.Call {
+func (mr *MockOperationRoutesServiceMockRecorder) CreateOperationRoute(ctx, organizationID, ledgerID, input any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateOperationRoute", reflect.TypeOf((*MockOperationRoutesService)(nil).CreateOperationRoute), ctx, organizationID, ledgerID, input)
 }
@@ -55,7 +55,7 @@ func (m *MockOperationRoutesService) DeleteOperationRoute(ctx context.Context, o
 }
 
 // DeleteOperationRoute indicates an expected call of DeleteOperationRoute.
-func (mr *MockOperationRoutesServiceMockRecorder) DeleteOperationRoute(ctx, organizationID, ledgerID, operationRouteID interface{}) *gomock.Call {
+func (mr *MockOperationRoutesServiceMockRecorder) DeleteOperationRoute(ctx, organizationID, ledgerID, operationRouteID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOperationRoute", reflect.TypeOf((*MockOperationRoutesService)(nil).DeleteOperationRoute), ctx, organizationID, ledgerID, operationRouteID)
 }
@@ -70,7 +70,7 @@ func (m *MockOperationRoutesService) GetOperationRoute(ctx context.Context, orga
 }
 
 // GetOperationRoute indicates an expected call of GetOperationRoute.
-func (mr *MockOperationRoutesServiceMockRecorder) GetOperationRoute(ctx, organizationID, ledgerID, operationRouteID interface{}) *gomock.Call {
+func (mr *MockOperationRoutesServiceMockRecorder) GetOperationRoute(ctx, organizationID, ledgerID, operationRouteID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOperationRoute", reflect.TypeOf((*MockOperationRoutesService)(nil).GetOperationRoute), ctx, organizationID, ledgerID, operationRouteID)
 }
@@ -85,7 +85,7 @@ func (m *MockOperationRoutesService) ListOperationRoutes(ctx context.Context, or
 }
 
 // ListOperationRoutes indicates an expected call of ListOperationRoutes.
-func (mr *MockOperationRoutesServiceMockRecorder) ListOperationRoutes(ctx, organizationID, ledgerID, opts interface{}) *gomock.Call {
+func (mr *MockOperationRoutesServiceMockRecorder) ListOperationRoutes(ctx, organizationID, ledgerID, opts any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListOperationRoutes", reflect.TypeOf((*MockOperationRoutesService)(nil).ListOperationRoutes), ctx, organizationID, ledgerID, opts)
 }
@@ -100,7 +100,7 @@ func (m *MockOperationRoutesService) UpdateOperationRoute(ctx context.Context, o
 }
 
 // UpdateOperationRoute indicates an expected call of UpdateOperationRoute.
-func (mr *MockOperationRoutesServiceMockRecorder) UpdateOperationRoute(ctx, organizationID, ledgerID, operationRouteID, input interface{}) *gomock.Call {
+func (mr *MockOperationRoutesServiceMockRecorder) UpdateOperationRoute(ctx, organizationID, ledgerID, operationRouteID, input any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOperationRoute", reflect.TypeOf((*MockOperationRoutesService)(nil).UpdateOperationRoute), ctx, organizationID, ledgerID, operationRouteID, input)
 }

@@ -169,7 +169,7 @@ func (e *transactionsEntity) CreateTransaction(ctx context.Context, orgID, ledge
 	}
 
 	// Use a map to parse the response to handle potential schema differences
-	var responseMap map[string]interface{}
+	var responseMap map[string]any
 	if err := e.httpClient.sendRequest(req, &responseMap); err != nil {
 		return nil, err
 	}
@@ -197,7 +197,7 @@ func (e *transactionsEntity) CreateTransaction(ctx context.Context, orgID, ledge
 	transaction.ChartOfAccountsGroupName = getString(responseMap, "chartOfAccountsGroupName")
 
 	// Handle Source and Destination as string arrays
-	if sourceArray, ok := responseMap["source"].([]interface{}); ok {
+	if sourceArray, ok := responseMap["source"].([]any); ok {
 		source := make([]string, len(sourceArray))
 		for i, v := range sourceArray {
 			if s, ok := v.(string); ok {
@@ -207,7 +207,7 @@ func (e *transactionsEntity) CreateTransaction(ctx context.Context, orgID, ledge
 		transaction.Source = source
 	}
 
-	if destinationArray, ok := responseMap["destination"].([]interface{}); ok {
+	if destinationArray, ok := responseMap["destination"].([]any); ok {
 		destination := make([]string, len(destinationArray))
 		for i, v := range destinationArray {
 			if s, ok := v.(string); ok {
@@ -223,7 +223,7 @@ func (e *transactionsEntity) CreateTransaction(ctx context.Context, orgID, ledge
 	}
 
 	// Handle status
-	statusMap, ok := responseMap["status"].(map[string]interface{})
+	statusMap, ok := responseMap["status"].(map[string]any)
 	if ok {
 		status := models.Status{
 			Code: getString(statusMap, "code"),
@@ -247,7 +247,7 @@ func (e *transactionsEntity) CreateTransaction(ctx context.Context, orgID, ledge
 	}
 
 	// Handle metadata
-	if metadata, ok := responseMap["metadata"].(map[string]interface{}); ok {
+	if metadata, ok := responseMap["metadata"].(map[string]any); ok {
 		transaction.Metadata = metadata
 	}
 
@@ -622,7 +622,7 @@ func (e *transactionsEntity) buildURL(orgID, ledgerID, suffix string) string {
 }
 
 // getString safely extracts a string value from a map
-func getString(m map[string]interface{}, key string) string {
+func getString(m map[string]any, key string) string {
 	if val, ok := m[key].(string); ok {
 		return val
 	}

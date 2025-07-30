@@ -107,7 +107,7 @@ func createTestObject() *models.Organization {
 			ZipCode: "94105",
 			Country: "US",
 		},
-		Metadata: map[string]interface{}{
+		Metadata: map[string]any{
 			"createdBy":      "test-user",
 			"region":         "us-west-2",
 			"tier":           "enterprise",
@@ -117,11 +117,11 @@ func createTestObject() *models.Organization {
 			"yearFounded":    2010,
 			"publiclyTraded": true,
 			"subsidiaries":   []string{"subsidiary-1", "subsidiary-2", "subsidiary-3"},
-			"contact": map[string]interface{}{
+			"contact": map[string]any{
 				"email":   "contact@testorg.com",
 				"phone":   "+1-555-123-4567",
 				"website": "https://www.testorg.com",
-				"address": map[string]interface{}{
+				"address": map[string]any{
 					"street":  "123 Main St",
 					"city":    "San Francisco",
 					"state":   "CA",
@@ -129,12 +129,12 @@ func createTestObject() *models.Organization {
 					"country": "USA",
 				},
 			},
-			"financialData": map[string]interface{}{
+			"financialData": map[string]any{
 				"revenue":     1000000000,
 				"profit":      250000000,
 				"fiscalYear":  2023,
 				"stockSymbol": "TEST",
-				"quarters": []map[string]interface{}{
+				"quarters": []map[string]any{
 					{
 						"quarter":    "Q1",
 						"revenue":    230000000,

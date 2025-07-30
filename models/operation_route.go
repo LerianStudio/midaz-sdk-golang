@@ -31,7 +31,7 @@ const (
 // This flexibility matches the API specification requirements.
 type OperationRouteAccount struct {
 	RuleType string      `json:"ruleType"`
-	ValidIf  interface{} `json:"validIf"`
+	ValidIf  any `json:"validIf"`
 }
 
 // OperationRoute represents an operation route entity

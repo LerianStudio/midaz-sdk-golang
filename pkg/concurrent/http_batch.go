@@ -25,7 +25,7 @@ type HTTPBatchRequest struct {
 	Headers map[string]string `json:"headers,omitempty"`
 
 	// Body is the request body (for POST, PUT, PATCH)
-	Body interface{} `json:"body,omitempty"`
+	Body any `json:"body,omitempty"`
 
 	// ID is a client-generated ID for matching requests with responses
 	ID string `json:"id"`
@@ -246,20 +246,20 @@ func WithHighReliabilityBatch() HTTPBatchOption {
 // JSONMarshaler is an interface for JSON marshaling and unmarshaling.
 // This allows for different implementations (like jsoniter) to be used for performance.
 type JSONMarshaler interface {
-	Marshal(v interface{}) ([]byte, error)
-	Unmarshal(data []byte, v interface{}) error
+	Marshal(v any) ([]byte, error)
+	Unmarshal(data []byte, v any) error
 }
 
 // DefaultJSONMarshaler uses the standard encoding/json package.
 type DefaultJSONMarshaler struct{}
 
 // Marshal implements JSONMarshaler.Marshal using the standard encoding/json package.
-func (m *DefaultJSONMarshaler) Marshal(v interface{}) ([]byte, error) {
+func (m *DefaultJSONMarshaler) Marshal(v any) ([]byte, error) {
 	return json.Marshal(v)
 }
 
 // Unmarshal implements JSONMarshaler.Unmarshal using the standard encoding/json package.
-func (m *DefaultJSONMarshaler) Unmarshal(data []byte, v interface{}) error {
+func (m *DefaultJSONMarshaler) Unmarshal(data []byte, v any) error {
 	return json.Unmarshal(data, v)
 }
 
@@ -532,7 +532,7 @@ func (b *HTTPBatchProcessor) executeBatches(ctx context.Context, requests []HTTP
 }
 
 // ParseResponse parses a batch response for a specific request ID into the target.
-func (b *HTTPBatchProcessor) ParseResponse(result *HTTPBatchResult, requestID string, target interface{}) error {
+func (b *HTTPBatchProcessor) ParseResponse(result *HTTPBatchResult, requestID string, target any) error {
 	if result == nil {
 		return errors.NewInternalError("ParseHTTPBatchResponse", fmt.Errorf("batch result is nil"))
 	}

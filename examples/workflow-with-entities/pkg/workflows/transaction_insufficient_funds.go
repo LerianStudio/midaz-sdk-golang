@@ -113,7 +113,7 @@ func ExecuteInsufficientFundsTransactions(ctx context.Context, midazClient *clie
 		)
 
 		// Add extra metadata to track these test transactions
-		transferInput.Metadata = conversion.EnhanceMetadata(transferInput.Metadata, map[string]interface{}{
+		transferInput.Metadata = conversion.EnhanceMetadata(transferInput.Metadata, map[string]any{
 			"test_type":        "insufficient_funds",
 			"test_index":       i + 1,
 			"expected_to_fail": true,

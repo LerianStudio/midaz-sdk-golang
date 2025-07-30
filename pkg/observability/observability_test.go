@@ -188,7 +188,7 @@ func TestLogger(t *testing.T) {
 	logger.Errorf("Error %s", "formatted")
 
 	// Test with fields
-	fieldsLogger := logger.With(map[string]interface{}{
+	fieldsLogger := logger.With(map[string]any{
 		"key1": "value1",
 		"key2": 123,
 	})
@@ -404,7 +404,7 @@ func ExampleMidazProvider_Logger() {
 	logger.Info("This is an info message")
 
 	// Add structured fields
-	structuredLogger := logger.With(map[string]interface{}{
+	structuredLogger := logger.With(map[string]any{
 		"user_id": "123",
 		"action":  "login",
 	})

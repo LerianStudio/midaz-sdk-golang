@@ -94,7 +94,7 @@ func TestOptionsToPageOptions(t *testing.T) {
 	testCases := []struct {
 		name     string
 		adapter  *ModelAdapter
-		input    interface{}
+		input    any
 		expected PageOptions
 	}{
 		{
@@ -271,7 +271,7 @@ func TestPageResultFromResponse(t *testing.T) {
 
 func TestCreateEntityPaginator(t *testing.T) {
 	// Simple list function that returns mock data
-	listFn := func(ctx context.Context, opts interface{}) (interface{}, error) {
+	listFn := func(ctx context.Context, opts any) (any, error) {
 		mockPagination := &MockPagination{
 			nextCursor: "next-page",
 			prevCursor: "prev-page",

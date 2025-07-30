@@ -25,7 +25,7 @@ func TestHTTPBatchProcessor_ExecuteBatch(t *testing.T) {
 		responses := make([]concurrent.HTTPBatchResponse, len(requests))
 		for i, req := range requests {
 			statusCode := 200
-			var responseBody interface{}
+			var responseBody any
 			var errorMsg string
 
 			// Handle requests based on path
@@ -33,7 +33,7 @@ func TestHTTPBatchProcessor_ExecuteBatch(t *testing.T) {
 				statusCode = 400
 				errorMsg = "Test error"
 			} else if req.Path == "/data" {
-				responseBody = map[string]interface{}{
+				responseBody = map[string]any{
 					"message": "Test data",
 					"id":      req.ID,
 				}
@@ -115,7 +115,7 @@ func TestHTTPBatchProcessor_ExecuteBatch(t *testing.T) {
 	assert.Equal(t, "Test error", result.Responses[2].Error)
 
 	// Test ParseResponse
-	var response map[string]interface{}
+	var response map[string]any
 	err = processor.ParseResponse(result, "req_1", &response)
 	assert.NoError(t, err)
 	assert.Equal(t, "Test data", response["message"])
@@ -290,7 +290,7 @@ func TestHTTPBatchProcessor_CustomJSONMarshaler(t *testing.T) {
 	assert.Equal(t, 1, len(result.Responses))
 
 	// Parse response
-	var response map[string]interface{}
+	var response map[string]any
 	err = processor.ParseResponse(result, "req_1", &response)
 	assert.NoError(t, err)
 	assert.Equal(t, "value", response["test"])
@@ -299,10 +299,10 @@ func TestHTTPBatchProcessor_CustomJSONMarshaler(t *testing.T) {
 // CustomJSONMarshaler is a simple implementation of JSONMarshaler for testing
 type CustomJSONMarshaler struct{}
 
-func (m *CustomJSONMarshaler) Marshal(v interface{}) ([]byte, error) {
+func (m *CustomJSONMarshaler) Marshal(v any) ([]byte, error) {
 	return json.Marshal(v)
 }
 
-func (m *CustomJSONMarshaler) Unmarshal(data []byte, v interface{}) error {
+func (m *CustomJSONMarshaler) Unmarshal(data []byte, v any) error {
 	return json.Unmarshal(data, v)
 }

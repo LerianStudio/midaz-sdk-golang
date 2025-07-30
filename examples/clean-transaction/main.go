@@ -54,7 +54,7 @@ func createDSLTransaction(ctx context.Context, txService entities.TransactionsSe
 	// Create a DSL transaction input
 	input := &models.TransactionDSLInput{
 		Description: "Test DSL Transaction",
-		Metadata: map[string]interface{}{
+		Metadata: map[string]any{
 			"source": "sdk-example",
 			"time":   time.Now().Format(time.RFC3339),
 		},

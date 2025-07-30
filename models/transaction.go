@@ -425,13 +425,13 @@ func (input *TransactionDSLInput) Validate() error {
 
 // ToTransactionMap converts a TransactionDSLInput to a map that can be used for API requests.
 // This replaces the previous direct lib-commons conversion.
-func (input *TransactionDSLInput) ToTransactionMap() map[string]interface{} {
+func (input *TransactionDSLInput) ToTransactionMap() map[string]any {
 	if input == nil {
 		return nil
 	}
 
 	// Create base transaction map
-	transaction := map[string]interface{}{
+	transaction := map[string]any{
 		"description": input.Description,
 		"metadata":    input.Metadata,
 	}
@@ -458,12 +458,12 @@ func (input *TransactionDSLInput) ToTransactionMap() map[string]interface{} {
 }
 
 // sendToMap converts the DSLSend to a map for API requests
-func (input *TransactionDSLInput) sendToMap() map[string]interface{} {
+func (input *TransactionDSLInput) sendToMap() map[string]any {
 	if input.Send == nil {
 		return nil
 	}
 
-	send := map[string]interface{}{
+	send := map[string]any{
 		"asset": input.Send.Asset,
 		"value": input.Send.Value,
 	}
@@ -482,12 +482,12 @@ func (input *TransactionDSLInput) sendToMap() map[string]interface{} {
 }
 
 // sourceToMap converts DSLSource to a map for API requests
-func (input *TransactionDSLInput) sourceToMap() map[string]interface{} {
+func (input *TransactionDSLInput) sourceToMap() map[string]any {
 	if input.Send.Source == nil {
 		return nil
 	}
 
-	source := map[string]interface{}{}
+	source := map[string]any{}
 
 	// Add Remaining if present
 	if input.Send.Source.Remaining != "" {
@@ -496,7 +496,7 @@ func (input *TransactionDSLInput) sourceToMap() map[string]interface{} {
 
 	// Convert From accounts
 	if len(input.Send.Source.From) > 0 {
-		fromList := make([]map[string]interface{}, 0, len(input.Send.Source.From))
+		fromList := make([]map[string]any, 0, len(input.Send.Source.From))
 		for _, from := range input.Send.Source.From {
 			fromMap := fromToToMap(from)
 			fromList = append(fromList, fromMap)
@@ -508,12 +508,12 @@ func (input *TransactionDSLInput) sourceToMap() map[string]interface{} {
 }
 
 // distributeToMap converts DSLDistribute to a map for API requests
-func (input *TransactionDSLInput) distributeToMap() map[string]interface{} {
+func (input *TransactionDSLInput) distributeToMap() map[string]any {
 	if input.Send.Distribute == nil {
 		return nil
 	}
 
-	distribute := map[string]interface{}{}
+	distribute := map[string]any{}
 
 	// Add Remaining if present
 	if input.Send.Distribute.Remaining != "" {
@@ -522,7 +522,7 @@ func (input *TransactionDSLInput) distributeToMap() map[string]interface{} {
 
 	// Convert To accounts
 	if len(input.Send.Distribute.To) > 0 {
-		toList := make([]map[string]interface{}, 0, len(input.Send.Distribute.To))
+		toList := make([]map[string]any, 0, len(input.Send.Distribute.To))
 		for _, to := range input.Send.Distribute.To {
 			toMap := fromToToMap(to)
 			toList = append(toList, toMap)
@@ -534,14 +534,14 @@ func (input *TransactionDSLInput) distributeToMap() map[string]interface{} {
 }
 
 // fromToToMap converts a DSLFromTo to a map for API requests
-func fromToToMap(from DSLFromTo) map[string]interface{} {
-	fromMap := map[string]interface{}{
+func fromToToMap(from DSLFromTo) map[string]any {
+	fromMap := map[string]any{
 		"account": from.Account,
 	}
 
 	// Add Amount if present
 	if from.Amount != nil {
-		fromMap["amount"] = map[string]interface{}{
+		fromMap["amount"] = map[string]any{
 			"asset": from.Amount.Asset,
 			"value": from.Amount.Value,
 		}
@@ -566,7 +566,7 @@ func fromToToMap(from DSLFromTo) map[string]interface{} {
 
 	// Add Share if present
 	if from.Share != nil {
-		fromMap["share"] = map[string]interface{}{
+		fromMap["share"] = map[string]any{
 			"percentage":             from.Share.Percentage,
 			"percentageOfPercentage": from.Share.PercentageOfPercentage,
 		}
@@ -574,7 +574,7 @@ func fromToToMap(from DSLFromTo) map[string]interface{} {
 
 	// Add Rate if present
 	if from.Rate != nil {
-		fromMap["rate"] = map[string]interface{}{
+		fromMap["rate"] = map[string]any{
 			"from":       from.Rate.From,
 			"to":         from.Rate.To,
 			"value":      from.Rate.Value,
@@ -587,7 +587,7 @@ func fromToToMap(from DSLFromTo) map[string]interface{} {
 
 // FromTransactionMap converts a map from the API to a TransactionDSLInput.
 // This replaces the previous direct lib-commons conversion.
-func FromTransactionMap(data map[string]interface{}) *TransactionDSLInput {
+func FromTransactionMap(data map[string]any) *TransactionDSLInput {
 	if data == nil {
 		return nil
 	}
@@ -606,7 +606,7 @@ func FromTransactionMap(data map[string]interface{}) *TransactionDSLInput {
 	}
 
 	// Extract Send information
-	if sendMap, ok := data["send"].(map[string]interface{}); ok {
+	if sendMap, ok := data["send"].(map[string]any); ok {
 		input.Send = extractSend(sendMap)
 	}
 
@@ -614,7 +614,7 @@ func FromTransactionMap(data map[string]interface{}) *TransactionDSLInput {
 }
 
 // extractSend converts a map to DSLSend
-func extractSend(data map[string]interface{}) *DSLSend {
+func extractSend(data map[string]any) *DSLSend {
 	if data == nil {
 		return nil
 	}
@@ -632,12 +632,12 @@ func extractSend(data map[string]interface{}) *DSLSend {
 	}
 
 	// Extract Source
-	if sourceMap, ok := data["source"].(map[string]interface{}); ok {
+	if sourceMap, ok := data["source"].(map[string]any); ok {
 		send.Source = extractSource(sourceMap)
 	}
 
 	// Extract Distribute
-	if distMap, ok := data["distribute"].(map[string]interface{}); ok {
+	if distMap, ok := data["distribute"].(map[string]any); ok {
 		send.Distribute = extractDistribute(distMap)
 	}
 
@@ -645,7 +645,7 @@ func extractSend(data map[string]interface{}) *DSLSend {
 }
 
 // extractSource converts a map to DSLSource
-func extractSource(data map[string]interface{}) *DSLSource {
+func extractSource(data map[string]any) *DSLSource {
 	if data == nil {
 		return nil
 	}
@@ -656,9 +656,9 @@ func extractSource(data map[string]interface{}) *DSLSource {
 	}
 
 	// Extract From entries
-	if fromList, ok := data["from"].([]interface{}); ok {
+	if fromList, ok := data["from"].([]any); ok {
 		for _, item := range fromList {
-			if fromMap, ok := item.(map[string]interface{}); ok {
+			if fromMap, ok := item.(map[string]any); ok {
 				fromEntry := extractFromTo(fromMap)
 				source.From = append(source.From, fromEntry)
 			}
@@ -669,7 +669,7 @@ func extractSource(data map[string]interface{}) *DSLSource {
 }
 
 // extractDistribute converts a map to DSLDistribute
-func extractDistribute(data map[string]interface{}) *DSLDistribute {
+func extractDistribute(data map[string]any) *DSLDistribute {
 	if data == nil {
 		return nil
 	}
@@ -680,9 +680,9 @@ func extractDistribute(data map[string]interface{}) *DSLDistribute {
 	}
 
 	// Extract To entries
-	if toList, ok := data["to"].([]interface{}); ok {
+	if toList, ok := data["to"].([]any); ok {
 		for _, item := range toList {
-			if toMap, ok := item.(map[string]interface{}); ok {
+			if toMap, ok := item.(map[string]any); ok {
 				toEntry := extractFromTo(toMap)
 				distribute.To = append(distribute.To, toEntry)
 			}
@@ -693,7 +693,7 @@ func extractDistribute(data map[string]interface{}) *DSLDistribute {
 }
 
 // extractFromTo converts a map to DSLFromTo
-func extractFromTo(data map[string]interface{}) DSLFromTo {
+func extractFromTo(data map[string]any) DSLFromTo {
 	if data == nil {
 		return DSLFromTo{}
 	}
@@ -707,7 +707,7 @@ func extractFromTo(data map[string]interface{}) DSLFromTo {
 	}
 
 	// Extract Amount
-	if amountMap, ok := data["amount"].(map[string]interface{}); ok {
+	if amountMap, ok := data["amount"].(map[string]any); ok {
 		amount := &DSLAmount{
 			Asset: getStringFromMap(amountMap, "asset"),
 		}
@@ -723,7 +723,7 @@ func extractFromTo(data map[string]interface{}) DSLFromTo {
 	}
 
 	// Extract Share
-	if shareMap, ok := data["share"].(map[string]interface{}); ok {
+	if shareMap, ok := data["share"].(map[string]any); ok {
 		share := &Share{}
 
 		if percentage, ok := shareMap["percentage"].(float64); ok {
@@ -738,7 +738,7 @@ func extractFromTo(data map[string]interface{}) DSLFromTo {
 	}
 
 	// Extract Rate
-	if rateMap, ok := data["rate"].(map[string]interface{}); ok {
+	if rateMap, ok := data["rate"].(map[string]any); ok {
 		rate := &Rate{
 			From:       getStringFromMap(rateMap, "from"),
 			To:         getStringFromMap(rateMap, "to"),
@@ -758,7 +758,7 @@ func extractFromTo(data map[string]interface{}) DSLFromTo {
 // Helper functions for extracting values from maps
 
 // getStringFromMap safely extracts a string value from a map
-func getStringFromMap(m map[string]interface{}, key string) string {
+func getStringFromMap(m map[string]any, key string) string {
 	if val, ok := m[key].(string); ok {
 		return val
 	}
@@ -766,8 +766,8 @@ func getStringFromMap(m map[string]interface{}, key string) string {
 }
 
 // getMetadataFromMap safely extracts metadata from a map
-func getMetadataFromMap(m map[string]interface{}) map[string]any {
-	if val, ok := m["metadata"].(map[string]interface{}); ok {
+func getMetadataFromMap(m map[string]any) map[string]any {
+	if val, ok := m["metadata"].(map[string]any); ok {
 		return val
 	}
 	return nil
@@ -1176,13 +1176,13 @@ func (input *AmountInput) Validate() error {
 
 // ToLibTransaction converts a CreateTransactionInput to a lib-commons transaction.
 // This is used internally by the SDK to convert the input to the format expected by the backend.
-func (input *CreateTransactionInput) ToLibTransaction() map[string]interface{} {
+func (input *CreateTransactionInput) ToLibTransaction() map[string]any {
 	if input == nil {
 		return nil
 	}
 
 	// Create a map to hold the transaction data
-	tx := map[string]interface{}{}
+	tx := map[string]any{}
 
 	// Add chart of accounts group name if provided (required by API)
 	if input.ChartOfAccountsGroupName != "" {
@@ -1219,12 +1219,12 @@ func (input *CreateTransactionInput) ToLibTransaction() map[string]interface{} {
 
 // ToMap converts a SendInput to a map.
 // This is used internally by the SDK to convert the input to the format expected by the backend.
-func (input *SendInput) ToMap() map[string]interface{} {
+func (input *SendInput) ToMap() map[string]any {
 	if input == nil {
 		return nil
 	}
 
-	send := map[string]interface{}{
+	send := map[string]any{
 		"asset": input.Asset,
 		"value": input.Value, // API expects value as string
 	}
@@ -1244,16 +1244,16 @@ func (input *SendInput) ToMap() map[string]interface{} {
 
 // ToMap converts a SourceInput to a map.
 // This is used internally by the SDK to convert the input to the format expected by the backend.
-func (input *SourceInput) ToMap() map[string]interface{} {
+func (input *SourceInput) ToMap() map[string]any {
 	if input == nil {
 		return nil
 	}
 
-	source := map[string]interface{}{}
+	source := map[string]any{}
 
 	// Add from information if present
 	if len(input.From) > 0 {
-		fromList := make([]map[string]interface{}, 0, len(input.From))
+		fromList := make([]map[string]any, 0, len(input.From))
 		for _, from := range input.From {
 			fromList = append(fromList, from.ToMap())
 		}
@@ -1265,16 +1265,16 @@ func (input *SourceInput) ToMap() map[string]interface{} {
 
 // ToMap converts a DistributeInput to a map.
 // This is used internally by the SDK to convert the input to the format expected by the backend.
-func (input *DistributeInput) ToMap() map[string]interface{} {
+func (input *DistributeInput) ToMap() map[string]any {
 	if input == nil {
 		return nil
 	}
 
-	distribute := map[string]interface{}{}
+	distribute := map[string]any{}
 
 	// Add to information if present
 	if len(input.To) > 0 {
-		toList := make([]map[string]interface{}, 0, len(input.To))
+		toList := make([]map[string]any, 0, len(input.To))
 		for _, to := range input.To {
 			toList = append(toList, to.ToMap())
 		}
@@ -1286,8 +1286,8 @@ func (input *DistributeInput) ToMap() map[string]interface{} {
 
 // ToMap converts a FromToInput to a map.
 // This is used internally by the SDK to convert the input to the format expected by the backend.
-func (input FromToInput) ToMap() map[string]interface{} {
-	fromTo := map[string]interface{}{
+func (input FromToInput) ToMap() map[string]any {
+	fromTo := map[string]any{
 		"accountAlias": input.Account, // API expects accountAlias, not account
 	}
 
@@ -1304,8 +1304,8 @@ func (input FromToInput) ToMap() map[string]interface{} {
 
 // ToMap converts an AmountInput to a map.
 // This is used internally by the SDK to convert the input to the format expected by the backend.
-func (input *AmountInput) ToMap() map[string]interface{} {
-	return map[string]interface{}{
+func (input *AmountInput) ToMap() map[string]any {
+	return map[string]any{
 		"asset": input.Asset,
 		"value": input.Value, // API expects value as string
 	}
@@ -1313,35 +1313,35 @@ func (input *AmountInput) ToMap() map[string]interface{} {
 
 // ToTransactionMap converts an SDK Transaction to a map for API requests.
 // This method is used internally to prepare data for the backend API.
-func (t *Transaction) ToTransactionMap() map[string]interface{} {
+func (t *Transaction) ToTransactionMap() map[string]any {
 	if t == nil {
 		return nil
 	}
 
-	transaction := map[string]interface{}{
+	transaction := map[string]any{
 		"description": t.Description,
 		"metadata":    t.Metadata,
 	}
 
 	// Build send structure
-	send := map[string]interface{}{
+	send := map[string]any{
 		"asset": t.AssetCode,
 		"value": t.Amount,
 	}
 
 	// Source (debits)
-	source := map[string]interface{}{}
-	fromEntries := []map[string]interface{}{}
+	source := map[string]any{}
+	fromEntries := []map[string]any{}
 
 	// Distribute (credits)
-	distribute := map[string]interface{}{}
-	toEntries := []map[string]interface{}{}
+	distribute := map[string]any{}
+	toEntries := []map[string]any{}
 
 	// Convert Operations
 	for _, op := range t.Operations {
-		entry := map[string]interface{}{
+		entry := map[string]any{
 			"account": op.AccountID,
-			"amount": map[string]interface{}{
+			"amount": map[string]any{
 				"value": op.Amount,
 				"asset": op.AssetCode,
 			},

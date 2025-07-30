@@ -34,7 +34,7 @@ func StartSpan(ctx context.Context, name string) (context.Context, trace.Span) {
 }
 
 // AddAttribute adds an attribute to the current span in the context
-func AddAttribute(ctx context.Context, key string, value interface{}) {
+func AddAttribute(ctx context.Context, key string, value any) {
 	span := trace.SpanFromContext(ctx)
 	if !span.IsRecording() {
 		return

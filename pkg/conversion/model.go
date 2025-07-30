@@ -19,7 +19,7 @@ import (
 // It can handle basic field types, pointers, maps, and slices of these types.
 //
 // For more complex conversions, you should implement custom mappers instead.
-func ModelConverter(source, target interface{}) error {
+func ModelConverter(source, target any) error {
 	sourceVal := reflect.ValueOf(source)
 	targetVal := reflect.ValueOf(target)
 

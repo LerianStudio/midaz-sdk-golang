@@ -13,7 +13,7 @@ type FieldError struct {
 	Field string
 
 	// Value is the invalid value that caused the error
-	Value interface{}
+	Value any
 
 	// Message is a human-readable description of the error
 	Message string
@@ -62,7 +62,7 @@ func (fe *FieldError) Error() string {
 }
 
 // BuildFieldError creates a field error with common fields
-func BuildFieldError(field string, value interface{}, message string) *FieldError {
+func BuildFieldError(field string, value any, message string) *FieldError {
 	return &FieldError{
 		Field:   field,
 		Value:   value,
@@ -94,7 +94,7 @@ type FieldErrors struct {
 }
 
 // Add adds a new field error to the collection
-func (fe *FieldErrors) Add(field string, value interface{}, message string) *FieldError {
+func (fe *FieldErrors) Add(field string, value any, message string) *FieldError {
 	fieldError := BuildFieldError(field, value, message)
 	fe.Errors = append(fe.Errors, fieldError)
 	return fieldError
@@ -151,6 +151,6 @@ func NewFieldErrors() *FieldErrors {
 }
 
 // WrapError wraps a regular error as a field error
-func WrapError(field string, value interface{}, err error) *FieldError {
+func WrapError(field string, value any, err error) *FieldError {
 	return BuildFieldError(field, value, err.Error())
 }
