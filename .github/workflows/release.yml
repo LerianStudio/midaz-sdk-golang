@@ -65,9 +65,10 @@ jobs:
     runs-on: ubuntu-22.04
     needs: post-release-steps
     steps:
-      - uses: LerianStudio/github-actions-gptchangelog@develop
+      - uses: LerianStudio/github-actions-gptchangelog@main
         with:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LERIAN_CI_CD_USER_GPG_KEY: ${{ secrets.LERIAN_CI_CD_USER_GPG_KEY }}
           LERIAN_CI_CD_USER_GPG_KEY_PASSWORD: ${{ secrets.LERIAN_CI_CD_USER_GPG_KEY_PASSWORD }}
