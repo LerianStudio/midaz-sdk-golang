@@ -20,14 +20,14 @@ import (
 // Returns:
 //   - string: The ID of the created ledger
 //   - error: Any error encountered during the operation
-func CreateLedger(ctx context.Context, client *client.Client, orgID string) (string, error) {
+func CreateLedger(ctx context.Context, midazClient *client.Client, orgID string) (string, error) {
 	fmt.Println("\n\n📒 STEP 2: LEDGER CREATION")
 	fmt.Println(strings.Repeat("=", 50))
 
 	fmt.Println("\nCreating ledger...")
 
 	// Create a ledger with the organization ID
-	ledger, err := client.Entity.Ledgers.CreateLedger(ctx, orgID, &models.CreateLedgerInput{
+	ledger, err := midazClient.Entity.Ledgers.CreateLedger(ctx, orgID, &models.CreateLedgerInput{
 		Name: "Main Ledger",
 		Metadata: map[string]any{
 			"purpose": "example",

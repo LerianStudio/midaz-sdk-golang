@@ -24,7 +24,7 @@ import (
 //   - customerAccount: The customer account model
 //   - merchantAccount: The merchant account model
 //   - externalAccountID: The external account ID
-func ExecuteInsufficientFundsTransactions(ctx context.Context, client *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, externalAccountID string) {
+func ExecuteInsufficientFundsTransactions(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, externalAccountID string) {
 	// Create span for observability
 	ctx, span := observability.StartSpan(ctx, "ExecuteInsufficientFundsTransactions")
 	defer span.End()
@@ -124,7 +124,7 @@ func ExecuteInsufficientFundsTransactions(ctx context.Context, client *client.Cl
 		startTime := time.Now()
 
 		// Attempt the transaction (expecting failure)
-		_, err := client.Entity.Transactions.CreateTransaction(testCtx, orgID, ledgerID, transferInput)
+		_, err := midazClient.Entity.Transactions.CreateTransaction(testCtx, orgID, ledgerID, transferInput)
 
 		// Record the transaction duration
 		duration := time.Since(startTime)

@@ -19,13 +19,13 @@ import (
 //
 // Returns:
 //   - error: Any error encountered during the operation
-func CreateAsset(ctx context.Context, client *client.Client, orgID, ledgerID string) error {
+func CreateAsset(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) error {
 	fmt.Println("\n\n🏦 STEP 3: ASSET CREATION")
 	fmt.Println(strings.Repeat("=", 50))
 
 	fmt.Println("Creating USD asset...")
 
-	usdAsset, err := client.Entity.Assets.CreateAsset(
+	usdAsset, err := midazClient.Entity.Assets.CreateAsset(
 		ctx, orgID, ledgerID, &models.CreateAssetInput{
 			Name:     "US Dollar",
 			Type:     "currency",

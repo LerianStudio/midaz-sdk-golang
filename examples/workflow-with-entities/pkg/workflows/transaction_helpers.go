@@ -25,7 +25,7 @@ import (
 //
 // Returns:
 //   - error: Any error encountered during the operation
-func DemonstrateTransactionHelpers(ctx context.Context, client *client.Client, orgID, ledgerID string, customerAccount, merchantAccount, dummyOneAccount, dummyTwoAccount *models.Account) error {
+func DemonstrateTransactionHelpers(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount, dummyOneAccount, dummyTwoAccount *models.Account) error {
 	// Create a span for observability
 	ctx, span := observability.StartSpan(ctx, "DemonstrateTransactionHelpers")
 	defer span.End()
@@ -43,7 +43,7 @@ func DemonstrateTransactionHelpers(ctx context.Context, client *client.Client, o
 
 	tx, err := ourEntities.ExecuteTransferWithHelper(
 		transferCtx,
-		client,
+		midazClient,
 		orgID,
 		ledgerID,
 		customerAccount.ID,
@@ -70,7 +70,7 @@ func DemonstrateTransactionHelpers(ctx context.Context, client *client.Client, o
 
 	depositTx, err := ourEntities.ExecuteDepositWithHelper(
 		depositCtx,
-		client,
+		midazClient,
 		orgID,
 		ledgerID,
 		customerAccount.ID,
@@ -96,7 +96,7 @@ func DemonstrateTransactionHelpers(ctx context.Context, client *client.Client, o
 
 	withdrawalTx, err := ourEntities.ExecuteWithdrawalWithHelper(
 		withdrawalCtx,
-		client,
+		midazClient,
 		orgID,
 		ledgerID,
 		customerAccount.ID, // Changed to customer account which should have more funds
@@ -137,7 +137,7 @@ func DemonstrateTransactionHelpers(ctx context.Context, client *client.Client, o
 
 	multiTx, err := ourEntities.ExecuteMultiAccountTransferWithHelper(
 		multiCtx,
-		client,
+		midazClient,
 		orgID,
 		ledgerID,
 		sourceAccounts,

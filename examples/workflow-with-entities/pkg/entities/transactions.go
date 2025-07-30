@@ -164,7 +164,7 @@ func TransferFunds(
 //   - error: Any error encountered during the operation
 func ExecuteTransferWithHelper(
 	ctx context.Context,
-	client *client.Client,
+	midazClient *client.Client,
 	orgID, ledgerID string,
 	sourceAccountID, destAccountID string,
 	amount string,
@@ -191,7 +191,7 @@ func ExecuteTransferWithHelper(
 	// Execute the transfer using the helper
 	tx, err := transaction.Transfer(
 		ctx,
-		client.Entity,
+		midazClient.Entity,
 		orgID,
 		ledgerID,
 		sourceAccountID,
@@ -224,7 +224,7 @@ func ExecuteTransferWithHelper(
 //   - error: Any error encountered during the operation
 func ExecuteDepositWithHelper(
 	ctx context.Context,
-	client *client.Client,
+	midazClient *client.Client,
 	orgID, ledgerID string,
 	accountID string,
 	amount string,
@@ -251,7 +251,7 @@ func ExecuteDepositWithHelper(
 	// Execute the deposit using the helper
 	tx, err := transaction.Deposit(
 		ctx,
-		client.Entity,
+		midazClient.Entity,
 		orgID,
 		ledgerID,
 		accountID,
@@ -283,7 +283,7 @@ func ExecuteDepositWithHelper(
 //   - error: Any error encountered during the operation
 func ExecuteWithdrawalWithHelper(
 	ctx context.Context,
-	client *client.Client,
+	midazClient *client.Client,
 	orgID, ledgerID string,
 	accountID string,
 	amount string,
@@ -310,7 +310,7 @@ func ExecuteWithdrawalWithHelper(
 	// Execute the withdrawal using the helper
 	tx, err := transaction.Withdrawal(
 		ctx,
-		client.Entity,
+		midazClient.Entity,
 		orgID,
 		ledgerID,
 		accountID,
@@ -343,7 +343,7 @@ func ExecuteWithdrawalWithHelper(
 //   - error: Any error encountered during the operation
 func ExecuteMultiAccountTransferWithHelper(
 	ctx context.Context,
-	client *client.Client,
+	midazClient *client.Client,
 	orgID, ledgerID string,
 	sourceAccounts map[string]string,
 	destAccounts map[string]string,
@@ -389,7 +389,7 @@ func ExecuteMultiAccountTransferWithHelper(
 	// Execute the multi-account transfer using the helper
 	tx, err := transaction.MultiAccountTransfer(
 		ctx,
-		client.Entity,
+		midazClient.Entity,
 		orgID,
 		ledgerID,
 		sourceAccountsInt,
@@ -412,7 +412,7 @@ func ExecuteMultiAccountTransferWithHelper(
 /*
 func ExecuteBatchTransactionsWithHelper(
 	ctx context.Context,
-	client *client.Client,
+	midazClient *client.Client,
 	orgID, ledgerID string,
 	inputs []*models.CreateTransactionInput,
 ) ([]transaction.BatchResult, *transaction.BatchSummary, error) {

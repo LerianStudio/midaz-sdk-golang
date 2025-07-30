@@ -16,7 +16,7 @@ import (
 )
 
 // ExecuteTransactions executes various transactions between accounts
-func ExecuteTransactions(ctx context.Context, client *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account) error {
+func ExecuteTransactions(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account) error {
 	ctx, span := observability.StartSpan(ctx, "ExecuteTransactions")
 	defer span.End()
 
@@ -28,13 +28,13 @@ func ExecuteTransactions(ctx context.Context, client *client.Client, orgID, ledg
 
 	// Execute initial deposit
 	fmt.Println("\n📥 Initial deposit...")
-	if err := executeInitialDeposit(ctx, client, orgID, ledgerID, customerAccount, externalAccountID); err != nil {
+	if err := executeInitialDeposit(ctx, midazClient, orgID, ledgerID, customerAccount, externalAccountID); err != nil {
 		return fmt.Errorf("initial deposit failed: %w", err)
 	}
 
 	// Execute transfer from customer to merchant
 	fmt.Println("\n🔄 Transfer from customer to merchant...")
-	if err := executeTransfer(ctx, client, orgID, ledgerID, customerAccount, merchantAccount); err != nil {
+	if err := executeTransfer(ctx, midazClient, orgID, ledgerID, customerAccount, merchantAccount); err != nil {
 		return fmt.Errorf("transfer failed: %w", err)
 	}
 
@@ -43,7 +43,7 @@ func ExecuteTransactions(ctx context.Context, client *client.Client, orgID, ledg
 }
 
 // executeInitialDeposit performs initial deposit from external account
-func executeInitialDeposit(ctx context.Context, client *client.Client, orgID, ledgerID string, customerAccount *models.Account, externalAccountID string) error {
+func executeInitialDeposit(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount *models.Account, externalAccountID string) error {
 	amount := "5000.00"
 
 	input := &models.CreateTransactionInput{
@@ -86,7 +86,7 @@ func executeInitialDeposit(ctx context.Context, client *client.Client, orgID, le
 		IdempotencyKey: uuid.New().String(),
 	}
 
-	tx, err := client.Entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
+	tx, err := midazClient.Entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
 	if err != nil {
 		return fmt.Errorf("failed to create deposit transaction: %w", err)
 	}
@@ -100,7 +100,7 @@ func executeInitialDeposit(ctx context.Context, client *client.Client, orgID, le
 }
 
 // executeTransfer performs transfer between two accounts
-func executeTransfer(ctx context.Context, client *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account) error {
+func executeTransfer(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account) error {
 	amount := "10.00"
 
 	input := &models.CreateTransactionInput{
@@ -143,7 +143,7 @@ func executeTransfer(ctx context.Context, client *client.Client, orgID, ledgerID
 		IdempotencyKey: uuid.New().String(),
 	}
 
-	tx, err := client.Entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
+	tx, err := midazClient.Entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
 	if err != nil {
 		return fmt.Errorf("failed to create transfer transaction: %w", err)
 	}
@@ -157,31 +157,31 @@ func executeTransfer(ctx context.Context, client *client.Client, orgID, ledgerID
 }
 
 // ExecuteMultipleDeposits - simplified placeholder
-func ExecuteMultipleDeposits(ctx context.Context, client *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, externalAccountID string) error {
+func ExecuteMultipleDeposits(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, externalAccountID string) error {
 	fmt.Println("\n📥 Multiple deposits (simplified)")
 	return nil
 }
 
 // ExecuteSingleTransfer - simplified placeholder  
-func ExecuteSingleTransfer(ctx context.Context, client *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account) error {
+func ExecuteSingleTransfer(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account) error {
 	fmt.Println("\n🔄 Single transfer (simplified)")
-	return executeTransfer(ctx, client, orgID, ledgerID, customerAccount, merchantAccount)
+	return executeTransfer(ctx, midazClient, orgID, ledgerID, customerAccount, merchantAccount)
 }
 
 // ExecuteMultipleTransfers - simplified placeholder
-func ExecuteMultipleTransfers(ctx context.Context, client *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account) error {
+func ExecuteMultipleTransfers(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account) error {
 	fmt.Println("\n🔄 Multiple transfers (simplified)")
 	return nil  
 }
 
 // ExecuteWithdrawals - simplified placeholder
-func ExecuteWithdrawals(ctx context.Context, client *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, externalAccountID string) error {
+func ExecuteWithdrawals(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, externalAccountID string) error {
 	fmt.Println("\n💱 Withdrawals (simplified)")
 	return nil
 }
 
 // ExecuteTransactionsWithRoutes executes transactions using routes
-func ExecuteTransactionsWithRoutes(ctx context.Context, client *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, sourceOperationRoute, destinationOperationRoute *models.OperationRoute, paymentTransactionRoute, refundTransactionRoute *models.TransactionRoute) error {
+func ExecuteTransactionsWithRoutes(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, sourceOperationRoute, destinationOperationRoute *models.OperationRoute, paymentTransactionRoute, refundTransactionRoute *models.TransactionRoute) error {
 	fmt.Println("\n🔀 Executing transactions with routes")
 	
 	// Get external account ID
@@ -189,29 +189,29 @@ func ExecuteTransactionsWithRoutes(ctx context.Context, client *client.Client, o
 	
 	// First do initial deposit using payment transaction route
 	fmt.Println("📥 Initial deposit with routes...")
-	if err := executeInitialDepositWithRoutes(ctx, client, orgID, ledgerID, customerAccount, externalAccountID, sourceOperationRoute, destinationOperationRoute, paymentTransactionRoute); err != nil {
+	if err := executeInitialDepositWithRoutes(ctx, midazClient, orgID, ledgerID, customerAccount, externalAccountID, sourceOperationRoute, destinationOperationRoute, paymentTransactionRoute); err != nil {
 		return fmt.Errorf("initial deposit failed: %w", err)
 	}
 	
 	// Then do transfer using payment transaction route
 	fmt.Println("🔄 Transfer with routes...")
-	if err := executeTransferWithRoutes(ctx, client, orgID, ledgerID, customerAccount, merchantAccount, sourceOperationRoute, destinationOperationRoute, paymentTransactionRoute); err != nil {
+	if err := executeTransferWithRoutes(ctx, midazClient, orgID, ledgerID, customerAccount, merchantAccount, sourceOperationRoute, destinationOperationRoute, paymentTransactionRoute); err != nil {
 		return fmt.Errorf("transfer failed: %w", err)
 	}
 
 	// Demonstrate parallel transactions with routes
 	fmt.Println("🚀 Executing parallel transactions with routes...")
-	if err := executeParallelTransactionsWithRoutes(ctx, client, orgID, ledgerID, customerAccount, merchantAccount, sourceOperationRoute, destinationOperationRoute, paymentTransactionRoute); err != nil {
+	if err := executeParallelTransactionsWithRoutes(ctx, midazClient, orgID, ledgerID, customerAccount, merchantAccount, sourceOperationRoute, destinationOperationRoute, paymentTransactionRoute); err != nil {
 		return fmt.Errorf("parallel transactions failed: %w", err)
 	}
 
 	// Demonstrate high-TPS optimized transactions
 	fmt.Println("⚡ Executing high-TPS optimized transactions...")
-	return executeHighTPSTransactions(ctx, client, orgID, ledgerID, customerAccount, merchantAccount, sourceOperationRoute, destinationOperationRoute, paymentTransactionRoute)
+	return executeHighTPSTransactions(ctx, midazClient, orgID, ledgerID, customerAccount, merchantAccount, sourceOperationRoute, destinationOperationRoute, paymentTransactionRoute)
 }
 
 // executeInitialDepositWithRoutes performs initial deposit using transaction and operation routes
-func executeInitialDepositWithRoutes(ctx context.Context, client *client.Client, orgID, ledgerID string, customerAccount *models.Account, externalAccountID string, sourceOperationRoute, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute) error {
+func executeInitialDepositWithRoutes(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount *models.Account, externalAccountID string, sourceOperationRoute, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute) error {
 	amount := "5000.00"
 
 	input := &models.CreateTransactionInput{
@@ -264,7 +264,7 @@ func executeInitialDepositWithRoutes(ctx context.Context, client *client.Client,
 		input.Metadata["transactionRouteTitle"] = transactionRoute.Title
 	}
 
-	tx, err := client.Entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
+	tx, err := midazClient.Entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
 	if err != nil {
 		return fmt.Errorf("failed to create deposit transaction with routes: %w", err)
 	}
@@ -284,7 +284,7 @@ func executeInitialDepositWithRoutes(ctx context.Context, client *client.Client,
 }
 
 // executeTransferWithRoutes performs transfer using transaction and operation routes
-func executeTransferWithRoutes(ctx context.Context, client *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, sourceOperationRoute, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute) error {
+func executeTransferWithRoutes(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, sourceOperationRoute, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute) error {
 	amount := "10.00"
 
 	input := &models.CreateTransactionInput{
@@ -337,7 +337,7 @@ func executeTransferWithRoutes(ctx context.Context, client *client.Client, orgID
 		input.Metadata["transactionRouteTitle"] = transactionRoute.Title
 	}
 
-	tx, err := client.Entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
+	tx, err := midazClient.Entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
 	if err != nil {
 		return fmt.Errorf("failed to create transfer transaction with routes: %w", err)
 	}
@@ -401,7 +401,7 @@ func CreateTransferInput(description string, amount string, fromAccountID, toAcc
 }
 
 // executeParallelTransactionsWithRoutes demonstrates parallel transaction processing with routes
-func executeParallelTransactionsWithRoutes(ctx context.Context, client *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, sourceOperationRoute, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute) error {
+func executeParallelTransactionsWithRoutes(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, sourceOperationRoute, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute) error {
 	ctx, span := observability.StartSpan(ctx, "executeParallelTransactionsWithRoutes")
 	defer span.End()
 
@@ -470,7 +470,7 @@ func executeParallelTransactionsWithRoutes(ctx context.Context, client *client.C
 		}
 		
 		// Execute the transaction
-		tx, err := client.Entity.Transactions.CreateTransaction(txCtx, orgID, ledgerID, input)
+		tx, err := midazClient.Entity.Transactions.CreateTransaction(txCtx, orgID, ledgerID, input)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create parallel transaction #%d: %w", index+1, err)
 		}
@@ -532,7 +532,7 @@ func executeParallelTransactionsWithRoutes(ctx context.Context, client *client.C
 }
 
 // executeHighTPSTransactions demonstrates various TPS optimization techniques
-func executeHighTPSTransactions(ctx context.Context, client *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, sourceOperationRoute, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute) error {
+func executeHighTPSTransactions(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, sourceOperationRoute, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute) error {
 	ctx, span := observability.StartSpan(ctx, "executeHighTPSTransactions")
 	defer span.End()
 
@@ -540,29 +540,29 @@ func executeHighTPSTransactions(ctx context.Context, client *client.Client, orgI
 	
 	// Technique 1: Increase Workers and Remove Rate Limiting
 	fmt.Println("      1️⃣ High Worker Count (20 workers, no rate limit)")
-	if err := demonstrateHighWorkerCount(ctx, client, orgID, ledgerID, customerAccount, merchantAccount, sourceOperationRoute, destinationOperationRoute, transactionRoute); err != nil {
+	if err := demonstrateHighWorkerCount(ctx, midazClient, orgID, ledgerID, customerAccount, merchantAccount, sourceOperationRoute, destinationOperationRoute, transactionRoute); err != nil {
 		fmt.Printf("         ❌ Failed: %v\n", err)
 	}
 	
 	// Technique 2: HTTP Connection Pooling Optimization
 	fmt.Println("      2️⃣ HTTP Connection Pool Optimization")
-	if err := demonstrateConnectionPooling(ctx, client, orgID, ledgerID, customerAccount, merchantAccount, sourceOperationRoute, destinationOperationRoute, transactionRoute); err != nil {
+	if err := demonstrateConnectionPooling(ctx, midazClient, orgID, ledgerID, customerAccount, merchantAccount, sourceOperationRoute, destinationOperationRoute, transactionRoute); err != nil {
 		fmt.Printf("         ❌ Failed: %v\n", err)
 	}
 	
 	// Technique 3: Batch Processing with Optimal Size
 	fmt.Println("      3️⃣ Optimal Batch Processing")
-	if err := demonstrateBatchProcessing(ctx, client, orgID, ledgerID, customerAccount, merchantAccount, sourceOperationRoute, destinationOperationRoute, transactionRoute); err != nil {
+	if err := demonstrateBatchProcessing(ctx, midazClient, orgID, ledgerID, customerAccount, merchantAccount, sourceOperationRoute, destinationOperationRoute, transactionRoute); err != nil {
 		fmt.Printf("         ❌ Failed: %v\n", err)
 	}
 	
 	// Technique 4: Combined Optimizations
 	fmt.Println("      4️⃣ All Optimizations Combined")
-	return demonstrateCombinedOptimizations(ctx, client, orgID, ledgerID, customerAccount, merchantAccount, sourceOperationRoute, destinationOperationRoute, transactionRoute)
+	return demonstrateCombinedOptimizations(ctx, midazClient, orgID, ledgerID, customerAccount, merchantAccount, sourceOperationRoute, destinationOperationRoute, transactionRoute)
 }
 
 // demonstrateHighWorkerCount shows increased TPS with more workers
-func demonstrateHighWorkerCount(ctx context.Context, client *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, sourceOperationRoute, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute) error {
+func demonstrateHighWorkerCount(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, sourceOperationRoute, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute) error {
 	transactionCount := 20
 	amounts := make([]string, transactionCount)
 	for i := 0; i < transactionCount; i++ {
@@ -602,7 +602,7 @@ func demonstrateHighWorkerCount(ctx context.Context, client *client.Client, orgI
 			IdempotencyKey: uuid.New().String(),
 		}
 		
-		return client.Entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
+		return midazClient.Entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
 	}
 	
 	startTime := time.Now()
@@ -628,7 +628,7 @@ func demonstrateHighWorkerCount(ctx context.Context, client *client.Client, orgI
 }
 
 // demonstrateConnectionPooling shows HTTP connection pool optimization
-func demonstrateConnectionPooling(ctx context.Context, client *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, sourceOperationRoute, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute) error {
+func demonstrateConnectionPooling(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, sourceOperationRoute, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute) error {
 	// Apply performance optimizations
 	perfOptions := performance.Options{
 		EnableHTTPPooling:   true,
@@ -671,7 +671,7 @@ func demonstrateConnectionPooling(ctx context.Context, client *client.Client, or
 			IdempotencyKey: uuid.New().String(),
 		}
 		
-		return client.Entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
+		return midazClient.Entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
 	}
 	
 	startTime := time.Now()
@@ -696,7 +696,7 @@ func demonstrateConnectionPooling(ctx context.Context, client *client.Client, or
 }
 
 // demonstrateBatchProcessing shows optimal batch processing
-func demonstrateBatchProcessing(ctx context.Context, client *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, sourceOperationRoute, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute) error {
+func demonstrateBatchProcessing(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, sourceOperationRoute, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute) error {
 	transactionCount := 30
 	transactionInputs := make([]*models.CreateTransactionInput, transactionCount)
 	
@@ -742,7 +742,7 @@ func demonstrateBatchProcessing(ctx context.Context, client *client.Client, orgI
 		batchResults := concurrent.WorkerPool(
 			ctx, indices,
 			func(ctx context.Context, index int) (*models.Transaction, error) {
-				return client.Entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, batch[index])
+				return midazClient.Entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, batch[index])
 			},
 			concurrent.WithWorkers(5), // 5 workers per batch
 			concurrent.WithUnorderedResults(),
@@ -777,7 +777,7 @@ func demonstrateBatchProcessing(ctx context.Context, client *client.Client, orgI
 }
 
 // demonstrateCombinedOptimizations shows all optimizations combined for maximum TPS
-func demonstrateCombinedOptimizations(ctx context.Context, client *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, sourceOperationRoute, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute) error {
+func demonstrateCombinedOptimizations(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, sourceOperationRoute, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute) error {
 	// Apply all performance optimizations
 	perfOptions := performance.Options{
 		EnableHTTPPooling:   true,
@@ -820,7 +820,7 @@ func demonstrateCombinedOptimizations(ctx context.Context, client *client.Client
 			IdempotencyKey: uuid.New().String(),
 		}
 		
-		return client.Entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
+		return midazClient.Entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
 	}
 	
 	startTime := time.Now()

@@ -28,14 +28,14 @@ func stringPtr(s string) *string {
 //   - *models.Account: The dummy 1 account model
 //   - *models.Account: The dummy 2 account model
 //   - error: Any error encountered during the operation
-func CreateAccounts(ctx context.Context, client *client.Client, orgID, ledgerID string) (*models.Account, *models.Account, *models.Account, *models.Account, error) {
+func CreateAccounts(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) (*models.Account, *models.Account, *models.Account, *models.Account, error) {
 	fmt.Println("\n\n📂 STEP 4: ACCOUNT CREATION")
 	fmt.Println(strings.Repeat("=", 50))
 
 	// Create customer account
 	fmt.Println("Creating customer account...")
 
-	customerAccount, err := client.Entity.Accounts.CreateAccount(
+	customerAccount, err := midazClient.Entity.Accounts.CreateAccount(
 		ctx, orgID, ledgerID, &models.CreateAccountInput{
 			Name:      "Customer Account",
 			Type:      "deposit",
@@ -62,7 +62,7 @@ func CreateAccounts(ctx context.Context, client *client.Client, orgID, ledgerID 
 	// Create merchant account
 	fmt.Println("Creating merchant account...")
 
-	merchantAccount, err := client.Entity.Accounts.CreateAccount(
+	merchantAccount, err := midazClient.Entity.Accounts.CreateAccount(
 		ctx, orgID, ledgerID, &models.CreateAccountInput{
 			Name:      "Merchant Account",
 			Type:      "marketplace",
@@ -87,7 +87,7 @@ func CreateAccounts(ctx context.Context, client *client.Client, orgID, ledgerID 
 	// Create Dummy 1 account
 	fmt.Println("Creating dummy 1 account...")
 
-	dummyOneAccount, err := client.Entity.Accounts.CreateAccount(
+	dummyOneAccount, err := midazClient.Entity.Accounts.CreateAccount(
 		ctx, orgID, ledgerID, &models.CreateAccountInput{
 			Name:      "Dummy 1 Account",
 			Type:      "deposit",
@@ -112,7 +112,7 @@ func CreateAccounts(ctx context.Context, client *client.Client, orgID, ledgerID 
 	// Create Dummy 2 account
 	fmt.Println("Creating dummy 2 account...")
 
-	dummyTwoAccount, err := client.Entity.Accounts.CreateAccount(
+	dummyTwoAccount, err := midazClient.Entity.Accounts.CreateAccount(
 		ctx, orgID, ledgerID, &models.CreateAccountInput{
 			Name:      "Dummy 2 Account",
 			Type:      "deposit",
@@ -152,14 +152,14 @@ func CreateAccounts(ctx context.Context, client *client.Client, orgID, ledgerID 
 //   - *models.Account: The dummy 1 account model
 //   - *models.Account: The dummy 2 account model
 //   - error: Any error encountered during the operation
-func CreateAccountsWithType(ctx context.Context, client *client.Client, orgID, ledgerID, accountTypeID string) (*models.Account, *models.Account, *models.Account, *models.Account, error) {
+func CreateAccountsWithType(ctx context.Context, midazClient *client.Client, orgID, ledgerID, accountTypeID string) (*models.Account, *models.Account, *models.Account, *models.Account, error) {
 	fmt.Println("\n\n📂 STEP 5: ACCOUNT CREATION WITH ACCOUNT TYPE")
 	fmt.Println(strings.Repeat("=", 50))
 
 	// Create customer account with account type
 	fmt.Println("Creating customer account with account type...")
 
-	customerAccount, err := client.Entity.Accounts.CreateAccount(
+	customerAccount, err := midazClient.Entity.Accounts.CreateAccount(
 		ctx, orgID, ledgerID, &models.CreateAccountInput{
 			Name:      "Customer Account",
 			Type:      "liability", // Change to liability to match destination operation route
@@ -193,7 +193,7 @@ func CreateAccountsWithType(ctx context.Context, client *client.Client, orgID, l
 	// Create merchant account with account type
 	fmt.Println("Creating merchant account with account type...")
 
-	merchantAccount, err := client.Entity.Accounts.CreateAccount(
+	merchantAccount, err := midazClient.Entity.Accounts.CreateAccount(
 		ctx, orgID, ledgerID, &models.CreateAccountInput{
 			Name:      "Merchant Account",
 			Type:      "revenue", // Change to revenue to match destination operation route
@@ -225,7 +225,7 @@ func CreateAccountsWithType(ctx context.Context, client *client.Client, orgID, l
 	// Create Dummy 1 account with account type
 	fmt.Println("Creating dummy 1 account with account type...")
 
-	dummyOneAccount, err := client.Entity.Accounts.CreateAccount(
+	dummyOneAccount, err := midazClient.Entity.Accounts.CreateAccount(
 		ctx, orgID, ledgerID, &models.CreateAccountInput{
 			Name:      "Dummy 1 Account",
 			Type:      "deposit",
@@ -257,7 +257,7 @@ func CreateAccountsWithType(ctx context.Context, client *client.Client, orgID, l
 	// Create Dummy 2 account with account type
 	fmt.Println("Creating dummy 2 account with account type...")
 
-	dummyTwoAccount, err := client.Entity.Accounts.CreateAccount(
+	dummyTwoAccount, err := midazClient.Entity.Accounts.CreateAccount(
 		ctx, orgID, ledgerID, &models.CreateAccountInput{
 			Name:      "Dummy 2 Account", 
 			Type:      "deposit",

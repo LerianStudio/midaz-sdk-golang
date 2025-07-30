@@ -22,20 +22,20 @@ func init() {
 	TestDeleteMethods = testDeleteMethods
 }
 
-func testDeleteMethods(ctx context.Context, client *client.Client, orgID, ledgerID string) error {
+func testDeleteMethods(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) error {
 	fmt.Println("\n\n🗑️ STEP 13: TESTING DELETE METHODS")
 	fmt.Println(strings.Repeat("=", 50))
 
 	// Get all segments to delete
 	fmt.Println("\nDeleting all segments...")
-	segmentsResponse, err := client.Entity.Segments.ListSegments(ctx, orgID, ledgerID, nil)
+	segmentsResponse, err := midazClient.Entity.Segments.ListSegments(ctx, orgID, ledgerID, nil)
 	if err != nil {
 		return fmt.Errorf("failed to list segments: %w", err)
 	}
 
 	for _, segment := range segmentsResponse.Items {
 		fmt.Printf("   Deleting segment: %s (ID: %s)...\n", segment.Name, segment.ID)
-		err := client.Entity.Segments.DeleteSegment(ctx, orgID, ledgerID, segment.ID)
+		err := midazClient.Entity.Segments.DeleteSegment(ctx, orgID, ledgerID, segment.ID)
 		if err != nil {
 			return fmt.Errorf("failed to delete segment %s: %w", segment.ID, err)
 		}
@@ -44,14 +44,14 @@ func testDeleteMethods(ctx context.Context, client *client.Client, orgID, ledger
 
 	// Get all portfolios to delete
 	fmt.Println("\nDeleting all portfolios...")
-	portfoliosResponse, err := client.Entity.Portfolios.ListPortfolios(ctx, orgID, ledgerID, nil)
+	portfoliosResponse, err := midazClient.Entity.Portfolios.ListPortfolios(ctx, orgID, ledgerID, nil)
 	if err != nil {
 		return fmt.Errorf("failed to list portfolios: %w", err)
 	}
 
 	for _, portfolio := range portfoliosResponse.Items {
 		fmt.Printf("   Deleting portfolio: %s (ID: %s)...\n", portfolio.Name, portfolio.ID)
-		err := client.Entity.Portfolios.DeletePortfolio(ctx, orgID, ledgerID, portfolio.ID)
+		err := midazClient.Entity.Portfolios.DeletePortfolio(ctx, orgID, ledgerID, portfolio.ID)
 		if err != nil {
 			return fmt.Errorf("failed to delete portfolio %s: %w", portfolio.ID, err)
 		}
@@ -60,7 +60,7 @@ func testDeleteMethods(ctx context.Context, client *client.Client, orgID, ledger
 
 	// Get all accounts to delete
 	fmt.Println("\nDeleting all accounts...")
-	accountsResponse, err := client.Entity.Accounts.ListAccounts(ctx, orgID, ledgerID, nil)
+	accountsResponse, err := midazClient.Entity.Accounts.ListAccounts(ctx, orgID, ledgerID, nil)
 	if err != nil {
 		return fmt.Errorf("failed to list accounts: %w", err)
 	}
@@ -73,7 +73,7 @@ func testDeleteMethods(ctx context.Context, client *client.Client, orgID, ledger
 		}
 
 		fmt.Printf("   Deleting account: %s (ID: %s)...\n", account.Name, account.ID)
-		err := client.Entity.Accounts.DeleteAccount(ctx, orgID, ledgerID, account.ID)
+		err := midazClient.Entity.Accounts.DeleteAccount(ctx, orgID, ledgerID, account.ID)
 		if err != nil {
 			return fmt.Errorf("failed to delete account %s: %w", account.ID, err)
 		}
@@ -82,7 +82,7 @@ func testDeleteMethods(ctx context.Context, client *client.Client, orgID, ledger
 
 	// Delete the ledger
 	fmt.Println("\nDeleting ledger...")
-	err = client.Entity.Ledgers.DeleteLedger(ctx, orgID, ledgerID)
+	err = midazClient.Entity.Ledgers.DeleteLedger(ctx, orgID, ledgerID)
 	if err != nil {
 		return fmt.Errorf("failed to delete ledger %s: %w", ledgerID, err)
 	}
@@ -90,7 +90,7 @@ func testDeleteMethods(ctx context.Context, client *client.Client, orgID, ledger
 
 	// Delete the organization
 	fmt.Println("\nDeleting organization...")
-	err = client.Entity.Organizations.DeleteOrganization(ctx, orgID)
+	err = midazClient.Entity.Organizations.DeleteOrganization(ctx, orgID)
 	if err != nil {
 		return fmt.Errorf("failed to delete organization %s: %w", orgID, err)
 	}
