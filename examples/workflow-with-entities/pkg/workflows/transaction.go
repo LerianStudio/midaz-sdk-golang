@@ -562,7 +562,7 @@ func executeHighTPSTransactions(ctx context.Context, midazClient *client.Client,
 }
 
 // demonstrateHighWorkerCount shows increased TPS with more workers
-func demonstrateHighWorkerCount(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, sourceOperationRoute, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute) error {
+func demonstrateHighWorkerCount(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, _ /* sourceOperationRoute */, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute) error {
 	transactionCount := 20
 	amounts := make([]string, transactionCount)
 	for i := 0; i < transactionCount; i++ {
@@ -628,7 +628,7 @@ func demonstrateHighWorkerCount(ctx context.Context, midazClient *client.Client,
 }
 
 // demonstrateConnectionPooling shows HTTP connection pool optimization
-func demonstrateConnectionPooling(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, sourceOperationRoute, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute) error {
+func demonstrateConnectionPooling(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, _ /* sourceOperationRoute */, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute) error {
 	// Apply performance optimizations
 	perfOptions := performance.Options{
 		EnableHTTPPooling:   true,
@@ -696,7 +696,7 @@ func demonstrateConnectionPooling(ctx context.Context, midazClient *client.Clien
 }
 
 // demonstrateBatchProcessing shows optimal batch processing
-func demonstrateBatchProcessing(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, sourceOperationRoute, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute) error {
+func demonstrateBatchProcessing(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, _ /* sourceOperationRoute */, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute) error {
 	transactionCount := 30
 	transactionInputs := make([]*models.CreateTransactionInput, transactionCount)
 	
@@ -777,7 +777,7 @@ func demonstrateBatchProcessing(ctx context.Context, midazClient *client.Client,
 }
 
 // demonstrateCombinedOptimizations shows all optimizations combined for maximum TPS
-func demonstrateCombinedOptimizations(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, sourceOperationRoute, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute) error {
+func demonstrateCombinedOptimizations(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, _ /* sourceOperationRoute */, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute) error {
 	// Apply all performance optimizations
 	perfOptions := performance.Options{
 		EnableHTTPPooling:   true,

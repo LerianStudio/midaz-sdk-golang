@@ -57,6 +57,7 @@ func New(options ...Option) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	c.observability = obsProvider
 
 	// Create default configuration

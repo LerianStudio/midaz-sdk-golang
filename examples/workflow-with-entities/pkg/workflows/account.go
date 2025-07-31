@@ -9,10 +9,6 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/models"
 )
 
-// stringPtr returns a pointer to the given string
-func stringPtr(s string) *string {
-	return &s
-}
 
 // CreateAccounts creates customer and merchant accounts and returns their models
 //

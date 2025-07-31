@@ -46,6 +46,7 @@ func (m *MockAccountTypesService) ListAccountTypes(ctx context.Context, organiza
 // ListAccountTypes indicates an expected call of ListAccountTypes.
 func (mr *MockAccountTypesServiceMockRecorder) ListAccountTypes(ctx, organizationID, ledgerID, opts any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
+
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAccountTypes", reflect.TypeOf((*MockAccountTypesService)(nil).ListAccountTypes), ctx, organizationID, ledgerID, opts)
 }
 
@@ -62,6 +63,7 @@ func (m *MockAccountTypesService) GetAccountType(ctx context.Context, organizati
 // GetAccountType indicates an expected call of GetAccountType.
 func (mr *MockAccountTypesServiceMockRecorder) GetAccountType(ctx, organizationID, ledgerID, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
+
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAccountType", reflect.TypeOf((*MockAccountTypesService)(nil).GetAccountType), ctx, organizationID, ledgerID, id)
 }
 
@@ -78,6 +80,7 @@ func (m *MockAccountTypesService) CreateAccountType(ctx context.Context, organiz
 // CreateAccountType indicates an expected call of CreateAccountType.
 func (mr *MockAccountTypesServiceMockRecorder) CreateAccountType(ctx, organizationID, ledgerID, input any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
+
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAccountType", reflect.TypeOf((*MockAccountTypesService)(nil).CreateAccountType), ctx, organizationID, ledgerID, input)
 }
 
@@ -94,6 +97,7 @@ func (m *MockAccountTypesService) UpdateAccountType(ctx context.Context, organiz
 // UpdateAccountType indicates an expected call of UpdateAccountType.
 func (mr *MockAccountTypesServiceMockRecorder) UpdateAccountType(ctx, organizationID, ledgerID, id, input any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
+
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAccountType", reflect.TypeOf((*MockAccountTypesService)(nil).UpdateAccountType), ctx, organizationID, ledgerID, id, input)
 }
 
@@ -109,5 +113,6 @@ func (m *MockAccountTypesService) DeleteAccountType(ctx context.Context, organiz
 // DeleteAccountType indicates an expected call of DeleteAccountType.
 func (mr *MockAccountTypesServiceMockRecorder) DeleteAccountType(ctx, organizationID, ledgerID, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
+
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAccountType", reflect.TypeOf((*MockAccountTypesService)(nil).DeleteAccountType), ctx, organizationID, ledgerID, id)
 }

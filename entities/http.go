@@ -60,6 +60,7 @@ type HTTPClient struct {
 func NewHTTPClient(client *http.Client, authToken string, provider observability.Provider) *HTTPClient {
 	// Check if we're using the debug flag from the environment
 	debug := false
+
 	if debugEnv := os.Getenv("MIDAZ_DEBUG"); debugEnv == "true" {
 		debug = true
 	}
@@ -188,6 +189,7 @@ func (c *HTTPClient) doRequest(ctx context.Context, method, requestURL string, h
 	if body != nil {
 		// Serialize the request body to JSON
 		bodyBytes, err := c.jsonPool.Marshal(body)
+
 		if err != nil {
 			return fmt.Errorf("failed to marshal request body: %w", err)
 		}
@@ -426,6 +428,7 @@ func (c *HTTPClient) NewRequest(method, url string, body any) (*http.Request, er
 	if body != nil {
 		// Serialize the request body to JSON
 		bodyBytes, err := c.jsonPool.Marshal(body)
+
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal request body: %w", err)
 		}

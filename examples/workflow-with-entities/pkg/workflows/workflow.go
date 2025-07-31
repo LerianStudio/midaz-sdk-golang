@@ -228,7 +228,7 @@ func CreateMockTransactionRoutes(orgID, ledgerID string) (*models.TransactionRou
 }
 
 // demonstrateOperationRouteCRUD demonstrates all CRUD operations for Operation Routes
-func demonstrateOperationRouteCRUD(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, accountType *models.AccountType, sourceRoute, destinationRoute *models.OperationRoute) error {
+func demonstrateOperationRouteCRUD(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, _ /* accountType */ *models.AccountType, sourceRoute, destinationRoute *models.OperationRoute) error {
 	fmt.Println("\n\n🛤️  OPERATION ROUTE CRUD DEMONSTRATION")
 	fmt.Println(strings.Repeat("=", 50))
 
