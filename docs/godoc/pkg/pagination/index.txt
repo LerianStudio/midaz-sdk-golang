@@ -6,7 +6,7 @@ func CollectAll[T any](ctx context.Context, operationName string, entityType str
 func GetEntityTypeFromURL(url string) string
 type EntityPaginatorOption func(*EntityPaginatorOptions) error
     func WithEntityAdapterOptions(options ...ModelAdapterOption) EntityPaginatorOption
-    func WithEntityInitialOptions(options interface{}) EntityPaginatorOption
+    func WithEntityInitialOptions(options any) EntityPaginatorOption
     func WithEntityOperationName(name string) EntityPaginatorOption
     func WithEntityPaginatorOptions(options ...PaginatorOption) EntityPaginatorOption
     func WithPaginatorEntityType(entityType string) EntityPaginatorOption
@@ -26,9 +26,9 @@ type PageFetcher[T any] func(ctx context.Context, options PageOptions) (*PageRes
 type PageInfo struct{ ... }
 type PageOptions struct{ ... }
 type PageResult[T any] struct{ ... }
-    func PageResultFromResponse[T any, R any](adapter *ModelAdapter, response interface{}, itemsExtractor func(R) T) *PageResult[T]
+    func PageResultFromResponse[T any, R any](adapter *ModelAdapter, response any, itemsExtractor func(R) T) *PageResult[T]
 type Paginator[T any] interface{ ... }
-    func CreateEntityPaginator[T any, R any](ctx context.Context, ...) (Paginator[T], error)
+    func CreateEntityPaginator[T any, R any](ctx context.Context, listFn func(context.Context, any) (any, error), ...) (Paginator[T], error)
     func CreateEntityPaginatorWithDefaults[T any, R any](ctx context.Context, operationName string, entityType string, ...) Paginator[T]
     func NewPaginator[T any](fetcher PageFetcher[T], options ...PaginatorOption) (Paginator[T], error)
     func NewPaginatorWithDefaults[T any](operationName string, entityType string, fetcher PageFetcher[T], ...) Paginator[T]

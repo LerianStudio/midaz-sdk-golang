@@ -44,7 +44,6 @@ type Entity struct {
 	Accounts          AccountsService
 	AccountTypes      AccountTypesService
 	Assets            AssetsService
-	AssetRates        AssetRatesService
 	Balances          BalancesService
 	Ledgers           LedgersService
 	Operations        OperationsService
@@ -209,7 +208,6 @@ func (e *Entity) initServices() {
 	e.Accounts = NewAccountsEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
 	e.AccountTypes = NewAccountTypesEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
 	e.Assets = NewAssetsEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
-	e.AssetRates = NewAssetRatesEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
 	e.Balances = NewBalancesEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
 	e.Ledgers = NewLedgersEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
 	e.Operations = NewOperationsEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)

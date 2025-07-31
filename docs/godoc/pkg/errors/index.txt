@@ -42,7 +42,7 @@ func IsPermissionError(err error) bool
 func IsRateLimitError(err error) bool
 func IsTimeoutError(err error) bool
 func IsValidationError(err error) bool
-func ValueOfOriginalType(err error, value interface{}) error
+func ValueOfOriginalType(err error, value any) error
 type Error struct{ ... }
     func NewAccountEligibilityError(operation, accountID string, err error) *Error
     func NewAssetMismatchError(operation, expected, actual string, err error) *Error
