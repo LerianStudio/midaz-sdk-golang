@@ -7,6 +7,7 @@ import (
 
 	client "github.com/LerianStudio/midaz-sdk-golang"
 	"github.com/LerianStudio/midaz-sdk-golang/models"
+	"github.com/google/uuid"
 )
 
 // CreateOperationRoutes creates multiple operation routes and returns their models
@@ -46,7 +47,7 @@ func CreateOperationRoutes(ctx context.Context, midazClient *client.Client, orgI
 		return nil, nil, fmt.Errorf("failed to create source operation route: %w", err)
 	}
 
-	if sourceOperationRoute.ID == "" {
+	if sourceOperationRoute.ID == uuid.Nil {
 		return nil, nil, fmt.Errorf("source operation route created but no ID was returned from the API")
 	}
 
@@ -76,7 +77,7 @@ func CreateOperationRoutes(ctx context.Context, midazClient *client.Client, orgI
 		return nil, nil, fmt.Errorf("failed to create destination operation route: %w", err)
 	}
 
-	if destinationOperationRoute.ID == "" {
+	if destinationOperationRoute.ID == uuid.Nil {
 		return nil, nil, fmt.Errorf("destination operation route created but no ID was returned from the API")
 	}
 

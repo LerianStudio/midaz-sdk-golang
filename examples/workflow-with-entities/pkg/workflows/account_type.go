@@ -37,8 +37,8 @@ func CreateAccountType(ctx context.Context, midazClient *client.Client, orgID, l
 
 	fmt.Printf("   ✅ Account type created successfully: %s\n", accountType.ID)
 	fmt.Printf("      - Name: %s\n", accountType.Name)
-	if accountType.Description != nil {
-		fmt.Printf("      - Description: %s\n", *accountType.Description)
+	if accountType.Description != "" {
+		fmt.Printf("      - Description: %s\n", accountType.Description)
 	}
 	fmt.Printf("      - Organization ID: %s\n", accountType.OrganizationID)
 	fmt.Printf("      - Ledger ID: %s\n", accountType.LedgerID)
@@ -80,8 +80,8 @@ func UpdateAccountType(ctx context.Context, midazClient *client.Client, orgID, l
 
 	fmt.Printf("   ✅ Account type updated successfully: %s\n", updatedAccountType.ID)
 	fmt.Printf("      - Name: %s\n", updatedAccountType.Name)
-	if updatedAccountType.Description != nil {
-		fmt.Printf("      - Description: %s\n", *updatedAccountType.Description)
+	if updatedAccountType.Description != "" {
+		fmt.Printf("      - Description: %s\n", updatedAccountType.Description)
 	}
 	fmt.Printf("      - Updated At: %s\n", updatedAccountType.UpdatedAt.Format("2006-01-02 15:04:05"))
 
@@ -110,8 +110,8 @@ func GetAccountType(ctx context.Context, midazClient *client.Client, orgID, ledg
 
 	fmt.Printf("   ✅ Account type retrieved successfully: %s\n", accountType.ID)
 	fmt.Printf("      - Name: %s\n", accountType.Name)
-	if accountType.Description != nil {
-		fmt.Printf("      - Description: %s\n", *accountType.Description)
+	if accountType.Description != "" {
+		fmt.Printf("      - Description: %s\n", accountType.Description)
 	}
 	fmt.Printf("      - Organization ID: %s\n", accountType.OrganizationID)
 	fmt.Printf("      - Ledger ID: %s\n", accountType.LedgerID)
@@ -147,8 +147,8 @@ func ListAccountTypes(ctx context.Context, midazClient *client.Client, orgID, le
 	fmt.Printf("   ✅ Found %d account types:\n", len(accountTypes.Items))
 	for i, accountType := range accountTypes.Items {
 		fmt.Printf("      %d. %s (ID: %s)\n", i+1, accountType.Name, accountType.ID)
-		if accountType.Description != nil {
-			fmt.Printf("         Description: %s\n", *accountType.Description)
+		if accountType.Description != "" {
+			fmt.Printf("         Description: %s\n", accountType.Description)
 		} else {
 			fmt.Printf("         Description: N/A\n")
 		}

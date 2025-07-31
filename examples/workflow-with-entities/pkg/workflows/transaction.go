@@ -219,7 +219,7 @@ func executeInitialDepositWithRoutes(ctx context.Context, midazClient *client.Cl
 		Description:              "Initial deposit from external account using routes",
 		Amount:                   amount,
 		AssetCode:                "USD",
-		Route:                    transactionRoute.ID,
+		Route:                    transactionRoute.ID.String(),
 		Metadata: map[string]any{
 			"source": "go-sdk-example",
 			"type":   "deposit",
@@ -233,7 +233,7 @@ func executeInitialDepositWithRoutes(ctx context.Context, midazClient *client.Cl
 					{
 						Account:      externalAccountID,
 						AccountAlias: externalAccountID,
-						Route:        sourceOperationRoute.ID,
+						Route:        sourceOperationRoute.ID.String(),
 						Amount: models.AmountInput{
 							Asset: "USD",
 							Value: amount,
@@ -246,7 +246,7 @@ func executeInitialDepositWithRoutes(ctx context.Context, midazClient *client.Cl
 					{
 						Account:      *customerAccount.Alias,
 						AccountAlias: *customerAccount.Alias,
-						Route:        destinationOperationRoute.ID,
+						Route:        destinationOperationRoute.ID.String(),
 						Amount: models.AmountInput{
 							Asset: "USD",
 							Value: amount,
@@ -260,7 +260,7 @@ func executeInitialDepositWithRoutes(ctx context.Context, midazClient *client.Cl
 
 	// Add transaction route if available
 	if transactionRoute != nil {
-		input.Metadata["transactionRouteID"] = transactionRoute.ID
+		input.Metadata["transactionRouteID"] = transactionRoute.ID.String()
 		input.Metadata["transactionRouteTitle"] = transactionRoute.Title
 	}
 
@@ -278,7 +278,7 @@ func executeInitialDepositWithRoutes(ctx context.Context, midazClient *client.Cl
 		fmt.Printf("   📍 Used routes: %s → %s\n", sourceOperationRoute.Title, destinationOperationRoute.Title)
 	}
 	if transactionRoute != nil {
-		fmt.Printf("   🗺️  Transaction Route: %s (%s)\n", transactionRoute.Title, transactionRoute.ID)
+		fmt.Printf("   🗺️  Transaction Route: %s (%s)\n", transactionRoute.Title, transactionRoute.ID.String())
 	}
 	return nil
 }
@@ -292,7 +292,7 @@ func executeTransferWithRoutes(ctx context.Context, midazClient *client.Client, 
 		Description:              "Payment for services using routes",
 		Amount:                   amount,
 		AssetCode:                "USD",
-		Route:                    transactionRoute.ID,
+		Route:                    transactionRoute.ID.String(),
 		Metadata: map[string]any{
 			"source": "go-sdk-example",
 			"type":   "transfer",
@@ -306,7 +306,7 @@ func executeTransferWithRoutes(ctx context.Context, midazClient *client.Client, 
 					{
 						Account:      *customerAccount.Alias,
 						AccountAlias: *customerAccount.Alias,
-						Route:        destinationOperationRoute.ID, // Customer account uses destination route
+						Route:        destinationOperationRoute.ID.String(), // Customer account uses destination route
 						Amount: models.AmountInput{
 							Asset: "USD",
 							Value: amount,
@@ -319,7 +319,7 @@ func executeTransferWithRoutes(ctx context.Context, midazClient *client.Client, 
 					{
 						Account:      *merchantAccount.Alias,
 						AccountAlias: *merchantAccount.Alias,
-						Route:        destinationOperationRoute.ID, // Merchant account also uses destination route
+						Route:        destinationOperationRoute.ID.String(), // Merchant account also uses destination route
 						Amount: models.AmountInput{
 							Asset: "USD",
 							Value: amount,
@@ -333,7 +333,7 @@ func executeTransferWithRoutes(ctx context.Context, midazClient *client.Client, 
 
 	// Add transaction route if available
 	if transactionRoute != nil {
-		input.Metadata["transactionRouteID"] = transactionRoute.ID
+		input.Metadata["transactionRouteID"] = transactionRoute.ID.String()
 		input.Metadata["transactionRouteTitle"] = transactionRoute.Title
 	}
 
@@ -351,7 +351,7 @@ func executeTransferWithRoutes(ctx context.Context, midazClient *client.Client, 
 		fmt.Printf("   📍 Used operation routes: %s → %s\n", sourceOperationRoute.Title, destinationOperationRoute.Title)
 	}
 	if transactionRoute != nil {
-		fmt.Printf("   🗺️  Transaction Route: %s (%s)\n", transactionRoute.Title, transactionRoute.ID)
+		fmt.Printf("   🗺️  Transaction Route: %s (%s)\n", transactionRoute.Title, transactionRoute.ID.String())
 	}
 	return nil
 }
@@ -429,7 +429,7 @@ func executeParallelTransactionsWithRoutes(ctx context.Context, midazClient *cli
 			Description:              fmt.Sprintf("Parallel transfer #%d with routes", index+1),
 			Amount:                   amount,
 			AssetCode:                "USD",
-			Route:                    transactionRoute.ID,
+			Route:                    transactionRoute.ID.String(),
 			Metadata: map[string]any{
 				"source": "go-sdk-example-parallel",
 				"type":   "parallel_transfer",
@@ -444,7 +444,7 @@ func executeParallelTransactionsWithRoutes(ctx context.Context, midazClient *cli
 						{
 							Account:      *customerAccount.Alias,
 							AccountAlias: *customerAccount.Alias,
-							Route:        destinationOperationRoute.ID, // Customer uses destination route
+							Route:        destinationOperationRoute.ID.String(), // Customer uses destination route
 							Amount: models.AmountInput{
 								Asset: "USD",
 								Value: amount,
@@ -457,7 +457,7 @@ func executeParallelTransactionsWithRoutes(ctx context.Context, midazClient *cli
 						{
 							Account:      *merchantAccount.Alias,
 							AccountAlias: *merchantAccount.Alias,
-							Route:        destinationOperationRoute.ID, // Merchant also uses destination route
+							Route:        destinationOperationRoute.ID.String(), // Merchant also uses destination route
 							Amount: models.AmountInput{
 								Asset: "USD",
 								Value: amount,
@@ -524,7 +524,7 @@ func executeParallelTransactionsWithRoutes(ctx context.Context, midazClient *cli
 	// Log transaction route information
 	if transactionRoute != nil && sourceOperationRoute != nil && destinationOperationRoute != nil {
 		fmt.Printf("   🗺️  Used routes:\n")
-		fmt.Printf("      • Transaction Route: %s (%s)\n", transactionRoute.Title, transactionRoute.ID)
+		fmt.Printf("      • Transaction Route: %s (%s)\n", transactionRoute.Title, transactionRoute.ID.String())
 		fmt.Printf("      • Operation Routes: %s → %s\n", sourceOperationRoute.Title, destinationOperationRoute.Title)
 	}
 	
@@ -580,21 +580,21 @@ func demonstrateHighWorkerCount(ctx context.Context, midazClient *client.Client,
 			Description:              fmt.Sprintf("High-worker transfer #%d", index+1),
 			Amount:                   amounts[index],
 			AssetCode:                "USD",
-			Route:                    transactionRoute.ID,
+			Route:                    transactionRoute.ID.String(),
 			Send: &models.SendInput{
 				Asset: "USD",
 				Value: amounts[index],
 				Source: &models.SourceInput{
 					From: []models.FromToInput{{
 						Account: *customerAccount.Alias, AccountAlias: *customerAccount.Alias,
-						Route: destinationOperationRoute.ID,
+						Route: destinationOperationRoute.ID.String(),
 						Amount: models.AmountInput{Asset: "USD", Value: amounts[index]},
 					}},
 				},
 				Distribute: &models.DistributeInput{
 					To: []models.FromToInput{{
 						Account: *merchantAccount.Alias, AccountAlias: *merchantAccount.Alias,
-						Route: destinationOperationRoute.ID,
+						Route: destinationOperationRoute.ID.String(),
 						Amount: models.AmountInput{Asset: "USD", Value: amounts[index]},
 					}},
 				},
@@ -650,20 +650,20 @@ func demonstrateConnectionPooling(ctx context.Context, midazClient *client.Clien
 			Description:              fmt.Sprintf("Pooled transfer #%d", index+1),
 			Amount:                   "0.15",
 			AssetCode:                "USD",
-			Route:                    transactionRoute.ID,
+			Route:                    transactionRoute.ID.String(),
 			Send: &models.SendInput{
 				Asset: "USD", Value: "0.15",
 				Source: &models.SourceInput{
 					From: []models.FromToInput{{
 						Account: *customerAccount.Alias, AccountAlias: *customerAccount.Alias,
-						Route: destinationOperationRoute.ID,
+						Route: destinationOperationRoute.ID.String(),
 						Amount: models.AmountInput{Asset: "USD", Value: "0.15"},
 					}},
 				},
 				Distribute: &models.DistributeInput{
 					To: []models.FromToInput{{
 						Account: *merchantAccount.Alias, AccountAlias: *merchantAccount.Alias,
-						Route: destinationOperationRoute.ID,
+						Route: destinationOperationRoute.ID.String(),
 						Amount: models.AmountInput{Asset: "USD", Value: "0.15"},
 					}},
 				},
@@ -706,20 +706,20 @@ func demonstrateBatchProcessing(ctx context.Context, midazClient *client.Client,
 			Description:              fmt.Sprintf("Batch transfer #%d", i+1),
 			Amount:                   "0.05",
 			AssetCode:                "USD",
-			Route:                    transactionRoute.ID,
+			Route:                    transactionRoute.ID.String(),
 			Send: &models.SendInput{
 				Asset: "USD", Value: "0.05",
 				Source: &models.SourceInput{
 					From: []models.FromToInput{{
 						Account: *customerAccount.Alias, AccountAlias: *customerAccount.Alias,
-						Route: destinationOperationRoute.ID,
+						Route: destinationOperationRoute.ID.String(),
 						Amount: models.AmountInput{Asset: "USD", Value: "0.05"},
 					}},
 				},
 				Distribute: &models.DistributeInput{
 					To: []models.FromToInput{{
 						Account: *merchantAccount.Alias, AccountAlias: *merchantAccount.Alias,
-						Route: destinationOperationRoute.ID,
+						Route: destinationOperationRoute.ID.String(),
 						Amount: models.AmountInput{Asset: "USD", Value: "0.05"},
 					}},
 				},
@@ -799,20 +799,20 @@ func demonstrateCombinedOptimizations(ctx context.Context, midazClient *client.C
 			Description:              fmt.Sprintf("Optimized transfer #%d", index+1),
 			Amount:                   "0.01", // Minimal amount for speed
 			AssetCode:                "USD",
-			Route:                    transactionRoute.ID,
+			Route:                    transactionRoute.ID.String(),
 			Send: &models.SendInput{
 				Asset: "USD", Value: "0.01",
 				Source: &models.SourceInput{
 					From: []models.FromToInput{{
 						Account: *customerAccount.Alias, AccountAlias: *customerAccount.Alias,
-						Route: destinationOperationRoute.ID,
+						Route: destinationOperationRoute.ID.String(),
 						Amount: models.AmountInput{Asset: "USD", Value: "0.01"},
 					}},
 				},
 				Distribute: &models.DistributeInput{
 					To: []models.FromToInput{{
 						Account: *merchantAccount.Alias, AccountAlias: *merchantAccount.Alias,
-						Route: destinationOperationRoute.ID,
+						Route: destinationOperationRoute.ID.String(),
 						Amount: models.AmountInput{Asset: "USD", Value: "0.01"},
 					}},
 				},

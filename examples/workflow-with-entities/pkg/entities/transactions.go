@@ -417,6 +417,8 @@ func ExecuteBatchTransactionsWithHelper(
 	inputs []*models.CreateTransactionInput,
 ) ([]transaction.BatchResult, *transaction.BatchSummary, error) {
 	// Batch functionality not yet implemented in transaction helpers
-	return nil, nil, fmt.Errorf("batch transactions not yet implemented")
+	var results []transaction.BatchResult
+	var summary *transaction.BatchSummary
+	return results, summary, fmt.Errorf("batch transactions not yet implemented")
 }
 */

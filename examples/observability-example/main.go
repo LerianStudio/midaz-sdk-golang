@@ -13,6 +13,7 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/models"
 	"github.com/LerianStudio/midaz-sdk-golang/pkg/config"
 	"github.com/LerianStudio/midaz-sdk-golang/pkg/observability"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 )
@@ -132,14 +133,15 @@ func createOrganization(ctx context.Context, provider observability.Provider) (*
 	time.Sleep(100 * time.Millisecond)
 
 	// Create organization data
+	dba := "Example DBA"
 	org := &models.Organization{
 		LegalName:       "Example Organization",
 		LegalDocument:   "EX123456789",
-		DoingBusinessAs: "Example DBA",
+		DoingBusinessAs: &dba,
 		Status: models.Status{
 			Code: "ACTIVE",
 		},
-		Address: models.Address{
+		Address: mmodel.Address{
 			Line1:   "123 Example St",
 			City:    "Exampleville",
 			State:   "EX",

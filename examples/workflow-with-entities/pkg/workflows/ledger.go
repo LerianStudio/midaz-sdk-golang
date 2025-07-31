@@ -27,13 +27,13 @@ func CreateLedger(ctx context.Context, midazClient *client.Client, orgID string)
 	fmt.Println("\nCreating ledger...")
 
 	// Create a ledger with the organization ID
-	ledger, err := midazClient.Entity.Ledgers.CreateLedger(ctx, orgID, &models.CreateLedgerInput{
-		Name: "Main Ledger",
-		Metadata: map[string]any{
-			"purpose": "example",
-			"type":    "main",
-		},
-	})
+	ledger, err := midazClient.Entity.Ledgers.CreateLedger(ctx, orgID,
+		models.NewCreateLedgerInput("Main Ledger").
+			WithMetadata(map[string]any{
+				"purpose": "example",
+				"type":    "main",
+			}),
+	)
 	if err != nil {
 		return "", fmt.Errorf("failed to create ledger: %w", err)
 	}

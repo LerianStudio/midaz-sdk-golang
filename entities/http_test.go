@@ -7,6 +7,7 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/models"
 	"github.com/LerianStudio/midaz-sdk-golang/pkg/errors"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/LerianStudio/midaz-sdk-golang/pkg/performance"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -96,11 +97,11 @@ func createTestObject() *models.Organization {
 		ID:              "org-123456789",
 		LegalName:       "Test Organization Legal Name",
 		LegalDocument:   "1234567890-ABC",
-		DoingBusinessAs: "Test Organization DBA",
+		DoingBusinessAs: func() *string { s := "Test Organization DBA"; return &s }(),
 		Status: models.Status{
 			Code: "ACTIVE",
 		},
-		Address: models.Address{
+		Address: mmodel.Address{
 			Line1:   "123 Main St",
 			City:    "San Francisco",
 			State:   "CA",

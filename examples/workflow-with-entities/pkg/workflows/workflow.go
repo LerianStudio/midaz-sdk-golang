@@ -12,6 +12,7 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/models"
 	auth "github.com/LerianStudio/midaz-sdk-golang/pkg/access-manager"
 	"github.com/LerianStudio/midaz-sdk-golang/pkg/config"
+	"github.com/google/uuid"
 )
 
 // RunCompleteWorkflow runs a complete workflow demonstrating all the features of the Midaz SDK
@@ -93,12 +94,12 @@ func RunCompleteWorkflow(ctx context.Context, entity *sdkentities.Entity, custom
 	}
 
 	// Step 4.2: Update account type
-	if err := UpdateAccountType(ctx, midazClient, orgID, ledgerID, accountType.ID); err != nil {
+	if err := UpdateAccountType(ctx, midazClient, orgID, ledgerID, accountType.ID.String()); err != nil {
 		return err
 	}
 
 	// Step 4.3: Get account type
-	if err := GetAccountType(ctx, midazClient, orgID, ledgerID, accountType.ID); err != nil {
+	if err := GetAccountType(ctx, midazClient, orgID, ledgerID, accountType.ID.String()); err != nil {
 		return err
 	}
 
@@ -135,7 +136,7 @@ func RunCompleteWorkflow(ctx context.Context, entity *sdkentities.Entity, custom
 	}
 
 	// Step 5: Create accounts (pass accountTypeID to link accounts to the account type)
-	customerAccount, merchantAccount, dummyOneAccount, dummyTwoAccount, err := CreateAccountsWithType(ctx, midazClient, orgID, ledgerID, accountType.ID)
+	customerAccount, merchantAccount, dummyOneAccount, dummyTwoAccount, err := CreateAccountsWithType(ctx, midazClient, orgID, ledgerID, accountType.ID.String())
 	if err != nil {
 		return err
 	}
@@ -196,11 +197,11 @@ func CreateMockTransactionRoutes(orgID, ledgerID string) (*models.TransactionRou
 	fmt.Println("🔧 Creating mock transaction routes (server API not available)...")
 	
 	paymentRoute := &models.TransactionRoute{
-		ID:             "payment-route-" + orgID[:8],
+		ID:             uuid.New(),
 		Title:          "Payment Transaction Route", 
 		Description:    "Transaction route for payment operations",
-		OrganizationID: orgID,
-		LedgerID:       ledgerID,
+		OrganizationID: uuid.MustParse(orgID),
+		LedgerID:       uuid.MustParse(ledgerID),
 		Metadata: map[string]any{
 			"type": "payment",
 			"demo": true,
@@ -208,11 +209,11 @@ func CreateMockTransactionRoutes(orgID, ledgerID string) (*models.TransactionRou
 	}
 	
 	refundRoute := &models.TransactionRoute{
-		ID:             "refund-route-" + orgID[:8],
+		ID:             uuid.New(),
 		Title:          "Refund Transaction Route",
 		Description:    "Transaction route for refund operations", 
-		OrganizationID: orgID,
-		LedgerID:       ledgerID,
+		OrganizationID: uuid.MustParse(orgID),
+		LedgerID:       uuid.MustParse(ledgerID),
 		Metadata: map[string]any{
 			"type": "refund",
 			"demo": true,
@@ -241,7 +242,7 @@ func demonstrateOperationRouteCRUD(ctx context.Context, midazClient *client.Clie
 	// Step 2: Get operation route by ID (using the source route)
 	if sourceRoute != nil {
 		fmt.Println("\n🔍 Step 2: GET Operation Route by ID")
-		_, err := GetOperationRoute(ctx, midazClient, orgID, ledgerID, sourceRoute.ID)
+		_, err := GetOperationRoute(ctx, midazClient, orgID, ledgerID, sourceRoute.ID.String())
 		if err != nil {
 			return fmt.Errorf("failed to get operation route: %w", err)
 		}
@@ -250,7 +251,7 @@ func demonstrateOperationRouteCRUD(ctx context.Context, midazClient *client.Clie
 	// Step 3: Update operation route (using the destination route)
 	if destinationRoute != nil {
 		fmt.Println("\n✏️  Step 3: UPDATE Operation Route")
-		_, err := UpdateOperationRoute(ctx, midazClient, orgID, ledgerID, destinationRoute.ID, 
+		_, err := UpdateOperationRoute(ctx, midazClient, orgID, ledgerID, destinationRoute.ID.String(), 
 			"Updated Cash-out Route", 
 			"Updated route for cash-out operations with enhanced features",
 			[]string{"liability", "revenue", "expense"})
@@ -260,7 +261,7 @@ func demonstrateOperationRouteCRUD(ctx context.Context, midazClient *client.Clie
 
 		// Verify the update by getting it again
 		fmt.Println("\n🔄 Step 3.1: VERIFY Update by Getting Again")
-		_, err = GetOperationRoute(ctx, midazClient, orgID, ledgerID, destinationRoute.ID)
+		_, err = GetOperationRoute(ctx, midazClient, orgID, ledgerID, destinationRoute.ID.String())
 		if err != nil {
 			return fmt.Errorf("failed to verify updated operation route: %w", err)
 		}
@@ -283,11 +284,11 @@ func demonstrateOperationRouteCRUD(ctx context.Context, midazClient *client.Clie
 	}
 
 	fmt.Printf("✅ Demo operation route created for deletion: %s\n", demoRoute.Title)
-	fmt.Printf("   ID: %s\n", demoRoute.ID)
+	fmt.Printf("   ID: %s\n", demoRoute.ID.String())
 
 	// Step 5: Delete the demo operation route
 	fmt.Println("\n🗑️  Step 5: DELETE Operation Route")
-	err = DeleteOperationRoute(ctx, midazClient, orgID, ledgerID, demoRoute.ID)
+	err = DeleteOperationRoute(ctx, midazClient, orgID, ledgerID, demoRoute.ID.String())
 	if err != nil {
 		return fmt.Errorf("failed to delete operation route: %w", err)
 	}

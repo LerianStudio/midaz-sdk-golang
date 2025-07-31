@@ -27,21 +27,21 @@ func CreateOrganization(ctx context.Context, midazClient *client.Client) (string
 
 	// Get plugin auth configuration from environment variables
 
-	organization, err := midazClient.Entity.Organizations.CreateOrganization(ctx, &models.CreateOrganizationInput{
-		LegalName:     "Example Corp",
-		LegalDocument: "123456789",
-		Address: models.Address{
-			Country: "US",
-		},
-		Status: models.Status{
-			Code: "ACTIVE",
-		},
-		Metadata: map[string]any{
-			"industry": "Technology",
-			"size":     "Small",
-		},
-		DoingBusinessAs: "Example Corp DBA",
-	})
+	organization, err := midazClient.Entity.Organizations.CreateOrganization(ctx,
+		models.NewCreateOrganizationInput("Example Corp").
+			WithDoingBusinessAs("Example Corp DBA").
+			WithLegalDocument("123456789").
+			WithAddress(models.Address{
+				Country: "US",
+			}).
+			WithStatus(models.Status{
+				Code: "ACTIVE",
+			}).
+			WithMetadata(map[string]any{
+				"industry": "Technology",
+				"size":     "Small",
+			}),
+	)
 	if err != nil {
 		return "", fmt.Errorf("failed to create organization: %w", err)
 	}
@@ -79,17 +79,23 @@ func UpdateOrganization(ctx context.Context, midazClient *client.Client, orgID s
 	}
 
 	// Update the organization metadata
-	updatedOrg, err := midazClient.Entity.Organizations.UpdateOrganization(ctx, orgID, &models.UpdateOrganizationInput{
-		LegalName:       org.LegalName,
-		DoingBusinessAs: org.DoingBusinessAs,
-		Address:         org.Address,
-		Status:          org.Status,
-		Metadata: map[string]any{
-			"industry":      "Technology",
-			"size":          "Medium", // Changed from "Small" to "Medium"
-			"lastUpdatedAt": time.Now().Format(time.RFC3339),
-		},
-	})
+	var dbaValue string
+	if org.DoingBusinessAs != nil {
+		dbaValue = *org.DoingBusinessAs
+	}
+	
+	updatedOrg, err := midazClient.Entity.Organizations.UpdateOrganization(ctx, orgID,
+		models.NewUpdateOrganizationInput().
+			WithLegalName(org.LegalName).
+			WithDoingBusinessAsUpdate(dbaValue).
+			WithAddressUpdate(models.Address(org.Address)).
+			WithStatusUpdate(org.Status).
+			WithUpdateMetadata(map[string]any{
+				"industry":      "Technology",
+				"size":          "Medium", // Changed from "Small" to "Medium"
+				"lastUpdatedAt": time.Now().Format(time.RFC3339),
+			}),
+	)
 	if err != nil {
 		return fmt.Errorf("failed to update organization: %w", err)
 	}

@@ -2,118 +2,130 @@ package models
 
 import (
 	"fmt"
-	"time"
+
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/google/uuid"
 )
 
-// TransactionRoute represents a transaction route entity
-type TransactionRoute struct {
-	ID              string           `json:"id"`
-	OrganizationID  string           `json:"organizationId"`
-	LedgerID        string           `json:"ledgerId"`
-	Title           string           `json:"title"`
-	Description     string           `json:"description"`
-	OperationRoutes []OperationRoute `json:"operationRoutes"`
-	Metadata        map[string]any   `json:"metadata,omitempty"`
-	CreatedAt       time.Time        `json:"createdAt"`
-	UpdatedAt       time.Time        `json:"updatedAt"`
-	DeletedAt       *time.Time       `json:"deletedAt,omitempty"`
-}
+// TransactionRoute is an alias for mmodel.TransactionRoute to maintain compatibility while using midaz entities.
+type TransactionRoute = mmodel.TransactionRoute
 
-// CreateTransactionRouteInput represents the input for creating a transaction route
+// CreateTransactionRouteInput wraps mmodel.CreateTransactionRouteInput to maintain compatibility while using midaz entities.
 type CreateTransactionRouteInput struct {
-	Title           string         `json:"title"`
-	Description     string         `json:"description"`
-	OperationRoutes []string       `json:"operationRoutes"` // Array of operation route IDs
-	Metadata        map[string]any `json:"metadata,omitempty"`
+	mmodel.CreateTransactionRouteInput
 }
 
-// NewCreateTransactionRouteInput creates a new CreateTransactionRouteInput with required fields
+// Validate validates the CreateTransactionRouteInput fields.
+func (input *CreateTransactionRouteInput) Validate() error {
+	if input.Title == "" {
+		return fmt.Errorf("title is required")
+	}
+	if input.Description == "" {
+		return fmt.Errorf("description is required")
+	}
+	return nil
+}
+
+// UpdateTransactionRouteInput wraps mmodel.UpdateTransactionRouteInput to maintain compatibility while using midaz entities.
+type UpdateTransactionRouteInput struct {
+	mmodel.UpdateTransactionRouteInput
+}
+
+// Validate validates the UpdateTransactionRouteInput fields.
+func (input *UpdateTransactionRouteInput) Validate() error {
+	// For updates, fields are optional so validation is minimal
+	return nil
+}
+
+// NewCreateTransactionRouteInput creates a new CreateTransactionRouteInput with required fields.
+//
+// Parameters:
+//   - title: Short text summarizing the purpose of the transaction
+//   - description: A description for the Transaction Route
+//
+// Returns:
+//   - A pointer to the newly created CreateTransactionRouteInput
 func NewCreateTransactionRouteInput(title, description string, operationRoutes []string) *CreateTransactionRouteInput {
+	// Convert string UUIDs to uuid.UUID type
+	uuidRoutes := make([]uuid.UUID, len(operationRoutes))
+	for i, routeStr := range operationRoutes {
+		if routeUUID, err := uuid.Parse(routeStr); err == nil {
+			uuidRoutes[i] = routeUUID
+		}
+		// If parsing fails, we'll use a zero UUID
+	}
+
 	return &CreateTransactionRouteInput{
-		Title:           title,
-		Description:     description,
-		OperationRoutes: operationRoutes,
+		CreateTransactionRouteInput: mmodel.CreateTransactionRouteInput{
+			Title:           title,
+			Description:     description,
+			OperationRoutes: uuidRoutes,
+		},
 	}
 }
 
-// WithMetadata sets the metadata for the transaction route
+// WithTransactionRouteMetadata sets the metadata for CreateTransactionRouteInput.
+//
+// Parameters:
+//   - input: The CreateTransactionRouteInput to modify
+//   - metadata: A map of key-value pairs to store as metadata
+//
+// Returns:
+//   - A pointer to the modified CreateTransactionRouteInput for method chaining
+func WithTransactionRouteMetadata(input *CreateTransactionRouteInput, metadata map[string]any) *CreateTransactionRouteInput {
+	input.Metadata = metadata
+	return input
+}
+
+// WithMetadata sets the metadata for CreateTransactionRouteInput (method on struct).
 func (input *CreateTransactionRouteInput) WithMetadata(metadata map[string]any) *CreateTransactionRouteInput {
 	input.Metadata = metadata
 	return input
 }
 
-// Validate validates the CreateTransactionRouteInput
-func (input *CreateTransactionRouteInput) Validate() error {
-	if input.Title == "" {
-		return fmt.Errorf("title is required")
-	}
-
-	if input.Description == "" {
-		return fmt.Errorf("description is required")
-	}
-
-	if len(input.OperationRoutes) == 0 {
-		return fmt.Errorf("operationRoutes must contain at least one operation route ID")
-	}
-
-	// Validate each operation route ID is not empty
-	for i, routeID := range input.OperationRoutes {
-		if routeID == "" {
-			return fmt.Errorf("operationRoutes[%d] cannot be empty", i)
-		}
-	}
-
-	return nil
-}
-
-// UpdateTransactionRouteInput represents the input for updating a transaction route
-type UpdateTransactionRouteInput struct {
-	Title           *string        `json:"title,omitempty"`
-	Description     *string        `json:"description,omitempty"`
-	OperationRoutes []string       `json:"operationRoutes,omitempty"`
-	Metadata        map[string]any `json:"metadata,omitempty"`
-}
-
-// NewUpdateTransactionRouteInput creates a new UpdateTransactionRouteInput
+// NewUpdateTransactionRouteInput creates a new UpdateTransactionRouteInput.
+//
+// Returns:
+//   - A pointer to the newly created UpdateTransactionRouteInput
 func NewUpdateTransactionRouteInput() *UpdateTransactionRouteInput {
 	return &UpdateTransactionRouteInput{}
 }
 
-// WithTitle sets the title for the update
-func (input *UpdateTransactionRouteInput) WithTitle(title string) *UpdateTransactionRouteInput {
-	input.Title = &title
+// WithUpdateTransactionRouteTitle sets the title for UpdateTransactionRouteInput.
+//
+// Parameters:
+//   - input: The UpdateTransactionRouteInput to modify
+//   - title: The new title for the transaction route
+//
+// Returns:
+//   - A pointer to the modified UpdateTransactionRouteInput for method chaining
+func WithUpdateTransactionRouteTitle(input *UpdateTransactionRouteInput, title string) *UpdateTransactionRouteInput {
+	input.Title = title
 	return input
 }
 
-// WithDescription sets the description for the update
-func (input *UpdateTransactionRouteInput) WithDescription(description string) *UpdateTransactionRouteInput {
-	input.Description = &description
+// WithUpdateTransactionRouteDescription sets the description for UpdateTransactionRouteInput.
+//
+// Parameters:
+//   - input: The UpdateTransactionRouteInput to modify
+//   - description: The new description for the transaction route
+//
+// Returns:
+//   - A pointer to the modified UpdateTransactionRouteInput for method chaining
+func WithUpdateTransactionRouteDescription(input *UpdateTransactionRouteInput, description string) *UpdateTransactionRouteInput {
+	input.Description = description
 	return input
 }
 
-// WithOperationRoutes sets the operation routes for the update
-func (input *UpdateTransactionRouteInput) WithOperationRoutes(operationRoutes []string) *UpdateTransactionRouteInput {
-	input.OperationRoutes = operationRoutes
-	return input
-}
-
-// WithMetadata sets the metadata for the update
-func (input *UpdateTransactionRouteInput) WithMetadata(metadata map[string]any) *UpdateTransactionRouteInput {
+// WithUpdateTransactionRouteMetadata sets the metadata for UpdateTransactionRouteInput.
+//
+// Parameters:
+//   - input: The UpdateTransactionRouteInput to modify
+//   - metadata: A map of key-value pairs to store as metadata
+//
+// Returns:
+//   - A pointer to the modified UpdateTransactionRouteInput for method chaining
+func WithUpdateTransactionRouteMetadata(input *UpdateTransactionRouteInput, metadata map[string]any) *UpdateTransactionRouteInput {
 	input.Metadata = metadata
 	return input
-}
-
-// Validate validates the UpdateTransactionRouteInput
-func (input *UpdateTransactionRouteInput) Validate() error {
-	// If operation routes are provided, validate them
-	if len(input.OperationRoutes) > 0 {
-		// Validate each operation route ID is not empty
-		for i, routeID := range input.OperationRoutes {
-			if routeID == "" {
-				return fmt.Errorf("validation failed: operationRoutes[%d] cannot be empty", i)
-			}
-		}
-	}
-
-	return nil
 }

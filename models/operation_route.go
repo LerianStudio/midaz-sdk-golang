@@ -2,10 +2,102 @@ package models
 
 import (
 	"fmt"
-	"time"
+
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
-// OperationRouteType represents the type of operation route
+// OperationRoute is an alias for mmodel.OperationRoute to maintain compatibility while using midaz entities.
+type OperationRoute = mmodel.OperationRoute
+
+// CreateOperationRouteInput wraps mmodel.CreateOperationRouteInput to maintain compatibility while using midaz entities.
+type CreateOperationRouteInput struct {
+	mmodel.CreateOperationRouteInput
+}
+
+// Validate validates the CreateOperationRouteInput fields.
+func (input *CreateOperationRouteInput) Validate() error {
+	if input.Title == "" {
+		return fmt.Errorf("title is required")
+	}
+	if input.Description == "" {
+		return fmt.Errorf("description is required")
+	}
+	if input.OperationType == "" {
+		return fmt.Errorf("operationType is required")
+	}
+	// Validate operation type
+	if input.OperationType != "source" && input.OperationType != "destination" {
+		return fmt.Errorf("operationType must be 'source' or 'destination'")
+	}
+	return nil
+}
+
+// UpdateOperationRouteInput wraps mmodel.UpdateOperationRouteInput to maintain compatibility while using midaz entities.
+type UpdateOperationRouteInput struct {
+	mmodel.UpdateOperationRouteInput
+}
+
+// Validate validates the UpdateOperationRouteInput fields.
+func (input *UpdateOperationRouteInput) Validate() error {
+	// For updates, fields are optional so validation is minimal
+	return nil
+}
+
+// WithAccountAlias sets the account rule to use alias-based selection (method on struct).
+func (input *CreateOperationRouteInput) WithAccountAlias(alias string) *CreateOperationRouteInput {
+	input.Account = &AccountRule{
+		RuleType: "alias",
+		ValidIf:  alias,
+	}
+	return input
+}
+
+// WithAccountTypes sets the account rule to use account type-based selection (method on struct).
+func (input *CreateOperationRouteInput) WithAccountTypes(accountTypes []string) *CreateOperationRouteInput {
+	input.Account = &AccountRule{
+		RuleType: "account_type",
+		ValidIf:  accountTypes,
+	}
+	return input
+}
+
+// WithTitle sets the title for UpdateOperationRouteInput (method on struct).
+func (input *UpdateOperationRouteInput) WithTitle(title string) *UpdateOperationRouteInput {
+	input.Title = title
+	return input
+}
+
+// WithMetadata sets the metadata for CreateOperationRouteInput (method on struct).
+func (input *CreateOperationRouteInput) WithMetadata(metadata map[string]any) *CreateOperationRouteInput {
+	input.Metadata = metadata
+	return input
+}
+
+// WithDescription sets the description for UpdateOperationRouteInput (method on struct).
+func (input *UpdateOperationRouteInput) WithDescription(description string) *UpdateOperationRouteInput {
+	input.Description = description
+	return input
+}
+
+// WithAccountTypes sets the account rule to use account type-based selection for UpdateOperationRouteInput (method on struct).
+func (input *UpdateOperationRouteInput) WithAccountTypes(accountTypes []string) *UpdateOperationRouteInput {
+	input.Account = &AccountRule{
+		RuleType: "account_type",
+		ValidIf:  accountTypes,
+	}
+	return input
+}
+
+// WithMetadata sets the metadata for UpdateOperationRouteInput (method on struct).
+func (input *UpdateOperationRouteInput) WithMetadata(metadata map[string]any) *UpdateOperationRouteInput {
+	input.Metadata = metadata
+	return input
+}
+
+// AccountRule is an alias for mmodel.AccountRule to maintain compatibility while using midaz entities.
+type AccountRule = mmodel.AccountRule
+
+// OperationRouteType represents the type of operation route for backward compatibility
 type OperationRouteType string
 
 const (
@@ -24,298 +116,149 @@ const (
 	OperationRouteInputTypeDestination OperationRouteInputType = "destination"
 )
 
-// OperationRouteAccount represents the account rules for an operation route.
-// The ValidIf field accepts different types based on RuleType:
-//   - For "alias": string (single alias) or []string (multiple aliases)
-//   - For "account_type": string (single type) or []string (multiple types)
-// This flexibility matches the API specification requirements.
-type OperationRouteAccount struct {
-	RuleType string      `json:"ruleType"`
-	ValidIf  any `json:"validIf"`
-}
-
-// OperationRoute represents an operation route entity
-type OperationRoute struct {
-	ID             string                 `json:"id"`
-	OrganizationID string                 `json:"organizationId"`
-	LedgerID       string                 `json:"ledgerId"`
-	Title          string                 `json:"title"`
-	Description    string                 `json:"description"`
-	OperationType  string                 `json:"operationType"`           // source or destination
-	Account        OperationRouteAccount  `json:"account"`                 // account rules
-	CreatedAt      time.Time              `json:"createdAt"`
-	UpdatedAt      time.Time              `json:"updatedAt"`
-	DeletedAt      *time.Time             `json:"deletedAt,omitempty"`
-	Metadata       map[string]any         `json:"metadata,omitempty"`
-}
-
-// CreateOperationRouteInput represents the input for creating an operation route
-type CreateOperationRouteInput struct {
-	Title       string                 `json:"title"`
-	Description string                 `json:"description"`
-	OperationType string               `json:"operationType"`           // source or destination
-	Account     OperationRouteAccount  `json:"account"`                 // account rules
-	Metadata    map[string]any         `json:"metadata,omitempty"`
-}
-
-// NewCreateOperationRouteInput creates a new CreateOperationRouteInput with required fields
+// NewCreateOperationRouteInput creates a new CreateOperationRouteInput with required fields.
+//
+// Parameters:
+//   - title: Short text summarizing the purpose of the operation
+//   - description: Detailed description of the operation route purpose and usage
+//   - operationType: The type of the operation route ("source" or "destination")
+//
+// Returns:
+//   - A pointer to the newly created CreateOperationRouteInput
 func NewCreateOperationRouteInput(title, description, operationType string) *CreateOperationRouteInput {
 	return &CreateOperationRouteInput{
-		Title:       title,
-		Description: description,
-		OperationType: operationType,
+		CreateOperationRouteInput: mmodel.CreateOperationRouteInput{
+			Title:         title,
+			Description:   description,
+			OperationType: operationType,
+		},
 	}
 }
 
-// WithAccountTypes sets the account types validation for the operation route (ruleType: account_type)
-func (input *CreateOperationRouteInput) WithAccountTypes(accountTypes []string) *CreateOperationRouteInput {
-	input.Account = OperationRouteAccount{
+// WithAccountAlias sets the account rule to use alias-based selection.
+//
+// Parameters:
+//   - input: The CreateOperationRouteInput to modify
+//   - alias: The account alias to use for selection
+//
+// Returns:
+//   - A pointer to the modified CreateOperationRouteInput for method chaining
+func WithCreateOperationRouteAccountAlias(input *CreateOperationRouteInput, alias string) *CreateOperationRouteInput {
+	input.Account = &AccountRule{
+		RuleType: "alias",
+		ValidIf:  alias,
+	}
+	return input
+}
+
+// WithAccountType sets the account rule to use account type-based selection.
+//
+// Parameters:
+//   - input: The CreateOperationRouteInput to modify
+//   - accountTypes: The account types to use for selection
+//
+// Returns:
+//   - A pointer to the modified CreateOperationRouteInput for method chaining
+func WithCreateOperationRouteAccountType(input *CreateOperationRouteInput, accountTypes []string) *CreateOperationRouteInput {
+	input.Account = &AccountRule{
 		RuleType: "account_type",
 		ValidIf:  accountTypes,
 	}
 	return input
 }
 
-// WithAccountType sets a single account type validation for the operation route (ruleType: account_type)
-func (input *CreateOperationRouteInput) WithAccountType(accountType string) *CreateOperationRouteInput {
-	input.Account = OperationRouteAccount{
-		RuleType: "account_type",
-		ValidIf:  accountType,
-	}
-	return input
-}
-
-// WithAccountAliases sets multiple account aliases validation for the operation route (ruleType: alias)
-func (input *CreateOperationRouteInput) WithAccountAliases(accountAliases []string) *CreateOperationRouteInput {
-	input.Account = OperationRouteAccount{
-		RuleType: "alias",
-		ValidIf:  accountAliases,
-	}
-	return input
-}
-
-// WithAccountAlias sets a single account alias validation for the operation route (ruleType: alias)
-func (input *CreateOperationRouteInput) WithAccountAlias(accountAlias string) *CreateOperationRouteInput {
-	input.Account = OperationRouteAccount{
-		RuleType: "alias",
-		ValidIf:  accountAlias,
-	}
-	return input
-}
-
-// WithMetadata sets the metadata for the operation route
-func (input *CreateOperationRouteInput) WithMetadata(metadata map[string]any) *CreateOperationRouteInput {
+// WithMetadata sets the metadata for CreateOperationRouteInput.
+//
+// Parameters:
+//   - input: The CreateOperationRouteInput to modify
+//   - metadata: A map of key-value pairs to store as metadata
+//
+// Returns:
+//   - A pointer to the modified CreateOperationRouteInput for method chaining
+func WithCreateOperationRouteMetadata(input *CreateOperationRouteInput, metadata map[string]any) *CreateOperationRouteInput {
 	input.Metadata = metadata
 	return input
 }
 
-// Validate validates the CreateOperationRouteInput
-func (input *CreateOperationRouteInput) Validate() error {
-	if input.Title == "" {
-		return fmt.Errorf("title is required")
-	}
-
-	if input.OperationType == "" {
-		return fmt.Errorf("operationType is required")
-	}
-
-	// Validate operationType is one of the allowed values
-	validTypes := []string{"source", "destination"}
-	isValid := false
-	for _, validType := range validTypes {
-		if input.OperationType == validType {
-			isValid = true
-			break
-		}
-	}
-	if !isValid {
-		return fmt.Errorf("operationType must be one of: source, destination")
-	}
-
-	if input.Account.RuleType == "" {
-		return fmt.Errorf("account.ruleType is required")
-	}
-
-	// Validate ruleType is one of the allowed values
-	if input.Account.RuleType != "alias" && input.Account.RuleType != "account_type" {
-		return fmt.Errorf("account.ruleType must be 'alias' or 'account_type'")
-	}
-
-	if input.Account.ValidIf == nil {
-		return fmt.Errorf("account.validIf is required")
-	}
-
-	// Validate validIf based on ruleType (accepts both string and []string)
-	if input.Account.RuleType == "alias" {
-		switch v := input.Account.ValidIf.(type) {
-		case string:
-			if v == "" {
-				return fmt.Errorf("account.validIf cannot be empty when ruleType is 'alias'")
-			}
-		case []string:
-			if len(v) == 0 {
-				return fmt.Errorf("account.validIf cannot be empty when ruleType is 'alias'")
-			}
-			for _, alias := range v {
-				if alias == "" {
-					return fmt.Errorf("account.validIf cannot contain empty strings when ruleType is 'alias'")
-				}
-			}
-		default:
-			return fmt.Errorf("account.validIf must be a string or string array when ruleType is 'alias'")
-		}
-	} else if input.Account.RuleType == "account_type" {
-		switch v := input.Account.ValidIf.(type) {
-		case string:
-			if v == "" {
-				return fmt.Errorf("account.validIf cannot be empty when ruleType is 'account_type'")
-			}
-		case []string:
-			if len(v) == 0 {
-				return fmt.Errorf("account.validIf cannot be empty when ruleType is 'account_type'")
-			}
-			for _, accountType := range v {
-				if accountType == "" {
-					return fmt.Errorf("account.validIf cannot contain empty strings when ruleType is 'account_type'")
-				}
-			}
-		default:
-			return fmt.Errorf("account.validIf must be a string or string array when ruleType is 'account_type'")
-		}
-	}
-
-	return nil
-}
-
-// UpdateOperationRouteInput represents the input for updating an operation route
-type UpdateOperationRouteInput struct {
-	Title       *string                `json:"title,omitempty"`
-	Description *string                `json:"description,omitempty"`
-	Account     *OperationRouteAccount `json:"account,omitempty"`
-	Metadata    *map[string]any        `json:"metadata,omitempty"`
-}
-
-// NewUpdateOperationRouteInput creates a new UpdateOperationRouteInput
+// NewUpdateOperationRouteInput creates a new UpdateOperationRouteInput.
+//
+// Returns:
+//   - A pointer to the newly created UpdateOperationRouteInput
 func NewUpdateOperationRouteInput() *UpdateOperationRouteInput {
 	return &UpdateOperationRouteInput{}
 }
 
-// WithTitle sets the title for the update
-func (input *UpdateOperationRouteInput) WithTitle(title string) *UpdateOperationRouteInput {
-	input.Title = &title
+// WithTitle sets the title for UpdateOperationRouteInput.
+//
+// Parameters:
+//   - input: The UpdateOperationRouteInput to modify
+//   - title: The new title for the operation route
+//
+// Returns:
+//   - A pointer to the modified UpdateOperationRouteInput for method chaining
+func WithUpdateOperationRouteTitle(input *UpdateOperationRouteInput, title string) *UpdateOperationRouteInput {
+	input.Title = title
 	return input
 }
 
-// WithDescription sets the description for the update
-func (input *UpdateOperationRouteInput) WithDescription(description string) *UpdateOperationRouteInput {
-	input.Description = &description
+// WithDescription sets the description for UpdateOperationRouteInput.
+//
+// Parameters:
+//   - input: The UpdateOperationRouteInput to modify
+//   - description: The new description for the operation route
+//
+// Returns:
+//   - A pointer to the modified UpdateOperationRouteInput for method chaining
+func WithUpdateOperationRouteDescription(input *UpdateOperationRouteInput, description string) *UpdateOperationRouteInput {
+	input.Description = description
 	return input
 }
 
-
-// WithAccount sets the account rules for the update
-func (input *UpdateOperationRouteInput) WithAccount(account *OperationRouteAccount) *UpdateOperationRouteInput {
-	input.Account = account
+// WithAccountAlias sets the account rule to use alias-based selection for UpdateOperationRouteInput.
+//
+// Parameters:
+//   - input: The UpdateOperationRouteInput to modify
+//   - alias: The account alias to use for selection
+//
+// Returns:
+//   - A pointer to the modified UpdateOperationRouteInput for method chaining
+func WithUpdateOperationRouteAccountAlias(input *UpdateOperationRouteInput, alias string) *UpdateOperationRouteInput {
+	input.Account = &AccountRule{
+		RuleType: "alias",
+		ValidIf:  alias,
+	}
 	return input
 }
 
-// WithAccountTypes sets the account types validation for the operation route update (ruleType: account_type)
-func (input *UpdateOperationRouteInput) WithAccountTypes(accountTypes []string) *UpdateOperationRouteInput {
-	input.Account = &OperationRouteAccount{
+// WithAccountType sets the account rule to use account type-based selection for UpdateOperationRouteInput.
+//
+// Parameters:
+//   - input: The UpdateOperationRouteInput to modify
+//   - accountTypes: The account types to use for selection
+//
+// Returns:
+//   - A pointer to the modified UpdateOperationRouteInput for method chaining
+func WithUpdateOperationRouteAccountType(input *UpdateOperationRouteInput, accountTypes []string) *UpdateOperationRouteInput {
+	input.Account = &AccountRule{
 		RuleType: "account_type",
 		ValidIf:  accountTypes,
 	}
 	return input
 }
 
-// WithAccountType sets a single account type validation for the operation route update (ruleType: account_type)
-func (input *UpdateOperationRouteInput) WithAccountType(accountType string) *UpdateOperationRouteInput {
-	input.Account = &OperationRouteAccount{
-		RuleType: "account_type",
-		ValidIf:  accountType,
-	}
+// WithMetadata sets the metadata for UpdateOperationRouteInput.
+//
+// Parameters:
+//   - input: The UpdateOperationRouteInput to modify
+//   - metadata: A map of key-value pairs to store as metadata
+//
+// Returns:
+//   - A pointer to the modified UpdateOperationRouteInput for method chaining
+func WithUpdateOperationRouteMetadata(input *UpdateOperationRouteInput, metadata map[string]any) *UpdateOperationRouteInput {
+	input.Metadata = metadata
 	return input
 }
 
-// WithAccountAliases sets multiple account aliases validation for the operation route update (ruleType: alias)
-func (input *UpdateOperationRouteInput) WithAccountAliases(accountAliases []string) *UpdateOperationRouteInput {
-	input.Account = &OperationRouteAccount{
-		RuleType: "alias",
-		ValidIf:  accountAliases,
-	}
-	return input
-}
-
-// WithAccountAlias sets a single account alias validation for the operation route update (ruleType: alias)
-func (input *UpdateOperationRouteInput) WithAccountAlias(accountAlias string) *UpdateOperationRouteInput {
-	input.Account = &OperationRouteAccount{
-		RuleType: "alias",
-		ValidIf:  accountAlias,
-	}
-	return input
-}
-
-// WithMetadata sets the metadata for the update
-func (input *UpdateOperationRouteInput) WithMetadata(metadata map[string]any) *UpdateOperationRouteInput {
-	input.Metadata = &metadata
-	return input
-}
-
-// Validate validates the UpdateOperationRouteInput
-func (input *UpdateOperationRouteInput) Validate() error {
-	// Validate account rules if provided
-	if input.Account != nil {
-		if input.Account.RuleType == "" {
-			return fmt.Errorf("validation failed: account.ruleType is required when account is provided")
-		}
-
-		if input.Account.RuleType != "alias" && input.Account.RuleType != "account_type" {
-			return fmt.Errorf("validation failed: account.ruleType must be 'alias' or 'account_type'")
-		}
-
-		if input.Account.ValidIf == nil {
-			return fmt.Errorf("validation failed: account.validIf is required when account is provided")
-		}
-
-		// Validate validIf based on ruleType (accepts both string and []string)
-		if input.Account.RuleType == "alias" {
-			switch v := input.Account.ValidIf.(type) {
-			case string:
-				if v == "" {
-					return fmt.Errorf("validation failed: account.validIf cannot be empty when ruleType is 'alias'")
-				}
-			case []string:
-				if len(v) == 0 {
-					return fmt.Errorf("validation failed: account.validIf cannot be empty when ruleType is 'alias'")
-				}
-				for _, alias := range v {
-					if alias == "" {
-						return fmt.Errorf("validation failed: account.validIf cannot contain empty strings when ruleType is 'alias'")
-					}
-				}
-			default:
-				return fmt.Errorf("validation failed: account.validIf must be a string or string array when ruleType is 'alias'")
-			}
-		} else if input.Account.RuleType == "account_type" {
-			switch v := input.Account.ValidIf.(type) {
-			case string:
-				if v == "" {
-					return fmt.Errorf("validation failed: account.validIf cannot be empty when ruleType is 'account_type'")
-				}
-			case []string:
-				if len(v) == 0 {
-					return fmt.Errorf("validation failed: account.validIf cannot be empty when ruleType is 'account_type'")
-				}
-				for _, accountType := range v {
-					if accountType == "" {
-						return fmt.Errorf("validation failed: account.validIf cannot contain empty strings when ruleType is 'account_type'")
-					}
-				}
-			default:
-				return fmt.Errorf("validation failed: account.validIf must be a string or string array when ruleType is 'account_type'")
-			}
-		}
-	}
-
-	return nil
-}
+// Note: For backward compatibility, you can use the helper functions:
+// - WithCreateOperationRouteAccountAlias(input, alias) instead of input.WithAccountAlias(alias)
+// - WithCreateOperationRouteMetadata(input, metadata) instead of input.WithMetadata(metadata)

@@ -26,12 +26,10 @@ func CreateAsset(ctx context.Context, midazClient *client.Client, orgID, ledgerI
 	fmt.Println("Creating USD asset...")
 
 	usdAsset, err := midazClient.Entity.Assets.CreateAsset(
-		ctx, orgID, ledgerID, &models.CreateAssetInput{
-			Name:     "US Dollar",
-			Type:     "currency",
-			Code:     "USD",
-			Metadata: map[string]any{"purpose": "main"},
-		},
+		ctx, orgID, ledgerID,
+		models.NewCreateAssetInput("US Dollar", "USD").
+			WithType("currency").
+			WithMetadata(map[string]any{"purpose": "main"}),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create USD asset: %w", err)
