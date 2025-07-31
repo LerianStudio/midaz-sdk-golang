@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 import "github.com/LerianStudio/midaz-sdk-golang"
 
+## [v1.4.0-beta.1] - 2025-07-31
+
+This release introduces a streamlined configuration process for faster updates and enhances system performance through key dependency updates.
+
+### ✨ Features
+- **New Release Flow for Configuration**: We've implemented a new release flow to support Hot Fix (HF) and Bug Correction (BC) processes. This enhancement ensures quicker deployment of critical updates, improving system stability and performance for all users.
+
+### ⚡ Performance
+- **Dependency Update**: Upgraded the `github.com/LerianStudio/lib-commons` library from version 1.8.0 to 1.12.1. This update brings performance improvements and bug fixes that enhance the efficiency and reliability of components like authentication and build processes.
+
+### 🔧 Maintenance
+- **Build System Robustness**: The dependency update not only improves performance but also ensures compatibility with the latest security patches, maintaining the robustness and security of our build system.
+
+By focusing on these enhancements and maintenance updates, users can expect a more streamlined and efficient experience, with improved system reliability and performance.
+
 ## [v1.3.0] - 2025-06-02
 
 ### ✨ Features
