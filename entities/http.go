@@ -129,6 +129,7 @@ func (c *HTTPClient) WithRetryOptions(options ...retry.Option) *HTTPClient {
 	}
 
 	c.retryOptions = retryOpts
+
 	return c
 }
 

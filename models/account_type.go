@@ -66,6 +66,7 @@ func (input *CreateAccountTypeInput) Validate() error {
 	if input.KeyValue == "" {
 		return fmt.Errorf("keyValue is required")
 	}
+
 	return nil
 }
 

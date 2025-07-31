@@ -213,6 +213,7 @@ func EnhancedValidateAddress(address *Address, fieldPrefix string) *FieldErrors 
 		errors.Add(fieldPrefix, nil, "Address cannot be nil").
 			WithConstraint("required").
 			WithSuggestions(GetCommonSuggestions(fieldPrefix, nil, Required)...)
+
 		return errors
 	}
 
@@ -434,6 +435,7 @@ func EnhancedValidateTransactionInput(input map[string]any) *FieldErrors {
 		errors.Add("transaction", nil, "Transaction input cannot be nil").
 			WithConstraint("required").
 			WithSuggestions(GetCommonSuggestions("transaction", nil, Required)...)
+
 		return errors
 	}
 
@@ -719,6 +721,7 @@ func EnhancedValidateTransactionDSL(input TransactionDSLValidator) *FieldErrors 
 		errors.Add("transaction", nil, "Transaction input cannot be nil").
 			WithConstraint("required").
 			WithSuggestions(GetCommonSuggestions("transaction", nil, Required)...)
+
 		return errors
 	}
 
@@ -771,6 +774,7 @@ func validateTransactionDSLSourceAccounts(errors *FieldErrors, input Transaction
 		errors.Add("sourceAccounts", nil, "At least one source account is required").
 			WithConstraint("required").
 			WithSuggestions(GetCommonSuggestions("sourceAccounts", nil, Required)...)
+
 		return
 	}
 
@@ -797,6 +801,7 @@ func validateTransactionDSLDestinationAccounts(errors *FieldErrors, input Transa
 		errors.Add("destinationAccounts", nil, "At least one destination account is required").
 			WithConstraint("required").
 			WithSuggestions(GetCommonSuggestions("destinationAccounts", nil, Required)...)
+
 		return
 	}
 

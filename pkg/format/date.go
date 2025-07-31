@@ -42,6 +42,7 @@ func WithIncludeTime(include bool) FormatISOOption {
 			return nil
 		}
 		f.IncludeTime = include
+
 		return nil
 	}
 }
@@ -55,6 +56,7 @@ func WithIncludeMilliseconds(include bool) FormatISOOption {
 			f.IncludeTime = true
 		}
 		f.IncludeMilliseconds = include
+
 		return nil
 	}
 }

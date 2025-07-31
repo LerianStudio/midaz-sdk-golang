@@ -43,6 +43,7 @@ func WithPrecision(precision int) DurationOption {
 			return fmt.Errorf("precision cannot be negative: %d", precision)
 		}
 		o.Precision = precision
+
 		return nil
 	}
 }
@@ -98,6 +99,7 @@ func WithFormat(format string) DateTimeOption {
 			return errors.New("format cannot be empty")
 		}
 		o.Format = format
+
 		return nil
 	}
 }
@@ -185,6 +187,7 @@ func WithCurrencySymbol(include bool, position string) AmountOption {
 			}
 			o.SymbolPosition = position
 		}
+
 		return nil
 	}
 }
@@ -204,6 +207,7 @@ func WithDecimalSeparator(sep string) AmountOption {
 			return errors.New("decimal separator cannot be empty")
 		}
 		o.DecimalSeparator = sep
+
 		return nil
 	}
 }
@@ -264,6 +268,7 @@ func WithCustomStatusMapping(mapping map[string]string) TransactionOption {
 			return errors.New("status mapping cannot be nil")
 		}
 		o.CustomStatusMapping = mapping
+
 		return nil
 	}
 }
@@ -470,6 +475,7 @@ func FormatDurationWithOptions(d time.Duration, opts ...DurationOption) (string,
 		if !options.UseShortUnits {
 			unitStr = " microseconds"
 		}
+
 		return fmt.Sprintf("%d%s", d.Microseconds(), unitStr), nil
 	} else if d < time.Second {
 		unitStr := "ms"
@@ -483,6 +489,7 @@ func FormatDurationWithOptions(d time.Duration, opts ...DurationOption) (string,
 			unitStr = " seconds"
 		}
 		formatStr := "%." + fmt.Sprintf("%d", options.Precision) + "f%s"
+
 		return fmt.Sprintf(formatStr, float64(d)/float64(time.Second), unitStr), nil
 	}
 

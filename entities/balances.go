@@ -520,6 +520,7 @@ func (e *balancesEntity) buildURL(organizationID, ledgerID, balanceID string) st
 		if balanceID == "" {
 			return fmt.Sprintf("%s/organizations/%s/ledgers/%s/balances", base, organizationID, ledgerID)
 		}
+
 		return fmt.Sprintf("%s/organizations/%s/ledgers/%s/balances/%s", base, organizationID, ledgerID, balanceID)
 	}
 
@@ -527,6 +528,7 @@ func (e *balancesEntity) buildURL(organizationID, ledgerID, balanceID string) st
 	if balanceID == "" {
 		return fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/balances", base, organizationID, ledgerID)
 	}
+
 	return fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/balances/%s", base, organizationID, ledgerID, balanceID)
 }
 

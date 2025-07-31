@@ -97,6 +97,7 @@ type FieldErrors struct {
 func (fe *FieldErrors) Add(field string, value any, message string) *FieldError {
 	fieldError := BuildFieldError(field, value, message)
 	fe.Errors = append(fe.Errors, fieldError)
+
 	return fieldError
 }
 

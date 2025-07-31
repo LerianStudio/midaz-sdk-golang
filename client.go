@@ -216,6 +216,7 @@ func WithCustomRetryPolicy(shouldRetry func(*http.Response, error) bool) Option 
 				httpClient.WithRetryOption(retry.WithRetryableErrors(retry.DefaultRetryableErrors))
 			}
 		}
+
 		return nil
 	}
 }
@@ -485,6 +486,7 @@ func WithHTTPClient(client *http.Client) Option {
 			return fmt.Errorf("HTTP client cannot be nil")
 		}
 		c.config.HTTPClient = client
+
 		return nil
 	}
 }
@@ -585,6 +587,7 @@ func (c *Client) Logger() observability.Logger {
 	if c.observability == nil {
 		return nil
 	}
+
 	return c.observability.Logger()
 }
 

@@ -85,6 +85,7 @@ func WithBatchTimeout(timeout time.Duration) BatchOption {
 			return fmt.Errorf("batch timeout must be positive, got %v", timeout)
 		}
 		o.Timeout = timeout
+
 		return nil
 	}
 }
@@ -107,6 +108,7 @@ func WithRetryCount(count int) BatchOption {
 			return fmt.Errorf("retry count must be non-negative, got %d", count)
 		}
 		o.RetryCount = count
+
 		return nil
 	}
 }
@@ -261,6 +263,7 @@ func WithJSONPool(pool *JSONPool) BatchProcessorOption {
 			return fmt.Errorf("JSON pool cannot be nil")
 		}
 		p.jsonPool = pool
+
 		return nil
 	}
 }

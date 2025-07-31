@@ -57,6 +57,7 @@ func GetAccountAlias(account Account) string {
 	if account.Alias == nil {
 		return ""
 	}
+
 	return *account.Alias
 }
 
@@ -70,6 +71,7 @@ func GetAccountIdentifier(account Account) string {
 	if account.Alias != nil {
 		return *account.Alias
 	}
+
 	return account.ID
 }
 

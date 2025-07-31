@@ -48,6 +48,7 @@ func TestDoHTTPRequest_ServerError(t *testing.T) {
 		if attempts <= 2 {
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Write([]byte(`{"error":"internal server error"}`))
+
 			return
 		}
 
@@ -110,6 +111,7 @@ func TestDoHTTPRequest_RetryOn429(t *testing.T) {
 		if attempts <= 2 {
 			w.WriteHeader(http.StatusTooManyRequests)
 			w.Write([]byte(`{"error":"rate limited"}`))
+
 			return
 		}
 
@@ -212,6 +214,7 @@ func TestDoHTTP_SimpleAPI(t *testing.T) {
 			if string(body) == `{"test":"body"}` {
 				w.WriteHeader(http.StatusOK)
 				w.Write([]byte(`{"message":"success"}`))
+
 				return
 			}
 		}

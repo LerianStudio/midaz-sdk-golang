@@ -107,6 +107,7 @@ func WithBatchTimeout(timeout time.Duration) HTTPBatchOption {
 			return fmt.Errorf("timeout must be positive, got %v", timeout)
 		}
 		o.Timeout = timeout
+
 		return nil
 	}
 }
@@ -124,6 +125,7 @@ func WithMaxBatchSize(size int) HTTPBatchOption {
 			return fmt.Errorf("maxBatchSize must be positive, got %d", size)
 		}
 		o.MaxBatchSize = size
+
 		return nil
 	}
 }
@@ -188,6 +190,7 @@ func WithBatchWorkers(workers int) HTTPBatchOption {
 			return fmt.Errorf("workers must be positive, got %d", workers)
 		}
 		o.Workers = workers
+
 		return nil
 	}
 }
@@ -205,6 +208,7 @@ func WithHighThroughputBatch() HTTPBatchOption {
 		o.RetryCount = 5
 		o.Workers = 10
 		o.Timeout = 120 * time.Second
+
 		return nil
 	}
 }
@@ -222,6 +226,7 @@ func WithLowLatencyBatch() HTTPBatchOption {
 		o.Workers = 8
 		o.Timeout = 30 * time.Second
 		o.RetryBackoff = 100 * time.Millisecond
+
 		return nil
 	}
 }
@@ -239,6 +244,7 @@ func WithHighReliabilityBatch() HTTPBatchOption {
 		o.RetryBackoff = 750 * time.Millisecond
 		o.ContinueOnError = true
 		o.Timeout = 180 * time.Second
+
 		return nil
 	}
 }

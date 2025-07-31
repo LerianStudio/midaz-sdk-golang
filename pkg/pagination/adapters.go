@@ -43,6 +43,7 @@ func WithDefaultOffset(offset int) ModelAdapterOption {
 			return fmt.Errorf("default offset must be non-negative, got %d", offset)
 		}
 		a.defaultOffset = offset
+
 		return nil
 	}
 }
@@ -54,6 +55,7 @@ func WithDefaultFilters(filters map[string]string) ModelAdapterOption {
 			return fmt.Errorf("default filters map cannot be nil")
 		}
 		a.defaultFilters = filters
+
 		return nil
 	}
 }
@@ -183,6 +185,7 @@ func WithPaginatorEntityType(entityType string) EntityPaginatorOption {
 			return fmt.Errorf("entity type cannot be empty")
 		}
 		o.EntityType = entityType
+
 		return nil
 	}
 }

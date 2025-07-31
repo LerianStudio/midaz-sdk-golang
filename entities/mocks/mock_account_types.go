@@ -24,6 +24,7 @@ func NewMockAccountTypesService(ctrl *gomock.Controller) *MockAccountTypesServic
 	mock := &MockAccountTypesService{ctrl: ctrl}
 
 	mock.recorder = &MockAccountTypesServiceMockRecorder{mock}
+
 	return mock
 }
 
@@ -38,6 +39,7 @@ func (m *MockAccountTypesService) ListAccountTypes(ctx context.Context, organiza
 	ret := m.ctrl.Call(m, "ListAccountTypes", ctx, organizationID, ledgerID, opts)
 	ret0, _ := ret[0].(*models.ListResponse[models.AccountType])
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 
@@ -53,6 +55,7 @@ func (m *MockAccountTypesService) GetAccountType(ctx context.Context, organizati
 	ret := m.ctrl.Call(m, "GetAccountType", ctx, organizationID, ledgerID, id)
 	ret0, _ := ret[0].(*models.AccountType)
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 
@@ -68,6 +71,7 @@ func (m *MockAccountTypesService) CreateAccountType(ctx context.Context, organiz
 	ret := m.ctrl.Call(m, "CreateAccountType", ctx, organizationID, ledgerID, input)
 	ret0, _ := ret[0].(*models.AccountType)
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 
@@ -83,6 +87,7 @@ func (m *MockAccountTypesService) UpdateAccountType(ctx context.Context, organiz
 	ret := m.ctrl.Call(m, "UpdateAccountType", ctx, organizationID, ledgerID, id, input)
 	ret0, _ := ret[0].(*models.AccountType)
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 
@@ -97,6 +102,7 @@ func (m *MockAccountTypesService) DeleteAccountType(ctx context.Context, organiz
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteAccountType", ctx, organizationID, ledgerID, id)
 	ret0, _ := ret[0].(error)
+
 	return ret0
 }
 

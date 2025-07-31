@@ -228,6 +228,7 @@ func (p *Pagination) PrevPageOptions() *ListOptions {
 	if newOffset < 0 {
 		newOffset = 0
 	}
+
 	return options.WithOffset(newOffset)
 }
 
@@ -240,6 +241,7 @@ func (p *Pagination) CurrentPage() int {
 	if p.Limit <= 0 {
 		return 1
 	}
+
 	return (p.Offset / p.Limit) + 1
 }
 
@@ -253,9 +255,11 @@ func (p *Pagination) TotalPages() int {
 		return 1
 	}
 	pages := p.Total / p.Limit
+
 	if p.Total%p.Limit > 0 {
 		pages++
 	}
+
 	return pages
 }
 
@@ -326,6 +330,7 @@ func (o *ListOptions) WithLimit(limit int) *ListOptions {
 	} else {
 		o.Limit = limit
 	}
+
 	return o
 }
 
@@ -411,6 +416,7 @@ func (o *ListOptions) WithFilter(key, value string) *ListOptions {
 		o.Filters = make(map[string]string)
 	}
 	o.Filters[key] = value
+
 	return o
 }
 
@@ -437,6 +443,7 @@ func (o *ListOptions) WithFilters(filters map[string]string) *ListOptions {
 func (o *ListOptions) WithDateRange(startDate, endDate string) *ListOptions {
 	o.StartDate = startDate
 	o.EndDate = endDate
+
 	return o
 }
 

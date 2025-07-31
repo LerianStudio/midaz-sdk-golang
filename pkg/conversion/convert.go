@@ -247,6 +247,7 @@ func MapSlice[T any, R any](slice []T, mapFn func(T) R) []R {
 	for i, item := range slice {
 		result[i] = mapFn(item)
 	}
+
 	return result
 }
 
@@ -307,6 +308,7 @@ func PtrValue[T any](ptr *T, defaultValue T) T {
 	if ptr == nil {
 		return defaultValue
 	}
+
 	return *ptr
 }
 
@@ -334,5 +336,6 @@ func parseTag(tag string) []string {
 			return []string{tag[:i], tag[i+1:]}
 		}
 	}
+
 	return []string{tag, ""}
 }
