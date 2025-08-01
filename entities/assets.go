@@ -195,7 +195,6 @@ func (e *assetsEntity) ListAssets(
 	opts *models.ListOptions,
 ) (*models.ListResponse[models.Asset], error) {
 	const operation = "ListAssets"
-	const resource = "asset"
 
 	if organizationID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
@@ -242,7 +241,6 @@ func (e *assetsEntity) GetAsset(
 	organizationID, ledgerID, id string,
 ) (*models.Asset, error) {
 	const operation = "GetAsset"
-	const resource = "asset"
 
 	if organizationID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
@@ -280,7 +278,6 @@ func (e *assetsEntity) CreateAsset(
 	input *models.CreateAssetInput,
 ) (*models.Asset, error) {
 	const operation = "CreateAsset"
-	const resource = "asset"
 
 	if organizationID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
@@ -328,7 +325,6 @@ func (e *assetsEntity) UpdateAsset(
 	input *models.UpdateAssetInput,
 ) (*models.Asset, error) {
 	const operation = "UpdateAsset"
-	const resource = "asset"
 
 	if organizationID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
@@ -375,7 +371,6 @@ func (e *assetsEntity) DeleteAsset(
 	organizationID, ledgerID, id string,
 ) error {
 	const operation = "DeleteAsset"
-	const resource = "asset"
 
 	if organizationID == "" {
 		return errors.NewMissingParameterError(operation, "organizationID")

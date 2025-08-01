@@ -216,7 +216,6 @@ func NewAccountsEntity(client *http.Client, authToken string, baseURLs map[strin
 // ListAccounts lists accounts for a ledger with optional filters.
 func (e *accountsEntity) ListAccounts(ctx context.Context, organizationID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Account], error) {
 	const operation = "ListAccounts"
-	const resource = "account"
 
 	if organizationID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
@@ -255,7 +254,6 @@ func (e *accountsEntity) ListAccounts(ctx context.Context, organizationID, ledge
 // GetAccount gets an account by ID.
 func (e *accountsEntity) GetAccount(ctx context.Context, organizationID, ledgerID, id string) (*models.Account, error) {
 	const operation = "GetAccount"
-	const resource = "account"
 
 	if organizationID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
@@ -323,7 +321,6 @@ func (e *accountsEntity) GetAccountByAlias(ctx context.Context, organizationID, 
 // CreateAccount creates a new account in the specified ledger.
 func (e *accountsEntity) CreateAccount(ctx context.Context, organizationID, ledgerID string, input *models.CreateAccountInput) (*models.Account, error) {
 	const operation = "CreateAccount"
-	const resource = "account"
 
 	if organizationID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
@@ -360,7 +357,6 @@ func (e *accountsEntity) CreateAccount(ctx context.Context, organizationID, ledg
 // UpdateAccount updates an existing account.
 func (e *accountsEntity) UpdateAccount(ctx context.Context, organizationID, ledgerID, id string, input *models.UpdateAccountInput) (*models.Account, error) {
 	const operation = "UpdateAccount"
-	const resource = "account"
 
 	if organizationID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
@@ -401,7 +397,6 @@ func (e *accountsEntity) UpdateAccount(ctx context.Context, organizationID, ledg
 // DeleteAccount deletes an account.
 func (e *accountsEntity) DeleteAccount(ctx context.Context, organizationID, ledgerID, id string) error {
 	const operation = "DeleteAccount"
-	const resource = "account"
 
 	if organizationID == "" {
 		return errors.NewMissingParameterError(operation, "organizationID")
@@ -432,7 +427,6 @@ func (e *accountsEntity) DeleteAccount(ctx context.Context, organizationID, ledg
 // GetBalance gets an account's balance.
 func (e *accountsEntity) GetBalance(ctx context.Context, organizationID, ledgerID, accountID string) (*models.Balance, error) {
 	const operation = "GetBalance"
-	const resource = "account"
 
 	if organizationID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")

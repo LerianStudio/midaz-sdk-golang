@@ -135,7 +135,7 @@ func BenchmarkForEach(b *testing.B) {
 		b.Run(bc.name, func(b *testing.B) {
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				ForEach(
+				_ = ForEach(
 					context.Background(),
 					items,
 					forEachFn,
@@ -172,7 +172,7 @@ func BenchmarkRateLimiter(b *testing.B) {
 
 					ctx := context.Background()
 					for j := 0; j < numOps; j++ {
-						rl.Wait(ctx)
+						_ = rl.Wait(ctx)
 					}
 				}()
 			}

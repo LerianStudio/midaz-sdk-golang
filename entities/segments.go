@@ -142,7 +142,6 @@ func (e *segmentsEntity) ListSegments(
 	opts *models.ListOptions,
 ) (*models.ListResponse[models.Segment], error) {
 	const operation = "ListSegments"
-	const resource = "segment"
 
 	if organizationID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
@@ -185,7 +184,6 @@ func (e *segmentsEntity) GetSegment(
 	organizationID, ledgerID, id string,
 ) (*models.Segment, error) {
 	const operation = "GetSegment"
-	const resource = "segment"
 
 	if organizationID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
@@ -223,7 +221,6 @@ func (e *segmentsEntity) CreateSegment(
 	input *models.CreateSegmentInput,
 ) (*models.Segment, error) {
 	const operation = "CreateSegment"
-	const resource = "segment"
 
 	if organizationID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
@@ -270,7 +267,6 @@ func (e *segmentsEntity) UpdateSegment(
 	input *models.UpdateSegmentInput,
 ) (*models.Segment, error) {
 	const operation = "UpdateSegment"
-	const resource = "segment"
 
 	if organizationID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
@@ -317,7 +313,6 @@ func (e *segmentsEntity) DeleteSegment(
 	organizationID, ledgerID, id string,
 ) error {
 	const operation = "DeleteSegment"
-	const resource = "segment"
 
 	if organizationID == "" {
 		return errors.NewMissingParameterError(operation, "organizationID")

@@ -34,8 +34,6 @@ type Client struct {
 	// API interface flags
 	useEntity bool
 
-	// Authentication token for direct auth mode
-	setupAuthToken string
 
 	// Observability provider
 	observability observability.Provider

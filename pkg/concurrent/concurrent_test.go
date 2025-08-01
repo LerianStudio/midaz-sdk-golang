@@ -480,7 +480,7 @@ func TestRateLimiter(t *testing.T) {
 		defer rl.Stop()
 
 		// Use the first token
-		rl.Wait(context.Background())
+		_ = rl.Wait(context.Background())
 
 		// Try to get another token with a short timeout
 		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)

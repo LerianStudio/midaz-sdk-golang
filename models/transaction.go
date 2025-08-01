@@ -1210,7 +1210,7 @@ func (input *CreateTransactionInput) ToLibTransaction() map[string]any {
 	}
 
 	// Only add metadata if provided
-	if input.Metadata != nil && len(input.Metadata) > 0 {
+	if len(input.Metadata) > 0 {
 		tx["metadata"] = input.Metadata
 	}
 

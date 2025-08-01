@@ -159,7 +159,6 @@ func NewPortfoliosEntity(client *http.Client, authToken string, baseURLs map[str
 // ListPortfolios lists portfolios for a ledger with optional filters.
 func (e *portfoliosEntity) ListPortfolios(ctx context.Context, organizationID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Portfolio], error) {
 	const operation = "ListPortfolios"
-	const resource = "portfolio"
 
 	if organizationID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
@@ -198,7 +197,6 @@ func (e *portfoliosEntity) ListPortfolios(ctx context.Context, organizationID, l
 // GetPortfolio gets a portfolio by ID.
 func (e *portfoliosEntity) GetPortfolio(ctx context.Context, organizationID, ledgerID, id string) (*models.Portfolio, error) {
 	const operation = "GetPortfolio"
-	const resource = "portfolio"
 
 	if organizationID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
@@ -230,7 +228,6 @@ func (e *portfoliosEntity) GetPortfolio(ctx context.Context, organizationID, led
 // CreatePortfolio creates a new portfolio in the specified ledger.
 func (e *portfoliosEntity) CreatePortfolio(ctx context.Context, organizationID, ledgerID string, input *models.CreatePortfolioInput) (*models.Portfolio, error) {
 	const operation = "CreatePortfolio"
-	const resource = "portfolio"
 
 	if organizationID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
@@ -267,7 +264,6 @@ func (e *portfoliosEntity) CreatePortfolio(ctx context.Context, organizationID, 
 // UpdatePortfolio updates an existing portfolio.
 func (e *portfoliosEntity) UpdatePortfolio(ctx context.Context, organizationID, ledgerID, id string, input *models.UpdatePortfolioInput) (*models.Portfolio, error) {
 	const operation = "UpdatePortfolio"
-	const resource = "portfolio"
 
 	if organizationID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
@@ -308,7 +304,6 @@ func (e *portfoliosEntity) UpdatePortfolio(ctx context.Context, organizationID, 
 // DeletePortfolio deletes a portfolio.
 func (e *portfoliosEntity) DeletePortfolio(ctx context.Context, organizationID, ledgerID, id string) error {
 	const operation = "DeletePortfolio"
-	const resource = "portfolio"
 
 	if organizationID == "" {
 		return errors.NewMissingParameterError(operation, "organizationID")

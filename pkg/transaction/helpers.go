@@ -612,10 +612,8 @@ func CreateFromTemplate(
 			mergedMetadata[k] = v
 		}
 	}
-	if metadata != nil {
-		for k, v := range metadata {
-			mergedMetadata[k] = v
-		}
+	for k, v := range metadata {
+		mergedMetadata[k] = v
 	}
 	// Add timestamp to metadata
 	mergedMetadata["timestamp"] = time.Now().Unix()

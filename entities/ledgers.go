@@ -186,7 +186,6 @@ func (e *ledgersEntity) ListLedgers(
 	opts *models.ListOptions,
 ) (*models.ListResponse[models.Ledger], error) {
 	const operation = "ListLedgers"
-	const resource = "organization"
 
 	if organizationID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
@@ -227,7 +226,6 @@ func (e *ledgersEntity) GetLedger(
 	organizationID, id string,
 ) (*models.Ledger, error) {
 	const operation = "GetLedger"
-	const resource = "ledger"
 
 	if organizationID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
@@ -259,7 +257,6 @@ func (e *ledgersEntity) CreateLedger(
 	input *models.CreateLedgerInput,
 ) (*models.Ledger, error) {
 	const operation = "CreateLedger"
-	const resource = "ledger"
 
 	if organizationID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
@@ -300,7 +297,6 @@ func (e *ledgersEntity) UpdateLedger(
 	input *models.UpdateLedgerInput,
 ) (*models.Ledger, error) {
 	const operation = "UpdateLedger"
-	const resource = "ledger"
 
 	if organizationID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
@@ -343,7 +339,6 @@ func (e *ledgersEntity) DeleteLedger(
 	organizationID, id string,
 ) error {
 	const operation = "DeleteLedger"
-	const resource = "ledger"
 
 	if organizationID == "" {
 		return errors.NewMissingParameterError(operation, "organizationID")

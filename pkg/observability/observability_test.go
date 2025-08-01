@@ -132,7 +132,7 @@ func TestWithSpan(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create provider: %v", err)
 	}
-	defer provider.Shutdown(context.Background())
+	defer func() { _ = provider.Shutdown(context.Background()) }()
 
 	// Use a context that has the provider in it
 	ctx := WithProvider(context.Background(), provider)
@@ -169,7 +169,7 @@ func TestLogger(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create provider: %v", err)
 	}
-	defer provider.Shutdown(context.Background())
+	defer func() { _ = provider.Shutdown(context.Background()) }()
 
 	// Get logger
 	logger := provider.Logger()
@@ -207,7 +207,7 @@ func TestHTTPMiddleware(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create provider: %v", err)
 	}
-	defer provider.Shutdown(context.Background())
+	defer func() { _ = provider.Shutdown(context.Background()) }()
 
 	// Create server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -266,7 +266,7 @@ func TestMetricsCollector(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create provider: %v", err)
 	}
-	defer provider.Shutdown(context.Background())
+	defer func() { _ = provider.Shutdown(context.Background()) }()
 
 	// Create metrics collector
 	collector, err := NewMetricsCollector(provider)
@@ -310,7 +310,7 @@ func TestContextFunctions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create provider: %v", err)
 	}
-	defer provider.Shutdown(context.Background())
+	defer func() { _ = provider.Shutdown(context.Background()) }()
 
 	// Test WithProvider and GetProvider
 	ctx := WithProvider(context.Background(), provider)
@@ -359,7 +359,7 @@ func ExampleWithSpan() {
 		fmt.Printf("Failed to create provider: %v\n", err)
 		return
 	}
-	defer provider.Shutdown(context.Background())
+	defer func() { _ = provider.Shutdown(context.Background()) }()
 
 	// Use WithSpan to automatically create, end, and handle errors for a span
 	err = WithSpan(context.Background(), provider, "example-operation", func(ctx context.Context) error {
@@ -394,7 +394,7 @@ func ExampleMidazProvider_Logger() {
 		fmt.Printf("Failed to create provider: %v\n", err)
 		return
 	}
-	defer provider.Shutdown(context.Background())
+	defer func() { _ = provider.Shutdown(context.Background()) }()
 
 	// Get a logger
 	logger := provider.Logger()
@@ -435,7 +435,7 @@ func ExampleNewHTTPMiddleware() {
 		fmt.Printf("Failed to create provider: %v\n", err)
 		return
 	}
-	defer provider.Shutdown(context.Background())
+	defer func() { _ = provider.Shutdown(context.Background()) }()
 
 	// Create an HTTP client with the middleware and security defaults
 	client := &http.Client{

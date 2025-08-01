@@ -21,6 +21,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.34.0"
 	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 )
 
 // Constants for attribute keys used in spans and metrics
@@ -584,7 +585,7 @@ func (p *MidazProvider) setupPropagation() {
 func (p *MidazProvider) Tracer() trace.Tracer {
 	if !p.enabled || !p.config.EnabledComponents.Tracing {
 		// Return a no-op tracer if tracing is disabled
-		return trace.NewNoopTracerProvider().Tracer("")
+		return noop.NewTracerProvider().Tracer("")
 	}
 	return p.tracer
 }

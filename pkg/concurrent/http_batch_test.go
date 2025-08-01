@@ -58,7 +58,7 @@ func TestHTTPBatchProcessor_ExecuteBatch(t *testing.T) {
 
 		// Return responses
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(responses)
+		_ = json.NewEncoder(w).Encode(responses)
 	}))
 	defer server.Close()
 
@@ -155,7 +155,7 @@ func TestHTTPBatchProcessor_ExecuteLargeBatch(t *testing.T) {
 
 		// Return responses
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(responses)
+		_ = json.NewEncoder(w).Encode(responses)
 	}))
 	defer server.Close()
 
@@ -206,7 +206,7 @@ func TestHTTPBatchProcessor_Retry(t *testing.T) {
 		if attemptCount <= 2 {
 			// Fail the first two attempts
 			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(`{"error": "internal server error"}`))
+			_, _ = w.Write([]byte(`{"error": "internal server error"}`))
 			return
 		}
 
@@ -223,7 +223,7 @@ func TestHTTPBatchProcessor_Retry(t *testing.T) {
 
 		// Return responses
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(responses)
+		_ = json.NewEncoder(w).Encode(responses)
 	}))
 	defer server.Close()
 
@@ -264,7 +264,7 @@ func TestHTTPBatchProcessor_CustomJSONMarshaler(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Return a simple response
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`[{"id":"req_1","statusCode":200,"body":{"test":"value"}}]`))
+		_, _ = w.Write([]byte(`[{"id":"req_1","statusCode":200,"body":{"test":"value"}}]`))
 	}))
 	defer server.Close()
 

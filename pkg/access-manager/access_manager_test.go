@@ -115,10 +115,10 @@ func TestWithPluginAuth(t *testing.T) {
 
 					// If we have a mock response, return it
 					if tt.mockResponse != nil && tt.mockStatusCode == http.StatusOK {
-						json.NewEncoder(w).Encode(tt.mockResponse)
+						_ = json.NewEncoder(w).Encode(tt.mockResponse)
 					} else if tt.mockStatusCode == http.StatusUnauthorized {
 						// Simulate an auth error
-						w.Write([]byte(`{"code":"AUT-1004","message":"The provided 'clientId' or 'clientSecret' is incorrect.","title":"Invalid Client"}`))
+						_, _ = w.Write([]byte(`{"code":"AUT-1004","message":"The provided 'clientId' or 'clientSecret' is incorrect.","title":"Invalid Client"}`))
 					}
 				}))
 				defer server.Close()
@@ -276,12 +276,12 @@ func TestGetTokenFromPluginAuth(t *testing.T) {
 
 					// If we have a mock response, return it
 					if tt.mockResponse != nil && tt.mockStatusCode == http.StatusOK {
-						json.NewEncoder(w).Encode(tt.mockResponse)
+						_ = json.NewEncoder(w).Encode(tt.mockResponse)
 					} else if tt.mockStatusCode == http.StatusInternalServerError {
-						w.Write([]byte(`{"code":"SRV-5000","message":"Internal server error","title":"Server Error"}`))
+						_, _ = w.Write([]byte(`{"code":"SRV-5000","message":"Internal server error","title":"Server Error"}`))
 					} else if tt.mockStatusCode == http.StatusOK && tt.mockResponse == nil {
 						// Invalid JSON response
-						w.Write([]byte(`{invalid-json`))
+						_, _ = w.Write([]byte(`{invalid-json`))
 					}
 				}))
 				defer server.Close()

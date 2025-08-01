@@ -220,7 +220,6 @@ func (e *organizationsEntity) ListOrganizations(ctx context.Context, opts *model
 // GetOrganization gets an organization by ID.
 func (e *organizationsEntity) GetOrganization(ctx context.Context, id string) (*models.Organization, error) {
 	const operation = "GetOrganization"
-	const resource = "organization"
 
 	if id == "" {
 		return nil, errors.NewMissingParameterError(operation, "id")
@@ -248,7 +247,6 @@ func (e *organizationsEntity) GetOrganization(ctx context.Context, id string) (*
 // can manage multiple ledgers.
 func (e *organizationsEntity) CreateOrganization(ctx context.Context, input *models.CreateOrganizationInput) (*models.Organization, error) {
 	const operation = "CreateOrganization"
-	const resource = "organization"
 
 	if input == nil {
 		return nil, errors.NewMissingParameterError(operation, "input")
@@ -296,7 +294,6 @@ func (e *organizationsEntity) CreateOrganization(ctx context.Context, input *mod
 // UpdateOrganization updates an existing organization.
 func (e *organizationsEntity) UpdateOrganization(ctx context.Context, id string, input *models.UpdateOrganizationInput) (*models.Organization, error) {
 	const operation = "UpdateOrganization"
-	const resource = "organization"
 
 	if id == "" {
 		return nil, errors.NewMissingParameterError(operation, "id")
@@ -333,7 +330,6 @@ func (e *organizationsEntity) UpdateOrganization(ctx context.Context, id string,
 // DeleteOrganization deletes an organization.
 func (e *organizationsEntity) DeleteOrganization(ctx context.Context, id string) error {
 	const operation = "DeleteOrganization"
-	const resource = "organization"
 
 	if id == "" {
 		return errors.NewMissingParameterError(operation, "id")

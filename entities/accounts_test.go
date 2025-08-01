@@ -596,20 +596,16 @@ func (m *MockHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	return m.DoFunc(req)
 }
 
-// httpClientAdapter adapts MockHTTPClient to be used where httpClient is expected
-type httpClientAdapter struct {
-	mock *MockHTTPClient
-}
 
 func newHTTPClientAdapter(mock *MockHTTPClient) *HTTPClient {
 	// Create default retry options for tests
 	retryOptions := retry.DefaultOptions()
 
 	// Apply fast retry options for tests to avoid long waits
-	retry.WithMaxRetries(1)(retryOptions)                      // Reduced from 3
-	retry.WithInitialDelay(1 * time.Millisecond)(retryOptions) // Reduced from default
-	retry.WithMaxDelay(10 * time.Millisecond)(retryOptions)    // Reduced from default
-	retry.WithRetryableHTTPCodes(retry.DefaultRetryableHTTPCodes)(retryOptions)
+	_ = retry.WithMaxRetries(1)(retryOptions)                      // Reduced from 3
+	_ = retry.WithInitialDelay(1 * time.Millisecond)(retryOptions) // Reduced from default
+	_ = retry.WithMaxDelay(10 * time.Millisecond)(retryOptions)    // Reduced from default
+	_ = retry.WithRetryableHTTPCodes(retry.DefaultRetryableHTTPCodes)(retryOptions)
 
 	return &HTTPClient{
 		client: &http.Client{

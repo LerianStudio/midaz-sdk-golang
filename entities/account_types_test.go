@@ -317,7 +317,3 @@ func TestAccountTypesEntity_ErrorCompilation(t *testing.T) {
 	assert.NotNil(t, err)
 }
 
-// Helper function to create string pointers
-func stringPtr(s string) *string {
-	return &s
-}

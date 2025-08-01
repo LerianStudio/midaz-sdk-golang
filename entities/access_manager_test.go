@@ -99,10 +99,10 @@ func TestEntityWithPluginAuth(t *testing.T) {
 
 					// If we have a mock response, return it
 					if tt.mockResponse != nil && tt.mockStatusCode == http.StatusOK {
-						json.NewEncoder(w).Encode(tt.mockResponse)
+						_ = json.NewEncoder(w).Encode(tt.mockResponse)
 					} else if tt.mockStatusCode == http.StatusUnauthorized {
 						// Simulate an auth error
-						w.Write([]byte(`{"code":"AUT-1004","message":"The provided 'clientId' or 'clientSecret' is incorrect.","title":"Invalid Client"}`))
+						_, _ = w.Write([]byte(`{"code":"AUT-1004","message":"The provided 'clientId' or 'clientSecret' is incorrect.","title":"Invalid Client"}`))
 					}
 				}))
 				defer server.Close()
@@ -208,7 +208,7 @@ func TestWithPluginAuthOption(t *testing.T) {
 
 					// If we have a mock response, return it
 					if tt.mockResponse != nil && tt.mockStatusCode == http.StatusOK {
-						json.NewEncoder(w).Encode(tt.mockResponse)
+						_ = json.NewEncoder(w).Encode(tt.mockResponse)
 					}
 				}))
 				defer server.Close()
