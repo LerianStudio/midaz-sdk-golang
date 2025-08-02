@@ -60,7 +60,9 @@ func WithMaxMetadataSize(size int) ValidationOption {
 		if size <= 0 {
 			return fmt.Errorf("max metadata size must be positive, got %d", size)
 		}
+
 		c.MaxMetadataSize = size
+
 		return nil
 	}
 }
@@ -71,7 +73,9 @@ func WithMaxStringLength(length int) ValidationOption {
 		if length <= 0 {
 			return fmt.Errorf("max string length must be positive, got %d", length)
 		}
+
 		c.MaxStringLength = length
+
 		return nil
 	}
 }
@@ -82,7 +86,9 @@ func WithMaxAddressLineLength(length int) ValidationOption {
 		if length <= 0 {
 			return fmt.Errorf("max address line length must be positive, got %d", length)
 		}
+
 		c.MaxAddressLineLength = length
+
 		return nil
 	}
 }
@@ -93,7 +99,9 @@ func WithMaxZipCodeLength(length int) ValidationOption {
 		if length <= 0 {
 			return fmt.Errorf("max zip code length must be positive, got %d", length)
 		}
+
 		c.MaxZipCodeLength = length
+
 		return nil
 	}
 }
@@ -104,7 +112,9 @@ func WithMaxCityLength(length int) ValidationOption {
 		if length <= 0 {
 			return fmt.Errorf("max city length must be positive, got %d", length)
 		}
+
 		c.MaxCityLength = length
+
 		return nil
 	}
 }
@@ -115,7 +125,9 @@ func WithMaxStateLength(length int) ValidationOption {
 		if length <= 0 {
 			return fmt.Errorf("max state length must be positive, got %d", length)
 		}
+
 		c.MaxStateLength = length
+
 		return nil
 	}
 }

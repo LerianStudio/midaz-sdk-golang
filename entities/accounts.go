@@ -285,6 +285,7 @@ func (e *accountsEntity) GetAccount(ctx context.Context, organizationID, ledgerI
 // GetAccountByAlias gets an account by alias.
 func (e *accountsEntity) GetAccountByAlias(ctx context.Context, organizationID, ledgerID, alias string) (*models.Account, error) {
 	const operation = "GetAccountByAlias"
+
 	const resource = "account"
 
 	if organizationID == "" {

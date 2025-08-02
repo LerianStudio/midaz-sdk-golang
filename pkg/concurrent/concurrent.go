@@ -149,8 +149,10 @@ func WorkerPool[T, R any](
 	var wg sync.WaitGroup
 	for i := 0; i < options.workers; i++ {
 		wg.Add(1)
+
 		go func() {
 			defer wg.Done()
+
 			for item := range itemCh {
 				// Check if context is cancelled
 				if ctx.Err() != nil {
@@ -194,6 +196,7 @@ func WorkerPool[T, R any](
 				break
 			}
 		}
+
 		close(itemCh)
 
 		// Wait for all workers to finish
@@ -203,6 +206,7 @@ func WorkerPool[T, R any](
 
 	// Collect results
 	var results []Result[T, R]
+
 	if options.ordered {
 		// For ordered results, we need to collect all results and then sort them
 		allResults := make([]Result[T, R], 0, len(items))
@@ -354,11 +358,13 @@ func Batch[T, R any](
 
 	// Create batches
 	var batches [][]T
+
 	for i := 0; i < len(items); i += batchSize {
 		end := i + batchSize
 		if end > len(items) {
 			end = len(items)
 		}
+
 		batches = append(batches, items[i:end])
 	}
 
@@ -369,6 +375,7 @@ func Batch[T, R any](
 
 	// Convert batch results to individual results
 	var results []Result[T, R]
+
 	for _, br := range batchResults {
 		// If there was an error in batch processing, apply it to all items in the batch
 		if br.Error != nil {
@@ -480,8 +487,10 @@ func NewRateLimiter(opsPerSecond int, maxBurst int) *RateLimiter {
 
 	// Start the token generator
 	rl.wg.Add(1)
+
 	go func() {
 		defer rl.wg.Done()
+
 		for {
 			select {
 			case <-rl.ticker.C:

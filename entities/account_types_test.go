@@ -94,6 +94,7 @@ func TestAccountTypesEntity_ListAccountTypes_ValidationErrors(t *testing.T) {
 			assert.Contains(t, err.Error(), tt.expectedError)
 
 			var missingParamErr *errors.Error
+
 			assert.ErrorAs(t, err, &missingParamErr)
 		})
 	}

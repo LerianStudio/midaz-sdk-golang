@@ -83,6 +83,7 @@ func TestWorkerPool(t *testing.T) {
 
 		var processedCount int32
 		var wg sync.WaitGroup
+
 		wg.Add(1)
 
 		go func() {
@@ -126,6 +127,7 @@ func TestWorkerPool(t *testing.T) {
 
 		// Run with 1 worker
 		start := time.Now()
+
 		WorkerPool(
 			context.Background(),
 			items,
@@ -139,6 +141,7 @@ func TestWorkerPool(t *testing.T) {
 
 		// Run with 10 workers
 		start = time.Now()
+
 		WorkerPool(
 			context.Background(),
 			items,
@@ -164,6 +167,7 @@ func TestWorkerPool(t *testing.T) {
 		}
 
 		start := time.Now()
+
 		WorkerPool(
 			context.Background(),
 			items,
@@ -271,6 +275,7 @@ func TestBatch(t *testing.T) {
 			3, // Batch size of 3
 			func(ctx context.Context, batch []int) ([]int, error) {
 				result := make([]int, len(batch))
+
 				for i, item := range batch {
 					result[i] = item * 2
 				}
@@ -311,6 +316,7 @@ func TestBatch(t *testing.T) {
 					}
 				}
 				result := make([]int, len(batch))
+
 				for i, item := range batch {
 					result[i] = item * 2
 				}

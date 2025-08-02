@@ -175,6 +175,7 @@ func (c *HTTPClient) doRequest(ctx context.Context, method, requestURL string, h
 		var span trace.Span
 		spanCtx, span = c.observability.Tracer().Start(ctx, fmt.Sprintf("HTTP %s %s", method, requestURL))
 		ctx = spanCtx
+
 		defer span.End()
 	}
 
@@ -228,6 +229,7 @@ func (c *HTTPClient) doRequest(ctx context.Context, method, requestURL string, h
 
 	// Define a function to execute the request with retry logic
 	var resp *http.Response
+
 	var responseBody []byte
 
 	// Set context with retry options

@@ -497,6 +497,7 @@ func (input *TransactionDSLInput) sourceToMap() map[string]any {
 	// Convert From accounts
 	if len(input.Send.Source.From) > 0 {
 		fromList := make([]map[string]any, 0, len(input.Send.Source.From))
+
 		for _, from := range input.Send.Source.From {
 			fromMap := fromToToMap(from)
 			fromList = append(fromList, fromMap)
@@ -523,6 +524,7 @@ func (input *TransactionDSLInput) distributeToMap() map[string]any {
 	// Convert To accounts
 	if len(input.Send.Distribute.To) > 0 {
 		toList := make([]map[string]any, 0, len(input.Send.Distribute.To))
+
 		for _, to := range input.Send.Distribute.To {
 			toMap := fromToToMap(to)
 			toList = append(toList, toMap)

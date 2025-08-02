@@ -41,6 +41,7 @@ func WithIncludeTime(include bool) FormatISOOption {
 			// Keep time enabled when milliseconds are enabled
 			return nil
 		}
+
 		f.IncludeTime = include
 
 		return nil
@@ -55,6 +56,7 @@ func WithIncludeMilliseconds(include bool) FormatISOOption {
 			// Automatically enable time when milliseconds are enabled
 			f.IncludeTime = true
 		}
+
 		f.IncludeMilliseconds = include
 
 		return nil

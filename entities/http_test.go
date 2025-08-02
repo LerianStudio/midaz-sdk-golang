@@ -33,6 +33,7 @@ func BenchmarkJSONMarshal(b *testing.B) {
 
 	b.Run("Standard", func(b *testing.B) {
 		b.ResetTimer()
+
 		for i := 0; i < b.N; i++ {
 			_, err := json.Marshal(testObj)
 			if err != nil {
@@ -43,6 +44,7 @@ func BenchmarkJSONMarshal(b *testing.B) {
 
 	b.Run("Optimized", func(b *testing.B) {
 		pool := performance.NewJSONPool()
+
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
 			_, err := pool.Marshal(testObj)
@@ -73,6 +75,7 @@ func BenchmarkJSONUnmarshal(b *testing.B) {
 
 	b.Run("Optimized", func(b *testing.B) {
 		pool := performance.NewJSONPool()
+
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
 			var obj models.Organization
