@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 import "github.com/LerianStudio/midaz-sdk-golang"
 
+## [v2.0.0-beta.1] - 2025-08-04
+
+This release introduces significant enhancements to the midaz-sdk-golang, including a major transition to Midaz entity models, improved code quality, and updated documentation. These changes aim to improve data consistency, maintainability, and user experience.
+
+### ⚠️ Breaking Changes
+- **Backend**: Transition to Midaz entities for all models. This change enhances data consistency and aligns with Midaz standards. **Action Required**: Update your integrations and data handling processes to accommodate these new entities. [Migration Guide](#)
+
+### ✨ Features  
+- **Backend**: Introduced Midaz entity models, offering a standardized and robust data structure that supports future scalability and integration with other Midaz services. This update is crucial for maintaining compatibility with future SDK updates.
+
+### 🐛 Bug Fixes
+- **Test**: Adjusted routing methods and removed obsolete scale fields, improving test accuracy and reliability, ensuring smoother testing processes.
+
+### ⚡ Performance
+- **Frontend**: Refactored code to replace 'interface{}' with 'any', improving code readability and maintainability, which enhances developer experience and aligns with modern Go practices.
+
+### 🔄 Changes
+- **Build/Test**: Cleaned up golangci-lint violations across multiple components, resulting in improved code quality and reduced technical debt.
+
+### 📚 Documentation
+- **Docs**: Updated documentation to include new accounting features and removed outdated scale fields, ensuring users have access to the latest feature information and guidelines.
+
+### 🔧 Maintenance
+- **Dependencies**: Upgraded dependency versions to ensure compatibility with the latest security patches and performance improvements.
+- **Code Quality**: Various linting improvements, including variable renaming and code standardization, enhancing overall codebase maintainability.
+
+This changelog provides a clear and concise overview of the changes in version 2.0.0, focusing on user impact and necessary actions. It highlights the benefits of new features, improvements, and maintenance updates, ensuring users understand the importance and implications of this release.
+
 ## [v1.4.0-beta.1] - 2025-07-31
 
 This release introduces a streamlined configuration process for faster updates and enhances system performance through key dependency updates.
