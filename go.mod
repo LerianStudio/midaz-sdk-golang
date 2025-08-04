@@ -1,4 +1,4 @@
-module github.com/LerianStudio/midaz-sdk-golang
+module github.com/LerianStudio/midaz-sdk-golang/v2
 
 go 1.24.2
 
@@ -60,5 +60,4 @@ require (
 	google.golang.org/protobuf v1.36.6 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
 exclude go.opentelemetry.io/auto/sdk v1.1.0

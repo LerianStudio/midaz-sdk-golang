@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
 )
 
 // HTTPBatchRequest represents a single request in a batch.

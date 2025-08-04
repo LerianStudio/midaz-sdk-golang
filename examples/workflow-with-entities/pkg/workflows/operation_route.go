@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	client "github.com/LerianStudio/midaz-sdk-golang"
-	"github.com/LerianStudio/midaz-sdk-golang/models"
+	client "github.com/LerianStudio/midaz-sdk-golang/v2"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 	"github.com/google/uuid"
 )
 
@@ -30,7 +30,7 @@ func CreateOperationRoutes(ctx context.Context, midazClient *client.Client, orgI
 	// Create source operation route following the exact specification provided
 	fmt.Println("Creating source operation route (using alias rule)...")
 	fmt.Printf("Using external BRL account alias: @external/BRL\n")
-	
+
 	// Use the corrected SDK with single string for alias rule (matches API spec)
 	sourceInput := models.NewCreateOperationRouteInput(
 		"Cashin from service charge",
@@ -39,7 +39,7 @@ func CreateOperationRoutes(ctx context.Context, midazClient *client.Client, orgI
 	).WithAccountAlias("@external/BRL").WithMetadata(map[string]any{
 		"customField1": "value1",
 	})
-	
+
 	sourceOperationRoute, err := midazClient.Entity.OperationRoutes.CreateOperationRoute(
 		ctx, orgID, ledgerID, sourceInput,
 	)
@@ -142,7 +142,7 @@ func ListOperationRoutes(ctx context.Context, midazClient *client.Client, orgID,
 		Limit: 10,
 		Page:  1,
 	}
-	
+
 	routesList, err := midazClient.Entity.OperationRoutes.ListOperationRoutes(ctx, orgID, ledgerID, listOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list operation routes: %w", err)

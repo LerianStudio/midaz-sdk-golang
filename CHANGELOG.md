@@ -5,8 +5,9 @@ All notable changes to the Midaz Go SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-import "github.com/LerianStudio/midaz-sdk-golang"
+import "github.com/LerianStudio/midaz-sdk-golang/v2"
 
+<<<<<<< HEAD
 ## [v2.0.0-beta.1] - 2025-08-04
 
 This release introduces significant enhancements to the midaz-sdk-golang, including a major transition to Midaz entity models, improved code quality, and updated documentation. These changes aim to improve data consistency, maintainability, and user experience.
@@ -50,6 +51,8 @@ This release introduces a streamlined configuration process for faster updates a
 
 By focusing on these enhancements and maintenance updates, users can expect a more streamlined and efficient experience, with improved system reliability and performance.
 
+=======
+>>>>>>> 510f9ec (chore(release): Update CHANGELOG)
 ## [v1.3.0] - 2025-06-02
 
 ### ✨ Features
@@ -109,53 +112,53 @@ ianStudio/midaz-sdk-golang/compare/v1.0.7...v1.1.0-beta.1) (2025-04-09)
 
 ### Features
 
-* **docs:** improve documentation on auxiliary packages ([9cd23e8](https://github.com/LerianStudio/midaz-sdk-golang/commit/9cd23e8251bbcf9080d4f6bd73d8b6b79d7f665f))
+* **docs:** improve documentation on auxiliary packages ([9cd23e8](https://github.com/LerianStudio/midaz-sdk-golang/v2/commit/9cd23e8251bbcf9080d4f6bd73d8b6b79d7f665f))
 
-## [1.0.7](https://github.com/LerianStudio/midaz-sdk-golang/compare/v1.0.6...v1.0.7) (2025-04-08)
-
-### Bug Fixes
-
-* **readme:** alignment ([bb62be1](https://github.com/LerianStudio/midaz-sdk-golang/commit/bb62be17112245645e80747f7f24761af40ce62f))
-* **readme:** alignment ([a4ce92c](https://github.com/LerianStudio/midaz-sdk-golang/commit/a4ce92cca5efbf322e0f14d3fc03b49deb1a71b0))
-
-## [1.0.6](https://github.com/LerianStudio/midaz-sdk-golang/compare/v1.0.5...v1.0.6) (2025-04-08)
+## [1.0.7](https://github.com/LerianStudio/midaz-sdk-golang/v2/compare/v1.0.6...v1.0.7) (2025-04-08)
 
 ### Bug Fixes
 
-* **readme:** minor ([590a02e](https://github.com/LerianStudio/midaz-sdk-golang/commit/590a02e9b584380949420501a6b2446ac7688cb5))
+* **readme:** alignment ([bb62be1](https://github.com/LerianStudio/midaz-sdk-golang/v2/commit/bb62be17112245645e80747f7f24761af40ce62f))
+* **readme:** alignment ([a4ce92c](https://github.com/LerianStudio/midaz-sdk-golang/v2/commit/a4ce92cca5efbf322e0f14d3fc03b49deb1a71b0))
 
-## [1.0.5](https://github.com/LerianStudio/midaz-sdk-golang/compare/v1.0.4...v1.0.5) (2025-04-08)
-
-### Bug Fixes
-
-* **readme:** banner image ([c362c6c](https://github.com/LerianStudio/midaz-sdk-golang/commit/c362c6c32f1a929641025854066fa943fbd92c6b))
-
-## [1.0.4](https://github.com/LerianStudio/midaz-sdk-golang/compare/v1.0.3...v1.0.4) (2025-04-08)
+## [1.0.6](https://github.com/LerianStudio/midaz-sdk-golang/v2/compare/v1.0.5...v1.0.6) (2025-04-08)
 
 ### Bug Fixes
 
-* **readme:** fixing readme banner ([3a6d42a](https://github.com/LerianStudio/midaz-sdk-golang/commit/3a6d42ab3aa86eda9f47a64863e7d9763610ca51))
+* **readme:** minor ([590a02e](https://github.com/LerianStudio/midaz-sdk-golang/v2/commit/590a02e9b584380949420501a6b2446ac7688cb5))
 
-## [1.0.3](https://github.com/LerianStudio/midaz-sdk-golang/compare/v1.0.2...v1.0.3) (2025-04-08)
-
-## [1.0.2](https://github.com/LerianStudio/midaz-sdk-golang/compare/v1.0.1...v1.0.2) (2025-04-08)
+## [1.0.5](https://github.com/LerianStudio/midaz-sdk-golang/v2/compare/v1.0.4...v1.0.5) (2025-04-08)
 
 ### Bug Fixes
 
-* **tests:** time tests to comply with pipeline machine time ([1912dd0](https://github.com/LerianStudio/midaz-sdk-golang/commit/1912dd0b994bdb7d06e2522bf1451b1014865c05))
-* **tests:** time tests to comply with pipeline machine time ([bb7806f](https://github.com/LerianStudio/midaz-sdk-golang/commit/bb7806ff4e381c3c82bdaec47b60f19d50445cf7))
+* **readme:** banner image ([c362c6c](https://github.com/LerianStudio/midaz-sdk-golang/v2/commit/c362c6c32f1a929641025854066fa943fbd92c6b))
 
-## [1.0.1](https://github.com/LerianStudio/midaz-sdk-golang/compare/v1.0.0...v1.0.1) (2025-04-08)
+## [1.0.4](https://github.com/LerianStudio/midaz-sdk-golang/v2/compare/v1.0.3...v1.0.4) (2025-04-08)
 
 ### Bug Fixes
 
-* **pipeline:** artifacts version ([6bb53f2](https://github.com/LerianStudio/midaz-sdk-golang/commit/6bb53f2891d45ea6dc15b8a4f79c9fdbe97807e5))
+* **readme:** fixing readme banner ([3a6d42a](https://github.com/LerianStudio/midaz-sdk-golang/v2/commit/3a6d42ab3aa86eda9f47a64863e7d9763610ca51))
+
+## [1.0.3](https://github.com/LerianStudio/midaz-sdk-golang/v2/compare/v1.0.2...v1.0.3) (2025-04-08)
+
+## [1.0.2](https://github.com/LerianStudio/midaz-sdk-golang/v2/compare/v1.0.1...v1.0.2) (2025-04-08)
+
+### Bug Fixes
+
+* **tests:** time tests to comply with pipeline machine time ([1912dd0](https://github.com/LerianStudio/midaz-sdk-golang/v2/commit/1912dd0b994bdb7d06e2522bf1451b1014865c05))
+* **tests:** time tests to comply with pipeline machine time ([bb7806f](https://github.com/LerianStudio/midaz-sdk-golang/v2/commit/bb7806ff4e381c3c82bdaec47b60f19d50445cf7))
+
+## [1.0.1](https://github.com/LerianStudio/midaz-sdk-golang/v2/compare/v1.0.0...v1.0.1) (2025-04-08)
+
+### Bug Fixes
+
+* **pipeline:** artifacts version ([6bb53f2](https://github.com/LerianStudio/midaz-sdk-golang/v2/commit/6bb53f2891d45ea6dc15b8a4f79c9fdbe97807e5))
 
 ## 1.0.0 (2025-04-08)
 
 ### Features
 
-* **sdk:** init repo ([709cb58](https://github.com/LerianStudio/midaz-sdk-golang/commit/709cb5813927c4c505cd7d3da45cbf370cc67273))
+* **sdk:** init repo ([709cb58](https://github.com/LerianStudio/midaz-sdk-golang/v2/commit/709cb5813927c4c505cd7d3da45cbf370cc67273))
 
 # Changelog
 
@@ -164,7 +167,7 @@ All notable changes to the Midaz Go SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-import "github.com/LerianStudio/midaz-sdk-golang"
+import "github.com/LerianStudio/midaz-sdk-golang/v2"
 
 ## [Unreleased]
 

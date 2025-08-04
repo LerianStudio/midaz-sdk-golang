@@ -1,4 +1,4 @@
-package errors // import "github.com/LerianStudio/midaz-sdk-golang/pkg/errors"
+package errors // import "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
 
 Package errors provides error handling utilities for the Midaz SDK.
 

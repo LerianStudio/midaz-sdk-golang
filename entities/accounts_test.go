@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/entities/mocks"
-	"github.com/LerianStudio/midaz-sdk-golang/models"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/performance"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/entities/mocks"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/performance"
 	"github.com/shopspring/decimal"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 )

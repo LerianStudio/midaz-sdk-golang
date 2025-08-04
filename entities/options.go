@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"net/http"
 
-	auth "github.com/LerianStudio/midaz-sdk-golang/pkg/access-manager"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/observability"
+	auth "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/access-manager"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
 )
 
 // Option is a function that configures an Entity.

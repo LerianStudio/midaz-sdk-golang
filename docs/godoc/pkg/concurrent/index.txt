@@ -1,4 +1,4 @@
-package concurrent // import "github.com/LerianStudio/midaz-sdk-golang/pkg/concurrent"
+package concurrent // import "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/concurrent"
 
 Package concurrent provides utilities for working with concurrent operations in
 the Midaz SDK.

@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/concurrent"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/concurrent"
 )
 
 // Adapter Functions

@@ -1,4 +1,4 @@
-package entities // import "github.com/LerianStudio/midaz-sdk-golang/entities"
+package entities // import "github.com/LerianStudio/midaz-sdk-golang/v2/entities"
 
 Package entities provides direct access to Midaz API services.
 

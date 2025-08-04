@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"testing"
 
-	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/pkg/errors"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
 	"github.com/stretchr/testify/assert"
 )
 

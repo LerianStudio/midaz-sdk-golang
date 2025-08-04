@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	client "github.com/LerianStudio/midaz-sdk-golang"
-	"github.com/LerianStudio/midaz-sdk-golang/models"
+	client "github.com/LerianStudio/midaz-sdk-golang/v2"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 )
 
 // CreateOrganization creates a new organization and returns its ID
@@ -83,7 +83,7 @@ func UpdateOrganization(ctx context.Context, midazClient *client.Client, orgID s
 	if org.DoingBusinessAs != nil {
 		dbaValue = *org.DoingBusinessAs
 	}
-	
+
 	updatedOrg, err := midazClient.Entity.Organizations.UpdateOrganization(ctx, orgID,
 		models.NewUpdateOrganizationInput().
 			WithLegalName(org.LegalName).

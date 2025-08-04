@@ -30,7 +30,7 @@ func StartSpan(ctx context.Context, name string) (context.Context, trace.Span) {
 	}
 
 	// Fall back to global tracer if no default provider
-	return otel.Tracer("github.com/LerianStudio/midaz-sdk-golang").Start(ctx, name)
+	return otel.Tracer("github.com/LerianStudio/midaz-sdk-golang/v2").Start(ctx, name)
 }
 
 // AddAttribute adds an attribute to the current span in the context

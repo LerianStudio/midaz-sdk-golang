@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 )
 
 // Common formatting options and configurations
@@ -671,7 +671,7 @@ func determineTransactionType(tx *models.Transaction) string {
 		hasInternal := false
 
 		for _, op := range tx.Operations {
-			if op.AccountAlias != nil && strings.HasPrefix(*op.AccountAlias, "@external/") {
+			if op.AccountAlias != "" && strings.HasPrefix(op.AccountAlias, "@external/") {
 				hasExternal = true
 			} else {
 				hasInternal = true
@@ -681,7 +681,7 @@ func determineTransactionType(tx *models.Transaction) string {
 		// Determine type based on patterns
 		if hasExternal && hasInternal {
 			// Check first operation to see if it's from external (deposit) or to external (withdrawal)
-			if tx.Operations[0].AccountAlias != nil && strings.HasPrefix(*tx.Operations[0].AccountAlias, "@external/") {
+			if tx.Operations[0].AccountAlias != "" && strings.HasPrefix(tx.Operations[0].AccountAlias, "@external/") {
 				txType = "Deposit"
 			} else {
 				txType = "Withdrawal"
@@ -705,21 +705,21 @@ func extractAccountsFromOperations(operations []models.Operation) string {
 
 	for _, op := range operations {
 		// Skip external accounts for cleaner output
-		if op.AccountAlias != nil && strings.HasPrefix(*op.AccountAlias, "@external/") {
+		if op.AccountAlias != "" && strings.HasPrefix(op.AccountAlias, "@external/") {
 			continue
 		}
 
 		switch op.Type {
 		case "DEBIT":
-			if op.AccountAlias != nil {
-				fromAccounts = append(fromAccounts, *op.AccountAlias)
+			if op.AccountAlias != "" {
+				fromAccounts = append(fromAccounts, op.AccountAlias)
 			} else {
 				fromAccounts = append(fromAccounts, op.AccountID)
 			}
 
 		case "CREDIT":
-			if op.AccountAlias != nil {
-				toAccounts = append(toAccounts, *op.AccountAlias)
+			if op.AccountAlias != "" {
+				toAccounts = append(toAccounts, op.AccountAlias)
 			} else {
 				toAccounts = append(toAccounts, op.AccountID)
 			}

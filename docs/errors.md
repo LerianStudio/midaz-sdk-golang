@@ -32,7 +32,7 @@ The SDK provides several specialized error types to represent different failure 
 These error types all implement the standard Go `error` interface and can be accessed from the `pkg/errors` package:
 
 ```go
-import "github.com/LerianStudio/midaz-sdk-golang/pkg/errors"
+import "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
 ```
 
 ## Error Details
@@ -64,7 +64,7 @@ if details, ok := err.(errors.ErrorDetails); ok {
 The SDK provides helper functions to check for specific error types:
 
 ```go
-import "github.com/LerianStudio/midaz-sdk-golang/pkg/errors"
+import "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
 
 // Check for specific error types
 if errors.IsValidationError(err) {
