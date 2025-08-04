@@ -19,7 +19,7 @@ import (
 // Returns:
 //   - string: The ID of the created organization
 //   - error: Any error encountered during the operation
-func CreateOrganization(ctx context.Context, client *client.Client) (string, error) {
+func CreateOrganization(ctx context.Context, midazClient *client.Client) (string, error) {
 	fmt.Println("\n\n🏢 STEP 1: ORGANIZATION CREATION")
 	fmt.Println(strings.Repeat("=", 50))
 
@@ -27,21 +27,21 @@ func CreateOrganization(ctx context.Context, client *client.Client) (string, err
 
 	// Get plugin auth configuration from environment variables
 
-	organization, err := client.Entity.Organizations.CreateOrganization(ctx, &models.CreateOrganizationInput{
-		LegalName:     "Example Corp",
-		LegalDocument: "123456789",
-		Address: models.Address{
-			Country: "US",
-		},
-		Status: models.Status{
-			Code: "ACTIVE",
-		},
-		Metadata: map[string]any{
-			"industry": "Technology",
-			"size":     "Small",
-		},
-		DoingBusinessAs: "Example Corp DBA",
-	})
+	organization, err := midazClient.Entity.Organizations.CreateOrganization(ctx,
+		models.NewCreateOrganizationInput("Example Corp").
+			WithDoingBusinessAs("Example Corp DBA").
+			WithLegalDocument("123456789").
+			WithAddress(models.Address{
+				Country: "US",
+			}).
+			WithStatus(models.Status{
+				Code: "ACTIVE",
+			}).
+			WithMetadata(map[string]any{
+				"industry": "Technology",
+				"size":     "Small",
+			}),
+	)
 	if err != nil {
 		return "", fmt.Errorf("failed to create organization: %w", err)
 	}
@@ -66,30 +66,36 @@ func CreateOrganization(ctx context.Context, client *client.Client) (string, err
 //
 // Returns:
 //   - error: Any error encountered during the operation
-func UpdateOrganization(ctx context.Context, client *client.Client, orgID string) error {
+func UpdateOrganization(ctx context.Context, midazClient *client.Client, orgID string) error {
 	fmt.Println("\n\n🔄 STEP 9: ORGANIZATION UPDATE")
 	fmt.Println(strings.Repeat("=", 50))
 
 	fmt.Println("\nUpdating organization...")
 
 	// Get the organization first
-	org, err := client.Entity.Organizations.GetOrganization(ctx, orgID)
+	org, err := midazClient.Entity.Organizations.GetOrganization(ctx, orgID)
 	if err != nil {
 		return fmt.Errorf("failed to get organization: %w", err)
 	}
 
 	// Update the organization metadata
-	updatedOrg, err := client.Entity.Organizations.UpdateOrganization(ctx, orgID, &models.UpdateOrganizationInput{
-		LegalName:       org.LegalName,
-		DoingBusinessAs: org.DoingBusinessAs,
-		Address:         org.Address,
-		Status:          org.Status,
-		Metadata: map[string]any{
-			"industry":      "Technology",
-			"size":          "Medium", // Changed from "Small" to "Medium"
-			"lastUpdatedAt": time.Now().Format(time.RFC3339),
-		},
-	})
+	var dbaValue string
+	if org.DoingBusinessAs != nil {
+		dbaValue = *org.DoingBusinessAs
+	}
+	
+	updatedOrg, err := midazClient.Entity.Organizations.UpdateOrganization(ctx, orgID,
+		models.NewUpdateOrganizationInput().
+			WithLegalName(org.LegalName).
+			WithDoingBusinessAsUpdate(dbaValue).
+			WithAddressUpdate(models.Address(org.Address)).
+			WithStatusUpdate(org.Status).
+			WithUpdateMetadata(map[string]any{
+				"industry":      "Technology",
+				"size":          "Medium", // Changed from "Small" to "Medium"
+				"lastUpdatedAt": time.Now().Format(time.RFC3339),
+			}),
+	)
 	if err != nil {
 		return fmt.Errorf("failed to update organization: %w", err)
 	}
@@ -111,13 +117,13 @@ func UpdateOrganization(ctx context.Context, client *client.Client, orgID string
 //
 // Returns:
 //   - error: Any error encountered during the operation
-func RetrieveOrganization(ctx context.Context, client *client.Client, orgID string) error {
+func RetrieveOrganization(ctx context.Context, midazClient *client.Client, orgID string) error {
 	fmt.Println("\n\n🔍 STEP 10: ORGANIZATION RETRIEVAL")
 	fmt.Println(strings.Repeat("=", 50))
 
 	fmt.Println("\nRetrieving organization...")
 
-	org, err := client.Entity.Organizations.GetOrganization(ctx, orgID)
+	org, err := midazClient.Entity.Organizations.GetOrganization(ctx, orgID)
 	if err != nil {
 		return fmt.Errorf("failed to get organization: %w", err)
 	}

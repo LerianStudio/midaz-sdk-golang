@@ -106,32 +106,3 @@ func (mr *MockAssetsServiceMockRecorder) DeleteAsset(ctx, organizationID, ledger
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAsset", reflect.TypeOf((*MockAssetsService)(nil).DeleteAsset), ctx, organizationID, ledgerID, id)
 }
 
-// GetAssetRate mocks base method.
-func (m *MockAssetsService) GetAssetRate(ctx context.Context, organizationID, ledgerID, sourceAssetCode, destinationAssetCode string) (*models.AssetRate, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAssetRate", ctx, organizationID, ledgerID, sourceAssetCode, destinationAssetCode)
-	ret0, _ := ret[0].(*models.AssetRate)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetAssetRate indicates an expected call of GetAssetRate.
-func (mr *MockAssetsServiceMockRecorder) GetAssetRate(ctx, organizationID, ledgerID, sourceAssetCode, destinationAssetCode any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAssetRate", reflect.TypeOf((*MockAssetsService)(nil).GetAssetRate), ctx, organizationID, ledgerID, sourceAssetCode, destinationAssetCode)
-}
-
-// CreateOrUpdateAssetRate mocks base method.
-func (m *MockAssetsService) CreateOrUpdateAssetRate(ctx context.Context, organizationID, ledgerID string, input *models.UpdateAssetRateInput) (*models.AssetRate, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateOrUpdateAssetRate", ctx, organizationID, ledgerID, input)
-	ret0, _ := ret[0].(*models.AssetRate)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// CreateOrUpdateAssetRate indicates an expected call of CreateOrUpdateAssetRate.
-func (mr *MockAssetsServiceMockRecorder) CreateOrUpdateAssetRate(ctx, organizationID, ledgerID, input any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateOrUpdateAssetRate", reflect.TypeOf((*MockAssetsService)(nil).CreateOrUpdateAssetRate), ctx, organizationID, ledgerID, input)
-}

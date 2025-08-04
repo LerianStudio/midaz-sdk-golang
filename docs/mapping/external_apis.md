@@ -46,7 +46,6 @@ The entities package provides direct access to Midaz API resources.
 - `NewWithServiceURLs()` - Creates a new Entity instance with separate URLs for each service (preferred method)
 - `Entity.Accounts` - Returns the AccountsService interface for account operations
 - `Entity.Assets` - Returns the AssetsService interface for asset operations
-- `Entity.AssetRates` - Returns the AssetRatesService interface for asset rate operations
 - `Entity.Balances` - Returns the BalancesService interface for balance operations
 - `Entity.Ledgers` - Returns the LedgersService interface for ledger operations
 - `Entity.Operations` - Returns the OperationsService interface for operation operations
@@ -74,11 +73,6 @@ The entities package provides direct access to Midaz API resources.
 
 ### Asset Rates Service
 
-- `AssetRatesService.List()` - Lists asset rates for a ledger with pagination
-- `AssetRatesService.Get()` - Gets an asset rate by ID
-- `AssetRatesService.Create()` - Creates a new asset rate
-- `AssetRatesService.Update()` - Updates an asset rate
-- `AssetRatesService.Delete()` - Deletes an asset rate
 
 ### Balances Service
 
@@ -462,7 +456,6 @@ The models package defines the data structures used throughout the SDK.
 - `Ledger` - Represents a ledger in the system
 - `Account` - Represents an account in the system
 - `Asset` - Represents an asset in the system
-- `AssetRate` - Represents an exchange rate between assets
 - `Portfolio` - Represents a portfolio in the system
 - `Segment` - Represents a segment in the system
 - `Transaction` - Represents a transaction in the system
@@ -479,8 +472,6 @@ The models package defines the data structures used throughout the SDK.
 - `UpdateAccountInput` - Input for updating an account
 - `CreateAssetInput` - Input for creating an asset
 - `UpdateAssetInput` - Input for updating an asset
-- `CreateAssetRateInput` - Input for creating an asset rate
-- `UpdateAssetRateInput` - Input for updating an asset rate
 - `CreatePortfolioInput` - Input for creating a portfolio
 - `UpdatePortfolioInput` - Input for updating a portfolio
 - `CreateSegmentInput` - Input for creating a segment

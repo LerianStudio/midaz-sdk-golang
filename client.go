@@ -34,8 +34,6 @@ type Client struct {
 	// API interface flags
 	useEntity bool
 
-	// Authentication token for direct auth mode
-	setupAuthToken string
 
 	// Observability provider
 	observability observability.Provider
@@ -45,7 +43,7 @@ type Client struct {
 // New creates a new Midaz client with the provided options.
 func New(options ...Option) (*Client, error) {
 	// Create a new client with default settings
-	client := &Client{
+	c := &Client{
 		ctx: context.Background(), // Default context that can be overridden with WithContext
 	}
 
@@ -57,26 +55,27 @@ func New(options ...Option) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	client.observability = obsProvider
+
+	c.observability = obsProvider
 
 	// Create default configuration
-	client.config = config.DefaultConfig()
+	c.config = config.DefaultConfig()
 
 	// Apply all options
 	for _, option := range options {
-		if err := option(client); err != nil {
+		if err := option(c); err != nil {
 			return nil, fmt.Errorf("error applying option: %w", err)
 		}
 	}
 
 	// Create API interfaces if enabled
-	if client.useEntity {
-		if err := client.setupEntity(); err != nil {
+	if c.useEntity {
+		if err := c.setupEntity(); err != nil {
 			return nil, fmt.Errorf("error setting up Entity API: %w", err)
 		}
 	}
 
-	return client, nil
+	return c, nil
 }
 
 // Option is a functional option for configuring the client.
@@ -216,6 +215,7 @@ func WithCustomRetryPolicy(shouldRetry func(*http.Response, error) bool) Option 
 				httpClient.WithRetryOption(retry.WithRetryableErrors(retry.DefaultRetryableErrors))
 			}
 		}
+
 		return nil
 	}
 }
@@ -308,10 +308,10 @@ func WithObservability(enableTracing, enableMetrics, enableLogging bool) Option 
 		if c.Entity != nil && provider.IsEnabled() {
 			httpClient := c.Entity.GetEntityHTTPClient()
 			if httpClient != nil {
-				client := &http.Client{
+				httpClient := &http.Client{
 					Transport: observability.NewHTTPMiddleware(provider)(http.DefaultTransport),
 				}
-				c.Entity.SetHTTPClient(client)
+				c.Entity.SetHTTPClient(httpClient)
 			}
 		}
 
@@ -485,6 +485,7 @@ func WithHTTPClient(client *http.Client) Option {
 			return fmt.Errorf("HTTP client cannot be nil")
 		}
 		c.config.HTTPClient = client
+
 		return nil
 	}
 }
@@ -585,6 +586,7 @@ func (c *Client) Logger() observability.Logger {
 	if c.observability == nil {
 		return nil
 	}
+
 	return c.observability.Logger()
 }
 

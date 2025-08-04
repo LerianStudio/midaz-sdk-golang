@@ -125,6 +125,11 @@ type OrganizationsService interface {
 	// The id parameter is the unique identifier of the organization to delete.
 	// Returns an error if the operation fails.
 	DeleteOrganization(ctx context.Context, id string) error
+
+	// GetOrganizationsMetricsCount retrieves the count metrics for organizations.
+	// This method returns aggregate statistics about the number of organizations in the system.
+	// Returns the metrics count if successful, or an error if the operation fails.
+	GetOrganizationsMetricsCount(ctx context.Context) (*models.MetricsCount, error)
 }
 
 // organizationsEntity implements the OrganizationsService interface.
@@ -215,7 +220,6 @@ func (e *organizationsEntity) ListOrganizations(ctx context.Context, opts *model
 // GetOrganization gets an organization by ID.
 func (e *organizationsEntity) GetOrganization(ctx context.Context, id string) (*models.Organization, error) {
 	const operation = "GetOrganization"
-	const resource = "organization"
 
 	if id == "" {
 		return nil, errors.NewMissingParameterError(operation, "id")
@@ -243,7 +247,6 @@ func (e *organizationsEntity) GetOrganization(ctx context.Context, id string) (*
 // can manage multiple ledgers.
 func (e *organizationsEntity) CreateOrganization(ctx context.Context, input *models.CreateOrganizationInput) (*models.Organization, error) {
 	const operation = "CreateOrganization"
-	const resource = "organization"
 
 	if input == nil {
 		return nil, errors.NewMissingParameterError(operation, "input")
@@ -291,7 +294,6 @@ func (e *organizationsEntity) CreateOrganization(ctx context.Context, input *mod
 // UpdateOrganization updates an existing organization.
 func (e *organizationsEntity) UpdateOrganization(ctx context.Context, id string, input *models.UpdateOrganizationInput) (*models.Organization, error) {
 	const operation = "UpdateOrganization"
-	const resource = "organization"
 
 	if id == "" {
 		return nil, errors.NewMissingParameterError(operation, "id")
@@ -328,7 +330,6 @@ func (e *organizationsEntity) UpdateOrganization(ctx context.Context, id string,
 // DeleteOrganization deletes an organization.
 func (e *organizationsEntity) DeleteOrganization(ctx context.Context, id string) error {
 	const operation = "DeleteOrganization"
-	const resource = "organization"
 
 	if id == "" {
 		return errors.NewMissingParameterError(operation, "id")
@@ -348,6 +349,25 @@ func (e *organizationsEntity) DeleteOrganization(ctx context.Context, id string)
 	return nil
 }
 
+// GetOrganizationsMetricsCount gets the count metrics for organizations.
+func (e *organizationsEntity) GetOrganizationsMetricsCount(ctx context.Context) (*models.MetricsCount, error) {
+	const operation = "GetOrganizationsMetricsCount"
+
+	url := e.buildMetricsURL()
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	var metrics models.MetricsCount
+	if err := e.HTTPClient.sendRequest(req, &metrics); err != nil {
+		return nil, err
+	}
+
+	return &metrics, nil
+}
+
 // buildURL builds the URL for organizations API calls.
 func (e *organizationsEntity) buildURL(id string) string {
 	baseURL := e.baseURLs["onboarding"]
@@ -357,4 +377,10 @@ func (e *organizationsEntity) buildURL(id string) string {
 	}
 
 	return fmt.Sprintf("%s/organizations/%s", baseURL, id)
+}
+
+// buildMetricsURL builds the URL for organizations metrics API calls.
+func (e *organizationsEntity) buildMetricsURL() string {
+	baseURL := e.baseURLs["onboarding"]
+	return fmt.Sprintf("%s/organizations/metrics/count", baseURL)
 }

@@ -198,20 +198,6 @@ These clients handle specific resource operations. Each client encapsulates the 
   - `Update(ctx context.Context, organizationID, ledgerID, id string, input *models.UpdateAssetInput) (*models.Asset, error)` - Updates an asset
   - `Delete(ctx context.Context, organizationID, ledgerID, id string) error` - Deletes an asset
 
-### Asset Rate Client
-
-- `assetRateClient` - Handles asset rate-related API operations
-  ```go
-  type assetRateClient struct {
-      apiClient *apiClient
-  }
-  ```
-
-  - `List(ctx context.Context, organizationID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.AssetRate], error)` - Lists asset rates for a ledger
-  - `Get(ctx context.Context, organizationID, ledgerID, id string) (*models.AssetRate, error)` - Gets an asset rate by ID
-  - `Create(ctx context.Context, organizationID, ledgerID string, input *models.CreateAssetRateInput) (*models.AssetRate, error)` - Creates a new asset rate
-  - `Update(ctx context.Context, organizationID, ledgerID, id string, input *models.UpdateAssetRateInput) (*models.AssetRate, error)` - Updates an asset rate
-  - `Delete(ctx context.Context, organizationID, ledgerID, id string) error` - Deletes an asset rate
 
 ### Portfolio Client
 
@@ -318,7 +304,6 @@ These structs represent the core resources in the Midaz API:
 - `Ledger` - Represents a ledger in the system
 - `Account` - Represents an account in the system
 - `Asset` - Represents an asset in the system
-- `AssetRate` - Represents an exchange rate between assets
 - `Portfolio` - Represents a portfolio in the system
 - `Segment` - Represents a segment in the system
 - `Transaction` - Represents a transaction in the system
@@ -348,8 +333,6 @@ These structs represent the input data for API operations:
 - `UpdateAccountInput` - Input for updating an account
 - `CreateAssetInput` - Input for creating an asset
 - `UpdateAssetInput` - Input for updating an asset
-- `CreateAssetRateInput` - Input for creating an asset rate
-- `UpdateAssetRateInput` - Input for updating an asset rate
 - `CreatePortfolioInput` - Input for creating a portfolio
 - `UpdatePortfolioInput` - Input for updating a portfolio
 - `CreateSegmentInput` - Input for creating a segment

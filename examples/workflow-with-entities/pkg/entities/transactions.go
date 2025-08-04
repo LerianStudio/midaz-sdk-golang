@@ -6,6 +6,7 @@ package entities
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
 	client "github.com/LerianStudio/midaz-sdk-golang"
@@ -64,8 +65,7 @@ func TransferFunds(
 	sourceAccountID,
 	destAccountID,
 	assetCode string,
-	amount,
-	scale int64,
+	amount string,
 	description string,
 ) (*models.Transaction, error) {
 	// Determine if source is an external account
@@ -101,7 +101,10 @@ func TransferFunds(
 
 	// Create a transaction using the new format that matches the backend's expectations
 	input := &models.CreateTransactionInput{
-		Description: description,
+		ChartOfAccountsGroupName: "default_chart_group", // Required by API specification
+		Description:              description,
+		Amount:                   amount,
+		AssetCode:                assetCode,
 		Metadata: map[string]any{
 			"source": "go-sdk-example",
 			"type":   "transfer",
@@ -109,7 +112,6 @@ func TransferFunds(
 		Send: &models.SendInput{
 			Asset: assetCode,
 			Value: amount,
-			Scale: scale,
 			Source: &models.SourceInput{
 				From: []models.FromToInput{
 					{
@@ -117,7 +119,6 @@ func TransferFunds(
 						Amount: models.AmountInput{
 							Asset: assetCode,
 							Value: amount,
-							Scale: scale,
 						},
 					},
 				},
@@ -129,7 +130,6 @@ func TransferFunds(
 						Amount: models.AmountInput{
 							Asset: assetCode,
 							Value: amount,
-							Scale: scale,
 						},
 					},
 				},
@@ -153,11 +153,10 @@ func TransferFunds(
 //   - ctx: The context for the operation, which can be used for cancellation
 //   - entity: The initialized Midaz SDK entity client
 //   - orgID: The ID of the organization
-//   - ledgerID: The ID of the ledger
+//   - ledgerID: The ledger ID
 //   - sourceAccountID: The source account ID
 //   - destAccountID: The destination account ID
-//   - amount: The amount to transfer
-//   - scale: The scale/precision of the amount
+//   - amount: The amount to transfer (as decimal string)
 //   - assetCode: The asset code for the transfer
 //
 // Returns:
@@ -165,10 +164,10 @@ func TransferFunds(
 //   - error: Any error encountered during the operation
 func ExecuteTransferWithHelper(
 	ctx context.Context,
-	client *client.Client,
+	midazClient *client.Client,
 	orgID, ledgerID string,
 	sourceAccountID, destAccountID string,
-	amount, scale int64,
+	amount string,
 	assetCode string,
 ) (*models.Transaction, error) {
 	// Use the Transaction helper from the SDK
@@ -181,15 +180,23 @@ func ExecuteTransferWithHelper(
 		IdempotencyKey: uuid.New().String(),
 	}
 
+	// Convert amount string to int64 (assuming 2 decimal places)
+	amountFloat, err := strconv.ParseFloat(amount, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid amount format: %w", err)
+	}
+	amountInt := int64(amountFloat * 100) // Convert to cents
+	scale := int64(2)
+
 	// Execute the transfer using the helper
 	tx, err := transaction.Transfer(
 		ctx,
-		client,
+		midazClient.Entity,
 		orgID,
 		ledgerID,
 		sourceAccountID,
 		destAccountID,
-		amount,
+		amountInt,
 		scale,
 		assetCode,
 		transferOptions,
@@ -209,8 +216,7 @@ func ExecuteTransferWithHelper(
 //   - orgID: The ID of the organization
 //   - ledgerID: The ID of the ledger
 //   - accountID: The destination account ID
-//   - amount: The amount to deposit
-//   - scale: The scale/precision of the amount
+//   - amount: The amount to deposit (as decimal string)
 //   - assetCode: The asset code for the deposit
 //
 // Returns:
@@ -218,10 +224,10 @@ func ExecuteTransferWithHelper(
 //   - error: Any error encountered during the operation
 func ExecuteDepositWithHelper(
 	ctx context.Context,
-	client *client.Client,
+	midazClient *client.Client,
 	orgID, ledgerID string,
 	accountID string,
-	amount, scale int64,
+	amount string,
 	assetCode string,
 ) (*models.Transaction, error) {
 	// Use the Deposit helper from the SDK
@@ -234,14 +240,22 @@ func ExecuteDepositWithHelper(
 		IdempotencyKey: uuid.New().String(),
 	}
 
+	// Convert amount string to int64 (assuming 2 decimal places)
+	amountFloat, err := strconv.ParseFloat(amount, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid amount format: %w", err)
+	}
+	amountInt := int64(amountFloat * 100) // Convert to cents
+	scale := int64(2)
+
 	// Execute the deposit using the helper
 	tx, err := transaction.Deposit(
 		ctx,
-		client,
+		midazClient.Entity,
 		orgID,
 		ledgerID,
 		accountID,
-		amount,
+		amountInt,
 		scale,
 		assetCode,
 		depositOptions,
@@ -261,8 +275,7 @@ func ExecuteDepositWithHelper(
 //   - orgID: The ID of the organization
 //   - ledgerID: The ID of the ledger
 //   - accountID: The source account ID
-//   - amount: The amount to withdraw
-//   - scale: The scale/precision of the amount
+//   - amount: The amount to withdraw (as decimal string)
 //   - assetCode: The asset code for the withdrawal
 //
 // Returns:
@@ -270,10 +283,10 @@ func ExecuteDepositWithHelper(
 //   - error: Any error encountered during the operation
 func ExecuteWithdrawalWithHelper(
 	ctx context.Context,
-	client *client.Client,
+	midazClient *client.Client,
 	orgID, ledgerID string,
 	accountID string,
-	amount, scale int64,
+	amount string,
 	assetCode string,
 ) (*models.Transaction, error) {
 	// Use the Withdrawal helper from the SDK
@@ -286,14 +299,22 @@ func ExecuteWithdrawalWithHelper(
 		IdempotencyKey: uuid.New().String(),
 	}
 
+	// Convert amount string to int64 (assuming 2 decimal places)
+	amountFloat, err := strconv.ParseFloat(amount, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid amount format: %w", err)
+	}
+	amountInt := int64(amountFloat * 100) // Convert to cents
+	scale := int64(2)
+
 	// Execute the withdrawal using the helper
 	tx, err := transaction.Withdrawal(
 		ctx,
-		client,
+		midazClient.Entity,
 		orgID,
 		ledgerID,
 		accountID,
-		amount,
+		amountInt,
 		scale,
 		assetCode,
 		withdrawalOptions,
@@ -312,10 +333,9 @@ func ExecuteWithdrawalWithHelper(
 //   - entity: The initialized Midaz SDK entity client
 //   - orgID: The ID of the organization
 //   - ledgerID: The ID of the ledger
-//   - sourceAccounts: Map of source account IDs to their amounts
-//   - destAccounts: Map of destination account IDs to their amounts
-//   - totalAmount: The total amount of the transaction
-//   - scale: The scale/precision of the amount
+//   - sourceAccounts: Map of source account IDs to their amounts (as decimal strings)
+//   - destAccounts: Map of destination account IDs to their amounts (as decimal strings)
+//   - totalAmount: The total amount of the transaction (as decimal string)
 //   - assetCode: The asset code for the transfer
 //
 // Returns:
@@ -323,11 +343,11 @@ func ExecuteWithdrawalWithHelper(
 //   - error: Any error encountered during the operation
 func ExecuteMultiAccountTransferWithHelper(
 	ctx context.Context,
-	client *client.Client,
+	midazClient *client.Client,
 	orgID, ledgerID string,
-	sourceAccounts map[string]int64,
-	destAccounts map[string]int64,
-	totalAmount, scale int64,
+	sourceAccounts map[string]string,
+	destAccounts map[string]string,
+	totalAmount string,
 	assetCode string,
 ) (*models.Transaction, error) {
 	// Use the MultiAccountTransfer helper from the SDK
@@ -340,15 +360,41 @@ func ExecuteMultiAccountTransferWithHelper(
 		IdempotencyKey: uuid.New().String(),
 	}
 
+	// Convert string amounts to int64 amounts (assuming 2 decimal places)
+	sourceAccountsInt := make(map[string]int64)
+	for accountID, amountStr := range sourceAccounts {
+		amountFloat, err := strconv.ParseFloat(amountStr, 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid source amount format for account %s: %w", accountID, err)
+		}
+		sourceAccountsInt[accountID] = int64(amountFloat * 100)
+	}
+
+	destAccountsInt := make(map[string]int64)
+	for accountID, amountStr := range destAccounts {
+		amountFloat, err := strconv.ParseFloat(amountStr, 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid destination amount format for account %s: %w", accountID, err)
+		}
+		destAccountsInt[accountID] = int64(amountFloat * 100)
+	}
+
+	totalAmountFloat, err := strconv.ParseFloat(totalAmount, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid total amount format: %w", err)
+	}
+	totalAmountInt := int64(totalAmountFloat * 100)
+	scale := int64(2)
+
 	// Execute the multi-account transfer using the helper
 	tx, err := transaction.MultiAccountTransfer(
 		ctx,
-		client,
+		midazClient.Entity,
 		orgID,
 		ledgerID,
-		sourceAccounts,
-		destAccounts,
-		totalAmount,
+		sourceAccountsInt,
+		destAccountsInt,
+		totalAmountInt,
 		scale,
 		assetCode,
 		multiTransferOptions,
@@ -361,56 +407,18 @@ func ExecuteMultiAccountTransferWithHelper(
 }
 
 // ExecuteBatchTransactionsWithHelper processes multiple transactions in a batch
-//
-// Parameters:
-//   - ctx: The context for the operation, which can be used for cancellation
-//   - entity: The initialized Midaz SDK entity client
-//   - orgID: The ID of the organization
-//   - ledgerID: The ID of the ledger
-//   - inputs: The transaction inputs to process
-//
-// Returns:
-//   - []transaction.BatchResult: The results of the batch operation
-//   - transaction.BatchSummary: The summary of the batch operation
-//   - error: Any error encountered during the operation
+// NOTE: This function is commented out because batch transaction types are not yet implemented
+// in the transaction helper package.
+/*
 func ExecuteBatchTransactionsWithHelper(
 	ctx context.Context,
-	client *client.Client,
+	midazClient *client.Client,
 	orgID, ledgerID string,
 	inputs []*models.CreateTransactionInput,
 ) ([]transaction.BatchResult, *transaction.BatchSummary, error) {
-	// Use the BatchTransactions helper from the SDK
-	batchOptions := &transaction.BatchOptions{
-		Concurrency:          5,
-		BatchSize:            25,
-		RetryCount:           2,
-		IdempotencyKeyPrefix: "batch-example",
-		OnProgress: func(completed, total int, result transaction.BatchResult) {
-			// This callback is called after each transaction is processed
-			percent := float64(completed) / float64(total) * 100
-			status := "✓"
-			if result.Error != nil {
-				status = "✗"
-			}
-			fmt.Printf("\rProcessing: %d/%d (%.1f%%) %s", completed, total, percent, status)
-		},
-	}
-
-	// Execute the batch operation
-	results, err := transaction.BatchTransactions(
-		ctx,
-		client,
-		orgID,
-		ledgerID,
-		inputs,
-		batchOptions,
-	)
-	if err != nil {
-		return nil, nil, fmt.Errorf("batch transactions failed: %w", err)
-	}
-
-	// Get the batch summary
-	summary := transaction.GetBatchSummary(results)
-
-	return results, &summary, nil
+	// Batch functionality not yet implemented in transaction helpers
+	var results []transaction.BatchResult
+	var summary *transaction.BatchSummary
+	return results, summary, fmt.Errorf("batch transactions not yet implemented")
 }
+*/

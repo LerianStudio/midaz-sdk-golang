@@ -105,13 +105,13 @@ func EnhancedValidateDateRange(start, end time.Time, startField, endField string
 
 	// Check if either date is zero
 	if start.IsZero() {
-		errors.Add(startField, start, "Start date cannot be empty").
+		_ = errors.Add(startField, start, "Start date cannot be empty").
 			WithConstraint("required").
 			WithSuggestions(GetCommonSuggestions(startField, start, Required)...)
 	}
 
 	if end.IsZero() {
-		errors.Add(endField, end, "End date cannot be empty").
+		_ = errors.Add(endField, end, "End date cannot be empty").
 			WithConstraint("required").
 			WithSuggestions(GetCommonSuggestions(endField, end, Required)...)
 	}
@@ -123,7 +123,7 @@ func EnhancedValidateDateRange(start, end time.Time, startField, endField string
 
 	// Check if start date is after end date
 	if start.After(end) {
-		errors.Add("dateRange", nil, fmt.Sprintf("Start date (%s) cannot be after end date (%s)",
+		_ = errors.Add("dateRange", nil, fmt.Sprintf("Start date (%s) cannot be after end date (%s)",
 			start.Format("2006-01-02"), end.Format("2006-01-02"))).
 			WithConstraint("consistency").
 			WithSuggestions(GetCommonSuggestions("dateRange", nil, Consistency)...)
@@ -145,14 +145,14 @@ func EnhancedValidateMetadata(metadata map[string]any) *FieldErrors {
 	for key, value := range metadata {
 		// Validate key
 		if key == "" {
-			errors.Add("metadata.key", key, "Metadata key cannot be empty").
+			_ = errors.Add("metadata.key", key, "Metadata key cannot be empty").
 				WithConstraint("required").
 				WithSuggestions(GetCommonSuggestions("metadata.key", key, Required)...)
 			continue
 		}
 
 		if len(key) > 64 {
-			errors.Add(fmt.Sprintf("metadata.%s", key), key,
+			_ = errors.Add(fmt.Sprintf("metadata.%s", key), key,
 				fmt.Sprintf("Metadata key exceeds maximum length of 64 characters (length: %d)", len(key))).
 				WithConstraint("maxLength").
 				WithSuggestions(GetCommonSuggestions("metadata.key", key, Range)...)
@@ -160,7 +160,7 @@ func EnhancedValidateMetadata(metadata map[string]any) *FieldErrors {
 
 		// Validate value
 		if !isValidMetadataValueType(value) {
-			errors.Add(fmt.Sprintf("metadata.%s", key), value,
+			_ = errors.Add(fmt.Sprintf("metadata.%s", key), value,
 				fmt.Sprintf("Metadata value has unsupported type: %T", value)).
 				WithConstraint("type").
 				WithSuggestions(GetCommonSuggestions("metadata.value", value, Format)...)
@@ -169,7 +169,7 @@ func EnhancedValidateMetadata(metadata map[string]any) *FieldErrors {
 
 		// Check string value length
 		if strValue, ok := value.(string); ok && len(strValue) > 256 {
-			errors.Add(fmt.Sprintf("metadata.%s", key), strValue,
+			_ = errors.Add(fmt.Sprintf("metadata.%s", key), strValue,
 				fmt.Sprintf("Metadata string value exceeds maximum length of 256 characters (length: %d)", len(strValue))).
 				WithConstraint("maxLength").
 				WithSuggestions(GetCommonSuggestions("metadata.value", strValue, Range)...)
@@ -179,15 +179,15 @@ func EnhancedValidateMetadata(metadata map[string]any) *FieldErrors {
 		switch v := value.(type) {
 		case int:
 			if v < -9999999999 || v > 9999999999 {
-				errors.Add(fmt.Sprintf("metadata.%s", key), v,
-					fmt.Sprintf("Integer value is outside allowed range (-9999999999 to 9999999999)")).
+				_ = errors.Add(fmt.Sprintf("metadata.%s", key), v,
+					"Integer value is outside allowed range (-9999999999 to 9999999999)").
 					WithConstraint("range").
 					WithSuggestions(GetCommonSuggestions("metadata.value", v, Range)...)
 			}
 		case float64:
 			if v < -9999999999.0 || v > 9999999999.0 {
-				errors.Add(fmt.Sprintf("metadata.%s", key), v,
-					fmt.Sprintf("Float value is outside allowed range (-9999999999.0 to 9999999999.0)")).
+				_ = errors.Add(fmt.Sprintf("metadata.%s", key), v,
+					"Float value is outside allowed range (-9999999999.0 to 9999999999.0)").
 					WithConstraint("range").
 					WithSuggestions(GetCommonSuggestions("metadata.value", v, Range)...)
 			}
@@ -196,7 +196,7 @@ func EnhancedValidateMetadata(metadata map[string]any) *FieldErrors {
 
 	// Check total metadata size
 	if err := validateMetadataSize(metadata); err != nil {
-		errors.Add("metadata", metadata, "Total metadata size exceeds maximum allowed size of 4KB").
+		_ = errors.Add("metadata", metadata, "Total metadata size exceeds maximum allowed size of 4KB").
 			WithConstraint("maxSize").
 			WithSuggestions(GetCommonSuggestions("metadata", metadata, Range)...)
 	}
@@ -210,19 +210,20 @@ func EnhancedValidateAddress(address *Address, fieldPrefix string) *FieldErrors 
 	errors := NewFieldErrors()
 
 	if address == nil {
-		errors.Add(fieldPrefix, nil, "Address cannot be nil").
+		_ = errors.Add(fieldPrefix, nil, "Address cannot be nil").
 			WithConstraint("required").
 			WithSuggestions(GetCommonSuggestions(fieldPrefix, nil, Required)...)
+
 		return errors
 	}
 
 	// Validate required fields
 	if address.Line1 == "" {
-		errors.Add(fmt.Sprintf("%s.line1", fieldPrefix), address.Line1, "Address line 1 is required").
+		_ = errors.Add(fmt.Sprintf("%s.line1", fieldPrefix), address.Line1, "Address line 1 is required").
 			WithConstraint("required").
 			WithSuggestions(GetCommonSuggestions("address.line1", address.Line1, Required)...)
 	} else if len(address.Line1) > 256 {
-		errors.Add(fmt.Sprintf("%s.line1", fieldPrefix), address.Line1,
+		_ = errors.Add(fmt.Sprintf("%s.line1", fieldPrefix), address.Line1,
 			fmt.Sprintf("Address line 1 exceeds maximum length of 256 characters (length: %d)", len(address.Line1))).
 			WithConstraint("maxLength").
 			WithSuggestions(GetCommonSuggestions("address.line1", address.Line1, Range)...)
@@ -230,7 +231,7 @@ func EnhancedValidateAddress(address *Address, fieldPrefix string) *FieldErrors 
 
 	// Validate optional line 2
 	if address.Line2 != nil && len(*address.Line2) > 256 {
-		errors.Add(fmt.Sprintf("%s.line2", fieldPrefix), *address.Line2,
+		_ = errors.Add(fmt.Sprintf("%s.line2", fieldPrefix), *address.Line2,
 			fmt.Sprintf("Address line 2 exceeds maximum length of 256 characters (length: %d)", len(*address.Line2))).
 			WithConstraint("maxLength").
 			WithSuggestions(GetCommonSuggestions("address.line2", *address.Line2, Range)...)
@@ -238,11 +239,11 @@ func EnhancedValidateAddress(address *Address, fieldPrefix string) *FieldErrors 
 
 	// Validate zip code
 	if address.ZipCode == "" {
-		errors.Add(fmt.Sprintf("%s.zipCode", fieldPrefix), address.ZipCode, "Zip code is required").
+		_ = errors.Add(fmt.Sprintf("%s.zipCode", fieldPrefix), address.ZipCode, "Zip code is required").
 			WithConstraint("required").
 			WithSuggestions(GetCommonSuggestions("address.zipCode", address.ZipCode, Required)...)
 	} else if len(address.ZipCode) > 20 {
-		errors.Add(fmt.Sprintf("%s.zipCode", fieldPrefix), address.ZipCode,
+		_ = errors.Add(fmt.Sprintf("%s.zipCode", fieldPrefix), address.ZipCode,
 			fmt.Sprintf("Zip code exceeds maximum length of 20 characters (length: %d)", len(address.ZipCode))).
 			WithConstraint("maxLength").
 			WithSuggestions(GetCommonSuggestions("address.zipCode", address.ZipCode, Range)...)
@@ -250,11 +251,11 @@ func EnhancedValidateAddress(address *Address, fieldPrefix string) *FieldErrors 
 
 	// Validate city
 	if address.City == "" {
-		errors.Add(fmt.Sprintf("%s.city", fieldPrefix), address.City, "City is required").
+		_ = errors.Add(fmt.Sprintf("%s.city", fieldPrefix), address.City, "City is required").
 			WithConstraint("required").
 			WithSuggestions(GetCommonSuggestions("address.city", address.City, Required)...)
 	} else if len(address.City) > 100 {
-		errors.Add(fmt.Sprintf("%s.city", fieldPrefix), address.City,
+		_ = errors.Add(fmt.Sprintf("%s.city", fieldPrefix), address.City,
 			fmt.Sprintf("City exceeds maximum length of 100 characters (length: %d)", len(address.City))).
 			WithConstraint("maxLength").
 			WithSuggestions(GetCommonSuggestions("address.city", address.City, Range)...)
@@ -262,11 +263,11 @@ func EnhancedValidateAddress(address *Address, fieldPrefix string) *FieldErrors 
 
 	// Validate state
 	if address.State == "" {
-		errors.Add(fmt.Sprintf("%s.state", fieldPrefix), address.State, "State is required").
+		_ = errors.Add(fmt.Sprintf("%s.state", fieldPrefix), address.State, "State is required").
 			WithConstraint("required").
 			WithSuggestions(GetCommonSuggestions("address.state", address.State, Required)...)
 	} else if len(address.State) > 100 {
-		errors.Add(fmt.Sprintf("%s.state", fieldPrefix), address.State,
+		_ = errors.Add(fmt.Sprintf("%s.state", fieldPrefix), address.State,
 			fmt.Sprintf("State exceeds maximum length of 100 characters (length: %d)", len(address.State))).
 			WithConstraint("maxLength").
 			WithSuggestions(GetCommonSuggestions("address.state", address.State, Range)...)
@@ -274,11 +275,11 @@ func EnhancedValidateAddress(address *Address, fieldPrefix string) *FieldErrors 
 
 	// Validate country
 	if address.Country == "" {
-		errors.Add(fmt.Sprintf("%s.country", fieldPrefix), address.Country, "Country is required").
+		_ = errors.Add(fmt.Sprintf("%s.country", fieldPrefix), address.Country, "Country is required").
 			WithConstraint("required").
 			WithSuggestions(GetCommonSuggestions("address.country", address.Country, Required)...)
 	} else if err := ValidateCountryCode(address.Country); err != nil {
-		errors.Add(fmt.Sprintf("%s.country", fieldPrefix), address.Country, err.Error()).
+		_ = errors.Add(fmt.Sprintf("%s.country", fieldPrefix), address.Country, err.Error()).
 			WithConstraint("format").
 			WithSuggestions(GetCommonSuggestions("address.country", address.Country, Format)...)
 	}
@@ -431,15 +432,16 @@ func EnhancedValidateTransactionInput(input map[string]any) *FieldErrors {
 	errors := NewFieldErrors()
 
 	if input == nil {
-		errors.Add("transaction", nil, "Transaction input cannot be nil").
+		_ = errors.Add("transaction", nil, "Transaction input cannot be nil").
 			WithConstraint("required").
 			WithSuggestions(GetCommonSuggestions("transaction", nil, Required)...)
+
 		return errors
 	}
 
 	// Validate asset code
 	if input["asset_code"] == nil {
-		errors.Add("assetCode", nil, "Asset code is required").
+		_ = errors.Add("assetCode", nil, "Asset code is required").
 			WithConstraint("required").
 			WithSuggestions(GetCommonSuggestions("assetCode", nil, Required)...)
 	} else if assetCode, ok := input["asset_code"].(string); ok {
@@ -447,48 +449,48 @@ func EnhancedValidateTransactionInput(input map[string]any) *FieldErrors {
 			errors.AddError(err)
 		}
 	} else {
-		errors.Add("assetCode", input["asset_code"], "Asset code must be a string").
+		_ = errors.Add("assetCode", input["asset_code"], "Asset code must be a string").
 			WithConstraint("type").
 			WithSuggestions(GetCommonSuggestions("assetCode", input["asset_code"], Format)...)
 	}
 
 	// Validate amount
 	if input["amount"] == nil {
-		errors.Add("amount", nil, "Amount is required").
+		_ = errors.Add("amount", nil, "Amount is required").
 			WithConstraint("required").
 			WithSuggestions(GetCommonSuggestions("amount", nil, Required)...)
 	} else if amount, ok := input["amount"].(float64); ok {
 		if amount <= 0 {
-			errors.Add("amount", amount, "Amount must be greater than zero").
+			_ = errors.Add("amount", amount, "Amount must be greater than zero").
 				WithConstraint("min").
 				WithSuggestions(GetCommonSuggestions("amount", amount, Range)...)
 		}
 	} else {
-		errors.Add("amount", input["amount"], "Amount must be a number").
+		_ = errors.Add("amount", input["amount"], "Amount must be a number").
 			WithConstraint("type").
 			WithSuggestions(GetCommonSuggestions("amount", input["amount"], Format)...)
 	}
 
 	// Validate scale
 	if input["scale"] == nil {
-		errors.Add("scale", nil, "Scale is required").
+		_ = errors.Add("scale", nil, "Scale is required").
 			WithConstraint("required").
 			WithSuggestions(GetCommonSuggestions("scale", nil, Required)...)
 	} else if scale, ok := input["scale"].(int); ok {
 		if scale < 0 || scale > 18 {
-			errors.Add("scale", scale, "Scale must be between 0 and 18").
+			_ = errors.Add("scale", scale, "Scale must be between 0 and 18").
 				WithConstraint("range").
 				WithSuggestions(GetCommonSuggestions("scale", scale, Range)...)
 		}
 	} else {
-		errors.Add("scale", input["scale"], "Scale must be an integer").
+		_ = errors.Add("scale", input["scale"], "Scale must be an integer").
 			WithConstraint("type").
 			WithSuggestions(GetCommonSuggestions("scale", input["scale"], Format)...)
 	}
 
 	// Validate operations
 	if input["operations"] == nil || len(input["operations"].([]map[string]any)) == 0 {
-		errors.Add("operations", nil, "At least one operation is required").
+		_ = errors.Add("operations", nil, "At least one operation is required").
 			WithConstraint("required").
 			WithSuggestions(GetCommonSuggestions("operations", nil, Required)...)
 	} else {
@@ -503,7 +505,7 @@ func EnhancedValidateTransactionInput(input map[string]any) *FieldErrors {
 				errors.AddError(err)
 			}
 		} else {
-			errors.Add("metadata", input["metadata"], "Metadata must be an object").
+			_ = errors.Add("metadata", input["metadata"], "Metadata must be an object").
 				WithConstraint("type").
 				WithSuggestions(GetCommonSuggestions("metadata", input["metadata"], Format)...)
 		}
@@ -516,7 +518,7 @@ func EnhancedValidateTransactionInput(input map[string]any) *FieldErrors {
 				errors.AddError(err)
 			}
 		} else {
-			errors.Add("transactionCode", input["transaction_code"], "Transaction code must be a string").
+			_ = errors.Add("transactionCode", input["transaction_code"], "Transaction code must be a string").
 				WithConstraint("type").
 				WithSuggestions(GetCommonSuggestions("transactionCode", input["transaction_code"], Format)...)
 		}
@@ -526,7 +528,7 @@ func EnhancedValidateTransactionInput(input map[string]any) *FieldErrors {
 	if input["chart_of_accounts_group_name"] != nil {
 		if groupName, ok := input["chart_of_accounts_group_name"].(string); ok && groupName != "" {
 			if err := validateChartOfAccountsGroupName(groupName); err != nil {
-				errors.Add("chartOfAccountsGroupName", groupName, err.Error()).
+				_ = errors.Add("chartOfAccountsGroupName", groupName, err.Error()).
 					WithConstraint("format").
 					WithSuggestions(
 						"Use alphanumeric characters, spaces, underscores, and hyphens",
@@ -555,12 +557,12 @@ func validateTransactionOperationsEnhanced(errors *FieldErrors, input map[string
 
 		// Validate operation type
 		if op["type"] == nil {
-			errors.Add(fmt.Sprintf("%s.type", field), nil, "Operation type is required").
+			_ = errors.Add(fmt.Sprintf("%s.type", field), nil, "Operation type is required").
 				WithConstraint("required").
 				WithSuggestions(GetCommonSuggestions("operation.type", nil, Required)...)
 		} else if opType, ok := op["type"].(string); ok {
 			if opType != "DEBIT" && opType != "CREDIT" {
-				errors.Add(fmt.Sprintf("%s.type", field), opType, "Invalid operation type").
+				_ = errors.Add(fmt.Sprintf("%s.type", field), opType, "Invalid operation type").
 					WithConstraint("enumeration").
 					WithCode("invalid_operation_type").
 					WithSuggestions(GetCommonSuggestions("operation.type", opType, Enumeration)...)
@@ -579,14 +581,14 @@ func validateTransactionOperationsEnhanced(errors *FieldErrors, input map[string
 				}
 			}
 		} else {
-			errors.Add(fmt.Sprintf("%s.type", field), op["type"], "Operation type must be a string").
+			_ = errors.Add(fmt.Sprintf("%s.type", field), op["type"], "Operation type must be a string").
 				WithConstraint("type").
 				WithSuggestions(GetCommonSuggestions("operation.type", op["type"], Format)...)
 		}
 
 		// Validate account ID
 		if op["account_id"] == nil {
-			errors.Add(fmt.Sprintf("%s.accountId", field), nil, "Account ID is required").
+			_ = errors.Add(fmt.Sprintf("%s.accountId", field), nil, "Account ID is required").
 				WithConstraint("required").
 				WithSuggestions(GetCommonSuggestions("account.id", nil, Required)...)
 		} else if accountID, ok := op["account_id"].(string); ok {
@@ -615,17 +617,17 @@ func validateTransactionOperationsEnhanced(errors *FieldErrors, input map[string
 
 		// Validate amount
 		if op["amount"] == nil {
-			errors.Add(fmt.Sprintf("%s.amount", field), nil, "Operation amount is required").
+			_ = errors.Add(fmt.Sprintf("%s.amount", field), nil, "Operation amount is required").
 				WithConstraint("required").
 				WithSuggestions(GetCommonSuggestions("amount", nil, Required)...)
 		} else if amount, ok := op["amount"].(float64); ok {
 			if amount <= 0 {
-				errors.Add(fmt.Sprintf("%s.amount", field), amount, "Operation amount must be greater than zero").
+				_ = errors.Add(fmt.Sprintf("%s.amount", field), amount, "Operation amount must be greater than zero").
 					WithConstraint("min").
 					WithSuggestions(GetCommonSuggestions("amount", amount, Range)...)
 			}
 		} else {
-			errors.Add(fmt.Sprintf("%s.amount", field), op["amount"], "Operation amount must be a number").
+			_ = errors.Add(fmt.Sprintf("%s.amount", field), op["amount"], "Operation amount must be a number").
 				WithConstraint("type").
 				WithSuggestions(GetCommonSuggestions("amount", op["amount"], Format)...)
 		}
@@ -633,7 +635,7 @@ func validateTransactionOperationsEnhanced(errors *FieldErrors, input map[string
 		// Validate asset code matches transaction asset code
 		if op["asset_code"] != nil && op["asset_code"].(string) != "" {
 			if op["asset_code"].(string) != input["asset_code"].(string) {
-				errors.Add(fmt.Sprintf("%s.assetCode", field), op["asset_code"],
+				_ = errors.Add(fmt.Sprintf("%s.assetCode", field), op["asset_code"],
 					fmt.Sprintf("Operation asset code must match transaction asset code (expected: %s)", input["asset_code"].(string))).
 					WithConstraint("consistency").
 					WithSuggestions(GetCommonSuggestions("asset.code", op["asset_code"], Consistency)...)
@@ -650,7 +652,7 @@ func validateTransactionOperationsEnhanced(errors *FieldErrors, input map[string
 					errors.AddError(err)
 				}
 			} else {
-				errors.Add(fmt.Sprintf("%s.metadata", field), op["metadata"], "Operation metadata must be an object").
+				_ = errors.Add(fmt.Sprintf("%s.metadata", field), op["metadata"], "Operation metadata must be an object").
 					WithConstraint("type").
 					WithSuggestions(GetCommonSuggestions("metadata", op["metadata"], Format)...)
 			}
@@ -666,7 +668,7 @@ func validateTransactionOperationsEnhanced(errors *FieldErrors, input map[string
 func validateTransactionStructureEnhanced(errors *FieldErrors, debitCount, creditCount int, totalDebits, totalCredits int64, input map[string]any) {
 	// Check if there are both debits and credits
 	if debitCount == 0 {
-		errors.Add("transaction.operations", nil, "Transaction must have at least one DEBIT operation").
+		_ = errors.Add("transaction.operations", nil, "Transaction must have at least one DEBIT operation").
 			WithConstraint("required").
 			WithSuggestions(
 				"Add at least one DEBIT operation",
@@ -675,7 +677,7 @@ func validateTransactionStructureEnhanced(errors *FieldErrors, debitCount, credi
 	}
 
 	if creditCount == 0 {
-		errors.Add("transaction.operations", nil, "Transaction must have at least one CREDIT operation").
+		_ = errors.Add("transaction.operations", nil, "Transaction must have at least one CREDIT operation").
 			WithConstraint("required").
 			WithSuggestions(
 				"Add at least one CREDIT operation",
@@ -685,7 +687,7 @@ func validateTransactionStructureEnhanced(errors *FieldErrors, debitCount, credi
 
 	// Check if debits and credits balance
 	if totalDebits != totalCredits {
-		errors.Add("transaction.balance", nil,
+		_ = errors.Add("transaction.balance", nil,
 			fmt.Sprintf("Transaction is unbalanced: total debits (%d) do not equal total credits (%d)",
 				totalDebits, totalCredits)).
 			WithConstraint("balance").
@@ -698,7 +700,7 @@ func validateTransactionStructureEnhanced(errors *FieldErrors, debitCount, credi
 
 	// Check if total matches transaction amount
 	if amount, ok := input["amount"].(float64); ok && totalDebits != int64(amount) {
-		errors.Add("transaction.amount", nil,
+		_ = errors.Add("transaction.amount", nil,
 			fmt.Sprintf("Operation amounts do not match transaction amount: operations total (%d) != transaction amount (%.2f)",
 				totalDebits, amount)).
 			WithConstraint("consistency").
@@ -716,20 +718,21 @@ func EnhancedValidateTransactionDSL(input TransactionDSLValidator) *FieldErrors 
 	errors := NewFieldErrors()
 
 	if input == nil {
-		errors.Add("transaction", nil, "Transaction input cannot be nil").
+		_ = errors.Add("transaction", nil, "Transaction input cannot be nil").
 			WithConstraint("required").
 			WithSuggestions(GetCommonSuggestions("transaction", nil, Required)...)
+
 		return errors
 	}
 
 	// Validate asset code
 	asset := input.GetAsset()
 	if asset == "" {
-		errors.Add("asset", asset, "Asset code is required").
+		_ = errors.Add("asset", asset, "Asset code is required").
 			WithConstraint("required").
 			WithSuggestions(GetCommonSuggestions("asset", asset, Required)...)
 	} else if !assetCodePattern.MatchString(asset) {
-		errors.Add("asset", asset, "Invalid asset code format").
+		_ = errors.Add("asset", asset, "Invalid asset code format").
 			WithConstraint("format").
 			WithSuggestions(GetCommonSuggestions("asset", asset, Format)...)
 	}
@@ -737,7 +740,7 @@ func EnhancedValidateTransactionDSL(input TransactionDSLValidator) *FieldErrors 
 	// Validate amount
 	value := input.GetValue()
 	if value <= 0 {
-		errors.Add("value", value, "Transaction amount must be greater than zero").
+		_ = errors.Add("value", value, "Transaction amount must be greater than zero").
 			WithConstraint("min").
 			WithSuggestions(GetCommonSuggestions("amount", value, Range)...)
 	}
@@ -768,16 +771,17 @@ func EnhancedValidateTransactionDSL(input TransactionDSLValidator) *FieldErrors 
 func validateTransactionDSLSourceAccounts(errors *FieldErrors, input TransactionDSLValidator) {
 	sourceAccounts := input.GetSourceAccounts()
 	if len(sourceAccounts) == 0 {
-		errors.Add("sourceAccounts", nil, "At least one source account is required").
+		_ = errors.Add("sourceAccounts", nil, "At least one source account is required").
 			WithConstraint("required").
 			WithSuggestions(GetCommonSuggestions("sourceAccounts", nil, Required)...)
+
 		return
 	}
 
 	asset := input.GetAsset()
 	for i, account := range sourceAccounts {
 		if account.GetAccount() == "" {
-			errors.Add(fmt.Sprintf("sourceAccounts[%d]", i), account.GetAccount(), "Source account cannot be empty").
+			_ = errors.Add(fmt.Sprintf("sourceAccounts[%d]", i), account.GetAccount(), "Source account cannot be empty").
 				WithConstraint("required").
 				WithSuggestions(GetCommonSuggestions("account", account.GetAccount(), Required)...)
 			continue
@@ -794,16 +798,17 @@ func validateTransactionDSLSourceAccounts(errors *FieldErrors, input Transaction
 func validateTransactionDSLDestinationAccounts(errors *FieldErrors, input TransactionDSLValidator) {
 	destAccounts := input.GetDestinationAccounts()
 	if len(destAccounts) == 0 {
-		errors.Add("destinationAccounts", nil, "At least one destination account is required").
+		_ = errors.Add("destinationAccounts", nil, "At least one destination account is required").
 			WithConstraint("required").
 			WithSuggestions(GetCommonSuggestions("destinationAccounts", nil, Required)...)
+
 		return
 	}
 
 	asset := input.GetAsset()
 	for i, account := range destAccounts {
 		if account.GetAccount() == "" {
-			errors.Add(fmt.Sprintf("destinationAccounts[%d]", i), account.GetAccount(), "Destination account cannot be empty").
+			_ = errors.Add(fmt.Sprintf("destinationAccounts[%d]", i), account.GetAccount(), "Destination account cannot be empty").
 				WithConstraint("required").
 				WithSuggestions(GetCommonSuggestions("account", account.GetAccount(), Required)...)
 			continue

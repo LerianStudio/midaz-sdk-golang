@@ -27,7 +27,7 @@ behavior. Example:
     }
 
 var ErrMetadataSizeExceeded = &ValidationError{ ... }
-func GetCommonSuggestions(field string, value interface{}, sugType SuggestionType) []string
+func GetCommonSuggestions(field string, value any, sugType SuggestionType) []string
 func GetExampleValue(field string) string
 func GetExternalAccountReference(assetCode string) string
 func IsValidAmount(amount int64, scale int64) bool
@@ -48,7 +48,7 @@ func ValidateTransactionDSL(input TransactionDSLValidator) error
 type AccountReference interface{ ... }
 type Address struct{ ... }
 type FieldError struct{ ... }
-    func BuildFieldError(field string, value interface{}, message string) *FieldError
+    func BuildFieldError(field string, value any, message string) *FieldError
     func EnhancedValidateAccountAlias(alias string) *FieldError
     func EnhancedValidateAccountReference(account string, transactionAsset string) *FieldError
     func EnhancedValidateAccountType(accountType string) *FieldError
@@ -60,7 +60,7 @@ type FieldError struct{ ... }
     func EnhancedValidateExternalAccount(account string) *FieldError
     func EnhancedValidateExternalAccountWithTransactionAsset(account string, transactionAsset string) *FieldError
     func EnhancedValidateTransactionCode(code string) *FieldError
-    func WrapError(field string, value interface{}, err error) *FieldError
+    func WrapError(field string, value any, err error) *FieldError
 type FieldErrors struct{ ... }
     func EnhancedValidateAddress(address *Address, fieldPrefix string) *FieldErrors
     func EnhancedValidateDateRange(start, end time.Time, startField, endField string) *FieldErrors

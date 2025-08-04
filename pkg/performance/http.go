@@ -382,7 +382,7 @@ func OptimizeHTTPClient(client *http.Client, opts ...TransportOption) (*http.Cli
 		if transport.ExpectContinueTimeout == 0 {
 			transport.ExpectContinueTimeout = config.ExpectContinueTimeout
 		}
-		if transport.ForceAttemptHTTP2 == false {
+		if !transport.ForceAttemptHTTP2 {
 			transport.ForceAttemptHTTP2 = true
 		}
 	} else if client.Transport == nil {

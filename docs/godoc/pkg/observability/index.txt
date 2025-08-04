@@ -4,7 +4,7 @@ Package observability provides utilities for adding observability capabilities
 to the Midaz SDK, including metrics, logging, and distributed tracing.
 
 const KeySDKVersion = "midaz.sdk.version" ...
-func AddAttribute(ctx context.Context, key string, value interface{})
+func AddAttribute(ctx context.Context, key string, value any)
 func AddEvent(ctx context.Context, name string, attrs map[string]string)
 func AddSpanAttributes(ctx context.Context, attrs ...attribute.KeyValue)
 func AddSpanEvent(ctx context.Context, name string, attrs ...attribute.KeyValue)

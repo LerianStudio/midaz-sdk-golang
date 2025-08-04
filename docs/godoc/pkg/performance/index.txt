@@ -85,17 +85,17 @@ func ApplyGlobalPerformanceOptions(options Options)
 func ConvertRequests(requests []BatchRequest) []concurrent.HTTPBatchRequest
 func GetBatchSize() int
 func GetOptimalBatchSize(totalCount, maxBatchSize int) int
-func Marshal(v interface{}) ([]byte, error)
+func Marshal(v any) ([]byte, error)
 func NewClient(opts ...HTTPClientOption) (*http.Client, error)
 func NewDecoder(r io.Reader) *json.Decoder
 func NewEncoder(w io.Writer) *json.Encoder
 func NewTransport(opts ...TransportOption) (*http.Transport, error)
 func OptimizeClient(client *http.Client, options *HTTPClientOptions) *http.Client
 func OptimizeHTTPClient(client *http.Client, opts ...TransportOption) (*http.Client, error)
-func ParseResponseWithAdapter(processor *BatchProcessor, result *BatchResult, requestID string, ...) error
+func ParseResponseWithAdapter(processor *BatchProcessor, result *BatchResult, requestID string, target any) error
 func ReleaseDecoder(dec *json.Decoder)
 func ReleaseEncoder(enc *json.Encoder)
-func Unmarshal(data []byte, v interface{}) error
+func Unmarshal(data []byte, v any) error
 type BatchOption func(*BatchOptions) error
     func WithBatchTimeout(timeout time.Duration) BatchOption
     func WithContinueOnError(continueOnError bool) BatchOption

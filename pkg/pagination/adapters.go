@@ -43,6 +43,7 @@ func WithDefaultOffset(offset int) ModelAdapterOption {
 			return fmt.Errorf("default offset must be non-negative, got %d", offset)
 		}
 		a.defaultOffset = offset
+
 		return nil
 	}
 }
@@ -54,6 +55,7 @@ func WithDefaultFilters(filters map[string]string) ModelAdapterOption {
 			return fmt.Errorf("default filters map cannot be nil")
 		}
 		a.defaultFilters = filters
+
 		return nil
 	}
 }
@@ -72,7 +74,7 @@ func NewModelAdapter(options ...ModelAdapterOption) (*ModelAdapter, error) {
 }
 
 // OptionsToPageOptions converts SDK ListOptions to PageOptions
-func (a *ModelAdapter) OptionsToPageOptions(opts interface{}) PageOptions {
+func (a *ModelAdapter) OptionsToPageOptions(opts any) PageOptions {
 	// This is just a type assertion example; adjust based on actual SDK types
 	if listOpts, ok := opts.(interface {
 		GetLimit() int
@@ -98,7 +100,7 @@ func (a *ModelAdapter) OptionsToPageOptions(opts interface{}) PageOptions {
 
 // PageResultFromResponse converts a ListResponse to PageResult
 // The T and R type parameters represent the target item type and response item type respectively
-func PageResultFromResponse[T any, R any](adapter *ModelAdapter, response interface{}, itemsExtractor func(R) T) *PageResult[T] {
+func PageResultFromResponse[T any, R any](adapter *ModelAdapter, response any, itemsExtractor func(R) T) *PageResult[T] {
 	// This is just a type assertion example; adjust based on actual SDK types
 	if listResp, ok := response.(interface {
 		GetItems() []R
@@ -139,7 +141,7 @@ type EntityPaginatorOption func(*EntityPaginatorOptions) error
 // EntityPaginatorOptions holds all configuration options for an entity paginator
 type EntityPaginatorOptions struct {
 	// Initial page options
-	InitialOptions interface{}
+	InitialOptions any
 
 	// Operation name for metrics and logging
 	OperationName string
@@ -155,7 +157,7 @@ type EntityPaginatorOptions struct {
 }
 
 // WithEntityInitialOptions sets the initial options for entity pagination
-func WithEntityInitialOptions(options interface{}) EntityPaginatorOption {
+func WithEntityInitialOptions(options any) EntityPaginatorOption {
 	return func(o *EntityPaginatorOptions) error {
 		if options == nil {
 			return fmt.Errorf("initial options cannot be nil")
@@ -183,6 +185,7 @@ func WithPaginatorEntityType(entityType string) EntityPaginatorOption {
 			return fmt.Errorf("entity type cannot be empty")
 		}
 		o.EntityType = entityType
+
 		return nil
 	}
 }
@@ -216,7 +219,7 @@ func DefaultEntityPaginatorOptions() *EntityPaginatorOptions {
 // CreateEntityPaginator creates a Paginator for entity list operations
 func CreateEntityPaginator[T any, R any](
 	ctx context.Context,
-	listFn func(context.Context, interface{}) (interface{}, error),
+	listFn func(context.Context, any) (any, error),
 	itemsExtractor func(R) T,
 	options ...EntityPaginatorOption,
 ) (Paginator[T], error) {
@@ -271,8 +274,8 @@ func CreateEntityPaginatorWithDefaults[T any, R any](
 	ctx context.Context,
 	operationName string,
 	entityType string,
-	listFn func(context.Context, interface{}) (interface{}, error),
-	initialOptions interface{},
+	listFn func(context.Context, any) (any, error),
+	initialOptions any,
 	itemsExtractor func(R) T,
 ) Paginator[T] {
 	paginator, err := CreateEntityPaginator[T, R](

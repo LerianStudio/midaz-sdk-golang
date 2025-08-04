@@ -13,6 +13,7 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/entities/mocks"
 	"github.com/LerianStudio/midaz-sdk-golang/models"
 	"github.com/LerianStudio/midaz-sdk-golang/pkg/performance"
+	"github.com/shopspring/decimal"
 	"github.com/LerianStudio/midaz-sdk-golang/pkg/retry"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -524,9 +525,8 @@ func TestGetBalance(t *testing.T) {
 		AccountID:      accountID,
 		Alias:          accountAlias,
 		AssetCode:      "USD",
-		Available:      1000000,
-		OnHold:         0,
-		Scale:          100,
+		Available:      decimal.NewFromInt(1000000),
+		OnHold:         decimal.NewFromInt(0),
 		Version:        1,
 		AccountType:    "LIABILITY",
 		AllowSending:   true,
@@ -545,9 +545,8 @@ func TestGetBalance(t *testing.T) {
 	assert.Equal(t, accountID, result.AccountID)
 	assert.Equal(t, "USD", result.AssetCode)
 	assert.Equal(t, "LIABILITY", result.AccountType)
-	assert.Equal(t, int64(1000000), result.Available)
-	assert.Equal(t, int64(0), result.OnHold)
-	assert.Equal(t, int64(100), result.Scale)
+	assert.Equal(t, decimal.NewFromInt(1000000), result.Available)
+	assert.Equal(t, decimal.NewFromInt(0), result.OnHold)
 	assert.Equal(t, true, result.AllowSending)
 	assert.Equal(t, true, result.AllowReceiving)
 
@@ -597,20 +596,16 @@ func (m *MockHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	return m.DoFunc(req)
 }
 
-// httpClientAdapter adapts MockHTTPClient to be used where httpClient is expected
-type httpClientAdapter struct {
-	mock *MockHTTPClient
-}
 
 func newHTTPClientAdapter(mock *MockHTTPClient) *HTTPClient {
 	// Create default retry options for tests
 	retryOptions := retry.DefaultOptions()
 
 	// Apply fast retry options for tests to avoid long waits
-	retry.WithMaxRetries(1)(retryOptions)                      // Reduced from 3
-	retry.WithInitialDelay(1 * time.Millisecond)(retryOptions) // Reduced from default
-	retry.WithMaxDelay(10 * time.Millisecond)(retryOptions)    // Reduced from default
-	retry.WithRetryableHTTPCodes(retry.DefaultRetryableHTTPCodes)(retryOptions)
+	_ = retry.WithMaxRetries(1)(retryOptions)                      // Reduced from 3
+	_ = retry.WithInitialDelay(1 * time.Millisecond)(retryOptions) // Reduced from default
+	_ = retry.WithMaxDelay(10 * time.Millisecond)(retryOptions)    // Reduced from default
+	_ = retry.WithRetryableHTTPCodes(retry.DefaultRetryableHTTPCodes)(retryOptions)
 
 	return &HTTPClient{
 		client: &http.Client{

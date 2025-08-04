@@ -3,16 +3,14 @@ package models
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/pkg/validation/core"
-	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
 // Account represents an account in the Midaz Ledger.
-// Accounts are the fundamental entities for tracking assets and their movements
-// within the ledger system. Each account belongs to a specific organization and ledger,
-// and is associated with a particular asset type.
+// This is now an alias to mmodel.Account to avoid duplication while maintaining
+// SDK-specific documentation and examples.
 //
 // Account Types:
 //   - ASSET: Represents resources owned by the entity (e.g., cash, inventory, receivables)
@@ -29,15 +27,11 @@ import (
 //
 // Example Usage:
 //
-//	// Create a new customer asset account
-//	customerAccount := models.NewAccount(
-//	    "acc-123",
+//	// Create a new customer asset account using the builder pattern
+//	customerAccount := models.NewCreateAccountInput(
 //	    "John Doe",
-//	    "USD",
-//	    "org-456",
-//	    "ledger-789",
+//	    "USD", 
 //	    "ASSET",
-//	    models.StatusActive,
 //	).WithAlias("customer:john.doe").
 //	  WithMetadata(map[string]any{
 //	    "customer_id": "cust-123",
@@ -45,290 +39,42 @@ import (
 //	    "account_manager": "manager-456",
 //	  })
 //
-//	// Create a revenue account
-//	revenueAccount := models.NewAccount(
-//	    "acc-456",
-//	    "Subscription Revenue",
-//	    "USD",
-//	    "org-456",
-//	    "ledger-789",
-//	    "REVENUE",
-//	    models.StatusActive,
-//	).WithAlias("revenue:subscriptions")
-//
 // Portfolio and Segment Organization:
 // Accounts can be organized into portfolios and segments for better categorization
 // and reporting. Portfolios represent high-level groupings (e.g., "Investments"),
 // while segments provide finer-grained classification within portfolios
 // (e.g., "US Equities", "International Bonds").
-type Account struct {
-	// ID is the unique identifier for the account
-	// This is a system-generated UUID that uniquely identifies the account
-	// across the entire Midaz platform.
-	ID string `json:"id"`
+type Account = mmodel.Account
 
-	// Name is the human-readable name of the account
-	// This should be descriptive and meaningful to users, with a maximum
-	// length of 256 characters.
-	Name string `json:"name"`
 
-	// ParentAccountID is the ID of the parent account, if this is a sub-account
-	// This enables hierarchical account structures, where accounts can be
-	// nested under parent accounts for better organization.
-	ParentAccountID *string `json:"parentAccountId,omitempty"`
 
-	// EntityID is an optional external identifier for the account owner
-	// This can be used to link the account to an external system or entity,
-	// such as a customer ID in a CRM system.
-	EntityID *string `json:"entityId,omitempty"`
+// AccountHelpers provides utility functions for working with Account entities.
+// These helper functions provide SDK-specific conveniences while using mmodel.Account directly.
 
-	// AssetCode identifies the type of asset held in this account
-	// Examples include currency codes like "USD", "EUR", or custom asset
-	// codes for commodities, cryptocurrencies, or other assets.
-	AssetCode string `json:"assetCode"`
-
-	// OrganizationID is the ID of the organization that owns this account
-	// All accounts must belong to an organization, which provides the
-	// top-level ownership and access control.
-	OrganizationID string `json:"organizationId"`
-
-	// LedgerID is the ID of the ledger that contains this account
-	// Accounts are always created within a specific ledger, which defines
-	// the accounting boundaries and rules.
-	LedgerID string `json:"ledgerId"`
-
-	// PortfolioID is the optional ID of the portfolio this account belongs to
-	// Portfolios allow for grouping related accounts together for reporting
-	// and management purposes.
-	PortfolioID *string `json:"portfolioId,omitempty"`
-
-	// SegmentID is the optional ID of the segment this account belongs to
-	// Segments provide finer-grained classification within portfolios,
-	// enabling more detailed reporting and analysis.
-	SegmentID *string `json:"segmentId,omitempty"`
-
-	// Status represents the current status of the account (e.g., "ACTIVE", "CLOSED")
-	// The status determines whether the account can participate in transactions.
-	Status Status `json:"status"`
-
-	// Alias is an optional human-friendly identifier for the account
-	// Aliases can be used in place of IDs in many API calls, making it easier
-	// to reference accounts with meaningful names like "customer:john.doe".
-	Alias *string `json:"alias,omitempty"`
-
-	// Type defines the account type (e.g., "ASSET", "LIABILITY", "EQUITY")
-	// The type determines the account's behavior in accounting operations
-	// and its position in financial statements.
-	Type string `json:"type"`
-
-	// Metadata stores additional custom information about the account
-	// This can include any arbitrary key-value pairs for application-specific
-	// data that doesn't fit into the standard account fields.
-	Metadata map[string]any `json:"metadata,omitempty"`
-
-	// CreatedAt is the timestamp when the account was created
-	// This is automatically set by the system and cannot be modified.
-	CreatedAt time.Time `json:"createdAt"`
-
-	// UpdatedAt is the timestamp when the account was last updated
-	// This is automatically updated by the system whenever the account is modified.
-	UpdatedAt time.Time `json:"updatedAt"`
-
-	// DeletedAt is the timestamp when the account was deleted, if applicable
-	DeletedAt *time.Time `json:"deletedAt,omitempty"`
-}
-
-// NewAccount creates a new Account with required fields.
-// This constructor ensures that all mandatory fields are provided when creating an account.
-//
-// Parameters:
-//   - id: Unique identifier for the account
-//   - name: Human-readable name for the account
-//   - assetCode: Code identifying the type of asset for this account
-//   - organizationID: ID of the organization that owns this account
-//   - ledgerID: ID of the ledger that contains this account
-//   - accountType: Type of the account (e.g., "ASSET", "LIABILITY", "EQUITY")
-//   - status: Current status of the account
-//
-// Returns:
-//   - A pointer to the newly created Account
-func NewAccount(id, name, assetCode, organizationID, ledgerID, accountType string, status Status) *Account {
-	return &Account{
-		ID:             id,
-		Name:           name,
-		AssetCode:      assetCode,
-		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
-		Status:         status,
-		Type:           accountType,
-		CreatedAt:      time.Now(),
-		UpdatedAt:      time.Now(),
-	}
-}
-
-// WithParentAccountID sets the parent account ID.
-// This is used when creating a sub-account that belongs to a parent account.
-//
-// Parameters:
-//   - parentAccountID: The ID of the parent account
-//
-// Returns:
-//   - A pointer to the modified Account for method chaining
-func (a *Account) WithParentAccountID(parentAccountID string) *Account {
-	a.ParentAccountID = &parentAccountID
-	return a
-}
-
-// WithEntityID sets the entity ID.
-// The entity ID can be used to associate the account with an external entity.
-//
-// Parameters:
-//   - entityID: The external entity identifier
-//
-// Returns:
-//   - A pointer to the modified Account for method chaining
-func (a *Account) WithEntityID(entityID string) *Account {
-	a.EntityID = &entityID
-	return a
-}
-
-// WithPortfolioID sets the portfolio ID.
-// This associates the account with a specific portfolio.
-//
-// Parameters:
-//   - portfolioID: The ID of the portfolio
-//
-// Returns:
-//   - A pointer to the modified Account for method chaining
-func (a *Account) WithPortfolioID(portfolioID string) *Account {
-	a.PortfolioID = &portfolioID
-	return a
-}
-
-// WithSegmentID sets the segment ID.
-// This associates the account with a specific segment within a portfolio.
-//
-// Parameters:
-//   - segmentID: The ID of the segment
-//
-// Returns:
-//   - A pointer to the modified Account for method chaining
-func (a *Account) WithSegmentID(segmentID string) *Account {
-	a.SegmentID = &segmentID
-	return a
-}
-
-// WithAlias sets the account alias.
-// An alias provides a human-friendly identifier for the account.
-//
-// Parameters:
-//   - alias: The alias to set for the account
-//
-// Returns:
-//   - A pointer to the modified Account for method chaining
-func (a *Account) WithAlias(alias string) *Account {
-	a.Alias = &alias
-	return a
-}
-
-// WithMetadata adds metadata to the account.
-// Metadata can store additional custom information about the account.
-//
-// Parameters:
-//   - metadata: A map of key-value pairs to store as metadata
-//
-// Returns:
-//   - A pointer to the modified Account for method chaining
-func (a *Account) WithMetadata(metadata map[string]any) *Account {
-	a.Metadata = metadata
-	return a
-}
-
-// GetAlias safely returns the account alias or empty string if nil.
-// This method prevents nil pointer exceptions when accessing the alias.
-//
-// Returns:
-//   - The account alias if set, or an empty string if not set
-func (a *Account) GetAlias() string {
-	// Alias must be set
-	if a.Alias == nil {
+// GetAccountAlias safely returns the account alias or empty string if nil.
+// This function prevents nil pointer exceptions when accessing the alias.
+func GetAccountAlias(account Account) string {
+	if account.Alias == nil {
 		return ""
 	}
 
-	return *a.Alias
+	return *account.Alias
 }
 
-// GetIdentifier returns the best identifier for an account:
+// GetAccountIdentifier returns the best identifier for an account:
 // - Returns the alias if available
 // - Falls back to ID if alias is not set
 //
 // This helps prevent nil pointer exceptions and provides a consistent
 // way to reference accounts across the application.
-//
-// Returns:
-//   - The account alias if set, or the account ID if alias is not set
-func (a *Account) GetIdentifier() string {
-	if a.Alias != nil {
-		return *a.Alias
+func GetAccountIdentifier(account Account) string {
+	if account.Alias != nil {
+		return *account.Alias
 	}
 
-	return a.ID
+	return account.ID
 }
 
-// FromMmodelAccount converts an mmodel Account to an SDK Account.
-// This function is used internally to convert between backend and SDK models.
-//
-// Parameters:
-//   - account: The mmodel.Account to convert
-//
-// Returns:
-//   - A models.Account instance with the same values
-func FromMmodelAccount(account mmodel.Account) Account {
-	return Account{
-		ID:              account.ID,
-		Name:            account.Name,
-		ParentAccountID: account.ParentAccountID,
-		EntityID:        account.EntityID,
-		AssetCode:       account.AssetCode,
-		OrganizationID:  account.OrganizationID,
-		LedgerID:        account.LedgerID,
-		PortfolioID:     account.PortfolioID,
-		SegmentID:       account.SegmentID,
-		Status:          FromMmodelStatus(account.Status),
-		Alias:           account.Alias,
-		Type:            account.Type,
-		Metadata:        account.Metadata,
-		CreatedAt:       account.CreatedAt,
-		UpdatedAt:       account.UpdatedAt,
-		DeletedAt:       account.DeletedAt,
-	}
-}
-
-// ToMmodelAccount converts an SDK Account to an mmodel Account.
-// This method is used internally to convert between SDK and backend models.
-//
-// Returns:
-//   - An mmodel.Account instance with the same values
-func (a Account) ToMmodelAccount() mmodel.Account {
-	return mmodel.Account{
-		ID:              a.ID,
-		Name:            a.Name,
-		ParentAccountID: a.ParentAccountID,
-		EntityID:        a.EntityID,
-		AssetCode:       a.AssetCode,
-		OrganizationID:  a.OrganizationID,
-		LedgerID:        a.LedgerID,
-		PortfolioID:     a.PortfolioID,
-		SegmentID:       a.SegmentID,
-		Status:          a.Status.ToMmodelStatus(),
-		Alias:           a.Alias,
-		Type:            a.Type,
-		Metadata:        a.Metadata,
-		CreatedAt:       a.CreatedAt,
-		UpdatedAt:       a.UpdatedAt,
-		DeletedAt:       a.DeletedAt,
-	}
-}
 
 // CreateAccountInput is the input for creating an account.
 // This structure contains all the fields that can be specified when creating a new account.
@@ -523,12 +269,9 @@ func (input *CreateAccountInput) WithMetadata(metadata map[string]any) *CreateAc
 	return input
 }
 
-// ToMmodelCreateAccountInput converts an SDK CreateAccountInput to an mmodel CreateAccountInput.
+// ToMmodel converts the SDK CreateAccountInput to mmodel.CreateAccountInput.
 // This method is used internally to convert between SDK and backend models.
-//
-// Returns:
-//   - An mmodel.CreateAccountInput instance with the same values
-func (input CreateAccountInput) ToMmodelCreateAccountInput() mmodel.CreateAccountInput {
+func (input CreateAccountInput) ToMmodel() mmodel.CreateAccountInput {
 	return mmodel.CreateAccountInput{
 		Name:            input.Name,
 		ParentAccountID: input.ParentAccountID,
@@ -536,7 +279,7 @@ func (input CreateAccountInput) ToMmodelCreateAccountInput() mmodel.CreateAccoun
 		AssetCode:       input.AssetCode,
 		PortfolioID:     input.PortfolioID,
 		SegmentID:       input.SegmentID,
-		Status:          input.Status.ToMmodelStatus(),
+		Status:          input.Status,
 		Alias:           input.Alias,
 		Type:            input.Type,
 		Metadata:        input.Metadata,
@@ -662,17 +405,14 @@ func (input *UpdateAccountInput) WithMetadata(metadata map[string]any) *UpdateAc
 	return input
 }
 
-// ToMmodelUpdateAccountInput converts an SDK UpdateAccountInput to an mmodel UpdateAccountInput.
+// ToMmodel converts the SDK UpdateAccountInput to mmodel.UpdateAccountInput.
 // This method is used internally to convert between SDK and backend models.
-//
-// Returns:
-//   - An mmodel.UpdateAccountInput instance with the same values
-func (input UpdateAccountInput) ToMmodelUpdateAccountInput() mmodel.UpdateAccountInput {
+func (input UpdateAccountInput) ToMmodel() mmodel.UpdateAccountInput {
 	return mmodel.UpdateAccountInput{
 		Name:        input.Name,
 		SegmentID:   input.SegmentID,
 		PortfolioID: input.PortfolioID,
-		Status:      input.Status.ToMmodelStatus(),
+		Status:      input.Status,
 		Metadata:    input.Metadata,
 	}
 }
@@ -690,22 +430,11 @@ type Accounts struct {
 	Limit int `json:"limit"`
 }
 
-// FromMmodelAccounts converts an mmodel Accounts to an SDK Accounts.
-// This function is used internally to convert between backend and SDK models.
-//
-// Parameters:
-//   - accounts: The mmodel.Accounts to convert
-//
-// Returns:
-//   - A models.Accounts instance with the same values
-func FromMmodelAccounts(accounts mmodel.Accounts) Accounts {
-	items := make([]Account, len(accounts.Items))
-	for i, account := range accounts.Items {
-		items[i] = FromMmodelAccount(account)
-	}
-
+// FromMmodel converts mmodel.Accounts to SDK Accounts.
+// Since Account is now an alias to mmodel.Account, no conversion is needed for items.
+func FromMmodel(accounts mmodel.Accounts) Accounts {
 	return Accounts{
-		Items: items,
+		Items: accounts.Items, // Direct assignment since Account = mmodel.Account
 		Page:  accounts.Page,
 		Limit: accounts.Limit,
 	}

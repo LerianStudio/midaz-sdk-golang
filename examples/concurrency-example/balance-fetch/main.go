@@ -12,6 +12,7 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/models"
 	"github.com/LerianStudio/midaz-sdk-golang/pkg/concurrent"
 	"github.com/LerianStudio/midaz-sdk-golang/pkg/config"
+	"github.com/shopspring/decimal"
 )
 
 func main() {
@@ -73,15 +74,13 @@ func main() {
 				ID:        fmt.Sprintf("bal-%s-usd", accountID),
 				AccountID: accountID,
 				AssetCode: "USD",
-				Available: 10000, // $100.00
-				Scale:     2,
+				Available: decimal.NewFromInt(10000), // $100.00 in cents
 			},
 			{
 				ID:        fmt.Sprintf("bal-%s-eur", accountID),
 				AccountID: accountID,
 				AssetCode: "EUR",
-				Available: 8500, // €85.00
-				Scale:     2,
+				Available: decimal.NewFromInt(8500), // €85.00 in cents
 			},
 		}
 
@@ -119,17 +118,17 @@ func main() {
 		len(accountBalances), errorCount)
 
 	// Calculate totals by currency
-	totalsByAsset := make(map[string]int64)
+	totalsByAsset := make(map[string]decimal.Decimal)
 	for _, balances := range accountBalances {
 		for _, balance := range balances {
-			totalsByAsset[balance.AssetCode] += balance.Available
+			totalsByAsset[balance.AssetCode] = totalsByAsset[balance.AssetCode].Add(balance.Available)
 		}
 	}
 
 	// Display totals
 	fmt.Println("\nTotal balances by asset:")
 	for assetCode, total := range totalsByAsset {
-		fmt.Printf("%s: %d\n", assetCode, total)
+		fmt.Printf("%s: %s\n", assetCode, total.String())
 	}
 
 	// Compare to sequential processing

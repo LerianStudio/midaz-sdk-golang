@@ -20,6 +20,12 @@ type Amount struct {
 	AssetCode string `json:"assetCode,omitempty"`
 }
 
+// OperationAmount represents the amount structure in operation responses
+type OperationAmount struct {
+	// Value is the string representation of the amount
+	Value string `json:"value"`
+}
+
 // Operation represents an operation in a transaction.
 // Operations are the individual accounting entries that make up a transaction,
 // typically representing debits and credits to accounts.
@@ -58,8 +64,7 @@ type Amount struct {
 //	    Type:         "debit",
 //	    AccountID:    "acc-expense-123",
 //	    AccountAlias: stringPtr("expenses:office"),
-//	    Amount:       5000,
-//	    Scale:        2,
+//	    Amount:       "50.00",
 //	    AssetCode:    "USD",
 //	}
 //
@@ -68,8 +73,7 @@ type Amount struct {
 //	    Type:         "credit",
 //	    AccountID:    "acc-bank-456",
 //	    AccountAlias: stringPtr("assets:bank"),
-//	    Amount:       5000,
-//	    Scale:        2,
+//	    Amount:       "50.00",
 //	    AssetCode:    "USD",
 //	}
 //
@@ -84,8 +88,7 @@ type Amount struct {
 //	    Type:         "debit",
 //	    AccountID:    "acc-savings-123",
 //	    AccountAlias: stringPtr("assets:savings"),
-//	    Amount:       10000,
-//	    Scale:        2,
+//	    Amount:       "100.00",
 //	    AssetCode:    "USD",
 //	}
 //
@@ -94,8 +97,7 @@ type Amount struct {
 //	    Type:         "credit",
 //	    AccountID:    "acc-checking-456",
 //	    AccountAlias: stringPtr("assets:checking"),
-//	    Amount:       10000,
-//	    Scale:        2,
+//	    Amount:       "100.00",
 //	    AssetCode:    "USD",
 //	}
 //
@@ -110,8 +112,7 @@ type Amount struct {
 //	    Type:         "debit",
 //	    AccountID:    "acc-bank-123",
 //	    AccountAlias: stringPtr("assets:bank"),
-//	    Amount:       15000,
-//	    Scale:        2,
+//	    Amount:       "150.00",
 //	    AssetCode:    "USD",
 //	}
 //
@@ -120,8 +121,7 @@ type Amount struct {
 //	    Type:         "credit",
 //	    AccountID:    "acc-revenue-456",
 //	    AccountAlias: stringPtr("revenue:sales"),
-//	    Amount:       15000,
-//	    Scale:        2,
+//	    Amount:       "150.00",
 //	    AssetCode:    "USD",
 //	}
 //
@@ -133,7 +133,7 @@ type Amount struct {
 //	if operation.AccountAlias != nil {
 //	    fmt.Printf("Account Alias: %s\n", *operation.AccountAlias)
 //	}
-//	fmt.Printf("Amount: %d (scale: %d)\n", operation.Amount, operation.Scale)
+//	fmt.Printf("Amount: %s\n", operation.Amount)
 //	fmt.Printf("Asset: %s\n", operation.AssetCode)
 type Operation struct {
 	// ID is the unique identifier for the operation
@@ -148,10 +148,10 @@ type Operation struct {
 	// This is the system-generated ID of the account
 	AccountID string `json:"accountId,omitempty"`
 
-	// Amount is the numeric value of the operation
-	// This represents the value as a fixed-point integer
-	// The actual amount is calculated as Amount / 10^Scale
-	Amount Amount `json:"amount"`
+	// Amount represents the operation amount
+	// In responses, this comes as an object with a value field
+	// In requests, this can be a string
+	Amount *OperationAmount `json:"amount,omitempty"`
 
 	// Source contains information about the source account if this is a transfer
 	// This is only used for certain transaction types
@@ -165,14 +165,14 @@ type Operation struct {
 	// Common examples include "USD", "EUR", "BTC", etc.
 	AssetCode string `json:"assetCode"`
 
-	// Scale represents the decimal precision for the amount
-	// For example, a scale of 2 means the amount is in cents (100 = $1.00)
-	Scale int `json:"scale"`
-
 	// AccountAlias is an optional human-readable name for the account
 	// This can be used to reference accounts by their alias instead of ID
 	// Format is typically "<type>:<identifier>[:subtype]", e.g., "customer:john.doe"
 	AccountAlias *string `json:"accountAlias"`
+
+	// Route is the identifier of the operation route associated with this operation
+	// This links the operation to the specific routing rule that was applied
+	Route string `json:"route,omitempty"`
 }
 
 // OperationType represents the type of an operation.
@@ -237,9 +237,8 @@ type Destination struct {
 //	    Type:         "debit",
 //	    AccountID:    "acc-123",                    // Account ID
 //	    AccountAlias: stringPtr("customer:john.doe"), // Optional alias
-//	    Amount:       10000,                        // $100.00
+//	    Amount:       "100.00",                     // $100.00
 //	    AssetCode:    "USD",
-//	    Scale:        2,
 //	}
 //
 // Example - Creating a credit operation:
@@ -249,9 +248,8 @@ type Destination struct {
 //	    Type:         "credit",
 //	    AccountID:    "acc-456",                  // Account ID
 //	    AccountAlias: stringPtr("revenue:payments"), // Optional alias
-//	    Amount:       10000,                      // $100.00
+//	    Amount:       "100.00",                   // $100.00
 //	    AssetCode:    "USD",
-//	    Scale:        2,
 //	}
 //
 // Example - Using operations in a transaction:
@@ -268,18 +266,16 @@ type Destination struct {
 //	            Type:         "debit",
 //	            AccountID:    "acc-123",
 //	            AccountAlias: stringPtr("customer:john.doe"),
-//	            Amount:       10000,
+//	            Amount:       "100.00",
 //	            AssetCode:    "USD",
-//	            Scale:        2,
 //	        },
 //	        // Credit revenue account
 //	        {
 //	            Type:         "credit",
 //	            AccountID:    "acc-456",
 //	            AccountAlias: stringPtr("revenue:payments"),
-//	            Amount:       10000,
+//	            Amount:       "100.00",
 //	            AssetCode:    "USD",
-//	            Scale:        2,
 //	        },
 //	    },
 //	}
@@ -298,23 +294,23 @@ type CreateOperationInput struct {
 	// This must be a valid account ID in the ledger
 	AccountID string `json:"accountId"`
 
-	// Amount is the numeric value of the operation
-	// This represents the value as a fixed-point integer
-	// The actual amount is calculated as Amount / 10^Scale
-	Amount int64 `json:"amount"`
+	// Amount is the numeric value of the operation as a decimal string
+	// Examples: "100.50", "1000.00", "0.25"
+	Amount string `json:"amount"`
 
 	// AssetCode identifies the currency or asset type for this operation
 	// Common examples include "USD", "EUR", "BTC", etc.
 	AssetCode string `json:"assetCode,omitempty"`
 
-	// Scale represents the decimal precision for the amount
-	// For example, a scale of 2 means the amount is in cents (100 = $1.00)
-	Scale int `json:"scale,omitempty"`
-
 	// AccountAlias is an optional human-readable name for the account
 	// This can be used to reference accounts by their alias instead of ID
 	// Format is typically "<type>:<identifier>[:subtype]", e.g., "customer:john.doe"
 	AccountAlias *string `json:"accountAlias,omitempty"`
+
+	// Route is the operation route identifier to use for this operation
+	// This links the operation to a specific routing rule that determines
+	// how the operation should be processed and what account rules to apply
+	Route string `json:"route,omitempty"`
 }
 
 // Validate checks that the CreateOperationInput meets all validation requirements.
@@ -339,13 +335,8 @@ func (input *CreateOperationInput) Validate() error {
 	}
 
 	// Validate amount
-	if input.Amount <= 0 {
-		return fmt.Errorf("amount must be greater than 0, got %d", input.Amount)
-	}
-
-	// Validate scale if provided
-	if input.Scale < 0 {
-		return fmt.Errorf("scale must be non-negative, got %d", input.Scale)
+	if input.Amount == "" {
+		return fmt.Errorf("amount is required")
 	}
 
 	// Validate asset code if provided
@@ -389,15 +380,14 @@ func FromMmodelOperation(operation any) Operation {
 		result.AccountID = accountID
 	}
 
-	if amount, ok := op["amount"].(map[string]any); ok {
-		if value, ok := amount["value"].(float64); ok {
-			result.Amount.Value = int64(value)
-		}
-		if scale, ok := amount["scale"].(float64); ok {
-			result.Amount.Scale = int(scale)
-		}
-		if assetCode, ok := amount["assetCode"].(string); ok {
-			result.Amount.AssetCode = assetCode
+	// Handle amount field - could be string or object
+	if amount, ok := op["amount"].(string); ok {
+		// If it's a string (for backward compatibility)
+		result.Amount = &OperationAmount{Value: amount}
+	} else if amountObj, ok := op["amount"].(map[string]any); ok {
+		// If it's an object with value field
+		if value, ok := amountObj["value"].(string); ok {
+			result.Amount = &OperationAmount{Value: value}
 		}
 	}
 
@@ -405,12 +395,12 @@ func FromMmodelOperation(operation any) Operation {
 		result.AssetCode = assetCode
 	}
 
-	if scale, ok := op["scale"].(float64); ok {
-		result.Scale = int(scale)
-	}
-
 	if alias, ok := op["accountAlias"].(string); ok {
 		result.AccountAlias = &alias
+	}
+
+	if route, ok := op["route"].(string); ok {
+		result.Route = route
 	}
 
 	return result

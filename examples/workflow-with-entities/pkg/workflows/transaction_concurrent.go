@@ -44,7 +44,7 @@ func init() {
 //
 // Returns:
 //   - error: Any error encountered during the operation
-func ExecuteConcurrentTransactions(ctx context.Context, client *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *midazmodels.Account) error {
+func ExecuteConcurrentTransactions(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *midazmodels.Account) error {
 	// Create a span for observability
 	ctx, span := observability.StartSpan(ctx, "ExecuteConcurrentTransactions")
 	defer span.End()
@@ -71,7 +71,7 @@ func ExecuteConcurrentTransactions(ctx context.Context, client *client.Client, o
 	startTimeC2M := time.Now()
 
 	c2mCtx, c2mSpan := observability.StartSpan(ctx, "CustomerToMerchantTransactions")
-	if err := ExecuteCustomerToMerchantConcurrent(c2mCtx, client, orgID, ledgerID, customerAccount, merchantAccount, concurrentCustomerToMerchantTxs); err != nil {
+	if err := ExecuteCustomerToMerchantConcurrent(c2mCtx, midazClient, orgID, ledgerID, customerAccount, merchantAccount, concurrentCustomerToMerchantTxs); err != nil {
 		c2mSpan.End()
 		observability.RecordError(ctx, err, "c2m_transactions_failed")
 		return fmt.Errorf("failed to execute concurrent transactions: %w", err)
@@ -93,7 +93,7 @@ func ExecuteConcurrentTransactions(ctx context.Context, client *client.Client, o
 	startTimeM2C := time.Now()
 
 	m2cCtx, m2cSpan := observability.StartSpan(ctx, "MerchantToCustomerTransactions")
-	if err := ExecuteMerchantToCustomerConcurrent(m2cCtx, client, orgID, ledgerID, customerAccount, merchantAccount, concurrentMerchantToCustomerTxs); err != nil {
+	if err := ExecuteMerchantToCustomerConcurrent(m2cCtx, midazClient, orgID, ledgerID, customerAccount, merchantAccount, concurrentMerchantToCustomerTxs); err != nil {
 		m2cSpan.End()
 		observability.RecordError(ctx, err, "m2c_transactions_failed")
 		return fmt.Errorf("failed to execute concurrent transactions: %w", err)
@@ -221,7 +221,7 @@ func handleTransactionError(ctx context.Context, err error, index int, operation
 //
 // Returns:
 //   - error: Any error encountered during the operation
-func ExecuteCustomerToMerchantConcurrent(ctx context.Context, client *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *midazmodels.Account, count int) error {
+func ExecuteCustomerToMerchantConcurrent(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *midazmodels.Account, count int) error {
 	// Start span for observability
 	ctx, span := observability.StartSpan(ctx, "ExecuteCustomerToMerchantConcurrent")
 	defer span.End()
@@ -261,8 +261,8 @@ func ExecuteCustomerToMerchantConcurrent(ctx context.Context, client *client.Cli
 		idempotencyKey := GenerateUniqueIdempotencyKey("c2m", index)
 
 		// Validate the transaction input values using the validation package
-		amountValid := validation.IsValidAmount(1, 2)
-		if !amountValid {
+		amount := "0.01"
+		if amount == "" || amount == "0" {
 			err := fmt.Errorf("invalid transaction amount")
 			observability.RecordError(txCtx, err, "invalid_amount")
 			return "", err
@@ -270,10 +270,10 @@ func ExecuteCustomerToMerchantConcurrent(ctx context.Context, client *client.Cli
 
 		// Create a transfer transaction with a unique idempotency key
 		transferInput := &midazmodels.CreateTransactionInput{
-			Description: fmt.Sprintf("Concurrent customer to merchant transfer #%d", index+1),
-			Amount:      1, // $0.01
-			Scale:       2, // 2 decimal places (cents)
-			AssetCode:   "USD",
+			ChartOfAccountsGroupName: "default_chart_group", // Required by API specification
+			Description:              fmt.Sprintf("Concurrent customer to merchant transfer #%d", index+1),
+			Amount:                   "0.01", // $0.01
+			AssetCode:                "USD",
 			Metadata: map[string]any{
 				"source": "go-sdk-example",
 				"type":   "transfer",
@@ -281,16 +281,14 @@ func ExecuteCustomerToMerchantConcurrent(ctx context.Context, client *client.Cli
 			},
 			Send: &midazmodels.SendInput{
 				Asset: "USD",
-				Value: 1, // $0.01
-				Scale: 2, // 2 decimal places
+				Value: "0.01", // $0.01
 				Source: &midazmodels.SourceInput{
 					From: []midazmodels.FromToInput{
 						{
 							Account: customerAccount.ID,
 							Amount: midazmodels.AmountInput{
 								Asset: "USD",
-								Value: 1,
-								Scale: 2,
+								Value: "0.01",
 							},
 						},
 					},
@@ -301,8 +299,7 @@ func ExecuteCustomerToMerchantConcurrent(ctx context.Context, client *client.Cli
 							Account: merchantAccount.ID,
 							Amount: midazmodels.AmountInput{
 								Asset: "USD",
-								Value: 1,
-								Scale: 2,
+								Value: "0.01",
 							},
 						},
 					},
@@ -318,7 +315,7 @@ func ExecuteCustomerToMerchantConcurrent(ctx context.Context, client *client.Cli
 		// Use the entity to create the transaction
 		// The underlying HTTP client will automatically handle retries for transient errors
 		// such as network timeouts, 5xx server errors, and rate limit errors
-		tx, err := client.Entity.Transactions.CreateTransaction(txCtx, orgID, ledgerID, transferInput)
+		tx, err := midazClient.Entity.Transactions.CreateTransaction(txCtx, orgID, ledgerID, transferInput)
 
 		// Record transaction duration
 		duration := time.Since(startTime)
@@ -395,7 +392,7 @@ func ExecuteCustomerToMerchantConcurrent(ctx context.Context, client *client.Cli
 //
 // Returns:
 //   - error: Any error encountered during the operation
-func ExecuteMerchantToCustomerConcurrent(ctx context.Context, client *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *midazmodels.Account, count int) error {
+func ExecuteMerchantToCustomerConcurrent(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *midazmodels.Account, count int) error {
 	// Start span for observability
 	ctx, span := observability.StartSpan(ctx, "ExecuteMerchantToCustomerConcurrent")
 	defer span.End()
@@ -415,10 +412,10 @@ func ExecuteMerchantToCustomerConcurrent(ctx context.Context, client *client.Cli
 
 		// Create a transfer transaction input
 		transactionInputs[i] = &midazmodels.CreateTransactionInput{
-			Description: fmt.Sprintf("Concurrent merchant to customer transfer #%d", i+1),
-			Amount:      1, // $0.01
-			Scale:       2, // 2 decimal places (cents)
-			AssetCode:   "USD",
+			ChartOfAccountsGroupName: "default_chart_group", // Required by API specification
+			Description:              fmt.Sprintf("Concurrent merchant to customer transfer #%d", i+1),
+			Amount:                   "0.01", // $0.01
+			AssetCode:                "USD",
 			Metadata: map[string]any{
 				"source": "go-sdk-example",
 				"type":   "transfer",
@@ -426,16 +423,14 @@ func ExecuteMerchantToCustomerConcurrent(ctx context.Context, client *client.Cli
 			},
 			Send: &midazmodels.SendInput{
 				Asset: "USD",
-				Value: 1, // $0.01
-				Scale: 2, // 2 decimal places
+				Value: "0.01", // $0.01
 				Source: &midazmodels.SourceInput{
 					From: []midazmodels.FromToInput{
 						{
 							Account: merchantAccount.ID,
 							Amount: midazmodels.AmountInput{
 								Asset: "USD",
-								Value: 1,
-								Scale: 2,
+								Value: "0.01",
 							},
 						},
 					},
@@ -446,8 +441,7 @@ func ExecuteMerchantToCustomerConcurrent(ctx context.Context, client *client.Cli
 							Account: customerAccount.ID,
 							Amount: midazmodels.AmountInput{
 								Asset: "USD",
-								Value: 1,
-								Scale: 2,
+								Value: "0.01",
 							},
 						},
 					},
@@ -505,7 +499,7 @@ func ExecuteMerchantToCustomerConcurrent(ctx context.Context, client *client.Cli
 				txStartTime := time.Now()
 
 				// The underlying HTTP client will automatically handle retries for transient errors
-				tx, err := client.Entity.Transactions.CreateTransaction(txCtx, orgID, ledgerID, input)
+				tx, err := midazClient.Entity.Transactions.CreateTransaction(txCtx, orgID, ledgerID, input)
 
 				// Record transaction duration
 				txDuration := time.Since(txStartTime)

@@ -171,7 +171,7 @@ func ExamplePaginator_Concurrent() {
 	// Process items concurrently
 	ctx := context.Background()
 	var count int
-	paginator.Concurrent(ctx, 3, func(item string) error {
+	_ = paginator.Concurrent(ctx, 3, func(item string) error {
 		// This would normally be a more complex operation
 		count++
 		return nil

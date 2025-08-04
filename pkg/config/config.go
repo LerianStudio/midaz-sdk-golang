@@ -154,6 +154,7 @@ func WithOnboardingURL(url string) Option {
 			c.ServiceURLs = make(map[ServiceType]string)
 		}
 		c.ServiceURLs[ServiceOnboarding] = url
+
 		return nil
 	}
 }
@@ -471,6 +472,7 @@ func parseEnvInt(value string) (int, error) {
 	if _, err := fmt.Sscanf(value, "%d", &result); err != nil {
 		return 0, err
 	}
+
 	return result, nil
 }
 
@@ -676,6 +678,7 @@ func WithRetryWaitMin(waitTime time.Duration) Option {
 			return fmt.Errorf("minimum wait time must be greater than 0")
 		}
 		c.RetryWaitMin = waitTime
+
 		return nil
 	}
 }

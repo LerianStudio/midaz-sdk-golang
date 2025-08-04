@@ -24,13 +24,13 @@ func init() {
 	TestGetMethods = testGetMethods
 }
 
-func testGetMethods(ctx context.Context, client *client.Client, orgID, ledgerID, accountID, portfolioID string) error {
+func testGetMethods(ctx context.Context, midazClient *client.Client, orgID, ledgerID, accountID, portfolioID string) error {
 	fmt.Println("\n\n🔍 STEP 11: TESTING GET METHODS")
 	fmt.Println(strings.Repeat("=", 50))
 
 	// Test GetOrganization
 	fmt.Println("\nTesting GetOrganization...")
-	org, err := client.Entity.Organizations.GetOrganization(ctx, orgID)
+	org, err := midazClient.Entity.Organizations.GetOrganization(ctx, orgID)
 	if err != nil {
 		return fmt.Errorf("failed to get organization: %w", err)
 	}
@@ -38,7 +38,7 @@ func testGetMethods(ctx context.Context, client *client.Client, orgID, ledgerID,
 
 	// Test GetLedger
 	fmt.Println("\nTesting GetLedger...")
-	ledger, err := client.Entity.Ledgers.GetLedger(ctx, orgID, ledgerID)
+	ledger, err := midazClient.Entity.Ledgers.GetLedger(ctx, orgID, ledgerID)
 	if err != nil {
 		return fmt.Errorf("failed to get ledger: %w", err)
 	}
@@ -46,7 +46,7 @@ func testGetMethods(ctx context.Context, client *client.Client, orgID, ledgerID,
 
 	// Test GetAccount
 	fmt.Println("\nTesting GetAccount...")
-	account, err := client.Entity.Accounts.GetAccount(ctx, orgID, ledgerID, accountID)
+	account, err := midazClient.Entity.Accounts.GetAccount(ctx, orgID, ledgerID, accountID)
 	if err != nil {
 		return fmt.Errorf("failed to get account: %w", err)
 	}
@@ -54,7 +54,7 @@ func testGetMethods(ctx context.Context, client *client.Client, orgID, ledgerID,
 
 	// Test GetPortfolio
 	fmt.Println("\nTesting GetPortfolio...")
-	portfolio, err := client.Entity.Portfolios.GetPortfolio(ctx, orgID, ledgerID, portfolioID)
+	portfolio, err := midazClient.Entity.Portfolios.GetPortfolio(ctx, orgID, ledgerID, portfolioID)
 	if err != nil {
 		return fmt.Errorf("failed to get portfolio: %w", err)
 	}

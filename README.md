@@ -225,7 +225,6 @@ The SDK provides high-level access to all Midaz entities through the `entities` 
 - **Entity**: A centralized access point to all entity types, acting as a factory for the service interfaces.
 - **AccountsService**: Methods for managing accounts and their balances.
 - **AssetsService**: Methods for managing asset definitions.
-- **AssetRatesService**: Methods for managing asset exchange rates.
 - **BalancesService**: Methods for retrieving and managing account balances.
 - **LedgersService**: Methods for creating and managing ledgers within organizations.
 - **OperationsService**: Methods for working with transaction operations.

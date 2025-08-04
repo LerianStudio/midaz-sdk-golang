@@ -241,7 +241,7 @@ func BenchmarkEncoder(b *testing.B) {
 func BenchmarkDecoder(b *testing.B) {
 	testData := generateTestData()
 	buf := &bytes.Buffer{}
-	json.NewEncoder(buf).Encode(testData)
+	_ = json.NewEncoder(buf).Encode(testData)
 	data := buf.Bytes()
 
 	b.Run("Standard", func(b *testing.B) {

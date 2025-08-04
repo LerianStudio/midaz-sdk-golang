@@ -117,9 +117,9 @@ func ConvertTagsToMetadata(metadata map[string]any, tags []string) map[string]an
 }
 
 // CreateMetadata creates a new metadata map with standard fields
-func CreateMetadata(data map[string]interface{}) map[string]any {
+func CreateMetadata(data map[string]any) map[string]any {
 	if data == nil {
-		data = make(map[string]interface{})
+		data = make(map[string]any)
 	}
 
 	// Add standard fields if not present
@@ -141,7 +141,7 @@ func CreateMetadata(data map[string]interface{}) map[string]any {
 }
 
 // EnhanceMetadata adds additional fields to an existing metadata map
-func EnhanceMetadata(current map[string]any, additional map[string]interface{}) map[string]any {
+func EnhanceMetadata(current map[string]any, additional map[string]any) map[string]any {
 	if current == nil {
 		// Convert the additional map to the expected type
 		result := make(map[string]any)

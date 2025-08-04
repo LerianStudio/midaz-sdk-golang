@@ -62,10 +62,12 @@ func FetchAccountsInParallel(
 
 	// Collect the results into a map
 	accounts := make(map[string]*models.Account)
+
 	for _, result := range results {
 		if result.Error != nil {
 			return accounts, result.Error
 		}
+
 		accounts[result.Item] = result.Value
 	}
 
@@ -119,10 +121,12 @@ func BatchCreateAccounts(
 
 	// Collect the results
 	var createdAccounts []*models.Account
+
 	for _, result := range results {
 		if result.Error != nil {
 			return createdAccounts, result.Error
 		}
+
 		createdAccounts = append(createdAccounts, result.Value)
 	}
 
@@ -179,6 +183,7 @@ func ProcessTransactionsInParallel(
 	// Collect the results and errors
 	processedTxs := make([]*models.Transaction, len(results))
 	errors := make([]error, len(results))
+
 	for i, result := range results {
 		processedTxs[i] = result.Value
 		errors[i] = result.Error
@@ -234,10 +239,12 @@ func BulkFetchResourceMap[K comparable, V any](
 
 	// Collect the results into a map
 	resources := make(map[K]V)
+
 	for _, result := range results {
 		if result.Error != nil {
 			return resources, result.Error
 		}
+
 		resources[result.Item] = result.Value
 	}
 
@@ -291,13 +298,16 @@ func RunConcurrentOperations(
 	operations []func(context.Context) error,
 ) []error {
 	var wg sync.WaitGroup
+
 	errors := make([]error, len(operations))
 
 	// Start all operations
 	for i, op := range operations {
 		wg.Add(1)
+
 		go func(index int, operation func(context.Context) error) {
 			defer wg.Done()
+
 			errors[index] = operation(ctx)
 		}(i, op)
 	}

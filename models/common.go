@@ -4,19 +4,14 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
 // Status represents the status of an entity in the Midaz system.
-// It contains a status code and an optional description providing additional context.
+// This is now an alias to mmodel.Status to avoid duplication while maintaining
+// SDK-specific documentation and examples.
 // Status is used across various models to indicate the current state of resources.
-type Status struct {
-	// Code is the status code identifier (e.g., "active", "pending", "closed")
-	Code string `json:"code"`
-
-	// Description provides optional additional context about the status
-	Description *string `json:"description,omitempty"`
-}
+type Status = mmodel.Status
 
 // NewStatus creates a new Status with the given code.
 // This is a convenience constructor for creating Status objects.
@@ -32,53 +27,18 @@ func NewStatus(code string) Status {
 	}
 }
 
-// WithDescription adds a description to the status.
-// This is a fluent-style method that returns the modified Status.
-//
-// Parameters:
-//   - description: The description text to add to the status
-//
-// Returns:
-//   - The modified Status instance with the added description
-func (s Status) WithDescription(description string) Status {
-	s.Description = &description
-	return s
+// StatusHelpers provides utility functions for working with Status.
+// Since Status is now an alias to mmodel.Status, we provide helper functions instead of methods.
+
+// WithStatusDescription creates a new Status with a description.
+func WithStatusDescription(status Status, description string) Status {
+	status.Description = &description
+	return status
 }
 
-// IsEmpty returns true if the status is empty.
-// A status is considered empty if it has no code and no description.
-//
-// Returns:
-//   - true if the status is empty, false otherwise
-func (s Status) IsEmpty() bool {
-	return s.Code == "" && s.Description == nil
-}
-
-// ToMmodelStatus converts an SDK Status to an mmodel Status (internal use only).
-// This method is used for internal SDK operations when interfacing with the backend.
-//
-// Returns:
-//   - An mmodel.Status instance with the same values as this Status
-func (s Status) ToMmodelStatus() mmodel.Status {
-	return mmodel.Status{
-		Code:        s.Code,
-		Description: s.Description,
-	}
-}
-
-// FromMmodelStatus converts an mmodel Status to an SDK Status (internal use only).
-// This function is used for internal SDK operations when processing responses from the backend.
-//
-// Parameters:
-//   - modelStatus: The mmodel.Status to convert
-//
-// Returns:
-//   - A models.Status instance with the same values as the input mmodel.Status
-func FromMmodelStatus(modelStatus mmodel.Status) Status {
-	return Status{
-		Code:        modelStatus.Code,
-		Description: modelStatus.Description,
-	}
+// IsStatusEmpty returns true if the status is empty.
+func IsStatusEmpty(status Status) bool {
+	return status.Code == "" && status.Description == nil
 }
 
 // Address represents a physical address.
@@ -268,6 +228,7 @@ func (p *Pagination) PrevPageOptions() *ListOptions {
 	if newOffset < 0 {
 		newOffset = 0
 	}
+
 	return options.WithOffset(newOffset)
 }
 
@@ -280,6 +241,7 @@ func (p *Pagination) CurrentPage() int {
 	if p.Limit <= 0 {
 		return 1
 	}
+
 	return (p.Offset / p.Limit) + 1
 }
 
@@ -293,9 +255,11 @@ func (p *Pagination) TotalPages() int {
 		return 1
 	}
 	pages := p.Total / p.Limit
+
 	if p.Total%p.Limit > 0 {
 		pages++
 	}
+
 	return pages
 }
 
@@ -366,6 +330,7 @@ func (o *ListOptions) WithLimit(limit int) *ListOptions {
 	} else {
 		o.Limit = limit
 	}
+
 	return o
 }
 
@@ -451,6 +416,7 @@ func (o *ListOptions) WithFilter(key, value string) *ListOptions {
 		o.Filters = make(map[string]string)
 	}
 	o.Filters[key] = value
+
 	return o
 }
 
@@ -477,6 +443,7 @@ func (o *ListOptions) WithFilters(filters map[string]string) *ListOptions {
 func (o *ListOptions) WithDateRange(startDate, endDate string) *ListOptions {
 	o.StartDate = startDate
 	o.EndDate = endDate
+
 	return o
 }
 

@@ -20,16 +20,15 @@ import (
 // Returns:
 //   - string: The ID of the created portfolio
 //   - error: Any error encountered during the operation
-func CreatePortfolio(ctx context.Context, client *client.Client, orgID, ledgerID string) (string, error) {
+func CreatePortfolio(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) (string, error) {
 	fmt.Println("\n\n📁 STEP 6: PORTFOLIO CREATION")
 	fmt.Println(strings.Repeat("=", 50))
 
 	fmt.Println("\nCreating portfolio...")
 
-	portfolio, err := client.Entity.Portfolios.CreatePortfolio(
-		ctx, orgID, ledgerID, &models.CreatePortfolioInput{
-			Name: "Main Portfolio",
-		},
+	portfolio, err := midazClient.Entity.Portfolios.CreatePortfolio(
+		ctx, orgID, ledgerID,
+		models.NewCreatePortfolioInput(ledgerID, "Main Portfolio"),
 	)
 	if err != nil {
 		return "", fmt.Errorf("failed to create portfolio: %w", err)

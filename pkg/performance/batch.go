@@ -24,7 +24,7 @@ type BatchRequest struct {
 	Headers map[string]string `json:"headers,omitempty"`
 
 	// Body is the request body (for POST, PUT, PATCH)
-	Body interface{} `json:"body,omitempty"`
+	Body any `json:"body,omitempty"`
 
 	// ID is a client-generated ID for matching requests with responses
 	ID string `json:"id"`
@@ -85,6 +85,7 @@ func WithBatchTimeout(timeout time.Duration) BatchOption {
 			return fmt.Errorf("batch timeout must be positive, got %v", timeout)
 		}
 		o.Timeout = timeout
+
 		return nil
 	}
 }
@@ -107,6 +108,7 @@ func WithRetryCount(count int) BatchOption {
 			return fmt.Errorf("retry count must be non-negative, got %d", count)
 		}
 		o.RetryCount = count
+
 		return nil
 	}
 }
@@ -261,6 +263,7 @@ func WithJSONPool(pool *JSONPool) BatchProcessorOption {
 			return fmt.Errorf("JSON pool cannot be nil")
 		}
 		p.jsonPool = pool
+
 		return nil
 	}
 }
@@ -519,7 +522,7 @@ func (b *BatchProcessor) executeBatches(ctx context.Context, requests []BatchReq
 }
 
 // ParseBatchResponse parses a batch response for a specific request ID into the target.
-func (b *BatchProcessor) ParseBatchResponse(result *BatchResult, requestID string, target interface{}) error {
+func (b *BatchProcessor) ParseBatchResponse(result *BatchResult, requestID string, target any) error {
 	if result == nil {
 		return errors.NewInternalError("ParseBatchResponse", fmt.Errorf("batch result is nil"))
 	}

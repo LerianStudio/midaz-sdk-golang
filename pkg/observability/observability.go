@@ -19,8 +19,9 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	sdkresource "go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.34.0"
 	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 )
 
 // Constants for attribute keys used in spans and metrics
@@ -455,7 +456,7 @@ func (p *MidazProvider) createResource() (*sdkresource.Resource, error) {
 		semconv.ServiceVersionKey.String(p.config.ServiceVersion),
 		attribute.String(KeySDKVersion, p.config.SDKVersion),
 		attribute.String(KeySDKLanguage, "go"),
-		semconv.DeploymentEnvironmentKey.String(p.config.Environment),
+		semconv.DeploymentEnvironmentNameKey.String(p.config.Environment),
 	}
 
 	// Add custom attributes
@@ -584,7 +585,7 @@ func (p *MidazProvider) setupPropagation() {
 func (p *MidazProvider) Tracer() trace.Tracer {
 	if !p.enabled || !p.config.EnabledComponents.Tracing {
 		// Return a no-op tracer if tracing is disabled
-		return trace.NewNoopTracerProvider().Tracer("")
+		return noop.NewTracerProvider().Tracer("")
 	}
 	return p.tracer
 }

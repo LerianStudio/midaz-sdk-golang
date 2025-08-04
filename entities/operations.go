@@ -238,7 +238,6 @@ func NewOperationsEntity(client *http.Client, authToken string, baseURLs map[str
 // ListOperations lists operations for an account with optional filters.
 func (e *operationsEntity) ListOperations(ctx context.Context, orgID, ledgerID, accountID string, opts *models.ListOptions) (*models.ListResponse[models.Operation], error) {
 	const operation = "ListOperations"
-	const resource = "operation"
 
 	if orgID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
@@ -342,7 +341,6 @@ func (e *operationsEntity) ListOperations(ctx context.Context, orgID, ledgerID, 
 
 func (e *operationsEntity) GetOperation(ctx context.Context, orgID, ledgerID, accountID, operationID string, transactionID ...string) (*models.Operation, error) {
 	const operation = "GetOperation"
-	const resource = "operation"
 
 	if orgID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
@@ -381,7 +379,6 @@ func (e *operationsEntity) GetOperation(ctx context.Context, orgID, ledgerID, ac
 // UpdateOperation updates an operation.
 func (e *operationsEntity) UpdateOperation(ctx context.Context, orgID, ledgerID, accountID, operationID string, input any) (*models.Operation, error) {
 	const operation = "UpdateOperation"
-	const resource = "operation"
 
 	if orgID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")

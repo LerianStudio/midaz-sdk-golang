@@ -25,7 +25,7 @@ type HTTPBatchRequest struct {
 	Headers map[string]string `json:"headers,omitempty"`
 
 	// Body is the request body (for POST, PUT, PATCH)
-	Body interface{} `json:"body,omitempty"`
+	Body any `json:"body,omitempty"`
 
 	// ID is a client-generated ID for matching requests with responses
 	ID string `json:"id"`
@@ -106,7 +106,9 @@ func WithBatchTimeout(timeout time.Duration) HTTPBatchOption {
 		if timeout <= 0 {
 			return fmt.Errorf("timeout must be positive, got %v", timeout)
 		}
+
 		o.Timeout = timeout
+
 		return nil
 	}
 }
@@ -123,7 +125,9 @@ func WithMaxBatchSize(size int) HTTPBatchOption {
 		if size <= 0 {
 			return fmt.Errorf("maxBatchSize must be positive, got %d", size)
 		}
+
 		o.MaxBatchSize = size
+
 		return nil
 	}
 }
@@ -140,7 +144,9 @@ func WithBatchRetryCount(count int) HTTPBatchOption {
 		if count < 0 {
 			return fmt.Errorf("retryCount must be non-negative, got %d", count)
 		}
+
 		o.RetryCount = count
+
 		return nil
 	}
 }
@@ -157,7 +163,9 @@ func WithBatchRetryBackoff(backoff time.Duration) HTTPBatchOption {
 		if backoff <= 0 {
 			return fmt.Errorf("retryBackoff must be positive, got %v", backoff)
 		}
+
 		o.RetryBackoff = backoff
+
 		return nil
 	}
 }
@@ -187,7 +195,9 @@ func WithBatchWorkers(workers int) HTTPBatchOption {
 		if workers <= 0 {
 			return fmt.Errorf("workers must be positive, got %d", workers)
 		}
+
 		o.Workers = workers
+
 		return nil
 	}
 }
@@ -205,6 +215,7 @@ func WithHighThroughputBatch() HTTPBatchOption {
 		o.RetryCount = 5
 		o.Workers = 10
 		o.Timeout = 120 * time.Second
+
 		return nil
 	}
 }
@@ -222,6 +233,7 @@ func WithLowLatencyBatch() HTTPBatchOption {
 		o.Workers = 8
 		o.Timeout = 30 * time.Second
 		o.RetryBackoff = 100 * time.Millisecond
+
 		return nil
 	}
 }
@@ -239,6 +251,7 @@ func WithHighReliabilityBatch() HTTPBatchOption {
 		o.RetryBackoff = 750 * time.Millisecond
 		o.ContinueOnError = true
 		o.Timeout = 180 * time.Second
+
 		return nil
 	}
 }
@@ -246,20 +259,20 @@ func WithHighReliabilityBatch() HTTPBatchOption {
 // JSONMarshaler is an interface for JSON marshaling and unmarshaling.
 // This allows for different implementations (like jsoniter) to be used for performance.
 type JSONMarshaler interface {
-	Marshal(v interface{}) ([]byte, error)
-	Unmarshal(data []byte, v interface{}) error
+	Marshal(v any) ([]byte, error)
+	Unmarshal(data []byte, v any) error
 }
 
 // DefaultJSONMarshaler uses the standard encoding/json package.
 type DefaultJSONMarshaler struct{}
 
 // Marshal implements JSONMarshaler.Marshal using the standard encoding/json package.
-func (m *DefaultJSONMarshaler) Marshal(v interface{}) ([]byte, error) {
+func (m *DefaultJSONMarshaler) Marshal(v any) ([]byte, error) {
 	return json.Marshal(v)
 }
 
 // Unmarshal implements JSONMarshaler.Unmarshal using the standard encoding/json package.
-func (m *DefaultJSONMarshaler) Unmarshal(data []byte, v interface{}) error {
+func (m *DefaultJSONMarshaler) Unmarshal(data []byte, v any) error {
 	return json.Unmarshal(data, v)
 }
 
@@ -384,14 +397,18 @@ func (b *HTTPBatchProcessor) ExecuteBatch(ctx context.Context, requests []HTTPBa
 
 	// Add headers
 	req.Header.Set("Content-Type", "application/json")
+
 	for k, v := range b.defaultHeaders {
 		req.Header.Set(k, v)
 	}
 
 	// Execute the request with retries
 	var resp *http.Response
+
 	var respErr error
+
 	var statusCode int
+
 	var respBody []byte
 
 	// Retry loop
@@ -476,6 +493,7 @@ func (b *HTTPBatchProcessor) ExecuteBatch(ctx context.Context, requests []HTTPBa
 	}
 
 	hasErrors := false
+
 	for _, resp := range responses {
 		if resp.StatusCode >= 400 || resp.Error != "" {
 			hasErrors = true
@@ -494,11 +512,13 @@ func (b *HTTPBatchProcessor) ExecuteBatch(ctx context.Context, requests []HTTPBa
 func (b *HTTPBatchProcessor) executeBatches(ctx context.Context, requests []HTTPBatchRequest) (*HTTPBatchResult, error) {
 	// Create batches
 	var batches [][]HTTPBatchRequest
+
 	for i := 0; i < len(requests); i += b.options.MaxBatchSize {
 		end := i + b.options.MaxBatchSize
 		if end > len(requests) {
 			end = len(requests)
 		}
+
 		batches = append(batches, requests[i:end])
 	}
 
@@ -509,6 +529,7 @@ func (b *HTTPBatchProcessor) executeBatches(ctx context.Context, requests []HTTP
 
 	// Combine results
 	var allResponses []HTTPBatchResponse
+
 	var firstError error
 
 	for _, r := range results {
@@ -532,7 +553,7 @@ func (b *HTTPBatchProcessor) executeBatches(ctx context.Context, requests []HTTP
 }
 
 // ParseResponse parses a batch response for a specific request ID into the target.
-func (b *HTTPBatchProcessor) ParseResponse(result *HTTPBatchResult, requestID string, target interface{}) error {
+func (b *HTTPBatchProcessor) ParseResponse(result *HTTPBatchResult, requestID string, target any) error {
 	if result == nil {
 		return errors.NewInternalError("ParseHTTPBatchResponse", fmt.Errorf("batch result is nil"))
 	}
@@ -579,11 +600,13 @@ func (b *HTTPBatchProcessor) ExecuteBatchWithPoolOptions(ctx context.Context, re
 
 	// Create batches
 	var batches [][]HTTPBatchRequest
+
 	for i := 0; i < len(requests); i += b.options.MaxBatchSize {
 		end := i + b.options.MaxBatchSize
 		if end > len(requests) {
 			end = len(requests)
 		}
+
 		batches = append(batches, requests[i:end])
 	}
 
@@ -594,6 +617,7 @@ func (b *HTTPBatchProcessor) ExecuteBatchWithPoolOptions(ctx context.Context, re
 
 	// Combine results
 	var allResponses []HTTPBatchResponse
+
 	var firstError error
 
 	for _, r := range results {

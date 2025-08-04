@@ -85,17 +85,17 @@ type JSONPool struct {
 func NewJSONPool() *JSONPool {
 	return &JSONPool{
 		encoderPool: sync.Pool{
-			New: func() interface{} {
+			New: func() any {
 				return json.NewEncoder(nil)
 			},
 		},
 		decoderPool: sync.Pool{
-			New: func() interface{} {
+			New: func() any {
 				return json.NewDecoder(nil)
 			},
 		},
 		bufferPool: sync.Pool{
-			New: func() interface{} {
+			New: func() any {
 				return new(bytes.Buffer)
 			},
 		},
@@ -116,7 +116,7 @@ var DefaultJSONPool = NewJSONPool()
 //	// Efficiently serialize with minimal GC overhead
 //	jsonData, err := performance.Marshal(transactions)
 //	// Send jsonData to API endpoint...
-func (p *JSONPool) Marshal(v interface{}) ([]byte, error) {
+func (p *JSONPool) Marshal(v any) ([]byte, error) {
 	buf := p.getBuffer()
 	defer p.putBuffer(buf)
 
@@ -146,7 +146,7 @@ func (p *JSONPool) Marshal(v interface{}) ([]byte, error) {
 //	for _, tx := range transactions {
 //	    processTransaction(tx)
 //	}
-func (p *JSONPool) Unmarshal(data []byte, v interface{}) error {
+func (p *JSONPool) Unmarshal(data []byte, v any) error {
 	dec := p.getDecoder(bytes.NewReader(data))
 	err := dec.Decode(v)
 	p.putDecoder(dec)
@@ -217,13 +217,13 @@ func (p *JSONPool) putBuffer(buf *bytes.Buffer) {
 
 // Marshal provides a convenience function to encode a value
 // to JSON using the DefaultJSONPool.
-func Marshal(v interface{}) ([]byte, error) {
+func Marshal(v any) ([]byte, error) {
 	return DefaultJSONPool.Marshal(v)
 }
 
 // Unmarshal provides a convenience function to decode JSON data
 // into a value using the DefaultJSONPool.
-func Unmarshal(data []byte, v interface{}) error {
+func Unmarshal(data []byte, v any) error {
 	return DefaultJSONPool.Unmarshal(data, v)
 }
 

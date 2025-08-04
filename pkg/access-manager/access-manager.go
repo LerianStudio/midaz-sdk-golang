@@ -10,7 +10,7 @@ import (
 )
 
 // EntityOption is a function that configures an entity with authentication.
-type EntityOption func(e interface{}) error
+type EntityOption func(e any) error
 
 // WithAccessManager returns an EntityOption that configures plugin-based authentication.
 // When plugin-based authentication is enabled, the function will make a request to the authentication service
@@ -40,7 +40,7 @@ type TokenResponse struct {
 }
 
 func WithAccessManager(AccessManager AccessManager) EntityOption {
-	return func(e interface{}) error {
+	return func(e any) error {
 		// Type assertion to access the required methods
 		type entityWithAuth interface {
 			GetHTTPClient() *http.Client

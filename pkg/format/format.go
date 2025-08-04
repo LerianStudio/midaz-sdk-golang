@@ -42,7 +42,9 @@ func WithPrecision(precision int) DurationOption {
 		if precision < 0 {
 			return fmt.Errorf("precision cannot be negative: %d", precision)
 		}
+
 		o.Precision = precision
+
 		return nil
 	}
 }
@@ -61,7 +63,9 @@ func WithMaxComponents(max int) DurationOption {
 		if max <= 0 {
 			return fmt.Errorf("max components must be positive: %d", max)
 		}
+
 		o.MaxComponents = max
+
 		return nil
 	}
 }
@@ -97,7 +101,9 @@ func WithFormat(format string) DateTimeOption {
 		if format == "" {
 			return errors.New("format cannot be empty")
 		}
+
 		o.Format = format
+
 		return nil
 	}
 }
@@ -179,12 +185,15 @@ func DefaultAmountOptions() *AmountOptions {
 func WithCurrencySymbol(include bool, position string) AmountOption {
 	return func(o *AmountOptions) error {
 		o.IncludeSymbol = include
+
 		if include && position != "" {
 			if position != "prefix" && position != "suffix" {
 				return fmt.Errorf("symbol position must be 'prefix' or 'suffix', got '%s'", position)
 			}
+
 			o.SymbolPosition = position
 		}
+
 		return nil
 	}
 }
@@ -203,7 +212,9 @@ func WithDecimalSeparator(sep string) AmountOption {
 		if sep == "" {
 			return errors.New("decimal separator cannot be empty")
 		}
+
 		o.DecimalSeparator = sep
+
 		return nil
 	}
 }
@@ -263,7 +274,9 @@ func WithCustomStatusMapping(mapping map[string]string) TransactionOption {
 		if mapping == nil {
 			return errors.New("status mapping cannot be nil")
 		}
+
 		o.CustomStatusMapping = mapping
+
 		return nil
 	}
 }
@@ -322,18 +335,22 @@ func FormatAmountWithOptions(amount int64, scale int, opts ...AmountOption) (str
 	// Apply thousands separator if specified
 	if options.ThousandsSeparator != "" {
 		newWholePart := ""
+
 		for i := len(wholePart); i > 0; i -= 3 {
 			start := i - 3
 			if start < 0 {
 				start = 0
 			}
+
 			group := wholePart[start:i]
+
 			if newWholePart != "" {
 				newWholePart = group + options.ThousandsSeparator + newWholePart
 			} else {
 				newWholePart = group
 			}
 		}
+
 		wholePart = newWholePart
 	}
 
@@ -470,19 +487,23 @@ func FormatDurationWithOptions(d time.Duration, opts ...DurationOption) (string,
 		if !options.UseShortUnits {
 			unitStr = " microseconds"
 		}
+
 		return fmt.Sprintf("%d%s", d.Microseconds(), unitStr), nil
 	} else if d < time.Second {
 		unitStr := "ms"
 		if !options.UseShortUnits {
 			unitStr = " milliseconds"
 		}
+
 		return fmt.Sprintf("%d%s", d.Milliseconds(), unitStr), nil
 	} else if d < time.Minute {
 		unitStr := "s"
 		if !options.UseShortUnits {
 			unitStr = " seconds"
 		}
+
 		formatStr := "%." + fmt.Sprintf("%d", options.Precision) + "f%s"
+
 		return fmt.Sprintf(formatStr, float64(d)/float64(time.Second), unitStr), nil
 	}
 
@@ -504,6 +525,7 @@ func FormatDurationWithOptions(d time.Duration, opts ...DurationOption) (string,
 		if !options.UseShortUnits {
 			hourSuffix = " hours"
 		}
+
 		components = append(components, fmt.Sprintf("%d%s", hours, hourSuffix))
 	}
 
@@ -512,6 +534,7 @@ func FormatDurationWithOptions(d time.Duration, opts ...DurationOption) (string,
 		if !options.UseShortUnits {
 			minuteSuffix = " minutes"
 		}
+
 		components = append(components, fmt.Sprintf("%d%s", minutes, minuteSuffix))
 	}
 
@@ -520,6 +543,7 @@ func FormatDurationWithOptions(d time.Duration, opts ...DurationOption) (string,
 		if !options.UseShortUnits {
 			secondSuffix = " seconds"
 		}
+
 		components = append(components, fmt.Sprintf("%d%s", seconds, secondSuffix))
 	}
 
@@ -529,6 +553,7 @@ func FormatDurationWithOptions(d time.Duration, opts ...DurationOption) (string,
 		if !options.UseShortUnits {
 			secondSuffix = " seconds"
 		}
+
 		components = append(components, fmt.Sprintf("0%s", secondSuffix))
 	}
 
@@ -586,8 +611,8 @@ func FormatTransactionWithOptions(tx *models.Transaction, opts ...TransactionOpt
 	// Determine transaction type based on operations
 	txType := determineTransactionType(tx)
 
-	// Format amount with proper scale
-	amountStr := FormatAmount(tx.Amount, int(tx.Scale))
+	// Use the amount as-is since it's already formatted as a decimal string
+	amountStr := tx.Amount
 
 	// Build summary with optional ID prefix
 	summary := ""
@@ -606,6 +631,7 @@ func FormatTransactionWithOptions(tx *models.Transaction, opts ...TransactionOpt
 
 	// Get status string, using custom mapping if available
 	statusStr := ""
+
 	if tx.Status.Code != "" {
 		if mappedStatus, exists := options.CustomStatusMapping[tx.Status.Code]; exists {
 			statusStr = mappedStatus
