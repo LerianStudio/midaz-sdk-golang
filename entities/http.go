@@ -14,10 +14,10 @@ import (
 	"strconv"
 	"time"
 
-	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/pkg/errors"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/performance"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/retry"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/performance"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
 	"go.opentelemetry.io/otel/trace"
 )
 

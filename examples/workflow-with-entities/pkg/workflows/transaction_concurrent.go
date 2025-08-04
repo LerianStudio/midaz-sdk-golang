@@ -11,13 +11,13 @@ import (
 	"sync"
 	"time"
 
-	client "github.com/LerianStudio/midaz-sdk-golang"
-	midazmodels "github.com/LerianStudio/midaz-sdk-golang/models"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/concurrent"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/errors"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/performance"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/validation"
+	client "github.com/LerianStudio/midaz-sdk-golang/v2"
+	midazmodels "github.com/LerianStudio/midaz-sdk-golang/v2/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/concurrent"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/performance"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation"
 	"github.com/google/uuid"
 )
 

@@ -1,4 +1,4 @@
-package validation // import "github.com/LerianStudio/midaz-sdk-golang/pkg/validation"
+package validation // import "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation"
 
 Package validation provides validation utilities for the Midaz SDK.
 

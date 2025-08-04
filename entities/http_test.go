@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/models"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/performance"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/performance"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

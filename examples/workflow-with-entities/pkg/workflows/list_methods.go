@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	client "github.com/LerianStudio/midaz-sdk-golang"
-	"github.com/LerianStudio/midaz-sdk-golang/models"
-	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/pkg/errors"
+	client "github.com/LerianStudio/midaz-sdk-golang/v2"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
 )
 
 // TestListMethods tests various List methods of the Midaz SDK

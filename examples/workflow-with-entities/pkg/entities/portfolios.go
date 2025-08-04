@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 )
 
 // CreatePortfolio creates a new portfolio within a ledger.

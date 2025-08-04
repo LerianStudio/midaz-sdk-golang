@@ -1,4 +1,4 @@
-package performance // import "github.com/LerianStudio/midaz-sdk-golang/pkg/performance"
+package performance // import "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/performance"
 
 Package performance provides utilities for optimizing the performance of the
 Midaz SDK.

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 )
 
 // Common formatting options and configurations

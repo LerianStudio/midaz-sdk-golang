@@ -2,7 +2,7 @@
 
 <div align="center">
 
-[![Latest Release](https://img.shields.io/github/v/release/LerianStudio/midaz-sdk-golang?include_prereleases)](https://github.com/LerianStudio/midaz-sdk-golang/releases)
+[![Latest Release](https://img.shields.io/github/v/release/LerianStudio/midaz-sdk-golang?include_prereleases)](https://github.com/LerianStudio/midaz-sdk-golang/v2/releases)
 [![Go Report](https://goreportcard.com/badge/github.com/lerianstudio/midaz-sdk-golang)](https://goreportcard.com/report/github.com/lerianstudio/midaz-sdk-golang)
 [![Discord](https://img.shields.io/badge/Discord-Lerian%20Studio-%237289da.svg?logo=discord)](https://discord.gg/DnhqKwkGv3)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/LerianStudio/midaz-sdk-golang)](https://golang.org/)
@@ -34,7 +34,7 @@ For comprehensive documentation including API references, usage guides, and exam
 ## Installation
 
 ```bash
-go get github.com/LerianStudio/midaz-sdk-golang
+go get github.com/LerianStudio/midaz-sdk-golang/v2
 ```
 
 ## Quick Start
@@ -47,10 +47,10 @@ import (
 	"fmt"
 	"log"
 
-	client "github.com/LerianStudio/midaz-sdk-golang"
-	"github.com/LerianStudio/midaz-sdk-golang/models"
-	auth "github.com/LerianStudio/midaz-sdk-golang/pkg/access-manager"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/config"
+	client "github.com/LerianStudio/midaz-sdk-golang/v2"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
+	auth "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/access-manager"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/config"
 )
 
 func main() {
@@ -290,8 +290,8 @@ To use the Access Manager, you need to configure it with the address of your aut
 ```go
 // Import the access manager package
 import (
-    auth "github.com/LerianStudio/midaz-sdk-golang/pkg/access-manager"
-    "github.com/LerianStudio/midaz-sdk-golang/pkg/config"
+    auth "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/access-manager"
+    "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/config"
 )
 
 // Configure plugin auth

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	client "github.com/LerianStudio/midaz-sdk-golang"
-	"github.com/LerianStudio/midaz-sdk-golang/models"
+	client "github.com/LerianStudio/midaz-sdk-golang/v2"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 	"github.com/google/uuid"
 )
 

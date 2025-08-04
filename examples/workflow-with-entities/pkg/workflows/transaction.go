@@ -6,12 +6,12 @@ import (
 	"strconv"
 	"time"
 
-	client "github.com/LerianStudio/midaz-sdk-golang"
-	"github.com/LerianStudio/midaz-sdk-golang/models"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/concurrent"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/format"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/performance"
+	client "github.com/LerianStudio/midaz-sdk-golang/v2"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/concurrent"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/format"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/performance"
 	"github.com/google/uuid"
 )
 

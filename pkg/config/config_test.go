@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	auth "github.com/LerianStudio/midaz-sdk-golang/pkg/access-manager"
+	auth "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/access-manager"
 )
 
 func TestDefaultValues(t *testing.T) {

@@ -35,7 +35,7 @@ import (
 	"time"
 
 	"github.com/LerianStudio/lib-commons/commons"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/validation/core"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation/core"
 )
 
 // Validator is a configurable validation instance that can be used to perform validations

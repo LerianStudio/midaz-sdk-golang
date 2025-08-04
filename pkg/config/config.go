@@ -16,8 +16,8 @@ import (
 	"strings"
 	"time"
 
-	auth "github.com/LerianStudio/midaz-sdk-golang/pkg/access-manager"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/observability"
+	auth "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/access-manager"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
 )
 
 // ServiceType represents a type of service in the Midaz API ecosystem.

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	client "github.com/LerianStudio/midaz-sdk-golang"
+	client "github.com/LerianStudio/midaz-sdk-golang/v2"
 )
 
 // TestDeleteMethods tests various Delete methods of the Midaz SDK

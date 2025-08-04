@@ -7,8 +7,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/LerianStudio/midaz-sdk-golang/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 )
 
 // CreateOperationRoute creates a new operation route within a ledger.

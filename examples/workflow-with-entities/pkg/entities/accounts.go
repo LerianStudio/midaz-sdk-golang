@@ -7,8 +7,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/LerianStudio/midaz-sdk-golang/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 )
 
 // CreateAccount creates a new account within a ledger.

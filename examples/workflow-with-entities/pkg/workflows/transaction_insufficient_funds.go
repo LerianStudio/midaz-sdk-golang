@@ -6,12 +6,12 @@ import (
 	"strings"
 	"time"
 
-	client "github.com/LerianStudio/midaz-sdk-golang"
-	"github.com/LerianStudio/midaz-sdk-golang/models"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/conversion"
-	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/pkg/errors"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/validation"
+	client "github.com/LerianStudio/midaz-sdk-golang/v2"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/conversion"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation"
 )
 
 // ExecuteInsufficientFundsTransactions attempts transactions that should fail due to insufficient funds

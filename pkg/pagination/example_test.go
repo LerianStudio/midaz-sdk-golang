@@ -3,7 +3,7 @@ package pagination_test
 import (
 	"context"
 	"fmt"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/pagination"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/pagination"
 	"time"
 )
 

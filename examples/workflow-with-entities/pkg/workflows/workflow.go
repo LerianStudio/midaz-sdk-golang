@@ -7,11 +7,11 @@ import (
 	"os"
 	"strings"
 
-	client "github.com/LerianStudio/midaz-sdk-golang"
-	sdkentities "github.com/LerianStudio/midaz-sdk-golang/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/models"
-	auth "github.com/LerianStudio/midaz-sdk-golang/pkg/access-manager"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/config"
+	client "github.com/LerianStudio/midaz-sdk-golang/v2"
+	sdkentities "github.com/LerianStudio/midaz-sdk-golang/v2/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
+	auth "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/access-manager"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/config"
 	"github.com/google/uuid"
 )
 

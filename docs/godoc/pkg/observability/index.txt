@@ -1,4 +1,4 @@
-package observability // import "github.com/LerianStudio/midaz-sdk-golang/pkg/observability"
+package observability // import "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
 
 Package observability provides utilities for adding observability capabilities
 to the Midaz SDK, including metrics, logging, and distributed tracing.

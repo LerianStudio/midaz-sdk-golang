@@ -505,7 +505,7 @@ func (p *MidazProvider) initTracing(ctx context.Context, res *sdkresource.Resour
 	otel.SetTracerProvider(p.tracerProvider)
 
 	// Create a tracer for this library
-	p.tracer = p.tracerProvider.Tracer("github.com/LerianStudio/midaz-sdk-golang")
+	p.tracer = p.tracerProvider.Tracer("github.com/LerianStudio/midaz-sdk-golang/v2")
 
 	// Add shutdown function
 	p.shutdownFunctions = append(p.shutdownFunctions, func(ctx context.Context) error {
@@ -548,7 +548,7 @@ func (p *MidazProvider) initMetrics(ctx context.Context, res *sdkresource.Resour
 	otel.SetMeterProvider(p.meterProvider)
 
 	// Create a meter for this library
-	p.meter = p.meterProvider.Meter("github.com/LerianStudio/midaz-sdk-golang")
+	p.meter = p.meterProvider.Meter("github.com/LerianStudio/midaz-sdk-golang/v2")
 
 	// Add shutdown function
 	p.shutdownFunctions = append(p.shutdownFunctions, func(ctx context.Context) error {

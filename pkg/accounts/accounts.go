@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/format"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/format"
 )
 
 // Account represents a simplified account structure for utility functions.

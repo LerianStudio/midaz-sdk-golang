@@ -4,7 +4,7 @@ package models
 import (
 	"fmt"
 
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/validation/core"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation/core"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 

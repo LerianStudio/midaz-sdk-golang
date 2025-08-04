@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"fmt"
-	"github.com/LerianStudio/midaz-sdk-golang/entities/mocks"
-	"github.com/LerianStudio/midaz-sdk-golang/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/entities/mocks"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 )

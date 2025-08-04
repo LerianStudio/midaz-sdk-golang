@@ -1,4 +1,4 @@
-package format // import "github.com/LerianStudio/midaz-sdk-golang/pkg/format"
+package format // import "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/format"
 
 Package format provides formatting utilities for the Midaz SDK. It handles
 formatting of amounts, dates, times, durations, transactions, and other complex
