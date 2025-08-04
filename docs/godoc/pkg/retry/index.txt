@@ -1,4 +1,4 @@
-package retry // import "github.com/LerianStudio/midaz-sdk-golang/pkg/retry"
+package retry // import "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
 
 Package retry provides utilities for implementing retry logic with exponential
 backoff, including specialized support for HTTP requests.

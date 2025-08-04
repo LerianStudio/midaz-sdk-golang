@@ -98,6 +98,7 @@ func TestUnmapStruct(t *testing.T) {
 
 	// Convert to struct
 	var person TestPerson
+
 	UnmapStruct(data, &person)
 
 	// Assertions

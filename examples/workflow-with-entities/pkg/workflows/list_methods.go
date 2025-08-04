@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	client "github.com/LerianStudio/midaz-sdk-golang"
-	"github.com/LerianStudio/midaz-sdk-golang/models"
-	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/pkg/errors"
+	client "github.com/LerianStudio/midaz-sdk-golang/v2"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
 )
 
 // TestListMethods tests various List methods of the Midaz SDK
@@ -25,7 +25,7 @@ func init() {
 	TestListMethods = testListMethods
 }
 
-func testListMethods(ctx context.Context, client *client.Client, orgID, ledgerID string) error {
+func testListMethods(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) error {
 	fmt.Println("\n\n📋 STEP 12: TESTING LIST METHODS WITH PAGINATION AND ERROR HANDLING")
 	fmt.Println(strings.Repeat("=", 50))
 
@@ -38,7 +38,7 @@ func testListMethods(ctx context.Context, client *client.Client, orgID, ledgerID
 		WithOrderBy("legalName").
 		WithOrderDirection(models.SortAscending)
 
-	orgsResponse, err := client.Entity.Organizations.ListOrganizations(ctx, orgOptions)
+	orgsResponse, err := midazClient.Entity.Organizations.ListOrganizations(ctx, orgOptions)
 	if err != nil {
 		// Demonstrate standardized error handling
 		if sdkerrors.IsNotFoundError(err) {
@@ -72,7 +72,7 @@ func testListMethods(ctx context.Context, client *client.Client, orgID, ledgerID
 	ledgerOptions := models.NewListOptions().
 		WithFilter("status", models.StatusActive)
 
-	ledgersResponse, err := client.Entity.Ledgers.ListLedgers(ctx, orgID, ledgerOptions)
+	ledgersResponse, err := midazClient.Entity.Ledgers.ListLedgers(ctx, orgID, ledgerOptions)
 	if err != nil {
 		// Demonstrate standardized error handling using FormatErrorForDisplay
 		return fmt.Errorf("ledger listing failed: %s", sdkerrors.FormatErrorDetails(err))
@@ -94,7 +94,7 @@ func testListMethods(ctx context.Context, client *client.Client, orgID, ledgerID
 		WithFilter("type", "CUSTOMER")
 
 	// Demonstrate error handling pattern for API calls
-	accountsResponse, err := client.Entity.Accounts.ListAccounts(ctx, orgID, ledgerID, accountOptions)
+	accountsResponse, err := midazClient.Entity.Accounts.ListAccounts(ctx, orgID, ledgerID, accountOptions)
 	if err != nil {
 		switch {
 		case sdkerrors.IsValidationError(err):
@@ -130,7 +130,7 @@ func testListMethods(ctx context.Context, client *client.Client, orgID, ledgerID
 
 			// Fetch the next page
 			var err error
-			currentPage, err = client.Entity.Accounts.ListAccounts(ctx, orgID, ledgerID, nextOptions)
+			currentPage, err = midazClient.Entity.Accounts.ListAccounts(ctx, orgID, ledgerID, nextOptions)
 			if err != nil {
 				return fmt.Errorf("failed to fetch page %d: %w", pageCount+1, err)
 			}
@@ -150,7 +150,7 @@ func testListMethods(ctx context.Context, client *client.Client, orgID, ledgerID
 
 	// Test ListPortfolios
 	fmt.Println("\n🔍 Testing ListPortfolios...")
-	portfoliosResponse, err := client.Entity.Portfolios.ListPortfolios(ctx, orgID, ledgerID, models.NewListOptions())
+	portfoliosResponse, err := midazClient.Entity.Portfolios.ListPortfolios(ctx, orgID, ledgerID, models.NewListOptions())
 	if err != nil {
 		return fmt.Errorf("failed to list portfolios: %w", err)
 	}
@@ -166,7 +166,7 @@ func testListMethods(ctx context.Context, client *client.Client, orgID, ledgerID
 	segmentOptions := models.NewListOptions().
 		WithDateRange("2023-01-01", "2100-12-31") // Wide range to ensure results
 
-	segmentsResponse, err := client.Entity.Segments.ListSegments(ctx, orgID, ledgerID, segmentOptions)
+	segmentsResponse, err := midazClient.Entity.Segments.ListSegments(ctx, orgID, ledgerID, segmentOptions)
 	if err != nil {
 		return fmt.Errorf("failed to list segments: %w", err)
 	}

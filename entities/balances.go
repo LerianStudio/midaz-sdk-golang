@@ -9,8 +9,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/LerianStudio/midaz-sdk-golang/models"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
 )
 
 // BalancesService defines the interface for balance-related operations.
@@ -277,7 +277,6 @@ func (e *balancesEntity) ListBalances(
 	opts *models.ListOptions,
 ) (*models.ListResponse[models.Balance], error) {
 	const operation = "ListBalances"
-	const resource = "balance"
 
 	if orgID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
@@ -327,7 +326,6 @@ func (e *balancesEntity) ListAccountBalances(
 	opts *models.ListOptions,
 ) (*models.ListResponse[models.Balance], error) {
 	const operation = "ListAccountBalances"
-	const resource = "balance"
 
 	if orgID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
@@ -379,7 +377,6 @@ func (e *balancesEntity) GetBalance(
 	balanceID string,
 ) (*models.Balance, error) {
 	const operation = "GetBalance"
-	const resource = "balance"
 
 	if orgID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
@@ -422,7 +419,6 @@ func (e *balancesEntity) UpdateBalance(
 	input *models.UpdateBalanceInput,
 ) (*models.Balance, error) {
 	const operation = "UpdateBalance"
-	const resource = "balance"
 
 	if orgID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
@@ -478,7 +474,6 @@ func (e *balancesEntity) DeleteBalance(
 	balanceID string,
 ) error {
 	const operation = "DeleteBalance"
-	const resource = "balance"
 
 	if orgID == "" {
 		return errors.NewMissingParameterError(operation, "organizationID")
@@ -520,6 +515,7 @@ func (e *balancesEntity) buildURL(organizationID, ledgerID, balanceID string) st
 		if balanceID == "" {
 			return fmt.Sprintf("%s/organizations/%s/ledgers/%s/balances", base, organizationID, ledgerID)
 		}
+
 		return fmt.Sprintf("%s/organizations/%s/ledgers/%s/balances/%s", base, organizationID, ledgerID, balanceID)
 	}
 
@@ -527,6 +523,7 @@ func (e *balancesEntity) buildURL(organizationID, ledgerID, balanceID string) st
 	if balanceID == "" {
 		return fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/balances", base, organizationID, ledgerID)
 	}
+
 	return fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/balances/%s", base, organizationID, ledgerID, balanceID)
 }
 

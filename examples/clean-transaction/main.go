@@ -9,11 +9,11 @@ import (
 	"log"
 	"time"
 
-	client "github.com/LerianStudio/midaz-sdk-golang"
-	"github.com/LerianStudio/midaz-sdk-golang/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/models"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/config"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/observability"
+	client "github.com/LerianStudio/midaz-sdk-golang/v2"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/config"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
 )
 
 func main() {
@@ -54,22 +54,20 @@ func createDSLTransaction(ctx context.Context, txService entities.TransactionsSe
 	// Create a DSL transaction input
 	input := &models.TransactionDSLInput{
 		Description: "Test DSL Transaction",
-		Metadata: map[string]interface{}{
+		Metadata: map[string]any{
 			"source": "sdk-example",
 			"time":   time.Now().Format(time.RFC3339),
 		},
 		Send: &models.DSLSend{
 			Asset: "USD",
-			Value: 100_00, // $100.00
-			Scale: 2,
+			Value: "100.00", // $100.00
 			Source: &models.DSLSource{
 				From: []models.DSLFromTo{
 					{
 						Account: "account123",
 						Amount: &models.DSLAmount{
 							Asset: "USD",
-							Value: 100_00, // $100.00
-							Scale: 2,
+							Value: "100.00", // $100.00
 						},
 					},
 				},
@@ -80,8 +78,7 @@ func createDSLTransaction(ctx context.Context, txService entities.TransactionsSe
 						Account: "account456",
 						Amount: &models.DSLAmount{
 							Asset: "USD",
-							Value: 100_00, // $100.00
-							Scale: 2,
+							Value: "100.00", // $100.00
 						},
 					},
 				},

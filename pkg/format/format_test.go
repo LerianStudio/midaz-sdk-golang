@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/models"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/format"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/format"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -76,8 +76,7 @@ func TestFormatTransaction(t *testing.T) {
 	// Test minimal transaction
 	tx := &models.Transaction{
 		ID:        "tx-123",
-		Amount:    10000,
-		Scale:     2,
+		Amount:    "100.00",
 		AssetCode: "USD",
 		Status:    models.Status{Code: "COMPLETED"},
 	}
@@ -87,20 +86,19 @@ func TestFormatTransaction(t *testing.T) {
 	// Test deposit transaction
 	depositTx := &models.Transaction{
 		ID:        "tx-deposit",
-		Amount:    25000,
-		Scale:     2,
+		Amount:    "250.00",
 		AssetCode: "USD",
 		Status:    models.Status{Code: "COMPLETED"},
 		Operations: []models.Operation{
 			{
 				Type:         "CREDIT",
 				AccountID:    "acc-ext",
-				AccountAlias: str("@external/USD"),
+				AccountAlias: "@external/USD",
 			},
 			{
 				Type:         "DEBIT",
 				AccountID:    "acc-target",
-				AccountAlias: str("customer-account"),
+				AccountAlias: "customer-account",
 			},
 		},
 	}
@@ -110,20 +108,19 @@ func TestFormatTransaction(t *testing.T) {
 	// Test withdrawal transaction
 	withdrawalTx := &models.Transaction{
 		ID:        "tx-withdrawal",
-		Amount:    5000,
-		Scale:     2,
+		Amount:    "50.00",
 		AssetCode: "USD",
 		Status:    models.Status{Code: "PENDING"},
 		Operations: []models.Operation{
 			{
 				Type:         "DEBIT",
 				AccountID:    "acc-source",
-				AccountAlias: str("savings-account"),
+				AccountAlias: "savings-account",
 			},
 			{
 				Type:         "CREDIT",
 				AccountID:    "acc-ext",
-				AccountAlias: str("@external/USD"),
+				AccountAlias: "@external/USD",
 			},
 		},
 	}
@@ -133,20 +130,19 @@ func TestFormatTransaction(t *testing.T) {
 	// Test transfer transaction
 	transferTx := &models.Transaction{
 		ID:        "tx-transfer",
-		Amount:    1500,
-		Scale:     2,
+		Amount:    "15.00",
 		AssetCode: "USD",
 		Status:    models.Status{Code: "COMPLETED"},
 		Operations: []models.Operation{
 			{
 				Type:         "DEBIT",
 				AccountID:    "acc-source",
-				AccountAlias: str("checking"),
+				AccountAlias: "checking",
 			},
 			{
 				Type:         "CREDIT",
 				AccountID:    "acc-target",
-				AccountAlias: str("savings"),
+				AccountAlias: "savings",
 			},
 		},
 	}
@@ -156,30 +152,29 @@ func TestFormatTransaction(t *testing.T) {
 	// Test transaction with multiple sources/destinations
 	multiTx := &models.Transaction{
 		ID:        "tx-multi",
-		Amount:    2000,
-		Scale:     2,
+		Amount:    "20.00",
 		AssetCode: "USD",
 		Status:    models.Status{Code: "COMPLETED"},
 		Operations: []models.Operation{
 			{
 				Type:         "DEBIT",
 				AccountID:    "acc-source1",
-				AccountAlias: str("checking1"),
+				AccountAlias: "checking1",
 			},
 			{
 				Type:         "DEBIT",
 				AccountID:    "acc-source2",
-				AccountAlias: str("checking2"),
+				AccountAlias: "checking2",
 			},
 			{
 				Type:         "CREDIT",
 				AccountID:    "acc-target1",
-				AccountAlias: str("savings1"),
+				AccountAlias: "savings1",
 			},
 			{
 				Type:         "CREDIT",
 				AccountID:    "acc-target2",
-				AccountAlias: str("savings2"),
+				AccountAlias: "savings2",
 			},
 		},
 	}
@@ -417,8 +412,7 @@ func TestFormatAmountWithOptions(t *testing.T) {
 func TestFormatTransactionWithOptions(t *testing.T) {
 	tx := &models.Transaction{
 		ID:        "tx-123",
-		Amount:    10000,
-		Scale:     2,
+		Amount:    "100.00",
 		AssetCode: "USD",
 		Status:    models.Status{Code: "COMPLETED"},
 		CreatedAt: time.Date(2023, 5, 15, 10, 30, 45, 0, time.UTC),
@@ -426,12 +420,12 @@ func TestFormatTransactionWithOptions(t *testing.T) {
 			{
 				Type:         "DEBIT",
 				AccountID:    "acc-source",
-				AccountAlias: str("checking"),
+				AccountAlias: "checking",
 			},
 			{
 				Type:         "CREDIT",
 				AccountID:    "acc-target",
-				AccountAlias: str("savings"),
+				AccountAlias: "savings",
 			},
 		},
 	}

@@ -19,8 +19,9 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	sdkresource "go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.34.0"
 	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 )
 
 // Constants for attribute keys used in spans and metrics
@@ -455,7 +456,7 @@ func (p *MidazProvider) createResource() (*sdkresource.Resource, error) {
 		semconv.ServiceVersionKey.String(p.config.ServiceVersion),
 		attribute.String(KeySDKVersion, p.config.SDKVersion),
 		attribute.String(KeySDKLanguage, "go"),
-		semconv.DeploymentEnvironmentKey.String(p.config.Environment),
+		semconv.DeploymentEnvironmentNameKey.String(p.config.Environment),
 	}
 
 	// Add custom attributes
@@ -504,7 +505,7 @@ func (p *MidazProvider) initTracing(ctx context.Context, res *sdkresource.Resour
 	otel.SetTracerProvider(p.tracerProvider)
 
 	// Create a tracer for this library
-	p.tracer = p.tracerProvider.Tracer("github.com/LerianStudio/midaz-sdk-golang")
+	p.tracer = p.tracerProvider.Tracer("github.com/LerianStudio/midaz-sdk-golang/v2")
 
 	// Add shutdown function
 	p.shutdownFunctions = append(p.shutdownFunctions, func(ctx context.Context) error {
@@ -547,7 +548,7 @@ func (p *MidazProvider) initMetrics(ctx context.Context, res *sdkresource.Resour
 	otel.SetMeterProvider(p.meterProvider)
 
 	// Create a meter for this library
-	p.meter = p.meterProvider.Meter("github.com/LerianStudio/midaz-sdk-golang")
+	p.meter = p.meterProvider.Meter("github.com/LerianStudio/midaz-sdk-golang/v2")
 
 	// Add shutdown function
 	p.shutdownFunctions = append(p.shutdownFunctions, func(ctx context.Context) error {
@@ -584,7 +585,7 @@ func (p *MidazProvider) setupPropagation() {
 func (p *MidazProvider) Tracer() trace.Tracer {
 	if !p.enabled || !p.config.EnabledComponents.Tracing {
 		// Return a no-op tracer if tracing is disabled
-		return trace.NewNoopTracerProvider().Tracer("")
+		return noop.NewTracerProvider().Tracer("")
 	}
 	return p.tracer
 }

@@ -50,6 +50,7 @@ func MapStruct[T any](data T) map[string]any {
 
 		// Get the field name, checking for json tag
 		name := field.Name
+
 		if tag, ok := field.Tag.Lookup("json"); ok {
 			// Parse the json tag (handling omitempty, etc.)
 			if tagParts := parseTag(tag); tagParts[0] != "" && tagParts[0] != "-" {
@@ -72,6 +73,7 @@ func MapStruct[T any](data T) map[string]any {
 				timeValue = value.Interface().(time.Time)
 			}
 			result[name] = ConvertToISODateTime(timeValue)
+
 			continue
 		}
 
@@ -139,6 +141,7 @@ func UnmapStruct[T any](data map[string]any, target *T) {
 
 	// Build a map of struct fields by json tag and by field name
 	fields := make(map[string]int)
+
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
 		if !field.IsExported() {
@@ -176,9 +179,11 @@ func UnmapStruct[T any](data map[string]any, target *T) {
 			if fieldType == reflect.TypeOf(time.Time{}) && val.Kind() == reflect.String {
 				timeStr := value.(string)
 				parsedTime, err := time.Parse(time.RFC3339, timeStr)
+
 				if err == nil {
 					field.Set(reflect.ValueOf(parsedTime))
 				}
+
 				continue
 			}
 
@@ -186,9 +191,11 @@ func UnmapStruct[T any](data map[string]any, target *T) {
 			if fieldType.Kind() == reflect.Ptr && fieldType.Elem() == reflect.TypeOf(time.Time{}) && val.Kind() == reflect.String {
 				timeStr := value.(string)
 				parsedTime, err := time.Parse(time.RFC3339, timeStr)
+
 				if err == nil {
 					field.Set(reflect.ValueOf(&parsedTime))
 				}
+
 				continue
 			}
 
@@ -247,6 +254,7 @@ func MapSlice[T any, R any](slice []T, mapFn func(T) R) []R {
 	for i, item := range slice {
 		result[i] = mapFn(item)
 	}
+
 	return result
 }
 
@@ -266,6 +274,7 @@ func MapSlice[T any, R any](slice []T, mapFn func(T) R) []R {
 //	})
 func FilterSlice[T any](slice []T, filterFn func(T) bool) []T {
 	result := make([]T, 0, len(slice))
+
 	for _, item := range slice {
 		if filterFn(item) {
 			result = append(result, item)
@@ -307,6 +316,7 @@ func PtrValue[T any](ptr *T, defaultValue T) T {
 	if ptr == nil {
 		return defaultValue
 	}
+
 	return *ptr
 }
 
@@ -334,5 +344,6 @@ func parseTag(tag string) []string {
 			return []string{tag[:i], tag[i+1:]}
 		}
 	}
+
 	return []string{tag, ""}
 }

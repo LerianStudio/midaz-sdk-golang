@@ -1,4 +1,4 @@
-package config // import "github.com/LerianStudio/midaz-sdk-golang/pkg/config"
+package config // import "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/config"
 
 Package config provides configuration management for the Midaz SDK.
 
@@ -17,6 +17,7 @@ type Environment string
     const EnvironmentLocal Environment = "local" ...
 type Option func(*Config) error
     func FromEnvironment() Option
+    func WithAccessManager(AccessManager auth.AccessManager) Option
     func WithBaseURL(baseURL string) Option
     func WithDebug(enable bool) Option
     func WithEnvironment(env Environment) Option
@@ -25,7 +26,6 @@ type Option func(*Config) error
     func WithMaxRetries(maxRetries int) Option
     func WithObservabilityProvider(provider observability.Provider) Option
     func WithOnboardingURL(url string) Option
-    func WithPluginAuth(pluginAuth auth.PluginAuth) Option
     func WithRetries(enable bool) Option
     func WithRetryConfig(maxRetries int, minWait, maxWait time.Duration) Option
     func WithRetryWaitMax(waitTime time.Duration) Option

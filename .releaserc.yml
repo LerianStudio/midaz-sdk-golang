@@ -19,7 +19,7 @@ plugins:
       - type: test
         release: patch
       - type: fix
-        release: minor
+        release: patch # to hotfix scenarios
       - type: refactor
         release: minor
       - type: docs
@@ -38,8 +38,11 @@ plugins:
     assets:
       - path: CHANGELOG.md
         label: "Changelog"
+    successComment: false
+    failComment: false
+    labels: []
   
- # Plugin to perform the backmerge between the 'main' and 'develop' branches
+  # Plugin to perform the backmerge between the 'main' and 'develop' branches
   - path: "@saithodev/semantic-release-backmerge"
     backmergeBranches:
       - from: main
@@ -47,14 +50,11 @@ plugins:
     message: "chore(release): Preparations for next release [skip ci]"
 
   - path: "@semantic-release/exec"
-    backmergeBranches:
-      - from: main 
-        to: develop
-    message: "chore(release): Preparations for next release [skip ci]"
 
 branches:
-  - main
+  - name: main
   - name: develop
     prerelease: beta
   - name: hotfix/*
-    prerelease: hf
+    prerelease: false
+    channel: false

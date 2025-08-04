@@ -6,13 +6,12 @@ import (
 	"strings"
 	"time"
 
-	client "github.com/LerianStudio/midaz-sdk-golang"
-	"github.com/LerianStudio/midaz-sdk-golang/models"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/conversion"
-	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/pkg/errors"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/format"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/validation"
+	client "github.com/LerianStudio/midaz-sdk-golang/v2"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/conversion"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation"
 )
 
 // ExecuteInsufficientFundsTransactions attempts transactions that should fail due to insufficient funds
@@ -25,7 +24,7 @@ import (
 //   - customerAccount: The customer account model
 //   - merchantAccount: The merchant account model
 //   - externalAccountID: The external account ID
-func ExecuteInsufficientFundsTransactions(ctx context.Context, client *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, externalAccountID string) {
+func ExecuteInsufficientFundsTransactions(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, externalAccountID string) {
 	// Create span for observability
 	ctx, span := observability.StartSpan(ctx, "ExecuteInsufficientFundsTransactions")
 	defer span.End()
@@ -49,35 +48,35 @@ func ExecuteInsufficientFundsTransactions(ctx context.Context, client *client.Cl
 		Description   string
 		FromAccount   *models.Account
 		ToAccount     string // Can be account ID or external account
-		Amount        int64
+		Amount        string
 		ExpectedError string
 	}{
 		{
 			Description:   "Customer transfer exceeding balance",
 			FromAccount:   customerAccount,
 			ToAccount:     merchantAccount.ID,
-			Amount:        1000000000, // $10,000,000.00 (far exceeds balance)
+			Amount:        "100000.00", // $100,000.00 (far exceeds balance)
 			ExpectedError: "insufficient funds",
 		},
 		{
 			Description:   "Merchant transfer exceeding balance",
 			FromAccount:   merchantAccount,
 			ToAccount:     customerAccount.ID,
-			Amount:        5000000000, // $50,000,000.00 (far exceeds balance)
+			Amount:        "500000.00", // $500,000.00 (far exceeds balance)
 			ExpectedError: "insufficient funds",
 		},
 		{
 			Description:   "Customer withdrawal exceeding balance",
 			FromAccount:   customerAccount,
 			ToAccount:     externalAccountID,
-			Amount:        2000000000, // $20,000,000.00 (far exceeds balance)
+			Amount:        "200000.00", // $200,000.00 (far exceeds balance)
 			ExpectedError: "insufficient funds",
 		},
 		{
 			Description:   "Merchant withdrawal exceeding balance",
 			FromAccount:   merchantAccount,
 			ToAccount:     externalAccountID,
-			Amount:        3000000000, // $30,000,000.00 (far exceeds balance)
+			Amount:        "300000.00", // $300,000.00 (far exceeds balance)
 			ExpectedError: "insufficient funds",
 		},
 	}
@@ -95,13 +94,13 @@ func ExecuteInsufficientFundsTransactions(ctx context.Context, client *client.Cl
 		observability.AddAttribute(testCtx, "amount", test.Amount)
 
 		fmt.Printf("\n🔴 Test #%d: %s\n", i+1, test.Description)
-		fmt.Printf("   Attempting to transfer %s\n", format.FormatCurrency(test.Amount, 2, "USD"))
+		fmt.Printf("   Attempting to transfer %s USD\n", test.Amount)
 
 		// Validate the amount - it's intentionally large so should fail, but we still validate format
-		if !validation.IsValidAmount(test.Amount, 2) {
-			err := fmt.Errorf("invalid amount format: %d", test.Amount)
+		if test.Amount == "" || test.Amount == "0" {
+			err := fmt.Errorf("invalid amount format: %s", test.Amount)
 			observability.RecordError(testCtx, err, "invalid_amount_format")
-			fmt.Printf("⚠️ Note: Amount format is invalid: %d\n", test.Amount)
+			fmt.Printf("⚠️ Note: Amount format is invalid: %s\n", test.Amount)
 		}
 
 		// Create the transaction input with enhanced metadata using conversion package
@@ -114,7 +113,7 @@ func ExecuteInsufficientFundsTransactions(ctx context.Context, client *client.Cl
 		)
 
 		// Add extra metadata to track these test transactions
-		transferInput.Metadata = conversion.EnhanceMetadata(transferInput.Metadata, map[string]interface{}{
+		transferInput.Metadata = conversion.EnhanceMetadata(transferInput.Metadata, map[string]any{
 			"test_type":        "insufficient_funds",
 			"test_index":       i + 1,
 			"expected_to_fail": true,
@@ -125,7 +124,7 @@ func ExecuteInsufficientFundsTransactions(ctx context.Context, client *client.Cl
 		startTime := time.Now()
 
 		// Attempt the transaction (expecting failure)
-		_, err := client.Entity.Transactions.CreateTransaction(testCtx, orgID, ledgerID, transferInput)
+		_, err := midazClient.Entity.Transactions.CreateTransaction(testCtx, orgID, ledgerID, transferInput)
 
 		// Record the transaction duration
 		duration := time.Since(startTime)

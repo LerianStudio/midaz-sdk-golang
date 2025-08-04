@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/LerianStudio/midaz-sdk-golang/models"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
 )
 
 // PortfoliosService defines the interface for portfolio-related operations.
@@ -125,6 +125,11 @@ type PortfoliosService interface {
 	// The id parameter is the unique identifier of the portfolio to delete.
 	// Returns an error if the operation fails.
 	DeletePortfolio(ctx context.Context, organizationID, ledgerID, id string) error
+
+	// GetPortfoliosMetricsCount retrieves the count metrics for portfolios in a ledger.
+	// The organizationID and ledgerID parameters specify which organization and ledger to get metrics for.
+	// Returns the metrics count if successful, or an error if the operation fails.
+	GetPortfoliosMetricsCount(ctx context.Context, organizationID, ledgerID string) (*models.MetricsCount, error)
 }
 
 // portfoliosEntity implements the PortfoliosService interface.
@@ -154,7 +159,6 @@ func NewPortfoliosEntity(client *http.Client, authToken string, baseURLs map[str
 // ListPortfolios lists portfolios for a ledger with optional filters.
 func (e *portfoliosEntity) ListPortfolios(ctx context.Context, organizationID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Portfolio], error) {
 	const operation = "ListPortfolios"
-	const resource = "portfolio"
 
 	if organizationID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
@@ -193,7 +197,6 @@ func (e *portfoliosEntity) ListPortfolios(ctx context.Context, organizationID, l
 // GetPortfolio gets a portfolio by ID.
 func (e *portfoliosEntity) GetPortfolio(ctx context.Context, organizationID, ledgerID, id string) (*models.Portfolio, error) {
 	const operation = "GetPortfolio"
-	const resource = "portfolio"
 
 	if organizationID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
@@ -225,7 +228,6 @@ func (e *portfoliosEntity) GetPortfolio(ctx context.Context, organizationID, led
 // CreatePortfolio creates a new portfolio in the specified ledger.
 func (e *portfoliosEntity) CreatePortfolio(ctx context.Context, organizationID, ledgerID string, input *models.CreatePortfolioInput) (*models.Portfolio, error) {
 	const operation = "CreatePortfolio"
-	const resource = "portfolio"
 
 	if organizationID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
@@ -262,7 +264,6 @@ func (e *portfoliosEntity) CreatePortfolio(ctx context.Context, organizationID, 
 // UpdatePortfolio updates an existing portfolio.
 func (e *portfoliosEntity) UpdatePortfolio(ctx context.Context, organizationID, ledgerID, id string, input *models.UpdatePortfolioInput) (*models.Portfolio, error) {
 	const operation = "UpdatePortfolio"
-	const resource = "portfolio"
 
 	if organizationID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
@@ -303,7 +304,6 @@ func (e *portfoliosEntity) UpdatePortfolio(ctx context.Context, organizationID, 
 // DeletePortfolio deletes a portfolio.
 func (e *portfoliosEntity) DeletePortfolio(ctx context.Context, organizationID, ledgerID, id string) error {
 	const operation = "DeletePortfolio"
-	const resource = "portfolio"
 
 	if organizationID == "" {
 		return errors.NewMissingParameterError(operation, "organizationID")
@@ -331,6 +331,33 @@ func (e *portfoliosEntity) DeletePortfolio(ctx context.Context, organizationID, 
 	return nil
 }
 
+// GetPortfoliosMetricsCount gets the count metrics for portfolios in a ledger.
+func (e *portfoliosEntity) GetPortfoliosMetricsCount(ctx context.Context, organizationID, ledgerID string) (*models.MetricsCount, error) {
+	const operation = "GetPortfoliosMetricsCount"
+
+	if organizationID == "" {
+		return nil, errors.NewMissingParameterError(operation, "organizationID")
+	}
+
+	if ledgerID == "" {
+		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+	}
+
+	url := e.buildMetricsURL(organizationID, ledgerID)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	var metrics models.MetricsCount
+	if err := e.HTTPClient.sendRequest(req, &metrics); err != nil {
+		return nil, err
+	}
+
+	return &metrics, nil
+}
+
 // buildURL builds the URL for portfolios API calls.
 func (e *portfoliosEntity) buildURL(organizationID, ledgerID, portfolioID string) string {
 	baseURL := e.baseURLs["onboarding"]
@@ -340,4 +367,10 @@ func (e *portfoliosEntity) buildURL(organizationID, ledgerID, portfolioID string
 	}
 
 	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/portfolios/%s", baseURL, organizationID, ledgerID, portfolioID)
+}
+
+// buildMetricsURL builds the URL for portfolios metrics API calls.
+func (e *portfoliosEntity) buildMetricsURL(organizationID, ledgerID string) string {
+	baseURL := e.baseURLs["onboarding"]
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/portfolios/metrics/count", baseURL, organizationID, ledgerID)
 }

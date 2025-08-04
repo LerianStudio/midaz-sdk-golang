@@ -9,8 +9,8 @@ import (
 	"os"
 	"path"
 
-	"github.com/LerianStudio/midaz-sdk-golang/models"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
 )
 
 // AccountsService defines the interface for account-related operations.
@@ -131,6 +131,24 @@ type AccountsService interface {
 	// The accountID parameter is the unique identifier of the account to get the balance for.
 	// Returns the balance information, or an error if the operation fails.
 	GetBalance(ctx context.Context, organizationID, ledgerID, accountID string) (*models.Balance, error)
+
+	// GetAccountsMetricsCount retrieves the count metrics for accounts in a ledger.
+	// The organizationID and ledgerID parameters specify which organization and ledger to get metrics for.
+	// Returns the metrics count if successful, or an error if the operation fails.
+	GetAccountsMetricsCount(ctx context.Context, organizationID, ledgerID string) (*models.MetricsCount, error)
+
+	// GetExternalAccount retrieves an external account by asset code.
+	// External accounts are special accounts that represent external systems or parties.
+	// The organizationID and ledgerID parameters specify which organization and ledger to query.
+	// The assetCode parameter is the asset code that identifies the external account (e.g., "USD", "BRL").
+	// Returns the external account if found, or an error if the operation fails.
+	GetExternalAccount(ctx context.Context, organizationID, ledgerID, assetCode string) (*models.Account, error)
+
+	// GetExternalAccountBalance retrieves the balance for an external account by asset code.
+	// The organizationID and ledgerID parameters specify which organization and ledger to query.
+	// The assetCode parameter is the asset code that identifies the external account (e.g., "USD", "BRL").
+	// Returns the balance information for the external account, or an error if the operation fails.
+	GetExternalAccountBalance(ctx context.Context, organizationID, ledgerID, assetCode string) (*models.Balance, error)
 }
 
 // accountsEntity implements the AccountsService interface.
@@ -198,7 +216,6 @@ func NewAccountsEntity(client *http.Client, authToken string, baseURLs map[strin
 // ListAccounts lists accounts for a ledger with optional filters.
 func (e *accountsEntity) ListAccounts(ctx context.Context, organizationID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Account], error) {
 	const operation = "ListAccounts"
-	const resource = "account"
 
 	if organizationID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
@@ -237,7 +254,6 @@ func (e *accountsEntity) ListAccounts(ctx context.Context, organizationID, ledge
 // GetAccount gets an account by ID.
 func (e *accountsEntity) GetAccount(ctx context.Context, organizationID, ledgerID, id string) (*models.Account, error) {
 	const operation = "GetAccount"
-	const resource = "account"
 
 	if organizationID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
@@ -269,6 +285,7 @@ func (e *accountsEntity) GetAccount(ctx context.Context, organizationID, ledgerI
 // GetAccountByAlias gets an account by alias.
 func (e *accountsEntity) GetAccountByAlias(ctx context.Context, organizationID, ledgerID, alias string) (*models.Account, error) {
 	const operation = "GetAccountByAlias"
+
 	const resource = "account"
 
 	if organizationID == "" {
@@ -305,7 +322,6 @@ func (e *accountsEntity) GetAccountByAlias(ctx context.Context, organizationID, 
 // CreateAccount creates a new account in the specified ledger.
 func (e *accountsEntity) CreateAccount(ctx context.Context, organizationID, ledgerID string, input *models.CreateAccountInput) (*models.Account, error) {
 	const operation = "CreateAccount"
-	const resource = "account"
 
 	if organizationID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
@@ -342,7 +358,6 @@ func (e *accountsEntity) CreateAccount(ctx context.Context, organizationID, ledg
 // UpdateAccount updates an existing account.
 func (e *accountsEntity) UpdateAccount(ctx context.Context, organizationID, ledgerID, id string, input *models.UpdateAccountInput) (*models.Account, error) {
 	const operation = "UpdateAccount"
-	const resource = "account"
 
 	if organizationID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
@@ -383,7 +398,6 @@ func (e *accountsEntity) UpdateAccount(ctx context.Context, organizationID, ledg
 // DeleteAccount deletes an account.
 func (e *accountsEntity) DeleteAccount(ctx context.Context, organizationID, ledgerID, id string) error {
 	const operation = "DeleteAccount"
-	const resource = "account"
 
 	if organizationID == "" {
 		return errors.NewMissingParameterError(operation, "organizationID")
@@ -414,7 +428,6 @@ func (e *accountsEntity) DeleteAccount(ctx context.Context, organizationID, ledg
 // GetBalance gets an account's balance.
 func (e *accountsEntity) GetBalance(ctx context.Context, organizationID, ledgerID, accountID string) (*models.Balance, error) {
 	const operation = "GetBalance"
-	const resource = "account"
 
 	if organizationID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
@@ -457,6 +470,33 @@ func (e *accountsEntity) GetBalance(ctx context.Context, organizationID, ledgerI
 	return &balance, nil
 }
 
+// GetAccountsMetricsCount gets the count metrics for accounts in a ledger.
+func (e *accountsEntity) GetAccountsMetricsCount(ctx context.Context, organizationID, ledgerID string) (*models.MetricsCount, error) {
+	const operation = "GetAccountsMetricsCount"
+
+	if organizationID == "" {
+		return nil, errors.NewMissingParameterError(operation, "organizationID")
+	}
+
+	if ledgerID == "" {
+		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+	}
+
+	url := e.buildMetricsURL(organizationID, ledgerID)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	var metrics models.MetricsCount
+	if err := e.httpClient.sendRequest(req, &metrics); err != nil {
+		return nil, err
+	}
+
+	return &metrics, nil
+}
+
 // buildURL builds the URL for accounts API calls.
 func (e *accountsEntity) buildURL(organizationID, ledgerID, accountID string) string {
 	baseURL := e.baseURLs["onboarding"]
@@ -466,4 +506,84 @@ func (e *accountsEntity) buildURL(organizationID, ledgerID, accountID string) st
 	}
 
 	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/%s", baseURL, organizationID, ledgerID, accountID)
+}
+
+// buildMetricsURL builds the URL for accounts metrics API calls.
+func (e *accountsEntity) buildMetricsURL(organizationID, ledgerID string) string {
+	baseURL := e.baseURLs["onboarding"]
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/metrics/count", baseURL, organizationID, ledgerID)
+}
+
+// GetExternalAccount gets an external account by asset code.
+func (e *accountsEntity) GetExternalAccount(ctx context.Context, organizationID, ledgerID, assetCode string) (*models.Account, error) {
+	const operation = "GetExternalAccount"
+
+	if organizationID == "" {
+		return nil, errors.NewMissingParameterError(operation, "organizationID")
+	}
+
+	if ledgerID == "" {
+		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+	}
+
+	if assetCode == "" {
+		return nil, errors.NewMissingParameterError(operation, "assetCode")
+	}
+
+	url := e.buildExternalAccountURL(organizationID, ledgerID, assetCode)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	var account models.Account
+	if err := e.httpClient.sendRequest(req, &account); err != nil {
+		return nil, err
+	}
+
+	return &account, nil
+}
+
+// GetExternalAccountBalance gets the balance for an external account by asset code.
+func (e *accountsEntity) GetExternalAccountBalance(ctx context.Context, organizationID, ledgerID, assetCode string) (*models.Balance, error) {
+	const operation = "GetExternalAccountBalance"
+
+	if organizationID == "" {
+		return nil, errors.NewMissingParameterError(operation, "organizationID")
+	}
+
+	if ledgerID == "" {
+		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+	}
+
+	if assetCode == "" {
+		return nil, errors.NewMissingParameterError(operation, "assetCode")
+	}
+
+	url := e.buildExternalAccountBalanceURL(organizationID, ledgerID, assetCode)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	var balance models.Balance
+	if err := e.httpClient.sendRequest(req, &balance); err != nil {
+		return nil, err
+	}
+
+	return &balance, nil
+}
+
+// buildExternalAccountURL builds the URL for external account API calls.
+func (e *accountsEntity) buildExternalAccountURL(organizationID, ledgerID, assetCode string) string {
+	baseURL := e.baseURLs["onboarding"]
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/external/%s", baseURL, organizationID, ledgerID, assetCode)
+}
+
+// buildExternalAccountBalanceURL builds the URL for external account balance API calls.
+func (e *accountsEntity) buildExternalAccountBalanceURL(organizationID, ledgerID, assetCode string) string {
+	baseURL := e.baseURLs["onboarding"]
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/external/%s/balances", baseURL, organizationID, ledgerID, assetCode)
 }

@@ -61,7 +61,7 @@ help:
 	@echo ""
 	@echo "Core Commands:"
 	@echo "  make help                        - Display this help message"
-	@echo "  make setup-env                   - Create .env file from .env.example if it doesn't exist"
+	@echo "  make set-env                     - Create .env file from .env.example if it doesn't exist"
 	@echo "  make test                        - Run all tests"
 	@echo "  make test-fast                   - Run tests with -short flag"
 	@echo "  make clean                       - Clean build artifacts"
@@ -88,9 +88,9 @@ help:
 # Environment Setup
 #-------------------------------------------------------
 
-.PHONY: setup-env
+.PHONY: set-env
 
-setup-env:
+set-env:
 	$(call print_header,"Setting up environment")
 	@if [ ! -f "$(ENV_FILE)" ] && [ -f "$(ENV_EXAMPLE_FILE)" ]; then \
 		echo "$(YELLOW)No .env file found. Creating from .env.example...$(NC)"; \

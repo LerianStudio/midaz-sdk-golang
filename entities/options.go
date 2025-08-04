@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"net/http"
 
-	auth "github.com/LerianStudio/midaz-sdk-golang/pkg/access-manager"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/observability"
+	auth "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/access-manager"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
 )
 
 // Option is a function that configures an Entity.
@@ -89,10 +89,10 @@ func WithHTTPClient(client *http.Client) Option {
 }
 
 // WithPluginAuth returns an Option that configures plugin-based authentication.
-// This is a wrapper around auth.WithPluginAuth to make it compatible with entities.Option.
+// This is a wrapper around auth.WithAccessManager to make it compatible with entities.Option.
 func WithPluginAuth(pluginAuth auth.AccessManager) Option {
 	return func(e *Entity) error {
-		// Call the auth.WithPluginAuth function with the entity
+		// Call the auth.WithAccessManager function with the entity
 		return auth.WithAccessManager(pluginAuth)(e)
 	}
 }

@@ -6,8 +6,8 @@ This guide provides brief examples of common operations with the Midaz Go SDK.
 
 ```go
 import (
-	client "github.com/LerianStudio/midaz-sdk-golang"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/config"
+	client "github.com/LerianStudio/midaz-sdk-golang/v2"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/config"
 )
 
 // Create a client with default options

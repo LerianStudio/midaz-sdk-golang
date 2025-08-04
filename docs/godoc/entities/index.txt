@@ -1,4 +1,4 @@
-package entities // import "github.com/LerianStudio/midaz-sdk-golang/entities"
+package entities // import "github.com/LerianStudio/midaz-sdk-golang/v2/entities"
 
 Package entities provides direct access to Midaz API services.
 
@@ -12,10 +12,10 @@ It provides domain-specific entities like accounts, assets, organizations, etc.
 const ServiceOnboarding = "onboarding" ...
 func AddURLParams(baseURL string, params map[string]string) string
 func GetWrappedHTTPClient(client *http.Client, authToken string) *http.Client
+type AccountTypesService interface{ ... }
+    func NewAccountTypesEntity(client *http.Client, authToken string, baseURLs map[string]string) AccountTypesService
 type AccountsService interface{ ... }
     func NewAccountsEntity(client *http.Client, authToken string, baseURLs map[string]string) AccountsService
-type AssetRatesService interface{ ... }
-    func NewAssetRatesEntity(client *http.Client, authToken string, baseURLs map[string]string) AssetRatesService
 type AssetsService interface{ ... }
     func NewAssetsEntity(client *http.Client, authToken string, baseURLs map[string]string) AssetsService
 type BalancesService interface{ ... }
@@ -30,6 +30,8 @@ type HTTPClient struct{ ... }
     func NewHTTPClient(client *http.Client, authToken string, provider observability.Provider) *HTTPClient
 type LedgersService interface{ ... }
     func NewLedgersEntity(client *http.Client, authToken string, baseURLs map[string]string) LedgersService
+type OperationRoutesService interface{ ... }
+    func NewOperationRoutesEntity(client *http.Client, authToken string, baseURLs map[string]string) OperationRoutesService
 type OperationsService interface{ ... }
     func NewOperationsEntity(client *http.Client, authToken string, baseURLs map[string]string) OperationsService
 type Option func(*Entity) error
@@ -37,7 +39,7 @@ type Option func(*Entity) error
     func WithDebug(debug bool) Option
     func WithHTTPClient(client *http.Client) Option
     func WithObservability(provider observability.Provider) Option
-    func WithPluginAuth(pluginAuth auth.PluginAuth) Option
+    func WithPluginAuth(pluginAuth auth.AccessManager) Option
     func WithUserAgent(userAgent string) Option
 type OrganizationsService interface{ ... }
     func NewOrganizationsEntity(client *http.Client, authToken string, baseURLs map[string]string) OrganizationsService
@@ -45,6 +47,7 @@ type PortfoliosService interface{ ... }
     func NewPortfoliosEntity(client *http.Client, authToken string, baseURLs map[string]string) PortfoliosService
 type SegmentsService interface{ ... }
     func NewSegmentsEntity(client *http.Client, authToken string, baseURLs map[string]string) SegmentsService
-type TransactionsEntity struct{ ... }
+type TransactionRoutesService interface{ ... }
+    func NewTransactionRoutesEntity(client *http.Client, authToken string, baseURLs map[string]string) TransactionRoutesService
 type TransactionsService interface{ ... }
     func NewTransactionsEntity(client *http.Client, authToken string, baseURLs map[string]string) TransactionsService

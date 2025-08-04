@@ -5,9 +5,10 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/models"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/errors"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/performance"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/performance"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -32,6 +33,7 @@ func BenchmarkJSONMarshal(b *testing.B) {
 
 	b.Run("Standard", func(b *testing.B) {
 		b.ResetTimer()
+
 		for i := 0; i < b.N; i++ {
 			_, err := json.Marshal(testObj)
 			if err != nil {
@@ -42,6 +44,7 @@ func BenchmarkJSONMarshal(b *testing.B) {
 
 	b.Run("Optimized", func(b *testing.B) {
 		pool := performance.NewJSONPool()
+
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
 			_, err := pool.Marshal(testObj)
@@ -72,6 +75,7 @@ func BenchmarkJSONUnmarshal(b *testing.B) {
 
 	b.Run("Optimized", func(b *testing.B) {
 		pool := performance.NewJSONPool()
+
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
 			var obj models.Organization
@@ -96,18 +100,18 @@ func createTestObject() *models.Organization {
 		ID:              "org-123456789",
 		LegalName:       "Test Organization Legal Name",
 		LegalDocument:   "1234567890-ABC",
-		DoingBusinessAs: "Test Organization DBA",
+		DoingBusinessAs: func() *string { s := "Test Organization DBA"; return &s }(),
 		Status: models.Status{
 			Code: "ACTIVE",
 		},
-		Address: models.Address{
+		Address: mmodel.Address{
 			Line1:   "123 Main St",
 			City:    "San Francisco",
 			State:   "CA",
 			ZipCode: "94105",
 			Country: "US",
 		},
-		Metadata: map[string]interface{}{
+		Metadata: map[string]any{
 			"createdBy":      "test-user",
 			"region":         "us-west-2",
 			"tier":           "enterprise",
@@ -117,11 +121,11 @@ func createTestObject() *models.Organization {
 			"yearFounded":    2010,
 			"publiclyTraded": true,
 			"subsidiaries":   []string{"subsidiary-1", "subsidiary-2", "subsidiary-3"},
-			"contact": map[string]interface{}{
+			"contact": map[string]any{
 				"email":   "contact@testorg.com",
 				"phone":   "+1-555-123-4567",
 				"website": "https://www.testorg.com",
-				"address": map[string]interface{}{
+				"address": map[string]any{
 					"street":  "123 Main St",
 					"city":    "San Francisco",
 					"state":   "CA",
@@ -129,12 +133,12 @@ func createTestObject() *models.Organization {
 					"country": "USA",
 				},
 			},
-			"financialData": map[string]interface{}{
+			"financialData": map[string]any{
 				"revenue":     1000000000,
 				"profit":      250000000,
 				"fiscalYear":  2023,
 				"stockSymbol": "TEST",
-				"quarters": []map[string]interface{}{
+				"quarters": []map[string]any{
 					{
 						"quarter":    "Q1",
 						"revenue":    230000000,

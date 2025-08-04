@@ -4,7 +4,7 @@ import (
 	"context"
 	"reflect"
 
-	"github.com/LerianStudio/midaz-sdk-golang/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 	"github.com/golang/mock/gomock"
 )
 
@@ -50,9 +50,11 @@ func (mr *MockOperationsServiceMockRecorder) ListOperations(ctx, orgID, ledgerID
 func (m *MockOperationsService) GetOperation(ctx context.Context, orgID, ledgerID, accountID, operationID string, transactionID ...string) (*models.Operation, error) {
 	m.ctrl.T.Helper()
 	varargs := []any{ctx, orgID, ledgerID, accountID, operationID}
+
 	for _, a := range transactionID {
 		varargs = append(varargs, a)
 	}
+
 	ret := m.ctrl.Call(m, "GetOperation", varargs...)
 	ret0, _ := ret[0].(*models.Operation)
 	ret1, _ := ret[1].(error)
@@ -63,6 +65,7 @@ func (m *MockOperationsService) GetOperation(ctx context.Context, orgID, ledgerI
 func (mr *MockOperationsServiceMockRecorder) GetOperation(ctx, orgID, ledgerID, accountID, operationID any, transactionID ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	varargs := []any{ctx, orgID, ledgerID, accountID, operationID}
+
 	varargs = append(varargs, transactionID...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOperation", reflect.TypeOf((*MockOperationsService)(nil).GetOperation), varargs...)
 }

@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
-	client "github.com/LerianStudio/midaz-sdk-golang"
-	"github.com/LerianStudio/midaz-sdk-golang/models"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/errors"
+	client "github.com/LerianStudio/midaz-sdk-golang/v2"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
 	"github.com/google/uuid"
 )
 
@@ -83,7 +83,7 @@ func DefaultBatchOptions() *BatchOptions {
 // regardless of the order in which transactions are processed.
 func BatchTransactions(
 	ctx context.Context,
-	client *client.Client,
+	midazClient *client.Client,
 	orgID, ledgerID string,
 	inputs []*models.CreateTransactionInput,
 	options *BatchOptions,
@@ -153,7 +153,7 @@ func BatchTransactions(
 			}
 
 			// Create the transaction
-			tx, err = client.Entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
+			tx, err = midazClient.Entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
 
 			// If successful or not a retryable error, break
 			if err == nil || !isRetryableError(err) {

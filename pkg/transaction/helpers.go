@@ -6,13 +6,33 @@ package transaction
 import (
 	"context"
 	"fmt"
+	"math"
+	"strconv"
 	"time"
 
-	client "github.com/LerianStudio/midaz-sdk-golang"
-	"github.com/LerianStudio/midaz-sdk-golang/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 	"github.com/google/uuid"
 )
+
+// formatAmount converts an int64 amount with scale to a decimal string
+func formatAmount(amount int64, scale int64) string {
+	if scale == 0 {
+		return strconv.FormatInt(amount, 10)
+	}
+	
+	divisor := int64(math.Pow10(int(scale)))
+	whole := amount / divisor
+	fractional := amount % divisor
+	
+	if fractional == 0 {
+		return strconv.FormatInt(whole, 10)
+	}
+	
+	// Format with proper decimal places
+	formatStr := fmt.Sprintf("%%.%df", scale)
+	return fmt.Sprintf(formatStr, float64(amount)/float64(divisor))
+}
 
 // TransferOptions provides configuration options for transfer transactions
 type TransferOptions struct {
@@ -59,7 +79,7 @@ func DefaultTransferOptions() *TransferOptions {
 //   - An error if the operation fails
 func Transfer(
 	ctx context.Context,
-	client *client.Client,
+	entity *entities.Entity,
 	orgID, ledgerID string,
 	fromAccountID, toAccountID string,
 	amount int64,
@@ -78,11 +98,13 @@ func Transfer(
 		idempotencyKey = uuid.New().String()
 	}
 
+	// Convert amount to string with scale
+	amountStr := formatAmount(amount, scale)
+
 	// Create the transaction input
 	transferInput := &models.CreateTransactionInput{
 		Description:              opts.Description,
-		Amount:                   amount,
-		Scale:                    scale,
+		Amount:                   amountStr,
 		AssetCode:                assetCode,
 		Metadata:                 opts.Metadata,
 		Pending:                  opts.Pending,
@@ -91,16 +113,14 @@ func Transfer(
 		ChartOfAccountsGroupName: opts.ChartOfAccountsGroupName,
 		Send: &models.SendInput{
 			Asset: assetCode,
-			Value: amount,
-			Scale: scale,
+			Value: amountStr,
 			Source: &models.SourceInput{
 				From: []models.FromToInput{
 					{
 						Account: fromAccountID,
 						Amount: models.AmountInput{
 							Asset: assetCode,
-							Value: amount,
-							Scale: scale,
+							Value: amountStr,
 						},
 					},
 				},
@@ -111,8 +131,7 @@ func Transfer(
 						Account: toAccountID,
 						Amount: models.AmountInput{
 							Asset: assetCode,
-							Value: amount,
-							Scale: scale,
+							Value: amountStr,
 						},
 					},
 				},
@@ -121,7 +140,7 @@ func Transfer(
 	}
 
 	// Create the transaction
-	transaction, err := client.Entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, transferInput)
+	transaction, err := entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, transferInput)
 	if err != nil {
 		return nil, fmt.Errorf("transfer transaction failed: %w", err)
 	}
@@ -176,7 +195,7 @@ func DefaultDepositOptions() *DepositOptions {
 //   - An error if the operation fails
 func Deposit(
 	ctx context.Context,
-	client *client.Client,
+	entity *entities.Entity,
 	orgID, ledgerID string,
 	toAccountID string,
 	amount int64,
@@ -201,11 +220,13 @@ func Deposit(
 		externalAccountID = fmt.Sprintf("@external/%s", assetCode)
 	}
 
+	// Convert amount to string with scale
+	amountStr := formatAmount(amount, scale)
+
 	// Create the transaction input
 	depositInput := &models.CreateTransactionInput{
 		Description:              opts.Description,
-		Amount:                   amount,
-		Scale:                    scale,
+		Amount:                   amountStr,
 		AssetCode:                assetCode,
 		Metadata:                 opts.Metadata,
 		Pending:                  opts.Pending,
@@ -214,16 +235,14 @@ func Deposit(
 		ChartOfAccountsGroupName: opts.ChartOfAccountsGroupName,
 		Send: &models.SendInput{
 			Asset: assetCode,
-			Value: amount,
-			Scale: scale,
+			Value: amountStr,
 			Source: &models.SourceInput{
 				From: []models.FromToInput{
 					{
 						Account: externalAccountID,
 						Amount: models.AmountInput{
 							Asset: assetCode,
-							Value: amount,
-							Scale: scale,
+							Value: amountStr,
 						},
 					},
 				},
@@ -234,8 +253,7 @@ func Deposit(
 						Account: toAccountID,
 						Amount: models.AmountInput{
 							Asset: assetCode,
-							Value: amount,
-							Scale: scale,
+							Value: amountStr,
 						},
 					},
 				},
@@ -244,7 +262,7 @@ func Deposit(
 	}
 
 	// Create the transaction
-	transaction, err := client.Entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, depositInput)
+	transaction, err := entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, depositInput)
 	if err != nil {
 		return nil, fmt.Errorf("deposit transaction failed: %w", err)
 	}
@@ -299,7 +317,7 @@ func DefaultWithdrawalOptions() *WithdrawalOptions {
 //   - An error if the operation fails
 func Withdrawal(
 	ctx context.Context,
-	client *client.Client,
+	entity *entities.Entity,
 	orgID, ledgerID string,
 	fromAccountID string,
 	amount int64,
@@ -324,11 +342,13 @@ func Withdrawal(
 		externalAccountID = fmt.Sprintf("@external/%s", assetCode)
 	}
 
+	// Convert amount to string with scale
+	amountStr := formatAmount(amount, scale)
+
 	// Create the transaction input
 	withdrawalInput := &models.CreateTransactionInput{
 		Description:              opts.Description,
-		Amount:                   amount,
-		Scale:                    scale,
+		Amount:                   amountStr,
 		AssetCode:                assetCode,
 		Metadata:                 opts.Metadata,
 		Pending:                  opts.Pending,
@@ -337,16 +357,14 @@ func Withdrawal(
 		ChartOfAccountsGroupName: opts.ChartOfAccountsGroupName,
 		Send: &models.SendInput{
 			Asset: assetCode,
-			Value: amount,
-			Scale: scale,
+			Value: amountStr,
 			Source: &models.SourceInput{
 				From: []models.FromToInput{
 					{
 						Account: fromAccountID,
 						Amount: models.AmountInput{
 							Asset: assetCode,
-							Value: amount,
-							Scale: scale,
+							Value: amountStr,
 						},
 					},
 				},
@@ -357,8 +375,7 @@ func Withdrawal(
 						Account: externalAccountID,
 						Amount: models.AmountInput{
 							Asset: assetCode,
-							Value: amount,
-							Scale: scale,
+							Value: amountStr,
 						},
 					},
 				},
@@ -367,7 +384,7 @@ func Withdrawal(
 	}
 
 	// Create the transaction
-	transaction, err := client.Entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, withdrawalInput)
+	transaction, err := entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, withdrawalInput)
 	if err != nil {
 		return nil, fmt.Errorf("withdrawal transaction failed: %w", err)
 	}
@@ -420,7 +437,7 @@ func DefaultMultiTransferOptions() *MultiTransferOptions {
 //   - An error if the operation fails
 func MultiAccountTransfer(
 	ctx context.Context,
-	client *client.Client,
+	entity *entities.Entity,
 	orgID, ledgerID string,
 	sourceAccounts map[string]int64,
 	destAccounts map[string]int64,
@@ -461,12 +478,12 @@ func MultiAccountTransfer(
 			return nil, fmt.Errorf("amount for source account %s must be positive", accountID)
 		}
 
+		amountStr := formatAmount(amount, scale)
 		fromList = append(fromList, models.FromToInput{
 			Account: accountID,
 			Amount: models.AmountInput{
 				Asset: assetCode,
-				Value: amount,
-				Scale: scale,
+				Value: amountStr,
 			},
 		})
 
@@ -479,12 +496,12 @@ func MultiAccountTransfer(
 			return nil, fmt.Errorf("amount for destination account %s must be positive", accountID)
 		}
 
+		amountStr := formatAmount(amount, scale)
 		toList = append(toList, models.FromToInput{
 			Account: accountID,
 			Amount: models.AmountInput{
 				Asset: assetCode,
-				Value: amount,
-				Scale: scale,
+				Value: amountStr,
 			},
 		})
 
@@ -501,11 +518,13 @@ func MultiAccountTransfer(
 		return nil, fmt.Errorf("total amount mismatch: specified total (%d) does not match sum of accounts (%d)", totalAmount, sourceSum)
 	}
 
+	// Convert total amount to string with scale
+	totalAmountStr := formatAmount(totalAmount, scale)
+
 	// Create the transaction input
 	multiTransferInput := &models.CreateTransactionInput{
 		Description:              opts.Description,
-		Amount:                   totalAmount,
-		Scale:                    scale,
+		Amount:                   totalAmountStr,
 		AssetCode:                assetCode,
 		Metadata:                 opts.Metadata,
 		Pending:                  opts.Pending,
@@ -514,8 +533,7 @@ func MultiAccountTransfer(
 		ChartOfAccountsGroupName: opts.ChartOfAccountsGroupName,
 		Send: &models.SendInput{
 			Asset: assetCode,
-			Value: totalAmount,
-			Scale: scale,
+			Value: totalAmountStr,
 			Source: &models.SourceInput{
 				From: fromList,
 			},
@@ -526,7 +544,7 @@ func MultiAccountTransfer(
 	}
 
 	// Create the transaction
-	transaction, err := client.Entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, multiTransferInput)
+	transaction, err := entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, multiTransferInput)
 	if err != nil {
 		return nil, fmt.Errorf("multi-account transfer failed: %w", err)
 	}
@@ -594,19 +612,19 @@ func CreateFromTemplate(
 			mergedMetadata[k] = v
 		}
 	}
-	if metadata != nil {
-		for k, v := range metadata {
-			mergedMetadata[k] = v
-		}
+	for k, v := range metadata {
+		mergedMetadata[k] = v
 	}
 	// Add timestamp to metadata
 	mergedMetadata["timestamp"] = time.Now().Unix()
 
+	// Convert amount to string with scale
+	amountStr := formatAmount(amount, template.Scale)
+
 	// Create the transaction input
 	input := &models.CreateTransactionInput{
 		Description:              template.Description,
-		Amount:                   amount,
-		Scale:                    template.Scale,
+		Amount:                   amountStr,
 		AssetCode:                template.AssetCode,
 		Metadata:                 mergedMetadata,
 		Pending:                  template.Pending,
@@ -614,8 +632,7 @@ func CreateFromTemplate(
 		ChartOfAccountsGroupName: template.ChartOfAccountsGroupName,
 		Send: &models.SendInput{
 			Asset: template.AssetCode,
-			Value: amount,
-			Scale: template.Scale,
+			Value: amountStr,
 			Source: &models.SourceInput{
 				From: template.BuildSources(amount),
 			},

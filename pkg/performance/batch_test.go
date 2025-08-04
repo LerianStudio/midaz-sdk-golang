@@ -57,7 +57,7 @@ func createMockBatchServer() *httptest.Server {
 		// Send the response
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(responses)
+		_ = json.NewEncoder(w).Encode(responses)
 	})
 
 	return httptest.NewServer(handler)

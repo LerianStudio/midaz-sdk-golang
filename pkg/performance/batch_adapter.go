@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/concurrent"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/concurrent"
 )
 
 // Adapter Functions
@@ -129,7 +129,7 @@ func ExecuteBatchWithAdapter(processor *BatchProcessor, ctx context.Context, req
 }
 
 // ParseResponseWithAdapter parses a batch response using the HTTPBatchProcessor
-func ParseResponseWithAdapter(processor *BatchProcessor, result *BatchResult, requestID string, target interface{}) error {
+func ParseResponseWithAdapter(processor *BatchProcessor, result *BatchResult, requestID string, target any) error {
 	// Get the HTTP batch processor
 	httpBatchProcessor := adapterRegistry.Get(processor)
 	if httpBatchProcessor == nil {

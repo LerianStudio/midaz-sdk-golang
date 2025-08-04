@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -18,7 +18,7 @@ func TestDoHTTPRequest_Success(t *testing.T) {
 	// Create a test server that succeeds on the first try
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"message":"success"}`))
+		_, _ = w.Write([]byte(`{"message":"success"}`))
 	}))
 	defer server.Close()
 
@@ -47,12 +47,13 @@ func TestDoHTTPRequest_ServerError(t *testing.T) {
 		attempts++
 		if attempts <= 2 {
 			w.WriteHeader(http.StatusInternalServerError)
-			w.Write([]byte(`{"error":"internal server error"}`))
+			_, _ = w.Write([]byte(`{"error":"internal server error"}`))
+
 			return
 		}
 
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"message":"success after retry"}`))
+		_, _ = w.Write([]byte(`{"message":"success after retry"}`))
 	}))
 	defer server.Close()
 
@@ -82,7 +83,7 @@ func TestDoHTTPRequest_ClientError(t *testing.T) {
 	// Create a test server that returns a client error (400)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(`{"error":"bad request"}`))
+		_, _ = w.Write([]byte(`{"error":"bad request"}`))
 	}))
 	defer server.Close()
 
@@ -109,12 +110,13 @@ func TestDoHTTPRequest_RetryOn429(t *testing.T) {
 		attempts++
 		if attempts <= 2 {
 			w.WriteHeader(http.StatusTooManyRequests)
-			w.Write([]byte(`{"error":"rate limited"}`))
+			_, _ = w.Write([]byte(`{"error":"rate limited"}`))
+
 			return
 		}
 
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"message":"success after rate limit"}`))
+		_, _ = w.Write([]byte(`{"message":"success after rate limit"}`))
 	}))
 	defer server.Close()
 
@@ -172,7 +174,7 @@ func TestDoHTTPRequest_ContextCancellation(t *testing.T) {
 		// Sleep long enough to cause timeout
 		time.Sleep(1 * time.Second)
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"message":"success"}`))
+		_, _ = w.Write([]byte(`{"message":"success"}`))
 	}))
 	defer server.Close()
 
@@ -211,7 +213,8 @@ func TestDoHTTP_SimpleAPI(t *testing.T) {
 			body, _ := io.ReadAll(r.Body)
 			if string(body) == `{"test":"body"}` {
 				w.WriteHeader(http.StatusOK)
-				w.Write([]byte(`{"message":"success"}`))
+				_, _ = w.Write([]byte(`{"message":"success"}`))
+
 				return
 			}
 		}
@@ -255,7 +258,7 @@ func TestDoHTTPRequestWithContext(t *testing.T) {
 	// Create a test server that succeeds on the first try
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"message":"success"}`))
+		_, _ = w.Write([]byte(`{"message":"success"}`))
 	}))
 	defer server.Close()
 

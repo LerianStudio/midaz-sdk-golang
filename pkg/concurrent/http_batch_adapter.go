@@ -7,8 +7,8 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/errors"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
 )
 
 // HTTPBatchProcessorWithRetry is an HTTPBatchProcessor that uses the enhanced retry package.
@@ -243,7 +243,7 @@ func (b *HTTPBatchProcessorWithRetry) executeBatches(ctx context.Context, reques
 }
 
 // ParseResponse parses a batch response for a specific request ID into the target.
-func (b *HTTPBatchProcessorWithRetry) ParseResponse(result *HTTPBatchResult, requestID string, target interface{}) error {
+func (b *HTTPBatchProcessorWithRetry) ParseResponse(result *HTTPBatchResult, requestID string, target any) error {
 	if result == nil {
 		return errors.NewInternalError("ParseHTTPBatchResponse", fmt.Errorf("batch result is nil"))
 	}

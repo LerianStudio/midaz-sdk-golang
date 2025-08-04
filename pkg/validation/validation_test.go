@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/models"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/validation"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/validation/core"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation/core"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -54,7 +54,7 @@ func TestValidateTransactionDSL(t *testing.T) {
 			input: &models.TransactionDSLInput{
 				Send: &models.DSLSend{
 					Asset: "USD",
-					Value: 0,
+					Value: "",
 				},
 			},
 			expectedError: true,
@@ -65,7 +65,7 @@ func TestValidateTransactionDSL(t *testing.T) {
 			input: &models.TransactionDSLInput{
 				Send: &models.DSLSend{
 					Asset: "USD",
-					Value: -100,
+					Value: "-1.00",
 				},
 			},
 			expectedError: true,
@@ -76,7 +76,7 @@ func TestValidateTransactionDSL(t *testing.T) {
 			input: &models.TransactionDSLInput{
 				Send: &models.DSLSend{
 					Asset:  "USD",
-					Value:  100,
+					Value:  "1.00",
 					Source: &models.DSLSource{},
 				},
 			},
@@ -88,7 +88,7 @@ func TestValidateTransactionDSL(t *testing.T) {
 			input: &models.TransactionDSLInput{
 				Send: &models.DSLSend{
 					Asset: "USD",
-					Value: 100,
+					Value: "1.00",
 					Source: &models.DSLSource{
 						From: []models.DSLFromTo{
 							{Account: "@external/INV@LID"},
@@ -109,7 +109,7 @@ func TestValidateTransactionDSL(t *testing.T) {
 			input: &models.TransactionDSLInput{
 				Send: &models.DSLSend{
 					Asset: "USD",
-					Value: 100,
+					Value: "1.00",
 					Source: &models.DSLSource{
 						From: []models.DSLFromTo{
 							{Account: "account1"},
@@ -126,7 +126,7 @@ func TestValidateTransactionDSL(t *testing.T) {
 			input: &models.TransactionDSLInput{
 				Send: &models.DSLSend{
 					Asset: "USD",
-					Value: 100,
+					Value: "1.00",
 					Source: &models.DSLSource{
 						From: []models.DSLFromTo{
 							{Account: "account1"},
@@ -147,7 +147,7 @@ func TestValidateTransactionDSL(t *testing.T) {
 			input: &models.TransactionDSLInput{
 				Send: &models.DSLSend{
 					Asset: "USD",
-					Value: 100,
+					Value: "1.00",
 					Source: &models.DSLSource{
 						From: []models.DSLFromTo{
 							{Account: "account1"},
@@ -168,7 +168,7 @@ func TestValidateTransactionDSL(t *testing.T) {
 			input: &models.TransactionDSLInput{
 				Send: &models.DSLSend{
 					Asset: "USD",
-					Value: 100,
+					Value: "1.00",
 					Source: &models.DSLSource{
 						From: []models.DSLFromTo{
 							{Account: "account1"},
@@ -192,7 +192,7 @@ func TestValidateTransactionDSL(t *testing.T) {
 			input: &models.TransactionDSLInput{
 				Send: &models.DSLSend{
 					Asset: "USD",
-					Value: 100,
+					Value: "1.00",
 					Source: &models.DSLSource{
 						From: []models.DSLFromTo{
 							{Account: "account1"},

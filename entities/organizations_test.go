@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"fmt"
-	"github.com/LerianStudio/midaz-sdk-golang/entities/mocks"
-	"github.com/LerianStudio/midaz-sdk-golang/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/entities/mocks"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 )
@@ -144,14 +144,12 @@ func TestCreateOrganization(t *testing.T) {
 	ctx := context.Background()
 
 	// Create test input
-	input := &models.CreateOrganizationInput{
-		LegalName:     "New Org",
-		LegalDocument: "987654321",
-		Status:        models.NewStatus("ACTIVE"),
-		Metadata: map[string]any{
+	input := models.NewCreateOrganizationInput("New Org").
+		WithLegalDocument("987654321").
+		WithStatus(models.NewStatus("ACTIVE")).
+		WithMetadata(map[string]any{
 			"key": "value",
-		},
-	}
+		})
 
 	// Create expected output
 	org := &models.Organization{
@@ -203,13 +201,12 @@ func TestUpdateOrganization(t *testing.T) {
 	orgID := "org-123"
 
 	// Create test input
-	input := &models.UpdateOrganizationInput{
-		LegalName: "Updated Org",
-		Status:    models.NewStatus("INACTIVE"),
-		Metadata: map[string]any{
+	input := models.NewUpdateOrganizationInput().
+		WithLegalName("Updated Org").
+		WithStatusUpdate(models.NewStatus("INACTIVE")).
+		WithUpdateMetadata(map[string]any{
 			"key": "updated",
-		},
-	}
+		})
 
 	// Create expected output
 	org := &models.Organization{

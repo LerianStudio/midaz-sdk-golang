@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/LerianStudio/midaz-sdk-golang/models"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
 )
 
 // LedgersService defines the interface for ledger-related operations.
@@ -108,6 +108,11 @@ type LedgersService interface {
 	// The id parameter is the unique identifier of the ledger to delete.
 	// Returns an error if the operation fails.
 	DeleteLedger(ctx context.Context, organizationID, id string) error
+
+	// GetLedgersMetricsCount retrieves the count metrics for ledgers in an organization.
+	// The organizationID parameter specifies which organization to get metrics for.
+	// Returns the metrics count if successful, or an error if the operation fails.
+	GetLedgersMetricsCount(ctx context.Context, organizationID string) (*models.MetricsCount, error)
 }
 
 // ledgersEntity implements the LedgersService interface.
@@ -181,7 +186,6 @@ func (e *ledgersEntity) ListLedgers(
 	opts *models.ListOptions,
 ) (*models.ListResponse[models.Ledger], error) {
 	const operation = "ListLedgers"
-	const resource = "organization"
 
 	if organizationID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
@@ -222,7 +226,6 @@ func (e *ledgersEntity) GetLedger(
 	organizationID, id string,
 ) (*models.Ledger, error) {
 	const operation = "GetLedger"
-	const resource = "ledger"
 
 	if organizationID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
@@ -254,7 +257,6 @@ func (e *ledgersEntity) CreateLedger(
 	input *models.CreateLedgerInput,
 ) (*models.Ledger, error) {
 	const operation = "CreateLedger"
-	const resource = "ledger"
 
 	if organizationID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
@@ -295,7 +297,6 @@ func (e *ledgersEntity) UpdateLedger(
 	input *models.UpdateLedgerInput,
 ) (*models.Ledger, error) {
 	const operation = "UpdateLedger"
-	const resource = "ledger"
 
 	if organizationID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
@@ -338,7 +339,6 @@ func (e *ledgersEntity) DeleteLedger(
 	organizationID, id string,
 ) error {
 	const operation = "DeleteLedger"
-	const resource = "ledger"
 
 	if organizationID == "" {
 		return errors.NewMissingParameterError(operation, "organizationID")
@@ -362,6 +362,29 @@ func (e *ledgersEntity) DeleteLedger(
 	return nil
 }
 
+// GetLedgersMetricsCount gets the count metrics for ledgers in an organization.
+func (e *ledgersEntity) GetLedgersMetricsCount(ctx context.Context, organizationID string) (*models.MetricsCount, error) {
+	const operation = "GetLedgersMetricsCount"
+
+	if organizationID == "" {
+		return nil, errors.NewMissingParameterError(operation, "organizationID")
+	}
+
+	url := e.buildMetricsURL(organizationID)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	var metrics models.MetricsCount
+	if err := e.httpClient.sendRequest(req, &metrics); err != nil {
+		return nil, err
+	}
+
+	return &metrics, nil
+}
+
 // buildURL builds the URL for ledgers API calls.
 func (e *ledgersEntity) buildURL(organizationID, ledgerID string) string {
 	baseURL := e.baseURLs["onboarding"]
@@ -371,4 +394,10 @@ func (e *ledgersEntity) buildURL(organizationID, ledgerID string) string {
 	}
 
 	return fmt.Sprintf("%s/organizations/%s/ledgers/%s", baseURL, organizationID, ledgerID)
+}
+
+// buildMetricsURL builds the URL for ledgers metrics API calls.
+func (e *ledgersEntity) buildMetricsURL(organizationID string) string {
+	baseURL := e.baseURLs["onboarding"]
+	return fmt.Sprintf("%s/organizations/%s/ledgers/metrics/count", baseURL, organizationID)
 }

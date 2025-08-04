@@ -6,8 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	auth "github.com/LerianStudio/midaz-sdk-golang/pkg/access-manager"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/observability"
+	auth "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/access-manager"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -37,11 +37,11 @@ func (m *mockPluginAuthConfig) GetPluginAuth() auth.AccessManager {
 
 func TestEntityWithPluginAuth(t *testing.T) {
 	tests := []struct {
-		name           string
+		name                    string
 		pluginAuth     auth.AccessManager
-		mockResponse   *auth.TokenResponse
-		mockStatusCode int
-		expectError    bool
+		mockResponse            *auth.TokenResponse
+		mockStatusCode          int
+		expectError             bool
 	}{
 		{
 			name: "SuccessfulPluginAuth",
@@ -99,10 +99,10 @@ func TestEntityWithPluginAuth(t *testing.T) {
 
 					// If we have a mock response, return it
 					if tt.mockResponse != nil && tt.mockStatusCode == http.StatusOK {
-						json.NewEncoder(w).Encode(tt.mockResponse)
+						_ = json.NewEncoder(w).Encode(tt.mockResponse)
 					} else if tt.mockStatusCode == http.StatusUnauthorized {
 						// Simulate an auth error
-						w.Write([]byte(`{"code":"AUT-1004","message":"The provided 'clientId' or 'clientSecret' is incorrect.","title":"Invalid Client"}`))
+						_, _ = w.Write([]byte(`{"code":"AUT-1004","message":"The provided 'clientId' or 'clientSecret' is incorrect.","title":"Invalid Client"}`))
 					}
 				}))
 				defer server.Close()
@@ -142,12 +142,12 @@ func TestEntityWithPluginAuth(t *testing.T) {
 
 func TestWithPluginAuthOption(t *testing.T) {
 	tests := []struct {
-		name           string
+		name                    string
 		pluginAuth     auth.AccessManager
-		mockResponse   *auth.TokenResponse
-		mockStatusCode int
-		expectError    bool
-		expectedToken  string
+		mockResponse            *auth.TokenResponse
+		mockStatusCode          int
+		expectError             bool
+		expectedToken           string
 	}{
 		{
 			name: "SuccessfulPluginAuth",
@@ -208,7 +208,7 @@ func TestWithPluginAuthOption(t *testing.T) {
 
 					// If we have a mock response, return it
 					if tt.mockResponse != nil && tt.mockStatusCode == http.StatusOK {
-						json.NewEncoder(w).Encode(tt.mockResponse)
+						_ = json.NewEncoder(w).Encode(tt.mockResponse)
 					}
 				}))
 				defer server.Close()

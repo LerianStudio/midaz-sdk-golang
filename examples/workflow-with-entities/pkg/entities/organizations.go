@@ -7,8 +7,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/LerianStudio/midaz-sdk-golang/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 )
 
 // CreateOrganization creates a new organization in the Midaz system.
@@ -41,29 +41,26 @@ func CreateOrganization(ctx context.Context, service entities.OrganizationsServi
 	dba := "Acme Corp"
 	description := "Organization created"
 
-	// Create input
-	input := &models.CreateOrganizationInput{
-		LegalName: "Acme Corporation",
-		// Note: This is an API design choice - legalName is required and doingBusinessAs is optional
-		DoingBusinessAs: dba,
-		LegalDocument:   "123456789",
-		Status: models.Status{
+	// Create input using builder pattern
+	input := models.NewCreateOrganizationInput("Acme Corporation").
+		WithDoingBusinessAs(dba).
+		WithLegalDocument("123456789").
+		WithStatus(models.Status{
 			Code:        "ACTIVE",
 			Description: &description,
-		},
-		Address: models.Address{
+		}).
+		WithAddress(models.Address{
 			Line1:   "123 Main Street",
 			Line2:   &line2,
 			City:    "San Francisco",
 			State:   "CA",
 			ZipCode: "94105",
 			Country: "US",
-		},
-		Metadata: map[string]any{
+		}).
+		WithMetadata(map[string]any{
 			"industry": "Technology",
 			"size":     "Small",
-		},
-	}
+		})
 
 	// Validate input
 	if err := input.Validate(); err != nil {
@@ -103,15 +100,14 @@ func UpdateOrganization(
 	orgID, newName string,
 	service entities.OrganizationsService,
 ) (*models.Organization, error) {
-	// Create update input
-	input := &models.UpdateOrganizationInput{
-		LegalName: newName,
-		Metadata: map[string]any{
+	// Create update input using builder pattern
+	input := models.NewUpdateOrganizationInput().
+		WithLegalName(newName).
+		WithUpdateMetadata(map[string]any{
 			"industry": "Finance",
 			"size":     "Medium",
 			"updated":  true,
-		},
-	}
+		})
 
 	// Validate input
 	if err := input.Validate(); err != nil {

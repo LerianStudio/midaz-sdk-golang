@@ -1,4 +1,10 @@
-package models // import "github.com/LerianStudio/midaz-sdk-golang/models"
+package models // import "github.com/LerianStudio/midaz-sdk-golang/v2/models"
+
+Package models defines the data models used by the Midaz SDK.
+
+Package models defines the data models used by the Midaz SDK.
+
+Package models defines the data models used by the Midaz SDK.
 
 Package models defines the data models used by the Midaz SDK.
 
@@ -53,48 +59,58 @@ structures for creating and updating resources are also provided.
 
 Package models defines the data models used by the Midaz SDK.
 
+Package models defines the data models used by the Midaz SDK.
+
+Package models defines the data models used by the Midaz SDK.
+
 const TransactionStatusPending = "pending" ...
 const StatusActive = "ACTIVE" ...
 const DefaultLimit = 10 ...
 const QueryParamLimit = "limit" ...
-type Account struct{ ... }
-    func FromMmodelAccount(account mmodel.Account) Account
-    func NewAccount(id, name, assetCode, organizationID, ledgerID, accountType string, ...) *Account
+func GetAccountAlias(account Account) string
+func GetAccountIdentifier(account Account) string
+func IsStatusEmpty(status Status) bool
+type Account = mmodel.Account
 type AccountFilter struct{ ... }
+type AccountRule = mmodel.AccountRule
+type AccountType = mmodel.AccountType
 type Accounts struct{ ... }
-    func FromMmodelAccounts(accounts mmodel.Accounts) Accounts
+    func FromMmodel(accounts mmodel.Accounts) Accounts
 type Address struct{ ... }
     func FromMmodelAddress(modelAddress mmodel.Address) Address
     func NewAddress(line1, zipCode, city, state, country string) Address
 type Amount struct{ ... }
 type AmountInput struct{ ... }
-type Asset struct{ ... }
-    func FromMmodelAsset(asset mmodel.Asset) Asset
-    func NewAsset(id, name, code, organizationID, ledgerID string, status Status) *Asset
-type AssetFilter struct{ ... }
-type AssetRate struct{ ... }
-    func NewAssetRate(id, fromAsset, toAsset string, rate float64, ...) *AssetRate
-type Assets struct{ ... }
-    func FromMmodelAssets(assets mmodel.Assets) Assets
-type Balance struct{ ... }
-    func FromMmodelBalance(balance mmodel.Balance) Balance
-type Balances struct{ ... }
-    func FromMmodelBalances(balances mmodel.Balances) Balances
+type Asset = mmodel.Asset
+type Balance = mmodel.Balance
 type BaseResponse struct{ ... }
 type CreateAccountInput struct{ ... }
     func NewCreateAccountInput(name, assetCode, accountType string) *CreateAccountInput
+type CreateAccountTypeInput struct{ ... }
+    func NewCreateAccountTypeInput(name, keyValue string) *CreateAccountTypeInput
+    func WithCreateAccountTypeDescription(input *CreateAccountTypeInput, description string) *CreateAccountTypeInput
+    func WithCreateAccountTypeMetadata(input *CreateAccountTypeInput, metadata map[string]any) *CreateAccountTypeInput
 type CreateAssetInput struct{ ... }
     func NewCreateAssetInput(name, code string) *CreateAssetInput
 type CreateLedgerInput struct{ ... }
     func NewCreateLedgerInput(name string) *CreateLedgerInput
 type CreateOperationInput struct{ ... }
+type CreateOperationRouteInput struct{ ... }
+    func NewCreateOperationRouteInput(title, description, operationType string) *CreateOperationRouteInput
+    func WithCreateOperationRouteAccountAlias(input *CreateOperationRouteInput, alias string) *CreateOperationRouteInput
+    func WithCreateOperationRouteAccountType(input *CreateOperationRouteInput, accountTypes []string) *CreateOperationRouteInput
+    func WithCreateOperationRouteMetadata(input *CreateOperationRouteInput, metadata map[string]any) *CreateOperationRouteInput
 type CreateOrganizationInput struct{ ... }
-    func NewCreateOrganizationInput(legalName, legalDocument, doingBusinessAs string) *CreateOrganizationInput
+    func NewCreateOrganizationInput(legalName string) *CreateOrganizationInput
 type CreatePortfolioInput struct{ ... }
     func NewCreatePortfolioInput(entityID, name string) *CreatePortfolioInput
 type CreateSegmentInput struct{ ... }
     func NewCreateSegmentInput(name string) *CreateSegmentInput
 type CreateTransactionInput struct{ ... }
+    func NewCreateTransactionInput(assetCode string, amount string) *CreateTransactionInput
+type CreateTransactionRouteInput struct{ ... }
+    func NewCreateTransactionRouteInput(title, description string, operationRoutes []string) *CreateTransactionRouteInput
+    func WithTransactionRouteMetadata(input *CreateTransactionRouteInput, metadata map[string]any) *CreateTransactionRouteInput
 type DSLAccountRef struct{ ... }
 type DSLAmount struct{ ... }
 type DSLDistribute struct{ ... }
@@ -105,77 +121,77 @@ type Destination struct{ ... }
 type DistributeInput struct{ ... }
 type ErrorResponse struct{ ... }
 type FromToInput struct{ ... }
-type Ledger struct{ ... }
-    func FromMmodelLedger(ledger mmodel.Ledger) Ledger
-    func NewLedger(id, name, organizationID string, status Status) *Ledger
-type LedgerFilter struct{ ... }
-type Ledgers struct{ ... }
-    func FromMmodelLedgers(ledgers mmodel.Ledgers) Ledgers
+type Ledger = mmodel.Ledger
 type ListAccountInput struct{ ... }
 type ListAccountResponse struct{ ... }
-type ListAssetInput struct{ ... }
-type ListAssetResponse struct{ ... }
-type ListLedgerInput struct{ ... }
-type ListLedgerResponse struct{ ... }
 type ListOptions struct{ ... }
     func NewListOptions() *ListOptions
-type ListOrganizationInput struct{ ... }
-type ListOrganizationResponse struct{ ... }
 type ListResponse[T any] struct{ ... }
 type Metadata map[string]any
+type MetricsCount struct{ ... }
 type ObjectWithMetadata struct{ ... }
 type Operation struct{ ... }
     func FromMmodelOperation(operation any) Operation
+type OperationAmount struct{ ... }
+type OperationRoute = mmodel.OperationRoute
+type OperationRouteInputType string
+    const OperationRouteInputTypeSource OperationRouteInputType = "source" ...
+type OperationRouteType string
+    const OperationRouteTypeDebit OperationRouteType = "debit" ...
 type OperationType string
     const OperationTypeDebit OperationType = "DEBIT" ...
-type Organization struct{ ... }
-    func FromMmodelOrganization(org mmodel.Organization) Organization
-    func NewOrganization(id, legalName, legalDocument, doingBusinessAs string, status Status) *Organization
-type OrganizationFilter struct{ ... }
-type Organizations struct{ ... }
-    func FromMmodelOrganizations(orgs mmodel.Organizations) Organizations
+type Organization = mmodel.Organization
 type Pagination struct{ ... }
-type Portfolio struct{ ... }
-    func FromMmodelPortfolio(portfolio mmodel.Portfolio) Portfolio
-    func NewPortfolio(id, name, entityID, ledgerID, organizationID string, status Status) *Portfolio
-type Portfolios struct{ ... }
-    func FromMmodelPortfolios(portfolios mmodel.Portfolios) Portfolios
+type Portfolio = mmodel.Portfolio
 type Queue struct{ ... }
     func FromMmodelQueue(queue mmodel.Queue) Queue
-    func NewQueue(orgID, ledgerID, auditID, accountID uuid.UUID) *Queue
 type QueueData struct{ ... }
 type Rate struct{ ... }
-type Segment struct{ ... }
-    func FromMmodelSegment(segment mmodel.Segment) Segment
-    func NewSegment(id, name, ledgerID, organizationID string, status Status) *Segment
+type Segment = mmodel.Segment
 type SendInput struct{ ... }
 type Share struct{ ... }
 type SortDirection string
     const SortAscending SortDirection = "asc" ...
 type Source struct{ ... }
 type SourceInput struct{ ... }
-type Status struct{ ... }
-    func FromMmodelStatus(modelStatus mmodel.Status) Status
+type Status = mmodel.Status
     func NewStatus(code string) Status
+    func WithStatusDescription(status Status, description string) Status
 type Timestamps struct{ ... }
 type Transaction struct{ ... }
 type TransactionDSLInput struct{ ... }
-    func FromTransactionMap(data map[string]interface{}) *TransactionDSLInput
+    func FromTransactionMap(data map[string]any) *TransactionDSLInput
+type TransactionRoute = mmodel.TransactionRoute
 type UpdateAccountInput struct{ ... }
     func NewUpdateAccountInput() *UpdateAccountInput
+type UpdateAccountTypeInput struct{ ... }
+    func NewUpdateAccountTypeInput() *UpdateAccountTypeInput
+    func WithUpdateAccountTypeDescription(input *UpdateAccountTypeInput, description string) *UpdateAccountTypeInput
+    func WithUpdateAccountTypeMetadata(input *UpdateAccountTypeInput, metadata map[string]any) *UpdateAccountTypeInput
+    func WithUpdateAccountTypeName(input *UpdateAccountTypeInput, name string) *UpdateAccountTypeInput
 type UpdateAssetInput struct{ ... }
     func NewUpdateAssetInput() *UpdateAssetInput
-type UpdateAssetRateInput struct{ ... }
-    func NewUpdateAssetRateInput(fromAsset, toAsset string, rate float64, effectiveAt, expirationAt time.Time) *UpdateAssetRateInput
 type UpdateBalanceInput struct{ ... }
     func NewUpdateBalanceInput() *UpdateBalanceInput
 type UpdateLedgerInput struct{ ... }
     func NewUpdateLedgerInput() *UpdateLedgerInput
+type UpdateOperationRouteInput struct{ ... }
+    func NewUpdateOperationRouteInput() *UpdateOperationRouteInput
+    func WithUpdateOperationRouteAccountAlias(input *UpdateOperationRouteInput, alias string) *UpdateOperationRouteInput
+    func WithUpdateOperationRouteAccountType(input *UpdateOperationRouteInput, accountTypes []string) *UpdateOperationRouteInput
+    func WithUpdateOperationRouteDescription(input *UpdateOperationRouteInput, description string) *UpdateOperationRouteInput
+    func WithUpdateOperationRouteMetadata(input *UpdateOperationRouteInput, metadata map[string]any) *UpdateOperationRouteInput
+    func WithUpdateOperationRouteTitle(input *UpdateOperationRouteInput, title string) *UpdateOperationRouteInput
 type UpdateOrganizationInput struct{ ... }
-    func FromMmodelUpdateOrganizationInput(input mmodel.UpdateOrganizationInput) UpdateOrganizationInput
     func NewUpdateOrganizationInput() *UpdateOrganizationInput
 type UpdatePortfolioInput struct{ ... }
     func NewUpdatePortfolioInput() *UpdatePortfolioInput
 type UpdateSegmentInput struct{ ... }
     func NewUpdateSegmentInput() *UpdateSegmentInput
 type UpdateTransactionInput struct{ ... }
+    func NewUpdateTransactionInput() *UpdateTransactionInput
+type UpdateTransactionRouteInput struct{ ... }
+    func NewUpdateTransactionRouteInput() *UpdateTransactionRouteInput
+    func WithUpdateTransactionRouteDescription(input *UpdateTransactionRouteInput, description string) *UpdateTransactionRouteInput
+    func WithUpdateTransactionRouteMetadata(input *UpdateTransactionRouteInput, metadata map[string]any) *UpdateTransactionRouteInput
+    func WithUpdateTransactionRouteTitle(input *UpdateTransactionRouteInput, title string) *UpdateTransactionRouteInput

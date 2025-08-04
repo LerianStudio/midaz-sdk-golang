@@ -3,7 +3,7 @@ package models
 import (
 	"encoding/json"
 
-	"github.com/LerianStudio/midaz/pkg/mmodel"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 )
 
@@ -35,27 +35,6 @@ type QueueData struct {
 
 	// Value contains the actual data as raw JSON
 	Value json.RawMessage `json:"value"`
-}
-
-// NewQueue creates a new Queue with required fields.
-// This constructor ensures that all mandatory fields are provided when creating a queue.
-//
-// Parameters:
-//   - orgID: Unique identifier for the organization
-//   - ledgerID: Identifier of the ledger associated with this queue
-//   - auditID: Identifier for audit tracking purposes
-//   - accountID: Identifier of the account associated with this queue
-//
-// Returns:
-//   - A pointer to the newly created Queue
-func NewQueue(orgID, ledgerID, auditID, accountID uuid.UUID) *Queue {
-	return &Queue{
-		OrganizationID: orgID,
-		LedgerID:       ledgerID,
-		AuditID:        auditID,
-		AccountID:      accountID,
-		QueueData:      make([]QueueData, 0),
-	}
 }
 
 // AddQueueData adds a new data item to the queue.

@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"time"
 
-	auth "github.com/LerianStudio/midaz-sdk-golang/pkg/access-manager"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/observability"
+	auth "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/access-manager"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
 )
 
 // Config is an interface for accessing configuration values.
@@ -41,16 +41,18 @@ type Entity struct {
 	observability observability.Provider
 
 	// Service interfaces for different resource types
-	Accounts      AccountsService
-	Assets        AssetsService
-	AssetRates    AssetRatesService
-	Balances      BalancesService
-	Ledgers       LedgersService
-	Operations    OperationsService
-	Organizations OrganizationsService
-	Portfolios    PortfoliosService
-	Segments      SegmentsService
-	Transactions  TransactionsService
+	Accounts          AccountsService
+	AccountTypes      AccountTypesService
+	Assets            AssetsService
+	Balances          BalancesService
+	Ledgers           LedgersService
+	Operations        OperationsService
+	OperationRoutes   OperationRoutesService
+	Organizations     OrganizationsService
+	Portfolios        PortfoliosService
+	Segments          SegmentsService
+	Transactions      TransactionsService
+	TransactionRoutes TransactionRoutesService
 }
 
 // NewEntity creates a new Entity instance with the provided client configuration.
@@ -204,14 +206,16 @@ func (e *Entity) initServices() {
 	// Create the service interfaces
 	e.Transactions = NewTransactionsEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
 	e.Accounts = NewAccountsEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
+	e.AccountTypes = NewAccountTypesEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
 	e.Assets = NewAssetsEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
-	e.AssetRates = NewAssetRatesEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
 	e.Balances = NewBalancesEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
 	e.Ledgers = NewLedgersEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
 	e.Operations = NewOperationsEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
+	e.OperationRoutes = NewOperationRoutesEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
 	e.Organizations = NewOrganizationsEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
 	e.Portfolios = NewPortfoliosEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
 	e.Segments = NewSegmentsEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
+	e.TransactionRoutes = NewTransactionRoutesEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
 }
 
 // InitServices initializes the service interfaces for the entity.

@@ -4,7 +4,7 @@ This documentation provides comprehensive information about the Midaz Go SDK, in
 
 ## Key Documentation
 
-- [Development GODOC Documentation](./docs/godoc/github.com/LerianStudio/midaz-sdk-golang/index.md) - Static documentation for development
+- [Development GODOC Documentation](./docs/godoc/github.com/LerianStudio/midaz-sdk-golang/v2/index.md) - Static documentation for development
 
 - [Environment Variables](./environment.md) - Complete guide to environment variable configuration
 - [Error Handling](./errors.md) - Comprehensive guide to error handling in the SDK
@@ -34,7 +34,7 @@ The SDK provides detailed API documentation for all packages. You can browse thi
    ```bash
    make godoc
    ```
-   Then visit http://localhost:6060/pkg/github.com/LerianStudio/midaz-sdk-golang/
+   Then visit http://localhost:6060/pkg/github.com/LerianStudio/midaz-sdk-golang/v2/
 
 2. **Static Documentation**:
    The static documentation is generated in the `docs/godoc` directory as Markdown files. You can browse this documentation directly.

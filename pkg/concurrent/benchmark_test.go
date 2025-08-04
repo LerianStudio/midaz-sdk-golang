@@ -11,6 +11,7 @@ func BenchmarkWorkerPool(b *testing.B) {
 	// Create test items
 	const numItems = 1000
 	items := make([]int, numItems)
+
 	for i := range items {
 		items[i] = i
 	}
@@ -58,6 +59,7 @@ func BenchmarkBatchProcessing(b *testing.B) {
 	// Create test items
 	const numItems = 1000
 	items := make([]int, numItems)
+
 	for i := range items {
 		items[i] = i
 	}
@@ -67,9 +69,11 @@ func BenchmarkBatchProcessing(b *testing.B) {
 		// Simulate a small amount of work per batch
 		time.Sleep(100 * time.Microsecond)
 		result := make([]int, len(batch))
+
 		for i, item := range batch {
 			result[i] = item * 2
 		}
+
 		return result, nil
 	}
 
@@ -109,6 +113,7 @@ func BenchmarkForEach(b *testing.B) {
 	// Create test items
 	const numItems = 1000
 	items := make([]int, numItems)
+
 	for i := range items {
 		items[i] = i
 	}
@@ -135,7 +140,7 @@ func BenchmarkForEach(b *testing.B) {
 		b.Run(bc.name, func(b *testing.B) {
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				ForEach(
+				_ = ForEach(
 					context.Background(),
 					items,
 					forEachFn,
@@ -172,7 +177,7 @@ func BenchmarkRateLimiter(b *testing.B) {
 
 					ctx := context.Background()
 					for j := 0; j < numOps; j++ {
-						rl.Wait(ctx)
+						_ = rl.Wait(ctx)
 					}
 				}()
 			}

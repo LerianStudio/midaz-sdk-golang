@@ -529,7 +529,7 @@ func NewMidazError(code ErrorCode, err error) *MidazError {
 }
 
 // Helper to create a value of the same type as the original error
-func ValueOfOriginalType(err error, value interface{}) error {
+func ValueOfOriginalType(err error, value any) error {
 	switch err.(type) {
 	case *MidazError:
 		if code, ok := value.(ErrorCode); ok {

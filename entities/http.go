@@ -14,10 +14,10 @@ import (
 	"strconv"
 	"time"
 
-	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/pkg/errors"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/performance"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/retry"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/performance"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -60,6 +60,7 @@ type HTTPClient struct {
 func NewHTTPClient(client *http.Client, authToken string, provider observability.Provider) *HTTPClient {
 	// Check if we're using the debug flag from the environment
 	debug := false
+
 	if debugEnv := os.Getenv("MIDAZ_DEBUG"); debugEnv == "true" {
 		debug = true
 	}
@@ -129,6 +130,7 @@ func (c *HTTPClient) WithRetryOptions(options ...retry.Option) *HTTPClient {
 	}
 
 	c.retryOptions = retryOpts
+
 	return c
 }
 
@@ -166,13 +168,14 @@ func (c *HTTPClient) WithDebug(debug bool) *HTTPClient {
 //
 // Returns:
 //   - error: An error if the request failed.
-func (c *HTTPClient) doRequest(ctx context.Context, method, requestURL string, headers map[string]string, body, result interface{}) error {
+func (c *HTTPClient) doRequest(ctx context.Context, method, requestURL string, headers map[string]string, body, result any) error {
 	// Create a span for the HTTP request if observability is enabled
 	var spanCtx context.Context
 	if c.observability != nil && c.observability.IsEnabled() {
 		var span trace.Span
 		spanCtx, span = c.observability.Tracer().Start(ctx, fmt.Sprintf("HTTP %s %s", method, requestURL))
 		ctx = spanCtx
+
 		defer span.End()
 	}
 
@@ -187,6 +190,7 @@ func (c *HTTPClient) doRequest(ctx context.Context, method, requestURL string, h
 	if body != nil {
 		// Serialize the request body to JSON
 		bodyBytes, err := c.jsonPool.Marshal(body)
+
 		if err != nil {
 			return fmt.Errorf("failed to marshal request body: %w", err)
 		}
@@ -225,6 +229,7 @@ func (c *HTTPClient) doRequest(ctx context.Context, method, requestURL string, h
 
 	// Define a function to execute the request with retry logic
 	var resp *http.Response
+
 	var responseBody []byte
 
 	// Set context with retry options
@@ -301,7 +306,7 @@ func (c *HTTPClient) doRequest(ctx context.Context, method, requestURL string, h
 }
 
 // Legacy sendRequest method to maintain backward compatibility
-func (c *HTTPClient) sendRequest(req *http.Request, v interface{}) error {
+func (c *HTTPClient) sendRequest(req *http.Request, v any) error {
 	// Extract method and URL from the request
 	method := req.Method
 	url := req.URL.String()
@@ -315,7 +320,7 @@ func (c *HTTPClient) sendRequest(req *http.Request, v interface{}) error {
 	}
 
 	// Extract body from the request
-	var body interface{}
+	var body any
 	if req.Body != nil {
 		// Read the body
 		bodyBytes, err := io.ReadAll(req.Body)
@@ -347,7 +352,7 @@ func (c *HTTPClient) sendRequest(req *http.Request, v interface{}) error {
 }
 
 // debugLog logs a debug message if debug mode is enabled.
-func (c *HTTPClient) debugLog(format string, args ...interface{}) {
+func (c *HTTPClient) debugLog(format string, args ...any) {
 	if c.debug {
 		fmt.Fprintf(os.Stderr, "[Midaz SDK Debug] "+format+"\n", args...)
 	}
@@ -420,11 +425,12 @@ func AddURLParams(baseURL string, params map[string]string) string {
 
 // NewRequest creates a new HTTP request with the given method, URL, and body.
 // It's a convenient wrapper around http.NewRequest for backward compatibility.
-func (c *HTTPClient) NewRequest(method, url string, body interface{}) (*http.Request, error) {
+func (c *HTTPClient) NewRequest(method, url string, body any) (*http.Request, error) {
 	var bodyReader io.Reader
 	if body != nil {
 		// Serialize the request body to JSON
 		bodyBytes, err := c.jsonPool.Marshal(body)
+
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal request body: %w", err)
 		}

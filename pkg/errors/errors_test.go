@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"testing"
 
-	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/pkg/errors"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -339,6 +339,7 @@ func TestErrorFromHTTPResponse(t *testing.T) {
 			err := sdkerrors.ErrorFromHTTPResponse(tt.statusCode, "req-123", tt.message, "", "", "")
 
 			var mdzErr *sdkerrors.Error
+
 			assert.True(t, errors.As(err, &mdzErr))
 			assert.Equal(t, tt.category, mdzErr.Category)
 			assert.Equal(t, tt.statusCode, mdzErr.StatusCode)

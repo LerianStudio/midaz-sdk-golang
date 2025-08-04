@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/validation/core"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation/core"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -56,6 +56,7 @@ func TestValidateAssetCode(t *testing.T) {
 			err := core.ValidateAssetCode(tt.assetCode)
 			if tt.wantErr {
 				assert.Error(t, err)
+
 				if tt.errMsg != "" {
 					assert.Equal(t, tt.errMsg, err.Error())
 				}
@@ -118,6 +119,7 @@ func TestValidateAccountAlias(t *testing.T) {
 			err := core.ValidateAccountAlias(tt.alias)
 			if tt.wantErr {
 				assert.Error(t, err)
+
 				if tt.errMsg != "" {
 					assert.Equal(t, tt.errMsg, err.Error())
 				}
@@ -169,6 +171,7 @@ func TestValidateTransactionCode(t *testing.T) {
 			err := core.ValidateTransactionCode(tt.code)
 			if tt.wantErr {
 				assert.Error(t, err)
+
 				if tt.errMsg != "" {
 					assert.Equal(t, tt.errMsg, err.Error())
 				}
@@ -264,6 +267,7 @@ func TestValidateMetadata(t *testing.T) {
 			err := core.ValidateMetadata(tt.metadata)
 			if tt.wantErr {
 				assert.Error(t, err)
+
 				if tt.errMsg != "" {
 					assert.Equal(t, tt.errMsg, err.Error())
 				}
@@ -308,6 +312,7 @@ func TestValidateDateRange(t *testing.T) {
 			err := core.ValidateDateRange(tt.start, tt.end)
 			if tt.wantErr {
 				assert.Error(t, err)
+
 				if tt.errMsg != "" {
 					assert.Equal(t, tt.errMsg, err.Error())
 				}
@@ -410,6 +415,7 @@ func TestValidateAddress(t *testing.T) {
 			err := core.ValidateAddress(tt.address)
 			if tt.wantErr {
 				assert.Error(t, err)
+
 				if tt.errMsg != "" {
 					assert.Equal(t, tt.errMsg, err.Error())
 				}

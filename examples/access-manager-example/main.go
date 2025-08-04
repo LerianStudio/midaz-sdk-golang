@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	client "github.com/LerianStudio/midaz-sdk-golang"
-	"github.com/LerianStudio/midaz-sdk-golang/models"
-	auth "github.com/LerianStudio/midaz-sdk-golang/pkg/access-manager"
-	"github.com/LerianStudio/midaz-sdk-golang/pkg/config"
+	client "github.com/LerianStudio/midaz-sdk-golang/v2"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
+	auth "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/access-manager"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/config"
 	"github.com/joho/godotenv"
 )
 
@@ -72,28 +72,25 @@ func main() {
 	line2 := "CJ 203"
 
 	// Create a simplified organization input for testing
-	// Reducing the complexity to identify potential validation issues
-	input := &models.CreateOrganizationInput{
-		LegalName:       "Acme Corporation",
-		LegalDocument:   "78425230000190",
-		DoingBusinessAs: "The ledger.io",
-		Status: models.Status{
+	// Create organization input using builder pattern
+	input := models.NewCreateOrganizationInput("Acme Corporation").
+		WithLegalDocument("78425230000190").
+		WithDoingBusinessAs("The ledger.io").
+		WithStatus(models.Status{
 			Code:        "ACTIVE",
 			Description: &description,
-		},
-		Address: models.Address{
+		}).
+		WithAddress(models.Address{
 			Line1:   "Avenida Paulista, 1234",
 			Line2:   &line2,
 			ZipCode: "01310916",
 			City:    "São Paulo",
 			State:   "SP",
 			Country: "BR",
-		},
-		// Simplified metadata with only string values for testing
-		Metadata: map[string]any{
+		}).
+		WithMetadata(map[string]any{
 			"source": "plugin-auth-example",
-		},
-	}
+		})
 
 	// Validate the input
 	if err := input.Validate(); err != nil {
@@ -128,7 +125,11 @@ func main() {
 		fmt.Printf("- Enabled: %t\n", pluginAuth.Enabled)
 		fmt.Printf("- ID: %s\n", organization.ID)
 		fmt.Printf("- Legal Name: %s\n", organization.LegalName)
-		fmt.Printf("- Doing Business As: %s\n", organization.DoingBusinessAs)
+		if organization.DoingBusinessAs != nil {
+			fmt.Printf("- Doing Business As: %s\n", *organization.DoingBusinessAs)
+		} else {
+			fmt.Printf("- Doing Business As: <not set>\n")
+		}
 		fmt.Printf("- Status: %s\n", organization.Status.Code)
 		fmt.Printf("- Created At: %s\n", organization.CreatedAt.Format(time.RFC3339))
 	}
