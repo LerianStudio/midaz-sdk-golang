@@ -1350,8 +1350,8 @@ func (t *Transaction) ToTransactionMap() map[string]any {
 		}
 
 		// Add alias as description if present
-		if op.AccountAlias != nil {
-			entry["description"] = *op.AccountAlias
+		if op.AccountAlias != "" {
+			entry["description"] = op.AccountAlias
 		}
 
 		// Add to appropriate list based on operation type

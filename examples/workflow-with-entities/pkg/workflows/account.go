@@ -9,7 +9,6 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 )
 
-
 // CreateAccounts creates customer and merchant accounts and returns their models
 //
 // Parameters:
@@ -255,7 +254,7 @@ func CreateAccountsWithType(ctx context.Context, midazClient *client.Client, org
 
 	dummyTwoAccount, err := midazClient.Entity.Accounts.CreateAccount(
 		ctx, orgID, ledgerID, &models.CreateAccountInput{
-			Name:      "Dummy 2 Account", 
+			Name:      "Dummy 2 Account",
 			Type:      "deposit",
 			AssetCode: "USD",
 			Metadata: map[string]any{

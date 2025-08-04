@@ -62,7 +62,7 @@ func CreateTransactionRoutesWithOperationRoutes(ctx context.Context, midazClient
 	fmt.Println("Creating payment transaction route...")
 
 	paymentTransactionRoute, err := midazClient.Entity.TransactionRoutes.CreateTransactionRoute(
-		ctx, orgID, ledgerID, 
+		ctx, orgID, ledgerID,
 		models.NewCreateTransactionRouteInput(
 			"Payment Transaction Route",
 			"Handles payment transactions for business operations",

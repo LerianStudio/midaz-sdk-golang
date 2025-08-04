@@ -195,10 +195,10 @@ func RunCompleteWorkflow(ctx context.Context, entity *sdkentities.Entity, custom
 // CreateMockTransactionRoutes creates mock transaction routes when server API is not available
 func CreateMockTransactionRoutes(orgID, ledgerID string) (*models.TransactionRoute, *models.TransactionRoute) {
 	fmt.Println("🔧 Creating mock transaction routes (server API not available)...")
-	
+
 	paymentRoute := &models.TransactionRoute{
 		ID:             uuid.New(),
-		Title:          "Payment Transaction Route", 
+		Title:          "Payment Transaction Route",
 		Description:    "Transaction route for payment operations",
 		OrganizationID: uuid.MustParse(orgID),
 		LedgerID:       uuid.MustParse(ledgerID),
@@ -207,11 +207,11 @@ func CreateMockTransactionRoutes(orgID, ledgerID string) (*models.TransactionRou
 			"demo": true,
 		},
 	}
-	
+
 	refundRoute := &models.TransactionRoute{
 		ID:             uuid.New(),
 		Title:          "Refund Transaction Route",
-		Description:    "Transaction route for refund operations", 
+		Description:    "Transaction route for refund operations",
 		OrganizationID: uuid.MustParse(orgID),
 		LedgerID:       uuid.MustParse(ledgerID),
 		Metadata: map[string]any{
@@ -219,11 +219,11 @@ func CreateMockTransactionRoutes(orgID, ledgerID string) (*models.TransactionRou
 			"demo": true,
 		},
 	}
-	
+
 	fmt.Printf("✅ Mock transaction routes created:\n")
 	fmt.Printf("   Payment: %s (%s)\n", paymentRoute.Title, paymentRoute.ID)
 	fmt.Printf("   Refund: %s (%s)\n", refundRoute.Title, refundRoute.ID)
-	
+
 	return paymentRoute, refundRoute
 }
 
@@ -251,8 +251,8 @@ func demonstrateOperationRouteCRUD(ctx context.Context, midazClient *client.Clie
 	// Step 3: Update operation route (using the destination route)
 	if destinationRoute != nil {
 		fmt.Println("\n✏️  Step 3: UPDATE Operation Route")
-		_, err := UpdateOperationRoute(ctx, midazClient, orgID, ledgerID, destinationRoute.ID.String(), 
-			"Updated Cash-out Route", 
+		_, err := UpdateOperationRoute(ctx, midazClient, orgID, ledgerID, destinationRoute.ID.String(),
+			"Updated Cash-out Route",
 			"Updated route for cash-out operations with enhanced features",
 			[]string{"liability", "revenue", "expense"})
 		if err != nil {
@@ -274,7 +274,7 @@ func demonstrateOperationRouteCRUD(ctx context.Context, midazClient *client.Clie
 		"This route will be deleted to demonstrate DELETE operation",
 		"source",
 	).WithAccountTypes([]string{"demo_type"}).WithMetadata(map[string]any{
-		"demo": true,
+		"demo":    true,
 		"purpose": "deletion_test",
 	})
 

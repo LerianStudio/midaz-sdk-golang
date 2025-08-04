@@ -93,12 +93,12 @@ func TestFormatTransaction(t *testing.T) {
 			{
 				Type:         "CREDIT",
 				AccountID:    "acc-ext",
-				AccountAlias: str("@external/USD"),
+				AccountAlias: "@external/USD",
 			},
 			{
 				Type:         "DEBIT",
 				AccountID:    "acc-target",
-				AccountAlias: str("customer-account"),
+				AccountAlias: "customer-account",
 			},
 		},
 	}
@@ -115,12 +115,12 @@ func TestFormatTransaction(t *testing.T) {
 			{
 				Type:         "DEBIT",
 				AccountID:    "acc-source",
-				AccountAlias: str("savings-account"),
+				AccountAlias: "savings-account",
 			},
 			{
 				Type:         "CREDIT",
 				AccountID:    "acc-ext",
-				AccountAlias: str("@external/USD"),
+				AccountAlias: "@external/USD",
 			},
 		},
 	}
@@ -137,12 +137,12 @@ func TestFormatTransaction(t *testing.T) {
 			{
 				Type:         "DEBIT",
 				AccountID:    "acc-source",
-				AccountAlias: str("checking"),
+				AccountAlias: "checking",
 			},
 			{
 				Type:         "CREDIT",
 				AccountID:    "acc-target",
-				AccountAlias: str("savings"),
+				AccountAlias: "savings",
 			},
 		},
 	}
@@ -159,22 +159,22 @@ func TestFormatTransaction(t *testing.T) {
 			{
 				Type:         "DEBIT",
 				AccountID:    "acc-source1",
-				AccountAlias: str("checking1"),
+				AccountAlias: "checking1",
 			},
 			{
 				Type:         "DEBIT",
 				AccountID:    "acc-source2",
-				AccountAlias: str("checking2"),
+				AccountAlias: "checking2",
 			},
 			{
 				Type:         "CREDIT",
 				AccountID:    "acc-target1",
-				AccountAlias: str("savings1"),
+				AccountAlias: "savings1",
 			},
 			{
 				Type:         "CREDIT",
 				AccountID:    "acc-target2",
-				AccountAlias: str("savings2"),
+				AccountAlias: "savings2",
 			},
 		},
 	}
@@ -420,12 +420,12 @@ func TestFormatTransactionWithOptions(t *testing.T) {
 			{
 				Type:         "DEBIT",
 				AccountID:    "acc-source",
-				AccountAlias: str("checking"),
+				AccountAlias: "checking",
 			},
 			{
 				Type:         "CREDIT",
 				AccountID:    "acc-target",
-				AccountAlias: str("savings"),
+				AccountAlias: "savings",
 			},
 		},
 	}

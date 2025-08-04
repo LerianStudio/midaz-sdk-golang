@@ -83,7 +83,7 @@ func UpdateOrganization(ctx context.Context, midazClient *client.Client, orgID s
 	if org.DoingBusinessAs != nil {
 		dbaValue = *org.DoingBusinessAs
 	}
-	
+
 	updatedOrg, err := midazClient.Entity.Organizations.UpdateOrganization(ctx, orgID,
 		models.NewUpdateOrganizationInput().
 			WithLegalName(org.LegalName).

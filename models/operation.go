@@ -2,177 +2,270 @@ package models
 
 import (
 	"fmt"
+	"time"
+
+	"github.com/shopspring/decimal"
 )
 
-// Amount represents a monetary amount in the Midaz Ledger.
-// It includes the value, scale for precision, and the asset code.
+// Note: Status type is defined in common.go as Status = mmodel.Status
+
+// Amount structure for marshaling/unmarshalling JSON.
+//
+// swagger:model Amount
+// @Description Amount is the struct designed to represent the amount of an operation. Contains the value and scale (decimal places) of an operation amount.
 type Amount struct {
-	// Value is the numeric value of the amount
-	Value int64 `json:"value,omitempty"`
+	// The amount value in the smallest unit of the asset (e.g., cents)
+	// example: 1500
+	// minimum: 0
+	Value *decimal.Decimal `json:"value" example:"1500" minimum:"0"`
+} // @name Amount
 
-	// Amount is the numeric value of the amount (alternative field name used by the API)
-	Amount int64 `json:"amount,omitempty"`
-
-	// Scale represents the decimal precision (e.g., 2 for cents)
-	Scale int `json:"scale"`
-
-	// AssetCode identifies the currency or asset type
-	AssetCode string `json:"assetCode,omitempty"`
+// IsEmpty method that set empty or nil in fields
+func (a Amount) IsEmpty() bool {
+	return a.Value == nil
 }
 
+// OperationBalance structure for marshaling/unmarshalling JSON.
+// Named OperationBalance to avoid conflict with existing Balance model
+//
+// swagger:model OperationBalance
+// @Description OperationBalance is the struct designed to represent the account balance. Contains available and on-hold amounts along with the scale (decimal places).
+type OperationBalance struct {
+	// Amount available for transactions (in the smallest unit of asset)
+	// example: 1500
+	// minimum: 0
+	Available *decimal.Decimal `json:"available" example:"1500" minimum:"0"`
+
+	// Amount on hold and unavailable for transactions (in the smallest unit of asset)
+	// example: 500
+	// minimum: 0
+	OnHold *decimal.Decimal `json:"onHold" example:"500" minimum:"0"`
+} // @name OperationBalance
+
+// IsEmpty method that set empty or nil in fields
+func (b OperationBalance) IsEmpty() bool {
+	return b.Available == nil && b.OnHold == nil
+}
+
+// Operation is a struct designed to encapsulate response payload data.
+//
+// swagger:model Operation
+// @Description Operation is a struct designed to store operation data. Represents a financial operation that affects account balances, including details such as amount, balance before and after, transaction association, and metadata.
+type Operation struct {
+	// Unique identifier for the operation
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	ID string `json:"id" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+
+	// Parent transaction identifier
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	TransactionID string `json:"transactionId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+
+	// Human-readable description of the operation
+	// example: Credit card operation
+	// maxLength: 256
+	Description string `json:"description" example:"Credit card operation" maxLength:"256"`
+
+	// Type of operation (e.g., DEBIT, CREDIT)
+	// example: DEBIT
+	// maxLength: 50
+	Type string `json:"type" example:"DEBIT" maxLength:"50"`
+
+	// Asset code for the operation
+	// example: BRL
+	// minLength: 2
+	// maxLength: 10
+	AssetCode string `json:"assetCode" example:"BRL" minLength:"2" maxLength:"10"`
+
+	// Chart of accounts code for accounting purposes
+	// example: 1000
+	// maxLength: 20
+	ChartOfAccounts string `json:"chartOfAccounts" example:"1000" maxLength:"20"`
+
+	// Operation amount information
+	Amount Amount `json:"amount"`
+
+	// Balance before the operation
+	Balance OperationBalance `json:"balance"`
+
+	// Balance after the operation
+	BalanceAfter OperationBalance `json:"balanceAfter"`
+
+	// Operation status information
+	Status Status `json:"status"`
+
+	// Account identifier associated with this operation
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	AccountID string `json:"accountId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+
+	// Human-readable alias for the account
+	// example: @person1
+	// maxLength: 256
+	AccountAlias string `json:"accountAlias" example:"@person1" maxLength:"256"`
+
+	// Balance identifier affected by this operation
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	BalanceID string `json:"balanceId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+
+	// Organization identifier
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	OrganizationID string `json:"organizationId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+
+	// Ledger identifier
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	LedgerID string `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+
+	// Route
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: string
+	Route string `json:"route" example:"00000000-0000-0000-0000-000000000000" format:"string"`
+
+	// Timestamp when the operation was created
+	// example: 2021-01-01T00:00:00Z
+	// format: date-time
+	CreatedAt time.Time `json:"createdAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+
+	// Timestamp when the operation was last updated
+	// example: 2021-01-01T00:00:00Z
+	// format: date-time
+	UpdatedAt time.Time `json:"updatedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+
+	// Timestamp when the operation was deleted (if soft-deleted)
+	// example: 2021-01-01T00:00:00Z
+	// format: date-time
+	DeletedAt *time.Time `json:"deletedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+
+	// Additional custom attributes
+	// example: {"reason": "Purchase refund", "reference": "INV-12345"}
+	Metadata map[string]any `json:"metadata"`
+} // @name Operation
+
+// UpdateOperationInput is a struct design to encapsulate payload data.
+//
+// swagger:model UpdateOperationInput
+// @Description UpdateOperationInput is the input payload to update an operation. Contains fields that can be modified after an operation is created.
+type UpdateOperationInput struct {
+	// Human-readable description of the operation
+	// example: Credit card operation
+	// maxLength: 256
+	Description string `json:"description" validate:"max=256" example:"Credit card operation" maxLength:"256"`
+
+	// Additional custom attributes
+	// example: {"reason": "Purchase refund", "reference": "INV-12345"}
+	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
+} // @name UpdateOperationInput
+
+// Operations represents a paginated list of operations.
+//
+// swagger:model Operations  
+// @Description Operations represents a paginated response containing a list of operations with pagination metadata.
+type Operations struct {
+	// Array of operation records returned in this page
+	Items []Operation `json:"items"`
+
+	// Pagination information
+	Pagination struct {
+		Limit      int     `json:"limit"`
+		NextCursor *string `json:"next_cursor,omitempty"`
+		PrevCursor *string `json:"prev_cursor,omitempty"`
+	} `json:"pagination"`
+} // @name Operations
+
+// OperationResponse represents a success response containing a single operation.
+//
+// swagger:response OperationResponse
+// @Description Successful response containing a single operation entity.
+type OperationResponse struct {
+	// in: body
+	Body Operation
+}
+
+// OperationsResponse represents a success response containing a paginated list of operations.
+//
+// swagger:response OperationsResponse
+// @Description Successful response containing a paginated list of operations.
+type OperationsResponse struct {
+	// in: body
+	Body Operations
+}
+
+// OperationLog is a struct designed to represent the operation data that should be stored in the audit log
+//
+// @Description Immutable log entry for audit purposes representing a snapshot of operation state at a specific point in time.
+type OperationLog struct {
+	// Unique identifier for the operation
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	ID string `json:"id" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+
+	// Parent transaction identifier
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	TransactionID string `json:"transactionId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+
+	// Type of operation (e.g., creditCard, transfer, payment)
+	// example: creditCard
+	// maxLength: 50
+	Type string `json:"type" example:"creditCard" maxLength:"50"`
+
+	// Asset code for the operation
+	// example: BRL
+	// minLength: 2
+	// maxLength: 10
+	AssetCode string `json:"assetCode" example:"BRL" minLength:"2" maxLength:"10"`
+
+	// Chart of accounts code for accounting purposes
+	// example: 1000
+	// maxLength: 20
+	ChartOfAccounts string `json:"chartOfAccounts" example:"1000" maxLength:"20"`
+
+	// Operation amount information
+	Amount Amount `json:"amount"`
+
+	// Balance before the operation
+	Balance OperationBalance `json:"balance"`
+
+	// Balance after the operation
+	BalanceAfter OperationBalance `json:"balanceAfter"`
+
+	// Operation status information
+	Status Status `json:"status"`
+
+	// Account identifier associated with this operation
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	AccountID string `json:"accountId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+
+	// Human-readable alias for the account
+	// example: @person1
+	// maxLength: 256
+	AccountAlias string `json:"accountAlias" example:"@person1" maxLength:"256"`
+
+	// Balance identifier affected by this operation
+	// example: 00000000-0000-0000-0000-000000000000
+	// format: uuid
+	BalanceID string `json:"balanceId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+
+	// Timestamp when the operation log was created
+	// example: 2021-01-01T00:00:00Z
+	// format: date-time
+	CreatedAt time.Time `json:"createdAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+
+	// Additional custom attributes for audit tracking
+	// example: {"audit_user": "system", "source": "api"}
+	Metadata map[string]any `json:"metadata"`
+} // @name OperationLog
+
 // OperationAmount represents the amount structure in operation responses
+// This is SDK-specific and used for backward compatibility
 type OperationAmount struct {
 	// Value is the string representation of the amount
 	Value string `json:"value"`
-}
-
-// Operation represents an operation in a transaction.
-// Operations are the individual accounting entries that make up a transaction,
-// typically representing debits and credits to accounts.
-//
-// In double-entry accounting, each transaction consists of at least two operations:
-// one or more debits and one or more credits. The sum of all debits must equal the
-// sum of all credits for the transaction to be balanced.
-//
-// Operations have the following characteristics:
-//   - Type: Either "debit" or "credit"
-//   - Account: The account affected by the operation
-//   - Amount: The value of the operation
-//   - Asset: The currency or asset type involved
-//
-// Common Use Cases:
-//   - Recording financial transactions (payments, transfers, etc.)
-//   - Tracking account activity and history
-//   - Generating financial reports and statements
-//   - Auditing and reconciliation
-//
-// Double-Entry Accounting Rules:
-//   - Asset accounts: Debits increase, credits decrease
-//   - Liability accounts: Debits decrease, credits increase
-//   - Equity accounts: Debits decrease, credits increase
-//   - Revenue accounts: Debits decrease, credits increase
-//   - Expense accounts: Debits increase, credits decrease
-//
-// Example - Payment Transaction:
-//
-//	// A payment transaction typically involves:
-//	// 1. Debit to an expense account (increase expense)
-//	// 2. Credit to a cash/bank account (decrease asset)
-//
-//	// Debit operation (expense)
-//	debitOp := Operation{
-//	    Type:         "debit",
-//	    AccountID:    "acc-expense-123",
-//	    AccountAlias: stringPtr("expenses:office"),
-//	    Amount:       "50.00",
-//	    AssetCode:    "USD",
-//	}
-//
-//	// Credit operation (bank account)
-//	creditOp := Operation{
-//	    Type:         "credit",
-//	    AccountID:    "acc-bank-456",
-//	    AccountAlias: stringPtr("assets:bank"),
-//	    Amount:       "50.00",
-//	    AssetCode:    "USD",
-//	}
-//
-// Example - Transfer Transaction:
-//
-//	// A transfer between accounts typically involves:
-//	// 1. Debit to the source account (decrease asset)
-//	// 2. Credit to the destination account (increase asset)
-//
-//	// Debit operation (source account)
-//	debitOp := Operation{
-//	    Type:         "debit",
-//	    AccountID:    "acc-savings-123",
-//	    AccountAlias: stringPtr("assets:savings"),
-//	    Amount:       "100.00",
-//	    AssetCode:    "USD",
-//	}
-//
-//	// Credit operation (destination account)
-//	creditOp := Operation{
-//	    Type:         "credit",
-//	    AccountID:    "acc-checking-456",
-//	    AccountAlias: stringPtr("assets:checking"),
-//	    Amount:       "100.00",
-//	    AssetCode:    "USD",
-//	}
-//
-// Example - Revenue Transaction:
-//
-//	// A revenue transaction typically involves:
-//	// 1. Debit to a cash/bank account (increase asset)
-//	// 2. Credit to a revenue account (increase revenue)
-//
-//	// Debit operation (bank account)
-//	debitOp := Operation{
-//	    Type:         "debit",
-//	    AccountID:    "acc-bank-123",
-//	    AccountAlias: stringPtr("assets:bank"),
-//	    Amount:       "150.00",
-//	    AssetCode:    "USD",
-//	}
-//
-//	// Credit operation (revenue account)
-//	creditOp := Operation{
-//	    Type:         "credit",
-//	    AccountID:    "acc-revenue-456",
-//	    AccountAlias: stringPtr("revenue:sales"),
-//	    Amount:       "150.00",
-//	    AssetCode:    "USD",
-//	}
-//
-// Example usage:
-//
-//	// Accessing operation details
-//	fmt.Printf("Operation Type: %s\n", operation.Type)
-//	fmt.Printf("Account: %s\n", operation.AccountID)
-//	if operation.AccountAlias != nil {
-//	    fmt.Printf("Account Alias: %s\n", *operation.AccountAlias)
-//	}
-//	fmt.Printf("Amount: %s\n", operation.Amount)
-//	fmt.Printf("Asset: %s\n", operation.AssetCode)
-type Operation struct {
-	// ID is the unique identifier for the operation
-	// This is a system-generated UUID that uniquely identifies the operation
-	ID string `json:"id,omitempty"`
-
-	// Type indicates whether this is a debit or credit operation
-	// Valid values are "debit" and "credit"
-	Type string `json:"type"`
-
-	// AccountID is the unique identifier of the account affected by this operation
-	// This is the system-generated ID of the account
-	AccountID string `json:"accountId,omitempty"`
-
-	// Amount represents the operation amount
-	// In responses, this comes as an object with a value field
-	// In requests, this can be a string
-	Amount *OperationAmount `json:"amount,omitempty"`
-
-	// Source contains information about the source account if this is a transfer
-	// This is only used for certain transaction types
-	Source *Source `json:"source,omitempty"`
-
-	// Destination contains information about the destination account if this is a transfer
-	// This is only used for certain transaction types
-	Destination *Destination `json:"destination,omitempty"`
-
-	// AssetCode identifies the currency or asset type for this operation
-	// Common examples include "USD", "EUR", "BTC", etc.
-	AssetCode string `json:"assetCode"`
-
-	// AccountAlias is an optional human-readable name for the account
-	// This can be used to reference accounts by their alias instead of ID
-	// Format is typically "<type>:<identifier>[:subtype]", e.g., "customer:john.doe"
-	AccountAlias *string `json:"accountAlias"`
-
-	// Route is the identifier of the operation route associated with this operation
-	// This links the operation to the specific routing rule that was applied
-	Route string `json:"route,omitempty"`
 }
 
 // OperationType represents the type of an operation.
@@ -220,71 +313,6 @@ type Destination struct {
 // CreateOperationInput is the input for creating an operation.
 // This structure contains all the fields needed to create a new operation
 // as part of a transaction.
-//
-// CreateOperationInput is used within the CreateTransactionInput structure to define
-// the individual debit and credit operations that make up a transaction. Each transaction
-// must have at least one operation, and the sum of all debits must equal the sum of all
-// credits for each asset type.
-//
-// The Type field must be either "debit" or "credit":
-//   - Debit: Increases asset and expense accounts, decreases liability, equity, and revenue accounts
-//   - Credit: Decreases asset and expense accounts, increases liability, equity, and revenue accounts
-//
-// Example - Creating a debit operation:
-//
-//	// Debit a customer account (decrease balance)
-//	debitOp := models.CreateOperationInput{
-//	    Type:         "debit",
-//	    AccountID:    "acc-123",                    // Account ID
-//	    AccountAlias: stringPtr("customer:john.doe"), // Optional alias
-//	    Amount:       "100.00",                     // $100.00
-//	    AssetCode:    "USD",
-//	}
-//
-// Example - Creating a credit operation:
-//
-//	// Credit a revenue account (increase balance)
-//	creditOp := models.CreateOperationInput{
-//	    Type:         "credit",
-//	    AccountID:    "acc-456",                  // Account ID
-//	    AccountAlias: stringPtr("revenue:payments"), // Optional alias
-//	    Amount:       "100.00",                   // $100.00
-//	    AssetCode:    "USD",
-//	}
-//
-// Example - Using operations in a transaction:
-//
-//	// Create a balanced transaction with a debit and credit
-//	tx := &models.CreateTransactionInput{
-//	    Description: "Payment for invoice #123",
-//	    AssetCode:   "USD",
-//	    Amount:      10000,
-//	    Scale:       2,
-//	    Operations: []models.CreateOperationInput{
-//	        // Debit customer account
-//	        {
-//	            Type:         "debit",
-//	            AccountID:    "acc-123",
-//	            AccountAlias: stringPtr("customer:john.doe"),
-//	            Amount:       "100.00",
-//	            AssetCode:    "USD",
-//	        },
-//	        // Credit revenue account
-//	        {
-//	            Type:         "credit",
-//	            AccountID:    "acc-456",
-//	            AccountAlias: stringPtr("revenue:payments"),
-//	            Amount:       "100.00",
-//	            AssetCode:    "USD",
-//	        },
-//	    },
-//	}
-//
-// Helper function for creating string pointers:
-//
-//	func stringPtr(s string) *string {
-//	    return &s
-//	}
 type CreateOperationInput struct {
 	// Type indicates whether this is a debit or credit operation
 	// Must be either "debit" or "credit"
@@ -345,63 +373,4 @@ func (input *CreateOperationInput) Validate() error {
 	}
 
 	return nil
-}
-
-// FromMmodelOperation converts an mmodel Operation (if it exists) to an SDK Operation.
-// This function is used internally to convert between backend and SDK models.
-//
-// Parameters:
-//   - operation: The mmodel operation to convert, as a generic interface
-//
-// Returns:
-//   - An Operation instance with values extracted from the input
-func FromMmodelOperation(operation any) Operation {
-	// Since we don't have access to the actual mmodel Operation struct,
-	// we'll create a basic conversion based on what we know about the operation structure
-	op, ok := operation.(map[string]any)
-
-	if !ok {
-		// Return empty operation if conversion fails
-		return Operation{}
-	}
-
-	var result Operation
-
-	// Convert fields we know should be present
-	if id, ok := op["id"].(string); ok {
-		result.ID = id
-	}
-
-	if typ, ok := op["type"].(string); ok {
-		result.Type = typ
-	}
-
-	if accountID, ok := op["accountId"].(string); ok {
-		result.AccountID = accountID
-	}
-
-	// Handle amount field - could be string or object
-	if amount, ok := op["amount"].(string); ok {
-		// If it's a string (for backward compatibility)
-		result.Amount = &OperationAmount{Value: amount}
-	} else if amountObj, ok := op["amount"].(map[string]any); ok {
-		// If it's an object with value field
-		if value, ok := amountObj["value"].(string); ok {
-			result.Amount = &OperationAmount{Value: value}
-		}
-	}
-
-	if assetCode, ok := op["assetCode"].(string); ok {
-		result.AssetCode = assetCode
-	}
-
-	if alias, ok := op["accountAlias"].(string); ok {
-		result.AccountAlias = &alias
-	}
-
-	if route, ok := op["route"].(string); ok {
-		result.Route = route
-	}
-
-	return result
 }
