@@ -88,7 +88,9 @@ func WithHTTPMaxRetries(maxRetries int) HTTPOption {
 		if maxRetries < 0 {
 			return fmt.Errorf("maxRetries must be non-negative, got %d", maxRetries)
 		}
+
 		o.MaxRetries = maxRetries
+
 		return nil
 	}
 }
@@ -104,7 +106,9 @@ func WithHTTPInitialDelay(delay time.Duration) HTTPOption {
 		if delay <= 0 {
 			return fmt.Errorf("initialDelay must be positive, got %v", delay)
 		}
+
 		o.InitialDelay = delay
+
 		return nil
 	}
 }
@@ -120,7 +124,9 @@ func WithHTTPMaxDelay(delay time.Duration) HTTPOption {
 		if delay <= 0 {
 			return fmt.Errorf("maxDelay must be positive, got %v", delay)
 		}
+
 		o.MaxDelay = delay
+
 		return nil
 	}
 }
@@ -136,7 +142,9 @@ func WithHTTPBackoffFactor(factor float64) HTTPOption {
 		if factor < 1.0 {
 			return fmt.Errorf("backoffFactor must be at least 1.0, got %f", factor)
 		}
+
 		o.BackoffFactor = factor
+
 		return nil
 	}
 }
@@ -236,7 +244,9 @@ func WithHTTPJitterFactor(factor float64) HTTPOption {
 		if factor < 0.0 || factor > 1.0 {
 			return fmt.Errorf("jitterFactor must be between 0.0 and 1.0, got %f", factor)
 		}
+
 		o.JitterFactor = factor
+
 		return nil
 	}
 }
@@ -257,6 +267,7 @@ func WithHTTPHighReliability() HTTPOption {
 		o.JitterFactor = 0.4
 		o.RetryAllServerErrors = true
 		o.RetryOn4xx = []int{408, 429}
+
 		return nil
 	}
 }
@@ -312,177 +323,277 @@ func DoHTTPRequestWithContext(ctx context.Context, client *http.Client, req *htt
 	return doHTTPRequestWithOptions(ctx, client, req, options)
 }
 
-// doHTTPRequestWithOptions is an internal function that performs an HTTP request with retries.
+// doHTTPRequestWithOptions performs an HTTP request with retries.
 func doHTTPRequestWithOptions(ctx context.Context, client *http.Client, req *http.Request, options *HTTPOptions) (*HTTPResponse, error) {
 	if client == nil {
 		client = http.DefaultClient
 	}
 
-	var (
-		resp           *http.Response
-		respBody       []byte
-		respErr        error
-		statusCode     int
-		lastErr        error
-		lastStatusCode int
-	)
-
-	// Retry loop
-	for attempt := 0; attempt <= options.MaxRetries; attempt++ {
-		// Check if context is done before executing
-		if ctx.Err() != nil {
-			return &HTTPResponse{
-				Error:   fmt.Errorf("operation cancelled: %w", ctx.Err()),
-				Attempt: attempt,
-			}, ctx.Err()
-		}
-
-		// Clone the request if this is a retry (since the body may have been consumed)
-		if attempt > 0 {
-			var reqClone *http.Request
-			if req.Body != nil && req.GetBody != nil {
-				reqBody, err := req.GetBody()
-				if err != nil {
-					return &HTTPResponse{
-						Error:   fmt.Errorf("failed to clone request body: %w", err),
-						Attempt: attempt,
-					}, err
-				}
-				reqClone, err = http.NewRequestWithContext(req.Context(), req.Method, req.URL.String(), reqBody)
-				if err != nil {
-					return &HTTPResponse{
-						Error:   fmt.Errorf("failed to clone request: %w", err),
-						Attempt: attempt,
-					}, err
-				}
-				// Copy headers
-				for key, values := range req.Header {
-					for _, value := range values {
-						reqClone.Header.Add(key, value)
-					}
-				}
-			} else {
-				// Simple clone for requests without bodies
-				var err error
-				reqClone, err = http.NewRequestWithContext(req.Context(), req.Method, req.URL.String(), nil)
-				if err != nil {
-					return &HTTPResponse{
-						Error:   fmt.Errorf("failed to clone request: %w", err),
-						Attempt: attempt,
-					}, err
-				}
-				// Copy headers
-				for key, values := range req.Header {
-					for _, value := range values {
-						reqClone.Header.Add(key, value)
-					}
-				}
-			}
-			req = reqClone
-		}
-
-		// Execute the request
-		resp, respErr = client.Do(req)
-
-		// Create the response structure
-		httpResp := &HTTPResponse{
-			Response: resp,
-			Error:    respErr,
-			Attempt:  attempt,
-		}
-
-		// Call the pre-retry hook if provided
-		if attempt < options.MaxRetries && options.PreRetryHook != nil {
-			if hookErr := options.PreRetryHook(ctx, req, httpResp); hookErr != nil {
-				// If the hook returns an error, don't retry
-				return httpResp, hookErr
-			}
-		}
-
-		// Handle connection errors
-		if respErr != nil {
-			lastErr = respErr
-			// Check if the error is retryable
-			if isNetworkErrorRetryable(respErr, options) {
-				// Wait for backoff duration or until context is cancelled
-				if attempt < options.MaxRetries {
-					delay := calculateBackoff(attempt, &Options{
-						InitialDelay:  options.InitialDelay,
-						MaxDelay:      options.MaxDelay,
-						BackoffFactor: options.BackoffFactor,
-					})
-					delay = addJitter(delay, options.JitterFactor)
-
-					select {
-					case <-ctx.Done():
-						return httpResp, fmt.Errorf("operation cancelled during retry: %w", ctx.Err())
-					case <-time.After(delay):
-						// Continue with retry
-						continue
-					}
-				}
-			}
-
-			// Not retryable or no more retries
-			return httpResp, fmt.Errorf("HTTP request failed: %w", respErr)
-		}
-
-		// At this point we have a response
-		statusCode = resp.StatusCode
-		lastStatusCode = statusCode
-
-		// Read the response body (even for error responses)
-		if resp.Body != nil {
-			var readErr error
-			respBody, readErr = io.ReadAll(resp.Body)
-			if closeErr := resp.Body.Close(); closeErr != nil { // Always close the body
-				log.Printf("Warning: Failed to close response body: %v", closeErr)
-			}
-
-			if readErr != nil {
-				httpResp.Error = readErr
-				return httpResp, fmt.Errorf("failed to read response body: %w", readErr)
-			}
-
-			httpResp.Body = respBody
-		}
-
-		// Check if the status code indicates success
-		if statusCode < 400 {
-			return httpResp, nil
-		}
-
-		// Check if the status code is retryable and we have retries left
-		if isStatusCodeRetryable(statusCode, options) && attempt < options.MaxRetries {
-			// Wait for backoff duration or until context is cancelled
-			delay := calculateBackoff(attempt, &Options{
-				InitialDelay:  options.InitialDelay,
-				MaxDelay:      options.MaxDelay,
-				BackoffFactor: options.BackoffFactor,
-			})
-			delay = addJitter(delay, options.JitterFactor)
-
-			select {
-			case <-ctx.Done():
-				return httpResp, fmt.Errorf("operation cancelled during retry: %w", ctx.Err())
-			case <-time.After(delay):
-				// Continue with retry
-				continue
-			}
-		}
-
-		// Not retryable or no more retries
-		httpResp.Error = fmt.Errorf("HTTP request failed with status %d", statusCode)
-		return httpResp, httpResp.Error
+	retryState := &httpRetryState{
+		ctx:     ctx,
+		client:  client,
+		options: options,
 	}
 
-	// If we got here, all retries failed
-	return &HTTPResponse{
+	return retryState.executeWithRetries(req)
+}
+
+// httpRetryState holds state for HTTP retry operations.
+type httpRetryState struct {
+	ctx            context.Context
+	client         *http.Client
+	options        *HTTPOptions
+	lastErr        error
+	lastStatusCode int
+	resp           *http.Response
+	respBody       []byte
+}
+
+// executeWithRetries performs the main retry loop.
+func (r *httpRetryState) executeWithRetries(req *http.Request) (*HTTPResponse, error) {
+	for attempt := 0; attempt <= r.options.MaxRetries; attempt++ {
+		if err := r.checkContextCancellation(attempt); err != nil {
+			return r.createErrorResponse(attempt, err), err
+		}
+
+		currentReq, err := r.prepareRequest(req, attempt)
+		if err != nil {
+			return r.createErrorResponse(attempt, err), err
+		}
+
+		httpResp, shouldContinue, err := r.executeAttempt(currentReq, attempt)
+		if err != nil {
+			return httpResp, err
+		}
+
+		if !shouldContinue {
+			return httpResp, nil
+		}
+	}
+
+	return r.createFinalErrorResponse(), fmt.Errorf("operation failed after %d retries", r.options.MaxRetries)
+}
+
+// checkContextCancellation checks if the context is cancelled.
+func (r *httpRetryState) checkContextCancellation(attempt int) error {
+	_ = attempt // Parameter reserved for future retry attempt logging
+
+	if r.ctx.Err() != nil {
+		return fmt.Errorf("operation cancelled: %w", r.ctx.Err())
+	}
+
+	return nil
+}
+
+// prepareRequest clones the request for retry attempts.
+func (r *httpRetryState) prepareRequest(req *http.Request, attempt int) (*http.Request, error) {
+	if attempt == 0 {
+		return req, nil
+	}
+
+	return r.cloneRequest(req)
+}
+
+// cloneRequest creates a clone of the HTTP request for retry.
+func (r *httpRetryState) cloneRequest(req *http.Request) (*http.Request, error) {
+	if req.Body != nil && req.GetBody != nil {
+		return r.cloneRequestWithBody(req)
+	}
+
+	return r.cloneRequestWithoutBody(req)
+}
+
+// cloneRequestWithBody clones a request that has a body.
+func (r *httpRetryState) cloneRequestWithBody(req *http.Request) (*http.Request, error) {
+	reqBody, err := req.GetBody()
+	if err != nil {
+		return nil, fmt.Errorf("failed to clone request body: %w", err)
+	}
+
+	reqClone, err := http.NewRequestWithContext(req.Context(), req.Method, req.URL.String(), reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("failed to clone request: %w", err)
+	}
+
+	r.copyHeaders(req, reqClone)
+
+	return reqClone, nil
+}
+
+// cloneRequestWithoutBody clones a request that doesn't have a body.
+func (r *httpRetryState) cloneRequestWithoutBody(req *http.Request) (*http.Request, error) {
+	reqClone, err := http.NewRequestWithContext(req.Context(), req.Method, req.URL.String(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to clone request: %w", err)
+	}
+
+	r.copyHeaders(req, reqClone)
+
+	return reqClone, nil
+}
+
+// copyHeaders copies headers from source to destination request.
+func (r *httpRetryState) copyHeaders(src, dst *http.Request) {
+	for key, values := range src.Header {
+		for _, value := range values {
+			dst.Header.Add(key, value)
+		}
+	}
+}
+
+// executeAttempt executes a single HTTP request attempt.
+func (r *httpRetryState) executeAttempt(req *http.Request, attempt int) (*HTTPResponse, bool, error) {
+	resp, respErr := r.client.Do(req)
+	r.resp = resp
+
+	// Ensure response body is properly closed according to Go HTTP best practices
+	// Use a flag to track if body was consumed by readResponseBody to avoid double closing
+	var bodyConsumed bool
+	defer func() {
+		if !bodyConsumed && resp != nil && resp.Body != nil {
+			if closeErr := resp.Body.Close(); closeErr != nil {
+				log.Printf("Warning: Failed to close response body: %v", closeErr)
+			}
+		}
+	}()
+
+	httpResp := &HTTPResponse{
 		Response: resp,
-		Body:     respBody,
-		Error:    fmt.Errorf("operation failed after %d retries, last status: %d, last error: %v", options.MaxRetries, lastStatusCode, lastErr),
-		Attempt:  options.MaxRetries,
-	}, fmt.Errorf("operation failed after %d retries", options.MaxRetries)
+		Error:    respErr,
+		Attempt:  attempt,
+	}
+
+	if err := r.callPreRetryHook(req, httpResp, attempt); err != nil {
+		return httpResp, false, err
+	}
+
+	if respErr != nil {
+		return r.handleConnectionError(httpResp, respErr, attempt)
+	}
+
+	result, shouldRetry, err := r.handleResponse(httpResp, attempt)
+	if result != nil && err == nil && result.Body != nil {
+		// Body was consumed by readResponseBody, mark it as such
+		bodyConsumed = true
+	}
+
+	return result, shouldRetry, err
+}
+
+// callPreRetryHook calls the pre-retry hook if configured.
+func (r *httpRetryState) callPreRetryHook(req *http.Request, httpResp *HTTPResponse, attempt int) error {
+	if attempt < r.options.MaxRetries && r.options.PreRetryHook != nil {
+		return r.options.PreRetryHook(r.ctx, req, httpResp)
+	}
+
+	return nil
+}
+
+// handleConnectionError handles connection errors during HTTP requests.
+func (r *httpRetryState) handleConnectionError(httpResp *HTTPResponse, respErr error, attempt int) (*HTTPResponse, bool, error) {
+	r.lastErr = respErr
+
+	if !isNetworkErrorRetryable(respErr, r.options) {
+		return httpResp, false, fmt.Errorf("HTTP request failed: %w", respErr)
+	}
+
+	if attempt >= r.options.MaxRetries {
+		return httpResp, false, fmt.Errorf("HTTP request failed: %w", respErr)
+	}
+
+	if err := r.waitForRetry(attempt); err != nil {
+		return httpResp, false, err
+	}
+
+	return nil, true, nil // Continue with retry
+}
+
+// handleResponse processes successful HTTP responses.
+func (r *httpRetryState) handleResponse(httpResp *HTTPResponse, attempt int) (*HTTPResponse, bool, error) {
+	statusCode := r.resp.StatusCode
+	r.lastStatusCode = statusCode
+
+	if err := r.readResponseBody(httpResp); err != nil {
+		return httpResp, false, err
+	}
+
+	if statusCode < 400 {
+		return httpResp, false, nil // Success
+	}
+
+	return r.handleErrorResponse(httpResp, statusCode, attempt)
+}
+
+// readResponseBody reads and stores the response body.
+func (r *httpRetryState) readResponseBody(httpResp *HTTPResponse) error {
+	if r.resp.Body == nil {
+		return nil
+	}
+
+	respBody, readErr := io.ReadAll(r.resp.Body)
+
+	if closeErr := r.resp.Body.Close(); closeErr != nil {
+		log.Printf("Warning: Failed to close response body: %v", closeErr)
+	}
+
+	if readErr != nil {
+		httpResp.Error = readErr
+		return fmt.Errorf("failed to read response body: %w", readErr)
+	}
+
+	r.respBody = respBody
+	httpResp.Body = respBody
+
+	return nil
+}
+
+// handleErrorResponse handles HTTP error responses.
+func (r *httpRetryState) handleErrorResponse(httpResp *HTTPResponse, statusCode, attempt int) (*HTTPResponse, bool, error) {
+	if !isStatusCodeRetryable(statusCode, r.options) || attempt >= r.options.MaxRetries {
+		httpResp.Error = fmt.Errorf("HTTP request failed with status %d", statusCode)
+		return httpResp, false, httpResp.Error
+	}
+
+	if err := r.waitForRetry(attempt); err != nil {
+		return httpResp, false, err
+	}
+
+	return nil, true, nil // Continue with retry
+}
+
+// waitForRetry waits for the calculated backoff duration.
+func (r *httpRetryState) waitForRetry(attempt int) error {
+	delay := calculateBackoff(attempt, &Options{
+		InitialDelay:  r.options.InitialDelay,
+		MaxDelay:      r.options.MaxDelay,
+		BackoffFactor: r.options.BackoffFactor,
+	})
+	delay = addJitter(delay, r.options.JitterFactor)
+
+	select {
+	case <-r.ctx.Done():
+		return fmt.Errorf("operation cancelled during retry: %w", r.ctx.Err())
+	case <-time.After(delay):
+		return nil
+	}
+}
+
+// createErrorResponse creates an HTTPResponse for errors.
+func (r *httpRetryState) createErrorResponse(attempt int, err error) *HTTPResponse {
+	return &HTTPResponse{
+		Error:   err,
+		Attempt: attempt,
+	}
+}
+
+// createFinalErrorResponse creates the final error response after all retries failed.
+func (r *httpRetryState) createFinalErrorResponse() *HTTPResponse {
+	return &HTTPResponse{
+		Response: r.resp,
+		Body:     r.respBody,
+		Error:    fmt.Errorf("operation failed after %d retries, last status: %d, last error: %v", r.options.MaxRetries, r.lastStatusCode, r.lastErr),
+		Attempt:  r.options.MaxRetries,
+	}
 }
 
 // DoHTTP is a simpler version of DoHTTPRequest that handles creating the request.
@@ -558,5 +669,6 @@ func GetHTTPOptionsFromContext(ctx context.Context) *HTTPOptions {
 	if options, ok := ctx.Value(contextKey("http-retry-options")).(*HTTPOptions); ok {
 		return options
 	}
+
 	return DefaultHTTPOptions()
 }

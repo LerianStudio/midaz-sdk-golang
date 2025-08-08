@@ -53,6 +53,7 @@ func (input *CreateAssetInput) Validate() error {
 	if input.Name == "" {
 		return fmt.Errorf("name is required")
 	}
+
 	if input.Code == "" {
 		return fmt.Errorf("code is required")
 	}

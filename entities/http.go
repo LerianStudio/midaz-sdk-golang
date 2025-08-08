@@ -18,7 +18,6 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/performance"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
-	"go.opentelemetry.io/otel/trace"
 )
 
 // getUserAgent retrieves the user agent string from environment variable or uses default
@@ -140,6 +139,7 @@ func (c *HTTPClient) WithRetryOption(option retry.Option) *HTTPClient {
 		// Log the error but continue with existing options
 		c.debugLog("Error applying retry option: %v", err)
 	}
+
 	return c
 }
 
@@ -169,137 +169,206 @@ func (c *HTTPClient) WithDebug(debug bool) *HTTPClient {
 // Returns:
 //   - error: An error if the request failed.
 func (c *HTTPClient) doRequest(ctx context.Context, method, requestURL string, headers map[string]string, body, result any) error {
-	// Create a span for the HTTP request if observability is enabled
-	var spanCtx context.Context
-	if c.observability != nil && c.observability.IsEnabled() {
-		var span trace.Span
-		spanCtx, span = c.observability.Tracer().Start(ctx, fmt.Sprintf("HTTP %s %s", method, requestURL))
-		ctx = spanCtx
+	// Create observability context and span
+	ctx, endSpan := c.setupObservabilityContext(ctx, method, requestURL)
+	defer endSpan()
 
-		defer span.End()
-	}
-
-	// Create the HTTP request
-	var reqBody io.Reader
-
-	// Log the request URL if debug mode is enabled
-	if c.debug {
-		c.debugLog("Request URL: %s %s", method, requestURL)
-	}
-
-	if body != nil {
-		// Serialize the request body to JSON
-		bodyBytes, err := c.jsonPool.Marshal(body)
-
-		if err != nil {
-			return fmt.Errorf("failed to marshal request body: %w", err)
-		}
-		reqBody = bytes.NewReader(bodyBytes)
-
-		// Log the request body if debug mode is enabled
-		if c.debug {
-			c.debugLog("Request body: %s", string(bodyBytes))
-		}
-	}
-
-	// Create the HTTP request
-	req, err := http.NewRequestWithContext(ctx, method, requestURL, reqBody)
-	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
-	}
-
-	// Add standard headers
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("User-Agent", c.userAgent)
-
-	// Add content type if there's a body
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
-
-	// Add authorization if there's a token
-	if c.authToken != "" {
-		req.Header.Set("Authorization", c.authToken)
-	}
-
-	// Add custom headers
-	for key, value := range headers {
-		req.Header.Set(key, value)
-	}
-
-	// Define a function to execute the request with retry logic
-	var resp *http.Response
-
-	var responseBody []byte
-
-	// Set context with retry options
-	retryCtx := retry.WithOptionsContext(ctx, c.retryOptions)
-
-	// Use retry.Do to execute the request with retries
-	err = retry.DoWithContext(
-		retryCtx,
-		func() error {
-			// Do the actual HTTP request
-			resp, err = c.client.Do(req)
-			if err != nil {
-				if c.debug {
-					c.debugLog("HTTP request failed: %s %s - %v", method, requestURL, err)
-				}
-				return fmt.Errorf("HTTP request failed: %w", err)
-			}
-
-			// Read the response body
-			responseBody, err = io.ReadAll(resp.Body)
-			if closeErr := resp.Body.Close(); closeErr != nil { // Always close the body
-				// Log the error but continue with the response
-				if c.debug {
-					c.debugLog("Failed to close response body: %v", closeErr)
-				}
-			}
-
-			// Return an error if the status code indicates a problem
-			if resp.StatusCode >= 400 {
-				apiErr := c.parseErrorResponse(resp.StatusCode, responseBody)
-
-				// Log error details in debug mode
-				if c.debug {
-					c.debugLog("HTTP Error response from: %s %s", method, requestURL)
-					c.debugLog("Error status: %d", resp.StatusCode)
-					c.debugLog("Error headers: %v", resp.Header)
-					c.debugLog("Error body: %s", string(responseBody))
-					c.debugLog("Parsed error: %v", apiErr)
-				}
-
-				return apiErr
-			}
-
-			return err
-		},
-	)
-
-	// If the request failed after retries, return the error
+	// Build HTTP request
+	req, _, err := c.buildHTTPRequest(ctx, method, requestURL, body)
 	if err != nil {
 		return err
 	}
 
-	// Record metrics if observability is enabled
+	// Setup headers
+	c.setupRequestHeaders(req, headers, body != nil)
+
+	// Execute request with retry logic
+	resp, responseBody, err := c.executeRequestWithRetry(ctx, req, method, requestURL)
+	if err != nil {
+		return err
+	}
+	// Ensure response body is closed after we're done with it
+	defer func() {
+		if resp != nil && resp.Body != nil {
+			c.closeResponseBody(resp)
+		}
+	}()
+
+	// Record metrics and debug logging
+	c.recordRequestMetrics(ctx, method, requestURL, resp, responseBody)
+	c.logResponseDetails(method, requestURL, resp, responseBody)
+
+	// Process response
+	return c.processResponse(result, responseBody)
+}
+
+// setupObservabilityContext creates tracing span if observability is enabled
+func (c *HTTPClient) setupObservabilityContext(ctx context.Context, method, requestURL string) (context.Context, func()) {
+	if c.observability == nil || !c.observability.IsEnabled() {
+		return ctx, func() {}
+	}
+
+	spanCtx, span := c.observability.Tracer().Start(ctx, fmt.Sprintf("HTTP %s %s", method, requestURL))
+
+	return spanCtx, func() { span.End() }
+}
+
+// buildHTTPRequest creates the HTTP request with body handling
+func (c *HTTPClient) buildHTTPRequest(ctx context.Context, method, requestURL string, body any) (*http.Request, []byte, error) {
+	c.debugLog("Request URL: %s %s", method, requestURL)
+
+	reqBody, bodyBytes, err := c.prepareRequestBody(body)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to prepare request body: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, requestURL, reqBody)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	return req, bodyBytes, nil
+}
+
+// prepareRequestBody handles JSON marshaling and logging for request body
+func (c *HTTPClient) prepareRequestBody(body any) (io.Reader, []byte, error) {
+	if body == nil {
+		return nil, nil, nil
+	}
+
+	bodyBytes, err := c.jsonPool.Marshal(body)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	c.debugLogRequestBody(bodyBytes)
+
+	return bytes.NewReader(bodyBytes), bodyBytes, nil
+}
+
+// debugLogRequestBody logs request body if debug mode is enabled
+func (c *HTTPClient) debugLogRequestBody(bodyBytes []byte) {
+	if c.debug {
+		c.debugLog("Request body: %s", string(bodyBytes))
+	}
+}
+
+// setupRequestHeaders configures all necessary request headers
+func (c *HTTPClient) setupRequestHeaders(req *http.Request, headers map[string]string, hasBody bool) {
+	// Standard headers
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", c.userAgent)
+
+	// Content type for requests with body
+	if hasBody {
+		req.Header.Set("Content-Type", "application/json")
+	}
+
+	// Authorization header
+	if c.authToken != "" {
+		req.Header.Set("Authorization", c.authToken)
+	}
+
+	// Custom headers
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
+}
+
+// executeRequestWithRetry handles the request execution with retry logic
+func (c *HTTPClient) executeRequestWithRetry(ctx context.Context, req *http.Request, method, requestURL string) (*http.Response, []byte, error) {
+	var resp *http.Response
+
+	var responseBody []byte
+
+	retryCtx := retry.WithOptionsContext(ctx, c.retryOptions)
+
+	err := retry.DoWithContext(retryCtx, func() error {
+		var err error
+		resp, err = c.client.Do(req)
+
+		if err != nil {
+			c.debugLogRequestError(method, requestURL, err)
+			return fmt.Errorf("HTTP request failed: %w", err)
+		}
+
+		// Ensure response body is always closed, even on error paths
+		defer func() {
+			if resp != nil && resp.Body != nil {
+				c.closeResponseBody(resp)
+			}
+		}()
+
+		responseBody, err = io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("failed to read response body: %w", err)
+		}
+
+		if resp.StatusCode >= 400 {
+			return c.handleErrorResponse(resp.StatusCode, responseBody, method, requestURL)
+		}
+
+		return nil
+	})
+
+	return resp, responseBody, err
+}
+
+// closeResponseBody safely closes response body with debug logging
+func (c *HTTPClient) closeResponseBody(resp *http.Response) {
+	if closeErr := resp.Body.Close(); closeErr != nil && c.debug {
+		c.debugLog("Failed to close response body: %v", closeErr)
+	}
+}
+
+// handleErrorResponse processes API error responses
+func (c *HTTPClient) handleErrorResponse(statusCode int, responseBody []byte, method, requestURL string) error {
+	apiErr := c.parseErrorResponse(statusCode, responseBody)
+
+	if c.debug {
+		c.debugLog("HTTP Error response from: %s %s", method, requestURL)
+		c.debugLog("Error status: %d", statusCode)
+		c.debugLog("Error body: %s", string(responseBody))
+		c.debugLog("Parsed error: %v", apiErr)
+	}
+
+	return apiErr
+}
+
+// debugLogRequestError logs request failures in debug mode
+func (c *HTTPClient) debugLogRequestError(method, requestURL string, err error) {
+	if c.debug {
+		c.debugLog("HTTP request failed: %s %s - %v", method, requestURL, err)
+	}
+}
+
+// recordRequestMetrics records performance metrics if enabled
+func (c *HTTPClient) recordRequestMetrics(ctx context.Context, method, requestURL string, resp *http.Response, responseBody []byte) {
 	if c.metrics != nil {
 		c.metrics.RecordRequest(ctx, method, requestURL, resp.StatusCode, time.Duration(len(responseBody))*time.Millisecond)
 	}
+}
 
-	// Log the response details if debug mode is enabled
-	if c.debug {
-		c.debugLog("Response from: %s %s", method, requestURL)
-		c.debugLog("Response status: %d", resp.StatusCode)
-		c.debugLog("Response headers: %v", resp.Header)
-		c.debugLog("Response body: %s", string(responseBody))
+// logResponseDetails logs response information in debug mode
+func (c *HTTPClient) logResponseDetails(method, requestURL string, resp *http.Response, responseBody []byte) {
+	if !c.debug {
+		return
 	}
 
-	// Unmarshal the response if there's a result pointer
-	if result != nil && len(responseBody) > 0 {
-		if err := c.jsonPool.Unmarshal(responseBody, result); err != nil {
-			return fmt.Errorf("failed to unmarshal response: %w", err)
-		}
+	c.debugLog("Response from: %s %s", method, requestURL)
+	c.debugLog("Response status: %d", resp.StatusCode)
+	c.debugLog("Response headers: %v", resp.Header)
+	c.debugLog("Response body: %s", string(responseBody))
+}
+
+// processResponse handles JSON unmarshaling of the response
+func (c *HTTPClient) processResponse(result any, responseBody []byte) error {
+	if result == nil || len(responseBody) == 0 {
+		return nil
+	}
+
+	if err := c.jsonPool.Unmarshal(responseBody, result); err != nil {
+		return fmt.Errorf("failed to unmarshal response: %w", err)
 	}
 
 	return nil
@@ -309,10 +378,11 @@ func (c *HTTPClient) doRequest(ctx context.Context, method, requestURL string, h
 func (c *HTTPClient) sendRequest(req *http.Request, v any) error {
 	// Extract method and URL from the request
 	method := req.Method
-	url := req.URL.String()
+	requestURL := req.URL.String()
 
 	// Extract headers from the request
 	headers := make(map[string]string)
+
 	for key, values := range req.Header {
 		if len(values) > 0 {
 			headers[key] = values[0]
@@ -321,6 +391,7 @@ func (c *HTTPClient) sendRequest(req *http.Request, v any) error {
 
 	// Extract body from the request
 	var body any
+
 	if req.Body != nil {
 		// Read the body
 		bodyBytes, err := io.ReadAll(req.Body)
@@ -348,7 +419,7 @@ func (c *HTTPClient) sendRequest(req *http.Request, v any) error {
 	ctx := req.Context()
 
 	// Call the new doRequest method
-	return c.doRequest(ctx, method, url, headers, body, v)
+	return c.doRequest(ctx, method, requestURL, headers, body, v)
 }
 
 // debugLog logs a debug message if debug mode is enabled.
@@ -420,13 +491,15 @@ func AddURLParams(baseURL string, params map[string]string) string {
 
 	// Update the URL with the new query string
 	u.RawQuery = q.Encode()
+
 	return u.String()
 }
 
 // NewRequest creates a new HTTP request with the given method, URL, and body.
 // It's a convenient wrapper around http.NewRequest for backward compatibility.
-func (c *HTTPClient) NewRequest(method, url string, body any) (*http.Request, error) {
+func (c *HTTPClient) NewRequest(method, requestURL string, body any) (*http.Request, error) {
 	var bodyReader io.Reader
+
 	if body != nil {
 		// Serialize the request body to JSON
 		bodyBytes, err := c.jsonPool.Marshal(body)
@@ -434,10 +507,11 @@ func (c *HTTPClient) NewRequest(method, url string, body any) (*http.Request, er
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal request body: %w", err)
 		}
+
 		bodyReader = bytes.NewReader(bodyBytes)
 	}
 
-	req, err := http.NewRequest(method, url, bodyReader)
+	req, err := http.NewRequest(method, requestURL, bodyReader)
 	if err != nil {
 		return nil, err
 	}

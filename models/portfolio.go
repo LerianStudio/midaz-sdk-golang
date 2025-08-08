@@ -47,9 +47,11 @@ func (input *CreatePortfolioInput) Validate() error {
 	if input.Name == "" {
 		return fmt.Errorf("name is required")
 	}
+
 	if input.EntityID == "" {
 		return fmt.Errorf("entityID is required")
 	}
+
 	return nil
 }
 

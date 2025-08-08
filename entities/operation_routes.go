@@ -142,6 +142,7 @@ func (e *operationRoutesEntity) ListOperationRoutes(ctx context.Context, organiz
 	if organizationID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
 	}
+
 	if ledgerID == "" {
 		return nil, errors.NewMissingParameterError(operation, "ledgerID")
 	}
@@ -158,6 +159,7 @@ func (e *operationRoutesEntity) ListOperationRoutes(ctx context.Context, organiz
 		for key, value := range opts.ToQueryParams() {
 			q.Add(key, value)
 		}
+
 		req.URL.RawQuery = q.Encode()
 	}
 
@@ -176,9 +178,11 @@ func (e *operationRoutesEntity) GetOperationRoute(ctx context.Context, organizat
 	if organizationID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
 	}
+
 	if ledgerID == "" {
 		return nil, errors.NewMissingParameterError(operation, "ledgerID")
 	}
+
 	if operationRouteID == "" {
 		return nil, errors.NewMissingParameterError(operation, "operationRouteID")
 	}
@@ -205,9 +209,11 @@ func (e *operationRoutesEntity) CreateOperationRoute(ctx context.Context, organi
 	if organizationID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
 	}
+
 	if ledgerID == "" {
 		return nil, errors.NewMissingParameterError(operation, "ledgerID")
 	}
+
 	if input == nil {
 		return nil, errors.NewMissingParameterError(operation, "input")
 	}
@@ -247,12 +253,15 @@ func (e *operationRoutesEntity) UpdateOperationRoute(ctx context.Context, organi
 	if organizationID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
 	}
+
 	if ledgerID == "" {
 		return nil, errors.NewMissingParameterError(operation, "ledgerID")
 	}
+
 	if operationRouteID == "" {
 		return nil, errors.NewMissingParameterError(operation, "operationRouteID")
 	}
+
 	if input == nil {
 		return nil, errors.NewMissingParameterError(operation, "input")
 	}
@@ -292,9 +301,11 @@ func (e *operationRoutesEntity) DeleteOperationRoute(ctx context.Context, organi
 	if organizationID == "" {
 		return errors.NewMissingParameterError(operation, "organizationID")
 	}
+
 	if ledgerID == "" {
 		return errors.NewMissingParameterError(operation, "ledgerID")
 	}
+
 	if operationRouteID == "" {
 		return errors.NewMissingParameterError(operation, "operationRouteID")
 	}

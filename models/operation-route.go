@@ -19,9 +19,11 @@ func (input *CreateOperationRouteInput) Validate() error {
 	if input.Title == "" {
 		return fmt.Errorf("title is required")
 	}
+
 	if input.Description == "" {
 		return fmt.Errorf("description is required")
 	}
+
 	if input.OperationType == "" {
 		return fmt.Errorf("operationType is required")
 	}
@@ -29,6 +31,7 @@ func (input *CreateOperationRouteInput) Validate() error {
 	if input.OperationType != "source" && input.OperationType != "destination" {
 		return fmt.Errorf("operationType must be 'source' or 'destination'")
 	}
+
 	return nil
 }
 
@@ -49,6 +52,7 @@ func (input *CreateOperationRouteInput) WithAccountAlias(alias string) *CreateOp
 		RuleType: "alias",
 		ValidIf:  alias,
 	}
+
 	return input
 }
 
@@ -58,6 +62,7 @@ func (input *CreateOperationRouteInput) WithAccountTypes(accountTypes []string) 
 		RuleType: "account_type",
 		ValidIf:  accountTypes,
 	}
+
 	return input
 }
 
@@ -85,6 +90,7 @@ func (input *UpdateOperationRouteInput) WithAccountTypes(accountTypes []string) 
 		RuleType: "account_type",
 		ValidIf:  accountTypes,
 	}
+
 	return input
 }
 
@@ -148,6 +154,7 @@ func WithCreateOperationRouteAccountAlias(input *CreateOperationRouteInput, alia
 		RuleType: "alias",
 		ValidIf:  alias,
 	}
+
 	return input
 }
 
@@ -164,6 +171,7 @@ func WithCreateOperationRouteAccountType(input *CreateOperationRouteInput, accou
 		RuleType: "account_type",
 		ValidIf:  accountTypes,
 	}
+
 	return input
 }
 
@@ -227,6 +235,7 @@ func WithUpdateOperationRouteAccountAlias(input *UpdateOperationRouteInput, alia
 		RuleType: "alias",
 		ValidIf:  alias,
 	}
+
 	return input
 }
 
@@ -243,6 +252,7 @@ func WithUpdateOperationRouteAccountType(input *UpdateOperationRouteInput, accou
 		RuleType: "account_type",
 		ValidIf:  accountTypes,
 	}
+
 	return input
 }
 

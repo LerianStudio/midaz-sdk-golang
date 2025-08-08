@@ -24,6 +24,7 @@ func NewMockAssetsService(ctrl *gomock.Controller) *MockAssetsService {
 	mock := &MockAssetsService{ctrl: ctrl}
 
 	mock.recorder = &MockAssetsServiceMockRecorder{mock}
+
 	return mock
 }
 
@@ -38,6 +39,7 @@ func (m *MockAssetsService) ListAssets(ctx context.Context, organizationID, ledg
 	ret := m.ctrl.Call(m, "ListAssets", ctx, organizationID, ledgerID, opts)
 	ret0, _ := ret[0].(*models.ListResponse[models.Asset])
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 
@@ -53,6 +55,7 @@ func (m *MockAssetsService) GetAsset(ctx context.Context, organizationID, ledger
 	ret := m.ctrl.Call(m, "GetAsset", ctx, organizationID, ledgerID, id)
 	ret0, _ := ret[0].(*models.Asset)
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 
@@ -68,6 +71,7 @@ func (m *MockAssetsService) CreateAsset(ctx context.Context, organizationID, led
 	ret := m.ctrl.Call(m, "CreateAsset", ctx, organizationID, ledgerID, input)
 	ret0, _ := ret[0].(*models.Asset)
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 
@@ -83,6 +87,7 @@ func (m *MockAssetsService) UpdateAsset(ctx context.Context, organizationID, led
 	ret := m.ctrl.Call(m, "UpdateAsset", ctx, organizationID, ledgerID, id, input)
 	ret0, _ := ret[0].(*models.Asset)
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 
@@ -97,6 +102,7 @@ func (m *MockAssetsService) DeleteAsset(ctx context.Context, organizationID, led
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteAsset", ctx, organizationID, ledgerID, id)
 	ret0, _ := ret[0].(error)
+
 	return ret0
 }
 
@@ -105,4 +111,3 @@ func (mr *MockAssetsServiceMockRecorder) DeleteAsset(ctx, organizationID, ledger
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAsset", reflect.TypeOf((*MockAssetsService)(nil).DeleteAsset), ctx, organizationID, ledgerID, id)
 }
-

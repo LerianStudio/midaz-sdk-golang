@@ -254,6 +254,7 @@ func (p *Pagination) TotalPages() int {
 	if p.Limit <= 0 {
 		return 1
 	}
+
 	pages := p.Total / p.Limit
 
 	if p.Total%p.Limit > 0 {
@@ -347,6 +348,7 @@ func (o *ListOptions) WithOffset(offset int) *ListOptions {
 	} else {
 		o.Offset = offset
 	}
+
 	return o
 }
 
@@ -364,6 +366,7 @@ func (o *ListOptions) WithPage(page int) *ListOptions {
 	} else {
 		o.Page = page
 	}
+
 	return o
 }
 
@@ -415,6 +418,7 @@ func (o *ListOptions) WithFilter(key, value string) *ListOptions {
 	if o.Filters == nil {
 		o.Filters = make(map[string]string)
 	}
+
 	o.Filters[key] = value
 
 	return o
@@ -459,7 +463,9 @@ func (o *ListOptions) WithAdditionalParam(key, value string) *ListOptions {
 	if o.AdditionalParams == nil {
 		o.AdditionalParams = make(map[string]string)
 	}
+
 	o.AdditionalParams[key] = value
+
 	return o
 }
 

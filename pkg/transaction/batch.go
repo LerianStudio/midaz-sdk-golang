@@ -88,168 +88,226 @@ func BatchTransactions(
 	inputs []*models.CreateTransactionInput,
 	options *BatchOptions,
 ) ([]BatchResult, error) {
-	// Use default options if none provided
+	options = normalizeOptions(options)
+	results := make([]BatchResult, len(inputs))
+
+	processor := &batchProcessor{
+		ctx:      ctx,
+		client:   midazClient,
+		orgID:    orgID,
+		ledgerID: ledgerID,
+		inputs:   inputs,
+		options:  options,
+		results:  results,
+	}
+
+	return processor.execute()
+}
+
+// normalizeOptions ensures options are valid.
+func normalizeOptions(options *BatchOptions) *BatchOptions {
 	if options == nil {
 		options = DefaultBatchOptions()
 	}
 
-	// Ensure concurrency is at least 1
 	if options.Concurrency < 1 {
 		options.Concurrency = 1
 	}
 
-	// Prepare results slice with the same length as inputs
-	results := make([]BatchResult, len(inputs))
+	return options
+}
 
-	// Define a worker function to process a single transaction
-	processTransaction := func(ctx context.Context, index int) error {
-		// Start measuring duration
-		startTime := time.Now()
+// batchProcessor handles the batch transaction processing logic.
+type batchProcessor struct {
+	ctx      context.Context
+	client   *client.Client
+	orgID    string
+	ledgerID string
+	inputs   []*models.CreateTransactionInput
+	options  *BatchOptions
+	results  []BatchResult
+}
 
-		// Get the transaction input
-		input := inputs[index]
-
-		// Ensure idempotency key is set (use UUID if not provided)
-		if input.IdempotencyKey == "" {
-			idempotencyKey := fmt.Sprintf("%s-%s-%d", options.IdempotencyKeyPrefix, uuid.New().String(), index)
-			input.IdempotencyKey = idempotencyKey
-		}
-
-		// Process transaction with retries
-		var tx *models.Transaction
-		var err error
-		var attempt int
-
-		for attempt = 0; attempt <= options.RetryCount; attempt++ {
-			if attempt > 0 {
-				// Exponential backoff for retries
-				var backoffFactor uint
-				if attempt > 0 {
-					// Safe conversion - we've already checked that attempt > 0
-					attemptValue := attempt
-					if attemptValue <= 0 {
-						// This shouldn't happen based on the check above, but just to be safe
-						attemptValue = 1
-					}
-
-					if attemptValue <= 31 {
-						// Safe conversion - we know attemptValue is positive and <= 31
-						// Use a temporary variable to avoid direct int-to-uint conversion
-						positiveValue := attemptValue - 1
-						if positiveValue >= 0 {
-							backoffFactor = uint(positiveValue)
-						}
-					} else {
-						backoffFactor = 30 // Cap at a reasonable maximum to prevent overflow
-					}
-				}
-				backoffDuration := time.Duration(1<<backoffFactor) * options.RetryDelay
-				select {
-				case <-ctx.Done():
-					return ctx.Err()
-				case <-time.After(backoffDuration):
-					// Continue with retry
-				}
-			}
-
-			// Create the transaction
-			tx, err = midazClient.Entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
-
-			// If successful or not a retryable error, break
-			if err == nil || !isRetryableError(err) {
-				break
-			}
-		}
-
-		// Calculate duration
-		duration := time.Since(startTime)
-
-		// Create result
-		result := BatchResult{
-			Index:         index,
-			TransactionID: "",
-			Error:         err,
-			Duration:      duration,
-		}
-
-		// Set transaction ID if successful
-		if tx != nil {
-			result.TransactionID = tx.ID
-		}
-
-		// Store result in the results slice
-		results[index] = result
-
-		// Call progress callback if provided
-		if options.OnProgress != nil {
-			options.OnProgress(index+1, len(inputs), result)
-		}
-
-		return err
-	}
-
-	// Process transactions with concurrency
+// execute runs the batch processing logic.
+func (bp *batchProcessor) execute() ([]BatchResult, error) {
 	var wg sync.WaitGroup
-	semaphore := make(chan struct{}, options.Concurrency)
+
+	semaphore := make(chan struct{}, bp.options.Concurrency)
 	errChan := make(chan error, 1)
 
-	// Process inputs in batches
-	for i := 0; i < len(inputs); i += options.BatchSize {
-		// Calculate end index for this batch
-		end := i + options.BatchSize
-		if end > len(inputs) {
-			end = len(inputs)
-		}
+	for i := 0; i < len(bp.inputs); i += bp.options.BatchSize {
+		end := bp.calculateBatchEnd(i)
 
-		// Process each transaction in the batch
-		for j := i; j < end; j++ {
-			// Check if we should stop processing due to a previous error
-			if options.StopOnError {
-				select {
-				case err := <-errChan:
-					return results, err
-				default:
-					// Continue processing
-				}
-			}
-
-			// Wait for a slot in the semaphore
-			semaphore <- struct{}{}
-			wg.Add(1)
-
-			// Process the transaction
-			go func(index int) {
-				defer wg.Done()
-				defer func() { <-semaphore }()
-
-				err := processTransaction(ctx, index)
-				if err != nil && options.StopOnError {
-					// If StopOnError is true, send the error to the error channel
-					select {
-					case errChan <- err:
-						// Error sent
-					default:
-						// Channel already has an error
-					}
-				}
-			}(j)
+		if err := bp.processBatch(i, end, &wg, semaphore, errChan); err != nil {
+			return bp.results, err
 		}
 	}
 
-	// Wait for all goroutines to finish
 	wg.Wait()
 
-	// Check if we should return an error
-	if options.StopOnError {
-		select {
-		case err := <-errChan:
-			return results, err
-		default:
-			// No error
+	return bp.checkFinalErrors(errChan)
+}
+
+// calculateBatchEnd calculates the end index for a batch.
+func (bp *batchProcessor) calculateBatchEnd(start int) int {
+	end := start + bp.options.BatchSize
+	if end > len(bp.inputs) {
+		end = len(bp.inputs)
+	}
+
+	return end
+}
+
+// processBatch processes a single batch of transactions.
+func (bp *batchProcessor) processBatch(start, end int, wg *sync.WaitGroup, semaphore chan struct{}, errChan chan error) error {
+	for j := start; j < end; j++ {
+		if bp.options.StopOnError {
+			if err := bp.checkForEarlyError(errChan); err != nil {
+				return err
+			}
+		}
+
+		bp.startTransactionWorker(j, wg, semaphore, errChan)
+	}
+
+	return nil
+}
+
+// checkForEarlyError checks if processing should stop due to a previous error.
+func (bp *batchProcessor) checkForEarlyError(errChan chan error) error {
+	select {
+	case err := <-errChan:
+		return err
+	default:
+		return nil
+	}
+}
+
+// startTransactionWorker starts a worker goroutine to process a transaction.
+func (bp *batchProcessor) startTransactionWorker(index int, wg *sync.WaitGroup, semaphore chan struct{}, errChan chan error) {
+	semaphore <- struct{}{}
+
+	wg.Add(1)
+
+	go func(idx int) {
+		defer wg.Done()
+		defer func() { <-semaphore }()
+
+		err := bp.processTransaction(idx)
+		if err != nil && bp.options.StopOnError {
+			select {
+			case errChan <- err:
+			default:
+			}
+		}
+	}(index)
+}
+
+// processTransaction processes a single transaction with retries.
+func (bp *batchProcessor) processTransaction(index int) error {
+	startTime := time.Now()
+	input := bp.inputs[index]
+
+	bp.ensureIdempotencyKey(input, index)
+	tx, err := bp.executeWithRetries(input)
+
+	result := bp.createResult(index, tx, err, time.Since(startTime))
+	bp.results[index] = result
+	bp.callProgressCallback(index, result)
+
+	return err
+}
+
+// ensureIdempotencyKey ensures the transaction has an idempotency key.
+func (bp *batchProcessor) ensureIdempotencyKey(input *models.CreateTransactionInput, index int) {
+	if input.IdempotencyKey == "" {
+		input.IdempotencyKey = fmt.Sprintf("%s-%s-%d", bp.options.IdempotencyKeyPrefix, uuid.New().String(), index)
+	}
+}
+
+// executeWithRetries executes a transaction with retry logic.
+func (bp *batchProcessor) executeWithRetries(input *models.CreateTransactionInput) (*models.Transaction, error) {
+	var tx *models.Transaction
+
+	var err error
+
+	for attempt := 0; attempt <= bp.options.RetryCount; attempt++ {
+		if attempt > 0 {
+			if waitErr := bp.waitForRetry(attempt); waitErr != nil {
+				return nil, waitErr
+			}
+		}
+
+		tx, err = bp.client.Entity.Transactions.CreateTransaction(bp.ctx, bp.orgID, bp.ledgerID, input)
+		if err == nil || !isRetryableError(err) {
+			break
 		}
 	}
 
-	return results, nil
+	return tx, err
+}
+
+// waitForRetry implements exponential backoff for retries.
+func (bp *batchProcessor) waitForRetry(attempt int) error {
+	backoffFactor := bp.calculateBackoffFactor(attempt)
+	backoffDuration := time.Duration(1<<backoffFactor) * bp.options.RetryDelay
+
+	select {
+	case <-bp.ctx.Done():
+		return bp.ctx.Err()
+	case <-time.After(backoffDuration):
+		return nil
+	}
+}
+
+// calculateBackoffFactor calculates the backoff factor for exponential backoff.
+func (bp *batchProcessor) calculateBackoffFactor(attempt int) uint {
+	if attempt <= 0 {
+		return 0
+	}
+
+	// Safely convert attempt to backoff factor with overflow protection
+	if attempt > 31 {
+		return 30 // Cap to prevent overflow
+	}
+
+	return uint(attempt - 1)
+}
+
+// createResult creates a BatchResult for the transaction.
+func (bp *batchProcessor) createResult(index int, tx *models.Transaction, err error, duration time.Duration) BatchResult {
+	result := BatchResult{
+		Index:         index,
+		TransactionID: "",
+		Error:         err,
+		Duration:      duration,
+	}
+
+	if tx != nil {
+		result.TransactionID = tx.ID
+	}
+
+	return result
+}
+
+// callProgressCallback calls the progress callback if configured.
+func (bp *batchProcessor) callProgressCallback(index int, result BatchResult) {
+	if bp.options.OnProgress != nil {
+		bp.options.OnProgress(index+1, len(bp.inputs), result)
+	}
+}
+
+// checkFinalErrors checks for any final errors if StopOnError is enabled.
+func (bp *batchProcessor) checkFinalErrors(errChan chan error) ([]BatchResult, error) {
+	if bp.options.StopOnError {
+		select {
+		case err := <-errChan:
+			return bp.results, err
+		default:
+		}
+	}
+
+	return bp.results, nil
 }
 
 // BatchSummary provides statistics about a batch operation

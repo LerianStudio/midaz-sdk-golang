@@ -24,6 +24,7 @@ func NewMockPortfoliosService(ctrl *gomock.Controller) *MockPortfoliosService {
 	mock := &MockPortfoliosService{ctrl: ctrl}
 
 	mock.recorder = &MockPortfoliosServiceMockRecorder{mock}
+
 	return mock
 }
 
@@ -38,6 +39,7 @@ func (m *MockPortfoliosService) ListPortfolios(ctx context.Context, organization
 	ret := m.ctrl.Call(m, "ListPortfolios", ctx, organizationID, ledgerID, opts)
 	ret0, _ := ret[0].(*models.ListResponse[models.Portfolio])
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 
@@ -53,6 +55,7 @@ func (m *MockPortfoliosService) GetPortfolio(ctx context.Context, organizationID
 	ret := m.ctrl.Call(m, "GetPortfolio", ctx, organizationID, ledgerID, id)
 	ret0, _ := ret[0].(*models.Portfolio)
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 
@@ -68,6 +71,7 @@ func (m *MockPortfoliosService) CreatePortfolio(ctx context.Context, organizatio
 	ret := m.ctrl.Call(m, "CreatePortfolio", ctx, organizationID, ledgerID, input)
 	ret0, _ := ret[0].(*models.Portfolio)
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 
@@ -83,6 +87,7 @@ func (m *MockPortfoliosService) UpdatePortfolio(ctx context.Context, organizatio
 	ret := m.ctrl.Call(m, "UpdatePortfolio", ctx, organizationID, ledgerID, id, input)
 	ret0, _ := ret[0].(*models.Portfolio)
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 
@@ -97,6 +102,7 @@ func (m *MockPortfoliosService) DeletePortfolio(ctx context.Context, organizatio
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeletePortfolio", ctx, organizationID, ledgerID, id)
 	ret0, _ := ret[0].(error)
+
 	return ret0
 }
 
@@ -112,6 +118,7 @@ func (m *MockPortfoliosService) ListSegments(ctx context.Context, organizationID
 	ret := m.ctrl.Call(m, "ListSegments", ctx, organizationID, ledgerID, portfolioID, opts)
 	ret0, _ := ret[0].(*models.ListResponse[models.Segment])
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 
@@ -127,6 +134,7 @@ func (m *MockPortfoliosService) GetSegment(ctx context.Context, organizationID, 
 	ret := m.ctrl.Call(m, "GetSegment", ctx, organizationID, ledgerID, portfolioID, id)
 	ret0, _ := ret[0].(*models.Segment)
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 
@@ -142,6 +150,7 @@ func (m *MockPortfoliosService) CreateSegment(ctx context.Context, organizationI
 	ret := m.ctrl.Call(m, "CreateSegment", ctx, organizationID, ledgerID, portfolioID, input)
 	ret0, _ := ret[0].(*models.Segment)
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 
@@ -157,6 +166,7 @@ func (m *MockPortfoliosService) UpdateSegment(ctx context.Context, organizationI
 	ret := m.ctrl.Call(m, "UpdateSegment", ctx, organizationID, ledgerID, portfolioID, id, input)
 	ret0, _ := ret[0].(*models.Segment)
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 
@@ -171,6 +181,7 @@ func (m *MockPortfoliosService) DeleteSegment(ctx context.Context, organizationI
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteSegment", ctx, organizationID, ledgerID, portfolioID, id)
 	ret0, _ := ret[0].(error)
+
 	return ret0
 }
 

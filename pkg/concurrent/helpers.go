@@ -120,7 +120,7 @@ func BatchCreateAccounts(
 	results := Batch(ctx, accounts, batchSize, createBatchFn, opts...)
 
 	// Collect the results
-	var createdAccounts []*models.Account
+	createdAccounts := make([]*models.Account, 0, len(accounts))
 
 	for _, result := range results {
 		if result.Error != nil {

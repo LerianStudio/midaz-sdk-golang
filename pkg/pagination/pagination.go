@@ -60,5 +60,6 @@ func GetEntityTypeFromURL(url string) string {
 			return parts[i+1]
 		}
 	}
+
 	return "unknown"
 }

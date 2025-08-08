@@ -88,7 +88,9 @@ func WithBatchSize(size int) PerformanceOption {
 		if size <= 0 {
 			return fmt.Errorf("batch size must be greater than 0, got %d", size)
 		}
+
 		o.BatchSize = size
+
 		return nil
 	}
 }
@@ -97,17 +99,20 @@ func WithBatchSize(size int) PerformanceOption {
 func WithHTTPPooling(enabled bool) PerformanceOption {
 	return func(o *Options) error {
 		o.EnableHTTPPooling = enabled
+
 		return nil
 	}
 }
 
 // WithMaxIdleConnsPerHost sets the maximum number of idle connections per host
-func WithMaxIdleConnsPerHost(max int) PerformanceOption {
+func WithMaxIdleConnsPerHost(maxIdle int) PerformanceOption {
 	return func(o *Options) error {
-		if max < 0 {
-			return fmt.Errorf("max idle connections per host must be non-negative, got %d", max)
+		if maxIdle < 0 {
+			return fmt.Errorf("max idle connections per host must be non-negative, got %d", maxIdle)
 		}
-		o.MaxIdleConnsPerHost = max
+
+		o.MaxIdleConnsPerHost = maxIdle
+
 		return nil
 	}
 }
@@ -176,6 +181,7 @@ func ApplyGlobalOptions(opts ...PerformanceOption) error {
 	}
 
 	ApplyGlobalPerformanceOptions(*options)
+
 	return nil
 }
 

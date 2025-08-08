@@ -35,16 +35,21 @@ func WithIgnoreHeaders(headers ...string) HTTPOption {
 		}
 
 		headerMap := make(map[string]struct{})
+
 		for _, h := range m.ignoreHeaders {
 			headerMap[strings.ToLower(h)] = struct{}{}
 		}
+
 		for _, h := range headers {
 			headerMap[strings.ToLower(h)] = struct{}{}
 		}
+
 		m.ignoreHeaders = make([]string, 0, len(headerMap))
+
 		for h := range headerMap {
 			m.ignoreHeaders = append(m.ignoreHeaders, h)
 		}
+
 		return nil
 	}
 }
@@ -57,6 +62,7 @@ func WithIgnorePaths(paths ...string) HTTPOption {
 		}
 
 		m.ignorePaths = append(m.ignorePaths, paths...)
+
 		return nil
 	}
 }
@@ -69,6 +75,7 @@ func WithMaskedParams(params ...string) HTTPOption {
 		}
 
 		m.maskedParams = append(m.maskedParams, params...)
+
 		return nil
 	}
 }
@@ -77,6 +84,7 @@ func WithMaskedParams(params ...string) HTTPOption {
 func WithHideRequestBody(hide bool) HTTPOption {
 	return func(m *httpMiddleware) error {
 		m.hideBody = hide
+
 		return nil
 	}
 }
@@ -94,6 +102,7 @@ func WithDefaultSensitiveHeaders() HTTPOption {
 			"x-jwt-token",
 			"x-middleware-token",
 		}
+
 		return nil
 	}
 }
@@ -115,6 +124,7 @@ func WithDefaultSensitiveParams() HTTPOption {
 			"refresh_token",
 			"refresh-token",
 		}
+
 		return nil
 	}
 }
@@ -125,10 +135,13 @@ func WithSecurityDefaults() HTTPOption {
 		if err := WithDefaultSensitiveHeaders()(m); err != nil {
 			return err
 		}
+
 		if err := WithDefaultSensitiveParams()(m); err != nil {
 			return err
 		}
+
 		m.hideBody = true
+
 		return nil
 	}
 }
@@ -180,108 +193,152 @@ func NewHTTPMiddleware(provider Provider, opts ...HTTPOption) func(http.RoundTri
 // middleware wraps an http.RoundTripper with tracing and metrics
 func (m *httpMiddleware) middleware(next http.RoundTripper) http.RoundTripper {
 	return roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+		// Early returns for disabled or ignored paths
 		if !m.provider.IsEnabled() {
 			return next.RoundTrip(req)
 		}
 
-		// Check if we should ignore this path
-		for _, path := range m.ignorePaths {
-			if strings.HasPrefix(req.URL.Path, path) {
-				return next.RoundTrip(req)
-			}
+		if m.shouldIgnorePath(req.URL.Path) {
+			return next.RoundTrip(req)
 		}
 
-		// Start a new span for this request
-		name := fmt.Sprintf("HTTP %s %s", req.Method, req.URL.Path)
-		ctx, span := m.provider.Tracer().Start(
-			req.Context(),
-			name,
-			trace.WithSpanKind(trace.SpanKindClient),
-		)
+		// Setup tracing context and span
+		ctx, span := m.setupTraceSpan(req)
 
-		// Add HTTP attributes to span
-		span.SetAttributes(
-			attribute.String("http.method", req.Method),
-			attribute.String("http.url", req.URL.String()),
-			attribute.String("http.host", req.URL.Host),
-			attribute.String("http.path", req.URL.Path),
-		)
+		// Add attributes and trace context to request
+		m.addRequestAttributes(span, req)
+		req = m.injectTraceContext(ctx, req, span)
 
-		// Add custom attributes
-		span.SetAttributes(
-			attribute.String(KeyOperationName, name),
-			attribute.String(KeyOperationType, "http.request"),
-		)
-
-		// Add request headers to span (excluding sensitive ones)
-		for key, values := range req.Header {
-			if !m.isIgnoredHeader(key) {
-				for i, v := range values {
-					if i == 0 {
-						span.SetAttributes(attribute.String("http.request.header."+strings.ToLower(key), v))
-					}
-				}
-			}
-		}
-
-		// Inject trace context into request headers
-		carrier := propagation.HeaderCarrier(req.Header)
-		// Use the standard propagator
-		propagator := propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{})
-		propagator.Inject(ctx, carrier)
-
-		// Update request with trace context
-		req = req.WithContext(httptrace.WithClientTrace(ctx, m.createClientTrace(span)))
-
-		// Record the request start time
-		start := time.Now()
-
-		// Execute the request
-		resp, err := next.RoundTrip(req)
-
-		// Record the request duration
-		duration := time.Since(start)
-
-		// Record metrics
-		m.recordRequestMetrics(ctx, req, resp, err, duration)
-
-		// Handle error
-		if err != nil {
-			span.SetStatus(codes.Error, err.Error())
-			span.RecordError(err)
-			span.End()
-			return resp, err
-		}
-
-		// Add response attributes to span
-		span.SetAttributes(
-			attribute.Int("http.status_code", resp.StatusCode),
-		)
-
-		// Add response headers to span (excluding sensitive ones)
-		for key, values := range resp.Header {
-			if !m.isIgnoredHeader(key) {
-				for i, v := range values {
-					if i == 0 {
-						span.SetAttributes(attribute.String("http.response.header."+strings.ToLower(key), v))
-					}
-				}
-			}
-		}
-
-		// Set status based on response code
-		if resp.StatusCode >= 400 {
-			span.SetStatus(codes.Error, fmt.Sprintf("HTTP status code: %d", resp.StatusCode))
-			span.SetAttributes(attribute.Bool("error", true))
-		} else {
-			span.SetStatus(codes.Ok, "")
-		}
-
-		// End the span
-		span.End()
-
-		return resp, nil
+		// Execute request with timing and metrics
+		return m.executeTracedRequest(ctx, span, req, next)
 	})
+}
+
+// shouldIgnorePath checks if the request path should be ignored
+func (m *httpMiddleware) shouldIgnorePath(path string) bool {
+	for _, ignorePath := range m.ignorePaths {
+		if strings.HasPrefix(path, ignorePath) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// setupTraceSpan creates a new tracing span for the request
+func (m *httpMiddleware) setupTraceSpan(req *http.Request) (context.Context, trace.Span) {
+	name := fmt.Sprintf("HTTP %s %s", req.Method, req.URL.Path)
+
+	return m.provider.Tracer().Start(
+		req.Context(),
+		name,
+		trace.WithSpanKind(trace.SpanKindClient),
+	)
+}
+
+// addRequestAttributes adds HTTP and custom attributes to the span
+func (m *httpMiddleware) addRequestAttributes(span trace.Span, req *http.Request) {
+	// Add HTTP attributes
+	span.SetAttributes(
+		attribute.String("http.method", req.Method),
+		attribute.String("http.url", req.URL.String()),
+		attribute.String("http.host", req.URL.Host),
+		attribute.String("http.path", req.URL.Path),
+	)
+
+	// Add custom attributes
+	name := fmt.Sprintf("HTTP %s %s", req.Method, req.URL.Path)
+	span.SetAttributes(
+		attribute.String(KeyOperationName, name),
+		attribute.String(KeyOperationType, "http.request"),
+	)
+
+	// Add request headers (excluding sensitive ones)
+	m.addRequestHeaders(span, req)
+}
+
+// addRequestHeaders adds non-sensitive request headers to the span
+func (m *httpMiddleware) addRequestHeaders(span trace.Span, req *http.Request) {
+	for key, values := range req.Header {
+		if !m.isIgnoredHeader(key) && len(values) > 0 {
+			span.SetAttributes(attribute.String("http.request.header."+strings.ToLower(key), values[0]))
+		}
+	}
+}
+
+// injectTraceContext injects trace context into request headers and updates the request
+func (m *httpMiddleware) injectTraceContext(ctx context.Context, req *http.Request, span trace.Span) *http.Request {
+	// Inject trace context into request headers
+	carrier := propagation.HeaderCarrier(req.Header)
+	propagator := propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{})
+	propagator.Inject(ctx, carrier)
+
+	// Update request with trace context
+	return req.WithContext(httptrace.WithClientTrace(ctx, m.createClientTrace(span)))
+}
+
+// executeTracedRequest executes the request with timing, metrics, and response handling
+func (m *httpMiddleware) executeTracedRequest(ctx context.Context, span trace.Span, req *http.Request, next http.RoundTripper) (*http.Response, error) {
+	start := time.Now()
+
+	// Execute the request
+	resp, err := next.RoundTrip(req)
+	duration := time.Since(start)
+
+	// Record metrics
+	m.recordRequestMetrics(ctx, req, resp, err, duration)
+
+	// Handle error case
+	if err != nil {
+		return m.handleRequestError(span, resp, err)
+	}
+
+	// Handle successful response
+	return m.handleSuccessfulResponse(span, resp)
+}
+
+// handleRequestError processes request errors and sets span status
+func (m *httpMiddleware) handleRequestError(span trace.Span, resp *http.Response, err error) (*http.Response, error) {
+	span.SetStatus(codes.Error, err.Error())
+	span.RecordError(err)
+	span.End()
+
+	return resp, err
+}
+
+// handleSuccessfulResponse processes successful responses and adds response attributes
+func (m *httpMiddleware) handleSuccessfulResponse(span trace.Span, resp *http.Response) (*http.Response, error) {
+	// Add response attributes
+	span.SetAttributes(attribute.Int("http.status_code", resp.StatusCode))
+
+	// Add response headers (excluding sensitive ones)
+	m.addResponseHeaders(span, resp)
+
+	// Set span status based on response code
+	m.setResponseStatus(span, resp.StatusCode)
+
+	span.End()
+
+	return resp, nil
+}
+
+// addResponseHeaders adds non-sensitive response headers to the span
+func (m *httpMiddleware) addResponseHeaders(span trace.Span, resp *http.Response) {
+	for key, values := range resp.Header {
+		if !m.isIgnoredHeader(key) && len(values) > 0 {
+			span.SetAttributes(attribute.String("http.response.header."+strings.ToLower(key), values[0]))
+		}
+	}
+}
+
+// setResponseStatus sets the span status based on HTTP response code
+func (m *httpMiddleware) setResponseStatus(span trace.Span, statusCode int) {
+	if statusCode >= 400 {
+		span.SetStatus(codes.Error, fmt.Sprintf("HTTP status code: %d", statusCode))
+		span.SetAttributes(attribute.Bool("error", true))
+	} else {
+		span.SetStatus(codes.Ok, "")
+	}
 }
 
 // isIgnoredHeader checks if a header should be ignored (case-insensitive)
@@ -292,6 +349,7 @@ func (m *httpMiddleware) isIgnoredHeader(header string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -321,6 +379,7 @@ func (m *httpMiddleware) recordRequestMetrics(ctx context.Context, req *http.Req
 		if resp != nil {
 			errorStatus = fmt.Sprintf("%d", resp.StatusCode)
 		}
+
 		attrs = append(attrs, attribute.String(KeyErrorCode, errorStatus))
 		RecordMetric(ctx, m.provider, MetricRequestErrorTotal, 1, attrs...)
 	} else {

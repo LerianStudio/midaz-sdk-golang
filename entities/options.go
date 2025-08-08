@@ -26,6 +26,7 @@ func WithDebug(debug bool) Option {
 func WithUserAgent(userAgent string) Option {
 	return func(e *Entity) error {
 		e.httpClient.userAgent = userAgent
+
 		return nil
 	}
 }
@@ -47,6 +48,7 @@ func WithObservability(provider observability.Provider) Option {
 		if provider.IsEnabled() {
 			var err error
 			e.httpClient.metrics, err = observability.NewMetricsCollector(provider)
+
 			if err != nil {
 				return err
 			}

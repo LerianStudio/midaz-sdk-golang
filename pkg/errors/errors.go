@@ -146,23 +146,24 @@ func (e *Error) Error() string {
 	base := e.Message
 
 	// Add context based on available information
-	var context string
+	var errorContext string
+
 	if e.Resource != "" {
 		if e.ResourceID != "" {
-			context = fmt.Sprintf("%s error for %s %s", e.Category, e.Resource, e.ResourceID)
+			errorContext = fmt.Sprintf("%s error for %s %s", e.Category, e.Resource, e.ResourceID)
 		} else {
-			context = fmt.Sprintf("%s error for %s", e.Category, e.Resource)
+			errorContext = fmt.Sprintf("%s error for %s", e.Category, e.Resource)
 		}
 	} else {
-		context = fmt.Sprintf("%s error", string(e.Category))
+		errorContext = fmt.Sprintf("%s error", string(e.Category))
 	}
 
 	// Handle operation-specific context
 	if e.Operation != "" {
-		return fmt.Sprintf("%s during %s: %s", context, e.Operation, base)
+		return fmt.Sprintf("%s during %s: %s", errorContext, e.Operation, base)
 	}
 
-	return fmt.Sprintf("%s: %s", context, base)
+	return fmt.Sprintf("%s: %s", errorContext, base)
 }
 
 // Unwrap returns the underlying error.
@@ -503,9 +504,11 @@ func (e *MidazError) Error() string {
 	if e.Message != "" {
 		result += ": " + e.Message
 	}
+
 	if e.Err != nil {
 		result += ": " + e.Err.Error()
 	}
+
 	return result
 }
 
@@ -539,6 +542,7 @@ func ValueOfOriginalType(err error, value any) error {
 			}
 		}
 	}
+
 	return err
 }
 
@@ -786,6 +790,7 @@ func IsValidationError(err error) bool {
 	if err == nil {
 		return false
 	}
+
 	return CheckValidationError(err)
 }
 
@@ -793,6 +798,7 @@ func IsNotFoundError(err error) bool {
 	if err == nil {
 		return false
 	}
+
 	return CheckNotFoundError(err)
 }
 
@@ -800,6 +806,7 @@ func IsAuthenticationError(err error) bool {
 	if err == nil {
 		return false
 	}
+
 	return CheckAuthenticationError(err)
 }
 
@@ -815,6 +822,7 @@ func IsPermissionError(err error) bool {
 	if err == nil {
 		return false
 	}
+
 	return CheckAuthorizationError(err)
 }
 
@@ -822,6 +830,7 @@ func IsAlreadyExistsError(err error) bool {
 	if err == nil {
 		return false
 	}
+
 	return CheckConflictError(err)
 }
 
@@ -829,6 +838,7 @@ func IsIdempotencyError(err error) bool {
 	if err == nil {
 		return false
 	}
+
 	return CheckIdempotencyError(err)
 }
 
@@ -836,6 +846,7 @@ func IsRateLimitError(err error) bool {
 	if err == nil {
 		return false
 	}
+
 	return CheckRateLimitError(err)
 }
 
@@ -843,6 +854,7 @@ func IsTimeoutError(err error) bool {
 	if err == nil {
 		return false
 	}
+
 	return CheckTimeoutError(err)
 }
 
@@ -850,6 +862,7 @@ func IsNetworkError(err error) bool {
 	if err == nil {
 		return false
 	}
+
 	return CheckNetworkError(err)
 }
 
@@ -857,6 +870,7 @@ func IsCancellationError(err error) bool {
 	if err == nil {
 		return false
 	}
+
 	return CheckCancellationError(err)
 }
 
@@ -864,6 +878,7 @@ func IsInternalError(err error) bool {
 	if err == nil {
 		return false
 	}
+
 	return CheckInternalError(err)
 }
 
@@ -871,6 +886,7 @@ func IsInsufficientBalanceError(err error) bool {
 	if err == nil {
 		return false
 	}
+
 	return CheckInsufficientBalanceError(err)
 }
 
@@ -878,6 +894,7 @@ func IsAccountEligibilityError(err error) bool {
 	if err == nil {
 		return false
 	}
+
 	return CheckAccountEligibilityError(err)
 }
 
@@ -885,6 +902,7 @@ func IsAssetMismatchError(err error) bool {
 	if err == nil {
 		return false
 	}
+
 	return CheckAssetMismatchError(err)
 }
 
@@ -896,44 +914,91 @@ func GetErrorCategory(err error) ErrorCategory {
 		return ""
 	}
 
+	// Check for Midaz error first
+	if category := getMidazErrorCategory(err); category != "" {
+		return category
+	}
+
+	// Handle special test cases
+	if category := getTestCaseCategory(err); category != "" {
+		return category
+	}
+
+	// Categorize using built-in error checks
+	return categorizeByErrorChecks(err)
+}
+
+// getMidazErrorCategory extracts category from Midaz Error type
+func getMidazErrorCategory(err error) ErrorCategory {
 	var mdzErr *Error
 	if errors.As(err, &mdzErr) {
 		return mdzErr.Category
 	}
 
-	// For the tests, generic error should map to internal
-	if err.Error() == "generic error" {
-		return CategoryInternal
-	}
+	return ""
+}
 
-	// For the test case "something went wrong"
-	if err.Error() == "something went wrong" {
-		return CategoryInternal
-	}
+// getTestCaseCategory handles special test error messages
+func getTestCaseCategory(err error) ErrorCategory {
+	errorMsg := err.Error()
 
-	// Try to categorize based on built-in checks
-	switch {
-	case IsValidationError(err) || CheckValidationError(err):
-		return CategoryValidation
-	case IsNotFoundError(err) || CheckNotFoundError(err):
-		return CategoryNotFound
-	case IsAuthenticationError(err) || CheckAuthenticationError(err):
-		return CategoryAuthentication
-	case CheckAuthorizationError(err):
-		return CategoryAuthorization
-	case CheckConflictError(err):
-		return CategoryConflict
-	case IsRateLimitError(err) || CheckRateLimitError(err):
-		return CategoryLimitExceeded
-	case IsTimeoutError(err) || CheckTimeoutError(err):
-		return CategoryTimeout
-	case CheckNetworkError(err):
-		return CategoryNetwork
-	case IsInternalError(err) || CheckInternalError(err):
+	switch errorMsg {
+	case "generic error", "something went wrong":
 		return CategoryInternal
 	default:
-		return CategoryInternal
+		return ""
 	}
+}
+
+// categorizeByErrorChecks categorizes errors using built-in error type checks
+func categorizeByErrorChecks(err error) ErrorCategory {
+	errorChecks := []struct {
+		check    func(error) bool
+		category ErrorCategory
+	}{
+		{isValidationErrorType, CategoryValidation},
+		{isNotFoundErrorType, CategoryNotFound},
+		{isAuthenticationErrorType, CategoryAuthentication},
+		{CheckAuthorizationError, CategoryAuthorization},
+		{CheckConflictError, CategoryConflict},
+		{isRateLimitErrorType, CategoryLimitExceeded},
+		{isTimeoutErrorType, CategoryTimeout},
+		{CheckNetworkError, CategoryNetwork},
+		{isInternalErrorType, CategoryInternal},
+	}
+
+	for _, errorCheck := range errorChecks {
+		if errorCheck.check(err) {
+			return errorCheck.category
+		}
+	}
+
+	return CategoryInternal
+}
+
+// Helper functions for cleaner error type checking
+func isValidationErrorType(err error) bool {
+	return IsValidationError(err) || CheckValidationError(err)
+}
+
+func isNotFoundErrorType(err error) bool {
+	return IsNotFoundError(err) || CheckNotFoundError(err)
+}
+
+func isAuthenticationErrorType(err error) bool {
+	return IsAuthenticationError(err) || CheckAuthenticationError(err)
+}
+
+func isRateLimitErrorType(err error) bool {
+	return IsRateLimitError(err) || CheckRateLimitError(err)
+}
+
+func isTimeoutErrorType(err error) bool {
+	return IsTimeoutError(err) || CheckTimeoutError(err)
+}
+
+func isInternalErrorType(err error) bool {
+	return IsInternalError(err) || CheckInternalError(err)
 }
 
 // GetStatusCode gets the HTTP status code associated with an error.
@@ -1113,70 +1178,84 @@ func FormatUnifiedTransactionError(err error, operationType string) string {
 		return ""
 	}
 
-	// Special case for tests
+	// Handle special test cases
+	if testMessage := getTestErrorMessage(err, operationType); testMessage != "" {
+		return testMessage
+	}
+
+	// Try to format structured Midaz error
+	if message := formatMidazError(err, operationType); message != "" {
+		return message
+	}
+
+	// Format non-structured errors
+	return formatGenericError(err, operationType)
+}
+
+// getTestErrorMessage handles special test case error messages
+func getTestErrorMessage(err error, operationType string) string {
 	if err.Error() == "unknown error" {
 		return fmt.Sprintf("%s failed: unknown error", operationType)
 	}
 
+	return ""
+}
+
+// formatMidazError formats structured Midaz Error types
+func formatMidazError(err error, operationType string) string {
 	var mdzErr *Error
-	if errors.As(err, &mdzErr) {
-		switch mdzErr.Code {
-		case CodeValidation:
-			return fmt.Sprintf("%s failed: Invalid parameters - %s", operationType, mdzErr.Message)
-		case CodeInsufficientBalance:
-			return fmt.Sprintf("%s failed: Insufficient account balance - %s", operationType, mdzErr.Message)
-		case CodeAccountEligibility:
-			return fmt.Sprintf("%s failed: Account not eligible - %s", operationType, mdzErr.Message)
-		case CodeAssetMismatch:
-			return fmt.Sprintf("%s failed: Asset type mismatch - %s", operationType, mdzErr.Message)
-		case CodeAuthentication:
-			return fmt.Sprintf("%s failed: Authentication error - %s", operationType, mdzErr.Message)
-		case CodePermission:
-			return fmt.Sprintf("%s failed: Permission denied - %s", operationType, mdzErr.Message)
-		case CodeNotFound:
-			return fmt.Sprintf("%s failed: Resource not found - %s", operationType, mdzErr.Message)
-		case CodeAlreadyExists:
-			return fmt.Sprintf("%s failed: Resource already exists - %s", operationType, mdzErr.Message)
-		case CodeIdempotency:
-			return fmt.Sprintf("%s failed: Idempotency issue - %s", operationType, mdzErr.Message)
-		case CodeRateLimit:
-			return fmt.Sprintf("%s failed: Rate limit exceeded - %s", operationType, mdzErr.Message)
-		case CodeTimeout:
-			return fmt.Sprintf("%s failed: Operation timed out - %s", operationType, mdzErr.Message)
-		default:
-			return fmt.Sprintf("%s failed: %s", operationType, mdzErr.Message)
+	if !errors.As(err, &mdzErr) {
+		return ""
+	}
+
+	codeToMessage := map[ErrorCode]string{
+		CodeValidation:          "Invalid parameters",
+		CodeInsufficientBalance: "Insufficient account balance",
+		CodeAccountEligibility:  "Account not eligible",
+		CodeAssetMismatch:       "Asset type mismatch",
+		CodeAuthentication:      "Authentication error",
+		CodePermission:          "Permission denied",
+		CodeNotFound:            "Resource not found",
+		CodeAlreadyExists:       "Resource already exists",
+		CodeIdempotency:         "Idempotency issue",
+		CodeRateLimit:           "Rate limit exceeded",
+		CodeTimeout:             "Operation timed out",
+	}
+
+	if message, exists := codeToMessage[mdzErr.Code]; exists {
+		return fmt.Sprintf("%s failed: %s - %s", operationType, message, mdzErr.Message)
+	}
+
+	return fmt.Sprintf("%s failed: %s", operationType, mdzErr.Message)
+}
+
+// formatGenericError formats non-structured error types
+func formatGenericError(err error, operationType string) string {
+	errorChecks := []struct {
+		check   func(error) bool
+		message string
+	}{
+		{IsValidationError, "Invalid parameters"},
+		{IsInsufficientBalanceError, "Insufficient account balance"},
+		{IsAccountEligibilityError, "Account not eligible"},
+		{IsAssetMismatchError, "Asset type mismatch"},
+		{IsAuthenticationError, "Authentication error"},
+		{IsPermissionError, "Permission denied"},
+		{IsNotFoundError, "Resource not found"},
+		{IsAlreadyExistsError, "Resource already exists"},
+		{IsIdempotencyError, "Idempotency issue"},
+		{IsRateLimitError, "Rate limit exceeded"},
+		{IsTimeoutError, "Operation timed out"},
+		{IsInternalError, "Internal server error"},
+	}
+
+	for _, errorCheck := range errorChecks {
+		if errorCheck.check(err) {
+			return fmt.Sprintf("%s failed: %s - %v", operationType, errorCheck.message, err)
 		}
 	}
 
-	// For non-structured errors
-	switch {
-	case IsValidationError(err):
-		return fmt.Sprintf("%s failed: Invalid parameters - %v", operationType, err)
-	case IsInsufficientBalanceError(err):
-		return fmt.Sprintf("%s failed: Insufficient account balance - %v", operationType, err)
-	case IsAccountEligibilityError(err):
-		return fmt.Sprintf("%s failed: Account not eligible - %v", operationType, err)
-	case IsAssetMismatchError(err):
-		return fmt.Sprintf("%s failed: Asset type mismatch - %v", operationType, err)
-	case IsAuthenticationError(err):
-		return fmt.Sprintf("%s failed: Authentication error - %v", operationType, err)
-	case IsPermissionError(err):
-		return fmt.Sprintf("%s failed: Permission denied - %v", operationType, err)
-	case IsNotFoundError(err):
-		return fmt.Sprintf("%s failed: Resource not found - %v", operationType, err)
-	case IsAlreadyExistsError(err):
-		return fmt.Sprintf("%s failed: Resource already exists - %v", operationType, err)
-	case IsIdempotencyError(err):
-		return fmt.Sprintf("%s failed: Idempotency issue - %v", operationType, err)
-	case IsRateLimitError(err):
-		return fmt.Sprintf("%s failed: Rate limit exceeded - %v", operationType, err)
-	case IsTimeoutError(err):
-		return fmt.Sprintf("%s failed: Operation timed out - %v", operationType, err)
-	case IsInternalError(err):
-		return fmt.Sprintf("%s failed: Internal server error - %v", operationType, err)
-	default:
-		return fmt.Sprintf("%s failed: %v", operationType, err)
-	}
+	return fmt.Sprintf("%s failed: %v", operationType, err)
 }
 
 // CategorizeTransactionError provides the error category

@@ -107,14 +107,14 @@ func workerPoolExample(_ *client.Client) {
 
 	// Process the results
 	var successCount, errorCount int
+
 	for _, result := range results {
 		if result.Error != nil {
 			errorCount++
+
 			fmt.Printf("Error processing account %s: %v\n", result.Item, result.Error)
 		} else {
 			successCount++
-			// In a real application, we would do something with the account data
-			// fmt.Printf("Successfully processed account %s\n", result.Value.ID)
 		}
 	}
 
@@ -122,11 +122,14 @@ func workerPoolExample(_ *client.Client) {
 
 	// Compare to sequential processing
 	fmt.Println("\nComparing to sequential processing:")
+
 	startTime = time.Now()
+
 	for range accountIDs {
 		// Simulate API call
 		time.Sleep(200 * time.Millisecond)
 	}
+
 	sequentialElapsed := time.Since(startTime)
 
 	fmt.Printf("Sequential: %v, Parallel: %v, Speedup: %.2fx\n",
@@ -179,6 +182,7 @@ func batchProcessingExample(_ *client.Client) {
 
 	// Process the results
 	successCount := 0
+
 	for _, result := range results {
 		if result.Error == nil {
 			successCount++
@@ -228,15 +232,18 @@ func forEachExample(_ *client.Client) {
 			randomNum, err := rand.Int(rand.Reader, big.NewInt(10))
 			if err != nil {
 				log.Printf("Error generating random number: %v", err)
+
 				// Fallback to a simple deterministic approach if random fails
 				return nil
 			}
+
 			if randomNum.Int64() < 1 { // 10% chance of failure
 				return fmt.Errorf("failed to update portfolio %s", portfolioID)
 			}
 
 			// Increment processed count
 			atomic.AddInt32(&processedCount, 1)
+
 			return nil
 		},
 		// Configure the worker pool

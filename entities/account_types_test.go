@@ -164,15 +164,15 @@ func TestAccountTypesEntity_CreateAccountType_ValidationErrors(t *testing.T) {
 			name:           "Missing organization ID",
 			organizationID: "",
 			ledgerID:       "ledger-123",
-			input: models.NewCreateAccountTypeInput("Test Account Type", "TEST"),
-			expectedError: "organizationID",
+			input:          models.NewCreateAccountTypeInput("Test Account Type", "TEST"),
+			expectedError:  "organizationID",
 		},
 		{
 			name:           "Missing ledger ID",
 			organizationID: "org-123",
 			ledgerID:       "",
-			input: models.NewCreateAccountTypeInput("Test Account Type", "TEST"),
-			expectedError: "ledgerID",
+			input:          models.NewCreateAccountTypeInput("Test Account Type", "TEST"),
+			expectedError:  "ledgerID",
 		},
 		{
 			name:           "Missing input",
@@ -185,15 +185,15 @@ func TestAccountTypesEntity_CreateAccountType_ValidationErrors(t *testing.T) {
 			name:           "Invalid input - missing name",
 			organizationID: "org-123",
 			ledgerID:       "ledger-123",
-			input: models.NewCreateAccountTypeInput("", "TEST"),
-			expectedError: "validation failed",
+			input:          models.NewCreateAccountTypeInput("", "TEST"),
+			expectedError:  "validation failed",
 		},
 		{
 			name:           "Invalid input - missing keyValue",
 			organizationID: "org-123",
 			ledgerID:       "ledger-123",
-			input: models.NewCreateAccountTypeInput("Test Account Type", ""),
-			expectedError: "validation failed",
+			input:          models.NewCreateAccountTypeInput("Test Account Type", ""),
+			expectedError:  "validation failed",
 		},
 	}
 
@@ -225,24 +225,24 @@ func TestAccountTypesEntity_UpdateAccountType_ValidationErrors(t *testing.T) {
 			organizationID: "",
 			ledgerID:       "ledger-123",
 			id:             "at-456",
-			input: models.NewUpdateAccountTypeInput().WithName("Updated Name"),
-			expectedError: "organizationID",
+			input:          models.NewUpdateAccountTypeInput().WithName("Updated Name"),
+			expectedError:  "organizationID",
 		},
 		{
 			name:           "Missing ledger ID",
 			organizationID: "org-123",
 			ledgerID:       "",
 			id:             "at-456",
-			input: models.NewUpdateAccountTypeInput().WithName("Updated Name"),
-			expectedError: "ledgerID",
+			input:          models.NewUpdateAccountTypeInput().WithName("Updated Name"),
+			expectedError:  "ledgerID",
 		},
 		{
 			name:           "Missing account type ID",
 			organizationID: "org-123",
 			ledgerID:       "ledger-123",
 			id:             "",
-			input: models.NewUpdateAccountTypeInput().WithName("Updated Name"),
-			expectedError: "id",
+			input:          models.NewUpdateAccountTypeInput().WithName("Updated Name"),
+			expectedError:  "id",
 		},
 		{
 			name:           "Missing input",
@@ -317,4 +317,3 @@ func TestAccountTypesEntity_ErrorCompilation(t *testing.T) {
 	err := errors.NewValidationError("test", "test error", nil)
 	assert.NotNil(t, err)
 }
-

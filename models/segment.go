@@ -46,6 +46,7 @@ func (input *CreateSegmentInput) Validate() error {
 	if input.Name == "" {
 		return fmt.Errorf("name is required")
 	}
+
 	return nil
 }
 

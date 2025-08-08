@@ -65,6 +65,7 @@ func OptimizeClient(client *http.Client, options *HTTPClientOptions) *http.Clien
 		if t.IdleConnTimeout == 0 {
 			t.IdleConnTimeout = opts.IdleConnTimeout
 		}
+
 		if t.TLSHandshakeTimeout == 0 {
 			t.TLSHandshakeTimeout = opts.TLSHandshakeTimeout
 		}

@@ -53,8 +53,10 @@ func dereferenceValue(val reflect.Value) (reflect.Value, bool) {
 		if val.IsNil() {
 			return reflect.Value{}, false
 		}
+
 		val = val.Elem()
 	}
+
 	return val, true
 }
 
@@ -101,11 +103,13 @@ func extractJSONTagName(tag string) string {
 	if tagParts[0] != "" && tagParts[0] != "-" {
 		return tagParts[0]
 	}
+
 	return ""
 }
 
 // copyMatchingFields copies matching fields from source to target
 func copyMatchingFields(sourceVal, targetVal reflect.Value, targetFields map[string]reflect.Value) {
+	_ = targetVal // Used for type checking in reflection operations
 	sourceType := sourceVal.Type()
 
 	for i := 0; i < sourceVal.NumField(); i++ {
@@ -363,6 +367,7 @@ func convertMapKey(key reflect.Value, targetType reflect.Type) reflect.Value {
 	if key.Type().AssignableTo(targetType) {
 		return key
 	}
+
 	return key.Convert(targetType)
 }
 
@@ -370,6 +375,7 @@ func convertMapValue(value reflect.Value, targetType reflect.Type) reflect.Value
 	if value.Type().AssignableTo(targetType) {
 		return value
 	}
+
 	return value.Convert(targetType)
 }
 

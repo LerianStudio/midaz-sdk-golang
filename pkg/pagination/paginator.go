@@ -119,7 +119,9 @@ func WithLimit(limit int) PaginatorOption {
 		if limit <= 0 {
 			return fmt.Errorf("limit must be positive, got %d", limit)
 		}
+
 		o.PageOptions.Limit = limit
+
 		return nil
 	}
 }
@@ -130,7 +132,9 @@ func WithOffset(offset int) PaginatorOption {
 		if offset < 0 {
 			return fmt.Errorf("offset must be non-negative, got %d", offset)
 		}
+
 		o.PageOptions.Offset = offset
+
 		return nil
 	}
 }
@@ -165,7 +169,9 @@ func WithObserver(observer Observer) PaginatorOption {
 		if observer == nil {
 			return fmt.Errorf("observer cannot be nil")
 		}
+
 		o.Observer = observer
+
 		return nil
 	}
 }
@@ -176,7 +182,9 @@ func WithOperationName(operationName string) PaginatorOption {
 		if operationName == "" {
 			return fmt.Errorf("operation name cannot be empty")
 		}
+
 		o.OperationName = operationName
+
 		return nil
 	}
 }
@@ -187,7 +195,9 @@ func WithEntityType(entityType string) PaginatorOption {
 		if entityType == "" {
 			return fmt.Errorf("entity type cannot be empty")
 		}
+
 		o.EntityType = entityType
+
 		return nil
 	}
 }
@@ -198,7 +208,9 @@ func WithWorkerCount(workerCount int) PaginatorOption {
 		if workerCount <= 0 {
 			return fmt.Errorf("worker count must be positive, got %d", workerCount)
 		}
+
 		o.WorkerCount = workerCount
+
 		return nil
 	}
 }
@@ -209,7 +221,9 @@ func WithDefaultLimit(defaultLimit int) PaginatorOption {
 		if defaultLimit <= 0 {
 			return fmt.Errorf("default limit must be positive, got %d", defaultLimit)
 		}
+
 		o.DefaultLimit = defaultLimit
+
 		return nil
 	}
 }
@@ -325,6 +339,7 @@ func (p *defaultPaginator[T]) Next(ctx context.Context) bool {
 		event.Error = err
 		event.Duration = duration
 		p.observer.RecordEvent(ctx, event)
+
 		return false
 	}
 
@@ -363,6 +378,7 @@ func (p *defaultPaginator[T]) Items() []T {
 	if p.currentPage == nil {
 		return []T{}
 	}
+
 	return p.currentPage.Items
 }
 
@@ -498,6 +514,7 @@ func (p *defaultPaginator[T]) Concurrent(ctx context.Context, workers int, fn fu
 	// Start workers
 	for i := 0; i < workers; i++ {
 		wg.Add(1)
+
 		go func() {
 			defer wg.Done()
 
@@ -513,9 +530,10 @@ func (p *defaultPaginator[T]) Concurrent(ctx context.Context, workers int, fn fu
 					select {
 					case errCh <- err:
 					default:
-						// An error is already in the channel
 					}
+
 					cancel() // Cancel other workers
+
 					return
 				}
 			}
@@ -531,9 +549,9 @@ func (p *defaultPaginator[T]) Concurrent(ctx context.Context, workers int, fn fu
 				return
 			case err := <-errCh:
 				errCh <- err // Put it back for the main goroutine to find
+
 				return
 			default:
-				// No error, continue
 			}
 
 			itemCh <- item

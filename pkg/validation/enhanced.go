@@ -148,6 +148,7 @@ func EnhancedValidateMetadata(metadata map[string]any) *FieldErrors {
 			_ = errors.Add("metadata.key", key, "Metadata key cannot be empty").
 				WithConstraint("required").
 				WithSuggestions(GetCommonSuggestions("metadata.key", key, Required)...)
+
 			continue
 		}
 
@@ -164,6 +165,7 @@ func EnhancedValidateMetadata(metadata map[string]any) *FieldErrors {
 				fmt.Sprintf("Metadata value has unsupported type: %T", value)).
 				WithConstraint("type").
 				WithSuggestions(GetCommonSuggestions("metadata.value", value, Format)...)
+
 			continue
 		}
 
@@ -429,117 +431,205 @@ func EnhancedValidateCountryCode(code string) *FieldError {
 // EnhancedValidateTransactionInput validates a transaction input and returns field-level errors
 // with suggestions when invalid.
 func EnhancedValidateTransactionInput(input map[string]any) *FieldErrors {
-	errors := NewFieldErrors()
-
-	if input == nil {
-		_ = errors.Add("transaction", nil, "Transaction input cannot be nil").
-			WithConstraint("required").
-			WithSuggestions(GetCommonSuggestions("transaction", nil, Required)...)
-
-		return errors
+	validator := &transactionInputValidator{
+		input:  input,
+		errors: NewFieldErrors(),
 	}
 
-	// Validate asset code
-	if input["asset_code"] == nil {
-		_ = errors.Add("assetCode", nil, "Asset code is required").
+	return validator.validate()
+}
+
+// transactionInputValidator handles validation of transaction input.
+type transactionInputValidator struct {
+	input  map[string]any
+	errors *FieldErrors
+}
+
+// validate performs comprehensive validation of transaction input.
+func (v *transactionInputValidator) validate() *FieldErrors {
+	if v.input == nil {
+		v.addNilInputError()
+		return v.errors
+	}
+
+	v.validateAssetCode()
+	v.validateAmount()
+	v.validateScale()
+	v.validateOperations()
+	v.validateMetadata()
+	v.validateTransactionCode()
+	v.validateChartOfAccountsGroupName()
+
+	return v.errors
+}
+
+// addNilInputError adds an error for nil transaction input.
+func (v *transactionInputValidator) addNilInputError() {
+	_ = v.errors.Add("transaction", nil, "Transaction input cannot be nil").
+		WithConstraint("required").
+		WithSuggestions(GetCommonSuggestions("transaction", nil, Required)...)
+}
+
+// validateAssetCode validates the asset code field.
+func (v *transactionInputValidator) validateAssetCode() {
+	if v.input["asset_code"] == nil {
+		_ = v.errors.Add("assetCode", nil, "Asset code is required").
 			WithConstraint("required").
 			WithSuggestions(GetCommonSuggestions("assetCode", nil, Required)...)
-	} else if assetCode, ok := input["asset_code"].(string); ok {
-		if err := EnhancedValidateAssetCode(assetCode); err != nil {
-			errors.AddError(err)
-		}
-	} else {
-		_ = errors.Add("assetCode", input["asset_code"], "Asset code must be a string").
-			WithConstraint("type").
-			WithSuggestions(GetCommonSuggestions("assetCode", input["asset_code"], Format)...)
+
+		return
 	}
 
-	// Validate amount
-	if input["amount"] == nil {
-		_ = errors.Add("amount", nil, "Amount is required").
+	assetCode, ok := v.input["asset_code"].(string)
+	if !ok {
+		_ = v.errors.Add("assetCode", v.input["asset_code"], "Asset code must be a string").
+			WithConstraint("type").
+			WithSuggestions(GetCommonSuggestions("assetCode", v.input["asset_code"], Format)...)
+
+		return
+	}
+
+	if err := EnhancedValidateAssetCode(assetCode); err != nil {
+		v.errors.AddError(err)
+	}
+}
+
+// validateAmount validates the amount field.
+func (v *transactionInputValidator) validateAmount() {
+	if v.input["amount"] == nil {
+		_ = v.errors.Add("amount", nil, "Amount is required").
 			WithConstraint("required").
 			WithSuggestions(GetCommonSuggestions("amount", nil, Required)...)
-	} else if amount, ok := input["amount"].(float64); ok {
-		if amount <= 0 {
-			_ = errors.Add("amount", amount, "Amount must be greater than zero").
-				WithConstraint("min").
-				WithSuggestions(GetCommonSuggestions("amount", amount, Range)...)
-		}
-	} else {
-		_ = errors.Add("amount", input["amount"], "Amount must be a number").
-			WithConstraint("type").
-			WithSuggestions(GetCommonSuggestions("amount", input["amount"], Format)...)
+
+		return
 	}
 
-	// Validate scale
-	if input["scale"] == nil {
-		_ = errors.Add("scale", nil, "Scale is required").
+	amount, ok := v.input["amount"].(float64)
+	if !ok {
+		_ = v.errors.Add("amount", v.input["amount"], "Amount must be a number").
+			WithConstraint("type").
+			WithSuggestions(GetCommonSuggestions("amount", v.input["amount"], Format)...)
+
+		return
+	}
+
+	if amount <= 0 {
+		_ = v.errors.Add("amount", amount, "Amount must be greater than zero").
+			WithConstraint("min").
+			WithSuggestions(GetCommonSuggestions("amount", amount, Range)...)
+	}
+}
+
+// validateScale validates the scale field.
+func (v *transactionInputValidator) validateScale() {
+	if v.input["scale"] == nil {
+		_ = v.errors.Add("scale", nil, "Scale is required").
 			WithConstraint("required").
 			WithSuggestions(GetCommonSuggestions("scale", nil, Required)...)
-	} else if scale, ok := input["scale"].(int); ok {
-		if scale < 0 || scale > 18 {
-			_ = errors.Add("scale", scale, "Scale must be between 0 and 18").
-				WithConstraint("range").
-				WithSuggestions(GetCommonSuggestions("scale", scale, Range)...)
-		}
-	} else {
-		_ = errors.Add("scale", input["scale"], "Scale must be an integer").
+
+		return
+	}
+
+	scale, ok := v.input["scale"].(int)
+	if !ok {
+		_ = v.errors.Add("scale", v.input["scale"], "Scale must be an integer").
 			WithConstraint("type").
-			WithSuggestions(GetCommonSuggestions("scale", input["scale"], Format)...)
+			WithSuggestions(GetCommonSuggestions("scale", v.input["scale"], Format)...)
+
+		return
 	}
 
-	// Validate operations
-	if input["operations"] == nil || len(input["operations"].([]map[string]any)) == 0 {
-		_ = errors.Add("operations", nil, "At least one operation is required").
-			WithConstraint("required").
-			WithSuggestions(GetCommonSuggestions("operations", nil, Required)...)
-	} else {
-		validateTransactionOperationsEnhanced(errors, input)
+	if scale < 0 || scale > 18 {
+		_ = v.errors.Add("scale", scale, "Scale must be between 0 and 18").
+			WithConstraint("range").
+			WithSuggestions(GetCommonSuggestions("scale", scale, Range)...)
+	}
+}
+
+// validateOperations validates the operations field.
+func (v *transactionInputValidator) validateOperations() {
+	if v.input["operations"] == nil {
+		v.addMissingOperationsError()
+		return
 	}
 
-	// Validate metadata if present
-	if input["metadata"] != nil {
-		if metadata, ok := input["metadata"].(map[string]any); ok {
-			metadataErrors := EnhancedValidateMetadata(metadata)
-			for _, err := range metadataErrors.Errors {
-				errors.AddError(err)
-			}
-		} else {
-			_ = errors.Add("metadata", input["metadata"], "Metadata must be an object").
-				WithConstraint("type").
-				WithSuggestions(GetCommonSuggestions("metadata", input["metadata"], Format)...)
-		}
+	operations, ok := v.input["operations"].([]map[string]any)
+	if !ok || len(operations) == 0 {
+		v.addMissingOperationsError()
+		return
 	}
 
-	// Validate transaction code if present
-	if input["transaction_code"] != nil {
-		if txCode, ok := input["transaction_code"].(string); ok {
-			if err := EnhancedValidateTransactionCode(txCode); err != nil {
-				errors.AddError(err)
-			}
-		} else {
-			_ = errors.Add("transactionCode", input["transaction_code"], "Transaction code must be a string").
-				WithConstraint("type").
-				WithSuggestions(GetCommonSuggestions("transactionCode", input["transaction_code"], Format)...)
-		}
+	validateTransactionOperationsEnhanced(v.errors, v.input)
+}
+
+// addMissingOperationsError adds an error for missing or invalid operations.
+func (v *transactionInputValidator) addMissingOperationsError() {
+	_ = v.errors.Add("operations", nil, "At least one operation is required").
+		WithConstraint("required").
+		WithSuggestions(GetCommonSuggestions("operations", nil, Required)...)
+}
+
+// validateMetadata validates the metadata field if present.
+func (v *transactionInputValidator) validateMetadata() {
+	if v.input["metadata"] == nil {
+		return
 	}
 
-	// Validate chart of accounts group name if present
-	if input["chart_of_accounts_group_name"] != nil {
-		if groupName, ok := input["chart_of_accounts_group_name"].(string); ok && groupName != "" {
-			if err := validateChartOfAccountsGroupName(groupName); err != nil {
-				_ = errors.Add("chartOfAccountsGroupName", groupName, err.Error()).
-					WithConstraint("format").
-					WithSuggestions(
-						"Use alphanumeric characters, spaces, underscores, and hyphens",
-						"Keep the name under 100 characters",
-						"Example: 'Standard Chart' or 'GAAP_2023'",
-					)
-			}
-		}
+	metadata, ok := v.input["metadata"].(map[string]any)
+	if !ok {
+		_ = v.errors.Add("metadata", v.input["metadata"], "Metadata must be an object").
+			WithConstraint("type").
+			WithSuggestions(GetCommonSuggestions("metadata", v.input["metadata"], Format)...)
+
+		return
 	}
 
-	return errors
+	metadataErrors := EnhancedValidateMetadata(metadata)
+	for _, err := range metadataErrors.Errors {
+		v.errors.AddError(err)
+	}
+}
+
+// validateTransactionCode validates the transaction code field if present.
+func (v *transactionInputValidator) validateTransactionCode() {
+	if v.input["transaction_code"] == nil {
+		return
+	}
+
+	txCode, ok := v.input["transaction_code"].(string)
+	if !ok {
+		_ = v.errors.Add("transactionCode", v.input["transaction_code"], "Transaction code must be a string").
+			WithConstraint("type").
+			WithSuggestions(GetCommonSuggestions("transactionCode", v.input["transaction_code"], Format)...)
+
+		return
+	}
+
+	if err := EnhancedValidateTransactionCode(txCode); err != nil {
+		v.errors.AddError(err)
+	}
+}
+
+// validateChartOfAccountsGroupName validates the chart of accounts group name if present.
+func (v *transactionInputValidator) validateChartOfAccountsGroupName() {
+	if v.input["chart_of_accounts_group_name"] == nil {
+		return
+	}
+
+	groupName, ok := v.input["chart_of_accounts_group_name"].(string)
+	if !ok || groupName == "" {
+		return
+	}
+
+	if err := validateChartOfAccountsGroupName(groupName); err != nil {
+		_ = v.errors.Add("chartOfAccountsGroupName", groupName, err.Error()).
+			WithConstraint("format").
+			WithSuggestions(
+				"Use alphanumeric characters, spaces, underscores, and hyphens",
+				"Keep the name under 100 characters",
+				"Example: 'Standard Chart' or 'GAAP_2023'",
+			)
+	}
 }
 
 // validateTransactionOperationsEnhanced validates the operations in a transaction
@@ -547,120 +637,203 @@ func EnhancedValidateTransactionInput(input map[string]any) *FieldErrors {
 func validateTransactionOperationsEnhanced(errors *FieldErrors, input map[string]any) {
 	operations := input["operations"].([]map[string]any)
 
-	// Track total debits and credits to ensure they balance
-	var totalDebits, totalCredits int64
-	var debitCount, creditCount int
+	validator := &operationValidator{
+		errors:    errors,
+		input:     input,
+		assetCode: getAssetCodeFromInput(input),
+	}
 
-	// Validate each operation
 	for i, op := range operations {
-		field := fmt.Sprintf("operations[%d]", i)
-
-		// Validate operation type
-		if op["type"] == nil {
-			_ = errors.Add(fmt.Sprintf("%s.type", field), nil, "Operation type is required").
-				WithConstraint("required").
-				WithSuggestions(GetCommonSuggestions("operation.type", nil, Required)...)
-		} else if opType, ok := op["type"].(string); ok {
-			if opType != "DEBIT" && opType != "CREDIT" {
-				_ = errors.Add(fmt.Sprintf("%s.type", field), opType, "Invalid operation type").
-					WithConstraint("enumeration").
-					WithCode("invalid_operation_type").
-					WithSuggestions(GetCommonSuggestions("operation.type", opType, Enumeration)...)
-			} else {
-				// Track totals for balance check
-				if opType == "DEBIT" {
-					debitCount++
-					if amount, ok := op["amount"].(float64); ok {
-						totalDebits += int64(amount)
-					}
-				} else if opType == "CREDIT" {
-					creditCount++
-					if amount, ok := op["amount"].(float64); ok {
-						totalCredits += int64(amount)
-					}
-				}
-			}
-		} else {
-			_ = errors.Add(fmt.Sprintf("%s.type", field), op["type"], "Operation type must be a string").
-				WithConstraint("type").
-				WithSuggestions(GetCommonSuggestions("operation.type", op["type"], Format)...)
-		}
-
-		// Validate account ID
-		if op["account_id"] == nil {
-			_ = errors.Add(fmt.Sprintf("%s.accountId", field), nil, "Account ID is required").
-				WithConstraint("required").
-				WithSuggestions(GetCommonSuggestions("account.id", nil, Required)...)
-		} else if accountID, ok := op["account_id"].(string); ok {
-			// Check if the account is an external account reference
-			if strings.HasPrefix(accountID, "@external/") {
-				// Validate external account format and asset consistency
-				assetCode, ok := input["asset_code"].(string)
-				if ok {
-					if err := EnhancedValidateExternalAccountWithTransactionAsset(accountID, assetCode); err != nil {
-						err.Field = fmt.Sprintf("%s.accountId", field)
-						errors.AddError(err)
-					}
-				}
-			}
-		}
-
-		// Validate account alias if provided
-		if op["account_alias"] != nil {
-			if alias, ok := op["account_alias"].(string); ok && alias != "" {
-				if err := EnhancedValidateAccountAlias(alias); err != nil {
-					err.Field = fmt.Sprintf("%s.accountAlias", field)
-					errors.AddError(err)
-				}
-			}
-		}
-
-		// Validate amount
-		if op["amount"] == nil {
-			_ = errors.Add(fmt.Sprintf("%s.amount", field), nil, "Operation amount is required").
-				WithConstraint("required").
-				WithSuggestions(GetCommonSuggestions("amount", nil, Required)...)
-		} else if amount, ok := op["amount"].(float64); ok {
-			if amount <= 0 {
-				_ = errors.Add(fmt.Sprintf("%s.amount", field), amount, "Operation amount must be greater than zero").
-					WithConstraint("min").
-					WithSuggestions(GetCommonSuggestions("amount", amount, Range)...)
-			}
-		} else {
-			_ = errors.Add(fmt.Sprintf("%s.amount", field), op["amount"], "Operation amount must be a number").
-				WithConstraint("type").
-				WithSuggestions(GetCommonSuggestions("amount", op["amount"], Format)...)
-		}
-
-		// Validate asset code matches transaction asset code
-		if op["asset_code"] != nil && op["asset_code"].(string) != "" {
-			if op["asset_code"].(string) != input["asset_code"].(string) {
-				_ = errors.Add(fmt.Sprintf("%s.assetCode", field), op["asset_code"],
-					fmt.Sprintf("Operation asset code must match transaction asset code (expected: %s)", input["asset_code"].(string))).
-					WithConstraint("consistency").
-					WithSuggestions(GetCommonSuggestions("asset.code", op["asset_code"], Consistency)...)
-			}
-		}
-
-		// Validate metadata if present
-		if op["metadata"] != nil {
-			if metadata, ok := op["metadata"].(map[string]any); ok {
-				metadataErrors := EnhancedValidateMetadata(metadata)
-				for _, err := range metadataErrors.Errors {
-					// Update the field path with the operation index
-					err.Field = fmt.Sprintf("%s.metadata.%s", field, err.Field)
-					errors.AddError(err)
-				}
-			} else {
-				_ = errors.Add(fmt.Sprintf("%s.metadata", field), op["metadata"], "Operation metadata must be an object").
-					WithConstraint("type").
-					WithSuggestions(GetCommonSuggestions("metadata", op["metadata"], Format)...)
-			}
-		}
+		validator.validateSingleOperation(op, i)
 	}
 
 	// Validate transaction structure
-	validateTransactionStructureEnhanced(errors, debitCount, creditCount, totalDebits, totalCredits, input)
+	validateTransactionStructureEnhanced(errors, validator.debitCount, validator.creditCount, validator.totalDebits, validator.totalCredits, input)
+}
+
+// operationValidator holds state for validating transaction operations.
+type operationValidator struct {
+	errors                    *FieldErrors
+	input                     map[string]any
+	assetCode                 string
+	totalDebits, totalCredits int64
+	debitCount, creditCount   int
+}
+
+// getAssetCodeFromInput safely extracts asset code from input.
+func getAssetCodeFromInput(input map[string]any) string {
+	if assetCode, ok := input["asset_code"].(string); ok {
+		return assetCode
+	}
+
+	return ""
+}
+
+// validateSingleOperation validates a single transaction operation.
+func (v *operationValidator) validateSingleOperation(op map[string]any, index int) {
+	field := fmt.Sprintf("operations[%d]", index)
+
+	v.validateOperationType(op, field)
+	v.validateAccountID(op, field)
+	v.validateAccountAlias(op, field)
+	v.validateAmount(op, field)
+	v.validateAssetCode(op, field)
+	v.validateMetadata(op, field)
+}
+
+// validateOperationType validates the operation type field.
+func (v *operationValidator) validateOperationType(op map[string]any, field string) {
+	if op["type"] == nil {
+		_ = v.errors.Add(fmt.Sprintf("%s.type", field), nil, "Operation type is required").
+			WithConstraint("required").
+			WithSuggestions(GetCommonSuggestions("operation.type", nil, Required)...)
+
+		return
+	}
+
+	opType, ok := op["type"].(string)
+	if !ok {
+		_ = v.errors.Add(fmt.Sprintf("%s.type", field), op["type"], "Operation type must be a string").
+			WithConstraint("type").
+			WithSuggestions(GetCommonSuggestions("operation.type", op["type"], Format)...)
+
+		return
+	}
+
+	if opType != "DEBIT" && opType != "CREDIT" {
+		_ = v.errors.Add(fmt.Sprintf("%s.type", field), opType, "Invalid operation type").
+			WithConstraint("enumeration").
+			WithCode("invalid_operation_type").
+			WithSuggestions(GetCommonSuggestions("operation.type", opType, Enumeration)...)
+
+		return
+	}
+
+	v.trackOperationTotals(op, opType)
+}
+
+// trackOperationTotals updates the debit/credit totals for balance validation.
+func (v *operationValidator) trackOperationTotals(op map[string]any, opType string) {
+	amount, ok := op["amount"].(float64)
+	if !ok {
+		return
+	}
+
+	switch opType {
+	case "DEBIT":
+		v.debitCount++
+		v.totalDebits += int64(amount)
+	case "CREDIT":
+		v.creditCount++
+		v.totalCredits += int64(amount)
+	}
+}
+
+// validateAccountID validates the account ID field.
+func (v *operationValidator) validateAccountID(op map[string]any, field string) {
+	if op["account_id"] == nil {
+		_ = v.errors.Add(fmt.Sprintf("%s.accountId", field), nil, "Account ID is required").
+			WithConstraint("required").
+			WithSuggestions(GetCommonSuggestions("account.id", nil, Required)...)
+
+		return
+	}
+
+	accountID, ok := op["account_id"].(string)
+	if !ok {
+		return
+	}
+
+	if strings.HasPrefix(accountID, "@external/") && v.assetCode != "" {
+		if err := EnhancedValidateExternalAccountWithTransactionAsset(accountID, v.assetCode); err != nil {
+			err.Field = fmt.Sprintf("%s.accountId", field)
+			v.errors.AddError(err)
+		}
+	}
+}
+
+// validateAccountAlias validates the account alias field if provided.
+func (v *operationValidator) validateAccountAlias(op map[string]any, field string) {
+	if op["account_alias"] == nil {
+		return
+	}
+
+	alias, ok := op["account_alias"].(string)
+	if !ok || alias == "" {
+		return
+	}
+
+	if err := EnhancedValidateAccountAlias(alias); err != nil {
+		err.Field = fmt.Sprintf("%s.accountAlias", field)
+		v.errors.AddError(err)
+	}
+}
+
+// validateAmount validates the operation amount field.
+func (v *operationValidator) validateAmount(op map[string]any, field string) {
+	if op["amount"] == nil {
+		_ = v.errors.Add(fmt.Sprintf("%s.amount", field), nil, "Operation amount is required").
+			WithConstraint("required").
+			WithSuggestions(GetCommonSuggestions("amount", nil, Required)...)
+
+		return
+	}
+
+	amount, ok := op["amount"].(float64)
+	if !ok {
+		_ = v.errors.Add(fmt.Sprintf("%s.amount", field), op["amount"], "Operation amount must be a number").
+			WithConstraint("type").
+			WithSuggestions(GetCommonSuggestions("amount", op["amount"], Format)...)
+
+		return
+	}
+
+	if amount <= 0 {
+		_ = v.errors.Add(fmt.Sprintf("%s.amount", field), amount, "Operation amount must be greater than zero").
+			WithConstraint("min").
+			WithSuggestions(GetCommonSuggestions("amount", amount, Range)...)
+	}
+}
+
+// validateAssetCode validates that operation asset code matches transaction asset code.
+func (v *operationValidator) validateAssetCode(op map[string]any, field string) {
+	if op["asset_code"] == nil {
+		return
+	}
+
+	opAssetCode, ok := op["asset_code"].(string)
+	if !ok || opAssetCode == "" || v.assetCode == "" {
+		return
+	}
+
+	if opAssetCode != v.assetCode {
+		_ = v.errors.Add(fmt.Sprintf("%s.assetCode", field), opAssetCode,
+			fmt.Sprintf("Operation asset code must match transaction asset code (expected: %s)", v.assetCode)).
+			WithConstraint("consistency").
+			WithSuggestions(GetCommonSuggestions("asset.code", opAssetCode, Consistency)...)
+	}
+}
+
+// validateMetadata validates the operation metadata field if present.
+func (v *operationValidator) validateMetadata(op map[string]any, field string) {
+	if op["metadata"] == nil {
+		return
+	}
+
+	metadata, ok := op["metadata"].(map[string]any)
+	if !ok {
+		_ = v.errors.Add(fmt.Sprintf("%s.metadata", field), op["metadata"], "Operation metadata must be an object").
+			WithConstraint("type").
+			WithSuggestions(GetCommonSuggestions("metadata", op["metadata"], Format)...)
+
+		return
+	}
+
+	metadataErrors := EnhancedValidateMetadata(metadata)
+	for _, err := range metadataErrors.Errors {
+		err.Field = fmt.Sprintf("%s.metadata.%s", field, err.Field)
+		v.errors.AddError(err)
+	}
 }
 
 // validateTransactionStructureEnhanced validates the overall transaction structure
@@ -779,11 +952,13 @@ func validateTransactionDSLSourceAccounts(errors *FieldErrors, input Transaction
 	}
 
 	asset := input.GetAsset()
+
 	for i, account := range sourceAccounts {
 		if account.GetAccount() == "" {
 			_ = errors.Add(fmt.Sprintf("sourceAccounts[%d]", i), account.GetAccount(), "Source account cannot be empty").
 				WithConstraint("required").
 				WithSuggestions(GetCommonSuggestions("account", account.GetAccount(), Required)...)
+
 			continue
 		}
 
@@ -806,11 +981,13 @@ func validateTransactionDSLDestinationAccounts(errors *FieldErrors, input Transa
 	}
 
 	asset := input.GetAsset()
+
 	for i, account := range destAccounts {
 		if account.GetAccount() == "" {
 			_ = errors.Add(fmt.Sprintf("destinationAccounts[%d]", i), account.GetAccount(), "Destination account cannot be empty").
 				WithConstraint("required").
 				WithSuggestions(GetCommonSuggestions("account", account.GetAccount(), Required)...)
+
 			continue
 		}
 

@@ -24,6 +24,7 @@ func NewMockLedgersService(ctrl *gomock.Controller) *MockLedgersService {
 	mock := &MockLedgersService{ctrl: ctrl}
 
 	mock.recorder = &MockLedgersServiceMockRecorder{mock}
+
 	return mock
 }
 
@@ -38,6 +39,7 @@ func (m *MockLedgersService) ListLedgers(ctx context.Context, organizationID str
 	ret := m.ctrl.Call(m, "ListLedgers", ctx, organizationID, opts)
 	ret0, _ := ret[0].(*models.ListResponse[models.Ledger])
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 
@@ -53,6 +55,7 @@ func (m *MockLedgersService) GetLedger(ctx context.Context, organizationID, id s
 	ret := m.ctrl.Call(m, "GetLedger", ctx, organizationID, id)
 	ret0, _ := ret[0].(*models.Ledger)
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 
@@ -68,6 +71,7 @@ func (m *MockLedgersService) CreateLedger(ctx context.Context, organizationID st
 	ret := m.ctrl.Call(m, "CreateLedger", ctx, organizationID, input)
 	ret0, _ := ret[0].(*models.Ledger)
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 
@@ -83,6 +87,7 @@ func (m *MockLedgersService) UpdateLedger(ctx context.Context, organizationID, i
 	ret := m.ctrl.Call(m, "UpdateLedger", ctx, organizationID, id, input)
 	ret0, _ := ret[0].(*models.Ledger)
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 
@@ -97,6 +102,7 @@ func (m *MockLedgersService) DeleteLedger(ctx context.Context, organizationID, i
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteLedger", ctx, organizationID, id)
 	ret0, _ := ret[0].(error)
+
 	return ret0
 }
 

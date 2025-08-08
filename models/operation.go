@@ -162,7 +162,7 @@ type UpdateOperationInput struct {
 
 // Operations represents a paginated list of operations.
 //
-// swagger:model Operations  
+// swagger:model Operations
 // @Description Operations represents a paginated response containing a list of operations with pagination metadata.
 type Operations struct {
 	// Array of operation records returned in this page

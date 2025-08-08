@@ -138,6 +138,7 @@ func RetrieveOrganization(ctx context.Context, midazClient *client.Client, orgID
 	if org.Metadata != nil {
 		metadataValue = fmt.Sprintf("%v", org.Metadata)
 	}
+
 	fmt.Printf("   Metadata: %s\n", metadataValue)
 
 	return nil
