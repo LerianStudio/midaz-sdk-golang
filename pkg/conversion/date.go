@@ -18,6 +18,7 @@ func ConvertToISODate(t time.Time) string {
 	if t.IsZero() {
 		return "N/A"
 	}
+
 	return t.Format("2006-01-02")
 }
 
@@ -33,5 +34,6 @@ func ConvertToISODateTime(t time.Time) string {
 	if t.IsZero() {
 		return "N/A"
 	}
+
 	return t.Format(time.RFC3339)
 }

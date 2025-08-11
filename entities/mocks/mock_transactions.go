@@ -23,6 +23,7 @@ type MockTransactionsServiceMockRecorder struct {
 func NewMockTransactionsService(ctrl *gomock.Controller) *MockTransactionsService {
 	mock := &MockTransactionsService{ctrl: ctrl}
 	mock.recorder = &MockTransactionsServiceMockRecorder{mock}
+
 	return mock
 }
 
@@ -37,6 +38,7 @@ func (m *MockTransactionsService) CreateTransaction(ctx context.Context, orgID, 
 	ret := m.ctrl.Call(m, "CreateTransaction", ctx, orgID, ledgerID, input)
 	ret0, _ := ret[0].(*models.Transaction)
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 
@@ -52,6 +54,7 @@ func (m *MockTransactionsService) CreateTransactionWithDSL(ctx context.Context, 
 	ret := m.ctrl.Call(m, "CreateTransactionWithDSL", ctx, orgID, ledgerID, input)
 	ret0, _ := ret[0].(*models.Transaction)
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 
@@ -67,6 +70,7 @@ func (m *MockTransactionsService) CreateTransactionWithDSLFile(ctx context.Conte
 	ret := m.ctrl.Call(m, "CreateTransactionWithDSLFile", ctx, orgID, ledgerID, dslContent)
 	ret0, _ := ret[0].(*models.Transaction)
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 
@@ -82,6 +86,7 @@ func (m *MockTransactionsService) GetTransaction(ctx context.Context, orgID, led
 	ret := m.ctrl.Call(m, "GetTransaction", ctx, orgID, ledgerID, transactionID)
 	ret0, _ := ret[0].(*models.Transaction)
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 
@@ -97,6 +102,7 @@ func (m *MockTransactionsService) ListTransactions(ctx context.Context, orgID, l
 	ret := m.ctrl.Call(m, "ListTransactions", ctx, orgID, ledgerID, opts)
 	ret0, _ := ret[0].(*models.ListResponse[models.Transaction])
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 
@@ -112,6 +118,7 @@ func (m *MockTransactionsService) UpdateTransaction(ctx context.Context, orgID, 
 	ret := m.ctrl.Call(m, "UpdateTransaction", ctx, orgID, ledgerID, transactionID, input)
 	ret0, _ := ret[0].(*models.Transaction)
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 

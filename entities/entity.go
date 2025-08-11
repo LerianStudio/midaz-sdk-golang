@@ -167,6 +167,7 @@ func NewEntityWithConfig(config Config, options ...Option) (*Entity, error) {
 
 	// Check if plugin auth is enabled
 	var authToken string
+
 	pluginAuth := config.GetPluginAuth()
 
 	if pluginAuth.Enabled {

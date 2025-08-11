@@ -23,6 +23,7 @@ type MockSegmentsServiceMockRecorder struct {
 func NewMockSegmentsService(ctrl *gomock.Controller) *MockSegmentsService {
 	mock := &MockSegmentsService{ctrl: ctrl}
 	mock.recorder = &MockSegmentsServiceMockRecorder{mock}
+
 	return mock
 }
 
@@ -37,6 +38,7 @@ func (m *MockSegmentsService) ListSegments(ctx context.Context, organizationID, 
 	ret := m.ctrl.Call(m, "ListSegments", ctx, organizationID, ledgerID, opts)
 	ret0, _ := ret[0].(*models.ListResponse[models.Segment])
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 
@@ -52,6 +54,7 @@ func (m *MockSegmentsService) GetSegment(ctx context.Context, organizationID, le
 	ret := m.ctrl.Call(m, "GetSegment", ctx, organizationID, ledgerID, id)
 	ret0, _ := ret[0].(*models.Segment)
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 
@@ -67,6 +70,7 @@ func (m *MockSegmentsService) CreateSegment(ctx context.Context, organizationID,
 	ret := m.ctrl.Call(m, "CreateSegment", ctx, organizationID, ledgerID, input)
 	ret0, _ := ret[0].(*models.Segment)
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 
@@ -82,6 +86,7 @@ func (m *MockSegmentsService) UpdateSegment(ctx context.Context, organizationID,
 	ret := m.ctrl.Call(m, "UpdateSegment", ctx, organizationID, ledgerID, id, input)
 	ret0, _ := ret[0].(*models.Segment)
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 
@@ -96,6 +101,7 @@ func (m *MockSegmentsService) DeleteSegment(ctx context.Context, organizationID,
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteSegment", ctx, organizationID, ledgerID, id)
 	ret0, _ := ret[0].(error)
+
 	return ret0
 }
 

@@ -38,6 +38,7 @@ func main() {
 
 	// First, fetch all accounts (in a real app, you might filter these)
 	fmt.Println("Fetching accounts...")
+
 	accounts, err := c.Entity.Accounts.ListAccounts(ctx, orgID, ledgerID, &models.ListOptions{})
 	if err != nil {
 		log.Fatalf("Failed to list accounts: %v", err)
@@ -53,6 +54,7 @@ func main() {
 
 	// Fetch balances for all accounts in parallel
 	fmt.Println("\nFetching balances for all accounts in parallel...")
+
 	startTime := time.Now()
 
 	type AccountBalance struct {
@@ -64,7 +66,6 @@ func main() {
 	fetchBalancesFn := func(ctx context.Context, accountID string) (AccountBalance, error) {
 		// In a real app, this would call the Midaz API
 		// balances, err := c.Entity.Balances.ListBalances(ctx, orgID, ledgerID, accountID, nil)
-
 		// For this example, we'll simulate an API call
 		time.Sleep(100 * time.Millisecond) // Simulate network delay
 
@@ -103,11 +104,13 @@ func main() {
 
 	// Process the results to build a map of account ID to balances
 	accountBalances := make(map[string][]*models.Balance)
+
 	var errorCount int
 
 	for _, result := range results {
 		if result.Error != nil {
 			errorCount++
+
 			fmt.Printf("Error fetching balances for account %s: %v\n", result.Item, result.Error)
 		} else {
 			accountBalances[result.Value.AccountID] = result.Value.Balances
@@ -119,6 +122,7 @@ func main() {
 
 	// Calculate totals by currency
 	totalsByAsset := make(map[string]decimal.Decimal)
+
 	for _, balances := range accountBalances {
 		for _, balance := range balances {
 			totalsByAsset[balance.AssetCode] = totalsByAsset[balance.AssetCode].Add(balance.Available)
@@ -127,17 +131,21 @@ func main() {
 
 	// Display totals
 	fmt.Println("\nTotal balances by asset:")
+
 	for assetCode, total := range totalsByAsset {
 		fmt.Printf("%s: %s\n", assetCode, total.String())
 	}
 
 	// Compare to sequential processing
 	fmt.Println("\nComparing to sequential processing:")
+
 	startTime = time.Now()
+
 	for _, accountID := range accountIDs {
 		// Simulate API call
 		_, _ = fetchBalancesFn(ctx, accountID)
 	}
+
 	sequentialElapsed := time.Since(startTime)
 
 	fmt.Printf("Sequential: %v, Parallel: %v, Speedup: %.2fx\n",
@@ -166,6 +174,7 @@ func batchUpdateBalances(ctx context.Context, accountBalances map[string][]*mode
 
 		// Simulate updated balances
 		updatedBalances := make([]*models.Balance, len(balanceBatch))
+
 		for i, balance := range balanceBatch {
 			// Create a copy of the balance with updated fields
 			updatedBalance := *balance
@@ -189,6 +198,7 @@ func batchUpdateBalances(ctx context.Context, accountBalances map[string][]*mode
 
 	// Count successes and errors
 	var successCount, errorCount int
+
 	for _, result := range results {
 		if result.Error != nil {
 			errorCount++
@@ -201,14 +211,18 @@ func batchUpdateBalances(ctx context.Context, accountBalances map[string][]*mode
 
 	// Compare to sequential processing
 	fmt.Println("\nComparing to sequential processing:")
+
 	startTime = time.Now()
+
 	for i := 0; i < len(allBalances); i += 10 {
 		end := i + 10
 		if end > len(allBalances) {
 			end = len(allBalances)
 		}
+
 		_, _ = updateBalancesBatchFn(ctx, allBalances[i:end])
 	}
+
 	sequentialElapsed := time.Since(startTime)
 
 	fmt.Printf("Sequential: %v, Parallel: %v, Speedup: %.2fx\n",

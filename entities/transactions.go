@@ -133,125 +133,162 @@ func NewTransactionsEntity(client *http.Client, authToken string, baseURLs map[s
 //   - Resource not found (invalid organization or ledger ID)
 //   - Network or server errors
 func (e *transactionsEntity) CreateTransaction(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionInput) (*models.Transaction, error) {
-	// Operation name for error context
 	const operation = "CreateTransaction"
 
-	if input == nil {
-		return nil, errors.NewMissingParameterError(operation, "input")
+	// Validate input parameters
+	if err := e.validateCreateTransactionInput(operation, orgID, ledgerID, input); err != nil {
+		return nil, err
 	}
 
-	// Validate required parameters
+	// Send request to API
+	responseMap, err := e.sendCreateTransactionRequest(operation, orgID, ledgerID, input)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert response to transaction model
+	return e.parseTransactionResponse(responseMap), nil
+}
+
+// validateCreateTransactionInput validates all input parameters for CreateTransaction
+func (e *transactionsEntity) validateCreateTransactionInput(operation, orgID, ledgerID string, input *models.CreateTransactionInput) error {
+	if input == nil {
+		return errors.NewMissingParameterError(operation, "input")
+	}
+
 	if orgID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organization ID")
+		return errors.NewMissingParameterError(operation, "organization ID")
 	}
 
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledger ID")
+		return errors.NewMissingParameterError(operation, "ledger ID")
 	}
 
-	// Validate the transaction input
 	if err := input.Validate(); err != nil {
-		return nil, errors.NewValidationError(operation, "transaction validation failed", err)
+		return errors.NewValidationError(operation, "transaction validation failed", err)
 	}
 
-	// If using Send structure, we don't need to check for operations
 	if input.Send == nil && len(input.Operations) == 0 {
-		return nil, errors.NewValidationError(operation, "transaction must have at least one operation", nil)
+		return errors.NewValidationError(operation, "transaction must have at least one operation", nil)
 	}
 
-	// Convert the input to the format expected by the backend
+	return nil
+}
+
+// sendCreateTransactionRequest sends the transaction creation request
+func (e *transactionsEntity) sendCreateTransactionRequest(operation, orgID, ledgerID string, input *models.CreateTransactionInput) (map[string]any, error) {
 	txMap := input.ToLibTransaction()
 
-	// Create the request
 	req, err := e.httpClient.NewRequest("POST", e.buildURL(orgID, ledgerID, "/json"), txMap)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	// Use a map to parse the response to handle potential schema differences
 	var responseMap map[string]any
 	if err := e.httpClient.sendRequest(req, &responseMap); err != nil {
 		return nil, err
 	}
 
-	// Convert the map response to a Transaction model
+	return responseMap, nil
+}
+
+// parseTransactionResponse converts response map to Transaction model
+func (e *transactionsEntity) parseTransactionResponse(responseMap map[string]any) *models.Transaction {
 	transaction := &models.Transaction{
 		ID:          getString(responseMap, "id"),
 		Description: getString(responseMap, "description"),
 		AssetCode:   getString(responseMap, "assetCode"),
 	}
 
-	// Handle amount fields
+	e.setTransactionAmount(transaction, responseMap)
+	e.setTransactionIDs(transaction, responseMap)
+	e.setTransactionArrays(transaction, responseMap)
+	e.setTransactionStatus(transaction, responseMap)
+	e.setTransactionTimestamps(transaction, responseMap)
+	e.setTransactionMetadata(transaction, responseMap)
+
+	return transaction
+}
+
+// setTransactionAmount sets the amount field from various response formats
+func (e *transactionsEntity) setTransactionAmount(transaction *models.Transaction, responseMap map[string]any) {
 	if amount, ok := responseMap["amount"].(string); ok {
 		transaction.Amount = amount
 	} else if amount, ok := responseMap["amount"].(float64); ok {
 		transaction.Amount = fmt.Sprintf("%.2f", amount)
 	}
+}
 
-	// Handle organization and ledger IDs
+// setTransactionIDs sets organization and ledger IDs and other fields
+func (e *transactionsEntity) setTransactionIDs(transaction *models.Transaction, responseMap map[string]any) {
 	transaction.OrganizationID = getString(responseMap, "organizationId")
 	transaction.LedgerID = getString(responseMap, "ledgerId")
-
-	// Handle new fields from API specification
 	transaction.Route = getString(responseMap, "route")
 	transaction.ChartOfAccountsGroupName = getString(responseMap, "chartOfAccountsGroupName")
 
-	// Handle Source and Destination as string arrays
-	if sourceArray, ok := responseMap["source"].([]any); ok {
-		source := make([]string, len(sourceArray))
-		for i, v := range sourceArray {
-			if s, ok := v.(string); ok {
-				source[i] = s
-			}
-		}
-		transaction.Source = source
-	}
-
-	if destinationArray, ok := responseMap["destination"].([]any); ok {
-		destination := make([]string, len(destinationArray))
-		for i, v := range destinationArray {
-			if s, ok := v.(string); ok {
-				destination[i] = s
-			}
-		}
-		transaction.Destination = destination
-	}
-
-	// Handle Pending boolean field
 	if pending, ok := responseMap["pending"].(bool); ok {
 		transaction.Pending = pending
 	}
+}
 
-	// Handle status
-	statusMap, ok := responseMap["status"].(map[string]any)
-	if ok {
-		status := models.Status{
-			Code: getString(statusMap, "code"),
+// setTransactionArrays sets source and destination arrays
+func (e *transactionsEntity) setTransactionArrays(transaction *models.Transaction, responseMap map[string]any) {
+	transaction.Source = e.parseStringArray(responseMap, "source")
+	transaction.Destination = e.parseStringArray(responseMap, "destination")
+}
+
+// parseStringArray converts any array to string array
+func (e *transactionsEntity) parseStringArray(responseMap map[string]any, key string) []string {
+	if array, ok := responseMap[key].([]any); ok {
+		result := make([]string, len(array))
+
+		for i, v := range array {
+			if s, ok := v.(string); ok {
+				result[i] = s
+			}
 		}
 
-		// Handle description as a pointer
-		if descStr := getString(statusMap, "description"); descStr != "" {
-			desc := descStr // Create a copy to get a stable address
-			status.Description = &desc
-		}
-
-		transaction.Status = status
+		return result
 	}
 
-	// Handle timestamps
+	return nil
+}
+
+// setTransactionStatus sets the status from response map
+func (e *transactionsEntity) setTransactionStatus(transaction *models.Transaction, responseMap map[string]any) {
+	statusMap, ok := responseMap["status"].(map[string]any)
+	if !ok {
+		return
+	}
+
+	status := models.Status{
+		Code: getString(statusMap, "code"),
+	}
+
+	if descStr := getString(statusMap, "description"); descStr != "" {
+		desc := descStr
+		status.Description = &desc
+	}
+
+	transaction.Status = status
+}
+
+// setTransactionTimestamps sets created and updated timestamps
+func (e *transactionsEntity) setTransactionTimestamps(transaction *models.Transaction, responseMap map[string]any) {
 	if createdAt, err := time.Parse(time.RFC3339, getString(responseMap, "createdAt")); err == nil {
 		transaction.CreatedAt = createdAt
 	}
+
 	if updatedAt, err := time.Parse(time.RFC3339, getString(responseMap, "updatedAt")); err == nil {
 		transaction.UpdatedAt = updatedAt
 	}
+}
 
-	// Handle metadata
+// setTransactionMetadata sets the metadata from response map
+func (e *transactionsEntity) setTransactionMetadata(transaction *models.Transaction, responseMap map[string]any) {
 	if metadata, ok := responseMap["metadata"].(map[string]any); ok {
 		transaction.Metadata = metadata
 	}
-
-	return transaction, nil
 }
 
 // CreateTransactionWithDSL creates a new transaction using the DSL format.
@@ -626,5 +663,6 @@ func getString(m map[string]any, key string) string {
 	if val, ok := m[key].(string); ok {
 		return val
 	}
+
 	return ""
 }

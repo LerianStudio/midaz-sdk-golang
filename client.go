@@ -34,7 +34,6 @@ type Client struct {
 	// API interface flags
 	useEntity bool
 
-
 	// Observability provider
 	observability observability.Provider
 	metrics       *observability.MetricsCollector
@@ -90,6 +89,7 @@ func (c *Client) setupEntity() error {
 	if _, ok := serviceURLs["onboarding"]; !ok {
 		return fmt.Errorf("missing onboarding URL in config")
 	}
+
 	if _, ok := serviceURLs["transaction"]; !ok {
 		return fmt.Errorf("missing transaction URL in config")
 	}
@@ -98,12 +98,15 @@ func (c *Client) setupEntity() error {
 	var retryOptions *retry.Options
 	if c.config.EnableRetries {
 		retryOptions = retry.DefaultOptions()
+
 		if err := retry.WithMaxRetries(c.config.MaxRetries)(retryOptions); err != nil {
 			return fmt.Errorf("failed to set max retries: %w", err)
 		}
+
 		if err := retry.WithInitialDelay(c.config.RetryWaitMin)(retryOptions); err != nil {
 			return fmt.Errorf("failed to set initial delay: %w", err)
 		}
+
 		if err := retry.WithMaxDelay(c.config.RetryWaitMax)(retryOptions); err != nil {
 			return fmt.Errorf("failed to set max delay: %w", err)
 		}
@@ -125,6 +128,7 @@ func (c *Client) setupEntity() error {
 	if err != nil {
 		return err
 	}
+
 	c.Entity = entity
 
 	return nil
@@ -179,12 +183,15 @@ func WithRetries(maxRetries int, minBackoff, maxBackoff time.Duration) Option {
 		if err := config.WithRetries(true)(c.config); err != nil {
 			return err
 		}
+
 		if err := config.WithMaxRetries(maxRetries)(c.config); err != nil {
 			return err
 		}
+
 		if err := config.WithRetryWaitMin(minBackoff)(c.config); err != nil {
 			return err
 		}
+
 		if err := config.WithRetryWaitMax(maxBackoff)(c.config); err != nil {
 			return err
 		}
@@ -340,6 +347,7 @@ func WithObservabilityProvider(provider observability.Provider) Option {
 		if provider.IsEnabled() {
 			var err error
 			c.metrics, err = observability.NewMetricsCollector(provider)
+
 			if err != nil {
 				return err
 			}
@@ -424,7 +432,9 @@ func WithContext(ctx context.Context) Option {
 		if ctx == nil {
 			return fmt.Errorf("context cannot be nil")
 		}
+
 		c.ctx = ctx
+
 		return nil
 	}
 }
@@ -466,7 +476,9 @@ func WithConfig(cfg *config.Config) Option {
 		if cfg == nil {
 			return fmt.Errorf("config cannot be nil")
 		}
+
 		c.config = cfg
+
 		return nil
 	}
 }
@@ -484,6 +496,7 @@ func WithHTTPClient(client *http.Client) Option {
 		if client == nil {
 			return fmt.Errorf("HTTP client cannot be nil")
 		}
+
 		c.config.HTTPClient = client
 
 		return nil
@@ -494,13 +507,13 @@ func WithHTTPClient(client *http.Client) Option {
 // This overrides any URL derived from the Environment setting.
 //
 // Parameters:
-//   - url: The URL for the Onboarding API
+//   - onboardingURL: The URL for the Onboarding API
 //
 // Returns:
 //   - Option: A function that sets the Onboarding URL on the Client
-func WithOnboardingURL(url string) Option {
+func WithOnboardingURL(onboardingURL string) Option {
 	return func(c *Client) error {
-		return config.WithOnboardingURL(url)(c.config)
+		return config.WithOnboardingURL(onboardingURL)(c.config)
 	}
 }
 
@@ -508,13 +521,13 @@ func WithOnboardingURL(url string) Option {
 // This overrides any URL derived from the Environment setting.
 //
 // Parameters:
-//   - url: The URL for the Transaction API
+//   - transactionURL: The URL for the Transaction API
 //
 // Returns:
 //   - Option: A function that sets the Transaction URL on the Client
-func WithTransactionURL(url string) Option {
+func WithTransactionURL(transactionURL string) Option {
 	return func(c *Client) error {
-		return config.WithTransactionURL(url)(c.config)
+		return config.WithTransactionURL(transactionURL)(c.config)
 	}
 }
 

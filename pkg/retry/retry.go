@@ -150,7 +150,9 @@ func WithMaxRetries(maxRetries int) Option {
 		if maxRetries < 0 {
 			return fmt.Errorf("maxRetries must be non-negative, got %d", maxRetries)
 		}
+
 		o.MaxRetries = maxRetries
+
 		return nil
 	}
 }
@@ -166,7 +168,9 @@ func WithInitialDelay(delay time.Duration) Option {
 		if delay <= 0 {
 			return fmt.Errorf("initialDelay must be positive, got %v", delay)
 		}
+
 		o.InitialDelay = delay
+
 		return nil
 	}
 }
@@ -182,7 +186,9 @@ func WithMaxDelay(delay time.Duration) Option {
 		if delay <= 0 {
 			return fmt.Errorf("maxDelay must be positive, got %v", delay)
 		}
+
 		o.MaxDelay = delay
+
 		return nil
 	}
 }
@@ -198,7 +204,9 @@ func WithBackoffFactor(factor float64) Option {
 		if factor < 1.0 {
 			return fmt.Errorf("backoffFactor must be at least 1.0, got %f", factor)
 		}
+
 		o.BackoffFactor = factor
+
 		return nil
 	}
 }
@@ -246,7 +254,9 @@ func WithJitterFactor(factor float64) Option {
 		if factor < 0.0 || factor > 1.0 {
 			return fmt.Errorf("jitterFactor must be between 0.0 and 1.0, got %f", factor)
 		}
+
 		o.JitterFactor = factor
+
 		return nil
 	}
 }
@@ -274,6 +284,7 @@ func WithHighReliability() Option {
 		o.MaxDelay = 30 * time.Second
 		o.BackoffFactor = 2.5
 		o.JitterFactor = 0.4
+
 		return nil
 	}
 }
@@ -318,6 +329,7 @@ func GetOptionsFromContext(ctx context.Context) *Options {
 	if options, ok := ctx.Value(retryOptionsKey).(*Options); ok {
 		return options
 	}
+
 	return DefaultOptions()
 }
 
@@ -412,7 +424,6 @@ func doWithOptions(ctx context.Context, fn func() error, options *Options) error
 			timer.Stop()
 			return fmt.Errorf("operation cancelled during retry: %w", ctx.Err())
 		case <-timer.C:
-			// Continue to next retry attempt
 		}
 	}
 
@@ -505,16 +516,20 @@ func addJitter(delay time.Duration, factor float64) time.Duration {
 	jitter := time.Duration(float64(delay) * jitterF)
 
 	// Randomly add or subtract jitter
+
 	if getSecureRandomFloat64() > 0.5 {
 		return delay + jitter
 	}
+
 	return delay - jitter
 }
 
 // getSecureRandomFloat64 returns a cryptographically secure random float64 between 0 and 1
 func getSecureRandomFloat64() float64 {
 	var buf [8]byte
+
 	_, err := rand.Read(buf[:])
+
 	if err != nil {
 		// If crypto/rand fails, return a safe default
 		return 0.5

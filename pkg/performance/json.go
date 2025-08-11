@@ -150,6 +150,7 @@ func (p *JSONPool) Unmarshal(data []byte, v any) error {
 	dec := p.getDecoder(bytes.NewReader(data))
 	err := dec.Decode(v)
 	p.putDecoder(dec)
+
 	return err
 }
 
@@ -207,6 +208,7 @@ func (p *JSONPool) putDecoder(dec *json.Decoder) {
 func (p *JSONPool) getBuffer() *bytes.Buffer {
 	buf := p.bufferPool.Get().(*bytes.Buffer)
 	buf.Reset()
+
 	return buf
 }
 

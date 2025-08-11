@@ -149,6 +149,7 @@ func ListOperationRoutes(ctx context.Context, midazClient *client.Client, orgID,
 	}
 
 	fmt.Printf("✅ Found %d operation routes:\n", len(routesList.Items))
+
 	for i, route := range routesList.Items {
 		fmt.Printf("   %d. %s (ID: %s, Type: %s)\n", i+1, route.Title, route.ID, route.OperationType)
 		fmt.Printf("      Description: %s\n", route.Description)
@@ -225,12 +226,17 @@ func DeleteOperationRoute(ctx context.Context, midazClient *client.Client, orgID
 
 	// Verify deletion
 	fmt.Println("   🔍 Verifying deletion...")
-	_, err = midazClient.Entity.OperationRoutes.GetOperationRoute(ctx, orgID, ledgerID, operationRouteID)
-	if err != nil {
-		fmt.Printf("   ✅ Confirmed deletion - operation route no longer exists\n")
-	} else {
-		return fmt.Errorf("operation route still exists after deletion")
+
+	_, verifyErr := midazClient.Entity.OperationRoutes.GetOperationRoute(ctx, orgID, ledgerID, operationRouteID)
+	if verifyErr != nil {
+		// Expected: getting the operation route should fail after deletion
+		// We only consider this success if it's a 404 or similar "not found" error
+		fmt.Printf("   ✅ Confirmed deletion - operation route no longer exists (error: %v)\n", verifyErr)
+		return nil
 	}
 
-	return nil
+	// Unexpected: operation route still exists after deletion
+	fmt.Printf("   ❌ Unexpected: operation route still exists after deletion\n")
+
+	return fmt.Errorf("operation route still exists after deletion")
 }

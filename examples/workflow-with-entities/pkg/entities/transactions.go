@@ -90,6 +90,7 @@ func TransferFunds(
 	// Get destination account alias
 	destAccountAlias := destAccountID
 	destAccount, err := entity.Accounts.GetAccount(ctx, orgID, ledgerID, destAccountID)
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to get destination account: %w", err)
 	}
@@ -185,6 +186,7 @@ func ExecuteTransferWithHelper(
 	if err != nil {
 		return nil, fmt.Errorf("invalid amount format: %w", err)
 	}
+
 	amountInt := int64(amountFloat * 100) // Convert to cents
 	scale := int64(2)
 
@@ -245,6 +247,7 @@ func ExecuteDepositWithHelper(
 	if err != nil {
 		return nil, fmt.Errorf("invalid amount format: %w", err)
 	}
+
 	amountInt := int64(amountFloat * 100) // Convert to cents
 	scale := int64(2)
 
@@ -304,6 +307,7 @@ func ExecuteWithdrawalWithHelper(
 	if err != nil {
 		return nil, fmt.Errorf("invalid amount format: %w", err)
 	}
+
 	amountInt := int64(amountFloat * 100) // Convert to cents
 	scale := int64(2)
 
@@ -362,20 +366,24 @@ func ExecuteMultiAccountTransferWithHelper(
 
 	// Convert string amounts to int64 amounts (assuming 2 decimal places)
 	sourceAccountsInt := make(map[string]int64)
+
 	for accountID, amountStr := range sourceAccounts {
 		amountFloat, err := strconv.ParseFloat(amountStr, 64)
 		if err != nil {
 			return nil, fmt.Errorf("invalid source amount format for account %s: %w", accountID, err)
 		}
+
 		sourceAccountsInt[accountID] = int64(amountFloat * 100)
 	}
 
 	destAccountsInt := make(map[string]int64)
+
 	for accountID, amountStr := range destAccounts {
 		amountFloat, err := strconv.ParseFloat(amountStr, 64)
 		if err != nil {
 			return nil, fmt.Errorf("invalid destination amount format for account %s: %w", accountID, err)
 		}
+
 		destAccountsInt[accountID] = int64(amountFloat * 100)
 	}
 
@@ -383,6 +391,7 @@ func ExecuteMultiAccountTransferWithHelper(
 	if err != nil {
 		return nil, fmt.Errorf("invalid total amount format: %w", err)
 	}
+
 	totalAmountInt := int64(totalAmountFloat * 100)
 	scale := int64(2)
 

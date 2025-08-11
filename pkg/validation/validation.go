@@ -47,6 +47,7 @@ type Validator struct {
 // DefaultValidator returns a new validator with default configuration
 func DefaultValidator() *Validator {
 	config := core.DefaultValidationConfig()
+
 	return &Validator{
 		config: config,
 	}

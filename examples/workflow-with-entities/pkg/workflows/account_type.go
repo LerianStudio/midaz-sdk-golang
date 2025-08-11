@@ -37,9 +37,11 @@ func CreateAccountType(ctx context.Context, midazClient *client.Client, orgID, l
 
 	fmt.Printf("   ✅ Account type created successfully: %s\n", accountType.ID)
 	fmt.Printf("      - Name: %s\n", accountType.Name)
+
 	if accountType.Description != "" {
 		fmt.Printf("      - Description: %s\n", accountType.Description)
 	}
+
 	fmt.Printf("      - Organization ID: %s\n", accountType.OrganizationID)
 	fmt.Printf("      - Ledger ID: %s\n", accountType.LedgerID)
 	fmt.Printf("      - KeyValue: %s\n", accountType.KeyValue)
@@ -80,9 +82,11 @@ func UpdateAccountType(ctx context.Context, midazClient *client.Client, orgID, l
 
 	fmt.Printf("   ✅ Account type updated successfully: %s\n", updatedAccountType.ID)
 	fmt.Printf("      - Name: %s\n", updatedAccountType.Name)
+
 	if updatedAccountType.Description != "" {
 		fmt.Printf("      - Description: %s\n", updatedAccountType.Description)
 	}
+
 	fmt.Printf("      - Updated At: %s\n", updatedAccountType.UpdatedAt.Format("2006-01-02 15:04:05"))
 
 	return nil
@@ -110,9 +114,11 @@ func GetAccountType(ctx context.Context, midazClient *client.Client, orgID, ledg
 
 	fmt.Printf("   ✅ Account type retrieved successfully: %s\n", accountType.ID)
 	fmt.Printf("      - Name: %s\n", accountType.Name)
+
 	if accountType.Description != "" {
 		fmt.Printf("      - Description: %s\n", accountType.Description)
 	}
+
 	fmt.Printf("      - Organization ID: %s\n", accountType.OrganizationID)
 	fmt.Printf("      - Ledger ID: %s\n", accountType.LedgerID)
 	fmt.Printf("      - Created At: %s\n", accountType.CreatedAt.Format("2006-01-02 15:04:05"))
@@ -139,19 +145,23 @@ func ListAccountTypes(ctx context.Context, midazClient *client.Client, orgID, le
 		Page:  1,
 		Limit: 10,
 	}
+
 	accountTypes, err := midazClient.Entity.AccountTypes.ListAccountTypes(ctx, orgID, ledgerID, opts)
 	if err != nil {
 		return fmt.Errorf("failed to list account types: %w", err)
 	}
 
 	fmt.Printf("   ✅ Found %d account types:\n", len(accountTypes.Items))
+
 	for i, accountType := range accountTypes.Items {
 		fmt.Printf("      %d. %s (ID: %s)\n", i+1, accountType.Name, accountType.ID)
+
 		if accountType.Description != "" {
 			fmt.Printf("         Description: %s\n", accountType.Description)
 		} else {
 			fmt.Printf("         Description: N/A\n")
 		}
+
 		fmt.Printf("         Created: %s\n", accountType.CreatedAt.Format("2006-01-02 15:04:05"))
 	}
 
@@ -179,5 +189,6 @@ func DeleteAccountType(ctx context.Context, midazClient *client.Client, orgID, l
 	}
 
 	fmt.Printf("   ✅ Account type deleted successfully: %s\n", accountTypeID)
+
 	return nil
 }

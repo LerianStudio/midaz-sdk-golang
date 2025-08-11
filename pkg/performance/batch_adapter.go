@@ -74,6 +74,7 @@ func ConvertRequests(requests []BatchRequest) []concurrent.HTTPBatchRequest {
 			ID:      req.ID,
 		}
 	}
+
 	return httpRequests
 }
 
@@ -89,6 +90,7 @@ func ConvertResponses(httpResponses []concurrent.HTTPBatchResponse) []BatchRespo
 			ID:         resp.ID,
 		}
 	}
+
 	return responses
 }
 

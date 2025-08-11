@@ -53,6 +53,7 @@ func (fe *FieldError) Error() string {
 	// Add suggestions if available
 	if len(fe.Suggestions) > 0 {
 		builder.WriteString("\nSuggestions:")
+
 		for _, suggestion := range fe.Suggestions {
 			builder.WriteString(fmt.Sprintf("\n- %s", suggestion))
 		}
@@ -118,6 +119,7 @@ func (fe *FieldErrors) Error() string {
 	}
 
 	var builder strings.Builder
+
 	builder.WriteString(fmt.Sprintf("Validation failed with %d field errors:\n", len(fe.Errors)))
 
 	for i, err := range fe.Errors {
@@ -135,12 +137,14 @@ func (fe *FieldErrors) GetFieldErrors() []*FieldError {
 // GetErrorsForField returns all errors for a specific field
 func (fe *FieldErrors) GetErrorsForField(field string) []*FieldError {
 	var errors []*FieldError
+
 	for _, err := range fe.Errors {
 		// Match exact field or field with dot notation path
 		if err.Field == field || strings.HasPrefix(err.Field, field+".") {
 			errors = append(errors, err)
 		}
 	}
+
 	return errors
 }
 

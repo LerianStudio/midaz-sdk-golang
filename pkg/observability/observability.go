@@ -129,7 +129,9 @@ func WithServiceName(name string) Option {
 		if name == "" {
 			return fmt.Errorf("service name cannot be empty")
 		}
+
 		c.ServiceName = name
+
 		return nil
 	}
 }
@@ -140,7 +142,9 @@ func WithServiceVersion(version string) Option {
 		if version == "" {
 			return fmt.Errorf("service version cannot be empty")
 		}
+
 		c.ServiceVersion = version
+
 		return nil
 	}
 }
@@ -151,7 +155,9 @@ func WithSDKVersion(version string) Option {
 		if version == "" {
 			return fmt.Errorf("SDK version cannot be empty")
 		}
+
 		c.SDKVersion = version
+
 		return nil
 	}
 }
@@ -162,7 +168,9 @@ func WithEnvironment(env string) Option {
 		if env == "" {
 			return fmt.Errorf("environment cannot be empty")
 		}
+
 		c.Environment = env
+
 		return nil
 	}
 }
@@ -173,7 +181,9 @@ func WithCollectorEndpoint(endpoint string) Option {
 		if endpoint == "" {
 			return fmt.Errorf("collector endpoint cannot be empty")
 		}
+
 		c.CollectorEndpoint = endpoint
+
 		return nil
 	}
 }
@@ -184,7 +194,9 @@ func WithLogLevel(level LogLevel) Option {
 		if level < DebugLevel || level > FatalLevel {
 			return fmt.Errorf("invalid log level: %d", level)
 		}
+
 		c.LogLevel = level
+
 		return nil
 	}
 }
@@ -195,7 +207,9 @@ func WithLogOutput(output io.Writer) Option {
 		if output == nil {
 			return fmt.Errorf("log output cannot be nil")
 		}
+
 		c.LogOutput = output
+
 		return nil
 	}
 }
@@ -206,7 +220,9 @@ func WithTraceSampleRate(rate float64) Option {
 		if rate < 0.0 || rate > 1.0 {
 			return fmt.Errorf("trace sample rate must be between 0.0 and 1.0, got %f", rate)
 		}
+
 		c.TraceSampleRate = rate
+
 		return nil
 	}
 }
@@ -217,6 +233,7 @@ func WithComponentEnabled(tracing, metrics, logging bool) Option {
 		c.EnabledComponents.Tracing = tracing
 		c.EnabledComponents.Metrics = metrics
 		c.EnabledComponents.Logging = logging
+
 		return nil
 	}
 }
@@ -225,6 +242,7 @@ func WithComponentEnabled(tracing, metrics, logging bool) Option {
 func WithAttributes(attrs ...attribute.KeyValue) Option {
 	return func(c *Config) error {
 		c.Attributes = append(c.Attributes, attrs...)
+
 		return nil
 	}
 }
@@ -235,7 +253,9 @@ func WithPropagators(propagators ...propagation.TextMapPropagator) Option {
 		if len(propagators) == 0 {
 			return fmt.Errorf("at least one propagator must be provided")
 		}
+
 		c.Propagators = propagators
+
 		return nil
 	}
 }
@@ -246,7 +266,9 @@ func WithPropagationHeaders(headers ...string) Option {
 		if len(headers) == 0 {
 			return fmt.Errorf("at least one propagation header must be provided")
 		}
+
 		c.PropagationHeaders = headers
+
 		return nil
 	}
 }
@@ -270,12 +292,15 @@ func WithDevelopmentDefaults() Option {
 		if err := WithEnvironment("development")(c); err != nil {
 			return err
 		}
+
 		if err := WithLogLevel(DebugLevel)(c); err != nil {
 			return err
 		}
+
 		if err := WithTraceSampleRate(0.5)(c); err != nil {
 			return err
 		}
+
 		return nil
 	}
 }
@@ -289,12 +314,15 @@ func WithProductionDefaults() Option {
 		if err := WithEnvironment("production")(c); err != nil {
 			return err
 		}
+
 		if err := WithLogLevel(InfoLevel)(c); err != nil {
 			return err
 		}
+
 		if err := WithTraceSampleRate(0.1)(c); err != nil {
 			return err
 		}
+
 		return nil
 	}
 }
@@ -463,6 +491,7 @@ func (p *MidazProvider) createResource() (*sdkresource.Resource, error) {
 	attributes = append(attributes, p.config.Attributes...)
 
 	// Create and return the resource
+
 	return sdkresource.Merge(
 		sdkresource.Default(),
 		sdkresource.NewWithAttributes(
@@ -475,6 +504,7 @@ func (p *MidazProvider) createResource() (*sdkresource.Resource, error) {
 // initTracing initializes OpenTelemetry tracing
 func (p *MidazProvider) initTracing(ctx context.Context, res *sdkresource.Resource) error {
 	var exporter *otlptrace.Exporter
+
 	var err error
 
 	// Set up exporter
@@ -518,6 +548,7 @@ func (p *MidazProvider) initTracing(ctx context.Context, res *sdkresource.Resour
 // initMetrics initializes OpenTelemetry metrics
 func (p *MidazProvider) initMetrics(ctx context.Context, res *sdkresource.Resource) error {
 	var exporter sdkmetric.Exporter
+
 	var err error
 
 	// Set up exporter
@@ -559,6 +590,8 @@ func (p *MidazProvider) initMetrics(ctx context.Context, res *sdkresource.Resour
 }
 
 // initLogging initializes structured logging
+//
+//nolint:unparam // Error return kept for future error handling
 func (p *MidazProvider) initLogging(res *sdkresource.Resource) error {
 	// Create logger
 	p.logger = NewLogger(p.config.LogLevel, p.config.LogOutput, res)
@@ -587,6 +620,7 @@ func (p *MidazProvider) Tracer() trace.Tracer {
 		// Return a no-op tracer if tracing is disabled
 		return noop.NewTracerProvider().Tracer("")
 	}
+
 	return p.tracer
 }
 
@@ -596,6 +630,7 @@ func (p *MidazProvider) Meter() metric.Meter {
 		// Return the default global meter if metrics are disabled
 		return otel.GetMeterProvider().Meter("")
 	}
+
 	return p.meter
 }
 
@@ -605,6 +640,7 @@ func (p *MidazProvider) Logger() Logger {
 		// Return a no-op logger if logging is disabled
 		return NewNoopLogger()
 	}
+
 	return p.logger
 }
 
@@ -618,6 +654,7 @@ func (p *MidazProvider) Shutdown(ctx context.Context) error {
 
 	// Call all shutdown functions
 	var errors []error
+
 	for _, shutdownFn := range p.shutdownFunctions {
 		if err := shutdownFn(ctx); err != nil {
 			errors = append(errors, err)

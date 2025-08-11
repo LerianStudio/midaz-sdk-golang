@@ -39,6 +39,7 @@ func DemonstrateTransactionHelpers(ctx context.Context, midazClient *client.Clie
 
 	// 1. Demonstrate transfer using helpers
 	fmt.Println("\n🔄 Demonstrating transfer using helpers...")
+
 	transferCtx, transferSpan := observability.StartSpan(ctx, "TransferWithHelper")
 
 	tx, err := ourEntities.ExecuteTransferWithHelper(
@@ -56,16 +57,19 @@ func DemonstrateTransactionHelpers(ctx context.Context, midazClient *client.Clie
 
 	if err != nil {
 		observability.RecordError(ctx, err, "transfer_helper_failed")
+
 		return err
 	}
 
 	formattedAmount := fmt.Sprintf("%s %s", tx.Amount, tx.AssetCode)
+
 	fmt.Printf("✅ Transfer executed successfully with helper\n")
 	fmt.Printf("   Transaction ID: %s\n", tx.ID)
 	fmt.Printf("   Amount: %s\n", formattedAmount)
 
 	// 2. Demonstrate deposit using helpers
 	fmt.Println("\n📥 Demonstrating deposit using helpers...")
+
 	depositCtx, depositSpan := observability.StartSpan(ctx, "DepositWithHelper")
 
 	depositTx, err := ourEntities.ExecuteDepositWithHelper(
@@ -82,16 +86,19 @@ func DemonstrateTransactionHelpers(ctx context.Context, midazClient *client.Clie
 
 	if err != nil {
 		observability.RecordError(ctx, err, "deposit_helper_failed")
+
 		return err
 	}
 
 	formattedDepositAmount := fmt.Sprintf("%s %s", depositTx.Amount, depositTx.AssetCode)
+
 	fmt.Printf("✅ Deposit executed successfully with helper\n")
 	fmt.Printf("   Transaction ID: %s\n", depositTx.ID)
 	fmt.Printf("   Amount: %s\n", formattedDepositAmount)
 
 	// 3. Demonstrate withdrawal using helpers
 	fmt.Println("\n📤 Demonstrating withdrawal using helpers...")
+
 	withdrawalCtx, withdrawalSpan := observability.StartSpan(ctx, "WithdrawalWithHelper")
 
 	withdrawalTx, err := ourEntities.ExecuteWithdrawalWithHelper(
@@ -111,17 +118,21 @@ func DemonstrateTransactionHelpers(ctx context.Context, midazClient *client.Clie
 		fmt.Printf("   Error: %v\n", err)
 		fmt.Printf("   Note: This is expected if account balance is low after extensive testing\n")
 		fmt.Printf("✅ Transaction helpers demonstration completed with expected limitations\n\n")
+
 		observability.RecordError(ctx, err, "withdrawal_helper_failed_expected")
+
 		return nil // Continue instead of failing
 	}
 
 	formattedWithdrawalAmount := fmt.Sprintf("%s %s", withdrawalTx.Amount, withdrawalTx.AssetCode)
+
 	fmt.Printf("✅ Withdrawal executed successfully with helper\n")
 	fmt.Printf("   Transaction ID: %s\n", withdrawalTx.ID)
 	fmt.Printf("   Amount: %s\n", formattedWithdrawalAmount)
 
 	// 4. Demonstrate multi-account transfer
 	fmt.Println("\n🔄 Demonstrating multi-account transfer...")
+
 	multiCtx, multiSpan := observability.StartSpan(ctx, "MultiAccountTransferWithHelper")
 
 	// Create source and destination accounts map
@@ -150,16 +161,19 @@ func DemonstrateTransactionHelpers(ctx context.Context, midazClient *client.Clie
 
 	if err != nil {
 		observability.RecordError(ctx, err, "multi_account_transfer_helper_failed")
+
 		return err
 	}
 
 	formattedMultiAmount := fmt.Sprintf("%s %s", multiTx.Amount, multiTx.AssetCode)
+
 	fmt.Printf("✅ Multi-account transfer executed successfully with helper\n")
 	fmt.Printf("   Transaction ID: %s\n", multiTx.ID)
 	fmt.Printf("   Amount: %s\n", formattedMultiAmount)
 
 	// 5. Demonstrate batch transactions
 	fmt.Println("\n📦 Demonstrating batch transactions...")
+
 	_, batchSpan := observability.StartSpan(ctx, "BatchTransactionsWithHelper")
 
 	// Create a set of transaction inputs for the batch
@@ -168,6 +182,7 @@ func DemonstrateTransactionHelpers(ctx context.Context, midazClient *client.Clie
 	// Add 5 small transfers from customer to merchant
 	for i := 1; i <= 5; i++ {
 		amount := fmt.Sprintf("%d.00", i) // $1.00, $2.00, etc.
+
 		input := &models.CreateTransactionInput{
 			ChartOfAccountsGroupName: "default_chart_group", // Required by API specification
 			Description:              fmt.Sprintf("Batch transfer #%d", i),
@@ -205,6 +220,7 @@ func DemonstrateTransactionHelpers(ctx context.Context, midazClient *client.Clie
 				},
 			},
 		}
+
 		batchInputs = append(batchInputs, input)
 	}
 
@@ -220,5 +236,6 @@ func DemonstrateTransactionHelpers(ctx context.Context, midazClient *client.Clie
 	observability.AddEvent(ctx, "TransactionHelpersDemonstrated", nil)
 
 	fmt.Println("\n🎉 All transaction helpers demonstrated successfully!")
+
 	return nil
 }

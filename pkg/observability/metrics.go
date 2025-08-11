@@ -159,7 +159,7 @@ func (m *MetricsCollector) RecordBatchRequest(ctx context.Context, operation, re
 	m.requestBatchSize.Record(ctx, int64(batchSize), metric.WithAttributes(allAttrs...))
 
 	// Record batch latency in milliseconds
-	m.requestBatchLatency.Record(ctx, int64(duration.Milliseconds()), metric.WithAttributes(allAttrs...))
+	m.requestBatchLatency.Record(ctx, duration.Milliseconds(), metric.WithAttributes(allAttrs...))
 }
 
 // RecordRetry records a retry attempt

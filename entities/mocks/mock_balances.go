@@ -24,6 +24,7 @@ func NewMockBalancesService(ctrl *gomock.Controller) *MockBalancesService {
 	mock := &MockBalancesService{ctrl: ctrl}
 
 	mock.recorder = &MockBalancesServiceMockRecorder{mock}
+
 	return mock
 }
 
@@ -38,6 +39,7 @@ func (m *MockBalancesService) ListBalances(ctx context.Context, orgID, ledgerID 
 	ret := m.ctrl.Call(m, "ListBalances", ctx, orgID, ledgerID, opts)
 	ret0, _ := ret[0].(*models.ListResponse[models.Balance])
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 
@@ -53,6 +55,7 @@ func (m *MockBalancesService) ListAccountBalances(ctx context.Context, orgID, le
 	ret := m.ctrl.Call(m, "ListAccountBalances", ctx, orgID, ledgerID, accountID, opts)
 	ret0, _ := ret[0].(*models.ListResponse[models.Balance])
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 
@@ -68,6 +71,7 @@ func (m *MockBalancesService) GetBalance(ctx context.Context, orgID, ledgerID, b
 	ret := m.ctrl.Call(m, "GetBalance", ctx, orgID, ledgerID, balanceID)
 	ret0, _ := ret[0].(*models.Balance)
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 
@@ -83,6 +87,7 @@ func (m *MockBalancesService) UpdateBalance(ctx context.Context, orgID, ledgerID
 	ret := m.ctrl.Call(m, "UpdateBalance", ctx, orgID, ledgerID, balanceID, input)
 	ret0, _ := ret[0].(*models.Balance)
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 
@@ -97,6 +102,7 @@ func (m *MockBalancesService) DeleteBalance(ctx context.Context, orgID, ledgerID
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteBalance", ctx, orgID, ledgerID, balanceID)
 	ret0, _ := ret[0].(error)
+
 	return ret0
 }
 

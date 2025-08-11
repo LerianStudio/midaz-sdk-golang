@@ -23,6 +23,7 @@ type MockOperationsServiceMockRecorder struct {
 func NewMockOperationsService(ctrl *gomock.Controller) *MockOperationsService {
 	mock := &MockOperationsService{ctrl: ctrl}
 	mock.recorder = &MockOperationsServiceMockRecorder{mock}
+
 	return mock
 }
 
@@ -37,6 +38,7 @@ func (m *MockOperationsService) ListOperations(ctx context.Context, orgID, ledge
 	ret := m.ctrl.Call(m, "ListOperations", ctx, orgID, ledgerID, accountID, opts)
 	ret0, _ := ret[0].(*models.ListResponse[models.Operation])
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 
@@ -49,6 +51,7 @@ func (mr *MockOperationsServiceMockRecorder) ListOperations(ctx, orgID, ledgerID
 // GetOperation mocks base method.
 func (m *MockOperationsService) GetOperation(ctx context.Context, orgID, ledgerID, accountID, operationID string, transactionID ...string) (*models.Operation, error) {
 	m.ctrl.T.Helper()
+
 	varargs := []any{ctx, orgID, ledgerID, accountID, operationID}
 
 	for _, a := range transactionID {
@@ -58,15 +61,18 @@ func (m *MockOperationsService) GetOperation(ctx context.Context, orgID, ledgerI
 	ret := m.ctrl.Call(m, "GetOperation", varargs...)
 	ret0, _ := ret[0].(*models.Operation)
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 
 // GetOperation indicates an expected call of GetOperation.
 func (mr *MockOperationsServiceMockRecorder) GetOperation(ctx, orgID, ledgerID, accountID, operationID any, transactionID ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
+
 	varargs := []any{ctx, orgID, ledgerID, accountID, operationID}
 
 	varargs = append(varargs, transactionID...)
+
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOperation", reflect.TypeOf((*MockOperationsService)(nil).GetOperation), varargs...)
 }
 
@@ -76,6 +82,7 @@ func (m *MockOperationsService) UpdateOperation(ctx context.Context, orgID, ledg
 	ret := m.ctrl.Call(m, "UpdateOperation", ctx, orgID, ledgerID, transactionID, operationID, input)
 	ret0, _ := ret[0].(*models.Operation)
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 

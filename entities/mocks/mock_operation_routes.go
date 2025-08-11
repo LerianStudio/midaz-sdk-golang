@@ -23,6 +23,7 @@ type MockOperationRoutesServiceMockRecorder struct {
 func NewMockOperationRoutesService(ctrl *gomock.Controller) *MockOperationRoutesService {
 	mock := &MockOperationRoutesService{ctrl: ctrl}
 	mock.recorder = &MockOperationRoutesServiceMockRecorder{mock}
+
 	return mock
 }
 
@@ -37,6 +38,7 @@ func (m *MockOperationRoutesService) CreateOperationRoute(ctx context.Context, o
 	ret := m.ctrl.Call(m, "CreateOperationRoute", ctx, organizationID, ledgerID, input)
 	ret0, _ := ret[0].(*models.OperationRoute)
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 
@@ -51,6 +53,7 @@ func (m *MockOperationRoutesService) DeleteOperationRoute(ctx context.Context, o
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteOperationRoute", ctx, organizationID, ledgerID, operationRouteID)
 	ret0, _ := ret[0].(error)
+
 	return ret0
 }
 
@@ -66,6 +69,7 @@ func (m *MockOperationRoutesService) GetOperationRoute(ctx context.Context, orga
 	ret := m.ctrl.Call(m, "GetOperationRoute", ctx, organizationID, ledgerID, operationRouteID)
 	ret0, _ := ret[0].(*models.OperationRoute)
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 
@@ -81,6 +85,7 @@ func (m *MockOperationRoutesService) ListOperationRoutes(ctx context.Context, or
 	ret := m.ctrl.Call(m, "ListOperationRoutes", ctx, organizationID, ledgerID, opts)
 	ret0, _ := ret[0].(*models.ListResponse[models.OperationRoute])
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 
@@ -96,6 +101,7 @@ func (m *MockOperationRoutesService) UpdateOperationRoute(ctx context.Context, o
 	ret := m.ctrl.Call(m, "UpdateOperationRoute", ctx, organizationID, ledgerID, operationRouteID, input)
 	ret0, _ := ret[0].(*models.OperationRoute)
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 

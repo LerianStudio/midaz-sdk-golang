@@ -28,17 +28,20 @@ func ExecuteTransactions(ctx context.Context, midazClient *client.Client, orgID,
 
 	// Execute initial deposit
 	fmt.Println("\n📥 Initial deposit...")
+
 	if err := executeInitialDeposit(ctx, midazClient, orgID, ledgerID, customerAccount, externalAccountID); err != nil {
 		return fmt.Errorf("initial deposit failed: %w", err)
 	}
 
 	// Execute transfer from customer to merchant
 	fmt.Println("\n🔄 Transfer from customer to merchant...")
+
 	if err := executeTransfer(ctx, midazClient, orgID, ledgerID, customerAccount, merchantAccount); err != nil {
 		return fmt.Errorf("transfer failed: %w", err)
 	}
 
 	fmt.Println("\n💰 All transactions completed successfully!")
+
 	return nil
 }
 
@@ -96,6 +99,7 @@ func executeInitialDeposit(ctx context.Context, midazClient *client.Client, orgI
 	formattedAmount := format.FormatCurrency(int64(amountFloat*100), 2, tx.AssetCode)
 
 	fmt.Printf("✅ Deposit completed: %s (ID: %s)\n", formattedAmount, tx.ID)
+
 	return nil
 }
 
@@ -153,6 +157,7 @@ func executeTransfer(ctx context.Context, midazClient *client.Client, orgID, led
 	formattedAmount := format.FormatCurrency(int64(amountFloat*100), 2, tx.AssetCode)
 
 	fmt.Printf("✅ Transfer completed: %s (ID: %s)\n", formattedAmount, tx.ID)
+
 	return nil
 }
 
@@ -189,24 +194,28 @@ func ExecuteTransactionsWithRoutes(ctx context.Context, midazClient *client.Clie
 
 	// First do initial deposit using payment transaction route
 	fmt.Println("📥 Initial deposit with routes...")
+
 	if err := executeInitialDepositWithRoutes(ctx, midazClient, orgID, ledgerID, customerAccount, externalAccountID, sourceOperationRoute, destinationOperationRoute, paymentTransactionRoute); err != nil {
 		return fmt.Errorf("initial deposit failed: %w", err)
 	}
 
 	// Then do transfer using payment transaction route
 	fmt.Println("🔄 Transfer with routes...")
+
 	if err := executeTransferWithRoutes(ctx, midazClient, orgID, ledgerID, customerAccount, merchantAccount, sourceOperationRoute, destinationOperationRoute, paymentTransactionRoute); err != nil {
 		return fmt.Errorf("transfer failed: %w", err)
 	}
 
 	// Demonstrate parallel transactions with routes
 	fmt.Println("🚀 Executing parallel transactions with routes...")
+
 	if err := executeParallelTransactionsWithRoutes(ctx, midazClient, orgID, ledgerID, customerAccount, merchantAccount, sourceOperationRoute, destinationOperationRoute, paymentTransactionRoute); err != nil {
 		return fmt.Errorf("parallel transactions failed: %w", err)
 	}
 
 	// Demonstrate high-TPS optimized transactions
 	fmt.Println("⚡ Executing high-TPS optimized transactions...")
+
 	return executeHighTPSTransactions(ctx, midazClient, orgID, ledgerID, customerAccount, merchantAccount, sourceOperationRoute, destinationOperationRoute, paymentTransactionRoute)
 }
 
@@ -219,7 +228,6 @@ func executeInitialDepositWithRoutes(ctx context.Context, midazClient *client.Cl
 		Description:              "Initial deposit from external account using routes",
 		Amount:                   amount,
 		AssetCode:                "USD",
-		Route:                    transactionRoute.ID.String(),
 		Metadata: map[string]any{
 			"source":    "go-sdk-example",
 			"type":      "deposit",
@@ -260,6 +268,7 @@ func executeInitialDepositWithRoutes(ctx context.Context, midazClient *client.Cl
 
 	// Add transaction route if available
 	if transactionRoute != nil {
+		input.Route = transactionRoute.ID.String()
 		input.Metadata["transactionRouteID"] = transactionRoute.ID.String()
 		input.Metadata["transactionRouteTitle"] = transactionRoute.Title
 	}
@@ -274,12 +283,15 @@ func executeInitialDepositWithRoutes(ctx context.Context, midazClient *client.Cl
 	formattedAmount := format.FormatCurrency(int64(amountFloat*100), 2, tx.AssetCode)
 
 	fmt.Printf("✅ Deposit with routes completed: %s (ID: %s)\n", formattedAmount, tx.ID)
+
 	if sourceOperationRoute != nil && destinationOperationRoute != nil {
 		fmt.Printf("   📍 Used routes: %s → %s\n", sourceOperationRoute.Title, destinationOperationRoute.Title)
 	}
+
 	if transactionRoute != nil {
 		fmt.Printf("   🗺️  Transaction Route: %s (%s)\n", transactionRoute.Title, transactionRoute.ID.String())
 	}
+
 	return nil
 }
 
@@ -292,7 +304,6 @@ func executeTransferWithRoutes(ctx context.Context, midazClient *client.Client, 
 		Description:              "Payment for services using routes",
 		Amount:                   amount,
 		AssetCode:                "USD",
-		Route:                    transactionRoute.ID.String(),
 		Metadata: map[string]any{
 			"source":    "go-sdk-example",
 			"type":      "transfer",
@@ -333,6 +344,7 @@ func executeTransferWithRoutes(ctx context.Context, midazClient *client.Client, 
 
 	// Add transaction route if available
 	if transactionRoute != nil {
+		input.Route = transactionRoute.ID.String()
 		input.Metadata["transactionRouteID"] = transactionRoute.ID.String()
 		input.Metadata["transactionRouteTitle"] = transactionRoute.Title
 	}
@@ -347,12 +359,15 @@ func executeTransferWithRoutes(ctx context.Context, midazClient *client.Client, 
 	formattedAmount := format.FormatCurrency(int64(amountFloat*100), 2, tx.AssetCode)
 
 	fmt.Printf("✅ Transfer with routes completed: %s (ID: %s)\n", formattedAmount, tx.ID)
+
 	if sourceOperationRoute != nil && destinationOperationRoute != nil {
 		fmt.Printf("   📍 Used operation routes: %s → %s\n", sourceOperationRoute.Title, destinationOperationRoute.Title)
 	}
+
 	if transactionRoute != nil {
 		fmt.Printf("   🗺️  Transaction Route: %s (%s)\n", transactionRoute.Title, transactionRoute.ID.String())
 	}
+
 	return nil
 }
 
@@ -496,6 +511,7 @@ func executeParallelTransactionsWithRoutes(ctx context.Context, midazClient *cli
 
 	// Process results
 	successCount := 0
+
 	var firstError error
 
 	for i, result := range results {
@@ -503,12 +519,14 @@ func executeParallelTransactionsWithRoutes(ctx context.Context, midazClient *cli
 			if firstError == nil {
 				firstError = result.Error
 			}
+
 			fmt.Printf("   ❌ Transaction #%d failed: %v\n", i+1, result.Error)
 		} else {
 			successCount++
 			// Parse amount for formatting
 			amountFloat, _ := strconv.ParseFloat(result.Value.Amount, 64)
 			formattedAmount := format.FormatCurrency(int64(amountFloat*100), 2, result.Value.AssetCode)
+
 			fmt.Printf("   ✅ Transaction #%d completed: %s (ID: %s)\n", i+1, formattedAmount, result.Value.ID)
 		}
 	}
@@ -517,6 +535,7 @@ func executeParallelTransactionsWithRoutes(ctx context.Context, midazClient *cli
 	fmt.Printf("   📊 Parallel execution completed:\n")
 	fmt.Printf("      • Success rate: %d/%d transactions\n", successCount, transactionCount)
 	fmt.Printf("      • Total time: %.2f seconds\n", duration.Seconds())
+
 	if duration.Seconds() > 0 {
 		fmt.Printf("      • Throughput: %.2f TPS\n", float64(successCount)/duration.Seconds())
 	}
@@ -540,31 +559,38 @@ func executeHighTPSTransactions(ctx context.Context, midazClient *client.Client,
 
 	// Technique 1: Increase Workers and Remove Rate Limiting
 	fmt.Println("      1️⃣ High Worker Count (20 workers, no rate limit)")
+
 	if err := demonstrateHighWorkerCount(ctx, midazClient, orgID, ledgerID, customerAccount, merchantAccount, sourceOperationRoute, destinationOperationRoute, transactionRoute); err != nil {
 		fmt.Printf("         ❌ Failed: %v\n", err)
 	}
 
 	// Technique 2: HTTP Connection Pooling Optimization
 	fmt.Println("      2️⃣ HTTP Connection Pool Optimization")
+
 	if err := demonstrateConnectionPooling(ctx, midazClient, orgID, ledgerID, customerAccount, merchantAccount, sourceOperationRoute, destinationOperationRoute, transactionRoute); err != nil {
 		fmt.Printf("         ❌ Failed: %v\n", err)
 	}
 
 	// Technique 3: Batch Processing with Optimal Size
 	fmt.Println("      3️⃣ Optimal Batch Processing")
+
 	if err := demonstrateBatchProcessing(ctx, midazClient, orgID, ledgerID, customerAccount, merchantAccount, sourceOperationRoute, destinationOperationRoute, transactionRoute); err != nil {
 		fmt.Printf("         ❌ Failed: %v\n", err)
 	}
 
 	// Technique 4: Combined Optimizations
 	fmt.Println("      4️⃣ All Optimizations Combined")
+
 	return demonstrateCombinedOptimizations(ctx, midazClient, orgID, ledgerID, customerAccount, merchantAccount, sourceOperationRoute, destinationOperationRoute, transactionRoute)
 }
 
 // demonstrateHighWorkerCount shows increased TPS with more workers
+//
+//nolint:unparam // Error return kept for API consistency in examples
 func demonstrateHighWorkerCount(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, _ /* sourceOperationRoute */, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute) error {
 	transactionCount := 20
 	amounts := make([]string, transactionCount)
+
 	for i := 0; i < transactionCount; i++ {
 		amounts[i] = "0.10" // Small amounts for speed
 	}
@@ -613,9 +639,11 @@ func demonstrateHighWorkerCount(ctx context.Context, midazClient *client.Client,
 		concurrent.WithUnorderedResults(),
 		// No rate limiting for maximum speed
 	)
+
 	duration := time.Since(startTime)
 
 	successCount := 0
+
 	for _, result := range results {
 		if result.Error == nil {
 			successCount++
@@ -623,11 +651,16 @@ func demonstrateHighWorkerCount(ctx context.Context, midazClient *client.Client,
 	}
 
 	tps := float64(successCount) / duration.Seconds()
+
 	fmt.Printf("         ✅ %d/%d transactions in %.3fs (%.1f TPS)\n", successCount, transactionCount, duration.Seconds(), tps)
+
 	return nil
 }
 
 // demonstrateConnectionPooling shows HTTP connection pool optimization
+// demonstrateConnectionPooling demonstrates optimized connection pooling
+//
+//nolint:unparam // Error return kept for API consistency in examples
 func demonstrateConnectionPooling(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, _ /* sourceOperationRoute */, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute) error {
 	// Apply performance optimizations
 	perfOptions := performance.Options{
@@ -640,6 +673,7 @@ func demonstrateConnectionPooling(ctx context.Context, midazClient *client.Clien
 
 	transactionCount := 15
 	indices := make([]int, transactionCount)
+
 	for i := range indices {
 		indices[i] = i
 	}
@@ -681,9 +715,11 @@ func demonstrateConnectionPooling(ctx context.Context, midazClient *client.Clien
 		concurrent.WithBufferSize(transactionCount),
 		concurrent.WithUnorderedResults(),
 	)
+
 	duration := time.Since(startTime)
 
 	successCount := 0
+
 	for _, result := range results {
 		if result.Error == nil {
 			successCount++
@@ -691,11 +727,16 @@ func demonstrateConnectionPooling(ctx context.Context, midazClient *client.Clien
 	}
 
 	tps := float64(successCount) / duration.Seconds()
+
 	fmt.Printf("         ✅ %d/%d transactions in %.3fs (%.1f TPS)\n", successCount, transactionCount, duration.Seconds(), tps)
+
 	return nil
 }
 
 // demonstrateBatchProcessing shows optimal batch processing
+// demonstrateBatchProcessing demonstrates batch processing optimization
+//
+//nolint:unparam // Error return kept for API consistency in examples
 func demonstrateBatchProcessing(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, _ /* sourceOperationRoute */, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute) error {
 	transactionCount := 30
 	transactionInputs := make([]*models.CreateTransactionInput, transactionCount)
@@ -762,9 +803,11 @@ func demonstrateBatchProcessing(ctx context.Context, midazClient *client.Client,
 		ctx, transactionInputs, batchSize, processBatch,
 		concurrent.WithWorkers(3), // 3 batches concurrently
 	)
+
 	duration := time.Since(startTime)
 
 	successCount := 0
+
 	for _, result := range batchResults {
 		if result.Error == nil {
 			successCount++ // Each result represents one successful transaction
@@ -772,11 +815,16 @@ func demonstrateBatchProcessing(ctx context.Context, midazClient *client.Client,
 	}
 
 	tps := float64(successCount) / duration.Seconds()
+
 	fmt.Printf("         ✅ %d/%d transactions in %.3fs (%.1f TPS)\n", successCount, transactionCount, duration.Seconds(), tps)
+
 	return nil
 }
 
 // demonstrateCombinedOptimizations shows all optimizations combined for maximum TPS
+// demonstrateCombinedOptimizations demonstrates all performance optimizations combined
+//
+//nolint:unparam // Error return kept for API consistency in examples
 func demonstrateCombinedOptimizations(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, _ /* sourceOperationRoute */, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute) error {
 	// Apply all performance optimizations
 	perfOptions := performance.Options{
@@ -789,6 +837,7 @@ func demonstrateCombinedOptimizations(ctx context.Context, midazClient *client.C
 
 	transactionCount := 50 // More transactions
 	indices := make([]int, transactionCount)
+
 	for i := range indices {
 		indices[i] = i
 	}
@@ -831,9 +880,11 @@ func demonstrateCombinedOptimizations(ctx context.Context, midazClient *client.C
 		concurrent.WithUnorderedResults(),
 		// No rate limiting for maximum speed
 	)
+
 	duration := time.Since(startTime)
 
 	successCount := 0
+
 	for _, result := range results {
 		if result.Error == nil {
 			successCount++

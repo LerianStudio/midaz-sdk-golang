@@ -14,12 +14,11 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
 )
 
-// ListAccounts lists all accounts in the ledger
+// ListAccounts lists all accounts in the ledger with advanced demonstrations
 //
 // Parameters:
 //   - ctx: The context for the operation, which can be used for cancellation
-//   - cfg: The configuration object
-//   - client: The initialized Midaz SDK client
+//   - midazClient: The initialized Midaz SDK client
 //   - orgID: The ID of the organization
 //   - ledgerID: The ID of the ledger
 //
@@ -29,226 +28,297 @@ func ListAccounts(ctx context.Context, midazClient *client.Client, orgID, ledger
 	fmt.Println("\n\n📋 STEP 8: ACCOUNT LISTING")
 	fmt.Println(strings.Repeat("=", 50))
 
+	// Basic account listing demonstration
+	if err := demonstrateBasicListing(ctx, midazClient, orgID, ledgerID); err != nil {
+		return err
+	}
+
+	// Advanced parallel fetching demonstration
+	if err := demonstrateParallelFetching(ctx, midazClient, orgID, ledgerID); err != nil {
+		return err
+	}
+
+	// Context cancellation demonstration
+	return demonstrateContextCancellation(ctx, midazClient, orgID, ledgerID)
+}
+
+// demonstrateBasicListing shows basic pagination functionality
+func demonstrateBasicListing(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) error {
 	fmt.Println("Listing all accounts...")
 
-	// Create pagination options with default values
-	// This will use the system's default page size and sort order
-	listOptions := models.NewListOptions()
+	listOptions := createBasicListOptions()
 
-	// Customize pagination options as needed
-	listOptions.WithLimit(5). // Limit to 5 accounts per page
-					WithOrderBy("name").                      // Order by name
-					WithOrderDirection(models.SortAscending). // Use ascending order
-					WithFilter("status", models.StatusActive) // Filter by status
-
-	// Call the API with our pagination options
 	accounts, err := midazClient.Entity.Accounts.ListAccounts(ctx, orgID, ledgerID, listOptions)
 	if err != nil {
 		return fmt.Errorf("failed to list accounts: %w", err)
 	}
 
-	fmt.Printf("✅ Found %d accounts (showing page %d of %d):\n",
-		len(accounts.Items),
-		accounts.Pagination.CurrentPage(),
-		accounts.Pagination.TotalPages())
+	displayAccountsPage(accounts.Items, accounts.Pagination)
 
-	for i, account := range accounts.Items {
+	return demonstratePagination(ctx, midazClient, orgID, ledgerID, accounts)
+}
+
+// createBasicListOptions creates standard list options for account fetching
+func createBasicListOptions() *models.ListOptions {
+	return models.NewListOptions().
+		WithLimit(5).
+		WithOrderBy("name").
+		WithOrderDirection(models.SortAscending).
+		WithFilter("status", models.StatusActive)
+}
+
+// displayAccountsPage prints account information for a page
+func displayAccountsPage(accounts []models.Account, pagination models.Pagination) {
+	fmt.Printf("✅ Found %d accounts (showing page %d of %d):\n",
+		len(accounts), pagination.CurrentPage(), pagination.TotalPages())
+
+	for i, account := range accounts {
 		fmt.Printf("   %d. %s (ID: %s, Type: %s)\n", i+1, account.Name, account.ID, account.Type)
 	}
+}
 
-	// Demonstrate pagination capabilities
-	if accounts.Pagination.HasMorePages() {
-		fmt.Println("\nDemonstrating pagination - fetching next page...")
-
-		// Get options for the next page
-		nextPageOptions := accounts.Pagination.NextPageOptions()
-		nextPage, err := midazClient.Entity.Accounts.ListAccounts(ctx, orgID, ledgerID, nextPageOptions)
-		if err != nil {
-			return fmt.Errorf("failed to fetch next page: %w", err)
-		}
-
-		fmt.Printf("✅ Next page contains %d accounts (page %d of %d):\n",
-			len(nextPage.Items),
-			nextPage.Pagination.CurrentPage(),
-			nextPage.Pagination.TotalPages())
-
-		for i, account := range nextPage.Items {
-			fmt.Printf("   %d. %s (ID: %s, Type: %s)\n", i+1, account.Name, account.ID, account.Type)
-		}
-
-		// If we have more than one page of results, demonstrate going back
-		if nextPage.Pagination.HasPrevPage() {
-			fmt.Println("\nDemonstrating pagination - returning to first page...")
-
-			// Get options for the previous page (which is the first page in this case)
-			prevPageOptions := nextPage.Pagination.PrevPageOptions()
-			prevPage, err := midazClient.Entity.Accounts.ListAccounts(ctx, orgID, ledgerID, prevPageOptions)
-			if err != nil {
-				return fmt.Errorf("failed to fetch previous page: %w", err)
-			}
-
-			fmt.Printf("✅ Back to first page with %d accounts\n", len(prevPage.Items))
-		}
+// demonstratePagination shows next/previous page navigation
+func demonstratePagination(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, accounts *models.ListResponse[models.Account]) error {
+	if !accounts.Pagination.HasMorePages() {
+		return nil
 	}
 
-	// Example of advanced usage: parallel fetching with timeout, retries, and cancellation
+	fmt.Println("\nDemonstrating pagination - fetching next page...")
+
+	nextPage, err := fetchNextPage(ctx, midazClient, orgID, ledgerID, accounts)
+	if err != nil {
+		return err
+	}
+
+	displayAccountsPage(nextPage.Items, nextPage.Pagination)
+
+	return demonstrateGoingBack(ctx, midazClient, orgID, ledgerID, nextPage)
+}
+
+// fetchNextPage retrieves the next page of accounts
+func fetchNextPage(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, accounts *models.ListResponse[models.Account]) (*models.ListResponse[models.Account], error) {
+	nextPageOptions := accounts.Pagination.NextPageOptions()
+	nextPage, err := midazClient.Entity.Accounts.ListAccounts(ctx, orgID, ledgerID, nextPageOptions)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch next page: %w", err)
+	}
+
+	return nextPage, nil
+}
+
+// demonstrateGoingBack shows how to navigate to previous pages
+func demonstrateGoingBack(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, nextPage *models.ListResponse[models.Account]) error {
+	if !nextPage.Pagination.HasPrevPage() {
+		return nil
+	}
+
+	fmt.Println("\nDemonstrating pagination - returning to first page...")
+
+	prevPageOptions := nextPage.Pagination.PrevPageOptions()
+	prevPage, err := midazClient.Entity.Accounts.ListAccounts(ctx, orgID, ledgerID, prevPageOptions)
+
+	if err != nil {
+		return fmt.Errorf("failed to fetch previous page: %w", err)
+	}
+
+	fmt.Printf("✅ Back to first page with %d accounts\n", len(prevPage.Items))
+
+	return nil
+}
+
+// demonstrateParallelFetching shows advanced concurrent account fetching
+func demonstrateParallelFetching(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) error {
 	fmt.Println("\nDemo: Advanced parallel account listing with retry and context handling...")
 
-	// ------- PART 1: PARALLEL FETCHING WITH SHARED CONTEXT -------
-	// Create a context with a longer timeout for this demonstration
 	listCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	// Configure pagination to show the feature
-	iterationOptions := models.NewListOptions().WithLimit(2) // Small page size to demonstrate pagination
-	totalAccounts := 0
-	pageNum := 1
-
-	// First page fetch to get pagination info
-	fmt.Println("1️⃣ Fetching first page to determine pagination...")
-	firstPage, err := midazClient.Entity.Accounts.ListAccounts(listCtx, orgID, ledgerID, iterationOptions)
+	firstPage, err := fetchFirstPage(listCtx, midazClient, orgID, ledgerID)
 	if err != nil {
-		if errors.IsCancellationError(err) {
-			fmt.Println("⚠️ Operation cancelled due to timeout")
-			return nil // Don't return an error, this is just a demo
-		}
-		return fmt.Errorf("failed to fetch first page: %w", err)
+		return handleFirstPageError(err)
 	}
 
-	// Process the first page
-	totalAccounts += len(firstPage.Items)
-	fmt.Printf("✅ Page %d: %d accounts (total so far: %d)\n",
-		pageNum, len(firstPage.Items), totalAccounts)
+	totalAccounts := len(firstPage.Items)
+	fmt.Printf("✅ Page 1: %d accounts (total so far: %d)\n", len(firstPage.Items), totalAccounts)
 
-	// ------- PART 2: CONCURRENT PAGE FETCHING WITH WORKER POOL -------
 	if firstPage.Pagination.HasMorePages() {
-		fmt.Println("\n2️⃣ Implementing parallel page fetching with WorkerPool...")
+		totalAccounts = performParallelFetching(listCtx, midazClient, orgID, ledgerID, firstPage, totalAccounts)
+	}
 
-		// Calculate how many pages we need to fetch
-		totalPages := firstPage.Pagination.TotalPages()
-		remainingPages := totalPages - 1 // We already fetched page 1
+	fmt.Printf("✅ Iterated through all %d accounts\n", totalAccounts)
 
-		fmt.Printf("🔢 Total pages to fetch: %d (already fetched: 1, remaining: %d)\n",
-			totalPages, remainingPages)
+	return nil
+}
 
-		if remainingPages > 0 {
-			// Create pagination options for all remaining pages
-			pageOptions := make([]*models.ListOptions, remainingPages)
-			for i := 0; i < remainingPages; i++ {
-				// Create a new options instance for each page
-				pageOptions[i] = models.NewListOptions().
-					WithLimit(iterationOptions.Limit).
-					WithPage(i + 2) // Pages start at 1, and we already fetched page 1
+// fetchFirstPage retrieves the first page for parallel demo
+func fetchFirstPage(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) (*models.ListResponse[models.Account], error) {
+	fmt.Println("1️⃣ Fetching first page to determine pagination...")
 
-				// Copy any filters from the original options
-				for k, v := range iterationOptions.Filters {
-					pageOptions[i].Filters[k] = v
-				}
-			}
+	iterationOptions := models.NewListOptions().WithLimit(2)
 
-			// Define a worker function to fetch a single page
-			fetchPage := func(ctx context.Context, options *models.ListOptions) ([]models.Account, error) {
-				// Add rate limiting to avoid overwhelming the API
-				limiter := concurrent.NewRateLimiter(5, 5) // 5 ops/sec with burst of 5
-				defer limiter.Stop()
+	return midazClient.Entity.Accounts.ListAccounts(ctx, orgID, ledgerID, iterationOptions)
+}
 
-				// Acquire a token from the rate limiter
-				if err := limiter.Wait(ctx); err != nil {
-					return nil, fmt.Errorf("rate limiter wait failed: %w", err)
-				}
+// handleFirstPageError processes first page fetch errors
+func handleFirstPageError(err error) error {
+	if errors.IsCancellationError(err) {
+		fmt.Println("⚠️ Operation cancelled due to timeout")
+		return nil
+	}
 
-				// Add random delay to simulate network variability (just for demo)
-				var randomBytes [2]byte
-				_, err = rand.Read(randomBytes[:])
-				if err != nil {
-					// If crypto/rand fails, use a default value
-					delay := time.Duration(125) * time.Millisecond
-					time.Sleep(delay)
-					fmt.Printf("🔄 Fetching page %d (with %dms default latency due to random generation error)...\n",
-						options.Page, delay.Milliseconds())
-				} else {
-					// Convert random bytes to a number between 50 and 200
-					randomNum := int(binary.BigEndian.Uint16(randomBytes[:]))%150 + 50
-					delay := time.Duration(randomNum) * time.Millisecond
-					time.Sleep(delay)
-					fmt.Printf("🔄 Fetching page %d (with %dms simulated latency)...\n",
-						options.Page, delay.Milliseconds())
-				}
+	return fmt.Errorf("failed to fetch first page: %w", err)
+}
 
-				// Log the attempt (this would normally be debug-level logging)
-				fmt.Printf("🔄 Fetching page %d...\n",
-					options.Page)
+// performParallelFetching executes concurrent page fetching with WorkerPool
+func performParallelFetching(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, firstPage *models.ListResponse[models.Account], totalAccounts int) int {
+	fmt.Println("\n2️⃣ Implementing parallel page fetching with WorkerPool...")
 
-				// Fetch the page with automatic retries handled by SDK's HTTP client
-				page, err := midazClient.Entity.Accounts.ListAccounts(ctx, orgID, ledgerID, options)
-				if err != nil {
-					return nil, err
-				}
+	remainingPages := firstPage.Pagination.TotalPages() - 1
+	fmt.Printf("🔢 Total pages to fetch: %d (already fetched: 1, remaining: %d)\n",
+		firstPage.Pagination.TotalPages(), remainingPages)
 
-				return page.Items, nil
-			}
+	if remainingPages <= 0 {
+		return totalAccounts
+	}
 
-			// Use concurrent.WorkerPool to fetch all pages in parallel
-			fmt.Println("🚀 Launching parallel workers to fetch all pages concurrently...")
-			results := concurrent.WorkerPool(
-				listCtx,
-				pageOptions,
-				fetchPage,
-				concurrent.WithWorkers(3),         // Use 3 workers (adjust based on API rate limits)
-				concurrent.WithRateLimit(5),       // Limit to 5 ops/sec across all workers
-				concurrent.WithUnorderedResults(), // Process results as they arrive
-			)
+	pageOptions := createPageOptions(remainingPages)
+	fetchPageFunc := createFetchPageFunction(midazClient, orgID, ledgerID)
 
-			// Process all results
-			successCount := 0
-			errorCount := 0
+	fmt.Println("🚀 Launching parallel workers to fetch all pages concurrently...")
 
-			for i, result := range results {
-				pageNumber := pageOptions[i].Page
+	results := concurrent.WorkerPool(
+		ctx,
+		pageOptions,
+		fetchPageFunc,
+		concurrent.WithWorkers(3),
+		concurrent.WithRateLimit(5),
+		concurrent.WithUnorderedResults(),
+	)
 
-				if result.Error != nil {
-					errorCount++
-					if errors.IsCancellationError(result.Error) {
-						fmt.Printf("⏱️ Page %d fetch cancelled: %v\n", pageNumber, result.Error)
-					} else if errors.IsRateLimitError(result.Error) {
-						fmt.Printf("⚠️ Page %d hit rate limit: %v\n", pageNumber, result.Error)
-					} else {
-						fmt.Printf("❌ Error fetching page %d: %v\n", pageNumber, result.Error)
-					}
-					continue
-				}
+	return processParallelResults(results, pageOptions, totalAccounts)
+}
 
-				// Successfully retrieved page
-				successCount++
-				accounts := result.Value
-				totalAccounts += len(accounts)
+// createPageOptions generates list options for remaining pages
+func createPageOptions(remainingPages int) []*models.ListOptions {
+	iterationOptions := models.NewListOptions().WithLimit(2)
+	pageOptions := make([]*models.ListOptions, remainingPages)
 
-				fmt.Printf("✅ Page %d: %d accounts (total so far: %d)\n",
-					pageNumber, len(accounts), totalAccounts)
-			}
+	for i := 0; i < remainingPages; i++ {
+		pageOptions[i] = models.NewListOptions().
+			WithLimit(iterationOptions.Limit).
+			WithPage(i + 2)
 
-			fmt.Printf("\n📊 Summary: Successfully fetched %d/%d pages (%d accounts total)\n",
-				successCount, remainingPages, totalAccounts)
+		// Copy filters from the original options
+		for k, v := range iterationOptions.Filters {
+			pageOptions[i].Filters[k] = v
 		}
 	}
 
-	// ------- PART 3: DEMONSTRATE CONTEXT CANCELLATION -------
+	return pageOptions
+}
+
+// createFetchPageFunction creates a worker function for page fetching
+func createFetchPageFunction(midazClient *client.Client, orgID, ledgerID string) func(context.Context, *models.ListOptions) ([]models.Account, error) {
+	return func(ctx context.Context, options *models.ListOptions) ([]models.Account, error) {
+		limiter := concurrent.NewRateLimiter(5, 5)
+		defer limiter.Stop()
+
+		if err := limiter.Wait(ctx); err != nil {
+			return nil, fmt.Errorf("rate limiter wait failed: %w", err)
+		}
+
+		simulateLatency(options.Page)
+
+		page, err := midazClient.Entity.Accounts.ListAccounts(ctx, orgID, ledgerID, options)
+		if err != nil {
+			return nil, err
+		}
+
+		return page.Items, nil
+	}
+}
+
+// simulateLatency adds artificial delay for demonstration
+func simulateLatency(pageNum int) {
+	var randomBytes [2]byte
+
+	delay := time.Duration(125) * time.Millisecond
+
+	if _, err := rand.Read(randomBytes[:]); err == nil {
+		randomNum := int(binary.BigEndian.Uint16(randomBytes[:]))%150 + 50
+		delay = time.Duration(randomNum) * time.Millisecond
+		fmt.Printf("🔄 Fetching page %d (with %dms simulated latency)...\n", pageNum, delay.Milliseconds())
+	} else {
+		fmt.Printf("🔄 Fetching page %d (with %dms default latency)...\n", pageNum, delay.Milliseconds())
+	}
+
+	time.Sleep(delay)
+	fmt.Printf("🔄 Fetching page %d...\n", pageNum)
+}
+
+// processParallelResults handles the results from parallel page fetching
+func processParallelResults(results []concurrent.Result[*models.ListOptions, []models.Account], pageOptions []*models.ListOptions, totalAccounts int) int {
+	successCount := 0
+	errorCount := 0
+
+	for i, result := range results {
+		pageNumber := pageOptions[i].Page
+
+		if result.Error != nil {
+			errorCount++
+
+			handleParallelError(result.Error, pageNumber)
+
+			continue
+		}
+
+		successCount++
+		accounts := result.Value
+		totalAccounts += len(accounts)
+
+		fmt.Printf("✅ Page %d: %d accounts (total so far: %d)\n",
+			pageNumber, len(accounts), totalAccounts)
+	}
+
+	fmt.Printf("\n📊 Summary: Successfully fetched %d/%d pages (%d accounts total)\n",
+		successCount, len(pageOptions), totalAccounts)
+
+	return totalAccounts
+}
+
+// handleParallelError processes errors from parallel fetching
+func handleParallelError(err error, pageNumber int) {
+	if errors.IsCancellationError(err) {
+		fmt.Printf("⏱️ Page %d fetch cancelled: %v\n", pageNumber, err)
+	} else if errors.IsRateLimitError(err) {
+		fmt.Printf("⚠️ Page %d hit rate limit: %v\n", pageNumber, err)
+	} else {
+		fmt.Printf("❌ Error fetching page %d: %v\n", pageNumber, err)
+	}
+}
+
+// demonstrateContextCancellation shows context cancellation behavior
+func demonstrateContextCancellation(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) error {
 	fmt.Println("\n3️⃣ Demonstrating context cancellation handling...")
 
-	// Create a context that we'll cancel manually
 	cancelCtx, cancelFunc := context.WithCancel(ctx)
 
-	// Launch a goroutine to cancel the context after a short delay
+	// Launch goroutine to cancel context
 	go func() {
-		time.Sleep(100 * time.Millisecond) // Short delay to allow the operation to start
+		time.Sleep(100 * time.Millisecond)
 		fmt.Println("🛑 Cancelling context deliberately...")
-		cancelFunc() // Cancel the context deliberately
+		cancelFunc()
 	}()
 
-	// Attempt to fetch accounts with the context that will be cancelled
-	_, err = midazClient.Entity.Accounts.ListAccounts(cancelCtx, orgID, ledgerID, models.NewListOptions())
+	// Attempt fetch with cancellable context
+	_, err := midazClient.Entity.Accounts.ListAccounts(cancelCtx, orgID, ledgerID, models.NewListOptions())
 
-	// Check for cancellation error
+	return handleCancellationResult(err)
+}
+
+// handleCancellationResult processes the result of the cancellation test
+func handleCancellationResult(err error) error {
 	if err != nil {
 		if errors.IsCancellationError(err) {
 			fmt.Println("✅ Context cancellation correctly detected and handled")
@@ -258,8 +328,6 @@ func ListAccounts(ctx context.Context, midazClient *client.Client, orgID, ledger
 	} else {
 		fmt.Println("❓ Expected an error due to context cancellation, but operation succeeded")
 	}
-
-	fmt.Printf("✅ Iterated through all %d accounts\n", totalAccounts)
 
 	return nil
 }

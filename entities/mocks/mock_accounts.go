@@ -24,6 +24,7 @@ func NewMockAccountsService(ctrl *gomock.Controller) *MockAccountsService {
 	mock := &MockAccountsService{ctrl: ctrl}
 
 	mock.recorder = &MockAccountsServiceMockRecorder{mock}
+
 	return mock
 }
 
@@ -38,6 +39,7 @@ func (m *MockAccountsService) ListAccounts(ctx context.Context, organizationID, 
 	ret := m.ctrl.Call(m, "ListAccounts", ctx, organizationID, ledgerID, opts)
 	ret0, _ := ret[0].(*models.ListResponse[models.Account])
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 
@@ -53,6 +55,7 @@ func (m *MockAccountsService) GetAccount(ctx context.Context, organizationID, le
 	ret := m.ctrl.Call(m, "GetAccount", ctx, organizationID, ledgerID, id)
 	ret0, _ := ret[0].(*models.Account)
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 
@@ -68,6 +71,7 @@ func (m *MockAccountsService) GetAccountByAlias(ctx context.Context, organizatio
 	ret := m.ctrl.Call(m, "GetAccountByAlias", ctx, organizationID, ledgerID, alias)
 	ret0, _ := ret[0].(*models.Account)
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 
@@ -83,6 +87,7 @@ func (m *MockAccountsService) CreateAccount(ctx context.Context, organizationID,
 	ret := m.ctrl.Call(m, "CreateAccount", ctx, organizationID, ledgerID, input)
 	ret0, _ := ret[0].(*models.Account)
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 
@@ -98,6 +103,7 @@ func (m *MockAccountsService) UpdateAccount(ctx context.Context, organizationID,
 	ret := m.ctrl.Call(m, "UpdateAccount", ctx, organizationID, ledgerID, id, input)
 	ret0, _ := ret[0].(*models.Account)
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 
@@ -112,6 +118,7 @@ func (m *MockAccountsService) DeleteAccount(ctx context.Context, organizationID,
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteAccount", ctx, organizationID, ledgerID, id)
 	ret0, _ := ret[0].(error)
+
 	return ret0
 }
 
@@ -127,6 +134,7 @@ func (m *MockAccountsService) GetBalance(ctx context.Context, organizationID, le
 	ret := m.ctrl.Call(m, "GetBalance", ctx, organizationID, ledgerID, accountID)
 	ret0, _ := ret[0].(*models.Balance)
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 

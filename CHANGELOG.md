@@ -8,6 +8,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 import "github.com/LerianStudio/midaz-sdk-golang/v2"
 
 <<<<<<< HEAD
+## [v2.0.0] - 2025-08-04
+
+This major release of the midaz-sdk-golang introduces significant enhancements to deployment processes and system architecture, alongside improvements in documentation and code quality.
+
+### ⚠️ Breaking Changes
+- **Backend/Config**: Models have transitioned to utilize Midaz entities, requiring updates to backend service integrations. This change enhances consistency and future-proofs the architecture. Users should review and adjust their model interfaces accordingly. [Migration Guide](#)
+
+### ✨ Features  
+- **Config**: A new release flow now supports Hotfixes (HF) and Breaking Changes (BC), offering more flexible and controlled deployment options for smoother updates and rollbacks.
+
+### 🐛 Bug Fixes
+- **Frontend**: Resolved various linting issues and improved variable naming conventions, enhancing code clarity and reducing potential errors.
+
+### 📚 Documentation
+- **Docs**: Expanded to include new accounting features and removed outdated scale fields, providing clearer guidance and reducing confusion for users.
+
+### 🔧 Maintenance
+- **Build/Deps**: Updated dependencies, including `github.com/LerianStudio/lib-commons` from 1.8.0 to 1.12.1, addressing security vulnerabilities and ensuring compatibility with the latest features.
+- **Build/Docs/Frontend/Test**: Comprehensive cleanup of golangci-lint violations, improving code quality and maintainability across multiple components.
+
+This release focuses on enhancing user experience through improved deployment processes, clearer documentation, and robust code quality standards.
+
+This changelog is structured to provide users with a clear understanding of the changes, focusing on the impact and benefits of the new version. It includes essential details about breaking changes, new features, bug fixes, documentation updates, and maintenance improvements, all presented in a user-friendly format.
+
 ## [v2.0.0-beta.1] - 2025-08-04
 
 This release introduces significant enhancements to the midaz-sdk-golang, including a major transition to Midaz entity models, improved code quality, and updated documentation. These changes aim to improve data consistency, maintainability, and user experience.

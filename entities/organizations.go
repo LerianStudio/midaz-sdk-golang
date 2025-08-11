@@ -191,6 +191,7 @@ func NewOrganizationsEntity(client *http.Client, authToken string, baseURLs map[
 // ListOrganizations lists organizations with optional filters.
 func (e *organizationsEntity) ListOrganizations(ctx context.Context, opts *models.ListOptions) (*models.ListResponse[models.Organization], error) {
 	const operation = "ListOrganizations"
+
 	url := e.buildURL("")
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)

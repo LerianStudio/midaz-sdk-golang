@@ -27,9 +27,11 @@ func GetProvider(ctx context.Context) Provider {
 	if ctx == nil {
 		return nil
 	}
+
 	if provider, ok := ctx.Value(ProviderKey).(Provider); ok {
 		return provider
 	}
+
 	return nil
 }
 
@@ -39,6 +41,7 @@ func WithSpanAttributes(ctx context.Context, attrs ...attribute.KeyValue) contex
 	if span.IsRecording() {
 		span.SetAttributes(attrs...)
 	}
+
 	return ctx
 }
 
@@ -71,6 +74,7 @@ func WithBaggageItem(ctx context.Context, key, value string) (context.Context, e
 		if err != nil {
 			return ctx, err
 		}
+
 		return baggage.ContextWithBaggage(ctx, newBaggage), nil
 	}
 
@@ -78,6 +82,7 @@ func WithBaggageItem(ctx context.Context, key, value string) (context.Context, e
 	if err != nil {
 		return ctx, err
 	}
+
 	return baggage.ContextWithBaggage(ctx, newBaggage), nil
 }
 
@@ -85,9 +90,11 @@ func WithBaggageItem(ctx context.Context, key, value string) (context.Context, e
 func GetBaggageItem(ctx context.Context, key string) string {
 	currentBaggage := baggage.FromContext(ctx)
 	member := currentBaggage.Member(key)
+
 	if member.Key() != "" {
 		return member.Value()
 	}
+
 	return ""
 }
 
@@ -97,6 +104,7 @@ func Start(ctx context.Context, name string, opts ...trace.SpanStartOption) (con
 	if provider != nil && provider.IsEnabled() {
 		return provider.Tracer().Start(ctx, name, opts...)
 	}
+
 	return noop.NewTracerProvider().Tracer("").Start(ctx, name, opts...)
 }
 
@@ -107,6 +115,7 @@ func Log(ctx context.Context) Logger {
 		span := trace.SpanFromContext(ctx)
 		return provider.Logger().WithSpan(span)
 	}
+
 	return NewNoopLogger()
 }
 
@@ -116,6 +125,7 @@ func TraceID(ctx context.Context) string {
 	if spanCtx.IsValid() {
 		return spanCtx.TraceID().String()
 	}
+
 	return ""
 }
 
@@ -125,5 +135,6 @@ func SpanID(ctx context.Context) string {
 	if spanCtx.IsValid() {
 		return spanCtx.SpanID().String()
 	}
+
 	return ""
 }

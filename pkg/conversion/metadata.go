@@ -148,6 +148,7 @@ func EnhanceMetadata(current map[string]any, additional map[string]any) map[stri
 		for k, v := range additional {
 			result[k] = v
 		}
+
 		return CreateMetadata(additional)
 	}
 
