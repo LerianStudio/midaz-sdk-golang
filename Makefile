@@ -125,7 +125,7 @@ check-references:
 # Verify that our refactoring doesn't break API compatibility
 check-api-compatibility:
 	@echo "$(YELLOW)Checking API compatibility...$(NC)"
-	@go build ./models ./entities ./internal/...
+	@go build ./models ./entities ./pkg/...
 	@echo "$(GREEN)✅ API builds successfully$(NC)"
 
 # Verify our implementation
