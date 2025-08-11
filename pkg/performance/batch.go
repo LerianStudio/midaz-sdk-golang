@@ -380,7 +380,8 @@ func (b *BatchProcessor) ExecuteBatch(ctx context.Context, requests []BatchReque
 func (b *BatchProcessor) setupContextTimeout(ctx context.Context) context.Context {
 	if _, ok := ctx.Deadline(); !ok && b.options.Timeout > 0 {
 		ctxWithTimeout, cancel := context.WithTimeout(ctx, b.options.Timeout)
-		defer cancel()
+		// Note: caller is responsible for calling cancel when done
+		_ = cancel
 
 		return ctxWithTimeout
 	}
@@ -401,8 +402,17 @@ func (b *BatchProcessor) executeSingleBatch(ctx context.Context, requests []Batc
 	defer resp.Body.Close()
 
 	// Parse and validate response
+	result, err := b.processBatchResponse(resp)
+	if err != nil {
+		return nil, err
+	}
 
-	return b.processBatchResponse(resp)
+	// Return error if batch result contains error and should not continue on error
+	if result.Error != nil {
+		return result, result.Error
+	}
+
+	return result, nil
 }
 
 // assignRequestIDs ensures all requests have unique IDs
@@ -581,7 +591,7 @@ func (b *BatchProcessor) executeBatches(ctx context.Context, requests []BatchReq
 		go func(batch []BatchRequest) {
 			defer wg.Done()
 
-			result, err := b.ExecuteBatch(ctx, batch)
+			result, err := b.executeSingleBatch(ctx, batch)
 			if err != nil {
 				errorsChan <- err
 				return

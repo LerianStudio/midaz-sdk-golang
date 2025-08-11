@@ -271,6 +271,11 @@ func (bp *batchProcessor) calculateBackoffFactor(attempt int) uint {
 		return 30 // Cap to prevent overflow
 	}
 
+	// Safe conversion: attempt is guaranteed to be >= 1 and <= 31 here
+	if attempt < 1 {
+		return 0
+	}
+	
 	return uint(attempt - 1)
 }
 
