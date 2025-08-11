@@ -272,11 +272,13 @@ func (bp *batchProcessor) calculateBackoffFactor(attempt int) uint {
 	}
 
 	// Safe conversion: attempt is guaranteed to be >= 1 and <= 31 here
-	if attempt < 1 {
+	// Convert to uint after bounds validation to prevent overflow
+	result := attempt - 1
+	if result < 0 {
 		return 0
 	}
 	
-	return uint(attempt - 1)
+	return uint(result)
 }
 
 // createResult creates a BatchResult for the transaction.
