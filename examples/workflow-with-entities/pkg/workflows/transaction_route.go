@@ -49,12 +49,14 @@ func CreateTransactionRoutesWithOperationRoutes(ctx context.Context, midazClient
 	var operationRouteIDs []string
 	if sourceOperationRoute != nil && destinationOperationRoute != nil {
 		operationRouteIDs = []string{sourceOperationRoute.ID.String(), destinationOperationRoute.ID.String()}
+
 		fmt.Printf("🔗 Linking transaction routes to operation routes:\n")
 		fmt.Printf("   Source Operation Route: %s (%s)\n", sourceOperationRoute.Title, sourceOperationRoute.ID)
 		fmt.Printf("   Destination Operation Route: %s (%s)\n", destinationOperationRoute.Title, destinationOperationRoute.ID)
 	} else {
 		fmt.Printf("⚠️  No operation routes provided - cannot create transaction routes as they require operation routes\n")
 		fmt.Printf("   Note: Transaction routes creation will be skipped due to missing operation routes\n")
+
 		return nil, nil, fmt.Errorf("operation routes are required for transaction routes creation")
 	}
 

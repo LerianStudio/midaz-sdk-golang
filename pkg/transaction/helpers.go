@@ -20,17 +20,18 @@ func formatAmount(amount int64, scale int64) string {
 	if scale == 0 {
 		return strconv.FormatInt(amount, 10)
 	}
-	
+
 	divisor := int64(math.Pow10(int(scale)))
 	whole := amount / divisor
 	fractional := amount % divisor
-	
+
 	if fractional == 0 {
 		return strconv.FormatInt(whole, 10)
 	}
-	
+
 	// Format with proper decimal places
 	formatStr := fmt.Sprintf("%%.%df", scale)
+
 	return fmt.Sprintf(formatStr, float64(amount)/float64(divisor))
 }
 
@@ -461,6 +462,7 @@ func MultiAccountTransfer(
 	if len(sourceAccounts) == 0 {
 		return nil, fmt.Errorf("at least one source account is required")
 	}
+
 	if len(destAccounts) == 0 {
 		return nil, fmt.Errorf("at least one destination account is required")
 	}
@@ -607,11 +609,13 @@ func CreateFromTemplate(
 
 	// Merge metadata
 	mergedMetadata := make(map[string]any)
+
 	if template.Metadata != nil {
 		for k, v := range template.Metadata {
 			mergedMetadata[k] = v
 		}
 	}
+
 	for k, v := range metadata {
 		mergedMetadata[k] = v
 	}

@@ -102,7 +102,14 @@ func main() {
 	// Create a context with a timeout and observability
 	// This ensures that the example doesn't hang indefinitely if there are issues
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	ctx = context.WithValue(ctx, "trace_id", "workflow-example")
+
+	// Define a custom type for context keys to avoid collisions
+	type contextKey string
+
+	const traceIDKey contextKey = "trace_id"
+
+	ctx = context.WithValue(ctx, traceIDKey, "workflow-example")
+
 	defer cancel()
 
 	// Create a configuration based on environment variables
@@ -150,12 +157,14 @@ func main() {
 	concurrentCustomerToMerchantTxs, err := getEnvInt("CONCURRENT_CUSTOMER_TO_MERCHANT_TXS", 10)
 	if err != nil {
 		log.Printf("Warning: Failed to parse CONCURRENT_CUSTOMER_TO_MERCHANT_TXS, using default: %v", err)
+
 		concurrentCustomerToMerchantTxs = 10
 	}
 
 	concurrentMerchantToCustomerTxs, err := getEnvInt("CONCURRENT_MERCHANT_TO_CUSTOMER_TXS", 10)
 	if err != nil {
 		log.Printf("Warning: Failed to parse CONCURRENT_MERCHANT_TO_CUSTOMER_TXS, using default: %v", err)
+
 		concurrentMerchantToCustomerTxs = 10
 	}
 
@@ -199,6 +208,7 @@ func validateEnvironment() error {
 	}
 
 	var missingVars []string
+
 	for _, varName := range requiredVars {
 		if os.Getenv(varName) == "" {
 			missingVars = append(missingVars, varName)
@@ -249,15 +259,19 @@ func setupRetryOptions() *retry.Options {
 	if err := retry.WithMaxRetries(maxRetries)(options); err != nil {
 		log.Printf("Warning: Failed to set max retries: %v", err)
 	}
+
 	if err := retry.WithInitialDelay(100 * time.Millisecond)(options); err != nil {
 		log.Printf("Warning: Failed to set initial delay: %v", err)
 	}
+
 	if err := retry.WithMaxDelay(2 * time.Second)(options); err != nil {
 		log.Printf("Warning: Failed to set max delay: %v", err)
 	}
+
 	if err := retry.WithBackoffFactor(2.0)(options); err != nil {
 		log.Printf("Warning: Failed to set backoff factor: %v", err)
 	}
+
 	if err := retry.WithRetryableErrors(retry.DefaultRetryableErrors)(options); err != nil {
 		log.Printf("Warning: Failed to set retryable errors: %v", err)
 	}

@@ -34,7 +34,13 @@ func main() {
 		fmt.Printf("Error creating observability provider: %v\n", err)
 		os.Exit(1)
 	}
-	defer provider.Shutdown(ctx)
+
+	defer func() {
+		// Shutdown provider but log error if it occurs
+		if err := provider.Shutdown(ctx); err != nil {
+			fmt.Printf("Warning: Failed to shutdown observability provider: %v\n", err)
+		}
+	}()
 
 	// Get a logger and log a message
 	logger := provider.Logger()
@@ -95,6 +101,7 @@ func main() {
 
 	// Demonstrate custom metrics
 	timer := metrics.NewTimer(ctx, "batch_operation", "example")
+
 	time.Sleep(75 * time.Millisecond)
 	timer.StopBatch(5) // Record a batch operation with 5 items
 

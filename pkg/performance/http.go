@@ -100,7 +100,9 @@ func WithMaxIdleConns(n int) TransportOption {
 		if n < 0 {
 			return fmt.Errorf("max idle connections must be non-negative, got %d", n)
 		}
+
 		c.MaxIdleConns = n
+
 		return nil
 	}
 }
@@ -111,7 +113,9 @@ func WithTransportMaxIdleConnsPerHost(n int) TransportOption {
 		if n < 0 {
 			return fmt.Errorf("max idle connections per host must be non-negative, got %d", n)
 		}
+
 		c.MaxIdleConnsPerHost = n
+
 		return nil
 	}
 }
@@ -122,7 +126,9 @@ func WithMaxConnsPerHost(n int) TransportOption {
 		if n < 0 {
 			return fmt.Errorf("max connections per host must be non-negative, got %d", n)
 		}
+
 		c.MaxConnsPerHost = n
+
 		return nil
 	}
 }
@@ -133,7 +139,9 @@ func WithIdleConnTimeout(d time.Duration) TransportOption {
 		if d < 0 {
 			return fmt.Errorf("idle connection timeout must be non-negative, got %v", d)
 		}
+
 		c.IdleConnTimeout = d
+
 		return nil
 	}
 }
@@ -144,7 +152,9 @@ func WithTLSHandshakeTimeout(d time.Duration) TransportOption {
 		if d < 0 {
 			return fmt.Errorf("TLS handshake timeout must be non-negative, got %v", d)
 		}
+
 		c.TLSHandshakeTimeout = d
+
 		return nil
 	}
 }
@@ -155,7 +165,9 @@ func WithResponseHeaderTimeout(d time.Duration) TransportOption {
 		if d < 0 {
 			return fmt.Errorf("response header timeout must be non-negative, got %v", d)
 		}
+
 		c.ResponseHeaderTimeout = d
+
 		return nil
 	}
 }
@@ -166,7 +178,9 @@ func WithExpectContinueTimeout(d time.Duration) TransportOption {
 		if d < 0 {
 			return fmt.Errorf("expect continue timeout must be non-negative, got %v", d)
 		}
+
 		c.ExpectContinueTimeout = d
+
 		return nil
 	}
 }
@@ -193,7 +207,9 @@ func WithDialTimeout(d time.Duration) TransportOption {
 		if d < 0 {
 			return fmt.Errorf("dial timeout must be non-negative, got %v", d)
 		}
+
 		c.DialTimeout = d
+
 		return nil
 	}
 }
@@ -204,7 +220,9 @@ func WithKeepAlive(d time.Duration) TransportOption {
 		if d < 0 {
 			return fmt.Errorf("keep-alive period must be non-negative, got %v", d)
 		}
+
 		c.KeepAlive = d
+
 		return nil
 	}
 }
@@ -217,6 +235,7 @@ func WithHighThroughput() TransportOption {
 		c.MaxConnsPerHost = 200
 		c.IdleConnTimeout = 180 * time.Second
 		c.KeepAlive = 60 * time.Second
+
 		return nil
 	}
 }
@@ -228,6 +247,7 @@ func WithLowLatency() TransportOption {
 		c.ResponseHeaderTimeout = 15 * time.Second
 		c.ExpectContinueTimeout = 500 * time.Millisecond
 		c.DialTimeout = 30 * time.Second
+
 		return nil
 	}
 }
@@ -308,7 +328,9 @@ func WithTimeout(d time.Duration) HTTPClientOption {
 		if d < 0 {
 			return fmt.Errorf("timeout must be non-negative, got %v", d)
 		}
+
 		c.Timeout = d
+
 		return nil
 	}
 }
@@ -364,24 +386,31 @@ func OptimizeHTTPClient(client *http.Client, opts ...TransportOption) (*http.Cli
 		if transport.MaxIdleConns == 0 {
 			transport.MaxIdleConns = config.MaxIdleConns
 		}
+
 		if transport.MaxIdleConnsPerHost == 0 {
 			transport.MaxIdleConnsPerHost = config.MaxIdleConnsPerHost
 		}
+
 		if transport.MaxConnsPerHost == 0 {
 			transport.MaxConnsPerHost = config.MaxConnsPerHost
 		}
+
 		if transport.IdleConnTimeout == 0 {
 			transport.IdleConnTimeout = config.IdleConnTimeout
 		}
+
 		if transport.TLSHandshakeTimeout == 0 {
 			transport.TLSHandshakeTimeout = config.TLSHandshakeTimeout
 		}
+
 		if transport.ResponseHeaderTimeout == 0 {
 			transport.ResponseHeaderTimeout = config.ResponseHeaderTimeout
 		}
+
 		if transport.ExpectContinueTimeout == 0 {
 			transport.ExpectContinueTimeout = config.ExpectContinueTimeout
 		}
+
 		if !transport.ForceAttemptHTTP2 {
 			transport.ForceAttemptHTTP2 = true
 		}

@@ -136,95 +136,163 @@ func WorkerPool[T, R any](
 	workFn WorkFunc[T, R],
 	opts ...PoolOption,
 ) []Result[T, R] {
-	options := defaultPoolOptions()
-	for _, opt := range opts {
-		opt(options)
-	}
+	options := applyPoolOptions(opts...)
 
 	// Create channels for coordinating workers
 	itemCh := make(chan indexedItem[T], options.bufferSize)
 	resultCh := make(chan Result[T, R], options.bufferSize)
 
-	// Start workers
+	// Start workers and item sender
 	var wg sync.WaitGroup
+
+	startWorkers(ctx, &wg, itemCh, resultCh, workFn, options)
+	startItemSender(ctx, &wg, items, itemCh, resultCh)
+
+	// Collect and return results
+	return collectResults(resultCh, len(items), options.ordered)
+}
+
+// applyPoolOptions applies all pool options to create configuration
+func applyPoolOptions(opts ...PoolOption) *poolOptions {
+	options := defaultPoolOptions()
+	for _, opt := range opts {
+		opt(options)
+	}
+
+	return options
+}
+
+// startWorkers creates and starts the worker goroutines
+func startWorkers[T, R any](
+	ctx context.Context,
+	wg *sync.WaitGroup,
+	itemCh <-chan indexedItem[T],
+	resultCh chan<- Result[T, R],
+	workFn WorkFunc[T, R],
+	options *poolOptions,
+) {
 	for i := 0; i < options.workers; i++ {
 		wg.Add(1)
 
-		go func() {
-			defer wg.Done()
+		go runWorker(ctx, wg, itemCh, resultCh, workFn, options)
+	}
+}
 
-			for item := range itemCh {
-				// Check if context is cancelled
-				if ctx.Err() != nil {
-					continue
-				}
+// runWorker processes items from the item channel
+func runWorker[T, R any](
+	ctx context.Context,
+	wg *sync.WaitGroup,
+	itemCh <-chan indexedItem[T],
+	resultCh chan<- Result[T, R],
+	workFn WorkFunc[T, R],
+	options *poolOptions,
+) {
+	defer wg.Done()
 
-				// Apply rate limiting if configured
-				if options.rateLimit > 0 {
-					limiter := time.Tick(time.Second / time.Duration(options.rateLimit))
-					select {
-					case <-limiter:
-						// Rate limit applied, continue processing
-					case <-ctx.Done():
-						// Context canceled, stop processing
-						return
-					}
-				}
+	for item := range itemCh {
+		if ctx.Err() != nil {
+			continue
+		}
 
-				// Process the item
-				result, err := workFn(ctx, item.value)
+		if shouldApplyRateLimit(ctx, options.rateLimit) {
+			return
+		}
 
-				// Send the result
-				resultCh <- Result[T, R]{
-					Item:  item.value,
-					Value: result,
-					Error: err,
-					Index: item.index,
-				}
-			}
-		}()
+		result := processWorkItem(ctx, item, workFn)
+		resultCh <- result
+	}
+}
+
+// shouldApplyRateLimit applies rate limiting if configured
+func shouldApplyRateLimit(ctx context.Context, rateLimit int) bool {
+	if rateLimit <= 0 {
+		return false
 	}
 
-	// Send items to workers
+	limiter := time.Tick(time.Second / time.Duration(rateLimit))
+	select {
+	case <-limiter:
+		return false // Rate limit applied, continue processing
+	case <-ctx.Done():
+		return true // Context canceled, stop processing
+	}
+}
+
+// processWorkItem executes the work function for a single item
+func processWorkItem[T, R any](ctx context.Context, item indexedItem[T], workFn WorkFunc[T, R]) Result[T, R] {
+	result, err := workFn(ctx, item.value)
+
+	return Result[T, R]{
+		Item:  item.value,
+		Value: result,
+		Error: err,
+		Index: item.index,
+	}
+}
+
+// startItemSender creates a goroutine to send items to workers and manage cleanup
+func startItemSender[T, R any](
+	ctx context.Context,
+	wg *sync.WaitGroup,
+	items []T,
+	itemCh chan<- indexedItem[T],
+	resultCh chan Result[T, R],
+) {
 	go func() {
-		for i, item := range items {
-			select {
-			case itemCh <- indexedItem[T]{value: item, index: i}:
-				// Item sent successfully
-			case <-ctx.Done():
-				// Context canceled, stop sending items
-				break
-			}
-		}
+		defer func() {
+			close(itemCh)
+			wg.Wait()
+			close(resultCh)
+		}()
 
-		close(itemCh)
-
-		// Wait for all workers to finish
-		wg.Wait()
-		close(resultCh)
+		sendItemsToWorkers(ctx, items, itemCh)
 	}()
+}
 
-	// Collect results
-	var results []Result[T, R]
+// sendItemsToWorkers sends items to the item channel with context cancellation
+func sendItemsToWorkers[T any](ctx context.Context, items []T, itemCh chan<- indexedItem[T]) {
+	for i, item := range items {
+		select {
+		case itemCh <- indexedItem[T]{value: item, index: i}:
+			// Item sent successfully
+		case <-ctx.Done():
+			// Context canceled, stop sending items
+			return
+		}
+	}
+}
 
-	if options.ordered {
-		// For ordered results, we need to collect all results and then sort them
-		allResults := make([]Result[T, R], 0, len(items))
-		for r := range resultCh {
-			allResults = append(allResults, r)
-		}
+// collectResults gathers results from workers, maintaining order if requested
+func collectResults[T, R any](resultCh <-chan Result[T, R], itemCount int, ordered bool) []Result[T, R] {
+	if ordered {
+		return collectOrderedResults(resultCh, itemCount)
+	}
 
-		// Create ordered results slice
-		results = make([]Result[T, R], len(items))
-		for _, r := range allResults {
-			results[r.Index] = r
-		}
-	} else {
-		// For unordered results, we can just collect them as they come
-		results = make([]Result[T, R], 0, len(items))
-		for r := range resultCh {
-			results = append(results, r)
-		}
+	return collectUnorderedResults(resultCh, itemCount)
+}
+
+// collectOrderedResults collects results and returns them in original order
+func collectOrderedResults[T, R any](resultCh <-chan Result[T, R], itemCount int) []Result[T, R] {
+	allResults := make([]Result[T, R], 0, itemCount)
+	for r := range resultCh {
+		allResults = append(allResults, r)
+	}
+
+	// Create ordered results slice
+	results := make([]Result[T, R], itemCount)
+
+	for _, r := range allResults {
+		results[r.Index] = r
+	}
+
+	return results
+}
+
+// collectUnorderedResults collects results in the order they arrive
+func collectUnorderedResults[T, R any](resultCh <-chan Result[T, R], itemCount int) []Result[T, R] {
+	results := make([]Result[T, R], 0, itemCount)
+	for r := range resultCh {
+		results = append(results, r)
 	}
 
 	return results
@@ -499,7 +567,6 @@ func NewRateLimiter(opsPerSecond int, maxBurst int) *RateLimiter {
 				case rl.tokensCh <- struct{}{}:
 					// Token added
 				default:
-					// Buffer full, token dropped
 				}
 			case <-rl.stopCh:
 				return

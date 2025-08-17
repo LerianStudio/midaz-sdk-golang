@@ -178,9 +178,11 @@ func CreateAccountsWithType(ctx context.Context, midazClient *client.Client, org
 	fmt.Printf("   ID: %s\n", customerAccount.ID)
 	fmt.Printf("   Type: %s\n", customerAccount.Type)
 	fmt.Printf("   Asset: %s\n", customerAccount.AssetCode)
+
 	if accountTypeIDMeta, ok := customerAccount.Metadata["account_type_id"]; ok {
 		fmt.Printf("   Account Type ID: %s\n", accountTypeIDMeta)
 	}
+
 	fmt.Printf("   Created: %s\n", customerAccount.CreatedAt.Format("2006-01-02 15:04:05"))
 
 	fmt.Println()
@@ -212,9 +214,11 @@ func CreateAccountsWithType(ctx context.Context, midazClient *client.Client, org
 	fmt.Printf("   ID: %s\n", merchantAccount.ID)
 	fmt.Printf("   Type: %s\n", merchantAccount.Type)
 	fmt.Printf("   Asset: %s\n", merchantAccount.AssetCode)
+
 	if accountTypeIDMeta, ok := merchantAccount.Metadata["account_type_id"]; ok {
 		fmt.Printf("   Account Type ID: %s\n", accountTypeIDMeta)
 	}
+
 	fmt.Printf("   Created: %s\n", merchantAccount.CreatedAt.Format("2006-01-02 15:04:05"))
 
 	// Create Dummy 1 account with account type
@@ -244,9 +248,11 @@ func CreateAccountsWithType(ctx context.Context, midazClient *client.Client, org
 	fmt.Printf("   ID: %s\n", dummyOneAccount.ID)
 	fmt.Printf("   Type: %s\n", dummyOneAccount.Type)
 	fmt.Printf("   Asset: %s\n", dummyOneAccount.AssetCode)
+
 	if accountTypeIDMeta, ok := dummyOneAccount.Metadata["account_type_id"]; ok {
 		fmt.Printf("   Account Type ID: %s\n", accountTypeIDMeta)
 	}
+
 	fmt.Printf("   Created: %s\n", dummyOneAccount.CreatedAt.Format("2006-01-02 15:04:05"))
 
 	// Create Dummy 2 account with account type
@@ -276,9 +282,11 @@ func CreateAccountsWithType(ctx context.Context, midazClient *client.Client, org
 	fmt.Printf("   ID: %s\n", dummyTwoAccount.ID)
 	fmt.Printf("   Type: %s\n", dummyTwoAccount.Type)
 	fmt.Printf("   Asset: %s\n", dummyTwoAccount.AssetCode)
+
 	if accountTypeIDMeta, ok := dummyTwoAccount.Metadata["account_type_id"]; ok {
 		fmt.Printf("   Account Type ID: %s\n", accountTypeIDMeta)
 	}
+
 	fmt.Printf("   Created: %s\n", dummyTwoAccount.CreatedAt.Format("2006-01-02 15:04:05"))
 
 	return customerAccount, merchantAccount, dummyOneAccount, dummyTwoAccount, nil

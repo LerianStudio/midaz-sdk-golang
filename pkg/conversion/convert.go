@@ -25,95 +25,151 @@ func MapStruct[T any](data T) map[string]any {
 	result := make(map[string]any)
 	val := reflect.ValueOf(data)
 
-	// Handle pointer input
-	if val.Kind() == reflect.Ptr {
-		if val.IsNil() {
-			return result
-		}
-		val = val.Elem()
-	}
-
-	// Only process structs
-	if val.Kind() != reflect.Struct {
+	// Prepare value for processing
+	val = prepareReflectValue(val)
+	if !val.IsValid() || val.Kind() != reflect.Struct {
 		return result
 	}
 
+	processStructFields(result, val)
+
+	return result
+}
+
+// prepareReflectValue handles pointer unwrapping and validation
+func prepareReflectValue(val reflect.Value) reflect.Value {
+	if val.Kind() == reflect.Ptr {
+		if val.IsNil() {
+			return reflect.Value{}
+		}
+
+		return val.Elem()
+	}
+
+	return val
+}
+
+// processStructFields iterates through struct fields and maps them
+func processStructFields(result map[string]any, val reflect.Value) {
 	t := val.Type()
+
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
 		value := val.Field(i)
 
-		// Skip unexported fields
-		if !field.IsExported() {
+		if shouldSkipField(field, value) {
 			continue
 		}
 
-		// Get the field name, checking for json tag
-		name := field.Name
+		fieldName := getFieldName(field)
+		fieldValue := processFieldValue(value)
 
-		if tag, ok := field.Tag.Lookup("json"); ok {
-			// Parse the json tag (handling omitempty, etc.)
-			if tagParts := parseTag(tag); tagParts[0] != "" && tagParts[0] != "-" {
-				name = tagParts[0]
-			}
+		if fieldValue != nil {
+			result[fieldName] = fieldValue
 		}
+	}
+}
 
-		// Handle nil pointers
-		if value.Kind() == reflect.Ptr && value.IsNil() {
-			continue
-		}
+// shouldSkipField determines if a field should be skipped during mapping
+func shouldSkipField(field reflect.StructField, value reflect.Value) bool {
+	// Skip unexported fields
+	if !field.IsExported() {
+		return true
+	}
 
-		// Handle time.Time by converting to ISO format
-		if value.Type() == reflect.TypeOf(time.Time{}) ||
-			(value.Kind() == reflect.Ptr && value.Elem().Type() == reflect.TypeOf(time.Time{})) {
-			var timeValue time.Time
-			if value.Kind() == reflect.Ptr {
-				timeValue = value.Elem().Interface().(time.Time)
-			} else {
-				timeValue = value.Interface().(time.Time)
-			}
-			result[name] = ConvertToISODateTime(timeValue)
+	// Skip nil pointers
+	if value.Kind() == reflect.Ptr && value.IsNil() {
+		return true
+	}
 
-			continue
-		}
+	return false
+}
 
-		// Handle nested structs by recursively mapping them
-		if value.Kind() == reflect.Struct {
-			// Skip if it's a simple type like time.Time
-			if value.Type() == reflect.TypeOf(time.Time{}) {
-				result[name] = value.Interface()
-			} else {
-				nestedMap := MapStruct(value.Interface())
-				result[name] = nestedMap
-			}
-			continue
-		}
+// getFieldName extracts the field name, considering JSON tags
+func getFieldName(field reflect.StructField) string {
+	name := field.Name
 
-		// Handle maps of structs
-		if value.Kind() == reflect.Map {
-			// Just copy the map as-is for now
-			// (future enhancement: recursively process map values if they're structs)
-			result[name] = value.Interface()
-			continue
-		}
-
-		// Handle slices
-		if value.Kind() == reflect.Slice {
-			// Just copy the slice as-is for now
-			// (future enhancement: recursively process slice elements if they're structs)
-			result[name] = value.Interface()
-			continue
-		}
-
-		// Handle standard types
-		if value.Kind() == reflect.Ptr {
-			result[name] = value.Elem().Interface()
-		} else {
-			result[name] = value.Interface()
+	if tag, ok := field.Tag.Lookup("json"); ok {
+		if tagParts := parseTag(tag); tagParts[0] != "" && tagParts[0] != "-" {
+			name = tagParts[0]
 		}
 	}
 
-	return result
+	return name
+}
+
+// processFieldValue processes a field value based on its type
+func processFieldValue(value reflect.Value) any {
+	// Handle time.Time special case
+	if timeValue := processTimeValue(value); timeValue != nil {
+		return timeValue
+	}
+
+	// Handle different value kinds
+	switch value.Kind() {
+	case reflect.Struct:
+		return processStructValue(value)
+	case reflect.Map:
+		return processMapValue(value)
+	case reflect.Slice:
+		return processSliceValue(value)
+	case reflect.Ptr:
+		return processPointerValue(value)
+	default:
+		return value.Interface()
+	}
+}
+
+// processTimeValue handles time.Time type conversion
+func processTimeValue(value reflect.Value) any {
+	if isTimeType(value) {
+		var timeValue time.Time
+		if value.Kind() == reflect.Ptr {
+			timeValue = value.Elem().Interface().(time.Time)
+		} else {
+			timeValue = value.Interface().(time.Time)
+		}
+
+		return ConvertToISODateTime(timeValue)
+	}
+
+	return nil
+}
+
+// isTimeType checks if the value is a time.Time or *time.Time
+func isTimeType(value reflect.Value) bool {
+	timeType := reflect.TypeOf(time.Time{})
+	return value.Type() == timeType ||
+		(value.Kind() == reflect.Ptr && value.Elem().Type() == timeType)
+}
+
+// processStructValue handles nested struct mapping
+func processStructValue(value reflect.Value) any {
+	// Skip if it's a simple type like time.Time
+	if value.Type() == reflect.TypeOf(time.Time{}) {
+		return value.Interface()
+	}
+
+	return MapStruct(value.Interface())
+}
+
+// processMapValue handles map field values
+func processMapValue(value reflect.Value) any {
+	// Just copy the map as-is for now
+	// (future enhancement: recursively process map values if they're structs)
+	return value.Interface()
+}
+
+// processSliceValue handles slice field values
+func processSliceValue(value reflect.Value) any {
+	// Just copy the slice as-is for now
+	// (future enhancement: recursively process slice elements if they're structs)
+	return value.Interface()
+}
+
+// processPointerValue handles pointer field values
+func processPointerValue(value reflect.Value) any {
+	return value.Elem().Interface()
 }
 
 // UnmapStruct converts a map to a struct, using field names or json tags
@@ -131,16 +187,47 @@ func MapStruct[T any](data T) map[string]any {
 //	user := User{}
 //	conversion.UnmapStruct(userMap, &user)
 func UnmapStruct[T any](data map[string]any, target *T) {
-	val := reflect.ValueOf(target)
-	if val.Kind() != reflect.Ptr || val.Elem().Kind() != reflect.Struct {
+	unmapper := &structUnmapper[T]{
+		target: target,
+		data:   data,
+	}
+	unmapper.unmapToStruct()
+}
+
+// structUnmapper handles the unmapping of map data to struct fields.
+type structUnmapper[T any] struct {
+	target *T
+	data   map[string]any
+	elem   reflect.Value
+	fields map[string]int
+}
+
+// unmapToStruct performs the main unmapping logic.
+func (u *structUnmapper[T]) unmapToStruct() {
+	if !u.validateTarget() {
 		return
 	}
 
-	elem := val.Elem()
-	t := elem.Type()
+	u.buildFieldMap()
+	u.setFieldsFromData()
+}
 
-	// Build a map of struct fields by json tag and by field name
-	fields := make(map[string]int)
+// validateTarget validates that the target is a pointer to a struct.
+func (u *structUnmapper[T]) validateTarget() bool {
+	val := reflect.ValueOf(u.target)
+	if val.Kind() != reflect.Ptr || val.Elem().Kind() != reflect.Struct {
+		return false
+	}
+
+	u.elem = val.Elem()
+
+	return true
+}
+
+// buildFieldMap creates a map of field names and JSON tags to field indexes.
+func (u *structUnmapper[T]) buildFieldMap() {
+	t := u.elem.Type()
+	u.fields = make(map[string]int)
 
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
@@ -148,81 +235,112 @@ func UnmapStruct[T any](data map[string]any, target *T) {
 			continue
 		}
 
-		// Add to field map by field name
-		fields[field.Name] = i
+		u.addFieldMapping(field, i)
+	}
+}
 
-		// Add to field map by json tag
-		if tag, ok := field.Tag.Lookup("json"); ok {
-			if tagParts := parseTag(tag); tagParts[0] != "" && tagParts[0] != "-" {
-				fields[tagParts[0]] = i
-			}
+// addFieldMapping adds field mappings by name and JSON tag.
+func (u *structUnmapper[T]) addFieldMapping(field reflect.StructField, index int) {
+	u.fields[field.Name] = index
+
+	if tag, ok := field.Tag.Lookup("json"); ok {
+		if tagParts := parseTag(tag); tagParts[0] != "" && tagParts[0] != "-" {
+			u.fields[tagParts[0]] = index
 		}
 	}
+}
 
-	// Set struct fields from map values
-	for key, value := range data {
-		if fieldIndex, ok := fields[key]; ok {
-			field := elem.Field(fieldIndex)
-			if !field.CanSet() {
-				continue
-			}
-
-			fieldType := field.Type()
-			val := reflect.ValueOf(value)
-
-			// Handle nil values
-			if value == nil {
-				continue
-			}
-
-			// Handle time.Time fields
-			if fieldType == reflect.TypeOf(time.Time{}) && val.Kind() == reflect.String {
-				timeStr := value.(string)
-				parsedTime, err := time.Parse(time.RFC3339, timeStr)
-
-				if err == nil {
-					field.Set(reflect.ValueOf(parsedTime))
-				}
-
-				continue
-			}
-
-			// Handle pointers to time.Time
-			if fieldType.Kind() == reflect.Ptr && fieldType.Elem() == reflect.TypeOf(time.Time{}) && val.Kind() == reflect.String {
-				timeStr := value.(string)
-				parsedTime, err := time.Parse(time.RFC3339, timeStr)
-
-				if err == nil {
-					field.Set(reflect.ValueOf(&parsedTime))
-				}
-
-				continue
-			}
-
-			// Handle other pointer types
-			if fieldType.Kind() == reflect.Ptr && val.Kind() != reflect.Ptr {
-				// Create a new pointer of the appropriate type
-				newVal := reflect.New(fieldType.Elem())
-
-				// Set the pointed-to value, handling different types
-				if val.Type().AssignableTo(fieldType.Elem()) {
-					newVal.Elem().Set(val)
-					field.Set(newVal)
-				} else if val.Type().ConvertibleTo(fieldType.Elem()) {
-					newVal.Elem().Set(val.Convert(fieldType.Elem()))
-					field.Set(newVal)
-				}
-				continue
-			}
-
-			// Handle direct assignment
-			if val.Type().AssignableTo(fieldType) {
-				field.Set(val)
-			} else if val.Type().ConvertibleTo(fieldType) {
-				field.Set(val.Convert(fieldType))
-			}
+// setFieldsFromData sets struct fields from map values.
+func (u *structUnmapper[T]) setFieldsFromData() {
+	for key, value := range u.data {
+		if fieldIndex, ok := u.fields[key]; ok {
+			u.setField(fieldIndex, value)
 		}
 	}
+}
+
+// setField sets a single field value.
+func (u *structUnmapper[T]) setField(fieldIndex int, value any) {
+	field := u.elem.Field(fieldIndex)
+	if !field.CanSet() || value == nil {
+		return
+	}
+
+	fieldType := field.Type()
+	val := reflect.ValueOf(value)
+
+	if u.handleTimeField(field, fieldType, value) {
+		return
+	}
+
+	if u.handlePointerField(field, fieldType, val) {
+		return
+	}
+
+	u.handleDirectAssignment(field, fieldType, val)
+}
+
+// handleTimeField handles time.Time and *time.Time field assignments.
+func (u *structUnmapper[T]) handleTimeField(field reflect.Value, fieldType reflect.Type, value any) bool {
+	val := reflect.ValueOf(value)
+	if val.Kind() != reflect.String {
+		return false
+	}
+
+	timeStr := value.(string)
+
+	parsedTime, err := time.Parse(time.RFC3339, timeStr)
+	if err != nil {
+		return false
+	}
+
+	// Handle direct time.Time fields
+	if fieldType == reflect.TypeOf(time.Time{}) {
+		field.Set(reflect.ValueOf(parsedTime))
+		return true
+	}
+
+	// Handle *time.Time fields
+	if fieldType.Kind() == reflect.Ptr && fieldType.Elem() == reflect.TypeOf(time.Time{}) {
+		field.Set(reflect.ValueOf(&parsedTime))
+		return true
+	}
+
+	return false
+}
+
+// handlePointerField handles pointer type field assignments.
+func (u *structUnmapper[T]) handlePointerField(field reflect.Value, fieldType reflect.Type, val reflect.Value) bool {
+	if fieldType.Kind() != reflect.Ptr || val.Kind() == reflect.Ptr {
+		return false
+	}
+
+	newVal := reflect.New(fieldType.Elem())
+	if u.assignValue(newVal.Elem(), fieldType.Elem(), val) {
+		field.Set(newVal)
+	}
+
+	return true
+}
+
+// handleDirectAssignment handles direct field assignments.
+func (u *structUnmapper[T]) handleDirectAssignment(field reflect.Value, fieldType reflect.Type, val reflect.Value) {
+	u.assignValue(field, fieldType, val)
+}
+
+// assignValue attempts to assign a value to a field, handling type conversion.
+func (u *structUnmapper[T]) assignValue(field reflect.Value, fieldType reflect.Type, val reflect.Value) bool {
+	if val.Type().AssignableTo(fieldType) {
+		field.Set(val)
+		return true
+	}
+
+	if val.Type().ConvertibleTo(fieldType) {
+		field.Set(val.Convert(fieldType))
+		return true
+	}
+
+	return false
 }
 
 // MapSlice applies the mapping function to each element of the input slice
@@ -280,6 +398,7 @@ func FilterSlice[T any](slice []T, filterFn func(T) bool) []T {
 			result = append(result, item)
 		}
 	}
+
 	return result
 }
 
@@ -302,6 +421,7 @@ func ReduceSlice[T any, R any](slice []T, initial R, reduceFn func(R, T) R) R {
 	for _, item := range slice {
 		result = reduceFn(result, item)
 	}
+
 	return result
 }
 

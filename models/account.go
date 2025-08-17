@@ -30,7 +30,7 @@ import (
 //	// Create a new customer asset account using the builder pattern
 //	customerAccount := models.NewCreateAccountInput(
 //	    "John Doe",
-//	    "USD", 
+//	    "USD",
 //	    "ASSET",
 //	).WithAlias("customer:john.doe").
 //	  WithMetadata(map[string]any{
@@ -45,8 +45,6 @@ import (
 // while segments provide finer-grained classification within portfolios
 // (e.g., "US Equities", "International Bonds").
 type Account = mmodel.Account
-
-
 
 // AccountHelpers provides utility functions for working with Account entities.
 // These helper functions provide SDK-specific conveniences while using mmodel.Account directly.
@@ -74,7 +72,6 @@ func GetAccountIdentifier(account Account) string {
 
 	return account.ID
 }
-
 
 // CreateAccountInput is the input for creating an account.
 // This structure contains all the fields that can be specified when creating a new account.

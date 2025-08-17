@@ -120,6 +120,7 @@ func GetTokenFromAccessManager(ctx context.Context, AccessManager AccessManager,
 		url,
 		bytes.NewBuffer(payloadBytes),
 	)
+
 	if err != nil {
 		return "", fmt.Errorf("failed to create request to plugin auth service: %w", err)
 	}
@@ -148,6 +149,7 @@ func GetTokenFromAccessManager(ctx context.Context, AccessManager AccessManager,
 
 	// Parse the response
 	var tokenResp TokenResponse
+
 	if err := json.Unmarshal(body, &tokenResp); err != nil {
 		return "", fmt.Errorf("failed to parse response from plugin auth service: %w", err)
 	}

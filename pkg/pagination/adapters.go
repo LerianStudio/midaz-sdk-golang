@@ -31,7 +31,9 @@ func WithAdapterDefaultLimit(limit int) ModelAdapterOption {
 		if limit <= 0 {
 			return fmt.Errorf("default limit must be positive, got %d", limit)
 		}
+
 		a.defaultLimit = limit
+
 		return nil
 	}
 }
@@ -42,6 +44,7 @@ func WithDefaultOffset(offset int) ModelAdapterOption {
 		if offset < 0 {
 			return fmt.Errorf("default offset must be non-negative, got %d", offset)
 		}
+
 		a.defaultOffset = offset
 
 		return nil
@@ -54,6 +57,7 @@ func WithDefaultFilters(filters map[string]string) ModelAdapterOption {
 		if filters == nil {
 			return fmt.Errorf("default filters map cannot be nil")
 		}
+
 		a.defaultFilters = filters
 
 		return nil
@@ -162,7 +166,9 @@ func WithEntityInitialOptions(options any) EntityPaginatorOption {
 		if options == nil {
 			return fmt.Errorf("initial options cannot be nil")
 		}
+
 		o.InitialOptions = options
+
 		return nil
 	}
 }
@@ -173,7 +179,9 @@ func WithEntityOperationName(name string) EntityPaginatorOption {
 		if name == "" {
 			return fmt.Errorf("operation name cannot be empty")
 		}
+
 		o.OperationName = name
+
 		return nil
 	}
 }
@@ -184,6 +192,7 @@ func WithPaginatorEntityType(entityType string) EntityPaginatorOption {
 		if entityType == "" {
 			return fmt.Errorf("entity type cannot be empty")
 		}
+
 		o.EntityType = entityType
 
 		return nil

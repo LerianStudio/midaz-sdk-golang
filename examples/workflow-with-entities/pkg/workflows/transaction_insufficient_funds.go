@@ -38,8 +38,10 @@ func ExecuteInsufficientFundsTransactions(ctx context.Context, midazClient *clie
 	// Validate accounts
 	if !validation.IsValidUUID(customerAccount.ID) || !validation.IsValidUUID(merchantAccount.ID) {
 		err := fmt.Errorf("invalid account IDs")
+
 		observability.RecordError(ctx, err, "invalid_account_ids")
 		fmt.Printf("❌ Error: %s\n", err.Error())
+
 		return
 	}
 
@@ -99,6 +101,7 @@ func ExecuteInsufficientFundsTransactions(ctx context.Context, midazClient *clie
 		// Validate the amount - it's intentionally large so should fail, but we still validate format
 		if test.Amount == "" || test.Amount == "0" {
 			err := fmt.Errorf("invalid amount format: %s", test.Amount)
+
 			observability.RecordError(testCtx, err, "invalid_amount_format")
 			fmt.Printf("⚠️ Note: Amount format is invalid: %s\n", test.Amount)
 		}

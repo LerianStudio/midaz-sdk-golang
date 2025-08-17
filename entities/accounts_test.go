@@ -13,9 +13,9 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v2/entities/mocks"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/performance"
-	"github.com/shopspring/decimal"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
 	"github.com/golang/mock/gomock"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -595,7 +595,6 @@ type MockHTTPClient struct {
 func (m *MockHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	return m.DoFunc(req)
 }
-
 
 func newHTTPClientAdapter(mock *MockHTTPClient) *HTTPClient {
 	// Create default retry options for tests

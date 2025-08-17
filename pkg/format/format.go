@@ -53,18 +53,19 @@ func WithPrecision(precision int) DurationOption {
 func WithShortUnits(useShort bool) DurationOption {
 	return func(o *DurationOptions) error {
 		o.UseShortUnits = useShort
+
 		return nil
 	}
 }
 
 // WithMaxComponents sets the maximum number of components to show
-func WithMaxComponents(max int) DurationOption {
+func WithMaxComponents(maxComponents int) DurationOption {
 	return func(o *DurationOptions) error {
-		if max <= 0 {
-			return fmt.Errorf("max components must be positive: %d", max)
+		if maxComponents <= 0 {
+			return fmt.Errorf("max components must be positive: %d", maxComponents)
 		}
 
-		o.MaxComponents = max
+		o.MaxComponents = maxComponents
 
 		return nil
 	}
@@ -112,6 +113,7 @@ func WithFormat(format string) DateTimeOption {
 func WithDateOnly() DateTimeOption {
 	return func(o *DateTimeOptions) error {
 		o.Format = "2006-01-02"
+
 		return nil
 	}
 }
@@ -120,6 +122,7 @@ func WithDateOnly() DateTimeOption {
 func WithTimeOnly() DateTimeOption {
 	return func(o *DateTimeOptions) error {
 		o.Format = "15:04:05"
+
 		return nil
 	}
 }
@@ -128,6 +131,7 @@ func WithTimeOnly() DateTimeOption {
 func WithISO8601() DateTimeOption {
 	return func(o *DateTimeOptions) error {
 		o.Format = time.RFC3339
+
 		return nil
 	}
 }
@@ -136,6 +140,7 @@ func WithISO8601() DateTimeOption {
 func WithDefaultOnZero(enabled bool) DateTimeOption {
 	return func(o *DateTimeOptions) error {
 		o.DefaultOnZero = enabled
+
 		return nil
 	}
 }
@@ -144,6 +149,7 @@ func WithDefaultOnZero(enabled bool) DateTimeOption {
 func WithDefaultValue(value string) DateTimeOption {
 	return func(o *DateTimeOptions) error {
 		o.DefaultValue = value
+
 		return nil
 	}
 }
@@ -152,6 +158,7 @@ func WithDefaultValue(value string) DateTimeOption {
 func WithUTC(useUTC bool) DateTimeOption {
 	return func(o *DateTimeOptions) error {
 		o.UseUTC = useUTC
+
 		return nil
 	}
 }
@@ -202,6 +209,7 @@ func WithCurrencySymbol(include bool, position string) AmountOption {
 func WithThousandsSeparator(sep string) AmountOption {
 	return func(o *AmountOptions) error {
 		o.ThousandsSeparator = sep
+
 		return nil
 	}
 }
@@ -248,6 +256,7 @@ func DefaultTransactionOptions() *TransactionOptions {
 func WithTransactionID(include bool) TransactionOption {
 	return func(o *TransactionOptions) error {
 		o.IncludeID = include
+
 		return nil
 	}
 }
@@ -256,6 +265,7 @@ func WithTransactionID(include bool) TransactionOption {
 func WithTransactionTimestamp(include bool) TransactionOption {
 	return func(o *TransactionOptions) error {
 		o.IncludeTimestamp = include
+
 		return nil
 	}
 }
@@ -264,6 +274,7 @@ func WithTransactionTimestamp(include bool) TransactionOption {
 func WithVerboseAccountInfo(verbose bool) TransactionOption {
 	return func(o *TransactionOptions) error {
 		o.VerboseAccountInfo = verbose
+
 		return nil
 	}
 }
@@ -471,46 +482,86 @@ func FormatDuration(d time.Duration) string {
 
 // FormatDurationWithOptions formats a duration with the given options.
 func FormatDurationWithOptions(d time.Duration, opts ...DurationOption) (string, error) {
-	// Start with default options
-	options := DefaultDurationOptions()
-
-	// Apply all provided options
-	for _, opt := range opts {
-		if err := opt(options); err != nil {
-			return "", fmt.Errorf("failed to apply duration option: %w", err)
-		}
+	options, err := applyDurationOptions(opts...)
+	if err != nil {
+		return "", err
 	}
 
-	// Format based on duration magnitude and options
-	if d < time.Millisecond {
-		unitStr := "μs"
-		if !options.UseShortUnits {
-			unitStr = " microseconds"
-		}
+	// Format based on duration magnitude
+	if result := formatSubSecondDuration(d, options); result != "" {
+		return result, nil
+	}
 
-		return fmt.Sprintf("%d%s", d.Microseconds(), unitStr), nil
-	} else if d < time.Second {
-		unitStr := "ms"
-		if !options.UseShortUnits {
-			unitStr = " milliseconds"
-		}
-
-		return fmt.Sprintf("%d%s", d.Milliseconds(), unitStr), nil
-	} else if d < time.Minute {
-		unitStr := "s"
-		if !options.UseShortUnits {
-			unitStr = " seconds"
-		}
-
-		formatStr := "%." + fmt.Sprintf("%d", options.Precision) + "f%s"
-
-		return fmt.Sprintf(formatStr, float64(d)/float64(time.Second), unitStr), nil
+	if result := formatSecondDuration(d, options); result != "" {
+		return result, nil
 	}
 
 	// For longer durations, break into components
+	return formatLongDuration(d, options), nil
+}
+
+// applyDurationOptions applies all duration formatting options
+func applyDurationOptions(opts ...DurationOption) (*DurationOptions, error) {
+	options := DefaultDurationOptions()
+
+	for _, opt := range opts {
+		if err := opt(options); err != nil {
+			return nil, fmt.Errorf("failed to apply duration option: %w", err)
+		}
+	}
+
+	return options, nil
+}
+
+// formatSubSecondDuration handles durations less than one second
+func formatSubSecondDuration(d time.Duration, options *DurationOptions) string {
+	if d >= time.Millisecond {
+		return ""
+	}
+
+	unitStr := getTimeUnit("μs", "microseconds", options.UseShortUnits)
+
+	return fmt.Sprintf("%d%s", d.Microseconds(), unitStr)
+}
+
+// formatSecondDuration handles durations in the second range
+func formatSecondDuration(d time.Duration, options *DurationOptions) string {
+	if d < time.Millisecond {
+		return ""
+	}
+
+	if d < time.Second {
+		unitStr := getTimeUnit("ms", "milliseconds", options.UseShortUnits)
+		return fmt.Sprintf("%d%s", d.Milliseconds(), unitStr)
+	}
+
+	if d < time.Minute {
+		unitStr := getTimeUnit("s", "seconds", options.UseShortUnits)
+		formatStr := "%." + fmt.Sprintf("%d", options.Precision) + "f%s"
+
+		return fmt.Sprintf(formatStr, float64(d)/float64(time.Second), unitStr)
+	}
+
+	return ""
+}
+
+// formatLongDuration handles durations longer than one minute
+func formatLongDuration(d time.Duration, options *DurationOptions) string {
+	components := buildDurationComponents(d, options)
+
+	if len(components) == 0 {
+		// Add zero seconds component if no other components
+		secondSuffix := getTimeUnit("s", "seconds", options.UseShortUnits)
+		components = append(components, fmt.Sprintf("0%s", secondSuffix))
+	}
+
+	return strings.Join(components, " ")
+}
+
+// buildDurationComponents creates formatted duration components
+func buildDurationComponents(d time.Duration, options *DurationOptions) []string {
 	components := make([]string, 0, options.MaxComponents)
 
-	// Calculate components
 	hours := d / time.Hour
 	d = d % time.Hour
 
@@ -519,46 +570,33 @@ func FormatDurationWithOptions(d time.Duration, opts ...DurationOption) (string,
 
 	seconds := d / time.Second
 
-	// Add components in order of significance, respecting MaxComponents
-	if hours > 0 {
-		hourSuffix := "h"
-		if !options.UseShortUnits {
-			hourSuffix = " hours"
-		}
+	// Add components in order of significance
+	components = addDurationComponent(components, int64(hours), "h", "hours", options)
+	components = addDurationComponent(components, int64(minutes), "m", "minutes", options)
+	components = addDurationComponent(components, int64(seconds), "s", "seconds", options)
 
-		components = append(components, fmt.Sprintf("%d%s", hours, hourSuffix))
+	return components
+}
+
+// addDurationComponent adds a duration component if it has a non-zero value and doesn't exceed max components
+func addDurationComponent(components []string, value int64, shortUnit, longUnit string, options *DurationOptions) []string {
+	if len(components) >= options.MaxComponents || value == 0 {
+		return components
 	}
 
-	if len(components) < options.MaxComponents && minutes > 0 {
-		minuteSuffix := "m"
-		if !options.UseShortUnits {
-			minuteSuffix = " minutes"
-		}
+	unitStr := getTimeUnit(shortUnit, longUnit, options.UseShortUnits)
+	component := fmt.Sprintf("%d%s", value, unitStr)
 
-		components = append(components, fmt.Sprintf("%d%s", minutes, minuteSuffix))
+	return append(components, component)
+}
+
+// getTimeUnit returns the appropriate time unit string based on formatting preferences
+func getTimeUnit(shortUnit, longUnit string, useShort bool) string {
+	if useShort {
+		return shortUnit
 	}
 
-	if len(components) < options.MaxComponents && seconds > 0 {
-		secondSuffix := "s"
-		if !options.UseShortUnits {
-			secondSuffix = " seconds"
-		}
-
-		components = append(components, fmt.Sprintf("%d%s", seconds, secondSuffix))
-	}
-
-	// If no components added (e.g., duration is 0), add a zero seconds component
-	if len(components) == 0 {
-		secondSuffix := "s"
-		if !options.UseShortUnits {
-			secondSuffix = " seconds"
-		}
-
-		components = append(components, fmt.Sprintf("0%s", secondSuffix))
-	}
-
-	// Join components with spaces
-	return strings.Join(components, " "), nil
+	return " " + longUnit
 }
 
 // FormatTransaction creates a user-friendly summary of a transaction.

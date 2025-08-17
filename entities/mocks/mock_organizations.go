@@ -24,6 +24,7 @@ func NewMockOrganizationsService(ctrl *gomock.Controller) *MockOrganizationsServ
 	mock := &MockOrganizationsService{ctrl: ctrl}
 
 	mock.recorder = &MockOrganizationsServiceMockRecorder{mock}
+
 	return mock
 }
 
@@ -38,6 +39,7 @@ func (m *MockOrganizationsService) ListOrganizations(ctx context.Context, opts *
 	ret := m.ctrl.Call(m, "ListOrganizations", ctx, opts)
 	ret0, _ := ret[0].(*models.ListResponse[models.Organization])
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 
@@ -53,6 +55,7 @@ func (m *MockOrganizationsService) GetOrganization(ctx context.Context, id strin
 	ret := m.ctrl.Call(m, "GetOrganization", ctx, id)
 	ret0, _ := ret[0].(*models.Organization)
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 
@@ -68,6 +71,7 @@ func (m *MockOrganizationsService) CreateOrganization(ctx context.Context, input
 	ret := m.ctrl.Call(m, "CreateOrganization", ctx, input)
 	ret0, _ := ret[0].(*models.Organization)
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 
@@ -83,6 +87,7 @@ func (m *MockOrganizationsService) UpdateOrganization(ctx context.Context, id st
 	ret := m.ctrl.Call(m, "UpdateOrganization", ctx, id, input)
 	ret0, _ := ret[0].(*models.Organization)
 	ret1, _ := ret[1].(error)
+
 	return ret0, ret1
 }
 
@@ -97,6 +102,7 @@ func (m *MockOrganizationsService) DeleteOrganization(ctx context.Context, id st
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteOrganization", ctx, id)
 	ret0, _ := ret[0].(error)
+
 	return ret0
 }
 

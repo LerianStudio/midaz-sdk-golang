@@ -198,6 +198,10 @@ func TestBatchProcessor_ExecuteBatch(t *testing.T) {
 			t.Fatalf("Expected ExecuteBatch to return an error, got nil")
 		}
 
+		if result == nil {
+			t.Fatalf("Expected result to not be nil even with error")
+		}
+
 		if len(result.Responses) != 2 {
 			t.Fatalf("Expected 2 responses, got %d", len(result.Responses))
 		}

@@ -20,6 +20,7 @@ func (input *CreateOrganizationInput) Validate() error {
 	if input.LegalName == "" {
 		return fmt.Errorf("legalName is required")
 	}
+
 	return nil
 }
 

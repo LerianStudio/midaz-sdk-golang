@@ -143,17 +143,18 @@ func WithEnvironment(env Environment) Option {
 // Returns:
 //   - Option: A function that sets the Onboarding URL on a Config
 //   - May return an error if the URL is invalid
-func WithOnboardingURL(url string) Option {
+func WithOnboardingURL(onboardingURL string) Option {
 	return func(c *Config) error {
 		// Validate URL
-		if _, err := parseURL(url); err != nil {
+		if err := parseURL(onboardingURL); err != nil {
 			return fmt.Errorf("invalid onboarding URL: %w", err)
 		}
 
 		if c.ServiceURLs == nil {
 			c.ServiceURLs = make(map[ServiceType]string)
 		}
-		c.ServiceURLs[ServiceOnboarding] = url
+
+		c.ServiceURLs[ServiceOnboarding] = onboardingURL
 
 		return nil
 	}
@@ -168,17 +169,19 @@ func WithOnboardingURL(url string) Option {
 // Returns:
 //   - Option: A function that sets the Transaction URL on a Config
 //   - May return an error if the URL is invalid
-func WithTransactionURL(url string) Option {
+func WithTransactionURL(transactionURL string) Option {
 	return func(c *Config) error {
 		// Validate URL
-		if _, err := parseURL(url); err != nil {
+		if err := parseURL(transactionURL); err != nil {
 			return fmt.Errorf("invalid transaction URL: %w", err)
 		}
 
 		if c.ServiceURLs == nil {
 			c.ServiceURLs = make(map[ServiceType]string)
 		}
-		c.ServiceURLs[ServiceTransaction] = url
+
+		c.ServiceURLs[ServiceTransaction] = transactionURL
+
 		return nil
 	}
 }
@@ -196,7 +199,7 @@ func WithTransactionURL(url string) Option {
 func WithBaseURL(baseURL string) Option {
 	return func(c *Config) error {
 		// Validate the base URL
-		if _, err := parseURL(baseURL); err != nil {
+		if err := parseURL(baseURL); err != nil {
 			return fmt.Errorf("invalid base URL: %w", err)
 		}
 
@@ -234,7 +237,9 @@ func WithHTTPClient(client *http.Client) Option {
 		if client == nil {
 			return fmt.Errorf("HTTP client cannot be nil")
 		}
+
 		c.HTTPClient = client
+
 		return nil
 	}
 }
@@ -251,7 +256,9 @@ func WithTimeout(timeout time.Duration) Option {
 		if timeout <= 0 {
 			return fmt.Errorf("timeout must be greater than 0")
 		}
+
 		c.Timeout = timeout
+
 		return nil
 	}
 }
@@ -268,7 +275,9 @@ func WithUserAgent(userAgent string) Option {
 		if userAgent == "" {
 			return fmt.Errorf("user agent cannot be empty")
 		}
+
 		c.UserAgent = userAgent
+
 		return nil
 	}
 }
@@ -287,9 +296,11 @@ func WithRetryConfig(maxRetries int, minWait, maxWait time.Duration) Option {
 		if maxRetries < 0 {
 			return fmt.Errorf("max retries cannot be negative")
 		}
+
 		if minWait <= 0 {
 			return fmt.Errorf("minimum wait time must be greater than 0")
 		}
+
 		if maxWait < minWait {
 			return fmt.Errorf("maximum wait time must be greater than or equal to minimum wait time")
 		}
@@ -297,6 +308,7 @@ func WithRetryConfig(maxRetries int, minWait, maxWait time.Duration) Option {
 		c.MaxRetries = maxRetries
 		c.RetryWaitMin = minWait
 		c.RetryWaitMax = maxWait
+
 		return nil
 	}
 }
@@ -311,6 +323,7 @@ func WithRetryConfig(maxRetries int, minWait, maxWait time.Duration) Option {
 func WithRetries(enable bool) Option {
 	return func(c *Config) error {
 		c.EnableRetries = enable
+
 		return nil
 	}
 }
@@ -326,6 +339,7 @@ func WithRetries(enable bool) Option {
 func WithDebug(enable bool) Option {
 	return func(c *Config) error {
 		c.Debug = enable
+
 		return nil
 	}
 }
@@ -340,6 +354,7 @@ func WithDebug(enable bool) Option {
 func WithObservabilityProvider(provider observability.Provider) Option {
 	return func(c *Config) error {
 		c.ObservabilityProvider = provider
+
 		return nil
 	}
 }
@@ -354,6 +369,7 @@ func WithObservabilityProvider(provider observability.Provider) Option {
 func WithIdempotency(enable bool) Option {
 	return func(c *Config) error {
 		c.EnableIdempotency = enable
+
 		return nil
 	}
 }
@@ -368,6 +384,7 @@ func WithIdempotency(enable bool) Option {
 func WithAccessManager(AccessManager auth.AccessManager) Option {
 	return func(c *Config) error {
 		c.AccessManager = AccessManager
+
 		return nil
 	}
 }
@@ -391,78 +408,145 @@ func WithAccessManager(AccessManager auth.AccessManager) Option {
 //   - Option: A function that sets configuration from environment variables
 func FromEnvironment() Option {
 	return func(c *Config) error {
-		// Load environment variables
-		if env := os.Getenv("MIDAZ_ENVIRONMENT"); env != "" {
-			switch Environment(env) {
-			case EnvironmentLocal:
-				c.Environment = EnvironmentLocal
-			case EnvironmentDevelopment:
-				c.Environment = EnvironmentDevelopment
-			case EnvironmentProduction:
-				c.Environment = EnvironmentProduction
-			default:
-				return fmt.Errorf("invalid environment: %s", env)
-			}
+		if err := configureEnvironment(c); err != nil {
+			return err
 		}
 
-		if enable := os.Getenv("PLUGIN_AUTH_ENABLED"); enable != "" {
-			c.AccessManager.Address = os.Getenv("PLUGIN_AUTH_ADDRESS")
-			c.AccessManager.ClientID = os.Getenv("MIDAZ_CLIENT_ID")
-			c.AccessManager.ClientSecret = os.Getenv("MIDAZ_CLIENT_SECRET")
-			c.AccessManager.Enabled = enable == "true"
+		configureAccessManager(c)
+		configureUserAgent(c)
+
+		if err := configureURLs(c); err != nil {
+			return err
 		}
 
-		// Set user agent from environment if available
-		if userAgent := os.Getenv("MIDAZ_USER_AGENT"); userAgent != "" {
-			c.UserAgent = userAgent
+		if err := configureTimeoutAndRetries(c); err != nil {
+			return err
 		}
 
-		// URLs take precedence in this order: specific URL > base URL > environment default
-		if baseURL := os.Getenv("MIDAZ_BASE_URL"); baseURL != "" {
-			if err := WithBaseURL(baseURL)(c); err != nil {
-				return err
-			}
-		}
-
-		// Specific URLs override base URL
-		if url := os.Getenv("MIDAZ_ONBOARDING_URL"); url != "" {
-			if err := WithOnboardingURL(url)(c); err != nil {
-				return err
-			}
-		}
-
-		if url := os.Getenv("MIDAZ_TRANSACTION_URL"); url != "" {
-			if err := WithTransactionURL(url)(c); err != nil {
-				return err
-			}
-		}
-
-		// Other settings
-		if debug := os.Getenv("MIDAZ_DEBUG"); debug == "true" {
-			c.Debug = true
-		}
-
-		if timeout := os.Getenv("MIDAZ_TIMEOUT"); timeout != "" {
-			seconds, err := parseEnvInt(timeout)
-			if err != nil {
-				return fmt.Errorf("invalid timeout: %w", err)
-			}
-			c.Timeout = time.Duration(seconds) * time.Second
-		}
-
-		if retries := os.Getenv("MIDAZ_MAX_RETRIES"); retries != "" {
-			maxRetries, err := parseEnvInt(retries)
-			if err != nil {
-				return fmt.Errorf("invalid max retries: %w", err)
-			}
-			c.MaxRetries = maxRetries
-		}
-
-		if idempotency := os.Getenv("MIDAZ_IDEMPOTENCY"); idempotency != "" {
-			c.EnableIdempotency = idempotency == "true"
-		}
+		configureOptionalSettings(c)
 
 		return nil
+	}
+}
+
+// configureEnvironment sets the environment from environment variables
+func configureEnvironment(c *Config) error {
+	env := os.Getenv("MIDAZ_ENVIRONMENT")
+	if env == "" {
+		return nil
+	}
+
+	switch Environment(env) {
+	case EnvironmentLocal:
+		c.Environment = EnvironmentLocal
+	case EnvironmentDevelopment:
+		c.Environment = EnvironmentDevelopment
+	case EnvironmentProduction:
+		c.Environment = EnvironmentProduction
+	default:
+		return fmt.Errorf("invalid environment: %s", env)
+	}
+
+	return nil
+}
+
+// configureAccessManager sets up access manager configuration from environment
+func configureAccessManager(c *Config) {
+	if enable := os.Getenv("PLUGIN_AUTH_ENABLED"); enable != "" {
+		c.AccessManager.Address = os.Getenv("PLUGIN_AUTH_ADDRESS")
+		c.AccessManager.ClientID = os.Getenv("MIDAZ_CLIENT_ID")
+		c.AccessManager.ClientSecret = os.Getenv("MIDAZ_CLIENT_SECRET")
+		c.AccessManager.Enabled = enable == "true"
+	}
+}
+
+// configureUserAgent sets user agent from environment if available
+func configureUserAgent(c *Config) {
+	if userAgent := os.Getenv("MIDAZ_USER_AGENT"); userAgent != "" {
+		c.UserAgent = userAgent
+	}
+}
+
+// configureURLs sets up URL configuration from environment variables
+func configureURLs(c *Config) error {
+	// URLs take precedence in this order: specific URL > base URL > environment default
+	if baseURL := os.Getenv("MIDAZ_BASE_URL"); baseURL != "" {
+		if err := WithBaseURL(baseURL)(c); err != nil {
+			return err
+		}
+	}
+
+	return configureSpecificURLs(c)
+}
+
+// configureSpecificURLs sets specific service URLs that override base URL
+func configureSpecificURLs(c *Config) error {
+	if onboardingURL := os.Getenv("MIDAZ_ONBOARDING_URL"); onboardingURL != "" {
+		if err := WithOnboardingURL(onboardingURL)(c); err != nil {
+			return err
+		}
+	}
+
+	if transactionURL := os.Getenv("MIDAZ_TRANSACTION_URL"); transactionURL != "" {
+		if err := WithTransactionURL(transactionURL)(c); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// configureTimeoutAndRetries sets timeout and retry configuration from environment
+func configureTimeoutAndRetries(c *Config) error {
+	if err := configureTimeout(c); err != nil {
+		return err
+	}
+
+	return configureRetries(c)
+}
+
+// configureTimeout sets timeout from environment variable
+func configureTimeout(c *Config) error {
+	timeout := os.Getenv("MIDAZ_TIMEOUT")
+	if timeout == "" {
+		return nil
+	}
+
+	seconds, err := parseEnvInt(timeout)
+	if err != nil {
+		return fmt.Errorf("invalid timeout: %w", err)
+	}
+
+	c.Timeout = time.Duration(seconds) * time.Second
+
+	return nil
+}
+
+// configureRetries sets max retries from environment variable
+func configureRetries(c *Config) error {
+	retries := os.Getenv("MIDAZ_MAX_RETRIES")
+	if retries == "" {
+		return nil
+	}
+
+	maxRetries, err := parseEnvInt(retries)
+	if err != nil {
+		return fmt.Errorf("invalid max retries: %w", err)
+	}
+
+	c.MaxRetries = maxRetries
+
+	return nil
+}
+
+// configureOptionalSettings sets optional boolean settings from environment
+func configureOptionalSettings(c *Config) {
+	if debug := os.Getenv("MIDAZ_DEBUG"); debug == "true" {
+		c.Debug = true
+	}
+
+	if idempotency := os.Getenv("MIDAZ_IDEMPOTENCY"); idempotency != "" {
+		c.EnableIdempotency = idempotency == "true"
 	}
 }
 
@@ -557,6 +641,7 @@ func validateConfig(config *Config) error {
 	if _, ok := config.ServiceURLs[ServiceOnboarding]; !ok {
 		return fmt.Errorf("onboarding URL is required")
 	}
+
 	if _, ok := config.ServiceURLs[ServiceTransaction]; !ok {
 		return fmt.Errorf("transaction URL is required")
 	}
@@ -575,9 +660,10 @@ func validateConfig(config *Config) error {
 // GetBaseURLs converts ServiceURLs to the map format expected by the entity layer.
 func (c *Config) GetBaseURLs() map[string]string {
 	result := make(map[string]string)
-	for service, url := range c.ServiceURLs {
-		result[string(service)] = url
+	for service, serviceURL := range c.ServiceURLs {
+		result[string(service)] = serviceURL
 	}
+
 	return result
 }
 
@@ -603,18 +689,18 @@ func (c *Config) GetObservabilityProvider() observability.Provider {
 }
 
 // parseURL validates that a URL is properly formatted.
-func parseURL(rawURL string) (*url.URL, error) {
+func parseURL(rawURL string) error {
 	parsedURL, err := url.Parse(rawURL)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// Require scheme and host
 	if parsedURL.Scheme == "" || parsedURL.Host == "" {
-		return nil, fmt.Errorf("URL must include scheme and host")
+		return fmt.Errorf("URL must include scheme and host")
 	}
 
-	return parsedURL, nil
+	return nil
 }
 
 // DefaultConfig creates a new Config with default values.
@@ -660,7 +746,9 @@ func WithMaxRetries(maxRetries int) Option {
 		if maxRetries < 0 {
 			return fmt.Errorf("max retries cannot be negative")
 		}
+
 		c.MaxRetries = maxRetries
+
 		return nil
 	}
 }
@@ -677,6 +765,7 @@ func WithRetryWaitMin(waitTime time.Duration) Option {
 		if waitTime <= 0 {
 			return fmt.Errorf("minimum wait time must be greater than 0")
 		}
+
 		c.RetryWaitMin = waitTime
 
 		return nil
@@ -695,10 +784,13 @@ func WithRetryWaitMax(waitTime time.Duration) Option {
 		if waitTime <= 0 {
 			return fmt.Errorf("maximum wait time must be greater than 0")
 		}
+
 		if waitTime < c.RetryWaitMin {
 			return fmt.Errorf("maximum wait time must be greater than or equal to minimum wait time")
 		}
+
 		c.RetryWaitMax = waitTime
+
 		return nil
 	}
 }

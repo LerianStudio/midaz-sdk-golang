@@ -20,9 +20,11 @@ func (input *CreateTransactionRouteInput) Validate() error {
 	if input.Title == "" {
 		return fmt.Errorf("title is required")
 	}
+
 	if input.Description == "" {
 		return fmt.Errorf("description is required")
 	}
+
 	return nil
 }
 
@@ -48,11 +50,11 @@ func (input *UpdateTransactionRouteInput) Validate() error {
 func NewCreateTransactionRouteInput(title, description string, operationRoutes []string) *CreateTransactionRouteInput {
 	// Convert string UUIDs to uuid.UUID type
 	uuidRoutes := make([]uuid.UUID, len(operationRoutes))
+
 	for i, routeStr := range operationRoutes {
 		if routeUUID, err := uuid.Parse(routeStr); err == nil {
 			uuidRoutes[i] = routeUUID
 		}
-		// If parsing fails, we'll use a zero UUID
 	}
 
 	return &CreateTransactionRouteInput{

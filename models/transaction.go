@@ -248,6 +248,7 @@ func (input *TransactionDSLInput) GetValue() float64 {
 	if err != nil {
 		return 0
 	}
+
 	return value
 }
 
@@ -502,6 +503,7 @@ func (input *TransactionDSLInput) sourceToMap() map[string]any {
 			fromMap := fromToToMap(from)
 			fromList = append(fromList, fromMap)
 		}
+
 		source["from"] = fromList
 	}
 
@@ -529,6 +531,7 @@ func (input *TransactionDSLInput) distributeToMap() map[string]any {
 			toMap := fromToToMap(to)
 			toList = append(toList, toMap)
 		}
+
 		distribute["to"] = toList
 	}
 
@@ -764,6 +767,7 @@ func getStringFromMap(m map[string]any, key string) string {
 	if val, ok := m[key].(string); ok {
 		return val
 	}
+
 	return ""
 }
 
@@ -772,6 +776,7 @@ func getMetadataFromMap(m map[string]any) map[string]any {
 	if val, ok := m["metadata"].(map[string]any); ok {
 		return val
 	}
+
 	return nil
 }
 
@@ -1093,6 +1098,7 @@ func (input *SendInput) Validate() error {
 	if input.Source == nil {
 		return fmt.Errorf("source is required")
 	}
+
 	if err := input.Source.Validate(); err != nil {
 		return fmt.Errorf("invalid source: %w", err)
 	}
@@ -1101,6 +1107,7 @@ func (input *SendInput) Validate() error {
 	if input.Distribute == nil {
 		return fmt.Errorf("distribute is required")
 	}
+
 	if err := input.Distribute.Validate(); err != nil {
 		return fmt.Errorf("invalid distribute: %w", err)
 	}
@@ -1259,6 +1266,7 @@ func (input *SourceInput) ToMap() map[string]any {
 		for _, from := range input.From {
 			fromList = append(fromList, from.ToMap())
 		}
+
 		source["from"] = fromList
 	}
 
@@ -1280,6 +1288,7 @@ func (input *DistributeInput) ToMap() map[string]any {
 		for _, to := range input.To {
 			toList = append(toList, to.ToMap())
 		}
+
 		distribute["to"] = toList
 	}
 

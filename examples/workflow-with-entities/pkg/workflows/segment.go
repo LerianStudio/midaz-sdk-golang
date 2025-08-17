@@ -81,5 +81,6 @@ func CreateSegments(ctx context.Context, midazClient *client.Client, orgID, ledg
 	}
 
 	fmt.Println("\n✅ All segments created successfully")
+
 	return nil
 }

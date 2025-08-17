@@ -27,6 +27,7 @@ func init() {
 	if concurrentCustomerToMerchantTxs == 0 {
 		concurrentCustomerToMerchantTxs = 20 // Default number of concurrent C2M transactions to run
 	}
+
 	if concurrentMerchantToCustomerTxs == 0 {
 		concurrentMerchantToCustomerTxs = 20 // Default number of concurrent M2C transactions to run
 	}
@@ -63,19 +64,23 @@ func ExecuteConcurrentTransactions(ctx context.Context, midazClient *client.Clie
 	if !validation.IsValidUUID(customerAccount.ID) || !validation.IsValidUUID(merchantAccount.ID) {
 		err := fmt.Errorf("invalid account IDs")
 		observability.RecordError(ctx, err, "invalid_account_ids")
+
 		return err
 	}
 
 	// Execute concurrent transactions from customer to merchant
 	fmt.Printf("Running %d concurrent transactions from customer to merchant...\n", concurrentCustomerToMerchantTxs)
+
 	startTimeC2M := time.Now()
 
 	c2mCtx, c2mSpan := observability.StartSpan(ctx, "CustomerToMerchantTransactions")
 	if err := ExecuteCustomerToMerchantConcurrent(c2mCtx, midazClient, orgID, ledgerID, customerAccount, merchantAccount, concurrentCustomerToMerchantTxs); err != nil {
 		c2mSpan.End()
 		observability.RecordError(ctx, err, "c2m_transactions_failed")
+
 		return fmt.Errorf("failed to execute concurrent transactions: %w", err)
 	}
+
 	c2mSpan.End()
 
 	customerToMerchantDuration := time.Since(startTimeC2M)
@@ -90,14 +95,17 @@ func ExecuteConcurrentTransactions(ctx context.Context, midazClient *client.Clie
 
 	// Execute concurrent transactions from merchant to customer
 	fmt.Printf("Running %d concurrent transactions from merchant to customer...\n", concurrentMerchantToCustomerTxs)
+
 	startTimeM2C := time.Now()
 
 	m2cCtx, m2cSpan := observability.StartSpan(ctx, "MerchantToCustomerTransactions")
 	if err := ExecuteMerchantToCustomerConcurrent(m2cCtx, midazClient, orgID, ledgerID, customerAccount, merchantAccount, concurrentMerchantToCustomerTxs); err != nil {
 		m2cSpan.End()
 		observability.RecordError(ctx, err, "m2c_transactions_failed")
+
 		return fmt.Errorf("failed to execute concurrent transactions: %w", err)
 	}
+
 	m2cSpan.End()
 
 	merchantToCustomerDuration := time.Since(startTimeM2C)
@@ -132,16 +140,18 @@ func GenerateUniqueIdempotencyKey(prefix string, index int) string {
 
 	// Add the current timestamp with nanosecond precision
 	timestamp := time.Now().UnixNano()
-	h.Write([]byte(fmt.Sprintf("%d", timestamp)))
+	fmt.Fprintf(h, "%d", timestamp)
 
 	// Add the prefix and index
-	h.Write([]byte(fmt.Sprintf("%s-%d", prefix, index)))
+	fmt.Fprintf(h, "%s-%d", prefix, index)
 
 	// Add some random bytes
 	randomBytes := make([]byte, 16)
 	_, err := cryptorand.Read(randomBytes)
+
 	if err != nil {
 		log.Printf("Warning: Failed to generate cryptographically secure random bytes: %v", err)
+
 		// Fallback to a more secure approach than math/rand.Read
 		// Use current time and process-specific values to create entropy
 		timeNow := time.Now()
@@ -157,8 +167,10 @@ func GenerateUniqueIdempotencyKey(prefix string, index int) string {
 		hasher := sha256.New()
 		hasher.Write(fallbackSource)
 		copy(randomBytes, hasher.Sum(nil)[:16])
+
 		log.Printf("Warning: Using fallback method for random bytes generation")
 	}
+
 	h.Write(randomBytes)
 
 	// Get the hash as a hex string
@@ -264,7 +276,9 @@ func ExecuteCustomerToMerchantConcurrent(ctx context.Context, midazClient *clien
 		amount := "0.01"
 		if amount == "" || amount == "0" {
 			err := fmt.Errorf("invalid transaction amount")
+
 			observability.RecordError(txCtx, err, "invalid_amount")
+
 			return "", err
 		}
 
@@ -319,6 +333,7 @@ func ExecuteCustomerToMerchantConcurrent(ctx context.Context, midazClient *clien
 
 		// Record transaction duration
 		duration := time.Since(startTime)
+
 		observability.RecordSpanMetric(txCtx, "transaction_duration_ms", float64(duration.Milliseconds()))
 
 		if err != nil {
@@ -327,6 +342,7 @@ func ExecuteCustomerToMerchantConcurrent(ctx context.Context, midazClient *clien
 		}
 
 		observability.AddAttribute(txCtx, "transaction_id", tx.ID)
+
 		return tx.ID, nil
 	}
 
@@ -352,6 +368,7 @@ func ExecuteCustomerToMerchantConcurrent(ctx context.Context, midazClient *clien
 
 	// Count successes and check for errors
 	var successCount int
+
 	var firstError error
 
 	for _, result := range results {
@@ -368,6 +385,7 @@ func ExecuteCustomerToMerchantConcurrent(ctx context.Context, midazClient *clien
 	observability.RecordSpanMetric(ctx, "c2m_batch_duration_seconds", duration.Seconds())
 	observability.RecordSpanMetric(ctx, "c2m_batch_success_count", float64(successCount))
 	observability.RecordSpanMetric(ctx, "c2m_batch_error_count", float64(count-successCount))
+
 	if duration.Seconds() > 0 {
 		observability.RecordSpanMetric(ctx, "c2m_batch_transactions_per_second", float64(successCount)/duration.Seconds())
 	}
@@ -399,6 +417,7 @@ func ExecuteMerchantToCustomerConcurrent(ctx context.Context, midazClient *clien
 
 	// Create transaction inputs for each transaction
 	transactionInputs := make([]*midazmodels.CreateTransactionInput, count)
+
 	for i := 0; i < count; i++ {
 		// Generate a unique idempotency key
 		idempotencyKey := GenerateUniqueIdempotencyKey("m2c", i)
@@ -406,7 +425,9 @@ func ExecuteMerchantToCustomerConcurrent(ctx context.Context, midazClient *clien
 		// Validate account IDs using the validation package
 		if !validation.IsValidUUID(merchantAccount.ID) || !validation.IsValidUUID(customerAccount.ID) {
 			err := fmt.Errorf("invalid account IDs")
+
 			observability.RecordError(ctx, err, "invalid_account_ids")
+
 			return err
 		}
 
@@ -488,6 +509,7 @@ func ExecuteMerchantToCustomerConcurrent(ctx context.Context, midazClient *clien
 
 				// Extract the index from the metadata to use in the error handler
 				var index int
+
 				if idx, ok := input.Metadata["index"]; ok {
 					if idxInt, ok := idx.(int); ok {
 						index = idxInt - 1 // Convert back to 0-based index
@@ -503,6 +525,7 @@ func ExecuteMerchantToCustomerConcurrent(ctx context.Context, midazClient *clien
 
 				// Record transaction duration
 				txDuration := time.Since(txStartTime)
+
 				observability.RecordSpanMetric(txCtx, "transaction_duration_ms", float64(txDuration.Milliseconds()))
 
 				if err != nil {
@@ -525,7 +548,9 @@ func ExecuteMerchantToCustomerConcurrent(ctx context.Context, midazClient *clien
 
 		// Record batch duration and throughput
 		batchDuration := time.Since(batchStartTime)
+
 		observability.RecordSpanMetric(batchCtx, "batch_duration_seconds", batchDuration.Seconds())
+
 		if batchDuration.Seconds() > 0 && err == nil {
 			observability.RecordSpanMetric(batchCtx, "batch_transactions_per_second", float64(len(results))/batchDuration.Seconds())
 		}
@@ -554,10 +579,12 @@ func ExecuteMerchantToCustomerConcurrent(ctx context.Context, midazClient *clien
 
 	// Record total batch operation duration
 	batchOpDuration := time.Since(batchOpStartTime)
+
 	observability.RecordSpanMetric(ctx, "m2c_batch_operation_duration_seconds", batchOpDuration.Seconds())
 
 	// Count successes and check for errors
 	var successCount int
+
 	var firstError error
 
 	for _, result := range batchResults {
@@ -573,6 +600,7 @@ func ExecuteMerchantToCustomerConcurrent(ctx context.Context, midazClient *clien
 	// Record final metrics
 	observability.RecordSpanMetric(ctx, "m2c_batch_success_count", float64(successCount))
 	observability.RecordSpanMetric(ctx, "m2c_batch_error_count", float64(count-successCount))
+
 	if batchOpDuration.Seconds() > 0 {
 		observability.RecordSpanMetric(ctx, "m2c_batch_transactions_per_second", float64(successCount)/batchOpDuration.Seconds())
 	}

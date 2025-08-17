@@ -60,10 +60,11 @@ type UpdateAccountTypeInput struct {
 
 // Validate validates the CreateAccountTypeInput fields.
 func (input *CreateAccountTypeInput) Validate() error {
-	if input.CreateAccountTypeInput.Name == "" {
+	if input.Name == "" {
 		return fmt.Errorf("name is required")
 	}
-	if input.CreateAccountTypeInput.KeyValue == "" {
+
+	if input.KeyValue == "" {
 		return fmt.Errorf("keyValue is required")
 	}
 
@@ -104,19 +105,19 @@ func NewCreateAccountTypeInput(name, keyValue string) *CreateAccountTypeInput {
 // Returns:
 //   - A pointer to the modified CreateAccountTypeInput for method chaining
 func WithCreateAccountTypeDescription(input *CreateAccountTypeInput, description string) *CreateAccountTypeInput {
-	input.CreateAccountTypeInput.Description = description
+	input.Description = description
 	return input
 }
 
 // WithDescription sets the description for CreateAccountTypeInput (method on struct).
 func (input *CreateAccountTypeInput) WithDescription(description string) *CreateAccountTypeInput {
-	input.CreateAccountTypeInput.Description = description
+	input.Description = description
 	return input
 }
 
 // WithMetadata sets the metadata for CreateAccountTypeInput (method on struct).
 func (input *CreateAccountTypeInput) WithMetadata(metadata map[string]any) *CreateAccountTypeInput {
-	input.CreateAccountTypeInput.Metadata = metadata
+	input.Metadata = metadata
 	return input
 }
 
@@ -130,7 +131,7 @@ func (input *CreateAccountTypeInput) WithMetadata(metadata map[string]any) *Crea
 // Returns:
 //   - A pointer to the modified CreateAccountTypeInput for method chaining
 func WithCreateAccountTypeMetadata(input *CreateAccountTypeInput, metadata map[string]any) *CreateAccountTypeInput {
-	input.CreateAccountTypeInput.Metadata = metadata
+	input.Metadata = metadata
 	return input
 }
 
@@ -156,25 +157,25 @@ func NewUpdateAccountTypeInput() *UpdateAccountTypeInput {
 // Returns:
 //   - A pointer to the modified UpdateAccountTypeInput for method chaining
 func WithUpdateAccountTypeName(input *UpdateAccountTypeInput, name string) *UpdateAccountTypeInput {
-	input.UpdateAccountTypeInput.Name = name
+	input.Name = name
 	return input
 }
 
 // WithName sets the name for UpdateAccountTypeInput (method on struct).
 func (input *UpdateAccountTypeInput) WithName(name string) *UpdateAccountTypeInput {
-	input.UpdateAccountTypeInput.Name = name
+	input.Name = name
 	return input
 }
 
 // WithDescription sets the description for UpdateAccountTypeInput (method on struct).
 func (input *UpdateAccountTypeInput) WithDescription(description string) *UpdateAccountTypeInput {
-	input.UpdateAccountTypeInput.Description = description
+	input.Description = description
 	return input
 }
 
 // WithMetadata sets the metadata for UpdateAccountTypeInput (method on struct).
 func (input *UpdateAccountTypeInput) WithMetadata(metadata map[string]any) *UpdateAccountTypeInput {
-	input.UpdateAccountTypeInput.Metadata = metadata
+	input.Metadata = metadata
 	return input
 }
 
@@ -188,7 +189,7 @@ func (input *UpdateAccountTypeInput) WithMetadata(metadata map[string]any) *Upda
 // Returns:
 //   - A pointer to the modified UpdateAccountTypeInput for method chaining
 func WithUpdateAccountTypeDescription(input *UpdateAccountTypeInput, description string) *UpdateAccountTypeInput {
-	input.UpdateAccountTypeInput.Description = description
+	input.Description = description
 	return input
 }
 
@@ -202,6 +203,6 @@ func WithUpdateAccountTypeDescription(input *UpdateAccountTypeInput, description
 // Returns:
 //   - A pointer to the modified UpdateAccountTypeInput for method chaining
 func WithUpdateAccountTypeMetadata(input *UpdateAccountTypeInput, metadata map[string]any) *UpdateAccountTypeInput {
-	input.UpdateAccountTypeInput.Metadata = metadata
+	input.Metadata = metadata
 	return input
 }

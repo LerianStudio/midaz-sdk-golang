@@ -77,6 +77,7 @@ func RecordError(ctx context.Context, err error, eventName string, attrs ...map[
 
 	// Convert map attributes to attribute.KeyValue slice
 	var eventAttrs []attribute.KeyValue
+
 	if len(attrs) > 0 {
 		for k, v := range attrs[0] {
 			eventAttrs = append(eventAttrs, attribute.String(k, v))
@@ -100,7 +101,7 @@ func AddEvent(ctx context.Context, name string, attrs map[string]string) {
 	}
 
 	// Convert map attributes to attribute.KeyValue slice
-	var eventAttrs []attribute.KeyValue
+	eventAttrs := make([]attribute.KeyValue, 0, len(attrs))
 	for k, v := range attrs {
 		eventAttrs = append(eventAttrs, attribute.String(k, v))
 	}
@@ -116,7 +117,9 @@ func RecordSpanMetric(ctx context.Context, name string, value float64) {
 
 	// Extract trace ID and span ID for correlation
 	span := trace.SpanFromContext(ctx)
+
 	var attrs []attribute.KeyValue
+
 	if span.IsRecording() {
 		attrs = append(attrs, attribute.String("trace_id", span.SpanContext().TraceID().String()))
 		attrs = append(attrs, attribute.String("span_id", span.SpanContext().SpanID().String()))

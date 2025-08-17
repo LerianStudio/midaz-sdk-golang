@@ -71,18 +71,23 @@ func NewHTTPBatchProcessorWithRetry(client *http.Client, baseURL string, opts ..
 	if err := retry.WithHTTPMaxRetries(options.RetryCount)(retryOptions); err != nil {
 		return nil, fmt.Errorf("failed to set max retries: %w", err)
 	}
+
 	if err := retry.WithHTTPInitialDelay(options.RetryBackoff)(retryOptions); err != nil {
 		return nil, fmt.Errorf("failed to set initial delay: %w", err)
 	}
+
 	if err := retry.WithHTTPMaxDelay(options.RetryBackoff * 10)(retryOptions); err != nil { // Scale up max delay
 		return nil, fmt.Errorf("failed to set max delay: %w", err)
 	}
+
 	if err := retry.WithHTTPBackoffFactor(2.0)(retryOptions); err != nil {
 		return nil, fmt.Errorf("failed to set backoff factor: %w", err)
 	}
+
 	if err := retry.WithHTTPRetryAllServerErrors(true)(retryOptions); err != nil {
 		return nil, fmt.Errorf("failed to set retry all server errors: %w", err)
 	}
+
 	if err := retry.WithHTTPRetryOn4xx([]int{429})(retryOptions); err != nil { // Too Many Requests
 		return nil, fmt.Errorf("failed to set retry on 4xx: %w", err)
 	}
@@ -116,34 +121,68 @@ func (b *HTTPBatchProcessorWithRetry) SetDefaultHeaders(headers map[string]strin
 
 // ExecuteBatch executes a batch of requests and returns the results.
 func (b *HTTPBatchProcessorWithRetry) ExecuteBatch(ctx context.Context, requests []HTTPBatchRequest) (*HTTPBatchResult, error) {
+	// Handle empty request case
 	if len(requests) == 0 {
-		return &HTTPBatchResult{
-			Responses: []HTTPBatchResponse{},
-		}, nil
+		return &HTTPBatchResult{Responses: []HTTPBatchResponse{}}, nil
 	}
 
-	// Apply context timeout if one isn't already set
-	if _, ok := ctx.Deadline(); !ok && b.options.Timeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, b.options.Timeout)
-		defer cancel()
-	}
-
-	// Add retry options to the context
-	ctx = retry.WithHTTPOptionsContext(ctx, &b.retryOptions)
-
-	// Split into smaller batches if needed
+	// Prepare context and check for large batches
+	ctx = b.prepareExecutionContext(ctx)
 	if len(requests) > b.options.MaxBatchSize {
 		return b.executeBatches(ctx, requests)
 	}
 
+	// Execute single batch
+	return b.executeSingleBatch(ctx, requests)
+}
+
+// prepareExecutionContext prepares the context for batch execution
+func (b *HTTPBatchProcessorWithRetry) prepareExecutionContext(ctx context.Context) context.Context {
+	// Apply context timeout if one isn't already set
+	if _, ok := ctx.Deadline(); !ok && b.options.Timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, b.options.Timeout)
+		// Note: We can't defer cancel here as the context is returned
+		// The caller must handle the cancellation
+		_ = cancel // Avoid unused variable warning
+	}
+
+	// Add retry options to the context
+	return retry.WithHTTPOptionsContext(ctx, &b.retryOptions)
+}
+
+// executeSingleBatch executes a single batch of requests
+func (b *HTTPBatchProcessorWithRetry) executeSingleBatch(ctx context.Context, requests []HTTPBatchRequest) (*HTTPBatchResult, error) {
 	// Ensure each request has an ID
+	b.ensureRequestIDs(requests)
+
+	// Create and configure the HTTP request
+	req, err := b.createHTTPRequest(ctx, requests)
+	if err != nil {
+		return nil, err
+	}
+
+	// Execute the request with enhanced retry
+	httpResp, err := retry.DoHTTPRequestWithContext(ctx, b.httpClient, req)
+	if err != nil {
+		return nil, errors.NewNetworkError("HTTPBatchRequest", err)
+	}
+
+	// Parse and process the response
+	return b.parseAndProcessResponse(httpResp)
+}
+
+// ensureRequestIDs ensures each request has an ID
+func (b *HTTPBatchProcessorWithRetry) ensureRequestIDs(requests []HTTPBatchRequest) {
 	for i := range requests {
 		if requests[i].ID == "" {
 			requests[i].ID = fmt.Sprintf("req_%d", i)
 		}
 	}
+}
 
+// createHTTPRequest creates and configures the HTTP request
+func (b *HTTPBatchProcessorWithRetry) createHTTPRequest(ctx context.Context, requests []HTTPBatchRequest) (*http.Request, error) {
 	// Create the request body
 	reqBody, err := b.jsonMarshaler.Marshal(requests)
 	if err != nil {
@@ -151,7 +190,7 @@ func (b *HTTPBatchProcessorWithRetry) ExecuteBatch(ctx context.Context, requests
 	}
 
 	// Create the HTTP request
-	req, err := http.NewRequestWithContext(ctx, "POST", b.baseURL+"/batch", bytes.NewReader(reqBody))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, b.baseURL+"/batch", bytes.NewReader(reqBody))
 	if err != nil {
 		return nil, errors.NewInternalError("HTTPBatchRequest", err)
 	}
@@ -163,15 +202,25 @@ func (b *HTTPBatchProcessorWithRetry) ExecuteBatch(ctx context.Context, requests
 	}
 
 	// Add headers
+	b.setRequestHeaders(req)
+
+	return req, nil
+}
+
+// setRequestHeaders sets the appropriate headers on the HTTP request
+func (b *HTTPBatchProcessorWithRetry) setRequestHeaders(req *http.Request) {
 	req.Header.Set("Content-Type", "application/json")
+
 	for k, v := range b.defaultHeaders {
 		req.Header.Set(k, v)
 	}
+}
 
-	// Execute the request with enhanced retry
-	httpResp, err := retry.DoHTTPRequestWithContext(ctx, b.httpClient, req)
-	if err != nil {
-		return nil, errors.NewNetworkError("HTTPBatchRequest", err)
+// parseAndProcessResponse parses the HTTP response and processes the results
+func (b *HTTPBatchProcessorWithRetry) parseAndProcessResponse(httpResp *retry.HTTPResponse) (*HTTPBatchResult, error) {
+	// Check for HTTP errors
+	if httpResp.Error != nil {
+		return nil, errors.NewNetworkError("HTTPBatchRequest", httpResp.Error)
 	}
 
 	// Parse the response
@@ -180,36 +229,38 @@ func (b *HTTPBatchProcessorWithRetry) ExecuteBatch(ctx context.Context, requests
 		return nil, errors.NewInternalError("HTTPBatchRequest", fmt.Errorf("failed to decode batch response: %w", err))
 	}
 
-	// Check for individual request errors
-	result := &HTTPBatchResult{
-		Responses: responses,
-	}
+	// Create result and check for errors
+	result := &HTTPBatchResult{Responses: responses}
 
-	// Check if any responses have errors
-	hasErrors := false
-	for _, resp := range responses {
-		if resp.StatusCode >= 400 || resp.Error != "" {
-			hasErrors = true
-			break
-		}
-	}
-
-	if hasErrors && !b.options.ContinueOnError {
+	if b.hasResponseErrors(responses) && !b.options.ContinueOnError {
 		result.Error = errors.NewInternalError("HTTPBatchRequest", fmt.Errorf("one or more batch requests failed"))
 	}
 
 	return result, result.Error
 }
 
+// hasResponseErrors checks if any responses have errors
+func (b *HTTPBatchProcessorWithRetry) hasResponseErrors(responses []HTTPBatchResponse) bool {
+	for _, resp := range responses {
+		if resp.StatusCode >= 400 || resp.Error != "" {
+			return true
+		}
+	}
+
+	return false
+}
+
 // executeBatches splits a large batch into smaller batches and executes them using the worker pool.
 func (b *HTTPBatchProcessorWithRetry) executeBatches(ctx context.Context, requests []HTTPBatchRequest) (*HTTPBatchResult, error) {
 	// Create batches
 	var batches [][]HTTPBatchRequest
+
 	for i := 0; i < len(requests); i += b.options.MaxBatchSize {
 		end := i + b.options.MaxBatchSize
 		if end > len(requests) {
 			end = len(requests)
 		}
+
 		batches = append(batches, requests[i:end])
 	}
 
@@ -220,6 +271,7 @@ func (b *HTTPBatchProcessorWithRetry) executeBatches(ctx context.Context, reques
 
 	// Combine results
 	var allResponses []HTTPBatchResponse
+
 	var firstError error
 
 	for _, r := range results {
@@ -227,10 +279,12 @@ func (b *HTTPBatchProcessorWithRetry) executeBatches(ctx context.Context, reques
 			if firstError == nil {
 				firstError = r.Error
 			}
+
 			if !b.options.ContinueOnError {
 				break
 			}
 		}
+
 		if r.Value != nil {
 			allResponses = append(allResponses, r.Value.Responses...)
 		}

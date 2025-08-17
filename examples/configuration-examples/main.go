@@ -27,7 +27,6 @@ import (
 func main() {
 	// For demonstration purposes only - in a real application, you would
 	// use just one of these configuration approaches
-
 	// Example 1: Basic configuration with functional options
 	basicConfiguration()
 
@@ -67,6 +66,7 @@ func basicConfiguration() {
 	} else {
 		fmt.Printf("Client created successfully with no plugin auth enabled\n")
 	}
+
 	fmt.Printf("Using onboarding URL: %s\n", c.GetConfig().ServiceURLs[config.ServiceOnboarding])
 	fmt.Printf("Using transaction URL: %s\n", c.GetConfig().ServiceURLs[config.ServiceTransaction])
 	fmt.Println()
@@ -131,12 +131,15 @@ func configurationFromEnvironment() {
 	if err := os.Setenv("MIDAZ_CLIENT_ID", "1234567890"); err != nil {
 		fmt.Printf("Error setting environment variable: %v\n", err)
 	}
+
 	if err := os.Setenv("MIDAZ_CLIENT_SECRET", "1234567890"); err != nil {
 		fmt.Printf("Error setting environment variable: %v\n", err)
 	}
+
 	if err := os.Setenv("MIDAZ_ENVIRONMENT", "development"); err != nil {
 		fmt.Printf("Error setting environment variable: %v\n", err)
 	}
+
 	if err := os.Setenv("MIDAZ_DEBUG", "true"); err != nil {
 		fmt.Printf("Error setting environment variable: %v\n", err)
 	}
@@ -161,10 +164,11 @@ func configurationFromEnvironment() {
 	fmt.Println()
 
 	// Clean up environment variables after demonstration
-	os.Unsetenv("PLUGIN_AUTH_ENABLED")
-	os.Unsetenv("PLUGIN_AUTH_ADDRESS")
-	os.Unsetenv("MIDAZ_ENVIRONMENT")
-	os.Unsetenv("MIDAZ_DEBUG")
+	// Note: Intentionally ignoring errors as cleanup is best-effort in demo
+	_ = os.Unsetenv("PLUGIN_AUTH_ENABLED")
+	_ = os.Unsetenv("PLUGIN_AUTH_ADDRESS")
+	_ = os.Unsetenv("MIDAZ_ENVIRONMENT")
+	_ = os.Unsetenv("MIDAZ_DEBUG")
 }
 
 // advancedHttpConfiguration demonstrates how to configure the client
@@ -203,10 +207,12 @@ func advancedHttpConfiguration() {
 
 	// Example usage with the configured client
 	ctx := context.Background()
+
 	fmt.Printf("Client ready for API calls with timeout of %s\n", c.GetConfig().HTTPClient.Timeout)
 
 	// In a real application, you would make API calls here
 	_ = ctx // Using ctx to avoid unused variable warning
+
 	fmt.Println()
 }
 

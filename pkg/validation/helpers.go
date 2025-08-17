@@ -13,6 +13,7 @@ func IsValidUUID(s string) bool {
 
 	// UUID format: 8-4-4-4-12 hexadecimal digits
 	r := regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
+
 	return r.MatchString(strings.ToLower(s))
 }
 

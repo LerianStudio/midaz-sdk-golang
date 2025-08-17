@@ -125,11 +125,13 @@ func main() {
 		fmt.Printf("- Enabled: %t\n", pluginAuth.Enabled)
 		fmt.Printf("- ID: %s\n", organization.ID)
 		fmt.Printf("- Legal Name: %s\n", organization.LegalName)
+
 		if organization.DoingBusinessAs != nil {
 			fmt.Printf("- Doing Business As: %s\n", *organization.DoingBusinessAs)
 		} else {
 			fmt.Printf("- Doing Business As: <not set>\n")
 		}
+
 		fmt.Printf("- Status: %s\n", organization.Status.Code)
 		fmt.Printf("- Created At: %s\n", organization.CreatedAt.Format(time.RFC3339))
 	}

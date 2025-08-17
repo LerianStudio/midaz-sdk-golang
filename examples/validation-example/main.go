@@ -37,6 +37,7 @@ func main() {
 
 	// Example 4: Date Range Validation
 	fmt.Println("\n4. Date Range Validation:")
+
 	now := time.Now()
 	past := now.AddDate(0, -1, 0)
 	future := now.AddDate(0, 1, 0)
@@ -52,6 +53,7 @@ func main() {
 
 func validateAssetCode(code string) {
 	fmt.Printf("Validating asset code: %s\n", code)
+
 	if err := validation.EnhancedValidateAssetCode(code); err != nil {
 		fmt.Printf("ERROR: %s\n", err.Error())
 	} else {
@@ -61,7 +63,9 @@ func validateAssetCode(code string) {
 
 func validateMetadata(metadata map[string]any) {
 	fmt.Println("Validating metadata:")
+
 	errors := validation.EnhancedValidateMetadata(metadata)
+
 	if errors.HasErrors() {
 		fmt.Printf("ERROR: %s\n", errors.Error())
 	} else {
@@ -71,7 +75,9 @@ func validateMetadata(metadata map[string]any) {
 
 func validateTransaction(tx map[string]any) {
 	fmt.Println("Validating transaction:")
+
 	errors := validation.EnhancedValidateTransactionInput(tx)
+
 	if errors.HasErrors() {
 		fmt.Printf("ERROR: %s\n", errors.Error())
 	} else {
@@ -81,7 +87,9 @@ func validateTransaction(tx map[string]any) {
 
 func validateDateRange(start, end time.Time) {
 	fmt.Printf("Validating date range: %s to %s\n", start.Format("2006-01-02"), end.Format("2006-01-02"))
+
 	errors := validation.EnhancedValidateDateRange(start, end, "startDate", "endDate")
+
 	if errors.HasErrors() {
 		fmt.Printf("ERROR: %s\n", errors.Error())
 	} else {
@@ -91,7 +99,9 @@ func validateDateRange(start, end time.Time) {
 
 func validateAddress(address *validation.Address) {
 	fmt.Println("Validating address:")
+
 	errors := validation.EnhancedValidateAddress(address, "address")
+
 	if errors.HasErrors() {
 		fmt.Printf("ERROR: %s\n", errors.Error())
 	} else {

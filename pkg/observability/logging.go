@@ -91,6 +91,7 @@ func NewLogger(level LogLevel, output io.Writer, resource *sdkresource.Resource)
 	}
 
 	fields := make(map[string]any)
+
 	if resource != nil {
 		// Add resource attributes to fields
 		for _, kv := range resource.Attributes() {
@@ -144,6 +145,7 @@ func (l *LoggerImpl) log(level LogLevel, msg string) {
 
 	// Write to output
 	b = append(b, '\n')
+
 	_, err = l.output.Write(b)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to write log entry: %v\n", err)
@@ -233,9 +235,11 @@ func (l *LoggerImpl) WithContext(ctx trace.SpanContext) Logger {
 	fields := map[string]any{
 		"trace_id": ctx.TraceID().String(),
 	}
+
 	if ctx.HasSpanID() {
 		fields["span_id"] = ctx.SpanID().String()
 	}
+
 	if ctx.IsSampled() {
 		fields["sampled"] = true
 	}
@@ -248,6 +252,7 @@ func (l *LoggerImpl) WithSpan(span trace.Span) Logger {
 	if span == nil {
 		return l
 	}
+
 	return l.WithContext(span.SpanContext())
 }
 

@@ -37,11 +37,11 @@ func (m *mockPluginAuthConfig) GetPluginAuth() auth.AccessManager {
 
 func TestEntityWithPluginAuth(t *testing.T) {
 	tests := []struct {
-		name                    string
+		name           string
 		pluginAuth     auth.AccessManager
-		mockResponse            *auth.TokenResponse
-		mockStatusCode          int
-		expectError             bool
+		mockResponse   *auth.TokenResponse
+		mockStatusCode int
+		expectError    bool
 	}{
 		{
 			name: "SuccessfulPluginAuth",
@@ -142,12 +142,12 @@ func TestEntityWithPluginAuth(t *testing.T) {
 
 func TestWithPluginAuthOption(t *testing.T) {
 	tests := []struct {
-		name                    string
+		name           string
 		pluginAuth     auth.AccessManager
-		mockResponse            *auth.TokenResponse
-		mockStatusCode          int
-		expectError             bool
-		expectedToken           string
+		mockResponse   *auth.TokenResponse
+		mockStatusCode int
+		expectError    bool
+		expectedToken  string
 	}{
 		{
 			name: "SuccessfulPluginAuth",
