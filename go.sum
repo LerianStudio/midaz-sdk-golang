@@ -1,5 +1,5 @@
-github.com/LerianStudio/lib-commons v1.19.0-beta.7 h1:Sqt4Dza7flw5/DTv3GuzgQuCHWdyV+MKzLeEF8JgrwY=
-github.com/LerianStudio/lib-commons v1.19.0-beta.7/go.mod h1:1a0PeLcwajNbjXWVd+JCOWeTJj0QUUBMRFnrA84G8IU=
+github.com/LerianStudio/lib-commons v1.19.0-beta.11 h1:PdTOAb1cnYMINkZt8X7pBgVwk6qmdLfz3y4ykt/faMY=
+github.com/LerianStudio/lib-commons v1.19.0-beta.11/go.mod h1:1a0PeLcwajNbjXWVd+JCOWeTJj0QUUBMRFnrA84G8IU=
 github.com/LerianStudio/midaz/v3 v3.0.0-beta.18 h1:5rhhfkeOs/PU67LVwKJU5LPZg8rMbhZ5rIKYpgH/WP0=
 github.com/LerianStudio/midaz/v3 v3.0.0-beta.18/go.mod h1:gZYPDBHHwcBsQMVuzGC2xDsXWniU9UUM+dFpFUf1BYs=
 github.com/andybalholm/brotli v1.2.0 h1:ukwgCxwYrmACq68yiUqwIWnGY0cTPox/M94sVwToPjQ=

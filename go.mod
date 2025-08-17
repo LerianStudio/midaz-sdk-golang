@@ -3,7 +3,7 @@ module github.com/LerianStudio/midaz-sdk-golang/v2
 go 1.24.2
 
 require (
-	github.com/LerianStudio/lib-commons v1.19.0-beta.7
+	github.com/LerianStudio/lib-commons v1.19.0-beta.11
 	github.com/LerianStudio/midaz/v3 v3.0.0-beta.18
 	github.com/golang/mock v1.6.0
 	github.com/google/uuid v1.6.0
