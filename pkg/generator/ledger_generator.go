@@ -94,12 +94,11 @@ func (g *ledgerGenerator) GenerateForOrg(ctx context.Context, orgID string, coun
     }, concurrent.WithWorkers(workers), concurrent.WithBufferSize(buf))
 
     out := make([]*models.Ledger, 0, count)
+    var errs []error
     for _, r := range results {
         if r.Error != nil {
-            if timer != nil {
-                timer.StopBatch(len(out))
-            }
-            return nil, r.Error
+            errs = append(errs, r.Error)
+            continue
         }
         out = append(out, r.Value)
     }
@@ -112,6 +111,9 @@ func (g *ledgerGenerator) GenerateForOrg(ctx context.Context, orgID string, coun
         g.obs.Logger().Infof("ledgers: created=%d tps=%.2f", counter.SuccessCount(), counter.TPS())
     }
 
+    if len(errs) > 0 {
+        return out, errorsJoin(errs...)
+    }
     return out, nil
 }
 

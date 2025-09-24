@@ -3,6 +3,7 @@ package concurrent
 import (
     "context"
     "errors"
+    "log"
     "sync"
     "time"
 )
@@ -28,6 +29,8 @@ type CircuitBreaker struct {
     failureThreshold int
     successThreshold int
     openTimeout      time.Duration
+    name             string
+    logger           *log.Logger
 }
 
 func NewCircuitBreaker(failureThreshold, successThreshold int, openTimeout time.Duration) *CircuitBreaker {
@@ -46,6 +49,19 @@ func NewCircuitBreaker(failureThreshold, successThreshold int, openTimeout time.
         successThreshold: successThreshold,
         openTimeout:      openTimeout,
     }
+}
+
+// NewCircuitBreakerNamed creates a circuit breaker with a label for observability.
+func NewCircuitBreakerNamed(name string, failureThreshold, successThreshold int, openTimeout time.Duration) *CircuitBreaker {
+    cb := NewCircuitBreaker(failureThreshold, successThreshold, openTimeout)
+    cb.name = name
+    return cb
+}
+
+// WithLogger attaches a logger for state transition messages.
+func (cb *CircuitBreaker) WithLogger(l *log.Logger) *CircuitBreaker {
+    cb.logger = l
+    return cb
 }
 
 // Execute runs fn under circuit breaker control.
@@ -115,11 +131,16 @@ func (cb *CircuitBreaker) after(err error) {
 func (cb *CircuitBreaker) open() {
     cb.st = open
     cb.lastFailureTime = time.Now()
+    if cb.logger != nil && cb.name != "" {
+        cb.logger.Printf("circuit '%s' opened after %d failures", cb.name, cb.failureCount)
+    }
 }
 
 func (cb *CircuitBreaker) reset() {
     cb.st = closed
     cb.failureCount = 0
     cb.successCount = 0
+    if cb.logger != nil && cb.name != "" {
+        cb.logger.Printf("circuit '%s' closed after recovery", cb.name)
+    }
 }
-

@@ -104,12 +104,11 @@ func (g *orgGenerator) GenerateBatch(ctx context.Context, count int) ([]*models.
 
     // Collect results and check errors
     out := make([]*models.Organization, 0, count)
+    var errs []error
     for _, r := range results {
         if r.Error != nil {
-            if timer != nil {
-                timer.StopBatch(len(out))
-            }
-            return nil, r.Error
+            errs = append(errs, r.Error)
+            continue
         }
         out = append(out, r.Value)
     }
@@ -123,5 +122,8 @@ func (g *orgGenerator) GenerateBatch(ctx context.Context, count int) ([]*models.
         g.obs.Logger().Infof("organizations: created=%d tps=%.2f", counter.SuccessCount(), counter.TPS())
     }
 
+    if len(errs) > 0 {
+        return out, errorsJoin(errs...)
+    }
     return out, nil
 }

@@ -190,11 +190,13 @@ func (c *HTTPClient) doRequest(ctx context.Context, method, requestURL string, h
     // Setup headers
     c.setupRequestHeaders(req, headers, body != nil)
 
-	// Execute request with retry logic
-	resp, responseBody, err := c.executeRequestWithRetry(ctx, req, method, requestURL)
-	if err != nil {
-		return err
-	}
+    // Execute request with retry logic and capture elapsed time
+    start := time.Now()
+    resp, responseBody, err := c.executeRequestWithRetry(ctx, req, method, requestURL)
+    elapsed := time.Since(start)
+    if err != nil {
+        return err
+    }
 	// Ensure response body is closed after we're done with it
 	defer func() {
 		if resp != nil && resp.Body != nil {
@@ -202,9 +204,9 @@ func (c *HTTPClient) doRequest(ctx context.Context, method, requestURL string, h
 		}
 	}()
 
-	// Record metrics and debug logging
-	c.recordRequestMetrics(ctx, method, requestURL, resp, responseBody)
-	c.logResponseDetails(method, requestURL, resp, responseBody)
+    // Record metrics and debug logging
+    c.recordRequestMetrics(ctx, method, requestURL, resp, elapsed)
+    c.logResponseDetails(method, requestURL, resp, responseBody)
 
 	// Process response
 	return c.processResponse(result, responseBody)
@@ -351,10 +353,10 @@ func (c *HTTPClient) debugLogRequestError(method, requestURL string, err error) 
 }
 
 // recordRequestMetrics records performance metrics if enabled
-func (c *HTTPClient) recordRequestMetrics(ctx context.Context, method, requestURL string, resp *http.Response, responseBody []byte) {
-	if c.metrics != nil {
-		c.metrics.RecordRequest(ctx, method, requestURL, resp.StatusCode, time.Duration(len(responseBody))*time.Millisecond)
-	}
+func (c *HTTPClient) recordRequestMetrics(ctx context.Context, method, requestURL string, resp *http.Response, elapsed time.Duration) {
+    if c.metrics != nil {
+        c.metrics.RecordRequest(ctx, method, requestURL, resp.StatusCode, elapsed)
+    }
 }
 
 // logResponseDetails logs response information in debug mode

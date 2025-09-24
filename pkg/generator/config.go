@@ -36,6 +36,11 @@ type GeneratorConfig struct {
     EnableIdempotency     bool
     UseExternalIDs        bool
     GenerationSeed        int64 // For reproducible data
+
+    // Circuit breaker parameters
+    CircuitBreakerFailureThreshold int
+    CircuitBreakerSuccessThreshold int
+    CircuitBreakerOpenTimeout      time.Duration
 }
 
 // DefaultConfig returns a sensible baseline configuration suitable for
@@ -67,6 +72,11 @@ func DefaultConfig() GeneratorConfig {
         EnableIdempotency: true,
         UseExternalIDs:    true,
         GenerationSeed:    time.Now().UnixNano(),
+
+        // Circuit breaker defaults
+        CircuitBreakerFailureThreshold: 5,
+        CircuitBreakerSuccessThreshold: 2,
+        CircuitBreakerOpenTimeout:      5 * time.Second,
     }
 }
 
@@ -128,6 +138,17 @@ func (dst *GeneratorConfig) WithOverrides(src GeneratorConfig) {
     if src.GenerationSeed != 0 {
         dst.GenerationSeed = src.GenerationSeed
     }
+
+    // Circuit breaker
+    if src.CircuitBreakerFailureThreshold > 0 {
+        dst.CircuitBreakerFailureThreshold = src.CircuitBreakerFailureThreshold
+    }
+    if src.CircuitBreakerSuccessThreshold > 0 {
+        dst.CircuitBreakerSuccessThreshold = src.CircuitBreakerSuccessThreshold
+    }
+    if src.CircuitBreakerOpenTimeout > 0 {
+        dst.CircuitBreakerOpenTimeout = src.CircuitBreakerOpenTimeout
+    }
 }
 
 func max(a, b int) int {
@@ -136,4 +157,3 @@ func max(a, b int) int {
     }
     return b
 }
-

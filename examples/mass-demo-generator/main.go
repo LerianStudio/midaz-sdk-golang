@@ -104,7 +104,11 @@ func main() {
 
     // Optional circuit breaker
     if gcfg.EnableCircuitBreaker {
-        cb := conc.NewCircuitBreaker(5, 2, 5*time.Second)
+        cb := conc.NewCircuitBreakerNamed("entity-api",
+            gcfg.CircuitBreakerFailureThreshold,
+            gcfg.CircuitBreakerSuccessThreshold,
+            gcfg.CircuitBreakerOpenTimeout,
+        )
         ctx = gen.WithCircuitBreaker(ctx, cb)
     }
 
