@@ -45,14 +45,16 @@ func (g *orgGenerator) Generate(ctx context.Context, template data.OrgTemplate) 
 
     var out *models.Organization
     err := observability.WithSpan(ctx, g.obs, "GenerateOrganization", func(ctx context.Context) error {
-        // Respect retry options from context if present
-        return retry.DoWithContext(ctx, func() error {
-            org, err := g.e.Organizations.CreateOrganization(ctx, input)
-            if err != nil {
-                return err
-            }
-            out = org
-            return nil
+        // Respect retry + circuit breaker options from context if present
+        return executeWithCircuitBreaker(ctx, func() error {
+            return retry.DoWithContext(ctx, func() error {
+                org, err := g.e.Organizations.CreateOrganization(ctx, input)
+                if err != nil {
+                    return err
+                }
+                out = org
+                return nil
+            })
         })
     })
     if err != nil {

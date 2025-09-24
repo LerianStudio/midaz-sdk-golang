@@ -40,13 +40,15 @@ func (g *assetGenerator) Generate(ctx context.Context, ledgerID string, template
 
     var out *models.Asset
     err := observability.WithSpan(ctx, g.obs, "GenerateAsset", func(ctx context.Context) error {
-        return retry.DoWithContext(ctx, func() error {
-            asset, err := g.e.Assets.CreateAsset(ctx, orgID, ledgerID, input)
-            if err != nil {
-                return err
-            }
-            out = asset
-            return nil
+        return executeWithCircuitBreaker(ctx, func() error {
+            return retry.DoWithContext(ctx, func() error {
+                asset, err := g.e.Assets.CreateAsset(ctx, orgID, ledgerID, input)
+                if err != nil {
+                    return err
+                }
+                out = asset
+                return nil
+            })
         })
     })
     if err != nil {
@@ -86,4 +88,3 @@ func mergeMetadata(a map[string]any, b map[string]any) map[string]any {
     }
     return out
 }
-

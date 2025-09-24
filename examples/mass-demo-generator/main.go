@@ -17,6 +17,7 @@ import (
     "github.com/joho/godotenv"
     "github.com/google/uuid"
     "github.com/LerianStudio/midaz-sdk-golang/v2/models"
+    conc "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/concurrent"
 )
 
 func main() {
@@ -99,6 +100,12 @@ func main() {
     }
     if *batchSize > 0 {
         gcfg.BatchSize = *batchSize
+    }
+
+    // Optional circuit breaker
+    if gcfg.EnableCircuitBreaker {
+        cb := conc.NewCircuitBreaker(5, 2, 5*time.Second)
+        ctx = gen.WithCircuitBreaker(ctx, cb)
     }
 
     // Summary

@@ -255,7 +255,7 @@ type OrganizationGenerator interface {
 - [x] Implement concurrent batch creation
   - [x] Use concurrent.WorkerPool for parallel creation
   - [x] Monitor with metrics/TPS
-  - [ ] Circuit breaker pattern for API protection
+  - [x] Circuit breaker pattern for API protection
 
 #### 3.2 Ledger Generator with Pagination Support
 ```go
@@ -345,7 +345,7 @@ type TransactionGenerator interface {
 - [x] Implement DSL-based transaction creation (DSL file endpoint)
 - [x] Configure Send/Distribute via generated DSL scripts
 - [ ] Programmatic Send/Distribute builders (optional)
-- [ ] Idempotency header injection (SDK HTTP path)
+- [x] Idempotency header injection (SDK HTTP path)
 - [x] ExternalID support
 - [ ] Generate realistic transaction amounts
   - [ ] Normal distribution for typical payments
@@ -501,7 +501,7 @@ type BatchProcessor interface {
 - [ ] Implement intelligent batching
   - [ ] Dynamic batch sizing based on API response times
   - [ ] Exponential backoff on rate limits
-  - [ ] Circuit breaker on consecutive failures
+  - [x] Circuit breaker on consecutive failures
 - [ ] API call optimization
   - [x] Reuse HTTP connections (shared HTTP client)
   - [ ] Enable HTTP/2 multiplexing
@@ -746,7 +746,7 @@ func validateMetadata(metadata map[string]any) error {
    - Balance checker, double-entry consistency, reports and summaries.
 
 6. Performance Hardening
-   - Circuit breaker; token bucket rate limiting; dynamic batch sizing.
+   - Circuit breaker (implemented); token bucket rate limiting; dynamic batch sizing.
 
 7. Programmatic DSL Builders
    - Helpers to build Send/Distribute patterns programmatically; recurring templates.

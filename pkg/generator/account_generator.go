@@ -71,13 +71,15 @@ func (g *accountGenerator) Generate(ctx context.Context, orgID, ledgerID, assetC
 
     var out *models.Account
     err := observability.WithSpan(ctx, g.obs, "GenerateAccount", func(ctx context.Context) error {
-        return retry.DoWithContext(ctx, func() error {
-            acc, err := g.e.Accounts.CreateAccount(ctx, orgID, ledgerID, in)
-            if err != nil {
-                return err
-            }
-            out = acc
-            return nil
+        return executeWithCircuitBreaker(ctx, func() error {
+            return retry.DoWithContext(ctx, func() error {
+                acc, err := g.e.Accounts.CreateAccount(ctx, orgID, ledgerID, in)
+                if err != nil {
+                    return err
+                }
+                out = acc
+                return nil
+            })
         })
     })
     if err != nil {
@@ -113,12 +115,11 @@ func (g *accountGenerator) GenerateBatch(ctx context.Context, orgID, ledgerID, a
     }, concurrent.WithWorkers(workers), concurrent.WithBufferSize(buf))
 
     out := make([]*models.Account, 0, len(templates))
+    var errs []error
     for _, r := range results {
         if r.Error != nil {
-            if timer != nil {
-                timer.StopBatch(len(out))
-            }
-            return nil, r.Error
+            errs = append(errs, r.Error)
+            continue
         }
         out = append(out, r.Value)
     }
@@ -131,6 +132,12 @@ func (g *accountGenerator) GenerateBatch(ctx context.Context, orgID, ledgerID, a
         g.obs.Logger().Infof("accounts: created=%d tps=%.2f", counter.SuccessCount(), counter.TPS())
     }
 
+    if len(errs) > 0 {
+        // Aggregate errors while returning successful creations
+        // Use errors.Join when multiple errors occurred
+        // Fallback to first error if Join not available (Go >=1.20 supports Join)
+        return out, errorsJoin(errs...)
+    }
     return out, nil
 }
 

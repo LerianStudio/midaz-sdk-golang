@@ -39,15 +39,21 @@ func (g *transactionGenerator) GenerateWithDSL(ctx context.Context, orgID, ledge
         return nil, err
     }
     var out *models.Transaction
+    // Inject idempotency key into context so HTTP layer can add header
+    if pattern.IdempotencyKey != "" {
+        ctx = entities.WithIdempotencyKey(ctx, pattern.IdempotencyKey)
+    }
     err := observability.WithSpan(ctx, g.obs, "GenerateTransactionDSL", func(ctx context.Context) error {
-        return retry.DoWithContext(ctx, func() error {
-            // Use DSL file endpoint for free-form DSL
-            tx, err := g.e.Transactions.CreateTransactionWithDSLFile(ctx, orgID, ledgerID, []byte(pattern.DSLTemplate))
-            if err != nil {
-                return err
-            }
-            out = tx
-            return nil
+        return executeWithCircuitBreaker(ctx, func() error {
+            return retry.DoWithContext(ctx, func() error {
+                // Use DSL file endpoint for free-form DSL
+                tx, err := g.e.Transactions.CreateTransactionWithDSLFile(ctx, orgID, ledgerID, []byte(pattern.DSLTemplate))
+                if err != nil {
+                    return err
+                }
+                out = tx
+                return nil
+            })
         })
     })
     if err != nil {
@@ -120,4 +126,3 @@ func (g *transactionGenerator) GenerateBatch(ctx context.Context, orgID, ledgerI
 
     return out, nil
 }
-

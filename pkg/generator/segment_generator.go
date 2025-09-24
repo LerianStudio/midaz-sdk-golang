@@ -32,13 +32,15 @@ func (g *segmentGenerator) Generate(ctx context.Context, orgID, ledgerID, name s
         WithMetadata(metadata)
     var out *models.Segment
     err := observability.WithSpan(ctx, g.obs, "GenerateSegment", func(ctx context.Context) error {
-        return retry.DoWithContext(ctx, func() error {
-            s, err := g.e.Segments.CreateSegment(ctx, orgID, ledgerID, input)
-            if err != nil {
-                return err
-            }
-            out = s
-            return nil
+        return executeWithCircuitBreaker(ctx, func() error {
+            return retry.DoWithContext(ctx, func() error {
+                s, err := g.e.Segments.CreateSegment(ctx, orgID, ledgerID, input)
+                if err != nil {
+                    return err
+                }
+                out = s
+                return nil
+            })
         })
     })
     if err != nil {
@@ -46,4 +48,3 @@ func (g *segmentGenerator) Generate(ctx context.Context, orgID, ledgerID, name s
     }
     return out, nil
 }
-

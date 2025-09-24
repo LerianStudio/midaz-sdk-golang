@@ -173,14 +173,22 @@ func (c *HTTPClient) doRequest(ctx context.Context, method, requestURL string, h
 	ctx, endSpan := c.setupObservabilityContext(ctx, method, requestURL)
 	defer endSpan()
 
-	// Build HTTP request
-	req, _, err := c.buildHTTPRequest(ctx, method, requestURL, body)
-	if err != nil {
-		return err
-	}
+    // Build HTTP request
+    req, _, err := c.buildHTTPRequest(ctx, method, requestURL, body)
+    if err != nil {
+        return err
+    }
 
-	// Setup headers
-	c.setupRequestHeaders(req, headers, body != nil)
+    // Inject idempotency header from context if present
+    if key := getIdempotencyKeyFromContext(ctx); key != "" {
+        if headers == nil {
+            headers = map[string]string{}
+        }
+        headers["X-Idempotency"] = key
+    }
+
+    // Setup headers
+    c.setupRequestHeaders(req, headers, body != nil)
 
 	// Execute request with retry logic
 	resp, responseBody, err := c.executeRequestWithRetry(ctx, req, method, requestURL)
@@ -427,6 +435,27 @@ func (c *HTTPClient) debugLog(format string, args ...any) {
 	if c.debug {
 		fmt.Fprintf(os.Stderr, "[Midaz SDK Debug] "+format+"\n", args...)
 	}
+}
+
+// idempotency context helpers
+type contextKeyIdempotency struct{}
+
+// WithIdempotencyKey attaches an idempotency key to the request context.
+// The HTTP client will add it as an 'X-Idempotency' header.
+func WithIdempotencyKey(ctx context.Context, key string) context.Context {
+    if key == "" {
+        return ctx
+    }
+    return context.WithValue(ctx, contextKeyIdempotency{}, key)
+}
+
+func getIdempotencyKeyFromContext(ctx context.Context) string {
+    if v := ctx.Value(contextKeyIdempotency{}); v != nil {
+        if s, ok := v.(string); ok {
+            return s
+        }
+    }
+    return ""
 }
 
 // parseErrorResponse parses an error response from the API and converts it to an SDK error.

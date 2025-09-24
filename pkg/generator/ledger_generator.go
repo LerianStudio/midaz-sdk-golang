@@ -45,13 +45,15 @@ func (g *ledgerGenerator) Generate(ctx context.Context, orgID string, template d
 
     var out *models.Ledger
     err := observability.WithSpan(ctx, g.obs, "GenerateLedger", func(ctx context.Context) error {
-        return retry.DoWithContext(ctx, func() error {
-            ledger, err := g.e.Ledgers.CreateLedger(ctx, orgID, input)
-            if err != nil {
-                return err
-            }
-            out = ledger
-            return nil
+        return executeWithCircuitBreaker(ctx, func() error {
+            return retry.DoWithContext(ctx, func() error {
+                ledger, err := g.e.Ledgers.CreateLedger(ctx, orgID, input)
+                if err != nil {
+                    return err
+                }
+                out = ledger
+                return nil
+            })
         })
     })
     if err != nil {

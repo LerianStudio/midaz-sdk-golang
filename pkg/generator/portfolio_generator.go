@@ -32,13 +32,15 @@ func (g *portfolioGenerator) Generate(ctx context.Context, orgID, ledgerID, name
         WithMetadata(metadata)
     var out *models.Portfolio
     err := observability.WithSpan(ctx, g.obs, "GeneratePortfolio", func(ctx context.Context) error {
-        return retry.DoWithContext(ctx, func() error {
-            p, err := g.e.Portfolios.CreatePortfolio(ctx, orgID, ledgerID, input)
-            if err != nil {
-                return err
-            }
-            out = p
-            return nil
+        return executeWithCircuitBreaker(ctx, func() error {
+            return retry.DoWithContext(ctx, func() error {
+                p, err := g.e.Portfolios.CreatePortfolio(ctx, orgID, ledgerID, input)
+                if err != nil {
+                    return err
+                }
+                out = p
+                return nil
+            })
         })
     })
     if err != nil {
@@ -46,4 +48,3 @@ func (g *portfolioGenerator) Generate(ctx context.Context, orgID, ledgerID, name
     }
     return out, nil
 }
-
