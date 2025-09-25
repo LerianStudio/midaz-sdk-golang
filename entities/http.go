@@ -173,30 +173,30 @@ func (c *HTTPClient) doRequest(ctx context.Context, method, requestURL string, h
 	ctx, endSpan := c.setupObservabilityContext(ctx, method, requestURL)
 	defer endSpan()
 
-    // Build HTTP request
-    req, _, err := c.buildHTTPRequest(ctx, method, requestURL, body)
-    if err != nil {
-        return err
-    }
+	// Build HTTP request
+	req, _, err := c.buildHTTPRequest(ctx, method, requestURL, body)
+	if err != nil {
+		return err
+	}
 
-    // Inject idempotency header from context if present
-    if key := getIdempotencyKeyFromContext(ctx); key != "" {
-        if headers == nil {
-            headers = map[string]string{}
-        }
-        headers["X-Idempotency"] = key
-    }
+	// Inject idempotency header from context if present
+	if key := getIdempotencyKeyFromContext(ctx); key != "" {
+		if headers == nil {
+			headers = map[string]string{}
+		}
+		headers["X-Idempotency"] = key
+	}
 
-    // Setup headers
-    c.setupRequestHeaders(req, headers, body != nil)
+	// Setup headers
+	c.setupRequestHeaders(req, headers, body != nil)
 
-    // Execute request with retry logic and capture elapsed time
-    start := time.Now()
-    resp, responseBody, err := c.executeRequestWithRetry(ctx, req, method, requestURL)
-    elapsed := time.Since(start)
-    if err != nil {
-        return err
-    }
+	// Execute request with retry logic and capture elapsed time
+	start := time.Now()
+	resp, responseBody, err := c.executeRequestWithRetry(ctx, req, method, requestURL)
+	elapsed := time.Since(start)
+	if err != nil {
+		return err
+	}
 	// Ensure response body is closed after we're done with it
 	defer func() {
 		if resp != nil && resp.Body != nil {
@@ -204,9 +204,9 @@ func (c *HTTPClient) doRequest(ctx context.Context, method, requestURL string, h
 		}
 	}()
 
-    // Record metrics and debug logging
-    c.recordRequestMetrics(ctx, method, requestURL, resp, elapsed)
-    c.logResponseDetails(method, requestURL, resp, responseBody)
+	// Record metrics and debug logging
+	c.recordRequestMetrics(ctx, method, requestURL, resp, elapsed)
+	c.logResponseDetails(method, requestURL, resp, responseBody)
 
 	// Process response
 	return c.processResponse(result, responseBody)
@@ -354,9 +354,9 @@ func (c *HTTPClient) debugLogRequestError(method, requestURL string, err error) 
 
 // recordRequestMetrics records performance metrics if enabled
 func (c *HTTPClient) recordRequestMetrics(ctx context.Context, method, requestURL string, resp *http.Response, elapsed time.Duration) {
-    if c.metrics != nil {
-        c.metrics.RecordRequest(ctx, method, requestURL, resp.StatusCode, elapsed)
-    }
+	if c.metrics != nil {
+		c.metrics.RecordRequest(ctx, method, requestURL, resp.StatusCode, elapsed)
+	}
 }
 
 // logResponseDetails logs response information in debug mode
@@ -445,19 +445,19 @@ type contextKeyIdempotency struct{}
 // WithIdempotencyKey attaches an idempotency key to the request context.
 // The HTTP client will add it as an 'X-Idempotency' header.
 func WithIdempotencyKey(ctx context.Context, key string) context.Context {
-    if key == "" {
-        return ctx
-    }
-    return context.WithValue(ctx, contextKeyIdempotency{}, key)
+	if key == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, contextKeyIdempotency{}, key)
 }
 
 func getIdempotencyKeyFromContext(ctx context.Context) string {
-    if v := ctx.Value(contextKeyIdempotency{}); v != nil {
-        if s, ok := v.(string); ok {
-            return s
-        }
-    }
-    return ""
+	if v := ctx.Value(contextKeyIdempotency{}); v != nil {
+		if s, ok := v.(string); ok {
+			return s
+		}
+	}
+	return ""
 }
 
 // parseErrorResponse parses an error response from the API and converts it to an SDK error.

@@ -141,7 +141,7 @@ func (e *transactionsEntity) CreateTransaction(ctx context.Context, orgID, ledge
 	}
 
 	// Send request to API
-	responseMap, err := e.sendCreateTransactionRequest(operation, orgID, ledgerID, input)
+	responseMap, err := e.sendCreateTransactionRequest(ctx, operation, orgID, ledgerID, input)
 	if err != nil {
 		return nil, err
 	}
@@ -176,16 +176,11 @@ func (e *transactionsEntity) validateCreateTransactionInput(operation, orgID, le
 }
 
 // sendCreateTransactionRequest sends the transaction creation request
-func (e *transactionsEntity) sendCreateTransactionRequest(operation, orgID, ledgerID string, input *models.CreateTransactionInput) (map[string]any, error) {
+func (e *transactionsEntity) sendCreateTransactionRequest(ctx context.Context, operation, orgID, ledgerID string, input *models.CreateTransactionInput) (map[string]any, error) {
 	txMap := input.ToLibTransaction()
 
-	req, err := e.httpClient.NewRequest("POST", e.buildURL(orgID, ledgerID, "/json"), txMap)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
-
 	var responseMap map[string]any
-	if err := e.httpClient.sendRequest(req, &responseMap); err != nil {
+	if err := e.httpClient.doRequest(ctx, http.MethodPost, e.buildURL(orgID, ledgerID, "/json"), nil, txMap, &responseMap); err != nil {
 		return nil, err
 	}
 
@@ -334,10 +329,8 @@ func (e *transactionsEntity) CreateTransactionWithDSL(ctx context.Context, orgID
 	}
 
 	// Convert the DSL input to map format before sending to API
-	transactionMap := map[string]any{
-		"description": input.Description,
-		"metadata":    input.Metadata,
-	}
+	// Use the strongly-typed converter to include send/source/distribute, share, rate, etc.
+	transactionMap := input.ToTransactionMap()
 
 	// Use the correct endpoint for DSL transactions
 	url := e.buildURL(orgID, ledgerID, "/dsl")

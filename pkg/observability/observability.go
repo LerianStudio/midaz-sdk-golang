@@ -490,15 +490,14 @@ func (p *MidazProvider) createResource() (*sdkresource.Resource, error) {
 	// Add custom attributes
 	attributes = append(attributes, p.config.Attributes...)
 
-	// Create and return the resource
-
-	return sdkresource.Merge(
-		sdkresource.Default(),
-		sdkresource.NewWithAttributes(
-			semconv.SchemaURL,
-			attributes...,
-		),
-	)
+	// Create and return the resource without merging defaults to avoid schema URL conflicts
+	// between different OpenTelemetry versions pulled by transitive deps during tests.
+	// If needed, default attributes can be reintroduced by constructing a resource with
+	// a consistent schema across both sources.
+	return sdkresource.NewWithAttributes(
+		semconv.SchemaURL,
+		attributes...,
+	), nil
 }
 
 // initTracing initializes OpenTelemetry tracing

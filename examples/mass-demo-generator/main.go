@@ -1,296 +1,533 @@
 package main
 
 import (
-    "context"
-    "flag"
-    "fmt"
-    "log"
-    "os"
-    "time"
+	"bufio"
+	"context"
+	"encoding/json"
+	"flag"
+	"fmt"
+	"log"
+	"os"
+	"strconv"
+	"strings"
+	"time"
 
-    client "github.com/LerianStudio/midaz-sdk-golang/v2"
-    data "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
-    gen "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/generator"
-    "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/config"
-    "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
-    "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
-    "github.com/joho/godotenv"
-    "github.com/google/uuid"
-    "github.com/LerianStudio/midaz-sdk-golang/v2/models"
-    conc "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/concurrent"
+	client "github.com/LerianStudio/midaz-sdk-golang/v2"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
+	conc "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/concurrent"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/config"
+	data "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
+	gen "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/generator"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
+	txpkg "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/transaction"
+	"github.com/joho/godotenv"
 )
 
 func main() {
-    // Load .env if present (non-fatal)
-    _ = godotenv.Load()
+	// Load .env if present (non-fatal)
+	_ = godotenv.Load()
 
-    // Basic flags to tweak Phase 1 config at runtime
-    var (
-        timeoutSec        = flag.Int("timeout", 120, "overall generation timeout in seconds")
-        orgs              = flag.Int("orgs", 2, "number of organizations to create")
-        ledgersPerOrg     = flag.Int("ledgers", 2, "number of ledgers per organization")
-        accountsPerLedger = flag.Int("accounts", 50, "number of accounts per ledger")
-        txPerAccount      = flag.Int("tx", 20, "number of transactions per account")
-        concurrency       = flag.Int("concurrency", 0, "worker pool size (0 = auto)")
-        batchSize         = flag.Int("batch", 50, "batch size for parallel ops")
-        doDemo             = flag.Bool("demo", false, "create a minimal demo org/ledger/assets (requires running Midaz server)")
-    )
-    flag.Parse()
+	// Basic flags to tweak Phase 1 config at runtime
+	var (
+		timeoutSec        = flag.Int("timeout", 120, "overall generation timeout in seconds")
+		orgs              = flag.Int("orgs", 2, "number of organizations to create")
+		ledgersPerOrg     = flag.Int("ledgers", 2, "number of ledgers per organization")
+		accountsPerLedger = flag.Int("accounts", 50, "number of accounts per ledger")
+		txPerAccount      = flag.Int("tx", 20, "number of transactions per account (demo batch)")
+		concurrency       = flag.Int("concurrency", 0, "worker pool size (0 = auto)")
+		batchSize         = flag.Int("batch", 50, "batch size for parallel ops")
+		// deprecated: demo flag replaced by interactive toggle
+	)
+	flag.Parse()
 
-    // Observability provider setup
-    obsProvider, _ := observability.New(context.Background(),
-        observability.WithServiceName("mass-demo-generator"),
-        observability.WithServiceVersion("0.1.0"),
-        observability.WithEnvironment("local"),
-        observability.WithComponentEnabled(true, true, true),
-    )
-    defer func() {
-        _ = obsProvider.Shutdown(context.Background())
-    }()
+	// Observability provider setup
+	obsProvider, _ := observability.New(context.Background(),
+		observability.WithServiceName("mass-demo-generator"),
+		observability.WithServiceVersion("0.1.0"),
+		observability.WithEnvironment("local"),
+		observability.WithComponentEnabled(true, true, true),
+	)
+	defer func() {
+		// Ensure observability shutdown never blocks program exit
+		sdCtx, sdCancel := context.WithTimeout(context.Background(), 1*time.Second)
+		_ = obsProvider.Shutdown(sdCtx)
+		sdCancel()
+	}()
 
-    // Root context with timeout
-    ctx, cancel := context.WithTimeout(context.Background(), time.Duration(*timeoutSec)*time.Second)
-    defer cancel()
+	// Interactive toggles (stdio) or non-interactive via env DEMO_NON_INTERACTIVE=1
+	fmt.Println("\n=== Mass Demo Generator — Booting ===")
+	var (
+		timeoutSecVal        int
+		orgsVal              int
+		ledgersPerOrgVal     int
+		accountsPerLedgerVal int
+		txPerAccountVal      int
+		concurrencyVal       int
+		batchSizeVal         int
+		doDemoVal            bool
+		assetsCountVal       int
+		createHierarchyVal   bool
+		runBatchVal          bool
+		amountVal            string
+		assetCodeVal         string
+		chartGroupVal        string
+	)
 
-    // Configure SDK from environment with safe defaults for local dev
-    cfg, err := config.NewConfig(
-        config.FromEnvironment(),
-        config.WithEnvironment(config.EnvironmentLocal),
-        config.WithIdempotency(true),
-    )
-    if err != nil {
-        log.Fatalf("failed to create SDK config: %v", err)
-    }
+	if os.Getenv("DEMO_NON_INTERACTIVE") == "1" {
+		// Fast path defaults for CI/non-interactive runs
+		timeoutSecVal = *timeoutSec
+		orgsVal = *orgs
+		ledgersPerOrgVal = *ledgersPerOrg
+		accountsPerLedgerVal = *accountsPerLedger
+		txPerAccountVal = *txPerAccount
+		concurrencyVal = *concurrency
+		batchSizeVal = *batchSize
+		doDemoVal = true
+		assetsCountVal = 3
+		createHierarchyVal = true
+		runBatchVal = true
+		amountVal = "1.00"
+		assetCodeVal = "USD"
+		chartGroupVal = "" // use server default chart group
+		fmt.Println("Running in non-interactive mode (DEMO_NON_INTERACTIVE=1)")
+	} else {
+		reader := bufio.NewReader(os.Stdin)
+		fmt.Println("\n=== Mass Demo Generator — Interactive Setup ===")
 
-    // Retry options (exponential backoff + jitter), propagate via context
-    r := retry.DefaultOptions()
-    _ = retry.WithMaxRetries(3)(r)
-    _ = retry.WithInitialDelay(100 * time.Millisecond)(r)
-    _ = retry.WithMaxDelay(2 * time.Second)(r)
-    _ = retry.WithBackoffFactor(2.0)(r)
-    _ = retry.WithJitterFactor(0.25)(r)
-    ctx = retry.WithOptionsContext(ctx, r)
+		timeoutSecVal = askInt(reader, "Overall timeout (seconds)", *timeoutSec)
+		orgsVal = askInt(reader, "Organizations to create", *orgs)
+		ledgersPerOrgVal = askInt(reader, "Ledgers per organization", *ledgersPerOrg)
+		accountsPerLedgerVal = askInt(reader, "Accounts per ledger", *accountsPerLedger)
+		txPerAccountVal = askInt(reader, "Transactions per account (demo batch)", *txPerAccount)
+		concurrencyVal = askInt(reader, "Worker pool size (0 = default)", *concurrency)
+		batchSizeVal = askInt(reader, "Batch size for parallel ops", *batchSize)
+		doDemoVal = askBool(reader, "Run demo (org+ledger+assets+accounts)? [Y/n]", true)
+		assetsCountVal = 3
+		if doDemoVal {
+			assetsCountVal = askInt(reader, "How many assets to create (demo)", 3)
+		}
+		createHierarchyVal = true
+		if doDemoVal {
+			createHierarchyVal = askBool(reader, "Create account hierarchy with Customer A/B? [Y/n]", true)
+		}
+		runBatchVal = false
+		if doDemoVal {
+			runBatchVal = askBool(reader, "Run Send-based transfer batch demo? [Y/n]", true)
+		}
+		amountVal = "1.00"
+		assetCodeVal = "USD"
+		chartGroupVal = "transfer-transactions"
+		if runBatchVal {
+			amountVal = askString(reader, "Transfer amount", "1.00")
+			assetCodeVal = askString(reader, "Asset code", "USD")
+			chartGroupVal = askString(reader, "Chart of accounts group (leave blank for server default)", "")
+		}
+	}
 
-    // Reflect retry options into SDK config as well
-    cfg.MaxRetries = r.MaxRetries
-    cfg.RetryWaitMin = r.InitialDelay
-    cfg.RetryWaitMax = r.MaxDelay
+	// Root context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutSecVal)*time.Second)
+	defer cancel()
 
-    // Initialize SDK client with observability provider
-    c, err := client.New(
-        client.WithConfig(cfg),
-        client.WithObservabilityProvider(obsProvider),
-        client.UseAllAPIs(),
-    )
-    if err != nil {
-        log.Fatalf("failed to create SDK client: %v", err)
-    }
-    defer func() {
-        _ = c.Shutdown(context.Background())
-    }()
+	// Configure SDK from environment with safe defaults for local dev
+	cfg, err := config.NewConfig(
+		config.FromEnvironment(),
+		config.WithEnvironment(config.EnvironmentLocal),
+		config.WithIdempotency(true),
+	)
+	if err != nil {
+		log.Fatalf("failed to create SDK config: %v", err)
+	}
 
-    // Build generator configuration (Phase 1)
-    gcfg := gen.DefaultConfig()
-    gcfg.Organizations = *orgs
-    gcfg.LedgersPerOrg = *ledgersPerOrg
-    gcfg.AccountsPerLedger = *accountsPerLedger
-    gcfg.TransactionsPerAccount = *txPerAccount
-    if *concurrency > 0 {
-        gcfg.ConcurrencyLevel = *concurrency
-    }
-    if *batchSize > 0 {
-        gcfg.BatchSize = *batchSize
-    }
+	// Retry options (exponential backoff + jitter), propagate via context
+	r := retry.DefaultOptions()
+	_ = retry.WithMaxRetries(3)(r)
+	_ = retry.WithInitialDelay(100 * time.Millisecond)(r)
+	_ = retry.WithMaxDelay(2 * time.Second)(r)
+	_ = retry.WithBackoffFactor(2.0)(r)
+	_ = retry.WithJitterFactor(0.25)(r)
+	ctx = retry.WithOptionsContext(ctx, r)
 
-    // Optional circuit breaker
-    if gcfg.EnableCircuitBreaker {
-        cb := conc.NewCircuitBreakerNamed("entity-api",
-            gcfg.CircuitBreakerFailureThreshold,
-            gcfg.CircuitBreakerSuccessThreshold,
-            gcfg.CircuitBreakerOpenTimeout,
-        )
-        ctx = gen.WithCircuitBreaker(ctx, cb)
-    }
+	// Reflect retry options into SDK config as well
+	cfg.MaxRetries = r.MaxRetries
+	cfg.RetryWaitMin = r.InitialDelay
+	cfg.RetryWaitMax = r.MaxDelay
 
-    // Summary
-    fmt.Println("Mass Demo Generator - Phase 1 bootstrap")
-    fmt.Println("Environment:", cfg.Environment)
-    fmt.Println("Onboarding API:", cfg.ServiceURLs[config.ServiceOnboarding])
-    fmt.Println("Transaction API:", cfg.ServiceURLs[config.ServiceTransaction])
-    fmt.Printf("Config: orgs=%d ledgers/org=%d accounts/ledger=%d tx/account=%d concurrency=%d batch=%d\n",
-        gcfg.Organizations,
-        gcfg.LedgersPerOrg,
-        gcfg.AccountsPerLedger,
-        gcfg.TransactionsPerAccount,
-        gcfg.ConcurrencyLevel,
-        gcfg.BatchSize,
-    )
+	// Initialize SDK client with observability provider
+	c, err := client.New(
+		client.WithConfig(cfg),
+		client.WithObservabilityProvider(obsProvider),
+		client.UseAllAPIs(),
+	)
+	if err != nil {
+		log.Fatalf("failed to create SDK client: %v", err)
+	}
+	defer func() {
+		_ = c.Shutdown(context.Background())
+	}()
 
-    // Phase 1 ends with a validated setup. Later phases will use gcfg and c.Entity
-    // to materialize data across organizations, ledgers, accounts, and transactions.
-    if os.Getenv("MIDAZ_AUTH_TOKEN") == "" {
-        fmt.Println("Warning: MIDAZ_AUTH_TOKEN is not set. Local dev server allows any token.")
-    }
+	// Build generator configuration (Phase 1)
+	gcfg := gen.DefaultConfig()
+	gcfg.Organizations = orgsVal
+	gcfg.LedgersPerOrg = ledgersPerOrgVal
+	gcfg.AccountsPerLedger = accountsPerLedgerVal
+	gcfg.TransactionsPerAccount = txPerAccountVal
+	if concurrencyVal > 0 {
+		gcfg.ConcurrencyLevel = concurrencyVal
+	}
+	if batchSizeVal > 0 {
+		gcfg.BatchSize = batchSizeVal
+	}
 
-    // Phase 2: Load and validate templates (no API calls yet)
-    orgTemplates := data.DefaultOrganizations()
-    assetTemplates := data.AllAssetTemplates()
-    accountTemplates := data.AllAccountTemplates()
+	// Optional circuit breaker
+	if gcfg.EnableCircuitBreaker {
+		cb := conc.NewCircuitBreakerNamed("entity-api",
+			gcfg.CircuitBreakerFailureThreshold,
+			gcfg.CircuitBreakerSuccessThreshold,
+			gcfg.CircuitBreakerOpenTimeout,
+		)
+		ctx = gen.WithCircuitBreaker(ctx, cb)
+	}
 
-    // Minimal validation to ensure templates meet constraints
-    for _, ot := range orgTemplates {
-        if err := data.ValidateOrgTemplate(ot); err != nil {
-            log.Fatalf("org template invalid: %v", err)
-        }
-    }
-    for _, at := range assetTemplates {
-        if err := data.ValidateAssetTemplate(at); err != nil {
-            log.Fatalf("asset template invalid (%s): %v", at.Code, err)
-        }
-    }
-    for _, acct := range accountTemplates {
-        if err := data.ValidateAccountTemplate(acct); err != nil {
-            log.Fatalf("account template invalid (%s): %v", acct.Name, err)
-        }
-    }
+	// Summary
+	fmt.Println("Mass Demo Generator - Phase 1 bootstrap")
+	fmt.Println("Environment:", cfg.Environment)
+	fmt.Println("Onboarding API:", cfg.ServiceURLs[config.ServiceOnboarding])
+	fmt.Println("Transaction API:", cfg.ServiceURLs[config.ServiceTransaction])
+	fmt.Printf("Config: orgs=%d ledgers/org=%d accounts/ledger=%d tx/account=%d concurrency=%d batch=%d\n",
+		gcfg.Organizations,
+		gcfg.LedgersPerOrg,
+		gcfg.AccountsPerLedger,
+		gcfg.TransactionsPerAccount,
+		gcfg.ConcurrencyLevel,
+		gcfg.BatchSize,
+	)
 
-    // Create a few DSL patterns (payment, refund) as blueprints and validate
-    pid := uuid.New().String()
-    payment := data.PaymentPattern("USD", 100, pid, "ext-pay-001")
-    if err := data.ValidateTransactionPattern(payment); err != nil {
-        log.Fatalf("payment pattern invalid: %v", err)
-    }
+	// Phase 1 ends with a validated setup. Later phases will use gcfg and c.Entity
+	// to materialize data across organizations, ledgers, accounts, and transactions.
+	if os.Getenv("MIDAZ_AUTH_TOKEN") == "" {
+		fmt.Println("Warning: MIDAZ_AUTH_TOKEN is not set. Local dev server allows any token.")
+	}
 
-    rid := uuid.New().String()
-    refund := data.RefundPattern("USD", 100, rid, "ext-ref-001")
-    if err := data.ValidateTransactionPattern(refund); err != nil {
-        log.Fatalf("refund pattern invalid: %v", err)
-    }
+	// Phase 2: Load and validate templates (no API calls yet)
+	orgTemplates := data.DefaultOrganizations()
+	assetTemplates := data.AllAssetTemplates()
+	accountTemplates := data.AllAccountTemplates()
 
-    fmt.Printf("Templates loaded: orgs=%d assets=%d accounts=%d txn_patterns=%d\n", len(orgTemplates), len(assetTemplates), len(accountTemplates), 2)
-    fmt.Println("Phase 2 complete: data templates and constraints prepared.")
+	// Minimal validation to ensure templates meet constraints
+	for _, ot := range orgTemplates {
+		if err := data.ValidateOrgTemplate(ot); err != nil {
+			log.Fatalf("org template invalid: %v", err)
+		}
+	}
+	for _, at := range assetTemplates {
+		if err := data.ValidateAssetTemplate(at); err != nil {
+			log.Fatalf("asset template invalid (%s): %v", at.Code, err)
+		}
+	}
+	for _, acct := range accountTemplates {
+		if err := data.ValidateAccountTemplate(acct); err != nil {
+			log.Fatalf("account template invalid (%s): %v", acct.Name, err)
+		}
+	}
 
-    // Optional Phase 3 smoke run (minimal): create one org, one ledger, and a few assets
-    if *doDemo {
-        fmt.Println("\n🚀 Running Phase 3 minimal generation (org+ledger+assets)...")
+	// Summarize loaded templates
+	fmt.Printf("Templates loaded: orgs=%d assets=%d accounts=%d\n", len(orgTemplates), len(assetTemplates), len(accountTemplates))
+	fmt.Println("Phase 2 complete: data templates and constraints prepared.")
 
-        orgGen := gen.NewOrganizationGenerator(c.Entity, obsProvider)
-        ledGen := gen.NewLedgerGenerator(c.Entity, obsProvider, "")
-        assetGen := gen.NewAssetGenerator(c.Entity, obsProvider)
+	// Optional Phase 3 smoke run (minimal): create one org, one ledger, and a few assets
+	if doDemoVal {
+		fmt.Println("\n🚀 Running Phase 3 minimal generation (org+ledger+assets)...")
 
-        // Use first org template
-        org, err := orgGen.Generate(ctx, orgTemplates[0])
-        if err != nil {
-            log.Fatalf("organization generation failed: %v", err)
-        }
-        fmt.Println("Created org:", org.ID, org.LegalName)
+		orgGen := gen.NewOrganizationGenerator(c.Entity, obsProvider)
+		ledGen := gen.NewLedgerGenerator(c.Entity, obsProvider, "")
+		assetGen := gen.NewAssetGenerator(c.Entity, obsProvider)
 
-        // Create one ledger
-        ledgerTemplate := data.LedgerTemplate{
-            Name:     "Demo Ledger",
-            Status:   models.NewStatus(models.StatusActive),
-            Metadata: map[string]any{"purpose": "operational"},
-        }
-        ledger, err := ledGen.Generate(ctx, org.ID, ledgerTemplate)
-        if err != nil {
-            log.Fatalf("ledger generation failed: %v", err)
-        }
-        fmt.Println("Created ledger:", ledger.ID, ledger.Name)
+		// Use first org template
+		org, err := orgGen.Generate(ctx, orgTemplates[0])
+		if err != nil {
+			log.Fatalf("organization generation failed: %v", err)
+		}
+		fmt.Println("Created org:", org.ID, org.LegalName)
 
-        // Add a few assets to the ledger
-        // Asset API requires orgID and ledgerID; pass orgID via context helper
-        actx := gen.WithOrgID(ctx, org.ID)
-        for i, at := range assetTemplates {
-            if i >= 3 { // create a few
-                break
-            }
-            a, err := assetGen.Generate(actx, ledger.ID, at)
-            if err != nil {
-                log.Fatalf("asset generation failed for %s: %v", at.Code, err)
-            }
-            fmt.Println("Created asset:", a.ID, a.Code)
-        }
+		// Create one ledger
+		ledgerTemplate := data.LedgerTemplate{
+			Name:     "Demo Ledger",
+			Status:   models.NewStatus(models.StatusActive),
+			Metadata: map[string]any{"purpose": "operational"},
+		}
+		ledger, err := ledGen.Generate(ctx, org.ID, ledgerTemplate)
+		if err != nil {
+			log.Fatalf("ledger generation failed: %v", err)
+		}
+		fmt.Println("Created ledger:", ledger.ID, ledger.Name)
 
-        // Create default account types and a few demo accounts using USD
-        atGen := gen.NewAccountTypeGenerator(c.Entity, obsProvider)
-        if _, err := atGen.GenerateDefaults(ctx, org.ID, ledger.ID); err != nil {
-            log.Fatalf("account type generation failed: %v", err)
-        }
-        fmt.Println("Created default account types")
+		// Add a few assets to the ledger
+		// Asset API requires orgID and ledgerID; pass orgID via context helper
+		actx := gen.WithOrgID(ctx, org.ID)
+		for i, at := range assetTemplates {
+			if i >= assetsCountVal { // create a few
+				break
+			}
+			a, err := assetGen.Generate(actx, ledger.ID, at)
+			if err != nil {
+				log.Fatalf("asset generation failed for %s: %v", at.Code, err)
+			}
+			fmt.Println("Created asset:", a.ID, a.Code)
+		}
 
-        accGen := gen.NewAccountGenerator(c.Entity, obsProvider)
-        // Select a few account templates
-        var batch []data.AccountTemplate
-        for i, t := range accountTemplates {
-            if i >= 5 {
-                break
-            }
-            batch = append(batch, t)
-        }
-        created, err := accGen.GenerateBatch(ctx, org.ID, ledger.ID, "USD", batch)
-        if err != nil {
-            log.Fatalf("account generation failed: %v", err)
-        }
-        fmt.Println("Created accounts:", len(created))
+		// Create default account types and a few demo accounts using USD
+		atGen := gen.NewAccountTypeGenerator(c.Entity, obsProvider)
+		if _, err := atGen.GenerateDefaults(ctx, org.ID, ledger.ID); err != nil {
+			log.Fatalf("account type generation failed: %v", err)
+		}
+		fmt.Println("Created default account types")
 
-        // Create a Portfolio and two Segments, then generate a DSL transaction
-        pGen := gen.NewPortfolioGenerator(c.Entity, obsProvider)
-        portfolio, err := pGen.Generate(ctx, org.ID, ledger.ID, "Customer Portfolio", "demo-entity-1", map[string]any{"category": "customer"})
-        if err != nil {
-            log.Fatalf("portfolio generation failed: %v", err)
-        }
-        fmt.Println("Created portfolio:", portfolio.ID)
+		accGen := gen.NewAccountGenerator(c.Entity, obsProvider)
+		// Select a few account templates
+		var batch []data.AccountTemplate
+		for i, t := range accountTemplates {
+			if i >= 5 {
+				break
+			}
+			batch = append(batch, t)
+		}
+		created, err := accGen.GenerateBatch(ctx, org.ID, ledger.ID, "USD", batch)
+		if err != nil {
+			log.Fatalf("account generation failed: %v", err)
+		}
+		fmt.Println("Created accounts:", len(created))
 
-        sGen := gen.NewSegmentGenerator(c.Entity, obsProvider)
-        segNA, err := sGen.Generate(ctx, org.ID, ledger.ID, "NA", map[string]any{"region": "north_america"})
-        if err != nil {
-            log.Fatalf("segment generation failed: %v", err)
-        }
-        segEU, err := sGen.Generate(ctx, org.ID, ledger.ID, "EU", map[string]any{"region": "europe"})
-        if err != nil {
-            log.Fatalf("segment generation failed: %v", err)
-        }
-        fmt.Println("Created segments:", segNA.ID, segEU.ID)
+		// Create a Portfolio and two Segments, then generate a DSL transaction
+		pGen := gen.NewPortfolioGenerator(c.Entity, obsProvider)
+		portfolio, err := pGen.Generate(ctx, org.ID, ledger.ID, "Customer Portfolio", "demo-entity-1", map[string]any{"category": "customer"})
+		if err != nil {
+			log.Fatalf("portfolio generation failed: %v", err)
+		}
+		fmt.Println("Created portfolio:", portfolio.ID)
 
-        // Build a small account hierarchy: Customers Root -> Customer A/B
-        hGen := gen.NewAccountHierarchyGenerator(accGen)
-        customersRootAlias := "customers_root"
-        customerAAlias := "customer_a"
-        customerBAlias := "customer_b"
-        nodes := []gen.AccountNode{
-            {
-                Template: data.AccountTemplate{
-                    Name:   "Customers Root",
-                    Type:   "deposit",
-                    Status: models.NewStatus(models.StatusActive),
-                    Alias:  &customersRootAlias,
-                    PortfolioID: &portfolio.ID,
-                    SegmentID:   &segNA.ID,
-                    Metadata: map[string]any{"role": "internal", "group": "customers"},
-                },
-                Children: []gen.AccountNode{
-                    {Template: data.AccountTemplate{Name: "Customer A", Type: "deposit", Status: models.NewStatus(models.StatusActive), Alias: &customerAAlias, PortfolioID: &portfolio.ID, SegmentID: &segNA.ID, Metadata: map[string]any{"role": "customer"}}},
-                    {Template: data.AccountTemplate{Name: "Customer B", Type: "deposit", Status: models.NewStatus(models.StatusActive), Alias: &customerBAlias, PortfolioID: &portfolio.ID, SegmentID: &segEU.ID, Metadata: map[string]any{"role": "customer"}}},
-                },
-            },
-        }
-        createdTree, err := hGen.GenerateTree(ctx, org.ID, ledger.ID, "USD", nodes)
-        if err != nil {
-            log.Fatalf("account hierarchy generation failed: %v", err)
-        }
-        fmt.Println("Created account hierarchy nodes:", len(createdTree))
+		sGen := gen.NewSegmentGenerator(c.Entity, obsProvider)
+		segNA, err := sGen.Generate(ctx, org.ID, ledger.ID, "NA", map[string]any{"region": "north_america"})
+		if err != nil {
+			log.Fatalf("segment generation failed: %v", err)
+		}
+		segEU, err := sGen.Generate(ctx, org.ID, ledger.ID, "EU", map[string]any{"region": "europe"})
+		if err != nil {
+			log.Fatalf("segment generation failed: %v", err)
+		}
+		fmt.Println("Created segments:", segNA.ID, segEU.ID)
 
-        // Generate a sample payment via DSL
-        tGen := gen.NewTransactionGenerator(c.Entity, obsProvider)
-        payPattern := data.PaymentPattern("USD", 100, uuid.New().String(), "ext-demo-001")
-        tx, err := tGen.GenerateWithDSL(ctx, org.ID, ledger.ID, payPattern)
-        if err != nil {
-            log.Fatalf("dsl transaction failed: %v", err)
-        }
-        fmt.Println("Created transaction:", tx.ID)
+		// Choose two accounts for demo batch
+		var accA, accB *models.Account
+		if createHierarchyVal {
+			// Build a small account hierarchy: Customers Root -> Customer A/B
+			hGen := gen.NewAccountHierarchyGenerator(accGen)
+			customersRootAlias := "customers_root"
+			customerAAlias := "customer_a"
+			customerBAlias := "customer_b"
+			nodes := []gen.AccountNode{
+				{
+					Template: data.AccountTemplate{
+						Name:        "Customers Root",
+						Type:        "deposit",
+						Status:      models.NewStatus(models.StatusActive),
+						Alias:       &customersRootAlias,
+						PortfolioID: &portfolio.ID,
+						SegmentID:   &segNA.ID,
+						Metadata:    map[string]any{"role": "internal", "group": "customers"},
+					},
+					Children: []gen.AccountNode{
+						{Template: data.AccountTemplate{Name: "Customer A", Type: "deposit", Status: models.NewStatus(models.StatusActive), Alias: &customerAAlias, PortfolioID: &portfolio.ID, SegmentID: &segNA.ID, Metadata: map[string]any{"role": "customer"}}},
+						{Template: data.AccountTemplate{Name: "Customer B", Type: "deposit", Status: models.NewStatus(models.StatusActive), Alias: &customerBAlias, PortfolioID: &portfolio.ID, SegmentID: &segEU.ID, Metadata: map[string]any{"role": "customer"}}},
+					},
+				},
+			}
+			createdTree, err := hGen.GenerateTree(ctx, org.ID, ledger.ID, assetCodeVal, nodes)
+			if err != nil {
+				log.Fatalf("account hierarchy generation failed: %v", err)
+			}
+			fmt.Println("Created account hierarchy nodes:", len(createdTree))
 
-        fmt.Println("✅ Phase 3 minimal generation complete.")
-    }
+			for _, a := range createdTree {
+				if a.Alias != nil && *a.Alias == "customer_a" {
+					accA = a
+				}
+				if a.Alias != nil && *a.Alias == "customer_b" {
+					accB = a
+				}
+			}
+			if accA == nil || accB == nil {
+				log.Fatalf("failed to locate demo child accounts by alias")
+			}
+		} else {
+			if len(created) < 2 {
+				log.Fatalf("not enough accounts to run demo batch")
+			}
+			accA, accB = created[0], created[1]
+		}
+
+		if runBatchVal {
+			// Ensure Customer A has funds: deposit from @external/<asset>
+			aliasA := models.GetAccountAlias(*accA)
+			extAlias := fmt.Sprintf("@external/%s", assetCodeVal)
+			fundValue := "100.00"
+			fundTx := &models.CreateTransactionInput{
+				Description:              "Funding Customer A",
+				Amount:                   fundValue,
+				AssetCode:                assetCodeVal,
+				ChartOfAccountsGroupName: chartGroupVal, // allow server default when blank
+				Send: &models.SendInput{
+					Asset: assetCodeVal,
+					Value: fundValue,
+					Source: &models.SourceInput{From: []models.FromToInput{{
+						Account: extAlias,
+						Amount:  models.AmountInput{Asset: assetCodeVal, Value: fundValue},
+					}}},
+					Distribute: &models.DistributeInput{To: []models.FromToInput{{
+						Account: aliasA,
+						Amount:  models.AmountInput{Asset: assetCodeVal, Value: fundValue},
+					}}},
+				},
+			}
+			// Preview funding payload
+			if data, err := json.MarshalIndent(fundTx.ToLibTransaction(), "", "  "); err == nil {
+				fmt.Println("Preview funding transaction payload:")
+				fmt.Println(string(data))
+			}
+			// Execute funding transaction
+			if _, err := c.Entity.Transactions.CreateTransaction(ctx, org.ID, ledger.ID, fundTx); err != nil {
+				log.Printf("funding transaction failed: %v (will proceed to batch anyway)", err)
+			}
+
+			inputs := make([]*models.CreateTransactionInput, 0, txPerAccountVal)
+			// Resolve aliases (API expects accountAlias)
+			aliasA = models.GetAccountAlias(*accA)
+			aliasB := models.GetAccountAlias(*accB)
+			if aliasA == "" || aliasB == "" {
+				log.Fatalf("missing account alias for demo accounts (A:%q B:%q)", aliasA, aliasB)
+			}
+
+			for i := 0; i < txPerAccountVal; i++ {
+				desc := fmt.Sprintf("Demo transfer #%d", i+1)
+				inputs = append(inputs, &models.CreateTransactionInput{
+					Description:              desc,
+					Amount:                   amountVal,
+					AssetCode:                assetCodeVal,
+					ChartOfAccountsGroupName: chartGroupVal,
+					Send: &models.SendInput{
+						Asset: assetCodeVal,
+						Value: amountVal,
+						Source: &models.SourceInput{From: []models.FromToInput{{
+							Account: aliasA,
+							Amount:  models.AmountInput{Asset: assetCodeVal, Value: amountVal},
+						}}},
+						Distribute: &models.DistributeInput{To: []models.FromToInput{{
+							Account: aliasB,
+							Amount:  models.AmountInput{Asset: assetCodeVal, Value: amountVal},
+						}}},
+					},
+				})
+			}
+
+			// Show a preview of the first payload to help diagnose 422s
+			if len(inputs) > 0 {
+				m := inputs[0].ToLibTransaction()
+				if data, err := json.MarshalIndent(m, "", "  "); err == nil {
+					fmt.Println("Preview first transaction payload:")
+					fmt.Println(string(data))
+				}
+			}
+
+			// Use batch processor with multi-bar progress and JSON report
+			options := txpkg.DefaultBatchOptions()
+			if gcfg.ConcurrencyLevel > 0 {
+				options.Concurrency = gcfg.ConcurrencyLevel
+			} else {
+				options.Concurrency = 8
+			}
+			mpc := txpkg.NewMultiProgressController(len(inputs), "overall")
+			options.OnProgress = mpc.OnProgressCallback()
+
+			bctx, cancel := context.WithTimeout(ctx, 45*time.Second)
+			defer cancel()
+			results, err := txpkg.BatchTransactions(bctx, c, org.ID, ledger.ID, inputs, options)
+			mpc.Wait()
+			if err != nil {
+				log.Printf("batch encountered errors: %v", err)
+			}
+			// Print a few sample errors for troubleshooting
+			sample := 0
+			for _, r := range results {
+				if r.Error != nil {
+					sample++
+					log.Printf("sample error [%d]: %v", sample, r.Error)
+					if sample >= 5 {
+						break
+					}
+				}
+			}
+			// Save report
+			report := txpkg.NewGenerationReport(results, "mass-demo-generator", map[string]any{"org": org.ID, "ledger": ledger.ID})
+			if err := report.SaveJSON("./mass-demo-report.json", true); err != nil {
+				log.Printf("failed to save report: %v", err)
+			}
+
+			summary := txpkg.GetBatchSummary(results)
+			fmt.Printf("Batch summary: total=%d success=%d errors=%d successRate=%.1f%% tps=%.2f\n",
+				summary.TotalTransactions, summary.SuccessCount, summary.ErrorCount, summary.SuccessRate, summary.TransactionsPerSecond)
+		}
+
+		fmt.Println("✅ Phase 3 minimal generation complete.")
+	}
 }
 
 func strPtr(s string) *string { return &s }
+
+// --- interactive helpers (stdio) ---
+func askString(r *bufio.Reader, prompt, def string) string {
+	fmt.Printf("%s [%s]: ", prompt, def)
+	line, _ := r.ReadString('\n')
+	line = strings.TrimSpace(line)
+	if line == "" {
+		return def
+	}
+	return line
+}
+
+func askInt(r *bufio.Reader, prompt string, def int) int {
+	for {
+		fmt.Printf("%s [%d]: ", prompt, def)
+		line, _ := r.ReadString('\n')
+		line = strings.TrimSpace(line)
+		if line == "" {
+			return def
+		}
+		n, err := strconv.Atoi(line)
+		if err == nil {
+			return n
+		}
+		fmt.Println("Please enter a valid integer.")
+	}
+}
+
+func askBool(r *bufio.Reader, prompt string, def bool) bool {
+	suffix := "Y/n"
+	if !def {
+		suffix = "y/N"
+	}
+	for {
+		fmt.Printf("%s ", strings.ReplaceAll(prompt, "[Y/n]", suffix))
+		line, _ := r.ReadString('\n')
+		line = strings.TrimSpace(strings.ToLower(line))
+		if line == "" {
+			return def
+		}
+		if line == "y" || line == "yes" {
+			return true
+		}
+		if line == "n" || line == "no" {
+			return false
+		}
+		fmt.Println("Please answer y or n.")
+	}
+}

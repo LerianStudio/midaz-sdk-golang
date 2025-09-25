@@ -77,6 +77,7 @@ help:
 	@echo ""
 	@echo "Example Commands:"
 	@echo "  make example                     - Run complete workflow example"
+	@echo "  make demo-data                   - Run mass demo data generator (interactive)"
 	@echo ""
 	@echo "Documentation Commands:"
 	@echo "  make godoc                       - Start a godoc server for interactive documentation"
@@ -222,6 +223,16 @@ example:
 	$(call print_header,"Make sure the Midaz Stack is running --default is localhost")
 	@cp $(ENV_FILE) examples/workflow-with-entities/.env
 	@cd examples/workflow-with-entities && go run main.go
+
+.PHONY: demo-data
+
+demo-data:
+	$(call print_header,Running Mass Demo Data Generator)
+	$(call print_header,Ensure Midaz services are running on localhost:3000 (onboarding) and :3001 (transaction))
+	@if [ -f "$(ENV_FILE)" ]; then \
+		cp $(ENV_FILE) examples/mass-demo-generator/.env; \
+	fi
+    @cd examples/mass-demo-generator && MIDAZ_DEBUG=true DEMO_NON_INTERACTIVE=1 go run main.go
 
 #-------------------------------------------------------
 # Documentation Commands
