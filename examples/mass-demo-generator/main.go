@@ -22,6 +22,7 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
 	txpkg "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/transaction"
+	"github.com/google/uuid"
 	"github.com/joho/godotenv"
 )
 
@@ -38,6 +39,8 @@ func main() {
 		txPerAccount      = flag.Int("tx", 20, "number of transactions per account (demo batch)")
 		concurrency       = flag.Int("concurrency", 0, "worker pool size (0 = auto)")
 		batchSize         = flag.Int("batch", 50, "batch size for parallel ops")
+		orgLocaleFlag     = flag.String("org-locale", "", "organization locale (us|br)")
+		patternsFlag      = flag.Bool("patterns", true, "run DSL pattern demos (subscription/split)")
 		// deprecated: demo flag replaced by interactive toggle
 	)
 	flag.Parse()
@@ -72,6 +75,8 @@ func main() {
 		runBatchVal          bool
 		assetCodeVal         string
 		chartGroupVal        string
+		orgLocaleVal         string
+		runPatternsVal       bool
 	)
 
 	if os.Getenv("DEMO_NON_INTERACTIVE") == "1" {
@@ -89,6 +94,8 @@ func main() {
 		runBatchVal = true
 		assetCodeVal = "USD"
 		chartGroupVal = "" // use server default chart group
+		orgLocaleVal = "us"
+		runPatternsVal = true
 		fmt.Println("Running in non-interactive mode (DEMO_NON_INTERACTIVE=1)")
 	} else {
 		reader := bufio.NewReader(os.Stdin)
@@ -120,11 +127,24 @@ func main() {
 			assetCodeVal = askString(reader, "Asset code", "USD")
 			chartGroupVal = askString(reader, "Chart of accounts group (leave blank for server default)", "")
 		}
+		orgLocaleVal = strings.ToLower(askString(reader, "Organization locale (us|br)", "us"))
+		runPatternsVal = askBool(reader, "Run DSL pattern demos (subscription/split)? [Y/n]", true)
+	}
+
+	// CLI flags override (useful for non-interactive runs)
+	if *orgLocaleFlag != "" {
+		orgLocaleVal = strings.ToLower(*orgLocaleFlag)
+	}
+	if os.Getenv("DEMO_NON_INTERACTIVE") == "1" {
+		runPatternsVal = *patternsFlag
 	}
 
 	// Root context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutSecVal)*time.Second)
 	defer cancel()
+
+	// Apply org locale into context for EIN vs CNPJ generation where applicable
+	ctx = gen.WithOrgLocale(ctx, strings.ToLower(orgLocaleVal))
 
 	// Configure SDK from environment with safe defaults for local dev
 	cfg, err := config.NewConfig(
@@ -406,6 +426,31 @@ func main() {
 				log.Fatalf("not enough accounts to run demo batch")
 			}
 			accA, accB = created[0], created[1]
+		}
+
+		// Optional DSL pattern demonstrations
+		if runPatternsVal {
+			fmt.Println("\n▶ Running DSL pattern demos (subscription, split payment)...")
+			txGen := gen.NewTransactionGenerator(c.Entity, obsProvider)
+			// Subscription: customer -> merchant_main (relies on aliases created by templates)
+			sub := data.SubscriptionPattern(assetCodeVal, 25, uuid.New().String(), "demo-sub-1")
+			if tx, err := txGen.GenerateWithDSL(ctx, org.ID, ledger.ID, sub); err != nil {
+				log.Printf("subscription demo failed: %v", err)
+			} else if tx != nil {
+				fmt.Println("Subscription tx:", tx.ID)
+				reportEntities.Counts.Transactions++
+				reportEntities.IDs.TransactionIDs = append(reportEntities.IDs.TransactionIDs, tx.ID)
+			}
+			// Split: customer -> merchant_main 90%, platform_fee 10%
+			splitMap := map[string]int{"@merchant_main": 90, "@platform_fee": 10}
+			split := data.SplitPaymentPattern(assetCodeVal, 30, splitMap, uuid.New().String(), "demo-split-1")
+			if tx, err := txGen.GenerateWithDSL(ctx, org.ID, ledger.ID, split); err != nil {
+				log.Printf("split-payment demo failed: %v", err)
+			} else if tx != nil {
+				fmt.Println("Split payment tx:", tx.ID)
+				reportEntities.Counts.Transactions++
+				reportEntities.IDs.TransactionIDs = append(reportEntities.IDs.TransactionIDs, tx.ID)
+			}
 		}
 
 		if runBatchVal {

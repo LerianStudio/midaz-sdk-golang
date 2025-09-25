@@ -249,6 +249,7 @@ type OrganizationGenerator interface {
   - [x] Legal names with faker library
   - [x] Trade names variations
 - [x] Tax IDs with proper format (CNPJ: 14 digits, EIN: 9 digits)
+  - [x] Unit tests for CNPJ check digit calculation
   - [x] Locale toggle (US/BR) via generator.WithOrgLocale(ctx, "br")
   - [x] Addresses using models.NewAddress()
   - [x] Status using models.NewStatus()
@@ -355,6 +356,7 @@ type TransactionGenerator interface {
   - [x] Normal distribution for typical payments (helper implemented)
   - [x] Power law distribution for e-commerce (helper implemented)
   - [x] Respect asset scale/precision
+  - [x] Exponential and uniform distributions (helpers implemented)
 - [ ] Create time-distributed transactions
   - [ ] Historical data with realistic patterns
   - [ ] Daily/weekly/monthly cycles
@@ -388,8 +390,8 @@ distribute [USD 100] (
 - [x] Batch payment processing
   - [x] Use concurrent.WorkerPool
   - [x] Monitor with metrics/TPS
-- [ ] Recurring transactions with templates
-- [ ] Split payments with share distributions
+- [x] Recurring transactions with templates (Subscription pattern demo)
+- [x] Split payments with share distributions (SplitPayment pattern)
 
 #### 5.3 Transaction Lifecycle Management
 ```go
@@ -580,6 +582,8 @@ type ProgressMonitor struct {
   - [x] `--tx`: Transactions per account
   - [x] `--concurrency`: Worker pool size
   - [x] `--batch`: Batch size for parallel ops
+  - [x] `--org-locale`: Organization locale (us|br) toggling EIN/CNPJ generation
+  - [x] `--patterns`: Toggle DSL pattern demos (subscription/split)
   - [ ] `--mode`: Sequential/parallel/distributed
   - [ ] `--dry-run`: Preview without creating
   - [ ] `--config`: Config file path
@@ -737,7 +741,7 @@ func validateMetadata(metadata map[string]any) error {
 - Phases 6–7: ⏳ Routing rules, integrity checks to be implemented.
 - Phase 8: 🔶 Concurrent processing, circuit breaker, idempotency implemented; advanced rate limiting pending.
 - Phase 9: ✅ Reporting & Statistics fully implemented (metrics, HTML/JSON reports, entity tracking).
-- Phase 10: 🔶 CLI interface with interactive mode implemented; configuration files pending.
+- Phase 10: 🔶 CLI interface with interactive mode implemented; added `--org-locale` and `--patterns`; configuration files pending.
 
 ## What’s Missing / Next Tasks
 

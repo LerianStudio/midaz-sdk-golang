@@ -51,3 +51,31 @@ func (g *AmountGenerator) PowerLaw(min, max float64, alpha float64, scale int) i
 	factor := math.Pow10(scale)
 	return int64(math.Round(x * factor))
 }
+
+// Exponential generates amounts following an exponential distribution with the given mean.
+// Returns minor units based on the provided scale.
+func (g *AmountGenerator) Exponential(mean float64, scale int) int64 {
+	if mean <= 0 {
+		mean = 1
+	}
+	val := g.r.ExpFloat64() * mean
+	if val < 0 {
+		val = 0
+	}
+	factor := math.Pow10(scale)
+	return int64(math.Round(val * factor))
+}
+
+// Uniform generates amounts uniformly in [min, max].
+// Returns minor units based on the provided scale.
+func (g *AmountGenerator) Uniform(min, max float64, scale int) int64 {
+	if max < min {
+		min, max = max, min
+	}
+	if max == min {
+		max = min + 1
+	}
+	val := min + g.r.Float64()*(max-min)
+	factor := math.Pow10(scale)
+	return int64(math.Round(val * factor))
+}

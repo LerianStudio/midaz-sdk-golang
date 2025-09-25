@@ -711,16 +711,16 @@ func GetTransactionStatus(tx *models.Transaction) string {
 //   - The committed transaction if successful
 //   - An error if the operation fails
 func CommitPendingTransaction(
-    ctx context.Context,
-    entity *entities.Entity,
-    orgID, ledgerID, transactionID string,
+	ctx context.Context,
+	entity *entities.Entity,
+	orgID, ledgerID, transactionID string,
 ) (*models.Transaction, error) {
-    // Use dedicated commit endpoint
-    committed, err := entity.Transactions.CommitTransaction(ctx, orgID, ledgerID, transactionID)
-    if err != nil {
-        return nil, fmt.Errorf("failed to commit transaction: %w", err)
-    }
-    return committed, nil
+	// Use dedicated commit endpoint
+	committed, err := entity.Transactions.CommitTransaction(ctx, orgID, ledgerID, transactionID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+	return committed, nil
 }
 
 // CancelPendingTransaction cancels a pending transaction
@@ -736,15 +736,15 @@ func CommitPendingTransaction(
 //   - The canceled transaction if successful
 //   - An error if the operation fails
 func CancelPendingTransaction(
-    ctx context.Context,
-    entity *entities.Entity,
-    orgID, ledgerID, transactionID string,
+	ctx context.Context,
+	entity *entities.Entity,
+	orgID, ledgerID, transactionID string,
 ) (*models.Transaction, error) {
-    // Use dedicated cancel endpoint, which returns no body in our Entities implementation.
-    if err := entity.Transactions.CancelTransaction(ctx, orgID, ledgerID, transactionID); err != nil {
-        return nil, fmt.Errorf("failed to cancel transaction: %w", err)
-    }
-    // Fetch the transaction to return its final state (best-effort).
-    tx, _ := entity.Transactions.GetTransaction(ctx, orgID, ledgerID, transactionID)
-    return tx, nil
+	// Use dedicated cancel endpoint, which returns no body in our Entities implementation.
+	if err := entity.Transactions.CancelTransaction(ctx, orgID, ledgerID, transactionID); err != nil {
+		return nil, fmt.Errorf("failed to cancel transaction: %w", err)
+	}
+	// Fetch the transaction to return its final state (best-effort).
+	tx, _ := entity.Transactions.GetTransaction(ctx, orgID, ledgerID, transactionID)
+	return tx, nil
 }

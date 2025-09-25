@@ -169,3 +169,61 @@ distribute [%s %d] (
 		Metadata:                 map[string]any{"pattern": "batch_settlement"},
 	}
 }
+
+// SubscriptionPattern represents a recurring charge from a customer to a merchant.
+func SubscriptionPattern(asset string, amount int, idempotencyKey, externalID string) TransactionPattern {
+	dsl := fmt.Sprintf(`
+send [%s %d] (
+  source = @customer
+)
+distribute [%s %d] (
+  destination = {
+    100%% to @merchant_main
+  }
+)
+`, asset, amount, asset, amount)
+
+	return TransactionPattern{
+		ChartOfAccountsGroupName: "subscription",
+		Description:              "Recurring subscription payment",
+		DSLTemplate:              dsl,
+		RequiresCommit:           false,
+		IdempotencyKey:           idempotencyKey,
+		ExternalID:               externalID,
+		Metadata:                 map[string]any{"pattern": "subscription", "recurring": true},
+	}
+}
+
+// SplitPaymentPattern splits a payment from a customer to multiple recipients using percentages.
+func SplitPaymentPattern(asset string, amount int, destinations map[string]int, idempotencyKey, externalID string) TransactionPattern {
+	shares := ""
+	for alias, pct := range destinations {
+		if pct < 0 {
+			pct = 0
+		}
+		if pct > 100 {
+			pct = 100
+		}
+		shares += fmt.Sprintf("    %d%% to %s\n", pct, alias)
+	}
+
+	dsl := fmt.Sprintf(`
+send [%s %d] (
+  source = @customer
+)
+distribute [%s %d] (
+  destination = {
+%s  }
+)
+`, asset, amount, asset, amount, shares)
+
+	return TransactionPattern{
+		ChartOfAccountsGroupName: "split_payment",
+		Description:              "Customer payment split among multiple recipients",
+		DSLTemplate:              dsl,
+		RequiresCommit:           false,
+		IdempotencyKey:           idempotencyKey,
+		ExternalID:               externalID,
+		Metadata:                 map[string]any{"pattern": "split_payment"},
+	}
+}
