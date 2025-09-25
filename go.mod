@@ -5,6 +5,7 @@ go 1.24.2
 require (
 	github.com/LerianStudio/lib-commons v1.19.0-beta.7
 	github.com/LerianStudio/midaz/v3 v3.4.0
+	github.com/brianvoe/gofakeit/v7 v7.7.3
 	github.com/golang/mock v1.6.0
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1

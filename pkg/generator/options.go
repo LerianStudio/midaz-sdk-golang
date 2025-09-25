@@ -9,6 +9,7 @@ import (
 // context keys
 type contextKeyWorkers struct{}
 type contextKeyCircuitBreaker struct{}
+type contextKeyOrgLocale struct{}
 
 // WithWorkers stores a preferred worker count in context for batch generation.
 func WithWorkers(ctx context.Context, workers int) context.Context {
@@ -49,4 +50,22 @@ func getCircuitBreaker(ctx context.Context) *conc.CircuitBreaker {
 		return cb
 	}
 	return nil
+}
+
+// WithOrgLocale stores a preferred organization locale for generators.
+// Supported values include "us" (default) and "br" (CNPJ).
+func WithOrgLocale(ctx context.Context, locale string) context.Context {
+	if locale == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, contextKeyOrgLocale{}, locale)
+}
+
+func getOrgLocale(ctx context.Context) string {
+	if v := ctx.Value(contextKeyOrgLocale{}); v != nil {
+		if s, ok := v.(string); ok && s != "" {
+			return s
+		}
+	}
+	return "us"
 }

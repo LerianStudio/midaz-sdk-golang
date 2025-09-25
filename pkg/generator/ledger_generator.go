@@ -1,16 +1,18 @@
 package generator
 
 import (
-	"context"
-	"fmt"
+    "context"
+    "fmt"
+    "math/rand"
+    "time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/concurrent"
-	data "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/stats"
+    "github.com/LerianStudio/midaz-sdk-golang/v2/entities"
+    "github.com/LerianStudio/midaz-sdk-golang/v2/models"
+    "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/concurrent"
+    data "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
+    "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
+    "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
+    "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/stats"
 )
 
 type ledgerGenerator struct {
@@ -80,17 +82,27 @@ func (g *ledgerGenerator) GenerateForOrg(ctx context.Context, orgID string, coun
 
 	workers := getWorkers(ctx)
 	buf := workers * 2
-	results := concurrent.WorkerPool(ctx, items, func(ctx context.Context, i int) (*models.Ledger, error) {
-		t := data.LedgerTemplate{
-			Name:     fmt.Sprintf("Demo Ledger %d", i+1),
-			Status:   models.NewStatus(models.StatusActive),
-			Metadata: map[string]any{"purpose": "operational"},
-		}
-		ledger, err := g.Generate(ctx, orgID, t)
-		if err == nil {
-			counter.RecordSuccess()
-		}
-		return ledger, err
+    results := concurrent.WorkerPool(ctx, items, func(ctx context.Context, i int) (*models.Ledger, error) {
+        // Randomize metadata: purpose, currency_scope, region
+        seed := time.Now().UnixNano() + int64(i)
+        r := rand.New(rand.NewSource(seed))
+        purposes := []string{"operational", "settlement", "fees", "escrow"}
+        scopes := []string{"single", "multi"}
+        regions := []string{"us", "eu", "apac", "latam"}
+        t := data.LedgerTemplate{
+            Name:   fmt.Sprintf("Demo Ledger %d", i+1),
+            Status: models.NewStatus(models.StatusActive),
+            Metadata: map[string]any{
+                "purpose":        purposes[r.Intn(len(purposes))],
+                "currency_scope": scopes[r.Intn(len(scopes))],
+                "region":         regions[r.Intn(len(regions))],
+            },
+        }
+        ledger, err := g.Generate(ctx, orgID, t)
+        if err == nil {
+            counter.RecordSuccess()
+        }
+        return ledger, err
 	}, concurrent.WithWorkers(workers), concurrent.WithBufferSize(buf))
 
 	out := make([]*models.Ledger, 0, count)

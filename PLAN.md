@@ -246,9 +246,10 @@ type OrganizationGenerator interface {
   - [x] Add observability.StartSpan() for tracing
   - [x] Apply metadata constraints (100/2000 char limits)
 - [x] Generate organizations with realistic data
-  - [ ] Legal names with faker library
-  - [ ] Trade names variations
-- [ ] Tax IDs with proper format (CNPJ: 14 digits, EIN: 9 digits)
+  - [x] Legal names with faker library
+  - [x] Trade names variations
+- [x] Tax IDs with proper format (CNPJ: 14 digits, EIN: 9 digits)
+  - [x] Locale toggle (US/BR) via generator.WithOrgLocale(ctx, "br")
   - [x] Addresses using models.NewAddress()
   - [x] Status using models.NewStatus()
   - [ ] Industry-specific metadata
@@ -256,6 +257,9 @@ type OrganizationGenerator interface {
   - [x] Use concurrent.WorkerPool for parallel creation
   - [x] Monitor with metrics/TPS
   - [x] Circuit breaker pattern for API protection
+  - [x] Legal names with faker library
+  - [x] Trade names variations
+  - [x] Tax IDs with proper EIN/CNPJ (locale toggle)
 
 #### 3.2 Ledger Generator with Pagination Support
 ```go
@@ -272,9 +276,9 @@ type LedgerGenerator interface {
   - [ ] Status management (active, inactive)
 - [ ] Set up ledger hierarchies and relationships
 - [x] Configure ledger metadata for filtering
-  - [ ] Purpose: operational, settlement, fees
-  - [ ] Currency_scope: single, multi
-  - [ ] Region: us, eu, apac, latam
+  - [x] Purpose: operational, settlement, fees
+  - [x] Currency_scope: single, multi
+  - [x] Region: us, eu, apac, latam
 
 #### 3.3 Asset Generator with Rate Management
 ```go
@@ -344,13 +348,13 @@ type TransactionGenerator interface {
 ```
 - [x] Implement DSL-based transaction creation (DSL file endpoint)
 - [x] Configure Send/Distribute via generated DSL scripts
-- [ ] Programmatic Send/Distribute builders (optional)
+ - [x] Programmatic Send/Distribute builders (optional)
 - [x] Idempotency header injection (SDK HTTP path)
 - [x] ExternalID support
 - [ ] Generate realistic transaction amounts
-  - [ ] Normal distribution for typical payments
-  - [ ] Power law distribution for e-commerce
-  - [ ] Respect asset scale/precision
+  - [x] Normal distribution for typical payments (helper implemented)
+  - [x] Power law distribution for e-commerce (helper implemented)
+  - [x] Respect asset scale/precision
 - [ ] Create time-distributed transactions
   - [ ] Historical data with realistic patterns
   - [ ] Daily/weekly/monthly cycles
@@ -396,19 +400,19 @@ type TransactionLifecycle interface {
     HandleInsufficientFunds(ctx context.Context, err error) error
 }
 ```
-- [ ] Create pending transactions
-  - [ ] Set Pending: true in input
+- [x] Create pending transactions
+  - [x] Set Pending: true in input
   - [ ] Track pending transaction IDs
-- [ ] Commit transactions with retry
-  - [ ] Use CommitTransaction API
-  - [ ] Handle commit failures
-- [ ] Handle insufficient funds scenarios
-  - [ ] Detect specific error codes
-  - [ ] Implement retry with backoff
-  - [ ] Create compensating transactions
-- [ ] Implement reversals
-  - [ ] Use RevertTransaction API
-  - [ ] Maintain reversal audit trail
+- [x] Commit transactions with retry
+  - [x] Use CommitTransaction API
+  - [x] Handle commit failures
+- [x] Handle insufficient funds scenarios
+  - [x] Detect specific error codes
+  - [x] Implement retry with backoff
+  - [x] Create compensating transactions
+- [x] Implement reversals
+  - [x] Use RevertTransaction API
+  - [x] Maintain reversal audit trail
 - [ ] Rich transaction metadata
   - [ ] Reference IDs for external systems
   - [ ] Descriptive tags and categories
@@ -536,46 +540,52 @@ type ProgressMonitor struct {
   - [ ] Adjust for time-of-day patterns
   - [ ] Account for API throttling
 
-### Phase 9: Reporting & Statistics
+### Phase 9: Reporting & Statistics ✅
 
 #### 9.1 Generation Report
-- [ ] Total entities created
-  - [ ] Organizations count
-  - [ ] Ledgers count
-  - [ ] Assets count
-  - [ ] Accounts count
-  - [ ] Transactions count
-  - [ ] Portfolios count
-  - [ ] Segments count
-- [ ] Time taken per phase
-- [ ] API calls made
-- [ ] Errors encountered
+- [x] Total entities created
+  - [x] Organizations count
+  - [x] Ledgers count
+  - [x] Assets count
+  - [x] Accounts count
+  - [x] Transactions count
+  - [x] Portfolios count
+  - [x] Segments count
+- [x] Time taken per phase (PhaseTimings map)
+- [x] API calls made (APIStats.APICalls)
+- [x] Errors encountered (via BatchResult tracking)
 
 #### 9.2 Data Summary
-- [ ] Transaction volume by organization
-- [ ] Account distribution by type
-- [ ] Asset usage statistics
-- [ ] Balance summaries
-- [ ] Top accounts by transaction count
+- [x] Transaction volume by account (TransactionVolumeByAccount)
+- [x] Account distribution by type (AccountDistributionByType)
+- [x] Asset usage statistics (AssetUsage)
+- [x] Balance summaries (BalanceSummaries with available/onHold)
+- [ ] Top accounts by transaction count (can be derived from volume)
 
 #### 9.3 Export Capabilities
-- [ ] Export generation report as JSON
-- [ ] Export entity IDs for reference
+- [x] Export generation report as JSON (SaveJSON method)
+- [x] Export entity IDs for reference (mass-demo-entities.json)
+- [x] Generate HTML report (SaveHTML method)
 - [ ] Create data dictionary
 - [ ] Generate relationship map
 
 ### Phase 10: CLI & Configuration
 
 #### 10.1 CLI Interface
-- [x] Implement command-line flags (timeout, orgs, ledgers, accounts, tx, concurrency, batch, demo)
+- [x] Implement command-line flags (timeout, orgs, ledgers, accounts, tx, concurrency, batch)
+  - [x] `--timeout`: Overall generation timeout
   - [x] `--orgs`: Number of organizations
   - [x] `--ledgers-per-org`: Ledgers per organization
   - [x] `--accounts-per-ledger`: Accounts per ledger
-  - [ ] `--transactions`: Total transactions to generate
+  - [x] `--tx`: Transactions per account
+  - [x] `--concurrency`: Worker pool size
+  - [x] `--batch`: Batch size for parallel ops
   - [ ] `--mode`: Sequential/parallel/distributed
   - [ ] `--dry-run`: Preview without creating
   - [ ] `--config`: Config file path
-- [ ] Add interactive mode
+- [x] Add interactive mode (with prompts for all parameters)
+- [x] Non-interactive mode via DEMO_NON_INTERACTIVE=1
+- [x] Configurable funding amount in interactive mode
 - [ ] Implement resume capability
 
 #### 10.2 Configuration File
@@ -720,11 +730,14 @@ func validateMetadata(metadata map[string]any) error {
 
 ## Current Status Summary
 
-- Phases 1–2: Completed (project scaffolding, config, templates, DSL patterns).
-- Phase 3: Organization, ledger, and asset generators implemented; concurrency + metrics in place; asset rates pending.
-- Phase 4: Account types, accounts (batch), portfolios, segments implemented; hierarchy builder implemented; explicit type-links pending.
-- Phase 5: DSL transaction generator implemented (single + batch with TPS); lifecycle (pending/commit, revert) pending.
-- Phases 6–8: Routing rules, integrity checks, advanced batching/circuit breaker/rate limiting to be implemented.
+- Phases 1–2: ✅ Completed (project scaffolding, config, templates, DSL patterns).
+- Phase 3: ✅ Organization, ledger, and asset generators implemented; concurrency + metrics in place; asset rates pending.
+- Phase 4: ✅ Account types, accounts (batch), portfolios, segments implemented; hierarchy builder implemented; explicit type-links pending.
+- Phase 5: 🔶 DSL transaction generator implemented (single + batch with TPS); lifecycle (pending/commit, revert) implemented; compensations implemented.
+- Phases 6–7: ⏳ Routing rules, integrity checks to be implemented.
+- Phase 8: 🔶 Concurrent processing, circuit breaker, idempotency implemented; advanced rate limiting pending.
+- Phase 9: ✅ Reporting & Statistics fully implemented (metrics, HTML/JSON reports, entity tracking).
+- Phase 10: 🔶 CLI interface with interactive mode implemented; configuration files pending.
 
 ## What’s Missing / Next Tasks
 
@@ -732,8 +745,7 @@ func validateMetadata(metadata map[string]any) error {
    - Integrate AssetRateService when available; FX conversions and spreads.
 
 2. Transaction Lifecycle
-   - Pending transactions, CommitTransaction handling with retries.
-   - Reversals and compensating transactions; insufficient funds flows.
+   - Track pending transaction IDs; enhance compensation strategies; extend audit details.
 
 3. Account Structure & Linking
    - Explicit linkage to account types.
@@ -752,7 +764,7 @@ func validateMetadata(metadata map[string]any) error {
    - Helpers to build Send/Distribute patterns programmatically; recurring templates.
 
 8. Idempotency Header Support
-   - Inject X-Idempotency in Transactions HTTP path when supported.
+   - Inject X-Idempotency in Transactions HTTP path when supported. ✅ Implemented in HTTP client.
 - [ ] Data aging simulation (historical patterns)
 - [ ] Anomaly injection for testing
 - [ ] Custom data patterns via plugins

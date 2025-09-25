@@ -17,6 +17,7 @@ import (
 	conc "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/concurrent"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/config"
 	data "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
 	gen "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/generator"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
@@ -69,8 +70,6 @@ func main() {
 		assetsCountVal       int
 		createHierarchyVal   bool
 		runBatchVal          bool
-		fundAmountVal        string
-		amountVal            string
 		assetCodeVal         string
 		chartGroupVal        string
 	)
@@ -88,8 +87,6 @@ func main() {
 		assetsCountVal = 3
 		createHierarchyVal = true
 		runBatchVal = true
-		fundAmountVal = "100.00"
-		amountVal = "1.00"
 		assetCodeVal = "USD"
 		chartGroupVal = "" // use server default chart group
 		fmt.Println("Running in non-interactive mode (DEMO_NON_INTERACTIVE=1)")
@@ -117,13 +114,9 @@ func main() {
 		if doDemoVal {
 			runBatchVal = askBool(reader, "Run Send-based transfer batch demo? [Y/n]", true)
 		}
-		amountVal = "1.00"
 		assetCodeVal = "USD"
 		chartGroupVal = "transfer-transactions"
 		if runBatchVal {
-			// Ask for funding amount (to avoid insufficient funds) and transfer amount
-			fundAmountVal = askString(reader, "Funding amount", "99999999")
-			amountVal = askString(reader, "Transfer amount", "1.00")
 			assetCodeVal = askString(reader, "Asset code", "USD")
 			chartGroupVal = askString(reader, "Chart of accounts group (leave blank for server default)", "")
 		}
@@ -278,9 +271,10 @@ func main() {
 		reportEntities.IDs.LedgerIDs = append(reportEntities.IDs.LedgerIDs, ledger.ID)
 		fmt.Println("Created ledger:", ledger.ID, ledger.Name)
 
-		// Add a few assets to the ledger
+		// Add a few assets to the ledger and track their scale
 		// Asset API requires orgID and ledgerID; pass orgID via context helper
 		actx := gen.WithOrgID(ctx, org.ID)
+		assetScales := map[string]int{}
 		for i, at := range assetTemplates {
 			if i >= assetsCountVal { // create a few
 				break
@@ -292,6 +286,7 @@ func main() {
 			apiCalls++
 			reportEntities.Counts.Assets++
 			reportEntities.IDs.AssetIDs = append(reportEntities.IDs.AssetIDs, a.ID)
+			assetScales[a.Code] = at.Scale
 			fmt.Println("Created asset:", a.ID, a.Code)
 		}
 
@@ -417,21 +412,29 @@ func main() {
 			// Ensure Customer A has funds: deposit from @external/<asset>
 			aliasA := models.GetAccountAlias(*accA)
 			extAlias := fmt.Sprintf("@external/%s", assetCodeVal)
+			// Amount auto-sizing based on asset scale
+			scale := assetScales[assetCodeVal]
+			if scale == 0 { // default to cents
+				scale = 2
+			}
+			amtGen := data.NewAmountGenerator(gcfg.GenerationSeed)
+			fundMinor := amtGen.Normal(100.0, 50.0, scale) // e.g., ~100 units
+			fundAmtStr := formatAmountByScale(fundMinor, int64(scale))
 			fundTx := &models.CreateTransactionInput{
 				Description:              "Funding Customer A",
-				Amount:                   fundAmountVal,
+				Amount:                   fundAmtStr,
 				AssetCode:                assetCodeVal,
 				ChartOfAccountsGroupName: chartGroupVal, // allow server default when blank
 				Send: &models.SendInput{
 					Asset: assetCodeVal,
-					Value: fundAmountVal,
+					Value: fundAmtStr,
 					Source: &models.SourceInput{From: []models.FromToInput{{
 						Account: extAlias,
-						Amount:  models.AmountInput{Asset: assetCodeVal, Value: fundAmountVal},
+						Amount:  models.AmountInput{Asset: assetCodeVal, Value: fundAmtStr},
 					}}},
 					Distribute: &models.DistributeInput{To: []models.FromToInput{{
 						Account: aliasA,
-						Amount:  models.AmountInput{Asset: assetCodeVal, Value: fundAmountVal},
+						Amount:  models.AmountInput{Asset: assetCodeVal, Value: fundAmtStr},
 					}}},
 				},
 			}
@@ -462,21 +465,24 @@ func main() {
 
 			for i := 0; i < txPerAccountVal; i++ {
 				desc := fmt.Sprintf("Demo transfer #%d", i+1)
+				// Auto-sized amount per transaction (normal distribution around 25 units)
+				minor := amtGen.Normal(25.0, 10.0, scale)
+				amountStr := formatAmountByScale(minor, int64(scale))
 				inputs = append(inputs, &models.CreateTransactionInput{
 					Description:              desc,
-					Amount:                   amountVal,
+					Amount:                   amountStr,
 					AssetCode:                assetCodeVal,
 					ChartOfAccountsGroupName: chartGroupVal,
 					Send: &models.SendInput{
 						Asset: assetCodeVal,
-						Value: amountVal,
+						Value: amountStr,
 						Source: &models.SourceInput{From: []models.FromToInput{{
 							Account: aliasA,
-							Amount:  models.AmountInput{Asset: assetCodeVal, Value: amountVal},
+							Amount:  models.AmountInput{Asset: assetCodeVal, Value: amountStr},
 						}}},
 						Distribute: &models.DistributeInput{To: []models.FromToInput{{
 							Account: aliasB,
-							Amount:  models.AmountInput{Asset: assetCodeVal, Value: amountVal},
+							Amount:  models.AmountInput{Asset: assetCodeVal, Value: amountStr},
 						}}},
 					},
 				})
@@ -511,6 +517,78 @@ func main() {
 			}
 			phaseTimings["batch"] = time.Since(tBatch).String()
 			apiCalls += len(results)
+
+			// Compensation: handle insufficient funds by topping up and retrying failed ones
+			failedIdx := make([]int, 0)
+			successTxIDs := make([]string, 0)
+			for i, r := range results {
+				if r.Error != nil {
+					if sdkerrors.IsInsufficientBalanceError(r.Error) {
+						failedIdx = append(failedIdx, i)
+					}
+				} else if r.TransactionID != "" {
+					successTxIDs = append(successTxIDs, r.TransactionID)
+				}
+			}
+			if len(failedIdx) > 0 {
+				fmt.Printf("Detected %d insufficient-funds errors. Applying compensation...\n", len(failedIdx))
+				// Top up source once more
+				topupMinor := amtGen.Normal(200.0, 75.0, scale)
+				topupStr := formatAmountByScale(topupMinor, int64(scale))
+				topup := &models.CreateTransactionInput{
+					Description:              "Compensation top-up",
+					Amount:                   topupStr,
+					AssetCode:                assetCodeVal,
+					ChartOfAccountsGroupName: chartGroupVal,
+					Send: &models.SendInput{
+						Asset: assetCodeVal,
+						Value: topupStr,
+						Source: &models.SourceInput{From: []models.FromToInput{{
+							Account: extAlias,
+							Amount:  models.AmountInput{Asset: assetCodeVal, Value: topupStr},
+						}}},
+						Distribute: &models.DistributeInput{To: []models.FromToInput{{
+							Account: aliasA,
+							Amount:  models.AmountInput{Asset: assetCodeVal, Value: topupStr},
+						}}},
+					},
+					Metadata: map[string]any{"reason": "insufficient_funds_compensation"},
+				}
+				if _, err := c.Entity.Transactions.CreateTransaction(ctx, org.ID, ledger.ID, topup); err != nil {
+					log.Printf("compensation top-up failed: %v", err)
+				}
+
+				// Retry failed inputs
+				retryInputs := make([]*models.CreateTransactionInput, 0, len(failedIdx))
+				for _, idx := range failedIdx {
+					retryInputs = append(retryInputs, inputs[idx])
+				}
+				retryCtx, cancelRetry := context.WithTimeout(ctx, 30*time.Second)
+				defer cancelRetry()
+				retryResults, _ := txpkg.BatchTransactions(retryCtx, c, org.ID, ledger.ID, retryInputs, options)
+				apiCalls += len(retryResults)
+				for _, rr := range retryResults {
+					if rr.Error == nil && rr.TransactionID != "" {
+						successTxIDs = append(successTxIDs, rr.TransactionID)
+					}
+				}
+			}
+
+			// Reversal audit: revert one successful transaction and link metadata
+			if len(successTxIDs) > 0 {
+				orig := successTxIDs[len(successTxIDs)-1]
+				rev, err := c.Entity.Transactions.RevertTransaction(ctx, org.ID, ledger.ID, orig)
+				if err == nil && rev != nil {
+					// Tag both transactions for audit linking
+					_, _ = c.Entity.Transactions.UpdateTransaction(ctx, org.ID, ledger.ID, rev.ID, &models.UpdateTransactionInput{Metadata: map[string]any{
+						"reversal_of":     orig,
+						"reversal_reason": "demo_compensation",
+					}})
+					_, _ = c.Entity.Transactions.UpdateTransaction(ctx, org.ID, ledger.ID, orig, &models.UpdateTransactionInput{Metadata: map[string]any{
+						"reversed_by": rev.ID,
+					}})
+				}
+			}
 			// Print a few sample errors for troubleshooting
 			sample := 0
 			for _, r := range results {
@@ -544,21 +622,21 @@ func main() {
 			if accA != nil {
 				if bal, err := c.Entity.Accounts.GetBalance(ctx, org.ID, ledger.ID, accA.ID); err == nil && bal != nil {
 					apiCalls++
-                    dataSummary.BalanceSummaries[aliasA] = map[string]any{
-                        "asset":     bal.AssetCode,
-                        "available": bal.Available,
-                        "onHold":    bal.OnHold,
-                    }
+					dataSummary.BalanceSummaries[aliasA] = map[string]any{
+						"asset":     bal.AssetCode,
+						"available": bal.Available,
+						"onHold":    bal.OnHold,
+					}
 				}
 			}
 			if accB != nil {
 				if bal, err := c.Entity.Accounts.GetBalance(ctx, org.ID, ledger.ID, accB.ID); err == nil && bal != nil {
 					apiCalls++
-                    dataSummary.BalanceSummaries[models.GetAccountAlias(*accB)] = map[string]any{
-                        "asset":     bal.AssetCode,
-                        "available": bal.Available,
-                        "onHold":    bal.OnHold,
-                    }
+					dataSummary.BalanceSummaries[models.GetAccountAlias(*accB)] = map[string]any{
+						"asset":     bal.AssetCode,
+						"available": bal.Available,
+						"onHold":    bal.OnHold,
+					}
 				}
 			}
 
@@ -588,6 +666,30 @@ func main() {
 }
 
 func strPtr(s string) *string { return &s }
+
+// formatAmountByScale converts a minor unit value (e.g., cents) into a decimal string
+// according to the provided scale (number of decimal places).
+func formatAmountByScale(amount int64, scale int64) string {
+	if scale == 0 {
+		return strconv.FormatInt(amount, 10)
+	}
+	// Avoid floating-point issues by constructing string manually
+	negative := amount < 0
+	if negative {
+		amount = -amount
+	}
+	pow := int64(1)
+	for i := int64(0); i < scale; i++ {
+		pow *= 10
+	}
+	whole := amount / pow
+	frac := amount % pow
+	fracStr := strconv.FormatInt(frac+pow, 10)[1:] // left-pad with zeros
+	if negative {
+		return fmt.Sprintf("-%d.%s", whole, fracStr)
+	}
+	return fmt.Sprintf("%d.%s", whole, fracStr)
+}
 
 // --- interactive helpers (stdio) ---
 func askString(r *bufio.Reader, prompt, def string) string {
@@ -640,9 +742,9 @@ func askBool(r *bufio.Reader, prompt string, def bool) bool {
 
 // saveEntitiesIDs writes entity identifiers to a JSON file for quick reference.
 func saveEntitiesIDs(path string, ids txpkg.ReportEntityIDs) error {
-    data, err := json.MarshalIndent(ids, "", "  ")
-    if err != nil {
-        return err
-    }
-    return os.WriteFile(path, data, 0o644)
+	data, err := json.MarshalIndent(ids, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0o644)
 }
