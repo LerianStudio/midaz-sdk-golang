@@ -232,7 +232,7 @@ demo-data:
 	@if [ -f "$(ENV_FILE)" ]; then \
 		cp $(ENV_FILE) examples/mass-demo-generator/.env; \
 	fi
-    @cd examples/mass-demo-generator && MIDAZ_DEBUG=true DEMO_NON_INTERACTIVE=1 go run main.go
+	@cd examples/mass-demo-generator && MIDAZ_DEBUG=true DEMO_NON_INTERACTIVE=1 go run main.go
 
 #-------------------------------------------------------
 # Documentation Commands

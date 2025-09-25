@@ -69,6 +69,7 @@ func main() {
 		assetsCountVal       int
 		createHierarchyVal   bool
 		runBatchVal          bool
+		fundAmountVal        string
 		amountVal            string
 		assetCodeVal         string
 		chartGroupVal        string
@@ -87,6 +88,7 @@ func main() {
 		assetsCountVal = 3
 		createHierarchyVal = true
 		runBatchVal = true
+		fundAmountVal = "100.00"
 		amountVal = "1.00"
 		assetCodeVal = "USD"
 		chartGroupVal = "" // use server default chart group
@@ -119,6 +121,8 @@ func main() {
 		assetCodeVal = "USD"
 		chartGroupVal = "transfer-transactions"
 		if runBatchVal {
+			// Ask for funding amount (to avoid insufficient funds) and transfer amount
+			fundAmountVal = askString(reader, "Funding amount", "99999999")
 			amountVal = askString(reader, "Transfer amount", "1.00")
 			assetCodeVal = askString(reader, "Asset code", "USD")
 			chartGroupVal = askString(reader, "Chart of accounts group (leave blank for server default)", "")
@@ -243,11 +247,20 @@ func main() {
 		ledGen := gen.NewLedgerGenerator(c.Entity, obsProvider, "")
 		assetGen := gen.NewAssetGenerator(c.Entity, obsProvider)
 
+		// Phase 9 reporting helpers
+		phaseTimings := map[string]string{}
+		apiCalls := 0
+		reportEntities := txpkg.ReportEntities{Counts: txpkg.ReportEntityCounts{}}
+		t0 := time.Now()
+
 		// Use first org template
 		org, err := orgGen.Generate(ctx, orgTemplates[0])
 		if err != nil {
 			log.Fatalf("organization generation failed: %v", err)
 		}
+		apiCalls++
+		reportEntities.Counts.Organizations++
+		reportEntities.IDs.OrganizationIDs = append(reportEntities.IDs.OrganizationIDs, org.ID)
 		fmt.Println("Created org:", org.ID, org.LegalName)
 
 		// Create one ledger
@@ -260,6 +273,9 @@ func main() {
 		if err != nil {
 			log.Fatalf("ledger generation failed: %v", err)
 		}
+		apiCalls++
+		reportEntities.Counts.Ledgers++
+		reportEntities.IDs.LedgerIDs = append(reportEntities.IDs.LedgerIDs, ledger.ID)
 		fmt.Println("Created ledger:", ledger.ID, ledger.Name)
 
 		// Add a few assets to the ledger
@@ -273,14 +289,21 @@ func main() {
 			if err != nil {
 				log.Fatalf("asset generation failed for %s: %v", at.Code, err)
 			}
+			apiCalls++
+			reportEntities.Counts.Assets++
+			reportEntities.IDs.AssetIDs = append(reportEntities.IDs.AssetIDs, a.ID)
 			fmt.Println("Created asset:", a.ID, a.Code)
 		}
+
+		// Record timing for org/ledger/assets
+		phaseTimings["org_ledger_assets"] = time.Since(t0).String()
 
 		// Create default account types and a few demo accounts using USD
 		atGen := gen.NewAccountTypeGenerator(c.Entity, obsProvider)
 		if _, err := atGen.GenerateDefaults(ctx, org.ID, ledger.ID); err != nil {
 			log.Fatalf("account type generation failed: %v", err)
 		}
+		apiCalls++
 		fmt.Println("Created default account types")
 
 		accGen := gen.NewAccountGenerator(c.Entity, obsProvider)
@@ -292,18 +315,29 @@ func main() {
 			}
 			batch = append(batch, t)
 		}
+		tAcc := time.Now()
 		created, err := accGen.GenerateBatch(ctx, org.ID, ledger.ID, "USD", batch)
 		if err != nil {
 			log.Fatalf("account generation failed: %v", err)
 		}
+		apiCalls += len(created)
+		reportEntities.Counts.Accounts += len(created)
+		for _, a := range created {
+			reportEntities.IDs.AccountIDs = append(reportEntities.IDs.AccountIDs, a.ID)
+		}
+		phaseTimings["accounts_creation"] = time.Since(tAcc).String()
 		fmt.Println("Created accounts:", len(created))
 
 		// Create a Portfolio and two Segments, then generate a DSL transaction
 		pGen := gen.NewPortfolioGenerator(c.Entity, obsProvider)
+		tPS := time.Now()
 		portfolio, err := pGen.Generate(ctx, org.ID, ledger.ID, "Customer Portfolio", "demo-entity-1", map[string]any{"category": "customer"})
 		if err != nil {
 			log.Fatalf("portfolio generation failed: %v", err)
 		}
+		apiCalls++
+		reportEntities.Counts.Portfolios++
+		reportEntities.IDs.PortfolioIDs = append(reportEntities.IDs.PortfolioIDs, portfolio.ID)
 		fmt.Println("Created portfolio:", portfolio.ID)
 
 		sGen := gen.NewSegmentGenerator(c.Entity, obsProvider)
@@ -311,10 +345,15 @@ func main() {
 		if err != nil {
 			log.Fatalf("segment generation failed: %v", err)
 		}
+		apiCalls++
 		segEU, err := sGen.Generate(ctx, org.ID, ledger.ID, "EU", map[string]any{"region": "europe"})
 		if err != nil {
 			log.Fatalf("segment generation failed: %v", err)
 		}
+		apiCalls++
+		reportEntities.Counts.Segments += 2
+		reportEntities.IDs.SegmentIDs = append(reportEntities.IDs.SegmentIDs, segNA.ID, segEU.ID)
+		phaseTimings["portfolio_segments"] = time.Since(tPS).String()
 		fmt.Println("Created segments:", segNA.ID, segEU.ID)
 
 		// Choose two accounts for demo batch
@@ -342,11 +381,19 @@ func main() {
 					},
 				},
 			}
+			tHier := time.Now()
 			createdTree, err := hGen.GenerateTree(ctx, org.ID, ledger.ID, assetCodeVal, nodes)
 			if err != nil {
 				log.Fatalf("account hierarchy generation failed: %v", err)
 			}
 			fmt.Println("Created account hierarchy nodes:", len(createdTree))
+
+			apiCalls += len(createdTree)
+			reportEntities.Counts.Accounts += len(createdTree)
+			for _, a := range createdTree {
+				reportEntities.IDs.AccountIDs = append(reportEntities.IDs.AccountIDs, a.ID)
+			}
+			phaseTimings["hierarchy_creation"] = time.Since(tHier).String()
 
 			for _, a := range createdTree {
 				if a.Alias != nil && *a.Alias == "customer_a" {
@@ -370,22 +417,21 @@ func main() {
 			// Ensure Customer A has funds: deposit from @external/<asset>
 			aliasA := models.GetAccountAlias(*accA)
 			extAlias := fmt.Sprintf("@external/%s", assetCodeVal)
-			fundValue := "100.00"
 			fundTx := &models.CreateTransactionInput{
 				Description:              "Funding Customer A",
-				Amount:                   fundValue,
+				Amount:                   fundAmountVal,
 				AssetCode:                assetCodeVal,
 				ChartOfAccountsGroupName: chartGroupVal, // allow server default when blank
 				Send: &models.SendInput{
 					Asset: assetCodeVal,
-					Value: fundValue,
+					Value: fundAmountVal,
 					Source: &models.SourceInput{From: []models.FromToInput{{
 						Account: extAlias,
-						Amount:  models.AmountInput{Asset: assetCodeVal, Value: fundValue},
+						Amount:  models.AmountInput{Asset: assetCodeVal, Value: fundAmountVal},
 					}}},
 					Distribute: &models.DistributeInput{To: []models.FromToInput{{
 						Account: aliasA,
-						Amount:  models.AmountInput{Asset: assetCodeVal, Value: fundValue},
+						Amount:  models.AmountInput{Asset: assetCodeVal, Value: fundAmountVal},
 					}}},
 				},
 			}
@@ -395,9 +441,16 @@ func main() {
 				fmt.Println(string(data))
 			}
 			// Execute funding transaction
-			if _, err := c.Entity.Transactions.CreateTransaction(ctx, org.ID, ledger.ID, fundTx); err != nil {
+			fundStart := time.Now()
+			ftx, err := c.Entity.Transactions.CreateTransaction(ctx, org.ID, ledger.ID, fundTx)
+			apiCalls++
+			if err != nil {
 				log.Printf("funding transaction failed: %v (will proceed to batch anyway)", err)
+			} else if ftx != nil {
+				reportEntities.Counts.Transactions++
+				reportEntities.IDs.TransactionIDs = append(reportEntities.IDs.TransactionIDs, ftx.ID)
 			}
+			phaseTimings["funding"] = time.Since(fundStart).String()
 
 			inputs := make([]*models.CreateTransactionInput, 0, txPerAccountVal)
 			// Resolve aliases (API expects accountAlias)
@@ -450,11 +503,14 @@ func main() {
 
 			bctx, cancel := context.WithTimeout(ctx, 45*time.Second)
 			defer cancel()
+			tBatch := time.Now()
 			results, err := txpkg.BatchTransactions(bctx, c, org.ID, ledger.ID, inputs, options)
 			mpc.Wait()
 			if err != nil {
 				log.Printf("batch encountered errors: %v", err)
 			}
+			phaseTimings["batch"] = time.Since(tBatch).String()
+			apiCalls += len(results)
 			// Print a few sample errors for troubleshooting
 			sample := 0
 			for _, r := range results {
@@ -466,15 +522,65 @@ func main() {
 					}
 				}
 			}
-			// Save report
+			// Build extended Phase 9 report
+			summary := txpkg.GetBatchSummary(results)
+			reportEntities.Counts.Transactions += summary.SuccessCount
+			dataSummary := &txpkg.ReportDataSummary{
+				TransactionVolumeByAccount: map[string]int{},
+				AccountDistributionByType:  map[string]int{},
+				AssetUsage:                 map[string]int{},
+				BalanceSummaries:           map[string]map[string]any{},
+			}
+			// Transaction volume per alias (source+dest)
+			dataSummary.TransactionVolumeByAccount[aliasA] += txPerAccountVal
+			dataSummary.TransactionVolumeByAccount[aliasB] += txPerAccountVal
+			// Account distribution by type
+			for _, a := range created {
+				dataSummary.AccountDistributionByType[strings.ToUpper(a.Type)]++
+			}
+			// Asset usage
+			dataSummary.AssetUsage[assetCodeVal] = txPerAccountVal + 1 // include funding
+			// Balance summaries for A and B
+			if accA != nil {
+				if bal, err := c.Entity.Accounts.GetBalance(ctx, org.ID, ledger.ID, accA.ID); err == nil && bal != nil {
+					apiCalls++
+                    dataSummary.BalanceSummaries[aliasA] = map[string]any{
+                        "asset":     bal.AssetCode,
+                        "available": bal.Available,
+                        "onHold":    bal.OnHold,
+                    }
+				}
+			}
+			if accB != nil {
+				if bal, err := c.Entity.Accounts.GetBalance(ctx, org.ID, ledger.ID, accB.ID); err == nil && bal != nil {
+					apiCalls++
+                    dataSummary.BalanceSummaries[models.GetAccountAlias(*accB)] = map[string]any{
+                        "asset":     bal.AssetCode,
+                        "available": bal.Available,
+                        "onHold":    bal.OnHold,
+                    }
+				}
+			}
+
 			report := txpkg.NewGenerationReport(results, "mass-demo-generator", map[string]any{"org": org.ID, "ledger": ledger.ID})
+			report.Entities = &reportEntities
+			report.PhaseTimings = phaseTimings
+			report.APIStats = &txpkg.ReportAPIStats{APICalls: apiCalls}
+			report.DataSummary = dataSummary
 			if err := report.SaveJSON("./mass-demo-report.json", true); err != nil {
 				log.Printf("failed to save report: %v", err)
 			}
+			if err := report.SaveHTML("./mass-demo-report.html"); err != nil {
+				log.Printf("failed to save HTML report: %v", err)
+			}
 
-			summary := txpkg.GetBatchSummary(results)
 			fmt.Printf("Batch summary: total=%d success=%d errors=%d successRate=%.1f%% tps=%.2f\n",
 				summary.TotalTransactions, summary.SuccessCount, summary.ErrorCount, summary.SuccessRate, summary.TransactionsPerSecond)
+
+			// Export entity IDs for reference
+			idsPath := "./mass-demo-entities.json"
+			_ = saveEntitiesIDs(idsPath, reportEntities.IDs)
+			fmt.Println("Entity IDs saved:", idsPath)
 		}
 
 		fmt.Println("✅ Phase 3 minimal generation complete.")
@@ -530,4 +636,13 @@ func askBool(r *bufio.Reader, prompt string, def bool) bool {
 		}
 		fmt.Println("Please answer y or n.")
 	}
+}
+
+// saveEntitiesIDs writes entity identifiers to a JSON file for quick reference.
+func saveEntitiesIDs(path string, ids txpkg.ReportEntityIDs) error {
+    data, err := json.MarshalIndent(ids, "", "  ")
+    if err != nil {
+        return err
+    }
+    return os.WriteFile(path, data, 0o644)
 }
