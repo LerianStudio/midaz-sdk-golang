@@ -82,8 +82,6 @@ Thumbs.db
 # Misc
 TODO
 NOTES
-ide/
-CLAUDE.md
 
 # Specific to this project
 /sdks/go-sdk/.cache/mass-demo-generator

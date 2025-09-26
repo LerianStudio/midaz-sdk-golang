@@ -400,14 +400,14 @@ func main() {
 			nodes := []gen.AccountNode{
 				{
 					Template: data.AccountTemplate{
-						Name:        "Customers Root",
-						Type:        "deposit",
-						Status:      models.NewStatus(models.StatusActive),
-						Alias:       &customersRootAlias,
+						Name:           "Customers Root",
+						Type:           "deposit",
+						Status:         models.NewStatus(models.StatusActive),
+						Alias:          &customersRootAlias,
 						AccountTypeKey: data.StrPtr("CHECKING"),
-						PortfolioID: &portfolio.ID,
-						SegmentID:   &segNA.ID,
-						Metadata:    map[string]any{"role": "internal", "group": "customers"},
+						PortfolioID:    &portfolio.ID,
+						SegmentID:      &segNA.ID,
+						Metadata:       map[string]any{"role": "internal", "group": "customers"},
 					},
 					Children: []gen.AccountNode{
 						{Template: data.AccountTemplate{Name: "Customer A", Type: "deposit", Status: models.NewStatus(models.StatusActive), Alias: &customerAAlias, AccountTypeKey: data.StrPtr("CHECKING"), PortfolioID: &portfolio.ID, SegmentID: &segNA.ID, Metadata: map[string]any{"role": "customer"}}},
@@ -664,9 +664,9 @@ func main() {
 					}
 				}
 			}
-		// Build extended Phase 9 report
-		summary := txpkg.GetBatchSummary(results)
-		reportEntities.Counts.Transactions += summary.SuccessCount
+			// Build extended Phase 9 report
+			summary := txpkg.GetBatchSummary(results)
+			reportEntities.Counts.Transactions += summary.SuccessCount
 			dataSummary := &txpkg.ReportDataSummary{
 				TransactionVolumeByAccount: map[string]int{},
 				AccountDistributionByType:  map[string]int{},
@@ -704,18 +704,18 @@ func main() {
 				}
 			}
 
-		report := txpkg.NewGenerationReport(results, "mass-demo-generator", map[string]any{"org": org.ID, "ledger": ledger.ID})
-		// Phase 7: Balance verification and integrity summary
-		chk := integrity.NewChecker(c.Entity)
-		if br, err := chk.GenerateLedgerReport(ctx, org.ID, ledger.ID); err == nil {
-			if report.DataSummary == nil {
-				report.DataSummary = &txpkg.ReportDataSummary{}
+			report := txpkg.NewGenerationReport(results, "mass-demo-generator", map[string]any{"org": org.ID, "ledger": ledger.ID})
+			// Phase 7: Balance verification and integrity summary
+			chk := integrity.NewChecker(c.Entity)
+			if br, err := chk.GenerateLedgerReport(ctx, org.ID, ledger.ID); err == nil {
+				if report.DataSummary == nil {
+					report.DataSummary = &txpkg.ReportDataSummary{}
+				}
+				report.DataSummary.BalanceSummaries = br.ToSummaryMap()
+				fmt.Println("Integrity: generated balance summary (per asset)")
+			} else {
+				fmt.Printf("Integrity check skipped: %v\n", err)
 			}
-			report.DataSummary.BalanceSummaries = br.ToSummaryMap()
-			fmt.Println("Integrity: generated balance summary (per asset)")
-		} else {
-			fmt.Printf("Integrity check skipped: %v\n", err)
-		}
 			report.Entities = &reportEntities
 			report.PhaseTimings = phaseTimings
 			report.APIStats = &txpkg.ReportAPIStats{APICalls: apiCalls}
@@ -739,8 +739,6 @@ func main() {
 		fmt.Println("✅ Phase 3 minimal generation complete.")
 	}
 }
-
-func strPtr(s string) *string { return &s }
 
 // formatAmountByScale converts a minor unit value (e.g., cents) into a decimal string
 // according to the provided scale (number of decimal places).

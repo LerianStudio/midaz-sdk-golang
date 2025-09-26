@@ -2,7 +2,8 @@ package data
 
 import (
     "fmt"
-    "log"
+    "math"
+    "sort"
 )
 
 // PaymentPattern returns a TransactionPattern for a simple payment flow.
@@ -138,19 +139,73 @@ distribute [%s %d] (
 
 // BatchSettlementPattern distributes to multiple destinations with shares.
 func BatchSettlementPattern(asset string, amount int, destinations map[string]int, idempotencyKey, externalID string) TransactionPattern {
-	// destinations is a map of alias -> percentage share
-	shares := ""
-	for alias, pct := range destinations {
-		if pct < 0 {
-			pct = 0
-		}
-		if pct > 100 {
-			pct = 100
-		}
-		shares += fmt.Sprintf("    %d%% to %s\n", pct, alias)
-	}
+    // destinations is a map of alias -> percentage share
+    // Build a deterministic list of aliases for stable output
+    aliases := make([]string, 0, len(destinations))
+    for alias := range destinations {
+        aliases = append(aliases, alias)
+    }
+    sort.Strings(aliases)
 
-	dsl := fmt.Sprintf(`
+    // Clamp and collect initial percentages
+    clamped := make([]int, len(aliases))
+    sum := 0
+    for i, alias := range aliases {
+        pct := destinations[alias]
+        if pct < 0 {
+            pct = 0
+        }
+        if pct > 100 {
+            pct = 100
+        }
+        clamped[i] = pct
+        sum += pct
+    }
+
+    // Normalize to ensure the total equals exactly 100%
+    normalized := make([]int, len(aliases))
+    if len(aliases) > 0 {
+        if sum == 0 {
+            // If all inputs are zero or invalid, assign 100% to the first alias
+            normalized[0] = 100
+        } else {
+            // Proportional normalization with rounding error correction
+            fractional := make([]struct {
+                idx  int
+                frac float64
+            }, len(aliases))
+            total := 0
+            for i := range aliases {
+                raw := (float64(clamped[i]) * 100.0) / float64(sum)
+                floor := int(math.Floor(raw))
+                normalized[i] = floor
+                fractional[i] = struct {
+                    idx  int
+                    frac float64
+                }{idx: i, frac: raw - float64(floor)}
+                total += floor
+            }
+            // Distribute remaining percentages to highest fractional parts
+            shortfall := 100 - total
+            if shortfall > 0 {
+                sort.Slice(fractional, func(i, j int) bool { return fractional[i].frac > fractional[j].frac })
+                for k := 0; k < shortfall && k < len(fractional); k++ {
+                    normalized[fractional[k].idx]++
+                }
+            }
+        }
+    }
+
+    // Build DSL shares block
+    shares := ""
+    for i, alias := range aliases {
+        if normalized[i] <= 0 {
+            continue
+        }
+        shares += fmt.Sprintf("    %d%% to %s\n", normalized[i], alias)
+    }
+
+    dsl := fmt.Sprintf(`
 send [%s %d] (
   source = @settlement_pool
 )
@@ -197,21 +252,69 @@ distribute [%s %d] (
 
 // SplitPaymentPattern splits a payment from a customer to multiple recipients using percentages.
 func SplitPaymentPattern(asset string, amount int, destinations map[string]int, idempotencyKey, externalID string) TransactionPattern {
-    shares := ""
-    totalPct := 0
-    for alias, pct := range destinations {
+    // Build a deterministic list of aliases for stable output
+    aliases := make([]string, 0, len(destinations))
+    for alias := range destinations {
+        aliases = append(aliases, alias)
+    }
+    sort.Strings(aliases)
+
+    // Clamp and collect initial percentages
+    clamped := make([]int, len(aliases))
+    sum := 0
+    for i, alias := range aliases {
+        pct := destinations[alias]
         if pct < 0 {
             pct = 0
         }
         if pct > 100 {
             pct = 100
         }
-        totalPct += pct
-        shares += fmt.Sprintf("    %d%% to %s\n", pct, alias)
+        clamped[i] = pct
+        sum += pct
     }
 
-    if totalPct != 100 {
-        log.Printf("Warning: split percentages sum to %d%%, not 100%%", totalPct)
+    // Normalize to ensure the total equals exactly 100%
+    normalized := make([]int, len(aliases))
+    if len(aliases) > 0 {
+        if sum == 0 {
+            // If all inputs are zero or invalid, assign 100% to the first alias
+            normalized[0] = 100
+        } else {
+            // Proportional normalization with rounding error correction
+            fractional := make([]struct {
+                idx  int
+                frac float64
+            }, len(aliases))
+            total := 0
+            for i := range aliases {
+                raw := (float64(clamped[i]) * 100.0) / float64(sum)
+                floor := int(math.Floor(raw))
+                normalized[i] = floor
+                fractional[i] = struct {
+                    idx  int
+                    frac float64
+                }{idx: i, frac: raw - float64(floor)}
+                total += floor
+            }
+            // Distribute remaining percentages to highest fractional parts
+            shortfall := 100 - total
+            if shortfall > 0 {
+                sort.Slice(fractional, func(i, j int) bool { return fractional[i].frac > fractional[j].frac })
+                for k := 0; k < shortfall && k < len(fractional); k++ {
+                    normalized[fractional[k].idx]++
+                }
+            }
+        }
+    }
+
+    // Build DSL shares block
+    shares := ""
+    for i, alias := range aliases {
+        if normalized[i] <= 0 {
+            continue
+        }
+        shares += fmt.Sprintf("    %d%% to %s\n", normalized[i], alias)
     }
 
 	dsl := fmt.Sprintf(`
