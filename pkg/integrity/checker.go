@@ -4,6 +4,7 @@ import (
     "context"
     "fmt"
     "strings"
+    "time"
 
     "github.com/LerianStudio/midaz-sdk-golang/v2/entities"
     "github.com/LerianStudio/midaz-sdk-golang/v2/models"
@@ -29,10 +30,19 @@ type Report struct {
 // Checker provides data integrity checks and balance verification.
 type Checker struct {
     e *entities.Entity
+    // Optional delay between account lookups to avoid overwhelming services on large ledgers
+    sleepBetweenAccountLookups time.Duration
 }
 
 // NewChecker creates a new Checker.
 func NewChecker(e *entities.Entity) *Checker { return &Checker{e: e} }
+
+// WithAccountLookupDelay sets an optional delay inserted before each account lookup.
+// Useful to rate-limit calls when processing very large ledgers.
+func (c *Checker) WithAccountLookupDelay(d time.Duration) *Checker {
+    c.sleepBetweenAccountLookups = d
+    return c
+}
 
 // GenerateLedgerReport aggregates balances and performs lightweight double-entry checks.
 func (c *Checker) GenerateLedgerReport(ctx context.Context, orgID, ledgerID string) (*Report, error) {
@@ -62,12 +72,19 @@ func (c *Checker) GenerateLedgerReport(ctx context.Context, orgID, ledgerID stri
             // Internal net excludes external aliases
             alias, ok := accountAliasCache[b.AccountID]
             if !ok {
-                if acc, err := c.e.Accounts.GetAccount(ctx, orgID, ledgerID, b.AccountID); err == nil {
-                    if acc.Alias != nil {
-                        alias = *acc.Alias
-                    }
-                    accountAliasCache[b.AccountID] = alias
+                if c.sleepBetweenAccountLookups > 0 {
+                    time.Sleep(c.sleepBetweenAccountLookups)
                 }
+                acc, err := c.e.Accounts.GetAccount(ctx, orgID, ledgerID, b.AccountID)
+                if err != nil {
+                    return nil, fmt.Errorf("failed to get account %s: %w", b.AccountID, err)
+                }
+                if acc != nil && acc.Alias != nil {
+                    alias = *acc.Alias
+                } else {
+                    alias = ""
+                }
+                accountAliasCache[b.AccountID] = alias
             }
             if !strings.HasPrefix(alias, "@external/") {
                 t.InternalNetTotal = t.InternalNetTotal.Add(b.Available.Add(b.OnHold))

@@ -743,7 +743,7 @@ func validateMetadata(metadata map[string]any) error {
 - Phase 4: ✅ Account types, accounts (batch), portfolios, segments implemented; hierarchy builder implemented; explicit type-links implemented (accounts carry `account_type_key`); added REVENUE, LIABILITY, EQUITY account types.
 - Phase 5: 🔶 DSL transaction generator implemented (single + batch with TPS); lifecycle (pending/commit, revert) implemented; compensations implemented.
 - Phase 6: ✅ Routing features implemented (operation routes + transaction routes; validation via route rules).
-- Phase 7: ⏳ Integrity checks to be implemented.
+- Phase 7: ✅ Integrity checks implemented (ledger balance aggregation, double-entry signal, overdrawn detection). Added optional request throttling via `integrity.NewChecker(...).WithAccountLookupDelay(d)`; advanced rate limiting still pending.
 - Phase 8: 🔶 Concurrent processing, circuit breaker, idempotency implemented; advanced rate limiting pending.
 - Phase 9: ✅ Reporting & Statistics fully implemented (metrics, HTML/JSON reports, entity tracking).
 - Phase 10: 🔶 CLI interface with interactive mode implemented; added `--org-locale` and `--patterns`; configuration files pending.
@@ -763,8 +763,9 @@ func validateMetadata(metadata map[string]any) error {
 4. Routing Features — completed
    - Operation and Transaction Routes; route-based validation and orchestration.
 
-5. Integrity & Reporting
-   - Balance checker, double-entry consistency, reports and summaries.
+5. Integrity & Reporting — completed
+   - Balance checker, double-entry consistency, reports and summaries implemented.
+   - Optional throttling knob in integrity checker to avoid API pressure on large ledgers.
 
 6. Performance Hardening
    - Circuit breaker (implemented); token bucket rate limiting; dynamic batch sizing.
