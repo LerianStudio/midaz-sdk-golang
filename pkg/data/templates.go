@@ -57,3 +57,6 @@ type TransactionPattern struct {
 	ExternalID               string // External reference
 	Metadata                 map[string]any
 }
+
+// StrPtr is a small helper to create a *string from a string literal when building templates.
+func StrPtr(s string) *string { return &s }

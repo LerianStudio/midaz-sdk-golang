@@ -19,6 +19,7 @@ import (
 	data "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
 	gen "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/generator"
+	integrity "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/integrity"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
 	txpkg "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/transaction"
@@ -321,6 +322,23 @@ func main() {
 		apiCalls++
 		fmt.Println("Created default account types")
 
+		// Create default operation and transaction routes (Phase 6)
+		orGen := gen.NewOperationRouteGenerator(c.Entity, obsProvider)
+		opRoutes, err := orGen.GenerateDefaults(ctx, org.ID, ledger.ID)
+		if err != nil {
+			log.Fatalf("operation routes generation failed: %v", err)
+		}
+		apiCalls += len(opRoutes)
+		fmt.Printf("Created operation routes: %d\n", len(opRoutes))
+
+		trGen := gen.NewTransactionRouteGenerator(c.Entity, obsProvider)
+		troutes, err := trGen.GenerateDefaults(ctx, org.ID, ledger.ID, opRoutes)
+		if err != nil {
+			log.Fatalf("transaction routes generation failed: %v", err)
+		}
+		apiCalls += len(troutes)
+		fmt.Printf("Created transaction routes: %d\n", len(troutes))
+
 		accGen := gen.NewAccountGenerator(c.Entity, obsProvider)
 		// Select a few account templates
 		var batch []data.AccountTemplate
@@ -386,13 +404,14 @@ func main() {
 						Type:        "deposit",
 						Status:      models.NewStatus(models.StatusActive),
 						Alias:       &customersRootAlias,
+						AccountTypeKey: data.StrPtr("CHECKING"),
 						PortfolioID: &portfolio.ID,
 						SegmentID:   &segNA.ID,
 						Metadata:    map[string]any{"role": "internal", "group": "customers"},
 					},
 					Children: []gen.AccountNode{
-						{Template: data.AccountTemplate{Name: "Customer A", Type: "deposit", Status: models.NewStatus(models.StatusActive), Alias: &customerAAlias, PortfolioID: &portfolio.ID, SegmentID: &segNA.ID, Metadata: map[string]any{"role": "customer"}}},
-						{Template: data.AccountTemplate{Name: "Customer B", Type: "deposit", Status: models.NewStatus(models.StatusActive), Alias: &customerBAlias, PortfolioID: &portfolio.ID, SegmentID: &segEU.ID, Metadata: map[string]any{"role": "customer"}}},
+						{Template: data.AccountTemplate{Name: "Customer A", Type: "deposit", Status: models.NewStatus(models.StatusActive), Alias: &customerAAlias, AccountTypeKey: data.StrPtr("CHECKING"), PortfolioID: &portfolio.ID, SegmentID: &segNA.ID, Metadata: map[string]any{"role": "customer"}}},
+						{Template: data.AccountTemplate{Name: "Customer B", Type: "deposit", Status: models.NewStatus(models.StatusActive), Alias: &customerBAlias, AccountTypeKey: data.StrPtr("CHECKING"), PortfolioID: &portfolio.ID, SegmentID: &segEU.ID, Metadata: map[string]any{"role": "customer"}}},
 					},
 				},
 			}
@@ -645,9 +664,9 @@ func main() {
 					}
 				}
 			}
-			// Build extended Phase 9 report
-			summary := txpkg.GetBatchSummary(results)
-			reportEntities.Counts.Transactions += summary.SuccessCount
+		// Build extended Phase 9 report
+		summary := txpkg.GetBatchSummary(results)
+		reportEntities.Counts.Transactions += summary.SuccessCount
 			dataSummary := &txpkg.ReportDataSummary{
 				TransactionVolumeByAccount: map[string]int{},
 				AccountDistributionByType:  map[string]int{},
@@ -685,7 +704,18 @@ func main() {
 				}
 			}
 
-			report := txpkg.NewGenerationReport(results, "mass-demo-generator", map[string]any{"org": org.ID, "ledger": ledger.ID})
+		report := txpkg.NewGenerationReport(results, "mass-demo-generator", map[string]any{"org": org.ID, "ledger": ledger.ID})
+		// Phase 7: Balance verification and integrity summary
+		chk := integrity.NewChecker(c.Entity)
+		if br, err := chk.GenerateLedgerReport(ctx, org.ID, ledger.ID); err == nil {
+			if report.DataSummary == nil {
+				report.DataSummary = &txpkg.ReportDataSummary{}
+			}
+			report.DataSummary.BalanceSummaries = br.ToSummaryMap()
+			fmt.Println("Integrity: generated balance summary (per asset)")
+		} else {
+			fmt.Printf("Integrity check skipped: %v\n", err)
+		}
 			report.Entities = &reportEntities
 			report.PhaseTimings = phaseTimings
 			report.APIStats = &txpkg.ReportAPIStats{APICalls: apiCalls}

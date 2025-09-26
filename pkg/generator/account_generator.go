@@ -1,16 +1,16 @@
 package generator
 
 import (
-	"context"
-	"fmt"
+    "context"
+    "fmt"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/concurrent"
-	data "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/stats"
+    "github.com/LerianStudio/midaz-sdk-golang/v2/entities"
+    "github.com/LerianStudio/midaz-sdk-golang/v2/models"
+    "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/concurrent"
+    data "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
+    "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
+    "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
+    "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/stats"
 )
 
 type accountGenerator struct {
@@ -63,13 +63,25 @@ func (g *accountGenerator) Generate(ctx context.Context, orgID, ledgerID, assetC
 		in = in.WithEntityID(*t.EntityID)
 	}
 
-	// Ensure linkage to AccountType via metadata if provided
-	if t.AccountTypeKey != nil && *t.AccountTypeKey != "" {
-		if in.Metadata == nil {
-			in.Metadata = map[string]any{}
-		}
-		in.Metadata["account_type_key"] = *t.AccountTypeKey
-	}
+    // Ensure linkage to AccountType via metadata. If not provided, infer from template type.
+    if in.Metadata == nil {
+        in.Metadata = map[string]any{}
+    }
+    if t.AccountTypeKey != nil && *t.AccountTypeKey != "" {
+        // Validate provided key against known defaults to prevent typos in demos.
+        if isSupportedAccountTypeKey(*t.AccountTypeKey) {
+            in.Metadata["account_type_key"] = *t.AccountTypeKey
+        } else {
+            // Fallback to inferred key if invalid provided
+            if k := inferAccountTypeKey(t.Type); k != "" {
+                in.Metadata["account_type_key"] = k
+            }
+        }
+    } else {
+        if k := inferAccountTypeKey(t.Type); k != "" {
+            in.Metadata["account_type_key"] = k
+        }
+    }
 
 	var out *models.Account
 	err := observability.WithSpan(ctx, g.obs, "GenerateAccount", func(ctx context.Context) error {
@@ -146,14 +158,50 @@ func (g *accountGenerator) GenerateBatch(ctx context.Context, orgID, ledgerID, a
 // mapAccountClass maps a domain-specific template type to an accounting class.
 // Defaults to ASSET when uncertain to ensure account creation succeeds in demos.
 func mapAccountClass(t string) string {
-	switch t {
-	case "expense":
-		return "EXPENSE"
-	case "revenue":
-		return "REVENUE"
-	case "creditCard":
-		return "LIABILITY"
-	default:
-		return "ASSET"
-	}
+    switch t {
+    case "expense":
+        return "EXPENSE"
+    case "revenue":
+        return "REVENUE"
+    case "liability":
+        return "LIABILITY"
+    case "equity":
+        return "EQUITY"
+    case "creditCard":
+        return "LIABILITY"
+    default:
+        return "ASSET"
+    }
+}
+
+// inferAccountTypeKey maps a domain template type to a default AccountType key.
+// Returns empty string when no mapping exists.
+func inferAccountTypeKey(t string) string {
+    switch t {
+    case "deposit", "marketplace":
+        return "CHECKING"
+    case "savings":
+        return "SAVINGS"
+    case "creditCard":
+        return "CREDIT_CARD"
+    case "expense":
+        return "EXPENSE"
+    case "revenue":
+        return "REVENUE"
+    case "liability":
+        return "LIABILITY"
+    case "equity":
+        return "EQUITY"
+    default:
+        return ""
+    }
+}
+
+func isSupportedAccountTypeKey(k string) bool {
+    switch k {
+    case "CHECKING", "SAVINGS", "CREDIT_CARD", "EXPENSE", "REVENUE", "LIABILITY", "EQUITY":
+        return true
+    default:
+        return false
+    }
 }

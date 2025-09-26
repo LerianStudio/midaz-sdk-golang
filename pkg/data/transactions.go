@@ -1,7 +1,8 @@
 package data
 
 import (
-	"fmt"
+    "fmt"
+    "log"
 )
 
 // PaymentPattern returns a TransactionPattern for a simple payment flow.
@@ -196,16 +197,22 @@ distribute [%s %d] (
 
 // SplitPaymentPattern splits a payment from a customer to multiple recipients using percentages.
 func SplitPaymentPattern(asset string, amount int, destinations map[string]int, idempotencyKey, externalID string) TransactionPattern {
-	shares := ""
-	for alias, pct := range destinations {
-		if pct < 0 {
-			pct = 0
-		}
-		if pct > 100 {
-			pct = 100
-		}
-		shares += fmt.Sprintf("    %d%% to %s\n", pct, alias)
-	}
+    shares := ""
+    totalPct := 0
+    for alias, pct := range destinations {
+        if pct < 0 {
+            pct = 0
+        }
+        if pct > 100 {
+            pct = 100
+        }
+        totalPct += pct
+        shares += fmt.Sprintf("    %d%% to %s\n", pct, alias)
+    }
+
+    if totalPct != 100 {
+        log.Printf("Warning: split percentages sum to %d%%, not 100%%", totalPct)
+    }
 
 	dsl := fmt.Sprintf(`
 send [%s %d] (

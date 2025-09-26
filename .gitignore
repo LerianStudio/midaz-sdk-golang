@@ -87,3 +87,4 @@ CLAUDE.md
 
 # Specific to this project
 /sdks/go-sdk/.cache/mass-demo-generator
+examples/mass-demo-generator/mass-demo-generator

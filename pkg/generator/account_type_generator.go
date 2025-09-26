@@ -51,16 +51,19 @@ func (g *accountTypeGenerator) Generate(ctx context.Context, orgID, ledgerID str
 
 // GenerateDefaults creates a default set of commonly used account types.
 func (g *accountTypeGenerator) GenerateDefaults(ctx context.Context, orgID, ledgerID string) ([]*models.AccountType, error) {
-	defs := []struct {
-		name string
-		key  string
-		meta map[string]any
-	}{
-		{"Checking", "CHECKING", map[string]any{"category": "deposit", "overdraft": false}},
-		{"Savings", "SAVINGS", map[string]any{"category": "savings", "interest": true}},
-		{"Credit Card", "CREDIT_CARD", map[string]any{"category": "credit", "limit_supported": true}},
-		{"Expense", "EXPENSE", map[string]any{"category": "expense"}},
-	}
+    defs := []struct {
+        name string
+        key  string
+        meta map[string]any
+    }{
+        {"Checking", "CHECKING", map[string]any{"category": "deposit", "overdraft": false}},
+        {"Savings", "SAVINGS", map[string]any{"category": "savings", "interest": true}},
+        {"Credit Card", "CREDIT_CARD", map[string]any{"category": "credit", "limit_supported": true}},
+        {"Expense", "EXPENSE", map[string]any{"category": "expense"}},
+        {"Revenue", "REVENUE", map[string]any{"category": "revenue"}},
+        {"Liability", "LIABILITY", map[string]any{"category": "liability"}},
+        {"Equity", "EQUITY", map[string]any{"category": "equity"}},
+    }
 
 	out := make([]*models.AccountType, 0, len(defs))
 	for _, d := range defs {

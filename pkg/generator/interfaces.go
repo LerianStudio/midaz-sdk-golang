@@ -55,6 +55,18 @@ type AccountTypeGenerator interface {
 
 // AccountGenerator creates accounts with hierarchy and metadata applied.
 type AccountGenerator interface {
-	Generate(ctx context.Context, orgID, ledgerID, assetCode string, template data.AccountTemplate) (*models.Account, error)
-	GenerateBatch(ctx context.Context, orgID, ledgerID, assetCode string, templates []data.AccountTemplate) ([]*models.Account, error)
+    Generate(ctx context.Context, orgID, ledgerID, assetCode string, template data.AccountTemplate) (*models.Account, error)
+    GenerateBatch(ctx context.Context, orgID, ledgerID, assetCode string, templates []data.AccountTemplate) ([]*models.Account, error)
+}
+
+// OperationRouteGenerator creates operation routes (source/destination) for validation.
+type OperationRouteGenerator interface {
+    Generate(ctx context.Context, orgID, ledgerID string, input *models.CreateOperationRouteInput) (*models.OperationRoute, error)
+    GenerateDefaults(ctx context.Context, orgID, ledgerID string) ([]*models.OperationRoute, error)
+}
+
+// TransactionRouteGenerator creates transaction routes that orchestrate operation routes.
+type TransactionRouteGenerator interface {
+    Generate(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionRouteInput) (*models.TransactionRoute, error)
+    GenerateDefaults(ctx context.Context, orgID, ledgerID string, opRoutes []*models.OperationRoute) ([]*models.TransactionRoute, error)
 }
