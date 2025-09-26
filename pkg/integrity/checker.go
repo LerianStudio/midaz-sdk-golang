@@ -11,6 +11,9 @@ import (
     "github.com/shopspring/decimal"
 )
 
+// Maximum allowed delay between account lookups to avoid accidental excessive throttling.
+const maxAccountLookupDelay time.Duration = 5 * time.Second
+
 // BalanceTotals holds aggregated balances per asset.
 type BalanceTotals struct {
     Asset            string
@@ -40,6 +43,13 @@ func NewChecker(e *entities.Entity) *Checker { return &Checker{e: e} }
 // WithAccountLookupDelay sets an optional delay inserted before each account lookup.
 // Useful to rate-limit calls when processing very large ledgers.
 func (c *Checker) WithAccountLookupDelay(d time.Duration) *Checker {
+    // Clamp to a sensible range [0, maxAccountLookupDelay]
+    if d < 0 {
+        d = 0
+    }
+    if d > maxAccountLookupDelay {
+        d = maxAccountLookupDelay
+    }
     c.sleepBetweenAccountLookups = d
     return c
 }
@@ -73,7 +83,20 @@ func (c *Checker) GenerateLedgerReport(ctx context.Context, orgID, ledgerID stri
             alias, ok := accountAliasCache[b.AccountID]
             if !ok {
                 if c.sleepBetweenAccountLookups > 0 {
-                    time.Sleep(c.sleepBetweenAccountLookups)
+                    timer := time.NewTimer(c.sleepBetweenAccountLookups)
+                    select {
+                    case <-timer.C:
+                        // continue
+                    case <-ctx.Done():
+                        if !timer.Stop() {
+                            // drain if fired concurrently
+                            select {
+                            case <-timer.C:
+                            default:
+                            }
+                        }
+                        return nil, ctx.Err()
+                    }
                 }
                 acc, err := c.e.Accounts.GetAccount(ctx, orgID, ledgerID, b.AccountID)
                 if err != nil {
