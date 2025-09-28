@@ -257,6 +257,12 @@ func (c *HTTPClient) doRawRequest(ctx context.Context, method, requestURL string
 	if err != nil {
 		return err
 	}
+	// Ensure response body is closed after we're done with it
+	defer func() {
+		if resp != nil && resp.Body != nil {
+			c.closeResponseBody(resp)
+		}
+	}()
 
 	c.recordRequestMetrics(ctx, method, requestURL, resp, elapsed)
 	c.logResponseDetails(method, requestURL, resp, responseBody)

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -95,14 +96,34 @@ func getDemoFileDefaults() demoFileDefaults {
 }
 
 func loadDemoFileDefaults(path string) demoFileDefaults {
-	data, err := os.ReadFile(path)
+	// Validate and sanitize the file path to prevent directory traversal attacks
+	cleanPath := filepath.Clean(path)
+
+	// Ensure we're only reading from the expected default configuration file
+	if cleanPath != "default.yaml" {
+		log.Printf("warning: invalid configuration file path: %s", path)
+		return demoFileDefaults{}
+	}
+
+	// Check if file exists and is a regular file (not a directory or special file)
+	fileInfo, err := os.Stat(cleanPath)
+	if err != nil {
+		return demoFileDefaults{}
+	}
+
+	if !fileInfo.Mode().IsRegular() {
+		log.Printf("warning: configuration path is not a regular file: %s", cleanPath)
+		return demoFileDefaults{}
+	}
+
+	data, err := os.ReadFile(cleanPath)
 	if err != nil {
 		return demoFileDefaults{}
 	}
 
 	var wrapper demoDefaultsWrapper
 	if err := yaml.Unmarshal(data, &wrapper); err != nil {
-		log.Printf("warning: failed to parse %s: %v", path, err)
+		log.Printf("warning: failed to parse %s: %v", cleanPath, err)
 		return demoFileDefaults{}
 	}
 

@@ -751,5 +751,5 @@ func saveEntitiesIDs(path string, ids txpkg.ReportEntityIDs) error {
 		return err
 	}
 
-	return os.WriteFile(path, entityData, 0o644)
+	return os.WriteFile(path, entityData, 0o600)
 }
