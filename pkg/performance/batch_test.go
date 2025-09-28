@@ -342,7 +342,6 @@ func TestBatchOptions_WithOptions(t *testing.T) {
 		WithRetryBackoff(1*time.Second),
 		WithContinueOnError(true),
 	)
-
 	if err != nil {
 		t.Fatalf("NewBatchOptions returned an error: %v", err)
 	}
@@ -446,7 +445,6 @@ func TestNewBatchProcessor(t *testing.T) {
 			"Accept":       "application/json",
 		}),
 	)
-
 	if err != nil {
 		t.Fatalf("NewBatchProcessor returned an error: %v", err)
 	}

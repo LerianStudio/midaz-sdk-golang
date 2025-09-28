@@ -77,7 +77,6 @@ const (
 // Config holds the configuration for the Midaz SDK.
 // It centralizes all settings needed to interact with the Midaz API.
 type Config struct {
-
 	// AccessManager configuration for authentication
 	AccessManager auth.AccessManager
 

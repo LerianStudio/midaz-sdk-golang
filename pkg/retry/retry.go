@@ -529,7 +529,6 @@ func getSecureRandomFloat64() float64 {
 	var buf [8]byte
 
 	_, err := rand.Read(buf[:])
-
 	if err != nil {
 		// If crypto/rand fails, return a safe default
 		return 0.5

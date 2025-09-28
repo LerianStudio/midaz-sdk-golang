@@ -154,7 +154,6 @@ func (e *segmentsEntity) ListSegments(
 	url := e.buildURL(organizationID, ledgerID, "")
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -200,7 +199,6 @@ func (e *segmentsEntity) GetSegment(
 	url := e.buildURL(organizationID, ledgerID, id)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -240,13 +238,11 @@ func (e *segmentsEntity) CreateSegment(
 	url := e.buildURL(organizationID, ledgerID, "")
 
 	body, err := json.Marshal(input)
-
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
-
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -287,13 +283,11 @@ func (e *segmentsEntity) UpdateSegment(
 	url := e.buildURL(organizationID, ledgerID, id)
 
 	body, err := json.Marshal(input)
-
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, bytes.NewReader(body))
-
+	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -329,7 +323,6 @@ func (e *segmentsEntity) DeleteSegment(
 	url := e.buildURL(organizationID, ledgerID, id)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
-
 	if err != nil {
 		return errors.NewInternalError(operation, err)
 	}

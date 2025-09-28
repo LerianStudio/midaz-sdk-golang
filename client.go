@@ -346,8 +346,8 @@ func WithObservabilityProvider(provider observability.Provider) Option {
 		// Initialize metrics collector if needed
 		if provider.IsEnabled() {
 			var err error
-			c.metrics, err = observability.NewMetricsCollector(provider)
 
+			c.metrics, err = observability.NewMetricsCollector(provider)
 			if err != nil {
 				return err
 			}

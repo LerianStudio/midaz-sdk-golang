@@ -363,7 +363,6 @@ func TestForEach(t *testing.T) {
 				return nil
 			},
 		)
-
 		if err != nil {
 			t.Errorf("Expected no error, got %v", err)
 		}
