@@ -168,12 +168,9 @@ func TestReportType(t *testing.T) {
 func TestBalanceTotalsDecimalOperations(t *testing.T) {
 	// Test decimal operations with BalanceTotals
 	totals := &BalanceTotals{
-		Asset:            "BTC",
-		Accounts:         1,
 		TotalAvailable:   decimal.NewFromFloat(0.12345678),
 		TotalOnHold:      decimal.NewFromFloat(0.00000001),
 		InternalNetTotal: decimal.NewFromFloat(0.12345679),
-		Overdrawn:        []string{},
 	}
 
 	// Test decimal precision
@@ -251,9 +248,4 @@ func TestCheckerChaining(t *testing.T) {
 
 	// Final delay should be the last set value
 	assert.Equal(t, 2*time.Second, checker.sleepBetweenAccountLookups)
-}
-
-// Helper function for creating string pointers
-func stringPtr(s string) *string {
-	return &s
 }
