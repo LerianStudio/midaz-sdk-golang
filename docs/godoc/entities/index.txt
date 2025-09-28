@@ -12,6 +12,7 @@ It provides domain-specific entities like accounts, assets, organizations, etc.
 const ServiceOnboarding = "onboarding" ...
 func AddURLParams(baseURL string, params map[string]string) string
 func GetWrappedHTTPClient(client *http.Client, authToken string) *http.Client
+func WithIdempotencyKey(ctx context.Context, key string) context.Context
 type AccountTypesService interface{ ... }
     func NewAccountTypesEntity(client *http.Client, authToken string, baseURLs map[string]string) AccountTypesService
 type AccountsService interface{ ... }
