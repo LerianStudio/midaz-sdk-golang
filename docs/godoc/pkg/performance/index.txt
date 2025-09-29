@@ -139,7 +139,7 @@ type PerformanceOption func(*Options) error
     func WithBatchSize(size int) PerformanceOption
     func WithHTTPPooling(enabled bool) PerformanceOption
     func WithJSONIterator(enabled bool) PerformanceOption
-    func WithMaxIdleConnsPerHost(max int) PerformanceOption
+    func WithMaxIdleConnsPerHost(maxIdle int) PerformanceOption
 type TransportConfig struct{ ... }
     func DefaultTransportConfig() *TransportConfig
     func NewTransportConfig(opts ...TransportOption) (*TransportConfig, error)

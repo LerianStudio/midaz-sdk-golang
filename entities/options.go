@@ -47,6 +47,7 @@ func WithObservability(provider observability.Provider) Option {
 		// Create metrics collector if needed
 		if provider.IsEnabled() {
 			var err error
+
 			e.httpClient.metrics, err = observability.NewMetricsCollector(provider)
 
 			if err != nil {

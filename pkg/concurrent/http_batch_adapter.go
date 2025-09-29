@@ -141,6 +141,7 @@ func (b *HTTPBatchProcessorWithRetry) prepareExecutionContext(ctx context.Contex
 	// Apply context timeout if one isn't already set
 	if _, ok := ctx.Deadline(); !ok && b.options.Timeout > 0 {
 		var cancel context.CancelFunc
+
 		ctx, cancel = context.WithTimeout(ctx, b.options.Timeout)
 		// Note: We can't defer cancel here as the context is returned
 		// The caller must handle the cancellation
