@@ -99,31 +99,45 @@ func loadDemoFileDefaults(path string) demoFileDefaults {
 	// Validate and sanitize the file path to prevent directory traversal attacks
 	cleanPath := filepath.Clean(path)
 
+	// Get the absolute path of the expected config file in the current working directory
+	expectedAbsPath, err := filepath.Abs(demoDefaultsPath)
+	if err != nil {
+		log.Printf("warning: could not resolve expected config file path: %v", err)
+		return demoFileDefaults{}
+	}
+
+	// Get the absolute path of the provided path
+	providedAbsPath, err := filepath.Abs(cleanPath)
+	if err != nil {
+		log.Printf("warning: could not resolve provided config file path: %v", err)
+		return demoFileDefaults{}
+	}
+
 	// Ensure we're only reading from the expected default configuration file
-	if cleanPath != "default.yaml" {
+	if providedAbsPath != expectedAbsPath {
 		log.Printf("warning: invalid configuration file path: %s", path)
 		return demoFileDefaults{}
 	}
 
 	// Check if file exists and is a regular file (not a directory or special file)
-	fileInfo, err := os.Stat(cleanPath)
+	fileInfo, err := os.Stat(providedAbsPath)
 	if err != nil {
 		return demoFileDefaults{}
 	}
 
 	if !fileInfo.Mode().IsRegular() {
-		log.Printf("warning: configuration path is not a regular file: %s", cleanPath)
+		log.Printf("warning: configuration path is not a regular file: %s", providedAbsPath)
 		return demoFileDefaults{}
 	}
 
-	data, err := os.ReadFile(cleanPath)
+	data, err := os.ReadFile(providedAbsPath)
 	if err != nil {
 		return demoFileDefaults{}
 	}
 
 	var wrapper demoDefaultsWrapper
 	if err := yaml.Unmarshal(data, &wrapper); err != nil {
-		log.Printf("warning: failed to parse %s: %v", cleanPath, err)
+		log.Printf("warning: failed to parse %s: %v", providedAbsPath, err)
 		return demoFileDefaults{}
 	}
 
