@@ -408,7 +408,7 @@ func (e *operationsEntity) UpdateOperation(ctx context.Context, orgID, ledgerID,
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, bytes.NewBuffer(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, bytes.NewBuffer(body))
 
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
