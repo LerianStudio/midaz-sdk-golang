@@ -25,13 +25,13 @@ type Option func(*Config) error
     func WithIdempotency(enable bool) Option
     func WithMaxRetries(maxRetries int) Option
     func WithObservabilityProvider(provider observability.Provider) Option
-    func WithOnboardingURL(url string) Option
+    func WithOnboardingURL(onboardingURL string) Option
     func WithRetries(enable bool) Option
     func WithRetryConfig(maxRetries int, minWait, maxWait time.Duration) Option
     func WithRetryWaitMax(waitTime time.Duration) Option
     func WithRetryWaitMin(waitTime time.Duration) Option
     func WithTimeout(timeout time.Duration) Option
-    func WithTransactionURL(url string) Option
+    func WithTransactionURL(transactionURL string) Option
     func WithUserAgent(userAgent string) Option
 type ServiceType string
     const ServiceOnboarding ServiceType = "onboarding" ...

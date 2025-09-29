@@ -99,7 +99,6 @@ func demonstratePagination(ctx context.Context, midazClient *client.Client, orgI
 func fetchNextPage(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, accounts *models.ListResponse[models.Account]) (*models.ListResponse[models.Account], error) {
 	nextPageOptions := accounts.Pagination.NextPageOptions()
 	nextPage, err := midazClient.Entity.Accounts.ListAccounts(ctx, orgID, ledgerID, nextPageOptions)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch next page: %w", err)
 	}
@@ -117,7 +116,6 @@ func demonstrateGoingBack(ctx context.Context, midazClient *client.Client, orgID
 
 	prevPageOptions := nextPage.Pagination.PrevPageOptions()
 	prevPage, err := midazClient.Entity.Accounts.ListAccounts(ctx, orgID, ledgerID, prevPageOptions)
-
 	if err != nil {
 		return fmt.Errorf("failed to fetch previous page: %w", err)
 	}
