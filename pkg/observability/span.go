@@ -10,10 +10,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-var (
-	// Default global provider for simple usage
-	defaultProvider Provider
-)
+// Default global provider for simple usage
+var defaultProvider Provider
 
 // Initialize the default provider
 func init() {

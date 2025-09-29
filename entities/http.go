@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
@@ -179,11 +180,23 @@ func (c *HTTPClient) doRequest(ctx context.Context, method, requestURL string, h
 		return err
 	}
 
+	// Inject idempotency header from context if present
+	if key := getIdempotencyKeyFromContext(ctx); key != "" {
+		if headers == nil {
+			headers = map[string]string{}
+		}
+
+		headers["X-Idempotency"] = key
+	}
+
 	// Setup headers
 	c.setupRequestHeaders(req, headers, body != nil)
 
-	// Execute request with retry logic
+	// Execute request with retry logic and capture elapsed time
+	start := time.Now()
 	resp, responseBody, err := c.executeRequestWithRetry(ctx, req, method, requestURL)
+	elapsed := time.Since(start)
+
 	if err != nil {
 		return err
 	}
@@ -195,10 +208,65 @@ func (c *HTTPClient) doRequest(ctx context.Context, method, requestURL string, h
 	}()
 
 	// Record metrics and debug logging
-	c.recordRequestMetrics(ctx, method, requestURL, resp, responseBody)
+	c.recordRequestMetrics(ctx, method, requestURL, resp, elapsed)
 	c.logResponseDetails(method, requestURL, resp, responseBody)
 
 	// Process response
+	return c.processResponse(result, responseBody)
+}
+
+// doRawRequest performs an HTTP request using a pre-built byte payload without JSON encoding.
+func (c *HTTPClient) doRawRequest(ctx context.Context, method, requestURL string, headers map[string]string, body []byte, result any) error {
+	ctx, endSpan := c.setupObservabilityContext(ctx, method, requestURL)
+	defer endSpan()
+
+	var reader io.Reader
+	if len(body) > 0 {
+		reader = bytes.NewReader(body)
+	}
+
+	if len(body) > 0 {
+		if headers == nil {
+			headers = map[string]string{}
+		}
+
+		if strings.TrimSpace(headers["Content-Type"]) == "" {
+			return fmt.Errorf("content-type header required for non-empty request body")
+		}
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, requestURL, reader)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	if key := getIdempotencyKeyFromContext(ctx); key != "" {
+		if headers == nil {
+			headers = map[string]string{}
+		}
+
+		headers["X-Idempotency"] = key
+	}
+
+	c.setupRequestHeaders(req, headers, len(body) > 0)
+
+	start := time.Now()
+	resp, responseBody, err := c.executeRequestWithRetry(ctx, req, method, requestURL)
+	elapsed := time.Since(start)
+
+	if err != nil {
+		return err
+	}
+	// Ensure response body is closed after we're done with it
+	defer func() {
+		if resp != nil && resp.Body != nil {
+			c.closeResponseBody(resp)
+		}
+	}()
+
+	c.recordRequestMetrics(ctx, method, requestURL, resp, elapsed)
+	c.logResponseDetails(method, requestURL, resp, responseBody)
+
 	return c.processResponse(result, responseBody)
 }
 
@@ -285,8 +353,8 @@ func (c *HTTPClient) executeRequestWithRetry(ctx context.Context, req *http.Requ
 
 	err := retry.DoWithContext(retryCtx, func() error {
 		var err error
-		resp, err = c.client.Do(req)
 
+		resp, err = c.client.Do(req)
 		if err != nil {
 			c.debugLogRequestError(method, requestURL, err)
 			return fmt.Errorf("HTTP request failed: %w", err)
@@ -343,9 +411,9 @@ func (c *HTTPClient) debugLogRequestError(method, requestURL string, err error) 
 }
 
 // recordRequestMetrics records performance metrics if enabled
-func (c *HTTPClient) recordRequestMetrics(ctx context.Context, method, requestURL string, resp *http.Response, responseBody []byte) {
+func (c *HTTPClient) recordRequestMetrics(ctx context.Context, method, requestURL string, resp *http.Response, elapsed time.Duration) {
 	if c.metrics != nil {
-		c.metrics.RecordRequest(ctx, method, requestURL, resp.StatusCode, time.Duration(len(responseBody))*time.Millisecond)
+		c.metrics.RecordRequest(ctx, method, requestURL, resp.StatusCode, elapsed)
 	}
 }
 
@@ -429,6 +497,29 @@ func (c *HTTPClient) debugLog(format string, args ...any) {
 	}
 }
 
+// idempotency context helpers
+type contextKeyIdempotency struct{}
+
+// WithIdempotencyKey attaches an idempotency key to the request context.
+// The HTTP client will add it as an 'X-Idempotency' header.
+func WithIdempotencyKey(ctx context.Context, key string) context.Context {
+	if key == "" {
+		return ctx
+	}
+
+	return context.WithValue(ctx, contextKeyIdempotency{}, key)
+}
+
+func getIdempotencyKeyFromContext(ctx context.Context) string {
+	if v := ctx.Value(contextKeyIdempotency{}); v != nil {
+		if s, ok := v.(string); ok {
+			return s
+		}
+	}
+
+	return ""
+}
+
 // parseErrorResponse parses an error response from the API and converts it to an SDK error.
 func (c *HTTPClient) parseErrorResponse(statusCode int, body []byte) error {
 	// If there's no body, create a generic error
@@ -503,7 +594,6 @@ func (c *HTTPClient) NewRequest(method, requestURL string, body any) (*http.Requ
 	if body != nil {
 		// Serialize the request body to JSON
 		bodyBytes, err := c.jsonPool.Marshal(body)
-
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal request body: %w", err)
 		}

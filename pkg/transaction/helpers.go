@@ -715,31 +715,13 @@ func CommitPendingTransaction(
 	entity *entities.Entity,
 	orgID, ledgerID, transactionID string,
 ) (*models.Transaction, error) {
-	// Get the current transaction to check status
-	tx, err := entity.Transactions.GetTransaction(ctx, orgID, ledgerID, transactionID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve transaction: %w", err)
-	}
-
-	// Ensure the transaction is in pending status
-	if tx.Status.Code != "PENDING" {
-		return nil, fmt.Errorf("transaction is not in pending status (current status: %s)", tx.Status.Code)
-	}
-
-	// Update the transaction to change the status to "COMMITTED"
-	updateInput := &models.UpdateTransactionInput{
-		Metadata: map[string]any{
-			"committed_at": time.Now().Format(time.RFC3339),
-			"committed_by": "go-sdk-transaction-helper",
-		},
-	}
-
-	updatedTx, err := entity.Transactions.UpdateTransaction(ctx, orgID, ledgerID, transactionID, updateInput)
+	// Use dedicated commit endpoint
+	committed, err := entity.Transactions.CommitTransaction(ctx, orgID, ledgerID, transactionID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	return updatedTx, nil
+	return committed, nil
 }
 
 // CancelPendingTransaction cancels a pending transaction
@@ -759,30 +741,12 @@ func CancelPendingTransaction(
 	entity *entities.Entity,
 	orgID, ledgerID, transactionID string,
 ) (*models.Transaction, error) {
-	// Get the current transaction to check status
-	tx, err := entity.Transactions.GetTransaction(ctx, orgID, ledgerID, transactionID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve transaction: %w", err)
-	}
-
-	// Ensure the transaction is in pending status
-	if tx.Status.Code != "PENDING" {
-		return nil, fmt.Errorf("transaction is not in pending status (current status: %s)", tx.Status.Code)
-	}
-
-	// Update the transaction to change the status to "CANCELLED"
-	updateInput := &models.UpdateTransactionInput{
-		Metadata: map[string]any{
-			"canceled_at": time.Now().Format(time.RFC3339),
-			"canceled_by": "go-sdk-transaction-helper",
-			"status":      "CANCELED",
-		},
-	}
-
-	updatedTx, err := entity.Transactions.UpdateTransaction(ctx, orgID, ledgerID, transactionID, updateInput)
-	if err != nil {
+	// Use dedicated cancel endpoint, which returns no body in our Entities implementation.
+	if err := entity.Transactions.CancelTransaction(ctx, orgID, ledgerID, transactionID); err != nil {
 		return nil, fmt.Errorf("failed to cancel transaction: %w", err)
 	}
+	// Fetch the transaction to return its final state (best-effort).
+	tx, _ := entity.Transactions.GetTransaction(ctx, orgID, ledgerID, transactionID)
 
-	return updatedTx, nil
+	return tx, nil
 }
