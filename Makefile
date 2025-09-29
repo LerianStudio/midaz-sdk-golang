@@ -232,6 +232,9 @@ demo-data:
 	$(call print_header,Ensure Midaz services are running on localhost:3000 (onboarding) and :3001 (transaction))
 	@if [ -f "$(ENV_FILE)" ]; then \
 		cp $(ENV_FILE) examples/mass-demo-generator/.env; \
+	else \
+		echo "⚠️  Warning: $(ENV_FILE) not found. Run 'make set-env' first or create .env manually."; \
+		exit 1; \
 	fi
 	@cd examples/mass-demo-generator && DEMO_NON_INTERACTIVE=0 go run .
 

@@ -180,7 +180,8 @@ func (c *HTTPClient) doRequest(ctx context.Context, method, requestURL string, h
 		return err
 	}
 
-	// Inject idempotency header from context if present
+	// Inject idempotency header from context if present.
+	// If key is empty, no header is set (which is the expected behavior for non-idempotent requests).
 	if key := getIdempotencyKeyFromContext(ctx); key != "" {
 		if headers == nil {
 			headers = map[string]string{}

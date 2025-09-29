@@ -58,7 +58,7 @@
 
 - Never commit secrets. Configure via `.env` (copy from `.env.example`).
 - Typical vars: auth token and service URLs for onboarding/transaction APIs.
-- Prefer idempotent requests (client sets `X-Idempotency` from context).
+- Ensure idempotent requests by setting `X-Idempotency` header via context when needed.
 
 ## Agent-Specific Instructions
 

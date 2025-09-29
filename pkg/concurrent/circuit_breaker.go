@@ -35,14 +35,17 @@ type CircuitBreaker struct {
 
 func NewCircuitBreaker(failureThreshold, successThreshold int, openTimeout time.Duration) *CircuitBreaker {
 	if failureThreshold <= 0 {
+		log.Printf("INFO: Circuit breaker failureThreshold not set or invalid, using default: 5")
 		failureThreshold = 5
 	}
 
 	if successThreshold <= 0 {
+		log.Printf("INFO: Circuit breaker successThreshold not set or invalid, using default: 2")
 		successThreshold = 2
 	}
 
 	if openTimeout <= 0 {
+		log.Printf("INFO: Circuit breaker openTimeout not set or invalid, using default: 5s")
 		openTimeout = 5 * time.Second
 	}
 
@@ -70,7 +73,7 @@ func (cb *CircuitBreaker) WithLogger(l *log.Logger) *CircuitBreaker {
 
 // Execute runs fn under circuit breaker control.
 func (cb *CircuitBreaker) Execute(ctx context.Context, fn func() error) error {
-	if !cb.allow() {
+	if !cb.canProceed() {
 		return ErrCircuitOpen
 	}
 
@@ -80,7 +83,9 @@ func (cb *CircuitBreaker) Execute(ctx context.Context, fn func() error) error {
 	return err
 }
 
-func (cb *CircuitBreaker) allow() bool {
+// canProceed determines if the circuit breaker will allow the operation to proceed.
+// Returns true if circuit is closed or half-open (allowing probe), false if circuit is open.
+func (cb *CircuitBreaker) canProceed() bool {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
 
