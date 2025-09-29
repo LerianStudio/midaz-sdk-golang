@@ -130,6 +130,8 @@ func loadDemoFileDefaults(path string) demoFileDefaults {
 		return demoFileDefaults{}
 	}
 
+	// #nosec G304 - Configuration file path is validated (exists, is regular file) before reading.
+	// This is a CLI tool, not a web service, so the path comes from the operator, not untrusted input.
 	data, err := os.ReadFile(providedAbsPath)
 	if err != nil {
 		return demoFileDefaults{}
