@@ -383,10 +383,7 @@ func New(ctx context.Context, opts ...Option) (Provider, error) {
 	}
 
 	// Create a resource with service information
-	res, err := provider.createResource()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create resource: %w", err)
-	}
+	res := provider.createResource()
 
 	// Initialize tracing if enabled
 	if config.EnabledComponents.Tracing {
@@ -478,7 +475,7 @@ func NewWithConfig(ctx context.Context, config *Config) (Provider, error) {
 }
 
 // createResource creates an OpenTelemetry resource with service information
-func (p *MidazProvider) createResource() (*sdkresource.Resource, error) {
+func (p *MidazProvider) createResource() *sdkresource.Resource {
 	attributes := []attribute.KeyValue{
 		semconv.ServiceNameKey.String(p.config.ServiceName),
 		semconv.ServiceVersionKey.String(p.config.ServiceVersion),
@@ -490,14 +487,13 @@ func (p *MidazProvider) createResource() (*sdkresource.Resource, error) {
 	// Add custom attributes
 	attributes = append(attributes, p.config.Attributes...)
 
-	// Create and return the resource
-
-	return sdkresource.Merge(
-		sdkresource.Default(),
-		sdkresource.NewWithAttributes(
-			semconv.SchemaURL,
-			attributes...,
-		),
+	// Create and return the resource without merging defaults to avoid schema URL conflicts
+	// between different OpenTelemetry versions pulled by transitive deps during tests.
+	// If needed, default attributes can be reintroduced by constructing a resource with
+	// a consistent schema across both sources.
+	return sdkresource.NewWithAttributes(
+		semconv.SchemaURL,
+		attributes...,
 	)
 }
 

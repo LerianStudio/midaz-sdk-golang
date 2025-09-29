@@ -1299,7 +1299,7 @@ func (input *DistributeInput) ToMap() map[string]any {
 // This is used internally by the SDK to convert the input to the format expected by the backend.
 func (input FromToInput) ToMap() map[string]any {
 	fromTo := map[string]any{
-		"accountAlias": input.Account, // API expects accountAlias, not account
+		"accountAlias": input.Account,
 	}
 
 	// Add amount information

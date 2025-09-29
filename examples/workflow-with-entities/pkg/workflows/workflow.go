@@ -60,7 +60,7 @@ func RunCompleteWorkflow(ctx context.Context, entity *sdkentities.Entity, custom
 	}
 
 	// Execute testing phase
-	if err := executeTestingPhase(ctx, midazClient, orgID, ledgerID, accounts.customerAccount.ID, portfolioID); err != nil {
+	if err := executeTestingFlow(ctx, midazClient, orgID, ledgerID, accounts.customerAccount.ID, portfolioID); err != nil {
 		return err
 	}
 
@@ -311,8 +311,8 @@ func executeAdditionalResources(ctx context.Context, midazClient *client.Client,
 	return portfolioID, nil
 }
 
-// executeTestingPhase executes the testing phase of the workflow
-func executeTestingPhase(ctx context.Context, midazClient *client.Client, orgID, ledgerID, customerAccountID, portfolioID string) error {
+// executeTestingFlow runs verification operations for the workflow
+func executeTestingFlow(ctx context.Context, midazClient *client.Client, orgID, ledgerID, customerAccountID, portfolioID string) error {
 	// Step 11: Test Get methods
 	if err := TestGetMethods(ctx, midazClient, orgID, ledgerID, customerAccountID, portfolioID); err != nil {
 		return err

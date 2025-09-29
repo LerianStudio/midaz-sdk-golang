@@ -11,12 +11,14 @@ The SDK is designed with a clean, layered architecture to provide different leve
 **Purpose**: Data structures representing API resources with validation logic.
 
 **Responsibilities**:
+
 - Define data structures for all Midaz resources (Account, Asset, Transaction, etc.)
 - Provide methods for validation and conversion between formats
 - Implement constructors and helper methods for creating and modifying resources
 - Handle type conversions between SDK models and backend models (`mmodel`)
 
 **Interface**:
+
 - Model structs like `models.Account`, `models.Transaction`, etc.
 - Input structs like `models.CreateAccountInput`, `models.UpdateTransactionInput`, etc.
 - List response structs like `models.ListResponse[T]`
@@ -27,12 +29,14 @@ The SDK is designed with a clean, layered architecture to provide different leve
 **Purpose**: Low-level API clients for direct service interaction.
 
 **Responsibilities**:
+
 - Provide direct access to the Midaz API endpoints
 - Handle HTTP communication, authentication, and error mapping
 - Convert between SDK and backend models
 - Implement input validation and error handling
 
 **Interface**:
+
 - Service interfaces like `entities.AccountsService`, `entities.TransactionsService`, etc.
 - Entity implementations that communicate with the API
 
@@ -41,12 +45,14 @@ The SDK is designed with a clean, layered architecture to provide different leve
 **Purpose**: Top-level entry point for SDK users.
 
 **Responsibilities**:
+
 - Provide a single entry point for all SDK functionality
 - Initialize and manage entity instances
 - Handle configuration, authentication, and shared resources
 - Provide context management and observability features
 
 **Interface**:
+
 - `Client` struct with access to all service interfaces
 - Configuration options through functional options pattern
 - Context management through `WithContext` method
@@ -66,6 +72,7 @@ The `pkg/conversion` package provides generic utilities for common conversion pa
 - `ReduceSlice[T, R]`: Reduce a slice to a single value
 - `PtrValue[T]`: Safely get a value from a pointer with default
 - `ToPtr[T]`: Create a pointer to a value
+- `ModelConverter`: Automatic field mapping between similar structures
 
 ### 2. Model Conversion
 
@@ -75,6 +82,7 @@ Models implement conversion methods between SDK models and backend models:
 - `ToMmodelX` methods: Convert SDK model to backend model
 
 These methods use a combination of:
+
 1. Generic `ModelConverter` for automatic field mapping
 2. Manual conversion for special cases
 3. Fallback to direct field mapping if automatic conversion fails
@@ -107,6 +115,7 @@ The SDK includes specialized converters for specific use cases:
 ### For SDK Users
 
 1. **Choose the Right Abstraction**: Use the appropriate abstraction layer for your use case:
+
    - Entities for direct API access and complex queries
    - Client for a unified entry point and shared configuration
 
@@ -134,14 +143,15 @@ func FromMmodelX(backendModel mmodel.X) X {
             // Direct field mapping
         }
     }
-    
+
     // Handle special cases not covered by automatic conversion
-    
+
     return result
 }
 ```
 
 This pattern provides several benefits:
+
 1. Reduces boilerplate code for field-by-field mapping
 2. Handles type conversions automatically
 3. Provides a fallback mechanism for complex cases
@@ -155,14 +165,45 @@ Transactions use a more complex mapping pattern due to their structure:
 2. **DSL Conversion**: Transaction DSL inputs are converted through specialized methods.
 3. **Operation Mapping**: Operations within transactions require special handling for debits and credits.
 
+## Advanced Utility Packages
+
+### Data Generation Framework
+
+The SDK includes a comprehensive data generation framework for testing and demonstration:
+
+- **`pkg/generator/`**: Interfaces and implementations for generating realistic demo data
+- **`pkg/data/`**: Templates for organizations, accounts, assets, and transactions
+- **`pkg/integrity/`**: Balance verification and double-entry accounting validation
+- **`pkg/stats/`**: Statistics collection and performance monitoring
+
+### Concurrency Enhancements
+
+The concurrent processing utilities have been enhanced with:
+
+- **Circuit Breaker Pattern**: Automatic failure detection and service protection
+- **HTTP Batch Adapters**: Optimized batch processing for HTTP operations
+- **Rate Limiting**: Token bucket algorithm for request throttling
+- **Worker Pool Management**: Advanced worker pool configurations with monitoring
+
+### Transaction Processing Utilities
+
+New transaction processing helpers include:
+
+- **`pkg/transaction/`**: Batch transaction processing and reporting utilities
+- **DSL Pattern Support**: Complex transaction flows using domain-specific language
+- **Lifecycle Management**: Pending/commit/revert transaction state handling
+- **Integrity Verification**: Balance consistency and double-entry validation
+
 ## Future Improvements
 
 1. **Enhanced Generic Converters**: Extend the generic converters to handle more complex cases like nested structs and maps.
 
 2. **Code Generation**: Consider using code generation for repetitive conversion code.
 
-3. **Performance Optimizations**: Add caching for frequently used conversions.
+3. **Performance Optimizations**: Add caching for frequently used conversions and batch operations.
 
-4. **Enhanced Validation**: Improve validation error messages with field-level details.
+4. **Enhanced Validation**: Improve validation error messages with field-level details and suggestions.
 
 5. **Structured Logging**: Add structured logging for conversion operations to aid debugging.
+
+6. **Advanced Analytics**: Extend the stats package with more sophisticated analytics and reporting.

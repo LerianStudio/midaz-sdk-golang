@@ -17,6 +17,7 @@ The client package provides the foundation for all API interactions, handling HT
 ### HTTP Client
 
 - `httpClient` - Handles all HTTP requests to the Midaz API
+
   ```go
   type httpClient struct {
       baseURL       string
@@ -32,13 +33,14 @@ The client package provides the foundation for all API interactions, handling HT
   ```
 
   - `Do(ctx context.Context, req *http.Request) (*http.Response, error)` - Executes an HTTP request with retries and error handling
+
     ```go
     // Implementation pattern
     func (c *httpClient) Do(ctx context.Context, req *http.Request) (*http.Response, error) {
         // Add authentication headers
         req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.authToken))
         req.Header.Set("User-Agent", c.userAgent)
-        
+
         // Execute request with retry logic
         var resp *http.Response
         var err error
@@ -49,20 +51,20 @@ The client package provides the foundation for all API interactions, handling HT
             }
             time.Sleep(backoffDuration(attempt))
         }
-        
+
         // Handle response errors
         if err != nil {
             return nil, err
         }
-        
+
         if resp.StatusCode >= 400 {
             return resp, handleErrorResponse(resp)
         }
-        
+
         return resp, nil
     }
     ```
-  
+
   - `Get(ctx context.Context, path string, params url.Values) (*http.Response, error)` - Performs an HTTP GET request
   - `Post(ctx context.Context, path string, body interface{}) (*http.Response, error)` - Performs an HTTP POST request
   - `Put(ctx context.Context, path string, body interface{}) (*http.Response, error)` - Performs an HTTP PUT request
@@ -72,6 +74,7 @@ The client package provides the foundation for all API interactions, handling HT
 ### API Client
 
 - `apiClient` - Base client for all API operations
+
   ```go
   type apiClient struct {
       httpClient      *httpClient
@@ -84,19 +87,21 @@ The client package provides the foundation for all API interactions, handling HT
   ```
 
   - `SetAuthToken(token string)` - Sets the authentication token
+
     ```go
     func (c *apiClient) SetAuthToken(token string) {
         c.httpClient.authToken = token
     }
     ```
-  
+
   - `SetServiceURLs(serviceURLs map[string]string)` - Sets the service-specific URLs
+
     ```go
     func (c *apiClient) SetServiceURLs(serviceURLs map[string]string) {
         c.serviceURLs = serviceURLs
     }
     ```
-  
+
   - `SetTimeout(seconds int)` - Sets the request timeout
   - `SetDebug(debug bool)` - Enables or disables debug mode
   - `SetUserAgent(userAgent string)` - Sets the user agent string used for API requests
@@ -108,6 +113,7 @@ These clients handle specific resource operations. Each client encapsulates the 
 ### Organization Client
 
 - `organizationClient` - Handles organization-related API operations
+
   ```go
   type organizationClient struct {
       apiClient *apiClient
@@ -115,12 +121,13 @@ These clients handle specific resource operations. Each client encapsulates the 
   ```
 
   - `List(ctx context.Context, opts *models.ListOptions) (*models.ListResponse[models.Organization], error)` - Lists organizations
+
     ```go
     // Implementation pattern
     func (c *organizationClient) List(ctx context.Context, opts *models.ListOptions) (*models.ListResponse[models.Organization], error) {
         path := "/organizations"
         params := url.Values{}
-        
+
         // Add pagination parameters
         if opts != nil {
             if opts.Page > 0 {
@@ -131,22 +138,22 @@ These clients handle specific resource operations. Each client encapsulates the 
             }
             // Add other filter parameters
         }
-        
+
         resp, err := c.apiClient.httpClient.Get(ctx, path, params)
         if err != nil {
             return nil, err
         }
         defer resp.Body.Close()
-        
+
         var result models.ListResponse[models.Organization]
         if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
             return nil, err
         }
-        
+
         return &result, nil
     }
     ```
-  
+
   - `Get(ctx context.Context, id string) (*models.Organization, error)` - Gets an organization by ID
   - `Create(ctx context.Context, input *models.CreateOrganizationInput) (*models.Organization, error)` - Creates a new organization
   - `Update(ctx context.Context, id string, input *models.UpdateOrganizationInput) (*models.Organization, error)` - Updates an organization
@@ -155,6 +162,7 @@ These clients handle specific resource operations. Each client encapsulates the 
 ### Ledger Client
 
 - `ledgerClient` - Handles ledger-related API operations
+
   ```go
   type ledgerClient struct {
       apiClient *apiClient
@@ -170,6 +178,7 @@ These clients handle specific resource operations. Each client encapsulates the 
 ### Account Client
 
 - `accountClient` - Handles account-related API operations
+
   ```go
   type accountClient struct {
       apiClient *apiClient
@@ -186,6 +195,7 @@ These clients handle specific resource operations. Each client encapsulates the 
 ### Asset Client
 
 - `assetClient` - Handles asset-related API operations
+
   ```go
   type assetClient struct {
       apiClient *apiClient
@@ -198,10 +208,10 @@ These clients handle specific resource operations. Each client encapsulates the 
   - `Update(ctx context.Context, organizationID, ledgerID, id string, input *models.UpdateAssetInput) (*models.Asset, error)` - Updates an asset
   - `Delete(ctx context.Context, organizationID, ledgerID, id string) error` - Deletes an asset
 
-
 ### Portfolio Client
 
 - `portfolioClient` - Handles portfolio-related API operations
+
   ```go
   type portfolioClient struct {
       apiClient *apiClient
@@ -217,6 +227,7 @@ These clients handle specific resource operations. Each client encapsulates the 
 ### Segment Client
 
 - `segmentClient` - Handles segment-related API operations
+
   ```go
   type segmentClient struct {
       apiClient *apiClient
@@ -232,6 +243,7 @@ These clients handle specific resource operations. Each client encapsulates the 
 ### Transaction Client
 
 - `transactionClient` - Handles transaction-related API operations
+
   ```go
   type transactionClient struct {
       apiClient *apiClient
@@ -241,32 +253,34 @@ These clients handle specific resource operations. Each client encapsulates the 
   - `List(ctx context.Context, organizationID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Transaction], error)` - Lists transactions for a ledger
   - `Get(ctx context.Context, organizationID, ledgerID, id string) (*models.Transaction, error)` - Gets a transaction by ID
   - `Create(ctx context.Context, organizationID, ledgerID string, input *models.CreateTransactionInput) (*models.Transaction, error)` - Creates a new transaction
+
     ```go
     // Implementation pattern
     func (c *transactionClient) Create(ctx context.Context, organizationID, ledgerID string, input *models.CreateTransactionInput) (*models.Transaction, error) {
         path := fmt.Sprintf("/organizations/%s/ledgers/%s/transactions", organizationID, ledgerID)
-        
+
         resp, err := c.apiClient.httpClient.Post(ctx, path, input)
         if err != nil {
             return nil, err
         }
         defer resp.Body.Close()
-        
+
         var result models.Transaction
         if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
             return nil, err
         }
-        
+
         return &result, nil
     }
     ```
-  
+
   - `Commit(ctx context.Context, organizationID, ledgerID, id string) (*models.Transaction, error)` - Commits a pending transaction
   - `Cancel(ctx context.Context, organizationID, ledgerID, id string) (*models.Transaction, error)` - Cancels a pending transaction
 
 ### Balance Client
 
 - `balanceClient` - Handles balance-related API operations
+
   ```go
   type balanceClient struct {
       apiClient *apiClient
@@ -277,6 +291,54 @@ These clients handle specific resource operations. Each client encapsulates the 
   - `Get(ctx context.Context, organizationID, ledgerID, id string) (*models.Balance, error)` - Gets a balance by ID
   - `Update(ctx context.Context, organizationID, ledgerID, id string, input *models.UpdateBalanceInput) (*models.Balance, error)` - Updates a balance
 
+### Account Type Client
+
+- `accountTypeClient` - Handles account type-related API operations
+
+  ```go
+  type accountTypeClient struct {
+      apiClient *apiClient
+  }
+  ```
+
+  - `List(ctx context.Context, organizationID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.AccountType], error)` - Lists account types for a ledger
+  - `Get(ctx context.Context, organizationID, ledgerID, id string) (*models.AccountType, error)` - Gets an account type by ID
+  - `Create(ctx context.Context, organizationID, ledgerID string, input *models.CreateAccountTypeInput) (*models.AccountType, error)` - Creates a new account type
+  - `Update(ctx context.Context, organizationID, ledgerID, id string, input *models.UpdateAccountTypeInput) (*models.AccountType, error)` - Updates an account type
+  - `Delete(ctx context.Context, organizationID, ledgerID, id string) error` - Deletes an account type
+
+### Operation Route Client
+
+- `operationRouteClient` - Handles operation route-related API operations
+
+  ```go
+  type operationRouteClient struct {
+      apiClient *apiClient
+  }
+  ```
+
+  - `List(ctx context.Context, organizationID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.OperationRoute], error)` - Lists operation routes for a ledger
+  - `Get(ctx context.Context, organizationID, ledgerID, id string) (*models.OperationRoute, error)` - Gets an operation route by ID
+  - `Create(ctx context.Context, organizationID, ledgerID string, input *models.CreateOperationRouteInput) (*models.OperationRoute, error)` - Creates a new operation route
+  - `Update(ctx context.Context, organizationID, ledgerID, id string, input *models.UpdateOperationRouteInput) (*models.OperationRoute, error)` - Updates an operation route
+  - `Delete(ctx context.Context, organizationID, ledgerID, id string) error` - Deletes an operation route
+
+### Transaction Route Client
+
+- `transactionRouteClient` - Handles transaction route-related API operations
+
+  ```go
+  type transactionRouteClient struct {
+      apiClient *apiClient
+  }
+  ```
+
+  - `List(ctx context.Context, organizationID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.TransactionRoute], error)` - Lists transaction routes for a ledger
+  - `Get(ctx context.Context, organizationID, ledgerID, id string) (*models.TransactionRoute, error)` - Gets a transaction route by ID
+  - `Create(ctx context.Context, organizationID, ledgerID string, input *models.CreateTransactionRouteInput) (*models.TransactionRoute, error)` - Creates a new transaction route
+  - `Update(ctx context.Context, organizationID, ledgerID, id string, input *models.UpdateTransactionRouteInput) (*models.TransactionRoute, error)` - Updates a transaction route
+  - `Delete(ctx context.Context, organizationID, ledgerID, id string) error` - Deletes a transaction route
+
 ## III. Models Package (`midaz/models`)
 
 The models package defines the data structures used throughout the SDK, representing API resources, request inputs, and responses.
@@ -286,6 +348,7 @@ The models package defines the data structures used throughout the SDK, represen
 These structs represent the core resources in the Midaz API:
 
 - `Organization` - Represents an organization in the system
+
   ```go
   type Organization struct {
       ID            string     `json:"id"`
@@ -315,6 +378,7 @@ These structs represent the core resources in the Midaz API:
 These structs represent the input data for API operations:
 
 - `CreateOrganizationInput` - Input for creating an organization
+
   ```go
   type CreateOrganizationInput struct {
       LegalName     string      `json:"legalName"`
@@ -340,12 +404,17 @@ These structs represent the input data for API operations:
 - `CreateTransactionInput` - Input for creating a transaction
 - `CreateOperationInput` - Input for creating an operation
 - `UpdateBalanceInput` - Input for updating a balance
+- `CreateAccountTypeInput` - Input for creating an account type
+- `CreateOperationRouteInput` - Input for creating an operation route
+- `CreateTransactionRouteInput` - Input for creating a transaction route
+- `TransactionDSLInput` - Input for creating transactions using DSL
 
 ### Response Models
 
 These structs represent API responses:
 
 - `ListResponse` - Generic paginated response for list operations
+
   ```go
   type ListResponse[T any] struct {
       Items      []T   `json:"items"`
@@ -369,6 +438,7 @@ These structs represent API responses:
 ### Common Types and Constants
 
 - `Status` - Enum for resource status
+
   ```go
   type Status string
 
@@ -391,6 +461,7 @@ The errors package provides standardized error types and utilities for handling 
 ### Error Types
 
 - `MidazError` - Custom error type with additional context
+
   ```go
   type MidazError struct {
       Code      string
@@ -399,7 +470,7 @@ The errors package provides standardized error types and utilities for handling 
       Resource  string
       RequestID string
   }
-  
+
   // Implements the error interface
   func (e *MidazError) Error() string {
       if e.Resource != "" {
@@ -407,7 +478,7 @@ The errors package provides standardized error types and utilities for handling 
       }
       return fmt.Sprintf("%s: %s", e.Code, e.Message)
   }
-  
+
   // Implements the Unwrap interface for errors.Is and errors.As
   func (e *MidazError) Unwrap() error {
       return e.Err
@@ -472,20 +543,20 @@ func configFromEnvironment() Config {
         UserAgent:       "Midaz-Go-SDK/" + Version, // Uses version constant
         Environment:     os.Getenv("MIDAZ_ENVIRONMENT"),
     }
-    
+
     // Override defaults with environment variables if provided
     if onboardingURL := os.Getenv("MIDAZ_ONBOARDING_URL"); onboardingURL != "" {
         c.OnboardingURL = onboardingURL
     }
-    
+
     if transactionURL := os.Getenv("MIDAZ_TRANSACTION_URL"); transactionURL != "" {
         c.TransactionURL = transactionURL
     }
-    
+
     if userAgent := os.Getenv("MIDAZ_USER_AGENT"); userAgent != "" {
         c.UserAgent = userAgent
     }
-    
+
     return c
 }
 ```
@@ -576,6 +647,7 @@ func (s *someServiceImpl) List(ctx context.Context, opts *models.ListOptions) (*
 ```
 
 This pattern allows for:
+
 - Clean separation between public API and implementation details
 - Easier testing through interface mocking
 - Future extensibility without breaking changes
@@ -590,12 +662,13 @@ func (c *someClient) Get(ctx context.Context, id string) (*models.SomeResource, 
     if err != nil {
         return nil, fmt.Errorf("failed to get resource: %w", err)
     }
-    
+
     // Process response
 }
 ```
 
 This pattern allows:
+
 - Preserving the original error for inspection with `errors.Is` and `errors.As`
 - Adding context to errors for better debugging
 - Standardized error handling throughout the SDK
@@ -608,7 +681,7 @@ The SDK uses a consistent pattern for handling paginated results:
 func (c *someClient) List(ctx context.Context, opts *models.ListOptions) (*models.ListResponse[models.SomeResource], error) {
     path := "/resources"
     params := url.Values{}
-    
+
     // Add pagination parameters
     if opts != nil {
         if opts.Page > 0 {
@@ -617,35 +690,36 @@ func (c *someClient) List(ctx context.Context, opts *models.ListOptions) (*model
         if opts.Limit > 0 {
             params.Set("limit", strconv.Itoa(opts.Limit))
         }
-        
+
         // Add filters
         for key, value := range opts.Filters {
             params.Set(key, value)
         }
-        
+
         // Add sorting
         for key, value := range opts.Sort {
             params.Set(fmt.Sprintf("sort[%s]", key), value)
         }
     }
-    
+
     // Execute request
     resp, err := c.httpClient.Get(ctx, path, params)
     if err != nil {
         return nil, err
     }
-    
+
     // Parse response
     var result models.ListResponse[models.SomeResource]
     if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
         return nil, err
     }
-    
+
     return &result, nil
 }
 ```
 
 This pattern provides:
+
 - Consistent pagination across all list operations
 - Support for filtering and sorting
 - Clear separation of concerns between pagination, filtering, and API calls

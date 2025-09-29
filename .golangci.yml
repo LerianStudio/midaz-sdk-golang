@@ -26,7 +26,7 @@ linters:
     - unparam
     - usestdlibvars
     - wastedassign
-    - wsl
+    - wsl_v5
   settings:
     depguard:
       rules:
@@ -56,6 +56,15 @@ linters:
         - name: use-any
           severity: warning
           disabled: false
+    wsl_v5:
+      allow-assign-and-call: true
+      allow-assign-and-anything: true
+      allow-multiline-assign: true
+      allow-first-in-block: true
+      allow-separated-leading-comment: true
+      allow-trailing-comment: true
+      force-err-cuddling: false
+      enforce-err-cuddling: false
   exclusions:
     generated: lax
     rules:
@@ -106,8 +115,29 @@ linters:
           - govet
         text: '^shadow: declaration of "(err|ok)" shadows declaration'
       - linters:
-          - wsl
-        path: sdks/go-sdk/entities/mocks/
+          - wsl_v5
+        path: examples/
+      - linters:
+          - wsl_v5
+        text: "unnecessary whitespace \\(err\\)"
+      - linters:
+          - wsl_v5
+        text: "missing whitespace above this line \\(invalid statement above expr\\)"
+      - linters:
+          - wsl_v5
+        text: "missing whitespace above this line \\(no shared variables above type-switch\\)"
+      - linters:
+          - wsl_v5
+        text: "missing whitespace above this line \\(too many lines above return\\)"
+      - linters:
+          - wsl_v5
+        text: "missing whitespace above this line \\(no shared variables above defer\\)"
+      - linters:
+          - wsl_v5
+        text: "missing whitespace above this line \\(too many statements above if\\)"
+      - linters:
+          - wsl_v5
+        text: "missing whitespace above this line \\(invalid statement above assign\\)"
       - path: (.+)\.go$
         text: parameter .* always receives
     paths:
