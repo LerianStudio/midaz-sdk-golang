@@ -249,11 +249,21 @@ func inferAccountTypeKey(t string) string {
 	}
 }
 
+var supportedAccountTypeKeys = []string{
+	"CHECKING",
+	"SAVINGS",
+	"CREDIT_CARD",
+	"EXPENSE",
+	"REVENUE",
+	"LIABILITY",
+	"EQUITY",
+}
+
 func isSupportedAccountTypeKey(k string) bool {
-	switch k {
-	case "CHECKING", "SAVINGS", "CREDIT_CARD", "EXPENSE", "REVENUE", "LIABILITY", "EQUITY":
-		return true
-	default:
-		return false
+	for _, key := range supportedAccountTypeKeys {
+		if k == key {
+			return true
+		}
 	}
+	return false
 }
