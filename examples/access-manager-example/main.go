@@ -29,7 +29,7 @@ func main() {
 	clientID := os.Getenv("MIDAZ_CLIENT_ID")
 	clientSecret := os.Getenv("MIDAZ_CLIENT_SECRET")
 
-	//Configure plugin auth
+	// Configure plugin auth
 	pluginAuth := auth.AccessManager{
 		Enabled:      pluginAuthEnabled,
 		Address:      pluginAuthAddress,
