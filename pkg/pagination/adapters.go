@@ -295,7 +295,6 @@ func CreateEntityPaginatorWithDefaults[T any, R any](
 		WithPaginatorEntityType(entityType),
 		WithEntityInitialOptions(initialOptions),
 	)
-
 	if err != nil {
 		// For backward compatibility, create a simple paginator directly
 		adapter, _ := NewModelAdapter() // Ignore error, using default adapter

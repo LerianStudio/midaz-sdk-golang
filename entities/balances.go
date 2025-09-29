@@ -289,7 +289,6 @@ func (e *balancesEntity) ListBalances(
 	url := e.buildURL(orgID, ledgerID, "")
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -342,7 +341,6 @@ func (e *balancesEntity) ListAccountBalances(
 	url := e.buildAccountURL(orgID, ledgerID, accountID)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -393,7 +391,6 @@ func (e *balancesEntity) GetBalance(
 	url := e.buildURL(orgID, ledgerID, balanceID)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -444,13 +441,11 @@ func (e *balancesEntity) UpdateBalance(
 	url := e.buildURL(orgID, ledgerID, balanceID)
 
 	payload, err := json.Marshal(input)
-
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, bytes.NewBuffer(payload))
-
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -490,7 +485,6 @@ func (e *balancesEntity) DeleteBalance(
 	url := e.buildURL(orgID, ledgerID, balanceID)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
-
 	if err != nil {
 		return errors.NewInternalError(operation, err)
 	}

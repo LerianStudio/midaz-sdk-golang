@@ -37,7 +37,7 @@ type DateTimeOption func(*DateTimeOptions) error
 type DateTimeOptions struct{ ... }
     func DefaultDateTimeOptions() *DateTimeOptions
 type DurationOption func(*DurationOptions) error
-    func WithMaxComponents(max int) DurationOption
+    func WithMaxComponents(maxComponents int) DurationOption
     func WithPrecision(precision int) DurationOption
     func WithShortUnits(useShort bool) DurationOption
 type DurationOptions struct{ ... }

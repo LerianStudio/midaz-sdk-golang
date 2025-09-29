@@ -75,7 +75,6 @@ func TestModelConverter_BasicFields(t *testing.T) {
 	// Skip time comparison for now
 	// Times will be manually copied in ModelConverter when needed
 	// assert.Equal(t, sdk.CreatedAt, backend.CreatedAt)
-
 }
 
 func TestModelConverter_ComplexFields(t *testing.T) {
