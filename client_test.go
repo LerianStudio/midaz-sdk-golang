@@ -57,7 +57,6 @@ func TestNewClient(t *testing.T) {
 		WithEnvironment(config.EnvironmentDevelopment),
 		UseEntity(),
 	)
-
 	if err != nil {
 		t.Fatalf("Failed to create client with options: %v", err)
 	}

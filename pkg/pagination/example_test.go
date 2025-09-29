@@ -3,8 +3,9 @@ package pagination_test
 import (
 	"context"
 	"fmt"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/pagination"
 	"time"
+
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/pagination"
 )
 
 // This example demonstrates how to use the pagination package with custom types
@@ -33,7 +34,6 @@ func Example() {
 			Limit: 10,
 		}),
 	)
-
 	if err != nil {
 		fmt.Printf("Error creating paginator: %v\n", err)
 		return
@@ -100,7 +100,6 @@ func ExamplePaginator_ForEach() {
 		pagination.WithEntityType("number"),
 		pagination.WithPageOptions(pagination.PageOptions{Limit: 4}),
 	)
-
 	if err != nil {
 		fmt.Printf("Error creating paginator: %v\n", err)
 		return
@@ -162,7 +161,6 @@ func ExamplePaginator_Concurrent() {
 		pagination.WithEntityType("letter"),
 		pagination.WithPageOptions(pagination.PageOptions{Limit: 3}),
 	)
-
 	if err != nil {
 		fmt.Printf("Error creating paginator: %v\n", err)
 		return
