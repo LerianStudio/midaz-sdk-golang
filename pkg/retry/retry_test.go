@@ -22,7 +22,6 @@ func TestDo_Success(t *testing.T) {
 	}
 
 	err := Do(ctx, fn)
-
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
@@ -52,7 +51,6 @@ func TestDo_EventualSuccess(t *testing.T) {
 		WithMaxDelay(5*time.Millisecond),
 		WithBackoffFactor(2.0),
 	)
-
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}

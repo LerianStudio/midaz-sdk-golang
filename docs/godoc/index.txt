@@ -22,7 +22,7 @@ type Option func(*Client) error
     func WithObservability(enableTracing, enableMetrics, enableLogging bool) Option
     func WithObservabilityOptions(options ...observability.Option) Option
     func WithObservabilityProvider(provider observability.Provider) Option
-    func WithOnboardingURL(url string) Option
+    func WithOnboardingURL(onboardingURL string) Option
     func WithRetries(maxRetries int, minBackoff, maxBackoff time.Duration) Option
     func WithTimeout(timeout time.Duration) Option
-    func WithTransactionURL(url string) Option
+    func WithTransactionURL(transactionURL string) Option
