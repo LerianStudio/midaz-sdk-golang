@@ -53,7 +53,6 @@ func basicConfiguration() {
 	c, err := client.New(
 		client.UseAllAPIs(),
 	)
-
 	if err != nil {
 		log.Fatalf("Failed to create client: %v", err)
 	}

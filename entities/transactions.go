@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
@@ -141,7 +143,7 @@ func (e *transactionsEntity) CreateTransaction(ctx context.Context, orgID, ledge
 	}
 
 	// Send request to API
-	responseMap, err := e.sendCreateTransactionRequest(operation, orgID, ledgerID, input)
+	responseMap, err := e.sendCreateTransactionRequest(ctx, orgID, ledgerID, input)
 	if err != nil {
 		return nil, err
 	}
@@ -176,16 +178,11 @@ func (e *transactionsEntity) validateCreateTransactionInput(operation, orgID, le
 }
 
 // sendCreateTransactionRequest sends the transaction creation request
-func (e *transactionsEntity) sendCreateTransactionRequest(operation, orgID, ledgerID string, input *models.CreateTransactionInput) (map[string]any, error) {
+func (e *transactionsEntity) sendCreateTransactionRequest(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionInput) (map[string]any, error) {
 	txMap := input.ToLibTransaction()
 
-	req, err := e.httpClient.NewRequest("POST", e.buildURL(orgID, ledgerID, "/json"), txMap)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
-
 	var responseMap map[string]any
-	if err := e.httpClient.sendRequest(req, &responseMap); err != nil {
+	if err := e.httpClient.doRequest(ctx, http.MethodPost, e.buildURL(orgID, ledgerID, "/json"), nil, txMap, &responseMap); err != nil {
 		return nil, err
 	}
 
@@ -334,10 +331,8 @@ func (e *transactionsEntity) CreateTransactionWithDSL(ctx context.Context, orgID
 	}
 
 	// Convert the DSL input to map format before sending to API
-	transactionMap := map[string]any{
-		"description": input.Description,
-		"metadata":    input.Metadata,
-	}
+	// Use the strongly-typed converter to include send/source/distribute, share, rate, etc.
+	transactionMap := input.ToTransactionMap()
 
 	// Use the correct endpoint for DSL transactions
 	url := e.buildURL(orgID, ledgerID, "/dsl")
@@ -371,25 +366,39 @@ func (e *transactionsEntity) CreateTransactionWithDSLFile(ctx context.Context, o
 		return nil, fmt.Errorf("ledger ID cannot be empty")
 	}
 
-	// Validate required parameters
-	if len(dslContent) == 0 {
-		return nil, fmt.Errorf("DSL content is required")
+	// Validate DSL payload before sending
+	if err := validateDSLContent(dslContent); err != nil {
+		return nil, err
 	}
 
-	// Use the correct endpoint for DSL file transactions
-	url := e.buildURL(orgID, ledgerID, "/dsl/file")
+	// Use DSL endpoint with raw body payload
+	url := e.buildURL(orgID, ledgerID, "/dsl")
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(dslContent))
-	if err != nil {
-		return nil, fmt.Errorf("internal error: %w", err)
-	}
+	headers := map[string]string{"Content-Type": "text/plain"}
 
 	var transaction models.Transaction
-	if err := e.httpClient.sendRequest(req, &transaction); err != nil {
+	if err := e.httpClient.doRawRequest(ctx, http.MethodPost, url, headers, dslContent, &transaction); err != nil {
 		return nil, err
 	}
 
 	return &transaction, nil
+}
+
+func validateDSLContent(dslContent []byte) error {
+	if len(bytes.TrimSpace(dslContent)) == 0 {
+		return fmt.Errorf("DSL content is required")
+	}
+
+	if !utf8.Valid(dslContent) {
+		return fmt.Errorf("DSL content must be valid UTF-8")
+	}
+
+	content := strings.ToLower(string(dslContent))
+	if !strings.Contains(content, "send") || !strings.Contains(content, "distribute") {
+		return fmt.Errorf("DSL content missing required sections")
+	}
+
+	return nil
 }
 
 // GetTransaction retrieves a specific transaction by its ID.
