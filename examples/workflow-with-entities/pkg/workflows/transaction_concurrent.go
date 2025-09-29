@@ -148,6 +148,7 @@ func GenerateUniqueIdempotencyKey(prefix string, index int) string {
 	// Add some random bytes
 	randomBytes := make([]byte, 16)
 	_, err := cryptorand.Read(randomBytes)
+
 	if err != nil {
 		log.Printf("Warning: Failed to generate cryptographically secure random bytes: %v", err)
 

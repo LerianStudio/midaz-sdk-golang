@@ -120,6 +120,7 @@ func GetTokenFromAccessManager(ctx context.Context, AccessManager AccessManager,
 		url,
 		bytes.NewBuffer(payloadBytes),
 	)
+
 	if err != nil {
 		return "", fmt.Errorf("failed to create request to plugin auth service: %w", err)
 	}
