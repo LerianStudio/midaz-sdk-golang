@@ -382,7 +382,7 @@ func (e *accountsEntity) UpdateAccount(ctx context.Context, organizationID, ledg
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
