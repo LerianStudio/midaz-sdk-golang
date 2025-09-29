@@ -131,8 +131,10 @@ type Metadata map[string]any
 type MetricsCount struct{ ... }
 type ObjectWithMetadata struct{ ... }
 type Operation struct{ ... }
-    func FromMmodelOperation(operation any) Operation
 type OperationAmount struct{ ... }
+type OperationBalance struct{ ... }
+type OperationLog struct{ ... }
+type OperationResponse struct{ ... }
 type OperationRoute = mmodel.OperationRoute
 type OperationRouteInputType string
     const OperationRouteInputTypeSource OperationRouteInputType = "source" ...
@@ -140,6 +142,8 @@ type OperationRouteType string
     const OperationRouteTypeDebit OperationRouteType = "debit" ...
 type OperationType string
     const OperationTypeDebit OperationType = "DEBIT" ...
+type Operations struct{ ... }
+type OperationsResponse struct{ ... }
 type Organization = mmodel.Organization
 type Pagination struct{ ... }
 type Portfolio = mmodel.Portfolio
@@ -175,6 +179,7 @@ type UpdateBalanceInput struct{ ... }
     func NewUpdateBalanceInput() *UpdateBalanceInput
 type UpdateLedgerInput struct{ ... }
     func NewUpdateLedgerInput() *UpdateLedgerInput
+type UpdateOperationInput struct{ ... }
 type UpdateOperationRouteInput struct{ ... }
     func NewUpdateOperationRouteInput() *UpdateOperationRouteInput
     func WithUpdateOperationRouteAccountAlias(input *UpdateOperationRouteInput, alias string) *UpdateOperationRouteInput

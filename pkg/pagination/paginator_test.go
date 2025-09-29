@@ -106,7 +106,6 @@ func TestPaginator(t *testing.T) {
 			WithEntityType("testEntity"),
 			WithPageOptions(PageOptions{Limit: 3}),
 		)
-
 		if err != nil {
 			t.Fatalf("Failed to create paginator: %v", err)
 		}
@@ -143,7 +142,6 @@ func TestPaginator(t *testing.T) {
 			WithEntityType("testEntity"),
 			WithPageOptions(PageOptions{Limit: 3}),
 		)
-
 		if err != nil {
 			t.Fatalf("Failed to create paginator: %v", err)
 		}
@@ -200,7 +198,6 @@ func TestPaginator(t *testing.T) {
 			WithEntityType("testEntity"),
 			WithPageOptions(PageOptions{Limit: 3}),
 		)
-
 		if err != nil {
 			t.Fatalf("Failed to create paginator: %v", err)
 		}
@@ -244,7 +241,6 @@ func TestCollectAll(t *testing.T) {
 		mockFetcher.fetch,
 		PageOptions{Limit: 3},
 	)
-
 	if err != nil {
 		t.Fatalf("CollectAll failed: %v", err)
 	}

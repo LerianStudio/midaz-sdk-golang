@@ -31,32 +31,56 @@ The Midaz Go SDK is organized into the following main packages:
 The SDK provides detailed API documentation for all packages. You can browse this documentation in two ways:
 
 1. **Interactive Documentation** (requires godoc):
+
    ```bash
    make godoc
    ```
+
    Then visit http://localhost:6060/pkg/github.com/LerianStudio/midaz-sdk-golang/v2/
 
 2. **Static Documentation**:
    The static documentation is generated in the `docs/godoc` directory as Markdown files. You can browse this documentation directly.
+
    ```bash
    make godoc-static
    ```
-   
+
    Generated API documentation files:
+
    - [Main Package](./godoc/index.txt)
    - [Entities Package](./godoc/entities/index.txt)
    - [Models Package](./godoc/models/index.txt)
+
+   **Core Packages:**
+
    - [Config Package](./godoc/pkg/config/index.txt)
-   - [Concurrent Package](./godoc/pkg/concurrent/index.txt)
-   - [Access Manager Package](./godoc/pkg/access-manager/index.txt)
+   - [Errors Package](./godoc/pkg/errors/index.txt)
    - [Observability Package](./godoc/pkg/observability/index.txt)
-   - [Pagination Package](./godoc/pkg/pagination/index.txt)
    - [Validation Package](./godoc/pkg/validation/index.txt)
    - [Validation Core Package](./godoc/pkg/validation/core/index.txt)
-   - [Errors Package](./godoc/pkg/errors/index.txt)
-   - [Format Package](./godoc/pkg/format/index.txt)
+
+   **Performance & Concurrency:**
+
+   - [Concurrent Package](./godoc/pkg/concurrent/index.txt)
    - [Retry Package](./godoc/pkg/retry/index.txt)
    - [Performance Package](./godoc/pkg/performance/index.txt)
+   - [Pagination Package](./godoc/pkg/pagination/index.txt)
+
+   **Data Generation & Testing:**
+
+   - [Generator Package](./godoc/pkg/generator/index.txt)
+   - [Data Package](./godoc/pkg/data/index.txt)
+   - [Integrity Package](./godoc/pkg/integrity/index.txt)
+   - [Stats Package](./godoc/pkg/stats/index.txt)
+
+   **Additional Utilities:**
+
+   - [Access Manager Package](./godoc/pkg/access-manager/index.txt)
+   - [Format Package](./godoc/pkg/format/index.txt)
+   - [Conversion Package](./godoc/pkg/conversion/index.txt)
+   - [Transaction Package](./godoc/pkg/transaction/index.txt)
+   - [Utils Package](./godoc/pkg/utils/index.txt)
+   - [Accounts Package](./godoc/pkg/accounts/index.txt)
 
 ## Key Packages
 
@@ -95,16 +119,35 @@ The models package provides data models representing Midaz resources:
 
 The SDK includes several utility packages in the `pkg` directory:
 
+#### Core Utilities
+
 - **config**: Configuration utilities for the SDK
-- **concurrent**: Utilities for concurrent operations
-- **access-manager**: Plugin-based authentication for integrating with external identity providers
+- **errors**: Error handling utilities with structured error types
 - **observability**: Observability tools for tracing, metrics, and logging
-- **pagination**: Utilities for paginated API requests
 - **validation**: Validation utilities for SDK models
-- **errors**: Error handling utilities
-- **format**: Formatting utilities
-- **retry**: Retry mechanisms for API requests
-- **performance**: Performance optimization utilities
+
+#### Performance & Concurrency
+
+- **concurrent**: Utilities for concurrent operations with worker pools and circuit breakers
+- **retry**: Retry mechanisms with exponential backoff for API requests
+- **performance**: Performance optimization utilities including batch processing
+- **pagination**: Utilities for paginated API requests with cursor and offset support
+
+#### Data Generation & Testing
+
+- **generator**: Comprehensive data generation utilities for creating realistic demo data
+- **data**: Templates and patterns for generating organizations, accounts, assets, and transactions
+- **integrity**: Balance verification and double-entry accounting validation
+- **stats**: Statistics collection and performance monitoring utilities
+
+#### Additional Utilities
+
+- **access-manager**: Plugin-based authentication for integrating with external identity providers
+- **format**: Date/time formatting and standardization utilities
+- **conversion**: Type conversion utilities between SDK and backend models
+- **transaction**: Transaction processing helpers and batch operations
+- **utils**: General utility functions for UUID generation and validation
+- **accounts**: Account management utilities (separate from entities layer)
 
 ## Examples
 

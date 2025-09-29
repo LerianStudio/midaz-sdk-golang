@@ -2,9 +2,8 @@ package entities
 
 import (
 	"context"
-	"testing"
-
 	"fmt"
+	"testing"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/entities/mocks"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"

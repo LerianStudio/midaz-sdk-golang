@@ -1,6 +1,7 @@
 # Midaz Go SDK - Comprehensive Architecture Documentation
 
 ## Table of Contents
+
 - [Executive Summary](#executive-summary)
 - [System Component Overview](#system-component-overview)
 - [Architectural Diagrams](#architectural-diagrams)
@@ -24,15 +25,17 @@
 The Midaz Go SDK is a comprehensive, production-ready client library for interacting with the Midaz financial ledger platform. Built using modern Go practices, it implements a clean, layered architecture with strong abstractions, comprehensive error handling, and robust observability features.
 
 ### Key Architectural Principles
+
 - **Layered Architecture**: Clear separation between client, entities, models, and utility layers
 - **Functional Options Pattern**: Type-safe, extensible configuration throughout
-- **Interface-Driven Design**: Mockable, testable service interfaces  
+- **Interface-Driven Design**: Mockable, testable service interfaces
 - **Context-Aware Operations**: Full support for cancellation, timeouts, and tracing
 - **Plugin-Based Authentication**: Flexible authentication via external identity providers
 - **Rich Error Handling**: Structured errors with field-level validation details
 - **Built-in Observability**: OpenTelemetry integration for tracing, metrics, and logging
 
 ### Technology Stack
+
 - **Language**: Go 1.24.2
 - **HTTP Client**: Standard library with custom retry/observability middleware
 - **Observability**: OpenTelemetry (OTLP) with gRPC exporters
@@ -46,32 +49,32 @@ graph TB
     subgraph "Client Application"
         APP[Application Code]
     end
-    
+
     subgraph "Midaz Go SDK"
         CLIENT[Client Layer]
         ENTITIES[Entities Layer]
         MODELS[Models Layer]
         UTILS[Utility Packages]
-        
+
         CLIENT --> ENTITIES
         ENTITIES --> MODELS
         ENTITIES --> UTILS
         CLIENT --> UTILS
     end
-    
+
     subgraph "Midaz Platform Services"
         ONBOARDING[Onboarding Service]
         TRANSACTION[Transaction Service]
         AUTH[Access Manager]
     end
-    
+
     subgraph "Observability Stack"
         OTEL[OpenTelemetry Collector]
         METRICS[Metrics Store]
         TRACES[Tracing Backend]
         LOGS[Logging System]
     end
-    
+
     APP --> CLIENT
     ENTITIES --> ONBOARDING
     ENTITIES --> TRANSACTION
@@ -93,7 +96,7 @@ graph LR
         CONFIG[Configuration<br/>Management]
         OBSERVABILITY[Observability<br/>Provider]
     end
-    
+
     subgraph "Entity Services"
         ACCOUNTS[AccountsService]
         TRANSACTIONS[TransactionsService]
@@ -106,7 +109,7 @@ graph LR
         OPERATIONS[OperationsService]
         ASSETRATES[AssetRatesService]
     end
-    
+
     subgraph "Infrastructure"
         HTTP[HTTP Client<br/>with Middleware]
         RETRY[Retry Logic]
@@ -114,7 +117,7 @@ graph LR
         PAGINATION[Pagination<br/>Support]
         CONCURRENT[Concurrency<br/>Utilities]
     end
-    
+
     CLIENT --> ACCOUNTS
     CLIENT --> TRANSACTIONS
     CLIENT --> ORGANIZATIONS
@@ -125,7 +128,7 @@ graph LR
     CLIENT --> SEGMENTS
     CLIENT --> OPERATIONS
     CLIENT --> ASSETRATES
-    
+
     ACCOUNTS --> HTTP
     TRANSACTIONS --> HTTP
     ORGANIZATIONS --> HTTP
@@ -136,13 +139,13 @@ graph LR
     SEGMENTS --> HTTP
     OPERATIONS --> HTTP
     ASSETRATES --> HTTP
-    
+
     HTTP --> RETRY
     HTTP --> VALIDATION
     HTTP --> PAGINATION
     HTTP --> CONCURRENT
     HTTP --> OBSERVABILITY
-    
+
     CONFIG --> CLIENT
     OBSERVABILITY --> CLIENT
 ```
@@ -163,7 +166,7 @@ sequenceDiagram
     CLIENT->>AUTH: Get authentication token
     AUTH-->>CLIENT: Return token
     CLIENT->>ENTITY: Initialize services
-    
+
     APP->>CLIENT: Entity.Organizations.CreateOrganization()
     CLIENT->>ENTITY: CreateOrganization()
     ENTITY->>HTTP: POST request
@@ -191,14 +194,14 @@ graph TB
         CONVERT[Model Conversion]
         END([Return Result])
     end
-    
+
     subgraph "Cross-Cutting Concerns"
         OBSERVABILITY[Observability<br/>Tracing/Metrics/Logging]
         ERROR[Error Handling<br/>& Classification]
         PAGINATION[Pagination<br/>Support]
         CONCURRENCY[Concurrency<br/>Control]
     end
-    
+
     START --> VALIDATE
     VALIDATE -->|Valid| AUTH
     VALIDATE -->|Invalid| ERROR
@@ -208,7 +211,7 @@ graph TB
     HTTP --> RESPONSE
     RESPONSE --> CONVERT
     CONVERT --> END
-    
+
     OBSERVABILITY -.-> HTTP
     OBSERVABILITY -.-> RESPONSE
     ERROR -.-> VALIDATE
@@ -225,6 +228,7 @@ graph TB
 **Purpose**: Top-level entry point providing unified access to all SDK functionality.
 
 **Key Responsibilities**:
+
 - Configuration management via functional options
 - Service initialization and lifecycle management
 - Observability provider setup and context management
@@ -232,6 +236,7 @@ graph TB
 - Graceful shutdown coordination
 
 **Key Methods**:
+
 - `New(options ...Option) (*Client, error)`: Main constructor with functional options
 - `WithEnvironment(env Environment)`: Environment configuration
 - `WithObservability(tracing, metrics, logging bool)`: Observability setup
@@ -245,12 +250,14 @@ graph TB
 **Purpose**: Service-specific interfaces providing direct API access with proper abstraction.
 
 **Key Components**:
+
 - **Entity Factory** (`entities/entity.go`): Central access point to all services
 - **Service Interfaces**: Strongly-typed interfaces for each domain
 - **HTTP Client** (`entities/http.go`): Configured HTTP client with middleware
 - **Model Conversion**: Bridge between SDK models and backend models
 
 **Service Interfaces**:
+
 - `AccountsService`: Account creation, retrieval, balance management
 - `TransactionsService`: Transaction processing (standard & DSL)
 - `OrganizationsService`: Organization lifecycle management
@@ -265,6 +272,7 @@ graph TB
 **Purpose**: Data structures representing all Midaz platform resources with validation.
 
 **Key Features**:
+
 - **Type Safety**: Strongly-typed structs for all resources
 - **Validation**: Built-in validation using the validation package
 - **Conversion Methods**: Bidirectional conversion with backend models (`mmodel`)
@@ -272,6 +280,7 @@ graph TB
 - **JSON Serialization**: Proper JSON tags and custom marshaling
 
 **Core Models**:
+
 - `Account`: Financial account with balances and metadata
 - `Transaction`: Financial transaction with operations
 - `Organization`: Business entity owning ledgers
@@ -298,7 +307,7 @@ erDiagram
         time CreatedAt
         time UpdatedAt
     }
-    
+
     Ledger {
         string ID
         string Name
@@ -308,7 +317,7 @@ erDiagram
         time CreatedAt
         time UpdatedAt
     }
-    
+
     Account {
         string ID
         string Name
@@ -325,7 +334,7 @@ erDiagram
         time CreatedAt
         time UpdatedAt
     }
-    
+
     Transaction {
         string ID
         string Description
@@ -338,7 +347,7 @@ erDiagram
         time CreatedAt
         time UpdatedAt
     }
-    
+
     Operation {
         string ID
         string TransactionID
@@ -350,7 +359,7 @@ erDiagram
         map Metadata
         time CreatedAt
     }
-    
+
     Asset {
         string ID
         string Name
@@ -362,7 +371,7 @@ erDiagram
         time CreatedAt
         time UpdatedAt
     }
-    
+
     Portfolio {
         string ID
         string Name
@@ -373,7 +382,7 @@ erDiagram
         time CreatedAt
         time UpdatedAt
     }
-    
+
     Segment {
         string ID
         string Name
@@ -384,7 +393,7 @@ erDiagram
         time CreatedAt
         time UpdatedAt
     }
-    
+
     Balance {
         string AccountID
         string AssetCode
@@ -417,7 +426,7 @@ graph LR
         CREATE_TRANSACTION[CreateTransactionInput]
         TRANSACTION_DSL[TransactionDSLInput]
     end
-    
+
     subgraph "SDK Models"
         ORG[Organization]
         LEDGER[Ledger]
@@ -425,7 +434,7 @@ graph LR
         TRANSACTION[Transaction]
         OPERATION[Operation]
     end
-    
+
     subgraph "Backend Models (mmodel)"
         MORG[mmodel.Organization]
         MLEDGER[mmodel.Ledger]
@@ -433,13 +442,13 @@ graph LR
         MTRANSACTION[mmodel.Transaction]
         MOPERATION[mmodel.Operation]
     end
-    
+
     CREATE_ORG -->|Validation| ORG
     CREATE_LEDGER -->|Validation| LEDGER
     CREATE_ACCOUNT -->|Validation| ACCOUNT
     CREATE_TRANSACTION -->|Validation| TRANSACTION
     TRANSACTION_DSL -->|DSL Processing| TRANSACTION
-    
+
     ORG <-->|Conversion| MORG
     LEDGER <-->|Conversion| MLEDGER
     ACCOUNT <-->|Conversion| MACCOUNT
@@ -452,6 +461,7 @@ graph LR
 ### Complete API Surface
 
 #### OrganizationsService
+
 ```go
 type OrganizationsService interface {
     // CRUD Operations
@@ -464,6 +474,7 @@ type OrganizationsService interface {
 ```
 
 #### LedgersService
+
 ```go
 type LedgersService interface {
     CreateLedger(ctx context.Context, organizationID string, input *models.CreateLedgerInput) (*models.Ledger, error)
@@ -475,6 +486,7 @@ type LedgersService interface {
 ```
 
 #### AccountsService
+
 ```go
 type AccountsService interface {
     CreateAccount(ctx context.Context, organizationID, ledgerID string, input *models.CreateAccountInput) (*models.Account, error)
@@ -488,15 +500,16 @@ type AccountsService interface {
 ```
 
 #### TransactionsService
+
 ```go
 type TransactionsService interface {
     // Standard Transaction Processing
     CreateTransaction(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionInput) (*models.Transaction, error)
-    
+
     // DSL Transaction Processing
     CreateTransactionWithDSL(ctx context.Context, orgID, ledgerID string, input *models.TransactionDSLInput) (*models.Transaction, error)
     CreateTransactionWithDSLFile(ctx context.Context, orgID, ledgerID string, dslContent []byte) (*models.Transaction, error)
-    
+
     // Retrieval and Management
     GetTransaction(ctx context.Context, orgID, ledgerID, transactionID string) (*models.Transaction, error)
     ListTransactions(ctx context.Context, orgID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Transaction], error)
@@ -505,6 +518,7 @@ type TransactionsService interface {
 ```
 
 #### Additional Services
+
 - **AssetsService**: Asset definition and management
 - **BalancesService**: Account balance queries and history
 - **PortfoliosService**: Account grouping and portfolio management
@@ -515,9 +529,11 @@ type TransactionsService interface {
 ## Utility Packages
 
 ### Configuration (`pkg/config/`)
+
 **Purpose**: Centralized configuration management with environment support.
 
 **Key Features**:
+
 - Environment-based URL resolution (local, development, production)
 - Functional options pattern for type-safe configuration
 - Environment variable integration
@@ -527,9 +543,11 @@ type TransactionsService interface {
 **Location**: `/pkg/config/config.go:78-752`
 
 ### Observability (`pkg/observability/`)
+
 **Purpose**: OpenTelemetry integration for comprehensive monitoring.
 
 **Capabilities**:
+
 - Distributed tracing with span management
 - Metrics collection (request counts, latencies, errors)
 - Structured logging with context propagation
@@ -540,22 +558,35 @@ type TransactionsService interface {
 **Location**: `/pkg/observability/observability.go:1-50`
 
 ### Concurrency (`pkg/concurrent/`)
-**Purpose**: Utilities for high-performance parallel processing.
+
+**Purpose**: Utilities for high-performance parallel processing with resilience features.
 
 **Features**:
-- Worker pools with configurable concurrency
+
+- Worker pools with configurable concurrency levels
+- Circuit breaker pattern for protecting downstream services
 - Rate limiting and backpressure handling
-- Batch processing utilities
+- Batch processing utilities with HTTP batch adapters
 - Result collection and error aggregation
-- Context-aware cancellation
+- Context-aware cancellation and timeout management
 - Unordered result processing for maximum throughput
+- Failure threshold monitoring and automatic recovery
+
+**Key Components**:
+
+- `WorkerPool`: Configurable parallel processing with worker goroutines
+- `CircuitBreaker`: Automatic failure detection and service protection
+- `HttpBatchAdapter`: Batch HTTP request processing for efficiency
+- `RateLimiter`: Token bucket algorithm for request throttling
 
 **Location**: `/pkg/concurrent/concurrent.go:1-50`
 
 ### Retry Logic (`pkg/retry/`)
+
 **Purpose**: Resilient operation execution with intelligent backoff.
 
 **Capabilities**:
+
 - Exponential backoff with configurable parameters
 - Jitter for distributed system stability
 - Context-aware cancellation
@@ -566,9 +597,11 @@ type TransactionsService interface {
 **Location**: `/pkg/retry/retry.go:1-50`
 
 ### Validation (`pkg/validation/`)
+
 **Purpose**: Comprehensive input validation with helpful error messages.
 
 **Features**:
+
 - DSL transaction validation
 - Asset code and type validation
 - Account alias and metadata validation
@@ -579,15 +612,111 @@ type TransactionsService interface {
 
 **Location**: `/pkg/validation/validation.go:1-50`
 
-### Additional Utilities
-- **Pagination** (`pkg/pagination/`): Generic pagination support for all list operations
-- **Errors** (`pkg/errors/`): Structured error handling with classification and details
+### Data Generation Framework (`pkg/generator/`)
+
+**Purpose**: Comprehensive framework for generating realistic demo data and testing scenarios.
+
+**Key Interfaces**:
+
+- `OrganizationGenerator`: Creates organizations with realistic business data
+- `LedgerGenerator`: Generates ledgers with proper configuration and pagination support
+- `AssetGenerator`: Creates assets with scale configuration and rate management
+- `AccountGenerator`: Generates accounts with hierarchy and type relationships
+- `TransactionGenerator`: Creates transactions using DSL patterns and batch processing
+- `TransactionLifecycle`: Manages pending/commit/revert transaction states
+
+**Advanced Features**:
+
+- Concurrent generation with worker pools and circuit breakers
+- Template-based data creation with realistic patterns
+- Account type integration (checking, savings, credit, expense, revenue, liability, equity)
+- Operation route and transaction route creation for validation
+- DSL-based transaction pattern demonstrations
+- Idempotency key support and external ID management
+
+**Location**: `/pkg/generator/interfaces.go:1-73`
+
+### Data Templates (`pkg/data/`)
+
+**Purpose**: Provides templates and patterns for realistic data generation.
+
+**Template Types**:
+
+- `OrgTemplate`: Organizations with legal documents, addresses, and industry metadata
+- `LedgerTemplate`: Basic ledger configurations with metadata
+- `AssetTemplate`: Assets with scale, type, and code specifications
+- `AccountTemplate`: Account creation with type requirements and relationships
+- `TransactionPattern`: DSL-based transaction patterns for complex flows
+
+**Features**:
+
+- Realistic business data with proper formatting
+- Metadata constraints validation (100/2000 character limits)
+- Support for different locales (US EIN vs Brazil CNPJ)
+- Account type relationships and hierarchy support
+- DSL transaction pattern templates
+
+**Location**: `/pkg/data/templates.go:1-63`
+
+### Integrity Verification (`pkg/integrity/`)
+
+**Purpose**: Balance verification and double-entry accounting validation.
+
+**Capabilities**:
+
+- Balance aggregation per asset across all accounts
+- Available and on-hold balance tracking
+- Overdrawn account detection (negative available balances)
+- Double-entry consistency validation
+- Internal net total computation (excluding @external/ accounts)
+- Scale consistency verification for currency amounts
+- Optional account lookup throttling for large ledgers
+
+**Key Types**:
+
+- `BalanceTotals`: Aggregated balance data per asset
+- `Report`: Comprehensive integrity report for ledgers
+- `Checker`: Main integrity verification engine
+
+**Location**: `/pkg/integrity/checker.go:1-219`
+
+### Statistics & Monitoring (`pkg/stats/`)
+
+**Purpose**: Statistics collection, performance monitoring, and metrics aggregation.
+
+**Features**:
+
+- Real-time performance metrics collection
+- API call statistics and timing
+- Transaction volume tracking
+- Entity creation monitoring
+- TPS (Transactions Per Second) calculation
+- Progress monitoring with ETA estimation
+
+**Location**: `/pkg/stats/stats.go:1-50`
+
+### Data Generation & Testing Utilities
+
+- **Generator** (`pkg/generator/`): Comprehensive data generation framework with interfaces for creating realistic demo data
+- **Data** (`pkg/data/`): Templates and patterns for organizations, accounts, assets, and transactions
+- **Integrity** (`pkg/integrity/`): Balance verification, double-entry validation, and data consistency checks
+- **Stats** (`pkg/stats/`): Statistics collection, performance monitoring, and metrics aggregation
+
+### Additional Core Utilities
+
+- **Pagination** (`pkg/pagination/`): Generic pagination support for all list operations with cursor and offset modes
+- **Errors** (`pkg/errors/`): Structured error handling with classification and detailed field-level error reporting
 - **Format** (`pkg/format/`): Date/time formatting and standardization utilities
-- **Performance** (`pkg/performance/`): Batch processing and JSON optimization
+- **Performance** (`pkg/performance/`): Batch processing, JSON optimization, and high-throughput operations
+- **Conversion** (`pkg/conversion/`): Type conversion utilities between SDK models and backend models
+- **Transaction** (`pkg/transaction/`): Transaction processing helpers, batch operations, and reporting utilities
+- **Utils** (`pkg/utils/`): General utility functions for UUID generation, validation, and common operations
+- **Accounts** (`pkg/accounts/`): Account management utilities separate from the entities layer
 
 ## Design Patterns
 
 ### 1. Functional Options Pattern
+
 Used extensively throughout the SDK for type-safe, extensible configuration:
 
 ```go
@@ -608,6 +737,7 @@ cfg, err := config.NewConfig(
 ```
 
 ### 2. Interface Segregation
+
 Each domain has focused interfaces with single responsibilities:
 
 ```go
@@ -627,6 +757,7 @@ type TransactionsService interface {
 ```
 
 ### 3. Factory Pattern
+
 Centralized service creation and configuration:
 
 ```go
@@ -640,6 +771,7 @@ entity := &Entity{
 ```
 
 ### 4. Builder Pattern
+
 Fluent APIs for model construction:
 
 ```go
@@ -654,13 +786,14 @@ account := models.NewAccount().
 ```
 
 ### 5. Middleware Pattern
+
 HTTP request/response processing pipeline:
 
 ```go
 // Observability middleware
 transport := observability.NewHTTPMiddleware(provider)(http.DefaultTransport)
 
-// Retry middleware  
+// Retry middleware
 transport = retry.NewHTTPMiddleware(retryOptions)(transport)
 
 // Authentication middleware
@@ -672,6 +805,7 @@ transport = auth.NewHTTPMiddleware(authProvider)(transport)
 ### External APIs (Client-Facing)
 
 #### Client Construction
+
 ```go
 func New(options ...Option) (*Client, error)
 func WithConfig(cfg *config.Config) Option
@@ -681,6 +815,7 @@ func UseAllAPIs() Option
 ```
 
 #### Service Access
+
 ```go
 // Through client
 client.Entity.Organizations.CreateOrganization(...)
@@ -692,6 +827,7 @@ entity, err := entities.NewWithServiceURLs(serviceURLs, options...)
 ```
 
 #### Configuration
+
 ```go
 cfg, err := config.NewConfig(
     config.WithEnvironment(config.EnvironmentProduction),
@@ -703,15 +839,17 @@ cfg, err := config.NewConfig(
 ### Internal APIs (Package Interfaces)
 
 #### Model Conversion
+
 ```go
 // SDK model to backend model
 mmodelOrg := org.ToMmodelOrganization()
 
-// Backend model to SDK model  
+// Backend model to SDK model
 org := models.FromMmodelOrganization(mmodelOrg)
 ```
 
 #### HTTP Client Interface
+
 ```go
 type HTTPClient interface {
     Do(req *http.Request) (*http.Response, error)
@@ -721,6 +859,7 @@ type HTTPClient interface {
 ```
 
 #### Observability Interface
+
 ```go
 type Provider interface {
     Tracer(name string) trace.Tracer
@@ -749,7 +888,7 @@ sequenceDiagram
     participant API as Midaz API
 
     Note over APP,API: Organization Creation Flow
-    
+
     APP->>CLIENT: New() with functional options
     CLIENT->>CONFIG: Initialize configuration
     CONFIG->>AUTH: Setup authentication
@@ -757,12 +896,12 @@ sequenceDiagram
     CONFIG-->>CLIENT: Return validated config
     CLIENT->>ENTITY: Initialize service entities
     ENTITY-->>CLIENT: Services ready
-    
+
     APP->>CLIENT: Entity.Organizations.CreateOrganization()
     CLIENT->>ENTITY: CreateOrganization(input)
     ENTITY->>VALIDATION: Validate input
     VALIDATION-->>ENTITY: Validation result
-    
+
     alt Validation Success
         ENTITY->>HTTP: Prepare HTTP request
         HTTP->>OBS: Start span/metrics
@@ -795,7 +934,7 @@ sequenceDiagram
 
     APP->>CLIENT: Entity.Accounts.GetBalance(orgID, ledgerID, accountID)
     CLIENT->>ACCOUNTS: GetBalance()
-    
+
     ACCOUNTS->>CACHE: Check balance cache
     alt Cache Hit
         CACHE-->>ACCOUNTS: Return cached balance
@@ -822,31 +961,31 @@ graph TB
         APP[Application]
         CONFIG[SDK Configuration]
     end
-    
+
     subgraph "Access Manager Plugin"
         PLUGIN[Access Manager]
         TOKEN_CACHE[Token Cache]
         REFRESH[Token Refresh Logic]
     end
-    
+
     subgraph "Identity Provider"
         IDP[Identity Provider<br/>OAuth2/OIDC]
         TOKEN_ENDPOINT[Token Endpoint]
     end
-    
+
     subgraph "Midaz Platform"
         ONBOARDING[Onboarding API]
         TRANSACTION[Transaction API]
         AUTH_MIDDLEWARE[Authentication Middleware]
     end
-    
+
     APP --> CONFIG
     CONFIG --> PLUGIN
     PLUGIN --> TOKEN_CACHE
     PLUGIN --> REFRESH
     REFRESH --> TOKEN_ENDPOINT
     TOKEN_ENDPOINT --> IDP
-    
+
     PLUGIN --> AUTH_MIDDLEWARE
     AUTH_MIDDLEWARE --> ONBOARDING
     AUTH_MIDDLEWARE --> TRANSACTION
@@ -855,11 +994,13 @@ graph TB
 ### Security Features
 
 1. **Token Management**:
+
    - Automatic token refresh
    - Secure token storage
    - Token expiration handling
 
 2. **Request Security**:
+
    - HTTPS enforcement
    - Request signing (where applicable)
    - Idempotency key generation
@@ -870,6 +1011,7 @@ graph TB
    - PII protection in traces
 
 **Configuration**:
+
 ```go
 accessManager := auth.AccessManager{
     Enabled:      true,
@@ -891,35 +1033,35 @@ graph LR
         CONVERSION[Model Conversion]
         RETRY[Retry Operations]
     end
-    
+
     subgraph "OpenTelemetry SDK"
         TRACER[Tracer]
-        METER[Meter]  
+        METER[Meter]
         LOGGER[Logger]
         PROPAGATOR[Context Propagator]
     end
-    
+
     subgraph "Exporters"
         OTLP[OTLP Exporter]
         CONSOLE[Console Exporter]
         PROMETHEUS[Prometheus Exporter]
     end
-    
+
     subgraph "Observability Backend"
         JAEGER[Jaeger<br/>Tracing]
         PROMETHEUS_SERVER[Prometheus<br/>Metrics]
         ELK[ELK Stack<br/>Logging]
     end
-    
+
     HTTP --> TRACER
     VALIDATION --> TRACER
     CONVERSION --> METER
     RETRY --> METER
-    
+
     TRACER --> OTLP
     METER --> OTLP
     LOGGER --> CONSOLE
-    
+
     OTLP --> JAEGER
     OTLP --> PROMETHEUS_SERVER
     CONSOLE --> ELK
@@ -928,16 +1070,19 @@ graph LR
 ### Metrics Collected
 
 **Request Metrics**:
+
 - `midaz.sdk.request.total`: Total requests by service/operation
-- `midaz.sdk.request.duration`: Request latency percentiles  
+- `midaz.sdk.request.duration`: Request latency percentiles
 - `midaz.sdk.request.error.total`: Error count by type
 
 **Operation Metrics**:
+
 - `midaz.sdk.validation.duration`: Validation time
 - `midaz.sdk.conversion.duration`: Model conversion time
 - `midaz.sdk.retry.attempts`: Retry attempt counts
 
 **Resource Metrics**:
+
 - `midaz.sdk.account.operations`: Account operations
 - `midaz.sdk.transaction.operations`: Transaction operations
 - `midaz.sdk.organization.operations`: Organization operations
@@ -954,13 +1099,13 @@ graph TB
         FUNCTIONAL_OPTS[Functional Options]
         DEFAULTS[Default Values]
     end
-    
+
     subgraph "Configuration Resolution"
         RESOLVER[Config Resolver]
         VALIDATOR[Config Validator]
         MAPPER[Service URL Mapper]
     end
-    
+
     subgraph "Service Configuration"
         ONBOARDING_URL[Onboarding Service URL]
         TRANSACTION_URL[Transaction Service URL]
@@ -968,15 +1113,15 @@ graph TB
         HTTP_CONFIG[HTTP Client Config]
         OBSERVABILITY_CONFIG[Observability Config]
     end
-    
+
     ENV_VARS --> RESOLVER
     CONFIG_FILE --> RESOLVER
     FUNCTIONAL_OPTS --> RESOLVER
     DEFAULTS --> RESOLVER
-    
+
     RESOLVER --> VALIDATOR
     VALIDATOR --> MAPPER
-    
+
     MAPPER --> ONBOARDING_URL
     MAPPER --> TRANSACTION_URL
     MAPPER --> AUTH_CONFIG
@@ -987,6 +1132,7 @@ graph TB
 ### Environment Support
 
 **Local Development**:
+
 ```
 MIDAZ_ENVIRONMENT=local
 MIDAZ_ONBOARDING_URL=http://localhost:3000/v1
@@ -994,12 +1140,14 @@ MIDAZ_TRANSACTION_URL=http://localhost:3001/v1
 ```
 
 **Development/Staging**:
+
 ```
 MIDAZ_ENVIRONMENT=development
 MIDAZ_BASE_URL=https://api.dev.midaz.io
 ```
 
 **Production**:
+
 ```
 MIDAZ_ENVIRONMENT=production
 MIDAZ_BASE_URL=https://api.midaz.io
@@ -1022,25 +1170,25 @@ graph TB
         TIMEOUT[TimeoutError<br/>Request timeouts]
         RATE_LIMIT[RateLimitError<br/>Rate limiting]
     end
-    
+
     subgraph "Error Handling"
         RETRY_LOGIC[Automatic Retry<br/>For transient errors]
         ERROR_ENRICHMENT[Error Enrichment<br/>Add context/suggestions]
         STRUCTURED_ERRORS[Structured Errors<br/>Field-level details]
         ERROR_LOGGING[Error Logging<br/>With correlation IDs]
     end
-    
+
     NETWORK --> RETRY_LOGIC
     TIMEOUT --> RETRY_LOGIC
     RATE_LIMIT --> RETRY_LOGIC
     SERVER --> RETRY_LOGIC
-    
+
     VALIDATION --> ERROR_ENRICHMENT
     AUTH --> ERROR_ENRICHMENT
     AUTHORIZATION --> ERROR_ENRICHMENT
-    
+
     VALIDATION --> STRUCTURED_ERRORS
-    
+
     ALL --> ERROR_LOGGING
 ```
 
@@ -1071,6 +1219,7 @@ type FieldError struct {
 ### Concurrency Patterns
 
 **Worker Pool Pattern**:
+
 ```go
 // Process 1000 transactions with 10 workers
 results := concurrent.WorkerPool(ctx, transactions,
@@ -1084,6 +1233,7 @@ results := concurrent.WorkerPool(ctx, transactions,
 ```
 
 **Batch Processing**:
+
 ```go
 // Process accounts in batches of 50
 results := concurrent.Batch(ctx, accounts, 50,
@@ -1154,11 +1304,11 @@ validator, err := validation.NewValidator(
 
 ### Environment Configuration Matrix
 
-| Environment | Onboarding URL | Transaction URL | Authentication | Debug |
-|-------------|----------------|-----------------|----------------|-------|
-| Local | `localhost:3000/v1` | `localhost:3001/v1` | Optional | Enabled |
-| Development | `api.dev.midaz.io/onboarding` | `api.dev.midaz.io/transaction` | Required | Configurable |
-| Production | `api.midaz.io/onboarding` | `api.midaz.io/transaction` | Required | Disabled |
+| Environment | Onboarding URL                | Transaction URL                | Authentication | Debug        |
+| ----------- | ----------------------------- | ------------------------------ | -------------- | ------------ |
+| Local       | `localhost:3000/v1`           | `localhost:3001/v1`            | Optional       | Enabled      |
+| Development | `api.dev.midaz.io/onboarding` | `api.dev.midaz.io/transaction` | Required       | Configurable |
+| Production  | `api.midaz.io/onboarding`     | `api.midaz.io/transaction`     | Required       | Disabled     |
 
 ### Container Deployment
 
@@ -1185,23 +1335,68 @@ spec:
   template:
     spec:
       containers:
-      - name: app
-        image: midaz-sdk-app:latest
-        env:
-        - name: MIDAZ_ENVIRONMENT
-          value: "production"
-        - name: MIDAZ_CLIENT_ID
-          valueFrom:
-            secretKeyRef:
-              name: midaz-credentials
-              key: client-id
-        - name: PLUGIN_AUTH_ENABLED
-          value: "true"
+        - name: app
+          image: midaz-sdk-app:latest
+          env:
+            - name: MIDAZ_ENVIRONMENT
+              value: "production"
+            - name: MIDAZ_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: midaz-credentials
+                  key: client-id
+            - name: PLUGIN_AUTH_ENABLED
+              value: "true"
 ```
+
+## Example Applications & Demonstrations
+
+The SDK includes comprehensive example applications demonstrating various usage patterns and advanced features.
+
+### Mass Demo Generator (`examples/mass-demo-generator/`)
+
+A comprehensive demo data generation application showcasing advanced SDK capabilities:
+
+**Key Features**:
+
+- **Concurrent Processing**: Parallel entity creation with configurable worker pools
+- **Circuit Breaker Integration**: Automatic API protection with failure detection
+- **DSL Transaction Patterns**: Complex transaction flows using domain-specific language
+- **Routing System**: Complete account types, operation routes, and transaction routes
+- **Integrity Verification**: Balance checks and double-entry validation
+- **Comprehensive Reporting**: Detailed HTML and JSON reports with performance metrics
+
+**Generated Data Structure**:
+
+1. Organizations with realistic business data and addresses
+2. Ledgers with proper metadata and configuration
+3. Assets including fiat currencies, cryptocurrencies, and loyalty points
+4. Account types (checking, savings, credit, expense, revenue, liability, equity)
+5. Accounts with hierarchical relationships and type associations
+6. Portfolios and segments for account organization
+7. Operation routes and transaction routes for validation
+8. Transactions using both standard operations and DSL patterns
+
+**Performance Characteristics**:
+
+- Configurable concurrency levels (1-50 workers)
+- Circuit breaker protection with failure thresholds
+- Rate limiting and throttling capabilities
+- Real-time progress monitoring with TPS metrics
+- Batch processing optimization for high throughput
+
+### Other Examples
+
+- **`workflow-with-entities/`**: Complete end-to-end workflow implementation
+- **`concurrency-example/`**: Concurrent operations and balance fetching
+- **`observability-demo/`**: Observability and monitoring setup
+- **`configuration-examples/`**: SDK configuration patterns and best practices
+- **`validation-example/`**: Input validation and error handling patterns
+- **`retry-example/`**: Retry mechanisms and error handling
 
 ---
 
-**Document Version**: 1.0  
-**Last Updated**: 2025-01-22  
-**SDK Version**: 1.1.0-beta.2  
+**Document Version**: 1.1  
+**Last Updated**: 2025-09-28  
+**SDK Version**: 2.0.0  
 **Architecture Review Status**: ✅ Complete

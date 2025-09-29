@@ -254,7 +254,6 @@ func (e *operationsEntity) ListOperations(ctx context.Context, orgID, ledgerID, 
 	url := e.buildURL(orgID, ledgerID, accountID, "")
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -362,7 +361,6 @@ func (e *operationsEntity) GetOperation(ctx context.Context, orgID, ledgerID, ac
 	url := e.buildURL(orgID, ledgerID, accountID, operationID)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -403,13 +401,11 @@ func (e *operationsEntity) UpdateOperation(ctx context.Context, orgID, ledgerID,
 	url := fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/%s/operations/%s", e.baseURLs["transaction"], orgID, ledgerID, accountID, operationID)
 
 	body, err := json.Marshal(input)
-
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, bytes.NewBuffer(body))
-
+	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, bytes.NewBuffer(body))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
