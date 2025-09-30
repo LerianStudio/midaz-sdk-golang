@@ -17,6 +17,38 @@ Contributors: Guilherme Moreira Rodrigues
 - **Environment Configuration**: Improved the setup of automated workflows, contributing to the overall robustness and efficiency of our development and deployment pipeline.
 
 
+## [v2.1.0] - 2025-09-30
+
+[Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v2.0.3...v2.1.0)
+Contributors: Fred Amaral, Guilherme Moreira Rodrigues, dependabot[bot], lerian-studio
+
+### ⚠️ Breaking Changes
+- **Core SDK Refactoring**: This update refines core packages for better code clarity and maintainability. Existing integrations may be affected. Developers should review and update their implementations to align with the new structure. [Migration guidance: Break down large functions into smaller, single-responsibility helpers.]
+- **Build System Update**: The build path has changed from `./internal/...` to `./pkg/...`. Developers need to adjust their build scripts and dependencies accordingly to accommodate this new project structure.
+
+### ✨ Features
+- **Mass Demo Data Generator**: A new tool for generating realistic financial data, perfect for performance testing and SDK feature demonstrations. This CLI application is highly configurable, allowing for persistent data creation tailored to user needs.
+- **Documentation Overhaul**: Comprehensive updates to SDK documentation now include new v2 features and examples, offering a detailed guide for developers and enhancing usability with improved function signatures.
+
+### 🐛 Bug Fixes
+- **Batch Processing Reliability**: Resolved issues with recursive calls and context cancellation, preventing infinite loops and ensuring effective timeout management.
+- **Transaction Handling Stability**: Fixed an integer underflow in backoff calculations, preventing erroneous large values that could stall transaction processing.
+
+### ⚡ Performance
+- **Error Handling Optimization**: Improved error handling in batch processing to prevent infinite loops and ensure partial results are returned on failure, enhancing reliability and execution visibility.
+
+### 🔄 Changes
+- **Security Enhancements**: Addressed path traversal vulnerabilities and improved file permission checks, preventing resource leaks and enhancing overall security.
+- **Developer Experience**: Enhanced circuit breaker logic for better clarity and added logging for default configuration values, improving observability and preventing obscure script failures.
+
+### 📚 Documentation
+- **Enhanced Guides**: Updated all SDK documentation to reflect new features and provide clearer examples, aiding developers in understanding and implementing SDK capabilities.
+
+### 🔧 Maintenance
+- **Dependency Updates**: Upgraded several dependencies, including OpenTelemetry and Testify, ensuring compatibility with the latest features and improvements.
+- **CI/CD Enhancements**: Updated CI workflows to use Go version 1.24.2 and removed obsolete files, aligning the build environment with modern standards and improving pipeline efficiency.
+
+
 ## [v2.1.0-beta.4] - 2025-09-30
 
 [Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v2.1.0-beta.3...v2.1.0-beta.4)
