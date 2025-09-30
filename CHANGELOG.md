@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 import "github.com/LerianStudio/midaz-sdk-golang/v2"
 
 <<<<<<< HEAD
+## [v2.1.0-beta.4] - 2025-09-30
+
+[Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v2.1.0-beta.3...v2.1.0-beta.4)
+Contributors: Guilherme Moreira Rodrigues
+
+### 🐛 Bug Fixes
+- **Improved GitHub Actions Compatibility**: Updated the configuration to use the 'with' keyword for input parameters instead of 'env'. This change prevents potential execution errors, ensuring that the CI/CD pipeline runs smoothly and reliably, which is crucial for maintaining consistent deployment processes.
+
+### 🔧 Maintenance
+- **Configuration Update**: This behind-the-scenes improvement aligns our setup with the latest GitHub Actions best practices, reducing the risk of future compatibility issues and enhancing the overall stability of our development workflow.
+
+
 ## [v2.0.0] - 2025-08-04
 
 This major release of the midaz-sdk-golang introduces significant enhancements to deployment processes and system architecture, alongside improvements in documentation and code quality.
