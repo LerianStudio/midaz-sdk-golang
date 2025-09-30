@@ -21,6 +21,7 @@ permissions:
   id-token: write
   contents: write
   pull-requests: write
+  packages: read
 
 jobs:
   # Publish release using the lerian-studio/github-actions-go-pipeline-template
