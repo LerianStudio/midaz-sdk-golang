@@ -40,6 +40,7 @@ GOCLEAN := $(GO) clean
 PROJECT_ROOT := $(shell pwd)
 PROJECT_NAME := midaz-go-sdk
 LDFLAGS := -ldflags "-X main.Version=$(VERSION)"
+MODULE := $(shell $(GO) list -m)
 
 # Environment variables
 ENV_FILE := $(PROJECT_ROOT)/.env
@@ -77,6 +78,7 @@ help:
 	@echo ""
 	@echo "Example Commands:"
 	@echo "  make example                     - Run complete workflow example"
+	@echo "  make demo-data                   - Run mass demo data generator (interactive)"
 	@echo ""
 	@echo "Documentation Commands:"
 	@echo "  make godoc                       - Start a godoc server for interactive documentation"
@@ -223,6 +225,19 @@ example:
 	@cp $(ENV_FILE) examples/workflow-with-entities/.env
 	@cd examples/workflow-with-entities && go run main.go
 
+.PHONY: demo-data
+
+demo-data:
+	$(call print_header,Running Mass Demo Data Generator)
+	$(call print_header,Ensure Midaz services are running on localhost:3000 (onboarding) and :3001 (transaction))
+	@if [ -f "$(ENV_FILE)" ]; then \
+		cp $(ENV_FILE) examples/mass-demo-generator/.env; \
+	else \
+		echo "⚠️  Warning: $(ENV_FILE) not found. Run 'make set-env' first or create .env manually."; \
+		exit 1; \
+	fi
+	@cd examples/mass-demo-generator && DEMO_NON_INTERACTIVE=0 go run .
+
 #-------------------------------------------------------
 # Documentation Commands
 #-------------------------------------------------------
@@ -231,7 +246,7 @@ example:
 
 godoc:
 	$(call print_header,"Starting godoc server")
-	@echo "$(CYAN)Starting godoc server at http://localhost:6060/pkg/github.com/LerianStudio/midaz-sdk-golang/$(NC)"
+	@echo "$(CYAN)Starting godoc server at http://localhost:6060/pkg/$(MODULE)/$(NC)"
 	@if ! command -v godoc > /dev/null; then \
 		echo "$(YELLOW)Installing godoc...$(NC)"; \
 		go install golang.org/x/tools/cmd/godoc@latest; \
@@ -240,30 +255,32 @@ godoc:
 
 # List of packages to generate documentation for
 PACKAGES := \
-	github.com/LerianStudio/midaz-sdk-golang \
-	github.com/LerianStudio/midaz-sdk-golang/entities \
-	github.com/LerianStudio/midaz-sdk-golang/models \
-	github.com/LerianStudio/midaz-sdk-golang/pkg/config \
-	github.com/LerianStudio/midaz-sdk-golang/pkg/concurrent \
-	github.com/LerianStudio/midaz-sdk-golang/pkg/observability \
-	github.com/LerianStudio/midaz-sdk-golang/pkg/pagination \
-	github.com/LerianStudio/midaz-sdk-golang/pkg/validation \
-	github.com/LerianStudio/midaz-sdk-golang/pkg/validation/core \
-	github.com/LerianStudio/midaz-sdk-golang/pkg/errors \
-	github.com/LerianStudio/midaz-sdk-golang/pkg/format \
-	github.com/LerianStudio/midaz-sdk-golang/pkg/retry \
-	github.com/LerianStudio/midaz-sdk-golang/pkg/performance
+	$(MODULE) \
+	$(MODULE)/entities \
+	$(MODULE)/models \
+	$(MODULE)/pkg/config \
+	$(MODULE)/pkg/concurrent \
+	$(MODULE)/pkg/observability \
+	$(MODULE)/pkg/pagination \
+	$(MODULE)/pkg/validation \
+	$(MODULE)/pkg/validation/core \
+	$(MODULE)/pkg/errors \
+	$(MODULE)/pkg/format \
+	$(MODULE)/pkg/retry \
+	$(MODULE)/pkg/performance
 
 godoc-static:
 	$(call print_header,"Generating static documentation")
 	@echo "$(CYAN)Generating static documentation...$(NC)"
+	@rm -rf $(DOCS_DIR)
 	@mkdir -p $(DOCS_DIR)
 	@# Process each package
 	@for pkg in $(PACKAGES) ; do \
 		echo "$(CYAN)Generating documentation for $${pkg}...$(NC)" ; \
-		pkg_path=$${pkg#github.com/LerianStudio/midaz-sdk-golang/} ; \
-		if [ "$${pkg_path}" = "github.com/LerianStudio/midaz-sdk-golang" ]; then \
+		if [ "$$pkg" = "$(MODULE)" ]; then \
 			pkg_path="." ; \
+		else \
+			pkg_path=$${pkg#$(MODULE)/}; \
 		fi ; \
 		pkg_dir=$(DOCS_DIR)/$${pkg_path} ; \
 		mkdir -p $${pkg_dir} ; \

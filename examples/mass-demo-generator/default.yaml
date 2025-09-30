@@ -1,0 +1,15 @@
+mass_demo:
+  timeout: 120
+  orgs: 2
+  ledgers_per_org: 2
+  accounts_per_ledger: 100
+  tx_per_account: 50
+  concurrency: 32
+  batch_size: 50
+  assets: 3
+  create_hierarchy: true
+  run_batch: true
+  asset_code: USD
+  chart_group: ""
+  locale: us
+  run_flow: true

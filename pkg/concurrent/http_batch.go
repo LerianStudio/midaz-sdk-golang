@@ -467,6 +467,7 @@ func (e *batchExecutor) executeWithRetries(req *http.Request) ([]byte, int, erro
 		}
 
 		defer resp.Body.Close()
+
 		respBody, readErr := io.ReadAll(resp.Body)
 
 		if readErr != nil {
@@ -641,6 +642,7 @@ func (b *HTTPBatchProcessor) ExecuteBatchWithPoolOptions(ctx context.Context, re
 	// Apply context timeout if one isn't already set
 	if _, ok := ctx.Deadline(); !ok && b.options.Timeout > 0 {
 		var cancel context.CancelFunc
+
 		ctx, cancel = context.WithTimeout(ctx, b.options.Timeout)
 		defer cancel()
 	}

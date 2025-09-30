@@ -67,7 +67,6 @@ func CreateSegments(ctx context.Context, midazClient *client.Client, orgID, ledg
 		segment, err := midazClient.Entity.Segments.CreateSegment(
 			ctx, orgID, ledgerID, segmentInput,
 		)
-
 		if err != nil {
 			fmt.Printf("❌ Failed to create segment '%s': %s\n", segmentInfo.Name, err.Error())
 			return fmt.Errorf("failed to create segment '%s': %w", segmentInfo.Name, err)

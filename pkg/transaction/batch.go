@@ -10,6 +10,7 @@ import (
 	"time"
 
 	client "github.com/LerianStudio/midaz-sdk-golang/v2"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
 	"github.com/google/uuid"
@@ -238,7 +239,10 @@ func (bp *batchProcessor) executeWithRetries(input *models.CreateTransactionInpu
 			}
 		}
 
-		tx, err = bp.client.Entity.Transactions.CreateTransaction(bp.ctx, bp.orgID, bp.ledgerID, input)
+		// Inject idempotency key into context so HTTP layer can add header
+		ctx := entities.WithIdempotencyKey(bp.ctx, input.IdempotencyKey)
+		tx, err = bp.client.Entity.Transactions.CreateTransaction(ctx, bp.orgID, bp.ledgerID, input)
+
 		if err == nil || !isRetryableError(err) {
 			break
 		}
@@ -277,7 +281,7 @@ func (bp *batchProcessor) calculateBackoffFactor(attempt int) uint {
 	if result < 0 {
 		return 0
 	}
-	
+
 	return uint(result)
 }
 
