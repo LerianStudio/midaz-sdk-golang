@@ -7,24 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 import "github.com/LerianStudio/midaz-sdk-golang/v2"
 
-<<<<<<< HEAD
-## [v2.1.0-beta.7] - 2025-09-30
-
-[Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v2.1.0-beta.6...v2.1.0-beta.7)
-Contributors: Guilherme Moreira Rodrigues, lerian-studio
-
-### 📚 Documentation
-- **Changelog Update**: The CHANGELOG has been updated to reflect the latest changes and improvements. This ensures users are well-informed about the project's progress, enhancing transparency and user understanding of new features and modifications.
-
-### 🔧 Maintenance
-- **Documentation Maintenance**: Regular updates to documentation ensure that all changes are accurately captured and communicated, supporting user awareness and project transparency.
-
-### ✨ Improvements
-- **Streamlined Release Workflow**: A new feature has been introduced to automate the release process. This enhancement reduces manual steps, minimizes errors, and ensures a more consistent and reliable deployment of updates. Users can expect a smoother experience with timely access to the latest features and fixes.
-
-
-## [v2.1.0-beta.6] - 2025-09-30
-
 [Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v2.1.0-beta.5...v2.1.0-beta.6)
 Contributors: Guilherme Moreira Rodrigues
 
