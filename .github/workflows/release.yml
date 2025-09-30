@@ -74,7 +74,7 @@ jobs:
           private-key: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_PRIVATE_KEY }}
 
       - uses: LerianStudio/github-actions-gptchangelog@main
-        env:
+        with:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
@@ -83,4 +83,4 @@ jobs:
           LERIAN_CI_CD_USER_NAME: ${{ secrets.LERIAN_CI_CD_USER_NAME }}
           LERIAN_CI_CD_USER_EMAIL: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
           LERIAN_STUDIO_MIDAZ_PUSH_BOT_APP_ID: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_APP_ID }}
-          LERIAN_STUDIO_MIDAZ_PUSH_BOT_PRIVATE_KEY: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_PRIVATE_KEY }} 
+          LERIAN_STUDIO_MIDAZ_PUSH_BOT_PRIVATE_KEY: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_PRIVATE_KEY }}
