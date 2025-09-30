@@ -73,7 +73,7 @@ jobs:
           app-id: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_APP_ID }}
           private-key: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_PRIVATE_KEY }}
 
-      - uses: LerianStudio/github-actions-gptchangelog@main
+      - uses: LerianStudio/github-actions-gptchangelog@develop
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
