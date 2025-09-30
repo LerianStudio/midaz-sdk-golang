@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 import "github.com/LerianStudio/midaz-sdk-golang/v2"
 
 <<<<<<< HEAD
+## [v2.1.0-beta.6] - 2025-09-30
+
+[Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v2.1.0-beta.5...v2.1.0-beta.6)
+Contributors: Guilherme Moreira Rodrigues
+
+### 🐛 Bug Fixes
+- **Configuration Update**: Resolved a misconfiguration in the `github-actions-gptchangelog` action. This fix enhances the stability and reliability of our continuous integration and deployment workflows, ensuring they run smoothly without the need for manual intervention. Users will experience more consistent and dependable automated processes as a result.
+
+### 🔧 Maintenance
+- **Environment Configuration**: Improved the setup of automated workflows, contributing to the overall robustness and efficiency of our development and deployment pipeline.
+
+
 ## [v2.1.0-beta.4] - 2025-09-30
 
 [Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v2.1.0-beta.3...v2.1.0-beta.4)
