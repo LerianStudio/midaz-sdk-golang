@@ -7,9 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 import "github.com/LerianStudio/midaz-sdk-golang/v2"
 
-<<<<<<< HEAD
-## [v2.1.0-beta.6] - 2025-09-30
-
 [Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v2.1.0-beta.5...v2.1.0-beta.6)
 Contributors: Guilherme Moreira Rodrigues
 
