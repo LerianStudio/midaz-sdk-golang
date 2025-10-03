@@ -61,8 +61,8 @@ const (
 	DefaultProductionBaseURL    = "https://api.midaz.io"
 	DefaultOnboardingPort       = "3000"
 	DefaultTransactionPort      = "3001"
-	DefaultLocalOnboardingPath  = "/v1"
-	DefaultLocalTransactionPath = "/v1"
+	DefaultLocalOnboardingPath  = ""
+	DefaultLocalTransactionPath = ""
 
 	// Default retry configuration
 	DefaultMaxRetries   = 3

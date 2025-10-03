@@ -503,22 +503,11 @@ func (e *balancesEntity) buildURL(organizationID, ledgerID, balanceID string) st
 	// Remove trailing slash if present
 	base = strings.TrimSuffix(base, "/")
 
-	// Check if base URL already includes /v1
-	if strings.HasSuffix(base, "/v1") {
-		// If the base URL already includes /v1, use the path without /v1
-		if balanceID == "" {
-			return fmt.Sprintf("%s/organizations/%s/ledgers/%s/balances", base, organizationID, ledgerID)
-		}
-
-		return fmt.Sprintf("%s/organizations/%s/ledgers/%s/balances/%s", base, organizationID, ledgerID, balanceID)
-	}
-
-	// If the base URL doesn't include /v1, add it to the path
 	if balanceID == "" {
-		return fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/balances", base, organizationID, ledgerID)
+		return fmt.Sprintf("%s/organizations/%s/ledgers/%s/balances", base, organizationID, ledgerID)
 	}
 
-	return fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/balances/%s", base, organizationID, ledgerID, balanceID)
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/balances/%s", base, organizationID, ledgerID, balanceID)
 }
 
 // buildAccountURL builds the URL for account balances API calls.
@@ -530,12 +519,5 @@ func (e *balancesEntity) buildAccountURL(orgID, ledgerID, accountID string) stri
 	// Remove trailing slash if present
 	base = strings.TrimSuffix(base, "/")
 
-	// Check if base URL already includes /v1
-	if strings.HasSuffix(base, "/v1") {
-		// If the base URL already includes /v1, use the path without /v1
-		return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/%s/balances", base, orgID, ledgerID, accountID)
-	}
-
-	// If the base URL doesn't include /v1, add it to the path
-	return fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/accounts/%s/balances", base, orgID, ledgerID, accountID)
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/%s/balances", base, orgID, ledgerID, accountID)
 }
