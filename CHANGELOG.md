@@ -17,6 +17,18 @@ Contributors: Guilherme Moreira Rodrigues
 - **Environment Configuration**: Improved the setup of automated workflows, contributing to the overall robustness and efficiency of our development and deployment pipeline.
 
 
+## [v2.1.1-beta.1] - 2025-10-03
+
+[Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v2.1.0...v2.1.1-beta.1)
+Contributors: Arnaldo Pereira
+
+### 🐛 Bug Fixes
+- **Consistent API Versioning**: Resolved discrepancies in API versioning across services, ensuring more reliable and predictable interactions between components. Users will experience smoother service integration and fewer unexpected behaviors (#114).
+
+### 🔧 Maintenance
+- **Code Cleanup and Refactoring**: Improved code readability and maintainability by reducing the codebase by 27 lines. This behind-the-scenes enhancement supports better system management and future development, although it doesn't directly affect user-facing features.
+
+
 ## [v2.1.0-beta.4] - 2025-09-30
 
 [Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v2.1.0-beta.3...v2.1.0-beta.4)
