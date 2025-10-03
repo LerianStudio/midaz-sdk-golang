@@ -103,6 +103,20 @@ func NewHTTPClient(client *http.Client, authToken string, provider observability
 		}
 	}
 
+	// Wrap the client with observability middleware if provider is enabled
+	if provider != nil && provider.IsEnabled() {
+		// Apply HTTP middleware for automatic tracing propagation
+		middleware := observability.NewHTTPMiddleware(provider,
+			observability.WithSecurityDefaults(), // Use secure defaults for headers
+		)
+
+		// Wrap the client's transport with the observability middleware
+		if client.Transport == nil {
+			client.Transport = http.DefaultTransport
+		}
+		client.Transport = middleware(client.Transport)
+	}
+
 	// Create the HTTP client
 	return &HTTPClient{
 		client:        client,
@@ -342,6 +356,9 @@ func (c *HTTPClient) setupRequestHeaders(req *http.Request, headers map[string]s
 	for key, value := range headers {
 		req.Header.Set(key, value)
 	}
+
+	// Note: Tracing context injection is now handled automatically by the
+	// observability HTTP middleware applied to the client's transport
 }
 
 // executeRequestWithRetry handles the request execution with retry logic
