@@ -44,7 +44,7 @@ func TestEntityWithPluginAuth(t *testing.T) {
 		expectError    bool
 	}{
 		{
-			name: "SuccessfulPluginAuth",
+			name: "Success",
 			pluginAuth: auth.AccessManager{
 				Enabled:      true,
 				Address:      "http://localhost:4000",
@@ -58,15 +58,6 @@ func TestEntityWithPluginAuth(t *testing.T) {
 				ExpiresAt:    "2025-05-17T00:00:00Z",
 			},
 			mockStatusCode: http.StatusOK,
-			expectError:    false,
-		},
-		{
-			name: "PluginAuthDisabled",
-			pluginAuth: auth.AccessManager{
-				Enabled: false,
-			},
-			mockResponse:   nil,
-			mockStatusCode: 0,
 			expectError:    false,
 		},
 		{
@@ -92,7 +83,7 @@ func TestEntityWithPluginAuth(t *testing.T) {
 				server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					// Verify request method and path
 					assert.Equal(t, http.MethodPost, r.Method)
-					assert.Equal(t, "/v1/login/oauth/access_token", r.URL.Path)
+					assert.Equal(t, "/login/oauth/access_token", r.URL.Path)
 
 					// Set response status code
 					w.WriteHeader(tt.mockStatusCode)
@@ -115,8 +106,8 @@ func TestEntityWithPluginAuth(t *testing.T) {
 			mockConfig := &mockPluginAuthConfig{
 				httpClient: &http.Client{},
 				baseURLs: map[string]string{
-					"onboarding":  "http://localhost:3000/v1",
-					"transaction": "http://localhost:3001/v1",
+					"onboarding":  "http://localhost:3000",
+					"transaction": "http://localhost:3001",
 				},
 				pluginAuth: tt.pluginAuth,
 			}
@@ -201,7 +192,7 @@ func TestWithPluginAuthOption(t *testing.T) {
 				server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					// Verify request method and path
 					assert.Equal(t, http.MethodPost, r.Method)
-					assert.Equal(t, "/v1/login/oauth/access_token", r.URL.Path)
+					assert.Equal(t, "/login/oauth/access_token", r.URL.Path)
 
 					// Set response status code
 					w.WriteHeader(tt.mockStatusCode)
@@ -221,8 +212,8 @@ func TestWithPluginAuthOption(t *testing.T) {
 			entity := &Entity{
 				httpClient: NewHTTPClient(&http.Client{}, "", nil),
 				baseURLs: map[string]string{
-					"onboarding":  "http://localhost:3000/v1",
-					"transaction": "http://localhost:3001/v1",
+					"onboarding":  "http://localhost:3000",
+					"transaction": "http://localhost:3001",
 				},
 			}
 

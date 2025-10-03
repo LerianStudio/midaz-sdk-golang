@@ -104,7 +104,7 @@ func TestWithPluginAuth(t *testing.T) {
 				server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					// Verify request method and path
 					assert.Equal(t, http.MethodPost, r.Method)
-					assert.Equal(t, "/v1/login/oauth/access_token", r.URL.Path)
+					assert.Equal(t, "/login/oauth/access_token", r.URL.Path)
 
 					// Verify headers
 					assert.Equal(t, "application/json", r.Header.Get("Accept"))
@@ -256,7 +256,7 @@ func TestGetTokenFromPluginAuth(t *testing.T) {
 				server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					// Verify request method and path
 					assert.Equal(t, http.MethodPost, r.Method)
-					assert.Equal(t, "/v1/login/oauth/access_token", r.URL.Path)
+					assert.Equal(t, "/login/oauth/access_token", r.URL.Path)
 
 					// Verify headers
 					assert.Equal(t, "application/json", r.Header.Get("Accept"))
