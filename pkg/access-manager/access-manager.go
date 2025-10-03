@@ -113,7 +113,7 @@ func GetTokenFromAccessManager(ctx context.Context, AccessManager AccessManager,
 	}
 
 	// Create a request to the plugin auth service with the payload
-	url := fmt.Sprintf("%s/v1/login/oauth/access_token", AccessManager.Address)
+	url := fmt.Sprintf("%s/login/oauth/access_token", AccessManager.Address)
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,

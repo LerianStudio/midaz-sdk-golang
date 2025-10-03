@@ -43,8 +43,8 @@ func TestNewConfig(t *testing.T) {
 	onboardingURL := config.ServiceURLs[ServiceOnboarding]
 	transactionURL := config.ServiceURLs[ServiceTransaction]
 
-	expectedOnboardingURL := "http://localhost:3000/v1"
-	expectedTransactionURL := "http://localhost:3001/v1"
+	expectedOnboardingURL := "http://localhost:3000"
+	expectedTransactionURL := "http://localhost:3001"
 
 	if onboardingURL != expectedOnboardingURL {
 		t.Errorf("Expected onboarding URL to be %s, got %s", expectedOnboardingURL, onboardingURL)
@@ -472,8 +472,8 @@ func TestOptionOverrides(t *testing.T) {
 		t.Fatalf("Failed to create config with base URL override: %v", err)
 	}
 
-	expectedOnboardingURL := "https://base.example.com:3000/v1"
-	expectedTransactionURL := "https://base.example.com:3001/v1"
+	expectedOnboardingURL := "https://base.example.com:3000"
+	expectedTransactionURL := "https://base.example.com:3001"
 
 	if config.ServiceURLs[ServiceOnboarding] != expectedOnboardingURL {
 		t.Errorf("Expected onboarding URL to be %s, got %s", expectedOnboardingURL, config.ServiceURLs[ServiceOnboarding])
