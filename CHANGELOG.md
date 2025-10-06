@@ -17,6 +17,25 @@ Contributors: Guilherme Moreira Rodrigues
 - **Environment Configuration**: Improved the setup of automated workflows, contributing to the overall robustness and efficiency of our development and deployment pipeline.
 
 
+## [v2.2.0-beta.1] - 2025-10-06
+
+[Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v2.1.1-beta.1...v2.2.0-beta.1)
+Contributors: Arnaldo Pereira, lerian-studio
+
+### ✨ Features
+- **Comprehensive Tracing**: Gain in-depth insights into API call flows and performance metrics with our new tracing feature. This enhancement allows for precise monitoring and easier debugging, helping you track requests throughout the system and optimize performance efficiently.
+
+### ⚡ Performance
+- **Integrated Tracing in Build**: Tracing is now seamlessly integrated into the build process, ensuring consistent monitoring across all environments without additional setup. This integration enhances system observability and reduces the time needed for configuration.
+
+### 📚 Documentation
+- **Tracing Guides**: We have updated our documentation to include detailed guides on utilizing the new tracing features. Access step-by-step instructions to maximize system observability and performance analysis.
+
+### 🔧 Maintenance
+- **Expanded Test Coverage**: Our test suite now includes comprehensive tests for the new tracing functionalities, ensuring reliability and stability across the API.
+- **Changelog Update**: The CHANGELOG has been revised to reflect the latest updates and improvements, keeping all stakeholders informed about the system's enhancements.
+
+
 ## [v2.1.1-beta.1] - 2025-10-03
 
 [Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v2.1.0...v2.1.1-beta.1)
