@@ -17,6 +17,21 @@ Contributors: Guilherme Moreira Rodrigues
 - **Environment Configuration**: Improved the setup of automated workflows, contributing to the overall robustness and efficiency of our development and deployment pipeline.
 
 
+## [v2.2.0-beta.2] - 2025-10-08
+
+[Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v2.2.0-beta.1...v2.2.0-beta.2)
+Contributors: Arnaldo Pereira, lerian-studio
+
+### 🐛 Bug Fixes
+- **Account Balance Retrieval**: Fixed an issue in the `accounts.GetBalance()` method where incorrect API endpoint paths were used. This ensures accurate and reliable balance queries, enhancing user trust and system dependability.
+
+### 📚 Documentation
+- **Changelog Update**: The changelog has been updated to include recent changes and improvements, ensuring users have access to the most current information about software updates and fixes.
+
+### 🔧 Maintenance
+- **Documentation Maintenance**: Regular updates to documentation help maintain clarity and accuracy, supporting users in understanding and utilizing the software effectively.
+
+
 ## [v2.2.0-beta.1] - 2025-10-06
 
 [Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v2.1.1-beta.1...v2.2.0-beta.1)
