@@ -6,8 +6,8 @@ github.com/LerianStudio/midaz/v3 v3.3.3 h1:QKMJdrJTzrRzy2HiWbTsY4ibajvTikkSp7lGN
 github.com/LerianStudio/midaz/v3 v3.3.3/go.mod h1:4YeemFqJcBF5tmH6YcuMnf0eV5uQVKYbCj34STGZg1Y=
 github.com/andybalholm/brotli v1.2.0 h1:ukwgCxwYrmACq68yiUqwIWnGY0cTPox/M94sVwToPjQ=
 github.com/andybalholm/brotli v1.2.0/go.mod h1:rzTDkvFWvIrjDXZHkuS16NPggd91W3kUSvPlQ1pLaKY=
-github.com/brianvoe/gofakeit/v7 v7.7.3 h1:RWOATEGpJ5EVg2nN8nlaEyaV/aB4d6c3GqYrbqQekss=
-github.com/brianvoe/gofakeit/v7 v7.7.3/go.mod h1:QXuPeBw164PJCzCUZVmgpgHJ3Llj49jSLVkKPMtxtxA=
+github.com/brianvoe/gofakeit/v7 v7.11.0 h1:4fNuEED4iEMLkFvZmpMR7Npu87MbAg15zfmmUsGTYLI=
+github.com/brianvoe/gofakeit/v7 v7.11.0/go.mod h1:OllskdkFOHg1ECRPXRV7OKSLcabgRY0YuzstuBoEFFk=
 github.com/cenkalti/backoff/v5 v5.0.3 h1:ZN+IMa753KfX5hd8vVaMixjnqRZ3y8CuJKRKj1xcsSM=
 github.com/cenkalti/backoff/v5 v5.0.3/go.mod h1:rkhZdG3JZukswDf7f0cwqPNk4K0sa+F97BxZthm/crw=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=
