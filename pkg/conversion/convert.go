@@ -120,14 +120,25 @@ func processFieldValue(value reflect.Value) any {
 	}
 }
 
-// processTimeValue handles time.Time type conversion
+// processTimeValue handles time.Time type conversion.
 func processTimeValue(value reflect.Value) any {
 	if isTimeType(value) {
 		var timeValue time.Time
+
 		if value.Kind() == reflect.Ptr {
-			timeValue = value.Elem().Interface().(time.Time)
+			tv, ok := value.Elem().Interface().(time.Time)
+			if !ok {
+				return nil
+			}
+
+			timeValue = tv
 		} else {
-			timeValue = value.Interface().(time.Time)
+			tv, ok := value.Interface().(time.Time)
+			if !ok {
+				return nil
+			}
+
+			timeValue = tv
 		}
 
 		return ConvertToISODateTime(timeValue)
@@ -287,7 +298,10 @@ func (u *structUnmapper[T]) handleTimeField(field reflect.Value, fieldType refle
 		return false
 	}
 
-	timeStr := value.(string)
+	timeStr, ok := value.(string)
+	if !ok {
+		return false
+	}
 
 	parsedTime, err := time.Parse(time.RFC3339, timeStr)
 	if err != nil {

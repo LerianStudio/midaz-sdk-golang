@@ -16,7 +16,8 @@ var defaultProvider Provider
 // Initialize the default provider
 func init() {
 	// Create a simple default provider with default options
-	p, _ := New(context.Background())
+	// New() with no options always succeeds - error check is safe to ignore
+	p, _ := New(context.Background()) //nolint:errcheck // default options never fail
 	defaultProvider = p
 }
 

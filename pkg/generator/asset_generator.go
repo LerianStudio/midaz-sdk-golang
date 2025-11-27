@@ -28,7 +28,9 @@ func (g *assetGenerator) Generate(ctx context.Context, ledgerID string, template
 	// We require orgID to create assets; since Assets API needs orgID and ledgerID,
 	// we cannot derive orgID from ledgerID here, so expect callers to embed org information in ctx.
 	// To keep the interface stable, we attempt to extract orgID from context key if provided.
-	orgID, _ := ctx.Value(contextKeyOrgID{}).(string)
+	// Type assertion ok value is intentionally ignored - empty string check handles both
+	// cases (missing key and wrong type)
+	orgID, _ := ctx.Value(contextKeyOrgID{}).(string) //nolint:errcheck // ok check unnecessary, empty string validated below
 	if orgID == "" {
 		return nil, fmt.Errorf("organization id missing in context for asset creation")
 	}

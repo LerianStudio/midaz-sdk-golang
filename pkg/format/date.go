@@ -93,21 +93,25 @@ func NewFormatISO(opts ...FormatISOOption) (*FormatISO, error) {
 // DefaultISOFormat returns the default ISO format configuration
 // For backward compatibility, this returns a FormatISO with default settings
 func DefaultISOFormat() *FormatISO {
-	formatter, _ := NewFormatISO()
+	// NewFormatISO with no options always succeeds - error check is safe to ignore
+	// as the default options have no validation that can fail
+	formatter, _ := NewFormatISO() //nolint:errcheck // default options never fail
 	return formatter
 }
 
 // DateOnly returns an ISO formatter configured for date-only output
 // For backward compatibility, this returns a FormatISO with date-only settings
 func DateOnly() *FormatISO {
-	formatter, _ := NewFormatISO(WithIncludeTime(false))
+	// WithIncludeTime option always returns nil error
+	formatter, _ := NewFormatISO(WithIncludeTime(false)) //nolint:errcheck // option never fails
 	return formatter
 }
 
 // DateTimeWithMillis returns an ISO formatter configured for date-time with milliseconds
 // For backward compatibility, this returns a FormatISO with date-time with milliseconds settings
 func DateTimeWithMillis() *FormatISO {
-	formatter, _ := NewFormatISO(WithIncludeMilliseconds(true))
+	// WithIncludeMilliseconds option always returns nil error
+	formatter, _ := NewFormatISO(WithIncludeMilliseconds(true)) //nolint:errcheck // option never fails
 	return formatter
 }
 

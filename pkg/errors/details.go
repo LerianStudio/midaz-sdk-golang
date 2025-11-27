@@ -1,10 +1,31 @@
 package errors
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 )
+
+// codeError is an interface for errors that have a Code method
+type codeError interface {
+	Code() string
+}
+
+// errorCodeError is an interface for errors that have an ErrorCode method
+type errorCodeError interface {
+	ErrorCode() string
+}
+
+// statusCodeError is an interface for errors that have a StatusCode method
+type statusCodeError interface {
+	StatusCode() int
+}
+
+// httpStatusCodeError is an interface for errors that have an HTTPStatusCode method
+type httpStatusCodeError interface {
+	HTTPStatusCode() int
+}
 
 // ErrorDetails contains detailed information about an error
 type ErrorDetails struct {
@@ -32,20 +53,24 @@ func GetErrorDetails(err error) ErrorDetails {
 		OriginalError: err,
 	}
 
-	// Try to extract error code and HTTP status
-	switch e := err.(type) {
-	case interface{ Code() string }:
-		details.Code = e.Code()
-	case interface{ ErrorCode() string }:
-		details.Code = e.ErrorCode()
+	// Try to extract error code using errors.As
+	var ce codeError
+	var ece errorCodeError
+
+	if errors.As(err, &ce) {
+		details.Code = ce.Code()
+	} else if errors.As(err, &ece) {
+		details.Code = ece.ErrorCode()
 	}
 
-	// Try to extract HTTP status code
-	switch e := err.(type) {
-	case interface{ StatusCode() int }:
-		details.HTTPStatus = e.StatusCode()
-	case interface{ HTTPStatusCode() int }:
-		details.HTTPStatus = e.HTTPStatusCode()
+	// Try to extract HTTP status code using errors.As
+	var sce statusCodeError
+	var hsce httpStatusCodeError
+
+	if errors.As(err, &sce) {
+		details.HTTPStatus = sce.StatusCode()
+	} else if errors.As(err, &hsce) {
+		details.HTTPStatus = hsce.HTTPStatusCode()
 	}
 
 	// If no status code was found, try to determine it from the error type

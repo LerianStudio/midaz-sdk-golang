@@ -1325,7 +1325,8 @@ func TestValueOfOriginalType(t *testing.T) {
 		original := &sdkerrors.MidazError{Code: sdkerrors.CodeValidation}
 		result := sdkerrors.ValueOfOriginalType(original, sdkerrors.CodeNotFound)
 
-		midazErr, ok := result.(*sdkerrors.MidazError)
+		var midazErr *sdkerrors.MidazError
+		ok := errors.As(result, &midazErr)
 		assert.True(t, ok)
 		assert.Equal(t, sdkerrors.CodeNotFound, midazErr.Code)
 	})

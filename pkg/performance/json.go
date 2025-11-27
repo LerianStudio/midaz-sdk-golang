@@ -211,7 +211,8 @@ func (p *JSONPool) putDecoder(dec *json.Decoder) {
 
 // getBuffer gets a buffer from the pool.
 func (p *JSONPool) getBuffer() *bytes.Buffer {
-	buf := p.bufferPool.Get().(*bytes.Buffer)
+	// Type assertion is safe because the pool's New function always returns *bytes.Buffer
+	buf := p.bufferPool.Get().(*bytes.Buffer) //nolint:errcheck // pool New always returns *bytes.Buffer
 	buf.Reset()
 
 	return buf

@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"log"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -13,6 +13,23 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// testLogger is a simple CBLogger implementation for testing.
+type testLogger struct {
+	buf *bytes.Buffer
+}
+
+func newTestLogger() *testLogger {
+	return &testLogger{buf: &bytes.Buffer{}}
+}
+
+func (l *testLogger) Printf(format string, v ...any) {
+	fmt.Fprintf(l.buf, format, v...)
+}
+
+func (l *testLogger) String() string {
+	return l.buf.String()
+}
 
 func TestCircuitBreakerTransitions(t *testing.T) {
 	cb := NewCircuitBreaker(2, 1, 100*time.Millisecond)
@@ -117,8 +134,7 @@ func TestCircuitBreakerNamed(t *testing.T) {
 
 func TestCircuitBreakerWithLogger(t *testing.T) {
 	t.Run("LogsStateTransitions", func(t *testing.T) {
-		var logBuf bytes.Buffer
-		logger := log.New(&logBuf, "", 0)
+		logger := newTestLogger()
 
 		cb := NewCircuitBreakerNamed("logged-service", 2, 1, 100*time.Millisecond)
 		cb.WithLogger(logger)
@@ -129,7 +145,7 @@ func TestCircuitBreakerWithLogger(t *testing.T) {
 		_ = cb.Execute(context.Background(), failFn)
 
 		// Check that circuit opened log was written
-		assert.Contains(t, logBuf.String(), "circuit 'logged-service' opened")
+		assert.Contains(t, logger.String(), "circuit 'logged-service' opened")
 
 		// Wait for half-open
 		time.Sleep(120 * time.Millisecond)
@@ -139,12 +155,11 @@ func TestCircuitBreakerWithLogger(t *testing.T) {
 		_ = cb.Execute(context.Background(), successFn)
 
 		// Check that circuit closed log was written
-		assert.Contains(t, logBuf.String(), "circuit 'logged-service' closed")
+		assert.Contains(t, logger.String(), "circuit 'logged-service' closed")
 	})
 
 	t.Run("NoLogsWithoutName", func(t *testing.T) {
-		var logBuf bytes.Buffer
-		logger := log.New(&logBuf, "", 0)
+		logger := newTestLogger()
 
 		cb := NewCircuitBreaker(2, 1, 100*time.Millisecond)
 		cb.WithLogger(logger)
@@ -155,12 +170,11 @@ func TestCircuitBreakerWithLogger(t *testing.T) {
 		_ = cb.Execute(context.Background(), failFn)
 
 		// No logs should be written without a name
-		assert.Empty(t, logBuf.String())
+		assert.Empty(t, logger.String())
 	})
 
 	t.Run("ChainingWithLogger", func(t *testing.T) {
-		var logBuf bytes.Buffer
-		logger := log.New(&logBuf, "", 0)
+		logger := newTestLogger()
 
 		cb := NewCircuitBreakerNamed("chained", 2, 1, 100*time.Millisecond).WithLogger(logger)
 		assert.NotNil(t, cb)

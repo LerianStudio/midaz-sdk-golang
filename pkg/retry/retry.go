@@ -55,6 +55,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math"
 	"net/http"
@@ -465,7 +466,7 @@ func IsRetryableError(err error, options *Options) bool {
 	}
 
 	// Check for context cancellation
-	if err == context.Canceled || err == context.DeadlineExceeded {
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return false
 	}
 

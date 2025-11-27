@@ -62,7 +62,7 @@ func TestWorkerPool(t *testing.T) {
 				t.Errorf("Expected item %d, got %d", items[i], r.Item)
 			}
 			if items[i]%2 == 0 {
-				if r.Error != expectedErr {
+				if !errors.Is(r.Error, expectedErr) {
 					t.Errorf("Expected error %v, got %v", expectedErr, r.Error)
 				}
 			} else {
@@ -334,7 +334,7 @@ func TestBatch(t *testing.T) {
 		for _, r := range results {
 			if r.Error != nil {
 				errorCount++
-				if r.Error != expectedErr {
+				if !errors.Is(r.Error, expectedErr) {
 					t.Errorf("Expected error %v, got %v", expectedErr, r.Error)
 				}
 			}
@@ -392,7 +392,7 @@ func TestForEach(t *testing.T) {
 			t.Error("Expected an error, got nil")
 		}
 
-		if err != expectedErr {
+		if !errors.Is(err, expectedErr) {
 			t.Errorf("Expected error %v, got %v", expectedErr, err)
 		}
 	})
@@ -1015,7 +1015,7 @@ func TestForEachEdgeCases(t *testing.T) {
 		if err == nil {
 			t.Error("Expected error when all items fail, got nil")
 		}
-		if err != expectedErr {
+		if !errors.Is(err, expectedErr) {
 			t.Errorf("Expected error %v, got %v", expectedErr, err)
 		}
 	})
@@ -1177,7 +1177,16 @@ func TestResultStruct(t *testing.T) {
 			Index: 0,
 		}
 
-		if result.Error != expectedErr {
+		if result.Item != "test" {
+			t.Errorf("Expected Item 'test', got %s", result.Item)
+		}
+		if result.Value != 0 {
+			t.Errorf("Expected Value 0, got %d", result.Value)
+		}
+		if result.Index != 0 {
+			t.Errorf("Expected Index 0, got %d", result.Index)
+		}
+		if !errors.Is(result.Error, expectedErr) {
 			t.Errorf("Expected Error %v, got %v", expectedErr, result.Error)
 		}
 	})

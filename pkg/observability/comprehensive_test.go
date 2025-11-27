@@ -1169,24 +1169,34 @@ func TestLoggerFatal(t *testing.T) {
 	var buf bytes.Buffer
 	logger := NewLogger(DebugLevel, &buf, nil).(*LoggerImpl)
 
-	// Set exit function to nil to use panic instead
+	// With nil exit function (default for library code), Fatal just logs without terminating
 	logger.SetExitFunc(nil)
 
-	assert.Panics(t, func() {
+	// Should not panic - library code should not terminate the caller
+	assert.NotPanics(t, func() {
 		logger.Fatal("fatal message")
 	})
+
+	// Verify the message was logged
+	assert.Contains(t, buf.String(), "fatal message")
+	assert.Contains(t, buf.String(), "FATAL")
 }
 
 func TestLoggerFatalf(t *testing.T) {
 	var buf bytes.Buffer
 	logger := NewLogger(DebugLevel, &buf, nil).(*LoggerImpl)
 
-	// Set exit function to nil to use panic instead
+	// With nil exit function (default for library code), Fatal just logs without terminating
 	logger.SetExitFunc(nil)
 
-	assert.Panics(t, func() {
+	// Should not panic - library code should not terminate the caller
+	assert.NotPanics(t, func() {
 		logger.Fatalf("fatal %s", "formatted")
 	})
+
+	// Verify the message was logged
+	assert.Contains(t, buf.String(), "fatal formatted")
+	assert.Contains(t, buf.String(), "FATAL")
 }
 
 func TestLoggerFatalWithCustomExit(t *testing.T) {
@@ -1481,7 +1491,10 @@ func TestHTTPMiddlewareRequestError(t *testing.T) {
 	}
 
 	// Request to closed server should fail
-	_, err = client.Get(serverURL)
+	resp, err := client.Get(serverURL)
+	if resp != nil && resp.Body != nil {
+		_ = resp.Body.Close()
+	}
 	assert.Error(t, err)
 }
 
@@ -1689,11 +1702,14 @@ func TestRoundTripperFuncInterface(t *testing.T) {
 	called := false
 	rtf := roundTripperFunc(func(req *http.Request) (*http.Response, error) {
 		called = true
-		return &http.Response{StatusCode: 200}, nil
+		return &http.Response{StatusCode: 200, Body: http.NoBody}, nil
 	})
 
 	req, _ := http.NewRequest("GET", "http://example.com", nil)
 	resp, err := rtf.RoundTrip(req)
+	if resp != nil && resp.Body != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
 
 	assert.NoError(t, err)
 	assert.True(t, called)

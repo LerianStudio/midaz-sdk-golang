@@ -100,8 +100,9 @@ func (g *orgGenerator) GenerateBatch(ctx context.Context, count int) ([]*models.
 		seed := time.Now().UnixNano() + int64(i)
 		// #nosec G404 - non-cryptographic PRNG used only for demo data variety.
 		r := rand.New(rand.NewSource(seed))
-		// #nosec G104 - gofakeit.Seed does not return an error; safe to ignore.
-		_ = fake.Seed(seed)
+		// gofakeit.Seed returns an error only for documentation; the underlying
+		// implementation always returns nil. Safe to ignore.
+		_ = fake.Seed(seed) //nolint:errcheck // gofakeit.Seed always returns nil
 
 		// Random company and DBA
 		legal := fake.Company()

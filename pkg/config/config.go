@@ -72,6 +72,12 @@ const (
 	DefaultEnableRetries     = true
 )
 
+// Boolean string values for environment variable comparison.
+const (
+	// boolTrue represents the string value "true" for boolean environment variables.
+	boolTrue = "true"
+)
+
 // Config holds the configuration for the Midaz SDK.
 // It centralizes all settings needed to interact with the Midaz API.
 type Config struct {
@@ -456,7 +462,7 @@ func configureAccessManager(c *Config) {
 		c.AccessManager.Address = os.Getenv("PLUGIN_AUTH_ADDRESS")
 		c.AccessManager.ClientID = os.Getenv("MIDAZ_CLIENT_ID")
 		c.AccessManager.ClientSecret = os.Getenv("MIDAZ_CLIENT_SECRET")
-		c.AccessManager.Enabled = enable == "true"
+		c.AccessManager.Enabled = enable == boolTrue
 	}
 }
 
@@ -541,12 +547,12 @@ func configureRetries(c *Config) error {
 
 // configureOptionalSettings sets optional boolean settings from environment
 func configureOptionalSettings(c *Config) {
-	if debug := os.Getenv("MIDAZ_DEBUG"); debug == "true" {
+	if debug := os.Getenv("MIDAZ_DEBUG"); debug == boolTrue {
 		c.Debug = true
 	}
 
 	if idempotency := os.Getenv("MIDAZ_IDEMPOTENCY"); idempotency != "" {
-		c.EnableIdempotency = idempotency == "true"
+		c.EnableIdempotency = idempotency == boolTrue
 	}
 }
 
@@ -649,7 +655,7 @@ func validateConfig(config *Config) error {
 	// When plugin auth is enabled, we require the plugin auth address
 	if config.AccessManager.Enabled && config.AccessManager.Address == "" {
 		// But for tests, we'll skip this check
-		if os.Getenv("MIDAZ_SKIP_AUTH_CHECK") != "true" {
+		if os.Getenv("MIDAZ_SKIP_AUTH_CHECK") != boolTrue {
 			return fmt.Errorf("plugin auth address is required")
 		}
 	}
@@ -736,8 +742,11 @@ func DefaultConfig() *Config {
 		EnableIdempotency: DefaultEnableIdempotency,
 	}
 
-	// Apply default URLs based on environment (ignoring error for default config)
-	_ = setDefaultServiceURLs(config)
+	// Apply default URLs based on environment.
+	// Error is safely ignored because DefaultConfig always uses EnvironmentLocal
+	// which is a valid, known environment that will never return an error.
+	//nolint:errcheck // EnvironmentLocal is hardcoded above and always valid
+	setDefaultServiceURLs(config)
 
 	// Create HTTP client
 	config.HTTPClient = &http.Client{
@@ -826,7 +835,7 @@ func NewLocalConfig(options ...Option) (*Config, error) {
 	pluginAuthClientSecret := ""
 
 	if enabled := os.Getenv("PLUGIN_AUTH_ENABLED"); enabled != "" {
-		pluginAuthEnabled = enabled == "true" || enabled == "1"
+		pluginAuthEnabled = enabled == boolTrue || enabled == "1"
 	}
 
 	if address := os.Getenv("PLUGIN_AUTH_ADDRESS"); address != "" {

@@ -338,7 +338,9 @@ func NewBatchProcessorWithDefaults(client *http.Client, baseURL string, options 
 		opts = append(opts, WithBatchOptions(options))
 	}
 
-	processor, _ := NewBatchProcessor(baseURL, opts...)
+	// NewBatchProcessor may fail if baseURL is empty, but this function maintains
+	// backward compatibility and returns nil in that case
+	processor, _ := NewBatchProcessor(baseURL, opts...) //nolint:errcheck // backward compat: nil on error
 
 	return processor
 }

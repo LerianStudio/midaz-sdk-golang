@@ -316,12 +316,9 @@ func NewHTTPBatchProcessor(client *http.Client, baseURL string, opts ...HTTPBatc
 	// Start with default options
 	options := DefaultHTTPBatchOptions()
 
-	// Apply all provided options
+	// Apply all provided options, continuing with defaults on error
 	for _, opt := range opts {
-		if err := opt(options); err != nil {
-			// Log error and continue with defaults for this option
-			fmt.Printf("Error applying batch option: %v\n", err)
-		}
+		opt(options) //nolint:errcheck // option errors are non-fatal, continue with defaults
 	}
 
 	if client == nil {

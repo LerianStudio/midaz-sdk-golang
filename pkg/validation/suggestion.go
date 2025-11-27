@@ -49,101 +49,122 @@ func GetCommonSuggestions(field string, value any, sugType SuggestionType) []str
 	}
 }
 
+// formatSuggestionMatcher defines a pattern matcher and its corresponding suggestions
+type formatSuggestionMatcher struct {
+	pattern     string
+	suggestions func(value any) []string
+}
+
 // getFormatSuggestions provides suggestions for format issues
 func getFormatSuggestions(field string, value any) []string {
-	// Convert field to lowercase for matching
 	fieldLower := strings.ToLower(field)
 
-	// Asset code suggestions
-	if match(fieldLower, "asset.*code|asset_code|currency|code") {
-		return []string{
-			"Use 3-4 uppercase letters for asset codes (e.g., 'USD', 'EUR', 'BTC')",
-			"Check for incorrect letter case, asset codes must be all uppercase",
+	matchers := buildFormatSuggestionMatchers(field, value)
+
+	for _, matcher := range matchers {
+		if match(fieldLower, matcher.pattern) {
+			return matcher.suggestions(value)
 		}
 	}
 
-	// Account alias suggestions
-	if match(fieldLower, "alias|account.*alias") {
-		return []string{
-			"Use alphanumeric characters with optional underscores or hyphens",
-			"Ensure length is between 1-50 characters",
-			fmt.Sprintf("Current value '%v' may contain invalid characters", value),
-		}
-	}
+	return getGenericFormatSuggestions(field)
+}
 
-	// Transaction code suggestions
-	if match(fieldLower, "transaction.*code|tx.*code") {
-		return []string{
-			"Use alphanumeric characters with optional underscores or hyphens",
-			"Ensure length is between 1-100 characters",
-			"Example: 'TX_123456' or 'payment-2023-01'",
-		}
+func buildFormatSuggestionMatchers(field string, value any) []formatSuggestionMatcher {
+	return []formatSuggestionMatcher{
+		{pattern: "asset.*code|asset_code|currency|code", suggestions: getAssetCodeSuggestions},
+		{pattern: "alias|account.*alias", suggestions: getAliasSuggestions},
+		{pattern: "transaction.*code|tx.*code", suggestions: getTransactionCodeSuggestions},
+		{pattern: "date|timestamp|time", suggestions: getDateFormatSuggestions},
+		{pattern: "email", suggestions: getEmailSuggestions},
+		{pattern: "id|uuid", suggestions: getUUIDSuggestions},
+		{pattern: "metadata", suggestions: getMetadataSuggestions},
+		{pattern: "chart.*accounts|coa", suggestions: getChartOfAccountsSuggestions},
+		{pattern: "external.*account", suggestions: getExternalAccountSuggestions},
+		{pattern: "country|country.*code", suggestions: getCountryCodeSuggestions},
 	}
+}
 
-	// Date format suggestions
-	if match(fieldLower, "date|timestamp|time") {
-		return []string{
-			"Use ISO 8601 date format (YYYY-MM-DDTHH:MM:SSZ)",
-			"Example: '2023-01-15T14:30:00Z'",
-			"Ensure the date is not in the wrong format or timezone",
-		}
+func getAssetCodeSuggestions(_ any) []string {
+	return []string{
+		"Use 3-4 uppercase letters for asset codes (e.g., 'USD', 'EUR', 'BTC')",
+		"Check for incorrect letter case, asset codes must be all uppercase",
 	}
+}
 
-	// Email suggestions
-	if match(fieldLower, "email") {
-		return []string{
-			"Use a valid email format (e.g., 'user@example.com')",
-			"Check for missing @ symbol or domain part",
-		}
+func getAliasSuggestions(value any) []string {
+	return []string{
+		"Use alphanumeric characters with optional underscores or hyphens",
+		"Ensure length is between 1-50 characters",
+		fmt.Sprintf("Current value '%v' may contain invalid characters", value),
 	}
+}
 
-	// UUID suggestions
-	if match(fieldLower, "id|uuid") {
-		return []string{
-			"Use a valid UUID v4 format",
-			"Example: '123e4567-e89b-12d3-a456-426614174000'",
-			"Ensure all hexadecimal characters and hyphens are present",
-		}
+func getTransactionCodeSuggestions(_ any) []string {
+	return []string{
+		"Use alphanumeric characters with optional underscores or hyphens",
+		"Ensure length is between 1-100 characters",
+		"Example: 'TX_123456' or 'payment-2023-01'",
 	}
+}
 
-	// Metadata suggestions
-	if match(fieldLower, "metadata") {
-		return []string{
-			"Metadata keys must be 1-64 characters",
-			"Metadata values must be strings, numbers, booleans, or nil",
-			"String values must be 1-256 characters",
-			"Total metadata size must be under 4KB",
-		}
+func getDateFormatSuggestions(_ any) []string {
+	return []string{
+		"Use ISO 8601 date format (YYYY-MM-DDTHH:MM:SSZ)",
+		"Example: '2023-01-15T14:30:00Z'",
+		"Ensure the date is not in the wrong format or timezone",
 	}
+}
 
-	// Chart of accounts suggestions
-	if match(fieldLower, "chart.*accounts|coa") {
-		return []string{
-			"Use alphanumeric characters with optional spaces, underscores or hyphens",
-			"Ensure length is between 1-100 characters",
-			"Example: 'Standard Chart' or 'GAAP_2023'",
-		}
+func getEmailSuggestions(_ any) []string {
+	return []string{
+		"Use a valid email format (e.g., 'user@example.com')",
+		"Check for missing @ symbol or domain part",
 	}
+}
 
-	// External account suggestions
-	if match(fieldLower, "external.*account") {
-		return []string{
-			"Use format '@external/XXX' where XXX is the asset code",
-			"Example: '@external/USD'",
-			"Asset code must be 3-4 uppercase letters",
-		}
+func getUUIDSuggestions(_ any) []string {
+	return []string{
+		"Use a valid UUID v4 format",
+		"Example: '123e4567-e89b-12d3-a456-426614174000'",
+		"Ensure all hexadecimal characters and hyphens are present",
 	}
+}
 
-	// Country code suggestions
-	if match(fieldLower, "country|country.*code") {
-		return []string{
-			"Use ISO 3166-1 alpha-2 country codes (2 letters)",
-			"Examples: 'US', 'GB', 'CA', 'JP'",
-			"Country codes must be uppercase",
-		}
+func getMetadataSuggestions(_ any) []string {
+	return []string{
+		"Metadata keys must be 1-64 characters",
+		"Metadata values must be strings, numbers, booleans, or nil",
+		"String values must be 1-256 characters",
+		"Total metadata size must be under 4KB",
 	}
+}
 
-	// Generic format suggestions
+func getChartOfAccountsSuggestions(_ any) []string {
+	return []string{
+		"Use alphanumeric characters with optional spaces, underscores or hyphens",
+		"Ensure length is between 1-100 characters",
+		"Example: 'Standard Chart' or 'GAAP_2023'",
+	}
+}
+
+func getExternalAccountSuggestions(_ any) []string {
+	return []string{
+		"Use format '@external/XXX' where XXX is the asset code",
+		"Example: '@external/USD'",
+		"Asset code must be 3-4 uppercase letters",
+	}
+}
+
+func getCountryCodeSuggestions(_ any) []string {
+	return []string{
+		"Use ISO 3166-1 alpha-2 country codes (2 letters)",
+		"Examples: 'US', 'GB', 'CA', 'JP'",
+		"Country codes must be uppercase",
+	}
+}
+
+func getGenericFormatSuggestions(field string) []string {
 	return []string{
 		fmt.Sprintf("Check the documentation for the correct format of '%s'", field),
 		"Ensure there are no leading or trailing spaces",
@@ -330,9 +351,14 @@ func getStructureSuggestions(field string) []string {
 	}
 }
 
-// match checks if the field name matches a regular expression pattern
+// match checks if the field name matches a regular expression pattern.
 func match(field, pattern string) bool {
-	matched, _ := regexp.MatchString(pattern, field)
+	matched, err := regexp.MatchString(pattern, field)
+	if err != nil {
+		// Invalid pattern - return false rather than panic
+		return false
+	}
+
 	return matched
 }
 

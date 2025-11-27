@@ -500,103 +500,112 @@ func (p *defaultPaginator[T]) ForEach(ctx context.Context, fn func(item T) error
 	return p.Err()
 }
 
-// Concurrent processes items concurrently with the specified number of workers
-func (p *defaultPaginator[T]) Concurrent(ctx context.Context, workers int, fn func(item T) error) error {
-	if workers <= 0 {
-		workers = 5 // Default to 5 workers
-	}
+// concurrentWorkerConfig holds the configuration for concurrent processing.
+type concurrentWorkerConfig[T any] struct {
+	itemCh chan T
+	errCh  chan error
+	cancel context.CancelFunc
+	fn     func(item T) error
+}
 
-	// Create a buffered channel for items to process
-	itemCh := make(chan T, workers*2)
+// startWorker runs a single worker that processes items from the channel.
+func startWorker[T any](ctx context.Context, wg *sync.WaitGroup, cfg *concurrentWorkerConfig[T]) {
+	defer wg.Done()
 
-	// Create a channel for errors
-	errCh := make(chan error, 1)
+	for item := range cfg.itemCh {
+		if ctx.Err() != nil {
+			return
+		}
 
-	// Create a WaitGroup to wait for all workers to finish
-	var wg sync.WaitGroup
-
-	// Context with cancellation for terminating workers
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	// Start workers
-	for i := 0; i < workers; i++ {
-		wg.Add(1)
-
-		go func() {
-			defer wg.Done()
-
-			for item := range itemCh {
-				// Check if the context was cancelled
-				if ctx.Err() != nil {
-					return
-				}
-
-				// Process the item
-				if err := fn(item); err != nil {
-					// Send the error and return
-					select {
-					case errCh <- err:
-					default:
-					}
-
-					cancel() // Cancel other workers
-
-					return
-				}
-			}
-		}()
-	}
-
-	// Function to feed items to workers
-	processCurrent := func() {
-		for _, item := range p.Items() {
-			// Check for errors or cancellation
+		if err := cfg.fn(item); err != nil {
 			select {
-			case <-ctx.Done():
-				return
-			case err := <-errCh:
-				errCh <- err // Put it back for the main goroutine to find
-
-				return
+			case cfg.errCh <- err:
 			default:
 			}
 
-			itemCh <- item
+			cfg.cancel()
+
+			return
 		}
 	}
+}
 
-	// Process current page if we already have one
-	if p.currentPage != nil && len(p.currentPage.Items) > 0 {
-		processCurrent()
-	}
+// feedItemsToChannel sends items to the worker channel, respecting context cancellation.
+func feedItemsToChannel[T any](ctx context.Context, items []T, itemCh chan<- T, errCh chan error) {
+	for _, item := range items {
+		select {
+		case <-ctx.Done():
+			return
+		case err := <-errCh:
+			errCh <- err // Put it back for the main goroutine to find
 
-	// Process all remaining pages
-	for p.Next(ctx) {
-		processCurrent()
-
-		// Check for cancellation
-		if ctx.Err() != nil {
-			break
+			return
+		default:
 		}
+
+		itemCh <- item
 	}
+}
 
-	// Close the item channel and wait for workers to finish
-	close(itemCh)
-	wg.Wait()
-
-	// Check if there was an error from the fetcher
-	if err := p.Err(); err != nil {
-		return err
-	}
-
-	// Check if there was an error from a worker
+// collectWorkerError checks for errors from workers after processing completes.
+func collectWorkerError(errCh <-chan error) error {
 	select {
 	case err := <-errCh:
 		return err
 	default:
 		return nil
 	}
+}
+
+// Concurrent processes items concurrently with the specified number of workers
+func (p *defaultPaginator[T]) Concurrent(ctx context.Context, workers int, fn func(item T) error) error {
+	if workers <= 0 {
+		workers = 5 // Default to 5 workers
+	}
+
+	itemCh := make(chan T, workers*2)
+	errCh := make(chan error, 1)
+
+	var wg sync.WaitGroup
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	cfg := &concurrentWorkerConfig[T]{
+		itemCh: itemCh,
+		errCh:  errCh,
+		cancel: cancel,
+		fn:     fn,
+	}
+
+	// Start workers
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go startWorker(ctx, &wg, cfg)
+	}
+
+	// Process current page if we already have one
+	if p.currentPage != nil && len(p.currentPage.Items) > 0 {
+		feedItemsToChannel(ctx, p.Items(), itemCh, errCh)
+	}
+
+	// Process all remaining pages
+	for p.Next(ctx) {
+		feedItemsToChannel(ctx, p.Items(), itemCh, errCh)
+
+		if ctx.Err() != nil {
+			break
+		}
+	}
+
+	close(itemCh)
+	wg.Wait()
+
+	if err := p.Err(); err != nil {
+		return err
+	}
+
+	return collectWorkerError(errCh)
 }
 
 // CollectAll is a shortcut function to create a Paginator and collect all items

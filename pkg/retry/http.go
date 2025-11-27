@@ -4,6 +4,7 @@ package retry
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -593,7 +594,7 @@ func (r *httpRetryState) createFinalErrorResponse() *HTTPResponse {
 	return &HTTPResponse{
 		Response: r.resp,
 		Body:     r.respBody,
-		Error:    fmt.Errorf("operation failed after %d retries, last status: %d, last error: %v", r.options.MaxRetries, r.lastStatusCode, r.lastErr),
+		Error:    fmt.Errorf("operation failed after %d retries, last status: %d, last error: %w", r.options.MaxRetries, r.lastStatusCode, r.lastErr),
 		Attempt:  r.options.MaxRetries,
 	}
 }
@@ -646,7 +647,7 @@ func isNetworkErrorRetryable(err error, options *HTTPOptions) bool {
 	}
 
 	// Check for context cancellation
-	if err == context.Canceled || err == context.DeadlineExceeded {
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return false
 	}
 

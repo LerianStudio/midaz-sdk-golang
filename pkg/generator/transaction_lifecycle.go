@@ -36,8 +36,10 @@ func (l *lifecycle) CreatePending(ctx context.Context, input *models.CreateTrans
 	input.Pending = true
 
 	// orgID and ledgerID are required; pass them via context to keep interface minimal
-	orgID, _ := ctx.Value(contextKeyOrgID{}).(string)
-	ledgerID, _ := ctx.Value(contextKeyLedgerID{}).(string)
+	// Type assertion ok values are intentionally ignored - empty string check handles both
+	// cases (missing key and wrong type)
+	orgID, _ := ctx.Value(contextKeyOrgID{}).(string)       //nolint:errcheck // ok check unnecessary, empty string validated below
+	ledgerID, _ := ctx.Value(contextKeyLedgerID{}).(string) //nolint:errcheck // ok check unnecessary, empty string validated below
 
 	if orgID == "" || ledgerID == "" {
 		return nil, fmt.Errorf("organization and ledger IDs are required in context")
@@ -76,8 +78,10 @@ func (l *lifecycle) Commit(ctx context.Context, txID string) error {
 		return fmt.Errorf("transaction ID is required")
 	}
 
-	orgID, _ := ctx.Value(contextKeyOrgID{}).(string)
-	ledgerID, _ := ctx.Value(contextKeyLedgerID{}).(string)
+	// Type assertion ok values are intentionally ignored - empty string check handles both
+	// cases (missing key and wrong type)
+	orgID, _ := ctx.Value(contextKeyOrgID{}).(string)       //nolint:errcheck // ok check unnecessary, empty string validated below
+	ledgerID, _ := ctx.Value(contextKeyLedgerID{}).(string) //nolint:errcheck // ok check unnecessary, empty string validated below
 
 	if orgID == "" || ledgerID == "" {
 		return fmt.Errorf("organization and ledger IDs are required in context")
@@ -103,8 +107,10 @@ func (l *lifecycle) Revert(ctx context.Context, txID string) error {
 		return fmt.Errorf("transaction ID is required")
 	}
 
-	orgID, _ := ctx.Value(contextKeyOrgID{}).(string)
-	ledgerID, _ := ctx.Value(contextKeyLedgerID{}).(string)
+	// Type assertion ok values are intentionally ignored - empty string check handles both
+	// cases (missing key and wrong type)
+	orgID, _ := ctx.Value(contextKeyOrgID{}).(string)       //nolint:errcheck // ok check unnecessary, empty string validated below
+	ledgerID, _ := ctx.Value(contextKeyLedgerID{}).(string) //nolint:errcheck // ok check unnecessary, empty string validated below
 
 	if orgID == "" || ledgerID == "" {
 		return fmt.Errorf("organization and ledger IDs are required in context")

@@ -69,6 +69,14 @@ func NewValidator(options ...core.ValidationOption) (*Validator, error) {
 // All standalone functions use the default validator configuration.
 var defaultValidator = DefaultValidator()
 
+// Operation type constants for transaction operations.
+const (
+	// OpTypeDebit represents a debit operation type.
+	OpTypeDebit = "DEBIT"
+	// OpTypeCredit represents a credit operation type.
+	OpTypeCredit = "CREDIT"
+)
+
 // externalAccountPattern is the regex pattern for external account references
 var externalAccountPattern = regexp.MustCompile(`^@external/([A-Z]{3,4})$`)
 
@@ -488,8 +496,8 @@ func validateOperationType(op map[string]any, index int) error {
 		return fmt.Errorf("operation %d: type must be a string", index)
 	}
 
-	if opType != "DEBIT" && opType != "CREDIT" {
-		return fmt.Errorf("operation %d: invalid type '%s' (must be DEBIT or CREDIT)", index, opType)
+	if opType != OpTypeDebit && opType != OpTypeCredit {
+		return fmt.Errorf("operation %d: invalid type '%s' (must be %s or %s)", index, opType, OpTypeDebit, OpTypeCredit)
 	}
 
 	return nil
@@ -729,11 +737,49 @@ func validateBasicTransactionFields(summary *ValidationSummary, input map[string
 	}
 }
 
+// extractOperationAmount safely extracts an amount value from an operation.
+// Returns the amount and a boolean indicating success.
+func extractOperationAmount(op map[string]any) (float64, bool) {
+	if op["amount"] == nil {
+		return 0, false
+	}
+
+	amount, ok := op["amount"].(float64)
+	if ok {
+		return amount, true
+	}
+
+	if intAmount, intOk := op["amount"].(int); intOk {
+		return float64(intAmount), true
+	}
+
+	return 0, false
+}
+
+// accumulateOperationTotals accumulates debit and credit totals from an operation.
+func accumulateOperationTotals(op map[string]any, totalDebits, totalCredits *int64) {
+	if op["type"] == nil {
+		return
+	}
+
+	opType, typeOk := op["type"].(string)
+	amount, amountOk := extractOperationAmount(op)
+
+	if !typeOk || !amountOk {
+		return
+	}
+
+	switch opType {
+	case OpTypeDebit:
+		*totalDebits += int64(amount)
+	case OpTypeCredit:
+		*totalCredits += int64(amount)
+	}
+}
+
 // validateTransactionOperations validates the operations in a transaction
 func validateTransactionOperations(summary *ValidationSummary, input map[string]any) {
-	// Validate operations
-	hasOperations := input["operations"] != nil
-	if !hasOperations {
+	if input["operations"] == nil {
 		summary.AddError(fmt.Errorf("at least one operation is required"))
 		return
 	}
@@ -744,16 +790,13 @@ func validateTransactionOperations(summary *ValidationSummary, input map[string]
 		return
 	}
 
-	// Get asset code for validation (may be nil or invalid, but validateOperation handles that)
 	assetCode := ""
 	if ac, ok := input["asset_code"].(string); ok {
 		assetCode = ac
 	}
 
-	// Track total debits and credits to ensure they balance
 	var totalDebits, totalCredits int64
 
-	// Validate each operation
 	for i, op := range operations {
 		errors, valid := validateOperation(op, i, assetCode)
 		if !valid {
@@ -762,26 +805,7 @@ func validateTransactionOperations(summary *ValidationSummary, input map[string]
 			}
 		}
 
-		// Track totals for balance check (with safe type assertions)
-		if op["type"] != nil && op["amount"] != nil {
-			opType, typeOk := op["type"].(string)
-			amount, amountOk := op["amount"].(float64)
-			if !amountOk {
-				if intAmount, intOk := op["amount"].(int); intOk {
-					amount = float64(intAmount)
-					amountOk = true
-				}
-			}
-
-			if typeOk && amountOk {
-				switch opType {
-				case "DEBIT":
-					totalDebits += int64(amount)
-				case "CREDIT":
-					totalCredits += int64(amount)
-				}
-			}
-		}
+		accumulateOperationTotals(op, &totalDebits, &totalCredits)
 	}
 
 	validateTransactionBalance(summary, input, totalDebits, totalCredits)

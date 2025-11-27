@@ -297,7 +297,8 @@ func CreateEntityPaginatorWithDefaults[T any, R any](
 	)
 	if err != nil {
 		// For backward compatibility, create a simple paginator directly
-		adapter, _ := NewModelAdapter() // Ignore error, using default adapter
+		// NewModelAdapter with no options always succeeds
+		adapter, _ := NewModelAdapter() //nolint:errcheck // default options never fail
 		pageOptions := adapter.OptionsToPageOptions(initialOptions)
 
 		// Create a fetcher function that adapts the SDK list function

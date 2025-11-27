@@ -786,6 +786,7 @@ func TestHTTPBatchRequest(t *testing.T) {
 		assert.Equal(t, "POST", req.Method)
 		assert.Equal(t, "/api/v1/resource", req.Path)
 		assert.Equal(t, "custom-value", req.Headers["X-Custom-Header"])
+		assert.Equal(t, "test", req.Body.(map[string]any)["name"])
 		assert.Equal(t, "req_123", req.ID)
 	})
 }
@@ -801,6 +802,8 @@ func TestHTTPBatchResponse(t *testing.T) {
 		}
 
 		assert.Equal(t, 200, resp.StatusCode)
+		assert.Equal(t, "application/json", resp.Headers["Content-Type"])
+		assert.JSONEq(t, `{"result": "success"}`, string(resp.Body))
 		assert.Equal(t, "req_1", resp.ID)
 		assert.Empty(t, resp.Error)
 	})
@@ -814,6 +817,7 @@ func TestHTTPBatchResponse(t *testing.T) {
 
 		assert.Equal(t, 500, resp.StatusCode)
 		assert.Equal(t, "Internal server error", resp.Error)
+		assert.Equal(t, "req_1", resp.ID)
 	})
 }
 
@@ -838,6 +842,7 @@ func TestHTTPBatchResult(t *testing.T) {
 			Error:     expectedErr,
 		}
 
+		assert.Empty(t, result.Responses)
 		assert.Equal(t, expectedErr, result.Error)
 	})
 }

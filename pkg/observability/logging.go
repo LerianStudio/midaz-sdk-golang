@@ -92,7 +92,7 @@ type LoggerImpl struct {
 	level    LogLevel
 	output   io.Writer
 	fields   map[string]any
-	exitFunc func(int) // Injectable exit function for testing. If nil, panics instead of exiting.
+	exitFunc func(int) // Injectable exit function for testing. If nil, Fatal just logs without exiting.
 }
 
 // NewLogger creates a new logger with the specified level and output
@@ -114,12 +114,13 @@ func NewLogger(level LogLevel, output io.Writer, resource *sdkresource.Resource)
 		level:    level,
 		output:   output,
 		fields:   fields,
-		exitFunc: os.Exit,
+		exitFunc: nil, // Library code should not call os.Exit; callers can set this if needed
 	}
 }
 
-// SetExitFunc sets a custom exit function for testing purposes.
-// Pass nil to use panic instead of os.Exit for fatal logs.
+// SetExitFunc sets a custom exit function for applications that need Fatal to terminate.
+// By default, Fatal only logs without exiting (safe for library use).
+// Applications can set this to os.Exit if they want Fatal to terminate the process.
 func (l *LoggerImpl) SetExitFunc(exitFunc func(int)) {
 	l.exitFunc = exitFunc
 }
@@ -171,13 +172,10 @@ func (l *LoggerImpl) log(level LogLevel, msg string) {
 		fmt.Fprintf(os.Stderr, "Failed to write log entry: %v\n", err)
 	}
 
-	// If fatal, exit the program or panic if exit function is not set
-	if level == FatalLevel {
-		if l.exitFunc != nil {
-			l.exitFunc(1)
-		} else {
-			panic(fmt.Sprintf("FATAL: %s", msg))
-		}
+	// If fatal and exit function is set, call it to terminate
+	// Library code defaults to nil exitFunc, so Fatal just logs without terminating
+	if level == FatalLevel && l.exitFunc != nil {
+		l.exitFunc(1)
 	}
 }
 

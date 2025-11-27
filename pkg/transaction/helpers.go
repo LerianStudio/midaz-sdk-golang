@@ -447,41 +447,72 @@ func MultiAccountTransfer(
 	assetCode string,
 	opts *MultiTransferOptions,
 ) (*models.Transaction, error) {
-	// Use default options if none provided
+	opts, idempotencyKey := resolveMultiTransferOptions(opts)
+
+	if err := validateMultiTransferAccounts(sourceAccounts, destAccounts); err != nil {
+		return nil, err
+	}
+
+	fromList, sourceSum, err := buildAccountInputList(sourceAccounts, scale, assetCode, "source")
+	if err != nil {
+		return nil, err
+	}
+
+	toList, destSum, err := buildAccountInputList(destAccounts, scale, assetCode, "destination")
+	if err != nil {
+		return nil, err
+	}
+
+	if err := validateMultiTransferAmounts(sourceSum, destSum, totalAmount); err != nil {
+		return nil, err
+	}
+
+	multiTransferInput := buildMultiTransferInput(opts, idempotencyKey, totalAmount, scale, assetCode, fromList, toList)
+
+	transaction, err := entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, multiTransferInput)
+	if err != nil {
+		return nil, fmt.Errorf("multi-account transfer failed: %w", err)
+	}
+
+	return transaction, nil
+}
+
+func resolveMultiTransferOptions(opts *MultiTransferOptions) (*MultiTransferOptions, string) {
 	if opts == nil {
 		opts = DefaultMultiTransferOptions()
 	}
 
-	// Ensure idempotency key is set
 	idempotencyKey := opts.IdempotencyKey
 	if idempotencyKey == "" {
 		idempotencyKey = uuid.New().String()
 	}
 
-	// Validate that we have at least one source and one destination account
+	return opts, idempotencyKey
+}
+
+func validateMultiTransferAccounts(sourceAccounts, destAccounts map[string]int64) error {
 	if len(sourceAccounts) == 0 {
-		return nil, fmt.Errorf("at least one source account is required")
+		return fmt.Errorf("at least one source account is required")
 	}
 
 	if len(destAccounts) == 0 {
-		return nil, fmt.Errorf("at least one destination account is required")
+		return fmt.Errorf("at least one destination account is required")
 	}
 
-	// Create FromToInput slices for source and destination accounts
-	fromList := make([]models.FromToInput, 0, len(sourceAccounts))
-	toList := make([]models.FromToInput, 0, len(destAccounts))
+	return nil
+}
 
-	// Sum source and destination amounts to validate balance
-	var sourceSum, destSum int64
+func buildAccountInputList(accounts map[string]int64, scale int64, assetCode, accountType string) ([]models.FromToInput, int64, error) {
+	inputList := make([]models.FromToInput, 0, len(accounts))
+	var sum int64
 
-	// Build source accounts list
-	for accountID, amount := range sourceAccounts {
+	for accountID, amount := range accounts {
 		if amount <= 0 {
-			return nil, fmt.Errorf("amount for source account %s must be positive", accountID)
+			return nil, 0, fmt.Errorf("amount for %s account %s must be positive", accountType, accountID)
 		}
 
 		amountStr := formatAmount(amount, scale)
-		fromList = append(fromList, models.FromToInput{
+		inputList = append(inputList, models.FromToInput{
 			Account: accountID,
 			Amount: models.AmountInput{
 				Asset: assetCode,
@@ -489,42 +520,28 @@ func MultiAccountTransfer(
 			},
 		})
 
-		sourceSum += amount
+		sum += amount
 	}
 
-	// Build destination accounts list
-	for accountID, amount := range destAccounts {
-		if amount <= 0 {
-			return nil, fmt.Errorf("amount for destination account %s must be positive", accountID)
-		}
+	return inputList, sum, nil
+}
 
-		amountStr := formatAmount(amount, scale)
-		toList = append(toList, models.FromToInput{
-			Account: accountID,
-			Amount: models.AmountInput{
-				Asset: assetCode,
-				Value: amountStr,
-			},
-		})
-
-		destSum += amount
-	}
-
-	// Verify the transaction is balanced
+func validateMultiTransferAmounts(sourceSum, destSum, totalAmount int64) error {
 	if sourceSum != destSum {
-		return nil, fmt.Errorf("unbalanced transaction: source amount (%d) does not equal destination amount (%d)", sourceSum, destSum)
+		return fmt.Errorf("unbalanced transaction: source amount (%d) does not equal destination amount (%d)", sourceSum, destSum)
 	}
 
-	// Verify the total amount is correct
 	if sourceSum != totalAmount {
-		return nil, fmt.Errorf("total amount mismatch: specified total (%d) does not match sum of accounts (%d)", totalAmount, sourceSum)
+		return fmt.Errorf("total amount mismatch: specified total (%d) does not match sum of accounts (%d)", totalAmount, sourceSum)
 	}
 
-	// Convert total amount to string with scale
+	return nil
+}
+
+func buildMultiTransferInput(opts *MultiTransferOptions, idempotencyKey string, totalAmount, scale int64, assetCode string, fromList, toList []models.FromToInput) *models.CreateTransactionInput {
 	totalAmountStr := formatAmount(totalAmount, scale)
 
-	// Create the transaction input
-	multiTransferInput := &models.CreateTransactionInput{
+	return &models.CreateTransactionInput{
 		Description:              opts.Description,
 		Amount:                   totalAmountStr,
 		AssetCode:                assetCode,
@@ -544,14 +561,6 @@ func MultiAccountTransfer(
 			},
 		},
 	}
-
-	// Create the transaction
-	transaction, err := entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, multiTransferInput)
-	if err != nil {
-		return nil, fmt.Errorf("multi-account transfer failed: %w", err)
-	}
-
-	return transaction, nil
 }
 
 // TransactionTemplate represents a reusable transaction pattern
@@ -745,7 +754,12 @@ func CancelPendingTransaction(
 	if err := entity.Transactions.CancelTransaction(ctx, orgID, ledgerID, transactionID); err != nil {
 		return nil, fmt.Errorf("failed to cancel transaction: %w", err)
 	}
+
 	// Fetch the transaction to return its final state (best-effort).
+	// Error is intentionally ignored: the cancel operation succeeded above,
+	// and this fetch is supplementary to provide the final transaction state.
+	// If the fetch fails, we still return success since cancellation worked.
+	//nolint:errcheck // best-effort fetch after successful cancellation
 	tx, _ := entity.Transactions.GetTransaction(ctx, orgID, ledgerID, transactionID)
 
 	return tx, nil

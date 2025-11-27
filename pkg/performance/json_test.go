@@ -182,7 +182,10 @@ func BenchmarkMarshal(b *testing.B) {
 
 func BenchmarkUnmarshal(b *testing.B) {
 	testData := generateTestData()
-	data, _ := json.Marshal(testData)
+	data, err := json.Marshal(testData)
+	if err != nil {
+		b.Fatal(err)
+	}
 
 	b.Run("Standard", func(b *testing.B) {
 		b.ReportAllocs()
@@ -241,7 +244,9 @@ func BenchmarkEncoder(b *testing.B) {
 func BenchmarkDecoder(b *testing.B) {
 	testData := generateTestData()
 	buf := &bytes.Buffer{}
-	_ = json.NewEncoder(buf).Encode(testData)
+	if err := json.NewEncoder(buf).Encode(testData); err != nil {
+		b.Fatal(err)
+	}
 	data := buf.Bytes()
 
 	b.Run("Standard", func(b *testing.B) {

@@ -12,6 +12,12 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 )
 
+// Operation type constants for transaction operations.
+const (
+	opTypeDebit  = "DEBIT"
+	opTypeCredit = "CREDIT"
+)
+
 // Common formatting options and configurations
 
 // DurationOption defines a function that configures DurationOptions
@@ -300,7 +306,8 @@ func WithCustomStatusMapping(mapping map[string]string) TransactionOption {
 //	formattedAmount := format.FormatAmount(12345, 2)
 //	// Result: "123.45"
 func FormatAmount(amount int64, scale int) string {
-	result, _ := FormatAmountWithOptions(amount, scale)
+	// FormatAmountWithOptions with no options always succeeds
+	result, _ := FormatAmountWithOptions(amount, scale) //nolint:errcheck // default options never fail
 	return result
 }
 
@@ -379,7 +386,8 @@ func FormatAmountWithOptions(amount int64, scale int, opts ...AmountOption) (str
 // FormatCurrency formats a currency amount with the given scale and currency code.
 // For backward compatibility, this calls FormatCurrencyWithOptions with default options.
 func FormatCurrency(amount int64, scale int64, currencyCode string) string {
-	result, _ := FormatCurrencyWithOptions(amount, scale, currencyCode)
+	// FormatCurrencyWithOptions with no options always succeeds
+	result, _ := FormatCurrencyWithOptions(amount, scale, currencyCode) //nolint:errcheck // default options never fail
 	return result
 }
 
@@ -398,7 +406,8 @@ func FormatCurrencyWithOptions(amount int64, scale int64, currencyCode string, o
 // FormatDateTime formats a time.Time value in a human-readable format.
 // For backward compatibility, this calls FormatDateTimeWithOptions with default options.
 func FormatDateTime(t time.Time) string {
-	result, _ := FormatDateTimeWithOptions(t)
+	// FormatDateTimeWithOptions with no options always succeeds
+	result, _ := FormatDateTimeWithOptions(t) //nolint:errcheck // default options never fail
 	return result
 }
 
@@ -436,14 +445,16 @@ func FormatDateTimeWithOptions(t time.Time, opts ...DateTimeOption) (string, err
 // FormatDate formats a time.Time value as a date only.
 // For backward compatibility, this calls FormatDateTimeWithOptions with date-only format.
 func FormatDate(t time.Time) string {
-	result, _ := FormatDateTimeWithOptions(t, WithDateOnly())
+	// WithDateOnly option always returns nil error
+	result, _ := FormatDateTimeWithOptions(t, WithDateOnly()) //nolint:errcheck // option never fails
 	return result
 }
 
 // FormatTime formats a time.Time value as a time only.
 // For backward compatibility, this calls FormatDateTimeWithOptions with time-only format.
 func FormatTime(t time.Time) string {
-	result, _ := FormatDateTimeWithOptions(t, WithTimeOnly())
+	// WithTimeOnly option always returns nil error
+	result, _ := FormatDateTimeWithOptions(t, WithTimeOnly()) //nolint:errcheck // option never fails
 	return result
 }
 
@@ -456,7 +467,8 @@ func FormatTime(t time.Time) string {
 //
 // For backward compatibility, this calls FormatDateTimeWithOptions with date-only format.
 func FormatISODate(t time.Time) string {
-	result, _ := FormatDateTimeWithOptions(t, WithDateOnly(), WithUTC(true))
+	// Options always return nil error
+	result, _ := FormatDateTimeWithOptions(t, WithDateOnly(), WithUTC(true)) //nolint:errcheck // options never fail
 	return result
 }
 
@@ -469,14 +481,16 @@ func FormatISODate(t time.Time) string {
 //
 // For backward compatibility, this calls FormatDateTimeWithOptions with ISO8601 format.
 func FormatISODateTime(t time.Time) string {
-	result, _ := FormatDateTimeWithOptions(t, WithISO8601(), WithUTC(true))
+	// Options always return nil error
+	result, _ := FormatDateTimeWithOptions(t, WithISO8601(), WithUTC(true)) //nolint:errcheck // options never fail
 	return result
 }
 
 // FormatDuration formats a duration in a human-readable format.
 // For backward compatibility, this calls FormatDurationWithOptions with default options.
 func FormatDuration(d time.Duration) string {
-	result, _ := FormatDurationWithOptions(d)
+	// FormatDurationWithOptions with no options always succeeds
+	result, _ := FormatDurationWithOptions(d) //nolint:errcheck // default options never fail
 	return result
 }
 
@@ -626,7 +640,8 @@ func getTimeUnit(shortUnit, longUnit string, useShort bool) string {
 //	fmt.Println(summary)
 //	// Result: "Transfer: 100.00 USD from savings to checking (Completed)"
 func FormatTransaction(tx *models.Transaction) string {
-	result, _ := FormatTransactionWithOptions(tx)
+	// FormatTransactionWithOptions with no options always succeeds
+	result, _ := FormatTransactionWithOptions(tx) //nolint:errcheck // default options never fail
 	return result
 }
 
@@ -660,7 +675,8 @@ func FormatTransactionWithOptions(tx *models.Transaction, opts ...TransactionOpt
 
 	// Add timestamp if requested
 	if options.IncludeTimestamp && !tx.CreatedAt.IsZero() {
-		timestampStr, _ := FormatDateTimeWithOptions(tx.CreatedAt)
+		// FormatDateTimeWithOptions with no options always succeeds
+		timestampStr, _ := FormatDateTimeWithOptions(tx.CreatedAt) //nolint:errcheck // default options never fail
 		summary += fmt.Sprintf("%s - ", timestampStr)
 	}
 
@@ -738,59 +754,68 @@ func extractAccountsFromOperations(operations []models.Operation) string {
 		return ""
 	}
 
+	fromAccounts, toAccounts := categorizeOperationAccounts(operations)
+
+	return formatAccountsSummary(fromAccounts, toAccounts)
+}
+
+func categorizeOperationAccounts(operations []models.Operation) ([]string, []string) {
 	fromAccounts := []string{}
 	toAccounts := []string{}
 
 	for _, op := range operations {
-		// Skip external accounts for cleaner output
-		if op.AccountAlias != "" && strings.HasPrefix(op.AccountAlias, "@external/") {
+		if isExternalAccount(op) {
 			continue
 		}
 
+		accountRef := getAccountReference(op)
+
 		switch op.Type {
-		case "DEBIT":
-			if op.AccountAlias != "" {
-				fromAccounts = append(fromAccounts, op.AccountAlias)
-			} else {
-				fromAccounts = append(fromAccounts, op.AccountID)
-			}
-
-		case "CREDIT":
-			if op.AccountAlias != "" {
-				toAccounts = append(toAccounts, op.AccountAlias)
-			} else {
-				toAccounts = append(toAccounts, op.AccountID)
-			}
+		case opTypeDebit:
+			fromAccounts = append(fromAccounts, accountRef)
+		case opTypeCredit:
+			toAccounts = append(toAccounts, accountRef)
 		}
 	}
 
-	result := ""
+	return fromAccounts, toAccounts
+}
 
-	// Format the from accounts
-	if len(fromAccounts) > 0 {
-		result += "from "
+func isExternalAccount(op models.Operation) bool {
+	return op.AccountAlias != "" && strings.HasPrefix(op.AccountAlias, "@external/")
+}
 
-		if len(fromAccounts) == 1 {
-			result += fromAccounts[0]
-		} else {
-			result += fmt.Sprintf("multiple accounts (%d)", len(fromAccounts))
-		}
+func getAccountReference(op models.Operation) string {
+	if op.AccountAlias != "" {
+		return op.AccountAlias
 	}
 
-	// Format the to accounts
-	if len(toAccounts) > 0 {
+	return op.AccountID
+}
+
+func formatAccountsSummary(fromAccounts, toAccounts []string) string {
+	result := formatAccountList(fromAccounts, "from")
+
+	toResult := formatAccountList(toAccounts, "to")
+	if toResult != "" {
 		if result != "" {
 			result += " "
 		}
 
-		result += "to "
-
-		if len(toAccounts) == 1 {
-			result += toAccounts[0]
-		} else {
-			result += fmt.Sprintf("multiple accounts (%d)", len(toAccounts))
-		}
+		result += toResult
 	}
 
 	return result
+}
+
+func formatAccountList(accounts []string, prefix string) string {
+	if len(accounts) == 0 {
+		return ""
+	}
+
+	if len(accounts) == 1 {
+		return prefix + " " + accounts[0]
+	}
+
+	return fmt.Sprintf("%s multiple accounts (%d)", prefix, len(accounts))
 }

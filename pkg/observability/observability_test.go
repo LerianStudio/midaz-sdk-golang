@@ -151,7 +151,7 @@ func TestWithSpan(t *testing.T) {
 	err = WithSpan(context.Background(), provider, "error-span", func(ctx context.Context) error {
 		return testErr
 	})
-	if err != testErr {
+	if !errors.Is(err, testErr) {
 		t.Errorf("Expected error %v, got %v", testErr, err)
 	}
 }

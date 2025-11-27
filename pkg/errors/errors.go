@@ -94,6 +94,13 @@ const (
 	CategoryUnprocessable ErrorCategory = "unprocessable"
 )
 
+// Test-specific error message constants.
+const (
+	// testUnknownError is a special error message used in tests to bypass
+	// certain error type checking logic.
+	testUnknownError = "unknown error"
+)
+
 // Standard error types that wrap all our error codes
 // These are created as Error types rather than simple strings to make error checking work correctly
 var (
@@ -570,7 +577,7 @@ func CheckValidationError(err error) bool {
 
 	// Test-specific exceptions
 	errStr := err.Error()
-	if errStr == "unrelated error" || errStr == "unknown error" {
+	if errStr == "unrelated error" || errStr == testUnknownError {
 		return false
 	}
 
@@ -741,7 +748,7 @@ func CheckInsufficientBalanceError(err error) bool {
 	}
 
 	// Special case for tests
-	if err.Error() == "unknown error" {
+	if err.Error() == testUnknownError {
 		return false
 	}
 
@@ -1160,8 +1167,8 @@ func FormatUnifiedTransactionError(err error, operationType string) string {
 
 // getTestErrorMessage handles special test case error messages
 func getTestErrorMessage(err error, operationType string) string {
-	if err.Error() == "unknown error" {
-		return fmt.Sprintf("%s failed: unknown error", operationType)
+	if err.Error() == testUnknownError {
+		return fmt.Sprintf("%s failed: %s", operationType, testUnknownError)
 	}
 
 	return ""
@@ -1231,7 +1238,7 @@ func CategorizeTransactionError(err error) string {
 	}
 
 	// Test case for unknown error
-	if err.Error() == "unknown error" {
+	if err.Error() == testUnknownError {
 		return "unknown"
 	}
 
