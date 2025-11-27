@@ -205,6 +205,22 @@ type BalancesService interface {
 	// The orgID, ledgerID, and balanceID parameters specify which organization, ledger, and balance to delete.
 	// Returns an error if the operation fails.
 	DeleteBalance(ctx context.Context, orgID, ledgerID, balanceID string) error
+
+	// CreateBalance creates an additional balance for an account.
+	// This allows an account to have multiple balance entries (e.g., for different purposes).
+	// The orgID, ledgerID, and accountID parameters specify which account to add the balance to.
+	// Returns the created balance, or an error if the operation fails.
+	CreateBalance(ctx context.Context, orgID, ledgerID, accountID string, input *models.CreateBalanceInput) (*models.Balance, error)
+
+	// ListBalancesByAccountAlias retrieves balances for an account identified by its alias.
+	// The alias is a human-readable identifier for the account.
+	// Returns a paginated list of balances, or an error if the operation fails.
+	ListBalancesByAccountAlias(ctx context.Context, orgID, ledgerID, alias string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error)
+
+	// ListBalancesByExternalCode retrieves balances for an account identified by its external code.
+	// The external code links the account to external systems.
+	// Returns a paginated list of balances, or an error if the operation fails.
+	ListBalancesByExternalCode(ctx context.Context, orgID, ledgerID, code string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error)
 }
 
 // balancesEntity implements the BalancesService interface.
@@ -515,4 +531,148 @@ func (e *balancesEntity) buildAccountURL(orgID, ledgerID, accountID string) stri
 	baseURL := e.baseURLs["transaction"]
 
 	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/%s/balances", baseURL, orgID, ledgerID, accountID)
+}
+
+// CreateBalance creates an additional balance for an account.
+func (e *balancesEntity) CreateBalance(ctx context.Context, orgID, ledgerID, accountID string, input *models.CreateBalanceInput) (*models.Balance, error) {
+	const operation = "CreateBalance"
+
+	if orgID == "" {
+		return nil, errors.NewMissingParameterError(operation, "organizationID")
+	}
+
+	if ledgerID == "" {
+		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+	}
+
+	if accountID == "" {
+		return nil, errors.NewMissingParameterError(operation, "accountID")
+	}
+
+	if input == nil {
+		return nil, errors.NewMissingParameterError(operation, "input")
+	}
+
+	if err := input.Validate(); err != nil {
+		return nil, errors.NewValidationError(operation, "invalid input", err)
+	}
+
+	url := e.buildAccountURL(orgID, ledgerID, accountID)
+
+	body, err := json.Marshal(input)
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	var balance models.Balance
+	if err := e.httpClient.sendRequest(req, &balance); err != nil {
+		return nil, err
+	}
+
+	return &balance, nil
+}
+
+// ListBalancesByAccountAlias retrieves balances for an account identified by its alias.
+func (e *balancesEntity) ListBalancesByAccountAlias(ctx context.Context, orgID, ledgerID, alias string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error) {
+	const operation = "ListBalancesByAccountAlias"
+
+	if orgID == "" {
+		return nil, errors.NewMissingParameterError(operation, "organizationID")
+	}
+
+	if ledgerID == "" {
+		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+	}
+
+	if alias == "" {
+		return nil, errors.NewMissingParameterError(operation, "alias")
+	}
+
+	url := e.buildAccountAliasURL(orgID, ledgerID, alias)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	// Add query parameters if provided
+	if opts != nil {
+		q := req.URL.Query()
+
+		for key, value := range opts.ToQueryParams() {
+			q.Add(key, value)
+		}
+
+		req.URL.RawQuery = q.Encode()
+	}
+
+	var response models.ListResponse[models.Balance]
+	if err := e.httpClient.sendRequest(req, &response); err != nil {
+		return nil, err
+	}
+
+	return &response, nil
+}
+
+// ListBalancesByExternalCode retrieves balances for an account identified by its external code.
+func (e *balancesEntity) ListBalancesByExternalCode(ctx context.Context, orgID, ledgerID, code string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error) {
+	const operation = "ListBalancesByExternalCode"
+
+	if orgID == "" {
+		return nil, errors.NewMissingParameterError(operation, "organizationID")
+	}
+
+	if ledgerID == "" {
+		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+	}
+
+	if code == "" {
+		return nil, errors.NewMissingParameterError(operation, "code")
+	}
+
+	url := e.buildExternalCodeURL(orgID, ledgerID, code)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	// Add query parameters if provided
+	if opts != nil {
+		q := req.URL.Query()
+
+		for key, value := range opts.ToQueryParams() {
+			q.Add(key, value)
+		}
+
+		req.URL.RawQuery = q.Encode()
+	}
+
+	var response models.ListResponse[models.Balance]
+	if err := e.httpClient.sendRequest(req, &response); err != nil {
+		return nil, err
+	}
+
+	return &response, nil
+}
+
+// buildAccountAliasURL builds the URL for balance lookups by account alias.
+func (e *balancesEntity) buildAccountAliasURL(orgID, ledgerID, alias string) string {
+	baseURL := e.baseURLs["transaction"]
+
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/alias/%s/balances", baseURL, orgID, ledgerID, alias)
+}
+
+// buildExternalCodeURL builds the URL for balance lookups by external code.
+func (e *balancesEntity) buildExternalCodeURL(orgID, ledgerID, code string) string {
+	baseURL := e.baseURLs["transaction"]
+
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/external/%s/balances", baseURL, orgID, ledgerID, code)
 }

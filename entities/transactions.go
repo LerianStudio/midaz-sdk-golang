@@ -75,6 +75,24 @@ type TransactionsService interface {
 	// The transactionID parameter is the unique identifier of the transaction to cancel.
 	// Returns an error if the operation fails.
 	CancelTransaction(ctx context.Context, orgID, ledgerID, transactionID string) error
+
+	// CreateInflowTransaction creates an inflow transaction (funds entering the system).
+	// Inflow transactions have no source - they represent deposits or funding operations.
+	// The orgID and ledgerID parameters specify which organization and ledger to create the transaction in.
+	// Returns the created transaction, or an error if the operation fails.
+	CreateInflowTransaction(ctx context.Context, orgID, ledgerID string, input *models.CreateInflowInput) (*models.Transaction, error)
+
+	// CreateOutflowTransaction creates an outflow transaction (funds leaving the system).
+	// Outflow transactions have no destination - they represent withdrawals or payout operations.
+	// The orgID and ledgerID parameters specify which organization and ledger to create the transaction in.
+	// Returns the created transaction, or an error if the operation fails.
+	CreateOutflowTransaction(ctx context.Context, orgID, ledgerID string, input *models.CreateOutflowInput) (*models.Transaction, error)
+
+	// CreateAnnotationTransaction creates an annotation transaction (no balance changes).
+	// Annotation transactions are used for adding metadata/notes to the ledger without affecting balances.
+	// The orgID and ledgerID parameters specify which organization and ledger to create the transaction in.
+	// Returns the created transaction, or an error if the operation fails.
+	CreateAnnotationTransaction(ctx context.Context, orgID, ledgerID string, input *models.CreateAnnotationInput) (*models.Transaction, error)
 }
 
 // transactionsEntity implements the TransactionsService interface.
@@ -587,7 +605,7 @@ func (e *transactionsEntity) RevertTransaction(ctx context.Context, orgID, ledge
 
 	url := e.buildURL(orgID, ledgerID, fmt.Sprintf("/%s/revert", transactionID))
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -618,7 +636,7 @@ func (e *transactionsEntity) CommitTransaction(ctx context.Context, orgID, ledge
 
 	url := e.buildURL(orgID, ledgerID, fmt.Sprintf("/%s/commit", transactionID))
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -649,7 +667,7 @@ func (e *transactionsEntity) CancelTransaction(ctx context.Context, orgID, ledge
 
 	url := e.buildURL(orgID, ledgerID, fmt.Sprintf("/%s/cancel", transactionID))
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
 	if err != nil {
 		return errors.NewInternalError(operation, err)
 	}
@@ -659,6 +677,132 @@ func (e *transactionsEntity) CancelTransaction(ctx context.Context, orgID, ledge
 	}
 
 	return nil
+}
+
+// CreateInflowTransaction creates an inflow transaction (funds entering the system).
+func (e *transactionsEntity) CreateInflowTransaction(ctx context.Context, orgID, ledgerID string, input *models.CreateInflowInput) (*models.Transaction, error) {
+	const operation = "CreateInflowTransaction"
+
+	if orgID == "" {
+		return nil, errors.NewMissingParameterError(operation, "organization ID")
+	}
+
+	if ledgerID == "" {
+		return nil, errors.NewMissingParameterError(operation, "ledger ID")
+	}
+
+	if input == nil {
+		return nil, errors.NewMissingParameterError(operation, "input")
+	}
+
+	if err := input.Validate(); err != nil {
+		return nil, errors.NewValidationError(operation, "invalid input", err)
+	}
+
+	url := e.buildURL(orgID, ledgerID, "/inflow")
+
+	body, err := json.Marshal(input)
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	var result map[string]any
+	if err := e.httpClient.sendRequest(req, &result); err != nil {
+		return nil, err
+	}
+
+	return e.parseTransactionResponse(result), nil
+}
+
+// CreateOutflowTransaction creates an outflow transaction (funds leaving the system).
+func (e *transactionsEntity) CreateOutflowTransaction(ctx context.Context, orgID, ledgerID string, input *models.CreateOutflowInput) (*models.Transaction, error) {
+	const operation = "CreateOutflowTransaction"
+
+	if orgID == "" {
+		return nil, errors.NewMissingParameterError(operation, "organization ID")
+	}
+
+	if ledgerID == "" {
+		return nil, errors.NewMissingParameterError(operation, "ledger ID")
+	}
+
+	if input == nil {
+		return nil, errors.NewMissingParameterError(operation, "input")
+	}
+
+	if err := input.Validate(); err != nil {
+		return nil, errors.NewValidationError(operation, "invalid input", err)
+	}
+
+	url := e.buildURL(orgID, ledgerID, "/outflow")
+
+	body, err := json.Marshal(input)
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	var result map[string]any
+	if err := e.httpClient.sendRequest(req, &result); err != nil {
+		return nil, err
+	}
+
+	return e.parseTransactionResponse(result), nil
+}
+
+// CreateAnnotationTransaction creates an annotation transaction (no balance changes).
+func (e *transactionsEntity) CreateAnnotationTransaction(ctx context.Context, orgID, ledgerID string, input *models.CreateAnnotationInput) (*models.Transaction, error) {
+	const operation = "CreateAnnotationTransaction"
+
+	if orgID == "" {
+		return nil, errors.NewMissingParameterError(operation, "organization ID")
+	}
+
+	if ledgerID == "" {
+		return nil, errors.NewMissingParameterError(operation, "ledger ID")
+	}
+
+	if input == nil {
+		return nil, errors.NewMissingParameterError(operation, "input")
+	}
+
+	if err := input.Validate(); err != nil {
+		return nil, errors.NewValidationError(operation, "invalid input", err)
+	}
+
+	url := e.buildURL(orgID, ledgerID, "/annotation")
+
+	body, err := json.Marshal(input)
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	var result map[string]any
+	if err := e.httpClient.sendRequest(req, &result); err != nil {
+		return nil, err
+	}
+
+	return e.parseTransactionResponse(result), nil
 }
 
 // buildURL builds the URL for transactions API calls with the specified suffix.

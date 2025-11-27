@@ -149,6 +149,14 @@ type AccountsService interface {
 	// The assetCode parameter is the asset code that identifies the external account (e.g., "USD", "BRL").
 	// Returns the balance information for the external account, or an error if the operation fails.
 	GetExternalAccountBalance(ctx context.Context, organizationID, ledgerID, assetCode string) (*models.Balance, error)
+
+	// GetAccountByAliasPath retrieves a specific account by its alias using the dedicated path endpoint.
+	// This uses the path-based endpoint /accounts/alias/{alias} instead of query parameters.
+	// The organizationID and ledgerID parameters specify which organization and ledger the account belongs to.
+	// The alias parameter is the unique alias of the account to retrieve.
+	// Returns the account if found, or an error if the operation fails.
+	// Deprecated: Consider using GetAccountByAlias which provides the same functionality.
+	GetAccountByAliasPath(ctx context.Context, organizationID, ledgerID, alias string) (*models.Account, error)
 }
 
 // accountsEntity implements the AccountsService interface.
@@ -584,4 +592,41 @@ func (e *accountsEntity) buildExternalAccountURL(organizationID, ledgerID, asset
 func (e *accountsEntity) buildExternalAccountBalanceURL(organizationID, ledgerID, assetCode string) string {
 	baseURL := e.baseURLs["onboarding"]
 	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/external/%s/balances", baseURL, organizationID, ledgerID, assetCode)
+}
+
+// GetAccountByAliasPath retrieves a specific account by its alias using the dedicated path endpoint.
+func (e *accountsEntity) GetAccountByAliasPath(ctx context.Context, organizationID, ledgerID, alias string) (*models.Account, error) {
+	const operation = "GetAccountByAliasPath"
+
+	if organizationID == "" {
+		return nil, errors.NewMissingParameterError(operation, "organizationID")
+	}
+
+	if ledgerID == "" {
+		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+	}
+
+	if alias == "" {
+		return nil, errors.NewMissingParameterError(operation, "alias")
+	}
+
+	url := e.buildAliasURL(organizationID, ledgerID, alias)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	var account models.Account
+	if err := e.httpClient.sendRequest(req, &account); err != nil {
+		return nil, err
+	}
+
+	return &account, nil
+}
+
+// buildAliasURL builds the URL for account alias path endpoint.
+func (e *accountsEntity) buildAliasURL(organizationID, ledgerID, alias string) string {
+	baseURL := e.baseURLs["onboarding"]
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/alias/%s", baseURL, organizationID, ledgerID, alias)
 }
