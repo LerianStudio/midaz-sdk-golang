@@ -55,6 +55,10 @@ func TestAssetRateStructWithNilOptionalFields(t *testing.T) {
 		Rate: 0.92,
 	}
 
+	assert.Equal(t, "rate-123", rate.ID)
+	assert.Equal(t, "USD", rate.From)
+	assert.Equal(t, "EUR", rate.To)
+	assert.Equal(t, 0.92, rate.Rate)
 	assert.Nil(t, rate.Scale)
 	assert.Nil(t, rate.Source)
 	assert.Nil(t, rate.Metadata)
@@ -524,6 +528,9 @@ func TestAssetRatesResponseNilCursors(t *testing.T) {
 		Limit: 10,
 	}
 
+	assert.Len(t, response.Items, 1)
+	assert.Equal(t, "rate-1", response.Items[0].ID)
+	assert.Equal(t, 10, response.Limit)
 	assert.Nil(t, response.NextCursor)
 	assert.Nil(t, response.PrevCursor)
 }
