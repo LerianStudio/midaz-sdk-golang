@@ -347,7 +347,6 @@ func WithObservabilityProvider(provider observability.Provider) Option {
 			var err error
 
 			c.metrics, err = observability.NewMetricsCollector(provider)
-
 			if err != nil {
 				return err
 			}

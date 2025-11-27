@@ -48,7 +48,6 @@ func WithObservability(provider observability.Provider) Option {
 			var err error
 
 			e.httpClient.metrics, err = observability.NewMetricsCollector(provider)
-
 			if err != nil {
 				return err
 			}

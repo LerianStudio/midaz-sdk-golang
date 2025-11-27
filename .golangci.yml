@@ -1,61 +1,296 @@
 version: "2"
 run:
-  tests: false
+  tests: true  # Now lint tests too - we have good coverage!
+  timeout: 5m
 linters:
   enable:
-    - bodyclose
-    - depguard
-    - dogsled
-    - dupword
-    - errchkjson
-    - gocognit
-    - gocyclo
-    - loggercheck
-    - misspell
-    - nakedret
-    - nilerr
-    - nolintlint
-    - prealloc
-    - predeclared
-    - reassign
-    - revive
-    - staticcheck
-    - thelper
-    - tparallel
-    - unconvert
-    - unparam
-    - usestdlibvars
-    - wastedassign
-    - wsl_v5
+    # ===========================================
+    # ERROR HANDLING (Critical for SDK reliability)
+    # ===========================================
+    - bodyclose       # HTTP response body must be closed
+    - errcheck        # Check error returns (now enabled!)
+    - errchkjson      # Check JSON encoding errors
+    - nilerr          # Returning nil after checking err != nil
+    - errorlint       # Proper error wrapping with %w
+
+    # ===========================================
+    # SECURITY (Essential for financial SDK)
+    # ===========================================
+    - gosec           # Security-focused linting
+    - noctx           # HTTP requests must use context
+
+    # ===========================================
+    # CODE QUALITY & COMPLEXITY
+    # ===========================================
+    - gocognit        # Cognitive complexity
+    - gocyclo         # Cyclomatic complexity
+    - funlen          # Function length limits
+    - nestif          # Nested if limits
+    - cyclop          # Alternative complexity checker
+    - maintidx        # Maintainability index
+
+    # ===========================================
+    # CORRECTNESS & BUG PREVENTION
+    # ===========================================
+    - staticcheck     # Comprehensive static analysis
+    - govet           # Go vet checks
+    - ineffassign     # Ineffective assignments
+    - wastedassign    # Wasted assignments
+    - reassign        # Reassignment detection
+    - copyloopvar     # Loop variable issues (Go 1.22+)
+    - nilnil          # Returning nil, nil
+    - predeclared     # Shadowing predeclared identifiers
+    - makezero        # Slice initialization issues
+    - durationcheck   # Duration multiplication issues
+
+    # ===========================================
+    # CODE STYLE & CONSISTENCY
+    # ===========================================
+    - revive          # Replacement for golint
+    - misspell        # Spelling mistakes
+    - dupword         # Duplicate words
+    - unconvert       # Unnecessary conversions
+    - usestdlibvars   # Use stdlib variables
+    - dogsled         # Too many blank identifiers
+    - nakedret        # Naked returns
+    - prealloc        # Preallocate slices
+    - nolintlint      # Proper nolint directives
+    - wsl_v5          # Whitespace linter
+
+    # ===========================================
+    # CODE ORGANIZATION
+    # ===========================================
+    - depguard        # Dependency management
+    - goconst         # Repeated strings as constants
+    - gomoddirectives # Go mod directives
+
+    # ===========================================
+    # TESTING QUALITY
+    # ===========================================
+    - thelper         # Test helpers must call t.Helper()
+    - tparallel       # Parallel test issues
+    - testifylint     # Testify best practices
+
+    # ===========================================
+    # DOCUMENTATION
+    # ===========================================
+    - godot           # Comments should end with period
+
+    # ===========================================
+    # PERFORMANCE
+    # ===========================================
+    - loggercheck     # Logger key-value pairs
+    - unparam         # Unused parameters
+    - unused          # Unused code detection
+
   settings:
+    # -----------------------------------------
+    # Complexity Settings
+    # -----------------------------------------
+    gocyclo:
+      min-complexity: 15  # Stricter than before (was 16)
+    gocognit:
+      min-complexity: 20  # Cognitive complexity limit
+    funlen:
+      lines: 100          # Max function lines
+      statements: 50      # Max statements per function
+    nestif:
+      min-complexity: 4   # Max nesting depth
+    cyclop:
+      max-complexity: 15
+      skip-tests: true
+    maintidx:
+      under: 20          # Maintainability index threshold
+
+    # -----------------------------------------
+    # Error Handling Settings
+    # -----------------------------------------
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+      exclude-functions:
+        - io.Copy
+        - (io.Closer).Close
+        - (net/http.ResponseWriter).Write
+    errorlint:
+      errorf: true
+      errorf-multi: true
+      asserts: true
+      comparison: true
+
+    # -----------------------------------------
+    # Security Settings
+    # -----------------------------------------
+    gosec:
+      excludes:
+        - G104  # Unhandled errors (covered by errcheck)
+        - G304  # File path from variable (needed for SDK)
+      config:
+        global:
+          audit: false
+
+    # -----------------------------------------
+    # Code Style Settings
+    # -----------------------------------------
     depguard:
       rules:
         main:
           deny:
             - pkg: io/ioutil
-              desc: The io/ioutil package has been deprecated, see https://go.dev/doc/go1.16#ioutil
-    gocyclo:
-      min-complexity: 16
+              desc: "Deprecated: Use io and os packages instead (Go 1.16+)"
+            - pkg: github.com/pkg/errors
+              desc: "Use standard errors package with fmt.Errorf and %w"
+            - pkg: log
+              desc: "Use structured logging via pkg/observability"
+        tests:
+          files:
+            - "$test"
+          deny:
+            - pkg: github.com/stretchr/testify/suite
+              desc: "Prefer table-driven tests over test suites"
+
+    goconst:
+      min-len: 3
+      min-occurrences: 3
+      ignore-tests: true
+
+    godot:
+      scope: declarations  # Only exported declarations
+      period: true
+      capital: false
+
     govet:
-      enable:
-        - shadow
+      enable-all: true
+      disable:
+        - fieldalignment  # Too noisy for SDK code
       settings:
         shadow:
           strict: true
+
+    # -----------------------------------------
+    # Revive Rules (Comprehensive)
+    # -----------------------------------------
     revive:
+      severity: warning
+      enable-all-rules: false
       rules:
+        # Enabled rules
         - name: import-shadowing
-          severity: warning
-          disabled: false
+          severity: error
         - name: empty-block
           severity: warning
-          disabled: false
         - name: empty-lines
           severity: warning
-          disabled: false
         - name: use-any
           severity: warning
-          disabled: false
+        - name: context-as-argument
+          severity: error
+        - name: context-keys-type
+          severity: error
+        - name: error-return
+          severity: error
+        - name: error-strings
+          severity: warning
+        - name: error-naming
+          severity: warning
+        - name: exported
+          severity: warning
+          arguments:
+            - checkPrivateReceivers
+            - sayRepetitiveInsteadOfStutters
+        - name: if-return
+          severity: warning
+        - name: increment-decrement
+          severity: warning
+        - name: var-naming
+          severity: warning
+        - name: var-declaration
+          severity: warning
+        - name: receiver-naming
+          severity: warning
+        - name: range
+          severity: warning
+        - name: range-val-in-closure
+          severity: error
+        - name: range-val-address
+          severity: error
+        - name: indent-error-flow
+          severity: warning
+        - name: superfluous-else
+          severity: warning
+        - name: modifies-parameter
+          severity: warning
+        - name: unreachable-code
+          severity: error
+        - name: struct-tag
+          severity: error
+        - name: constant-logical-expr
+          severity: error
+        - name: bool-literal-in-expr
+          severity: warning
+        - name: redefines-builtin-id
+          severity: error
+        - name: imports-blocklist
+          severity: error
+        - name: redundant-import-alias
+          severity: warning
+        - name: unnecessary-stmt
+          severity: warning
+        - name: deep-exit
+          severity: warning
+        - name: unused-parameter
+          severity: warning
+        - name: unused-receiver
+          severity: warning
+        - name: unhandled-error
+          severity: warning
+          arguments:
+            - fmt.Printf
+            - fmt.Println
+            - fmt.Fprintf
+        - name: cognitive-complexity
+          severity: warning
+          arguments: [20]
+        - name: string-of-int
+          severity: error
+        - name: early-return
+          severity: warning
+        - name: unconditional-recursion
+          severity: error
+        - name: identical-branches
+          severity: error
+        - name: defer
+          severity: warning
+          arguments:
+            - ["call-chain", "loop"]
+        - name: unexported-naming
+          severity: warning
+        - name: unexported-return
+          severity: warning
+        - name: useless-break
+          severity: warning
+        - name: datarace
+          severity: error
+        - name: waitgroup-by-value
+          severity: error
+        - name: atomic
+          severity: error
+        - name: confusing-results
+          severity: warning
+        - name: modifies-value-receiver
+          severity: warning
+        - name: time-equal
+          severity: warning
+        - name: time-naming
+          severity: warning
+        - name: optimize-operands-order
+          severity: warning
+        - name: use-errors-new
+          severity: warning
+
+    # -----------------------------------------
+    # Whitespace Settings
+    # -----------------------------------------
     wsl_v5:
       allow-assign-and-call: true
       allow-assign-and-anything: true
@@ -65,92 +300,95 @@ linters:
       allow-trailing-comment: true
       force-err-cuddling: false
       enforce-err-cuddling: false
+
+    # -----------------------------------------
+    # Testing Settings
+    # -----------------------------------------
+    testifylint:
+      enable-all: true
+
+  # ===========================================
+  # EXCLUSIONS
+  # ===========================================
   exclusions:
     generated: lax
     rules:
+      # Allow certain patterns in test files
+      - linters:
+          - errcheck
+          - gosec
+          - funlen
+          - gocognit
+          - gocyclo
+          - cyclop
+          - maintidx
+          - dupl
+        path: _test\.go
+
+      # Allow long functions in generator (data generation is verbose)
+      - linters:
+          - funlen
+        path: pkg/generator/
+
+      # Allow complexity in data package (templates are verbose)
+      - linters:
+          - funlen
+          - gocognit
+        path: pkg/data/
+
+      # Existing exclusions (reviewed and kept)
       - linters:
           - errcheck
         text: Error return value of .((os\.)?std(out|err)\..*|.*Close|.*Flush|os\.Remove(All)?|.*print(f|ln)?|os\.(Un)?Setenv). is not checked
       - linters:
           - revive
-        text: func name will be used as test\.Test.* by other packages, and that stutters; consider calling this
-      - linters:
-          - gosec
-        text: Use of unsafe calls should be audited
-      - linters:
-          - gosec
-        text: Subprocess launch(ed with variable|ing should be audited)
-      - linters:
-          - gosec
-        text: G307
-      - linters:
-          - gosec
-        text: (Expect directory permissions to be 0750 or less|Expect file permissions to be 0600 or less)
-      - linters:
-          - gosec
-        text: Potential file inclusion via variable
-      - linters:
-          - gosec
-        text: G113
-      - linters:
-          - gosec
-        text: G104
-      - linters:
-          - gosec
-        text: "G204: Subprocess launched with a potential tainted input or cmd arguments"
-      - linters:
-          - gosec
-        text: "G306: Expect WriteFile permissions to be 0600 or less"
+        text: func name will be used as test\.Test.* by other packages
       - linters:
           - revive
         text: "package-comments: should have a package comment"
-      - linters:
-          - errcheck
-          - gosec
-        path: _test\.go
       - linters:
           - staticcheck
         text: "ST1000: at least one file in a package should have a package comment"
       - linters:
           - govet
         text: '^shadow: declaration of "(err|ok)" shadows declaration'
+
+      # Whitespace exclusions for examples
       - linters:
           - wsl_v5
         path: examples/
+
+      # godot exclusions for code examples in comments
       - linters:
-          - wsl_v5
-        text: "unnecessary whitespace \\(err\\)"
+          - godot
+        source: "^\\s*//\\s*(\\w+\\s*:=|func|if|for|switch|return|package|import)"
+
+      # Allow magic numbers in tests
       - linters:
-          - wsl_v5
-        text: "missing whitespace above this line \\(invalid statement above expr\\)"
-      - linters:
-          - wsl_v5
-        text: "missing whitespace above this line \\(no shared variables above type-switch\\)"
-      - linters:
-          - wsl_v5
-        text: "missing whitespace above this line \\(too many lines above return\\)"
-      - linters:
-          - wsl_v5
-        text: "missing whitespace above this line \\(no shared variables above defer\\)"
-      - linters:
-          - wsl_v5
-        text: "missing whitespace above this line \\(too many statements above if\\)"
-      - linters:
-          - wsl_v5
-        text: "missing whitespace above this line \\(invalid statement above assign\\)"
-      - path: (.+)\.go$
-        text: parameter .* always receives
+          - gomnd
+          - mnd
+        path: _test\.go
+
     paths:
       - third_party$
       - builtin$
       - examples$
+      - .repos$
+      - mocks$
+
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
+  new: false
+  fix: false
+
 formatters:
+  enable:
+    - goimports       # Import organization and formatting
   exclusions:
     generated: lax
     paths:
       - third_party$
       - builtin$
       - examples$
+      - .repos$

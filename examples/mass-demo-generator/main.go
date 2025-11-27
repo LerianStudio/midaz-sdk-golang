@@ -570,7 +570,6 @@ func processAccountTransactions(ctx context.Context, c *client.Client, state *wo
 	tBatch := time.Now()
 	fmt.Printf("Submitting %d transactions for ledger %s (batch size %d, concurrency %d)\n", len(inputs), ledger.ID, options.BatchSize, options.Concurrency)
 	results, err := txpkg.BatchTransactions(batchCtx, c, org.ID, ledger.ID, inputs, options)
-
 	if err != nil {
 		log.Printf("batch encountered errors: %v", err)
 	}

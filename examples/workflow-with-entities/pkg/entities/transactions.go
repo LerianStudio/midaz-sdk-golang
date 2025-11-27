@@ -90,7 +90,6 @@ func TransferFunds(
 	// Get destination account alias
 	destAccountAlias := destAccountID
 	destAccount, err := entity.Accounts.GetAccount(ctx, orgID, ledgerID, destAccountID)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to get destination account: %w", err)
 	}
