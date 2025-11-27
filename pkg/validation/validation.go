@@ -78,6 +78,10 @@ var accountAliasPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,50}$`)
 // assetCodePattern is the regex pattern for asset codes
 var assetCodePattern = regexp.MustCompile(`^[A-Z]{3,4}$`)
 
+// chartOfAccountsGroupNamePattern is the regex pattern for chart of accounts group names.
+// Allows alphanumeric characters, spaces, underscores, and hyphens.
+var chartOfAccountsGroupNamePattern = regexp.MustCompile(`^[a-zA-Z0-9 _-]+$`)
+
 // TransactionDSLValidator defines an interface for transaction DSL validation
 type TransactionDSLValidator interface {
 	GetAsset() string
@@ -473,6 +477,89 @@ func (vs *ValidationSummary) GetErrorSummary() string {
 	return builder.String()
 }
 
+// validateOperationType validates the operation type field
+func validateOperationType(op map[string]any, index int) error {
+	if op["type"] == nil {
+		return fmt.Errorf("operation %d: type is required", index)
+	}
+
+	opType, ok := op["type"].(string)
+	if !ok {
+		return fmt.Errorf("operation %d: type must be a string", index)
+	}
+
+	if opType != "DEBIT" && opType != "CREDIT" {
+		return fmt.Errorf("operation %d: invalid type '%s' (must be DEBIT or CREDIT)", index, opType)
+	}
+
+	return nil
+}
+
+// validateOperationAccountAlias validates the account alias field if provided
+func validateOperationAccountAlias(op map[string]any, index int) error {
+	if op["account_alias"] == nil {
+		return nil
+	}
+
+	accountAlias, ok := op["account_alias"].(string)
+	if !ok {
+		return fmt.Errorf("operation %d: account_alias must be a string", index)
+	}
+
+	if accountAlias != "" {
+		if err := ValidateAccountAlias(accountAlias); err != nil {
+			return fmt.Errorf("operation %d: %w", index, err)
+		}
+	}
+
+	return nil
+}
+
+// validateOperationAssetCode validates the asset code field if provided
+func validateOperationAssetCode(op map[string]any, index int, transactionAssetCode string) error {
+	if op["asset_code"] == nil {
+		return nil
+	}
+
+	assetCode, ok := op["asset_code"].(string)
+	if !ok {
+		return fmt.Errorf("operation %d: asset_code must be a string", index)
+	}
+
+	if assetCode != "" && assetCode != transactionAssetCode {
+		return fmt.Errorf("operation %d: asset code '%s' must match transaction asset code '%s'",
+			index, assetCode, transactionAssetCode)
+	}
+
+	return nil
+}
+
+// validateOperationAmount validates the amount field
+func validateOperationAmount(op map[string]any, index int) error {
+	if op["amount"] == nil {
+		return fmt.Errorf("operation %d: amount is required", index)
+	}
+
+	amount, ok := op["amount"].(float64)
+	if !ok {
+		// Try int conversion as JSON may unmarshal as int
+		if intAmount, intOk := op["amount"].(int); intOk {
+			amount = float64(intAmount)
+			ok = true
+		}
+	}
+
+	if !ok {
+		return fmt.Errorf("operation %d: amount must be a number", index)
+	}
+
+	if amount <= 0 {
+		return fmt.Errorf("operation %d: amount must be greater than zero", index)
+	}
+
+	return nil
+}
+
 // validateOperation validates a single operation in a transaction
 func validateOperation(op map[string]any, index int, transactionAssetCode string) ([]error, bool) {
 	var errors []error
@@ -480,11 +567,8 @@ func validateOperation(op map[string]any, index int, transactionAssetCode string
 	valid := true
 
 	// Validate operation type
-	if op["type"] == nil {
-		errors = append(errors, fmt.Errorf("operation %d: type is required", index))
-		valid = false
-	} else if op["type"].(string) != "DEBIT" && op["type"].(string) != "CREDIT" {
-		errors = append(errors, fmt.Errorf("operation %d: invalid type '%s' (must be DEBIT or CREDIT)", index, op["type"].(string)))
+	if err := validateOperationType(op, index); err != nil {
+		errors = append(errors, err)
 		valid = false
 	}
 
@@ -495,25 +579,20 @@ func validateOperation(op map[string]any, index int, transactionAssetCode string
 	}
 
 	// Validate account alias if provided
-	if op["account_alias"] != nil && op["account_alias"].(string) != "" {
-		if err := ValidateAccountAlias(op["account_alias"].(string)); err != nil {
-			errors = append(errors, fmt.Errorf("operation %d: %w", index, err))
-			valid = false
-		}
+	if err := validateOperationAccountAlias(op, index); err != nil {
+		errors = append(errors, err)
+		valid = false
 	}
 
-	// Validate asset code if provided and ensure it matches transaction asset code
-	if op["asset_code"] != nil && op["asset_code"].(string) != "" {
-		if op["asset_code"].(string) != transactionAssetCode {
-			errors = append(errors, fmt.Errorf("operation %d: asset code '%s' must match transaction asset code '%s'",
-				index, op["asset_code"].(string), transactionAssetCode))
-			valid = false
-		}
+	// Validate asset code if provided
+	if err := validateOperationAssetCode(op, index, transactionAssetCode); err != nil {
+		errors = append(errors, err)
+		valid = false
 	}
 
 	// Validate amount
-	if op["amount"].(float64) <= 0 {
-		errors = append(errors, fmt.Errorf("operation %d: amount must be greater than zero", index))
+	if err := validateOperationAmount(op, index); err != nil {
+		errors = append(errors, err)
 		valid = false
 	}
 
@@ -531,8 +610,7 @@ func validateChartOfAccountsGroupName(name string) error {
 	}
 
 	// Allow alphanumeric characters, spaces, underscores, and hyphens
-	validPattern := regexp.MustCompile(`^[a-zA-Z0-9 _-]+$`)
-	if !validPattern.MatchString(name) {
+	if !chartOfAccountsGroupNamePattern.MatchString(name) {
 		return fmt.Errorf("chart of accounts group name '%s' contains invalid characters (allowed: alphanumeric, space, underscore, hyphen)", name)
 	}
 
@@ -601,18 +679,53 @@ func validateBasicTransactionFields(summary *ValidationSummary, input map[string
 	// Validate asset code
 	if input["asset_code"] == nil {
 		summary.AddError(fmt.Errorf("asset code is required"))
-	} else if err := ValidateAssetCode(input["asset_code"].(string)); err != nil {
-		summary.AddError(err)
+	} else {
+		assetCode, ok := input["asset_code"].(string)
+		if !ok {
+			summary.AddError(fmt.Errorf("asset_code must be a string"))
+		} else if err := ValidateAssetCode(assetCode); err != nil {
+			summary.AddError(err)
+		}
 	}
 
 	// Validate amount
-	if input["amount"].(float64) <= 0 {
-		summary.AddError(fmt.Errorf("amount must be greater than zero (got %.2f)", input["amount"].(float64)))
+	if input["amount"] == nil {
+		summary.AddError(fmt.Errorf("amount is required"))
+	} else {
+		amount, ok := input["amount"].(float64)
+		if !ok {
+			// Try int conversion as JSON may unmarshal as int
+			if intAmount, intOk := input["amount"].(int); intOk {
+				amount = float64(intAmount)
+				ok = true
+			}
+		}
+
+		if !ok {
+			summary.AddError(fmt.Errorf("amount must be a number"))
+		} else if amount <= 0 {
+			summary.AddError(fmt.Errorf("amount must be greater than zero (got %.2f)", amount))
+		}
 	}
 
 	// Validate scale
-	if input["scale"].(int) < 0 || input["scale"].(int) > 18 {
-		summary.AddError(fmt.Errorf("scale must be between 0 and 18"))
+	if input["scale"] == nil {
+		summary.AddError(fmt.Errorf("scale is required"))
+	} else {
+		scale, ok := input["scale"].(int)
+		if !ok {
+			// Try float64 conversion as JSON may unmarshal as float64
+			if floatScale, floatOk := input["scale"].(float64); floatOk {
+				scale = int(floatScale)
+				ok = true
+			}
+		}
+
+		if !ok {
+			summary.AddError(fmt.Errorf("scale must be an integer"))
+		} else if scale < 0 || scale > 18 {
+			summary.AddError(fmt.Errorf("scale must be between 0 and 18"))
+		}
 	}
 }
 
@@ -625,24 +738,49 @@ func validateTransactionOperations(summary *ValidationSummary, input map[string]
 		return
 	}
 
+	operations, ok := input["operations"].([]map[string]any)
+	if !ok {
+		summary.AddError(fmt.Errorf("operations must be an array of objects"))
+		return
+	}
+
+	// Get asset code for validation (may be nil or invalid, but validateOperation handles that)
+	assetCode := ""
+	if ac, ok := input["asset_code"].(string); ok {
+		assetCode = ac
+	}
+
 	// Track total debits and credits to ensure they balance
 	var totalDebits, totalCredits int64
 
 	// Validate each operation
-	for i, op := range input["operations"].([]map[string]any) {
-		errors, valid := validateOperation(op, i, input["asset_code"].(string))
+	for i, op := range operations {
+		errors, valid := validateOperation(op, i, assetCode)
 		if !valid {
 			for _, err := range errors {
 				summary.AddError(err)
 			}
 		}
 
-		// Track totals for balance check
-		switch op["type"].(string) {
-		case "DEBIT":
-			totalDebits += int64(op["amount"].(float64))
-		case "CREDIT":
-			totalCredits += int64(op["amount"].(float64))
+		// Track totals for balance check (with safe type assertions)
+		if op["type"] != nil && op["amount"] != nil {
+			opType, typeOk := op["type"].(string)
+			amount, amountOk := op["amount"].(float64)
+			if !amountOk {
+				if intAmount, intOk := op["amount"].(int); intOk {
+					amount = float64(intAmount)
+					amountOk = true
+				}
+			}
+
+			if typeOk && amountOk {
+				switch opType {
+				case "DEBIT":
+					totalDebits += int64(amount)
+				case "CREDIT":
+					totalCredits += int64(amount)
+				}
+			}
 		}
 	}
 
@@ -657,25 +795,43 @@ func validateTransactionBalance(summary *ValidationSummary, input map[string]any
 			totalDebits, totalCredits))
 	}
 
-	// Check if total matches transaction amount
-	if totalDebits != int64(input["amount"].(float64)) {
-		summary.AddError(fmt.Errorf("operation amounts do not match transaction amount: operations total (%d) != transaction amount (%.2f)",
-			totalDebits, input["amount"].(float64)))
+	// Check if total matches transaction amount (with safe type assertion)
+	if input["amount"] != nil {
+		amount, ok := input["amount"].(float64)
+		if !ok {
+			if intAmount, intOk := input["amount"].(int); intOk {
+				amount = float64(intAmount)
+				ok = true
+			}
+		}
+
+		if ok && totalDebits != int64(amount) {
+			summary.AddError(fmt.Errorf("operation amounts do not match transaction amount: operations total (%d) != transaction amount (%.2f)",
+				totalDebits, amount))
+		}
 	}
 }
 
 // validateAdditionalTransactionFields validates optional fields in the transaction
 func validateAdditionalTransactionFields(summary *ValidationSummary, input map[string]any) {
 	// Validate chart of accounts group name if provided
-	if input["chart_of_accounts_group_name"] != nil && input["chart_of_accounts_group_name"].(string) != "" {
-		if err := validateChartOfAccountsGroupName(input["chart_of_accounts_group_name"].(string)); err != nil {
-			summary.AddError(err)
+	if input["chart_of_accounts_group_name"] != nil {
+		groupName, ok := input["chart_of_accounts_group_name"].(string)
+		if !ok {
+			summary.AddError(fmt.Errorf("chart_of_accounts_group_name must be a string"))
+		} else if groupName != "" {
+			if err := validateChartOfAccountsGroupName(groupName); err != nil {
+				summary.AddError(err)
+			}
 		}
 	}
 
 	// Validate metadata if present
 	if input["metadata"] != nil {
-		if err := ValidateMetadata(input["metadata"].(map[string]any)); err != nil {
+		metadata, ok := input["metadata"].(map[string]any)
+		if !ok {
+			summary.AddError(fmt.Errorf("metadata must be an object"))
+		} else if err := ValidateMetadata(metadata); err != nil {
 			summary.AddError(fmt.Errorf("invalid metadata: %w", err))
 		}
 	}

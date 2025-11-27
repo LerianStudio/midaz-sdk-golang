@@ -144,7 +144,7 @@ func GetTokenFromAccessManager(ctx context.Context, AccessManager AccessManager,
 
 	// Check the status code
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("plugin auth service returned non-OK status: %d, body: %s", resp.StatusCode, string(body))
+		return "", fmt.Errorf("plugin auth service returned non-OK status: %d", resp.StatusCode)
 	}
 
 	// Parse the response

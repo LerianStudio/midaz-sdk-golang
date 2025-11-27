@@ -59,6 +59,11 @@ import (
 	"sync"
 )
 
+// maxBufferSize is the maximum size of buffers that will be returned to the pool.
+// Buffers larger than this will be discarded to prevent memory bloat from
+// occasional large JSON operations consuming excessive pool memory.
+const maxBufferSize = 1 << 20 // 1MB
+
 // JSONPool provides a pool of JSON encoders and decoders to reduce allocations.
 // This is particularly useful for high-throughput applications that make many API calls.
 //
@@ -213,7 +218,13 @@ func (p *JSONPool) getBuffer() *bytes.Buffer {
 }
 
 // putBuffer returns a buffer to the pool.
+// Buffers larger than maxBufferSize are discarded to prevent memory bloat.
 func (p *JSONPool) putBuffer(buf *bytes.Buffer) {
+	if buf.Cap() > maxBufferSize {
+		return // Don't pool oversized buffers
+	}
+
+	buf.Reset()
 	p.bufferPool.Put(buf)
 }
 

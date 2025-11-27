@@ -8,6 +8,7 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
 	"github.com/shopspring/decimal"
 )
 
@@ -33,12 +34,20 @@ type Report struct {
 // Checker provides data integrity checks and balance verification.
 type Checker struct {
 	e *entities.Entity
+	// Optional observability provider for logging and tracing
+	obs observability.Provider
 	// Optional delay between account lookups to avoid overwhelming services on large ledgers
 	sleepBetweenAccountLookups time.Duration
 }
 
 // NewChecker creates a new Checker.
 func NewChecker(e *entities.Entity) *Checker { return &Checker{e: e} }
+
+// WithObservability sets the observability provider for logging and tracing.
+func (c *Checker) WithObservability(obs observability.Provider) *Checker {
+	c.obs = obs
+	return c
+}
 
 // WithAccountLookupDelay sets an optional delay inserted before each account lookup.
 // Useful to rate-limit calls when processing very large ledgers.
@@ -63,14 +72,27 @@ func (c *Checker) GenerateLedgerReport(ctx context.Context, orgID, ledgerID stri
 		return nil, fmt.Errorf("entities not initialized for integrity checks")
 	}
 
+	c.logDebug("Starting ledger integrity report generation for ledger %s", ledgerID)
+
 	totals := map[string]*BalanceTotals{}
 	accountAliasCache := map[string]string{}
 
-	if err := c.processBalances(ctx, orgID, ledgerID, totals, accountAliasCache); err != nil {
+	var report *Report
+	err := observability.WithSpan(ctx, c.obs, "GenerateLedgerReport", func(ctx context.Context) error {
+		if err := c.processBalances(ctx, orgID, ledgerID, totals, accountAliasCache); err != nil {
+			c.logError("Failed to process balances for ledger %s: %v", ledgerID, err)
+			return err
+		}
+		report = &Report{LedgerID: ledgerID, TotalsByAsset: totals}
+		return nil
+	})
+	if err != nil {
 		return nil, err
 	}
 
-	return &Report{LedgerID: ledgerID, TotalsByAsset: totals}, nil
+	c.logInfo("Completed ledger integrity report for ledger %s: %d assets processed", ledgerID, len(totals))
+
+	return report, nil
 }
 
 // processBalances processes all balances with pagination
@@ -197,6 +219,35 @@ func (c *Checker) checkForOverdraft(t *BalanceTotals, b models.Balance, alias st
 		}
 
 		t.Overdrawn = append(t.Overdrawn, id)
+		c.logWarn("Detected overdrawn account %s for asset %s: available=%s", id, b.AssetCode, b.Available.String())
+	}
+}
+
+// logDebug logs a debug message if observability is enabled.
+func (c *Checker) logDebug(format string, args ...any) {
+	if c.obs != nil && c.obs.IsEnabled() {
+		c.obs.Logger().Debugf(format, args...)
+	}
+}
+
+// logInfo logs an info message if observability is enabled.
+func (c *Checker) logInfo(format string, args ...any) {
+	if c.obs != nil && c.obs.IsEnabled() {
+		c.obs.Logger().Infof(format, args...)
+	}
+}
+
+// logWarn logs a warning message if observability is enabled.
+func (c *Checker) logWarn(format string, args ...any) {
+	if c.obs != nil && c.obs.IsEnabled() {
+		c.obs.Logger().Warnf(format, args...)
+	}
+}
+
+// logError logs an error message if observability is enabled.
+func (c *Checker) logError(format string, args ...any) {
+	if c.obs != nil && c.obs.IsEnabled() {
+		c.obs.Logger().Errorf(format, args...)
 	}
 }
 

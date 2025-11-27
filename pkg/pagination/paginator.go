@@ -7,6 +7,10 @@ import (
 	"time"
 )
 
+// MaxPaginationLimit is the maximum allowed limit for pagination requests.
+// This prevents excessive memory usage from overly large page requests.
+const MaxPaginationLimit = 1000
+
 // PageFetcher is a generic function type for fetching a page of results
 type PageFetcher[T any] func(ctx context.Context, options PageOptions) (*PageResult[T], error)
 
@@ -118,6 +122,10 @@ func WithLimit(limit int) PaginatorOption {
 	return func(o *PaginatorOptions) error {
 		if limit <= 0 {
 			return fmt.Errorf("limit must be positive, got %d", limit)
+		}
+
+		if limit > MaxPaginationLimit {
+			return fmt.Errorf("limit must not exceed %d, got %d", MaxPaginationLimit, limit)
 		}
 
 		o.PageOptions.Limit = limit

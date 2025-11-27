@@ -18,6 +18,7 @@ import (
 
 	auth "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/access-manager"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/version"
 )
 
 // ServiceType represents a type of service in the Midaz API ecosystem.
@@ -49,9 +50,6 @@ const (
 
 // Default configuration values
 const (
-	// Default user agent for HTTP requests
-	DefaultUserAgent = "midaz-go-sdk/1.0.0"
-
 	// Default timeout for HTTP requests in seconds
 	DefaultTimeout = 60
 
@@ -393,7 +391,10 @@ func WithAccessManager(AccessManager auth.AccessManager) Option {
 //
 // Environment variables:
 // - MIDAZ_ENVIRONMENT: The environment to use (local, development, production)
-// - MIDAZ_AUTH_TOKEN: The authentication token
+// - PLUGIN_AUTH_ENABLED: Enable access manager authentication (true/false)
+// - PLUGIN_AUTH_ADDRESS: The address of the access manager service
+// - MIDAZ_CLIENT_ID: The client ID for authentication
+// - MIDAZ_CLIENT_SECRET: The client secret for authentication
 // - MIDAZ_USER_AGENT: The user agent string to use for HTTP requests
 // - MIDAZ_ONBOARDING_URL: The URL for the Onboarding API
 // - MIDAZ_TRANSACTION_URL: The URL for the Transaction API
@@ -576,7 +577,7 @@ func NewConfig(options ...Option) (*Config, error) {
 		Environment:       EnvironmentLocal,
 		ServiceURLs:       make(map[ServiceType]string),
 		Timeout:           DefaultTimeout * time.Second,
-		UserAgent:         DefaultUserAgent,
+		UserAgent:         version.UserAgent(),
 		MaxRetries:        DefaultMaxRetries,
 		RetryWaitMin:      DefaultRetryWaitMin,
 		RetryWaitMax:      DefaultRetryWaitMax,
@@ -688,6 +689,7 @@ func (c *Config) GetObservabilityProvider() observability.Provider {
 }
 
 // parseURL validates that a URL is properly formatted.
+// It also warns (via stderr) if using HTTP instead of HTTPS for non-localhost URLs.
 func parseURL(rawURL string) error {
 	parsedURL, err := url.Parse(rawURL)
 	if err != nil {
@@ -699,7 +701,19 @@ func parseURL(rawURL string) error {
 		return fmt.Errorf("URL must include scheme and host")
 	}
 
+	// Warn about insecure HTTP connections (except for localhost/development)
+	if parsedURL.Scheme == "http" && !isLocalhost(parsedURL.Host) {
+		fmt.Fprintf(os.Stderr, "[Midaz SDK Warning] Using insecure HTTP connection to %s. Consider using HTTPS for production.\n", parsedURL.Host)
+	}
+
 	return nil
+}
+
+// isLocalhost checks if the host is a localhost address (for development use).
+func isLocalhost(host string) bool {
+	// Remove port if present
+	hostname := strings.Split(host, ":")[0]
+	return hostname == "localhost" || hostname == "127.0.0.1" || hostname == "::1"
 }
 
 // DefaultConfig creates a new Config with default values.
@@ -714,7 +728,7 @@ func DefaultConfig() *Config {
 		Environment:       EnvironmentLocal,
 		ServiceURLs:       make(map[ServiceType]string),
 		Timeout:           DefaultTimeout * time.Second,
-		UserAgent:         DefaultUserAgent,
+		UserAgent:         version.UserAgent(),
 		MaxRetries:        DefaultMaxRetries,
 		RetryWaitMin:      DefaultRetryWaitMin,
 		RetryWaitMax:      DefaultRetryWaitMax,

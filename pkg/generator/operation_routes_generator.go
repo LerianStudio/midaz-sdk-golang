@@ -33,15 +33,17 @@ func (g *operationRouteGenerator) Generate(ctx context.Context, orgID, ledgerID 
 	var out *models.OperationRoute
 
 	err := observability.WithSpan(ctx, g.obs, "GenerateOperationRoute", func(ctx context.Context) error {
-		return retry.DoWithContext(ctx, func() error {
-			or, err := g.e.OperationRoutes.CreateOperationRoute(ctx, orgID, ledgerID, input)
-			if err != nil {
-				return err
-			}
+		return executeWithCircuitBreaker(ctx, func() error {
+			return retry.DoWithContext(ctx, func() error {
+				or, err := g.e.OperationRoutes.CreateOperationRoute(ctx, orgID, ledgerID, input)
+				if err != nil {
+					return err
+				}
 
-			out = or
+				out = or
 
-			return nil
+				return nil
+			})
 		})
 	})
 	if err != nil {

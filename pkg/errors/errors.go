@@ -51,6 +51,9 @@ const (
 
 	// CodeInternal indicates an internal server error
 	CodeInternal ErrorCode = "internal_error"
+
+	// CodeNetwork indicates a network-related error
+	CodeNetwork ErrorCode = "network_error"
 )
 
 // ErrorCategory represents the general category of an error
@@ -396,7 +399,7 @@ func NewNetworkError(operation string, err error) *Error {
 
 	return &Error{
 		Category:   CategoryNetwork,
-		Code:       CodeInternal, // Using internal as there's no specific network code
+		Code:       CodeNetwork,
 		Message:    message,
 		Operation:  operation,
 		Err:        err,
@@ -515,6 +518,17 @@ func (e *MidazError) Error() string {
 // Unwrap returns the underlying error
 func (e *MidazError) Unwrap() error {
 	return e.Err
+}
+
+// Is checks if the target error is of the same type as this error.
+// This enables compatibility with errors.Is for MidazError.
+func (e *MidazError) Is(target error) bool {
+	t, ok := target.(*MidazError)
+	if !ok {
+		return false
+	}
+
+	return e.Code == t.Code
 }
 
 // NewMidazError creates a new MidazError for tests
@@ -787,26 +801,14 @@ func CheckAssetMismatchError(err error) bool {
 // These are aliases to the Check functions for backward compatibility
 
 func IsValidationError(err error) bool {
-	if err == nil {
-		return false
-	}
-
 	return CheckValidationError(err)
 }
 
 func IsNotFoundError(err error) bool {
-	if err == nil {
-		return false
-	}
-
 	return CheckNotFoundError(err)
 }
 
 func IsAuthenticationError(err error) bool {
-	if err == nil {
-		return false
-	}
-
 	return CheckAuthenticationError(err)
 }
 
@@ -819,90 +821,46 @@ func IsConflictError(err error) bool {
 }
 
 func IsPermissionError(err error) bool {
-	if err == nil {
-		return false
-	}
-
 	return CheckAuthorizationError(err)
 }
 
 func IsAlreadyExistsError(err error) bool {
-	if err == nil {
-		return false
-	}
-
 	return CheckConflictError(err)
 }
 
 func IsIdempotencyError(err error) bool {
-	if err == nil {
-		return false
-	}
-
 	return CheckIdempotencyError(err)
 }
 
 func IsRateLimitError(err error) bool {
-	if err == nil {
-		return false
-	}
-
 	return CheckRateLimitError(err)
 }
 
 func IsTimeoutError(err error) bool {
-	if err == nil {
-		return false
-	}
-
 	return CheckTimeoutError(err)
 }
 
 func IsNetworkError(err error) bool {
-	if err == nil {
-		return false
-	}
-
 	return CheckNetworkError(err)
 }
 
 func IsCancellationError(err error) bool {
-	if err == nil {
-		return false
-	}
-
 	return CheckCancellationError(err)
 }
 
 func IsInternalError(err error) bool {
-	if err == nil {
-		return false
-	}
-
 	return CheckInternalError(err)
 }
 
 func IsInsufficientBalanceError(err error) bool {
-	if err == nil {
-		return false
-	}
-
 	return CheckInsufficientBalanceError(err)
 }
 
 func IsAccountEligibilityError(err error) bool {
-	if err == nil {
-		return false
-	}
-
 	return CheckAccountEligibilityError(err)
 }
 
 func IsAssetMismatchError(err error) bool {
-	if err == nil {
-		return false
-	}
-
 	return CheckAssetMismatchError(err)
 }
 
@@ -978,27 +936,27 @@ func categorizeByErrorChecks(err error) ErrorCategory {
 
 // Helper functions for cleaner error type checking
 func isValidationErrorType(err error) bool {
-	return IsValidationError(err) || CheckValidationError(err)
+	return CheckValidationError(err)
 }
 
 func isNotFoundErrorType(err error) bool {
-	return IsNotFoundError(err) || CheckNotFoundError(err)
+	return CheckNotFoundError(err)
 }
 
 func isAuthenticationErrorType(err error) bool {
-	return IsAuthenticationError(err) || CheckAuthenticationError(err)
+	return CheckAuthenticationError(err)
 }
 
 func isRateLimitErrorType(err error) bool {
-	return IsRateLimitError(err) || CheckRateLimitError(err)
+	return CheckRateLimitError(err)
 }
 
 func isTimeoutErrorType(err error) bool {
-	return IsTimeoutError(err) || CheckTimeoutError(err)
+	return CheckTimeoutError(err)
 }
 
 func isInternalErrorType(err error) bool {
-	return IsInternalError(err) || CheckInternalError(err)
+	return CheckInternalError(err)
 }
 
 // GetStatusCode gets the HTTP status code associated with an error.
@@ -1149,6 +1107,14 @@ func ErrorFromHTTPResponse(statusCode int, requestID, message, code, entityType,
 			Message:    message,
 			Resource:   entityType,
 			ResourceID: resourceID,
+			StatusCode: statusCode,
+			RequestID:  requestID,
+		}
+	case http.StatusServiceUnavailable:
+		return &Error{
+			Category:   CategoryNetwork,
+			Code:       CodeInternal,
+			Message:    message,
 			StatusCode: statusCode,
 			RequestID:  requestID,
 		}

@@ -19,6 +19,7 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/performance"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/version"
 )
 
 // getUserAgent retrieves the user agent string from environment variable or uses default
@@ -27,8 +28,8 @@ func getUserAgent() string {
 	if userAgent := os.Getenv("MIDAZ_USER_AGENT"); userAgent != "" {
 		return userAgent
 	}
-	// Fall back to config default
-	return "Midaz-Go-SDK/1.0.0"
+	// Fall back to centralized version
+	return version.UserAgent()
 }
 
 // HTTPClient is a wrapper around http.Client with additional functionality:
@@ -58,43 +59,9 @@ type HTTPClient struct {
 //   - authToken: The authentication token for API authorization.
 //   - provider: The observability provider for tracing, metrics, and logging (can be nil).
 func NewHTTPClient(client *http.Client, authToken string, provider observability.Provider) *HTTPClient {
-	// Check if we're using the debug flag from the environment
-	debug := false
-
-	if debugEnv := os.Getenv("MIDAZ_DEBUG"); debugEnv == "true" {
-		debug = true
-	}
-
-	// Initialize retry options with defaults
-	retryOptions := retry.DefaultOptions()
-
-	// Check for retry configuration in environment variables
-	if maxRetries := os.Getenv("MIDAZ_MAX_RETRIES"); maxRetries != "" {
-		if val, err := parseInt(maxRetries); err == nil && val >= 0 {
-			if err := retry.WithMaxRetries(val)(retryOptions); err != nil {
-				// Log the error if observability is enabled
-				if provider != nil && provider.IsEnabled() {
-					provider.Logger().Errorf("Failed to set max retries: %v", err)
-				}
-			}
-		}
-	}
-
-	// Check if retries are disabled
-	if retryEnv := os.Getenv("MIDAZ_ENABLE_RETRIES"); retryEnv == "false" {
-		if err := retry.WithMaxRetries(0)(retryOptions); err != nil {
-			// Log the error if observability is enabled
-			if provider != nil && provider.IsEnabled() {
-				provider.Logger().Errorf("Failed to disable retries: %v", err)
-			}
-		}
-	}
-
-	// Initialize metrics collector if observability is provided
-	var metrics *observability.MetricsCollector
-	if provider != nil && provider.IsEnabled() {
-		metrics, _ = observability.NewMetricsCollector(provider)
-	}
+	debug := os.Getenv("MIDAZ_DEBUG") == "true"
+	retryOptions := initRetryOptionsFromEnv(provider)
+	metrics := initMetricsCollector(provider)
 
 	// Use the default client if none is provided
 	if client == nil {
@@ -103,7 +70,6 @@ func NewHTTPClient(client *http.Client, authToken string, provider observability
 		}
 	}
 
-	// Create the HTTP client
 	return &HTTPClient{
 		client:        client,
 		authToken:     authToken,
@@ -113,6 +79,50 @@ func NewHTTPClient(client *http.Client, authToken string, provider observability
 		jsonPool:      performance.NewJSONPool(),
 		metrics:       metrics,
 		observability: provider,
+	}
+}
+
+// initRetryOptionsFromEnv initializes retry options from environment variables.
+func initRetryOptionsFromEnv(provider observability.Provider) *retry.Options {
+	retryOptions := retry.DefaultOptions()
+
+	// Check for retry configuration in environment variables
+	if maxRetries := os.Getenv("MIDAZ_MAX_RETRIES"); maxRetries != "" {
+		if val, err := strconv.Atoi(maxRetries); err == nil && val >= 0 {
+			if err := retry.WithMaxRetries(val)(retryOptions); err != nil {
+				logRetryError(provider, "Failed to set max retries: %v", err)
+			}
+		}
+	}
+
+	// Check if retries are disabled
+	if retryEnv := os.Getenv("MIDAZ_ENABLE_RETRIES"); retryEnv == "false" {
+		if err := retry.WithMaxRetries(0)(retryOptions); err != nil {
+			logRetryError(provider, "Failed to disable retries: %v", err)
+		}
+	}
+
+	return retryOptions
+}
+
+// initMetricsCollector initializes the metrics collector if observability is enabled.
+func initMetricsCollector(provider observability.Provider) *observability.MetricsCollector {
+	if provider == nil || !provider.IsEnabled() {
+		return nil
+	}
+
+	metrics, err := observability.NewMetricsCollector(provider)
+	if err != nil && provider.Logger() != nil {
+		provider.Logger().Warnf("Failed to create metrics collector: %v", err)
+	}
+
+	return metrics
+}
+
+// logRetryError logs a retry configuration error if observability is enabled.
+func logRetryError(provider observability.Provider, format string, args ...any) {
+	if provider != nil && provider.IsEnabled() {
+		provider.Logger().Errorf(format, args...)
 	}
 }
 
@@ -241,6 +251,13 @@ func (c *HTTPClient) doRawRequest(ctx context.Context, method, requestURL string
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 
+	// Set GetBody for retry support - allows body to be recreated on retries
+	if len(body) > 0 {
+		req.GetBody = func() (io.ReadCloser, error) {
+			return io.NopCloser(bytes.NewReader(body)), nil
+		}
+	}
+
 	if key := getIdempotencyKeyFromContext(ctx); key != "" {
 		if headers == nil {
 			headers = map[string]string{}
@@ -296,6 +313,13 @@ func (c *HTTPClient) buildHTTPRequest(ctx context.Context, method, requestURL st
 		return nil, nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
+	// Set GetBody for retry support - allows body to be recreated on retries
+	if len(bodyBytes) > 0 {
+		req.GetBody = func() (io.ReadCloser, error) {
+			return io.NopCloser(bytes.NewReader(bodyBytes)), nil
+		}
+	}
+
 	return req, bodyBytes, nil
 }
 
@@ -328,19 +352,19 @@ func (c *HTTPClient) setupRequestHeaders(req *http.Request, headers map[string]s
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", c.userAgent)
 
-	// Content type for requests with body
-	if hasBody {
+	// Custom headers first (allows overriding Content-Type)
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
+
+	// Content type for requests with body (only if not already set by custom headers)
+	if hasBody && req.Header.Get("Content-Type") == "" {
 		req.Header.Set("Content-Type", "application/json")
 	}
 
 	// Authorization header
 	if c.authToken != "" {
 		req.Header.Set("Authorization", c.authToken)
-	}
-
-	// Custom headers
-	for key, value := range headers {
-		req.Header.Set(key, value)
 	}
 }
 
@@ -354,6 +378,14 @@ func (c *HTTPClient) executeRequestWithRetry(ctx context.Context, req *http.Requ
 
 	err := retry.DoWithContext(retryCtx, func() error {
 		var err error
+
+		// Reset request body for retry if GetBody is available
+		if req.GetBody != nil {
+			req.Body, err = req.GetBody()
+			if err != nil {
+				return fmt.Errorf("failed to reset request body for retry: %w", err)
+			}
+		}
 
 		resp, err = c.client.Do(req)
 		if err != nil {
@@ -374,7 +406,9 @@ func (c *HTTPClient) executeRequestWithRetry(ctx context.Context, req *http.Requ
 		}
 
 		if resp.StatusCode >= 400 {
-			return c.handleErrorResponse(resp.StatusCode, responseBody, method, requestURL)
+			// Extract request ID from response headers for error context
+			requestID := resp.Header.Get("X-Request-ID")
+			return c.handleErrorResponse(resp.StatusCode, responseBody, method, requestURL, requestID)
 		}
 
 		return nil
@@ -391,12 +425,16 @@ func (c *HTTPClient) closeResponseBody(resp *http.Response) {
 }
 
 // handleErrorResponse processes API error responses
-func (c *HTTPClient) handleErrorResponse(statusCode int, responseBody []byte, method, requestURL string) error {
-	apiErr := c.parseErrorResponse(statusCode, responseBody)
+func (c *HTTPClient) handleErrorResponse(statusCode int, responseBody []byte, method, requestURL, requestID string) error {
+	apiErr := c.parseErrorResponse(statusCode, responseBody, requestID)
 
 	if c.debug {
 		c.debugLog("HTTP Error response from: %s %s", method, requestURL)
 		c.debugLog("Error status: %d", statusCode)
+
+		if requestID != "" {
+			c.debugLog("Request ID: %s", requestID)
+		}
 		c.debugLog("Error body: %s", string(responseBody))
 		c.debugLog("Parsed error: %v", apiErr)
 	}
@@ -492,10 +530,20 @@ func (c *HTTPClient) sendRequest(req *http.Request, v any) error {
 }
 
 // debugLog logs a debug message if debug mode is enabled.
+// Uses observability logger when available, otherwise falls back to stderr.
 func (c *HTTPClient) debugLog(format string, args ...any) {
-	if c.debug {
-		fmt.Fprintf(os.Stderr, "[Midaz SDK Debug] "+format+"\n", args...)
+	if !c.debug {
+		return
 	}
+
+	// Use observability logger if available
+	if c.observability != nil && c.observability.IsEnabled() && c.observability.Logger() != nil {
+		c.observability.Logger().Debugf(format, args...)
+		return
+	}
+
+	// Fall back to stderr for debug output
+	fmt.Fprintf(os.Stderr, "[Midaz SDK Debug] "+format+"\n", args...)
 }
 
 // idempotency context helpers
@@ -522,10 +570,10 @@ func getIdempotencyKeyFromContext(ctx context.Context) string {
 }
 
 // parseErrorResponse parses an error response from the API and converts it to an SDK error.
-func (c *HTTPClient) parseErrorResponse(statusCode int, body []byte) error {
+func (c *HTTPClient) parseErrorResponse(statusCode int, body []byte, requestID string) error {
 	// If there's no body, create a generic error
 	if len(body) == 0 {
-		return sdkerrors.ErrorFromHTTPResponse(statusCode, "", "Empty response from server", "", "", "")
+		return sdkerrors.ErrorFromHTTPResponse(statusCode, requestID, "Empty response from server", "", "", "")
 	}
 
 	// Try to parse the error body as a JSON object
@@ -537,7 +585,7 @@ func (c *HTTPClient) parseErrorResponse(statusCode int, body []byte) error {
 
 	if err := json.Unmarshal(body, &apiError); err != nil {
 		// If we can't parse the JSON, return the raw body as the error message
-		return sdkerrors.ErrorFromHTTPResponse(statusCode, "", string(body), "", "", "")
+		return sdkerrors.ErrorFromHTTPResponse(statusCode, requestID, string(body), "", "", "")
 	}
 
 	// Use the message if available, otherwise use the error field
@@ -552,12 +600,7 @@ func (c *HTTPClient) parseErrorResponse(statusCode int, body []byte) error {
 	}
 
 	// Create the appropriate error type based on the status code
-	return sdkerrors.ErrorFromHTTPResponse(statusCode, "", message, apiError.Code, "", "")
-}
-
-// parseInt converts a string to an integer with error handling.
-func parseInt(s string) (int, error) {
-	return strconv.Atoi(s)
+	return sdkerrors.ErrorFromHTTPResponse(statusCode, requestID, message, apiError.Code, "", "")
 }
 
 // AddURLParams adds query parameters to a URL.

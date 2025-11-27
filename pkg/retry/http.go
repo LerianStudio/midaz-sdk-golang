@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"time"
 )
@@ -451,9 +450,8 @@ func (r *httpRetryState) executeAttempt(req *http.Request, attempt int) (*HTTPRe
 	var bodyConsumed bool
 	defer func() {
 		if !bodyConsumed && resp != nil && resp.Body != nil {
-			if closeErr := resp.Body.Close(); closeErr != nil {
-				log.Printf("Warning: Failed to close response body: %v", closeErr)
-			}
+			// Silently close the body - close errors are non-actionable in library code
+			_ = resp.Body.Close()
 		}
 	}()
 
@@ -532,9 +530,8 @@ func (r *httpRetryState) readResponseBody(httpResp *HTTPResponse) error {
 
 	respBody, readErr := io.ReadAll(r.resp.Body)
 
-	if closeErr := r.resp.Body.Close(); closeErr != nil {
-		log.Printf("Warning: Failed to close response body: %v", closeErr)
-	}
+	// Silently close the body - close errors are non-actionable in library code
+	_ = r.resp.Body.Close()
 
 	if readErr != nil {
 		httpResp.Error = readErr
@@ -570,10 +567,15 @@ func (r *httpRetryState) waitForRetry(attempt int) error {
 	})
 	delay = addJitter(delay, r.options.JitterFactor)
 
+	// Use time.NewTimer instead of time.After to allow proper cleanup
+	// and avoid potential timer leaks when context is cancelled
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+
 	select {
 	case <-r.ctx.Done():
 		return fmt.Errorf("operation cancelled during retry: %w", r.ctx.Err())
-	case <-time.After(delay):
+	case <-timer.C:
 		return nil
 	}
 }

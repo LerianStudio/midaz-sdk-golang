@@ -8,6 +8,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/version"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -111,6 +112,12 @@ type Config struct {
 
 	// Headers to extract for trace context propagation
 	PropagationHeaders []string
+
+	// RegisterGlobally controls whether to register providers as global OpenTelemetry providers.
+	// When true (default), providers are registered globally via otel.Set*Provider calls.
+	// When false, providers are only available via this MidazProvider instance, avoiding
+	// conflicts when multiple SDK instances are used in the same process.
+	RegisterGlobally bool
 }
 
 // EnabledComponents controls which observability components are enabled
@@ -137,26 +144,26 @@ func WithServiceName(name string) Option {
 }
 
 // WithServiceVersion sets the service version for observability
-func WithServiceVersion(version string) Option {
+func WithServiceVersion(ver string) Option {
 	return func(c *Config) error {
-		if version == "" {
+		if ver == "" {
 			return fmt.Errorf("service version cannot be empty")
 		}
 
-		c.ServiceVersion = version
+		c.ServiceVersion = ver
 
 		return nil
 	}
 }
 
 // WithSDKVersion sets the SDK version for observability
-func WithSDKVersion(version string) Option {
+func WithSDKVersion(ver string) Option {
 	return func(c *Config) error {
-		if version == "" {
+		if ver == "" {
 			return fmt.Errorf("SDK version cannot be empty")
 		}
 
-		c.SDKVersion = version
+		c.SDKVersion = ver
 
 		return nil
 	}
@@ -273,6 +280,18 @@ func WithPropagationHeaders(headers ...string) Option {
 	}
 }
 
+// WithRegisterGlobally controls whether to register providers as global OpenTelemetry providers.
+// When true (default), providers are registered globally via otel.Set*Provider calls.
+// When false, providers are only available via this MidazProvider instance, avoiding
+// conflicts when multiple SDK instances are used in the same process.
+func WithRegisterGlobally(register bool) Option {
+	return func(c *Config) error {
+		c.RegisterGlobally = register
+
+		return nil
+	}
+}
+
 // WithHighTracingSampling sets a high trace sampling rate (0.5) for development environments
 func WithHighTracingSampling() Option {
 	return WithTraceSampleRate(0.5)
@@ -330,9 +349,9 @@ func WithProductionDefaults() Option {
 // DefaultConfig returns a default configuration for the observability provider
 func DefaultConfig() *Config {
 	return &Config{
-		ServiceName:     "midaz-go-sdk",
-		ServiceVersion:  "1.0.0",
-		SDKVersion:      "1.0.0",
+		ServiceName:     version.SDKName,
+		ServiceVersion:  version.Version,
+		SDKVersion:      version.Version,
 		Environment:     "production",
 		LogLevel:        InfoLevel,
 		TraceSampleRate: 0.1,
@@ -348,6 +367,7 @@ func DefaultConfig() *Config {
 			"x-request-id",
 			"x-correlation-id",
 		},
+		RegisterGlobally: true,
 	}
 }
 
@@ -471,6 +491,9 @@ func NewWithConfig(ctx context.Context, config *Config) (Provider, error) {
 		opts = append(opts, WithPropagationHeaders(config.PropagationHeaders...))
 	}
 
+	// Always set RegisterGlobally
+	opts = append(opts, WithRegisterGlobally(config.RegisterGlobally))
+
 	return New(ctx, opts...)
 }
 
@@ -527,8 +550,10 @@ func (p *MidazProvider) initTracing(ctx context.Context, res *sdkresource.Resour
 		sdktrace.WithSampler(sdktrace.TraceIDRatioBased(p.config.TraceSampleRate)),
 	)
 
-	// Set the global trace provider
-	otel.SetTracerProvider(p.tracerProvider)
+	// Set the global trace provider only if RegisterGlobally is true
+	if p.config.RegisterGlobally {
+		otel.SetTracerProvider(p.tracerProvider)
+	}
 
 	// Create a tracer for this library
 	p.tracer = p.tracerProvider.Tracer("github.com/LerianStudio/midaz-sdk-golang/v2")
@@ -571,8 +596,10 @@ func (p *MidazProvider) initMetrics(ctx context.Context, res *sdkresource.Resour
 		sdkmetric.WithReader(sdkmetric.NewPeriodicReader(exporter)),
 	)
 
-	// Set the global meter provider
-	otel.SetMeterProvider(p.meterProvider)
+	// Set the global meter provider only if RegisterGlobally is true
+	if p.config.RegisterGlobally {
+		otel.SetMeterProvider(p.meterProvider)
+	}
 
 	// Create a meter for this library
 	p.meter = p.meterProvider.Meter("github.com/LerianStudio/midaz-sdk-golang/v2")
@@ -596,6 +623,11 @@ func (p *MidazProvider) initLogging(res *sdkresource.Resource) error {
 
 // setupPropagation configures context propagation for distributed tracing
 func (p *MidazProvider) setupPropagation() {
+	// Only set global propagator if RegisterGlobally is true
+	if !p.config.RegisterGlobally {
+		return
+	}
+
 	// Set up propagators if provided, otherwise use defaults
 	if len(p.config.Propagators) > 0 {
 		otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(

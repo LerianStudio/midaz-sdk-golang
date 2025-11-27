@@ -2,9 +2,30 @@ package data
 
 import (
 	"fmt"
+	"regexp"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation"
 )
+
+// validDSLAliasPattern defines the allowed characters for DSL aliases to prevent
+// template injection attacks. Aliases may optionally start with @ and contain
+// alphanumeric characters, underscores, hyphens, and forward slashes.
+var validDSLAliasPattern = regexp.MustCompile(`^@?[a-zA-Z0-9_/-]+$`)
+
+// ValidateDSLAlias validates that an alias conforms to the expected DSL format.
+// This prevents potential template injection by ensuring aliases only contain
+// safe characters (alphanumeric, underscore, hyphen, forward slash, and optional @ prefix).
+func ValidateDSLAlias(alias string) error {
+	if alias == "" {
+		return fmt.Errorf("alias cannot be empty")
+	}
+
+	if !validDSLAliasPattern.MatchString(alias) {
+		return fmt.Errorf("invalid alias format: %s (must match pattern: @?[a-zA-Z0-9_/-]+)", alias)
+	}
+
+	return nil
+}
 
 // ValidateOrgTemplate checks address, metadata sizes and basic fields.
 func ValidateOrgTemplate(t OrgTemplate) error {

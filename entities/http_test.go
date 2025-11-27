@@ -14,9 +14,17 @@ import (
 )
 
 // TestHTTPClient is a temporary placeholder until tests can be properly updated
+// TODO(tests): Re-enable HTTPClient tests after completing the error handling refactoring.
+// The tests were disabled to allow incremental refactoring of the HTTP layer.
+// Priority: HIGH - These tests should be re-enabled and expanded to cover:
+// - Request/response handling with mocked servers
+// - Error response parsing and mapping
+// - Retry logic with various failure scenarios
+// - Header management including Content-Type override
+// - Request ID propagation
+// Tracking: https://github.com/LerianStudio/midaz-sdk-golang/issues (create issue)
 func TestHTTPClient(t *testing.T) {
-	// Skip the tests during refactoring
-	t.Skip("Tests temporarily disabled during error handling refactoring")
+	t.Skip("Tests temporarily disabled during error handling refactoring - see TODO above")
 
 	// Just to make sure the code compiles with the error package
 	err := errors.NewValidationError("test", "test error", nil)

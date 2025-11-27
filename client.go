@@ -115,7 +115,6 @@ func (c *Client) setupEntity() error {
 	// Create the entity API with service-specific URLs
 	options := []entities.Option{
 		entities.WithObservability(c.observability),
-		entities.WithContext(c.ctx),
 	}
 
 	// Add plugin auth if enabled

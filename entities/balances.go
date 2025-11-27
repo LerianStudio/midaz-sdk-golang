@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"strings"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
@@ -497,45 +496,23 @@ func (e *balancesEntity) DeleteBalance(
 // The orgID and ledgerID parameters specify which organization and ledger to query.
 // The balanceID parameter is the unique identifier of the balance to retrieve, or an empty string for a list of balances.
 // Returns the built URL.
+// Note: Assumes base URL already includes version path (e.g., "https://api.example.com/v1").
 func (e *balancesEntity) buildURL(organizationID, ledgerID, balanceID string) string {
-	base := e.baseURLs["transaction"]
+	baseURL := e.baseURLs["transaction"]
 
-	// Remove trailing slash if present
-	base = strings.TrimSuffix(base, "/")
-
-	// Check if base URL already includes /v1
-	if strings.HasSuffix(base, "/v1") {
-		// If the base URL already includes /v1, use the path without /v1
-		if balanceID == "" {
-			return fmt.Sprintf("%s/organizations/%s/ledgers/%s/balances", base, organizationID, ledgerID)
-		}
-
-		return fmt.Sprintf("%s/organizations/%s/ledgers/%s/balances/%s", base, organizationID, ledgerID, balanceID)
-	}
-
-	// If the base URL doesn't include /v1, add it to the path
 	if balanceID == "" {
-		return fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/balances", base, organizationID, ledgerID)
+		return fmt.Sprintf("%s/organizations/%s/ledgers/%s/balances", baseURL, organizationID, ledgerID)
 	}
 
-	return fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/balances/%s", base, organizationID, ledgerID, balanceID)
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/balances/%s", baseURL, organizationID, ledgerID, balanceID)
 }
 
 // buildAccountURL builds the URL for account balances API calls.
 // The orgID, ledgerID, and accountID parameters specify which organization, ledger, and account to query.
 // Returns the built URL for retrieving balances for a specific account.
+// Note: Assumes base URL already includes version path (e.g., "https://api.example.com/v1").
 func (e *balancesEntity) buildAccountURL(orgID, ledgerID, accountID string) string {
-	base := e.baseURLs["transaction"]
+	baseURL := e.baseURLs["transaction"]
 
-	// Remove trailing slash if present
-	base = strings.TrimSuffix(base, "/")
-
-	// Check if base URL already includes /v1
-	if strings.HasSuffix(base, "/v1") {
-		// If the base URL already includes /v1, use the path without /v1
-		return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/%s/balances", base, orgID, ledgerID, accountID)
-	}
-
-	// If the base URL doesn't include /v1, add it to the path
-	return fmt.Sprintf("%s/v1/organizations/%s/ledgers/%s/accounts/%s/balances", base, orgID, ledgerID, accountID)
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/%s/balances", baseURL, orgID, ledgerID, accountID)
 }

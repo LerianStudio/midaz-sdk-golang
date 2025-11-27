@@ -29,6 +29,16 @@ const (
 	FatalLevel
 )
 
+// reservedLogFields contains field names that cannot be overwritten by user input.
+// This prevents log injection attacks where malicious input could overwrite
+// critical log fields like timestamp, level, or message.
+var reservedLogFields = map[string]bool{
+	"timestamp": true,
+	"level":     true,
+	"message":   true,
+	"caller":    true,
+}
+
 // String returns the string representation of the log level
 func (l LogLevel) String() string {
 	switch l {
@@ -79,9 +89,10 @@ type Logger interface {
 
 // LoggerImpl is the standard implementation of the Logger interface
 type LoggerImpl struct {
-	level  LogLevel
-	output io.Writer
-	fields map[string]any
+	level    LogLevel
+	output   io.Writer
+	fields   map[string]any
+	exitFunc func(int) // Injectable exit function for testing. If nil, panics instead of exiting.
 }
 
 // NewLogger creates a new logger with the specified level and output
@@ -100,10 +111,17 @@ func NewLogger(level LogLevel, output io.Writer, resource *sdkresource.Resource)
 	}
 
 	return &LoggerImpl{
-		level:  level,
-		output: output,
-		fields: fields,
+		level:    level,
+		output:   output,
+		fields:   fields,
+		exitFunc: os.Exit,
 	}
+}
+
+// SetExitFunc sets a custom exit function for testing purposes.
+// Pass nil to use panic instead of os.Exit for fatal logs.
+func (l *LoggerImpl) SetExitFunc(exitFunc func(int)) {
+	l.exitFunc = exitFunc
 }
 
 // log logs a message at the specified level
@@ -131,9 +149,11 @@ func (l *LoggerImpl) log(level LogLevel, msg string) {
 		"caller":    fmt.Sprintf("%s:%d", file, line),
 	}
 
-	// Add fields
+	// Add fields, skipping reserved keys to prevent log injection
 	for k, v := range l.fields {
-		entry[k] = v
+		if !reservedLogFields[k] {
+			entry[k] = v
+		}
 	}
 
 	// Encode as JSON
@@ -151,9 +171,13 @@ func (l *LoggerImpl) log(level LogLevel, msg string) {
 		fmt.Fprintf(os.Stderr, "Failed to write log entry: %v\n", err)
 	}
 
-	// If fatal, exit the program
+	// If fatal, exit the program or panic if exit function is not set
 	if level == FatalLevel {
-		os.Exit(1)
+		if l.exitFunc != nil {
+			l.exitFunc(1)
+		} else {
+			panic(fmt.Sprintf("FATAL: %s", msg))
+		}
 	}
 }
 
@@ -220,9 +244,10 @@ func (l *LoggerImpl) With(fields map[string]any) Logger {
 	}
 
 	return &LoggerImpl{
-		level:  l.level,
-		output: l.output,
-		fields: newFields,
+		level:    l.level,
+		output:   l.output,
+		fields:   newFields,
+		exitFunc: l.exitFunc,
 	}
 }
 
@@ -256,7 +281,13 @@ func (l *LoggerImpl) WithSpan(span trace.Span) Logger {
 	return l.WithContext(span.SpanContext())
 }
 
-// NoopLogger is a no-op implementation of the Logger interface
+// NoopLogger is a no-op implementation of the Logger interface.
+//
+// IMPORTANT: Unlike LoggerImpl, the Fatal and Fatalf methods on NoopLogger
+// do NOT terminate the program. They are no-ops like all other methods.
+// This is intentional for testing scenarios where you want to suppress
+// all logging output including fatal logs. If you need fatal logs to
+// actually terminate the program, use LoggerImpl instead.
 type NoopLogger struct{}
 
 // NewNoopLogger creates a new no-op logger

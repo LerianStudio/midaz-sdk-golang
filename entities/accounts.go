@@ -286,8 +286,6 @@ func (e *accountsEntity) GetAccount(ctx context.Context, organizationID, ledgerI
 func (e *accountsEntity) GetAccountByAlias(ctx context.Context, organizationID, ledgerID, alias string) (*models.Account, error) {
 	const operation = "GetAccountByAlias"
 
-	const resource = "account"
-
 	if organizationID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
 	}
@@ -313,7 +311,7 @@ func (e *accountsEntity) GetAccountByAlias(ctx context.Context, organizationID, 
 	}
 
 	if len(accounts.Items) == 0 {
-		return nil, errors.NewNotFoundError(operation, resource, alias, nil)
+		return nil, errors.NewNotFoundError(operation, "account", alias, nil)
 	}
 
 	return &accounts.Items[0], nil

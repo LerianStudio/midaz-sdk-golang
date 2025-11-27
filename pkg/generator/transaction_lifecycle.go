@@ -135,10 +135,19 @@ func (l *lifecycle) HandleInsufficientFunds(ctx context.Context, err error) erro
 	return nil
 }
 
-// Private context key for ledger ID used by lifecycle helpers.
+// contextKeyLedgerID is a private context key used to store and retrieve
+// the ledger ID for transaction lifecycle operations.
 type contextKeyLedgerID struct{}
 
 // WithLedgerID returns a derived context that carries the ledger ID for lifecycle operations.
+// The ledger ID is used by CreatePending, Commit, and Revert methods to identify which
+// ledger the transaction belongs to.
+//
+// Usage:
+//
+//	ctx := generator.WithOrgID(ctx, orgID)
+//	ctx = generator.WithLedgerID(ctx, ledgerID)
+//	tx, err := lifecycle.CreatePending(ctx, input)
 func WithLedgerID(ctx context.Context, ledgerID string) context.Context {
 	return context.WithValue(ctx, contextKeyLedgerID{}, ledgerID)
 }

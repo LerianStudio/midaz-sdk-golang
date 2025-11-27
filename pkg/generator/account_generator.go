@@ -231,32 +231,32 @@ func mapAccountClass(t string) string {
 func inferAccountTypeKey(t string) string {
 	switch t {
 	case "deposit", "marketplace":
-		return "CHECKING"
+		return AccountTypeKeyChecking
 	case "savings":
-		return "SAVINGS"
+		return AccountTypeKeySavings
 	case "creditCard":
-		return "CREDIT_CARD"
+		return AccountTypeKeyCreditCard
 	case "expense":
-		return "EXPENSE"
+		return AccountTypeKeyExpense
 	case "revenue":
-		return "REVENUE"
+		return AccountTypeKeyRevenue
 	case "liability":
-		return "LIABILITY"
+		return AccountTypeKeyLiability
 	case "equity":
-		return "EQUITY"
+		return AccountTypeKeyEquity
 	default:
 		return ""
 	}
 }
 
 var supportedAccountTypeKeys = []string{
-	"CHECKING",
-	"SAVINGS",
-	"CREDIT_CARD",
-	"EXPENSE",
-	"REVENUE",
-	"LIABILITY",
-	"EQUITY",
+	AccountTypeKeyChecking,
+	AccountTypeKeySavings,
+	AccountTypeKeyCreditCard,
+	AccountTypeKeyExpense,
+	AccountTypeKeyRevenue,
+	AccountTypeKeyLiability,
+	AccountTypeKeyEquity,
 }
 
 func isSupportedAccountTypeKey(k string) bool {

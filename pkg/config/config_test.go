@@ -7,6 +7,7 @@ import (
 	"time"
 
 	auth "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/access-manager"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/version"
 )
 
 func TestDefaultValues(t *testing.T) {
@@ -58,8 +59,8 @@ func TestNewConfig(t *testing.T) {
 		t.Errorf("Expected Timeout to be %s, got %s", DefaultTimeout*time.Second, config.Timeout)
 	}
 
-	if config.UserAgent != DefaultUserAgent {
-		t.Errorf("Expected UserAgent to be %s, got %s", DefaultUserAgent, config.UserAgent)
+	if config.UserAgent != version.UserAgent() {
+		t.Errorf("Expected UserAgent to be %s, got %s", version.UserAgent(), config.UserAgent)
 	}
 
 	if config.MaxRetries != DefaultMaxRetries {
