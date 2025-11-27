@@ -704,8 +704,8 @@ func (p *MidazProvider) IsEnabled() bool {
 // WithSpan creates a new span and executes the function within the context of that span.
 // It automatically ends the span when the function returns.
 func WithSpan(ctx context.Context, provider Provider, name string, fn func(context.Context) error, opts ...trace.SpanStartOption) error {
-	// If observability is disabled, just run the function
-	if !provider.IsEnabled() {
+	// If provider is nil or observability is disabled, just run the function
+	if provider == nil || !provider.IsEnabled() {
 		return fn(ctx)
 	}
 
@@ -727,8 +727,8 @@ func WithSpan(ctx context.Context, provider Provider, name string, fn func(conte
 
 // RecordMetric records a metric using the provided meter
 func RecordMetric(ctx context.Context, provider Provider, name string, value float64, attrs ...attribute.KeyValue) {
-	// If observability is disabled, just return
-	if !provider.IsEnabled() {
+	// If provider is nil or observability is disabled, just return
+	if provider == nil || !provider.IsEnabled() {
 		return
 	}
 
@@ -743,8 +743,8 @@ func RecordMetric(ctx context.Context, provider Provider, name string, value flo
 
 // RecordDuration records a duration metric using the provided meter
 func RecordDuration(ctx context.Context, provider Provider, name string, start time.Time, attrs ...attribute.KeyValue) {
-	// If observability is disabled, just return
-	if !provider.IsEnabled() {
+	// If provider is nil or observability is disabled, just return
+	if provider == nil || !provider.IsEnabled() {
 		return
 	}
 
