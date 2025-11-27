@@ -36,8 +36,16 @@ func (m *MockOperationsService) EXPECT() *MockOperationsServiceMockRecorder {
 func (m *MockOperationsService) ListOperations(ctx context.Context, orgID, ledgerID, accountID string, opts *models.ListOptions) (*models.ListResponse[models.Operation], error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListOperations", ctx, orgID, ledgerID, accountID, opts)
-	ret0, _ := ret[0].(*models.ListResponse[models.Operation])
-	ret1, _ := ret[1].(error)
+
+	var ret0 *models.ListResponse[models.Operation]
+	if ret[0] != nil {
+		ret0, _ = ret[0].(*models.ListResponse[models.Operation]) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	var ret1 error
+	if ret[1] != nil {
+		ret1, _ = ret[1].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
 
 	return ret0, ret1
 }
@@ -59,8 +67,16 @@ func (m *MockOperationsService) GetOperation(ctx context.Context, orgID, ledgerI
 	}
 
 	ret := m.ctrl.Call(m, "GetOperation", varargs...)
-	ret0, _ := ret[0].(*models.Operation)
-	ret1, _ := ret[1].(error)
+
+	var ret0 *models.Operation
+	if ret[0] != nil {
+		ret0, _ = ret[0].(*models.Operation) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	var ret1 error
+	if ret[1] != nil {
+		ret1, _ = ret[1].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
 
 	return ret0, ret1
 }
@@ -80,8 +96,16 @@ func (mr *MockOperationsServiceMockRecorder) GetOperation(ctx, orgID, ledgerID, 
 func (m *MockOperationsService) UpdateOperation(ctx context.Context, orgID, ledgerID, transactionID, operationID string, input any) (*models.Operation, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateOperation", ctx, orgID, ledgerID, transactionID, operationID, input)
-	ret0, _ := ret[0].(*models.Operation)
-	ret1, _ := ret[1].(error)
+
+	var ret0 *models.Operation
+	if ret[0] != nil {
+		ret0, _ = ret[0].(*models.Operation) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	var ret1 error
+	if ret[1] != nil {
+		ret1, _ = ret[1].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
 
 	return ret0, ret1
 }

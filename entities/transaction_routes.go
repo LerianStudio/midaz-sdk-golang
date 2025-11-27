@@ -115,7 +115,7 @@ type transactionRoutesEntity struct {
 func NewTransactionRoutesEntity(client *http.Client, authToken string, baseURLs map[string]string) TransactionRoutesService {
 	httpClient := NewHTTPClient(client, authToken, nil)
 
-	if debugEnv := os.Getenv("MIDAZ_DEBUG"); debugEnv == "true" {
+	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
 		httpClient.debug = true
 	}
 
@@ -225,9 +225,7 @@ func (e *transactionRoutesEntity) CreateTransactionRoute(ctx context.Context, or
 
 	url := e.buildURL(organizationID, ledgerID, "")
 
-	if e.httpClient.debug {
-		fmt.Printf("DEBUG [%s]: Creating transaction route with input: %+v\n", operation, input)
-	}
+	e.httpClient.debugLog("[%s]: Creating transaction route with input: %+v", operation, input)
 
 	body, err := json.Marshal(input)
 	if err != nil {
@@ -273,9 +271,7 @@ func (e *transactionRoutesEntity) UpdateTransactionRoute(ctx context.Context, or
 
 	url := e.buildURL(organizationID, ledgerID, transactionRouteID)
 
-	if e.httpClient.debug {
-		fmt.Printf("DEBUG [%s]: Updating transaction route %s with input: %+v\n", operation, transactionRouteID, input)
-	}
+	e.httpClient.debugLog("[%s]: Updating transaction route %s with input: %+v", operation, transactionRouteID, input)
 
 	body, err := json.Marshal(input)
 	if err != nil {
@@ -313,9 +309,7 @@ func (e *transactionRoutesEntity) DeleteTransactionRoute(ctx context.Context, or
 
 	url := e.buildURL(organizationID, ledgerID, transactionRouteID)
 
-	if e.httpClient.debug {
-		fmt.Printf("DEBUG [%s]: Deleting transaction route %s\n", operation, transactionRouteID)
-	}
+	e.httpClient.debugLog("[%s]: Deleting transaction route %s", operation, transactionRouteID)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
 	if err != nil {

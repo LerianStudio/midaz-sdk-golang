@@ -1316,7 +1316,10 @@ func TestMockHTTPClientForOperations(t *testing.T) {
 	mockClient := &MockHTTPClient{
 		DoFunc: func(req *http.Request) (*http.Response, error) {
 			testOp := createTestOperation()
-			body, _ := json.Marshal(testOp)
+			body, err := json.Marshal(testOp)
+			if err != nil {
+				return nil, err
+			}
 
 			return &http.Response{
 				StatusCode: http.StatusOK,

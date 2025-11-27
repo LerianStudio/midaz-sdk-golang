@@ -119,7 +119,7 @@ func NewTransactionsEntity(client *http.Client, authToken string, baseURLs map[s
 	httpClient := NewHTTPClient(client, authToken, nil)
 
 	// Check if we're using the debug flag from the environment
-	if debugEnv := os.Getenv("MIDAZ_DEBUG"); debugEnv == "true" {
+	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
 		httpClient.debug = true
 	}
 

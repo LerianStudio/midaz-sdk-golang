@@ -59,7 +59,7 @@ type HTTPClient struct {
 //   - authToken: The authentication token for API authorization.
 //   - provider: The observability provider for tracing, metrics, and logging (can be nil).
 func NewHTTPClient(client *http.Client, authToken string, provider observability.Provider) *HTTPClient {
-	debug := os.Getenv("MIDAZ_DEBUG") == "true"
+	debug := os.Getenv(EnvMidazDebug) == BoolTrue
 	retryOptions := initRetryOptionsFromEnv(provider)
 	metrics := initMetricsCollector(provider)
 

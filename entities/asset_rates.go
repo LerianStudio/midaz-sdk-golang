@@ -110,7 +110,7 @@ type assetRatesEntity struct {
 func NewAssetRatesEntity(client *http.Client, authToken string, baseURLs map[string]string) AssetRatesService {
 	httpClient := NewHTTPClient(client, authToken, nil)
 
-	if debugEnv := os.Getenv("MIDAZ_DEBUG"); debugEnv == "true" {
+	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
 		httpClient.debug = true
 	}
 

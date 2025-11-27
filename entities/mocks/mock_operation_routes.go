@@ -36,8 +36,16 @@ func (m *MockOperationRoutesService) EXPECT() *MockOperationRoutesServiceMockRec
 func (m *MockOperationRoutesService) CreateOperationRoute(ctx context.Context, organizationID, ledgerID string, input *models.CreateOperationRouteInput) (*models.OperationRoute, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateOperationRoute", ctx, organizationID, ledgerID, input)
-	ret0, _ := ret[0].(*models.OperationRoute)
-	ret1, _ := ret[1].(error)
+
+	var ret0 *models.OperationRoute
+	if ret[0] != nil {
+		ret0, _ = ret[0].(*models.OperationRoute) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	var ret1 error
+	if ret[1] != nil {
+		ret1, _ = ret[1].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
 
 	return ret0, ret1
 }
@@ -52,7 +60,11 @@ func (mr *MockOperationRoutesServiceMockRecorder) CreateOperationRoute(ctx, orga
 func (m *MockOperationRoutesService) DeleteOperationRoute(ctx context.Context, organizationID, ledgerID, operationRouteID string) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteOperationRoute", ctx, organizationID, ledgerID, operationRouteID)
-	ret0, _ := ret[0].(error)
+
+	var ret0 error
+	if ret[0] != nil {
+		ret0, _ = ret[0].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
 
 	return ret0
 }
@@ -67,8 +79,16 @@ func (mr *MockOperationRoutesServiceMockRecorder) DeleteOperationRoute(ctx, orga
 func (m *MockOperationRoutesService) GetOperationRoute(ctx context.Context, organizationID, ledgerID, operationRouteID string) (*models.OperationRoute, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetOperationRoute", ctx, organizationID, ledgerID, operationRouteID)
-	ret0, _ := ret[0].(*models.OperationRoute)
-	ret1, _ := ret[1].(error)
+
+	var ret0 *models.OperationRoute
+	if ret[0] != nil {
+		ret0, _ = ret[0].(*models.OperationRoute) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	var ret1 error
+	if ret[1] != nil {
+		ret1, _ = ret[1].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
 
 	return ret0, ret1
 }
@@ -83,8 +103,16 @@ func (mr *MockOperationRoutesServiceMockRecorder) GetOperationRoute(ctx, organiz
 func (m *MockOperationRoutesService) ListOperationRoutes(ctx context.Context, organizationID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.OperationRoute], error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListOperationRoutes", ctx, organizationID, ledgerID, opts)
-	ret0, _ := ret[0].(*models.ListResponse[models.OperationRoute])
-	ret1, _ := ret[1].(error)
+
+	var ret0 *models.ListResponse[models.OperationRoute]
+	if ret[0] != nil {
+		ret0, _ = ret[0].(*models.ListResponse[models.OperationRoute]) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	var ret1 error
+	if ret[1] != nil {
+		ret1, _ = ret[1].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
 
 	return ret0, ret1
 }
@@ -99,8 +127,16 @@ func (mr *MockOperationRoutesServiceMockRecorder) ListOperationRoutes(ctx, organ
 func (m *MockOperationRoutesService) UpdateOperationRoute(ctx context.Context, organizationID, ledgerID, operationRouteID string, input *models.UpdateOperationRouteInput) (*models.OperationRoute, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateOperationRoute", ctx, organizationID, ledgerID, operationRouteID, input)
-	ret0, _ := ret[0].(*models.OperationRoute)
-	ret1, _ := ret[1].(error)
+
+	var ret0 *models.OperationRoute
+	if ret[0] != nil {
+		ret0, _ = ret[0].(*models.OperationRoute) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	var ret1 error
+	if ret[1] != nil {
+		ret1, _ = ret[1].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
 
 	return ret0, ret1
 }

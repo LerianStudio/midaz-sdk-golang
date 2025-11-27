@@ -37,8 +37,16 @@ func (m *MockAssetsService) EXPECT() *MockAssetsServiceMockRecorder {
 func (m *MockAssetsService) ListAssets(ctx context.Context, organizationID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Asset], error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListAssets", ctx, organizationID, ledgerID, opts)
-	ret0, _ := ret[0].(*models.ListResponse[models.Asset])
-	ret1, _ := ret[1].(error)
+
+	var ret0 *models.ListResponse[models.Asset]
+	if ret[0] != nil {
+		ret0, _ = ret[0].(*models.ListResponse[models.Asset]) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	var ret1 error
+	if ret[1] != nil {
+		ret1, _ = ret[1].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
 
 	return ret0, ret1
 }
@@ -53,8 +61,16 @@ func (mr *MockAssetsServiceMockRecorder) ListAssets(ctx, organizationID, ledgerI
 func (m *MockAssetsService) GetAsset(ctx context.Context, organizationID, ledgerID, id string) (*models.Asset, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetAsset", ctx, organizationID, ledgerID, id)
-	ret0, _ := ret[0].(*models.Asset)
-	ret1, _ := ret[1].(error)
+
+	var ret0 *models.Asset
+	if ret[0] != nil {
+		ret0, _ = ret[0].(*models.Asset) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	var ret1 error
+	if ret[1] != nil {
+		ret1, _ = ret[1].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
 
 	return ret0, ret1
 }
@@ -69,8 +85,16 @@ func (mr *MockAssetsServiceMockRecorder) GetAsset(ctx, organizationID, ledgerID,
 func (m *MockAssetsService) CreateAsset(ctx context.Context, organizationID, ledgerID string, input *models.CreateAssetInput) (*models.Asset, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateAsset", ctx, organizationID, ledgerID, input)
-	ret0, _ := ret[0].(*models.Asset)
-	ret1, _ := ret[1].(error)
+
+	var ret0 *models.Asset
+	if ret[0] != nil {
+		ret0, _ = ret[0].(*models.Asset) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	var ret1 error
+	if ret[1] != nil {
+		ret1, _ = ret[1].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
 
 	return ret0, ret1
 }
@@ -85,8 +109,16 @@ func (mr *MockAssetsServiceMockRecorder) CreateAsset(ctx, organizationID, ledger
 func (m *MockAssetsService) UpdateAsset(ctx context.Context, organizationID, ledgerID, id string, input *models.UpdateAssetInput) (*models.Asset, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateAsset", ctx, organizationID, ledgerID, id, input)
-	ret0, _ := ret[0].(*models.Asset)
-	ret1, _ := ret[1].(error)
+
+	var ret0 *models.Asset
+	if ret[0] != nil {
+		ret0, _ = ret[0].(*models.Asset) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	var ret1 error
+	if ret[1] != nil {
+		ret1, _ = ret[1].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
 
 	return ret0, ret1
 }
@@ -101,7 +133,11 @@ func (mr *MockAssetsServiceMockRecorder) UpdateAsset(ctx, organizationID, ledger
 func (m *MockAssetsService) DeleteAsset(ctx context.Context, organizationID, ledgerID, id string) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteAsset", ctx, organizationID, ledgerID, id)
-	ret0, _ := ret[0].(error)
+
+	var ret0 error
+	if ret[0] != nil {
+		ret0, _ = ret[0].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
 
 	return ret0
 }

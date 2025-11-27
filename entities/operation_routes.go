@@ -114,7 +114,7 @@ type operationRoutesEntity struct {
 func NewOperationRoutesEntity(client *http.Client, authToken string, baseURLs map[string]string) OperationRoutesService {
 	httpClient := NewHTTPClient(client, authToken, nil)
 
-	if debugEnv := os.Getenv("MIDAZ_DEBUG"); debugEnv == "true" {
+	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
 		httpClient.debug = true
 	}
 
@@ -224,9 +224,7 @@ func (e *operationRoutesEntity) CreateOperationRoute(ctx context.Context, organi
 
 	url := e.buildURL(organizationID, ledgerID, "")
 
-	if e.httpClient.debug {
-		fmt.Printf("DEBUG [%s]: Creating operation route with input: %+v\n", operation, input)
-	}
+	e.httpClient.debugLog("[%s]: Creating operation route with input: %+v", operation, input)
 
 	body, err := json.Marshal(input)
 	if err != nil {
@@ -272,9 +270,7 @@ func (e *operationRoutesEntity) UpdateOperationRoute(ctx context.Context, organi
 
 	url := e.buildURL(organizationID, ledgerID, operationRouteID)
 
-	if e.httpClient.debug {
-		fmt.Printf("DEBUG [%s]: Updating operation route %s with input: %+v\n", operation, operationRouteID, input)
-	}
+	e.httpClient.debugLog("[%s]: Updating operation route %s with input: %+v", operation, operationRouteID, input)
 
 	body, err := json.Marshal(input)
 	if err != nil {
@@ -312,9 +308,7 @@ func (e *operationRoutesEntity) DeleteOperationRoute(ctx context.Context, organi
 
 	url := e.buildURL(organizationID, ledgerID, operationRouteID)
 
-	if e.httpClient.debug {
-		fmt.Printf("DEBUG [%s]: Deleting operation route %s\n", operation, operationRouteID)
-	}
+	e.httpClient.debugLog("[%s]: Deleting operation route %s", operation, operationRouteID)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
 	if err != nil {

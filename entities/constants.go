@@ -14,3 +14,15 @@ const (
 	// as well as operations and balances.
 	ServiceTransaction = "transaction"
 )
+
+// Environment variable names used for SDK configuration.
+const (
+	// EnvMidazDebug is the environment variable name for enabling debug mode.
+	EnvMidazDebug = "MIDAZ_DEBUG"
+)
+
+// Boolean string values for environment variable comparison.
+const (
+	// BoolTrue represents the string value "true" for boolean environment variables.
+	BoolTrue = "true"
+)
