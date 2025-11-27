@@ -77,11 +77,6 @@ linters:
     - testifylint     # Testify best practices
 
     # ===========================================
-    # DOCUMENTATION
-    # ===========================================
-    - godot           # Comments should end with period
-
-    # ===========================================
     # PERFORMANCE
     # ===========================================
     - loggercheck     # Logger key-value pairs
@@ -192,14 +187,6 @@ linters:
     goconst:
       min-len: 3
       min-occurrences: 3
-
-    # -----------------------------------------
-    # Documentation
-    # -----------------------------------------
-    godot:
-      scope: declarations
-      period: true
-      capital: false
 
     # -----------------------------------------
     # Go Vet
@@ -414,11 +401,6 @@ linters:
       - linters:
           - wsl_v5
         path: examples/
-
-      # godot for code examples in comments
-      - linters:
-          - godot
-        source: "^\\s*//\\s*(\\w+\\s*:=|func|if|for|switch|return|package|import)"
 
     paths:
       - third_party$
