@@ -1135,6 +1135,7 @@ func TestBalanceTotalsWithNegativeValues(t *testing.T) {
 	assert.Equal(t, "USD", totals.Asset)
 	assert.Equal(t, 2, totals.Accounts)
 	assert.True(t, totals.TotalAvailable.IsNegative())
+	assert.True(t, totals.TotalOnHold.Equal(decimal.NewFromInt(100)))
 	assert.True(t, totals.InternalNetTotal.IsNegative())
 	assert.Len(t, totals.Overdrawn, 2)
 }

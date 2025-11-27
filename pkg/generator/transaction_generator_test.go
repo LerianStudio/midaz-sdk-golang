@@ -415,6 +415,7 @@ func TestTransactionPattern_Fields(t *testing.T) {
 
 		assert.Equal(t, "test", pattern.ChartOfAccountsGroupName)
 		assert.NotEmpty(t, pattern.DSLTemplate)
+		assert.Equal(t, "key", pattern.IdempotencyKey)
 		assert.False(t, pattern.RequiresCommit)
 		assert.Nil(t, pattern.Metadata)
 	})

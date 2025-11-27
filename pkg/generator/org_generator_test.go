@@ -379,7 +379,9 @@ func TestOrgTemplate_ValidStatus(t *testing.T) {
 				LegalName: "Test Corp",
 				Status:    models.NewStatus(status),
 			}
+			assert.Equal(t, "Test Corp", template.LegalName)
 			assert.NotNil(t, template.Status)
+			assert.Equal(t, status, template.Status.Code)
 		})
 	}
 }
@@ -390,6 +392,7 @@ func TestOrgTemplate_Metadata(t *testing.T) {
 			LegalName: "Test Corp",
 			Metadata:  nil,
 		}
+		assert.Equal(t, "Test Corp", template.LegalName)
 		assert.Nil(t, template.Metadata)
 	})
 
@@ -401,7 +404,9 @@ func TestOrgTemplate_Metadata(t *testing.T) {
 				"size":     "enterprise",
 			},
 		}
+		assert.Equal(t, "Test Corp", template.LegalName)
 		assert.NotNil(t, template.Metadata)
 		assert.Equal(t, "technology", template.Metadata["industry"])
+		assert.Equal(t, "enterprise", template.Metadata["size"])
 	})
 }

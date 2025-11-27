@@ -490,6 +490,7 @@ func TestOptionsWithEmptyMetadata(t *testing.T) {
 			Description: "Test",
 			Metadata:    nil,
 		}
+		assert.Equal(t, "Test", opts.Description)
 		assert.Nil(t, opts.Metadata)
 	})
 
@@ -498,6 +499,7 @@ func TestOptionsWithEmptyMetadata(t *testing.T) {
 			Description: "Test",
 			Metadata:    map[string]any{},
 		}
+		assert.Equal(t, "Test", opts.Description)
 		assert.NotNil(t, opts.Metadata)
 		assert.Empty(t, opts.Metadata)
 	})

@@ -277,14 +277,23 @@ func TestApplyBatchingOptions(t *testing.T) {
 func TestGetGlobalOptions(t *testing.T) {
 	// Just ensure it returns a copy of the global options
 	opts := GetGlobalOptions()
+	originalBatchSize := opts.BatchSize
 
 	// Modify the returned copy
 	opts.BatchSize = 9999
+
+	// Verify the modification happened on the copy
+	if opts.BatchSize != 9999 {
+		t.Error("BatchSize modification should succeed on the copy")
+	}
 
 	// Verify global options are unchanged
 	globalOpts := GetGlobalOptions()
 	if globalOpts.BatchSize == 9999 {
 		t.Error("GetGlobalOptions should return a copy, not a reference")
+	}
+	if globalOpts.BatchSize != originalBatchSize {
+		t.Errorf("Global options should be unchanged, expected %d, got %d", originalBatchSize, globalOpts.BatchSize)
 	}
 }
 

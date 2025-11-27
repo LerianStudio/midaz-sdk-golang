@@ -570,6 +570,8 @@ func TestAccountTemplate_Fields(t *testing.T) {
 		assert.Equal(t, "segment-789", *template.SegmentID)
 		assert.Equal(t, "entity-abc", *template.EntityID)
 		assert.Equal(t, AccountTypeKeyChecking, *template.AccountTypeKey)
+		assert.NotNil(t, template.Metadata)
+		assert.Equal(t, "John Doe", template.Metadata["owner"])
 	})
 
 	t.Run("Minimal template", func(t *testing.T) {
@@ -579,6 +581,7 @@ func TestAccountTemplate_Fields(t *testing.T) {
 		}
 
 		assert.Equal(t, "Minimal Account", template.Name)
+		assert.Equal(t, "deposit", template.Type)
 		assert.Nil(t, template.Alias)
 		assert.Nil(t, template.ParentAccountID)
 	})

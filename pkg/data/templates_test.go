@@ -141,6 +141,8 @@ func TestAccountTemplateStructWithNilOptionalFields(t *testing.T) {
 
 	assert.Equal(t, "Test Account", acc.Name)
 	assert.Equal(t, "deposit", acc.Type)
+	assert.NotNil(t, acc.Status)
+	assert.Equal(t, models.StatusActive, acc.Status.Code)
 	assert.Nil(t, acc.Alias)
 	assert.Nil(t, acc.ParentAccountID)
 	assert.Nil(t, acc.PortfolioID)
@@ -170,6 +172,8 @@ func TestLedgerTemplateStructWithNilMetadata(t *testing.T) {
 	}
 
 	assert.Equal(t, "Test Ledger", ledger.Name)
+	assert.NotNil(t, ledger.Status)
+	assert.Equal(t, models.StatusActive, ledger.Status.Code)
 	assert.Nil(t, ledger.Metadata)
 }
 
@@ -267,10 +271,16 @@ func TestStrPtrUsageInTemplates(t *testing.T) {
 		Metadata:       map[string]any{},
 	}
 
+	assert.Equal(t, "Test Account", acc.Name)
+	assert.Equal(t, "deposit", acc.Type)
+	assert.NotNil(t, acc.Status)
+	assert.Equal(t, models.StatusActive, acc.Status.Code)
 	assert.NotNil(t, acc.Alias)
 	assert.Equal(t, "test_alias", *acc.Alias)
 	assert.NotNil(t, acc.AccountTypeKey)
 	assert.Equal(t, AccountTypeKeyChecking, *acc.AccountTypeKey)
+	assert.NotNil(t, acc.Metadata)
+	assert.Empty(t, acc.Metadata)
 }
 
 func TestTemplateMetadataTypes(t *testing.T) {
@@ -289,6 +299,7 @@ func TestTemplateMetadataTypes(t *testing.T) {
 		Metadata:  metadata,
 	}
 
+	assert.Equal(t, "Test", org.LegalName)
 	assert.Equal(t, "hello", org.Metadata["string_value"])
 	assert.Equal(t, 42, org.Metadata["int_value"])
 	assert.Equal(t, 3.14, org.Metadata["float_value"])

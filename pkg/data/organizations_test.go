@@ -363,6 +363,11 @@ func TestOrgTemplateWithNilMetadata(t *testing.T) {
 		Metadata:  nil,
 	}
 
+	assert.Equal(t, "Test Corp", org.LegalName)
+	assert.Equal(t, "TestCo", org.TradeName)
+	assert.Equal(t, "12-3456789", org.TaxID)
+	assert.NotNil(t, org.Address)
+	assert.NotNil(t, org.Status)
 	assert.Nil(t, org.Metadata)
 }
 
@@ -376,6 +381,11 @@ func TestOrgTemplateWithEmptyMetadata(t *testing.T) {
 		Metadata:  map[string]any{},
 	}
 
+	assert.Equal(t, "Test Corp", org.LegalName)
+	assert.Equal(t, "TestCo", org.TradeName)
+	assert.Equal(t, "12-3456789", org.TaxID)
+	assert.NotNil(t, org.Address)
+	assert.NotNil(t, org.Status)
 	assert.NotNil(t, org.Metadata)
 	assert.Empty(t, org.Metadata)
 }
