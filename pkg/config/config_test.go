@@ -1071,6 +1071,9 @@ func TestGetPluginAuth_ReturnsCopy(t *testing.T) {
 	pluginAuth := config.GetPluginAuth()
 	pluginAuth.ClientID = "modified-client"
 
+	// Verify the modification happened on the copy
+	assert.Equal(t, "modified-client", pluginAuth.ClientID)
+	// Verify the original is unchanged (copy isolation)
 	assert.Equal(t, "original-client", config.AccessManager.ClientID)
 }
 

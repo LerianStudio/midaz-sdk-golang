@@ -203,6 +203,10 @@ func TestAssetTemplateWithNilMetadata(t *testing.T) {
 		Metadata: nil,
 	}
 
+	assert.Equal(t, "Test Asset", asset.Name)
+	assert.Equal(t, "currency", asset.Type)
+	assert.Equal(t, "TST", asset.Code)
+	assert.Equal(t, 2, asset.Scale)
 	assert.Nil(t, asset.Metadata)
 }
 
@@ -215,6 +219,10 @@ func TestAssetTemplateWithEmptyMetadata(t *testing.T) {
 		Metadata: map[string]any{},
 	}
 
+	assert.Equal(t, "Test Asset", asset.Name)
+	assert.Equal(t, "currency", asset.Type)
+	assert.Equal(t, "TST", asset.Code)
+	assert.Equal(t, 2, asset.Scale)
 	assert.NotNil(t, asset.Metadata)
 	assert.Empty(t, asset.Metadata)
 }
