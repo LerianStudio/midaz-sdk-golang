@@ -70,7 +70,7 @@ func workerPoolExample(_ *client.Client) {
 	results := concurrent.WorkerPool(
 		ctx,
 		accountIDs,
-		func(ctx context.Context, accountID string) (*models.Account, error) {
+		func(_ context.Context, accountID string) (*models.Account, error) {
 			// Simulate API call to get account details
 			// In a real application, this would call the Midaz API
 			time.Sleep(200 * time.Millisecond) // Simulate network delay
@@ -159,7 +159,7 @@ func batchProcessingExample(_ *client.Client) {
 		ctx,
 		transactionIDs,
 		10, // Process 10 transactions per batch
-		func(ctx context.Context, batch []string) ([]string, error) {
+		func(_ context.Context, batch []string) ([]string, error) {
 			// Simulate a batch API call to process transactions
 			// In a real application, this would call the Midaz API
 			time.Sleep(300 * time.Millisecond) // Simulate network delay
@@ -223,7 +223,7 @@ func forEachExample(_ *client.Client) {
 	err := concurrent.ForEach(
 		ctx,
 		portfolioIDs,
-		func(ctx context.Context, portfolioID string) error {
+		func(_ context.Context, portfolioID string) error {
 			// Simulate API call to update a portfolio
 			// In a real application, this would call the Midaz API
 			time.Sleep(150 * time.Millisecond) // Simulate network delay

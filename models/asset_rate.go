@@ -2,6 +2,7 @@
 package models
 
 import (
+	"errors"
 	"fmt"
 	"time"
 )
@@ -128,19 +129,19 @@ func (input *CreateAssetRateInput) WithMetadata(metadata map[string]any) *Create
 // Validate validates the CreateAssetRateInput fields.
 func (input *CreateAssetRateInput) Validate() error {
 	if input.From == "" {
-		return fmt.Errorf("from asset code is required")
+		return errors.New("from asset code is required")
 	}
 
 	if input.To == "" {
-		return fmt.Errorf("to asset code is required")
+		return errors.New("to asset code is required")
 	}
 
 	if input.Rate <= 0 {
-		return fmt.Errorf("rate must be greater than zero")
+		return errors.New("rate must be greater than zero")
 	}
 
 	if input.Scale < 0 {
-		return fmt.Errorf("scale must be non-negative")
+		return errors.New("scale must be non-negative")
 	}
 
 	return nil
@@ -205,6 +206,7 @@ func (o *AssetRateListOptions) WithLimit(limit int) *AssetRateListOptions {
 	} else {
 		o.Limit = limit
 	}
+
 	return o
 }
 
@@ -212,6 +214,7 @@ func (o *AssetRateListOptions) WithLimit(limit int) *AssetRateListOptions {
 func (o *AssetRateListOptions) WithDateRange(startDate, endDate string) *AssetRateListOptions {
 	o.StartDate = startDate
 	o.EndDate = endDate
+
 	return o
 }
 
@@ -239,8 +242,10 @@ func (o *AssetRateListOptions) ToQueryParams() map[string]string {
 			if i > 0 {
 				toStr += ","
 			}
+
 			toStr += t
 		}
+
 		params["to"] = toStr
 	}
 

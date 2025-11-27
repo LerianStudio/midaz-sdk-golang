@@ -213,8 +213,10 @@ func validateMetadataStringLength(errors *FieldErrors, key string, value any) {
 }
 
 func validateMetadataNumericRange(errors *FieldErrors, key string, value any) {
-	const maxIntValue = 9999999999
-	const maxFloatValue = 9999999999.0
+	const (
+		maxIntValue   = 9999999999
+		maxFloatValue = 9999999999.0
+	)
 
 	switch v := value.(type) {
 	case int:

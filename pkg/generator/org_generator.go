@@ -2,6 +2,7 @@ package generator
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"strings"
@@ -38,7 +39,7 @@ func NewOrganizationGenerator(e *entities.Entity, obs observability.Provider) Or
 
 func (g *orgGenerator) Generate(ctx context.Context, template data.OrgTemplate) (*models.Organization, error) {
 	if g.e == nil || g.e.Organizations == nil {
-		return nil, fmt.Errorf("entity organizations service not initialized")
+		return nil, errors.New("entity organizations service not initialized")
 	}
 
 	input := models.NewCreateOrganizationInput(template.LegalName).
@@ -202,11 +203,17 @@ func generateCNPJ(r *rand.Rand, formatted bool) string {
 	w1 := []int{5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2}
 	d1 := cnpjCheckDigit(base, w1)
 
-	// Second check digit
+	// Second check digit - create temporary slice for calculation
 	w2 := []int{6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2}
-	d2 := cnpjCheckDigit(append(base, d1), w2)
+	baseWithD1 := make([]int, 0, 13)
+	baseWithD1 = append(baseWithD1, base...)
+	baseWithD1 = append(baseWithD1, d1)
+	d2 := cnpjCheckDigit(baseWithD1, w2)
 
-	digits := append(base, d1, d2)
+	// Build final digits slice
+	digits := make([]int, 0, 14)
+	digits = append(digits, base...)
+	digits = append(digits, d1, d2)
 
 	if !formatted {
 		// Plain 14 digits

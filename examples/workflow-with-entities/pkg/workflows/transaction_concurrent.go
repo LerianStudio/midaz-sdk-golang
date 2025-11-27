@@ -5,6 +5,7 @@ import (
 	cryptorand "crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -14,7 +15,7 @@ import (
 	client "github.com/LerianStudio/midaz-sdk-golang/v2"
 	midazmodels "github.com/LerianStudio/midaz-sdk-golang/v2/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/concurrent"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	pkgerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/performance"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation"
@@ -62,7 +63,7 @@ func ExecuteConcurrentTransactions(ctx context.Context, midazClient *client.Clie
 
 	// Validate account IDs
 	if !validation.IsValidUUID(customerAccount.ID) || !validation.IsValidUUID(merchantAccount.ID) {
-		err := fmt.Errorf("invalid account IDs")
+		err := errors.New("invalid account IDs")
 		observability.RecordError(ctx, err, "invalid_account_ids")
 
 		return err
@@ -186,7 +187,7 @@ func handleTransactionError(ctx context.Context, err error, index int, operation
 	}
 
 	// Get detailed error information using the errors package
-	errDetails := errors.GetErrorDetails(err)
+	errDetails := pkgerrors.GetErrorDetails(err)
 
 	// Record error in observability system
 	observability.RecordError(ctx, err, fmt.Sprintf("%s_transaction_error", operation))
@@ -195,22 +196,22 @@ func handleTransactionError(ctx context.Context, err error, index int, operation
 	observability.AddAttribute(ctx, "http_status", errDetails.HTTPStatus)
 
 	// Check if this is a cancellation error (context deadline exceeded)
-	if errors.IsCancellationError(err) {
+	if pkgerrors.IsCancellationError(err) {
 		return fmt.Errorf("%s transaction #%d cancelled: %w", operation, index+1, err)
 	}
 
 	// Check if this is a rate limit error that wasn't resolved by retries
-	if errors.IsRateLimitError(err) {
+	if pkgerrors.IsRateLimitError(err) {
 		return fmt.Errorf("%s transaction #%d hit rate limit after retries: %w", operation, index+1, err)
 	}
 
 	// Check for insufficient balance errors
-	if errors.IsInsufficientBalanceError(err) {
+	if pkgerrors.IsInsufficientBalanceError(err) {
 		return fmt.Errorf("%s transaction #%d failed due to insufficient balance: %w", operation, index+1, err)
 	}
 
 	// Check for validation errors
-	if errors.IsValidationError(err) {
+	if pkgerrors.IsValidationError(err) {
 		return fmt.Errorf("%s transaction #%d failed validation: %w", operation, index+1, err)
 	}
 
@@ -402,7 +403,7 @@ func ExecuteMerchantToCustomerConcurrent(ctx context.Context, midazClient *clien
 
 func buildM2CTransactionInputs(ctx context.Context, merchantAccount, customerAccount *midazmodels.Account, count int) ([]*midazmodels.CreateTransactionInput, error) {
 	if !validation.IsValidUUID(merchantAccount.ID) || !validation.IsValidUUID(customerAccount.ID) {
-		err := fmt.Errorf("invalid account IDs")
+		err := errors.New("invalid account IDs")
 		observability.RecordError(ctx, err, "invalid_account_ids")
 		return nil, err
 	}

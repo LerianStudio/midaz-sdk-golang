@@ -1,6 +1,7 @@
 package models
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -350,7 +351,7 @@ type CreateOperationInput struct {
 func (input *CreateOperationInput) Validate() error {
 	// Validate required fields
 	if input.Type == "" {
-		return fmt.Errorf("type is required")
+		return errors.New("type is required")
 	}
 
 	// Validate type is a valid operation type
@@ -359,17 +360,17 @@ func (input *CreateOperationInput) Validate() error {
 	}
 
 	if input.AccountID == "" {
-		return fmt.Errorf("accountId is required")
+		return errors.New("accountId is required")
 	}
 
 	// Validate amount
 	if input.Amount == "" {
-		return fmt.Errorf("amount is required")
+		return errors.New("amount is required")
 	}
 
 	// Validate asset code if provided
 	if input.AssetCode == "" {
-		return fmt.Errorf("assetCode is required")
+		return errors.New("assetCode is required")
 	}
 
 	return nil

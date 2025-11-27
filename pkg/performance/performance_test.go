@@ -10,12 +10,15 @@ func TestDefaultOptions(t *testing.T) {
 	if opts.BatchSize != 50 {
 		t.Errorf("Expected BatchSize=50, got %d", opts.BatchSize)
 	}
+
 	if !opts.EnableHTTPPooling {
 		t.Error("Expected EnableHTTPPooling=true")
 	}
+
 	if opts.MaxIdleConnsPerHost != 10 {
 		t.Errorf("Expected MaxIdleConnsPerHost=10, got %d", opts.MaxIdleConnsPerHost)
 	}
+
 	if !opts.UseJSONIterator {
 		t.Error("Expected UseJSONIterator=true")
 	}
@@ -140,12 +143,15 @@ func TestNewOptions(t *testing.T) {
 		if opts.BatchSize != 200 {
 			t.Errorf("Expected BatchSize=200, got %d", opts.BatchSize)
 		}
+
 		if opts.EnableHTTPPooling {
 			t.Error("Expected EnableHTTPPooling=false")
 		}
+
 		if opts.MaxIdleConnsPerHost != 25 {
 			t.Errorf("Expected MaxIdleConnsPerHost=25, got %d", opts.MaxIdleConnsPerHost)
 		}
+
 		if opts.UseJSONIterator {
 			t.Error("Expected UseJSONIterator=false")
 		}
@@ -171,12 +177,15 @@ func TestApplyGlobalPerformanceOptions(t *testing.T) {
 		if result.BatchSize != 100 {
 			t.Errorf("Expected BatchSize=100, got %d", result.BatchSize)
 		}
+
 		if result.EnableHTTPPooling {
 			t.Error("Expected EnableHTTPPooling=false")
 		}
+
 		if result.MaxIdleConnsPerHost != 20 {
 			t.Errorf("Expected MaxIdleConnsPerHost=20, got %d", result.MaxIdleConnsPerHost)
 		}
+
 		if result.UseJSONIterator {
 			t.Error("Expected UseJSONIterator=false")
 		}
@@ -202,9 +211,11 @@ func TestApplyGlobalPerformanceOptions(t *testing.T) {
 		if result.BatchSize != 50 {
 			t.Errorf("Expected BatchSize=50, got %d", result.BatchSize)
 		}
+
 		if result.EnableHTTPPooling {
 			t.Error("Expected EnableHTTPPooling=false")
 		}
+
 		if result.MaxIdleConnsPerHost != 10 {
 			t.Errorf("Expected MaxIdleConnsPerHost=10, got %d", result.MaxIdleConnsPerHost)
 		}
@@ -230,9 +241,11 @@ func TestApplyGlobalOptions(t *testing.T) {
 		if result.BatchSize != 75 {
 			t.Errorf("Expected BatchSize=75, got %d", result.BatchSize)
 		}
+
 		if result.EnableHTTPPooling {
 			t.Error("Expected EnableHTTPPooling=false")
 		}
+
 		if result.MaxIdleConnsPerHost != 15 {
 			t.Errorf("Expected MaxIdleConnsPerHost=15, got %d", result.MaxIdleConnsPerHost)
 		}
@@ -292,6 +305,7 @@ func TestGetGlobalOptions(t *testing.T) {
 	if globalOpts.BatchSize == 9999 {
 		t.Error("GetGlobalOptions should return a copy, not a reference")
 	}
+
 	if globalOpts.BatchSize != originalBatchSize {
 		t.Errorf("Global options should be unchanged, expected %d, got %d", originalBatchSize, globalOpts.BatchSize)
 	}
@@ -331,6 +345,7 @@ func TestGetOptimalBatchSize(t *testing.T) {
 		if result > 30 {
 			t.Errorf("Expected result <= 30, got %d", result)
 		}
+
 		if 100%result != 0 {
 			t.Errorf("Expected divisor of 100, got %d", result)
 		}
@@ -384,6 +399,7 @@ func TestGetOptimalBatchSize(t *testing.T) {
 		if result > 200 {
 			t.Errorf("Expected result <= 200, got %d", result)
 		}
+
 		if 10000%result != 0 {
 			t.Errorf("Expected divisor of 10000, got %d", result)
 		}
@@ -402,12 +418,15 @@ func TestOptionsStruct(t *testing.T) {
 	if opts.BatchSize != 100 {
 		t.Errorf("Expected BatchSize=100, got %d", opts.BatchSize)
 	}
+
 	if !opts.EnableHTTPPooling {
 		t.Error("Expected EnableHTTPPooling=true")
 	}
+
 	if opts.MaxIdleConnsPerHost != 20 {
 		t.Errorf("Expected MaxIdleConnsPerHost=20, got %d", opts.MaxIdleConnsPerHost)
 	}
+
 	if !opts.UseJSONIterator {
 		t.Error("Expected UseJSONIterator=true")
 	}

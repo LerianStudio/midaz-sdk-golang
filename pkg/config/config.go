@@ -9,6 +9,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -238,7 +239,7 @@ func WithBaseURL(baseURL string) Option {
 func WithHTTPClient(client *http.Client) Option {
 	return func(c *Config) error {
 		if client == nil {
-			return fmt.Errorf("HTTP client cannot be nil")
+			return errors.New("HTTP client cannot be nil")
 		}
 
 		c.HTTPClient = client
@@ -257,7 +258,7 @@ func WithHTTPClient(client *http.Client) Option {
 func WithTimeout(timeout time.Duration) Option {
 	return func(c *Config) error {
 		if timeout <= 0 {
-			return fmt.Errorf("timeout must be greater than 0")
+			return errors.New("timeout must be greater than 0")
 		}
 
 		c.Timeout = timeout
@@ -276,7 +277,7 @@ func WithTimeout(timeout time.Duration) Option {
 func WithUserAgent(userAgent string) Option {
 	return func(c *Config) error {
 		if userAgent == "" {
-			return fmt.Errorf("user agent cannot be empty")
+			return errors.New("user agent cannot be empty")
 		}
 
 		c.UserAgent = userAgent
@@ -297,15 +298,15 @@ func WithUserAgent(userAgent string) Option {
 func WithRetryConfig(maxRetries int, minWait, maxWait time.Duration) Option {
 	return func(c *Config) error {
 		if maxRetries < 0 {
-			return fmt.Errorf("max retries cannot be negative")
+			return errors.New("max retries cannot be negative")
 		}
 
 		if minWait <= 0 {
-			return fmt.Errorf("minimum wait time must be greater than 0")
+			return errors.New("minimum wait time must be greater than 0")
 		}
 
 		if maxWait < minWait {
-			return fmt.Errorf("maximum wait time must be greater than or equal to minimum wait time")
+			return errors.New("maximum wait time must be greater than or equal to minimum wait time")
 		}
 
 		c.MaxRetries = maxRetries
@@ -645,18 +646,18 @@ func setDefaultServiceURLs(config *Config) error {
 func validateConfig(config *Config) error {
 	// Check that we have URLs for required services
 	if _, ok := config.ServiceURLs[ServiceOnboarding]; !ok {
-		return fmt.Errorf("onboarding URL is required")
+		return errors.New("onboarding URL is required")
 	}
 
 	if _, ok := config.ServiceURLs[ServiceTransaction]; !ok {
-		return fmt.Errorf("transaction URL is required")
+		return errors.New("transaction URL is required")
 	}
 
 	// When plugin auth is enabled, we require the plugin auth address
 	if config.AccessManager.Enabled && config.AccessManager.Address == "" {
 		// But for tests, we'll skip this check
 		if os.Getenv("MIDAZ_SKIP_AUTH_CHECK") != boolTrue {
-			return fmt.Errorf("plugin auth address is required")
+			return errors.New("plugin auth address is required")
 		}
 	}
 
@@ -704,7 +705,7 @@ func parseURL(rawURL string) error {
 
 	// Require scheme and host
 	if parsedURL.Scheme == "" || parsedURL.Host == "" {
-		return fmt.Errorf("URL must include scheme and host")
+		return errors.New("URL must include scheme and host")
 	}
 
 	// Warn about insecure HTTP connections (except for localhost/development)
@@ -766,7 +767,7 @@ func DefaultConfig() *Config {
 func WithMaxRetries(maxRetries int) Option {
 	return func(c *Config) error {
 		if maxRetries < 0 {
-			return fmt.Errorf("max retries cannot be negative")
+			return errors.New("max retries cannot be negative")
 		}
 
 		c.MaxRetries = maxRetries
@@ -785,7 +786,7 @@ func WithMaxRetries(maxRetries int) Option {
 func WithRetryWaitMin(waitTime time.Duration) Option {
 	return func(c *Config) error {
 		if waitTime <= 0 {
-			return fmt.Errorf("minimum wait time must be greater than 0")
+			return errors.New("minimum wait time must be greater than 0")
 		}
 
 		c.RetryWaitMin = waitTime
@@ -804,11 +805,11 @@ func WithRetryWaitMin(waitTime time.Duration) Option {
 func WithRetryWaitMax(waitTime time.Duration) Option {
 	return func(c *Config) error {
 		if waitTime <= 0 {
-			return fmt.Errorf("maximum wait time must be greater than 0")
+			return errors.New("maximum wait time must be greater than 0")
 		}
 
 		if waitTime < c.RetryWaitMin {
-			return fmt.Errorf("maximum wait time must be greater than or equal to minimum wait time")
+			return errors.New("maximum wait time must be greater than or equal to minimum wait time")
 		}
 
 		c.RetryWaitMax = waitTime

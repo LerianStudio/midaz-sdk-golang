@@ -2,6 +2,7 @@ package workflows
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -39,7 +40,7 @@ func CreateLedger(ctx context.Context, midazClient *client.Client, orgID string)
 	}
 
 	if ledger.ID == "" {
-		return "", fmt.Errorf("ledger created but no ID was returned from the API")
+		return "", errors.New("ledger created but no ID was returned from the API")
 	}
 
 	fmt.Printf("✅ Ledger created: %s\n", ledger.Name)

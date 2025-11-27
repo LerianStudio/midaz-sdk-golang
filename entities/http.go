@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -242,7 +243,7 @@ func (c *HTTPClient) doRawRequest(ctx context.Context, method, requestURL string
 		}
 
 		if strings.TrimSpace(headers["Content-Type"]) == "" {
-			return fmt.Errorf("content-type header required for non-empty request body")
+			return errors.New("content-type header required for non-empty request body")
 		}
 	}
 
@@ -435,6 +436,7 @@ func (c *HTTPClient) handleErrorResponse(statusCode int, responseBody []byte, me
 		if requestID != "" {
 			c.debugLog("Request ID: %s", requestID)
 		}
+
 		c.debugLog("Error body: %s", string(responseBody))
 		c.debugLog("Parsed error: %v", apiErr)
 	}
@@ -497,29 +499,9 @@ func (c *HTTPClient) sendRequest(req *http.Request, v any) error {
 	}
 
 	// Extract body from the request
-	var body any
-
-	if req.Body != nil {
-		// Read the body
-		bodyBytes, err := io.ReadAll(req.Body)
-		if err != nil {
-			return err
-		}
-
-		// Close the body
-		if closeErr := req.Body.Close(); closeErr != nil {
-			// Log the error but continue with the request
-			if c.debug {
-				c.debugLog("Failed to close request body: %v", closeErr)
-			}
-		}
-
-		// Unmarshal the body if not empty
-		if len(bodyBytes) > 0 {
-			if err := json.Unmarshal(bodyBytes, &body); err != nil {
-				return err
-			}
-		}
+	body, err := c.extractRequestBody(req)
+	if err != nil {
+		return err
 	}
 
 	// Use the context from the request
@@ -527,6 +509,33 @@ func (c *HTTPClient) sendRequest(req *http.Request, v any) error {
 
 	// Call the new doRequest method
 	return c.doRequest(ctx, method, requestURL, headers, body, v)
+}
+
+// extractRequestBody reads and parses the request body.
+func (c *HTTPClient) extractRequestBody(req *http.Request) (any, error) {
+	if req.Body == nil {
+		return nil, nil //nolint:nilnil // nil body with no error is valid
+	}
+
+	bodyBytes, err := io.ReadAll(req.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	if closeErr := req.Body.Close(); closeErr != nil && c.debug {
+		c.debugLog("Failed to close request body: %v", closeErr)
+	}
+
+	if len(bodyBytes) == 0 {
+		return nil, nil //nolint:nilnil // empty body with no error is valid
+	}
+
+	var body any
+	if err := json.Unmarshal(bodyBytes, &body); err != nil {
+		return nil, err
+	}
+
+	return body, nil
 }
 
 // debugLog logs a debug message if debug mode is enabled.
@@ -570,7 +579,7 @@ func getIdempotencyKeyFromContext(ctx context.Context) string {
 }
 
 // parseErrorResponse parses an error response from the API and converts it to an SDK error.
-func (c *HTTPClient) parseErrorResponse(statusCode int, body []byte, requestID string) error {
+func (*HTTPClient) parseErrorResponse(statusCode int, body []byte, requestID string) error {
 	// If there's no body, create a generic error
 	if len(body) == 0 {
 		return sdkerrors.ErrorFromHTTPResponse(statusCode, requestID, "Empty response from server", "", "", "")
@@ -645,7 +654,7 @@ func (c *HTTPClient) NewRequest(method, requestURL string, body any) (*http.Requ
 		bodyReader = bytes.NewReader(bodyBytes)
 	}
 
-	req, err := http.NewRequest(method, requestURL, bodyReader)
+	req, err := http.NewRequestWithContext(context.Background(), method, requestURL, bodyReader)
 	if err != nil {
 		return nil, err
 	}

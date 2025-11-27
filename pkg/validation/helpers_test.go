@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestIsValidUUID(t *testing.T) {
@@ -438,6 +439,7 @@ func TestValidateMetadataSize(t *testing.T) {
 					key := string(make([]byte, 20)) // 20 bytes per key
 					m[key+string(rune(i))] = string(make([]byte, 50))
 				}
+
 				return m
 			}(),
 			wantErr: false,
@@ -451,6 +453,7 @@ func TestValidateMetadataSize(t *testing.T) {
 					key := string(make([]byte, 20))
 					m[key+string(rune(i))] = string(make([]byte, 50))
 				}
+
 				return m
 			}(),
 			wantErr: true,
@@ -461,10 +464,10 @@ func TestValidateMetadataSize(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := validateMetadataSize(tt.metadata)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.ErrorIs(t, err, ErrMetadataSizeExceeded)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}

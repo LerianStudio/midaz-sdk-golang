@@ -54,6 +54,7 @@ func BenchmarkJSONMarshal(b *testing.B) {
 		pool := performance.NewJSONPool()
 
 		b.ResetTimer()
+
 		for i := 0; i < b.N; i++ {
 			_, err := pool.Marshal(testObj)
 			if err != nil {
@@ -72,8 +73,10 @@ func BenchmarkJSONUnmarshal(b *testing.B) {
 
 	b.Run("Standard", func(b *testing.B) {
 		b.ResetTimer()
+
 		for i := 0; i < b.N; i++ {
 			var obj models.Organization
+
 			err := json.Unmarshal(data, &obj)
 			if err != nil {
 				b.Fatal(err)
@@ -85,8 +88,10 @@ func BenchmarkJSONUnmarshal(b *testing.B) {
 		pool := performance.NewJSONPool()
 
 		b.ResetTimer()
+
 		for i := 0; i < b.N; i++ {
 			var obj models.Organization
+
 			err := pool.Unmarshal(data, &obj)
 			if err != nil {
 				b.Fatal(err)

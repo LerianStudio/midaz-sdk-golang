@@ -2,6 +2,7 @@ package integrity
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -54,11 +55,11 @@ func newMockObservabilityProvider(enabled bool) *mockObservabilityProvider {
 	}
 }
 
-func (m *mockObservabilityProvider) Tracer() trace.Tracer {
+func (*mockObservabilityProvider) Tracer() trace.Tracer {
 	return noop.NewTracerProvider().Tracer("")
 }
 
-func (m *mockObservabilityProvider) Meter() metric.Meter {
+func (*mockObservabilityProvider) Meter() metric.Meter {
 	return nil
 }
 
@@ -66,7 +67,7 @@ func (m *mockObservabilityProvider) Logger() observability.Logger {
 	return m.logger
 }
 
-func (m *mockObservabilityProvider) Shutdown(ctx context.Context) error {
+func (*mockObservabilityProvider) Shutdown(_ context.Context) error {
 	return nil
 }
 
@@ -82,19 +83,19 @@ type mockLogger struct {
 	errorCalls []string
 }
 
-func (l *mockLogger) Debug(args ...any)                                      { l.debugCalls = append(l.debugCalls, "debug") }
-func (l *mockLogger) Debugf(format string, args ...any)                      { l.debugCalls = append(l.debugCalls, format) }
-func (l *mockLogger) Info(args ...any)                                       { l.infoCalls = append(l.infoCalls, "info") }
-func (l *mockLogger) Infof(format string, args ...any)                       { l.infoCalls = append(l.infoCalls, format) }
-func (l *mockLogger) Warn(args ...any)                                       { l.warnCalls = append(l.warnCalls, "warn") }
-func (l *mockLogger) Warnf(format string, args ...any)                       { l.warnCalls = append(l.warnCalls, format) }
-func (l *mockLogger) Error(args ...any)                                      { l.errorCalls = append(l.errorCalls, "error") }
-func (l *mockLogger) Errorf(format string, args ...any)                      { l.errorCalls = append(l.errorCalls, format) }
-func (l *mockLogger) Fatal(args ...any)                                      {}
-func (l *mockLogger) Fatalf(format string, args ...any)                      {}
-func (l *mockLogger) With(fields map[string]any) observability.Logger        { return l }
-func (l *mockLogger) WithContext(ctx trace.SpanContext) observability.Logger { return l }
-func (l *mockLogger) WithSpan(span trace.Span) observability.Logger          { return l }
+func (l *mockLogger) Debug(_ ...any)                                       { l.debugCalls = append(l.debugCalls, "debug") }
+func (l *mockLogger) Debugf(format string, _ ...any)                       { l.debugCalls = append(l.debugCalls, format) }
+func (l *mockLogger) Info(_ ...any)                                        { l.infoCalls = append(l.infoCalls, "info") }
+func (l *mockLogger) Infof(format string, _ ...any)                        { l.infoCalls = append(l.infoCalls, format) }
+func (l *mockLogger) Warn(_ ...any)                                        { l.warnCalls = append(l.warnCalls, "warn") }
+func (l *mockLogger) Warnf(format string, _ ...any)                        { l.warnCalls = append(l.warnCalls, format) }
+func (l *mockLogger) Error(_ ...any)                                       { l.errorCalls = append(l.errorCalls, "error") }
+func (l *mockLogger) Errorf(format string, _ ...any)                       { l.errorCalls = append(l.errorCalls, format) }
+func (*mockLogger) Fatal(_ ...any)                                         {}
+func (*mockLogger) Fatalf(_ string, _ ...any)                              {}
+func (l *mockLogger) With(_ map[string]any) observability.Logger           { return l }
+func (l *mockLogger) WithContext(_ trace.SpanContext) observability.Logger { return l }
+func (l *mockLogger) WithSpan(_ trace.Span) observability.Logger           { return l }
 
 // -----------------------------------------------------------------------------
 // Mock Services - Complete implementations of entities interfaces
@@ -102,48 +103,53 @@ func (l *mockLogger) WithSpan(span trace.Span) observability.Logger          { r
 
 // testBalancesService implements entities.BalancesService for testing
 type testBalancesService struct {
-	listBalancesFn               func(ctx context.Context, orgID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error)
-	listAccountBalancesFn        func(ctx context.Context, orgID, ledgerID, accountID string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error)
+	listBalancesFn               func(ctx context.Context, orgID, ledgerID string, _ *models.ListOptions) (*models.ListResponse[models.Balance], error)
+	listAccountBalancesFn        func(ctx context.Context, orgID, ledgerID, accountID string, _ *models.ListOptions) (*models.ListResponse[models.Balance], error)
 	getBalanceFn                 func(ctx context.Context, orgID, ledgerID, balanceID string) (*models.Balance, error)
 	updateBalanceFn              func(ctx context.Context, orgID, ledgerID, balanceID string, input *models.UpdateBalanceInput) (*models.Balance, error)
 	deleteBalanceFn              func(ctx context.Context, orgID, ledgerID, balanceID string) error
 	createBalanceFn              func(ctx context.Context, orgID, ledgerID, accountID string, input *models.CreateBalanceInput) (*models.Balance, error)
-	listBalancesByAccountAliasFn func(ctx context.Context, orgID, ledgerID, alias string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error)
-	listBalancesByExternalCodeFn func(ctx context.Context, orgID, ledgerID, code string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error)
+	listBalancesByAccountAliasFn func(ctx context.Context, orgID, ledgerID, alias string, _ *models.ListOptions) (*models.ListResponse[models.Balance], error)
+	listBalancesByExternalCodeFn func(ctx context.Context, orgID, ledgerID, code string, _ *models.ListOptions) (*models.ListResponse[models.Balance], error)
 }
 
 func (s *testBalancesService) ListBalances(ctx context.Context, orgID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error) {
 	if s.listBalancesFn != nil {
 		return s.listBalancesFn(ctx, orgID, ledgerID, opts)
 	}
-	return nil, nil
+
+	return nil, errors.New("mock: ListBalances not implemented")
 }
 
 func (s *testBalancesService) ListAccountBalances(ctx context.Context, orgID, ledgerID, accountID string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error) {
 	if s.listAccountBalancesFn != nil {
 		return s.listAccountBalancesFn(ctx, orgID, ledgerID, accountID, opts)
 	}
-	return nil, nil
+
+	return nil, errors.New("mock: ListAccountBalances not implemented")
 }
 
 func (s *testBalancesService) GetBalance(ctx context.Context, orgID, ledgerID, balanceID string) (*models.Balance, error) {
 	if s.getBalanceFn != nil {
 		return s.getBalanceFn(ctx, orgID, ledgerID, balanceID)
 	}
-	return nil, nil
+
+	return nil, errors.New("mock: GetBalance not implemented")
 }
 
 func (s *testBalancesService) UpdateBalance(ctx context.Context, orgID, ledgerID, balanceID string, input *models.UpdateBalanceInput) (*models.Balance, error) {
 	if s.updateBalanceFn != nil {
 		return s.updateBalanceFn(ctx, orgID, ledgerID, balanceID, input)
 	}
-	return nil, nil
+
+	return nil, errors.New("mock: UpdateBalance not implemented")
 }
 
 func (s *testBalancesService) DeleteBalance(ctx context.Context, orgID, ledgerID, balanceID string) error {
 	if s.deleteBalanceFn != nil {
 		return s.deleteBalanceFn(ctx, orgID, ledgerID, balanceID)
 	}
+
 	return nil
 }
 
@@ -151,26 +157,29 @@ func (s *testBalancesService) CreateBalance(ctx context.Context, orgID, ledgerID
 	if s.createBalanceFn != nil {
 		return s.createBalanceFn(ctx, orgID, ledgerID, accountID, input)
 	}
-	return nil, nil
+
+	return nil, errors.New("mock: CreateBalance not implemented")
 }
 
 func (s *testBalancesService) ListBalancesByAccountAlias(ctx context.Context, orgID, ledgerID, alias string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error) {
 	if s.listBalancesByAccountAliasFn != nil {
 		return s.listBalancesByAccountAliasFn(ctx, orgID, ledgerID, alias, opts)
 	}
-	return nil, nil
+
+	return nil, errors.New("mock: ListBalancesByAccountAlias not implemented")
 }
 
 func (s *testBalancesService) ListBalancesByExternalCode(ctx context.Context, orgID, ledgerID, code string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error) {
 	if s.listBalancesByExternalCodeFn != nil {
 		return s.listBalancesByExternalCodeFn(ctx, orgID, ledgerID, code, opts)
 	}
-	return nil, nil
+
+	return nil, errors.New("mock: ListBalancesByExternalCode not implemented")
 }
 
 // testAccountsService implements entities.AccountsService for testing
 type testAccountsService struct {
-	listAccountsFn              func(ctx context.Context, orgID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Account], error)
+	listAccountsFn              func(ctx context.Context, orgID, ledgerID string, _ *models.ListOptions) (*models.ListResponse[models.Account], error)
 	getAccountFn                func(ctx context.Context, orgID, ledgerID, id string) (*models.Account, error)
 	getAccountByAliasFn         func(ctx context.Context, orgID, ledgerID, alias string) (*models.Account, error)
 	createAccountFn             func(ctx context.Context, orgID, ledgerID string, input *models.CreateAccountInput) (*models.Account, error)
@@ -187,41 +196,47 @@ func (s *testAccountsService) ListAccounts(ctx context.Context, orgID, ledgerID 
 	if s.listAccountsFn != nil {
 		return s.listAccountsFn(ctx, orgID, ledgerID, opts)
 	}
-	return nil, nil
+
+	return nil, errors.New("mock: ListAccounts not implemented")
 }
 
 func (s *testAccountsService) GetAccount(ctx context.Context, orgID, ledgerID, id string) (*models.Account, error) {
 	if s.getAccountFn != nil {
 		return s.getAccountFn(ctx, orgID, ledgerID, id)
 	}
-	return nil, nil
+
+	return nil, errors.New("mock: GetAccount not implemented")
 }
 
 func (s *testAccountsService) GetAccountByAlias(ctx context.Context, orgID, ledgerID, alias string) (*models.Account, error) {
 	if s.getAccountByAliasFn != nil {
 		return s.getAccountByAliasFn(ctx, orgID, ledgerID, alias)
 	}
-	return nil, nil
+
+	return nil, errors.New("mock: GetAccountByAlias not implemented")
 }
 
 func (s *testAccountsService) CreateAccount(ctx context.Context, orgID, ledgerID string, input *models.CreateAccountInput) (*models.Account, error) {
 	if s.createAccountFn != nil {
 		return s.createAccountFn(ctx, orgID, ledgerID, input)
 	}
-	return nil, nil
+
+	return nil, errors.New("mock: CreateAccount not implemented")
 }
 
 func (s *testAccountsService) UpdateAccount(ctx context.Context, orgID, ledgerID, id string, input *models.UpdateAccountInput) (*models.Account, error) {
 	if s.updateAccountFn != nil {
 		return s.updateAccountFn(ctx, orgID, ledgerID, id, input)
 	}
-	return nil, nil
+
+	return nil, errors.New("mock: UpdateAccount not implemented")
 }
 
 func (s *testAccountsService) DeleteAccount(ctx context.Context, orgID, ledgerID, id string) error {
 	if s.deleteAccountFn != nil {
 		return s.deleteAccountFn(ctx, orgID, ledgerID, id)
 	}
+
 	return nil
 }
 
@@ -229,35 +244,40 @@ func (s *testAccountsService) GetBalance(ctx context.Context, orgID, ledgerID, a
 	if s.getBalanceFn != nil {
 		return s.getBalanceFn(ctx, orgID, ledgerID, accountID)
 	}
-	return nil, nil
+
+	return nil, errors.New("mock: GetBalance not implemented")
 }
 
 func (s *testAccountsService) GetAccountsMetricsCount(ctx context.Context, orgID, ledgerID string) (*models.MetricsCount, error) {
 	if s.getAccountsMetricsCountFn != nil {
 		return s.getAccountsMetricsCountFn(ctx, orgID, ledgerID)
 	}
-	return nil, nil
+
+	return nil, errors.New("mock: GetAccountsMetricsCount not implemented")
 }
 
 func (s *testAccountsService) GetExternalAccount(ctx context.Context, orgID, ledgerID, assetCode string) (*models.Account, error) {
 	if s.getExternalAccountFn != nil {
 		return s.getExternalAccountFn(ctx, orgID, ledgerID, assetCode)
 	}
-	return nil, nil
+
+	return nil, errors.New("mock: GetExternalAccount not implemented")
 }
 
 func (s *testAccountsService) GetExternalAccountBalance(ctx context.Context, orgID, ledgerID, assetCode string) (*models.Balance, error) {
 	if s.getExternalAccountBalanceFn != nil {
 		return s.getExternalAccountBalanceFn(ctx, orgID, ledgerID, assetCode)
 	}
-	return nil, nil
+
+	return nil, errors.New("mock: GetExternalAccountBalance not implemented")
 }
 
 func (s *testAccountsService) GetAccountByAliasPath(ctx context.Context, orgID, ledgerID, alias string) (*models.Account, error) {
 	if s.getAccountByAliasPathFn != nil {
 		return s.getAccountByAliasPathFn(ctx, orgID, ledgerID, alias)
 	}
-	return nil, nil
+
+	return nil, errors.New("mock: GetAccountByAliasPath not implemented")
 }
 
 // Test error variables
@@ -266,7 +286,7 @@ var (
 	errAccountNotFound = errorf("account not found")
 )
 
-func errorf(format string, args ...any) error {
+func errorf(format string, _ ...any) error {
 	return &testError{msg: format}
 }
 
@@ -410,7 +430,7 @@ func TestGenerateLedgerReport_NilEntity(t *testing.T) {
 	report, err := checker.GenerateLedgerReport(context.Background(), "org-1", "ledger-1")
 
 	assert.Nil(t, report)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "entities not initialized")
 }
 
@@ -425,7 +445,7 @@ func TestGenerateLedgerReport_NilBalancesService(t *testing.T) {
 	report, err := checker.GenerateLedgerReport(context.Background(), "org-1", "ledger-1")
 
 	assert.Nil(t, report)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "entities not initialized")
 }
 
@@ -442,7 +462,7 @@ func TestGenerateLedgerReport_NilAccountsService(t *testing.T) {
 	report, err := checker.GenerateLedgerReport(context.Background(), "org-1", "ledger-1")
 
 	assert.Nil(t, report)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "entities not initialized")
 }
 
@@ -452,7 +472,7 @@ func TestGenerateLedgerReport_NilAccountsService(t *testing.T) {
 
 func TestGenerateLedgerReport_EmptyLedger(t *testing.T) {
 	mockBalances := &testBalancesService{
-		listBalancesFn: func(ctx context.Context, orgID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error) {
+		listBalancesFn: func(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.Balance], error) {
 			return &models.ListResponse[models.Balance]{
 				Items:      []models.Balance{},
 				Pagination: models.Pagination{NextCursor: ""},
@@ -478,7 +498,7 @@ func TestGenerateLedgerReport_SingleBalance(t *testing.T) {
 	balance := createTestBalance("account-1", "USD", 1000, 100)
 
 	mockBalances := &testBalancesService{
-		listBalancesFn: func(ctx context.Context, orgID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error) {
+		listBalancesFn: func(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.Balance], error) {
 			return &models.ListResponse[models.Balance]{
 				Items:      []models.Balance{balance},
 				Pagination: models.Pagination{NextCursor: ""},
@@ -486,7 +506,7 @@ func TestGenerateLedgerReport_SingleBalance(t *testing.T) {
 		},
 	}
 	mockAccounts := &testAccountsService{
-		getAccountFn: func(ctx context.Context, orgID, ledgerID, id string) (*models.Account, error) {
+		getAccountFn: func(_ context.Context, _, _, _ string) (*models.Account, error) {
 			return createTestAccount("account-1", ptr("@user/account1")), nil
 		},
 	}
@@ -521,7 +541,7 @@ func TestGenerateLedgerReport_MultipleBalancesSameAsset(t *testing.T) {
 	}
 
 	mockBalances := &testBalancesService{
-		listBalancesFn: func(ctx context.Context, orgID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error) {
+		listBalancesFn: func(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.Balance], error) {
 			return &models.ListResponse[models.Balance]{
 				Items:      balances,
 				Pagination: models.Pagination{NextCursor: ""},
@@ -535,7 +555,7 @@ func TestGenerateLedgerReport_MultipleBalancesSameAsset(t *testing.T) {
 		"account-3": "@user/account3",
 	}
 	mockAccounts := &testAccountsService{
-		getAccountFn: func(ctx context.Context, orgID, ledgerID, id string) (*models.Account, error) {
+		getAccountFn: func(_ context.Context, _, _, id string) (*models.Account, error) {
 			alias := accountAliases[id]
 			return createTestAccount(id, ptr(alias)), nil
 		},
@@ -567,7 +587,7 @@ func TestGenerateLedgerReport_MultipleAssets(t *testing.T) {
 	}
 
 	mockBalances := &testBalancesService{
-		listBalancesFn: func(ctx context.Context, orgID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error) {
+		listBalancesFn: func(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.Balance], error) {
 			return &models.ListResponse[models.Balance]{
 				Items:      balances,
 				Pagination: models.Pagination{NextCursor: ""},
@@ -575,7 +595,7 @@ func TestGenerateLedgerReport_MultipleAssets(t *testing.T) {
 		},
 	}
 	mockAccounts := &testAccountsService{
-		getAccountFn: func(ctx context.Context, orgID, ledgerID, id string) (*models.Account, error) {
+		getAccountFn: func(_ context.Context, _, _, _ string) (*models.Account, error) {
 			return createTestAccount("account", ptr("@user/account")), nil
 		},
 	}
@@ -602,7 +622,7 @@ func TestGenerateLedgerReport_ExternalAccount(t *testing.T) {
 	}
 
 	mockBalances := &testBalancesService{
-		listBalancesFn: func(ctx context.Context, orgID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error) {
+		listBalancesFn: func(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.Balance], error) {
 			return &models.ListResponse[models.Balance]{
 				Items:      balances,
 				Pagination: models.Pagination{NextCursor: ""},
@@ -615,7 +635,7 @@ func TestGenerateLedgerReport_ExternalAccount(t *testing.T) {
 		"external-1": "@external/bank",
 	}
 	mockAccounts := &testAccountsService{
-		getAccountFn: func(ctx context.Context, orgID, ledgerID, id string) (*models.Account, error) {
+		getAccountFn: func(_ context.Context, _, _, id string) (*models.Account, error) {
 			alias := accountAliases[id]
 			return createTestAccount(id, ptr(alias)), nil
 		},
@@ -648,7 +668,7 @@ func TestGenerateLedgerReport_OverdrawnAccount(t *testing.T) {
 	}
 
 	mockBalances := &testBalancesService{
-		listBalancesFn: func(ctx context.Context, orgID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error) {
+		listBalancesFn: func(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.Balance], error) {
 			return &models.ListResponse[models.Balance]{
 				Items:      balances,
 				Pagination: models.Pagination{NextCursor: ""},
@@ -661,7 +681,7 @@ func TestGenerateLedgerReport_OverdrawnAccount(t *testing.T) {
 		"account-2": "@user/healthy",
 	}
 	mockAccounts := &testAccountsService{
-		getAccountFn: func(ctx context.Context, orgID, ledgerID, id string) (*models.Account, error) {
+		getAccountFn: func(_ context.Context, _, _, id string) (*models.Account, error) {
 			alias := accountAliases[id]
 			return createTestAccount(id, ptr(alias)), nil
 		},
@@ -692,7 +712,7 @@ func TestGenerateLedgerReport_AccountWithNoAlias(t *testing.T) {
 	}
 
 	mockBalances := &testBalancesService{
-		listBalancesFn: func(ctx context.Context, orgID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error) {
+		listBalancesFn: func(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.Balance], error) {
 			return &models.ListResponse[models.Balance]{
 				Items:      balances,
 				Pagination: models.Pagination{NextCursor: ""},
@@ -700,7 +720,7 @@ func TestGenerateLedgerReport_AccountWithNoAlias(t *testing.T) {
 		},
 	}
 	mockAccounts := &testAccountsService{
-		getAccountFn: func(ctx context.Context, orgID, ledgerID, id string) (*models.Account, error) {
+		getAccountFn: func(_ context.Context, _, _, _ string) (*models.Account, error) {
 			return createTestAccount("account-1", nil), nil
 		},
 	}
@@ -726,7 +746,7 @@ func TestGenerateLedgerReport_AccountWithEmptyAlias(t *testing.T) {
 	}
 
 	mockBalances := &testBalancesService{
-		listBalancesFn: func(ctx context.Context, orgID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error) {
+		listBalancesFn: func(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.Balance], error) {
 			return &models.ListResponse[models.Balance]{
 				Items:      balances,
 				Pagination: models.Pagination{NextCursor: ""},
@@ -734,7 +754,7 @@ func TestGenerateLedgerReport_AccountWithEmptyAlias(t *testing.T) {
 		},
 	}
 	mockAccounts := &testAccountsService{
-		getAccountFn: func(ctx context.Context, orgID, ledgerID, id string) (*models.Account, error) {
+		getAccountFn: func(_ context.Context, _, _, _ string) (*models.Account, error) {
 			return createTestAccount("account-1", ptr("")), nil
 		},
 	}
@@ -761,7 +781,7 @@ func TestGenerateLedgerReport_AccountWithEmptyAlias(t *testing.T) {
 func TestGenerateLedgerReport_Pagination(t *testing.T) {
 	callCount := 0
 	mockBalances := &testBalancesService{
-		listBalancesFn: func(ctx context.Context, orgID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error) {
+		listBalancesFn: func(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.Balance], error) {
 			callCount++
 			if callCount == 1 {
 				return &models.ListResponse[models.Balance]{
@@ -771,6 +791,7 @@ func TestGenerateLedgerReport_Pagination(t *testing.T) {
 					Pagination: models.Pagination{NextCursor: "cursor-1"},
 				}, nil
 			}
+
 			return &models.ListResponse[models.Balance]{
 				Items: []models.Balance{
 					createTestBalance("account-2", "USD", 2000, 200),
@@ -780,7 +801,7 @@ func TestGenerateLedgerReport_Pagination(t *testing.T) {
 		},
 	}
 	mockAccounts := &testAccountsService{
-		getAccountFn: func(ctx context.Context, orgID, ledgerID, id string) (*models.Account, error) {
+		getAccountFn: func(_ context.Context, _, _, _ string) (*models.Account, error) {
 			return createTestAccount("account", ptr("@user/account")), nil
 		},
 	}
@@ -806,7 +827,7 @@ func TestGenerateLedgerReport_Pagination(t *testing.T) {
 
 func TestGenerateLedgerReport_ListBalancesError(t *testing.T) {
 	mockBalances := &testBalancesService{
-		listBalancesFn: func(ctx context.Context, orgID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error) {
+		listBalancesFn: func(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.Balance], error) {
 			return nil, errNetworkError
 		},
 	}
@@ -820,13 +841,13 @@ func TestGenerateLedgerReport_ListBalancesError(t *testing.T) {
 	report, err := checker.GenerateLedgerReport(context.Background(), "org-1", "ledger-1")
 
 	assert.Nil(t, report)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "network error")
 }
 
 func TestGenerateLedgerReport_GetAccountError(t *testing.T) {
 	mockBalances := &testBalancesService{
-		listBalancesFn: func(ctx context.Context, orgID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error) {
+		listBalancesFn: func(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.Balance], error) {
 			return &models.ListResponse[models.Balance]{
 				Items:      []models.Balance{createTestBalance("account-1", "USD", 1000, 100)},
 				Pagination: models.Pagination{NextCursor: ""},
@@ -834,7 +855,7 @@ func TestGenerateLedgerReport_GetAccountError(t *testing.T) {
 		},
 	}
 	mockAccounts := &testAccountsService{
-		getAccountFn: func(ctx context.Context, orgID, ledgerID, id string) (*models.Account, error) {
+		getAccountFn: func(_ context.Context, _, _, _ string) (*models.Account, error) {
 			return nil, errAccountNotFound
 		},
 	}
@@ -848,7 +869,7 @@ func TestGenerateLedgerReport_GetAccountError(t *testing.T) {
 	report, err := checker.GenerateLedgerReport(context.Background(), "org-1", "ledger-1")
 
 	assert.Nil(t, report)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "account-1")
 
 	// Verify error was logged
@@ -861,7 +882,7 @@ func TestGenerateLedgerReport_GetAccountError(t *testing.T) {
 
 func TestGenerateLedgerReport_ContextCancellation(t *testing.T) {
 	mockBalances := &testBalancesService{
-		listBalancesFn: func(ctx context.Context, orgID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error) {
+		listBalancesFn: func(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.Balance], error) {
 			return &models.ListResponse[models.Balance]{
 				Items:      []models.Balance{createTestBalance("account-1", "USD", 1000, 100)},
 				Pagination: models.Pagination{NextCursor: ""},
@@ -883,13 +904,13 @@ func TestGenerateLedgerReport_ContextCancellation(t *testing.T) {
 	report, err := checker.GenerateLedgerReport(ctx, "org-1", "ledger-1")
 
 	assert.Nil(t, report)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, context.Canceled, err)
 }
 
 func TestGenerateLedgerReport_ContextTimeout(t *testing.T) {
 	mockBalances := &testBalancesService{
-		listBalancesFn: func(ctx context.Context, orgID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error) {
+		listBalancesFn: func(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.Balance], error) {
 			return &models.ListResponse[models.Balance]{
 				Items:      []models.Balance{createTestBalance("account-1", "USD", 1000, 100)},
 				Pagination: models.Pagination{NextCursor: ""},
@@ -911,7 +932,7 @@ func TestGenerateLedgerReport_ContextTimeout(t *testing.T) {
 	report, err := checker.GenerateLedgerReport(ctx, "org-1", "ledger-1")
 
 	assert.Nil(t, report)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, context.DeadlineExceeded, err)
 }
 
@@ -927,7 +948,7 @@ func TestGenerateLedgerReport_AccountCaching(t *testing.T) {
 	}
 
 	mockBalances := &testBalancesService{
-		listBalancesFn: func(ctx context.Context, orgID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error) {
+		listBalancesFn: func(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.Balance], error) {
 			return &models.ListResponse[models.Balance]{
 				Items:      balances,
 				Pagination: models.Pagination{NextCursor: ""},
@@ -938,7 +959,7 @@ func TestGenerateLedgerReport_AccountCaching(t *testing.T) {
 	// GetAccount should only be called once due to caching
 	getAccountCallCount := 0
 	mockAccounts := &testAccountsService{
-		getAccountFn: func(ctx context.Context, orgID, ledgerID, id string) (*models.Account, error) {
+		getAccountFn: func(_ context.Context, _, _, _ string) (*models.Account, error) {
 			getAccountCallCount++
 			return createTestAccount("account-1", ptr("@user/account1")), nil
 		},
@@ -1265,7 +1286,7 @@ func TestWaitForThrottling_NoDelay(t *testing.T) {
 	err := checker.waitForThrottling(context.Background())
 	elapsed := time.Since(start)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Less(t, elapsed, 10*time.Millisecond) // Should be instant
 }
 
@@ -1276,7 +1297,7 @@ func TestWaitForThrottling_WithDelay(t *testing.T) {
 	err := checker.waitForThrottling(context.Background())
 	elapsed := time.Since(start)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.GreaterOrEqual(t, elapsed, 50*time.Millisecond)
 	assert.Less(t, elapsed, 100*time.Millisecond) // Allow some tolerance
 }
@@ -1289,7 +1310,7 @@ func TestWaitForThrottling_ContextCancelled(t *testing.T) {
 
 	err := checker.waitForThrottling(ctx)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, context.Canceled, err)
 }
 
@@ -1308,7 +1329,7 @@ func TestWaitForThrottling_ContextCancelledDuringWait(t *testing.T) {
 	err := checker.waitForThrottling(ctx)
 	elapsed := time.Since(start)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, context.Canceled, err)
 	assert.Less(t, elapsed, 100*time.Millisecond) // Should not wait full 5 seconds
 }
@@ -1570,7 +1591,7 @@ func TestLogDebug_Disabled(t *testing.T) {
 	assert.Empty(t, obs.logger.debugCalls)
 }
 
-func TestLogDebug_NilObservability(t *testing.T) {
+func TestLogDebug_NilObservability(_ *testing.T) {
 	checker := &Checker{obs: nil}
 
 	// Should not panic
@@ -1621,7 +1642,7 @@ func TestGenerateLedgerReport_LargeNumberOfBalances(t *testing.T) {
 	}
 
 	mockBalances := &testBalancesService{
-		listBalancesFn: func(ctx context.Context, orgID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error) {
+		listBalancesFn: func(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.Balance], error) {
 			return &models.ListResponse[models.Balance]{
 				Items:      balances,
 				Pagination: models.Pagination{NextCursor: ""},
@@ -1631,7 +1652,7 @@ func TestGenerateLedgerReport_LargeNumberOfBalances(t *testing.T) {
 
 	// Accounts are cached, so only 10 unique accounts
 	mockAccounts := &testAccountsService{
-		getAccountFn: func(ctx context.Context, orgID, ledgerID, id string) (*models.Account, error) {
+		getAccountFn: func(_ context.Context, _, _, id string) (*models.Account, error) {
 			return createTestAccount(id, ptr("@user/"+id)), nil
 		},
 	}
@@ -1658,7 +1679,7 @@ func TestGenerateLedgerReport_VerySmallDecimalBalances(t *testing.T) {
 	}
 
 	mockBalances := &testBalancesService{
-		listBalancesFn: func(ctx context.Context, orgID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error) {
+		listBalancesFn: func(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.Balance], error) {
 			return &models.ListResponse[models.Balance]{
 				Items:      []models.Balance{balance},
 				Pagination: models.Pagination{NextCursor: ""},
@@ -1666,7 +1687,7 @@ func TestGenerateLedgerReport_VerySmallDecimalBalances(t *testing.T) {
 		},
 	}
 	mockAccounts := &testAccountsService{
-		getAccountFn: func(ctx context.Context, orgID, ledgerID, id string) (*models.Account, error) {
+		getAccountFn: func(_ context.Context, _, _, _ string) (*models.Account, error) {
 			return createTestAccount("account-1", ptr("@user/btc")), nil
 		},
 	}
@@ -1697,7 +1718,7 @@ func TestGenerateLedgerReport_VeryLargeDecimalBalances(t *testing.T) {
 	}
 
 	mockBalances := &testBalancesService{
-		listBalancesFn: func(ctx context.Context, orgID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error) {
+		listBalancesFn: func(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.Balance], error) {
 			return &models.ListResponse[models.Balance]{
 				Items:      []models.Balance{balance},
 				Pagination: models.Pagination{NextCursor: ""},
@@ -1705,7 +1726,7 @@ func TestGenerateLedgerReport_VeryLargeDecimalBalances(t *testing.T) {
 		},
 	}
 	mockAccounts := &testAccountsService{
-		getAccountFn: func(ctx context.Context, orgID, ledgerID, id string) (*models.Account, error) {
+		getAccountFn: func(_ context.Context, _, _, _ string) (*models.Account, error) {
 			return createTestAccount("account-1", ptr("@user/points")), nil
 		},
 	}

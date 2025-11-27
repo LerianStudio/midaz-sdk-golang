@@ -178,15 +178,17 @@ func disableRetriesExample() {
 	_, err = c.Entity.Organizations.GetOrganization(context.Background(), "org-id")
 
 	// Handle the error without retries
-	if err != nil {
-		if errors.IsNetworkError(err) {
-			fmt.Println("  - Network error, would not be retried")
-		} else if errors.IsTimeoutError(err) {
-			fmt.Println("  - Timeout error, would not be retried")
-		} else {
-			fmt.Printf("  - Other error: %v\n", err)
-		}
-	} else {
+	if err == nil {
 		fmt.Println("  - Operation completed successfully")
+		return
+	}
+
+	switch {
+	case errors.IsNetworkError(err):
+		fmt.Println("  - Network error, would not be retried")
+	case errors.IsTimeoutError(err):
+		fmt.Println("  - Timeout error, would not be retried")
+	default:
+		fmt.Printf("  - Other error: %v\n", err)
 	}
 }

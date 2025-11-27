@@ -5,6 +5,7 @@ package transaction
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"strconv"
@@ -492,11 +493,11 @@ func resolveMultiTransferOptions(opts *MultiTransferOptions) (*MultiTransferOpti
 
 func validateMultiTransferAccounts(sourceAccounts, destAccounts map[string]int64) error {
 	if len(sourceAccounts) == 0 {
-		return fmt.Errorf("at least one source account is required")
+		return errors.New("at least one source account is required")
 	}
 
 	if len(destAccounts) == 0 {
-		return fmt.Errorf("at least one destination account is required")
+		return errors.New("at least one destination account is required")
 	}
 
 	return nil
@@ -504,6 +505,7 @@ func validateMultiTransferAccounts(sourceAccounts, destAccounts map[string]int64
 
 func buildAccountInputList(accounts map[string]int64, scale int64, assetCode, accountType string) ([]models.FromToInput, int64, error) {
 	inputList := make([]models.FromToInput, 0, len(accounts))
+
 	var sum int64
 
 	for accountID, amount := range accounts {
@@ -608,7 +610,7 @@ func CreateFromTemplate(
 	idempotencyKey string,
 ) (*models.Transaction, error) {
 	if template == nil {
-		return nil, fmt.Errorf("transaction template cannot be nil")
+		return nil, errors.New("transaction template cannot be nil")
 	}
 
 	// Ensure idempotency key is set

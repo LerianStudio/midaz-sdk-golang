@@ -5,7 +5,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -96,7 +95,7 @@ func TestReportDataSummaryFields(t *testing.T) {
 	assert.Equal(t, 200, dataSummary.TransactionVolumeByAccount["acc-2"])
 	assert.Equal(t, 50, dataSummary.AccountDistributionByType["checking"])
 	assert.Equal(t, 500, dataSummary.AssetUsage["USD"])
-	assert.Equal(t, 1000.50, dataSummary.BalanceSummaries["acc-1"]["balance"])
+	assert.InDelta(t, 1000.50, dataSummary.BalanceSummaries["acc-1"]["balance"], 0.001)
 }
 
 // TestGenerationReportFields tests GenerationReport struct fields
@@ -198,10 +197,11 @@ func TestGenerationReportToJSON(t *testing.T) {
 
 		require.NoError(t, err)
 		require.NotEmpty(t, data)
-		assert.False(t, strings.Contains(string(data), "\n"))
+		assert.NotContains(t, string(data), "\n")
 
 		// Verify it's valid JSON
 		var parsed map[string]any
+
 		err = json.Unmarshal(data, &parsed)
 		require.NoError(t, err)
 		assert.Equal(t, "notes", parsed["notes"])
@@ -218,8 +218,8 @@ func TestGenerationReportToJSON(t *testing.T) {
 
 		require.NoError(t, err)
 		require.NotEmpty(t, data)
-		assert.True(t, strings.Contains(string(data), "\n"))
-		assert.True(t, strings.Contains(string(data), "  ")) // Indentation
+		assert.Contains(t, string(data), "\n")
+		assert.Contains(t, string(data), "  ") // Indentation
 	})
 
 	t.Run("full report serializes correctly", func(t *testing.T) {
@@ -264,6 +264,7 @@ func TestGenerationReportToJSON(t *testing.T) {
 		require.NoError(t, err)
 
 		var parsed GenerationReport
+
 		err = json.Unmarshal(data, &parsed)
 		require.NoError(t, err)
 
@@ -299,6 +300,7 @@ func TestGenerationReportSaveJSON(t *testing.T) {
 		require.NoError(t, err)
 
 		var parsed GenerationReport
+
 		err = json.Unmarshal(data, &parsed)
 		require.NoError(t, err)
 		assert.Equal(t, "test notes", parsed.Notes)
@@ -319,7 +321,7 @@ func TestGenerationReportSaveJSON(t *testing.T) {
 
 		data, err := os.ReadFile(filePath)
 		require.NoError(t, err)
-		assert.True(t, strings.Contains(string(data), "\n"))
+		assert.Contains(t, string(data), "\n")
 	})
 
 	t.Run("file permissions are restrictive", func(t *testing.T) {
@@ -371,11 +373,12 @@ func TestGenerationReportSaveHTML(t *testing.T) {
 
 		data, err := os.ReadFile(filePath)
 		require.NoError(t, err)
+
 		html := string(data)
 
-		assert.True(t, strings.Contains(html, "<!DOCTYPE html>"))
-		assert.True(t, strings.Contains(html, "Mass Demo Generation Report"))
-		assert.True(t, strings.Contains(html, "Summary"))
+		assert.Contains(t, html, "<!DOCTYPE html>")
+		assert.Contains(t, html, "Mass Demo Generation Report")
+		assert.Contains(t, html, "Summary")
 	})
 
 	t.Run("includes step timings when present", func(t *testing.T) {
@@ -398,11 +401,12 @@ func TestGenerationReportSaveHTML(t *testing.T) {
 
 		data, err := os.ReadFile(filePath)
 		require.NoError(t, err)
+
 		html := string(data)
 
-		assert.True(t, strings.Contains(html, "Step Durations"))
-		assert.True(t, strings.Contains(html, "setup"))
-		assert.True(t, strings.Contains(html, "100ms"))
+		assert.Contains(t, html, "Step Durations")
+		assert.Contains(t, html, "setup")
+		assert.Contains(t, html, "100ms")
 	})
 
 	t.Run("includes entities when present", func(t *testing.T) {
@@ -434,13 +438,14 @@ func TestGenerationReportSaveHTML(t *testing.T) {
 
 		data, err := os.ReadFile(filePath)
 		require.NoError(t, err)
+
 		html := string(data)
 
-		assert.True(t, strings.Contains(html, "Entities"))
-		assert.True(t, strings.Contains(html, "Organizations"))
-		assert.True(t, strings.Contains(html, "Ledgers"))
-		assert.True(t, strings.Contains(html, "Assets"))
-		assert.True(t, strings.Contains(html, "IDs captured"))
+		assert.Contains(t, html, "Entities")
+		assert.Contains(t, html, "Organizations")
+		assert.Contains(t, html, "Ledgers")
+		assert.Contains(t, html, "Assets")
+		assert.Contains(t, html, "IDs captured")
 	})
 
 	t.Run("includes API stats when present", func(t *testing.T) {
@@ -465,13 +470,14 @@ func TestGenerationReportSaveHTML(t *testing.T) {
 
 		data, err := os.ReadFile(filePath)
 		require.NoError(t, err)
+
 		html := string(data)
 
-		assert.True(t, strings.Contains(html, "API Stats"))
-		assert.True(t, strings.Contains(html, "Total API Calls"))
-		assert.True(t, strings.Contains(html, "500"))
-		assert.True(t, strings.Contains(html, "Error timeout"))
-		assert.True(t, strings.Contains(html, "Error network"))
+		assert.Contains(t, html, "API Stats")
+		assert.Contains(t, html, "Total API Calls")
+		assert.Contains(t, html, "500")
+		assert.Contains(t, html, "Error timeout")
+		assert.Contains(t, html, "Error network")
 	})
 
 	t.Run("includes data summary when present", func(t *testing.T) {
@@ -503,14 +509,15 @@ func TestGenerationReportSaveHTML(t *testing.T) {
 
 		data, err := os.ReadFile(filePath)
 		require.NoError(t, err)
+
 		html := string(data)
 
-		assert.True(t, strings.Contains(html, "Transaction Volume by Account"))
-		assert.True(t, strings.Contains(html, "acc-1"))
-		assert.True(t, strings.Contains(html, "Account Distribution by Type"))
-		assert.True(t, strings.Contains(html, "checking"))
-		assert.True(t, strings.Contains(html, "Asset Usage"))
-		assert.True(t, strings.Contains(html, "USD"))
+		assert.Contains(t, html, "Transaction Volume by Account")
+		assert.Contains(t, html, "acc-1")
+		assert.Contains(t, html, "Account Distribution by Type")
+		assert.Contains(t, html, "checking")
+		assert.Contains(t, html, "Asset Usage")
+		assert.Contains(t, html, "USD")
 	})
 
 	t.Run("file permissions are restrictive", func(t *testing.T) {
@@ -598,6 +605,7 @@ func TestReportJSONSerialization(t *testing.T) {
 		require.NoError(t, err)
 
 		var parsed GenerationReport
+
 		err = json.Unmarshal(data, &parsed)
 		require.NoError(t, err)
 
@@ -622,6 +630,7 @@ func TestReportJSONSerialization(t *testing.T) {
 
 		// Check that nil fields are omitted
 		var parsed map[string]any
+
 		err = json.Unmarshal(data, &parsed)
 		require.NoError(t, err)
 
@@ -657,25 +666,26 @@ func TestHTMLOutputStructure(t *testing.T) {
 
 	data, err := os.ReadFile(filePath)
 	require.NoError(t, err)
+
 	html := string(data)
 
 	// Check HTML structure
-	assert.True(t, strings.Contains(html, "<!DOCTYPE html>"))
-	assert.True(t, strings.Contains(html, "<html>"))
-	assert.True(t, strings.Contains(html, "</html>"))
-	assert.True(t, strings.Contains(html, "<head>"))
-	assert.True(t, strings.Contains(html, "</head>"))
-	assert.True(t, strings.Contains(html, "<body>"))
-	assert.True(t, strings.Contains(html, "</body>"))
-	assert.True(t, strings.Contains(html, "<style>"))
-	assert.True(t, strings.Contains(html, "charset=\"utf-8\""))
+	assert.Contains(t, html, "<!DOCTYPE html>")
+	assert.Contains(t, html, "<html>")
+	assert.Contains(t, html, "</html>")
+	assert.Contains(t, html, "<head>")
+	assert.Contains(t, html, "</head>")
+	assert.Contains(t, html, "<body>")
+	assert.Contains(t, html, "</body>")
+	assert.Contains(t, html, "<style>")
+	assert.Contains(t, html, "charset=\"utf-8\"")
 
 	// Check summary values
-	assert.True(t, strings.Contains(html, "50"))    // Total
-	assert.True(t, strings.Contains(html, "45"))    // Success
-	assert.True(t, strings.Contains(html, "5"))     // Errors
-	assert.True(t, strings.Contains(html, "90.0%")) // Success rate
-	assert.True(t, strings.Contains(html, "10.00")) // TPS
+	assert.Contains(t, html, "50")    // Total
+	assert.Contains(t, html, "45")    // Success
+	assert.Contains(t, html, "5")     // Errors
+	assert.Contains(t, html, "90.0%") // Success rate
+	assert.Contains(t, html, "10.00") // TPS
 }
 
 // TestReportWithEmptyDataSummaryMaps tests data summary with empty maps
@@ -699,12 +709,13 @@ func TestReportWithEmptyDataSummaryMaps(t *testing.T) {
 
 	data, err := os.ReadFile(filePath)
 	require.NoError(t, err)
+
 	html := string(data)
 
 	// Empty maps should not generate their sections
-	assert.False(t, strings.Contains(html, "Transaction Volume by Account"))
-	assert.False(t, strings.Contains(html, "Account Distribution by Type"))
-	assert.False(t, strings.Contains(html, "Asset Usage"))
+	assert.NotContains(t, html, "Transaction Volume by Account")
+	assert.NotContains(t, html, "Account Distribution by Type")
+	assert.NotContains(t, html, "Asset Usage")
 }
 
 // TestReportWithNoIDs tests entities with counts but no IDs
@@ -730,11 +741,12 @@ func TestReportWithNoIDs(t *testing.T) {
 
 	data, err := os.ReadFile(filePath)
 	require.NoError(t, err)
+
 	html := string(data)
 
 	// Should show entities section but not the IDs note
-	assert.True(t, strings.Contains(html, "Entities"))
-	assert.False(t, strings.Contains(html, "IDs captured"))
+	assert.Contains(t, html, "Entities")
+	assert.NotContains(t, html, "IDs captured")
 }
 
 // TestGenerationReportGeneratedAtUTC tests that GeneratedAt is in UTC

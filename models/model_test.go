@@ -107,18 +107,23 @@ func TestNewAddress(t *testing.T) {
 	if addr.Line1 != line1 {
 		t.Errorf("Expected Line1 to be %s, got %s", line1, addr.Line1)
 	}
+
 	if addr.ZipCode != zipCode {
 		t.Errorf("Expected ZipCode to be %s, got %s", zipCode, addr.ZipCode)
 	}
+
 	if addr.City != city {
 		t.Errorf("Expected City to be %s, got %s", city, addr.City)
 	}
+
 	if addr.State != state {
 		t.Errorf("Expected State to be %s, got %s", state, addr.State)
 	}
+
 	if addr.Country != country {
 		t.Errorf("Expected Country to be %s, got %s", country, addr.Country)
 	}
+
 	if addr.Line2 != nil {
 		t.Errorf("Expected Line2 to be nil, got %v", addr.Line2)
 	}
@@ -156,18 +161,23 @@ func TestAddressToMmodelAddress(t *testing.T) {
 	if mAddr.Line1 != addr.Line1 {
 		t.Errorf("Expected Line1 to be %s, got %s", addr.Line1, mAddr.Line1)
 	}
+
 	if mAddr.Line2 == nil || *mAddr.Line2 != *addr.Line2 {
 		t.Errorf("Expected Line2 to be %v, got %v", addr.Line2, mAddr.Line2)
 	}
+
 	if mAddr.ZipCode != addr.ZipCode {
 		t.Errorf("Expected ZipCode to be %s, got %s", addr.ZipCode, mAddr.ZipCode)
 	}
+
 	if mAddr.City != addr.City {
 		t.Errorf("Expected City to be %s, got %s", addr.City, mAddr.City)
 	}
+
 	if mAddr.State != addr.State {
 		t.Errorf("Expected State to be %s, got %s", addr.State, mAddr.State)
 	}
+
 	if mAddr.Country != addr.Country {
 		t.Errorf("Expected Country to be %s, got %s", addr.Country, mAddr.Country)
 	}
@@ -189,18 +199,23 @@ func TestFromMmodelAddress(t *testing.T) {
 	if addr.Line1 != mAddr.Line1 {
 		t.Errorf("Expected Line1 to be %s, got %s", mAddr.Line1, addr.Line1)
 	}
+
 	if addr.Line2 == nil || *addr.Line2 != *mAddr.Line2 {
 		t.Errorf("Expected Line2 to be %v, got %v", mAddr.Line2, addr.Line2)
 	}
+
 	if addr.ZipCode != mAddr.ZipCode {
 		t.Errorf("Expected ZipCode to be %s, got %s", mAddr.ZipCode, addr.ZipCode)
 	}
+
 	if addr.City != mAddr.City {
 		t.Errorf("Expected City to be %s, got %s", mAddr.City, addr.City)
 	}
+
 	if addr.State != mAddr.State {
 		t.Errorf("Expected State to be %s, got %s", mAddr.State, addr.State)
 	}
+
 	if addr.Country != mAddr.Country {
 		t.Errorf("Expected Country to be %s, got %s", mAddr.Country, addr.Country)
 	}
@@ -278,9 +293,11 @@ func TestPaginationHasMethods(t *testing.T) {
 			if got := tt.pagination.HasMorePages(); got != tt.hasMore {
 				t.Errorf("HasMorePages() = %v, want %v", got, tt.hasMore)
 			}
+
 			if got := tt.pagination.HasPrevPage(); got != tt.hasPrev {
 				t.Errorf("HasPrevPage() = %v, want %v", got, tt.hasPrev)
 			}
+
 			if got := tt.pagination.HasNextPage(); got != tt.hasNext {
 				t.Errorf("HasNextPage() = %v, want %v", got, tt.hasNext)
 			}
@@ -342,6 +359,7 @@ func TestPaginationCurrentPageTotalPages(t *testing.T) {
 			if got := tt.pagination.CurrentPage(); got != tt.currentPage {
 				t.Errorf("CurrentPage() = %v, want %v", got, tt.currentPage)
 			}
+
 			if got := tt.pagination.TotalPages(); got != tt.totalPages {
 				t.Errorf("TotalPages() = %v, want %v", got, tt.totalPages)
 			}
@@ -400,6 +418,7 @@ func TestPaginationNextPageOptions(t *testing.T) {
 				if options != nil {
 					t.Error("Expected nil but got options")
 				}
+
 				return
 			}
 
@@ -431,9 +450,11 @@ func TestNewListOptions(t *testing.T) {
 	if options.Limit != DefaultLimit {
 		t.Errorf("Expected Limit to be %d, got %d", DefaultLimit, options.Limit)
 	}
+
 	if options.Offset != DefaultOffset {
 		t.Errorf("Expected Offset to be %d, got %d", DefaultOffset, options.Offset)
 	}
+
 	if options.OrderDirection != DefaultSortDirection {
 		t.Errorf("Expected OrderDirection to be %s, got %s", DefaultSortDirection, options.OrderDirection)
 	}

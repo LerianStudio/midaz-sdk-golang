@@ -19,6 +19,7 @@ func createTestConfig() *config.Config {
 		config.WithAccessManager(auth.AccessManager{Enabled: false, Address: ""}),
 		config.WithEnvironment(config.EnvironmentLocal),
 	)
+
 	return cfg
 }
 

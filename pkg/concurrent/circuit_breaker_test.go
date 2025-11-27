@@ -36,6 +36,7 @@ func TestCircuitBreakerTransitions(t *testing.T) {
 
 	// Two consecutive failures should open the circuit
 	var executed int
+
 	failFn := func() error { executed++; return errors.New("boom") }
 	_ = cb.Execute(context.Background(), failFn)
 	_ = cb.Execute(context.Background(), failFn)
@@ -194,7 +195,7 @@ func TestCircuitBreakerClosedState(t *testing.T) {
 		// Success should reset failure count
 		successFn := func() error { return nil }
 		err := cb.Execute(context.Background(), successFn)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// Now we should be able to have 2 more failures before opening
 		_ = cb.Execute(context.Background(), failFn)
@@ -202,7 +203,7 @@ func TestCircuitBreakerClosedState(t *testing.T) {
 
 		// Circuit should still be closed
 		err = cb.Execute(context.Background(), successFn)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("ExactThresholdOpensCircuit", func(t *testing.T) {
@@ -219,7 +220,7 @@ func TestCircuitBreakerClosedState(t *testing.T) {
 
 		// Circuit should now be open
 		err := cb.Execute(context.Background(), failFn)
-		assert.ErrorIs(t, err, ErrCircuitOpen)
+		require.ErrorIs(t, err, ErrCircuitOpen)
 	})
 }
 
@@ -240,7 +241,7 @@ func TestCircuitBreakerHalfOpenState(t *testing.T) {
 
 		// Circuit should be open again
 		err := cb.Execute(context.Background(), failFn)
-		assert.ErrorIs(t, err, ErrCircuitOpen)
+		require.ErrorIs(t, err, ErrCircuitOpen)
 	})
 
 	t.Run("MultipleSuccessesNeeded", func(t *testing.T) {
@@ -258,19 +259,19 @@ func TestCircuitBreakerHalfOpenState(t *testing.T) {
 
 		// First success - still half-open
 		err := cb.Execute(context.Background(), successFn)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// Second success - still half-open
 		err = cb.Execute(context.Background(), successFn)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// Third success - should close circuit
 		err = cb.Execute(context.Background(), successFn)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// Circuit should be fully closed now
 		err = cb.Execute(context.Background(), successFn)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 }
 
@@ -279,18 +280,25 @@ func TestCircuitBreakerConcurrency(t *testing.T) {
 		cb := NewCircuitBreaker(100, 10, 100*time.Millisecond)
 
 		var wg sync.WaitGroup
-		const numGoroutines = 50
-		const opsPerGoroutine = 10
 
-		var successCount int32
-		var errorCount int32
+		const (
+			numGoroutines   = 50
+			opsPerGoroutine = 10
+		)
+
+		var (
+			successCount int32
+			errorCount   int32
+		)
 
 		successFn := func() error { return nil }
 
 		for i := 0; i < numGoroutines; i++ {
 			wg.Add(1)
+
 			go func() {
 				defer wg.Done()
+
 				for j := 0; j < opsPerGoroutine; j++ {
 					err := cb.Execute(context.Background(), successFn)
 					if err == nil {
@@ -313,15 +321,19 @@ func TestCircuitBreakerConcurrency(t *testing.T) {
 		cb := NewCircuitBreaker(10, 5, 200*time.Millisecond)
 
 		var wg sync.WaitGroup
+
 		const numGoroutines = 20
 
 		var openErrors int32
+
 		failFn := func() error { return errors.New("fail") }
 
 		for i := 0; i < numGoroutines; i++ {
 			wg.Add(1)
+
 			go func() {
 				defer wg.Done()
+
 				err := cb.Execute(context.Background(), failFn)
 				if errors.Is(err, ErrCircuitOpen) {
 					atomic.AddInt32(&openErrors, 1)
@@ -332,7 +344,7 @@ func TestCircuitBreakerConcurrency(t *testing.T) {
 		wg.Wait()
 
 		// Some executions should have gotten ErrCircuitOpen
-		assert.Greater(t, atomic.LoadInt32(&openErrors), int32(0))
+		assert.Positive(t, atomic.LoadInt32(&openErrors))
 	})
 }
 
@@ -347,17 +359,19 @@ func TestCircuitBreakerOpenTimeout(t *testing.T) {
 
 		// Try immediately - should be open
 		err := cb.Execute(context.Background(), failFn)
-		assert.ErrorIs(t, err, ErrCircuitOpen)
+		require.ErrorIs(t, err, ErrCircuitOpen)
 
 		// Try after 50ms - should still be open
 		time.Sleep(50 * time.Millisecond)
+
 		err = cb.Execute(context.Background(), failFn)
-		assert.ErrorIs(t, err, ErrCircuitOpen)
+		require.ErrorIs(t, err, ErrCircuitOpen)
 
 		// Try after total 150ms - should still be open
 		time.Sleep(100 * time.Millisecond)
+
 		err = cb.Execute(context.Background(), failFn)
-		assert.ErrorIs(t, err, ErrCircuitOpen)
+		require.ErrorIs(t, err, ErrCircuitOpen)
 	})
 
 	t.Run("CircuitTransitionsToHalfOpenAfterTimeout", func(t *testing.T) {
@@ -374,7 +388,7 @@ func TestCircuitBreakerOpenTimeout(t *testing.T) {
 		// Should be half-open now, allowing one request
 		successFn := func() error { return nil }
 		err := cb.Execute(context.Background(), successFn)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 }
 
@@ -386,7 +400,7 @@ func TestCircuitBreakerFunctionErrors(t *testing.T) {
 		fn := func() error { return expectedErr }
 
 		err := cb.Execute(context.Background(), fn)
-		assert.ErrorIs(t, err, expectedErr)
+		require.ErrorIs(t, err, expectedErr)
 	})
 
 	t.Run("ExecuteFnReturnsNil", func(t *testing.T) {
@@ -395,7 +409,7 @@ func TestCircuitBreakerFunctionErrors(t *testing.T) {
 		fn := func() error { return nil }
 
 		err := cb.Execute(context.Background(), fn)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("ExecuteFnPanics", func(t *testing.T) {
@@ -428,22 +442,22 @@ func TestCircuitBreakerStateConsistency(t *testing.T) {
 
 		// Phase 3: Open state
 		err = cb.Execute(context.Background(), failFn)
-		assert.ErrorIs(t, err, ErrCircuitOpen)
+		require.ErrorIs(t, err, ErrCircuitOpen)
 
 		// Phase 4: Wait for half-open
 		time.Sleep(120 * time.Millisecond)
 
 		// Phase 5: Half-open - first success
 		err = cb.Execute(context.Background(), successFn)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// Phase 6: Half-open - second success, closes circuit
 		err = cb.Execute(context.Background(), successFn)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// Phase 7: Closed state again
 		err = cb.Execute(context.Background(), successFn)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("RepeatedOpenClose", func(t *testing.T) {
@@ -458,18 +472,18 @@ func TestCircuitBreakerStateConsistency(t *testing.T) {
 
 			// Verify it's open
 			err := cb.Execute(context.Background(), failFn)
-			assert.ErrorIs(t, err, ErrCircuitOpen, "Cycle %d: expected open", cycle)
+			require.ErrorIs(t, err, ErrCircuitOpen, "Cycle %d: expected open", cycle)
 
 			// Wait for half-open
 			time.Sleep(60 * time.Millisecond)
 
 			// Close the circuit
 			err = cb.Execute(context.Background(), successFn)
-			assert.NoError(t, err, "Cycle %d: expected success in half-open", cycle)
+			require.NoError(t, err, "Cycle %d: expected success in half-open", cycle)
 
 			// Verify it's closed
 			err = cb.Execute(context.Background(), successFn)
-			assert.NoError(t, err, "Cycle %d: expected success in closed", cycle)
+			require.NoError(t, err, "Cycle %d: expected success in closed", cycle)
 		}
 	})
 }
@@ -486,6 +500,6 @@ func TestErrCircuitOpen(t *testing.T) {
 		_ = cb.Execute(context.Background(), failFn)
 
 		err := cb.Execute(context.Background(), failFn)
-		assert.True(t, errors.Is(err, ErrCircuitOpen))
+		require.ErrorIs(t, err, ErrCircuitOpen)
 	})
 }

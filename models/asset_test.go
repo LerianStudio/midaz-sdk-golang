@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewCreateAssetInput(t *testing.T) {
@@ -165,6 +166,7 @@ func TestCreateAssetInput_WithStatus(t *testing.T) {
 
 			assert.Same(t, input, result, "WithStatus should return same pointer for chaining")
 			assert.Equal(t, tt.wantStatus.Code, input.Status.Code)
+
 			if tt.wantStatus.Description != nil {
 				assert.NotNil(t, input.Status.Description)
 				assert.Equal(t, *tt.wantStatus.Description, *input.Status.Description)
@@ -305,10 +307,10 @@ func TestCreateAssetInput_Validate(t *testing.T) {
 			err := tt.input.Validate()
 
 			if tt.wantError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errorMsg)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -500,9 +502,9 @@ func TestUpdateAssetInput_Validate(t *testing.T) {
 			err := tt.input.Validate()
 
 			if tt.wantError {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -603,9 +605,9 @@ func TestCreateAssetInput_AssetCodes(t *testing.T) {
 			err := input.Validate()
 
 			if tt.wantValid {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			} else {
-				assert.Error(t, err)
+				require.Error(t, err)
 			}
 		})
 	}
@@ -660,9 +662,9 @@ func TestCreateAssetInput_AssetNames(t *testing.T) {
 			err := input.Validate()
 
 			if tt.wantValid {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			} else {
-				assert.Error(t, err)
+				require.Error(t, err)
 			}
 		})
 	}
@@ -759,7 +761,7 @@ func TestCreateAssetInput_MetadataEdgeCases(t *testing.T) {
 			assert.Equal(t, tt.metadata, input.Metadata)
 
 			err := input.Validate()
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		})
 	}
 }
@@ -796,7 +798,7 @@ func TestUpdateAssetInput_MetadataEdgeCases(t *testing.T) {
 			assert.Equal(t, tt.metadata, input.Metadata)
 
 			err := input.Validate()
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		})
 	}
 }
@@ -838,7 +840,7 @@ func TestCreateAssetInput_StatusEdgeCases(t *testing.T) {
 			assert.Equal(t, tt.status.Code, input.Status.Code)
 
 			err := input.Validate()
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		})
 	}
 }
@@ -888,7 +890,7 @@ func TestCreateAssetInput_TypeEdgeCases(t *testing.T) {
 			assert.Equal(t, tt.assetType, input.Type)
 
 			err := input.Validate()
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		})
 	}
 }
@@ -953,11 +955,11 @@ func TestCreateAssetInput_UnderlyingStructAccess(t *testing.T) {
 		WithStatus(NewStatus("ACTIVE")).
 		WithMetadata(map[string]any{"region": "US"})
 
-	assert.Equal(t, "US Dollar", input.CreateAssetInput.Name)
-	assert.Equal(t, "USD", input.CreateAssetInput.Code)
-	assert.Equal(t, "currency", input.CreateAssetInput.Type)
-	assert.Equal(t, "ACTIVE", input.CreateAssetInput.Status.Code)
-	assert.Equal(t, map[string]any{"region": "US"}, input.CreateAssetInput.Metadata)
+	assert.Equal(t, "US Dollar", input.Name)
+	assert.Equal(t, "USD", input.Code)
+	assert.Equal(t, "currency", input.Type)
+	assert.Equal(t, "ACTIVE", input.Status.Code)
+	assert.Equal(t, map[string]any{"region": "US"}, input.Metadata)
 }
 
 func TestUpdateAssetInput_UnderlyingStructAccess(t *testing.T) {
@@ -966,9 +968,9 @@ func TestUpdateAssetInput_UnderlyingStructAccess(t *testing.T) {
 		WithStatus(NewStatus("INACTIVE")).
 		WithMetadata(map[string]any{"updated": true})
 
-	assert.Equal(t, "Updated Name", input.UpdateAssetInput.Name)
-	assert.Equal(t, "INACTIVE", input.UpdateAssetInput.Status.Code)
-	assert.Equal(t, map[string]any{"updated": true}, input.UpdateAssetInput.Metadata)
+	assert.Equal(t, "Updated Name", input.Name)
+	assert.Equal(t, "INACTIVE", input.Status.Code)
+	assert.Equal(t, map[string]any{"updated": true}, input.Metadata)
 }
 
 func TestAssetTypeAlias(t *testing.T) {

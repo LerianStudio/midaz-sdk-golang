@@ -399,10 +399,12 @@ func TestAssetRatesEntity_CreateOrUpdateAssetRate(t *testing.T) {
 			result, err := entity.CreateOrUpdateAssetRate(context.Background(), tt.orgID, tt.ledgerID, tt.input)
 
 			if tt.expectedError {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				if tt.errorContains != "" {
 					assert.Contains(t, err.Error(), tt.errorContains)
 				}
+
 				return
 			}
 
@@ -557,10 +559,12 @@ func TestAssetRatesEntity_GetAssetRate(t *testing.T) {
 			result, err := entity.GetAssetRate(context.Background(), tt.orgID, tt.ledgerID, tt.externalID)
 
 			if tt.expectedError {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				if tt.errorContains != "" {
 					assert.Contains(t, err.Error(), tt.errorContains)
 				}
+
 				return
 			}
 
@@ -653,6 +657,8 @@ func TestAssetRatesEntity_ListAssetRatesByAssetCode(t *testing.T) {
 			mockStatusCode: http.StatusOK,
 			expectedItems:  1,
 			checkRequest: func(t *testing.T, req *http.Request) {
+				t.Helper()
+
 				query := req.URL.Query()
 				assert.Equal(t, "BRL,EUR", query.Get("to"))
 				assert.Equal(t, "5", query.Get("limit"))
@@ -790,50 +796,101 @@ func TestAssetRatesEntity_ListAssetRatesByAssetCode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockClient := &MockHTTPClient{
-				DoFunc: func(req *http.Request) (*http.Response, error) {
-					if tt.mockError != nil {
-						return nil, tt.mockError
-					}
-
-					assert.Equal(t, http.MethodGet, req.Method)
-
-					if tt.checkRequest != nil {
-						tt.checkRequest(t, req)
-					}
-
-					statusCode := tt.mockStatusCode
-					if statusCode == 0 {
-						statusCode = http.StatusOK
-					}
-
-					return &http.Response{
-						StatusCode: statusCode,
-						Body:       io.NopCloser(strings.NewReader(tt.mockResponse)),
-					}, nil
-				},
-			}
-
-			entity := &assetRatesEntity{
-				httpClient: newHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"transaction": "https://api.example.com"},
-			}
-
-			result, err := entity.ListAssetRatesByAssetCode(context.Background(), tt.orgID, tt.ledgerID, tt.assetCode, tt.opts)
-
-			if tt.expectedError {
-				assert.Error(t, err)
-				if tt.errorContains != "" {
-					assert.Contains(t, err.Error(), tt.errorContains)
-				}
-				return
-			}
-
-			require.NoError(t, err)
-			assert.NotNil(t, result)
-			assert.Len(t, result.Items, tt.expectedItems)
+			runListAssetRatesByAssetCodeTest(t, tt)
 		})
 	}
+}
+
+// listAssetRatesByAssetCodeTestCase is an alias for the anonymous struct used in tests.
+type listAssetRatesByAssetCodeTestCase struct {
+	name           string
+	orgID          string
+	ledgerID       string
+	assetCode      string
+	opts           *models.AssetRateListOptions
+	mockResponse   string
+	mockStatusCode int
+	mockError      error
+	expectedError  bool
+	errorContains  string
+	expectedItems  int
+	checkRequest   func(t *testing.T, req *http.Request)
+}
+
+// runListAssetRatesByAssetCodeTest executes a single test case for ListAssetRatesByAssetCode.
+func runListAssetRatesByAssetCodeTest(t *testing.T, tt struct {
+	name           string
+	orgID          string
+	ledgerID       string
+	assetCode      string
+	opts           *models.AssetRateListOptions
+	mockResponse   string
+	mockStatusCode int
+	mockError      error
+	expectedError  bool
+	errorContains  string
+	expectedItems  int
+	checkRequest   func(t *testing.T, req *http.Request)
+}) {
+	t.Helper()
+
+	mockClient := createListAssetRatesMockClient(t, tt.mockError, tt.mockStatusCode, tt.mockResponse, tt.checkRequest)
+	entity := &assetRatesEntity{
+		httpClient: newHTTPClientAdapter(mockClient),
+		baseURLs:   map[string]string{"transaction": "https://api.example.com"},
+	}
+
+	result, err := entity.ListAssetRatesByAssetCode(context.Background(), tt.orgID, tt.ledgerID, tt.assetCode, tt.opts)
+
+	assertListAssetRatesResult(t, tt.expectedError, tt.errorContains, tt.expectedItems, result, err)
+}
+
+// createListAssetRatesMockClient creates a mock HTTP client for list asset rates testing.
+func createListAssetRatesMockClient(t *testing.T, mockError error, mockStatusCode int, mockResponse string, checkRequest func(t *testing.T, req *http.Request)) *MockHTTPClient {
+	t.Helper()
+
+	return &MockHTTPClient{
+		DoFunc: func(req *http.Request) (*http.Response, error) {
+			if mockError != nil {
+				return nil, mockError
+			}
+
+			assert.Equal(t, http.MethodGet, req.Method)
+
+			if checkRequest != nil {
+				checkRequest(t, req)
+			}
+
+			statusCode := mockStatusCode
+			if statusCode == 0 {
+				statusCode = http.StatusOK
+			}
+
+			return &http.Response{
+				StatusCode: statusCode,
+				Body:       io.NopCloser(strings.NewReader(mockResponse)),
+			}, nil
+		},
+	}
+}
+
+// assertListAssetRatesResult asserts the expected result of listing asset rates.
+func assertListAssetRatesResult(t *testing.T, expectedError bool, errorContains string, expectedItems int, result *models.AssetRatesResponse, err error) {
+	t.Helper()
+
+	if expectedError {
+		require.Error(t, err)
+
+		if errorContains != "" {
+			assert.Contains(t, err.Error(), errorContains)
+		}
+
+		return
+	}
+
+	require.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Len(t, result.Items, expectedItems)
 }
 
 func TestAssetRatesEntity_IntegrationWithHTTPTestServer(t *testing.T) {
@@ -970,7 +1027,7 @@ func TestAssetRatesEntity_IntegrationWithHTTPTestServer(t *testing.T) {
 
 func TestAssetRatesEntity_ContextCancellation(t *testing.T) {
 	t.Run("CreateOrUpdateAssetRate with cancelled context", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			time.Sleep(100 * time.Millisecond)
 			w.WriteHeader(http.StatusOK)
 		}))
@@ -988,11 +1045,11 @@ func TestAssetRatesEntity_ContextCancellation(t *testing.T) {
 		input := models.NewCreateAssetRateInput("USD", "BRL", 500)
 		_, err := entity.CreateOrUpdateAssetRate(ctx, "org-123", "ledger-456", input)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("GetAssetRate with cancelled context", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			time.Sleep(100 * time.Millisecond)
 			w.WriteHeader(http.StatusOK)
 		}))
@@ -1009,11 +1066,11 @@ func TestAssetRatesEntity_ContextCancellation(t *testing.T) {
 
 		_, err := entity.GetAssetRate(ctx, "org-123", "ledger-456", "ext-789")
 
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("ListAssetRatesByAssetCode with cancelled context", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			time.Sleep(100 * time.Millisecond)
 			w.WriteHeader(http.StatusOK)
 		}))
@@ -1030,14 +1087,14 @@ func TestAssetRatesEntity_ContextCancellation(t *testing.T) {
 
 		_, err := entity.ListAssetRatesByAssetCode(ctx, "org-123", "ledger-456", "USD", nil)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 }
 
 func TestAssetRatesEntity_ValidationEdgeCases(t *testing.T) {
 	entity := &assetRatesEntity{
 		httpClient: newHTTPClientAdapter(&MockHTTPClient{
-			DoFunc: func(req *http.Request) (*http.Response, error) {
+			DoFunc: func(_ *http.Request) (*http.Response, error) {
 				return &http.Response{
 					StatusCode: http.StatusOK,
 					Body:       io.NopCloser(strings.NewReader(`{}`)),
@@ -1050,23 +1107,23 @@ func TestAssetRatesEntity_ValidationEdgeCases(t *testing.T) {
 	t.Run("CreateOrUpdateAssetRate with whitespace-only organization ID", func(t *testing.T) {
 		input := models.NewCreateAssetRateInput("USD", "BRL", 500)
 		_, err := entity.CreateOrUpdateAssetRate(context.Background(), "   ", "ledger-456", input)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("GetAssetRate with whitespace-only external ID", func(t *testing.T) {
 		_, err := entity.GetAssetRate(context.Background(), "org-123", "ledger-456", "   ")
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("ListAssetRatesByAssetCode with whitespace-only asset code", func(t *testing.T) {
 		_, err := entity.ListAssetRatesByAssetCode(context.Background(), "org-123", "ledger-456", "   ", nil)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("CreateOrUpdateAssetRate with negative scale", func(t *testing.T) {
 		input := models.NewCreateAssetRateInput("USD", "BRL", 500).WithScale(-1)
 		_, err := entity.CreateOrUpdateAssetRate(context.Background(), "org-123", "ledger-456", input)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "scale must be non-negative")
 	})
 }
@@ -1074,7 +1131,7 @@ func TestAssetRatesEntity_ValidationEdgeCases(t *testing.T) {
 func TestAssetRatesEntity_ResponseParsing(t *testing.T) {
 	t.Run("CreateOrUpdateAssetRate with complete response fields", func(t *testing.T) {
 		mockClient := &MockHTTPClient{
-			DoFunc: func(req *http.Request) (*http.Response, error) {
+			DoFunc: func(_ *http.Request) (*http.Response, error) {
 				return &http.Response{
 					StatusCode: http.StatusOK,
 					Body: io.NopCloser(strings.NewReader(`{
@@ -1111,9 +1168,9 @@ func TestAssetRatesEntity_ResponseParsing(t *testing.T) {
 		assert.Equal(t, "ext-full", result.ExternalID)
 		assert.Equal(t, "USD", result.From)
 		assert.Equal(t, "BRL", result.To)
-		assert.Equal(t, 5.25, result.Rate)
+		assert.InDelta(t, 5.25, result.Rate, 0.001)
 		assert.NotNil(t, result.Scale)
-		assert.Equal(t, float64(2), *result.Scale)
+		assert.InDelta(t, float64(2), *result.Scale, 0.001)
 		assert.NotNil(t, result.Source)
 		assert.Equal(t, "Central Bank", *result.Source)
 		assert.Equal(t, 3600, result.TTL)
@@ -1124,7 +1181,7 @@ func TestAssetRatesEntity_ResponseParsing(t *testing.T) {
 
 	t.Run("ListAssetRatesByAssetCode with pagination cursors", func(t *testing.T) {
 		mockClient := &MockHTTPClient{
-			DoFunc: func(req *http.Request) (*http.Response, error) {
+			DoFunc: func(_ *http.Request) (*http.Response, error) {
 				return &http.Response{
 					StatusCode: http.StatusOK,
 					Body: io.NopCloser(strings.NewReader(`{
@@ -1156,7 +1213,7 @@ func TestAssetRatesEntity_ResponseParsing(t *testing.T) {
 
 	t.Run("malformed JSON response", func(t *testing.T) {
 		mockClient := &MockHTTPClient{
-			DoFunc: func(req *http.Request) (*http.Response, error) {
+			DoFunc: func(_ *http.Request) (*http.Response, error) {
 				return &http.Response{
 					StatusCode: http.StatusOK,
 					Body:       io.NopCloser(strings.NewReader(`{invalid json}`)),
@@ -1172,6 +1229,6 @@ func TestAssetRatesEntity_ResponseParsing(t *testing.T) {
 		input := models.NewCreateAssetRateInput("USD", "BRL", 500)
 		_, err := entity.CreateOrUpdateAssetRate(context.Background(), "org-123", "ledger-456", input)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 }

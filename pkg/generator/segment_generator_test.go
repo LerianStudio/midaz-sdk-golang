@@ -19,27 +19,28 @@ func (m *mockSegmentsService) CreateSegment(ctx context.Context, orgID, ledgerID
 	if m.createFunc != nil {
 		return m.createFunc(ctx, orgID, ledgerID, input)
 	}
+
 	return &models.Segment{ID: "seg-123", Name: input.Name}, nil
 }
 
-func (m *mockSegmentsService) GetSegment(ctx context.Context, orgID, ledgerID, id string) (*models.Segment, error) {
-	return nil, nil
+func (*mockSegmentsService) GetSegment(_ context.Context, _, _, _ string) (*models.Segment, error) {
+	return nil, errors.New("mock: GetSegment not implemented")
 }
 
-func (m *mockSegmentsService) ListSegments(ctx context.Context, orgID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Segment], error) {
-	return nil, nil
+func (*mockSegmentsService) ListSegments(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.Segment], error) {
+	return nil, errors.New("mock: ListSegments not implemented")
 }
 
-func (m *mockSegmentsService) UpdateSegment(ctx context.Context, orgID, ledgerID, id string, input *models.UpdateSegmentInput) (*models.Segment, error) {
-	return nil, nil
+func (*mockSegmentsService) UpdateSegment(_ context.Context, _, _, _ string, _ *models.UpdateSegmentInput) (*models.Segment, error) {
+	return nil, errors.New("mock: UpdateSegment not implemented")
 }
 
-func (m *mockSegmentsService) DeleteSegment(ctx context.Context, orgID, ledgerID, id string) error {
+func (*mockSegmentsService) DeleteSegment(_ context.Context, _, _, _ string) error {
 	return nil
 }
 
-func (m *mockSegmentsService) GetSegmentsMetricsCount(ctx context.Context, orgID, ledgerID string) (*models.MetricsCount, error) {
-	return nil, nil
+func (*mockSegmentsService) GetSegmentsMetricsCount(_ context.Context, _, _ string) (*models.MetricsCount, error) {
+	return nil, errors.New("mock: GetSegmentsMetricsCount not implemented")
 }
 
 func TestNewSegmentGenerator(t *testing.T) {
@@ -59,7 +60,7 @@ func TestSegmentGenerator_Generate_NilEntity(t *testing.T) {
 	gen := NewSegmentGenerator(nil, nil)
 
 	_, err := gen.Generate(context.Background(), "org-123", "ledger-123", "Test Segment", nil)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not initialized")
 }
 
@@ -68,13 +69,13 @@ func TestSegmentGenerator_Generate_NilSegmentsService(t *testing.T) {
 	gen := NewSegmentGenerator(e, nil)
 
 	_, err := gen.Generate(context.Background(), "org-123", "ledger-123", "Test Segment", nil)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not initialized")
 }
 
 func TestSegmentGenerator_Generate_Success(t *testing.T) {
 	mockSvc := &mockSegmentsService{
-		createFunc: func(ctx context.Context, orgID, ledgerID string, input *models.CreateSegmentInput) (*models.Segment, error) {
+		createFunc: func(_ context.Context, _, _ string, input *models.CreateSegmentInput) (*models.Segment, error) {
 			return &models.Segment{
 				ID:   "seg-success",
 				Name: input.Name,
@@ -100,7 +101,7 @@ func TestSegmentGenerator_Generate_Success(t *testing.T) {
 
 func TestSegmentGenerator_Generate_Error(t *testing.T) {
 	mockSvc := &mockSegmentsService{
-		createFunc: func(ctx context.Context, orgID, ledgerID string, input *models.CreateSegmentInput) (*models.Segment, error) {
+		createFunc: func(_ context.Context, _, _ string, _ *models.CreateSegmentInput) (*models.Segment, error) {
 			return nil, errors.New("segment creation failed")
 		},
 	}
@@ -112,7 +113,7 @@ func TestSegmentGenerator_Generate_Error(t *testing.T) {
 	gen := NewSegmentGenerator(e, nil)
 
 	result, err := gen.Generate(context.Background(), "org-123", "ledger-123", "Test Segment", nil)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "segment creation failed")
 }
@@ -121,8 +122,9 @@ func TestSegmentGenerator_Generate_NilMetadata(t *testing.T) {
 	var capturedInput *models.CreateSegmentInput
 
 	mockSvc := &mockSegmentsService{
-		createFunc: func(ctx context.Context, orgID, ledgerID string, input *models.CreateSegmentInput) (*models.Segment, error) {
+		createFunc: func(_ context.Context, _, _ string, input *models.CreateSegmentInput) (*models.Segment, error) {
 			capturedInput = input
+
 			return &models.Segment{ID: "seg-123"}, nil
 		},
 	}
@@ -143,9 +145,10 @@ func TestSegmentGenerator_Generate_VerifyIDs(t *testing.T) {
 	var receivedOrgID, receivedLedgerID string
 
 	mockSvc := &mockSegmentsService{
-		createFunc: func(ctx context.Context, orgID, ledgerID string, input *models.CreateSegmentInput) (*models.Segment, error) {
+		createFunc: func(_ context.Context, orgID, ledgerID string, _ *models.CreateSegmentInput) (*models.Segment, error) {
 			receivedOrgID = orgID
 			receivedLedgerID = ledgerID
+
 			return &models.Segment{ID: "seg-123"}, nil
 		},
 	}
@@ -167,8 +170,9 @@ func TestSegmentGenerator_Generate_WithMetadata(t *testing.T) {
 	var capturedInput *models.CreateSegmentInput
 
 	mockSvc := &mockSegmentsService{
-		createFunc: func(ctx context.Context, orgID, ledgerID string, input *models.CreateSegmentInput) (*models.Segment, error) {
+		createFunc: func(_ context.Context, _, _ string, input *models.CreateSegmentInput) (*models.Segment, error) {
 			capturedInput = input
+
 			return &models.Segment{ID: "seg-123"}, nil
 		},
 	}

@@ -82,7 +82,7 @@ func (cb *CircuitBreaker) WithLogger(l CBLogger) *CircuitBreaker {
 }
 
 // Execute runs fn under circuit breaker control.
-func (cb *CircuitBreaker) Execute(ctx context.Context, fn func() error) error {
+func (cb *CircuitBreaker) Execute(_ context.Context, fn func() error) error {
 	if !cb.canProceed() {
 		return ErrCircuitOpen
 	}

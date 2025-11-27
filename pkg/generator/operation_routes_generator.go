@@ -2,7 +2,7 @@ package generator
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
@@ -22,7 +22,7 @@ func NewOperationRouteGenerator(e *entities.Entity, obs observability.Provider) 
 
 func (g *operationRouteGenerator) Generate(ctx context.Context, orgID, ledgerID string, input *models.CreateOperationRouteInput) (*models.OperationRoute, error) {
 	if g.e == nil || g.e.OperationRoutes == nil {
-		return nil, fmt.Errorf("entity operation routes service not initialized")
+		return nil, errors.New("entity operation routes service not initialized")
 	}
 
 	validationErr := input.Validate()

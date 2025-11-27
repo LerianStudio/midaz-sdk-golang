@@ -168,7 +168,7 @@ func executeTransfer(ctx context.Context, midazClient *client.Client, orgID, led
 }
 
 // ExecuteMultipleDeposits - simplified placeholder
-func ExecuteMultipleDeposits(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, externalAccountID string) error {
+func ExecuteMultipleDeposits(_ context.Context, _ *client.Client, _, _ string, _, _ *models.Account, _ string) error {
 	fmt.Println("\n📥 Multiple deposits (simplified)")
 	return nil
 }
@@ -180,19 +180,19 @@ func ExecuteSingleTransfer(ctx context.Context, midazClient *client.Client, orgI
 }
 
 // ExecuteMultipleTransfers - simplified placeholder
-func ExecuteMultipleTransfers(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account) error {
+func ExecuteMultipleTransfers(_ context.Context, _ *client.Client, _, _ string, _, _ *models.Account) error {
 	fmt.Println("\n🔄 Multiple transfers (simplified)")
 	return nil
 }
 
 // ExecuteWithdrawals - simplified placeholder
-func ExecuteWithdrawals(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, externalAccountID string) error {
+func ExecuteWithdrawals(_ context.Context, _ *client.Client, _, _ string, _, _ *models.Account, _ string) error {
 	fmt.Println("\n💱 Withdrawals (simplified)")
 	return nil
 }
 
 // ExecuteTransactionsWithRoutes executes transactions using routes
-func ExecuteTransactionsWithRoutes(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, sourceOperationRoute, destinationOperationRoute *models.OperationRoute, paymentTransactionRoute, refundTransactionRoute *models.TransactionRoute) error {
+func ExecuteTransactionsWithRoutes(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, sourceOperationRoute, destinationOperationRoute *models.OperationRoute, paymentTransactionRoute, _ *models.TransactionRoute) error {
 	fmt.Println("\n🔀 Executing transactions with routes")
 
 	// Get external account ID

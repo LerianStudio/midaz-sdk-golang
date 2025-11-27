@@ -29,7 +29,7 @@ func TestDefaultBatchOptions(t *testing.T) {
 // TestBatchOptionsFields tests BatchOptions struct fields
 func TestBatchOptionsFields(t *testing.T) {
 	progressCalled := false
-	onProgress := func(completed, total int, result BatchResult) {
+	onProgress := func(_, _ int, _ BatchResult) {
 		progressCalled = true
 	}
 
@@ -92,10 +92,10 @@ func TestBatchSummaryFields(t *testing.T) {
 	assert.Equal(t, 100, summary.TotalTransactions)
 	assert.Equal(t, 90, summary.SuccessCount)
 	assert.Equal(t, 10, summary.ErrorCount)
-	assert.Equal(t, 90.0, summary.SuccessRate)
+	assert.InDelta(t, 90.0, summary.SuccessRate, 0.001)
 	assert.Equal(t, 10*time.Second, summary.TotalDuration)
 	assert.Equal(t, 100*time.Millisecond, summary.AverageDuration)
-	assert.Equal(t, 9.0, summary.TransactionsPerSecond)
+	assert.InDelta(t, 9.0, summary.TransactionsPerSecond, 0.001)
 	assert.Equal(t, 5, summary.ErrorCategories["validation"])
 	assert.Equal(t, 3, summary.ErrorCategories["network"])
 	assert.Equal(t, 2, summary.ErrorCategories["internal"])
@@ -110,7 +110,7 @@ func TestGetBatchSummary(t *testing.T) {
 		assert.Equal(t, 0, summary.TotalTransactions)
 		assert.Equal(t, 0, summary.SuccessCount)
 		assert.Equal(t, 0, summary.ErrorCount)
-		assert.Equal(t, float64(0), summary.SuccessRate)
+		assert.InDelta(t, float64(0), summary.SuccessRate, 0.001)
 		assert.Empty(t, summary.ErrorCategories)
 	})
 
@@ -125,7 +125,7 @@ func TestGetBatchSummary(t *testing.T) {
 		assert.Equal(t, 3, summary.TotalTransactions)
 		assert.Equal(t, 3, summary.SuccessCount)
 		assert.Equal(t, 0, summary.ErrorCount)
-		assert.Equal(t, float64(100), summary.SuccessRate)
+		assert.InDelta(t, float64(100), summary.SuccessRate, 0.001)
 		assert.Equal(t, 300*time.Millisecond, summary.TotalDuration)
 		assert.Equal(t, 100*time.Millisecond, summary.AverageDuration)
 	})
@@ -140,9 +140,9 @@ func TestGetBatchSummary(t *testing.T) {
 		assert.Equal(t, 2, summary.TotalTransactions)
 		assert.Equal(t, 0, summary.SuccessCount)
 		assert.Equal(t, 2, summary.ErrorCount)
-		assert.Equal(t, float64(0), summary.SuccessRate)
+		assert.InDelta(t, float64(0), summary.SuccessRate, 0.001)
 		// TPS is based on success count, so 0 successes means 0 TPS
-		assert.Equal(t, float64(0), summary.TransactionsPerSecond)
+		assert.InDelta(t, float64(0), summary.TransactionsPerSecond, 0.001)
 	})
 
 	t.Run("mixed results", func(t *testing.T) {
@@ -157,7 +157,7 @@ func TestGetBatchSummary(t *testing.T) {
 		assert.Equal(t, 4, summary.TotalTransactions)
 		assert.Equal(t, 2, summary.SuccessCount)
 		assert.Equal(t, 2, summary.ErrorCount)
-		assert.Equal(t, float64(50), summary.SuccessRate)
+		assert.InDelta(t, float64(50), summary.SuccessRate, 0.001)
 	})
 
 	t.Run("error categorization with typed errors", func(t *testing.T) {
@@ -371,7 +371,7 @@ func TestBatchProcessorCreateResult(t *testing.T) {
 
 		assert.Equal(t, 0, result.Index)
 		assert.Equal(t, "tx-123", result.TransactionID)
-		assert.Nil(t, result.Error)
+		require.NoError(t, result.Error)
 		assert.Equal(t, 100*time.Millisecond, result.Duration)
 	})
 
@@ -450,7 +450,7 @@ func TestBatchProcessorWaitForRetry(t *testing.T) {
 		}
 
 		err := bp.waitForRetry(1)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("returns context error on cancellation", func(t *testing.T) {
@@ -465,7 +465,7 @@ func TestBatchProcessorWaitForRetry(t *testing.T) {
 		}
 
 		err := bp.waitForRetry(1)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Equal(t, context.Canceled, err)
 	})
 
@@ -484,7 +484,7 @@ func TestBatchProcessorWaitForRetry(t *testing.T) {
 		}
 
 		err := bp.waitForRetry(1)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 }
 
@@ -495,12 +495,13 @@ func TestBatchProcessorCheckForEarlyError(t *testing.T) {
 		errChan := make(chan error, 1)
 
 		err := bp.checkForEarlyError(errChan)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("returns error when error in channel", func(t *testing.T) {
 		bp := &batchProcessor{}
 		errChan := make(chan error, 1)
+
 		expectedErr := errors.New("early error")
 		errChan <- expectedErr
 
@@ -517,12 +518,13 @@ func TestBatchSummaryCalculations(t *testing.T) {
 		for i := 0; i < 7; i++ {
 			results[i] = BatchResult{Index: i, TransactionID: "tx"}
 		}
+
 		for i := 7; i < 10; i++ {
 			results[i] = BatchResult{Index: i, Error: errors.New("error")}
 		}
 
 		summary := GetBatchSummary(results)
-		assert.Equal(t, float64(70), summary.SuccessRate)
+		assert.InDelta(t, float64(70), summary.SuccessRate, 0.001)
 	})
 
 	t.Run("average duration calculation", func(t *testing.T) {
@@ -544,7 +546,7 @@ func TestBatchSummaryCalculations(t *testing.T) {
 
 		summary := GetBatchSummary(results)
 		// 2 successes in 1 second total = 2 TPS
-		assert.Equal(t, 2.0, summary.TransactionsPerSecond)
+		assert.InDelta(t, 2.0, summary.TransactionsPerSecond, 0.001)
 	})
 
 	t.Run("zero duration doesn't cause division by zero", func(t *testing.T) {
@@ -567,8 +569,8 @@ func TestBatchOptionsDefaults(t *testing.T) {
 	opts := DefaultBatchOptions()
 
 	// Verify all defaults are reasonable
-	assert.Greater(t, opts.Concurrency, 0, "Concurrency should be positive")
-	assert.Greater(t, opts.BatchSize, 0, "BatchSize should be positive")
+	assert.Positive(t, opts.Concurrency, "Concurrency should be positive")
+	assert.Positive(t, opts.BatchSize, "BatchSize should be positive")
 	assert.GreaterOrEqual(t, opts.RetryCount, 0, "RetryCount should be non-negative")
 	assert.Greater(t, opts.RetryDelay, time.Duration(0), "RetryDelay should be positive")
 	assert.NotEmpty(t, opts.IdempotencyKeyPrefix, "IdempotencyKeyPrefix should not be empty")
@@ -580,7 +582,7 @@ func TestBatchResultWithNilValues(t *testing.T) {
 
 	assert.Equal(t, 0, result.Index)
 	assert.Empty(t, result.TransactionID)
-	assert.Nil(t, result.Error)
+	require.NoError(t, result.Error)
 	assert.Equal(t, time.Duration(0), result.Duration)
 }
 
@@ -599,7 +601,7 @@ func TestBatchProcessorCheckFinalErrors(t *testing.T) {
 		errChan <- errors.New("some error")
 
 		results, err := bp.checkFinalErrors(errChan)
-		assert.NoError(t, err) // StopOnError is false, so error is ignored
+		require.NoError(t, err) // StopOnError is false, so error is ignored
 		assert.Len(t, results, 2)
 	})
 
@@ -612,6 +614,7 @@ func TestBatchProcessorCheckFinalErrors(t *testing.T) {
 		}
 
 		errChan := make(chan error, 1)
+
 		expectedErr := errors.New("stop error")
 		errChan <- expectedErr
 
@@ -632,7 +635,7 @@ func TestBatchProcessorCheckFinalErrors(t *testing.T) {
 		// No error in channel
 
 		results, err := bp.checkFinalErrors(errChan)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, results, 1)
 	})
 }
@@ -694,7 +697,7 @@ func TestBatchSummaryWithZeroTotalDuration(t *testing.T) {
 	assert.Equal(t, 2, summary.TotalTransactions)
 	assert.Equal(t, 2, summary.SuccessCount)
 	// TPS should be 0 when total duration is 0
-	assert.Equal(t, float64(0), summary.TransactionsPerSecond)
+	assert.InDelta(t, float64(0), summary.TransactionsPerSecond, 0.001)
 }
 
 // TestErrorCategorizationInSummary tests that different error types are properly categorized
@@ -751,10 +754,12 @@ func TestErrorCategorizationInSummary(t *testing.T) {
 			summary := GetBatchSummary(results)
 
 			assert.Equal(t, 1, summary.ErrorCount)
+
 			totalCategorized := 0
 			for _, count := range summary.ErrorCategories {
 				totalCategorized += count
 			}
+
 			assert.Equal(t, tt.expectedCount, totalCategorized)
 		})
 	}

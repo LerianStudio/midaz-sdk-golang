@@ -2,6 +2,7 @@ package workflows
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -57,7 +58,7 @@ func CreateTransactionRoutesWithOperationRoutes(ctx context.Context, midazClient
 		fmt.Printf("⚠️  No operation routes provided - cannot create transaction routes as they require operation routes\n")
 		fmt.Printf("   Note: Transaction routes creation will be skipped due to missing operation routes\n")
 
-		return nil, nil, fmt.Errorf("operation routes are required for transaction routes creation")
+		return nil, nil, errors.New("operation routes are required for transaction routes creation")
 	}
 
 	// Create payment transaction route
@@ -76,7 +77,7 @@ func CreateTransactionRoutesWithOperationRoutes(ctx context.Context, midazClient
 	}
 
 	if paymentTransactionRoute.ID == uuid.Nil {
-		return nil, nil, fmt.Errorf("payment transaction route created but no ID was returned from the API")
+		return nil, nil, errors.New("payment transaction route created but no ID was returned from the API")
 	}
 
 	fmt.Printf("✅ Payment transaction route created: %s\n", paymentTransactionRoute.Title)
@@ -103,7 +104,7 @@ func CreateTransactionRoutesWithOperationRoutes(ctx context.Context, midazClient
 	}
 
 	if refundTransactionRoute.ID == uuid.Nil {
-		return nil, nil, fmt.Errorf("refund transaction route created but no ID was returned from the API")
+		return nil, nil, errors.New("refund transaction route created but no ID was returned from the API")
 	}
 
 	fmt.Printf("✅ Refund transaction route created: %s\n", refundTransactionRoute.Title)

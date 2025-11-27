@@ -7,7 +7,7 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	data "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,30 +21,32 @@ func (m *mockLedgersService) CreateLedger(ctx context.Context, orgID string, inp
 	if m.createFunc != nil {
 		return m.createFunc(ctx, orgID, input)
 	}
+
 	return &models.Ledger{ID: "ledger-123", Name: input.Name}, nil
 }
 
-func (m *mockLedgersService) GetLedger(ctx context.Context, orgID, id string) (*models.Ledger, error) {
-	return nil, nil
+func (*mockLedgersService) GetLedger(_ context.Context, _, _ string) (*models.Ledger, error) {
+	return nil, errors.New("mock: GetLedger not implemented")
 }
 
 func (m *mockLedgersService) ListLedgers(ctx context.Context, orgID string, opts *models.ListOptions) (*models.ListResponse[models.Ledger], error) {
 	if m.listFunc != nil {
 		return m.listFunc(ctx, orgID, opts)
 	}
+
 	return &models.ListResponse[models.Ledger]{Items: []models.Ledger{}}, nil
 }
 
-func (m *mockLedgersService) UpdateLedger(ctx context.Context, orgID, id string, input *models.UpdateLedgerInput) (*models.Ledger, error) {
-	return nil, nil
+func (*mockLedgersService) UpdateLedger(_ context.Context, _, _ string, _ *models.UpdateLedgerInput) (*models.Ledger, error) {
+	return nil, errors.New("mock: UpdateLedger not implemented")
 }
 
-func (m *mockLedgersService) DeleteLedger(ctx context.Context, orgID, id string) error {
+func (*mockLedgersService) DeleteLedger(_ context.Context, _, _ string) error {
 	return nil
 }
 
-func (m *mockLedgersService) GetLedgersMetricsCount(ctx context.Context, orgID string) (*models.MetricsCount, error) {
-	return nil, nil
+func (*mockLedgersService) GetLedgersMetricsCount(_ context.Context, _ string) (*models.MetricsCount, error) {
+	return nil, errors.New("mock: GetLedgersMetricsCount not implemented")
 }
 
 func TestNewLedgerGenerator(t *testing.T) {
@@ -73,7 +75,7 @@ func TestLedgerGenerator_Generate_NilEntity(t *testing.T) {
 	}
 
 	_, err := gen.Generate(context.Background(), "org-123", template)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not initialized")
 }
 
@@ -85,7 +87,7 @@ func TestLedgerGenerator_Generate_NilLedgersService(t *testing.T) {
 	}
 
 	_, err := gen.Generate(context.Background(), "org-123", template)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not initialized")
 }
 
@@ -100,13 +102,13 @@ func TestLedgerGenerator_Generate_EmptyOrgID(t *testing.T) {
 	}
 
 	_, err := gen.Generate(context.Background(), "", template)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization id is required")
 }
 
 func TestLedgerGenerator_Generate_Success(t *testing.T) {
 	mockSvc := &mockLedgersService{
-		createFunc: func(ctx context.Context, orgID string, input *models.CreateLedgerInput) (*models.Ledger, error) {
+		createFunc: func(_ context.Context, _ string, input *models.CreateLedgerInput) (*models.Ledger, error) {
 			return &models.Ledger{
 				ID:   "ledger-success",
 				Name: input.Name,
@@ -135,7 +137,7 @@ func TestLedgerGenerator_Generate_Success(t *testing.T) {
 
 func TestLedgerGenerator_Generate_Error(t *testing.T) {
 	mockSvc := &mockLedgersService{
-		createFunc: func(ctx context.Context, orgID string, input *models.CreateLedgerInput) (*models.Ledger, error) {
+		createFunc: func(_ context.Context, _ string, _ *models.CreateLedgerInput) (*models.Ledger, error) {
 			return nil, errors.New("ledger creation failed")
 		},
 	}
@@ -150,7 +152,7 @@ func TestLedgerGenerator_Generate_Error(t *testing.T) {
 	}
 
 	result, err := gen.Generate(context.Background(), "org-123", template)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "ledger creation failed")
 }
@@ -159,7 +161,7 @@ func TestLedgerGenerator_GenerateForOrg_ZeroCount(t *testing.T) {
 	gen := NewLedgerGenerator(nil, nil, "")
 
 	results, err := gen.GenerateForOrg(context.Background(), "org-123", 0)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Empty(t, results)
 }
 
@@ -167,7 +169,7 @@ func TestLedgerGenerator_GenerateForOrg_NegativeCount(t *testing.T) {
 	gen := NewLedgerGenerator(nil, nil, "")
 
 	results, err := gen.GenerateForOrg(context.Background(), "org-123", -5)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Empty(t, results)
 }
 
@@ -175,15 +177,16 @@ func TestLedgerGenerator_GenerateForOrg_NilEntity(t *testing.T) {
 	gen := NewLedgerGenerator(nil, nil, "")
 
 	results, err := gen.GenerateForOrg(context.Background(), "org-123", 3)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Empty(t, results)
 }
 
 func TestLedgerGenerator_GenerateForOrg_Success(t *testing.T) {
 	callCount := 0
 	mockSvc := &mockLedgersService{
-		createFunc: func(ctx context.Context, orgID string, input *models.CreateLedgerInput) (*models.Ledger, error) {
+		createFunc: func(_ context.Context, _ string, input *models.CreateLedgerInput) (*models.Ledger, error) {
 			callCount++
+
 			return &models.Ledger{
 				ID:   "ledger-" + string(rune('0'+callCount)),
 				Name: input.Name,
@@ -206,11 +209,12 @@ func TestLedgerGenerator_GenerateForOrg_Success(t *testing.T) {
 func TestLedgerGenerator_GenerateForOrg_PartialError(t *testing.T) {
 	callCount := 0
 	mockSvc := &mockLedgersService{
-		createFunc: func(ctx context.Context, orgID string, input *models.CreateLedgerInput) (*models.Ledger, error) {
+		createFunc: func(_ context.Context, _ string, input *models.CreateLedgerInput) (*models.Ledger, error) {
 			callCount++
 			if callCount == 2 {
 				return nil, errors.New("partial failure")
 			}
+
 			return &models.Ledger{
 				ID:   "ledger-ok",
 				Name: input.Name,
@@ -226,7 +230,7 @@ func TestLedgerGenerator_GenerateForOrg_PartialError(t *testing.T) {
 	ctx := WithWorkers(context.Background(), 1)
 
 	results, err := gen.GenerateForOrg(ctx, "org-123", 3)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "partial failure")
 	assert.Len(t, results, 2)
 }
@@ -235,13 +239,13 @@ func TestLedgerGenerator_ListWithPagination_NoDefaultOrg(t *testing.T) {
 	gen := NewLedgerGenerator(nil, nil, "")
 
 	_, err := gen.ListWithPagination(context.Background(), nil)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "default organization id not configured")
 }
 
 func TestLedgerGenerator_ListWithPagination_Success(t *testing.T) {
 	mockSvc := &mockLedgersService{
-		listFunc: func(ctx context.Context, orgID string, opts *models.ListOptions) (*models.ListResponse[models.Ledger], error) {
+		listFunc: func(_ context.Context, _ string, _ *models.ListOptions) (*models.ListResponse[models.Ledger], error) {
 			return &models.ListResponse[models.Ledger]{
 				Items: []models.Ledger{
 					{ID: "ledger-1", Name: "Ledger 1"},
@@ -264,7 +268,7 @@ func TestLedgerGenerator_ListWithPagination_Success(t *testing.T) {
 
 func TestLedgerGenerator_ListWithPagination_Error(t *testing.T) {
 	mockSvc := &mockLedgersService{
-		listFunc: func(ctx context.Context, orgID string, opts *models.ListOptions) (*models.ListResponse[models.Ledger], error) {
+		listFunc: func(_ context.Context, _ string, _ *models.ListOptions) (*models.ListResponse[models.Ledger], error) {
 			return nil, errors.New("list failed")
 		},
 	}
@@ -276,16 +280,18 @@ func TestLedgerGenerator_ListWithPagination_Error(t *testing.T) {
 	gen := NewLedgerGenerator(e, nil, "default-org")
 
 	result, err := gen.ListWithPagination(context.Background(), nil)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "list failed")
 }
 
 func TestLedgerGenerator_ListWithPagination_WithOptions(t *testing.T) {
 	var receivedOpts *models.ListOptions
+
 	mockSvc := &mockLedgersService{
-		listFunc: func(ctx context.Context, orgID string, opts *models.ListOptions) (*models.ListResponse[models.Ledger], error) {
+		listFunc: func(_ context.Context, _ string, opts *models.ListOptions) (*models.ListResponse[models.Ledger], error) {
 			receivedOpts = opts
+
 			return &models.ListResponse[models.Ledger]{
 				Items: []models.Ledger{},
 			}, nil
@@ -349,7 +355,7 @@ func TestLedgerGenerator_GenerateForOrg_WithWorkers(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockSvc := &mockLedgersService{
-				createFunc: func(ctx context.Context, orgID string, input *models.CreateLedgerInput) (*models.Ledger, error) {
+				createFunc: func(_ context.Context, _ string, input *models.CreateLedgerInput) (*models.Ledger, error) {
 					return &models.Ledger{
 						ID:   "ledger-test",
 						Name: input.Name,
@@ -363,6 +369,7 @@ func TestLedgerGenerator_GenerateForOrg_WithWorkers(t *testing.T) {
 
 			gen := NewLedgerGenerator(e, nil, "")
 			ctx := context.Background()
+
 			if tt.workers > 0 {
 				ctx = WithWorkers(ctx, tt.workers)
 			}
@@ -376,7 +383,7 @@ func TestLedgerGenerator_GenerateForOrg_WithWorkers(t *testing.T) {
 
 func TestLedgerGenerator_GenerateForOrg_AllErrors(t *testing.T) {
 	mockSvc := &mockLedgersService{
-		createFunc: func(ctx context.Context, orgID string, input *models.CreateLedgerInput) (*models.Ledger, error) {
+		createFunc: func(_ context.Context, _ string, _ *models.CreateLedgerInput) (*models.Ledger, error) {
 			return nil, errors.New("all failed")
 		},
 	}
@@ -389,6 +396,6 @@ func TestLedgerGenerator_GenerateForOrg_AllErrors(t *testing.T) {
 	ctx := WithWorkers(context.Background(), 1)
 
 	results, err := gen.GenerateForOrg(ctx, "org-123", 3)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Empty(t, results)
 }

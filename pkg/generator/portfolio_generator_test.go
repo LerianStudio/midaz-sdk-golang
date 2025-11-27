@@ -19,27 +19,28 @@ func (m *mockPortfoliosService) CreatePortfolio(ctx context.Context, orgID, ledg
 	if m.createFunc != nil {
 		return m.createFunc(ctx, orgID, ledgerID, input)
 	}
+
 	return &models.Portfolio{ID: "port-123", Name: input.Name}, nil
 }
 
-func (m *mockPortfoliosService) GetPortfolio(ctx context.Context, orgID, ledgerID, id string) (*models.Portfolio, error) {
-	return nil, nil
+func (*mockPortfoliosService) GetPortfolio(_ context.Context, _, _, _ string) (*models.Portfolio, error) {
+	return nil, errors.New("mock: GetPortfolio not implemented")
 }
 
-func (m *mockPortfoliosService) ListPortfolios(ctx context.Context, orgID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Portfolio], error) {
-	return nil, nil
+func (*mockPortfoliosService) ListPortfolios(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.Portfolio], error) {
+	return nil, errors.New("mock: ListPortfolios not implemented")
 }
 
-func (m *mockPortfoliosService) UpdatePortfolio(ctx context.Context, orgID, ledgerID, id string, input *models.UpdatePortfolioInput) (*models.Portfolio, error) {
-	return nil, nil
+func (*mockPortfoliosService) UpdatePortfolio(_ context.Context, _, _, _ string, _ *models.UpdatePortfolioInput) (*models.Portfolio, error) {
+	return nil, errors.New("mock: UpdatePortfolio not implemented")
 }
 
-func (m *mockPortfoliosService) DeletePortfolio(ctx context.Context, orgID, ledgerID, id string) error {
+func (*mockPortfoliosService) DeletePortfolio(_ context.Context, _, _, _ string) error {
 	return nil
 }
 
-func (m *mockPortfoliosService) GetPortfoliosMetricsCount(ctx context.Context, orgID, ledgerID string) (*models.MetricsCount, error) {
-	return nil, nil
+func (*mockPortfoliosService) GetPortfoliosMetricsCount(_ context.Context, _, _ string) (*models.MetricsCount, error) {
+	return nil, errors.New("mock: GetPortfoliosMetricsCount not implemented")
 }
 
 func TestNewPortfolioGenerator(t *testing.T) {
@@ -59,7 +60,7 @@ func TestPortfolioGenerator_Generate_NilEntity(t *testing.T) {
 	gen := NewPortfolioGenerator(nil, nil)
 
 	_, err := gen.Generate(context.Background(), "org-123", "ledger-123", "Test Portfolio", "entity-456", nil)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not initialized")
 }
 
@@ -68,13 +69,13 @@ func TestPortfolioGenerator_Generate_NilPortfoliosService(t *testing.T) {
 	gen := NewPortfolioGenerator(e, nil)
 
 	_, err := gen.Generate(context.Background(), "org-123", "ledger-123", "Test Portfolio", "entity-456", nil)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not initialized")
 }
 
 func TestPortfolioGenerator_Generate_Success(t *testing.T) {
 	mockSvc := &mockPortfoliosService{
-		createFunc: func(ctx context.Context, orgID, ledgerID string, input *models.CreatePortfolioInput) (*models.Portfolio, error) {
+		createFunc: func(_ context.Context, _, _ string, input *models.CreatePortfolioInput) (*models.Portfolio, error) {
 			return &models.Portfolio{
 				ID:       "port-success",
 				Name:     input.Name,
@@ -102,7 +103,7 @@ func TestPortfolioGenerator_Generate_Success(t *testing.T) {
 
 func TestPortfolioGenerator_Generate_Error(t *testing.T) {
 	mockSvc := &mockPortfoliosService{
-		createFunc: func(ctx context.Context, orgID, ledgerID string, input *models.CreatePortfolioInput) (*models.Portfolio, error) {
+		createFunc: func(_ context.Context, _, _ string, _ *models.CreatePortfolioInput) (*models.Portfolio, error) {
 			return nil, errors.New("portfolio creation failed")
 		},
 	}
@@ -114,7 +115,7 @@ func TestPortfolioGenerator_Generate_Error(t *testing.T) {
 	gen := NewPortfolioGenerator(e, nil)
 
 	result, err := gen.Generate(context.Background(), "org-123", "ledger-123", "Test Portfolio", "entity-456", nil)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "portfolio creation failed")
 }
@@ -123,8 +124,9 @@ func TestPortfolioGenerator_Generate_NilMetadata(t *testing.T) {
 	var capturedInput *models.CreatePortfolioInput
 
 	mockSvc := &mockPortfoliosService{
-		createFunc: func(ctx context.Context, orgID, ledgerID string, input *models.CreatePortfolioInput) (*models.Portfolio, error) {
+		createFunc: func(_ context.Context, _, _ string, input *models.CreatePortfolioInput) (*models.Portfolio, error) {
 			capturedInput = input
+
 			return &models.Portfolio{ID: "port-123"}, nil
 		},
 	}
@@ -146,9 +148,10 @@ func TestPortfolioGenerator_Generate_VerifyIDs(t *testing.T) {
 	var receivedOrgID, receivedLedgerID string
 
 	mockSvc := &mockPortfoliosService{
-		createFunc: func(ctx context.Context, orgID, ledgerID string, input *models.CreatePortfolioInput) (*models.Portfolio, error) {
+		createFunc: func(_ context.Context, orgID, ledgerID string, _ *models.CreatePortfolioInput) (*models.Portfolio, error) {
 			receivedOrgID = orgID
 			receivedLedgerID = ledgerID
+
 			return &models.Portfolio{ID: "port-123"}, nil
 		},
 	}
@@ -170,8 +173,9 @@ func TestPortfolioGenerator_Generate_WithMetadata(t *testing.T) {
 	var capturedInput *models.CreatePortfolioInput
 
 	mockSvc := &mockPortfoliosService{
-		createFunc: func(ctx context.Context, orgID, ledgerID string, input *models.CreatePortfolioInput) (*models.Portfolio, error) {
+		createFunc: func(_ context.Context, _, _ string, input *models.CreatePortfolioInput) (*models.Portfolio, error) {
 			capturedInput = input
+
 			return &models.Portfolio{ID: "port-123"}, nil
 		},
 	}
@@ -196,8 +200,9 @@ func TestPortfolioGenerator_Generate_VerifyEntityID(t *testing.T) {
 	var capturedInput *models.CreatePortfolioInput
 
 	mockSvc := &mockPortfoliosService{
-		createFunc: func(ctx context.Context, orgID, ledgerID string, input *models.CreatePortfolioInput) (*models.Portfolio, error) {
+		createFunc: func(_ context.Context, _, _ string, input *models.CreatePortfolioInput) (*models.Portfolio, error) {
 			capturedInput = input
+
 			return &models.Portfolio{ID: "port-123"}, nil
 		},
 	}

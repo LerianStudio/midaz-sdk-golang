@@ -8,6 +8,7 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation/core"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestValidateTransactionDSL(t *testing.T) {
@@ -218,12 +219,13 @@ func TestValidateTransactionDSL(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			err := validation.ValidateTransactionDSL(tc.input)
 			if tc.expectedError {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				if tc.errorContains != "" {
 					assert.Contains(t, err.Error(), tc.errorContains)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -288,12 +290,13 @@ func TestValidateAssetCode(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			err := validation.ValidateAssetCode(tc.assetCode)
 			if tc.expectedError {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				if tc.errorContains != "" {
 					assert.Contains(t, err.Error(), tc.errorContains)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -356,12 +359,13 @@ func TestValidateAccountAlias(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			err := validation.ValidateAccountAlias(tc.alias)
 			if tc.expectedError {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				if tc.errorContains != "" {
 					assert.Contains(t, err.Error(), tc.errorContains)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -424,12 +428,13 @@ func TestValidateTransactionCode(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			err := validation.ValidateTransactionCode(tc.code)
 			if tc.expectedError {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				if tc.errorContains != "" {
 					assert.Contains(t, err.Error(), tc.errorContains)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -552,12 +557,13 @@ func TestValidateMetadata(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			err := validation.ValidateMetadata(tc.metadata)
 			if tc.expectedError {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				if tc.errorContains != "" {
 					assert.Contains(t, err.Error(), tc.errorContains)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -610,12 +616,13 @@ func TestValidateDateRange(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			err := validation.ValidateDateRange(tc.start, tc.end)
 			if tc.expectedError {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				if tc.errorContains != "" {
 					assert.Contains(t, err.Error(), tc.errorContains)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -1225,6 +1232,7 @@ func TestValidateCreateTransactionInput(t *testing.T) {
 				assert.True(t, summary.Valid, "Expected valid but got errors: %v", summary.GetErrorMessages())
 			} else {
 				assert.False(t, summary.Valid)
+
 				errSummary := summary.GetErrorSummary()
 				for _, expected := range tt.errContains {
 					assert.Contains(t, errSummary, expected, "Error summary should contain '%s'", expected)
@@ -1279,12 +1287,13 @@ func TestValidateAssetType(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := validation.ValidateAssetType(tt.assetType)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				if tt.errContains != "" {
 					assert.Contains(t, err.Error(), tt.errContains)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -1340,12 +1349,13 @@ func TestValidateAccountType(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := validation.ValidateAccountType(tt.accountType)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				if tt.errContains != "" {
 					assert.Contains(t, err.Error(), tt.errContains)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -1391,12 +1401,13 @@ func TestValidateCurrencyCode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := validation.ValidateCurrencyCode(tt.code)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				if tt.errContains != "" {
 					assert.Contains(t, err.Error(), tt.errContains)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -1442,12 +1453,13 @@ func TestValidateCountryCode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := validation.ValidateCountryCode(tt.code)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				if tt.errContains != "" {
 					assert.Contains(t, err.Error(), tt.errContains)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -1634,12 +1646,13 @@ func TestValidateAddress(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := validation.ValidateAddress(tt.address)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				if tt.errContains != "" {
 					assert.Contains(t, err.Error(), tt.errContains)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -1676,7 +1689,7 @@ func TestDefaultValidator(t *testing.T) {
 			"key": "value",
 		}
 		err := validator.ValidateMetadata(metadata)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("DefaultValidator validates address", func(t *testing.T) {
@@ -1689,7 +1702,7 @@ func TestDefaultValidator(t *testing.T) {
 			Country: "US",
 		}
 		err := validator.ValidateAddress(address)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 }
 
@@ -1745,9 +1758,9 @@ func TestValidatorMetadataNumericRanges(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := validation.ValidateMetadata(tt.metadata)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}

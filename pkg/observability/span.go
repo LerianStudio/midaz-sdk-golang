@@ -41,6 +41,7 @@ func AddAttribute(ctx context.Context, key string, value any) {
 
 	// Convert the value to the appropriate attribute type
 	var attr attribute.KeyValue
+
 	switch v := value.(type) {
 	case string:
 		attr = attribute.String(key, v)
@@ -129,7 +130,7 @@ func RecordSpanMetric(ctx context.Context, name string, value float64) {
 }
 
 // WithTraceID adds a trace ID to the context for correlation
-func WithTraceID(ctx context.Context, traceID string) context.Context {
+func WithTraceID(ctx context.Context, _ string) context.Context {
 	// Add trace ID to context
 	return ctx
 }

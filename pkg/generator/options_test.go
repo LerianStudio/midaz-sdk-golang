@@ -66,6 +66,7 @@ func TestGetWorkers(t *testing.T) {
 				return WithWorkers(context.Background(), 16)
 			},
 			check: func(t *testing.T, result int) {
+				t.Helper()
 				assert.Equal(t, 16, result)
 			},
 		},
@@ -75,6 +76,7 @@ func TestGetWorkers(t *testing.T) {
 				return WithWorkers(context.Background(), 200)
 			},
 			check: func(t *testing.T, result int) {
+				t.Helper()
 				assert.Equal(t, maxWorkers, result)
 			},
 		},
@@ -84,13 +86,17 @@ func TestGetWorkers(t *testing.T) {
 				return context.Background()
 			},
 			check: func(t *testing.T, result int) {
+				t.Helper()
+
 				expectedDefault := runtime.NumCPU() * 2
 				if expectedDefault < 4 {
 					expectedDefault = 4
 				}
+
 				if expectedDefault > maxWorkers {
 					expectedDefault = maxWorkers
 				}
+
 				assert.Equal(t, expectedDefault, result)
 			},
 		},
@@ -100,13 +106,17 @@ func TestGetWorkers(t *testing.T) {
 				return context.WithValue(context.Background(), contextKeyWorkers{}, "not-an-int")
 			},
 			check: func(t *testing.T, result int) {
+				t.Helper()
+
 				expectedDefault := runtime.NumCPU() * 2
 				if expectedDefault < 4 {
 					expectedDefault = 4
 				}
+
 				if expectedDefault > maxWorkers {
 					expectedDefault = maxWorkers
 				}
+
 				assert.Equal(t, expectedDefault, result)
 			},
 		},
@@ -116,13 +126,17 @@ func TestGetWorkers(t *testing.T) {
 				return context.WithValue(context.Background(), contextKeyWorkers{}, 0)
 			},
 			check: func(t *testing.T, result int) {
+				t.Helper()
+
 				expectedDefault := runtime.NumCPU() * 2
 				if expectedDefault < 4 {
 					expectedDefault = 4
 				}
+
 				if expectedDefault > maxWorkers {
 					expectedDefault = maxWorkers
 				}
+
 				assert.Equal(t, expectedDefault, result)
 			},
 		},
@@ -132,13 +146,17 @@ func TestGetWorkers(t *testing.T) {
 				return context.WithValue(context.Background(), contextKeyWorkers{}, -5)
 			},
 			check: func(t *testing.T, result int) {
+				t.Helper()
+
 				expectedDefault := runtime.NumCPU() * 2
 				if expectedDefault < 4 {
 					expectedDefault = 4
 				}
+
 				if expectedDefault > maxWorkers {
 					expectedDefault = maxWorkers
 				}
+
 				assert.Equal(t, expectedDefault, result)
 			},
 		},

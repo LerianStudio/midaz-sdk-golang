@@ -174,12 +174,13 @@ func TestCreateTransactionInput_Validate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.input.Validate()
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				if tt.errMsg != "" {
 					assert.Contains(t, err.Error(), tt.errMsg)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -241,6 +242,7 @@ func TestCreateTransactionInput_WithMethods(t *testing.T) {
 func TestCreateTransactionInput_ToLibTransaction(t *testing.T) {
 	t.Run("nil input returns nil", func(t *testing.T) {
 		var input *CreateTransactionInput
+
 		result := input.ToLibTransaction()
 		assert.Nil(t, result)
 	})
@@ -428,12 +430,13 @@ func TestSendInput_Validate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.input.Validate()
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				if tt.errMsg != "" {
 					assert.Contains(t, err.Error(), tt.errMsg)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -442,6 +445,7 @@ func TestSendInput_Validate(t *testing.T) {
 func TestSendInput_ToMap(t *testing.T) {
 	t.Run("nil input returns nil", func(t *testing.T) {
 		var input *SendInput
+
 		result := input.ToMap()
 		assert.Nil(t, result)
 	})
@@ -524,12 +528,13 @@ func TestSourceInput_Validate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.input.Validate()
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				if tt.errMsg != "" {
 					assert.Contains(t, err.Error(), tt.errMsg)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -538,6 +543,7 @@ func TestSourceInput_Validate(t *testing.T) {
 func TestSourceInput_ToMap(t *testing.T) {
 	t.Run("nil input returns nil", func(t *testing.T) {
 		var input *SourceInput
+
 		result := input.ToMap()
 		assert.Nil(t, result)
 	})
@@ -620,12 +626,13 @@ func TestDistributeInput_Validate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.input.Validate()
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				if tt.errMsg != "" {
 					assert.Contains(t, err.Error(), tt.errMsg)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -634,6 +641,7 @@ func TestDistributeInput_Validate(t *testing.T) {
 func TestDistributeInput_ToMap(t *testing.T) {
 	t.Run("nil input returns nil", func(t *testing.T) {
 		var input *DistributeInput
+
 		result := input.ToMap()
 		assert.Nil(t, result)
 	})
@@ -717,12 +725,13 @@ func TestFromToInput_Validate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.input.Validate()
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				if tt.errMsg != "" {
 					assert.Contains(t, err.Error(), tt.errMsg)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -797,12 +806,13 @@ func TestAmountInput_Validate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.input.Validate()
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				if tt.errMsg != "" {
 					assert.Contains(t, err.Error(), tt.errMsg)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -891,12 +901,13 @@ func TestUpdateTransactionInput_Validate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.input.Validate()
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				if tt.errMsg != "" {
 					assert.Contains(t, err.Error(), tt.errMsg)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -1058,12 +1069,13 @@ func TestCreateInflowInput_Validate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.input.Validate()
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				if tt.errMsg != "" {
 					assert.Contains(t, err.Error(), tt.errMsg)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -1251,12 +1263,13 @@ func TestCreateOutflowInput_Validate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.input.Validate()
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				if tt.errMsg != "" {
 					assert.Contains(t, err.Error(), tt.errMsg)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -1375,12 +1388,13 @@ func TestCreateAnnotationInput_Validate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.input.Validate()
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				if tt.errMsg != "" {
 					assert.Contains(t, err.Error(), tt.errMsg)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -1518,12 +1532,13 @@ func TestTransactionDSLInput_Validate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.input.Validate()
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				if tt.errMsg != "" {
 					assert.Contains(t, err.Error(), tt.errMsg)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -1532,7 +1547,7 @@ func TestTransactionDSLInput_Validate(t *testing.T) {
 func TestTransactionDSLInput_GetMethods(t *testing.T) {
 	t.Run("GetAsset with nil Send", func(t *testing.T) {
 		input := &TransactionDSLInput{}
-		assert.Equal(t, "", input.GetAsset())
+		assert.Empty(t, input.GetAsset())
 	})
 
 	t.Run("GetAsset with Send", func(t *testing.T) {
@@ -1544,21 +1559,21 @@ func TestTransactionDSLInput_GetMethods(t *testing.T) {
 
 	t.Run("GetValue with nil Send", func(t *testing.T) {
 		input := &TransactionDSLInput{}
-		assert.Equal(t, float64(0), input.GetValue())
+		assert.InDelta(t, float64(0), input.GetValue(), 0.001)
 	})
 
 	t.Run("GetValue with valid Send", func(t *testing.T) {
 		input := &TransactionDSLInput{
 			Send: &DSLSend{Value: "100.50"},
 		}
-		assert.Equal(t, 100.50, input.GetValue())
+		assert.InDelta(t, 100.50, input.GetValue(), 0.001)
 	})
 
 	t.Run("GetValue with invalid value", func(t *testing.T) {
 		input := &TransactionDSLInput{
 			Send: &DSLSend{Value: "invalid"},
 		}
-		assert.Equal(t, float64(0), input.GetValue())
+		assert.InDelta(t, float64(0), input.GetValue(), 0.001)
 	})
 
 	t.Run("GetSourceAccounts with nil Send", func(t *testing.T) {
@@ -1617,6 +1632,7 @@ func TestTransactionDSLInput_GetMethods(t *testing.T) {
 func TestTransactionDSLInput_ToTransactionMap(t *testing.T) {
 	t.Run("nil input returns nil", func(t *testing.T) {
 		var input *TransactionDSLInput
+
 		result := input.ToTransactionMap()
 		assert.Nil(t, result)
 	})
@@ -1878,12 +1894,13 @@ func TestDSLSend_Validate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.send.Validate()
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				if tt.errMsg != "" {
 					assert.Contains(t, err.Error(), tt.errMsg)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -2020,6 +2037,7 @@ func TestFromTransactionMap(t *testing.T) {
 func TestTransaction_ToTransactionMap(t *testing.T) {
 	t.Run("nil transaction returns nil", func(t *testing.T) {
 		var tx *Transaction
+
 		result := tx.ToTransactionMap()
 		assert.Nil(t, result)
 	})
@@ -2228,19 +2246,19 @@ func TestEdgeCases(t *testing.T) {
 			Amount:    "",
 		}
 		err := input.Validate()
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("nil metadata", func(t *testing.T) {
 		input := NewUpdateTransactionInput().WithMetadata(nil)
 		err := input.Validate()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("empty metadata map", func(t *testing.T) {
 		input := NewUpdateTransactionInput().WithMetadata(map[string]any{})
 		err := input.Validate()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("deeply nested metadata", func(t *testing.T) {
@@ -2253,7 +2271,7 @@ func TestEdgeCases(t *testing.T) {
 		}
 		input := NewUpdateTransactionInput().WithMetadata(metadata)
 		err := input.Validate()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("metadata with various types", func(t *testing.T) {
@@ -2268,31 +2286,31 @@ func TestEdgeCases(t *testing.T) {
 		}
 		input := NewUpdateTransactionInput().WithMetadata(metadata)
 		err := input.Validate()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("boundary values for description length", func(t *testing.T) {
 		exactLength := strings.Repeat("a", 256)
 		input := NewUpdateTransactionInput().WithDescription(exactLength)
 		err := input.Validate()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		overLength := strings.Repeat("a", 257)
 		input2 := NewUpdateTransactionInput().WithDescription(overLength)
 		err2 := input2.Validate()
-		assert.Error(t, err2)
+		require.Error(t, err2)
 	})
 
 	t.Run("boundary values for external ID length", func(t *testing.T) {
 		exactLength := strings.Repeat("a", 64)
 		input := NewUpdateTransactionInput().WithExternalID(exactLength)
 		err := input.Validate()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		overLength := strings.Repeat("a", 65)
 		input2 := NewUpdateTransactionInput().WithExternalID(overLength)
 		err2 := input2.Validate()
-		assert.Error(t, err2)
+		require.Error(t, err2)
 	})
 }
 
@@ -2337,12 +2355,13 @@ func TestCreateTransactionInput_OperationsValidation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.input.Validate()
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				if tt.errMsg != "" {
 					assert.Contains(t, err.Error(), tt.errMsg)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}

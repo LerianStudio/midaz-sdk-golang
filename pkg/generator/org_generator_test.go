@@ -8,7 +8,7 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	data "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -16,12 +16,14 @@ import (
 // helper: convert numeric string to slice of ints, ignoring non-digits
 func digitsOf(s string) []int {
 	out := make([]int, 0, len(s))
+
 	for i := 0; i < len(s); i++ {
 		c := s[i]
 		if c >= '0' && c <= '9' {
 			out = append(out, int(c-'0'))
 		}
 	}
+
 	return out
 }
 
@@ -34,11 +36,14 @@ func TestGenerateCNPJ_CheckDigitsValid(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		cnpj := generateCNPJ(r, false)
 		ds := digitsOf(cnpj)
+
 		if len(ds) != 14 {
 			t.Fatalf("generated CNPJ should have 14 digits, got %d (%s)", len(ds), cnpj)
 		}
+
 		d1 := cnpjCheckDigit(ds[:12], w1)
 		d2 := cnpjCheckDigit(ds[:13], w2)
+
 		if ds[12] != d1 || ds[13] != d2 {
 			t.Fatalf("invalid check digits for %s: got %d%d expected %d%d", cnpj, ds[12], ds[13], d1, d2)
 		}
@@ -48,18 +53,22 @@ func TestGenerateCNPJ_CheckDigitsValid(t *testing.T) {
 func TestGenerateCNPJ_FormattedPattern(t *testing.T) {
 	r := rand.New(rand.NewSource(2))
 	cnpj := generateCNPJ(r, true)
+
 	if len(cnpj) != 18 {
 		t.Fatalf("formatted CNPJ should have length 18, got %d (%s)", len(cnpj), cnpj)
 	}
+
 	if cnpj[2] != '.' || cnpj[6] != '.' || cnpj[10] != '/' || cnpj[15] != '-' {
 		t.Fatalf("formatted CNPJ has wrong punctuation: %s", cnpj)
 	}
+
 	// verify digits still valid
 	ds := digitsOf(cnpj)
 	w1 := []int{5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2}
 	w2 := []int{6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2}
 	d1 := cnpjCheckDigit(ds[:12], w1)
 	d2 := cnpjCheckDigit(ds[:13], w2)
+
 	if ds[12] != d1 || ds[13] != d2 {
 		t.Fatalf("invalid check digits for %s: got %d%d expected %d%d", cnpj, ds[12], ds[13], d1, d2)
 	}
@@ -85,9 +94,11 @@ func TestGenerateEIN(t *testing.T) {
 
 			prefix := ein[0:2]
 			suffix := ein[3:10]
+
 			for _, c := range prefix {
 				assert.True(t, c >= '0' && c <= '9', "prefix must be numeric")
 			}
+
 			for _, c := range suffix {
 				assert.True(t, c >= '0' && c <= '9', "suffix must be numeric")
 			}
@@ -111,7 +122,6 @@ func TestCnpjCheckDigit(t *testing.T) {
 	// First check digit: 8
 	// Full 13 digits: 1122233300018
 	// Second check digit: 1
-
 	t.Run("Valid CNPJ check digits", func(t *testing.T) {
 		// Test with the digits of CNPJ 11.222.333/0001-81
 		// First 12 digits of 11222333000181 is 112223330001
@@ -177,7 +187,7 @@ func TestOrgGenerator_Generate_NilEntity(t *testing.T) {
 	}
 
 	_, err := gen.Generate(context.Background(), template)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not initialized")
 }
 
@@ -189,7 +199,7 @@ func TestOrgGenerator_Generate_NilOrganizationsService(t *testing.T) {
 	}
 
 	_, err := gen.Generate(context.Background(), template)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not initialized")
 }
 
@@ -197,7 +207,7 @@ func TestOrgGenerator_GenerateBatch_ZeroCount(t *testing.T) {
 	gen := NewOrganizationGenerator(nil, nil)
 
 	results, err := gen.GenerateBatch(context.Background(), 0)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Empty(t, results)
 }
 
@@ -205,7 +215,7 @@ func TestOrgGenerator_GenerateBatch_NegativeCount(t *testing.T) {
 	gen := NewOrganizationGenerator(nil, nil)
 
 	results, err := gen.GenerateBatch(context.Background(), -5)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Empty(t, results)
 }
 
@@ -213,7 +223,7 @@ func TestOrgGenerator_GenerateBatch_NilEntity(t *testing.T) {
 	gen := NewOrganizationGenerator(nil, nil)
 
 	results, err := gen.GenerateBatch(context.Background(), 3)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Empty(t, results)
 }
 
@@ -252,32 +262,33 @@ func (m *mockOrganizationsService) CreateOrganization(ctx context.Context, input
 	if m.createFunc != nil {
 		return m.createFunc(ctx, input)
 	}
+
 	return &models.Organization{ID: "org-123"}, nil
 }
 
-func (m *mockOrganizationsService) GetOrganization(ctx context.Context, id string) (*models.Organization, error) {
-	return nil, nil
+func (*mockOrganizationsService) GetOrganization(_ context.Context, _ string) (*models.Organization, error) {
+	return nil, errors.New("mock: GetOrganization not implemented")
 }
 
-func (m *mockOrganizationsService) ListOrganizations(ctx context.Context, opts *models.ListOptions) (*models.ListResponse[models.Organization], error) {
-	return nil, nil
+func (*mockOrganizationsService) ListOrganizations(_ context.Context, _ *models.ListOptions) (*models.ListResponse[models.Organization], error) {
+	return nil, errors.New("mock: ListOrganizations not implemented")
 }
 
-func (m *mockOrganizationsService) UpdateOrganization(ctx context.Context, id string, input *models.UpdateOrganizationInput) (*models.Organization, error) {
-	return nil, nil
+func (*mockOrganizationsService) UpdateOrganization(_ context.Context, _ string, _ *models.UpdateOrganizationInput) (*models.Organization, error) {
+	return nil, errors.New("mock: UpdateOrganization not implemented")
 }
 
-func (m *mockOrganizationsService) DeleteOrganization(ctx context.Context, id string) error {
+func (*mockOrganizationsService) DeleteOrganization(_ context.Context, _ string) error {
 	return nil
 }
 
-func (m *mockOrganizationsService) GetOrganizationsMetricsCount(ctx context.Context) (*models.MetricsCount, error) {
-	return nil, nil
+func (*mockOrganizationsService) GetOrganizationsMetricsCount(_ context.Context) (*models.MetricsCount, error) {
+	return nil, errors.New("mock: GetOrganizationsMetricsCount not implemented")
 }
 
 func TestOrgGenerator_Generate_Success(t *testing.T) {
 	mockSvc := &mockOrganizationsService{
-		createFunc: func(ctx context.Context, input *models.CreateOrganizationInput) (*models.Organization, error) {
+		createFunc: func(_ context.Context, input *models.CreateOrganizationInput) (*models.Organization, error) {
 			return &models.Organization{
 				ID:        "org-success",
 				LegalName: input.LegalName,
@@ -309,7 +320,7 @@ func TestOrgGenerator_Generate_Success(t *testing.T) {
 
 func TestOrgGenerator_Generate_Error(t *testing.T) {
 	mockSvc := &mockOrganizationsService{
-		createFunc: func(ctx context.Context, input *models.CreateOrganizationInput) (*models.Organization, error) {
+		createFunc: func(_ context.Context, _ *models.CreateOrganizationInput) (*models.Organization, error) {
 			return nil, errors.New("API error")
 		},
 	}
@@ -324,7 +335,7 @@ func TestOrgGenerator_Generate_Error(t *testing.T) {
 	}
 
 	result, err := gen.Generate(context.Background(), template)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "API error")
 }
@@ -362,6 +373,7 @@ func TestGenerateCNPJ_Unformatted(t *testing.T) {
 	cnpj := generateCNPJ(r, false)
 
 	assert.Len(t, cnpj, 14)
+
 	for _, c := range cnpj {
 		assert.True(t, c >= '0' && c <= '9', "unformatted CNPJ should only contain digits")
 	}

@@ -69,6 +69,7 @@ func TestGeneratorConfig_WithOverrides(t *testing.T) {
 				PortfoliosPerLedger:    3,
 			},
 			check: func(t *testing.T, result GeneratorConfig) {
+				t.Helper()
 				assert.Equal(t, 10, result.Organizations)
 				assert.Equal(t, 5, result.LedgersPerOrg)
 				assert.Equal(t, 7, result.AssetsPerLedger)
@@ -89,6 +90,7 @@ func TestGeneratorConfig_WithOverrides(t *testing.T) {
 				RetryBackoffMs:       500,
 			},
 			check: func(t *testing.T, result GeneratorConfig) {
+				t.Helper()
 				assert.Equal(t, 16, result.ConcurrencyLevel)
 				assert.Equal(t, 100, result.BatchSize)
 				assert.True(t, result.EnableCircuitBreaker)
@@ -105,6 +107,7 @@ func TestGeneratorConfig_WithOverrides(t *testing.T) {
 				AssetTypes:          []string{"custom_asset"},
 			},
 			check: func(t *testing.T, result GeneratorConfig) {
+				t.Helper()
 				assert.Equal(t, []string{"custom_pattern"}, result.TransactionPatterns)
 				assert.Equal(t, []string{"custom_type"}, result.AccountTypes)
 				assert.Equal(t, []string{"custom_asset"}, result.AssetTypes)
@@ -119,6 +122,7 @@ func TestGeneratorConfig_WithOverrides(t *testing.T) {
 				GenerationSeed:    12345,
 			},
 			check: func(t *testing.T, result GeneratorConfig) {
+				t.Helper()
 				assert.True(t, result.EnableIdempotency)
 				assert.True(t, result.UseExternalIDs)
 				assert.Equal(t, int64(12345), result.GenerationSeed)
@@ -133,6 +137,7 @@ func TestGeneratorConfig_WithOverrides(t *testing.T) {
 				CircuitBreakerOpenTimeout:      10 * time.Second,
 			},
 			check: func(t *testing.T, result GeneratorConfig) {
+				t.Helper()
 				assert.Equal(t, 10, result.CircuitBreakerFailureThreshold)
 				assert.Equal(t, 3, result.CircuitBreakerSuccessThreshold)
 				assert.Equal(t, 10*time.Second, result.CircuitBreakerOpenTimeout)
@@ -157,6 +162,7 @@ func TestGeneratorConfig_WithOverrides(t *testing.T) {
 				GenerationSeed: 0,
 			},
 			check: func(t *testing.T, result GeneratorConfig) {
+				t.Helper()
 				assert.Equal(t, 5, result.Organizations)
 				assert.Equal(t, 3, result.LedgersPerOrg)
 				assert.Equal(t, 8, result.ConcurrencyLevel)
@@ -176,6 +182,7 @@ func TestGeneratorConfig_WithOverrides(t *testing.T) {
 				AssetTypes:          nil,
 			},
 			check: func(t *testing.T, result GeneratorConfig) {
+				t.Helper()
 				assert.Equal(t, []string{"payment"}, result.TransactionPatterns)
 				assert.Equal(t, []string{"checking"}, result.AccountTypes)
 				assert.Equal(t, []string{"currency"}, result.AssetTypes)
@@ -246,6 +253,7 @@ func TestGeneratorConfig_ApplyPerformanceOverrides(t *testing.T) {
 			base:     GeneratorConfig{ConcurrencyLevel: 4, BatchSize: 25, MaxRetries: 2, RetryBackoffMs: 100},
 			override: GeneratorConfig{ConcurrencyLevel: 16, BatchSize: 100, EnableCircuitBreaker: true, MaxRetries: 5, RetryBackoffMs: 500},
 			check: func(t *testing.T, result GeneratorConfig) {
+				t.Helper()
 				assert.Equal(t, 16, result.ConcurrencyLevel)
 				assert.Equal(t, 100, result.BatchSize)
 				assert.True(t, result.EnableCircuitBreaker)
@@ -258,6 +266,7 @@ func TestGeneratorConfig_ApplyPerformanceOverrides(t *testing.T) {
 			base:     GeneratorConfig{EnableCircuitBreaker: true},
 			override: GeneratorConfig{EnableCircuitBreaker: false},
 			check: func(t *testing.T, result GeneratorConfig) {
+				t.Helper()
 				assert.True(t, result.EnableCircuitBreaker)
 			},
 		},
@@ -266,6 +275,7 @@ func TestGeneratorConfig_ApplyPerformanceOverrides(t *testing.T) {
 			base:     GeneratorConfig{ConcurrencyLevel: 8},
 			override: GeneratorConfig{ConcurrencyLevel: 0},
 			check: func(t *testing.T, result GeneratorConfig) {
+				t.Helper()
 				assert.Equal(t, 8, result.ConcurrencyLevel)
 			},
 		},
@@ -296,6 +306,7 @@ func TestGeneratorConfig_ApplyPatternOverrides(t *testing.T) {
 				TransactionPatterns: []string{"custom"},
 			},
 			check: func(t *testing.T, result GeneratorConfig) {
+				t.Helper()
 				assert.Equal(t, []string{"custom"}, result.TransactionPatterns)
 			},
 		},
@@ -308,6 +319,7 @@ func TestGeneratorConfig_ApplyPatternOverrides(t *testing.T) {
 				AccountTypes: []string{"savings", "credit"},
 			},
 			check: func(t *testing.T, result GeneratorConfig) {
+				t.Helper()
 				assert.Equal(t, []string{"savings", "credit"}, result.AccountTypes)
 			},
 		},
@@ -320,6 +332,7 @@ func TestGeneratorConfig_ApplyPatternOverrides(t *testing.T) {
 				AssetTypes: []string{"crypto", "nft"},
 			},
 			check: func(t *testing.T, result GeneratorConfig) {
+				t.Helper()
 				assert.Equal(t, []string{"crypto", "nft"}, result.AssetTypes)
 			},
 		},
@@ -336,6 +349,7 @@ func TestGeneratorConfig_ApplyPatternOverrides(t *testing.T) {
 				AssetTypes:          nil,
 			},
 			check: func(t *testing.T, result GeneratorConfig) {
+				t.Helper()
 				assert.Equal(t, []string{"payment"}, result.TransactionPatterns)
 				assert.Equal(t, []string{"checking"}, result.AccountTypes)
 				assert.Equal(t, []string{"currency"}, result.AssetTypes)
@@ -350,6 +364,7 @@ func TestGeneratorConfig_ApplyPatternOverrides(t *testing.T) {
 				TransactionPatterns: []string{"new"},
 			},
 			check: func(t *testing.T, result GeneratorConfig) {
+				t.Helper()
 				assert.Equal(t, []string{"new"}, result.TransactionPatterns)
 			},
 		},
@@ -376,6 +391,7 @@ func TestGeneratorConfig_ApplyTrackingOverrides(t *testing.T) {
 			base:     GeneratorConfig{GenerationSeed: 100},
 			override: GeneratorConfig{GenerationSeed: 999},
 			check: func(t *testing.T, result GeneratorConfig) {
+				t.Helper()
 				assert.Equal(t, int64(999), result.GenerationSeed)
 			},
 		},
@@ -384,6 +400,7 @@ func TestGeneratorConfig_ApplyTrackingOverrides(t *testing.T) {
 			base:     GeneratorConfig{GenerationSeed: 100},
 			override: GeneratorConfig{GenerationSeed: 0},
 			check: func(t *testing.T, result GeneratorConfig) {
+				t.Helper()
 				assert.Equal(t, int64(100), result.GenerationSeed)
 			},
 		},
@@ -392,6 +409,7 @@ func TestGeneratorConfig_ApplyTrackingOverrides(t *testing.T) {
 			base:     GeneratorConfig{EnableIdempotency: true},
 			override: GeneratorConfig{EnableIdempotency: false},
 			check: func(t *testing.T, result GeneratorConfig) {
+				t.Helper()
 				assert.True(t, result.EnableIdempotency)
 			},
 		},
@@ -400,6 +418,7 @@ func TestGeneratorConfig_ApplyTrackingOverrides(t *testing.T) {
 			base:     GeneratorConfig{UseExternalIDs: true},
 			override: GeneratorConfig{UseExternalIDs: false},
 			check: func(t *testing.T, result GeneratorConfig) {
+				t.Helper()
 				assert.True(t, result.UseExternalIDs)
 			},
 		},
@@ -434,6 +453,7 @@ func TestGeneratorConfig_ApplyCircuitBreakerOverrides(t *testing.T) {
 				CircuitBreakerOpenTimeout:      30 * time.Second,
 			},
 			check: func(t *testing.T, result GeneratorConfig) {
+				t.Helper()
 				assert.Equal(t, 10, result.CircuitBreakerFailureThreshold)
 				assert.Equal(t, 5, result.CircuitBreakerSuccessThreshold)
 				assert.Equal(t, 30*time.Second, result.CircuitBreakerOpenTimeout)
@@ -452,6 +472,7 @@ func TestGeneratorConfig_ApplyCircuitBreakerOverrides(t *testing.T) {
 				CircuitBreakerOpenTimeout:      0,
 			},
 			check: func(t *testing.T, result GeneratorConfig) {
+				t.Helper()
 				assert.Equal(t, 5, result.CircuitBreakerFailureThreshold)
 				assert.Equal(t, 2, result.CircuitBreakerSuccessThreshold)
 				assert.Equal(t, 5*time.Second, result.CircuitBreakerOpenTimeout)

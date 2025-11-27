@@ -12,16 +12,20 @@ import (
 // helper to sum percentages from a DSL string
 func sumPercents(t *testing.T, dsl string) int {
 	t.Helper()
+
 	re := regexp.MustCompile(`(?m)^\s*(\d+)% to `)
 	matches := re.FindAllStringSubmatch(dsl, -1)
 	total := 0
+
 	for _, m := range matches {
 		v, err := strconv.Atoi(m[1])
 		if err != nil {
 			t.Fatalf("failed to parse percent: %v", err)
 		}
+
 		total += v
 	}
+
 	return total
 }
 
@@ -32,7 +36,7 @@ func TestPaymentPattern(t *testing.T) {
 
 		assert.Equal(t, "payment", p.ChartOfAccountsGroupName)
 		assert.Equal(t, "Customer payment to merchant with platform fee", p.Description)
-		assert.Equal(t, false, p.RequiresCommit)
+		assert.False(t, p.RequiresCommit)
 		assert.Equal(t, "idem-123", p.IdempotencyKey)
 		assert.Equal(t, "ext-456", p.ExternalID)
 		assert.Equal(t, "payment", p.Metadata["pattern"])
@@ -71,7 +75,7 @@ func TestRefundPattern(t *testing.T) {
 
 		assert.Equal(t, "refund", p.ChartOfAccountsGroupName)
 		assert.Equal(t, "Merchant refund to customer", p.Description)
-		assert.Equal(t, false, p.RequiresCommit)
+		assert.False(t, p.RequiresCommit)
 		assert.Equal(t, "idem-refund-123", p.IdempotencyKey)
 		assert.Equal(t, "ext-refund-456", p.ExternalID)
 		assert.Equal(t, "refund", p.Metadata["pattern"])
@@ -99,7 +103,7 @@ func TestTransferPattern(t *testing.T) {
 
 		assert.Equal(t, "transfer", p.ChartOfAccountsGroupName)
 		assert.Equal(t, "Internal transfer", p.Description)
-		assert.Equal(t, false, p.RequiresCommit)
+		assert.False(t, p.RequiresCommit)
 		assert.Equal(t, "idem-transfer", p.IdempotencyKey)
 		assert.Equal(t, "ext-transfer", p.ExternalID)
 		assert.Equal(t, "transfer", p.Metadata["pattern"])
@@ -113,7 +117,7 @@ func TestTransferPattern(t *testing.T) {
 	t.Run("transfer with invalid source alias", func(t *testing.T) {
 		p := TransferPattern("USD", 1000, "invalid alias!", "@dest", "idem", "ext")
 
-		assert.Equal(t, "", p.DSLTemplate)
+		assert.Empty(t, p.DSLTemplate)
 		assert.Contains(t, p.Description, "Invalid source alias")
 		assert.Contains(t, p.Metadata["error"].(string), "invalid alias format")
 	})
@@ -121,7 +125,7 @@ func TestTransferPattern(t *testing.T) {
 	t.Run("transfer with invalid destination alias", func(t *testing.T) {
 		p := TransferPattern("USD", 1000, "@source", "invalid dest!", "idem", "ext")
 
-		assert.Equal(t, "", p.DSLTemplate)
+		assert.Empty(t, p.DSLTemplate)
 		assert.Contains(t, p.Description, "Invalid destination alias")
 		assert.Contains(t, p.Metadata["error"].(string), "invalid alias format")
 	})
@@ -129,14 +133,14 @@ func TestTransferPattern(t *testing.T) {
 	t.Run("transfer with empty source alias", func(t *testing.T) {
 		p := TransferPattern("USD", 1000, "", "@dest", "idem", "ext")
 
-		assert.Equal(t, "", p.DSLTemplate)
+		assert.Empty(t, p.DSLTemplate)
 		assert.Contains(t, p.Description, "Invalid source alias")
 	})
 
 	t.Run("transfer with empty destination alias", func(t *testing.T) {
 		p := TransferPattern("USD", 1000, "@source", "", "idem", "ext")
 
-		assert.Equal(t, "", p.DSLTemplate)
+		assert.Empty(t, p.DSLTemplate)
 		assert.Contains(t, p.Description, "Invalid destination alias")
 	})
 
@@ -156,7 +160,7 @@ func TestFeeCollectionPattern(t *testing.T) {
 
 		assert.Equal(t, "fee_collection", p.ChartOfAccountsGroupName)
 		assert.Equal(t, "Payment with platform fee percentage", p.Description)
-		assert.Equal(t, false, p.RequiresCommit)
+		assert.False(t, p.RequiresCommit)
 		assert.Equal(t, "idem-fee", p.IdempotencyKey)
 		assert.Equal(t, "ext-fee", p.ExternalID)
 		assert.Equal(t, "fee_collection", p.Metadata["pattern"])
@@ -200,7 +204,7 @@ func TestCurrencyExchangePattern(t *testing.T) {
 
 		assert.Equal(t, "fx", p.ChartOfAccountsGroupName)
 		assert.Equal(t, "Customer FX exchange", p.Description)
-		assert.Equal(t, false, p.RequiresCommit)
+		assert.False(t, p.RequiresCommit)
 		assert.Equal(t, "idem-fx", p.IdempotencyKey)
 		assert.Equal(t, "ext-fx", p.ExternalID)
 		assert.Equal(t, "fx", p.Metadata["pattern"])
@@ -253,10 +257,12 @@ func TestNormalizePercentages(t *testing.T) {
 		aliases, normalized := normalizePercentages(dest)
 
 		assert.Len(t, aliases, 3)
+
 		total := 0
 		for _, n := range normalized {
 			total += n
 		}
+
 		assert.Equal(t, 100, total)
 	})
 
@@ -268,10 +274,12 @@ func TestNormalizePercentages(t *testing.T) {
 		aliases, normalized := normalizePercentages(dest)
 
 		assert.Len(t, aliases, 2)
+
 		total := 0
 		for _, n := range normalized {
 			total += n
 		}
+
 		assert.Equal(t, 100, total)
 	})
 
@@ -286,6 +294,7 @@ func TestNormalizePercentages(t *testing.T) {
 		for _, n := range normalized {
 			total += n
 		}
+
 		assert.Equal(t, 100, total)
 	})
 
@@ -299,10 +308,12 @@ func TestNormalizePercentages(t *testing.T) {
 
 		// First alias alphabetically should get 100%
 		assert.Equal(t, "@a", aliases[0])
+
 		total := 0
 		for _, n := range normalized {
 			total += n
 		}
+
 		assert.Equal(t, 100, total)
 	})
 
@@ -333,7 +344,7 @@ func TestBatchSettlementPattern(t *testing.T) {
 
 		assert.Equal(t, "batch_settlement", p.ChartOfAccountsGroupName)
 		assert.Equal(t, "Batch settlement to multiple parties", p.Description)
-		assert.Equal(t, false, p.RequiresCommit)
+		assert.False(t, p.RequiresCommit)
 		assert.Equal(t, "idem-batch", p.IdempotencyKey)
 		assert.Equal(t, "ext-batch", p.ExternalID)
 		assert.Equal(t, "batch_settlement", p.Metadata["pattern"])
@@ -354,7 +365,7 @@ func TestBatchSettlementPattern(t *testing.T) {
 		}
 		p := BatchSettlementPattern("USD", 1000, dest, "idem", "ext")
 
-		assert.Equal(t, "", p.DSLTemplate)
+		assert.Empty(t, p.DSLTemplate)
 		assert.Contains(t, p.Description, "Invalid destination alias")
 		assert.Contains(t, p.Metadata["error"].(string), "invalid alias format")
 	})
@@ -398,7 +409,7 @@ func TestSubscriptionPattern(t *testing.T) {
 
 		assert.Equal(t, "subscription", p.ChartOfAccountsGroupName)
 		assert.Equal(t, "Recurring subscription payment", p.Description)
-		assert.Equal(t, false, p.RequiresCommit)
+		assert.False(t, p.RequiresCommit)
 		assert.Equal(t, "idem-sub", p.IdempotencyKey)
 		assert.Equal(t, "ext-sub", p.ExternalID)
 		assert.Equal(t, "subscription", p.Metadata["pattern"])
@@ -430,7 +441,7 @@ func TestSplitPaymentPattern(t *testing.T) {
 
 		assert.Equal(t, "split_payment", p.ChartOfAccountsGroupName)
 		assert.Equal(t, "Customer payment split among multiple recipients", p.Description)
-		assert.Equal(t, false, p.RequiresCommit)
+		assert.False(t, p.RequiresCommit)
 		assert.Equal(t, "idem-split", p.IdempotencyKey)
 		assert.Equal(t, "ext-split", p.ExternalID)
 		assert.Equal(t, "split_payment", p.Metadata["pattern"])
@@ -451,7 +462,7 @@ func TestSplitPaymentPattern(t *testing.T) {
 		}
 		p := SplitPaymentPattern("USD", 1000, dest, "idem", "ext")
 
-		assert.Equal(t, "", p.DSLTemplate)
+		assert.Empty(t, p.DSLTemplate)
 		assert.Contains(t, p.Description, "Invalid destination alias")
 		assert.Contains(t, p.Metadata["error"].(string), "invalid alias format")
 	})
@@ -461,10 +472,12 @@ func TestSplitPaymentPattern(t *testing.T) {
 			"@merchant_main": 50,
 			"@platform_fee":  30,
 		}
+
 		p := SplitPaymentPattern("USD", 1000, dest, "idemp", "ext")
 		if !strings.Contains(p.DSLTemplate, "distribute [USD 1000]") {
 			t.Fatalf("unexpected DSL: %s", p.DSLTemplate)
 		}
+
 		got := sumPercents(t, p.DSLTemplate)
 		assert.Equal(t, 100, got)
 	})
@@ -567,6 +580,7 @@ func BenchmarkNormalizePercentages(b *testing.B) {
 	}
 
 	b.ResetTimer()
+
 	for i := 0; i < b.N; i++ {
 		normalizePercentages(dest)
 	}
@@ -581,6 +595,7 @@ func BenchmarkSplitPaymentPattern(b *testing.B) {
 	}
 
 	b.ResetTimer()
+
 	for i := 0; i < b.N; i++ {
 		SplitPaymentPattern("USD", 10000, dest, "idem", "ext")
 	}

@@ -7,7 +7,7 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	data "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -20,27 +20,28 @@ func (m *mockAssetsService) CreateAsset(ctx context.Context, orgID, ledgerID str
 	if m.createFunc != nil {
 		return m.createFunc(ctx, orgID, ledgerID, input)
 	}
+
 	return &models.Asset{ID: "asset-123", Name: input.Name, Code: input.Code}, nil
 }
 
-func (m *mockAssetsService) GetAsset(ctx context.Context, orgID, ledgerID, id string) (*models.Asset, error) {
-	return nil, nil
+func (*mockAssetsService) GetAsset(_ context.Context, _, _, _ string) (*models.Asset, error) {
+	return nil, errors.New("mock: GetAsset not implemented")
 }
 
-func (m *mockAssetsService) ListAssets(ctx context.Context, orgID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Asset], error) {
-	return nil, nil
+func (*mockAssetsService) ListAssets(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.Asset], error) {
+	return nil, errors.New("mock: ListAssets not implemented")
 }
 
-func (m *mockAssetsService) UpdateAsset(ctx context.Context, orgID, ledgerID, id string, input *models.UpdateAssetInput) (*models.Asset, error) {
-	return nil, nil
+func (*mockAssetsService) UpdateAsset(_ context.Context, _, _, _ string, _ *models.UpdateAssetInput) (*models.Asset, error) {
+	return nil, errors.New("mock: UpdateAsset not implemented")
 }
 
-func (m *mockAssetsService) DeleteAsset(ctx context.Context, orgID, ledgerID, id string) error {
+func (*mockAssetsService) DeleteAsset(_ context.Context, _, _, _ string) error {
 	return nil
 }
 
-func (m *mockAssetsService) GetAssetsMetricsCount(ctx context.Context, orgID, ledgerID string) (*models.MetricsCount, error) {
-	return nil, nil
+func (*mockAssetsService) GetAssetsMetricsCount(_ context.Context, _, _ string) (*models.MetricsCount, error) {
+	return nil, errors.New("mock: GetAssetsMetricsCount not implemented")
 }
 
 func TestNewAssetGenerator(t *testing.T) {
@@ -66,7 +67,7 @@ func TestAssetGenerator_Generate_NilEntity(t *testing.T) {
 
 	ctx := WithOrgID(context.Background(), "org-123")
 	_, err := gen.Generate(ctx, "ledger-123", template)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not initialized")
 }
 
@@ -81,7 +82,7 @@ func TestAssetGenerator_Generate_NilAssetsService(t *testing.T) {
 
 	ctx := WithOrgID(context.Background(), "org-123")
 	_, err := gen.Generate(ctx, "ledger-123", template)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not initialized")
 }
 
@@ -98,13 +99,13 @@ func TestAssetGenerator_Generate_MissingOrgID(t *testing.T) {
 	}
 
 	_, err := gen.Generate(context.Background(), "ledger-123", template)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization id missing")
 }
 
 func TestAssetGenerator_Generate_Success(t *testing.T) {
 	mockSvc := &mockAssetsService{
-		createFunc: func(ctx context.Context, orgID, ledgerID string, input *models.CreateAssetInput) (*models.Asset, error) {
+		createFunc: func(_ context.Context, _, _ string, input *models.CreateAssetInput) (*models.Asset, error) {
 			return &models.Asset{
 				ID:   "asset-success",
 				Name: input.Name,
@@ -138,7 +139,7 @@ func TestAssetGenerator_Generate_Success(t *testing.T) {
 
 func TestAssetGenerator_Generate_Error(t *testing.T) {
 	mockSvc := &mockAssetsService{
-		createFunc: func(ctx context.Context, orgID, ledgerID string, input *models.CreateAssetInput) (*models.Asset, error) {
+		createFunc: func(_ context.Context, _, _ string, _ *models.CreateAssetInput) (*models.Asset, error) {
 			return nil, errors.New("asset creation failed")
 		},
 	}
@@ -156,7 +157,7 @@ func TestAssetGenerator_Generate_Error(t *testing.T) {
 
 	ctx := WithOrgID(context.Background(), "org-123")
 	result, err := gen.Generate(ctx, "ledger-123", template)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "asset creation failed")
 }
@@ -165,7 +166,7 @@ func TestAssetGenerator_GenerateWithRates_NotImplemented(t *testing.T) {
 	gen := NewAssetGenerator(nil, nil)
 
 	err := gen.GenerateWithRates(context.Background(), "ledger-123", "USD")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not implemented")
 }
 
@@ -178,7 +179,7 @@ func TestAssetGenerator_UpdateRates_NotImplemented(t *testing.T) {
 	}
 
 	err := gen.UpdateRates(context.Background(), "ledger-123", rates)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not implemented")
 }
 
@@ -308,13 +309,15 @@ func TestAssetTemplate_Fields(t *testing.T) {
 
 func TestAssetGenerator_Generate_VerifyInput(t *testing.T) {
 	var receivedInput *models.CreateAssetInput
+
 	var receivedOrgID, receivedLedgerID string
 
 	mockSvc := &mockAssetsService{
-		createFunc: func(ctx context.Context, orgID, ledgerID string, input *models.CreateAssetInput) (*models.Asset, error) {
+		createFunc: func(_ context.Context, orgID, ledgerID string, input *models.CreateAssetInput) (*models.Asset, error) {
 			receivedInput = input
 			receivedOrgID = orgID
 			receivedLedgerID = ledgerID
+
 			return &models.Asset{ID: "asset-123"}, nil
 		},
 	}
@@ -355,7 +358,7 @@ func TestWithOrgID_InContext(t *testing.T) {
 
 func TestAssetGenerator_Generate_WithCircuitBreaker(t *testing.T) {
 	mockSvc := &mockAssetsService{
-		createFunc: func(ctx context.Context, orgID, ledgerID string, input *models.CreateAssetInput) (*models.Asset, error) {
+		createFunc: func(_ context.Context, _, _ string, _ *models.CreateAssetInput) (*models.Asset, error) {
 			return &models.Asset{ID: "asset-cb"}, nil
 		},
 	}
@@ -382,7 +385,7 @@ func TestAssetGenerator_Generate_MetadataWithScale(t *testing.T) {
 	var capturedMetadata map[string]any
 
 	mockSvc := &mockAssetsService{
-		createFunc: func(ctx context.Context, orgID, ledgerID string, input *models.CreateAssetInput) (*models.Asset, error) {
+		createFunc: func(_ context.Context, _, _ string, input *models.CreateAssetInput) (*models.Asset, error) {
 			capturedMetadata = input.Metadata
 			return &models.Asset{ID: "asset-123"}, nil
 		},

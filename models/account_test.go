@@ -6,6 +6,7 @@ import (
 
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestNewCreateAccountInput tests the factory function for CreateAccountInput
@@ -214,12 +215,13 @@ func TestCreateAccountInputValidate(t *testing.T) {
 			err := tt.input.Validate()
 
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				if tt.errContains != "" {
 					assert.Contains(t, err.Error(), tt.errContains)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -546,10 +548,10 @@ func TestNewUpdateAccountInput(t *testing.T) {
 	input := NewUpdateAccountInput()
 
 	assert.NotNil(t, input)
-	assert.Equal(t, "", input.Name)
+	assert.Empty(t, input.Name)
 	assert.Nil(t, input.SegmentID)
 	assert.Nil(t, input.PortfolioID)
-	assert.Equal(t, "", input.Status.Code)
+	assert.Empty(t, input.Status.Code)
 	assert.Nil(t, input.Metadata)
 }
 
@@ -614,12 +616,13 @@ func TestUpdateAccountInputValidate(t *testing.T) {
 			err := tt.input.Validate()
 
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				if tt.errContains != "" {
 					assert.Contains(t, err.Error(), tt.errContains)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -811,12 +814,13 @@ func TestListAccountInputValidate(t *testing.T) {
 			err := tt.input.Validate()
 
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				if tt.errContains != "" {
 					assert.Contains(t, err.Error(), tt.errContains)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -841,7 +845,7 @@ func TestAccountsFromMmodel(t *testing.T) {
 
 	result := FromMmodel(mmodelAccounts)
 
-	assert.Equal(t, 2, len(result.Items))
+	assert.Len(t, result.Items, 2)
 	assert.Equal(t, "acc-1", result.Items[0].ID)
 	assert.Equal(t, "Account 1", result.Items[0].Name)
 	assert.Equal(t, "acc-2", result.Items[1].ID)
@@ -860,7 +864,7 @@ func TestAccountsFromMmodelEmpty(t *testing.T) {
 
 	result := FromMmodel(mmodelAccounts)
 
-	assert.Equal(t, 0, len(result.Items))
+	assert.Empty(t, result.Items)
 	assert.Equal(t, 1, result.Page)
 	assert.Equal(t, 10, result.Limit)
 }
@@ -953,7 +957,7 @@ func TestAccountFilterStructure(t *testing.T) {
 		Status: []string{"ACTIVE", "PENDING", "BLOCKED"},
 	}
 
-	assert.Equal(t, 3, len(filter.Status))
+	assert.Len(t, filter.Status, 3)
 	assert.Contains(t, filter.Status, "ACTIVE")
 	assert.Contains(t, filter.Status, "PENDING")
 	assert.Contains(t, filter.Status, "BLOCKED")
@@ -979,7 +983,7 @@ func TestListAccountResponseStructure(t *testing.T) {
 		TotalPages:  10,
 	}
 
-	assert.Equal(t, 2, len(response.Items))
+	assert.Len(t, response.Items, 2)
 	assert.Equal(t, 100, response.Total)
 	assert.Equal(t, 1, response.CurrentPage)
 	assert.Equal(t, 10, response.PageSize)
@@ -996,7 +1000,7 @@ func TestAccountsStructure(t *testing.T) {
 		Limit: 25,
 	}
 
-	assert.Equal(t, 1, len(accounts.Items))
+	assert.Len(t, accounts.Items, 1)
 	assert.Equal(t, 2, accounts.Page)
 	assert.Equal(t, 25, accounts.Limit)
 }
@@ -1044,7 +1048,7 @@ func TestValidAccountTypes(t *testing.T) {
 		t.Run(accountType, func(t *testing.T) {
 			input := NewCreateAccountInput("Test", "USD", accountType)
 			err := input.Validate()
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		})
 	}
 }
@@ -1075,7 +1079,7 @@ func TestCreateAccountInputWithAllFields(t *testing.T) {
 	}
 
 	err := input.Validate()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	assert.Equal(t, "Full Account", input.Name)
 	assert.Equal(t, "parent-123", *input.ParentAccountID)
@@ -1109,7 +1113,7 @@ func TestAccountAliasValidCharacters(t *testing.T) {
 		t.Run(alias, func(t *testing.T) {
 			input := NewCreateAccountInput("Test", "USD", "deposit").WithAlias(alias)
 			err := input.Validate()
-			assert.NoError(t, err, "alias '%s' should be valid", alias)
+			require.NoError(t, err, "alias '%s' should be valid", alias)
 		})
 	}
 }
@@ -1148,7 +1152,7 @@ func TestAccountAliasInvalidCharacters(t *testing.T) {
 		t.Run(alias, func(t *testing.T) {
 			input := NewCreateAccountInput("Test", "USD", "deposit").WithAlias(alias)
 			err := input.Validate()
-			assert.Error(t, err, "alias '%s' should be invalid", alias)
+			require.Error(t, err, "alias '%s' should be invalid", alias)
 		})
 	}
 }
@@ -1244,9 +1248,9 @@ func TestMetadataValidation(t *testing.T) {
 			err := input.Validate()
 
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}

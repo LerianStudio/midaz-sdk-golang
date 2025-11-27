@@ -271,7 +271,7 @@ func TestPageResultFromResponse(t *testing.T) {
 
 func TestCreateEntityPaginator(t *testing.T) {
 	// Simple list function that returns mock data
-	listFn := func(ctx context.Context, opts any) (any, error) {
+	listFn := func(_ context.Context, _ any) (any, error) {
 		mockPagination := &MockPagination{
 			nextCursor: "next-page",
 			prevCursor: "prev-page",

@@ -42,7 +42,7 @@ func NewObserver() Observer {
 
 // RecordEvent is a no-op implementation that discards the event.
 // Implement a custom Observer to capture pagination metrics and events.
-func (o *NilObserver) RecordEvent(_ context.Context, _ *Event) {
+func (*NilObserver) RecordEvent(_ context.Context, _ *Event) {
 	// No-op: events are discarded by design.
 	// Implement Observer interface for custom observability.
 }

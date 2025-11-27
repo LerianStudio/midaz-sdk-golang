@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewCreatePortfolioInput(t *testing.T) {
@@ -90,6 +91,7 @@ func TestCreatePortfolioInput_WithStatus(t *testing.T) {
 
 			assert.Same(t, input, result, "WithStatus should return same pointer for chaining")
 			assert.Equal(t, tt.status.Code, input.Status.Code)
+
 			if tt.status.Description != nil {
 				assert.Equal(t, *tt.status.Description, *input.Status.Description)
 			}
@@ -224,10 +226,10 @@ func TestCreatePortfolioInput_Validate(t *testing.T) {
 			err := input.Validate()
 
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errorMsg)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -248,7 +250,7 @@ func TestCreatePortfolioInput_MethodChaining(t *testing.T) {
 	assert.Equal(t, "Test Portfolio", input.Name)
 	assert.Equal(t, "ACTIVE", input.Status.Code)
 	assert.Equal(t, metadata, input.Metadata)
-	assert.NoError(t, input.Validate())
+	require.NoError(t, input.Validate())
 }
 
 func TestNewUpdatePortfolioInput(t *testing.T) {
@@ -340,6 +342,7 @@ func TestUpdatePortfolioInput_WithStatus(t *testing.T) {
 
 			assert.Same(t, input, result, "WithStatus should return same pointer for chaining")
 			assert.Equal(t, tt.status.Code, input.Status.Code)
+
 			if tt.status.Description != nil {
 				assert.NotNil(t, input.Status.Description)
 				assert.Equal(t, *tt.status.Description, *input.Status.Description)
@@ -416,7 +419,7 @@ func TestUpdatePortfolioInput_Validate(t *testing.T) {
 	}{
 		{
 			name:        "empty input is valid",
-			setupFunc:   func(input *UpdatePortfolioInput) {},
+			setupFunc:   func(_ *UpdatePortfolioInput) {},
 			expectError: false,
 		},
 		{
@@ -466,9 +469,9 @@ func TestUpdatePortfolioInput_Validate(t *testing.T) {
 			err := input.Validate()
 
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -491,7 +494,7 @@ func TestUpdatePortfolioInput_MethodChaining(t *testing.T) {
 	assert.NotNil(t, input.Status.Description)
 	assert.Equal(t, "Reactivated", *input.Status.Description)
 	assert.Equal(t, metadata, input.Metadata)
-	assert.NoError(t, input.Validate())
+	require.NoError(t, input.Validate())
 }
 
 func TestPortfolioInputs_StatusEnumValues(t *testing.T) {
@@ -510,7 +513,7 @@ func TestPortfolioInputs_StatusEnumValues(t *testing.T) {
 				WithStatus(NewStatus(statusCode))
 
 			assert.Equal(t, statusCode, input.Status.Code)
-			assert.NoError(t, input.Validate())
+			require.NoError(t, input.Validate())
 		}
 	})
 
@@ -520,7 +523,7 @@ func TestPortfolioInputs_StatusEnumValues(t *testing.T) {
 				WithStatus(NewStatus(statusCode))
 
 			assert.Equal(t, statusCode, input.Status.Code)
-			assert.NoError(t, input.Validate())
+			require.NoError(t, input.Validate())
 		}
 	})
 }
@@ -528,48 +531,48 @@ func TestPortfolioInputs_StatusEnumValues(t *testing.T) {
 func TestCreatePortfolioInput_EmbeddedMmodelFields(t *testing.T) {
 	input := NewCreatePortfolioInput("entity-test", "Embedded Test")
 
-	assert.Equal(t, "entity-test", input.CreatePortfolioInput.EntityID)
-	assert.Equal(t, "Embedded Test", input.CreatePortfolioInput.Name)
+	assert.Equal(t, "entity-test", input.EntityID)
+	assert.Equal(t, "Embedded Test", input.Name)
 
 	input.WithStatus(NewStatus("ACTIVE"))
-	assert.Equal(t, "ACTIVE", input.CreatePortfolioInput.Status.Code)
+	assert.Equal(t, "ACTIVE", input.Status.Code)
 
 	metadata := map[string]any{"key": "value"}
 	input.WithMetadata(metadata)
-	assert.Equal(t, metadata, input.CreatePortfolioInput.Metadata)
+	assert.Equal(t, metadata, input.Metadata)
 }
 
 func TestUpdatePortfolioInput_EmbeddedMmodelFields(t *testing.T) {
 	input := NewUpdatePortfolioInput()
 
 	input.WithName("Embedded Update")
-	assert.Equal(t, "Embedded Update", input.UpdatePortfolioInput.Name)
+	assert.Equal(t, "Embedded Update", input.Name)
 
 	input.WithStatus(NewStatus("INACTIVE"))
-	assert.Equal(t, "INACTIVE", input.UpdatePortfolioInput.Status.Code)
+	assert.Equal(t, "INACTIVE", input.Status.Code)
 
 	metadata := map[string]any{"updated": true}
 	input.WithMetadata(metadata)
-	assert.Equal(t, metadata, input.UpdatePortfolioInput.Metadata)
+	assert.Equal(t, metadata, input.Metadata)
 }
 
 func TestCreatePortfolioInput_ValidationOrder(t *testing.T) {
 	input := NewCreatePortfolioInput("", "")
 	err := input.Validate()
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, "name is required", err.Error())
 
 	input2 := NewCreatePortfolioInput("entity-123", "")
 	err2 := input2.Validate()
 
-	assert.Error(t, err2)
+	require.Error(t, err2)
 	assert.Equal(t, "name is required", err2.Error())
 
 	input3 := NewCreatePortfolioInput("", "Valid Name")
 	err3 := input3.Validate()
 
-	assert.Error(t, err3)
+	require.Error(t, err3)
 	assert.Equal(t, "entityID is required", err3.Error())
 }
 
@@ -612,7 +615,7 @@ func TestPortfolioInput_NilSafety(t *testing.T) {
 		input.WithMetadata(nil)
 		assert.Nil(t, input.Metadata)
 
-		assert.NoError(t, input.Validate())
+		require.NoError(t, input.Validate())
 	})
 
 	t.Run("UpdatePortfolioInput with nil metadata is safe", func(t *testing.T) {
@@ -623,7 +626,7 @@ func TestPortfolioInput_NilSafety(t *testing.T) {
 		input.WithMetadata(nil)
 		assert.Nil(t, input.Metadata)
 
-		assert.NoError(t, input.Validate())
+		require.NoError(t, input.Validate())
 	})
 }
 
@@ -657,14 +660,14 @@ func TestPortfolioInput_EmptyStringVsNil(t *testing.T) {
 	t.Run("empty string name fails validation", func(t *testing.T) {
 		input := NewCreatePortfolioInput("entity-123", "")
 		err := input.Validate()
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Equal(t, "name is required", err.Error())
 	})
 
 	t.Run("empty string entityID fails validation", func(t *testing.T) {
 		input := NewCreatePortfolioInput("", "Valid Name")
 		err := input.Validate()
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Equal(t, "entityID is required", err.Error())
 	})
 
@@ -672,7 +675,7 @@ func TestPortfolioInput_EmptyStringVsNil(t *testing.T) {
 		input := NewCreatePortfolioInput("entity-123", "Valid Name").
 			WithStatus(Status{})
 		err := input.Validate()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Empty(t, input.Status.Code)
 	})
 }
@@ -688,12 +691,12 @@ func TestPortfolioInput_CompleteWorkflow(t *testing.T) {
 			"target_date": "2025-12-31",
 		})
 
-		assert.NoError(t, createInput.Validate())
+		require.NoError(t, createInput.Validate())
 		assert.Equal(t, "entity-abc-123", createInput.EntityID)
 		assert.Equal(t, "Investment Portfolio", createInput.Name)
 		assert.Equal(t, "ACTIVE", createInput.Status.Code)
 		assert.Equal(t, "Initial creation", *createInput.Status.Description)
-		assert.Equal(t, 4, len(createInput.Metadata))
+		assert.Len(t, createInput.Metadata, 4)
 	})
 
 	t.Run("complete update workflow", func(t *testing.T) {
@@ -707,10 +710,10 @@ func TestPortfolioInput_CompleteWorkflow(t *testing.T) {
 			"previous_state": "ACTIVE",
 		})
 
-		assert.NoError(t, updateInput.Validate())
+		require.NoError(t, updateInput.Validate())
 		assert.Equal(t, "Renamed Investment Portfolio", updateInput.Name)
 		assert.Equal(t, "INACTIVE", updateInput.Status.Code)
 		assert.Equal(t, "Temporarily suspended", *updateInput.Status.Description)
-		assert.Equal(t, 4, len(updateInput.Metadata))
+		assert.Len(t, updateInput.Metadata, 4)
 	})
 }

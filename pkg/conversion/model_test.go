@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // SDK model
@@ -64,7 +65,7 @@ func TestModelConverter_BasicFields(t *testing.T) {
 
 	// Convert
 	err := ModelConverter(sdk, backend)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Verify basic fields were converted correctly
 	assert.Equal(t, sdk.ID, backend.ID)
@@ -101,7 +102,7 @@ func TestModelConverter_ComplexFields(t *testing.T) {
 
 	// Convert
 	err := ModelConverter(sdk, backend)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Verify nested struct was converted
 	assert.NotNil(t, backend.Address)
@@ -109,11 +110,11 @@ func TestModelConverter_ComplexFields(t *testing.T) {
 	assert.Equal(t, sdk.Address.City, backend.Address.City)
 
 	// Verify slice was converted
-	assert.Equal(t, len(sdk.Tags), len(backend.Tags))
+	assert.Len(t, backend.Tags, len(sdk.Tags))
 	assert.Equal(t, sdk.Tags[0], backend.Tags[0])
 
 	// Verify map was converted
-	assert.Equal(t, len(sdk.Preferences), len(backend.Preferences))
+	assert.Len(t, backend.Preferences, len(sdk.Preferences))
 	assert.Equal(t, sdk.Preferences["theme"], backend.Preferences["theme"])
 }
 
@@ -141,7 +142,7 @@ func TestModelConverter_ReverseDirection(t *testing.T) {
 
 	// Convert
 	err := ModelConverter(backend, sdk)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Verify basic fields were converted correctly
 	assert.Equal(t, backend.ID, sdk.ID)
@@ -182,7 +183,7 @@ func TestModelConverter_DifferentTypes(t *testing.T) {
 
 	// Convert
 	err := ModelConverter(source, target)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Verify type conversions
 	assert.Equal(t, int64(100), target.IntValue)
@@ -217,7 +218,7 @@ func TestModelConverter_IgnoreUnexportedFields(t *testing.T) {
 
 	// Convert
 	err := ModelConverter(source, target)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Verify exported fields were converted, but unexported was not
 	assert.Equal(t, "123", target.ID)

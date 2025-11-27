@@ -70,7 +70,7 @@ func getFormatSuggestions(field string, value any) []string {
 	return getGenericFormatSuggestions(field)
 }
 
-func buildFormatSuggestionMatchers(field string, value any) []formatSuggestionMatcher {
+func buildFormatSuggestionMatchers(_ string, _ any) []formatSuggestionMatcher {
 	return []formatSuggestionMatcher{
 		{pattern: "asset.*code|asset_code|currency|code", suggestions: getAssetCodeSuggestions},
 		{pattern: "alias|account.*alias", suggestions: getAliasSuggestions},

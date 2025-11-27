@@ -2,6 +2,7 @@ package workflows
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -35,7 +36,7 @@ func CreatePortfolio(ctx context.Context, midazClient *client.Client, orgID, led
 	}
 
 	if portfolio.ID == "" {
-		return "", fmt.Errorf("portfolio created but no ID was returned from the API")
+		return "", errors.New("portfolio created but no ID was returned from the API")
 	}
 
 	fmt.Printf("✅ Portfolio created: %s\n", portfolio.Name)

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -12,7 +13,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
 )
 
 // TransactionsService defines the interface for transaction-related operations.
@@ -171,25 +172,25 @@ func (e *transactionsEntity) CreateTransaction(ctx context.Context, orgID, ledge
 }
 
 // validateCreateTransactionInput validates all input parameters for CreateTransaction
-func (e *transactionsEntity) validateCreateTransactionInput(operation, orgID, ledgerID string, input *models.CreateTransactionInput) error {
+func (*transactionsEntity) validateCreateTransactionInput(operation, orgID, ledgerID string, input *models.CreateTransactionInput) error {
 	if input == nil {
-		return errors.NewMissingParameterError(operation, "input")
+		return sdkerrors.NewMissingParameterError(operation, "input")
 	}
 
 	if orgID == "" {
-		return errors.NewMissingParameterError(operation, "organization ID")
+		return sdkerrors.NewMissingParameterError(operation, "organization ID")
 	}
 
 	if ledgerID == "" {
-		return errors.NewMissingParameterError(operation, "ledger ID")
+		return sdkerrors.NewMissingParameterError(operation, "ledger ID")
 	}
 
 	if err := input.Validate(); err != nil {
-		return errors.NewValidationError(operation, "transaction validation failed", err)
+		return sdkerrors.NewValidationError(operation, "transaction validation failed", err)
 	}
 
 	if input.Send == nil && len(input.Operations) == 0 {
-		return errors.NewValidationError(operation, "transaction must have at least one operation", nil)
+		return sdkerrors.NewValidationError(operation, "transaction must have at least one operation", nil)
 	}
 
 	return nil
@@ -226,7 +227,7 @@ func (e *transactionsEntity) parseTransactionResponse(responseMap map[string]any
 }
 
 // setTransactionAmount sets the amount field from various response formats
-func (e *transactionsEntity) setTransactionAmount(transaction *models.Transaction, responseMap map[string]any) {
+func (*transactionsEntity) setTransactionAmount(transaction *models.Transaction, responseMap map[string]any) {
 	if amount, ok := responseMap["amount"].(string); ok {
 		transaction.Amount = amount
 	} else if amount, ok := responseMap["amount"].(float64); ok {
@@ -235,7 +236,7 @@ func (e *transactionsEntity) setTransactionAmount(transaction *models.Transactio
 }
 
 // setTransactionIDs sets organization and ledger IDs and other fields
-func (e *transactionsEntity) setTransactionIDs(transaction *models.Transaction, responseMap map[string]any) {
+func (*transactionsEntity) setTransactionIDs(transaction *models.Transaction, responseMap map[string]any) {
 	transaction.OrganizationID = getString(responseMap, "organizationId")
 	transaction.LedgerID = getString(responseMap, "ledgerId")
 	transaction.Route = getString(responseMap, "route")
@@ -253,7 +254,7 @@ func (e *transactionsEntity) setTransactionArrays(transaction *models.Transactio
 }
 
 // parseStringArray converts any array to string array
-func (e *transactionsEntity) parseStringArray(responseMap map[string]any, key string) []string {
+func (*transactionsEntity) parseStringArray(responseMap map[string]any, key string) []string {
 	if array, ok := responseMap[key].([]any); ok {
 		result := make([]string, len(array))
 
@@ -270,7 +271,7 @@ func (e *transactionsEntity) parseStringArray(responseMap map[string]any, key st
 }
 
 // setTransactionStatus sets the status from response map
-func (e *transactionsEntity) setTransactionStatus(transaction *models.Transaction, responseMap map[string]any) {
+func (*transactionsEntity) setTransactionStatus(transaction *models.Transaction, responseMap map[string]any) {
 	statusMap, ok := responseMap["status"].(map[string]any)
 	if !ok {
 		return
@@ -289,7 +290,7 @@ func (e *transactionsEntity) setTransactionStatus(transaction *models.Transactio
 }
 
 // setTransactionTimestamps sets created and updated timestamps
-func (e *transactionsEntity) setTransactionTimestamps(transaction *models.Transaction, responseMap map[string]any) {
+func (*transactionsEntity) setTransactionTimestamps(transaction *models.Transaction, responseMap map[string]any) {
 	if createdAt, err := time.Parse(time.RFC3339, getString(responseMap, "createdAt")); err == nil {
 		transaction.CreatedAt = createdAt
 	}
@@ -300,7 +301,7 @@ func (e *transactionsEntity) setTransactionTimestamps(transaction *models.Transa
 }
 
 // setTransactionMetadata sets the metadata from response map
-func (e *transactionsEntity) setTransactionMetadata(transaction *models.Transaction, responseMap map[string]any) {
+func (*transactionsEntity) setTransactionMetadata(transaction *models.Transaction, responseMap map[string]any) {
 	if metadata, ok := responseMap["metadata"].(map[string]any); ok {
 		transaction.Metadata = metadata
 	}
@@ -335,17 +336,17 @@ func (e *transactionsEntity) CreateTransactionWithDSL(ctx context.Context, orgID
 	const operation = "CreateTransactionWithDSL"
 
 	if input == nil {
-		return nil, errors.NewMissingParameterError(operation, "input")
+		return nil, sdkerrors.NewMissingParameterError(operation, "input")
 	}
 
 	// Validate required parameters
 	if orgID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organization ID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organization ID")
 	}
 
 	// Validate required parameters
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledger ID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledger ID")
 	}
 
 	// Convert the DSL input to map format before sending to API
@@ -357,12 +358,12 @@ func (e *transactionsEntity) CreateTransactionWithDSL(ctx context.Context, orgID
 
 	body, err := json.Marshal(transactionMap)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, fmt.Errorf("failed to marshal request body: %w", err))
+		return nil, sdkerrors.NewInternalError(operation, fmt.Errorf("failed to marshal request body: %w", err))
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(body))
 	if err != nil {
-		return nil, errors.NewInternalError(operation, fmt.Errorf("failed to create request: %w", err))
+		return nil, sdkerrors.NewInternalError(operation, fmt.Errorf("failed to create request: %w", err))
 	}
 
 	var transaction models.Transaction
@@ -376,12 +377,12 @@ func (e *transactionsEntity) CreateTransactionWithDSL(ctx context.Context, orgID
 // CreateTransactionWithDSLFile creates a new transaction using a DSL file.
 func (e *transactionsEntity) CreateTransactionWithDSLFile(ctx context.Context, orgID, ledgerID string, dslContent []byte) (*models.Transaction, error) {
 	if orgID == "" {
-		return nil, fmt.Errorf("organization ID cannot be empty")
+		return nil, errors.New("organization ID cannot be empty")
 	}
 
 	// Validate required parameters
 	if ledgerID == "" {
-		return nil, fmt.Errorf("ledger ID cannot be empty")
+		return nil, errors.New("ledger ID cannot be empty")
 	}
 
 	// Validate DSL payload before sending
@@ -404,16 +405,16 @@ func (e *transactionsEntity) CreateTransactionWithDSLFile(ctx context.Context, o
 
 func validateDSLContent(dslContent []byte) error {
 	if len(bytes.TrimSpace(dslContent)) == 0 {
-		return fmt.Errorf("DSL content is required")
+		return errors.New("DSL content is required")
 	}
 
 	if !utf8.Valid(dslContent) {
-		return fmt.Errorf("DSL content must be valid UTF-8")
+		return errors.New("DSL content must be valid UTF-8")
 	}
 
 	content := strings.ToLower(string(dslContent))
 	if !strings.Contains(content, "send") || !strings.Contains(content, "distribute") {
-		return fmt.Errorf("DSL content missing required sections")
+		return errors.New("DSL content missing required sections")
 	}
 
 	return nil
@@ -446,17 +447,17 @@ func (e *transactionsEntity) GetTransaction(ctx context.Context, orgID, ledgerID
 
 	// Validate required parameters
 	if orgID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organization ID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organization ID")
 	}
 
 	// Validate required parameters
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledger ID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledger ID")
 	}
 
 	// Validate required parameters
 	if transactionID == "" {
-		return nil, errors.NewMissingParameterError(operation, "transaction ID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "transaction ID")
 	}
 
 	// Build the URL for the transaction
@@ -464,7 +465,7 @@ func (e *transactionsEntity) GetTransaction(ctx context.Context, orgID, ledgerID
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, fmt.Errorf("failed to create request: %w", err))
+		return nil, sdkerrors.NewInternalError(operation, fmt.Errorf("failed to create request: %w", err))
 	}
 
 	var transaction models.Transaction
@@ -509,12 +510,12 @@ func (e *transactionsEntity) ListTransactions(ctx context.Context, orgID, ledger
 
 	// Validate required parameters
 	if orgID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organization ID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organization ID")
 	}
 
 	// Validate required parameters
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledger ID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledger ID")
 	}
 
 	// Build the URL for the transactions
@@ -522,7 +523,7 @@ func (e *transactionsEntity) ListTransactions(ctx context.Context, orgID, ledger
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, fmt.Errorf("failed to create request: %w", err))
+		return nil, sdkerrors.NewInternalError(operation, fmt.Errorf("failed to create request: %w", err))
 	}
 
 	// Add query parameters if options are provided
@@ -551,19 +552,19 @@ func (e *transactionsEntity) UpdateTransaction(ctx context.Context, orgID, ledge
 
 	// Validate required parameters
 	if orgID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organization ID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organization ID")
 	}
 
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledger ID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledger ID")
 	}
 
 	if transactionID == "" {
-		return nil, errors.NewMissingParameterError(operation, "transaction ID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "transaction ID")
 	}
 
 	if input == nil {
-		return nil, errors.NewMissingParameterError(operation, "input")
+		return nil, sdkerrors.NewMissingParameterError(operation, "input")
 	}
 
 	// Build the URL for the transaction
@@ -571,12 +572,12 @@ func (e *transactionsEntity) UpdateTransaction(ctx context.Context, orgID, ledge
 
 	body, err := json.Marshal(input)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, fmt.Errorf("failed to marshal request body: %w", err))
+		return nil, sdkerrors.NewInternalError(operation, fmt.Errorf("failed to marshal request body: %w", err))
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, bytes.NewBuffer(body))
 	if err != nil {
-		return nil, errors.NewInternalError(operation, fmt.Errorf("failed to create request: %w", err))
+		return nil, sdkerrors.NewInternalError(operation, fmt.Errorf("failed to create request: %w", err))
 	}
 
 	var transaction models.Transaction
@@ -592,22 +593,22 @@ func (e *transactionsEntity) RevertTransaction(ctx context.Context, orgID, ledge
 	const operation = "RevertTransaction"
 
 	if orgID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organization ID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organization ID")
 	}
 
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledger ID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledger ID")
 	}
 
 	if transactionID == "" {
-		return nil, errors.NewMissingParameterError(operation, "transaction ID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "transaction ID")
 	}
 
 	url := e.buildURL(orgID, ledgerID, fmt.Sprintf("/%s/revert", transactionID))
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	var transaction models.Transaction
@@ -623,22 +624,22 @@ func (e *transactionsEntity) CommitTransaction(ctx context.Context, orgID, ledge
 	const operation = "CommitTransaction"
 
 	if orgID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organization ID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organization ID")
 	}
 
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledger ID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledger ID")
 	}
 
 	if transactionID == "" {
-		return nil, errors.NewMissingParameterError(operation, "transaction ID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "transaction ID")
 	}
 
 	url := e.buildURL(orgID, ledgerID, fmt.Sprintf("/%s/commit", transactionID))
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	var transaction models.Transaction
@@ -654,22 +655,22 @@ func (e *transactionsEntity) CancelTransaction(ctx context.Context, orgID, ledge
 	const operation = "CancelTransaction"
 
 	if orgID == "" {
-		return errors.NewMissingParameterError(operation, "organization ID")
+		return sdkerrors.NewMissingParameterError(operation, "organization ID")
 	}
 
 	if ledgerID == "" {
-		return errors.NewMissingParameterError(operation, "ledger ID")
+		return sdkerrors.NewMissingParameterError(operation, "ledger ID")
 	}
 
 	if transactionID == "" {
-		return errors.NewMissingParameterError(operation, "transaction ID")
+		return sdkerrors.NewMissingParameterError(operation, "transaction ID")
 	}
 
 	url := e.buildURL(orgID, ledgerID, fmt.Sprintf("/%s/cancel", transactionID))
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
 	if err != nil {
-		return errors.NewInternalError(operation, err)
+		return sdkerrors.NewInternalError(operation, err)
 	}
 
 	if err := e.httpClient.sendRequest(req, nil); err != nil {
@@ -684,31 +685,31 @@ func (e *transactionsEntity) CreateInflowTransaction(ctx context.Context, orgID,
 	const operation = "CreateInflowTransaction"
 
 	if orgID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organization ID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organization ID")
 	}
 
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledger ID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledger ID")
 	}
 
 	if input == nil {
-		return nil, errors.NewMissingParameterError(operation, "input")
+		return nil, sdkerrors.NewMissingParameterError(operation, "input")
 	}
 
 	if err := input.Validate(); err != nil {
-		return nil, errors.NewValidationError(operation, "invalid input", err)
+		return nil, sdkerrors.NewValidationError(operation, "invalid input", err)
 	}
 
 	url := e.buildURL(orgID, ledgerID, "/inflow")
 
 	body, err := json.Marshal(input)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -726,31 +727,31 @@ func (e *transactionsEntity) CreateOutflowTransaction(ctx context.Context, orgID
 	const operation = "CreateOutflowTransaction"
 
 	if orgID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organization ID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organization ID")
 	}
 
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledger ID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledger ID")
 	}
 
 	if input == nil {
-		return nil, errors.NewMissingParameterError(operation, "input")
+		return nil, sdkerrors.NewMissingParameterError(operation, "input")
 	}
 
 	if err := input.Validate(); err != nil {
-		return nil, errors.NewValidationError(operation, "invalid input", err)
+		return nil, sdkerrors.NewValidationError(operation, "invalid input", err)
 	}
 
 	url := e.buildURL(orgID, ledgerID, "/outflow")
 
 	body, err := json.Marshal(input)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -768,31 +769,31 @@ func (e *transactionsEntity) CreateAnnotationTransaction(ctx context.Context, or
 	const operation = "CreateAnnotationTransaction"
 
 	if orgID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organization ID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organization ID")
 	}
 
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledger ID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledger ID")
 	}
 
 	if input == nil {
-		return nil, errors.NewMissingParameterError(operation, "input")
+		return nil, sdkerrors.NewMissingParameterError(operation, "input")
 	}
 
 	if err := input.Validate(); err != nil {
-		return nil, errors.NewValidationError(operation, "invalid input", err)
+		return nil, sdkerrors.NewValidationError(operation, "invalid input", err)
 	}
 
 	url := e.buildURL(orgID, ledgerID, "/annotation")
 
 	body, err := json.Marshal(input)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")

@@ -2,7 +2,7 @@
 package models
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
@@ -44,7 +44,7 @@ func (input *CreateLedgerInput) WithMetadata(metadata map[string]any) *CreateLed
 // Validate validates the CreateLedgerInput fields.
 func (input *CreateLedgerInput) Validate() error {
 	if input.Name == "" {
-		return fmt.Errorf("name is required")
+		return errors.New("name is required")
 	}
 
 	return nil
@@ -76,7 +76,7 @@ func (input *UpdateLedgerInput) WithMetadata(metadata map[string]any) *UpdateLed
 }
 
 // Validate validates the UpdateLedgerInput fields.
-func (input *UpdateLedgerInput) Validate() error {
+func (*UpdateLedgerInput) Validate() error {
 	// For update operations, most fields are optional
 	return nil
 }

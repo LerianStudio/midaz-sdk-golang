@@ -9,6 +9,7 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewAccountTypesEntity(t *testing.T) {
@@ -90,7 +91,7 @@ func TestAccountTypesEntity_ListAccountTypes_ValidationErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := entity.ListAccountTypes(ctx, tt.organizationID, tt.ledgerID, nil)
 
-			assert.Error(t, err)
+			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.expectedError)
 
 			var missingParamErr *errors.Error
@@ -139,7 +140,7 @@ func TestAccountTypesEntity_GetAccountType_ValidationErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := entity.GetAccountType(ctx, tt.organizationID, tt.ledgerID, tt.id)
 
-			assert.Error(t, err)
+			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.expectedError)
 
 			var missingParamErr *errors.Error
@@ -201,7 +202,7 @@ func TestAccountTypesEntity_CreateAccountType_ValidationErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := entity.CreateAccountType(ctx, tt.organizationID, tt.ledgerID, tt.input)
 
-			assert.Error(t, err)
+			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.expectedError)
 		})
 	}
@@ -258,7 +259,7 @@ func TestAccountTypesEntity_UpdateAccountType_ValidationErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := entity.UpdateAccountType(ctx, tt.organizationID, tt.ledgerID, tt.id, tt.input)
 
-			assert.Error(t, err)
+			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.expectedError)
 		})
 	}
@@ -303,7 +304,7 @@ func TestAccountTypesEntity_DeleteAccountType_ValidationErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := entity.DeleteAccountType(ctx, tt.organizationID, tt.ledgerID, tt.id)
 
-			assert.Error(t, err)
+			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.expectedError)
 
 			var missingParamErr *errors.Error

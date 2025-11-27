@@ -45,12 +45,13 @@ func TestWithServiceNameValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			config := DefaultConfig()
+
 			err := WithServiceName(tt.serviceName)(config)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errContains)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, tt.serviceName, config.ServiceName)
 			}
 		})
@@ -80,12 +81,13 @@ func TestWithServiceVersionValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			config := DefaultConfig()
+
 			err := WithServiceVersion(tt.serviceVersion)(config)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errContains)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, tt.serviceVersion, config.ServiceVersion)
 			}
 		})
@@ -115,12 +117,13 @@ func TestWithSDKVersionValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			config := DefaultConfig()
+
 			err := WithSDKVersion(tt.sdkVersion)(config)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errContains)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, tt.sdkVersion, config.SDKVersion)
 			}
 		})
@@ -155,12 +158,13 @@ func TestWithEnvironmentValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			config := DefaultConfig()
+
 			err := WithEnvironment(tt.environment)(config)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errContains)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, tt.environment, config.Environment)
 			}
 		})
@@ -190,12 +194,13 @@ func TestWithCollectorEndpointValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			config := DefaultConfig()
+
 			err := WithCollectorEndpoint(tt.endpoint)(config)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errContains)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, tt.endpoint, config.CollectorEndpoint)
 			}
 		})
@@ -251,12 +256,13 @@ func TestWithLogLevelValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			config := DefaultConfig()
+
 			err := WithLogLevel(tt.level)(config)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errContains)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, tt.level, config.LogLevel)
 			}
 		})
@@ -266,16 +272,17 @@ func TestWithLogLevelValidation(t *testing.T) {
 func TestWithLogOutputValidation(t *testing.T) {
 	t.Run("valid output", func(t *testing.T) {
 		var buf bytes.Buffer
+
 		config := DefaultConfig()
 		err := WithLogOutput(&buf)(config)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, &buf, config.LogOutput)
 	})
 
 	t.Run("nil output", func(t *testing.T) {
 		config := DefaultConfig()
 		err := WithLogOutput(nil)(config)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "log output cannot be nil")
 	})
 }
@@ -319,13 +326,14 @@ func TestWithTraceSampleRateValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			config := DefaultConfig()
+
 			err := WithTraceSampleRate(tt.rate)(config)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errContains)
 			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, tt.rate, config.TraceSampleRate)
+				require.NoError(t, err)
+				assert.InDelta(t, tt.rate, config.TraceSampleRate, 0.001)
 			}
 		})
 	}
@@ -359,12 +367,13 @@ func TestWithPropagatorsValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			config := DefaultConfig()
+
 			err := WithPropagators(tt.propagators...)(config)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errContains)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Len(t, config.Propagators, len(tt.propagators))
 			}
 		})
@@ -399,12 +408,13 @@ func TestWithPropagationHeadersValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			config := DefaultConfig()
+
 			err := WithPropagationHeaders(tt.headers...)(config)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errContains)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, tt.headers, config.PropagationHeaders)
 			}
 		})
@@ -416,14 +426,14 @@ func TestWithRegisterGlobally(t *testing.T) {
 		config := DefaultConfig()
 		config.RegisterGlobally = false
 		err := WithRegisterGlobally(true)(config)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.True(t, config.RegisterGlobally)
 	})
 
 	t.Run("register globally false", func(t *testing.T) {
 		config := DefaultConfig()
 		err := WithRegisterGlobally(false)(config)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.False(t, config.RegisterGlobally)
 	})
 }
@@ -467,7 +477,7 @@ func TestWithComponentEnabled(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			config := DefaultConfig()
 			err := WithComponentEnabled(tt.tracing, tt.metrics, tt.logging)(config)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, tt.expectTracing, config.EnabledComponents.Tracing)
 			assert.Equal(t, tt.expectMetrics, config.EnabledComponents.Metrics)
 			assert.Equal(t, tt.expectLog, config.EnabledComponents.Logging)
@@ -484,7 +494,7 @@ func TestWithAttributes(t *testing.T) {
 	}
 
 	err := WithAttributes(attrs...)(config)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Len(t, config.Attributes, 3)
 }
 
@@ -499,6 +509,7 @@ func TestProviderDisabledComponents(t *testing.T) {
 			WithRegisterGlobally(false),
 		)
 		require.NoError(t, err)
+
 		defer func() { _ = provider.Shutdown(context.Background()) }()
 
 		tracer := provider.Tracer()
@@ -516,6 +527,7 @@ func TestProviderDisabledComponents(t *testing.T) {
 			WithRegisterGlobally(false),
 		)
 		require.NoError(t, err)
+
 		defer func() { _ = provider.Shutdown(context.Background()) }()
 
 		meter := provider.Meter()
@@ -528,6 +540,7 @@ func TestProviderDisabledComponents(t *testing.T) {
 			WithRegisterGlobally(false),
 		)
 		require.NoError(t, err)
+
 		defer func() { _ = provider.Shutdown(context.Background()) }()
 
 		logger := provider.Logger()
@@ -549,12 +562,12 @@ func TestProviderShutdown(t *testing.T) {
 		require.NoError(t, err)
 
 		err = provider.Shutdown(context.Background())
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.False(t, provider.IsEnabled())
 
 		// Second shutdown should be safe
 		err = provider.Shutdown(context.Background())
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("components after shutdown", func(t *testing.T) {
@@ -564,7 +577,7 @@ func TestProviderShutdown(t *testing.T) {
 		require.NoError(t, err)
 
 		err = provider.Shutdown(context.Background())
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// Should return no-op components after shutdown
 		tracer := provider.Tracer()
@@ -585,6 +598,7 @@ func TestProviderWithNonGlobalRegistration(t *testing.T) {
 		WithRegisterGlobally(false),
 	)
 	require.NoError(t, err)
+
 	defer func() { _ = provider.Shutdown(context.Background()) }()
 
 	assert.True(t, provider.IsEnabled())
@@ -607,12 +621,13 @@ func TestProviderWithNonGlobalRegistration(t *testing.T) {
 
 func TestWithSpanNilProvider(t *testing.T) {
 	var executed bool
-	err := WithSpan(context.Background(), nil, "test-span", func(ctx context.Context) error {
+
+	err := WithSpan(context.Background(), nil, "test-span", func(_ context.Context) error {
 		executed = true
 		return nil
 	})
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.True(t, executed)
 }
 
@@ -627,12 +642,13 @@ func TestWithSpanDisabledProvider(t *testing.T) {
 	require.NoError(t, err)
 
 	var executed bool
-	err = WithSpan(context.Background(), provider, "test-span", func(ctx context.Context) error {
+
+	err = WithSpan(context.Background(), provider, "test-span", func(_ context.Context) error {
 		executed = true
 		return nil
 	})
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.True(t, executed)
 }
 
@@ -642,10 +658,11 @@ func TestWithSpanErrorHandling(t *testing.T) {
 		WithRegisterGlobally(false),
 	)
 	require.NoError(t, err)
+
 	defer func() { _ = provider.Shutdown(context.Background()) }()
 
 	expectedErr := errors.New("test error")
-	err = WithSpan(context.Background(), provider, "error-span", func(ctx context.Context) error {
+	err = WithSpan(context.Background(), provider, "error-span", func(_ context.Context) error {
 		return expectedErr
 	})
 
@@ -656,7 +673,7 @@ func TestWithSpanErrorHandling(t *testing.T) {
 // RecordMetric and RecordDuration Tests
 // =============================================================================
 
-func TestRecordMetricNilProvider(t *testing.T) {
+func TestRecordMetricNilProvider(_ *testing.T) {
 	// Should not panic
 	RecordMetric(context.Background(), nil, "test.metric", 1.0)
 }
@@ -674,7 +691,7 @@ func TestRecordMetricDisabledProvider(t *testing.T) {
 	RecordMetric(context.Background(), provider, "test.metric", 1.0)
 }
 
-func TestRecordDurationNilProvider(t *testing.T) {
+func TestRecordDurationNilProvider(_ *testing.T) {
 	// Should not panic
 	RecordDuration(context.Background(), nil, "test.duration", time.Now())
 }
@@ -712,6 +729,7 @@ func TestWithProviderAndGetProvider(t *testing.T) {
 		WithRegisterGlobally(false),
 	)
 	require.NoError(t, err)
+
 	defer func() { _ = provider.Shutdown(context.Background()) }()
 
 	ctx := WithProvider(context.Background(), provider)
@@ -727,14 +745,14 @@ func TestWithSpanAttributesNoRecording(t *testing.T) {
 	assert.NotNil(t, resultCtx)
 }
 
-func TestAddSpanAttributesNoRecording(t *testing.T) {
+func TestAddSpanAttributesNoRecording(_ *testing.T) {
 	// Use a context without a recording span
 	ctx := context.Background()
 	// Should not panic
 	AddSpanAttributes(ctx, attribute.String("key", "value"))
 }
 
-func TestAddSpanEventNoRecording(t *testing.T) {
+func TestAddSpanEventNoRecording(_ *testing.T) {
 	// Use a context without a recording span
 	ctx := context.Background()
 	// Should not panic
@@ -778,6 +796,7 @@ func TestStartWithProvider(t *testing.T) {
 		WithRegisterGlobally(false),
 	)
 	require.NoError(t, err)
+
 	defer func() { _ = provider.Shutdown(context.Background()) }()
 
 	ctx := WithProvider(context.Background(), provider)
@@ -799,12 +818,14 @@ func TestStartWithoutProvider(t *testing.T) {
 
 func TestLogWithProvider(t *testing.T) {
 	var buf bytes.Buffer
+
 	provider, err := New(context.Background(),
 		WithComponentEnabled(true, false, true),
 		WithLogOutput(&buf),
 		WithRegisterGlobally(false),
 	)
 	require.NoError(t, err)
+
 	defer func() { _ = provider.Shutdown(context.Background()) }()
 
 	ctx := WithProvider(context.Background(), provider)
@@ -830,6 +851,7 @@ func TestTraceIDWithValidSpan(t *testing.T) {
 		WithRegisterGlobally(false),
 	)
 	require.NoError(t, err)
+
 	defer func() { _ = provider.Shutdown(context.Background()) }()
 
 	ctx, span := provider.Tracer().Start(context.Background(), "test-span")
@@ -853,6 +875,7 @@ func TestSpanIDWithValidSpan(t *testing.T) {
 		WithRegisterGlobally(false),
 	)
 	require.NoError(t, err)
+
 	defer func() { _ = provider.Shutdown(context.Background()) }()
 
 	ctx, span := provider.Tracer().Start(context.Background(), "test-span")
@@ -880,6 +903,7 @@ func TestAddAttributeTypes(t *testing.T) {
 		WithRegisterGlobally(false),
 	)
 	require.NoError(t, err)
+
 	defer func() { _ = provider.Shutdown(context.Background()) }()
 
 	ctx, span := provider.Tracer().Start(context.Background(), "test-span")
@@ -894,19 +918,19 @@ func TestAddAttributeTypes(t *testing.T) {
 	AddAttribute(ctx, "other-key", struct{ Name string }{"test"})
 }
 
-func TestAddAttributeNonRecordingSpan(t *testing.T) {
+func TestAddAttributeNonRecordingSpan(_ *testing.T) {
 	ctx := context.Background()
 	// Should not panic
 	AddAttribute(ctx, "key", "value")
 }
 
-func TestRecordErrorNilError(t *testing.T) {
+func TestRecordErrorNilError(_ *testing.T) {
 	ctx := context.Background()
 	// Should not panic
 	RecordError(ctx, nil, "event-name")
 }
 
-func TestRecordErrorNonRecordingSpan(t *testing.T) {
+func TestRecordErrorNonRecordingSpan(_ *testing.T) {
 	ctx := context.Background()
 	err := errors.New("test error")
 	// Should not panic
@@ -920,6 +944,7 @@ func TestRecordErrorWithAttrs(t *testing.T) {
 		WithRegisterGlobally(false),
 	)
 	require.NoError(t, err)
+
 	defer func() { _ = provider.Shutdown(context.Background()) }()
 
 	ctx, span := provider.Tracer().Start(context.Background(), "test-span")
@@ -940,6 +965,7 @@ func TestAddEventWithAttrs(t *testing.T) {
 		WithRegisterGlobally(false),
 	)
 	require.NoError(t, err)
+
 	defer func() { _ = provider.Shutdown(context.Background()) }()
 
 	ctx, span := provider.Tracer().Start(context.Background(), "test-span")
@@ -952,7 +978,7 @@ func TestAddEventWithAttrs(t *testing.T) {
 	AddEvent(ctx, "test-event", attrs)
 }
 
-func TestAddEventNonRecordingSpan(t *testing.T) {
+func TestAddEventNonRecordingSpan(_ *testing.T) {
 	ctx := context.Background()
 	attrs := map[string]string{"key": "value"}
 	// Should not panic
@@ -966,6 +992,7 @@ func TestRecordSpanMetric(t *testing.T) {
 		WithRegisterGlobally(false),
 	)
 	require.NoError(t, err)
+
 	defer func() { _ = provider.Shutdown(context.Background()) }()
 
 	ctx, span := provider.Tracer().Start(context.Background(), "test-span")
@@ -975,7 +1002,7 @@ func TestRecordSpanMetric(t *testing.T) {
 	RecordSpanMetric(ctx, "test.metric", 1.0)
 }
 
-func TestRecordSpanMetricNoSpan(t *testing.T) {
+func TestRecordSpanMetricNoSpan(_ *testing.T) {
 	ctx := context.Background()
 	// Should not panic
 	RecordSpanMetric(ctx, "test.metric", 1.0)
@@ -1014,6 +1041,7 @@ func TestLogLevelString(t *testing.T) {
 
 func TestLoggerAllLevels(t *testing.T) {
 	var buf bytes.Buffer
+
 	logger := NewLogger(DebugLevel, &buf, nil)
 
 	logger.Debug("debug message")
@@ -1038,6 +1066,7 @@ func TestLoggerAllLevels(t *testing.T) {
 
 func TestLoggerLevelFiltering(t *testing.T) {
 	var buf bytes.Buffer
+
 	logger := NewLogger(WarnLevel, &buf, nil)
 
 	logger.Debug("debug message")
@@ -1054,6 +1083,7 @@ func TestLoggerLevelFiltering(t *testing.T) {
 
 func TestLoggerWithFields(t *testing.T) {
 	var buf bytes.Buffer
+
 	logger := NewLogger(DebugLevel, &buf, nil)
 
 	fieldsLogger := logger.With(map[string]any{
@@ -1072,6 +1102,7 @@ func TestLoggerWithFields(t *testing.T) {
 
 func TestLoggerReservedFieldsProtection(t *testing.T) {
 	var buf bytes.Buffer
+
 	logger := NewLogger(DebugLevel, &buf, nil)
 
 	// Try to overwrite reserved fields
@@ -1098,6 +1129,7 @@ func TestLoggerReservedFieldsProtection(t *testing.T) {
 
 func TestLoggerWithContext(t *testing.T) {
 	var buf bytes.Buffer
+
 	logger := NewLogger(DebugLevel, &buf, nil).(*LoggerImpl)
 
 	// Create a valid span context for testing
@@ -1107,6 +1139,7 @@ func TestLoggerWithContext(t *testing.T) {
 		WithRegisterGlobally(false),
 	)
 	require.NoError(t, err)
+
 	defer func() { _ = provider.Shutdown(context.Background()) }()
 
 	_, span := provider.Tracer().Start(context.Background(), "test")
@@ -1123,6 +1156,7 @@ func TestLoggerWithContext(t *testing.T) {
 
 func TestLoggerWithContextInvalid(t *testing.T) {
 	var buf bytes.Buffer
+
 	logger := NewLogger(DebugLevel, &buf, nil).(*LoggerImpl)
 
 	// Use invalid span context
@@ -1134,6 +1168,7 @@ func TestLoggerWithContextInvalid(t *testing.T) {
 
 func TestLoggerWithSpan(t *testing.T) {
 	var buf bytes.Buffer
+
 	logger := NewLogger(DebugLevel, &buf, nil).(*LoggerImpl)
 
 	provider, err := New(context.Background(),
@@ -1142,6 +1177,7 @@ func TestLoggerWithSpan(t *testing.T) {
 		WithRegisterGlobally(false),
 	)
 	require.NoError(t, err)
+
 	defer func() { _ = provider.Shutdown(context.Background()) }()
 
 	_, span := provider.Tracer().Start(context.Background(), "test")
@@ -1157,6 +1193,7 @@ func TestLoggerWithSpan(t *testing.T) {
 
 func TestLoggerWithSpanNil(t *testing.T) {
 	var buf bytes.Buffer
+
 	logger := NewLogger(DebugLevel, &buf, nil).(*LoggerImpl)
 
 	spanLogger := logger.WithSpan(nil)
@@ -1167,6 +1204,7 @@ func TestLoggerWithSpanNil(t *testing.T) {
 
 func TestLoggerFatal(t *testing.T) {
 	var buf bytes.Buffer
+
 	logger := NewLogger(DebugLevel, &buf, nil).(*LoggerImpl)
 
 	// With nil exit function (default for library code), Fatal just logs without terminating
@@ -1184,6 +1222,7 @@ func TestLoggerFatal(t *testing.T) {
 
 func TestLoggerFatalf(t *testing.T) {
 	var buf bytes.Buffer
+
 	logger := NewLogger(DebugLevel, &buf, nil).(*LoggerImpl)
 
 	// With nil exit function (default for library code), Fatal just logs without terminating
@@ -1201,10 +1240,14 @@ func TestLoggerFatalf(t *testing.T) {
 
 func TestLoggerFatalWithCustomExit(t *testing.T) {
 	var buf bytes.Buffer
+
 	logger := NewLogger(DebugLevel, &buf, nil).(*LoggerImpl)
 
-	var exitCalled bool
-	var exitCode int
+	var (
+		exitCalled bool
+		exitCode   int
+	)
+
 	logger.SetExitFunc(func(code int) {
 		exitCalled = true
 		exitCode = code
@@ -1280,6 +1323,7 @@ func TestMetricsCollectorRecordRequestError(t *testing.T) {
 		WithRegisterGlobally(false),
 	)
 	require.NoError(t, err)
+
 	defer func() { _ = provider.Shutdown(context.Background()) }()
 
 	collector, err := NewMetricsCollector(provider)
@@ -1297,6 +1341,7 @@ func TestMetricsCollectorWithAdditionalAttrs(t *testing.T) {
 		WithRegisterGlobally(false),
 	)
 	require.NoError(t, err)
+
 	defer func() { _ = provider.Shutdown(context.Background()) }()
 
 	collector, err := NewMetricsCollector(provider)
@@ -1321,6 +1366,7 @@ func TestTimerWithAdditionalAttrs(t *testing.T) {
 		WithRegisterGlobally(false),
 	)
 	require.NoError(t, err)
+
 	defer func() { _ = provider.Shutdown(context.Background()) }()
 
 	collector, err := NewMetricsCollector(provider)
@@ -1345,33 +1391,34 @@ func TestHTTPMiddlewareOptions(t *testing.T) {
 		WithRegisterGlobally(false),
 	)
 	require.NoError(t, err)
+
 	defer func() { _ = provider.Shutdown(context.Background()) }()
 
 	t.Run("WithIgnoreHeaders empty", func(t *testing.T) {
 		m := &httpMiddleware{}
 		err := WithIgnoreHeaders()(m)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "at least one header must be provided")
 	})
 
 	t.Run("WithIgnorePaths empty", func(t *testing.T) {
 		m := &httpMiddleware{}
 		err := WithIgnorePaths()(m)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "at least one path must be provided")
 	})
 
 	t.Run("WithMaskedParams empty", func(t *testing.T) {
 		m := &httpMiddleware{}
 		err := WithMaskedParams()(m)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "at least one parameter must be provided")
 	})
 
 	t.Run("WithDefaultSensitiveHeaders", func(t *testing.T) {
 		m := &httpMiddleware{}
 		err := WithDefaultSensitiveHeaders()(m)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Contains(t, m.ignoreHeaders, "authorization")
 		assert.Contains(t, m.ignoreHeaders, "cookie")
 	})
@@ -1379,7 +1426,7 @@ func TestHTTPMiddlewareOptions(t *testing.T) {
 	t.Run("WithDefaultSensitiveParams", func(t *testing.T) {
 		m := &httpMiddleware{}
 		err := WithDefaultSensitiveParams()(m)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Contains(t, m.maskedParams, "access_token")
 		assert.Contains(t, m.maskedParams, "password")
 	})
@@ -1387,7 +1434,7 @@ func TestHTTPMiddlewareOptions(t *testing.T) {
 	t.Run("WithHideRequestBody", func(t *testing.T) {
 		m := &httpMiddleware{}
 		err := WithHideRequestBody(true)(m)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.True(t, m.hideBody)
 	})
 }
@@ -1398,9 +1445,10 @@ func TestHTTPMiddlewareIgnoredPath(t *testing.T) {
 		WithRegisterGlobally(false),
 	)
 	require.NoError(t, err)
+
 	defer func() { _ = provider.Shutdown(context.Background()) }()
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
@@ -1415,6 +1463,7 @@ func TestHTTPMiddlewareIgnoredPath(t *testing.T) {
 	// Request to ignored path
 	resp, err := client.Get(server.URL + "/health")
 	require.NoError(t, err)
+
 	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
@@ -1430,7 +1479,7 @@ func TestHTTPMiddlewareDisabledProvider(t *testing.T) {
 	err = provider.Shutdown(context.Background())
 	require.NoError(t, err)
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
@@ -1441,6 +1490,7 @@ func TestHTTPMiddlewareDisabledProvider(t *testing.T) {
 
 	resp, err := client.Get(server.URL)
 	require.NoError(t, err)
+
 	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
@@ -1452,9 +1502,10 @@ func TestHTTPMiddlewareErrorResponse(t *testing.T) {
 		WithRegisterGlobally(false),
 	)
 	require.NoError(t, err)
+
 	defer func() { _ = provider.Shutdown(context.Background()) }()
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
 	defer server.Close()
@@ -1465,6 +1516,7 @@ func TestHTTPMiddlewareErrorResponse(t *testing.T) {
 
 	resp, err := client.Get(server.URL)
 	require.NoError(t, err)
+
 	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
@@ -1476,10 +1528,11 @@ func TestHTTPMiddlewareRequestError(t *testing.T) {
 		WithRegisterGlobally(false),
 	)
 	require.NoError(t, err)
+
 	defer func() { _ = provider.Shutdown(context.Background()) }()
 
 	// Create a server that we immediately close to simulate connection refused
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	serverURL := server.URL
@@ -1495,7 +1548,8 @@ func TestHTTPMiddlewareRequestError(t *testing.T) {
 	if resp != nil && resp.Body != nil {
 		_ = resp.Body.Close()
 	}
-	assert.Error(t, err)
+
+	require.Error(t, err)
 }
 
 func TestHTTPMiddlewareHeaderFiltering(t *testing.T) {
@@ -1504,9 +1558,10 @@ func TestHTTPMiddlewareHeaderFiltering(t *testing.T) {
 		WithRegisterGlobally(false),
 	)
 	require.NoError(t, err)
+
 	defer func() { _ = provider.Shutdown(context.Background()) }()
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("X-Custom-Header", "custom-value")
 		w.Header().Set("Authorization", "secret")
 		w.WriteHeader(http.StatusOK)
@@ -1520,13 +1575,14 @@ func TestHTTPMiddlewareHeaderFiltering(t *testing.T) {
 		)(http.DefaultTransport),
 	}
 
-	req, err := http.NewRequest("GET", server.URL, nil)
+	req, err := http.NewRequest(http.MethodGet, server.URL, nil)
 	require.NoError(t, err)
 	req.Header.Set("Authorization", "Bearer token")
 	req.Header.Set("X-Request-Header", "request-value")
 
 	resp, err := client.Do(req)
 	require.NoError(t, err)
+
 	defer resp.Body.Close()
 
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
@@ -1582,6 +1638,7 @@ func TestTLSCipherSuiteString(t *testing.T) {
 
 func TestNewWithConfigAllFields(t *testing.T) {
 	var buf bytes.Buffer
+
 	config := &Config{
 		ServiceName:       "test-service",
 		ServiceVersion:    "1.0.0",
@@ -1608,6 +1665,7 @@ func TestNewWithConfigAllFields(t *testing.T) {
 
 	provider, err := NewWithConfig(context.Background(), config)
 	require.NoError(t, err)
+
 	defer func() { _ = provider.Shutdown(context.Background()) }()
 
 	assert.True(t, provider.IsEnabled())
@@ -1625,7 +1683,7 @@ func TestDefaultConfigValues(t *testing.T) {
 	assert.NotEmpty(t, config.SDKVersion)
 	assert.Equal(t, "production", config.Environment)
 	assert.Equal(t, InfoLevel, config.LogLevel)
-	assert.Equal(t, 0.1, config.TraceSampleRate)
+	assert.InDelta(t, 0.1, config.TraceSampleRate, 0.001)
 	assert.True(t, config.EnabledComponents.Tracing)
 	assert.True(t, config.EnabledComponents.Metrics)
 	assert.True(t, config.EnabledComponents.Logging)
@@ -1639,12 +1697,12 @@ func TestDefaultConfigValues(t *testing.T) {
 
 func TestProviderWithInvalidOption(t *testing.T) {
 	// Create an option that returns an error
-	badOption := func(c *Config) error {
-		return fmt.Errorf("intentional error")
+	badOption := func(_ *Config) error {
+		return errors.New("intentional error")
 	}
 
 	_, err := New(context.Background(), badOption)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to apply option")
 }
 
@@ -1666,7 +1724,7 @@ func TestHTTPMiddlewareMergeIgnoreHeaders(t *testing.T) {
 	}
 
 	err := WithIgnoreHeaders("cookie", "x-api-key")(m)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Should have all headers
 	assert.True(t, m.isIgnoredHeader("authorization"))
@@ -1681,6 +1739,7 @@ func TestContextPropagationFunctions(t *testing.T) {
 		WithRegisterGlobally(false),
 	)
 	require.NoError(t, err)
+
 	defer func() { _ = provider.Shutdown(context.Background()) }()
 
 	ctx, span := provider.Tracer().Start(context.Background(), "test-span")
@@ -1700,18 +1759,19 @@ func TestContextPropagationFunctions(t *testing.T) {
 
 func TestRoundTripperFuncInterface(t *testing.T) {
 	called := false
-	rtf := roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+	rtf := roundTripperFunc(func(_ *http.Request) (*http.Response, error) {
 		called = true
-		return &http.Response{StatusCode: 200, Body: http.NoBody}, nil
+		return &http.Response{StatusCode: http.StatusOK, Body: http.NoBody}, nil
 	})
 
-	req, _ := http.NewRequest("GET", "http://example.com", nil)
+	req, _ := http.NewRequest(http.MethodGet, "http://example.com", nil)
+
 	resp, err := rtf.RoundTrip(req)
 	if resp != nil && resp.Body != nil {
 		defer func() { _ = resp.Body.Close() }()
 	}
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.True(t, called)
 	assert.Equal(t, 200, resp.StatusCode)
 }
@@ -1789,16 +1849,19 @@ func TestHTTPClientWithObservability(t *testing.T) {
 		WithRegisterGlobally(false),
 	)
 	require.NoError(t, err)
+
 	defer func() { _ = provider.Shutdown(context.Background()) }()
 
 	// Create test server
 	requestCount := 0
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requestCount++
 		// Verify trace context is propagated
 		if r.Header.Get("Traceparent") == "" {
 			// May or may not have traceparent depending on sampling
 		}
+
 		w.WriteHeader(http.StatusOK)
 		_, _ = fmt.Fprintln(w, "OK")
 	}))
@@ -1834,7 +1897,7 @@ func TestStartSpanWithNilDefaultProvider(t *testing.T) {
 }
 
 // Test that handles logger write errors gracefully
-func TestLoggerWriteError(t *testing.T) {
+func TestLoggerWriteError(_ *testing.T) {
 	// Create a writer that always fails
 	failWriter := &failingWriter{}
 
@@ -1845,13 +1908,14 @@ func TestLoggerWriteError(t *testing.T) {
 
 type failingWriter struct{}
 
-func (f *failingWriter) Write(p []byte) (n int, err error) {
+func (*failingWriter) Write(_ []byte) (n int, err error) {
 	return 0, errors.New("write failed")
 }
 
 // Test logger JSON marshal error handling (difficult to trigger normally)
 func TestLoggerWithNilFields(t *testing.T) {
 	var buf bytes.Buffer
+
 	logger := NewLogger(DebugLevel, &buf, nil).(*LoggerImpl)
 
 	// Ensure nil fields map doesn't cause issues
@@ -1866,9 +1930,10 @@ func TestHTTPMiddlewareWithOptions(t *testing.T) {
 		WithRegisterGlobally(false),
 	)
 	require.NoError(t, err)
+
 	defer func() { _ = provider.Shutdown(context.Background()) }()
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
@@ -1895,9 +1960,10 @@ func TestHTTPMiddlewareIgnorePathPrefix(t *testing.T) {
 		WithRegisterGlobally(false),
 	)
 	require.NoError(t, err)
+
 	defer func() { _ = provider.Shutdown(context.Background()) }()
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
@@ -1923,6 +1989,7 @@ func TestProviderTracerAndMeterWhenEnabled(t *testing.T) {
 		WithRegisterGlobally(false),
 	)
 	require.NoError(t, err)
+
 	defer func() { _ = provider.Shutdown(context.Background()) }()
 
 	// Get tracer
@@ -1932,6 +1999,7 @@ func TestProviderTracerAndMeterWhenEnabled(t *testing.T) {
 	// Create a span
 	ctx, span := tracer.Start(context.Background(), "test")
 	span.End()
+
 	_ = ctx
 
 	// Get meter
@@ -1945,6 +2013,7 @@ func TestHTTPMiddleware4xxStatusCode(t *testing.T) {
 		WithRegisterGlobally(false),
 	)
 	require.NoError(t, err)
+
 	defer func() { _ = provider.Shutdown(context.Background()) }()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1952,10 +2021,12 @@ func TestHTTPMiddleware4xxStatusCode(t *testing.T) {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
+
 		if strings.Contains(r.URL.Path, "badrequest") {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
+
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
@@ -1981,7 +2052,7 @@ func TestHTTPMiddleware4xxStatusCode(t *testing.T) {
 // Additional Coverage Tests
 // =============================================================================
 
-func TestNoopLoggerAllMethods(t *testing.T) {
+func TestNoopLoggerAllMethods(_ *testing.T) {
 	logger := NewNoopLogger()
 
 	// Test all noop methods explicitly
@@ -1999,20 +2070,20 @@ func TestWithDevelopmentDefaultsErrors(t *testing.T) {
 	// Test that development defaults apply correctly
 	config := DefaultConfig()
 	err := WithDevelopmentDefaults()(config)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "development", config.Environment)
 	assert.Equal(t, DebugLevel, config.LogLevel)
-	assert.Equal(t, 0.5, config.TraceSampleRate)
+	assert.InDelta(t, 0.5, config.TraceSampleRate, 0.001)
 }
 
 func TestWithProductionDefaultsErrors(t *testing.T) {
 	// Test that production defaults apply correctly
 	config := DefaultConfig()
 	err := WithProductionDefaults()(config)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "production", config.Environment)
 	assert.Equal(t, InfoLevel, config.LogLevel)
-	assert.Equal(t, 0.1, config.TraceSampleRate)
+	assert.InDelta(t, 0.1, config.TraceSampleRate, 0.001)
 }
 
 func TestMeterProviderNilCase(t *testing.T) {
@@ -2022,6 +2093,7 @@ func TestMeterProviderNilCase(t *testing.T) {
 		WithRegisterGlobally(false),
 	)
 	require.NoError(t, err)
+
 	defer func() { _ = provider.Shutdown(context.Background()) }()
 
 	// Meter should return a valid meter even if meter provider is not initialized
@@ -2036,6 +2108,7 @@ func TestRecordMetricWithError(t *testing.T) {
 		WithRegisterGlobally(false),
 	)
 	require.NoError(t, err)
+
 	defer func() { _ = provider.Shutdown(context.Background()) }()
 
 	ctx := context.Background()
@@ -2052,6 +2125,7 @@ func TestRecordDurationWithError(t *testing.T) {
 		WithRegisterGlobally(false),
 	)
 	require.NoError(t, err)
+
 	defer func() { _ = provider.Shutdown(context.Background()) }()
 
 	ctx := context.Background()
@@ -2071,11 +2145,12 @@ func TestShutdownWithErrors(t *testing.T) {
 
 	// First shutdown should work
 	err = provider.Shutdown(context.Background())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestLoggerWithSampledContext(t *testing.T) {
 	var buf bytes.Buffer
+
 	logger := NewLogger(DebugLevel, &buf, nil).(*LoggerImpl)
 
 	provider, err := New(context.Background(),
@@ -2084,6 +2159,7 @@ func TestLoggerWithSampledContext(t *testing.T) {
 		WithRegisterGlobally(false),
 	)
 	require.NoError(t, err)
+
 	defer func() { _ = provider.Shutdown(context.Background()) }()
 
 	_, span := provider.Tracer().Start(context.Background(), "test")
@@ -2101,7 +2177,7 @@ func TestLoggerWithSampledContext(t *testing.T) {
 	}
 }
 
-func TestRecordSpanMetricWithoutDefaultProvider(t *testing.T) {
+func TestRecordSpanMetricWithoutDefaultProvider(_ *testing.T) {
 	ctx := context.Background()
 	// Should not panic when defaultProvider might be nil or disabled
 	RecordSpanMetric(ctx, "test.metric", 1.0)
@@ -2113,9 +2189,10 @@ func TestHTTPMiddlewareMetricsRecording(t *testing.T) {
 		WithRegisterGlobally(false),
 	)
 	require.NoError(t, err)
+
 	defer func() { _ = provider.Shutdown(context.Background()) }()
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
@@ -2148,6 +2225,7 @@ func TestMetricsCollectorEnabledProvider(t *testing.T) {
 		WithRegisterGlobally(false),
 	)
 	require.NoError(t, err)
+
 	defer func() { _ = provider.Shutdown(context.Background()) }()
 
 	collector, err := NewMetricsCollector(provider)
@@ -2169,6 +2247,7 @@ func TestHTTPMiddlewareWithNilResponse(t *testing.T) {
 		WithRegisterGlobally(false),
 	)
 	require.NoError(t, err)
+
 	defer func() { _ = provider.Shutdown(context.Background()) }()
 
 	// Create a test middleware instance directly
@@ -2180,7 +2259,7 @@ func TestHTTPMiddlewareWithNilResponse(t *testing.T) {
 
 	// Test recordRequestMetrics with nil response
 	ctx := context.Background()
-	req, _ := http.NewRequest("GET", "http://example.com/test", nil)
+	req, _ := http.NewRequest(http.MethodGet, "http://example.com/test", nil)
 	m.recordRequestMetrics(ctx, req, nil, errors.New("connection refused"), 100*time.Millisecond)
 }
 

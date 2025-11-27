@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewCreateLedgerInput(t *testing.T) {
@@ -102,12 +103,13 @@ func TestCreateLedgerInput_Validate(t *testing.T) {
 			err := tt.input.Validate()
 
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				if tt.errContains != "" {
 					assert.Contains(t, err.Error(), tt.errContains)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -161,7 +163,7 @@ func TestCreateLedgerInput_WithStatus(t *testing.T) {
 			assert.Equal(t, tt.wantCode, result.Status.Code)
 
 			if tt.wantNilErr {
-				assert.NoError(t, result.Validate())
+				require.NoError(t, result.Validate())
 			}
 		})
 	}
@@ -239,7 +241,7 @@ func TestCreateLedgerInput_Chaining(t *testing.T) {
 		assert.Equal(t, "Chained Ledger", input.Name)
 		assert.Equal(t, "ACTIVE", input.Status.Code)
 		assert.Equal(t, metadata, input.Metadata)
-		assert.NoError(t, input.Validate())
+		require.NoError(t, input.Validate())
 	})
 
 	t.Run("chaining order does not matter", func(t *testing.T) {
@@ -328,9 +330,9 @@ func TestUpdateLedgerInput_Validate(t *testing.T) {
 			err := tt.input.Validate()
 
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -556,7 +558,7 @@ func TestLedgerMetadataHandling(t *testing.T) {
 		input := NewCreateLedgerInput("Metadata Test").WithMetadata(metadata)
 
 		assert.Equal(t, metadata, input.Metadata)
-		assert.NoError(t, input.Validate())
+		require.NoError(t, input.Validate())
 	})
 
 	t.Run("update input accepts various metadata types", func(t *testing.T) {
@@ -569,7 +571,7 @@ func TestLedgerMetadataHandling(t *testing.T) {
 		input := NewUpdateLedgerInput().WithMetadata(metadata)
 
 		assert.Equal(t, metadata, input.Metadata)
-		assert.NoError(t, input.Validate())
+		require.NoError(t, input.Validate())
 	})
 
 	t.Run("metadata can be overwritten", func(t *testing.T) {
@@ -597,7 +599,7 @@ func TestLedgerEdgeCases(t *testing.T) {
 	t.Run("CreateLedgerInput with whitespace-only name fails validation", func(t *testing.T) {
 		input := NewCreateLedgerInput("   ")
 		err := input.Validate()
-		assert.NoError(t, err, "whitespace-only name currently passes validation")
+		require.NoError(t, err, "whitespace-only name currently passes validation")
 	})
 
 	t.Run("CreateLedgerInput pointer is same through chain", func(t *testing.T) {
@@ -627,15 +629,15 @@ func TestLedgerEdgeCases(t *testing.T) {
 		}
 
 		input := NewCreateLedgerInput(longName)
-		assert.Equal(t, 1000, len(input.Name))
-		assert.NoError(t, input.Validate())
+		assert.Len(t, input.Name, 1000)
+		require.NoError(t, input.Validate())
 	})
 
 	t.Run("special unicode characters in name", func(t *testing.T) {
 		unicodeName := "Ledger Conta Principal"
 		input := NewCreateLedgerInput(unicodeName)
 		assert.Equal(t, unicodeName, input.Name)
-		assert.NoError(t, input.Validate())
+		require.NoError(t, input.Validate())
 	})
 
 	t.Run("empty metadata map vs nil metadata", func(t *testing.T) {
@@ -661,7 +663,7 @@ func TestLedgerEdgeCases(t *testing.T) {
 			WithStatus(Status{}).
 			WithMetadata(nil)
 
-		assert.NoError(t, input.Validate())
+		require.NoError(t, input.Validate())
 	})
 }
 

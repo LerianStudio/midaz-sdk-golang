@@ -69,7 +69,7 @@ func createTestSegmentListJSON(segments []string, total, limit, offset int) stri
 
 // itoa is a simple int to string converter for test JSON building
 func itoa(i int) string {
-	return strings.TrimSpace(strings.Replace(string(rune(i+'0')), "\x00", "", -1))
+	return strings.TrimSpace(strings.ReplaceAll(string(rune(i+'0')), "\x00", ""))
 }
 
 func TestNewSegmentsEntity(t *testing.T) {
@@ -351,9 +351,11 @@ func TestSegmentsEntity_ListSegments(t *testing.T) {
 
 			if tt.expectedError {
 				require.Error(t, err)
+
 				if tt.errorContains != "" {
 					assert.Contains(t, err.Error(), tt.errorContains)
 				}
+
 				return
 			}
 
@@ -370,6 +372,7 @@ func TestSegmentsEntity_ListSegments_QueryParams(t *testing.T) {
 	mockClient := &MockHTTPClient{
 		DoFunc: func(req *http.Request) (*http.Response, error) {
 			capturedURL = req.URL.String()
+
 			return &http.Response{
 				StatusCode: http.StatusOK,
 				Body: io.NopCloser(strings.NewReader(`{
@@ -545,9 +548,11 @@ func TestSegmentsEntity_GetSegment(t *testing.T) {
 
 			if tt.expectedError {
 				require.Error(t, err)
+
 				if tt.errorContains != "" {
 					assert.Contains(t, err.Error(), tt.errorContains)
 				}
+
 				return
 			}
 
@@ -705,7 +710,9 @@ func TestSegmentsEntity_CreateSegment(t *testing.T) {
 					if tt.input != nil {
 						body, err := io.ReadAll(req.Body)
 						require.NoError(t, err)
+
 						var inputData map[string]interface{}
+
 						err = json.Unmarshal(body, &inputData)
 						require.NoError(t, err)
 					}
@@ -731,9 +738,11 @@ func TestSegmentsEntity_CreateSegment(t *testing.T) {
 
 			if tt.expectedError {
 				require.Error(t, err)
+
 				if tt.errorContains != "" {
 					assert.Contains(t, err.Error(), tt.errorContains)
 				}
+
 				return
 			}
 
@@ -949,9 +958,11 @@ func TestSegmentsEntity_UpdateSegment(t *testing.T) {
 
 			if tt.expectedError {
 				require.Error(t, err)
+
 				if tt.errorContains != "" {
 					assert.Contains(t, err.Error(), tt.errorContains)
 				}
+
 				return
 			}
 
@@ -1101,9 +1112,11 @@ func TestSegmentsEntity_DeleteSegment(t *testing.T) {
 
 			if tt.expectedError {
 				require.Error(t, err)
+
 				if tt.errorContains != "" {
 					assert.Contains(t, err.Error(), tt.errorContains)
 				}
+
 				return
 			}
 
@@ -1208,9 +1221,11 @@ func TestSegmentsEntity_GetSegmentsMetricsCount(t *testing.T) {
 
 			if tt.expectedError {
 				require.Error(t, err)
+
 				if tt.errorContains != "" {
 					assert.Contains(t, err.Error(), tt.errorContains)
 				}
+
 				return
 			}
 
@@ -1223,7 +1238,7 @@ func TestSegmentsEntity_GetSegmentsMetricsCount(t *testing.T) {
 func TestSegmentsEntity_ValidationEdgeCases(t *testing.T) {
 	entity := &segmentsEntity{
 		HTTPClient: newMockSegmentsHTTPClientAdapter(&MockHTTPClient{
-			DoFunc: func(req *http.Request) (*http.Response, error) {
+			DoFunc: func(_ *http.Request) (*http.Response, error) {
 				return &http.Response{
 					StatusCode: http.StatusOK,
 					Body:       io.NopCloser(strings.NewReader(`{}`)),
@@ -1435,10 +1450,12 @@ func TestSegmentsEntity_IntegrationWithHTTPTestServer(t *testing.T) {
 
 			// Read and validate request body
 			body, err := io.ReadAll(r.Body)
-			require.NoError(t, err)
+			assert.NoError(t, err)
+
 			var input map[string]interface{}
+
 			err = json.Unmarshal(body, &input)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			assert.Equal(t, "New Segment", input["name"])
 
 			w.Header().Set("Content-Type", "application/json")
@@ -1522,7 +1539,7 @@ func TestSegmentsEntity_IntegrationWithHTTPTestServer(t *testing.T) {
 
 		for _, statusCode := range errorCodes {
 			t.Run(http.StatusText(statusCode), func(t *testing.T) {
-				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					w.Header().Set("Content-Type", "application/json")
 					w.WriteHeader(statusCode)
 					_, _ = w.Write([]byte(`{"error": "` + http.StatusText(statusCode) + `"}`))
@@ -1541,7 +1558,7 @@ func TestSegmentsEntity_IntegrationWithHTTPTestServer(t *testing.T) {
 }
 
 func TestSegmentsEntity_ContextCancellation(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		time.Sleep(100 * time.Millisecond)
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"id": "seg-1", "name": "Test"}`))
@@ -1588,6 +1605,7 @@ func TestSegmentsEntity_RequestURLConstruction(t *testing.T) {
 
 	// Test ListSegments URL
 	_, _ = entity.ListSegments(ctx, "org-abc", "ledger-xyz", nil)
+
 	require.Len(t, capturedRequests, 1)
 	assert.Equal(t, http.MethodGet, capturedRequests[0].Method)
 	assert.Contains(t, capturedRequests[0].URL, "/organizations/org-abc/ledgers/ledger-xyz/segments")
@@ -1598,6 +1616,7 @@ func TestSegmentsEntity_RequestURLConstruction(t *testing.T) {
 		Limit:  25,
 		Offset: 50,
 	})
+
 	require.Len(t, capturedRequests, 1)
 	assert.Contains(t, capturedRequests[0].URL, "limit=25")
 	assert.Contains(t, capturedRequests[0].URL, "offset=50")
@@ -1605,7 +1624,7 @@ func TestSegmentsEntity_RequestURLConstruction(t *testing.T) {
 
 func TestSegmentsEntity_ResponseParsing(t *testing.T) {
 	t.Run("segment with all fields", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{
@@ -1647,12 +1666,12 @@ func TestSegmentsEntity_ResponseParsing(t *testing.T) {
 		// Verify metadata
 		require.NotNil(t, result.Metadata)
 		assert.Equal(t, "stringValue", result.Metadata["stringKey"])
-		assert.Equal(t, float64(42), result.Metadata["numberKey"])
+		assert.InDelta(t, float64(42), result.Metadata["numberKey"], 0.001)
 		assert.Equal(t, true, result.Metadata["boolKey"])
 	})
 
 	t.Run("segment with minimal fields", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{
@@ -1676,7 +1695,7 @@ func TestSegmentsEntity_ResponseParsing(t *testing.T) {
 	})
 
 	t.Run("list with pagination info", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{
@@ -1712,8 +1731,10 @@ func TestSegmentsEntity_ResponseParsing(t *testing.T) {
 
 func TestSegmentsEntity_ConcurrentRequests(t *testing.T) {
 	requestCount := 0
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		requestCount++
+
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"id": "seg-` + string(rune('0'+requestCount)) + `", "name": "Segment", "status": {"code": "ACTIVE"}}`))
@@ -1731,6 +1752,7 @@ func TestSegmentsEntity_ConcurrentRequests(t *testing.T) {
 		go func(idx int) {
 			_, err := entity.GetSegment(ctx, "org-123", "ledger-456", "seg-"+string(rune('0'+idx)))
 			assert.NoError(t, err)
+
 			done <- struct{}{}
 		}(i)
 	}

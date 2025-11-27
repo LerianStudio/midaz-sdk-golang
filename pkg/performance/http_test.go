@@ -13,6 +13,7 @@ func TestNewTransport(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewTransport() returned an error: %v", err)
 	}
+
 	if transport == nil {
 		t.Fatal("NewTransport() returned nil transport")
 	}
@@ -21,21 +22,27 @@ func TestNewTransport(t *testing.T) {
 	if transport.MaxIdleConns != DefaultMaxIdleConns {
 		t.Errorf("Expected MaxIdleConns=%d, got %d", DefaultMaxIdleConns, transport.MaxIdleConns)
 	}
+
 	if transport.MaxIdleConnsPerHost != DefaultMaxIdleConnsPerHost {
 		t.Errorf("Expected MaxIdleConnsPerHost=%d, got %d", DefaultMaxIdleConnsPerHost, transport.MaxIdleConnsPerHost)
 	}
+
 	if transport.MaxConnsPerHost != DefaultMaxConnsPerHost {
 		t.Errorf("Expected MaxConnsPerHost=%d, got %d", DefaultMaxConnsPerHost, transport.MaxConnsPerHost)
 	}
+
 	if transport.IdleConnTimeout != DefaultIdleConnTimeout {
 		t.Errorf("Expected IdleConnTimeout=%v, got %v", DefaultIdleConnTimeout, transport.IdleConnTimeout)
 	}
+
 	if transport.TLSHandshakeTimeout != DefaultTLSHandshakeTimeout {
 		t.Errorf("Expected TLSHandshakeTimeout=%v, got %v", DefaultTLSHandshakeTimeout, transport.TLSHandshakeTimeout)
 	}
+
 	if transport.DisableKeepAlives != false {
 		t.Errorf("Expected DisableKeepAlives=false, got %v", transport.DisableKeepAlives)
 	}
+
 	if transport.DisableCompression != false {
 		t.Errorf("Expected DisableCompression=false, got %v", transport.DisableCompression)
 	}
@@ -56,18 +63,23 @@ func TestNewTransport(t *testing.T) {
 	if customTransport.MaxIdleConns != 200 {
 		t.Errorf("Expected MaxIdleConns=200, got %d", customTransport.MaxIdleConns)
 	}
+
 	if customTransport.MaxIdleConnsPerHost != 20 {
 		t.Errorf("Expected MaxIdleConnsPerHost=20, got %d", customTransport.MaxIdleConnsPerHost)
 	}
+
 	if customTransport.MaxConnsPerHost != 200 {
 		t.Errorf("Expected MaxConnsPerHost=200, got %d", customTransport.MaxConnsPerHost)
 	}
+
 	if customTransport.IdleConnTimeout != 2*time.Minute {
 		t.Errorf("Expected IdleConnTimeout=2m, got %v", customTransport.IdleConnTimeout)
 	}
+
 	if !customTransport.DisableKeepAlives {
 		t.Errorf("Expected DisableKeepAlives=true, got false")
 	}
+
 	if !customTransport.DisableCompression {
 		t.Errorf("Expected DisableCompression=true, got false")
 	}
@@ -87,6 +99,7 @@ func TestNewClient(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewClient() returned an error: %v", err)
 	}
+
 	if client == nil {
 		t.Fatal("NewClient() returned nil")
 	}
@@ -151,12 +164,14 @@ func TestOptimizeClient(t *testing.T) {
 	if err != nil {
 		t.Fatalf("OptimizeHTTPClient(nil) returned an error: %v", err)
 	}
+
 	if client == nil {
 		t.Fatal("OptimizeHTTPClient(nil) returned nil")
 	}
 
 	// Test with client that has no transport
 	emptyClient := &http.Client{}
+
 	optimizedClient, err := OptimizeHTTPClient(emptyClient)
 	if err != nil {
 		t.Fatalf("OptimizeHTTPClient(emptyClient) returned an error: %v", err)
@@ -260,6 +275,7 @@ func TestTransportOptions_Validation(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewTransport returned error: %v", err)
 		}
+
 		if transport.TLSHandshakeTimeout != 15*time.Second {
 			t.Errorf("Expected TLSHandshakeTimeout=15s, got %v", transport.TLSHandshakeTimeout)
 		}
@@ -277,6 +293,7 @@ func TestTransportOptions_Validation(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewTransport returned error: %v", err)
 		}
+
 		if transport.ResponseHeaderTimeout != 20*time.Second {
 			t.Errorf("Expected ResponseHeaderTimeout=20s, got %v", transport.ResponseHeaderTimeout)
 		}
@@ -294,6 +311,7 @@ func TestTransportOptions_Validation(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewTransport returned error: %v", err)
 		}
+
 		if transport.ExpectContinueTimeout != 2*time.Second {
 			t.Errorf("Expected ExpectContinueTimeout=2s, got %v", transport.ExpectContinueTimeout)
 		}
@@ -330,6 +348,7 @@ func TestTransportOptions_Validation(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewTransport returned error: %v", err)
 		}
+
 		if transport == nil {
 			t.Error("Expected transport, got nil")
 		}
@@ -353,12 +372,15 @@ func TestTransportPresets(t *testing.T) {
 		if transport.MaxIdleConns != 200 {
 			t.Errorf("Expected MaxIdleConns=200, got %d", transport.MaxIdleConns)
 		}
+
 		if transport.MaxIdleConnsPerHost != 50 {
 			t.Errorf("Expected MaxIdleConnsPerHost=50, got %d", transport.MaxIdleConnsPerHost)
 		}
+
 		if transport.MaxConnsPerHost != 200 {
 			t.Errorf("Expected MaxConnsPerHost=200, got %d", transport.MaxConnsPerHost)
 		}
+
 		if transport.IdleConnTimeout != 180*time.Second {
 			t.Errorf("Expected IdleConnTimeout=180s, got %v", transport.IdleConnTimeout)
 		}
@@ -373,9 +395,11 @@ func TestTransportPresets(t *testing.T) {
 		if transport.TLSHandshakeTimeout != 5*time.Second {
 			t.Errorf("Expected TLSHandshakeTimeout=5s, got %v", transport.TLSHandshakeTimeout)
 		}
+
 		if transport.ResponseHeaderTimeout != 15*time.Second {
 			t.Errorf("Expected ResponseHeaderTimeout=15s, got %v", transport.ResponseHeaderTimeout)
 		}
+
 		if transport.ExpectContinueTimeout != 500*time.Millisecond {
 			t.Errorf("Expected ExpectContinueTimeout=500ms, got %v", transport.ExpectContinueTimeout)
 		}
@@ -392,6 +416,7 @@ func TestNewTransportConfig(t *testing.T) {
 		if config.MaxIdleConns != DefaultMaxIdleConns {
 			t.Errorf("Expected MaxIdleConns=%d, got %d", DefaultMaxIdleConns, config.MaxIdleConns)
 		}
+
 		if config.MaxIdleConnsPerHost != DefaultMaxIdleConnsPerHost {
 			t.Errorf("Expected MaxIdleConnsPerHost=%d, got %d", DefaultMaxIdleConnsPerHost, config.MaxIdleConnsPerHost)
 		}
@@ -413,18 +438,23 @@ func TestNewTransportConfig(t *testing.T) {
 		if config.MaxIdleConns != 150 {
 			t.Errorf("Expected MaxIdleConns=150, got %d", config.MaxIdleConns)
 		}
+
 		if config.MaxIdleConnsPerHost != 25 {
 			t.Errorf("Expected MaxIdleConnsPerHost=25, got %d", config.MaxIdleConnsPerHost)
 		}
+
 		if config.MaxConnsPerHost != 150 {
 			t.Errorf("Expected MaxConnsPerHost=150, got %d", config.MaxConnsPerHost)
 		}
+
 		if config.IdleConnTimeout != 120*time.Second {
 			t.Errorf("Expected IdleConnTimeout=120s, got %v", config.IdleConnTimeout)
 		}
+
 		if !config.DisableKeepAlives {
 			t.Error("Expected DisableKeepAlives=true")
 		}
+
 		if !config.DisableCompression {
 			t.Error("Expected DisableCompression=true")
 		}
@@ -514,9 +544,11 @@ func TestOptimizeHTTPClient_CustomTransport(t *testing.T) {
 		if transport.MaxIdleConns != 50 {
 			t.Errorf("Expected MaxIdleConns=50, got %d", transport.MaxIdleConns)
 		}
+
 		if transport.MaxIdleConnsPerHost != 5 {
 			t.Errorf("Expected MaxIdleConnsPerHost=5, got %d", transport.MaxIdleConnsPerHost)
 		}
+
 		if optimized.Timeout != 30*time.Second {
 			t.Errorf("Expected Timeout=30s, got %v", optimized.Timeout)
 		}
@@ -526,8 +558,8 @@ func TestOptimizeHTTPClient_CustomTransport(t *testing.T) {
 // customRoundTripper is a mock RoundTripper for testing
 type customRoundTripper struct{}
 
-func (c *customRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	return nil, nil
+func (*customRoundTripper) RoundTrip(_ *http.Request) (*http.Response, error) {
+	return nil, http.ErrNotSupported
 }
 
 func TestHTTPClientOptions(t *testing.T) {
@@ -536,6 +568,7 @@ func TestHTTPClientOptions(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewClient returned error: %v", err)
 		}
+
 		if client.Timeout != 45*time.Second {
 			t.Errorf("Expected Timeout=45s, got %v", client.Timeout)
 		}
@@ -546,6 +579,7 @@ func TestHTTPClientOptions(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewClient returned error: %v", err)
 		}
+
 		if client.Timeout != 0 {
 			t.Errorf("Expected Timeout=0, got %v", client.Timeout)
 		}
@@ -583,6 +617,7 @@ func TestNewClient_AllOptions(t *testing.T) {
 	if client.Timeout != 90*time.Second {
 		t.Errorf("Expected Timeout=90s, got %v", client.Timeout)
 	}
+
 	if client.Transport != transport {
 		t.Error("Expected custom transport to be set")
 	}

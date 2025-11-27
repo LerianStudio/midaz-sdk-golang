@@ -6,6 +6,7 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation/core"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestValidateAssetCode(t *testing.T) {
@@ -55,13 +56,13 @@ func TestValidateAssetCode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := core.ValidateAssetCode(tt.assetCode)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 
 				if tt.errMsg != "" {
 					assert.Equal(t, tt.errMsg, err.Error())
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -118,13 +119,13 @@ func TestValidateAccountAlias(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := core.ValidateAccountAlias(tt.alias)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 
 				if tt.errMsg != "" {
 					assert.Equal(t, tt.errMsg, err.Error())
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -170,13 +171,13 @@ func TestValidateTransactionCode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := core.ValidateTransactionCode(tt.code)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 
 				if tt.errMsg != "" {
 					assert.Equal(t, tt.errMsg, err.Error())
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -266,13 +267,13 @@ func TestValidateMetadata(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := core.ValidateMetadata(tt.metadata)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 
 				if tt.errMsg != "" {
 					assert.Equal(t, tt.errMsg, err.Error())
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -311,13 +312,13 @@ func TestValidateDateRange(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := core.ValidateDateRange(tt.start, tt.end)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 
 				if tt.errMsg != "" {
 					assert.Equal(t, tt.errMsg, err.Error())
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -504,13 +505,13 @@ func TestValidateAddress(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := core.ValidateAddress(tt.address)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 
 				if tt.errMsg != "" {
 					assert.Equal(t, tt.errMsg, err.Error())
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -539,7 +540,7 @@ func TestValidationConfig(t *testing.T) {
 			core.WithMaxStateLength(150),
 			core.WithStrictMode(true),
 		)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, config)
 		assert.Equal(t, 8192, config.MaxMetadataSize)
 		assert.Equal(t, 512, config.MaxStringLength)
@@ -552,85 +553,85 @@ func TestValidationConfig(t *testing.T) {
 
 	t.Run("WithMaxMetadataSize error for zero", func(t *testing.T) {
 		_, err := core.NewValidationConfig(core.WithMaxMetadataSize(0))
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "max metadata size must be positive")
 	})
 
 	t.Run("WithMaxMetadataSize error for negative", func(t *testing.T) {
 		_, err := core.NewValidationConfig(core.WithMaxMetadataSize(-1))
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "max metadata size must be positive")
 	})
 
 	t.Run("WithMaxStringLength error for zero", func(t *testing.T) {
 		_, err := core.NewValidationConfig(core.WithMaxStringLength(0))
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "max string length must be positive")
 	})
 
 	t.Run("WithMaxStringLength error for negative", func(t *testing.T) {
 		_, err := core.NewValidationConfig(core.WithMaxStringLength(-1))
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "max string length must be positive")
 	})
 
 	t.Run("WithMaxAddressLineLength error for zero", func(t *testing.T) {
 		_, err := core.NewValidationConfig(core.WithMaxAddressLineLength(0))
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "max address line length must be positive")
 	})
 
 	t.Run("WithMaxAddressLineLength error for negative", func(t *testing.T) {
 		_, err := core.NewValidationConfig(core.WithMaxAddressLineLength(-1))
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "max address line length must be positive")
 	})
 
 	t.Run("WithMaxZipCodeLength error for zero", func(t *testing.T) {
 		_, err := core.NewValidationConfig(core.WithMaxZipCodeLength(0))
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "max zip code length must be positive")
 	})
 
 	t.Run("WithMaxZipCodeLength error for negative", func(t *testing.T) {
 		_, err := core.NewValidationConfig(core.WithMaxZipCodeLength(-1))
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "max zip code length must be positive")
 	})
 
 	t.Run("WithMaxCityLength error for zero", func(t *testing.T) {
 		_, err := core.NewValidationConfig(core.WithMaxCityLength(0))
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "max city length must be positive")
 	})
 
 	t.Run("WithMaxCityLength error for negative", func(t *testing.T) {
 		_, err := core.NewValidationConfig(core.WithMaxCityLength(-1))
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "max city length must be positive")
 	})
 
 	t.Run("WithMaxStateLength error for zero", func(t *testing.T) {
 		_, err := core.NewValidationConfig(core.WithMaxStateLength(0))
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "max state length must be positive")
 	})
 
 	t.Run("WithMaxStateLength error for negative", func(t *testing.T) {
 		_, err := core.NewValidationConfig(core.WithMaxStateLength(-1))
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "max state length must be positive")
 	})
 
 	t.Run("WithStrictMode true", func(t *testing.T) {
 		config, err := core.NewValidationConfig(core.WithStrictMode(true))
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.True(t, config.StrictMode)
 	})
 
 	t.Run("WithStrictMode false", func(t *testing.T) {
 		config, err := core.NewValidationConfig(core.WithStrictMode(false))
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.False(t, config.StrictMode)
 	})
 }
@@ -691,12 +692,13 @@ func TestValidateAccountType(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := core.ValidateAccountType(tt.accountType)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				if tt.errContains != "" {
 					assert.Contains(t, err.Error(), tt.errContains)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -757,12 +759,13 @@ func TestValidateAssetType(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := core.ValidateAssetType(tt.assetType)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				if tt.errContains != "" {
 					assert.Contains(t, err.Error(), tt.errContains)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -819,12 +822,13 @@ func TestValidateCurrencyCode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := core.ValidateCurrencyCode(tt.code)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				if tt.errContains != "" {
 					assert.Contains(t, err.Error(), tt.errContains)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -887,12 +891,13 @@ func TestValidateCountryCode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := core.ValidateCountryCode(tt.code)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				if tt.errContains != "" {
 					assert.Contains(t, err.Error(), tt.errContains)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -1003,12 +1008,13 @@ func TestValidateMetadataWithNestedStructures(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := core.ValidateMetadata(tt.metadata)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				if tt.errMsg != "" {
 					assert.Contains(t, err.Error(), tt.errMsg)
 				}
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -1061,9 +1067,9 @@ func TestValidateTransactionCodeBoundaryValues(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := core.ValidateTransactionCode(tt.code)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -1111,9 +1117,9 @@ func TestValidateAccountAliasBoundaryValues(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := core.ValidateAccountAlias(tt.alias)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -1162,9 +1168,9 @@ func TestValidateDateRangeEdgeCases(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := core.ValidateDateRange(tt.start, tt.end)
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}

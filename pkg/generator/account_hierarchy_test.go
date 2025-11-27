@@ -19,14 +19,16 @@ type mockAccountGenerator struct {
 
 func (m *mockAccountGenerator) Generate(ctx context.Context, orgID, ledgerID, assetCode string, template data.AccountTemplate) (*models.Account, error) {
 	m.callCount++
+
 	m.callOrder = append(m.callOrder, template.Name)
 	if m.generateFunc != nil {
 		return m.generateFunc(ctx, orgID, ledgerID, assetCode, template)
 	}
+
 	return &models.Account{ID: "acc-" + template.Name, Name: template.Name}, nil
 }
 
-func (m *mockAccountGenerator) GenerateBatch(ctx context.Context, orgID, ledgerID, assetCode string, templates []data.AccountTemplate) ([]*models.Account, error) {
+func (*mockAccountGenerator) GenerateBatch(_ context.Context, _, _, _ string, _ []data.AccountTemplate) ([]*models.Account, error) {
 	return nil, nil
 }
 
@@ -51,7 +53,7 @@ func TestAccountHierarchyGenerator_GenerateTree_NilAccountGenerator(t *testing.T
 	}
 
 	_, err := gen.GenerateTree(context.Background(), "org-123", "ledger-123", "USD", nodes)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "account generator not initialized")
 }
 
@@ -67,7 +69,7 @@ func TestAccountHierarchyGenerator_GenerateTree_EmptyNodes(t *testing.T) {
 
 func TestAccountHierarchyGenerator_GenerateTree_SingleNode(t *testing.T) {
 	mockAccGen := &mockAccountGenerator{
-		generateFunc: func(ctx context.Context, orgID, ledgerID, assetCode string, template data.AccountTemplate) (*models.Account, error) {
+		generateFunc: func(_ context.Context, _, _, _ string, template data.AccountTemplate) (*models.Account, error) {
 			return &models.Account{
 				ID:   "acc-root",
 				Name: template.Name,
@@ -97,8 +99,9 @@ func TestAccountHierarchyGenerator_GenerateTree_WithChildren(t *testing.T) {
 	var capturedTemplates []data.AccountTemplate
 
 	mockAccGen := &mockAccountGenerator{
-		generateFunc: func(ctx context.Context, orgID, ledgerID, assetCode string, template data.AccountTemplate) (*models.Account, error) {
+		generateFunc: func(_ context.Context, _, _, _ string, template data.AccountTemplate) (*models.Account, error) {
 			capturedTemplates = append(capturedTemplates, template)
+
 			return &models.Account{
 				ID:   "acc-" + template.Name,
 				Name: template.Name,
@@ -220,7 +223,7 @@ func TestAccountHierarchyGenerator_GenerateTree_MultipleRootsWithChildren(t *tes
 
 func TestAccountHierarchyGenerator_GenerateTree_ErrorOnRootCreation(t *testing.T) {
 	mockAccGen := &mockAccountGenerator{
-		generateFunc: func(ctx context.Context, orgID, ledgerID, assetCode string, template data.AccountTemplate) (*models.Account, error) {
+		generateFunc: func(_ context.Context, _, _, _ string, _ data.AccountTemplate) (*models.Account, error) {
 			return nil, errors.New("root creation failed")
 		},
 	}
@@ -232,7 +235,7 @@ func TestAccountHierarchyGenerator_GenerateTree_ErrorOnRootCreation(t *testing.T
 	}
 
 	results, err := gen.GenerateTree(context.Background(), "org-123", "ledger-123", "USD", nodes)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "root creation failed")
 	assert.Nil(t, results)
 }
@@ -240,11 +243,12 @@ func TestAccountHierarchyGenerator_GenerateTree_ErrorOnRootCreation(t *testing.T
 func TestAccountHierarchyGenerator_GenerateTree_ErrorOnChildCreation(t *testing.T) {
 	callCount := 0
 	mockAccGen := &mockAccountGenerator{
-		generateFunc: func(ctx context.Context, orgID, ledgerID, assetCode string, template data.AccountTemplate) (*models.Account, error) {
+		generateFunc: func(_ context.Context, _, _, _ string, template data.AccountTemplate) (*models.Account, error) {
 			callCount++
 			if callCount == 2 {
 				return nil, errors.New("child creation failed")
 			}
+
 			return &models.Account{ID: "acc-" + template.Name, Name: template.Name}, nil
 		},
 	}
@@ -261,7 +265,7 @@ func TestAccountHierarchyGenerator_GenerateTree_ErrorOnChildCreation(t *testing.
 	}
 
 	results, err := gen.GenerateTree(context.Background(), "org-123", "ledger-123", "USD", nodes)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "child creation failed")
 	assert.Nil(t, results)
 }
@@ -270,7 +274,7 @@ func TestAccountHierarchyGenerator_GenerateTree_PreservesTemplateFields(t *testi
 	var capturedTemplate data.AccountTemplate
 
 	mockAccGen := &mockAccountGenerator{
-		generateFunc: func(ctx context.Context, orgID, ledgerID, assetCode string, template data.AccountTemplate) (*models.Account, error) {
+		generateFunc: func(_ context.Context, _, _, _ string, template data.AccountTemplate) (*models.Account, error) {
 			capturedTemplate = template
 			return &models.Account{ID: "acc-123"}, nil
 		},
@@ -306,7 +310,7 @@ func TestAccountHierarchyGenerator_GenerateTree_PreservesTemplateFields(t *testi
 
 func TestAccountHierarchyGenerator_GenerateTree_DoesNotMutateOriginalTemplate(t *testing.T) {
 	mockAccGen := &mockAccountGenerator{
-		generateFunc: func(ctx context.Context, orgID, ledgerID, assetCode string, template data.AccountTemplate) (*models.Account, error) {
+		generateFunc: func(_ context.Context, _, _, _ string, _ data.AccountTemplate) (*models.Account, error) {
 			return &models.Account{ID: "acc-123"}, nil
 		},
 	}
@@ -364,10 +368,11 @@ func TestAccountHierarchyGenerator_GenerateTree_VerifyOrgLedgerAssetCode(t *test
 	var receivedOrgID, receivedLedgerID, receivedAssetCode string
 
 	mockAccGen := &mockAccountGenerator{
-		generateFunc: func(ctx context.Context, orgID, ledgerID, assetCode string, template data.AccountTemplate) (*models.Account, error) {
+		generateFunc: func(_ context.Context, orgID, ledgerID, assetCode string, _ data.AccountTemplate) (*models.Account, error) {
 			receivedOrgID = orgID
 			receivedLedgerID = ledgerID
 			receivedAssetCode = assetCode
+
 			return &models.Account{ID: "acc-123"}, nil
 		},
 	}

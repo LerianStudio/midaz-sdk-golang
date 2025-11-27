@@ -8,7 +8,7 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	data "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -24,6 +24,7 @@ func (m *mockTransactionsService) CreateTransaction(ctx context.Context, orgID, 
 	if m.createFunc != nil {
 		return m.createFunc(ctx, orgID, ledgerID, input)
 	}
+
 	return &models.Transaction{ID: "tx-123"}, nil
 }
 
@@ -31,25 +32,27 @@ func (m *mockTransactionsService) CreateTransactionWithDSLFile(ctx context.Conte
 	if m.createWithDSLFunc != nil {
 		return m.createWithDSLFunc(ctx, orgID, ledgerID, dslContent)
 	}
+
 	return &models.Transaction{ID: "tx-dsl-123"}, nil
 }
 
-func (m *mockTransactionsService) GetTransaction(ctx context.Context, orgID, ledgerID, id string) (*models.Transaction, error) {
-	return nil, nil
+func (*mockTransactionsService) GetTransaction(_ context.Context, _, _, _ string) (*models.Transaction, error) {
+	return nil, errors.New("mock: GetTransaction not implemented")
 }
 
-func (m *mockTransactionsService) ListTransactions(ctx context.Context, orgID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Transaction], error) {
-	return nil, nil
+func (*mockTransactionsService) ListTransactions(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.Transaction], error) {
+	return nil, errors.New("mock: ListTransactions not implemented")
 }
 
-func (m *mockTransactionsService) UpdateTransaction(ctx context.Context, orgID, ledgerID, id string, input any) (*models.Transaction, error) {
-	return nil, nil
+func (*mockTransactionsService) UpdateTransaction(_ context.Context, _, _, _ string, _ any) (*models.Transaction, error) {
+	return nil, errors.New("mock: UpdateTransaction not implemented")
 }
 
 func (m *mockTransactionsService) CommitTransaction(ctx context.Context, orgID, ledgerID, id string) (*models.Transaction, error) {
 	if m.commitFunc != nil {
 		return m.commitFunc(ctx, orgID, ledgerID, id)
 	}
+
 	return &models.Transaction{ID: id}, nil
 }
 
@@ -57,26 +60,27 @@ func (m *mockTransactionsService) RevertTransaction(ctx context.Context, orgID, 
 	if m.revertFunc != nil {
 		return m.revertFunc(ctx, orgID, ledgerID, id)
 	}
+
 	return &models.Transaction{ID: id}, nil
 }
 
-func (m *mockTransactionsService) CancelTransaction(ctx context.Context, orgID, ledgerID, transactionID string) error {
+func (*mockTransactionsService) CancelTransaction(_ context.Context, _, _, _ string) error {
 	return nil
 }
 
-func (m *mockTransactionsService) CreateTransactionWithDSL(ctx context.Context, orgID, ledgerID string, input *models.TransactionDSLInput) (*models.Transaction, error) {
+func (*mockTransactionsService) CreateTransactionWithDSL(_ context.Context, _, _ string, _ *models.TransactionDSLInput) (*models.Transaction, error) {
 	return &models.Transaction{ID: "tx-dsl"}, nil
 }
 
-func (m *mockTransactionsService) CreateInflowTransaction(ctx context.Context, orgID, ledgerID string, input *models.CreateInflowInput) (*models.Transaction, error) {
+func (*mockTransactionsService) CreateInflowTransaction(_ context.Context, _, _ string, _ *models.CreateInflowInput) (*models.Transaction, error) {
 	return &models.Transaction{ID: "tx-inflow"}, nil
 }
 
-func (m *mockTransactionsService) CreateOutflowTransaction(ctx context.Context, orgID, ledgerID string, input *models.CreateOutflowInput) (*models.Transaction, error) {
+func (*mockTransactionsService) CreateOutflowTransaction(_ context.Context, _, _ string, _ *models.CreateOutflowInput) (*models.Transaction, error) {
 	return &models.Transaction{ID: "tx-outflow"}, nil
 }
 
-func (m *mockTransactionsService) CreateAnnotationTransaction(ctx context.Context, orgID, ledgerID string, input *models.CreateAnnotationInput) (*models.Transaction, error) {
+func (*mockTransactionsService) CreateAnnotationTransaction(_ context.Context, _, _ string, _ *models.CreateAnnotationInput) (*models.Transaction, error) {
 	return &models.Transaction{ID: "tx-annotation"}, nil
 }
 
@@ -102,7 +106,7 @@ func TestTransactionGenerator_GenerateWithDSL_NilEntity(t *testing.T) {
 	}
 
 	_, err := gen.GenerateWithDSL(context.Background(), "org-123", "ledger-123", pattern)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not initialized")
 }
 
@@ -116,7 +120,7 @@ func TestTransactionGenerator_GenerateWithDSL_NilTransactionsService(t *testing.
 	}
 
 	_, err := gen.GenerateWithDSL(context.Background(), "org-123", "ledger-123", pattern)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not initialized")
 }
 
@@ -133,7 +137,7 @@ func TestTransactionGenerator_GenerateWithDSL_InvalidPattern_EmptyDSL(t *testing
 	}
 
 	_, err := gen.GenerateWithDSL(context.Background(), "org-123", "ledger-123", pattern)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "dsl template is required")
 }
 
@@ -150,7 +154,7 @@ func TestTransactionGenerator_GenerateWithDSL_InvalidPattern_EmptyChartOfAccount
 	}
 
 	_, err := gen.GenerateWithDSL(context.Background(), "org-123", "ledger-123", pattern)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "chart of accounts group name is required")
 }
 
@@ -167,13 +171,13 @@ func TestTransactionGenerator_GenerateWithDSL_InvalidPattern_EmptyIdempotencyKey
 	}
 
 	_, err := gen.GenerateWithDSL(context.Background(), "org-123", "ledger-123", pattern)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "idempotency key is required")
 }
 
 func TestTransactionGenerator_GenerateWithDSL_Success(t *testing.T) {
 	mockSvc := &mockTransactionsService{
-		createWithDSLFunc: func(ctx context.Context, orgID, ledgerID string, dslContent []byte) (*models.Transaction, error) {
+		createWithDSLFunc: func(_ context.Context, _, _ string, _ []byte) (*models.Transaction, error) {
 			return &models.Transaction{
 				ID: "tx-success",
 			}, nil
@@ -199,7 +203,7 @@ func TestTransactionGenerator_GenerateWithDSL_Success(t *testing.T) {
 
 func TestTransactionGenerator_GenerateWithDSL_Error(t *testing.T) {
 	mockSvc := &mockTransactionsService{
-		createWithDSLFunc: func(ctx context.Context, orgID, ledgerID string, dslContent []byte) (*models.Transaction, error) {
+		createWithDSLFunc: func(_ context.Context, _, _ string, _ []byte) (*models.Transaction, error) {
 			return nil, errors.New("DSL parsing failed")
 		},
 	}
@@ -216,7 +220,7 @@ func TestTransactionGenerator_GenerateWithDSL_Error(t *testing.T) {
 	}
 
 	result, err := gen.GenerateWithDSL(context.Background(), "org-123", "ledger-123", pattern)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "DSL parsing failed")
 }
@@ -225,8 +229,9 @@ func TestTransactionGenerator_GenerateWithDSL_WithIdempotencyKey(t *testing.T) {
 	var capturedCtx context.Context
 
 	mockSvc := &mockTransactionsService{
-		createWithDSLFunc: func(ctx context.Context, orgID, ledgerID string, dslContent []byte) (*models.Transaction, error) {
+		createWithDSLFunc: func(ctx context.Context, _, _ string, _ []byte) (*models.Transaction, error) {
 			capturedCtx = ctx
+
 			return &models.Transaction{ID: "tx-123"}, nil
 		},
 	}
@@ -251,7 +256,7 @@ func TestTransactionGenerator_GenerateBatch_EmptyPatterns(t *testing.T) {
 	gen := NewTransactionGenerator(nil, nil)
 
 	results, err := gen.GenerateBatch(context.Background(), "org-123", "ledger-123", []data.TransactionPattern{}, 0)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Empty(t, results)
 }
 
@@ -264,15 +269,16 @@ func TestTransactionGenerator_GenerateBatch_NilEntity(t *testing.T) {
 	}
 
 	results, err := gen.GenerateBatch(context.Background(), "org-123", "ledger-123", patterns, 0)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Empty(t, results)
 }
 
 func TestTransactionGenerator_GenerateBatch_Success(t *testing.T) {
 	callCount := 0
 	mockSvc := &mockTransactionsService{
-		createWithDSLFunc: func(ctx context.Context, orgID, ledgerID string, dslContent []byte) (*models.Transaction, error) {
+		createWithDSLFunc: func(_ context.Context, _, _ string, _ []byte) (*models.Transaction, error) {
 			callCount++
+
 			return &models.Transaction{
 				ID: "tx-" + string(rune('0'+callCount)),
 			}, nil
@@ -300,11 +306,12 @@ func TestTransactionGenerator_GenerateBatch_Success(t *testing.T) {
 func TestTransactionGenerator_GenerateBatch_PartialError(t *testing.T) {
 	callCount := 0
 	mockSvc := &mockTransactionsService{
-		createWithDSLFunc: func(ctx context.Context, orgID, ledgerID string, dslContent []byte) (*models.Transaction, error) {
+		createWithDSLFunc: func(_ context.Context, _, _ string, _ []byte) (*models.Transaction, error) {
 			callCount++
 			if callCount == 2 {
 				return nil, errors.New("partial failure")
 			}
+
 			return &models.Transaction{ID: "tx-ok"}, nil
 		},
 	}
@@ -323,19 +330,22 @@ func TestTransactionGenerator_GenerateBatch_PartialError(t *testing.T) {
 	}
 
 	results, err := gen.GenerateBatch(ctx, "org-123", "ledger-123", patterns, 0)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "partial failure")
 	assert.Len(t, results, 2)
 }
 
 func TestTransactionGenerator_GenerateBatch_WithTPS(t *testing.T) {
 	callCount := 0
+
 	var callTimes []time.Time
 
 	mockSvc := &mockTransactionsService{
-		createWithDSLFunc: func(ctx context.Context, orgID, ledgerID string, dslContent []byte) (*models.Transaction, error) {
+		createWithDSLFunc: func(_ context.Context, _, _ string, _ []byte) (*models.Transaction, error) {
 			callCount++
+
 			callTimes = append(callTimes, time.Now())
+
 			return &models.Transaction{ID: "tx-tps"}, nil
 		},
 	}
@@ -357,11 +367,11 @@ func TestTransactionGenerator_GenerateBatch_WithTPS(t *testing.T) {
 	assert.Len(t, results, 2)
 }
 
-func TestTransactionGenerator_GenerateBatch_CancelledContext(t *testing.T) {
+func TestTransactionGenerator_GenerateBatch_CancelledContext(_ *testing.T) {
 	// When context is already cancelled, the batch may still succeed because
 	// the cancellation check happens asynchronously in the worker pool
 	mockSvc := &mockTransactionsService{
-		createWithDSLFunc: func(ctx context.Context, orgID, ledgerID string, dslContent []byte) (*models.Transaction, error) {
+		createWithDSLFunc: func(_ context.Context, _, _ string, _ []byte) (*models.Transaction, error) {
 			return &models.Transaction{ID: "tx-123"}, nil
 		},
 	}
@@ -373,6 +383,7 @@ func TestTransactionGenerator_GenerateBatch_CancelledContext(t *testing.T) {
 	gen := NewTransactionGenerator(e, nil)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
+
 	ctx = WithWorkers(ctx, 1)
 
 	patterns := []data.TransactionPattern{
@@ -425,8 +436,9 @@ func TestTransactionGenerator_GenerateWithDSL_VerifyDSLContent(t *testing.T) {
 	var capturedDSL []byte
 
 	mockSvc := &mockTransactionsService{
-		createWithDSLFunc: func(ctx context.Context, orgID, ledgerID string, dslContent []byte) (*models.Transaction, error) {
+		createWithDSLFunc: func(_ context.Context, _, _ string, dslContent []byte) (*models.Transaction, error) {
 			capturedDSL = dslContent
+
 			return &models.Transaction{ID: "tx-123"}, nil
 		},
 	}
@@ -450,7 +462,7 @@ func TestTransactionGenerator_GenerateWithDSL_VerifyDSLContent(t *testing.T) {
 
 func TestTransactionGenerator_GenerateBatch_AllErrors(t *testing.T) {
 	mockSvc := &mockTransactionsService{
-		createWithDSLFunc: func(ctx context.Context, orgID, ledgerID string, dslContent []byte) (*models.Transaction, error) {
+		createWithDSLFunc: func(_ context.Context, _, _ string, _ []byte) (*models.Transaction, error) {
 			return nil, errors.New("all failed")
 		},
 	}
@@ -468,7 +480,7 @@ func TestTransactionGenerator_GenerateBatch_AllErrors(t *testing.T) {
 	}
 
 	results, err := gen.GenerateBatch(ctx, "org-123", "ledger-123", patterns, 0)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Empty(t, results)
 }
 
@@ -492,7 +504,7 @@ func TestTransactionLifecycle_CreatePending_NilEntity(t *testing.T) {
 	ctx = WithLedgerID(ctx, "ledger-123")
 
 	_, err := lc.CreatePending(ctx, &models.CreateTransactionInput{})
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not initialized")
 }
 
@@ -508,7 +520,7 @@ func TestTransactionLifecycle_CreatePending_NilInput(t *testing.T) {
 	ctx = WithLedgerID(ctx, "ledger-123")
 
 	_, err := lc.CreatePending(ctx, nil)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "transaction input is required")
 }
 
@@ -521,7 +533,7 @@ func TestTransactionLifecycle_CreatePending_MissingIDs(t *testing.T) {
 	lc := NewTransactionLifecycle(e, nil)
 
 	_, err := lc.CreatePending(context.Background(), &models.CreateTransactionInput{})
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization and ledger IDs are required")
 }
 
@@ -529,8 +541,9 @@ func TestTransactionLifecycle_CreatePending_Success(t *testing.T) {
 	var capturedInput *models.CreateTransactionInput
 
 	mockSvc := &mockTransactionsService{
-		createFunc: func(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionInput) (*models.Transaction, error) {
+		createFunc: func(_ context.Context, _, _ string, input *models.CreateTransactionInput) (*models.Transaction, error) {
 			capturedInput = input
+
 			return &models.Transaction{ID: "tx-pending"}, nil
 		},
 	}
@@ -557,7 +570,7 @@ func TestTransactionLifecycle_Commit_NilEntity(t *testing.T) {
 	ctx = WithLedgerID(ctx, "ledger-123")
 
 	err := lc.Commit(ctx, "tx-123")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not initialized")
 }
 
@@ -573,7 +586,7 @@ func TestTransactionLifecycle_Commit_EmptyTxID(t *testing.T) {
 	ctx = WithLedgerID(ctx, "ledger-123")
 
 	err := lc.Commit(ctx, "")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "transaction ID is required")
 }
 
@@ -586,13 +599,13 @@ func TestTransactionLifecycle_Commit_MissingIDs(t *testing.T) {
 	lc := NewTransactionLifecycle(e, nil)
 
 	err := lc.Commit(context.Background(), "tx-123")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization and ledger IDs are required")
 }
 
 func TestTransactionLifecycle_Commit_Success(t *testing.T) {
 	mockSvc := &mockTransactionsService{
-		commitFunc: func(ctx context.Context, orgID, ledgerID, txID string) (*models.Transaction, error) {
+		commitFunc: func(_ context.Context, _, _, txID string) (*models.Transaction, error) {
 			return &models.Transaction{ID: txID}, nil
 		},
 	}
@@ -617,7 +630,7 @@ func TestTransactionLifecycle_Revert_NilEntity(t *testing.T) {
 	ctx = WithLedgerID(ctx, "ledger-123")
 
 	err := lc.Revert(ctx, "tx-123")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not initialized")
 }
 
@@ -633,7 +646,7 @@ func TestTransactionLifecycle_Revert_EmptyTxID(t *testing.T) {
 	ctx = WithLedgerID(ctx, "ledger-123")
 
 	err := lc.Revert(ctx, "")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "transaction ID is required")
 }
 
@@ -646,13 +659,13 @@ func TestTransactionLifecycle_Revert_MissingIDs(t *testing.T) {
 	lc := NewTransactionLifecycle(e, nil)
 
 	err := lc.Revert(context.Background(), "tx-123")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization and ledger IDs are required")
 }
 
 func TestTransactionLifecycle_Revert_Success(t *testing.T) {
 	mockSvc := &mockTransactionsService{
-		revertFunc: func(ctx context.Context, orgID, ledgerID, txID string) (*models.Transaction, error) {
+		revertFunc: func(_ context.Context, _, _, txID string) (*models.Transaction, error) {
 			return &models.Transaction{ID: txID}, nil
 		},
 	}
@@ -674,7 +687,7 @@ func TestTransactionLifecycle_HandleInsufficientFunds_NilError(t *testing.T) {
 	lc := NewTransactionLifecycle(nil, nil)
 
 	err := lc.HandleInsufficientFunds(context.Background(), nil)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 }
 
 func TestTransactionLifecycle_HandleInsufficientFunds_RegularError(t *testing.T) {
@@ -687,5 +700,5 @@ func TestTransactionLifecycle_HandleInsufficientFunds_RegularError(t *testing.T)
 	// Using the special "unknown error" string which is explicitly excluded.
 	regularErr := errors.New("unknown error")
 	err := lc.HandleInsufficientFunds(context.Background(), regularErr)
-	assert.Nil(t, err, "Errors with message 'unknown error' should return nil")
+	assert.NoError(t, err, "Errors with message 'unknown error' should return nil")
 }

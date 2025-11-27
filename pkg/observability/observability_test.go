@@ -21,6 +21,7 @@ func TestNewWithOptions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create provider with no options: %v", err)
 	}
+
 	if !provider.IsEnabled() {
 		t.Fatal("Provider should be enabled by default")
 	}
@@ -36,6 +37,7 @@ func TestNewWithOptions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create provider with custom options: %v", err)
 	}
+
 	if !provider.IsEnabled() {
 		t.Fatal("Provider should be enabled")
 	}
@@ -45,6 +47,7 @@ func TestNewWithOptions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create provider with development defaults: %v", err)
 	}
+
 	if !provider.IsEnabled() {
 		t.Fatal("Provider should be enabled")
 	}
@@ -54,6 +57,7 @@ func TestNewWithOptions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create provider with production defaults: %v", err)
 	}
+
 	if !provider.IsEnabled() {
 		t.Fatal("Provider should be enabled")
 	}
@@ -69,6 +73,7 @@ func TestNewWithOptions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to shutdown provider: %v", err)
 	}
+
 	if provider.IsEnabled() {
 		t.Fatal("Provider should be disabled after shutdown")
 	}
@@ -82,6 +87,7 @@ func TestNewWithConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create provider with nil config: %v", err)
 	}
+
 	if !provider.IsEnabled() {
 		t.Fatal("Provider should be enabled by default")
 	}
@@ -98,10 +104,12 @@ func TestNewWithConfig(t *testing.T) {
 			Logging: true,
 		},
 	}
+
 	provider, err = NewWithConfig(context.Background(), config)
 	if err != nil {
 		t.Fatalf("Failed to create provider with custom config: %v", err)
 	}
+
 	if !provider.IsEnabled() {
 		t.Fatal("Provider should be enabled")
 	}
@@ -111,6 +119,7 @@ func TestNewWithConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to shutdown provider: %v", err)
 	}
+
 	if provider.IsEnabled() {
 		t.Fatal("Provider should be disabled after shutdown")
 	}
@@ -132,13 +141,14 @@ func TestWithSpan(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create provider: %v", err)
 	}
+
 	defer func() { _ = provider.Shutdown(context.Background()) }()
 
 	// Use a context that has the provider in it
 	ctx := WithProvider(context.Background(), provider)
 
 	// Test successful span
-	err = WithSpan(ctx, provider, "test-span", func(ctx context.Context) error {
+	err = WithSpan(ctx, provider, "test-span", func(_ context.Context) error {
 		// We'll skip the validation in the test since it's environment-dependent
 		return nil
 	})
@@ -148,7 +158,8 @@ func TestWithSpan(t *testing.T) {
 
 	// Test span with error
 	testErr := errors.New("test error")
-	err = WithSpan(context.Background(), provider, "error-span", func(ctx context.Context) error {
+
+	err = WithSpan(context.Background(), provider, "error-span", func(_ context.Context) error {
 		return testErr
 	})
 	if !errors.Is(err, testErr) {
@@ -169,6 +180,7 @@ func TestLogger(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create provider: %v", err)
 	}
+
 	defer func() { _ = provider.Shutdown(context.Background()) }()
 
 	// Get logger
@@ -207,10 +219,11 @@ func TestHTTPMiddleware(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create provider: %v", err)
 	}
+
 	defer func() { _ = provider.Shutdown(context.Background()) }()
 
 	// Create server
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintln(w, "OK")
 	}))
@@ -266,6 +279,7 @@ func TestMetricsCollector(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create provider: %v", err)
 	}
+
 	defer func() { _ = provider.Shutdown(context.Background()) }()
 
 	// Create metrics collector
@@ -310,10 +324,12 @@ func TestContextFunctions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create provider: %v", err)
 	}
+
 	defer func() { _ = provider.Shutdown(context.Background()) }()
 
 	// Test WithProvider and GetProvider
 	ctx := WithProvider(context.Background(), provider)
+
 	retrievedProvider := GetProvider(ctx)
 	if retrievedProvider != provider {
 		t.Error("GetProvider did not return the expected provider")
@@ -333,6 +349,7 @@ func TestContextFunctions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("WithBaggageItem failed: %v", err)
 	}
+
 	value := GetBaggageItem(ctx, "baggage-key")
 	if value != "baggage-value" {
 		t.Errorf("Expected baggage value 'baggage-value', got '%s'", value)
@@ -359,6 +376,7 @@ func ExampleWithSpan() {
 		fmt.Printf("Failed to create provider: %v\n", err)
 		return
 	}
+
 	defer func() { _ = provider.Shutdown(context.Background()) }()
 
 	// Use WithSpan to automatically create, end, and handle errors for a span
@@ -373,7 +391,6 @@ func ExampleWithSpan() {
 		// Simulate success
 		return nil
 	})
-
 	if err != nil {
 		fmt.Printf("Operation failed: %v\n", err)
 	} else {
@@ -394,6 +411,7 @@ func ExampleMidazProvider_Logger() {
 		fmt.Printf("Failed to create provider: %v\n", err)
 		return
 	}
+
 	defer func() { _ = provider.Shutdown(context.Background()) }()
 
 	// Get a logger
@@ -435,6 +453,7 @@ func ExampleNewHTTPMiddleware() {
 		fmt.Printf("Failed to create provider: %v\n", err)
 		return
 	}
+
 	defer func() { _ = provider.Shutdown(context.Background()) }()
 
 	// Create an HTTP client with the middleware and security defaults

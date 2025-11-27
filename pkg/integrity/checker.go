@@ -2,6 +2,7 @@ package integrity
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -69,7 +70,7 @@ func (c *Checker) WithAccountLookupDelay(d time.Duration) *Checker {
 // GenerateLedgerReport aggregates balances and performs lightweight double-entry checks.
 func (c *Checker) GenerateLedgerReport(ctx context.Context, orgID, ledgerID string) (*Report, error) {
 	if c.e == nil || c.e.Balances == nil || c.e.Accounts == nil {
-		return nil, fmt.Errorf("entities not initialized for integrity checks")
+		return nil, errors.New("entities not initialized for integrity checks")
 	}
 
 	c.logDebug("Starting ledger integrity report generation for ledger %s", ledgerID)
@@ -78,12 +79,15 @@ func (c *Checker) GenerateLedgerReport(ctx context.Context, orgID, ledgerID stri
 	accountAliasCache := map[string]string{}
 
 	var report *Report
+
 	err := observability.WithSpan(ctx, c.obs, "GenerateLedgerReport", func(ctx context.Context) error {
 		if err := c.processBalances(ctx, orgID, ledgerID, totals, accountAliasCache); err != nil {
 			c.logError("Failed to process balances for ledger %s: %v", ledgerID, err)
 			return err
 		}
+
 		report = &Report{LedgerID: ledgerID, TotalsByAsset: totals}
+
 		return nil
 	})
 	if err != nil {
@@ -138,7 +142,7 @@ func (c *Checker) processBalance(ctx context.Context, orgID, ledgerID string, b 
 }
 
 // getOrCreateBalanceTotals gets or creates BalanceTotals for an asset
-func (c *Checker) getOrCreateBalanceTotals(totals map[string]*BalanceTotals, assetCode string) *BalanceTotals {
+func (*Checker) getOrCreateBalanceTotals(totals map[string]*BalanceTotals, assetCode string) *BalanceTotals {
 	t, ok := totals[assetCode]
 	if !ok {
 		t = &BalanceTotals{Asset: assetCode, TotalAvailable: decimal.Zero, TotalOnHold: decimal.Zero, InternalNetTotal: decimal.Zero}
@@ -149,7 +153,7 @@ func (c *Checker) getOrCreateBalanceTotals(totals map[string]*BalanceTotals, ass
 }
 
 // updateBalanceTotals updates the balance totals with the given balance
-func (c *Checker) updateBalanceTotals(t *BalanceTotals, b models.Balance) {
+func (*Checker) updateBalanceTotals(t *BalanceTotals, b models.Balance) {
 	t.Accounts++
 	t.TotalAvailable = t.TotalAvailable.Add(b.Available)
 	t.TotalOnHold = t.TotalOnHold.Add(b.OnHold)
@@ -157,27 +161,36 @@ func (c *Checker) updateBalanceTotals(t *BalanceTotals, b models.Balance) {
 
 // getAccountAlias gets the account alias with caching and optional throttling
 func (c *Checker) getAccountAlias(ctx context.Context, orgID, ledgerID, accountID string, accountAliasCache map[string]string) (string, error) {
-	alias, ok := accountAliasCache[accountID]
-	if !ok {
-		if err := c.waitForThrottling(ctx); err != nil {
-			return "", err
-		}
-
-		acc, err := c.e.Accounts.GetAccount(ctx, orgID, ledgerID, accountID)
-		if err != nil {
-			return "", fmt.Errorf("failed to get account %s: %w", accountID, err)
-		}
-
-		if acc != nil && acc.Alias != nil {
-			alias = *acc.Alias
-		} else {
-			alias = ""
-		}
-
-		accountAliasCache[accountID] = alias
+	if alias, ok := accountAliasCache[accountID]; ok {
+		return alias, nil
 	}
 
+	alias, err := c.fetchAccountAlias(ctx, orgID, ledgerID, accountID)
+	if err != nil {
+		return "", err
+	}
+
+	accountAliasCache[accountID] = alias
+
 	return alias, nil
+}
+
+// fetchAccountAlias fetches the account alias from the API with throttling.
+func (c *Checker) fetchAccountAlias(ctx context.Context, orgID, ledgerID, accountID string) (string, error) {
+	if err := c.waitForThrottling(ctx); err != nil {
+		return "", err
+	}
+
+	acc, err := c.e.Accounts.GetAccount(ctx, orgID, ledgerID, accountID)
+	if err != nil {
+		return "", fmt.Errorf("failed to get account %s: %w", accountID, err)
+	}
+
+	if acc != nil && acc.Alias != nil {
+		return *acc.Alias, nil
+	}
+
+	return "", nil
 }
 
 // waitForThrottling implements the account lookup delay with cancellation
@@ -204,7 +217,7 @@ func (c *Checker) waitForThrottling(ctx context.Context) error {
 }
 
 // updateInternalNetTotal updates internal net total excluding external aliases
-func (c *Checker) updateInternalNetTotal(t *BalanceTotals, b models.Balance, alias string) {
+func (*Checker) updateInternalNetTotal(t *BalanceTotals, b models.Balance, alias string) {
 	if !strings.HasPrefix(alias, "@external/") {
 		t.InternalNetTotal = t.InternalNetTotal.Add(b.Available.Add(b.OnHold))
 	}

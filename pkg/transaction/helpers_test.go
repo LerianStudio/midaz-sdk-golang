@@ -364,12 +364,12 @@ func TestMultiTransferOptionsFields(t *testing.T) {
 
 // TestTransactionTemplateFields tests TransactionTemplate struct fields
 func TestTransactionTemplateFields(t *testing.T) {
-	buildSources := func(amount int64) []models.FromToInput {
+	buildSources := func(_ int64) []models.FromToInput {
 		return []models.FromToInput{
 			{Account: "source-account"},
 		}
 	}
-	buildDests := func(amount int64) []models.FromToInput {
+	buildDests := func(_ int64) []models.FromToInput {
 		return []models.FromToInput{
 			{Account: "dest-account"},
 		}
@@ -516,6 +516,6 @@ func TestBatchResultFields(t *testing.T) {
 
 	assert.Equal(t, 5, result.Index)
 	assert.Equal(t, "tx-123", result.TransactionID)
-	assert.Nil(t, result.Error)
+	require.NoError(t, result.Error)
 	assert.Equal(t, 100, int(result.Duration))
 }

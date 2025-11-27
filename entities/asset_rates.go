@@ -231,6 +231,7 @@ func (e *assetRatesEntity) ListAssetRatesByAssetCode(
 		for key, value := range opts.ToQueryParams() {
 			q.Add(key, value)
 		}
+
 		req.URL.RawQuery = q.Encode()
 	}
 

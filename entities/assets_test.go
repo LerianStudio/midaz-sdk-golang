@@ -68,7 +68,7 @@ func TestListAssets(t *testing.T) {
 		Return(assetsList, nil)
 
 	result, err := mockService.ListAssets(ctx, orgID, ledgerID, nil)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, 2, result.Pagination.Total)
 	assert.Len(t, result.Items, 2)
 	assert.Equal(t, "asset-123", result.Items[0].ID)
@@ -79,18 +79,18 @@ func TestListAssets(t *testing.T) {
 
 	mockService.EXPECT().
 		ListAssets(gomock.Any(), "", ledgerID, gomock.Any()).
-		Return(nil, fmt.Errorf("organization ID is required"))
+		Return(nil, errors.New("organization ID is required"))
 
 	_, err = mockService.ListAssets(ctx, "", ledgerID, nil)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization ID is required")
 
 	mockService.EXPECT().
 		ListAssets(gomock.Any(), orgID, "", gomock.Any()).
-		Return(nil, fmt.Errorf("ledger ID is required"))
+		Return(nil, errors.New("ledger ID is required"))
 
 	_, err = mockService.ListAssets(ctx, orgID, "", nil)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ledger ID is required")
 }
 
@@ -123,7 +123,7 @@ func TestGetAsset(t *testing.T) {
 		Return(asset, nil)
 
 	result, err := mockService.GetAsset(ctx, orgID, ledgerID, assetID)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, assetID, result.ID)
 	assert.Equal(t, "US Dollar", result.Name)
 	assert.Equal(t, "USD", result.Code)
@@ -132,34 +132,34 @@ func TestGetAsset(t *testing.T) {
 
 	mockService.EXPECT().
 		GetAsset(gomock.Any(), "", ledgerID, assetID).
-		Return(nil, fmt.Errorf("organization ID is required"))
+		Return(nil, errors.New("organization ID is required"))
 
 	_, err = mockService.GetAsset(ctx, "", ledgerID, assetID)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization ID is required")
 
 	mockService.EXPECT().
 		GetAsset(gomock.Any(), orgID, "", assetID).
-		Return(nil, fmt.Errorf("ledger ID is required"))
+		Return(nil, errors.New("ledger ID is required"))
 
 	_, err = mockService.GetAsset(ctx, orgID, "", assetID)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ledger ID is required")
 
 	mockService.EXPECT().
 		GetAsset(gomock.Any(), orgID, ledgerID, "").
-		Return(nil, fmt.Errorf("asset ID is required"))
+		Return(nil, errors.New("asset ID is required"))
 
 	_, err = mockService.GetAsset(ctx, orgID, ledgerID, "")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "asset ID is required")
 
 	mockService.EXPECT().
 		GetAsset(gomock.Any(), orgID, ledgerID, "not-found").
-		Return(nil, fmt.Errorf("Asset not found"))
+		Return(nil, errors.New("Asset not found"))
 
 	_, err = mockService.GetAsset(ctx, orgID, ledgerID, "not-found")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
 }
 
@@ -198,7 +198,7 @@ func TestCreateAssetMock(t *testing.T) {
 		Return(asset, nil)
 
 	result, err := mockService.CreateAsset(ctx, orgID, ledgerID, input)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, assetID, result.ID)
 	assert.Equal(t, "US Dollar", result.Name)
 	assert.Equal(t, "USD", result.Code)
@@ -208,26 +208,26 @@ func TestCreateAssetMock(t *testing.T) {
 
 	mockService.EXPECT().
 		CreateAsset(gomock.Any(), "", ledgerID, input).
-		Return(nil, fmt.Errorf("organization ID is required"))
+		Return(nil, errors.New("organization ID is required"))
 
 	_, err = mockService.CreateAsset(ctx, "", ledgerID, input)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization ID is required")
 
 	mockService.EXPECT().
 		CreateAsset(gomock.Any(), orgID, "", input).
-		Return(nil, fmt.Errorf("ledger ID is required"))
+		Return(nil, errors.New("ledger ID is required"))
 
 	_, err = mockService.CreateAsset(ctx, orgID, "", input)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ledger ID is required")
 
 	mockService.EXPECT().
 		CreateAsset(gomock.Any(), orgID, ledgerID, nil).
-		Return(nil, fmt.Errorf("asset input cannot be nil"))
+		Return(nil, errors.New("asset input cannot be nil"))
 
 	_, err = mockService.CreateAsset(ctx, orgID, ledgerID, nil)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "asset input cannot be nil")
 }
 
@@ -266,7 +266,7 @@ func TestUpdateAssetMock(t *testing.T) {
 		Return(asset, nil)
 
 	result, err := mockService.UpdateAsset(ctx, orgID, ledgerID, assetID, input)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, assetID, result.ID)
 	assert.Equal(t, "Updated Dollar", result.Name)
 	assert.Equal(t, "USD", result.Code)
@@ -276,42 +276,42 @@ func TestUpdateAssetMock(t *testing.T) {
 
 	mockService.EXPECT().
 		UpdateAsset(gomock.Any(), "", ledgerID, assetID, input).
-		Return(nil, fmt.Errorf("organization ID is required"))
+		Return(nil, errors.New("organization ID is required"))
 
 	_, err = mockService.UpdateAsset(ctx, "", ledgerID, assetID, input)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization ID is required")
 
 	mockService.EXPECT().
 		UpdateAsset(gomock.Any(), orgID, "", assetID, input).
-		Return(nil, fmt.Errorf("ledger ID is required"))
+		Return(nil, errors.New("ledger ID is required"))
 
 	_, err = mockService.UpdateAsset(ctx, orgID, "", assetID, input)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ledger ID is required")
 
 	mockService.EXPECT().
 		UpdateAsset(gomock.Any(), orgID, ledgerID, "", input).
-		Return(nil, fmt.Errorf("asset ID is required"))
+		Return(nil, errors.New("asset ID is required"))
 
 	_, err = mockService.UpdateAsset(ctx, orgID, ledgerID, "", input)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "asset ID is required")
 
 	mockService.EXPECT().
 		UpdateAsset(gomock.Any(), orgID, ledgerID, assetID, nil).
-		Return(nil, fmt.Errorf("asset input cannot be nil"))
+		Return(nil, errors.New("asset input cannot be nil"))
 
 	_, err = mockService.UpdateAsset(ctx, orgID, ledgerID, assetID, nil)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "asset input cannot be nil")
 
 	mockService.EXPECT().
 		UpdateAsset(gomock.Any(), orgID, ledgerID, "not-found", input).
-		Return(nil, fmt.Errorf("Asset not found"))
+		Return(nil, errors.New("Asset not found"))
 
 	_, err = mockService.UpdateAsset(ctx, orgID, ledgerID, "not-found", input)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
 }
 
@@ -332,38 +332,38 @@ func TestDeleteAssetMock(t *testing.T) {
 		Return(nil)
 
 	err := mockService.DeleteAsset(ctx, orgID, ledgerID, assetID)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	mockService.EXPECT().
 		DeleteAsset(gomock.Any(), "", ledgerID, assetID).
-		Return(fmt.Errorf("organization ID is required"))
+		Return(errors.New("organization ID is required"))
 
 	err = mockService.DeleteAsset(ctx, "", ledgerID, assetID)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization ID is required")
 
 	mockService.EXPECT().
 		DeleteAsset(gomock.Any(), orgID, "", assetID).
-		Return(fmt.Errorf("ledger ID is required"))
+		Return(errors.New("ledger ID is required"))
 
 	err = mockService.DeleteAsset(ctx, orgID, "", assetID)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ledger ID is required")
 
 	mockService.EXPECT().
 		DeleteAsset(gomock.Any(), orgID, ledgerID, "").
-		Return(fmt.Errorf("asset ID is required"))
+		Return(errors.New("asset ID is required"))
 
 	err = mockService.DeleteAsset(ctx, orgID, ledgerID, "")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "asset ID is required")
 
 	mockService.EXPECT().
 		DeleteAsset(gomock.Any(), orgID, ledgerID, "not-found").
-		Return(fmt.Errorf("Asset not found"))
+		Return(errors.New("Asset not found"))
 
 	err = mockService.DeleteAsset(ctx, orgID, ledgerID, "not-found")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
 }
 
@@ -578,7 +578,7 @@ func TestAssetsEntity_ListAssets(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockClient := &MockHTTPClient{
-				DoFunc: func(req *http.Request) (*http.Response, error) {
+				DoFunc: func(_ *http.Request) (*http.Response, error) {
 					if tt.mockError != nil {
 						return nil, tt.mockError
 					}
@@ -603,11 +603,11 @@ func TestAssetsEntity_ListAssets(t *testing.T) {
 			result, err := entity.ListAssets(context.Background(), tt.orgID, tt.ledgerID, tt.opts)
 
 			if tt.expectedError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				return
 			}
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.NotNil(t, result)
 			assert.Len(t, result.Items, tt.expectedItems)
 		})
@@ -694,7 +694,7 @@ func TestAssetsEntity_GetAsset(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockClient := &MockHTTPClient{
-				DoFunc: func(req *http.Request) (*http.Response, error) {
+				DoFunc: func(_ *http.Request) (*http.Response, error) {
 					if tt.mockError != nil {
 						return nil, tt.mockError
 					}
@@ -719,11 +719,11 @@ func TestAssetsEntity_GetAsset(t *testing.T) {
 			result, err := entity.GetAsset(context.Background(), tt.orgID, tt.ledgerID, tt.assetID)
 
 			if tt.expectedError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				return
 			}
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.NotNil(t, result)
 			assert.Equal(t, "asset-123", result.ID)
 			assert.Equal(t, "US Dollar", result.Name)
@@ -831,7 +831,7 @@ func TestAssetsEntity_CreateAsset(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockClient := &MockHTTPClient{
-				DoFunc: func(req *http.Request) (*http.Response, error) {
+				DoFunc: func(_ *http.Request) (*http.Response, error) {
 					if tt.mockError != nil {
 						return nil, tt.mockError
 					}
@@ -856,11 +856,11 @@ func TestAssetsEntity_CreateAsset(t *testing.T) {
 			result, err := entity.CreateAsset(context.Background(), tt.orgID, tt.ledgerID, tt.input)
 
 			if tt.expectedError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				return
 			}
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.NotNil(t, result)
 			assert.Equal(t, "asset-new", result.ID)
 		})
@@ -970,7 +970,7 @@ func TestAssetsEntity_UpdateAsset(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockClient := &MockHTTPClient{
-				DoFunc: func(req *http.Request) (*http.Response, error) {
+				DoFunc: func(_ *http.Request) (*http.Response, error) {
 					if tt.mockError != nil {
 						return nil, tt.mockError
 					}
@@ -995,11 +995,11 @@ func TestAssetsEntity_UpdateAsset(t *testing.T) {
 			result, err := entity.UpdateAsset(context.Background(), tt.orgID, tt.ledgerID, tt.assetID, tt.input)
 
 			if tt.expectedError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				return
 			}
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.NotNil(t, result)
 			assert.Equal(t, "asset-123", result.ID)
 		})
@@ -1068,7 +1068,7 @@ func TestAssetsEntity_DeleteAsset(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockClient := &MockHTTPClient{
-				DoFunc: func(req *http.Request) (*http.Response, error) {
+				DoFunc: func(_ *http.Request) (*http.Response, error) {
 					if tt.mockError != nil {
 						return nil, tt.mockError
 					}
@@ -1098,11 +1098,11 @@ func TestAssetsEntity_DeleteAsset(t *testing.T) {
 			err := entity.DeleteAsset(context.Background(), tt.orgID, tt.ledgerID, tt.assetID)
 
 			if tt.expectedError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				return
 			}
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		})
 	}
 }
@@ -1160,7 +1160,7 @@ func TestAssetsEntity_GetAssetsMetricsCount(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockClient := &MockHTTPClient{
-				DoFunc: func(req *http.Request) (*http.Response, error) {
+				DoFunc: func(_ *http.Request) (*http.Response, error) {
 					if tt.mockError != nil {
 						return nil, tt.mockError
 					}
@@ -1191,11 +1191,11 @@ func TestAssetsEntity_GetAssetsMetricsCount(t *testing.T) {
 			result, err := entity.GetAssetsMetricsCount(context.Background(), tt.orgID, tt.ledgerID)
 
 			if tt.expectedError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				return
 			}
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.NotNil(t, result)
 		})
 	}
@@ -1320,7 +1320,7 @@ func TestAssetsEntity_ListAssetsWithHTTPTestServer(t *testing.T) {
 				"offset": 0
 			}
 		}`))
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}))
 	defer server.Close()
 
@@ -1353,7 +1353,7 @@ func TestAssetsEntity_GetAssetWithHTTPTestServer(t *testing.T) {
 			"type": "CURRENCY",
 			"status": {"code": "ACTIVE"}
 		}`))
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}))
 	defer server.Close()
 
@@ -1386,7 +1386,7 @@ func TestAssetsEntity_CreateAssetWithHTTPTestServer(t *testing.T) {
 			"type": "CURRENCY",
 			"status": {"code": "ACTIVE"}
 		}`))
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}))
 	defer server.Close()
 
@@ -1419,7 +1419,7 @@ func TestAssetsEntity_UpdateAssetWithHTTPTestServer(t *testing.T) {
 			"type": "CURRENCY",
 			"status": {"code": "INACTIVE"}
 		}`))
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}))
 	defer server.Close()
 
@@ -1506,7 +1506,7 @@ func TestAssetsEntity_HTTPErrorHandling(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(tc.statusCode)
 				_, _ = w.Write([]byte(tc.responseBody))
@@ -1517,32 +1517,32 @@ func TestAssetsEntity_HTTPErrorHandling(t *testing.T) {
 
 			// Test ListAssets
 			_, err := service.ListAssets(context.Background(), "org-123", "ledger-123", nil)
-			assert.Error(t, err)
+			require.Error(t, err)
 
 			// Test GetAsset
 			_, err = service.GetAsset(context.Background(), "org-123", "ledger-123", "asset-123")
-			assert.Error(t, err)
+			require.Error(t, err)
 
 			// Test CreateAsset
 			input := models.NewCreateAssetInput("US Dollar", "USD")
 			_, err = service.CreateAsset(context.Background(), "org-123", "ledger-123", input)
-			assert.Error(t, err)
+			require.Error(t, err)
 
 			// Test UpdateAsset
 			updateInput := models.NewUpdateAssetInput().WithName("Updated")
 			_, err = service.UpdateAsset(context.Background(), "org-123", "ledger-123", "asset-123", updateInput)
-			assert.Error(t, err)
+			require.Error(t, err)
 
 			// Test DeleteAsset
 			err = service.DeleteAsset(context.Background(), "org-123", "ledger-123", "asset-123")
-			assert.Error(t, err)
+			require.Error(t, err)
 		})
 	}
 }
 
 // TestAssetsEntity_ContextCancellation tests that context cancellation works
 func TestAssetsEntity_ContextCancellation(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		time.Sleep(100 * time.Millisecond)
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -1554,14 +1554,16 @@ func TestAssetsEntity_ContextCancellation(t *testing.T) {
 	defer cancel()
 
 	_, err := service.ListAssets(ctx, "org-123", "ledger-123", nil)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 // TestAssetsEntity_QueryParameters tests that query parameters are correctly added
 func TestAssetsEntity_QueryParameters(t *testing.T) {
 	var receivedURL string
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		receivedURL = r.URL.String()
+
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"items": [], "pagination": {"total": 0, "limit": 5, "offset": 10}}`))
@@ -1590,6 +1592,7 @@ func TestAssetsEntity_QueryParameters(t *testing.T) {
 // TestAssetsEntity_RequestHeaders tests that correct headers are sent
 func TestAssetsEntity_RequestHeaders(t *testing.T) {
 	var receivedHeaders http.Header
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		receivedHeaders = r.Header
 		w.Header().Set("Content-Type", "application/json")
@@ -1612,10 +1615,12 @@ func TestAssetsEntity_RequestHeaders(t *testing.T) {
 // TestAssetsEntity_CreateAssetRequestBody tests that request body is correctly sent
 func TestAssetsEntity_CreateAssetRequestBody(t *testing.T) {
 	var receivedBody []byte
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var err error
+
 		receivedBody, err = io.ReadAll(r.Body)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
 		_, _ = w.Write([]byte(`{"id": "asset-new", "name": "US Dollar", "code": "USD", "type": "CURRENCY", "status": {"code": "ACTIVE"}}`))
@@ -1640,7 +1645,7 @@ func TestAssetsEntity_CreateAssetRequestBody(t *testing.T) {
 
 // TestAssetsEntity_EmptyResponse tests handling of empty responses
 func TestAssetsEntity_EmptyResponse(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	defer server.Close()
@@ -1653,7 +1658,7 @@ func TestAssetsEntity_EmptyResponse(t *testing.T) {
 
 // TestAssetsEntity_MalformedJSONResponse tests handling of malformed JSON responses
 func TestAssetsEntity_MalformedJSONResponse(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{invalid json`))
@@ -1663,15 +1668,15 @@ func TestAssetsEntity_MalformedJSONResponse(t *testing.T) {
 	service := NewAssetsEntity(server.Client(), "test-token", map[string]string{"onboarding": server.URL})
 
 	_, err := service.ListAssets(context.Background(), "org-123", "ledger-123", nil)
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	_, err = service.GetAsset(context.Background(), "org-123", "ledger-123", "asset-123")
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 // TestAssetsEntity_LargeResponse tests handling of large responses
 func TestAssetsEntity_LargeResponse(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 

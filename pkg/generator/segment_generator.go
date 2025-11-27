@@ -2,7 +2,7 @@ package generator
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
@@ -25,7 +25,7 @@ func NewSegmentGenerator(e *entities.Entity, obs observability.Provider) Segment
 
 func (g *segmentGenerator) Generate(ctx context.Context, orgID, ledgerID, name string, metadata map[string]any) (*models.Segment, error) {
 	if g.e == nil || g.e.Segments == nil {
-		return nil, fmt.Errorf("entity segments service not initialized")
+		return nil, errors.New("entity segments service not initialized")
 	}
 
 	input := models.NewCreateSegmentInput(name).

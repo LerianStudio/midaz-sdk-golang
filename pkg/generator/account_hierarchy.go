@@ -2,7 +2,7 @@ package generator
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 	data "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
@@ -31,7 +31,7 @@ func (h *AccountHierarchyGenerator) GenerateTree(
 	nodes []AccountNode,
 ) ([]*models.Account, error) {
 	if h.accGen == nil {
-		return nil, fmt.Errorf("account generator not initialized")
+		return nil, errors.New("account generator not initialized")
 	}
 
 	var out []*models.Account

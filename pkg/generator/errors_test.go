@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestErrorsJoin(t *testing.T) {
@@ -17,14 +18,16 @@ func TestErrorsJoin(t *testing.T) {
 			name: "No errors returns nil",
 			errs: []error{},
 			expected: func(t *testing.T, result error) {
-				assert.Nil(t, result)
+				t.Helper()
+				require.NoError(t, result)
 			},
 		},
 		{
 			name: "Single error returns that error",
 			errs: []error{errors.New("single error")},
 			expected: func(t *testing.T, result error) {
-				assert.NotNil(t, result)
+				t.Helper()
+				require.Error(t, result)
 				assert.Equal(t, "single error", result.Error())
 			},
 		},
@@ -36,7 +39,8 @@ func TestErrorsJoin(t *testing.T) {
 				errors.New("error 3"),
 			},
 			expected: func(t *testing.T, result error) {
-				assert.NotNil(t, result)
+				t.Helper()
+				require.Error(t, result)
 				assert.Contains(t, result.Error(), "error 1")
 				assert.Contains(t, result.Error(), "error 2")
 				assert.Contains(t, result.Error(), "error 3")
@@ -49,7 +53,8 @@ func TestErrorsJoin(t *testing.T) {
 				errors.New("second"),
 			},
 			expected: func(t *testing.T, result error) {
-				assert.NotNil(t, result)
+				t.Helper()
+				require.Error(t, result)
 				assert.Contains(t, result.Error(), "first")
 				assert.Contains(t, result.Error(), "second")
 			},
@@ -85,22 +90,26 @@ func containsError(err, target error) bool {
 	if err == nil {
 		return false
 	}
+
 	return errors.Is(err, target)
 }
 
 func TestErrorsJoin_WithNilInSlice(t *testing.T) {
 	err1 := errors.New("error 1")
+
 	var nilErr error = nil
 
 	result := errorsJoin(err1, nilErr)
-	assert.NotNil(t, result)
+	require.Error(t, result)
 }
 
 func TestErrorsJoin_AllNils(t *testing.T) {
-	var err1 error = nil
-	var err2 error = nil
+	var (
+		err1 error = nil
+		err2 error = nil
+	)
 
 	// errors.Join returns nil if all errors are nil
 	result := errorsJoin(err1, err2)
-	assert.Nil(t, result)
+	require.NoError(t, result)
 }

@@ -55,6 +55,7 @@ func TestJSONPoolMarshalUnmarshal(t *testing.T) {
 
 	// Test Unmarshal
 	var result testStruct
+
 	err = pool.Unmarshal(data, &result)
 	if err != nil {
 		t.Fatalf("Unmarshal failed: %v", err)
@@ -73,10 +74,12 @@ func TestJSONPoolEncoderDecoder(t *testing.T) {
 	// Test encoder
 	buf := &bytes.Buffer{}
 	enc := pool.NewEncoder(buf)
+
 	err := enc.Encode(testData)
 	if err != nil {
 		t.Fatalf("Encode failed: %v", err)
 	}
+
 	pool.ReleaseEncoder(enc)
 
 	// Verify encoded data by decoding and comparing
@@ -91,11 +94,14 @@ func TestJSONPoolEncoderDecoder(t *testing.T) {
 
 	// Test decoder
 	var result testStruct
+
 	dec := pool.NewDecoder(bytes.NewReader(buf.Bytes()))
+
 	err = dec.Decode(&result)
 	if err != nil {
 		t.Fatalf("Decode failed: %v", err)
 	}
+
 	pool.ReleaseDecoder(dec)
 
 	// Verify decoded data
@@ -129,6 +135,7 @@ func TestJSONPoolConcurrent(t *testing.T) {
 
 				// Unmarshal
 				var result testStruct
+
 				err = pool.Unmarshal(data, &result)
 				if err != nil {
 					errors <- err
@@ -160,6 +167,7 @@ func BenchmarkMarshal(b *testing.B) {
 
 	b.Run("Standard", func(b *testing.B) {
 		b.ReportAllocs()
+
 		for i := 0; i < b.N; i++ {
 			_, err := json.Marshal(testData)
 			if err != nil {
@@ -170,7 +178,9 @@ func BenchmarkMarshal(b *testing.B) {
 
 	b.Run("Pool", func(b *testing.B) {
 		pool := NewJSONPool()
+
 		b.ReportAllocs()
+
 		for i := 0; i < b.N; i++ {
 			_, err := pool.Marshal(testData)
 			if err != nil {
@@ -182,6 +192,7 @@ func BenchmarkMarshal(b *testing.B) {
 
 func BenchmarkUnmarshal(b *testing.B) {
 	testData := generateTestData()
+
 	data, err := json.Marshal(testData)
 	if err != nil {
 		b.Fatal(err)
@@ -189,8 +200,10 @@ func BenchmarkUnmarshal(b *testing.B) {
 
 	b.Run("Standard", func(b *testing.B) {
 		b.ReportAllocs()
+
 		for i := 0; i < b.N; i++ {
 			var result testStruct
+
 			err := json.Unmarshal(data, &result)
 			if err != nil {
 				b.Fatal(err)
@@ -200,9 +213,12 @@ func BenchmarkUnmarshal(b *testing.B) {
 
 	b.Run("Pool", func(b *testing.B) {
 		pool := NewJSONPool()
+
 		b.ReportAllocs()
+
 		for i := 0; i < b.N; i++ {
 			var result testStruct
+
 			err := pool.Unmarshal(data, &result)
 			if err != nil {
 				b.Fatal(err)
@@ -216,9 +232,11 @@ func BenchmarkEncoder(b *testing.B) {
 
 	b.Run("Standard", func(b *testing.B) {
 		b.ReportAllocs()
+
 		for i := 0; i < b.N; i++ {
 			buf := &bytes.Buffer{}
 			enc := json.NewEncoder(buf)
+
 			err := enc.Encode(testData)
 			if err != nil {
 				b.Fatal(err)
@@ -228,14 +246,18 @@ func BenchmarkEncoder(b *testing.B) {
 
 	b.Run("Pool", func(b *testing.B) {
 		pool := NewJSONPool()
+
 		b.ReportAllocs()
+
 		for i := 0; i < b.N; i++ {
 			buf := &bytes.Buffer{}
 			enc := pool.NewEncoder(buf)
+
 			err := enc.Encode(testData)
 			if err != nil {
 				b.Fatal(err)
 			}
+
 			pool.ReleaseEncoder(enc)
 		}
 	})
@@ -243,17 +265,22 @@ func BenchmarkEncoder(b *testing.B) {
 
 func BenchmarkDecoder(b *testing.B) {
 	testData := generateTestData()
+
 	buf := &bytes.Buffer{}
 	if err := json.NewEncoder(buf).Encode(testData); err != nil {
 		b.Fatal(err)
 	}
+
 	data := buf.Bytes()
 
 	b.Run("Standard", func(b *testing.B) {
 		b.ReportAllocs()
+
 		for i := 0; i < b.N; i++ {
 			var result testStruct
+
 			dec := json.NewDecoder(bytes.NewReader(data))
+
 			err := dec.Decode(&result)
 			if err != nil {
 				b.Fatal(err)
@@ -263,14 +290,19 @@ func BenchmarkDecoder(b *testing.B) {
 
 	b.Run("Pool", func(b *testing.B) {
 		pool := NewJSONPool()
+
 		b.ReportAllocs()
+
 		for i := 0; i < b.N; i++ {
 			var result testStruct
+
 			dec := pool.NewDecoder(bytes.NewReader(data))
+
 			err := dec.Decode(&result)
 			if err != nil {
 				b.Fatal(err)
 			}
+
 			pool.ReleaseDecoder(dec)
 		}
 	})
@@ -301,6 +333,7 @@ func TestDefaultJSONPoolFunctions(t *testing.T) {
 		data, _ := json.Marshal(testData)
 
 		var result testStruct
+
 		err := Unmarshal(data, &result)
 		if err != nil {
 			t.Fatalf("Unmarshal failed: %v", err)
@@ -313,10 +346,12 @@ func TestDefaultJSONPoolFunctions(t *testing.T) {
 
 	t.Run("NewEncoder", func(t *testing.T) {
 		buf := &bytes.Buffer{}
+
 		enc := NewEncoder(buf)
 		if err := enc.Encode(testData); err != nil {
 			t.Fatalf("Encode failed: %v", err)
 		}
+
 		ReleaseEncoder(enc)
 
 		var result testStruct
@@ -333,10 +368,12 @@ func TestDefaultJSONPoolFunctions(t *testing.T) {
 		data, _ := json.Marshal(testData)
 
 		dec := NewDecoder(bytes.NewReader(data))
+
 		var result testStruct
 		if err := dec.Decode(&result); err != nil {
 			t.Fatalf("Decode failed: %v", err)
 		}
+
 		ReleaseDecoder(dec)
 
 		if !reflect.DeepEqual(testData, result) {
@@ -350,6 +387,7 @@ func TestJSONPool_MarshalError(t *testing.T) {
 
 	// Test marshaling a channel (which cannot be marshaled)
 	ch := make(chan int)
+
 	_, err := pool.Marshal(ch)
 	if err == nil {
 		t.Error("Expected error when marshaling channel, got nil")
@@ -361,7 +399,9 @@ func TestJSONPool_UnmarshalError(t *testing.T) {
 
 	// Test unmarshaling invalid JSON
 	invalidJSON := []byte(`{invalid json}`)
+
 	var result testStruct
+
 	err := pool.Unmarshal(invalidJSON, &result)
 	if err == nil {
 		t.Error("Expected error when unmarshaling invalid JSON, got nil")
@@ -393,6 +433,7 @@ func TestJSONPool_LargeBuffer(t *testing.T) {
 
 	// Unmarshal and verify
 	var result largeStruct
+
 	err = pool.Unmarshal(data, &result)
 	if err != nil {
 		t.Fatalf("Unmarshal failed: %v", err)
@@ -408,6 +449,7 @@ func TestJSONPool_EmptyData(t *testing.T) {
 
 	t.Run("MarshalEmptyStruct", func(t *testing.T) {
 		type emptyStruct struct{}
+
 		data, err := pool.Marshal(emptyStruct{})
 		if err != nil {
 			t.Fatalf("Marshal failed: %v", err)
@@ -435,7 +477,9 @@ func TestJSONPool_EmptyData(t *testing.T) {
 
 	t.Run("UnmarshalEmptyJSON", func(t *testing.T) {
 		emptyJSON := []byte(`{}`)
+
 		var result testStruct
+
 		err := pool.Unmarshal(emptyJSON, &result)
 		if err != nil {
 			t.Fatalf("Unmarshal failed: %v", err)
@@ -478,6 +522,7 @@ func TestJSONPool_SpecialCharacters(t *testing.T) {
 			}
 
 			var result specialCharsStruct
+
 			err = pool.Unmarshal(data, &result)
 			if err != nil {
 				t.Fatalf("Unmarshal failed: %v", err)
@@ -514,6 +559,7 @@ func TestJSONPool_NestedStructures(t *testing.T) {
 	}
 
 	var result deeplyNested
+
 	err = pool.Unmarshal(data, &result)
 	if err != nil {
 		t.Fatalf("Unmarshal failed: %v", err)
@@ -529,12 +575,14 @@ func TestJSONPool_SlicesAndMaps(t *testing.T) {
 
 	t.Run("EmptySlice", func(t *testing.T) {
 		var original []string
+
 		data, err := pool.Marshal(original)
 		if err != nil {
 			t.Fatalf("Marshal failed: %v", err)
 		}
 
 		var result []string
+
 		err = pool.Unmarshal(data, &result)
 		if err != nil {
 			t.Fatalf("Unmarshal failed: %v", err)
@@ -557,6 +605,7 @@ func TestJSONPool_SlicesAndMaps(t *testing.T) {
 		}
 
 		var result []int
+
 		err = pool.Unmarshal(data, &result)
 		if err != nil {
 			t.Fatalf("Unmarshal failed: %v", err)
@@ -583,6 +632,7 @@ func TestJSONPool_SlicesAndMaps(t *testing.T) {
 		}
 
 		var result map[string]any
+
 		err = pool.Unmarshal(data, &result)
 		if err != nil {
 			t.Fatalf("Unmarshal failed: %v", err)
@@ -591,6 +641,7 @@ func TestJSONPool_SlicesAndMaps(t *testing.T) {
 		if result["string"] != "value" {
 			t.Errorf("Expected string='value', got %v", result["string"])
 		}
+
 		if result["boolean"] != true {
 			t.Errorf("Expected boolean=true, got %v", result["boolean"])
 		}
@@ -643,6 +694,7 @@ func BenchmarkConcurrentUnmarshal(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			var result testStruct
+
 			err := pool.Unmarshal(data, &result)
 			if err != nil {
 				b.Fatal(err)

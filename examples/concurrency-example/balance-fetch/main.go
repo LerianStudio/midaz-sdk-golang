@@ -69,7 +69,7 @@ func setupAndFetchAccounts() (*client.Client, []string, context.Context, context
 	return c, accountIDs, ctx, cancel
 }
 
-func fetchBalancesFn(ctx context.Context, accountID string) (AccountBalance, error) {
+func fetchBalancesFn(_ context.Context, accountID string) (AccountBalance, error) {
 	time.Sleep(100 * time.Millisecond) // Simulate network delay
 
 	balances := []*models.Balance{
@@ -167,7 +167,7 @@ func batchUpdateBalances(ctx context.Context, accountBalances map[string][]*mode
 	fmt.Printf("Updating %d balances in batches\n", len(allBalances))
 
 	// Define a batch update function
-	updateBalancesBatchFn := func(ctx context.Context, balanceBatch []*models.Balance) ([]*models.Balance, error) {
+	updateBalancesBatchFn := func(_ context.Context, balanceBatch []*models.Balance) ([]*models.Balance, error) {
 		// In a real app, this would call the Midaz API to update the balances
 		// For this example, we'll simulate an API call
 		time.Sleep(200 * time.Millisecond) // Simulate network delay

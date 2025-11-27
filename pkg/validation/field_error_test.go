@@ -281,7 +281,7 @@ func TestFieldErrors_HasErrors(t *testing.T) {
 func TestFieldErrors_Error(t *testing.T) {
 	t.Run("Returns empty string for no errors", func(t *testing.T) {
 		fe := NewFieldErrors()
-		assert.Equal(t, "", fe.Error())
+		assert.Empty(t, fe.Error())
 	})
 
 	t.Run("Returns formatted string for single error", func(t *testing.T) {

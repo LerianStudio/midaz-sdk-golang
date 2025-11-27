@@ -4,6 +4,7 @@ package observability
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -134,7 +135,7 @@ type Option func(*Config) error
 func WithServiceName(name string) Option {
 	return func(c *Config) error {
 		if name == "" {
-			return fmt.Errorf("service name cannot be empty")
+			return errors.New("service name cannot be empty")
 		}
 
 		c.ServiceName = name
@@ -147,7 +148,7 @@ func WithServiceName(name string) Option {
 func WithServiceVersion(ver string) Option {
 	return func(c *Config) error {
 		if ver == "" {
-			return fmt.Errorf("service version cannot be empty")
+			return errors.New("service version cannot be empty")
 		}
 
 		c.ServiceVersion = ver
@@ -160,7 +161,7 @@ func WithServiceVersion(ver string) Option {
 func WithSDKVersion(ver string) Option {
 	return func(c *Config) error {
 		if ver == "" {
-			return fmt.Errorf("SDK version cannot be empty")
+			return errors.New("SDK version cannot be empty")
 		}
 
 		c.SDKVersion = ver
@@ -173,7 +174,7 @@ func WithSDKVersion(ver string) Option {
 func WithEnvironment(env string) Option {
 	return func(c *Config) error {
 		if env == "" {
-			return fmt.Errorf("environment cannot be empty")
+			return errors.New("environment cannot be empty")
 		}
 
 		c.Environment = env
@@ -186,7 +187,7 @@ func WithEnvironment(env string) Option {
 func WithCollectorEndpoint(endpoint string) Option {
 	return func(c *Config) error {
 		if endpoint == "" {
-			return fmt.Errorf("collector endpoint cannot be empty")
+			return errors.New("collector endpoint cannot be empty")
 		}
 
 		c.CollectorEndpoint = endpoint
@@ -212,7 +213,7 @@ func WithLogLevel(level LogLevel) Option {
 func WithLogOutput(output io.Writer) Option {
 	return func(c *Config) error {
 		if output == nil {
-			return fmt.Errorf("log output cannot be nil")
+			return errors.New("log output cannot be nil")
 		}
 
 		c.LogOutput = output
@@ -258,7 +259,7 @@ func WithAttributes(attrs ...attribute.KeyValue) Option {
 func WithPropagators(propagators ...propagation.TextMapPropagator) Option {
 	return func(c *Config) error {
 		if len(propagators) == 0 {
-			return fmt.Errorf("at least one propagator must be provided")
+			return errors.New("at least one propagator must be provided")
 		}
 
 		c.Propagators = propagators
@@ -271,7 +272,7 @@ func WithPropagators(propagators ...propagation.TextMapPropagator) Option {
 func WithPropagationHeaders(headers ...string) Option {
 	return func(c *Config) error {
 		if len(headers) == 0 {
-			return fmt.Errorf("at least one propagation header must be provided")
+			return errors.New("at least one propagation header must be provided")
 		}
 
 		c.PropagationHeaders = headers

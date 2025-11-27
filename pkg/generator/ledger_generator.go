@@ -2,6 +2,7 @@ package generator
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"time"
@@ -37,11 +38,11 @@ func NewLedgerGenerator(e *entities.Entity, obs observability.Provider, defaultO
 
 func (g *ledgerGenerator) Generate(ctx context.Context, orgID string, template data.LedgerTemplate) (*models.Ledger, error) {
 	if g.e == nil || g.e.Ledgers == nil {
-		return nil, fmt.Errorf("entity ledgers service not initialized")
+		return nil, errors.New("entity ledgers service not initialized")
 	}
 
 	if orgID == "" {
-		return nil, fmt.Errorf("organization id is required")
+		return nil, errors.New("organization id is required")
 	}
 
 	input := models.NewCreateLedgerInput(template.Name).
@@ -146,7 +147,7 @@ func (g *ledgerGenerator) GenerateForOrg(ctx context.Context, orgID string, coun
 
 func (g *ledgerGenerator) ListWithPagination(ctx context.Context, opts *models.ListOptions) (*models.ListResponse[models.Ledger], error) {
 	if g.defaultOrg == "" {
-		return nil, fmt.Errorf("default organization id not configured for listing")
+		return nil, errors.New("default organization id not configured for listing")
 	}
 
 	var out *models.ListResponse[models.Ledger]

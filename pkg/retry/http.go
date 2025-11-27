@@ -433,7 +433,7 @@ func (r *httpRetryState) cloneRequestWithoutBody(req *http.Request) (*http.Reque
 }
 
 // copyHeaders copies headers from source to destination request.
-func (r *httpRetryState) copyHeaders(src, dst *http.Request) {
+func (*httpRetryState) copyHeaders(src, dst *http.Request) {
 	for key, values := range src.Header {
 		for _, value := range values {
 			dst.Header.Add(key, value)
@@ -449,6 +449,7 @@ func (r *httpRetryState) executeAttempt(req *http.Request, attempt int) (*HTTPRe
 	// Ensure response body is properly closed according to Go HTTP best practices
 	// Use a flag to track if body was consumed by readResponseBody to avoid double closing
 	var bodyConsumed bool
+
 	defer func() {
 		if !bodyConsumed && resp != nil && resp.Body != nil {
 			// Silently close the body - close errors are non-actionable in library code
@@ -582,7 +583,7 @@ func (r *httpRetryState) waitForRetry(attempt int) error {
 }
 
 // createErrorResponse creates an HTTPResponse for errors.
-func (r *httpRetryState) createErrorResponse(attempt int, err error) *HTTPResponse {
+func (*httpRetryState) createErrorResponse(attempt int, err error) *HTTPResponse {
 	return &HTTPResponse{
 		Error:   err,
 		Attempt: attempt,

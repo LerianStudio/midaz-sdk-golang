@@ -6,6 +6,7 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/format"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestFormatISO(t *testing.T) {
@@ -68,7 +69,7 @@ func TestFormatISO(t *testing.T) {
 func TestNewFormatISO(t *testing.T) {
 	// Test with default options
 	formatter, err := format.NewFormatISO()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.True(t, formatter.IncludeTime)
 	assert.False(t, formatter.IncludeMilliseconds)
 	assert.True(t, formatter.NAOnZero)
@@ -78,7 +79,7 @@ func TestNewFormatISO(t *testing.T) {
 		format.WithIncludeTime(false),
 		format.WithNAOnZero(false),
 	)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.False(t, formatter.IncludeTime)
 	assert.False(t, formatter.IncludeMilliseconds)
 	assert.False(t, formatter.NAOnZero)
@@ -88,7 +89,7 @@ func TestNewFormatISO(t *testing.T) {
 		format.WithIncludeTime(false),
 		format.WithIncludeMilliseconds(true),
 	)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.True(t, formatter.IncludeTime, "Time should be automatically enabled when milliseconds are enabled")
 	assert.True(t, formatter.IncludeMilliseconds)
 
@@ -97,7 +98,7 @@ func TestNewFormatISO(t *testing.T) {
 		format.WithIncludeMilliseconds(true),
 		format.WithIncludeTime(false),
 	)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.True(t, formatter.IncludeTime, "Time should remain enabled despite attempt to disable it")
 	assert.True(t, formatter.IncludeMilliseconds)
 
@@ -106,7 +107,7 @@ func TestNewFormatISO(t *testing.T) {
 		format.WithIncludeTime(true),
 		format.WithIncludeMilliseconds(true),
 	)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.True(t, formatter.IncludeTime)
 	assert.True(t, formatter.IncludeMilliseconds)
 }
@@ -152,9 +153,9 @@ func TestParseISO(t *testing.T) {
 			result, err := format.ParseISO(tc.input)
 
 			if tc.hasError {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, tc.expected, result)
 			}
 		})

@@ -175,7 +175,7 @@ func (bp *batchProcessor) processBatch(start, end int, wg *sync.WaitGroup, semap
 }
 
 // checkForEarlyError checks if processing should stop due to a previous error.
-func (bp *batchProcessor) checkForEarlyError(errChan chan error) error {
+func (*batchProcessor) checkForEarlyError(errChan chan error) error {
 	select {
 	case err := <-errChan:
 		return err
@@ -265,7 +265,7 @@ func (bp *batchProcessor) waitForRetry(attempt int) error {
 }
 
 // calculateBackoffFactor calculates the backoff factor for exponential backoff.
-func (bp *batchProcessor) calculateBackoffFactor(attempt int) uint {
+func (*batchProcessor) calculateBackoffFactor(attempt int) uint {
 	if attempt <= 0 {
 		return 0
 	}
@@ -286,7 +286,7 @@ func (bp *batchProcessor) calculateBackoffFactor(attempt int) uint {
 }
 
 // createResult creates a BatchResult for the transaction.
-func (bp *batchProcessor) createResult(index int, tx *models.Transaction, err error, duration time.Duration) BatchResult {
+func (*batchProcessor) createResult(index int, tx *models.Transaction, err error, duration time.Duration) BatchResult {
 	result := BatchResult{
 		Index:         index,
 		TransactionID: "",

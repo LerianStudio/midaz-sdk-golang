@@ -2,7 +2,7 @@
 package models
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
@@ -18,7 +18,7 @@ type UpdateBalanceInput struct {
 }
 
 // Validate validates the UpdateBalanceInput fields.
-func (input *UpdateBalanceInput) Validate() error {
+func (*UpdateBalanceInput) Validate() error {
 	// For balance updates, validation is minimal since most fields are controlled by the system
 	return nil
 }
@@ -69,7 +69,7 @@ func (input *CreateBalanceInput) WithAllowReceiving(allow bool) *CreateBalanceIn
 // Validate validates the CreateBalanceInput fields.
 func (input *CreateBalanceInput) Validate() error {
 	if input.Key == "" {
-		return fmt.Errorf("key is required")
+		return errors.New("key is required")
 	}
 
 	return nil

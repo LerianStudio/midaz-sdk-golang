@@ -6,6 +6,7 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestValidateDSLAlias(t *testing.T) {
@@ -29,7 +30,7 @@ func TestValidateDSLAlias(t *testing.T) {
 		for _, alias := range validAliases {
 			t.Run(alias, func(t *testing.T) {
 				err := ValidateDSLAlias(alias)
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			})
 		}
 	})
@@ -69,20 +70,20 @@ func TestValidateDSLAlias(t *testing.T) {
 		for _, tt := range invalidAliases {
 			t.Run(tt.name, func(t *testing.T) {
 				err := ValidateDSLAlias(tt.alias)
-				assert.Error(t, err)
+				require.Error(t, err)
 			})
 		}
 	})
 
 	t.Run("empty alias returns error", func(t *testing.T) {
 		err := ValidateDSLAlias("")
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "cannot be empty")
 	})
 
 	t.Run("invalid format returns error with pattern", func(t *testing.T) {
 		err := ValidateDSLAlias("invalid alias!")
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid alias format")
 		assert.Contains(t, err.Error(), "must match pattern")
 	})
@@ -100,7 +101,7 @@ func TestValidateOrgTemplate(t *testing.T) {
 		}
 
 		err := ValidateOrgTemplate(org)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("valid org template without metadata", func(t *testing.T) {
@@ -114,7 +115,7 @@ func TestValidateOrgTemplate(t *testing.T) {
 		}
 
 		err := ValidateOrgTemplate(org)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("missing legal name", func(t *testing.T) {
@@ -125,7 +126,7 @@ func TestValidateOrgTemplate(t *testing.T) {
 		}
 
 		err := ValidateOrgTemplate(org)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "legal name is required")
 	})
 
@@ -137,7 +138,7 @@ func TestValidateOrgTemplate(t *testing.T) {
 		}
 
 		err := ValidateOrgTemplate(org)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "address is incomplete")
 	})
 
@@ -149,7 +150,7 @@ func TestValidateOrgTemplate(t *testing.T) {
 		}
 
 		err := ValidateOrgTemplate(org)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "address is incomplete")
 	})
 
@@ -161,7 +162,7 @@ func TestValidateOrgTemplate(t *testing.T) {
 		}
 
 		err := ValidateOrgTemplate(org)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "address is incomplete")
 	})
 
@@ -174,7 +175,7 @@ func TestValidateOrgTemplate(t *testing.T) {
 		}
 
 		err := ValidateOrgTemplate(org)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid metadata")
 	})
 }
@@ -190,7 +191,7 @@ func TestValidateAssetTemplate(t *testing.T) {
 		}
 
 		err := ValidateAssetTemplate(asset)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("valid asset template - crypto", func(t *testing.T) {
@@ -203,7 +204,7 @@ func TestValidateAssetTemplate(t *testing.T) {
 		}
 
 		err := ValidateAssetTemplate(asset)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("valid asset template - others", func(t *testing.T) {
@@ -216,7 +217,7 @@ func TestValidateAssetTemplate(t *testing.T) {
 		}
 
 		err := ValidateAssetTemplate(asset)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("missing name", func(t *testing.T) {
@@ -228,7 +229,7 @@ func TestValidateAssetTemplate(t *testing.T) {
 		}
 
 		err := ValidateAssetTemplate(asset)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "asset name is required")
 	})
 
@@ -241,7 +242,7 @@ func TestValidateAssetTemplate(t *testing.T) {
 		}
 
 		err := ValidateAssetTemplate(asset)
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("scale too low", func(t *testing.T) {
@@ -253,7 +254,7 @@ func TestValidateAssetTemplate(t *testing.T) {
 		}
 
 		err := ValidateAssetTemplate(asset)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid scale")
 	})
 
@@ -266,7 +267,7 @@ func TestValidateAssetTemplate(t *testing.T) {
 		}
 
 		err := ValidateAssetTemplate(asset)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid scale")
 	})
 
@@ -279,7 +280,7 @@ func TestValidateAssetTemplate(t *testing.T) {
 			Scale: 0,
 		}
 		err := ValidateAssetTemplate(asset0)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// Scale 18 should be valid
 		asset18 := AssetTemplate{
@@ -289,7 +290,7 @@ func TestValidateAssetTemplate(t *testing.T) {
 			Scale: 18,
 		}
 		err = ValidateAssetTemplate(asset18)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("invalid metadata - key too long", func(t *testing.T) {
@@ -303,7 +304,7 @@ func TestValidateAssetTemplate(t *testing.T) {
 		}
 
 		err := ValidateAssetTemplate(asset)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid metadata")
 	})
 }
@@ -319,7 +320,7 @@ func TestValidateAccountTemplate(t *testing.T) {
 		}
 
 		err := ValidateAccountTemplate(acc)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("valid account template without optional fields", func(t *testing.T) {
@@ -330,7 +331,7 @@ func TestValidateAccountTemplate(t *testing.T) {
 		}
 
 		err := ValidateAccountTemplate(acc)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("missing name", func(t *testing.T) {
@@ -340,7 +341,7 @@ func TestValidateAccountTemplate(t *testing.T) {
 		}
 
 		err := ValidateAccountTemplate(acc)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "account name is required")
 	})
 
@@ -352,7 +353,7 @@ func TestValidateAccountTemplate(t *testing.T) {
 		}
 
 		err := ValidateAccountTemplate(acc)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "must not start with '@external/'")
 	})
 
@@ -364,7 +365,7 @@ func TestValidateAccountTemplate(t *testing.T) {
 		}
 
 		err := ValidateAccountTemplate(acc)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("empty alias is valid", func(t *testing.T) {
@@ -375,7 +376,7 @@ func TestValidateAccountTemplate(t *testing.T) {
 		}
 
 		err := ValidateAccountTemplate(acc)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("invalid metadata - key too long", func(t *testing.T) {
@@ -387,7 +388,7 @@ func TestValidateAccountTemplate(t *testing.T) {
 		}
 
 		err := ValidateAccountTemplate(acc)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid metadata")
 	})
 }
@@ -405,7 +406,7 @@ func TestValidateTransactionPattern(t *testing.T) {
 		}
 
 		err := ValidateTransactionPattern(pattern)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("valid transaction pattern without metadata", func(t *testing.T) {
@@ -416,7 +417,7 @@ func TestValidateTransactionPattern(t *testing.T) {
 		}
 
 		err := ValidateTransactionPattern(pattern)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("missing DSL template", func(t *testing.T) {
@@ -427,7 +428,7 @@ func TestValidateTransactionPattern(t *testing.T) {
 		}
 
 		err := ValidateTransactionPattern(pattern)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "dsl template is required")
 	})
 
@@ -439,7 +440,7 @@ func TestValidateTransactionPattern(t *testing.T) {
 		}
 
 		err := ValidateTransactionPattern(pattern)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "chart of accounts group name is required")
 	})
 
@@ -451,7 +452,7 @@ func TestValidateTransactionPattern(t *testing.T) {
 		}
 
 		err := ValidateTransactionPattern(pattern)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "idempotency key is required")
 	})
 
@@ -465,7 +466,7 @@ func TestValidateTransactionPattern(t *testing.T) {
 		}
 
 		err := ValidateTransactionPattern(pattern)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid metadata")
 	})
 }
@@ -496,15 +497,16 @@ func TestValidateDSLAliasPattern(t *testing.T) {
 		t.Run(tt.alias, func(t *testing.T) {
 			if tt.alias == "" {
 				err := ValidateDSLAlias(tt.alias)
-				assert.Error(t, err)
+				require.Error(t, err)
+
 				return
 			}
 
 			err := ValidateDSLAlias(tt.alias)
 			if tt.matches {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			} else {
-				assert.Error(t, err)
+				require.Error(t, err)
 			}
 		})
 	}
@@ -519,7 +521,7 @@ func TestValidateOrgTemplateEdgeCases(t *testing.T) {
 
 		err := ValidateOrgTemplate(org)
 		// Whitespace-only should pass since we only check for empty
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("very long legal name", func(t *testing.T) {
@@ -530,7 +532,7 @@ func TestValidateOrgTemplateEdgeCases(t *testing.T) {
 
 		err := ValidateOrgTemplate(org)
 		// Long names should pass - no length limit in validation
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 }
 
@@ -545,7 +547,7 @@ func TestValidateAssetTemplateEdgeCases(t *testing.T) {
 
 		err := ValidateAssetTemplate(asset)
 		// Whitespace-only should pass since we only check for empty
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("valid asset types", func(t *testing.T) {
@@ -560,7 +562,7 @@ func TestValidateAssetTemplateEdgeCases(t *testing.T) {
 			}
 
 			err := ValidateAssetTemplate(asset)
-			assert.NoError(t, err, "type %s should be valid", assetType)
+			require.NoError(t, err, "type %s should be valid", assetType)
 		}
 	})
 }
@@ -579,7 +581,7 @@ func TestValidateAccountTemplateEdgeCases(t *testing.T) {
 		// so @External/ should NOT be flagged as external
 		err := ValidateAccountTemplate(acc)
 		// @External (uppercase) is NOT treated as external, so it should pass
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("alias with lowercase @external fails", func(t *testing.T) {
@@ -590,7 +592,7 @@ func TestValidateAccountTemplateEdgeCases(t *testing.T) {
 		}
 
 		err := ValidateAccountTemplate(acc)
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "must not start with '@external/'")
 	})
 }
@@ -605,7 +607,7 @@ func TestValidateTransactionPatternEdgeCases(t *testing.T) {
 
 		err := ValidateTransactionPattern(pattern)
 		// Whitespace-only should pass since we only check for empty
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("very long DSL template", func(t *testing.T) {
@@ -617,6 +619,6 @@ func TestValidateTransactionPatternEdgeCases(t *testing.T) {
 
 		err := ValidateTransactionPattern(pattern)
 		// Long DSL should pass - no length limit in validation
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 }

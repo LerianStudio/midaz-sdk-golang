@@ -554,12 +554,12 @@ func NewMidazError(code ErrorCode, err error) *MidazError {
 
 // Helper to create a value of the same type as the original error
 func ValueOfOriginalType(err error, value any) error {
-	switch err.(type) {
-	case *MidazError:
-		if code, ok := value.(ErrorCode); ok {
-			return &MidazError{
-				Code:    code,
-				Message: "Test error for " + string(code),
+	{
+		var errCase0 *MidazError
+		switch {
+		case errors.As(err, &errCase0):
+			if code, ok := value.(ErrorCode); ok {
+				return &MidazError{Code: code, Message: "Test error for " + string(code)}
 			}
 		}
 	}
@@ -1042,98 +1042,47 @@ func FormatErrorForDisplay(err error) string {
 	return err.Error()
 }
 
+// httpErrorMapping contains the category and code mapping for HTTP status codes.
+type httpErrorMapping struct {
+	category     ErrorCategory
+	code         ErrorCode
+	withResource bool
+}
+
+// httpErrorMappings maps HTTP status codes to error categories and codes.
+var httpErrorMappings = map[int]httpErrorMapping{
+	http.StatusBadRequest:          {CategoryValidation, CodeValidation, true},
+	http.StatusUnauthorized:        {CategoryAuthentication, CodeAuthentication, false},
+	http.StatusForbidden:           {CategoryAuthorization, CodePermission, false},
+	http.StatusNotFound:            {CategoryNotFound, CodeNotFound, true},
+	http.StatusConflict:            {CategoryConflict, CodeAlreadyExists, true},
+	http.StatusTooManyRequests:     {CategoryLimitExceeded, CodeRateLimit, false},
+	http.StatusGatewayTimeout:      {CategoryTimeout, CodeTimeout, false},
+	http.StatusUnprocessableEntity: {CategoryUnprocessable, CodeInternal, true},
+	http.StatusServiceUnavailable:  {CategoryNetwork, CodeInternal, false},
+}
+
 // ErrorFromHTTPResponse creates an appropriate error based on the HTTP response
-func ErrorFromHTTPResponse(statusCode int, requestID, message, code, entityType, resourceID string) error {
-	switch statusCode {
-	case http.StatusBadRequest:
-		return &Error{
-			Category:   CategoryValidation,
-			Code:       CodeValidation,
-			Message:    message,
-			Resource:   entityType,
-			ResourceID: resourceID,
-			StatusCode: statusCode,
-			RequestID:  requestID,
-		}
-	case http.StatusUnauthorized:
-		return &Error{
-			Category:   CategoryAuthentication,
-			Code:       CodeAuthentication,
-			Message:    message,
-			StatusCode: statusCode,
-			RequestID:  requestID,
-		}
-	case http.StatusForbidden:
-		return &Error{
-			Category:   CategoryAuthorization,
-			Code:       CodePermission,
-			Message:    message,
-			StatusCode: statusCode,
-			RequestID:  requestID,
-		}
-	case http.StatusNotFound:
-		return &Error{
-			Category:   CategoryNotFound,
-			Code:       CodeNotFound,
-			Message:    message,
-			Resource:   entityType,
-			ResourceID: resourceID,
-			StatusCode: statusCode,
-			RequestID:  requestID,
-		}
-	case http.StatusConflict:
-		return &Error{
-			Category:   CategoryConflict,
-			Code:       CodeAlreadyExists,
-			Message:    message,
-			Resource:   entityType,
-			ResourceID: resourceID,
-			StatusCode: statusCode,
-			RequestID:  requestID,
-		}
-	case http.StatusTooManyRequests:
-		return &Error{
-			Category:   CategoryLimitExceeded,
-			Code:       CodeRateLimit,
-			Message:    message,
-			StatusCode: statusCode,
-			RequestID:  requestID,
-		}
-	case http.StatusGatewayTimeout:
-		return &Error{
-			Category:   CategoryTimeout,
-			Code:       CodeTimeout,
-			Message:    message,
-			StatusCode: statusCode,
-			RequestID:  requestID,
-		}
-	case http.StatusUnprocessableEntity:
-		return &Error{
-			Category:   CategoryUnprocessable,
-			Code:       CodeInternal,
-			Message:    message,
-			Resource:   entityType,
-			ResourceID: resourceID,
-			StatusCode: statusCode,
-			RequestID:  requestID,
-		}
-	case http.StatusServiceUnavailable:
-		return &Error{
-			Category:   CategoryNetwork,
-			Code:       CodeInternal,
-			Message:    message,
-			StatusCode: statusCode,
-			RequestID:  requestID,
-		}
-	default:
-		return &Error{
-			Category:   CategoryInternal,
-			Code:       CodeInternal,
-			Message:    message,
-			StatusCode: statusCode,
-			RequestID:  requestID,
-		}
+func ErrorFromHTTPResponse(statusCode int, requestID, message, _, entityType, resourceID string) error {
+	mapping, ok := httpErrorMappings[statusCode]
+	if !ok {
+		mapping = httpErrorMapping{CategoryInternal, CodeInternal, false}
 	}
+
+	err := &Error{
+		Category:   mapping.category,
+		Code:       mapping.code,
+		Message:    message,
+		StatusCode: statusCode,
+		RequestID:  requestID,
+	}
+
+	if mapping.withResource {
+		err.Resource = entityType
+		err.ResourceID = resourceID
+	}
+
+	return err
 }
 
 // FormatTransactionError produces a standardized error message

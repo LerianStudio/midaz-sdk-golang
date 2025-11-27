@@ -2,7 +2,7 @@ package entities
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 	"time"
 
@@ -10,6 +10,7 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // ========== Test Data Helpers ==========
@@ -109,7 +110,7 @@ func TestListTransactions(t *testing.T) {
 		Return(txList, nil)
 
 	result, err := mockService.ListTransactions(ctx, orgID, ledgerID, nil)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, 2, result.Pagination.Total)
 	assert.Len(t, result.Items, 2)
 	assert.Equal(t, "tx-001", result.Items[0].ID)
@@ -133,26 +134,26 @@ func TestListTransactions(t *testing.T) {
 		Return(paginatedList, nil)
 
 	result, err = mockService.ListTransactions(ctx, orgID, ledgerID, &models.ListOptions{Limit: 5, Offset: 10})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, 11, result.Pagination.Total)
 	assert.Len(t, result.Items, 1)
 
 	// Test empty organization ID validation
 	mockService.EXPECT().
 		ListTransactions(gomock.Any(), "", ledgerID, gomock.Any()).
-		Return(nil, fmt.Errorf("organization ID is required"))
+		Return(nil, errors.New("organization ID is required"))
 
 	_, err = mockService.ListTransactions(ctx, "", ledgerID, nil)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization ID is required")
 
 	// Test empty ledger ID validation
 	mockService.EXPECT().
 		ListTransactions(gomock.Any(), orgID, "", gomock.Any()).
-		Return(nil, fmt.Errorf("ledger ID is required"))
+		Return(nil, errors.New("ledger ID is required"))
 
 	_, err = mockService.ListTransactions(ctx, orgID, "", nil)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ledger ID is required")
 
 	// Test empty list response
@@ -166,17 +167,17 @@ func TestListTransactions(t *testing.T) {
 		Return(emptyList, nil)
 
 	result, err = mockService.ListTransactions(ctx, orgID, ledgerID, nil)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Empty(t, result.Items)
 	assert.Equal(t, 0, result.Pagination.Total)
 
 	// Test server error
 	mockService.EXPECT().
 		ListTransactions(gomock.Any(), orgID, ledgerID, gomock.Any()).
-		Return(nil, fmt.Errorf("internal server error"))
+		Return(nil, errors.New("internal server error"))
 
 	_, err = mockService.ListTransactions(ctx, orgID, ledgerID, nil)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "internal server error")
 }
 
@@ -201,7 +202,7 @@ func TestGetTransaction(t *testing.T) {
 		Return(tx, nil)
 
 	result, err := mockService.GetTransaction(ctx, orgID, ledgerID, transactionID)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, transactionID, result.ID)
 	assert.Equal(t, "USD", result.AssetCode)
 	assert.Equal(t, "100.00", result.Amount)
@@ -210,37 +211,37 @@ func TestGetTransaction(t *testing.T) {
 	// Test empty organization ID
 	mockService.EXPECT().
 		GetTransaction(gomock.Any(), "", ledgerID, transactionID).
-		Return(nil, fmt.Errorf("organization ID is required"))
+		Return(nil, errors.New("organization ID is required"))
 
 	_, err = mockService.GetTransaction(ctx, "", ledgerID, transactionID)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization ID is required")
 
 	// Test empty ledger ID
 	mockService.EXPECT().
 		GetTransaction(gomock.Any(), orgID, "", transactionID).
-		Return(nil, fmt.Errorf("ledger ID is required"))
+		Return(nil, errors.New("ledger ID is required"))
 
 	_, err = mockService.GetTransaction(ctx, orgID, "", transactionID)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ledger ID is required")
 
 	// Test empty transaction ID
 	mockService.EXPECT().
 		GetTransaction(gomock.Any(), orgID, ledgerID, "").
-		Return(nil, fmt.Errorf("transaction ID is required"))
+		Return(nil, errors.New("transaction ID is required"))
 
 	_, err = mockService.GetTransaction(ctx, orgID, ledgerID, "")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "transaction ID is required")
 
 	// Test transaction not found
 	mockService.EXPECT().
 		GetTransaction(gomock.Any(), orgID, ledgerID, "nonexistent-tx").
-		Return(nil, fmt.Errorf("transaction not found"))
+		Return(nil, errors.New("transaction not found"))
 
 	_, err = mockService.GetTransaction(ctx, orgID, ledgerID, "nonexistent-tx")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
 }
 
@@ -265,44 +266,44 @@ func TestCreateTransaction(t *testing.T) {
 		Return(tx, nil)
 
 	result, err := mockService.CreateTransaction(ctx, orgID, ledgerID, input)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "tx-new-001", result.ID)
 	assert.Equal(t, "USD", result.AssetCode)
 
 	// Test empty organization ID
 	mockService.EXPECT().
 		CreateTransaction(gomock.Any(), "", ledgerID, gomock.Any()).
-		Return(nil, fmt.Errorf("organization ID is required"))
+		Return(nil, errors.New("organization ID is required"))
 
 	_, err = mockService.CreateTransaction(ctx, "", ledgerID, input)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization ID is required")
 
 	// Test empty ledger ID
 	mockService.EXPECT().
 		CreateTransaction(gomock.Any(), orgID, "", gomock.Any()).
-		Return(nil, fmt.Errorf("ledger ID is required"))
+		Return(nil, errors.New("ledger ID is required"))
 
 	_, err = mockService.CreateTransaction(ctx, orgID, "", input)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ledger ID is required")
 
 	// Test nil input
 	mockService.EXPECT().
 		CreateTransaction(gomock.Any(), orgID, ledgerID, nil).
-		Return(nil, fmt.Errorf("input is required"))
+		Return(nil, errors.New("input is required"))
 
 	_, err = mockService.CreateTransaction(ctx, orgID, ledgerID, nil)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "input is required")
 
 	// Test validation error from server
 	mockService.EXPECT().
 		CreateTransaction(gomock.Any(), orgID, ledgerID, gomock.Any()).
-		Return(nil, fmt.Errorf("transaction not balanced"))
+		Return(nil, errors.New("transaction not balanced"))
 
 	_, err = mockService.CreateTransaction(ctx, orgID, ledgerID, input)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not balanced")
 }
 
@@ -327,34 +328,34 @@ func TestCreateTransactionWithDSL(t *testing.T) {
 		Return(tx, nil)
 
 	result, err := mockService.CreateTransactionWithDSL(ctx, orgID, ledgerID, input)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "tx-dsl-001", result.ID)
 
 	// Test empty organization ID
 	mockService.EXPECT().
 		CreateTransactionWithDSL(gomock.Any(), "", ledgerID, gomock.Any()).
-		Return(nil, fmt.Errorf("organization ID is required"))
+		Return(nil, errors.New("organization ID is required"))
 
 	_, err = mockService.CreateTransactionWithDSL(ctx, "", ledgerID, input)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization ID is required")
 
 	// Test empty ledger ID
 	mockService.EXPECT().
 		CreateTransactionWithDSL(gomock.Any(), orgID, "", gomock.Any()).
-		Return(nil, fmt.Errorf("ledger ID is required"))
+		Return(nil, errors.New("ledger ID is required"))
 
 	_, err = mockService.CreateTransactionWithDSL(ctx, orgID, "", input)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ledger ID is required")
 
 	// Test nil input
 	mockService.EXPECT().
 		CreateTransactionWithDSL(gomock.Any(), orgID, ledgerID, nil).
-		Return(nil, fmt.Errorf("input is required"))
+		Return(nil, errors.New("input is required"))
 
 	_, err = mockService.CreateTransactionWithDSL(ctx, orgID, ledgerID, nil)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "input is required")
 }
 
@@ -379,34 +380,34 @@ func TestCreateTransactionWithDSLFile(t *testing.T) {
 		Return(tx, nil)
 
 	result, err := mockService.CreateTransactionWithDSLFile(ctx, orgID, ledgerID, dslContent)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "tx-dsl-file-001", result.ID)
 
 	// Test empty organization ID
 	mockService.EXPECT().
 		CreateTransactionWithDSLFile(gomock.Any(), "", ledgerID, gomock.Any()).
-		Return(nil, fmt.Errorf("organization ID is required"))
+		Return(nil, errors.New("organization ID is required"))
 
 	_, err = mockService.CreateTransactionWithDSLFile(ctx, "", ledgerID, dslContent)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization ID is required")
 
 	// Test empty ledger ID
 	mockService.EXPECT().
 		CreateTransactionWithDSLFile(gomock.Any(), orgID, "", gomock.Any()).
-		Return(nil, fmt.Errorf("ledger ID is required"))
+		Return(nil, errors.New("ledger ID is required"))
 
 	_, err = mockService.CreateTransactionWithDSLFile(ctx, orgID, "", dslContent)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ledger ID is required")
 
 	// Test empty DSL content
 	mockService.EXPECT().
 		CreateTransactionWithDSLFile(gomock.Any(), orgID, ledgerID, []byte("")).
-		Return(nil, fmt.Errorf("DSL content is required"))
+		Return(nil, errors.New("DSL content is required"))
 
 	_, err = mockService.CreateTransactionWithDSLFile(ctx, orgID, ledgerID, []byte(""))
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "DSL content is required")
 }
 
@@ -437,53 +438,53 @@ func TestUpdateTransaction(t *testing.T) {
 		Return(tx, nil)
 
 	result, err := mockService.UpdateTransaction(ctx, orgID, ledgerID, transactionID, input)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, transactionID, result.ID)
 	assert.Equal(t, "Updated description", result.Description)
 
 	// Test empty organization ID
 	mockService.EXPECT().
 		UpdateTransaction(gomock.Any(), "", ledgerID, transactionID, gomock.Any()).
-		Return(nil, fmt.Errorf("organization ID is required"))
+		Return(nil, errors.New("organization ID is required"))
 
 	_, err = mockService.UpdateTransaction(ctx, "", ledgerID, transactionID, input)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization ID is required")
 
 	// Test empty ledger ID
 	mockService.EXPECT().
 		UpdateTransaction(gomock.Any(), orgID, "", transactionID, gomock.Any()).
-		Return(nil, fmt.Errorf("ledger ID is required"))
+		Return(nil, errors.New("ledger ID is required"))
 
 	_, err = mockService.UpdateTransaction(ctx, orgID, "", transactionID, input)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ledger ID is required")
 
 	// Test empty transaction ID
 	mockService.EXPECT().
 		UpdateTransaction(gomock.Any(), orgID, ledgerID, "", gomock.Any()).
-		Return(nil, fmt.Errorf("transaction ID is required"))
+		Return(nil, errors.New("transaction ID is required"))
 
 	_, err = mockService.UpdateTransaction(ctx, orgID, ledgerID, "", input)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "transaction ID is required")
 
 	// Test nil input
 	mockService.EXPECT().
 		UpdateTransaction(gomock.Any(), orgID, ledgerID, transactionID, nil).
-		Return(nil, fmt.Errorf("input is required"))
+		Return(nil, errors.New("input is required"))
 
 	_, err = mockService.UpdateTransaction(ctx, orgID, ledgerID, transactionID, nil)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "input is required")
 
 	// Test not found error
 	mockService.EXPECT().
 		UpdateTransaction(gomock.Any(), orgID, ledgerID, "nonexistent-tx", gomock.Any()).
-		Return(nil, fmt.Errorf("transaction not found"))
+		Return(nil, errors.New("transaction not found"))
 
 	_, err = mockService.UpdateTransaction(ctx, orgID, ledgerID, "nonexistent-tx", input)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
 }
 
@@ -509,7 +510,7 @@ func TestCommitTransaction(t *testing.T) {
 		Return(tx, nil)
 
 	result, err := mockService.CommitTransaction(ctx, orgID, ledgerID, transactionID)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, transactionID, result.ID)
 	assert.Equal(t, "COMPLETED", result.Status.Code)
 	assert.False(t, result.Pending)
@@ -517,46 +518,46 @@ func TestCommitTransaction(t *testing.T) {
 	// Test empty organization ID
 	mockService.EXPECT().
 		CommitTransaction(gomock.Any(), "", ledgerID, transactionID).
-		Return(nil, fmt.Errorf("organization ID is required"))
+		Return(nil, errors.New("organization ID is required"))
 
 	_, err = mockService.CommitTransaction(ctx, "", ledgerID, transactionID)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization ID is required")
 
 	// Test empty ledger ID
 	mockService.EXPECT().
 		CommitTransaction(gomock.Any(), orgID, "", transactionID).
-		Return(nil, fmt.Errorf("ledger ID is required"))
+		Return(nil, errors.New("ledger ID is required"))
 
 	_, err = mockService.CommitTransaction(ctx, orgID, "", transactionID)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ledger ID is required")
 
 	// Test empty transaction ID
 	mockService.EXPECT().
 		CommitTransaction(gomock.Any(), orgID, ledgerID, "").
-		Return(nil, fmt.Errorf("transaction ID is required"))
+		Return(nil, errors.New("transaction ID is required"))
 
 	_, err = mockService.CommitTransaction(ctx, orgID, ledgerID, "")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "transaction ID is required")
 
 	// Test not found error
 	mockService.EXPECT().
 		CommitTransaction(gomock.Any(), orgID, ledgerID, "nonexistent-tx").
-		Return(nil, fmt.Errorf("transaction not found"))
+		Return(nil, errors.New("transaction not found"))
 
 	_, err = mockService.CommitTransaction(ctx, orgID, ledgerID, "nonexistent-tx")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
 
 	// Test already committed error
 	mockService.EXPECT().
 		CommitTransaction(gomock.Any(), orgID, ledgerID, transactionID).
-		Return(nil, fmt.Errorf("transaction already committed"))
+		Return(nil, errors.New("transaction already committed"))
 
 	_, err = mockService.CommitTransaction(ctx, orgID, ledgerID, transactionID)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "already committed")
 }
 
@@ -579,51 +580,51 @@ func TestCancelTransaction(t *testing.T) {
 		Return(nil)
 
 	err := mockService.CancelTransaction(ctx, orgID, ledgerID, transactionID)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Test empty organization ID
 	mockService.EXPECT().
 		CancelTransaction(gomock.Any(), "", ledgerID, transactionID).
-		Return(fmt.Errorf("organization ID is required"))
+		Return(errors.New("organization ID is required"))
 
 	err = mockService.CancelTransaction(ctx, "", ledgerID, transactionID)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization ID is required")
 
 	// Test empty ledger ID
 	mockService.EXPECT().
 		CancelTransaction(gomock.Any(), orgID, "", transactionID).
-		Return(fmt.Errorf("ledger ID is required"))
+		Return(errors.New("ledger ID is required"))
 
 	err = mockService.CancelTransaction(ctx, orgID, "", transactionID)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ledger ID is required")
 
 	// Test empty transaction ID
 	mockService.EXPECT().
 		CancelTransaction(gomock.Any(), orgID, ledgerID, "").
-		Return(fmt.Errorf("transaction ID is required"))
+		Return(errors.New("transaction ID is required"))
 
 	err = mockService.CancelTransaction(ctx, orgID, ledgerID, "")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "transaction ID is required")
 
 	// Test not found error
 	mockService.EXPECT().
 		CancelTransaction(gomock.Any(), orgID, ledgerID, "nonexistent-tx").
-		Return(fmt.Errorf("transaction not found"))
+		Return(errors.New("transaction not found"))
 
 	err = mockService.CancelTransaction(ctx, orgID, ledgerID, "nonexistent-tx")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
 
 	// Test already committed error
 	mockService.EXPECT().
 		CancelTransaction(gomock.Any(), orgID, ledgerID, transactionID).
-		Return(fmt.Errorf("cannot cancel committed transaction"))
+		Return(errors.New("cannot cancel committed transaction"))
 
 	err = mockService.CancelTransaction(ctx, orgID, ledgerID, transactionID)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "cannot cancel")
 }
 
@@ -649,53 +650,53 @@ func TestRevertTransaction(t *testing.T) {
 		Return(revertTx, nil)
 
 	result, err := mockService.RevertTransaction(ctx, orgID, ledgerID, transactionID)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "tx-revert-001", result.ID)
 	assert.Contains(t, result.Description, "Revert")
 
 	// Test empty organization ID
 	mockService.EXPECT().
 		RevertTransaction(gomock.Any(), "", ledgerID, transactionID).
-		Return(nil, fmt.Errorf("organization ID is required"))
+		Return(nil, errors.New("organization ID is required"))
 
 	_, err = mockService.RevertTransaction(ctx, "", ledgerID, transactionID)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization ID is required")
 
 	// Test empty ledger ID
 	mockService.EXPECT().
 		RevertTransaction(gomock.Any(), orgID, "", transactionID).
-		Return(nil, fmt.Errorf("ledger ID is required"))
+		Return(nil, errors.New("ledger ID is required"))
 
 	_, err = mockService.RevertTransaction(ctx, orgID, "", transactionID)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ledger ID is required")
 
 	// Test empty transaction ID
 	mockService.EXPECT().
 		RevertTransaction(gomock.Any(), orgID, ledgerID, "").
-		Return(nil, fmt.Errorf("transaction ID is required"))
+		Return(nil, errors.New("transaction ID is required"))
 
 	_, err = mockService.RevertTransaction(ctx, orgID, ledgerID, "")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "transaction ID is required")
 
 	// Test not found error
 	mockService.EXPECT().
 		RevertTransaction(gomock.Any(), orgID, ledgerID, "nonexistent-tx").
-		Return(nil, fmt.Errorf("transaction not found"))
+		Return(nil, errors.New("transaction not found"))
 
 	_, err = mockService.RevertTransaction(ctx, orgID, ledgerID, "nonexistent-tx")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
 
 	// Test already reverted error
 	mockService.EXPECT().
 		RevertTransaction(gomock.Any(), orgID, ledgerID, transactionID).
-		Return(nil, fmt.Errorf("transaction already reverted"))
+		Return(nil, errors.New("transaction already reverted"))
 
 	_, err = mockService.RevertTransaction(ctx, orgID, ledgerID, transactionID)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "already reverted")
 }
 
@@ -726,35 +727,35 @@ func TestCreateInflowTransaction(t *testing.T) {
 		Return(tx, nil)
 
 	result, err := mockService.CreateInflowTransaction(ctx, orgID, ledgerID, input)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "tx-inflow-001", result.ID)
 	assert.Equal(t, "Deposit", result.Description)
 
 	// Test empty organization ID
 	mockService.EXPECT().
 		CreateInflowTransaction(gomock.Any(), "", ledgerID, gomock.Any()).
-		Return(nil, fmt.Errorf("organization ID is required"))
+		Return(nil, errors.New("organization ID is required"))
 
 	_, err = mockService.CreateInflowTransaction(ctx, "", ledgerID, input)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization ID is required")
 
 	// Test empty ledger ID
 	mockService.EXPECT().
 		CreateInflowTransaction(gomock.Any(), orgID, "", gomock.Any()).
-		Return(nil, fmt.Errorf("ledger ID is required"))
+		Return(nil, errors.New("ledger ID is required"))
 
 	_, err = mockService.CreateInflowTransaction(ctx, orgID, "", input)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ledger ID is required")
 
 	// Test nil input
 	mockService.EXPECT().
 		CreateInflowTransaction(gomock.Any(), orgID, ledgerID, nil).
-		Return(nil, fmt.Errorf("input is required"))
+		Return(nil, errors.New("input is required"))
 
 	_, err = mockService.CreateInflowTransaction(ctx, orgID, ledgerID, nil)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "input is required")
 }
 
@@ -785,35 +786,35 @@ func TestCreateOutflowTransaction(t *testing.T) {
 		Return(tx, nil)
 
 	result, err := mockService.CreateOutflowTransaction(ctx, orgID, ledgerID, input)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "tx-outflow-001", result.ID)
 	assert.Equal(t, "Withdrawal", result.Description)
 
 	// Test empty organization ID
 	mockService.EXPECT().
 		CreateOutflowTransaction(gomock.Any(), "", ledgerID, gomock.Any()).
-		Return(nil, fmt.Errorf("organization ID is required"))
+		Return(nil, errors.New("organization ID is required"))
 
 	_, err = mockService.CreateOutflowTransaction(ctx, "", ledgerID, input)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization ID is required")
 
 	// Test empty ledger ID
 	mockService.EXPECT().
 		CreateOutflowTransaction(gomock.Any(), orgID, "", gomock.Any()).
-		Return(nil, fmt.Errorf("ledger ID is required"))
+		Return(nil, errors.New("ledger ID is required"))
 
 	_, err = mockService.CreateOutflowTransaction(ctx, orgID, "", input)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ledger ID is required")
 
 	// Test nil input
 	mockService.EXPECT().
 		CreateOutflowTransaction(gomock.Any(), orgID, ledgerID, nil).
-		Return(nil, fmt.Errorf("input is required"))
+		Return(nil, errors.New("input is required"))
 
 	_, err = mockService.CreateOutflowTransaction(ctx, orgID, ledgerID, nil)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "input is required")
 }
 
@@ -843,45 +844,45 @@ func TestCreateAnnotationTransaction(t *testing.T) {
 		Return(tx, nil)
 
 	result, err := mockService.CreateAnnotationTransaction(ctx, orgID, ledgerID, input)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "tx-annotation-001", result.ID)
 	assert.Equal(t, "Annotation note", result.Description)
 
 	// Test empty organization ID
 	mockService.EXPECT().
 		CreateAnnotationTransaction(gomock.Any(), "", ledgerID, gomock.Any()).
-		Return(nil, fmt.Errorf("organization ID is required"))
+		Return(nil, errors.New("organization ID is required"))
 
 	_, err = mockService.CreateAnnotationTransaction(ctx, "", ledgerID, input)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization ID is required")
 
 	// Test empty ledger ID
 	mockService.EXPECT().
 		CreateAnnotationTransaction(gomock.Any(), orgID, "", gomock.Any()).
-		Return(nil, fmt.Errorf("ledger ID is required"))
+		Return(nil, errors.New("ledger ID is required"))
 
 	_, err = mockService.CreateAnnotationTransaction(ctx, orgID, "", input)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ledger ID is required")
 
 	// Test nil input
 	mockService.EXPECT().
 		CreateAnnotationTransaction(gomock.Any(), orgID, ledgerID, nil).
-		Return(nil, fmt.Errorf("input is required"))
+		Return(nil, errors.New("input is required"))
 
 	_, err = mockService.CreateAnnotationTransaction(ctx, orgID, ledgerID, nil)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "input is required")
 
 	// Test empty description validation
 	invalidInput := &models.CreateAnnotationInput{Description: ""}
 	mockService.EXPECT().
 		CreateAnnotationTransaction(gomock.Any(), orgID, ledgerID, invalidInput).
-		Return(nil, fmt.Errorf("description is required"))
+		Return(nil, errors.New("description is required"))
 
 	_, err = mockService.CreateAnnotationTransaction(ctx, orgID, ledgerID, invalidInput)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "description is required")
 }
 
@@ -895,7 +896,7 @@ func TestTransactionInputValidation(t *testing.T) {
 			Amount:    "",
 		}
 		err := input.Validate()
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "amount")
 
 		// Test zero amount
@@ -904,7 +905,7 @@ func TestTransactionInputValidation(t *testing.T) {
 			Amount:    "0",
 		}
 		err = input.Validate()
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "amount")
 
 		// Test empty asset code
@@ -913,7 +914,7 @@ func TestTransactionInputValidation(t *testing.T) {
 			Amount:    "100",
 		}
 		err = input.Validate()
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "assetCode")
 
 		// Test missing operations and send
@@ -922,7 +923,7 @@ func TestTransactionInputValidation(t *testing.T) {
 			Amount:    "100",
 		}
 		err = input.Validate()
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "operations or send")
 	})
 
@@ -932,16 +933,17 @@ func TestTransactionInputValidation(t *testing.T) {
 			WithDescription("Test description").
 			WithMetadata(map[string]any{"key": "value"})
 		err := input.Validate()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// Test description too long
 		longDesc := ""
 		for i := 0; i < 300; i++ {
 			longDesc += "a"
 		}
+
 		input = &models.UpdateTransactionInput{Description: longDesc}
 		err = input.Validate()
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "description")
 	})
 
@@ -949,7 +951,7 @@ func TestTransactionInputValidation(t *testing.T) {
 		// Test nil send
 		input := &models.CreateInflowInput{}
 		err := input.Validate()
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "send is required")
 
 		// Test empty asset
@@ -959,7 +961,7 @@ func TestTransactionInputValidation(t *testing.T) {
 			},
 		}
 		err = input.Validate()
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "asset is required")
 
 		// Test zero value
@@ -970,7 +972,7 @@ func TestTransactionInputValidation(t *testing.T) {
 			},
 		}
 		err = input.Validate()
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "value must be greater than zero")
 
 		// Test missing distribute
@@ -981,7 +983,7 @@ func TestTransactionInputValidation(t *testing.T) {
 			},
 		}
 		err = input.Validate()
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "distribute")
 	})
 
@@ -989,7 +991,7 @@ func TestTransactionInputValidation(t *testing.T) {
 		// Test nil send
 		input := &models.CreateOutflowInput{}
 		err := input.Validate()
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "send is required")
 
 		// Test empty asset
@@ -999,7 +1001,7 @@ func TestTransactionInputValidation(t *testing.T) {
 			},
 		}
 		err = input.Validate()
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "asset is required")
 
 		// Test zero value
@@ -1010,7 +1012,7 @@ func TestTransactionInputValidation(t *testing.T) {
 			},
 		}
 		err = input.Validate()
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "value must be greater than zero")
 
 		// Test missing source
@@ -1021,7 +1023,7 @@ func TestTransactionInputValidation(t *testing.T) {
 			},
 		}
 		err = input.Validate()
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "source")
 	})
 
@@ -1029,13 +1031,13 @@ func TestTransactionInputValidation(t *testing.T) {
 		// Test empty description
 		input := &models.CreateAnnotationInput{Description: ""}
 		err := input.Validate()
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "description is required")
 
 		// Test valid input
 		input = models.NewCreateAnnotationInput("Test annotation")
 		err = input.Validate()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 }
 
@@ -1057,7 +1059,7 @@ func TestTransactionDSLInputValidation(t *testing.T) {
 			},
 		}
 		err := input.Validate()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("Nil send", func(t *testing.T) {
@@ -1065,7 +1067,7 @@ func TestTransactionDSLInputValidation(t *testing.T) {
 			Description: "Test",
 		}
 		err := input.Validate()
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "send is required")
 	})
 
@@ -1076,7 +1078,7 @@ func TestTransactionDSLInputValidation(t *testing.T) {
 			},
 		}
 		err := input.Validate()
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "asset is required")
 	})
 
@@ -1088,7 +1090,7 @@ func TestTransactionDSLInputValidation(t *testing.T) {
 			},
 		}
 		err := input.Validate()
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "value must be greater than 0")
 	})
 
@@ -1100,7 +1102,7 @@ func TestTransactionDSLInputValidation(t *testing.T) {
 			},
 		}
 		err := input.Validate()
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "source")
 	})
 
@@ -1115,7 +1117,7 @@ func TestTransactionDSLInputValidation(t *testing.T) {
 			},
 		}
 		err := input.Validate()
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "source.from")
 	})
 
@@ -1130,7 +1132,7 @@ func TestTransactionDSLInputValidation(t *testing.T) {
 			},
 		}
 		err := input.Validate()
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "distribute")
 	})
 
@@ -1139,6 +1141,7 @@ func TestTransactionDSLInputValidation(t *testing.T) {
 		for i := 0; i < 300; i++ {
 			longDesc += "a"
 		}
+
 		input := &models.TransactionDSLInput{
 			Description: longDesc,
 			Send: &models.DSLSend{
@@ -1153,7 +1156,7 @@ func TestTransactionDSLInputValidation(t *testing.T) {
 			},
 		}
 		err := input.Validate()
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "description")
 	})
 }
@@ -1224,10 +1227,12 @@ func TestTransactionMapConversion(t *testing.T) {
 
 	t.Run("Nil input returns nil", func(t *testing.T) {
 		var input *models.CreateTransactionInput
+
 		result := input.ToLibTransaction()
 		assert.Nil(t, result)
 
 		var dslInput *models.TransactionDSLInput
+
 		dslResult := dslInput.ToTransactionMap()
 		assert.Nil(t, dslResult)
 	})

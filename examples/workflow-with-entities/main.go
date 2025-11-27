@@ -57,6 +57,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -239,7 +240,7 @@ func validateEnvironment() error {
 	// Use validation package to validate auth token format
 	token := os.Getenv("MIDAZ_AUTH_TOKEN")
 	if !isValidAuthToken(token) {
-		return fmt.Errorf("invalid auth token format")
+		return errors.New("invalid auth token format")
 	}
 
 	return nil

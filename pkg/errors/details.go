@@ -54,8 +54,10 @@ func GetErrorDetails(err error) ErrorDetails {
 	}
 
 	// Try to extract error code using errors.As
-	var ce codeError
-	var ece errorCodeError
+	var (
+		ce  codeError
+		ece errorCodeError
+	)
 
 	if errors.As(err, &ce) {
 		details.Code = ce.Code()
@@ -64,8 +66,10 @@ func GetErrorDetails(err error) ErrorDetails {
 	}
 
 	// Try to extract HTTP status code using errors.As
-	var sce statusCodeError
-	var hsce httpStatusCodeError
+	var (
+		sce  statusCodeError
+		hsce httpStatusCodeError
+	)
 
 	if errors.As(err, &sce) {
 		details.HTTPStatus = sce.StatusCode()

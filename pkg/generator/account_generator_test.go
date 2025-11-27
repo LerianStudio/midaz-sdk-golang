@@ -7,7 +7,7 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	data "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -20,51 +20,52 @@ func (m *mockAccountsService) CreateAccount(ctx context.Context, orgID, ledgerID
 	if m.createFunc != nil {
 		return m.createFunc(ctx, orgID, ledgerID, input)
 	}
+
 	return &models.Account{ID: "acc-123", Name: input.Name}, nil
 }
 
-func (m *mockAccountsService) GetAccount(ctx context.Context, orgID, ledgerID, id string) (*models.Account, error) {
-	return nil, nil
+func (*mockAccountsService) GetAccount(_ context.Context, _, _, _ string) (*models.Account, error) {
+	return nil, errors.New("mock: GetAccount not implemented")
 }
 
-func (m *mockAccountsService) ListAccounts(ctx context.Context, orgID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Account], error) {
-	return nil, nil
+func (*mockAccountsService) ListAccounts(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.Account], error) {
+	return nil, errors.New("mock: ListAccounts not implemented")
 }
 
-func (m *mockAccountsService) UpdateAccount(ctx context.Context, orgID, ledgerID, id string, input *models.UpdateAccountInput) (*models.Account, error) {
-	return nil, nil
+func (*mockAccountsService) UpdateAccount(_ context.Context, _, _, _ string, _ *models.UpdateAccountInput) (*models.Account, error) {
+	return nil, errors.New("mock: UpdateAccount not implemented")
 }
 
-func (m *mockAccountsService) DeleteAccount(ctx context.Context, orgID, ledgerID, id string) error {
+func (*mockAccountsService) DeleteAccount(_ context.Context, _, _, _ string) error {
 	return nil
 }
 
-func (m *mockAccountsService) GetAccountBalance(ctx context.Context, orgID, ledgerID, accountID string) (*models.Balance, error) {
-	return nil, nil
+func (*mockAccountsService) GetAccountBalance(_ context.Context, _, _, _ string) (*models.Balance, error) {
+	return nil, errors.New("mock: GetAccountBalance not implemented")
 }
 
-func (m *mockAccountsService) GetAccountByAlias(ctx context.Context, orgID, ledgerID, alias string) (*models.Account, error) {
-	return nil, nil
+func (*mockAccountsService) GetAccountByAlias(_ context.Context, _, _, _ string) (*models.Account, error) {
+	return nil, errors.New("mock: GetAccountByAlias not implemented")
 }
 
-func (m *mockAccountsService) GetAccountByAliasPath(ctx context.Context, orgID, ledgerID, alias string) (*models.Account, error) {
-	return nil, nil
+func (*mockAccountsService) GetAccountByAliasPath(_ context.Context, _, _, _ string) (*models.Account, error) {
+	return nil, errors.New("mock: GetAccountByAliasPath not implemented")
 }
 
-func (m *mockAccountsService) GetAccountsMetricsCount(ctx context.Context, orgID, ledgerID string) (*models.MetricsCount, error) {
-	return nil, nil
+func (*mockAccountsService) GetAccountsMetricsCount(_ context.Context, _, _ string) (*models.MetricsCount, error) {
+	return nil, errors.New("mock: GetAccountsMetricsCount not implemented")
 }
 
-func (m *mockAccountsService) GetExternalAccount(ctx context.Context, orgID, ledgerID, assetCode string) (*models.Account, error) {
-	return nil, nil
+func (*mockAccountsService) GetExternalAccount(_ context.Context, _, _, _ string) (*models.Account, error) {
+	return nil, errors.New("mock: GetExternalAccount not implemented")
 }
 
-func (m *mockAccountsService) GetExternalAccountBalance(ctx context.Context, orgID, ledgerID, assetCode string) (*models.Balance, error) {
-	return nil, nil
+func (*mockAccountsService) GetExternalAccountBalance(_ context.Context, _, _, _ string) (*models.Balance, error) {
+	return nil, errors.New("mock: GetExternalAccountBalance not implemented")
 }
 
-func (m *mockAccountsService) GetBalance(ctx context.Context, orgID, ledgerID, accountID string) (*models.Balance, error) {
-	return nil, nil
+func (*mockAccountsService) GetBalance(_ context.Context, _, _, _ string) (*models.Balance, error) {
+	return nil, errors.New("mock: GetBalance not implemented")
 }
 
 func TestNewAccountGenerator(t *testing.T) {
@@ -88,7 +89,7 @@ func TestAccountGenerator_Generate_NilEntity(t *testing.T) {
 	}
 
 	_, err := gen.Generate(context.Background(), "org-123", "ledger-123", "USD", template)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not initialized")
 }
 
@@ -101,7 +102,7 @@ func TestAccountGenerator_Generate_NilAccountsService(t *testing.T) {
 	}
 
 	_, err := gen.Generate(context.Background(), "org-123", "ledger-123", "USD", template)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not initialized")
 }
 
@@ -117,7 +118,7 @@ func TestAccountGenerator_Generate_EmptyOrgID(t *testing.T) {
 	}
 
 	_, err := gen.Generate(context.Background(), "", "ledger-123", "USD", template)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization and ledger IDs are required")
 }
 
@@ -133,7 +134,7 @@ func TestAccountGenerator_Generate_EmptyLedgerID(t *testing.T) {
 	}
 
 	_, err := gen.Generate(context.Background(), "org-123", "", "USD", template)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization and ledger IDs are required")
 }
 
@@ -149,13 +150,13 @@ func TestAccountGenerator_Generate_EmptyAssetCode(t *testing.T) {
 	}
 
 	_, err := gen.Generate(context.Background(), "org-123", "ledger-123", "", template)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "asset code is required")
 }
 
 func TestAccountGenerator_Generate_Success(t *testing.T) {
 	mockSvc := &mockAccountsService{
-		createFunc: func(ctx context.Context, orgID, ledgerID string, input *models.CreateAccountInput) (*models.Account, error) {
+		createFunc: func(_ context.Context, _, _ string, input *models.CreateAccountInput) (*models.Account, error) {
 			return &models.Account{
 				ID:   "acc-success",
 				Name: input.Name,
@@ -185,7 +186,7 @@ func TestAccountGenerator_Generate_Success(t *testing.T) {
 
 func TestAccountGenerator_Generate_Error(t *testing.T) {
 	mockSvc := &mockAccountsService{
-		createFunc: func(ctx context.Context, orgID, ledgerID string, input *models.CreateAccountInput) (*models.Account, error) {
+		createFunc: func(_ context.Context, _, _ string, _ *models.CreateAccountInput) (*models.Account, error) {
 			return nil, errors.New("account creation failed")
 		},
 	}
@@ -201,7 +202,7 @@ func TestAccountGenerator_Generate_Error(t *testing.T) {
 	}
 
 	result, err := gen.Generate(context.Background(), "org-123", "ledger-123", "USD", template)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "account creation failed")
 }
@@ -210,7 +211,7 @@ func TestAccountGenerator_Generate_WithAlias(t *testing.T) {
 	var capturedInput *models.CreateAccountInput
 
 	mockSvc := &mockAccountsService{
-		createFunc: func(ctx context.Context, orgID, ledgerID string, input *models.CreateAccountInput) (*models.Account, error) {
+		createFunc: func(_ context.Context, _, _ string, input *models.CreateAccountInput) (*models.Account, error) {
 			capturedInput = input
 			return &models.Account{ID: "acc-123"}, nil
 		},
@@ -237,7 +238,7 @@ func TestAccountGenerator_Generate_WithParentAccount(t *testing.T) {
 	var capturedInput *models.CreateAccountInput
 
 	mockSvc := &mockAccountsService{
-		createFunc: func(ctx context.Context, orgID, ledgerID string, input *models.CreateAccountInput) (*models.Account, error) {
+		createFunc: func(_ context.Context, _, _ string, input *models.CreateAccountInput) (*models.Account, error) {
 			capturedInput = input
 			return &models.Account{ID: "acc-123"}, nil
 		},
@@ -264,7 +265,7 @@ func TestAccountGenerator_Generate_WithPortfolioAndSegment(t *testing.T) {
 	var capturedInput *models.CreateAccountInput
 
 	mockSvc := &mockAccountsService{
-		createFunc: func(ctx context.Context, orgID, ledgerID string, input *models.CreateAccountInput) (*models.Account, error) {
+		createFunc: func(_ context.Context, _, _ string, input *models.CreateAccountInput) (*models.Account, error) {
 			capturedInput = input
 			return &models.Account{ID: "acc-123"}, nil
 		},
@@ -295,7 +296,7 @@ func TestAccountGenerator_GenerateBatch_EmptyTemplates(t *testing.T) {
 	gen := NewAccountGenerator(nil, nil)
 
 	results, err := gen.GenerateBatch(context.Background(), "org-123", "ledger-123", "USD", []data.AccountTemplate{})
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Empty(t, results)
 }
 
@@ -308,15 +309,16 @@ func TestAccountGenerator_GenerateBatch_NilEntity(t *testing.T) {
 	}
 
 	results, err := gen.GenerateBatch(context.Background(), "org-123", "ledger-123", "USD", templates)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Empty(t, results)
 }
 
 func TestAccountGenerator_GenerateBatch_Success(t *testing.T) {
 	callCount := 0
 	mockSvc := &mockAccountsService{
-		createFunc: func(ctx context.Context, orgID, ledgerID string, input *models.CreateAccountInput) (*models.Account, error) {
+		createFunc: func(_ context.Context, _, _ string, input *models.CreateAccountInput) (*models.Account, error) {
 			callCount++
+
 			return &models.Account{
 				ID:   "acc-" + string(rune('0'+callCount)),
 				Name: input.Name,
@@ -345,11 +347,12 @@ func TestAccountGenerator_GenerateBatch_Success(t *testing.T) {
 func TestAccountGenerator_GenerateBatch_PartialError(t *testing.T) {
 	callCount := 0
 	mockSvc := &mockAccountsService{
-		createFunc: func(ctx context.Context, orgID, ledgerID string, input *models.CreateAccountInput) (*models.Account, error) {
+		createFunc: func(_ context.Context, _, _ string, input *models.CreateAccountInput) (*models.Account, error) {
 			callCount++
 			if callCount == 2 {
 				return nil, errors.New("partial failure")
 			}
+
 			return &models.Account{
 				ID:   "acc-ok",
 				Name: input.Name,
@@ -371,7 +374,7 @@ func TestAccountGenerator_GenerateBatch_PartialError(t *testing.T) {
 	}
 
 	results, err := gen.GenerateBatch(ctx, "org-123", "ledger-123", "USD", templates)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "partial failure")
 	assert.Len(t, results, 2)
 }
@@ -457,7 +460,7 @@ func TestAccountGenerator_Generate_WithAccountTypeKey(t *testing.T) {
 	var capturedInput *models.CreateAccountInput
 
 	mockSvc := &mockAccountsService{
-		createFunc: func(ctx context.Context, orgID, ledgerID string, input *models.CreateAccountInput) (*models.Account, error) {
+		createFunc: func(_ context.Context, _, _ string, input *models.CreateAccountInput) (*models.Account, error) {
 			capturedInput = input
 			return &models.Account{ID: "acc-123"}, nil
 		},
@@ -486,7 +489,7 @@ func TestAccountGenerator_Generate_WithInvalidAccountTypeKey(t *testing.T) {
 	var capturedInput *models.CreateAccountInput
 
 	mockSvc := &mockAccountsService{
-		createFunc: func(ctx context.Context, orgID, ledgerID string, input *models.CreateAccountInput) (*models.Account, error) {
+		createFunc: func(_ context.Context, _, _ string, input *models.CreateAccountInput) (*models.Account, error) {
 			capturedInput = input
 			return &models.Account{ID: "acc-123"}, nil
 		},
@@ -514,7 +517,7 @@ func TestAccountGenerator_Generate_InferredAccountTypeKey(t *testing.T) {
 	var capturedInput *models.CreateAccountInput
 
 	mockSvc := &mockAccountsService{
-		createFunc: func(ctx context.Context, orgID, ledgerID string, input *models.CreateAccountInput) (*models.Account, error) {
+		createFunc: func(_ context.Context, _, _ string, input *models.CreateAccountInput) (*models.Account, error) {
 			capturedInput = input
 			return &models.Account{ID: "acc-123"}, nil
 		},
@@ -591,7 +594,7 @@ func TestAccountGenerator_Generate_EmptyAlias(t *testing.T) {
 	var capturedInput *models.CreateAccountInput
 
 	mockSvc := &mockAccountsService{
-		createFunc: func(ctx context.Context, orgID, ledgerID string, input *models.CreateAccountInput) (*models.Account, error) {
+		createFunc: func(_ context.Context, _, _ string, input *models.CreateAccountInput) (*models.Account, error) {
 			capturedInput = input
 			return &models.Account{ID: "acc-123"}, nil
 		},
@@ -618,7 +621,7 @@ func TestAccountGenerator_Generate_EmptyParentAccountID(t *testing.T) {
 	var capturedInput *models.CreateAccountInput
 
 	mockSvc := &mockAccountsService{
-		createFunc: func(ctx context.Context, orgID, ledgerID string, input *models.CreateAccountInput) (*models.Account, error) {
+		createFunc: func(_ context.Context, _, _ string, input *models.CreateAccountInput) (*models.Account, error) {
 			capturedInput = input
 			return &models.Account{ID: "acc-123"}, nil
 		},
@@ -645,7 +648,7 @@ func TestAccountGenerator_Generate_NilMetadata(t *testing.T) {
 	var capturedInput *models.CreateAccountInput
 
 	mockSvc := &mockAccountsService{
-		createFunc: func(ctx context.Context, orgID, ledgerID string, input *models.CreateAccountInput) (*models.Account, error) {
+		createFunc: func(_ context.Context, _, _ string, input *models.CreateAccountInput) (*models.Account, error) {
 			capturedInput = input
 			return &models.Account{ID: "acc-123"}, nil
 		},

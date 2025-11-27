@@ -2,7 +2,7 @@ package entities
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"net/http"
 
 	auth "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/access-manager"
@@ -64,9 +64,9 @@ func WithObservability(provider observability.Provider) Option {
 // Each service method (e.g., CreateOrganization, GetAccount) accepts a context
 // parameter that should be used for request-scoped cancellation and timeouts.
 func WithContext(ctx context.Context) Option {
-	return func(e *Entity) error {
+	return func(_ *Entity) error {
 		if ctx == nil {
-			return fmt.Errorf("context cannot be nil")
+			return errors.New("context cannot be nil")
 		}
 
 		// Note: This is a no-op. Context should be passed to individual API calls.
@@ -79,7 +79,7 @@ func WithContext(ctx context.Context) Option {
 func WithHTTPClient(client *http.Client) Option {
 	return func(e *Entity) error {
 		if client == nil {
-			return fmt.Errorf("HTTP client cannot be nil")
+			return errors.New("HTTP client cannot be nil")
 		}
 
 		// Create a new HTTP client with the same auth token and observability

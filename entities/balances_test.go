@@ -244,6 +244,7 @@ func newBalancesHTTPClientAdapter(mock *MockHTTPClient) *HTTPClient {
 // createTestBalance creates a test balance for testing
 func createTestBalance(id, orgID, ledgerID, accountID, assetCode string) models.Balance {
 	now := time.Now()
+
 	return models.Balance{
 		ID:             id,
 		OrganizationID: orgID,
@@ -354,6 +355,7 @@ func TestBalancesEntity_ListBalances(t *testing.T) {
 			mockStatusCode: http.StatusOK,
 			expectedItems:  1,
 			checkRequest: func(t *testing.T, req *http.Request) {
+				t.Helper()
 				assert.Contains(t, req.URL.RawQuery, "limit=5")
 				assert.Contains(t, req.URL.RawQuery, "offset=10")
 			},
@@ -413,9 +415,11 @@ func TestBalancesEntity_ListBalances(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var capturedReq *http.Request
+
 			mockClient := &MockHTTPClient{
 				DoFunc: func(req *http.Request) (*http.Response, error) {
 					capturedReq = req
+
 					if tt.mockError != nil {
 						return nil, tt.mockError
 					}
@@ -581,7 +585,7 @@ func TestBalancesEntity_ListAccountBalances(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockClient := &MockHTTPClient{
-				DoFunc: func(req *http.Request) (*http.Response, error) {
+				DoFunc: func(_ *http.Request) (*http.Response, error) {
 					if tt.mockError != nil {
 						return nil, tt.mockError
 					}
@@ -706,7 +710,7 @@ func TestBalancesEntity_GetBalance(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockClient := &MockHTTPClient{
-				DoFunc: func(req *http.Request) (*http.Response, error) {
+				DoFunc: func(_ *http.Request) (*http.Response, error) {
 					if tt.mockError != nil {
 						return nil, tt.mockError
 					}
@@ -783,6 +787,7 @@ func TestBalancesEntity_CreateBalance(t *testing.T) {
 			mockStatusCode: http.StatusOK,
 			expectedID:     "bal-new",
 			checkRequest: func(t *testing.T, req *http.Request) {
+				t.Helper()
 				assert.Equal(t, http.MethodPost, req.Method)
 				assert.Contains(t, req.URL.Path, "/accounts/acc-789/balances")
 			},
@@ -873,9 +878,11 @@ func TestBalancesEntity_CreateBalance(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var capturedReq *http.Request
+
 			mockClient := &MockHTTPClient{
 				DoFunc: func(req *http.Request) (*http.Response, error) {
 					capturedReq = req
+
 					if tt.mockError != nil {
 						return nil, tt.mockError
 					}
@@ -950,6 +957,7 @@ func TestBalancesEntity_UpdateBalance(t *testing.T) {
 			mockStatusCode: http.StatusOK,
 			expectedID:     "bal-789",
 			checkRequest: func(t *testing.T, req *http.Request) {
+				t.Helper()
 				assert.Equal(t, http.MethodPatch, req.Method)
 			},
 		},
@@ -1029,9 +1037,11 @@ func TestBalancesEntity_UpdateBalance(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var capturedReq *http.Request
+
 			mockClient := &MockHTTPClient{
 				DoFunc: func(req *http.Request) (*http.Response, error) {
 					capturedReq = req
+
 					if tt.mockError != nil {
 						return nil, tt.mockError
 					}
@@ -1092,6 +1102,7 @@ func TestBalancesEntity_DeleteBalance(t *testing.T) {
 			mockStatusCode: http.StatusOK,
 			mockResponse:   "",
 			checkRequest: func(t *testing.T, req *http.Request) {
+				t.Helper()
 				assert.Equal(t, http.MethodDelete, req.Method)
 				assert.Contains(t, req.URL.Path, "/balances/bal-789")
 			},
@@ -1156,9 +1167,11 @@ func TestBalancesEntity_DeleteBalance(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var capturedReq *http.Request
+
 			mockClient := &MockHTTPClient{
 				DoFunc: func(req *http.Request) (*http.Response, error) {
 					capturedReq = req
+
 					if tt.mockError != nil {
 						return nil, tt.mockError
 					}
@@ -1240,6 +1253,7 @@ func TestBalancesEntity_ListBalancesByAccountAlias(t *testing.T) {
 			mockStatusCode: http.StatusOK,
 			expectedItems:  1,
 			checkRequest: func(t *testing.T, req *http.Request) {
+				t.Helper()
 				assert.Contains(t, req.URL.Path, "/accounts/alias/@person1/balances")
 			},
 		},
@@ -1329,9 +1343,11 @@ func TestBalancesEntity_ListBalancesByAccountAlias(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var capturedReq *http.Request
+
 			mockClient := &MockHTTPClient{
 				DoFunc: func(req *http.Request) (*http.Response, error) {
 					capturedReq = req
+
 					if tt.mockError != nil {
 						return nil, tt.mockError
 					}
@@ -1414,6 +1430,7 @@ func TestBalancesEntity_ListBalancesByExternalCode(t *testing.T) {
 			mockStatusCode: http.StatusOK,
 			expectedItems:  1,
 			checkRequest: func(t *testing.T, req *http.Request) {
+				t.Helper()
 				assert.Contains(t, req.URL.Path, "/accounts/external/EXT-001/balances")
 			},
 		},
@@ -1511,9 +1528,11 @@ func TestBalancesEntity_ListBalancesByExternalCode(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var capturedReq *http.Request
+
 			mockClient := &MockHTTPClient{
 				DoFunc: func(req *http.Request) (*http.Response, error) {
 					capturedReq = req
+
 					if tt.mockError != nil {
 						return nil, tt.mockError
 					}
@@ -1581,7 +1600,7 @@ func TestBalancesEntity_HTTPServerIntegration(t *testing.T) {
 					"offset": 0
 				}
 			}`))
-			require.NoError(t, err)
+			assert.NoError(t, err)
 		}))
 		defer server.Close()
 
@@ -1615,7 +1634,7 @@ func TestBalancesEntity_HTTPServerIntegration(t *testing.T) {
 				"allowSending": true,
 				"allowReceiving": true
 			}`))
-			require.NoError(t, err)
+			assert.NoError(t, err)
 		}))
 		defer server.Close()
 
@@ -1636,8 +1655,9 @@ func TestBalancesEntity_HTTPServerIntegration(t *testing.T) {
 			assert.Contains(t, r.URL.Path, "/accounts/acc-789/balances")
 
 			var input models.CreateBalanceInput
+
 			err := json.NewDecoder(r.Body).Decode(&input)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			assert.Equal(t, "frozen-funds", input.Key)
 
 			w.Header().Set("Content-Type", "application/json")
@@ -1655,7 +1675,7 @@ func TestBalancesEntity_HTTPServerIntegration(t *testing.T) {
 				"allowSending": false,
 				"allowReceiving": true
 			}`))
-			require.NoError(t, err)
+			assert.NoError(t, err)
 		}))
 		defer server.Close()
 
@@ -1689,7 +1709,7 @@ func TestBalancesEntity_HTTPServerIntegration(t *testing.T) {
 				"version": 2,
 				"metadata": {"updated": "true"}
 			}`))
-			require.NoError(t, err)
+			assert.NoError(t, err)
 		}))
 		defer server.Close()
 
@@ -1749,7 +1769,7 @@ func TestBalancesEntity_HTTPServerIntegration(t *testing.T) {
 					"offset": 0
 				}
 			}`))
-			require.NoError(t, err)
+			assert.NoError(t, err)
 		}))
 		defer server.Close()
 
@@ -1790,7 +1810,7 @@ func TestBalancesEntity_HTTPServerIntegration(t *testing.T) {
 					"offset": 0
 				}
 			}`))
-			require.NoError(t, err)
+			assert.NoError(t, err)
 		}))
 		defer server.Close()
 
@@ -1853,7 +1873,7 @@ func TestBalancesEntity_ErrorHandling(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(tc.statusCode)
 				_, _ = w.Write([]byte(tc.responseBody))
@@ -1872,7 +1892,7 @@ func TestBalancesEntity_ErrorHandling(t *testing.T) {
 
 // TestBalancesEntity_ContextCancellation tests context cancellation handling
 func TestBalancesEntity_ContextCancellation(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		time.Sleep(100 * time.Millisecond)
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -1891,7 +1911,7 @@ func TestBalancesEntity_ContextCancellation(t *testing.T) {
 
 // TestBalancesEntity_ContextTimeout tests context timeout handling
 func TestBalancesEntity_ContextTimeout(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		time.Sleep(200 * time.Millisecond)
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -1911,8 +1931,10 @@ func TestBalancesEntity_ContextTimeout(t *testing.T) {
 // TestBalancesEntity_QueryParameterEncoding tests query parameter encoding
 func TestBalancesEntity_QueryParameterEncoding(t *testing.T) {
 	var capturedURL string
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		capturedURL = r.URL.String()
+
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{
@@ -1943,7 +1965,7 @@ func TestBalancesEntity_QueryParameterEncoding(t *testing.T) {
 // TestBalancesEntity_JSONResponseParsing tests JSON response parsing
 func TestBalancesEntity_JSONResponseParsing(t *testing.T) {
 	t.Run("Parse balance with all fields", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{
@@ -1996,7 +2018,7 @@ func TestBalancesEntity_JSONResponseParsing(t *testing.T) {
 	})
 
 	t.Run("Parse balance with minimal fields", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{
@@ -2030,8 +2052,10 @@ func TestBalancesEntity_JSONResponseParsing(t *testing.T) {
 // TestBalancesEntity_ListOptionsFilters tests filtering options
 func TestBalancesEntity_ListOptionsFilters(t *testing.T) {
 	var capturedQuery string
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		capturedQuery = r.URL.RawQuery
+
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{

@@ -1,7 +1,7 @@
 package models
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
@@ -17,19 +17,19 @@ type CreateOperationRouteInput struct {
 // Validate validates the CreateOperationRouteInput fields.
 func (input *CreateOperationRouteInput) Validate() error {
 	if input.Title == "" {
-		return fmt.Errorf("title is required")
+		return errors.New("title is required")
 	}
 
 	if input.Description == "" {
-		return fmt.Errorf("description is required")
+		return errors.New("description is required")
 	}
 
 	if input.OperationType == "" {
-		return fmt.Errorf("operationType is required")
+		return errors.New("operationType is required")
 	}
 	// Validate operation type
 	if input.OperationType != "source" && input.OperationType != "destination" {
-		return fmt.Errorf("operationType must be 'source' or 'destination'")
+		return errors.New("operationType must be 'source' or 'destination'")
 	}
 
 	return nil
@@ -41,7 +41,7 @@ type UpdateOperationRouteInput struct {
 }
 
 // Validate validates the UpdateOperationRouteInput fields.
-func (input *UpdateOperationRouteInput) Validate() error {
+func (*UpdateOperationRouteInput) Validate() error {
 	// For updates, fields are optional so validation is minimal
 	return nil
 }

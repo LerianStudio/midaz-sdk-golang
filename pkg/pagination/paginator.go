@@ -2,6 +2,7 @@ package pagination
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -175,7 +176,7 @@ func WithPageOptions(options PageOptions) PaginatorOption {
 func WithObserver(observer Observer) PaginatorOption {
 	return func(o *PaginatorOptions) error {
 		if observer == nil {
-			return fmt.Errorf("observer cannot be nil")
+			return errors.New("observer cannot be nil")
 		}
 
 		o.Observer = observer
@@ -188,7 +189,7 @@ func WithObserver(observer Observer) PaginatorOption {
 func WithOperationName(operationName string) PaginatorOption {
 	return func(o *PaginatorOptions) error {
 		if operationName == "" {
-			return fmt.Errorf("operation name cannot be empty")
+			return errors.New("operation name cannot be empty")
 		}
 
 		o.OperationName = operationName
@@ -201,7 +202,7 @@ func WithOperationName(operationName string) PaginatorOption {
 func WithEntityType(entityType string) PaginatorOption {
 	return func(o *PaginatorOptions) error {
 		if entityType == "" {
-			return fmt.Errorf("entity type cannot be empty")
+			return errors.New("entity type cannot be empty")
 		}
 
 		o.EntityType = entityType
@@ -337,6 +338,7 @@ func (p *defaultPaginator[T]) Next(ctx context.Context) bool {
 
 	// Fetch the next page
 	var err error
+
 	p.currentPage, err = p.fetcher(ctx, p.options)
 
 	// Record pagination metrics
@@ -581,6 +583,7 @@ func (p *defaultPaginator[T]) Concurrent(ctx context.Context, workers int, fn fu
 	// Start workers
 	for i := 0; i < workers; i++ {
 		wg.Add(1)
+
 		go startWorker(ctx, &wg, cfg)
 	}
 

@@ -338,7 +338,7 @@ func (e *operationsEntity) ListOperations(ctx context.Context, orgID, ledgerID, 
 //	    fmt.Println("This is a credit operation (funds entering the account)")
 //	}
 
-func (e *operationsEntity) GetOperation(ctx context.Context, orgID, ledgerID, accountID, operationID string, transactionID ...string) (*models.Operation, error) {
+func (e *operationsEntity) GetOperation(ctx context.Context, orgID, ledgerID, accountID, operationID string, _ ...string) (*models.Operation, error) {
 	const operation = "GetOperation"
 
 	if orgID == "" {

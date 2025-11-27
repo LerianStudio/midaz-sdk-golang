@@ -7,6 +7,7 @@ import (
 
 	conc "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/concurrent"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestExecuteWithCircuitBreaker_NoBreaker(t *testing.T) {
@@ -18,7 +19,7 @@ func TestExecuteWithCircuitBreaker_NoBreaker(t *testing.T) {
 		return nil
 	})
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.True(t, executed)
 }
 
@@ -30,7 +31,7 @@ func TestExecuteWithCircuitBreaker_NoBreaker_WithError(t *testing.T) {
 		return expectedErr
 	})
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Equal(t, expectedErr, err)
 }
 
@@ -44,7 +45,7 @@ func TestExecuteWithCircuitBreaker_WithBreaker_Success(t *testing.T) {
 		return nil
 	})
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.True(t, executed)
 }
 
@@ -57,7 +58,7 @@ func TestExecuteWithCircuitBreaker_WithBreaker_Error(t *testing.T) {
 		return expectedErr
 	})
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "cb function error")
 }
 
@@ -79,7 +80,7 @@ func TestExecuteWithCircuitBreaker_MultipleExecutions(t *testing.T) {
 			callCount++
 			return nil
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	}
 
 	assert.Equal(t, 5, callCount)
@@ -95,7 +96,7 @@ func TestExecuteWithCircuitBreaker_WithBreaker_MultipleExecutions(t *testing.T) 
 			callCount++
 			return nil
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	}
 
 	assert.Equal(t, 5, callCount)

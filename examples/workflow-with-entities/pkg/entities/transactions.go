@@ -427,6 +427,6 @@ func ExecuteBatchTransactionsWithHelper(
 	// Batch functionality not yet implemented in transaction helpers
 	var results []transaction.BatchResult
 	var summary *transaction.BatchSummary
-	return results, summary, fmt.Errorf("batch transactions not yet implemented")
+	return results, summary, errors.New("batch transactions not yet implemented")
 }
 */

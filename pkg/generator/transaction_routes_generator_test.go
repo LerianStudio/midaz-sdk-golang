@@ -20,22 +20,23 @@ func (m *mockTransactionRoutesService) CreateTransactionRoute(ctx context.Contex
 	if m.createFunc != nil {
 		return m.createFunc(ctx, orgID, ledgerID, input)
 	}
+
 	return &models.TransactionRoute{Title: input.Title}, nil
 }
 
-func (m *mockTransactionRoutesService) GetTransactionRoute(ctx context.Context, orgID, ledgerID, id string) (*models.TransactionRoute, error) {
-	return nil, nil
+func (*mockTransactionRoutesService) GetTransactionRoute(_ context.Context, _, _, _ string) (*models.TransactionRoute, error) {
+	return nil, errors.New("mock: GetTransactionRoute not implemented")
 }
 
-func (m *mockTransactionRoutesService) ListTransactionRoutes(ctx context.Context, orgID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.TransactionRoute], error) {
-	return nil, nil
+func (*mockTransactionRoutesService) ListTransactionRoutes(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.TransactionRoute], error) {
+	return nil, errors.New("mock: ListTransactionRoutes not implemented")
 }
 
-func (m *mockTransactionRoutesService) UpdateTransactionRoute(ctx context.Context, orgID, ledgerID, id string, input *models.UpdateTransactionRouteInput) (*models.TransactionRoute, error) {
-	return nil, nil
+func (*mockTransactionRoutesService) UpdateTransactionRoute(_ context.Context, _, _, _ string, _ *models.UpdateTransactionRouteInput) (*models.TransactionRoute, error) {
+	return nil, errors.New("mock: UpdateTransactionRoute not implemented")
 }
 
-func (m *mockTransactionRoutesService) DeleteTransactionRoute(ctx context.Context, orgID, ledgerID, id string) error {
+func (*mockTransactionRoutesService) DeleteTransactionRoute(_ context.Context, _, _, _ string) error {
 	return nil
 }
 
@@ -62,7 +63,7 @@ func TestTransactionRouteGenerator_Generate_NilEntity(t *testing.T) {
 	)
 
 	_, err := gen.Generate(context.Background(), "org-123", "ledger-123", input)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not initialized")
 }
 
@@ -77,13 +78,13 @@ func TestTransactionRouteGenerator_Generate_NilTransactionRoutesService(t *testi
 	)
 
 	_, err := gen.Generate(context.Background(), "org-123", "ledger-123", input)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not initialized")
 }
 
 func TestTransactionRouteGenerator_Generate_Success(t *testing.T) {
 	mockSvc := &mockTransactionRoutesService{
-		createFunc: func(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionRouteInput) (*models.TransactionRoute, error) {
+		createFunc: func(_ context.Context, _, _ string, input *models.CreateTransactionRouteInput) (*models.TransactionRoute, error) {
 			return &models.TransactionRoute{
 				Title: input.Title,
 			}, nil
@@ -109,7 +110,7 @@ func TestTransactionRouteGenerator_Generate_Success(t *testing.T) {
 
 func TestTransactionRouteGenerator_Generate_Error(t *testing.T) {
 	mockSvc := &mockTransactionRoutesService{
-		createFunc: func(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionRouteInput) (*models.TransactionRoute, error) {
+		createFunc: func(_ context.Context, _, _ string, _ *models.CreateTransactionRouteInput) (*models.TransactionRoute, error) {
 			return nil, errors.New("transaction route creation failed")
 		},
 	}
@@ -127,7 +128,7 @@ func TestTransactionRouteGenerator_Generate_Error(t *testing.T) {
 	)
 
 	result, err := gen.Generate(context.Background(), "org-123", "ledger-123", input)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "transaction route creation failed")
 }
@@ -148,9 +149,11 @@ func TestTransactionRouteGenerator_GenerateDefaults_EmptyOpRoutes(t *testing.T) 
 
 func TestTransactionRouteGenerator_GenerateDefaults_WithValidOpRoutes(t *testing.T) {
 	var createdRoutes []string
+
 	mockSvc := &mockTransactionRoutesService{
-		createFunc: func(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionRouteInput) (*models.TransactionRoute, error) {
+		createFunc: func(_ context.Context, _, _ string, input *models.CreateTransactionRouteInput) (*models.TransactionRoute, error) {
 			createdRoutes = append(createdRoutes, input.Title)
+
 			return &models.TransactionRoute{
 				Title: input.Title,
 			}, nil
@@ -182,9 +185,11 @@ func TestTransactionRouteGenerator_GenerateDefaults_WithValidOpRoutes(t *testing
 
 func TestTransactionRouteGenerator_GenerateDefaults_PaymentFlowOnly(t *testing.T) {
 	var createdRoutes []string
+
 	mockSvc := &mockTransactionRoutesService{
-		createFunc: func(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionRouteInput) (*models.TransactionRoute, error) {
+		createFunc: func(_ context.Context, _, _ string, input *models.CreateTransactionRouteInput) (*models.TransactionRoute, error) {
 			createdRoutes = append(createdRoutes, input.Title)
+
 			return &models.TransactionRoute{Title: input.Title}, nil
 		},
 	}
@@ -208,7 +213,7 @@ func TestTransactionRouteGenerator_GenerateDefaults_PaymentFlowOnly(t *testing.T
 
 func TestTransactionRouteGenerator_GenerateDefaults_Error(t *testing.T) {
 	mockSvc := &mockTransactionRoutesService{
-		createFunc: func(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionRouteInput) (*models.TransactionRoute, error) {
+		createFunc: func(_ context.Context, _, _ string, _ *models.CreateTransactionRouteInput) (*models.TransactionRoute, error) {
 			return nil, errors.New("defaults creation failed")
 		},
 	}
@@ -225,7 +230,7 @@ func TestTransactionRouteGenerator_GenerateDefaults_Error(t *testing.T) {
 	}
 
 	results, err := gen.GenerateDefaults(context.Background(), "org-123", "ledger-123", opRoutes)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, results)
 	assert.Contains(t, err.Error(), "defaults creation failed")
 }
@@ -234,9 +239,10 @@ func TestTransactionRouteGenerator_Generate_VerifyIDs(t *testing.T) {
 	var receivedOrgID, receivedLedgerID string
 
 	mockSvc := &mockTransactionRoutesService{
-		createFunc: func(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionRouteInput) (*models.TransactionRoute, error) {
+		createFunc: func(_ context.Context, orgID, ledgerID string, _ *models.CreateTransactionRouteInput) (*models.TransactionRoute, error) {
 			receivedOrgID = orgID
 			receivedLedgerID = ledgerID
+
 			return &models.TransactionRoute{}, nil
 		},
 	}
@@ -262,7 +268,7 @@ func TestTransactionRouteGenerator_Generate_VerifyIDs(t *testing.T) {
 
 func TestTransactionRouteGenerator_GenerateDefaults_MissingRoutes(t *testing.T) {
 	mockSvc := &mockTransactionRoutesService{
-		createFunc: func(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionRouteInput) (*models.TransactionRoute, error) {
+		createFunc: func(_ context.Context, _, _ string, input *models.CreateTransactionRouteInput) (*models.TransactionRoute, error) {
 			return &models.TransactionRoute{Title: input.Title}, nil
 		},
 	}
@@ -284,9 +290,11 @@ func TestTransactionRouteGenerator_GenerateDefaults_MissingRoutes(t *testing.T) 
 
 func TestTransactionRouteGenerator_GenerateDefaults_RefundFlow(t *testing.T) {
 	var createdRoutes []string
+
 	mockSvc := &mockTransactionRoutesService{
-		createFunc: func(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionRouteInput) (*models.TransactionRoute, error) {
+		createFunc: func(_ context.Context, _, _ string, input *models.CreateTransactionRouteInput) (*models.TransactionRoute, error) {
 			createdRoutes = append(createdRoutes, input.Title)
+
 			return &models.TransactionRoute{Title: input.Title}, nil
 		},
 	}
@@ -310,9 +318,11 @@ func TestTransactionRouteGenerator_GenerateDefaults_RefundFlow(t *testing.T) {
 
 func TestTransactionRouteGenerator_GenerateDefaults_TransferFlow(t *testing.T) {
 	var createdRoutes []string
+
 	mockSvc := &mockTransactionRoutesService{
-		createFunc: func(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionRouteInput) (*models.TransactionRoute, error) {
+		createFunc: func(_ context.Context, _, _ string, input *models.CreateTransactionRouteInput) (*models.TransactionRoute, error) {
 			createdRoutes = append(createdRoutes, input.Title)
+
 			return &models.TransactionRoute{Title: input.Title}, nil
 		},
 	}

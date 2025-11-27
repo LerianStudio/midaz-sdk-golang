@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -28,7 +29,7 @@ func main() {
 	demonstrateSpanOperations(ctx, provider, metrics, logger)
 	demonstrateErrorHandling(ctx, provider, metrics, logger)
 	demonstrateCustomMetrics(ctx, metrics)
-	ctx = demonstrateBaggage(ctx, provider, logger)
+	_ = demonstrateBaggage(ctx, provider, logger)
 	demonstrateHTTPMiddleware(provider, logger)
 
 	logger.Info("Observability demo completed")
@@ -112,7 +113,7 @@ func demonstrateErrorHandling(ctx context.Context, provider observability.Provid
 			attribute.String("error.type", "validation"),
 		)
 
-		return fmt.Errorf("example error for demonstration")
+		return errors.New("example error for demonstration")
 	}); err != nil {
 		logger.Warnf("Expected error occurred: %v", err)
 	}

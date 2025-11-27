@@ -2,6 +2,7 @@ package workflows
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -9,7 +10,7 @@ import (
 	client "github.com/LerianStudio/midaz-sdk-golang/v2"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/conversion"
-	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	pkgerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation"
 )
@@ -60,7 +61,7 @@ func ExecuteInsufficientFundsTransactions(ctx context.Context, midazClient *clie
 
 func validateInsufficientFundsAccounts(ctx context.Context, customerAccount, merchantAccount *models.Account) bool {
 	if !validation.IsValidUUID(customerAccount.ID) || !validation.IsValidUUID(merchantAccount.ID) {
-		err := fmt.Errorf("invalid account IDs")
+		err := errors.New("invalid account IDs")
 		observability.RecordError(ctx, err, "invalid_account_ids")
 		fmt.Printf("❌ Error: %s\n", err.Error())
 
@@ -174,7 +175,7 @@ func handleExpectedError(ctx context.Context, err error, test insufficientFundsT
 }
 
 func recordErrorDetails(ctx context.Context, err error) {
-	errorDetails := sdkerrors.GetErrorDetails(err)
+	errorDetails := pkgerrors.GetErrorDetails(err)
 
 	observability.RecordError(ctx, err, "expected_transaction_error",
 		map[string]string{
@@ -182,26 +183,26 @@ func recordErrorDetails(ctx context.Context, err error) {
 			"http_status": fmt.Sprintf("%d", errorDetails.HTTPStatus),
 		})
 
-	observability.AddAttribute(ctx, "error_category", string(sdkerrors.GetErrorCategory(err)))
-	observability.AddAttribute(ctx, "is_insufficient_balance", fmt.Sprintf("%t", sdkerrors.IsInsufficientBalanceError(err)))
+	observability.AddAttribute(ctx, "error_category", string(pkgerrors.GetErrorCategory(err)))
+	observability.AddAttribute(ctx, "is_insufficient_balance", fmt.Sprintf("%t", pkgerrors.IsInsufficientBalanceError(err)))
 }
 
 func printErrorClassification(err error) {
-	formattedError := sdkerrors.FormatErrorDetails(err)
+	formattedError := pkgerrors.FormatErrorDetails(err)
 	fmt.Printf("✅ Transaction failed as expected: %s\n", formattedError)
 
-	errorCategory := sdkerrors.GetErrorCategory(err)
+	errorCategory := pkgerrors.GetErrorCategory(err)
 	fmt.Printf("   Error category: %s\n", errorCategory)
 }
 
 func classifyAndRecordErrorType(ctx context.Context, err error, test insufficientFundsTest, testIndex int) {
-	if sdkerrors.IsInsufficientBalanceError(err) {
+	if pkgerrors.IsInsufficientBalanceError(err) {
 		fmt.Printf("✅ Error correctly identified as an insufficient balance error\n")
 		observability.AddEvent(ctx, "InsufficientFundsTestPassed", map[string]string{
 			"test_index":  fmt.Sprintf("%d", testIndex),
 			"description": test.Description,
 		})
-	} else if sdkerrors.IsValidationError(err) {
+	} else if pkgerrors.IsValidationError(err) {
 		fmt.Printf("ℹ️ Error identified as a validation error\n")
 		observability.AddEvent(ctx, "UnexpectedErrorType", map[string]string{
 			"test_index": fmt.Sprintf("%d", testIndex),
@@ -213,16 +214,16 @@ func classifyAndRecordErrorType(ctx context.Context, err error, test insufficien
 		observability.AddEvent(ctx, "UnexpectedErrorType", map[string]string{
 			"test_index": fmt.Sprintf("%d", testIndex),
 			"expected":   "insufficient_balance",
-			"actual":     string(sdkerrors.GetErrorCategory(err)),
+			"actual":     string(pkgerrors.GetErrorCategory(err)),
 		})
 	}
 }
 
 func printErrorStatusAndMessage(err error) {
-	statusCode := sdkerrors.GetErrorStatusCode(err)
+	statusCode := pkgerrors.GetErrorStatusCode(err)
 	fmt.Printf("   HTTP status code: %d\n", statusCode)
 
-	txError := sdkerrors.FormatOperationError(err, "OverdraftTest")
+	txError := pkgerrors.FormatOperationError(err, "OverdraftTest")
 	fmt.Printf("   Transaction error message: %s\n", txError)
 }
 
@@ -239,6 +240,6 @@ func checkExpectedErrorMessage(ctx context.Context, err error, expectedError str
 }
 
 func handleUnexpectedSuccess(ctx context.Context) {
-	observability.RecordError(ctx, fmt.Errorf("transaction unexpectedly succeeded"), "unexpected_success")
+	observability.RecordError(ctx, errors.New("transaction unexpectedly succeeded"), "unexpected_success")
 	fmt.Printf("❌ Transaction unexpectedly succeeded! This indicates a potential issue.\n")
 }

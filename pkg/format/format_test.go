@@ -8,6 +8,7 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/format"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestFormatAmount(t *testing.T) {
@@ -198,31 +199,32 @@ func TestFormatDateTimeWithOptions(t *testing.T) {
 
 	// Test with default options
 	formatted, err := format.FormatDateTimeWithOptions(now)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "2023-05-15 10:30:45", formatted)
 
 	// Test with custom format
 	formatted, err = format.FormatDateTimeWithOptions(now, format.WithFormat("Monday, Jan 2 2006"))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "Monday, May 15 2023", formatted)
 
 	// Test with default value
 	zeroTime := time.Time{}
 	formatted, err = format.FormatDateTimeWithOptions(zeroTime, format.WithDefaultValue("NOT AVAILABLE"))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "NOT AVAILABLE", formatted)
 
 	// Test with no default on zero
 	formatted, err = format.FormatDateTimeWithOptions(zeroTime, format.WithDefaultOnZero(false))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "0001-01-01 00:00:00", formatted)
 
 	// Test with UTC conversion
 	nonUTCLocation, err := time.LoadLocation("America/New_York")
-	assert.NoError(t, err)
+	require.NoError(t, err)
+
 	nonUTCTime := time.Date(2023, 5, 15, 10, 30, 45, 0, nonUTCLocation)
 	formatted, err = format.FormatDateTimeWithOptions(nonUTCTime, format.WithUTC(true))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// The UTC time should be different from the non-UTC time
 	nonUTCFormatted := nonUTCTime.Format("2006-01-02 15:04:05")
@@ -231,10 +233,10 @@ func TestFormatDateTimeWithOptions(t *testing.T) {
 	assert.NotEqual(t, nonUTCFormatted, formatted)
 
 	// Test with error
-	_, err = format.FormatDateTimeWithOptions(now, func(o *format.DateTimeOptions) error {
+	_, err = format.FormatDateTimeWithOptions(now, func(_ *format.DateTimeOptions) error {
 		return errors.New("test error")
 	})
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "test error")
 }
 
@@ -306,34 +308,34 @@ func TestFormatDurationWithOptions(t *testing.T) {
 
 	// Test with default options
 	result, err := format.FormatDurationWithOptions(duration)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "2h 45m", result)
 
 	// Test with long units
 	result, err = format.FormatDurationWithOptions(duration, format.WithShortUnits(false))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "2 hours 45 minutes", result)
 
 	// Test with max components = 3
 	result, err = format.FormatDurationWithOptions(duration, format.WithMaxComponents(3))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "2h 45m 30s", result)
 
 	// Test with max components = 1
 	result, err = format.FormatDurationWithOptions(duration, format.WithMaxComponents(1))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "2h", result)
 
 	// Test with different precision for seconds
 	result, err = format.FormatDurationWithOptions(5*time.Second+500*time.Millisecond, format.WithPrecision(3))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "5.500s", result)
 
 	// Test with error
-	_, err = format.FormatDurationWithOptions(duration, func(o *format.DurationOptions) error {
+	_, err = format.FormatDurationWithOptions(duration, func(_ *format.DurationOptions) error {
 		return errors.New("test error")
 	})
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "test error")
 }
 
@@ -362,50 +364,50 @@ func TestFormatISODateTime(t *testing.T) {
 func TestFormatAmountWithOptions(t *testing.T) {
 	// Test with default options
 	result, err := format.FormatAmountWithOptions(12345, 2)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "123.45", result)
 
 	// Test with thousands separator
 	result, err = format.FormatAmountWithOptions(1234567, 2,
 		format.WithThousandsSeparator(","))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "12,345.67", result)
 
 	// Test with custom decimal separator
 	result, err = format.FormatAmountWithOptions(12345, 2,
 		format.WithDecimalSeparator(","))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "123,45", result)
 
 	// Test with both separators
 	result, err = format.FormatAmountWithOptions(1234567, 2,
 		format.WithThousandsSeparator("."),
 		format.WithDecimalSeparator(","))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "12.345,67", result)
 
 	// Test without scale
 	result, err = format.FormatAmountWithOptions(12345, 0)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "12345", result)
 
 	// Test with negative amount
 	result, err = format.FormatAmountWithOptions(-12345, 2)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "-123.45", result)
 
 	// Test with error
 	_, err = format.FormatAmountWithOptions(12345, 2,
-		func(o *format.AmountOptions) error {
+		func(_ *format.AmountOptions) error {
 			return errors.New("test error")
 		})
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "test error")
 
 	// Test with invalid decimal separator
 	_, err = format.FormatAmountWithOptions(12345, 2,
 		format.WithDecimalSeparator(""))
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "decimal separator cannot be empty")
 }
 
@@ -432,17 +434,17 @@ func TestFormatTransactionWithOptions(t *testing.T) {
 
 	// Test with default options
 	result, err := format.FormatTransactionWithOptions(tx)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "Transfer: 100.00 USD from checking to savings (Completed)", result)
 
 	// Test with include ID
 	result, err = format.FormatTransactionWithOptions(tx, format.WithTransactionID(true))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "tx-123 - Transfer: 100.00 USD from checking to savings (Completed)", result)
 
 	// Test with include timestamp
 	result, err = format.FormatTransactionWithOptions(tx, format.WithTransactionTimestamp(true))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "2023-05-15 10:30:45 - Transfer: 100.00 USD from checking to savings (Completed)", result)
 
 	// Test with custom status mapping
@@ -451,19 +453,19 @@ func TestFormatTransactionWithOptions(t *testing.T) {
 			"COMPLETED": "Success",
 			"PENDING":   "In Progress",
 		}))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "Transfer: 100.00 USD from checking to savings (Success)", result)
 
 	// Test with error
 	_, err = format.FormatTransactionWithOptions(tx,
-		func(o *format.TransactionOptions) error {
+		func(_ *format.TransactionOptions) error {
 			return errors.New("test error")
 		})
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "test error")
 
 	// Test nil transaction
 	result, err = format.FormatTransactionWithOptions(nil)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "Invalid transaction: nil", result)
 }

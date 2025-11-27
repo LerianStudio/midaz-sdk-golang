@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAssetRateStruct(t *testing.T) {
@@ -36,9 +37,9 @@ func TestAssetRateStruct(t *testing.T) {
 	assert.Equal(t, "ext-001", rate.ExternalID)
 	assert.Equal(t, "USD", rate.From)
 	assert.Equal(t, "BRL", rate.To)
-	assert.Equal(t, 5.25, rate.Rate)
+	assert.InDelta(t, 5.25, rate.Rate, 0.001)
 	assert.NotNil(t, rate.Scale)
-	assert.Equal(t, 4.0, *rate.Scale)
+	assert.InDelta(t, 4.0, *rate.Scale, 0.001)
 	assert.NotNil(t, rate.Source)
 	assert.Equal(t, "Central Bank", *rate.Source)
 	assert.Equal(t, 3600, rate.TTL)
@@ -58,7 +59,7 @@ func TestAssetRateStructWithNilOptionalFields(t *testing.T) {
 	assert.Equal(t, "rate-123", rate.ID)
 	assert.Equal(t, "USD", rate.From)
 	assert.Equal(t, "EUR", rate.To)
-	assert.Equal(t, 0.92, rate.Rate)
+	assert.InDelta(t, 0.92, rate.Rate, 0.001)
 	assert.Nil(t, rate.Scale)
 	assert.Nil(t, rate.Source)
 	assert.Nil(t, rate.Metadata)
@@ -467,10 +468,10 @@ func TestCreateAssetRateInputValidate(t *testing.T) {
 			err := tt.input.Validate()
 
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Equal(t, tt.errMsg, err.Error())
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -852,7 +853,8 @@ func TestAssetRateListOptionsToQueryParams(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			params := tt.options.ToQueryParams()
 
-			assert.Equal(t, len(tt.wantParams), len(params))
+			assert.Len(t, params, len(tt.wantParams))
+
 			for key, expectedValue := range tt.wantParams {
 				assert.Equal(t, expectedValue, params[key], "mismatch for key %s", key)
 			}
@@ -954,9 +956,9 @@ func TestCreateAssetRateInputValidateEdgeCases(t *testing.T) {
 			err := tt.input.Validate()
 
 			if tt.wantErr {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}

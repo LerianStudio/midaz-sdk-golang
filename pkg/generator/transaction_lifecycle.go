@@ -2,7 +2,7 @@ package generator
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
@@ -25,11 +25,11 @@ func NewTransactionLifecycle(e *entities.Entity, obs observability.Provider) Tra
 // CreatePending creates a transaction marked as pending, respecting idempotency and retries.
 func (l *lifecycle) CreatePending(ctx context.Context, input *models.CreateTransactionInput) (*models.Transaction, error) {
 	if l.e == nil || l.e.Transactions == nil {
-		return nil, fmt.Errorf("entity transactions service not initialized")
+		return nil, errors.New("entity transactions service not initialized")
 	}
 
 	if input == nil {
-		return nil, fmt.Errorf("transaction input is required")
+		return nil, errors.New("transaction input is required")
 	}
 
 	// Ensure Pending flag is set
@@ -42,7 +42,7 @@ func (l *lifecycle) CreatePending(ctx context.Context, input *models.CreateTrans
 	ledgerID, _ := ctx.Value(contextKeyLedgerID{}).(string) //nolint:errcheck // ok check unnecessary, empty string validated below
 
 	if orgID == "" || ledgerID == "" {
-		return nil, fmt.Errorf("organization and ledger IDs are required in context")
+		return nil, errors.New("organization and ledger IDs are required in context")
 	}
 
 	var out *models.Transaction
@@ -71,11 +71,11 @@ func (l *lifecycle) CreatePending(ctx context.Context, input *models.CreateTrans
 // Commit commits a pending transaction using the dedicated API endpoint.
 func (l *lifecycle) Commit(ctx context.Context, txID string) error {
 	if l.e == nil || l.e.Transactions == nil {
-		return fmt.Errorf("entity transactions service not initialized")
+		return errors.New("entity transactions service not initialized")
 	}
 
 	if txID == "" {
-		return fmt.Errorf("transaction ID is required")
+		return errors.New("transaction ID is required")
 	}
 
 	// Type assertion ok values are intentionally ignored - empty string check handles both
@@ -84,7 +84,7 @@ func (l *lifecycle) Commit(ctx context.Context, txID string) error {
 	ledgerID, _ := ctx.Value(contextKeyLedgerID{}).(string) //nolint:errcheck // ok check unnecessary, empty string validated below
 
 	if orgID == "" || ledgerID == "" {
-		return fmt.Errorf("organization and ledger IDs are required in context")
+		return errors.New("organization and ledger IDs are required in context")
 	}
 
 	return observability.WithSpan(ctx, l.obs, "Lifecycle.Commit", func(ctx context.Context) error {
@@ -100,11 +100,11 @@ func (l *lifecycle) Commit(ctx context.Context, txID string) error {
 // Revert reverts a committed transaction.
 func (l *lifecycle) Revert(ctx context.Context, txID string) error {
 	if l.e == nil || l.e.Transactions == nil {
-		return fmt.Errorf("entity transactions service not initialized")
+		return errors.New("entity transactions service not initialized")
 	}
 
 	if txID == "" {
-		return fmt.Errorf("transaction ID is required")
+		return errors.New("transaction ID is required")
 	}
 
 	// Type assertion ok values are intentionally ignored - empty string check handles both
@@ -113,7 +113,7 @@ func (l *lifecycle) Revert(ctx context.Context, txID string) error {
 	ledgerID, _ := ctx.Value(contextKeyLedgerID{}).(string) //nolint:errcheck // ok check unnecessary, empty string validated below
 
 	if orgID == "" || ledgerID == "" {
-		return fmt.Errorf("organization and ledger IDs are required in context")
+		return errors.New("organization and ledger IDs are required in context")
 	}
 
 	return observability.WithSpan(ctx, l.obs, "Lifecycle.Revert", func(ctx context.Context) error {
@@ -129,7 +129,7 @@ func (l *lifecycle) Revert(ctx context.Context, txID string) error {
 // HandleInsufficientFunds inspects errors and classifies insufficient balance cases.
 // It returns nil for non-insufficient-balance errors, or the original error for insufficient funds
 // so that callers can decide to apply compensating transactions.
-func (l *lifecycle) HandleInsufficientFunds(ctx context.Context, err error) error {
+func (*lifecycle) HandleInsufficientFunds(_ context.Context, err error) error {
 	if err == nil {
 		return nil
 	}

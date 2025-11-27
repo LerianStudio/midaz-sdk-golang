@@ -21,6 +21,7 @@ import (
 func disableAuthCheck(t *testing.T) func() {
 	t.Helper()
 	os.Setenv("MIDAZ_SKIP_AUTH_CHECK", "true")
+
 	return func() {
 		os.Unsetenv("MIDAZ_SKIP_AUTH_CHECK")
 	}
@@ -32,6 +33,7 @@ func saveEnv(keys []string) (restore func()) {
 	for _, key := range keys {
 		origEnv[key] = os.Getenv(key)
 	}
+
 	return func() {
 		for key, value := range origEnv {
 			if value == "" {
@@ -72,14 +74,14 @@ func TestDefaultConstants(t *testing.T) {
 }
 
 func TestServiceTypeConstants(t *testing.T) {
-	assert.Equal(t, ServiceType("onboarding"), ServiceOnboarding)
-	assert.Equal(t, ServiceType("transaction"), ServiceTransaction)
+	assert.Equal(t, ServiceOnboarding, ServiceType("onboarding"))
+	assert.Equal(t, ServiceTransaction, ServiceType("transaction"))
 }
 
 func TestEnvironmentConstants(t *testing.T) {
-	assert.Equal(t, Environment("local"), EnvironmentLocal)
-	assert.Equal(t, Environment("development"), EnvironmentDevelopment)
-	assert.Equal(t, Environment("production"), EnvironmentProduction)
+	assert.Equal(t, EnvironmentLocal, Environment("local"))
+	assert.Equal(t, EnvironmentDevelopment, Environment("development"))
+	assert.Equal(t, EnvironmentProduction, Environment("production"))
 }
 
 func TestNewConfig_Defaults(t *testing.T) {
@@ -900,6 +902,7 @@ func TestFromEnvironment_InvalidBaseURL(t *testing.T) {
 
 func TestFromEnvironment_BaseURLOverriddenBySpecific(t *testing.T) {
 	envVars := []string{"MIDAZ_BASE_URL", "MIDAZ_ONBOARDING_URL", "MIDAZ_TRANSACTION_URL"}
+
 	restore := saveEnv(envVars)
 	defer restore()
 
@@ -915,6 +918,7 @@ func TestFromEnvironment_BaseURLOverriddenBySpecific(t *testing.T) {
 
 func TestFromEnvironment_PluginAuthDisabled(t *testing.T) {
 	envVars := []string{"PLUGIN_AUTH_ENABLED", "PLUGIN_AUTH_ADDRESS", "MIDAZ_CLIENT_ID", "MIDAZ_CLIENT_SECRET"}
+
 	restore := saveEnv(envVars)
 	defer restore()
 
@@ -971,8 +975,10 @@ func TestNewLocalConfig(t *testing.T) {
 
 func TestNewLocalConfig_WithEnvVars(t *testing.T) {
 	envVars := []string{"PLUGIN_AUTH_ENABLED", "PLUGIN_AUTH_ADDRESS", "MIDAZ_CLIENT_ID", "MIDAZ_CLIENT_SECRET"}
+
 	restore := saveEnv(envVars)
 	defer restore()
+
 	cleanup := disableAuthCheck(t)
 	defer cleanup()
 
@@ -1157,7 +1163,7 @@ func TestParseURL_Valid(t *testing.T) {
 	for _, url := range tests {
 		t.Run(url, func(t *testing.T) {
 			err := parseURL(url)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		})
 	}
 }
@@ -1177,7 +1183,7 @@ func TestParseURL_Invalid(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			err := parseURL(tc.url)
-			assert.Error(t, err)
+			require.Error(t, err)
 		})
 	}
 }
@@ -1219,7 +1225,7 @@ func TestParseEnvInt_Invalid(t *testing.T) {
 	for _, input := range tests {
 		t.Run(input, func(t *testing.T) {
 			_, err := parseEnvInt(input)
-			assert.Error(t, err)
+			require.Error(t, err)
 		})
 	}
 }
@@ -1303,9 +1309,9 @@ func TestConfigureEnvironment_AllEnvironments(t *testing.T) {
 			err := configureEnvironment(config)
 
 			if tc.shouldError {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, tc.expected, config.Environment)
 			}
 		})
@@ -1357,6 +1363,7 @@ func TestConfigureAccessManager(t *testing.T) {
 			} else {
 				os.Unsetenv("PLUGIN_AUTH_ENABLED")
 			}
+
 			os.Setenv("PLUGIN_AUTH_ADDRESS", tc.envAddress)
 			os.Setenv("MIDAZ_CLIENT_ID", tc.envClientID)
 			os.Setenv("MIDAZ_CLIENT_SECRET", tc.envSecret)
@@ -1483,11 +1490,11 @@ func TestValidateConfig_Valid(t *testing.T) {
 	}
 
 	err := validateConfig(config)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 func TestNewConfig_OptionError(t *testing.T) {
-	errorOption := func(c *Config) error {
+	errorOption := func(_ *Config) error {
 		return assert.AnError
 	}
 
@@ -1537,22 +1544,22 @@ func TestWithTransactionURL_InitializesServiceURLsMap(t *testing.T) {
 // Mock observability provider for testing
 type mockObservabilityProvider struct{}
 
-func (m *mockObservabilityProvider) Tracer() trace.Tracer {
+func (*mockObservabilityProvider) Tracer() trace.Tracer {
 	return nil
 }
 
-func (m *mockObservabilityProvider) Meter() metric.Meter {
+func (*mockObservabilityProvider) Meter() metric.Meter {
 	return nil
 }
 
-func (m *mockObservabilityProvider) Logger() observability.Logger {
+func (*mockObservabilityProvider) Logger() observability.Logger {
 	return nil
 }
 
-func (m *mockObservabilityProvider) Shutdown(_ context.Context) error {
+func (*mockObservabilityProvider) Shutdown(_ context.Context) error {
 	return nil
 }
 
-func (m *mockObservabilityProvider) IsEnabled() bool {
+func (*mockObservabilityProvider) IsEnabled() bool {
 	return true
 }

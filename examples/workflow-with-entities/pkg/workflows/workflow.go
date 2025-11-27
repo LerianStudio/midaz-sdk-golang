@@ -24,7 +24,7 @@ import (
 //
 // Returns:
 //   - error: Any error encountered during the operation
-func RunCompleteWorkflow(ctx context.Context, entity *sdkentities.Entity, customerToMerchantTxs, merchantToCustomerTxs int) error {
+func RunCompleteWorkflow(ctx context.Context, _ *sdkentities.Entity, customerToMerchantTxs, merchantToCustomerTxs int) error {
 	fmt.Println("\n🚀 STARTING COMPLETE WORKFLOW")
 	fmt.Println(strings.Repeat("=", 50))
 

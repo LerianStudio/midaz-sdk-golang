@@ -684,19 +684,7 @@ func FormatTransactionWithOptions(tx *models.Transaction, opts ...TransactionOpt
 	summary += fmt.Sprintf("%s: %s %s", txType, amountStr, tx.AssetCode)
 
 	// Get status string, using custom mapping if available
-	statusStr := ""
-
-	if tx.Status.Code != "" {
-		if mappedStatus, exists := options.CustomStatusMapping[tx.Status.Code]; exists {
-			statusStr = mappedStatus
-		} else {
-			statusStr = tx.Status.Code
-			// Capitalize first letter
-			if len(statusStr) > 0 {
-				statusStr = strings.ToUpper(statusStr[:1]) + strings.ToLower(statusStr[1:])
-			}
-		}
-	}
+	statusStr := resolveStatusString(tx.Status.Code, options.CustomStatusMapping)
 
 	// Add accounts information if available
 	if len(tx.Operations) > 0 {
@@ -713,39 +701,67 @@ func FormatTransactionWithOptions(tx *models.Transaction, opts ...TransactionOpt
 	return summary, nil
 }
 
+// resolveStatusString resolves a status code to a display string.
+func resolveStatusString(statusCode string, customMapping map[string]string) string {
+	if statusCode == "" {
+		return ""
+	}
+
+	if mappedStatus, exists := customMapping[statusCode]; exists {
+		return mappedStatus
+	}
+
+	return capitalizeStatusCode(statusCode)
+}
+
+// capitalizeStatusCode capitalizes the first letter and lowercases the rest.
+func capitalizeStatusCode(code string) string {
+	if len(code) == 0 {
+		return code
+	}
+
+	return strings.ToUpper(code[:1]) + strings.ToLower(code[1:])
+}
+
 // determineTransactionType analyzes a transaction to determine its type.
 func determineTransactionType(tx *models.Transaction) string {
-	// Default type
-	txType := "Transaction"
+	if len(tx.Operations) == 0 {
+		return "Transaction"
+	}
 
-	// Check if we have operations to determine type
-	if len(tx.Operations) > 0 {
-		// Look for operations with specific patterns
-		hasExternal := false
-		hasInternal := false
+	hasExternal, hasInternal := analyzeOperationPatterns(tx.Operations)
 
-		for _, op := range tx.Operations {
-			if op.AccountAlias != "" && strings.HasPrefix(op.AccountAlias, "@external/") {
-				hasExternal = true
-			} else {
-				hasInternal = true
-			}
-		}
+	return resolveTransactionType(hasExternal, hasInternal, tx.Operations[0])
+}
 
-		// Determine type based on patterns
-		if hasExternal && hasInternal {
-			// Check first operation to see if it's from external (deposit) or to external (withdrawal)
-			if tx.Operations[0].AccountAlias != "" && strings.HasPrefix(tx.Operations[0].AccountAlias, "@external/") {
-				txType = "Deposit"
-			} else {
-				txType = "Withdrawal"
-			}
-		} else if hasInternal && !hasExternal {
-			txType = "Transfer"
+// analyzeOperationPatterns checks operations for external and internal account patterns.
+func analyzeOperationPatterns(operations []models.Operation) (hasExternal, hasInternal bool) {
+	for _, op := range operations {
+		if isExternalAccount(op) {
+			hasExternal = true
+		} else {
+			hasInternal = true
 		}
 	}
 
-	return txType
+	return hasExternal, hasInternal
+}
+
+// resolveTransactionType determines the transaction type based on operation patterns.
+func resolveTransactionType(hasExternal, hasInternal bool, firstOp models.Operation) string {
+	if hasExternal && hasInternal {
+		if isExternalAccount(firstOp) {
+			return "Deposit"
+		}
+
+		return "Withdrawal"
+	}
+
+	if hasInternal && !hasExternal {
+		return "Transfer"
+	}
+
+	return "Transaction"
 }
 
 // extractAccountsFromOperations extracts a summary of the accounts involved in a transaction.

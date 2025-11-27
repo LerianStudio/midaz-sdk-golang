@@ -122,34 +122,34 @@ func processFieldValue(value reflect.Value) any {
 
 // processTimeValue handles time.Time type conversion.
 func processTimeValue(value reflect.Value) any {
-	if isTimeType(value) {
-		var timeValue time.Time
-
-		if value.Kind() == reflect.Ptr {
-			tv, ok := value.Elem().Interface().(time.Time)
-			if !ok {
-				return nil
-			}
-
-			timeValue = tv
-		} else {
-			tv, ok := value.Interface().(time.Time)
-			if !ok {
-				return nil
-			}
-
-			timeValue = tv
-		}
-
-		return ConvertToISODateTime(timeValue)
+	if !isTimeType(value) {
+		return nil
 	}
 
-	return nil
+	timeValue, ok := extractTimeValue(value)
+	if !ok {
+		return nil
+	}
+
+	return ConvertToISODateTime(timeValue)
+}
+
+// extractTimeValue extracts time.Time from either a pointer or direct value.
+func extractTimeValue(value reflect.Value) (time.Time, bool) {
+	if value.Kind() == reflect.Ptr {
+		t, ok := value.Elem().Interface().(time.Time)
+		return t, ok
+	}
+
+	t, ok := value.Interface().(time.Time)
+
+	return t, ok
 }
 
 // isTimeType checks if the value is a time.Time or *time.Time
 func isTimeType(value reflect.Value) bool {
 	timeType := reflect.TypeOf(time.Time{})
+
 	return value.Type() == timeType ||
 		(value.Kind() == reflect.Ptr && value.Elem().Type() == timeType)
 }
@@ -292,7 +292,7 @@ func (u *structUnmapper[T]) setField(fieldIndex int, value any) {
 }
 
 // handleTimeField handles time.Time and *time.Time field assignments.
-func (u *structUnmapper[T]) handleTimeField(field reflect.Value, fieldType reflect.Type, value any) bool {
+func (*structUnmapper[T]) handleTimeField(field reflect.Value, fieldType reflect.Type, value any) bool {
 	val := reflect.ValueOf(value)
 	if val.Kind() != reflect.String {
 		return false
@@ -343,7 +343,7 @@ func (u *structUnmapper[T]) handleDirectAssignment(field reflect.Value, fieldTyp
 }
 
 // assignValue attempts to assign a value to a field, handling type conversion.
-func (u *structUnmapper[T]) assignValue(field reflect.Value, fieldType reflect.Type, val reflect.Value) bool {
+func (*structUnmapper[T]) assignValue(field reflect.Value, fieldType reflect.Type, val reflect.Value) bool {
 	if val.Type().AssignableTo(fieldType) {
 		field.Set(val)
 		return true

@@ -47,7 +47,7 @@ func TestStrPtrReturnsNewPointer(t *testing.T) {
 func TestStrPtrWithEmptyString(t *testing.T) {
 	ptr := StrPtr("")
 	assert.NotNil(t, ptr)
-	assert.Equal(t, "", *ptr)
+	assert.Empty(t, *ptr)
 }
 
 func TestOrgTemplateStructFromTemplates(t *testing.T) {
@@ -302,7 +302,7 @@ func TestTemplateMetadataTypes(t *testing.T) {
 	assert.Equal(t, "Test", org.LegalName)
 	assert.Equal(t, "hello", org.Metadata["string_value"])
 	assert.Equal(t, 42, org.Metadata["int_value"])
-	assert.Equal(t, 3.14, org.Metadata["float_value"])
+	assert.InDelta(t, 3.14, org.Metadata["float_value"], 0.001)
 	assert.Equal(t, true, org.Metadata["bool_value"])
 	assert.Equal(t, []string{"a", "b", "c"}, org.Metadata["array_value"])
 

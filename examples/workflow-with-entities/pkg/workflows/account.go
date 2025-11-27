@@ -2,6 +2,7 @@ package workflows
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -43,7 +44,7 @@ func CreateAccounts(ctx context.Context, midazClient *client.Client, orgID, ledg
 	}
 
 	if customerAccount.ID == "" {
-		return nil, nil, nil, nil, fmt.Errorf("customer account created but no ID was returned from the API")
+		return nil, nil, nil, nil, errors.New("customer account created but no ID was returned from the API")
 	}
 
 	fmt.Printf("✅ Customer account created: %s\n", customerAccount.Name)
@@ -70,7 +71,7 @@ func CreateAccounts(ctx context.Context, midazClient *client.Client, orgID, ledg
 	}
 
 	if merchantAccount.ID == "" {
-		return nil, nil, nil, nil, fmt.Errorf("merchant account created but no ID was returned from the API")
+		return nil, nil, nil, nil, errors.New("merchant account created but no ID was returned from the API")
 	}
 
 	fmt.Printf("✅ Merchant account created: %s\n", merchantAccount.Name)
@@ -95,7 +96,7 @@ func CreateAccounts(ctx context.Context, midazClient *client.Client, orgID, ledg
 	}
 
 	if dummyOneAccount.ID == "" {
-		return nil, nil, nil, nil, fmt.Errorf("dummy account created but no ID was returned from the API")
+		return nil, nil, nil, nil, errors.New("dummy account created but no ID was returned from the API")
 	}
 
 	fmt.Printf("✅ Dummy account created: %s\n", dummyOneAccount.Name)
@@ -120,7 +121,7 @@ func CreateAccounts(ctx context.Context, midazClient *client.Client, orgID, ledg
 	}
 
 	if dummyTwoAccount.ID == "" {
-		return nil, nil, nil, nil, fmt.Errorf("dummy 2 account created but no ID was returned from the API")
+		return nil, nil, nil, nil, errors.New("dummy 2 account created but no ID was returned from the API")
 	}
 
 	fmt.Printf("✅ Dummy 2 account created: %s\n", dummyTwoAccount.Name)
@@ -171,7 +172,7 @@ func CreateAccountsWithType(ctx context.Context, midazClient *client.Client, org
 	}
 
 	if customerAccount.ID == "" {
-		return nil, nil, nil, nil, fmt.Errorf("customer account created but no ID was returned from the API")
+		return nil, nil, nil, nil, errors.New("customer account created but no ID was returned from the API")
 	}
 
 	fmt.Printf("✅ Customer account created: %s\n", customerAccount.Name)
@@ -207,7 +208,7 @@ func CreateAccountsWithType(ctx context.Context, midazClient *client.Client, org
 	}
 
 	if merchantAccount.ID == "" {
-		return nil, nil, nil, nil, fmt.Errorf("merchant account created but no ID was returned from the API")
+		return nil, nil, nil, nil, errors.New("merchant account created but no ID was returned from the API")
 	}
 
 	fmt.Printf("✅ Merchant account created: %s\n", merchantAccount.Name)
@@ -241,7 +242,7 @@ func CreateAccountsWithType(ctx context.Context, midazClient *client.Client, org
 	}
 
 	if dummyOneAccount.ID == "" {
-		return nil, nil, nil, nil, fmt.Errorf("dummy account created but no ID was returned from the API")
+		return nil, nil, nil, nil, errors.New("dummy account created but no ID was returned from the API")
 	}
 
 	fmt.Printf("✅ Dummy account created: %s\n", dummyOneAccount.Name)
@@ -275,7 +276,7 @@ func CreateAccountsWithType(ctx context.Context, midazClient *client.Client, org
 	}
 
 	if dummyTwoAccount.ID == "" {
-		return nil, nil, nil, nil, fmt.Errorf("dummy 2 account created but no ID was returned from the API")
+		return nil, nil, nil, nil, errors.New("dummy 2 account created but no ID was returned from the API")
 	}
 
 	fmt.Printf("✅ Dummy 2 account created: %s\n", dummyTwoAccount.Name)

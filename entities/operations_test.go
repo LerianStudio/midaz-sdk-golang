@@ -377,9 +377,11 @@ func TestOperationsEntity_ListOperations(t *testing.T) {
 
 			if tt.expectError {
 				require.Error(t, err)
+
 				if tt.errorContains != "" {
 					assert.Contains(t, err.Error(), tt.errorContains)
 				}
+
 				return
 			}
 
@@ -396,6 +398,7 @@ func TestOperationsEntity_ListOperations_QueryParams(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		capturedURL = r.URL.String()
+
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(models.ListResponse[models.Operation]{
@@ -560,8 +563,10 @@ func TestOperationsEntity_GetOperation(t *testing.T) {
 
 			entity := createTestOperationsEntity(server.URL)
 
-			var result *models.Operation
-			var err error
+			var (
+				result *models.Operation
+				err    error
+			)
 
 			if len(tt.transactionID) > 0 {
 				result, err = entity.GetOperation(context.Background(), tt.orgID, tt.ledgerID, tt.accountID, tt.operationID, tt.transactionID...)
@@ -571,9 +576,11 @@ func TestOperationsEntity_GetOperation(t *testing.T) {
 
 			if tt.expectError {
 				require.Error(t, err)
+
 				if tt.errorContains != "" {
 					assert.Contains(t, err.Error(), tt.errorContains)
 				}
+
 				return
 			}
 
@@ -592,7 +599,7 @@ func TestOperationsEntity_GetOperation(t *testing.T) {
 func TestOperationsEntity_GetOperation_ResponseFields(t *testing.T) {
 	testOp := createTestOperation()
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(testOp)
@@ -789,7 +796,7 @@ func TestOperationsEntity_UpdateOperation(t *testing.T) {
 				// Verify request body for non-nil inputs
 				if tt.input != nil {
 					body, err := io.ReadAll(r.Body)
-					require.NoError(t, err)
+					assert.NoError(t, err)
 					assert.NotEmpty(t, body)
 				}
 
@@ -808,9 +815,11 @@ func TestOperationsEntity_UpdateOperation(t *testing.T) {
 
 			if tt.expectError {
 				require.Error(t, err)
+
 				if tt.errorContains != "" {
 					assert.Contains(t, err.Error(), tt.errorContains)
 				}
+
 				return
 			}
 
@@ -827,7 +836,7 @@ func TestOperationsEntity_UpdateOperation_RequestBody(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		json.Unmarshal(body, &capturedBody)
 
 		w.Header().Set("Content-Type", "application/json")
@@ -854,7 +863,7 @@ func TestOperationsEntity_UpdateOperation_RequestBody(t *testing.T) {
 
 // TestOperationsEntity_ContextCancellation tests that context cancellation is respected
 func TestOperationsEntity_ContextCancellation(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		time.Sleep(100 * time.Millisecond)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -983,6 +992,7 @@ func TestOperationsEntity_ValidationEdgeCases(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var err error
+
 			ctx := context.Background()
 
 			switch tt.method {
@@ -996,6 +1006,7 @@ func TestOperationsEntity_ValidationEdgeCases(t *testing.T) {
 
 			if tt.expectError {
 				require.Error(t, err)
+
 				if tt.errorContains != "" {
 					assert.Contains(t, err.Error(), tt.errorContains)
 				}
@@ -1027,7 +1038,7 @@ func TestOperationsEntity_HTTPErrorCodes(t *testing.T) {
 
 	for _, errorCode := range httpErrorCodes {
 		t.Run(errorCode.description, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(errorCode.code)
 				json.NewEncoder(w).Encode(map[string]string{
@@ -1056,8 +1067,10 @@ func TestOperationsEntity_HTTPErrorCodes(t *testing.T) {
 // TestOperationsEntity_ConcurrentRequests tests concurrent API requests
 func TestOperationsEntity_ConcurrentRequests(t *testing.T) {
 	requestCount := 0
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		requestCount++
+
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(createTestOperation())
@@ -1076,6 +1089,7 @@ func TestOperationsEntity_ConcurrentRequests(t *testing.T) {
 			if err != nil {
 				errors <- err
 			}
+
 			done <- true
 		}()
 	}
@@ -1085,6 +1099,7 @@ func TestOperationsEntity_ConcurrentRequests(t *testing.T) {
 	}
 
 	close(errors)
+
 	for err := range errors {
 		t.Errorf("Concurrent request failed: %v", err)
 	}
@@ -1092,7 +1107,7 @@ func TestOperationsEntity_ConcurrentRequests(t *testing.T) {
 
 // TestOperationsEntity_MalformedJSONResponse tests handling of malformed JSON responses
 func TestOperationsEntity_MalformedJSONResponse(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"invalid json`))
@@ -1107,7 +1122,7 @@ func TestOperationsEntity_MalformedJSONResponse(t *testing.T) {
 
 // TestOperationsEntity_EmptyResponse tests handling of empty responses
 func TestOperationsEntity_EmptyResponse(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{}`))
@@ -1130,7 +1145,7 @@ func TestOperationsEntity_OperationTypes(t *testing.T) {
 			testOp := createTestOperation()
 			testOp.Type = opType
 
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusOK)
 				json.NewEncoder(w).Encode(testOp)
@@ -1187,7 +1202,7 @@ func TestOperationsEntity_MetadataHandling(t *testing.T) {
 			testOp := createTestOperation()
 			testOp.Metadata = tt.metadata
 
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusOK)
 				json.NewEncoder(w).Encode(testOp)
@@ -1202,7 +1217,7 @@ func TestOperationsEntity_MetadataHandling(t *testing.T) {
 			if tt.metadata == nil {
 				assert.Nil(t, result.Metadata)
 			} else {
-				assert.Equal(t, len(tt.metadata), len(result.Metadata))
+				assert.Len(t, result.Metadata, len(tt.metadata))
 			}
 		})
 	}
@@ -1255,7 +1270,7 @@ func TestOperationsEntity_ContentTypeHeader(t *testing.T) {
 
 // TestOperationsEntity_UpdateWithMapInput tests UpdateOperation with map input type
 func TestOperationsEntity_UpdateWithMapInput(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(createTestOperation())
@@ -1281,6 +1296,7 @@ func TestOperationsEntity_ListWithAllFilters(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		capturedQuery = r.URL.RawQuery
+
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(models.ListResponse[models.Operation]{
@@ -1314,8 +1330,9 @@ func TestOperationsEntity_ListWithAllFilters(t *testing.T) {
 // TestMockHTTPClientForOperations tests using the MockHTTPClient pattern
 func TestMockHTTPClientForOperations(t *testing.T) {
 	mockClient := &MockHTTPClient{
-		DoFunc: func(req *http.Request) (*http.Response, error) {
+		DoFunc: func(_ *http.Request) (*http.Response, error) {
 			testOp := createTestOperation()
+
 			body, err := json.Marshal(testOp)
 			if err != nil {
 				return nil, err
@@ -1382,6 +1399,7 @@ func TestOperationsEntity_URLPathConstruction(t *testing.T) {
 
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				capturedPath = r.URL.Path
+
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusOK)
 
@@ -1440,7 +1458,7 @@ func TestOperationsEntity_SpecialCharactersInIDs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusOK)
 				json.NewEncoder(w).Encode(createTestOperation())
@@ -1459,13 +1477,14 @@ func TestOperationsEntity_SpecialCharactersInIDs(t *testing.T) {
 func TestOperationsEntity_LargeResponseHandling(t *testing.T) {
 	// Create a large list of operations
 	operations := make([]models.Operation, 100)
+
 	for i := 0; i < 100; i++ {
 		op := createTestOperation()
 		op.ID = "op-" + string(rune('a'+i%26)) + string(rune('0'+i%10))
 		operations[i] = op
 	}
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(models.ListResponse[models.Operation]{

@@ -2,7 +2,7 @@
 package models
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
@@ -44,7 +44,7 @@ func (input *CreateSegmentInput) WithMetadata(metadata map[string]any) *CreateSe
 // Validate validates the CreateSegmentInput fields.
 func (input *CreateSegmentInput) Validate() error {
 	if input.Name == "" {
-		return fmt.Errorf("name is required")
+		return errors.New("name is required")
 	}
 
 	return nil
@@ -76,7 +76,7 @@ func (input *UpdateSegmentInput) WithMetadata(metadata map[string]any) *UpdateSe
 }
 
 // Validate validates the UpdateSegmentInput fields.
-func (input *UpdateSegmentInput) Validate() error {
+func (*UpdateSegmentInput) Validate() error {
 	// For update operations, most fields are optional
 	return nil
 }

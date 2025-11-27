@@ -2,13 +2,14 @@ package entities
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/entities/mocks"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // \1 performs an operation
@@ -57,7 +58,7 @@ func TestListLedgers(t *testing.T) {
 
 	// Test listing ledgers with default options
 	result, err := mockService.ListLedgers(ctx, orgID, nil)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, 2, result.Pagination.Total)
 	assert.Len(t, result.Items, 2)
 	assert.Equal(t, "ledger-123", result.Items[0].ID)
@@ -78,16 +79,16 @@ func TestListLedgers(t *testing.T) {
 		Return(ledgersList, nil)
 
 	result, err = mockService.ListLedgers(ctx, orgID, opts)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, 2, result.Pagination.Total)
 
 	// Test with empty organizationID
 	mockService.EXPECT().
 		ListLedgers(gomock.Any(), "", gomock.Any()).
-		Return(nil, fmt.Errorf("organization ID is required"))
+		Return(nil, errors.New("organization ID is required"))
 
 	_, err = mockService.ListLedgers(ctx, "", nil)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization ID is required")
 }
 
@@ -121,7 +122,7 @@ func TestGetLedger(t *testing.T) {
 
 	// Test getting a ledger by ID
 	result, err := mockService.GetLedger(ctx, orgID, ledgerID)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, ledgerID, result.ID)
 	assert.Equal(t, "Test Ledger 1", result.Name)
 	assert.Equal(t, "ACTIVE", result.Status.Code)
@@ -130,28 +131,28 @@ func TestGetLedger(t *testing.T) {
 	// Test with empty organizationID
 	mockService.EXPECT().
 		GetLedger(gomock.Any(), "", ledgerID).
-		Return(nil, fmt.Errorf("organization ID is required"))
+		Return(nil, errors.New("organization ID is required"))
 
 	_, err = mockService.GetLedger(ctx, "", ledgerID)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization ID is required")
 
 	// Test with empty ledgerID
 	mockService.EXPECT().
 		GetLedger(gomock.Any(), orgID, "").
-		Return(nil, fmt.Errorf("ledger ID is required"))
+		Return(nil, errors.New("ledger ID is required"))
 
 	_, err = mockService.GetLedger(ctx, orgID, "")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ledger ID is required")
 
 	// Test with not found
 	mockService.EXPECT().
 		GetLedger(gomock.Any(), orgID, "not-found").
-		Return(nil, fmt.Errorf("Ledger not found"))
+		Return(nil, errors.New("Ledger not found"))
 
 	_, err = mockService.GetLedger(ctx, orgID, "not-found")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
 }
 
@@ -192,7 +193,7 @@ func TestCreateLedger(t *testing.T) {
 
 	// Test creating a new ledger
 	result, err := mockService.CreateLedger(ctx, orgID, input)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "ledger-new", result.ID)
 	assert.Equal(t, "New Ledger", result.Name)
 	assert.Equal(t, "ACTIVE", result.Status.Code)
@@ -202,19 +203,19 @@ func TestCreateLedger(t *testing.T) {
 	// Test with empty organizationID
 	mockService.EXPECT().
 		CreateLedger(gomock.Any(), "", input).
-		Return(nil, fmt.Errorf("organization ID is required"))
+		Return(nil, errors.New("organization ID is required"))
 
 	_, err = mockService.CreateLedger(ctx, "", input)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization ID is required")
 
 	// Test with nil input
 	mockService.EXPECT().
 		CreateLedger(gomock.Any(), orgID, nil).
-		Return(nil, fmt.Errorf("ledger input cannot be nil"))
+		Return(nil, errors.New("ledger input cannot be nil"))
 
 	_, err = mockService.CreateLedger(ctx, orgID, nil)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ledger input cannot be nil")
 
 	// Test with invalid input (empty name)
@@ -223,10 +224,10 @@ func TestCreateLedger(t *testing.T) {
 
 	mockService.EXPECT().
 		CreateLedger(gomock.Any(), orgID, invalidInput).
-		Return(nil, fmt.Errorf("invalid ledger input: name cannot be empty"))
+		Return(nil, errors.New("invalid ledger input: name cannot be empty"))
 
 	_, err = mockService.CreateLedger(ctx, orgID, invalidInput)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "name cannot be empty")
 
 	// Test with invalid metadata
@@ -246,10 +247,10 @@ func TestCreateLedger(t *testing.T) {
 
 	mockService.EXPECT().
 		CreateLedger(gomock.Any(), orgID, invalidMetadataInput).
-		Return(nil, fmt.Errorf("invalid ledger input: metadata exceeds maximum nesting depth"))
+		Return(nil, errors.New("invalid ledger input: metadata exceeds maximum nesting depth"))
 
 	_, err = mockService.CreateLedger(ctx, orgID, invalidMetadataInput)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "metadata exceeds maximum nesting depth")
 }
 
@@ -292,7 +293,7 @@ func TestUpdateLedger(t *testing.T) {
 
 	// Test updating a ledger
 	result, err := mockService.UpdateLedger(ctx, orgID, ledgerID, input)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, ledgerID, result.ID)
 	assert.Equal(t, "Updated Ledger", result.Name)
 	assert.Equal(t, "INACTIVE", result.Status.Code)
@@ -302,28 +303,28 @@ func TestUpdateLedger(t *testing.T) {
 	// Test with empty organizationID
 	mockService.EXPECT().
 		UpdateLedger(gomock.Any(), "", ledgerID, input).
-		Return(nil, fmt.Errorf("organization ID is required"))
+		Return(nil, errors.New("organization ID is required"))
 
 	_, err = mockService.UpdateLedger(ctx, "", ledgerID, input)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization ID is required")
 
 	// Test with empty ledgerID
 	mockService.EXPECT().
 		UpdateLedger(gomock.Any(), orgID, "", input).
-		Return(nil, fmt.Errorf("ledger ID is required"))
+		Return(nil, errors.New("ledger ID is required"))
 
 	_, err = mockService.UpdateLedger(ctx, orgID, "", input)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ledger ID is required")
 
 	// Test with nil input
 	mockService.EXPECT().
 		UpdateLedger(gomock.Any(), orgID, ledgerID, nil).
-		Return(nil, fmt.Errorf("ledger input cannot be nil"))
+		Return(nil, errors.New("ledger input cannot be nil"))
 
 	_, err = mockService.UpdateLedger(ctx, orgID, ledgerID, nil)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ledger input cannot be nil")
 
 	// Test with invalid input (empty name when provided)
@@ -332,10 +333,10 @@ func TestUpdateLedger(t *testing.T) {
 
 	mockService.EXPECT().
 		UpdateLedger(gomock.Any(), orgID, ledgerID, invalidInput).
-		Return(nil, fmt.Errorf("invalid ledger update input: name cannot be empty when provided"))
+		Return(nil, errors.New("invalid ledger update input: name cannot be empty when provided"))
 
 	_, err = mockService.UpdateLedger(ctx, orgID, ledgerID, invalidInput)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "name cannot be empty when provided")
 
 	// Test with invalid metadata
@@ -355,19 +356,19 @@ func TestUpdateLedger(t *testing.T) {
 
 	mockService.EXPECT().
 		UpdateLedger(gomock.Any(), orgID, ledgerID, invalidMetadataInput).
-		Return(nil, fmt.Errorf("invalid ledger update input: metadata exceeds maximum nesting depth"))
+		Return(nil, errors.New("invalid ledger update input: metadata exceeds maximum nesting depth"))
 
 	_, err = mockService.UpdateLedger(ctx, orgID, ledgerID, invalidMetadataInput)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "metadata exceeds maximum nesting depth")
 
 	// Test with not found
 	mockService.EXPECT().
 		UpdateLedger(gomock.Any(), orgID, "not-found", input).
-		Return(nil, fmt.Errorf("Ledger not found"))
+		Return(nil, errors.New("Ledger not found"))
 
 	_, err = mockService.UpdateLedger(ctx, orgID, "not-found", input)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
 }
 
@@ -391,32 +392,32 @@ func TestDeleteLedger(t *testing.T) {
 
 	// Test deleting a ledger
 	err := mockService.DeleteLedger(ctx, orgID, ledgerID)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Test with empty organizationID
 	mockService.EXPECT().
 		DeleteLedger(gomock.Any(), "", ledgerID).
-		Return(fmt.Errorf("organization ID is required"))
+		Return(errors.New("organization ID is required"))
 
 	err = mockService.DeleteLedger(ctx, "", ledgerID)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization ID is required")
 
 	// Test with empty ledgerID
 	mockService.EXPECT().
 		DeleteLedger(gomock.Any(), orgID, "").
-		Return(fmt.Errorf("ledger ID is required"))
+		Return(errors.New("ledger ID is required"))
 
 	err = mockService.DeleteLedger(ctx, orgID, "")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ledger ID is required")
 
 	// Test with not found
 	mockService.EXPECT().
 		DeleteLedger(gomock.Any(), orgID, "not-found").
-		Return(fmt.Errorf("Ledger not found"))
+		Return(errors.New("Ledger not found"))
 
 	err = mockService.DeleteLedger(ctx, orgID, "not-found")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
 }

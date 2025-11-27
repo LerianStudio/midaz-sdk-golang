@@ -294,46 +294,46 @@ func NewNoopLogger() Logger {
 }
 
 // Debug is a no-op
-func (l *NoopLogger) Debug(args ...any) {}
+func (*NoopLogger) Debug(_ ...any) {}
 
 // Debugf is a no-op
-func (l *NoopLogger) Debugf(format string, args ...any) {}
+func (*NoopLogger) Debugf(_ string, _ ...any) {}
 
 // Info is a no-op
-func (l *NoopLogger) Info(args ...any) {}
+func (*NoopLogger) Info(_ ...any) {}
 
 // Infof is a no-op
-func (l *NoopLogger) Infof(format string, args ...any) {}
+func (*NoopLogger) Infof(_ string, _ ...any) {}
 
 // Warn is a no-op
-func (l *NoopLogger) Warn(args ...any) {}
+func (*NoopLogger) Warn(_ ...any) {}
 
 // Warnf is a no-op
-func (l *NoopLogger) Warnf(format string, args ...any) {}
+func (*NoopLogger) Warnf(_ string, _ ...any) {}
 
 // Error is a no-op
-func (l *NoopLogger) Error(args ...any) {}
+func (*NoopLogger) Error(_ ...any) {}
 
 // Errorf is a no-op
-func (l *NoopLogger) Errorf(format string, args ...any) {}
+func (*NoopLogger) Errorf(_ string, _ ...any) {}
 
 // Fatal is a no-op
-func (l *NoopLogger) Fatal(args ...any) {}
+func (*NoopLogger) Fatal(_ ...any) {}
 
 // Fatalf is a no-op
-func (l *NoopLogger) Fatalf(format string, args ...any) {}
+func (*NoopLogger) Fatalf(_ string, _ ...any) {}
 
 // With returns the same no-op logger
-func (l *NoopLogger) With(fields map[string]any) Logger {
+func (l *NoopLogger) With(_ map[string]any) Logger {
 	return l
 }
 
 // WithContext returns the same no-op logger
-func (l *NoopLogger) WithContext(ctx trace.SpanContext) Logger {
+func (l *NoopLogger) WithContext(_ trace.SpanContext) Logger {
 	return l
 }
 
 // WithSpan returns the same no-op logger
-func (l *NoopLogger) WithSpan(span trace.Span) Logger {
+func (l *NoopLogger) WithSpan(_ trace.Span) Logger {
 	return l
 }

@@ -341,7 +341,7 @@ func mapConversion(source, target reflect.Value) {
 	target.Set(newMap)
 }
 
-func noConversion(source, target reflect.Value) {
+func noConversion(_, _ reflect.Value) {
 	// No conversion possible, do nothing
 }
 

@@ -295,12 +295,14 @@ func TestGetCommonSuggestions(t *testing.T) {
 
 			for _, wantPart := range tt.wantContains {
 				found := false
+
 				for _, sugg := range suggestions {
 					if containsIgnoreCase(sugg, wantPart) {
 						found = true
 						break
 					}
 				}
+
 				assert.True(t, found,
 					"Expected suggestions to contain '%s', got: %v", wantPart, suggestions)
 			}
@@ -310,27 +312,27 @@ func TestGetCommonSuggestions(t *testing.T) {
 
 func TestSuggestionTypeConstants(t *testing.T) {
 	t.Run("Format constant is defined", func(t *testing.T) {
-		assert.Equal(t, SuggestionType("format"), Format)
+		assert.Equal(t, Format, SuggestionType("format"))
 	})
 
 	t.Run("Required constant is defined", func(t *testing.T) {
-		assert.Equal(t, SuggestionType("required"), Required)
+		assert.Equal(t, Required, SuggestionType("required"))
 	})
 
 	t.Run("Range constant is defined", func(t *testing.T) {
-		assert.Equal(t, SuggestionType("range"), Range)
+		assert.Equal(t, Range, SuggestionType("range"))
 	})
 
 	t.Run("Enumeration constant is defined", func(t *testing.T) {
-		assert.Equal(t, SuggestionType("enumeration"), Enumeration)
+		assert.Equal(t, Enumeration, SuggestionType("enumeration"))
 	})
 
 	t.Run("Consistency constant is defined", func(t *testing.T) {
-		assert.Equal(t, SuggestionType("consistency"), Consistency)
+		assert.Equal(t, Consistency, SuggestionType("consistency"))
 	})
 
 	t.Run("Structure constant is defined", func(t *testing.T) {
-		assert.Equal(t, SuggestionType("structure"), Structure)
+		assert.Equal(t, Structure, SuggestionType("structure"))
 	})
 }
 
@@ -514,16 +516,20 @@ func TestGetRequiredSuggestions(t *testing.T) {
 		suggestions := getRequiredSuggestions("field_name")
 
 		assert.GreaterOrEqual(t, len(suggestions), 2)
+
 		hasRequired := false
 		hasFieldName := false
+
 		for _, s := range suggestions {
 			if containsIgnoreCase(s, "required") {
 				hasRequired = true
 			}
+
 			if containsIgnoreCase(s, "field_name") {
 				hasFieldName = true
 			}
 		}
+
 		assert.True(t, hasRequired, "Should mention 'required'")
 		assert.True(t, hasFieldName, "Should mention field name")
 	})
@@ -538,12 +544,14 @@ func TestGetRangeSuggestions(t *testing.T) {
 	t.Run("Scale field returns scale suggestions", func(t *testing.T) {
 		suggestions := getRangeSuggestions("scale", 20)
 		hasZeroTo18 := false
+
 		for _, s := range suggestions {
 			if containsIgnoreCase(s, "0 and 18") || containsIgnoreCase(s, "0-18") {
 				hasZeroTo18 = true
 				break
 			}
 		}
+
 		assert.True(t, hasZeroTo18, "Should mention scale range")
 	})
 }
@@ -553,12 +561,14 @@ func TestGetEnumerationSuggestions(t *testing.T) {
 		suggestions := getEnumerationSuggestions("asset_type", "invalid")
 
 		found := false
+
 		for _, s := range suggestions {
 			if containsIgnoreCase(s, "crypto") && containsIgnoreCase(s, "currency") {
 				found = true
 				break
 			}
 		}
+
 		assert.True(t, found, "Should list valid asset types")
 	})
 
@@ -566,12 +576,14 @@ func TestGetEnumerationSuggestions(t *testing.T) {
 		suggestions := getEnumerationSuggestions("account_type", "invalid")
 
 		found := false
+
 		for _, s := range suggestions {
 			if containsIgnoreCase(s, "deposit") && containsIgnoreCase(s, "savings") {
 				found = true
 				break
 			}
 		}
+
 		assert.True(t, found, "Should list valid account types")
 	})
 }
@@ -586,12 +598,14 @@ func TestGetConsistencySuggestions(t *testing.T) {
 		suggestions := getConsistencySuggestions("balance")
 
 		found := false
+
 		for _, s := range suggestions {
 			if containsIgnoreCase(s, "debit") || containsIgnoreCase(s, "credit") {
 				found = true
 				break
 			}
 		}
+
 		assert.True(t, found, "Should mention debit/credit")
 	})
 }
@@ -607,14 +621,17 @@ func TestGetStructureSuggestions(t *testing.T) {
 
 		hasLine1 := false
 		hasCountry := false
+
 		for _, s := range suggestions {
 			if containsIgnoreCase(s, "line1") {
 				hasLine1 = true
 			}
+
 			if containsIgnoreCase(s, "country") {
 				hasCountry = true
 			}
 		}
+
 		assert.True(t, hasLine1, "Should mention line1")
 		assert.True(t, hasCountry, "Should mention country")
 	})

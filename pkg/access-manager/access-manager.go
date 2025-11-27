@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -50,7 +51,7 @@ func WithAccessManager(AccessManager AccessManager) EntityOption {
 
 		entity, ok := e.(entityWithAuth)
 		if !ok {
-			return fmt.Errorf("entity does not implement required methods for plugin auth")
+			return errors.New("entity does not implement required methods for plugin auth")
 		}
 
 		// If plugin auth is not enabled, nothing to do
@@ -60,7 +61,7 @@ func WithAccessManager(AccessManager AccessManager) EntityOption {
 
 		// Validate plugin auth configuration
 		if AccessManager.Address == "" {
-			return fmt.Errorf("plugin auth address is required when plugin auth is enabled")
+			return errors.New("plugin auth address is required when plugin auth is enabled")
 		}
 
 		// Get a token from the plugin auth service
@@ -92,11 +93,11 @@ func WithAccessManager(AccessManager AccessManager) EntityOption {
 //   - error: An error if the token retrieval fails.
 func GetTokenFromAccessManager(ctx context.Context, AccessManager AccessManager, httpClient *http.Client) (string, error) {
 	if !AccessManager.Enabled {
-		return "", fmt.Errorf("plugin authentication is not enabled")
+		return "", errors.New("plugin authentication is not enabled")
 	}
 
 	if AccessManager.Address == "" {
-		return "", fmt.Errorf("plugin auth address is required when plugin auth is enabled")
+		return "", errors.New("plugin auth address is required when plugin auth is enabled")
 	}
 
 	// Create the request payload
@@ -114,6 +115,7 @@ func GetTokenFromAccessManager(ctx context.Context, AccessManager AccessManager,
 
 	// Create a request to the plugin auth service with the payload
 	url := fmt.Sprintf("%s/v1/login/oauth/access_token", AccessManager.Address)
+
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
@@ -154,7 +156,7 @@ func GetTokenFromAccessManager(ctx context.Context, AccessManager AccessManager,
 	}
 
 	if tokenResp.AccessToken == "" {
-		return "", fmt.Errorf("plugin auth service returned empty token")
+		return "", errors.New("plugin auth service returned empty token")
 	}
 
 	return tokenResp.AccessToken, nil

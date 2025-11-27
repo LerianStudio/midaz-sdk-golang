@@ -2,7 +2,7 @@
 package models
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
@@ -18,7 +18,7 @@ type CreateOrganizationInput struct {
 // Validate validates the CreateOrganizationInput fields.
 func (input *CreateOrganizationInput) Validate() error {
 	if input.LegalName == "" {
-		return fmt.Errorf("legalName is required")
+		return errors.New("legalName is required")
 	}
 
 	return nil
@@ -35,7 +35,7 @@ type UpdateOrganizationInput struct {
 }
 
 // Validate validates the UpdateOrganizationInput fields.
-func (input *UpdateOrganizationInput) Validate() error {
+func (*UpdateOrganizationInput) Validate() error {
 	// For updates, fields are optional so validation is minimal
 	return nil
 }

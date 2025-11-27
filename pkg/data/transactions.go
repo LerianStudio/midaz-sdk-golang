@@ -173,6 +173,7 @@ func normalizePercentages(destinations map[string]int) ([]string, []int) {
 	for alias := range destinations {
 		aliases = append(aliases, alias)
 	}
+
 	sort.Strings(aliases)
 
 	if len(aliases) == 0 {

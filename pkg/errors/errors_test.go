@@ -9,6 +9,7 @@ import (
 
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // --------------------------------
@@ -165,7 +166,7 @@ func TestErrorCheckingFunctions(t *testing.T) {
 // --------------------------------
 
 func TestNewValidationError(t *testing.T) {
-	err := sdkerrors.NewValidationError("CreateTransaction", "invalid input", fmt.Errorf("field is required"))
+	err := sdkerrors.NewValidationError("CreateTransaction", "invalid input", errors.New("field is required"))
 
 	assert.Equal(t, sdkerrors.CategoryValidation, err.Category)
 	assert.Equal(t, sdkerrors.CodeValidation, err.Code)
@@ -214,7 +215,7 @@ func TestIsValidationErrorWithNewErrors(t *testing.T) {
 		},
 		{
 			name:     "legacy error",
-			err:      sdkerrors.NewMidazError(sdkerrors.CodeValidation, fmt.Errorf("invalid input")),
+			err:      sdkerrors.NewMidazError(sdkerrors.CodeValidation, errors.New("invalid input")),
 			expected: true,
 		},
 	}
@@ -260,12 +261,12 @@ func TestGetErrorCategory(t *testing.T) {
 		},
 		{
 			name:     "legacy error",
-			err:      sdkerrors.NewMidazError(sdkerrors.CodeValidation, fmt.Errorf("invalid input")),
+			err:      sdkerrors.NewMidazError(sdkerrors.CodeValidation, errors.New("invalid input")),
 			expected: sdkerrors.CategoryValidation,
 		},
 		{
 			name:     "generic error",
-			err:      fmt.Errorf("something went wrong"),
+			err:      errors.New("something went wrong"),
 			expected: sdkerrors.CategoryInternal,
 		},
 	}
@@ -341,7 +342,7 @@ func TestErrorFromHTTPResponse(t *testing.T) {
 
 			var mdzErr *sdkerrors.Error
 
-			assert.True(t, errors.As(err, &mdzErr))
+			require.ErrorAs(t, err, &mdzErr)
 			assert.Equal(t, tt.category, mdzErr.Category)
 			assert.Equal(t, tt.statusCode, mdzErr.StatusCode)
 			assert.Equal(t, "req-123", mdzErr.RequestID)
@@ -378,7 +379,7 @@ func TestFormatErrorForDisplay(t *testing.T) {
 		},
 		{
 			name:     "generic error",
-			err:      fmt.Errorf("something went wrong"),
+			err:      errors.New("something went wrong"),
 			expected: "something went wrong",
 		},
 	}
@@ -455,7 +456,7 @@ func TestError_Error(t *testing.T) {
 }
 
 func TestError_Unwrap(t *testing.T) {
-	underlyingErr := fmt.Errorf("underlying error")
+	underlyingErr := errors.New("underlying error")
 	err := sdkerrors.NewValidationError("Test", "invalid input", underlyingErr)
 
 	unwrapped := err.Unwrap()
@@ -485,12 +486,12 @@ func TestGetStatusCode(t *testing.T) {
 		},
 		{
 			name:     "legacy error",
-			err:      sdkerrors.NewMidazError(sdkerrors.CodeValidation, fmt.Errorf("invalid input")),
+			err:      sdkerrors.NewMidazError(sdkerrors.CodeValidation, errors.New("invalid input")),
 			expected: http.StatusBadRequest,
 		},
 		{
 			name:     "generic error",
-			err:      fmt.Errorf("something went wrong"),
+			err:      errors.New("something went wrong"),
 			expected: http.StatusInternalServerError,
 		},
 	}
@@ -705,7 +706,7 @@ func TestNewInvalidInputError(t *testing.T) {
 
 		assert.Equal(t, sdkerrors.CategoryValidation, err.Category)
 		assert.Equal(t, "invalid input", err.Message)
-		assert.Nil(t, err.Err)
+		require.NoError(t, err.Err)
 	})
 }
 
@@ -717,7 +718,7 @@ func TestNewMissingParameterError(t *testing.T) {
 	assert.Equal(t, "CreateTransaction", err.Operation)
 	assert.Equal(t, "missing required parameter: amount", err.Message)
 	assert.Equal(t, http.StatusBadRequest, err.StatusCode)
-	assert.NotNil(t, err.Err)
+	require.Error(t, err.Err)
 	assert.Equal(t, "missing required parameter: amount", err.Err.Error())
 }
 
@@ -738,7 +739,7 @@ func TestNewAuthenticationError(t *testing.T) {
 		err := sdkerrors.NewAuthenticationError("GetAccount", "authentication failed", nil)
 
 		assert.Equal(t, "authentication failed", err.Message)
-		assert.Nil(t, err.Err)
+		require.NoError(t, err.Err)
 	})
 }
 
@@ -759,7 +760,7 @@ func TestNewAuthorizationError(t *testing.T) {
 		err := sdkerrors.NewAuthorizationError("DeleteAccount", "access denied", nil)
 
 		assert.Equal(t, "access denied", err.Message)
-		assert.Nil(t, err.Err)
+		require.NoError(t, err.Err)
 	})
 }
 
@@ -782,7 +783,7 @@ func TestNewConflictError(t *testing.T) {
 		err := sdkerrors.NewConflictError("CreateAccount", "account", "", nil)
 
 		assert.Equal(t, "account already exists", err.Message)
-		assert.Equal(t, "", err.ResourceID)
+		assert.Empty(t, err.ResourceID)
 	})
 }
 
@@ -843,7 +844,7 @@ func TestNewCancellationError(t *testing.T) {
 		err := sdkerrors.NewCancellationError("CreateTransaction", nil)
 
 		assert.Equal(t, "operation cancelled", err.Message)
-		assert.Nil(t, err.Err)
+		require.NoError(t, err.Err)
 	})
 }
 
@@ -864,7 +865,7 @@ func TestNewNetworkError(t *testing.T) {
 		err := sdkerrors.NewNetworkError("GetAccount", nil)
 
 		assert.Equal(t, "network error", err.Message)
-		assert.Nil(t, err.Err)
+		require.NoError(t, err.Err)
 	})
 }
 
@@ -885,7 +886,7 @@ func TestNewInternalError(t *testing.T) {
 		err := sdkerrors.NewInternalError("ProcessTransaction", nil)
 
 		assert.Equal(t, "internal error", err.Message)
-		assert.Nil(t, err.Err)
+		require.NoError(t, err.Err)
 	})
 }
 
@@ -907,7 +908,7 @@ func TestNewUnprocessableError(t *testing.T) {
 		err := sdkerrors.NewUnprocessableError("ProcessTransaction", "transaction", nil)
 
 		assert.Equal(t, "unprocessable transaction", err.Message)
-		assert.Nil(t, err.Err)
+		require.NoError(t, err.Err)
 	})
 }
 
@@ -930,7 +931,7 @@ func TestNewInsufficientBalanceError(t *testing.T) {
 		err := sdkerrors.NewInsufficientBalanceError("Transfer", "acc123", nil)
 
 		assert.Equal(t, "insufficient balance", err.Message)
-		assert.Nil(t, err.Err)
+		require.NoError(t, err.Err)
 	})
 }
 
@@ -965,7 +966,7 @@ func TestNewAccountEligibilityError(t *testing.T) {
 		err := sdkerrors.NewAccountEligibilityError("Transfer", "acc123", nil)
 
 		assert.Equal(t, "account not eligible for this operation", err.Message)
-		assert.Nil(t, err.Err)
+		require.NoError(t, err.Err)
 	})
 }
 
@@ -974,7 +975,7 @@ func TestNewNotFoundError_EdgeCases(t *testing.T) {
 		err := sdkerrors.NewNotFoundError("GetAccount", "account", "", nil)
 
 		assert.Equal(t, "account not found", err.Message)
-		assert.Equal(t, "", err.ResourceID)
+		assert.Empty(t, err.ResourceID)
 	})
 
 	t.Run("with underlying error", func(t *testing.T) {
@@ -989,7 +990,7 @@ func TestNewValidationError_NilError(t *testing.T) {
 	err := sdkerrors.NewValidationError("CreateTransaction", "invalid input", nil)
 
 	assert.Equal(t, "invalid input", err.Message)
-	assert.Nil(t, err.Err)
+	require.NoError(t, err.Err)
 }
 
 // --------------------------------
@@ -1078,14 +1079,14 @@ func TestError_Is(t *testing.T) {
 		innerErr := sdkerrors.NewValidationError("Test", "validation failed", nil)
 		wrappedErr := fmt.Errorf("wrapped: %w", innerErr)
 
-		assert.True(t, errors.Is(wrappedErr, sdkerrors.ErrValidation))
+		require.ErrorIs(t, wrappedErr, sdkerrors.ErrValidation)
 	})
 
 	t.Run("errors.Is with sentinel errors", func(t *testing.T) {
 		err := sdkerrors.NewNotFoundError("GetAccount", "account", "acc123", nil)
 
-		assert.True(t, errors.Is(err, sdkerrors.ErrNotFound))
-		assert.False(t, errors.Is(err, sdkerrors.ErrValidation))
+		require.ErrorIs(t, err, sdkerrors.ErrNotFound)
+		assert.NotErrorIs(t, err, sdkerrors.ErrValidation)
 	})
 }
 
@@ -1133,7 +1134,7 @@ func TestMidazError_Is(t *testing.T) {
 		err := sdkerrors.NewMidazError(sdkerrors.CodeValidation, errors.New("test"))
 
 		target := &sdkerrors.MidazError{Code: sdkerrors.CodeValidation}
-		assert.True(t, errors.Is(err, target))
+		require.ErrorIs(t, err, target)
 	})
 }
 
@@ -1209,6 +1210,7 @@ func TestCheckCancellationError(t *testing.T) {
 	t.Run("with context.DeadlineExceeded", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 0)
 		defer cancel()
+
 		<-ctx.Done()
 		assert.True(t, sdkerrors.CheckCancellationError(ctx.Err()))
 	})
@@ -1326,6 +1328,7 @@ func TestValueOfOriginalType(t *testing.T) {
 		result := sdkerrors.ValueOfOriginalType(original, sdkerrors.CodeNotFound)
 
 		var midazErr *sdkerrors.MidazError
+
 		ok := errors.As(result, &midazErr)
 		assert.True(t, ok)
 		assert.Equal(t, sdkerrors.CodeNotFound, midazErr.Code)
@@ -1368,7 +1371,7 @@ func TestMidazError_EdgeCases(t *testing.T) {
 
 	t.Run("Unwrap returns nil when no underlying error", func(t *testing.T) {
 		err := &sdkerrors.MidazError{Code: sdkerrors.CodeValidation}
-		assert.Nil(t, err.Unwrap())
+		require.NoError(t, err.Unwrap())
 	})
 }
 
@@ -1376,8 +1379,8 @@ func TestNewMidazError_NilError(t *testing.T) {
 	err := sdkerrors.NewMidazError(sdkerrors.CodeValidation, nil)
 
 	assert.Equal(t, sdkerrors.CodeValidation, err.Code)
-	assert.Equal(t, "", err.Message)
-	assert.Nil(t, err.Err)
+	assert.Empty(t, err.Message)
+	require.NoError(t, err.Err)
 }
 
 // --------------------------------
@@ -1408,7 +1411,7 @@ func TestErrorFromHTTPResponse_AllCodes(t *testing.T) {
 			err := sdkerrors.ErrorFromHTTPResponse(tt.statusCode, "req-123", "test message", "test-code", "entity", "resource-id")
 
 			var mdzErr *sdkerrors.Error
-			assert.True(t, errors.As(err, &mdzErr))
+			require.ErrorAs(t, err, &mdzErr)
 			assert.Equal(t, tt.category, mdzErr.Category)
 			assert.Equal(t, tt.code, mdzErr.Code)
 			assert.Equal(t, tt.statusCode, mdzErr.StatusCode)
@@ -1508,7 +1511,7 @@ func TestErrorsAs(t *testing.T) {
 		wrapped := fmt.Errorf("wrapped: %w", err)
 
 		var mdzErr *sdkerrors.Error
-		assert.True(t, errors.As(wrapped, &mdzErr))
+		require.ErrorAs(t, wrapped, &mdzErr)
 		assert.Equal(t, sdkerrors.CategoryValidation, mdzErr.Category)
 	})
 
@@ -1517,7 +1520,7 @@ func TestErrorsAs(t *testing.T) {
 		wrapped := fmt.Errorf("wrapped: %w", err)
 
 		var mdzErr *sdkerrors.MidazError
-		assert.True(t, errors.As(wrapped, &mdzErr))
+		require.ErrorAs(t, wrapped, &mdzErr)
 		assert.Equal(t, sdkerrors.CodeValidation, mdzErr.Code)
 	})
 }
@@ -1539,11 +1542,11 @@ func TestErrorChain(t *testing.T) {
 		assert.Equal(t, innerErr, unwrapped)
 
 		// errors.Is should work
-		assert.True(t, errors.Is(outerErr, sdkerrors.ErrInternal))
+		require.ErrorIs(t, outerErr, sdkerrors.ErrInternal)
 
 		// errors.As should extract the outer error
 		var extractedErr *sdkerrors.Error
-		assert.True(t, errors.As(outerErr, &extractedErr))
+		require.ErrorAs(t, outerErr, &extractedErr)
 		assert.Equal(t, sdkerrors.CategoryInternal, extractedErr.Category)
 	})
 
@@ -1552,12 +1555,12 @@ func TestErrorChain(t *testing.T) {
 		validationErr := sdkerrors.NewValidationError("Validate", "validation failed", baseErr)
 		wrappedErr := fmt.Errorf("wrapped: %w", validationErr)
 
-		assert.True(t, errors.Is(wrappedErr, sdkerrors.ErrValidation))
+		require.ErrorIs(t, wrappedErr, sdkerrors.ErrValidation)
 		assert.True(t, sdkerrors.IsValidationError(wrappedErr))
 
 		// Can unwrap to base error
 		var mdzErr *sdkerrors.Error
-		assert.True(t, errors.As(wrappedErr, &mdzErr))
+		require.ErrorAs(t, wrappedErr, &mdzErr)
 		assert.Equal(t, baseErr, mdzErr.Err)
 	})
 }
@@ -1570,10 +1573,10 @@ func TestGetErrorDetails(t *testing.T) {
 	t.Run("nil error", func(t *testing.T) {
 		details := sdkerrors.GetErrorDetails(nil)
 
-		assert.Equal(t, "", details.Message)
-		assert.Equal(t, "", details.Code)
+		assert.Empty(t, details.Message)
+		assert.Empty(t, details.Code)
 		assert.Equal(t, 0, details.HTTPStatus)
-		assert.Nil(t, details.OriginalError)
+		require.NoError(t, details.OriginalError)
 	})
 
 	t.Run("standard error", func(t *testing.T) {
@@ -1782,7 +1785,7 @@ func TestGetErrorStatusCode(t *testing.T) {
 func TestFormatErrorDetails(t *testing.T) {
 	t.Run("nil error", func(t *testing.T) {
 		result := sdkerrors.FormatErrorDetails(nil)
-		assert.Equal(t, "", result)
+		assert.Empty(t, result)
 	})
 
 	t.Run("standard error", func(t *testing.T) {
@@ -1801,7 +1804,7 @@ func TestFormatErrorDetails(t *testing.T) {
 func TestFormatOperationError(t *testing.T) {
 	t.Run("nil error", func(t *testing.T) {
 		result := sdkerrors.FormatOperationError(nil, "CreateAccount")
-		assert.Equal(t, "", result)
+		assert.Empty(t, result)
 	})
 
 	t.Run("standard error", func(t *testing.T) {
@@ -1870,7 +1873,7 @@ func TestFormatErrorForDisplay_Cancellation(t *testing.T) {
 func TestFormatUnifiedTransactionError(t *testing.T) {
 	t.Run("nil error", func(t *testing.T) {
 		result := sdkerrors.FormatUnifiedTransactionError(nil, "Transfer")
-		assert.Equal(t, "", result)
+		assert.Empty(t, result)
 	})
 
 	t.Run("unknown error", func(t *testing.T) {
@@ -1906,20 +1909,20 @@ func TestFormatUnifiedTransactionError(t *testing.T) {
 
 func TestErrorCodeConstants(t *testing.T) {
 	// Verify error codes are defined correctly
-	assert.Equal(t, sdkerrors.ErrorCode("validation_error"), sdkerrors.CodeValidation)
-	assert.Equal(t, sdkerrors.ErrorCode("not_found"), sdkerrors.CodeNotFound)
-	assert.Equal(t, sdkerrors.ErrorCode("already_exists"), sdkerrors.CodeAlreadyExists)
-	assert.Equal(t, sdkerrors.ErrorCode("authentication_error"), sdkerrors.CodeAuthentication)
-	assert.Equal(t, sdkerrors.ErrorCode("permission_error"), sdkerrors.CodePermission)
-	assert.Equal(t, sdkerrors.ErrorCode("insufficient_balance"), sdkerrors.CodeInsufficientBalance)
-	assert.Equal(t, sdkerrors.ErrorCode("account_eligibility_error"), sdkerrors.CodeAccountEligibility)
-	assert.Equal(t, sdkerrors.ErrorCode("asset_mismatch"), sdkerrors.CodeAssetMismatch)
-	assert.Equal(t, sdkerrors.ErrorCode("idempotency_error"), sdkerrors.CodeIdempotency)
-	assert.Equal(t, sdkerrors.ErrorCode("rate_limit_exceeded"), sdkerrors.CodeRateLimit)
-	assert.Equal(t, sdkerrors.ErrorCode("timeout"), sdkerrors.CodeTimeout)
-	assert.Equal(t, sdkerrors.ErrorCode("cancelled"), sdkerrors.CodeCancellation)
-	assert.Equal(t, sdkerrors.ErrorCode("internal_error"), sdkerrors.CodeInternal)
-	assert.Equal(t, sdkerrors.ErrorCode("network_error"), sdkerrors.CodeNetwork)
+	assert.Equal(t, sdkerrors.CodeValidation, sdkerrors.ErrorCode("validation_error"))
+	assert.Equal(t, sdkerrors.CodeNotFound, sdkerrors.ErrorCode("not_found"))
+	assert.Equal(t, sdkerrors.CodeAlreadyExists, sdkerrors.ErrorCode("already_exists"))
+	assert.Equal(t, sdkerrors.CodeAuthentication, sdkerrors.ErrorCode("authentication_error"))
+	assert.Equal(t, sdkerrors.CodePermission, sdkerrors.ErrorCode("permission_error"))
+	assert.Equal(t, sdkerrors.CodeInsufficientBalance, sdkerrors.ErrorCode("insufficient_balance"))
+	assert.Equal(t, sdkerrors.CodeAccountEligibility, sdkerrors.ErrorCode("account_eligibility_error"))
+	assert.Equal(t, sdkerrors.CodeAssetMismatch, sdkerrors.ErrorCode("asset_mismatch"))
+	assert.Equal(t, sdkerrors.CodeIdempotency, sdkerrors.ErrorCode("idempotency_error"))
+	assert.Equal(t, sdkerrors.CodeRateLimit, sdkerrors.ErrorCode("rate_limit_exceeded"))
+	assert.Equal(t, sdkerrors.CodeTimeout, sdkerrors.ErrorCode("timeout"))
+	assert.Equal(t, sdkerrors.CodeCancellation, sdkerrors.ErrorCode("cancelled"))
+	assert.Equal(t, sdkerrors.CodeInternal, sdkerrors.ErrorCode("internal_error"))
+	assert.Equal(t, sdkerrors.CodeNetwork, sdkerrors.ErrorCode("network_error"))
 }
 
 // --------------------------------
@@ -1928,17 +1931,17 @@ func TestErrorCodeConstants(t *testing.T) {
 
 func TestErrorCategoryConstants(t *testing.T) {
 	// Verify error categories are defined correctly
-	assert.Equal(t, sdkerrors.ErrorCategory("validation"), sdkerrors.CategoryValidation)
-	assert.Equal(t, sdkerrors.ErrorCategory("authentication"), sdkerrors.CategoryAuthentication)
-	assert.Equal(t, sdkerrors.ErrorCategory("authorization"), sdkerrors.CategoryAuthorization)
-	assert.Equal(t, sdkerrors.ErrorCategory("not_found"), sdkerrors.CategoryNotFound)
-	assert.Equal(t, sdkerrors.ErrorCategory("conflict"), sdkerrors.CategoryConflict)
-	assert.Equal(t, sdkerrors.ErrorCategory("limit_exceeded"), sdkerrors.CategoryLimitExceeded)
-	assert.Equal(t, sdkerrors.ErrorCategory("timeout"), sdkerrors.CategoryTimeout)
-	assert.Equal(t, sdkerrors.ErrorCategory("cancellation"), sdkerrors.CategoryCancellation)
-	assert.Equal(t, sdkerrors.ErrorCategory("network"), sdkerrors.CategoryNetwork)
-	assert.Equal(t, sdkerrors.ErrorCategory("internal"), sdkerrors.CategoryInternal)
-	assert.Equal(t, sdkerrors.ErrorCategory("unprocessable"), sdkerrors.CategoryUnprocessable)
+	assert.Equal(t, sdkerrors.CategoryValidation, sdkerrors.ErrorCategory("validation"))
+	assert.Equal(t, sdkerrors.CategoryAuthentication, sdkerrors.ErrorCategory("authentication"))
+	assert.Equal(t, sdkerrors.CategoryAuthorization, sdkerrors.ErrorCategory("authorization"))
+	assert.Equal(t, sdkerrors.CategoryNotFound, sdkerrors.ErrorCategory("not_found"))
+	assert.Equal(t, sdkerrors.CategoryConflict, sdkerrors.ErrorCategory("conflict"))
+	assert.Equal(t, sdkerrors.CategoryLimitExceeded, sdkerrors.ErrorCategory("limit_exceeded"))
+	assert.Equal(t, sdkerrors.CategoryTimeout, sdkerrors.ErrorCategory("timeout"))
+	assert.Equal(t, sdkerrors.CategoryCancellation, sdkerrors.ErrorCategory("cancellation"))
+	assert.Equal(t, sdkerrors.CategoryNetwork, sdkerrors.ErrorCategory("network"))
+	assert.Equal(t, sdkerrors.CategoryInternal, sdkerrors.ErrorCategory("internal"))
+	assert.Equal(t, sdkerrors.CategoryUnprocessable, sdkerrors.ErrorCategory("unprocessable"))
 }
 
 // --------------------------------

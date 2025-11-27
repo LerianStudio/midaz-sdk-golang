@@ -43,16 +43,15 @@ func TestNewAmountGenerator(t *testing.T) {
 		assert.Equal(t, vals1, vals2)
 	})
 
-	t.Run("different seeds produce different sequences", func(t *testing.T) {
+	t.Run("different seeds produce different sequences", func(_ *testing.T) {
 		gen1 := NewAmountGenerator(42)
 		gen2 := NewAmountGenerator(43)
 
-		// Generate values
+		// Generate values - verifies generators can produce values without panicking
+		// Note: We don't assert inequality since random values could theoretically match
 		val1 := gen1.Normal(100, 10, 2)
 		val2 := gen2.Normal(100, 10, 2)
 
-		// While not guaranteed, these should almost certainly be different
-		// If this test is flaky, increase sample size or remove this assertion
 		_ = val1
 		_ = val2
 	})
@@ -415,6 +414,7 @@ func TestAmountGeneratorEdgeCases(t *testing.T) {
 // Benchmarks
 func BenchmarkNormal(b *testing.B) {
 	gen := NewAmountGenerator(12345)
+
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
@@ -424,6 +424,7 @@ func BenchmarkNormal(b *testing.B) {
 
 func BenchmarkPowerLaw(b *testing.B) {
 	gen := NewAmountGenerator(12345)
+
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
@@ -433,6 +434,7 @@ func BenchmarkPowerLaw(b *testing.B) {
 
 func BenchmarkExponential(b *testing.B) {
 	gen := NewAmountGenerator(12345)
+
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
@@ -442,6 +444,7 @@ func BenchmarkExponential(b *testing.B) {
 
 func BenchmarkUniform(b *testing.B) {
 	gen := NewAmountGenerator(12345)
+
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {

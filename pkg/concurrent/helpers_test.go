@@ -10,13 +10,14 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestFetchAccountsInParallel(t *testing.T) {
 	t.Run("SuccessfulFetch", func(t *testing.T) {
 		accountIDs := []string{"acc_1", "acc_2", "acc_3"}
 
-		fetchFn := func(ctx context.Context, accountID string) (*models.Account, error) {
+		fetchFn := func(_ context.Context, accountID string) (*models.Account, error) {
 			return &models.Account{
 				ID:   accountID,
 				Name: "Account " + accountID,
@@ -25,8 +26,9 @@ func TestFetchAccountsInParallel(t *testing.T) {
 
 		result, err := FetchAccountsInParallel(context.Background(), fetchFn, accountIDs)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, result, 3)
+
 		for _, id := range accountIDs {
 			assert.Contains(t, result, id)
 			assert.Equal(t, id, result[id].ID)
@@ -37,36 +39,37 @@ func TestFetchAccountsInParallel(t *testing.T) {
 		accountIDs := []string{"acc_1", "acc_2", "acc_3"}
 		expectedErr := errors.New("fetch error")
 
-		fetchFn := func(ctx context.Context, accountID string) (*models.Account, error) {
+		fetchFn := func(_ context.Context, accountID string) (*models.Account, error) {
 			if accountID == "acc_2" {
 				return nil, expectedErr
 			}
+
 			return &models.Account{ID: accountID}, nil
 		}
 
 		result, err := FetchAccountsInParallel(context.Background(), fetchFn, accountIDs)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Equal(t, expectedErr, err)
 		// Some accounts may have been fetched before error
 		assert.NotNil(t, result)
 	})
 
 	t.Run("EmptyAccountIDs", func(t *testing.T) {
-		fetchFn := func(ctx context.Context, accountID string) (*models.Account, error) {
+		fetchFn := func(_ context.Context, accountID string) (*models.Account, error) {
 			return &models.Account{ID: accountID}, nil
 		}
 
 		result, err := FetchAccountsInParallel(context.Background(), fetchFn, []string{})
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Empty(t, result)
 	})
 
 	t.Run("WithOptions", func(t *testing.T) {
 		accountIDs := []string{"acc_1", "acc_2"}
 
-		fetchFn := func(ctx context.Context, accountID string) (*models.Account, error) {
+		fetchFn := func(_ context.Context, accountID string) (*models.Account, error) {
 			return &models.Account{ID: accountID}, nil
 		}
 
@@ -78,7 +81,7 @@ func TestFetchAccountsInParallel(t *testing.T) {
 			WithUnorderedResults(),
 		)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, result, 2)
 	})
 }
@@ -93,7 +96,7 @@ func TestBatchCreateAccounts(t *testing.T) {
 			{Name: "Account 5"},
 		}
 
-		createBatchFn := func(ctx context.Context, batch []*models.Account) ([]*models.Account, error) {
+		createBatchFn := func(_ context.Context, batch []*models.Account) ([]*models.Account, error) {
 			result := make([]*models.Account, len(batch))
 			for i, acc := range batch {
 				result[i] = &models.Account{
@@ -101,6 +104,7 @@ func TestBatchCreateAccounts(t *testing.T) {
 					Name: acc.Name,
 				}
 			}
+
 			return result, nil
 		}
 
@@ -111,7 +115,7 @@ func TestBatchCreateAccounts(t *testing.T) {
 			2, // Batch size of 2
 		)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, result, 5)
 	})
 
@@ -122,7 +126,7 @@ func TestBatchCreateAccounts(t *testing.T) {
 		}
 		expectedErr := errors.New("create error")
 
-		createBatchFn := func(ctx context.Context, batch []*models.Account) ([]*models.Account, error) {
+		createBatchFn := func(_ context.Context, _ []*models.Account) ([]*models.Account, error) {
 			return nil, expectedErr
 		}
 
@@ -133,13 +137,13 @@ func TestBatchCreateAccounts(t *testing.T) {
 			2,
 		)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Equal(t, expectedErr, err)
 		assert.NotNil(t, result)
 	})
 
 	t.Run("EmptyAccounts", func(t *testing.T) {
-		createBatchFn := func(ctx context.Context, batch []*models.Account) ([]*models.Account, error) {
+		createBatchFn := func(_ context.Context, batch []*models.Account) ([]*models.Account, error) {
 			return batch, nil
 		}
 
@@ -150,7 +154,7 @@ func TestBatchCreateAccounts(t *testing.T) {
 			10,
 		)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Empty(t, result)
 	})
 }
@@ -163,7 +167,7 @@ func TestProcessTransactionsInParallel(t *testing.T) {
 			{ID: "TX003", Description: "Transaction 3"},
 		}
 
-		processFn := func(ctx context.Context, tx *models.Transaction) (*models.Transaction, error) {
+		processFn := func(_ context.Context, tx *models.Transaction) (*models.Transaction, error) {
 			// Simulate processing
 			return &models.Transaction{
 				ID:          tx.ID,
@@ -181,7 +185,7 @@ func TestProcessTransactionsInParallel(t *testing.T) {
 		assert.Len(t, errs, 3)
 
 		for _, err := range errs {
-			assert.Nil(t, err)
+			require.NoError(t, err)
 		}
 	})
 
@@ -193,10 +197,11 @@ func TestProcessTransactionsInParallel(t *testing.T) {
 		}
 		expectedErr := errors.New("process error")
 
-		processFn := func(ctx context.Context, tx *models.Transaction) (*models.Transaction, error) {
+		processFn := func(_ context.Context, tx *models.Transaction) (*models.Transaction, error) {
 			if tx.ID == "TX002" {
 				return nil, expectedErr
 			}
+
 			return tx, nil
 		}
 
@@ -211,17 +216,19 @@ func TestProcessTransactionsInParallel(t *testing.T) {
 
 		// Check that at least one error exists
 		hasError := false
+
 		for _, err := range errs {
 			if err != nil {
 				hasError = true
 				break
 			}
 		}
+
 		assert.True(t, hasError)
 	})
 
 	t.Run("EmptyTransactions", func(t *testing.T) {
-		processFn := func(ctx context.Context, tx *models.Transaction) (*models.Transaction, error) {
+		processFn := func(_ context.Context, tx *models.Transaction) (*models.Transaction, error) {
 			return tx, nil
 		}
 
@@ -241,7 +248,7 @@ func TestProcessTransactionsInParallel(t *testing.T) {
 			{ID: "TX002"},
 		}
 
-		processFn := func(ctx context.Context, tx *models.Transaction) (*models.Transaction, error) {
+		processFn := func(_ context.Context, tx *models.Transaction) (*models.Transaction, error) {
 			return tx, nil
 		}
 
@@ -262,7 +269,7 @@ func TestBulkFetchResourceMap(t *testing.T) {
 	t.Run("SuccessfulFetch", func(t *testing.T) {
 		resourceIDs := []string{"res_1", "res_2", "res_3"}
 
-		fetchFn := func(ctx context.Context, id string) (string, error) {
+		fetchFn := func(_ context.Context, id string) (string, error) {
 			return "value_" + id, nil
 		}
 
@@ -272,7 +279,7 @@ func TestBulkFetchResourceMap(t *testing.T) {
 			resourceIDs,
 		)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, result, 3)
 		assert.Equal(t, "value_res_1", result["res_1"])
 		assert.Equal(t, "value_res_2", result["res_2"])
@@ -282,7 +289,7 @@ func TestBulkFetchResourceMap(t *testing.T) {
 	t.Run("WithIntKeys", func(t *testing.T) {
 		resourceIDs := []int{1, 2, 3}
 
-		fetchFn := func(ctx context.Context, id int) (string, error) {
+		fetchFn := func(_ context.Context, _ int) (string, error) {
 			return "value_for_int", nil
 		}
 
@@ -292,7 +299,7 @@ func TestBulkFetchResourceMap(t *testing.T) {
 			resourceIDs,
 		)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, result, 3)
 	})
 
@@ -300,10 +307,11 @@ func TestBulkFetchResourceMap(t *testing.T) {
 		resourceIDs := []string{"res_1", "res_2"}
 		expectedErr := errors.New("fetch error")
 
-		fetchFn := func(ctx context.Context, id string) (string, error) {
+		fetchFn := func(_ context.Context, id string) (string, error) {
 			if id == "res_2" {
 				return "", expectedErr
 			}
+
 			return "value_" + id, nil
 		}
 
@@ -313,13 +321,13 @@ func TestBulkFetchResourceMap(t *testing.T) {
 			resourceIDs,
 		)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Equal(t, expectedErr, err)
 		assert.NotNil(t, result)
 	})
 
 	t.Run("EmptyResourceIDs", func(t *testing.T) {
-		fetchFn := func(ctx context.Context, id string) (string, error) {
+		fetchFn := func(_ context.Context, id string) (string, error) {
 			return "value_" + id, nil
 		}
 
@@ -329,14 +337,14 @@ func TestBulkFetchResourceMap(t *testing.T) {
 			[]string{},
 		)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Empty(t, result)
 	})
 
 	t.Run("WithOptions", func(t *testing.T) {
 		resourceIDs := []string{"res_1", "res_2"}
 
-		fetchFn := func(ctx context.Context, id string) (string, error) {
+		fetchFn := func(_ context.Context, id string) (string, error) {
 			return "value_" + id, nil
 		}
 
@@ -348,7 +356,7 @@ func TestBulkFetchResourceMap(t *testing.T) {
 			WithUnorderedResults(),
 		)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, result, 2)
 	})
 }
@@ -358,15 +366,15 @@ func TestRunConcurrentOperations(t *testing.T) {
 		var counter int32
 
 		operations := []func(context.Context) error{
-			func(ctx context.Context) error {
+			func(_ context.Context) error {
 				atomic.AddInt32(&counter, 1)
 				return nil
 			},
-			func(ctx context.Context) error {
+			func(_ context.Context) error {
 				atomic.AddInt32(&counter, 1)
 				return nil
 			},
-			func(ctx context.Context) error {
+			func(_ context.Context) error {
 				atomic.AddInt32(&counter, 1)
 				return nil
 			},
@@ -375,9 +383,11 @@ func TestRunConcurrentOperations(t *testing.T) {
 		errs := RunConcurrentOperations(context.Background(), operations)
 
 		assert.Len(t, errs, 3)
+
 		for _, err := range errs {
-			assert.Nil(t, err)
+			require.NoError(t, err)
 		}
+
 		assert.Equal(t, int32(3), atomic.LoadInt32(&counter))
 	})
 
@@ -385,13 +395,13 @@ func TestRunConcurrentOperations(t *testing.T) {
 		expectedErr := errors.New("operation error")
 
 		operations := []func(context.Context) error{
-			func(ctx context.Context) error {
+			func(_ context.Context) error {
 				return nil
 			},
-			func(ctx context.Context) error {
+			func(_ context.Context) error {
 				return expectedErr
 			},
-			func(ctx context.Context) error {
+			func(_ context.Context) error {
 				return nil
 			},
 		}
@@ -399,9 +409,9 @@ func TestRunConcurrentOperations(t *testing.T) {
 		errs := RunConcurrentOperations(context.Background(), operations)
 
 		assert.Len(t, errs, 3)
-		assert.Nil(t, errs[0])
+		require.NoError(t, errs[0])
 		assert.Equal(t, expectedErr, errs[1])
-		assert.Nil(t, errs[2])
+		require.NoError(t, errs[2])
 	})
 
 	t.Run("EmptyOperations", func(t *testing.T) {
@@ -413,44 +423,59 @@ func TestRunConcurrentOperations(t *testing.T) {
 	t.Run("WithContextCancellation", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 
-		var started int32
-		var mu sync.Mutex
+		var (
+			started int32
+			mu      sync.Mutex
+		)
+
 		completed := make([]bool, 3)
 
 		operations := []func(context.Context) error{
 			func(ctx context.Context) error {
 				atomic.AddInt32(&started, 1)
+
 				select {
 				case <-ctx.Done():
 					return ctx.Err()
 				case <-time.After(100 * time.Millisecond):
 					mu.Lock()
+
 					completed[0] = true
+
 					mu.Unlock()
+
 					return nil
 				}
 			},
 			func(ctx context.Context) error {
 				atomic.AddInt32(&started, 1)
+
 				select {
 				case <-ctx.Done():
 					return ctx.Err()
 				case <-time.After(100 * time.Millisecond):
 					mu.Lock()
+
 					completed[1] = true
+
 					mu.Unlock()
+
 					return nil
 				}
 			},
 			func(ctx context.Context) error {
 				atomic.AddInt32(&started, 1)
+
 				select {
 				case <-ctx.Done():
 					return ctx.Err()
 				case <-time.After(100 * time.Millisecond):
 					mu.Lock()
+
 					completed[2] = true
+
 					mu.Unlock()
+
 					return nil
 				}
 			},
@@ -469,12 +494,14 @@ func TestRunConcurrentOperations(t *testing.T) {
 		assert.Equal(t, int32(3), atomic.LoadInt32(&started))
 		// At least one should have context cancellation error
 		hasContextErr := false
+
 		for _, err := range errs {
 			if errors.Is(err, context.Canceled) {
 				hasContextErr = true
 				break
 			}
 		}
+
 		assert.True(t, hasContextErr)
 	})
 
@@ -482,7 +509,7 @@ func TestRunConcurrentOperations(t *testing.T) {
 		var executed bool
 
 		operations := []func(context.Context) error{
-			func(ctx context.Context) error {
+			func(_ context.Context) error {
 				executed = true
 				return nil
 			},
@@ -491,7 +518,7 @@ func TestRunConcurrentOperations(t *testing.T) {
 		errs := RunConcurrentOperations(context.Background(), operations)
 
 		assert.Len(t, errs, 1)
-		assert.Nil(t, errs[0])
+		require.NoError(t, errs[0])
 		assert.True(t, executed)
 	})
 
@@ -501,9 +528,9 @@ func TestRunConcurrentOperations(t *testing.T) {
 		err3 := errors.New("error 3")
 
 		operations := []func(context.Context) error{
-			func(ctx context.Context) error { return err1 },
-			func(ctx context.Context) error { return err2 },
-			func(ctx context.Context) error { return err3 },
+			func(_ context.Context) error { return err1 },
+			func(_ context.Context) error { return err2 },
+			func(_ context.Context) error { return err3 },
 		}
 
 		errs := RunConcurrentOperations(context.Background(), operations)
@@ -516,12 +543,14 @@ func TestRunConcurrentOperations(t *testing.T) {
 
 	t.Run("ConcurrentExecution", func(t *testing.T) {
 		// Verify operations run concurrently
-		var maxConcurrent int32
-		var current int32
+		var (
+			maxConcurrent int32
+			current       int32
+		)
 
 		operations := make([]func(context.Context) error, 10)
 		for i := 0; i < 10; i++ {
-			operations[i] = func(ctx context.Context) error {
+			operations[i] = func(_ context.Context) error {
 				c := atomic.AddInt32(&current, 1)
 				// Track max concurrent
 				for {
@@ -530,8 +559,10 @@ func TestRunConcurrentOperations(t *testing.T) {
 						break
 					}
 				}
+
 				time.Sleep(50 * time.Millisecond)
 				atomic.AddInt32(&current, -1)
+
 				return nil
 			}
 		}

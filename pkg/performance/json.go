@@ -182,7 +182,7 @@ func (p *JSONPool) ReleaseDecoder(dec *json.Decoder) {
 }
 
 // getEncoder gets an encoder from the pool and configures it to write to w.
-func (p *JSONPool) getEncoder(w io.Writer) *json.Encoder {
+func (*JSONPool) getEncoder(w io.Writer) *json.Encoder {
 	// The standard json.Encoder doesn't support resetting the writer,
 	// so we need to create a new one each time
 	enc := json.NewEncoder(w)
@@ -190,13 +190,13 @@ func (p *JSONPool) getEncoder(w io.Writer) *json.Encoder {
 }
 
 // putEncoder returns an encoder to the pool.
-func (p *JSONPool) putEncoder(enc *json.Encoder) {
+func (*JSONPool) putEncoder(_ *json.Encoder) {
 	// We can't reuse encoders with the standard json package
 	// The pool is kept for API compatibility
 }
 
 // getDecoder gets a decoder from the pool and configures it to read from r.
-func (p *JSONPool) getDecoder(r io.Reader) *json.Decoder {
+func (*JSONPool) getDecoder(r io.Reader) *json.Decoder {
 	// The standard json.Decoder doesn't support resetting the reader,
 	// so we need to create a new one each time
 	dec := json.NewDecoder(r)
@@ -204,7 +204,7 @@ func (p *JSONPool) getDecoder(r io.Reader) *json.Decoder {
 }
 
 // putDecoder returns a decoder to the pool.
-func (p *JSONPool) putDecoder(dec *json.Decoder) {
+func (*JSONPool) putDecoder(_ *json.Decoder) {
 	// We can't reuse decoders with the standard json package
 	// The pool is kept for API compatibility
 }

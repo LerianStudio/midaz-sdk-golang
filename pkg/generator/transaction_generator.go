@@ -2,7 +2,7 @@ package generator
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
@@ -35,7 +35,7 @@ func NewTransactionGenerator(e *entities.Entity, obs observability.Provider) Tra
 
 func (g *transactionGenerator) GenerateWithDSL(ctx context.Context, orgID, ledgerID string, pattern data.TransactionPattern) (*models.Transaction, error) {
 	if g.e == nil || g.e.Transactions == nil {
-		return nil, fmt.Errorf("entity transactions service not initialized")
+		return nil, errors.New("entity transactions service not initialized")
 	}
 
 	if err := data.ValidateTransactionPattern(pattern); err != nil {
@@ -87,6 +87,7 @@ func setupThrottleTicker(tps float64) (<-chan time.Time, func()) {
 // collectBatchResults processes worker pool results and separates successes from errors.
 func collectBatchResults(results []concurrent.Result[int, *models.Transaction]) ([]*models.Transaction, []error) {
 	out := make([]*models.Transaction, 0, len(results))
+
 	var errs []error
 
 	for _, r := range results {
@@ -113,6 +114,7 @@ func (g *transactionGenerator) GenerateBatch(ctx context.Context, orgID, ledgerI
 	}
 
 	counter := stats.NewCounter()
+
 	tick, stopTicker := setupThrottleTicker(tps)
 	defer stopTicker()
 
@@ -147,7 +149,7 @@ func (g *transactionGenerator) GenerateBatch(ctx context.Context, orgID, ledgerI
 }
 
 // waitForThrottle waits for the throttle ticker or context cancellation.
-func (g *transactionGenerator) waitForThrottle(ctx context.Context, tick <-chan time.Time) error {
+func (*transactionGenerator) waitForThrottle(ctx context.Context, tick <-chan time.Time) error {
 	if tick == nil {
 		return nil
 	}
@@ -161,7 +163,7 @@ func (g *transactionGenerator) waitForThrottle(ctx context.Context, tick <-chan 
 }
 
 // finalizeBatch stops the timer and logs batch completion.
-func (g *transactionGenerator) finalizeBatch(ctx context.Context, timer *observability.Timer, counter *stats.Counter, count int) {
+func (g *transactionGenerator) finalizeBatch(_ context.Context, timer *observability.Timer, counter *stats.Counter, count int) {
 	if timer != nil {
 		timer.StopBatch(count)
 	}

@@ -4,6 +4,7 @@ package client
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -87,11 +88,11 @@ func (c *Client) setupEntity() error {
 
 	// Verify we have the required service URLs
 	if _, ok := serviceURLs["onboarding"]; !ok {
-		return fmt.Errorf("missing onboarding URL in config")
+		return errors.New("missing onboarding URL in config")
 	}
 
 	if _, ok := serviceURLs["transaction"]; !ok {
-		return fmt.Errorf("missing transaction URL in config")
+		return errors.New("missing transaction URL in config")
 	}
 
 	// Custom retry policy if enabled
@@ -207,7 +208,7 @@ func WithRetries(maxRetries int, minBackoff, maxBackoff time.Duration) Option {
 //
 // Returns:
 //   - Option: A function that sets the retry policy on the Client
-func WithCustomRetryPolicy(shouldRetry func(*http.Response, error) bool) Option {
+func WithCustomRetryPolicy(_ func(*http.Response, error) bool) Option {
 	return func(c *Client) error {
 		// Custom retry policy will be applied when creating entities
 		if c.Entity != nil {
@@ -429,7 +430,7 @@ func WithEnvironment(env config.Environment) Option {
 func WithContext(ctx context.Context) Option {
 	return func(c *Client) error {
 		if ctx == nil {
-			return fmt.Errorf("context cannot be nil")
+			return errors.New("context cannot be nil")
 		}
 
 		c.ctx = ctx
@@ -473,7 +474,7 @@ func UseEntityAPI() Option {
 func WithConfig(cfg *config.Config) Option {
 	return func(c *Client) error {
 		if cfg == nil {
-			return fmt.Errorf("config cannot be nil")
+			return errors.New("config cannot be nil")
 		}
 
 		c.config = cfg
@@ -493,7 +494,7 @@ func WithConfig(cfg *config.Config) Option {
 func WithHTTPClient(client *http.Client) Option {
 	return func(c *Client) error {
 		if client == nil {
-			return fmt.Errorf("HTTP client cannot be nil")
+			return errors.New("HTTP client cannot be nil")
 		}
 
 		c.config.HTTPClient = client
@@ -648,32 +649,32 @@ func (c *Client) GetConfig() *config.Config {
 }
 
 // Helper method to construct a basic account
-func (c *Client) NewAccount() *models.Account {
+func (*Client) NewAccount() *models.Account {
 	return &models.Account{}
 }
 
 // Helper method to construct a basic ledger
-func (c *Client) NewLedger() *models.Ledger {
+func (*Client) NewLedger() *models.Ledger {
 	return &models.Ledger{}
 }
 
 // Helper method to construct a basic organization
-func (c *Client) NewOrganization() *models.Organization {
+func (*Client) NewOrganization() *models.Organization {
 	return &models.Organization{}
 }
 
 // Helper method to construct a basic transaction
-func (c *Client) NewTransaction() *models.Transaction {
+func (*Client) NewTransaction() *models.Transaction {
 	return &models.Transaction{}
 }
 
 // Helper method to construct a basic operation
-func (c *Client) NewOperation() *models.Operation {
+func (*Client) NewOperation() *models.Operation {
 	return &models.Operation{}
 }
 
 // Helper method to construct a basic asset
-func (c *Client) NewAsset() *models.Asset {
+func (*Client) NewAsset() *models.Asset {
 	return &models.Asset{}
 }
 
@@ -682,6 +683,6 @@ func (c *Client) NewAsset() *models.Asset {
 //
 // Returns:
 //   - string: The current version of the SDK
-func (c *Client) GetVersion() string {
+func (*Client) GetVersion() string {
 	return Version
 }

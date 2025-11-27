@@ -12,15 +12,19 @@ func TestDefaultHTTPClientOptions(t *testing.T) {
 	if opts.MaxIdleConnsPerHost != 10 {
 		t.Errorf("Expected MaxIdleConnsPerHost=10, got %d", opts.MaxIdleConnsPerHost)
 	}
+
 	if opts.IdleConnTimeout != 90*time.Second {
 		t.Errorf("Expected IdleConnTimeout=90s, got %v", opts.IdleConnTimeout)
 	}
+
 	if opts.TLSHandshakeTimeout != 10*time.Second {
 		t.Errorf("Expected TLSHandshakeTimeout=10s, got %v", opts.TLSHandshakeTimeout)
 	}
+
 	if opts.DisableCompression {
 		t.Error("Expected DisableCompression=false")
 	}
+
 	if opts.DisableKeepAlives {
 		t.Error("Expected DisableKeepAlives=false")
 	}
@@ -83,9 +87,11 @@ func TestOptimizeClient_CustomOptions(t *testing.T) {
 	if transport.MaxIdleConnsPerHost != 25 {
 		t.Errorf("Expected MaxIdleConnsPerHost=25, got %d", transport.MaxIdleConnsPerHost)
 	}
+
 	if !transport.DisableCompression {
 		t.Error("Expected DisableCompression=true")
 	}
+
 	if !transport.DisableKeepAlives {
 		t.Error("Expected DisableKeepAlives=true")
 	}
@@ -116,6 +122,7 @@ func TestOptimizeClient_ExistingTransport(t *testing.T) {
 	if transport.IdleConnTimeout != 60*time.Second {
 		t.Errorf("Expected IdleConnTimeout=60s, got %v", transport.IdleConnTimeout)
 	}
+
 	if transport.TLSHandshakeTimeout != 5*time.Second {
 		t.Errorf("Expected TLSHandshakeTimeout=5s, got %v", transport.TLSHandshakeTimeout)
 	}
@@ -150,9 +157,11 @@ func TestOptimizeClient_ExistingTransportZeroValues(t *testing.T) {
 	if transport.MaxIdleConnsPerHost != 30 {
 		t.Errorf("Expected MaxIdleConnsPerHost=30, got %d", transport.MaxIdleConnsPerHost)
 	}
+
 	if transport.IdleConnTimeout != 180*time.Second {
 		t.Errorf("Expected IdleConnTimeout=180s, got %v", transport.IdleConnTimeout)
 	}
+
 	if transport.TLSHandshakeTimeout != 20*time.Second {
 		t.Errorf("Expected TLSHandshakeTimeout=20s, got %v", transport.TLSHandshakeTimeout)
 	}
@@ -277,15 +286,19 @@ func TestHTTPClientOptions_AllFields(t *testing.T) {
 	if opts.MaxIdleConnsPerHost != 50 {
 		t.Errorf("Expected MaxIdleConnsPerHost=50, got %d", opts.MaxIdleConnsPerHost)
 	}
+
 	if opts.IdleConnTimeout != 2*time.Minute {
 		t.Errorf("Expected IdleConnTimeout=2m, got %v", opts.IdleConnTimeout)
 	}
+
 	if opts.TLSHandshakeTimeout != 30*time.Second {
 		t.Errorf("Expected TLSHandshakeTimeout=30s, got %v", opts.TLSHandshakeTimeout)
 	}
+
 	if !opts.DisableCompression {
 		t.Error("Expected DisableCompression=true")
 	}
+
 	if !opts.DisableKeepAlives {
 		t.Error("Expected DisableKeepAlives=true")
 	}
@@ -294,8 +307,8 @@ func TestHTTPClientOptions_AllFields(t *testing.T) {
 // mockTransport is a simple mock for testing non-http.Transport scenarios
 type mockTransport struct{}
 
-func (m *mockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	return nil, nil
+func (*mockTransport) RoundTrip(_ *http.Request) (*http.Response, error) {
+	return nil, http.ErrNotSupported
 }
 
 func BenchmarkOptimizeClient(b *testing.B) {
@@ -307,7 +320,9 @@ func BenchmarkOptimizeClient(b *testing.B) {
 
 	b.Run("ExistingClient", func(b *testing.B) {
 		client := &http.Client{}
+
 		b.ResetTimer()
+
 		for i := 0; i < b.N; i++ {
 			_ = OptimizeClient(client, nil)
 		}
@@ -320,7 +335,9 @@ func BenchmarkOptimizeClient(b *testing.B) {
 			IdleConnTimeout:     120 * time.Second,
 			TLSHandshakeTimeout: 15 * time.Second,
 		}
+
 		b.ResetTimer()
+
 		for i := 0; i < b.N; i++ {
 			_ = OptimizeClient(client, opts)
 		}

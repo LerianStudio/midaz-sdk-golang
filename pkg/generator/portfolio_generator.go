@@ -2,7 +2,7 @@ package generator
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
@@ -25,7 +25,7 @@ func NewPortfolioGenerator(e *entities.Entity, obs observability.Provider) Portf
 
 func (g *portfolioGenerator) Generate(ctx context.Context, orgID, ledgerID, name, entityID string, metadata map[string]any) (*models.Portfolio, error) {
 	if g.e == nil || g.e.Portfolios == nil {
-		return nil, fmt.Errorf("entity portfolios service not initialized")
+		return nil, errors.New("entity portfolios service not initialized")
 	}
 
 	input := models.NewCreatePortfolioInput(entityID, name).

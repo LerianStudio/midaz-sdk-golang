@@ -2,7 +2,7 @@ package generator
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
@@ -47,22 +47,22 @@ func (g *accountGenerator) Generate(ctx context.Context, orgID, ledgerID, assetC
 // validateInputs validates the required inputs for account generation
 func (g *accountGenerator) validateInputs(orgID, ledgerID, assetCode string) error {
 	if g.e == nil || g.e.Accounts == nil {
-		return fmt.Errorf("entity accounts service not initialized")
+		return errors.New("entity accounts service not initialized")
 	}
 
 	if orgID == "" || ledgerID == "" {
-		return fmt.Errorf("organization and ledger IDs are required")
+		return errors.New("organization and ledger IDs are required")
 	}
 
 	if assetCode == "" {
-		return fmt.Errorf("asset code is required for account creation")
+		return errors.New("asset code is required for account creation")
 	}
 
 	return nil
 }
 
 // buildAccountInput creates the basic account input from template
-func (g *accountGenerator) buildAccountInput(t data.AccountTemplate, assetCode string) *models.CreateAccountInput {
+func (*accountGenerator) buildAccountInput(t data.AccountTemplate, assetCode string) *models.CreateAccountInput {
 	accountClass := mapAccountClass(t.Type)
 
 	return models.NewCreateAccountInput(t.Name, assetCode, accountClass).
@@ -71,7 +71,7 @@ func (g *accountGenerator) buildAccountInput(t data.AccountTemplate, assetCode s
 }
 
 // applyTemplateFields applies optional template fields to the account input
-func (g *accountGenerator) applyTemplateFields(in *models.CreateAccountInput, t data.AccountTemplate) {
+func (*accountGenerator) applyTemplateFields(in *models.CreateAccountInput, t data.AccountTemplate) {
 	if t.Alias != nil && *t.Alias != "" {
 		*in = *in.WithAlias(*t.Alias)
 	}
@@ -117,7 +117,7 @@ func (g *accountGenerator) applyProvidedAccountTypeKey(in *models.CreateAccountI
 }
 
 // applyInferredAccountTypeKey applies an inferred account type key
-func (g *accountGenerator) applyInferredAccountTypeKey(in *models.CreateAccountInput, templateType string) {
+func (*accountGenerator) applyInferredAccountTypeKey(in *models.CreateAccountInput, templateType string) {
 	if k := inferAccountTypeKey(templateType); k != "" {
 		in.Metadata["account_type_key"] = k
 	}
@@ -265,5 +265,6 @@ func isSupportedAccountTypeKey(k string) bool {
 			return true
 		}
 	}
+
 	return false
 }

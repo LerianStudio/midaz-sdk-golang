@@ -19,22 +19,23 @@ func (m *mockOperationRoutesService) CreateOperationRoute(ctx context.Context, o
 	if m.createFunc != nil {
 		return m.createFunc(ctx, orgID, ledgerID, input)
 	}
+
 	return &models.OperationRoute{Title: input.Title}, nil
 }
 
-func (m *mockOperationRoutesService) GetOperationRoute(ctx context.Context, orgID, ledgerID, id string) (*models.OperationRoute, error) {
-	return nil, nil
+func (*mockOperationRoutesService) GetOperationRoute(_ context.Context, _, _, _ string) (*models.OperationRoute, error) {
+	return nil, errors.New("mock: GetOperationRoute not implemented")
 }
 
-func (m *mockOperationRoutesService) ListOperationRoutes(ctx context.Context, orgID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.OperationRoute], error) {
-	return nil, nil
+func (*mockOperationRoutesService) ListOperationRoutes(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.OperationRoute], error) {
+	return nil, errors.New("mock: ListOperationRoutes not implemented")
 }
 
-func (m *mockOperationRoutesService) UpdateOperationRoute(ctx context.Context, orgID, ledgerID, id string, input *models.UpdateOperationRouteInput) (*models.OperationRoute, error) {
-	return nil, nil
+func (*mockOperationRoutesService) UpdateOperationRoute(_ context.Context, _, _, _ string, _ *models.UpdateOperationRouteInput) (*models.OperationRoute, error) {
+	return nil, errors.New("mock: UpdateOperationRoute not implemented")
 }
 
-func (m *mockOperationRoutesService) DeleteOperationRoute(ctx context.Context, orgID, ledgerID, id string) error {
+func (*mockOperationRoutesService) DeleteOperationRoute(_ context.Context, _, _, _ string) error {
 	return nil
 }
 
@@ -61,7 +62,7 @@ func TestOperationRouteGenerator_Generate_NilEntity(t *testing.T) {
 	)
 
 	_, err := gen.Generate(context.Background(), "org-123", "ledger-123", input)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not initialized")
 }
 
@@ -76,13 +77,13 @@ func TestOperationRouteGenerator_Generate_NilOperationRoutesService(t *testing.T
 	)
 
 	_, err := gen.Generate(context.Background(), "org-123", "ledger-123", input)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not initialized")
 }
 
 func TestOperationRouteGenerator_Generate_Success(t *testing.T) {
 	mockSvc := &mockOperationRoutesService{
-		createFunc: func(ctx context.Context, orgID, ledgerID string, input *models.CreateOperationRouteInput) (*models.OperationRoute, error) {
+		createFunc: func(_ context.Context, _, _ string, input *models.CreateOperationRouteInput) (*models.OperationRoute, error) {
 			return &models.OperationRoute{
 				Title: input.Title,
 			}, nil
@@ -108,7 +109,7 @@ func TestOperationRouteGenerator_Generate_Success(t *testing.T) {
 
 func TestOperationRouteGenerator_Generate_Error(t *testing.T) {
 	mockSvc := &mockOperationRoutesService{
-		createFunc: func(ctx context.Context, orgID, ledgerID string, input *models.CreateOperationRouteInput) (*models.OperationRoute, error) {
+		createFunc: func(_ context.Context, _, _ string, _ *models.CreateOperationRouteInput) (*models.OperationRoute, error) {
 			return nil, errors.New("operation route creation failed")
 		},
 	}
@@ -126,7 +127,7 @@ func TestOperationRouteGenerator_Generate_Error(t *testing.T) {
 	)
 
 	result, err := gen.Generate(context.Background(), "org-123", "ledger-123", input)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "operation route creation failed")
 }
@@ -135,15 +136,17 @@ func TestOperationRouteGenerator_GenerateDefaults_NilEntity(t *testing.T) {
 	gen := NewOperationRouteGenerator(nil, nil)
 
 	results, err := gen.GenerateDefaults(context.Background(), "org-123", "ledger-123")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, results)
 }
 
 func TestOperationRouteGenerator_GenerateDefaults_Success(t *testing.T) {
 	var createdRoutes []string
+
 	mockSvc := &mockOperationRoutesService{
-		createFunc: func(ctx context.Context, orgID, ledgerID string, input *models.CreateOperationRouteInput) (*models.OperationRoute, error) {
+		createFunc: func(_ context.Context, _, _ string, input *models.CreateOperationRouteInput) (*models.OperationRoute, error) {
 			createdRoutes = append(createdRoutes, input.Title)
+
 			return &models.OperationRoute{
 				Title: input.Title,
 			}, nil
@@ -159,12 +162,12 @@ func TestOperationRouteGenerator_GenerateDefaults_Success(t *testing.T) {
 	results, err := gen.GenerateDefaults(context.Background(), "org-123", "ledger-123")
 	require.NoError(t, err)
 	assert.Len(t, results, 6)
-	assert.Equal(t, 6, len(createdRoutes))
+	assert.Len(t, createdRoutes, 6)
 }
 
 func TestOperationRouteGenerator_GenerateDefaults_Error(t *testing.T) {
 	mockSvc := &mockOperationRoutesService{
-		createFunc: func(ctx context.Context, orgID, ledgerID string, input *models.CreateOperationRouteInput) (*models.OperationRoute, error) {
+		createFunc: func(_ context.Context, _, _ string, _ *models.CreateOperationRouteInput) (*models.OperationRoute, error) {
 			return nil, errors.New("defaults creation failed")
 		},
 	}
@@ -176,7 +179,7 @@ func TestOperationRouteGenerator_GenerateDefaults_Error(t *testing.T) {
 	gen := NewOperationRouteGenerator(e, nil)
 
 	results, err := gen.GenerateDefaults(context.Background(), "org-123", "ledger-123")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Nil(t, results)
 	assert.Contains(t, err.Error(), "defaults creation failed")
 }
@@ -185,9 +188,10 @@ func TestOperationRouteGenerator_Generate_VerifyIDs(t *testing.T) {
 	var receivedOrgID, receivedLedgerID string
 
 	mockSvc := &mockOperationRoutesService{
-		createFunc: func(ctx context.Context, orgID, ledgerID string, input *models.CreateOperationRouteInput) (*models.OperationRoute, error) {
+		createFunc: func(_ context.Context, orgID, ledgerID string, _ *models.CreateOperationRouteInput) (*models.OperationRoute, error) {
 			receivedOrgID = orgID
 			receivedLedgerID = ledgerID
+
 			return &models.OperationRoute{}, nil
 		},
 	}
@@ -213,9 +217,11 @@ func TestOperationRouteGenerator_Generate_VerifyIDs(t *testing.T) {
 
 func TestOperationRouteGenerator_GenerateDefaults_VerifyTemplates(t *testing.T) {
 	var createdInputs []*models.CreateOperationRouteInput
+
 	mockSvc := &mockOperationRoutesService{
-		createFunc: func(ctx context.Context, orgID, ledgerID string, input *models.CreateOperationRouteInput) (*models.OperationRoute, error) {
+		createFunc: func(_ context.Context, _, _ string, input *models.CreateOperationRouteInput) (*models.OperationRoute, error) {
 			createdInputs = append(createdInputs, input)
+
 			return &models.OperationRoute{
 				Title: input.Title,
 			}, nil

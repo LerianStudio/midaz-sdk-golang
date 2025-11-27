@@ -76,6 +76,7 @@ func validateMetadataSize(metadata map[string]any) error {
 	totalSize := 0
 	for key, value := range metadata {
 		totalSize += len(key)
+
 		switch v := value.(type) {
 		case string:
 			totalSize += len(v)

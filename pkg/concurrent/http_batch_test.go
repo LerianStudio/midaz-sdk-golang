@@ -3,6 +3,7 @@ package concurrent_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -18,21 +19,26 @@ func TestHTTPBatchProcessor_ExecuteBatch(t *testing.T) {
 	// Create a test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var requests []concurrent.HTTPBatchRequest
+
 		err := json.NewDecoder(r.Body).Decode(&requests)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		// Create responses
 		responses := make([]concurrent.HTTPBatchResponse, len(requests))
 		for i, req := range requests {
 			statusCode := 200
-			var responseBody any
-			var errorMsg string
+
+			var (
+				responseBody any
+				errorMsg     string
+			)
 
 			// Handle requests based on path
-			if req.Path == "/error" {
+			switch req.Path {
+			case "/error":
 				statusCode = 400
 				errorMsg = "Test error"
-			} else if req.Path == "/data" {
+			case "/data":
 				responseBody = map[string]any{
 					"message": "Test data",
 					"id":      req.ID,
@@ -41,9 +47,11 @@ func TestHTTPBatchProcessor_ExecuteBatch(t *testing.T) {
 
 			// Convert response body to JSON
 			var jsonBody json.RawMessage
+
 			if responseBody != nil {
 				data, err := json.Marshal(responseBody)
-				require.NoError(t, err)
+				assert.NoError(t, err)
+
 				jsonBody = data
 			}
 
@@ -85,9 +93,9 @@ func TestHTTPBatchProcessor_ExecuteBatch(t *testing.T) {
 	ctx := context.Background()
 	result, err := processor.ExecuteBatch(ctx, requests)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, result)
-	assert.Equal(t, 2, len(result.Responses))
+	assert.Len(t, result.Responses, 2)
 
 	// Add a request that returns an error
 	requests = append(requests, concurrent.HTTPBatchRequest{
@@ -107,8 +115,8 @@ func TestHTTPBatchProcessor_ExecuteBatch(t *testing.T) {
 	result, err = processor.ExecuteBatch(ctx, requests)
 
 	// Should succeed but with an error in the result
-	assert.NoError(t, err)
-	assert.Equal(t, 3, len(result.Responses))
+	require.NoError(t, err)
+	assert.Len(t, result.Responses, 3)
 	assert.Equal(t, 200, result.Responses[0].StatusCode)
 	assert.Equal(t, 200, result.Responses[1].StatusCode)
 	assert.Equal(t, 400, result.Responses[2].StatusCode)
@@ -116,14 +124,15 @@ func TestHTTPBatchProcessor_ExecuteBatch(t *testing.T) {
 
 	// Test ParseResponse
 	var response map[string]any
+
 	err = processor.ParseResponse(result, "req_1", &response)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "Test data", response["message"])
 	assert.Equal(t, "req_1", response["id"])
 
 	// Test ParseResponse with error
 	err = processor.ParseResponse(result, "req_3", &response)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Test error")
 
 	// Test custom worker pool options
@@ -131,8 +140,8 @@ func TestHTTPBatchProcessor_ExecuteBatch(t *testing.T) {
 		concurrent.WithWorkers(3),
 		concurrent.WithUnorderedResults(),
 	)
-	assert.NoError(t, err)
-	assert.Equal(t, 3, len(result.Responses))
+	require.NoError(t, err)
+	assert.Len(t, result.Responses, 3)
 }
 
 // TestHTTPBatchProcessor_ExecuteLargeBatch tests the batching functionality with a large number of requests
@@ -140,8 +149,9 @@ func TestHTTPBatchProcessor_ExecuteLargeBatch(t *testing.T) {
 	// Create a test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var requests []concurrent.HTTPBatchRequest
+
 		err := json.NewDecoder(r.Body).Decode(&requests)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		// Create responses
 		responses := make([]concurrent.HTTPBatchResponse, len(requests))
@@ -181,8 +191,8 @@ func TestHTTPBatchProcessor_ExecuteLargeBatch(t *testing.T) {
 	result, err := processor.ExecuteBatch(ctx, requests)
 
 	// Should succeed
-	assert.NoError(t, err)
-	assert.Equal(t, 23, len(result.Responses))
+	require.NoError(t, err)
+	assert.Len(t, result.Responses, 23)
 
 	// All responses should have status 200
 	for _, response := range result.Responses {
@@ -198,8 +208,9 @@ func TestHTTPBatchProcessor_Retry(t *testing.T) {
 	// Create a test server that fails the first two times
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var requests []concurrent.HTTPBatchRequest
+
 		err := json.NewDecoder(r.Body).Decode(&requests)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		attemptCount++
 
@@ -207,6 +218,7 @@ func TestHTTPBatchProcessor_Retry(t *testing.T) {
 			// Fail the first two attempts
 			w.WriteHeader(http.StatusInternalServerError)
 			_, _ = w.Write([]byte(`{"error": "internal server error"}`))
+
 			return
 		}
 
@@ -249,9 +261,9 @@ func TestHTTPBatchProcessor_Retry(t *testing.T) {
 	result, err := processor.ExecuteBatch(ctx, requests)
 
 	// Should succeed after retries
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, result)
-	assert.Equal(t, 1, len(result.Responses))
+	assert.Len(t, result.Responses, 1)
 	assert.Equal(t, 3, attemptCount) // Should have made 3 attempts
 }
 
@@ -261,7 +273,7 @@ func TestHTTPBatchProcessor_CustomJSONMarshaler(t *testing.T) {
 	customMarshaler := &CustomJSONMarshaler{}
 
 	// Create a test server
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		// Return a simple response
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`[{"id":"req_1","statusCode":200,"body":{"test":"value"}}]`))
@@ -286,24 +298,25 @@ func TestHTTPBatchProcessor_CustomJSONMarshaler(t *testing.T) {
 	result, err := processor.ExecuteBatch(ctx, requests)
 
 	// Should succeed
-	assert.NoError(t, err)
-	assert.Equal(t, 1, len(result.Responses))
+	require.NoError(t, err)
+	assert.Len(t, result.Responses, 1)
 
 	// Parse response
 	var response map[string]any
+
 	err = processor.ParseResponse(result, "req_1", &response)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "value", response["test"])
 }
 
 // CustomJSONMarshaler is a simple implementation of JSONMarshaler for testing
 type CustomJSONMarshaler struct{}
 
-func (m *CustomJSONMarshaler) Marshal(v any) ([]byte, error) {
+func (*CustomJSONMarshaler) Marshal(v any) ([]byte, error) {
 	return json.Marshal(v)
 }
 
-func (m *CustomJSONMarshaler) Unmarshal(data []byte, v any) error {
+func (*CustomJSONMarshaler) Unmarshal(data []byte, v any) error {
 	return json.Unmarshal(data, v)
 }
 
@@ -313,7 +326,7 @@ func TestHTTPBatchProcessor_EmptyBatch(t *testing.T) {
 
 	result, err := processor.ExecuteBatch(context.Background(), []concurrent.HTTPBatchRequest{})
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Empty(t, result.Responses)
 }
@@ -348,7 +361,7 @@ func TestHTTPBatchProcessor_DefaultHeaders(t *testing.T) {
 	}
 
 	result, err := processor.ExecuteBatch(context.Background(), requests)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, result)
 }
 
@@ -357,9 +370,10 @@ func TestHTTPBatchProcessor_ParseResponse_NilResult(t *testing.T) {
 	processor := concurrent.NewHTTPBatchProcessor(nil, "http://example.com")
 
 	var target map[string]any
+
 	err := processor.ParseResponse(nil, "req_1", &target)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "batch result is nil")
 }
 
@@ -374,9 +388,10 @@ func TestHTTPBatchProcessor_ParseResponse_NotFound(t *testing.T) {
 	}
 
 	var target map[string]any
+
 	err := processor.ParseResponse(result, "req_nonexistent", &target)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no response found")
 }
 
@@ -391,9 +406,10 @@ func TestHTTPBatchProcessor_ParseResponse_StatusError(t *testing.T) {
 	}
 
 	var target map[string]any
+
 	err := processor.ParseResponse(result, "req_1", &target)
 
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed with status 500")
 }
 
@@ -414,7 +430,7 @@ func TestHTTPBatchOptions(t *testing.T) {
 		opts := concurrent.DefaultHTTPBatchOptions()
 		err := concurrent.WithBatchTimeout(30 * time.Second)(opts)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, 30*time.Second, opts.Timeout)
 	})
 
@@ -422,7 +438,7 @@ func TestHTTPBatchOptions(t *testing.T) {
 		opts := concurrent.DefaultHTTPBatchOptions()
 		err := concurrent.WithBatchTimeout(0)(opts)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "timeout must be positive")
 	})
 
@@ -430,14 +446,14 @@ func TestHTTPBatchOptions(t *testing.T) {
 		opts := concurrent.DefaultHTTPBatchOptions()
 		err := concurrent.WithBatchTimeout(-1 * time.Second)(opts)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("WithMaxBatchSize_Valid", func(t *testing.T) {
 		opts := concurrent.DefaultHTTPBatchOptions()
 		err := concurrent.WithMaxBatchSize(50)(opts)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, 50, opts.MaxBatchSize)
 	})
 
@@ -445,7 +461,7 @@ func TestHTTPBatchOptions(t *testing.T) {
 		opts := concurrent.DefaultHTTPBatchOptions()
 		err := concurrent.WithMaxBatchSize(0)(opts)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "maxBatchSize must be positive")
 	})
 
@@ -453,14 +469,14 @@ func TestHTTPBatchOptions(t *testing.T) {
 		opts := concurrent.DefaultHTTPBatchOptions()
 		err := concurrent.WithMaxBatchSize(-10)(opts)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("WithBatchRetryCount_Valid", func(t *testing.T) {
 		opts := concurrent.DefaultHTTPBatchOptions()
 		err := concurrent.WithBatchRetryCount(5)(opts)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, 5, opts.RetryCount)
 	})
 
@@ -468,7 +484,7 @@ func TestHTTPBatchOptions(t *testing.T) {
 		opts := concurrent.DefaultHTTPBatchOptions()
 		err := concurrent.WithBatchRetryCount(0)(opts)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, 0, opts.RetryCount)
 	})
 
@@ -476,7 +492,7 @@ func TestHTTPBatchOptions(t *testing.T) {
 		opts := concurrent.DefaultHTTPBatchOptions()
 		err := concurrent.WithBatchRetryCount(-1)(opts)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "retryCount must be non-negative")
 	})
 
@@ -484,7 +500,7 @@ func TestHTTPBatchOptions(t *testing.T) {
 		opts := concurrent.DefaultHTTPBatchOptions()
 		err := concurrent.WithBatchRetryBackoff(100 * time.Millisecond)(opts)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, 100*time.Millisecond, opts.RetryBackoff)
 	})
 
@@ -492,7 +508,7 @@ func TestHTTPBatchOptions(t *testing.T) {
 		opts := concurrent.DefaultHTTPBatchOptions()
 		err := concurrent.WithBatchRetryBackoff(0)(opts)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "retryBackoff must be positive")
 	})
 
@@ -500,7 +516,7 @@ func TestHTTPBatchOptions(t *testing.T) {
 		opts := concurrent.DefaultHTTPBatchOptions()
 		err := concurrent.WithBatchContinueOnError(true)(opts)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.True(t, opts.ContinueOnError)
 	})
 
@@ -508,7 +524,7 @@ func TestHTTPBatchOptions(t *testing.T) {
 		opts := concurrent.DefaultHTTPBatchOptions()
 		err := concurrent.WithBatchWorkers(10)(opts)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, 10, opts.Workers)
 	})
 
@@ -516,7 +532,7 @@ func TestHTTPBatchOptions(t *testing.T) {
 		opts := concurrent.DefaultHTTPBatchOptions()
 		err := concurrent.WithBatchWorkers(0)(opts)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.Contains(t, err.Error(), "workers must be positive")
 	})
 }
@@ -527,7 +543,7 @@ func TestHTTPBatchProcessor_PresetOptions(t *testing.T) {
 		opts := concurrent.DefaultHTTPBatchOptions()
 		err := concurrent.WithHighThroughputBatch()(opts)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, 200, opts.MaxBatchSize)
 		assert.Equal(t, 5, opts.RetryCount)
 		assert.Equal(t, 10, opts.Workers)
@@ -538,7 +554,7 @@ func TestHTTPBatchProcessor_PresetOptions(t *testing.T) {
 		opts := concurrent.DefaultHTTPBatchOptions()
 		err := concurrent.WithLowLatencyBatch()(opts)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, 25, opts.MaxBatchSize)
 		assert.Equal(t, 8, opts.Workers)
 		assert.Equal(t, 30*time.Second, opts.Timeout)
@@ -549,7 +565,7 @@ func TestHTTPBatchProcessor_PresetOptions(t *testing.T) {
 		opts := concurrent.DefaultHTTPBatchOptions()
 		err := concurrent.WithHighReliabilityBatch()(opts)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, 7, opts.RetryCount)
 		assert.Equal(t, 750*time.Millisecond, opts.RetryBackoff)
 		assert.True(t, opts.ContinueOnError)
@@ -560,7 +576,7 @@ func TestHTTPBatchProcessor_PresetOptions(t *testing.T) {
 // TestHTTPBatchProcessor_ContextCancellation tests context cancellation
 func TestHTTPBatchProcessor_ContextCancellation(t *testing.T) {
 	// Create a slow server
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		time.Sleep(500 * time.Millisecond)
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`[{"id":"req_1","statusCode":200}]`))
@@ -581,12 +597,12 @@ func TestHTTPBatchProcessor_ContextCancellation(t *testing.T) {
 	}
 
 	_, err := processor.ExecuteBatch(ctx, requests)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 // TestHTTPBatchProcessor_ServerError tests handling server errors
 func TestHTTPBatchProcessor_ServerError(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = w.Write([]byte(`{"error": "internal server error"}`))
 	}))
@@ -603,14 +619,16 @@ func TestHTTPBatchProcessor_ServerError(t *testing.T) {
 	}
 
 	_, err := processor.ExecuteBatch(context.Background(), requests)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 // TestHTTPBatchProcessor_ClientError tests handling client errors (no retry)
 func TestHTTPBatchProcessor_ClientError(t *testing.T) {
 	attemptCount := 0
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		attemptCount++
+
 		w.WriteHeader(http.StatusBadRequest)
 		_, _ = w.Write([]byte(`{"error": "bad request"}`))
 	}))
@@ -627,7 +645,7 @@ func TestHTTPBatchProcessor_ClientError(t *testing.T) {
 	}
 
 	_, err := processor.ExecuteBatch(context.Background(), requests)
-	assert.Error(t, err)
+	require.Error(t, err)
 	// Client errors (4xx) should not be retried
 	assert.Equal(t, 1, attemptCount)
 }
@@ -636,8 +654,9 @@ func TestHTTPBatchProcessor_ClientError(t *testing.T) {
 func TestHTTPBatchProcessor_AutoGeneratedIDs(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var requests []concurrent.HTTPBatchRequest
+
 		err := json.NewDecoder(r.Body).Decode(&requests)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		// Verify IDs were auto-generated
 		for i, req := range requests {
@@ -668,19 +687,20 @@ func TestHTTPBatchProcessor_AutoGeneratedIDs(t *testing.T) {
 	}
 
 	result, err := processor.ExecuteBatch(context.Background(), requests)
-	assert.NoError(t, err)
-	assert.Equal(t, 3, len(result.Responses))
+	require.NoError(t, err)
+	assert.Len(t, result.Responses, 3)
 }
 
 // TestHTTPBatchProcessor_ContinueOnError tests continue on error behavior
 func TestHTTPBatchProcessor_ContinueOnError(t *testing.T) {
 	t.Run("ContinueOnError_True", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			responses := []concurrent.HTTPBatchResponse{
 				{ID: "req_1", StatusCode: 200},
 				{ID: "req_2", StatusCode: 500, Error: "server error"},
 				{ID: "req_3", StatusCode: 200},
 			}
+
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(responses)
 		}))
@@ -700,17 +720,18 @@ func TestHTTPBatchProcessor_ContinueOnError(t *testing.T) {
 
 		result, err := processor.ExecuteBatch(context.Background(), requests)
 		// Should not return error when ContinueOnError is true
-		assert.NoError(t, err)
-		assert.Equal(t, 3, len(result.Responses))
+		require.NoError(t, err)
+		assert.Len(t, result.Responses, 3)
 	})
 
 	t.Run("ContinueOnError_False", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			responses := []concurrent.HTTPBatchResponse{
 				{ID: "req_1", StatusCode: 200},
 				{ID: "req_2", StatusCode: 500, Error: "server error"},
 				{ID: "req_3", StatusCode: 200},
 			}
+
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(responses)
 		}))
@@ -730,7 +751,7 @@ func TestHTTPBatchProcessor_ContinueOnError(t *testing.T) {
 
 		result, err := processor.ExecuteBatch(context.Background(), requests)
 		// Should return error when ContinueOnError is false
-		assert.Error(t, err)
+		require.Error(t, err)
 		assert.NotNil(t, result)
 	})
 }
@@ -743,28 +764,30 @@ func TestDefaultJSONMarshaler(t *testing.T) {
 		data := map[string]string{"key": "value"}
 		result, err := marshaler.Marshal(data)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Contains(t, string(result), "key")
 		assert.Contains(t, string(result), "value")
 	})
 
 	t.Run("Unmarshal", func(t *testing.T) {
 		jsonData := []byte(`{"key": "value"}`)
+
 		var result map[string]string
 
 		err := marshaler.Unmarshal(jsonData, &result)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "value", result["key"])
 	})
 
 	t.Run("UnmarshalInvalid", func(t *testing.T) {
 		jsonData := []byte(`invalid json`)
+
 		var result map[string]string
 
 		err := marshaler.Unmarshal(jsonData, &result)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 }
 
@@ -831,12 +854,12 @@ func TestHTTPBatchResult(t *testing.T) {
 			},
 		}
 
-		assert.Nil(t, result.Error)
+		require.NoError(t, result.Error)
 		assert.Len(t, result.Responses, 2)
 	})
 
 	t.Run("WithError", func(t *testing.T) {
-		expectedErr := fmt.Errorf("batch failed")
+		expectedErr := errors.New("batch failed")
 		result := &concurrent.HTTPBatchResult{
 			Responses: []concurrent.HTTPBatchResponse{},
 			Error:     expectedErr,
@@ -849,7 +872,7 @@ func TestHTTPBatchResult(t *testing.T) {
 
 // TestHTTPBatchProcessor_InvalidJSON tests handling of invalid JSON responses
 func TestHTTPBatchProcessor_InvalidJSON(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`invalid json response`))
 	}))
@@ -866,15 +889,16 @@ func TestHTTPBatchProcessor_InvalidJSON(t *testing.T) {
 	}
 
 	_, err := processor.ExecuteBatch(context.Background(), requests)
-	assert.Error(t, err)
+	require.Error(t, err)
 }
 
 // TestHTTPBatchProcessor_WithExistingTimeout tests behavior with existing context timeout
 func TestHTTPBatchProcessor_WithExistingTimeout(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		responses := []concurrent.HTTPBatchResponse{
 			{ID: "req_1", StatusCode: 200},
 		}
+
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(responses)
 	}))
@@ -895,7 +919,7 @@ func TestHTTPBatchProcessor_WithExistingTimeout(t *testing.T) {
 	}
 
 	result, err := processor.ExecuteBatch(ctx, requests)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, result)
 }
 
@@ -909,7 +933,7 @@ func TestHTTPBatchProcessor_EmptyBatchWithPoolOptions(t *testing.T) {
 		concurrent.WithWorkers(5),
 	)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Empty(t, result.Responses)
 }
@@ -919,7 +943,7 @@ func TestHTTPBatchProcessorWithRetry(t *testing.T) {
 	t.Run("NewHTTPBatchProcessorWithRetry_Success", func(t *testing.T) {
 		processor, err := concurrent.NewHTTPBatchProcessorWithRetry(nil, "http://example.com")
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, processor)
 	})
 
@@ -931,7 +955,7 @@ func TestHTTPBatchProcessorWithRetry(t *testing.T) {
 			concurrent.WithBatchRetryBackoff(100*time.Millisecond),
 		)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, processor)
 	})
 
@@ -972,7 +996,7 @@ func TestHTTPBatchProcessorWithRetry(t *testing.T) {
 
 		result, err := processor.ExecuteBatch(context.Background(), []concurrent.HTTPBatchRequest{})
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.Empty(t, result.Responses)
 	})
@@ -980,8 +1004,9 @@ func TestHTTPBatchProcessorWithRetry(t *testing.T) {
 	t.Run("ExecuteBatch_Success", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			var requests []concurrent.HTTPBatchRequest
+
 			err := json.NewDecoder(r.Body).Decode(&requests)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 
 			responses := make([]concurrent.HTTPBatchResponse, len(requests))
 			for i, req := range requests {
@@ -1007,7 +1032,7 @@ func TestHTTPBatchProcessorWithRetry(t *testing.T) {
 
 		result, err := processor.ExecuteBatch(context.Background(), requests)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.Len(t, result.Responses, 2)
 	})
@@ -1017,9 +1042,10 @@ func TestHTTPBatchProcessorWithRetry(t *testing.T) {
 		require.NoError(t, err)
 
 		var target map[string]any
+
 		err = processor.ParseResponse(nil, "req_1", &target)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("ParseResponse_Success", func(t *testing.T) {
@@ -1037,9 +1063,10 @@ func TestHTTPBatchProcessorWithRetry(t *testing.T) {
 		}
 
 		var target map[string]any
+
 		err = processor.ParseResponse(result, "req_1", &target)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Equal(t, "value", target["key"])
 	})
 
@@ -1054,9 +1081,10 @@ func TestHTTPBatchProcessorWithRetry(t *testing.T) {
 		}
 
 		var target map[string]any
+
 		err = processor.ParseResponse(result, "req_nonexistent", &target)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("ParseResponse_WithError", func(t *testing.T) {
@@ -1070,9 +1098,10 @@ func TestHTTPBatchProcessorWithRetry(t *testing.T) {
 		}
 
 		var target map[string]any
+
 		err = processor.ParseResponse(result, "req_1", &target)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("ParseResponse_StatusError", func(t *testing.T) {
@@ -1086,16 +1115,18 @@ func TestHTTPBatchProcessorWithRetry(t *testing.T) {
 		}
 
 		var target map[string]any
+
 		err = processor.ParseResponse(result, "req_1", &target)
 
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("ExecuteBatch_LargeBatch", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			var requests []concurrent.HTTPBatchRequest
+
 			err := json.NewDecoder(r.Body).Decode(&requests)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 
 			responses := make([]concurrent.HTTPBatchResponse, len(requests))
 			for i, req := range requests {
@@ -1129,7 +1160,7 @@ func TestHTTPBatchProcessorWithRetry(t *testing.T) {
 
 		result, err := processor.ExecuteBatch(context.Background(), requests)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, result)
 		assert.Len(t, result.Responses, 15)
 	})
@@ -1137,8 +1168,9 @@ func TestHTTPBatchProcessorWithRetry(t *testing.T) {
 	t.Run("ExecuteBatch_AutoGeneratedIDs", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			var requests []concurrent.HTTPBatchRequest
+
 			err := json.NewDecoder(r.Body).Decode(&requests)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 
 			// Verify IDs were auto-generated
 			for i, req := range requests {
@@ -1169,13 +1201,14 @@ func TestHTTPBatchProcessorWithRetry(t *testing.T) {
 
 		result, err := processor.ExecuteBatch(context.Background(), requests)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, result.Responses, 2)
 	})
 
 	t.Run("ExecuteBatch_WithContextTimeout", func(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			var requests []concurrent.HTTPBatchRequest
+
 			_ = json.NewDecoder(r.Body).Decode(&requests)
 
 			responses := make([]concurrent.HTTPBatchResponse, len(requests))
@@ -1200,17 +1233,18 @@ func TestHTTPBatchProcessorWithRetry(t *testing.T) {
 
 		result, err := processor.ExecuteBatch(ctx, requests)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.NotNil(t, result)
 	})
 
 	t.Run("ExecuteBatch_ContinueOnError", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			responses := []concurrent.HTTPBatchResponse{
 				{ID: "req_1", StatusCode: 200},
 				{ID: "req_2", StatusCode: 500, Error: "server error"},
 				{ID: "req_3", StatusCode: 200},
 			}
+
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(responses)
 		}))
@@ -1231,7 +1265,7 @@ func TestHTTPBatchProcessorWithRetry(t *testing.T) {
 
 		result, err := processor.ExecuteBatch(context.Background(), requests)
 
-		assert.NoError(t, err)
+		require.NoError(t, err)
 		assert.Len(t, result.Responses, 3)
 	})
 }
