@@ -1,6 +1,6 @@
 version: "2"
 run:
-  tests: true  # Now lint tests too - we have good coverage!
+  tests: true
   timeout: 5m
 linters:
   enable:
@@ -8,7 +8,7 @@ linters:
     # ERROR HANDLING (Critical for SDK reliability)
     # ===========================================
     - bodyclose       # HTTP response body must be closed
-    - errcheck        # Check error returns (now enabled!)
+    - errcheck        # Check error returns
     - errchkjson      # Check JSON encoding errors
     - nilerr          # Returning nil after checking err != nil
     - errorlint       # Proper error wrapping with %w
@@ -50,7 +50,7 @@ linters:
     - misspell        # Spelling mistakes
     - dupword         # Duplicate words
     - unconvert       # Unnecessary conversions
-    - usestdlibvars   # Use stdlib variables
+    - usestdlibvars   # Use stdlib variables (http.MethodGet, etc.)
     - dogsled         # Too many blank identifiers
     - nakedret        # Naked returns
     - prealloc        # Preallocate slices
@@ -63,6 +63,11 @@ linters:
     - depguard        # Dependency management
     - goconst         # Repeated strings as constants
     - gomoddirectives # Go mod directives
+
+    # ===========================================
+    # PATTERN ENFORCEMENT
+    # ===========================================
+    - forbidigo       # Forbid specific function calls
 
     # ===========================================
     # TESTING QUALITY
@@ -81,26 +86,24 @@ linters:
     # ===========================================
     - loggercheck     # Logger key-value pairs
     - unparam         # Unused parameters
-    - unused          # Unused code detection
 
   settings:
     # -----------------------------------------
     # Complexity Settings
     # -----------------------------------------
     gocyclo:
-      min-complexity: 15  # Stricter than before (was 16)
+      min-complexity: 15
     gocognit:
-      min-complexity: 20  # Cognitive complexity limit
+      min-complexity: 20
     funlen:
-      lines: 100          # Max function lines
-      statements: 50      # Max statements per function
+      lines: 80
+      statements: 40
     nestif:
-      min-complexity: 4   # Max nesting depth
+      min-complexity: 4
     cyclop:
       max-complexity: 15
-      skip-tests: true
     maintidx:
-      under: 20          # Maintainability index threshold
+      under: 20
 
     # -----------------------------------------
     # Error Handling Settings
@@ -130,7 +133,47 @@ linters:
           audit: false
 
     # -----------------------------------------
-    # Code Style Settings
+    # Pattern Enforcement (forbidigo)
+    # -----------------------------------------
+    forbidigo:
+      # Global setting to exclude godoc examples from pattern matching
+      exclude-godoc-examples: true
+      analyze-types: true
+      forbid:
+        # Forbid fmt.Print* in non-example code (use structured logging)
+        - pattern: '^fmt\.Print.*$'
+          msg: "Use structured logging via pkg/observability instead of fmt.Print"
+
+        # Forbid panic in library code
+        - pattern: '^panic$'
+          msg: "Do not use panic() in library code - return errors instead"
+
+        # Forbid os.Exit in library code
+        - pattern: '^os\.Exit$'
+          msg: "Do not use os.Exit() in library code - return errors instead"
+
+        # Forbid time.Sleep in non-test code (use context with timeout)
+        - pattern: '^time\.Sleep$'
+          msg: "Avoid time.Sleep - use context with timeout or time.After with select"
+
+        # Forbid ioutil (deprecated)
+        - pattern: '^ioutil\.'
+          msg: "ioutil is deprecated - use io and os packages instead"
+
+        # Forbid log package (use structured logging)
+        - pattern: '^log\.(Print|Fatal|Panic).*$'
+          msg: "Use structured logging via pkg/observability instead of log package"
+
+        # Forbid http.Get/Post without context
+        - pattern: '^http\.(Get|Post|Head)$'
+          msg: "Use http.NewRequestWithContext instead for proper context propagation"
+
+        # Forbid unsafe package
+        - pattern: '^unsafe\.'
+          msg: "Avoid unsafe package in SDK code"
+
+    # -----------------------------------------
+    # Dependency Guard
     # -----------------------------------------
     depguard:
       rules:
@@ -142,27 +185,29 @@ linters:
               desc: "Use standard errors package with fmt.Errorf and %w"
             - pkg: log
               desc: "Use structured logging via pkg/observability"
-        tests:
-          files:
-            - "$test"
-          deny:
-            - pkg: github.com/stretchr/testify/suite
-              desc: "Prefer table-driven tests over test suites"
 
+    # -----------------------------------------
+    # Code Constants
+    # -----------------------------------------
     goconst:
       min-len: 3
       min-occurrences: 3
-      ignore-tests: true
 
+    # -----------------------------------------
+    # Documentation
+    # -----------------------------------------
     godot:
-      scope: declarations  # Only exported declarations
+      scope: declarations
       period: true
       capital: false
 
+    # -----------------------------------------
+    # Go Vet
+    # -----------------------------------------
     govet:
       enable-all: true
       disable:
-        - fieldalignment  # Too noisy for SDK code
+        - fieldalignment
       settings:
         shadow:
           strict: true
@@ -174,21 +219,47 @@ linters:
       severity: warning
       enable-all-rules: false
       rules:
-        # Enabled rules
+        # Critical - must fix
         - name: import-shadowing
           severity: error
-        - name: empty-block
-          severity: warning
-        - name: empty-lines
-          severity: warning
-        - name: use-any
-          severity: warning
         - name: context-as-argument
           severity: error
         - name: context-keys-type
           severity: error
         - name: error-return
           severity: error
+        - name: range-val-in-closure
+          severity: error
+        - name: range-val-address
+          severity: error
+        - name: unreachable-code
+          severity: error
+        - name: struct-tag
+          severity: error
+        - name: constant-logical-expr
+          severity: error
+        - name: redefines-builtin-id
+          severity: error
+        - name: unconditional-recursion
+          severity: error
+        - name: identical-branches
+          severity: error
+        - name: datarace
+          severity: error
+        - name: waitgroup-by-value
+          severity: error
+        - name: atomic
+          severity: error
+        - name: string-of-int
+          severity: error
+
+        # Important - should fix
+        - name: empty-block
+          severity: warning
+        - name: empty-lines
+          severity: warning
+        - name: use-any
+          severity: warning
         - name: error-strings
           severity: warning
         - name: error-naming
@@ -210,26 +281,14 @@ linters:
           severity: warning
         - name: range
           severity: warning
-        - name: range-val-in-closure
-          severity: error
-        - name: range-val-address
-          severity: error
         - name: indent-error-flow
           severity: warning
         - name: superfluous-else
           severity: warning
         - name: modifies-parameter
           severity: warning
-        - name: unreachable-code
-          severity: error
-        - name: struct-tag
-          severity: error
-        - name: constant-logical-expr
-          severity: error
         - name: bool-literal-in-expr
           severity: warning
-        - name: redefines-builtin-id
-          severity: error
         - name: imports-blocklist
           severity: error
         - name: redundant-import-alias
@@ -251,14 +310,8 @@ linters:
         - name: cognitive-complexity
           severity: warning
           arguments: [20]
-        - name: string-of-int
-          severity: error
         - name: early-return
           severity: warning
-        - name: unconditional-recursion
-          severity: error
-        - name: identical-branches
-          severity: error
         - name: defer
           severity: warning
           arguments:
@@ -269,12 +322,6 @@ linters:
           severity: warning
         - name: useless-break
           severity: warning
-        - name: datarace
-          severity: error
-        - name: waitgroup-by-value
-          severity: error
-        - name: atomic
-          severity: error
         - name: confusing-results
           severity: warning
         - name: modifies-value-receiver
@@ -292,14 +339,7 @@ linters:
     # Whitespace Settings
     # -----------------------------------------
     wsl_v5:
-      allow-assign-and-call: true
-      allow-assign-and-anything: true
-      allow-multiline-assign: true
       allow-first-in-block: true
-      allow-separated-leading-comment: true
-      allow-trailing-comment: true
-      force-err-cuddling: false
-      enforce-err-cuddling: false
 
     # -----------------------------------------
     # Testing Settings
@@ -313,7 +353,7 @@ linters:
   exclusions:
     generated: lax
     rules:
-      # Allow certain patterns in test files
+      # Relax rules for test files
       - linters:
           - errcheck
           - gosec
@@ -323,20 +363,37 @@ linters:
           - cyclop
           - maintidx
           - dupl
+          - forbidigo
+          - noctx
+          - goconst
         path: _test\.go
 
-      # Allow long functions in generator (data generation is verbose)
+      # Allow complexity in generator
       - linters:
           - funlen
+          - gocognit
+          - gocyclo
+          - maintidx
         path: pkg/generator/
 
-      # Allow complexity in data package (templates are verbose)
+      # Allow complexity in data package
       - linters:
           - funlen
           - gocognit
         path: pkg/data/
 
-      # Existing exclusions (reviewed and kept)
+      # Allow fmt.Print and log in examples
+      - linters:
+          - forbidigo
+          - depguard
+        path: examples/
+
+      # Allow fmt.Print in main packages (CLI tools)
+      - linters:
+          - forbidigo
+        path: cmd/
+
+      # Existing exclusions
       - linters:
           - errcheck
         text: Error return value of .((os\.)?std(out|err)\..*|.*Close|.*Flush|os\.Remove(All)?|.*print(f|ln)?|os\.(Un)?Setenv). is not checked
@@ -353,26 +410,19 @@ linters:
           - govet
         text: '^shadow: declaration of "(err|ok)" shadows declaration'
 
-      # Whitespace exclusions for examples
+      # WSL is too noisy
       - linters:
           - wsl_v5
         path: examples/
 
-      # godot exclusions for code examples in comments
+      # godot for code examples in comments
       - linters:
           - godot
         source: "^\\s*//\\s*(\\w+\\s*:=|func|if|for|switch|return|package|import)"
 
-      # Allow magic numbers in tests
-      - linters:
-          - gomnd
-          - mnd
-        path: _test\.go
-
     paths:
       - third_party$
       - builtin$
-      - examples$
       - .repos$
       - mocks$
 
@@ -384,7 +434,7 @@ issues:
 
 formatters:
   enable:
-    - goimports       # Import organization and formatting
+    - goimports
   exclusions:
     generated: lax
     paths:
