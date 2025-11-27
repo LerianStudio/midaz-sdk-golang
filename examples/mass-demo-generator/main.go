@@ -102,7 +102,12 @@ func pow10(scale int) int64 {
 func askString(r *bufio.Reader, prompt, def string) string {
 	fmt.Printf("%s [%s]: ", prompt, def)
 
-	line, _ := r.ReadString('\n')
+	line, err := r.ReadString('\n')
+	if err != nil {
+		log.Printf("warning: failed to read input: %v", err)
+		return def
+	}
+
 	line = strings.TrimSpace(line)
 
 	if line == "" {
@@ -116,7 +121,12 @@ func askInt(r *bufio.Reader, prompt string, def int) int {
 	for {
 		fmt.Printf("%s [%d]: ", prompt, def)
 
-		line, _ := r.ReadString('\n')
+		line, err := r.ReadString('\n')
+		if err != nil {
+			log.Printf("warning: failed to read input: %v", err)
+			return def
+		}
+
 		line = strings.TrimSpace(line)
 
 		if line == "" {
@@ -141,7 +151,12 @@ func askBool(r *bufio.Reader, prompt string, def bool) bool {
 
 		fmt.Printf("%s %s: ", prompt, label)
 
-		line, _ := r.ReadString('\n')
+		line, err := r.ReadString('\n')
+		if err != nil {
+			log.Printf("warning: failed to read input: %v", err)
+			return def
+		}
+
 		line = strings.TrimSpace(strings.ToLower(line))
 
 		if line == "" {
@@ -185,15 +200,23 @@ func prepareRun() (demoConfig, observability.Provider) {
 
 	flag.Parse()
 
-	_ = godotenv.Load("examples/mass-demo-generator/.env")
-	_ = godotenv.Load()
+	if err := godotenv.Load("examples/mass-demo-generator/.env"); err != nil {
+		log.Printf("note: could not load examples/mass-demo-generator/.env: %v", err)
+	}
 
-	obsProvider, _ := observability.New(context.Background(),
+	if err := godotenv.Load(); err != nil {
+		log.Printf("note: could not load .env: %v", err)
+	}
+
+	obsProvider, err := observability.New(context.Background(),
 		observability.WithServiceName("mass-demo-generator"),
 		observability.WithServiceVersion("0.1.0"),
 		observability.WithEnvironment("local"),
 		observability.WithComponentEnabled(true, true, true),
 	)
+	if err != nil {
+		log.Fatalf("failed to create observability provider: %v", err)
+	}
 
 	userConfig := gatherUserConfiguration(timeoutSec, orgs, ledgersPerOrg, accountsPerLedger, txPerAccount, concurrency, batchSize, orgLocaleFlag)
 
@@ -204,7 +227,9 @@ func shutdownObservability(obsProvider observability.Provider) {
 	sdCtx, sdCancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer sdCancel()
 
-	_ = obsProvider.Shutdown(sdCtx)
+	if err := obsProvider.Shutdown(sdCtx); err != nil {
+		log.Printf("warning: observability shutdown failed: %v", err)
+	}
 }
 
 func loadTemplates() ([]data.OrgTemplate, []data.AssetTemplate, []data.AccountTemplate) {
@@ -646,6 +671,15 @@ func generateFinalReport(ctx context.Context, c *client.Client, state *workflowS
 	summary := txpkg.GetBatchSummary(results)
 	state.reportEntities.Counts.Transactions = summary.SuccessCount
 
+	reportDataSummary := buildReportDataSummary(state, accounts, summary.SuccessCount)
+	fetchAccountBalances(ctx, c, state, org.ID, ledger.ID, accounts, reportDataSummary)
+
+	report := createGenerationReport(ctx, c, results, state, org.ID, ledger.ID, reportDataSummary)
+	saveReportFiles(report, state.reportEntities.IDs)
+	printBatchSummary(summary)
+}
+
+func buildReportDataSummary(state *workflowState, accounts []*models.Account, successCount int) *txpkg.ReportDataSummary {
 	reportDataSummary := &txpkg.ReportDataSummary{
 		TransactionVolumeByAccount: map[string]int{},
 		AccountDistributionByType:  map[string]int{},
@@ -664,11 +698,16 @@ func generateFinalReport(ctx context.Context, c *client.Client, state *workflowS
 	}
 
 	if totalGenerated == 0 {
-		totalGenerated = summary.SuccessCount
+		totalGenerated = successCount
 	}
 	reportDataSummary.AssetUsage[state.demoConfig.assetCodeVal] = totalGenerated
 
+	return reportDataSummary
+}
+
+func fetchAccountBalances(ctx context.Context, c *client.Client, state *workflowState, orgID, ledgerID string, accounts []*models.Account, reportDataSummary *txpkg.ReportDataSummary) {
 	balancesFetched := 0
+
 	for _, account := range accounts {
 		if balancesFetched >= 2 {
 			break
@@ -679,7 +718,7 @@ func generateFinalReport(ctx context.Context, c *client.Client, state *workflowS
 			alias = account.ID
 		}
 
-		bal, err := c.Entity.Accounts.GetBalance(ctx, org.ID, ledger.ID, account.ID)
+		bal, err := c.Entity.Accounts.GetBalance(ctx, orgID, ledgerID, account.ID)
 		if err != nil || bal == nil {
 			continue
 		}
@@ -692,14 +731,16 @@ func generateFinalReport(ctx context.Context, c *client.Client, state *workflowS
 		}
 		balancesFetched++
 	}
+}
 
+func createGenerationReport(ctx context.Context, c *client.Client, results []txpkg.BatchResult, state *workflowState, orgID, ledgerID string, reportDataSummary *txpkg.ReportDataSummary) *txpkg.GenerationReport {
 	report := txpkg.NewGenerationReport(results, "mass-demo-generator", map[string]any{
-		"org":    org.ID,
-		"ledger": ledger.ID,
+		"org":    orgID,
+		"ledger": ledgerID,
 	})
 
 	chk := integrity.NewChecker(c.Entity)
-	if br, err := chk.GenerateLedgerReport(ctx, org.ID, ledger.ID); err == nil {
+	if br, err := chk.GenerateLedgerReport(ctx, orgID, ledgerID); err == nil {
 		for alias, summary := range br.ToSummaryMap() {
 			reportDataSummary.BalanceSummaries[alias] = summary
 		}
@@ -713,6 +754,10 @@ func generateFinalReport(ctx context.Context, c *client.Client, state *workflowS
 	report.APIStats = &txpkg.ReportAPIStats{APICalls: state.apiCalls}
 	report.DataSummary = reportDataSummary
 
+	return report
+}
+
+func saveReportFiles(report *txpkg.GenerationReport, ids txpkg.ReportEntityIDs) {
 	if err := report.SaveJSON("./mass-demo-report.json", true); err != nil {
 		log.Printf("failed to save report: %v", err)
 	}
@@ -721,12 +766,17 @@ func generateFinalReport(ctx context.Context, c *client.Client, state *workflowS
 		log.Printf("failed to save HTML report: %v", err)
 	}
 
+	idsPath := "./mass-demo-entities.json"
+	if err := saveEntitiesIDs(idsPath, ids); err != nil {
+		log.Printf("warning: failed to save entity IDs: %v", err)
+	} else {
+		fmt.Println("Entity IDs saved:", idsPath)
+	}
+}
+
+func printBatchSummary(summary txpkg.BatchSummary) {
 	fmt.Printf("Batch summary: total=%d success=%d errors=%d successRate=%.1f%% tps=%.2f\n",
 		summary.TotalTransactions, summary.SuccessCount, summary.ErrorCount, summary.SuccessRate, summary.TransactionsPerSecond)
-
-	idsPath := "./mass-demo-entities.json"
-	_ = saveEntitiesIDs(idsPath, state.reportEntities.IDs)
-	fmt.Println("Entity IDs saved:", idsPath)
 }
 
 func printSampleErrors(results []txpkg.BatchResult) {

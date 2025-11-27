@@ -163,11 +163,22 @@ func configurationFromEnvironment() {
 	fmt.Println()
 
 	// Clean up environment variables after demonstration
-	// Note: Intentionally ignoring errors as cleanup is best-effort in demo
-	_ = os.Unsetenv("PLUGIN_AUTH_ENABLED")
-	_ = os.Unsetenv("PLUGIN_AUTH_ADDRESS")
-	_ = os.Unsetenv("MIDAZ_ENVIRONMENT")
-	_ = os.Unsetenv("MIDAZ_DEBUG")
+	// Errors from Unsetenv are logged for visibility but don't stop the demo
+	if err := os.Unsetenv("MIDAZ_CLIENT_ID"); err != nil {
+		fmt.Printf("Warning: failed to unset MIDAZ_CLIENT_ID: %v\n", err)
+	}
+
+	if err := os.Unsetenv("MIDAZ_CLIENT_SECRET"); err != nil {
+		fmt.Printf("Warning: failed to unset MIDAZ_CLIENT_SECRET: %v\n", err)
+	}
+
+	if err := os.Unsetenv("MIDAZ_ENVIRONMENT"); err != nil {
+		fmt.Printf("Warning: failed to unset MIDAZ_ENVIRONMENT: %v\n", err)
+	}
+
+	if err := os.Unsetenv("MIDAZ_DEBUG"); err != nil {
+		fmt.Printf("Warning: failed to unset MIDAZ_DEBUG: %v\n", err)
+	}
 }
 
 // advancedHttpConfiguration demonstrates how to configure the client

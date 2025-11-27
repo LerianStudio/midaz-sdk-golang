@@ -95,10 +95,13 @@ func executeInitialDeposit(ctx context.Context, midazClient *client.Client, orgI
 	}
 
 	// Parse amount for formatting
-	amountFloat, _ := strconv.ParseFloat(tx.Amount, 64)
-	formattedAmount := format.FormatCurrency(int64(amountFloat*100), 2, tx.AssetCode)
-
-	fmt.Printf("✅ Deposit completed: %s (ID: %s)\n", formattedAmount, tx.ID)
+	amountFloat, err := strconv.ParseFloat(tx.Amount, 64)
+	if err != nil {
+		fmt.Printf("✅ Deposit completed: %s (ID: %s)\n", tx.Amount, tx.ID)
+	} else {
+		formattedAmount := format.FormatCurrency(int64(amountFloat*100), 2, tx.AssetCode)
+		fmt.Printf("✅ Deposit completed: %s (ID: %s)\n", formattedAmount, tx.ID)
+	}
 
 	return nil
 }
@@ -153,10 +156,13 @@ func executeTransfer(ctx context.Context, midazClient *client.Client, orgID, led
 	}
 
 	// Parse amount for formatting
-	amountFloat, _ := strconv.ParseFloat(tx.Amount, 64)
-	formattedAmount := format.FormatCurrency(int64(amountFloat*100), 2, tx.AssetCode)
-
-	fmt.Printf("✅ Transfer completed: %s (ID: %s)\n", formattedAmount, tx.ID)
+	amountFloat, err := strconv.ParseFloat(tx.Amount, 64)
+	if err != nil {
+		fmt.Printf("✅ Transfer completed: %s (ID: %s)\n", tx.Amount, tx.ID)
+	} else {
+		formattedAmount := format.FormatCurrency(int64(amountFloat*100), 2, tx.AssetCode)
+		fmt.Printf("✅ Transfer completed: %s (ID: %s)\n", formattedAmount, tx.ID)
+	}
 
 	return nil
 }
@@ -279,10 +285,13 @@ func executeInitialDepositWithRoutes(ctx context.Context, midazClient *client.Cl
 	}
 
 	// Parse amount for formatting
-	amountFloat, _ := strconv.ParseFloat(tx.Amount, 64)
-	formattedAmount := format.FormatCurrency(int64(amountFloat*100), 2, tx.AssetCode)
-
-	fmt.Printf("✅ Deposit with routes completed: %s (ID: %s)\n", formattedAmount, tx.ID)
+	amountFloat, parseErr := strconv.ParseFloat(tx.Amount, 64)
+	if parseErr != nil {
+		fmt.Printf("✅ Deposit with routes completed: %s (ID: %s)\n", tx.Amount, tx.ID)
+	} else {
+		formattedAmount := format.FormatCurrency(int64(amountFloat*100), 2, tx.AssetCode)
+		fmt.Printf("✅ Deposit with routes completed: %s (ID: %s)\n", formattedAmount, tx.ID)
+	}
 
 	if sourceOperationRoute != nil && destinationOperationRoute != nil {
 		fmt.Printf("   📍 Used routes: %s → %s\n", sourceOperationRoute.Title, destinationOperationRoute.Title)
@@ -355,10 +364,13 @@ func executeTransferWithRoutes(ctx context.Context, midazClient *client.Client, 
 	}
 
 	// Parse amount for formatting
-	amountFloat, _ := strconv.ParseFloat(tx.Amount, 64)
-	formattedAmount := format.FormatCurrency(int64(amountFloat*100), 2, tx.AssetCode)
-
-	fmt.Printf("✅ Transfer with routes completed: %s (ID: %s)\n", formattedAmount, tx.ID)
+	amountFloat, parseErr := strconv.ParseFloat(tx.Amount, 64)
+	if parseErr != nil {
+		fmt.Printf("✅ Transfer with routes completed: %s (ID: %s)\n", tx.Amount, tx.ID)
+	} else {
+		formattedAmount := format.FormatCurrency(int64(amountFloat*100), 2, tx.AssetCode)
+		fmt.Printf("✅ Transfer with routes completed: %s (ID: %s)\n", formattedAmount, tx.ID)
+	}
 
 	if sourceOperationRoute != nil && destinationOperationRoute != nil {
 		fmt.Printf("   📍 Used operation routes: %s → %s\n", sourceOperationRoute.Title, destinationOperationRoute.Title)
@@ -420,71 +432,45 @@ func executeParallelTransactionsWithRoutes(ctx context.Context, midazClient *cli
 	ctx, span := observability.StartSpan(ctx, "executeParallelTransactionsWithRoutes")
 	defer span.End()
 
-	// Create 5 parallel transfer transactions
 	transactionCount := 5
 	amounts := []string{"1.00", "2.00", "3.00", "4.00", "5.00"}
 
 	fmt.Printf("   Creating %d parallel transactions with routes...\n", transactionCount)
 
-	// Create transaction indices for parallel processing
 	indices := make([]int, transactionCount)
 	for i := range indices {
 		indices[i] = i
 	}
 
-	// Define the transaction processing function
-	processTransaction := func(ctx context.Context, index int) (*models.Transaction, error) {
+	processTransaction := createParallelTransactionProcessor(midazClient, orgID, ledgerID, customerAccount, merchantAccount, destinationOperationRoute, transactionRoute, amounts)
+
+	startTime := time.Now()
+	results := concurrent.WorkerPool(
+		ctx,
+		indices,
+		processTransaction,
+		concurrent.WithWorkers(3),
+		concurrent.WithBufferSize(transactionCount),
+		concurrent.WithUnorderedResults(),
+	)
+
+	duration := time.Since(startTime)
+	successCount, firstError := processTransactionResults(results)
+
+	printParallelMetrics(successCount, transactionCount, duration)
+	printRouteInfo(transactionRoute, sourceOperationRoute, destinationOperationRoute)
+
+	return firstError
+}
+
+func createParallelTransactionProcessor(midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute, amounts []string) func(context.Context, int) (*models.Transaction, error) {
+	return func(ctx context.Context, index int) (*models.Transaction, error) {
 		txCtx, txSpan := observability.StartSpan(ctx, "ProcessParallelTransaction")
 		defer txSpan.End()
 
 		amount := amounts[index]
+		input := buildParallelTransactionInput(index, amount, customerAccount, merchantAccount, destinationOperationRoute, transactionRoute)
 
-		input := &models.CreateTransactionInput{
-			ChartOfAccountsGroupName: "parallel-transfers",
-			Description:              fmt.Sprintf("Parallel transfer #%d with routes", index+1),
-			Amount:                   amount,
-			AssetCode:                "USD",
-			Route:                    transactionRoute.ID.String(),
-			Metadata: map[string]any{
-				"source":    "go-sdk-example-parallel",
-				"type":      "parallel_transfer",
-				"index":     index + 1,
-				"useRoutes": true,
-			},
-			Send: &models.SendInput{
-				Asset: "USD",
-				Value: amount,
-				Source: &models.SourceInput{
-					From: []models.FromToInput{
-						{
-							Account:      *customerAccount.Alias,
-							AccountAlias: *customerAccount.Alias,
-							Route:        destinationOperationRoute.ID.String(), // Customer uses destination route
-							Amount: models.AmountInput{
-								Asset: "USD",
-								Value: amount,
-							},
-						},
-					},
-				},
-				Distribute: &models.DistributeInput{
-					To: []models.FromToInput{
-						{
-							Account:      *merchantAccount.Alias,
-							AccountAlias: *merchantAccount.Alias,
-							Route:        destinationOperationRoute.ID.String(), // Merchant also uses destination route
-							Amount: models.AmountInput{
-								Asset: "USD",
-								Value: amount,
-							},
-						},
-					},
-				},
-			},
-			IdempotencyKey: uuid.New().String(),
-		}
-
-		// Execute the transaction
 		tx, err := midazClient.Entity.Transactions.CreateTransaction(txCtx, orgID, ledgerID, input)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create parallel transaction #%d: %w", index+1, err)
@@ -492,26 +478,51 @@ func executeParallelTransactionsWithRoutes(ctx context.Context, midazClient *cli
 
 		return tx, nil
 	}
+}
 
-	// Record start time for performance measurement
-	startTime := time.Now()
+func buildParallelTransactionInput(index int, amount string, customerAccount, merchantAccount *models.Account, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute) *models.CreateTransactionInput {
+	return &models.CreateTransactionInput{
+		ChartOfAccountsGroupName: "parallel-transfers",
+		Description:              fmt.Sprintf("Parallel transfer #%d with routes", index+1),
+		Amount:                   amount,
+		AssetCode:                "USD",
+		Route:                    transactionRoute.ID.String(),
+		Metadata: map[string]any{
+			"source":    "go-sdk-example-parallel",
+			"type":      "parallel_transfer",
+			"index":     index + 1,
+			"useRoutes": true,
+		},
+		Send: &models.SendInput{
+			Asset: "USD",
+			Value: amount,
+			Source: &models.SourceInput{
+				From: []models.FromToInput{
+					{
+						Account:      *customerAccount.Alias,
+						AccountAlias: *customerAccount.Alias,
+						Route:        destinationOperationRoute.ID.String(),
+						Amount:       models.AmountInput{Asset: "USD", Value: amount},
+					},
+				},
+			},
+			Distribute: &models.DistributeInput{
+				To: []models.FromToInput{
+					{
+						Account:      *merchantAccount.Alias,
+						AccountAlias: *merchantAccount.Alias,
+						Route:        destinationOperationRoute.ID.String(),
+						Amount:       models.AmountInput{Asset: "USD", Value: amount},
+					},
+				},
+			},
+		},
+		IdempotencyKey: uuid.New().String(),
+	}
+}
 
-	// Execute transactions in parallel using WorkerPool
-	results := concurrent.WorkerPool(
-		ctx,
-		indices,
-		processTransaction,
-		concurrent.WithWorkers(3), // Use 3 concurrent workers
-		concurrent.WithBufferSize(transactionCount), // Buffer all transactions
-		concurrent.WithUnorderedResults(),           // Process in any order for better performance
-	)
-
-	// Calculate execution time
-	duration := time.Since(startTime)
-
-	// Process results
+func processTransactionResults(results []concurrent.Result[int, *models.Transaction]) (int, error) {
 	successCount := 0
-
 	var firstError error
 
 	for i, result := range results {
@@ -519,35 +530,42 @@ func executeParallelTransactionsWithRoutes(ctx context.Context, midazClient *cli
 			if firstError == nil {
 				firstError = result.Error
 			}
-
-			fmt.Printf("   ❌ Transaction #%d failed: %v\n", i+1, result.Error)
+			fmt.Printf("   Transaction #%d failed: %v\n", i+1, result.Error)
 		} else {
 			successCount++
-			// Parse amount for formatting
-			amountFloat, _ := strconv.ParseFloat(result.Value.Amount, 64)
-			formattedAmount := format.FormatCurrency(int64(amountFloat*100), 2, result.Value.AssetCode)
-
-			fmt.Printf("   ✅ Transaction #%d completed: %s (ID: %s)\n", i+1, formattedAmount, result.Value.ID)
+			printTransactionResult(i+1, result.Value)
 		}
 	}
 
-	// Display performance metrics
-	fmt.Printf("   📊 Parallel execution completed:\n")
-	fmt.Printf("      • Success rate: %d/%d transactions\n", successCount, transactionCount)
-	fmt.Printf("      • Total time: %.2f seconds\n", duration.Seconds())
+	return successCount, firstError
+}
+
+func printTransactionResult(index int, tx *models.Transaction) {
+	amountFloat, parseErr := strconv.ParseFloat(tx.Amount, 64)
+	if parseErr != nil {
+		fmt.Printf("   Transaction #%d completed: %s (ID: %s)\n", index, tx.Amount, tx.ID)
+	} else {
+		formattedAmount := format.FormatCurrency(int64(amountFloat*100), 2, tx.AssetCode)
+		fmt.Printf("   Transaction #%d completed: %s (ID: %s)\n", index, formattedAmount, tx.ID)
+	}
+}
+
+func printParallelMetrics(successCount, transactionCount int, duration time.Duration) {
+	fmt.Printf("   Parallel execution completed:\n")
+	fmt.Printf("      - Success rate: %d/%d transactions\n", successCount, transactionCount)
+	fmt.Printf("      - Total time: %.2f seconds\n", duration.Seconds())
 
 	if duration.Seconds() > 0 {
-		fmt.Printf("      • Throughput: %.2f TPS\n", float64(successCount)/duration.Seconds())
+		fmt.Printf("      - Throughput: %.2f TPS\n", float64(successCount)/duration.Seconds())
 	}
+}
 
-	// Log transaction route information
+func printRouteInfo(transactionRoute *models.TransactionRoute, sourceOperationRoute, destinationOperationRoute *models.OperationRoute) {
 	if transactionRoute != nil && sourceOperationRoute != nil && destinationOperationRoute != nil {
-		fmt.Printf("   🗺️  Used routes:\n")
-		fmt.Printf("      • Transaction Route: %s (%s)\n", transactionRoute.Title, transactionRoute.ID.String())
-		fmt.Printf("      • Operation Routes: %s → %s\n", sourceOperationRoute.Title, destinationOperationRoute.Title)
+		fmt.Printf("   Used routes:\n")
+		fmt.Printf("      - Transaction Route: %s (%s)\n", transactionRoute.Title, transactionRoute.ID.String())
+		fmt.Printf("      - Operation Routes: %s -> %s\n", sourceOperationRoute.Title, destinationOperationRoute.Title)
 	}
-
-	return firstError
 }
 
 // executeHighTPSTransactions demonstrates various TPS optimization techniques

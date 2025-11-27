@@ -15,11 +15,29 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+// AccountBalance holds account ID and its balances.
+type AccountBalance struct {
+	AccountID string
+	Balances  []*models.Balance
+}
+
 func main() {
 	fmt.Println("Parallel Account Balance Fetching Example")
 	fmt.Println("=======================================")
 
-	// Create a client
+	_, accountIDs, ctx, cancel := setupAndFetchAccounts()
+	defer cancel()
+
+	accountBalances, elapsed := fetchBalancesInParallel(ctx, accountIDs)
+
+	displayTotals(accountBalances)
+	compareWithSequential(ctx, accountIDs, elapsed)
+
+	fmt.Println("\nUpdating balances in batches...")
+	batchUpdateBalances(ctx, accountBalances)
+}
+
+func setupAndFetchAccounts() (*client.Client, []string, context.Context, context.CancelFunc) {
 	c, err := client.New(
 		client.WithEnvironment(config.EnvironmentLocal),
 		client.UseAllAPIs(),
@@ -28,89 +46,71 @@ func main() {
 		log.Fatalf("Failed to create client: %v", err)
 	}
 
-	// Set up organization and ledger IDs for our example
 	orgID := "org-123"
 	ledgerID := "ledger-456"
 
-	// Create a context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
 
-	// First, fetch all accounts (in a real app, you might filter these)
 	fmt.Println("Fetching accounts...")
 
 	accounts, err := c.Entity.Accounts.ListAccounts(ctx, orgID, ledgerID, &models.ListOptions{})
 	if err != nil {
+		cancel()
 		log.Fatalf("Failed to list accounts: %v", err)
 	}
 
 	fmt.Printf("Found %d accounts\n", len(accounts.Items))
 
-	// Extract account IDs
 	accountIDs := make([]string, len(accounts.Items))
 	for i, account := range accounts.Items {
 		accountIDs[i] = account.ID
 	}
 
-	// Fetch balances for all accounts in parallel
+	return c, accountIDs, ctx, cancel
+}
+
+func fetchBalancesFn(ctx context.Context, accountID string) (AccountBalance, error) {
+	time.Sleep(100 * time.Millisecond) // Simulate network delay
+
+	balances := []*models.Balance{
+		{
+			ID:        fmt.Sprintf("bal-%s-usd", accountID),
+			AccountID: accountID,
+			AssetCode: "USD",
+			Available: decimal.NewFromInt(10000),
+		},
+		{
+			ID:        fmt.Sprintf("bal-%s-eur", accountID),
+			AccountID: accountID,
+			AssetCode: "EUR",
+			Available: decimal.NewFromInt(8500),
+		},
+	}
+
+	return AccountBalance{AccountID: accountID, Balances: balances}, nil
+}
+
+func fetchBalancesInParallel(ctx context.Context, accountIDs []string) (map[string][]*models.Balance, time.Duration) {
 	fmt.Println("\nFetching balances for all accounts in parallel...")
 
 	startTime := time.Now()
 
-	type AccountBalance struct {
-		AccountID string
-		Balances  []*models.Balance
-	}
-
-	// Create a function to fetch balances for a single account
-	fetchBalancesFn := func(ctx context.Context, accountID string) (AccountBalance, error) {
-		// In a real app, this would call the Midaz API
-		// balances, err := c.Entity.Balances.ListBalances(ctx, orgID, ledgerID, accountID, nil)
-		// For this example, we'll simulate an API call
-		time.Sleep(100 * time.Millisecond) // Simulate network delay
-
-		// Simulate balances data
-		balances := []*models.Balance{
-			{
-				ID:        fmt.Sprintf("bal-%s-usd", accountID),
-				AccountID: accountID,
-				AssetCode: "USD",
-				Available: decimal.NewFromInt(10000), // $100.00 in cents
-			},
-			{
-				ID:        fmt.Sprintf("bal-%s-eur", accountID),
-				AccountID: accountID,
-				AssetCode: "EUR",
-				Available: decimal.NewFromInt(8500), // €85.00 in cents
-			},
-		}
-
-		return AccountBalance{
-			AccountID: accountID,
-			Balances:  balances,
-		}, nil
-	}
-
-	// Use the worker pool to fetch balances in parallel
 	results := concurrent.WorkerPool(
 		ctx,
 		accountIDs,
 		fetchBalancesFn,
-		concurrent.WithWorkers(5), // Use 5 workers
+		concurrent.WithWorkers(5),
 	)
 
 	elapsed := time.Since(startTime)
 	fmt.Printf("Fetched balances for %d accounts in %v\n", len(results), elapsed)
 
-	// Process the results to build a map of account ID to balances
 	accountBalances := make(map[string][]*models.Balance)
-
 	var errorCount int
 
 	for _, result := range results {
 		if result.Error != nil {
 			errorCount++
-
 			fmt.Printf("Error fetching balances for account %s: %v\n", result.Item, result.Error)
 		} else {
 			accountBalances[result.Value.AccountID] = result.Value.Balances
@@ -120,7 +120,10 @@ func main() {
 	fmt.Printf("Successfully fetched balances for %d accounts (with %d errors)\n",
 		len(accountBalances), errorCount)
 
-	// Calculate totals by currency
+	return accountBalances, elapsed
+}
+
+func displayTotals(accountBalances map[string][]*models.Balance) {
 	totalsByAsset := make(map[string]decimal.Decimal)
 
 	for _, balances := range accountBalances {
@@ -129,31 +132,28 @@ func main() {
 		}
 	}
 
-	// Display totals
 	fmt.Println("\nTotal balances by asset:")
 
 	for assetCode, total := range totalsByAsset {
 		fmt.Printf("%s: %s\n", assetCode, total.String())
 	}
+}
 
-	// Compare to sequential processing
+func compareWithSequential(ctx context.Context, accountIDs []string, parallelElapsed time.Duration) {
 	fmt.Println("\nComparing to sequential processing:")
 
-	startTime = time.Now()
+	startTime := time.Now()
 
 	for _, accountID := range accountIDs {
-		// Simulate API call
-		_, _ = fetchBalancesFn(ctx, accountID)
+		if _, err := fetchBalancesFn(ctx, accountID); err != nil {
+			log.Printf("Error fetching balance for %s: %v", accountID, err)
+		}
 	}
 
 	sequentialElapsed := time.Since(startTime)
 
 	fmt.Printf("Sequential: %v, Parallel: %v, Speedup: %.2fx\n",
-		sequentialElapsed, elapsed, float64(sequentialElapsed)/float64(elapsed))
-
-	// Demonstrate batch processing for updating balances
-	fmt.Println("\nUpdating balances in batches...")
-	batchUpdateBalances(ctx, accountBalances)
+		sequentialElapsed, parallelElapsed, float64(sequentialElapsed)/float64(parallelElapsed))
 }
 
 // batchUpdateBalances demonstrates updating balances in batches
@@ -220,7 +220,9 @@ func batchUpdateBalances(ctx context.Context, accountBalances map[string][]*mode
 			end = len(allBalances)
 		}
 
-		_, _ = updateBalancesBatchFn(ctx, allBalances[i:end])
+		if _, err := updateBalancesBatchFn(ctx, allBalances[i:end]); err != nil {
+			log.Printf("Error updating balances batch: %v", err)
+		}
 	}
 
 	sequentialElapsed := time.Since(startTime)

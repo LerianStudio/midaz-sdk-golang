@@ -18,11 +18,14 @@ import (
 
 func main() {
 	// Create an observability provider with our new functional options
-	observabilityProvider, _ := observability.New(context.Background(),
+	observabilityProvider, err := observability.New(context.Background(),
 		observability.WithServiceName("clean-transaction-example"),
 		observability.WithEnvironment("development"),
 		observability.WithComponentEnabled(true, true, true), // Enable tracing, metrics, and logging
 	)
+	if err != nil {
+		log.Fatalf("Failed to create observability provider: %v", err)
+	}
 
 	// Setup SDK client with the observability provider using the standardized options pattern
 	c, err := client.New(
