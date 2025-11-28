@@ -3,6 +3,7 @@ package generator
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"testing"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
@@ -182,13 +183,13 @@ func TestLedgerGenerator_GenerateForOrg_NilEntity(t *testing.T) {
 }
 
 func TestLedgerGenerator_GenerateForOrg_Success(t *testing.T) {
-	callCount := 0
+	var callCount atomic.Int32
 	mockSvc := &mockLedgersService{
 		createFunc: func(_ context.Context, _ string, input *models.CreateLedgerInput) (*models.Ledger, error) {
-			callCount++
+			count := callCount.Add(1)
 
 			return &models.Ledger{
-				ID:   "ledger-" + string(rune('0'+callCount)),
+				ID:   "ledger-" + string(rune('0'+count)),
 				Name: input.Name,
 			}, nil
 		},
@@ -207,11 +208,11 @@ func TestLedgerGenerator_GenerateForOrg_Success(t *testing.T) {
 }
 
 func TestLedgerGenerator_GenerateForOrg_PartialError(t *testing.T) {
-	callCount := 0
+	var callCount atomic.Int32
 	mockSvc := &mockLedgersService{
 		createFunc: func(_ context.Context, _ string, input *models.CreateLedgerInput) (*models.Ledger, error) {
-			callCount++
-			if callCount == 2 {
+			count := callCount.Add(1)
+			if count == 2 {
 				return nil, errors.New("partial failure")
 			}
 

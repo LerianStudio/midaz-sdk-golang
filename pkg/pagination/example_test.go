@@ -3,6 +3,7 @@ package pagination_test
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/pagination"
@@ -169,15 +170,15 @@ func ExamplePaginator_Concurrent() {
 	// Process items concurrently
 	ctx := context.Background()
 
-	var count int
+	var count atomic.Int32
 
 	_ = paginator.Concurrent(ctx, 3, func(_ string) error {
 		// This would normally be a more complex operation
-		count++
+		count.Add(1)
 		return nil
 	})
 
-	fmt.Printf("Processed %d items\n", count)
+	fmt.Printf("Processed %d items\n", count.Load())
 
 	// Output:
 	// Processed 6 items

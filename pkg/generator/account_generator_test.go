@@ -3,6 +3,7 @@ package generator
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"testing"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
@@ -314,13 +315,13 @@ func TestAccountGenerator_GenerateBatch_NilEntity(t *testing.T) {
 }
 
 func TestAccountGenerator_GenerateBatch_Success(t *testing.T) {
-	callCount := 0
+	var callCount atomic.Int32
 	mockSvc := &mockAccountsService{
 		createFunc: func(_ context.Context, _, _ string, input *models.CreateAccountInput) (*models.Account, error) {
-			callCount++
+			count := callCount.Add(1)
 
 			return &models.Account{
-				ID:   "acc-" + string(rune('0'+callCount)),
+				ID:   "acc-" + string(rune('0'+count)),
 				Name: input.Name,
 			}, nil
 		},
@@ -345,11 +346,11 @@ func TestAccountGenerator_GenerateBatch_Success(t *testing.T) {
 }
 
 func TestAccountGenerator_GenerateBatch_PartialError(t *testing.T) {
-	callCount := 0
+	var callCount atomic.Int32
 	mockSvc := &mockAccountsService{
 		createFunc: func(_ context.Context, _, _ string, input *models.CreateAccountInput) (*models.Account, error) {
-			callCount++
-			if callCount == 2 {
+			count := callCount.Add(1)
+			if count == 2 {
 				return nil, errors.New("partial failure")
 			}
 

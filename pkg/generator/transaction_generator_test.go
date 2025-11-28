@@ -3,6 +3,7 @@ package generator
 import (
 	"context"
 	"errors"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -274,13 +275,13 @@ func TestTransactionGenerator_GenerateBatch_NilEntity(t *testing.T) {
 }
 
 func TestTransactionGenerator_GenerateBatch_Success(t *testing.T) {
-	callCount := 0
+	var callCount atomic.Int32
 	mockSvc := &mockTransactionsService{
 		createWithDSLFunc: func(_ context.Context, _, _ string, _ []byte) (*models.Transaction, error) {
-			callCount++
+			count := callCount.Add(1)
 
 			return &models.Transaction{
-				ID: "tx-" + string(rune('0'+callCount)),
+				ID: "tx-" + string(rune('0'+count)),
 			}, nil
 		},
 	}
@@ -304,11 +305,11 @@ func TestTransactionGenerator_GenerateBatch_Success(t *testing.T) {
 }
 
 func TestTransactionGenerator_GenerateBatch_PartialError(t *testing.T) {
-	callCount := 0
+	var callCount atomic.Int32
 	mockSvc := &mockTransactionsService{
 		createWithDSLFunc: func(_ context.Context, _, _ string, _ []byte) (*models.Transaction, error) {
-			callCount++
-			if callCount == 2 {
+			count := callCount.Add(1)
+			if count == 2 {
 				return nil, errors.New("partial failure")
 			}
 

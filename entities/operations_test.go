@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1066,10 +1067,10 @@ func TestOperationsEntity_HTTPErrorCodes(t *testing.T) {
 
 // TestOperationsEntity_ConcurrentRequests tests concurrent API requests
 func TestOperationsEntity_ConcurrentRequests(t *testing.T) {
-	requestCount := 0
+	var requestCount atomic.Int32
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		requestCount++
+		requestCount.Add(1)
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)

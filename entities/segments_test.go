@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1728,14 +1729,14 @@ func TestSegmentsEntity_ResponseParsing(t *testing.T) {
 }
 
 func TestSegmentsEntity_ConcurrentRequests(t *testing.T) {
-	requestCount := 0
+	var requestCount atomic.Int32
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		requestCount++
+		count := requestCount.Add(1)
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"id": "seg-` + string(rune('0'+requestCount)) + `", "name": "Segment", "status": {"code": "ACTIVE"}}`))
+		_, _ = w.Write([]byte(`{"id": "seg-` + string(rune('0'+count)) + `", "name": "Segment", "status": {"code": "ACTIVE"}}`))
 	}))
 	defer server.Close()
 

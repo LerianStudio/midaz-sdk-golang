@@ -906,6 +906,8 @@ func TestFromEnvironment_BaseURLOverriddenBySpecific(t *testing.T) {
 	restore := saveEnv(envVars)
 	defer restore()
 
+	// Clear transaction URL to test that base URL is used as fallback
+	os.Unsetenv("MIDAZ_TRANSACTION_URL")
 	os.Setenv("MIDAZ_BASE_URL", "https://base.example.com")
 	os.Setenv("MIDAZ_ONBOARDING_URL", "https://specific.example.com/onboarding")
 
