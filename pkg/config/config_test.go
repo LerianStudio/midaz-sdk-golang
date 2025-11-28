@@ -915,7 +915,7 @@ func TestFromEnvironment_BaseURLOverriddenBySpecific(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "https://specific.example.com/onboarding", config.ServiceURLs[ServiceOnboarding])
-	assert.Equal(t, "https://base.example.com:3001/v1", config.ServiceURLs[ServiceTransaction])
+	assert.Equal(t, "https://base.example.com:3001", config.ServiceURLs[ServiceTransaction])
 }
 
 func TestFromEnvironment_PluginAuthDisabled(t *testing.T) {
