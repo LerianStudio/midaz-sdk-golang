@@ -6,8 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
-	"path"
+	"strings"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
@@ -453,13 +454,20 @@ func (e *accountsEntity) GetBalance(ctx context.Context, organizationID, ledgerI
 		return nil, errors.NewValidationError(operation, "account has no alias", nil)
 	}
 
-	// Build URL with balance endpoint using alias instead of ID
+	// Build URL with balance endpoint using alias instead of ID with proper URL encoding
 	base := e.baseURLs["transaction"]
-	urlPath := path.Join("v1", "organizations", organizationID, "ledgers", ledgerID, "balances")
+	// Remove trailing slash if present
+	base = strings.TrimSuffix(base, "/")
 
-	url := fmt.Sprintf("%s/%s?account=%s", base, urlPath, *account.Alias)
+	// Properly encode URL path parameters and query parameters
+	escapedOrgID := url.PathEscape(organizationID)
+	escapedLedgerID := url.PathEscape(ledgerID)
+	escapedAccountAlias := url.QueryEscape(*account.Alias)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	accountsURL := fmt.Sprintf("%s/organizations/%s/ledgers/%s/balances?account=%s",
+		base, escapedOrgID, escapedLedgerID, escapedAccountAlias)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, accountsURL, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}

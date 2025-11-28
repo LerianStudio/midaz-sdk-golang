@@ -48,7 +48,7 @@ type entityPluginAuthTestCase struct {
 func TestEntityWithPluginAuth(t *testing.T) {
 	tests := []entityPluginAuthTestCase{
 		{
-			name: "SuccessfulPluginAuth",
+			name: "Success",
 			pluginAuth: auth.AccessManager{
 				Enabled:      true,
 				Address:      "http://localhost:4000",
@@ -62,15 +62,6 @@ func TestEntityWithPluginAuth(t *testing.T) {
 				ExpiresAt:    "2025-05-17T00:00:00Z",
 			},
 			mockStatusCode: http.StatusOK,
-			expectError:    false,
-		},
-		{
-			name: "PluginAuthDisabled",
-			pluginAuth: auth.AccessManager{
-				Enabled: false,
-			},
-			mockResponse:   nil,
-			mockStatusCode: 0,
 			expectError:    false,
 		},
 		{

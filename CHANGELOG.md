@@ -17,6 +17,52 @@ Contributors: Guilherme Moreira Rodrigues
 - **Environment Configuration**: Improved the setup of automated workflows, contributing to the overall robustness and efficiency of our development and deployment pipeline.
 
 
+## [v2.2.0-beta.2] - 2025-10-08
+
+[Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v2.2.0-beta.1...v2.2.0-beta.2)
+Contributors: Arnaldo Pereira, lerian-studio
+
+### 🐛 Bug Fixes
+- **Account Balance Retrieval**: Fixed an issue in the `accounts.GetBalance()` method where incorrect API endpoint paths were used. This ensures accurate and reliable balance queries, enhancing user trust and system dependability.
+
+### 📚 Documentation
+- **Changelog Update**: The changelog has been updated to include recent changes and improvements, ensuring users have access to the most current information about software updates and fixes.
+
+### 🔧 Maintenance
+- **Documentation Maintenance**: Regular updates to documentation help maintain clarity and accuracy, supporting users in understanding and utilizing the software effectively.
+
+
+## [v2.2.0-beta.1] - 2025-10-06
+
+[Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v2.1.1-beta.1...v2.2.0-beta.1)
+Contributors: Arnaldo Pereira, lerian-studio
+
+### ✨ Features
+- **Comprehensive Tracing**: Gain in-depth insights into API call flows and performance metrics with our new tracing feature. This enhancement allows for precise monitoring and easier debugging, helping you track requests throughout the system and optimize performance efficiently.
+
+### ⚡ Performance
+- **Integrated Tracing in Build**: Tracing is now seamlessly integrated into the build process, ensuring consistent monitoring across all environments without additional setup. This integration enhances system observability and reduces the time needed for configuration.
+
+### 📚 Documentation
+- **Tracing Guides**: We have updated our documentation to include detailed guides on utilizing the new tracing features. Access step-by-step instructions to maximize system observability and performance analysis.
+
+### 🔧 Maintenance
+- **Expanded Test Coverage**: Our test suite now includes comprehensive tests for the new tracing functionalities, ensuring reliability and stability across the API.
+- **Changelog Update**: The CHANGELOG has been revised to reflect the latest updates and improvements, keeping all stakeholders informed about the system's enhancements.
+
+
+## [v2.1.1-beta.1] - 2025-10-03
+
+[Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v2.1.0...v2.1.1-beta.1)
+Contributors: Arnaldo Pereira
+
+### 🐛 Bug Fixes
+- **Consistent API Versioning**: Resolved discrepancies in API versioning across services, ensuring more reliable and predictable interactions between components. Users will experience smoother service integration and fewer unexpected behaviors (#114).
+
+### 🔧 Maintenance
+- **Code Cleanup and Refactoring**: Improved code readability and maintainability by reducing the codebase by 27 lines. This behind-the-scenes enhancement supports better system management and future development, although it doesn't directly affect user-facing features.
+
+
 ## [v2.1.0-beta.4] - 2025-09-30
 
 [Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v2.1.0-beta.3...v2.1.0-beta.4)
