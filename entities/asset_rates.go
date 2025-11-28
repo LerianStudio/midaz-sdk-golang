@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
@@ -128,11 +129,11 @@ func (e *assetRatesEntity) CreateOrUpdateAssetRate(
 ) (*models.AssetRate, error) {
 	const operation = "CreateOrUpdateAssetRate"
 
-	if organizationID == "" {
+	if strings.TrimSpace(organizationID) == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
 	}
 
-	if ledgerID == "" {
+	if strings.TrimSpace(ledgerID) == "" {
 		return nil, errors.NewMissingParameterError(operation, "ledgerID")
 	}
 
@@ -171,15 +172,15 @@ func (e *assetRatesEntity) GetAssetRate(
 ) (*models.AssetRate, error) {
 	const operation = "GetAssetRate"
 
-	if organizationID == "" {
+	if strings.TrimSpace(organizationID) == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
 	}
 
-	if ledgerID == "" {
+	if strings.TrimSpace(ledgerID) == "" {
 		return nil, errors.NewMissingParameterError(operation, "ledgerID")
 	}
 
-	if externalID == "" {
+	if strings.TrimSpace(externalID) == "" {
 		return nil, errors.NewMissingParameterError(operation, "externalID")
 	}
 
@@ -206,15 +207,15 @@ func (e *assetRatesEntity) ListAssetRatesByAssetCode(
 ) (*models.AssetRatesResponse, error) {
 	const operation = "ListAssetRatesByAssetCode"
 
-	if organizationID == "" {
+	if strings.TrimSpace(organizationID) == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
 	}
 
-	if ledgerID == "" {
+	if strings.TrimSpace(ledgerID) == "" {
 		return nil, errors.NewMissingParameterError(operation, "ledgerID")
 	}
 
-	if assetCode == "" {
+	if strings.TrimSpace(assetCode) == "" {
 		return nil, errors.NewMissingParameterError(operation, "assetCode")
 	}
 

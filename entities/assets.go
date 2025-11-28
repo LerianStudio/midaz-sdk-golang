@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
@@ -428,6 +429,9 @@ func (e *assetsEntity) GetAssetsMetricsCount(ctx context.Context, organizationID
 // Returns the built URL.
 func (e *assetsEntity) buildURL(organizationID, ledgerID, assetID string) string {
 	baseURL := e.baseURLs["onboarding"]
+
+	// Ensure the base URL doesn't end with a trailing slash
+	baseURL = strings.TrimSuffix(baseURL, "/")
 
 	if assetID == "" {
 		return fmt.Sprintf("%s/organizations/%s/ledgers/%s/assets", baseURL, organizationID, ledgerID)

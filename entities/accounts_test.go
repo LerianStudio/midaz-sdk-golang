@@ -19,7 +19,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// \1 performs an operation
 func TestListAccounts(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -100,7 +99,6 @@ func TestListAccounts(t *testing.T) {
 	assert.Contains(t, err.Error(), "ledger ID is required")
 }
 
-// \1 performs an operation
 func TestGetAccount(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -182,7 +180,6 @@ func TestGetAccount(t *testing.T) {
 	assert.Contains(t, err.Error(), "not found")
 }
 
-// \1 performs an operation
 func TestGetAccountByAlias(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -264,7 +261,6 @@ func TestGetAccountByAlias(t *testing.T) {
 	assert.Contains(t, err.Error(), "not found")
 }
 
-// \1 performs an operation
 func TestCreateAccount(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -345,7 +341,6 @@ func TestCreateAccount(t *testing.T) {
 	assert.Contains(t, err.Error(), "account input cannot be nil")
 }
 
-// \1 performs an operation
 func TestUpdateAccount(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -442,7 +437,6 @@ func TestUpdateAccount(t *testing.T) {
 	assert.Contains(t, err.Error(), "not found")
 }
 
-// \1 performs an operation
 func TestDeleteAccount(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -502,7 +496,6 @@ func TestDeleteAccount(t *testing.T) {
 	assert.Contains(t, err.Error(), "not found")
 }
 
-// \1 performs an operation
 func TestGetBalance(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

@@ -1092,17 +1092,20 @@ func TestAssetRatesEntity_ValidationEdgeCases(t *testing.T) {
 	t.Run("CreateOrUpdateAssetRate with whitespace-only organization ID", func(t *testing.T) {
 		input := models.NewCreateAssetRateInput("USD", "BRL", 500)
 		_, err := entity.CreateOrUpdateAssetRate(context.Background(), "   ", "ledger-456", input)
-		require.NoError(t, err)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "organizationID")
 	})
 
 	t.Run("GetAssetRate with whitespace-only external ID", func(t *testing.T) {
 		_, err := entity.GetAssetRate(context.Background(), "org-123", "ledger-456", "   ")
-		require.NoError(t, err)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "externalID")
 	})
 
 	t.Run("ListAssetRatesByAssetCode with whitespace-only asset code", func(t *testing.T) {
 		_, err := entity.ListAssetRatesByAssetCode(context.Background(), "org-123", "ledger-456", "   ", nil)
-		require.NoError(t, err)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "assetCode")
 	})
 
 	t.Run("CreateOrUpdateAssetRate with negative scale", func(t *testing.T) {

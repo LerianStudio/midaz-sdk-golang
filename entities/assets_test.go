@@ -1233,7 +1233,7 @@ func TestAssetsEntity_buildURL(t *testing.T) {
 			ledgerID:    "ledger-456",
 			assetID:     "",
 			baseURL:     "https://api.example.com/",
-			expectedURL: "https://api.example.com//organizations/org-123/ledgers/ledger-456/assets",
+			expectedURL: "https://api.example.com/organizations/org-123/ledgers/ledger-456/assets",
 		},
 		{
 			name:        "URL with different base",
