@@ -597,13 +597,16 @@ func (c *HTTPClient) debugLog(format string, args ...any) {
 
 	// Use observability logger if available
 	if c.observability != nil && c.observability.IsEnabled() && c.observability.Logger() != nil {
-		c.observability.Logger().Debug(message)
+		// Log injection mitigated: all arguments are sanitized via strconv.Quote in sanitizeLogArgs()
+		// which escapes all control characters including \n, \r, \t, and non-printable chars.
+		c.observability.Logger().Debug(message) // lgtm[go/log-injection]
 		return
 	}
 
 	// Fall back to stderr for debug output
+	// Log injection mitigated: message is pre-sanitized via strconv.Quote
 	// Error is intentionally ignored as debug logging should not affect program flow
-	_, _ = fmt.Fprintln(os.Stderr, "[Midaz SDK Debug] "+message)
+	_, _ = fmt.Fprintln(os.Stderr, "[Midaz SDK Debug] "+message) // lgtm[go/log-injection]
 }
 
 // idempotency context helpers

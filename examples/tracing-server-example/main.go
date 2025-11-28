@@ -273,7 +273,8 @@ func (s *Server) createOrganization(ctx context.Context, w http.ResponseWriter, 
 		attribute.String("organization.legal_name", reqBody.LegalName),
 	)
 
-	logger.Info("Creating organization", "legal_name", sanitizeLogInput(reqBody.LegalName))
+	// Log injection mitigated: input is sanitized via strconv.Quote which escapes control characters
+	logger.Info("Creating organization", "legal_name", sanitizeLogInput(reqBody.LegalName)) // lgtm[go/log-injection]
 
 	// Create organization through Midaz client
 	orgInput := models.NewCreateOrganizationInput(reqBody.LegalName)
