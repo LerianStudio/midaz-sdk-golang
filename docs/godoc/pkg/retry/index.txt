@@ -62,7 +62,7 @@ type HTTPOption func(*HTTPOptions) error
     func WithHTTPRetryAllServerErrors(retry bool) HTTPOption
     func WithHTTPRetryOn4xx(codes []int) HTTPOption
     func WithHTTPRetryableHTTPCodes(codes []int) HTTPOption
-    func WithHTTPRetryableNetworkErrors(errors []string) HTTPOption
+    func WithHTTPRetryableNetworkErrors(networkErrors []string) HTTPOption
 type HTTPOptions struct{ ... }
     func DefaultHTTPOptions() *HTTPOptions
     func GetHTTPOptionsFromContext(ctx context.Context) *HTTPOptions
@@ -78,7 +78,7 @@ type Option func(*Options) error
     func WithMaxDelay(delay time.Duration) Option
     func WithMaxRetries(maxRetries int) Option
     func WithNoRetry() Option
-    func WithRetryableErrors(errors []string) Option
+    func WithRetryableErrors(retryableErrors []string) Option
     func WithRetryableHTTPCodes(codes []int) Option
 type Options struct{ ... }
     func DefaultOptions() *Options

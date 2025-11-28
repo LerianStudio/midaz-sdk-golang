@@ -10,13 +10,17 @@ Package entities provides high-level encapsulation for Midaz API interaction.
 It provides domain-specific entities like accounts, assets, organizations, etc.
 
 const ServiceOnboarding = "onboarding" ...
+const BoolTrue = "true"
+const EnvMidazDebug = "MIDAZ_DEBUG"
 func AddURLParams(baseURL string, params map[string]string) string
-func GetWrappedHTTPClient(client *http.Client, authToken string) *http.Client
+func GetWrappedHTTPClient(client *http.Client, _ string) *http.Client
 func WithIdempotencyKey(ctx context.Context, key string) context.Context
 type AccountTypesService interface{ ... }
     func NewAccountTypesEntity(client *http.Client, authToken string, baseURLs map[string]string) AccountTypesService
 type AccountsService interface{ ... }
     func NewAccountsEntity(client *http.Client, authToken string, baseURLs map[string]string) AccountsService
+type AssetRatesService interface{ ... }
+    func NewAssetRatesEntity(client *http.Client, authToken string, baseURLs map[string]string) AssetRatesService
 type AssetsService interface{ ... }
     func NewAssetsEntity(client *http.Client, authToken string, baseURLs map[string]string) AssetsService
 type BalancesService interface{ ... }

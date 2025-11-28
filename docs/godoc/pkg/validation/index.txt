@@ -1,5 +1,9 @@
 package validation // import "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation"
 
+where the final return value is intentionally discarded. The error is already
+added to the FieldErrors collection via Add(), and the chained methods modify
+the same pointer in-place. Discarding the return value is safe and intentional.
+
 Package validation provides validation utilities for the Midaz SDK.
 
 This package contains functions for validating various aspects of Midaz data:
@@ -26,7 +30,8 @@ behavior. Example:
         log.Fatal(err)
     }
 
-var ErrMetadataSizeExceeded = &ValidationError{ ... }
+const OpTypeDebit = "DEBIT" ...
+var ErrMetadataSizeExceeded = &Error{ ... }
 func GetCommonSuggestions(field string, value any, sugType SuggestionType) []string
 func GetExampleValue(field string) string
 func GetExternalAccountReference(assetCode string) string
@@ -47,6 +52,7 @@ func ValidateTransactionCode(code string) error
 func ValidateTransactionDSL(input TransactionDSLValidator) error
 type AccountReference interface{ ... }
 type Address struct{ ... }
+type Error struct{ ... }
 type FieldError struct{ ... }
     func BuildFieldError(field string, value any, message string) *FieldError
     func EnhancedValidateAccountAlias(alias string) *FieldError
@@ -70,10 +76,9 @@ type FieldErrors struct{ ... }
     func NewFieldErrors() *FieldErrors
 type SuggestionType string
     const Format SuggestionType = "format" ...
+type Summary struct{ ... }
+    func ValidateCreateTransactionInput(input map[string]any) Summary
 type TransactionDSLValidator interface{ ... }
-type ValidationError struct{ ... }
-type ValidationSummary struct{ ... }
-    func ValidateCreateTransactionInput(input map[string]any) ValidationSummary
 type Validator struct{ ... }
     func DefaultValidator() *Validator
     func NewValidator(options ...core.ValidationOption) (*Validator, error)
