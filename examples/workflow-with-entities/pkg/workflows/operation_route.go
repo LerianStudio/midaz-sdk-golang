@@ -18,12 +18,14 @@ import (
 //   - client: The initialized Midaz SDK client
 //   - orgID: The ID of the organization
 //   - ledgerID: The ID of the ledger
-//   - accountType: The account type to associate with operation routes
 //
 // Returns:
 //   - *models.OperationRoute: The source operation route model
 //   - *models.OperationRoute: The destination operation route model
 //   - error: Any error encountered during the operation
+//
+// Note: The accountType parameter was removed as it was unused. The function signature
+// retains API compatibility by using a blank identifier for any callers that still pass it.
 func CreateOperationRoutes(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, _ *models.AccountType) (sourceRoute *models.OperationRoute, destRoute *models.OperationRoute, err error) {
 	fmt.Println("\n\n🛤️  STEP 4.6: OPERATION ROUTE CREATION")
 	fmt.Println(strings.Repeat("=", 50))

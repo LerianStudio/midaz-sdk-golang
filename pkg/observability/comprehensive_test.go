@@ -1465,7 +1465,7 @@ func TestHTTPMiddlewareIgnoredPath(t *testing.T) {
 	resp, err := client.Get(server.URL + "/health")
 	require.NoError(t, err)
 
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
@@ -1492,7 +1492,7 @@ func TestHTTPMiddlewareDisabledProvider(t *testing.T) {
 	resp, err := client.Get(server.URL)
 	require.NoError(t, err)
 
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
@@ -1518,7 +1518,7 @@ func TestHTTPMiddlewareErrorResponse(t *testing.T) {
 	resp, err := client.Get(server.URL)
 	require.NoError(t, err)
 
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
 }
@@ -1584,7 +1584,7 @@ func TestHTTPMiddlewareHeaderFiltering(t *testing.T) {
 	resp, err := client.Do(req)
 	require.NoError(t, err)
 
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
@@ -1878,7 +1878,9 @@ func TestHTTPClientWithObservability(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		resp, err := client.Get(server.URL + "/api/test")
 		require.NoError(t, err)
-		resp.Body.Close()
+
+		_ = resp.Body.Close()
+
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 	}
 
@@ -1948,7 +1950,8 @@ func TestHTTPMiddlewareWithOptions(t *testing.T) {
 
 	resp, err := client.Get(server.URL)
 	require.NoError(t, err)
-	resp.Body.Close()
+
+	_ = resp.Body.Close()
 
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
@@ -1977,7 +1980,8 @@ func TestHTTPMiddlewareIgnorePathPrefix(t *testing.T) {
 	// Test path that starts with ignored prefix
 	resp, err := client.Get(server.URL + "/health/live")
 	require.NoError(t, err)
-	resp.Body.Close()
+
+	_ = resp.Body.Close()
 
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
@@ -2037,13 +2041,17 @@ func TestHTTPMiddleware4xxStatusCode(t *testing.T) {
 	// Test 404
 	resp, err := client.Get(server.URL + "/notfound")
 	require.NoError(t, err)
-	resp.Body.Close()
+
+	_ = resp.Body.Close()
+
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 
 	// Test 400
 	resp, err = client.Get(server.URL + "/badrequest")
 	require.NoError(t, err)
-	resp.Body.Close()
+
+	_ = resp.Body.Close()
+
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }
 
@@ -2203,7 +2211,8 @@ func TestHTTPMiddlewareMetricsRecording(t *testing.T) {
 	// Make request to trigger metrics recording
 	resp, err := client.Get(server.URL + "/test")
 	require.NoError(t, err)
-	resp.Body.Close()
+
+	_ = resp.Body.Close()
 
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }

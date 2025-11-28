@@ -367,7 +367,7 @@ func (e *accountTypesEntity) GetAccountTypesMetricsCount(ctx context.Context, or
 
 	url := e.buildMetricsURL(organizationID, ledgerID)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}

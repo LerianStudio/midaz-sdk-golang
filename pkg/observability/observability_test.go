@@ -225,7 +225,7 @@ func TestHTTPMiddleware(t *testing.T) {
 	// Create server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprintln(w, "OK")
+		_, _ = fmt.Fprintln(w, "OK")
 	}))
 	defer server.Close()
 
@@ -245,7 +245,8 @@ func TestHTTPMiddleware(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Request failed: %v", err)
 	}
-	defer resp.Body.Close()
+
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", resp.StatusCode)
@@ -472,7 +473,8 @@ func ExampleNewHTTPMiddleware() {
 		fmt.Printf("Request failed: %v\n", err)
 		return
 	}
-	defer resp.Body.Close()
+
+	defer func() { _ = resp.Body.Close() }()
 
 	fmt.Printf("Response status: %s\n", resp.Status)
 }

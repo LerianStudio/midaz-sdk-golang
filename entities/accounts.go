@@ -494,7 +494,7 @@ func (e *accountsEntity) GetAccountsMetricsCount(ctx context.Context, organizati
 
 	endpoint := e.buildMetricsURL(organizationID, ledgerID)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodHead, endpoint, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -632,5 +632,5 @@ func (e *accountsEntity) GetAccountByAliasPath(ctx context.Context, organization
 // buildAliasURL builds the URL for account alias path endpoint.
 func (e *accountsEntity) buildAliasURL(organizationID, ledgerID, alias string) string {
 	baseURL := e.baseURLs["onboarding"]
-	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/alias/%s", baseURL, organizationID, ledgerID, alias)
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/alias/%s", baseURL, organizationID, ledgerID, url.PathEscape(alias))
 }

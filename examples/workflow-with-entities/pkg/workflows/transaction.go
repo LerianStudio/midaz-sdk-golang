@@ -481,12 +481,22 @@ func createParallelTransactionProcessor(midazClient *client.Client, orgID, ledge
 }
 
 func buildParallelTransactionInput(index int, amount string, customerAccount, merchantAccount *models.Account, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute) *models.CreateTransactionInput {
+	var routeID string
+	if transactionRoute != nil {
+		routeID = transactionRoute.ID.String()
+	}
+
+	var destRouteID string
+	if destinationOperationRoute != nil {
+		destRouteID = destinationOperationRoute.ID.String()
+	}
+
 	return &models.CreateTransactionInput{
 		ChartOfAccountsGroupName: "parallel-transfers",
 		Description:              fmt.Sprintf("Parallel transfer #%d with routes", index+1),
 		Amount:                   amount,
 		AssetCode:                "USD",
-		Route:                    transactionRoute.ID.String(),
+		Route:                    routeID,
 		Metadata: map[string]any{
 			"source":    "go-sdk-example-parallel",
 			"type":      "parallel_transfer",
@@ -501,7 +511,7 @@ func buildParallelTransactionInput(index int, amount string, customerAccount, me
 					{
 						Account:      *customerAccount.Alias,
 						AccountAlias: *customerAccount.Alias,
-						Route:        destinationOperationRoute.ID.String(),
+						Route:        destRouteID,
 						Amount:       models.AmountInput{Asset: "USD", Value: amount},
 					},
 				},
@@ -511,7 +521,7 @@ func buildParallelTransactionInput(index int, amount string, customerAccount, me
 					{
 						Account:      *merchantAccount.Alias,
 						AccountAlias: *merchantAccount.Alias,
-						Route:        destinationOperationRoute.ID.String(),
+						Route:        destRouteID,
 						Amount:       models.AmountInput{Asset: "USD", Value: amount},
 					},
 				},

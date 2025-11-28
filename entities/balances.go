@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
@@ -301,9 +302,9 @@ func (e *balancesEntity) ListBalances(
 		return nil, errors.NewMissingParameterError(operation, "ledgerID")
 	}
 
-	url := e.buildURL(orgID, ledgerID, "")
+	endpoint := e.buildURL(orgID, ledgerID, "")
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -353,9 +354,9 @@ func (e *balancesEntity) ListAccountBalances(
 		return nil, errors.NewMissingParameterError(operation, "accountID")
 	}
 
-	url := e.buildAccountURL(orgID, ledgerID, accountID)
+	endpoint := e.buildAccountURL(orgID, ledgerID, accountID)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -403,9 +404,9 @@ func (e *balancesEntity) GetBalance(
 		return nil, errors.NewMissingParameterError(operation, "balanceID")
 	}
 
-	url := e.buildURL(orgID, ledgerID, balanceID)
+	endpoint := e.buildURL(orgID, ledgerID, balanceID)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -453,14 +454,14 @@ func (e *balancesEntity) UpdateBalance(
 		return nil, errors.NewValidationError(operation, "invalid balance update input", err)
 	}
 
-	url := e.buildURL(orgID, ledgerID, balanceID)
+	endpoint := e.buildURL(orgID, ledgerID, balanceID)
 
 	payload, err := json.Marshal(input)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, bytes.NewBuffer(payload))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, endpoint, bytes.NewBuffer(payload))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -497,9 +498,9 @@ func (e *balancesEntity) DeleteBalance(
 		return errors.NewMissingParameterError(operation, "balanceID")
 	}
 
-	url := e.buildURL(orgID, ledgerID, balanceID)
+	endpoint := e.buildURL(orgID, ledgerID, balanceID)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, endpoint, nil)
 	if err != nil {
 		return errors.NewInternalError(operation, err)
 	}
@@ -557,14 +558,14 @@ func (e *balancesEntity) CreateBalance(ctx context.Context, orgID, ledgerID, acc
 		return nil, errors.NewValidationError(operation, "invalid input", err)
 	}
 
-	url := e.buildAccountURL(orgID, ledgerID, accountID)
+	endpoint := e.buildAccountURL(orgID, ledgerID, accountID)
 
 	body, err := json.Marshal(input)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -595,9 +596,9 @@ func (e *balancesEntity) ListBalancesByAccountAlias(ctx context.Context, orgID, 
 		return nil, errors.NewMissingParameterError(operation, "alias")
 	}
 
-	url := e.buildAccountAliasURL(orgID, ledgerID, alias)
+	endpoint := e.buildAccountAliasURL(orgID, ledgerID, alias)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -637,9 +638,9 @@ func (e *balancesEntity) ListBalancesByExternalCode(ctx context.Context, orgID, 
 		return nil, errors.NewMissingParameterError(operation, "code")
 	}
 
-	url := e.buildExternalCodeURL(orgID, ledgerID, code)
+	endpoint := e.buildExternalCodeURL(orgID, ledgerID, code)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -667,12 +668,12 @@ func (e *balancesEntity) ListBalancesByExternalCode(ctx context.Context, orgID, 
 func (e *balancesEntity) buildAccountAliasURL(orgID, ledgerID, alias string) string {
 	baseURL := e.baseURLs["transaction"]
 
-	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/alias/%s/balances", baseURL, orgID, ledgerID, alias)
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/alias/%s/balances", baseURL, orgID, ledgerID, url.PathEscape(alias))
 }
 
 // buildExternalCodeURL builds the URL for balance lookups by external code.
 func (e *balancesEntity) buildExternalCodeURL(orgID, ledgerID, code string) string {
 	baseURL := e.baseURLs["transaction"]
 
-	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/external/%s/balances", baseURL, orgID, ledgerID, code)
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/external/%s/balances", baseURL, orgID, ledgerID, url.PathEscape(code))
 }

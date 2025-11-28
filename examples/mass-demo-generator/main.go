@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -246,8 +247,19 @@ func shutdownObservability(obsProvider observability.Provider) {
 
 func loadTemplates() ([]data.OrgTemplate, []data.AssetTemplate, []data.AccountTemplate, error) {
 	orgTemplates := data.DefaultOrganizations()
+	if len(orgTemplates) == 0 {
+		return nil, nil, nil, errors.New("no organization templates available")
+	}
+
 	assetTemplates := data.AllAssetTemplates()
+	if len(assetTemplates) == 0 {
+		return nil, nil, nil, errors.New("no asset templates available")
+	}
+
 	accountTemplates := data.AllAccountTemplates()
+	if len(accountTemplates) == 0 {
+		return nil, nil, nil, errors.New("no account templates available")
+	}
 
 	for _, ot := range orgTemplates {
 		if err := data.ValidateOrgTemplate(ot); err != nil {

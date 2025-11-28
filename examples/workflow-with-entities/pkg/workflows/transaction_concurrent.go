@@ -473,7 +473,7 @@ func createM2CBatchProcessor(midazClient *client.Client, orgID, ledgerID string)
 		batchStartTime := time.Now()
 
 		err := concurrent.ForEach(batchCtx, batch,
-			createM2CSingleTransactionProcessor(midazClient, orgID, ledgerID, results, resultsMutex),
+			createM2CSingleTransactionProcessor(midazClient, orgID, ledgerID, &results, resultsMutex),
 			concurrent.WithWorkers(3),
 			concurrent.WithRateLimit(10),
 		)
@@ -494,7 +494,7 @@ func createM2CBatchProcessor(midazClient *client.Client, orgID, ledgerID string)
 	}
 }
 
-func createM2CSingleTransactionProcessor(midazClient *client.Client, orgID, ledgerID string, results []*midazmodels.Transaction, resultsMutex *sync.Mutex) func(context.Context, *midazmodels.CreateTransactionInput) error {
+func createM2CSingleTransactionProcessor(midazClient *client.Client, orgID, ledgerID string, results *[]*midazmodels.Transaction, resultsMutex *sync.Mutex) func(context.Context, *midazmodels.CreateTransactionInput) error {
 	return func(ctx context.Context, input *midazmodels.CreateTransactionInput) error {
 		txCtx, txSpan := observability.StartSpan(ctx, "ProcessSingleTransaction")
 		defer txSpan.End()
@@ -513,7 +513,7 @@ func createM2CSingleTransactionProcessor(midazClient *client.Client, orgID, ledg
 		observability.AddAttribute(txCtx, "transaction_id", tx.ID)
 
 		resultsMutex.Lock()
-		results = append(results, tx)
+		*results = append(*results, tx)
 		resultsMutex.Unlock()
 
 		return nil

@@ -20,10 +20,11 @@ import (
 // Helper function to disable auth check for tests
 func disableAuthCheck(t *testing.T) func() {
 	t.Helper()
-	os.Setenv("MIDAZ_SKIP_AUTH_CHECK", "true")
+
+	_ = os.Setenv("MIDAZ_SKIP_AUTH_CHECK", "true")
 
 	return func() {
-		os.Unsetenv("MIDAZ_SKIP_AUTH_CHECK")
+		_ = os.Unsetenv("MIDAZ_SKIP_AUTH_CHECK")
 	}
 }
 
@@ -37,9 +38,9 @@ func saveEnv(keys []string) (restore func()) {
 	return func() {
 		for key, value := range origEnv {
 			if value == "" {
-				os.Unsetenv(key)
+				_ = os.Unsetenv(key)
 			} else {
-				os.Setenv(key, value)
+				_ = os.Setenv(key, value)
 			}
 		}
 	}
@@ -767,18 +768,18 @@ func TestFromEnvironment_AllVariables(t *testing.T) {
 	restore := saveEnv(envVars)
 	defer restore()
 
-	os.Setenv("MIDAZ_ENVIRONMENT", "development")
-	os.Setenv("PLUGIN_AUTH_ENABLED", "true")
-	os.Setenv("PLUGIN_AUTH_ADDRESS", "http://auth.example.com")
-	os.Setenv("MIDAZ_CLIENT_ID", "env-client-id")
-	os.Setenv("MIDAZ_CLIENT_SECRET", "env-client-secret")
-	os.Setenv("MIDAZ_USER_AGENT", "env-agent/1.0")
-	os.Setenv("MIDAZ_ONBOARDING_URL", "https://env.example.com/onboarding")
-	os.Setenv("MIDAZ_TRANSACTION_URL", "https://env.example.com/transaction")
-	os.Setenv("MIDAZ_TIMEOUT", "45")
-	os.Setenv("MIDAZ_DEBUG", "true")
-	os.Setenv("MIDAZ_MAX_RETRIES", "7")
-	os.Setenv("MIDAZ_IDEMPOTENCY", "false")
+	_ = os.Setenv("MIDAZ_ENVIRONMENT", "development")
+	_ = os.Setenv("PLUGIN_AUTH_ENABLED", "true")
+	_ = os.Setenv("PLUGIN_AUTH_ADDRESS", "http://auth.example.com")
+	_ = os.Setenv("MIDAZ_CLIENT_ID", "env-client-id")
+	_ = os.Setenv("MIDAZ_CLIENT_SECRET", "env-client-secret")
+	_ = os.Setenv("MIDAZ_USER_AGENT", "env-agent/1.0")
+	_ = os.Setenv("MIDAZ_ONBOARDING_URL", "https://env.example.com/onboarding")
+	_ = os.Setenv("MIDAZ_TRANSACTION_URL", "https://env.example.com/transaction")
+	_ = os.Setenv("MIDAZ_TIMEOUT", "45")
+	_ = os.Setenv("MIDAZ_DEBUG", "true")
+	_ = os.Setenv("MIDAZ_MAX_RETRIES", "7")
+	_ = os.Setenv("MIDAZ_IDEMPOTENCY", "false")
 
 	config, err := NewConfig(FromEnvironment())
 	require.NoError(t, err)
@@ -818,11 +819,11 @@ func TestFromEnvironment_PartialVariables(t *testing.T) {
 	defer restore()
 
 	for _, key := range envVars {
-		os.Unsetenv(key)
+		_ = os.Unsetenv(key)
 	}
 
-	os.Setenv("MIDAZ_DEBUG", "true")
-	os.Setenv("MIDAZ_TIMEOUT", "90")
+	_ = os.Setenv("MIDAZ_DEBUG", "true")
+	_ = os.Setenv("MIDAZ_TIMEOUT", "90")
 
 	config, err := NewConfig(FromEnvironment())
 	require.NoError(t, err)
@@ -838,7 +839,7 @@ func TestFromEnvironment_InvalidEnvironment(t *testing.T) {
 	restore := saveEnv([]string{"MIDAZ_ENVIRONMENT"})
 	defer restore()
 
-	os.Setenv("MIDAZ_ENVIRONMENT", "invalid-env")
+	_ = os.Setenv("MIDAZ_ENVIRONMENT", "invalid-env")
 
 	_, err := NewConfig(FromEnvironment())
 	require.Error(t, err)
@@ -849,7 +850,7 @@ func TestFromEnvironment_InvalidTimeout(t *testing.T) {
 	restore := saveEnv([]string{"MIDAZ_TIMEOUT"})
 	defer restore()
 
-	os.Setenv("MIDAZ_TIMEOUT", "not-a-number")
+	_ = os.Setenv("MIDAZ_TIMEOUT", "not-a-number")
 
 	_, err := NewConfig(FromEnvironment())
 	require.Error(t, err)
@@ -860,7 +861,7 @@ func TestFromEnvironment_InvalidMaxRetries(t *testing.T) {
 	restore := saveEnv([]string{"MIDAZ_MAX_RETRIES"})
 	defer restore()
 
-	os.Setenv("MIDAZ_MAX_RETRIES", "abc")
+	_ = os.Setenv("MIDAZ_MAX_RETRIES", "abc")
 
 	_, err := NewConfig(FromEnvironment())
 	require.Error(t, err)
@@ -871,7 +872,7 @@ func TestFromEnvironment_InvalidOnboardingURL(t *testing.T) {
 	restore := saveEnv([]string{"MIDAZ_ONBOARDING_URL"})
 	defer restore()
 
-	os.Setenv("MIDAZ_ONBOARDING_URL", "not-a-valid-url")
+	_ = os.Setenv("MIDAZ_ONBOARDING_URL", "not-a-valid-url")
 
 	_, err := NewConfig(FromEnvironment())
 	require.Error(t, err)
@@ -882,7 +883,7 @@ func TestFromEnvironment_InvalidTransactionURL(t *testing.T) {
 	restore := saveEnv([]string{"MIDAZ_TRANSACTION_URL"})
 	defer restore()
 
-	os.Setenv("MIDAZ_TRANSACTION_URL", "invalid")
+	_ = os.Setenv("MIDAZ_TRANSACTION_URL", "invalid")
 
 	_, err := NewConfig(FromEnvironment())
 	require.Error(t, err)
@@ -893,7 +894,7 @@ func TestFromEnvironment_InvalidBaseURL(t *testing.T) {
 	restore := saveEnv([]string{"MIDAZ_BASE_URL"})
 	defer restore()
 
-	os.Setenv("MIDAZ_BASE_URL", "://malformed")
+	_ = os.Setenv("MIDAZ_BASE_URL", "://malformed")
 
 	_, err := NewConfig(FromEnvironment())
 	require.Error(t, err)
@@ -907,9 +908,9 @@ func TestFromEnvironment_BaseURLOverriddenBySpecific(t *testing.T) {
 	defer restore()
 
 	// Clear transaction URL to test that base URL is used as fallback
-	os.Unsetenv("MIDAZ_TRANSACTION_URL")
-	os.Setenv("MIDAZ_BASE_URL", "https://base.example.com")
-	os.Setenv("MIDAZ_ONBOARDING_URL", "https://specific.example.com/onboarding")
+	_ = os.Unsetenv("MIDAZ_TRANSACTION_URL")
+	_ = os.Setenv("MIDAZ_BASE_URL", "https://base.example.com")
+	_ = os.Setenv("MIDAZ_ONBOARDING_URL", "https://specific.example.com/onboarding")
 
 	config, err := NewConfig(FromEnvironment())
 	require.NoError(t, err)
@@ -924,10 +925,10 @@ func TestFromEnvironment_PluginAuthDisabled(t *testing.T) {
 	restore := saveEnv(envVars)
 	defer restore()
 
-	os.Setenv("PLUGIN_AUTH_ENABLED", "false")
-	os.Setenv("PLUGIN_AUTH_ADDRESS", "http://auth.example.com")
-	os.Setenv("MIDAZ_CLIENT_ID", "client-id")
-	os.Setenv("MIDAZ_CLIENT_SECRET", "client-secret")
+	_ = os.Setenv("PLUGIN_AUTH_ENABLED", "false")
+	_ = os.Setenv("PLUGIN_AUTH_ADDRESS", "http://auth.example.com")
+	_ = os.Setenv("MIDAZ_CLIENT_ID", "client-id")
+	_ = os.Setenv("MIDAZ_CLIENT_SECRET", "client-secret")
 
 	config, err := NewConfig(FromEnvironment())
 	require.NoError(t, err)
@@ -940,7 +941,7 @@ func TestFromEnvironment_IdempotencyTrue(t *testing.T) {
 	restore := saveEnv([]string{"MIDAZ_IDEMPOTENCY"})
 	defer restore()
 
-	os.Setenv("MIDAZ_IDEMPOTENCY", "true")
+	_ = os.Setenv("MIDAZ_IDEMPOTENCY", "true")
 
 	config, err := NewConfig(FromEnvironment())
 	require.NoError(t, err)
@@ -984,10 +985,10 @@ func TestNewLocalConfig_WithEnvVars(t *testing.T) {
 	cleanup := disableAuthCheck(t)
 	defer cleanup()
 
-	os.Setenv("PLUGIN_AUTH_ENABLED", "true")
-	os.Setenv("PLUGIN_AUTH_ADDRESS", "http://auth.local.example.com")
-	os.Setenv("MIDAZ_CLIENT_ID", "local-client")
-	os.Setenv("MIDAZ_CLIENT_SECRET", "local-secret")
+	_ = os.Setenv("PLUGIN_AUTH_ENABLED", "true")
+	_ = os.Setenv("PLUGIN_AUTH_ADDRESS", "http://auth.local.example.com")
+	_ = os.Setenv("MIDAZ_CLIENT_ID", "local-client")
+	_ = os.Setenv("MIDAZ_CLIENT_SECRET", "local-secret")
 
 	config, err := NewLocalConfig()
 	require.NoError(t, err)
@@ -1302,9 +1303,9 @@ func TestConfigureEnvironment_AllEnvironments(t *testing.T) {
 			defer restore()
 
 			if tc.envValue != "" {
-				os.Setenv("MIDAZ_ENVIRONMENT", tc.envValue)
+				_ = os.Setenv("MIDAZ_ENVIRONMENT", tc.envValue)
 			} else {
-				os.Unsetenv("MIDAZ_ENVIRONMENT")
+				_ = os.Unsetenv("MIDAZ_ENVIRONMENT")
 			}
 
 			config := &Config{Environment: EnvironmentLocal}
@@ -1361,14 +1362,14 @@ func TestConfigureAccessManager(t *testing.T) {
 			defer restore()
 
 			if tc.envEnabled != "" {
-				os.Setenv("PLUGIN_AUTH_ENABLED", tc.envEnabled)
+				_ = os.Setenv("PLUGIN_AUTH_ENABLED", tc.envEnabled)
 			} else {
-				os.Unsetenv("PLUGIN_AUTH_ENABLED")
+				_ = os.Unsetenv("PLUGIN_AUTH_ENABLED")
 			}
 
-			os.Setenv("PLUGIN_AUTH_ADDRESS", tc.envAddress)
-			os.Setenv("MIDAZ_CLIENT_ID", tc.envClientID)
-			os.Setenv("MIDAZ_CLIENT_SECRET", tc.envSecret)
+			_ = os.Setenv("PLUGIN_AUTH_ADDRESS", tc.envAddress)
+			_ = os.Setenv("MIDAZ_CLIENT_ID", tc.envClientID)
+			_ = os.Setenv("MIDAZ_CLIENT_SECRET", tc.envSecret)
 
 			config := &Config{}
 			configureAccessManager(config)
@@ -1402,9 +1403,9 @@ func TestConfigureUserAgent(t *testing.T) {
 			defer restore()
 
 			if tc.envValue != "" {
-				os.Setenv("MIDAZ_USER_AGENT", tc.envValue)
+				_ = os.Setenv("MIDAZ_USER_AGENT", tc.envValue)
 			} else {
-				os.Unsetenv("MIDAZ_USER_AGENT")
+				_ = os.Unsetenv("MIDAZ_USER_AGENT")
 			}
 
 			config := &Config{UserAgent: tc.initialValue}
@@ -1438,15 +1439,15 @@ func TestConfigureOptionalSettings(t *testing.T) {
 			defer restore()
 
 			if tc.debugEnv != "" {
-				os.Setenv("MIDAZ_DEBUG", tc.debugEnv)
+				_ = os.Setenv("MIDAZ_DEBUG", tc.debugEnv)
 			} else {
-				os.Unsetenv("MIDAZ_DEBUG")
+				_ = os.Unsetenv("MIDAZ_DEBUG")
 			}
 
 			if tc.idempotencyEnv != "" {
-				os.Setenv("MIDAZ_IDEMPOTENCY", tc.idempotencyEnv)
+				_ = os.Setenv("MIDAZ_IDEMPOTENCY", tc.idempotencyEnv)
 			} else {
-				os.Unsetenv("MIDAZ_IDEMPOTENCY")
+				_ = os.Unsetenv("MIDAZ_IDEMPOTENCY")
 			}
 
 			config := &Config{EnableIdempotency: tc.initialIdempotency}

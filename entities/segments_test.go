@@ -1750,8 +1750,10 @@ func TestSegmentsEntity_ConcurrentRequests(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		go func(idx int) {
-			_, err := entity.GetSegment(ctx, "org-123", "ledger-456", "seg-"+string(rune('0'+idx)))
-			assert.NoError(t, err)
+			_, err := entity.GetSegment(ctx, "org-123", "ledger-456", fmt.Sprintf("seg-%d", idx))
+			if err != nil {
+				t.Errorf("concurrent request %d failed: %v", idx, err)
+			}
 
 			done <- struct{}{}
 		}(i)
