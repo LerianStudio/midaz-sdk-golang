@@ -551,21 +551,51 @@ func (c *HTTPClient) extractRequestBody(req *http.Request) (any, error) {
 	return body, nil
 }
 
+// sanitizeLogInput removes control characters from strings to prevent log injection attacks.
+// This sanitizes newlines, carriage returns, and other control characters that could
+// allow attackers to forge log entries.
+func sanitizeLogInput(input string) string {
+	// Replace common log injection characters
+	sanitized := strings.ReplaceAll(input, "\n", "\\n")
+	sanitized = strings.ReplaceAll(sanitized, "\r", "\\r")
+	sanitized = strings.ReplaceAll(sanitized, "\t", "\\t")
+
+	return sanitized
+}
+
+// sanitizeLogArgs sanitizes all string arguments to prevent log injection.
+func sanitizeLogArgs(args []any) []any {
+	sanitized := make([]any, len(args))
+	for i, arg := range args {
+		if s, ok := arg.(string); ok {
+			sanitized[i] = sanitizeLogInput(s)
+		} else {
+			sanitized[i] = arg
+		}
+	}
+
+	return sanitized
+}
+
 // debugLog logs a debug message if debug mode is enabled.
 // Uses observability logger when available, otherwise falls back to stderr.
+// All string arguments are sanitized to prevent log injection attacks.
 func (c *HTTPClient) debugLog(format string, args ...any) {
 	if !c.debug {
 		return
 	}
 
+	// Sanitize arguments to prevent log injection
+	sanitizedArgs := sanitizeLogArgs(args)
+
 	// Use observability logger if available
 	if c.observability != nil && c.observability.IsEnabled() && c.observability.Logger() != nil {
-		c.observability.Logger().Debugf(format, args...)
+		c.observability.Logger().Debugf(format, sanitizedArgs...)
 		return
 	}
 
 	// Fall back to stderr for debug output
-	fmt.Fprintf(os.Stderr, "[Midaz SDK Debug] "+format+"\n", args...)
+	fmt.Fprintf(os.Stderr, "[Midaz SDK Debug] "+format+"\n", sanitizedArgs...)
 }
 
 // idempotency context helpers

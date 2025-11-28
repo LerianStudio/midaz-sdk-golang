@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	client "github.com/LerianStudio/midaz-sdk-golang/v2"
@@ -17,6 +18,15 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 )
+
+// sanitizeLogInput removes control characters from strings to prevent log injection attacks.
+func sanitizeLogInput(input string) string {
+	sanitized := strings.ReplaceAll(input, "\n", "\\n")
+	sanitized = strings.ReplaceAll(sanitized, "\r", "\\r")
+	sanitized = strings.ReplaceAll(sanitized, "\t", "\\t")
+
+	return sanitized
+}
 
 // This example demonstrates server-side tracing propagation with incoming HTTP requests
 func main() {
@@ -260,7 +270,7 @@ func (s *Server) createOrganization(ctx context.Context, w http.ResponseWriter, 
 		attribute.String("organization.legal_name", reqBody.LegalName),
 	)
 
-	logger.Info("Creating organization", "legal_name", reqBody.LegalName)
+	logger.Info("Creating organization", "legal_name", sanitizeLogInput(reqBody.LegalName))
 
 	// Create organization through Midaz client
 	orgInput := models.NewCreateOrganizationInput(reqBody.LegalName)
