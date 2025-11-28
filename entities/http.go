@@ -602,7 +602,8 @@ func (c *HTTPClient) debugLog(format string, args ...any) {
 	}
 
 	// Fall back to stderr for debug output
-	fmt.Fprintln(os.Stderr, "[Midaz SDK Debug] "+message)
+	// Error is intentionally ignored as debug logging should not affect program flow
+	_, _ = fmt.Fprintln(os.Stderr, "[Midaz SDK Debug] "+message)
 }
 
 // idempotency context helpers
