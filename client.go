@@ -192,11 +192,7 @@ func WithRetries(maxRetries int, minBackoff, maxBackoff time.Duration) Option {
 			return err
 		}
 
-		if err := config.WithRetryWaitMax(maxBackoff)(c.config); err != nil {
-			return err
-		}
-
-		return nil
+		return config.WithRetryWaitMax(maxBackoff)(c.config)
 	}
 }
 
@@ -648,32 +644,32 @@ func (c *Client) GetConfig() *config.Config {
 	return c.config
 }
 
-// Helper method to construct a basic account
+// NewAccount constructs a basic account.
 func (*Client) NewAccount() *models.Account {
 	return &models.Account{}
 }
 
-// Helper method to construct a basic ledger
+// NewLedger constructs a basic ledger.
 func (*Client) NewLedger() *models.Ledger {
 	return &models.Ledger{}
 }
 
-// Helper method to construct a basic organization
+// NewOrganization constructs a basic organization.
 func (*Client) NewOrganization() *models.Organization {
 	return &models.Organization{}
 }
 
-// Helper method to construct a basic transaction
+// NewTransaction constructs a basic transaction.
 func (*Client) NewTransaction() *models.Transaction {
 	return &models.Transaction{}
 }
 
-// Helper method to construct a basic operation
+// NewOperation constructs a basic operation.
 func (*Client) NewOperation() *models.Operation {
 	return &models.Operation{}
 }
 
-// Helper method to construct a basic asset
+// NewAsset constructs a basic asset.
 func (*Client) NewAsset() *models.Asset {
 	return &models.Asset{}
 }
