@@ -38,7 +38,7 @@ jobs:
           lerian_ci_cd_user_email: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
           go_version: "1.25.4" # Versão do Go, se necessário alterar
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          golangci_lint_version: "v2.5.0" # Versão do GolangCI-Lint, se necessário mude para a versão desejada
+          golangci_lint_version: "v2.6.2" # Versão do GolangCI-Lint, se necessário mude para a versão desejada
 
   GoSec:
     name: Run GoSec to SDK
