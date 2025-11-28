@@ -8,7 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"strings"
+	"strconv"
 	"time"
 
 	client "github.com/LerianStudio/midaz-sdk-golang/v2"
@@ -20,12 +20,15 @@ import (
 )
 
 // sanitizeLogInput removes control characters from strings to prevent log injection attacks.
+// Uses strconv.Quote for proper escaping of all control characters.
 func sanitizeLogInput(input string) string {
-	sanitized := strings.ReplaceAll(input, "\n", "\\n")
-	sanitized = strings.ReplaceAll(sanitized, "\r", "\\r")
-	sanitized = strings.ReplaceAll(sanitized, "\t", "\\t")
+	quoted := strconv.Quote(input)
+	// Remove the surrounding quotes added by Quote
+	if len(quoted) >= 2 {
+		return quoted[1 : len(quoted)-1]
+	}
 
-	return sanitized
+	return input
 }
 
 // This example demonstrates server-side tracing propagation with incoming HTTP requests
