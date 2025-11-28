@@ -65,8 +65,9 @@ const (
 
 	// Default retry configuration
 	DefaultMaxRetries   = 3
-	DefaultRetryWaitMin = 1 * time.Second
+	DefaultMinRetryWait = 1 * time.Second
 	DefaultRetryWaitMax = 30 * time.Second
+	DefaultRetryWaitMin = DefaultMinRetryWait // Deprecated: Use DefaultMinRetryWait instead
 
 	// Default feature flags
 	DefaultEnableIdempotency = true
@@ -586,7 +587,7 @@ func NewConfig(options ...Option) (*Config, error) {
 		Timeout:           DefaultTimeout * time.Second,
 		UserAgent:         version.UserAgent(),
 		MaxRetries:        DefaultMaxRetries,
-		RetryWaitMin:      DefaultRetryWaitMin,
+		RetryWaitMin:      DefaultMinRetryWait,
 		RetryWaitMax:      DefaultRetryWaitMax,
 		EnableRetries:     DefaultEnableRetries,
 		EnableIdempotency: DefaultEnableIdempotency,
@@ -737,7 +738,7 @@ func DefaultConfig() *Config {
 		Timeout:           DefaultTimeout * time.Second,
 		UserAgent:         version.UserAgent(),
 		MaxRetries:        DefaultMaxRetries,
-		RetryWaitMin:      DefaultRetryWaitMin,
+		RetryWaitMin:      DefaultMinRetryWait,
 		RetryWaitMax:      DefaultRetryWaitMax,
 		EnableRetries:     DefaultEnableRetries,
 		EnableIdempotency: DefaultEnableIdempotency,

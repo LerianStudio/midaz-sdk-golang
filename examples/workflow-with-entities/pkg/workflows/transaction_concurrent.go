@@ -137,7 +137,7 @@ func GenerateUniqueIdempotencyKey(prefix string, index int) string {
 
 	// Add a UUID
 	uuidStr := uuid.New().String()
-	h.Write([]byte(uuidStr))
+	_, _ = h.Write([]byte(uuidStr))
 
 	// Add the current timestamp with nanosecond precision
 	timestamp := time.Now().UnixNano()
@@ -165,13 +165,13 @@ func GenerateUniqueIdempotencyKey(prefix string, index int) string {
 
 		// Hash the fallback source to get random bytes
 		hasher := sha256.New()
-		hasher.Write(fallbackSource)
+		_, _ = hasher.Write(fallbackSource)
 		copy(randomBytes, hasher.Sum(nil)[:16])
 
 		log.Printf("Warning: Using fallback method for random bytes generation")
 	}
 
-	h.Write(randomBytes)
+	_, _ = h.Write(randomBytes)
 
 	// Get the hash as a hex string
 	hash := hex.EncodeToString(h.Sum(nil))

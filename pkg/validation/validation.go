@@ -474,10 +474,10 @@ func (vs *Summary) GetErrorSummary() string {
 
 	var builder strings.Builder
 
-	builder.WriteString(fmt.Sprintf("Validation failed with %d errors:\n", len(vs.Errors)))
+	_, _ = builder.WriteString(fmt.Sprintf("Validation failed with %d errors:\n", len(vs.Errors)))
 
 	for i, err := range vs.Errors {
-		builder.WriteString(fmt.Sprintf("%d. %s\n", i+1, err.Error()))
+		_, _ = builder.WriteString(fmt.Sprintf("%d. %s\n", i+1, err.Error()))
 	}
 
 	return builder.String()

@@ -13,7 +13,7 @@ import (
 // createTestConfig creates a test config with sensible defaults
 func createTestConfig() *config.Config {
 	// Set environment variable to skip auth check in tests
-	os.Setenv("MIDAZ_SKIP_AUTH_CHECK", "true")
+	_ = os.Setenv("MIDAZ_SKIP_AUTH_CHECK", "true")
 
 	cfg, _ := config.NewConfig(
 		config.WithAccessManager(auth.AccessManager{Enabled: false, Address: ""}),
