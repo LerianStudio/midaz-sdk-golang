@@ -25,7 +25,10 @@ func main() {
 	fmt.Println("Parallel Account Balance Fetching Example")
 	fmt.Println("=======================================")
 
-	_, accountIDs, ctx, cancel := setupAndFetchAccounts()
+	_, accountIDs, ctx, cancel, err := setupAndFetchAccounts()
+	if err != nil {
+		log.Fatalf("Failed to setup and fetch accounts: %v", err)
+	}
 	defer cancel()
 
 	accountBalances, elapsed := fetchBalancesInParallel(ctx, accountIDs)
@@ -37,13 +40,13 @@ func main() {
 	batchUpdateBalances(ctx, accountBalances)
 }
 
-func setupAndFetchAccounts() (*client.Client, []string, context.Context, context.CancelFunc) {
+func setupAndFetchAccounts() (*client.Client, []string, context.Context, context.CancelFunc, error) {
 	c, err := client.New(
 		client.WithEnvironment(config.EnvironmentLocal),
 		client.UseAllAPIs(),
 	)
 	if err != nil {
-		log.Fatalf("Failed to create client: %v", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to create client: %w", err)
 	}
 
 	orgID := "org-123"
@@ -56,7 +59,7 @@ func setupAndFetchAccounts() (*client.Client, []string, context.Context, context
 	accounts, err := c.Entity.Accounts.ListAccounts(ctx, orgID, ledgerID, &models.ListOptions{})
 	if err != nil {
 		cancel()
-		log.Fatalf("Failed to list accounts: %v", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to list accounts: %w", err)
 	}
 
 	fmt.Printf("Found %d accounts\n", len(accounts.Items))
@@ -66,7 +69,7 @@ func setupAndFetchAccounts() (*client.Client, []string, context.Context, context
 		accountIDs[i] = account.ID
 	}
 
-	return c, accountIDs, ctx, cancel
+	return c, accountIDs, ctx, cancel, nil
 }
 
 func fetchBalancesFn(_ context.Context, accountID string) (AccountBalance, error) {

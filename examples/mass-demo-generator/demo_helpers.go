@@ -291,16 +291,24 @@ func printDefaultsSummary(cfg demoConfig) {
 }
 
 // setupSDKAndContext configures the SDK client and context
-func setupSDKAndContext(userConfig demoConfig, obsProvider observability.Provider) (context.Context, *client.Client, gen.GeneratorConfig, func()) {
+func setupSDKAndContext(userConfig demoConfig, obsProvider observability.Provider) (context.Context, *client.Client, gen.GeneratorConfig, func(), error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(userConfig.timeoutSecVal)*time.Second)
 	ctx = gen.WithOrgLocale(ctx, strings.ToLower(userConfig.orgLocaleVal))
 
-	cfg := createSDKConfig(cancel)
+	cfg, err := createSDKConfig()
+	if err != nil {
+		cancel()
+		return nil, nil, gen.GeneratorConfig{}, nil, err
+	}
 	r := configureRetryOptions()
 	ctx = retry.WithOptionsContext(ctx, r)
 	applyRetryToConfig(cfg, r)
 
-	c := createSDKClient(cfg, obsProvider, cancel)
+	c, err := createSDKClient(cfg, obsProvider)
+	if err != nil {
+		cancel()
+		return nil, nil, gen.GeneratorConfig{}, nil, err
+	}
 	gcfg := buildGeneratorConfig(userConfig)
 	ctx = applyCircuitBreaker(ctx, gcfg)
 
@@ -309,21 +317,20 @@ func setupSDKAndContext(userConfig demoConfig, obsProvider observability.Provide
 	return ctx, c, gcfg, func() {
 		cancel()
 		shutdownClient(c)
-	}
+	}, nil
 }
 
-func createSDKConfig(cancel context.CancelFunc) *config.Config {
+func createSDKConfig() (*config.Config, error) {
 	cfg, err := config.NewConfig(
 		config.FromEnvironment(),
 		config.WithEnvironment(config.EnvironmentLocal),
 		config.WithIdempotency(true),
 	)
 	if err != nil {
-		cancel()
-		log.Fatalf("failed to create SDK config: %v", err)
+		return nil, fmt.Errorf("failed to create SDK config: %w", err)
 	}
 
-	return cfg
+	return cfg, nil
 }
 
 func configureRetryOptions() *retry.Options {
@@ -358,18 +365,17 @@ func applyRetryToConfig(cfg *config.Config, r *retry.Options) {
 	cfg.RetryWaitMax = r.MaxDelay
 }
 
-func createSDKClient(cfg *config.Config, obsProvider observability.Provider, cancel context.CancelFunc) *client.Client {
+func createSDKClient(cfg *config.Config, obsProvider observability.Provider) (*client.Client, error) {
 	c, err := client.New(
 		client.WithConfig(cfg),
 		client.WithObservabilityProvider(obsProvider),
 		client.UseAllAPIs(),
 	)
 	if err != nil {
-		cancel()
-		log.Fatalf("failed to create SDK client: %v", err)
+		return nil, fmt.Errorf("failed to create SDK client: %w", err)
 	}
 
-	return c
+	return c, nil
 }
 
 func buildGeneratorConfig(userConfig demoConfig) gen.GeneratorConfig {

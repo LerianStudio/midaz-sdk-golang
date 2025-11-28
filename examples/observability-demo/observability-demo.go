@@ -18,13 +18,21 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	provider := createObservabilityProvider(ctx)
+	provider, err := createObservabilityProvider(ctx)
+	if err != nil {
+		fmt.Printf("Failed to create observability provider: %v\n", err)
+		os.Exit(1)
+	}
 	defer shutdownProvider(ctx, provider)
 
 	logger := provider.Logger()
 	logger.Info("Starting observability demo")
 
-	metrics := createMetricsCollector(provider, logger)
+	metrics, err := createMetricsCollector(provider)
+	if err != nil {
+		logger.Errorf("Failed to create metrics collector: %v", err)
+		os.Exit(1)
+	}
 
 	demonstrateSpanOperations(ctx, provider, metrics, logger)
 	demonstrateErrorHandling(ctx, provider, metrics, logger)
@@ -35,7 +43,7 @@ func main() {
 	logger.Info("Observability demo completed")
 }
 
-func createObservabilityProvider(ctx context.Context) observability.Provider {
+func createObservabilityProvider(ctx context.Context) (observability.Provider, error) {
 	provider, err := observability.New(ctx,
 		observability.WithServiceName("observability-demo"),
 		observability.WithEnvironment("development"),
@@ -48,11 +56,10 @@ func createObservabilityProvider(ctx context.Context) observability.Provider {
 		),
 	)
 	if err != nil {
-		fmt.Printf("Error creating observability provider: %v\n", err)
-		os.Exit(1)
+		return nil, fmt.Errorf("error creating observability provider: %w", err)
 	}
 
-	return provider
+	return provider, nil
 }
 
 func shutdownProvider(ctx context.Context, provider observability.Provider) {
@@ -61,14 +68,13 @@ func shutdownProvider(ctx context.Context, provider observability.Provider) {
 	}
 }
 
-func createMetricsCollector(provider observability.Provider, logger observability.Logger) *observability.MetricsCollector {
+func createMetricsCollector(provider observability.Provider) (*observability.MetricsCollector, error) {
 	metrics, err := observability.NewMetricsCollector(provider)
 	if err != nil {
-		logger.Errorf("Failed to create metrics collector: %v", err)
-		os.Exit(1)
+		return nil, fmt.Errorf("failed to create metrics collector: %w", err)
 	}
 
-	return metrics
+	return metrics, nil
 }
 
 func demonstrateSpanOperations(ctx context.Context, provider observability.Provider, metrics *observability.MetricsCollector, logger observability.Logger) {

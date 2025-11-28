@@ -499,7 +499,7 @@ func createM2CSingleTransactionProcessor(midazClient *client.Client, orgID, ledg
 		txCtx, txSpan := observability.StartSpan(ctx, "ProcessSingleTransaction")
 		defer txSpan.End()
 
-		index := extractTransactionIndex(input, txCtx)
+		index := extractTransactionIndex(txCtx, input)
 		txStartTime := time.Now()
 
 		tx, err := midazClient.Entity.Transactions.CreateTransaction(txCtx, orgID, ledgerID, input)
@@ -520,7 +520,7 @@ func createM2CSingleTransactionProcessor(midazClient *client.Client, orgID, ledg
 	}
 }
 
-func extractTransactionIndex(input *midazmodels.CreateTransactionInput, ctx context.Context) int {
+func extractTransactionIndex(ctx context.Context, input *midazmodels.CreateTransactionInput) int {
 	var index int
 	if idx, ok := input.Metadata["index"]; ok {
 		if idxInt, ok := idx.(int); ok {

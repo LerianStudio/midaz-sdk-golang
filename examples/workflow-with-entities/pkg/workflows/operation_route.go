@@ -24,7 +24,7 @@ import (
 //   - *models.OperationRoute: The source operation route model
 //   - *models.OperationRoute: The destination operation route model
 //   - error: Any error encountered during the operation
-func CreateOperationRoutes(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, _ *models.AccountType) (*models.OperationRoute, *models.OperationRoute, error) {
+func CreateOperationRoutes(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, _ *models.AccountType) (sourceRoute *models.OperationRoute, destRoute *models.OperationRoute, err error) {
 	fmt.Println("\n\n🛤️  STEP 4.6: OPERATION ROUTE CREATION")
 	fmt.Println(strings.Repeat("=", 50))
 

@@ -16,7 +16,10 @@ import (
 )
 
 func main() {
-	pluginAuth, cfg := setupConfiguration()
+	pluginAuth, cfg, err := setupConfiguration()
+	if err != nil {
+		log.Fatalf("Failed to setup configuration: %v", err)
+	}
 
 	c, err := createClient(cfg)
 	if err != nil {
@@ -47,7 +50,7 @@ func main() {
 	fmt.Println("\nTest completed.")
 }
 
-func setupConfiguration() (auth.AccessManager, *config.Config) {
+func setupConfiguration() (auth.AccessManager, *config.Config, error) {
 	if err := godotenv.Load(); err != nil {
 		log.Printf("Warning: Error loading .env file: %v", err)
 	}
@@ -61,13 +64,13 @@ func setupConfiguration() (auth.AccessManager, *config.Config) {
 
 	cfg, err := config.NewConfig(config.WithAccessManager(pluginAuth))
 	if err != nil {
-		log.Fatalf("Failed to create config: %v", err)
+		return auth.AccessManager{}, nil, fmt.Errorf("failed to create config: %w", err)
 	}
 
 	log.Printf("Debug: SDK Version: %s", client.Version)
 	log.Printf("Debug: Environment: %s", cfg.Environment)
 
-	return pluginAuth, cfg
+	return pluginAuth, cfg, nil
 }
 
 func createClient(cfg *config.Config) (*client.Client, error) {

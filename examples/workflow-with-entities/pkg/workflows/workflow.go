@@ -71,10 +71,10 @@ func RunCompleteWorkflow(ctx context.Context, _ *sdkentities.Entity, customerToM
 }
 
 // CreateMockTransactionRoutes creates mock transaction routes when server API is not available
-func CreateMockTransactionRoutes(orgID, ledgerID string) (*models.TransactionRoute, *models.TransactionRoute) {
+func CreateMockTransactionRoutes(orgID, ledgerID string) (paymentRoute *models.TransactionRoute, refundRoute *models.TransactionRoute) {
 	fmt.Println("🔧 Creating mock transaction routes (server API not available)...")
 
-	paymentRoute := &models.TransactionRoute{
+	paymentRoute = &models.TransactionRoute{
 		ID:             uuid.New(),
 		Title:          "Payment Transaction Route",
 		Description:    "Transaction route for payment operations",
@@ -86,7 +86,7 @@ func CreateMockTransactionRoutes(orgID, ledgerID string) (*models.TransactionRou
 		},
 	}
 
-	refundRoute := &models.TransactionRoute{
+	refundRoute = &models.TransactionRoute{
 		ID:             uuid.New(),
 		Title:          "Refund Transaction Route",
 		Description:    "Transaction route for refund operations",
@@ -150,31 +150,31 @@ func createPluginAuth() auth.AccessManager {
 }
 
 // executeCoreSetup executes the core setup phase of the workflow
-func executeCoreSetup(ctx context.Context, midazClient *client.Client) (string, string, *models.AccountType, error) {
+func executeCoreSetup(ctx context.Context, midazClient *client.Client) (orgID string, ledgerID string, accountType *models.AccountType, err error) {
 	// Step 1: Create an organization
-	orgID, err := CreateOrganization(ctx, midazClient)
+	orgID, err = CreateOrganization(ctx, midazClient)
 	if err != nil {
 		return "", "", nil, err
 	}
 
 	// Step 2: Update the organization
-	if err := UpdateOrganization(ctx, midazClient, orgID); err != nil {
+	if err = UpdateOrganization(ctx, midazClient, orgID); err != nil {
 		return "", "", nil, err
 	}
 
 	// Step 3: Create a ledger
-	ledgerID, err := CreateLedger(ctx, midazClient, orgID)
+	ledgerID, err = CreateLedger(ctx, midazClient, orgID)
 	if err != nil {
 		return "", "", nil, err
 	}
 
 	// Step 4: Create an asset
-	if err := CreateAsset(ctx, midazClient, orgID, ledgerID); err != nil {
+	if err = CreateAsset(ctx, midazClient, orgID, ledgerID); err != nil {
 		return "", "", nil, err
 	}
 
 	// Step 4.1-4.4: Handle account type operations
-	accountType, err := handleAccountTypeOperations(ctx, midazClient, orgID, ledgerID)
+	accountType, err = handleAccountTypeOperations(ctx, midazClient, orgID, ledgerID)
 	if err != nil {
 		return "", "", nil, err
 	}
@@ -209,7 +209,7 @@ func handleAccountTypeOperations(ctx context.Context, midazClient *client.Client
 }
 
 // executeRoutesSetup executes the routes setup phase of the workflow
-func executeRoutesSetup(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, accountType *models.AccountType) (*models.OperationRoute, *models.OperationRoute, *models.TransactionRoute, *models.TransactionRoute) {
+func executeRoutesSetup(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, accountType *models.AccountType) (sourceOpRoute *models.OperationRoute, destOpRoute *models.OperationRoute, paymentTxRoute *models.TransactionRoute, refundTxRoute *models.TransactionRoute) {
 	// Step 4.5: Create operation routes
 	sourceOperationRoute, destinationOperationRoute := handleOperationRoutes(ctx, midazClient, orgID, ledgerID, accountType)
 
@@ -220,7 +220,7 @@ func executeRoutesSetup(ctx context.Context, midazClient *client.Client, orgID, 
 }
 
 // handleOperationRoutes handles the operation routes creation and CRUD demonstration
-func handleOperationRoutes(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, accountType *models.AccountType) (*models.OperationRoute, *models.OperationRoute) {
+func handleOperationRoutes(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, accountType *models.AccountType) (sourceRoute *models.OperationRoute, destRoute *models.OperationRoute) {
 	fmt.Printf("🔍 Testing operation routes API availability...\n")
 
 	sourceOperationRoute, destinationOperationRoute, err := CreateOperationRoutes(ctx, midazClient, orgID, ledgerID, accountType)
@@ -243,7 +243,7 @@ func handleOperationRoutes(ctx context.Context, midazClient *client.Client, orgI
 }
 
 // handleTransactionRoutes handles the transaction routes creation
-func handleTransactionRoutes(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, sourceOperationRoute, destinationOperationRoute *models.OperationRoute) (*models.TransactionRoute, *models.TransactionRoute) {
+func handleTransactionRoutes(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, sourceOperationRoute, destinationOperationRoute *models.OperationRoute) (paymentRoute *models.TransactionRoute, refundRoute *models.TransactionRoute) {
 	fmt.Printf("🔍 Testing transaction routes API availability...\n")
 
 	paymentTransactionRoute, refundTransactionRoute, err := CreateTransactionRoutesWithOperationRoutes(ctx, midazClient, orgID, ledgerID, sourceOperationRoute, destinationOperationRoute)
@@ -324,11 +324,7 @@ func executeTestingFlow(ctx context.Context, midazClient *client.Client, orgID, 
 	}
 
 	// Step 13: Test Delete methods
-	if err := TestDeleteMethods(ctx, midazClient, orgID, ledgerID); err != nil {
-		return err
-	}
-
-	return nil
+	return TestDeleteMethods(ctx, midazClient, orgID, ledgerID)
 }
 
 // demonstrateOperationRouteCRUD demonstrates all CRUD operations for Operation Routes

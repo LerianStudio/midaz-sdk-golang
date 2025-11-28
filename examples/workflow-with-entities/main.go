@@ -97,12 +97,21 @@ func main() {
 	ctx, cancel := createWorkflowContext()
 	defer cancel()
 
-	cfg := createConfiguration()
-	c := createSDKClient(cfg)
+	cfg, err := createConfiguration()
+	if err != nil {
+		log.Fatalf("Configuration failed: %v", err)
+	}
+
+	c, err := createSDKClient(cfg)
+	if err != nil {
+		log.Fatalf("Client creation failed: %v", err)
+	}
 
 	concurrentCustomerToMerchantTxs, concurrentMerchantToCustomerTxs := loadConcurrencySettings()
 
-	executeWorkflow(ctx, c, concurrentCustomerToMerchantTxs, concurrentMerchantToCustomerTxs)
+	if err := executeWorkflow(ctx, c, concurrentCustomerToMerchantTxs, concurrentMerchantToCustomerTxs); err != nil {
+		log.Fatalf("Workflow execution failed: %v", err)
+	}
 }
 
 func loadEnvFile() {
@@ -123,7 +132,7 @@ func createWorkflowContext() (context.Context, context.CancelFunc) {
 	return ctx, cancel
 }
 
-func createConfiguration() *config.Config {
+func createConfiguration() (*config.Config, error) {
 	fmt.Println("Loading configuration from environment...")
 
 	options := []config.Option{
@@ -133,7 +142,7 @@ func createConfiguration() *config.Config {
 
 	cfg, err := config.NewConfig(options...)
 	if err != nil {
-		log.Fatalf("Failed to create configuration: %v", err)
+		return nil, fmt.Errorf("failed to create configuration: %w", err)
 	}
 
 	retryOpts := setupRetryOptions()
@@ -143,7 +152,7 @@ func createConfiguration() *config.Config {
 
 	printConnectionInfo(cfg)
 
-	return cfg
+	return cfg, nil
 }
 
 func printConnectionInfo(cfg *config.Config) {
@@ -154,7 +163,7 @@ func printConnectionInfo(cfg *config.Config) {
 	fmt.Printf("   - Debug mode: %t\n", cfg.Debug)
 }
 
-func createSDKClient(cfg *config.Config) *client.Client {
+func createSDKClient(cfg *config.Config) (*client.Client, error) {
 	fmt.Println("\nInitializing SDK client...")
 
 	c, err := client.New(
@@ -162,38 +171,40 @@ func createSDKClient(cfg *config.Config) *client.Client {
 		client.UseAllAPIs(),
 	)
 	if err != nil {
-		log.Fatalf("Failed to create client: %v", err)
+		return nil, fmt.Errorf("failed to create client: %w", err)
 	}
 
 	fmt.Println("SDK client initialized successfully")
 
-	return c
+	return c, nil
 }
 
-func loadConcurrencySettings() (int, int) {
-	concurrentCustomerToMerchantTxs, err := getEnvInt("CONCURRENT_CUSTOMER_TO_MERCHANT_TXS", 10)
+func loadConcurrencySettings() (customerToMerchantTxs int, merchantToCustomerTxs int) {
+	var err error
+	customerToMerchantTxs, err = getEnvInt("CONCURRENT_CUSTOMER_TO_MERCHANT_TXS", 10)
 	if err != nil {
 		log.Printf("Warning: Failed to parse CONCURRENT_CUSTOMER_TO_MERCHANT_TXS, using default: %v", err)
-		concurrentCustomerToMerchantTxs = 10
+		customerToMerchantTxs = 10
 	}
 
-	concurrentMerchantToCustomerTxs, err := getEnvInt("CONCURRENT_MERCHANT_TO_CUSTOMER_TXS", 10)
+	merchantToCustomerTxs, err = getEnvInt("CONCURRENT_MERCHANT_TO_CUSTOMER_TXS", 10)
 	if err != nil {
 		log.Printf("Warning: Failed to parse CONCURRENT_MERCHANT_TO_CUSTOMER_TXS, using default: %v", err)
-		concurrentMerchantToCustomerTxs = 10
+		merchantToCustomerTxs = 10
 	}
 
-	return concurrentCustomerToMerchantTxs, concurrentMerchantToCustomerTxs
+	return customerToMerchantTxs, merchantToCustomerTxs
 }
 
-func executeWorkflow(ctx context.Context, c *client.Client, customerToMerchant, merchantToCustomer int) {
+func executeWorkflow(ctx context.Context, c *client.Client, customerToMerchant, merchantToCustomer int) error {
 	fmt.Println("\nStarting complete workflow...")
 
 	if err := workflows.RunCompleteWorkflow(ctx, c.Entity, customerToMerchant, merchantToCustomer); err != nil {
-		log.Fatalf("Workflow failed: %s", err.Error())
+		return fmt.Errorf("workflow failed: %w", err)
 	}
 
 	fmt.Println("\nWorkflow completed successfully!")
+	return nil
 }
 
 // getEnvInt gets an integer environment variable with a default value.
