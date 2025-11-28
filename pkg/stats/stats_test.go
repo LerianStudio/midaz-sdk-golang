@@ -67,7 +67,7 @@ func TestCounterElapsed(t *testing.T) {
 
 	// Test immediately after creation
 	elapsed := counter.Elapsed()
-	assert.GreaterOrEqual(t, elapsed, 0)
+	assert.GreaterOrEqual(t, elapsed, time.Duration(0))
 	assert.Less(t, elapsed, 10*time.Millisecond) // Should be very small
 
 	// Sleep and test again
@@ -144,9 +144,9 @@ func TestCounterTPSImmediateCall(t *testing.T) {
 	tps := counter.TPS()
 
 	// Should not panic and should return a reasonable value
-	assert.GreaterOrEqual(t, tps, 0)
+	assert.GreaterOrEqual(t, tps, 0.0)
 	// TPS can be very high immediately after creation, so we just ensure it's finite
-	assert.GreaterOrEqual(t, tps, 0, "TPS should not be negative")
+	assert.GreaterOrEqual(t, tps, 0.0, "TPS should not be negative")
 }
 
 func TestCounterTPSWithZeroElapsed(t *testing.T) {
@@ -209,7 +209,7 @@ func TestCounterLongRunning(t *testing.T) {
 	assert.Equal(t, int64(20), finalCount)
 	assert.Greater(t, finalElapsed, 20*time.Millisecond)
 	assert.Positive(t, finalTPS)
-	assert.Less(t, finalTPS, 2000) // Should be reasonable TPS, not astronomical
+	assert.Less(t, finalTPS, 2000.0) // Should be reasonable TPS, not astronomical
 }
 
 func TestCounterStructFields(t *testing.T) {
@@ -244,7 +244,7 @@ func TestCounterAtomicOperations(t *testing.T) {
 				counter.RecordSuccess()
 				// Also read the count to test concurrent reads
 				count := counter.SuccessCount()
-				assert.GreaterOrEqual(t, count, 0)
+				assert.GreaterOrEqual(t, count, int64(0))
 			}
 		}()
 	}

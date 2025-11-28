@@ -361,6 +361,7 @@ func TestBulkFetchResourceMap(t *testing.T) {
 	})
 }
 
+//nolint:revive // cognitive-complexity: comprehensive test with many sub-tests
 func TestRunConcurrentOperations(t *testing.T) {
 	t.Run("AllSuccessful", func(t *testing.T) {
 		var counter int32
@@ -554,8 +555,8 @@ func TestRunConcurrentOperations(t *testing.T) {
 				c := atomic.AddInt32(&current, 1)
 				// Track max concurrent
 				for {
-					max := atomic.LoadInt32(&maxConcurrent)
-					if c <= max || atomic.CompareAndSwapInt32(&maxConcurrent, max, c) {
+					currentMax := atomic.LoadInt32(&maxConcurrent)
+					if c <= currentMax || atomic.CompareAndSwapInt32(&maxConcurrent, currentMax, c) {
 						break
 					}
 				}

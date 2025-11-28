@@ -64,11 +64,6 @@ func TestFormatAmount(t *testing.T) {
 	}
 }
 
-// Helper for string pointers
-func str(s string) *string {
-	return &s
-}
-
 func TestFormatTransaction(t *testing.T) {
 	// Test nil transaction
 	summary := format.FormatTransaction(nil)

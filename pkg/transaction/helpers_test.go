@@ -362,8 +362,8 @@ func TestMultiTransferOptionsFields(t *testing.T) {
 	assert.Equal(t, "multi-chart", opts.ChartOfAccountsGroupName)
 }
 
-// TestTransactionTemplateFields tests TransactionTemplate struct fields
-func TestTransactionTemplateFields(t *testing.T) {
+// TestTemplateFields tests Template struct fields
+func TestTemplateFields(t *testing.T) {
 	buildSources := func(_ int64) []models.FromToInput {
 		return []models.FromToInput{
 			{Account: "source-account"},
@@ -375,7 +375,7 @@ func TestTransactionTemplateFields(t *testing.T) {
 		}
 	}
 
-	template := &TransactionTemplate{
+	template := &Template{
 		Description:              "Template description",
 		AssetCode:                "USD",
 		Scale:                    2,

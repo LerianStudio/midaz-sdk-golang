@@ -30,6 +30,7 @@ func (m *mockEntity) InitServices() {
 	m.services = true
 }
 
+//nolint:revive // cognitive-complexity: table-driven test pattern
 func TestWithPluginAuth(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -151,6 +152,7 @@ func TestWithPluginAuth(t *testing.T) {
 	}
 }
 
+//nolint:revive // cognitive-complexity: table-driven test pattern
 func TestGetTokenFromPluginAuth(t *testing.T) {
 	tests := []struct {
 		name           string

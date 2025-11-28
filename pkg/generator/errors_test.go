@@ -97,7 +97,7 @@ func containsError(err, target error) bool {
 func TestErrorsJoin_WithNilInSlice(t *testing.T) {
 	err1 := errors.New("error 1")
 
-	var nilErr error = nil
+	var nilErr error
 
 	result := errorsJoin(err1, nilErr)
 	require.Error(t, result)
@@ -105,8 +105,8 @@ func TestErrorsJoin_WithNilInSlice(t *testing.T) {
 
 func TestErrorsJoin_AllNils(t *testing.T) {
 	var (
-		err1 error = nil
-		err2 error = nil
+		err1 error
+		err2 error
 	)
 
 	// errors.Join returns nil if all errors are nil

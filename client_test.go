@@ -63,7 +63,7 @@ func TestNewClient(t *testing.T) {
 	}
 
 	// Check that all options were applied
-	if client.config.AccessManager.Enabled != false {
+	if client.config.AccessManager.Enabled {
 		t.Errorf("Expected AccessManager.Enabled to be false, got true")
 	}
 

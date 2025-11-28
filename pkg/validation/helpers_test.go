@@ -475,7 +475,7 @@ func TestValidateMetadataSize(t *testing.T) {
 
 func TestValidationError(t *testing.T) {
 	t.Run("Error returns message", func(t *testing.T) {
-		err := &ValidationError{Message: "test error message"}
+		err := &Error{Message: "test error message"}
 		assert.Equal(t, "test error message", err.Error())
 	})
 

@@ -88,6 +88,7 @@ func (m *mockFetcher[T]) fetch(ctx context.Context, _ PageOptions) (*PageResult[
 	}, nil
 }
 
+//nolint:revive // cognitive-complexity: table-driven test pattern
 func TestPaginator(t *testing.T) {
 	// Create test data
 	pages := [][]string{

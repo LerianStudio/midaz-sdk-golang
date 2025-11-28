@@ -9,6 +9,7 @@ import (
 	"time"
 )
 
+//nolint:revive // cognitive-complexity: comprehensive test with many sub-tests
 func TestWorkerPool(t *testing.T) {
 	// Test basic functionality
 	t.Run("Basic", func(t *testing.T) {
@@ -285,6 +286,7 @@ func TestWorkerPool(t *testing.T) {
 	})
 }
 
+//nolint:revive // cognitive-complexity: comprehensive test with many sub-tests
 func TestBatch(t *testing.T) {
 	// Test basic functionality
 	t.Run("Basic", func(t *testing.T) {
@@ -376,6 +378,7 @@ func TestBatch(t *testing.T) {
 	})
 }
 
+//nolint:revive // cognitive-complexity: comprehensive test with many sub-tests
 func TestForEach(t *testing.T) {
 	// Test basic functionality
 	t.Run("Basic", func(t *testing.T) {
@@ -485,6 +488,7 @@ func TestForEach(t *testing.T) {
 	})
 }
 
+//nolint:revive // cognitive-complexity: comprehensive test with many sub-tests
 func TestRateLimiter(t *testing.T) {
 	// Test basic functionality
 	t.Run("Basic", func(t *testing.T) {
@@ -621,7 +625,7 @@ func TestRateLimiter(t *testing.T) {
 	})
 }
 
-// TestWorkerPoolEdgeCases tests edge cases for WorkerPool
+//nolint:revive // cognitive-complexity: comprehensive edge case test
 func TestWorkerPoolEdgeCases(t *testing.T) {
 	// Test with empty items
 	t.Run("EmptyItems", func(t *testing.T) {
@@ -802,7 +806,7 @@ func TestWorkerPoolEdgeCases(t *testing.T) {
 	})
 }
 
-// TestBatchEdgeCases tests edge cases for Batch function
+//nolint:revive // cognitive-complexity: comprehensive edge case test
 func TestBatchEdgeCases(t *testing.T) {
 	// Test with empty items
 	t.Run("EmptyItems", func(t *testing.T) {
@@ -1083,7 +1087,7 @@ func TestPoolOptions(t *testing.T) {
 			t.Errorf("Expected default buffer size 10, got %d", opts.bufferSize)
 		}
 
-		if opts.ordered != true {
+		if !opts.ordered {
 			t.Error("Expected default ordered to be true")
 		}
 
@@ -1128,6 +1132,8 @@ func TestPoolOptions(t *testing.T) {
 }
 
 // TestConcurrentAccess tests concurrent access to ensure race condition safety
+//
+//nolint:revive // cognitive-complexity: comprehensive concurrency test with many sub-tests
 func TestConcurrentAccess(t *testing.T) {
 	// Test multiple worker pools running concurrently
 	t.Run("MultipleWorkerPools", func(t *testing.T) {

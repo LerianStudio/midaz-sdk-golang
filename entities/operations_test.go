@@ -204,7 +204,7 @@ func TestOperationsEntity_ListOperations(t *testing.T) {
 		ledgerID       string
 		accountID      string
 		opts           *models.ListOptions
-		mockResponse   interface{}
+		mockResponse   any
 		mockStatusCode int
 		expectError    bool
 		errorContains  string
@@ -433,7 +433,7 @@ func TestOperationsEntity_GetOperation(t *testing.T) {
 		accountID      string
 		operationID    string
 		transactionID  []string
-		mockResponse   interface{}
+		mockResponse   any
 		mockStatusCode int
 		expectError    bool
 		errorContains  string
@@ -637,8 +637,8 @@ func TestOperationsEntity_UpdateOperation(t *testing.T) {
 		ledgerID       string
 		accountID      string
 		operationID    string
-		input          interface{}
-		mockResponse   interface{}
+		input          any
+		mockResponse   any
 		mockStatusCode int
 		expectError    bool
 		errorContains  string
@@ -832,7 +832,7 @@ func TestOperationsEntity_UpdateOperation(t *testing.T) {
 
 // TestOperationsEntity_UpdateOperation_RequestBody verifies request body is properly serialized
 func TestOperationsEntity_UpdateOperation_RequestBody(t *testing.T) {
-	var capturedBody map[string]interface{}
+	var capturedBody map[string]any
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
@@ -856,7 +856,7 @@ func TestOperationsEntity_UpdateOperation_RequestBody(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "Test description", capturedBody["description"])
-	metadata, ok := capturedBody["metadata"].(map[string]interface{})
+	metadata, ok := capturedBody["metadata"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "testValue", metadata["testKey"])
 }
@@ -891,7 +891,7 @@ func TestOperationsEntity_ValidationEdgeCases(t *testing.T) {
 		ledgerID      string
 		accountID     string
 		operationID   string
-		input         interface{}
+		input         any
 		expectError   bool
 		errorContains string
 	}{
@@ -1193,7 +1193,7 @@ func TestOperationsEntity_MetadataHandling(t *testing.T) {
 		},
 		{
 			name:     "array metadata",
-			metadata: map[string]any{"tags": []interface{}{"tag1", "tag2"}},
+			metadata: map[string]any{"tags": []any{"tag1", "tag2"}},
 		},
 	}
 
@@ -1280,9 +1280,9 @@ func TestOperationsEntity_UpdateWithMapInput(t *testing.T) {
 	entity := createTestOperationsEntity(server.URL)
 
 	// Test with map input instead of struct
-	input := map[string]interface{}{
+	input := map[string]any{
 		"description": "Updated via map",
-		"metadata":    map[string]interface{}{"key": "value"},
+		"metadata":    map[string]any{"key": "value"},
 	}
 
 	result, err := entity.UpdateOperation(context.Background(), opTestOrgID, opTestLedgerID, opTestAccountID, opTestOperationID, input)

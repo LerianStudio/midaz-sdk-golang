@@ -939,6 +939,8 @@ func TestHTTPBatchProcessor_EmptyBatchWithPoolOptions(t *testing.T) {
 }
 
 // TestHTTPBatchProcessorWithRetry tests the HTTPBatchProcessorWithRetry
+//
+//nolint:revive // cognitive-complexity: comprehensive test with many sub-tests
 func TestHTTPBatchProcessorWithRetry(t *testing.T) {
 	t.Run("NewHTTPBatchProcessorWithRetry_Success", func(t *testing.T) {
 		processor, err := concurrent.NewHTTPBatchProcessorWithRetry(nil, "http://example.com")

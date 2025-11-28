@@ -715,7 +715,7 @@ func TestValidatorWithOptions(t *testing.T) {
 
 func TestValidationSummary(t *testing.T) {
 	t.Run("Empty summary is valid", func(t *testing.T) {
-		summary := validation.ValidationSummary{
+		summary := validation.Summary{
 			Valid:  true,
 			Errors: []error{},
 		}
@@ -725,7 +725,7 @@ func TestValidationSummary(t *testing.T) {
 	})
 
 	t.Run("AddError makes summary invalid", func(t *testing.T) {
-		summary := validation.ValidationSummary{
+		summary := validation.Summary{
 			Valid:  true,
 			Errors: []error{},
 		}
@@ -735,7 +735,7 @@ func TestValidationSummary(t *testing.T) {
 	})
 
 	t.Run("GetErrorMessages returns messages", func(t *testing.T) {
-		summary := validation.ValidationSummary{
+		summary := validation.Summary{
 			Valid:  true,
 			Errors: []error{},
 		}
@@ -746,7 +746,7 @@ func TestValidationSummary(t *testing.T) {
 	})
 
 	t.Run("GetErrorSummary formats correctly", func(t *testing.T) {
-		summary := validation.ValidationSummary{
+		summary := validation.Summary{
 			Valid:  true,
 			Errors: []error{},
 		}

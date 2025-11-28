@@ -68,6 +68,7 @@ func createMockBatchServer() *httptest.Server {
 	return httptest.NewServer(handler)
 }
 
+//nolint:revive // cognitive-complexity: comprehensive test with many sub-tests
 func TestBatchProcessor_ExecuteBatch(t *testing.T) {
 	// Create a mock server
 	server := createMockBatchServer()
@@ -337,7 +338,7 @@ func TestDefaultBatchOptions(t *testing.T) {
 		t.Errorf("Expected RetryBackoff=500ms, got %v", options.RetryBackoff)
 	}
 
-	if options.ContinueOnError != false {
+	if options.ContinueOnError {
 		t.Errorf("Expected ContinueOnError=false, got %v", options.ContinueOnError)
 	}
 }
@@ -899,7 +900,7 @@ func TestBatchProcessor_RetryWithBackoff(t *testing.T) {
 	}
 }
 
-// BenchmarkBatchProcessing benchmarks the batch processing performance
+//nolint:revive // cognitive-complexity: comprehensive benchmark with multiple sub-benchmarks
 func BenchmarkBatchProcessing(b *testing.B) {
 	// Create a mock server
 	server := createMockBatchServer()
@@ -1083,15 +1084,6 @@ func TestConvertResponses(t *testing.T) {
 		},
 	}
 
-	// Create concurrent.HTTPBatchResponse equivalents
-	type httpBatchResponse struct {
-		StatusCode int
-		Headers    map[string]string
-		Body       json.RawMessage
-		Error      string
-		ID         string
-	}
-
 	// Test empty slice conversion
 	emptyResponses := ConvertResponses(nil)
 	if len(emptyResponses) != 0 {
@@ -1140,7 +1132,7 @@ func TestExecuteBatchWithAdapter(t *testing.T) {
 	}
 
 	// This should fall back to the original ExecuteBatch
-	result, err := ExecuteBatchWithAdapter(processor, context.Background(), requests)
+	result, err := ExecuteBatchWithAdapter(context.Background(), processor, requests)
 	if err != nil {
 		t.Fatalf("ExecuteBatchWithAdapter returned error: %v", err)
 	}

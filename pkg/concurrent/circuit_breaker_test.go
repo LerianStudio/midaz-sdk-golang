@@ -275,6 +275,7 @@ func TestCircuitBreakerHalfOpenState(t *testing.T) {
 	})
 }
 
+//nolint:revive // cognitive-complexity: comprehensive concurrency test with many sub-tests
 func TestCircuitBreakerConcurrency(t *testing.T) {
 	t.Run("ConcurrentExecutions", func(t *testing.T) {
 		cb := NewCircuitBreaker(100, 10, 100*time.Millisecond)

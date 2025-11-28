@@ -24,6 +24,7 @@ func TestDefaultOptions(t *testing.T) {
 	}
 }
 
+//nolint:revive // cognitive-complexity: comprehensive options test with many sub-tests
 func TestNewOptions(t *testing.T) {
 	t.Run("DefaultValues", func(t *testing.T) {
 		opts, err := NewOptions()

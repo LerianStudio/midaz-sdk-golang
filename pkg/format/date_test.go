@@ -16,7 +16,7 @@ func TestFormatISO(t *testing.T) {
 
 	testCases := []struct {
 		name      string
-		formatter *format.FormatISO
+		formatter *format.ISO
 		time      time.Time
 		expected  string
 	}{
@@ -52,7 +52,7 @@ func TestFormatISO(t *testing.T) {
 		},
 		{
 			name:      "Custom formatter (no NA on zero)",
-			formatter: &format.FormatISO{IncludeTime: true, NAOnZero: false},
+			formatter: &format.ISO{IncludeTime: true, NAOnZero: false},
 			time:      zeroTime,
 			expected:  "0001-01-01T00:00:00Z",
 		},
@@ -66,16 +66,16 @@ func TestFormatISO(t *testing.T) {
 	}
 }
 
-func TestNewFormatISO(t *testing.T) {
+func TestNewISO(t *testing.T) {
 	// Test with default options
-	formatter, err := format.NewFormatISO()
+	formatter, err := format.NewISO()
 	require.NoError(t, err)
 	assert.True(t, formatter.IncludeTime)
 	assert.False(t, formatter.IncludeMilliseconds)
 	assert.True(t, formatter.NAOnZero)
 
 	// Test with custom options
-	formatter, err = format.NewFormatISO(
+	formatter, err = format.NewISO(
 		format.WithIncludeTime(false),
 		format.WithNAOnZero(false),
 	)
@@ -85,7 +85,7 @@ func TestNewFormatISO(t *testing.T) {
 	assert.False(t, formatter.NAOnZero)
 
 	// Test milliseconds automatically enables time
-	formatter, err = format.NewFormatISO(
+	formatter, err = format.NewISO(
 		format.WithIncludeTime(false),
 		format.WithIncludeMilliseconds(true),
 	)
@@ -94,7 +94,7 @@ func TestNewFormatISO(t *testing.T) {
 	assert.True(t, formatter.IncludeMilliseconds)
 
 	// Test explicit disable of time is overridden by milliseconds
-	formatter, err = format.NewFormatISO(
+	formatter, err = format.NewISO(
 		format.WithIncludeMilliseconds(true),
 		format.WithIncludeTime(false),
 	)
@@ -103,7 +103,7 @@ func TestNewFormatISO(t *testing.T) {
 	assert.True(t, formatter.IncludeMilliseconds)
 
 	// Test correct ordering works
-	formatter, err = format.NewFormatISO(
+	formatter, err = format.NewISO(
 		format.WithIncludeTime(true),
 		format.WithIncludeMilliseconds(true),
 	)

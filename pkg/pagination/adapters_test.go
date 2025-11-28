@@ -74,6 +74,7 @@ func (m *MockListResponse) GetPagination() interface {
 	return m.pagination
 }
 
+//nolint:revive // cognitive-complexity: table-driven test pattern
 func TestOptionsToPageOptions(t *testing.T) {
 	// Test with default adapter
 	adapter, err := NewModelAdapter()
@@ -191,6 +192,7 @@ func TestOptionsToPageOptions(t *testing.T) {
 	}
 }
 
+//nolint:revive // cognitive-complexity: table-driven test pattern
 func TestPageResultFromResponse(t *testing.T) {
 	adapter, err := NewModelAdapter()
 	if err != nil {
@@ -269,6 +271,7 @@ func TestPageResultFromResponse(t *testing.T) {
 	})
 }
 
+//nolint:revive // cognitive-complexity: table-driven test pattern
 func TestCreateEntityPaginator(t *testing.T) {
 	// Simple list function that returns mock data
 	listFn := func(_ context.Context, _ any) (any, error) {

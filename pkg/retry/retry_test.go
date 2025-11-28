@@ -542,7 +542,7 @@ func TestHTTPOptionHelpers(t *testing.T) {
 			name:   "WithHTTPRetryAllServerErrors",
 			option: WithHTTPRetryAllServerErrors(true),
 			check: func(o *HTTPOptions) bool {
-				return o.RetryAllServerErrors == true
+				return o.RetryAllServerErrors
 			},
 			wantErr: false,
 		},
@@ -573,7 +573,7 @@ func TestHTTPOptionHelpers(t *testing.T) {
 				return o.MaxRetries == 5 &&
 					o.BackoffFactor > 2.0 &&
 					o.JitterFactor > 0.3 &&
-					o.RetryAllServerErrors == true
+					o.RetryAllServerErrors
 			},
 			wantErr: false,
 		},

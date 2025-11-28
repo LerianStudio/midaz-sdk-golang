@@ -42,36 +42,6 @@ func newMockSegmentsHTTPClientAdapter(mock *MockHTTPClient) *HTTPClient {
 	}
 }
 
-// createTestSegmentJSON creates a JSON string for a test segment
-func createTestSegmentJSON(id, name, orgID, ledgerID, statusCode string) string {
-	return `{
-		"id": "` + id + `",
-		"name": "` + name + `",
-		"organizationId": "` + orgID + `",
-		"ledgerId": "` + ledgerID + `",
-		"status": {"code": "` + statusCode + `"},
-		"createdAt": "2024-01-15T10:30:00Z",
-		"updatedAt": "2024-01-15T10:30:00Z"
-	}`
-}
-
-// createTestSegmentListJSON creates a JSON string for a list of segments
-func createTestSegmentListJSON(segments []string, total, limit, offset int) string {
-	return `{
-		"items": [` + strings.Join(segments, ",") + `],
-		"pagination": {
-			"total": ` + itoa(total) + `,
-			"limit": ` + itoa(limit) + `,
-			"offset": ` + itoa(offset) + `
-		}
-	}`
-}
-
-// itoa is a simple int to string converter for test JSON building
-func itoa(i int) string {
-	return strings.TrimSpace(strings.ReplaceAll(string(rune(i+'0')), "\x00", ""))
-}
-
 func TestNewSegmentsEntity(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -698,60 +668,71 @@ func TestSegmentsEntity_CreateSegment(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockClient := &MockHTTPClient{
-				DoFunc: func(req *http.Request) (*http.Response, error) {
-					if tt.mockError != nil {
-						return nil, tt.mockError
-					}
-
-					assert.Equal(t, http.MethodPost, req.Method)
-
-					// Verify request body contains expected data
-					if tt.input != nil {
-						body, err := io.ReadAll(req.Body)
-						require.NoError(t, err)
-
-						var inputData map[string]interface{}
-
-						err = json.Unmarshal(body, &inputData)
-						require.NoError(t, err)
-					}
-
-					statusCode := tt.mockStatusCode
-					if statusCode == 0 {
-						statusCode = http.StatusCreated
-					}
-
-					return &http.Response{
-						StatusCode: statusCode,
-						Body:       io.NopCloser(strings.NewReader(tt.mockResponse)),
-					}, nil
-				},
-			}
-
-			entity := &segmentsEntity{
-				HTTPClient: newMockSegmentsHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"onboarding": "https://api.example.com"},
-			}
-
+			entity := createSegmentEntityWithMock(t, tt.mockError, tt.mockStatusCode, tt.mockResponse, tt.input != nil)
 			result, err := entity.CreateSegment(context.Background(), tt.orgID, tt.ledgerID, tt.input)
-
-			if tt.expectedError {
-				require.Error(t, err)
-
-				if tt.errorContains != "" {
-					assert.Contains(t, err.Error(), tt.errorContains)
-				}
-
-				return
-			}
-
-			require.NoError(t, err)
-			require.NotNil(t, result)
-			assert.Equal(t, tt.expectedID, result.ID)
-			assert.Equal(t, tt.expectedName, result.Name)
+			assertSegmentResult(t, result, err, tt.expectedError, tt.errorContains, tt.expectedID, tt.expectedName)
 		})
 	}
+}
+
+// createSegmentEntityWithMock creates a segment entity with a configured mock HTTP client
+func createSegmentEntityWithMock(t *testing.T, mockError error, statusCode int, response string, validateBody bool) *segmentsEntity {
+	t.Helper()
+
+	mockClient := &MockHTTPClient{
+		DoFunc: func(req *http.Request) (*http.Response, error) {
+			if mockError != nil {
+				return nil, mockError
+			}
+
+			assert.Equal(t, http.MethodPost, req.Method)
+
+			if validateBody {
+				body, err := io.ReadAll(req.Body)
+				require.NoError(t, err)
+
+				var inputData map[string]any
+
+				err = json.Unmarshal(body, &inputData)
+				require.NoError(t, err)
+			}
+
+			code := statusCode
+			if code == 0 {
+				code = http.StatusCreated
+			}
+
+			return &http.Response{
+				StatusCode: code,
+				Body:       io.NopCloser(strings.NewReader(response)),
+			}, nil
+		},
+	}
+
+	return &segmentsEntity{
+		HTTPClient: newMockSegmentsHTTPClientAdapter(mockClient),
+		baseURLs:   map[string]string{"onboarding": "https://api.example.com"},
+	}
+}
+
+// assertSegmentResult validates the result and error from segment operations
+func assertSegmentResult(t *testing.T, result *models.Segment, err error, expectedError bool, errorContains, expectedID, expectedName string) {
+	t.Helper()
+
+	if expectedError {
+		require.Error(t, err)
+
+		if errorContains != "" {
+			assert.Contains(t, err.Error(), errorContains)
+		}
+
+		return
+	}
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, expectedID, result.ID)
+	assert.Equal(t, expectedName, result.Name)
 }
 
 func TestSegmentsEntity_UpdateSegment(t *testing.T) {
@@ -1235,8 +1216,9 @@ func TestSegmentsEntity_GetSegmentsMetricsCount(t *testing.T) {
 	}
 }
 
-func TestSegmentsEntity_ValidationEdgeCases(t *testing.T) {
-	entity := &segmentsEntity{
+// newValidationTestEntity creates a segment entity for validation testing
+func newValidationTestEntity() *segmentsEntity {
+	return &segmentsEntity{
 		HTTPClient: newMockSegmentsHTTPClientAdapter(&MockHTTPClient{
 			DoFunc: func(_ *http.Request) (*http.Response, error) {
 				return &http.Response{
@@ -1247,140 +1229,156 @@ func TestSegmentsEntity_ValidationEdgeCases(t *testing.T) {
 		}),
 		baseURLs: map[string]string{"onboarding": "https://api.example.com"},
 	}
+}
 
+func TestSegmentsEntity_ValidationEdgeCases_ListSegments(t *testing.T) {
+	entity := newValidationTestEntity()
 	ctx := context.Background()
 
-	t.Run("ListSegments validation", func(t *testing.T) {
-		testCases := []struct {
-			name          string
-			orgID         string
-			ledgerID      string
-			errorContains string
-		}{
-			{"empty org", "", "ledger-123", "organizationID"},
-			{"empty ledger", "org-123", "", "ledgerID"},
-			{"both empty", "", "", "organizationID"},
-		}
+	testCases := []struct {
+		name          string
+		orgID         string
+		ledgerID      string
+		errorContains string
+	}{
+		{"empty org", "", "ledger-123", "organizationID"},
+		{"empty ledger", "org-123", "", "ledgerID"},
+		{"both empty", "", "", "organizationID"},
+	}
 
-		for _, tc := range testCases {
-			t.Run(tc.name, func(t *testing.T) {
-				_, err := entity.ListSegments(ctx, tc.orgID, tc.ledgerID, nil)
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tc.errorContains)
-			})
-		}
-	})
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := entity.ListSegments(ctx, tc.orgID, tc.ledgerID, nil)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.errorContains)
+		})
+	}
+}
 
-	t.Run("GetSegment validation", func(t *testing.T) {
-		testCases := []struct {
-			name          string
-			orgID         string
-			ledgerID      string
-			segmentID     string
-			errorContains string
-		}{
-			{"empty org", "", "ledger-123", "seg-123", "organizationID"},
-			{"empty ledger", "org-123", "", "seg-123", "ledgerID"},
-			{"empty segment", "org-123", "ledger-123", "", "id"},
-			{"all empty", "", "", "", "organizationID"},
-		}
+func TestSegmentsEntity_ValidationEdgeCases_GetSegment(t *testing.T) {
+	entity := newValidationTestEntity()
+	ctx := context.Background()
 
-		for _, tc := range testCases {
-			t.Run(tc.name, func(t *testing.T) {
-				_, err := entity.GetSegment(ctx, tc.orgID, tc.ledgerID, tc.segmentID)
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tc.errorContains)
-			})
-		}
-	})
+	testCases := []struct {
+		name          string
+		orgID         string
+		ledgerID      string
+		segmentID     string
+		errorContains string
+	}{
+		{"empty org", "", "ledger-123", "seg-123", "organizationID"},
+		{"empty ledger", "org-123", "", "seg-123", "ledgerID"},
+		{"empty segment", "org-123", "ledger-123", "", "id"},
+		{"all empty", "", "", "", "organizationID"},
+	}
 
-	t.Run("CreateSegment validation", func(t *testing.T) {
-		testCases := []struct {
-			name          string
-			orgID         string
-			ledgerID      string
-			input         *models.CreateSegmentInput
-			errorContains string
-		}{
-			{"empty org", "", "ledger-123", models.NewCreateSegmentInput("Test"), "organizationID"},
-			{"empty ledger", "org-123", "", models.NewCreateSegmentInput("Test"), "ledgerID"},
-			{"nil input", "org-123", "ledger-123", nil, "input"},
-		}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := entity.GetSegment(ctx, tc.orgID, tc.ledgerID, tc.segmentID)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.errorContains)
+		})
+	}
+}
 
-		for _, tc := range testCases {
-			t.Run(tc.name, func(t *testing.T) {
-				_, err := entity.CreateSegment(ctx, tc.orgID, tc.ledgerID, tc.input)
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tc.errorContains)
-			})
-		}
-	})
+func TestSegmentsEntity_ValidationEdgeCases_CreateSegment(t *testing.T) {
+	entity := newValidationTestEntity()
+	ctx := context.Background()
 
-	t.Run("UpdateSegment validation", func(t *testing.T) {
-		testCases := []struct {
-			name          string
-			orgID         string
-			ledgerID      string
-			segmentID     string
-			input         *models.UpdateSegmentInput
-			errorContains string
-		}{
-			{"empty org", "", "ledger-123", "seg-123", models.NewUpdateSegmentInput(), "organizationID"},
-			{"empty ledger", "org-123", "", "seg-123", models.NewUpdateSegmentInput(), "ledgerID"},
-			{"empty segment", "org-123", "ledger-123", "", models.NewUpdateSegmentInput(), "id"},
-			{"nil input", "org-123", "ledger-123", "seg-123", nil, "input"},
-		}
+	testCases := []struct {
+		name          string
+		orgID         string
+		ledgerID      string
+		input         *models.CreateSegmentInput
+		errorContains string
+	}{
+		{"empty org", "", "ledger-123", models.NewCreateSegmentInput("Test"), "organizationID"},
+		{"empty ledger", "org-123", "", models.NewCreateSegmentInput("Test"), "ledgerID"},
+		{"nil input", "org-123", "ledger-123", nil, "input"},
+	}
 
-		for _, tc := range testCases {
-			t.Run(tc.name, func(t *testing.T) {
-				_, err := entity.UpdateSegment(ctx, tc.orgID, tc.ledgerID, tc.segmentID, tc.input)
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tc.errorContains)
-			})
-		}
-	})
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := entity.CreateSegment(ctx, tc.orgID, tc.ledgerID, tc.input)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.errorContains)
+		})
+	}
+}
 
-	t.Run("DeleteSegment validation", func(t *testing.T) {
-		testCases := []struct {
-			name          string
-			orgID         string
-			ledgerID      string
-			segmentID     string
-			errorContains string
-		}{
-			{"empty org", "", "ledger-123", "seg-123", "organizationID"},
-			{"empty ledger", "org-123", "", "seg-123", "ledgerID"},
-			{"empty segment", "org-123", "ledger-123", "", "id"},
-		}
+func TestSegmentsEntity_ValidationEdgeCases_UpdateSegment(t *testing.T) {
+	entity := newValidationTestEntity()
+	ctx := context.Background()
 
-		for _, tc := range testCases {
-			t.Run(tc.name, func(t *testing.T) {
-				err := entity.DeleteSegment(ctx, tc.orgID, tc.ledgerID, tc.segmentID)
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tc.errorContains)
-			})
-		}
-	})
+	testCases := []struct {
+		name          string
+		orgID         string
+		ledgerID      string
+		segmentID     string
+		input         *models.UpdateSegmentInput
+		errorContains string
+	}{
+		{"empty org", "", "ledger-123", "seg-123", models.NewUpdateSegmentInput(), "organizationID"},
+		{"empty ledger", "org-123", "", "seg-123", models.NewUpdateSegmentInput(), "ledgerID"},
+		{"empty segment", "org-123", "ledger-123", "", models.NewUpdateSegmentInput(), "id"},
+		{"nil input", "org-123", "ledger-123", "seg-123", nil, "input"},
+	}
 
-	t.Run("GetSegmentsMetricsCount validation", func(t *testing.T) {
-		testCases := []struct {
-			name          string
-			orgID         string
-			ledgerID      string
-			errorContains string
-		}{
-			{"empty org", "", "ledger-123", "organizationID"},
-			{"empty ledger", "org-123", "", "ledgerID"},
-		}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := entity.UpdateSegment(ctx, tc.orgID, tc.ledgerID, tc.segmentID, tc.input)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.errorContains)
+		})
+	}
+}
 
-		for _, tc := range testCases {
-			t.Run(tc.name, func(t *testing.T) {
-				_, err := entity.GetSegmentsMetricsCount(ctx, tc.orgID, tc.ledgerID)
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tc.errorContains)
-			})
-		}
-	})
+func TestSegmentsEntity_ValidationEdgeCases_DeleteSegment(t *testing.T) {
+	entity := newValidationTestEntity()
+	ctx := context.Background()
+
+	testCases := []struct {
+		name          string
+		orgID         string
+		ledgerID      string
+		segmentID     string
+		errorContains string
+	}{
+		{"empty org", "", "ledger-123", "seg-123", "organizationID"},
+		{"empty ledger", "org-123", "", "seg-123", "ledgerID"},
+		{"empty segment", "org-123", "ledger-123", "", "id"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := entity.DeleteSegment(ctx, tc.orgID, tc.ledgerID, tc.segmentID)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.errorContains)
+		})
+	}
+}
+
+func TestSegmentsEntity_ValidationEdgeCases_GetSegmentsMetricsCount(t *testing.T) {
+	entity := newValidationTestEntity()
+	ctx := context.Background()
+
+	testCases := []struct {
+		name          string
+		orgID         string
+		ledgerID      string
+		errorContains string
+	}{
+		{"empty org", "", "ledger-123", "organizationID"},
+		{"empty ledger", "org-123", "", "ledgerID"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := entity.GetSegmentsMetricsCount(ctx, tc.orgID, tc.ledgerID)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.errorContains)
+		})
+	}
 }
 
 func TestSegmentsEntity_IntegrationWithHTTPTestServer(t *testing.T) {
@@ -1452,7 +1450,7 @@ func TestSegmentsEntity_IntegrationWithHTTPTestServer(t *testing.T) {
 			body, err := io.ReadAll(r.Body)
 			assert.NoError(t, err)
 
-			var input map[string]interface{}
+			var input map[string]any
 
 			err = json.Unmarshal(body, &input)
 			assert.NoError(t, err)

@@ -801,22 +801,6 @@ func TestAssetRatesEntity_ListAssetRatesByAssetCode(t *testing.T) {
 	}
 }
 
-// listAssetRatesByAssetCodeTestCase is an alias for the anonymous struct used in tests.
-type listAssetRatesByAssetCodeTestCase struct {
-	name           string
-	orgID          string
-	ledgerID       string
-	assetCode      string
-	opts           *models.AssetRateListOptions
-	mockResponse   string
-	mockStatusCode int
-	mockError      error
-	expectedError  bool
-	errorContains  string
-	expectedItems  int
-	checkRequest   func(t *testing.T, req *http.Request)
-}
-
 // runListAssetRatesByAssetCodeTest executes a single test case for ListAssetRatesByAssetCode.
 func runListAssetRatesByAssetCodeTest(t *testing.T, tt struct {
 	name           string
@@ -831,7 +815,8 @@ func runListAssetRatesByAssetCodeTest(t *testing.T, tt struct {
 	errorContains  string
 	expectedItems  int
 	checkRequest   func(t *testing.T, req *http.Request)
-}) {
+},
+) {
 	t.Helper()
 
 	mockClient := createListAssetRatesMockClient(t, tt.mockError, tt.mockStatusCode, tt.mockResponse, tt.checkRequest)

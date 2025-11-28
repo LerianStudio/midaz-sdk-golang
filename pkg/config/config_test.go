@@ -48,8 +48,8 @@ func saveEnv(keys []string) (restore func()) {
 func TestDefaultConstants(t *testing.T) {
 	tests := []struct {
 		name     string
-		got      interface{}
-		expected interface{}
+		got      any
+		expected any
 	}{
 		{"DefaultTimeout", DefaultTimeout, 60},
 		{"DefaultLocalBaseURL", DefaultLocalBaseURL, "http://localhost"},

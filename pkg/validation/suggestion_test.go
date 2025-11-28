@@ -1,6 +1,7 @@
 package validation
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -644,10 +645,5 @@ func TestGetStructureSuggestions(t *testing.T) {
 
 // Helper function to check if a string contains a substring (case-insensitive)
 func containsIgnoreCase(s, substr string) bool {
-	return len(s) >= len(substr) &&
-		(s == substr ||
-			len(s) > 0 && len(substr) > 0 &&
-				(s[0] == substr[0] || s[0]+32 == substr[0] || s[0] == substr[0]+32) &&
-				containsIgnoreCase(s[1:], substr[1:]) ||
-			containsIgnoreCase(s[1:], substr))
+	return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
 }

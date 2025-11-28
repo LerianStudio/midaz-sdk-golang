@@ -713,6 +713,7 @@ func TestRecordDurationDisabledProvider(t *testing.T) {
 // Context Functions Tests
 // =============================================================================
 
+//nolint:staticcheck // SA1012: intentionally testing nil context behavior
 func TestGetProviderNilContext(t *testing.T) {
 	provider := GetProvider(nil)
 	assert.Nil(t, provider)
@@ -1857,10 +1858,8 @@ func TestHTTPClientWithObservability(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requestCount++
-		// Verify trace context is propagated
-		if r.Header.Get("Traceparent") == "" {
-			// May or may not have traceparent depending on sampling
-		}
+		// Note: Traceparent header may or may not be present depending on sampling
+		_ = r.Header.Get("Traceparent")
 
 		w.WriteHeader(http.StatusOK)
 		_, _ = fmt.Fprintln(w, "OK")

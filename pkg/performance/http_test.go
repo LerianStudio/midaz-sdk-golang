@@ -39,11 +39,11 @@ func TestNewTransport(t *testing.T) {
 		t.Errorf("Expected TLSHandshakeTimeout=%v, got %v", DefaultTLSHandshakeTimeout, transport.TLSHandshakeTimeout)
 	}
 
-	if transport.DisableKeepAlives != false {
+	if transport.DisableKeepAlives {
 		t.Errorf("Expected DisableKeepAlives=false, got %v", transport.DisableKeepAlives)
 	}
 
-	if transport.DisableCompression != false {
+	if transport.DisableCompression {
 		t.Errorf("Expected DisableCompression=false, got %v", transport.DisableCompression)
 	}
 
@@ -248,6 +248,7 @@ func TestDefaultTransportConfig(t *testing.T) {
 	}
 }
 
+//nolint:revive // cognitive-complexity: comprehensive validation test with many sub-tests
 func TestTransportOptions_Validation(t *testing.T) {
 	t.Run("WithTransportMaxIdleConnsPerHost_Negative", func(t *testing.T) {
 		_, err := NewTransport(WithTransportMaxIdleConnsPerHost(-1))
@@ -406,6 +407,7 @@ func TestTransportPresets(t *testing.T) {
 	})
 }
 
+//nolint:revive // cognitive-complexity: comprehensive transport config test
 func TestNewTransportConfig(t *testing.T) {
 	t.Run("DefaultValues", func(t *testing.T) {
 		config, err := NewTransportConfig()
@@ -472,7 +474,7 @@ func TestNewTransportWithConfig_NilConfig(t *testing.T) {
 	// Call newTransportWithConfig with nil to test default handling
 	transport := newTransportWithConfig(nil)
 	if transport == nil {
-		t.Error("Expected transport, got nil")
+		t.Fatal("Expected transport, got nil")
 	}
 
 	// Should use default values

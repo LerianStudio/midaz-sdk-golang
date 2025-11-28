@@ -570,6 +570,7 @@ func TestJSONPool_NestedStructures(t *testing.T) {
 	}
 }
 
+//nolint:revive // cognitive-complexity: comprehensive test with many sub-tests
 func TestJSONPool_SlicesAndMaps(t *testing.T) {
 	pool := NewJSONPool()
 
@@ -642,7 +643,8 @@ func TestJSONPool_SlicesAndMaps(t *testing.T) {
 			t.Errorf("Expected string='value', got %v", result["string"])
 		}
 
-		if result["boolean"] != true {
+		boolVal, ok := result["boolean"].(bool)
+		if !ok || !boolVal {
 			t.Errorf("Expected boolean=true, got %v", result["boolean"])
 		}
 	})

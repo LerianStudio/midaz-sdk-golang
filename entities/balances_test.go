@@ -241,31 +241,6 @@ func newBalancesHTTPClientAdapter(mock *MockHTTPClient) *HTTPClient {
 	}
 }
 
-// createTestBalance creates a test balance for testing
-func createTestBalance(id, orgID, ledgerID, accountID, assetCode string) models.Balance {
-	now := time.Now()
-
-	return models.Balance{
-		ID:             id,
-		OrganizationID: orgID,
-		LedgerID:       ledgerID,
-		AccountID:      accountID,
-		Alias:          "@test-account",
-		Key:            "primary",
-		AssetCode:      assetCode,
-		Available:      decimal.NewFromInt(1000000),
-		OnHold:         decimal.NewFromInt(50000),
-		Version:        1,
-		AccountType:    "LIABILITY",
-		AllowSending:   true,
-		AllowReceiving: true,
-		CreatedAt:      now,
-		UpdatedAt:      now,
-		DeletedAt:      nil,
-		Metadata:       map[string]any{"key": "value"},
-	}
-}
-
 // TestBalancesEntity_ListBalances tests the ListBalances method
 func TestBalancesEntity_ListBalances(t *testing.T) {
 	tests := []struct {

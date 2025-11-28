@@ -1,3 +1,4 @@
+//nolint:revive // utils is an established package name in this SDK
 package utils
 
 import (
@@ -324,6 +325,6 @@ func BenchmarkValidateMetadata(b *testing.B) {
 	}
 
 	for i := 0; i < b.N; i++ {
-		ValidateMetadata(metadata)
+		_ = ValidateMetadata(metadata)
 	}
 }

@@ -237,7 +237,7 @@ func TestSpanUtilities(t *testing.T) {
 	span.End()
 
 	// Verify the context contains a span
-	if trace.SpanContextFromContext(childCtx).IsValid() == false {
+	if !trace.SpanContextFromContext(childCtx).IsValid() {
 		t.Fatal("Expected valid span context")
 	}
 }

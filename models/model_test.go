@@ -413,34 +413,38 @@ func TestPaginationNextPageOptions(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			options := tt.pagination.NextPageOptions()
-
-			if tt.wantNil {
-				if options != nil {
-					t.Error("Expected nil but got options")
-				}
-
-				return
-			}
-
-			if options == nil {
-				t.Error("Expected options but got nil")
-				return
-			}
-
-			if options.Limit != tt.wantLimit {
-				t.Errorf("Expected Limit to be %d, got %d", tt.wantLimit, options.Limit)
-			}
-
-			if tt.wantCursor != "" {
-				if options.Cursor != tt.wantCursor {
-					t.Errorf("Expected Cursor to be %s, got %s", tt.wantCursor, options.Cursor)
-				}
-			} else {
-				if options.Offset != tt.wantOffset {
-					t.Errorf("Expected Offset to be %d, got %d", tt.wantOffset, options.Offset)
-				}
-			}
+			assertPaginationNextPageOptions(t, options, tt.wantNil, tt.wantLimit, tt.wantOffset, tt.wantCursor)
 		})
+	}
+}
+
+// assertPaginationNextPageOptions validates the next page options from pagination
+func assertPaginationNextPageOptions(t *testing.T, options *ListOptions, wantNil bool, wantLimit, wantOffset int, wantCursor string) {
+	t.Helper()
+
+	if wantNil {
+		if options != nil {
+			t.Error("Expected nil but got options")
+		}
+
+		return
+	}
+
+	if options == nil {
+		t.Error("Expected options but got nil")
+		return
+	}
+
+	if options.Limit != wantLimit {
+		t.Errorf("Expected Limit to be %d, got %d", wantLimit, options.Limit)
+	}
+
+	if wantCursor != "" {
+		if options.Cursor != wantCursor {
+			t.Errorf("Expected Cursor to be %s, got %s", wantCursor, options.Cursor)
+		}
+	} else if options.Offset != wantOffset {
+		t.Errorf("Expected Offset to be %d, got %d", wantOffset, options.Offset)
 	}
 }
 
