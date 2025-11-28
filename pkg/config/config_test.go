@@ -61,7 +61,7 @@ func TestDefaultConstants(t *testing.T) {
 		{"DefaultLocalOnboardingPath", DefaultLocalOnboardingPath, ""},
 		{"DefaultLocalTransactionPath", DefaultLocalTransactionPath, ""},
 		{"DefaultMaxRetries", DefaultMaxRetries, 3},
-		{"DefaultRetryWaitMin", DefaultRetryWaitMin, 1 * time.Second},
+		{"DefaultMinRetryWait", DefaultMinRetryWait, 1 * time.Second},
 		{"DefaultRetryWaitMax", DefaultRetryWaitMax, 30 * time.Second},
 		{"DefaultEnableIdempotency", DefaultEnableIdempotency, true},
 		{"DefaultEnableRetries", DefaultEnableRetries, true},
@@ -93,7 +93,7 @@ func TestNewConfig_Defaults(t *testing.T) {
 	assert.Equal(t, DefaultTimeout*time.Second, config.Timeout)
 	assert.Equal(t, version.UserAgent(), config.UserAgent)
 	assert.Equal(t, DefaultMaxRetries, config.MaxRetries)
-	assert.Equal(t, DefaultRetryWaitMin, config.RetryWaitMin)
+	assert.Equal(t, DefaultMinRetryWait, config.RetryWaitMin)
 	assert.Equal(t, DefaultRetryWaitMax, config.RetryWaitMax)
 	assert.True(t, config.EnableRetries)
 	assert.True(t, config.EnableIdempotency)
@@ -956,7 +956,7 @@ func TestDefaultConfig(t *testing.T) {
 	assert.Equal(t, DefaultTimeout*time.Second, config.Timeout)
 	assert.Equal(t, version.UserAgent(), config.UserAgent)
 	assert.Equal(t, DefaultMaxRetries, config.MaxRetries)
-	assert.Equal(t, DefaultRetryWaitMin, config.RetryWaitMin)
+	assert.Equal(t, DefaultMinRetryWait, config.RetryWaitMin)
 	assert.Equal(t, DefaultRetryWaitMax, config.RetryWaitMax)
 	assert.True(t, config.EnableRetries)
 	assert.True(t, config.EnableIdempotency)

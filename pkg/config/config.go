@@ -67,8 +67,6 @@ const (
 	DefaultMaxRetries   = 3
 	DefaultMinRetryWait = 1 * time.Second
 	DefaultRetryWaitMax = 30 * time.Second
-	// Deprecated: Use DefaultMinRetryWait instead - kept for backward compatibility
-	DefaultRetryWaitMin = DefaultMinRetryWait
 
 	// Default feature flags
 	DefaultEnableIdempotency = true
