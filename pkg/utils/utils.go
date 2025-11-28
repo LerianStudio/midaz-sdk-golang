@@ -1,4 +1,4 @@
-package utils
+package utils //nolint:revive // utils is an established SDK package name for backward compatibility
 
 import (
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation"

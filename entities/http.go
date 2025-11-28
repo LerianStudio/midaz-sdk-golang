@@ -21,6 +21,7 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/performance"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/version"
+	"go.opentelemetry.io/otel/propagation"
 )
 
 // getUserAgent retrieves the user agent string from environment variable or uses default
@@ -204,6 +205,12 @@ func (c *HTTPClient) doRequest(ctx context.Context, method, requestURL string, h
 	// Setup headers
 	c.setupRequestHeaders(req, headers, body != nil)
 
+	// Inject trace context into request headers for distributed tracing
+	if c.observability != nil && c.observability.IsEnabled() {
+		propagator := propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{})
+		propagator.Inject(ctx, propagation.HeaderCarrier(req.Header))
+	}
+
 	// Execute request with retry logic and capture elapsed time
 	start := time.Now()
 	resp, responseBody, err := c.executeRequestWithRetry(ctx, req, method, requestURL)
@@ -268,6 +275,12 @@ func (c *HTTPClient) doRawRequest(ctx context.Context, method, requestURL string
 	}
 
 	c.setupRequestHeaders(req, headers, len(body) > 0)
+
+	// Inject trace context into request headers for distributed tracing
+	if c.observability != nil && c.observability.IsEnabled() {
+		propagator := propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{})
+		propagator.Inject(ctx, propagation.HeaderCarrier(req.Header))
+	}
 
 	start := time.Now()
 	resp, responseBody, err := c.executeRequestWithRetry(ctx, req, method, requestURL)

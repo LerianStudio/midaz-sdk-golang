@@ -3,6 +3,7 @@ package generator
 import (
 	"context"
 	"errors"
+	"strconv"
 	"sync/atomic"
 	"testing"
 
@@ -184,12 +185,13 @@ func TestLedgerGenerator_GenerateForOrg_NilEntity(t *testing.T) {
 
 func TestLedgerGenerator_GenerateForOrg_Success(t *testing.T) {
 	var callCount atomic.Int32
+
 	mockSvc := &mockLedgersService{
 		createFunc: func(_ context.Context, _ string, input *models.CreateLedgerInput) (*models.Ledger, error) {
 			count := callCount.Add(1)
 
 			return &models.Ledger{
-				ID:   "ledger-" + string(rune('0'+count)),
+				ID:   "ledger-" + strconv.Itoa(int(count)),
 				Name: input.Name,
 			}, nil
 		},
@@ -209,6 +211,7 @@ func TestLedgerGenerator_GenerateForOrg_Success(t *testing.T) {
 
 func TestLedgerGenerator_GenerateForOrg_PartialError(t *testing.T) {
 	var callCount atomic.Int32
+
 	mockSvc := &mockLedgersService{
 		createFunc: func(_ context.Context, _ string, input *models.CreateLedgerInput) (*models.Ledger, error) {
 			count := callCount.Add(1)

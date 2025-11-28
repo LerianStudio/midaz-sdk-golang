@@ -22,14 +22,17 @@ func TestHTTPMiddlewareDirectly(t *testing.T) {
 		WithPropagators(propagation.TraceContext{}, propagation.Baggage{}),
 	)
 	require.NoError(t, err)
+
 	defer func() {
 		assert.NoError(t, provider.Shutdown(context.Background()))
 	}()
 
 	// Track received headers
 	var receivedHeaders http.Header
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		receivedHeaders = r.Header.Clone()
+
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
@@ -42,6 +45,7 @@ func TestHTTPMiddlewareDirectly(t *testing.T) {
 
 	// Start a trace
 	tracer := provider.Tracer()
+
 	ctx, span := tracer.Start(context.Background(), "test_request")
 	defer span.End()
 
@@ -50,11 +54,12 @@ func TestHTTPMiddlewareDirectly(t *testing.T) {
 	require.True(t, originalTraceID.IsValid(), "Original trace ID should be valid")
 
 	// Make HTTP request
-	req, err := http.NewRequestWithContext(ctx, "GET", server.URL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, server.URL, nil)
 	require.NoError(t, err)
 
 	resp, err := client.Do(req)
 	require.NoError(t, err)
+
 	defer resp.Body.Close()
 
 	// Verify traceparent header was injected
@@ -68,6 +73,7 @@ func TestHTTPMiddlewareDirectly(t *testing.T) {
 
 	// Test extraction to verify the propagated trace ID
 	headers := make(map[string]string)
+
 	for name, values := range receivedHeaders {
 		if len(values) > 0 {
 			headers[name] = values[0]

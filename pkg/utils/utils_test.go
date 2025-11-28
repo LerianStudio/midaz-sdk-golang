@@ -1,4 +1,3 @@
-//nolint:revive // utils is an established package name in this SDK
 package utils
 
 import (

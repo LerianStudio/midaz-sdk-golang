@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -1736,7 +1737,7 @@ func TestSegmentsEntity_ConcurrentRequests(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"id": "seg-` + string(rune('0'+count)) + `", "name": "Segment", "status": {"code": "ACTIVE"}}`))
+		_, _ = fmt.Fprintf(w, `{"id": "seg-%d", "name": "Segment", "status": {"code": "ACTIVE"}}`, count)
 	}))
 	defer server.Close()
 

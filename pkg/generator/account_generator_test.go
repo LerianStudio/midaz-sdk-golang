@@ -3,6 +3,7 @@ package generator
 import (
 	"context"
 	"errors"
+	"strconv"
 	"sync/atomic"
 	"testing"
 
@@ -316,12 +317,13 @@ func TestAccountGenerator_GenerateBatch_NilEntity(t *testing.T) {
 
 func TestAccountGenerator_GenerateBatch_Success(t *testing.T) {
 	var callCount atomic.Int32
+
 	mockSvc := &mockAccountsService{
 		createFunc: func(_ context.Context, _, _ string, input *models.CreateAccountInput) (*models.Account, error) {
 			count := callCount.Add(1)
 
 			return &models.Account{
-				ID:   "acc-" + string(rune('0'+count)),
+				ID:   "acc-" + strconv.Itoa(int(count)),
 				Name: input.Name,
 			}, nil
 		},
@@ -347,6 +349,7 @@ func TestAccountGenerator_GenerateBatch_Success(t *testing.T) {
 
 func TestAccountGenerator_GenerateBatch_PartialError(t *testing.T) {
 	var callCount atomic.Int32
+
 	mockSvc := &mockAccountsService{
 		createFunc: func(_ context.Context, _, _ string, input *models.CreateAccountInput) (*models.Account, error) {
 			count := callCount.Add(1)

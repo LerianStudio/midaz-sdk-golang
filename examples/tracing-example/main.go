@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -134,12 +135,139 @@ func createOrganizationWithTracing(midazClient *client.Client, provider observab
 	return nil
 }
 
+// workflowContext holds shared state for the complex workflow
+type workflowContext struct {
+	midazClient *client.Client
+	provider    observability.Provider
+	tracer      trace.Tracer
+	logger      observability.Logger
+	orgID       string
+	ledger      *models.Ledger
+}
+
+// listOrganizationsStep lists organizations and returns the first org ID
+func (wc *workflowContext) listOrganizationsStep(ctx context.Context) (context.Context, error) {
+	ctx, listSpan := wc.tracer.Start(ctx, "list_organizations")
+	defer listSpan.End()
+
+	wc.logger.Info("Listing organizations")
+
+	organizations, err := wc.midazClient.Entity.Organizations.ListOrganizations(ctx, nil)
+	if err != nil {
+		listSpan.SetStatus(codes.Error, err.Error())
+		listSpan.RecordError(err)
+		return ctx, fmt.Errorf("failed to list organizations: %w", err)
+	}
+
+	listSpan.SetAttributes(attribute.Int("organizations.count", len(organizations.Items)))
+	listSpan.SetStatus(codes.Ok, "Organizations listed successfully")
+
+	if len(organizations.Items) == 0 {
+		return ctx, errors.New("no organizations found")
+	}
+
+	wc.orgID = organizations.Items[0].ID
+	wc.logger.Info("Using organization", "org_id", wc.orgID)
+
+	return ctx, nil
+}
+
+// createLedgerStep creates a ledger in the organization
+func (wc *workflowContext) createLedgerStep(ctx context.Context) (context.Context, error) {
+	ctx, ledgerSpan := wc.tracer.Start(ctx, "create_ledger")
+	defer ledgerSpan.End()
+
+	ledgerSpan.SetAttributes(attribute.String("organization.id", wc.orgID))
+
+	ledgerInput := models.NewCreateLedgerInput("Main Ledger")
+	ledger, err := wc.midazClient.Entity.Ledgers.CreateLedger(ctx, wc.orgID, ledgerInput)
+	if err != nil {
+		ledgerSpan.SetStatus(codes.Error, err.Error())
+		ledgerSpan.RecordError(err)
+		return ctx, fmt.Errorf("failed to create ledger: %w", err)
+	}
+
+	wc.ledger = ledger
+	ledgerSpan.SetAttributes(
+		attribute.String("ledger.id", ledger.ID),
+		attribute.String("ledger.name", ledger.Name),
+	)
+	ledgerSpan.SetStatus(codes.Ok, "Ledger created successfully")
+
+	return ctx, nil
+}
+
+// createAssetsStep creates multiple assets in batch
+func (wc *workflowContext) createAssetsStep(ctx context.Context, assetNames []string) context.Context {
+	ctx, assetsSpan := wc.tracer.Start(ctx, "create_assets_batch")
+	defer assetsSpan.End()
+
+	assetsSpan.SetAttributes(attribute.Int("assets.count", len(assetNames)))
+
+	for _, assetName := range assetNames {
+		wc.createSingleAsset(ctx, assetName)
+	}
+
+	assetsSpan.SetStatus(codes.Ok, "Assets batch completed")
+	return ctx
+}
+
+// createSingleAsset creates a single asset with tracing
+func (wc *workflowContext) createSingleAsset(ctx context.Context, assetName string) {
+	_, assetSpan := wc.tracer.Start(ctx, "create_asset")
+	defer assetSpan.End()
+
+	assetSpan.SetAttributes(
+		attribute.String("asset.code", assetName),
+		attribute.String("ledger.id", wc.ledger.ID),
+	)
+
+	assetInput := models.NewCreateAssetInput(assetName, assetName)
+	asset, err := wc.midazClient.Entity.Assets.CreateAsset(ctx, wc.orgID, wc.ledger.ID, assetInput)
+	if err != nil {
+		assetSpan.SetStatus(codes.Error, err.Error())
+		assetSpan.RecordError(err)
+		wc.logger.Error("Failed to create asset", "asset", assetName, "error", err)
+		return
+	}
+
+	assetSpan.SetAttributes(attribute.String("asset.id", asset.ID))
+	assetSpan.SetStatus(codes.Ok, "Asset created successfully")
+	wc.logger.Info("Asset created", "asset_id", asset.ID, "code", asset.Code)
+}
+
+// createPortfolioStep creates a portfolio with timing
+func (wc *workflowContext) createPortfolioStep(ctx context.Context) (*models.Portfolio, error) {
+	_, portfolioSpan := wc.tracer.Start(ctx, "create_portfolio")
+	defer portfolioSpan.End()
+
+	startTime := time.Now()
+	portfolioInput := models.NewCreatePortfolioInput(wc.orgID, "Main Portfolio")
+	portfolio, err := wc.midazClient.Entity.Portfolios.CreatePortfolio(ctx, wc.orgID, wc.ledger.ID, portfolioInput)
+
+	duration := time.Since(startTime)
+	portfolioSpan.SetAttributes(attribute.Int64("operation.duration_ms", duration.Milliseconds()))
+
+	if err != nil {
+		portfolioSpan.SetStatus(codes.Error, err.Error())
+		portfolioSpan.RecordError(err)
+		return nil, fmt.Errorf("failed to create portfolio: %w", err)
+	}
+
+	portfolioSpan.SetAttributes(
+		attribute.String("portfolio.id", portfolio.ID),
+		attribute.String("portfolio.name", portfolio.Name),
+	)
+	portfolioSpan.SetStatus(codes.Ok, "Portfolio created successfully")
+
+	return portfolio, nil
+}
+
 // performComplexWorkflowWithTracing demonstrates a complex workflow with multiple API calls and nested spans
 func performComplexWorkflowWithTracing(midazClient *client.Client, provider observability.Provider) error {
 	tracer := provider.Tracer()
 	logger := provider.Logger()
 
-	// Start root span for the entire workflow
 	ctx, rootSpan := tracer.Start(context.Background(), "complex_business_workflow")
 	defer rootSpan.End()
 
@@ -148,130 +276,47 @@ func performComplexWorkflowWithTracing(midazClient *client.Client, provider obse
 		attribute.String("workflow.version", "1.0"),
 	)
 
-	// Step 1: List organizations (with span)
-	ctx, listSpan := tracer.Start(ctx, "list_organizations")
-	logger.Info("Listing organizations")
+	wc := &workflowContext{
+		midazClient: midazClient,
+		provider:    provider,
+		tracer:      tracer,
+		logger:      logger,
+	}
 
-	organizations, err := midazClient.Entity.Organizations.ListOrganizations(ctx, nil)
+	// Step 1: List organizations
+	ctx, err := wc.listOrganizationsStep(ctx)
 	if err != nil {
-		listSpan.SetStatus(codes.Error, err.Error())
-		listSpan.RecordError(err)
-		listSpan.End()
-		return fmt.Errorf("failed to list organizations: %w", err)
+		return err
 	}
 
-	listSpan.SetAttributes(
-		attribute.Int("organizations.count", len(organizations.Items)),
-	)
-	listSpan.SetStatus(codes.Ok, "Organizations listed successfully")
-	listSpan.End()
-
-	if len(organizations.Items) == 0 {
-		return fmt.Errorf("no organizations found")
-	}
-
-	orgID := organizations.Items[0].ID
-	logger.Info("Using organization", "org_id", orgID)
-
-	// Step 2: Create ledger (with span)
-	ctx, ledgerSpan := tracer.Start(ctx, "create_ledger")
-	ledgerSpan.SetAttributes(
-		attribute.String("organization.id", orgID),
-	)
-
-	ledgerInput := models.NewCreateLedgerInput("Main Ledger")
-	ledger, err := midazClient.Entity.Ledgers.CreateLedger(ctx, orgID, ledgerInput)
+	// Step 2: Create ledger
+	ctx, err = wc.createLedgerStep(ctx)
 	if err != nil {
-		ledgerSpan.SetStatus(codes.Error, err.Error())
-		ledgerSpan.RecordError(err)
-		ledgerSpan.End()
-		return fmt.Errorf("failed to create ledger: %w", err)
+		return err
 	}
 
-	ledgerSpan.SetAttributes(
-		attribute.String("ledger.id", ledger.ID),
-		attribute.String("ledger.name", ledger.Name),
-	)
-	ledgerSpan.SetStatus(codes.Ok, "Ledger created successfully")
-	ledgerSpan.End()
-
-	// Step 3: Create multiple assets concurrently (with spans)
+	// Step 3: Create assets
 	assetNames := []string{"USD", "EUR", "BTC"}
+	ctx = wc.createAssetsStep(ctx, assetNames)
 
-	ctx, assetsSpan := tracer.Start(ctx, "create_assets_batch")
-	assetsSpan.SetAttributes(
-		attribute.Int("assets.count", len(assetNames)),
-	)
-
-	for _, assetName := range assetNames {
-		// Create child span for each asset
-		var assetSpan trace.Span
-		ctx, assetSpan = tracer.Start(ctx, "create_asset")
-		assetSpan.SetAttributes(
-			attribute.String("asset.code", assetName),
-			attribute.String("ledger.id", ledger.ID),
-		)
-
-		assetInput := models.NewCreateAssetInput(assetName, assetName)
-		asset, err := midazClient.Entity.Assets.CreateAsset(ctx, orgID, ledger.ID, assetInput)
-		if err != nil {
-			assetSpan.SetStatus(codes.Error, err.Error())
-			assetSpan.RecordError(err)
-			assetSpan.End()
-			logger.Error("Failed to create asset", "asset", assetName, "error", err)
-			continue
-		}
-
-		assetSpan.SetAttributes(
-			attribute.String("asset.id", asset.ID),
-		)
-		assetSpan.SetStatus(codes.Ok, "Asset created successfully")
-		assetSpan.End()
-
-		logger.Info("Asset created", "asset_id", asset.ID, "code", asset.Code)
-	}
-
-	assetsSpan.SetStatus(codes.Ok, "Assets batch completed")
-	assetsSpan.End()
-
-	// Step 4: Create portfolio (with span and timing)
-	ctx, portfolioSpan := tracer.Start(ctx, "create_portfolio")
-	startTime := time.Now()
-
-	portfolioInput := models.NewCreatePortfolioInput(orgID, "Main Portfolio")
-	portfolio, err := midazClient.Entity.Portfolios.CreatePortfolio(ctx, orgID, ledger.ID, portfolioInput)
-
-	duration := time.Since(startTime)
-	portfolioSpan.SetAttributes(
-		attribute.Int64("operation.duration_ms", duration.Milliseconds()),
-	)
-
+	// Step 4: Create portfolio
+	portfolio, err := wc.createPortfolioStep(ctx)
 	if err != nil {
-		portfolioSpan.SetStatus(codes.Error, err.Error())
-		portfolioSpan.RecordError(err)
-		portfolioSpan.End()
-		return fmt.Errorf("failed to create portfolio: %w", err)
+		return err
 	}
-
-	portfolioSpan.SetAttributes(
-		attribute.String("portfolio.id", portfolio.ID),
-		attribute.String("portfolio.name", portfolio.Name),
-	)
-	portfolioSpan.SetStatus(codes.Ok, "Portfolio created successfully")
-	portfolioSpan.End()
 
 	// Set final status on root span
 	rootSpan.SetAttributes(
-		attribute.String("organization.id", orgID),
-		attribute.String("ledger.id", ledger.ID),
+		attribute.String("organization.id", wc.orgID),
+		attribute.String("ledger.id", wc.ledger.ID),
 		attribute.String("portfolio.id", portfolio.ID),
 		attribute.Int("workflow.assets_created", len(assetNames)),
 	)
 	rootSpan.SetStatus(codes.Ok, "Complex workflow completed successfully")
 
 	logger.Info("Complex workflow completed successfully",
-		"org_id", orgID,
-		"ledger_id", ledger.ID,
+		"org_id", wc.orgID,
+		"ledger_id", wc.ledger.ID,
 		"portfolio_id", portfolio.ID,
 	)
 
