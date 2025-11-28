@@ -295,7 +295,8 @@ func testTraceContextPersistenceAcrossRequests(t *testing.T) {
 
 		resp, err := client.Do(req)
 		require.NoError(t, err)
-		resp.Body.Close()
+
+		_ = resp.Body.Close()
 	}
 
 	// Verify all requests had traceparent headers with the same trace ID
