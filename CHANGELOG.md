@@ -17,6 +17,18 @@ Contributors: Guilherme Moreira Rodrigues
 - **Environment Configuration**: Improved the setup of automated workflows, contributing to the overall robustness and efficiency of our development and deployment pipeline.
 
 
+## [v2.2.0-beta.8] - 2025-11-28
+
+[Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v2.2.0-beta.7...v2.2.0-beta.8)
+Contributors: Fred Amaral
+
+### 🐛 Bug Fixes
+- **Improved Security Scans**: Suppressed false positive alerts from CodeQL in the authentication module, enhancing the reliability of security scans. This ensures that developers can concentrate on real security issues, improving the overall security posture of the application.
+
+### 🔧 Maintenance
+- **Code Quality Improvements**: Updated code annotations and comments across build, backend, and documentation components to suppress false positives in CodeQL analysis. This maintenance task ensures a cleaner codebase and more accurate feedback from automated code review tools, allowing developers to focus on meaningful improvements.
+
+
 ## [v2.2.0-beta.6] - 2025-11-28
 
 [Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v2.2.0-beta.5...v2.2.0-beta.6)
