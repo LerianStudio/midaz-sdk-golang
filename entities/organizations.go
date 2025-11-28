@@ -340,11 +340,7 @@ func (e *organizationsEntity) DeleteOrganization(ctx context.Context, id string)
 		return errors.NewInternalError(operation, err)
 	}
 
-	if err := e.HTTPClient.sendRequest(req, nil); err != nil {
-		return err
-	}
-
-	return nil
+	return e.HTTPClient.sendRequest(req, nil)
 }
 
 // GetOrganizationsMetricsCount gets the count metrics for organizations.

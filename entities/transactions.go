@@ -673,11 +673,7 @@ func (e *transactionsEntity) CancelTransaction(ctx context.Context, orgID, ledge
 		return sdkerrors.NewInternalError(operation, err)
 	}
 
-	if err := e.httpClient.sendRequest(req, nil); err != nil {
-		return err
-	}
-
-	return nil
+	return e.httpClient.sendRequest(req, nil)
 }
 
 // CreateInflowTransaction creates an inflow transaction (funds entering the system).

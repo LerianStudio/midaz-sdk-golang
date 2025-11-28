@@ -355,11 +355,7 @@ func (e *ledgersEntity) DeleteLedger(
 		return errors.NewInternalError(operation, err)
 	}
 
-	if err := e.httpClient.sendRequest(req, nil); err != nil {
-		return err
-	}
-
-	return nil
+	return e.httpClient.sendRequest(req, nil)
 }
 
 // GetLedgersMetricsCount gets the count metrics for ledgers in an organization.

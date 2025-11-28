@@ -337,7 +337,6 @@ func (e *operationsEntity) ListOperations(ctx context.Context, orgID, ledgerID, 
 //	} else if operation.Type == models.OperationTypeCredit {
 //	    fmt.Println("This is a credit operation (funds entering the account)")
 //	}
-
 func (e *operationsEntity) GetOperation(ctx context.Context, orgID, ledgerID, accountID, operationID string, _ ...string) (*models.Operation, error) {
 	const operation = "GetOperation"
 

@@ -324,11 +324,7 @@ func (e *portfoliosEntity) DeletePortfolio(ctx context.Context, organizationID, 
 		return errors.NewInternalError(operation, err)
 	}
 
-	if err := e.HTTPClient.sendRequest(req, nil); err != nil {
-		return err
-	}
-
-	return nil
+	return e.HTTPClient.sendRequest(req, nil)
 }
 
 // GetPortfoliosMetricsCount gets the count metrics for portfolios in a ledger.

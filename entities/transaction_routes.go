@@ -316,9 +316,5 @@ func (e *transactionRoutesEntity) DeleteTransactionRoute(ctx context.Context, or
 		return errors.NewInternalError(operation, err)
 	}
 
-	if err := e.httpClient.sendRequest(req, nil); err != nil {
-		return err
-	}
-
-	return nil
+	return e.httpClient.sendRequest(req, nil)
 }

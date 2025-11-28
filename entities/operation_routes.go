@@ -315,9 +315,5 @@ func (e *operationRoutesEntity) DeleteOperationRoute(ctx context.Context, organi
 		return errors.NewInternalError(operation, err)
 	}
 
-	if err := e.httpClient.sendRequest(req, nil); err != nil {
-		return err
-	}
-
-	return nil
+	return e.httpClient.sendRequest(req, nil)
 }
