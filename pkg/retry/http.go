@@ -174,9 +174,9 @@ func WithHTTPRetryableHTTPCodes(codes []int) HTTPOption {
 //	    "connection refused",
 //	    "timeout",
 //	}))
-func WithHTTPRetryableNetworkErrors(errors []string) HTTPOption {
+func WithHTTPRetryableNetworkErrors(networkErrors []string) HTTPOption {
 	return func(o *HTTPOptions) error {
-		o.RetryableNetworkErrors = errors
+		o.RetryableNetworkErrors = networkErrors
 		return nil
 	}
 }

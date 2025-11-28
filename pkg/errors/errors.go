@@ -552,15 +552,12 @@ func NewMidazError(code ErrorCode, err error) *MidazError {
 	}
 }
 
-// Helper to create a value of the same type as the original error
+// ValueOfOriginalType creates a value of the same type as the original error
 func ValueOfOriginalType(err error, value any) error {
-	{
-		var errCase0 *MidazError
-		switch {
-		case errors.As(err, &errCase0):
-			if code, ok := value.(ErrorCode); ok {
-				return &MidazError{Code: code, Message: "Test error for " + string(code)}
-			}
+	var errCase0 *MidazError
+	if errors.As(err, &errCase0) {
+		if code, ok := value.(ErrorCode); ok {
+			return &MidazError{Code: code, Message: "Test error for " + string(code)}
 		}
 	}
 
@@ -807,66 +804,82 @@ func CheckAssetMismatchError(err error) bool {
 // Public functions for checking error types
 // These are aliases to the Check functions for backward compatibility
 
+// IsValidationError checks if an error is a validation error.
 func IsValidationError(err error) bool {
 	return CheckValidationError(err)
 }
 
+// IsNotFoundError checks if an error is a not found error.
 func IsNotFoundError(err error) bool {
 	return CheckNotFoundError(err)
 }
 
+// IsAuthenticationError checks if an error is an authentication error.
 func IsAuthenticationError(err error) bool {
 	return CheckAuthenticationError(err)
 }
 
+// IsAuthorizationError checks if an error is an authorization error.
 func IsAuthorizationError(err error) bool {
 	return CheckAuthorizationError(err)
 }
 
+// IsConflictError checks if an error is a conflict error.
 func IsConflictError(err error) bool {
 	return CheckConflictError(err)
 }
 
+// IsPermissionError checks if an error is a permission error.
 func IsPermissionError(err error) bool {
 	return CheckAuthorizationError(err)
 }
 
+// IsAlreadyExistsError checks if an error is an already exists error.
 func IsAlreadyExistsError(err error) bool {
 	return CheckConflictError(err)
 }
 
+// IsIdempotencyError checks if an error is an idempotency error.
 func IsIdempotencyError(err error) bool {
 	return CheckIdempotencyError(err)
 }
 
+// IsRateLimitError checks if an error is a rate limit error.
 func IsRateLimitError(err error) bool {
 	return CheckRateLimitError(err)
 }
 
+// IsTimeoutError checks if an error is a timeout error.
 func IsTimeoutError(err error) bool {
 	return CheckTimeoutError(err)
 }
 
+// IsNetworkError checks if an error is a network error.
 func IsNetworkError(err error) bool {
 	return CheckNetworkError(err)
 }
 
+// IsCancellationError checks if an error is a cancellation error.
 func IsCancellationError(err error) bool {
 	return CheckCancellationError(err)
 }
 
+// IsInternalError checks if an error is an internal error.
 func IsInternalError(err error) bool {
 	return CheckInternalError(err)
 }
 
+// IsInsufficientBalanceError checks if an error is an insufficient balance error.
 func IsInsufficientBalanceError(err error) bool {
 	return CheckInsufficientBalanceError(err)
 }
 
+// IsAccountEligibilityError checks if an error is an account eligibility error.
 func IsAccountEligibilityError(err error) bool {
 	return CheckAccountEligibilityError(err)
 }
 
+// IsAssetMismatchError checks if an error is an asset mismatch error.
 func IsAssetMismatchError(err error) bool {
 	return CheckAssetMismatchError(err)
 }

@@ -21,6 +21,7 @@ func NewAccountTypeGenerator(e *entities.Entity, obs observability.Provider) Acc
 	return &accountTypeGenerator{e: e, obs: obs}
 }
 
+// Generate creates a new account type with the specified name, key, and metadata.
 func (g *accountTypeGenerator) Generate(ctx context.Context, orgID, ledgerID string, name, key string, metadata map[string]any) (*models.AccountType, error) {
 	if g.e == nil || g.e.AccountTypes == nil {
 		return nil, errors.New("entity account types service not initialized")

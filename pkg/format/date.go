@@ -16,9 +16,9 @@ const (
 	TimeFormat = "15:04:05"
 )
 
-// FormatISO formats dates and times in ISO 8601 format with various options
+// ISO formats dates and times in ISO 8601 format with various options
 // for controlling the level of detail and formatting options.
-type FormatISO struct {
+type ISO struct {
 	// IncludeTime determines whether to include the time component
 	IncludeTime bool
 
@@ -29,13 +29,13 @@ type FormatISO struct {
 	NAOnZero bool
 }
 
-// FormatISOOption defines a function that configures a FormatISO instance
-type FormatISOOption func(*FormatISO) error
+// ISOOption defines a function that configures an ISO formatter instance
+type ISOOption func(*ISO) error
 
 // WithIncludeTime configures whether to include the time component.
 // Note that if milliseconds are already enabled, time cannot be disabled.
-func WithIncludeTime(include bool) FormatISOOption {
-	return func(f *FormatISO) error {
+func WithIncludeTime(include bool) ISOOption {
+	return func(f *ISO) error {
 		// Can't disable time if milliseconds are enabled
 		if !include && f.IncludeMilliseconds {
 			// Keep time enabled when milliseconds are enabled
@@ -50,8 +50,8 @@ func WithIncludeTime(include bool) FormatISOOption {
 
 // WithIncludeMilliseconds configures whether to include milliseconds
 // If milliseconds are included, time will automatically be included as well.
-func WithIncludeMilliseconds(include bool) FormatISOOption {
-	return func(f *FormatISO) error {
+func WithIncludeMilliseconds(include bool) ISOOption {
+	return func(f *ISO) error {
 		if include {
 			// Automatically enable time when milliseconds are enabled
 			f.IncludeTime = true
@@ -64,17 +64,17 @@ func WithIncludeMilliseconds(include bool) FormatISOOption {
 }
 
 // WithNAOnZero configures whether to return "N/A" for zero time values
-func WithNAOnZero(enabled bool) FormatISOOption {
-	return func(f *FormatISO) error {
+func WithNAOnZero(enabled bool) ISOOption {
+	return func(f *ISO) error {
 		f.NAOnZero = enabled
 		return nil
 	}
 }
 
-// NewFormatISO creates a new FormatISO instance with the given options
-func NewFormatISO(opts ...FormatISOOption) (*FormatISO, error) {
+// NewISO creates a new ISO formatter instance with the given options
+func NewISO(opts ...ISOOption) (*ISO, error) {
 	// Start with default options
-	formatter := &FormatISO{
+	formatter := &ISO{
 		IncludeTime:         true,
 		IncludeMilliseconds: false,
 		NAOnZero:            true,
@@ -91,32 +91,32 @@ func NewFormatISO(opts ...FormatISOOption) (*FormatISO, error) {
 }
 
 // DefaultISOFormat returns the default ISO format configuration
-// For backward compatibility, this returns a FormatISO with default settings
-func DefaultISOFormat() *FormatISO {
-	// NewFormatISO with no options always succeeds - error check is safe to ignore
+// For backward compatibility, this returns an ISO formatter with default settings
+func DefaultISOFormat() *ISO {
+	// NewISO with no options always succeeds - error check is safe to ignore
 	// as the default options have no validation that can fail
-	formatter, _ := NewFormatISO() //nolint:errcheck // default options never fail
+	formatter, _ := NewISO() //nolint:errcheck // default options never fail
 	return formatter
 }
 
 // DateOnly returns an ISO formatter configured for date-only output
-// For backward compatibility, this returns a FormatISO with date-only settings
-func DateOnly() *FormatISO {
+// For backward compatibility, this returns an ISO formatter with date-only settings
+func DateOnly() *ISO {
 	// WithIncludeTime option always returns nil error
-	formatter, _ := NewFormatISO(WithIncludeTime(false)) //nolint:errcheck // option never fails
+	formatter, _ := NewISO(WithIncludeTime(false)) //nolint:errcheck // option never fails
 	return formatter
 }
 
 // DateTimeWithMillis returns an ISO formatter configured for date-time with milliseconds
-// For backward compatibility, this returns a FormatISO with date-time with milliseconds settings
-func DateTimeWithMillis() *FormatISO {
+// For backward compatibility, this returns an ISO formatter with date-time with milliseconds settings
+func DateTimeWithMillis() *ISO {
 	// WithIncludeMilliseconds option always returns nil error
-	formatter, _ := NewFormatISO(WithIncludeMilliseconds(true)) //nolint:errcheck // option never fails
+	formatter, _ := NewISO(WithIncludeMilliseconds(true)) //nolint:errcheck // option never fails
 	return formatter
 }
 
 // Format formats the time according to the formatter's configuration
-func (f *FormatISO) Format(t time.Time) string {
+func (f *ISO) Format(t time.Time) string {
 	if t.IsZero() && f.NAOnZero {
 		return "N/A"
 	}
@@ -150,3 +150,14 @@ func ParseISO(s string) (time.Time, error) {
 	// Finally try date-only format
 	return time.Parse(DateFormat, s)
 }
+
+// Backward compatibility aliases - deprecated, use the shorter names instead
+
+// FormatISO is deprecated, use ISO instead.
+type FormatISO = ISO //nolint:revive // backward compatibility alias
+
+// FormatISOOption is deprecated, use ISOOption instead.
+type FormatISOOption = ISOOption //nolint:revive // backward compatibility alias
+
+// NewFormatISO is deprecated, use NewISO instead.
+var NewFormatISO = NewISO

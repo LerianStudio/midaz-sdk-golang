@@ -20,6 +20,7 @@ func NewOperationRouteGenerator(e *entities.Entity, obs observability.Provider) 
 	return &operationRouteGenerator{e: e, obs: obs}
 }
 
+// Generate creates a single operation route from the provided input.
 func (g *operationRouteGenerator) Generate(ctx context.Context, orgID, ledgerID string, input *models.CreateOperationRouteInput) (*models.OperationRoute, error) {
 	if g.e == nil || g.e.OperationRoutes == nil {
 		return nil, errors.New("entity operation routes service not initialized")

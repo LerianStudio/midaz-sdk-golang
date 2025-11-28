@@ -329,11 +329,7 @@ func (v *Validator) ValidateMetadata(metadata map[string]any) error {
 	}
 
 	// Check total metadata size
-	if err := v.validateMetadataSize(metadata); err != nil {
-		return err
-	}
-
-	return nil
+	return v.validateMetadataSize(metadata)
 }
 
 // validateMetadataKey validates a single metadata key
@@ -443,21 +439,21 @@ func ValidateDateRange(start, end time.Time) error {
 	return nil
 }
 
-// ValidationSummary holds the results of a validation operation
+// Summary holds the results of a validation operation
 // with multiple potential errors
-type ValidationSummary struct {
+type Summary struct {
 	Valid  bool
 	Errors []error
 }
 
 // AddError adds an error to the validation summary and marks it as invalid
-func (vs *ValidationSummary) AddError(err error) {
+func (vs *Summary) AddError(err error) {
 	vs.Valid = false
 	vs.Errors = append(vs.Errors, err)
 }
 
 // GetErrorMessages returns all error messages as a slice of strings
-func (vs *ValidationSummary) GetErrorMessages() []string {
+func (vs *Summary) GetErrorMessages() []string {
 	if vs.Valid {
 		return nil
 	}
@@ -471,7 +467,7 @@ func (vs *ValidationSummary) GetErrorMessages() []string {
 }
 
 // GetErrorSummary returns a single string with all error messages
-func (vs *ValidationSummary) GetErrorSummary() string {
+func (vs *Summary) GetErrorSummary() string {
 	if vs.Valid {
 		return ""
 	}
@@ -572,41 +568,41 @@ func validateOperationAmount(op map[string]any, index int) error {
 
 // validateOperation validates a single operation in a transaction
 func validateOperation(op map[string]any, index int, transactionAssetCode string) ([]error, bool) {
-	var errors []error
+	var opErrors []error
 
 	valid := true
 
 	// Validate operation type
 	if err := validateOperationType(op, index); err != nil {
-		errors = append(errors, err)
+		opErrors = append(opErrors, err)
 		valid = false
 	}
 
 	// Validate account ID
 	if op["account_id"] == nil {
-		errors = append(errors, fmt.Errorf("operation %d: account ID is required", index))
+		opErrors = append(opErrors, fmt.Errorf("operation %d: account ID is required", index))
 		valid = false
 	}
 
 	// Validate account alias if provided
 	if err := validateOperationAccountAlias(op, index); err != nil {
-		errors = append(errors, err)
+		opErrors = append(opErrors, err)
 		valid = false
 	}
 
 	// Validate asset code if provided
 	if err := validateOperationAssetCode(op, index, transactionAssetCode); err != nil {
-		errors = append(errors, err)
+		opErrors = append(opErrors, err)
 		valid = false
 	}
 
 	// Validate amount
 	if err := validateOperationAmount(op, index); err != nil {
-		errors = append(errors, err)
+		opErrors = append(opErrors, err)
 		valid = false
 	}
 
-	return errors, valid
+	return opErrors, valid
 }
 
 // validateChartOfAccountsGroupName validates the chart of accounts group name
@@ -666,8 +662,8 @@ func validateChartOfAccountsGroupName(name string) error {
 //	}
 //
 //	// Proceed with creating the transaction
-func ValidateCreateTransactionInput(input map[string]any) ValidationSummary {
-	summary := ValidationSummary{
+func ValidateCreateTransactionInput(input map[string]any) Summary {
+	summary := Summary{
 		Valid:  true,
 		Errors: []error{},
 	}
@@ -685,14 +681,14 @@ func ValidateCreateTransactionInput(input map[string]any) ValidationSummary {
 }
 
 // validateBasicTransactionFields validates the basic required fields of a transaction
-func validateBasicTransactionFields(summary *ValidationSummary, input map[string]any) {
+func validateBasicTransactionFields(summary *Summary, input map[string]any) {
 	validateAssetCodeField(summary, input)
 	validateAmountField(summary, input)
 	validateScaleField(summary, input)
 }
 
 // validateAssetCodeField validates the asset_code field of a transaction.
-func validateAssetCodeField(summary *ValidationSummary, input map[string]any) {
+func validateAssetCodeField(summary *Summary, input map[string]any) {
 	if input["asset_code"] == nil {
 		summary.AddError(errors.New("asset code is required"))
 		return
@@ -710,7 +706,7 @@ func validateAssetCodeField(summary *ValidationSummary, input map[string]any) {
 }
 
 // validateAmountField validates the amount field of a transaction.
-func validateAmountField(summary *ValidationSummary, input map[string]any) {
+func validateAmountField(summary *Summary, input map[string]any) {
 	if input["amount"] == nil {
 		summary.AddError(errors.New("amount is required"))
 		return
@@ -741,7 +737,7 @@ func extractNumericAmount(value any) (float64, bool) {
 }
 
 // validateScaleField validates the scale field of a transaction.
-func validateScaleField(summary *ValidationSummary, input map[string]any) {
+func validateScaleField(summary *Summary, input map[string]any) {
 	if input["scale"] == nil {
 		summary.AddError(errors.New("scale is required"))
 		return
@@ -812,7 +808,7 @@ func accumulateOperationTotals(op map[string]any, totalDebits, totalCredits *int
 }
 
 // validateTransactionOperations validates the operations in a transaction
-func validateTransactionOperations(summary *ValidationSummary, input map[string]any) {
+func validateTransactionOperations(summary *Summary, input map[string]any) {
 	if input["operations"] == nil {
 		summary.AddError(errors.New("at least one operation is required"))
 		return
@@ -832,9 +828,9 @@ func validateTransactionOperations(summary *ValidationSummary, input map[string]
 	var totalDebits, totalCredits int64
 
 	for i, op := range operations {
-		errors, valid := validateOperation(op, i, assetCode)
+		validationErrs, valid := validateOperation(op, i, assetCode)
 		if !valid {
-			for _, err := range errors {
+			for _, err := range validationErrs {
 				summary.AddError(err)
 			}
 		}
@@ -846,13 +842,13 @@ func validateTransactionOperations(summary *ValidationSummary, input map[string]
 }
 
 // validateTransactionBalance validates that the transaction is balanced
-func validateTransactionBalance(summary *ValidationSummary, input map[string]any, totalDebits, totalCredits int64) {
+func validateTransactionBalance(summary *Summary, input map[string]any, totalDebits, totalCredits int64) {
 	validateDebitsCreditsBalance(summary, totalDebits, totalCredits)
 	validateOperationTotalsMatchAmount(summary, input, totalDebits)
 }
 
 // validateDebitsCreditsBalance checks if debits and credits are equal.
-func validateDebitsCreditsBalance(summary *ValidationSummary, totalDebits, totalCredits int64) {
+func validateDebitsCreditsBalance(summary *Summary, totalDebits, totalCredits int64) {
 	if totalDebits != totalCredits {
 		summary.AddError(fmt.Errorf("transaction is unbalanced: total debits (%d) do not equal total credits (%d)",
 			totalDebits, totalCredits))
@@ -860,7 +856,7 @@ func validateDebitsCreditsBalance(summary *ValidationSummary, totalDebits, total
 }
 
 // validateOperationTotalsMatchAmount checks if operation totals match the transaction amount.
-func validateOperationTotalsMatchAmount(summary *ValidationSummary, input map[string]any, totalDebits int64) {
+func validateOperationTotalsMatchAmount(summary *Summary, input map[string]any, totalDebits int64) {
 	if input["amount"] == nil {
 		return
 	}
@@ -877,13 +873,13 @@ func validateOperationTotalsMatchAmount(summary *ValidationSummary, input map[st
 }
 
 // validateAdditionalTransactionFields validates optional fields in the transaction
-func validateAdditionalTransactionFields(summary *ValidationSummary, input map[string]any) {
+func validateAdditionalTransactionFields(summary *Summary, input map[string]any) {
 	validateChartOfAccountsGroupNameField(summary, input)
 	validateMetadataField(summary, input)
 }
 
 // validateChartOfAccountsGroupNameField validates the chart_of_accounts_group_name field if present.
-func validateChartOfAccountsGroupNameField(summary *ValidationSummary, input map[string]any) {
+func validateChartOfAccountsGroupNameField(summary *Summary, input map[string]any) {
 	if input["chart_of_accounts_group_name"] == nil {
 		return
 	}
@@ -904,7 +900,7 @@ func validateChartOfAccountsGroupNameField(summary *ValidationSummary, input map
 }
 
 // validateMetadataField validates the metadata field if present.
-func validateMetadataField(summary *ValidationSummary, input map[string]any) {
+func validateMetadataField(summary *Summary, input map[string]any) {
 	if input["metadata"] == nil {
 		return
 	}

@@ -56,7 +56,7 @@ func NewHTTPBatchProcessorWithRetry(client *http.Client, baseURL string, opts ..
 
 	// Apply all provided options, continuing with defaults on error
 	for _, opt := range opts {
-		opt(options) //nolint:errcheck // option errors are non-fatal, continue with defaults
+		_ = opt(options) //nolint:errcheck // option errors are non-fatal, continue with defaults
 	}
 
 	if client == nil {

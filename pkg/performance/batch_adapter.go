@@ -109,7 +109,7 @@ func ConvertResult(httpResult *concurrent.HTTPBatchResult) *BatchResult {
 // Adapter Methods
 
 // ExecuteBatchWithAdapter executes a batch of requests using the HTTPBatchProcessor
-func ExecuteBatchWithAdapter(processor *BatchProcessor, ctx context.Context, requests []BatchRequest) (*BatchResult, error) {
+func ExecuteBatchWithAdapter(ctx context.Context, processor *BatchProcessor, requests []BatchRequest) (*BatchResult, error) {
 	// Get the HTTP batch processor
 	httpBatchProcessor := adapterRegistry.Get(processor)
 	if httpBatchProcessor == nil {

@@ -20,6 +20,7 @@ func NewTransactionRouteGenerator(e *entities.Entity, obs observability.Provider
 	return &transactionRouteGenerator{e: e, obs: obs}
 }
 
+// Generate creates a single transaction route from the provided input.
 func (g *transactionRouteGenerator) Generate(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionRouteInput) (*models.TransactionRoute, error) {
 	if g.e == nil || g.e.TransactionRoutes == nil {
 		return nil, errors.New("entity transaction routes service not initialized")

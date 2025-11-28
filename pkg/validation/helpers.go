@@ -93,14 +93,14 @@ func validateMetadataSize(metadata map[string]any) error {
 }
 
 // ErrMetadataSizeExceeded is returned when metadata exceeds the maximum allowed size
-var ErrMetadataSizeExceeded = &ValidationError{Message: "total metadata size exceeds maximum allowed size of 4KB"}
+var ErrMetadataSizeExceeded = &Error{Message: "total metadata size exceeds maximum allowed size of 4KB"}
 
-// ValidationError represents a validation error
-type ValidationError struct {
+// Error represents a validation error
+type Error struct {
 	Message string
 }
 
 // Error implements the error interface
-func (e *ValidationError) Error() string {
+func (e *Error) Error() string {
 	return e.Message
 }

@@ -319,7 +319,7 @@ func NewHTTPBatchProcessor(client *http.Client, baseURL string, opts ...HTTPBatc
 
 	// Apply all provided options, continuing with defaults on error
 	for _, opt := range opts {
-		opt(options) //nolint:errcheck // option errors are non-fatal, continue with defaults
+		_ = opt(options) //nolint:errcheck // option errors are non-fatal, continue with defaults
 	}
 
 	if client == nil {
@@ -464,9 +464,9 @@ func (e *batchExecutor) executeWithRetries(req *http.Request) ([]byte, int, erro
 			return nil, 0, pkgerrors.NewNetworkError("HTTPBatchRequest", err)
 		}
 
-		defer resp.Body.Close()
-
 		respBody, readErr := io.ReadAll(resp.Body)
+		_ = resp.Body.Close() // #nosec G104 - best effort close after read; error doesn't affect already-read data
+
 		if readErr != nil {
 			return nil, 0, pkgerrors.NewInternalError("HTTPBatchRequest", readErr)
 		}

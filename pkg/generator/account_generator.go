@@ -7,7 +7,7 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/concurrent"
-	data "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/stats"
@@ -32,6 +32,7 @@ func NewAccountGenerator(e *entities.Entity, obs observability.Provider) Account
 	return &accountGenerator{e: e, obs: obs, mc: mc}
 }
 
+// Generate creates a single account from the provided template.
 func (g *accountGenerator) Generate(ctx context.Context, orgID, ledgerID, assetCode string, t data.AccountTemplate) (*models.Account, error) {
 	if err := g.validateInputs(orgID, ledgerID, assetCode); err != nil {
 		return nil, err
@@ -148,6 +149,7 @@ func (g *accountGenerator) createAccount(ctx context.Context, orgID, ledgerID st
 	return out, nil
 }
 
+// GenerateBatch creates multiple accounts concurrently from the provided templates.
 func (g *accountGenerator) GenerateBatch(ctx context.Context, orgID, ledgerID, assetCode string, templates []data.AccountTemplate) ([]*models.Account, error) {
 	if len(templates) == 0 {
 		return []*models.Account{}, nil

@@ -317,11 +317,7 @@ func WithDevelopmentDefaults() Option {
 			return err
 		}
 
-		if err := WithTraceSampleRate(0.5)(c); err != nil {
-			return err
-		}
-
-		return nil
+		return WithTraceSampleRate(0.5)(c)
 	}
 }
 
@@ -339,11 +335,7 @@ func WithProductionDefaults() Option {
 			return err
 		}
 
-		if err := WithTraceSampleRate(0.1)(c); err != nil {
-			return err
-		}
-
-		return nil
+		return WithTraceSampleRate(0.1)(c)
 	}
 }
 
@@ -569,24 +561,17 @@ func (p *MidazProvider) initTracing(ctx context.Context, res *sdkresource.Resour
 
 // initMetrics initializes OpenTelemetry metrics
 func (p *MidazProvider) initMetrics(ctx context.Context, res *sdkresource.Resource) error {
-	var exporter sdkmetric.Exporter
-
-	var err error
-
-	// Set up exporter
-	if p.config.CollectorEndpoint != "" {
-		// Use OTLP exporter with gRPC if collector endpoint is provided
-		exporter, err = otlpmetricgrpc.New(
-			ctx,
-			otlpmetricgrpc.WithEndpoint(p.config.CollectorEndpoint),
-			otlpmetricgrpc.WithInsecure(),
-		)
-	} else {
-		// No default metrics exporter; we'll create one if needed
-		// For now, we'll just skip metrics if no endpoint is provided
+	// No default metrics exporter; skip metrics if no endpoint is provided
+	if p.config.CollectorEndpoint == "" {
 		return nil
 	}
 
+	// Use OTLP exporter with gRPC if collector endpoint is provided
+	exporter, err := otlpmetricgrpc.New(
+		ctx,
+		otlpmetricgrpc.WithEndpoint(p.config.CollectorEndpoint),
+		otlpmetricgrpc.WithInsecure(),
+	)
 	if err != nil {
 		return fmt.Errorf("failed to create metric exporter: %w", err)
 	}
@@ -682,16 +667,16 @@ func (p *MidazProvider) Shutdown(ctx context.Context) error {
 	p.enabled = false
 
 	// Call all shutdown functions
-	var errors []error
+	var shutdownErrs []error
 
 	for _, shutdownFn := range p.shutdownFunctions {
 		if err := shutdownFn(ctx); err != nil {
-			errors = append(errors, err)
+			shutdownErrs = append(shutdownErrs, err)
 		}
 	}
 
-	if len(errors) > 0 {
-		return fmt.Errorf("errors during shutdown: %v", errors)
+	if len(shutdownErrs) > 0 {
+		return fmt.Errorf("errors during shutdown: %v", shutdownErrs)
 	}
 
 	return nil

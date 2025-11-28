@@ -11,7 +11,7 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/concurrent"
-	data "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/stats"
@@ -37,6 +37,7 @@ func NewOrganizationGenerator(e *entities.Entity, obs observability.Provider) Or
 	return &orgGenerator{e: e, obs: obs, mc: mc}
 }
 
+// Generate creates a single organization from the provided template.
 func (g *orgGenerator) Generate(ctx context.Context, template data.OrgTemplate) (*models.Organization, error) {
 	if g.e == nil || g.e.Organizations == nil {
 		return nil, errors.New("entity organizations service not initialized")
@@ -73,6 +74,7 @@ func (g *orgGenerator) Generate(ctx context.Context, template data.OrgTemplate) 
 	return out, nil
 }
 
+// GenerateBatch creates multiple organizations concurrently.
 func (g *orgGenerator) GenerateBatch(ctx context.Context, count int) ([]*models.Organization, error) {
 	if count <= 0 {
 		return []*models.Organization{}, nil

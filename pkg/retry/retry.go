@@ -221,9 +221,9 @@ func WithBackoffFactor(factor float64) Option {
 //	    "connection refused",
 //	    "timeout",
 //	}))
-func WithRetryableErrors(errors []string) Option {
+func WithRetryableErrors(retryableErrors []string) Option {
 	return func(o *Options) error {
-		o.RetryableErrors = errors
+		o.RetryableErrors = retryableErrors
 		return nil
 	}
 }

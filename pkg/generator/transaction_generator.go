@@ -8,7 +8,7 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/concurrent"
-	data "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/stats"
@@ -33,6 +33,7 @@ func NewTransactionGenerator(e *entities.Entity, obs observability.Provider) Tra
 	return &transactionGenerator{e: e, obs: obs, mc: mc}
 }
 
+// GenerateWithDSL creates a transaction using the DSL pattern.
 func (g *transactionGenerator) GenerateWithDSL(ctx context.Context, orgID, ledgerID string, pattern data.TransactionPattern) (*models.Transaction, error) {
 	if g.e == nil || g.e.Transactions == nil {
 		return nil, errors.New("entity transactions service not initialized")

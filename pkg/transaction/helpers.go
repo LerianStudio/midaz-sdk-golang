@@ -565,8 +565,8 @@ func buildMultiTransferInput(opts *MultiTransferOptions, idempotencyKey string, 
 	}
 }
 
-// TransactionTemplate represents a reusable transaction pattern
-type TransactionTemplate struct {
+// Template represents a reusable transaction pattern
+type Template struct {
 	// Description is a human-readable description of the transaction
 	Description string
 	// AssetCode is the asset code for the transaction
@@ -604,7 +604,7 @@ func CreateFromTemplate(
 	ctx context.Context,
 	entity *entities.Entity,
 	orgID, ledgerID string,
-	template *TransactionTemplate,
+	template *Template,
 	amount int64,
 	metadata map[string]any,
 	idempotencyKey string,

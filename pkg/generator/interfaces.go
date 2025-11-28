@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	data "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
 )
 
 // OrganizationGenerator creates organizations from templates or batches.

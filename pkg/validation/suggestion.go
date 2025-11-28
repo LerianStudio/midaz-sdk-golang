@@ -25,7 +25,7 @@ const (
 	// Consistency issues (fields that must match)
 	Consistency SuggestionType = "consistency"
 
-	// Structural issues (missing or extra elements)
+	// Structure represents structural issues (missing or extra elements)
 	Structure SuggestionType = "structure"
 )
 

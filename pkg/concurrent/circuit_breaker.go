@@ -7,6 +7,7 @@ import (
 	"time"
 )
 
+// ErrCircuitOpen is returned when the circuit breaker is in open state
 var ErrCircuitOpen = errors.New("circuit breaker open")
 
 type state int
@@ -45,6 +46,7 @@ const (
 	DefaultOpenTimeout      = 5 * time.Second
 )
 
+// NewCircuitBreaker creates a new circuit breaker with the given configuration
 func NewCircuitBreaker(failureThreshold, successThreshold int, openTimeout time.Duration) *CircuitBreaker {
 	if failureThreshold <= 0 {
 		failureThreshold = DefaultFailureThreshold

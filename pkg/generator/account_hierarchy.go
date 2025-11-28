@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	data "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
 )
 
 // AccountNode represents a hierarchical account template tree.
@@ -19,6 +19,7 @@ type AccountHierarchyGenerator struct {
 	accGen AccountGenerator
 }
 
+// NewAccountHierarchyGenerator creates a new hierarchy generator using the provided account generator.
 func NewAccountHierarchyGenerator(accGen AccountGenerator) *AccountHierarchyGenerator {
 	return &AccountHierarchyGenerator{accGen: accGen}
 }

@@ -34,13 +34,14 @@ type AccessManager struct {
 // TokenResponse represents the response from the plugin auth service
 type TokenResponse struct {
 	AccessToken  string `json:"accessToken"`
-	IdToken      string `json:"idToken"`
+	IDToken      string `json:"idToken"`
 	TokenType    string `json:"tokenType"`
 	RefreshToken string `json:"refreshToken"`
 	ExpiresAt    string `json:"expiresAt,omitempty"`
 }
 
-func WithAccessManager(AccessManager AccessManager) EntityOption {
+// WithAccessManager returns an EntityOption that configures plugin-based authentication.
+func WithAccessManager(accessMgr AccessManager) EntityOption {
 	return func(e any) error {
 		// Type assertion to access the required methods
 		type entityWithAuth interface {
@@ -55,17 +56,17 @@ func WithAccessManager(AccessManager AccessManager) EntityOption {
 		}
 
 		// If plugin auth is not enabled, nothing to do
-		if !AccessManager.Enabled {
+		if !accessMgr.Enabled {
 			return nil
 		}
 
 		// Validate plugin auth configuration
-		if AccessManager.Address == "" {
+		if accessMgr.Address == "" {
 			return errors.New("plugin auth address is required when plugin auth is enabled")
 		}
 
 		// Get a token from the plugin auth service
-		token, err := GetTokenFromAccessManager(context.Background(), AccessManager, entity.GetHTTPClient())
+		token, err := GetTokenFromAccessManager(context.Background(), accessMgr, entity.GetHTTPClient())
 		if err != nil {
 			return fmt.Errorf("failed to get token from plugin auth service: %w", err)
 		}
@@ -85,26 +86,26 @@ func WithAccessManager(AccessManager AccessManager) EntityOption {
 //
 // Parameters:
 //   - ctx: The context for the operation, which can be used for cancellation and timeouts.
-//   - AccessManager: The plugin access manager configuration.
+//   - accessMgr: The plugin access manager configuration.
 //   - httpClient: The HTTP client to use for the request.
 //
 // Returns:
 //   - string: The authentication token retrieved from the plugin auth service.
 //   - error: An error if the token retrieval fails.
-func GetTokenFromAccessManager(ctx context.Context, AccessManager AccessManager, httpClient *http.Client) (string, error) {
-	if !AccessManager.Enabled {
+func GetTokenFromAccessManager(ctx context.Context, accessMgr AccessManager, httpClient *http.Client) (string, error) {
+	if !accessMgr.Enabled {
 		return "", errors.New("plugin authentication is not enabled")
 	}
 
-	if AccessManager.Address == "" {
+	if accessMgr.Address == "" {
 		return "", errors.New("plugin auth address is required when plugin auth is enabled")
 	}
 
 	// Create the request payload
 	payload := map[string]string{
 		"grantType":    "client_credentials",
-		"clientId":     AccessManager.ClientID,
-		"clientSecret": AccessManager.ClientSecret,
+		"clientId":     accessMgr.ClientID,
+		"clientSecret": accessMgr.ClientSecret,
 	}
 
 	// Marshal the payload to JSON
@@ -114,7 +115,7 @@ func GetTokenFromAccessManager(ctx context.Context, AccessManager AccessManager,
 	}
 
 	// Create a request to the plugin auth service with the payload
-	url := fmt.Sprintf("%s/v1/login/oauth/access_token", AccessManager.Address)
+	url := fmt.Sprintf("%s/v1/login/oauth/access_token", accessMgr.Address)
 
 	req, err := http.NewRequestWithContext(
 		ctx,

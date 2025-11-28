@@ -381,13 +381,13 @@ func WithIdempotency(enable bool) Option {
 // WithAccessManager sets the plugin-based authentication configuration.
 //
 // Parameters:
-//   - AccessManager: The plugin authentication configuration
+//   - accessManager: The plugin authentication configuration
 //
 // Returns:
 //   - Option: A function that sets the plugin authentication on a Config
-func WithAccessManager(AccessManager auth.AccessManager) Option {
+func WithAccessManager(accessManager auth.AccessManager) Option {
 	return func(c *Config) error {
-		c.AccessManager = AccessManager
+		c.AccessManager = accessManager
 
 		return nil
 	}
@@ -746,8 +746,7 @@ func DefaultConfig() *Config {
 	// Apply default URLs based on environment.
 	// Error is safely ignored because DefaultConfig always uses EnvironmentLocal
 	// which is a valid, known environment that will never return an error.
-	//nolint:errcheck // EnvironmentLocal is hardcoded above and always valid
-	setDefaultServiceURLs(config)
+	_ = setDefaultServiceURLs(config) //nolint:errcheck // EnvironmentLocal is hardcoded above and always valid
 
 	// Create HTTP client
 	config.HTTPClient = &http.Client{

@@ -37,12 +37,17 @@ func ModelConverter(source, target any) error {
 }
 
 // dereferencePointers navigates through pointers to get the actual values
-func dereferencePointers(source, target any) (reflect.Value, reflect.Value, bool) {
-	sourceVal := reflect.ValueOf(source)
-	targetVal := reflect.ValueOf(target)
+func dereferencePointers(source, target any) (sourceVal reflect.Value, targetVal reflect.Value, ok bool) {
+	sourceVal = reflect.ValueOf(source)
+	targetVal = reflect.ValueOf(target)
 
-	sourceVal, sourceOk := dereferenceValue(sourceVal)
-	targetVal, targetOk := dereferenceValue(targetVal)
+	var (
+		sourceOk bool
+		targetOk bool
+	)
+
+	sourceVal, sourceOk = dereferenceValue(sourceVal)
+	targetVal, targetOk = dereferenceValue(targetVal)
 
 	return sourceVal, targetVal, sourceOk && targetOk
 }
