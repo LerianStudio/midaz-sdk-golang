@@ -17,33 +17,16 @@ Contributors: Guilherme Moreira Rodrigues
 - **Environment Configuration**: Improved the setup of automated workflows, contributing to the overall robustness and efficiency of our development and deployment pipeline.
 
 
-## [v2.2.0-beta.3] - 2025-11-28
+## [v2.2.0-beta.4] - 2025-11-28
 
-[Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v2.2.0-beta.2...v2.2.0-beta.3)
-Contributors: Fred Amaral, lerian-studio
+[Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v2.2.0-beta.3...v2.2.0-beta.4)
+Contributors: Fred Amaral
 
-### ⚠️ Breaking Changes
-- **Configuration Update**: The `DefaultRetryWaitMin` constant has been removed. This change impacts users who rely on this constant for retry configurations. To accommodate this change, update your retry logic to use alternative configuration methods. Please refer to the updated configuration documentation for guidance.
-
-### ✨ Features
-- **Enhanced Observability**: OpenTelemetry context injection is now supported in outgoing HTTP requests, greatly improving monitoring and traceability in distributed systems. This feature allows for better tracking of requests across services, enhancing debugging and performance analysis.
-- **New Asset Rates Service**: A comprehensive asset rates service has been added, providing users with access to detailed financial data. This service is ideal for applications requiring up-to-date asset rate information, supporting better financial analytics and decision-making.
-
-### 🐛 Bug Fixes
-- **Entity Management**: Improved validation and URL handling based on feedback, ensuring more reliable and consistent entity operations.
-- **HTTP Method Correction**: The HTTP method for metrics requests has been corrected from HEAD to GET, aligning with standard practices and enhancing compatibility with HTTP standards.
-- **Error Handling Improvements**: Resolved unchecked errors across multiple functions, increasing code reliability and reducing potential runtime issues.
-
-### ⚡ Performance
-- **SDK Robustness**: Various enhancements have been made to improve the SDK's performance, security, and observability. Users will experience faster response times and more secure interactions with the SDK.
-
-### 📚 Documentation
-- **Improved Clarity**: Documentation has been updated for better clarity and understanding, including enhanced godoc generation. This helps developers quickly grasp SDK functionalities and integration steps.
+### 🗑️ Removed
+- **Obsolete Tracing Example Binaries**: We have removed outdated tracing example binaries from the backend, build, docs, and frontend components. This cleanup reduces clutter and potential confusion, ensuring a more streamlined and efficient development experience. New contributors will benefit from a clearer codebase, free from misleading examples.
 
 ### 🔧 Maintenance
-- **Dependency Updates**: All Go module dependencies have been updated to their latest versions, ensuring compatibility and leveraging the latest security patches.
-- **Code Quality Enhancements**: Refactored code for better organization and error handling, improving maintainability and readability. This includes stricter linting rules to uphold high code quality standards.
-- **CI/CD Enhancements**: Updated CI configurations to streamline the development process, ensuring consistent build environments and improving overall development efficiency.
+- **Codebase Cleanup**: By eliminating unnecessary files, we improve the overall maintainability of the project. This change helps keep the codebase organized and easier to navigate, which is especially beneficial for new developers joining the project.
 
 
 ## [v2.2.0-beta.2] - 2025-10-08
