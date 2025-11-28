@@ -17,6 +17,18 @@ Contributors: Guilherme Moreira Rodrigues
 - **Environment Configuration**: Improved the setup of automated workflows, contributing to the overall robustness and efficiency of our development and deployment pipeline.
 
 
+## [v2.2.0-beta.6] - 2025-11-28
+
+[Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v2.2.0-beta.5...v2.2.0-beta.6)
+Contributors: Fred Amaral, lerian-studio
+
+### 🐛 Bug Fixes
+- **Enhanced Log Security:** Improved log sanitization across various components (Auth, Backend, Build, Docs) by using `strconv.Quote`. This update prevents log injection vulnerabilities by properly escaping potentially harmful characters, safeguarding sensitive information, and enhancing overall system security.
+
+### 🔧 Maintenance
+- **Changelog Update:** The CHANGELOG has been updated to reflect the latest changes and improvements, ensuring users have access to the most current information about the software's evolution and can easily track updates and fixes.
+
+
 ## [v2.2.0-beta.5] - 2025-11-28
 
 [Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v2.2.0-beta.4...v2.2.0-beta.5)
