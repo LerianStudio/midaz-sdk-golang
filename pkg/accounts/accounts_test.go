@@ -5,6 +5,7 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/accounts"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Helper function to create string pointers
@@ -308,7 +309,7 @@ func TestFindAccountsByAssetCode(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			result := accounts.FindAccountsByAssetCode(tc.accounts, tc.assetCode)
-			assert.Equal(t, tc.expectedCount, len(result))
+			assert.Len(t, result, tc.expectedCount)
 
 			for i, account := range result {
 				assert.Equal(t, tc.expectedCodes[i], account.AssetCode)
@@ -394,7 +395,7 @@ func TestFindAccountsByStatus(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			result := accounts.FindAccountsByStatus(tc.accounts, tc.status)
-			assert.Equal(t, tc.expectedCount, len(result))
+			assert.Len(t, result, tc.expectedCount)
 
 			for i, account := range result {
 				assert.Equal(t, tc.expectedIDs[i], account.ID)
@@ -568,7 +569,7 @@ func TestFilterAccounts(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			result := accounts.FilterAccounts(tc.accounts, tc.filters)
-			assert.Equal(t, tc.expectedCount, len(result))
+			assert.Len(t, result, tc.expectedCount)
 
 			for i, account := range result {
 				assert.Equal(t, tc.expectedIDs[i], account.ID)
@@ -714,9 +715,9 @@ func TestGetAccountBalanceSummary(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			result, err := accounts.GetAccountBalanceSummary(tc.account, tc.balance)
 			if tc.expectedError {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, tc.expectedResult.AccountID, result.AccountID)
 				assert.Equal(t, tc.expectedResult.AccountAlias, result.AccountAlias)
 				assert.Equal(t, tc.expectedResult.AssetCode, result.AssetCode)

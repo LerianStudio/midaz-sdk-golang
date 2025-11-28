@@ -37,8 +37,16 @@ func (m *MockPortfoliosService) EXPECT() *MockPortfoliosServiceMockRecorder {
 func (m *MockPortfoliosService) ListPortfolios(ctx context.Context, organizationID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Portfolio], error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListPortfolios", ctx, organizationID, ledgerID, opts)
-	ret0, _ := ret[0].(*models.ListResponse[models.Portfolio])
-	ret1, _ := ret[1].(error)
+
+	var ret0 *models.ListResponse[models.Portfolio]
+	if ret[0] != nil {
+		ret0, _ = ret[0].(*models.ListResponse[models.Portfolio]) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	var ret1 error
+	if ret[1] != nil {
+		ret1, _ = ret[1].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
 
 	return ret0, ret1
 }
@@ -53,8 +61,16 @@ func (mr *MockPortfoliosServiceMockRecorder) ListPortfolios(ctx, organizationID,
 func (m *MockPortfoliosService) GetPortfolio(ctx context.Context, organizationID, ledgerID, id string) (*models.Portfolio, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetPortfolio", ctx, organizationID, ledgerID, id)
-	ret0, _ := ret[0].(*models.Portfolio)
-	ret1, _ := ret[1].(error)
+
+	var ret0 *models.Portfolio
+	if ret[0] != nil {
+		ret0, _ = ret[0].(*models.Portfolio) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	var ret1 error
+	if ret[1] != nil {
+		ret1, _ = ret[1].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
 
 	return ret0, ret1
 }
@@ -69,8 +85,16 @@ func (mr *MockPortfoliosServiceMockRecorder) GetPortfolio(ctx, organizationID, l
 func (m *MockPortfoliosService) CreatePortfolio(ctx context.Context, organizationID, ledgerID string, input *models.CreatePortfolioInput) (*models.Portfolio, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreatePortfolio", ctx, organizationID, ledgerID, input)
-	ret0, _ := ret[0].(*models.Portfolio)
-	ret1, _ := ret[1].(error)
+
+	var ret0 *models.Portfolio
+	if ret[0] != nil {
+		ret0, _ = ret[0].(*models.Portfolio) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	var ret1 error
+	if ret[1] != nil {
+		ret1, _ = ret[1].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
 
 	return ret0, ret1
 }
@@ -85,8 +109,16 @@ func (mr *MockPortfoliosServiceMockRecorder) CreatePortfolio(ctx, organizationID
 func (m *MockPortfoliosService) UpdatePortfolio(ctx context.Context, organizationID, ledgerID, id string, input *models.UpdatePortfolioInput) (*models.Portfolio, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdatePortfolio", ctx, organizationID, ledgerID, id, input)
-	ret0, _ := ret[0].(*models.Portfolio)
-	ret1, _ := ret[1].(error)
+
+	var ret0 *models.Portfolio
+	if ret[0] != nil {
+		ret0, _ = ret[0].(*models.Portfolio) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	var ret1 error
+	if ret[1] != nil {
+		ret1, _ = ret[1].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
 
 	return ret0, ret1
 }
@@ -101,7 +133,11 @@ func (mr *MockPortfoliosServiceMockRecorder) UpdatePortfolio(ctx, organizationID
 func (m *MockPortfoliosService) DeletePortfolio(ctx context.Context, organizationID, ledgerID, id string) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeletePortfolio", ctx, organizationID, ledgerID, id)
-	ret0, _ := ret[0].(error)
+
+	var ret0 error
+	if ret[0] != nil {
+		ret0, _ = ret[0].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
 
 	return ret0
 }
@@ -116,8 +152,16 @@ func (mr *MockPortfoliosServiceMockRecorder) DeletePortfolio(ctx, organizationID
 func (m *MockPortfoliosService) ListSegments(ctx context.Context, organizationID, ledgerID, portfolioID string, opts *models.ListOptions) (*models.ListResponse[models.Segment], error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListSegments", ctx, organizationID, ledgerID, portfolioID, opts)
-	ret0, _ := ret[0].(*models.ListResponse[models.Segment])
-	ret1, _ := ret[1].(error)
+
+	var ret0 *models.ListResponse[models.Segment]
+	if ret[0] != nil {
+		ret0, _ = ret[0].(*models.ListResponse[models.Segment]) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	var ret1 error
+	if ret[1] != nil {
+		ret1, _ = ret[1].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
 
 	return ret0, ret1
 }
@@ -132,8 +176,16 @@ func (mr *MockPortfoliosServiceMockRecorder) ListSegments(ctx, organizationID, l
 func (m *MockPortfoliosService) GetSegment(ctx context.Context, organizationID, ledgerID, portfolioID, id string) (*models.Segment, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetSegment", ctx, organizationID, ledgerID, portfolioID, id)
-	ret0, _ := ret[0].(*models.Segment)
-	ret1, _ := ret[1].(error)
+
+	var ret0 *models.Segment
+	if ret[0] != nil {
+		ret0, _ = ret[0].(*models.Segment) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	var ret1 error
+	if ret[1] != nil {
+		ret1, _ = ret[1].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
 
 	return ret0, ret1
 }
@@ -148,8 +200,16 @@ func (mr *MockPortfoliosServiceMockRecorder) GetSegment(ctx, organizationID, led
 func (m *MockPortfoliosService) CreateSegment(ctx context.Context, organizationID, ledgerID, portfolioID string, input *models.CreateSegmentInput) (*models.Segment, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateSegment", ctx, organizationID, ledgerID, portfolioID, input)
-	ret0, _ := ret[0].(*models.Segment)
-	ret1, _ := ret[1].(error)
+
+	var ret0 *models.Segment
+	if ret[0] != nil {
+		ret0, _ = ret[0].(*models.Segment) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	var ret1 error
+	if ret[1] != nil {
+		ret1, _ = ret[1].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
 
 	return ret0, ret1
 }
@@ -164,8 +224,16 @@ func (mr *MockPortfoliosServiceMockRecorder) CreateSegment(ctx, organizationID, 
 func (m *MockPortfoliosService) UpdateSegment(ctx context.Context, organizationID, ledgerID, portfolioID, id string, input *models.UpdateSegmentInput) (*models.Segment, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateSegment", ctx, organizationID, ledgerID, portfolioID, id, input)
-	ret0, _ := ret[0].(*models.Segment)
-	ret1, _ := ret[1].(error)
+
+	var ret0 *models.Segment
+	if ret[0] != nil {
+		ret0, _ = ret[0].(*models.Segment) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	var ret1 error
+	if ret[1] != nil {
+		ret1, _ = ret[1].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
 
 	return ret0, ret1
 }
@@ -180,7 +248,11 @@ func (mr *MockPortfoliosServiceMockRecorder) UpdateSegment(ctx, organizationID, 
 func (m *MockPortfoliosService) DeleteSegment(ctx context.Context, organizationID, ledgerID, portfolioID, id string) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteSegment", ctx, organizationID, ledgerID, portfolioID, id)
-	ret0, _ := ret[0].(error)
+
+	var ret0 error
+	if ret[0] != nil {
+		ret0, _ = ret[0].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
 
 	return ret0
 }

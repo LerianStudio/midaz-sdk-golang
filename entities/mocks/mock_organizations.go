@@ -37,8 +37,16 @@ func (m *MockOrganizationsService) EXPECT() *MockOrganizationsServiceMockRecorde
 func (m *MockOrganizationsService) ListOrganizations(ctx context.Context, opts *models.ListOptions) (*models.ListResponse[models.Organization], error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListOrganizations", ctx, opts)
-	ret0, _ := ret[0].(*models.ListResponse[models.Organization])
-	ret1, _ := ret[1].(error)
+
+	var ret0 *models.ListResponse[models.Organization]
+	if ret[0] != nil {
+		ret0, _ = ret[0].(*models.ListResponse[models.Organization]) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	var ret1 error
+	if ret[1] != nil {
+		ret1, _ = ret[1].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
 
 	return ret0, ret1
 }
@@ -53,8 +61,16 @@ func (mr *MockOrganizationsServiceMockRecorder) ListOrganizations(ctx, opts any)
 func (m *MockOrganizationsService) GetOrganization(ctx context.Context, id string) (*models.Organization, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetOrganization", ctx, id)
-	ret0, _ := ret[0].(*models.Organization)
-	ret1, _ := ret[1].(error)
+
+	var ret0 *models.Organization
+	if ret[0] != nil {
+		ret0, _ = ret[0].(*models.Organization) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	var ret1 error
+	if ret[1] != nil {
+		ret1, _ = ret[1].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
 
 	return ret0, ret1
 }
@@ -69,8 +85,16 @@ func (mr *MockOrganizationsServiceMockRecorder) GetOrganization(ctx, id any) *go
 func (m *MockOrganizationsService) CreateOrganization(ctx context.Context, input *models.CreateOrganizationInput) (*models.Organization, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateOrganization", ctx, input)
-	ret0, _ := ret[0].(*models.Organization)
-	ret1, _ := ret[1].(error)
+
+	var ret0 *models.Organization
+	if ret[0] != nil {
+		ret0, _ = ret[0].(*models.Organization) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	var ret1 error
+	if ret[1] != nil {
+		ret1, _ = ret[1].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
 
 	return ret0, ret1
 }
@@ -85,8 +109,16 @@ func (mr *MockOrganizationsServiceMockRecorder) CreateOrganization(ctx, input an
 func (m *MockOrganizationsService) UpdateOrganization(ctx context.Context, id string, input *models.UpdateOrganizationInput) (*models.Organization, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateOrganization", ctx, id, input)
-	ret0, _ := ret[0].(*models.Organization)
-	ret1, _ := ret[1].(error)
+
+	var ret0 *models.Organization
+	if ret[0] != nil {
+		ret0, _ = ret[0].(*models.Organization) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	var ret1 error
+	if ret[1] != nil {
+		ret1, _ = ret[1].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
 
 	return ret0, ret1
 }
@@ -101,7 +133,11 @@ func (mr *MockOrganizationsServiceMockRecorder) UpdateOrganization(ctx, id, inpu
 func (m *MockOrganizationsService) DeleteOrganization(ctx context.Context, id string) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteOrganization", ctx, id)
-	ret0, _ := ret[0].(error)
+
+	var ret0 error
+	if ret[0] != nil {
+		ret0, _ = ret[0].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
 
 	return ret0
 }

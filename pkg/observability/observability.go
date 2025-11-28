@@ -4,10 +4,12 @@ package observability
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"time"
 
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/version"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -111,6 +113,12 @@ type Config struct {
 
 	// Headers to extract for trace context propagation
 	PropagationHeaders []string
+
+	// RegisterGlobally controls whether to register providers as global OpenTelemetry providers.
+	// When true (default), providers are registered globally via otel.Set*Provider calls.
+	// When false, providers are only available via this MidazProvider instance, avoiding
+	// conflicts when multiple SDK instances are used in the same process.
+	RegisterGlobally bool
 }
 
 // EnabledComponents controls which observability components are enabled
@@ -127,7 +135,7 @@ type Option func(*Config) error
 func WithServiceName(name string) Option {
 	return func(c *Config) error {
 		if name == "" {
-			return fmt.Errorf("service name cannot be empty")
+			return errors.New("service name cannot be empty")
 		}
 
 		c.ServiceName = name
@@ -137,26 +145,26 @@ func WithServiceName(name string) Option {
 }
 
 // WithServiceVersion sets the service version for observability
-func WithServiceVersion(version string) Option {
+func WithServiceVersion(ver string) Option {
 	return func(c *Config) error {
-		if version == "" {
-			return fmt.Errorf("service version cannot be empty")
+		if ver == "" {
+			return errors.New("service version cannot be empty")
 		}
 
-		c.ServiceVersion = version
+		c.ServiceVersion = ver
 
 		return nil
 	}
 }
 
 // WithSDKVersion sets the SDK version for observability
-func WithSDKVersion(version string) Option {
+func WithSDKVersion(ver string) Option {
 	return func(c *Config) error {
-		if version == "" {
-			return fmt.Errorf("SDK version cannot be empty")
+		if ver == "" {
+			return errors.New("SDK version cannot be empty")
 		}
 
-		c.SDKVersion = version
+		c.SDKVersion = ver
 
 		return nil
 	}
@@ -166,7 +174,7 @@ func WithSDKVersion(version string) Option {
 func WithEnvironment(env string) Option {
 	return func(c *Config) error {
 		if env == "" {
-			return fmt.Errorf("environment cannot be empty")
+			return errors.New("environment cannot be empty")
 		}
 
 		c.Environment = env
@@ -179,7 +187,7 @@ func WithEnvironment(env string) Option {
 func WithCollectorEndpoint(endpoint string) Option {
 	return func(c *Config) error {
 		if endpoint == "" {
-			return fmt.Errorf("collector endpoint cannot be empty")
+			return errors.New("collector endpoint cannot be empty")
 		}
 
 		c.CollectorEndpoint = endpoint
@@ -205,7 +213,7 @@ func WithLogLevel(level LogLevel) Option {
 func WithLogOutput(output io.Writer) Option {
 	return func(c *Config) error {
 		if output == nil {
-			return fmt.Errorf("log output cannot be nil")
+			return errors.New("log output cannot be nil")
 		}
 
 		c.LogOutput = output
@@ -251,7 +259,7 @@ func WithAttributes(attrs ...attribute.KeyValue) Option {
 func WithPropagators(propagators ...propagation.TextMapPropagator) Option {
 	return func(c *Config) error {
 		if len(propagators) == 0 {
-			return fmt.Errorf("at least one propagator must be provided")
+			return errors.New("at least one propagator must be provided")
 		}
 
 		c.Propagators = propagators
@@ -264,10 +272,22 @@ func WithPropagators(propagators ...propagation.TextMapPropagator) Option {
 func WithPropagationHeaders(headers ...string) Option {
 	return func(c *Config) error {
 		if len(headers) == 0 {
-			return fmt.Errorf("at least one propagation header must be provided")
+			return errors.New("at least one propagation header must be provided")
 		}
 
 		c.PropagationHeaders = headers
+
+		return nil
+	}
+}
+
+// WithRegisterGlobally controls whether to register providers as global OpenTelemetry providers.
+// When true (default), providers are registered globally via otel.Set*Provider calls.
+// When false, providers are only available via this MidazProvider instance, avoiding
+// conflicts when multiple SDK instances are used in the same process.
+func WithRegisterGlobally(register bool) Option {
+	return func(c *Config) error {
+		c.RegisterGlobally = register
 
 		return nil
 	}
@@ -297,11 +317,7 @@ func WithDevelopmentDefaults() Option {
 			return err
 		}
 
-		if err := WithTraceSampleRate(0.5)(c); err != nil {
-			return err
-		}
-
-		return nil
+		return WithTraceSampleRate(0.5)(c)
 	}
 }
 
@@ -319,20 +335,16 @@ func WithProductionDefaults() Option {
 			return err
 		}
 
-		if err := WithTraceSampleRate(0.1)(c); err != nil {
-			return err
-		}
-
-		return nil
+		return WithTraceSampleRate(0.1)(c)
 	}
 }
 
 // DefaultConfig returns a default configuration for the observability provider
 func DefaultConfig() *Config {
 	return &Config{
-		ServiceName:     "midaz-go-sdk",
-		ServiceVersion:  "1.0.0",
-		SDKVersion:      "1.0.0",
+		ServiceName:     version.SDKName,
+		ServiceVersion:  version.Version,
+		SDKVersion:      version.Version,
 		Environment:     "production",
 		LogLevel:        InfoLevel,
 		TraceSampleRate: 0.1,
@@ -348,6 +360,7 @@ func DefaultConfig() *Config {
 			"x-request-id",
 			"x-correlation-id",
 		},
+		RegisterGlobally: true,
 	}
 }
 
@@ -471,6 +484,9 @@ func NewWithConfig(ctx context.Context, config *Config) (Provider, error) {
 		opts = append(opts, WithPropagationHeaders(config.PropagationHeaders...))
 	}
 
+	// Always set RegisterGlobally
+	opts = append(opts, WithRegisterGlobally(config.RegisterGlobally))
+
 	return New(ctx, opts...)
 }
 
@@ -527,8 +543,10 @@ func (p *MidazProvider) initTracing(ctx context.Context, res *sdkresource.Resour
 		sdktrace.WithSampler(sdktrace.TraceIDRatioBased(p.config.TraceSampleRate)),
 	)
 
-	// Set the global trace provider
-	otel.SetTracerProvider(p.tracerProvider)
+	// Set the global trace provider only if RegisterGlobally is true
+	if p.config.RegisterGlobally {
+		otel.SetTracerProvider(p.tracerProvider)
+	}
 
 	// Create a tracer for this library
 	p.tracer = p.tracerProvider.Tracer("github.com/LerianStudio/midaz-sdk-golang/v2")
@@ -543,24 +561,17 @@ func (p *MidazProvider) initTracing(ctx context.Context, res *sdkresource.Resour
 
 // initMetrics initializes OpenTelemetry metrics
 func (p *MidazProvider) initMetrics(ctx context.Context, res *sdkresource.Resource) error {
-	var exporter sdkmetric.Exporter
-
-	var err error
-
-	// Set up exporter
-	if p.config.CollectorEndpoint != "" {
-		// Use OTLP exporter with gRPC if collector endpoint is provided
-		exporter, err = otlpmetricgrpc.New(
-			ctx,
-			otlpmetricgrpc.WithEndpoint(p.config.CollectorEndpoint),
-			otlpmetricgrpc.WithInsecure(),
-		)
-	} else {
-		// No default metrics exporter; we'll create one if needed
-		// For now, we'll just skip metrics if no endpoint is provided
+	// No default metrics exporter; skip metrics if no endpoint is provided
+	if p.config.CollectorEndpoint == "" {
 		return nil
 	}
 
+	// Use OTLP exporter with gRPC if collector endpoint is provided
+	exporter, err := otlpmetricgrpc.New(
+		ctx,
+		otlpmetricgrpc.WithEndpoint(p.config.CollectorEndpoint),
+		otlpmetricgrpc.WithInsecure(),
+	)
 	if err != nil {
 		return fmt.Errorf("failed to create metric exporter: %w", err)
 	}
@@ -571,8 +582,10 @@ func (p *MidazProvider) initMetrics(ctx context.Context, res *sdkresource.Resour
 		sdkmetric.WithReader(sdkmetric.NewPeriodicReader(exporter)),
 	)
 
-	// Set the global meter provider
-	otel.SetMeterProvider(p.meterProvider)
+	// Set the global meter provider only if RegisterGlobally is true
+	if p.config.RegisterGlobally {
+		otel.SetMeterProvider(p.meterProvider)
+	}
 
 	// Create a meter for this library
 	p.meter = p.meterProvider.Meter("github.com/LerianStudio/midaz-sdk-golang/v2")
@@ -596,6 +609,11 @@ func (p *MidazProvider) initLogging(res *sdkresource.Resource) error {
 
 // setupPropagation configures context propagation for distributed tracing
 func (p *MidazProvider) setupPropagation() {
+	// Only set global propagator if RegisterGlobally is true
+	if !p.config.RegisterGlobally {
+		return
+	}
+
 	// Set up propagators if provided, otherwise use defaults
 	if len(p.config.Propagators) > 0 {
 		otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
@@ -649,16 +667,16 @@ func (p *MidazProvider) Shutdown(ctx context.Context) error {
 	p.enabled = false
 
 	// Call all shutdown functions
-	var errors []error
+	var shutdownErrs []error
 
 	for _, shutdownFn := range p.shutdownFunctions {
 		if err := shutdownFn(ctx); err != nil {
-			errors = append(errors, err)
+			shutdownErrs = append(shutdownErrs, err)
 		}
 	}
 
-	if len(errors) > 0 {
-		return fmt.Errorf("errors during shutdown: %v", errors)
+	if len(shutdownErrs) > 0 {
+		return fmt.Errorf("errors during shutdown: %v", shutdownErrs)
 	}
 
 	return nil
@@ -672,8 +690,8 @@ func (p *MidazProvider) IsEnabled() bool {
 // WithSpan creates a new span and executes the function within the context of that span.
 // It automatically ends the span when the function returns.
 func WithSpan(ctx context.Context, provider Provider, name string, fn func(context.Context) error, opts ...trace.SpanStartOption) error {
-	// If observability is disabled, just run the function
-	if !provider.IsEnabled() {
+	// If provider is nil or observability is disabled, just run the function
+	if provider == nil || !provider.IsEnabled() {
 		return fn(ctx)
 	}
 
@@ -695,8 +713,8 @@ func WithSpan(ctx context.Context, provider Provider, name string, fn func(conte
 
 // RecordMetric records a metric using the provided meter
 func RecordMetric(ctx context.Context, provider Provider, name string, value float64, attrs ...attribute.KeyValue) {
-	// If observability is disabled, just return
-	if !provider.IsEnabled() {
+	// If provider is nil or observability is disabled, just return
+	if provider == nil || !provider.IsEnabled() {
 		return
 	}
 
@@ -711,8 +729,8 @@ func RecordMetric(ctx context.Context, provider Provider, name string, value flo
 
 // RecordDuration records a duration metric using the provided meter
 func RecordDuration(ctx context.Context, provider Provider, name string, start time.Time, attrs ...attribute.KeyValue) {
-	// If observability is disabled, just return
-	if !provider.IsEnabled() {
+	// If provider is nil or observability is disabled, just return
+	if provider == nil || !provider.IsEnabled() {
 		return
 	}
 

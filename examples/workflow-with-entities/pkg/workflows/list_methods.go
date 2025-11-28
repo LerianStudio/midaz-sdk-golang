@@ -7,7 +7,7 @@ import (
 
 	client "github.com/LerianStudio/midaz-sdk-golang/v2"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	pkgerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
 )
 
 // testListMethods tests various List methods of the Midaz SDK
@@ -76,11 +76,11 @@ func testListOrganizations(ctx context.Context, midazClient *client.Client) erro
 
 // handleOrganizationError handles organization-specific errors
 func handleOrganizationError(err error) error {
-	if sdkerrors.IsNotFoundError(err) {
+	if pkgerrors.IsNotFoundError(err) {
 		return fmt.Errorf("no organizations found: %w", err)
 	}
 
-	if sdkerrors.IsAuthenticationError(err) {
+	if pkgerrors.IsAuthenticationError(err) {
 		return fmt.Errorf("authentication failed: %w", err)
 	}
 
@@ -112,7 +112,7 @@ func testListLedgers(ctx context.Context, midazClient *client.Client, orgID stri
 
 	ledgersResponse, err := midazClient.Entity.Ledgers.ListLedgers(ctx, orgID, ledgerOptions)
 	if err != nil {
-		return fmt.Errorf("ledger listing failed: %s", sdkerrors.FormatErrorDetails(err))
+		return fmt.Errorf("ledger listing failed: %s", pkgerrors.FormatErrorDetails(err))
 	}
 
 	fmt.Printf("✅ Found %d active ledgers\n", len(ledgersResponse.Items))
@@ -152,9 +152,9 @@ func testListAccountsWithPagination(ctx context.Context, midazClient *client.Cli
 // handleAccountError handles account-specific errors
 func handleAccountError(err error) error {
 	switch {
-	case sdkerrors.IsValidationError(err):
+	case pkgerrors.IsValidationError(err):
 		return fmt.Errorf("invalid parameters: %w", err)
-	case sdkerrors.IsNotFoundError(err):
+	case pkgerrors.IsNotFoundError(err):
 		return fmt.Errorf("ledger or organization not found: %w", err)
 	default:
 		return fmt.Errorf("account listing failed: %w", err)

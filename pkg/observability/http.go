@@ -3,6 +3,7 @@ package observability
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptrace"
@@ -31,7 +32,7 @@ type httpMiddleware struct {
 func WithIgnoreHeaders(headers ...string) HTTPOption {
 	return func(m *httpMiddleware) error {
 		if len(headers) == 0 {
-			return fmt.Errorf("at least one header must be provided")
+			return errors.New("at least one header must be provided")
 		}
 
 		headerMap := make(map[string]struct{})
@@ -58,7 +59,7 @@ func WithIgnoreHeaders(headers ...string) HTTPOption {
 func WithIgnorePaths(paths ...string) HTTPOption {
 	return func(m *httpMiddleware) error {
 		if len(paths) == 0 {
-			return fmt.Errorf("at least one path must be provided")
+			return errors.New("at least one path must be provided")
 		}
 
 		m.ignorePaths = append(m.ignorePaths, paths...)
@@ -71,7 +72,7 @@ func WithIgnorePaths(paths ...string) HTTPOption {
 func WithMaskedParams(params ...string) HTTPOption {
 	return func(m *httpMiddleware) error {
 		if len(params) == 0 {
-			return fmt.Errorf("at least one parameter must be provided")
+			return errors.New("at least one parameter must be provided")
 		}
 
 		m.maskedParams = append(m.maskedParams, params...)
@@ -298,7 +299,7 @@ func (m *httpMiddleware) executeTracedRequest(ctx context.Context, span trace.Sp
 }
 
 // handleRequestError processes request errors and sets span status
-func (m *httpMiddleware) handleRequestError(span trace.Span, resp *http.Response, err error) (*http.Response, error) {
+func (*httpMiddleware) handleRequestError(span trace.Span, resp *http.Response, err error) (*http.Response, error) {
 	span.SetStatus(codes.Error, err.Error())
 	span.RecordError(err)
 	span.End()
@@ -332,7 +333,7 @@ func (m *httpMiddleware) addResponseHeaders(span trace.Span, resp *http.Response
 }
 
 // setResponseStatus sets the span status based on HTTP response code
-func (m *httpMiddleware) setResponseStatus(span trace.Span, statusCode int) {
+func (*httpMiddleware) setResponseStatus(span trace.Span, statusCode int) {
 	if statusCode >= 400 {
 		span.SetStatus(codes.Error, fmt.Sprintf("HTTP status code: %d", statusCode))
 		span.SetAttributes(attribute.Bool("error", true))
@@ -388,7 +389,7 @@ func (m *httpMiddleware) recordRequestMetrics(ctx context.Context, req *http.Req
 }
 
 // createClientTrace creates an httptrace.ClientTrace to track HTTP request lifecycle events
-func (m *httpMiddleware) createClientTrace(span trace.Span) *httptrace.ClientTrace {
+func (*httpMiddleware) createClientTrace(span trace.Span) *httptrace.ClientTrace {
 	return &httptrace.ClientTrace{
 		GetConn: func(hostPort string) {
 			span.AddEvent("http.get_conn", trace.WithAttributes(
@@ -407,6 +408,7 @@ func (m *httpMiddleware) createClientTrace(span trace.Span) *httptrace.ClientTra
 			if err != nil {
 				attrs = append(attrs, attribute.String("error", err.Error()))
 			}
+
 			span.AddEvent("http.put_idle_conn", trace.WithAttributes(attrs...))
 		},
 		DNSStart: func(info httptrace.DNSStartInfo) {
@@ -421,6 +423,7 @@ func (m *httpMiddleware) createClientTrace(span trace.Span) *httptrace.ClientTra
 			if info.Err != nil {
 				attrs = append(attrs, attribute.String("error", info.Err.Error()))
 			}
+
 			span.AddEvent("http.dns_done", trace.WithAttributes(attrs...))
 		},
 		ConnectStart: func(network, addr string) {
@@ -437,6 +440,7 @@ func (m *httpMiddleware) createClientTrace(span trace.Span) *httptrace.ClientTra
 			if err != nil {
 				attrs = append(attrs, attribute.String("error", err.Error()))
 			}
+
 			span.AddEvent("http.connect_done", trace.WithAttributes(attrs...))
 		},
 		TLSHandshakeStart: func() {
@@ -450,6 +454,7 @@ func (m *httpMiddleware) createClientTrace(span trace.Span) *httptrace.ClientTra
 			if err != nil {
 				attrs = append(attrs, attribute.String("error", err.Error()))
 			}
+
 			span.AddEvent("http.tls_handshake_done", trace.WithAttributes(attrs...))
 		},
 		WroteRequest: func(info httptrace.WroteRequestInfo) {
@@ -457,6 +462,7 @@ func (m *httpMiddleware) createClientTrace(span trace.Span) *httptrace.ClientTra
 			if info.Err != nil {
 				attrs = append(attrs, attribute.String("error", info.Err.Error()))
 			}
+
 			span.AddEvent("http.wrote_request", trace.WithAttributes(attrs...))
 		},
 		GotFirstResponseByte: func() {

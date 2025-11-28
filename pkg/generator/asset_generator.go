@@ -2,11 +2,11 @@ package generator
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	data "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
 )
@@ -21,16 +21,19 @@ func NewAssetGenerator(e *entities.Entity, obs observability.Provider) AssetGene
 	return &assetGenerator{e: e, obs: obs}
 }
 
+// Generate creates an asset from the provided template.
 func (g *assetGenerator) Generate(ctx context.Context, ledgerID string, template data.AssetTemplate) (*models.Asset, error) {
 	if g.e == nil || g.e.Assets == nil {
-		return nil, fmt.Errorf("entity assets service not initialized")
+		return nil, errors.New("entity assets service not initialized")
 	}
 	// We require orgID to create assets; since Assets API needs orgID and ledgerID,
 	// we cannot derive orgID from ledgerID here, so expect callers to embed org information in ctx.
 	// To keep the interface stable, we attempt to extract orgID from context key if provided.
-	orgID, _ := ctx.Value(contextKeyOrgID{}).(string)
+	// Type assertion ok value is intentionally ignored - empty string check handles both
+	// cases (missing key and wrong type)
+	orgID, _ := ctx.Value(contextKeyOrgID{}).(string) //nolint:errcheck // ok check unnecessary, empty string validated below
 	if orgID == "" {
-		return nil, fmt.Errorf("organization id missing in context for asset creation")
+		return nil, errors.New("organization id missing in context for asset creation")
 	}
 
 	input := models.NewCreateAssetInput(template.Name, template.Code).
@@ -61,14 +64,16 @@ func (g *assetGenerator) Generate(ctx context.Context, ledgerID string, template
 	return out, nil
 }
 
-func (g *assetGenerator) GenerateWithRates(ctx context.Context, ledgerID string, baseAsset string) error {
+// GenerateWithRates creates an asset with rate management (not implemented in current SDK version).
+func (*assetGenerator) GenerateWithRates(_ context.Context, _, _ string) error {
 	// Rate management is not exposed in current SDK; defer to a future phase.
-	return fmt.Errorf("asset rate management not implemented in this SDK version")
+	return errors.New("asset rate management not implemented in this SDK version")
 }
 
-func (g *assetGenerator) UpdateRates(ctx context.Context, ledgerID string, rates map[string]float64) error {
+// UpdateRates updates asset rates (not implemented in current SDK version).
+func (*assetGenerator) UpdateRates(_ context.Context, _ string, _ map[string]float64) error {
 	// Rate management is not exposed in current SDK; defer to a future phase.
-	return fmt.Errorf("asset rate management not implemented in this SDK version")
+	return errors.New("asset rate management not implemented in this SDK version")
 }
 
 // contextKeyOrgID is a private key to extract orgID from context for asset creation.

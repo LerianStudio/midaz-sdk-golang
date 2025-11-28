@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -14,16 +15,40 @@ import (
 )
 
 func main() {
-	// Create a context with cancellation
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Create observability provider with functional options
+	provider, err := createObservabilityProvider(ctx)
+	if err != nil {
+		fmt.Printf("Failed to create observability provider: %v\n", err)
+		os.Exit(1)
+	}
+	defer shutdownProvider(ctx, provider)
+
+	logger := provider.Logger()
+	logger.Info("Starting observability demo")
+
+	metrics, err := createMetricsCollector(provider)
+	if err != nil {
+		logger.Errorf("Failed to create metrics collector: %v", err)
+		os.Exit(1)
+	}
+
+	demonstrateSpanOperations(ctx, provider, metrics, logger)
+	demonstrateErrorHandling(ctx, provider, metrics, logger)
+	demonstrateCustomMetrics(ctx, metrics)
+	_ = demonstrateBaggage(ctx, provider, logger)
+	demonstrateHTTPMiddleware(provider, logger)
+
+	logger.Info("Observability demo completed")
+}
+
+func createObservabilityProvider(ctx context.Context) (observability.Provider, error) {
 	provider, err := observability.New(ctx,
 		observability.WithServiceName("observability-demo"),
 		observability.WithEnvironment("development"),
-		observability.WithComponentEnabled(true, true, true), // Enable tracing, metrics, and logging
-		observability.WithHighTracingSampling(),              // Use higher sampling rate for development
+		observability.WithComponentEnabled(true, true, true),
+		observability.WithHighTracingSampling(),
 		observability.WithLogLevel(observability.DebugLevel),
 		observability.WithAttributes(
 			attribute.String("demo.source", "example"),
@@ -31,43 +56,36 @@ func main() {
 		),
 	)
 	if err != nil {
-		fmt.Printf("Error creating observability provider: %v\n", err)
-		os.Exit(1)
+		return nil, fmt.Errorf("error creating observability provider: %w", err)
 	}
 
-	defer func() {
-		// Shutdown provider but log error if it occurs
-		if err := provider.Shutdown(ctx); err != nil {
-			fmt.Printf("Warning: Failed to shutdown observability provider: %v\n", err)
-		}
-	}()
+	return provider, nil
+}
 
-	// Get a logger and log a message
-	logger := provider.Logger()
-	logger.Info("Starting observability demo")
+func shutdownProvider(ctx context.Context, provider observability.Provider) {
+	if err := provider.Shutdown(ctx); err != nil {
+		fmt.Printf("Warning: Failed to shutdown observability provider: %v\n", err)
+	}
+}
 
-	// Create a metrics collector
-	metrics, _ := observability.NewMetricsCollector(provider)
+func createMetricsCollector(provider observability.Provider) (*observability.MetricsCollector, error) {
+	metrics, err := observability.NewMetricsCollector(provider)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create metrics collector: %w", err)
+	}
 
-	// Demonstrate using spans
+	return metrics, nil
+}
+
+func demonstrateSpanOperations(ctx context.Context, provider observability.Provider, metrics *observability.MetricsCollector, logger observability.Logger) {
 	if err := observability.WithSpan(ctx, provider, "main_operation", func(ctx context.Context) error {
-		// Get a logger with span context
 		spanLogger := observability.Log(ctx)
 		spanLogger.Info("Starting main operation")
 
-		// Record a metric
 		metrics.RecordRequest(ctx, "main_operation", "example", 200, 10*time.Millisecond)
 
-		// Create a child span
-		childCtx, childSpan := provider.Tracer().Start(ctx, "child_operation")
-		childSpan.SetAttributes(attribute.String("child.attribute", "value"))
+		runChildSpan(ctx, provider)
 
-		// Do some work in the child span
-		time.Sleep(50 * time.Millisecond)
-		observability.Log(childCtx).Info("Child operation completed")
-		childSpan.End()
-
-		// Add an event and attributes to the main span
 		observability.AddSpanEvent(ctx, "important_event",
 			attribute.Bool("success", true),
 			attribute.Int("count", 42),
@@ -82,34 +100,50 @@ func main() {
 	}); err != nil {
 		logger.Errorf("Error in main operation: %v", err)
 	}
+}
 
-	// Demonstrate error handling in spans
+func runChildSpan(ctx context.Context, provider observability.Provider) {
+	childCtx, childSpan := provider.Tracer().Start(ctx, "child_operation")
+	childSpan.SetAttributes(attribute.String("child.attribute", "value"))
+
+	time.Sleep(50 * time.Millisecond)
+	observability.Log(childCtx).Info("Child operation completed")
+	childSpan.End()
+}
+
+func demonstrateErrorHandling(ctx context.Context, provider observability.Provider, metrics *observability.MetricsCollector, logger observability.Logger) {
 	if err := observability.WithSpan(ctx, provider, "error_operation", func(ctx context.Context) error {
-		// Record a metric
 		metrics.RecordRequest(ctx, "error_operation", "example", 500, 5*time.Millisecond)
 
-		// Add an event
 		observability.AddSpanEvent(ctx, "processing_error",
 			attribute.String("error.type", "validation"),
 		)
 
-		// Return an error
-		return fmt.Errorf("example error for demonstration")
+		return errors.New("example error for demonstration")
 	}); err != nil {
 		logger.Warnf("Expected error occurred: %v", err)
 	}
+}
 
-	// Demonstrate custom metrics
+func demonstrateCustomMetrics(ctx context.Context, metrics *observability.MetricsCollector) {
 	timer := metrics.NewTimer(ctx, "batch_operation", "example")
-
 	time.Sleep(75 * time.Millisecond)
-	timer.StopBatch(5) // Record a batch operation with 5 items
+	timer.StopBatch(5)
+}
 
-	// Demonstrate baggage
-	ctx, _ = observability.WithBaggageItem(ctx, "user", "example-user")
-	ctx, _ = observability.WithBaggageItem(ctx, "tenant", "example-tenant")
+func demonstrateBaggage(ctx context.Context, provider observability.Provider, logger observability.Logger) context.Context {
+	var err error
 
-	// Use the baggage in a span
+	ctx, err = observability.WithBaggageItem(ctx, "user", "example-user")
+	if err != nil {
+		logger.Warnf("Failed to set user baggage: %v", err)
+	}
+
+	ctx, err = observability.WithBaggageItem(ctx, "tenant", "example-tenant")
+	if err != nil {
+		logger.Warnf("Failed to set tenant baggage: %v", err)
+	}
+
 	if err := observability.WithSpan(ctx, provider, "baggage_operation", func(ctx context.Context) error {
 		user := observability.GetBaggageItem(ctx, "user")
 		tenant := observability.GetBaggageItem(ctx, "tenant")
@@ -120,17 +154,18 @@ func main() {
 		logger.Errorf("Error in baggage operation: %v", err)
 	}
 
-	// Using HTTP middleware (demonstrating how it would be used)
+	return ctx
+}
+
+func demonstrateHTTPMiddleware(provider observability.Provider, logger observability.Logger) {
 	transport := observability.NewHTTPMiddleware(provider,
 		observability.WithSecurityDefaults(),
 		observability.WithIgnorePaths("/health", "/metrics"),
 	)(http.DefaultTransport)
 
-	// Create an HTTP client with the middleware
 	client := &http.Client{Transport: transport}
-	_ = client.Transport // prevent unused write to field Transport
-	_ = client           // prevent unused variable warning
+	_ = client.Transport
+	_ = client
 
 	logger.Info("Created HTTP client with middleware (transport wrapped with tracing)")
-	logger.Info("Observability demo completed")
 }

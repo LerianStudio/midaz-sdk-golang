@@ -36,6 +36,8 @@ func TestHTTPClientTracingIntegration(t *testing.T) {
 
 // testHTTPClientInjectsTraceHeaders verifies that the HTTP client automatically injects trace headers
 func testHTTPClientInjectsTraceHeaders(t *testing.T) {
+	t.Helper()
+
 	// Create observability provider
 	provider, err := observability.New(context.Background(),
 		observability.WithServiceName("test-service"),
@@ -43,18 +45,20 @@ func testHTTPClientInjectsTraceHeaders(t *testing.T) {
 		observability.WithFullTracingSampling(),
 	)
 	require.NoError(t, err)
+
 	defer func() {
 		assert.NoError(t, provider.Shutdown(context.Background()))
 	}()
 
 	// Track received headers
 	var receivedHeaders http.Header
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		receivedHeaders = r.Header.Clone()
 
 		// Return a simple JSON response
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	}))
 	defer server.Close()
 
@@ -65,11 +69,13 @@ func testHTTPClientInjectsTraceHeaders(t *testing.T) {
 
 	// Start a trace
 	tracer := provider.Tracer()
+
 	ctx, span := tracer.Start(context.Background(), "test_http_request")
 	defer span.End()
 
 	// Make a request
 	var result map[string]string
+
 	err = httpClient.doRequest(ctx, "GET", server.URL+"/test", nil, nil, &result)
 	require.NoError(t, err)
 
@@ -85,21 +91,25 @@ func testHTTPClientInjectsTraceHeaders(t *testing.T) {
 
 // testHTTPClientTracingDisabled verifies behavior when tracing is disabled
 func testHTTPClientTracingDisabled(t *testing.T) {
+	t.Helper()
+
 	// Create observability provider with tracing disabled
 	provider, err := observability.New(context.Background(),
 		observability.WithComponentEnabled(false, false, true), // Only logging enabled
 	)
 	require.NoError(t, err)
+
 	defer func() {
 		assert.NoError(t, provider.Shutdown(context.Background()))
 	}()
 
 	// Track received headers
 	var receivedHeaders http.Header
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		receivedHeaders = r.Header.Clone()
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	}))
 	defer server.Close()
 
@@ -110,6 +120,7 @@ func testHTTPClientTracingDisabled(t *testing.T) {
 
 	// Make a request
 	var result map[string]string
+
 	err = httpClient.doRequest(context.Background(), "GET", server.URL+"/test", nil, nil, &result)
 	require.NoError(t, err)
 
@@ -121,22 +132,26 @@ func testHTTPClientTracingDisabled(t *testing.T) {
 
 // testHTTPClientWithCustomHeaders verifies that custom headers work alongside tracing
 func testHTTPClientWithCustomHeaders(t *testing.T) {
+	t.Helper()
+
 	// Create observability provider
 	provider, err := observability.New(context.Background(),
 		observability.WithComponentEnabled(true, false, false),
 		observability.WithFullTracingSampling(),
 	)
 	require.NoError(t, err)
+
 	defer func() {
 		assert.NoError(t, provider.Shutdown(context.Background()))
 	}()
 
 	// Track received headers
 	var receivedHeaders http.Header
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		receivedHeaders = r.Header.Clone()
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	}))
 	defer server.Close()
 
@@ -147,6 +162,7 @@ func testHTTPClientWithCustomHeaders(t *testing.T) {
 
 	// Start a trace
 	tracer := provider.Tracer()
+
 	ctx, span := tracer.Start(context.Background(), "test_http_request_with_headers")
 	defer span.End()
 
@@ -158,6 +174,7 @@ func testHTTPClientWithCustomHeaders(t *testing.T) {
 
 	// Make a request with custom headers
 	var result map[string]string
+
 	err = httpClient.doRequest(ctx, "POST", server.URL+"/test", customHeaders,
 		map[string]string{"data": "test"}, &result)
 	require.NoError(t, err)
@@ -172,21 +189,24 @@ func testHTTPClientWithCustomHeaders(t *testing.T) {
 
 // testHTTPClientErrorHandlingWithTracing verifies error handling works with tracing
 func testHTTPClientErrorHandlingWithTracing(t *testing.T) {
+	t.Helper()
+
 	// Create observability provider
 	provider, err := observability.New(context.Background(),
 		observability.WithComponentEnabled(true, false, false),
 		observability.WithFullTracingSampling(),
 	)
 	require.NoError(t, err)
+
 	defer func() {
 		assert.NoError(t, provider.Shutdown(context.Background()))
 	}()
 
 	// Server that returns an error
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"error":   "invalid_request",
 			"message": "Test error message",
 		})
@@ -200,15 +220,17 @@ func testHTTPClientErrorHandlingWithTracing(t *testing.T) {
 
 	// Start a trace
 	tracer := provider.Tracer()
+
 	ctx, span := tracer.Start(context.Background(), "test_http_request_error")
 	defer span.End()
 
 	// Make a request that will result in an error
 	var result map[string]string
+
 	err = httpClient.doRequest(ctx, "GET", server.URL+"/error", nil, nil, &result)
 
 	// Should return an error
-	assert.Error(t, err, "Should return an error for 400 status code")
+	require.Error(t, err, "Should return an error for 400 status code")
 
 	// The span should still be valid and have recorded the error
 	spanCtx := trace.SpanFromContext(ctx)
@@ -224,6 +246,7 @@ func TestHTTPClientDistributedTracing(t *testing.T) {
 		observability.WithFullTracingSampling(),
 	)
 	require.NoError(t, err)
+
 	defer provider1.Shutdown(context.Background())
 
 	provider2, err := observability.New(context.Background(),
@@ -232,10 +255,12 @@ func TestHTTPClientDistributedTracing(t *testing.T) {
 		observability.WithFullTracingSampling(),
 	)
 	require.NoError(t, err)
+
 	defer provider2.Shutdown(context.Background())
 
 	// Track traceparent headers received by service 2
 	var receivedTraceparents []string
+
 	service2 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Check if traceparent header exists
 		traceparent := r.Header.Get("traceparent")
@@ -244,6 +269,7 @@ func TestHTTPClientDistributedTracing(t *testing.T) {
 
 			// Start span in service 2 with extracted context
 			headers := make(map[string]string)
+
 			for name, values := range r.Header {
 				if len(values) > 0 {
 					headers[name] = values[0]
@@ -252,12 +278,13 @@ func TestHTTPClientDistributedTracing(t *testing.T) {
 
 			extractedCtx := observability.ExtractContext(r.Context(), headers)
 			tracer2 := provider2.Tracer()
+
 			_, span2 := tracer2.Start(extractedCtx, "service_2_operation")
 			defer span2.End()
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"service": "2", "status": "ok"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"service": "2", "status": "ok"})
 	}))
 	defer service2.Close()
 
@@ -268,6 +295,7 @@ func TestHTTPClientDistributedTracing(t *testing.T) {
 
 	// Start trace in service 1
 	tracer1 := provider1.Tracer()
+
 	ctx, span1 := tracer1.Start(context.Background(), "service_1_operation")
 	defer span1.End()
 
@@ -275,6 +303,7 @@ func TestHTTPClientDistributedTracing(t *testing.T) {
 
 	// Service 1 makes request to service 2
 	var result map[string]string
+
 	err = httpClient1.doRequest(ctx, "GET", service2.URL+"/process", nil, nil, &result)
 	require.NoError(t, err)
 
@@ -304,12 +333,13 @@ func BenchmarkHTTPClientWithTracing(b *testing.B) {
 		observability.WithTraceSampleRate(0.1), // Low sampling for benchmarks
 	)
 	require.NoError(b, err)
+
 	defer provider.Shutdown(context.Background())
 
 	// Simple test server
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	}))
 	defer server.Close()
 
@@ -319,8 +349,10 @@ func BenchmarkHTTPClientWithTracing(b *testing.B) {
 		}, "Bearer test-token", provider)
 
 		b.ResetTimer()
+
 		for i := 0; i < b.N; i++ {
 			var result map[string]string
+
 			err := httpClient.doRequest(context.Background(), "GET", server.URL, nil, nil, &result)
 			if err != nil {
 				b.Fatal(err)
@@ -335,8 +367,10 @@ func BenchmarkHTTPClientWithTracing(b *testing.B) {
 		}, "Bearer test-token", nil)
 
 		b.ResetTimer()
+
 		for i := 0; i < b.N; i++ {
 			var result map[string]string
+
 			err := httpClient.doRequest(context.Background(), "GET", server.URL, nil, nil, &result)
 			if err != nil {
 				b.Fatal(err)

@@ -156,7 +156,7 @@ test-fast:
 
 coverage:
 	$(call print_header,"Generating test coverage")
-	@$(GOTEST) -coverprofile=$(ARTIFACTS_DIR)/coverage.out ./...
+	@$(GOTEST) -coverprofile=$(ARTIFACTS_DIR)/coverage.out $$(go list ./... | grep -v -E '(examples|mocks|/version$$)')
 	@$(GOTOOL) cover -html=$(ARTIFACTS_DIR)/coverage.out -o $(ARTIFACTS_DIR)/coverage.html
 	@echo "Coverage report generated at $(ARTIFACTS_DIR)/coverage.html"
 	@echo "$(GREEN)[ok]$(NC) Coverage report generated successfully"

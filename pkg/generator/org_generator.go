@@ -2,6 +2,7 @@ package generator
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"strings"
@@ -10,7 +11,7 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/concurrent"
-	data "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/stats"
@@ -36,9 +37,10 @@ func NewOrganizationGenerator(e *entities.Entity, obs observability.Provider) Or
 	return &orgGenerator{e: e, obs: obs, mc: mc}
 }
 
+// Generate creates a single organization from the provided template.
 func (g *orgGenerator) Generate(ctx context.Context, template data.OrgTemplate) (*models.Organization, error) {
 	if g.e == nil || g.e.Organizations == nil {
-		return nil, fmt.Errorf("entity organizations service not initialized")
+		return nil, errors.New("entity organizations service not initialized")
 	}
 
 	input := models.NewCreateOrganizationInput(template.LegalName).
@@ -72,6 +74,7 @@ func (g *orgGenerator) Generate(ctx context.Context, template data.OrgTemplate) 
 	return out, nil
 }
 
+// GenerateBatch creates multiple organizations concurrently.
 func (g *orgGenerator) GenerateBatch(ctx context.Context, count int) ([]*models.Organization, error) {
 	if count <= 0 {
 		return []*models.Organization{}, nil
@@ -100,8 +103,9 @@ func (g *orgGenerator) GenerateBatch(ctx context.Context, count int) ([]*models.
 		seed := time.Now().UnixNano() + int64(i)
 		// #nosec G404 - non-cryptographic PRNG used only for demo data variety.
 		r := rand.New(rand.NewSource(seed))
-		// #nosec G104 - gofakeit.Seed does not return an error; safe to ignore.
-		_ = fake.Seed(seed)
+		// gofakeit.Seed returns an error only for documentation; the underlying
+		// implementation always returns nil. Safe to ignore.
+		_ = fake.Seed(seed) //nolint:errcheck // gofakeit.Seed always returns nil
 
 		// Random company and DBA
 		legal := fake.Company()
@@ -201,11 +205,17 @@ func generateCNPJ(r *rand.Rand, formatted bool) string {
 	w1 := []int{5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2}
 	d1 := cnpjCheckDigit(base, w1)
 
-	// Second check digit
+	// Second check digit - create temporary slice for calculation
 	w2 := []int{6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2}
-	d2 := cnpjCheckDigit(append(base, d1), w2)
+	baseWithD1 := make([]int, 0, 13)
+	baseWithD1 = append(baseWithD1, base...)
+	baseWithD1 = append(baseWithD1, d1)
+	d2 := cnpjCheckDigit(baseWithD1, w2)
 
-	digits := append(base, d1, d2)
+	// Build final digits slice
+	digits := make([]int, 0, 14)
+	digits = append(digits, base...)
+	digits = append(digits, d1, d2)
 
 	if !formatted {
 		// Plain 14 digits

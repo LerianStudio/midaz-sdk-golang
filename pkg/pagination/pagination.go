@@ -28,32 +28,40 @@ type Observer interface {
 	RecordEvent(ctx context.Context, event *Event)
 }
 
-// defaultObserver is the default implementation of Observer
-type defaultObserver struct {
-	// Optional fields for future extension (e.g., metrics client)
-}
+// NilObserver is a no-op observer implementation that discards all events.
+// This is the default observer used when no custom observer is provided.
+// Use NewObserver to create an instance for explicit no-op behavior.
+type NilObserver struct{}
 
-// NewObserver creates a new pagination observer
+// NewObserver creates a new NilObserver that discards all events.
+// To add actual observability, implement the Observer interface with
+// custom metrics, logging, or tracing logic.
 func NewObserver() Observer {
-	return &defaultObserver{}
+	return &NilObserver{}
 }
 
-// RecordEvent records information about a pagination operation
-func (o *defaultObserver) RecordEvent(ctx context.Context, event *Event) {
-	// This is a stub implementation
-	// In a real implementation, this would record metrics, structured logs, etc.
-
-	// Example of what could be implemented:
-	// 1. Record timing metrics for pagination operations
-	// 2. Count pagination requests by entity type
-	// 3. Track cursor vs. offset pagination usage
-	// 4. Log slow pagination operations
-	// 5. Record error rates for pagination operations
+// RecordEvent is a no-op implementation that discards the event.
+// Implement a custom Observer to capture pagination metrics and events.
+func (*NilObserver) RecordEvent(_ context.Context, _ *Event) {
+	// No-op: events are discarded by design.
+	// Implement Observer interface for custom observability.
 }
 
-// GetEntityTypeFromURL extracts the entity type from a URL
+// GetEntityTypeFromURL extracts the entity type from a URL using a simple heuristic.
+//
+// Limitations:
+//   - Returns the first path segment after the version prefix (e.g., "v1", "v2")
+//   - For nested resources like "/v1/organizations/123/ledgers/456", returns "organizations"
+//     not "ledgers". This is by design as it identifies the root entity.
+//   - Returns "unknown" if no version prefix is found or URL structure is unexpected
+//   - Does not handle query parameters or fragments
+//
+// Example:
+//
+//	GetEntityTypeFromURL("/v1/accounts/123")           -> "accounts"
+//	GetEntityTypeFromURL("/v1/organizations/1/ledgers") -> "organizations"
+//	GetEntityTypeFromURL("/api/users")                 -> "unknown"
 func GetEntityTypeFromURL(url string) string {
-	// Simple heuristic to extract entity type from URL
 	parts := strings.Split(url, "/")
 	for i, part := range parts {
 		if i > 0 && (part == "v1" || strings.HasPrefix(part, "v")) && i+1 < len(parts) {

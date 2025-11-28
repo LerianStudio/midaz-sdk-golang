@@ -3,6 +3,7 @@ package pagination_test
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/pagination"
@@ -11,7 +12,7 @@ import (
 // This example demonstrates how to use the pagination package with custom types
 func Example() {
 	// Create a sample page fetcher with mock data
-	fetcher := func(ctx context.Context, options pagination.PageOptions) (*pagination.PageResult[string], error) {
+	fetcher := func(_ context.Context, _ pagination.PageOptions) (*pagination.PageResult[string], error) {
 		// Simulate an API call that returns paginated results
 		time.Sleep(10 * time.Millisecond)
 
@@ -70,7 +71,7 @@ func Example() {
 func ExamplePaginator_ForEach() {
 	// Create a mock page fetcher with three pages
 	pageCount := 0
-	fetcher := func(ctx context.Context, options pagination.PageOptions) (*pagination.PageResult[int], error) {
+	fetcher := func(_ context.Context, _ pagination.PageOptions) (*pagination.PageResult[int], error) {
 		pageCount++
 
 		// Return empty page after 3 pages
@@ -108,11 +109,11 @@ func ExamplePaginator_ForEach() {
 	// Process all items with ForEach
 	ctx := context.Background()
 	sum := 0
+
 	err = paginator.ForEach(ctx, func(item int) error {
 		sum += item
 		return nil
 	})
-
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 	} else {
@@ -127,7 +128,7 @@ func ExamplePaginator_ForEach() {
 func ExamplePaginator_Concurrent() {
 	// Create a mock page fetcher with slow operations
 	pageCount := 0
-	fetcher := func(ctx context.Context, options pagination.PageOptions) (*pagination.PageResult[string], error) {
+	fetcher := func(_ context.Context, _ pagination.PageOptions) (*pagination.PageResult[string], error) {
 		pageCount++
 
 		// Return empty page after 2 pages
@@ -168,14 +169,16 @@ func ExamplePaginator_Concurrent() {
 
 	// Process items concurrently
 	ctx := context.Background()
-	var count int
-	_ = paginator.Concurrent(ctx, 3, func(item string) error {
+
+	var count atomic.Int32
+
+	_ = paginator.Concurrent(ctx, 3, func(_ string) error {
 		// This would normally be a more complex operation
-		count++
+		count.Add(1)
 		return nil
 	})
 
-	fmt.Printf("Processed %d items\n", count)
+	fmt.Printf("Processed %d items\n", count.Load())
 
 	// Output:
 	// Processed 6 items
@@ -185,7 +188,7 @@ func ExamplePaginator_Concurrent() {
 func ExampleCollectAll() {
 	// Create a mock page fetcher with multiple pages
 	pageCount := 0
-	fetcher := func(ctx context.Context, options pagination.PageOptions) (*pagination.PageResult[int], error) {
+	fetcher := func(_ context.Context, _ pagination.PageOptions) (*pagination.PageResult[int], error) {
 		pageCount++
 
 		// Return empty page after 3 pages
@@ -199,6 +202,7 @@ func ExampleCollectAll() {
 
 		// Different page sizes to test pagination logic
 		var items []int
+
 		switch pageCount {
 		case 1:
 			items = []int{1, 2, 3}
@@ -217,6 +221,7 @@ func ExampleCollectAll() {
 
 	// Collect all items
 	ctx := context.Background()
+
 	allItems, err := pagination.CollectAll(
 		ctx,
 		"CollectNumbers",
@@ -224,7 +229,6 @@ func ExampleCollectAll() {
 		fetcher,
 		pagination.PageOptions{Limit: 3},
 	)
-
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 	} else {

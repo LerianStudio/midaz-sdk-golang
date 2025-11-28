@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
-	"strings"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
@@ -206,6 +206,22 @@ type BalancesService interface {
 	// The orgID, ledgerID, and balanceID parameters specify which organization, ledger, and balance to delete.
 	// Returns an error if the operation fails.
 	DeleteBalance(ctx context.Context, orgID, ledgerID, balanceID string) error
+
+	// CreateBalance creates an additional balance for an account.
+	// This allows an account to have multiple balance entries (e.g., for different purposes).
+	// The orgID, ledgerID, and accountID parameters specify which account to add the balance to.
+	// Returns the created balance, or an error if the operation fails.
+	CreateBalance(ctx context.Context, orgID, ledgerID, accountID string, input *models.CreateBalanceInput) (*models.Balance, error)
+
+	// ListBalancesByAccountAlias retrieves balances for an account identified by its alias.
+	// The alias is a human-readable identifier for the account.
+	// Returns a paginated list of balances, or an error if the operation fails.
+	ListBalancesByAccountAlias(ctx context.Context, orgID, ledgerID, alias string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error)
+
+	// ListBalancesByExternalCode retrieves balances for an account identified by its external code.
+	// The external code links the account to external systems.
+	// Returns a paginated list of balances, or an error if the operation fails.
+	ListBalancesByExternalCode(ctx context.Context, orgID, ledgerID, code string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error)
 }
 
 // balancesEntity implements the BalancesService interface.
@@ -256,7 +272,7 @@ func NewBalancesEntity(client *http.Client, authToken string, baseURLs map[strin
 	httpClient := NewHTTPClient(client, authToken, nil)
 
 	// Check if we're using the debug flag from the environment
-	if debugEnv := os.Getenv("MIDAZ_DEBUG"); debugEnv == "true" {
+	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
 		httpClient.debug = true
 	}
 
@@ -286,9 +302,9 @@ func (e *balancesEntity) ListBalances(
 		return nil, errors.NewMissingParameterError(operation, "ledgerID")
 	}
 
-	url := e.buildURL(orgID, ledgerID, "")
+	endpoint := e.buildURL(orgID, ledgerID, "")
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -338,9 +354,9 @@ func (e *balancesEntity) ListAccountBalances(
 		return nil, errors.NewMissingParameterError(operation, "accountID")
 	}
 
-	url := e.buildAccountURL(orgID, ledgerID, accountID)
+	endpoint := e.buildAccountURL(orgID, ledgerID, accountID)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -388,9 +404,9 @@ func (e *balancesEntity) GetBalance(
 		return nil, errors.NewMissingParameterError(operation, "balanceID")
 	}
 
-	url := e.buildURL(orgID, ledgerID, balanceID)
+	endpoint := e.buildURL(orgID, ledgerID, balanceID)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -438,14 +454,14 @@ func (e *balancesEntity) UpdateBalance(
 		return nil, errors.NewValidationError(operation, "invalid balance update input", err)
 	}
 
-	url := e.buildURL(orgID, ledgerID, balanceID)
+	endpoint := e.buildURL(orgID, ledgerID, balanceID)
 
 	payload, err := json.Marshal(input)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, bytes.NewBuffer(payload))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, endpoint, bytes.NewBuffer(payload))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -482,9 +498,9 @@ func (e *balancesEntity) DeleteBalance(
 		return errors.NewMissingParameterError(operation, "balanceID")
 	}
 
-	url := e.buildURL(orgID, ledgerID, balanceID)
+	endpoint := e.buildURL(orgID, ledgerID, balanceID)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, endpoint, nil)
 	if err != nil {
 		return errors.NewInternalError(operation, err)
 	}
@@ -497,27 +513,167 @@ func (e *balancesEntity) DeleteBalance(
 // The orgID and ledgerID parameters specify which organization and ledger to query.
 // The balanceID parameter is the unique identifier of the balance to retrieve, or an empty string for a list of balances.
 // Returns the built URL.
+// Note: Assumes base URL already includes version path (e.g., "https://api.example.com/v1").
 func (e *balancesEntity) buildURL(organizationID, ledgerID, balanceID string) string {
-	base := e.baseURLs["transaction"]
-
-	// Remove trailing slash if present
-	base = strings.TrimSuffix(base, "/")
+	baseURL := e.baseURLs["transaction"]
 
 	if balanceID == "" {
-		return fmt.Sprintf("%s/organizations/%s/ledgers/%s/balances", base, organizationID, ledgerID)
+		return fmt.Sprintf("%s/organizations/%s/ledgers/%s/balances", baseURL, organizationID, ledgerID)
 	}
 
-	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/balances/%s", base, organizationID, ledgerID, balanceID)
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/balances/%s", baseURL, organizationID, ledgerID, balanceID)
 }
 
 // buildAccountURL builds the URL for account balances API calls.
 // The orgID, ledgerID, and accountID parameters specify which organization, ledger, and account to query.
 // Returns the built URL for retrieving balances for a specific account.
+// Note: Assumes base URL already includes version path (e.g., "https://api.example.com/v1").
 func (e *balancesEntity) buildAccountURL(orgID, ledgerID, accountID string) string {
-	base := e.baseURLs["transaction"]
+	baseURL := e.baseURLs["transaction"]
 
-	// Remove trailing slash if present
-	base = strings.TrimSuffix(base, "/")
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/%s/balances", baseURL, orgID, ledgerID, accountID)
+}
 
-	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/%s/balances", base, orgID, ledgerID, accountID)
+// CreateBalance creates an additional balance for an account.
+func (e *balancesEntity) CreateBalance(ctx context.Context, orgID, ledgerID, accountID string, input *models.CreateBalanceInput) (*models.Balance, error) {
+	const operation = "CreateBalance"
+
+	if orgID == "" {
+		return nil, errors.NewMissingParameterError(operation, "organizationID")
+	}
+
+	if ledgerID == "" {
+		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+	}
+
+	if accountID == "" {
+		return nil, errors.NewMissingParameterError(operation, "accountID")
+	}
+
+	if input == nil {
+		return nil, errors.NewMissingParameterError(operation, "input")
+	}
+
+	if err := input.Validate(); err != nil {
+		return nil, errors.NewValidationError(operation, "invalid input", err)
+	}
+
+	endpoint := e.buildAccountURL(orgID, ledgerID, accountID)
+
+	body, err := json.Marshal(input)
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	var balance models.Balance
+	if err := e.httpClient.sendRequest(req, &balance); err != nil {
+		return nil, err
+	}
+
+	return &balance, nil
+}
+
+// ListBalancesByAccountAlias retrieves balances for an account identified by its alias.
+func (e *balancesEntity) ListBalancesByAccountAlias(ctx context.Context, orgID, ledgerID, alias string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error) {
+	const operation = "ListBalancesByAccountAlias"
+
+	if orgID == "" {
+		return nil, errors.NewMissingParameterError(operation, "organizationID")
+	}
+
+	if ledgerID == "" {
+		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+	}
+
+	if alias == "" {
+		return nil, errors.NewMissingParameterError(operation, "alias")
+	}
+
+	endpoint := e.buildAccountAliasURL(orgID, ledgerID, alias)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	// Add query parameters if provided
+	if opts != nil {
+		q := req.URL.Query()
+
+		for key, value := range opts.ToQueryParams() {
+			q.Add(key, value)
+		}
+
+		req.URL.RawQuery = q.Encode()
+	}
+
+	var response models.ListResponse[models.Balance]
+	if err := e.httpClient.sendRequest(req, &response); err != nil {
+		return nil, err
+	}
+
+	return &response, nil
+}
+
+// ListBalancesByExternalCode retrieves balances for an account identified by its external code.
+func (e *balancesEntity) ListBalancesByExternalCode(ctx context.Context, orgID, ledgerID, code string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error) {
+	const operation = "ListBalancesByExternalCode"
+
+	if orgID == "" {
+		return nil, errors.NewMissingParameterError(operation, "organizationID")
+	}
+
+	if ledgerID == "" {
+		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+	}
+
+	if code == "" {
+		return nil, errors.NewMissingParameterError(operation, "code")
+	}
+
+	endpoint := e.buildExternalCodeURL(orgID, ledgerID, code)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	// Add query parameters if provided
+	if opts != nil {
+		q := req.URL.Query()
+
+		for key, value := range opts.ToQueryParams() {
+			q.Add(key, value)
+		}
+
+		req.URL.RawQuery = q.Encode()
+	}
+
+	var response models.ListResponse[models.Balance]
+	if err := e.httpClient.sendRequest(req, &response); err != nil {
+		return nil, err
+	}
+
+	return &response, nil
+}
+
+// buildAccountAliasURL builds the URL for balance lookups by account alias.
+func (e *balancesEntity) buildAccountAliasURL(orgID, ledgerID, alias string) string {
+	baseURL := e.baseURLs["transaction"]
+
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/alias/%s/balances", baseURL, orgID, ledgerID, url.PathEscape(alias))
+}
+
+// buildExternalCodeURL builds the URL for balance lookups by external code.
+func (e *balancesEntity) buildExternalCodeURL(orgID, ledgerID, code string) string {
+	baseURL := e.baseURLs["transaction"]
+
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/external/%s/balances", baseURL, orgID, ledgerID, url.PathEscape(code))
 }

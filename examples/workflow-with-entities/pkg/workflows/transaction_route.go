@@ -2,6 +2,7 @@ package workflows
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -22,7 +23,7 @@ import (
 //   - *models.TransactionRoute: The payment transaction route model
 //   - *models.TransactionRoute: The refund transaction route model
 //   - error: Any error encountered during the operation
-func CreateTransactionRoutes(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) (*models.TransactionRoute, *models.TransactionRoute, error) {
+func CreateTransactionRoutes(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) (paymentRoute *models.TransactionRoute, refundRoute *models.TransactionRoute, err error) {
 	var sourceOperationRoute, destinationOperationRoute *models.OperationRoute
 	return CreateTransactionRoutesWithOperationRoutes(ctx, midazClient, orgID, ledgerID, sourceOperationRoute, destinationOperationRoute)
 }
@@ -41,24 +42,23 @@ func CreateTransactionRoutes(ctx context.Context, midazClient *client.Client, or
 //   - *models.TransactionRoute: The payment transaction route model
 //   - *models.TransactionRoute: The refund transaction route model
 //   - error: Any error encountered during the operation
-func CreateTransactionRoutesWithOperationRoutes(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, sourceOperationRoute, destinationOperationRoute *models.OperationRoute) (*models.TransactionRoute, *models.TransactionRoute, error) {
+func CreateTransactionRoutesWithOperationRoutes(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, sourceOperationRoute, destinationOperationRoute *models.OperationRoute) (paymentRoute *models.TransactionRoute, refundRoute *models.TransactionRoute, err error) {
 	fmt.Println("\n\n🗺️  STEP 4.5: TRANSACTION ROUTE CREATION")
 	fmt.Println(strings.Repeat("=", 50))
 
 	// Prepare operation route IDs
-	var operationRouteIDs []string
-	if sourceOperationRoute != nil && destinationOperationRoute != nil {
-		operationRouteIDs = []string{sourceOperationRoute.ID.String(), destinationOperationRoute.ID.String()}
-
-		fmt.Printf("🔗 Linking transaction routes to operation routes:\n")
-		fmt.Printf("   Source Operation Route: %s (%s)\n", sourceOperationRoute.Title, sourceOperationRoute.ID)
-		fmt.Printf("   Destination Operation Route: %s (%s)\n", destinationOperationRoute.Title, destinationOperationRoute.ID)
-	} else {
+	if sourceOperationRoute == nil || destinationOperationRoute == nil {
 		fmt.Printf("⚠️  No operation routes provided - cannot create transaction routes as they require operation routes\n")
 		fmt.Printf("   Note: Transaction routes creation will be skipped due to missing operation routes\n")
 
-		return nil, nil, fmt.Errorf("operation routes are required for transaction routes creation")
+		return nil, nil, errors.New("operation routes are required for transaction routes creation")
 	}
+
+	operationRouteIDs := []string{sourceOperationRoute.ID.String(), destinationOperationRoute.ID.String()}
+
+	fmt.Printf("🔗 Linking transaction routes to operation routes:\n")
+	fmt.Printf("   Source Operation Route: %s (%s)\n", sourceOperationRoute.Title, sourceOperationRoute.ID)
+	fmt.Printf("   Destination Operation Route: %s (%s)\n", destinationOperationRoute.Title, destinationOperationRoute.ID)
 
 	// Create payment transaction route
 	fmt.Println("Creating payment transaction route...")
@@ -76,7 +76,7 @@ func CreateTransactionRoutesWithOperationRoutes(ctx context.Context, midazClient
 	}
 
 	if paymentTransactionRoute.ID == uuid.Nil {
-		return nil, nil, fmt.Errorf("payment transaction route created but no ID was returned from the API")
+		return nil, nil, errors.New("payment transaction route created but no ID was returned from the API")
 	}
 
 	fmt.Printf("✅ Payment transaction route created: %s\n", paymentTransactionRoute.Title)
@@ -103,7 +103,7 @@ func CreateTransactionRoutesWithOperationRoutes(ctx context.Context, midazClient
 	}
 
 	if refundTransactionRoute.ID == uuid.Nil {
-		return nil, nil, fmt.Errorf("refund transaction route created but no ID was returned from the API")
+		return nil, nil, errors.New("refund transaction route created but no ID was returned from the API")
 	}
 
 	fmt.Printf("✅ Refund transaction route created: %s\n", refundTransactionRoute.Title)

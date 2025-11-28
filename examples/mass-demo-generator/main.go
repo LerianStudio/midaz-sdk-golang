@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -14,9 +15,9 @@ import (
 
 	client "github.com/LerianStudio/midaz-sdk-golang/v2"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	data "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
 	gen "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/generator"
-	integrity "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/integrity"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/integrity"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
 	txpkg "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/transaction"
 	"github.com/joho/godotenv"
@@ -50,16 +51,27 @@ func newWorkflowState(cfg demoConfig, genCfg gen.GeneratorConfig) *workflowState
 }
 
 func main() {
-	userConfig, obsProvider := prepareRun()
+	userConfig, obsProvider, err := prepareRun()
+	if err != nil {
+		log.Fatalf("Failed to prepare run: %v", err)
+	}
 	defer shutdownObservability(obsProvider)
 
-	ctx, c, gcfg, shutdownFn := setupSDKAndContext(userConfig, obsProvider)
+	ctx, c, gcfg, shutdownFn, err := setupSDKAndContext(userConfig, obsProvider)
+	if err != nil {
+		log.Fatalf("Failed to setup SDK and context: %v", err)
+	}
 	defer shutdownFn()
 
-	orgTemplates, assetTemplates, accountTemplates := loadTemplates()
+	orgTemplates, assetTemplates, accountTemplates, err := loadTemplates()
+	if err != nil {
+		log.Fatalf("Failed to load templates: %v", err)
+	}
 
 	if userConfig.doDemoVal {
-		runGenerationWorkflow(ctx, c, obsProvider, gcfg, userConfig, orgTemplates, assetTemplates, accountTemplates)
+		if err := runGenerationWorkflow(ctx, c, obsProvider, gcfg, userConfig, orgTemplates, assetTemplates, accountTemplates); err != nil {
+			log.Fatalf("Failed to run generation workflow: %v", err)
+		}
 	}
 }
 
@@ -90,7 +102,8 @@ func pow10(scale int) int64 {
 		return 1
 	}
 	if scale > 18 {
-		log.Fatalf("scale %d too large for int64 pow10", scale)
+		// Clamp to max safe scale for int64
+		scale = 18
 	}
 	result := int64(1)
 	for i := 0; i < scale; i++ {
@@ -102,7 +115,12 @@ func pow10(scale int) int64 {
 func askString(r *bufio.Reader, prompt, def string) string {
 	fmt.Printf("%s [%s]: ", prompt, def)
 
-	line, _ := r.ReadString('\n')
+	line, err := r.ReadString('\n')
+	if err != nil {
+		log.Printf("warning: failed to read input: %v", err)
+		return def
+	}
+
 	line = strings.TrimSpace(line)
 
 	if line == "" {
@@ -116,7 +134,12 @@ func askInt(r *bufio.Reader, prompt string, def int) int {
 	for {
 		fmt.Printf("%s [%d]: ", prompt, def)
 
-		line, _ := r.ReadString('\n')
+		line, err := r.ReadString('\n')
+		if err != nil {
+			log.Printf("warning: failed to read input: %v", err)
+			return def
+		}
+
 		line = strings.TrimSpace(line)
 
 		if line == "" {
@@ -141,7 +164,12 @@ func askBool(r *bufio.Reader, prompt string, def bool) bool {
 
 		fmt.Printf("%s %s: ", prompt, label)
 
-		line, _ := r.ReadString('\n')
+		line, err := r.ReadString('\n')
+		if err != nil {
+			log.Printf("warning: failed to read input: %v", err)
+			return def
+		}
+
 		line = strings.TrimSpace(strings.ToLower(line))
 
 		if line == "" {
@@ -160,7 +188,7 @@ func askBool(r *bufio.Reader, prompt string, def bool) bool {
 	}
 }
 
-func prepareRun() (demoConfig, observability.Provider) {
+func prepareRun() (demoConfig, observability.Provider, error) {
 	fileDefaults := getDemoFileDefaults()
 
 	timeoutDefault := coalesceIntPtr(fileDefaults.Timeout, 120)
@@ -185,58 +213,80 @@ func prepareRun() (demoConfig, observability.Provider) {
 
 	flag.Parse()
 
-	_ = godotenv.Load("examples/mass-demo-generator/.env")
-	_ = godotenv.Load()
+	if err := godotenv.Load("examples/mass-demo-generator/.env"); err != nil {
+		log.Printf("note: could not load examples/mass-demo-generator/.env: %v", err)
+	}
 
-	obsProvider, _ := observability.New(context.Background(),
+	if err := godotenv.Load(); err != nil {
+		log.Printf("note: could not load .env: %v", err)
+	}
+
+	obsProvider, err := observability.New(context.Background(),
 		observability.WithServiceName("mass-demo-generator"),
 		observability.WithServiceVersion("0.1.0"),
 		observability.WithEnvironment("local"),
 		observability.WithComponentEnabled(true, true, true),
 	)
+	if err != nil {
+		return demoConfig{}, nil, fmt.Errorf("failed to create observability provider: %w", err)
+	}
 
 	userConfig := gatherUserConfiguration(timeoutSec, orgs, ledgersPerOrg, accountsPerLedger, txPerAccount, concurrency, batchSize, orgLocaleFlag)
 
-	return userConfig, obsProvider
+	return userConfig, obsProvider, nil
 }
 
 func shutdownObservability(obsProvider observability.Provider) {
 	sdCtx, sdCancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer sdCancel()
 
-	_ = obsProvider.Shutdown(sdCtx)
+	if err := obsProvider.Shutdown(sdCtx); err != nil {
+		log.Printf("warning: observability shutdown failed: %v", err)
+	}
 }
 
-func loadTemplates() ([]data.OrgTemplate, []data.AssetTemplate, []data.AccountTemplate) {
+func loadTemplates() ([]data.OrgTemplate, []data.AssetTemplate, []data.AccountTemplate, error) {
 	orgTemplates := data.DefaultOrganizations()
+	if len(orgTemplates) == 0 {
+		return nil, nil, nil, errors.New("no organization templates available")
+	}
+
 	assetTemplates := data.AllAssetTemplates()
+	if len(assetTemplates) == 0 {
+		return nil, nil, nil, errors.New("no asset templates available")
+	}
+
 	accountTemplates := data.AllAccountTemplates()
+	if len(accountTemplates) == 0 {
+		return nil, nil, nil, errors.New("no account templates available")
+	}
 
 	for _, ot := range orgTemplates {
 		if err := data.ValidateOrgTemplate(ot); err != nil {
-			log.Fatalf("org template invalid: %v", err)
+			return nil, nil, nil, fmt.Errorf("org template invalid: %w", err)
 		}
 	}
 
 	for _, at := range assetTemplates {
 		if err := data.ValidateAssetTemplate(at); err != nil {
-			log.Fatalf("asset template invalid (%s): %v", at.Code, err)
+			return nil, nil, nil, fmt.Errorf("asset template invalid (%s): %w", at.Code, err)
 		}
 	}
 
 	for _, acct := range accountTemplates {
 		if err := data.ValidateAccountTemplate(acct); err != nil {
-			log.Fatalf("account template invalid (%s): %v", acct.Name, err)
+			return nil, nil, nil, fmt.Errorf("account template invalid (%s): %w", acct.Name, err)
 		}
 	}
 
 	fmt.Printf("Templates loaded: orgs=%d assets=%d accounts=%d\n", len(orgTemplates), len(assetTemplates), len(accountTemplates))
 	fmt.Println("Templates validated: data constraints look good.")
 
-	return orgTemplates, assetTemplates, accountTemplates
+	return orgTemplates, assetTemplates, accountTemplates, nil
 }
 
-func runGenerationWorkflow(ctx context.Context, c *client.Client, obsProvider observability.Provider, gcfg gen.GeneratorConfig, userConfig demoConfig, orgTemplates []data.OrgTemplate, assetTemplates []data.AssetTemplate, accountTemplates []data.AccountTemplate) {
+//nolint:gocognit,revive,funlen // Demo workflow function - complexity acceptable for example code showing complete flow
+func runGenerationWorkflow(ctx context.Context, c *client.Client, obsProvider observability.Provider, gcfg gen.GeneratorConfig, userConfig demoConfig, orgTemplates []data.OrgTemplate, assetTemplates []data.AssetTemplate, accountTemplates []data.AccountTemplate) error {
 	fmt.Println("\n🚀 Running generation workflow (org + ledger + assets + accounts + transactions)...")
 
 	state := newWorkflowState(userConfig, gcfg)
@@ -249,14 +299,24 @@ func runGenerationWorkflow(ctx context.Context, c *client.Client, obsProvider ob
 
 	for orgIdx := 0; orgIdx < userConfig.orgsVal; orgIdx++ {
 		template := orgTemplates[orgIdx%len(orgTemplates)]
-		org, ledgers := createOrganizationResources(ctx, orgGen, ledGen, assetGen, state, template, assetTemplates, orgIdx, userConfig.ledgersPerOrgVal)
+		org, ledgers, err := createOrganizationResources(ctx, orgGen, ledGen, assetGen, state, template, assetTemplates, orgIdx, userConfig.ledgersPerOrgVal)
+		if err != nil {
+			return fmt.Errorf("failed to create organization resources: %w", err)
+		}
 
 		for _, lc := range ledgers {
-			accounts, portfolio, segNA, segEU := createAccountResources(ctx, c, obsProvider, state, org, lc.ledger, accountTemplates)
+			accounts, portfolio, segNA, segEU, err := createAccountResources(ctx, c, obsProvider, state, org, lc.ledger, accountTemplates)
+			if err != nil {
+				return fmt.Errorf("failed to create account resources: %w", err)
+			}
 			lc.baseAccounts = accounts
 
 			if state.demoConfig.createHierarchyVal {
-				lc.hierarchyAccounts = createAccountHierarchy(ctx, c, obsProvider, state, org, lc.ledger, portfolio, segNA, segEU)
+				hierarchyAccounts, err := createAccountHierarchy(ctx, c, obsProvider, state, org, lc.ledger, portfolio, segNA, segEU)
+				if err != nil {
+					return fmt.Errorf("failed to create account hierarchy: %w", err)
+				}
+				lc.hierarchyAccounts = hierarchyAccounts
 			}
 
 			ledgerContexts = append(ledgerContexts, lc)
@@ -299,9 +359,10 @@ func runGenerationWorkflow(ctx context.Context, c *client.Client, obsProvider ob
 	}
 
 	fmt.Println("✅ Generation run complete.")
+	return nil
 }
 
-func createOrganizationResources(ctx context.Context, orgGen gen.OrganizationGenerator, ledGen gen.LedgerGenerator, assetGen gen.AssetGenerator, state *workflowState, tpl data.OrgTemplate, assetTemplates []data.AssetTemplate, orgIdx int, ledgersPerOrg int) (*models.Organization, []*ledgerContext) {
+func createOrganizationResources(ctx context.Context, orgGen gen.OrganizationGenerator, ledGen gen.LedgerGenerator, assetGen gen.AssetGenerator, state *workflowState, tpl data.OrgTemplate, assetTemplates []data.AssetTemplate, orgIdx int, ledgersPerOrg int) (*models.Organization, []*ledgerContext, error) {
 	t0 := time.Now()
 
 	orgTemplate := tpl
@@ -309,7 +370,7 @@ func createOrganizationResources(ctx context.Context, orgGen gen.OrganizationGen
 
 	org, err := orgGen.Generate(ctx, orgTemplate)
 	if err != nil {
-		log.Fatalf("organization generation failed: %v", err)
+		return nil, nil, fmt.Errorf("organization generation failed: %w", err)
 	}
 
 	state.apiCalls++
@@ -328,7 +389,7 @@ func createOrganizationResources(ctx context.Context, orgGen gen.OrganizationGen
 
 		ledger, err := ledGen.Generate(ctx, org.ID, ledgerTemplate)
 		if err != nil {
-			log.Fatalf("ledger generation failed: %v", err)
+			return nil, nil, fmt.Errorf("ledger generation failed: %w", err)
 		}
 
 		state.apiCalls++
@@ -348,7 +409,7 @@ func createOrganizationResources(ctx context.Context, orgGen gen.OrganizationGen
 
 			asset, err := assetGen.Generate(assetCtx, ledger.ID, tpl)
 			if err != nil {
-				log.Fatalf("asset generation failed for %s: %v", tpl.Code, err)
+				return nil, nil, fmt.Errorf("asset generation failed for %s: %w", tpl.Code, err)
 			}
 
 			state.apiCalls++
@@ -364,13 +425,14 @@ func createOrganizationResources(ctx context.Context, orgGen gen.OrganizationGen
 
 	state.stepTimings[fmt.Sprintf("org_%d_setup", orgIdx+1)] = time.Since(t0).String()
 
-	return org, ledgerContexts
+	return org, ledgerContexts, nil
 }
 
-func createAccountResources(ctx context.Context, c *client.Client, obsProvider observability.Provider, state *workflowState, org *models.Organization, ledger *models.Ledger, accountTemplates []data.AccountTemplate) ([]*models.Account, *models.Portfolio, *models.Segment, *models.Segment) {
+//nolint:funlen // Demo function - length acceptable for example code showing complete resource creation
+func createAccountResources(ctx context.Context, c *client.Client, obsProvider observability.Provider, state *workflowState, org *models.Organization, ledger *models.Ledger, accountTemplates []data.AccountTemplate) (accounts []*models.Account, portfolio *models.Portfolio, segNA *models.Segment, segEU *models.Segment, err error) {
 	atGen := gen.NewAccountTypeGenerator(c.Entity, obsProvider)
 	if _, err := atGen.GenerateDefaults(ctx, org.ID, ledger.ID); err != nil {
-		log.Fatalf("account type generation failed: %v", err)
+		return nil, nil, nil, nil, fmt.Errorf("account type generation failed: %w", err)
 	}
 
 	state.apiCalls++
@@ -379,7 +441,7 @@ func createAccountResources(ctx context.Context, c *client.Client, obsProvider o
 	orGen := gen.NewOperationRouteGenerator(c.Entity, obsProvider)
 	opRoutes, err := orGen.GenerateDefaults(ctx, org.ID, ledger.ID)
 	if err != nil {
-		log.Fatalf("operation routes generation failed: %v", err)
+		return nil, nil, nil, nil, fmt.Errorf("operation routes generation failed: %w", err)
 	}
 
 	state.apiCalls += len(opRoutes)
@@ -388,7 +450,7 @@ func createAccountResources(ctx context.Context, c *client.Client, obsProvider o
 	trGen := gen.NewTransactionRouteGenerator(c.Entity, obsProvider)
 	troutes, err := trGen.GenerateDefaults(ctx, org.ID, ledger.ID, opRoutes)
 	if err != nil {
-		log.Fatalf("transaction routes generation failed: %v", err)
+		return nil, nil, nil, nil, fmt.Errorf("transaction routes generation failed: %w", err)
 	}
 
 	state.apiCalls += len(troutes)
@@ -421,7 +483,7 @@ func createAccountResources(ctx context.Context, c *client.Client, obsProvider o
 	tAcc := time.Now()
 	created, err := accGen.GenerateBatch(ctx, org.ID, ledger.ID, state.demoConfig.assetCodeVal, batch)
 	if err != nil {
-		log.Fatalf("account generation failed: %v", err)
+		return nil, nil, nil, nil, fmt.Errorf("account generation failed: %w", err)
 	}
 
 	state.apiCalls += len(created)
@@ -436,9 +498,9 @@ func createAccountResources(ctx context.Context, c *client.Client, obsProvider o
 	pGen := gen.NewPortfolioGenerator(c.Entity, obsProvider)
 	tPS := time.Now()
 	portfolioName := fmt.Sprintf("Customer Portfolio %s", prefix)
-	portfolio, err := pGen.Generate(ctx, org.ID, ledger.ID, portfolioName, fmt.Sprintf("demo-entity-%s", prefix), map[string]any{"category": "customer"})
+	portfolio, err = pGen.Generate(ctx, org.ID, ledger.ID, portfolioName, fmt.Sprintf("demo-entity-%s", prefix), map[string]any{"category": "customer"})
 	if err != nil {
-		log.Fatalf("portfolio generation failed: %v", err)
+		return nil, nil, nil, nil, fmt.Errorf("portfolio generation failed: %w", err)
 	}
 
 	state.apiCalls++
@@ -447,15 +509,15 @@ func createAccountResources(ctx context.Context, c *client.Client, obsProvider o
 	fmt.Println("Created portfolio:", portfolio.ID)
 
 	sGen := gen.NewSegmentGenerator(c.Entity, obsProvider)
-	segNA, err := sGen.Generate(ctx, org.ID, ledger.ID, fmt.Sprintf("NA-%s", prefix), map[string]any{"region": "north_america", "ledger": ledger.ID})
+	segNA, err = sGen.Generate(ctx, org.ID, ledger.ID, fmt.Sprintf("NA-%s", prefix), map[string]any{"region": "north_america", "ledger": ledger.ID})
 	if err != nil {
-		log.Fatalf("segment generation failed: %v", err)
+		return nil, nil, nil, nil, fmt.Errorf("segment generation failed: %w", err)
 	}
 
 	state.apiCalls++
-	segEU, err := sGen.Generate(ctx, org.ID, ledger.ID, fmt.Sprintf("EU-%s", prefix), map[string]any{"region": "europe", "ledger": ledger.ID})
+	segEU, err = sGen.Generate(ctx, org.ID, ledger.ID, fmt.Sprintf("EU-%s", prefix), map[string]any{"region": "europe", "ledger": ledger.ID})
 	if err != nil {
-		log.Fatalf("segment generation failed: %v", err)
+		return nil, nil, nil, nil, fmt.Errorf("segment generation failed: %w", err)
 	}
 
 	state.apiCalls++
@@ -464,7 +526,7 @@ func createAccountResources(ctx context.Context, c *client.Client, obsProvider o
 	state.stepTimings[fmt.Sprintf("ledger_%s_portfolio_segments", ledger.ID)] = time.Since(tPS).String()
 	fmt.Println("Created segments:", segNA.ID, segEU.ID)
 
-	return created, portfolio, segNA, segEU
+	return created, portfolio, segNA, segEU, nil
 }
 
 func cloneAccountTemplate(base data.AccountTemplate) data.AccountTemplate {
@@ -480,7 +542,7 @@ func cloneAccountTemplate(base data.AccountTemplate) data.AccountTemplate {
 	return clone
 }
 
-func createAccountHierarchy(ctx context.Context, c *client.Client, obsProvider observability.Provider, state *workflowState, org *models.Organization, ledger *models.Ledger, portfolio *models.Portfolio, segNA *models.Segment, segEU *models.Segment) []*models.Account {
+func createAccountHierarchy(ctx context.Context, c *client.Client, obsProvider observability.Provider, state *workflowState, org *models.Organization, ledger *models.Ledger, portfolio *models.Portfolio, segNA *models.Segment, segEU *models.Segment) ([]*models.Account, error) {
 	accGen := gen.NewAccountGenerator(c.Entity, obsProvider)
 	hGen := gen.NewAccountHierarchyGenerator(accGen)
 
@@ -510,7 +572,7 @@ func createAccountHierarchy(ctx context.Context, c *client.Client, obsProvider o
 	tHier := time.Now()
 	createdTree, err := hGen.GenerateTree(ctx, org.ID, ledger.ID, state.demoConfig.assetCodeVal, nodes)
 	if err != nil {
-		log.Fatalf("account hierarchy generation failed: %v", err)
+		return nil, fmt.Errorf("account hierarchy generation failed: %w", err)
 	}
 
 	fmt.Println("Created account hierarchy nodes:", len(createdTree))
@@ -523,7 +585,7 @@ func createAccountHierarchy(ctx context.Context, c *client.Client, obsProvider o
 
 	state.stepTimings[fmt.Sprintf("ledger_%s_hierarchy", ledger.ID)] = time.Since(tHier).String()
 
-	return createdTree
+	return createdTree, nil
 }
 
 func runAccountTransactions(ctx context.Context, c *client.Client, state *workflowState, org *models.Organization, ledger *models.Ledger, assetScales map[string]int, accounts []*models.Account) []txpkg.BatchResult {
@@ -570,7 +632,6 @@ func processAccountTransactions(ctx context.Context, c *client.Client, state *wo
 	tBatch := time.Now()
 	fmt.Printf("Submitting %d transactions for ledger %s (batch size %d, concurrency %d)\n", len(inputs), ledger.ID, options.BatchSize, options.Concurrency)
 	results, err := txpkg.BatchTransactions(batchCtx, c, org.ID, ledger.ID, inputs, options)
-
 	if err != nil {
 		log.Printf("batch encountered errors: %v", err)
 	}
@@ -647,6 +708,15 @@ func generateFinalReport(ctx context.Context, c *client.Client, state *workflowS
 	summary := txpkg.GetBatchSummary(results)
 	state.reportEntities.Counts.Transactions = summary.SuccessCount
 
+	reportDataSummary := buildReportDataSummary(state, accounts, summary.SuccessCount)
+	fetchAccountBalances(ctx, c, state, org.ID, ledger.ID, accounts, reportDataSummary)
+
+	report := createGenerationReport(ctx, c, results, state, org.ID, ledger.ID, reportDataSummary)
+	saveReportFiles(report, state.reportEntities.IDs)
+	printBatchSummary(summary)
+}
+
+func buildReportDataSummary(state *workflowState, accounts []*models.Account, successCount int) *txpkg.ReportDataSummary {
 	reportDataSummary := &txpkg.ReportDataSummary{
 		TransactionVolumeByAccount: map[string]int{},
 		AccountDistributionByType:  map[string]int{},
@@ -665,11 +735,16 @@ func generateFinalReport(ctx context.Context, c *client.Client, state *workflowS
 	}
 
 	if totalGenerated == 0 {
-		totalGenerated = summary.SuccessCount
+		totalGenerated = successCount
 	}
 	reportDataSummary.AssetUsage[state.demoConfig.assetCodeVal] = totalGenerated
 
+	return reportDataSummary
+}
+
+func fetchAccountBalances(ctx context.Context, c *client.Client, state *workflowState, orgID, ledgerID string, accounts []*models.Account, reportDataSummary *txpkg.ReportDataSummary) {
 	balancesFetched := 0
+
 	for _, account := range accounts {
 		if balancesFetched >= 2 {
 			break
@@ -680,7 +755,7 @@ func generateFinalReport(ctx context.Context, c *client.Client, state *workflowS
 			alias = account.ID
 		}
 
-		bal, err := c.Entity.Accounts.GetBalance(ctx, org.ID, ledger.ID, account.ID)
+		bal, err := c.Entity.Accounts.GetBalance(ctx, orgID, ledgerID, account.ID)
 		if err != nil || bal == nil {
 			continue
 		}
@@ -693,14 +768,16 @@ func generateFinalReport(ctx context.Context, c *client.Client, state *workflowS
 		}
 		balancesFetched++
 	}
+}
 
+func createGenerationReport(ctx context.Context, c *client.Client, results []txpkg.BatchResult, state *workflowState, orgID, ledgerID string, reportDataSummary *txpkg.ReportDataSummary) *txpkg.GenerationReport {
 	report := txpkg.NewGenerationReport(results, "mass-demo-generator", map[string]any{
-		"org":    org.ID,
-		"ledger": ledger.ID,
+		"org":    orgID,
+		"ledger": ledgerID,
 	})
 
 	chk := integrity.NewChecker(c.Entity)
-	if br, err := chk.GenerateLedgerReport(ctx, org.ID, ledger.ID); err == nil {
+	if br, err := chk.GenerateLedgerReport(ctx, orgID, ledgerID); err == nil {
 		for alias, summary := range br.ToSummaryMap() {
 			reportDataSummary.BalanceSummaries[alias] = summary
 		}
@@ -714,6 +791,10 @@ func generateFinalReport(ctx context.Context, c *client.Client, state *workflowS
 	report.APIStats = &txpkg.ReportAPIStats{APICalls: state.apiCalls}
 	report.DataSummary = reportDataSummary
 
+	return report
+}
+
+func saveReportFiles(report *txpkg.GenerationReport, ids txpkg.ReportEntityIDs) {
 	if err := report.SaveJSON("./mass-demo-report.json", true); err != nil {
 		log.Printf("failed to save report: %v", err)
 	}
@@ -722,12 +803,17 @@ func generateFinalReport(ctx context.Context, c *client.Client, state *workflowS
 		log.Printf("failed to save HTML report: %v", err)
 	}
 
+	idsPath := "./mass-demo-entities.json"
+	if err := saveEntitiesIDs(idsPath, ids); err != nil {
+		log.Printf("warning: failed to save entity IDs: %v", err)
+	} else {
+		fmt.Println("Entity IDs saved:", idsPath)
+	}
+}
+
+func printBatchSummary(summary txpkg.BatchSummary) {
 	fmt.Printf("Batch summary: total=%d success=%d errors=%d successRate=%.1f%% tps=%.2f\n",
 		summary.TotalTransactions, summary.SuccessCount, summary.ErrorCount, summary.SuccessRate, summary.TransactionsPerSecond)
-
-	idsPath := "./mass-demo-entities.json"
-	_ = saveEntitiesIDs(idsPath, state.reportEntities.IDs)
-	fmt.Println("Entity IDs saved:", idsPath)
 }
 
 func printSampleErrors(results []txpkg.BatchResult) {

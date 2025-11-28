@@ -225,7 +225,7 @@ func NewOperationsEntity(client *http.Client, authToken string, baseURLs map[str
 	httpClient := NewHTTPClient(client, authToken, nil)
 
 	// Check if we're using the debug flag from the environment
-	if debugEnv := os.Getenv("MIDAZ_DEBUG"); debugEnv == "true" {
+	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
 		httpClient.debug = true
 	}
 
@@ -337,8 +337,7 @@ func (e *operationsEntity) ListOperations(ctx context.Context, orgID, ledgerID, 
 //	} else if operation.Type == models.OperationTypeCredit {
 //	    fmt.Println("This is a credit operation (funds entering the account)")
 //	}
-
-func (e *operationsEntity) GetOperation(ctx context.Context, orgID, ledgerID, accountID, operationID string, transactionID ...string) (*models.Operation, error) {
+func (e *operationsEntity) GetOperation(ctx context.Context, orgID, ledgerID, accountID, operationID string, _ ...string) (*models.Operation, error) {
 	const operation = "GetOperation"
 
 	if orgID == "" {

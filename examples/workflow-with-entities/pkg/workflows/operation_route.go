@@ -2,6 +2,7 @@ package workflows
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -17,13 +18,15 @@ import (
 //   - client: The initialized Midaz SDK client
 //   - orgID: The ID of the organization
 //   - ledgerID: The ID of the ledger
-//   - accountType: The account type to associate with operation routes
 //
 // Returns:
 //   - *models.OperationRoute: The source operation route model
 //   - *models.OperationRoute: The destination operation route model
 //   - error: Any error encountered during the operation
-func CreateOperationRoutes(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, accountType *models.AccountType) (*models.OperationRoute, *models.OperationRoute, error) {
+//
+// Note: The accountType parameter was removed as it was unused. The function signature
+// retains API compatibility by using a blank identifier for any callers that still pass it.
+func CreateOperationRoutes(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, _ *models.AccountType) (sourceRoute *models.OperationRoute, destRoute *models.OperationRoute, err error) {
 	fmt.Println("\n\n🛤️  STEP 4.6: OPERATION ROUTE CREATION")
 	fmt.Println(strings.Repeat("=", 50))
 
@@ -48,7 +51,7 @@ func CreateOperationRoutes(ctx context.Context, midazClient *client.Client, orgI
 	}
 
 	if sourceOperationRoute.ID == uuid.Nil {
-		return nil, nil, fmt.Errorf("source operation route created but no ID was returned from the API")
+		return nil, nil, errors.New("source operation route created but no ID was returned from the API")
 	}
 
 	fmt.Printf("✅ Source operation route created: %s\n", sourceOperationRoute.Title)
@@ -78,7 +81,7 @@ func CreateOperationRoutes(ctx context.Context, midazClient *client.Client, orgI
 	}
 
 	if destinationOperationRoute.ID == uuid.Nil {
-		return nil, nil, fmt.Errorf("destination operation route created but no ID was returned from the API")
+		return nil, nil, errors.New("destination operation route created but no ID was returned from the API")
 	}
 
 	fmt.Printf("✅ Destination operation route created: %s\n", destinationOperationRoute.Title)
@@ -238,5 +241,5 @@ func DeleteOperationRoute(ctx context.Context, midazClient *client.Client, orgID
 	// Unexpected: operation route still exists after deletion
 	fmt.Printf("   ❌ Unexpected: operation route still exists after deletion\n")
 
-	return fmt.Errorf("operation route still exists after deletion")
+	return errors.New("operation route still exists after deletion")
 }

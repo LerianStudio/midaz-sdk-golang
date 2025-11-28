@@ -1,3 +1,4 @@
+// Package utils provides common utility functions for the Midaz SDK.
 package utils
 
 import (

@@ -2,7 +2,7 @@
 package models
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
@@ -51,11 +51,11 @@ func (input *CreateAssetInput) WithMetadata(metadata map[string]any) *CreateAsse
 // Validate validates the CreateAssetInput fields.
 func (input *CreateAssetInput) Validate() error {
 	if input.Name == "" {
-		return fmt.Errorf("name is required")
+		return errors.New("name is required")
 	}
 
 	if input.Code == "" {
-		return fmt.Errorf("code is required")
+		return errors.New("code is required")
 	}
 
 	return nil
@@ -87,7 +87,7 @@ func (input *UpdateAssetInput) WithMetadata(metadata map[string]any) *UpdateAsse
 }
 
 // Validate validates the UpdateAssetInput fields.
-func (input *UpdateAssetInput) Validate() error {
+func (*UpdateAssetInput) Validate() error {
 	// For update operations, most fields are optional
 	return nil
 }

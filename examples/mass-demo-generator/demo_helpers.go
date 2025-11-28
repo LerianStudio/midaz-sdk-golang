@@ -291,43 +291,94 @@ func printDefaultsSummary(cfg demoConfig) {
 }
 
 // setupSDKAndContext configures the SDK client and context
-func setupSDKAndContext(userConfig demoConfig, obsProvider observability.Provider) (context.Context, *client.Client, gen.GeneratorConfig, func()) {
+func setupSDKAndContext(userConfig demoConfig, obsProvider observability.Provider) (context.Context, *client.Client, gen.GeneratorConfig, func(), error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(userConfig.timeoutSecVal)*time.Second)
-
 	ctx = gen.WithOrgLocale(ctx, strings.ToLower(userConfig.orgLocaleVal))
 
+	cfg, err := createSDKConfig()
+	if err != nil {
+		cancel()
+		return nil, nil, gen.GeneratorConfig{}, nil, err
+	}
+	r := configureRetryOptions()
+	ctx = retry.WithOptionsContext(ctx, r)
+	applyRetryToConfig(cfg, r)
+
+	c, err := createSDKClient(cfg, obsProvider)
+	if err != nil {
+		cancel()
+		return nil, nil, gen.GeneratorConfig{}, nil, err
+	}
+	gcfg := buildGeneratorConfig(userConfig)
+	ctx = applyCircuitBreaker(ctx, gcfg)
+
+	printBootstrapInfo(cfg, gcfg)
+
+	return ctx, c, gcfg, func() {
+		cancel()
+		shutdownClient(c)
+	}, nil
+}
+
+func createSDKConfig() (*config.Config, error) {
 	cfg, err := config.NewConfig(
 		config.FromEnvironment(),
 		config.WithEnvironment(config.EnvironmentLocal),
 		config.WithIdempotency(true),
 	)
 	if err != nil {
-		cancel()
-		log.Fatalf("failed to create SDK config: %v", err)
+		return nil, fmt.Errorf("failed to create SDK config: %w", err)
 	}
 
-	r := retry.DefaultOptions()
-	_ = retry.WithMaxRetries(3)(r)
-	_ = retry.WithInitialDelay(100 * time.Millisecond)(r)
-	_ = retry.WithMaxDelay(2 * time.Second)(r)
-	_ = retry.WithBackoffFactor(2.0)(r)
-	_ = retry.WithJitterFactor(0.25)(r)
-	ctx = retry.WithOptionsContext(ctx, r)
+	return cfg, nil
+}
 
+func configureRetryOptions() *retry.Options {
+	r := retry.DefaultOptions()
+
+	if err := retry.WithMaxRetries(3)(r); err != nil {
+		log.Printf("warning: failed to set max retries: %v", err)
+	}
+
+	if err := retry.WithInitialDelay(100 * time.Millisecond)(r); err != nil {
+		log.Printf("warning: failed to set initial delay: %v", err)
+	}
+
+	if err := retry.WithMaxDelay(2 * time.Second)(r); err != nil {
+		log.Printf("warning: failed to set max delay: %v", err)
+	}
+
+	if err := retry.WithBackoffFactor(2.0)(r); err != nil {
+		log.Printf("warning: failed to set backoff factor: %v", err)
+	}
+
+	if err := retry.WithJitterFactor(0.25)(r); err != nil {
+		log.Printf("warning: failed to set jitter factor: %v", err)
+	}
+
+	return r
+}
+
+func applyRetryToConfig(cfg *config.Config, r *retry.Options) {
 	cfg.MaxRetries = r.MaxRetries
 	cfg.RetryWaitMin = r.InitialDelay
 	cfg.RetryWaitMax = r.MaxDelay
+}
 
+func createSDKClient(cfg *config.Config, obsProvider observability.Provider) (*client.Client, error) {
 	c, err := client.New(
 		client.WithConfig(cfg),
 		client.WithObservabilityProvider(obsProvider),
 		client.UseAllAPIs(),
 	)
 	if err != nil {
-		cancel()
-		log.Fatalf("failed to create SDK client: %v", err)
+		return nil, fmt.Errorf("failed to create SDK client: %w", err)
 	}
 
+	return c, nil
+}
+
+func buildGeneratorConfig(userConfig demoConfig) gen.GeneratorConfig {
 	gcfg := gen.DefaultConfig()
 	gcfg.Organizations = userConfig.orgsVal
 	gcfg.LedgersPerOrg = userConfig.ledgersPerOrgVal
@@ -342,6 +393,10 @@ func setupSDKAndContext(userConfig demoConfig, obsProvider observability.Provide
 		gcfg.BatchSize = userConfig.batchSizeVal
 	}
 
+	return gcfg
+}
+
+func applyCircuitBreaker(ctx context.Context, gcfg gen.GeneratorConfig) context.Context {
 	if gcfg.EnableCircuitBreaker {
 		cb := conc.NewCircuitBreakerNamed("entity-api",
 			gcfg.CircuitBreakerFailureThreshold,
@@ -351,6 +406,10 @@ func setupSDKAndContext(userConfig demoConfig, obsProvider observability.Provide
 		ctx = gen.WithCircuitBreaker(ctx, cb)
 	}
 
+	return ctx
+}
+
+func printBootstrapInfo(cfg *config.Config, gcfg gen.GeneratorConfig) {
 	fmt.Println("Mass Demo Generator - Bootstrap")
 	fmt.Println("Environment:", cfg.Environment)
 	fmt.Println("Onboarding API:", cfg.ServiceURLs[config.ServiceOnboarding])
@@ -367,15 +426,13 @@ func setupSDKAndContext(userConfig demoConfig, obsProvider observability.Provide
 	if os.Getenv("MIDAZ_AUTH_TOKEN") == "" {
 		fmt.Println("Warning: MIDAZ_AUTH_TOKEN is not set. Local dev server allows any token.")
 	}
+}
 
-	return ctx, c, gcfg, func() {
-		cancel()
+func shutdownClient(c *client.Client) {
+	sdCtx, sdCancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer sdCancel()
 
-		sdCtx, sdCancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer sdCancel()
-
-		if err := c.Shutdown(sdCtx); err != nil {
-			log.Printf("client shutdown: %v", err)
-		}
+	if err := c.Shutdown(sdCtx); err != nil {
+		log.Printf("client shutdown: %v", err)
 	}
 }

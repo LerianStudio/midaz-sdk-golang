@@ -55,6 +55,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math"
 	"net/http"
@@ -220,9 +221,9 @@ func WithBackoffFactor(factor float64) Option {
 //	    "connection refused",
 //	    "timeout",
 //	}))
-func WithRetryableErrors(errors []string) Option {
+func WithRetryableErrors(retryableErrors []string) Option {
 	return func(o *Options) error {
-		o.RetryableErrors = errors
+		o.RetryableErrors = retryableErrors
 		return nil
 	}
 }
@@ -465,7 +466,7 @@ func IsRetryableError(err error, options *Options) bool {
 	}
 
 	// Check for context cancellation
-	if err == context.Canceled || err == context.DeadlineExceeded {
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return false
 	}
 
@@ -529,7 +530,6 @@ func getSecureRandomFloat64() float64 {
 	var buf [8]byte
 
 	_, err := rand.Read(buf[:])
-
 	if err != nil {
 		// If crypto/rand fails, return a safe default
 		return 0.5

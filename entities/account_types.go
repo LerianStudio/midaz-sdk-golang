@@ -93,6 +93,11 @@ type AccountTypesService interface {
 	// Note that account types that are in use by existing accounts cannot be deleted.
 	// Returns an error if the operation fails.
 	DeleteAccountType(ctx context.Context, organizationID, ledgerID, id string) error
+
+	// GetAccountTypesMetricsCount retrieves the count metrics for account types in a ledger.
+	// The organizationID and ledgerID parameters specify which organization and ledger to get metrics for.
+	// Returns the metrics count if successful, or an error if the operation fails.
+	GetAccountTypesMetricsCount(ctx context.Context, organizationID, ledgerID string) (*models.MetricsCount, error)
 }
 
 // accountTypesEntity implements the AccountTypesService interface.
@@ -146,7 +151,7 @@ func NewAccountTypesEntity(client *http.Client, authToken string, baseURLs map[s
 	httpClient := NewHTTPClient(client, authToken, nil)
 
 	// Check if we're using the debug flag from the environment
-	if debugEnv := os.Getenv("MIDAZ_DEBUG"); debugEnv == "true" {
+	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
 		httpClient.debug = true
 	}
 
@@ -345,9 +350,38 @@ func (e *accountTypesEntity) DeleteAccountType(ctx context.Context, organization
 		return errors.NewInternalError(operation, err)
 	}
 
-	if err := e.httpClient.sendRequest(req, nil); err != nil {
-		return err
+	return e.httpClient.sendRequest(req, nil)
+}
+
+// GetAccountTypesMetricsCount retrieves the count metrics for account types in a ledger.
+func (e *accountTypesEntity) GetAccountTypesMetricsCount(ctx context.Context, organizationID, ledgerID string) (*models.MetricsCount, error) {
+	const operation = "GetAccountTypesMetricsCount"
+
+	if organizationID == "" {
+		return nil, errors.NewMissingParameterError(operation, "organizationID")
 	}
 
-	return nil
+	if ledgerID == "" {
+		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+	}
+
+	url := e.buildMetricsURL(organizationID, ledgerID)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	var metrics models.MetricsCount
+	if err := e.httpClient.sendRequest(req, &metrics); err != nil {
+		return nil, err
+	}
+
+	return &metrics, nil
+}
+
+// buildMetricsURL builds the URL for account types metrics API calls.
+func (e *accountTypesEntity) buildMetricsURL(organizationID, ledgerID string) string {
+	baseURL := e.baseURLs["onboarding"]
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/account-types/metrics/count", baseURL, organizationID, ledgerID)
 }

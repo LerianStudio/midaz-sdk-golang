@@ -2,6 +2,7 @@ package generator
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
@@ -13,25 +14,17 @@ import (
 type accountTypeGenerator struct {
 	e   *entities.Entity
 	obs observability.Provider
-	mc  *observability.MetricsCollector
 }
 
 // NewAccountTypeGenerator creates a new account type generator.
 func NewAccountTypeGenerator(e *entities.Entity, obs observability.Provider) AccountTypeGenerator {
-	var mc *observability.MetricsCollector
-
-	if obs != nil && obs.IsEnabled() {
-		if c, err := observability.NewMetricsCollector(obs); err == nil {
-			mc = c
-		}
-	}
-
-	return &accountTypeGenerator{e: e, obs: obs, mc: mc}
+	return &accountTypeGenerator{e: e, obs: obs}
 }
 
+// Generate creates a new account type with the specified name, key, and metadata.
 func (g *accountTypeGenerator) Generate(ctx context.Context, orgID, ledgerID string, name, key string, metadata map[string]any) (*models.AccountType, error) {
 	if g.e == nil || g.e.AccountTypes == nil {
-		return nil, fmt.Errorf("entity account types service not initialized")
+		return nil, errors.New("entity account types service not initialized")
 	}
 
 	input := models.NewCreateAccountTypeInput(name, key).WithMetadata(metadata)
@@ -39,15 +32,17 @@ func (g *accountTypeGenerator) Generate(ctx context.Context, orgID, ledgerID str
 	var out *models.AccountType
 
 	err := observability.WithSpan(ctx, g.obs, "GenerateAccountType", func(ctx context.Context) error {
-		return retry.DoWithContext(ctx, func() error {
-			at, err := g.e.AccountTypes.CreateAccountType(ctx, orgID, ledgerID, input)
-			if err != nil {
-				return err
-			}
+		return executeWithCircuitBreaker(ctx, func() error {
+			return retry.DoWithContext(ctx, func() error {
+				at, err := g.e.AccountTypes.CreateAccountType(ctx, orgID, ledgerID, input)
+				if err != nil {
+					return err
+				}
 
-			out = at
+				out = at
 
-			return nil
+				return nil
+			})
 		})
 	})
 	if err != nil {
@@ -58,30 +53,38 @@ func (g *accountTypeGenerator) Generate(ctx context.Context, orgID, ledgerID str
 }
 
 // GenerateDefaults creates a default set of commonly used account types.
+// Returns partial results along with any accumulated errors.
 func (g *accountTypeGenerator) GenerateDefaults(ctx context.Context, orgID, ledgerID string) ([]*models.AccountType, error) {
 	defs := []struct {
 		name string
 		key  string
 		meta map[string]any
 	}{
-		{"Checking", "CHECKING", map[string]any{"category": "deposit", "overdraft": false}},
-		{"Savings", "SAVINGS", map[string]any{"category": "savings", "interest": true}},
-		{"Credit Card", "CREDIT_CARD", map[string]any{"category": "credit", "limit_supported": true}},
-		{"Expense", "EXPENSE", map[string]any{"category": "expense"}},
-		{"Revenue", "REVENUE", map[string]any{"category": "revenue"}},
-		{"Liability", "LIABILITY", map[string]any{"category": "liability"}},
-		{"Equity", "EQUITY", map[string]any{"category": "equity"}},
+		{"Checking", AccountTypeKeyChecking, map[string]any{"category": "deposit", "overdraft": false}},
+		{"Savings", AccountTypeKeySavings, map[string]any{"category": "savings", "interest": true}},
+		{"Credit Card", AccountTypeKeyCreditCard, map[string]any{"category": "credit", "limit_supported": true}},
+		{"Expense", AccountTypeKeyExpense, map[string]any{"category": "expense"}},
+		{"Revenue", AccountTypeKeyRevenue, map[string]any{"category": "revenue"}},
+		{"Liability", AccountTypeKeyLiability, map[string]any{"category": "liability"}},
+		{"Equity", AccountTypeKeyEquity, map[string]any{"category": "equity"}},
 	}
 
 	out := make([]*models.AccountType, 0, len(defs))
 
+	var errs []error
+
 	for _, d := range defs {
 		at, err := g.Generate(ctx, orgID, ledgerID, d.name, d.key, d.meta)
 		if err != nil {
-			return nil, err
+			errs = append(errs, fmt.Errorf("failed to create account type %s: %w", d.key, err))
+			continue
 		}
 
 		out = append(out, at)
+	}
+
+	if len(errs) > 0 {
+		return out, errors.Join(errs...)
 	}
 
 	return out, nil

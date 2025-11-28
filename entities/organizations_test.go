@@ -2,13 +2,14 @@ package entities
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/entities/mocks"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // \1 performs an operation
@@ -54,7 +55,7 @@ func TestListOrganizations(t *testing.T) {
 
 	// Test listing organizations with default options
 	result, err := mockService.ListOrganizations(ctx, nil)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, 2, result.Pagination.Total)
 	assert.Len(t, result.Items, 2)
 	assert.Equal(t, "org-123", result.Items[0].ID)
@@ -75,7 +76,7 @@ func TestListOrganizations(t *testing.T) {
 		Return(orgsList, nil)
 
 	_, err = mockService.ListOrganizations(ctx, opts)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 }
 
 // \1 performs an operation
@@ -107,7 +108,7 @@ func TestGetOrganization(t *testing.T) {
 
 	// Test getting an organization
 	result, err := mockService.GetOrganization(ctx, orgID)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, orgID, result.ID)
 	assert.Equal(t, "Test Org 1", result.LegalName)
 	assert.Equal(t, "123456789", result.LegalDocument)
@@ -116,19 +117,19 @@ func TestGetOrganization(t *testing.T) {
 	// Test with empty ID
 	mockService.EXPECT().
 		GetOrganization(gomock.Any(), "").
-		Return(nil, fmt.Errorf("organization ID is required"))
+		Return(nil, errors.New("organization ID is required"))
 
 	_, err = mockService.GetOrganization(ctx, "")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization ID is required")
 
 	// Test with not found
 	mockService.EXPECT().
 		GetOrganization(gomock.Any(), "not-found").
-		Return(nil, fmt.Errorf("Organization not found"))
+		Return(nil, errors.New("Organization not found"))
 
 	_, err = mockService.GetOrganization(ctx, "not-found")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
 }
 
@@ -171,7 +172,7 @@ func TestCreateOrganization(t *testing.T) {
 
 	// Test creating a new organization
 	result, err := mockService.CreateOrganization(ctx, input)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "org-new", result.ID)
 	assert.Equal(t, "New Org", result.LegalName)
 	assert.Equal(t, "987654321", result.LegalDocument)
@@ -181,10 +182,10 @@ func TestCreateOrganization(t *testing.T) {
 	// Test with nil input
 	mockService.EXPECT().
 		CreateOrganization(gomock.Any(), nil).
-		Return(nil, fmt.Errorf("organization input cannot be nil"))
+		Return(nil, errors.New("organization input cannot be nil"))
 
 	_, err = mockService.CreateOrganization(ctx, nil)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization input cannot be nil")
 }
 
@@ -228,7 +229,7 @@ func TestUpdateOrganization(t *testing.T) {
 
 	// Test updating an organization
 	result, err := mockService.UpdateOrganization(ctx, orgID, input)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, orgID, result.ID)
 	assert.Equal(t, "Updated Org", result.LegalName)
 	assert.Equal(t, "INACTIVE", result.Status.Code)
@@ -237,19 +238,19 @@ func TestUpdateOrganization(t *testing.T) {
 	// Test with empty ID
 	mockService.EXPECT().
 		UpdateOrganization(gomock.Any(), "", input).
-		Return(nil, fmt.Errorf("organization ID is required"))
+		Return(nil, errors.New("organization ID is required"))
 
 	_, err = mockService.UpdateOrganization(ctx, "", input)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization ID is required")
 
 	// Test with nil input
 	mockService.EXPECT().
 		UpdateOrganization(gomock.Any(), orgID, nil).
-		Return(nil, fmt.Errorf("organization input cannot be nil"))
+		Return(nil, errors.New("organization input cannot be nil"))
 
 	_, err = mockService.UpdateOrganization(ctx, orgID, nil)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization input cannot be nil")
 }
 
@@ -272,14 +273,14 @@ func TestDeleteOrganization(t *testing.T) {
 
 	// Test deleting an organization
 	err := mockService.DeleteOrganization(ctx, orgID)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Test with empty ID
 	mockService.EXPECT().
 		DeleteOrganization(gomock.Any(), "").
-		Return(fmt.Errorf("organization ID is required"))
+		Return(errors.New("organization ID is required"))
 
 	err = mockService.DeleteOrganization(ctx, "")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization ID is required")
 }

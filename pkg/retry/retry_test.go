@@ -42,6 +42,7 @@ func TestDo_EventualSuccess(t *testing.T) {
 		if callCount < 3 {
 			return errors.New("temporary error: connection reset by peer")
 		}
+
 		return nil
 	}
 
@@ -77,7 +78,6 @@ func TestDo_MaxRetriesExceeded(t *testing.T) {
 		WithMaxDelay(5*time.Millisecond),
 		WithBackoffFactor(2.0),
 	)
-
 	if err == nil {
 		t.Fatal("Expected an error, got nil")
 	}
@@ -111,7 +111,6 @@ func TestDo_NonRetryableError(t *testing.T) {
 		WithBackoffFactor(2.0),
 		WithRetryableErrors([]string{"retryable error only"}), // Only retry on this specific error
 	)
-
 	if err == nil {
 		t.Fatal("Expected an error, got nil")
 	}
@@ -176,12 +175,15 @@ func TestWithOptionsContext(t *testing.T) {
 	if retrievedOptions.MaxRetries != options.MaxRetries {
 		t.Errorf("Expected MaxRetries %d, got %d", options.MaxRetries, retrievedOptions.MaxRetries)
 	}
+
 	if retrievedOptions.InitialDelay != options.InitialDelay {
 		t.Errorf("Expected InitialDelay %v, got %v", options.InitialDelay, retrievedOptions.InitialDelay)
 	}
+
 	if retrievedOptions.MaxDelay != options.MaxDelay {
 		t.Errorf("Expected MaxDelay %v, got %v", options.MaxDelay, retrievedOptions.MaxDelay)
 	}
+
 	if retrievedOptions.BackoffFactor != options.BackoffFactor {
 		t.Errorf("Expected BackoffFactor %v, got %v", options.BackoffFactor, retrievedOptions.BackoffFactor)
 	}
@@ -252,6 +254,7 @@ func TestIsRetryableError(t *testing.T) {
 	if IsRetryableError(context.Canceled, options) {
 		t.Error("context.Canceled should not be retryable")
 	}
+
 	if IsRetryableError(context.DeadlineExceeded, options) {
 		t.Error("context.DeadlineExceeded should not be retryable")
 	}
@@ -309,7 +312,7 @@ func TestOptionHelpers(t *testing.T) {
 		{
 			name:    "WithMaxRetries invalid",
 			option:  WithMaxRetries(-1),
-			check:   func(o *Options) bool { return true },
+			check:   func(_ *Options) bool { return true },
 			wantErr: true,
 		},
 		{
@@ -323,7 +326,7 @@ func TestOptionHelpers(t *testing.T) {
 		{
 			name:    "WithInitialDelay invalid",
 			option:  WithInitialDelay(0),
-			check:   func(o *Options) bool { return true },
+			check:   func(_ *Options) bool { return true },
 			wantErr: true,
 		},
 		{
@@ -337,7 +340,7 @@ func TestOptionHelpers(t *testing.T) {
 		{
 			name:    "WithMaxDelay invalid",
 			option:  WithMaxDelay(-1 * time.Second),
-			check:   func(o *Options) bool { return true },
+			check:   func(_ *Options) bool { return true },
 			wantErr: true,
 		},
 		{
@@ -351,7 +354,7 @@ func TestOptionHelpers(t *testing.T) {
 		{
 			name:    "WithBackoffFactor invalid",
 			option:  WithBackoffFactor(0.5),
-			check:   func(o *Options) bool { return true },
+			check:   func(_ *Options) bool { return true },
 			wantErr: true,
 		},
 		{
@@ -365,13 +368,13 @@ func TestOptionHelpers(t *testing.T) {
 		{
 			name:    "WithJitterFactor invalid high",
 			option:  WithJitterFactor(1.5),
-			check:   func(o *Options) bool { return true },
+			check:   func(_ *Options) bool { return true },
 			wantErr: true,
 		},
 		{
 			name:    "WithJitterFactor invalid low",
 			option:  WithJitterFactor(-0.5),
-			check:   func(o *Options) bool { return true },
+			check:   func(_ *Options) bool { return true },
 			wantErr: true,
 		},
 		{
@@ -450,7 +453,7 @@ func TestHTTPOptionHelpers(t *testing.T) {
 		{
 			name:    "WithHTTPMaxRetries invalid",
 			option:  WithHTTPMaxRetries(-1),
-			check:   func(o *HTTPOptions) bool { return true },
+			check:   func(_ *HTTPOptions) bool { return true },
 			wantErr: true,
 		},
 		{
@@ -464,7 +467,7 @@ func TestHTTPOptionHelpers(t *testing.T) {
 		{
 			name:    "WithHTTPInitialDelay invalid",
 			option:  WithHTTPInitialDelay(0),
-			check:   func(o *HTTPOptions) bool { return true },
+			check:   func(_ *HTTPOptions) bool { return true },
 			wantErr: true,
 		},
 		{
@@ -478,7 +481,7 @@ func TestHTTPOptionHelpers(t *testing.T) {
 		{
 			name:    "WithHTTPMaxDelay invalid",
 			option:  WithHTTPMaxDelay(-1 * time.Second),
-			check:   func(o *HTTPOptions) bool { return true },
+			check:   func(_ *HTTPOptions) bool { return true },
 			wantErr: true,
 		},
 		{
@@ -492,7 +495,7 @@ func TestHTTPOptionHelpers(t *testing.T) {
 		{
 			name:    "WithHTTPBackoffFactor invalid",
 			option:  WithHTTPBackoffFactor(0.5),
-			check:   func(o *HTTPOptions) bool { return true },
+			check:   func(_ *HTTPOptions) bool { return true },
 			wantErr: true,
 		},
 		{
@@ -506,13 +509,13 @@ func TestHTTPOptionHelpers(t *testing.T) {
 		{
 			name:    "WithHTTPJitterFactor invalid high",
 			option:  WithHTTPJitterFactor(1.5),
-			check:   func(o *HTTPOptions) bool { return true },
+			check:   func(_ *HTTPOptions) bool { return true },
 			wantErr: true,
 		},
 		{
 			name:    "WithHTTPJitterFactor invalid low",
 			option:  WithHTTPJitterFactor(-0.5),
-			check:   func(o *HTTPOptions) bool { return true },
+			check:   func(_ *HTTPOptions) bool { return true },
 			wantErr: true,
 		},
 		{
@@ -539,7 +542,7 @@ func TestHTTPOptionHelpers(t *testing.T) {
 			name:   "WithHTTPRetryAllServerErrors",
 			option: WithHTTPRetryAllServerErrors(true),
 			check: func(o *HTTPOptions) bool {
-				return o.RetryAllServerErrors == true
+				return o.RetryAllServerErrors
 			},
 			wantErr: false,
 		},
@@ -555,7 +558,7 @@ func TestHTTPOptionHelpers(t *testing.T) {
 		},
 		{
 			name: "WithHTTPPreRetryHook",
-			option: WithHTTPPreRetryHook(func(ctx context.Context, req *http.Request, resp *HTTPResponse) error {
+			option: WithHTTPPreRetryHook(func(_ context.Context, _ *http.Request, _ *HTTPResponse) error {
 				return nil
 			}),
 			check: func(o *HTTPOptions) bool {
@@ -570,7 +573,7 @@ func TestHTTPOptionHelpers(t *testing.T) {
 				return o.MaxRetries == 5 &&
 					o.BackoffFactor > 2.0 &&
 					o.JitterFactor > 0.3 &&
-					o.RetryAllServerErrors == true
+					o.RetryAllServerErrors
 			},
 			wantErr: false,
 		},

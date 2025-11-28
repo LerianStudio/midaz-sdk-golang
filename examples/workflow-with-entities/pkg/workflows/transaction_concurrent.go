@@ -5,6 +5,7 @@ import (
 	cryptorand "crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -14,7 +15,7 @@ import (
 	client "github.com/LerianStudio/midaz-sdk-golang/v2"
 	midazmodels "github.com/LerianStudio/midaz-sdk-golang/v2/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/concurrent"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	pkgerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/performance"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation"
@@ -62,7 +63,7 @@ func ExecuteConcurrentTransactions(ctx context.Context, midazClient *client.Clie
 
 	// Validate account IDs
 	if !validation.IsValidUUID(customerAccount.ID) || !validation.IsValidUUID(merchantAccount.ID) {
-		err := fmt.Errorf("invalid account IDs")
+		err := errors.New("invalid account IDs")
 		observability.RecordError(ctx, err, "invalid_account_ids")
 
 		return err
@@ -136,7 +137,7 @@ func GenerateUniqueIdempotencyKey(prefix string, index int) string {
 
 	// Add a UUID
 	uuidStr := uuid.New().String()
-	h.Write([]byte(uuidStr))
+	_, _ = h.Write([]byte(uuidStr))
 
 	// Add the current timestamp with nanosecond precision
 	timestamp := time.Now().UnixNano()
@@ -148,7 +149,6 @@ func GenerateUniqueIdempotencyKey(prefix string, index int) string {
 	// Add some random bytes
 	randomBytes := make([]byte, 16)
 	_, err := cryptorand.Read(randomBytes)
-
 	if err != nil {
 		log.Printf("Warning: Failed to generate cryptographically secure random bytes: %v", err)
 
@@ -165,13 +165,13 @@ func GenerateUniqueIdempotencyKey(prefix string, index int) string {
 
 		// Hash the fallback source to get random bytes
 		hasher := sha256.New()
-		hasher.Write(fallbackSource)
+		_, _ = hasher.Write(fallbackSource)
 		copy(randomBytes, hasher.Sum(nil)[:16])
 
 		log.Printf("Warning: Using fallback method for random bytes generation")
 	}
 
-	h.Write(randomBytes)
+	_, _ = h.Write(randomBytes)
 
 	// Get the hash as a hex string
 	hash := hex.EncodeToString(h.Sum(nil))
@@ -187,7 +187,7 @@ func handleTransactionError(ctx context.Context, err error, index int, operation
 	}
 
 	// Get detailed error information using the errors package
-	errDetails := errors.GetErrorDetails(err)
+	errDetails := pkgerrors.GetErrorDetails(err)
 
 	// Record error in observability system
 	observability.RecordError(ctx, err, fmt.Sprintf("%s_transaction_error", operation))
@@ -196,22 +196,22 @@ func handleTransactionError(ctx context.Context, err error, index int, operation
 	observability.AddAttribute(ctx, "http_status", errDetails.HTTPStatus)
 
 	// Check if this is a cancellation error (context deadline exceeded)
-	if errors.IsCancellationError(err) {
+	if pkgerrors.IsCancellationError(err) {
 		return fmt.Errorf("%s transaction #%d cancelled: %w", operation, index+1, err)
 	}
 
 	// Check if this is a rate limit error that wasn't resolved by retries
-	if errors.IsRateLimitError(err) {
+	if pkgerrors.IsRateLimitError(err) {
 		return fmt.Errorf("%s transaction #%d hit rate limit after retries: %w", operation, index+1, err)
 	}
 
 	// Check for insufficient balance errors
-	if errors.IsInsufficientBalanceError(err) {
+	if pkgerrors.IsInsufficientBalanceError(err) {
 		return fmt.Errorf("%s transaction #%d failed due to insufficient balance: %w", operation, index+1, err)
 	}
 
 	// Check for validation errors
-	if errors.IsValidationError(err) {
+	if pkgerrors.IsValidationError(err) {
 		return fmt.Errorf("%s transaction #%d failed validation: %w", operation, index+1, err)
 	}
 
@@ -221,123 +221,69 @@ func handleTransactionError(ctx context.Context, err error, index int, operation
 
 // ExecuteCustomerToMerchantConcurrent executes concurrent transactions from customer to merchant
 // using the SDK's concurrency helpers
-//
-// Parameters:
-//   - ctx: The context for the operation, which can be used for cancellation
-//   - entity: The initialized Midaz SDK entity client
-//   - orgID: The ID of the organization
-//   - ledgerID: The ID of the ledger
-//   - customerAccount: The customer account model
-//   - merchantAccount: The merchant account model
-//   - count: The number of concurrent transactions to execute
-//
-// Returns:
-//   - error: Any error encountered during the operation
 func ExecuteCustomerToMerchantConcurrent(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *midazmodels.Account, count int) error {
-	// Start span for observability
 	ctx, span := observability.StartSpan(ctx, "ExecuteCustomerToMerchantConcurrent")
 	defer span.End()
 
-	// Create a rate limiter to avoid overwhelming the server
-	rateLimiter := concurrent.NewRateLimiter(20000, 20000) // 20000 ops/sec, burst of 20000
+	rateLimiter := concurrent.NewRateLimiter(20000, 20000)
 	defer rateLimiter.Stop()
 
-	// Create a slice of transaction indices
 	indices := make([]int, count)
 	for i := range indices {
 		indices[i] = i
 	}
 
-	// Initialize performance optimizations
+	applyC2MPerformanceOptions()
+
+	processTransaction := createC2MTransactionProcessor(midazClient, orgID, ledgerID, customerAccount, merchantAccount, rateLimiter)
+
+	startTime := time.Now()
+	results := concurrent.WorkerPool(ctx, indices, processTransaction,
+		concurrent.WithWorkers(10),
+		concurrent.WithBufferSize(count),
+		concurrent.WithUnorderedResults(),
+	)
+
+	duration := time.Since(startTime)
+	successCount, firstError := countC2MResults(results)
+
+	recordC2MMetrics(ctx, duration, successCount, count)
+
+	fmt.Printf("Successfully processed %d/%d concurrent customer to merchant transactions\n", successCount, count)
+
+	return firstError
+}
+
+func applyC2MPerformanceOptions() {
 	perfOptions := performance.Options{
 		BatchSize:       50,
 		UseJSONIterator: true,
 	}
 	performance.ApplyGlobalPerformanceOptions(perfOptions)
+}
 
-	// Create a function to process a single transaction
-	processTransaction := func(ctx context.Context, index int) (string, error) {
-		// Create span for individual transaction
+func createC2MTransactionProcessor(midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *midazmodels.Account, rateLimiter *concurrent.RateLimiter) func(context.Context, int) (string, error) {
+	return func(ctx context.Context, index int) (string, error) {
 		txCtx, txSpan := observability.StartSpan(ctx, "ProcessCustomerToMerchantTransaction")
 		defer txSpan.End()
 
 		observability.AddAttribute(txCtx, "transaction_index", index)
 
-		// Wait for a rate limiter token
 		if err := rateLimiter.Wait(txCtx); err != nil {
 			observability.RecordError(txCtx, err, "rate_limiter_wait_error")
 			return "", err
 		}
 
-		// Generate a truly unique idempotency key
 		idempotencyKey := GenerateUniqueIdempotencyKey("c2m", index)
+		transferInput := buildC2MTransactionInput(index, customerAccount, merchantAccount, idempotencyKey)
 
-		// Validate the transaction input values using the validation package
-		amount := "0.01"
-		if amount == "" || amount == "0" {
-			err := fmt.Errorf("invalid transaction amount")
-
-			observability.RecordError(txCtx, err, "invalid_amount")
-
-			return "", err
-		}
-
-		// Create a transfer transaction with a unique idempotency key
-		transferInput := &midazmodels.CreateTransactionInput{
-			ChartOfAccountsGroupName: "default_chart_group", // Required by API specification
-			Description:              fmt.Sprintf("Concurrent customer to merchant transfer #%d", index+1),
-			Amount:                   "0.01", // $0.01
-			AssetCode:                "USD",
-			Metadata: map[string]any{
-				"source": "go-sdk-example",
-				"type":   "transfer",
-				"index":  index + 1,
-			},
-			Send: &midazmodels.SendInput{
-				Asset: "USD",
-				Value: "0.01", // $0.01
-				Source: &midazmodels.SourceInput{
-					From: []midazmodels.FromToInput{
-						{
-							Account: customerAccount.ID,
-							Amount: midazmodels.AmountInput{
-								Asset: "USD",
-								Value: "0.01",
-							},
-						},
-					},
-				},
-				Distribute: &midazmodels.DistributeInput{
-					To: []midazmodels.FromToInput{
-						{
-							Account: merchantAccount.ID,
-							Amount: midazmodels.AmountInput{
-								Asset: "USD",
-								Value: "0.01",
-							},
-						},
-					},
-				},
-			},
-			// Use the enhanced idempotency key
-			IdempotencyKey: idempotencyKey,
-		}
-
-		// Record the start time of the transaction
 		startTime := time.Now()
-
-		// Use the entity to create the transaction
-		// The underlying HTTP client will automatically handle retries for transient errors
-		// such as network timeouts, 5xx server errors, and rate limit errors
 		tx, err := midazClient.Entity.Transactions.CreateTransaction(txCtx, orgID, ledgerID, transferInput)
-
-		// Record transaction duration
 		duration := time.Since(startTime)
 
 		observability.RecordSpanMetric(txCtx, "transaction_duration_ms", float64(duration.Milliseconds()))
 
 		if err != nil {
-			// Use our error handler to properly categorize and format the error
 			return "", handleTransactionError(txCtx, err, index, "customer-to-merchant")
 		}
 
@@ -345,30 +291,45 @@ func ExecuteCustomerToMerchantConcurrent(ctx context.Context, midazClient *clien
 
 		return tx.ID, nil
 	}
+}
 
-	// Use concurrent.WorkerPool to process transactions in parallel
-	workerOptions := []concurrent.PoolOption{
-		concurrent.WithWorkers(10),        // Use 10 workers
-		concurrent.WithBufferSize(count),  // Buffer all items
-		concurrent.WithUnorderedResults(), // Process in any order
+func buildC2MTransactionInput(index int, customerAccount, merchantAccount *midazmodels.Account, idempotencyKey string) *midazmodels.CreateTransactionInput {
+	return &midazmodels.CreateTransactionInput{
+		ChartOfAccountsGroupName: "default_chart_group",
+		Description:              fmt.Sprintf("Concurrent customer to merchant transfer #%d", index+1),
+		Amount:                   "0.01",
+		AssetCode:                "USD",
+		Metadata: map[string]any{
+			"source": "go-sdk-example",
+			"type":   "transfer",
+			"index":  index + 1,
+		},
+		Send: &midazmodels.SendInput{
+			Asset: "USD",
+			Value: "0.01",
+			Source: &midazmodels.SourceInput{
+				From: []midazmodels.FromToInput{
+					{
+						Account: customerAccount.ID,
+						Amount:  midazmodels.AmountInput{Asset: "USD", Value: "0.01"},
+					},
+				},
+			},
+			Distribute: &midazmodels.DistributeInput{
+				To: []midazmodels.FromToInput{
+					{
+						Account: merchantAccount.ID,
+						Amount:  midazmodels.AmountInput{Asset: "USD", Value: "0.01"},
+					},
+				},
+			},
+		},
+		IdempotencyKey: idempotencyKey,
 	}
+}
 
-	// Record the start time for metrics
-	startTime := time.Now()
-
-	results := concurrent.WorkerPool(
-		ctx,
-		indices,
-		processTransaction,
-		workerOptions...,
-	)
-
-	// Calculate total duration and throughput
-	duration := time.Since(startTime)
-
-	// Count successes and check for errors
+func countC2MResults(results []concurrent.Result[int, string]) (int, error) {
 	var successCount int
-
 	var firstError error
 
 	for _, result := range results {
@@ -381,7 +342,10 @@ func ExecuteCustomerToMerchantConcurrent(ctx context.Context, midazClient *clien
 		}
 	}
 
-	// Record metrics about the batch operation
+	return successCount, firstError
+}
+
+func recordC2MMetrics(ctx context.Context, duration time.Duration, successCount, count int) {
 	observability.RecordSpanMetric(ctx, "c2m_batch_duration_seconds", duration.Seconds())
 	observability.RecordSpanMetric(ctx, "c2m_batch_success_count", float64(successCount))
 	observability.RecordSpanMetric(ctx, "c2m_batch_error_count", float64(count-successCount))
@@ -389,11 +353,6 @@ func ExecuteCustomerToMerchantConcurrent(ctx context.Context, midazClient *clien
 	if duration.Seconds() > 0 {
 		observability.RecordSpanMetric(ctx, "c2m_batch_transactions_per_second", float64(successCount)/duration.Seconds())
 	}
-
-	fmt.Printf("Successfully processed %d/%d concurrent customer to merchant transactions\n", successCount, count)
-
-	// Return the first error encountered, if any
-	return firstError
 }
 
 // ExecuteMerchantToCustomerConcurrent executes concurrent transactions from merchant to customer
@@ -411,68 +370,88 @@ func ExecuteCustomerToMerchantConcurrent(ctx context.Context, midazClient *clien
 // Returns:
 //   - error: Any error encountered during the operation
 func ExecuteMerchantToCustomerConcurrent(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *midazmodels.Account, count int) error {
-	// Start span for observability
 	ctx, span := observability.StartSpan(ctx, "ExecuteMerchantToCustomerConcurrent")
 	defer span.End()
 
-	// Create transaction inputs for each transaction
-	transactionInputs := make([]*midazmodels.CreateTransactionInput, count)
-
-	for i := 0; i < count; i++ {
-		// Generate a unique idempotency key
-		idempotencyKey := GenerateUniqueIdempotencyKey("m2c", i)
-
-		// Validate account IDs using the validation package
-		if !validation.IsValidUUID(merchantAccount.ID) || !validation.IsValidUUID(customerAccount.ID) {
-			err := fmt.Errorf("invalid account IDs")
-
-			observability.RecordError(ctx, err, "invalid_account_ids")
-
-			return err
-		}
-
-		// Create a transfer transaction input
-		transactionInputs[i] = &midazmodels.CreateTransactionInput{
-			ChartOfAccountsGroupName: "default_chart_group", // Required by API specification
-			Description:              fmt.Sprintf("Concurrent merchant to customer transfer #%d", i+1),
-			Amount:                   "0.01", // $0.01
-			AssetCode:                "USD",
-			Metadata: map[string]any{
-				"source": "go-sdk-example",
-				"type":   "transfer",
-				"index":  i + 1,
-			},
-			Send: &midazmodels.SendInput{
-				Asset: "USD",
-				Value: "0.01", // $0.01
-				Source: &midazmodels.SourceInput{
-					From: []midazmodels.FromToInput{
-						{
-							Account: merchantAccount.ID,
-							Amount: midazmodels.AmountInput{
-								Asset: "USD",
-								Value: "0.01",
-							},
-						},
-					},
-				},
-				Distribute: &midazmodels.DistributeInput{
-					To: []midazmodels.FromToInput{
-						{
-							Account: customerAccount.ID,
-							Amount: midazmodels.AmountInput{
-								Asset: "USD",
-								Value: "0.01",
-							},
-						},
-					},
-				},
-			},
-			IdempotencyKey: idempotencyKey,
-		}
+	transactionInputs, err := buildM2CTransactionInputs(ctx, merchantAccount, customerAccount, count)
+	if err != nil {
+		return err
 	}
 
-	// Apply performance optimizations using the performance package
+	applyM2CPerformanceOptions()
+
+	batchSize := performance.GetOptimalBatchSize(count, 2000)
+	observability.AddAttribute(ctx, "batch_size", batchSize)
+
+	processTransactionBatch := createM2CBatchProcessor(midazClient, orgID, ledgerID)
+
+	fmt.Println("Processing transactions in batches...")
+
+	batchOpStartTime := time.Now()
+	batchResults := concurrent.Batch(ctx, transactionInputs, batchSize, processTransactionBatch, concurrent.WithWorkers(2))
+	batchOpDuration := time.Since(batchOpStartTime)
+
+	observability.RecordSpanMetric(ctx, "m2c_batch_operation_duration_seconds", batchOpDuration.Seconds())
+
+	successCount, firstError := countM2CResults(batchResults)
+	recordM2CMetrics(ctx, batchOpDuration, successCount, count)
+
+	fmt.Printf("Successfully processed %d/%d concurrent merchant to customer transactions\n", successCount, count)
+
+	return firstError
+}
+
+func buildM2CTransactionInputs(ctx context.Context, merchantAccount, customerAccount *midazmodels.Account, count int) ([]*midazmodels.CreateTransactionInput, error) {
+	if !validation.IsValidUUID(merchantAccount.ID) || !validation.IsValidUUID(customerAccount.ID) {
+		err := errors.New("invalid account IDs")
+		observability.RecordError(ctx, err, "invalid_account_ids")
+		return nil, err
+	}
+
+	inputs := make([]*midazmodels.CreateTransactionInput, count)
+	for i := 0; i < count; i++ {
+		inputs[i] = buildM2CTransactionInput(i, merchantAccount, customerAccount, GenerateUniqueIdempotencyKey("m2c", i))
+	}
+
+	return inputs, nil
+}
+
+func buildM2CTransactionInput(index int, merchantAccount, customerAccount *midazmodels.Account, idempotencyKey string) *midazmodels.CreateTransactionInput {
+	return &midazmodels.CreateTransactionInput{
+		ChartOfAccountsGroupName: "default_chart_group",
+		Description:              fmt.Sprintf("Concurrent merchant to customer transfer #%d", index+1),
+		Amount:                   "0.01",
+		AssetCode:                "USD",
+		Metadata: map[string]any{
+			"source": "go-sdk-example",
+			"type":   "transfer",
+			"index":  index + 1,
+		},
+		Send: &midazmodels.SendInput{
+			Asset: "USD",
+			Value: "0.01",
+			Source: &midazmodels.SourceInput{
+				From: []midazmodels.FromToInput{
+					{
+						Account: merchantAccount.ID,
+						Amount:  midazmodels.AmountInput{Asset: "USD", Value: "0.01"},
+					},
+				},
+			},
+			Distribute: &midazmodels.DistributeInput{
+				To: []midazmodels.FromToInput{
+					{
+						Account: customerAccount.ID,
+						Amount:  midazmodels.AmountInput{Asset: "USD", Value: "0.01"},
+					},
+				},
+			},
+		},
+		IdempotencyKey: idempotencyKey,
+	}
+}
+
+func applyM2CPerformanceOptions() {
 	perfOptions := performance.Options{
 		BatchSize:           100,
 		EnableHTTPPooling:   true,
@@ -480,75 +459,26 @@ func ExecuteMerchantToCustomerConcurrent(ctx context.Context, midazClient *clien
 		UseJSONIterator:     true,
 	}
 	performance.ApplyBatchingOptions(perfOptions)
+}
 
-	// Define batch processing function with optimized performance
-	batchSize := performance.GetOptimalBatchSize(count, 2000) // Max 2000 transactions per batch
-	observability.AddAttribute(ctx, "batch_size", batchSize)
-
-	processTransactionBatch := func(ctx context.Context, batch []*midazmodels.CreateTransactionInput) ([]*midazmodels.Transaction, error) {
-		// Create span for batch processing
+func createM2CBatchProcessor(midazClient *client.Client, orgID, ledgerID string) func(context.Context, []*midazmodels.CreateTransactionInput) ([]*midazmodels.Transaction, error) {
+	return func(ctx context.Context, batch []*midazmodels.CreateTransactionInput) ([]*midazmodels.Transaction, error) {
 		batchCtx, batchSpan := observability.StartSpan(ctx, "ProcessTransactionBatch")
 		defer batchSpan.End()
 
 		observability.AddAttribute(batchCtx, "batch_size", len(batch))
 
 		results := make([]*midazmodels.Transaction, 0, len(batch))
-		resultsMutex := &sync.Mutex{} // Mutex to safely append to results
-
-		// Record batch start time
+		resultsMutex := &sync.Mutex{}
 		batchStartTime := time.Now()
 
-		// Use the concurrent.ForEach to process transactions within each batch
-		err := concurrent.ForEach(
-			batchCtx,
-			batch,
-			func(ctx context.Context, input *midazmodels.CreateTransactionInput) error {
-				// Create span for individual transaction within batch
-				txCtx, txSpan := observability.StartSpan(ctx, "ProcessSingleTransaction")
-				defer txSpan.End()
-
-				// Extract the index from the metadata to use in the error handler
-				var index int
-
-				if idx, ok := input.Metadata["index"]; ok {
-					if idxInt, ok := idx.(int); ok {
-						index = idxInt - 1 // Convert back to 0-based index
-						observability.AddAttribute(txCtx, "transaction_index", index)
-					}
-				}
-
-				// Record transaction start time
-				txStartTime := time.Now()
-
-				// The underlying HTTP client will automatically handle retries for transient errors
-				tx, err := midazClient.Entity.Transactions.CreateTransaction(txCtx, orgID, ledgerID, input)
-
-				// Record transaction duration
-				txDuration := time.Since(txStartTime)
-
-				observability.RecordSpanMetric(txCtx, "transaction_duration_ms", float64(txDuration.Milliseconds()))
-
-				if err != nil {
-					// Use our error handler to properly categorize and format the error
-					return handleTransactionError(txCtx, err, index, "merchant-to-customer")
-				}
-
-				observability.AddAttribute(txCtx, "transaction_id", tx.ID)
-
-				// Safely append to results with mutex protection
-				resultsMutex.Lock()
-				results = append(results, tx)
-				resultsMutex.Unlock()
-
-				return nil
-			},
-			concurrent.WithWorkers(3),    // Process 3 transactions at a time within each batch
-			concurrent.WithRateLimit(10), // Limit to 10 requests per second
+		err := concurrent.ForEach(batchCtx, batch,
+			createM2CSingleTransactionProcessor(midazClient, orgID, ledgerID, &results, resultsMutex),
+			concurrent.WithWorkers(3),
+			concurrent.WithRateLimit(10),
 		)
 
-		// Record batch duration and throughput
 		batchDuration := time.Since(batchStartTime)
-
 		observability.RecordSpanMetric(batchCtx, "batch_duration_seconds", batchDuration.Seconds())
 
 		if batchDuration.Seconds() > 0 && err == nil {
@@ -562,29 +492,48 @@ func ExecuteMerchantToCustomerConcurrent(ctx context.Context, midazClient *clien
 
 		return results, nil
 	}
+}
 
-	// Use the concurrent.Batch function to process transactions in batches
-	fmt.Println("Processing transactions in batches...")
+func createM2CSingleTransactionProcessor(midazClient *client.Client, orgID, ledgerID string, results *[]*midazmodels.Transaction, resultsMutex *sync.Mutex) func(context.Context, *midazmodels.CreateTransactionInput) error {
+	return func(ctx context.Context, input *midazmodels.CreateTransactionInput) error {
+		txCtx, txSpan := observability.StartSpan(ctx, "ProcessSingleTransaction")
+		defer txSpan.End()
 
-	// Record batch operation start time
-	batchOpStartTime := time.Now()
+		index := extractTransactionIndex(txCtx, input)
+		txStartTime := time.Now()
 
-	batchResults := concurrent.Batch(
-		ctx,
-		transactionInputs,
-		batchSize,
-		processTransactionBatch,
-		concurrent.WithWorkers(2), // Process 2 batches concurrently
-	)
+		tx, err := midazClient.Entity.Transactions.CreateTransaction(txCtx, orgID, ledgerID, input)
+		txDuration := time.Since(txStartTime)
+		observability.RecordSpanMetric(txCtx, "transaction_duration_ms", float64(txDuration.Milliseconds()))
 
-	// Record total batch operation duration
-	batchOpDuration := time.Since(batchOpStartTime)
+		if err != nil {
+			return handleTransactionError(txCtx, err, index, "merchant-to-customer")
+		}
 
-	observability.RecordSpanMetric(ctx, "m2c_batch_operation_duration_seconds", batchOpDuration.Seconds())
+		observability.AddAttribute(txCtx, "transaction_id", tx.ID)
 
-	// Count successes and check for errors
+		resultsMutex.Lock()
+		*results = append(*results, tx)
+		resultsMutex.Unlock()
+
+		return nil
+	}
+}
+
+func extractTransactionIndex(ctx context.Context, input *midazmodels.CreateTransactionInput) int {
+	var index int
+	if idx, ok := input.Metadata["index"]; ok {
+		if idxInt, ok := idx.(int); ok {
+			index = idxInt - 1
+			observability.AddAttribute(ctx, "transaction_index", index)
+		}
+	}
+
+	return index
+}
+
+func countM2CResults(batchResults []concurrent.Result[*midazmodels.CreateTransactionInput, *midazmodels.Transaction]) (int, error) {
 	var successCount int
-
 	var firstError error
 
 	for _, result := range batchResults {
@@ -593,20 +542,18 @@ func ExecuteMerchantToCustomerConcurrent(ctx context.Context, midazClient *clien
 				firstError = result.Error
 			}
 		} else {
-			successCount += 1 // Each successful result counts as one
+			successCount++
 		}
 	}
 
-	// Record final metrics
+	return successCount, firstError
+}
+
+func recordM2CMetrics(ctx context.Context, duration time.Duration, successCount, count int) {
 	observability.RecordSpanMetric(ctx, "m2c_batch_success_count", float64(successCount))
 	observability.RecordSpanMetric(ctx, "m2c_batch_error_count", float64(count-successCount))
 
-	if batchOpDuration.Seconds() > 0 {
-		observability.RecordSpanMetric(ctx, "m2c_batch_transactions_per_second", float64(successCount)/batchOpDuration.Seconds())
+	if duration.Seconds() > 0 {
+		observability.RecordSpanMetric(ctx, "m2c_batch_transactions_per_second", float64(successCount)/duration.Seconds())
 	}
-
-	fmt.Printf("Successfully processed %d/%d concurrent merchant to customer transactions\n", successCount, count)
-
-	// Return the first error encountered, if any
-	return firstError
 }

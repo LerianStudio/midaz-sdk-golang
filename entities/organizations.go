@@ -178,7 +178,7 @@ func NewOrganizationsEntity(client *http.Client, authToken string, baseURLs map[
 	httpClient := NewHTTPClient(client, authToken, nil)
 
 	// Check if we're using the debug flag from the environment
-	if debugEnv := os.Getenv("MIDAZ_DEBUG"); debugEnv == "true" {
+	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
 		httpClient.debug = true
 	}
 
@@ -266,12 +266,9 @@ func (e *organizationsEntity) CreateOrganization(ctx context.Context, input *mod
 	// Convert the input to the mmodel format using our utility
 	mmodelInput := input.ToMmodelCreateOrganizationInput()
 
-	// Using structured logging would be beneficial here to debug conversions
-	if e.HTTPClient.debug {
-		fmt.Printf("DEBUG [%s]: Converting SDK input to backend format\n", operation)
-		fmt.Printf("DEBUG [%s]: Original: %+v\n", operation, input)
-		fmt.Printf("DEBUG [%s]: Converted: %+v\n", operation, mmodelInput)
-	}
+	e.HTTPClient.debugLog("[%s]: Converting SDK input to backend format", operation)
+	e.HTTPClient.debugLog("[%s]: Original: %+v", operation, input)
+	e.HTTPClient.debugLog("[%s]: Converted: %+v", operation, mmodelInput)
 
 	// Marshal the input to JSON
 	body, err := json.Marshal(mmodelInput)
@@ -343,11 +340,7 @@ func (e *organizationsEntity) DeleteOrganization(ctx context.Context, id string)
 		return errors.NewInternalError(operation, err)
 	}
 
-	if err := e.HTTPClient.sendRequest(req, nil); err != nil {
-		return err
-	}
-
-	return nil
+	return e.HTTPClient.sendRequest(req, nil)
 }
 
 // GetOrganizationsMetricsCount gets the count metrics for organizations.

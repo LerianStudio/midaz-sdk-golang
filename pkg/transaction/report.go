@@ -94,17 +94,46 @@ func (r *GenerationReport) SaveJSON(path string, pretty bool) error {
 	return os.WriteFile(path, data, 0o600)
 }
 
-// SaveHTML writes a minimal HTML report for quick viewing.
-// This is intentionally dependency-free (no templates) to avoid adding heavy deps.
-func (r *GenerationReport) SaveHTML(path string) error {
-	b := &strings.Builder{}
-	// Simple inline styles for readability
+// writeHTMLHeader writes the HTML header and styles to the builder.
+func writeHTMLHeader(b *strings.Builder, generatedAt time.Time) {
 	_, _ = fmt.Fprintf(b, "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Mass Demo Report</title>\n")
 	_, _ = fmt.Fprintf(b, "<style>body{font-family:Arial,Helvetica,sans-serif;margin:24px;} .k{color:#555;} table{border-collapse:collapse;margin-top:8px;} td,th{border:1px solid #ddd;padding:6px 10px;} th{background:#f6f6f6;text-align:left;} code{background:#f2f2f2;padding:2px 4px;border-radius:4px;} .section{margin-bottom:20px;} .muted{color:#777;}</style></head><body>")
 	_, _ = fmt.Fprintf(b, "<h1>Mass Demo Generation Report</h1>")
-	_, _ = fmt.Fprintf(b, "<p class=\"muted\">Generated at %s</p>", r.GeneratedAt.Format(time.RFC3339))
+	_, _ = fmt.Fprintf(b, "<p class=\"muted\">Generated at %s</p>", generatedAt.Format(time.RFC3339))
+}
 
-	// Summary
+// writeHTMLMapSection writes a section with a map[string]int as a table.
+func writeHTMLMapSection(b *strings.Builder, title string, data map[string]int) {
+	if len(data) == 0 {
+		return
+	}
+
+	_, _ = fmt.Fprintf(b, "<div class=\"section\"><h2>%s</h2><table><tbody>", title)
+
+	for k, v := range data {
+		_, _ = fmt.Fprintf(b, "<tr><th>%s</th><td>%d</td></tr>", k, v)
+	}
+
+	_, _ = fmt.Fprintf(b, "</tbody></table></div>")
+}
+
+// writeHTMLStringMapSection writes a section with a map[string]string as a table.
+func writeHTMLStringMapSection(b *strings.Builder, title string, data map[string]string) {
+	if len(data) == 0 {
+		return
+	}
+
+	_, _ = fmt.Fprintf(b, "<div class=\"section\"><h2>%s</h2><table><tbody>", title)
+
+	for k, v := range data {
+		_, _ = fmt.Fprintf(b, "<tr><th>%s</th><td>%s</td></tr>", k, v)
+	}
+
+	_, _ = fmt.Fprintf(b, "</tbody></table></div>")
+}
+
+// writeHTMLSummarySection writes the summary section.
+func (r *GenerationReport) writeHTMLSummarySection(b *strings.Builder) {
 	_, _ = fmt.Fprintf(b, "<div class=\"section\"><h2>Summary</h2>")
 	_, _ = fmt.Fprintf(b, "<table><tbody>")
 	_, _ = fmt.Fprintf(b, "<tr><th>Total</th><td>%d</td></tr>", r.Summary.TotalTransactions)
@@ -113,85 +142,77 @@ func (r *GenerationReport) SaveHTML(path string) error {
 	_, _ = fmt.Fprintf(b, "<tr><th>Success Rate</th><td>%.1f%%</td></tr>", r.Summary.SuccessRate)
 	_, _ = fmt.Fprintf(b, "<tr><th>TPS</th><td>%.2f</td></tr>", r.Summary.TransactionsPerSecond)
 	_, _ = fmt.Fprintf(b, "</tbody></table></div>")
+}
 
-	// Step timings
-	if len(r.StepTimings) > 0 {
-		_, _ = fmt.Fprintf(b, "<div class=\"section\"><h2>Step Durations</h2><table><tbody>")
-		for k, v := range r.StepTimings {
-			_, _ = fmt.Fprintf(b, "<tr><th>%s</th><td>%s</td></tr>", k, v)
-		}
-
-		_, _ = fmt.Fprintf(b, "</tbody></table></div>")
+// writeHTMLEntitiesSection writes the entities section.
+func (r *GenerationReport) writeHTMLEntitiesSection(b *strings.Builder) {
+	if r.Entities == nil {
+		return
 	}
 
-	// Entities
-	if r.Entities != nil {
-		_, _ = fmt.Fprintf(b, "<div class=\"section\"><h2>Entities</h2>")
-		c := r.Entities.Counts
-		_, _ = fmt.Fprintf(b, "<table><tbody>")
-		_, _ = fmt.Fprintf(b, "<tr><th>Organizations</th><td>%d</td></tr>", c.Organizations)
-		_, _ = fmt.Fprintf(b, "<tr><th>Ledgers</th><td>%d</td></tr>", c.Ledgers)
-		_, _ = fmt.Fprintf(b, "<tr><th>Assets</th><td>%d</td></tr>", c.Assets)
-		_, _ = fmt.Fprintf(b, "<tr><th>Accounts</th><td>%d</td></tr>", c.Accounts)
-		_, _ = fmt.Fprintf(b, "<tr><th>Portfolios</th><td>%d</td></tr>", c.Portfolios)
-		_, _ = fmt.Fprintf(b, "<tr><th>Segments</th><td>%d</td></tr>", c.Segments)
-		_, _ = fmt.Fprintf(b, "<tr><th>Transactions</th><td>%d</td></tr>", c.Transactions)
-		_, _ = fmt.Fprintf(b, "</tbody></table>")
-		// IDs brief list
-		ids := r.Entities.IDs
-		if len(ids.OrganizationIDs)+len(ids.LedgerIDs)+len(ids.AssetIDs)+len(ids.AccountIDs)+len(ids.PortfolioIDs)+len(ids.SegmentIDs)+len(ids.TransactionIDs) > 0 {
-			_, _ = fmt.Fprintf(b, "<p class=\"muted\">IDs captured (truncated for brevity).</p>")
-		}
+	_, _ = fmt.Fprintf(b, "<div class=\"section\"><h2>Entities</h2>")
+	c := r.Entities.Counts
+	_, _ = fmt.Fprintf(b, "<table><tbody>")
+	_, _ = fmt.Fprintf(b, "<tr><th>Organizations</th><td>%d</td></tr>", c.Organizations)
+	_, _ = fmt.Fprintf(b, "<tr><th>Ledgers</th><td>%d</td></tr>", c.Ledgers)
+	_, _ = fmt.Fprintf(b, "<tr><th>Assets</th><td>%d</td></tr>", c.Assets)
+	_, _ = fmt.Fprintf(b, "<tr><th>Accounts</th><td>%d</td></tr>", c.Accounts)
+	_, _ = fmt.Fprintf(b, "<tr><th>Portfolios</th><td>%d</td></tr>", c.Portfolios)
+	_, _ = fmt.Fprintf(b, "<tr><th>Segments</th><td>%d</td></tr>", c.Segments)
+	_, _ = fmt.Fprintf(b, "<tr><th>Transactions</th><td>%d</td></tr>", c.Transactions)
+	_, _ = fmt.Fprintf(b, "</tbody></table>")
 
-		_, _ = fmt.Fprintf(b, "</div>")
+	ids := r.Entities.IDs
+	totalIDs := len(ids.OrganizationIDs) + len(ids.LedgerIDs) + len(ids.AssetIDs) +
+		len(ids.AccountIDs) + len(ids.PortfolioIDs) + len(ids.SegmentIDs) + len(ids.TransactionIDs)
+
+	if totalIDs > 0 {
+		_, _ = fmt.Fprintf(b, "<p class=\"muted\">IDs captured (truncated for brevity).</p>")
 	}
 
-	// API stats
-	if r.APIStats != nil {
-		_, _ = fmt.Fprintf(b, "<div class=\"section\"><h2>API Stats</h2><table><tbody>")
-		_, _ = fmt.Fprintf(b, "<tr><th>Total API Calls</th><td>%d</td></tr>", r.APIStats.APICalls)
+	_, _ = fmt.Fprintf(b, "</div>")
+}
 
-		if len(r.APIStats.Errors) > 0 {
-			for k, v := range r.APIStats.Errors {
-				_, _ = fmt.Fprintf(b, "<tr><th>Error %s</th><td>%d</td></tr>", k, v)
-			}
-		}
-
-		_, _ = fmt.Fprintf(b, "</tbody></table></div>")
+// writeHTMLAPIStatsSection writes the API stats section.
+func (r *GenerationReport) writeHTMLAPIStatsSection(b *strings.Builder) {
+	if r.APIStats == nil {
+		return
 	}
 
-	// Data summary
-	if r.DataSummary != nil {
-		ds := r.DataSummary
-		if len(ds.TransactionVolumeByAccount) > 0 {
-			_, _ = fmt.Fprintf(b, "<div class=\"section\"><h2>Transaction Volume by Account</h2><table><tbody>")
-			for k, v := range ds.TransactionVolumeByAccount {
-				_, _ = fmt.Fprintf(b, "<tr><th>%s</th><td>%d</td></tr>", k, v)
-			}
+	_, _ = fmt.Fprintf(b, "<div class=\"section\"><h2>API Stats</h2><table><tbody>")
+	_, _ = fmt.Fprintf(b, "<tr><th>Total API Calls</th><td>%d</td></tr>", r.APIStats.APICalls)
 
-			_, _ = fmt.Fprintf(b, "</tbody></table></div>")
-		}
-
-		if len(ds.AccountDistributionByType) > 0 {
-			_, _ = fmt.Fprintf(b, "<div class=\"section\"><h2>Account Distribution by Type</h2><table><tbody>")
-			for k, v := range ds.AccountDistributionByType {
-				_, _ = fmt.Fprintf(b, "<tr><th>%s</th><td>%d</td></tr>", k, v)
-			}
-
-			_, _ = fmt.Fprintf(b, "</tbody></table></div>")
-		}
-
-		if len(ds.AssetUsage) > 0 {
-			_, _ = fmt.Fprintf(b, "<div class=\"section\"><h2>Asset Usage</h2><table><tbody>")
-			for k, v := range ds.AssetUsage {
-				_, _ = fmt.Fprintf(b, "<tr><th>%s</th><td>%d</td></tr>", k, v)
-			}
-
-			_, _ = fmt.Fprintf(b, "</tbody></table></div>")
-		}
+	for k, v := range r.APIStats.Errors {
+		_, _ = fmt.Fprintf(b, "<tr><th>Error %s</th><td>%d</td></tr>", k, v)
 	}
+
+	_, _ = fmt.Fprintf(b, "</tbody></table></div>")
+}
+
+// writeHTMLDataSummarySection writes the data summary section.
+func (r *GenerationReport) writeHTMLDataSummarySection(b *strings.Builder) {
+	if r.DataSummary == nil {
+		return
+	}
+
+	writeHTMLMapSection(b, "Transaction Volume by Account", r.DataSummary.TransactionVolumeByAccount)
+	writeHTMLMapSection(b, "Account Distribution by Type", r.DataSummary.AccountDistributionByType)
+	writeHTMLMapSection(b, "Asset Usage", r.DataSummary.AssetUsage)
+}
+
+// SaveHTML writes a minimal HTML report for quick viewing.
+// This is intentionally dependency-free (no templates) to avoid adding heavy deps.
+func (r *GenerationReport) SaveHTML(path string) error {
+	b := &strings.Builder{}
+
+	writeHTMLHeader(b, r.GeneratedAt)
+	r.writeHTMLSummarySection(b)
+	writeHTMLStringMapSection(b, "Step Durations", r.StepTimings)
+	r.writeHTMLEntitiesSection(b)
+	r.writeHTMLAPIStatsSection(b)
+	r.writeHTMLDataSummarySection(b)
 
 	_, _ = fmt.Fprintf(b, "</body></html>")
-	// Restrict permissions to owner read/write as report can include IDs.
+
 	return os.WriteFile(path, []byte(b.String()), 0o600)
 }

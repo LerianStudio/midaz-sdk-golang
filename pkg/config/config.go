@@ -9,6 +9,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -18,6 +19,7 @@ import (
 
 	auth "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/access-manager"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/version"
 )
 
 // ServiceType represents a type of service in the Midaz API ecosystem.
@@ -49,9 +51,6 @@ const (
 
 // Default configuration values
 const (
-	// Default user agent for HTTP requests
-	DefaultUserAgent = "midaz-go-sdk/1.0.0"
-
 	// Default timeout for HTTP requests in seconds
 	DefaultTimeout = 60
 
@@ -66,12 +65,18 @@ const (
 
 	// Default retry configuration
 	DefaultMaxRetries   = 3
-	DefaultRetryWaitMin = 1 * time.Second
+	DefaultMinRetryWait = 1 * time.Second
 	DefaultRetryWaitMax = 30 * time.Second
 
 	// Default feature flags
 	DefaultEnableIdempotency = true
 	DefaultEnableRetries     = true
+)
+
+// Boolean string values for environment variable comparison.
+const (
+	// boolTrue represents the string value "true" for boolean environment variables.
+	boolTrue = "true"
 )
 
 // Config holds the configuration for the Midaz SDK.
@@ -234,7 +239,7 @@ func WithBaseURL(baseURL string) Option {
 func WithHTTPClient(client *http.Client) Option {
 	return func(c *Config) error {
 		if client == nil {
-			return fmt.Errorf("HTTP client cannot be nil")
+			return errors.New("HTTP client cannot be nil")
 		}
 
 		c.HTTPClient = client
@@ -253,7 +258,7 @@ func WithHTTPClient(client *http.Client) Option {
 func WithTimeout(timeout time.Duration) Option {
 	return func(c *Config) error {
 		if timeout <= 0 {
-			return fmt.Errorf("timeout must be greater than 0")
+			return errors.New("timeout must be greater than 0")
 		}
 
 		c.Timeout = timeout
@@ -272,7 +277,7 @@ func WithTimeout(timeout time.Duration) Option {
 func WithUserAgent(userAgent string) Option {
 	return func(c *Config) error {
 		if userAgent == "" {
-			return fmt.Errorf("user agent cannot be empty")
+			return errors.New("user agent cannot be empty")
 		}
 
 		c.UserAgent = userAgent
@@ -293,15 +298,15 @@ func WithUserAgent(userAgent string) Option {
 func WithRetryConfig(maxRetries int, minWait, maxWait time.Duration) Option {
 	return func(c *Config) error {
 		if maxRetries < 0 {
-			return fmt.Errorf("max retries cannot be negative")
+			return errors.New("max retries cannot be negative")
 		}
 
 		if minWait <= 0 {
-			return fmt.Errorf("minimum wait time must be greater than 0")
+			return errors.New("minimum wait time must be greater than 0")
 		}
 
 		if maxWait < minWait {
-			return fmt.Errorf("maximum wait time must be greater than or equal to minimum wait time")
+			return errors.New("maximum wait time must be greater than or equal to minimum wait time")
 		}
 
 		c.MaxRetries = maxRetries
@@ -376,13 +381,13 @@ func WithIdempotency(enable bool) Option {
 // WithAccessManager sets the plugin-based authentication configuration.
 //
 // Parameters:
-//   - AccessManager: The plugin authentication configuration
+//   - accessManager: The plugin authentication configuration
 //
 // Returns:
 //   - Option: A function that sets the plugin authentication on a Config
-func WithAccessManager(AccessManager auth.AccessManager) Option {
+func WithAccessManager(accessManager auth.AccessManager) Option {
 	return func(c *Config) error {
-		c.AccessManager = AccessManager
+		c.AccessManager = accessManager
 
 		return nil
 	}
@@ -393,7 +398,10 @@ func WithAccessManager(AccessManager auth.AccessManager) Option {
 //
 // Environment variables:
 // - MIDAZ_ENVIRONMENT: The environment to use (local, development, production)
-// - MIDAZ_AUTH_TOKEN: The authentication token
+// - PLUGIN_AUTH_ENABLED: Enable access manager authentication (true/false)
+// - PLUGIN_AUTH_ADDRESS: The address of the access manager service
+// - MIDAZ_CLIENT_ID: The client ID for authentication
+// - MIDAZ_CLIENT_SECRET: The client secret for authentication
 // - MIDAZ_USER_AGENT: The user agent string to use for HTTP requests
 // - MIDAZ_ONBOARDING_URL: The URL for the Onboarding API
 // - MIDAZ_TRANSACTION_URL: The URL for the Transaction API
@@ -455,7 +463,7 @@ func configureAccessManager(c *Config) {
 		c.AccessManager.Address = os.Getenv("PLUGIN_AUTH_ADDRESS")
 		c.AccessManager.ClientID = os.Getenv("MIDAZ_CLIENT_ID")
 		c.AccessManager.ClientSecret = os.Getenv("MIDAZ_CLIENT_SECRET")
-		c.AccessManager.Enabled = enable == "true"
+		c.AccessManager.Enabled = enable == boolTrue
 	}
 }
 
@@ -540,12 +548,12 @@ func configureRetries(c *Config) error {
 
 // configureOptionalSettings sets optional boolean settings from environment
 func configureOptionalSettings(c *Config) {
-	if debug := os.Getenv("MIDAZ_DEBUG"); debug == "true" {
+	if debug := os.Getenv("MIDAZ_DEBUG"); debug == boolTrue {
 		c.Debug = true
 	}
 
 	if idempotency := os.Getenv("MIDAZ_IDEMPOTENCY"); idempotency != "" {
-		c.EnableIdempotency = idempotency == "true"
+		c.EnableIdempotency = idempotency == boolTrue
 	}
 }
 
@@ -576,9 +584,9 @@ func NewConfig(options ...Option) (*Config, error) {
 		Environment:       EnvironmentLocal,
 		ServiceURLs:       make(map[ServiceType]string),
 		Timeout:           DefaultTimeout * time.Second,
-		UserAgent:         DefaultUserAgent,
+		UserAgent:         version.UserAgent(),
 		MaxRetries:        DefaultMaxRetries,
-		RetryWaitMin:      DefaultRetryWaitMin,
+		RetryWaitMin:      DefaultMinRetryWait,
 		RetryWaitMax:      DefaultRetryWaitMax,
 		EnableRetries:     DefaultEnableRetries,
 		EnableIdempotency: DefaultEnableIdempotency,
@@ -638,18 +646,18 @@ func setDefaultServiceURLs(config *Config) error {
 func validateConfig(config *Config) error {
 	// Check that we have URLs for required services
 	if _, ok := config.ServiceURLs[ServiceOnboarding]; !ok {
-		return fmt.Errorf("onboarding URL is required")
+		return errors.New("onboarding URL is required")
 	}
 
 	if _, ok := config.ServiceURLs[ServiceTransaction]; !ok {
-		return fmt.Errorf("transaction URL is required")
+		return errors.New("transaction URL is required")
 	}
 
 	// When plugin auth is enabled, we require the plugin auth address
 	if config.AccessManager.Enabled && config.AccessManager.Address == "" {
 		// But for tests, we'll skip this check
-		if os.Getenv("MIDAZ_SKIP_AUTH_CHECK") != "true" {
-			return fmt.Errorf("plugin auth address is required")
+		if os.Getenv("MIDAZ_SKIP_AUTH_CHECK") != boolTrue {
+			return errors.New("plugin auth address is required")
 		}
 	}
 
@@ -688,6 +696,7 @@ func (c *Config) GetObservabilityProvider() observability.Provider {
 }
 
 // parseURL validates that a URL is properly formatted.
+// It also warns (via stderr) if using HTTP instead of HTTPS for non-localhost URLs.
 func parseURL(rawURL string) error {
 	parsedURL, err := url.Parse(rawURL)
 	if err != nil {
@@ -696,10 +705,22 @@ func parseURL(rawURL string) error {
 
 	// Require scheme and host
 	if parsedURL.Scheme == "" || parsedURL.Host == "" {
-		return fmt.Errorf("URL must include scheme and host")
+		return errors.New("URL must include scheme and host")
+	}
+
+	// Warn about insecure HTTP connections (except for localhost/development)
+	if parsedURL.Scheme == "http" && !isLocalhost(parsedURL.Host) {
+		fmt.Fprintf(os.Stderr, "[Midaz SDK Warning] Using insecure HTTP connection to %s. Consider using HTTPS for production.\n", parsedURL.Host)
 	}
 
 	return nil
+}
+
+// isLocalhost checks if the host is a localhost address (for development use).
+func isLocalhost(host string) bool {
+	// Remove port if present
+	hostname := strings.Split(host, ":")[0]
+	return hostname == "localhost" || hostname == "127.0.0.1" || hostname == "::1"
 }
 
 // DefaultConfig creates a new Config with default values.
@@ -714,16 +735,18 @@ func DefaultConfig() *Config {
 		Environment:       EnvironmentLocal,
 		ServiceURLs:       make(map[ServiceType]string),
 		Timeout:           DefaultTimeout * time.Second,
-		UserAgent:         DefaultUserAgent,
+		UserAgent:         version.UserAgent(),
 		MaxRetries:        DefaultMaxRetries,
-		RetryWaitMin:      DefaultRetryWaitMin,
+		RetryWaitMin:      DefaultMinRetryWait,
 		RetryWaitMax:      DefaultRetryWaitMax,
 		EnableRetries:     DefaultEnableRetries,
 		EnableIdempotency: DefaultEnableIdempotency,
 	}
 
-	// Apply default URLs based on environment (ignoring error for default config)
-	_ = setDefaultServiceURLs(config)
+	// Apply default URLs based on environment.
+	// Error is safely ignored because DefaultConfig always uses EnvironmentLocal
+	// which is a valid, known environment that will never return an error.
+	_ = setDefaultServiceURLs(config) //nolint:errcheck // EnvironmentLocal is hardcoded above and always valid
 
 	// Create HTTP client
 	config.HTTPClient = &http.Client{
@@ -743,7 +766,7 @@ func DefaultConfig() *Config {
 func WithMaxRetries(maxRetries int) Option {
 	return func(c *Config) error {
 		if maxRetries < 0 {
-			return fmt.Errorf("max retries cannot be negative")
+			return errors.New("max retries cannot be negative")
 		}
 
 		c.MaxRetries = maxRetries
@@ -762,7 +785,7 @@ func WithMaxRetries(maxRetries int) Option {
 func WithRetryWaitMin(waitTime time.Duration) Option {
 	return func(c *Config) error {
 		if waitTime <= 0 {
-			return fmt.Errorf("minimum wait time must be greater than 0")
+			return errors.New("minimum wait time must be greater than 0")
 		}
 
 		c.RetryWaitMin = waitTime
@@ -781,11 +804,11 @@ func WithRetryWaitMin(waitTime time.Duration) Option {
 func WithRetryWaitMax(waitTime time.Duration) Option {
 	return func(c *Config) error {
 		if waitTime <= 0 {
-			return fmt.Errorf("maximum wait time must be greater than 0")
+			return errors.New("maximum wait time must be greater than 0")
 		}
 
 		if waitTime < c.RetryWaitMin {
-			return fmt.Errorf("maximum wait time must be greater than or equal to minimum wait time")
+			return errors.New("maximum wait time must be greater than or equal to minimum wait time")
 		}
 
 		c.RetryWaitMax = waitTime
@@ -812,7 +835,7 @@ func NewLocalConfig(options ...Option) (*Config, error) {
 	pluginAuthClientSecret := ""
 
 	if enabled := os.Getenv("PLUGIN_AUTH_ENABLED"); enabled != "" {
-		pluginAuthEnabled = enabled == "true" || enabled == "1"
+		pluginAuthEnabled = enabled == boolTrue || enabled == "1"
 	}
 
 	if address := os.Getenv("PLUGIN_AUTH_ADDRESS"); address != "" {

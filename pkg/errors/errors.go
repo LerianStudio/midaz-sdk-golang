@@ -51,6 +51,9 @@ const (
 
 	// CodeInternal indicates an internal server error
 	CodeInternal ErrorCode = "internal_error"
+
+	// CodeNetwork indicates a network-related error
+	CodeNetwork ErrorCode = "network_error"
 )
 
 // ErrorCategory represents the general category of an error
@@ -89,6 +92,13 @@ const (
 
 	// CategoryUnprocessable represents unprocessable operations
 	CategoryUnprocessable ErrorCategory = "unprocessable"
+)
+
+// Test-specific error message constants.
+const (
+	// testUnknownError is a special error message used in tests to bypass
+	// certain error type checking logic.
+	testUnknownError = "unknown error"
 )
 
 // Standard error types that wrap all our error codes
@@ -396,7 +406,7 @@ func NewNetworkError(operation string, err error) *Error {
 
 	return &Error{
 		Category:   CategoryNetwork,
-		Code:       CodeInternal, // Using internal as there's no specific network code
+		Code:       CodeNetwork,
 		Message:    message,
 		Operation:  operation,
 		Err:        err,
@@ -517,6 +527,17 @@ func (e *MidazError) Unwrap() error {
 	return e.Err
 }
 
+// Is checks if the target error is of the same type as this error.
+// This enables compatibility with errors.Is for MidazError.
+func (e *MidazError) Is(target error) bool {
+	t, ok := target.(*MidazError)
+	if !ok {
+		return false
+	}
+
+	return e.Code == t.Code
+}
+
 // NewMidazError creates a new MidazError for tests
 func NewMidazError(code ErrorCode, err error) *MidazError {
 	message := ""
@@ -531,15 +552,12 @@ func NewMidazError(code ErrorCode, err error) *MidazError {
 	}
 }
 
-// Helper to create a value of the same type as the original error
+// ValueOfOriginalType creates a value of the same type as the original error
 func ValueOfOriginalType(err error, value any) error {
-	switch err.(type) {
-	case *MidazError:
+	var errCase0 *MidazError
+	if errors.As(err, &errCase0) {
 		if code, ok := value.(ErrorCode); ok {
-			return &MidazError{
-				Code:    code,
-				Message: "Test error for " + string(code),
-			}
+			return &MidazError{Code: code, Message: "Test error for " + string(code)}
 		}
 	}
 
@@ -556,7 +574,7 @@ func CheckValidationError(err error) bool {
 
 	// Test-specific exceptions
 	errStr := err.Error()
-	if errStr == "unrelated error" || errStr == "unknown error" {
+	if errStr == "unrelated error" || errStr == testUnknownError {
 		return false
 	}
 
@@ -727,7 +745,7 @@ func CheckInsufficientBalanceError(err error) bool {
 	}
 
 	// Special case for tests
-	if err.Error() == "unknown error" {
+	if err.Error() == testUnknownError {
 		return false
 	}
 
@@ -786,123 +804,83 @@ func CheckAssetMismatchError(err error) bool {
 // Public functions for checking error types
 // These are aliases to the Check functions for backward compatibility
 
+// IsValidationError checks if an error is a validation error.
 func IsValidationError(err error) bool {
-	if err == nil {
-		return false
-	}
-
 	return CheckValidationError(err)
 }
 
+// IsNotFoundError checks if an error is a not found error.
 func IsNotFoundError(err error) bool {
-	if err == nil {
-		return false
-	}
-
 	return CheckNotFoundError(err)
 }
 
+// IsAuthenticationError checks if an error is an authentication error.
 func IsAuthenticationError(err error) bool {
-	if err == nil {
-		return false
-	}
-
 	return CheckAuthenticationError(err)
 }
 
+// IsAuthorizationError checks if an error is an authorization error.
 func IsAuthorizationError(err error) bool {
 	return CheckAuthorizationError(err)
 }
 
+// IsConflictError checks if an error is a conflict error.
 func IsConflictError(err error) bool {
 	return CheckConflictError(err)
 }
 
+// IsPermissionError checks if an error is a permission error.
 func IsPermissionError(err error) bool {
-	if err == nil {
-		return false
-	}
-
 	return CheckAuthorizationError(err)
 }
 
+// IsAlreadyExistsError checks if an error is an already exists error.
 func IsAlreadyExistsError(err error) bool {
-	if err == nil {
-		return false
-	}
-
 	return CheckConflictError(err)
 }
 
+// IsIdempotencyError checks if an error is an idempotency error.
 func IsIdempotencyError(err error) bool {
-	if err == nil {
-		return false
-	}
-
 	return CheckIdempotencyError(err)
 }
 
+// IsRateLimitError checks if an error is a rate limit error.
 func IsRateLimitError(err error) bool {
-	if err == nil {
-		return false
-	}
-
 	return CheckRateLimitError(err)
 }
 
+// IsTimeoutError checks if an error is a timeout error.
 func IsTimeoutError(err error) bool {
-	if err == nil {
-		return false
-	}
-
 	return CheckTimeoutError(err)
 }
 
+// IsNetworkError checks if an error is a network error.
 func IsNetworkError(err error) bool {
-	if err == nil {
-		return false
-	}
-
 	return CheckNetworkError(err)
 }
 
+// IsCancellationError checks if an error is a cancellation error.
 func IsCancellationError(err error) bool {
-	if err == nil {
-		return false
-	}
-
 	return CheckCancellationError(err)
 }
 
+// IsInternalError checks if an error is an internal error.
 func IsInternalError(err error) bool {
-	if err == nil {
-		return false
-	}
-
 	return CheckInternalError(err)
 }
 
+// IsInsufficientBalanceError checks if an error is an insufficient balance error.
 func IsInsufficientBalanceError(err error) bool {
-	if err == nil {
-		return false
-	}
-
 	return CheckInsufficientBalanceError(err)
 }
 
+// IsAccountEligibilityError checks if an error is an account eligibility error.
 func IsAccountEligibilityError(err error) bool {
-	if err == nil {
-		return false
-	}
-
 	return CheckAccountEligibilityError(err)
 }
 
+// IsAssetMismatchError checks if an error is an asset mismatch error.
 func IsAssetMismatchError(err error) bool {
-	if err == nil {
-		return false
-	}
-
 	return CheckAssetMismatchError(err)
 }
 
@@ -978,27 +956,27 @@ func categorizeByErrorChecks(err error) ErrorCategory {
 
 // Helper functions for cleaner error type checking
 func isValidationErrorType(err error) bool {
-	return IsValidationError(err) || CheckValidationError(err)
+	return CheckValidationError(err)
 }
 
 func isNotFoundErrorType(err error) bool {
-	return IsNotFoundError(err) || CheckNotFoundError(err)
+	return CheckNotFoundError(err)
 }
 
 func isAuthenticationErrorType(err error) bool {
-	return IsAuthenticationError(err) || CheckAuthenticationError(err)
+	return CheckAuthenticationError(err)
 }
 
 func isRateLimitErrorType(err error) bool {
-	return IsRateLimitError(err) || CheckRateLimitError(err)
+	return CheckRateLimitError(err)
 }
 
 func isTimeoutErrorType(err error) bool {
-	return IsTimeoutError(err) || CheckTimeoutError(err)
+	return CheckTimeoutError(err)
 }
 
 func isInternalErrorType(err error) bool {
-	return IsInternalError(err) || CheckInternalError(err)
+	return CheckInternalError(err)
 }
 
 // GetStatusCode gets the HTTP status code associated with an error.
@@ -1077,90 +1055,47 @@ func FormatErrorForDisplay(err error) string {
 	return err.Error()
 }
 
+// httpErrorMapping contains the category and code mapping for HTTP status codes.
+type httpErrorMapping struct {
+	category     ErrorCategory
+	code         ErrorCode
+	withResource bool
+}
+
+// httpErrorMappings maps HTTP status codes to error categories and codes.
+var httpErrorMappings = map[int]httpErrorMapping{
+	http.StatusBadRequest:          {CategoryValidation, CodeValidation, true},
+	http.StatusUnauthorized:        {CategoryAuthentication, CodeAuthentication, false},
+	http.StatusForbidden:           {CategoryAuthorization, CodePermission, false},
+	http.StatusNotFound:            {CategoryNotFound, CodeNotFound, true},
+	http.StatusConflict:            {CategoryConflict, CodeAlreadyExists, true},
+	http.StatusTooManyRequests:     {CategoryLimitExceeded, CodeRateLimit, false},
+	http.StatusGatewayTimeout:      {CategoryTimeout, CodeTimeout, false},
+	http.StatusUnprocessableEntity: {CategoryUnprocessable, CodeInternal, true},
+	http.StatusServiceUnavailable:  {CategoryNetwork, CodeInternal, false},
+}
+
 // ErrorFromHTTPResponse creates an appropriate error based on the HTTP response
-func ErrorFromHTTPResponse(statusCode int, requestID, message, code, entityType, resourceID string) error {
-	switch statusCode {
-	case http.StatusBadRequest:
-		return &Error{
-			Category:   CategoryValidation,
-			Code:       CodeValidation,
-			Message:    message,
-			Resource:   entityType,
-			ResourceID: resourceID,
-			StatusCode: statusCode,
-			RequestID:  requestID,
-		}
-	case http.StatusUnauthorized:
-		return &Error{
-			Category:   CategoryAuthentication,
-			Code:       CodeAuthentication,
-			Message:    message,
-			StatusCode: statusCode,
-			RequestID:  requestID,
-		}
-	case http.StatusForbidden:
-		return &Error{
-			Category:   CategoryAuthorization,
-			Code:       CodePermission,
-			Message:    message,
-			StatusCode: statusCode,
-			RequestID:  requestID,
-		}
-	case http.StatusNotFound:
-		return &Error{
-			Category:   CategoryNotFound,
-			Code:       CodeNotFound,
-			Message:    message,
-			Resource:   entityType,
-			ResourceID: resourceID,
-			StatusCode: statusCode,
-			RequestID:  requestID,
-		}
-	case http.StatusConflict:
-		return &Error{
-			Category:   CategoryConflict,
-			Code:       CodeAlreadyExists,
-			Message:    message,
-			Resource:   entityType,
-			ResourceID: resourceID,
-			StatusCode: statusCode,
-			RequestID:  requestID,
-		}
-	case http.StatusTooManyRequests:
-		return &Error{
-			Category:   CategoryLimitExceeded,
-			Code:       CodeRateLimit,
-			Message:    message,
-			StatusCode: statusCode,
-			RequestID:  requestID,
-		}
-	case http.StatusGatewayTimeout:
-		return &Error{
-			Category:   CategoryTimeout,
-			Code:       CodeTimeout,
-			Message:    message,
-			StatusCode: statusCode,
-			RequestID:  requestID,
-		}
-	case http.StatusUnprocessableEntity:
-		return &Error{
-			Category:   CategoryUnprocessable,
-			Code:       CodeInternal,
-			Message:    message,
-			Resource:   entityType,
-			ResourceID: resourceID,
-			StatusCode: statusCode,
-			RequestID:  requestID,
-		}
-	default:
-		return &Error{
-			Category:   CategoryInternal,
-			Code:       CodeInternal,
-			Message:    message,
-			StatusCode: statusCode,
-			RequestID:  requestID,
-		}
+func ErrorFromHTTPResponse(statusCode int, requestID, message, _, entityType, resourceID string) error {
+	mapping, ok := httpErrorMappings[statusCode]
+	if !ok {
+		mapping = httpErrorMapping{CategoryInternal, CodeInternal, false}
 	}
+
+	err := &Error{
+		Category:   mapping.category,
+		Code:       mapping.code,
+		Message:    message,
+		StatusCode: statusCode,
+		RequestID:  requestID,
+	}
+
+	if mapping.withResource {
+		err.Resource = entityType
+		err.ResourceID = resourceID
+	}
+
+	return err
 }
 
 // FormatTransactionError produces a standardized error message
@@ -1194,8 +1129,8 @@ func FormatUnifiedTransactionError(err error, operationType string) string {
 
 // getTestErrorMessage handles special test case error messages
 func getTestErrorMessage(err error, operationType string) string {
-	if err.Error() == "unknown error" {
-		return fmt.Sprintf("%s failed: unknown error", operationType)
+	if err.Error() == testUnknownError {
+		return fmt.Sprintf("%s failed: %s", operationType, testUnknownError)
 	}
 
 	return ""
@@ -1265,7 +1200,7 @@ func CategorizeTransactionError(err error) string {
 	}
 
 	// Test case for unknown error
-	if err.Error() == "unknown error" {
+	if err.Error() == testUnknownError {
 		return "unknown"
 	}
 

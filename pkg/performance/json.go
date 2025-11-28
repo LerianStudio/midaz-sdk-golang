@@ -59,6 +59,11 @@ import (
 	"sync"
 )
 
+// maxBufferSize is the maximum size of buffers that will be returned to the pool.
+// Buffers larger than this will be discarded to prevent memory bloat from
+// occasional large JSON operations consuming excessive pool memory.
+const maxBufferSize = 1 << 20 // 1MB
+
 // JSONPool provides a pool of JSON encoders and decoders to reduce allocations.
 // This is particularly useful for high-throughput applications that make many API calls.
 //
@@ -177,7 +182,7 @@ func (p *JSONPool) ReleaseDecoder(dec *json.Decoder) {
 }
 
 // getEncoder gets an encoder from the pool and configures it to write to w.
-func (p *JSONPool) getEncoder(w io.Writer) *json.Encoder {
+func (*JSONPool) getEncoder(w io.Writer) *json.Encoder {
 	// The standard json.Encoder doesn't support resetting the writer,
 	// so we need to create a new one each time
 	enc := json.NewEncoder(w)
@@ -185,13 +190,13 @@ func (p *JSONPool) getEncoder(w io.Writer) *json.Encoder {
 }
 
 // putEncoder returns an encoder to the pool.
-func (p *JSONPool) putEncoder(enc *json.Encoder) {
+func (*JSONPool) putEncoder(_ *json.Encoder) {
 	// We can't reuse encoders with the standard json package
 	// The pool is kept for API compatibility
 }
 
 // getDecoder gets a decoder from the pool and configures it to read from r.
-func (p *JSONPool) getDecoder(r io.Reader) *json.Decoder {
+func (*JSONPool) getDecoder(r io.Reader) *json.Decoder {
 	// The standard json.Decoder doesn't support resetting the reader,
 	// so we need to create a new one each time
 	dec := json.NewDecoder(r)
@@ -199,21 +204,28 @@ func (p *JSONPool) getDecoder(r io.Reader) *json.Decoder {
 }
 
 // putDecoder returns a decoder to the pool.
-func (p *JSONPool) putDecoder(dec *json.Decoder) {
+func (*JSONPool) putDecoder(_ *json.Decoder) {
 	// We can't reuse decoders with the standard json package
 	// The pool is kept for API compatibility
 }
 
 // getBuffer gets a buffer from the pool.
 func (p *JSONPool) getBuffer() *bytes.Buffer {
-	buf := p.bufferPool.Get().(*bytes.Buffer)
+	// Type assertion is safe because the pool's New function always returns *bytes.Buffer
+	buf := p.bufferPool.Get().(*bytes.Buffer) //nolint:errcheck // pool New always returns *bytes.Buffer
 	buf.Reset()
 
 	return buf
 }
 
 // putBuffer returns a buffer to the pool.
+// Buffers larger than maxBufferSize are discarded to prevent memory bloat.
 func (p *JSONPool) putBuffer(buf *bytes.Buffer) {
+	if buf.Cap() > maxBufferSize {
+		return // Don't pool oversized buffers
+	}
+
+	buf.Reset()
 	p.bufferPool.Put(buf)
 }
 

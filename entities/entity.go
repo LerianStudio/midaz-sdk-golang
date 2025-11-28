@@ -5,6 +5,7 @@ package entities
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -44,6 +45,7 @@ type Entity struct {
 	Accounts          AccountsService
 	AccountTypes      AccountTypesService
 	Assets            AssetsService
+	AssetRates        AssetRatesService
 	Balances          BalancesService
 	Ledgers           LedgersService
 	Operations        OperationsService
@@ -162,7 +164,7 @@ func NewEntity(client *http.Client, authToken string, baseURLs map[string]string
 //   - error: An error if initialization fails.
 func NewEntityWithConfig(config Config, options ...Option) (*Entity, error) {
 	if config == nil {
-		return nil, fmt.Errorf("config cannot be nil")
+		return nil, errors.New("config cannot be nil")
 	}
 
 	// Check if plugin auth is enabled
@@ -209,6 +211,7 @@ func (e *Entity) initServices() {
 	e.Accounts = NewAccountsEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
 	e.AccountTypes = NewAccountTypesEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
 	e.Assets = NewAssetsEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
+	e.AssetRates = NewAssetRatesEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
 	e.Balances = NewBalancesEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
 	e.Ledgers = NewLedgersEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
 	e.Operations = NewOperationsEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
@@ -293,7 +296,7 @@ func (e *Entity) SetAuthToken(token string) {
 //   - error: An error if initialization fails.
 func New(baseURL string, options ...Option) (*Entity, error) {
 	if baseURL == "" {
-		return nil, fmt.Errorf("base URL cannot be empty")
+		return nil, errors.New("base URL cannot be empty")
 	}
 
 	// Create a map with both service URLs pointing to the same base URL
@@ -343,15 +346,15 @@ func New(baseURL string, options ...Option) (*Entity, error) {
 func NewWithServiceURLs(serviceURLs map[string]string, options ...Option) (*Entity, error) {
 	// Validate required service URLs
 	if serviceURLs == nil {
-		return nil, fmt.Errorf("service URLs map cannot be nil")
+		return nil, errors.New("service URLs map cannot be nil")
 	}
 
 	if _, ok := serviceURLs["onboarding"]; !ok {
-		return nil, fmt.Errorf("missing onboarding URL in service URLs map")
+		return nil, errors.New("missing onboarding URL in service URLs map")
 	}
 
 	if _, ok := serviceURLs["transaction"]; !ok {
-		return nil, fmt.Errorf("missing transaction URL in service URLs map")
+		return nil, errors.New("missing transaction URL in service URLs map")
 	}
 
 	// Create a default HTTP client

@@ -24,7 +24,7 @@ func WithBaggageItem(ctx context.Context, key, value string) (context.Context, e
 func WithProvider(ctx context.Context, provider Provider) context.Context
 func WithSpan(ctx context.Context, provider Provider, name string, ...) error
 func WithSpanAttributes(ctx context.Context, attrs ...attribute.KeyValue) context.Context
-func WithTraceID(ctx context.Context, traceID string) context.Context
+func WithTraceID(ctx context.Context, _ string) context.Context
 type Config struct{ ... }
     func DefaultConfig() *Config
 type ContextKey string
@@ -62,9 +62,10 @@ type Option func(*Config) error
     func WithProductionDefaults() Option
     func WithPropagationHeaders(headers ...string) Option
     func WithPropagators(propagators ...propagation.TextMapPropagator) Option
-    func WithSDKVersion(version string) Option
+    func WithRegisterGlobally(register bool) Option
+    func WithSDKVersion(ver string) Option
     func WithServiceName(name string) Option
-    func WithServiceVersion(version string) Option
+    func WithServiceVersion(ver string) Option
     func WithTraceSampleRate(rate float64) Option
 type Provider interface{ ... }
     func GetProvider(ctx context.Context) Provider

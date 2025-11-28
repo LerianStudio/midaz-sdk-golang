@@ -2,10 +2,10 @@ package generator
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	data "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
 )
 
 // AccountNode represents a hierarchical account template tree.
@@ -19,6 +19,7 @@ type AccountHierarchyGenerator struct {
 	accGen AccountGenerator
 }
 
+// NewAccountHierarchyGenerator creates a new hierarchy generator using the provided account generator.
 func NewAccountHierarchyGenerator(accGen AccountGenerator) *AccountHierarchyGenerator {
 	return &AccountHierarchyGenerator{accGen: accGen}
 }
@@ -31,7 +32,7 @@ func (h *AccountHierarchyGenerator) GenerateTree(
 	nodes []AccountNode,
 ) ([]*models.Account, error) {
 	if h.accGen == nil {
-		return nil, fmt.Errorf("account generator not initialized")
+		return nil, errors.New("account generator not initialized")
 	}
 
 	var out []*models.Account

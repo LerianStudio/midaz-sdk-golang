@@ -10,6 +10,7 @@ import (
 func BenchmarkWorkerPool(b *testing.B) {
 	// Create test items
 	const numItems = 1000
+
 	items := make([]int, numItems)
 
 	for i := range items {
@@ -17,7 +18,7 @@ func BenchmarkWorkerPool(b *testing.B) {
 	}
 
 	// Simple worker function that does minimal work
-	workFn := func(ctx context.Context, item int) (int, error) {
+	workFn := func(_ context.Context, item int) (int, error) {
 		// Simulate a small amount of work
 		time.Sleep(50 * time.Microsecond)
 		return item * 2, nil
@@ -41,6 +42,7 @@ func BenchmarkWorkerPool(b *testing.B) {
 	for _, bc := range benchmarkCases {
 		b.Run(bc.name, func(b *testing.B) {
 			b.ResetTimer()
+
 			for i := 0; i < b.N; i++ {
 				WorkerPool(
 					context.Background(),
@@ -58,6 +60,7 @@ func BenchmarkWorkerPool(b *testing.B) {
 func BenchmarkBatchProcessing(b *testing.B) {
 	// Create test items
 	const numItems = 1000
+
 	items := make([]int, numItems)
 
 	for i := range items {
@@ -65,9 +68,10 @@ func BenchmarkBatchProcessing(b *testing.B) {
 	}
 
 	// Simple batch function that does minimal work
-	batchFn := func(ctx context.Context, batch []int) ([]int, error) {
+	batchFn := func(_ context.Context, batch []int) ([]int, error) {
 		// Simulate a small amount of work per batch
 		time.Sleep(100 * time.Microsecond)
+
 		result := make([]int, len(batch))
 
 		for i, item := range batch {
@@ -95,6 +99,7 @@ func BenchmarkBatchProcessing(b *testing.B) {
 	for _, bc := range benchmarkCases {
 		b.Run(bc.name, func(b *testing.B) {
 			b.ResetTimer()
+
 			for i := 0; i < b.N; i++ {
 				Batch(
 					context.Background(),
@@ -112,6 +117,7 @@ func BenchmarkBatchProcessing(b *testing.B) {
 func BenchmarkForEach(b *testing.B) {
 	// Create test items
 	const numItems = 1000
+
 	items := make([]int, numItems)
 
 	for i := range items {
@@ -119,7 +125,7 @@ func BenchmarkForEach(b *testing.B) {
 	}
 
 	// Simple forEach function that does minimal work
-	forEachFn := func(ctx context.Context, item int) error {
+	forEachFn := func(_ context.Context, _ int) error {
 		// Simulate a small amount of work
 		time.Sleep(50 * time.Microsecond)
 		return nil
@@ -139,6 +145,7 @@ func BenchmarkForEach(b *testing.B) {
 	for _, bc := range benchmarkCases {
 		b.Run(bc.name, func(b *testing.B) {
 			b.ResetTimer()
+
 			for i := 0; i < b.N; i++ {
 				_ = ForEach(
 					context.Background(),
@@ -170,6 +177,7 @@ func BenchmarkRateLimiter(b *testing.B) {
 	for _, bc := range benchmarkCases {
 		b.Run(bc.name, func(b *testing.B) {
 			b.ResetTimer()
+
 			for i := 0; i < b.N; i++ {
 				func() {
 					rl := NewRateLimiter(bc.opsPerSec, bc.burst)

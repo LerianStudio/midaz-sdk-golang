@@ -2,7 +2,7 @@ package generator
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
@@ -10,6 +10,7 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
 )
 
+// PortfolioGenerator creates portfolios within a ledger.
 type PortfolioGenerator interface {
 	Generate(ctx context.Context, orgID, ledgerID, name, entityID string, metadata map[string]any) (*models.Portfolio, error)
 }
@@ -19,13 +20,15 @@ type portfolioGenerator struct {
 	obs observability.Provider
 }
 
+// NewPortfolioGenerator creates a new portfolio generator.
 func NewPortfolioGenerator(e *entities.Entity, obs observability.Provider) PortfolioGenerator {
 	return &portfolioGenerator{e: e, obs: obs}
 }
 
+// Generate creates a single portfolio with the specified parameters.
 func (g *portfolioGenerator) Generate(ctx context.Context, orgID, ledgerID, name, entityID string, metadata map[string]any) (*models.Portfolio, error) {
 	if g.e == nil || g.e.Portfolios == nil {
-		return nil, fmt.Errorf("entity portfolios service not initialized")
+		return nil, errors.New("entity portfolios service not initialized")
 	}
 
 	input := models.NewCreatePortfolioInput(entityID, name).

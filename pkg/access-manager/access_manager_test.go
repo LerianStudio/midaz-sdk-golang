@@ -30,6 +30,7 @@ func (m *mockEntity) InitServices() {
 	m.services = true
 }
 
+//nolint:revive // cognitive-complexity: table-driven test pattern
 func TestWithPluginAuth(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -104,7 +105,7 @@ func TestWithPluginAuth(t *testing.T) {
 				server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					// Verify request method and path
 					assert.Equal(t, http.MethodPost, r.Method)
-					assert.Equal(t, "/login/oauth/access_token", r.URL.Path)
+					assert.Equal(t, "/v1/login/oauth/access_token", r.URL.Path)
 
 					// Verify headers
 					assert.Equal(t, "application/json", r.Header.Get("Accept"))
@@ -137,9 +138,9 @@ func TestWithPluginAuth(t *testing.T) {
 
 			// Check the results
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, tt.expectedToken, mockEntity.authToken)
 
 				// If plugin auth is enabled and successful, services should be initialized
@@ -151,6 +152,7 @@ func TestWithPluginAuth(t *testing.T) {
 	}
 }
 
+//nolint:revive // cognitive-complexity: table-driven test pattern
 func TestGetTokenFromPluginAuth(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -256,7 +258,7 @@ func TestGetTokenFromPluginAuth(t *testing.T) {
 				server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					// Verify request method and path
 					assert.Equal(t, http.MethodPost, r.Method)
-					assert.Equal(t, "/login/oauth/access_token", r.URL.Path)
+					assert.Equal(t, "/v1/login/oauth/access_token", r.URL.Path)
 
 					// Verify headers
 					assert.Equal(t, "application/json", r.Header.Get("Accept"))
@@ -264,8 +266,9 @@ func TestGetTokenFromPluginAuth(t *testing.T) {
 
 					// Read and verify the request body
 					var payload map[string]string
+
 					err := json.NewDecoder(r.Body).Decode(&payload)
-					require.NoError(t, err)
+					assert.NoError(t, err)
 
 					assert.Equal(t, "client_credentials", payload["grantType"])
 					assert.Equal(t, tt.pluginAuth.ClientID, payload["clientId"])
@@ -295,10 +298,10 @@ func TestGetTokenFromPluginAuth(t *testing.T) {
 
 			// Check the results
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Empty(t, token)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, tt.expectedToken, token)
 			}
 		})

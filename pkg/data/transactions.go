@@ -57,7 +57,32 @@ distribute [%s %d] (
 }
 
 // TransferPattern moves funds between two aliases.
+// Aliases are validated to prevent DSL template injection.
+// Returns an empty DSLTemplate if alias validation fails.
 func TransferPattern(asset string, amount int, sourceAlias, destAlias, idempotencyKey, externalID string) TransactionPattern {
+	// Validate aliases to prevent DSL injection
+	if err := ValidateDSLAlias(sourceAlias); err != nil {
+		return TransactionPattern{
+			ChartOfAccountsGroupName: "transfer",
+			Description:              fmt.Sprintf("Invalid source alias: %v", err),
+			DSLTemplate:              "",
+			IdempotencyKey:           idempotencyKey,
+			ExternalID:               externalID,
+			Metadata:                 map[string]any{"pattern": "transfer", "error": err.Error()},
+		}
+	}
+
+	if err := ValidateDSLAlias(destAlias); err != nil {
+		return TransactionPattern{
+			ChartOfAccountsGroupName: "transfer",
+			Description:              fmt.Sprintf("Invalid destination alias: %v", err),
+			DSLTemplate:              "",
+			IdempotencyKey:           idempotencyKey,
+			ExternalID:               externalID,
+			Metadata:                 map[string]any{"pattern": "transfer", "error": err.Error()},
+		}
+	}
+
 	dsl := fmt.Sprintf(`
 send [%s %d] (
   source = %s
@@ -139,17 +164,21 @@ distribute [%s %d] (
 	}
 }
 
-// BatchSettlementPattern distributes to multiple destinations with shares.
-func BatchSettlementPattern(asset string, amount int, destinations map[string]int, idempotencyKey, externalID string) TransactionPattern {
-	// destinations is a map of alias -> percentage share
+// normalizePercentages takes a map of alias -> percentage share and returns sorted aliases
+// with their normalized percentages that sum to exactly 100%.
+// Handles clamping (0-100), zero-sum fallback, and rounding error correction.
+func normalizePercentages(destinations map[string]int) ([]string, []int) {
 	// Build a deterministic list of aliases for stable output
 	aliases := make([]string, 0, len(destinations))
-
 	for alias := range destinations {
 		aliases = append(aliases, alias)
 	}
 
 	sort.Strings(aliases)
+
+	if len(aliases) == 0 {
+		return aliases, nil
+	}
 
 	// Clamp and collect initial percentages
 	clamped := make([]int, len(aliases))
@@ -172,39 +201,61 @@ func BatchSettlementPattern(asset string, amount int, destinations map[string]in
 	// Normalize to ensure the total equals exactly 100%
 	normalized := make([]int, len(aliases))
 
-	if len(aliases) > 0 {
-		if sum == 0 {
-			// If all inputs are zero or invalid, assign 100% to the first alias
-			normalized[0] = 100
-		} else {
-			// Proportional normalization with rounding error correction
-			fractional := make([]struct {
+	if sum == 0 {
+		// If all inputs are zero or invalid, assign 100% to the first alias
+		normalized[0] = 100
+	} else {
+		// Proportional normalization with rounding error correction
+		fractional := make([]struct {
+			idx  int
+			frac float64
+		}, len(aliases))
+		total := 0
+
+		for i := range aliases {
+			raw := (float64(clamped[i]) * 100.0) / float64(sum)
+			floor := int(math.Floor(raw))
+			normalized[i] = floor
+			fractional[i] = struct {
 				idx  int
 				frac float64
-			}, len(aliases))
-			total := 0
+			}{idx: i, frac: raw - float64(floor)}
+			total += floor
+		}
 
-			for i := range aliases {
-				raw := (float64(clamped[i]) * 100.0) / float64(sum)
-				floor := int(math.Floor(raw))
-				normalized[i] = floor
-				fractional[i] = struct {
-					idx  int
-					frac float64
-				}{idx: i, frac: raw - float64(floor)}
-				total += floor
-			}
-			// Distribute remaining percentages to highest fractional parts
-			shortfall := 100 - total
-			if shortfall > 0 {
-				sort.Slice(fractional, func(i, j int) bool { return fractional[i].frac > fractional[j].frac })
+		// Distribute remaining percentages to highest fractional parts
+		shortfall := 100 - total
+		if shortfall > 0 {
+			sort.Slice(fractional, func(i, j int) bool { return fractional[i].frac > fractional[j].frac })
 
-				for k := 0; k < shortfall && k < len(fractional); k++ {
-					normalized[fractional[k].idx]++
-				}
+			for k := 0; k < shortfall && k < len(fractional); k++ {
+				normalized[fractional[k].idx]++
 			}
 		}
 	}
+
+	return aliases, normalized
+}
+
+// BatchSettlementPattern distributes to multiple destinations with shares.
+// Destination aliases are validated to prevent DSL template injection.
+// Returns an empty DSLTemplate if any alias validation fails.
+func BatchSettlementPattern(asset string, amount int, destinations map[string]int, idempotencyKey, externalID string) TransactionPattern {
+	// Validate all destination aliases before processing
+	for alias := range destinations {
+		if err := ValidateDSLAlias(alias); err != nil {
+			return TransactionPattern{
+				ChartOfAccountsGroupName: "batch_settlement",
+				Description:              fmt.Sprintf("Invalid destination alias: %v", err),
+				DSLTemplate:              "",
+				IdempotencyKey:           idempotencyKey,
+				ExternalID:               externalID,
+				Metadata:                 map[string]any{"pattern": "batch_settlement", "error": err.Error()},
+			}
+		}
+	}
+
+	aliases, normalized := normalizePercentages(destinations)
 
 	// Build DSL shares block
 	shares := ""
@@ -263,69 +314,24 @@ distribute [%s %d] (
 }
 
 // SplitPaymentPattern splits a payment from a customer to multiple recipients using percentages.
+// Destination aliases are validated to prevent DSL template injection.
+// Returns an empty DSLTemplate if any alias validation fails.
 func SplitPaymentPattern(asset string, amount int, destinations map[string]int, idempotencyKey, externalID string) TransactionPattern {
-	// Build a deterministic list of aliases for stable output
-	aliases := make([]string, 0, len(destinations))
+	// Validate all destination aliases before processing
 	for alias := range destinations {
-		aliases = append(aliases, alias)
-	}
-
-	sort.Strings(aliases)
-
-	// Clamp and collect initial percentages
-	clamped := make([]int, len(aliases))
-	sum := 0
-
-	for i, alias := range aliases {
-		pct := destinations[alias]
-		if pct < 0 {
-			pct = 0
-		}
-
-		if pct > 100 {
-			pct = 100
-		}
-
-		clamped[i] = pct
-		sum += pct
-	}
-
-	// Normalize to ensure the total equals exactly 100%
-	normalized := make([]int, len(aliases))
-
-	if len(aliases) > 0 {
-		if sum == 0 {
-			// If all inputs are zero or invalid, assign 100% to the first alias
-			normalized[0] = 100
-		} else {
-			// Proportional normalization with rounding error correction
-			fractional := make([]struct {
-				idx  int
-				frac float64
-			}, len(aliases))
-			total := 0
-
-			for i := range aliases {
-				raw := (float64(clamped[i]) * 100.0) / float64(sum)
-				floor := int(math.Floor(raw))
-				normalized[i] = floor
-				fractional[i] = struct {
-					idx  int
-					frac float64
-				}{idx: i, frac: raw - float64(floor)}
-				total += floor
-			}
-			// Distribute remaining percentages to highest fractional parts
-			shortfall := 100 - total
-			if shortfall > 0 {
-				sort.Slice(fractional, func(i, j int) bool { return fractional[i].frac > fractional[j].frac })
-
-				for k := 0; k < shortfall && k < len(fractional); k++ {
-					normalized[fractional[k].idx]++
-				}
+		if err := ValidateDSLAlias(alias); err != nil {
+			return TransactionPattern{
+				ChartOfAccountsGroupName: "split_payment",
+				Description:              fmt.Sprintf("Invalid destination alias: %v", err),
+				DSLTemplate:              "",
+				IdempotencyKey:           idempotencyKey,
+				ExternalID:               externalID,
+				Metadata:                 map[string]any{"pattern": "split_payment", "error": err.Error()},
 			}
 		}
 	}
+
+	aliases, normalized := normalizePercentages(destinations)
 
 	// Build DSL shares block
 	shares := ""

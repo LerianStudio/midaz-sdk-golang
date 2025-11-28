@@ -2,7 +2,7 @@ package generator
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
@@ -20,9 +20,10 @@ func NewTransactionRouteGenerator(e *entities.Entity, obs observability.Provider
 	return &transactionRouteGenerator{e: e, obs: obs}
 }
 
+// Generate creates a single transaction route from the provided input.
 func (g *transactionRouteGenerator) Generate(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionRouteInput) (*models.TransactionRoute, error) {
 	if g.e == nil || g.e.TransactionRoutes == nil {
-		return nil, fmt.Errorf("entity transaction routes service not initialized")
+		return nil, errors.New("entity transaction routes service not initialized")
 	}
 
 	validationErr := input.Validate()
@@ -33,15 +34,17 @@ func (g *transactionRouteGenerator) Generate(ctx context.Context, orgID, ledgerI
 	var out *models.TransactionRoute
 
 	err := observability.WithSpan(ctx, g.obs, "GenerateTransactionRoute", func(ctx context.Context) error {
-		return retry.DoWithContext(ctx, func() error {
-			tr, err := g.e.TransactionRoutes.CreateTransactionRoute(ctx, orgID, ledgerID, input)
-			if err != nil {
-				return err
-			}
+		return executeWithCircuitBreaker(ctx, func() error {
+			return retry.DoWithContext(ctx, func() error {
+				tr, err := g.e.TransactionRoutes.CreateTransactionRoute(ctx, orgID, ledgerID, input)
+				if err != nil {
+					return err
+				}
 
-			out = tr
+				out = tr
 
-			return nil
+				return nil
+			})
 		})
 	})
 	if err != nil {

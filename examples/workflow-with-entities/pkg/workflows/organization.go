@@ -2,6 +2,7 @@ package workflows
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -47,7 +48,7 @@ func CreateOrganization(ctx context.Context, midazClient *client.Client) (string
 	}
 
 	if organization.ID == "" {
-		return "", fmt.Errorf("organization created but no ID was returned from the API")
+		return "", errors.New("organization created but no ID was returned from the API")
 	}
 
 	fmt.Printf("✅ Organization created: %s\n", organization.LegalName)

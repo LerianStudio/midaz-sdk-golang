@@ -18,7 +18,7 @@ func CheckNotFoundError(err error) bool
 func CheckRateLimitError(err error) bool
 func CheckTimeoutError(err error) bool
 func CheckValidationError(err error) bool
-func ErrorFromHTTPResponse(statusCode int, requestID, message, code, entityType, resourceID string) error
+func ErrorFromHTTPResponse(statusCode int, requestID, message, _, entityType, resourceID string) error
 func FormatErrorDetails(err error) string
 func FormatErrorForDisplay(err error) string
 func FormatOperationError(err error, operation string) string

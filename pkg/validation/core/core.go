@@ -6,6 +6,7 @@
 package core
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -175,7 +176,7 @@ var TransactionCodePattern = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,100}$`)
 //	}
 func ValidateAssetCode(assetCode string) error {
 	if assetCode == "" {
-		return fmt.Errorf("asset code is required")
+		return errors.New("asset code is required")
 	}
 
 	if !AssetCodePattern.MatchString(assetCode) {
@@ -195,7 +196,7 @@ func ValidateAssetCode(assetCode string) error {
 //	}
 func ValidateAccountAlias(alias string) error {
 	if alias == "" {
-		return fmt.Errorf("account alias cannot be empty")
+		return errors.New("account alias cannot be empty")
 	}
 
 	if !AccountAliasPattern.MatchString(alias) {
@@ -215,7 +216,7 @@ func ValidateAccountAlias(alias string) error {
 //	}
 func ValidateTransactionCode(code string) error {
 	if code == "" {
-		return fmt.Errorf("transaction code cannot be empty")
+		return errors.New("transaction code cannot be empty")
 	}
 
 	if !TransactionCodePattern.MatchString(code) {
@@ -245,7 +246,7 @@ func ValidateMetadata(metadata map[string]any) error {
 
 	for key, value := range metadata {
 		if key == "" {
-			return fmt.Errorf("metadata keys cannot be empty")
+			return errors.New("metadata keys cannot be empty")
 		}
 
 		if err := validateMetadataValue(key, value); err != nil {
@@ -332,7 +333,7 @@ func ValidateDateRange(start, end time.Time) error {
 // in the Midaz system.
 func ValidateAccountType(accountType string) error {
 	if accountType == "" {
-		return fmt.Errorf("account type is required")
+		return errors.New("account type is required")
 	}
 
 	// Use commons.ValidateAccountType to ensure consistency with backend APIs
@@ -352,7 +353,7 @@ func ValidateAccountType(accountType string) error {
 // in the Midaz system.
 func ValidateAssetType(assetType string) error {
 	if assetType == "" {
-		return fmt.Errorf("asset type is required")
+		return errors.New("asset type is required")
 	}
 
 	// Use commons.ValidateType to ensure consistency with backend APIs
@@ -371,7 +372,7 @@ func ValidateAssetType(assetType string) error {
 // ValidateCurrencyCode checks if the currency code is valid according to ISO 4217.
 func ValidateCurrencyCode(code string) error {
 	if code == "" {
-		return fmt.Errorf("currency code cannot be empty")
+		return errors.New("currency code cannot be empty")
 	}
 
 	// Use commons.ValidateCurrency to ensure consistency with backend APIs
@@ -385,7 +386,7 @@ func ValidateCurrencyCode(code string) error {
 // ValidateCountryCode checks if the country code is valid according to ISO 3166-1 alpha-2.
 func ValidateCountryCode(code string) error {
 	if code == "" {
-		return fmt.Errorf("country code cannot be empty")
+		return errors.New("country code cannot be empty")
 	}
 
 	// Use commons.ValidateCountryAddress to ensure consistency with backend APIs
@@ -409,47 +410,47 @@ type Address struct {
 // ValidateAddress validates an address structure for completeness and correctness.
 func ValidateAddress(address *Address) error {
 	if address == nil {
-		return fmt.Errorf("address cannot be nil")
+		return errors.New("address cannot be nil")
 	}
 
 	if address.Line1 == "" {
-		return fmt.Errorf("address line 1 is required")
+		return errors.New("address line 1 is required")
 	}
 
 	if len(address.Line1) > 100 {
-		return fmt.Errorf("address line 1 must be at most 100 characters")
+		return errors.New("address line 1 must be at most 100 characters")
 	}
 
 	if address.Line2 != nil && len(*address.Line2) > 100 {
-		return fmt.Errorf("address line 2 must be at most 100 characters")
+		return errors.New("address line 2 must be at most 100 characters")
 	}
 
 	if address.ZipCode == "" {
-		return fmt.Errorf("zip code is required")
+		return errors.New("zip code is required")
 	}
 
 	if len(address.ZipCode) > 20 {
-		return fmt.Errorf("zip code must be at most 20 characters")
+		return errors.New("zip code must be at most 20 characters")
 	}
 
 	if address.City == "" {
-		return fmt.Errorf("city is required")
+		return errors.New("city is required")
 	}
 
 	if len(address.City) > 100 {
-		return fmt.Errorf("city must be at most 100 characters")
+		return errors.New("city must be at most 100 characters")
 	}
 
 	if address.State == "" {
-		return fmt.Errorf("state is required")
+		return errors.New("state is required")
 	}
 
 	if len(address.State) > 100 {
-		return fmt.Errorf("state must be at most 100 characters")
+		return errors.New("state must be at most 100 characters")
 	}
 
 	if address.Country == "" {
-		return fmt.Errorf("country is required")
+		return errors.New("country is required")
 	}
 
 	// Validate country code

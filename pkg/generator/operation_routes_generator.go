@@ -2,7 +2,7 @@ package generator
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
@@ -20,9 +20,10 @@ func NewOperationRouteGenerator(e *entities.Entity, obs observability.Provider) 
 	return &operationRouteGenerator{e: e, obs: obs}
 }
 
+// Generate creates a single operation route from the provided input.
 func (g *operationRouteGenerator) Generate(ctx context.Context, orgID, ledgerID string, input *models.CreateOperationRouteInput) (*models.OperationRoute, error) {
 	if g.e == nil || g.e.OperationRoutes == nil {
-		return nil, fmt.Errorf("entity operation routes service not initialized")
+		return nil, errors.New("entity operation routes service not initialized")
 	}
 
 	validationErr := input.Validate()
@@ -33,15 +34,17 @@ func (g *operationRouteGenerator) Generate(ctx context.Context, orgID, ledgerID 
 	var out *models.OperationRoute
 
 	err := observability.WithSpan(ctx, g.obs, "GenerateOperationRoute", func(ctx context.Context) error {
-		return retry.DoWithContext(ctx, func() error {
-			or, err := g.e.OperationRoutes.CreateOperationRoute(ctx, orgID, ledgerID, input)
-			if err != nil {
-				return err
-			}
+		return executeWithCircuitBreaker(ctx, func() error {
+			return retry.DoWithContext(ctx, func() error {
+				or, err := g.e.OperationRoutes.CreateOperationRoute(ctx, orgID, ledgerID, input)
+				if err != nil {
+					return err
+				}
 
-			out = or
+				out = or
 
-			return nil
+				return nil
+			})
 		})
 	})
 	if err != nil {

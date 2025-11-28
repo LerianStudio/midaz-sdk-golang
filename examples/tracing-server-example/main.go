@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -131,12 +132,12 @@ func (s *Server) tracingMiddleware(next http.Handler) http.Handler {
 
 		// Extract correlation IDs from headers for baggage
 		if requestID := r.Header.Get("X-Request-ID"); requestID != "" {
-			ctx, _ = observability.WithBaggageItem(ctx, "request-id", requestID)
+			ctx, _ = observability.WithBaggageItem(ctx, "request-id", requestID) //nolint:errcheck // baggage errors are non-fatal
 			span.SetAttributes(attribute.String("request.id", requestID))
 		}
 
 		if userID := r.Header.Get("X-User-ID"); userID != "" {
-			ctx, _ = observability.WithBaggageItem(ctx, "user-id", userID)
+			ctx, _ = observability.WithBaggageItem(ctx, "user-id", userID) //nolint:errcheck // baggage errors are non-fatal
 			span.SetAttributes(attribute.String("user.id", userID))
 		}
 
@@ -359,7 +360,7 @@ func (s *Server) performLedgerOperations(ctx context.Context) error {
 	span1.End()
 
 	if len(organizations.Items) == 0 {
-		return fmt.Errorf("no organizations available")
+		return errors.New("no organizations available")
 	}
 
 	orgID := organizations.Items[0].ID
@@ -390,7 +391,7 @@ func (s *Server) performLedgerOperations(ctx context.Context) error {
 }
 
 // handleHealth simple health check endpoint
-func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
+func (*Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	w.Header().Set("Content-Type", "application/json")

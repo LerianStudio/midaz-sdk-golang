@@ -73,8 +73,8 @@ type Options struct {
 	UseJSONIterator bool
 }
 
-// PerformanceOption defines a function that configures performance options
-type PerformanceOption func(*Options) error
+// Option defines a function that configures performance options
+type Option func(*Options) error
 
 // WithBatchSize sets the default batch size for batch operations
 //
@@ -83,7 +83,7 @@ type PerformanceOption func(*Options) error
 //
 //	options, _ := performance.NewOptions(performance.WithBatchSize(100))
 //	// Now 100 account updates can be processed in a single API call
-func WithBatchSize(size int) PerformanceOption {
+func WithBatchSize(size int) Option {
 	return func(o *Options) error {
 		if size <= 0 {
 			return fmt.Errorf("batch size must be greater than 0, got %d", size)
@@ -96,7 +96,7 @@ func WithBatchSize(size int) PerformanceOption {
 }
 
 // WithHTTPPooling enables or disables HTTP connection pooling
-func WithHTTPPooling(enabled bool) PerformanceOption {
+func WithHTTPPooling(enabled bool) Option {
 	return func(o *Options) error {
 		o.EnableHTTPPooling = enabled
 
@@ -105,7 +105,7 @@ func WithHTTPPooling(enabled bool) PerformanceOption {
 }
 
 // WithMaxIdleConnsPerHost sets the maximum number of idle connections per host
-func WithMaxIdleConnsPerHost(maxIdle int) PerformanceOption {
+func WithMaxIdleConnsPerHost(maxIdle int) Option {
 	return func(o *Options) error {
 		if maxIdle < 0 {
 			return fmt.Errorf("max idle connections per host must be non-negative, got %d", maxIdle)
@@ -118,7 +118,7 @@ func WithMaxIdleConnsPerHost(maxIdle int) PerformanceOption {
 }
 
 // WithJSONIterator enables or disables the use of jsoniter for JSON parsing
-func WithJSONIterator(enabled bool) PerformanceOption {
+func WithJSONIterator(enabled bool) Option {
 	return func(o *Options) error {
 		o.UseJSONIterator = enabled
 		return nil
@@ -142,7 +142,7 @@ func DefaultOptions() Options {
 }
 
 // NewOptions creates a new Options instance with the given options
-func NewOptions(opts ...PerformanceOption) (*Options, error) {
+func NewOptions(opts ...Option) (*Options, error) {
 	// Start with default options
 	options := defaultOptions
 
@@ -174,7 +174,7 @@ func ApplyGlobalPerformanceOptions(options Options) {
 }
 
 // ApplyGlobalOptions applies the given options to the global configuration
-func ApplyGlobalOptions(opts ...PerformanceOption) error {
+func ApplyGlobalOptions(opts ...Option) error {
 	options, err := NewOptions(opts...)
 	if err != nil {
 		return err

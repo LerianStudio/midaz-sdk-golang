@@ -38,6 +38,8 @@ func TestTracingPropagation(t *testing.T) {
 
 // testInjectAndExtractTraceContext tests basic inject/extract functionality
 func testInjectAndExtractTraceContext(t *testing.T) {
+	t.Helper()
+
 	// Create a provider with tracing enabled
 	ctx := context.Background()
 	provider, err := New(ctx,
@@ -46,12 +48,14 @@ func testInjectAndExtractTraceContext(t *testing.T) {
 		WithPropagators(propagation.TraceContext{}, propagation.Baggage{}),
 	)
 	require.NoError(t, err)
+
 	defer func() {
 		assert.NoError(t, provider.Shutdown(ctx))
 	}()
 
 	// Start a parent span
 	tracer := provider.Tracer()
+
 	parentCtx, parentSpan := tracer.Start(ctx, "parent_operation")
 	defer parentSpan.End()
 
@@ -83,6 +87,8 @@ func testInjectAndExtractTraceContext(t *testing.T) {
 
 // testHTTPMiddlewareTracePropagation tests HTTP middleware tracing propagation
 func testHTTPMiddlewareTracePropagation(t *testing.T) {
+	t.Helper()
+
 	// Create provider
 	ctx := context.Background()
 	provider, err := New(ctx,
@@ -90,14 +96,17 @@ func testHTTPMiddlewareTracePropagation(t *testing.T) {
 		WithFullTracingSampling(),
 	)
 	require.NoError(t, err)
+
 	defer func() {
 		assert.NoError(t, provider.Shutdown(ctx))
 	}()
 
 	// Create a test server that captures request headers
 	var capturedHeaders http.Header
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		capturedHeaders = r.Header.Clone()
+
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
@@ -109,16 +118,18 @@ func testHTTPMiddlewareTracePropagation(t *testing.T) {
 
 	// Start a parent span
 	tracer := provider.Tracer()
+
 	requestCtx, span := tracer.Start(ctx, "http_request_test")
 	defer span.End()
 
 	// Make HTTP request
-	req, err := http.NewRequestWithContext(requestCtx, "GET", server.URL, nil)
+	req, err := http.NewRequestWithContext(requestCtx, http.MethodGet, server.URL, nil)
 	require.NoError(t, err)
 
 	resp, err := client.Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close()
+
+	defer func() { _ = resp.Body.Close() }()
 
 	// Verify trace headers were injected
 	assert.NotNil(t, capturedHeaders, "Headers should be captured")
@@ -133,6 +144,8 @@ func testHTTPMiddlewareTracePropagation(t *testing.T) {
 
 // testDistributedTracingAcrossServices simulates distributed tracing across services
 func testDistributedTracingAcrossServices(t *testing.T) {
+	t.Helper()
+
 	// Service A provider
 	ctxA := context.Background()
 	providerA, err := New(ctxA,
@@ -141,24 +154,28 @@ func testDistributedTracingAcrossServices(t *testing.T) {
 		WithFullTracingSampling(),
 	)
 	require.NoError(t, err)
+
 	defer func() {
 		assert.NoError(t, providerA.Shutdown(ctxA))
 	}()
 
 	// Service B provider
 	ctxB := context.Background()
+
 	providerB, err := New(ctxB,
 		WithServiceName("service-b"),
 		WithComponentEnabled(true, false, false),
 		WithFullTracingSampling(),
 	)
 	require.NoError(t, err)
+
 	defer func() {
 		assert.NoError(t, providerB.Shutdown(ctxB))
 	}()
 
 	// Service A starts operation
 	tracerA := providerA.Tracer()
+
 	ctxA, spanA := tracerA.Start(ctxA, "service_a_operation")
 	defer spanA.End()
 
@@ -171,19 +188,22 @@ func testDistributedTracingAcrossServices(t *testing.T) {
 
 	// Service B starts its own operation with extracted context
 	tracerB := providerB.Tracer()
+
 	ctxBWithTrace, spanB := tracerB.Start(incomingCtx, "service_b_operation")
 	defer spanB.End()
 
 	// Verify both spans belong to same trace
-	traceIdA := trace.SpanFromContext(ctxA).SpanContext().TraceID()
-	traceIdB := trace.SpanFromContext(ctxBWithTrace).SpanContext().TraceID()
+	traceIDA := trace.SpanFromContext(ctxA).SpanContext().TraceID()
+	traceIDB := trace.SpanFromContext(ctxBWithTrace).SpanContext().TraceID()
 
-	assert.Equal(t, traceIdA, traceIdB, "Both services should share the same trace ID")
-	assert.True(t, traceIdA.IsValid(), "Trace ID should be valid")
+	assert.Equal(t, traceIDA, traceIDB, "Both services should share the same trace ID")
+	assert.True(t, traceIDA.IsValid(), "Trace ID should be valid")
 }
 
 // testTraceContextWithBaggage tests baggage propagation alongside trace context
 func testTraceContextWithBaggage(t *testing.T) {
+	t.Helper()
+
 	ctx := context.Background()
 	provider, err := New(ctx,
 		WithComponentEnabled(true, false, false),
@@ -191,12 +211,14 @@ func testTraceContextWithBaggage(t *testing.T) {
 		WithPropagators(propagation.TraceContext{}, propagation.Baggage{}),
 	)
 	require.NoError(t, err)
+
 	defer func() {
 		assert.NoError(t, provider.Shutdown(ctx))
 	}()
 
 	// Start span and add baggage
 	tracer := provider.Tracer()
+
 	ctx, span := tracer.Start(ctx, "baggage_test")
 	defer span.End()
 
@@ -227,17 +249,21 @@ func testTraceContextWithBaggage(t *testing.T) {
 
 // testTraceContextPersistenceAcrossRequests tests that trace context persists across multiple HTTP requests
 func testTraceContextPersistenceAcrossRequests(t *testing.T) {
+	t.Helper()
+
 	provider, err := New(context.Background(),
 		WithComponentEnabled(true, false, false),
 		WithFullTracingSampling(),
 	)
 	require.NoError(t, err)
+
 	defer func() {
 		assert.NoError(t, provider.Shutdown(context.Background()))
 	}()
 
 	// Track traceparent headers received by the server
 	var receivedTraceparents []string
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Check for traceparent header directly
 		traceparent := r.Header.Get("traceparent")
@@ -256,6 +282,7 @@ func testTraceContextPersistenceAcrossRequests(t *testing.T) {
 
 	// Start a parent trace
 	tracer := provider.Tracer()
+
 	ctx, parentSpan := tracer.Start(context.Background(), "multiple_requests_test")
 	defer parentSpan.End()
 
@@ -263,12 +290,13 @@ func testTraceContextPersistenceAcrossRequests(t *testing.T) {
 
 	// Make multiple HTTP requests with the same context
 	for i := 0; i < 3; i++ {
-		req, err := http.NewRequestWithContext(ctx, "GET", server.URL, nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, server.URL, nil)
 		require.NoError(t, err)
 
 		resp, err := client.Do(req)
 		require.NoError(t, err)
-		resp.Body.Close()
+
+		_ = resp.Body.Close()
 	}
 
 	// Verify all requests had traceparent headers with the same trace ID
@@ -289,16 +317,19 @@ func BenchmarkTracePropagation(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
+
 	defer func() {
-		provider.Shutdown(context.Background())
+		_ = provider.Shutdown(context.Background())
 	}()
 
 	tracer := provider.Tracer()
+
 	ctx, span := tracer.Start(context.Background(), "benchmark_operation")
 	defer span.End()
 
 	b.Run("InjectContext", func(b *testing.B) {
 		headers := make(map[string]string)
+
 		b.ResetTimer()
 
 		for i := 0; i < b.N; i++ {
@@ -306,6 +337,7 @@ func BenchmarkTracePropagation(b *testing.B) {
 			for k := range headers {
 				delete(headers, k)
 			}
+
 			InjectContext(ctx, headers)
 		}
 	})

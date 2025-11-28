@@ -36,9 +36,9 @@ jobs:
           lerian_ci_cd_user_gpg_key_password: ${{ secrets.LERIAN_CI_CD_USER_GPG_KEY_PASSWORD }}
           lerian_ci_cd_user_name: ${{ secrets.LERIAN_CI_CD_USER_NAME }}
           lerian_ci_cd_user_email: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
-          go_version: "1.24.2" # Versão do Go, se necessário alterar
+          go_version: "1.25.4" # Versão do Go, se necessário alterar
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          golangci_lint_version: "v2.5.0" # Versão do GolangCI-Lint, se necessário mude para a versão desejada
+          golangci_lint_version: "v2.6.2" # Versão do GolangCI-Lint, se necessário mude para a versão desejada
 
   GoSec:
     name: Run GoSec to SDK
@@ -48,7 +48,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.24.2"
+          go-version: "1.25.4"
           cache: false
 
       - name: Gosec Scanner
@@ -66,7 +66,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.24.2"
+          go-version: "1.25.4"
           cache: true
 
       - name: Run tests
@@ -91,7 +91,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.24.2"
+          go-version: "1.25.4"
           cache: true
 
       - name: Verify SDK
@@ -108,7 +108,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.24.2"
+          go-version: "1.25.4"
           cache: true
 
       - name: Generate static documentation

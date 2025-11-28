@@ -85,3 +85,7 @@ NOTES
 
 # Specific to this project
 examples/mass-demo-generator/mass-demo-generator
+examples/mass-demo-generator/mass-demo-*.json
+examples/mass-demo-generator/mass-demo-*.html
+examples/workflow-with-entities/workflow-with-entities
+.repos/
