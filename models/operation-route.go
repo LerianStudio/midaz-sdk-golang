@@ -106,19 +106,26 @@ type AccountRule = mmodel.AccountRule
 // OperationRouteType represents the type of operation route for backward compatibility
 type OperationRouteType string
 
+// OperationRouteType constants define valid operation route types.
 const (
-	OperationRouteTypeDebit  OperationRouteType = "debit"
+	// OperationRouteTypeDebit represents debit operation type
+	OperationRouteTypeDebit OperationRouteType = "debit"
+	// OperationRouteTypeCredit represents credit operation type
 	OperationRouteTypeCredit OperationRouteType = "credit"
-	// Response values that correspond to input values
-	OperationRouteTypeSource      OperationRouteType = "source"      // Alternative name for source operations
-	OperationRouteTypeDestination OperationRouteType = "destination" // Alternative name for destination operations
+	// OperationRouteTypeSource represents source operation type
+	OperationRouteTypeSource OperationRouteType = "source"
+	// OperationRouteTypeDestination represents destination operation type
+	OperationRouteTypeDestination OperationRouteType = "destination"
 )
 
 // OperationRouteInputType represents the type for operation route input (different from response)
 type OperationRouteInputType string
 
+// OperationRouteInputType constants define valid input types.
 const (
-	OperationRouteInputTypeSource      OperationRouteInputType = "source"
+	// OperationRouteInputTypeSource represents source input type
+	OperationRouteInputTypeSource OperationRouteInputType = "source"
+	// OperationRouteInputTypeDestination represents destination input type
 	OperationRouteInputTypeDestination OperationRouteInputType = "destination"
 )
 
@@ -141,7 +148,7 @@ func NewCreateOperationRouteInput(title, description, operationType string) *Cre
 	}
 }
 
-// WithAccountAlias sets the account rule to use alias-based selection.
+// WithCreateOperationRouteAccountAlias sets the account rule to use alias-based selection.
 //
 // Parameters:
 //   - input: The CreateOperationRouteInput to modify
@@ -158,7 +165,7 @@ func WithCreateOperationRouteAccountAlias(input *CreateOperationRouteInput, alia
 	return input
 }
 
-// WithAccountType sets the account rule to use account type-based selection.
+// WithCreateOperationRouteAccountType sets the account rule to use account type-based selection.
 //
 // Parameters:
 //   - input: The CreateOperationRouteInput to modify
@@ -175,7 +182,7 @@ func WithCreateOperationRouteAccountType(input *CreateOperationRouteInput, accou
 	return input
 }
 
-// WithMetadata sets the metadata for CreateOperationRouteInput.
+// WithCreateOperationRouteMetadata sets the metadata for CreateOperationRouteInput.
 //
 // Parameters:
 //   - input: The CreateOperationRouteInput to modify
@@ -196,7 +203,7 @@ func NewUpdateOperationRouteInput() *UpdateOperationRouteInput {
 	return &UpdateOperationRouteInput{}
 }
 
-// WithTitle sets the title for UpdateOperationRouteInput.
+// WithUpdateOperationRouteTitle sets the title for UpdateOperationRouteInput.
 //
 // Parameters:
 //   - input: The UpdateOperationRouteInput to modify
@@ -209,7 +216,7 @@ func WithUpdateOperationRouteTitle(input *UpdateOperationRouteInput, title strin
 	return input
 }
 
-// WithDescription sets the description for UpdateOperationRouteInput.
+// WithUpdateOperationRouteDescription sets the description for UpdateOperationRouteInput.
 //
 // Parameters:
 //   - input: The UpdateOperationRouteInput to modify
@@ -222,7 +229,7 @@ func WithUpdateOperationRouteDescription(input *UpdateOperationRouteInput, descr
 	return input
 }
 
-// WithAccountAlias sets the account rule to use alias-based selection for UpdateOperationRouteInput.
+// WithUpdateOperationRouteAccountAlias sets the account rule to use alias-based selection.
 //
 // Parameters:
 //   - input: The UpdateOperationRouteInput to modify
@@ -239,7 +246,7 @@ func WithUpdateOperationRouteAccountAlias(input *UpdateOperationRouteInput, alia
 	return input
 }
 
-// WithAccountType sets the account rule to use account type-based selection for UpdateOperationRouteInput.
+// WithUpdateOperationRouteAccountType sets the account rule to use account type-based selection.
 //
 // Parameters:
 //   - input: The UpdateOperationRouteInput to modify
@@ -256,7 +263,7 @@ func WithUpdateOperationRouteAccountType(input *UpdateOperationRouteInput, accou
 	return input
 }
 
-// WithMetadata sets the metadata for UpdateOperationRouteInput.
+// WithUpdateOperationRouteMetadata sets the metadata for UpdateOperationRouteInput.
 //
 // Parameters:
 //   - input: The UpdateOperationRouteInput to modify

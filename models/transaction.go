@@ -320,11 +320,7 @@ func (send *DSLSend) Validate() error {
 	}
 
 	// Validate distribute
-	if err := send.validateDistribute(); err != nil {
-		return err
-	}
-
-	return nil
+	return send.validateDistribute()
 }
 
 // validateSource validates the source part of a DSLSend

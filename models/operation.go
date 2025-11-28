@@ -158,7 +158,7 @@ type UpdateOperationInput struct {
 
 	// Additional custom attributes
 	// example: {"reason": "Purchase refund", "reference": "INV-12345"}
-	Metadata map[string]any `json:"metadata" validate:"dive,keys,keymax=100,endkeys,omitempty,nonested,valuemax=2000"`
+	Metadata map[string]any `json:"metadata,omitempty"`
 } // @name UpdateOperationInput
 
 // Operations represents a paginated list of operations.
