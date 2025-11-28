@@ -17,6 +17,18 @@ Contributors: Guilherme Moreira Rodrigues
 - **Environment Configuration**: Improved the setup of automated workflows, contributing to the overall robustness and efficiency of our development and deployment pipeline.
 
 
+## [v2.2.0-beta.4] - 2025-11-28
+
+[Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v2.2.0-beta.3...v2.2.0-beta.4)
+Contributors: Fred Amaral
+
+### 🗑️ Removed
+- **Obsolete Tracing Example Binaries**: We have removed outdated tracing example binaries from the backend, build, docs, and frontend components. This cleanup reduces clutter and potential confusion, ensuring a more streamlined and efficient development experience. New contributors will benefit from a clearer codebase, free from misleading examples.
+
+### 🔧 Maintenance
+- **Codebase Cleanup**: By eliminating unnecessary files, we improve the overall maintainability of the project. This change helps keep the codebase organized and easier to navigate, which is especially beneficial for new developers joining the project.
+
+
 ## [v2.2.0-beta.2] - 2025-10-08
 
 [Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v2.2.0-beta.1...v2.2.0-beta.2)
