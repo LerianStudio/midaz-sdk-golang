@@ -396,6 +396,11 @@ linters:
       - linters:
           - govet
         text: '^shadow: declaration of "(err|ok)" shadows declaration'
+      # Allow utils as package name (common convention for utility packages)
+      - linters:
+          - revive
+        text: "var-naming: avoid meaningless package names"
+        path: pkg/utils/
 
       # WSL is too noisy
       - linters:
