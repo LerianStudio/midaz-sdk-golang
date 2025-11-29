@@ -17,6 +17,21 @@ Contributors: Guilherme Moreira Rodrigues
 - **Environment Configuration**: Improved the setup of automated workflows, contributing to the overall robustness and efficiency of our development and deployment pipeline.
 
 
+## [v2.2.0-beta.12] - 2025-11-29
+
+[Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v2.2.0-beta.11...v2.2.0-beta.12)
+Contributors: Fred Amaral, lerian-studio
+
+### 🐛 Bug Fixes
+- **Utilities (deps, test)**: Corrected the placement of the `nolint` directive in the utils package. This fix enhances code reliability by ensuring that linting processes ignore intended sections, helping developers maintain code quality and adhere to standards without unnecessary interruptions.
+
+### 📚 Documentation
+- **Changelog Updates**: The changelog has been updated to accurately reflect recent changes and improvements. This ensures that users and developers are well-informed about modifications, promoting transparency and better understanding of the project's evolution.
+
+### 🔧 Maintenance
+- **General Maintenance**: Regular updates and maintenance tasks have been performed to keep the project in optimal condition, supporting ongoing development and stability.
+
+
 ## [v2.2.0-beta.11] - 2025-11-29
 
 [Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v2.2.0-beta.10...v2.2.0-beta.11)
