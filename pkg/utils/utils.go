@@ -1,4 +1,6 @@
 // Package utils provides common utility functions for the Midaz SDK.
+//
+//nolint:revive // utils is a conventional name for utility functions package
 package utils
 
 import (
