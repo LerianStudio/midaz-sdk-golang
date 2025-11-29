@@ -1,7 +1,5 @@
 // Package utils provides common utility functions for the Midaz SDK.
-//
-//nolint:revive // utils is a conventional name for utility functions package
-package utils
+package utils //nolint:revive // utils is a conventional name for utility functions package
 
 import (
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation"
