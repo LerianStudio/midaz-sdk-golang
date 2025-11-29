@@ -1,4 +1,4 @@
-package utils //nolint:revive // test file must be in same package as code under test
+package utils
 
 import (
 	"testing"
