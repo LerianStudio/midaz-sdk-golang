@@ -140,6 +140,33 @@ Contributors: Fred Amaral
 - **Codebase Cleanup**: By eliminating unnecessary files, we improve the overall maintainability of the project. This change helps keep the codebase organized and easier to navigate, which is especially beneficial for new developers joining the project.
 
 
+## [v2.2.0-beta.3] - 2025-11-28
+
+[Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v2.2.0-beta.2...v2.2.0-beta.3)
+Contributors: Fred Amaral
+
+### ✨ Features
+- **Asset Rates Service**: New `AssetRatesService` for managing currency conversion rates with full CRUD operations, pagination, and validation. Essential for multi-currency ledger systems requiring standardized exchange rate management.
+- **Transaction Type Helpers**: Added `CreateInflowTransaction`, `CreateOutflowTransaction`, and `CreateAnnotationTransaction` methods for common ledgering patterns (deposits, withdrawals, metadata-only entries).
+- **OpenTelemetry Context Propagation**: HTTP client now automatically injects OpenTelemetry tracing context into outgoing requests, enabling distributed tracing across service boundaries.
+
+### 🐛 Bug Fixes
+- **API Versioning**: Resolved inconsistencies in API versioning across services for more reliable integrations.
+- **Metrics Endpoint**: Changed from HEAD to GET method for metrics requests, fixing compatibility issues.
+- **URL Path Escaping**: Special characters in URL path parameters are now properly escaped, preventing routing errors.
+- **Nil Pointer Panics**: Fixed potential nil pointer dereferences in example code and concurrent data race conditions.
+- **CI Pipeline**: Updated golangci-lint to v2.6.2 and aligned Go version in coverage commands.
+
+### ⚡ Performance
+- **Test Suite Expansion**: Added comprehensive test coverage (25,000+ lines) across all packages including entities, models, pkg utilities, and examples.
+
+### 🔧 Maintenance
+- **Stricter Linting**: Overhauled `.golangci.yml` configuration with significantly tighter rules for improved code quality.
+- **Code Refactoring**: Extracted constants, improved error handling patterns, and simplified return statements across entities and pkg modules.
+- **Documentation**: Updated godoc documentation and improved package-level documentation throughout the codebase.
+- **Naming Consistency**: Renamed `DefaultRetryWaitMin` constant and `url` variables to `endpoint` for semantic clarity.
+
+
 ## [v2.2.0-beta.2] - 2025-10-08
 
 [Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v2.2.0-beta.1...v2.2.0-beta.2)
