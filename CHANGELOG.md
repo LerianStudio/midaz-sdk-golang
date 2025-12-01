@@ -265,18 +265,6 @@ This release introduces a streamlined configuration process for faster updates a
 
 By focusing on these enhancements and maintenance updates, users can expect a more streamlined and efficient experience, with improved system reliability and performance.
 
-=======
->>>>>>> 510f9ec (chore(release): Update CHANGELOG)
-## [v1.3.0] - 2025-06-02
-
-### ✨ Features
-- Improve release flow by fixing the goreleaser file, enhancing the overall release process.
-
-### 🔧 Maintenance
-- Bump `go.opentelemetry.io/otel` from version 1.35.0 to 1.36.0.
-- Bump `go.opentelemetry.io/otel/metric` from version 1.35.0 to 1.36.0.
-- Bump `go.opentelemetry.io/otel/trace` from version 1.35.0 to 1.36.0.
-
 ## [v1.3.0] - 2025-06-02
 
 ### ✨ Features
