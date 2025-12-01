@@ -117,7 +117,10 @@ type workflowAccounts struct {
 func initializeMidazClient() (*client.Client, error) {
 	pluginAuth := createPluginAuth()
 
-	cfg, err := config.NewConfig(config.WithAccessManager(pluginAuth))
+	cfg, err := config.NewConfig(
+		config.FromEnvironment(),
+		config.WithAccessManager(pluginAuth),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create config: %w", err)
 	}

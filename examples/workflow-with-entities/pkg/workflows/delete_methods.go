@@ -119,18 +119,20 @@ func deleteLedgerAndOrg(ctx context.Context, midazClient *client.Client, orgID, 
 	fmt.Println("\nDeleting ledger...")
 
 	if err := midazClient.Entity.Ledgers.DeleteLedger(ctx, orgID, ledgerID); err != nil {
-		return fmt.Errorf("failed to delete ledger %s: %w", ledgerID, err)
+		fmt.Printf("   ⚠️  Could not delete ledger (ID: %s): %v\n", ledgerID, err)
+		fmt.Println("   Note: Ledger deletion may be restricted in staging/production environments")
+	} else {
+		fmt.Printf("   Ledger deleted (ID: %s)\n", ledgerID)
 	}
-
-	fmt.Printf("   Ledger deleted (ID: %s)\n", ledgerID)
 
 	fmt.Println("\nDeleting organization...")
 
 	if err := midazClient.Entity.Organizations.DeleteOrganization(ctx, orgID); err != nil {
-		return fmt.Errorf("failed to delete organization %s: %w", orgID, err)
+		fmt.Printf("   ⚠️  Could not delete organization (ID: %s): %v\n", orgID, err)
+		fmt.Println("   Note: Organization deletion may be restricted in staging/production environments")
+	} else {
+		fmt.Printf("   Organization deleted (ID: %s)\n", orgID)
 	}
-
-	fmt.Printf("   Organization deleted (ID: %s)\n", orgID)
 
 	return nil
 }
