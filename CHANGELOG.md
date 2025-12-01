@@ -17,6 +17,21 @@ Contributors: Guilherme Moreira Rodrigues
 - **Environment Configuration**: Improved the setup of automated workflows, contributing to the overall robustness and efficiency of our development and deployment pipeline.
 
 
+## [v2.2.1] - 2025-12-01
+
+[Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v2.2.0...v2.2.1)
+Contributors: Jefferson Rodrigues, lerian-studio
+
+### 🐛 Bug Fixes
+- **Improved Workflow Compatibility**: We've enhanced the compatibility of examples and configurations with staging environments. This update ensures that developers experience fewer environment-specific issues, reducing setup time and improving the overall reliability of testing processes.
+
+### 📚 Documentation
+- **Changelog Update**: The changelog has been updated to reflect recent improvements and fixes. This ensures users have access to the latest information, enhancing transparency and awareness of changes.
+
+### 🔧 Maintenance
+- **Release Process Update**: As part of our ongoing maintenance, the release process now includes routine updates to the changelog. This helps maintain an accurate record of changes, supporting both internal processes and user communication.
+
+
 ## [v2.2.1-beta.1] - 2025-12-01
 
 [Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v2.2.0...v2.2.1-beta.1)
