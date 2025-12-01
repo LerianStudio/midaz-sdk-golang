@@ -37,8 +37,16 @@ func (m *MockLedgersService) EXPECT() *MockLedgersServiceMockRecorder {
 func (m *MockLedgersService) ListLedgers(ctx context.Context, organizationID string, opts *models.ListOptions) (*models.ListResponse[models.Ledger], error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListLedgers", ctx, organizationID, opts)
-	ret0, _ := ret[0].(*models.ListResponse[models.Ledger])
-	ret1, _ := ret[1].(error)
+
+	var ret0 *models.ListResponse[models.Ledger]
+	if ret[0] != nil {
+		ret0, _ = ret[0].(*models.ListResponse[models.Ledger]) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	var ret1 error
+	if ret[1] != nil {
+		ret1, _ = ret[1].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
 
 	return ret0, ret1
 }
@@ -53,8 +61,16 @@ func (mr *MockLedgersServiceMockRecorder) ListLedgers(ctx, organizationID, opts 
 func (m *MockLedgersService) GetLedger(ctx context.Context, organizationID, id string) (*models.Ledger, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetLedger", ctx, organizationID, id)
-	ret0, _ := ret[0].(*models.Ledger)
-	ret1, _ := ret[1].(error)
+
+	var ret0 *models.Ledger
+	if ret[0] != nil {
+		ret0, _ = ret[0].(*models.Ledger) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	var ret1 error
+	if ret[1] != nil {
+		ret1, _ = ret[1].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
 
 	return ret0, ret1
 }
@@ -69,8 +85,16 @@ func (mr *MockLedgersServiceMockRecorder) GetLedger(ctx, organizationID, id any)
 func (m *MockLedgersService) CreateLedger(ctx context.Context, organizationID string, input *models.CreateLedgerInput) (*models.Ledger, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateLedger", ctx, organizationID, input)
-	ret0, _ := ret[0].(*models.Ledger)
-	ret1, _ := ret[1].(error)
+
+	var ret0 *models.Ledger
+	if ret[0] != nil {
+		ret0, _ = ret[0].(*models.Ledger) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	var ret1 error
+	if ret[1] != nil {
+		ret1, _ = ret[1].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
 
 	return ret0, ret1
 }
@@ -85,8 +109,16 @@ func (mr *MockLedgersServiceMockRecorder) CreateLedger(ctx, organizationID, inpu
 func (m *MockLedgersService) UpdateLedger(ctx context.Context, organizationID, id string, input *models.UpdateLedgerInput) (*models.Ledger, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateLedger", ctx, organizationID, id, input)
-	ret0, _ := ret[0].(*models.Ledger)
-	ret1, _ := ret[1].(error)
+
+	var ret0 *models.Ledger
+	if ret[0] != nil {
+		ret0, _ = ret[0].(*models.Ledger) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	var ret1 error
+	if ret[1] != nil {
+		ret1, _ = ret[1].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
 
 	return ret0, ret1
 }
@@ -101,7 +133,11 @@ func (mr *MockLedgersServiceMockRecorder) UpdateLedger(ctx, organizationID, id, 
 func (m *MockLedgersService) DeleteLedger(ctx context.Context, organizationID, id string) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteLedger", ctx, organizationID, id)
-	ret0, _ := ret[0].(error)
+
+	var ret0 error
+	if ret[0] != nil {
+		ret0, _ = ret[0].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
 
 	return ret0
 }

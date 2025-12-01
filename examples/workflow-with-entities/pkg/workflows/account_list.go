@@ -11,7 +11,7 @@ import (
 	client "github.com/LerianStudio/midaz-sdk-golang/v2"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/concurrent"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	pkgerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
 )
 
 // ListAccounts lists all accounts in the ledger with advanced demonstrations
@@ -160,7 +160,7 @@ func fetchFirstPage(ctx context.Context, midazClient *client.Client, orgID, ledg
 
 // handleFirstPageError processes first page fetch errors
 func handleFirstPageError(err error) error {
-	if errors.IsCancellationError(err) {
+	if pkgerrors.IsCancellationError(err) {
 		fmt.Println("⚠️ Operation cancelled due to timeout")
 		return nil
 	}
@@ -287,9 +287,9 @@ func processParallelResults(results []concurrent.Result[*models.ListOptions, []m
 
 // handleParallelError processes errors from parallel fetching
 func handleParallelError(err error, pageNumber int) {
-	if errors.IsCancellationError(err) {
+	if pkgerrors.IsCancellationError(err) {
 		fmt.Printf("⏱️ Page %d fetch cancelled: %v\n", pageNumber, err)
-	} else if errors.IsRateLimitError(err) {
+	} else if pkgerrors.IsRateLimitError(err) {
 		fmt.Printf("⚠️ Page %d hit rate limit: %v\n", pageNumber, err)
 	} else {
 		fmt.Printf("❌ Error fetching page %d: %v\n", pageNumber, err)
@@ -318,7 +318,7 @@ func demonstrateContextCancellation(ctx context.Context, midazClient *client.Cli
 // handleCancellationResult processes the result of the cancellation test
 func handleCancellationResult(err error) error {
 	if err != nil {
-		if errors.IsCancellationError(err) {
+		if pkgerrors.IsCancellationError(err) {
 			fmt.Println("✅ Context cancellation correctly detected and handled")
 		} else {
 			fmt.Printf("❓ Expected cancellation error, but got: %v\n", err)

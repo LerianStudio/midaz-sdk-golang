@@ -37,8 +37,16 @@ func (m *MockAccountsService) EXPECT() *MockAccountsServiceMockRecorder {
 func (m *MockAccountsService) ListAccounts(ctx context.Context, organizationID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Account], error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListAccounts", ctx, organizationID, ledgerID, opts)
-	ret0, _ := ret[0].(*models.ListResponse[models.Account])
-	ret1, _ := ret[1].(error)
+
+	var ret0 *models.ListResponse[models.Account]
+	if ret[0] != nil {
+		ret0, _ = ret[0].(*models.ListResponse[models.Account]) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	var ret1 error
+	if ret[1] != nil {
+		ret1, _ = ret[1].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
 
 	return ret0, ret1
 }
@@ -53,8 +61,16 @@ func (mr *MockAccountsServiceMockRecorder) ListAccounts(ctx, organizationID, led
 func (m *MockAccountsService) GetAccount(ctx context.Context, organizationID, ledgerID, id string) (*models.Account, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetAccount", ctx, organizationID, ledgerID, id)
-	ret0, _ := ret[0].(*models.Account)
-	ret1, _ := ret[1].(error)
+
+	var ret0 *models.Account
+	if ret[0] != nil {
+		ret0, _ = ret[0].(*models.Account) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	var ret1 error
+	if ret[1] != nil {
+		ret1, _ = ret[1].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
 
 	return ret0, ret1
 }
@@ -69,8 +85,16 @@ func (mr *MockAccountsServiceMockRecorder) GetAccount(ctx, organizationID, ledge
 func (m *MockAccountsService) GetAccountByAlias(ctx context.Context, organizationID, ledgerID, alias string) (*models.Account, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetAccountByAlias", ctx, organizationID, ledgerID, alias)
-	ret0, _ := ret[0].(*models.Account)
-	ret1, _ := ret[1].(error)
+
+	var ret0 *models.Account
+	if ret[0] != nil {
+		ret0, _ = ret[0].(*models.Account) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	var ret1 error
+	if ret[1] != nil {
+		ret1, _ = ret[1].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
 
 	return ret0, ret1
 }
@@ -85,8 +109,16 @@ func (mr *MockAccountsServiceMockRecorder) GetAccountByAlias(ctx, organizationID
 func (m *MockAccountsService) CreateAccount(ctx context.Context, organizationID, ledgerID string, input *models.CreateAccountInput) (*models.Account, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateAccount", ctx, organizationID, ledgerID, input)
-	ret0, _ := ret[0].(*models.Account)
-	ret1, _ := ret[1].(error)
+
+	var ret0 *models.Account
+	if ret[0] != nil {
+		ret0, _ = ret[0].(*models.Account) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	var ret1 error
+	if ret[1] != nil {
+		ret1, _ = ret[1].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
 
 	return ret0, ret1
 }
@@ -101,8 +133,16 @@ func (mr *MockAccountsServiceMockRecorder) CreateAccount(ctx, organizationID, le
 func (m *MockAccountsService) UpdateAccount(ctx context.Context, organizationID, ledgerID, id string, input *models.UpdateAccountInput) (*models.Account, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateAccount", ctx, organizationID, ledgerID, id, input)
-	ret0, _ := ret[0].(*models.Account)
-	ret1, _ := ret[1].(error)
+
+	var ret0 *models.Account
+	if ret[0] != nil {
+		ret0, _ = ret[0].(*models.Account) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	var ret1 error
+	if ret[1] != nil {
+		ret1, _ = ret[1].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
 
 	return ret0, ret1
 }
@@ -117,7 +157,11 @@ func (mr *MockAccountsServiceMockRecorder) UpdateAccount(ctx, organizationID, le
 func (m *MockAccountsService) DeleteAccount(ctx context.Context, organizationID, ledgerID, id string) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteAccount", ctx, organizationID, ledgerID, id)
-	ret0, _ := ret[0].(error)
+
+	var ret0 error
+	if ret[0] != nil {
+		ret0, _ = ret[0].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
 
 	return ret0
 }
@@ -132,8 +176,16 @@ func (mr *MockAccountsServiceMockRecorder) DeleteAccount(ctx, organizationID, le
 func (m *MockAccountsService) GetBalance(ctx context.Context, organizationID, ledgerID, accountID string) (*models.Balance, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetBalance", ctx, organizationID, ledgerID, accountID)
-	ret0, _ := ret[0].(*models.Balance)
-	ret1, _ := ret[1].(error)
+
+	var ret0 *models.Balance
+	if ret[0] != nil {
+		ret0, _ = ret[0].(*models.Balance) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	var ret1 error
+	if ret[1] != nil {
+		ret1, _ = ret[1].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
 
 	return ret0, ret1
 }

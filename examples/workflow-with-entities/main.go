@@ -57,6 +57,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -84,98 +85,126 @@ import (
 // The function uses the godotenv package to load environment variables from a .env file,
 // which makes it easier to configure the example without modifying the code.
 func main() {
-	// Load environment variables from .env file
-	err := godotenv.Load()
-	if err != nil {
-		log.Println("Warning: Failed to load .env file, using environment variables")
-	}
+	loadEnvFile()
 
-	// Validate environment variables
 	if err := validateEnvironment(); err != nil {
 		log.Fatalf("Environment validation failed: %v", err)
 	}
 
-	// Setup observability
 	shutdownObservability := setupObservability()
 	defer shutdownObservability()
 
-	// Create a context with a timeout and observability
-	// This ensures that the example doesn't hang indefinitely if there are issues
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := createWorkflowContext()
+	defer cancel()
 
-	// Define a custom type for context keys to avoid collisions
-	type contextKey string
+	cfg, err := createConfiguration()
+	if err != nil {
+		log.Fatalf("Configuration failed: %v", err)
+	}
+
+	c, err := createSDKClient(cfg)
+	if err != nil {
+		log.Fatalf("Client creation failed: %v", err)
+	}
+
+	concurrentCustomerToMerchantTxs, concurrentMerchantToCustomerTxs := loadConcurrencySettings()
+
+	if err := executeWorkflow(ctx, c, concurrentCustomerToMerchantTxs, concurrentMerchantToCustomerTxs); err != nil {
+		log.Fatalf("Workflow execution failed: %v", err)
+	}
+}
+
+func loadEnvFile() {
+	if err := godotenv.Load(); err != nil {
+		log.Println("Warning: Failed to load .env file, using environment variables")
+	}
+}
+
+type contextKey string
+
+func createWorkflowContext() (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 
 	const traceIDKey contextKey = "trace_id"
 
 	ctx = context.WithValue(ctx, traceIDKey, "workflow-example")
 
-	defer cancel()
+	return ctx, cancel
+}
 
-	// Create a configuration based on environment variables
-	fmt.Println("🔧 Loading configuration from environment...")
+func createConfiguration() (*config.Config, error) {
+	fmt.Println("Loading configuration from environment...")
 
-	// Create config options with environment variables support
 	options := []config.Option{
-		config.FromEnvironment(),                        // Load from environment variables
-		config.WithEnvironment(config.EnvironmentLocal), // Default to local environment
+		config.FromEnvironment(),
+		config.WithEnvironment(config.EnvironmentLocal),
 	}
 
-	// Create the configuration
 	cfg, err := config.NewConfig(options...)
 	if err != nil {
-		log.Fatalf("Failed to create configuration: %v", err)
+		return nil, fmt.Errorf("failed to create configuration: %w", err)
 	}
 
-	// Configure retry options
 	retryOpts := setupRetryOptions()
 	cfg.MaxRetries = retryOpts.MaxRetries
 	cfg.RetryWaitMin = retryOpts.InitialDelay
 	cfg.RetryWaitMax = retryOpts.MaxDelay
 
-	// Display connection information
-	fmt.Printf("🔌 Connecting to Midaz APIs:\n")
+	printConnectionInfo(cfg)
+
+	return cfg, nil
+}
+
+func printConnectionInfo(cfg *config.Config) {
+	fmt.Printf("Connecting to Midaz APIs:\n")
 	fmt.Printf("   - Onboarding API: %s\n", cfg.ServiceURLs[config.ServiceOnboarding])
 	fmt.Printf("   - Transaction API: %s\n", cfg.ServiceURLs[config.ServiceTransaction])
 	fmt.Printf("   - Environment: %s\n", cfg.Environment)
 	fmt.Printf("   - Debug mode: %t\n", cfg.Debug)
+}
 
-	// Create client with the standardized options pattern
-	fmt.Println("\n🔑 Initializing SDK client...")
+func createSDKClient(cfg *config.Config) (*client.Client, error) {
+	fmt.Println("\nInitializing SDK client...")
 
 	c, err := client.New(
 		client.WithConfig(cfg),
 		client.UseAllAPIs(),
 	)
 	if err != nil {
-		log.Fatalf("Failed to create client: %v", err)
+		return nil, fmt.Errorf("failed to create client: %w", err)
 	}
 
-	fmt.Println("✅ SDK client initialized successfully")
+	fmt.Println("SDK client initialized successfully")
 
-	// Load concurrent transaction counts from environment variables
-	concurrentCustomerToMerchantTxs, err := getEnvInt("CONCURRENT_CUSTOMER_TO_MERCHANT_TXS", 10)
+	return c, nil
+}
+
+func loadConcurrencySettings() (customerToMerchantTxs int, merchantToCustomerTxs int) {
+	var err error
+	customerToMerchantTxs, err = getEnvInt("CONCURRENT_CUSTOMER_TO_MERCHANT_TXS", 10)
 	if err != nil {
 		log.Printf("Warning: Failed to parse CONCURRENT_CUSTOMER_TO_MERCHANT_TXS, using default: %v", err)
-
-		concurrentCustomerToMerchantTxs = 10
+		customerToMerchantTxs = 10
 	}
 
-	concurrentMerchantToCustomerTxs, err := getEnvInt("CONCURRENT_MERCHANT_TO_CUSTOMER_TXS", 10)
+	merchantToCustomerTxs, err = getEnvInt("CONCURRENT_MERCHANT_TO_CUSTOMER_TXS", 10)
 	if err != nil {
 		log.Printf("Warning: Failed to parse CONCURRENT_MERCHANT_TO_CUSTOMER_TXS, using default: %v", err)
-
-		concurrentMerchantToCustomerTxs = 10
+		merchantToCustomerTxs = 10
 	}
 
-	// Run the complete workflow
-	fmt.Println("\n🚀 Starting complete workflow...")
+	return customerToMerchantTxs, merchantToCustomerTxs
+}
 
-	if err := workflows.RunCompleteWorkflow(ctx, c.Entity, concurrentCustomerToMerchantTxs, concurrentMerchantToCustomerTxs); err != nil {
-		log.Fatalf("❌ Workflow failed: %s", err.Error())
+func executeWorkflow(ctx context.Context, c *client.Client, customerToMerchant, merchantToCustomer int) error {
+	fmt.Println("\nStarting complete workflow...")
+
+	if err := workflows.RunCompleteWorkflow(ctx, c.Entity, customerToMerchant, merchantToCustomer); err != nil {
+		return fmt.Errorf("workflow failed: %w", err)
 	}
 
-	fmt.Println("\n🎉 Workflow completed successfully!")
+	fmt.Println("\nWorkflow completed successfully!")
+	return nil
 }
 
 // getEnvInt gets an integer environment variable with a default value.
@@ -195,7 +224,7 @@ func getEnvInt(envVar string, defaultValue int) (int, error) {
 
 	intValue, err := strconv.Atoi(envValue)
 	if err != nil {
-		return defaultValue, fmt.Errorf("invalid value for %s: %v", envVar, err)
+		return defaultValue, fmt.Errorf("invalid value for %s: %w", envVar, err)
 	}
 
 	return intValue, nil
@@ -222,7 +251,7 @@ func validateEnvironment() error {
 	// Use validation package to validate auth token format
 	token := os.Getenv("MIDAZ_AUTH_TOKEN")
 	if !isValidAuthToken(token) {
-		return fmt.Errorf("invalid auth token format")
+		return errors.New("invalid auth token format")
 	}
 
 	return nil
@@ -231,12 +260,16 @@ func validateEnvironment() error {
 // setupObservability initializes the observability module
 func setupObservability() func() {
 	// Create a simple provider for observability with functional options
-	obsProvider, _ := observability.New(context.Background(),
+	obsProvider, err := observability.New(context.Background(),
 		observability.WithServiceName("midaz-workflow-example"),
 		observability.WithServiceVersion("1.0.0"),
 		observability.WithEnvironment("local"),
 		observability.WithComponentEnabled(true, true, true), // Enable tracing, metrics, and logging
 	)
+	if err != nil {
+		log.Printf("Warning: Failed to create observability provider: %v", err)
+		return func() {} // Return no-op shutdown function
+	}
 
 	// Return function to shut down observability when done
 	return func() {
@@ -250,7 +283,10 @@ func setupObservability() func() {
 
 // setupRetryOptions configures retry behavior for API requests using functional options
 func setupRetryOptions() *retry.Options {
-	maxRetries, _ := getEnvInt("MIDAZ_MAX_RETRIES", 3)
+	maxRetries, err := getEnvInt("MIDAZ_MAX_RETRIES", 3)
+	if err != nil {
+		log.Printf("Warning: Failed to parse MIDAZ_MAX_RETRIES, using default: %v", err)
+	}
 
 	// Create options with defaults
 	options := retry.DefaultOptions()

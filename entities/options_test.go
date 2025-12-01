@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestOptions(t *testing.T) {
@@ -20,7 +21,7 @@ func TestOptions(t *testing.T) {
 		err := opt(entity)
 
 		// Check that there was no error
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// Check that the debug flag was set
 		assert.True(t, entity.httpClient.debug)
@@ -30,7 +31,7 @@ func TestOptions(t *testing.T) {
 		err = opt(entity)
 
 		// Check that there was no error
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// Check that the debug flag was unset
 		assert.False(t, entity.httpClient.debug)
@@ -49,7 +50,7 @@ func TestOptions(t *testing.T) {
 		err := opt(entity)
 
 		// Check that there was no error
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// Check that the user agent was set
 		assert.Equal(t, "test-agent", entity.httpClient.userAgent)
@@ -59,7 +60,7 @@ func TestOptions(t *testing.T) {
 		err = opt(entity)
 
 		// Check that there was no error
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// Check that the user agent was updated
 		assert.Equal(t, "another-agent", entity.httpClient.userAgent)

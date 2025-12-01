@@ -4,6 +4,18 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 )
 
+// Account type key constants define standard account type identifiers.
+// These match the constants in pkg/generator for consistency.
+const (
+	AccountTypeKeyChecking   = "CHECKING"
+	AccountTypeKeySavings    = "SAVINGS"
+	AccountTypeKeyCreditCard = "CREDIT_CARD"
+	AccountTypeKeyExpense    = "EXPENSE"
+	AccountTypeKeyRevenue    = "REVENUE"
+	AccountTypeKeyLiability  = "LIABILITY"
+	AccountTypeKeyEquity     = "EQUITY"
+)
+
 // CustomerAccounts returns templates representing customer-owned accounts.
 // Types align to validator recognized values (deposit/savings/creditCard/marketplace).
 func CustomerAccounts() []AccountTemplate {
@@ -12,7 +24,7 @@ func CustomerAccounts() []AccountTemplate {
 			Name:           "Customer Deposits",
 			Type:           "deposit",
 			Status:         models.NewStatus(models.StatusActive),
-			AccountTypeKey: strPtr("CHECKING"),
+			AccountTypeKey: StrPtr(AccountTypeKeyChecking),
 			Metadata: map[string]any{
 				"role":       "customer",
 				"risk_level": "low",
@@ -22,7 +34,7 @@ func CustomerAccounts() []AccountTemplate {
 			Name:           "Customer Savings",
 			Type:           "savings",
 			Status:         models.NewStatus(models.StatusActive),
-			AccountTypeKey: strPtr("SAVINGS"),
+			AccountTypeKey: StrPtr(AccountTypeKeySavings),
 			Metadata: map[string]any{
 				"role":    "customer",
 				"purpose": "savings",
@@ -32,8 +44,8 @@ func CustomerAccounts() []AccountTemplate {
 			Name:           "Primary Customer",
 			Type:           "deposit",
 			Status:         models.NewStatus(models.StatusActive),
-			Alias:          strPtr("customer"),
-			AccountTypeKey: strPtr("CHECKING"),
+			Alias:          StrPtr("customer"),
+			AccountTypeKey: StrPtr(AccountTypeKeyChecking),
 			Metadata: map[string]any{
 				"role":    "customer",
 				"primary": true,
@@ -52,7 +64,7 @@ func MerchantAccounts() []AccountTemplate {
 			Type:           "marketplace",
 			Status:         models.NewStatus(models.StatusActive),
 			Alias:          &alias,
-			AccountTypeKey: strPtr("CHECKING"),
+			AccountTypeKey: StrPtr(AccountTypeKeyChecking),
 			Metadata: map[string]any{
 				"role":     "merchant",
 				"category": "settlement",
@@ -71,7 +83,7 @@ func FeeAccounts() []AccountTemplate {
 			Type:           "deposit",
 			Status:         models.NewStatus(models.StatusActive),
 			Alias:          &alias,
-			AccountTypeKey: strPtr("CHECKING"),
+			AccountTypeKey: StrPtr(AccountTypeKeyChecking),
 			Metadata: map[string]any{
 				"role":     "internal",
 				"category": "fees",
@@ -90,7 +102,7 @@ func SettlementAccounts() []AccountTemplate {
 			Type:           "deposit",
 			Status:         models.NewStatus(models.StatusActive),
 			Alias:          &alias,
-			AccountTypeKey: strPtr("CHECKING"),
+			AccountTypeKey: StrPtr(AccountTypeKeyChecking),
 			Metadata: map[string]any{
 				"role":     "internal",
 				"category": "settlement",
@@ -109,7 +121,7 @@ func EscrowAccounts() []AccountTemplate {
 			Type:           "deposit",
 			Status:         models.NewStatus(models.StatusActive),
 			Alias:          &alias,
-			AccountTypeKey: strPtr("CHECKING"),
+			AccountTypeKey: StrPtr(AccountTypeKeyChecking),
 			Metadata: map[string]any{
 				"role":     "internal",
 				"category": "escrow",
@@ -128,7 +140,7 @@ func RevenueAccounts() []AccountTemplate {
 			Type:           "revenue",
 			Status:         models.NewStatus(models.StatusActive),
 			Alias:          &alias,
-			AccountTypeKey: strPtr("REVENUE"),
+			AccountTypeKey: StrPtr(AccountTypeKeyRevenue),
 			Metadata: map[string]any{
 				"role":     "internal",
 				"category": "revenue",
@@ -147,7 +159,7 @@ func ExpenseAccounts() []AccountTemplate {
 			Type:           "expense",
 			Status:         models.NewStatus(models.StatusActive),
 			Alias:          &alias,
-			AccountTypeKey: strPtr("EXPENSE"),
+			AccountTypeKey: StrPtr(AccountTypeKeyExpense),
 			Metadata: map[string]any{
 				"role":     "internal",
 				"category": "expense",
@@ -167,7 +179,7 @@ func LiabilityAccounts() []AccountTemplate {
 			Type:           "liability",
 			Status:         models.NewStatus(models.StatusActive),
 			Alias:          &apAlias,
-			AccountTypeKey: strPtr("LIABILITY"),
+			AccountTypeKey: StrPtr(AccountTypeKeyLiability),
 			Metadata: map[string]any{
 				"role":     "internal",
 				"category": "payables",
@@ -178,7 +190,7 @@ func LiabilityAccounts() []AccountTemplate {
 			Type:           "liability",
 			Status:         models.NewStatus(models.StatusActive),
 			Alias:          &loanAlias,
-			AccountTypeKey: strPtr("LIABILITY"),
+			AccountTypeKey: StrPtr(AccountTypeKeyLiability),
 			Metadata: map[string]any{
 				"role":     "internal",
 				"category": "loans",
@@ -197,7 +209,7 @@ func EquityAccounts() []AccountTemplate {
 			Type:           "equity",
 			Status:         models.NewStatus(models.StatusActive),
 			Alias:          &alias,
-			AccountTypeKey: strPtr("EQUITY"),
+			AccountTypeKey: StrPtr(AccountTypeKeyEquity),
 			Metadata: map[string]any{
 				"role":     "internal",
 				"category": "equity",
@@ -227,5 +239,3 @@ func AllAccountTemplates() []AccountTemplate {
 
 	return out
 }
-
-func strPtr(s string) *string { return &s }

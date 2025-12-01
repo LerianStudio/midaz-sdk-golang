@@ -3,7 +3,6 @@ package entities
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -17,9 +16,9 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-// \1 performs an operation
 func TestListAccounts(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -72,7 +71,7 @@ func TestListAccounts(t *testing.T) {
 
 	// Test with default options
 	result, err := mockService.ListAccounts(ctx, orgID, ledgerID, nil)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, 2, result.Pagination.Total)
 	assert.Len(t, result.Items, 2)
 	assert.Equal(t, "acc-123", result.Items[0].ID)
@@ -84,23 +83,22 @@ func TestListAccounts(t *testing.T) {
 	// Test validation for empty orgID
 	mockService.EXPECT().
 		ListAccounts(gomock.Any(), "", ledgerID, gomock.Any()).
-		Return(nil, fmt.Errorf("organization ID is required"))
+		Return(nil, errors.New("organization ID is required"))
 
 	_, err = mockService.ListAccounts(ctx, "", ledgerID, nil)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization ID is required")
 
 	// Test validation for empty ledgerID
 	mockService.EXPECT().
 		ListAccounts(gomock.Any(), orgID, "", gomock.Any()).
-		Return(nil, fmt.Errorf("ledger ID is required"))
+		Return(nil, errors.New("ledger ID is required"))
 
 	_, err = mockService.ListAccounts(ctx, orgID, "", nil)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ledger ID is required")
 }
 
-// \1 performs an operation
 func TestGetAccount(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -136,7 +134,7 @@ func TestGetAccount(t *testing.T) {
 
 	// Test getting an account by ID
 	result, err := mockService.GetAccount(ctx, orgID, ledgerID, accountID)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, accountID, result.ID)
 	assert.Equal(t, "Test Account 1", result.Name)
 	assert.Equal(t, "USD", result.AssetCode)
@@ -148,41 +146,40 @@ func TestGetAccount(t *testing.T) {
 	// Test with empty organizationID
 	mockService.EXPECT().
 		GetAccount(gomock.Any(), "", ledgerID, accountID).
-		Return(nil, fmt.Errorf("organization ID is required"))
+		Return(nil, errors.New("organization ID is required"))
 
 	_, err = mockService.GetAccount(ctx, "", ledgerID, accountID)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization ID is required")
 
 	// Test with empty ledgerID
 	mockService.EXPECT().
 		GetAccount(gomock.Any(), orgID, "", accountID).
-		Return(nil, fmt.Errorf("ledger ID is required"))
+		Return(nil, errors.New("ledger ID is required"))
 
 	_, err = mockService.GetAccount(ctx, orgID, "", accountID)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ledger ID is required")
 
 	// Test with empty accountID
 	mockService.EXPECT().
 		GetAccount(gomock.Any(), orgID, ledgerID, "").
-		Return(nil, fmt.Errorf("account ID is required"))
+		Return(nil, errors.New("account ID is required"))
 
 	_, err = mockService.GetAccount(ctx, orgID, ledgerID, "")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "account ID is required")
 
 	// Test with not found
 	mockService.EXPECT().
 		GetAccount(gomock.Any(), orgID, ledgerID, "not-found").
-		Return(nil, fmt.Errorf("Account not found"))
+		Return(nil, errors.New("Account not found"))
 
 	_, err = mockService.GetAccount(ctx, orgID, ledgerID, "not-found")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
 }
 
-// \1 performs an operation
 func TestGetAccountByAlias(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -218,7 +215,7 @@ func TestGetAccountByAlias(t *testing.T) {
 
 	// Test getting an account by alias
 	result, err := mockService.GetAccountByAlias(ctx, orgID, ledgerID, alias)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, accountID, result.ID)
 	assert.Equal(t, "Test Account 1", result.Name)
 	assert.Equal(t, "USD", result.AssetCode)
@@ -230,41 +227,40 @@ func TestGetAccountByAlias(t *testing.T) {
 	// Test with empty organizationID
 	mockService.EXPECT().
 		GetAccountByAlias(gomock.Any(), "", ledgerID, alias).
-		Return(nil, fmt.Errorf("organization ID is required"))
+		Return(nil, errors.New("organization ID is required"))
 
 	_, err = mockService.GetAccountByAlias(ctx, "", ledgerID, alias)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization ID is required")
 
 	// Test with empty ledgerID
 	mockService.EXPECT().
 		GetAccountByAlias(gomock.Any(), orgID, "", alias).
-		Return(nil, fmt.Errorf("ledger ID is required"))
+		Return(nil, errors.New("ledger ID is required"))
 
 	_, err = mockService.GetAccountByAlias(ctx, orgID, "", alias)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ledger ID is required")
 
 	// Test with empty alias
 	mockService.EXPECT().
 		GetAccountByAlias(gomock.Any(), orgID, ledgerID, "").
-		Return(nil, fmt.Errorf("account alias is required"))
+		Return(nil, errors.New("account alias is required"))
 
 	_, err = mockService.GetAccountByAlias(ctx, orgID, ledgerID, "")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "account alias is required")
 
 	// Test with not found
 	mockService.EXPECT().
 		GetAccountByAlias(gomock.Any(), orgID, ledgerID, "not-found").
-		Return(nil, fmt.Errorf("Account not found"))
+		Return(nil, errors.New("Account not found"))
 
 	_, err = mockService.GetAccountByAlias(ctx, orgID, ledgerID, "not-found")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
 }
 
-// \1 performs an operation
 func TestCreateAccount(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -307,7 +303,7 @@ func TestCreateAccount(t *testing.T) {
 
 	// Test creating a new account
 	result, err := mockService.CreateAccount(ctx, orgID, ledgerID, input)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, accountID, result.ID)
 	assert.Equal(t, "New Account", result.Name)
 	assert.Equal(t, "USD", result.AssetCode)
@@ -320,32 +316,31 @@ func TestCreateAccount(t *testing.T) {
 	// Test with empty organizationID
 	mockService.EXPECT().
 		CreateAccount(gomock.Any(), "", ledgerID, input).
-		Return(nil, fmt.Errorf("organization ID is required"))
+		Return(nil, errors.New("organization ID is required"))
 
 	_, err = mockService.CreateAccount(ctx, "", ledgerID, input)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization ID is required")
 
 	// Test with empty ledgerID
 	mockService.EXPECT().
 		CreateAccount(gomock.Any(), orgID, "", input).
-		Return(nil, fmt.Errorf("ledger ID is required"))
+		Return(nil, errors.New("ledger ID is required"))
 
 	_, err = mockService.CreateAccount(ctx, orgID, "", input)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ledger ID is required")
 
 	// Test with nil input
 	mockService.EXPECT().
 		CreateAccount(gomock.Any(), orgID, ledgerID, nil).
-		Return(nil, fmt.Errorf("account input cannot be nil"))
+		Return(nil, errors.New("account input cannot be nil"))
 
 	_, err = mockService.CreateAccount(ctx, orgID, ledgerID, nil)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "account input cannot be nil")
 }
 
-// \1 performs an operation
 func TestUpdateAccount(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -388,7 +383,7 @@ func TestUpdateAccount(t *testing.T) {
 
 	// Test updating an account
 	result, err := mockService.UpdateAccount(ctx, orgID, ledgerID, accountID, input)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, accountID, result.ID)
 	assert.Equal(t, "Updated Account", result.Name)
 	assert.Equal(t, "USD", result.AssetCode)
@@ -399,50 +394,49 @@ func TestUpdateAccount(t *testing.T) {
 	// Test with empty organizationID
 	mockService.EXPECT().
 		UpdateAccount(gomock.Any(), "", ledgerID, accountID, input).
-		Return(nil, fmt.Errorf("organization ID is required"))
+		Return(nil, errors.New("organization ID is required"))
 
 	_, err = mockService.UpdateAccount(ctx, "", ledgerID, accountID, input)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization ID is required")
 
 	// Test with empty ledgerID
 	mockService.EXPECT().
 		UpdateAccount(gomock.Any(), orgID, "", accountID, input).
-		Return(nil, fmt.Errorf("ledger ID is required"))
+		Return(nil, errors.New("ledger ID is required"))
 
 	_, err = mockService.UpdateAccount(ctx, orgID, "", accountID, input)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ledger ID is required")
 
 	// Test with empty accountID
 	mockService.EXPECT().
 		UpdateAccount(gomock.Any(), orgID, ledgerID, "", input).
-		Return(nil, fmt.Errorf("account ID is required"))
+		Return(nil, errors.New("account ID is required"))
 
 	_, err = mockService.UpdateAccount(ctx, orgID, ledgerID, "", input)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "account ID is required")
 
 	// Test with nil input
 	mockService.EXPECT().
 		UpdateAccount(gomock.Any(), orgID, ledgerID, accountID, nil).
-		Return(nil, fmt.Errorf("account input cannot be nil"))
+		Return(nil, errors.New("account input cannot be nil"))
 
 	_, err = mockService.UpdateAccount(ctx, orgID, ledgerID, accountID, nil)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "account input cannot be nil")
 
 	// Test with not found
 	mockService.EXPECT().
 		UpdateAccount(gomock.Any(), orgID, ledgerID, "not-found", input).
-		Return(nil, fmt.Errorf("Account not found"))
+		Return(nil, errors.New("Account not found"))
 
 	_, err = mockService.UpdateAccount(ctx, orgID, ledgerID, "not-found", input)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
 }
 
-// \1 performs an operation
 func TestDeleteAccount(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -463,46 +457,45 @@ func TestDeleteAccount(t *testing.T) {
 
 	// Test deleting an account
 	err := mockService.DeleteAccount(ctx, orgID, ledgerID, accountID)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Test with empty organizationID
 	mockService.EXPECT().
 		DeleteAccount(gomock.Any(), "", ledgerID, accountID).
-		Return(fmt.Errorf("organization ID is required"))
+		Return(errors.New("organization ID is required"))
 
 	err = mockService.DeleteAccount(ctx, "", ledgerID, accountID)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization ID is required")
 
 	// Test with empty ledgerID
 	mockService.EXPECT().
 		DeleteAccount(gomock.Any(), orgID, "", accountID).
-		Return(fmt.Errorf("ledger ID is required"))
+		Return(errors.New("ledger ID is required"))
 
 	err = mockService.DeleteAccount(ctx, orgID, "", accountID)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ledger ID is required")
 
 	// Test with empty accountID
 	mockService.EXPECT().
 		DeleteAccount(gomock.Any(), orgID, ledgerID, "").
-		Return(fmt.Errorf("account ID is required"))
+		Return(errors.New("account ID is required"))
 
 	err = mockService.DeleteAccount(ctx, orgID, ledgerID, "")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "account ID is required")
 
 	// Test with not found
 	mockService.EXPECT().
 		DeleteAccount(gomock.Any(), orgID, ledgerID, "not-found").
-		Return(fmt.Errorf("Account not found"))
+		Return(errors.New("Account not found"))
 
 	err = mockService.DeleteAccount(ctx, orgID, ledgerID, "not-found")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
 }
 
-// \1 performs an operation
 func TestGetBalance(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -540,50 +533,50 @@ func TestGetBalance(t *testing.T) {
 
 	// Test getting an account's balance
 	result, err := mockService.GetBalance(ctx, orgID, ledgerID, accountID)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "bal-123", result.ID)
 	assert.Equal(t, accountID, result.AccountID)
 	assert.Equal(t, "USD", result.AssetCode)
 	assert.Equal(t, "LIABILITY", result.AccountType)
 	assert.Equal(t, decimal.NewFromInt(1000000), result.Available)
 	assert.Equal(t, decimal.NewFromInt(0), result.OnHold)
-	assert.Equal(t, true, result.AllowSending)
-	assert.Equal(t, true, result.AllowReceiving)
+	assert.True(t, result.AllowSending)
+	assert.True(t, result.AllowReceiving)
 
 	// Test with empty organizationID
 	mockService.EXPECT().
 		GetBalance(gomock.Any(), "", ledgerID, accountID).
-		Return(nil, fmt.Errorf("organization ID is required"))
+		Return(nil, errors.New("organization ID is required"))
 
 	_, err = mockService.GetBalance(ctx, "", ledgerID, accountID)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization ID is required")
 
 	// Test with empty ledgerID
 	mockService.EXPECT().
 		GetBalance(gomock.Any(), orgID, "", accountID).
-		Return(nil, fmt.Errorf("ledger ID is required"))
+		Return(nil, errors.New("ledger ID is required"))
 
 	_, err = mockService.GetBalance(ctx, orgID, "", accountID)
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ledger ID is required")
 
 	// Test with empty accountID
 	mockService.EXPECT().
 		GetBalance(gomock.Any(), orgID, ledgerID, "").
-		Return(nil, fmt.Errorf("account ID is required"))
+		Return(nil, errors.New("account ID is required"))
 
 	_, err = mockService.GetBalance(ctx, orgID, ledgerID, "")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "account ID is required")
 
 	// Test with not found
 	mockService.EXPECT().
 		GetBalance(gomock.Any(), orgID, ledgerID, "not-found").
-		Return(nil, fmt.Errorf("Balance not found"))
+		Return(nil, errors.New("Balance not found"))
 
 	_, err = mockService.GetBalance(ctx, orgID, ledgerID, "not-found")
-	assert.Error(t, err)
+	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
 }
 
@@ -769,7 +762,7 @@ func TestAccountsEntity_ListAccounts(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockClient := &MockHTTPClient{
-				DoFunc: func(req *http.Request) (*http.Response, error) {
+				DoFunc: func(_ *http.Request) (*http.Response, error) {
 					if tt.mockError != nil {
 						return nil, tt.mockError
 					}
@@ -794,11 +787,11 @@ func TestAccountsEntity_ListAccounts(t *testing.T) {
 			result, err := entity.ListAccounts(context.Background(), tt.orgID, tt.ledgerID, tt.opts)
 
 			if tt.expectedError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				return
 			}
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.NotNil(t, result)
 			assert.Len(t, result.Items, tt.expectedItems)
 		})
@@ -876,7 +869,7 @@ func TestAccountsEntity_GetAccount(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockClient := &MockHTTPClient{
-				DoFunc: func(req *http.Request) (*http.Response, error) {
+				DoFunc: func(_ *http.Request) (*http.Response, error) {
 					if tt.mockError != nil {
 						return nil, tt.mockError
 					}
@@ -901,11 +894,11 @@ func TestAccountsEntity_GetAccount(t *testing.T) {
 			result, err := entity.GetAccount(context.Background(), tt.orgID, tt.ledgerID, tt.accountID)
 
 			if tt.expectedError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				return
 			}
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.NotNil(t, result)
 			assert.Equal(t, "acc-123", result.ID)
 			assert.Equal(t, "Test Account", result.Name)
@@ -998,7 +991,7 @@ func TestAccountsEntity_GetAccountByAlias(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockClient := &MockHTTPClient{
-				DoFunc: func(req *http.Request) (*http.Response, error) {
+				DoFunc: func(_ *http.Request) (*http.Response, error) {
 					if tt.mockError != nil {
 						return nil, tt.mockError
 					}
@@ -1023,11 +1016,11 @@ func TestAccountsEntity_GetAccountByAlias(t *testing.T) {
 			result, err := entity.GetAccountByAlias(context.Background(), tt.orgID, tt.ledgerID, tt.alias)
 
 			if tt.expectedError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				return
 			}
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.NotNil(t, result)
 			assert.Equal(t, "acc-123", result.ID)
 			assert.Equal(t, "Test Account", result.Name)
@@ -1130,7 +1123,7 @@ func TestAccountsEntity_CreateAccount(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockClient := &MockHTTPClient{
-				DoFunc: func(req *http.Request) (*http.Response, error) {
+				DoFunc: func(_ *http.Request) (*http.Response, error) {
 					if tt.mockError != nil {
 						return nil, tt.mockError
 					}
@@ -1155,11 +1148,11 @@ func TestAccountsEntity_CreateAccount(t *testing.T) {
 			result, err := entity.CreateAccount(context.Background(), tt.orgID, tt.ledgerID, tt.input)
 
 			if tt.expectedError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				return
 			}
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.NotNil(t, result)
 			assert.Equal(t, "acc-new", result.ID)
 			assert.Equal(t, "New Account", result.Name)
@@ -1267,7 +1260,7 @@ func TestAccountsEntity_UpdateAccount(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockClient := &MockHTTPClient{
-				DoFunc: func(req *http.Request) (*http.Response, error) {
+				DoFunc: func(_ *http.Request) (*http.Response, error) {
 					if tt.mockError != nil {
 						return nil, tt.mockError
 					}
@@ -1292,11 +1285,11 @@ func TestAccountsEntity_UpdateAccount(t *testing.T) {
 			result, err := entity.UpdateAccount(context.Background(), tt.orgID, tt.ledgerID, tt.accountID, tt.input)
 
 			if tt.expectedError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				return
 			}
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.NotNil(t, result)
 			assert.Equal(t, "acc-123", result.ID)
 			assert.Equal(t, "Updated Account", result.Name)
@@ -1356,7 +1349,7 @@ func TestAccountsEntity_DeleteAccount(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockClient := &MockHTTPClient{
-				DoFunc: func(req *http.Request) (*http.Response, error) {
+				DoFunc: func(_ *http.Request) (*http.Response, error) {
 					if tt.mockError != nil {
 						return nil, tt.mockError
 					}
@@ -1376,11 +1369,11 @@ func TestAccountsEntity_DeleteAccount(t *testing.T) {
 			err := entity.DeleteAccount(context.Background(), tt.orgID, tt.ledgerID, tt.accountID)
 
 			if tt.expectedError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				return
 			}
 
-			assert.NoError(t, err)
+			require.NoError(t, err)
 		})
 	}
 }

@@ -49,6 +49,7 @@ func TestCounterSuccessCountConcurrency(t *testing.T) {
 	for i := 0; i < numGoroutines; i++ {
 		go func() {
 			defer wg.Done()
+
 			for j := 0; j < successesPerGoroutine; j++ {
 				counter.RecordSuccess()
 			}
@@ -66,14 +67,15 @@ func TestCounterElapsed(t *testing.T) {
 
 	// Test immediately after creation
 	elapsed := counter.Elapsed()
-	assert.True(t, elapsed >= 0)
-	assert.True(t, elapsed < 10*time.Millisecond) // Should be very small
+	assert.GreaterOrEqual(t, elapsed, time.Duration(0))
+	assert.Less(t, elapsed, 10*time.Millisecond) // Should be very small
 
 	// Sleep and test again
 	time.Sleep(10 * time.Millisecond)
+
 	elapsed = counter.Elapsed()
-	assert.True(t, elapsed >= 10*time.Millisecond)
-	assert.True(t, elapsed < 50*time.Millisecond) // Allow some leeway
+	assert.GreaterOrEqual(t, elapsed, 10*time.Millisecond)
+	assert.Less(t, elapsed, 50*time.Millisecond) // Allow some leeway
 }
 
 func TestCounterTPS(t *testing.T) {
@@ -122,10 +124,10 @@ func TestCounterTPS(t *testing.T) {
 			tps := counter.TPS()
 
 			if tt.successes == 0 {
-				assert.Equal(t, 0.0, tps)
+				assert.InDelta(t, 0.0, tps, 0.001)
 			} else {
-				assert.True(t, tps >= tt.minTPS, "TPS %f should be >= %f", tps, tt.minTPS)
-				assert.True(t, tps <= tt.maxTPS, "TPS %f should be <= %f", tps, tt.maxTPS)
+				assert.GreaterOrEqual(t, tps, tt.minTPS, "TPS %f should be >= %f", tps, tt.minTPS)
+				assert.LessOrEqual(t, tps, tt.maxTPS, "TPS %f should be <= %f", tps, tt.maxTPS)
 			}
 		})
 	}
@@ -142,9 +144,9 @@ func TestCounterTPSImmediateCall(t *testing.T) {
 	tps := counter.TPS()
 
 	// Should not panic and should return a reasonable value
-	assert.True(t, tps >= 0)
+	assert.GreaterOrEqual(t, tps, 0.0)
 	// TPS can be very high immediately after creation, so we just ensure it's finite
-	assert.False(t, tps < 0, "TPS should not be negative")
+	assert.GreaterOrEqual(t, tps, 0.0, "TPS should not be negative")
 }
 
 func TestCounterTPSWithZeroElapsed(t *testing.T) {
@@ -155,7 +157,7 @@ func TestCounterTPSWithZeroElapsed(t *testing.T) {
 	}
 
 	tps := counter.TPS()
-	assert.Equal(t, 0.0, tps, "TPS should be 0 when elapsed time <= 0")
+	assert.InDelta(t, 0.0, tps, 0.001, "TPS should be 0 when elapsed time <= 0")
 }
 
 func TestCounterConsistency(t *testing.T) {
@@ -170,6 +172,7 @@ func TestCounterConsistency(t *testing.T) {
 	// Get initial values
 	count1 := counter.SuccessCount()
 	elapsed1 := counter.Elapsed()
+	start1 := counter.start
 
 	// Wait a bit
 	time.Sleep(1 * time.Millisecond)
@@ -177,15 +180,16 @@ func TestCounterConsistency(t *testing.T) {
 	// Get values again
 	count2 := counter.SuccessCount()
 	elapsed2 := counter.Elapsed()
+	start2 := counter.start
 
 	// Success count should remain the same
 	assert.Equal(t, count1, count2)
 
 	// Elapsed should increase
-	assert.True(t, elapsed2 > elapsed1)
+	assert.Greater(t, elapsed2, elapsed1)
 
 	// Start time should remain the same
-	assert.Equal(t, counter.start, counter.start) // Redundant but ensures start doesn't change
+	assert.Equal(t, start1, start2)
 }
 
 func TestCounterLongRunning(t *testing.T) {
@@ -203,9 +207,9 @@ func TestCounterLongRunning(t *testing.T) {
 	finalTPS := counter.TPS()
 
 	assert.Equal(t, int64(20), finalCount)
-	assert.True(t, finalElapsed > 20*time.Millisecond)
-	assert.True(t, finalTPS > 0)
-	assert.True(t, finalTPS < 2000) // Should be reasonable TPS, not astronomical
+	assert.Greater(t, finalElapsed, 20*time.Millisecond)
+	assert.Positive(t, finalTPS)
+	assert.Less(t, finalTPS, 2000.0) // Should be reasonable TPS, not astronomical
 }
 
 func TestCounterStructFields(t *testing.T) {
@@ -235,11 +239,12 @@ func TestCounterAtomicOperations(t *testing.T) {
 	for i := 0; i < numGoroutines; i++ {
 		go func() {
 			defer wg.Done()
+
 			for j := 0; j < operationsPerGoroutine; j++ {
 				counter.RecordSuccess()
 				// Also read the count to test concurrent reads
 				count := counter.SuccessCount()
-				assert.True(t, count >= 0)
+				assert.GreaterOrEqual(t, count, int64(0))
 			}
 		}()
 	}
@@ -284,6 +289,7 @@ func BenchmarkCounterTPS(b *testing.B) {
 	}
 
 	b.ResetTimer()
+
 	for i := 0; i < b.N; i++ {
 		_ = counter.TPS()
 	}

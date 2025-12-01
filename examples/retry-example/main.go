@@ -24,20 +24,28 @@ func main() {
 	fmt.Println("=======================")
 
 	// Example 1: Using default retry settings
-	defaultRetryExample()
+	if err := defaultRetryExample(); err != nil {
+		log.Fatalf("Default retry example failed: %v", err)
+	}
 
 	// Example 2: Configuring custom retry settings
-	customRetryConfigExample()
+	if err := customRetryConfigExample(); err != nil {
+		log.Fatalf("Custom retry config example failed: %v", err)
+	}
 
 	// Example 3: Using a custom retry policy
-	customRetryPolicyExample()
+	if err := customRetryPolicyExample(); err != nil {
+		log.Fatalf("Custom retry policy example failed: %v", err)
+	}
 
 	// Example 4: Disabling retries
-	disableRetriesExample()
+	if err := disableRetriesExample(); err != nil {
+		log.Fatalf("Disable retries example failed: %v", err)
+	}
 }
 
 // defaultRetryExample demonstrates using the default retry settings.
-func defaultRetryExample() {
+func defaultRetryExample() error {
 	fmt.Println("\nExample 1: Using default retry settings")
 	fmt.Println("-------------------------------------")
 
@@ -47,7 +55,7 @@ func defaultRetryExample() {
 		client.UseAllAPIs(),
 	)
 	if err != nil {
-		log.Fatalf("Failed to create client: %v", err)
+		return fmt.Errorf("failed to create client: %w", err)
 	}
 
 	// By default, the SDK will retry up to 3 times with exponential backoff
@@ -71,10 +79,12 @@ func defaultRetryExample() {
 
 	_, err = c.Entity.Organizations.GetOrganization(context.Background(), "org-id")
 	fmt.Printf("Result: %v\n", err)
+
+	return nil
 }
 
 // customRetryConfigExample demonstrates configuring custom retry settings.
-func customRetryConfigExample() {
+func customRetryConfigExample() error {
 	fmt.Println("\nExample 2: Configuring custom retry settings")
 	fmt.Println("------------------------------------------")
 
@@ -86,7 +96,7 @@ func customRetryConfigExample() {
 		client.UseAllAPIs(),
 	)
 	if err != nil {
-		log.Fatalf("Failed to create client: %v", err)
+		return fmt.Errorf("failed to create client: %w", err)
 	}
 
 	// Show the custom settings
@@ -100,10 +110,12 @@ func customRetryConfigExample() {
 
 	_, err = c.Entity.Organizations.GetOrganization(context.Background(), "org-id")
 	fmt.Printf("Result: %v\n", err)
+
+	return nil
 }
 
 // customRetryPolicyExample demonstrates using a custom retry policy.
-func customRetryPolicyExample() {
+func customRetryPolicyExample() error {
 	fmt.Println("\nExample 3: Using a custom retry policy")
 	fmt.Println("------------------------------------")
 
@@ -137,7 +149,7 @@ func customRetryPolicyExample() {
 		client.UseAllAPIs(),
 	)
 	if err != nil {
-		log.Fatalf("Failed to create client: %v", err)
+		return fmt.Errorf("failed to create client: %w", err)
 	}
 
 	fmt.Println("Custom retry policy configured to retry only on:")
@@ -150,10 +162,12 @@ func customRetryPolicyExample() {
 
 	_, err = c.Entity.Organizations.GetOrganization(context.Background(), "org-id")
 	fmt.Printf("Result: %v\n", err)
+
+	return nil
 }
 
 // disableRetriesExample demonstrates disabling retries.
-func disableRetriesExample() {
+func disableRetriesExample() error {
 	fmt.Println("\nExample 4: Disabling retries")
 	fmt.Println("-------------------------")
 
@@ -164,7 +178,7 @@ func disableRetriesExample() {
 		client.UseAllAPIs(),
 	)
 	if err != nil {
-		log.Fatalf("Failed to create client: %v", err)
+		return fmt.Errorf("failed to create client: %w", err)
 	}
 
 	// Show retry settings
@@ -178,15 +192,19 @@ func disableRetriesExample() {
 	_, err = c.Entity.Organizations.GetOrganization(context.Background(), "org-id")
 
 	// Handle the error without retries
-	if err != nil {
-		if errors.IsNetworkError(err) {
-			fmt.Println("  - Network error, would not be retried")
-		} else if errors.IsTimeoutError(err) {
-			fmt.Println("  - Timeout error, would not be retried")
-		} else {
-			fmt.Printf("  - Other error: %v\n", err)
-		}
-	} else {
+	if err == nil {
 		fmt.Println("  - Operation completed successfully")
+		return nil
 	}
+
+	switch {
+	case errors.IsNetworkError(err):
+		fmt.Println("  - Network error, would not be retried")
+	case errors.IsTimeoutError(err):
+		fmt.Println("  - Timeout error, would not be retried")
+	default:
+		fmt.Printf("  - Other error: %v\n", err)
+	}
+
+	return nil
 }

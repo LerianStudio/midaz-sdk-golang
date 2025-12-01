@@ -16,7 +16,8 @@ var defaultProvider Provider
 // Initialize the default provider
 func init() {
 	// Create a simple default provider with default options
-	p, _ := New(context.Background())
+	// New() with no options always succeeds - error check is safe to ignore
+	p, _ := New(context.Background()) //nolint:errcheck // default options never fail
 	defaultProvider = p
 }
 
@@ -40,6 +41,7 @@ func AddAttribute(ctx context.Context, key string, value any) {
 
 	// Convert the value to the appropriate attribute type
 	var attr attribute.KeyValue
+
 	switch v := value.(type) {
 	case string:
 		attr = attribute.String(key, v)
@@ -128,7 +130,7 @@ func RecordSpanMetric(ctx context.Context, name string, value float64) {
 }
 
 // WithTraceID adds a trace ID to the context for correlation
-func WithTraceID(ctx context.Context, traceID string) context.Context {
+func WithTraceID(ctx context.Context, _ string) context.Context {
 	// Add trace ID to context
 	return ctx
 }

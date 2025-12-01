@@ -36,8 +36,16 @@ func (m *MockTransactionsService) EXPECT() *MockTransactionsServiceMockRecorder 
 func (m *MockTransactionsService) CreateTransaction(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionInput) (*models.Transaction, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateTransaction", ctx, orgID, ledgerID, input)
-	ret0, _ := ret[0].(*models.Transaction)
-	ret1, _ := ret[1].(error)
+
+	var ret0 *models.Transaction
+	if ret[0] != nil {
+		ret0, _ = ret[0].(*models.Transaction) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	var ret1 error
+	if ret[1] != nil {
+		ret1, _ = ret[1].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
 
 	return ret0, ret1
 }
@@ -52,8 +60,16 @@ func (mr *MockTransactionsServiceMockRecorder) CreateTransaction(ctx, orgID, led
 func (m *MockTransactionsService) CreateTransactionWithDSL(ctx context.Context, orgID, ledgerID string, input *models.TransactionDSLInput) (*models.Transaction, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateTransactionWithDSL", ctx, orgID, ledgerID, input)
-	ret0, _ := ret[0].(*models.Transaction)
-	ret1, _ := ret[1].(error)
+
+	var ret0 *models.Transaction
+	if ret[0] != nil {
+		ret0, _ = ret[0].(*models.Transaction) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	var ret1 error
+	if ret[1] != nil {
+		ret1, _ = ret[1].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
 
 	return ret0, ret1
 }
@@ -68,8 +84,16 @@ func (mr *MockTransactionsServiceMockRecorder) CreateTransactionWithDSL(ctx, org
 func (m *MockTransactionsService) CreateTransactionWithDSLFile(ctx context.Context, orgID, ledgerID string, dslContent []byte) (*models.Transaction, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateTransactionWithDSLFile", ctx, orgID, ledgerID, dslContent)
-	ret0, _ := ret[0].(*models.Transaction)
-	ret1, _ := ret[1].(error)
+
+	var ret0 *models.Transaction
+	if ret[0] != nil {
+		ret0, _ = ret[0].(*models.Transaction) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	var ret1 error
+	if ret[1] != nil {
+		ret1, _ = ret[1].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
 
 	return ret0, ret1
 }
@@ -84,8 +108,16 @@ func (mr *MockTransactionsServiceMockRecorder) CreateTransactionWithDSLFile(ctx,
 func (m *MockTransactionsService) GetTransaction(ctx context.Context, orgID, ledgerID, transactionID string) (*models.Transaction, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetTransaction", ctx, orgID, ledgerID, transactionID)
-	ret0, _ := ret[0].(*models.Transaction)
-	ret1, _ := ret[1].(error)
+
+	var ret0 *models.Transaction
+	if ret[0] != nil {
+		ret0, _ = ret[0].(*models.Transaction) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	var ret1 error
+	if ret[1] != nil {
+		ret1, _ = ret[1].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
 
 	return ret0, ret1
 }
@@ -100,8 +132,16 @@ func (mr *MockTransactionsServiceMockRecorder) GetTransaction(ctx, orgID, ledger
 func (m *MockTransactionsService) ListTransactions(ctx context.Context, orgID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Transaction], error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListTransactions", ctx, orgID, ledgerID, opts)
-	ret0, _ := ret[0].(*models.ListResponse[models.Transaction])
-	ret1, _ := ret[1].(error)
+
+	var ret0 *models.ListResponse[models.Transaction]
+	if ret[0] != nil {
+		ret0, _ = ret[0].(*models.ListResponse[models.Transaction]) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	var ret1 error
+	if ret[1] != nil {
+		ret1, _ = ret[1].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
 
 	return ret0, ret1
 }
@@ -116,8 +156,16 @@ func (mr *MockTransactionsServiceMockRecorder) ListTransactions(ctx, orgID, ledg
 func (m *MockTransactionsService) UpdateTransaction(ctx context.Context, orgID, ledgerID, transactionID string, input any) (*models.Transaction, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateTransaction", ctx, orgID, ledgerID, transactionID, input)
-	ret0, _ := ret[0].(*models.Transaction)
-	ret1, _ := ret[1].(error)
+
+	var ret0 *models.Transaction
+	if ret[0] != nil {
+		ret0, _ = ret[0].(*models.Transaction) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	var ret1 error
+	if ret[1] != nil {
+		ret1, _ = ret[1].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
 
 	return ret0, ret1
 }
@@ -126,4 +174,143 @@ func (m *MockTransactionsService) UpdateTransaction(ctx context.Context, orgID, 
 func (mr *MockTransactionsServiceMockRecorder) UpdateTransaction(ctx, orgID, ledgerID, transactionID, input any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTransaction", reflect.TypeOf((*MockTransactionsService)(nil).UpdateTransaction), ctx, orgID, ledgerID, transactionID, input)
+}
+
+// RevertTransaction mocks base method.
+func (m *MockTransactionsService) RevertTransaction(ctx context.Context, orgID, ledgerID, transactionID string) (*models.Transaction, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RevertTransaction", ctx, orgID, ledgerID, transactionID)
+
+	var ret0 *models.Transaction
+	if ret[0] != nil {
+		ret0, _ = ret[0].(*models.Transaction) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	var ret1 error
+	if ret[1] != nil {
+		ret1, _ = ret[1].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	return ret0, ret1
+}
+
+// RevertTransaction indicates an expected call of RevertTransaction.
+func (mr *MockTransactionsServiceMockRecorder) RevertTransaction(ctx, orgID, ledgerID, transactionID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RevertTransaction", reflect.TypeOf((*MockTransactionsService)(nil).RevertTransaction), ctx, orgID, ledgerID, transactionID)
+}
+
+// CommitTransaction mocks base method.
+func (m *MockTransactionsService) CommitTransaction(ctx context.Context, orgID, ledgerID, transactionID string) (*models.Transaction, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CommitTransaction", ctx, orgID, ledgerID, transactionID)
+
+	var ret0 *models.Transaction
+	if ret[0] != nil {
+		ret0, _ = ret[0].(*models.Transaction) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	var ret1 error
+	if ret[1] != nil {
+		ret1, _ = ret[1].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	return ret0, ret1
+}
+
+// CommitTransaction indicates an expected call of CommitTransaction.
+func (mr *MockTransactionsServiceMockRecorder) CommitTransaction(ctx, orgID, ledgerID, transactionID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CommitTransaction", reflect.TypeOf((*MockTransactionsService)(nil).CommitTransaction), ctx, orgID, ledgerID, transactionID)
+}
+
+// CancelTransaction mocks base method.
+func (m *MockTransactionsService) CancelTransaction(ctx context.Context, orgID, ledgerID, transactionID string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CancelTransaction", ctx, orgID, ledgerID, transactionID)
+
+	var ret0 error
+	if ret[0] != nil {
+		ret0, _ = ret[0].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	return ret0
+}
+
+// CancelTransaction indicates an expected call of CancelTransaction.
+func (mr *MockTransactionsServiceMockRecorder) CancelTransaction(ctx, orgID, ledgerID, transactionID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CancelTransaction", reflect.TypeOf((*MockTransactionsService)(nil).CancelTransaction), ctx, orgID, ledgerID, transactionID)
+}
+
+// CreateInflowTransaction mocks base method.
+func (m *MockTransactionsService) CreateInflowTransaction(ctx context.Context, orgID, ledgerID string, input *models.CreateInflowInput) (*models.Transaction, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateInflowTransaction", ctx, orgID, ledgerID, input)
+
+	var ret0 *models.Transaction
+	if ret[0] != nil {
+		ret0, _ = ret[0].(*models.Transaction) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	var ret1 error
+	if ret[1] != nil {
+		ret1, _ = ret[1].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	return ret0, ret1
+}
+
+// CreateInflowTransaction indicates an expected call of CreateInflowTransaction.
+func (mr *MockTransactionsServiceMockRecorder) CreateInflowTransaction(ctx, orgID, ledgerID, input any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateInflowTransaction", reflect.TypeOf((*MockTransactionsService)(nil).CreateInflowTransaction), ctx, orgID, ledgerID, input)
+}
+
+// CreateOutflowTransaction mocks base method.
+func (m *MockTransactionsService) CreateOutflowTransaction(ctx context.Context, orgID, ledgerID string, input *models.CreateOutflowInput) (*models.Transaction, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateOutflowTransaction", ctx, orgID, ledgerID, input)
+
+	var ret0 *models.Transaction
+	if ret[0] != nil {
+		ret0, _ = ret[0].(*models.Transaction) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	var ret1 error
+	if ret[1] != nil {
+		ret1, _ = ret[1].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	return ret0, ret1
+}
+
+// CreateOutflowTransaction indicates an expected call of CreateOutflowTransaction.
+func (mr *MockTransactionsServiceMockRecorder) CreateOutflowTransaction(ctx, orgID, ledgerID, input any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateOutflowTransaction", reflect.TypeOf((*MockTransactionsService)(nil).CreateOutflowTransaction), ctx, orgID, ledgerID, input)
+}
+
+// CreateAnnotationTransaction mocks base method.
+func (m *MockTransactionsService) CreateAnnotationTransaction(ctx context.Context, orgID, ledgerID string, input *models.CreateAnnotationInput) (*models.Transaction, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateAnnotationTransaction", ctx, orgID, ledgerID, input)
+
+	var ret0 *models.Transaction
+	if ret[0] != nil {
+		ret0, _ = ret[0].(*models.Transaction) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	var ret1 error
+	if ret[1] != nil {
+		ret1, _ = ret[1].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	return ret0, ret1
+}
+
+// CreateAnnotationTransaction indicates an expected call of CreateAnnotationTransaction.
+func (mr *MockTransactionsServiceMockRecorder) CreateAnnotationTransaction(ctx, orgID, ledgerID, input any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAnnotationTransaction", reflect.TypeOf((*MockTransactionsService)(nil).CreateAnnotationTransaction), ctx, orgID, ledgerID, input)
 }

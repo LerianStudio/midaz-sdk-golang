@@ -29,6 +29,7 @@
 package validation
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -69,6 +70,14 @@ func NewValidator(options ...core.ValidationOption) (*Validator, error) {
 // All standalone functions use the default validator configuration.
 var defaultValidator = DefaultValidator()
 
+// Operation type constants for transaction operations.
+const (
+	// OpTypeDebit represents a debit operation type.
+	OpTypeDebit = "DEBIT"
+	// OpTypeCredit represents a credit operation type.
+	OpTypeCredit = "CREDIT"
+)
+
 // externalAccountPattern is the regex pattern for external account references
 var externalAccountPattern = regexp.MustCompile(`^@external/([A-Z]{3,4})$`)
 
@@ -77,6 +86,10 @@ var accountAliasPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,50}$`)
 
 // assetCodePattern is the regex pattern for asset codes
 var assetCodePattern = regexp.MustCompile(`^[A-Z]{3,4}$`)
+
+// chartOfAccountsGroupNamePattern is the regex pattern for chart of accounts group names.
+// Allows alphanumeric characters, spaces, underscores, and hyphens.
+var chartOfAccountsGroupNamePattern = regexp.MustCompile(`^[a-zA-Z0-9 _-]+$`)
 
 // TransactionDSLValidator defines an interface for transaction DSL validation
 type TransactionDSLValidator interface {
@@ -96,13 +109,13 @@ type AccountReference interface {
 // before sending to the API to catch common errors early
 func ValidateTransactionDSL(input TransactionDSLValidator) error {
 	if input == nil {
-		return fmt.Errorf("transaction input cannot be nil")
+		return errors.New("transaction input cannot be nil")
 	}
 
 	// Validate asset code
 	asset := input.GetAsset()
 	if asset == "" {
-		return fmt.Errorf("asset code is required")
+		return errors.New("asset code is required")
 	}
 
 	if !assetCodePattern.MatchString(asset) {
@@ -111,13 +124,13 @@ func ValidateTransactionDSL(input TransactionDSLValidator) error {
 
 	// Validate amount
 	if input.GetValue() <= 0 {
-		return fmt.Errorf("transaction amount must be greater than zero")
+		return errors.New("transaction amount must be greater than zero")
 	}
 
 	// Validate source accounts
 	sourceAccounts := input.GetSourceAccounts()
 	if len(sourceAccounts) == 0 {
-		return fmt.Errorf("at least one source account is required")
+		return errors.New("at least one source account is required")
 	}
 
 	for i, account := range sourceAccounts {
@@ -129,7 +142,7 @@ func ValidateTransactionDSL(input TransactionDSLValidator) error {
 	// Validate destination accounts
 	destAccounts := input.GetDestinationAccounts()
 	if len(destAccounts) == 0 {
-		return fmt.Errorf("at least one destination account is required")
+		return errors.New("at least one destination account is required")
 	}
 
 	for i, account := range destAccounts {
@@ -186,7 +199,7 @@ func validateAssetConsistency(input TransactionDSLValidator) error {
 // for both regular accounts and external accounts
 func validateAccountReference(account string, transactionAsset string) error {
 	if account == "" {
-		return fmt.Errorf("account reference cannot be empty")
+		return errors.New("account reference cannot be empty")
 	}
 
 	// Check if it's an external account reference
@@ -229,7 +242,7 @@ func GetExternalAccountReference(assetCode string) string {
 //	}
 func ValidateAssetCode(assetCode string) error {
 	if assetCode == "" {
-		return fmt.Errorf("asset code cannot be empty")
+		return errors.New("asset code cannot be empty")
 	}
 
 	if !assetCodePattern.MatchString(assetCode) {
@@ -249,7 +262,7 @@ func ValidateAssetCode(assetCode string) error {
 //	}
 func ValidateAccountAlias(alias string) error {
 	if alias == "" {
-		return fmt.Errorf("account alias cannot be empty")
+		return errors.New("account alias cannot be empty")
 	}
 
 	if !accountAliasPattern.MatchString(alias) {
@@ -269,7 +282,7 @@ func ValidateAccountAlias(alias string) error {
 //	}
 func ValidateTransactionCode(code string) error {
 	if code == "" {
-		return fmt.Errorf("transaction code cannot be empty")
+		return errors.New("transaction code cannot be empty")
 	}
 
 	// Use the same pattern as account alias for now
@@ -316,17 +329,13 @@ func (v *Validator) ValidateMetadata(metadata map[string]any) error {
 	}
 
 	// Check total metadata size
-	if err := v.validateMetadataSize(metadata); err != nil {
-		return err
-	}
-
-	return nil
+	return v.validateMetadataSize(metadata)
 }
 
 // validateMetadataKey validates a single metadata key
-func (v *Validator) validateMetadataKey(key string) error {
+func (*Validator) validateMetadataKey(key string) error {
 	if key == "" {
-		return fmt.Errorf("metadata key cannot be empty")
+		return errors.New("metadata key cannot be empty")
 	}
 
 	if len(key) > 64 {
@@ -374,6 +383,7 @@ func (v *Validator) validateMetadataSize(metadata map[string]any) error {
 	totalSize := 0
 	for key, value := range metadata {
 		totalSize += len(key)
+
 		switch val := value.(type) {
 		case string:
 			totalSize += len(val)
@@ -391,7 +401,7 @@ func (v *Validator) validateMetadataSize(metadata map[string]any) error {
 }
 
 // isValidMetadataValueType checks if a value is of a type supported in metadata
-func (v *Validator) isValidMetadataValueType(value any) bool {
+func (*Validator) isValidMetadataValueType(value any) bool {
 	switch value.(type) {
 	case string, bool, int, float64, nil:
 		return true
@@ -413,11 +423,11 @@ func (v *Validator) isValidMetadataValueType(value any) bool {
 func ValidateDateRange(start, end time.Time) error {
 	// Check if either date is zero
 	if start.IsZero() {
-		return fmt.Errorf("start date cannot be empty")
+		return errors.New("start date cannot be empty")
 	}
 
 	if end.IsZero() {
-		return fmt.Errorf("end date cannot be empty")
+		return errors.New("end date cannot be empty")
 	}
 
 	// Check if start date is after end date
@@ -429,21 +439,21 @@ func ValidateDateRange(start, end time.Time) error {
 	return nil
 }
 
-// ValidationSummary holds the results of a validation operation
+// Summary holds the results of a validation operation
 // with multiple potential errors
-type ValidationSummary struct {
+type Summary struct {
 	Valid  bool
 	Errors []error
 }
 
 // AddError adds an error to the validation summary and marks it as invalid
-func (vs *ValidationSummary) AddError(err error) {
+func (vs *Summary) AddError(err error) {
 	vs.Valid = false
 	vs.Errors = append(vs.Errors, err)
 }
 
 // GetErrorMessages returns all error messages as a slice of strings
-func (vs *ValidationSummary) GetErrorMessages() []string {
+func (vs *Summary) GetErrorMessages() []string {
 	if vs.Valid {
 		return nil
 	}
@@ -457,73 +467,148 @@ func (vs *ValidationSummary) GetErrorMessages() []string {
 }
 
 // GetErrorSummary returns a single string with all error messages
-func (vs *ValidationSummary) GetErrorSummary() string {
+func (vs *Summary) GetErrorSummary() string {
 	if vs.Valid {
 		return ""
 	}
 
 	var builder strings.Builder
 
-	builder.WriteString(fmt.Sprintf("Validation failed with %d errors:\n", len(vs.Errors)))
+	_, _ = builder.WriteString(fmt.Sprintf("Validation failed with %d errors:\n", len(vs.Errors)))
 
 	for i, err := range vs.Errors {
-		builder.WriteString(fmt.Sprintf("%d. %s\n", i+1, err.Error()))
+		_, _ = builder.WriteString(fmt.Sprintf("%d. %s\n", i+1, err.Error()))
 	}
 
 	return builder.String()
 }
 
+// validateOperationType validates the operation type field
+func validateOperationType(op map[string]any, index int) error {
+	if op["type"] == nil {
+		return fmt.Errorf("operation %d: type is required", index)
+	}
+
+	opType, ok := op["type"].(string)
+	if !ok {
+		return fmt.Errorf("operation %d: type must be a string", index)
+	}
+
+	if opType != OpTypeDebit && opType != OpTypeCredit {
+		return fmt.Errorf("operation %d: invalid type '%s' (must be %s or %s)", index, opType, OpTypeDebit, OpTypeCredit)
+	}
+
+	return nil
+}
+
+// validateOperationAccountAlias validates the account alias field if provided
+func validateOperationAccountAlias(op map[string]any, index int) error {
+	if op["account_alias"] == nil {
+		return nil
+	}
+
+	accountAlias, ok := op["account_alias"].(string)
+	if !ok {
+		return fmt.Errorf("operation %d: account_alias must be a string", index)
+	}
+
+	if accountAlias != "" {
+		if err := ValidateAccountAlias(accountAlias); err != nil {
+			return fmt.Errorf("operation %d: %w", index, err)
+		}
+	}
+
+	return nil
+}
+
+// validateOperationAssetCode validates the asset code field if provided
+func validateOperationAssetCode(op map[string]any, index int, transactionAssetCode string) error {
+	if op["asset_code"] == nil {
+		return nil
+	}
+
+	assetCode, ok := op["asset_code"].(string)
+	if !ok {
+		return fmt.Errorf("operation %d: asset_code must be a string", index)
+	}
+
+	if assetCode != "" && assetCode != transactionAssetCode {
+		return fmt.Errorf("operation %d: asset code '%s' must match transaction asset code '%s'",
+			index, assetCode, transactionAssetCode)
+	}
+
+	return nil
+}
+
+// validateOperationAmount validates the amount field
+func validateOperationAmount(op map[string]any, index int) error {
+	if op["amount"] == nil {
+		return fmt.Errorf("operation %d: amount is required", index)
+	}
+
+	amount, ok := op["amount"].(float64)
+	if !ok {
+		// Try int conversion as JSON may unmarshal as int
+		if intAmount, intOk := op["amount"].(int); intOk {
+			amount = float64(intAmount)
+			ok = true
+		}
+	}
+
+	if !ok {
+		return fmt.Errorf("operation %d: amount must be a number", index)
+	}
+
+	if amount <= 0 {
+		return fmt.Errorf("operation %d: amount must be greater than zero", index)
+	}
+
+	return nil
+}
+
 // validateOperation validates a single operation in a transaction
 func validateOperation(op map[string]any, index int, transactionAssetCode string) ([]error, bool) {
-	var errors []error
+	var opErrors []error
 
 	valid := true
 
 	// Validate operation type
-	if op["type"] == nil {
-		errors = append(errors, fmt.Errorf("operation %d: type is required", index))
-		valid = false
-	} else if op["type"].(string) != "DEBIT" && op["type"].(string) != "CREDIT" {
-		errors = append(errors, fmt.Errorf("operation %d: invalid type '%s' (must be DEBIT or CREDIT)", index, op["type"].(string)))
+	if err := validateOperationType(op, index); err != nil {
+		opErrors = append(opErrors, err)
 		valid = false
 	}
 
 	// Validate account ID
 	if op["account_id"] == nil {
-		errors = append(errors, fmt.Errorf("operation %d: account ID is required", index))
+		opErrors = append(opErrors, fmt.Errorf("operation %d: account ID is required", index))
 		valid = false
 	}
 
 	// Validate account alias if provided
-	if op["account_alias"] != nil && op["account_alias"].(string) != "" {
-		if err := ValidateAccountAlias(op["account_alias"].(string)); err != nil {
-			errors = append(errors, fmt.Errorf("operation %d: %w", index, err))
-			valid = false
-		}
-	}
-
-	// Validate asset code if provided and ensure it matches transaction asset code
-	if op["asset_code"] != nil && op["asset_code"].(string) != "" {
-		if op["asset_code"].(string) != transactionAssetCode {
-			errors = append(errors, fmt.Errorf("operation %d: asset code '%s' must match transaction asset code '%s'",
-				index, op["asset_code"].(string), transactionAssetCode))
-			valid = false
-		}
-	}
-
-	// Validate amount
-	if op["amount"].(float64) <= 0 {
-		errors = append(errors, fmt.Errorf("operation %d: amount must be greater than zero", index))
+	if err := validateOperationAccountAlias(op, index); err != nil {
+		opErrors = append(opErrors, err)
 		valid = false
 	}
 
-	return errors, valid
+	// Validate asset code if provided
+	if err := validateOperationAssetCode(op, index, transactionAssetCode); err != nil {
+		opErrors = append(opErrors, err)
+		valid = false
+	}
+
+	// Validate amount
+	if err := validateOperationAmount(op, index); err != nil {
+		opErrors = append(opErrors, err)
+		valid = false
+	}
+
+	return opErrors, valid
 }
 
 // validateChartOfAccountsGroupName validates the chart of accounts group name
 func validateChartOfAccountsGroupName(name string) error {
 	if name == "" {
-		return fmt.Errorf("chart of accounts group name cannot be empty")
+		return errors.New("chart of accounts group name cannot be empty")
 	}
 
 	if len(name) > 100 {
@@ -531,8 +616,7 @@ func validateChartOfAccountsGroupName(name string) error {
 	}
 
 	// Allow alphanumeric characters, spaces, underscores, and hyphens
-	validPattern := regexp.MustCompile(`^[a-zA-Z0-9 _-]+$`)
-	if !validPattern.MatchString(name) {
+	if !chartOfAccountsGroupNamePattern.MatchString(name) {
 		return fmt.Errorf("chart of accounts group name '%s' contains invalid characters (allowed: alphanumeric, space, underscore, hyphen)", name)
 	}
 
@@ -578,14 +662,14 @@ func validateChartOfAccountsGroupName(name string) error {
 //	}
 //
 //	// Proceed with creating the transaction
-func ValidateCreateTransactionInput(input map[string]any) ValidationSummary {
-	summary := ValidationSummary{
+func ValidateCreateTransactionInput(input map[string]any) Summary {
+	summary := Summary{
 		Valid:  true,
 		Errors: []error{},
 	}
 
 	if input == nil {
-		summary.AddError(fmt.Errorf("transaction input cannot be nil"))
+		summary.AddError(errors.New("transaction input cannot be nil"))
 		return summary
 	}
 
@@ -597,87 +681,238 @@ func ValidateCreateTransactionInput(input map[string]any) ValidationSummary {
 }
 
 // validateBasicTransactionFields validates the basic required fields of a transaction
-func validateBasicTransactionFields(summary *ValidationSummary, input map[string]any) {
-	// Validate asset code
+func validateBasicTransactionFields(summary *Summary, input map[string]any) {
+	validateAssetCodeField(summary, input)
+	validateAmountField(summary, input)
+	validateScaleField(summary, input)
+}
+
+// validateAssetCodeField validates the asset_code field of a transaction.
+func validateAssetCodeField(summary *Summary, input map[string]any) {
 	if input["asset_code"] == nil {
-		summary.AddError(fmt.Errorf("asset code is required"))
-	} else if err := ValidateAssetCode(input["asset_code"].(string)); err != nil {
+		summary.AddError(errors.New("asset code is required"))
+		return
+	}
+
+	assetCode, ok := input["asset_code"].(string)
+	if !ok {
+		summary.AddError(errors.New("asset_code must be a string"))
+		return
+	}
+
+	if err := ValidateAssetCode(assetCode); err != nil {
 		summary.AddError(err)
 	}
+}
 
-	// Validate amount
-	if input["amount"].(float64) <= 0 {
-		summary.AddError(fmt.Errorf("amount must be greater than zero (got %.2f)", input["amount"].(float64)))
+// validateAmountField validates the amount field of a transaction.
+func validateAmountField(summary *Summary, input map[string]any) {
+	if input["amount"] == nil {
+		summary.AddError(errors.New("amount is required"))
+		return
 	}
 
-	// Validate scale
-	if input["scale"].(int) < 0 || input["scale"].(int) > 18 {
-		summary.AddError(fmt.Errorf("scale must be between 0 and 18"))
+	amount, ok := extractNumericAmount(input["amount"])
+	if !ok {
+		summary.AddError(errors.New("amount must be a number"))
+		return
+	}
+
+	if amount <= 0 {
+		summary.AddError(fmt.Errorf("amount must be greater than zero (got %.2f)", amount))
+	}
+}
+
+// extractNumericAmount extracts a float64 amount from various numeric types.
+func extractNumericAmount(value any) (float64, bool) {
+	if amount, ok := value.(float64); ok {
+		return amount, true
+	}
+
+	if intAmount, ok := value.(int); ok {
+		return float64(intAmount), true
+	}
+
+	return 0, false
+}
+
+// validateScaleField validates the scale field of a transaction.
+func validateScaleField(summary *Summary, input map[string]any) {
+	if input["scale"] == nil {
+		summary.AddError(errors.New("scale is required"))
+		return
+	}
+
+	scale, ok := extractIntegerScale(input["scale"])
+	if !ok {
+		summary.AddError(errors.New("scale must be an integer"))
+		return
+	}
+
+	if scale < 0 || scale > 18 {
+		summary.AddError(errors.New("scale must be between 0 and 18"))
+	}
+}
+
+// extractIntegerScale extracts an int scale from various numeric types.
+func extractIntegerScale(value any) (int, bool) {
+	if scale, ok := value.(int); ok {
+		return scale, true
+	}
+
+	if floatScale, ok := value.(float64); ok {
+		return int(floatScale), true
+	}
+
+	return 0, false
+}
+
+// extractOperationAmount safely extracts an amount value from an operation.
+// Returns the amount and a boolean indicating success.
+func extractOperationAmount(op map[string]any) (float64, bool) {
+	if op["amount"] == nil {
+		return 0, false
+	}
+
+	amount, ok := op["amount"].(float64)
+	if ok {
+		return amount, true
+	}
+
+	if intAmount, intOk := op["amount"].(int); intOk {
+		return float64(intAmount), true
+	}
+
+	return 0, false
+}
+
+// accumulateOperationTotals accumulates debit and credit totals from an operation.
+func accumulateOperationTotals(op map[string]any, totalDebits, totalCredits *int64) {
+	if op["type"] == nil {
+		return
+	}
+
+	opType, typeOk := op["type"].(string)
+	amount, amountOk := extractOperationAmount(op)
+
+	if !typeOk || !amountOk {
+		return
+	}
+
+	switch opType {
+	case OpTypeDebit:
+		*totalDebits += int64(amount)
+	case OpTypeCredit:
+		*totalCredits += int64(amount)
 	}
 }
 
 // validateTransactionOperations validates the operations in a transaction
-func validateTransactionOperations(summary *ValidationSummary, input map[string]any) {
-	// Validate operations
-	hasOperations := input["operations"] != nil
-	if !hasOperations {
-		summary.AddError(fmt.Errorf("at least one operation is required"))
+func validateTransactionOperations(summary *Summary, input map[string]any) {
+	if input["operations"] == nil {
+		summary.AddError(errors.New("at least one operation is required"))
 		return
 	}
 
-	// Track total debits and credits to ensure they balance
+	operations, ok := input["operations"].([]map[string]any)
+	if !ok {
+		summary.AddError(errors.New("operations must be an array of objects"))
+		return
+	}
+
+	assetCode := ""
+	if ac, ok := input["asset_code"].(string); ok {
+		assetCode = ac
+	}
+
 	var totalDebits, totalCredits int64
 
-	// Validate each operation
-	for i, op := range input["operations"].([]map[string]any) {
-		errors, valid := validateOperation(op, i, input["asset_code"].(string))
+	for i, op := range operations {
+		validationErrs, valid := validateOperation(op, i, assetCode)
 		if !valid {
-			for _, err := range errors {
+			for _, err := range validationErrs {
 				summary.AddError(err)
 			}
 		}
 
-		// Track totals for balance check
-		switch op["type"].(string) {
-		case "DEBIT":
-			totalDebits += int64(op["amount"].(float64))
-		case "CREDIT":
-			totalCredits += int64(op["amount"].(float64))
-		}
+		accumulateOperationTotals(op, &totalDebits, &totalCredits)
 	}
 
 	validateTransactionBalance(summary, input, totalDebits, totalCredits)
 }
 
 // validateTransactionBalance validates that the transaction is balanced
-func validateTransactionBalance(summary *ValidationSummary, input map[string]any, totalDebits, totalCredits int64) {
-	// Check if debits and credits balance
+func validateTransactionBalance(summary *Summary, input map[string]any, totalDebits, totalCredits int64) {
+	validateDebitsCreditsBalance(summary, totalDebits, totalCredits)
+	validateOperationTotalsMatchAmount(summary, input, totalDebits)
+}
+
+// validateDebitsCreditsBalance checks if debits and credits are equal.
+func validateDebitsCreditsBalance(summary *Summary, totalDebits, totalCredits int64) {
 	if totalDebits != totalCredits {
 		summary.AddError(fmt.Errorf("transaction is unbalanced: total debits (%d) do not equal total credits (%d)",
 			totalDebits, totalCredits))
 	}
+}
 
-	// Check if total matches transaction amount
-	if totalDebits != int64(input["amount"].(float64)) {
+// validateOperationTotalsMatchAmount checks if operation totals match the transaction amount.
+func validateOperationTotalsMatchAmount(summary *Summary, input map[string]any, totalDebits int64) {
+	if input["amount"] == nil {
+		return
+	}
+
+	amount, ok := extractNumericAmount(input["amount"])
+	if !ok {
+		return
+	}
+
+	if totalDebits != int64(amount) {
 		summary.AddError(fmt.Errorf("operation amounts do not match transaction amount: operations total (%d) != transaction amount (%.2f)",
-			totalDebits, input["amount"].(float64)))
+			totalDebits, amount))
 	}
 }
 
 // validateAdditionalTransactionFields validates optional fields in the transaction
-func validateAdditionalTransactionFields(summary *ValidationSummary, input map[string]any) {
-	// Validate chart of accounts group name if provided
-	if input["chart_of_accounts_group_name"] != nil && input["chart_of_accounts_group_name"].(string) != "" {
-		if err := validateChartOfAccountsGroupName(input["chart_of_accounts_group_name"].(string)); err != nil {
-			summary.AddError(err)
-		}
+func validateAdditionalTransactionFields(summary *Summary, input map[string]any) {
+	validateChartOfAccountsGroupNameField(summary, input)
+	validateMetadataField(summary, input)
+}
+
+// validateChartOfAccountsGroupNameField validates the chart_of_accounts_group_name field if present.
+func validateChartOfAccountsGroupNameField(summary *Summary, input map[string]any) {
+	if input["chart_of_accounts_group_name"] == nil {
+		return
 	}
 
-	// Validate metadata if present
-	if input["metadata"] != nil {
-		if err := ValidateMetadata(input["metadata"].(map[string]any)); err != nil {
-			summary.AddError(fmt.Errorf("invalid metadata: %w", err))
-		}
+	groupName, ok := input["chart_of_accounts_group_name"].(string)
+	if !ok {
+		summary.AddError(errors.New("chart_of_accounts_group_name must be a string"))
+		return
+	}
+
+	if groupName == "" {
+		return
+	}
+
+	if err := validateChartOfAccountsGroupName(groupName); err != nil {
+		summary.AddError(err)
+	}
+}
+
+// validateMetadataField validates the metadata field if present.
+func validateMetadataField(summary *Summary, input map[string]any) {
+	if input["metadata"] == nil {
+		return
+	}
+
+	metadata, ok := input["metadata"].(map[string]any)
+	if !ok {
+		summary.AddError(errors.New("metadata must be an object"))
+		return
+	}
+
+	if err := ValidateMetadata(metadata); err != nil {
+		summary.AddError(fmt.Errorf("invalid metadata: %w", err))
 	}
 }
 
@@ -685,7 +920,7 @@ func validateAdditionalTransactionFields(summary *ValidationSummary, input map[s
 // in the Midaz system.
 func ValidateAssetType(assetType string) error {
 	if assetType == "" {
-		return fmt.Errorf("asset type is required")
+		return errors.New("asset type is required")
 	}
 
 	// Use commons.ValidateType to ensure consistency with backend APIs
@@ -705,7 +940,7 @@ func ValidateAssetType(assetType string) error {
 // in the Midaz system.
 func ValidateAccountType(accountType string) error {
 	if accountType == "" {
-		return fmt.Errorf("account type is required")
+		return errors.New("account type is required")
 	}
 
 	// Use commons.ValidateAccountType to ensure consistency with backend APIs
@@ -724,7 +959,7 @@ func ValidateAccountType(accountType string) error {
 // ValidateCurrencyCode checks if the currency code is valid according to ISO 4217.
 func ValidateCurrencyCode(code string) error {
 	if code == "" {
-		return fmt.Errorf("currency code cannot be empty")
+		return errors.New("currency code cannot be empty")
 	}
 
 	// Use commons.ValidateCurrency to ensure consistency with backend APIs
@@ -738,7 +973,7 @@ func ValidateCurrencyCode(code string) error {
 // ValidateCountryCode checks if the country code is valid according to ISO 3166-1 alpha-2.
 func ValidateCountryCode(code string) error {
 	if code == "" {
-		return fmt.Errorf("country code cannot be empty")
+		return errors.New("country code cannot be empty")
 	}
 
 	// Use commons.ValidateCountryAddress to ensure consistency with backend APIs
@@ -769,12 +1004,12 @@ func ValidateAddress(address *Address) error {
 // This method validates for completeness and correctness.
 func (v *Validator) ValidateAddress(address *Address) error {
 	if address == nil {
-		return fmt.Errorf("address cannot be nil")
+		return errors.New("address cannot be nil")
 	}
 
 	// Validate required fields
 	if address.Line1 == "" {
-		return fmt.Errorf("address line 1 is required")
+		return errors.New("address line 1 is required")
 	}
 
 	if len(address.Line1) > v.config.MaxAddressLineLength {
@@ -790,7 +1025,7 @@ func (v *Validator) ValidateAddress(address *Address) error {
 
 	// Validate zip code
 	if address.ZipCode == "" {
-		return fmt.Errorf("zip code is required")
+		return errors.New("zip code is required")
 	}
 
 	if len(address.ZipCode) > v.config.MaxZipCodeLength {
@@ -800,7 +1035,7 @@ func (v *Validator) ValidateAddress(address *Address) error {
 
 	// Validate city
 	if address.City == "" {
-		return fmt.Errorf("city is required")
+		return errors.New("city is required")
 	}
 
 	if len(address.City) > v.config.MaxCityLength {
@@ -810,7 +1045,7 @@ func (v *Validator) ValidateAddress(address *Address) error {
 
 	// Validate state
 	if address.State == "" {
-		return fmt.Errorf("state is required")
+		return errors.New("state is required")
 	}
 
 	if len(address.State) > v.config.MaxStateLength {
@@ -820,7 +1055,7 @@ func (v *Validator) ValidateAddress(address *Address) error {
 
 	// Validate country
 	if address.Country == "" {
-		return fmt.Errorf("country is required")
+		return errors.New("country is required")
 	}
 
 	return ValidateCountryCode(address.Country)

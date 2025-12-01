@@ -80,7 +80,7 @@ Use Cases:
 const DefaultMaxIdleConns = 100 ...
 var DefaultJSONPool = NewJSONPool()
 func ApplyBatchingOptions(options Options)
-func ApplyGlobalOptions(opts ...PerformanceOption) error
+func ApplyGlobalOptions(opts ...Option) error
 func ApplyGlobalPerformanceOptions(options Options)
 func ConvertRequests(requests []BatchRequest) []concurrent.HTTPBatchRequest
 func GetBatchSize() int
@@ -123,7 +123,7 @@ type BatchResponse struct{ ... }
     func ConvertResponses(httpResponses []concurrent.HTTPBatchResponse) []BatchResponse
 type BatchResult struct{ ... }
     func ConvertResult(httpResult *concurrent.HTTPBatchResult) *BatchResult
-    func ExecuteBatchWithAdapter(processor *BatchProcessor, ctx context.Context, requests []BatchRequest) (*BatchResult, error)
+    func ExecuteBatchWithAdapter(ctx context.Context, processor *BatchProcessor, requests []BatchRequest) (*BatchResult, error)
 type HTTPClientOption func(*http.Client) error
     func WithTimeout(d time.Duration) HTTPClientOption
     func WithTransport(transport http.RoundTripper) HTTPClientOption
@@ -131,15 +131,15 @@ type HTTPClientOptions struct{ ... }
     func DefaultHTTPClientOptions() HTTPClientOptions
 type JSONPool struct{ ... }
     func NewJSONPool() *JSONPool
+type Option func(*Options) error
+    func WithBatchSize(size int) Option
+    func WithHTTPPooling(enabled bool) Option
+    func WithJSONIterator(enabled bool) Option
+    func WithMaxIdleConnsPerHost(maxIdle int) Option
 type Options struct{ ... }
     func DefaultOptions() Options
     func GetGlobalOptions() Options
-    func NewOptions(opts ...PerformanceOption) (*Options, error)
-type PerformanceOption func(*Options) error
-    func WithBatchSize(size int) PerformanceOption
-    func WithHTTPPooling(enabled bool) PerformanceOption
-    func WithJSONIterator(enabled bool) PerformanceOption
-    func WithMaxIdleConnsPerHost(maxIdle int) PerformanceOption
+    func NewOptions(opts ...Option) (*Options, error)
 type TransportConfig struct{ ... }
     func DefaultTransportConfig() *TransportConfig
     func NewTransportConfig(opts ...TransportOption) (*TransportConfig, error)

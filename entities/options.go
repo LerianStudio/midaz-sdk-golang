@@ -2,7 +2,7 @@ package entities
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"net/http"
 
 	auth "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/access-manager"
@@ -15,7 +15,6 @@ type Option func(*Entity) error
 // WithDebug returns an Option that enables or disables debug mode for the Entity.
 func WithDebug(debug bool) Option {
 	return func(e *Entity) error {
-		fmt.Printf("[SDK] Setting debug mode to: %v\n", debug)
 		e.httpClient.debug = debug
 
 		return nil
@@ -49,7 +48,6 @@ func WithObservability(provider observability.Provider) Option {
 			var err error
 
 			e.httpClient.metrics, err = observability.NewMetricsCollector(provider)
-
 			if err != nil {
 				return err
 			}
@@ -59,17 +57,20 @@ func WithObservability(provider observability.Provider) Option {
 	}
 }
 
-// WithContext returns an Option that sets the context for the Entity.
+// WithContext returns an Option that sets a default context for the Entity.
+//
+// Deprecated: This option is currently a no-op placeholder for future implementation.
+// Use context.Context as the first parameter in individual API calls instead.
+// Each service method (e.g., CreateOrganization, GetAccount) accepts a context
+// parameter that should be used for request-scoped cancellation and timeouts.
 func WithContext(ctx context.Context) Option {
-	return func(e *Entity) error {
+	return func(_ *Entity) error {
 		if ctx == nil {
-			return fmt.Errorf("context cannot be nil")
+			return errors.New("context cannot be nil")
 		}
 
-		// Set the context in the HTTP client if it has a context field
-		// Note: This assumes the HTTP client has a context field, which may need to be added
-		// e.httpClient.ctx = ctx
-
+		// Note: This is a no-op. Context should be passed to individual API calls.
+		// Keeping this option for API compatibility.
 		return nil
 	}
 }
@@ -78,7 +79,7 @@ func WithContext(ctx context.Context) Option {
 func WithHTTPClient(client *http.Client) Option {
 	return func(e *Entity) error {
 		if client == nil {
-			return fmt.Errorf("HTTP client cannot be nil")
+			return errors.New("HTTP client cannot be nil")
 		}
 
 		// Create a new HTTP client with the same auth token and observability

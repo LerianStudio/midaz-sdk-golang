@@ -15,7 +15,7 @@ type Option func(*Client) error
     func WithCollectorEndpoint(endpoint string) Option
     func WithConfig(cfg *config.Config) Option
     func WithContext(ctx context.Context) Option
-    func WithCustomRetryPolicy(shouldRetry func(*http.Response, error) bool) Option
+    func WithCustomRetryPolicy(_ func(*http.Response, error) bool) Option
     func WithDebug(enable bool) Option
     func WithEnvironment(env config.Environment) Option
     func WithHTTPClient(client *http.Client) Option

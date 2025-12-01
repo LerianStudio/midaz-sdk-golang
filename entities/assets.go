@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
@@ -175,7 +176,7 @@ func NewAssetsEntity(client *http.Client, authToken string, baseURLs map[string]
 	httpClient := NewHTTPClient(client, authToken, nil)
 
 	// Check if we're using the debug flag from the environment
-	if debugEnv := os.Getenv("MIDAZ_DEBUG"); debugEnv == "true" {
+	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
 		httpClient.debug = true
 	}
 
@@ -428,6 +429,9 @@ func (e *assetsEntity) GetAssetsMetricsCount(ctx context.Context, organizationID
 // Returns the built URL.
 func (e *assetsEntity) buildURL(organizationID, ledgerID, assetID string) string {
 	baseURL := e.baseURLs["onboarding"]
+
+	// Ensure the base URL doesn't end with a trailing slash
+	baseURL = strings.TrimSuffix(baseURL, "/")
 
 	if assetID == "" {
 		return fmt.Sprintf("%s/organizations/%s/ledgers/%s/assets", baseURL, organizationID, ledgerID)

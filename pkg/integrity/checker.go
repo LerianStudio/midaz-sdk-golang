@@ -2,12 +2,14 @@ package integrity
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
 	"github.com/shopspring/decimal"
 )
 
@@ -33,12 +35,20 @@ type Report struct {
 // Checker provides data integrity checks and balance verification.
 type Checker struct {
 	e *entities.Entity
+	// Optional observability provider for logging and tracing
+	obs observability.Provider
 	// Optional delay between account lookups to avoid overwhelming services on large ledgers
 	sleepBetweenAccountLookups time.Duration
 }
 
 // NewChecker creates a new Checker.
 func NewChecker(e *entities.Entity) *Checker { return &Checker{e: e} }
+
+// WithObservability sets the observability provider for logging and tracing.
+func (c *Checker) WithObservability(obs observability.Provider) *Checker {
+	c.obs = obs
+	return c
+}
 
 // WithAccountLookupDelay sets an optional delay inserted before each account lookup.
 // Useful to rate-limit calls when processing very large ledgers.
@@ -60,17 +70,33 @@ func (c *Checker) WithAccountLookupDelay(d time.Duration) *Checker {
 // GenerateLedgerReport aggregates balances and performs lightweight double-entry checks.
 func (c *Checker) GenerateLedgerReport(ctx context.Context, orgID, ledgerID string) (*Report, error) {
 	if c.e == nil || c.e.Balances == nil || c.e.Accounts == nil {
-		return nil, fmt.Errorf("entities not initialized for integrity checks")
+		return nil, errors.New("entities not initialized for integrity checks")
 	}
+
+	c.logDebug("Starting ledger integrity report generation for ledger %s", ledgerID)
 
 	totals := map[string]*BalanceTotals{}
 	accountAliasCache := map[string]string{}
 
-	if err := c.processBalances(ctx, orgID, ledgerID, totals, accountAliasCache); err != nil {
+	var report *Report
+
+	err := observability.WithSpan(ctx, c.obs, "GenerateLedgerReport", func(ctx context.Context) error {
+		if err := c.processBalances(ctx, orgID, ledgerID, totals, accountAliasCache); err != nil {
+			c.logError("Failed to process balances for ledger %s: %v", ledgerID, err)
+			return err
+		}
+
+		report = &Report{LedgerID: ledgerID, TotalsByAsset: totals}
+
+		return nil
+	})
+	if err != nil {
 		return nil, err
 	}
 
-	return &Report{LedgerID: ledgerID, TotalsByAsset: totals}, nil
+	c.logInfo("Completed ledger integrity report for ledger %s: %d assets processed", ledgerID, len(totals))
+
+	return report, nil
 }
 
 // processBalances processes all balances with pagination
@@ -116,7 +142,7 @@ func (c *Checker) processBalance(ctx context.Context, orgID, ledgerID string, b 
 }
 
 // getOrCreateBalanceTotals gets or creates BalanceTotals for an asset
-func (c *Checker) getOrCreateBalanceTotals(totals map[string]*BalanceTotals, assetCode string) *BalanceTotals {
+func (*Checker) getOrCreateBalanceTotals(totals map[string]*BalanceTotals, assetCode string) *BalanceTotals {
 	t, ok := totals[assetCode]
 	if !ok {
 		t = &BalanceTotals{Asset: assetCode, TotalAvailable: decimal.Zero, TotalOnHold: decimal.Zero, InternalNetTotal: decimal.Zero}
@@ -127,7 +153,7 @@ func (c *Checker) getOrCreateBalanceTotals(totals map[string]*BalanceTotals, ass
 }
 
 // updateBalanceTotals updates the balance totals with the given balance
-func (c *Checker) updateBalanceTotals(t *BalanceTotals, b models.Balance) {
+func (*Checker) updateBalanceTotals(t *BalanceTotals, b models.Balance) {
 	t.Accounts++
 	t.TotalAvailable = t.TotalAvailable.Add(b.Available)
 	t.TotalOnHold = t.TotalOnHold.Add(b.OnHold)
@@ -135,27 +161,36 @@ func (c *Checker) updateBalanceTotals(t *BalanceTotals, b models.Balance) {
 
 // getAccountAlias gets the account alias with caching and optional throttling
 func (c *Checker) getAccountAlias(ctx context.Context, orgID, ledgerID, accountID string, accountAliasCache map[string]string) (string, error) {
-	alias, ok := accountAliasCache[accountID]
-	if !ok {
-		if err := c.waitForThrottling(ctx); err != nil {
-			return "", err
-		}
-
-		acc, err := c.e.Accounts.GetAccount(ctx, orgID, ledgerID, accountID)
-		if err != nil {
-			return "", fmt.Errorf("failed to get account %s: %w", accountID, err)
-		}
-
-		if acc != nil && acc.Alias != nil {
-			alias = *acc.Alias
-		} else {
-			alias = ""
-		}
-
-		accountAliasCache[accountID] = alias
+	if alias, ok := accountAliasCache[accountID]; ok {
+		return alias, nil
 	}
 
+	alias, err := c.fetchAccountAlias(ctx, orgID, ledgerID, accountID)
+	if err != nil {
+		return "", err
+	}
+
+	accountAliasCache[accountID] = alias
+
 	return alias, nil
+}
+
+// fetchAccountAlias fetches the account alias from the API with throttling.
+func (c *Checker) fetchAccountAlias(ctx context.Context, orgID, ledgerID, accountID string) (string, error) {
+	if err := c.waitForThrottling(ctx); err != nil {
+		return "", err
+	}
+
+	acc, err := c.e.Accounts.GetAccount(ctx, orgID, ledgerID, accountID)
+	if err != nil {
+		return "", fmt.Errorf("failed to get account %s: %w", accountID, err)
+	}
+
+	if acc != nil && acc.Alias != nil {
+		return *acc.Alias, nil
+	}
+
+	return "", nil
 }
 
 // waitForThrottling implements the account lookup delay with cancellation
@@ -182,7 +217,7 @@ func (c *Checker) waitForThrottling(ctx context.Context) error {
 }
 
 // updateInternalNetTotal updates internal net total excluding external aliases
-func (c *Checker) updateInternalNetTotal(t *BalanceTotals, b models.Balance, alias string) {
+func (*Checker) updateInternalNetTotal(t *BalanceTotals, b models.Balance, alias string) {
 	if !strings.HasPrefix(alias, "@external/") {
 		t.InternalNetTotal = t.InternalNetTotal.Add(b.Available.Add(b.OnHold))
 	}
@@ -197,6 +232,35 @@ func (c *Checker) checkForOverdraft(t *BalanceTotals, b models.Balance, alias st
 		}
 
 		t.Overdrawn = append(t.Overdrawn, id)
+		c.logWarn("Detected overdrawn account %s for asset %s: available=%s", id, b.AssetCode, b.Available.String())
+	}
+}
+
+// logDebug logs a debug message if observability is enabled.
+func (c *Checker) logDebug(format string, args ...any) {
+	if c.obs != nil && c.obs.IsEnabled() {
+		c.obs.Logger().Debugf(format, args...)
+	}
+}
+
+// logInfo logs an info message if observability is enabled.
+func (c *Checker) logInfo(format string, args ...any) {
+	if c.obs != nil && c.obs.IsEnabled() {
+		c.obs.Logger().Infof(format, args...)
+	}
+}
+
+// logWarn logs a warning message if observability is enabled.
+func (c *Checker) logWarn(format string, args ...any) {
+	if c.obs != nil && c.obs.IsEnabled() {
+		c.obs.Logger().Warnf(format, args...)
+	}
+}
+
+// logError logs an error message if observability is enabled.
+func (c *Checker) logError(format string, args ...any) {
+	if c.obs != nil && c.obs.IsEnabled() {
+		c.obs.Logger().Errorf(format, args...)
 	}
 }
 

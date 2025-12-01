@@ -2,7 +2,7 @@ package generator
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
@@ -10,6 +10,7 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
 )
 
+// SegmentGenerator creates segments within a ledger.
 type SegmentGenerator interface {
 	Generate(ctx context.Context, orgID, ledgerID, name string, metadata map[string]any) (*models.Segment, error)
 }
@@ -19,13 +20,15 @@ type segmentGenerator struct {
 	obs observability.Provider
 }
 
+// NewSegmentGenerator creates a new segment generator.
 func NewSegmentGenerator(e *entities.Entity, obs observability.Provider) SegmentGenerator {
 	return &segmentGenerator{e: e, obs: obs}
 }
 
+// Generate creates a single segment with the specified parameters.
 func (g *segmentGenerator) Generate(ctx context.Context, orgID, ledgerID, name string, metadata map[string]any) (*models.Segment, error) {
 	if g.e == nil || g.e.Segments == nil {
-		return nil, fmt.Errorf("entity segments service not initialized")
+		return nil, errors.New("entity segments service not initialized")
 	}
 
 	input := models.NewCreateSegmentInput(name).

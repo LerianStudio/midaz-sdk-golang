@@ -2,7 +2,7 @@
 package models
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
@@ -61,18 +61,18 @@ type UpdateAccountTypeInput struct {
 // Validate validates the CreateAccountTypeInput fields.
 func (input *CreateAccountTypeInput) Validate() error {
 	if input.Name == "" {
-		return fmt.Errorf("name is required")
+		return errors.New("name is required")
 	}
 
 	if input.KeyValue == "" {
-		return fmt.Errorf("keyValue is required")
+		return errors.New("keyValue is required")
 	}
 
 	return nil
 }
 
 // Validate validates the UpdateAccountTypeInput fields.
-func (input *UpdateAccountTypeInput) Validate() error {
+func (*UpdateAccountTypeInput) Validate() error {
 	// For update operations, most fields are optional
 	return nil
 }

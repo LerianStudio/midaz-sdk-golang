@@ -12,6 +12,8 @@ Package models defines the data models used by the Midaz SDK.
 
 Package models defines the data models used by the Midaz SDK.
 
+Package models defines the data models used by the Midaz SDK.
+
 This package provides models that either: 1. Directly align with backend types
 from pkg/mmodel where possible 2. Implement SDK-specific types only where
 necessary
@@ -82,6 +84,10 @@ type Address struct{ ... }
 type Amount struct{ ... }
 type AmountInput struct{ ... }
 type Asset = mmodel.Asset
+type AssetRate struct{ ... }
+type AssetRateListOptions struct{ ... }
+    func NewAssetRateListOptions() *AssetRateListOptions
+type AssetRatesResponse struct{ ... }
 type Balance = mmodel.Balance
 type BaseResponse struct{ ... }
 type CreateAccountInput struct{ ... }
@@ -90,8 +96,16 @@ type CreateAccountTypeInput struct{ ... }
     func NewCreateAccountTypeInput(name, keyValue string) *CreateAccountTypeInput
     func WithCreateAccountTypeDescription(input *CreateAccountTypeInput, description string) *CreateAccountTypeInput
     func WithCreateAccountTypeMetadata(input *CreateAccountTypeInput, metadata map[string]any) *CreateAccountTypeInput
+type CreateAnnotationInput struct{ ... }
+    func NewCreateAnnotationInput(description string) *CreateAnnotationInput
 type CreateAssetInput struct{ ... }
     func NewCreateAssetInput(name, code string) *CreateAssetInput
+type CreateAssetRateInput struct{ ... }
+    func NewCreateAssetRateInput(from, to string, rate int) *CreateAssetRateInput
+type CreateBalanceInput struct{ ... }
+    func NewCreateBalanceInput(key string) *CreateBalanceInput
+type CreateInflowInput struct{ ... }
+    func NewCreateInflowInput(asset, value string, distribute *DistributeInput) *CreateInflowInput
 type CreateLedgerInput struct{ ... }
     func NewCreateLedgerInput(name string) *CreateLedgerInput
 type CreateOperationInput struct{ ... }
@@ -102,6 +116,8 @@ type CreateOperationRouteInput struct{ ... }
     func WithCreateOperationRouteMetadata(input *CreateOperationRouteInput, metadata map[string]any) *CreateOperationRouteInput
 type CreateOrganizationInput struct{ ... }
     func NewCreateOrganizationInput(legalName string) *CreateOrganizationInput
+type CreateOutflowInput struct{ ... }
+    func NewCreateOutflowInput(asset, value string, source *SourceInput) *CreateOutflowInput
 type CreatePortfolioInput struct{ ... }
     func NewCreatePortfolioInput(entityID, name string) *CreatePortfolioInput
 type CreateSegmentInput struct{ ... }
@@ -152,7 +168,9 @@ type Queue struct{ ... }
 type QueueData struct{ ... }
 type Rate struct{ ... }
 type Segment = mmodel.Segment
+type SendInflowInput struct{ ... }
 type SendInput struct{ ... }
+type SendOutflowInput struct{ ... }
 type Share struct{ ... }
 type SortDirection string
     const SortAscending SortDirection = "asc" ...

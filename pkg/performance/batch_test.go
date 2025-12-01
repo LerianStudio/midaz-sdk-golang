@@ -16,7 +16,7 @@ func createMockBatchServer() *httptest.Server {
 			return
 		}
 
-		if r.Method != "POST" {
+		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
@@ -30,6 +30,7 @@ func createMockBatchServer() *httptest.Server {
 
 		// Process each request
 		var responses []BatchResponse
+
 		for _, req := range requests {
 			resp := BatchResponse{
 				ID: req.ID,
@@ -57,12 +58,17 @@ func createMockBatchServer() *httptest.Server {
 		// Send the response
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(responses)
+
+		if err := json.NewEncoder(w).Encode(responses); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	})
 
 	return httptest.NewServer(handler)
 }
 
+//nolint:revive // cognitive-complexity: comprehensive test with many sub-tests
 func TestBatchProcessor_ExecuteBatch(t *testing.T) {
 	// Create a mock server
 	server := createMockBatchServer()
@@ -319,16 +325,20 @@ func TestDefaultBatchOptions(t *testing.T) {
 	if options.Timeout != 60*time.Second {
 		t.Errorf("Expected Timeout=60s, got %v", options.Timeout)
 	}
+
 	if options.MaxBatchSize != 100 {
 		t.Errorf("Expected MaxBatchSize=100, got %d", options.MaxBatchSize)
 	}
+
 	if options.RetryCount != 3 {
 		t.Errorf("Expected RetryCount=3, got %d", options.RetryCount)
 	}
+
 	if options.RetryBackoff != 500*time.Millisecond {
 		t.Errorf("Expected RetryBackoff=500ms, got %v", options.RetryBackoff)
 	}
-	if options.ContinueOnError != false {
+
+	if options.ContinueOnError {
 		t.Errorf("Expected ContinueOnError=false, got %v", options.ContinueOnError)
 	}
 }
@@ -349,15 +359,19 @@ func TestBatchOptions_WithOptions(t *testing.T) {
 	if options.Timeout != 120*time.Second {
 		t.Errorf("Expected Timeout=120s, got %v", options.Timeout)
 	}
+
 	if options.MaxBatchSize != 200 {
 		t.Errorf("Expected MaxBatchSize=200, got %d", options.MaxBatchSize)
 	}
+
 	if options.RetryCount != 5 {
 		t.Errorf("Expected RetryCount=5, got %d", options.RetryCount)
 	}
+
 	if options.RetryBackoff != 1*time.Second {
 		t.Errorf("Expected RetryBackoff=1s, got %v", options.RetryBackoff)
 	}
+
 	if !options.ContinueOnError {
 		t.Errorf("Expected ContinueOnError=true, got false")
 	}
@@ -402,9 +416,11 @@ func TestBatchOptions_WithOptions(t *testing.T) {
 	if options.MaxBatchSize != 200 {
 		t.Errorf("Expected MaxBatchSize=200, got %d", options.MaxBatchSize)
 	}
+
 	if options.RetryCount != 5 {
 		t.Errorf("Expected RetryCount=5, got %d", options.RetryCount)
 	}
+
 	if options.RetryBackoff != 100*time.Millisecond {
 		t.Errorf("Expected RetryBackoff=100ms, got %v", options.RetryBackoff)
 	}
@@ -419,9 +435,11 @@ func TestBatchOptions_WithOptions(t *testing.T) {
 	if options.RetryCount != 10 {
 		t.Errorf("Expected RetryCount=10, got %d", options.RetryCount)
 	}
+
 	if options.RetryBackoff != 1*time.Second {
 		t.Errorf("Expected RetryBackoff=1s, got %v", options.RetryBackoff)
 	}
+
 	if !options.ContinueOnError {
 		t.Errorf("Expected ContinueOnError=true, got false")
 	}
@@ -547,12 +565,342 @@ func TestBatchProcessor_SetDefaultHeader(t *testing.T) {
 	if processor.defaultHeaders["X-Test2"] != "value2" {
 		t.Errorf("Expected defaultHeaders[X-Test2]=value2, got %s", processor.defaultHeaders["X-Test2"])
 	}
+
 	if processor.defaultHeaders["X-Test3"] != "value3" {
 		t.Errorf("Expected defaultHeaders[X-Test3]=value3, got %s", processor.defaultHeaders["X-Test3"])
 	}
 }
 
-// BenchmarkBatchProcessing benchmarks the batch processing performance
+func TestBatchProcessor_ParseBatchResponseEdgeCases(t *testing.T) {
+	server := createMockBatchServer()
+	defer server.Close()
+
+	processor := NewBatchProcessorWithDefaults(http.DefaultClient, server.URL, nil)
+
+	t.Run("NilResult", func(t *testing.T) {
+		err := processor.ParseBatchResponse(nil, "req_1", nil)
+		if err == nil {
+			t.Error("Expected error for nil result, got nil")
+		}
+	})
+
+	t.Run("RequestIDNotFound", func(t *testing.T) {
+		result := &BatchResult{
+			Responses: []BatchResponse{
+				{ID: "req_1", StatusCode: http.StatusOK},
+			},
+		}
+
+		err := processor.ParseBatchResponse(result, "non_existent", nil)
+		if err == nil {
+			t.Error("Expected error for non-existent request ID, got nil")
+		}
+	})
+
+	t.Run("ResponseWithErrorStatus", func(t *testing.T) {
+		result := &BatchResult{
+			Responses: []BatchResponse{
+				{ID: "req_1", StatusCode: http.StatusInternalServerError},
+			},
+		}
+
+		err := processor.ParseBatchResponse(result, "req_1", nil)
+		if err == nil {
+			t.Error("Expected error for error status code, got nil")
+		}
+	})
+
+	t.Run("ResponseWithErrorMessage", func(t *testing.T) {
+		result := &BatchResult{
+			Responses: []BatchResponse{
+				{ID: "req_1", StatusCode: http.StatusOK, Error: "some error"},
+			},
+		}
+
+		err := processor.ParseBatchResponse(result, "req_1", nil)
+		if err == nil {
+			t.Error("Expected error for response with error message, got nil")
+		}
+	})
+
+	t.Run("ValidResponseWithEmptyBody", func(t *testing.T) {
+		result := &BatchResult{
+			Responses: []BatchResponse{
+				{ID: "req_1", StatusCode: http.StatusOK, Body: nil},
+			},
+		}
+
+		var target struct{}
+
+		err := processor.ParseBatchResponse(result, "req_1", &target)
+		if err != nil {
+			t.Errorf("Expected no error for empty body, got %v", err)
+		}
+	})
+
+	t.Run("InvalidJSONBody", func(t *testing.T) {
+		result := &BatchResult{
+			Responses: []BatchResponse{
+				{ID: "req_1", StatusCode: http.StatusOK, Body: json.RawMessage(`invalid json`)},
+			},
+		}
+
+		var target struct {
+			Field string `json:"field"`
+		}
+
+		err := processor.ParseBatchResponse(result, "req_1", &target)
+		if err == nil {
+			t.Error("Expected error for invalid JSON body, got nil")
+		}
+	})
+}
+
+func TestBatchProcessor_WithJSONPool(t *testing.T) {
+	pool := NewJSONPool()
+
+	processor, err := NewBatchProcessor(
+		"http://example.com",
+		WithJSONPool(pool),
+	)
+	if err != nil {
+		t.Fatalf("NewBatchProcessor with JSONPool returned error: %v", err)
+	}
+
+	if processor.jsonPool != pool {
+		t.Error("Expected JSONPool to be set")
+	}
+
+	// Test nil JSON pool
+	_, err = NewBatchProcessor(
+		"http://example.com",
+		WithJSONPool(nil),
+	)
+	if err == nil {
+		t.Error("Expected error for nil JSONPool, got nil")
+	}
+}
+
+func TestBatchProcessor_WithBaseURL(t *testing.T) {
+	// Test empty base URL via option
+	_, err := NewBatchProcessor(
+		"http://example.com",
+		WithBaseURL(""),
+	)
+	if err == nil {
+		t.Error("Expected error for empty base URL, got nil")
+	}
+
+	// Test valid base URL override
+	processor, err := NewBatchProcessor(
+		"http://example.com",
+		WithBaseURL("http://newurl.com"),
+	)
+	if err != nil {
+		t.Fatalf("NewBatchProcessor with BaseURL returned error: %v", err)
+	}
+
+	if processor.baseURL != "http://newurl.com" {
+		t.Errorf("Expected baseURL=http://newurl.com, got %s", processor.baseURL)
+	}
+}
+
+func TestBatchProcessor_ServerErrorResponse(t *testing.T) {
+	// Create a mock server that returns 500 error
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"error":"internal server error"}`))
+	}))
+	defer server.Close()
+
+	processor := NewBatchProcessorWithDefaults(http.DefaultClient, server.URL, nil)
+	processor.options.RetryCount = 0 // Disable retries for this test
+
+	requests := []BatchRequest{
+		{Method: "GET", Path: "/test", ID: "req_1"},
+	}
+
+	_, err := processor.ExecuteBatch(context.Background(), requests)
+	if err == nil {
+		t.Error("Expected error for server error response, got nil")
+	}
+}
+
+func TestBatchProcessor_InvalidJSONResponse(t *testing.T) {
+	// Create a mock server that returns invalid JSON
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`invalid json response`))
+	}))
+	defer server.Close()
+
+	processor := NewBatchProcessorWithDefaults(http.DefaultClient, server.URL, nil)
+	processor.options.RetryCount = 0
+
+	requests := []BatchRequest{
+		{Method: "GET", Path: "/test", ID: "req_1"},
+	}
+
+	_, err := processor.ExecuteBatch(context.Background(), requests)
+	if err == nil {
+		t.Error("Expected error for invalid JSON response, got nil")
+	}
+}
+
+func TestBatchProcessor_RequestWithBody(t *testing.T) {
+	var receivedBody map[string]any
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var requests []BatchRequest
+		if err := json.NewDecoder(r.Body).Decode(&requests); err != nil {
+			http.Error(w, "Invalid request", http.StatusBadRequest)
+			return
+		}
+
+		if len(requests) > 0 && requests[0].Body != nil {
+			if bodyMap, ok := requests[0].Body.(map[string]any); ok {
+				receivedBody = bodyMap
+			}
+		}
+
+		responses := []BatchResponse{
+			{ID: requests[0].ID, StatusCode: http.StatusOK, Body: json.RawMessage(`{"received":true}`)},
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(responses)
+	}))
+	defer server.Close()
+
+	processor := NewBatchProcessorWithDefaults(http.DefaultClient, server.URL, nil)
+
+	requests := []BatchRequest{
+		{
+			Method:  "POST",
+			Path:    "/create",
+			ID:      "req_1",
+			Body:    map[string]any{"name": "test", "value": 123},
+			Headers: map[string]string{"X-Custom": "header"},
+		},
+	}
+
+	result, err := processor.ExecuteBatch(context.Background(), requests)
+	if err != nil {
+		t.Fatalf("ExecuteBatch returned error: %v", err)
+	}
+
+	if len(result.Responses) != 1 {
+		t.Fatalf("Expected 1 response, got %d", len(result.Responses))
+	}
+
+	if receivedBody["name"] != "test" {
+		t.Errorf("Expected body name=test, got %v", receivedBody["name"])
+	}
+}
+
+func TestBatchProcessor_NewBatchProcessorWithDefaults_AllOptions(t *testing.T) {
+	options := &BatchOptions{
+		Timeout:         30 * time.Second,
+		MaxBatchSize:    50,
+		RetryCount:      2,
+		RetryBackoff:    200 * time.Millisecond,
+		ContinueOnError: true,
+	}
+
+	processor := NewBatchProcessorWithDefaults(http.DefaultClient, "http://example.com", options)
+
+	if processor.options.Timeout != 30*time.Second {
+		t.Errorf("Expected Timeout=30s, got %v", processor.options.Timeout)
+	}
+
+	if processor.options.MaxBatchSize != 50 {
+		t.Errorf("Expected MaxBatchSize=50, got %d", processor.options.MaxBatchSize)
+	}
+
+	if processor.options.RetryCount != 2 {
+		t.Errorf("Expected RetryCount=2, got %d", processor.options.RetryCount)
+	}
+}
+
+func TestBatchProcessor_NewBatchProcessorWithDefaults_NilClient(t *testing.T) {
+	processor := NewBatchProcessorWithDefaults(nil, "http://example.com", nil)
+
+	// Should create a default client
+	if processor.httpClient == nil {
+		t.Error("Expected httpClient to be created, got nil")
+	}
+}
+
+func createMockServerWithErrorBody() *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":"custom error message"}`))
+	}))
+}
+
+func TestBatchProcessor_HandleErrorResponse(t *testing.T) {
+	server := createMockServerWithErrorBody()
+	defer server.Close()
+
+	processor := NewBatchProcessorWithDefaults(http.DefaultClient, server.URL, nil)
+	processor.options.RetryCount = 0
+
+	requests := []BatchRequest{
+		{Method: "GET", Path: "/test", ID: "req_1"},
+	}
+
+	_, err := processor.ExecuteBatch(context.Background(), requests)
+	if err == nil {
+		t.Error("Expected error, got nil")
+	}
+}
+
+func TestBatchProcessor_RetryWithBackoff(t *testing.T) {
+	// This test verifies that the processor retries on network-level failures
+	// Note: The current implementation retries on HTTP client Do errors, not HTTP status codes
+	// HTTP 500 responses are considered successful at the transport level and are not retried
+	// The error handling converts them to internal errors
+
+	// Test that retry backoff option is properly set
+	processor := NewBatchProcessorWithDefaults(http.DefaultClient, "http://example.com", nil)
+	processor.options.RetryCount = 3
+	processor.options.RetryBackoff = 10 * time.Millisecond
+
+	if processor.options.RetryCount != 3 {
+		t.Errorf("Expected RetryCount=3, got %d", processor.options.RetryCount)
+	}
+
+	if processor.options.RetryBackoff != 10*time.Millisecond {
+		t.Errorf("Expected RetryBackoff=10ms, got %v", processor.options.RetryBackoff)
+	}
+
+	// Verify shouldRetry logic
+	ctx := context.Background()
+	if !processor.shouldRetry(ctx, 0) {
+		t.Error("Expected shouldRetry to return true for retry=0")
+	}
+
+	if !processor.shouldRetry(ctx, 2) {
+		t.Error("Expected shouldRetry to return true for retry=2")
+	}
+
+	if processor.shouldRetry(ctx, 3) {
+		t.Error("Expected shouldRetry to return false for retry=3 (equals RetryCount)")
+	}
+
+	// Test with cancelled context
+	cancelledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	if processor.shouldRetry(cancelledCtx, 0) {
+		t.Error("Expected shouldRetry to return false for cancelled context")
+	}
+}
+
+//nolint:revive // cognitive-complexity: comprehensive benchmark with multiple sub-benchmarks
 func BenchmarkBatchProcessing(b *testing.B) {
 	// Create a mock server
 	server := createMockBatchServer()
@@ -588,6 +936,7 @@ func BenchmarkBatchProcessing(b *testing.B) {
 		}
 
 		b.ResetTimer()
+
 		for i := 0; i < b.N; i++ {
 			_, err := processor.ExecuteBatch(context.Background(), smallBatch)
 			if err != nil {
@@ -605,6 +954,7 @@ func BenchmarkBatchProcessing(b *testing.B) {
 		}
 
 		b.ResetTimer()
+
 		for i := 0; i < b.N; i++ {
 			_, err := processor.ExecuteBatch(context.Background(), largeBatch)
 			if err != nil {
@@ -631,6 +981,7 @@ func BenchmarkBatchProcessing(b *testing.B) {
 		}
 
 		b.ResetTimer()
+
 		for i := 0; i < b.N; i++ {
 			_, err := processor.ExecuteBatch(context.Background(), largeBatch)
 			if err != nil {
@@ -657,6 +1008,7 @@ func BenchmarkBatchProcessing(b *testing.B) {
 		}
 
 		b.ResetTimer()
+
 		for i := 0; i < b.N; i++ {
 			_, err := processor.ExecuteBatch(context.Background(), largeBatch)
 			if err != nil {
@@ -664,4 +1016,186 @@ func BenchmarkBatchProcessing(b *testing.B) {
 			}
 		}
 	})
+}
+
+// Tests for batch_adapter.go
+
+func TestConvertRequests(t *testing.T) {
+	requests := []BatchRequest{
+		{
+			Method:  "GET",
+			Path:    "/test",
+			Headers: map[string]string{"X-Test": "value"},
+			Body:    map[string]string{"key": "value"},
+			ID:      "req_1",
+		},
+		{
+			Method: "POST",
+			Path:   "/create",
+			ID:     "req_2",
+		},
+	}
+
+	httpRequests := ConvertRequests(requests)
+
+	if len(httpRequests) != 2 {
+		t.Fatalf("Expected 2 HTTP requests, got %d", len(httpRequests))
+	}
+
+	if httpRequests[0].Method != http.MethodGet {
+		t.Errorf("Expected method=GET, got %s", httpRequests[0].Method)
+	}
+
+	if httpRequests[0].Path != "/test" {
+		t.Errorf("Expected path=/test, got %s", httpRequests[0].Path)
+	}
+
+	if httpRequests[0].Headers["X-Test"] != "value" {
+		t.Errorf("Expected header X-Test=value, got %s", httpRequests[0].Headers["X-Test"])
+	}
+
+	if httpRequests[0].ID != "req_1" {
+		t.Errorf("Expected ID=req_1, got %s", httpRequests[0].ID)
+	}
+
+	if httpRequests[1].Method != http.MethodPost {
+		t.Errorf("Expected method=POST, got %s", httpRequests[1].Method)
+	}
+}
+
+func TestConvertResponses(t *testing.T) {
+	httpResponses := []struct {
+		StatusCode int
+		Headers    map[string]string
+		Body       json.RawMessage
+		Error      string
+		ID         string
+	}{
+		{
+			StatusCode: 200,
+			Headers:    map[string]string{"Content-Type": "application/json"},
+			Body:       json.RawMessage(`{"success":true}`),
+			ID:         "req_1",
+		},
+		{
+			StatusCode: 400,
+			Error:      "Bad Request",
+			ID:         "req_2",
+		},
+	}
+
+	// Test empty slice conversion
+	emptyResponses := ConvertResponses(nil)
+	if len(emptyResponses) != 0 {
+		t.Errorf("Expected 0 responses for nil input, got %d", len(emptyResponses))
+	}
+
+	// Since ConvertResponses expects concurrent.HTTPBatchResponse, we'll test it indirectly
+	// through ConvertResult
+	_ = httpResponses
+}
+
+func TestConvertResult(t *testing.T) {
+	t.Run("NilResult", func(t *testing.T) {
+		result := ConvertResult(nil)
+		if result != nil {
+			t.Error("Expected nil for nil input")
+		}
+	})
+}
+
+func TestConcurrentRegistry(t *testing.T) {
+	// Test Store and Get functions
+	t.Run("StoreAndGet", func(t *testing.T) {
+		processor := &BatchProcessor{
+			baseURL:        "http://example.com",
+			defaultHeaders: make(map[string]string),
+		}
+
+		// Initially should be nil
+		result := adapterRegistry.Get(processor)
+		if result != nil {
+			t.Error("Expected nil for unregistered processor")
+		}
+	})
+}
+
+func TestExecuteBatchWithAdapter(t *testing.T) {
+	server := createMockBatchServer()
+	defer server.Close()
+
+	// Create a processor without adapter registration (should fall back to original)
+	processor := NewBatchProcessorWithDefaults(http.DefaultClient, server.URL, nil)
+
+	requests := []BatchRequest{
+		{Method: "GET", Path: "/success", ID: "req_1"},
+	}
+
+	// This should fall back to the original ExecuteBatch
+	result, err := ExecuteBatchWithAdapter(context.Background(), processor, requests)
+	if err != nil {
+		t.Fatalf("ExecuteBatchWithAdapter returned error: %v", err)
+	}
+
+	if len(result.Responses) != 1 {
+		t.Fatalf("Expected 1 response, got %d", len(result.Responses))
+	}
+}
+
+func TestParseResponseWithAdapter(t *testing.T) {
+	processor := NewBatchProcessorWithDefaults(http.DefaultClient, "http://example.com", nil)
+
+	result := &BatchResult{
+		Responses: []BatchResponse{
+			{
+				ID:         "req_1",
+				StatusCode: http.StatusOK,
+				Body:       json.RawMessage(`{"name":"test"}`),
+			},
+		},
+	}
+
+	var target struct {
+		Name string `json:"name"`
+	}
+
+	// This should fall back to the original ParseBatchResponse
+	err := ParseResponseWithAdapter(processor, result, "req_1", &target)
+	if err != nil {
+		t.Fatalf("ParseResponseWithAdapter returned error: %v", err)
+	}
+
+	if target.Name != "test" {
+		t.Errorf("Expected name=test, got %s", target.Name)
+	}
+}
+
+func TestCreateBatchProcessor(t *testing.T) {
+	options := &BatchOptions{
+		Timeout:         30 * time.Second,
+		MaxBatchSize:    50,
+		RetryCount:      2,
+		RetryBackoff:    100 * time.Millisecond,
+		ContinueOnError: true,
+	}
+
+	processor := CreateBatchProcessor(http.DefaultClient, "http://example.com", options)
+
+	if processor == nil {
+		t.Fatal("CreateBatchProcessor returned nil")
+	}
+
+	if processor.baseURL != "http://example.com" {
+		t.Errorf("Expected baseURL=http://example.com, got %s", processor.baseURL)
+	}
+
+	if processor.options.Timeout != 30*time.Second {
+		t.Errorf("Expected Timeout=30s, got %v", processor.options.Timeout)
+	}
+
+	// Verify that it was registered
+	httpProcessor := adapterRegistry.Get(processor)
+	if httpProcessor == nil {
+		t.Error("Expected processor to be registered in adapter registry")
+	}
 }

@@ -1,156 +1,431 @@
 version: "2"
 run:
-  tests: false
+  tests: true
+  timeout: 5m
 linters:
   enable:
-    - bodyclose
-    - depguard
-    - dogsled
-    - dupword
-    - errchkjson
-    - gocognit
-    - gocyclo
-    - loggercheck
-    - misspell
-    - nakedret
-    - nilerr
-    - nolintlint
-    - prealloc
-    - predeclared
-    - reassign
-    - revive
-    - staticcheck
-    - thelper
-    - tparallel
-    - unconvert
-    - unparam
-    - usestdlibvars
-    - wastedassign
-    - wsl_v5
+    # ===========================================
+    # ERROR HANDLING (Critical for SDK reliability)
+    # ===========================================
+    - bodyclose       # HTTP response body must be closed
+    - errcheck        # Check error returns
+    - errchkjson      # Check JSON encoding errors
+    - nilerr          # Returning nil after checking err != nil
+    - errorlint       # Proper error wrapping with %w
+
+    # ===========================================
+    # SECURITY (Essential for financial SDK)
+    # ===========================================
+    - gosec           # Security-focused linting
+    - noctx           # HTTP requests must use context
+
+    # ===========================================
+    # CODE QUALITY & COMPLEXITY
+    # ===========================================
+    - gocognit        # Cognitive complexity
+    - gocyclo         # Cyclomatic complexity
+    - funlen          # Function length limits
+    - nestif          # Nested if limits
+    - cyclop          # Alternative complexity checker
+    - maintidx        # Maintainability index
+
+    # ===========================================
+    # CORRECTNESS & BUG PREVENTION
+    # ===========================================
+    - staticcheck     # Comprehensive static analysis
+    - govet           # Go vet checks
+    - ineffassign     # Ineffective assignments
+    - wastedassign    # Wasted assignments
+    - reassign        # Reassignment detection
+    - copyloopvar     # Loop variable issues (Go 1.22+)
+    - nilnil          # Returning nil, nil
+    - predeclared     # Shadowing predeclared identifiers
+    - makezero        # Slice initialization issues
+    - durationcheck   # Duration multiplication issues
+
+    # ===========================================
+    # CODE STYLE & CONSISTENCY
+    # ===========================================
+    - revive          # Replacement for golint
+    - misspell        # Spelling mistakes
+    - dupword         # Duplicate words
+    - unconvert       # Unnecessary conversions
+    - usestdlibvars   # Use stdlib variables (http.MethodGet, etc.)
+    - dogsled         # Too many blank identifiers
+    - nakedret        # Naked returns
+    - prealloc        # Preallocate slices
+    - nolintlint      # Proper nolint directives
+    - wsl_v5          # Whitespace linter
+
+    # ===========================================
+    # CODE ORGANIZATION
+    # ===========================================
+    - depguard        # Dependency management
+    - goconst         # Repeated strings as constants
+    - gomoddirectives # Go mod directives
+
+    # ===========================================
+    # PATTERN ENFORCEMENT
+    # ===========================================
+    - forbidigo       # Forbid specific function calls
+
+    # ===========================================
+    # TESTING QUALITY
+    # ===========================================
+    - thelper         # Test helpers must call t.Helper()
+    - tparallel       # Parallel test issues
+    - testifylint     # Testify best practices
+
+    # ===========================================
+    # PERFORMANCE
+    # ===========================================
+    - loggercheck     # Logger key-value pairs
+    - unparam         # Unused parameters
+
   settings:
+    # -----------------------------------------
+    # Complexity Settings
+    # -----------------------------------------
+    gocyclo:
+      min-complexity: 15
+    gocognit:
+      min-complexity: 20
+    funlen:
+      lines: 80
+      statements: 40
+    nestif:
+      min-complexity: 4
+    cyclop:
+      max-complexity: 15
+    maintidx:
+      under: 20
+
+    # -----------------------------------------
+    # Error Handling Settings
+    # -----------------------------------------
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+      exclude-functions:
+        - io.Copy
+        - (io.Closer).Close
+        - (net/http.ResponseWriter).Write
+    errorlint:
+      errorf: true
+      errorf-multi: true
+      asserts: true
+      comparison: true
+
+    # -----------------------------------------
+    # Security Settings
+    # -----------------------------------------
+    gosec:
+      excludes:
+        - G104  # Unhandled errors (covered by errcheck)
+        - G304  # File path from variable (needed for SDK)
+      config:
+        global:
+          audit: false
+
+    # -----------------------------------------
+    # Pattern Enforcement (forbidigo)
+    # -----------------------------------------
+    forbidigo:
+      # Global setting to exclude godoc examples from pattern matching
+      exclude-godoc-examples: true
+      analyze-types: true
+      forbid:
+        # Forbid fmt.Print* in non-example code (use structured logging)
+        - pattern: '^fmt\.Print.*$'
+          msg: "Use structured logging via pkg/observability instead of fmt.Print"
+
+        # Forbid panic in library code
+        - pattern: '^panic$'
+          msg: "Do not use panic() in library code - return errors instead"
+
+        # Forbid os.Exit in library code
+        - pattern: '^os\.Exit$'
+          msg: "Do not use os.Exit() in library code - return errors instead"
+
+        # Forbid time.Sleep in non-test code (use context with timeout)
+        - pattern: '^time\.Sleep$'
+          msg: "Avoid time.Sleep - use context with timeout or time.After with select"
+
+        # Forbid ioutil (deprecated)
+        - pattern: '^ioutil\.'
+          msg: "ioutil is deprecated - use io and os packages instead"
+
+        # Forbid log package (use structured logging)
+        - pattern: '^log\.(Print|Fatal|Panic).*$'
+          msg: "Use structured logging via pkg/observability instead of log package"
+
+        # Forbid http.Get/Post without context
+        - pattern: '^http\.(Get|Post|Head)$'
+          msg: "Use http.NewRequestWithContext instead for proper context propagation"
+
+        # Forbid unsafe package
+        - pattern: '^unsafe\.'
+          msg: "Avoid unsafe package in SDK code"
+
+    # -----------------------------------------
+    # Dependency Guard
+    # -----------------------------------------
     depguard:
       rules:
         main:
           deny:
             - pkg: io/ioutil
-              desc: The io/ioutil package has been deprecated, see https://go.dev/doc/go1.16#ioutil
-    gocyclo:
-      min-complexity: 16
+              desc: "Deprecated: Use io and os packages instead (Go 1.16+)"
+            - pkg: github.com/pkg/errors
+              desc: "Use standard errors package with fmt.Errorf and %w"
+            - pkg: log
+              desc: "Use structured logging via pkg/observability"
+
+    # -----------------------------------------
+    # Code Constants
+    # -----------------------------------------
+    goconst:
+      min-len: 3
+      min-occurrences: 3
+
+    # -----------------------------------------
+    # Go Vet
+    # -----------------------------------------
     govet:
-      enable:
-        - shadow
+      enable-all: true
+      disable:
+        - fieldalignment
       settings:
         shadow:
           strict: true
+
+    # -----------------------------------------
+    # Revive Rules (Comprehensive)
+    # -----------------------------------------
     revive:
+      severity: warning
+      enable-all-rules: false
       rules:
+        # Critical - must fix
         - name: import-shadowing
-          severity: warning
-          disabled: false
+          severity: error
+        - name: context-as-argument
+          severity: error
+        - name: context-keys-type
+          severity: error
+        - name: error-return
+          severity: error
+        - name: range-val-in-closure
+          severity: error
+        - name: range-val-address
+          severity: error
+        - name: unreachable-code
+          severity: error
+        - name: struct-tag
+          severity: error
+        - name: constant-logical-expr
+          severity: error
+        - name: redefines-builtin-id
+          severity: error
+        - name: unconditional-recursion
+          severity: error
+        - name: identical-branches
+          severity: error
+        - name: datarace
+          severity: error
+        - name: waitgroup-by-value
+          severity: error
+        - name: atomic
+          severity: error
+        - name: string-of-int
+          severity: error
+
+        # Important - should fix
         - name: empty-block
           severity: warning
-          disabled: false
         - name: empty-lines
           severity: warning
-          disabled: false
         - name: use-any
           severity: warning
-          disabled: false
+        - name: error-strings
+          severity: warning
+        - name: error-naming
+          severity: warning
+        - name: exported
+          severity: warning
+          arguments:
+            - checkPrivateReceivers
+            - sayRepetitiveInsteadOfStutters
+        - name: if-return
+          severity: warning
+        - name: increment-decrement
+          severity: warning
+        - name: var-naming
+          severity: warning
+        - name: var-declaration
+          severity: warning
+        - name: receiver-naming
+          severity: warning
+        - name: range
+          severity: warning
+        - name: indent-error-flow
+          severity: warning
+        - name: superfluous-else
+          severity: warning
+        - name: modifies-parameter
+          severity: warning
+        - name: bool-literal-in-expr
+          severity: warning
+        - name: imports-blocklist
+          severity: error
+        - name: redundant-import-alias
+          severity: warning
+        - name: unnecessary-stmt
+          severity: warning
+        - name: deep-exit
+          severity: warning
+        - name: unused-parameter
+          severity: warning
+        - name: unused-receiver
+          severity: warning
+        - name: unhandled-error
+          severity: warning
+          arguments:
+            - fmt.Printf
+            - fmt.Println
+            - fmt.Fprintf
+        - name: cognitive-complexity
+          severity: warning
+          arguments: [20]
+        - name: early-return
+          severity: warning
+        - name: defer
+          severity: warning
+          arguments:
+            - ["call-chain", "loop"]
+        - name: unexported-naming
+          severity: warning
+        - name: unexported-return
+          severity: warning
+        - name: useless-break
+          severity: warning
+        - name: confusing-results
+          severity: warning
+        - name: modifies-value-receiver
+          severity: warning
+        - name: time-equal
+          severity: warning
+        - name: time-naming
+          severity: warning
+        - name: optimize-operands-order
+          severity: warning
+        - name: use-errors-new
+          severity: warning
+
+    # -----------------------------------------
+    # Whitespace Settings
+    # -----------------------------------------
     wsl_v5:
-      allow-assign-and-call: true
-      allow-assign-and-anything: true
-      allow-multiline-assign: true
       allow-first-in-block: true
-      allow-separated-leading-comment: true
-      allow-trailing-comment: true
-      force-err-cuddling: false
-      enforce-err-cuddling: false
+
+    # -----------------------------------------
+    # Testing Settings
+    # -----------------------------------------
+    testifylint:
+      enable-all: true
+
+  # ===========================================
+  # EXCLUSIONS
+  # ===========================================
   exclusions:
     generated: lax
     rules:
+      # Relax rules for test files
+      - linters:
+          - errcheck
+          - gosec
+          - funlen
+          - gocognit
+          - gocyclo
+          - cyclop
+          - maintidx
+          - dupl
+          - forbidigo
+          - noctx
+          - goconst
+        path: _test\.go
+
+      # Allow complexity in generator
+      - linters:
+          - funlen
+          - gocognit
+          - gocyclo
+          - maintidx
+        path: pkg/generator/
+
+      # Allow complexity in data package
+      - linters:
+          - funlen
+          - gocognit
+        path: pkg/data/
+
+      # Allow fmt.Print and log in examples
+      - linters:
+          - forbidigo
+          - depguard
+        path: examples/
+
+      # Allow fmt.Print in main packages (CLI tools)
+      - linters:
+          - forbidigo
+        path: cmd/
+
+      # Existing exclusions
       - linters:
           - errcheck
         text: Error return value of .((os\.)?std(out|err)\..*|.*Close|.*Flush|os\.Remove(All)?|.*print(f|ln)?|os\.(Un)?Setenv). is not checked
       - linters:
           - revive
-        text: func name will be used as test\.Test.* by other packages, and that stutters; consider calling this
-      - linters:
-          - gosec
-        text: Use of unsafe calls should be audited
-      - linters:
-          - gosec
-        text: Subprocess launch(ed with variable|ing should be audited)
-      - linters:
-          - gosec
-        text: G307
-      - linters:
-          - gosec
-        text: (Expect directory permissions to be 0750 or less|Expect file permissions to be 0600 or less)
-      - linters:
-          - gosec
-        text: Potential file inclusion via variable
-      - linters:
-          - gosec
-        text: G113
-      - linters:
-          - gosec
-        text: G104
-      - linters:
-          - gosec
-        text: "G204: Subprocess launched with a potential tainted input or cmd arguments"
-      - linters:
-          - gosec
-        text: "G306: Expect WriteFile permissions to be 0600 or less"
+        text: func name will be used as test\.Test.* by other packages
       - linters:
           - revive
         text: "package-comments: should have a package comment"
-      - linters:
-          - errcheck
-          - gosec
-        path: _test\.go
       - linters:
           - staticcheck
         text: "ST1000: at least one file in a package should have a package comment"
       - linters:
           - govet
         text: '^shadow: declaration of "(err|ok)" shadows declaration'
+      # Allow utils as package name (common convention for utility packages)
+      - linters:
+          - revive
+        text: "var-naming: avoid meaningless package names"
+        path: pkg/utils/
+
+      # WSL is too noisy
       - linters:
           - wsl_v5
         path: examples/
-      - linters:
-          - wsl_v5
-        text: "unnecessary whitespace \\(err\\)"
-      - linters:
-          - wsl_v5
-        text: "missing whitespace above this line \\(invalid statement above expr\\)"
-      - linters:
-          - wsl_v5
-        text: "missing whitespace above this line \\(no shared variables above type-switch\\)"
-      - linters:
-          - wsl_v5
-        text: "missing whitespace above this line \\(too many lines above return\\)"
-      - linters:
-          - wsl_v5
-        text: "missing whitespace above this line \\(no shared variables above defer\\)"
-      - linters:
-          - wsl_v5
-        text: "missing whitespace above this line \\(too many statements above if\\)"
-      - linters:
-          - wsl_v5
-        text: "missing whitespace above this line \\(invalid statement above assign\\)"
-      - path: (.+)\.go$
-        text: parameter .* always receives
+
     paths:
       - third_party$
       - builtin$
-      - examples$
+      - .repos$
+      - mocks$
+
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
+  new: false
+  fix: false
+
 formatters:
+  enable:
+    - goimports
   exclusions:
     generated: lax
     paths:
       - third_party$
       - builtin$
       - examples$
+      - .repos$

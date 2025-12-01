@@ -10,6 +10,8 @@ import (
 //
 // The goal is to expose a comprehensive configuration surface that
 // downstream workflows can consume when driving generation behavior.
+//
+//nolint:revive // GeneratorConfig name is intentional for clarity and backward compatibility
 type GeneratorConfig struct {
 	// Scale parameters
 	Organizations          int

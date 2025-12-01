@@ -5,21 +5,36 @@ formatting of amounts, dates, times, durations, transactions, and other complex
 data types for display purposes.
 
 const DateFormat = "2006-01-02" ...
-func FormatAmount(amount int64, scale int) string
-func FormatAmountWithOptions(amount int64, scale int, opts ...AmountOption) (string, error)
-func FormatCurrency(amount int64, scale int64, currencyCode string) string
-func FormatCurrencyWithOptions(amount int64, scale int64, currencyCode string, opts ...AmountOption) (string, error)
-func FormatDate(t time.Time) string
-func FormatDateTime(t time.Time) string
-func FormatDateTimeWithOptions(t time.Time, opts ...DateTimeOption) (string, error)
-func FormatDuration(d time.Duration) string
-func FormatDurationWithOptions(d time.Duration, opts ...DurationOption) (string, error)
-func FormatISODate(t time.Time) string
-func FormatISODateTime(t time.Time) string
-func FormatTime(t time.Time) string
-func FormatTransaction(tx *models.Transaction) string
-func FormatTransactionWithOptions(tx *models.Transaction, opts ...TransactionOption) (string, error)
+var FormatAmount = Amount
+var FormatAmountWithOptions = AmountWithOptions
+var FormatCurrency = Currency
+var FormatCurrencyWithOptions = CurrencyWithOptions
+var FormatDate = Date
+var FormatDateTime = DateTime
+var FormatDateTimeWithOptions = DateTimeWithOptions
+var FormatDuration = Duration
+var FormatDurationWithOptions = DurationWithOptions
+var FormatISODate = ISODate
+var FormatISODateTime = ISODateTime
+var FormatTime = Time
+var FormatTransaction = Transaction
+var FormatTransactionWithOptions = TransactionWithOptions
+var NewFormatISO = NewISO
+func Amount(amount int64, scale int) string
+func AmountWithOptions(amount int64, scale int, opts ...AmountOption) (string, error)
+func Currency(amount int64, scale int64, currencyCode string) string
+func CurrencyWithOptions(amount int64, scale int64, currencyCode string, opts ...AmountOption) (string, error)
+func Date(t time.Time) string
+func DateTime(t time.Time) string
+func DateTimeWithOptions(t time.Time, opts ...DateTimeOption) (string, error)
+func Duration(d time.Duration) string
+func DurationWithOptions(d time.Duration, opts ...DurationOption) (string, error)
+func ISODate(t time.Time) string
+func ISODateTime(t time.Time) string
 func ParseISO(s string) (time.Time, error)
+func Time(t time.Time) string
+func Transaction(tx *models.Transaction) string
+func TransactionWithOptions(tx *models.Transaction, opts ...TransactionOption) (string, error)
 type AmountOption func(*AmountOptions) error
     func WithCurrencySymbol(include bool, position string) AmountOption
     func WithDecimalSeparator(sep string) AmountOption
@@ -42,15 +57,17 @@ type DurationOption func(*DurationOptions) error
     func WithShortUnits(useShort bool) DurationOption
 type DurationOptions struct{ ... }
     func DefaultDurationOptions() *DurationOptions
-type FormatISO struct{ ... }
-    func DateOnly() *FormatISO
-    func DateTimeWithMillis() *FormatISO
-    func DefaultISOFormat() *FormatISO
-    func NewFormatISO(opts ...FormatISOOption) (*FormatISO, error)
-type FormatISOOption func(*FormatISO) error
-    func WithIncludeMilliseconds(include bool) FormatISOOption
-    func WithIncludeTime(include bool) FormatISOOption
-    func WithNAOnZero(enabled bool) FormatISOOption
+type FormatISO = ISO
+type FormatISOOption = ISOOption
+type ISO struct{ ... }
+    func DateOnly() *ISO
+    func DateTimeWithMillis() *ISO
+    func DefaultISOFormat() *ISO
+    func NewISO(opts ...ISOOption) (*ISO, error)
+type ISOOption func(*ISO) error
+    func WithIncludeMilliseconds(include bool) ISOOption
+    func WithIncludeTime(include bool) ISOOption
+    func WithNAOnZero(enabled bool) ISOOption
 type TransactionOption func(*TransactionOptions) error
     func WithCustomStatusMapping(mapping map[string]string) TransactionOption
     func WithTransactionID(include bool) TransactionOption

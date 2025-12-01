@@ -144,7 +144,7 @@ func TestMapSlice(t *testing.T) {
 		return SimpleUser{ID: p.ID, Name: p.Name}
 	})
 
-	assert.Equal(t, 2, len(users))
+	assert.Len(t, users, 2)
 	assert.Equal(t, "Alice", users[0].Name)
 }
 
@@ -172,7 +172,7 @@ func TestFilterSlice(t *testing.T) {
 		return p.Age > 25
 	})
 
-	assert.Equal(t, 2, len(filtered))
+	assert.Len(t, filtered, 2)
 	assert.Equal(t, "Bob", filtered[0].Name)
 	assert.Equal(t, "Charlie", filtered[1].Name)
 }
@@ -208,6 +208,7 @@ func TestReduceSlice(t *testing.T) {
 func TestPtrValue(t *testing.T) {
 	// Test with nil pointer
 	var nilPtr *string
+
 	result := PtrValue(nilPtr, "default")
 	assert.Equal(t, "default", result)
 
@@ -232,5 +233,5 @@ func TestToPtr(t *testing.T) {
 	// Test boolean
 	boolPtr := ToPtr(true)
 	assert.NotNil(t, boolPtr)
-	assert.Equal(t, true, *boolPtr)
+	assert.True(t, *boolPtr)
 }

@@ -6,8 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
-	"path"
+	"strings"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
@@ -149,6 +150,14 @@ type AccountsService interface {
 	// The assetCode parameter is the asset code that identifies the external account (e.g., "USD", "BRL").
 	// Returns the balance information for the external account, or an error if the operation fails.
 	GetExternalAccountBalance(ctx context.Context, organizationID, ledgerID, assetCode string) (*models.Balance, error)
+
+	// GetAccountByAliasPath retrieves a specific account by its alias using the dedicated path endpoint.
+	// This uses the path-based endpoint /accounts/alias/{alias} instead of query parameters.
+	// The organizationID and ledgerID parameters specify which organization and ledger the account belongs to.
+	// The alias parameter is the unique alias of the account to retrieve.
+	// Returns the account if found, or an error if the operation fails.
+	// Deprecated: Consider using GetAccountByAlias which provides the same functionality.
+	GetAccountByAliasPath(ctx context.Context, organizationID, ledgerID, alias string) (*models.Account, error)
 }
 
 // accountsEntity implements the AccountsService interface.
@@ -203,7 +212,7 @@ func NewAccountsEntity(client *http.Client, authToken string, baseURLs map[strin
 	httpClient := NewHTTPClient(client, authToken, nil)
 
 	// Check if we're using the debug flag from the environment
-	if debugEnv := os.Getenv("MIDAZ_DEBUG"); debugEnv == "true" {
+	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
 		httpClient.debug = true
 	}
 
@@ -225,9 +234,9 @@ func (e *accountsEntity) ListAccounts(ctx context.Context, organizationID, ledge
 		return nil, errors.NewMissingParameterError(operation, "ledgerID")
 	}
 
-	url := e.buildURL(organizationID, ledgerID, "")
+	endpoint := e.buildURL(organizationID, ledgerID, "")
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -267,9 +276,9 @@ func (e *accountsEntity) GetAccount(ctx context.Context, organizationID, ledgerI
 		return nil, errors.NewMissingParameterError(operation, "id")
 	}
 
-	url := e.buildURL(organizationID, ledgerID, id)
+	endpoint := e.buildURL(organizationID, ledgerID, id)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -286,8 +295,6 @@ func (e *accountsEntity) GetAccount(ctx context.Context, organizationID, ledgerI
 func (e *accountsEntity) GetAccountByAlias(ctx context.Context, organizationID, ledgerID, alias string) (*models.Account, error) {
 	const operation = "GetAccountByAlias"
 
-	const resource = "account"
-
 	if organizationID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
 	}
@@ -300,9 +307,9 @@ func (e *accountsEntity) GetAccountByAlias(ctx context.Context, organizationID, 
 		return nil, errors.NewMissingParameterError(operation, "alias")
 	}
 
-	url := fmt.Sprintf("%s?alias=%s", e.buildURL(organizationID, ledgerID, ""), alias)
+	endpoint := fmt.Sprintf("%s?alias=%s", e.buildURL(organizationID, ledgerID, ""), alias)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -313,7 +320,7 @@ func (e *accountsEntity) GetAccountByAlias(ctx context.Context, organizationID, 
 	}
 
 	if len(accounts.Items) == 0 {
-		return nil, errors.NewNotFoundError(operation, resource, alias, nil)
+		return nil, errors.NewNotFoundError(operation, "account", alias, nil)
 	}
 
 	return &accounts.Items[0], nil
@@ -335,14 +342,14 @@ func (e *accountsEntity) CreateAccount(ctx context.Context, organizationID, ledg
 		return nil, errors.NewMissingParameterError(operation, "input")
 	}
 
-	url := e.buildURL(organizationID, ledgerID, "")
+	endpoint := e.buildURL(organizationID, ledgerID, "")
 
 	body, err := json.Marshal(input)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -375,14 +382,14 @@ func (e *accountsEntity) UpdateAccount(ctx context.Context, organizationID, ledg
 		return nil, errors.NewMissingParameterError(operation, "input")
 	}
 
-	url := e.buildURL(organizationID, ledgerID, id)
+	endpoint := e.buildURL(organizationID, ledgerID, id)
 
 	body, err := json.Marshal(input)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, endpoint, bytes.NewReader(body))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -411,18 +418,14 @@ func (e *accountsEntity) DeleteAccount(ctx context.Context, organizationID, ledg
 		return errors.NewMissingParameterError(operation, "id")
 	}
 
-	url := e.buildURL(organizationID, ledgerID, id)
+	endpoint := e.buildURL(organizationID, ledgerID, id)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, endpoint, nil)
 	if err != nil {
 		return errors.NewInternalError(operation, err)
 	}
 
-	if err := e.httpClient.sendRequest(req, nil); err != nil {
-		return err
-	}
-
-	return nil
+	return e.httpClient.sendRequest(req, nil)
 }
 
 // GetBalance gets an account's balance.
@@ -451,13 +454,20 @@ func (e *accountsEntity) GetBalance(ctx context.Context, organizationID, ledgerI
 		return nil, errors.NewValidationError(operation, "account has no alias", nil)
 	}
 
-	// Build URL with balance endpoint using alias instead of ID
+	// Build URL with balance endpoint using alias instead of ID with proper URL encoding
 	base := e.baseURLs["transaction"]
-	urlPath := path.Join("v1", "organizations", organizationID, "ledgers", ledgerID, "balances")
+	// Remove trailing slash if present
+	base = strings.TrimSuffix(base, "/")
 
-	url := fmt.Sprintf("%s/%s?account=%s", base, urlPath, *account.Alias)
+	// Properly encode URL path parameters and query parameters
+	escapedOrgID := url.PathEscape(organizationID)
+	escapedLedgerID := url.PathEscape(ledgerID)
+	escapedAccountAlias := url.QueryEscape(*account.Alias)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	accountsURL := fmt.Sprintf("%s/organizations/%s/ledgers/%s/balances?account=%s",
+		base, escapedOrgID, escapedLedgerID, escapedAccountAlias)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, accountsURL, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -482,9 +492,9 @@ func (e *accountsEntity) GetAccountsMetricsCount(ctx context.Context, organizati
 		return nil, errors.NewMissingParameterError(operation, "ledgerID")
 	}
 
-	url := e.buildMetricsURL(organizationID, ledgerID)
+	endpoint := e.buildMetricsURL(organizationID, ledgerID)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -530,9 +540,9 @@ func (e *accountsEntity) GetExternalAccount(ctx context.Context, organizationID,
 		return nil, errors.NewMissingParameterError(operation, "assetCode")
 	}
 
-	url := e.buildExternalAccountURL(organizationID, ledgerID, assetCode)
+	endpoint := e.buildExternalAccountURL(organizationID, ledgerID, assetCode)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -561,9 +571,9 @@ func (e *accountsEntity) GetExternalAccountBalance(ctx context.Context, organiza
 		return nil, errors.NewMissingParameterError(operation, "assetCode")
 	}
 
-	url := e.buildExternalAccountBalanceURL(organizationID, ledgerID, assetCode)
+	endpoint := e.buildExternalAccountBalanceURL(organizationID, ledgerID, assetCode)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -586,4 +596,41 @@ func (e *accountsEntity) buildExternalAccountURL(organizationID, ledgerID, asset
 func (e *accountsEntity) buildExternalAccountBalanceURL(organizationID, ledgerID, assetCode string) string {
 	baseURL := e.baseURLs["onboarding"]
 	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/external/%s/balances", baseURL, organizationID, ledgerID, assetCode)
+}
+
+// GetAccountByAliasPath retrieves a specific account by its alias using the dedicated path endpoint.
+func (e *accountsEntity) GetAccountByAliasPath(ctx context.Context, organizationID, ledgerID, alias string) (*models.Account, error) {
+	const operation = "GetAccountByAliasPath"
+
+	if organizationID == "" {
+		return nil, errors.NewMissingParameterError(operation, "organizationID")
+	}
+
+	if ledgerID == "" {
+		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+	}
+
+	if alias == "" {
+		return nil, errors.NewMissingParameterError(operation, "alias")
+	}
+
+	endpoint := e.buildAliasURL(organizationID, ledgerID, alias)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	var account models.Account
+	if err := e.httpClient.sendRequest(req, &account); err != nil {
+		return nil, err
+	}
+
+	return &account, nil
+}
+
+// buildAliasURL builds the URL for account alias path endpoint.
+func (e *accountsEntity) buildAliasURL(organizationID, ledgerID, alias string) string {
+	baseURL := e.baseURLs["onboarding"]
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/alias/%s", baseURL, organizationID, ledgerID, url.PathEscape(alias))
 }

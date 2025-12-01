@@ -28,24 +28,34 @@ func main() {
 	// For demonstration purposes only - in a real application, you would
 	// use just one of these configuration approaches
 	// Example 1: Basic configuration with functional options
-	basicConfiguration()
+	if err := basicConfiguration(); err != nil {
+		log.Fatalf("Basic configuration failed: %v", err)
+	}
 
 	// Example 2: Environment-based configuration
-	environmentBasedConfiguration()
+	if err := environmentBasedConfiguration(); err != nil {
+		log.Fatalf("Environment-based configuration failed: %v", err)
+	}
 
 	// Example 3: Configuration using environment variables
-	configurationFromEnvironment()
+	if err := configurationFromEnvironment(); err != nil {
+		log.Fatalf("Configuration from environment failed: %v", err)
+	}
 
 	// Example 4: Advanced configuration with custom HTTP settings
-	advancedHttpConfiguration()
+	if err := advancedHTTPConfiguration(); err != nil {
+		log.Fatalf("Advanced HTTP configuration failed: %v", err)
+	}
 
 	// Example 5: Comprehensive configuration using Config package
-	comprehensiveConfiguration()
+	if err := comprehensiveConfiguration(); err != nil {
+		log.Fatalf("Comprehensive configuration failed: %v", err)
+	}
 }
 
 // basicConfiguration demonstrates the simplest way to configure the client
 // with just the essential options.
-func basicConfiguration() {
+func basicConfiguration() error {
 	fmt.Println("Example 1: Basic Configuration")
 	fmt.Println("-----------------------------")
 
@@ -54,7 +64,7 @@ func basicConfiguration() {
 		client.UseAllAPIs(),
 	)
 	if err != nil {
-		log.Fatalf("Failed to create client: %v", err)
+		return fmt.Errorf("failed to create client: %w", err)
 	}
 
 	// In a real application, you would use the client here
@@ -69,11 +79,13 @@ func basicConfiguration() {
 	fmt.Printf("Using onboarding URL: %s\n", c.GetConfig().ServiceURLs[config.ServiceOnboarding])
 	fmt.Printf("Using transaction URL: %s\n", c.GetConfig().ServiceURLs[config.ServiceTransaction])
 	fmt.Println()
+
+	return nil
 }
 
 // environmentBasedConfiguration demonstrates how to configure the client
 // for different deployment environments.
-func environmentBasedConfiguration() {
+func environmentBasedConfiguration() error {
 	fmt.Println("Example 2: Environment-Based Configuration")
 	fmt.Println("----------------------------------------")
 
@@ -83,7 +95,7 @@ func environmentBasedConfiguration() {
 		client.UseAllAPIs(),
 	)
 	if err != nil {
-		log.Fatalf("Failed to create local client: %v", err)
+		return fmt.Errorf("failed to create local client: %w", err)
 	}
 
 	// Staging/Development environment
@@ -92,7 +104,7 @@ func environmentBasedConfiguration() {
 		client.UseAllAPIs(),
 	)
 	if err != nil {
-		log.Fatalf("Failed to create staging client: %v", err)
+		return fmt.Errorf("failed to create staging client: %w", err)
 	}
 
 	// Production environment
@@ -101,7 +113,7 @@ func environmentBasedConfiguration() {
 		client.UseAllAPIs(),
 	)
 	if err != nil {
-		log.Fatalf("Failed to create production client: %v", err)
+		return fmt.Errorf("failed to create production client: %w", err)
 	}
 
 	// Display the different URLs for each environment
@@ -117,11 +129,13 @@ func environmentBasedConfiguration() {
 	fmt.Printf("  Onboarding: %s\n", productionClient.GetConfig().ServiceURLs[config.ServiceOnboarding])
 	fmt.Printf("  Transaction: %s\n", productionClient.GetConfig().ServiceURLs[config.ServiceTransaction])
 	fmt.Println()
+
+	return nil
 }
 
 // configurationFromEnvironment demonstrates how to load configuration
 // from environment variables.
-func configurationFromEnvironment() {
+func configurationFromEnvironment() error {
 	fmt.Println("Example 3: Configuration from Environment Variables")
 	fmt.Println("------------------------------------------------")
 
@@ -149,7 +163,7 @@ func configurationFromEnvironment() {
 		client.UseAllAPIs(),
 	)
 	if err != nil {
-		log.Fatalf("Failed to create client: %v", err)
+		return fmt.Errorf("failed to create client: %w", err)
 	}
 
 	// Display the configuration loaded from environment variables
@@ -163,16 +177,29 @@ func configurationFromEnvironment() {
 	fmt.Println()
 
 	// Clean up environment variables after demonstration
-	// Note: Intentionally ignoring errors as cleanup is best-effort in demo
-	_ = os.Unsetenv("PLUGIN_AUTH_ENABLED")
-	_ = os.Unsetenv("PLUGIN_AUTH_ADDRESS")
-	_ = os.Unsetenv("MIDAZ_ENVIRONMENT")
-	_ = os.Unsetenv("MIDAZ_DEBUG")
+	// Errors from Unsetenv are logged for visibility but don't stop the demo
+	if err := os.Unsetenv("MIDAZ_CLIENT_ID"); err != nil {
+		fmt.Printf("Warning: failed to unset MIDAZ_CLIENT_ID: %v\n", err)
+	}
+
+	if err := os.Unsetenv("MIDAZ_CLIENT_SECRET"); err != nil {
+		fmt.Printf("Warning: failed to unset MIDAZ_CLIENT_SECRET: %v\n", err)
+	}
+
+	if err := os.Unsetenv("MIDAZ_ENVIRONMENT"); err != nil {
+		fmt.Printf("Warning: failed to unset MIDAZ_ENVIRONMENT: %v\n", err)
+	}
+
+	if err := os.Unsetenv("MIDAZ_DEBUG"); err != nil {
+		fmt.Printf("Warning: failed to unset MIDAZ_DEBUG: %v\n", err)
+	}
+
+	return nil
 }
 
-// advancedHttpConfiguration demonstrates how to configure the client
+// advancedHTTPConfiguration demonstrates how to configure the client
 // with custom HTTP settings.
-func advancedHttpConfiguration() {
+func advancedHTTPConfiguration() error {
 	fmt.Println("Example 4: Advanced HTTP Configuration")
 	fmt.Println("------------------------------------")
 
@@ -197,7 +224,7 @@ func advancedHttpConfiguration() {
 		client.UseAllAPIs(),
 	)
 	if err != nil {
-		log.Fatalf("Failed to create client: %v", err)
+		return fmt.Errorf("failed to create client: %w", err)
 	}
 
 	// Display the HTTP client settings
@@ -213,11 +240,13 @@ func advancedHttpConfiguration() {
 	_ = ctx // Using ctx to avoid unused variable warning
 
 	fmt.Println()
+
+	return nil
 }
 
 // comprehensiveConfiguration demonstrates how to use the Config package
 // directly for advanced configuration scenarios.
-func comprehensiveConfiguration() {
+func comprehensiveConfiguration() error {
 	fmt.Println("Example 5: Comprehensive Configuration Using Config Package")
 	fmt.Println("-------------------------------------------------------")
 
@@ -231,7 +260,7 @@ func comprehensiveConfiguration() {
 		config.WithIdempotency(true),
 	)
 	if err != nil {
-		log.Fatalf("Failed to create config: %v", err)
+		return fmt.Errorf("failed to create config: %w", err)
 	}
 
 	// Use the config in the client
@@ -240,7 +269,7 @@ func comprehensiveConfiguration() {
 		client.UseAllAPIs(),
 	)
 	if err != nil {
-		log.Fatalf("Failed to create client: %v", err)
+		return fmt.Errorf("failed to create client: %w", err)
 	}
 
 	// Display the comprehensive configuration settings
@@ -257,4 +286,6 @@ func comprehensiveConfiguration() {
 	fmt.Printf("Onboarding URL: %s\n", c.GetConfig().ServiceURLs[config.ServiceOnboarding])
 	fmt.Printf("Transaction URL: %s\n", c.GetConfig().ServiceURLs[config.ServiceTransaction])
 	fmt.Println()
+
+	return nil
 }

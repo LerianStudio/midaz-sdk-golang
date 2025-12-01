@@ -2,7 +2,7 @@
 package models
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
@@ -45,11 +45,11 @@ func (input *CreatePortfolioInput) WithMetadata(metadata map[string]any) *Create
 // Validate validates the CreatePortfolioInput fields.
 func (input *CreatePortfolioInput) Validate() error {
 	if input.Name == "" {
-		return fmt.Errorf("name is required")
+		return errors.New("name is required")
 	}
 
 	if input.EntityID == "" {
-		return fmt.Errorf("entityID is required")
+		return errors.New("entityID is required")
 	}
 
 	return nil
@@ -81,7 +81,7 @@ func (input *UpdatePortfolioInput) WithMetadata(metadata map[string]any) *Update
 }
 
 // Validate validates the UpdatePortfolioInput fields.
-func (input *UpdatePortfolioInput) Validate() error {
+func (*UpdatePortfolioInput) Validate() error {
 	// For update operations, most fields are optional
 	return nil
 }

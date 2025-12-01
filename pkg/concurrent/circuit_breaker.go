@@ -3,11 +3,11 @@ package concurrent
 import (
 	"context"
 	"errors"
-	"log"
 	"sync"
 	"time"
 )
 
+// ErrCircuitOpen is returned when the circuit breaker is in open state
 var ErrCircuitOpen = errors.New("circuit breaker open")
 
 type state int
@@ -17,6 +17,12 @@ const (
 	open
 	halfOpen
 )
+
+// CBLogger is a minimal interface for circuit breaker logging.
+// Compatible with observability.Logger and standard log.Logger via Printf.
+type CBLogger interface {
+	Printf(format string, v ...any)
+}
 
 // CircuitBreaker is a simple circuit breaker implementation to protect
 // downstream services from cascading failures.
@@ -30,23 +36,28 @@ type CircuitBreaker struct {
 	successThreshold int
 	openTimeout      time.Duration
 	name             string
-	logger           *log.Logger
+	logger           CBLogger
 }
 
+// Default circuit breaker configuration values.
+const (
+	DefaultFailureThreshold = 5
+	DefaultSuccessThreshold = 2
+	DefaultOpenTimeout      = 5 * time.Second
+)
+
+// NewCircuitBreaker creates a new circuit breaker with the given configuration
 func NewCircuitBreaker(failureThreshold, successThreshold int, openTimeout time.Duration) *CircuitBreaker {
 	if failureThreshold <= 0 {
-		log.Printf("INFO: Circuit breaker failureThreshold not set or invalid, using default: 5")
-		failureThreshold = 5
+		failureThreshold = DefaultFailureThreshold
 	}
 
 	if successThreshold <= 0 {
-		log.Printf("INFO: Circuit breaker successThreshold not set or invalid, using default: 2")
-		successThreshold = 2
+		successThreshold = DefaultSuccessThreshold
 	}
 
 	if openTimeout <= 0 {
-		log.Printf("INFO: Circuit breaker openTimeout not set or invalid, using default: 5s")
-		openTimeout = 5 * time.Second
+		openTimeout = DefaultOpenTimeout
 	}
 
 	return &CircuitBreaker{
@@ -66,13 +77,14 @@ func NewCircuitBreakerNamed(name string, failureThreshold, successThreshold int,
 }
 
 // WithLogger attaches a logger for state transition messages.
-func (cb *CircuitBreaker) WithLogger(l *log.Logger) *CircuitBreaker {
+// Accepts any logger implementing Printf(format string, v ...any).
+func (cb *CircuitBreaker) WithLogger(l CBLogger) *CircuitBreaker {
 	cb.logger = l
 	return cb
 }
 
 // Execute runs fn under circuit breaker control.
-func (cb *CircuitBreaker) Execute(ctx context.Context, fn func() error) error {
+func (cb *CircuitBreaker) Execute(_ context.Context, fn func() error) error {
 	if !cb.canProceed() {
 		return ErrCircuitOpen
 	}

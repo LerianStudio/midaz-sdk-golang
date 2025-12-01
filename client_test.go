@@ -13,12 +13,13 @@ import (
 // createTestConfig creates a test config with sensible defaults
 func createTestConfig() *config.Config {
 	// Set environment variable to skip auth check in tests
-	os.Setenv("MIDAZ_SKIP_AUTH_CHECK", "true")
+	_ = os.Setenv("MIDAZ_SKIP_AUTH_CHECK", "true")
 
 	cfg, _ := config.NewConfig(
 		config.WithAccessManager(auth.AccessManager{Enabled: false, Address: ""}),
 		config.WithEnvironment(config.EnvironmentLocal),
 	)
+
 	return cfg
 }
 
@@ -62,7 +63,7 @@ func TestNewClient(t *testing.T) {
 	}
 
 	// Check that all options were applied
-	if client.config.AccessManager.Enabled != false {
+	if client.config.AccessManager.Enabled {
 		t.Errorf("Expected AccessManager.Enabled to be false, got true")
 	}
 

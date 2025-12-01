@@ -28,6 +28,7 @@ func newMockFetcher[T any](pages [][]T, totalItems int) *mockFetcher[T] {
 func (m *mockFetcher[T]) withError(err error, onPage int) *mockFetcher[T] {
 	m.err = err
 	m.errOnPage = onPage
+
 	return m
 }
 
@@ -36,7 +37,7 @@ func (m *mockFetcher[T]) withDelay(delay time.Duration) *mockFetcher[T] {
 	return m
 }
 
-func (m *mockFetcher[T]) fetch(ctx context.Context, options PageOptions) (*PageResult[T], error) {
+func (m *mockFetcher[T]) fetch(ctx context.Context, _ PageOptions) (*PageResult[T], error) {
 	// Simulate delay if configured
 	if m.delay > 0 {
 		select {
@@ -72,6 +73,7 @@ func (m *mockFetcher[T]) fetch(ctx context.Context, options PageOptions) (*PageR
 	if hasMore {
 		nextCursor = "page-" + strconv.Itoa(pageIndex+1)
 	}
+
 	if pageIndex > 0 {
 		prevCursor = "page-" + strconv.Itoa(pageIndex-1)
 	}
@@ -86,6 +88,7 @@ func (m *mockFetcher[T]) fetch(ctx context.Context, options PageOptions) (*PageR
 	}, nil
 }
 
+//nolint:revive // cognitive-complexity: table-driven test pattern
 func TestPaginator(t *testing.T) {
 	// Create test data
 	pages := [][]string{
@@ -100,6 +103,7 @@ func TestPaginator(t *testing.T) {
 
 	t.Run("Basic pagination", func(t *testing.T) {
 		ctx := context.Background()
+
 		paginator, err := NewPaginator(
 			mockFetcher.fetch,
 			WithOperationName("TestOperation"),
@@ -156,7 +160,7 @@ func TestPaginator(t *testing.T) {
 			t.Error("Expected second page to fail")
 		}
 
-		if paginator.Err() != expectedErr {
+		if !errors.Is(paginator.Err(), expectedErr) {
 			t.Errorf("Expected error %v, got %v", expectedErr, paginator.Err())
 		}
 	})
@@ -215,7 +219,7 @@ func TestPaginator(t *testing.T) {
 			t.Error("Expected pagination to fail after context cancellation")
 		}
 
-		if paginator.Err() == nil || paginator.Err() != context.Canceled {
+		if paginator.Err() == nil || !errors.Is(paginator.Err(), context.Canceled) {
 			t.Errorf("Expected context.Canceled error, got %v", paginator.Err())
 		}
 	})
@@ -234,6 +238,7 @@ func TestCollectAll(t *testing.T) {
 	mockFetcher := newMockFetcher(pages, totalItems)
 
 	ctx := context.Background()
+
 	allItems, err := CollectAll(
 		ctx,
 		"TestOperation",

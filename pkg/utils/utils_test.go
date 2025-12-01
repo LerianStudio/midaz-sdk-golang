@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewUUID(t *testing.T) {
@@ -16,7 +17,7 @@ func TestNewUUID(t *testing.T) {
 
 	// Verify it's a valid UUID format
 	_, err := uuid.Parse(id)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Verify it's a version 4 UUID (random)
 	parsedUUID, _ := uuid.Parse(id)
@@ -181,9 +182,9 @@ func TestValidateMetadata(t *testing.T) {
 			err := ValidateMetadata(tt.metadata)
 
 			if tt.expectErr {
-				assert.Error(t, err, "Expected validation error for metadata: %v", tt.metadata)
+				require.Error(t, err, "Expected validation error for metadata: %v", tt.metadata)
 			} else {
-				assert.NoError(t, err, "Expected no validation error for metadata: %v", tt.metadata)
+				require.NoError(t, err, "Expected no validation error for metadata: %v", tt.metadata)
 			}
 		})
 	}
@@ -195,6 +196,7 @@ func TestValidateMetadataWithExtremeValues(t *testing.T) {
 	for i := range longKey {
 		longKey = string(append([]byte(longKey)[:i], 'a'))
 	}
+
 	longKeyMetadata := map[string]any{
 		longKey: "value",
 	}
@@ -204,20 +206,21 @@ func TestValidateMetadataWithExtremeValues(t *testing.T) {
 	for i := range longValue {
 		longValue = string(append([]byte(longValue)[:i], 'a'))
 	}
+
 	longValueMetadata := map[string]any{
 		"key": longValue,
 	}
 
 	// These tests depend on the actual validation implementation
 	// We're testing that the function doesn't panic and returns some result
-	t.Run("very long key", func(t *testing.T) {
+	t.Run("very long key", func(_ *testing.T) {
 		err := ValidateMetadata(longKeyMetadata)
 		// Don't assert on the error result since validation rules may vary
 		// Just ensure it doesn't panic
 		_ = err
 	})
 
-	t.Run("very long value", func(t *testing.T) {
+	t.Run("very long value", func(_ *testing.T) {
 		err := ValidateMetadata(longValueMetadata)
 		// Don't assert on the error result since validation rules may vary
 		// Just ensure it doesn't panic
@@ -285,7 +288,7 @@ func TestUtilsIntegration(t *testing.T) {
 
 	// Validate metadata
 	err := ValidateMetadata(metadata)
-	assert.NoError(t, err, "Metadata with UUID should be valid")
+	require.NoError(t, err, "Metadata with UUID should be valid")
 }
 
 // Benchmark tests to ensure performance is reasonable
@@ -321,6 +324,6 @@ func BenchmarkValidateMetadata(b *testing.B) {
 	}
 
 	for i := 0; i < b.N; i++ {
-		ValidateMetadata(metadata)
+		_ = ValidateMetadata(metadata)
 	}
 }

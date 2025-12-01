@@ -9,6 +9,7 @@
 package accounts
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -302,7 +303,7 @@ func GetAccountBalanceSummary(account *Account, balance *Balance) (AccountBalanc
 
 	// Get account information
 	if account == nil {
-		return summary, fmt.Errorf("account cannot be nil")
+		return summary, errors.New("account cannot be nil")
 	}
 
 	summary.AccountID = account.ID

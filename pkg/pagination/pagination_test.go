@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func TestPaginationObserver(t *testing.T) {
+func TestPaginationObserver(_ *testing.T) {
 	// Create a new observer
 	observer := NewObserver()
 

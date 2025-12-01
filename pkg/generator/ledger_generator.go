@@ -2,6 +2,7 @@ package generator
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"time"
@@ -9,7 +10,7 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/concurrent"
-	data "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/stats"
@@ -35,13 +36,14 @@ func NewLedgerGenerator(e *entities.Entity, obs observability.Provider, defaultO
 	return &ledgerGenerator{e: e, obs: obs, defaultOrg: defaultOrg, mc: mc}
 }
 
+// Generate creates a single ledger from the provided template.
 func (g *ledgerGenerator) Generate(ctx context.Context, orgID string, template data.LedgerTemplate) (*models.Ledger, error) {
 	if g.e == nil || g.e.Ledgers == nil {
-		return nil, fmt.Errorf("entity ledgers service not initialized")
+		return nil, errors.New("entity ledgers service not initialized")
 	}
 
 	if orgID == "" {
-		return nil, fmt.Errorf("organization id is required")
+		return nil, errors.New("organization id is required")
 	}
 
 	input := models.NewCreateLedgerInput(template.Name).
@@ -71,6 +73,7 @@ func (g *ledgerGenerator) Generate(ctx context.Context, orgID string, template d
 	return out, nil
 }
 
+// GenerateForOrg creates multiple ledgers for the specified organization.
 func (g *ledgerGenerator) GenerateForOrg(ctx context.Context, orgID string, count int) ([]*models.Ledger, error) {
 	if count <= 0 {
 		return []*models.Ledger{}, nil
@@ -144,9 +147,10 @@ func (g *ledgerGenerator) GenerateForOrg(ctx context.Context, orgID string, coun
 	return out, nil
 }
 
+// ListWithPagination retrieves ledgers with pagination support.
 func (g *ledgerGenerator) ListWithPagination(ctx context.Context, opts *models.ListOptions) (*models.ListResponse[models.Ledger], error) {
 	if g.defaultOrg == "" {
-		return nil, fmt.Errorf("default organization id not configured for listing")
+		return nil, errors.New("default organization id not configured for listing")
 	}
 
 	var out *models.ListResponse[models.Ledger]

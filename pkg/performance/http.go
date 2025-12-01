@@ -373,56 +373,68 @@ func OptimizeHTTPClient(client *http.Client, opts ...TransportOption) (*http.Cli
 		return NewClient()
 	}
 
-	// Create config with provided options
 	config, err := NewTransportConfig(opts...)
 	if err != nil {
 		return nil, err
 	}
 
-	// If the client has a custom transport, optimize it
+	optimizeClientTransport(client, config)
+	setDefaultClientTimeout(client)
+
+	return client, nil
+}
+
+func optimizeClientTransport(client *http.Client, config *TransportConfig) {
 	if transport, ok := client.Transport.(*http.Transport); ok {
-		// Apply our optimized settings while preserving any custom settings
-		// Only set values that are not already set
-		if transport.MaxIdleConns == 0 {
-			transport.MaxIdleConns = config.MaxIdleConns
-		}
-
-		if transport.MaxIdleConnsPerHost == 0 {
-			transport.MaxIdleConnsPerHost = config.MaxIdleConnsPerHost
-		}
-
-		if transport.MaxConnsPerHost == 0 {
-			transport.MaxConnsPerHost = config.MaxConnsPerHost
-		}
-
-		if transport.IdleConnTimeout == 0 {
-			transport.IdleConnTimeout = config.IdleConnTimeout
-		}
-
-		if transport.TLSHandshakeTimeout == 0 {
-			transport.TLSHandshakeTimeout = config.TLSHandshakeTimeout
-		}
-
-		if transport.ResponseHeaderTimeout == 0 {
-			transport.ResponseHeaderTimeout = config.ResponseHeaderTimeout
-		}
-
-		if transport.ExpectContinueTimeout == 0 {
-			transport.ExpectContinueTimeout = config.ExpectContinueTimeout
-		}
-
-		if !transport.ForceAttemptHTTP2 {
-			transport.ForceAttemptHTTP2 = true
-		}
+		applyTransportDefaults(transport, config)
 	} else if client.Transport == nil {
-		// If client has no transport, create one
 		client.Transport = newTransportWithConfig(config)
 	}
+}
 
-	// Set timeout if not set
+func applyTransportDefaults(transport *http.Transport, config *TransportConfig) {
+	applyConnectionPoolDefaults(transport, config)
+	applyTimeoutDefaults(transport, config)
+
+	if !transport.ForceAttemptHTTP2 {
+		transport.ForceAttemptHTTP2 = true
+	}
+}
+
+func applyConnectionPoolDefaults(transport *http.Transport, config *TransportConfig) {
+	if transport.MaxIdleConns == 0 {
+		transport.MaxIdleConns = config.MaxIdleConns
+	}
+
+	if transport.MaxIdleConnsPerHost == 0 {
+		transport.MaxIdleConnsPerHost = config.MaxIdleConnsPerHost
+	}
+
+	if transport.MaxConnsPerHost == 0 {
+		transport.MaxConnsPerHost = config.MaxConnsPerHost
+	}
+}
+
+func applyTimeoutDefaults(transport *http.Transport, config *TransportConfig) {
+	if transport.IdleConnTimeout == 0 {
+		transport.IdleConnTimeout = config.IdleConnTimeout
+	}
+
+	if transport.TLSHandshakeTimeout == 0 {
+		transport.TLSHandshakeTimeout = config.TLSHandshakeTimeout
+	}
+
+	if transport.ResponseHeaderTimeout == 0 {
+		transport.ResponseHeaderTimeout = config.ResponseHeaderTimeout
+	}
+
+	if transport.ExpectContinueTimeout == 0 {
+		transport.ExpectContinueTimeout = config.ExpectContinueTimeout
+	}
+}
+
+func setDefaultClientTimeout(client *http.Client) {
 	if client.Timeout == 0 {
 		client.Timeout = DefaultTimeout
 	}
-
-	return client, nil
 }

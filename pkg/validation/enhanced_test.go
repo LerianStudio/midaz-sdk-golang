@@ -73,6 +73,7 @@ func TestEnhancedValidateAccountAlias(t *testing.T) {
 	}
 }
 
+//nolint:revive // cognitive-complexity: table-driven test pattern
 func TestEnhancedValidateDateRange(t *testing.T) {
 	now := time.Now()
 	past := now.AddDate(0, -1, 0)  // One month ago

@@ -2,6 +2,7 @@
 package models
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation/core"
@@ -120,15 +121,15 @@ type CreateAccountInput struct {
 // It returns an error if any of the validation checks fail.
 func (input *CreateAccountInput) Validate() error {
 	if input.Name == "" {
-		return fmt.Errorf("name is required")
+		return errors.New("name is required")
 	}
 
 	if len(input.Name) > 256 {
-		return fmt.Errorf("name must be at most 256 characters")
+		return errors.New("name must be at most 256 characters")
 	}
 
 	if input.AssetCode == "" {
-		return fmt.Errorf("asset code is required")
+		return errors.New("asset code is required")
 	}
 
 	// Validate asset code using the core validation package
@@ -138,7 +139,7 @@ func (input *CreateAccountInput) Validate() error {
 	}
 
 	if input.Type == "" {
-		return fmt.Errorf("account type is required")
+		return errors.New("account type is required")
 	}
 
 	// Validate account type using the core validation package
@@ -310,7 +311,7 @@ type UpdateAccountInput struct {
 // It returns an error if any of the validation checks fail.
 func (input *UpdateAccountInput) Validate() error {
 	if input.Name != "" && len(input.Name) > 256 {
-		return fmt.Errorf("name must be at most 256 characters")
+		return errors.New("name must be at most 256 characters")
 	}
 
 	// Validate status if provided
@@ -465,17 +466,17 @@ type ListAccountInput struct {
 func (input *ListAccountInput) Validate() error {
 	// Validate page number if provided
 	if input.Page < 0 {
-		return fmt.Errorf("page number cannot be negative")
+		return errors.New("page number cannot be negative")
 	}
 
 	// Validate per page count if provided
 	if input.PerPage < 0 {
-		return fmt.Errorf("perPage cannot be negative")
+		return errors.New("perPage cannot be negative")
 	}
 
 	// Validate maximum per page to prevent excessive resource usage
 	if input.PerPage > 100 {
-		return fmt.Errorf("perPage cannot exceed 100")
+		return errors.New("perPage cannot exceed 100")
 	}
 
 	return nil

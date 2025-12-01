@@ -4,9 +4,9 @@ package retry
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"time"
 )
@@ -174,9 +174,9 @@ func WithHTTPRetryableHTTPCodes(codes []int) HTTPOption {
 //	    "connection refused",
 //	    "timeout",
 //	}))
-func WithHTTPRetryableNetworkErrors(errors []string) HTTPOption {
+func WithHTTPRetryableNetworkErrors(networkErrors []string) HTTPOption {
 	return func(o *HTTPOptions) error {
-		o.RetryableNetworkErrors = errors
+		o.RetryableNetworkErrors = networkErrors
 		return nil
 	}
 }
@@ -433,7 +433,7 @@ func (r *httpRetryState) cloneRequestWithoutBody(req *http.Request) (*http.Reque
 }
 
 // copyHeaders copies headers from source to destination request.
-func (r *httpRetryState) copyHeaders(src, dst *http.Request) {
+func (*httpRetryState) copyHeaders(src, dst *http.Request) {
 	for key, values := range src.Header {
 		for _, value := range values {
 			dst.Header.Add(key, value)
@@ -449,11 +449,11 @@ func (r *httpRetryState) executeAttempt(req *http.Request, attempt int) (*HTTPRe
 	// Ensure response body is properly closed according to Go HTTP best practices
 	// Use a flag to track if body was consumed by readResponseBody to avoid double closing
 	var bodyConsumed bool
+
 	defer func() {
 		if !bodyConsumed && resp != nil && resp.Body != nil {
-			if closeErr := resp.Body.Close(); closeErr != nil {
-				log.Printf("Warning: Failed to close response body: %v", closeErr)
-			}
+			// Silently close the body - close errors are non-actionable in library code
+			_ = resp.Body.Close()
 		}
 	}()
 
@@ -532,9 +532,8 @@ func (r *httpRetryState) readResponseBody(httpResp *HTTPResponse) error {
 
 	respBody, readErr := io.ReadAll(r.resp.Body)
 
-	if closeErr := r.resp.Body.Close(); closeErr != nil {
-		log.Printf("Warning: Failed to close response body: %v", closeErr)
-	}
+	// Silently close the body - close errors are non-actionable in library code
+	_ = r.resp.Body.Close()
 
 	if readErr != nil {
 		httpResp.Error = readErr
@@ -570,16 +569,21 @@ func (r *httpRetryState) waitForRetry(attempt int) error {
 	})
 	delay = addJitter(delay, r.options.JitterFactor)
 
+	// Use time.NewTimer instead of time.After to allow proper cleanup
+	// and avoid potential timer leaks when context is cancelled
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+
 	select {
 	case <-r.ctx.Done():
 		return fmt.Errorf("operation cancelled during retry: %w", r.ctx.Err())
-	case <-time.After(delay):
+	case <-timer.C:
 		return nil
 	}
 }
 
 // createErrorResponse creates an HTTPResponse for errors.
-func (r *httpRetryState) createErrorResponse(attempt int, err error) *HTTPResponse {
+func (*httpRetryState) createErrorResponse(attempt int, err error) *HTTPResponse {
 	return &HTTPResponse{
 		Error:   err,
 		Attempt: attempt,
@@ -591,7 +595,7 @@ func (r *httpRetryState) createFinalErrorResponse() *HTTPResponse {
 	return &HTTPResponse{
 		Response: r.resp,
 		Body:     r.respBody,
-		Error:    fmt.Errorf("operation failed after %d retries, last status: %d, last error: %v", r.options.MaxRetries, r.lastStatusCode, r.lastErr),
+		Error:    fmt.Errorf("operation failed after %d retries, last status: %d, last error: %w", r.options.MaxRetries, r.lastStatusCode, r.lastErr),
 		Attempt:  r.options.MaxRetries,
 	}
 }
@@ -644,7 +648,7 @@ func isNetworkErrorRetryable(err error, options *HTTPOptions) bool {
 	}
 
 	// Check for context cancellation
-	if err == context.Canceled || err == context.DeadlineExceeded {
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return false
 	}
 

@@ -8,7 +8,7 @@ retries - Feature flags and behavior controls
 
 It uses the functional options pattern for flexible, type-safe configuration.
 
-const DefaultUserAgent = "midaz-go-sdk/1.0.0" ...
+const DefaultTimeout = 60 ...
 type Config struct{ ... }
     func DefaultConfig() *Config
     func NewConfig(options ...Option) (*Config, error)
@@ -17,7 +17,7 @@ type Environment string
     const EnvironmentLocal Environment = "local" ...
 type Option func(*Config) error
     func FromEnvironment() Option
-    func WithAccessManager(AccessManager auth.AccessManager) Option
+    func WithAccessManager(accessManager auth.AccessManager) Option
     func WithBaseURL(baseURL string) Option
     func WithDebug(enable bool) Option
     func WithEnvironment(env Environment) Option

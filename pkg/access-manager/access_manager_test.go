@@ -30,6 +30,7 @@ func (m *mockEntity) InitServices() {
 	m.services = true
 }
 
+//nolint:revive // cognitive-complexity: table-driven test pattern
 func TestWithPluginAuth(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -137,9 +138,9 @@ func TestWithPluginAuth(t *testing.T) {
 
 			// Check the results
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, tt.expectedToken, mockEntity.authToken)
 
 				// If plugin auth is enabled and successful, services should be initialized
@@ -151,6 +152,7 @@ func TestWithPluginAuth(t *testing.T) {
 	}
 }
 
+//nolint:revive // cognitive-complexity: table-driven test pattern
 func TestGetTokenFromPluginAuth(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -264,8 +266,9 @@ func TestGetTokenFromPluginAuth(t *testing.T) {
 
 					// Read and verify the request body
 					var payload map[string]string
+
 					err := json.NewDecoder(r.Body).Decode(&payload)
-					require.NoError(t, err)
+					assert.NoError(t, err)
 
 					assert.Equal(t, "client_credentials", payload["grantType"])
 					assert.Equal(t, tt.pluginAuth.ClientID, payload["clientId"])
@@ -295,10 +298,10 @@ func TestGetTokenFromPluginAuth(t *testing.T) {
 
 			// Check the results
 			if tt.expectError {
-				assert.Error(t, err)
+				require.Error(t, err)
 				assert.Empty(t, token)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 				assert.Equal(t, tt.expectedToken, token)
 			}
 		})

@@ -3,11 +3,12 @@ package concurrent
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	pkgerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
 )
 
@@ -53,12 +54,9 @@ func NewHTTPBatchProcessorWithRetry(client *http.Client, baseURL string, opts ..
 	// Start with default options
 	options := DefaultHTTPBatchOptions()
 
-	// Apply all provided options
+	// Apply all provided options, continuing with defaults on error
 	for _, opt := range opts {
-		if err := opt(options); err != nil {
-			// Log error and continue with defaults for this option
-			fmt.Printf("Error applying batch option: %v\n", err)
-		}
+		_ = opt(options) //nolint:errcheck // option errors are non-fatal, continue with defaults
 	}
 
 	if client == nil {
@@ -166,7 +164,7 @@ func (b *HTTPBatchProcessorWithRetry) executeSingleBatch(ctx context.Context, re
 	// Execute the request with enhanced retry
 	httpResp, err := retry.DoHTTPRequestWithContext(ctx, b.httpClient, req)
 	if err != nil {
-		return nil, errors.NewNetworkError("HTTPBatchRequest", err)
+		return nil, pkgerrors.NewNetworkError("HTTPBatchRequest", err)
 	}
 
 	// Parse and process the response
@@ -174,7 +172,7 @@ func (b *HTTPBatchProcessorWithRetry) executeSingleBatch(ctx context.Context, re
 }
 
 // ensureRequestIDs ensures each request has an ID
-func (b *HTTPBatchProcessorWithRetry) ensureRequestIDs(requests []HTTPBatchRequest) {
+func (*HTTPBatchProcessorWithRetry) ensureRequestIDs(requests []HTTPBatchRequest) {
 	for i := range requests {
 		if requests[i].ID == "" {
 			requests[i].ID = fmt.Sprintf("req_%d", i)
@@ -187,13 +185,13 @@ func (b *HTTPBatchProcessorWithRetry) createHTTPRequest(ctx context.Context, req
 	// Create the request body
 	reqBody, err := b.jsonMarshaler.Marshal(requests)
 	if err != nil {
-		return nil, errors.NewInternalError("HTTPBatchRequest", err)
+		return nil, pkgerrors.NewInternalError("HTTPBatchRequest", err)
 	}
 
 	// Create the HTTP request
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, b.baseURL+"/batch", bytes.NewReader(reqBody))
 	if err != nil {
-		return nil, errors.NewInternalError("HTTPBatchRequest", err)
+		return nil, pkgerrors.NewInternalError("HTTPBatchRequest", err)
 	}
 
 	// Set GetBody function to allow the request to be retried
@@ -221,27 +219,27 @@ func (b *HTTPBatchProcessorWithRetry) setRequestHeaders(req *http.Request) {
 func (b *HTTPBatchProcessorWithRetry) parseAndProcessResponse(httpResp *retry.HTTPResponse) (*HTTPBatchResult, error) {
 	// Check for HTTP errors
 	if httpResp.Error != nil {
-		return nil, errors.NewNetworkError("HTTPBatchRequest", httpResp.Error)
+		return nil, pkgerrors.NewNetworkError("HTTPBatchRequest", httpResp.Error)
 	}
 
 	// Parse the response
 	var responses []HTTPBatchResponse
 	if err := b.jsonMarshaler.Unmarshal(httpResp.Body, &responses); err != nil {
-		return nil, errors.NewInternalError("HTTPBatchRequest", fmt.Errorf("failed to decode batch response: %w", err))
+		return nil, pkgerrors.NewInternalError("HTTPBatchRequest", fmt.Errorf("failed to decode batch response: %w", err))
 	}
 
 	// Create result and check for errors
 	result := &HTTPBatchResult{Responses: responses}
 
 	if b.hasResponseErrors(responses) && !b.options.ContinueOnError {
-		result.Error = errors.NewInternalError("HTTPBatchRequest", fmt.Errorf("one or more batch requests failed"))
+		result.Error = pkgerrors.NewInternalError("HTTPBatchRequest", errors.New("one or more batch requests failed"))
 	}
 
 	return result, result.Error
 }
 
 // hasResponseErrors checks if any responses have errors
-func (b *HTTPBatchProcessorWithRetry) hasResponseErrors(responses []HTTPBatchResponse) bool {
+func (*HTTPBatchProcessorWithRetry) hasResponseErrors(responses []HTTPBatchResponse) bool {
 	for _, resp := range responses {
 		if resp.StatusCode >= 400 || resp.Error != "" {
 			return true
@@ -300,30 +298,45 @@ func (b *HTTPBatchProcessorWithRetry) executeBatches(ctx context.Context, reques
 // ParseResponse parses a batch response for a specific request ID into the target.
 func (b *HTTPBatchProcessorWithRetry) ParseResponse(result *HTTPBatchResult, requestID string, target any) error {
 	if result == nil {
-		return errors.NewInternalError("ParseHTTPBatchResponse", fmt.Errorf("batch result is nil"))
+		return pkgerrors.NewInternalError("ParseHTTPBatchResponse", errors.New("batch result is nil"))
 	}
 
-	// Find the response for the given request ID
-	for _, resp := range result.Responses {
-		if resp.ID == requestID {
-			if resp.Error != "" {
-				return errors.NewInternalError("ParseHTTPBatchResponse", fmt.Errorf("request %s failed: %s", requestID, resp.Error))
-			}
+	resp := b.findResponseByID(result.Responses, requestID)
+	if resp == nil {
+		return pkgerrors.NewInternalError("ParseHTTPBatchResponse", fmt.Errorf("no response found for request %s", requestID))
+	}
 
-			if resp.StatusCode >= 400 {
-				return errors.NewInternalError("ParseHTTPBatchResponse", fmt.Errorf("request %s failed with status %d", requestID, resp.StatusCode))
-			}
+	return b.parseResponseBody(resp, requestID, target)
+}
 
-			// Parse the response body
-			if target != nil && len(resp.Body) > 0 {
-				if err := b.jsonMarshaler.Unmarshal(resp.Body, target); err != nil {
-					return errors.NewInternalError("ParseHTTPBatchResponse", fmt.Errorf("failed to parse response for request %s: %w", requestID, err))
-				}
-			}
-
-			return nil
+// findResponseByID searches for a response with the given request ID.
+func (*HTTPBatchProcessorWithRetry) findResponseByID(responses []HTTPBatchResponse, requestID string) *HTTPBatchResponse {
+	for i := range responses {
+		if responses[i].ID == requestID {
+			return &responses[i]
 		}
 	}
 
-	return errors.NewInternalError("ParseHTTPBatchResponse", fmt.Errorf("no response found for request %s", requestID))
+	return nil
+}
+
+// parseResponseBody parses the response body into the target after validating the response.
+func (b *HTTPBatchProcessorWithRetry) parseResponseBody(resp *HTTPBatchResponse, requestID string, target any) error {
+	if resp.Error != "" {
+		return pkgerrors.NewInternalError("ParseHTTPBatchResponse", fmt.Errorf("request %s failed: %s", requestID, resp.Error))
+	}
+
+	if resp.StatusCode >= 400 {
+		return pkgerrors.NewInternalError("ParseHTTPBatchResponse", fmt.Errorf("request %s failed with status %d", requestID, resp.StatusCode))
+	}
+
+	if target == nil || len(resp.Body) == 0 {
+		return nil
+	}
+
+	if err := b.jsonMarshaler.Unmarshal(resp.Body, target); err != nil {
+		return pkgerrors.NewInternalError("ParseHTTPBatchResponse", fmt.Errorf("failed to parse response for request %s: %w", requestID, err))
+	}
+
+	return nil
 }

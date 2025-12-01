@@ -29,6 +29,16 @@ const (
 	FatalLevel
 )
 
+// reservedLogFields contains field names that cannot be overwritten by user input.
+// This prevents log injection attacks where malicious input could overwrite
+// critical log fields like timestamp, level, or message.
+var reservedLogFields = map[string]bool{
+	"timestamp": true,
+	"level":     true,
+	"message":   true,
+	"caller":    true,
+}
+
 // String returns the string representation of the log level
 func (l LogLevel) String() string {
 	switch l {
@@ -79,9 +89,10 @@ type Logger interface {
 
 // LoggerImpl is the standard implementation of the Logger interface
 type LoggerImpl struct {
-	level  LogLevel
-	output io.Writer
-	fields map[string]any
+	level    LogLevel
+	output   io.Writer
+	fields   map[string]any
+	exitFunc func(int) // Injectable exit function for testing. If nil, Fatal just logs without exiting.
 }
 
 // NewLogger creates a new logger with the specified level and output
@@ -100,10 +111,18 @@ func NewLogger(level LogLevel, output io.Writer, resource *sdkresource.Resource)
 	}
 
 	return &LoggerImpl{
-		level:  level,
-		output: output,
-		fields: fields,
+		level:    level,
+		output:   output,
+		fields:   fields,
+		exitFunc: nil, // Library code should not call os.Exit; callers can set this if needed
 	}
+}
+
+// SetExitFunc sets a custom exit function for applications that need Fatal to terminate.
+// By default, Fatal only logs without exiting (safe for library use).
+// Applications can set this to os.Exit if they want Fatal to terminate the process.
+func (l *LoggerImpl) SetExitFunc(exitFunc func(int)) {
+	l.exitFunc = exitFunc
 }
 
 // log logs a message at the specified level
@@ -131,9 +150,11 @@ func (l *LoggerImpl) log(level LogLevel, msg string) {
 		"caller":    fmt.Sprintf("%s:%d", file, line),
 	}
 
-	// Add fields
+	// Add fields, skipping reserved keys to prevent log injection
 	for k, v := range l.fields {
-		entry[k] = v
+		if !reservedLogFields[k] {
+			entry[k] = v
+		}
 	}
 
 	// Encode as JSON
@@ -151,9 +172,10 @@ func (l *LoggerImpl) log(level LogLevel, msg string) {
 		fmt.Fprintf(os.Stderr, "Failed to write log entry: %v\n", err)
 	}
 
-	// If fatal, exit the program
-	if level == FatalLevel {
-		os.Exit(1)
+	// If fatal and exit function is set, call it to terminate
+	// Library code defaults to nil exitFunc, so Fatal just logs without terminating
+	if level == FatalLevel && l.exitFunc != nil {
+		l.exitFunc(1)
 	}
 }
 
@@ -220,9 +242,10 @@ func (l *LoggerImpl) With(fields map[string]any) Logger {
 	}
 
 	return &LoggerImpl{
-		level:  l.level,
-		output: l.output,
-		fields: newFields,
+		level:    l.level,
+		output:   l.output,
+		fields:   newFields,
+		exitFunc: l.exitFunc,
 	}
 }
 
@@ -256,7 +279,13 @@ func (l *LoggerImpl) WithSpan(span trace.Span) Logger {
 	return l.WithContext(span.SpanContext())
 }
 
-// NoopLogger is a no-op implementation of the Logger interface
+// NoopLogger is a no-op implementation of the Logger interface.
+//
+// IMPORTANT: Unlike LoggerImpl, the Fatal and Fatalf methods on NoopLogger
+// do NOT terminate the program. They are no-ops like all other methods.
+// This is intentional for testing scenarios where you want to suppress
+// all logging output including fatal logs. If you need fatal logs to
+// actually terminate the program, use LoggerImpl instead.
 type NoopLogger struct{}
 
 // NewNoopLogger creates a new no-op logger
@@ -265,46 +294,46 @@ func NewNoopLogger() Logger {
 }
 
 // Debug is a no-op
-func (l *NoopLogger) Debug(args ...any) {}
+func (*NoopLogger) Debug(_ ...any) {}
 
 // Debugf is a no-op
-func (l *NoopLogger) Debugf(format string, args ...any) {}
+func (*NoopLogger) Debugf(_ string, _ ...any) {}
 
 // Info is a no-op
-func (l *NoopLogger) Info(args ...any) {}
+func (*NoopLogger) Info(_ ...any) {}
 
 // Infof is a no-op
-func (l *NoopLogger) Infof(format string, args ...any) {}
+func (*NoopLogger) Infof(_ string, _ ...any) {}
 
 // Warn is a no-op
-func (l *NoopLogger) Warn(args ...any) {}
+func (*NoopLogger) Warn(_ ...any) {}
 
 // Warnf is a no-op
-func (l *NoopLogger) Warnf(format string, args ...any) {}
+func (*NoopLogger) Warnf(_ string, _ ...any) {}
 
 // Error is a no-op
-func (l *NoopLogger) Error(args ...any) {}
+func (*NoopLogger) Error(_ ...any) {}
 
 // Errorf is a no-op
-func (l *NoopLogger) Errorf(format string, args ...any) {}
+func (*NoopLogger) Errorf(_ string, _ ...any) {}
 
 // Fatal is a no-op
-func (l *NoopLogger) Fatal(args ...any) {}
+func (*NoopLogger) Fatal(_ ...any) {}
 
 // Fatalf is a no-op
-func (l *NoopLogger) Fatalf(format string, args ...any) {}
+func (*NoopLogger) Fatalf(_ string, _ ...any) {}
 
 // With returns the same no-op logger
-func (l *NoopLogger) With(fields map[string]any) Logger {
+func (l *NoopLogger) With(_ map[string]any) Logger {
 	return l
 }
 
 // WithContext returns the same no-op logger
-func (l *NoopLogger) WithContext(ctx trace.SpanContext) Logger {
+func (l *NoopLogger) WithContext(_ trace.SpanContext) Logger {
 	return l
 }
 
 // WithSpan returns the same no-op logger
-func (l *NoopLogger) WithSpan(span trace.Span) Logger {
+func (l *NoopLogger) WithSpan(_ trace.Span) Logger {
 	return l
 }

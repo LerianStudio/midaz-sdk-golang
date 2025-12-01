@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"sync"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	pkgerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
 )
 
 // BatchRequest represents a single request in a batch.
@@ -211,7 +212,7 @@ type BatchProcessorOption func(*BatchProcessor) error
 func WithHTTPClient(client *http.Client) BatchProcessorOption {
 	return func(p *BatchProcessor) error {
 		if client == nil {
-			return fmt.Errorf("HTTP client cannot be nil")
+			return errors.New("HTTP client cannot be nil")
 		}
 
 		p.httpClient = client
@@ -224,7 +225,7 @@ func WithHTTPClient(client *http.Client) BatchProcessorOption {
 func WithBaseURL(url string) BatchProcessorOption {
 	return func(p *BatchProcessor) error {
 		if url == "" {
-			return fmt.Errorf("base URL cannot be empty")
+			return errors.New("base URL cannot be empty")
 		}
 
 		p.baseURL = url
@@ -237,7 +238,7 @@ func WithBaseURL(url string) BatchProcessorOption {
 func WithBatchOptions(options *BatchOptions) BatchProcessorOption {
 	return func(p *BatchProcessor) error {
 		if options == nil {
-			return fmt.Errorf("batch options cannot be nil")
+			return errors.New("batch options cannot be nil")
 		}
 
 		p.options = options
@@ -250,7 +251,7 @@ func WithBatchOptions(options *BatchOptions) BatchProcessorOption {
 func WithDefaultHeader(key, value string) BatchProcessorOption {
 	return func(p *BatchProcessor) error {
 		if key == "" {
-			return fmt.Errorf("header key cannot be empty")
+			return errors.New("header key cannot be empty")
 		}
 
 		p.defaultHeaders[key] = value
@@ -263,7 +264,7 @@ func WithDefaultHeader(key, value string) BatchProcessorOption {
 func WithDefaultHeaders(headers map[string]string) BatchProcessorOption {
 	return func(p *BatchProcessor) error {
 		if headers == nil {
-			return fmt.Errorf("headers map cannot be nil")
+			return errors.New("headers map cannot be nil")
 		}
 
 		for k, v := range headers {
@@ -278,7 +279,7 @@ func WithDefaultHeaders(headers map[string]string) BatchProcessorOption {
 func WithJSONPool(pool *JSONPool) BatchProcessorOption {
 	return func(p *BatchProcessor) error {
 		if pool == nil {
-			return fmt.Errorf("JSON pool cannot be nil")
+			return errors.New("JSON pool cannot be nil")
 		}
 
 		p.jsonPool = pool
@@ -290,7 +291,7 @@ func WithJSONPool(pool *JSONPool) BatchProcessorOption {
 // NewBatchProcessor creates a new BatchProcessor with the given options.
 func NewBatchProcessor(baseURL string, opts ...BatchProcessorOption) (*BatchProcessor, error) {
 	if baseURL == "" {
-		return nil, fmt.Errorf("base URL cannot be empty")
+		return nil, errors.New("base URL cannot be empty")
 	}
 
 	// Start with default values
@@ -338,7 +339,9 @@ func NewBatchProcessorWithDefaults(client *http.Client, baseURL string, options 
 		opts = append(opts, WithBatchOptions(options))
 	}
 
-	processor, _ := NewBatchProcessor(baseURL, opts...)
+	// NewBatchProcessor may fail if baseURL is empty, but this function maintains
+	// backward compatibility and returns nil in that case
+	processor, _ := NewBatchProcessor(baseURL, opts...) //nolint:errcheck // backward compat: nil on error
 
 	return processor
 }
@@ -416,7 +419,7 @@ func (b *BatchProcessor) executeSingleBatch(ctx context.Context, requests []Batc
 }
 
 // assignRequestIDs ensures all requests have unique IDs
-func (b *BatchProcessor) assignRequestIDs(requests []BatchRequest) []BatchRequest {
+func (*BatchProcessor) assignRequestIDs(requests []BatchRequest) []BatchRequest {
 	for i := range requests {
 		if requests[i].ID == "" {
 			requests[i].ID = fmt.Sprintf("req_%d", i)
@@ -440,12 +443,12 @@ func (b *BatchProcessor) sendBatchRequest(ctx context.Context, requests []BatchR
 func (b *BatchProcessor) buildHTTPRequest(ctx context.Context, requests []BatchRequest) (*http.Request, error) {
 	reqBody, err := b.jsonPool.Marshal(requests)
 	if err != nil {
-		return nil, errors.NewInternalError("BatchRequest", err)
+		return nil, pkgerrors.NewInternalError("BatchRequest", err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, b.baseURL+"/batch", bytes.NewReader(reqBody))
 	if err != nil {
-		return nil, errors.NewInternalError("BatchRequest", err)
+		return nil, pkgerrors.NewInternalError("BatchRequest", err)
 	}
 
 	b.setRequestHeaders(req)
@@ -484,7 +487,7 @@ func (b *BatchProcessor) executeWithRetry(ctx context.Context, req *http.Request
 	}
 
 	if respErr != nil {
-		return nil, errors.NewNetworkError("BatchRequest", respErr)
+		return nil, pkgerrors.NewNetworkError("BatchRequest", respErr)
 	}
 
 	return resp, nil
@@ -499,7 +502,7 @@ func (b *BatchProcessor) shouldRetry(ctx context.Context, retry int) bool {
 func (b *BatchProcessor) waitForRetry(ctx context.Context) error {
 	select {
 	case <-ctx.Done():
-		return errors.NewCancellationError("BatchRequest", ctx.Err())
+		return pkgerrors.NewCancellationError("BatchRequest", ctx.Err())
 	case <-time.After(b.options.RetryBackoff):
 		return nil
 	}
@@ -526,17 +529,17 @@ func (b *BatchProcessor) handleErrorResponse(resp *http.Response) error {
 	}
 
 	if err := b.jsonPool.NewDecoder(resp.Body).Decode(&errResp); err == nil && errResp.Error != "" {
-		return errors.NewInternalError("BatchRequest", fmt.Errorf("batch request failed: %s", errResp.Error))
+		return pkgerrors.NewInternalError("BatchRequest", fmt.Errorf("batch request failed: %s", errResp.Error))
 	}
 
-	return errors.NewInternalError("BatchRequest", fmt.Errorf("batch request failed with status %d", resp.StatusCode))
+	return pkgerrors.NewInternalError("BatchRequest", fmt.Errorf("batch request failed with status %d", resp.StatusCode))
 }
 
 // parseResponseBody decodes the response body into BatchResponse slice
 func (b *BatchProcessor) parseResponseBody(resp *http.Response) ([]BatchResponse, error) {
 	var responses []BatchResponse
 	if err := b.jsonPool.NewDecoder(resp.Body).Decode(&responses); err != nil {
-		return nil, errors.NewInternalError("BatchRequest", fmt.Errorf("failed to decode batch response: %w", err))
+		return nil, pkgerrors.NewInternalError("BatchRequest", fmt.Errorf("failed to decode batch response: %w", err))
 	}
 
 	return responses, nil
@@ -547,14 +550,14 @@ func (b *BatchProcessor) createBatchResult(responses []BatchResponse) *BatchResu
 	result := &BatchResult{Responses: responses}
 
 	if b.hasResponseErrors(responses) && !b.options.ContinueOnError {
-		result.Error = errors.NewInternalError("BatchRequest", fmt.Errorf("one or more batch requests failed"))
+		result.Error = pkgerrors.NewInternalError("BatchRequest", errors.New("one or more batch requests failed"))
 	}
 
 	return result
 }
 
 // hasResponseErrors checks if any individual responses contain errors
-func (b *BatchProcessor) hasResponseErrors(responses []BatchResponse) bool {
+func (*BatchProcessor) hasResponseErrors(responses []BatchResponse) bool {
 	for _, resp := range responses {
 		if resp.StatusCode >= 400 || resp.Error != "" {
 			return true
@@ -635,30 +638,45 @@ func (b *BatchProcessor) executeBatches(ctx context.Context, requests []BatchReq
 // ParseBatchResponse parses a batch response for a specific request ID into the target.
 func (b *BatchProcessor) ParseBatchResponse(result *BatchResult, requestID string, target any) error {
 	if result == nil {
-		return errors.NewInternalError("ParseBatchResponse", fmt.Errorf("batch result is nil"))
+		return pkgerrors.NewInternalError("ParseBatchResponse", errors.New("batch result is nil"))
 	}
 
-	// Find the response for the given request ID
-	for _, resp := range result.Responses {
-		if resp.ID == requestID {
-			if resp.Error != "" {
-				return errors.NewInternalError("ParseBatchResponse", fmt.Errorf("request %s failed: %s", requestID, resp.Error))
-			}
+	resp := b.findBatchResponseByID(result.Responses, requestID)
+	if resp == nil {
+		return pkgerrors.NewInternalError("ParseBatchResponse", fmt.Errorf("no response found for request %s", requestID))
+	}
 
-			if resp.StatusCode >= 400 {
-				return errors.NewInternalError("ParseBatchResponse", fmt.Errorf("request %s failed with status %d", requestID, resp.StatusCode))
-			}
+	return b.parseBatchResponseItem(resp, requestID, target)
+}
 
-			// Parse the response body
-			if target != nil && len(resp.Body) > 0 {
-				if err := b.jsonPool.Unmarshal(resp.Body, target); err != nil {
-					return errors.NewInternalError("ParseBatchResponse", fmt.Errorf("failed to parse response for request %s: %w", requestID, err))
-				}
-			}
-
-			return nil
+// findBatchResponseByID searches for a response with the given request ID.
+func (*BatchProcessor) findBatchResponseByID(responses []BatchResponse, requestID string) *BatchResponse {
+	for i := range responses {
+		if responses[i].ID == requestID {
+			return &responses[i]
 		}
 	}
 
-	return errors.NewInternalError("ParseBatchResponse", fmt.Errorf("no response found for request %s", requestID))
+	return nil
+}
+
+// parseBatchResponseItem parses a single batch response item into the target after validation.
+func (b *BatchProcessor) parseBatchResponseItem(resp *BatchResponse, requestID string, target any) error {
+	if resp.Error != "" {
+		return pkgerrors.NewInternalError("ParseBatchResponse", fmt.Errorf("request %s failed: %s", requestID, resp.Error))
+	}
+
+	if resp.StatusCode >= 400 {
+		return pkgerrors.NewInternalError("ParseBatchResponse", fmt.Errorf("request %s failed with status %d", requestID, resp.StatusCode))
+	}
+
+	if target == nil || len(resp.Body) == 0 {
+		return nil
+	}
+
+	if err := b.jsonPool.Unmarshal(resp.Body, target); err != nil {
+		return pkgerrors.NewInternalError("ParseBatchResponse", fmt.Errorf("failed to parse response for request %s: %w", requestID, err))
+	}
+
+	return nil
 }

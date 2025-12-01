@@ -1,6 +1,7 @@
 package models
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -301,7 +302,7 @@ type Rate struct {
 func (send *DSLSend) Validate() error {
 	// Validate required fields
 	if send.Asset == "" {
-		return fmt.Errorf("asset is required")
+		return errors.New("asset is required")
 	}
 
 	// Validate asset code
@@ -310,7 +311,7 @@ func (send *DSLSend) Validate() error {
 	}
 
 	if send.Value == "" || send.Value == "0" {
-		return fmt.Errorf("value must be greater than 0")
+		return errors.New("value must be greater than 0")
 	}
 
 	// Validate source
@@ -319,17 +320,13 @@ func (send *DSLSend) Validate() error {
 	}
 
 	// Validate distribute
-	if err := send.validateDistribute(); err != nil {
-		return err
-	}
-
-	return nil
+	return send.validateDistribute()
 }
 
 // validateSource validates the source part of a DSLSend
 func (send *DSLSend) validateSource() error {
 	if send.Source == nil || len(send.Source.From) == 0 {
-		return fmt.Errorf("source.from must contain at least one entry")
+		return errors.New("source.from must contain at least one entry")
 	}
 
 	for i, from := range send.Source.From {
@@ -348,7 +345,7 @@ func (send *DSLSend) validateSource() error {
 // validateDistribute validates the distribute part of a DSLSend
 func (send *DSLSend) validateDistribute() error {
 	if send.Distribute == nil || len(send.Distribute.To) == 0 {
-		return fmt.Errorf("distribute.to must contain at least one entry")
+		return errors.New("distribute.to must contain at least one entry")
 	}
 
 	for i, to := range send.Distribute.To {
@@ -390,7 +387,7 @@ func (send *DSLSend) validateExternalAccount(account string, index int, location
 func (input *TransactionDSLInput) Validate() error {
 	// Validate send
 	if input.Send == nil {
-		return fmt.Errorf("send is required")
+		return errors.New("send is required")
 	}
 
 	// Validate send operation
@@ -400,11 +397,11 @@ func (input *TransactionDSLInput) Validate() error {
 
 	// Validate string length constraints
 	if len(input.ChartOfAccountsGroupName) > 256 {
-		return fmt.Errorf("chartOfAccountsGroupName must be at most 256 characters")
+		return errors.New("chartOfAccountsGroupName must be at most 256 characters")
 	}
 
 	if len(input.Description) > 256 {
-		return fmt.Errorf("description must be at most 256 characters")
+		return errors.New("description must be at most 256 characters")
 	}
 
 	// Validate transaction code
@@ -1001,11 +998,11 @@ type AmountInput struct {
 // It returns an error if any of the validation checks fail.
 func (input *CreateTransactionInput) Validate() error {
 	if input.Amount == "" || input.Amount == "0" {
-		return fmt.Errorf("amount must be greater than zero")
+		return errors.New("amount must be greater than zero")
 	}
 
 	if input.AssetCode == "" {
-		return fmt.Errorf("assetCode is required")
+		return errors.New("assetCode is required")
 	}
 
 	// Validate asset code
@@ -1014,7 +1011,7 @@ func (input *CreateTransactionInput) Validate() error {
 	}
 
 	if len(input.Operations) == 0 && input.Send == nil {
-		return fmt.Errorf("either operations or send must be provided")
+		return errors.New("either operations or send must be provided")
 	}
 
 	// If Operations is provided, validate each operation
@@ -1086,17 +1083,17 @@ func (input *CreateTransactionInput) WithSend(send *SendInput) *CreateTransactio
 func (input *SendInput) Validate() error {
 	// Validate asset code
 	if input.Asset == "" {
-		return fmt.Errorf("asset is required")
+		return errors.New("asset is required")
 	}
 
 	// Validate value
 	if input.Value == "" || input.Value == "0" {
-		return fmt.Errorf("value must be greater than zero")
+		return errors.New("value must be greater than zero")
 	}
 
 	// Validate source
 	if input.Source == nil {
-		return fmt.Errorf("source is required")
+		return errors.New("source is required")
 	}
 
 	if err := input.Source.Validate(); err != nil {
@@ -1105,7 +1102,7 @@ func (input *SendInput) Validate() error {
 
 	// Validate distribute
 	if input.Distribute == nil {
-		return fmt.Errorf("distribute is required")
+		return errors.New("distribute is required")
 	}
 
 	if err := input.Distribute.Validate(); err != nil {
@@ -1120,7 +1117,7 @@ func (input *SendInput) Validate() error {
 func (input *SourceInput) Validate() error {
 	// Validate from
 	if len(input.From) == 0 {
-		return fmt.Errorf("from is required")
+		return errors.New("from is required")
 	}
 
 	// Validate each from
@@ -1138,7 +1135,7 @@ func (input *SourceInput) Validate() error {
 func (input *DistributeInput) Validate() error {
 	// Validate to
 	if len(input.To) == 0 {
-		return fmt.Errorf("to is required")
+		return errors.New("to is required")
 	}
 
 	// Validate each to
@@ -1156,7 +1153,7 @@ func (input *DistributeInput) Validate() error {
 func (input *FromToInput) Validate() error {
 	// Validate account
 	if input.Account == "" {
-		return fmt.Errorf("account is required")
+		return errors.New("account is required")
 	}
 
 	// Validate amount
@@ -1172,12 +1169,12 @@ func (input *FromToInput) Validate() error {
 func (input *AmountInput) Validate() error {
 	// Validate asset
 	if input.Asset == "" {
-		return fmt.Errorf("asset is required")
+		return errors.New("asset is required")
 	}
 
 	// Validate value
 	if input.Value == "" || input.Value == "0" {
-		return fmt.Errorf("value must be greater than zero")
+		return errors.New("value must be greater than zero")
 	}
 
 	return nil
@@ -1437,12 +1434,12 @@ type UpdateTransactionInput struct {
 func (input *UpdateTransactionInput) Validate() error {
 	// Validate description length if provided
 	if input.Description != "" && len(input.Description) > 256 {
-		return fmt.Errorf("description must not exceed 256 characters")
+		return errors.New("description must not exceed 256 characters")
 	}
 
 	// Validate external ID if provided
 	if input.ExternalID != "" && len(input.ExternalID) > 64 {
-		return fmt.Errorf("externalId must not exceed 64 characters")
+		return errors.New("externalId must not exceed 64 characters")
 	}
 
 	// Validate metadata if provided
@@ -1502,4 +1499,246 @@ func (input *UpdateTransactionInput) WithDescription(description string) *Update
 func (input *UpdateTransactionInput) WithExternalID(externalID string) *UpdateTransactionInput {
 	input.ExternalID = externalID
 	return input
+}
+
+// CreateInflowInput represents input for creating an inflow transaction.
+// Inflow transactions have no source - funds flow into the system (e.g., deposits, funding).
+type CreateInflowInput struct {
+	// ChartOfAccountsGroupName for accounting purposes
+	ChartOfAccountsGroupName string `json:"chartOfAccountsGroupName,omitempty"`
+
+	// Description provides a human-readable explanation
+	Description string `json:"description,omitempty"`
+
+	// Code is a transaction reference code
+	Code string `json:"code,omitempty"`
+
+	// Metadata contains custom key-value data
+	Metadata map[string]any `json:"metadata,omitempty"`
+
+	// Route is the transaction route identifier
+	Route string `json:"route,omitempty"`
+
+	// Send contains the asset, value, and distribution details
+	Send *SendInflowInput `json:"send"`
+}
+
+// SendInflowInput represents the send details for an inflow transaction.
+type SendInflowInput struct {
+	// Asset is the asset code being transferred
+	Asset string `json:"asset"`
+
+	// Value is the amount being transferred
+	Value string `json:"value"`
+
+	// Distribute contains the destination accounts
+	Distribute *DistributeInput `json:"distribute"`
+}
+
+// NewCreateInflowInput creates a new CreateInflowInput with the required fields.
+func NewCreateInflowInput(asset, value string, distribute *DistributeInput) *CreateInflowInput {
+	return &CreateInflowInput{
+		Send: &SendInflowInput{
+			Asset:      asset,
+			Value:      value,
+			Distribute: distribute,
+		},
+	}
+}
+
+// WithDescription sets the description.
+func (input *CreateInflowInput) WithDescription(description string) *CreateInflowInput {
+	input.Description = description
+	return input
+}
+
+// WithCode sets the code.
+func (input *CreateInflowInput) WithCode(code string) *CreateInflowInput {
+	input.Code = code
+	return input
+}
+
+// WithMetadata sets the metadata.
+func (input *CreateInflowInput) WithMetadata(metadata map[string]any) *CreateInflowInput {
+	input.Metadata = metadata
+	return input
+}
+
+// WithChartOfAccountsGroupName sets the chart of accounts group name.
+func (input *CreateInflowInput) WithChartOfAccountsGroupName(name string) *CreateInflowInput {
+	input.ChartOfAccountsGroupName = name
+	return input
+}
+
+// WithRoute sets the route.
+func (input *CreateInflowInput) WithRoute(route string) *CreateInflowInput {
+	input.Route = route
+	return input
+}
+
+// Validate checks that the CreateInflowInput meets all validation requirements.
+func (input *CreateInflowInput) Validate() error {
+	if input.Send == nil {
+		return errors.New("send is required")
+	}
+
+	if input.Send.Asset == "" {
+		return errors.New("asset is required")
+	}
+
+	if input.Send.Value == "" || input.Send.Value == "0" {
+		return errors.New("value must be greater than zero")
+	}
+
+	if input.Send.Distribute == nil || len(input.Send.Distribute.To) == 0 {
+		return errors.New("distribute.to is required")
+	}
+
+	return nil
+}
+
+// CreateOutflowInput represents input for creating an outflow transaction.
+// Outflow transactions have no destination - funds flow out of the system (e.g., withdrawals, payouts).
+type CreateOutflowInput struct {
+	// ChartOfAccountsGroupName for accounting purposes
+	ChartOfAccountsGroupName string `json:"chartOfAccountsGroupName,omitempty"`
+
+	// Description provides a human-readable explanation
+	Description string `json:"description,omitempty"`
+
+	// Code is a transaction reference code
+	Code string `json:"code,omitempty"`
+
+	// Metadata contains custom key-value data
+	Metadata map[string]any `json:"metadata,omitempty"`
+
+	// Route is the transaction route identifier
+	Route string `json:"route,omitempty"`
+
+	// Send contains the asset, value, and source details
+	Send *SendOutflowInput `json:"send"`
+}
+
+// SendOutflowInput represents the send details for an outflow transaction.
+type SendOutflowInput struct {
+	// Asset is the asset code being transferred
+	Asset string `json:"asset"`
+
+	// Value is the amount being transferred
+	Value string `json:"value"`
+
+	// Source contains the source accounts
+	Source *SourceInput `json:"source"`
+}
+
+// NewCreateOutflowInput creates a new CreateOutflowInput with the required fields.
+func NewCreateOutflowInput(asset, value string, source *SourceInput) *CreateOutflowInput {
+	return &CreateOutflowInput{
+		Send: &SendOutflowInput{
+			Asset:  asset,
+			Value:  value,
+			Source: source,
+		},
+	}
+}
+
+// WithDescription sets the description.
+func (input *CreateOutflowInput) WithDescription(description string) *CreateOutflowInput {
+	input.Description = description
+	return input
+}
+
+// WithCode sets the code.
+func (input *CreateOutflowInput) WithCode(code string) *CreateOutflowInput {
+	input.Code = code
+	return input
+}
+
+// WithMetadata sets the metadata.
+func (input *CreateOutflowInput) WithMetadata(metadata map[string]any) *CreateOutflowInput {
+	input.Metadata = metadata
+	return input
+}
+
+// WithChartOfAccountsGroupName sets the chart of accounts group name.
+func (input *CreateOutflowInput) WithChartOfAccountsGroupName(name string) *CreateOutflowInput {
+	input.ChartOfAccountsGroupName = name
+	return input
+}
+
+// WithRoute sets the route.
+func (input *CreateOutflowInput) WithRoute(route string) *CreateOutflowInput {
+	input.Route = route
+	return input
+}
+
+// Validate checks that the CreateOutflowInput meets all validation requirements.
+func (input *CreateOutflowInput) Validate() error {
+	if input.Send == nil {
+		return errors.New("send is required")
+	}
+
+	if input.Send.Asset == "" {
+		return errors.New("asset is required")
+	}
+
+	if input.Send.Value == "" || input.Send.Value == "0" {
+		return errors.New("value must be greater than zero")
+	}
+
+	if input.Send.Source == nil || len(input.Send.Source.From) == 0 {
+		return errors.New("source.from is required")
+	}
+
+	return nil
+}
+
+// CreateAnnotationInput represents input for creating an annotation transaction.
+// Annotation transactions do not affect balances - they are used for adding metadata/notes to the ledger.
+type CreateAnnotationInput struct {
+	// ChartOfAccountsGroupName for accounting purposes
+	ChartOfAccountsGroupName string `json:"chartOfAccountsGroupName,omitempty"`
+
+	// Description provides a human-readable explanation (required for annotations)
+	Description string `json:"description"`
+
+	// Code is a transaction reference code
+	Code string `json:"code,omitempty"`
+
+	// Metadata contains custom key-value data
+	Metadata map[string]any `json:"metadata,omitempty"`
+}
+
+// NewCreateAnnotationInput creates a new CreateAnnotationInput with the required fields.
+func NewCreateAnnotationInput(description string) *CreateAnnotationInput {
+	return &CreateAnnotationInput{
+		Description: description,
+	}
+}
+
+// WithCode sets the code.
+func (input *CreateAnnotationInput) WithCode(code string) *CreateAnnotationInput {
+	input.Code = code
+	return input
+}
+
+// WithMetadata sets the metadata.
+func (input *CreateAnnotationInput) WithMetadata(metadata map[string]any) *CreateAnnotationInput {
+	input.Metadata = metadata
+	return input
+}
+
+// WithChartOfAccountsGroupName sets the chart of accounts group name.
+func (input *CreateAnnotationInput) WithChartOfAccountsGroupName(name string) *CreateAnnotationInput {
+	input.ChartOfAccountsGroupName = name
+	return input
+}
+
+// Validate checks that the CreateAnnotationInput meets all validation requirements.
+func (input *CreateAnnotationInput) Validate() error {
+	if input.Description == "" {
+		return errors.New("description is required for annotation transactions")
+	}
+
+	return nil
 }

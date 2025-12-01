@@ -219,6 +219,7 @@ func TestStatusConstantsUniqueness(t *testing.T) {
 		if seen[status] {
 			t.Errorf("Duplicate status constant found: %s", status)
 		}
+
 		seen[status] = true
 	}
 
@@ -241,6 +242,7 @@ func TestTransactionStatusConstantsUniqueness(t *testing.T) {
 		if seen[status] {
 			t.Errorf("Duplicate transaction status constant found: %s", status)
 		}
+
 		seen[status] = true
 	}
 
@@ -267,6 +269,7 @@ func TestQueryParamConstantsUniqueness(t *testing.T) {
 		if seen[param] {
 			t.Errorf("Duplicate query param constant found: %s", param)
 		}
+
 		seen[param] = true
 	}
 

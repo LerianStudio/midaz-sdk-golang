@@ -146,7 +146,7 @@ func NewPortfoliosEntity(client *http.Client, authToken string, baseURLs map[str
 	httpClient := NewHTTPClient(client, authToken, nil)
 
 	// Check if we're using the debug flag from the environment
-	if debugEnv := os.Getenv("MIDAZ_DEBUG"); debugEnv == "true" {
+	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
 		httpClient.debug = true
 	}
 
@@ -324,11 +324,7 @@ func (e *portfoliosEntity) DeletePortfolio(ctx context.Context, organizationID, 
 		return errors.NewInternalError(operation, err)
 	}
 
-	if err := e.HTTPClient.sendRequest(req, nil); err != nil {
-		return err
-	}
-
-	return nil
+	return e.HTTPClient.sendRequest(req, nil)
 }
 
 // GetPortfoliosMetricsCount gets the count metrics for portfolios in a ledger.

@@ -3,7 +3,7 @@ package observability
 import (
 	"bytes"
 	"context"
-	"fmt"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -36,6 +36,7 @@ func TestObservabilityIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create provider with default options: %v", err)
 	}
+
 	if !provider.IsEnabled() {
 		t.Fatal("Provider should be enabled by default")
 	}
@@ -58,6 +59,7 @@ func TestObservabilityIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to shutdown provider: %v", err)
 	}
+
 	if provider.IsEnabled() {
 		t.Fatal("Provider should be disabled after shutdown")
 	}
@@ -143,6 +145,7 @@ func TestObservabilityWithAllOptions(t *testing.T) {
 func TestMetricsCollectorFunctionality(t *testing.T) {
 	// Create a context and provider
 	ctx := context.Background()
+
 	provider, err := New(ctx, WithComponentEnabled(true, true, true))
 	if err != nil {
 		t.Fatalf("Failed to create provider: %v", err)
@@ -215,7 +218,7 @@ func TestSpanUtilities(t *testing.T) {
 
 	// Simulate an error in the child operation
 	// This helps identify where failures occur
-	err := fmt.Errorf("simulated error")
+	err := errors.New("simulated error")
 	RecordError(childCtx, err, "operation_failed", map[string]string{
 		"operation": "payment_processing",
 		"attempt":   "1",
@@ -234,7 +237,7 @@ func TestSpanUtilities(t *testing.T) {
 	span.End()
 
 	// Verify the context contains a span
-	if trace.SpanContextFromContext(childCtx).IsValid() == false {
+	if !trace.SpanContextFromContext(childCtx).IsValid() {
 		t.Fatal("Expected valid span context")
 	}
 }
@@ -255,6 +258,7 @@ func TestLoggingConfiguration(t *testing.T) {
 
 	// Create a provider with custom logging configuration
 	ctx := context.Background()
+
 	provider, err := New(ctx,
 		WithComponentEnabled(true, false, true), // tracing, metrics, logging
 		WithLogLevel(DebugLevel),
@@ -300,6 +304,7 @@ func TestLoggingConfiguration(t *testing.T) {
 func TestContextPropagation(t *testing.T) {
 	// Create a provider with propagation configured
 	ctx := context.Background()
+
 	provider, err := New(ctx,
 		WithComponentEnabled(true, false, false), // Only enable tracing
 		WithPropagators(propagation.TraceContext{}),
@@ -310,6 +315,7 @@ func TestContextPropagation(t *testing.T) {
 
 	// Start a span to create some trace context
 	tracer := provider.Tracer()
+
 	ctx, span := tracer.Start(ctx, "parent_service_operation")
 	defer span.End()
 

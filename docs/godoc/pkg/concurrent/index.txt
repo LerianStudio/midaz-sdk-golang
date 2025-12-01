@@ -69,6 +69,7 @@ mechanisms.
 Package concurrent provides utilities for parallel processing and batch
 operations.
 
+const DefaultFailureThreshold = 5 ...
 var ErrCircuitOpen = errors.New("circuit breaker open")
 func BatchCreateAccounts(ctx context.Context, ...) ([]*models.Account, error)
 func BulkFetchResourceMap[K comparable, V any](ctx context.Context, fetchFn func(ctx context.Context, id K) (V, error), ...) (map[K]V, error)
@@ -76,6 +77,7 @@ func FetchAccountsInParallel(ctx context.Context, ...) (map[string]*models.Accou
 func ForEach[T any](ctx context.Context, items []T, fn func(ctx context.Context, item T) error, ...) error
 func ProcessTransactionsInParallel(ctx context.Context, ...) ([]*models.Transaction, []error)
 func RunConcurrentOperations(ctx context.Context, operations []func(context.Context) error) []error
+type CBLogger interface{ ... }
 type CircuitBreaker struct{ ... }
     func NewCircuitBreaker(failureThreshold, successThreshold int, openTimeout time.Duration) *CircuitBreaker
     func NewCircuitBreakerNamed(name string, failureThreshold, successThreshold int, openTimeout time.Duration) *CircuitBreaker
@@ -104,7 +106,7 @@ type PoolOption func(*poolOptions)
     func WithBufferSize(size int) PoolOption
     func WithRateLimit(operationsPerSecond int) PoolOption
     func WithUnorderedResults() PoolOption
-    func WithWaitGroup(wg *sync.WaitGroup) PoolOption
+    func WithWaitGroup(_ *sync.WaitGroup) PoolOption
     func WithWorkers(workers int) PoolOption
 type RateLimiter struct{ ... }
     func NewRateLimiter(opsPerSecond int, maxBurst int) *RateLimiter

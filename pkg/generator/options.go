@@ -26,13 +26,22 @@ func WithWorkers(ctx context.Context, workers int) context.Context {
 func getWorkers(ctx context.Context) int {
 	if v := ctx.Value(contextKeyWorkers{}); v != nil {
 		if n, ok := v.(int); ok && n > 0 {
+			// Apply upper limit to prevent resource exhaustion
+			if n > maxWorkers {
+				return maxWorkers
+			}
+
 			return n
 		}
 	}
-	// default heuristic: 2x CPU cores, min 4
+	// default heuristic: 2x CPU cores, min 4, max maxWorkers
 	n := runtime.NumCPU() * 2
 	if n < 4 {
 		n = 4
+	}
+
+	if n > maxWorkers {
+		return maxWorkers
 	}
 
 	return n

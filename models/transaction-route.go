@@ -1,7 +1,7 @@
 package models
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
@@ -18,11 +18,11 @@ type CreateTransactionRouteInput struct {
 // Validate validates the CreateTransactionRouteInput fields.
 func (input *CreateTransactionRouteInput) Validate() error {
 	if input.Title == "" {
-		return fmt.Errorf("title is required")
+		return errors.New("title is required")
 	}
 
 	if input.Description == "" {
-		return fmt.Errorf("description is required")
+		return errors.New("description is required")
 	}
 
 	return nil
@@ -34,7 +34,7 @@ type UpdateTransactionRouteInput struct {
 }
 
 // Validate validates the UpdateTransactionRouteInput fields.
-func (input *UpdateTransactionRouteInput) Validate() error {
+func (*UpdateTransactionRouteInput) Validate() error {
 	// For updates, fields are optional so validation is minimal
 	return nil
 }

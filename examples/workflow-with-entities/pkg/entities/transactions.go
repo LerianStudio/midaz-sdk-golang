@@ -90,7 +90,6 @@ func TransferFunds(
 	// Get destination account alias
 	destAccountAlias := destAccountID
 	destAccount, err := entity.Accounts.GetAccount(ctx, orgID, ledgerID, destAccountID)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to get destination account: %w", err)
 	}
@@ -428,6 +427,6 @@ func ExecuteBatchTransactionsWithHelper(
 	// Batch functionality not yet implemented in transaction helpers
 	var results []transaction.BatchResult
 	var summary *transaction.BatchSummary
-	return results, summary, fmt.Errorf("batch transactions not yet implemented")
+	return results, summary, errors.New("batch transactions not yet implemented")
 }
 */
