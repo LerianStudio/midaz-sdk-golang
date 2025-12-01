@@ -17,6 +17,38 @@ Contributors: Guilherme Moreira Rodrigues
 - **Environment Configuration**: Improved the setup of automated workflows, contributing to the overall robustness and efficiency of our development and deployment pipeline.
 
 
+## [v2.2.0] - 2025-12-01
+
+[Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v2.1.0...v2.2.0)
+Contributors: Arnaldo Pereira, Fred Amaral, Jefferson Rodrigues, lerian-studio
+
+### ⚠️ Breaking Changes
+- **Configuration Update**: The `DefaultRetryWaitMin` constant has been removed. Users relying on this setting must update their configurations to ensure compatibility with this version. Please refer to the updated configuration guide for migration steps.
+
+### ✨ Features
+- **Enhanced Observability**: OpenTelemetry context injection is now available for outgoing HTTP requests, allowing for improved tracing and monitoring across distributed systems. This feature enhances the ability to diagnose and resolve issues quickly.
+- **Real-Time Asset Rates**: A new asset rates service has been introduced, providing real-time access to asset rate information. This is particularly beneficial for financial applications requiring up-to-date market data.
+- **SDK Robustness**: The SDK now includes comprehensive tracing capabilities, significantly improving monitoring and debugging processes for developers.
+
+### 🐛 Bug Fixes
+- **API Consistency**: Fixed an issue to ensure consistent API versioning across services, reducing integration complexities and ensuring uniform behavior (#114).
+- **Security Improvements**: Addressed potential security vulnerabilities by refining log sanitization and suppressing false positives in security analysis tools, enhancing overall code security.
+- **Metrics Retrieval**: Corrected the HTTP method for metrics requests from HEAD to GET, aligning with standard practices and ensuring accurate data retrieval.
+
+### ⚡ Performance
+- **Log Sanitization**: Improved security and performance by using `strconv.Quote` for log sanitization, preventing log injection vulnerabilities and ensuring efficient logging.
+
+### 🔄 Changes
+- **Code Quality**: Refined `.golangci.yml` and updated `golangci-lint` rules to enforce stricter code quality, resulting in more maintainable and error-free code.
+
+### 📚 Documentation
+- **Enhanced Documentation**: Updated and clarified documentation, including improved godoc generation and the addition of missing release notes, ensuring users have access to accurate and comprehensive information.
+
+### 🔧 Maintenance
+- **Dependency Updates**: Updated Go module dependencies to the latest versions, ensuring compatibility and benefiting from performance improvements and security patches.
+- **Build System Optimization**: Streamlined the build configuration by removing obsolete binaries and updating the `.gitignore` file to exclude generated outputs, enhancing the development workflow.
+
+
 ## [v2.2.0-beta.13] - 2025-11-29
 
 [Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v2.2.0-beta.12...v2.2.0-beta.13)
