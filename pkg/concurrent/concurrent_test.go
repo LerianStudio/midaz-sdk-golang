@@ -1263,3 +1263,273 @@ func TestResultStruct(t *testing.T) {
 		}
 	})
 }
+
+// TestDynamicRateLimiter tests the DynamicRateLimiter functionality
+//
+//nolint:revive // cognitive-complexity: comprehensive test with many sub-tests
+func TestDynamicRateLimiter(t *testing.T) {
+	// Test basic functionality
+	t.Run("Basic", func(t *testing.T) {
+		limiter := NewDynamicRateLimiter(100) // 100 TPS
+		defer limiter.Stop()
+
+		start := time.Now()
+
+		// With 1 worker (default) at 100 TPS, each Wait should be ~10ms
+		for i := 0; i < 5; i++ {
+			err := limiter.Wait(context.Background())
+			if err != nil {
+				t.Errorf("Expected no error, got %v", err)
+			}
+		}
+
+		elapsed := time.Since(start)
+
+		// 5 waits at 100 TPS = 5 * 10ms = 50ms minimum
+		if elapsed < 40*time.Millisecond {
+			t.Errorf("Expected at least 40ms, but took %v", elapsed)
+		}
+	})
+
+	// Test with options
+	t.Run("WithOptions", func(t *testing.T) {
+		limiter := NewDynamicRateLimiter(100,
+			WithNumWorkers(10),
+			WithJitter(20),
+		)
+		defer limiter.Stop()
+
+		if limiter.GetRate() != 100 {
+			t.Errorf("Expected rate 100, got %d", limiter.GetRate())
+		}
+
+		if limiter.GetNumWorkers() != 10 {
+			t.Errorf("Expected 10 workers, got %d", limiter.GetNumWorkers())
+		}
+	})
+
+	// Test dynamic rate change
+	t.Run("DynamicRateChange", func(t *testing.T) {
+		limiter := NewDynamicRateLimiter(10) // Start at 10 TPS
+		defer limiter.Stop()
+
+		if limiter.GetRate() != 10 {
+			t.Errorf("Expected initial rate 10, got %d", limiter.GetRate())
+		}
+
+		limiter.SetRate(100)
+
+		if limiter.GetRate() != 100 {
+			t.Errorf("Expected rate 100 after change, got %d", limiter.GetRate())
+		}
+
+		limiter.SetRate(1000)
+
+		if limiter.GetRate() != 1000 {
+			t.Errorf("Expected rate 1000 after change, got %d", limiter.GetRate())
+		}
+	})
+
+	// Test dynamic worker change
+	t.Run("DynamicWorkerChange", func(t *testing.T) {
+		limiter := NewDynamicRateLimiter(100)
+		defer limiter.Stop()
+
+		if limiter.GetNumWorkers() != 1 {
+			t.Errorf("Expected initial workers 1, got %d", limiter.GetNumWorkers())
+		}
+
+		limiter.SetNumWorkers(50)
+
+		if limiter.GetNumWorkers() != 50 {
+			t.Errorf("Expected 50 workers after change, got %d", limiter.GetNumWorkers())
+		}
+	})
+
+	// Test dynamic jitter change
+	t.Run("DynamicJitterChange", func(t *testing.T) {
+		limiter := NewDynamicRateLimiter(100)
+		defer limiter.Stop()
+
+		limiter.SetJitter(30)
+
+		// Run multiple waits to verify jitter is applied (delays will vary)
+		var delays []time.Duration
+
+		for i := 0; i < 10; i++ {
+			start := time.Now()
+
+			err := limiter.Wait(context.Background())
+			if err != nil {
+				t.Errorf("Expected no error, got %v", err)
+			}
+
+			delays = append(delays, time.Since(start))
+		}
+
+		// With jitter, delays should vary - not all the same
+		allSame := true
+
+		for i := 1; i < len(delays); i++ {
+			// Allow small tolerance (1ms) for timer precision
+			if delays[i]-delays[0] > time.Millisecond || delays[0]-delays[i] > time.Millisecond {
+				allSame = false
+				break
+			}
+		}
+
+		if allSame {
+			t.Log("Note: All delays were similar, jitter may not be observable in this run")
+		}
+	})
+
+	// Test with context cancellation
+	t.Run("ContextCancellation", func(t *testing.T) {
+		limiter := NewDynamicRateLimiter(1) // 1 TPS = 1 second delay
+		defer limiter.Stop()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+		defer cancel()
+
+		err := limiter.Wait(ctx)
+		if err == nil {
+			t.Error("Expected context timeout error, got nil")
+		}
+
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Errorf("Expected context.DeadlineExceeded, got %v", err)
+		}
+	})
+
+	// Test Stop
+	t.Run("Stop", func(t *testing.T) {
+		limiter := NewDynamicRateLimiter(1) // 1 TPS = 1 second delay
+
+		// Stop immediately
+		limiter.Stop()
+
+		// Wait should return immediately with canceled error
+		err := limiter.Wait(context.Background())
+		if err == nil {
+			t.Error("Expected error after Stop, got nil")
+		}
+
+		if !errors.Is(err, context.Canceled) {
+			t.Errorf("Expected context.Canceled after Stop, got %v", err)
+		}
+
+		// Calling Stop again should be safe
+		limiter.Stop()
+	})
+
+	// Test with invalid values
+	t.Run("InvalidValues", func(t *testing.T) {
+		// Zero TPS should default to 1
+		limiter := NewDynamicRateLimiter(0)
+		defer limiter.Stop()
+
+		if limiter.GetRate() != 1 {
+			t.Errorf("Expected rate 1 for zero input, got %d", limiter.GetRate())
+		}
+
+		// Negative TPS should default to 1
+		limiter2 := NewDynamicRateLimiter(-10)
+		defer limiter2.Stop()
+
+		if limiter2.GetRate() != 1 {
+			t.Errorf("Expected rate 1 for negative input, got %d", limiter2.GetRate())
+		}
+
+		// Setting invalid rate should default to 1
+		limiter.SetRate(0)
+
+		if limiter.GetRate() != 1 {
+			t.Errorf("Expected rate 1 after setting 0, got %d", limiter.GetRate())
+		}
+
+		limiter.SetRate(-5)
+
+		if limiter.GetRate() != 1 {
+			t.Errorf("Expected rate 1 after setting -5, got %d", limiter.GetRate())
+		}
+	})
+
+	// Test jitter bounds
+	t.Run("JitterBounds", func(t *testing.T) {
+		limiter := NewDynamicRateLimiter(100, WithJitter(-10)) // Negative should be 0
+		defer limiter.Stop()
+
+		limiter2 := NewDynamicRateLimiter(100, WithJitter(150)) // >100 should be 100
+		defer limiter2.Stop()
+
+		// These should not panic and work correctly
+		err := limiter.Wait(context.Background())
+		if err != nil {
+			t.Errorf("Expected no error with negative jitter, got %v", err)
+		}
+
+		err = limiter2.Wait(context.Background())
+		if err != nil {
+			t.Errorf("Expected no error with >100 jitter, got %v", err)
+		}
+	})
+
+	// Test worker count impact on delay
+	t.Run("WorkerCountImpact", func(t *testing.T) {
+		// With 1 worker at 100 TPS: delay = 1s/100 * 1 = 10ms
+		limiter1 := NewDynamicRateLimiter(100, WithNumWorkers(1))
+		defer limiter1.Stop()
+
+		start := time.Now()
+		_ = limiter1.Wait(context.Background())
+		delay1 := time.Since(start)
+
+		// With 10 workers at 100 TPS: delay = 1s/100 * 10 = 100ms
+		limiter10 := NewDynamicRateLimiter(100, WithNumWorkers(10))
+		defer limiter10.Stop()
+
+		start = time.Now()
+		_ = limiter10.Wait(context.Background())
+		delay10 := time.Since(start)
+
+		// 10 workers should have ~10x longer delay
+		if delay10 < delay1*5 {
+			t.Errorf("Expected 10-worker delay to be significantly longer. 1 worker: %v, 10 workers: %v", delay1, delay10)
+		}
+	})
+
+	// Test concurrent access
+	t.Run("ConcurrentAccess", func(t *testing.T) {
+		limiter := NewDynamicRateLimiter(1000, WithNumWorkers(10))
+		defer limiter.Stop()
+
+		var wg sync.WaitGroup
+
+		const numGoroutines = 10
+
+		for i := 0; i < numGoroutines; i++ {
+			wg.Add(1)
+
+			go func() {
+				defer wg.Done()
+
+				for j := 0; j < 5; j++ {
+					err := limiter.Wait(context.Background())
+					if err != nil {
+						t.Errorf("Unexpected error: %v", err)
+					}
+				}
+			}()
+		}
+
+		// Also modify rate concurrently
+		go func() {
+			for i := 0; i < 5; i++ {
+				limiter.SetRate(100 + i*100)
+				time.Sleep(10 * time.Millisecond)
+			}
+		}()
+
+		wg.Wait()
+	})
+}

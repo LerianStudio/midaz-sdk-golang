@@ -75,7 +75,9 @@ package concurrent
 
 import (
 	"context"
+	"math/rand"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -624,5 +626,240 @@ func WithWaitGroup(_ *sync.WaitGroup) PoolOption {
 		// This is implemented in the WorkerPool function
 		// through closure capture of the provided WaitGroup
 		// This option is just a placeholder for design consistency
+	}
+}
+
+// DynamicRateLimiter provides a rate limiter with dynamic TPS adjustment and optional jitter.
+// Unlike RateLimiter, it allows changing the rate at runtime and supports jitter to prevent
+// thundering herd issues when multiple workers are synchronized.
+//
+// Common applications include:
+// - Ramp-up stress tests where TPS gradually increases
+// - Adaptive rate limiting based on server response
+// - Load testing with variable throughput patterns
+// - Preventing synchronized bursts from multiple workers
+type DynamicRateLimiter struct {
+	currentTPS    atomic.Int64
+	numWorkers    atomic.Int64
+	jitterPercent atomic.Int64 // Jitter as percentage (0-100)
+	stopCh        chan struct{}
+	stopped       atomic.Bool
+	mu            sync.RWMutex
+}
+
+// DynamicRateLimiterOption is a function that configures DynamicRateLimiter options.
+type DynamicRateLimiterOption func(*DynamicRateLimiter)
+
+// WithJitter sets the jitter percentage for the rate limiter.
+// Jitter adds random variation to the delay between operations to prevent
+// thundering herd issues when multiple workers start simultaneously.
+//
+// Parameters:
+//   - percent: The jitter percentage (0-100). A value of 20 means delays
+//     will vary by ±20% of the base delay.
+//
+// Example:
+//
+//	limiter := concurrent.NewDynamicRateLimiter(100, 10, concurrent.WithJitter(20))
+func WithJitter(percent int) DynamicRateLimiterOption {
+	return func(d *DynamicRateLimiter) {
+		if percent < 0 {
+			percent = 0
+		}
+		if percent > 100 {
+			percent = 100
+		}
+		d.jitterPercent.Store(int64(percent))
+	}
+}
+
+// WithNumWorkers sets the number of workers that will share the rate limit.
+// This is used to calculate per-worker delays: delay = 1s / TPS * numWorkers
+//
+// Parameters:
+//   - workers: The number of concurrent workers sharing the rate limit.
+//
+// Example:
+//
+//	limiter := concurrent.NewDynamicRateLimiter(1000, 10, concurrent.WithNumWorkers(100))
+func WithNumWorkers(workers int) DynamicRateLimiterOption {
+	return func(d *DynamicRateLimiter) {
+		if workers < 1 {
+			workers = 1
+		}
+		d.numWorkers.Store(int64(workers))
+	}
+}
+
+// NewDynamicRateLimiter creates a new dynamic rate limiter with the specified initial TPS.
+//
+// Parameters:
+//   - initialTPS: The initial target transactions per second.
+//   - opts: Optional configuration options (WithJitter, WithNumWorkers).
+//
+// Returns:
+//   - *DynamicRateLimiter: A new dynamic rate limiter instance.
+//
+// Example use case: Ramp-up stress test with jitter:
+//
+//	// Create a rate limiter starting at 10 TPS with 20% jitter for 50 workers
+//	limiter := concurrent.NewDynamicRateLimiter(10,
+//	    concurrent.WithNumWorkers(50),
+//	    concurrent.WithJitter(20),
+//	)
+//	defer limiter.Stop()
+//
+//	// Later, increase the rate
+//	limiter.SetRate(100)
+func NewDynamicRateLimiter(initialTPS int, opts ...DynamicRateLimiterOption) *DynamicRateLimiter {
+	if initialTPS <= 0 {
+		initialTPS = 1
+	}
+
+	d := &DynamicRateLimiter{
+		stopCh: make(chan struct{}),
+	}
+	d.currentTPS.Store(int64(initialTPS))
+	d.numWorkers.Store(1) // Default to 1 worker
+	d.jitterPercent.Store(0)
+
+	// Apply options
+	for _, opt := range opts {
+		opt(d)
+	}
+
+	return d
+}
+
+// SetRate dynamically changes the target TPS.
+// This is thread-safe and takes effect immediately for subsequent Wait calls.
+//
+// Parameters:
+//   - tps: The new target transactions per second.
+func (d *DynamicRateLimiter) SetRate(tps int) {
+	if tps < 1 {
+		tps = 1
+	}
+	d.currentTPS.Store(int64(tps))
+}
+
+// SetNumWorkers dynamically changes the number of workers.
+// This is thread-safe and takes effect immediately for subsequent Wait calls.
+//
+// Parameters:
+//   - workers: The new number of workers.
+func (d *DynamicRateLimiter) SetNumWorkers(workers int) {
+	if workers < 1 {
+		workers = 1
+	}
+	d.numWorkers.Store(int64(workers))
+}
+
+// SetJitter dynamically changes the jitter percentage.
+// This is thread-safe and takes effect immediately for subsequent Wait calls.
+//
+// Parameters:
+//   - percent: The new jitter percentage (0-100).
+func (d *DynamicRateLimiter) SetJitter(percent int) {
+	if percent < 0 {
+		percent = 0
+	}
+	if percent > 100 {
+		percent = 100
+	}
+	d.jitterPercent.Store(int64(percent))
+}
+
+// GetRate returns the current target TPS.
+func (d *DynamicRateLimiter) GetRate() int {
+	return int(d.currentTPS.Load())
+}
+
+// GetNumWorkers returns the current number of workers.
+func (d *DynamicRateLimiter) GetNumWorkers() int {
+	return int(d.numWorkers.Load())
+}
+
+// Wait blocks for the appropriate delay based on current TPS, number of workers, and jitter.
+// The delay is calculated as: baseDelay = 1s / TPS * numWorkers
+// With jitter, the actual delay varies by ±jitterPercent of the base delay.
+//
+// This method is thread-safe and can be called concurrently from multiple goroutines.
+//
+// Parameters:
+//   - ctx: The context that can be used to cancel the wait.
+//
+// Returns:
+//   - error: Context error if the context was cancelled, nil otherwise.
+//
+// Example:
+//
+//	for {
+//	    if err := limiter.Wait(ctx); err != nil {
+//	        return err // Context cancelled
+//	    }
+//	    // Perform rate-limited operation
+//	    processTransaction()
+//	}
+func (d *DynamicRateLimiter) Wait(ctx context.Context) error {
+	if d.stopped.Load() {
+		return context.Canceled
+	}
+
+	tps := d.currentTPS.Load()
+	workers := d.numWorkers.Load()
+	jitterPct := d.jitterPercent.Load()
+
+	if tps <= 0 {
+		tps = 1
+	}
+	if workers <= 0 {
+		workers = 1
+	}
+
+	// Calculate base delay: 1s / TPS * numWorkers
+	// This ensures that all workers together achieve the target TPS
+	baseDelay := time.Second / time.Duration(tps) * time.Duration(workers)
+
+	// Apply jitter if configured
+	delay := d.applyJitter(baseDelay, jitterPct)
+
+	select {
+	case <-time.After(delay):
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-d.stopCh:
+		return context.Canceled
+	}
+}
+
+// applyJitter adds random variation to the delay.
+// With jitterPercent of 20, the delay will vary by ±20% of the base delay.
+func (d *DynamicRateLimiter) applyJitter(baseDelay time.Duration, jitterPct int64) time.Duration {
+	if jitterPct <= 0 {
+		return baseDelay
+	}
+
+	// Calculate jitter range: ±jitterPct% of base delay
+	jitterRange := float64(baseDelay) * float64(jitterPct) / 100.0
+
+	// Generate random jitter between -jitterRange and +jitterRange
+	//nolint:gosec // Using math/rand for jitter is acceptable, not security-critical
+	jitter := (rand.Float64()*2 - 1) * jitterRange
+
+	result := time.Duration(float64(baseDelay) + jitter)
+	if result < 0 {
+		result = 0
+	}
+
+	return result
+}
+
+// Stop stops the rate limiter and releases resources.
+// After calling Stop, Wait will return immediately with context.Canceled.
+func (d *DynamicRateLimiter) Stop() {
+	if d.stopped.CompareAndSwap(false, true) {
+		close(d.stopCh)
 	}
 }

@@ -1,6 +1,8 @@
 // Package main provides a ramp-up stress test for transactions.
 //
 // This test gradually increases TPS over time to find the breaking point.
+// Uses DynamicRateLimiter from pkg/concurrent for rate limiting with jitter support.
+//
 // Configure via environment variables:
 //
 //	ORG_ID=<organization-id>
@@ -15,6 +17,7 @@
 //	RAMP_START_TPS=10          # Starting TPS (default: 10)
 //	RAMP_STEP_TPS=10           # TPS increment per step (default: 10)
 //	RAMP_STEP_DURATION=10      # Duration of each step in seconds (default: 10)
+//	JITTER_PERCENT=20          # Jitter percentage 0-100 (default: 20) - prevents thundering herd
 package main
 
 import (
@@ -53,6 +56,9 @@ type RampTestConfig struct {
 	StartTPS     int
 	StepTPS      int
 	StepDuration int // seconds per step
+
+	// Jitter configuration (percentage 0-100)
+	JitterPercent int
 }
 
 // StressTestMetrics holds the metrics for the stress test
@@ -160,6 +166,11 @@ func loadConfig() (*RampTestConfig, error) {
 		return nil, fmt.Errorf("invalid RAMP_STEP_DURATION: %w", err)
 	}
 
+	cfg.JitterPercent, err = strconv.Atoi(getEnvOrDefault("JITTER_PERCENT", "20"))
+	if err != nil {
+		return nil, fmt.Errorf("invalid JITTER_PERCENT: %w", err)
+	}
+
 	// Validate required fields
 	if cfg.OrgID == "" {
 		return nil, fmt.Errorf("ORG_ID is required")
@@ -198,6 +209,7 @@ func printConfig(cfg *RampTestConfig) {
 	fmt.Printf("Total Duration:   %d seconds\n", cfg.Duration)
 	fmt.Printf("Workers:          %d\n", cfg.TxWorkers)
 	fmt.Printf("Amount per TX:    %s %s\n", cfg.TxAmount, cfg.TxAsset)
+	fmt.Printf("Jitter:           %d%%\n", cfg.JitterPercent)
 	fmt.Println("=================================")
 	fmt.Println()
 }
@@ -253,7 +265,15 @@ func runRampUpTest(ctx context.Context, c *client.Client, cfg *RampTestConfig) e
 
 	startTime := time.Now()
 
-	// Current TPS (will be updated by ramp controller)
+	// Create DynamicRateLimiter with initial TPS, workers, and jitter
+	rateLimiter := concurrent.NewDynamicRateLimiter(
+		cfg.StartTPS,
+		concurrent.WithNumWorkers(cfg.TxWorkers),
+		concurrent.WithJitter(cfg.JitterPercent),
+	)
+	defer rateLimiter.Stop()
+
+	// Current TPS for display purposes
 	var currentTargetTPS int64 = int64(cfg.StartTPS)
 
 	// Progress reporter with dynamic TPS display
@@ -275,6 +295,7 @@ func runRampUpTest(ctx context.Context, c *client.Client, cfg *RampTestConfig) e
 					newTPS = int64(cfg.MaxTPS)
 				}
 				atomic.StoreInt64(&currentTargetTPS, newTPS)
+				rateLimiter.SetRate(int(newTPS))
 				fmt.Printf("\n>>> TPS increased to %d\n", newTPS)
 			}
 		}
@@ -287,49 +308,34 @@ func runRampUpTest(ctx context.Context, c *client.Client, cfg *RampTestConfig) e
 	var results []concurrent.Result[int, *models.Transaction]
 	var resultsMu sync.Mutex
 
-	// Worker function that respects dynamic rate limiting
+	// Worker function that uses DynamicRateLimiter
 	workerFunc := func() {
 		for {
-			select {
-			case <-ctx.Done():
-				return
-			default:
-				// Get current target TPS and calculate delay
-				targetTPS := atomic.LoadInt64(&currentTargetTPS)
-				if targetTPS <= 0 {
-					targetTPS = 1
-				}
+			// Wait for rate limiter (respects dynamic TPS and jitter)
+			if err := rateLimiter.Wait(ctx); err != nil {
+				return // Context cancelled or limiter stopped
+			}
 
-				// Simple rate limiting per worker
-				delay := time.Second / time.Duration(targetTPS) * time.Duration(cfg.TxWorkers)
-				time.Sleep(delay)
+			// Execute transaction
+			index := int(atomic.AddInt64(&txIndex, 1) - 1)
+			txStart := time.Now()
+			tx, err := executeTransaction(ctx, c, cfg, index)
+			latencyMs := time.Since(txStart).Milliseconds()
 
-				// Check context again after sleep
-				if ctx.Err() != nil {
-					return
-				}
+			result := concurrent.Result[int, *models.Transaction]{
+				Item:  index,
+				Value: tx,
+				Error: err,
+			}
 
-				// Execute transaction
-				index := int(atomic.AddInt64(&txIndex, 1) - 1)
-				txStart := time.Now()
-				tx, err := executeTransaction(ctx, c, cfg, index)
-				latencyMs := time.Since(txStart).Milliseconds()
+			resultsMu.Lock()
+			results = append(results, result)
+			resultsMu.Unlock()
 
-				result := concurrent.Result[int, *models.Transaction]{
-					Item:  index,
-					Value: tx,
-					Error: err,
-				}
-
-				resultsMu.Lock()
-				results = append(results, result)
-				resultsMu.Unlock()
-
-				if err != nil {
-					metrics.RecordError()
-				} else {
-					metrics.RecordSuccess(latencyMs)
-				}
+			if err != nil {
+				metrics.RecordError()
+			} else {
+				metrics.RecordSuccess(latencyMs)
 			}
 		}
 	}
@@ -372,6 +378,7 @@ func reportProgress(metrics *StressTestMetrics, currentTPS *int64, startTime tim
 			currentSuccess := atomic.LoadInt64(&metrics.SuccessCount)
 			currentErrors := atomic.LoadInt64(&metrics.ErrorCount)
 			targetTPS := atomic.LoadInt64(currentTPS)
+			avgLatency := metrics.AvgLatencyMs()
 
 			// Calculate TPS for last second
 			instantTPS := currentSuccess - lastSuccess
@@ -380,8 +387,8 @@ func reportProgress(metrics *StressTestMetrics, currentTPS *int64, startTime tim
 			// Calculate overall TPS
 			overallTPS := float64(currentSuccess) / elapsed
 
-			fmt.Printf("\r[%5.0fs] Success: %6d | Errors: %4d | Instant TPS: %4d | Avg TPS: %6.1f | Target: %d    ",
-				elapsed, currentSuccess, currentErrors, instantTPS, overallTPS, targetTPS)
+			fmt.Printf("\r[%5.0fs] Success: %6d | Errors: %4d | Instant TPS: %4d | Avg TPS: %6.1f | Latency: %6.1fms | Target: %d    ",
+				elapsed, currentSuccess, currentErrors, instantTPS, overallTPS, avgLatency, targetTPS)
 		}
 	}
 }
