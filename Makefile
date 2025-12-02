@@ -79,6 +79,8 @@ help:
 	@echo "Example Commands:"
 	@echo "  make example                     - Run complete workflow example"
 	@echo "  make demo-data                   - Run mass demo data generator (interactive)"
+	@echo "  make tx-stress-test              - Run transaction stress test (fixed TPS)"
+	@echo "  make tx-ramp-test                - Run transaction ramp-up test (gradual TPS increase)"
 	@echo ""
 	@echo "Documentation Commands:"
 	@echo "  make godoc                       - Start a godoc server for interactive documentation"
@@ -224,6 +226,28 @@ example:
 	$(call print_header,"Make sure the Midaz Stack is running --default is localhost")
 	@cp $(ENV_FILE) examples/workflow-with-entities/.env
 	@cd examples/workflow-with-entities && go run main.go
+
+.PHONY: tx-stress-test
+
+tx-stress-test:
+	$(call print_header,"Running Transaction Stress Test")
+	@if [ ! -f "examples/transaction-stress-test/.env" ]; then \
+		echo "$(RED)[error]$(NC) No .env file found in examples/transaction-stress-test/"; \
+		echo "Create one from .env.example: cp examples/transaction-stress-test/.env.example examples/transaction-stress-test/.env"; \
+		exit 1; \
+	fi
+	@cd examples/transaction-stress-test && go run main.go
+
+.PHONY: tx-ramp-test
+
+tx-ramp-test:
+	$(call print_header,"Running Transaction Ramp-Up Test")
+	@if [ ! -f "examples/transaction-ramp-test/.env" ]; then \
+		echo "$(RED)[error]$(NC) No .env file found in examples/transaction-ramp-test/"; \
+		echo "Create one from .env.example: cp examples/transaction-ramp-test/.env.example examples/transaction-ramp-test/.env"; \
+		exit 1; \
+	fi
+	@cd examples/transaction-ramp-test && go run main.go
 
 .PHONY: demo-data
 
