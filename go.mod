@@ -4,7 +4,7 @@ go 1.25
 
 require (
 	github.com/LerianStudio/lib-commons v1.19.0-beta.11
-	github.com/LerianStudio/midaz/v3 v3.4.4
+	github.com/LerianStudio/midaz/v3 v3.4.6
 	github.com/brianvoe/gofakeit/v7 v7.11.0
 	github.com/golang/mock v1.6.0
 	github.com/google/uuid v1.6.0
