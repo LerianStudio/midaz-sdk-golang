@@ -9,7 +9,7 @@ import (
 	"os"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
 )
 
 // LedgersService defines the interface for ledger-related operations.
@@ -188,14 +188,14 @@ func (e *ledgersEntity) ListLedgers(
 	const operation = "ListLedgers"
 
 	if organizationID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	url := e.buildURL(organizationID, "")
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	// Add query parameters if provided
@@ -228,18 +228,18 @@ func (e *ledgersEntity) GetLedger(
 	const operation = "GetLedger"
 
 	if organizationID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if id == "" {
-		return nil, errors.NewMissingParameterError(operation, "id")
+		return nil, sdkerrors.NewMissingParameterError(operation, "id")
 	}
 
 	url := e.buildURL(organizationID, id)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	var ledger models.Ledger
@@ -259,23 +259,23 @@ func (e *ledgersEntity) CreateLedger(
 	const operation = "CreateLedger"
 
 	if organizationID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if input == nil {
-		return nil, errors.NewMissingParameterError(operation, "input")
+		return nil, sdkerrors.NewMissingParameterError(operation, "input")
 	}
 
 	url := e.buildURL(organizationID, "")
 
 	body, err := json.Marshal(input)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	var ledger models.Ledger
@@ -299,27 +299,27 @@ func (e *ledgersEntity) UpdateLedger(
 	const operation = "UpdateLedger"
 
 	if organizationID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if id == "" {
-		return nil, errors.NewMissingParameterError(operation, "id")
+		return nil, sdkerrors.NewMissingParameterError(operation, "id")
 	}
 
 	if input == nil {
-		return nil, errors.NewMissingParameterError(operation, "input")
+		return nil, sdkerrors.NewMissingParameterError(operation, "input")
 	}
 
 	url := e.buildURL(organizationID, id)
 
 	body, err := json.Marshal(input)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, bytes.NewReader(body))
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	var ledger models.Ledger
@@ -341,18 +341,18 @@ func (e *ledgersEntity) DeleteLedger(
 	const operation = "DeleteLedger"
 
 	if organizationID == "" {
-		return errors.NewMissingParameterError(operation, "organizationID")
+		return sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if id == "" {
-		return errors.NewMissingParameterError(operation, "id")
+		return sdkerrors.NewMissingParameterError(operation, "id")
 	}
 
 	url := e.buildURL(organizationID, id)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
 	if err != nil {
-		return errors.NewInternalError(operation, err)
+		return sdkerrors.NewInternalError(operation, err)
 	}
 
 	return e.httpClient.sendRequest(req, nil)
@@ -363,14 +363,14 @@ func (e *ledgersEntity) GetLedgersMetricsCount(ctx context.Context, organization
 	const operation = "GetLedgersMetricsCount"
 
 	if organizationID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	url := e.buildMetricsURL(organizationID)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	var metrics models.MetricsCount

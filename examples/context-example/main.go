@@ -18,7 +18,7 @@ import (
 	client "github.com/LerianStudio/midaz-sdk-golang/v2"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/config"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
 )
 
 func main() {
@@ -267,11 +267,11 @@ func handleContextError(err error) {
 	}
 
 	switch {
-	case errors.IsCancellationError(err):
+	case sdkerrors.IsCancellationError(err):
 		fmt.Printf("Operation was cancelled: %v\n", err)
-	case errors.IsTimeoutError(err):
+	case sdkerrors.IsTimeoutError(err):
 		fmt.Printf("Operation timed out: %v\n", err)
-	case errors.IsNetworkError(err):
+	case sdkerrors.IsNetworkError(err):
 		fmt.Printf("Network error: %v\n", err)
 	default:
 		fmt.Printf("Other error: %v\n", err)

@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
 )
 
 // AssetRatesService defines the interface for asset rate operations.
@@ -130,31 +130,31 @@ func (e *assetRatesEntity) CreateOrUpdateAssetRate(
 	const operation = "CreateOrUpdateAssetRate"
 
 	if strings.TrimSpace(organizationID) == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if strings.TrimSpace(ledgerID) == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledgerID")
 	}
 
 	if input == nil {
-		return nil, errors.NewMissingParameterError(operation, "input")
+		return nil, sdkerrors.NewMissingParameterError(operation, "input")
 	}
 
 	if err := input.Validate(); err != nil {
-		return nil, errors.NewValidationError(operation, "invalid asset rate input", err)
+		return nil, sdkerrors.NewValidationError(operation, "invalid asset rate input", err)
 	}
 
 	url := e.buildURL(organizationID, ledgerID, "")
 
 	body, err := json.Marshal(input)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, bytes.NewReader(body))
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	var assetRate models.AssetRate
@@ -173,22 +173,22 @@ func (e *assetRatesEntity) GetAssetRate(
 	const operation = "GetAssetRate"
 
 	if strings.TrimSpace(organizationID) == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if strings.TrimSpace(ledgerID) == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledgerID")
 	}
 
 	if strings.TrimSpace(externalID) == "" {
-		return nil, errors.NewMissingParameterError(operation, "externalID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "externalID")
 	}
 
 	url := e.buildURL(organizationID, ledgerID, externalID)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	var assetRate models.AssetRate
@@ -208,22 +208,22 @@ func (e *assetRatesEntity) ListAssetRatesByAssetCode(
 	const operation = "ListAssetRatesByAssetCode"
 
 	if strings.TrimSpace(organizationID) == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if strings.TrimSpace(ledgerID) == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledgerID")
 	}
 
 	if strings.TrimSpace(assetCode) == "" {
-		return nil, errors.NewMissingParameterError(operation, "assetCode")
+		return nil, sdkerrors.NewMissingParameterError(operation, "assetCode")
 	}
 
 	url := e.buildFromAssetURL(organizationID, ledgerID, assetCode)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	// Add query parameters if provided

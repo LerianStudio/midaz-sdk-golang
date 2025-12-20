@@ -12,7 +12,7 @@ import (
 	client "github.com/LerianStudio/midaz-sdk-golang/v2"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
 	"github.com/google/uuid"
 )
 
@@ -358,7 +358,7 @@ func GetBatchSummary(results []BatchResult) BatchSummary {
 			errorCount++
 
 			// Categorize errors
-			category := errors.GetErrorCategory(result.Error)
+			category := sdkerrors.GetErrorCategory(result.Error)
 			errorCategories[string(category)]++
 		}
 	}
@@ -397,14 +397,14 @@ func isRetryableError(err error) bool {
 	}
 
 	// Check for specific error types that should be retried
-	if errors.IsRateLimitError(err) ||
-		errors.IsNetworkError(err) ||
-		errors.IsTimeoutError(err) {
+	if sdkerrors.IsRateLimitError(err) ||
+		sdkerrors.IsNetworkError(err) ||
+		sdkerrors.IsTimeoutError(err) {
 		return true
 	}
 
 	// Check for transient HTTP errors
-	errDetails := errors.GetErrorDetails(err)
+	errDetails := sdkerrors.GetErrorDetails(err)
 	if errDetails.HTTPStatus >= 500 && errDetails.HTTPStatus < 600 {
 		return true
 	}

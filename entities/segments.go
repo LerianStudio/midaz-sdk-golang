@@ -8,7 +8,7 @@ import (
 	"net/http"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
 )
 
 // SegmentsService defines the interface for segment-related operations.
@@ -144,18 +144,18 @@ func (e *segmentsEntity) ListSegments(
 	const operation = "ListSegments"
 
 	if organizationID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledgerID")
 	}
 
 	url := e.buildURL(organizationID, ledgerID, "")
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	// Add query parameters if provided
@@ -185,22 +185,22 @@ func (e *segmentsEntity) GetSegment(
 	const operation = "GetSegment"
 
 	if organizationID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledgerID")
 	}
 
 	if id == "" {
-		return nil, errors.NewMissingParameterError(operation, "id")
+		return nil, sdkerrors.NewMissingParameterError(operation, "id")
 	}
 
 	url := e.buildURL(organizationID, ledgerID, id)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	var segment models.Segment
@@ -221,30 +221,30 @@ func (e *segmentsEntity) CreateSegment(
 	const operation = "CreateSegment"
 
 	if organizationID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledgerID")
 	}
 
 	// portfolioID is no longer required as segments are created directly under ledgers
 	// We keep the parameter for backward compatibility but don't validate it
 
 	if input == nil {
-		return nil, errors.NewMissingParameterError(operation, "input")
+		return nil, sdkerrors.NewMissingParameterError(operation, "input")
 	}
 
 	url := e.buildURL(organizationID, ledgerID, "")
 
 	body, err := json.Marshal(input)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	var segment models.Segment
@@ -265,31 +265,31 @@ func (e *segmentsEntity) UpdateSegment(
 	const operation = "UpdateSegment"
 
 	if organizationID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledgerID")
 	}
 
 	if id == "" {
-		return nil, errors.NewMissingParameterError(operation, "id")
+		return nil, sdkerrors.NewMissingParameterError(operation, "id")
 	}
 
 	if input == nil {
-		return nil, errors.NewMissingParameterError(operation, "input")
+		return nil, sdkerrors.NewMissingParameterError(operation, "input")
 	}
 
 	url := e.buildURL(organizationID, ledgerID, id)
 
 	body, err := json.Marshal(input)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, bytes.NewReader(body))
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	var segment models.Segment
@@ -309,22 +309,22 @@ func (e *segmentsEntity) DeleteSegment(
 	const operation = "DeleteSegment"
 
 	if organizationID == "" {
-		return errors.NewMissingParameterError(operation, "organizationID")
+		return sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if ledgerID == "" {
-		return errors.NewMissingParameterError(operation, "ledgerID")
+		return sdkerrors.NewMissingParameterError(operation, "ledgerID")
 	}
 
 	if id == "" {
-		return errors.NewMissingParameterError(operation, "id")
+		return sdkerrors.NewMissingParameterError(operation, "id")
 	}
 
 	url := e.buildURL(organizationID, ledgerID, id)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
 	if err != nil {
-		return errors.NewInternalError(operation, err)
+		return sdkerrors.NewInternalError(operation, err)
 	}
 
 	if err := e.HTTPClient.sendRequest(req, nil); err != nil {
@@ -340,18 +340,18 @@ func (e *segmentsEntity) GetSegmentsMetricsCount(ctx context.Context, organizati
 	const operation = "GetSegmentsMetricsCount"
 
 	if organizationID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledgerID")
 	}
 
 	url := e.buildMetricsURL(organizationID, ledgerID)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	var metrics models.MetricsCount

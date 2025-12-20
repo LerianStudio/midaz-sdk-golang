@@ -9,7 +9,7 @@ import (
 	"os"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
 )
 
 // TransactionRoutesService defines the interface for transaction route operations
@@ -141,18 +141,18 @@ func (e *transactionRoutesEntity) ListTransactionRoutes(ctx context.Context, org
 	operation := "ListTransactionRoutes"
 
 	if organizationID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledgerID")
 	}
 
 	url := e.buildURL(organizationID, ledgerID, "")
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	if opts != nil {
@@ -177,22 +177,22 @@ func (e *transactionRoutesEntity) GetTransactionRoute(ctx context.Context, organ
 	operation := "GetTransactionRoute"
 
 	if organizationID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledgerID")
 	}
 
 	if transactionRouteID == "" {
-		return nil, errors.NewMissingParameterError(operation, "transactionRouteID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "transactionRouteID")
 	}
 
 	url := e.buildURL(organizationID, ledgerID, transactionRouteID)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	var result models.TransactionRoute
@@ -208,19 +208,19 @@ func (e *transactionRoutesEntity) CreateTransactionRoute(ctx context.Context, or
 	operation := "CreateTransactionRoute"
 
 	if organizationID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledgerID")
 	}
 
 	if input == nil {
-		return nil, errors.NewMissingParameterError(operation, "input")
+		return nil, sdkerrors.NewMissingParameterError(operation, "input")
 	}
 
 	if err := input.Validate(); err != nil {
-		return nil, errors.NewValidationError(operation, "transaction route validation failed", err)
+		return nil, sdkerrors.NewValidationError(operation, "transaction route validation failed", err)
 	}
 
 	url := e.buildURL(organizationID, ledgerID, "")
@@ -229,12 +229,12 @@ func (e *transactionRoutesEntity) CreateTransactionRoute(ctx context.Context, or
 
 	body, err := json.Marshal(input)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	var result models.TransactionRoute
@@ -250,23 +250,23 @@ func (e *transactionRoutesEntity) UpdateTransactionRoute(ctx context.Context, or
 	operation := "UpdateTransactionRoute"
 
 	if organizationID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledgerID")
 	}
 
 	if transactionRouteID == "" {
-		return nil, errors.NewMissingParameterError(operation, "transactionRouteID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "transactionRouteID")
 	}
 
 	if input == nil {
-		return nil, errors.NewMissingParameterError(operation, "input")
+		return nil, sdkerrors.NewMissingParameterError(operation, "input")
 	}
 
 	if err := input.Validate(); err != nil {
-		return nil, errors.NewValidationError(operation, "transaction route validation failed", err)
+		return nil, sdkerrors.NewValidationError(operation, "transaction route validation failed", err)
 	}
 
 	url := e.buildURL(organizationID, ledgerID, transactionRouteID)
@@ -275,12 +275,12 @@ func (e *transactionRoutesEntity) UpdateTransactionRoute(ctx context.Context, or
 
 	body, err := json.Marshal(input)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, bytes.NewReader(body))
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	var result models.TransactionRoute
@@ -296,15 +296,15 @@ func (e *transactionRoutesEntity) DeleteTransactionRoute(ctx context.Context, or
 	operation := "DeleteTransactionRoute"
 
 	if organizationID == "" {
-		return errors.NewMissingParameterError(operation, "organizationID")
+		return sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if ledgerID == "" {
-		return errors.NewMissingParameterError(operation, "ledgerID")
+		return sdkerrors.NewMissingParameterError(operation, "ledgerID")
 	}
 
 	if transactionRouteID == "" {
-		return errors.NewMissingParameterError(operation, "transactionRouteID")
+		return sdkerrors.NewMissingParameterError(operation, "transactionRouteID")
 	}
 
 	url := e.buildURL(organizationID, ledgerID, transactionRouteID)
@@ -313,7 +313,7 @@ func (e *transactionRoutesEntity) DeleteTransactionRoute(ctx context.Context, or
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
 	if err != nil {
-		return errors.NewInternalError(operation, err)
+		return sdkerrors.NewInternalError(operation, err)
 	}
 
 	return e.httpClient.sendRequest(req, nil)

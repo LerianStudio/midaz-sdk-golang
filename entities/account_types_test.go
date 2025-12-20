@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -94,7 +94,7 @@ func TestAccountTypesEntity_ListAccountTypes_ValidationErrors(t *testing.T) {
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.expectedError)
 
-			var missingParamErr *errors.Error
+			var missingParamErr *sdkerrors.Error
 
 			assert.ErrorAs(t, err, &missingParamErr)
 		})
@@ -143,7 +143,7 @@ func TestAccountTypesEntity_GetAccountType_ValidationErrors(t *testing.T) {
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.expectedError)
 
-			var missingParamErr *errors.Error
+			var missingParamErr *sdkerrors.Error
 			assert.ErrorAs(t, err, &missingParamErr)
 		})
 	}
@@ -307,7 +307,7 @@ func TestAccountTypesEntity_DeleteAccountType_ValidationErrors(t *testing.T) {
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.expectedError)
 
-			var missingParamErr *errors.Error
+			var missingParamErr *sdkerrors.Error
 			assert.ErrorAs(t, err, &missingParamErr)
 		})
 	}
@@ -315,6 +315,6 @@ func TestAccountTypesEntity_DeleteAccountType_ValidationErrors(t *testing.T) {
 
 func TestAccountTypesEntity_ErrorCompilation(t *testing.T) {
 	// Just to make sure the code compiles with the error package
-	err := errors.NewValidationError("test", "test error", nil)
+	err := sdkerrors.NewValidationError("test", "test error", nil)
 	assert.NotNil(t, err)
 }

@@ -16,7 +16,7 @@ import (
 
 	client "github.com/LerianStudio/midaz-sdk-golang/v2"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/config"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
 )
 
 func main() {
@@ -198,9 +198,9 @@ func disableRetriesExample() error {
 	}
 
 	switch {
-	case errors.IsNetworkError(err):
+	case sdkerrors.IsNetworkError(err):
 		fmt.Println("  - Network error, would not be retried")
-	case errors.IsTimeoutError(err):
+	case sdkerrors.IsTimeoutError(err):
 		fmt.Println("  - Timeout error, would not be retried")
 	default:
 		fmt.Printf("  - Other error: %v\n", err)

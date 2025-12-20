@@ -1,4 +1,4 @@
-package errors_test
+package sdkerrors_test
 
 import (
 	"context"

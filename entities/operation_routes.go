@@ -9,7 +9,7 @@ import (
 	"os"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
 )
 
 // OperationRoutesService defines the interface for operation route operations
@@ -140,18 +140,18 @@ func (e *operationRoutesEntity) ListOperationRoutes(ctx context.Context, organiz
 	operation := "ListOperationRoutes"
 
 	if organizationID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledgerID")
 	}
 
 	url := e.buildURL(organizationID, ledgerID, "")
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	if opts != nil {
@@ -176,22 +176,22 @@ func (e *operationRoutesEntity) GetOperationRoute(ctx context.Context, organizat
 	operation := "GetOperationRoute"
 
 	if organizationID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledgerID")
 	}
 
 	if operationRouteID == "" {
-		return nil, errors.NewMissingParameterError(operation, "operationRouteID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "operationRouteID")
 	}
 
 	url := e.buildURL(organizationID, ledgerID, operationRouteID)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	var result models.OperationRoute
@@ -207,19 +207,19 @@ func (e *operationRoutesEntity) CreateOperationRoute(ctx context.Context, organi
 	operation := "CreateOperationRoute"
 
 	if organizationID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledgerID")
 	}
 
 	if input == nil {
-		return nil, errors.NewMissingParameterError(operation, "input")
+		return nil, sdkerrors.NewMissingParameterError(operation, "input")
 	}
 
 	if err := input.Validate(); err != nil {
-		return nil, errors.NewValidationError(operation, "operation route validation failed", err)
+		return nil, sdkerrors.NewValidationError(operation, "operation route validation failed", err)
 	}
 
 	url := e.buildURL(organizationID, ledgerID, "")
@@ -228,12 +228,12 @@ func (e *operationRoutesEntity) CreateOperationRoute(ctx context.Context, organi
 
 	body, err := json.Marshal(input)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	var result models.OperationRoute
@@ -249,23 +249,23 @@ func (e *operationRoutesEntity) UpdateOperationRoute(ctx context.Context, organi
 	operation := "UpdateOperationRoute"
 
 	if organizationID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledgerID")
 	}
 
 	if operationRouteID == "" {
-		return nil, errors.NewMissingParameterError(operation, "operationRouteID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "operationRouteID")
 	}
 
 	if input == nil {
-		return nil, errors.NewMissingParameterError(operation, "input")
+		return nil, sdkerrors.NewMissingParameterError(operation, "input")
 	}
 
 	if err := input.Validate(); err != nil {
-		return nil, errors.NewValidationError(operation, "operation route validation failed", err)
+		return nil, sdkerrors.NewValidationError(operation, "operation route validation failed", err)
 	}
 
 	url := e.buildURL(organizationID, ledgerID, operationRouteID)
@@ -274,12 +274,12 @@ func (e *operationRoutesEntity) UpdateOperationRoute(ctx context.Context, organi
 
 	body, err := json.Marshal(input)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, bytes.NewReader(body))
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	var result models.OperationRoute
@@ -295,15 +295,15 @@ func (e *operationRoutesEntity) DeleteOperationRoute(ctx context.Context, organi
 	operation := "DeleteOperationRoute"
 
 	if organizationID == "" {
-		return errors.NewMissingParameterError(operation, "organizationID")
+		return sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if ledgerID == "" {
-		return errors.NewMissingParameterError(operation, "ledgerID")
+		return sdkerrors.NewMissingParameterError(operation, "ledgerID")
 	}
 
 	if operationRouteID == "" {
-		return errors.NewMissingParameterError(operation, "operationRouteID")
+		return sdkerrors.NewMissingParameterError(operation, "operationRouteID")
 	}
 
 	url := e.buildURL(organizationID, ledgerID, operationRouteID)
@@ -312,7 +312,7 @@ func (e *operationRoutesEntity) DeleteOperationRoute(ctx context.Context, organi
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
 	if err != nil {
-		return errors.NewInternalError(operation, err)
+		return sdkerrors.NewInternalError(operation, err)
 	}
 
 	return e.httpClient.sendRequest(req, nil)

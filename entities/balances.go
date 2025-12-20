@@ -10,7 +10,7 @@ import (
 	"os"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
 )
 
 // BalancesService defines the interface for balance-related operations.
@@ -295,18 +295,18 @@ func (e *balancesEntity) ListBalances(
 	const operation = "ListBalances"
 
 	if orgID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledgerID")
 	}
 
 	endpoint := e.buildURL(orgID, ledgerID, "")
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	// Add query parameters if provided
@@ -343,22 +343,22 @@ func (e *balancesEntity) ListAccountBalances(
 	const operation = "ListAccountBalances"
 
 	if orgID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledgerID")
 	}
 
 	if accountID == "" {
-		return nil, errors.NewMissingParameterError(operation, "accountID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "accountID")
 	}
 
 	endpoint := e.buildAccountURL(orgID, ledgerID, accountID)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	// Add query parameters if provided
@@ -393,22 +393,22 @@ func (e *balancesEntity) GetBalance(
 	const operation = "GetBalance"
 
 	if orgID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledgerID")
 	}
 
 	if balanceID == "" {
-		return nil, errors.NewMissingParameterError(operation, "balanceID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "balanceID")
 	}
 
 	endpoint := e.buildURL(orgID, ledgerID, balanceID)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	var balance models.Balance
@@ -434,36 +434,36 @@ func (e *balancesEntity) UpdateBalance(
 	const operation = "UpdateBalance"
 
 	if orgID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledgerID")
 	}
 
 	if balanceID == "" {
-		return nil, errors.NewMissingParameterError(operation, "balanceID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "balanceID")
 	}
 
 	if input == nil {
-		return nil, errors.NewMissingParameterError(operation, "input")
+		return nil, sdkerrors.NewMissingParameterError(operation, "input")
 	}
 
 	// Validate the input using the model's validation method
 	if err := input.Validate(); err != nil {
-		return nil, errors.NewValidationError(operation, "invalid balance update input", err)
+		return nil, sdkerrors.NewValidationError(operation, "invalid balance update input", err)
 	}
 
 	endpoint := e.buildURL(orgID, ledgerID, balanceID)
 
 	payload, err := json.Marshal(input)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, endpoint, bytes.NewBuffer(payload))
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	var balance models.Balance
@@ -487,22 +487,22 @@ func (e *balancesEntity) DeleteBalance(
 	const operation = "DeleteBalance"
 
 	if orgID == "" {
-		return errors.NewMissingParameterError(operation, "organizationID")
+		return sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if ledgerID == "" {
-		return errors.NewMissingParameterError(operation, "ledgerID")
+		return sdkerrors.NewMissingParameterError(operation, "ledgerID")
 	}
 
 	if balanceID == "" {
-		return errors.NewMissingParameterError(operation, "balanceID")
+		return sdkerrors.NewMissingParameterError(operation, "balanceID")
 	}
 
 	endpoint := e.buildURL(orgID, ledgerID, balanceID)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, endpoint, nil)
 	if err != nil {
-		return errors.NewInternalError(operation, err)
+		return sdkerrors.NewInternalError(operation, err)
 	}
 
 	// HTTPClient.DoRequest already returns proper error types
@@ -539,35 +539,35 @@ func (e *balancesEntity) CreateBalance(ctx context.Context, orgID, ledgerID, acc
 	const operation = "CreateBalance"
 
 	if orgID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledgerID")
 	}
 
 	if accountID == "" {
-		return nil, errors.NewMissingParameterError(operation, "accountID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "accountID")
 	}
 
 	if input == nil {
-		return nil, errors.NewMissingParameterError(operation, "input")
+		return nil, sdkerrors.NewMissingParameterError(operation, "input")
 	}
 
 	if err := input.Validate(); err != nil {
-		return nil, errors.NewValidationError(operation, "invalid input", err)
+		return nil, sdkerrors.NewValidationError(operation, "invalid input", err)
 	}
 
 	endpoint := e.buildAccountURL(orgID, ledgerID, accountID)
 
 	body, err := json.Marshal(input)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -585,22 +585,22 @@ func (e *balancesEntity) ListBalancesByAccountAlias(ctx context.Context, orgID, 
 	const operation = "ListBalancesByAccountAlias"
 
 	if orgID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledgerID")
 	}
 
 	if alias == "" {
-		return nil, errors.NewMissingParameterError(operation, "alias")
+		return nil, sdkerrors.NewMissingParameterError(operation, "alias")
 	}
 
 	endpoint := e.buildAccountAliasURL(orgID, ledgerID, alias)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	// Add query parameters if provided
@@ -627,22 +627,22 @@ func (e *balancesEntity) ListBalancesByExternalCode(ctx context.Context, orgID, 
 	const operation = "ListBalancesByExternalCode"
 
 	if orgID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledgerID")
 	}
 
 	if code == "" {
-		return nil, errors.NewMissingParameterError(operation, "code")
+		return nil, sdkerrors.NewMissingParameterError(operation, "code")
 	}
 
 	endpoint := e.buildExternalCodeURL(orgID, ledgerID, code)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	// Add query parameters if provided

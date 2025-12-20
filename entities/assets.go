@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
 )
 
 // AssetsService defines the interface for asset-related operations.
@@ -198,18 +198,18 @@ func (e *assetsEntity) ListAssets(
 	const operation = "ListAssets"
 
 	if organizationID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledgerID")
 	}
 
 	url := e.buildURL(organizationID, ledgerID, "")
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	// Add query parameters if provided
@@ -243,22 +243,22 @@ func (e *assetsEntity) GetAsset(
 	const operation = "GetAsset"
 
 	if organizationID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledgerID")
 	}
 
 	if id == "" {
-		return nil, errors.NewMissingParameterError(operation, "id")
+		return nil, sdkerrors.NewMissingParameterError(operation, "id")
 	}
 
 	url := e.buildURL(organizationID, ledgerID, id)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	var asset models.Asset
@@ -279,27 +279,27 @@ func (e *assetsEntity) CreateAsset(
 	const operation = "CreateAsset"
 
 	if organizationID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledgerID")
 	}
 
 	if input == nil {
-		return nil, errors.NewMissingParameterError(operation, "input")
+		return nil, sdkerrors.NewMissingParameterError(operation, "input")
 	}
 
 	url := e.buildURL(organizationID, ledgerID, "")
 
 	body, err := json.Marshal(input)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	var asset models.Asset
@@ -324,31 +324,31 @@ func (e *assetsEntity) UpdateAsset(
 	const operation = "UpdateAsset"
 
 	if organizationID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledgerID")
 	}
 
 	if id == "" {
-		return nil, errors.NewMissingParameterError(operation, "id")
+		return nil, sdkerrors.NewMissingParameterError(operation, "id")
 	}
 
 	if input == nil {
-		return nil, errors.NewMissingParameterError(operation, "input")
+		return nil, sdkerrors.NewMissingParameterError(operation, "input")
 	}
 
 	url := e.buildURL(organizationID, ledgerID, id)
 
 	body, err := json.Marshal(input)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, bytes.NewReader(body))
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	var asset models.Asset
@@ -370,22 +370,22 @@ func (e *assetsEntity) DeleteAsset(
 	const operation = "DeleteAsset"
 
 	if organizationID == "" {
-		return errors.NewMissingParameterError(operation, "organizationID")
+		return sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if ledgerID == "" {
-		return errors.NewMissingParameterError(operation, "ledgerID")
+		return sdkerrors.NewMissingParameterError(operation, "ledgerID")
 	}
 
 	if id == "" {
-		return errors.NewMissingParameterError(operation, "id")
+		return sdkerrors.NewMissingParameterError(operation, "id")
 	}
 
 	url := e.buildURL(organizationID, ledgerID, id)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
 	if err != nil {
-		return errors.NewInternalError(operation, err)
+		return sdkerrors.NewInternalError(operation, err)
 	}
 
 	if err := e.httpClient.sendRequest(req, nil); err != nil {
@@ -401,18 +401,18 @@ func (e *assetsEntity) GetAssetsMetricsCount(ctx context.Context, organizationID
 	const operation = "GetAssetsMetricsCount"
 
 	if organizationID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledgerID")
 	}
 
 	url := e.buildMetricsURL(organizationID, ledgerID)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	var metrics models.MetricsCount

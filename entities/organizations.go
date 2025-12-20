@@ -9,7 +9,7 @@ import (
 	"os"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
 )
 
 // OrganizationsService defines the interface for organization-related operations.
@@ -196,7 +196,7 @@ func (e *organizationsEntity) ListOrganizations(ctx context.Context, opts *model
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	// Add query parameters if provided
@@ -223,14 +223,14 @@ func (e *organizationsEntity) GetOrganization(ctx context.Context, id string) (*
 	const operation = "GetOrganization"
 
 	if id == "" {
-		return nil, errors.NewMissingParameterError(operation, "id")
+		return nil, sdkerrors.NewMissingParameterError(operation, "id")
 	}
 
 	url := e.buildURL(id)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	var organization models.Organization
@@ -250,15 +250,15 @@ func (e *organizationsEntity) CreateOrganization(ctx context.Context, input *mod
 	const operation = "CreateOrganization"
 
 	if input == nil {
-		return nil, errors.NewMissingParameterError(operation, "input")
+		return nil, sdkerrors.NewMissingParameterError(operation, "input")
 	}
 
 	if input.LegalName == "" {
-		return nil, errors.NewValidationError(operation, "legal name is required", nil)
+		return nil, sdkerrors.NewValidationError(operation, "legal name is required", nil)
 	}
 
 	if input.LegalDocument == "" {
-		return nil, errors.NewValidationError(operation, "legal document is required", nil)
+		return nil, sdkerrors.NewValidationError(operation, "legal document is required", nil)
 	}
 
 	url := e.buildURL("")
@@ -273,12 +273,12 @@ func (e *organizationsEntity) CreateOrganization(ctx context.Context, input *mod
 	// Marshal the input to JSON
 	body, err := json.Marshal(mmodelInput)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	var organization models.Organization
@@ -294,11 +294,11 @@ func (e *organizationsEntity) UpdateOrganization(ctx context.Context, id string,
 	const operation = "UpdateOrganization"
 
 	if id == "" {
-		return nil, errors.NewMissingParameterError(operation, "id")
+		return nil, sdkerrors.NewMissingParameterError(operation, "id")
 	}
 
 	if input == nil {
-		return nil, errors.NewMissingParameterError(operation, "input")
+		return nil, sdkerrors.NewMissingParameterError(operation, "input")
 	}
 
 	url := e.buildURL(id)
@@ -309,12 +309,12 @@ func (e *organizationsEntity) UpdateOrganization(ctx context.Context, id string,
 	// Marshal the input to JSON
 	body, err := json.Marshal(mmodelInput)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, bytes.NewReader(body))
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	var organization models.Organization
@@ -330,14 +330,14 @@ func (e *organizationsEntity) DeleteOrganization(ctx context.Context, id string)
 	const operation = "DeleteOrganization"
 
 	if id == "" {
-		return errors.NewMissingParameterError(operation, "id")
+		return sdkerrors.NewMissingParameterError(operation, "id")
 	}
 
 	url := e.buildURL(id)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
 	if err != nil {
-		return errors.NewInternalError(operation, err)
+		return sdkerrors.NewInternalError(operation, err)
 	}
 
 	return e.HTTPClient.sendRequest(req, nil)
@@ -351,7 +351,7 @@ func (e *organizationsEntity) GetOrganizationsMetricsCount(ctx context.Context) 
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	var metrics models.MetricsCount

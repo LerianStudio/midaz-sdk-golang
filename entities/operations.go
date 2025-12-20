@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
 )
 
 // OperationsService defines the interface for operation-related operations.
@@ -240,22 +240,22 @@ func (e *operationsEntity) ListOperations(ctx context.Context, orgID, ledgerID, 
 	const operation = "ListOperations"
 
 	if orgID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledgerID")
 	}
 
 	if accountID == "" {
-		return nil, errors.NewMissingParameterError(operation, "accountID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "accountID")
 	}
 
 	url := e.buildURL(orgID, ledgerID, accountID, "")
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	// Add query parameters if provided
@@ -341,19 +341,19 @@ func (e *operationsEntity) GetOperation(ctx context.Context, orgID, ledgerID, ac
 	const operation = "GetOperation"
 
 	if orgID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledgerID")
 	}
 
 	if accountID == "" {
-		return nil, errors.NewMissingParameterError(operation, "accountID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "accountID")
 	}
 
 	if operationID == "" {
-		return nil, errors.NewMissingParameterError(operation, "operationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "operationID")
 	}
 
 	// Always use the account-based endpoint for GET operations
@@ -361,7 +361,7 @@ func (e *operationsEntity) GetOperation(ctx context.Context, orgID, ledgerID, ac
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	var operationModel models.Operation
@@ -378,35 +378,35 @@ func (e *operationsEntity) UpdateOperation(ctx context.Context, orgID, ledgerID,
 	const operation = "UpdateOperation"
 
 	if orgID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledgerID")
 	}
 
 	if accountID == "" {
-		return nil, errors.NewMissingParameterError(operation, "accountID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "accountID")
 	}
 
 	if operationID == "" {
-		return nil, errors.NewMissingParameterError(operation, "operationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "operationID")
 	}
 
 	if input == nil {
-		return nil, errors.NewMissingParameterError(operation, "input")
+		return nil, sdkerrors.NewMissingParameterError(operation, "input")
 	}
 
 	url := fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/%s/operations/%s", e.baseURLs["transaction"], orgID, ledgerID, accountID, operationID)
 
 	body, err := json.Marshal(input)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, bytes.NewBuffer(body))
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	var operationModel models.Operation

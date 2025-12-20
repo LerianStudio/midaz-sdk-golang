@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
 )
 
 // AccountsService defines the interface for account-related operations.
@@ -227,18 +227,18 @@ func (e *accountsEntity) ListAccounts(ctx context.Context, organizationID, ledge
 	const operation = "ListAccounts"
 
 	if organizationID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledgerID")
 	}
 
 	endpoint := e.buildURL(organizationID, ledgerID, "")
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	// Add query parameters if provided
@@ -265,22 +265,22 @@ func (e *accountsEntity) GetAccount(ctx context.Context, organizationID, ledgerI
 	const operation = "GetAccount"
 
 	if organizationID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledgerID")
 	}
 
 	if id == "" {
-		return nil, errors.NewMissingParameterError(operation, "id")
+		return nil, sdkerrors.NewMissingParameterError(operation, "id")
 	}
 
 	endpoint := e.buildURL(organizationID, ledgerID, id)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	var account models.Account
@@ -296,22 +296,22 @@ func (e *accountsEntity) GetAccountByAlias(ctx context.Context, organizationID, 
 	const operation = "GetAccountByAlias"
 
 	if organizationID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledgerID")
 	}
 
 	if alias == "" {
-		return nil, errors.NewMissingParameterError(operation, "alias")
+		return nil, sdkerrors.NewMissingParameterError(operation, "alias")
 	}
 
 	endpoint := fmt.Sprintf("%s?alias=%s", e.buildURL(organizationID, ledgerID, ""), alias)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	var accounts models.ListResponse[models.Account]
@@ -320,7 +320,7 @@ func (e *accountsEntity) GetAccountByAlias(ctx context.Context, organizationID, 
 	}
 
 	if len(accounts.Items) == 0 {
-		return nil, errors.NewNotFoundError(operation, "account", alias, nil)
+		return nil, sdkerrors.NewNotFoundError(operation, "account", alias, nil)
 	}
 
 	return &accounts.Items[0], nil
@@ -331,27 +331,27 @@ func (e *accountsEntity) CreateAccount(ctx context.Context, organizationID, ledg
 	const operation = "CreateAccount"
 
 	if organizationID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledgerID")
 	}
 
 	if input == nil {
-		return nil, errors.NewMissingParameterError(operation, "input")
+		return nil, sdkerrors.NewMissingParameterError(operation, "input")
 	}
 
 	endpoint := e.buildURL(organizationID, ledgerID, "")
 
 	body, err := json.Marshal(input)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	var account models.Account
@@ -367,31 +367,31 @@ func (e *accountsEntity) UpdateAccount(ctx context.Context, organizationID, ledg
 	const operation = "UpdateAccount"
 
 	if organizationID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledgerID")
 	}
 
 	if id == "" {
-		return nil, errors.NewMissingParameterError(operation, "id")
+		return nil, sdkerrors.NewMissingParameterError(operation, "id")
 	}
 
 	if input == nil {
-		return nil, errors.NewMissingParameterError(operation, "input")
+		return nil, sdkerrors.NewMissingParameterError(operation, "input")
 	}
 
 	endpoint := e.buildURL(organizationID, ledgerID, id)
 
 	body, err := json.Marshal(input)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, endpoint, bytes.NewReader(body))
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	var account models.Account
@@ -407,22 +407,22 @@ func (e *accountsEntity) DeleteAccount(ctx context.Context, organizationID, ledg
 	const operation = "DeleteAccount"
 
 	if organizationID == "" {
-		return errors.NewMissingParameterError(operation, "organizationID")
+		return sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if ledgerID == "" {
-		return errors.NewMissingParameterError(operation, "ledgerID")
+		return sdkerrors.NewMissingParameterError(operation, "ledgerID")
 	}
 
 	if id == "" {
-		return errors.NewMissingParameterError(operation, "id")
+		return sdkerrors.NewMissingParameterError(operation, "id")
 	}
 
 	endpoint := e.buildURL(organizationID, ledgerID, id)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, endpoint, nil)
 	if err != nil {
-		return errors.NewInternalError(operation, err)
+		return sdkerrors.NewInternalError(operation, err)
 	}
 
 	return e.httpClient.sendRequest(req, nil)
@@ -433,15 +433,15 @@ func (e *accountsEntity) GetBalance(ctx context.Context, organizationID, ledgerI
 	const operation = "GetBalance"
 
 	if organizationID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledgerID")
 	}
 
 	if accountID == "" {
-		return nil, errors.NewMissingParameterError(operation, "accountID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "accountID")
 	}
 
 	// First get the account details to get the alias
@@ -451,7 +451,7 @@ func (e *accountsEntity) GetBalance(ctx context.Context, organizationID, ledgerI
 	}
 
 	if account.Alias == nil || *account.Alias == "" {
-		return nil, errors.NewValidationError(operation, "account has no alias", nil)
+		return nil, sdkerrors.NewValidationError(operation, "account has no alias", nil)
 	}
 
 	// Build URL with balance endpoint using alias instead of ID with proper URL encoding
@@ -469,7 +469,7 @@ func (e *accountsEntity) GetBalance(ctx context.Context, organizationID, ledgerI
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, accountsURL, nil)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	var balance models.Balance
@@ -485,18 +485,18 @@ func (e *accountsEntity) GetAccountsMetricsCount(ctx context.Context, organizati
 	const operation = "GetAccountsMetricsCount"
 
 	if organizationID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledgerID")
 	}
 
 	endpoint := e.buildMetricsURL(organizationID, ledgerID)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	var metrics models.MetricsCount
@@ -529,22 +529,22 @@ func (e *accountsEntity) GetExternalAccount(ctx context.Context, organizationID,
 	const operation = "GetExternalAccount"
 
 	if organizationID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledgerID")
 	}
 
 	if assetCode == "" {
-		return nil, errors.NewMissingParameterError(operation, "assetCode")
+		return nil, sdkerrors.NewMissingParameterError(operation, "assetCode")
 	}
 
 	endpoint := e.buildExternalAccountURL(organizationID, ledgerID, assetCode)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	var account models.Account
@@ -560,22 +560,22 @@ func (e *accountsEntity) GetExternalAccountBalance(ctx context.Context, organiza
 	const operation = "GetExternalAccountBalance"
 
 	if organizationID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledgerID")
 	}
 
 	if assetCode == "" {
-		return nil, errors.NewMissingParameterError(operation, "assetCode")
+		return nil, sdkerrors.NewMissingParameterError(operation, "assetCode")
 	}
 
 	endpoint := e.buildExternalAccountBalanceURL(organizationID, ledgerID, assetCode)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	var balance models.Balance
@@ -603,22 +603,22 @@ func (e *accountsEntity) GetAccountByAliasPath(ctx context.Context, organization
 	const operation = "GetAccountByAliasPath"
 
 	if organizationID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "organizationID")
 	}
 
 	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+		return nil, sdkerrors.NewMissingParameterError(operation, "ledgerID")
 	}
 
 	if alias == "" {
-		return nil, errors.NewMissingParameterError(operation, "alias")
+		return nil, sdkerrors.NewMissingParameterError(operation, "alias")
 	}
 
 	endpoint := e.buildAliasURL(organizationID, ledgerID, alias)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	var account models.Account

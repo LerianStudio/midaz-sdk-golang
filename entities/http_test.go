@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/performance"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/stretchr/testify/assert"
@@ -27,7 +27,7 @@ func TestHTTPClient(t *testing.T) {
 	t.Skip("Tests temporarily disabled during error handling refactoring - see TODO above")
 
 	// Just to make sure the code compiles with the error package
-	err := errors.NewValidationError("test", "test error", nil)
+	err := sdkerrors.NewValidationError("test", "test error", nil)
 	assert.NotNil(t, err)
 
 	ctx := context.Background()

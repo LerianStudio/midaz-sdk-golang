@@ -1,5 +1,5 @@
-// Package errors provides error handling utilities for the Midaz SDK.
-package errors
+// Package sdkerrors provides error handling utilities for the Midaz SDK.
+package sdkerrors
 
 import (
 	"context"
