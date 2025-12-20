@@ -55,13 +55,14 @@ endif
 # Core Commands
 #-------------------------------------------------------
 
-.PHONY: help
+.PHONY: help build
 help:
 	@echo ""
 	@echo "$(SERVICE_NAME) Commands"
 	@echo ""
 	@echo "Core Commands:"
 	@echo "  make help                        - Display this help message"
+	@echo "  make build                       - Build SDK (verify compilation)"
 	@echo "  make set-env                     - Create .env file from .env.example if it doesn't exist"
 	@echo "  make test                        - Run all tests"
 	@echo "  make test-fast                   - Run tests with -short flag"
@@ -85,6 +86,15 @@ help:
 	@echo "  make godoc-static                - Generate static documentation files"
 	@echo "  make docs                        - Generate comprehensive documentation (includes godoc-static)"
 	@echo ""
+
+#-------------------------------------------------------
+# Build Commands
+#-------------------------------------------------------
+
+build:
+	$(call print_header,"Building SDK")
+	@GOWORK=off $(GOBUILD) ./...
+	@echo "$(GREEN)[ok]$(NC) SDK built successfully$(GREEN) ✔️$(NC)"
 
 #-------------------------------------------------------
 # Environment Setup
@@ -292,3 +302,17 @@ godoc-static:
 docs: godoc-static
 	$(call print_header,"Documentation generation complete")
 	@echo "$(GREEN)[ok]$(NC) Documentation generated successfully$(GREEN) ✔️$(NC)"
+
+#-------------------------------------------------------
+# Publish Commands
+#-------------------------------------------------------
+
+.PHONY: publish
+
+publish:
+	$(call print_header,"Publishing SDK")
+	@echo "$(CYAN)Go modules are published via git tags.$(NC)"
+	@echo "$(CYAN)To publish a new version:$(NC)"
+	@echo "  1. git tag v$(VERSION)"
+	@echo "  2. git push origin v$(VERSION)"
+	@echo "$(GREEN)[ok]$(NC) See above instructions for publishing$(GREEN) ✔️$(NC)"
