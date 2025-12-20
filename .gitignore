@@ -24,6 +24,7 @@ go.work.sum
 /coverage.out
 /coverage.html
 /mocks/
+/references/
 
 # Environment files
 .env
