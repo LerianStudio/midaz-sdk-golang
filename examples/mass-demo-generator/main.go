@@ -32,6 +32,41 @@ type workflowState struct {
 	accountTxnCounts map[string]int
 }
 
+// Package-level flag variables
+var (
+	timeoutSec        *int
+	orgs              *int
+	ledgersPerOrg     *int
+	accountsPerLedger *int
+	txPerAccount      *int
+	concurrency       *int
+	batchSize         *int
+	orgLocaleFlag     *string
+)
+
+// init sets up command-line flags with defaults from config file
+func init() {
+	fileDefaults := getDemoFileDefaults()
+
+	timeoutDefault := coalesceIntPtr(fileDefaults.Timeout, 120)
+	orgsDefault := coalesceIntPtr(fileDefaults.Orgs, 2)
+	ledgersDefault := coalesceIntPtr(fileDefaults.LedgersPerOrg, 2)
+	accountsDefault := coalesceIntPtr(fileDefaults.AccountsPerLedger, 50)
+	txDefault := coalesceIntPtr(fileDefaults.TxPerAccount, 20)
+	concurrencyDefault := coalesceIntPtr(fileDefaults.Concurrency, 0)
+	batchDefault := coalesceIntPtr(fileDefaults.BatchSize, 50)
+	localeDefault := coalesceStringPtr(fileDefaults.Locale, "")
+
+	timeoutSec = flag.Int("timeout", timeoutDefault, "overall generation timeout in seconds")
+	orgs = flag.Int("orgs", orgsDefault, "number of organizations to create")
+	ledgersPerOrg = flag.Int("ledgers", ledgersDefault, "number of ledgers per organization")
+	accountsPerLedger = flag.Int("accounts", accountsDefault, "number of accounts per ledger")
+	txPerAccount = flag.Int("tx", txDefault, "number of transactions per account (demo batch)")
+	concurrency = flag.Int("concurrency", concurrencyDefault, "worker pool size (0 = auto)")
+	batchSize = flag.Int("batch", batchDefault, "batch size for parallel ops")
+	orgLocaleFlag = flag.String("org-locale", localeDefault, "organization locale (us|br)")
+}
+
 type ledgerContext struct {
 	org               *models.Organization
 	ledger            *models.Ledger
@@ -51,6 +86,8 @@ func newWorkflowState(cfg demoConfig, genCfg gen.GeneratorConfig) *workflowState
 }
 
 func main() {
+	flag.Parse()
+
 	userConfig, obsProvider, err := prepareRun()
 	if err != nil {
 		log.Fatalf("Failed to prepare run: %v", err)
@@ -189,30 +226,6 @@ func askBool(r *bufio.Reader, prompt string, def bool) bool {
 }
 
 func prepareRun() (demoConfig, observability.Provider, error) {
-	fileDefaults := getDemoFileDefaults()
-
-	timeoutDefault := coalesceIntPtr(fileDefaults.Timeout, 120)
-	orgsDefault := coalesceIntPtr(fileDefaults.Orgs, 2)
-	ledgersDefault := coalesceIntPtr(fileDefaults.LedgersPerOrg, 2)
-	accountsDefault := coalesceIntPtr(fileDefaults.AccountsPerLedger, 50)
-	txDefault := coalesceIntPtr(fileDefaults.TxPerAccount, 20)
-	concurrencyDefault := coalesceIntPtr(fileDefaults.Concurrency, 0)
-	batchDefault := coalesceIntPtr(fileDefaults.BatchSize, 50)
-	localeDefault := coalesceStringPtr(fileDefaults.Locale, "")
-
-	var (
-		timeoutSec        = flag.Int("timeout", timeoutDefault, "overall generation timeout in seconds")
-		orgs              = flag.Int("orgs", orgsDefault, "number of organizations to create")
-		ledgersPerOrg     = flag.Int("ledgers", ledgersDefault, "number of ledgers per organization")
-		accountsPerLedger = flag.Int("accounts", accountsDefault, "number of accounts per ledger")
-		txPerAccount      = flag.Int("tx", txDefault, "number of transactions per account (demo batch)")
-		concurrency       = flag.Int("concurrency", concurrencyDefault, "worker pool size (0 = auto)")
-		batchSize         = flag.Int("batch", batchDefault, "batch size for parallel ops")
-		orgLocaleFlag     = flag.String("org-locale", localeDefault, "organization locale (us|br)")
-	)
-
-	flag.Parse()
-
 	if err := godotenv.Load("examples/mass-demo-generator/.env"); err != nil {
 		log.Printf("note: could not load examples/mass-demo-generator/.env: %v", err)
 	}
