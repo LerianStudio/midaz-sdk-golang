@@ -962,7 +962,7 @@ type DistributeInput struct {
 // This structure contains the account and amount details.
 type FromToInput struct {
 	// Account identifies the account affected by this operation
-	Account string `json:"account"`
+	Account string `json:"account,omitempty"`
 
 	// Amount specifies the amount details for this operation
 	Amount AmountInput `json:"amount"`
