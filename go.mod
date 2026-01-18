@@ -2,8 +2,6 @@ module github.com/LerianStudio/midaz-sdk-golang/v2
 
 go 1.25
 
-toolchain go1.25.5
-
 require (
 	github.com/LerianStudio/lib-commons v1.19.0-beta.11
 	github.com/LerianStudio/midaz/v3 v3.5.0
