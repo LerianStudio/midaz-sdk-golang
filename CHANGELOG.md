@@ -17,6 +17,12 @@ Contributors: Guilherme Moreira Rodrigues
 - **Environment Configuration**: Improved the setup of automated workflows, contributing to the overall robustness and efficiency of our development and deployment pipeline.
 
 
+## [v2.2.2-beta.1] - 2026-03-02
+
+### 🔧 Maintenance
+- bump midaz, otel, gofakeit, and transitive dependencies
+
+
 ## [v2.2.1-beta.1] - 2025-12-01
 
 [Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v2.2.0...v2.2.1-beta.1)
