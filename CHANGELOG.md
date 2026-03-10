@@ -17,6 +17,15 @@ Contributors: Guilherme Moreira Rodrigues
 - **Environment Configuration**: Improved the setup of automated workflows, contributing to the overall robustness and efficiency of our development and deployment pipeline.
 
 
+## [v2.3.0-beta.4] - 2026-03-10
+
+### 🐛 Bug Fixes
+- address CodeRabbit and CodeQL findings
+
+### 🔧 Maintenance
+- Update CHANGELOG
+
+
 ## [v2.3.0-beta.3] - 2026-03-10
 
 ### 🔄 Changes
@@ -44,7 +53,7 @@ Contributors: Guilherme Moreira Rodrigues
 - Update CHANGELOG
 
 
-## [v2.2.0] - 2025-11-30
+## [v2.3.0-beta.5] - 2026-03-10
 
 ### ✨ Features
 - add outbound URL validation package
