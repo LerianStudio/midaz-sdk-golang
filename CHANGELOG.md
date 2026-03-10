@@ -17,6 +17,14 @@ Contributors: Guilherme Moreira Rodrigues
 - **Environment Configuration**: Improved the setup of automated workflows, contributing to the overall robustness and efficiency of our development and deployment pipeline.
 
 
+## [v2.2.2-beta.1] - 2026-03-10
+
+### 🔧 Maintenance
+- update go modules to get latest features and fixes
+- remove obsolete PLAN.md file
+- Update CHANGELOG
+
+
 ## [v2.2.2-beta.1] - 2026-03-02
 
 ### 🔧 Maintenance
@@ -35,7 +43,7 @@ Contributors: Jefferson Rodrigues, lerian-studio
 - **Updated Changelog**: The CHANGELOG has been refreshed to accurately reflect recent changes and improvements, keeping you informed of the project's development progress and ensuring transparency.
 
 
-## [v2.2.0] - 2025-12-01
+## [v2.2.2-beta.2] - 2026-03-10
 
 [Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v2.1.0...v2.2.0)
 Contributors: Arnaldo Pereira, Fred Amaral, Jefferson Rodrigues, lerian-studio
