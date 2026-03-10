@@ -40,6 +40,17 @@ type ledgerContext struct {
 	hierarchyAccounts []*models.Account
 }
 
+type cliFlags struct {
+	timeoutSec        *int
+	orgs              *int
+	ledgersPerOrg     *int
+	accountsPerLedger *int
+	txPerAccount      *int
+	concurrency       *int
+	batchSize         *int
+	orgLocale         *string
+}
+
 func newWorkflowState(cfg demoConfig, genCfg gen.GeneratorConfig) *workflowState {
 	return &workflowState{
 		demoConfig:       cfg,
@@ -51,7 +62,10 @@ func newWorkflowState(cfg demoConfig, genCfg gen.GeneratorConfig) *workflowState
 }
 
 func main() {
-	userConfig, obsProvider, err := prepareRun()
+	flags := parseCLIFlags()
+	flag.Parse()
+
+	userConfig, obsProvider, err := prepareRun(flags)
 	if err != nil {
 		log.Fatalf("Failed to prepare run: %v", err)
 	}
@@ -73,6 +87,32 @@ func main() {
 			log.Fatalf("Failed to run generation workflow: %v", err)
 		}
 	}
+}
+
+func parseCLIFlags() cliFlags {
+	fileDefaults := getDemoFileDefaults()
+
+	timeoutDefault := coalesceIntPtr(fileDefaults.Timeout, 120)
+	orgsDefault := coalesceIntPtr(fileDefaults.Orgs, 2)
+	ledgersDefault := coalesceIntPtr(fileDefaults.LedgersPerOrg, 2)
+	accountsDefault := coalesceIntPtr(fileDefaults.AccountsPerLedger, 50)
+	txDefault := coalesceIntPtr(fileDefaults.TxPerAccount, 20)
+	concurrencyDefault := coalesceIntPtr(fileDefaults.Concurrency, 0)
+	batchDefault := coalesceIntPtr(fileDefaults.BatchSize, 50)
+	localeDefault := coalesceStringPtr(fileDefaults.Locale, "")
+
+	flags := cliFlags{
+		timeoutSec:        flag.Int("timeout", timeoutDefault, "overall generation timeout in seconds"),
+		orgs:              flag.Int("orgs", orgsDefault, "number of organizations to create"),
+		ledgersPerOrg:     flag.Int("ledgers", ledgersDefault, "number of ledgers per organization"),
+		accountsPerLedger: flag.Int("accounts", accountsDefault, "number of accounts per ledger"),
+		txPerAccount:      flag.Int("tx", txDefault, "number of transactions per account (demo batch)"),
+		concurrency:       flag.Int("concurrency", concurrencyDefault, "worker pool size (0 = auto)"),
+		batchSize:         flag.Int("batch", batchDefault, "batch size for parallel ops"),
+		orgLocale:         flag.String("org-locale", localeDefault, "organization locale (us|br)"),
+	}
+
+	return flags
 }
 
 func formatAmountByScale(amount int64, scale int64) string {
@@ -188,31 +228,7 @@ func askBool(r *bufio.Reader, prompt string, def bool) bool {
 	}
 }
 
-func prepareRun() (demoConfig, observability.Provider, error) {
-	fileDefaults := getDemoFileDefaults()
-
-	timeoutDefault := coalesceIntPtr(fileDefaults.Timeout, 120)
-	orgsDefault := coalesceIntPtr(fileDefaults.Orgs, 2)
-	ledgersDefault := coalesceIntPtr(fileDefaults.LedgersPerOrg, 2)
-	accountsDefault := coalesceIntPtr(fileDefaults.AccountsPerLedger, 50)
-	txDefault := coalesceIntPtr(fileDefaults.TxPerAccount, 20)
-	concurrencyDefault := coalesceIntPtr(fileDefaults.Concurrency, 0)
-	batchDefault := coalesceIntPtr(fileDefaults.BatchSize, 50)
-	localeDefault := coalesceStringPtr(fileDefaults.Locale, "")
-
-	var (
-		timeoutSec        = flag.Int("timeout", timeoutDefault, "overall generation timeout in seconds")
-		orgs              = flag.Int("orgs", orgsDefault, "number of organizations to create")
-		ledgersPerOrg     = flag.Int("ledgers", ledgersDefault, "number of ledgers per organization")
-		accountsPerLedger = flag.Int("accounts", accountsDefault, "number of accounts per ledger")
-		txPerAccount      = flag.Int("tx", txDefault, "number of transactions per account (demo batch)")
-		concurrency       = flag.Int("concurrency", concurrencyDefault, "worker pool size (0 = auto)")
-		batchSize         = flag.Int("batch", batchDefault, "batch size for parallel ops")
-		orgLocaleFlag     = flag.String("org-locale", localeDefault, "organization locale (us|br)")
-	)
-
-	flag.Parse()
-
+func prepareRun(flags cliFlags) (demoConfig, observability.Provider, error) {
 	if err := godotenv.Load("examples/mass-demo-generator/.env"); err != nil {
 		log.Printf("note: could not load examples/mass-demo-generator/.env: %v", err)
 	}
@@ -231,7 +247,16 @@ func prepareRun() (demoConfig, observability.Provider, error) {
 		return demoConfig{}, nil, fmt.Errorf("failed to create observability provider: %w", err)
 	}
 
-	userConfig := gatherUserConfiguration(timeoutSec, orgs, ledgersPerOrg, accountsPerLedger, txPerAccount, concurrency, batchSize, orgLocaleFlag)
+	userConfig := gatherUserConfiguration(
+		flags.timeoutSec,
+		flags.orgs,
+		flags.ledgersPerOrg,
+		flags.accountsPerLedger,
+		flags.txPerAccount,
+		flags.concurrency,
+		flags.batchSize,
+		flags.orgLocale,
+	)
 
 	return userConfig, obsProvider, nil
 }
