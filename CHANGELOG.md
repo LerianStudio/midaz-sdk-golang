@@ -17,6 +17,15 @@ Contributors: Guilherme Moreira Rodrigues
 - **Environment Configuration**: Improved the setup of automated workflows, contributing to the overall robustness and efficiency of our development and deployment pipeline.
 
 
+## [v2.3.0-beta.2] - 2026-03-10
+
+### 🏗️ Build
+- pin gosec version and use 'go run' for reproducible checks
+
+### 🔧 Maintenance
+- Update CHANGELOG
+
+
 ## [v2.3.0-beta.1] - 2026-03-10
 
 ### 👷 CI/CD
@@ -401,7 +410,7 @@ By focusing on these enhancements and maintenance updates, users can expect a mo
 ### 📚 Documentation
 - Update CHANGELOG with recent changes to ensure it reflects the latest updates and improvements.
 
-## [v1.2.0] - 2025-05-05
+## [v2.3.0-beta.3] - 2026-03-10
 
 ### 🔧 Maintenance
 - Rename `pluginAuth` to `AccessManager` and update related documentation for clarity and consistency.
