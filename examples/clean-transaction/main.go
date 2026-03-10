@@ -47,7 +47,7 @@ func main() {
 		log.Fatalf("Failed to create transaction: %v", err)
 	}
 
-	fmt.Printf("Created transaction: %s\n", tx.ID)
+	fmt.Printf("Created transaction: %q\n", tx.ID)
 }
 
 // createDSLTransaction demonstrates creating a transaction using the DSL format

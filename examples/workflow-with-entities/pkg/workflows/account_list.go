@@ -73,7 +73,7 @@ func displayAccountsPage(accounts []models.Account, pagination models.Pagination
 		len(accounts), pagination.CurrentPage(), pagination.TotalPages())
 
 	for i, account := range accounts {
-		fmt.Printf("   %d. %s (ID: %s, Type: %s)\n", i+1, account.Name, account.ID, account.Type)
+		fmt.Printf("   %d. %q (ID: %q, Type: %q)\n", i+1, account.Name, account.ID, account.Type)
 	}
 }
 
@@ -288,11 +288,11 @@ func processParallelResults(results []concurrent.Result[*models.ListOptions, []m
 // handleParallelError processes errors from parallel fetching
 func handleParallelError(err error, pageNumber int) {
 	if pkgerrors.IsCancellationError(err) {
-		fmt.Printf("⏱️ Page %d fetch cancelled: %v\n", pageNumber, err)
+		fmt.Printf("⏱️ Page %d fetch cancelled: %q\n", pageNumber, err.Error())
 	} else if pkgerrors.IsRateLimitError(err) {
-		fmt.Printf("⚠️ Page %d hit rate limit: %v\n", pageNumber, err)
+		fmt.Printf("⚠️ Page %d hit rate limit: %q\n", pageNumber, err.Error())
 	} else {
-		fmt.Printf("❌ Error fetching page %d: %v\n", pageNumber, err)
+		fmt.Printf("❌ Error fetching page %d: %q\n", pageNumber, err.Error())
 	}
 }
 
@@ -324,7 +324,7 @@ func handleCancellationResult(err error) {
 		if pkgerrors.IsCancellationError(err) {
 			fmt.Println("✅ Context cancellation correctly detected and handled")
 		} else {
-			fmt.Printf("❓ Expected cancellation error, but got: %v\n", err)
+			fmt.Printf("❓ Expected cancellation error, but got: %q\n", err.Error())
 		}
 	} else {
 		fmt.Println("❓ Expected an error due to context cancellation, but operation succeeded")

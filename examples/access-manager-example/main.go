@@ -38,7 +38,7 @@ func main() {
 		log.Fatalf("Organization input validation failed: %v", err)
 	}
 
-	log.Printf("Creating organization with legal name: %s", input.LegalName)
+	log.Printf("Creating organization with legal name: %q", input.LegalName)
 
 	organization, err := c.Entity.Organizations.CreateOrganization(ctx, input)
 	if err != nil {
@@ -52,7 +52,7 @@ func main() {
 
 func setupConfiguration() (auth.AccessManager, *config.Config, error) {
 	if err := godotenv.Load(); err != nil {
-		log.Printf("Warning: Error loading .env file: %v", err)
+		log.Printf("Warning: Error loading .env file: %q", err.Error())
 	}
 
 	pluginAuth := auth.AccessManager{
@@ -67,8 +67,8 @@ func setupConfiguration() (auth.AccessManager, *config.Config, error) {
 		return auth.AccessManager{}, nil, fmt.Errorf("failed to create config: %w", err)
 	}
 
-	log.Printf("Debug: SDK Version: %s", client.Version)
-	log.Printf("Debug: Environment: %s", cfg.Environment)
+	log.Printf("Debug: SDK Version: %q", client.Version)
+	log.Printf("Debug: Environment: %q", cfg.Environment)
 
 	return pluginAuth, cfg, nil
 }
@@ -106,11 +106,11 @@ func buildOrganizationInput() *models.CreateOrganizationInput {
 }
 
 func handleCreationError(err error, pluginAuth auth.AccessManager) {
-	log.Printf("Failed to create organization: %v", err)
+	log.Printf("Failed to create organization: %q", err.Error())
 
 	if strings.Contains(err.Error(), "Internal Server Error") {
 		log.Printf("This is a server-side error. Check the following:")
-		log.Printf("1. Is the plugin auth service running and accessible at %s?", pluginAuth.Address)
+		log.Printf("1. Is the plugin auth service running and accessible at %q?", pluginAuth.Address)
 		log.Printf("2. Are the client ID and secret correct?")
 		log.Printf("3. Does the token have the necessary permissions?")
 		log.Printf("4. Is the Midaz API server running and properly configured?")
@@ -125,15 +125,15 @@ func printOrganizationDetails(organization *models.Organization, pluginAuth auth
 	fmt.Println("Organization created successfully!")
 	fmt.Println("Plugin Auth:")
 	fmt.Printf("- Enabled: %t\n", pluginAuth.Enabled)
-	fmt.Printf("- ID: %s\n", organization.ID)
-	fmt.Printf("- Legal Name: %s\n", organization.LegalName)
+	fmt.Printf("- ID: %q\n", organization.ID)
+	fmt.Printf("- Legal Name: %q\n", organization.LegalName)
 
 	if organization.DoingBusinessAs != nil {
-		fmt.Printf("- Doing Business As: %s\n", *organization.DoingBusinessAs)
+		fmt.Printf("- Doing Business As: %q\n", *organization.DoingBusinessAs)
 	} else {
 		fmt.Printf("- Doing Business As: <not set>\n")
 	}
 
-	fmt.Printf("- Status: %s\n", organization.Status.Code)
-	fmt.Printf("- Created At: %s\n", organization.CreatedAt.Format(time.RFC3339))
+	fmt.Printf("- Status: %q\n", organization.Status.Code)
+	fmt.Printf("- Created At: %q\n", organization.CreatedAt.Format(time.RFC3339))
 }

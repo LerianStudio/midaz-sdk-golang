@@ -100,7 +100,7 @@ func demonstrateWithdrawalHelper(ctx context.Context, midazClient *client.Client
 
 	if err != nil {
 		fmt.Printf("⚠️  Withdrawal helper failed (likely insufficient funds after previous tests)\n")
-		fmt.Printf("   Error: %v\n", err)
+		fmt.Printf("   Error: %q\n", err.Error())
 		fmt.Printf("   Note: This is expected if account balance is low after extensive testing\n")
 		fmt.Printf("✅ Transaction helpers demonstration completed with expected limitations\n\n")
 		observability.RecordError(ctx, err, "withdrawal_helper_failed_expected")
@@ -188,7 +188,7 @@ func buildBatchTransactionInputs(customerAccount, merchantAccount *models.Accoun
 
 func printTransactionSuccess(txType string, tx *models.Transaction) {
 	formattedAmount := fmt.Sprintf("%s %s", tx.Amount, tx.AssetCode)
-	fmt.Printf("✅ %s executed successfully with helper\n", txType)
-	fmt.Printf("   Transaction ID: %s\n", tx.ID)
-	fmt.Printf("   Amount: %s\n", formattedAmount)
+	fmt.Printf("✅ %q executed successfully with helper\n", txType)
+	fmt.Printf("   Transaction ID: %q\n", tx.ID)
+	fmt.Printf("   Amount: %q\n", formattedAmount)
 }

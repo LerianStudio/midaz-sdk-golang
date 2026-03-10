@@ -62,6 +62,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	client "github.com/LerianStudio/midaz-sdk-golang/v2"
@@ -184,13 +185,13 @@ func loadConcurrencySettings() (customerToMerchantTxs int, merchantToCustomerTxs
 	var err error
 	customerToMerchantTxs, err = getEnvInt("CONCURRENT_CUSTOMER_TO_MERCHANT_TXS", 10)
 	if err != nil {
-		log.Printf("Warning: Failed to parse CONCURRENT_CUSTOMER_TO_MERCHANT_TXS, using default: %v", err)
+		log.Printf("Warning: Failed to parse CONCURRENT_CUSTOMER_TO_MERCHANT_TXS, using default: %q", err.Error())
 		customerToMerchantTxs = 10
 	}
 
 	merchantToCustomerTxs, err = getEnvInt("CONCURRENT_MERCHANT_TO_CUSTOMER_TXS", 10)
 	if err != nil {
-		log.Printf("Warning: Failed to parse CONCURRENT_MERCHANT_TO_CUSTOMER_TXS, using default: %v", err)
+		log.Printf("Warning: Failed to parse CONCURRENT_MERCHANT_TO_CUSTOMER_TXS, using default: %q", err.Error())
 		merchantToCustomerTxs = 10
 	}
 
@@ -246,7 +247,7 @@ func validateEnvironment() error {
 	}
 
 	if len(missingVars) > 0 {
-		return fmt.Errorf("missing required environment variables: %v", missingVars)
+		return fmt.Errorf("missing required environment variables: %q", strings.Join(missingVars, ","))
 	}
 
 	// Use validation package to validate auth token format
@@ -268,7 +269,7 @@ func setupObservability() func() {
 		observability.WithComponentEnabled(true, true, true), // Enable tracing, metrics, and logging
 	)
 	if err != nil {
-		log.Printf("Warning: Failed to create observability provider: %v", err)
+		log.Printf("Warning: Failed to create observability provider: %q", err.Error())
 		return func() {} // Return no-op shutdown function
 	}
 
@@ -276,7 +277,7 @@ func setupObservability() func() {
 	return func() {
 		if obsProvider != nil {
 			if err := obsProvider.Shutdown(context.Background()); err != nil {
-				log.Printf("Warning: Failed to shut down observability provider: %v", err)
+				log.Printf("Warning: Failed to shut down observability provider: %q", err.Error())
 			}
 		}
 	}
@@ -286,7 +287,7 @@ func setupObservability() func() {
 func setupRetryOptions() *retry.Options {
 	maxRetries, err := getEnvInt("MIDAZ_MAX_RETRIES", 3)
 	if err != nil {
-		log.Printf("Warning: Failed to parse MIDAZ_MAX_RETRIES, using default: %v", err)
+		log.Printf("Warning: Failed to parse MIDAZ_MAX_RETRIES, using default: %q", err.Error())
 	}
 
 	// Create options with defaults
@@ -294,23 +295,23 @@ func setupRetryOptions() *retry.Options {
 
 	// Apply specific options
 	if err := retry.WithMaxRetries(maxRetries)(options); err != nil {
-		log.Printf("Warning: Failed to set max retries: %v", err)
+		log.Printf("Warning: Failed to set max retries: %q", err.Error())
 	}
 
 	if err := retry.WithInitialDelay(100 * time.Millisecond)(options); err != nil {
-		log.Printf("Warning: Failed to set initial delay: %v", err)
+		log.Printf("Warning: Failed to set initial delay: %q", err.Error())
 	}
 
 	if err := retry.WithMaxDelay(2 * time.Second)(options); err != nil {
-		log.Printf("Warning: Failed to set max delay: %v", err)
+		log.Printf("Warning: Failed to set max delay: %q", err.Error())
 	}
 
 	if err := retry.WithBackoffFactor(2.0)(options); err != nil {
-		log.Printf("Warning: Failed to set backoff factor: %v", err)
+		log.Printf("Warning: Failed to set backoff factor: %q", err.Error())
 	}
 
 	if err := retry.WithRetryableErrors(retry.DefaultRetryableErrors)(options); err != nil {
-		log.Printf("Warning: Failed to set retryable errors: %v", err)
+		log.Printf("Warning: Failed to set retryable errors: %q", err.Error())
 	}
 
 	return options

@@ -78,7 +78,7 @@ func defaultRetryExample() error {
 	fmt.Println("\nExample call that would be retried if it failed:")
 
 	_, err = c.Entity.Organizations.GetOrganization(context.Background(), "org-id")
-	fmt.Printf("Result: %v\n", err)
+	fmt.Printf("Result: %q\n", fmt.Sprint(err))
 
 	return nil
 }
@@ -109,7 +109,7 @@ func customRetryConfigExample() error {
 	fmt.Println("\nExample call with custom retry settings:")
 
 	_, err = c.Entity.Organizations.GetOrganization(context.Background(), "org-id")
-	fmt.Printf("Result: %v\n", err)
+	fmt.Printf("Result: %q\n", fmt.Sprint(err))
 
 	return nil
 }
@@ -161,7 +161,7 @@ func customRetryPolicyExample() error {
 	fmt.Println("\nExample call with custom retry policy:")
 
 	_, err = c.Entity.Organizations.GetOrganization(context.Background(), "org-id")
-	fmt.Printf("Result: %v\n", err)
+	fmt.Printf("Result: %q\n", fmt.Sprint(err))
 
 	return nil
 }
@@ -203,7 +203,7 @@ func disableRetriesExample() error {
 	case errors.IsTimeoutError(err):
 		fmt.Println("  - Timeout error, would not be retried")
 	default:
-		fmt.Printf("  - Other error: %v\n", err)
+		fmt.Printf("  - Other error: %q\n", fmt.Sprint(err))
 	}
 
 	return nil

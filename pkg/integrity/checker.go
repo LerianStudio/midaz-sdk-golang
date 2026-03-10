@@ -73,7 +73,7 @@ func (c *Checker) GenerateLedgerReport(ctx context.Context, orgID, ledgerID stri
 		return nil, errors.New("entities not initialized for integrity checks")
 	}
 
-	c.logDebug("Starting ledger integrity report generation for ledger %s", ledgerID)
+	c.logDebug("Starting ledger integrity report generation for ledger %q", ledgerID)
 
 	totals := map[string]*BalanceTotals{}
 	accountAliasCache := map[string]string{}
@@ -82,7 +82,7 @@ func (c *Checker) GenerateLedgerReport(ctx context.Context, orgID, ledgerID stri
 
 	err := observability.WithSpan(ctx, c.obs, "GenerateLedgerReport", func(ctx context.Context) error {
 		if err := c.processBalances(ctx, orgID, ledgerID, totals, accountAliasCache); err != nil {
-			c.logError("Failed to process balances for ledger %s: %v", ledgerID, err)
+			c.logError("Failed to process balances for ledger %q: %v", ledgerID, err)
 			return err
 		}
 
@@ -94,7 +94,7 @@ func (c *Checker) GenerateLedgerReport(ctx context.Context, orgID, ledgerID stri
 		return nil, err
 	}
 
-	c.logInfo("Completed ledger integrity report for ledger %s: %d assets processed", ledgerID, len(totals))
+	c.logInfo("Completed ledger integrity report for ledger %q: %d assets processed", ledgerID, len(totals))
 
 	return report, nil
 }
@@ -232,7 +232,7 @@ func (c *Checker) checkForOverdraft(t *BalanceTotals, b models.Balance, alias st
 		}
 
 		t.Overdrawn = append(t.Overdrawn, id)
-		c.logWarn("Detected overdrawn account %s for asset %s: available=%s", id, b.AssetCode, b.Available.String())
+		c.logWarn("Detected overdrawn account %q for asset %q: available=%s", id, b.AssetCode, b.Available.String())
 	}
 }
 

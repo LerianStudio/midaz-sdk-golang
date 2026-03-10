@@ -99,8 +99,8 @@ func CreateMockTransactionRoutes(orgID, ledgerID string) (paymentRoute *models.T
 	}
 
 	fmt.Printf("✅ Mock transaction routes created:\n")
-	fmt.Printf("   Payment: %s (%s)\n", paymentRoute.Title, paymentRoute.ID)
-	fmt.Printf("   Refund: %s (%s)\n", refundRoute.Title, refundRoute.ID)
+	fmt.Printf("   Payment: %q (%q)\n", paymentRoute.Title, paymentRoute.ID)
+	fmt.Printf("   Refund: %q (%q)\n", refundRoute.Title, refundRoute.ID)
 
 	return paymentRoute, refundRoute
 }
@@ -391,8 +391,8 @@ func demonstrateOperationRouteCRUD(ctx context.Context, midazClient *client.Clie
 		return fmt.Errorf("failed to create demo operation route: %w", err)
 	}
 
-	fmt.Printf("✅ Demo operation route created for deletion: %s\n", demoRoute.Title)
-	fmt.Printf("   ID: %s\n", demoRoute.ID.String())
+	fmt.Printf("✅ Demo operation route created for deletion: %q\n", demoRoute.Title)
+	fmt.Printf("   ID: %q\n", demoRoute.ID.String())
 
 	// Step 5: Delete the demo operation route
 	fmt.Println("\n🗑️  Step 5: DELETE Operation Route")

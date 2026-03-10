@@ -118,7 +118,7 @@ func operationGroupExample(c *client.Client) {
 		client.UseAllAPIs(),
 	)
 	if err != nil {
-		fmt.Printf("Failed to create client with context: %v\n", err)
+		fmt.Printf("Failed to create client with context: %q\n", err.Error())
 		return
 	}
 
@@ -270,12 +270,12 @@ func handleContextError(err error) {
 
 	switch {
 	case errors.IsCancellationError(err):
-		fmt.Printf("Operation was cancelled: %v\n", err)
+		fmt.Printf("Operation was cancelled: %q\n", err.Error())
 	case errors.IsTimeoutError(err):
-		fmt.Printf("Operation timed out: %v\n", err)
+		fmt.Printf("Operation timed out: %q\n", err.Error())
 	case errors.IsNetworkError(err):
-		fmt.Printf("Network error: %v\n", err)
+		fmt.Printf("Network error: %q\n", err.Error())
 	default:
-		fmt.Printf("Other error: %v\n", err)
+		fmt.Printf("Other error: %q\n", err.Error())
 	}
 }
