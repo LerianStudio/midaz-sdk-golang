@@ -35,8 +35,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/lib-commons/commons"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation/core"
+	midazutils "github.com/LerianStudio/midaz/v3/pkg/utils"
 )
 
 // Validator is a configurable validation instance that can be used to perform validations
@@ -474,10 +474,10 @@ func (vs *Summary) GetErrorSummary() string {
 
 	var builder strings.Builder
 
-	_, _ = builder.WriteString(fmt.Sprintf("Validation failed with %d errors:\n", len(vs.Errors)))
+	_, _ = fmt.Fprintf(&builder, "Validation failed with %d errors:\n", len(vs.Errors))
 
 	for i, err := range vs.Errors {
-		_, _ = builder.WriteString(fmt.Sprintf("%d. %s\n", i+1, err.Error()))
+		_, _ = fmt.Fprintf(&builder, "%d. %s\n", i+1, err.Error())
 	}
 
 	return builder.String()
@@ -925,7 +925,7 @@ func ValidateAssetType(assetType string) error {
 
 	// Use commons.ValidateType to ensure consistency with backend APIs
 	// Note: commons.ValidateType expects lowercase types, so we convert to lowercase
-	if err := commons.ValidateType(strings.ToLower(assetType)); err != nil {
+	if err := midazutils.ValidateType(strings.ToLower(assetType)); err != nil {
 		// Create a list of valid types for the error message
 		validTypes := []string{"crypto", "currency", "commodity", "others"}
 
@@ -944,7 +944,7 @@ func ValidateAccountType(accountType string) error {
 	}
 
 	// Use commons.ValidateAccountType to ensure consistency with backend APIs
-	if err := commons.ValidateAccountType(accountType); err != nil {
+	if err := midazutils.ValidateAccountType(accountType); err != nil {
 		// Convert the error to a more user-friendly message
 		// Create a list of valid types for the error message
 		validTypes := []string{"deposit", "savings", "loans", "marketplace", "creditCard"}
@@ -963,7 +963,7 @@ func ValidateCurrencyCode(code string) error {
 	}
 
 	// Use commons.ValidateCurrency to ensure consistency with backend APIs
-	if err := commons.ValidateCurrency(code); err != nil {
+	if err := midazutils.ValidateCurrency(code); err != nil {
 		return fmt.Errorf("invalid currency code: %s", code)
 	}
 
@@ -977,7 +977,7 @@ func ValidateCountryCode(code string) error {
 	}
 
 	// Use commons.ValidateCountryAddress to ensure consistency with backend APIs
-	if err := commons.ValidateCountryAddress(code); err != nil {
+	if err := midazutils.ValidateCountryAddress(code); err != nil {
 		return fmt.Errorf("invalid country code: %s (must be a valid ISO 3166-1 alpha-2 code)", code)
 	}
 

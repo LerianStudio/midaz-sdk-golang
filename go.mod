@@ -3,7 +3,6 @@ module github.com/LerianStudio/midaz-sdk-golang/v2
 go 1.25.0
 
 require (
-	github.com/LerianStudio/lib-commons v1.19.0-beta.11
 	github.com/LerianStudio/midaz/v3 v3.5.3
 	github.com/brianvoe/gofakeit/v7 v7.14.1
 	github.com/golang/mock v1.6.0
@@ -24,6 +23,7 @@ require (
 
 require (
 	github.com/LerianStudio/lib-commons/v2 v2.9.1 // indirect
+	github.com/LerianStudio/lib-commons/v4 v4.0.0 // indirect
 	github.com/andybalholm/brotli v1.2.0 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect

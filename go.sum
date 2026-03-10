@@ -1,7 +1,7 @@
-github.com/LerianStudio/lib-commons v1.19.0-beta.11 h1:PdTOAb1cnYMINkZt8X7pBgVwk6qmdLfz3y4ykt/faMY=
-github.com/LerianStudio/lib-commons v1.19.0-beta.11/go.mod h1:1a0PeLcwajNbjXWVd+JCOWeTJj0QUUBMRFnrA84G8IU=
 github.com/LerianStudio/lib-commons/v2 v2.9.1 h1:yYufHFW5SMmp+ubgPHfOGaANmU3jyOKC3sRd/hLljLA=
 github.com/LerianStudio/lib-commons/v2 v2.9.1/go.mod h1:j4M4KX8Ib5+9uylLmtAjQWJtqP7eT8HiTBT5xPn1fx8=
+github.com/LerianStudio/lib-commons/v4 v4.0.0 h1:OEdpRKnbLoOhZoUZyI5FgIe7ZbwJzu/syfgpkDzyi3o=
+github.com/LerianStudio/lib-commons/v4 v4.0.0/go.mod h1:WMQ17ouiJ13uUVhH/eY+p++4xb/NOtR44yIMGZ0r8Ow=
 github.com/LerianStudio/midaz/v3 v3.5.3 h1:j9IeCgPCEEvPrsXIGlChiSXXjO/oobM7z+3IW8QG2Ag=
 github.com/LerianStudio/midaz/v3 v3.5.3/go.mod h1:uUeXhmZ3SxAhUPjRcn3Xjg1UDoNhbo2YU/ZkaNqDNfc=
 github.com/andybalholm/brotli v1.2.0 h1:ukwgCxwYrmACq68yiUqwIWnGY0cTPox/M94sVwToPjQ=
