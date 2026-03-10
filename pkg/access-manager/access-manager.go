@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/security"
 )
 
 // EntityOption is a function that configures an entity with authentication.
@@ -28,15 +30,15 @@ type AccessManager struct {
 	Enabled      bool
 	Address      string
 	ClientID     string
-	ClientSecret string
+	ClientSecret string // #nosec G117 -- configuration field required by public SDK and OAuth client-credentials flow
 }
 
 // TokenResponse represents the response from the plugin auth service
 type TokenResponse struct {
-	AccessToken  string `json:"accessToken"`
+	AccessToken  string `json:"accessToken"` // #nosec G117 -- response contract from external OAuth provider
 	IDToken      string `json:"idToken"`
 	TokenType    string `json:"tokenType"`
-	RefreshToken string `json:"refreshToken"`
+	RefreshToken string `json:"refreshToken"` // #nosec G117 -- response contract from external OAuth provider
 	ExpiresAt    string `json:"expiresAt,omitempty"`
 }
 
@@ -131,8 +133,12 @@ func GetTokenFromAccessManager(ctx context.Context, accessMgr AccessManager, htt
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
 
+	if err := security.ValidateOutboundRequest(req); err != nil {
+		return "", fmt.Errorf("invalid plugin auth request URL: %w", err)
+	}
+
 	// Make the request
-	resp, err := httpClient.Do(req)
+	resp, err := httpClient.Do(req) // #nosec G704 -- request URL validated via security.ValidateOutboundRequest
 	if err != nil {
 		return "", fmt.Errorf("failed to connect to plugin auth service: %w", err)
 	}

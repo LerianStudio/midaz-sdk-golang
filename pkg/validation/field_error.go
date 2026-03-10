@@ -33,21 +33,21 @@ func (fe *FieldError) Error() string {
 	var builder strings.Builder
 
 	// Start with the field name
-	_, _ = builder.WriteString(fmt.Sprintf("Invalid field '%s'", fe.Field))
+	_, _ = fmt.Fprintf(&builder, "Invalid field '%s'", fe.Field)
 
 	// Add the value if available
 	if fe.Value != nil {
-		_, _ = builder.WriteString(fmt.Sprintf(": '%v'", fe.Value))
+		_, _ = fmt.Fprintf(&builder, ": '%v'", fe.Value)
 	}
 
 	// Add the message
 	if fe.Message != "" {
-		_, _ = builder.WriteString(fmt.Sprintf(" - %s", fe.Message))
+		_, _ = fmt.Fprintf(&builder, " - %s", fe.Message)
 	}
 
 	// Add constraint information if provided
 	if fe.Constraint != "" {
-		_, _ = builder.WriteString(fmt.Sprintf(" (constraint: %s)", fe.Constraint))
+		_, _ = fmt.Fprintf(&builder, " (constraint: %s)", fe.Constraint)
 	}
 
 	// Add suggestions if available
@@ -55,7 +55,7 @@ func (fe *FieldError) Error() string {
 		_, _ = builder.WriteString("\nSuggestions:")
 
 		for _, suggestion := range fe.Suggestions {
-			_, _ = builder.WriteString(fmt.Sprintf("\n- %s", suggestion))
+			_, _ = fmt.Fprintf(&builder, "\n- %s", suggestion)
 		}
 	}
 
@@ -120,10 +120,10 @@ func (fe *FieldErrors) Error() string {
 
 	var builder strings.Builder
 
-	_, _ = builder.WriteString(fmt.Sprintf("Validation failed with %d field errors:\n", len(fe.Errors)))
+	_, _ = fmt.Fprintf(&builder, "Validation failed with %d field errors:\n", len(fe.Errors))
 
 	for i, err := range fe.Errors {
-		_, _ = builder.WriteString(fmt.Sprintf("%d. %s\n", i+1, err.Error()))
+		_, _ = fmt.Fprintf(&builder, "%d. %s\n", i+1, err.Error())
 	}
 
 	return builder.String()

@@ -60,7 +60,8 @@ func (mr *MockOperationsServiceMockRecorder) ListOperations(ctx, orgID, ledgerID
 func (m *MockOperationsService) GetOperation(ctx context.Context, orgID, ledgerID, accountID, operationID string, transactionID ...string) (*models.Operation, error) {
 	m.ctrl.T.Helper()
 
-	varargs := []any{ctx, orgID, ledgerID, accountID, operationID}
+	varargs := make([]any, 0, 5+len(transactionID))
+	varargs = append(varargs, ctx, orgID, ledgerID, accountID, operationID)
 
 	for _, a := range transactionID {
 		varargs = append(varargs, a)
@@ -85,7 +86,8 @@ func (m *MockOperationsService) GetOperation(ctx context.Context, orgID, ledgerI
 func (mr *MockOperationsServiceMockRecorder) GetOperation(ctx, orgID, ledgerID, accountID, operationID any, transactionID ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 
-	varargs := []any{ctx, orgID, ledgerID, accountID, operationID}
+	varargs := make([]any, 0, 5+len(transactionID))
+	varargs = append(varargs, ctx, orgID, ledgerID, accountID, operationID)
 
 	varargs = append(varargs, transactionID...)
 

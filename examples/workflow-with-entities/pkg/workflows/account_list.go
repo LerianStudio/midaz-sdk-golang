@@ -73,7 +73,7 @@ func displayAccountsPage(accounts []models.Account, pagination models.Pagination
 		len(accounts), pagination.CurrentPage(), pagination.TotalPages())
 
 	for i, account := range accounts {
-		fmt.Printf("   %d. %s (ID: %s, Type: %s)\n", i+1, account.Name, account.ID, account.Type)
+		fmt.Printf("   %d. %q (ID: %q, Type: %q)\n", i+1, account.Name, account.ID, account.Type)
 	}
 }
 
@@ -288,11 +288,11 @@ func processParallelResults(results []concurrent.Result[*models.ListOptions, []m
 // handleParallelError processes errors from parallel fetching
 func handleParallelError(err error, pageNumber int) {
 	if pkgerrors.IsCancellationError(err) {
-		fmt.Printf("⏱️ Page %d fetch cancelled: %v\n", pageNumber, err)
+		fmt.Printf("⏱️ Page %d fetch cancelled: %q\n", pageNumber, err.Error())
 	} else if pkgerrors.IsRateLimitError(err) {
-		fmt.Printf("⚠️ Page %d hit rate limit: %v\n", pageNumber, err)
+		fmt.Printf("⚠️ Page %d hit rate limit: %q\n", pageNumber, err.Error())
 	} else {
-		fmt.Printf("❌ Error fetching page %d: %v\n", pageNumber, err)
+		fmt.Printf("❌ Error fetching page %d: %q\n", pageNumber, err.Error())
 	}
 }
 
@@ -301,6 +301,7 @@ func demonstrateContextCancellation(ctx context.Context, midazClient *client.Cli
 	fmt.Println("\n3️⃣ Demonstrating context cancellation handling...")
 
 	cancelCtx, cancelFunc := context.WithCancel(ctx)
+	defer cancelFunc()
 
 	// Launch goroutine to cancel context
 	go func() {
@@ -312,20 +313,20 @@ func demonstrateContextCancellation(ctx context.Context, midazClient *client.Cli
 	// Attempt fetch with cancellable context
 	_, err := midazClient.Entity.Accounts.ListAccounts(cancelCtx, orgID, ledgerID, models.NewListOptions())
 
-	return handleCancellationResult(err)
+	handleCancellationResult(err)
+
+	return nil
 }
 
 // handleCancellationResult processes the result of the cancellation test
-func handleCancellationResult(err error) error {
+func handleCancellationResult(err error) {
 	if err != nil {
 		if pkgerrors.IsCancellationError(err) {
 			fmt.Println("✅ Context cancellation correctly detected and handled")
 		} else {
-			fmt.Printf("❓ Expected cancellation error, but got: %v\n", err)
+			fmt.Printf("❓ Expected cancellation error, but got: %q\n", err.Error())
 		}
 	} else {
 		fmt.Println("❓ Expected an error due to context cancellation, but operation succeeded")
 	}
-
-	return nil
 }

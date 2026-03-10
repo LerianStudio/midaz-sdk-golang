@@ -46,7 +46,7 @@ func main() {
 	}
 	defer func() {
 		if err := provider.Shutdown(context.Background()); err != nil {
-			log.Printf("Error shutting down observability provider: %v", err)
+			log.Printf("Error shutting down observability provider: %q", err.Error())
 		}
 	}()
 
@@ -58,7 +58,7 @@ func main() {
 	}
 	defer func() {
 		if err := os.Unsetenv("MIDAZ_AUTH_TOKEN"); err != nil {
-			log.Printf("Warning: Failed to unset MIDAZ_AUTH_TOKEN: %v", err)
+			log.Printf("Warning: Failed to unset MIDAZ_AUTH_TOKEN: %q", err.Error())
 		}
 	}()
 
@@ -218,7 +218,7 @@ func (s *Server) listOrganizations(ctx context.Context, w http.ResponseWriter, _
 		span.SetStatus(codes.Error, err.Error())
 		span.RecordError(err)
 
-		logger.Error("Failed to list organizations", "error", err)
+		logger.Error("Failed to list organizations", "error", sanitizeLogInput(err.Error())) // lgtm[go/log-injection]
 		http.Error(w, "Failed to list organizations", http.StatusInternalServerError)
 		return
 	}
@@ -287,7 +287,7 @@ func (s *Server) createOrganization(ctx context.Context, w http.ResponseWriter, 
 		span.SetStatus(codes.Error, err.Error())
 		span.RecordError(err)
 
-		logger.Error("Failed to create organization", "error", err)
+		logger.Error("Failed to create organization", "error", sanitizeLogInput(err.Error())) // lgtm[go/log-injection]
 		http.Error(w, "Failed to create organization", http.StatusInternalServerError)
 		return
 	}
@@ -314,8 +314,8 @@ func (s *Server) createOrganization(ctx context.Context, w http.ResponseWriter, 
 
 	span.SetStatus(codes.Ok, "Organization created successfully")
 	logger.Info("Organization created successfully",
-		"org_id", organization.ID,
-		"legal_name", organization.LegalName,
+		"org_id", sanitizeLogInput(organization.ID),
+		"legal_name", sanitizeLogInput(organization.LegalName),
 	)
 }
 
@@ -382,7 +382,7 @@ func (s *Server) performLedgerOperations(ctx context.Context) error {
 	// Operation 2: List ledgers for the organization
 	ctx, span2 := tracer.Start(ctx, "ledger_ops_list_ledgers")
 	span2.SetAttributes(attribute.String("organization.id", orgID))
-	logger.Info("Step 2: Listing ledgers", "org_id", orgID)
+	logger.Info("Step 2: Listing ledgers", "org_id", sanitizeLogInput(orgID))
 
 	ledgers, err := s.midazClient.Entity.Ledgers.ListLedgers(ctx, orgID, nil)
 	if err != nil {
@@ -397,7 +397,7 @@ func (s *Server) performLedgerOperations(ctx context.Context) error {
 	span2.End()
 
 	logger.Info("Ledger operations completed successfully",
-		"org_id", orgID,
+		"org_id", sanitizeLogInput(orgID),
 		"ledgers_count", len(ledgers.Items),
 	)
 
@@ -421,7 +421,7 @@ func (*Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		log.Printf("Failed to encode health response: %v", err)
+		log.Printf("Failed to encode health response: %q", err.Error())
 	}
 }
 

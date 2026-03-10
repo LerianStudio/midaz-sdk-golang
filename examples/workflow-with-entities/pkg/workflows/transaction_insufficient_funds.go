@@ -141,9 +141,9 @@ func printTestHeader(test insufficientFundsTest, testIndex int) {
 
 func validateTestAmount(ctx context.Context, amount string) {
 	if amount == "" || amount == "0" {
-		err := fmt.Errorf("invalid amount format: %s", amount)
+		err := fmt.Errorf("invalid amount format: %q", amount)
 		observability.RecordError(ctx, err, "invalid_amount_format")
-		fmt.Printf("⚠️ Note: Amount format is invalid: %s\n", amount)
+		fmt.Printf("⚠️ Note: Amount format is invalid: %q\n", amount)
 	}
 }
 
@@ -189,10 +189,10 @@ func recordErrorDetails(ctx context.Context, err error) {
 
 func printErrorClassification(err error) {
 	formattedError := pkgerrors.FormatErrorDetails(err)
-	fmt.Printf("✅ Transaction failed as expected: %s\n", formattedError)
+	fmt.Printf("✅ Transaction failed as expected: %q\n", formattedError)
 
 	errorCategory := pkgerrors.GetErrorCategory(err)
-	fmt.Printf("   Error category: %s\n", errorCategory)
+	fmt.Printf("   Error category: %q\n", errorCategory)
 }
 
 func classifyAndRecordErrorType(ctx context.Context, err error, test insufficientFundsTest, testIndex int) {
@@ -224,16 +224,16 @@ func printErrorStatusAndMessage(err error) {
 	fmt.Printf("   HTTP status code: %d\n", statusCode)
 
 	txError := pkgerrors.FormatOperationError(err, "OverdraftTest")
-	fmt.Printf("   Transaction error message: %s\n", txError)
+	fmt.Printf("   Transaction error message: %q\n", txError)
 }
 
 func checkExpectedErrorMessage(ctx context.Context, err error, expectedError string) {
 	if strings.Contains(strings.ToLower(err.Error()), strings.ToLower(expectedError)) {
-		fmt.Printf("✅ Error message contains expected text: '%s'\n", expectedError)
+		fmt.Printf("✅ Error message contains expected text: %q\n", expectedError)
 		observability.AddAttribute(ctx, "error_message_matched", true)
 	} else {
-		fmt.Printf("⚠️ Error message doesn't contain expected text: '%s'\n", expectedError)
-		fmt.Printf("   Actual error: %s\n", err.Error())
+		fmt.Printf("⚠️ Error message doesn't contain expected text: %q\n", expectedError)
+		fmt.Printf("   Actual error: %q\n", err.Error())
 		observability.AddAttribute(ctx, "error_message_matched", false)
 		observability.AddAttribute(ctx, "actual_error_message", err.Error())
 	}

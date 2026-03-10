@@ -112,12 +112,13 @@ func (m *MetricsCollector) RecordRequest(ctx context.Context, operation, resourc
 	}
 
 	// Set base attributes
-	baseAttrs := []attribute.KeyValue{
+	baseAttrs := make([]attribute.KeyValue, 0, 4+len(attrs))
+	baseAttrs = append(baseAttrs,
 		attribute.String(KeyOperationName, operation),
 		attribute.String(KeyOperationType, "api.request"),
 		attribute.String(KeyResourceType, resourceType),
 		attribute.Int(KeyHTTPStatus, statusCode),
-	}
+	)
 
 	// Combine with additional attributes
 	allAttrs := append(baseAttrs, attrs...)
@@ -146,11 +147,12 @@ func (m *MetricsCollector) RecordBatchRequest(ctx context.Context, operation, re
 	}
 
 	// Set base attributes
-	baseAttrs := []attribute.KeyValue{
+	baseAttrs := make([]attribute.KeyValue, 0, 3+len(attrs))
+	baseAttrs = append(baseAttrs,
 		attribute.String(KeyOperationName, operation),
 		attribute.String(KeyOperationType, "api.batch"),
 		attribute.String(KeyResourceType, resourceType),
-	}
+	)
 
 	// Combine with additional attributes
 	allAttrs := append(baseAttrs, attrs...)
@@ -170,12 +172,13 @@ func (m *MetricsCollector) RecordRetry(ctx context.Context, operation, resourceT
 	}
 
 	// Set base attributes
-	baseAttrs := []attribute.KeyValue{
+	baseAttrs := make([]attribute.KeyValue, 0, 4+len(attrs))
+	baseAttrs = append(baseAttrs,
 		attribute.String(KeyOperationName, operation),
 		attribute.String(KeyOperationType, "api.retry"),
 		attribute.String(KeyResourceType, resourceType),
 		attribute.Int("retry.attempt", attempt),
-	}
+	)
 
 	// Combine with additional attributes
 	allAttrs := append(baseAttrs, attrs...)

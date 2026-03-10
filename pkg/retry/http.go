@@ -9,6 +9,8 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/security"
 )
 
 // HTTPResponse represents the result of an HTTP request.
@@ -404,46 +406,36 @@ func (r *httpRetryState) cloneRequest(req *http.Request) (*http.Request, error) 
 }
 
 // cloneRequestWithBody clones a request that has a body.
-func (r *httpRetryState) cloneRequestWithBody(req *http.Request) (*http.Request, error) {
+func (*httpRetryState) cloneRequestWithBody(req *http.Request) (*http.Request, error) {
 	reqBody, err := req.GetBody()
 	if err != nil {
 		return nil, fmt.Errorf("failed to clone request body: %w", err)
 	}
 
-	reqClone, err := http.NewRequestWithContext(req.Context(), req.Method, req.URL.String(), reqBody)
-	if err != nil {
-		return nil, fmt.Errorf("failed to clone request: %w", err)
-	}
-
-	r.copyHeaders(req, reqClone)
+	reqClone := req.Clone(req.Context())
+	reqClone.Body = reqBody
+	reqClone.GetBody = req.GetBody
 
 	return reqClone, nil
 }
 
 // cloneRequestWithoutBody clones a request that doesn't have a body.
-func (r *httpRetryState) cloneRequestWithoutBody(req *http.Request) (*http.Request, error) {
-	reqClone, err := http.NewRequestWithContext(req.Context(), req.Method, req.URL.String(), nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to clone request: %w", err)
-	}
-
-	r.copyHeaders(req, reqClone)
+func (*httpRetryState) cloneRequestWithoutBody(req *http.Request) (*http.Request, error) {
+	reqClone := req.Clone(req.Context())
+	reqClone.Body = nil
 
 	return reqClone, nil
 }
 
-// copyHeaders copies headers from source to destination request.
-func (*httpRetryState) copyHeaders(src, dst *http.Request) {
-	for key, values := range src.Header {
-		for _, value := range values {
-			dst.Header.Add(key, value)
-		}
-	}
-}
-
 // executeAttempt executes a single HTTP request attempt.
 func (r *httpRetryState) executeAttempt(req *http.Request, attempt int) (*HTTPResponse, bool, error) {
-	resp, respErr := r.client.Do(req)
+	if err := security.ValidateOutboundRequest(req); err != nil {
+		wrappedErr := fmt.Errorf("invalid HTTP request URL: %w", err)
+
+		return &HTTPResponse{Error: wrappedErr, Attempt: attempt}, false, wrappedErr
+	}
+
+	resp, respErr := r.client.Do(req) // #nosec G704 -- request URL validated via security.ValidateOutboundRequest
 	r.resp = resp
 
 	// Ensure response body is properly closed according to Go HTTP best practices

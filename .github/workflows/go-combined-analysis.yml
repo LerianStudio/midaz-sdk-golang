@@ -24,11 +24,11 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6.0.2
 
       # Using GolangCI-Lint Module
       - name: Run GoLangCI Lint
-        uses: LerianStudio/github-actions-golangci-lint@main
+        uses: LerianStudio/github-actions-golangci-lint@94a9e4aa2a0620cda6f7ba7cddb06c780a834d5e # main
         with:
           lerian_studio_midaz_push_bot_app_id: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_APP_ID }}
           lerian_studio_midaz_push_bot_private_key: ${{ secrets.LERIAN_STUDIO_MIDAZ_PUSH_BOT_PRIVATE_KEY }}
@@ -36,23 +36,23 @@ jobs:
           lerian_ci_cd_user_gpg_key_password: ${{ secrets.LERIAN_CI_CD_USER_GPG_KEY_PASSWORD }}
           lerian_ci_cd_user_name: ${{ secrets.LERIAN_CI_CD_USER_NAME }}
           lerian_ci_cd_user_email: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
-          go_version: "1.25.4" # Versão do Go, se necessário alterar
+          go_version: "1.26.0" # Versão do Go, se necessário alterar
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          golangci_lint_version: "v2.6.2" # Versão do GolangCI-Lint, se necessário mude para a versão desejada
+          golangci_lint_version: "v2.10.1" # Versão do GolangCI-Lint, se necessário mude para a versão desejada
 
   GoSec:
     name: Run GoSec to SDK
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6.0.2
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6.3.0
         with:
-          go-version: "1.25.4"
+          go-version: "1.26.0"
           cache: false
 
       - name: Gosec Scanner
-        uses: securego/gosec@master
+        uses: securego/gosec@bb17e422fc34bf4c0a2e5cab9d07dc45a68c040c # v2.24.7
         with:
           args: ./...
 
@@ -61,12 +61,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6.0.2
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6.3.0
         with:
-          go-version: "1.25.4"
+          go-version: "1.26.0"
           cache: true
 
       - name: Run tests
@@ -76,7 +76,7 @@ jobs:
         run: make coverage
 
       - name: Upload coverage report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.0
         with:
           name: coverage-report
           path: artifacts/coverage.html
@@ -86,12 +86,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6.0.2
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6.3.0
         with:
-          go-version: "1.25.4"
+          go-version: "1.26.0"
           cache: true
 
       - name: Verify SDK
@@ -103,19 +103,19 @@ jobs:
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/feature/')
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6.0.2
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6.3.0
         with:
-          go-version: "1.25.4"
+          go-version: "1.26.0"
           cache: true
 
       - name: Generate static documentation
         run: make godoc-static
 
       - name: Upload documentation
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.0
         with:
           name: godoc
           path: docs/godoc/

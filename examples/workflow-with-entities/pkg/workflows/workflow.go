@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	client "github.com/LerianStudio/midaz-sdk-golang/v2"
@@ -99,8 +100,8 @@ func CreateMockTransactionRoutes(orgID, ledgerID string) (paymentRoute *models.T
 	}
 
 	fmt.Printf("✅ Mock transaction routes created:\n")
-	fmt.Printf("   Payment: %s (%s)\n", paymentRoute.Title, paymentRoute.ID)
-	fmt.Printf("   Refund: %s (%s)\n", refundRoute.Title, refundRoute.ID)
+	fmt.Printf("   Payment: %q (%q)\n", paymentRoute.Title, paymentRoute.ID)
+	fmt.Printf("   Refund: %q (%q)\n", refundRoute.Title, refundRoute.ID)
 
 	return paymentRoute, refundRoute
 }
@@ -228,7 +229,7 @@ func handleOperationRoutes(ctx context.Context, midazClient *client.Client, orgI
 
 	sourceOperationRoute, destinationOperationRoute, err := CreateOperationRoutes(ctx, midazClient, orgID, ledgerID, accountType)
 	if err != nil {
-		fmt.Printf("⚠️  Operation routes API not available on server: %v\n", err)
+		fmt.Printf("⚠️  Operation routes API not available on server: %s\n", strconv.Quote(err.Error())) // lgtm[go/log-injection]
 		fmt.Printf("   Note: SDK has full operation routes implementation, but server endpoint not ready\n")
 		fmt.Printf("   Note: Continuing with transaction routes only\n")
 
@@ -239,7 +240,7 @@ func handleOperationRoutes(ctx context.Context, midazClient *client.Client, orgI
 	fmt.Printf("🧪 Demonstrating Operation Route CRUD operations...\n")
 
 	if err := demonstrateOperationRouteCRUD(ctx, midazClient, orgID, ledgerID, accountType, sourceOperationRoute, destinationOperationRoute); err != nil {
-		fmt.Printf("⚠️  Operation Route CRUD demonstration failed: %v\n", err)
+		fmt.Printf("⚠️  Operation Route CRUD demonstration failed: %s\n", strconv.Quote(err.Error())) // lgtm[go/log-injection]
 	}
 
 	return sourceOperationRoute, destinationOperationRoute
@@ -251,7 +252,7 @@ func handleTransactionRoutes(ctx context.Context, midazClient *client.Client, or
 
 	paymentTransactionRoute, refundTransactionRoute, err := CreateTransactionRoutesWithOperationRoutes(ctx, midazClient, orgID, ledgerID, sourceOperationRoute, destinationOperationRoute)
 	if err != nil {
-		fmt.Printf("⚠️  Transaction routes API not available on server: %v\n", err)
+		fmt.Printf("⚠️  Transaction routes API not available on server: %s\n", strconv.Quote(err.Error())) // lgtm[go/log-injection]
 		fmt.Printf("   Note: SDK has full transaction routes implementation, but server endpoint not ready\n")
 		// Create mock routes for demonstration
 		paymentTransactionRoute, refundTransactionRoute = CreateMockTransactionRoutes(orgID, ledgerID)
@@ -391,8 +392,8 @@ func demonstrateOperationRouteCRUD(ctx context.Context, midazClient *client.Clie
 		return fmt.Errorf("failed to create demo operation route: %w", err)
 	}
 
-	fmt.Printf("✅ Demo operation route created for deletion: %s\n", demoRoute.Title)
-	fmt.Printf("   ID: %s\n", demoRoute.ID.String())
+	fmt.Printf("✅ Demo operation route created for deletion: %q\n", demoRoute.Title)
+	fmt.Printf("   ID: %q\n", demoRoute.ID.String())
 
 	// Step 5: Delete the demo operation route
 	fmt.Println("\n🗑️  Step 5: DELETE Operation Route")

@@ -119,7 +119,7 @@ func PageResultFromResponse[T any, R any](_ *ModelAdapter, response any, itemsEx
 		pagination := listResp.GetPagination()
 		items := listResp.GetItems()
 
-		var extractedItems []T
+		extractedItems := make([]T, 0, len(items))
 		for _, item := range items {
 			extractedItems = append(extractedItems, itemsExtractor(item))
 		}

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	pkgerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/security"
 )
 
 // HTTPBatchRequest represents a single request in a batch.
@@ -360,9 +361,18 @@ func (b *HTTPBatchProcessor) ExecuteBatch(ctx context.Context, requests []HTTPBa
 		return &HTTPBatchResult{Responses: []HTTPBatchResponse{}}, nil
 	}
 
+	execCtx := ctx
+	cancel := func() {}
+
+	if _, ok := ctx.Deadline(); !ok && b.options.Timeout > 0 {
+		execCtx, cancel = context.WithTimeout(ctx, b.options.Timeout)
+	}
+
+	defer cancel()
+
 	executor := &batchExecutor{
 		processor: b,
-		ctx:       b.applyContextTimeout(ctx),
+		ctx:       execCtx,
 	}
 
 	return executor.execute(requests)
@@ -397,20 +407,6 @@ func (e *batchExecutor) execute(requests []HTTPBatchRequest) (*HTTPBatchResult, 
 	}
 
 	return e.parseSuccessResponse(respBody)
-}
-
-// applyContextTimeout applies timeout if not already set.
-func (b *HTTPBatchProcessor) applyContextTimeout(ctx context.Context) context.Context {
-	if _, ok := ctx.Deadline(); !ok && b.options.Timeout > 0 {
-		timeoutCtx, cancel := context.WithTimeout(ctx, b.options.Timeout)
-		// Note: We need to store the cancel function somewhere to avoid goroutine leak
-		// This is a design issue in the original code that should be addressed
-		_ = cancel
-
-		return timeoutCtx
-	}
-
-	return ctx
 }
 
 // ensureRequestIDs ensures each request has a unique ID.
@@ -450,8 +446,12 @@ func (e *batchExecutor) setRequestHeaders(req *http.Request) {
 
 // executeWithRetries executes the HTTP request with retry logic.
 func (e *batchExecutor) executeWithRetries(req *http.Request) ([]byte, int, error) {
+	if err := security.ValidateOutboundRequest(req); err != nil {
+		return nil, 0, pkgerrors.NewValidationError("HTTPBatchRequest", "invalid request URL", err)
+	}
+
 	for retryCount := 0; retryCount <= e.processor.options.RetryCount; retryCount++ {
-		resp, err := e.processor.httpClient.Do(req)
+		resp, err := e.processor.httpClient.Do(req) // #nosec G704 -- request URL validated via security.ValidateOutboundRequest
 		if err != nil {
 			if shouldRetryConnectionError(retryCount, e.processor.options.RetryCount, e.ctx.Err()) {
 				if waitErr := e.waitForRetry(); waitErr != nil {
@@ -651,13 +651,14 @@ func (b *HTTPBatchProcessor) ExecuteBatchWithPoolOptions(ctx context.Context, re
 		}, nil
 	}
 
-	// Apply context timeout if one isn't already set
-	if _, ok := ctx.Deadline(); !ok && b.options.Timeout > 0 {
-		var cancel context.CancelFunc
+	execCtx := ctx
+	cancel := func() {}
 
-		ctx, cancel = context.WithTimeout(ctx, b.options.Timeout)
-		defer cancel()
+	if _, ok := ctx.Deadline(); !ok && b.options.Timeout > 0 {
+		execCtx, cancel = context.WithTimeout(ctx, b.options.Timeout)
 	}
+
+	defer cancel()
 
 	// Create batches
 	var batches [][]HTTPBatchRequest
@@ -672,7 +673,7 @@ func (b *HTTPBatchProcessor) ExecuteBatchWithPoolOptions(ctx context.Context, re
 	}
 
 	// Process batches concurrently using worker pool with custom options
-	results := WorkerPool(ctx, batches, func(ctx context.Context, batch []HTTPBatchRequest) (*HTTPBatchResult, error) {
+	results := WorkerPool(execCtx, batches, func(ctx context.Context, batch []HTTPBatchRequest) (*HTTPBatchResult, error) {
 		return b.ExecuteBatch(ctx, batch)
 	}, opts...)
 

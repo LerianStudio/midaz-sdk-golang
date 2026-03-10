@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strconv"
 	"time"
 
 	client "github.com/LerianStudio/midaz-sdk-golang/v2"
@@ -27,7 +28,7 @@ func main() {
 
 	_, accountIDs, ctx, cancel, err := setupAndFetchAccounts()
 	if err != nil {
-		log.Fatalf("Failed to setup and fetch accounts: %v", err)
+		log.Fatalf("Failed to setup and fetch accounts: %s", strconv.Quote(err.Error())) // lgtm[go/log-injection]
 	}
 	defer cancel()
 
@@ -114,7 +115,7 @@ func fetchBalancesInParallel(ctx context.Context, accountIDs []string) (map[stri
 	for _, result := range results {
 		if result.Error != nil {
 			errorCount++
-			fmt.Printf("Error fetching balances for account %s: %v\n", result.Item, result.Error)
+			fmt.Printf("Error fetching balances for account %q: %q\n", result.Item, result.Error.Error())
 		} else {
 			accountBalances[result.Value.AccountID] = result.Value.Balances
 		}
@@ -149,7 +150,7 @@ func compareWithSequential(ctx context.Context, accountIDs []string, parallelEla
 
 	for _, accountID := range accountIDs {
 		if _, err := fetchBalancesFn(ctx, accountID); err != nil {
-			log.Printf("Error fetching balance for %s: %v", accountID, err)
+			log.Printf("Error fetching balance for %q: %q", accountID, err.Error())
 		}
 	}
 
@@ -224,7 +225,7 @@ func batchUpdateBalances(ctx context.Context, accountBalances map[string][]*mode
 		}
 
 		if _, err := updateBalancesBatchFn(ctx, allBalances[i:end]); err != nil {
-			log.Printf("Error updating balances batch: %v", err)
+			log.Printf("Error updating balances batch: %q", err.Error())
 		}
 	}
 

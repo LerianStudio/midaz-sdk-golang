@@ -32,7 +32,7 @@ func CreateOperationRoutes(ctx context.Context, midazClient *client.Client, orgI
 
 	// Create source operation route following the exact specification provided
 	fmt.Println("Creating source operation route (using alias rule)...")
-	fmt.Printf("Using external BRL account alias: @external/BRL\n")
+	fmt.Printf("Using external BRL account alias: %q\n", "@external/BRL")
 
 	// Use the corrected SDK with single string for alias rule (matches API spec)
 	sourceInput := models.NewCreateOperationRouteInput(
@@ -54,13 +54,13 @@ func CreateOperationRoutes(ctx context.Context, midazClient *client.Client, orgI
 		return nil, nil, errors.New("source operation route created but no ID was returned from the API")
 	}
 
-	fmt.Printf("✅ Source operation route created: %s\n", sourceOperationRoute.Title)
-	fmt.Printf("   ID: %s\n", sourceOperationRoute.ID)
-	fmt.Printf("   OperationType: %s\n", sourceOperationRoute.OperationType)
-	fmt.Printf("   Account RuleType: %s\n", sourceOperationRoute.Account.RuleType)
+	fmt.Printf("✅ Source operation route created: %q\n", sourceOperationRoute.Title)
+	fmt.Printf("   ID: %q\n", sourceOperationRoute.ID)
+	fmt.Printf("   OperationType: %q\n", sourceOperationRoute.OperationType)
+	fmt.Printf("   Account RuleType: %q\n", sourceOperationRoute.Account.RuleType)
 	fmt.Printf("   Account ValidIf: %v\n", sourceOperationRoute.Account.ValidIf)
-	fmt.Printf("   Description: %s\n", sourceOperationRoute.Description)
-	fmt.Printf("   Created: %s\n", sourceOperationRoute.CreatedAt.Format("2006-01-02 15:04:05"))
+	fmt.Printf("   Description: %q\n", sourceOperationRoute.Description)
+	fmt.Printf("   Created: %q\n", sourceOperationRoute.CreatedAt.Format("2006-01-02 15:04:05"))
 
 	fmt.Println()
 
@@ -84,13 +84,13 @@ func CreateOperationRoutes(ctx context.Context, midazClient *client.Client, orgI
 		return nil, nil, errors.New("destination operation route created but no ID was returned from the API")
 	}
 
-	fmt.Printf("✅ Destination operation route created: %s\n", destinationOperationRoute.Title)
-	fmt.Printf("   ID: %s\n", destinationOperationRoute.ID)
-	fmt.Printf("   OperationType: %s\n", destinationOperationRoute.OperationType)
-	fmt.Printf("   Account RuleType: %s\n", destinationOperationRoute.Account.RuleType)
+	fmt.Printf("✅ Destination operation route created: %q\n", destinationOperationRoute.Title)
+	fmt.Printf("   ID: %q\n", destinationOperationRoute.ID)
+	fmt.Printf("   OperationType: %q\n", destinationOperationRoute.OperationType)
+	fmt.Printf("   Account RuleType: %q\n", destinationOperationRoute.Account.RuleType)
 	fmt.Printf("   Account ValidIf: %v\n", destinationOperationRoute.Account.ValidIf)
-	fmt.Printf("   Description: %s\n", destinationOperationRoute.Description)
-	fmt.Printf("   Created: %s\n", destinationOperationRoute.CreatedAt.Format("2006-01-02 15:04:05"))
+	fmt.Printf("   Description: %q\n", destinationOperationRoute.Description)
+	fmt.Printf("   Created: %q\n", destinationOperationRoute.CreatedAt.Format("2006-01-02 15:04:05"))
 
 	return sourceOperationRoute, destinationOperationRoute, nil
 }
@@ -109,20 +109,20 @@ func CreateOperationRoutes(ctx context.Context, midazClient *client.Client, orgI
 //   - error: Any error encountered during the operation
 func GetOperationRoute(ctx context.Context, midazClient *client.Client, orgID, ledgerID, operationRouteID string) (*models.OperationRoute, error) {
 	fmt.Println("\n🔍 Getting Operation Route by ID...")
-	fmt.Printf("   Retrieving operation route: %s\n", operationRouteID)
+	fmt.Printf("   Retrieving operation route: %q\n", operationRouteID)
 
 	operationRoute, err := midazClient.Entity.OperationRoutes.GetOperationRoute(ctx, orgID, ledgerID, operationRouteID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get operation route: %w", err)
 	}
 
-	fmt.Printf("✅ Operation route retrieved: %s\n", operationRoute.Title)
-	fmt.Printf("   ID: %s\n", operationRoute.ID)
-	fmt.Printf("   OperationType: %s\n", operationRoute.OperationType)
-	fmt.Printf("   Description: %s\n", operationRoute.Description)
-	fmt.Printf("   Account RuleType: %s\n", operationRoute.Account.RuleType)
+	fmt.Printf("✅ Operation route retrieved: %q\n", operationRoute.Title)
+	fmt.Printf("   ID: %q\n", operationRoute.ID)
+	fmt.Printf("   OperationType: %q\n", operationRoute.OperationType)
+	fmt.Printf("   Description: %q\n", operationRoute.Description)
+	fmt.Printf("   Account RuleType: %q\n", operationRoute.Account.RuleType)
 	fmt.Printf("   Account ValidIf: %v\n", operationRoute.Account.ValidIf)
-	fmt.Printf("   Created: %s\n", operationRoute.CreatedAt.Format("2006-01-02 15:04:05"))
+	fmt.Printf("   Created: %q\n", operationRoute.CreatedAt.Format("2006-01-02 15:04:05"))
 
 	return operationRoute, nil
 }
@@ -154,9 +154,9 @@ func ListOperationRoutes(ctx context.Context, midazClient *client.Client, orgID,
 	fmt.Printf("✅ Found %d operation routes:\n", len(routesList.Items))
 
 	for i, route := range routesList.Items {
-		fmt.Printf("   %d. %s (ID: %s, Type: %s)\n", i+1, route.Title, route.ID, route.OperationType)
-		fmt.Printf("      Description: %s\n", route.Description)
-		fmt.Printf("      Account: %s - %v\n", route.Account.RuleType, route.Account.ValidIf)
+		fmt.Printf("   %d. %q (ID: %q, Type: %q)\n", i+1, route.Title, route.ID, route.OperationType)
+		fmt.Printf("      Description: %q\n", route.Description)
+		fmt.Printf("      Account: %q - %v\n", route.Account.RuleType, route.Account.ValidIf)
 	}
 
 	return routesList, nil
@@ -179,7 +179,7 @@ func ListOperationRoutes(ctx context.Context, midazClient *client.Client, orgID,
 //   - error: Any error encountered during the operation
 func UpdateOperationRoute(ctx context.Context, midazClient *client.Client, orgID, ledgerID, operationRouteID, title, description string, accountTypes []string) (*models.OperationRoute, error) {
 	fmt.Println("\n✏️  Updating Operation Route...")
-	fmt.Printf("   Updating operation route: %s\n", operationRouteID)
+	fmt.Printf("   Updating operation route: %q\n", operationRouteID)
 
 	updateInput := models.NewUpdateOperationRouteInput().
 		WithTitle(title).
@@ -195,12 +195,12 @@ func UpdateOperationRoute(ctx context.Context, midazClient *client.Client, orgID
 		return nil, fmt.Errorf("failed to update operation route: %w", err)
 	}
 
-	fmt.Printf("✅ Operation route updated: %s\n", updatedRoute.Title)
-	fmt.Printf("   ID: %s\n", updatedRoute.ID)
-	fmt.Printf("   OperationType: %s (unchanged)\n", updatedRoute.OperationType)
-	fmt.Printf("   Account RuleType: %s\n", updatedRoute.Account.RuleType)
+	fmt.Printf("✅ Operation route updated: %q\n", updatedRoute.Title)
+	fmt.Printf("   ID: %q\n", updatedRoute.ID)
+	fmt.Printf("   OperationType: %q (unchanged)\n", updatedRoute.OperationType)
+	fmt.Printf("   Account RuleType: %q\n", updatedRoute.Account.RuleType)
 	fmt.Printf("   Account ValidIf: %v\n", updatedRoute.Account.ValidIf)
-	fmt.Printf("   Updated: %s\n", updatedRoute.UpdatedAt.Format("2006-01-02 15:04:05"))
+	fmt.Printf("   Updated: %q\n", updatedRoute.UpdatedAt.Format("2006-01-02 15:04:05"))
 
 	return updatedRoute, nil
 }
@@ -218,14 +218,14 @@ func UpdateOperationRoute(ctx context.Context, midazClient *client.Client, orgID
 //   - error: Any error encountered during the operation
 func DeleteOperationRoute(ctx context.Context, midazClient *client.Client, orgID, ledgerID, operationRouteID string) error {
 	fmt.Println("\n🗑️  Deleting Operation Route...")
-	fmt.Printf("   Deleting operation route: %s\n", operationRouteID)
+	fmt.Printf("   Deleting operation route: %q\n", operationRouteID)
 
 	err := midazClient.Entity.OperationRoutes.DeleteOperationRoute(ctx, orgID, ledgerID, operationRouteID)
 	if err != nil {
 		return fmt.Errorf("failed to delete operation route: %w", err)
 	}
 
-	fmt.Printf("✅ Operation route deleted: %s\n", operationRouteID)
+	fmt.Printf("✅ Operation route deleted: %q\n", operationRouteID)
 
 	// Verify deletion
 	fmt.Println("   🔍 Verifying deletion...")
@@ -234,7 +234,7 @@ func DeleteOperationRoute(ctx context.Context, midazClient *client.Client, orgID
 	if verifyErr != nil {
 		// Expected: getting the operation route should fail after deletion
 		// We only consider this success if it's a 404 or similar "not found" error
-		fmt.Printf("   ✅ Confirmed deletion - operation route no longer exists (error: %v)\n", verifyErr)
+		fmt.Printf("   ✅ Confirmed deletion - operation route no longer exists (error: %q)\n", verifyErr.Error())
 		return nil
 	}
 

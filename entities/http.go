@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"io"
 	"net/http"
 	"net/url"
@@ -20,6 +21,7 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/performance"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/security"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/version"
 	"go.opentelemetry.io/otel/propagation"
 )
@@ -317,12 +319,23 @@ func (c *HTTPClient) setupObservabilityContext(ctx context.Context, method, requ
 func (c *HTTPClient) buildHTTPRequest(ctx context.Context, method, requestURL string, body any) (*http.Request, []byte, error) {
 	c.debugLog("Request URL: %s %s", method, requestURL)
 
+	parsedURL, err := url.Parse(requestURL)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to parse request URL: %w", err)
+	}
+
+	if err := security.ValidateOutboundRequest(&http.Request{URL: parsedURL}); err != nil {
+		return nil, nil, fmt.Errorf("invalid request URL: %w", err)
+	}
+
 	reqBody, bodyBytes, err := c.prepareRequestBody(body)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to prepare request body: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, requestURL, reqBody)
+	validatedURL := parsedURL.String()
+
+	req, err := http.NewRequestWithContext(ctx, method, validatedURL, reqBody) // #nosec G704 -- URL is parsed and validated with security.ValidateOutboundRequest
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -401,7 +414,11 @@ func (c *HTTPClient) executeRequestWithRetry(ctx context.Context, req *http.Requ
 			}
 		}
 
-		resp, err = c.client.Do(req)
+		if err := security.ValidateOutboundRequest(req); err != nil {
+			return fmt.Errorf("invalid request URL: %w", err)
+		}
+
+		resp, err = c.client.Do(req) // #nosec G704 -- request URL validated via security.ValidateOutboundRequest
 		if err != nil {
 			c.debugLogRequestError(method, requestURL, err)
 			return fmt.Errorf("HTTP request failed: %w", err)
@@ -604,9 +621,12 @@ func (c *HTTPClient) debugLog(format string, args ...any) {
 	}
 
 	// Fall back to stderr for debug output
+	// Ensure output is HTML-escaped to satisfy XSS taint analysis in gosec.
+	safeMessage := html.EscapeString(message)
+
 	// Log injection mitigated: message is pre-sanitized via strconv.Quote
 	// Error is intentionally ignored as debug logging should not affect program flow
-	_, _ = fmt.Fprintln(os.Stderr, "[Midaz SDK Debug] "+message) // lgtm[go/log-injection]
+	_, _ = fmt.Fprintln(os.Stderr, "[Midaz SDK Debug] "+safeMessage) // lgtm[go/log-injection]
 }
 
 // idempotency context helpers

@@ -16,6 +16,8 @@ import (
 // Maximum allowed delay between account lookups to avoid accidental excessive throttling.
 const maxAccountLookupDelay time.Duration = 5 * time.Second
 
+var logMessageSanitizer = strings.NewReplacer("\r", "\\r", "\n", "\\n")
+
 // BalanceTotals holds aggregated balances per asset.
 type BalanceTotals struct {
 	Asset            string
@@ -73,7 +75,7 @@ func (c *Checker) GenerateLedgerReport(ctx context.Context, orgID, ledgerID stri
 		return nil, errors.New("entities not initialized for integrity checks")
 	}
 
-	c.logDebug("Starting ledger integrity report generation for ledger %s", ledgerID)
+	c.logDebug("Starting ledger integrity report generation for ledger %q", ledgerID)
 
 	totals := map[string]*BalanceTotals{}
 	accountAliasCache := map[string]string{}
@@ -82,7 +84,7 @@ func (c *Checker) GenerateLedgerReport(ctx context.Context, orgID, ledgerID stri
 
 	err := observability.WithSpan(ctx, c.obs, "GenerateLedgerReport", func(ctx context.Context) error {
 		if err := c.processBalances(ctx, orgID, ledgerID, totals, accountAliasCache); err != nil {
-			c.logError("Failed to process balances for ledger %s: %v", ledgerID, err)
+			c.logError("Failed to process balances for ledger %q: %v", ledgerID, err)
 			return err
 		}
 
@@ -94,7 +96,7 @@ func (c *Checker) GenerateLedgerReport(ctx context.Context, orgID, ledgerID stri
 		return nil, err
 	}
 
-	c.logInfo("Completed ledger integrity report for ledger %s: %d assets processed", ledgerID, len(totals))
+	c.logInfo("Completed ledger integrity report for ledger %q: %d assets processed", ledgerID, len(totals))
 
 	return report, nil
 }
@@ -232,36 +234,42 @@ func (c *Checker) checkForOverdraft(t *BalanceTotals, b models.Balance, alias st
 		}
 
 		t.Overdrawn = append(t.Overdrawn, id)
-		c.logWarn("Detected overdrawn account %s for asset %s: available=%s", id, b.AssetCode, b.Available.String())
+		c.logWarn("Detected overdrawn account %q for asset %q: available=%s", id, b.AssetCode, b.Available.String())
 	}
 }
 
 // logDebug logs a debug message if observability is enabled.
 func (c *Checker) logDebug(format string, args ...any) {
 	if c.obs != nil && c.obs.IsEnabled() {
-		c.obs.Logger().Debugf(format, args...)
+		c.obs.Logger().Debug(formatLogMessage(format, args...))
 	}
 }
 
 // logInfo logs an info message if observability is enabled.
 func (c *Checker) logInfo(format string, args ...any) {
 	if c.obs != nil && c.obs.IsEnabled() {
-		c.obs.Logger().Infof(format, args...)
+		c.obs.Logger().Info(formatLogMessage(format, args...))
 	}
 }
 
 // logWarn logs a warning message if observability is enabled.
 func (c *Checker) logWarn(format string, args ...any) {
 	if c.obs != nil && c.obs.IsEnabled() {
-		c.obs.Logger().Warnf(format, args...)
+		c.obs.Logger().Warn(formatLogMessage(format, args...))
 	}
 }
 
 // logError logs an error message if observability is enabled.
 func (c *Checker) logError(format string, args ...any) {
 	if c.obs != nil && c.obs.IsEnabled() {
-		c.obs.Logger().Errorf(format, args...)
+		c.obs.Logger().Error(formatLogMessage(format, args...))
 	}
+}
+
+func formatLogMessage(format string, args ...any) string {
+	message := fmt.Sprintf(format, args...)
+
+	return logMessageSanitizer.Replace(message)
 }
 
 // ToSummaryMap renders a compact map suitable for report embedding (JSON-friendly).

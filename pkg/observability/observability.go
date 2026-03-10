@@ -492,13 +492,14 @@ func NewWithConfig(ctx context.Context, config *Config) (Provider, error) {
 
 // createResource creates an OpenTelemetry resource with service information
 func (p *MidazProvider) createResource() *sdkresource.Resource {
-	attributes := []attribute.KeyValue{
+	attributes := make([]attribute.KeyValue, 0, 5+len(p.config.Attributes))
+	attributes = append(attributes,
 		semconv.ServiceNameKey.String(p.config.ServiceName),
 		semconv.ServiceVersionKey.String(p.config.ServiceVersion),
 		attribute.String(KeySDKVersion, p.config.SDKVersion),
 		attribute.String(KeySDKLanguage, "go"),
 		semconv.DeploymentEnvironmentNameKey.String(p.config.Environment),
-	}
+	)
 
 	// Add custom attributes
 	attributes = append(attributes, p.config.Attributes...)

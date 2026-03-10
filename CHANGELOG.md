@@ -17,6 +17,74 @@ Contributors: Guilherme Moreira Rodrigues
 - **Environment Configuration**: Improved the setup of automated workflows, contributing to the overall robustness and efficiency of our development and deployment pipeline.
 
 
+## [v2.3.0-beta.4] - 2026-03-10
+
+### 🐛 Bug Fixes
+- address CodeRabbit and CodeQL findings
+
+### 🔧 Maintenance
+- Update CHANGELOG
+
+
+## [v2.3.0-beta.3] - 2026-03-10
+
+### 🔄 Changes
+- simplify context cancellation result handler
+
+### 🔧 Maintenance
+- Update CHANGELOG
+
+
+## [v2.3.0-beta.2] - 2026-03-10
+
+### 🏗️ Build
+- pin gosec version and use 'go run' for reproducible checks
+
+### 🔧 Maintenance
+- Update CHANGELOG
+
+
+## [v2.3.0-beta.1] - 2026-03-10
+
+### 👷 CI/CD
+- update versions of GitHub Actions in workflows
+
+### 🔧 Maintenance
+- Update CHANGELOG
+
+
+## [v2.3.0-beta.5] - 2026-03-10
+
+### ✨ Features
+- add outbound URL validation package
+
+### 🐛 Bug Fixes
+- fix context cancellation leaks in batch processors
+- validate outbound HTTP requests to prevent SSRF
+- replace lib-commons v1 with midaz/v3/pkg/utils and lib-commons/v4
+
+### 🔄 Changes
+- extract CLI flag parsing to dedicated cliFlags struct
+- pre-allocate slices and use fmt.Fprintf to reduce allocations
+
+### 🔧 Maintenance
+- Update CHANGELOG
+
+
+## [v2.2.2-beta.1] - 2026-03-10
+
+### 🔧 Maintenance
+- update go modules to get latest features and fixes
+- remove obsolete PLAN.md file
+- Update CHANGELOG
+
+
+## [v2.2.2-beta.1] - 2026-03-02
+
+### 🔧 Maintenance
+- bump midaz, otel, gofakeit, and transitive dependencies
+
+
 ## [v2.2.1-beta.1] - 2025-12-01
 
 [Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v2.2.0...v2.2.1-beta.1)
@@ -29,7 +97,7 @@ Contributors: Jefferson Rodrigues, lerian-studio
 - **Updated Changelog**: The CHANGELOG has been refreshed to accurately reflect recent changes and improvements, keeping you informed of the project's development progress and ensuring transparency.
 
 
-## [v2.2.0] - 2025-12-01
+## [v2.2.2-beta.2] - 2026-03-10
 
 [Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v2.1.0...v2.2.0)
 Contributors: Arnaldo Pereira, Fred Amaral, Jefferson Rodrigues, lerian-studio
@@ -269,7 +337,7 @@ Contributors: Guilherme Moreira Rodrigues
 - **Configuration Update**: This behind-the-scenes improvement aligns our setup with the latest GitHub Actions best practices, reducing the risk of future compatibility issues and enhancing the overall stability of our development workflow.
 
 
-## [v2.0.0] - 2025-08-04
+## [v2.3.0-beta.1] - 2026-03-10
 
 This major release of the midaz-sdk-golang introduces significant enhancements to deployment processes and system architecture, alongside improvements in documentation and code quality.
 
@@ -336,7 +404,7 @@ This release introduces a streamlined configuration process for faster updates a
 
 By focusing on these enhancements and maintenance updates, users can expect a more streamlined and efficient experience, with improved system reliability and performance.
 
-## [v1.3.0] - 2025-06-02
+## [v2.3.0-beta.2] - 2026-03-10
 
 ### ✨ Features
 - Improve release flow by fixing the goreleaser file, enhancing the overall release process.
@@ -360,7 +428,7 @@ By focusing on these enhancements and maintenance updates, users can expect a mo
 ### 📚 Documentation
 - Update CHANGELOG with recent changes to ensure it reflects the latest updates and improvements.
 
-## [v1.2.0] - 2025-05-05
+## [v2.3.0-beta.3] - 2026-03-10
 
 ### 🔧 Maintenance
 - Rename `pluginAuth` to `AccessManager` and update related documentation for clarity and consistency.
@@ -368,7 +436,7 @@ By focusing on these enhancements and maintenance updates, users can expect a mo
 ### 📚 Documentation
 - Update CHANGELOG to reflect recent changes and improvements in the project.
 
-## [v1.1.0] - 2025-05-03
+## [v2.3.0-beta.4] - 2026-03-10
 
 ### ✨ Features
 - Rebuild release steps using custom modules to streamline the deployment process.

@@ -221,7 +221,7 @@ func generateCNPJ(r *rand.Rand, formatted bool) string {
 		// Plain 14 digits
 		out := make([]byte, 0, 14)
 		for _, d := range digits {
-			out = append(out, byte('0'+d))
+			out = append(out, decimalDigitByte(d))
 		}
 
 		return string(out)
@@ -247,4 +247,12 @@ func cnpjCheckDigit(nums []int, weights []int) int {
 	}
 
 	return 11 - mod
+}
+
+func decimalDigitByte(d int) byte {
+	if d < 0 || d > 9 {
+		return '0'
+	}
+
+	return byte('0' + d)
 }

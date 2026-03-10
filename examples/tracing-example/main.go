@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"time"
 
 	client "github.com/LerianStudio/midaz-sdk-golang/v2"
@@ -33,7 +34,7 @@ func main() {
 	}
 	defer func() {
 		if err := provider.Shutdown(context.Background()); err != nil {
-			log.Printf("Error shutting down observability provider: %v", err)
+			log.Printf("Error shutting down observability provider: %q", err.Error())
 		}
 	}()
 
@@ -45,7 +46,7 @@ func main() {
 	}
 	defer func() {
 		if err := os.Unsetenv("MIDAZ_AUTH_TOKEN"); err != nil {
-			log.Printf("Warning: Failed to unset MIDAZ_AUTH_TOKEN: %v", err)
+			log.Printf("Warning: Failed to unset MIDAZ_AUTH_TOKEN: %q", err.Error())
 		}
 	}()
 
@@ -59,12 +60,12 @@ func main() {
 
 	// Example: Create organization with distributed tracing
 	if err := createOrganizationWithTracing(midazClient, provider); err != nil {
-		log.Fatalf("Failed to create organization: %v", err)
+		log.Fatalf("Failed to create organization: %s", strconv.Quote(err.Error())) // lgtm[go/log-injection]
 	}
 
 	// Example: Simulate complex workflow with multiple API calls
 	if err := performComplexWorkflowWithTracing(midazClient, provider); err != nil {
-		log.Fatalf("Failed to perform complex workflow: %v", err)
+		log.Fatalf("Failed to perform complex workflow: %s", strconv.Quote(err.Error())) // lgtm[go/log-injection]
 	}
 
 	fmt.Println("Examples completed successfully!")
@@ -110,7 +111,7 @@ func createOrganizationWithTracing(midazClient *client.Client, provider observab
 
 	// Create organization - this will automatically include tracing headers
 	logger := provider.Logger()
-	logger.Info("Creating organization", "name", orgInput.LegalName)
+	logger.Info("Creating organization", "name", fmt.Sprintf("%q", orgInput.LegalName))
 
 	organization, err := midazClient.Entity.Organizations.CreateOrganization(ctx, orgInput)
 	if err != nil {
@@ -122,8 +123,8 @@ func createOrganizationWithTracing(midazClient *client.Client, provider observab
 
 	// Log success and add span attributes
 	logger.Info("Organization created successfully",
-		"org_id", organization.ID,
-		"legal_name", organization.LegalName,
+		"org_id", fmt.Sprintf("%q", organization.ID),
+		"legal_name", fmt.Sprintf("%q", organization.LegalName),
 	)
 
 	span.SetAttributes(
@@ -167,7 +168,7 @@ func (wc *workflowContext) listOrganizationsStep(ctx context.Context) (context.C
 	}
 
 	wc.orgID = organizations.Items[0].ID
-	wc.logger.Info("Using organization", "org_id", wc.orgID)
+	wc.logger.Info("Using organization", "org_id", fmt.Sprintf("%q", wc.orgID))
 
 	return ctx, nil
 }
@@ -227,13 +228,13 @@ func (wc *workflowContext) createSingleAsset(ctx context.Context, assetName stri
 	if err != nil {
 		assetSpan.SetStatus(codes.Error, err.Error())
 		assetSpan.RecordError(err)
-		wc.logger.Error("Failed to create asset", "asset", assetName, "error", err)
+		wc.logger.Error("Failed to create asset", "asset", fmt.Sprintf("%q", assetName), "error", fmt.Sprintf("%q", err.Error()))
 		return
 	}
 
 	assetSpan.SetAttributes(attribute.String("asset.id", asset.ID))
 	assetSpan.SetStatus(codes.Ok, "Asset created successfully")
-	wc.logger.Info("Asset created", "asset_id", asset.ID, "code", asset.Code)
+	wc.logger.Info("Asset created", "asset_id", fmt.Sprintf("%q", asset.ID), "code", fmt.Sprintf("%q", asset.Code))
 }
 
 // createPortfolioStep creates a portfolio with timing
@@ -315,9 +316,9 @@ func performComplexWorkflowWithTracing(midazClient *client.Client, provider obse
 	rootSpan.SetStatus(codes.Ok, "Complex workflow completed successfully")
 
 	logger.Info("Complex workflow completed successfully",
-		"org_id", wc.orgID,
-		"ledger_id", wc.ledger.ID,
-		"portfolio_id", portfolio.ID,
+		"org_id", fmt.Sprintf("%q", wc.orgID),
+		"ledger_id", fmt.Sprintf("%q", wc.ledger.ID),
+		"portfolio_id", fmt.Sprintf("%q", portfolio.ID),
 	)
 
 	return nil
