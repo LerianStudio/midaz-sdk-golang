@@ -71,18 +71,19 @@ func TestHTTPBatchProcessor_ExecuteBatch(t *testing.T) {
 	defer server.Close()
 
 	// Create test requests
-	requests := []concurrent.HTTPBatchRequest{
-		{
+	requests := make([]concurrent.HTTPBatchRequest, 0, 3)
+	requests = append(requests,
+		concurrent.HTTPBatchRequest{
 			Method: "GET",
 			Path:   "/data",
 			ID:     "req_1",
 		},
-		{
+		concurrent.HTTPBatchRequest{
 			Method: "GET",
 			Path:   "/data",
 			ID:     "req_2",
 		},
-	}
+	)
 
 	// With ContinueOnError=false but no errors, should succeed
 	processor := concurrent.NewHTTPBatchProcessor(
