@@ -1,6 +1,6 @@
 module github.com/LerianStudio/midaz-sdk-golang/v2
 
-go 1.25.7
+go 1.26.1
 
 require (
 	github.com/LerianStudio/midaz/v3 v3.5.3
