@@ -40,6 +40,13 @@ func TestValidateOutboundRequest(t *testing.T) {
 			errContain: "unsupported URL scheme",
 		},
 		{
+			name: "ValidHTTPSMixedCase",
+			req: &http.Request{
+				URL: &url.URL{Scheme: "HTTPS", Host: "8.8.8.8"},
+			},
+			errContain: "",
+		},
+		{
 			name: "ValidHTTPS",
 			req: &http.Request{
 				URL: &url.URL{Scheme: "https", Host: "api.example.com"},

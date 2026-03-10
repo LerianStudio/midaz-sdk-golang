@@ -1,7 +1,5 @@
 github.com/LerianStudio/lib-commons/v2 v2.9.1 h1:yYufHFW5SMmp+ubgPHfOGaANmU3jyOKC3sRd/hLljLA=
 github.com/LerianStudio/lib-commons/v2 v2.9.1/go.mod h1:j4M4KX8Ib5+9uylLmtAjQWJtqP7eT8HiTBT5xPn1fx8=
-github.com/LerianStudio/lib-commons/v4 v4.0.0 h1:OEdpRKnbLoOhZoUZyI5FgIe7ZbwJzu/syfgpkDzyi3o=
-github.com/LerianStudio/lib-commons/v4 v4.0.0/go.mod h1:WMQ17ouiJ13uUVhH/eY+p++4xb/NOtR44yIMGZ0r8Ow=
 github.com/LerianStudio/midaz/v3 v3.5.3 h1:j9IeCgPCEEvPrsXIGlChiSXXjO/oobM7z+3IW8QG2Ag=
 github.com/LerianStudio/midaz/v3 v3.5.3/go.mod h1:uUeXhmZ3SxAhUPjRcn3Xjg1UDoNhbo2YU/ZkaNqDNfc=
 github.com/andybalholm/brotli v1.2.0 h1:ukwgCxwYrmACq68yiUqwIWnGY0cTPox/M94sVwToPjQ=
@@ -50,8 +48,6 @@ github.com/mattn/go-isatty v0.0.20 h1:xfD0iDuEKnDkl03q4limB+vH+GxLEtL/jb4xVJSWWE
 github.com/mattn/go-isatty v0.0.20/go.mod h1:W+V8PltTTMOvKvAeJH7IuucS94S2C6jfK/D7dTCTo3Y=
 github.com/mattn/go-runewidth v0.0.21 h1:jJKAZiQH+2mIinzCJIaIG9Be1+0NR+5sz/lYEEjdM8w=
 github.com/mattn/go-runewidth v0.0.21/go.mod h1:XBkDxAl56ILZc9knddidhrOlY5R/pDhgLpndooCuJAs=
-github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
-github.com/pkg/errors v0.9.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 h1:Jamvg5psRIccs7FGNTlIRMkT8wgtp5eCXdBlqhYGL6U=
 github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/rogpeppe/go-internal v1.14.1 h1:UQB4HGPB6osV0SQTLymcB4TgvyWu6ZyliaW0tI/otEQ=

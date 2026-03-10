@@ -38,13 +38,13 @@ Contributors: Guilherme Moreira Rodrigues
 ## [v2.3.0-beta.1] - 2026-03-10
 
 ### 👷 CI/CD
-- update versions of github actions in workflows
+- update versions of GitHub Actions in workflows
 
 ### 🔧 Maintenance
 - Update CHANGELOG
 
 
-## [v2.2.2-beta.2] - 2026-03-10
+## [v2.2.0] - 2025-11-30
 
 ### ✨ Features
 - add outbound URL validation package

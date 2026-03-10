@@ -109,12 +109,13 @@ func (a Address) WithLine2(line2 string) Address {
 //   - An mmodel.Address instance with the same values as this Address
 func (a Address) ToMmodelAddress() mmodel.Address {
 	return mmodel.Address{
-		Line1:   a.Line1,
-		Line2:   a.Line2,
-		ZipCode: a.ZipCode,
-		City:    a.City,
-		State:   a.State,
-		Country: a.Country,
+		Line1:       a.Line1,
+		Line2:       a.Line2,
+		ZipCode:     a.ZipCode,
+		City:        a.City,
+		State:       a.State,
+		Country:     a.Country,
+		Description: a.Description,
 	}
 }
 
@@ -128,12 +129,13 @@ func (a Address) ToMmodelAddress() mmodel.Address {
 //   - A models.Address instance with the same values as the input mmodel.Address
 func FromMmodelAddress(modelAddress mmodel.Address) Address {
 	return Address{
-		Line1:   modelAddress.Line1,
-		Line2:   modelAddress.Line2,
-		ZipCode: modelAddress.ZipCode,
-		City:    modelAddress.City,
-		State:   modelAddress.State,
-		Country: modelAddress.Country,
+		Line1:       modelAddress.Line1,
+		Line2:       modelAddress.Line2,
+		ZipCode:     modelAddress.ZipCode,
+		City:        modelAddress.City,
+		State:       modelAddress.State,
+		Country:     modelAddress.Country,
+		Description: modelAddress.Description,
 	}
 }
 

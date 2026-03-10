@@ -406,7 +406,7 @@ func (r *httpRetryState) cloneRequest(req *http.Request) (*http.Request, error) 
 }
 
 // cloneRequestWithBody clones a request that has a body.
-func (r *httpRetryState) cloneRequestWithBody(req *http.Request) (*http.Request, error) {
+func (*httpRetryState) cloneRequestWithBody(req *http.Request) (*http.Request, error) {
 	reqBody, err := req.GetBody()
 	if err != nil {
 		return nil, fmt.Errorf("failed to clone request body: %w", err)
@@ -416,28 +416,15 @@ func (r *httpRetryState) cloneRequestWithBody(req *http.Request) (*http.Request,
 	reqClone.Body = reqBody
 	reqClone.GetBody = req.GetBody
 
-	r.copyHeaders(req, reqClone)
-
 	return reqClone, nil
 }
 
 // cloneRequestWithoutBody clones a request that doesn't have a body.
-func (r *httpRetryState) cloneRequestWithoutBody(req *http.Request) (*http.Request, error) {
+func (*httpRetryState) cloneRequestWithoutBody(req *http.Request) (*http.Request, error) {
 	reqClone := req.Clone(req.Context())
 	reqClone.Body = nil
 
-	r.copyHeaders(req, reqClone)
-
 	return reqClone, nil
-}
-
-// copyHeaders copies headers from source to destination request.
-func (*httpRetryState) copyHeaders(src, dst *http.Request) {
-	for key, values := range src.Header {
-		for _, value := range values {
-			dst.Header.Add(key, value)
-		}
-	}
 }
 
 // executeAttempt executes a single HTTP request attempt.

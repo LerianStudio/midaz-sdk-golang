@@ -355,18 +355,22 @@ func (b *HTTPBatchProcessor) SetDefaultHeaders(headers map[string]string) {
 	}
 }
 
+// applyContextTimeout applies the configured timeout when the context has no deadline.
+func (b *HTTPBatchProcessor) applyContextTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
+	if _, ok := ctx.Deadline(); ok || b.options.Timeout <= 0 {
+		return ctx, func() {}
+	}
+
+	return context.WithTimeout(ctx, b.options.Timeout)
+}
+
 // ExecuteBatch executes a batch of requests and returns the results.
 func (b *HTTPBatchProcessor) ExecuteBatch(ctx context.Context, requests []HTTPBatchRequest) (*HTTPBatchResult, error) {
 	if len(requests) == 0 {
 		return &HTTPBatchResult{Responses: []HTTPBatchResponse{}}, nil
 	}
 
-	execCtx := ctx
-	cancel := func() {}
-
-	if _, ok := ctx.Deadline(); !ok && b.options.Timeout > 0 {
-		execCtx, cancel = context.WithTimeout(ctx, b.options.Timeout)
-	}
+	execCtx, cancel := b.applyContextTimeout(ctx)
 
 	defer cancel()
 
@@ -651,13 +655,8 @@ func (b *HTTPBatchProcessor) ExecuteBatchWithPoolOptions(ctx context.Context, re
 		}, nil
 	}
 
-	// Apply context timeout if one isn't already set
-	if _, ok := ctx.Deadline(); !ok && b.options.Timeout > 0 {
-		var cancel context.CancelFunc
-
-		ctx, cancel = context.WithTimeout(ctx, b.options.Timeout)
-		defer cancel()
-	}
+	execCtx, cancel := b.applyContextTimeout(ctx)
+	defer cancel()
 
 	// Create batches
 	var batches [][]HTTPBatchRequest
@@ -672,7 +671,7 @@ func (b *HTTPBatchProcessor) ExecuteBatchWithPoolOptions(ctx context.Context, re
 	}
 
 	// Process batches concurrently using worker pool with custom options
-	results := WorkerPool(ctx, batches, func(ctx context.Context, batch []HTTPBatchRequest) (*HTTPBatchResult, error) {
+	results := WorkerPool(execCtx, batches, func(ctx context.Context, batch []HTTPBatchRequest) (*HTTPBatchResult, error) {
 		return b.ExecuteBatch(ctx, batch)
 	}, opts...)
 
