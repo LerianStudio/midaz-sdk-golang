@@ -17,6 +17,24 @@ Contributors: Guilherme Moreira Rodrigues
 - **Environment Configuration**: Improved the setup of automated workflows, contributing to the overall robustness and efficiency of our development and deployment pipeline.
 
 
+## [v2.2.2-beta.2] - 2026-03-10
+
+### ✨ Features
+- add outbound URL validation package
+
+### 🐛 Bug Fixes
+- fix context cancellation leaks in batch processors
+- validate outbound HTTP requests to prevent SSRF
+- replace lib-commons v1 with midaz/v3/pkg/utils and lib-commons/v4
+
+### 🔄 Changes
+- extract CLI flag parsing to dedicated cliFlags struct
+- pre-allocate slices and use fmt.Fprintf to reduce allocations
+
+### 🔧 Maintenance
+- Update CHANGELOG
+
+
 ## [v2.2.2-beta.1] - 2026-03-10
 
 ### 🔧 Maintenance
@@ -283,7 +301,7 @@ Contributors: Guilherme Moreira Rodrigues
 - **Configuration Update**: This behind-the-scenes improvement aligns our setup with the latest GitHub Actions best practices, reducing the risk of future compatibility issues and enhancing the overall stability of our development workflow.
 
 
-## [v2.0.0] - 2025-08-04
+## [v2.3.0-beta.1] - 2026-03-10
 
 This major release of the midaz-sdk-golang introduces significant enhancements to deployment processes and system architecture, alongside improvements in documentation and code quality.
 
