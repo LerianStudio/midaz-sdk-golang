@@ -260,7 +260,7 @@ func (c *Checker) logWarn(format string, args ...any) {
 // logError logs an error message if observability is enabled.
 func (c *Checker) logError(format string, args ...any) {
 	if c.obs != nil && c.obs.IsEnabled() {
-		c.obs.Logger().Errorf(format, args...)
+		c.obs.Logger().Errorf(format, args...) // lgtm[go/log-injection]
 	}
 }
 

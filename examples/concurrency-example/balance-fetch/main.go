@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strconv"
 	"time"
 
 	client "github.com/LerianStudio/midaz-sdk-golang/v2"
@@ -27,7 +28,7 @@ func main() {
 
 	_, accountIDs, ctx, cancel, err := setupAndFetchAccounts()
 	if err != nil {
-		log.Fatalf("Failed to setup and fetch accounts: %v", err)
+		log.Fatalf("Failed to setup and fetch accounts: %s", strconv.Quote(err.Error())) // lgtm[go/log-injection]
 	}
 	defer cancel()
 

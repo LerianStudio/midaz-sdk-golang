@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strconv"
 	"time"
 
 	client "github.com/LerianStudio/midaz-sdk-golang/v2"
@@ -44,7 +45,7 @@ func main() {
 	// dependency on lib-commons or other internal libraries
 	tx, err := createDSLTransaction(context.Background(), c.Entity.Transactions)
 	if err != nil {
-		log.Fatalf("Failed to create transaction: %v", err)
+		log.Fatalf("Failed to create transaction: %s", strconv.Quote(err.Error())) // lgtm[go/log-injection]
 	}
 
 	fmt.Printf("Created transaction: %q\n", tx.ID)

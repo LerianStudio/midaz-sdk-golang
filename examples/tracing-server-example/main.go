@@ -218,7 +218,7 @@ func (s *Server) listOrganizations(ctx context.Context, w http.ResponseWriter, _
 		span.SetStatus(codes.Error, err.Error())
 		span.RecordError(err)
 
-		logger.Error("Failed to list organizations", "error", err)
+		logger.Error("Failed to list organizations", "error", sanitizeLogInput(err.Error())) // lgtm[go/log-injection]
 		http.Error(w, "Failed to list organizations", http.StatusInternalServerError)
 		return
 	}
@@ -287,7 +287,7 @@ func (s *Server) createOrganization(ctx context.Context, w http.ResponseWriter, 
 		span.SetStatus(codes.Error, err.Error())
 		span.RecordError(err)
 
-		logger.Error("Failed to create organization", "error", err)
+		logger.Error("Failed to create organization", "error", sanitizeLogInput(err.Error())) // lgtm[go/log-injection]
 		http.Error(w, "Failed to create organization", http.StatusInternalServerError)
 		return
 	}

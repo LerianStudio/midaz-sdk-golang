@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"time"
 
 	client "github.com/LerianStudio/midaz-sdk-golang/v2"
@@ -59,12 +60,12 @@ func main() {
 
 	// Example: Create organization with distributed tracing
 	if err := createOrganizationWithTracing(midazClient, provider); err != nil {
-		log.Fatalf("Failed to create organization: %v", err)
+		log.Fatalf("Failed to create organization: %s", strconv.Quote(err.Error())) // lgtm[go/log-injection]
 	}
 
 	// Example: Simulate complex workflow with multiple API calls
 	if err := performComplexWorkflowWithTracing(midazClient, provider); err != nil {
-		log.Fatalf("Failed to perform complex workflow: %v", err)
+		log.Fatalf("Failed to perform complex workflow: %s", strconv.Quote(err.Error())) // lgtm[go/log-injection]
 	}
 
 	fmt.Println("Examples completed successfully!")

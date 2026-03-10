@@ -112,7 +112,7 @@ func main() {
 	concurrentCustomerToMerchantTxs, concurrentMerchantToCustomerTxs := loadConcurrencySettings()
 
 	if err := executeWorkflow(ctx, c, concurrentCustomerToMerchantTxs, concurrentMerchantToCustomerTxs); err != nil {
-		log.Fatalf("Workflow execution failed: %v", err)
+		log.Fatalf("Workflow execution failed: %s", strconv.Quote(err.Error())) // lgtm[go/log-injection]
 	}
 }
 
