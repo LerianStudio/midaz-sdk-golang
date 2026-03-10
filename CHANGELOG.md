@@ -17,6 +17,15 @@ Contributors: Guilherme Moreira Rodrigues
 - **Environment Configuration**: Improved the setup of automated workflows, contributing to the overall robustness and efficiency of our development and deployment pipeline.
 
 
+## [v2.3.0-beta.3] - 2026-03-10
+
+### 🔄 Changes
+- simplify context cancellation result handler
+
+### 🔧 Maintenance
+- Update CHANGELOG
+
+
 ## [v2.3.0-beta.2] - 2026-03-10
 
 ### 🏗️ Build
@@ -418,7 +427,7 @@ By focusing on these enhancements and maintenance updates, users can expect a mo
 ### 📚 Documentation
 - Update CHANGELOG to reflect recent changes and improvements in the project.
 
-## [v1.1.0] - 2025-05-03
+## [v2.3.0-beta.4] - 2026-03-10
 
 ### ✨ Features
 - Rebuild release steps using custom modules to streamline the deployment process.
