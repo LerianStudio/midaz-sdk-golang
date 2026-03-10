@@ -369,25 +369,22 @@ func (b *BatchProcessor) ExecuteBatch(ctx context.Context, requests []BatchReque
 	}
 
 	// Setup context with timeout
-	ctx, cancel := b.setupContextTimeout(ctx)
+	execCtx := ctx
+	cancel := func() {}
+
+	if _, ok := ctx.Deadline(); !ok && b.options.Timeout > 0 {
+		execCtx, cancel = context.WithTimeout(ctx, b.options.Timeout)
+	}
+
 	defer cancel()
 
 	// Handle large batches by splitting
 	if len(requests) > b.options.MaxBatchSize {
-		return b.executeBatches(ctx, requests)
+		return b.executeBatches(execCtx, requests)
 	}
 
 	// Prepare and execute the single batch
-	return b.executeSingleBatch(ctx, requests)
-}
-
-// setupContextTimeout applies timeout to context if not already set
-func (b *BatchProcessor) setupContextTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
-	if _, ok := ctx.Deadline(); !ok && b.options.Timeout > 0 {
-		return context.WithTimeout(ctx, b.options.Timeout)
-	}
-
-	return ctx, func() {}
+	return b.executeSingleBatch(execCtx, requests)
 }
 
 // executeSingleBatch processes a single batch of requests

@@ -125,28 +125,22 @@ func (b *HTTPBatchProcessorWithRetry) ExecuteBatch(ctx context.Context, requests
 	}
 
 	// Prepare context and check for large batches
-	ctx, cancel := b.prepareExecutionContext(ctx)
+	execCtx := ctx
+	cancel := func() {}
+
+	if _, ok := ctx.Deadline(); !ok && b.options.Timeout > 0 {
+		execCtx, cancel = context.WithTimeout(ctx, b.options.Timeout)
+	}
+
+	execCtx = retry.WithHTTPOptionsContext(execCtx, &b.retryOptions)
 	defer cancel()
 
 	if len(requests) > b.options.MaxBatchSize {
-		return b.executeBatches(ctx, requests)
+		return b.executeBatches(execCtx, requests)
 	}
 
 	// Execute single batch
-	return b.executeSingleBatch(ctx, requests)
-}
-
-// prepareExecutionContext prepares the context for batch execution and returns a cancel function.
-func (b *HTTPBatchProcessorWithRetry) prepareExecutionContext(ctx context.Context) (context.Context, context.CancelFunc) {
-	cancel := func() {}
-
-	// Apply context timeout if one isn't already set
-	if _, ok := ctx.Deadline(); !ok && b.options.Timeout > 0 {
-		ctx, cancel = context.WithTimeout(ctx, b.options.Timeout)
-	}
-
-	// Add retry options to the context
-	return retry.WithHTTPOptionsContext(ctx, &b.retryOptions), cancel
+	return b.executeSingleBatch(execCtx, requests)
 }
 
 // executeSingleBatch executes a single batch of requests

@@ -301,6 +301,7 @@ func demonstrateContextCancellation(ctx context.Context, midazClient *client.Cli
 	fmt.Println("\n3️⃣ Demonstrating context cancellation handling...")
 
 	cancelCtx, cancelFunc := context.WithCancel(ctx)
+	defer cancelFunc()
 
 	// Launch goroutine to cancel context
 	go func() {

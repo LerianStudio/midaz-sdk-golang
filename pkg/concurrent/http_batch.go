@@ -361,7 +361,13 @@ func (b *HTTPBatchProcessor) ExecuteBatch(ctx context.Context, requests []HTTPBa
 		return &HTTPBatchResult{Responses: []HTTPBatchResponse{}}, nil
 	}
 
-	execCtx, cancel := b.applyContextTimeout(ctx)
+	execCtx := ctx
+	cancel := func() {}
+
+	if _, ok := ctx.Deadline(); !ok && b.options.Timeout > 0 {
+		execCtx, cancel = context.WithTimeout(ctx, b.options.Timeout)
+	}
+
 	defer cancel()
 
 	executor := &batchExecutor{
@@ -401,15 +407,6 @@ func (e *batchExecutor) execute(requests []HTTPBatchRequest) (*HTTPBatchResult, 
 	}
 
 	return e.parseSuccessResponse(respBody)
-}
-
-// applyContextTimeout applies timeout if not already set and returns a cancel function.
-func (b *HTTPBatchProcessor) applyContextTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
-	if _, ok := ctx.Deadline(); !ok && b.options.Timeout > 0 {
-		return context.WithTimeout(ctx, b.options.Timeout)
-	}
-
-	return ctx, func() {}
 }
 
 // ensureRequestIDs ensures each request has a unique ID.

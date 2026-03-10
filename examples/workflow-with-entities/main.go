@@ -94,7 +94,8 @@ func main() {
 	shutdownObservability := setupObservability()
 	defer shutdownObservability()
 
-	ctx, cancel := createWorkflowContext()
+	baseCtx := createWorkflowContext()
+	ctx, cancel := context.WithTimeout(baseCtx, 60*time.Second)
 	defer cancel()
 
 	cfg, err := createConfiguration()
@@ -122,14 +123,14 @@ func loadEnvFile() {
 
 type contextKey string
 
-func createWorkflowContext() (context.Context, context.CancelFunc) {
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+func createWorkflowContext() context.Context {
+	ctx := context.Background()
 
 	const traceIDKey contextKey = "trace_id"
 
 	ctx = context.WithValue(ctx, traceIDKey, "workflow-example")
 
-	return ctx, cancel
+	return ctx
 }
 
 func createConfiguration() (*config.Config, error) {

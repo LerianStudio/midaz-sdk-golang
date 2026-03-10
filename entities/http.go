@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"io"
 	"net/http"
 	"net/url"
@@ -620,9 +621,12 @@ func (c *HTTPClient) debugLog(format string, args ...any) {
 	}
 
 	// Fall back to stderr for debug output
+	// Ensure output is HTML-escaped to satisfy XSS taint analysis in gosec.
+	safeMessage := html.EscapeString(message)
+
 	// Log injection mitigated: message is pre-sanitized via strconv.Quote
 	// Error is intentionally ignored as debug logging should not affect program flow
-	_, _ = fmt.Fprintln(os.Stderr, "[Midaz SDK Debug] "+message) // lgtm[go/log-injection]
+	_, _ = fmt.Fprintln(os.Stderr, "[Midaz SDK Debug] "+safeMessage) // lgtm[go/log-injection]
 }
 
 // idempotency context helpers

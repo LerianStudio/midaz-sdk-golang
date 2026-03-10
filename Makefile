@@ -30,6 +30,8 @@ endef
 GO := go
 GOFMT := gofmt
 GOLINT := golangci-lint
+GOSEC_VERSION := v2.24.7
+GOSEC := $(GO) run github.com/securego/gosec/v2/cmd/gosec@$(GOSEC_VERSION)
 GOMOD := $(GO) mod
 GOBUILD := $(GO) build
 GOTEST := $(GO) test
@@ -192,12 +194,8 @@ tidy:
 
 gosec:
 	$(call print_header,"Running security checks")
-	@if ! command -v gosec > /dev/null; then \
-		echo "$(YELLOW)Installing gosec...$(NC)"; \
-		go install github.com/securego/gosec/v2/cmd/gosec@latest; \
-	fi
-	@echo "$(CYAN)Running gosec security scanner...$(NC)"
-	@gosec -quiet ./...
+	@echo "$(CYAN)Running gosec security scanner ($(GOSEC_VERSION))...$(NC)"
+	@$(GOSEC) -quiet ./...
 	@echo "$(GREEN)[ok]$(NC) Security checks completed successfully$(GREEN) ✔️$(NC)"
 
 #-------------------------------------------------------

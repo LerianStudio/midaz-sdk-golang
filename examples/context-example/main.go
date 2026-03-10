@@ -82,6 +82,7 @@ func cancellationExample(c *client.Client) {
 
 	// Create a cancellable context
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	// Start a goroutine to cancel the context after a delay
 	go func() {
@@ -154,6 +155,7 @@ func resourceCleanupExample(c *client.Client) {
 
 	// Create a context that will be cancelled
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	// Simulate resource acquisition
 	fmt.Println("Acquiring resources...")
