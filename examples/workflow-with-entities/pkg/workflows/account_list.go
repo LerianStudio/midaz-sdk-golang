@@ -313,11 +313,13 @@ func demonstrateContextCancellation(ctx context.Context, midazClient *client.Cli
 	// Attempt fetch with cancellable context
 	_, err := midazClient.Entity.Accounts.ListAccounts(cancelCtx, orgID, ledgerID, models.NewListOptions())
 
-	return handleCancellationResult(err)
+	handleCancellationResult(err)
+
+	return nil
 }
 
 // handleCancellationResult processes the result of the cancellation test
-func handleCancellationResult(err error) error {
+func handleCancellationResult(err error) {
 	if err != nil {
 		if pkgerrors.IsCancellationError(err) {
 			fmt.Println("✅ Context cancellation correctly detected and handled")
@@ -327,6 +329,4 @@ func handleCancellationResult(err error) error {
 	} else {
 		fmt.Println("❓ Expected an error due to context cancellation, but operation succeeded")
 	}
-
-	return nil
 }

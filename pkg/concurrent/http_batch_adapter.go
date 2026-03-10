@@ -133,6 +133,7 @@ func (b *HTTPBatchProcessorWithRetry) ExecuteBatch(ctx context.Context, requests
 	}
 
 	execCtx = retry.WithHTTPOptionsContext(execCtx, &b.retryOptions)
+
 	defer cancel()
 
 	if len(requests) > b.options.MaxBatchSize {
