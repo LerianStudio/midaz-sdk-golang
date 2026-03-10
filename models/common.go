@@ -62,6 +62,9 @@ type Address struct {
 
 	// Country is the country, typically using ISO country codes
 	Country string `json:"country"`
+
+	// Description is an optional label for the address (e.g., "Home", "Office", "Billing")
+	Description *string `json:"description,omitempty"`
 }
 
 // NewAddress creates a new Address with the given parameters.
