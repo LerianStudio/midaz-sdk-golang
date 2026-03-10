@@ -9,6 +9,8 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/security"
 )
 
 // HTTPResponse represents the result of an HTTP request.
@@ -410,10 +412,9 @@ func (r *httpRetryState) cloneRequestWithBody(req *http.Request) (*http.Request,
 		return nil, fmt.Errorf("failed to clone request body: %w", err)
 	}
 
-	reqClone, err := http.NewRequestWithContext(req.Context(), req.Method, req.URL.String(), reqBody)
-	if err != nil {
-		return nil, fmt.Errorf("failed to clone request: %w", err)
-	}
+	reqClone := req.Clone(req.Context())
+	reqClone.Body = reqBody
+	reqClone.GetBody = req.GetBody
 
 	r.copyHeaders(req, reqClone)
 
@@ -422,10 +423,8 @@ func (r *httpRetryState) cloneRequestWithBody(req *http.Request) (*http.Request,
 
 // cloneRequestWithoutBody clones a request that doesn't have a body.
 func (r *httpRetryState) cloneRequestWithoutBody(req *http.Request) (*http.Request, error) {
-	reqClone, err := http.NewRequestWithContext(req.Context(), req.Method, req.URL.String(), nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to clone request: %w", err)
-	}
+	reqClone := req.Clone(req.Context())
+	reqClone.Body = nil
 
 	r.copyHeaders(req, reqClone)
 
@@ -443,7 +442,13 @@ func (*httpRetryState) copyHeaders(src, dst *http.Request) {
 
 // executeAttempt executes a single HTTP request attempt.
 func (r *httpRetryState) executeAttempt(req *http.Request, attempt int) (*HTTPResponse, bool, error) {
-	resp, respErr := r.client.Do(req)
+	if err := security.ValidateOutboundRequest(req); err != nil {
+		wrappedErr := fmt.Errorf("invalid HTTP request URL: %w", err)
+
+		return &HTTPResponse{Error: wrappedErr, Attempt: attempt}, false, wrappedErr
+	}
+
+	resp, respErr := r.client.Do(req) // #nosec G704 -- request URL validated via security.ValidateOutboundRequest
 	r.resp = resp
 
 	// Ensure response body is properly closed according to Go HTTP best practices

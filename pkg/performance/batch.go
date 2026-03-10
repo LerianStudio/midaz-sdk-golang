@@ -11,6 +11,7 @@ import (
 	"time"
 
 	pkgerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/security"
 )
 
 // BatchRequest represents a single request in a batch.
@@ -368,7 +369,8 @@ func (b *BatchProcessor) ExecuteBatch(ctx context.Context, requests []BatchReque
 	}
 
 	// Setup context with timeout
-	ctx = b.setupContextTimeout(ctx)
+	ctx, cancel := b.setupContextTimeout(ctx)
+	defer cancel()
 
 	// Handle large batches by splitting
 	if len(requests) > b.options.MaxBatchSize {
@@ -380,16 +382,12 @@ func (b *BatchProcessor) ExecuteBatch(ctx context.Context, requests []BatchReque
 }
 
 // setupContextTimeout applies timeout to context if not already set
-func (b *BatchProcessor) setupContextTimeout(ctx context.Context) context.Context {
+func (b *BatchProcessor) setupContextTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
 	if _, ok := ctx.Deadline(); !ok && b.options.Timeout > 0 {
-		ctxWithTimeout, cancel := context.WithTimeout(ctx, b.options.Timeout)
-		// Note: caller is responsible for calling cancel when done
-		_ = cancel
-
-		return ctxWithTimeout
+		return context.WithTimeout(ctx, b.options.Timeout)
 	}
 
-	return ctx
+	return ctx, func() {}
 }
 
 // executeSingleBatch processes a single batch of requests
@@ -467,12 +465,16 @@ func (b *BatchProcessor) setRequestHeaders(req *http.Request) {
 
 // executeWithRetry executes the request with retry logic
 func (b *BatchProcessor) executeWithRetry(ctx context.Context, req *http.Request) (*http.Response, error) {
+	if err := security.ValidateOutboundRequest(req); err != nil {
+		return nil, pkgerrors.NewValidationError("BatchRequest", "invalid request URL", err)
+	}
+
 	var resp *http.Response
 
 	var respErr error
 
 	for retry := 0; retry <= b.options.RetryCount; retry++ {
-		resp, respErr = b.httpClient.Do(req)
+		resp, respErr = b.httpClient.Do(req) // #nosec G704 -- request URL validated via security.ValidateOutboundRequest
 		if respErr == nil {
 			return resp, nil
 		}

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	pkgerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/security"
 )
 
 // HTTPBatchRequest represents a single request in a batch.
@@ -360,9 +361,12 @@ func (b *HTTPBatchProcessor) ExecuteBatch(ctx context.Context, requests []HTTPBa
 		return &HTTPBatchResult{Responses: []HTTPBatchResponse{}}, nil
 	}
 
+	execCtx, cancel := b.applyContextTimeout(ctx)
+	defer cancel()
+
 	executor := &batchExecutor{
 		processor: b,
-		ctx:       b.applyContextTimeout(ctx),
+		ctx:       execCtx,
 	}
 
 	return executor.execute(requests)
@@ -399,18 +403,13 @@ func (e *batchExecutor) execute(requests []HTTPBatchRequest) (*HTTPBatchResult, 
 	return e.parseSuccessResponse(respBody)
 }
 
-// applyContextTimeout applies timeout if not already set.
-func (b *HTTPBatchProcessor) applyContextTimeout(ctx context.Context) context.Context {
+// applyContextTimeout applies timeout if not already set and returns a cancel function.
+func (b *HTTPBatchProcessor) applyContextTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
 	if _, ok := ctx.Deadline(); !ok && b.options.Timeout > 0 {
-		timeoutCtx, cancel := context.WithTimeout(ctx, b.options.Timeout)
-		// Note: We need to store the cancel function somewhere to avoid goroutine leak
-		// This is a design issue in the original code that should be addressed
-		_ = cancel
-
-		return timeoutCtx
+		return context.WithTimeout(ctx, b.options.Timeout)
 	}
 
-	return ctx
+	return ctx, func() {}
 }
 
 // ensureRequestIDs ensures each request has a unique ID.
@@ -450,8 +449,12 @@ func (e *batchExecutor) setRequestHeaders(req *http.Request) {
 
 // executeWithRetries executes the HTTP request with retry logic.
 func (e *batchExecutor) executeWithRetries(req *http.Request) ([]byte, int, error) {
+	if err := security.ValidateOutboundRequest(req); err != nil {
+		return nil, 0, pkgerrors.NewValidationError("HTTPBatchRequest", "invalid request URL", err)
+	}
+
 	for retryCount := 0; retryCount <= e.processor.options.RetryCount; retryCount++ {
-		resp, err := e.processor.httpClient.Do(req)
+		resp, err := e.processor.httpClient.Do(req) // #nosec G704 -- request URL validated via security.ValidateOutboundRequest
 		if err != nil {
 			if shouldRetryConnectionError(retryCount, e.processor.options.RetryCount, e.ctx.Err()) {
 				if waitErr := e.waitForRetry(); waitErr != nil {
