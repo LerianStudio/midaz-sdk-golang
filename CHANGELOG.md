@@ -17,6 +17,15 @@ Contributors: Guilherme Moreira Rodrigues
 - **Environment Configuration**: Improved the setup of automated workflows, contributing to the overall robustness and efficiency of our development and deployment pipeline.
 
 
+## [v2.3.0-beta.1] - 2026-03-10
+
+### 👷 CI/CD
+- update versions of github actions in workflows
+
+### 🔧 Maintenance
+- Update CHANGELOG
+
+
 ## [v2.2.2-beta.2] - 2026-03-10
 
 ### ✨ Features
@@ -368,7 +377,7 @@ This release introduces a streamlined configuration process for faster updates a
 
 By focusing on these enhancements and maintenance updates, users can expect a more streamlined and efficient experience, with improved system reliability and performance.
 
-## [v1.3.0] - 2025-06-02
+## [v2.3.0-beta.2] - 2026-03-10
 
 ### ✨ Features
 - Improve release flow by fixing the goreleaser file, enhancing the overall release process.
