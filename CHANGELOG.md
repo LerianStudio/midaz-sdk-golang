@@ -17,6 +17,47 @@ Contributors: Guilherme Moreira Rodrigues
 - **Environment Configuration**: Improved the setup of automated workflows, contributing to the overall robustness and efficiency of our development and deployment pipeline.
 
 
+## [v2.3.0] - 2026-03-10
+
+### ✨ Features
+- add outbound URL validation package
+
+### 🐛 Bug Fixes
+- sanitize integrity checker log messages
+- address remaining log injection findings
+- sanitize logs for CodeQL alerts
+- address CodeRabbit and CodeQL findings
+- fix context cancellation leaks in batch processors
+- validate outbound HTTP requests to prevent SSRF
+- replace lib-commons v1 with midaz/v3/pkg/utils and lib-commons/v4
+
+### 🔄 Changes
+- inline context timeout logic
+- simplify context cancellation result handler
+- extract CLI flag parsing to dedicated cliFlags struct
+- pre-allocate slices and use fmt.Fprintf to reduce allocations
+
+### 🏗️ Build
+- align Go toolchain to 1.26.0
+- upgrade Go version to 1.26.1 and CI tooling
+- pin gosec version and use 'go run' for reproducible checks
+
+### 👷 CI/CD
+- update versions of github actions in workflows
+
+### 🔧 Maintenance
+- Update CHANGELOG
+- Update CHANGELOG
+- Update CHANGELOG
+- Update CHANGELOG
+- Update CHANGELOG
+- Update CHANGELOG
+- update go modules to get latest features and fixes
+- remove obsolete PLAN.md file
+- Update CHANGELOG
+- bump midaz, otel, gofakeit, and transitive dependencies
+
+
 ## [v2.3.0-beta.4] - 2026-03-10
 
 ### 🐛 Bug Fixes
