@@ -16,6 +16,8 @@ import (
 // Maximum allowed delay between account lookups to avoid accidental excessive throttling.
 const maxAccountLookupDelay time.Duration = 5 * time.Second
 
+var logMessageSanitizer = strings.NewReplacer("\r", "\\r", "\n", "\\n")
+
 // BalanceTotals holds aggregated balances per asset.
 type BalanceTotals struct {
 	Asset            string
@@ -239,29 +241,35 @@ func (c *Checker) checkForOverdraft(t *BalanceTotals, b models.Balance, alias st
 // logDebug logs a debug message if observability is enabled.
 func (c *Checker) logDebug(format string, args ...any) {
 	if c.obs != nil && c.obs.IsEnabled() {
-		c.obs.Logger().Debugf(format, args...)
+		c.obs.Logger().Debug(formatLogMessage(format, args...))
 	}
 }
 
 // logInfo logs an info message if observability is enabled.
 func (c *Checker) logInfo(format string, args ...any) {
 	if c.obs != nil && c.obs.IsEnabled() {
-		c.obs.Logger().Infof(format, args...)
+		c.obs.Logger().Info(formatLogMessage(format, args...))
 	}
 }
 
 // logWarn logs a warning message if observability is enabled.
 func (c *Checker) logWarn(format string, args ...any) {
 	if c.obs != nil && c.obs.IsEnabled() {
-		c.obs.Logger().Warnf(format, args...)
+		c.obs.Logger().Warn(formatLogMessage(format, args...))
 	}
 }
 
 // logError logs an error message if observability is enabled.
 func (c *Checker) logError(format string, args ...any) {
 	if c.obs != nil && c.obs.IsEnabled() {
-		c.obs.Logger().Errorf(format, args...) // lgtm[go/log-injection]
+		c.obs.Logger().Error(formatLogMessage(format, args...))
 	}
+}
+
+func formatLogMessage(format string, args ...any) string {
+	message := fmt.Sprintf(format, args...)
+
+	return logMessageSanitizer.Replace(message)
 }
 
 // ToSummaryMap renders a compact map suitable for report embedding (JSON-friendly).
