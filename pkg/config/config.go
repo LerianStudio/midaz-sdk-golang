@@ -117,6 +117,11 @@ type Config struct {
 
 	// EnableIdempotency enables automatic generation of idempotency keys.
 	EnableIdempotency bool
+
+	// TenantID is the default tenant identifier sent as X-Tenant-ID on every request.
+	// It can be set via the MIDAZ_TENANT_ID environment variable or the WithTenantID option.
+	// Per-request overrides via entities.WithTenantID(ctx, id) take precedence.
+	TenantID string
 }
 
 // Option is a function that configures a Config.
@@ -378,6 +383,24 @@ func WithIdempotency(enable bool) Option {
 	}
 }
 
+// WithTenantID sets the default tenant ID for all API requests.
+// The tenant ID is sent as the X-Tenant-ID header on every request.
+// Per-request overrides via entities.WithTenantID(ctx, tenantID) take precedence
+// over this configuration-level default.
+//
+// Parameters:
+//   - tenantID: The tenant identifier to use
+//
+// Returns:
+//   - Option: A function that sets the tenant ID on a Config
+func WithTenantID(tenantID string) Option {
+	return func(c *Config) error {
+		c.TenantID = tenantID
+
+		return nil
+	}
+}
+
 // WithAccessManager sets the plugin-based authentication configuration.
 //
 // Parameters:
@@ -410,6 +433,7 @@ func WithAccessManager(accessManager auth.AccessManager) Option {
 // - MIDAZ_DEBUG: Enable debug mode (true/false)
 // - MIDAZ_MAX_RETRIES: Maximum number of retries
 // - MIDAZ_IDEMPOTENCY: Enable idempotency (true/false)
+// - MIDAZ_TENANT_ID: Default tenant ID sent as X-Tenant-ID header
 //
 // Returns:
 //   - Option: A function that sets configuration from environment variables
@@ -554,6 +578,10 @@ func configureOptionalSettings(c *Config) {
 
 	if idempotency := os.Getenv("MIDAZ_IDEMPOTENCY"); idempotency != "" {
 		c.EnableIdempotency = idempotency == boolTrue
+	}
+
+	if tenantID := os.Getenv("MIDAZ_TENANT_ID"); tenantID != "" {
+		c.TenantID = tenantID
 	}
 }
 

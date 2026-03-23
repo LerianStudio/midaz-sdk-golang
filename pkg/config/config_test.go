@@ -1544,6 +1544,102 @@ func TestWithTransactionURL_InitializesServiceURLsMap(t *testing.T) {
 	assert.Equal(t, "https://api.example.com/transaction", config.ServiceURLs[ServiceTransaction])
 }
 
+func TestConfigWithTenantID(t *testing.T) {
+	tests := []struct {
+		name     string
+		tenantID string
+		expected string
+	}{
+		{
+			name:     "sets tenant ID",
+			tenantID: "my-tenant-123",
+			expected: "my-tenant-123",
+		},
+		{
+			name:     "empty tenant ID is accepted",
+			tenantID: "",
+			expected: "",
+		},
+		{
+			name:     "UUID-style tenant ID",
+			tenantID: "550e8400-e29b-41d4-a716-446655440000",
+			expected: "550e8400-e29b-41d4-a716-446655440000",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg, err := NewConfig(
+				WithTenantID(tc.tenantID),
+				WithAccessManager(auth.AccessManager{Enabled: false}),
+			)
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected, cfg.TenantID)
+		})
+	}
+}
+
+func TestConfigTenantIDFromEnv(t *testing.T) {
+	tests := []struct {
+		name     string
+		envValue string
+		expected string
+	}{
+		{
+			name:     "picks up MIDAZ_TENANT_ID from environment",
+			envValue: "env-tenant-456",
+			expected: "env-tenant-456",
+		},
+		{
+			name:     "empty env var leaves TenantID unset",
+			envValue: "",
+			expected: "",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Use t.Setenv which automatically cleans up after the test
+			if tc.envValue != "" {
+				t.Setenv("MIDAZ_TENANT_ID", tc.envValue)
+			} else {
+				// Ensure the env var is not set from a previous test
+				restore := saveEnv([]string{"MIDAZ_TENANT_ID"})
+				defer restore()
+
+				_ = os.Unsetenv("MIDAZ_TENANT_ID")
+			}
+
+			cfg, err := NewConfig(
+				FromEnvironment(),
+				WithAccessManager(auth.AccessManager{Enabled: false}),
+			)
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected, cfg.TenantID)
+		})
+	}
+}
+
+func TestConfigTenantIDOptionOverridesEnv(t *testing.T) {
+	// Set env var, then override with explicit option
+	t.Setenv("MIDAZ_TENANT_ID", "env-tenant")
+
+	cfg, err := NewConfig(
+		FromEnvironment(),
+		WithTenantID("option-tenant"),
+		WithAccessManager(auth.AccessManager{Enabled: false}),
+	)
+	require.NoError(t, err)
+
+	// The explicit WithTenantID option should win since it's applied after FromEnvironment
+	assert.Equal(t, "option-tenant", cfg.TenantID)
+}
+
+func TestDefaultConfigHasEmptyTenantID(t *testing.T) {
+	cfg := DefaultConfig()
+	assert.Empty(t, cfg.TenantID, "DefaultConfig should have empty TenantID")
+}
+
 // Mock observability provider for testing
 type mockObservabilityProvider struct{}
 

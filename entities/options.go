@@ -92,6 +92,22 @@ func WithHTTPClient(client *http.Client) Option {
 	}
 }
 
+// WithDefaultTenantID returns an Option that sets the default tenant ID for all
+// requests made through this Entity. Per-request tenant IDs set via
+// WithTenantID(ctx, tenantID) take precedence over this default.
+// If tenantID is empty, the option is a no-op.
+func WithDefaultTenantID(tenantID string) Option {
+	return func(e *Entity) error {
+		if tenantID == "" {
+			return nil
+		}
+
+		e.httpClient.tenantID = tenantID
+
+		return nil
+	}
+}
+
 // WithPluginAuth returns an Option that configures plugin-based authentication.
 // This is a wrapper around auth.WithAccessManager to make it compatible with entities.Option.
 func WithPluginAuth(pluginAuth auth.AccessManager) Option {

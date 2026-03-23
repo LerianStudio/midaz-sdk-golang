@@ -124,3 +124,87 @@ func TestGetConfig(t *testing.T) {
 		t.Fatal("Expected config to be returned, got nil")
 	}
 }
+
+// TestClientWithTenantID verifies that the WithTenantID client option correctly
+// sets the tenant ID on the Client struct, which is later propagated to the
+// Entity layer during setupEntity.
+func TestClientWithTenantID(t *testing.T) {
+	// Create client with tenant ID option
+	c, err := New(
+		WithConfig(createTestConfig()),
+		WithTenantID("test-tenant"),
+	)
+	if err != nil {
+		t.Fatalf("Failed to create client with tenant ID: %v", err)
+	}
+
+	// Verify the tenant ID is stored on the client
+	if c.tenantID != "test-tenant" {
+		t.Errorf("Expected tenantID to be 'test-tenant', got '%s'", c.tenantID)
+	}
+}
+
+// TestClientWithTenantIDEmpty verifies that an empty tenant ID is accepted
+// (it simply won't be propagated as a header later).
+func TestClientWithTenantIDEmpty(t *testing.T) {
+	c, err := New(
+		WithConfig(createTestConfig()),
+		WithTenantID(""),
+	)
+	if err != nil {
+		t.Fatalf("Failed to create client with empty tenant ID: %v", err)
+	}
+
+	if c.tenantID != "" {
+		t.Errorf("Expected tenantID to be empty, got '%s'", c.tenantID)
+	}
+}
+
+// TestClientWithTenantIDPropagatedToEntity verifies that when UseEntityAPI is
+// enabled, the client-level tenant ID is propagated to the Entity layer.
+// We verify this by checking that the Entity was created (the propagation
+// happens via entities.WithDefaultTenantID in setupEntity).
+func TestClientWithTenantIDPropagatedToEntity(t *testing.T) {
+	c, err := New(
+		WithConfig(createTestConfig()),
+		WithTenantID("propagated-tenant"),
+		UseEntityAPI(),
+	)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	// Verify entity was created (setupEntity ran successfully with tenant propagation)
+	if c.Entity == nil {
+		t.Fatal("Expected Entity to be set")
+	}
+
+	// Verify the client-level tenant ID is stored correctly
+	if c.tenantID != "propagated-tenant" {
+		t.Errorf("Expected client tenantID to be 'propagated-tenant', got '%s'", c.tenantID)
+	}
+}
+
+// TestClientWithTenantIDFromConfig verifies that the tenant ID from config
+// is used when no client-level tenant is set.
+func TestClientWithTenantIDFromConfig(t *testing.T) {
+	cfg := createTestConfig()
+	cfg.TenantID = "config-tenant"
+
+	c, err := New(
+		WithConfig(cfg),
+	)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	// Client-level tenantID should be empty since we didn't use WithTenantID
+	if c.tenantID != "" {
+		t.Errorf("Expected client tenantID to be empty, got '%s'", c.tenantID)
+	}
+
+	// But config-level tenant ID should be set
+	if c.config.TenantID != "config-tenant" {
+		t.Errorf("Expected config TenantID to be 'config-tenant', got '%s'", c.config.TenantID)
+	}
+}

@@ -15,6 +15,13 @@ const (
 	ServiceTransaction = "transaction"
 )
 
+// Header names used in HTTP requests.
+const (
+	// HeaderTenantID is the HTTP header name used to propagate the tenant identifier.
+	// When set, the Midaz API scopes the request to the specified tenant.
+	HeaderTenantID = "X-Tenant-ID"
+)
+
 // Environment variable names used for SDK configuration.
 const (
 	// EnvMidazDebug is the environment variable name for enabling debug mode.

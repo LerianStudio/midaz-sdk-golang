@@ -48,6 +48,7 @@ type HTTPClient struct {
 	client        *http.Client
 	authToken     string
 	userAgent     string
+	tenantID      string
 	debug         bool
 	retryOptions  *retry.Options        // Retry options for the client
 	jsonPool      *performance.JSONPool // Pool for JSON encoding/decoding
@@ -170,6 +171,13 @@ func (c *HTTPClient) WithDebug(debug bool) *HTTPClient {
 	return c
 }
 
+// SetTenantID sets the default tenant ID for all requests made by this HTTP client.
+// When a request is made, the tenant ID from the request context takes precedence
+// over this client-level default. If neither is set, no X-Tenant-ID header is sent.
+func (c *HTTPClient) SetTenantID(tenantID string) {
+	c.tenantID = tenantID
+}
+
 // doRequest performs an HTTP request with the given method, URL, headers, and body.
 // It handles JSON encoding and decoding, authentication, error handling, and retries.
 //
@@ -202,6 +210,22 @@ func (c *HTTPClient) doRequest(ctx context.Context, method, requestURL string, h
 		}
 
 		headers["X-Idempotency"] = key
+	}
+
+	// Inject tenant ID header from context or client-level default.
+	// Context value takes precedence over the client-level default.
+	if tid := TenantIDFromContext(ctx); tid != "" {
+		if headers == nil {
+			headers = map[string]string{}
+		}
+
+		headers[HeaderTenantID] = tid
+	} else if c.tenantID != "" {
+		if headers == nil {
+			headers = map[string]string{}
+		}
+
+		headers[HeaderTenantID] = c.tenantID
 	}
 
 	// Setup headers
@@ -274,6 +298,22 @@ func (c *HTTPClient) doRawRequest(ctx context.Context, method, requestURL string
 		}
 
 		headers["X-Idempotency"] = key
+	}
+
+	// Inject tenant ID header from context or client-level default.
+	// Context value takes precedence over the client-level default.
+	if tid := TenantIDFromContext(ctx); tid != "" {
+		if headers == nil {
+			headers = map[string]string{}
+		}
+
+		headers[HeaderTenantID] = tid
+	} else if c.tenantID != "" {
+		if headers == nil {
+			headers = map[string]string{}
+		}
+
+		headers[HeaderTenantID] = c.tenantID
 	}
 
 	c.setupRequestHeaders(req, headers, len(body) > 0)
@@ -644,6 +684,33 @@ func WithIdempotencyKey(ctx context.Context, key string) context.Context {
 
 func getIdempotencyKeyFromContext(ctx context.Context) string {
 	if v := ctx.Value(contextKeyIdempotency{}); v != nil {
+		if s, ok := v.(string); ok {
+			return s
+		}
+	}
+
+	return ""
+}
+
+// tenant ID context helpers
+type contextKeyTenantID struct{}
+
+// WithTenantID attaches a tenant ID to the request context.
+// The HTTP client will add it as an 'X-Tenant-ID' header, which scopes the
+// API request to the specified tenant. If tenantID is empty, the context
+// is returned unchanged and no header will be set from context.
+func WithTenantID(ctx context.Context, tenantID string) context.Context {
+	if tenantID == "" {
+		return ctx
+	}
+
+	return context.WithValue(ctx, contextKeyTenantID{}, tenantID)
+}
+
+// TenantIDFromContext extracts the tenant ID previously stored via WithTenantID.
+// Returns an empty string if no tenant ID is present in the context.
+func TenantIDFromContext(ctx context.Context) string {
+	if v := ctx.Value(contextKeyTenantID{}); v != nil {
 		if s, ok := v.(string); ok {
 			return s
 		}
