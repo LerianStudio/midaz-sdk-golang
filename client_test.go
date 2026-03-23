@@ -2,7 +2,6 @@ package client
 
 import (
 	"net/http"
-	"os"
 	"testing"
 	"time"
 
@@ -10,22 +9,27 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/config"
 )
 
-// createTestConfig creates a test config with sensible defaults
-func createTestConfig() *config.Config {
-	// Set environment variable to skip auth check in tests
-	_ = os.Setenv("MIDAZ_SKIP_AUTH_CHECK", "true")
+// createTestConfig creates a test config with sensible defaults.
+// It uses t.Setenv for automatic cleanup and t.Fatalf on config errors.
+func createTestConfig(t *testing.T) *config.Config {
+	t.Helper()
 
-	cfg, _ := config.NewConfig(
+	t.Setenv("MIDAZ_SKIP_AUTH_CHECK", "true")
+
+	cfg, err := config.NewConfig(
 		config.WithAccessManager(auth.AccessManager{Enabled: false, Address: ""}),
 		config.WithEnvironment(config.EnvironmentLocal),
 	)
+	if err != nil {
+		t.Fatalf("createTestConfig: %v", err)
+	}
 
 	return cfg
 }
 
 func TestNewClient(t *testing.T) {
 	// Test creating a new client with a test config
-	client, err := New(WithConfig(createTestConfig()))
+	client, err := New(WithConfig(createTestConfig(t)))
 	if err != nil {
 		t.Fatalf("Failed to create client: %v", err)
 	}
@@ -46,7 +50,7 @@ func TestNewClient(t *testing.T) {
 	}
 
 	// Create a base config
-	testCfg := createTestConfig()
+	testCfg := createTestConfig(t)
 
 	client, err = New(
 		WithConfig(testCfg),
@@ -103,7 +107,7 @@ func TestNewClient(t *testing.T) {
 }
 
 func TestUseAllAPIs(t *testing.T) {
-	client, err := New(UseAllAPIs(), WithConfig(createTestConfig()))
+	client, err := New(UseAllAPIs(), WithConfig(createTestConfig(t)))
 	if err != nil {
 		t.Fatalf("Failed to create client: %v", err)
 	}
@@ -114,7 +118,7 @@ func TestUseAllAPIs(t *testing.T) {
 }
 
 func TestGetConfig(t *testing.T) {
-	client, err := New(WithConfig(createTestConfig()))
+	client, err := New(WithConfig(createTestConfig(t)))
 	if err != nil {
 		t.Fatalf("Failed to create client: %v", err)
 	}
@@ -131,7 +135,7 @@ func TestGetConfig(t *testing.T) {
 func TestClientWithTenantID(t *testing.T) {
 	// Create client with tenant ID option
 	c, err := New(
-		WithConfig(createTestConfig()),
+		WithConfig(createTestConfig(t)),
 		WithTenantID("test-tenant"),
 	)
 	if err != nil {
@@ -148,7 +152,7 @@ func TestClientWithTenantID(t *testing.T) {
 // (it simply won't be propagated as a header later).
 func TestClientWithTenantIDEmpty(t *testing.T) {
 	c, err := New(
-		WithConfig(createTestConfig()),
+		WithConfig(createTestConfig(t)),
 		WithTenantID(""),
 	)
 	if err != nil {
@@ -166,7 +170,7 @@ func TestClientWithTenantIDEmpty(t *testing.T) {
 // happens via entities.WithDefaultTenantID in setupEntity).
 func TestClientWithTenantIDPropagatedToEntity(t *testing.T) {
 	c, err := New(
-		WithConfig(createTestConfig()),
+		WithConfig(createTestConfig(t)),
 		WithTenantID("propagated-tenant"),
 		UseEntityAPI(),
 	)
@@ -188,7 +192,7 @@ func TestClientWithTenantIDPropagatedToEntity(t *testing.T) {
 // TestClientWithTenantIDFromConfig verifies that the tenant ID from config
 // is used when no client-level tenant is set.
 func TestClientWithTenantIDFromConfig(t *testing.T) {
-	cfg := createTestConfig()
+	cfg := createTestConfig(t)
 	cfg.TenantID = "config-tenant"
 
 	c, err := New(

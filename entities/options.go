@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 
 	auth "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/access-manager"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
@@ -76,14 +77,19 @@ func WithContext(ctx context.Context) Option {
 }
 
 // WithHTTPClient returns an Option that sets the HTTP client for the Entity.
+// The tenant ID configured on the entity is preserved across the replacement.
 func WithHTTPClient(client *http.Client) Option {
 	return func(e *Entity) error {
 		if client == nil {
 			return errors.New("HTTP client cannot be nil")
 		}
 
+		// Preserve tenant ID across HTTP client replacement
+		savedTenantID := e.httpClient.tenantID
+
 		// Create a new HTTP client with the same auth token and observability
 		e.httpClient = NewHTTPClient(client, e.httpClient.authToken, e.observability)
+		e.httpClient.tenantID = savedTenantID
 
 		// Re-initialize services with the new HTTP client
 		e.initServices()
@@ -98,6 +104,7 @@ func WithHTTPClient(client *http.Client) Option {
 // If tenantID is empty, the option is a no-op.
 func WithDefaultTenantID(tenantID string) Option {
 	return func(e *Entity) error {
+		tenantID = strings.TrimSpace(tenantID)
 		if tenantID == "" {
 			return nil
 		}

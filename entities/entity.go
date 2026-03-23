@@ -220,6 +220,75 @@ func (e *Entity) initServices() {
 	e.Portfolios = NewPortfoliosEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
 	e.Segments = NewSegmentsEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
 	e.TransactionRoutes = NewTransactionRoutesEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
+
+	// Propagate the entity-level tenant ID to each service entity's HTTP client.
+	// Each NewXxxEntity constructor creates a fresh HTTPClient with tenantID="",
+	// so we must copy the tenant ID from the parent entity after construction.
+	e.propagateTenantID()
+}
+
+// propagateTenantID copies the entity-level tenant ID to all service entity HTTP clients.
+// This is necessary because each NewXxxEntity constructor creates a fresh HTTPClient
+// that does not inherit the tenant ID from the parent Entity.
+func (e *Entity) propagateTenantID() {
+	tid := e.httpClient.tenantID
+	if tid == "" {
+		return
+	}
+
+	// Service entities with unexported httpClient field
+	if v, ok := e.Accounts.(*accountsEntity); ok {
+		v.httpClient.SetTenantID(tid)
+	}
+
+	if v, ok := e.AccountTypes.(*accountTypesEntity); ok {
+		v.httpClient.SetTenantID(tid)
+	}
+
+	if v, ok := e.Assets.(*assetsEntity); ok {
+		v.httpClient.SetTenantID(tid)
+	}
+
+	if v, ok := e.AssetRates.(*assetRatesEntity); ok {
+		v.httpClient.SetTenantID(tid)
+	}
+
+	if v, ok := e.Balances.(*balancesEntity); ok {
+		v.httpClient.SetTenantID(tid)
+	}
+
+	if v, ok := e.Ledgers.(*ledgersEntity); ok {
+		v.httpClient.SetTenantID(tid)
+	}
+
+	if v, ok := e.Transactions.(*transactionsEntity); ok {
+		v.httpClient.SetTenantID(tid)
+	}
+
+	if v, ok := e.TransactionRoutes.(*transactionRoutesEntity); ok {
+		v.httpClient.SetTenantID(tid)
+	}
+
+	if v, ok := e.OperationRoutes.(*operationRoutesEntity); ok {
+		v.httpClient.SetTenantID(tid)
+	}
+
+	// Service entities with exported HTTPClient field
+	if v, ok := e.Organizations.(*organizationsEntity); ok {
+		v.HTTPClient.SetTenantID(tid)
+	}
+
+	if v, ok := e.Operations.(*operationsEntity); ok {
+		v.HTTPClient.SetTenantID(tid)
+	}
+
+	if v, ok := e.Portfolios.(*portfoliosEntity); ok {
+		v.HTTPClient.SetTenantID(tid)
+	}
+
+	if v, ok := e.Segments.(*segmentsEntity); ok {
+		v.HTTPClient.SetTenantID(tid)
+	}
 }
 
 // InitServices initializes the service interfaces for the entity.
@@ -256,6 +325,7 @@ func (e *Entity) GetObservabilityProvider() observability.Provider {
 
 // SetHTTPClient sets the HTTP client for the entity.
 // This allows for replacing the HTTP client after the entity is created.
+// The tenant ID configured on the entity is preserved across the replacement.
 //
 // Parameters:
 //   - client: The HTTP client to use for API requests.
@@ -264,8 +334,12 @@ func (e *Entity) SetHTTPClient(client *http.Client) {
 		return
 	}
 
+	// Preserve tenant ID across HTTP client replacement
+	savedTenantID := e.httpClient.tenantID
+
 	// Create a new HTTP client with the same auth token and observability
 	e.httpClient = NewHTTPClient(client, e.httpClient.authToken, e.observability)
+	e.httpClient.tenantID = savedTenantID
 
 	// Re-initialize services with the new HTTP client
 	e.initServices()

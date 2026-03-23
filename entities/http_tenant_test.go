@@ -34,9 +34,9 @@ func TestTenantIDContextHelpers(t *testing.T) {
 			expectID: "550e8400-e29b-41d4-a716-446655440000",
 		},
 		{
-			name:     "whitespace-only tenant ID is stored as-is",
+			name:     "whitespace-only tenant ID is trimmed to empty (no-op)",
 			tenantID: "   ",
-			expectID: "   ",
+			expectID: "",
 		},
 	}
 
@@ -383,4 +383,135 @@ func TestWithDefaultTenantIDOption(t *testing.T) {
 			assert.Equal(t, tc.expectID, entity.httpClient.tenantID)
 		})
 	}
+}
+
+// TestTenantIDPropagationThroughServiceEntity verifies that a tenant ID set at the
+// Entity level via WithDefaultTenantID is propagated to service entities and arrives
+// as an X-Tenant-ID header when a service method makes an HTTP request.
+// This is the end-to-end test for the initServices -> propagateTenantID flow.
+func TestTenantIDPropagationThroughServiceEntity(t *testing.T) {
+	var receivedHeader string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedHeader = r.Header.Get(HeaderTenantID)
+		w.Header().Set("Content-Type", "application/json")
+		// Return a valid JSON response that ListOrganizations can unmarshal
+		_, _ = w.Write([]byte(`{"items":[]}`))
+	}))
+	defer srv.Close()
+
+	// Create an Entity using the test server URL and a default tenant ID.
+	// New() sets both "onboarding" and "transaction" base URLs to the same value.
+	entity, err := New(srv.URL, WithDefaultTenantID("e2e-tenant"))
+	require.NoError(t, err)
+
+	// Replace the underlying http.Client with the test server's client so that
+	// TLS certificates are accepted for the httptest server.
+	entity.httpClient.client = srv.Client()
+
+	// Reinitialize services so they pick up the test server's HTTP client.
+	// We must also re-propagate the tenant ID since initServices creates fresh HTTPClients.
+	entity.initServices()
+
+	// Call a service method — this exercises the full path:
+	// Entity.Organizations -> organizationsEntity.HTTPClient -> doRequest -> header injection
+	_, err = entity.Organizations.ListOrganizations(context.Background(), nil)
+	require.NoError(t, err)
+
+	assert.Equal(t, "e2e-tenant", receivedHeader,
+		"X-Tenant-ID header should be propagated from Entity through to service entity HTTP request")
+}
+
+// TestTenantIDPropagationThroughServiceEntityWithUnexportedField verifies tenant ID
+// propagation through a service entity that uses an unexported httpClient field
+// (e.g., accountsEntity), covering the other code path in propagateTenantID.
+func TestTenantIDPropagationThroughServiceEntityWithUnexportedField(t *testing.T) {
+	var receivedHeader string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedHeader = r.Header.Get(HeaderTenantID)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"items":[]}`))
+	}))
+	defer srv.Close()
+
+	entity, err := New(srv.URL, WithDefaultTenantID("e2e-tenant-accounts"))
+	require.NoError(t, err)
+
+	entity.httpClient.client = srv.Client()
+	entity.initServices()
+
+	// Call a service method on Accounts (uses unexported httpClient field)
+	_, err = entity.Accounts.ListAccounts(context.Background(), "org-1", "ledger-1", nil)
+	require.NoError(t, err)
+
+	assert.Equal(t, "e2e-tenant-accounts", receivedHeader,
+		"X-Tenant-ID should propagate to service entities with unexported httpClient field")
+}
+
+// TestSetHTTPClientPreservesTenantID verifies that calling SetHTTPClient on an Entity
+// preserves the previously configured tenant ID.
+func TestSetHTTPClientPreservesTenantID(t *testing.T) {
+	entity := &Entity{
+		httpClient: NewHTTPClient(nil, "token", nil),
+	}
+	entity.httpClient.tenantID = "preserved-tenant"
+	entity.baseURLs = map[string]string{
+		"onboarding":  "http://localhost",
+		"transaction": "http://localhost",
+	}
+
+	// Replace the HTTP client
+	newClient := &http.Client{}
+	entity.SetHTTPClient(newClient)
+
+	// Verify tenant ID was preserved on the entity-level HTTPClient
+	assert.Equal(t, "preserved-tenant", entity.httpClient.tenantID,
+		"SetHTTPClient should preserve the tenant ID")
+}
+
+// TestWithHTTPClientOptionPreservesTenantID verifies that the WithHTTPClient option
+// preserves the previously configured tenant ID when replacing the HTTP client.
+func TestWithHTTPClientOptionPreservesTenantID(t *testing.T) {
+	entity := &Entity{
+		httpClient: NewHTTPClient(nil, "token", nil),
+		baseURLs: map[string]string{
+			"onboarding":  "http://localhost",
+			"transaction": "http://localhost",
+		},
+	}
+	entity.httpClient.tenantID = "option-preserved-tenant"
+
+	opt := WithHTTPClient(&http.Client{})
+	err := opt(entity)
+	require.NoError(t, err)
+
+	assert.Equal(t, "option-preserved-tenant", entity.httpClient.tenantID,
+		"WithHTTPClient option should preserve the tenant ID")
+}
+
+// TestTenantIDPropagationAfterSetHTTPClient verifies the full round-trip: setting a
+// tenant ID, replacing the HTTP client via SetHTTPClient, and confirming the tenant ID
+// reaches the server through a service entity call.
+func TestTenantIDPropagationAfterSetHTTPClient(t *testing.T) {
+	var receivedHeader string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedHeader = r.Header.Get(HeaderTenantID)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"items":[]}`))
+	}))
+	defer srv.Close()
+
+	entity, err := New(srv.URL, WithDefaultTenantID("surviving-tenant"))
+	require.NoError(t, err)
+
+	// Replace the HTTP client — tenant ID should survive
+	entity.SetHTTPClient(srv.Client())
+
+	_, err = entity.Organizations.ListOrganizations(context.Background(), nil)
+	require.NoError(t, err)
+
+	assert.Equal(t, "surviving-tenant", receivedHeader,
+		"tenant ID should survive SetHTTPClient and propagate to service entities")
 }

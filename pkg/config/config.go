@@ -395,6 +395,11 @@ func WithIdempotency(enable bool) Option {
 //   - Option: A function that sets the tenant ID on a Config
 func WithTenantID(tenantID string) Option {
 	return func(c *Config) error {
+		tenantID = strings.TrimSpace(tenantID)
+		if tenantID == "" {
+			return nil
+		}
+
 		c.TenantID = tenantID
 
 		return nil

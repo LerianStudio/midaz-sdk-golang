@@ -174,8 +174,45 @@ func (c *HTTPClient) WithDebug(debug bool) *HTTPClient {
 // SetTenantID sets the default tenant ID for all requests made by this HTTP client.
 // When a request is made, the tenant ID from the request context takes precedence
 // over this client-level default. If neither is set, no X-Tenant-ID header is sent.
+//
+// SetTenantID is not safe for concurrent use with active requests. It should be
+// called during client setup, before any concurrent API calls are made. This is
+// consistent with Go's http.Client, where the struct fields are not safe for
+// concurrent mutation while the client is in use.
 func (c *HTTPClient) SetTenantID(tenantID string) {
-	c.tenantID = tenantID
+	c.tenantID = strings.TrimSpace(tenantID)
+}
+
+// injectContextHeaders adds context-based headers (idempotency key, tenant ID) to the provided
+// headers map. If headers is nil and there are headers to inject, a new map is created and returned.
+func (c *HTTPClient) injectContextHeaders(ctx context.Context, headers map[string]string) map[string]string {
+	// Inject idempotency header from context if present.
+	// If key is empty, no header is set (which is the expected behavior for non-idempotent requests).
+	if key := getIdempotencyKeyFromContext(ctx); key != "" {
+		if headers == nil {
+			headers = map[string]string{}
+		}
+
+		headers["X-Idempotency"] = key
+	}
+
+	// Inject tenant ID header from context or client-level default.
+	// Context value takes precedence over the client-level default.
+	if tid := TenantIDFromContext(ctx); tid != "" {
+		if headers == nil {
+			headers = map[string]string{}
+		}
+
+		headers[HeaderTenantID] = tid
+	} else if c.tenantID != "" {
+		if headers == nil {
+			headers = map[string]string{}
+		}
+
+		headers[HeaderTenantID] = c.tenantID
+	}
+
+	return headers
 }
 
 // doRequest performs an HTTP request with the given method, URL, headers, and body.
@@ -202,31 +239,8 @@ func (c *HTTPClient) doRequest(ctx context.Context, method, requestURL string, h
 		return err
 	}
 
-	// Inject idempotency header from context if present.
-	// If key is empty, no header is set (which is the expected behavior for non-idempotent requests).
-	if key := getIdempotencyKeyFromContext(ctx); key != "" {
-		if headers == nil {
-			headers = map[string]string{}
-		}
-
-		headers["X-Idempotency"] = key
-	}
-
-	// Inject tenant ID header from context or client-level default.
-	// Context value takes precedence over the client-level default.
-	if tid := TenantIDFromContext(ctx); tid != "" {
-		if headers == nil {
-			headers = map[string]string{}
-		}
-
-		headers[HeaderTenantID] = tid
-	} else if c.tenantID != "" {
-		if headers == nil {
-			headers = map[string]string{}
-		}
-
-		headers[HeaderTenantID] = c.tenantID
-	}
+	// Inject context-based headers (idempotency key, tenant ID)
+	headers = c.injectContextHeaders(ctx, headers)
 
 	// Setup headers
 	c.setupRequestHeaders(req, headers, body != nil)
@@ -292,29 +306,8 @@ func (c *HTTPClient) doRawRequest(ctx context.Context, method, requestURL string
 		}
 	}
 
-	if key := getIdempotencyKeyFromContext(ctx); key != "" {
-		if headers == nil {
-			headers = map[string]string{}
-		}
-
-		headers["X-Idempotency"] = key
-	}
-
-	// Inject tenant ID header from context or client-level default.
-	// Context value takes precedence over the client-level default.
-	if tid := TenantIDFromContext(ctx); tid != "" {
-		if headers == nil {
-			headers = map[string]string{}
-		}
-
-		headers[HeaderTenantID] = tid
-	} else if c.tenantID != "" {
-		if headers == nil {
-			headers = map[string]string{}
-		}
-
-		headers[HeaderTenantID] = c.tenantID
-	}
+	// Inject context-based headers (idempotency key, tenant ID)
+	headers = c.injectContextHeaders(ctx, headers)
 
 	c.setupRequestHeaders(req, headers, len(body) > 0)
 
@@ -667,56 +660,6 @@ func (c *HTTPClient) debugLog(format string, args ...any) {
 	// Log injection mitigated: message is pre-sanitized via strconv.Quote
 	// Error is intentionally ignored as debug logging should not affect program flow
 	_, _ = fmt.Fprintln(os.Stderr, "[Midaz SDK Debug] "+safeMessage) // lgtm[go/log-injection]
-}
-
-// idempotency context helpers
-type contextKeyIdempotency struct{}
-
-// WithIdempotencyKey attaches an idempotency key to the request context.
-// The HTTP client will add it as an 'X-Idempotency' header.
-func WithIdempotencyKey(ctx context.Context, key string) context.Context {
-	if key == "" {
-		return ctx
-	}
-
-	return context.WithValue(ctx, contextKeyIdempotency{}, key)
-}
-
-func getIdempotencyKeyFromContext(ctx context.Context) string {
-	if v := ctx.Value(contextKeyIdempotency{}); v != nil {
-		if s, ok := v.(string); ok {
-			return s
-		}
-	}
-
-	return ""
-}
-
-// tenant ID context helpers
-type contextKeyTenantID struct{}
-
-// WithTenantID attaches a tenant ID to the request context.
-// The HTTP client will add it as an 'X-Tenant-ID' header, which scopes the
-// API request to the specified tenant. If tenantID is empty, the context
-// is returned unchanged and no header will be set from context.
-func WithTenantID(ctx context.Context, tenantID string) context.Context {
-	if tenantID == "" {
-		return ctx
-	}
-
-	return context.WithValue(ctx, contextKeyTenantID{}, tenantID)
-}
-
-// TenantIDFromContext extracts the tenant ID previously stored via WithTenantID.
-// Returns an empty string if no tenant ID is present in the context.
-func TenantIDFromContext(ctx context.Context) string {
-	if v := ctx.Value(contextKeyTenantID{}); v != nil {
-		if s, ok := v.(string); ok {
-			return s
-		}
-	}
-
-	return ""
 }
 
 // parseErrorResponse parses an error response from the API and converts it to an SDK error.
