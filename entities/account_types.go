@@ -107,6 +107,10 @@ type accountTypesEntity struct {
 	baseURLs   map[string]string
 }
 
+func (e *accountTypesEntity) setDefaultTenantID(tenantID string) {
+	e.httpClient.SetTenantID(tenantID)
+}
+
 // NewAccountTypesEntity creates a new account types entity.
 //
 // Parameters:

@@ -183,6 +183,11 @@ func (c *HTTPClient) SetTenantID(tenantID string) {
 	c.tenantID = strings.TrimSpace(tenantID)
 }
 
+// GetTenantID returns the current default tenant ID configured on this HTTP client.
+func (c *HTTPClient) GetTenantID() string {
+	return c.tenantID
+}
+
 // injectContextHeaders adds context-based headers (idempotency key, tenant ID) to the provided
 // headers map. If headers is nil and there are headers to inject, a new map is created and returned.
 func (c *HTTPClient) injectContextHeaders(ctx context.Context, headers map[string]string) map[string]string {

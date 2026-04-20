@@ -103,6 +103,10 @@ type transactionsEntity struct {
 	baseURLs   map[string]string
 }
 
+func (e *transactionsEntity) setDefaultTenantID(tenantID string) {
+	e.httpClient.SetTenantID(tenantID)
+}
+
 // NewTransactionsEntity creates a new transactions entity.
 //
 // Parameters:

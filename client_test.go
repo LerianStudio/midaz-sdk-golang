@@ -165,9 +165,8 @@ func TestClientWithTenantIDEmpty(t *testing.T) {
 }
 
 // TestClientWithTenantIDPropagatedToEntity verifies that when UseEntityAPI is
-// enabled, the client-level tenant ID is propagated to the Entity layer.
-// We verify this by checking that the Entity was created (the propagation
-// happens via entities.WithDefaultTenantID in setupEntity).
+// enabled, the client-level tenant ID is propagated to the Entity layer's
+// underlying HTTPClient via entities.WithDefaultTenantID in setupEntity.
 func TestClientWithTenantIDPropagatedToEntity(t *testing.T) {
 	c, err := New(
 		WithConfig(createTestConfig(t)),
@@ -178,7 +177,7 @@ func TestClientWithTenantIDPropagatedToEntity(t *testing.T) {
 		t.Fatalf("Failed to create client: %v", err)
 	}
 
-	// Verify entity was created (setupEntity ran successfully with tenant propagation)
+	// Verify entity was created
 	if c.Entity == nil {
 		t.Fatal("Expected Entity to be set")
 	}
@@ -187,16 +186,28 @@ func TestClientWithTenantIDPropagatedToEntity(t *testing.T) {
 	if c.tenantID != "propagated-tenant" {
 		t.Errorf("Expected client tenantID to be 'propagated-tenant', got '%s'", c.tenantID)
 	}
+
+	// Verify the effective tenant ID was wired into the Entity's HTTPClient
+	entityHTTPClient := c.Entity.GetEntityHTTPClient()
+	if entityHTTPClient == nil {
+		t.Fatal("Expected Entity HTTP client to be set")
+	}
+
+	if got := entityHTTPClient.GetTenantID(); got != "propagated-tenant" {
+		t.Errorf("Expected Entity HTTP client tenantID to be 'propagated-tenant', got '%s'", got)
+	}
 }
 
 // TestClientWithTenantIDFromConfig verifies that the tenant ID from config
-// is used when no client-level tenant is set.
+// is used when no client-level tenant is set, and that the Entity layer
+// receives the config-level tenant.
 func TestClientWithTenantIDFromConfig(t *testing.T) {
 	cfg := createTestConfig(t)
 	cfg.TenantID = "config-tenant"
 
 	c, err := New(
 		WithConfig(cfg),
+		UseEntityAPI(),
 	)
 	if err != nil {
 		t.Fatalf("Failed to create client: %v", err)
@@ -207,8 +218,44 @@ func TestClientWithTenantIDFromConfig(t *testing.T) {
 		t.Errorf("Expected client tenantID to be empty, got '%s'", c.tenantID)
 	}
 
-	// But config-level tenant ID should be set
+	// Config-level tenant ID should be set
 	if c.config.TenantID != "config-tenant" {
 		t.Errorf("Expected config TenantID to be 'config-tenant', got '%s'", c.config.TenantID)
+	}
+
+	// Entity HTTP client should receive the config-level tenant
+	entityHTTPClient := c.Entity.GetEntityHTTPClient()
+	if entityHTTPClient == nil {
+		t.Fatal("Expected Entity HTTP client to be set")
+	}
+
+	if got := entityHTTPClient.GetTenantID(); got != "config-tenant" {
+		t.Errorf("Expected Entity HTTP client tenantID to be 'config-tenant', got '%s'", got)
+	}
+}
+
+// TestClientWithTenantIDEmptyOverrideDoesNotClearConfig verifies that
+// WithTenantID("") explicitly clears the tenant (does not fall back to config).
+func TestClientWithTenantIDEmptyOverrideDoesNotClearConfig(t *testing.T) {
+	cfg := createTestConfig(t)
+	cfg.TenantID = "config-tenant"
+
+	c, err := New(
+		WithConfig(cfg),
+		WithTenantID(""),
+		UseEntityAPI(),
+	)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	// Client explicitly set tenant to empty — should NOT fall back to config
+	entityHTTPClient := c.Entity.GetEntityHTTPClient()
+	if entityHTTPClient == nil {
+		t.Fatal("Expected Entity HTTP client to be set")
+	}
+
+	if got := entityHTTPClient.GetTenantID(); got != "" {
+		t.Errorf("Expected Entity HTTP client tenantID to be empty (explicitly cleared), got '%s'", got)
 	}
 }

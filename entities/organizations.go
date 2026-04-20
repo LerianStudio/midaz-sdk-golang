@@ -139,6 +139,10 @@ type organizationsEntity struct {
 	baseURLs   map[string]string
 }
 
+func (e *organizationsEntity) setDefaultTenantID(tenantID string) {
+	e.HTTPClient.SetTenantID(tenantID)
+}
+
 // NewOrganizationsEntity creates a new organizations entity.
 //
 // Parameters:

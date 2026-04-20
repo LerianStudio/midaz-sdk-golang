@@ -183,6 +183,10 @@ type operationsEntity struct {
 	baseURLs   map[string]string
 }
 
+func (e *operationsEntity) setDefaultTenantID(tenantID string) {
+	e.HTTPClient.SetTenantID(tenantID)
+}
+
 // NewOperationsEntity creates a new operations entity.
 //
 // Parameters:

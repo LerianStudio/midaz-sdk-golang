@@ -122,6 +122,10 @@ type ledgersEntity struct {
 	baseURLs   map[string]string
 }
 
+func (e *ledgersEntity) setDefaultTenantID(tenantID string) {
+	e.httpClient.SetTenantID(tenantID)
+}
+
 // NewLedgersEntity creates a new ledgers entity.
 //
 // Parameters:

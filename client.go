@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
@@ -38,6 +39,9 @@ type Client struct {
 	// tenantID is the default tenant identifier sent as X-Tenant-ID on every request.
 	// Per-request overrides via entities.WithTenantID(ctx, id) take precedence.
 	tenantID string
+	// tenantIDSet tracks whether WithTenantID was explicitly called, allowing
+	// an empty value to override the config/env default.
+	tenantIDSet bool
 
 	// Observability provider
 	observability observability.Provider
@@ -124,8 +128,12 @@ func (c *Client) setupEntity() error {
 
 	// Propagate tenant ID to the entity layer if configured.
 	// Client-level tenantID takes precedence over config-level TenantID.
-	tenantID := c.tenantID
-	if tenantID == "" {
+	// When tenantIDSet is true, the client override wins even if empty
+	// (allowing explicit clearing of the config/env default).
+	var tenantID string
+	if c.tenantIDSet {
+		tenantID = c.tenantID
+	} else {
 		tenantID = c.config.TenantID
 	}
 
@@ -568,7 +576,9 @@ func WithDebug(enable bool) Option {
 //   - Option: A function that sets the tenant ID on the Client
 func WithTenantID(tenantID string) Option {
 	return func(c *Client) error {
-		c.tenantID = tenantID
+		c.tenantID = strings.TrimSpace(tenantID)
+		c.tenantIDSet = true
+
 		return nil
 	}
 }

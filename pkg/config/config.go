@@ -122,6 +122,10 @@ type Config struct {
 	// It can be set via the MIDAZ_TENANT_ID environment variable or the WithTenantID option.
 	// Per-request overrides via entities.WithTenantID(ctx, id) take precedence.
 	TenantID string
+
+	// tenantIDSet tracks whether WithTenantID was explicitly called, allowing
+	// an empty value to clear any environment-provided default.
+	tenantIDSet bool
 }
 
 // Option is a function that configures a Config.
@@ -395,12 +399,8 @@ func WithIdempotency(enable bool) Option {
 //   - Option: A function that sets the tenant ID on a Config
 func WithTenantID(tenantID string) Option {
 	return func(c *Config) error {
-		tenantID = strings.TrimSpace(tenantID)
-		if tenantID == "" {
-			return nil
-		}
-
-		c.TenantID = tenantID
+		c.TenantID = strings.TrimSpace(tenantID)
+		c.tenantIDSet = true
 
 		return nil
 	}
@@ -585,8 +585,10 @@ func configureOptionalSettings(c *Config) {
 		c.EnableIdempotency = idempotency == boolTrue
 	}
 
-	if tenantID := os.Getenv("MIDAZ_TENANT_ID"); tenantID != "" {
-		c.TenantID = tenantID
+	if !c.tenantIDSet {
+		if tenantID := strings.TrimSpace(os.Getenv("MIDAZ_TENANT_ID")); tenantID != "" {
+			c.TenantID = tenantID
+		}
 	}
 }
 

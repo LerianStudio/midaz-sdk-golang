@@ -227,67 +227,32 @@ func (e *Entity) initServices() {
 	e.propagateTenantID()
 }
 
+// tenantSetter is implemented by service entities that can receive a tenant ID.
+// This decouples propagateTenantID from knowing every concrete service type.
+type tenantSetter interface {
+	setDefaultTenantID(tenantID string)
+}
+
 // propagateTenantID copies the entity-level tenant ID to all service entity HTTP clients.
-// This is necessary because each NewXxxEntity constructor creates a fresh HTTPClient
-// that does not inherit the tenant ID from the parent Entity.
+// It iterates over service fields and calls the tenantSetter interface rather than
+// hard-coding each concrete type, so adding new services cannot silently break propagation.
 func (e *Entity) propagateTenantID() {
 	tid := e.httpClient.tenantID
 	if tid == "" {
 		return
 	}
 
-	// Service entities with unexported httpClient field
-	if v, ok := e.Accounts.(*accountsEntity); ok {
-		v.httpClient.SetTenantID(tid)
+	services := []any{
+		e.Accounts, e.AccountTypes, e.Assets, e.AssetRates,
+		e.Balances, e.Ledgers, e.Operations, e.OperationRoutes,
+		e.Organizations, e.Portfolios, e.Segments,
+		e.Transactions, e.TransactionRoutes,
 	}
 
-	if v, ok := e.AccountTypes.(*accountTypesEntity); ok {
-		v.httpClient.SetTenantID(tid)
-	}
-
-	if v, ok := e.Assets.(*assetsEntity); ok {
-		v.httpClient.SetTenantID(tid)
-	}
-
-	if v, ok := e.AssetRates.(*assetRatesEntity); ok {
-		v.httpClient.SetTenantID(tid)
-	}
-
-	if v, ok := e.Balances.(*balancesEntity); ok {
-		v.httpClient.SetTenantID(tid)
-	}
-
-	if v, ok := e.Ledgers.(*ledgersEntity); ok {
-		v.httpClient.SetTenantID(tid)
-	}
-
-	if v, ok := e.Transactions.(*transactionsEntity); ok {
-		v.httpClient.SetTenantID(tid)
-	}
-
-	if v, ok := e.TransactionRoutes.(*transactionRoutesEntity); ok {
-		v.httpClient.SetTenantID(tid)
-	}
-
-	if v, ok := e.OperationRoutes.(*operationRoutesEntity); ok {
-		v.httpClient.SetTenantID(tid)
-	}
-
-	// Service entities with exported HTTPClient field
-	if v, ok := e.Organizations.(*organizationsEntity); ok {
-		v.HTTPClient.SetTenantID(tid)
-	}
-
-	if v, ok := e.Operations.(*operationsEntity); ok {
-		v.HTTPClient.SetTenantID(tid)
-	}
-
-	if v, ok := e.Portfolios.(*portfoliosEntity); ok {
-		v.HTTPClient.SetTenantID(tid)
-	}
-
-	if v, ok := e.Segments.(*segmentsEntity); ok {
-		v.HTTPClient.SetTenantID(tid)
+	for _, svc := range services {
+		if ts, ok := svc.(tenantSetter); ok {
+			ts.setDefaultTenantID(tid)
+		}
 	}
 }
 
