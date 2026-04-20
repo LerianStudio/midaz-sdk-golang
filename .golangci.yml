@@ -123,6 +123,7 @@ linters:
       excludes:
         - G104  # Unhandled errors (covered by errcheck)
         - G304  # File path from variable (needed for SDK)
+        - G705  # XSS taint on stderr debug output (pre-sanitized via html.EscapeString)
       config:
         global:
           audit: false
