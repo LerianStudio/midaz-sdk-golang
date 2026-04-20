@@ -231,6 +231,10 @@ type balancesEntity struct {
 	baseURLs   map[string]string
 }
 
+func (e *balancesEntity) setDefaultTenantID(tenantID string) {
+	e.httpClient.SetTenantID(tenantID)
+}
+
 // NewBalancesEntity creates a new balances entity.
 //
 // Parameters:

@@ -110,6 +110,10 @@ type operationRoutesEntity struct {
 	baseURLs   map[string]string
 }
 
+func (e *operationRoutesEntity) setDefaultTenantID(tenantID string) {
+	e.httpClient.SetTenantID(tenantID)
+}
+
 // NewOperationRoutesEntity creates a new OperationRoutesService instance
 func NewOperationRoutesEntity(client *http.Client, authToken string, baseURLs map[string]string) OperationRoutesService {
 	httpClient := NewHTTPClient(client, authToken, nil)

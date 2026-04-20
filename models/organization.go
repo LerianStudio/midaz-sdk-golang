@@ -105,7 +105,7 @@ func (input *UpdateOrganizationInput) WithUpdateMetadata(metadata map[string]any
 
 // WithDoingBusinessAsUpdate sets the doing business as name for update.
 func (input *UpdateOrganizationInput) WithDoingBusinessAsUpdate(dba string) *UpdateOrganizationInput {
-	input.DoingBusinessAs = dba
+	input.DoingBusinessAs = &dba
 	return input
 }
 

@@ -220,6 +220,40 @@ func (e *Entity) initServices() {
 	e.Portfolios = NewPortfoliosEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
 	e.Segments = NewSegmentsEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
 	e.TransactionRoutes = NewTransactionRoutesEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
+
+	// Propagate the entity-level tenant ID to each service entity's HTTP client.
+	// Each NewXxxEntity constructor creates a fresh HTTPClient with tenantID="",
+	// so we must copy the tenant ID from the parent entity after construction.
+	e.propagateTenantID()
+}
+
+// tenantSetter is implemented by service entities that can receive a tenant ID.
+// This decouples propagateTenantID from knowing every concrete service type.
+type tenantSetter interface {
+	setDefaultTenantID(tenantID string)
+}
+
+// propagateTenantID copies the entity-level tenant ID to all service entity HTTP clients.
+// It iterates over service fields and calls the tenantSetter interface rather than
+// hard-coding each concrete type, so adding new services cannot silently break propagation.
+func (e *Entity) propagateTenantID() {
+	tid := e.httpClient.tenantID
+	if tid == "" {
+		return
+	}
+
+	services := []any{
+		e.Accounts, e.AccountTypes, e.Assets, e.AssetRates,
+		e.Balances, e.Ledgers, e.Operations, e.OperationRoutes,
+		e.Organizations, e.Portfolios, e.Segments,
+		e.Transactions, e.TransactionRoutes,
+	}
+
+	for _, svc := range services {
+		if ts, ok := svc.(tenantSetter); ok {
+			ts.setDefaultTenantID(tid)
+		}
+	}
 }
 
 // InitServices initializes the service interfaces for the entity.
@@ -256,6 +290,7 @@ func (e *Entity) GetObservabilityProvider() observability.Provider {
 
 // SetHTTPClient sets the HTTP client for the entity.
 // This allows for replacing the HTTP client after the entity is created.
+// The tenant ID configured on the entity is preserved across the replacement.
 //
 // Parameters:
 //   - client: The HTTP client to use for API requests.
@@ -264,8 +299,12 @@ func (e *Entity) SetHTTPClient(client *http.Client) {
 		return
 	}
 
+	// Preserve tenant ID across HTTP client replacement
+	savedTenantID := e.httpClient.tenantID
+
 	// Create a new HTTP client with the same auth token and observability
 	e.httpClient = NewHTTPClient(client, e.httpClient.authToken, e.observability)
+	e.httpClient.tenantID = savedTenantID
 
 	// Re-initialize services with the new HTTP client
 	e.initServices()

@@ -139,6 +139,10 @@ type portfoliosEntity struct {
 	baseURLs   map[string]string
 }
 
+func (e *portfoliosEntity) setDefaultTenantID(tenantID string) {
+	e.HTTPClient.SetTenantID(tenantID)
+}
+
 // NewPortfoliosEntity creates a new portfolios entity.
 // It initializes the HTTP client and base URLs for API requests.
 func NewPortfoliosEntity(client *http.Client, authToken string, baseURLs map[string]string) PortfoliosService {

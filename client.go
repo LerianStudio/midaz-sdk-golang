@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
@@ -34,6 +35,13 @@ type Client struct {
 
 	// API interface flags
 	useEntity bool
+
+	// tenantID is the default tenant identifier sent as X-Tenant-ID on every request.
+	// Per-request overrides via entities.WithTenantID(ctx, id) take precedence.
+	tenantID string
+	// tenantIDSet tracks whether WithTenantID was explicitly called, allowing
+	// an empty value to override the config/env default.
+	tenantIDSet bool
 
 	// Observability provider
 	observability observability.Provider
@@ -116,6 +124,21 @@ func (c *Client) setupEntity() error {
 	// Create the entity API with service-specific URLs
 	options := []entities.Option{
 		entities.WithObservability(c.observability),
+	}
+
+	// Propagate tenant ID to the entity layer if configured.
+	// Client-level tenantID takes precedence over config-level TenantID.
+	// When tenantIDSet is true, the client override wins even if empty
+	// (allowing explicit clearing of the config/env default).
+	var tenantID string
+	if c.tenantIDSet {
+		tenantID = c.tenantID
+	} else {
+		tenantID = c.config.TenantID
+	}
+
+	if tenantID != "" {
+		options = append(options, entities.WithDefaultTenantID(tenantID))
 	}
 
 	// Add plugin auth if enabled
@@ -538,6 +561,25 @@ func WithTransactionURL(transactionURL string) Option {
 func WithDebug(enable bool) Option {
 	return func(c *Client) error {
 		return config.WithDebug(enable)(c.config)
+	}
+}
+
+// WithTenantID sets the default tenant ID for all API requests made through this client.
+// The tenant ID is sent as the X-Tenant-ID header on every request.
+// Per-request overrides via entities.WithTenantID(ctx, tenantID) take precedence
+// over this client-level default.
+//
+// Parameters:
+//   - tenantID: The tenant identifier to use
+//
+// Returns:
+//   - Option: A function that sets the tenant ID on the Client
+func WithTenantID(tenantID string) Option {
+	return func(c *Client) error {
+		c.tenantID = strings.TrimSpace(tenantID)
+		c.tenantIDSet = true
+
+		return nil
 	}
 }
 

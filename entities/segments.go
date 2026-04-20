@@ -126,6 +126,10 @@ type segmentsEntity struct {
 	baseURLs   map[string]string
 }
 
+func (e *segmentsEntity) setDefaultTenantID(tenantID string) {
+	e.HTTPClient.SetTenantID(tenantID)
+}
+
 // NewSegmentsEntity creates a new segments entity.
 // It initializes the HTTP client and base URLs for API requests.
 func NewSegmentsEntity(client *http.Client, authToken string, baseURLs map[string]string) SegmentsService {

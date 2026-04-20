@@ -2,7 +2,6 @@ package client
 
 import (
 	"net/http"
-	"os"
 	"testing"
 	"time"
 
@@ -10,22 +9,27 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/config"
 )
 
-// createTestConfig creates a test config with sensible defaults
-func createTestConfig() *config.Config {
-	// Set environment variable to skip auth check in tests
-	_ = os.Setenv("MIDAZ_SKIP_AUTH_CHECK", "true")
+// createTestConfig creates a test config with sensible defaults.
+// It uses t.Setenv for automatic cleanup and t.Fatalf on config errors.
+func createTestConfig(t *testing.T) *config.Config {
+	t.Helper()
 
-	cfg, _ := config.NewConfig(
+	t.Setenv("MIDAZ_SKIP_AUTH_CHECK", "true")
+
+	cfg, err := config.NewConfig(
 		config.WithAccessManager(auth.AccessManager{Enabled: false, Address: ""}),
 		config.WithEnvironment(config.EnvironmentLocal),
 	)
+	if err != nil {
+		t.Fatalf("createTestConfig: %v", err)
+	}
 
 	return cfg
 }
 
 func TestNewClient(t *testing.T) {
 	// Test creating a new client with a test config
-	client, err := New(WithConfig(createTestConfig()))
+	client, err := New(WithConfig(createTestConfig(t)))
 	if err != nil {
 		t.Fatalf("Failed to create client: %v", err)
 	}
@@ -46,7 +50,7 @@ func TestNewClient(t *testing.T) {
 	}
 
 	// Create a base config
-	testCfg := createTestConfig()
+	testCfg := createTestConfig(t)
 
 	client, err = New(
 		WithConfig(testCfg),
@@ -103,7 +107,7 @@ func TestNewClient(t *testing.T) {
 }
 
 func TestUseAllAPIs(t *testing.T) {
-	client, err := New(UseAllAPIs(), WithConfig(createTestConfig()))
+	client, err := New(UseAllAPIs(), WithConfig(createTestConfig(t)))
 	if err != nil {
 		t.Fatalf("Failed to create client: %v", err)
 	}
@@ -114,7 +118,7 @@ func TestUseAllAPIs(t *testing.T) {
 }
 
 func TestGetConfig(t *testing.T) {
-	client, err := New(WithConfig(createTestConfig()))
+	client, err := New(WithConfig(createTestConfig(t)))
 	if err != nil {
 		t.Fatalf("Failed to create client: %v", err)
 	}
@@ -122,5 +126,142 @@ func TestGetConfig(t *testing.T) {
 	cfg := client.GetConfig()
 	if cfg == nil {
 		t.Fatal("Expected config to be returned, got nil")
+	}
+}
+
+// tenantTestCase describes a single tenant ID precedence scenario.
+type tenantTestCase struct {
+	name            string
+	clientTenantID  string // value for WithTenantID
+	setClientTenant bool   // true = apply WithTenantID option
+	configTenantID  string // if non-empty, set on config before New()
+	useEntityAPI    bool
+	wantClientTID   string
+	wantConfigTID   string // only checked when checkConfigTID is true
+	checkConfigTID  bool
+	wantEntityTID   string // only checked when useEntityAPI is true
+}
+
+// buildTenantTestClient creates a Client from a tenantTestCase.
+func buildTenantTestClient(t *testing.T, tt tenantTestCase) *Client {
+	t.Helper()
+
+	cfg := createTestConfig(t)
+	if tt.configTenantID != "" {
+		cfg.TenantID = tt.configTenantID
+	}
+
+	opts := []Option{WithConfig(cfg)}
+	if tt.setClientTenant {
+		opts = append(opts, WithTenantID(tt.clientTenantID))
+	}
+
+	if tt.useEntityAPI {
+		opts = append(opts, UseEntityAPI())
+	}
+
+	c, err := New(opts...)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	return c
+}
+
+// assertEntityTenantID verifies the Entity layer received the expected tenant.
+func assertEntityTenantID(t *testing.T, c *Client, wantTID string) {
+	t.Helper()
+
+	if c.Entity == nil {
+		t.Fatal("Expected Entity to be set")
+	}
+
+	entityHTTPClient := c.Entity.GetEntityHTTPClient()
+	if entityHTTPClient == nil {
+		t.Fatal("Expected Entity HTTP client to be set")
+	}
+
+	if got := entityHTTPClient.GetTenantID(); got != wantTID {
+		t.Errorf("Expected Entity HTTP client tenantID %q, got %q", wantTID, got)
+	}
+}
+
+// TestClientTenantOptions is a table-driven test covering all tenant ID
+// precedence permutations: client-level WithTenantID, config-level TenantID,
+// whitespace normalization, explicit clearing, and Entity layer propagation.
+func TestClientTenantOptions(t *testing.T) {
+	tests := []tenantTestCase{
+		{
+			name:            "basic tenant set",
+			clientTenantID:  "test-tenant",
+			setClientTenant: true,
+			wantClientTID:   "test-tenant",
+		},
+		{
+			name:            "empty tenant accepted",
+			clientTenantID:  "",
+			setClientTenant: true,
+			wantClientTID:   "",
+		},
+		{
+			name:            "propagated to entity",
+			clientTenantID:  "propagated-tenant",
+			setClientTenant: true,
+			useEntityAPI:    true,
+			wantClientTID:   "propagated-tenant",
+			wantEntityTID:   "propagated-tenant",
+		},
+		{
+			name:           "config fallback when no client tenant",
+			configTenantID: "config-tenant",
+			useEntityAPI:   true,
+			wantClientTID:  "",
+			checkConfigTID: true,
+			wantConfigTID:  "config-tenant",
+			wantEntityTID:  "config-tenant",
+		},
+		{
+			name:            "empty override clears config tenant",
+			clientTenantID:  "",
+			setClientTenant: true,
+			configTenantID:  "config-tenant",
+			useEntityAPI:    true,
+			wantClientTID:   "",
+			wantEntityTID:   "",
+		},
+		{
+			name:            "whitespace trimmed",
+			clientTenantID:  "  tenant-a  ",
+			setClientTenant: true,
+			useEntityAPI:    true,
+			wantClientTID:   "tenant-a",
+			wantEntityTID:   "tenant-a",
+		},
+		{
+			name:            "whitespace-only becomes empty",
+			clientTenantID:  "   ",
+			setClientTenant: true,
+			useEntityAPI:    true,
+			wantClientTID:   "",
+			wantEntityTID:   "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := buildTenantTestClient(t, tt)
+
+			if c.tenantID != tt.wantClientTID {
+				t.Errorf("Expected client tenantID %q, got %q", tt.wantClientTID, c.tenantID)
+			}
+
+			if tt.checkConfigTID && c.config.TenantID != tt.wantConfigTID {
+				t.Errorf("Expected config TenantID %q, got %q", tt.wantConfigTID, c.config.TenantID)
+			}
+
+			if tt.useEntityAPI {
+				assertEntityTenantID(t, c, tt.wantEntityTID)
+			}
+		})
 	}
 }

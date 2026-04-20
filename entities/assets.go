@@ -131,6 +131,10 @@ type assetsEntity struct {
 	baseURLs   map[string]string
 }
 
+func (e *assetsEntity) setDefaultTenantID(tenantID string) {
+	e.httpClient.SetTenantID(tenantID)
+}
+
 // NewAssetsEntity creates a new assets entity.
 //
 // Parameters:

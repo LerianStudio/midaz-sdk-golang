@@ -99,6 +99,10 @@ type assetRatesEntity struct {
 	baseURLs   map[string]string
 }
 
+func (e *assetRatesEntity) setDefaultTenantID(tenantID string) {
+	e.httpClient.SetTenantID(tenantID)
+}
+
 // NewAssetRatesEntity creates a new asset rates entity.
 //
 // Parameters:
