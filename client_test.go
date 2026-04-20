@@ -259,3 +259,55 @@ func TestClientWithTenantIDEmptyOverrideDoesNotClearConfig(t *testing.T) {
 		t.Errorf("Expected Entity HTTP client tenantID to be empty (explicitly cleared), got '%s'", got)
 	}
 }
+
+// TestClientWithTenantIDWhitespaceTrimmed verifies that WithTenantID trims
+// leading/trailing whitespace and propagates the trimmed value to the Entity layer.
+func TestClientWithTenantIDWhitespaceTrimmed(t *testing.T) {
+	c, err := New(
+		WithConfig(createTestConfig(t)),
+		WithTenantID("  tenant-a  "),
+		UseEntityAPI(),
+	)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	if c.tenantID != "tenant-a" {
+		t.Errorf("Expected client tenantID to be 'tenant-a', got '%s'", c.tenantID)
+	}
+
+	entityHTTPClient := c.Entity.GetEntityHTTPClient()
+	if entityHTTPClient == nil {
+		t.Fatal("Expected Entity HTTP client to be set")
+	}
+
+	if got := entityHTTPClient.GetTenantID(); got != "tenant-a" {
+		t.Errorf("Expected Entity HTTP client tenantID to be 'tenant-a', got '%s'", got)
+	}
+}
+
+// TestClientWithTenantIDWhitespaceOnlyBecomesEmpty verifies that a whitespace-only
+// tenant ID is trimmed to empty and does not produce a header.
+func TestClientWithTenantIDWhitespaceOnlyBecomesEmpty(t *testing.T) {
+	c, err := New(
+		WithConfig(createTestConfig(t)),
+		WithTenantID("   "),
+		UseEntityAPI(),
+	)
+	if err != nil {
+		t.Fatalf("Failed to create client: %v", err)
+	}
+
+	if c.tenantID != "" {
+		t.Errorf("Expected client tenantID to be empty after trimming, got '%s'", c.tenantID)
+	}
+
+	entityHTTPClient := c.Entity.GetEntityHTTPClient()
+	if entityHTTPClient == nil {
+		t.Fatal("Expected Entity HTTP client to be set")
+	}
+
+	if got := entityHTTPClient.GetTenantID(); got != "" {
+		t.Errorf("Expected Entity HTTP client tenantID to be empty, got '%s'", got)
+	}
+}

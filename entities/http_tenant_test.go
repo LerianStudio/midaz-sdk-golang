@@ -100,201 +100,94 @@ func TestTenantIDContextOverwrite(t *testing.T) {
 	assert.Equal(t, "second-tenant", TenantIDFromContext(ctx))
 }
 
-// TestTenantIDHeaderInjection verifies that a tenant ID set via context is
-// propagated as an X-Tenant-ID HTTP header when a request is made through doRequest.
-func TestTenantIDHeaderInjection(t *testing.T) {
-	var receivedHeader string
+// requestRunner abstracts doRequest and doRawRequest so tenant header tests
+// can exercise both code paths through a single table-driven matrix.
+type requestRunner func(ctx context.Context, c *HTTPClient, url string, headers map[string]string, body any, out any) error
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		receivedHeader = r.Header.Get(HeaderTenantID)
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{}`))
-	}))
-	defer srv.Close()
-
-	hc := srv.Client()
-	c := NewHTTPClient(hc, "", nil)
-
-	ctx := WithTenantID(context.Background(), "tenant-abc")
-
-	var out map[string]any
-
-	err := c.doRequest(ctx, http.MethodGet, srv.URL, nil, nil, &out)
-	require.NoError(t, err)
-
-	assert.Equal(t, "tenant-abc", receivedHeader, "server should receive X-Tenant-ID: tenant-abc")
+func doRequestRunner(ctx context.Context, c *HTTPClient, url string, headers map[string]string, body any, out any) error {
+	return c.doRequest(ctx, http.MethodGet, url, headers, body, out)
 }
 
-// TestTenantIDClientDefault verifies that a tenant ID set at the client level
-// via SetTenantID is sent as a header when no context-level tenant is present.
-func TestTenantIDClientDefault(t *testing.T) {
-	var receivedHeader string
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		receivedHeader = r.Header.Get(HeaderTenantID)
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{}`))
-	}))
-	defer srv.Close()
-
-	hc := srv.Client()
-	c := NewHTTPClient(hc, "", nil)
-	c.SetTenantID("default-tenant")
-
-	var out map[string]any
-
-	err := c.doRequest(context.Background(), http.MethodGet, srv.URL, nil, nil, &out)
-	require.NoError(t, err)
-
-	assert.Equal(t, "default-tenant", receivedHeader, "server should receive the client-level default tenant ID")
+func doRawRequestRunner(ctx context.Context, c *HTTPClient, url string, headers map[string]string, _ any, out any) error {
+	return c.doRawRequest(ctx, http.MethodGet, url, headers, nil, out)
 }
 
-// TestTenantIDContextOverridesDefault verifies that a tenant ID set via context
-// takes precedence over the client-level default tenant ID.
-func TestTenantIDContextOverridesDefault(t *testing.T) {
-	var receivedHeader string
+// TestTenantIDHeaderMatrix exercises tenant header injection across both doRequest
+// and doRawRequest with a shared table of precedence cases.
+func TestTenantIDHeaderMatrix(t *testing.T) {
+	runners := map[string]requestRunner{
+		"doRequest":    doRequestRunner,
+		"doRawRequest": doRawRequestRunner,
+	}
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		receivedHeader = r.Header.Get(HeaderTenantID)
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{}`))
-	}))
-	defer srv.Close()
+	cases := []struct {
+		name           string
+		ctxTenant      string // tenant set via WithTenantID on context; empty = no context tenant
+		clientTenant   string // tenant set via SetTenantID on client; empty = no client default
+		expectedHeader string // expected X-Tenant-ID value; empty = header absent
+	}{
+		{
+			name:           "context tenant injected",
+			ctxTenant:      "tenant-abc",
+			expectedHeader: "tenant-abc",
+		},
+		{
+			name:           "client default tenant",
+			clientTenant:   "default-tenant",
+			expectedHeader: "default-tenant",
+		},
+		{
+			name:           "context overrides client default",
+			ctxTenant:      "override",
+			clientTenant:   "default",
+			expectedHeader: "override",
+		},
+		{
+			name:           "no header when absent",
+			expectedHeader: "",
+		},
+	}
 
-	hc := srv.Client()
-	c := NewHTTPClient(hc, "", nil)
-	c.SetTenantID("default")
+	for runnerName, run := range runners {
+		for _, tc := range cases {
+			t.Run(runnerName+"/"+tc.name, func(t *testing.T) {
+				var receivedHeader string
 
-	ctx := WithTenantID(context.Background(), "override")
+				var headerPresent bool
 
-	var out map[string]any
+				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					receivedHeader = r.Header.Get(HeaderTenantID)
+					_, headerPresent = r.Header[http.CanonicalHeaderKey(HeaderTenantID)]
+					w.Header().Set("Content-Type", "application/json")
+					_, _ = w.Write([]byte(`{}`))
+				}))
+				defer srv.Close()
 
-	err := c.doRequest(ctx, http.MethodGet, srv.URL, nil, nil, &out)
-	require.NoError(t, err)
+				hc := srv.Client()
+				c := NewHTTPClient(hc, "", nil)
 
-	assert.Equal(t, "override", receivedHeader, "context tenant should override client default")
-}
+				if tc.clientTenant != "" {
+					c.SetTenantID(tc.clientTenant)
+				}
 
-// TestTenantIDNoHeaderWhenAbsent verifies that when no tenant ID is set anywhere
-// (neither context nor client default), the X-Tenant-ID header is completely
-// absent from the request — not present with an empty value.
-func TestTenantIDNoHeaderWhenAbsent(t *testing.T) {
-	var headerValues []string
+				ctx := context.Background()
+				if tc.ctxTenant != "" {
+					ctx = WithTenantID(ctx, tc.ctxTenant)
+				}
 
-	var headerPresent bool
+				var out map[string]any
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		headerValues = r.Header.Values(HeaderTenantID)
-		_, headerPresent = r.Header[http.CanonicalHeaderKey(HeaderTenantID)]
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{}`))
-	}))
-	defer srv.Close()
+				err := run(ctx, c, srv.URL, nil, nil, &out)
+				require.NoError(t, err)
 
-	hc := srv.Client()
-	c := NewHTTPClient(hc, "", nil)
-
-	var out map[string]any
-
-	err := c.doRequest(context.Background(), http.MethodGet, srv.URL, nil, nil, &out)
-	require.NoError(t, err)
-
-	assert.False(t, headerPresent, "X-Tenant-ID header should be completely absent from request")
-	assert.Empty(t, headerValues, "X-Tenant-ID header values should be empty")
-}
-
-// TestTenantIDRawRequest verifies that tenant ID injection works through the
-// doRawRequest code path (used for non-JSON payloads such as multipart uploads).
-func TestTenantIDRawRequest(t *testing.T) {
-	t.Run("context tenant via raw request", func(t *testing.T) {
-		var receivedHeader string
-
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			receivedHeader = r.Header.Get(HeaderTenantID)
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{}`))
-		}))
-		defer srv.Close()
-
-		hc := srv.Client()
-		c := NewHTTPClient(hc, "", nil)
-
-		ctx := WithTenantID(context.Background(), "raw-tenant")
-
-		var out map[string]any
-		// doRawRequest with nil body doesn't require Content-Type
-		err := c.doRawRequest(ctx, http.MethodGet, srv.URL, nil, nil, &out)
-		require.NoError(t, err)
-
-		assert.Equal(t, "raw-tenant", receivedHeader, "doRawRequest should inject X-Tenant-ID from context")
-	})
-
-	t.Run("client default tenant via raw request", func(t *testing.T) {
-		var receivedHeader string
-
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			receivedHeader = r.Header.Get(HeaderTenantID)
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{}`))
-		}))
-		defer srv.Close()
-
-		hc := srv.Client()
-		c := NewHTTPClient(hc, "", nil)
-		c.SetTenantID("raw-default")
-
-		var out map[string]any
-
-		err := c.doRawRequest(context.Background(), http.MethodGet, srv.URL, nil, nil, &out)
-		require.NoError(t, err)
-
-		assert.Equal(t, "raw-default", receivedHeader, "doRawRequest should inject client-level default tenant ID")
-	})
-
-	t.Run("context overrides default in raw request", func(t *testing.T) {
-		var receivedHeader string
-
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			receivedHeader = r.Header.Get(HeaderTenantID)
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{}`))
-		}))
-		defer srv.Close()
-
-		hc := srv.Client()
-		c := NewHTTPClient(hc, "", nil)
-		c.SetTenantID("raw-default")
-
-		ctx := WithTenantID(context.Background(), "raw-override")
-
-		var out map[string]any
-
-		err := c.doRawRequest(ctx, http.MethodGet, srv.URL, nil, nil, &out)
-		require.NoError(t, err)
-
-		assert.Equal(t, "raw-override", receivedHeader, "context tenant should override default in doRawRequest")
-	})
-
-	t.Run("no header when absent in raw request", func(t *testing.T) {
-		var headerPresent bool
-
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			_, headerPresent = r.Header[http.CanonicalHeaderKey(HeaderTenantID)]
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{}`))
-		}))
-		defer srv.Close()
-
-		hc := srv.Client()
-		c := NewHTTPClient(hc, "", nil)
-
-		var out map[string]any
-
-		err := c.doRawRequest(context.Background(), http.MethodGet, srv.URL, nil, nil, &out)
-		require.NoError(t, err)
-
-		assert.False(t, headerPresent, "X-Tenant-ID should be absent from raw request when not set")
-	})
+				if tc.expectedHeader == "" {
+					assert.False(t, headerPresent, "X-Tenant-ID should be absent")
+				} else {
+					assert.Equal(t, tc.expectedHeader, receivedHeader)
+				}
+			})
+		}
+	}
 }
 
 // TestTenantIDWithExistingHeaders verifies that tenant ID injection works
