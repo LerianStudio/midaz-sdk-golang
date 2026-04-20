@@ -102,6 +102,7 @@ func TestTenantIDHeaderInjection(t *testing.T) {
 	ctx := WithTenantID(context.Background(), "tenant-abc")
 
 	var out map[string]any
+
 	err := c.doRequest(ctx, http.MethodGet, srv.URL, nil, nil, &out)
 	require.NoError(t, err)
 
@@ -125,6 +126,7 @@ func TestTenantIDClientDefault(t *testing.T) {
 	c.SetTenantID("default-tenant")
 
 	var out map[string]any
+
 	err := c.doRequest(context.Background(), http.MethodGet, srv.URL, nil, nil, &out)
 	require.NoError(t, err)
 
@@ -150,6 +152,7 @@ func TestTenantIDContextOverridesDefault(t *testing.T) {
 	ctx := WithTenantID(context.Background(), "override")
 
 	var out map[string]any
+
 	err := c.doRequest(ctx, http.MethodGet, srv.URL, nil, nil, &out)
 	require.NoError(t, err)
 
@@ -161,11 +164,12 @@ func TestTenantIDContextOverridesDefault(t *testing.T) {
 // absent from the request — not present with an empty value.
 func TestTenantIDNoHeaderWhenAbsent(t *testing.T) {
 	var headerValues []string
+
 	var headerPresent bool
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		headerValues = r.Header.Values(HeaderTenantID)
-		_, headerPresent = r.Header[HeaderTenantID]
+		_, headerPresent = r.Header[http.CanonicalHeaderKey(HeaderTenantID)]
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{}`))
 	}))
@@ -175,6 +179,7 @@ func TestTenantIDNoHeaderWhenAbsent(t *testing.T) {
 	c := NewHTTPClient(hc, "", nil)
 
 	var out map[string]any
+
 	err := c.doRequest(context.Background(), http.MethodGet, srv.URL, nil, nil, &out)
 	require.NoError(t, err)
 
@@ -223,6 +228,7 @@ func TestTenantIDRawRequest(t *testing.T) {
 		c.SetTenantID("raw-default")
 
 		var out map[string]any
+
 		err := c.doRawRequest(context.Background(), http.MethodGet, srv.URL, nil, nil, &out)
 		require.NoError(t, err)
 
@@ -246,6 +252,7 @@ func TestTenantIDRawRequest(t *testing.T) {
 		ctx := WithTenantID(context.Background(), "raw-override")
 
 		var out map[string]any
+
 		err := c.doRawRequest(ctx, http.MethodGet, srv.URL, nil, nil, &out)
 		require.NoError(t, err)
 
@@ -256,7 +263,7 @@ func TestTenantIDRawRequest(t *testing.T) {
 		var headerPresent bool
 
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			_, headerPresent = r.Header[HeaderTenantID]
+			_, headerPresent = r.Header[http.CanonicalHeaderKey(HeaderTenantID)]
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{}`))
 		}))
@@ -266,6 +273,7 @@ func TestTenantIDRawRequest(t *testing.T) {
 		c := NewHTTPClient(hc, "", nil)
 
 		var out map[string]any
+
 		err := c.doRawRequest(context.Background(), http.MethodGet, srv.URL, nil, nil, &out)
 		require.NoError(t, err)
 
@@ -277,6 +285,7 @@ func TestTenantIDRawRequest(t *testing.T) {
 // correctly when other custom headers are already present on the request.
 func TestTenantIDWithExistingHeaders(t *testing.T) {
 	var receivedTenantHeader string
+
 	var receivedCustomHeader string
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -297,6 +306,7 @@ func TestTenantIDWithExistingHeaders(t *testing.T) {
 	}
 
 	var out map[string]any
+
 	err := c.doRequest(ctx, http.MethodGet, srv.URL, headers, nil, &out)
 	require.NoError(t, err)
 
@@ -324,6 +334,7 @@ func TestTenantIDWithRequestBody(t *testing.T) {
 	body := map[string]string{"name": "test"}
 
 	var out map[string]any
+
 	err := c.doRequest(ctx, http.MethodPost, srv.URL, nil, body, &out)
 	require.NoError(t, err)
 
