@@ -664,7 +664,7 @@ func (c *HTTPClient) debugLog(format string, args ...any) {
 
 	// Log injection mitigated: message is pre-sanitized via strconv.Quote
 	// Error is intentionally ignored as debug logging should not affect program flow
-	_, _ = fmt.Fprintln(os.Stderr, "[Midaz SDK Debug] "+safeMessage) // lgtm[go/log-injection]
+	_, _ = fmt.Fprintln(os.Stderr, "[Midaz SDK Debug] "+safeMessage) //#nosec G705 -- stderr is not an XSS sink; lgtm[go/log-injection]
 }
 
 // parseErrorResponse parses an error response from the API and converts it to an SDK error.

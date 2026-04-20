@@ -129,185 +129,139 @@ func TestGetConfig(t *testing.T) {
 	}
 }
 
-// TestClientWithTenantID verifies that the WithTenantID client option correctly
-// sets the tenant ID on the Client struct, which is later propagated to the
-// Entity layer during setupEntity.
-func TestClientWithTenantID(t *testing.T) {
-	// Create client with tenant ID option
-	c, err := New(
-		WithConfig(createTestConfig(t)),
-		WithTenantID("test-tenant"),
-	)
-	if err != nil {
-		t.Fatalf("Failed to create client with tenant ID: %v", err)
-	}
-
-	// Verify the tenant ID is stored on the client
-	if c.tenantID != "test-tenant" {
-		t.Errorf("Expected tenantID to be 'test-tenant', got '%s'", c.tenantID)
-	}
+// tenantTestCase describes a single tenant ID precedence scenario.
+type tenantTestCase struct {
+	name            string
+	clientTenantID  string // value for WithTenantID
+	setClientTenant bool   // true = apply WithTenantID option
+	configTenantID  string // if non-empty, set on config before New()
+	useEntityAPI    bool
+	wantClientTID   string
+	wantConfigTID   string // only checked when checkConfigTID is true
+	checkConfigTID  bool
+	wantEntityTID   string // only checked when useEntityAPI is true
 }
 
-// TestClientWithTenantIDEmpty verifies that an empty tenant ID is accepted
-// (it simply won't be propagated as a header later).
-func TestClientWithTenantIDEmpty(t *testing.T) {
-	c, err := New(
-		WithConfig(createTestConfig(t)),
-		WithTenantID(""),
-	)
-	if err != nil {
-		t.Fatalf("Failed to create client with empty tenant ID: %v", err)
+// buildTenantTestClient creates a Client from a tenantTestCase.
+func buildTenantTestClient(t *testing.T, tt tenantTestCase) *Client {
+	t.Helper()
+
+	cfg := createTestConfig(t)
+	if tt.configTenantID != "" {
+		cfg.TenantID = tt.configTenantID
 	}
 
-	if c.tenantID != "" {
-		t.Errorf("Expected tenantID to be empty, got '%s'", c.tenantID)
+	opts := []Option{WithConfig(cfg)}
+	if tt.setClientTenant {
+		opts = append(opts, WithTenantID(tt.clientTenantID))
 	}
-}
 
-// TestClientWithTenantIDPropagatedToEntity verifies that when UseEntityAPI is
-// enabled, the client-level tenant ID is propagated to the Entity layer's
-// underlying HTTPClient via entities.WithDefaultTenantID in setupEntity.
-func TestClientWithTenantIDPropagatedToEntity(t *testing.T) {
-	c, err := New(
-		WithConfig(createTestConfig(t)),
-		WithTenantID("propagated-tenant"),
-		UseEntityAPI(),
-	)
+	if tt.useEntityAPI {
+		opts = append(opts, UseEntityAPI())
+	}
+
+	c, err := New(opts...)
 	if err != nil {
 		t.Fatalf("Failed to create client: %v", err)
 	}
 
-	// Verify entity was created
+	return c
+}
+
+// assertEntityTenantID verifies the Entity layer received the expected tenant.
+func assertEntityTenantID(t *testing.T, c *Client, wantTID string) {
+	t.Helper()
+
 	if c.Entity == nil {
 		t.Fatal("Expected Entity to be set")
 	}
 
-	// Verify the client-level tenant ID is stored correctly
-	if c.tenantID != "propagated-tenant" {
-		t.Errorf("Expected client tenantID to be 'propagated-tenant', got '%s'", c.tenantID)
-	}
-
-	// Verify the effective tenant ID was wired into the Entity's HTTPClient
 	entityHTTPClient := c.Entity.GetEntityHTTPClient()
 	if entityHTTPClient == nil {
 		t.Fatal("Expected Entity HTTP client to be set")
 	}
 
-	if got := entityHTTPClient.GetTenantID(); got != "propagated-tenant" {
-		t.Errorf("Expected Entity HTTP client tenantID to be 'propagated-tenant', got '%s'", got)
+	if got := entityHTTPClient.GetTenantID(); got != wantTID {
+		t.Errorf("Expected Entity HTTP client tenantID %q, got %q", wantTID, got)
 	}
 }
 
-// TestClientWithTenantIDFromConfig verifies that the tenant ID from config
-// is used when no client-level tenant is set, and that the Entity layer
-// receives the config-level tenant.
-func TestClientWithTenantIDFromConfig(t *testing.T) {
-	cfg := createTestConfig(t)
-	cfg.TenantID = "config-tenant"
-
-	c, err := New(
-		WithConfig(cfg),
-		UseEntityAPI(),
-	)
-	if err != nil {
-		t.Fatalf("Failed to create client: %v", err)
+// TestClientTenantOptions is a table-driven test covering all tenant ID
+// precedence permutations: client-level WithTenantID, config-level TenantID,
+// whitespace normalization, explicit clearing, and Entity layer propagation.
+func TestClientTenantOptions(t *testing.T) {
+	tests := []tenantTestCase{
+		{
+			name:            "basic tenant set",
+			clientTenantID:  "test-tenant",
+			setClientTenant: true,
+			wantClientTID:   "test-tenant",
+		},
+		{
+			name:            "empty tenant accepted",
+			clientTenantID:  "",
+			setClientTenant: true,
+			wantClientTID:   "",
+		},
+		{
+			name:            "propagated to entity",
+			clientTenantID:  "propagated-tenant",
+			setClientTenant: true,
+			useEntityAPI:    true,
+			wantClientTID:   "propagated-tenant",
+			wantEntityTID:   "propagated-tenant",
+		},
+		{
+			name:           "config fallback when no client tenant",
+			configTenantID: "config-tenant",
+			useEntityAPI:   true,
+			wantClientTID:  "",
+			checkConfigTID: true,
+			wantConfigTID:  "config-tenant",
+			wantEntityTID:  "config-tenant",
+		},
+		{
+			name:            "empty override clears config tenant",
+			clientTenantID:  "",
+			setClientTenant: true,
+			configTenantID:  "config-tenant",
+			useEntityAPI:    true,
+			wantClientTID:   "",
+			wantEntityTID:   "",
+		},
+		{
+			name:            "whitespace trimmed",
+			clientTenantID:  "  tenant-a  ",
+			setClientTenant: true,
+			useEntityAPI:    true,
+			wantClientTID:   "tenant-a",
+			wantEntityTID:   "tenant-a",
+		},
+		{
+			name:            "whitespace-only becomes empty",
+			clientTenantID:  "   ",
+			setClientTenant: true,
+			useEntityAPI:    true,
+			wantClientTID:   "",
+			wantEntityTID:   "",
+		},
 	}
 
-	// Client-level tenantID should be empty since we didn't use WithTenantID
-	if c.tenantID != "" {
-		t.Errorf("Expected client tenantID to be empty, got '%s'", c.tenantID)
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := buildTenantTestClient(t, tt)
 
-	// Config-level tenant ID should be set
-	if c.config.TenantID != "config-tenant" {
-		t.Errorf("Expected config TenantID to be 'config-tenant', got '%s'", c.config.TenantID)
-	}
+			if c.tenantID != tt.wantClientTID {
+				t.Errorf("Expected client tenantID %q, got %q", tt.wantClientTID, c.tenantID)
+			}
 
-	// Entity HTTP client should receive the config-level tenant
-	entityHTTPClient := c.Entity.GetEntityHTTPClient()
-	if entityHTTPClient == nil {
-		t.Fatal("Expected Entity HTTP client to be set")
-	}
+			if tt.checkConfigTID && c.config.TenantID != tt.wantConfigTID {
+				t.Errorf("Expected config TenantID %q, got %q", tt.wantConfigTID, c.config.TenantID)
+			}
 
-	if got := entityHTTPClient.GetTenantID(); got != "config-tenant" {
-		t.Errorf("Expected Entity HTTP client tenantID to be 'config-tenant', got '%s'", got)
-	}
-}
-
-// TestClientWithTenantIDEmptyOverrideDoesNotClearConfig verifies that
-// WithTenantID("") explicitly clears the tenant (does not fall back to config).
-func TestClientWithTenantIDEmptyOverrideDoesNotClearConfig(t *testing.T) {
-	cfg := createTestConfig(t)
-	cfg.TenantID = "config-tenant"
-
-	c, err := New(
-		WithConfig(cfg),
-		WithTenantID(""),
-		UseEntityAPI(),
-	)
-	if err != nil {
-		t.Fatalf("Failed to create client: %v", err)
-	}
-
-	// Client explicitly set tenant to empty — should NOT fall back to config
-	entityHTTPClient := c.Entity.GetEntityHTTPClient()
-	if entityHTTPClient == nil {
-		t.Fatal("Expected Entity HTTP client to be set")
-	}
-
-	if got := entityHTTPClient.GetTenantID(); got != "" {
-		t.Errorf("Expected Entity HTTP client tenantID to be empty (explicitly cleared), got '%s'", got)
-	}
-}
-
-// TestClientWithTenantIDWhitespaceTrimmed verifies that WithTenantID trims
-// leading/trailing whitespace and propagates the trimmed value to the Entity layer.
-func TestClientWithTenantIDWhitespaceTrimmed(t *testing.T) {
-	c, err := New(
-		WithConfig(createTestConfig(t)),
-		WithTenantID("  tenant-a  "),
-		UseEntityAPI(),
-	)
-	if err != nil {
-		t.Fatalf("Failed to create client: %v", err)
-	}
-
-	if c.tenantID != "tenant-a" {
-		t.Errorf("Expected client tenantID to be 'tenant-a', got '%s'", c.tenantID)
-	}
-
-	entityHTTPClient := c.Entity.GetEntityHTTPClient()
-	if entityHTTPClient == nil {
-		t.Fatal("Expected Entity HTTP client to be set")
-	}
-
-	if got := entityHTTPClient.GetTenantID(); got != "tenant-a" {
-		t.Errorf("Expected Entity HTTP client tenantID to be 'tenant-a', got '%s'", got)
-	}
-}
-
-// TestClientWithTenantIDWhitespaceOnlyBecomesEmpty verifies that a whitespace-only
-// tenant ID is trimmed to empty and does not produce a header.
-func TestClientWithTenantIDWhitespaceOnlyBecomesEmpty(t *testing.T) {
-	c, err := New(
-		WithConfig(createTestConfig(t)),
-		WithTenantID("   "),
-		UseEntityAPI(),
-	)
-	if err != nil {
-		t.Fatalf("Failed to create client: %v", err)
-	}
-
-	if c.tenantID != "" {
-		t.Errorf("Expected client tenantID to be empty after trimming, got '%s'", c.tenantID)
-	}
-
-	entityHTTPClient := c.Entity.GetEntityHTTPClient()
-	if entityHTTPClient == nil {
-		t.Fatal("Expected Entity HTTP client to be set")
-	}
-
-	if got := entityHTTPClient.GetTenantID(); got != "" {
-		t.Errorf("Expected Entity HTTP client tenantID to be empty, got '%s'", got)
+			if tt.useEntityAPI {
+				assertEntityTenantID(t, c, tt.wantEntityTID)
+			}
+		})
 	}
 }
