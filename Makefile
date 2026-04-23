@@ -61,13 +61,7 @@ endif
 
 ci:
 	$(call print_header,"Running SDK CI pipeline")
-	@$(MAKE) tidy
-	@$(MAKE) fmt
-	@$(MAKE) lint
-	@$(MAKE) gosec
-	@$(MAKE) test
-	@$(MAKE) coverage
-	@$(MAKE) verify-sdk
+	@$(MAKE) tidy fmt lint gosec test coverage verify-sdk
 	@echo "$(GREEN)[ok]$(NC) SDK CI pipeline completed successfully$(GREEN) ✔️$(NC)"
 
 help:
