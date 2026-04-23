@@ -30,7 +30,7 @@ endef
 GO := go
 GOFMT := gofmt
 GOLINT := golangci-lint
-GOSEC_VERSION := v2.24.7
+GOSEC_VERSION := v2.25.0
 GOSEC := $(GO) run github.com/securego/gosec/v2/cmd/gosec@$(GOSEC_VERSION)
 GOMOD := $(GO) mod
 GOBUILD := $(GO) build
