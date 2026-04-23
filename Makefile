@@ -57,13 +57,26 @@ endif
 # Core Commands
 #-------------------------------------------------------
 
-.PHONY: help
+.PHONY: help ci
+
+ci:
+	$(call print_header,"Running SDK CI pipeline")
+	@$(MAKE) tidy
+	@$(MAKE) fmt
+	@$(MAKE) lint
+	@$(MAKE) gosec
+	@$(MAKE) test
+	@$(MAKE) coverage
+	@$(MAKE) verify-sdk
+	@echo "$(GREEN)[ok]$(NC) SDK CI pipeline completed successfully$(GREEN) ✔️$(NC)"
+
 help:
 	@echo ""
 	@echo "$(SERVICE_NAME) Commands"
 	@echo ""
 	@echo "Core Commands:"
 	@echo "  make help                        - Display this help message"
+	@echo "  make ci                          - Run the SDK CI pipeline locally"
 	@echo "  make set-env                     - Create .env file from .env.example if it doesn't exist"
 	@echo "  make test                        - Run all tests"
 	@echo "  make test-fast                   - Run tests with -short flag"
