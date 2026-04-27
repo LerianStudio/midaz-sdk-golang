@@ -23,12 +23,12 @@ func (input *CreateTransactionRouteInput) Validate() error {
 		return errors.New("title is required")
 	}
 
-	if len(input.OperationRoutes) == 0 {
-		return errors.New("operationRoutes is required")
-	}
-
 	if input.parseErr != nil {
 		return input.parseErr
+	}
+
+	if len(input.OperationRoutes) == 0 {
+		return errors.New("operationRoutes is required")
 	}
 
 	return nil

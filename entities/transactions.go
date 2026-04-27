@@ -14,6 +14,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/shopspring/decimal"
+
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
 )
@@ -391,26 +393,17 @@ func (e *transactionsEntity) setTransactionOperations(transaction *models.Transa
 }
 
 func (*transactionsEntity) parseOperation(operationMap map[string]any) models.Operation {
-	var operation models.Operation
-
-	encoded, err := json.Marshal(operationMap)
-	if err == nil {
-		if err := json.Unmarshal(encoded, &operation); err == nil {
-			if operation.Metadata == nil {
-				operation.Metadata = map[string]any{}
-			}
-
-			return operation
-		}
-	}
-
-	return models.Operation{
+	operation := models.Operation{
 		ID:               getString(operationMap, "id"),
 		TransactionID:    getString(operationMap, "transactionId"),
 		Description:      getString(operationMap, "description"),
 		Type:             getString(operationMap, "type"),
 		AssetCode:        getString(operationMap, "assetCode"),
 		ChartOfAccounts:  getString(operationMap, "chartOfAccounts"),
+		Amount:           operationAmountFromMap(operationMap),
+		Balance:          operationBalanceFromMap(operationMap, "balance"),
+		BalanceAfter:     operationBalanceFromMap(operationMap, "balanceAfter"),
+		Status:           operationStatusFromMap(operationMap),
 		AccountID:        getString(operationMap, "accountId"),
 		AccountAlias:     getString(operationMap, "accountAlias"),
 		BalanceID:        getString(operationMap, "balanceId"),
@@ -423,6 +416,87 @@ func (*transactionsEntity) parseOperation(operationMap map[string]any) models.Op
 		RouteDescription: getString(operationMap, "routeDescription"),
 		Direction:        getString(operationMap, "direction"),
 	}
+	if metadata, ok := operationMap["metadata"].(map[string]any); ok {
+		operation.Metadata = metadata
+	} else {
+		operation.Metadata = map[string]any{}
+	}
+
+	if balanceAffected, ok := boolFromAny(operationMap["balanceAffected"]); ok {
+		operation.BalanceAffected = &balanceAffected
+	}
+
+	return operation
+}
+
+func operationAmountFromMap(operationMap map[string]any) models.Amount {
+	amountMap, ok := operationMap["amount"].(map[string]any)
+	if !ok {
+		return models.Amount{}
+	}
+
+	return models.Amount{Value: decimalPtrFromAny(amountMap["value"])}
+}
+
+func operationBalanceFromMap(operationMap map[string]any, key string) models.OperationBalance {
+	balanceMap, ok := operationMap[key].(map[string]any)
+	if !ok {
+		return models.OperationBalance{}
+	}
+
+	return models.OperationBalance{
+		Available: decimalPtrFromAny(balanceMap["available"]),
+		OnHold:    decimalPtrFromAny(balanceMap["onHold"]),
+	}
+}
+
+func operationStatusFromMap(operationMap map[string]any) models.Status {
+	statusMap, ok := operationMap["status"].(map[string]any)
+	if !ok {
+		return models.Status{}
+	}
+
+	return models.Status{Code: getString(statusMap, "code")}
+}
+
+func decimalPtrFromAny(value any) *decimal.Decimal {
+	switch v := value.(type) {
+	case nil:
+		return nil
+	case string:
+		parsed, err := decimal.NewFromString(strings.TrimSpace(v))
+		if err != nil {
+			return nil
+		}
+
+		return &parsed
+	case json.Number:
+		parsed, err := decimal.NewFromString(v.String())
+		if err != nil {
+			return nil
+		}
+
+		return &parsed
+	case int:
+		parsed := decimal.NewFromInt(int64(v))
+		return &parsed
+	case int64:
+		parsed := decimal.NewFromInt(v)
+		return &parsed
+	case float64:
+		parsed := decimal.NewFromFloat(v)
+		return &parsed
+	default:
+		return nil
+	}
+}
+
+func boolFromAny(value any) (result bool, ok bool) {
+	if v, ok := value.(bool); ok {
+		return v, true
+	}
+
+	return false, false
 }
 
 // CreateTransactionWithDSL creates a new transaction using the DSL format.

@@ -277,6 +277,9 @@ func (s *Server) createOrganization(ctx context.Context, w http.ResponseWriter, 
 		return
 	}
 
+	reqBody.LegalName = strings.TrimSpace(reqBody.LegalName)
+	reqBody.LegalDocument = strings.TrimSpace(reqBody.LegalDocument)
+
 	span.SetAttributes(
 		attribute.String("organization.legal_name", reqBody.LegalName),
 	)

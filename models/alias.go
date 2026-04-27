@@ -46,6 +46,107 @@ type UpdateAliasInput struct {
 	NullFields       []string          `json:"-"`
 }
 
+// NewCreateAliasInput creates an alias create payload with required fields set.
+func NewCreateAliasInput(ledgerID, accountID string) *CreateAliasInput {
+	return &CreateAliasInput{
+		LedgerID:  ledgerID,
+		AccountID: accountID,
+	}
+}
+
+// WithMetadata sets alias metadata.
+func (input *CreateAliasInput) WithMetadata(metadata map[string]any) *CreateAliasInput {
+	if input == nil {
+		return nil
+	}
+
+	input.Metadata = metadata
+
+	return input
+}
+
+// WithBankingDetails sets alias banking details.
+func (input *CreateAliasInput) WithBankingDetails(bankingDetails *BankingDetails) *CreateAliasInput {
+	if input == nil {
+		return nil
+	}
+
+	input.BankingDetails = bankingDetails
+
+	return input
+}
+
+// WithRegulatoryFields sets alias regulatory fields.
+func (input *CreateAliasInput) WithRegulatoryFields(regulatoryFields *RegulatoryFields) *CreateAliasInput {
+	if input == nil {
+		return nil
+	}
+
+	input.RegulatoryFields = regulatoryFields
+
+	return input
+}
+
+// WithRelatedParties sets alias related parties.
+func (input *CreateAliasInput) WithRelatedParties(relatedParties []*RelatedParty) *CreateAliasInput {
+	if input == nil {
+		return nil
+	}
+
+	input.RelatedParties = relatedParties
+
+	return input
+}
+
+// NewUpdateAliasInput creates an empty alias update payload.
+func NewUpdateAliasInput() *UpdateAliasInput {
+	return &UpdateAliasInput{}
+}
+
+// WithMetadata sets alias metadata for update.
+func (input *UpdateAliasInput) WithMetadata(metadata map[string]any) *UpdateAliasInput {
+	if input == nil {
+		return nil
+	}
+
+	input.Metadata = metadata
+
+	return input
+}
+
+// WithBankingDetails sets alias banking details for update.
+func (input *UpdateAliasInput) WithBankingDetails(bankingDetails *BankingDetails) *UpdateAliasInput {
+	if input == nil {
+		return nil
+	}
+
+	input.BankingDetails = bankingDetails
+
+	return input
+}
+
+// WithRegulatoryFields sets alias regulatory fields for update.
+func (input *UpdateAliasInput) WithRegulatoryFields(regulatoryFields *RegulatoryFields) *UpdateAliasInput {
+	if input == nil {
+		return nil
+	}
+
+	input.RegulatoryFields = regulatoryFields
+
+	return input
+}
+
+// WithRelatedParties sets alias related parties for update.
+func (input *UpdateAliasInput) WithRelatedParties(relatedParties []*RelatedParty) *UpdateAliasInput {
+	if input == nil {
+		return nil
+	}
+
+	input.RelatedParties = relatedParties
+
+	return input
+}
+
 // Validate validates the CreateAliasInput fields.
 func (input *CreateAliasInput) Validate() error {
 	if input == nil {

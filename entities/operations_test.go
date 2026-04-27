@@ -83,7 +83,7 @@ func createTestOperationsEntity(serverURL string) *operationsEntity {
 	}
 
 	return &operationsEntity{
-		HTTPClient: httpClient,
+		httpClient: httpClient,
 		baseURLs: map[string]string{
 			"transaction": serverURL,
 			"onboarding":  serverURL,
@@ -135,7 +135,7 @@ func TestNewOperationsEntity(t *testing.T) {
 
 			entity, ok := service.(*operationsEntity)
 			require.True(t, ok, "service should be *operationsEntity")
-			assert.NotNil(t, entity.HTTPClient)
+			assert.NotNil(t, entity.httpClient)
 			assert.Equal(t, tt.baseURLs, entity.baseURLs)
 		})
 	}
@@ -1248,7 +1248,7 @@ func TestOperationsEntity_AuthorizationHeader(t *testing.T) {
 	defer server.Close()
 
 	entity := createTestOperationsEntity(server.URL)
-	entity.HTTPClient.authToken = "test-bearer-token"
+	entity.httpClient.authToken = "test-bearer-token"
 
 	_, err := entity.GetOperation(context.Background(), opTestOrgID, opTestLedgerID, opTestAccountID, opTestOperationID)
 	require.NoError(t, err)
@@ -1371,7 +1371,7 @@ func TestMockHTTPClientForOperations(t *testing.T) {
 	}
 
 	entity := &operationsEntity{
-		HTTPClient: httpClient,
+		httpClient: httpClient,
 		baseURLs:   map[string]string{"transaction": "http://localhost:8080"},
 	}
 

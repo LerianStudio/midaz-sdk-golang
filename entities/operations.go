@@ -186,12 +186,12 @@ type OperationsService interface {
 // operationsEntity implements the OperationsService interface.
 // It handles the communication with the Midaz API for operation-related operations.
 type operationsEntity struct {
-	HTTPClient *HTTPClient
+	httpClient *HTTPClient
 	baseURLs   map[string]string
 }
 
 func (e *operationsEntity) setDefaultTenantID(tenantID string) {
-	e.HTTPClient.SetTenantID(tenantID)
+	e.httpClient.SetTenantID(tenantID)
 }
 
 // NewOperationsEntity creates a new operations entity.
@@ -241,7 +241,7 @@ func NewOperationsEntity(client *http.Client, authToken string, baseURLs map[str
 	}
 
 	return &operationsEntity{
-		HTTPClient: httpClient,
+		httpClient: httpClient,
 		baseURLs:   baseURLs,
 	}
 }
@@ -281,7 +281,7 @@ func (e *operationsEntity) ListOperations(ctx context.Context, orgID, ledgerID, 
 	}
 
 	var response models.ListResponse[models.Operation]
-	if err := e.HTTPClient.sendRequest(req, &response); err != nil {
+	if err := e.httpClient.sendRequest(req, &response); err != nil {
 		// HTTPClient.DoRequest already returns proper error types
 		return nil, err
 	}
@@ -376,7 +376,7 @@ func (e *operationsEntity) GetOperation(ctx context.Context, orgID, ledgerID, ac
 	}
 
 	var operationModel models.Operation
-	if err := e.HTTPClient.sendRequest(req, &operationModel); err != nil {
+	if err := e.httpClient.sendRequest(req, &operationModel); err != nil {
 		// HTTPClient.DoRequest already returns proper error types
 		return nil, err
 	}
@@ -428,7 +428,7 @@ func (e *operationsEntity) UpdateTransactionOperation(ctx context.Context, orgID
 	}
 
 	var operationModel models.Operation
-	if err := e.HTTPClient.sendRequest(req, &operationModel); err != nil {
+	if err := e.httpClient.sendRequest(req, &operationModel); err != nil {
 		// HTTPClient.DoRequest already returns proper error types
 		return nil, err
 	}

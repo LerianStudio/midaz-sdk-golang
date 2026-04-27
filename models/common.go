@@ -167,6 +167,32 @@ type Pagination struct {
 	ItemCount int `json:"-"`
 }
 
+// UnmarshalJSON supports both current snake_case and legacy camelCase cursor keys.
+func (p *Pagination) UnmarshalJSON(data []byte) error {
+	type alias Pagination
+
+	aux := struct {
+		alias
+		PrevCursorLegacy string `json:"prevCursor,omitempty"`
+		NextCursorLegacy string `json:"nextCursor,omitempty"`
+	}{}
+
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	*p = Pagination(aux.alias)
+	if p.PrevCursor == "" {
+		p.PrevCursor = aux.PrevCursorLegacy
+	}
+
+	if p.NextCursor == "" {
+		p.NextCursor = aux.NextCursorLegacy
+	}
+
+	return nil
+}
+
 // HasMorePages returns true if there are more pages available.
 // This is determined by checking if the offset plus limit is less than the total.
 //
@@ -745,13 +771,15 @@ func (r *ListResponse[T]) UnmarshalJSON(data []byte) error {
 
 	aux := struct {
 		alias
-		Limit      int         `json:"limit,omitempty"`
-		Page       int         `json:"page,omitempty"`
-		Offset     int         `json:"offset,omitempty"`
-		Total      int         `json:"total,omitempty"`
-		NextCursor string      `json:"next_cursor,omitempty"`
-		PrevCursor string      `json:"prev_cursor,omitempty"`
-		Pagination *Pagination `json:"pagination,omitempty"`
+		Limit            int         `json:"limit,omitempty"`
+		Page             int         `json:"page,omitempty"`
+		Offset           int         `json:"offset,omitempty"`
+		Total            int         `json:"total,omitempty"`
+		NextCursor       string      `json:"next_cursor,omitempty"`
+		PrevCursor       string      `json:"prev_cursor,omitempty"`
+		NextCursorLegacy string      `json:"nextCursor,omitempty"`
+		PrevCursorLegacy string      `json:"prevCursor,omitempty"`
+		Pagination       *Pagination `json:"pagination,omitempty"`
 	}{}
 
 	if err := json.Unmarshal(data, &aux); err != nil {
@@ -766,13 +794,23 @@ func (r *ListResponse[T]) UnmarshalJSON(data []byte) error {
 	if aux.Pagination != nil {
 		r.Pagination = *aux.Pagination
 	} else {
+		nextCursor := aux.NextCursor
+		if nextCursor == "" {
+			nextCursor = aux.NextCursorLegacy
+		}
+
+		prevCursor := aux.PrevCursor
+		if prevCursor == "" {
+			prevCursor = aux.PrevCursorLegacy
+		}
+
 		r.Pagination = Pagination{
 			Limit:      aux.Limit,
 			Page:       aux.Page,
 			Offset:     aux.Offset,
 			Total:      aux.Total,
-			NextCursor: aux.NextCursor,
-			PrevCursor: aux.PrevCursor,
+			NextCursor: nextCursor,
+			PrevCursor: prevCursor,
 		}
 	}
 

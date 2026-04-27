@@ -295,7 +295,7 @@ func (input CreateAccountInput) ToMmodel() mmodel.CreateAccountInput {
 type UpdateAccountInput struct {
 	// Name is the human-readable name of the account.
 	// Max length: 256 characters.
-	Name string `json:"name"`
+	Name string `json:"name,omitempty"`
 
 	// SegmentID is the optional ID of the segment this account belongs to.
 	// Must be a valid UUID if provided.

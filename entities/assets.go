@@ -442,5 +442,7 @@ func (e *assetsEntity) buildURL(organizationID, ledgerID, assetID string) string
 // buildMetricsURL builds the URL for assets metrics API calls.
 func (e *assetsEntity) buildMetricsURL(organizationID, ledgerID string) string {
 	baseURL := e.baseURLs["onboarding"]
+	baseURL = strings.TrimSuffix(baseURL, "/")
+
 	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/assets/metrics/count", baseURL, pathSegment(organizationID), pathSegment(ledgerID))
 }

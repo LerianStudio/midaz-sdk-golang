@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 
 	auth "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/access-manager"
@@ -137,7 +139,7 @@ func NewEntity(client *http.Client, authToken string, baseURLs map[string]string
 
 	entity := &Entity{
 		httpClient:    httpClient,
-		baseURLs:      withOptionalCRMURL(baseURLs),
+		baseURLs:      copyBaseURLs(baseURLs),
 		observability: observabilityProvider,
 	}
 
@@ -190,7 +192,7 @@ func NewEntityWithConfig(config Config, options ...Option) (*Entity, error) {
 
 	entity := &Entity{
 		httpClient:    httpClient,
-		baseURLs:      withOptionalCRMURL(config.GetBaseURLs()),
+		baseURLs:      copyBaseURLs(config.GetBaseURLs()),
 		observability: config.GetObservabilityProvider(),
 	}
 
@@ -319,7 +321,7 @@ func (e *metadataIndexesEntity) entityHTTPClient() *HTTPClient {
 }
 
 func (e *operationsEntity) entityHTTPClient() *HTTPClient {
-	return e.HTTPClient
+	return e.httpClient
 }
 
 func (e *operationRoutesEntity) entityHTTPClient() *HTTPClient {
@@ -327,15 +329,15 @@ func (e *operationRoutesEntity) entityHTTPClient() *HTTPClient {
 }
 
 func (e *organizationsEntity) entityHTTPClient() *HTTPClient {
-	return e.HTTPClient
+	return e.httpClient
 }
 
 func (e *portfoliosEntity) entityHTTPClient() *HTTPClient {
-	return e.HTTPClient
+	return e.httpClient
 }
 
 func (e *segmentsEntity) entityHTTPClient() *HTTPClient {
-	return e.HTTPClient
+	return e.httpClient
 }
 
 func (e *transactionsEntity) entityHTTPClient() *HTTPClient {
@@ -488,6 +490,16 @@ func NewWithServiceURLs(serviceURLs map[string]string, options ...Option) (*Enti
 		return nil, errors.New("missing transaction URL in service URLs map")
 	}
 
+	normalizedBaseURLs := copyBaseURLs(serviceURLs)
+	if strings.TrimSpace(normalizedBaseURLs["crm"]) == "" {
+		crmURL := strings.TrimSpace(os.Getenv("MIDAZ_CRM_URL"))
+		if crmURL == "" {
+			return nil, errors.New("missing crm URL in service URLs map or MIDAZ_CRM_URL")
+		}
+
+		normalizedBaseURLs["crm"] = crmURL
+	}
+
 	// Create a default HTTP client
 	client := &http.Client{
 		Timeout: 30 * time.Second,
@@ -499,7 +511,7 @@ func NewWithServiceURLs(serviceURLs map[string]string, options ...Option) (*Enti
 	// Create a new entity with the provided service URLs
 	entity := &Entity{
 		httpClient: httpClient,
-		baseURLs:   withOptionalCRMURL(serviceURLs),
+		baseURLs:   normalizedBaseURLs,
 	}
 
 	// Apply any options
@@ -515,7 +527,7 @@ func NewWithServiceURLs(serviceURLs map[string]string, options ...Option) (*Enti
 	return entity, nil
 }
 
-func withOptionalCRMURL(baseURLs map[string]string) map[string]string {
+func copyBaseURLs(baseURLs map[string]string) map[string]string {
 	if baseURLs == nil {
 		return nil
 	}

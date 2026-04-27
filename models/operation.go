@@ -139,7 +139,7 @@ type Operation struct {
 	Direction string `json:"direction,omitempty"`
 
 	// BalanceAffected indicates whether the operation changes balances.
-	BalanceAffected bool `json:"balanceAffected,omitempty"`
+	BalanceAffected *bool `json:"balanceAffected,omitempty"`
 
 	// BalanceKey is the key of the affected balance.
 	BalanceKey string `json:"balanceKey,omitempty"`
@@ -341,7 +341,10 @@ type CreateOperationInput struct {
 	// This must be a valid account ID in the ledger
 	AccountID string `json:"accountId"`
 
-	// Amount is the exact decimal value of the operation.
+	// Amount is the exact decimal value of the operation. Use Amount or *Amount
+	// when decimal scaling is required, or pass an already-formatted decimal
+	// string. Raw numeric types such as int and float are treated as literal
+	// decimal strings by normalizedOperationAmount through decimalStringFromAny.
 	Amount any `json:"amount"`
 
 	// AssetCode identifies the currency or asset type for this operation

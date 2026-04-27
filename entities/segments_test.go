@@ -87,7 +87,7 @@ func TestNewSegmentsEntity(t *testing.T) {
 
 			entity, ok := service.(*segmentsEntity)
 			require.True(t, ok, "expected *segmentsEntity type")
-			assert.NotNil(t, entity.HTTPClient)
+			assert.NotNil(t, entity.httpClient)
 			assert.Equal(t, tt.baseURLs, entity.baseURLs)
 		})
 	}
@@ -315,7 +315,7 @@ func TestSegmentsEntity_ListSegments(t *testing.T) {
 			}
 
 			entity := &segmentsEntity{
-				HTTPClient: newMockSegmentsHTTPClientAdapter(mockClient),
+				httpClient: newMockSegmentsHTTPClientAdapter(mockClient),
 				baseURLs:   map[string]string{"onboarding": "https://api.example.com"},
 			}
 
@@ -356,7 +356,7 @@ func TestSegmentsEntity_ListSegments_QueryParams(t *testing.T) {
 	}
 
 	entity := &segmentsEntity{
-		HTTPClient: newMockSegmentsHTTPClientAdapter(mockClient),
+		httpClient: newMockSegmentsHTTPClientAdapter(mockClient),
 		baseURLs:   map[string]string{"onboarding": "https://api.example.com"},
 	}
 
@@ -512,7 +512,7 @@ func TestSegmentsEntity_GetSegment(t *testing.T) {
 			}
 
 			entity := &segmentsEntity{
-				HTTPClient: newMockSegmentsHTTPClientAdapter(mockClient),
+				httpClient: newMockSegmentsHTTPClientAdapter(mockClient),
 				baseURLs:   map[string]string{"onboarding": "https://api.example.com"},
 			}
 
@@ -712,7 +712,7 @@ func createSegmentEntityWithMock(t *testing.T, mockError error, statusCode int, 
 	}
 
 	return &segmentsEntity{
-		HTTPClient: newMockSegmentsHTTPClientAdapter(mockClient),
+		httpClient: newMockSegmentsHTTPClientAdapter(mockClient),
 		baseURLs:   map[string]string{"onboarding": "https://api.example.com"},
 	}
 }
@@ -933,7 +933,7 @@ func TestSegmentsEntity_UpdateSegment(t *testing.T) {
 			}
 
 			entity := &segmentsEntity{
-				HTTPClient: newMockSegmentsHTTPClientAdapter(mockClient),
+				httpClient: newMockSegmentsHTTPClientAdapter(mockClient),
 				baseURLs:   map[string]string{"onboarding": "https://api.example.com"},
 			}
 
@@ -1087,7 +1087,7 @@ func TestSegmentsEntity_DeleteSegment(t *testing.T) {
 			}
 
 			entity := &segmentsEntity{
-				HTTPClient: newMockSegmentsHTTPClientAdapter(mockClient),
+				httpClient: newMockSegmentsHTTPClientAdapter(mockClient),
 				baseURLs:   map[string]string{"onboarding": "https://api.example.com"},
 			}
 
@@ -1197,7 +1197,7 @@ func TestSegmentsEntity_GetSegmentsMetricsCount(t *testing.T) {
 			}
 
 			entity := &segmentsEntity{
-				HTTPClient: newMockSegmentsHTTPClientAdapter(mockClient),
+				httpClient: newMockSegmentsHTTPClientAdapter(mockClient),
 				baseURLs:   map[string]string{"onboarding": "https://api.example.com"},
 			}
 
@@ -1223,7 +1223,7 @@ func TestSegmentsEntity_GetSegmentsMetricsCount(t *testing.T) {
 // newValidationTestEntity creates a segment entity for validation testing
 func newValidationTestEntity() *segmentsEntity {
 	return &segmentsEntity{
-		HTTPClient: newMockSegmentsHTTPClientAdapter(&MockHTTPClient{
+		httpClient: newMockSegmentsHTTPClientAdapter(&MockHTTPClient{
 			DoFunc: func(_ *http.Request) (*http.Response, error) {
 				return &http.Response{
 					StatusCode: http.StatusOK,

@@ -4,13 +4,15 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
 )
 
 func TestIdempotencyHeaderInjection(t *testing.T) {
@@ -42,12 +44,20 @@ func TestRedactDebugURLMasksSensitiveQueryValues(t *testing.T) {
 	redacted := redactDebugURL("https://api.example.com/holders?document=12345678900&external_id=ext-1&limit=10&metadata.email=a@example.com")
 
 	require.NotEmpty(t, redacted)
+	redactedURL, err := url.Parse(redacted)
+	require.NoError(t, err)
 
-	for _, leaked := range []string{"12345678900", "ext-1", "a@example.com"} {
-		assert.NotContains(t, redacted, leaked)
+	query := redactedURL.Query()
+	for key, original := range map[string]string{
+		"document":       "12345678900",
+		"external_id":    "ext-1",
+		"metadata.email": "a@example.com",
+	} {
+		assert.NotEqual(t, original, query.Get(key))
+		assert.NotEqual(t, url.QueryEscape(original), query.Get(key))
 	}
 
-	assert.Contains(t, redacted, "limit=10")
+	assert.Equal(t, "10", query.Get("limit"))
 }
 
 func TestAutomaticIdempotencyHeaderForUnsafeMethods(t *testing.T) {

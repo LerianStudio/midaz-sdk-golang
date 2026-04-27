@@ -122,19 +122,19 @@ type SegmentsService interface {
 // segmentsEntity implements the SegmentsService interface.
 // It provides methods for creating, retrieving, updating, and deleting segments.
 type segmentsEntity struct {
-	HTTPClient *HTTPClient
+	httpClient *HTTPClient
 	baseURLs   map[string]string
 }
 
 func (e *segmentsEntity) setDefaultTenantID(tenantID string) {
-	e.HTTPClient.SetTenantID(tenantID)
+	e.httpClient.SetTenantID(tenantID)
 }
 
 // NewSegmentsEntity creates a new segments entity.
 // It initializes the HTTP client and base URLs for API requests.
 func NewSegmentsEntity(client *http.Client, authToken string, baseURLs map[string]string) SegmentsService {
 	return &segmentsEntity{
-		HTTPClient: NewHTTPClient(client, authToken, nil),
+		httpClient: NewHTTPClient(client, authToken, nil),
 		baseURLs:   baseURLs,
 	}
 }
@@ -174,7 +174,7 @@ func (e *segmentsEntity) ListSegments(
 	}
 
 	var response models.ListResponse[models.Segment]
-	if err := e.HTTPClient.sendRequest(req, &response); err != nil {
+	if err := e.httpClient.sendRequest(req, &response); err != nil {
 		return nil, err
 	}
 
@@ -208,7 +208,7 @@ func (e *segmentsEntity) GetSegment(
 	}
 
 	var segment models.Segment
-	if err := e.HTTPClient.sendRequest(req, &segment); err != nil {
+	if err := e.httpClient.sendRequest(req, &segment); err != nil {
 		// HTTPClient.DoRequest already returns proper error types
 		return nil, err
 	}
@@ -252,7 +252,7 @@ func (e *segmentsEntity) CreateSegment(
 	}
 
 	var segment models.Segment
-	if err := e.HTTPClient.sendRequest(req, &segment); err != nil {
+	if err := e.httpClient.sendRequest(req, &segment); err != nil {
 		// HTTPClient.DoRequest already returns proper error types
 		return nil, err
 	}
@@ -297,7 +297,7 @@ func (e *segmentsEntity) UpdateSegment(
 	}
 
 	var segment models.Segment
-	if err := e.HTTPClient.sendRequest(req, &segment); err != nil {
+	if err := e.httpClient.sendRequest(req, &segment); err != nil {
 		// HTTPClient.DoRequest already returns proper error types
 		return nil, err
 	}
@@ -331,7 +331,7 @@ func (e *segmentsEntity) DeleteSegment(
 		return errors.NewInternalError(operation, err)
 	}
 
-	if err := e.HTTPClient.sendRequest(req, nil); err != nil {
+	if err := e.httpClient.sendRequest(req, nil); err != nil {
 		// HTTPClient.DoRequest already returns proper error types
 		return err
 	}
@@ -353,7 +353,7 @@ func (e *segmentsEntity) GetSegmentsMetricsCount(ctx context.Context, organizati
 
 	url := e.buildMetricsURL(organizationID, ledgerID)
 
-	count, err := e.HTTPClient.doCountRequest(ctx, http.MethodHead, url, nil)
+	count, err := e.httpClient.doCountRequest(ctx, http.MethodHead, url, nil)
 	if err != nil {
 		return nil, err
 	}

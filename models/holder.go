@@ -217,11 +217,11 @@ func (input *CreateHolderInput) Validate() error {
 		return errors.New("type must be NATURAL_PERSON or LEGAL_PERSON")
 	}
 
-	if input.Name == "" {
+	if strings.TrimSpace(input.Name) == "" {
 		return errors.New("name is required")
 	}
 
-	if input.Document == "" {
+	if strings.TrimSpace(input.Document) == "" {
 		return errors.New("document is required")
 	}
 
@@ -247,6 +247,10 @@ func (input *UpdateHolderInput) WithNullFields(fields ...string) *UpdateHolderIn
 
 // MarshalJSON emits only set fields plus fields explicitly marked for null removal.
 func (input UpdateHolderInput) MarshalJSON() ([]byte, error) {
+	if err := input.validateNullFieldConflicts(); err != nil {
+		return nil, err
+	}
+
 	payload := map[string]any{}
 	if input.ExternalID != nil {
 		payload["externalId"] = input.ExternalID
@@ -286,6 +290,31 @@ func (input UpdateHolderInput) MarshalJSON() ([]byte, error) {
 	}
 
 	return json.Marshal(payload)
+}
+
+func (input *UpdateHolderInput) validateNullFieldConflicts() error {
+	if input == nil {
+		return nil
+	}
+
+	setFields := map[string]bool{
+		"externalId":    input.ExternalID != nil,
+		"name":          input.Name != nil,
+		"addresses":     input.Addresses != nil,
+		"contact":       input.Contact != nil,
+		"naturalPerson": input.NaturalPerson != nil,
+		"legalPerson":   input.LegalPerson != nil,
+		"metadata":      input.Metadata != nil,
+	}
+
+	for _, field := range input.NullFields {
+		field = strings.TrimSpace(field)
+		if setFields[field] {
+			return fmt.Errorf("field %q cannot be set and cleared in the same request", field)
+		}
+	}
+
+	return nil
 }
 
 var validHolderNullFields = map[string]bool{
@@ -334,7 +363,11 @@ func (input *UpdateHolderInput) Validate() error {
 		}
 	}
 
-	return validateCRMNullFields(input.NullFields, validHolderNullFields)
+	if err := validateCRMNullFields(input.NullFields, validHolderNullFields); err != nil {
+		return err
+	}
+
+	return input.validateNullFieldConflicts()
 }
 
 // Holder represents a CRM holder.

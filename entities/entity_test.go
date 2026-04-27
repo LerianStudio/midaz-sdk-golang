@@ -12,7 +12,21 @@ func TestMainFunction(_ *testing.T) {
 	// so that the testing package will execute all test files in the package.
 }
 
-func TestNewWithServiceURLs_AllowsMissingCRMURL(t *testing.T) {
+func TestNewWithServiceURLs_RequiresCRMURL(t *testing.T) {
+	t.Setenv("MIDAZ_CRM_URL", "")
+
+	entity, err := NewWithServiceURLs(map[string]string{
+		"onboarding":  "https://api.example.com/onboarding",
+		"transaction": "https://api.example.com/transaction",
+	})
+
+	require.ErrorContains(t, err, "missing crm URL")
+	require.Nil(t, entity)
+}
+
+func TestNewWithServiceURLs_UsesCRMURLFromEnvironment(t *testing.T) {
+	t.Setenv("MIDAZ_CRM_URL", "https://api.example.com/crm")
+
 	entity, err := NewWithServiceURLs(map[string]string{
 		"onboarding":  "https://api.example.com/onboarding",
 		"transaction": "https://api.example.com/transaction",
@@ -20,5 +34,5 @@ func TestNewWithServiceURLs_AllowsMissingCRMURL(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, entity)
-	require.NotContains(t, entity.baseURLs, "crm")
+	require.Equal(t, "https://api.example.com/crm", entity.baseURLs["crm"])
 }
