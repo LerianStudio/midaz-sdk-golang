@@ -624,10 +624,12 @@ func (o *ListOptions) addPaginationParams(params map[string]string) {
 		return
 	}
 
-	// Keep offset as a client-side compatibility input, but serialize Midaz's
-	// page-based contract on the wire.
 	if o.Offset > 0 {
-		params[QueryParamPage] = fmt.Sprintf("%d", (o.Offset/limit)+1)
+		if o.Offset%limit == 0 {
+			params[QueryParamPage] = fmt.Sprintf("%d", (o.Offset/limit)+1)
+		} else {
+			params[QueryParamOffset] = fmt.Sprintf("%d", o.Offset)
+		}
 	}
 
 	if o.Cursor != "" {

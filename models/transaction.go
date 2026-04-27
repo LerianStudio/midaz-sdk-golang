@@ -791,7 +791,7 @@ func (input *CreateTransactionInput) ensureSendFromLegacyOperations() {
 
 	send := &SendInput{
 		Asset:      asset,
-		Value:      input.Amount,
+		Value:      normalizedOperationAmount(input.Amount),
 		Source:     &SourceInput{},
 		Distribute: &DistributeInput{},
 	}
@@ -801,7 +801,7 @@ func (input *CreateTransactionInput) ensureSendFromLegacyOperations() {
 			Account: operation.AccountID,
 			Amount: AmountInput{
 				Asset: operation.AssetCode,
-				Value: operation.Amount,
+				Value: normalizedOperationAmount(operation.Amount),
 			},
 			Route: operation.Route,
 		}
@@ -823,6 +823,31 @@ func (input *CreateTransactionInput) ensureSendFromLegacyOperations() {
 	}
 
 	input.Send = send
+}
+
+func normalizedOperationAmount(amount any) string {
+	switch value := amount.(type) {
+	case Amount:
+		if value.Value == nil {
+			return ""
+		}
+
+		return value.Value.String()
+	case *Amount:
+		if value == nil || value.Value == nil {
+			return ""
+		}
+
+		return value.Value.String()
+	case *decimal.Decimal:
+		if value == nil {
+			return ""
+		}
+
+		return value.String()
+	default:
+		return decimalStringFromAny(amount)
+	}
 }
 
 // ToMap converts a SendInput to a map.

@@ -300,6 +300,39 @@ func TestCreateTransactionInput_ToLibTransaction(t *testing.T) {
 		assert.False(t, hasMetadata)
 		assert.False(t, hasSend)
 	})
+
+	t.Run("normalizes legacy operation amount wrappers", func(t *testing.T) {
+		value := decimal.NewFromInt(50)
+		input := &CreateTransactionInput{
+			AssetCode: "USD",
+			Amount:    "50",
+			Operations: []CreateOperationInput{
+				{Type: "debit", AccountID: "source", Amount: Amount{Value: &value}, AssetCode: "USD"},
+				{Type: "credit", AccountID: "dest", Amount: &Amount{Value: &value}, AssetCode: "USD"},
+			},
+		}
+
+		result := input.ToLibTransaction()
+		send, ok := result["send"].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "50", send["value"])
+
+		source, ok := send["source"].(map[string]any)
+		require.True(t, ok)
+		from, ok := source["from"].([]map[string]any)
+		require.True(t, ok)
+		sourceAmount, ok := from[0]["amount"].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "50", sourceAmount["value"])
+
+		distribute, ok := send["distribute"].(map[string]any)
+		require.True(t, ok)
+		to, ok := distribute["to"].([]map[string]any)
+		require.True(t, ok)
+		destinationAmount, ok := to[0]["amount"].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "50", destinationAmount["value"])
+	})
 }
 
 // =============================================================================

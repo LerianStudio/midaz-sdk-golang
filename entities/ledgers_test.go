@@ -131,6 +131,53 @@ func TestLedgersEntity_Settings_RequestConstruction(t *testing.T) {
 	assert.True(t, settings.Accounting.ValidateAccountType)
 }
 
+func TestLedgersEntity_Settings_Validation(t *testing.T) {
+	service := NewLedgersEntity(http.DefaultClient, "token", map[string]string{"onboarding": "https://api.example.com"})
+
+	tests := []struct {
+		name string
+		call func() (*models.LedgerSettings, error)
+	}{
+		{
+			name: "get missing organizationID",
+			call: func() (*models.LedgerSettings, error) {
+				return service.GetLedgerSettings(context.Background(), "", "ledger-1")
+			},
+		},
+		{
+			name: "get missing id",
+			call: func() (*models.LedgerSettings, error) {
+				return service.GetLedgerSettings(context.Background(), "org-1", "")
+			},
+		},
+		{
+			name: "update missing organizationID",
+			call: func() (*models.LedgerSettings, error) {
+				return service.UpdateLedgerSettings(context.Background(), "", "ledger-1", models.NewUpdateLedgerSettingsInput())
+			},
+		},
+		{
+			name: "update missing id",
+			call: func() (*models.LedgerSettings, error) {
+				return service.UpdateLedgerSettings(context.Background(), "org-1", "", models.NewUpdateLedgerSettingsInput())
+			},
+		},
+		{
+			name: "update missing input",
+			call: func() (*models.LedgerSettings, error) {
+				return service.UpdateLedgerSettings(context.Background(), "org-1", "ledger-1", nil)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := tt.call()
+			require.Error(t, err)
+		})
+	}
+}
+
 // \1 performs an operation
 func TestGetLedger(t *testing.T) {
 	ctrl := gomock.NewController(t)

@@ -409,6 +409,7 @@ func (e *Entity) SetAuthToken(token string) {
 	if token != "" {
 		// Set the token directly on the HTTP client
 		e.httpClient.authToken = token
+		e.propagateHTTPClientConfiguration()
 	}
 }
 
@@ -522,10 +523,6 @@ func withOptionalCRMURL(baseURLs map[string]string) map[string]string {
 	normalized := make(map[string]string, len(baseURLs)+1)
 	for service, serviceURL := range baseURLs {
 		normalized[service] = serviceURL
-	}
-
-	if _, ok := normalized["crm"]; !ok {
-		normalized["crm"] = normalized["onboarding"]
 	}
 
 	return normalized

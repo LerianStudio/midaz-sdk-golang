@@ -7,6 +7,7 @@ import (
 
 	auth "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/access-manager"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/config"
+	"github.com/stretchr/testify/require"
 )
 
 // createTestConfig creates a test config with sensible defaults.
@@ -88,9 +89,10 @@ func TestNewClient(t *testing.T) {
 		t.Errorf("Expected CRM URL to be applied, got %q", got)
 	}
 
-	if client.Entity.Holders == nil || client.Entity.Aliases == nil || client.Entity.MetadataIndexes == nil {
-		t.Fatal("Expected new Entity services to be initialized")
-	}
+	require.NotNil(t, client.Entity)
+	require.NotNil(t, client.Entity.Holders)
+	require.NotNil(t, client.Entity.Aliases)
+	require.NotNil(t, client.Entity.MetadataIndexes)
 
 	if !client.useEntity {
 		t.Error("Expected useEntity to be true")

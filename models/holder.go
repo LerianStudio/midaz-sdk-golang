@@ -37,6 +37,172 @@ type UpdateHolderInput struct {
 	NullFields    []string       `json:"-"`
 }
 
+// NewCreateHolderInput creates a holder create payload with required fields set.
+func NewCreateHolderInput(holderType, name, document string) *CreateHolderInput {
+	return &CreateHolderInput{
+		Type:     holderStringPtr(holderType),
+		Name:     name,
+		Document: document,
+	}
+}
+
+// WithExternalID sets the holder external identifier.
+func (input *CreateHolderInput) WithExternalID(externalID string) *CreateHolderInput {
+	if input == nil {
+		return nil
+	}
+
+	input.ExternalID = holderStringPtr(externalID)
+
+	return input
+}
+
+// WithAddresses sets holder addresses.
+func (input *CreateHolderInput) WithAddresses(addresses *Addresses) *CreateHolderInput {
+	if input == nil {
+		return nil
+	}
+
+	input.Addresses = addresses
+
+	return input
+}
+
+// WithContact sets holder contact data.
+func (input *CreateHolderInput) WithContact(contact *Contact) *CreateHolderInput {
+	if input == nil {
+		return nil
+	}
+
+	input.Contact = contact
+
+	return input
+}
+
+// WithNaturalPerson sets natural-person holder details.
+func (input *CreateHolderInput) WithNaturalPerson(naturalPerson *NaturalPerson) *CreateHolderInput {
+	if input == nil {
+		return nil
+	}
+
+	input.NaturalPerson = naturalPerson
+
+	return input
+}
+
+// WithLegalPerson sets legal-person holder details.
+func (input *CreateHolderInput) WithLegalPerson(legalPerson *LegalPerson) *CreateHolderInput {
+	if input == nil {
+		return nil
+	}
+
+	input.LegalPerson = legalPerson
+
+	return input
+}
+
+// WithMetadata sets holder metadata.
+func (input *CreateHolderInput) WithMetadata(metadata map[string]any) *CreateHolderInput {
+	if input == nil {
+		return nil
+	}
+
+	input.Metadata = metadata
+
+	return input
+}
+
+// NewUpdateHolderInput creates an empty holder update payload.
+func NewUpdateHolderInput() *UpdateHolderInput {
+	return &UpdateHolderInput{}
+}
+
+// WithExternalID sets the holder external identifier for update.
+func (input *UpdateHolderInput) WithExternalID(externalID string) *UpdateHolderInput {
+	if input == nil {
+		return nil
+	}
+
+	input.ExternalID = holderStringPtr(externalID)
+
+	return input
+}
+
+// WithName sets the holder name for update.
+func (input *UpdateHolderInput) WithName(name string) *UpdateHolderInput {
+	if input == nil {
+		return nil
+	}
+
+	input.Name = holderStringPtr(name)
+
+	return input
+}
+
+// WithAddresses sets holder addresses for update.
+func (input *UpdateHolderInput) WithAddresses(addresses *Addresses) *UpdateHolderInput {
+	if input == nil {
+		return nil
+	}
+
+	input.Addresses = addresses
+
+	return input
+}
+
+// WithContact sets holder contact data for update.
+func (input *UpdateHolderInput) WithContact(contact *Contact) *UpdateHolderInput {
+	if input == nil {
+		return nil
+	}
+
+	input.Contact = contact
+
+	return input
+}
+
+// WithNaturalPerson sets natural-person holder details for update.
+func (input *UpdateHolderInput) WithNaturalPerson(naturalPerson *NaturalPerson) *UpdateHolderInput {
+	if input == nil {
+		return nil
+	}
+
+	input.NaturalPerson = naturalPerson
+
+	return input
+}
+
+// WithLegalPerson sets legal-person holder details for update.
+func (input *UpdateHolderInput) WithLegalPerson(legalPerson *LegalPerson) *UpdateHolderInput {
+	if input == nil {
+		return nil
+	}
+
+	input.LegalPerson = legalPerson
+
+	return input
+}
+
+// WithMetadata sets holder metadata for update.
+func (input *UpdateHolderInput) WithMetadata(metadata map[string]any) *UpdateHolderInput {
+	if input == nil {
+		return nil
+	}
+
+	input.Metadata = metadata
+
+	return input
+}
+
+// WithNullField marks one field for explicit null removal.
+func (input *UpdateHolderInput) WithNullField(field string) *UpdateHolderInput {
+	return input.WithNullFields(field)
+}
+
+func holderStringPtr(value string) *string {
+	return &value
+}
+
 // Validate validates the CreateHolderInput fields.
 func (input *CreateHolderInput) Validate() error {
 	if input == nil {

@@ -118,6 +118,13 @@ if err != nil {
 If you need fields only available on `*errors.Error`, use `errors.As` from the standard library:
 
 ```go
+import (
+    stderrors "errors"
+    "log"
+
+    sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+)
+
 var sdkErr *sdkerrors.Error
 if stderrors.As(err, &sdkErr) {
     log.Printf(

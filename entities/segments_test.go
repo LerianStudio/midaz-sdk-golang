@@ -372,7 +372,7 @@ func TestSegmentsEntity_ListSegments_QueryParams(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Contains(t, capturedURL, "limit=20")
-	assert.Contains(t, capturedURL, "page=1")
+	assert.Contains(t, capturedURL, "offset=5")
 	assert.Contains(t, capturedURL, "sort_order=desc")
 	assert.Contains(t, capturedURL, "status=ACTIVE")
 }

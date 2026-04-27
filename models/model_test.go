@@ -624,7 +624,7 @@ func TestListOptionsToQueryParams(t *testing.T) {
 
 	expectedParams := map[string]string{
 		QueryParamLimit:          "25",
-		QueryParamPage:           "1",
+		QueryParamOffset:         "10",
 		QueryParamOrderDirection: string(SortAscending),
 		QueryParamStartDate:      "2023-01-01",
 		QueryParamEndDate:        "2023-12-31",
@@ -638,8 +638,8 @@ func TestListOptionsToQueryParams(t *testing.T) {
 		}
 	}
 
-	if _, exists := params[QueryParamOffset]; exists {
-		t.Errorf("Did not expect legacy offset query parameter")
+	if _, exists := params[QueryParamPage]; exists {
+		t.Errorf("Did not expect lossy page query parameter for non-aligned offset")
 	}
 
 	if _, exists := params[QueryParamOrderBy]; exists {

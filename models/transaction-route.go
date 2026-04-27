@@ -57,16 +57,18 @@ func NewCreateTransactionRouteInput(title, description string, operationRoutes [
 	// Convert string UUIDs to uuid.UUID type
 	var parseErr error
 
-	uuidRoutes := make([]uuid.UUID, len(operationRoutes))
+	uuidRoutes := make([]uuid.UUID, 0, len(operationRoutes))
 
 	for i, routeStr := range operationRoutes {
 		routeUUID, err := uuid.Parse(routeStr)
 		if err != nil {
 			parseErr = fmt.Errorf("operationRoutes[%d] must be a valid UUID: %w", i, err)
+			uuidRoutes = nil
+
 			break
 		}
 
-		uuidRoutes[i] = routeUUID
+		uuidRoutes = append(uuidRoutes, routeUUID)
 	}
 
 	return &CreateTransactionRouteInput{

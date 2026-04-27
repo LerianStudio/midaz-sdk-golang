@@ -390,7 +390,7 @@ func (input *CreateOperationInput) Validate() error {
 	}
 
 	if err := validatePositiveDecimalString(input.Amount, "amount"); err != nil {
-		return errors.New("amount must be a positive decimal")
+		return fmt.Errorf("invalid amount: %w", err)
 	}
 
 	// Validate asset code if provided

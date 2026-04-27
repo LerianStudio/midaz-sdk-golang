@@ -16,7 +16,7 @@ The Midaz Go SDK is an idiomatic Go client for the Midaz financial ledger APIs. 
 
 ## Features
 
-- **Current Midaz API coverage**: Ledger resources plus CRM holders and aliases.
+- **Current Midaz API coverage**: Ledger resources plus CRM holders, aliases, and MetadataIndexes.
 - **Entity service API**: Access services through `c.Entity.<Service>` with explicit methods such as `CreateOrganization`, `ListAccounts`, and `CreateTransactionWithDSL`.
 - **Functional options**: Configure clients with `client.WithConfig`, `client.WithBaseURL`, `client.WithRetries`, `client.WithObservabilityProvider`, and related options.
 - **Access Manager authentication**: Configure plugin authentication with `auth.AccessManager` and `config.WithAccessManager` or environment variables.

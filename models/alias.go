@@ -80,6 +80,10 @@ func (input *UpdateAliasInput) WithNullFields(fields ...string) *UpdateAliasInpu
 
 // MarshalJSON emits only set fields plus fields explicitly marked for null removal.
 func (input UpdateAliasInput) MarshalJSON() ([]byte, error) {
+	if err := input.validateNullFieldConflicts(); err != nil {
+		return nil, err
+	}
+
 	payload := map[string]any{}
 	if input.Metadata != nil {
 		payload["metadata"] = input.Metadata
@@ -109,6 +113,28 @@ func (input UpdateAliasInput) MarshalJSON() ([]byte, error) {
 	return json.Marshal(payload)
 }
 
+func (input *UpdateAliasInput) validateNullFieldConflicts() error {
+	if input == nil {
+		return nil
+	}
+
+	setFields := map[string]bool{
+		"metadata":         input.Metadata != nil,
+		"bankingDetails":   input.BankingDetails != nil,
+		"regulatoryFields": input.RegulatoryFields != nil,
+		"relatedParties":   input.RelatedParties != nil,
+	}
+
+	for _, field := range input.NullFields {
+		field = strings.TrimSpace(field)
+		if setFields[field] {
+			return fmt.Errorf("field %q cannot be set and cleared in the same request", field)
+		}
+	}
+
+	return nil
+}
+
 var validAliasNullFields = map[string]bool{
 	"metadata":         true,
 	"bankingDetails":   true,
@@ -130,7 +156,11 @@ func (input *UpdateAliasInput) Validate() error {
 		return err
 	}
 
-	return validateCRMNullFields(input.NullFields, validAliasNullFields)
+	if err := validateCRMNullFields(input.NullFields, validAliasNullFields); err != nil {
+		return err
+	}
+
+	return input.validateNullFieldConflicts()
 }
 
 func validateAliasMetadata(metadata map[string]any) error {

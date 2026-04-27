@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	client "github.com/LerianStudio/midaz-sdk-golang/v2"
@@ -267,6 +268,12 @@ func (s *Server) createOrganization(ctx context.Context, w http.ResponseWriter, 
 		span.SetStatus(codes.Error, "Invalid request body")
 		span.RecordError(err)
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if strings.TrimSpace(reqBody.LegalName) == "" || strings.TrimSpace(reqBody.LegalDocument) == "" {
+		span.SetStatus(codes.Error, "Missing required fields")
+		http.Error(w, "legal_name and legal_document are required", http.StatusBadRequest)
 		return
 	}
 

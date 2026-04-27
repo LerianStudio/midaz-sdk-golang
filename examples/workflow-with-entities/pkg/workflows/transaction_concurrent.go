@@ -107,15 +107,15 @@ func runConcurrentTransactionBatch(ctx context.Context, label, spanName string, 
 	defer batchSpan.End()
 
 	if err := execute(batchCtx); err != nil {
-		observability.RecordError(ctx, err, errorEvent)
+		observability.RecordError(batchCtx, err, errorEvent)
 		return err
 	}
 
 	duration := time.Since(startTime)
 	tps := float64(count) / duration.Seconds()
 
-	observability.RecordSpanMetric(ctx, metricPrefix+"_transaction_duration_seconds", duration.Seconds())
-	observability.RecordSpanMetric(ctx, metricPrefix+"_transactions_per_second", tps)
+	observability.RecordSpanMetric(batchCtx, metricPrefix+"_transaction_duration_seconds", duration.Seconds())
+	observability.RecordSpanMetric(batchCtx, metricPrefix+"_transactions_per_second", tps)
 
 	fmt.Printf(" Completed %d %s transactions in %.2f seconds (%.2f TPS)\n\n", count, label, duration.Seconds(), tps)
 

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
@@ -32,10 +31,6 @@ func (e *metadataIndexesEntity) setDefaultTenantID(tenantID string) {
 // NewMetadataIndexesEntity creates a new MetadataIndexesService instance.
 func NewMetadataIndexesEntity(client *http.Client, authToken string, baseURLs map[string]string) MetadataIndexesService {
 	httpClient := NewHTTPClient(client, authToken, nil)
-
-	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
-		httpClient.debug = true
-	}
 
 	return &metadataIndexesEntity{
 		httpClient: httpClient,

@@ -414,7 +414,7 @@ func (e *assetsEntity) GetAssetsMetricsCount(ctx context.Context, organizationID
 
 	url := e.buildMetricsURL(organizationID, ledgerID)
 
-	count, err := e.httpClient.doCountRequest(ctx, http.MethodHead, url, nil)
+	count, err := e.httpClient.doCountRequest(ctx, countRequestMethod(), url, countRequestHeaders())
 	if err != nil {
 		return nil, err
 	}

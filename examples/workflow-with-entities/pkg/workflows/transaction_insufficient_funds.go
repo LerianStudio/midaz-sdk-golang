@@ -113,10 +113,15 @@ func runInsufficientFundsTest(ctx context.Context, midazClient *client.Client, o
 	printTestHeader(test, testIndex)
 	validateTestAmount(testCtx, test.Amount)
 
-	transferInput := createInsufficientFundsTransferInput(test, testIndex)
+	transferInput, err := createInsufficientFundsTransferInput(test, testIndex)
+	if err != nil {
+		observability.RecordError(testCtx, err, "invalid_insufficient_funds_test_input")
+		fmt.Printf("❌ Test input error: %s\n", err.Error())
+		return
+	}
 
 	startTime := time.Now()
-	_, err := midazClient.Entity.Transactions.CreateTransaction(testCtx, orgID, ledgerID, transferInput)
+	_, err = midazClient.Entity.Transactions.CreateTransaction(testCtx, orgID, ledgerID, transferInput)
 	duration := time.Since(startTime)
 
 	observability.RecordSpanMetric(testCtx, "test_duration_ms", float64(duration.Milliseconds()))
@@ -148,10 +153,10 @@ func validateTestAmount(ctx context.Context, amount string) {
 	}
 }
 
-func createInsufficientFundsTransferInput(test insufficientFundsTest, testIndex int) *models.CreateTransactionInput {
+func createInsufficientFundsTransferInput(test insufficientFundsTest, testIndex int) (*models.CreateTransactionInput, error) {
 	amount, err := strconv.ParseFloat(test.Amount, 64)
 	if err != nil {
-		amount = 0
+		return nil, fmt.Errorf("invalid amount %q: %w", test.Amount, err)
 	}
 
 	transferInput := CreateTransferInput(
@@ -169,7 +174,7 @@ func createInsufficientFundsTransferInput(test insufficientFundsTest, testIndex 
 		"timestamp":        time.Now().Unix(),
 	})
 
-	return transferInput
+	return transferInput, nil
 }
 
 func handleExpectedError(ctx context.Context, err error, test insufficientFundsTest, testIndex int) {

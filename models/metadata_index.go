@@ -26,7 +26,7 @@ type IndexStats struct {
 type CreateMetadataIndexInput struct {
 	MetadataKey string `json:"metadataKey"`
 	Unique      bool   `json:"unique"`
-	Sparse      *bool  `json:"sparse"`
+	Sparse      *bool  `json:"sparse,omitempty"`
 }
 
 var metadataKeyPattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]*$`)

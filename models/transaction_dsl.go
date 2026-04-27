@@ -1,6 +1,7 @@
 package models
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -1024,12 +1025,12 @@ func extractFromTo(data map[string]any) DSLFromTo {
 	if shareMap, ok := data["share"].(map[string]any); ok {
 		share := &Share{}
 
-		if percentage, ok := shareMap["percentage"].(float64); ok {
-			share.Percentage = int64(percentage)
+		if percentage, ok := int64FromAny(shareMap["percentage"]); ok {
+			share.Percentage = percentage
 		}
 
-		if percentageOfPercentage, ok := shareMap["percentageOfPercentage"].(float64); ok {
-			share.PercentageOfPercentage = int64(percentageOfPercentage)
+		if percentageOfPercentage, ok := int64FromAny(shareMap["percentageOfPercentage"]); ok {
+			share.PercentageOfPercentage = percentageOfPercentage
 		}
 
 		from.Share = share
@@ -1049,6 +1050,37 @@ func extractFromTo(data map[string]any) DSLFromTo {
 	}
 
 	return from
+}
+
+func int64FromAny(value any) (int64, bool) {
+	switch v := value.(type) {
+	case int:
+		return int64(v), true
+	case int64:
+		return v, true
+	case float64:
+		return int64(v), true
+	case json.Number:
+		parsed, err := v.Int64()
+		if err == nil {
+			return parsed, true
+		}
+
+		decimalValue, err := strconv.ParseFloat(v.String(), 64)
+
+		return int64(decimalValue), err == nil
+	case string:
+		parsed, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64)
+		if err == nil {
+			return parsed, true
+		}
+
+		decimalValue, err := strconv.ParseFloat(strings.TrimSpace(v), 64)
+
+		return int64(decimalValue), err == nil
+	default:
+		return 0, false
+	}
 }
 
 // Helper functions for extracting values from maps

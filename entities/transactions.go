@@ -511,7 +511,10 @@ func (e *transactionsEntity) CreateTransactionWithDSLFile(ctx context.Context, o
 		return nil, sdkerrors.NewInternalError("CreateTransactionWithDSLFile", fmt.Errorf("failed to finalize multipart body: %w", err))
 	}
 
-	headers := map[string]string{"Content-Type": writer.FormDataContentType()}
+	headers := map[string]string{
+		"Content-Type":             writer.FormDataContentType(),
+		"X-Midaz-Auto-Idempotency": "true",
+	}
 
 	var responseMap map[string]any
 	if err := e.httpClient.doRawRequest(ctx, http.MethodPost, endpointURL, headers, body.Bytes(), &responseMap); err != nil {
@@ -693,7 +696,7 @@ func (e *transactionsEntity) GetTransactionsMetricsCount(ctx context.Context, or
 
 	if opts != nil {
 		q := req.URL.Query()
-		for key, value := range opts.ToQueryParams() {
+		for key, value := range transactionMetricsCountQueryParams(opts) {
 			q.Add(key, value)
 		}
 
@@ -706,6 +709,16 @@ func (e *transactionsEntity) GetTransactionsMetricsCount(ctx context.Context, or
 	}
 
 	return &models.MetricsCount{TransactionsCount: count}, nil
+}
+
+func transactionMetricsCountQueryParams(opts *models.ListOptions) map[string]string {
+	params := opts.ToQueryParams()
+	delete(params, models.QueryParamPage)
+	delete(params, models.QueryParamCursor)
+	delete(params, models.QueryParamLimit)
+	delete(params, models.QueryParamOffset)
+
+	return params
 }
 
 // UpdateTransaction updates an existing transaction.
@@ -910,6 +923,7 @@ func (e *transactionsEntity) CreateInflowTransaction(ctx context.Context, orgID,
 	}
 
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Midaz-Auto-Idempotency", "true")
 
 	var result map[string]any
 	if err := e.httpClient.sendRequest(req, &result); err != nil {
@@ -952,6 +966,7 @@ func (e *transactionsEntity) CreateOutflowTransaction(ctx context.Context, orgID
 	}
 
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Midaz-Auto-Idempotency", "true")
 
 	var result map[string]any
 	if err := e.httpClient.sendRequest(req, &result); err != nil {
@@ -994,6 +1009,7 @@ func (e *transactionsEntity) CreateAnnotationTransaction(ctx context.Context, or
 	}
 
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Midaz-Auto-Idempotency", "true")
 
 	var result map[string]any
 	if err := e.httpClient.sendRequest(req, &result); err != nil {

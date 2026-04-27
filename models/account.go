@@ -79,7 +79,7 @@ func GetAccountIdentifier(account Account) string {
 type CreateAccountInput struct {
 	// Name is the human-readable name of the account.
 	// Max length: 256 characters. Optional in the Midaz API.
-	Name string `json:"name"`
+	Name string `json:"name,omitempty"`
 
 	// ParentAccountID is the ID of the parent account, if this is a sub-account.
 	// Must be a valid UUID if provided.

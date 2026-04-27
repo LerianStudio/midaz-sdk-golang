@@ -28,8 +28,12 @@ type UpdateBalanceInput struct {
 }
 
 // Validate validates the UpdateBalanceInput fields.
-func (*UpdateBalanceInput) Validate() error {
+func (input *UpdateBalanceInput) Validate() error {
 	// For balance updates, validation is minimal since most fields are controlled by the system
+	if input != nil && input.Metadata != nil {
+		return errors.New("metadata updates are no longer supported in UpdateBalanceInput")
+	}
+
 	return nil
 }
 

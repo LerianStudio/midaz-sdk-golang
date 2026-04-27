@@ -20,5 +20,5 @@ func TestNewWithServiceURLs_AllowsMissingCRMURL(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, entity)
-	require.Equal(t, "https://api.example.com/onboarding", entity.baseURLs["crm"])
+	require.NotContains(t, entity.baseURLs, "crm")
 }

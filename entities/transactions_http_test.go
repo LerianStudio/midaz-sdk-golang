@@ -91,6 +91,7 @@ func TestTransactionsEntity_CreateTransaction_HTTPRequest(t *testing.T) {
 func TestTransactionsEntity_ListTransactions_UsesCursorPagination(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Empty(t, r.URL.Query().Get("page"))
+		assert.Empty(t, r.URL.Query().Get("offset"))
 		assert.Equal(t, "cursor-123", r.URL.Query().Get("cursor"))
 		assert.Equal(t, "25", r.URL.Query().Get("limit"))
 		w.Header().Set("Content-Type", "application/json")

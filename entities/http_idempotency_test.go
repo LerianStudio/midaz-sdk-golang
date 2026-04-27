@@ -99,7 +99,20 @@ func TestUnsafeMethodRetriesOnlyWithIdempotency(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var calls atomic.Int32
 
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			var generatedKey string
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if tt.expectedSuccess {
+					key := r.Header.Get("X-Idempotency")
+					assert.NotEmpty(t, key)
+
+					if generatedKey == "" {
+						generatedKey = key
+					} else {
+						assert.Equal(t, generatedKey, key)
+					}
+				}
+
 				if calls.Add(1) == 1 {
 					w.WriteHeader(http.StatusInternalServerError)
 

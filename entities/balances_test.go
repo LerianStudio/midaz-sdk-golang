@@ -942,31 +942,12 @@ func TestBalancesEntity_UpdateBalance(t *testing.T) {
 			},
 		},
 		{
-			name:      "Success with empty update body",
-			orgID:     "org-123",
-			ledgerID:  "ledger-456",
-			balanceID: "bal-789",
-			input:     models.NewUpdateBalanceInput().WithMetadata(map[string]any{"legacy": "ignored"}),
-			mockResponse: `{
-				"id": "bal-789",
-				"organizationId": "org-123",
-				"ledgerId": "ledger-456",
-				"accountId": "acc-012",
-				"assetCode": "USD",
-				"available": "1000000",
-				"onHold": "50000",
-				"version": 2
-			}`,
-			mockStatusCode: http.StatusOK,
-			expectedID:     "bal-789",
-			checkRequest: func(t *testing.T, req *http.Request) {
-				t.Helper()
-
-				body, err := io.ReadAll(req.Body)
-				require.NoError(t, err)
-				assert.JSONEq(t, `{}`, string(body))
-				assert.NotContains(t, string(body), "metadata")
-			},
+			name:          "Metadata update is rejected",
+			orgID:         "org-123",
+			ledgerID:      "ledger-456",
+			balanceID:     "bal-789",
+			input:         models.NewUpdateBalanceInput().WithMetadata(map[string]any{"legacy": "ignored"}),
+			expectedError: true,
 		},
 		{
 			name:          "Empty organization ID",
@@ -1736,7 +1717,7 @@ func TestBalancesEntity_HTTPServerIntegration(t *testing.T) {
 			"transaction": server.URL,
 		})
 
-		input := models.NewUpdateBalanceInput().WithMetadata(map[string]any{"updated": "true"})
+		input := models.NewUpdateBalanceInput().WithAllowSending(false)
 		result, err := entity.UpdateBalance(context.Background(), "org-123", "ledger-456", "bal-789", input)
 		require.NoError(t, err)
 		require.NotNil(t, result)
@@ -2145,14 +2126,14 @@ func TestUpdateBalanceInput_Validation(t *testing.T) {
 		expectedError bool
 	}{
 		{
-			name:          "Valid input with metadata",
+			name:          "Rejects metadata",
 			input:         models.NewUpdateBalanceInput().WithMetadata(map[string]any{"key": "value"}),
-			expectedError: false,
+			expectedError: true,
 		},
 		{
-			name:          "Valid input with empty metadata",
+			name:          "Rejects empty metadata",
 			input:         models.NewUpdateBalanceInput().WithMetadata(map[string]any{}),
-			expectedError: false,
+			expectedError: true,
 		},
 		{
 			name:          "Valid input with nil metadata",

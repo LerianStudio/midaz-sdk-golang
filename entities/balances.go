@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	stderrors "errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -778,9 +779,17 @@ func (e *balancesEntity) buildAccountHistoryURL(orgID, ledgerID, accountID, date
 }
 
 func validateBalanceHistoryDate(date string) error {
-	if _, err := time.Parse("2006-01-02 15:04:05", date); err != nil {
-		return fmt.Errorf("date must use format yyyy-mm-dd hh:mm:ss: %w", err)
+	layouts := []string{
+		time.RFC3339,
+		"2006-01-02 15:04:05",
+		time.DateOnly,
 	}
 
-	return nil
+	for _, layout := range layouts {
+		if _, err := time.Parse(layout, date); err == nil {
+			return nil
+		}
+	}
+
+	return stderrors.New("date must use YYYY-MM-DD, YYYY-MM-DD HH:MM:SS, or RFC3339")
 }

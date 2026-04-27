@@ -117,6 +117,10 @@ func resolveSourceAccountAlias(ctx context.Context, entity *entities.Entity, org
 }
 
 func resolveDestinationAccountAlias(ctx context.Context, entity *entities.Entity, orgID, ledgerID, destAccountID string) (string, error) {
+	if strings.HasPrefix(destAccountID, "@external/") {
+		return destAccountID, nil
+	}
+
 	destAccount, err := entity.Accounts.GetAccount(ctx, orgID, ledgerID, destAccountID)
 	if err != nil {
 		return "", fmt.Errorf("failed to get destination account: %w", err)
