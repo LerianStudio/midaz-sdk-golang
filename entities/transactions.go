@@ -952,7 +952,7 @@ func (e *transactionsEntity) CancelTransactionWithResponse(ctx context.Context, 
 	var transaction models.Transaction
 	if err := e.httpClient.sendRequest(req, &transaction); err != nil {
 		if errors.Is(err, errEmptyResponseBody) || errors.Is(err, errNullResponseBody) {
-			return nil, nil //nolint:nilnil // successful cancel endpoints may be bodyless
+			return &models.Transaction{ID: transactionID}, nil
 		}
 
 		return nil, err

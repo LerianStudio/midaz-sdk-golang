@@ -552,9 +552,13 @@ func normalizeBaseURLs(baseURLs map[string]string) (map[string]string, error) {
 	}
 
 	if strings.TrimSpace(normalized["crm"]) == "" {
-		crmURL := strings.TrimSpace(os.Getenv("MIDAZ_CRM_URL"))
+		crmURL := strings.TrimSpace(normalized["onboarding"])
 		if crmURL == "" {
-			return nil, errors.New("missing crm URL in service URLs map or MIDAZ_CRM_URL")
+			crmURL = strings.TrimSpace(os.Getenv("MIDAZ_CRM_URL"))
+		}
+
+		if crmURL == "" {
+			return nil, errors.New("missing crm URL: provide 'crm' key in service URLs map or set MIDAZ_CRM_URL environment variable")
 		}
 
 		normalized["crm"] = crmURL

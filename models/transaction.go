@@ -138,7 +138,7 @@ func validatePositiveDecimalString(value any, field string) error {
 	}
 
 	if !parsed.IsPositive() {
-		return fmt.Errorf("%s must be greater than zero; %s must be greater than 0", field, field)
+		return fmt.Errorf("%s must be greater than zero", field)
 	}
 
 	return nil
@@ -431,13 +431,12 @@ type AmountInput struct {
 	Value any `json:"value"`
 }
 
+// transactionDateFormats require explicit timezone information to avoid local-date ambiguity.
 var transactionDateFormats = []string{
 	time.RFC3339Nano,
 	time.RFC3339,
 	"2006-01-02T15:04:05.000Z",
 	"2006-01-02T15:04:05Z",
-	"2006-01-02T15:04:05",
-	"2006-01-02",
 }
 
 // Validate checks that the CreateTransactionInput meets all validation requirements.
@@ -512,7 +511,7 @@ func parseTransactionDate(value string) (time.Time, error) {
 		}
 	}
 
-	return time.Time{}, errors.New("transactionDate must be ISO 8601 date or date-time")
+	return time.Time{}, errors.New("transactionDate must be RFC3339 date-time with explicit timezone")
 }
 
 func transactionCommonMap(chartOfAccountsGroupName, description, code string, metadata map[string]any, route, routeID, transactionDate string, pending bool) map[string]any {
@@ -1499,8 +1498,18 @@ func (input *CreateOutflowInput) ToMap() map[string]any {
 	return tx
 }
 
-// CreateAnnotationInput reuses the Ledger CreateTransactionInput contract.
-type CreateAnnotationInput = CreateTransactionInput
+// CreateAnnotationInput is the payload for creating an annotation transaction.
+type CreateAnnotationInput struct {
+	ChartOfAccountsGroupName string         `json:"chartOfAccountsGroupName,omitempty"`
+	Description              string         `json:"description,omitempty"`
+	Pending                  bool           `json:"pending,omitempty"`
+	Code                     string         `json:"code,omitempty"`
+	Route                    string         `json:"route,omitempty"`
+	RouteID                  string         `json:"routeId,omitempty"`
+	TransactionDate          string         `json:"transactionDate,omitempty"`
+	Metadata                 map[string]any `json:"metadata,omitempty"`
+	Send                     *SendInput     `json:"send,omitempty"`
+}
 
 // NewCreateAnnotationInput creates a new CreateAnnotationInput.
 func NewCreateAnnotationInput(description string, send ...*SendInput) *CreateAnnotationInput {
@@ -1509,10 +1518,55 @@ func NewCreateAnnotationInput(description string, send ...*SendInput) *CreateAnn
 		sendInput = send[0]
 	}
 
-	return &CreateTransactionInput{
+	return &CreateAnnotationInput{
 		Description: description,
 		Send:        sendInput,
 	}
+}
+
+// Validate checks that the CreateAnnotationInput meets all validation requirements.
+func (input *CreateAnnotationInput) Validate() error {
+	if input == nil {
+		return errors.New("input is required")
+	}
+
+	if err := validateTransactionCreateCommon(input.Description, input.Code, input.Metadata, input.Route, input.RouteID, input.TransactionDate, input.Pending); err != nil {
+		return err
+	}
+
+	if input.Send != nil {
+		if err := input.Send.Validate(); err != nil {
+			return fmt.Errorf("invalid send: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// ToLibTransaction converts a CreateAnnotationInput to the backend transaction payload.
+func (input *CreateAnnotationInput) ToLibTransaction() map[string]any {
+	if input == nil {
+		return nil
+	}
+
+	tx := transactionCommonMap(input.ChartOfAccountsGroupName, input.Description, input.Code, input.Metadata, input.Route, input.RouteID, input.TransactionDate, input.Pending)
+	if input.Send != nil {
+		tx["send"] = input.Send.ToMap()
+	}
+
+	return tx
+}
+
+// WithCode sets the annotation transaction code.
+func (input *CreateAnnotationInput) WithCode(code string) *CreateAnnotationInput {
+	input.Code = code
+	return input
+}
+
+// WithMetadata sets annotation transaction metadata.
+func (input *CreateAnnotationInput) WithMetadata(metadata map[string]any) *CreateAnnotationInput {
+	input.Metadata = metadata
+	return input
 }
 
 // WithCode sets the transaction code.

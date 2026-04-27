@@ -12,6 +12,15 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation/core"
 )
 
+// RelatedPartyRolePrimaryHolder identifies the primary holder related-party role.
+const RelatedPartyRolePrimaryHolder = "PRIMARY_HOLDER"
+
+// RelatedPartyRoleLegalRepresentative identifies the legal representative related-party role.
+const RelatedPartyRoleLegalRepresentative = "LEGAL_REPRESENTATIVE"
+
+// RelatedPartyRoleResponsibleParty identifies the responsible party related-party role.
+const RelatedPartyRoleResponsibleParty = "RESPONSIBLE_PARTY"
+
 // RegulatoryFields contains regulatory-specific fields for an alias.
 type RegulatoryFields struct {
 	ParticipantDocument *string `json:"participantDocument,omitempty"`
@@ -211,7 +220,23 @@ func (input UpdateAliasInput) MarshalJSON() ([]byte, error) {
 		payload[field] = nil
 	}
 
+	if len(payload) == 0 {
+		return nil, errors.New("empty update payload not allowed")
+	}
+
 	return json.Marshal(payload)
+}
+
+func (input *UpdateAliasInput) hasChanges() bool {
+	if input == nil {
+		return false
+	}
+
+	return input.Metadata != nil ||
+		input.BankingDetails != nil ||
+		input.RegulatoryFields != nil ||
+		input.RelatedParties != nil ||
+		len(input.NullFields) > 0
 }
 
 func (input *UpdateAliasInput) validateNullFieldConflicts() error {
@@ -247,6 +272,10 @@ var validAliasNullFields = map[string]bool{
 func (input *UpdateAliasInput) Validate() error {
 	if input == nil {
 		return errors.New("input is required")
+	}
+
+	if !input.hasChanges() {
+		return errors.New("empty update payload not allowed")
 	}
 
 	if err := validateAliasMetadata(input.Metadata); err != nil {
@@ -319,7 +348,7 @@ func validateRelatedPartyRequiredFields(index int, party *RelatedParty) error {
 
 func validateRelatedPartyRole(index int, role string) error {
 	switch role {
-	case "PRIMARY_HOLDER", "LEGAL_REPRESENTATIVE", "RESPONSIBLE_PARTY":
+	case RelatedPartyRolePrimaryHolder, RelatedPartyRoleLegalRepresentative, RelatedPartyRoleResponsibleParty:
 		return nil
 	default:
 		return fmt.Errorf("relatedParties[%d].role must be PRIMARY_HOLDER, LEGAL_REPRESENTATIVE, or RESPONSIBLE_PARTY", index)

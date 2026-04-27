@@ -1027,11 +1027,10 @@ func TestTransactionInputValidation(t *testing.T) {
 	})
 
 	t.Run("CreateAnnotationInput validation", func(t *testing.T) {
-		// Test empty description
+		// Annotation-only transactions do not require send details.
 		input := &models.CreateAnnotationInput{Description: ""}
 		err := input.Validate()
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "send is required")
+		require.NoError(t, err)
 
 		// Test valid input
 		input = models.NewCreateAnnotationInput("Test annotation", createValidSendInput("USD", 1))
@@ -1094,7 +1093,7 @@ func TestTransactionDSLInputValidation(t *testing.T) {
 		}
 		err := input.Validate()
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "value must be greater than 0")
+		assert.Contains(t, err.Error(), "value must be greater than zero")
 	})
 
 	t.Run("Missing source", func(t *testing.T) {

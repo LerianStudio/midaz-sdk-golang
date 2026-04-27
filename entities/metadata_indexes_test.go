@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
@@ -55,6 +56,8 @@ func TestCreateMetadataIndexInput_OmitsSparseWhenUnset(t *testing.T) {
 
 func TestMetadataIndexValidation(t *testing.T) {
 	require.NoError(t, models.NewCreateMetadataIndexInput("valid_key1").Validate())
+	require.Error(t, models.NewCreateMetadataIndexInput("").Validate())
+	require.Error(t, models.NewCreateMetadataIndexInput(strings.Repeat("a", 101)).Validate())
 	require.Error(t, models.NewCreateMetadataIndexInput("1bad").Validate())
 	require.Error(t, models.NewCreateMetadataIndexInput("bad.key").Validate())
 	require.Error(t, models.NewCreateMetadataIndexInput("bad-key").Validate())

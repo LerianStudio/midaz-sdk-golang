@@ -37,6 +37,15 @@ func TestUpdateAliasInput_JSONExplicitNullFields(t *testing.T) {
 	assert.JSONEq(t, `{"regulatoryFields":null}`, string(data))
 }
 
+func TestUpdateAliasInput_RejectsEmptyPayload(t *testing.T) {
+	input := NewUpdateAliasInput()
+
+	require.ErrorContains(t, input.Validate(), "empty update payload not allowed")
+
+	_, err := json.Marshal(input)
+	require.ErrorContains(t, err, "empty update payload not allowed")
+}
+
 func TestCreateHolderInput_Validate(t *testing.T) {
 	holderType := "NATURAL_PERSON"
 	input := &CreateHolderInput{

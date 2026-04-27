@@ -312,6 +312,10 @@ func redactedOrgPayloadForLog(payload any) any {
 		redacted["legalDocument"] = "<redacted>"
 	}
 
+	if _, ok := redacted["legal_document"]; ok {
+		redacted["legal_document"] = "<redacted>"
+	}
+
 	return redacted
 }
 

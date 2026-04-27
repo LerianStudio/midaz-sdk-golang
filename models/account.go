@@ -9,6 +9,8 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
+const maxAccountFieldLength = 256
+
 // Account represents an account in the Midaz Ledger.
 // This is now an alias to mmodel.Account to avoid duplication while maintaining
 // SDK-specific documentation and examples.
@@ -123,12 +125,14 @@ type CreateAccountInput struct {
 // Validate checks if the CreateAccountInput meets the validation requirements.
 // It returns an error if any of the validation checks fail.
 func (input *CreateAccountInput) Validate() error {
-	if input.Name != "" && len(input.Name) > 256 {
-		return errors.New("name must be at most 256 characters")
+	if err := validateAccountStringLength("name", input.Name); err != nil {
+		return err
 	}
 
-	if input.EntityID != nil && len(*input.EntityID) > 256 {
-		return errors.New("entityId must be at most 256 characters")
+	if input.EntityID != nil {
+		if err := validateAccountStringLength("entityId", *input.EntityID); err != nil {
+			return err
+		}
 	}
 
 	if input.AssetCode == "" {
@@ -326,12 +330,14 @@ type UpdateAccountInput struct {
 // Validate checks if the UpdateAccountInput meets the validation requirements.
 // It returns an error if any of the validation checks fail.
 func (input *UpdateAccountInput) Validate() error {
-	if input.Name != "" && len(input.Name) > 256 {
-		return errors.New("name must be at most 256 characters")
+	if err := validateAccountStringLength("name", input.Name); err != nil {
+		return err
 	}
 
-	if input.EntityID != nil && len(*input.EntityID) > 256 {
-		return errors.New("entityId must be at most 256 characters")
+	if input.EntityID != nil {
+		if err := validateAccountStringLength("entityId", *input.EntityID); err != nil {
+			return err
+		}
 	}
 
 	// Validate status if provided
@@ -343,6 +349,14 @@ func (input *UpdateAccountInput) Validate() error {
 		if err := core.ValidateMetadata(input.Metadata); err != nil {
 			return fmt.Errorf("invalid metadata: %w", err)
 		}
+	}
+
+	return nil
+}
+
+func validateAccountStringLength(field, value string) error {
+	if value != "" && len(value) > maxAccountFieldLength {
+		return fmt.Errorf("%s must be at most %d characters", field, maxAccountFieldLength)
 	}
 
 	return nil

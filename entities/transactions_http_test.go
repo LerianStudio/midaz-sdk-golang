@@ -320,7 +320,8 @@ func TestTransactionsEntity_CancelTransaction_AllowsEmptySuccessBody(t *testing.
 
 	result, err := service.CancelTransactionWithResponse(context.Background(), "org-1", "ledger-1", "tx-1")
 	require.NoError(t, err)
-	assert.Nil(t, result)
+	require.NotNil(t, result)
+	assert.Equal(t, "tx-1", result.ID)
 }
 
 func TestTransactionsEntity_CancelTransactionWithResponse_HTTP(t *testing.T) {

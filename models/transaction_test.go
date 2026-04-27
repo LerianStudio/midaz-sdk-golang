@@ -1384,8 +1384,6 @@ func TestNewCreateAnnotationInput_BackwardCompatibleWithoutSend(t *testing.T) {
 
 func TestCreateTransactionInput_ValidateTransactionDate(t *testing.T) {
 	validDates := []string{
-		"2021-01-01",
-		"2021-01-01T00:00:00",
 		"2021-01-01T00:00:00Z",
 		"2021-01-01T00:00:00.000Z",
 		"2021-01-01T00:00:00.000000001Z",
@@ -1406,7 +1404,15 @@ func TestCreateTransactionInput_ValidateTransactionDate(t *testing.T) {
 			WithSend(newValidSendInput(1)).
 			WithTransactionDate("2021-01-01 00:00:00")
 
-		require.ErrorContains(t, input.Validate(), "transactionDate must be ISO 8601")
+		require.ErrorContains(t, input.Validate(), "transactionDate must be RFC3339")
+	})
+
+	t.Run("rejects timezone naive date", func(t *testing.T) {
+		input := NewCreateTransactionInput("USD", 1).
+			WithSend(newValidSendInput(1)).
+			WithTransactionDate("2021-01-01")
+
+		require.ErrorContains(t, input.Validate(), "transactionDate must be RFC3339")
 	})
 
 	t.Run("rejects future date", func(t *testing.T) {
@@ -1458,6 +1464,13 @@ func TestCreateAnnotationInput_Validate(t *testing.T) {
 			input: &CreateAnnotationInput{
 				Description: "",
 				Send:        newValidSendInput(1),
+			},
+			wantErr: false,
+		},
+		{
+			name: "send is optional",
+			input: &CreateAnnotationInput{
+				Description: "Annotation-only note",
 			},
 			wantErr: false,
 		},
@@ -1892,7 +1905,7 @@ func TestDSLSend_Validate(t *testing.T) {
 				},
 			},
 			wantErr: true,
-			errMsg:  "value must be greater than 0",
+			errMsg:  "value must be greater than zero",
 		},
 		{
 			name: "zero value",
@@ -1907,7 +1920,7 @@ func TestDSLSend_Validate(t *testing.T) {
 				},
 			},
 			wantErr: true,
-			errMsg:  "value must be greater than 0",
+			errMsg:  "value must be greater than zero",
 		},
 		{
 			name: "missing source",
