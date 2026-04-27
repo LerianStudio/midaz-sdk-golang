@@ -258,8 +258,9 @@ func (s *Server) createOrganization(ctx context.Context, w http.ResponseWriter, 
 
 	// Parse request body
 	var reqBody struct {
-		LegalName string         `json:"legal_name"`
-		Metadata  map[string]any `json:"metadata,omitempty"`
+		LegalName     string         `json:"legal_name"`
+		LegalDocument string         `json:"legal_document"`
+		Metadata      map[string]any `json:"metadata,omitempty"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
@@ -277,7 +278,7 @@ func (s *Server) createOrganization(ctx context.Context, w http.ResponseWriter, 
 	logger.Info("Creating organization", "legal_name", sanitizeLogInput(reqBody.LegalName)) // lgtm[go/log-injection]
 
 	// Create organization through Midaz client
-	orgInput := models.NewCreateOrganizationInput(reqBody.LegalName)
+	orgInput := models.NewCreateOrganizationInput(reqBody.LegalName, reqBody.LegalDocument)
 	if reqBody.Metadata != nil {
 		orgInput = orgInput.WithMetadata(reqBody.Metadata)
 	}

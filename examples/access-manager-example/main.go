@@ -85,7 +85,7 @@ func buildOrganizationInput() *models.CreateOrganizationInput {
 	description := "Ledger Test"
 	line2 := "CJ 203"
 
-	return models.NewCreateOrganizationInput("Acme Corporation").
+	return models.NewCreateOrganizationInput("Acme Corporation", "123456789012345").
 		WithLegalDocument("78425230000190").
 		WithDoingBusinessAs("The ledger.io").
 		WithStatus(models.Status{

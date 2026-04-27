@@ -5,6 +5,7 @@ package entities
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -68,57 +69,84 @@ func TransferFunds(
 	amount string,
 	description string,
 ) (*models.Transaction, error) {
-	// Determine if source is an external account
-	isExternalSource := strings.HasPrefix(sourceAccountID, "@external/")
-
-	// Get source account alias - for external accounts, use the ID directly
-	sourceAccountAlias := sourceAccountID
-
-	// For internal accounts, get the account details to use the alias
-	// Use the account alias if available, otherwise use the ID as alias
-	if !isExternalSource {
-		sourceAccount, err := entity.Accounts.GetAccount(ctx, orgID, ledgerID, sourceAccountID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get source account: %w", err)
-		}
-
-		if sourceAccount.Alias != nil {
-			sourceAccountAlias = *sourceAccount.Alias
-		}
+	if err := requireTransactionEntity(entity); err != nil {
+		return nil, err
 	}
 
-	// Get destination account alias
-	destAccountAlias := destAccountID
+	amountValue, err := strconv.ParseFloat(amount, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid amount format: %w", err)
+	}
+
+	sourceAccountAlias, err := resolveSourceAccountAlias(ctx, entity, orgID, ledgerID, sourceAccountID)
+	if err != nil {
+		return nil, err
+	}
+
+	destAccountAlias, err := resolveDestinationAccountAlias(ctx, entity, orgID, ledgerID, destAccountID)
+	if err != nil {
+		return nil, err
+	}
+
+	input := newTransferFundsInput(sourceAccountAlias, destAccountAlias, assetCode, amountValue, description)
+
+	// Create the transaction
+	tx, err := entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
+	if err != nil {
+		return nil, fmt.Errorf("failed to transfer funds: %w", err)
+	}
+
+	return tx, nil
+}
+
+func resolveSourceAccountAlias(ctx context.Context, entity *entities.Entity, orgID, ledgerID, sourceAccountID string) (string, error) {
+	if strings.HasPrefix(sourceAccountID, "@external/") {
+		return sourceAccountID, nil
+	}
+
+	sourceAccount, err := entity.Accounts.GetAccount(ctx, orgID, ledgerID, sourceAccountID)
+	if err != nil {
+		return "", fmt.Errorf("failed to get source account: %w", err)
+	}
+
+	if sourceAccount.Alias != nil {
+		return *sourceAccount.Alias, nil
+	}
+
+	return sourceAccountID, nil
+}
+
+func resolveDestinationAccountAlias(ctx context.Context, entity *entities.Entity, orgID, ledgerID, destAccountID string) (string, error) {
 	destAccount, err := entity.Accounts.GetAccount(ctx, orgID, ledgerID, destAccountID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get destination account: %w", err)
+		return "", fmt.Errorf("failed to get destination account: %w", err)
 	}
 
-	// Use the account alias if available, otherwise use the ID as alias
 	if destAccount.Alias != nil {
-		destAccountAlias = *destAccount.Alias
+		return *destAccount.Alias, nil
 	}
 
-	// Create a transaction using the new format that matches the backend's expectations
-	input := &models.CreateTransactionInput{
+	return destAccountID, nil
+}
+
+func newTransferFundsInput(sourceAccountAlias, destAccountAlias, assetCode string, amountValue float64, description string) *models.CreateTransactionInput {
+	return &models.CreateTransactionInput{
 		ChartOfAccountsGroupName: "default_chart_group", // Required by API specification
 		Description:              description,
-		Amount:                   amount,
-		AssetCode:                assetCode,
 		Metadata: map[string]any{
 			"source": "go-sdk-example",
 			"type":   "transfer",
 		},
 		Send: &models.SendInput{
 			Asset: assetCode,
-			Value: amount,
+			Value: amountValue,
 			Source: &models.SourceInput{
 				From: []models.FromToInput{
 					{
 						Account: sourceAccountAlias,
 						Amount: models.AmountInput{
 							Asset: assetCode,
-							Value: amount,
+							Value: amountValue,
 						},
 					},
 				},
@@ -129,7 +157,7 @@ func TransferFunds(
 						Account: destAccountAlias,
 						Amount: models.AmountInput{
 							Asset: assetCode,
-							Value: amount,
+							Value: amountValue,
 						},
 					},
 				},
@@ -137,14 +165,14 @@ func TransferFunds(
 		},
 		IdempotencyKey: uuid.New().String(),
 	}
+}
 
-	// Create the transaction
-	tx, err := entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
-	if err != nil {
-		return nil, fmt.Errorf("failed to transfer funds: %w", err)
+func requireTransactionEntity(entity *entities.Entity) error {
+	if entity == nil || entity.Accounts == nil || entity.Transactions == nil {
+		return errors.New("initialized entity with accounts and transactions services is required")
 	}
 
-	return tx, nil
+	return nil
 }
 
 // ExecuteTransferWithHelper transfers funds from one account to another using the transaction helpers
@@ -170,6 +198,9 @@ func ExecuteTransferWithHelper(
 	amount string,
 	assetCode string,
 ) (*models.Transaction, error) {
+	if midazClient == nil || midazClient.Entity == nil {
+		return nil, errors.New("initialized client entity is required")
+	}
 	// Use the Transaction helper from the SDK
 	transferOptions := &transaction.TransferOptions{
 		Description: "Payment using SDK helper",
@@ -231,6 +262,9 @@ func ExecuteDepositWithHelper(
 	amount string,
 	assetCode string,
 ) (*models.Transaction, error) {
+	if midazClient == nil || midazClient.Entity == nil {
+		return nil, errors.New("initialized client entity is required")
+	}
 	// Use the Deposit helper from the SDK
 	depositOptions := &transaction.DepositOptions{
 		Description: "Deposit using SDK helper",
@@ -291,6 +325,9 @@ func ExecuteWithdrawalWithHelper(
 	amount string,
 	assetCode string,
 ) (*models.Transaction, error) {
+	if midazClient == nil || midazClient.Entity == nil {
+		return nil, errors.New("initialized client entity is required")
+	}
 	// Use the Withdrawal helper from the SDK
 	withdrawalOptions := &transaction.WithdrawalOptions{
 		Description: "Withdrawal using SDK helper",
@@ -353,6 +390,9 @@ func ExecuteMultiAccountTransferWithHelper(
 	totalAmount string,
 	assetCode string,
 ) (*models.Transaction, error) {
+	if midazClient == nil || midazClient.Entity == nil {
+		return nil, errors.New("initialized client entity is required")
+	}
 	// Use the MultiAccountTransfer helper from the SDK
 	multiTransferOptions := &transaction.MultiTransferOptions{
 		Description: "Multi-account transfer using SDK helper",

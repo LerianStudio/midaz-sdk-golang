@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -148,9 +149,14 @@ func validateTestAmount(ctx context.Context, amount string) {
 }
 
 func createInsufficientFundsTransferInput(test insufficientFundsTest, testIndex int) *models.CreateTransactionInput {
+	amount, err := strconv.ParseFloat(test.Amount, 64)
+	if err != nil {
+		amount = 0
+	}
+
 	transferInput := CreateTransferInput(
 		test.Description,
-		test.Amount,
+		amount,
 		test.FromAccount.ID,
 		test.ToAccount,
 		testIndex,

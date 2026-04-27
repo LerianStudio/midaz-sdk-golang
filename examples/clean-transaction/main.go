@@ -32,8 +32,6 @@ func main() {
 	c, err := client.New(
 		client.WithEnvironment(config.EnvironmentLocal),
 		client.WithObservabilityProvider(observabilityProvider),
-		client.WithOnboardingURL("http://localhost:3000/v1"),
-		client.WithTransactionURL("http://localhost:3001/v1"),
 		client.UseAllAPIs(),
 	)
 	if err != nil {
@@ -64,14 +62,14 @@ func createDSLTransaction(ctx context.Context, txService entities.TransactionsSe
 		},
 		Send: &models.DSLSend{
 			Asset: "USD",
-			Value: "100.00", // $100.00
+			Value: 100.00, // $100.00
 			Source: &models.DSLSource{
 				From: []models.DSLFromTo{
 					{
 						Account: "account123",
 						Amount: &models.DSLAmount{
 							Asset: "USD",
-							Value: "100.00", // $100.00
+							Value: 100.00, // $100.00
 						},
 					},
 				},
@@ -82,7 +80,7 @@ func createDSLTransaction(ctx context.Context, txService entities.TransactionsSe
 						Account: "account456",
 						Amount: &models.DSLAmount{
 							Asset: "USD",
-							Value: "100.00", // $100.00
+							Value: 100.00, // $100.00
 						},
 					},
 				},

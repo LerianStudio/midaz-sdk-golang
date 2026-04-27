@@ -1,335 +1,201 @@
-# Error Handling in the Midaz Go SDK
+# Error handling in the Midaz Go SDK
 
-The Midaz Go SDK provides a comprehensive error handling system that helps you understand and respond to errors that occur during API interactions. This document explains the error handling architecture and best practices for working with errors.
+The SDK uses structured errors from `github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors`. Most SDK failures are represented as `*errors.Error`, which preserves category, code, operation, resource, HTTP status, request ID, and the wrapped underlying error.
 
-## Table of Contents
-
-- [Error Types](#error-types)
-- [Error Details](#error-details)
-- [Error Checking Functions](#error-checking-functions)
-- [Error Handling Patterns](#error-handling-patterns)
-- [Retry Mechanism](#retry-mechanism)
-- [Best Practices](#best-practices)
-- [Example Usage](#example-usage)
-
-## Error Types
-
-The SDK provides several specialized error types to represent different failure categories:
-
-| Error Type | Description | Common Causes |
-|------------|-------------|--------------|
-| `ValidationError` | Input validation failed | Invalid field values, missing required fields |
-| `AuthenticationError` | Authentication failed | Invalid or expired auth token |
-| `AuthorizationError` | Unauthorized access | Insufficient permissions |
-| `ResourceNotFoundError` | Resource not found | Invalid ID, deleted resource |
-| `ConflictError` | Resource conflict | Duplicate resource, version conflict |
-| `RateLimitError` | Rate limit exceeded | Too many requests |
-| `ServiceError` | Backend service error | Internal server error, service unavailable |
-| `NetworkError` | Network or transport error | Connection issues, timeouts |
-| `ParseError` | Response parsing error | Invalid response format, schema mismatch |
-| `SDKError` | SDK internal error | Configuration errors, programming errors |
-
-These error types all implement the standard Go `error` interface and can be accessed from the `pkg/errors` package:
+## Core error type
 
 ```go
-import "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
-```
-
-## Error Details
-
-Each error includes detailed information to help with troubleshooting:
-
-| Field | Description | Example |
-|-------|-------------|---------|
-| `Type` | Error type identifier | `"validation_error"` |
-| `Code` | Specific error code | `"invalid_input"` |
-| `Message` | Human-readable error message | `"Validation failed: invalid account ID"` |
-| `StatusCode` | HTTP status code (when applicable) | `400` |
-| `Resource` | Resource type related to the error | `"account"` |
-| `ResourceID` | ID of the resource (when applicable) | `"acc_123"` |
-| `Details` | Additional error details | `{"field": "id", "reason": "must be UUID"}` |
-| `RequestID` | Request ID for support (when available) | `"req_abc123"` |
-
-You can access these details using the `ErrorDetails` interface:
-
-```go
-if details, ok := err.(errors.ErrorDetails); ok {
-    fmt.Printf("Error type: %s, code: %s, message: %s\n", 
-        details.ErrorType(), details.ErrorCode(), details.ErrorMessage())
+type Error struct {
+    Category   errors.ErrorCategory
+    Code       errors.ErrorCode
+    Message    string
+    Operation  string
+    Resource   string
+    ResourceID string
+    StatusCode int
+    RequestID  string
+    Err        error
 }
 ```
 
-## Error Checking Functions
+`*errors.Error` implements `error`, `Unwrap`, and `Is`, so it works with the standard library `errors.Is` and `errors.As` helpers.
 
-The SDK provides helper functions to check for specific error types:
+## Error categories
+
+| Category | Common meaning |
+| --- | --- |
+| `validation` | Invalid input or malformed request data |
+| `authentication` | Missing, invalid, or expired credentials |
+| `authorization` | Authenticated caller lacks permission |
+| `not_found` | Requested resource does not exist |
+| `conflict` | Duplicate resource, idempotency conflict, or state conflict |
+| `limit_exceeded` | Rate limit or quota exceeded |
+| `timeout` | Operation timed out |
+| `cancellation` | Context or caller cancelled the operation |
+| `internal` | SDK or backend internal failure |
+| `unprocessable` | Domain-specific failure such as insufficient balance |
+
+## Sentinel errors
+
+The package exposes sentinel values for stable matching:
+
+- `errors.ErrValidation`
+- `errors.ErrAuthentication`
+- `errors.ErrPermission`
+- `errors.ErrNotFound`
+- `errors.ErrAlreadyExists`
+- `errors.ErrIdempotency`
+- `errors.ErrRateLimit`
+- `errors.ErrTimeout`
+- `errors.ErrCancellation`
+- `errors.ErrInternal`
+- `errors.ErrInsufficientBalance`
+- `errors.ErrAccountEligibility`
+- `errors.ErrAssetMismatch`
+
+## Checking errors
+
+Prefer SDK helper functions when branching on operational behavior:
 
 ```go
-import "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+import sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
 
-// Check for specific error types
-if errors.IsValidationError(err) {
-    // Handle validation error
-}
-
-if errors.IsResourceNotFoundError(err) {
-    // Handle not found error
-}
-
-if errors.IsRateLimitError(err) {
-    // Handle rate limit error
-    retry := errors.GetRetryAfter(err)
-    fmt.Printf("Rate limit exceeded. Retry after %v\n", retry)
-}
-
-// Check for specific HTTP status codes
-if errors.IsStatusCode(err, 400) {
-    // Handle 400 Bad Request
-}
-```
-
-## Error Handling Patterns
-
-### Basic Error Handling
-
-```go
-org, err := client.Entity.Organizations.CreateOrganization(ctx, input)
+account, err := c.Entity.Accounts.GetAccount(ctx, orgID, ledgerID, accountID)
 if err != nil {
-    if errors.IsValidationError(err) {
-        // Handle validation error
-        fmt.Printf("Validation error: %s\n", err)
-        return err
+    switch {
+    case sdkerrors.IsNotFoundError(err):
+        return nil, fmt.Errorf("account %s was not found: %w", accountID, err)
+    case sdkerrors.IsAuthenticationError(err):
+        return nil, fmt.Errorf("authentication failed: %w", err)
+    case sdkerrors.IsRateLimitError(err):
+        return nil, fmt.Errorf("rate limited while fetching account: %w", err)
+    default:
+        return nil, fmt.Errorf("failed to fetch account: %w", err)
     }
-    
-    if errors.IsAuthenticationError(err) {
-        // Handle authentication error
-        fmt.Println("Authentication failed. Please check your credentials.")
-        return err
-    }
-    
-    // Handle other errors
-    fmt.Printf("Error creating organization: %s\n", err)
-    return err
 }
-
-// Use the organization
-fmt.Printf("Organization created with ID: %s\n", org.ID)
 ```
 
-### Getting Field-Level Validation Errors
+Common checkers include:
 
-For validation errors, you can access field-specific error details:
+- `IsValidationError(err)`
+- `IsNotFoundError(err)`
+- `IsAuthenticationError(err)`
+- `IsAuthorizationError(err)`
+- `IsPermissionError(err)`
+- `IsConflictError(err)`
+- `IsAlreadyExistsError(err)`
+- `IsIdempotencyError(err)`
+- `IsRateLimitError(err)`
+- `IsTimeoutError(err)`
+- `IsNetworkError(err)`
+- `IsCancellationError(err)`
+- `IsInternalError(err)`
+- `IsInsufficientBalanceError(err)`
+- `IsAccountEligibilityError(err)`
+- `IsAssetMismatchError(err)`
+
+## Reading error details
+
+Use accessors instead of type-specific concrete error names:
 
 ```go
-org, err := client.Entity.Organizations.CreateOrganization(ctx, input)
 if err != nil {
-    if errors.IsValidationError(err) {
-        if fieldErrs, ok := errors.GetFieldErrors(err); ok {
-            for field, fieldErr := range fieldErrs {
-                fmt.Printf("Field '%s' error: %s\n", field, fieldErr.Message)
-                
-                // Get suggestions if available
-                if len(fieldErr.Suggestions) > 0 {
-                    fmt.Printf("Suggestions: %v\n", fieldErr.Suggestions)
-                }
-            }
-        }
-        return err
-    }
-    
-    // Handle other errors
-    return err
+    category := sdkerrors.GetErrorCategory(err)
+    statusCode := sdkerrors.GetStatusCode(err)
+    details := sdkerrors.GetErrorDetails(err)
+
+    log.Printf(
+        "category=%s status=%d code=%s message=%s original=%v",
+        category,
+        statusCode,
+        details.Code,
+        details.Message,
+        details.OriginalError,
+    )
 }
 ```
 
-### Handling Retryable Errors
+If you need fields only available on `*errors.Error`, use `errors.As` from the standard library:
 
 ```go
-const maxRetries = 3
-
-var org *models.Organization
-var err error
-
-for attempt := 0; attempt < maxRetries; attempt++ {
-    org, err = client.Entity.Organizations.CreateOrganization(ctx, input)
-    if err == nil {
-        break
-    }
-    
-    if errors.IsRetryableError(err) {
-        delay := errors.GetRetryDelay(err, attempt)
-        fmt.Printf("Retryable error occurred, retrying in %v...\n", delay)
-        time.Sleep(delay)
-        continue
-    }
-    
-    // Non-retryable error, exit the loop
-    break
+var sdkErr *sdkerrors.Error
+if stderrors.As(err, &sdkErr) {
+    log.Printf(
+        "operation=%s resource=%s resource_id=%s request_id=%s",
+        sdkErr.GetOperation(),
+        sdkErr.GetResource(),
+        sdkErr.GetResourceID(),
+        sdkErr.GetRequestID(),
+    )
 }
-
-if err != nil {
-    // Handle the error
-    return err
-}
-
-// Use the organization
-fmt.Printf("Organization created with ID: %s\n", org.ID)
 ```
 
-## Retry Mechanism
+## Validation field errors
 
-The SDK includes a built-in retry mechanism for handling transient errors. By default, the SDK will automatically retry:
-
-1. Temporary network errors
-2. Rate limit errors (with appropriate backoff)
-3. Server errors (5xx status codes)
-4. Specific API errors marked as retryable
-
-You can configure the retry behavior using:
+Model validation can return regular errors or `pkg/validation.FieldErrors` depending on the validator used. Field-level errors live in the validation package, not `pkg/errors`:
 
 ```go
-// Through client options
-client, err := client.New(
-    client.WithRetries(3, 500*time.Millisecond, 5*time.Second),
-    // Other options...
+import "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation"
+
+if fieldErrors, ok := err.(*validation.FieldErrors); ok {
+    for _, fieldErr := range fieldErrors.GetFieldErrors() {
+        log.Printf("field=%s message=%s", fieldErr.Field, fieldErr.Message)
+    }
+}
+```
+
+## Retry behavior
+
+Retry policies live in `github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry`, not `pkg/errors`.
+
+The SDK HTTP layer retries transient failures by default. Retryable HTTP status codes are:
+
+- `408 Request Timeout`
+- `429 Too Many Requests`
+- `500 Internal Server Error`
+- `502 Bad Gateway`
+- `503 Service Unavailable`
+- `504 Gateway Timeout`
+
+Root-client retry defaults are:
+
+- Max retries: `3`
+- Initial delay: `1s`
+- Max delay: `30s`
+- Backoff factor: `2.0`
+- Jitter factor: `0.25`
+
+Unsafe HTTP methods are retried only when an idempotency key is present. Attach one with:
+
+```go
+ctx = entities.WithIdempotencyKey(ctx, "request-unique-key")
+```
+
+Configure client retries with:
+
+```go
+c, err := client.New(
+    client.WithRetries(3, 100*time.Millisecond, 10*time.Second),
+    client.UseAllAPIs(),
 )
-
-// Or through environment variables
-// MIDAZ_MAX_RETRIES=3
-// MIDAZ_RETRY_WAIT_MIN=500
-// MIDAZ_RETRY_WAIT_MAX=5000
-// MIDAZ_ENABLE_RETRIES=true
 ```
 
-## Best Practices
-
-1. **Always Check Errors**: Always check for errors and handle them appropriately.
-
-2. **Use Type-Specific Handling**: Use the error checking functions to provide type-specific error handling.
-
-3. **Provide Meaningful Error Messages**: When propagating errors, add context to help with troubleshooting.
-
-4. **Log Error Details**: Log the full error details for debugging and monitoring.
-
-5. **Handle Retryable Errors**: Use the retry mechanism for transient errors.
-
-6. **Check Field Errors**: For validation errors, check field-specific errors to provide better user feedback.
-
-7. **Be Careful with Parsing Errors**: When getting error details, check that the type assertion is successful.
-
-## Example Usage
-
-### Complete Error Handling Example
+Or disable them:
 
 ```go
-func CreateAccount(ctx context.Context, client *client.Client, orgID, ledgerID string, input *models.CreateAccountInput) (*models.Account, error) {
-    // Validate input
-    if err := input.Validate(); err != nil {
-        return nil, fmt.Errorf("invalid input: %w", err)
-    }
-    
-    // Create the account
-    account, err := client.Entity.Accounts.CreateAccount(ctx, orgID, ledgerID, input)
-    if err != nil {
-        // Check specific error types
-        switch {
-        case errors.IsValidationError(err):
-            // Handle validation error
-            if fieldErrs, ok := errors.GetFieldErrors(err); ok {
-                for field, fieldErr := range fieldErrs {
-                    log.Printf("Field '%s' error: %s\n", field, fieldErr.Message)
-                }
-            }
-            return nil, fmt.Errorf("validation error creating account: %w", err)
-            
-        case errors.IsAuthenticationError(err):
-            // Handle authentication error
-            log.Println("Authentication failed. Please check your credentials.")
-            return nil, fmt.Errorf("authentication error creating account: %w", err)
-            
-        case errors.IsResourceNotFoundError(err):
-            // Handle not found error (e.g., ledger not found)
-            log.Printf("Resource not found: %v\n", err)
-            return nil, fmt.Errorf("resource not found creating account: %w", err)
-            
-        case errors.IsRateLimitError(err):
-            // Handle rate limit error
-            retry := errors.GetRetryAfter(err)
-            log.Printf("Rate limit exceeded. Retry after %v\n", retry)
-            return nil, fmt.Errorf("rate limit exceeded creating account: %w", err)
-            
-        default:
-            // Handle other errors
-            log.Printf("Error creating account: %v\n", err)
-            return nil, fmt.Errorf("error creating account: %w", err)
-        }
-    }
-    
-    log.Printf("Account created with ID: %s\n", account.ID)
-    return account, nil
-}
+c, err := client.New(
+    client.DisableRetries(),
+    client.UseAllAPIs(),
+)
 ```
 
-### Implementing Retry Logic
+`config.FromEnvironment()` currently reads `MIDAZ_MAX_RETRIES`. It does not read `MIDAZ_RETRY_WAIT_MIN` or `MIDAZ_RETRY_WAIT_MAX`.
 
-```go
-func CreateAccountWithRetry(ctx context.Context, client *client.Client, orgID, ledgerID string, input *models.CreateAccountInput) (*models.Account, error) {
-    const maxRetries = 3
-    var account *models.Account
-    var err error
-    
-    for attempt := 0; attempt < maxRetries; attempt++ {
-        account, err = client.Entity.Accounts.CreateAccount(ctx, orgID, ledgerID, input)
-        if err == nil {
-            return account, nil
-        }
-        
-        if !errors.IsRetryableError(err) || attempt == maxRetries-1 {
-            break
-        }
-        
-        delay := errors.GetRetryDelay(err, attempt)
-        log.Printf("Retryable error occurred (attempt %d/%d), retrying in %v: %v\n", 
-            attempt+1, maxRetries, delay, err)
-        time.Sleep(delay)
-    }
-    
-    if err != nil {
-        return nil, fmt.Errorf("failed to create account after %d attempts: %w", maxRetries, err)
-    }
-    
-    return account, nil
-}
-```
+## Best practices
 
-### Using the Enhanced Error Details
-
-```go
-func GetErrorDetails(err error) {
-    if details, ok := err.(errors.ErrorDetails); ok {
-        fmt.Printf("Error type: %s\n", details.ErrorType())
-        fmt.Printf("Error code: %s\n", details.ErrorCode())
-        fmt.Printf("Error message: %s\n", details.ErrorMessage())
-        
-        if details.StatusCode() > 0 {
-            fmt.Printf("HTTP status: %d\n", details.StatusCode())
-        }
-        
-        if details.Resource() != "" {
-            fmt.Printf("Resource: %s\n", details.Resource())
-            if details.ResourceID() != "" {
-                fmt.Printf("Resource ID: %s\n", details.ResourceID())
-            }
-        }
-        
-        if details.RequestID() != "" {
-            fmt.Printf("Request ID: %s\n", details.RequestID())
-        }
-        
-        if errorDetails := details.Details(); errorDetails != nil {
-            fmt.Printf("Additional details: %v\n", errorDetails)
-        }
-    } else {
-        fmt.Printf("Generic error: %v\n", err)
-    }
-}
-```
+- Always wrap SDK errors with operation context when returning them from your application.
+- Use SDK checker functions for business branching.
+- Use `GetStatusCode` for HTTP status-specific behavior.
+- Use `errors.As` when you need request ID, resource, or operation fields.
+- Use idempotency keys for unsafe calls that may be retried.
+- Treat validation field errors as validation package errors, not transport errors.

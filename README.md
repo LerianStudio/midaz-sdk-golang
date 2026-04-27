@@ -2,7 +2,7 @@
 
 <div align="center">
 
-[![Latest Release](https://img.shields.io/github/v/release/LerianStudio/midaz-sdk-golang?include_prereleases)](https://github.com/LerianStudio/midaz-sdk-golang/v2/releases)
+[![Latest Release](https://img.shields.io/github/v/release/LerianStudio/midaz-sdk-golang?include_prereleases)](https://github.com/LerianStudio/midaz-sdk-golang/releases)
 [![Go Report](https://goreportcard.com/badge/github.com/lerianstudio/midaz-sdk-golang)](https://goreportcard.com/report/github.com/lerianstudio/midaz-sdk-golang)
 [![Discord](https://img.shields.io/badge/Discord-Lerian%20Studio-%237289da.svg?logo=discord)](https://discord.gg/DnhqKwkGv3)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/LerianStudio/midaz-sdk-golang)](https://golang.org/)
@@ -12,24 +12,19 @@
 
 # Midaz Go SDK
 
-A comprehensive Go client for the Midaz financial ledger API. This SDK provides a powerful and flexible way to interact with the Midaz platform, enabling developers to build robust financial applications with ease.
+The Midaz Go SDK is an idiomatic Go client for the Midaz financial ledger APIs. It exposes entity services for Ledger resources, CRM holders and aliases, structured errors, explicit configuration, retries, pagination helpers, concurrency utilities, and OpenTelemetry observability.
 
 ## Features
 
-- **Comprehensive API Coverage**: Complete support for all Midaz API endpoints, including organizations, ledgers, accounts, transactions, portfolios, segments, and assets.
-- **Functional Options Pattern**: Flexible configuration with type-safe, chainable options.
-- **Plugin-based Authentication**: Secure authentication through the Access Manager for seamless integration with identity providers.
-- **Robust Error Handling**: Detailed error information with field-level validation errors and helpful suggestions.
-- **Concurrency Support**: Built-in utilities for parallel processing, batching, and rate limiting.
-- **Observability**: Integrated tracing, metrics, and logging capabilities.
-- **Pagination**: Generic pagination utilities that support both offset and cursor-based pagination.
-- **Retry Mechanism**: Configurable retry mechanism with exponential backoff for resilient API interactions.
-- **Environment Support**: Seamless swclient.**WithAccessManager**(**"**your-auth-token**"**),itching between local, development, and production environments.
-- **Idiomatic Go Design**: Follows Go best practices for a natural fit in your Go applications.
-
-## Documentation
-
-For comprehensive documentation including API references, usage guides, and examples, see the [SDK Documentation](docs/README.md).
+- **Current Midaz API coverage**: Ledger resources plus CRM holders and aliases.
+- **Entity service API**: Access services through `c.Entity.<Service>` with explicit methods such as `CreateOrganization`, `ListAccounts`, and `CreateTransactionWithDSL`.
+- **Functional options**: Configure clients with `client.WithConfig`, `client.WithBaseURL`, `client.WithRetries`, `client.WithObservabilityProvider`, and related options.
+- **Access Manager authentication**: Configure plugin authentication with `auth.AccessManager` and `config.WithAccessManager` or environment variables.
+- **Structured errors**: Use `pkg/errors` categories, codes, helper checkers, status accessors, and request/resource context.
+- **Retries and idempotency**: Built-in retry behavior for transient failures, with idempotency-aware retries for unsafe requests.
+- **Pagination**: `models.ListOptions`, `models.ListResponse[T]`, and pagination metadata helpers.
+- **Observability**: OpenTelemetry tracing propagation, metrics, logging, and middleware helpers.
+- **Concurrency utilities**: Worker pools, batching, and rate limiting in `pkg/concurrent`.
 
 ## Installation
 
@@ -37,580 +32,329 @@ For comprehensive documentation including API references, usage guides, and exam
 go get github.com/LerianStudio/midaz-sdk-golang/v2
 ```
 
-## Quick Start
+## Quick start
 
 ```go
 package main
 
 import (
-	"context"
-	"fmt"
-	"log"
+    "context"
+    "fmt"
+    "log"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v2"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	auth "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/access-manager"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/config"
-)
-
-func main() {
-	// Configure plugin access manager
-	AccessManager := auth.AccessManager{
-		Enabled:      true,
-		Address:      "https://your-auth-service.com",
-		ClientID:     "your-client-id",
-		ClientSecret: "your-client-secret",
-	}
-
-	// Create a configuration with plugin access manager
-	cfg, err := config.NewConfig(
-		config.WithAccessManager(AccessManager),
-	)
-	if err != nil {
-		log.Fatalf("Failed to create config: %v", err)
-	}
-
-	// Create a client
-	c, err := client.New(
-		client.WithConfig(cfg),
-		client.WithEnvironment(config.EnvironmentProduction),
-		client.UseAllAPIs(),
-	)
-	if err != nil {
-		log.Fatalf("Failed to create client: %v", err)
-	}
-
-	// Create an organization
-	ctx := context.Background()
-	org, err := c.Entity.Organizations.CreateOrganization(
-		ctx,
-		&models.CreateOrganizationInput{
-			LegalName:       "Example Corporation",
-			LegalDocument:   "123456789",
-			DoingBusinessAs: "Example Inc.",
-			Address: models.Address{
-				Line1:   "123 Main St",
-				City:    "New York",
-				State:   "NY",
-				ZipCode: "10001",
-				Country: "US",
-			},
-		},
-	)
-	if err != nil {
-		log.Fatalf("Failed to create organization: %v", err)
-	}
-
-	fmt.Printf("Organization created: %s\n", org.ID)
-}
-```
-
-## Client Configuration
-
-The SDK uses the functional options pattern for flexible configuration:
-
-```go
-// Basic configuration with plugin auth
-pluginAuth := auth.PluginAuth{
-	Enabled:      true,
-	Address:      "https://your-auth-service.com",
-	ClientID:     "your-client-id",
-	ClientSecret: "your-client-secret",
-}
-
-cfg, err := config.NewConfig(
-	config.WithPluginAuth(pluginAuth),
-)
-if err != nil {
-	log.Fatalf("Failed to create config: %v", err)
-}
-
-client, err := client.New(
-	client.WithConfig(cfg),
-	client.UseAllAPIs(),
-)
-
-// Environment-specific configuration
-pluginAuth := auth.PluginAuth{
-	Enabled:      true,
-	Address:      "https://your-auth-service.com",
-	ClientID:     "your-client-id",
-	ClientSecret: "your-client-secret",
-}
-
-cfg, err := config.NewConfig(
-	config.WithPluginAuth(pluginAuth),
-)
-if err != nil {
-	log.Fatalf("Failed to create config: %v", err)
-}
-
-client, err := client.New(
-	client.WithConfig(cfg),
-	client.WithEnvironment(config.EnvironmentProduction),
-	client.UseAllAPIs(),
-)
-
-// Advanced configuration
-pluginAuth := auth.PluginAuth{
-	Enabled:      true,
-	Address:      "https://your-auth-service.com",
-	ClientID:     "your-client-id",
-	ClientSecret: "your-client-secret",
-}
-
-cfg, err := config.NewConfig(
-	config.WithPluginAuth(pluginAuth),
-)
-if err != nil {
-	log.Fatalf("Failed to create config: %v", err)
-}
-
-client, err := client.New(
-	client.WithConfig(cfg),
-	client.WithTimeout(30 * time.Second),
-	client.WithRetries(3, 100*time.Millisecond, 1*time.Second),
-	client.WithObservability(true, true, true), // Enable tracing, metrics, and logging
-	client.UseAllAPIs(),
-)
-
-// Plugin-based authentication configuration
-AccessManager := auth.AccessManager{
-	Enabled:      true,
-	Address:      "https://your-auth-service.com",
-	ClientID:     "your-client-id",
-	ClientSecret: "your-client-secret",
-}
-
-cfg, err := config.NewConfig(
-	config.WithPluginAuth(pluginAuth),
-)
-if err != nil {
-	log.Fatalf("Failed to create config: %v", err)
-}
-
-client, err := client.New(
-	client.WithConfig(cfg),
-	client.UseAllAPIs(),
-)
-```
-
-## SDK Architecture
-
-The Midaz Go SDK is organized into three main components:
-
-- **Client**: The top-level entry point that provides access to all API services.
-- **Entities**: Service interfaces for interacting with Midaz resources.
-- **Models**: Data structures representing Midaz resources.
-- **Utility Packages**: Helper packages for configuration, concurrency, observability, access management, etc.
-
-### Models
-
-The `models` package defines the data structures used by the SDK:
-
-- **Account**: Represents an account for tracking assets and balances.
-- **Asset**: Represents a type of value that can be tracked and transferred.
-- **Balance**: Represents the current state of an account's holdings.
-- **Ledger**: Represents a collection of accounts and transactions.
-- **Organization**: Represents a business entity that owns ledgers and accounts.
-- **Portfolio**: Represents a collection of accounts for grouping and management.
-- **Segment**: Represents a categorization unit for more granular organization.
-- **Transaction**: Represents a financial event with operations (debits and credits).
-- **Operation**: Represents an individual accounting entry within a transaction.
-
-## Working with Entities
-
-The SDK provides high-level access to all Midaz entities through the `entities` package. This package implements service interfaces for interacting with Midaz resources and operations, providing a clean, entity-based API:
-
-- **Entity**: A centralized access point to all entity types, acting as a factory for the service interfaces.
-- **AccountsService**: Methods for managing accounts and their balances.
-- **AssetsService**: Methods for managing asset definitions.
-- **BalancesService**: Methods for retrieving and managing account balances.
-- **LedgersService**: Methods for creating and managing ledgers within organizations.
-- **OperationsService**: Methods for working with transaction operations.
-- **OrganizationsService**: Methods for creating and managing organizations.
-- **PortfoliosService**: Methods for managing portfolios for account grouping.
-- **SegmentsService**: Methods for managing segments for account categorization.
-- **TransactionsService**: Methods for creating and managing financial transactions.
-
-### Organizations
-
-```go
-// Create an organization
-org, err := client.Entity.Organizations.CreateOrganization(ctx, &models.CreateOrganizationInput{
-	LegalName:       "Example Organization",
-	LegalDocument:   "123456789",
-	DoingBusinessAs: "Example",
-})
-
-// Get an organization
-org, err := client.Entity.Organizations.GetOrganization(ctx, "org-id")
-
-// List organizations
-orgs, err := client.Entity.Organizations.ListOrganizations(ctx, nil)
-```
-
-### Ledgers
-
-```go
-// Create a ledger
-ledger, err := client.Entity.Ledgers.CreateLedger(ctx, "org-id", &models.CreateLedgerInput{
-	Name: "Main Ledger",
-	Metadata: map[string]any{
-		"description": "Primary ledger for tracking all accounts",
-	},
-})
-
-// List ledgers
-ledgers, err := client.Entity.Ledgers.ListLedgers(ctx, "org-id", nil)
-```
-
-### Accounts
-
-```go
-// Create an account
-account, err := client.Entity.Accounts.CreateAccount(ctx, "org-id", "ledger-id", &models.CreateAccountInput{
-	Name:      "Customer Account",
-	AssetCode: "USD",
-	Type:      "customer",
-})
-
-// Get account balance
-balance, err := client.Entity.Accounts.GetBalance(ctx, "org-id", "ledger-id", "account-id")
-```
-
-## Access Manager
-
-The Access Manager provides a plugin-based authentication mechanism that allows you to integrate with external identity providers. This feature eliminates the need to hardcode authentication tokens in your application, enhancing security and flexibility.
-
-### Configuration
-
-To use the Access Manager, you need to configure it with the address of your authentication service and your client credentials:
-
-```go
-// Import the access manager package
-import (
-    auth "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/access-manager"
+    client "github.com/LerianStudio/midaz-sdk-golang/v2"
+    "github.com/LerianStudio/midaz-sdk-golang/v2/models"
     "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/config"
 )
 
-// Configure plugin auth
-AccessManager := auth.AccessManager{
+func main() {
+    cfg, err := config.NewConfig(config.FromEnvironment())
+    if err != nil {
+        log.Fatalf("failed to create config: %v", err)
+    }
+
+    c, err := client.New(
+        client.WithConfig(cfg),
+        client.UseAllAPIs(),
+    )
+    if err != nil {
+        log.Fatalf("failed to create client: %v", err)
+    }
+    defer c.Shutdown(context.Background())
+
+    ctx := context.Background()
+    orgInput := models.NewCreateOrganizationInput("Example Corporation", "123456789").
+        WithDoingBusinessAs("Example Inc.").
+        WithAddress(models.Address{
+            Line1:   "123 Main St",
+            City:    "New York",
+            State:   "NY",
+            ZipCode: "10001",
+            Country: "US",
+        })
+
+    org, err := c.Entity.Organizations.CreateOrganization(ctx, orgInput)
+    if err != nil {
+        log.Fatalf("failed to create organization: %v", err)
+    }
+
+    fmt.Printf("organization created: %s\n", org.ID)
+}
+```
+
+`config.FromEnvironment()` is explicit. Environment variables are not loaded unless you pass that option to `config.NewConfig`.
+
+## Client configuration
+
+### Environment-based configuration
+
+```go
+cfg, err := config.NewConfig(config.FromEnvironment())
+if err != nil {
+    return err
+}
+
+c, err := client.New(
+    client.WithConfig(cfg),
+    client.UseAllAPIs(),
+)
+```
+
+### Access Manager configuration
+
+```go
+import auth "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/access-manager"
+
+accessManager := auth.AccessManager{
     Enabled:      true,
     Address:      "https://your-auth-service.com",
     ClientID:     "your-client-id",
     ClientSecret: "your-client-secret",
 }
 
-// Create a configuration with plugin auth
 cfg, err := config.NewConfig(
-    config.WithAccessManager(AccessManager),
+    config.WithAccessManager(accessManager),
 )
 if err != nil {
-    log.Fatalf("Failed to create config: %v", err)
+    return err
 }
 
-// Create a client with the configuration
-client, err := client.New(
+c, err := client.New(
     client.WithConfig(cfg),
     client.UseAllAPIs(),
 )
 ```
 
-### Environment Variables
+Equivalent environment variables:
 
-You can also configure the Access Manager using environment variables:
-
-```
+```bash
 PLUGIN_AUTH_ENABLED=true
 PLUGIN_AUTH_ADDRESS=https://your-auth-service.com
 MIDAZ_CLIENT_ID=your-client-id
 MIDAZ_CLIENT_SECRET=your-client-secret
 ```
 
-Then load them in your application:
+### Direct URL configuration
 
 ```go
-AccessManagerEnabled := os.Getenv("PLUGIN_AUTH_ENABLED") == "true"
-AccessManagerAddress := os.Getenv("PLUGIN_AUTH_ADDRESS")
-clientID := os.Getenv("MIDAZ_CLIENT_ID")
-clientSecret := os.Getenv("MIDAZ_CLIENT_SECRET")
+c, err := client.New(
+    client.WithBaseURL("http://localhost:3000"),
+    client.WithTimeout(30*time.Second),
+    client.WithRetries(3, 100*time.Millisecond, 10*time.Second),
+    client.UseAllAPIs(),
+)
+```
 
-AccessManager := auth.AccessManager{
-    Enabled:      AccessManagerEnabled,
-    Address:      AccessManagerAddress,
-    ClientID:     clientID,
-    ClientSecret: clientSecret,
+## Entity services
+
+Enable entity services with `client.UseAllAPIs()` or `client.UseEntityAPI()`. The current service surface is:
+
+- `Accounts`
+- `AccountTypes`
+- `Assets`
+- `AssetRates`
+- `Balances`
+- `Holders`
+- `Aliases`
+- `Ledgers`
+- `MetadataIndexes`
+- `Operations`
+- `OperationRoutes`
+- `Organizations`
+- `Portfolios`
+- `Segments`
+- `Transactions`
+- `TransactionRoutes`
+
+Example calls:
+
+```go
+orgs, err := c.Entity.Organizations.ListOrganizations(ctx, models.NewListOptions().WithLimit(20))
+ledger, err := c.Entity.Ledgers.CreateLedger(ctx, orgID, models.NewCreateLedgerInput("Main Ledger"))
+account, err := c.Entity.Accounts.GetAccount(ctx, orgID, ledgerID, accountID)
+balance, err := c.Entity.Accounts.GetBalance(ctx, orgID, ledgerID, accountID)
+holders, err := c.Entity.Holders.ListHolders(ctx, orgID, models.NewListOptions().WithLimit(20))
+```
+
+## Transactions
+
+The current transaction contract uses a send-based payload:
+
+```go
+txInput := models.NewCreateTransactionInput("USD", "100.00").
+    WithDescription("Payment from customer to merchant").
+    WithSend(&models.SendInput{
+        Asset: "USD",
+        Value: "100.00",
+        Source: &models.SourceInput{
+            From: []models.FromToInput{
+                {Account: customerAlias, Amount: models.AmountInput{Asset: "USD", Value: "100.00"}},
+            },
+        },
+        Distribute: &models.DistributeInput{
+            To: []models.FromToInput{
+                {Account: merchantAlias, Amount: models.AmountInput{Asset: "USD", Value: "100.00"}},
+            },
+        },
+    })
+
+tx, err := c.Entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, txInput)
+```
+
+DSL-style structured transactions are available with `CreateTransactionWithDSL`, and raw DSL file content can be sent with `CreateTransactionWithDSLFile`.
+
+## Pagination
+
+```go
+options := models.NewListOptions().
+    WithLimit(50).
+    WithFilter("status", "ACTIVE")
+
+for {
+    page, err := c.Entity.Accounts.ListAccounts(ctx, orgID, ledgerID, options)
+    if err != nil {
+        return err
+    }
+
+    for _, account := range page.Items {
+        process(account)
+    }
+
+    if !page.Pagination.HasNextPage() {
+        break
+    }
+
+    options = page.Pagination.NextPageOptions()
 }
 ```
 
-### How It Works
+See [pagination](docs/pagination.md) for page, cursor, and sorting details.
 
-When plugin-based authentication is enabled, the SDK will:
-
-1. Make a request to your authentication service using the provided client credentials
-2. Retrieve an authentication token
-3. Use this token for all subsequent API calls to the Midaz platform
-4. Handle token refresh automatically when needed
-
-This approach provides several benefits:
-
-- **Security**: No hardcoded tokens in your application code
-- **Flexibility**: Easily switch between different authentication providers
-- **Centralized Management**: Manage all your authentication settings in one place
-- **Automatic Token Refresh**: Tokens are automatically refreshed when they expire
-
-### Transactions
+## Error handling
 
 ```go
-// Create a transaction using DSL
-tx, err := client.Entity.Transactions.CreateTransactionWithDSL(ctx, "org-id", "ledger-id", &models.TransactionDSLInput{
-	Description: "Payment from customer to merchant",
-	Send: &models.DSLSend{
-		Asset: "USD",
-		Value: 10000, // $100.00
-		Scale: 2,
-		Source: &models.DSLSource{
-			From: []models.DSLFromTo{
-				{
-					Account: "customer-account-id",
-					Amount: &models.DSLAmount{
-						Asset: "USD",
-						Value: 10000,
-						Scale: 2,
-					},
-				},
-			},
-		},
-		Distribute: &models.DSLDistribute{
-			To: []models.DSLFromTo{
-				{
-					Account: "merchant-account-id",
-					Amount: &models.DSLAmount{
-						Asset: "USD",
-						Value: 10000,
-						Scale: 2,
-					},
-				},
-			},
-		},
-	},
-})
-```
-
-## Utility Packages
-
-The SDK includes several utility packages in the `pkg` directory that provide powerful functionality for working with the Midaz API:
-
-- **config**: Configuration management for the SDK, including environment-based configuration and service URL mapping.
-- **concurrent**: Utilities for concurrent operations, including worker pools, batching, and rate limiting.
-- **observability**: Tracing, metrics, and logging capabilities for monitoring and debugging SDK operations.
-- **pagination**: Generic pagination utilities for working with paginated API responses.
-- **validation**: Validation utilities for ensuring data integrity and providing helpful error messages.
-- **errors**: Structured error handling with field-level validation errors and error classification.
-- **format**: Formatting utilities for dates, times, and other data types.
-- **retry**: Configurable retry mechanism with exponential backoff for resilient API interactions.
-- **performance**: Performance optimization utilities for batch operations and other high-performance scenarios.
-
-## Advanced Features
-
-### Pagination
-
-The SDK provides powerful pagination utilities:
-
-```go
-// Create a paginator for accounts
-paginator := client.Entity.Accounts.GetAccountPaginator(ctx, "org-id", "ledger-id", &models.ListOptions{
-	Limit: 10,
-})
-
-// Iterate through all pages
-for paginator.HasNext() {
-	accounts, err := paginator.Next()
-	if err != nil {
-		// Handle error
-	}
-
-	for _, account := range accounts.Items {
-		// Process each account
-	}
+account, err := c.Entity.Accounts.GetAccount(ctx, orgID, ledgerID, accountID)
+if err != nil {
+    switch {
+    case sdkerrors.IsNotFoundError(err):
+        return fmt.Errorf("account not found: %w", err)
+    case sdkerrors.IsAuthenticationError(err):
+        return fmt.Errorf("authentication failed: %w", err)
+    case sdkerrors.IsRateLimitError(err):
+        return fmt.Errorf("rate limited: %w", err)
+    default:
+        return fmt.Errorf("failed to get account: %w", err)
+    }
 }
 ```
 
-### Concurrency Utilities
-
-Process items in parallel with concurrency utilities:
+Import the error package as:
 
 ```go
-// Process accounts in parallel
-results := concurrent.WorkerPool(
-	ctx,
-	accountIDs,
-	func(ctx context.Context, accountID string) (*models.Account, error) {
-		// Fetch account details
-		return client.Entity.Accounts.GetAccount(ctx, "org-id", "ledger-id", accountID)
-	},
-	concurrent.WithWorkers(5), // Use 5 workers
-)
+import sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+```
 
-// Process items in batches
-batchResults := concurrent.Batch(
-	ctx,
-	transactionIDs,
-	10, // Process 10 items per batch
-	func(ctx context.Context, batch []string) ([]string, error) {
-		// Process the batch and return results
-		return processedIDs, nil
-	},
-	concurrent.WithWorkers(3), // Process 3 batches concurrently
+See [error handling](docs/errors.md) for categories, status accessors, retry boundaries, and validation details.
+
+## Observability
+
+```go
+provider, err := observability.New(context.Background(),
+    observability.WithServiceName("my-service"),
+    observability.WithComponentEnabled(true, true, true),
+    observability.WithCollectorEndpoint("localhost:4317"),
+)
+if err != nil {
+    return err
+}
+defer provider.Shutdown(context.Background())
+
+c, err := client.New(
+    client.WithObservabilityProvider(provider),
+    client.UseAllAPIs(),
 )
 ```
 
-### Observability
+See [tracing](docs/tracing.md) for OpenTelemetry propagation and server-side extraction examples.
 
-Enable detailed observability for monitoring and debugging:
+## Environment variables
 
-```go
-// Create a client with observability enabled
-client, err := client.New(
-	client.WithObservability(true, true, true), // Enable tracing, metrics, and logging
-	client.UseAllAPIs(),
-)
+The SDK reads these variables when `config.FromEnvironment()` is used:
 
-// Trace an operation
-err = client.Trace("create-organization", func(ctx context.Context) error {
-	_, err := client.Entity.Organizations.CreateOrganization(ctx, input)
-	return err
-})
-```
-
-## Environment Variables
-
-The SDK can be configured using environment variables:
-
-- `MIDAZ_AUTH_TOKEN`: Authentication token
-- `MIDAZ_ENVIRONMENT`: Environment (local, development, production)
-- `MIDAZ_ONBOARDING_URL`: Override for the onboarding service URL
-- `MIDAZ_TRANSACTION_URL`: Override for the transaction service URL
-- `MIDAZ_DEBUG`: Enable debug mode (true/false)
-- `MIDAZ_MAX_RETRIES`: Maximum number of retry attempts
+- `MIDAZ_ENVIRONMENT`
+- `MIDAZ_BASE_URL`
+- `MIDAZ_ONBOARDING_URL`
+- `MIDAZ_TRANSACTION_URL`
+- `MIDAZ_CRM_URL`
+- `MIDAZ_USER_AGENT`
+- `MIDAZ_TIMEOUT`
+- `MIDAZ_DEBUG`
+- `MIDAZ_MAX_RETRIES`
+- `MIDAZ_IDEMPOTENCY`
+- `PLUGIN_AUTH_ENABLED`
+- `PLUGIN_AUTH_ADDRESS`
+- `MIDAZ_CLIENT_ID`
+- `MIDAZ_CLIENT_SECRET`
 
 ## Documentation
 
-Detailed documentation is available:
+- [SDK documentation](docs/README.md)
+- [Examples](docs/examples.md)
+- [External API mapping](docs/mapping/external_apis.md)
+- [Internal API mapping](docs/mapping/internal_apis.md)
+- [Generated Go package documentation](docs/godoc/index.txt)
 
-- [API Reference](docs/README.md): Complete API documentation
-- [Examples](docs/examples.md): Usage examples for common operations
-- [Package Overview](docs/godoc/index.txt): Go package documentation
-
-To generate documentation:
+Generate docs with:
 
 ```bash
-# Start an interactive documentation server
-make godoc
-
-# Generate static documentation
 make docs
+```
+
+Start an interactive docs server with:
+
+```bash
+make godoc
 ```
 
 ## Examples
 
-For more detailed examples, see the [examples directory](examples/):
+- [Configuration examples](examples/configuration-examples/main.go)
+- [Context example](examples/context-example/main.go)
+- [Concurrency example](examples/concurrency-example/main.go)
+- [Retry example](examples/retry-example/main.go)
+- [Observability demo](examples/observability-demo/observability-demo.go)
+- [Tracing example](examples/tracing-example/main.go)
+- [Tracing server example](examples/tracing-server-example/main.go)
+- [Complete workflow](examples/workflow-with-entities/main.go)
+- [Mass demo generator](examples/mass-demo-generator)
 
-- [Configuration Examples](examples/configuration-examples/main.go): Various ways to configure the client
-- [Context Example](examples/context-example/main.go): Using context for timeouts and cancellation
-- [Concurrency Example](examples/concurrency-example/main.go): Parallel processing and batching
-- [Retry Example](examples/retry-example/main.go): Custom retry configurations
-- [Observability Example](examples/observability-example/main.go): Tracing, metrics, and logging
-- [Complete Workflow](examples/workflow-with-entities/main.go): End-to-end workflow example
+Run the mass demo generator:
+
+```bash
+cd examples/mass-demo-generator
+DEMO_NON_INTERACTIVE=1 go run . --org-locale=br
+```
 
 ## Testing
 
-Run the test suite:
-
 ```bash
 make test
+make coverage
+make verify-sdk
 ```
 
-Generate test coverage report:
+For the full local pipeline, run:
 
 ```bash
-make coverage
-```
-
-## Best Practices
-
-### Error Handling
-
-The SDK provides rich error information. Always check errors and use the error helpers to extract details:
-
-```go
-// Create an account
-account, err := client.Entity.Accounts.CreateAccount(ctx, "org-id", "ledger-id", input)
-if err != nil {
-    // Check error type
-    switch {
-    case errors.IsValidationError(err):
-        // Handle validation error
-        fmt.Println("Validation error:", err)
-    
-        // Get field-level errors
-        if fieldErrs := errors.GetFieldErrors(err); len(fieldErrs) > 0 {
-            for _, fieldErr := range fieldErrs {
-                fmt.Printf("Field %s: %s\n", fieldErr.Field, fieldErr.Message)
-            }
-        }
-    case errors.IsNotFoundError(err):
-        // Handle not found error
-        fmt.Println("Resource not found:", err)
-    case errors.IsAuthenticationError(err):
-        // Handle authentication error
-        fmt.Println("Authentication error:", err)
-    case errors.IsNetworkError(err):
-        // Handle network error
-        fmt.Println("Network error:", err)
-    default:
-        // Handle other errors
-        fmt.Println("Error:", err)
-    }
-    return
-}
-```
-
-### Context Usage
-
-Always use contexts for cancellation and timeouts:
-
-```go
-// Create a context with timeout
-ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-defer cancel()
-
-// Use the context for API calls
-account, err := client.Entity.Accounts.GetAccount(ctx, "org-id", "ledger-id", "account-id")
-```
-
-### Resource Management
-
-Always clean up resources when you're done:
-
-```go
-// Create a client
-client, err := client.New(/* options */)
-if err != nil {
-    log.Fatal(err)
-}
-defer client.Shutdown(context.Background())
-
-// Use the client...
+make ci
 ```
 
 ## Contributing
 
-Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## License
 
-This project is licensed under the Apache License, Version 2.0 - see the [LICENSE.md](LICENSE.md) file for details.
+This project is licensed under the Apache License, Version 2.0. See [LICENSE.md](LICENSE.md) for details.
 
 Copyright 2025 Lerian Studio

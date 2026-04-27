@@ -29,7 +29,7 @@ func CreateOrganization(ctx context.Context, midazClient *client.Client) (string
 	// Get plugin auth configuration from environment variables
 
 	organization, err := midazClient.Entity.Organizations.CreateOrganization(ctx,
-		models.NewCreateOrganizationInput("Example Corp").
+		models.NewCreateOrganizationInput("Example Corp", "123456789012345").
 			WithDoingBusinessAs("Example Corp DBA").
 			WithLegalDocument("123456789").
 			WithAddress(models.Address{

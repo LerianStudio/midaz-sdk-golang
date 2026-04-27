@@ -1,154 +1,101 @@
-# Midaz Go SDK Documentation
+# Midaz Go SDK documentation
 
-This documentation provides comprehensive information about the Midaz Go SDK, including API references, usage guides, and examples.
+This directory contains hand-written guides and generated package documentation for the Midaz Go SDK.
 
-## Key Documentation
+## Start here
 
-- [Development GODOC Documentation](./docs/godoc/github.com/LerianStudio/midaz-sdk-golang/v2/index.md) - Static documentation for development
+- [Environment variables](./environment.md) - Runtime configuration and `.env` usage.
+- [Error handling](./errors.md) - SDK error categories, helpers, and retry boundaries.
+- [Architecture](./architecture.md) - SDK structure and implementation overview.
+- [Examples](./examples.md) - Runnable examples and common workflows.
+- [Pagination](./pagination.md) - List options, page metadata, and cursor behavior.
+- [Tracing](./tracing.md) - OpenTelemetry setup and trace propagation.
 
-- [Environment Variables](./environment.md) - Complete guide to environment variable configuration
-- [Error Handling](./errors.md) - Comprehensive guide to error handling in the SDK
-- [Architecture](./architecture.md) - Overview of the SDK architecture
-- [Examples](./examples.md) - Detailed explanation of the example applications
-- [Pagination](./pagination.md) - Guide to using the pagination features
+## API mapping
 
-## API Reference Documentation
+- [External API mapping](./mapping/external_apis.md) - Public SDK constructors, options, services, and model helpers.
+- [Internal API mapping](./mapping/internal_apis.md) - Maintainer-facing map of internal transport and service implementation patterns.
 
-- [External API Mapping](./mapping/external_apis.md) - Mapping between SDK interfaces and external APIs
-- [Internal API Mapping](./mapping/internal_apis.md) - Mapping between SDK interfaces and internal APIs
+## Generated package documentation
 
-## Package Structure
+Generate or refresh static package docs with:
 
-The Midaz Go SDK is organized into the following main packages:
+```bash
+make docs
+```
 
-- **Root Package**: Main entry point for the SDK, provides the Client type and configuration options
-- **Entities**: High-level entity-based API for working with Midaz resources
-- **Models**: Data models representing Midaz resources
-- **Pkg**: Utility packages for various SDK functionalities
+Run an interactive Go documentation server with:
 
-## API Documentation
+```bash
+make godoc
+```
 
-The SDK provides detailed API documentation for all packages. You can browse this documentation in two ways:
+Then open http://localhost:6060/pkg/github.com/LerianStudio/midaz-sdk-golang/v2/.
 
-1. **Interactive Documentation** (requires godoc):
+Generated docs currently include:
 
-   ```bash
-   make godoc
-   ```
+- [Root package](./godoc/index.txt)
+- [Entities package](./godoc/entities/index.txt)
+- [Models package](./godoc/models/index.txt)
+- [Config package](./godoc/pkg/config/index.txt)
+- [Errors package](./godoc/pkg/errors/index.txt)
+- [Observability package](./godoc/pkg/observability/index.txt)
+- [Validation package](./godoc/pkg/validation/index.txt)
+- [Concurrent package](./godoc/pkg/concurrent/index.txt)
+- [Retry package](./godoc/pkg/retry/index.txt)
+- [Performance package](./godoc/pkg/performance/index.txt)
+- [Pagination package](./godoc/pkg/pagination/index.txt)
+- [Format package](./godoc/pkg/format/index.txt)
 
-   Then visit http://localhost:6060/pkg/github.com/LerianStudio/midaz-sdk-golang/v2/
+## Package structure
 
-2. **Static Documentation**:
-   The static documentation is generated in the `docs/godoc` directory as Markdown files. You can browse this documentation directly.
+- `github.com/LerianStudio/midaz-sdk-golang/v2` - Root package. Exposes `Client`, `New`, and client functional options.
+- `entities` - Entity service interfaces and HTTP implementations for Ledger and CRM API resources.
+- `models` - Public SDK request/response types, fluent builders, aliases, pagination helpers, and common constants.
+- `pkg/access-manager` - Plugin-based authentication using Access Manager credentials.
+- `pkg/config` - Environment-aware configuration and service URL resolution.
+- `pkg/errors` - Structured SDK error type, categories, codes, constructors, and checking helpers.
+- `pkg/observability` - OpenTelemetry tracing, metrics, logging, propagation, and middleware helpers.
+- `pkg/retry` - Retry policies, backoff, jitter, and HTTP retry helpers.
+- `pkg/pagination` - Generic paginator utilities separate from `models.ListOptions`.
+- `pkg/concurrent` - Worker pool, batch, and rate-limit helpers.
+- `pkg/security`, `pkg/validation`, `pkg/format`, `pkg/transaction`, `pkg/version` - Supporting utility packages.
 
-   ```bash
-   make godoc-static
-   ```
+## Entity services
 
-   Generated API documentation files:
+The root client exposes entity services through `c.Entity` when created with `client.UseAllAPIs()` or `client.UseEntityAPI()`:
 
-   - [Main Package](./godoc/index.txt)
-   - [Entities Package](./godoc/entities/index.txt)
-   - [Models Package](./godoc/models/index.txt)
+- `Accounts`
+- `AccountTypes`
+- `Assets`
+- `AssetRates`
+- `Balances`
+- `Holders`
+- `Aliases`
+- `Ledgers`
+- `MetadataIndexes`
+- `Operations`
+- `OperationRoutes`
+- `Organizations`
+- `Portfolios`
+- `Segments`
+- `Transactions`
+- `TransactionRoutes`
 
-   **Core Packages:**
+## Configuration baseline
 
-   - [Config Package](./godoc/pkg/config/index.txt)
-   - [Errors Package](./godoc/pkg/errors/index.txt)
-   - [Observability Package](./godoc/pkg/observability/index.txt)
-   - [Validation Package](./godoc/pkg/validation/index.txt)
-   - [Validation Core Package](./godoc/pkg/validation/core/index.txt)
+Environment variables are not loaded implicitly. Use:
 
-   **Performance & Concurrency:**
+```go
+cfg, err := config.NewConfig(config.FromEnvironment())
+if err != nil {
+    return err
+}
 
-   - [Concurrent Package](./godoc/pkg/concurrent/index.txt)
-   - [Retry Package](./godoc/pkg/retry/index.txt)
-   - [Performance Package](./godoc/pkg/performance/index.txt)
-   - [Pagination Package](./godoc/pkg/pagination/index.txt)
+c, err := client.New(
+    client.WithConfig(cfg),
+    client.UseAllAPIs(),
+)
+```
 
-   **Data Generation & Testing:**
-
-   - [Generator Package](./godoc/pkg/generator/index.txt)
-   - [Data Package](./godoc/pkg/data/index.txt)
-   - [Integrity Package](./godoc/pkg/integrity/index.txt)
-   - [Stats Package](./godoc/pkg/stats/index.txt)
-
-   **Additional Utilities:**
-
-   - [Access Manager Package](./godoc/pkg/access-manager/index.txt)
-   - [Format Package](./godoc/pkg/format/index.txt)
-   - [Conversion Package](./godoc/pkg/conversion/index.txt)
-   - [Transaction Package](./godoc/pkg/transaction/index.txt)
-   - [Utils Package](./godoc/pkg/utils/index.txt)
-   - [Accounts Package](./godoc/pkg/accounts/index.txt)
-
-## Key Packages
-
-### Root Package
-
-The root package provides the main entry point for the SDK. The key types are:
-
-- **Client**: The main client for interacting with the Midaz API
-- **Option**: Functional options for configuring the client
-
-### Entities Package
-
-The entities package provides high-level entity-based APIs for working with Midaz resources:
-
-- **Organizations**: Methods for managing organizations
-- **Ledgers**: Methods for managing ledgers
-- **Accounts**: Methods for managing accounts
-- **Transactions**: Methods for creating and managing transactions
-- **Assets**: Methods for managing assets
-- **Portfolios**: Methods for managing portfolios
-- **Segments**: Methods for managing segments
-
-### Models Package
-
-The models package provides data models representing Midaz resources:
-
-- **Organization**: Represents an organization in the Midaz system
-- **Ledger**: Represents a ledger in the Midaz system
-- **Account**: Represents an account in the Midaz system
-- **Transaction**: Represents a transaction in the Midaz system
-- **Asset**: Represents an asset in the Midaz system
-- **Portfolio**: Represents a portfolio in the Midaz system
-- **Segment**: Represents a segment in the Midaz system
-
-### Utility Packages
-
-The SDK includes several utility packages in the `pkg` directory:
-
-#### Core Utilities
-
-- **config**: Configuration utilities for the SDK
-- **errors**: Error handling utilities with structured error types
-- **observability**: Observability tools for tracing, metrics, and logging
-- **validation**: Validation utilities for SDK models
-
-#### Performance & Concurrency
-
-- **concurrent**: Utilities for concurrent operations with worker pools and circuit breakers
-- **retry**: Retry mechanisms with exponential backoff for API requests
-- **performance**: Performance optimization utilities including batch processing
-- **pagination**: Utilities for paginated API requests with cursor and offset support
-
-#### Data Generation & Testing
-
-- **generator**: Comprehensive data generation utilities for creating realistic demo data
-- **data**: Templates and patterns for generating organizations, accounts, assets, and transactions
-- **integrity**: Balance verification and double-entry accounting validation
-- **stats**: Statistics collection and performance monitoring utilities
-
-#### Additional Utilities
-
-- **access-manager**: Plugin-based authentication for integrating with external identity providers
-- **format**: Date/time formatting and standardization utilities
-- **conversion**: Type conversion utilities between SDK and backend models
-- **transaction**: Transaction processing helpers and batch operations
-- **utils**: General utility functions for UUID generation and validation
-- **accounts**: Account management utilities (separate from entities layer)
-
-## Examples
-
-For detailed examples of how to use the SDK, refer to the `examples` directory in the SDK repository.
+See [Environment variables](./environment.md) for the full list of supported variables.

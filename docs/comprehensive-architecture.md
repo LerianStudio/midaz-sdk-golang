@@ -1,1402 +1,817 @@
-# Midaz Go SDK - Comprehensive Architecture Documentation
+# Midaz Go SDK architecture
 
-## Table of Contents
+This document explains how the current Midaz Go SDK is organized, how requests move through the SDK, and which extension points are available. It focuses on the implemented codebase, not planned architecture.
 
-- [Executive Summary](#executive-summary)
-- [System Component Overview](#system-component-overview)
-- [Architectural Diagrams](#architectural-diagrams)
-- [Core Components](#core-components)
-- [Data Models](#data-models)
-- [Service Interfaces](#service-interfaces)
-- [Utility Packages](#utility-packages)
-- [Design Patterns](#design-patterns)
-- [API Surface Documentation](#api-surface-documentation)
-- [Data Flow Analysis](#data-flow-analysis)
-- [Authentication & Security](#authentication--security)
-- [Observability & Monitoring](#observability--monitoring)
-- [Configuration Management](#configuration-management)
-- [Error Handling Strategy](#error-handling-strategy)
-- [Performance & Concurrency](#performance--concurrency)
-- [Extension Points](#extension-points)
-- [Deployment & Environment Support](#deployment--environment-support)
+The SDK is an idiomatic Go client for Midaz Ledger and CRM APIs. The root module is `github.com/LerianStudio/midaz-sdk-golang/v2`, and the root package name is `client` in `client.go`.
 
-## Executive Summary
+## Architecture at a glance
 
-The Midaz Go SDK is a comprehensive, production-ready client library for interacting with the Midaz financial ledger platform. Built using modern Go practices, it implements a clean, layered architecture with strong abstractions, comprehensive error handling, and robust observability features.
+The SDK uses a layered request path:
 
-### Key Architectural Principles
-
-- **Layered Architecture**: Clear separation between client, entities, models, and utility layers
-- **Functional Options Pattern**: Type-safe, extensible configuration throughout
-- **Interface-Driven Design**: Mockable, testable service interfaces
-- **Context-Aware Operations**: Full support for cancellation, timeouts, and tracing
-- **Plugin-Based Authentication**: Flexible authentication via external identity providers
-- **Rich Error Handling**: Structured errors with field-level validation details
-- **Built-in Observability**: OpenTelemetry integration for tracing, metrics, and logging
-
-### Technology Stack
-
-- **Language**: Go 1.24.2
-- **HTTP Client**: Standard library with custom retry/observability middleware
-- **Observability**: OpenTelemetry (OTLP) with gRPC exporters
-- **Testing**: Testify framework with comprehensive mocks
-- **Dependencies**: Minimal external dependencies, primarily LerianStudio ecosystem
-
-## System Component Overview
-
-```mermaid
-graph TB
-    subgraph "Client Application"
-        APP[Application Code]
-    end
-
-    subgraph "Midaz Go SDK"
-        CLIENT[Client Layer]
-        ENTITIES[Entities Layer]
-        MODELS[Models Layer]
-        UTILS[Utility Packages]
-
-        CLIENT --> ENTITIES
-        ENTITIES --> MODELS
-        ENTITIES --> UTILS
-        CLIENT --> UTILS
-    end
-
-    subgraph "Midaz Platform Services"
-        ONBOARDING[Onboarding Service]
-        TRANSACTION[Transaction Service]
-        AUTH[Access Manager]
-    end
-
-    subgraph "Observability Stack"
-        OTEL[OpenTelemetry Collector]
-        METRICS[Metrics Store]
-        TRACES[Tracing Backend]
-        LOGS[Logging System]
-    end
-
-    APP --> CLIENT
-    ENTITIES --> ONBOARDING
-    ENTITIES --> TRANSACTION
-    CLIENT --> AUTH
-    UTILS --> OTEL
-    OTEL --> METRICS
-    OTEL --> TRACES
-    OTEL --> LOGS
+```text
+Application code
+  -> client.Client
+  -> config.Config
+  -> entities.Entity
+  -> private entity implementations
+  -> entities.HTTPClient
+  -> Midaz Ledger API / Midaz CRM API
 ```
 
-## Architectural Diagrams
-
-### High-Level System Architecture
-
 ```mermaid
-graph LR
-    subgraph "SDK Client"
-        CLIENT[Client<br/>Entry Point]
-        CONFIG[Configuration<br/>Management]
-        OBSERVABILITY[Observability<br/>Provider]
-    end
+flowchart LR
+    App[Application code] --> Client[client.Client]
+    Client --> Config[config.Config]
+    Client --> Entity[entities.Entity]
 
-    subgraph "Entity Services"
-        ACCOUNTS[AccountsService]
-        TRANSACTIONS[TransactionsService]
-        ORGANIZATIONS[OrganizationsService]
-        LEDGERS[LedgersService]
-        ASSETS[AssetsService]
-        BALANCES[BalancesService]
-        PORTFOLIOS[PortfoliosService]
-        SEGMENTS[SegmentsService]
-        OPERATIONS[OperationsService]
-        ASSETRATES[AssetRatesService]
-    end
+    Config --> Entity
+    Entity --> Services[Entity service interfaces]
+    Services --> Impl[Private entity implementations]
+    Impl --> HTTP[entities.HTTPClient]
 
-    subgraph "Infrastructure"
-        HTTP[HTTP Client<br/>with Middleware]
-        RETRY[Retry Logic]
-        VALIDATION[Input Validation]
-        PAGINATION[Pagination<br/>Support]
-        CONCURRENT[Concurrency<br/>Utilities]
-    end
+    HTTP --> Ledger[Midaz Ledger API]
+    HTTP --> CRM[Midaz CRM API]
+    HTTP --> Access[Access Manager token endpoint]
 
-    CLIENT --> ACCOUNTS
-    CLIENT --> TRANSACTIONS
-    CLIENT --> ORGANIZATIONS
-    CLIENT --> LEDGERS
-    CLIENT --> ASSETS
-    CLIENT --> BALANCES
-    CLIENT --> PORTFOLIOS
-    CLIENT --> SEGMENTS
-    CLIENT --> OPERATIONS
-    CLIENT --> ASSETRATES
-
-    ACCOUNTS --> HTTP
-    TRANSACTIONS --> HTTP
-    ORGANIZATIONS --> HTTP
-    LEDGERS --> HTTP
-    ASSETS --> HTTP
-    BALANCES --> HTTP
-    PORTFOLIOS --> HTTP
-    SEGMENTS --> HTTP
-    OPERATIONS --> HTTP
-    ASSETRATES --> HTTP
-
-    HTTP --> RETRY
-    HTTP --> VALIDATION
-    HTTP --> PAGINATION
-    HTTP --> CONCURRENT
-    HTTP --> OBSERVABILITY
-
-    CONFIG --> CLIENT
-    OBSERVABILITY --> CLIENT
+    Client --> Obs[observability.Provider]
+    HTTP --> Obs
 ```
 
-### Data Flow Architecture
+The major layers are:
+
+- **Root client layer**: Owns top-level configuration, context, observability, retry settings, tenant defaults, and enabled API groups.
+- **Config layer**: Resolves URLs, HTTP client settings, retry settings, Access Manager settings, idempotency, and environment-based options.
+- **Entity layer**: Exposes the 16 service interfaces through `c.Entity`.
+- **Private entity implementations**: Build resource-specific URLs, validate required inputs, call the HTTP layer, and map responses into SDK models.
+- **HTTP layer**: Handles JSON encoding, request construction, headers, authorization, retries, idempotency, response decoding, error mapping, and trace propagation.
+- **Model layer**: Provides public request and response types, fluent builders, list options, list responses, aliases, and validation helpers.
+- **Utility packages**: Provide configuration, structured errors, observability, retry, pagination, validation, security, formatting, concurrency, generation, and transaction helpers.
+
+## Project structure
+
+```text
+.
+├── client.go
+├── entities/
+├── models/
+├── pkg/
+├── examples/
+├── docs/
+├── scripts/
+├── Makefile
+├── go.mod
+└── .env.example
+```
+
+| Path | Purpose |
+| --- | --- |
+| `client.go` | Root SDK entry point. Defines package `client`, `Client`, `New`, client options, API enabling, observability access, shutdown, and small model constructors. |
+| `entities/` | Entity service interfaces, private HTTP-backed implementations, entity factory, request context helpers, URL builders, and transport helpers. |
+| `models/` | Public SDK types, request inputs, fluent builders, list responses, pagination options, CRM models, transaction models, and Midaz model aliases. |
+| `pkg/config/` | SDK configuration, service URL resolution, environment reading, HTTP client setup, Access Manager config, retry defaults, and idempotency flags. |
+| `pkg/access-manager/` | Access Manager client-credentials token request support. |
+| `pkg/errors/` | Structured SDK error type, categories, codes, constructors, and helper checkers. |
+| `pkg/observability/` | OpenTelemetry provider abstraction, tracing, metrics, logging, context propagation, and HTTP helpers. |
+| `pkg/retry/` | Retry options, retry engine, HTTP retry helpers, exponential backoff, jitter, and retryable status/error matching. |
+| `pkg/pagination/` | Generic pagination helpers separate from `models.ListOptions`. |
+| `pkg/security/` | Outbound request validation and related safety checks. |
+| `pkg/validation/` | Validation helpers and field-level validation structures. |
+| `pkg/concurrent/` | Worker pool, batching, and rate-limit utilities. |
+| `pkg/transaction/` | Transaction batching and transaction helper workflows. |
+| `pkg/generator/`, `pkg/data/`, `pkg/integrity/`, `pkg/stats/` | Demo data, transaction generation, integrity checks, and statistics helpers used by examples and tooling. |
+| `examples/` | Runnable examples for configuration, Access Manager, tracing, retries, validation, concurrency, and end-to-end workflows. |
+| `docs/` | Hand-written guides and generated Go documentation. |
+
+The module currently declares Go `1.26.0` in `go.mod`.
+
+## Client lifecycle
+
+You create a client with `client.New(...)`. The constructor starts with default settings, applies options in order, then initializes enabled API groups.
+
+```go
+cfg, err := config.NewConfig(config.FromEnvironment())
+if err != nil {
+    return err
+}
+
+c, err := client.New(
+    client.WithConfig(cfg),
+    client.UseAllAPIs(),
+)
+if err != nil {
+    return err
+}
+defer c.Shutdown(context.Background())
+```
+
+`client.UseAllAPIs()` and `client.UseEntityAPI()` currently enable the same entity API surface. If you do not pass one of these options, `c.Entity` remains unset.
+
+The initialization path is:
+
+1. `client.New` creates a `Client` with default background context, disabled default observability provider, and `config.DefaultConfig()`.
+2. Client options update the `Client` and its config.
+3. If entity APIs are enabled, `setupEntity()` reads service URLs, attaches observability, propagates debug/user-agent/tenant settings, creates the entity layer, and configures retry and idempotency behavior.
+4. `entities.NewEntityWithConfig(...)` reads Access Manager settings, fetches an Access Manager token if enabled, creates an `entities.HTTPClient`, stores service URLs, applies entity options, and initializes services.
+5. `entities.Entity.initServices()` creates all private service implementations and propagates the parent HTTP client configuration into each service-specific HTTP client.
+
+## Configuration
+
+The SDK has two configuration entry points:
+
+- `config.DefaultConfig()` for internal defaults before client options are applied.
+- `config.NewConfig(...)` for validated application configuration.
+
+Default config values include:
+
+| Setting | Default |
+| --- | --- |
+| Environment | `local` |
+| Timeout | `60s` |
+| User agent | from `pkg/version.UserAgent()` |
+| Max retries | `3` |
+| Retry wait minimum | `1s` at the config layer |
+| Retry wait maximum | `30s` at the config layer |
+| Retries enabled | `true` |
+| Idempotency enabled | `true` |
+| Local Ledger base URL | `http://localhost:3002/v1` |
+| Local CRM base URL | `http://localhost:4003/v1` |
+
+The HTTP retry engine has its own default options in `pkg/retry`:
+
+| Retry option | Default |
+| --- | --- |
+| Max retries | `3` |
+| Initial delay | `100ms` |
+| Max delay | `10s` |
+| Backoff factor | `2.0` |
+| Jitter factor | `0.25` |
+
+When you configure the root client with `client.WithRetries(max, min, maxBackoff)`, `setupEntity()` applies those values to the entity HTTP client.
+
+## Environment variables
+
+The SDK does not load `.env` files by itself.
+
+`config.FromEnvironment()` reads values from the current process environment only. If you want to use a `.env` file, load it before creating the SDK config, or use shell exports, Docker environment variables, or your process manager.
+
+```go
+cfg, err := config.NewConfig(config.FromEnvironment())
+if err != nil {
+    return err
+}
+```
+
+Supported environment variables read by `config.FromEnvironment()` are:
+
+| Variable | Behavior |
+| --- | --- |
+| `MIDAZ_ENVIRONMENT` | Sets `local`, `development`, or `production`. |
+| `PLUGIN_AUTH_ENABLED` | Enables Access Manager token fetching when set to `true`. |
+| `PLUGIN_AUTH_ADDRESS` | Sets the Access Manager base address. |
+| `MIDAZ_CLIENT_ID` | Sets the Access Manager client ID. |
+| `MIDAZ_CLIENT_SECRET` | Sets the Access Manager client secret. |
+| `MIDAZ_USER_AGENT` | Overrides the user-agent string. |
+| `MIDAZ_BASE_URL` | Sets a shared base URL. The SDK derives Ledger and CRM service URLs from it. |
+| `MIDAZ_ONBOARDING_URL` | Overrides the onboarding service URL. |
+| `MIDAZ_TRANSACTION_URL` | Overrides the transaction service URL. |
+| `MIDAZ_CRM_URL` | Overrides the CRM service URL. |
+| `MIDAZ_TIMEOUT` | Sets HTTP timeout in seconds. |
+| `MIDAZ_DEBUG` | Enables debug mode when set to `true`. |
+| `MIDAZ_MAX_RETRIES` | Sets maximum retry attempts. |
+| `MIDAZ_IDEMPOTENCY` | Enables or disables automatic idempotency behavior when set. |
+
+The current config reader does not read `MIDAZ_RETRY_WAIT_MIN`, `MIDAZ_RETRY_WAIT_MAX`, `MIDAZ_OTEL_ENDPOINT`, or `MIDAZ_LOG_LEVEL`. Configure retry timing and observability programmatically when you need those settings.
+
+## Service URL resolution
+
+The config package uses three service names internally:
+
+| Service name | Purpose |
+| --- | --- |
+| `onboarding` | Ledger API resources historically grouped under onboarding, such as organizations, ledgers, accounts, assets, portfolios, and segments. |
+| `transaction` | Ledger API transaction-side resources, such as transactions, operations, balances, routes, metadata indexes, and asset rates. |
+| `crm` | CRM resources, currently holders and aliases. |
+
+For local defaults:
+
+- Ledger API uses `http://localhost:3002/v1`
+- CRM API uses `http://localhost:4003/v1`
+
+For development and production defaults, CRM falls back to the Ledger base URL unless you provide `MIDAZ_CRM_URL` or `config.WithCRMURL(...)`.
+
+`client.WithBaseURL(...)` derives service URLs from a shared base:
+
+- Ledger services use port `3002` for localhost without an explicit port.
+- CRM uses port `4003` for localhost without an explicit port.
+- The SDK appends `/v1` when the path does not already end in `/v1`.
+
+## Entity services
+
+The root client exposes entity services through `c.Entity` after you enable the entity API.
+
+```go
+c, err := client.New(
+    client.WithBaseURL("http://localhost"),
+    client.UseAllAPIs(),
+)
+if err != nil {
+    return err
+}
+
+orgs, err := c.Entity.Organizations.ListOrganizations(ctx, models.NewListOptions().WithLimit(20))
+```
+
+The current entity surface has 16 services:
+
+| Service | API area | Backing URL key | Purpose |
+| --- | --- | --- | --- |
+| `Organizations` | Ledger | `onboarding` | Manage organizations. |
+| `Ledgers` | Ledger | `onboarding` | Manage ledgers inside organizations. |
+| `Accounts` | Ledger | mostly `onboarding`, balance helper uses `transaction` | Manage accounts and account-level balance helpers. |
+| `AccountTypes` | Ledger | `onboarding` | Manage account types. |
+| `Assets` | Ledger | `onboarding` | Manage assets. |
+| `AssetRates` | Ledger | `transaction` | Manage asset rate resources. |
+| `Balances` | Ledger | `transaction` | Read and manage balance resources. |
+| `Operations` | Ledger | `transaction` | Read account-based and transaction-based operations. |
+| `OperationRoutes` | Ledger | `transaction` | Manage operation routes. |
+| `Transactions` | Ledger | `transaction` | Create, list, update, commit, cancel, and revert transactions. |
+| `TransactionRoutes` | Ledger | `transaction` | Manage transaction routes. |
+| `MetadataIndexes` | Ledger | `transaction` | Manage metadata indexes. |
+| `Portfolios` | Ledger | `onboarding` | Manage portfolios. |
+| `Segments` | Ledger | `onboarding` | Manage segments. |
+| `Holders` | CRM | `crm` | Manage CRM holders. |
+| `Aliases` | CRM | `crm` | Manage CRM aliases and related parties. |
+
+Each public service field is an interface. Each concrete implementation is private to the `entities` package, such as `accountsEntity`, `transactionsEntity`, `holdersEntity`, and `aliasesEntity`.
+
+## Conceptual resource hierarchy
+
+The SDK does not define a database schema. The following hierarchy is conceptual and describes how SDK methods scope requests.
+
+```mermaid
+flowchart TD
+    Org[Organization] --> Ledger[Ledger]
+    Ledger --> Account[Account]
+    Ledger --> Asset[Asset]
+    Ledger --> Portfolio[Portfolio]
+    Ledger --> Segment[Segment]
+    Ledger --> Transaction[Transaction]
+    Transaction --> Operation[Operation]
+    Ledger --> Balance[Balance]
+    Ledger --> TransactionRoute[Transaction route]
+    Ledger --> OperationRoute[Operation route]
+    Org --> Holder[CRM holder]
+    Holder --> Alias[CRM alias]
+```
+
+Use the model types in `models/` as the source of truth for SDK request and response fields. Avoid treating conceptual diagrams as field-level ER diagrams.
+
+## Request lifecycle
+
+A normal SDK request follows this path:
 
 ```mermaid
 sequenceDiagram
-    participant APP as Application
-    participant CLIENT as Client
-    participant ENTITY as Entity Service
-    participant HTTP as HTTP Client
-    participant MIDDLEWARE as Observability Middleware
+    participant App as Application
+    participant Client as client.Client
+    participant Entity as entities.Entity
+    participant Service as private service implementation
+    participant HTTP as entities.HTTPClient
     participant API as Midaz API
-    participant AUTH as Access Manager
 
-    APP->>CLIENT: New() with options
-    CLIENT->>AUTH: Get authentication token
-    AUTH-->>CLIENT: Return token
-    CLIENT->>ENTITY: Initialize services
+    App->>Client: client.New(options...)
+    Client->>Entity: setupEntity()
+    Entity->>Service: initServices()
 
-    APP->>CLIENT: Entity.Organizations.CreateOrganization()
-    CLIENT->>ENTITY: CreateOrganization()
-    ENTITY->>HTTP: POST request
-    HTTP->>MIDDLEWARE: Wrap with observability
-    MIDDLEWARE->>API: Execute HTTP request
-    API-->>MIDDLEWARE: Response
-    MIDDLEWARE-->>HTTP: Response with metrics/traces
-    HTTP-->>ENTITY: Process response
-    ENTITY->>ENTITY: Convert mmodel to SDK model
-    ENTITY-->>CLIENT: Return Organization
-    CLIENT-->>APP: Return Organization
+    App->>Service: c.Entity.Accounts.GetAccount(ctx, orgID, ledgerID, accountID)
+    Service->>Service: validate required parameters
+    Service->>Service: build resource URL
+    Service->>HTTP: doRequest(ctx, method, url, headers, body, result)
+    HTTP->>HTTP: start span when observability is enabled
+    HTTP->>HTTP: encode JSON body
+    HTTP->>HTTP: add headers
+    HTTP->>HTTP: inject trace context
+    HTTP->>HTTP: execute with retry policy
+    HTTP->>API: HTTP request
+    API-->>HTTP: HTTP response
+    HTTP->>HTTP: map errors or decode JSON
+    HTTP-->>Service: result or error
+    Service-->>App: SDK model or error
 ```
 
-### Component Interaction Workflow
+The HTTP layer adds these standard headers:
 
-```mermaid
-graph TB
-    subgraph "Request Flow"
-        START([Client Request])
-        VALIDATE{Input Validation}
-        AUTH{Authentication}
-        RETRY{Retry Logic}
-        HTTP[HTTP Request]
-        RESPONSE[Process Response]
-        CONVERT[Model Conversion]
-        END([Return Result])
-    end
+| Header | Behavior |
+| --- | --- |
+| `Accept: application/json` | Added to requests. |
+| `Content-Type: application/json` | Added when the request has a body and no custom content type is set. |
+| `User-Agent` | Uses config user agent or version default. |
+| `Authorization: Bearer <token>` | Added only when an Access Manager token is available or an entity has an auth token. |
+| `X-Idempotency` | Added from context or transaction input when present. Some transaction requests can request automatic generation. |
+| `X-Tenant-ID` | Added from request context or client/config default tenant ID when present. |
+| `X-Organization-Id` | Added by CRM holder and alias requests. |
 
-    subgraph "Cross-Cutting Concerns"
-        OBSERVABILITY[Observability<br/>Tracing/Metrics/Logging]
-        ERROR[Error Handling<br/>& Classification]
-        PAGINATION[Pagination<br/>Support]
-        CONCURRENCY[Concurrency<br/>Control]
-    end
+The tenant header is compatibility metadata. The reference Midaz path treats authenticated claims as the primary tenant source of truth.
 
-    START --> VALIDATE
-    VALIDATE -->|Valid| AUTH
-    VALIDATE -->|Invalid| ERROR
-    AUTH -->|Success| RETRY
-    AUTH -->|Failure| ERROR
-    RETRY --> HTTP
-    HTTP --> RESPONSE
-    RESPONSE --> CONVERT
-    CONVERT --> END
+## Access Manager authentication
 
-    OBSERVABILITY -.-> HTTP
-    OBSERVABILITY -.-> RESPONSE
-    ERROR -.-> VALIDATE
-    ERROR -.-> AUTH
-    ERROR -.-> HTTP
-    PAGINATION -.-> RESPONSE
-    CONCURRENCY -.-> HTTP
-```
+Access Manager support lives in `pkg/access-manager`.
 
-## Core Components
-
-### 1. Client Layer (`client.go`)
-
-**Purpose**: Top-level entry point providing unified access to all SDK functionality.
-
-**Key Responsibilities**:
-
-- Configuration management via functional options
-- Service initialization and lifecycle management
-- Observability provider setup and context management
-- Authentication token management
-- Graceful shutdown coordination
-
-**Key Methods**:
-
-- `New(options ...Option) (*Client, error)`: Main constructor with functional options
-- `WithEnvironment(env Environment)`: Environment configuration
-- `WithObservability(tracing, metrics, logging bool)`: Observability setup
-- `UseAllAPIs()`: Enable all service interfaces
-- `Shutdown(ctx context.Context)`: Graceful resource cleanup
-
-**Location**: `/client.go:23-674`
-
-### 2. Entity Layer (`entities/`)
-
-**Purpose**: Service-specific interfaces providing direct API access with proper abstraction.
-
-**Key Components**:
-
-- **Entity Factory** (`entities/entity.go`): Central access point to all services
-- **Service Interfaces**: Strongly-typed interfaces for each domain
-- **HTTP Client** (`entities/http.go`): Configured HTTP client with middleware
-- **Model Conversion**: Bridge between SDK models and backend models
-
-**Service Interfaces**:
-
-- `AccountsService`: Account creation, retrieval, balance management
-- `TransactionsService`: Transaction processing (standard & DSL)
-- `OrganizationsService`: Organization lifecycle management
-- `LedgersService`: Ledger creation and management
-- `AssetsService`: Asset definition and configuration
-- And 5 additional specialized services
-
-**Location**: `/entities/entity.go:32-378`
-
-### 3. Models Layer (`models/`)
-
-**Purpose**: Data structures representing all Midaz platform resources with validation.
-
-**Key Features**:
-
-- **Type Safety**: Strongly-typed structs for all resources
-- **Validation**: Built-in validation using the validation package
-- **Conversion Methods**: Bidirectional conversion with backend models (`mmodel`)
-- **Builder Patterns**: Fluent APIs for model construction
-- **JSON Serialization**: Proper JSON tags and custom marshaling
-
-**Core Models**:
-
-- `Account`: Financial account with balances and metadata
-- `Transaction`: Financial transaction with operations
-- `Organization`: Business entity owning ledgers
-- `Ledger`: Collection of accounts and transactions
-- `Asset`: Financial instrument definitions
-- Plus 5 additional domain models
-
-**Location**: `/models/model.go:1-50`
-
-## Data Models
-
-### Entity Relationship Diagram
-
-```mermaid
-erDiagram
-    Organization {
-        string ID
-        string LegalName
-        string LegalDocument
-        string DoingBusinessAs
-        Address Address
-        map Metadata
-        Status Status
-        time CreatedAt
-        time UpdatedAt
-    }
-
-    Ledger {
-        string ID
-        string Name
-        string OrganizationID
-        map Metadata
-        Status Status
-        time CreatedAt
-        time UpdatedAt
-    }
-
-    Account {
-        string ID
-        string Name
-        string Alias
-        string Type
-        string AssetCode
-        string OrganizationID
-        string LedgerID
-        string PortfolioID
-        string SegmentID
-        Balance Balance
-        map Metadata
-        Status Status
-        time CreatedAt
-        time UpdatedAt
-    }
-
-    Transaction {
-        string ID
-        string Description
-        string ExternalID
-        string OrganizationID
-        string LedgerID
-        Operation[] Operations
-        map Metadata
-        Status Status
-        time CreatedAt
-        time UpdatedAt
-    }
-
-    Operation {
-        string ID
-        string TransactionID
-        string AccountID
-        string Type
-        string AssetCode
-        int Amount
-        int Scale
-        map Metadata
-        time CreatedAt
-    }
-
-    Asset {
-        string ID
-        string Name
-        string Type
-        string Code
-        int Scale
-        map Metadata
-        Status Status
-        time CreatedAt
-        time UpdatedAt
-    }
-
-    Portfolio {
-        string ID
-        string Name
-        string OrganizationID
-        string LedgerID
-        map Metadata
-        Status Status
-        time CreatedAt
-        time UpdatedAt
-    }
-
-    Segment {
-        string ID
-        string Name
-        string OrganizationID
-        string LedgerID
-        map Metadata
-        Status Status
-        time CreatedAt
-        time UpdatedAt
-    }
-
-    Balance {
-        string AccountID
-        string AssetCode
-        int Available
-        int OnHold
-        int Scale
-        time UpdatedAt
-    }
-
-    Organization ||--o{ Ledger : owns
-    Ledger ||--o{ Account : contains
-    Ledger ||--o{ Transaction : contains
-    Ledger ||--o{ Portfolio : contains
-    Ledger ||--o{ Segment : contains
-    Account ||--o{ Balance : has
-    Account ||--o{ Operation : participates_in
-    Transaction ||--o{ Operation : contains
-    Portfolio ||--o{ Account : groups
-    Segment ||--o{ Account : categorizes
-```
-
-### Data Flow Patterns
-
-```mermaid
-graph LR
-    subgraph "Input Models"
-        CREATE_ORG[CreateOrganizationInput]
-        CREATE_LEDGER[CreateLedgerInput]
-        CREATE_ACCOUNT[CreateAccountInput]
-        CREATE_TRANSACTION[CreateTransactionInput]
-        TRANSACTION_DSL[TransactionDSLInput]
-    end
-
-    subgraph "SDK Models"
-        ORG[Organization]
-        LEDGER[Ledger]
-        ACCOUNT[Account]
-        TRANSACTION[Transaction]
-        OPERATION[Operation]
-    end
-
-    subgraph "Backend Models (mmodel)"
-        MORG[mmodel.Organization]
-        MLEDGER[mmodel.Ledger]
-        MACCOUNT[mmodel.Account]
-        MTRANSACTION[mmodel.Transaction]
-        MOPERATION[mmodel.Operation]
-    end
-
-    CREATE_ORG -->|Validation| ORG
-    CREATE_LEDGER -->|Validation| LEDGER
-    CREATE_ACCOUNT -->|Validation| ACCOUNT
-    CREATE_TRANSACTION -->|Validation| TRANSACTION
-    TRANSACTION_DSL -->|DSL Processing| TRANSACTION
-
-    ORG <-->|Conversion| MORG
-    LEDGER <-->|Conversion| MLEDGER
-    ACCOUNT <-->|Conversion| MACCOUNT
-    TRANSACTION <-->|Conversion| MTRANSACTION
-    OPERATION <-->|Conversion| MOPERATION
-```
-
-## Service Interfaces
-
-### Complete API Surface
-
-#### OrganizationsService
+The SDK supports client-credentials token fetching through:
 
 ```go
-type OrganizationsService interface {
-    // CRUD Operations
-    CreateOrganization(ctx context.Context, input *models.CreateOrganizationInput) (*models.Organization, error)
-    GetOrganization(ctx context.Context, id string) (*models.Organization, error)
-    UpdateOrganization(ctx context.Context, id string, input *models.UpdateOrganizationInput) (*models.Organization, error)
-    DeleteOrganization(ctx context.Context, id string) error
-    ListOrganizations(ctx context.Context, opts *models.ListOptions) (*models.ListResponse[models.Organization], error)
+import auth "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/access-manager"
+
+cfg, err := config.NewConfig(
+    config.WithAccessManager(auth.AccessManager{
+        Enabled:      true,
+        Address:      "https://access-manager.example.com",
+        ClientID:     "midaz-client",
+        ClientSecret: "secret",
+    }),
+)
+if err != nil {
+    return err
 }
-```
 
-#### LedgersService
-
-```go
-type LedgersService interface {
-    CreateLedger(ctx context.Context, organizationID string, input *models.CreateLedgerInput) (*models.Ledger, error)
-    GetLedger(ctx context.Context, organizationID, id string) (*models.Ledger, error)
-    UpdateLedger(ctx context.Context, organizationID, id string, input *models.UpdateLedgerInput) (*models.Ledger, error)
-    DeleteLedger(ctx context.Context, organizationID, id string) error
-    ListLedgers(ctx context.Context, organizationID string, opts *models.ListOptions) (*models.ListResponse[models.Ledger], error)
-}
-```
-
-#### AccountsService
-
-```go
-type AccountsService interface {
-    CreateAccount(ctx context.Context, organizationID, ledgerID string, input *models.CreateAccountInput) (*models.Account, error)
-    GetAccount(ctx context.Context, organizationID, ledgerID, id string) (*models.Account, error)
-    GetAccountByAlias(ctx context.Context, organizationID, ledgerID, alias string) (*models.Account, error)
-    UpdateAccount(ctx context.Context, organizationID, ledgerID, id string, input *models.UpdateAccountInput) (*models.Account, error)
-    DeleteAccount(ctx context.Context, organizationID, ledgerID, id string) error
-    ListAccounts(ctx context.Context, organizationID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Account], error)
-    GetBalance(ctx context.Context, organizationID, ledgerID, accountID string) (*models.Balance, error)
-}
-```
-
-#### TransactionsService
-
-```go
-type TransactionsService interface {
-    // Standard Transaction Processing
-    CreateTransaction(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionInput) (*models.Transaction, error)
-
-    // DSL Transaction Processing
-    CreateTransactionWithDSL(ctx context.Context, orgID, ledgerID string, input *models.TransactionDSLInput) (*models.Transaction, error)
-    CreateTransactionWithDSLFile(ctx context.Context, orgID, ledgerID string, dslContent []byte) (*models.Transaction, error)
-
-    // Retrieval and Management
-    GetTransaction(ctx context.Context, orgID, ledgerID, transactionID string) (*models.Transaction, error)
-    ListTransactions(ctx context.Context, orgID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Transaction], error)
-    UpdateTransaction(ctx context.Context, orgID, ledgerID, transactionID string, input any) (*models.Transaction, error)
-}
-```
-
-#### Additional Services
-
-- **AssetsService**: Asset definition and management
-- **BalancesService**: Account balance queries and history
-- **PortfoliosService**: Account grouping and portfolio management
-- **SegmentsService**: Account categorization and segment management
-- **OperationsService**: Individual transaction operation management
-- **AssetRatesService**: Currency exchange rate management
-
-## Utility Packages
-
-### Configuration (`pkg/config/`)
-
-**Purpose**: Centralized configuration management with environment support.
-
-**Key Features**:
-
-- Environment-based URL resolution (local, development, production)
-- Functional options pattern for type-safe configuration
-- Environment variable integration
-- Service URL mapping and validation
-- Plugin authentication configuration
-
-**Location**: `/pkg/config/config.go:78-752`
-
-### Observability (`pkg/observability/`)
-
-**Purpose**: OpenTelemetry integration for comprehensive monitoring.
-
-**Capabilities**:
-
-- Distributed tracing with span management
-- Metrics collection (request counts, latencies, errors)
-- Structured logging with context propagation
-- HTTP middleware for automatic instrumentation
-- OTLP exporters for traces and metrics
-- Custom metric collectors for SDK operations
-
-**Location**: `/pkg/observability/observability.go:1-50`
-
-### Concurrency (`pkg/concurrent/`)
-
-**Purpose**: Utilities for high-performance parallel processing with resilience features.
-
-**Features**:
-
-- Worker pools with configurable concurrency levels
-- Circuit breaker pattern for protecting downstream services
-- Rate limiting and backpressure handling
-- Batch processing utilities with HTTP batch adapters
-- Result collection and error aggregation
-- Context-aware cancellation and timeout management
-- Unordered result processing for maximum throughput
-- Failure threshold monitoring and automatic recovery
-
-**Key Components**:
-
-- `WorkerPool`: Configurable parallel processing with worker goroutines
-- `CircuitBreaker`: Automatic failure detection and service protection
-- `HttpBatchAdapter`: Batch HTTP request processing for efficiency
-- `RateLimiter`: Token bucket algorithm for request throttling
-
-**Location**: `/pkg/concurrent/concurrent.go:1-50`
-
-### Retry Logic (`pkg/retry/`)
-
-**Purpose**: Resilient operation execution with intelligent backoff.
-
-**Capabilities**:
-
-- Exponential backoff with configurable parameters
-- Jitter for distributed system stability
-- Context-aware cancellation
-- Configurable retry conditions
-- HTTP-specific retry logic
-- Integration with observability for retry metrics
-
-**Location**: `/pkg/retry/retry.go:1-50`
-
-### Validation (`pkg/validation/`)
-
-**Purpose**: Comprehensive input validation with helpful error messages.
-
-**Features**:
-
-- DSL transaction validation
-- Asset code and type validation
-- Account alias and metadata validation
-- Address validation with regional support
-- Date range validation
-- Configurable validation rules
-- Field-level error reporting with suggestions
-
-**Location**: `/pkg/validation/validation.go:1-50`
-
-### Data Generation Framework (`pkg/generator/`)
-
-**Purpose**: Comprehensive framework for generating realistic demo data and testing scenarios.
-
-**Key Interfaces**:
-
-- `OrganizationGenerator`: Creates organizations with realistic business data
-- `LedgerGenerator`: Generates ledgers with proper configuration and pagination support
-- `AssetGenerator`: Creates assets with scale configuration and rate management
-- `AccountGenerator`: Generates accounts with hierarchy and type relationships
-- `TransactionGenerator`: Creates transactions using DSL patterns and batch processing
-- `TransactionLifecycle`: Manages pending/commit/revert transaction states
-
-**Advanced Features**:
-
-- Concurrent generation with worker pools and circuit breakers
-- Template-based data creation with realistic patterns
-- Account type integration (checking, savings, credit, expense, revenue, liability, equity)
-- Operation route and transaction route creation for validation
-- DSL-based transaction pattern demonstrations
-- Idempotency key support and external ID management
-
-**Location**: `/pkg/generator/interfaces.go:1-73`
-
-### Data Templates (`pkg/data/`)
-
-**Purpose**: Provides templates and patterns for realistic data generation.
-
-**Template Types**:
-
-- `OrgTemplate`: Organizations with legal documents, addresses, and industry metadata
-- `LedgerTemplate`: Basic ledger configurations with metadata
-- `AssetTemplate`: Assets with scale, type, and code specifications
-- `AccountTemplate`: Account creation with type requirements and relationships
-- `TransactionPattern`: DSL-based transaction patterns for complex flows
-
-**Features**:
-
-- Realistic business data with proper formatting
-- Metadata constraints validation (100/2000 character limits)
-- Support for different locales (US EIN vs Brazil CNPJ)
-- Account type relationships and hierarchy support
-- DSL transaction pattern templates
-
-**Location**: `/pkg/data/templates.go:1-63`
-
-### Integrity Verification (`pkg/integrity/`)
-
-**Purpose**: Balance verification and double-entry accounting validation.
-
-**Capabilities**:
-
-- Balance aggregation per asset across all accounts
-- Available and on-hold balance tracking
-- Overdrawn account detection (negative available balances)
-- Double-entry consistency validation
-- Internal net total computation (excluding @external/ accounts)
-- Scale consistency verification for currency amounts
-- Optional account lookup throttling for large ledgers
-
-**Key Types**:
-
-- `BalanceTotals`: Aggregated balance data per asset
-- `Report`: Comprehensive integrity report for ledgers
-- `Checker`: Main integrity verification engine
-
-**Location**: `/pkg/integrity/checker.go:1-219`
-
-### Statistics & Monitoring (`pkg/stats/`)
-
-**Purpose**: Statistics collection, performance monitoring, and metrics aggregation.
-
-**Features**:
-
-- Real-time performance metrics collection
-- API call statistics and timing
-- Transaction volume tracking
-- Entity creation monitoring
-- TPS (Transactions Per Second) calculation
-- Progress monitoring with ETA estimation
-
-**Location**: `/pkg/stats/stats.go:1-50`
-
-### Data Generation & Testing Utilities
-
-- **Generator** (`pkg/generator/`): Comprehensive data generation framework with interfaces for creating realistic demo data
-- **Data** (`pkg/data/`): Templates and patterns for organizations, accounts, assets, and transactions
-- **Integrity** (`pkg/integrity/`): Balance verification, double-entry validation, and data consistency checks
-- **Stats** (`pkg/stats/`): Statistics collection, performance monitoring, and metrics aggregation
-
-### Additional Core Utilities
-
-- **Pagination** (`pkg/pagination/`): Generic pagination support for all list operations with cursor and offset modes
-- **Errors** (`pkg/errors/`): Structured error handling with classification and detailed field-level error reporting
-- **Format** (`pkg/format/`): Date/time formatting and standardization utilities
-- **Performance** (`pkg/performance/`): Batch processing, JSON optimization, and high-throughput operations
-- **Conversion** (`pkg/conversion/`): Type conversion utilities between SDK models and backend models
-- **Transaction** (`pkg/transaction/`): Transaction processing helpers, batch operations, and reporting utilities
-- **Utils** (`pkg/utils/`): General utility functions for UUID generation, validation, and common operations
-- **Accounts** (`pkg/accounts/`): Account management utilities separate from the entities layer
-
-## Design Patterns
-
-### 1. Functional Options Pattern
-
-Used extensively throughout the SDK for type-safe, extensible configuration:
-
-```go
-// Client configuration
-client, err := client.New(
-    client.WithEnvironment(config.EnvironmentProduction),
-    client.WithObservability(true, true, true),
-    client.WithRetries(3, 1*time.Second, 30*time.Second),
+c, err := client.New(
+    client.WithConfig(cfg),
     client.UseAllAPIs(),
 )
+```
 
-// Configuration options
-cfg, err := config.NewConfig(
-    config.WithEnvironment(config.EnvironmentLocal),
-    config.WithAccessManager(accessManager),
-    config.WithTimeout(30 * time.Second),
+When Access Manager is enabled, `entities.NewEntityWithConfig(...)` calls:
+
+```go
+auth.GetTokenFromAccessManager(context.Background(), pluginAuth, config.GetHTTPClient())
+```
+
+The token request is a `POST` to:
+
+```text
+{PLUGIN_AUTH_ADDRESS}/v1/login/oauth/access_token
+```
+
+The request payload is:
+
+```json
+{
+  "grantType": "client_credentials",
+  "clientId": "...",
+  "clientSecret": "..."
+}
+```
+
+The SDK uses the returned `accessToken` as a bearer token on entity HTTP requests.
+
+Important boundaries:
+
+- The SDK fetches the token during entity setup.
+- The SDK does not refresh tokens automatically.
+- The SDK does not use the `refreshToken` field from the Access Manager response.
+- The SDK does not sign individual requests.
+- The SDK does not claim to derive tenant scope from tokens. It only sends optional tenant headers when configured.
+
+## Errors
+
+Most SDK operational errors use `*errors.Error` from `github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors`.
+
+The actual error shape is:
+
+```go
+type Error struct {
+    Category   ErrorCategory
+    Code       ErrorCode
+    Message    string
+    Operation  string
+    Resource   string
+    ResourceID string
+    StatusCode int
+    RequestID  string
+    Err        error
+}
+```
+
+`*errors.Error` implements:
+
+- `Error() string`
+- `Unwrap() error`
+- `Is(target error) bool`
+
+Use the helper checkers for common branches:
+
+```go
+import sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+
+account, err := c.Entity.Accounts.GetAccount(ctx, orgID, ledgerID, accountID)
+if err != nil {
+    switch {
+    case sdkerrors.IsNotFoundError(err):
+        return fmt.Errorf("account not found: %w", err)
+    case sdkerrors.IsAuthenticationError(err):
+        return fmt.Errorf("authentication failed: %w", err)
+    case sdkerrors.IsRateLimitError(err):
+        return fmt.Errorf("rate limited: %w", err)
+    default:
+        return fmt.Errorf("get account: %w", err)
+    }
+}
+```
+
+Use `errors.As` from the standard library when you need fields such as operation, resource, status code, or request ID:
+
+```go
+var sdkErr *sdkerrors.Error
+if stderrors.As(err, &sdkErr) {
+    log.Printf(
+        "category=%s code=%s operation=%s status=%d request_id=%s",
+        sdkErr.Category,
+        sdkErr.Code,
+        sdkErr.Operation,
+        sdkErr.StatusCode,
+        sdkErr.RequestID,
+    )
+}
+```
+
+Field-level validation details are not stored on `pkg/errors.Error`. Some validation paths can return `pkg/validation.FieldErrors`.
+
+## Retry behavior
+
+Retry support lives in `pkg/retry` and is applied by `entities.HTTPClient`.
+
+The default retryable HTTP status codes are:
+
+| Status | Meaning |
+| --- | --- |
+| `408` | Request timeout |
+| `429` | Too many requests |
+| `500` | Internal server error |
+| `502` | Bad gateway |
+| `503` | Service unavailable |
+| `504` | Gateway timeout |
+
+Default retryable network error text includes:
+
+- `connection reset by peer`
+- `connection refused`
+- `timeout`
+- `deadline exceeded`
+- `too many requests`
+- `rate limit`
+- `service unavailable`
+
+Configure retries at the client level:
+
+```go
+c, err := client.New(
+    client.WithRetries(3, 100*time.Millisecond, 10*time.Second),
+    client.UseAllAPIs(),
 )
 ```
 
-### 2. Interface Segregation
-
-Each domain has focused interfaces with single responsibilities:
+Disable retries:
 
 ```go
-type AccountsService interface {
-    // Account CRUD
-    CreateAccount(...) (*models.Account, error)
-    GetAccount(...) (*models.Account, error)
-    // ... other account operations
-}
-
-type TransactionsService interface {
-    // Transaction operations only
-    CreateTransaction(...) (*models.Transaction, error)
-    CreateTransactionWithDSL(...) (*models.Transaction, error)
-    // ... other transaction operations
-}
+c, err := client.New(
+    client.DisableRetries(),
+    client.UseAllAPIs(),
+)
 ```
 
-### 3. Factory Pattern
-
-Centralized service creation and configuration:
+You can also provide a custom retry predicate:
 
 ```go
-// Entity factory
-entity := &Entity{
-    Accounts:      NewAccountsEntity(client, token, urls),
-    Transactions:  NewTransactionsEntity(client, token, urls),
-    Organizations: NewOrganizationsEntity(client, token, urls),
-    // ... other services
-}
+c, err := client.New(
+    client.WithCustomRetryPolicy(func(resp *http.Response, err error) bool {
+        if resp != nil && resp.StatusCode == http.StatusConflict {
+            return false
+        }
+
+        return err != nil
+    }),
+    client.UseAllAPIs(),
+)
 ```
 
-### 4. Builder Pattern
+The custom predicate decides whether retry processing continues for a response or error. It does not replace request construction, response decoding, or SDK error mapping.
 
-Fluent APIs for model construction:
+## Idempotency behavior
+
+The SDK is conservative about retries for unsafe HTTP methods.
+
+Unsafe methods are:
+
+- `POST`
+- `PUT`
+- `PATCH`
+- `DELETE`
+
+If an unsafe request has no `X-Idempotency` header, the HTTP layer sets the effective retry count to `0` for that request. This prevents automatic retries from duplicating state-changing operations.
+
+You can attach an idempotency key to any request context:
 
 ```go
-account := models.NewAccount().
-    WithName("Customer Account").
-    WithType("customer").
-    WithAssetCode("USD").
-    WithMetadata(map[string]any{
-        "customer_id": "cust-123",
-        "tier": "premium",
+ctx := entities.WithIdempotencyKey(context.Background(), "payment-2026-04-27-0001")
+
+tx, err := c.Entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
+```
+
+For transaction creation, `models.CreateTransactionInput` also has an idempotency field used by the transaction service:
+
+```go
+input := models.NewCreateTransactionInput("USD", "100.00").
+    WithDescription("Customer payment").
+    WithSend(&models.SendInput{
+        Asset: "USD",
+        Value: "100.00",
+        Source: &models.SourceInput{
+            From: []models.FromToInput{
+                {Account: customerAlias, Amount: models.AmountInput{Asset: "USD", Value: "100.00"}},
+            },
+        },
+        Distribute: &models.DistributeInput{
+            To: []models.FromToInput{
+                {Account: merchantAlias, Amount: models.AmountInput{Asset: "USD", Value: "100.00"}},
+            },
+        },
     })
+
+input.IdempotencyKey = "payment-2026-04-27-0001"
+
+tx, err := c.Entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
 ```
 
-### 5. Middleware Pattern
+Automatic idempotency is intentionally limited. The HTTP layer only auto-generates `X-Idempotency` when:
 
-HTTP request/response processing pipeline:
+1. idempotency is enabled,
+2. the method is unsafe,
+3. no idempotency key is already present, and
+4. the service sets the internal `X-Midaz-Auto-Idempotency: true` marker.
 
-```go
-// Observability middleware
-transport := observability.NewHTTPMiddleware(provider)(http.DefaultTransport)
+The HTTP layer removes the internal marker before the request is sent. It is an SDK implementation detail, not a public API header.
 
-// Retry middleware
-transport = retry.NewHTTPMiddleware(retryOptions)(transport)
+## Observability
 
-// Authentication middleware
-transport = auth.NewHTTPMiddleware(authProvider)(transport)
-```
+Observability lives in `pkg/observability`.
 
-## API Surface Documentation
-
-### External APIs (Client-Facing)
-
-#### Client Construction
-
-```go
-func New(options ...Option) (*Client, error)
-func WithConfig(cfg *config.Config) Option
-func WithEnvironment(env config.Environment) Option
-func WithObservability(tracing, metrics, logging bool) Option
-func UseAllAPIs() Option
-```
-
-#### Service Access
-
-```go
-// Through client
-client.Entity.Organizations.CreateOrganization(...)
-client.Entity.Accounts.CreateAccount(...)
-client.Entity.Transactions.CreateTransaction(...)
-
-// Direct entity creation
-entity, err := entities.NewWithServiceURLs(serviceURLs, options...)
-```
-
-#### Configuration
-
-```go
-cfg, err := config.NewConfig(
-    config.WithEnvironment(config.EnvironmentProduction),
-    config.WithAccessManager(accessManager),
-    config.FromEnvironment(), // Load from env vars
-)
-```
-
-### Internal APIs (Package Interfaces)
-
-#### Model Conversion
-
-```go
-// SDK model to backend model
-mmodelOrg := org.ToMmodelOrganization()
-
-// Backend model to SDK model
-org := models.FromMmodelOrganization(mmodelOrg)
-```
-
-#### HTTP Client Interface
-
-```go
-type HTTPClient interface {
-    Do(req *http.Request) (*http.Response, error)
-    WithRetryOption(option retry.Option)
-    SetAuthToken(token string)
-}
-```
-
-#### Observability Interface
+The public provider interface is:
 
 ```go
 type Provider interface {
-    Tracer(name string) trace.Tracer
-    Meter(name string) metric.Meter
+    Tracer() trace.Tracer
+    Meter() metric.Meter
     Logger() Logger
-    IsEnabled() bool
     Shutdown(ctx context.Context) error
+    IsEnabled() bool
 }
 ```
 
-## Data Flow Analysis
-
-### Complete Transaction Workflow
-
-```mermaid
-sequenceDiagram
-    participant APP as Application
-    participant CLIENT as Client
-    participant CONFIG as Config
-    participant AUTH as Access Manager
-    participant ENTITY as Entity Service
-    participant VALIDATION as Validation
-    participant HTTP as HTTP Client
-    participant RETRY as Retry Logic
-    participant OBS as Observability
-    participant API as Midaz API
-
-    Note over APP,API: Organization Creation Flow
-
-    APP->>CLIENT: New() with functional options
-    CLIENT->>CONFIG: Initialize configuration
-    CONFIG->>AUTH: Setup authentication
-    AUTH-->>CONFIG: Return auth configuration
-    CONFIG-->>CLIENT: Return validated config
-    CLIENT->>ENTITY: Initialize service entities
-    ENTITY-->>CLIENT: Services ready
-
-    APP->>CLIENT: Entity.Organizations.CreateOrganization()
-    CLIENT->>ENTITY: CreateOrganization(input)
-    ENTITY->>VALIDATION: Validate input
-    VALIDATION-->>ENTITY: Validation result
-
-    alt Validation Success
-        ENTITY->>HTTP: Prepare HTTP request
-        HTTP->>OBS: Start span/metrics
-        HTTP->>RETRY: Execute with retry logic
-        RETRY->>API: POST /organizations
-        API-->>RETRY: Response
-        RETRY-->>HTTP: Final response
-        HTTP->>OBS: Record metrics/end span
-        HTTP-->>ENTITY: Response data
-        ENTITY->>ENTITY: Convert mmodel to SDK model
-        ENTITY-->>CLIENT: Return Organization
-        CLIENT-->>APP: Return Organization
-    else Validation Failure
-        VALIDATION-->>ENTITY: Validation errors
-        ENTITY-->>CLIENT: Return validation error
-        CLIENT-->>APP: Return error
-    end
-```
-
-### Account Balance Query Flow
-
-```mermaid
-sequenceDiagram
-    participant APP as Application
-    participant CLIENT as Client
-    participant ACCOUNTS as AccountsService
-    participant CACHE as Balance Cache
-    participant HTTP as HTTP Client
-    participant API as Midaz API
-
-    APP->>CLIENT: Entity.Accounts.GetBalance(orgID, ledgerID, accountID)
-    CLIENT->>ACCOUNTS: GetBalance()
-
-    ACCOUNTS->>CACHE: Check balance cache
-    alt Cache Hit
-        CACHE-->>ACCOUNTS: Return cached balance
-        ACCOUNTS-->>CLIENT: Return Balance
-    else Cache Miss
-        ACCOUNTS->>HTTP: GET /accounts/{id}/balance
-        HTTP->>API: Execute request
-        API-->>HTTP: Balance response
-        HTTP-->>ACCOUNTS: Process response
-        ACCOUNTS->>CACHE: Update cache
-        ACCOUNTS->>ACCOUNTS: Convert to SDK model
-        ACCOUNTS-->>CLIENT: Return Balance
-    end
-    CLIENT-->>APP: Return Balance
-```
-
-## Authentication & Security
-
-### Plugin-Based Authentication Architecture
-
-```mermaid
-graph TB
-    subgraph "Client Application"
-        APP[Application]
-        CONFIG[SDK Configuration]
-    end
-
-    subgraph "Access Manager Plugin"
-        PLUGIN[Access Manager]
-        TOKEN_CACHE[Token Cache]
-        REFRESH[Token Refresh Logic]
-    end
-
-    subgraph "Identity Provider"
-        IDP[Identity Provider<br/>OAuth2/OIDC]
-        TOKEN_ENDPOINT[Token Endpoint]
-    end
-
-    subgraph "Midaz Platform"
-        ONBOARDING[Onboarding API]
-        TRANSACTION[Transaction API]
-        AUTH_MIDDLEWARE[Authentication Middleware]
-    end
-
-    APP --> CONFIG
-    CONFIG --> PLUGIN
-    PLUGIN --> TOKEN_CACHE
-    PLUGIN --> REFRESH
-    REFRESH --> TOKEN_ENDPOINT
-    TOKEN_ENDPOINT --> IDP
-
-    PLUGIN --> AUTH_MIDDLEWARE
-    AUTH_MIDDLEWARE --> ONBOARDING
-    AUTH_MIDDLEWARE --> TRANSACTION
-```
-
-### Security Features
-
-1. **Token Management**:
-
-   - Automatic token refresh
-   - Secure token storage
-   - Token expiration handling
-
-2. **Request Security**:
-
-   - HTTPS enforcement
-   - Request signing (where applicable)
-   - Idempotency key generation
-
-3. **Error Security**:
-   - Sensitive data scrubbing from logs
-   - Error message sanitization
-   - PII protection in traces
-
-**Configuration**:
+The root client creates a disabled provider by default. You can enable or inject observability with:
 
 ```go
-accessManager := auth.AccessManager{
-    Enabled:      true,
-    Address:      "https://auth.example.com",
-    ClientID:     os.Getenv("CLIENT_ID"),
-    ClientSecret: os.Getenv("CLIENT_SECRET"),
-}
-```
-
-## Observability & Monitoring
-
-### OpenTelemetry Integration
-
-```mermaid
-graph LR
-    subgraph "SDK Operations"
-        HTTP[HTTP Requests]
-        VALIDATION[Validation]
-        CONVERSION[Model Conversion]
-        RETRY[Retry Operations]
-    end
-
-    subgraph "OpenTelemetry SDK"
-        TRACER[Tracer]
-        METER[Meter]
-        LOGGER[Logger]
-        PROPAGATOR[Context Propagator]
-    end
-
-    subgraph "Exporters"
-        OTLP[OTLP Exporter]
-        CONSOLE[Console Exporter]
-        PROMETHEUS[Prometheus Exporter]
-    end
-
-    subgraph "Observability Backend"
-        JAEGER[Jaeger<br/>Tracing]
-        PROMETHEUS_SERVER[Prometheus<br/>Metrics]
-        ELK[ELK Stack<br/>Logging]
-    end
-
-    HTTP --> TRACER
-    VALIDATION --> TRACER
-    CONVERSION --> METER
-    RETRY --> METER
-
-    TRACER --> OTLP
-    METER --> OTLP
-    LOGGER --> CONSOLE
-
-    OTLP --> JAEGER
-    OTLP --> PROMETHEUS_SERVER
-    CONSOLE --> ELK
-```
-
-### Metrics Collected
-
-**Request Metrics**:
-
-- `midaz.sdk.request.total`: Total requests by service/operation
-- `midaz.sdk.request.duration`: Request latency percentiles
-- `midaz.sdk.request.error.total`: Error count by type
-
-**Operation Metrics**:
-
-- `midaz.sdk.validation.duration`: Validation time
-- `midaz.sdk.conversion.duration`: Model conversion time
-- `midaz.sdk.retry.attempts`: Retry attempt counts
-
-**Resource Metrics**:
-
-- `midaz.sdk.account.operations`: Account operations
-- `midaz.sdk.transaction.operations`: Transaction operations
-- `midaz.sdk.organization.operations`: Organization operations
-
-## Configuration Management
-
-### Environment-Based Configuration
-
-```mermaid
-graph TB
-    subgraph "Configuration Sources"
-        ENV_VARS[Environment Variables]
-        CONFIG_FILE[.env File]
-        FUNCTIONAL_OPTS[Functional Options]
-        DEFAULTS[Default Values]
-    end
-
-    subgraph "Configuration Resolution"
-        RESOLVER[Config Resolver]
-        VALIDATOR[Config Validator]
-        MAPPER[Service URL Mapper]
-    end
-
-    subgraph "Service Configuration"
-        ONBOARDING_URL[Onboarding Service URL]
-        TRANSACTION_URL[Transaction Service URL]
-        AUTH_CONFIG[Authentication Config]
-        HTTP_CONFIG[HTTP Client Config]
-        OBSERVABILITY_CONFIG[Observability Config]
-    end
-
-    ENV_VARS --> RESOLVER
-    CONFIG_FILE --> RESOLVER
-    FUNCTIONAL_OPTS --> RESOLVER
-    DEFAULTS --> RESOLVER
-
-    RESOLVER --> VALIDATOR
-    VALIDATOR --> MAPPER
-
-    MAPPER --> ONBOARDING_URL
-    MAPPER --> TRANSACTION_URL
-    MAPPER --> AUTH_CONFIG
-    MAPPER --> HTTP_CONFIG
-    MAPPER --> OBSERVABILITY_CONFIG
-```
-
-### Environment Support
-
-**Local Development**:
-
-```
-MIDAZ_ENVIRONMENT=local
-MIDAZ_ONBOARDING_URL=http://localhost:3000/v1
-MIDAZ_TRANSACTION_URL=http://localhost:3001/v1
-```
-
-**Development/Staging**:
-
-```
-MIDAZ_ENVIRONMENT=development
-MIDAZ_BASE_URL=https://api.dev.midaz.io
-```
-
-**Production**:
-
-```
-MIDAZ_ENVIRONMENT=production
-MIDAZ_BASE_URL=https://api.midaz.io
-```
-
-## Error Handling Strategy
-
-### Error Classification
-
-```mermaid
-graph TB
-    subgraph "Error Types"
-        VALIDATION[ValidationError<br/>Input validation failures]
-        AUTH[AuthenticationError<br/>Token/auth issues]
-        AUTHORIZATION[AuthorizationError<br/>Permission denials]
-        NOT_FOUND[NotFoundError<br/>Resource not found]
-        CONFLICT[ConflictError<br/>Resource conflicts]
-        NETWORK[NetworkError<br/>Connection issues]
-        SERVER[ServerError<br/>API server errors]
-        TIMEOUT[TimeoutError<br/>Request timeouts]
-        RATE_LIMIT[RateLimitError<br/>Rate limiting]
-    end
-
-    subgraph "Error Handling"
-        RETRY_LOGIC[Automatic Retry<br/>For transient errors]
-        ERROR_ENRICHMENT[Error Enrichment<br/>Add context/suggestions]
-        STRUCTURED_ERRORS[Structured Errors<br/>Field-level details]
-        ERROR_LOGGING[Error Logging<br/>With correlation IDs]
-    end
-
-    NETWORK --> RETRY_LOGIC
-    TIMEOUT --> RETRY_LOGIC
-    RATE_LIMIT --> RETRY_LOGIC
-    SERVER --> RETRY_LOGIC
-
-    VALIDATION --> ERROR_ENRICHMENT
-    AUTH --> ERROR_ENRICHMENT
-    AUTHORIZATION --> ERROR_ENRICHMENT
-
-    VALIDATION --> STRUCTURED_ERRORS
-
-    ALL --> ERROR_LOGGING
-```
-
-### Error Response Structure
-
-```go
-type SDKError struct {
-    Type        ErrorType         `json:"type"`
-    Message     string           `json:"message"`
-    Code        string           `json:"code,omitempty"`
-    Details     ErrorDetails     `json:"details,omitempty"`
-    FieldErrors []FieldError     `json:"field_errors,omitempty"`
-    Suggestions []string         `json:"suggestions,omitempty"`
-    TraceID     string           `json:"trace_id,omitempty"`
-    Retryable   bool            `json:"retryable"`
-}
-
-type FieldError struct {
-    Field   string `json:"field"`
-    Message string `json:"message"`
-    Code    string `json:"code,omitempty"`
-    Value   any    `json:"value,omitempty"`
-}
-```
-
-## Performance & Concurrency
-
-### Concurrency Patterns
-
-**Worker Pool Pattern**:
-
-```go
-// Process 1000 transactions with 10 workers
-results := concurrent.WorkerPool(ctx, transactions,
-    func(ctx context.Context, tx Transaction) (Result, error) {
-        return processTransaction(ctx, tx)
-    },
-    concurrent.WithWorkers(10),
-    concurrent.WithBufferSize(100),
-    concurrent.WithRateLimit(500), // 500 ops/sec
+provider, err := observability.New(context.Background(),
+    observability.WithServiceName("payments-api"),
+    observability.WithServiceVersion("1.0.0"),
+    observability.WithEnvironment("production"),
+    observability.WithComponentEnabled(true, true, true),
+    observability.WithCollectorEndpoint("localhost:4317"),
 )
-```
-
-**Batch Processing**:
-
-```go
-// Process accounts in batches of 50
-results := concurrent.Batch(ctx, accounts, 50,
-    func(ctx context.Context, batch []Account) ([]Result, error) {
-        return client.BulkUpdateAccounts(ctx, batch)
-    },
-    concurrent.WithWorkers(5),
-)
-```
-
-### Performance Optimizations
-
-1. **Connection Pooling**: Reusable HTTP connections
-2. **Response Streaming**: Large response streaming support
-3. **JSON Optimization**: Custom JSON marshaling for performance
-4. **Memory Management**: Object pooling for frequently used structures
-5. **Caching**: Response caching for read-heavy operations
-
-## Extension Points
-
-### Custom Middleware
-
-```go
-// Custom HTTP middleware
-type CustomMiddleware struct {
-    next http.RoundTripper
+if err != nil {
+    return err
 }
+defer provider.Shutdown(context.Background())
 
-func (m *CustomMiddleware) RoundTrip(req *http.Request) (*http.Response, error) {
-    // Custom logic before request
-    resp, err := m.next.RoundTrip(req)
-    // Custom logic after response
-    return resp, err
-}
-```
-
-### Custom Observability Provider
-
-```go
-type CustomObservabilityProvider struct {
-    // Custom implementation
-}
-
-func (p *CustomObservabilityProvider) Tracer(name string) trace.Tracer {
-    // Custom tracer implementation
-}
-
-// Use custom provider
-client, err := client.New(
-    client.WithObservabilityProvider(customProvider),
+c, err := client.New(
+    client.WithObservabilityProvider(provider),
     client.UseAllAPIs(),
 )
 ```
 
-### Custom Validation Rules
+`observability.WithCollectorEndpoint(...)` configures OTLP gRPC exporters. Pass the endpoint as `host:port`, such as:
+
+```text
+localhost:4317
+otel-collector:4317
+```
+
+Do not include `http://` or `https://` in the OTLP gRPC endpoint value.
+
+When the corresponding observability components are enabled, outbound entity requests can:
+
+- create HTTP spans when tracing is enabled,
+- inject W3C trace context and baggage into request headers,
+- record request metrics through `MetricsCollector` when metrics are enabled,
+- use the provider logger for SDK warnings or errors when logging is enabled.
+
+The SDK does not read `MIDAZ_OTEL_ENDPOINT` or `MIDAZ_LOG_LEVEL` in `config.FromEnvironment()`. Configure observability in code.
+
+## Models and validation
+
+The `models` package contains public SDK types. These types are the boundary between application code and entity services.
+
+Common model responsibilities include:
+
+- request input types such as `CreateOrganizationInput`, `CreateAccountInput`, and `CreateTransactionInput`
+- fluent builders such as `models.NewCreateOrganizationInput(...)`
+- response types such as `Organization`, `Ledger`, `Account`, `Transaction`, `Holder`, and `Alias`
+- list options and list responses
+- pagination metadata helpers
+- CRM holder and alias models
+- transaction DSL and send-based transaction inputs
+- validation methods on selected input types
+- conversion helpers between SDK models and Midaz backend model shapes
+
+Validation happens primarily in model `Validate()` methods and service-level required parameter checks. The SDK does not provide a runtime system for custom validation rule registration.
+
+## Pagination
+
+List methods use `models.ListOptions` and `models.ListResponse[T]`.
 
 ```go
-validator, err := validation.NewValidator(
-    validation.WithCustomRule("account_type", func(value any) error {
-        // Custom validation logic
-        return nil
-    }),
-    validation.WithStrictMode(true),
+options := models.NewListOptions().
+    WithLimit(50).
+    WithPage(1).
+    WithFilter("status", "ACTIVE")
+
+accounts, err := c.Entity.Accounts.ListAccounts(ctx, orgID, ledgerID, options)
+if err != nil {
+    return err
+}
+
+for _, account := range accounts.Items {
+    fmt.Println(account.ID)
+}
+
+if accounts.Pagination.HasNextPage() {
+    nextOptions := accounts.Pagination.NextPageOptions()
+    _ = nextOptions
+}
+```
+
+Cursor support is endpoint-specific. `WithCursor(...)` sets the cursor query parameter, and transaction listing has explicit cursor-aware behavior.
+
+## CRM support
+
+CRM support is implemented through two entity services:
+
+- `Holders`
+- `Aliases`
+
+CRM requests use the `crm` service URL and send the organization context through:
+
+```text
+X-Organization-Id: <organizationID>
+```
+
+Example:
+
+```go
+holders, err := c.Entity.Holders.ListHolders(
+    ctx,
+    orgID,
+    models.NewListOptions().WithLimit(20),
+)
+if err != nil {
+    return err
+}
+
+alias, err := c.Entity.Aliases.CreateAlias(
+    ctx,
+    orgID,
+    holderID,
+    &models.CreateAliasInput{
+        LedgerID:  ledgerID,
+        AccountID: accountID,
+        Metadata: map[string]any{
+            "label": "primary account alias",
+        },
+    },
 )
 ```
 
-## Deployment & Environment Support
+If no CRM URL is configured, the entity layer falls back to the onboarding URL. For local development, prefer setting `MIDAZ_CRM_URL=http://localhost:4003/v1` or using `client.WithCRMURL(...)`.
 
-### Environment Configuration Matrix
+## Security boundaries
 
-| Environment | Onboarding URL                | Transaction URL                | Authentication | Debug        |
-| ----------- | ----------------------------- | ------------------------------ | -------------- | ------------ |
-| Local       | `localhost:3000/v1`           | `localhost:3001/v1`            | Optional       | Enabled      |
-| Development | `api.dev.midaz.io/onboarding` | `api.dev.midaz.io/transaction` | Required       | Configurable |
-| Production  | `api.midaz.io/onboarding`     | `api.midaz.io/transaction`     | Required       | Disabled     |
+The SDK includes outbound request validation in `pkg/security`. The HTTP layer validates parsed request URLs before executing requests.
 
-### Container Deployment
+The SDK also redacts sensitive values in debug logging, including:
+
+- `Authorization`
+- cookies
+- `X-Idempotency`
+- `X-Tenant-ID`
+
+Debug mode logs request and response metadata. Request and response bodies are redacted by length rather than printed directly.
+
+## What the SDK does not provide
+
+The current codebase does not implement these features:
+
+- automatic `.env` loading inside the SDK
+- automatic token refresh
+- request signing
+- custom validation rule registration
+- response streaming APIs
+- SDK-level caching
+- non-existent client middleware constructors
+- field-level ER diagrams as a source of truth
+- automatic observability configuration from environment variables
+
+Use application code or infrastructure around the SDK when you need those capabilities.
+
+## Local development
+
+Create a local `.env` from the example when you want shell-based configuration:
+
+```bash
+make set-env
+```
+
+The SDK still reads only the process environment. If your application uses `.env`, load it before calling `config.NewConfig(config.FromEnvironment())`.
+
+Run the main verification commands:
+
+```bash
+go build ./...
+go test ./...
+make verify-sdk
+```
+
+Use `make ci` for the full local pipeline when you need linting, security scanning, tests, coverage, and SDK compatibility checks.
+
+## Docker guidance for examples and applications
+
+This repository is a Go library, not a single long-running service. A Dockerfile for the repository should either:
+
+1. build all packages to validate the library, or
+2. build a specific runnable example application.
+
+For library validation, use:
 
 ```dockerfile
-FROM golang:1.24-alpine AS builder
-WORKDIR /app
+FROM golang:1.26 AS build
+
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+
 COPY . .
-RUN go mod tidy && go build -o app
-
-FROM alpine:latest
-RUN apk --no-cache add ca-certificates
-COPY --from=builder /app/app /usr/local/bin/app
-CMD ["app"]
+RUN go build ./...
 ```
 
-### Kubernetes Configuration
+For a runnable example, target an example with a `main` package:
 
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: midaz-sdk-app
-spec:
-  template:
-    spec:
-      containers:
-        - name: app
-          image: midaz-sdk-app:latest
-          env:
-            - name: MIDAZ_ENVIRONMENT
-              value: "production"
-            - name: MIDAZ_CLIENT_ID
-              valueFrom:
-                secretKeyRef:
-                  name: midaz-credentials
-                  key: client-id
-            - name: PLUGIN_AUTH_ENABLED
-              value: "true"
+```dockerfile
+FROM golang:1.26 AS build
+
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+RUN go build -o /out/mass-demo-generator ./examples/mass-demo-generator
+
+FROM gcr.io/distroless/base-debian12
+COPY --from=build /out/mass-demo-generator /usr/local/bin/mass-demo-generator
+ENTRYPOINT ["/usr/local/bin/mass-demo-generator"]
 ```
 
-## Example Applications & Demonstrations
+Pass SDK configuration through environment variables at runtime:
 
-The SDK includes comprehensive example applications demonstrating various usage patterns and advanced features.
+```bash
+docker run --rm \
+  -e MIDAZ_BASE_URL=https://midaz.example.com \
+  -e MIDAZ_CRM_URL=https://crm.midaz.example.com/v1 \
+  -e PLUGIN_AUTH_ENABLED=false \
+  midaz-mass-demo-generator
+```
 
-### Mass Demo Generator (`examples/mass-demo-generator/`)
+Do not create Docker guidance that assumes the library itself starts a server.
 
-A comprehensive demo data generation application showcasing advanced SDK capabilities:
+## Extension points
 
-**Key Features**:
+Use these supported extension points:
 
-- **Concurrent Processing**: Parallel entity creation with configurable worker pools
-- **Circuit Breaker Integration**: Automatic API protection with failure detection
-- **DSL Transaction Patterns**: Complex transaction flows using domain-specific language
-- **Routing System**: Complete account types, operation routes, and transaction routes
-- **Integrity Verification**: Balance checks and double-entry validation
-- **Comprehensive Reporting**: Detailed HTML and JSON reports with performance metrics
+| Need | Extension point |
+| --- | --- |
+| Custom service URLs | `client.WithBaseURL`, `client.WithOnboardingURL`, `client.WithTransactionURL`, `client.WithCRMURL`, or config equivalents. |
+| Custom HTTP behavior | `client.WithHTTPClient(...)` or `config.WithHTTPClient(...)`. |
+| Retry tuning | `client.WithRetries(...)`, `client.DisableRetries()`, or `client.WithCustomRetryPolicy(...)`. |
+| Access Manager authentication | `config.WithAccessManager(...)` or `config.FromEnvironment()`. |
+| Observability | `client.WithObservabilityProvider(...)`, `client.WithObservabilityOptions(...)`, or `client.WithCollectorEndpoint(...)`. |
+| Tenant compatibility header | `client.WithTenantID(...)`, `config.WithTenantID(...)`, or `entities.WithTenantID(ctx, ...)`. |
+| Per-request idempotency | `entities.WithIdempotencyKey(ctx, ...)` or transaction input idempotency. |
+| Pagination | `models.NewListOptions()` and `models.ListResponse[T]` pagination helpers. |
+| Error branching | `pkg/errors` helper checkers and `errors.As`. |
 
-**Generated Data Structure**:
+## Next steps
 
-1. Organizations with realistic business data and addresses
-2. Ledgers with proper metadata and configuration
-3. Assets including fiat currencies, cryptocurrencies, and loyalty points
-4. Account types (checking, savings, credit, expense, revenue, liability, equity)
-5. Accounts with hierarchical relationships and type associations
-6. Portfolios and segments for account organization
-7. Operation routes and transaction routes for validation
-8. Transactions using both standard operations and DSL patterns
-
-**Performance Characteristics**:
-
-- Configurable concurrency levels (1-50 workers)
-- Circuit breaker protection with failure thresholds
-- Rate limiting and throttling capabilities
-- Real-time progress monitoring with TPS metrics
-- Batch processing optimization for high throughput
-
-### Other Examples
-
-- **`workflow-with-entities/`**: Complete end-to-end workflow implementation
-- **`concurrency-example/`**: Concurrent operations and balance fetching
-- **`observability-demo/`**: Observability and monitoring setup
-- **`configuration-examples/`**: SDK configuration patterns and best practices
-- **`validation-example/`**: Input validation and error handling patterns
-- **`retry-example/`**: Retry mechanisms and error handling
-
----
-
-**Document Version**: 1.1  
-**Last Updated**: 2025-09-28  
-**SDK Version**: 2.0.0  
-**Architecture Review Status**: ✅ Complete
+- Use `README.md` for quick-start usage.
+- Use `docs/environment.md` for environment variable details.
+- Use `docs/errors.md` for error handling patterns.
+- Use `docs/pagination.md` for list and cursor behavior.
+- Use `docs/tracing.md` for OpenTelemetry examples.
+- Use `docs/mapping/external_apis.md` for the public SDK surface.
+- Use generated Go docs from `make docs` or `make godoc` when you need package-level API details.
