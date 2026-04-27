@@ -295,6 +295,8 @@ linters:
             - fmt.Printf
             - fmt.Println
             - fmt.Fprintf
+            - strings.Builder.WriteByte
+            - strings.Builder.WriteString
         - name: cognitive-complexity
           severity: warning
           arguments: [20]
