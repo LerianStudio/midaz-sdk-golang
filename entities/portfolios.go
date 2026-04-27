@@ -345,17 +345,12 @@ func (e *portfoliosEntity) GetPortfoliosMetricsCount(ctx context.Context, organi
 
 	url := e.buildMetricsURL(organizationID, ledgerID)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
+	count, err := e.HTTPClient.doCountRequest(ctx, http.MethodHead, url, nil)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
-
-	var metrics models.MetricsCount
-	if err := e.HTTPClient.sendRequest(req, &metrics); err != nil {
 		return nil, err
 	}
 
-	return &metrics, nil
+	return &models.MetricsCount{PortfoliosCount: count}, nil
 }
 
 // buildURL builds the URL for portfolios API calls.
@@ -363,14 +358,14 @@ func (e *portfoliosEntity) buildURL(organizationID, ledgerID, portfolioID string
 	baseURL := e.baseURLs["onboarding"]
 
 	if portfolioID == "" {
-		return fmt.Sprintf("%s/organizations/%s/ledgers/%s/portfolios", baseURL, organizationID, ledgerID)
+		return fmt.Sprintf("%s/organizations/%s/ledgers/%s/portfolios", baseURL, pathSegment(organizationID), pathSegment(ledgerID))
 	}
 
-	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/portfolios/%s", baseURL, organizationID, ledgerID, portfolioID)
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/portfolios/%s", baseURL, pathSegment(organizationID), pathSegment(ledgerID), pathSegment(portfolioID))
 }
 
 // buildMetricsURL builds the URL for portfolios metrics API calls.
 func (e *portfoliosEntity) buildMetricsURL(organizationID, ledgerID string) string {
 	baseURL := e.baseURLs["onboarding"]
-	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/portfolios/metrics/count", baseURL, organizationID, ledgerID)
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/portfolios/metrics/count", baseURL, pathSegment(organizationID), pathSegment(ledgerID))
 }

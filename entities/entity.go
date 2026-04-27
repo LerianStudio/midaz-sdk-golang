@@ -47,7 +47,10 @@ type Entity struct {
 	Assets            AssetsService
 	AssetRates        AssetRatesService
 	Balances          BalancesService
+	Holders           HoldersService
+	Aliases           AliasesService
 	Ledgers           LedgersService
+	MetadataIndexes   MetadataIndexesService
 	Operations        OperationsService
 	OperationRoutes   OperationRoutesService
 	Organizations     OrganizationsService
@@ -134,7 +137,7 @@ func NewEntity(client *http.Client, authToken string, baseURLs map[string]string
 
 	entity := &Entity{
 		httpClient:    httpClient,
-		baseURLs:      baseURLs,
+		baseURLs:      withOptionalCRMURL(baseURLs),
 		observability: observabilityProvider,
 	}
 
@@ -187,7 +190,7 @@ func NewEntityWithConfig(config Config, options ...Option) (*Entity, error) {
 
 	entity := &Entity{
 		httpClient:    httpClient,
-		baseURLs:      config.GetBaseURLs(),
+		baseURLs:      withOptionalCRMURL(config.GetBaseURLs()),
 		observability: config.GetObservabilityProvider(),
 	}
 
@@ -213,7 +216,10 @@ func (e *Entity) initServices() {
 	e.Assets = NewAssetsEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
 	e.AssetRates = NewAssetRatesEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
 	e.Balances = NewBalancesEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
+	e.Holders = NewHoldersEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
+	e.Aliases = NewAliasesEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
 	e.Ledgers = NewLedgersEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
+	e.MetadataIndexes = NewMetadataIndexesEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
 	e.Operations = NewOperationsEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
 	e.OperationRoutes = NewOperationRoutesEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
 	e.Organizations = NewOrganizationsEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
@@ -221,16 +227,19 @@ func (e *Entity) initServices() {
 	e.Segments = NewSegmentsEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
 	e.TransactionRoutes = NewTransactionRoutesEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
 
-	// Propagate the entity-level tenant ID to each service entity's HTTP client.
-	// Each NewXxxEntity constructor creates a fresh HTTPClient with tenantID="",
-	// so we must copy the tenant ID from the parent entity after construction.
-	e.propagateTenantID()
+	// Each NewXxxEntity constructor creates a fresh HTTPClient around the shared
+	// transport. Copy the parent entity configuration across after construction.
+	e.propagateHTTPClientConfiguration()
 }
 
 // tenantSetter is implemented by service entities that can receive a tenant ID.
 // This decouples propagateTenantID from knowing every concrete service type.
 type tenantSetter interface {
 	setDefaultTenantID(tenantID string)
+}
+
+type httpClientConfigurator interface {
+	entityHTTPClient() *HTTPClient
 }
 
 // propagateTenantID copies the entity-level tenant ID to all service entity HTTP clients.
@@ -244,7 +253,7 @@ func (e *Entity) propagateTenantID() {
 
 	services := []any{
 		e.Accounts, e.AccountTypes, e.Assets, e.AssetRates,
-		e.Balances, e.Ledgers, e.Operations, e.OperationRoutes,
+		e.Aliases, e.Balances, e.Holders, e.Ledgers, e.MetadataIndexes, e.Operations, e.OperationRoutes,
 		e.Organizations, e.Portfolios, e.Segments,
 		e.Transactions, e.TransactionRoutes,
 	}
@@ -254,6 +263,87 @@ func (e *Entity) propagateTenantID() {
 			ts.setDefaultTenantID(tid)
 		}
 	}
+}
+
+func (e *Entity) propagateHTTPClientConfiguration() {
+	e.propagateTenantID()
+
+	services := []any{
+		e.Accounts, e.AccountTypes, e.Assets, e.AssetRates,
+		e.Aliases, e.Balances, e.Holders, e.Ledgers, e.MetadataIndexes, e.Operations, e.OperationRoutes,
+		e.Organizations, e.Portfolios, e.Segments,
+		e.Transactions, e.TransactionRoutes,
+	}
+
+	for _, svc := range services {
+		if configurator, ok := svc.(httpClientConfigurator); ok {
+			configurator.entityHTTPClient().applyConfigurationFrom(e.httpClient)
+		}
+	}
+}
+
+func (e *accountsEntity) entityHTTPClient() *HTTPClient {
+	return e.httpClient
+}
+
+func (e *accountTypesEntity) entityHTTPClient() *HTTPClient {
+	return e.httpClient
+}
+
+func (e *assetsEntity) entityHTTPClient() *HTTPClient {
+	return e.httpClient
+}
+
+func (e *assetRatesEntity) entityHTTPClient() *HTTPClient {
+	return e.httpClient
+}
+
+func (e *balancesEntity) entityHTTPClient() *HTTPClient {
+	return e.httpClient
+}
+
+func (e *holdersEntity) entityHTTPClient() *HTTPClient {
+	return e.httpClient
+}
+
+func (e *aliasesEntity) entityHTTPClient() *HTTPClient {
+	return e.httpClient
+}
+
+func (e *ledgersEntity) entityHTTPClient() *HTTPClient {
+	return e.httpClient
+}
+
+func (e *metadataIndexesEntity) entityHTTPClient() *HTTPClient {
+	return e.httpClient
+}
+
+func (e *operationsEntity) entityHTTPClient() *HTTPClient {
+	return e.HTTPClient
+}
+
+func (e *operationRoutesEntity) entityHTTPClient() *HTTPClient {
+	return e.httpClient
+}
+
+func (e *organizationsEntity) entityHTTPClient() *HTTPClient {
+	return e.HTTPClient
+}
+
+func (e *portfoliosEntity) entityHTTPClient() *HTTPClient {
+	return e.HTTPClient
+}
+
+func (e *segmentsEntity) entityHTTPClient() *HTTPClient {
+	return e.HTTPClient
+}
+
+func (e *transactionsEntity) entityHTTPClient() *HTTPClient {
+	return e.httpClient
+}
+
+func (e *transactionRoutesEntity) entityHTTPClient() *HTTPClient {
+	return e.httpClient
 }
 
 // InitServices initializes the service interfaces for the entity.
@@ -342,6 +432,7 @@ func New(baseURL string, options ...Option) (*Entity, error) {
 	baseURLs := map[string]string{
 		"onboarding":  baseURL,
 		"transaction": baseURL,
+		"crm":         baseURL,
 	}
 
 	// Create a default HTTP client
@@ -407,7 +498,7 @@ func NewWithServiceURLs(serviceURLs map[string]string, options ...Option) (*Enti
 	// Create a new entity with the provided service URLs
 	entity := &Entity{
 		httpClient: httpClient,
-		baseURLs:   serviceURLs,
+		baseURLs:   withOptionalCRMURL(serviceURLs),
 	}
 
 	// Apply any options
@@ -421,4 +512,21 @@ func NewWithServiceURLs(serviceURLs map[string]string, options ...Option) (*Enti
 	entity.initServices()
 
 	return entity, nil
+}
+
+func withOptionalCRMURL(baseURLs map[string]string) map[string]string {
+	if baseURLs == nil {
+		return nil
+	}
+
+	normalized := make(map[string]string, len(baseURLs)+1)
+	for service, serviceURL := range baseURLs {
+		normalized[service] = serviceURL
+	}
+
+	if _, ok := normalized["crm"]; !ok {
+		normalized["crm"] = normalized["onboarding"]
+	}
+
+	return normalized
 }

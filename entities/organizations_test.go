@@ -145,7 +145,7 @@ func TestCreateOrganization(t *testing.T) {
 	ctx := context.Background()
 
 	// Create test input
-	input := models.NewCreateOrganizationInput("New Org").
+	input := models.NewCreateOrganizationInput("New Org", "123456789012345").
 		WithLegalDocument("987654321").
 		WithStatus(models.NewStatus("ACTIVE")).
 		WithMetadata(map[string]any{

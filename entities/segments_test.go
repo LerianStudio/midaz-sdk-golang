@@ -372,8 +372,8 @@ func TestSegmentsEntity_ListSegments_QueryParams(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Contains(t, capturedURL, "limit=20")
-	assert.Contains(t, capturedURL, "offset=5")
-	assert.Contains(t, capturedURL, "orderBy=createdAt")
+	assert.Contains(t, capturedURL, "page=1")
+	assert.Contains(t, capturedURL, "sort_order=desc")
 	assert.Contains(t, capturedURL, "status=ACTIVE")
 }
 
@@ -1123,8 +1123,8 @@ func TestSegmentsEntity_GetSegmentsMetricsCount(t *testing.T) {
 			name:           "success",
 			orgID:          testOrgID,
 			ledgerID:       testLedgerID,
-			mockStatusCode: http.StatusOK,
-			mockResponse:   `{"count": 42}`,
+			mockStatusCode: http.StatusNoContent,
+			mockResponse:   ``,
 		},
 		{
 			name:          "empty organization ID",
@@ -1190,6 +1190,7 @@ func TestSegmentsEntity_GetSegmentsMetricsCount(t *testing.T) {
 
 					return &http.Response{
 						StatusCode: statusCode,
+						Header:     http.Header{HeaderTotalCount: []string{"42"}},
 						Body:       io.NopCloser(strings.NewReader(tt.mockResponse)),
 					}, nil
 				},
@@ -1214,6 +1215,7 @@ func TestSegmentsEntity_GetSegmentsMetricsCount(t *testing.T) {
 
 			require.NoError(t, err)
 			require.NotNil(t, result)
+			assert.Equal(t, 42, result.SegmentsCount)
 		})
 	}
 }
@@ -1619,7 +1621,7 @@ func TestSegmentsEntity_RequestURLConstruction(t *testing.T) {
 
 	require.Len(t, capturedRequests, 1)
 	assert.Contains(t, capturedRequests[0].URL, "limit=25")
-	assert.Contains(t, capturedRequests[0].URL, "offset=50")
+	assert.Contains(t, capturedRequests[0].URL, "page=3")
 }
 
 func TestSegmentsEntity_ResponseParsing(t *testing.T) {

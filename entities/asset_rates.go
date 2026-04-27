@@ -253,14 +253,14 @@ func (e *assetRatesEntity) buildURL(organizationID, ledgerID, externalID string)
 	baseURL := e.baseURLs["transaction"]
 
 	if externalID == "" {
-		return fmt.Sprintf("%s/organizations/%s/ledgers/%s/asset-rates", baseURL, organizationID, ledgerID)
+		return fmt.Sprintf("%s/organizations/%s/ledgers/%s/asset-rates", baseURL, pathSegment(organizationID), pathSegment(ledgerID))
 	}
 
-	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/asset-rates/%s", baseURL, organizationID, ledgerID, externalID)
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/asset-rates/%s", baseURL, pathSegment(organizationID), pathSegment(ledgerID), pathSegment(externalID))
 }
 
 // buildFromAssetURL builds the URL for listing asset rates by source asset code.
 func (e *assetRatesEntity) buildFromAssetURL(organizationID, ledgerID, assetCode string) string {
 	baseURL := e.baseURLs["transaction"]
-	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/asset-rates/from/%s", baseURL, organizationID, ledgerID, assetCode)
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/asset-rates/from/%s", baseURL, pathSegment(organizationID), pathSegment(ledgerID), pathSegment(assetCode))
 }

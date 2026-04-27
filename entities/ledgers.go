@@ -103,6 +103,12 @@ type LedgersService interface {
 	// Returns the updated ledger, or an error if the operation fails.
 	UpdateLedger(ctx context.Context, organizationID, id string, input *models.UpdateLedgerInput) (*models.Ledger, error)
 
+	// GetLedgerSettings retrieves the settings for a ledger.
+	GetLedgerSettings(ctx context.Context, organizationID, id string) (*models.LedgerSettings, error)
+
+	// UpdateLedgerSettings partially updates the settings for a ledger.
+	UpdateLedgerSettings(ctx context.Context, organizationID, id string, input *models.UpdateLedgerSettingsInput) (*models.LedgerSettings, error)
+
 	// DeleteLedger deletes a ledger.
 	// The organizationID parameter specifies which organization the ledger belongs to.
 	// The id parameter is the unique identifier of the ledger to delete.
@@ -334,6 +340,69 @@ func (e *ledgersEntity) UpdateLedger(
 	return &ledger, nil
 }
 
+// GetLedgerSettings retrieves the settings for a ledger.
+func (e *ledgersEntity) GetLedgerSettings(ctx context.Context, organizationID, id string) (*models.LedgerSettings, error) {
+	const operation = "GetLedgerSettings"
+
+	if organizationID == "" {
+		return nil, errors.NewMissingParameterError(operation, "organizationID")
+	}
+
+	if id == "" {
+		return nil, errors.NewMissingParameterError(operation, "id")
+	}
+
+	url := e.buildSettingsURL(organizationID, id)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	var settings models.LedgerSettings
+	if err := e.httpClient.sendRequest(req, &settings); err != nil {
+		return nil, err
+	}
+
+	return &settings, nil
+}
+
+// UpdateLedgerSettings partially updates the settings for a ledger.
+func (e *ledgersEntity) UpdateLedgerSettings(ctx context.Context, organizationID, id string, input *models.UpdateLedgerSettingsInput) (*models.LedgerSettings, error) {
+	const operation = "UpdateLedgerSettings"
+
+	if organizationID == "" {
+		return nil, errors.NewMissingParameterError(operation, "organizationID")
+	}
+
+	if id == "" {
+		return nil, errors.NewMissingParameterError(operation, "id")
+	}
+
+	if input == nil {
+		return nil, errors.NewMissingParameterError(operation, "input")
+	}
+
+	url := e.buildSettingsURL(organizationID, id)
+
+	body, err := json.Marshal(input)
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, bytes.NewReader(body))
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	var settings models.LedgerSettings
+	if err := e.httpClient.sendRequest(req, &settings); err != nil {
+		return nil, err
+	}
+
+	return &settings, nil
+}
+
 // DeleteLedger deletes a ledger.
 // The organizationID parameter specifies which organization the ledger belongs to.
 // The id parameter is the unique identifier of the ledger to delete.
@@ -372,17 +441,12 @@ func (e *ledgersEntity) GetLedgersMetricsCount(ctx context.Context, organization
 
 	url := e.buildMetricsURL(organizationID)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
+	count, err := e.httpClient.doCountRequest(ctx, http.MethodHead, url, nil)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
-
-	var metrics models.MetricsCount
-	if err := e.httpClient.sendRequest(req, &metrics); err != nil {
 		return nil, err
 	}
 
-	return &metrics, nil
+	return &models.MetricsCount{LedgersCount: count}, nil
 }
 
 // buildURL builds the URL for ledgers API calls.
@@ -390,14 +454,19 @@ func (e *ledgersEntity) buildURL(organizationID, ledgerID string) string {
 	baseURL := e.baseURLs["onboarding"]
 
 	if ledgerID == "" {
-		return fmt.Sprintf("%s/organizations/%s/ledgers", baseURL, organizationID)
+		return fmt.Sprintf("%s/organizations/%s/ledgers", baseURL, pathSegment(organizationID))
 	}
 
-	return fmt.Sprintf("%s/organizations/%s/ledgers/%s", baseURL, organizationID, ledgerID)
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s", baseURL, pathSegment(organizationID), pathSegment(ledgerID))
 }
 
 // buildMetricsURL builds the URL for ledgers metrics API calls.
 func (e *ledgersEntity) buildMetricsURL(organizationID string) string {
 	baseURL := e.baseURLs["onboarding"]
-	return fmt.Sprintf("%s/organizations/%s/ledgers/metrics/count", baseURL, organizationID)
+	return fmt.Sprintf("%s/organizations/%s/ledgers/metrics/count", baseURL, pathSegment(organizationID))
+}
+
+func (e *ledgersEntity) buildSettingsURL(organizationID, ledgerID string) string {
+	baseURL := e.baseURLs["onboarding"]
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/settings", baseURL, pathSegment(organizationID), pathSegment(ledgerID))
 }

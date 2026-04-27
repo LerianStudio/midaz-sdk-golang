@@ -38,14 +38,17 @@ type Client struct {
 
 	// tenantID is the default tenant identifier sent as X-Tenant-ID on every request.
 	// Per-request overrides via entities.WithTenantID(ctx, id) take precedence.
+	// This remains an optional compatibility header; authenticated claims are the
+	// primary tenant source of truth in the reference Midaz path.
 	tenantID string
 	// tenantIDSet tracks whether WithTenantID was explicitly called, allowing
 	// an empty value to override the config/env default.
 	tenantIDSet bool
 
 	// Observability provider
-	observability observability.Provider
-	metrics       *observability.MetricsCollector
+	observability     observability.Provider
+	metrics           *observability.MetricsCollector
+	customRetryPolicy func(*http.Response, error) bool
 }
 
 // New creates a new Midaz client with the provided options.
@@ -103,28 +106,12 @@ func (c *Client) setupEntity() error {
 		return errors.New("missing transaction URL in config")
 	}
 
-	// Custom retry policy if enabled
-	var retryOptions *retry.Options
-	if c.config.EnableRetries {
-		retryOptions = retry.DefaultOptions()
-
-		if err := retry.WithMaxRetries(c.config.MaxRetries)(retryOptions); err != nil {
-			return fmt.Errorf("failed to set max retries: %w", err)
-		}
-
-		if err := retry.WithInitialDelay(c.config.RetryWaitMin)(retryOptions); err != nil {
-			return fmt.Errorf("failed to set initial delay: %w", err)
-		}
-
-		if err := retry.WithMaxDelay(c.config.RetryWaitMax)(retryOptions); err != nil {
-			return fmt.Errorf("failed to set max delay: %w", err)
-		}
+	if err := config.WithObservabilityProvider(c.observability)(c.config); err != nil {
+		return fmt.Errorf("failed to configure observability provider: %w", err)
 	}
 
 	// Create the entity API with service-specific URLs
-	options := []entities.Option{
-		entities.WithObservability(c.observability),
-	}
+	options := []entities.Option{entities.WithObservability(c.observability)}
 
 	// Propagate tenant ID to the entity layer if configured.
 	// Client-level tenantID takes precedence over config-level TenantID.
@@ -141,16 +128,33 @@ func (c *Client) setupEntity() error {
 		options = append(options, entities.WithDefaultTenantID(tenantID))
 	}
 
-	// Add plugin auth if enabled
-	pluginAuth := c.config.GetPluginAuth()
-	if pluginAuth.Enabled {
-		options = append(options, entities.WithPluginAuth(pluginAuth))
-	}
+	options = append(options,
+		entities.WithDebug(c.config.Debug),
+		entities.WithUserAgent(c.config.UserAgent),
+	)
 
-	entity, err := entities.NewWithServiceURLs(serviceURLs, options...)
+	entity, err := entities.NewEntityWithConfig(c.config, options...)
 	if err != nil {
 		return err
 	}
+
+	httpClient := entity.GetEntityHTTPClient()
+	httpClient.SetEnableIdempotency(c.config.EnableIdempotency)
+	httpClient.WithRetryOptions(
+		retry.WithMaxRetries(c.config.MaxRetries),
+		retry.WithInitialDelay(c.config.RetryWaitMin),
+		retry.WithMaxDelay(c.config.RetryWaitMax),
+	)
+
+	if !c.config.EnableRetries {
+		httpClient.WithRetryOption(retry.WithMaxRetries(0))
+	}
+
+	if c.customRetryPolicy != nil {
+		httpClient.SetCustomRetryPolicy(c.customRetryPolicy)
+	}
+
+	entity.InitServices()
 
 	c.Entity = entity
 
@@ -227,18 +231,14 @@ func WithRetries(maxRetries int, minBackoff, maxBackoff time.Duration) Option {
 //
 // Returns:
 //   - Option: A function that sets the retry policy on the Client
-func WithCustomRetryPolicy(_ func(*http.Response, error) bool) Option {
+func WithCustomRetryPolicy(shouldRetry func(*http.Response, error) bool) Option {
 	return func(c *Client) error {
-		// Custom retry policy will be applied when creating entities
+		c.customRetryPolicy = shouldRetry
+
 		if c.Entity != nil {
 			httpClient := c.Entity.GetEntityHTTPClient()
 			if httpClient != nil {
-				httpClient.WithRetryOption(retry.WithMaxRetries(c.config.MaxRetries))
-				httpClient.WithRetryOption(retry.WithInitialDelay(c.config.RetryWaitMin))
-				httpClient.WithRetryOption(retry.WithMaxDelay(c.config.RetryWaitMax))
-				httpClient.WithRetryOption(retry.WithBackoffFactor(2.0))
-				httpClient.WithRetryOption(retry.WithRetryableHTTPCodes(retry.DefaultRetryableHTTPCodes))
-				httpClient.WithRetryOption(retry.WithRetryableErrors(retry.DefaultRetryableErrors))
+				httpClient.SetCustomRetryPolicy(shouldRetry)
 			}
 		}
 
@@ -550,6 +550,14 @@ func WithTransactionURL(transactionURL string) Option {
 	}
 }
 
+// WithCRMURL sets the URL for the CRM API.
+// This overrides any URL derived from the Environment setting.
+func WithCRMURL(crmURL string) Option {
+	return func(c *Client) error {
+		return config.WithCRMURL(crmURL)(c.config)
+	}
+}
+
 // WithDebug enables or disables debug mode.
 // In debug mode, the SDK logs detailed information about requests and responses.
 //
@@ -567,7 +575,9 @@ func WithDebug(enable bool) Option {
 // WithTenantID sets the default tenant ID for all API requests made through this client.
 // The tenant ID is sent as the X-Tenant-ID header on every request.
 // Per-request overrides via entities.WithTenantID(ctx, tenantID) take precedence
-// over this client-level default.
+// over this client-level default. This is an optional compatibility signal for
+// deployments that honor the header, not a replacement for tenant resolution from
+// authenticated claims.
 //
 // Parameters:
 //   - tenantID: The tenant identifier to use

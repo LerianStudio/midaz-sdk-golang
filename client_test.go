@@ -55,8 +55,9 @@ func TestNewClient(t *testing.T) {
 	client, err = New(
 		WithConfig(testCfg),
 		WithHTTPClient(customHTTPClient),
-		WithOnboardingURL("http://test.example.com/onboarding"),
-		WithTransactionURL("http://test.example.com/transaction"),
+		WithOnboardingURL("https://test.example.com/onboarding"),
+		WithTransactionURL("https://test.example.com/transaction"),
+		WithCRMURL("https://test.example.com/crm"),
 		WithTimeout(30*time.Second),
 		WithDebug(true),
 		WithEnvironment(config.EnvironmentDevelopment),
@@ -81,6 +82,14 @@ func TestNewClient(t *testing.T) {
 
 	if !client.config.Debug {
 		t.Error("Expected debug to be true")
+	}
+
+	if got := client.config.ServiceURLs[config.ServiceCRM]; got != "https://test.example.com/crm" {
+		t.Errorf("Expected CRM URL to be applied, got %q", got)
+	}
+
+	if client.Entity.Holders == nil || client.Entity.Aliases == nil || client.Entity.MetadataIndexes == nil {
+		t.Fatal("Expected new Entity services to be initialized")
 	}
 
 	if !client.useEntity {

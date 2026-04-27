@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
@@ -196,6 +197,9 @@ type BalancesService interface {
 	// Returns the balance if found, or an error if the operation fails or the balance doesn't exist.
 	GetBalance(ctx context.Context, orgID, ledgerID, balanceID string) (*models.Balance, error)
 
+	// GetBalanceHistory retrieves the historical state of a balance at a specific point in time.
+	GetBalanceHistory(ctx context.Context, orgID, ledgerID, balanceID, date string) (*models.BalanceHistory, error)
+
 	// UpdateBalance updates an existing balance.
 	// The orgID, ledgerID, and balanceID parameters specify which organization, ledger, and balance to update.
 	// The input parameter contains the balance details to update, such as amount or metadata.
@@ -222,6 +226,9 @@ type BalancesService interface {
 	// The external code links the account to external systems.
 	// Returns a paginated list of balances, or an error if the operation fails.
 	ListBalancesByExternalCode(ctx context.Context, orgID, ledgerID, code string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error)
+
+	// GetAccountBalancesHistory retrieves the historical state of all balances for an account at a specific point in time.
+	GetAccountBalancesHistory(ctx context.Context, orgID, ledgerID, accountID, date string) ([]models.BalanceHistory, error)
 }
 
 // balancesEntity implements the BalancesService interface.
@@ -424,6 +431,45 @@ func (e *balancesEntity) GetBalance(
 	return &balance, nil
 }
 
+// GetBalanceHistory retrieves the historical state of a balance at a specific point in time.
+func (e *balancesEntity) GetBalanceHistory(ctx context.Context, orgID, ledgerID, balanceID, date string) (*models.BalanceHistory, error) {
+	const operation = "GetBalanceHistory"
+
+	if orgID == "" {
+		return nil, errors.NewMissingParameterError(operation, "organizationID")
+	}
+
+	if ledgerID == "" {
+		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+	}
+
+	if balanceID == "" {
+		return nil, errors.NewMissingParameterError(operation, "balanceID")
+	}
+
+	if date == "" {
+		return nil, errors.NewMissingParameterError(operation, "date")
+	}
+
+	if err := validateBalanceHistoryDate(date); err != nil {
+		return nil, errors.NewValidationError(operation, "invalid date", err)
+	}
+
+	endpoint := e.buildBalanceHistoryURL(orgID, ledgerID, balanceID, date)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	var response models.BalanceHistory
+	if err := e.httpClient.sendRequest(req, &response); err != nil {
+		return nil, err
+	}
+
+	return &response, nil
+}
+
 // UpdateBalance updates an existing balance.
 // The orgID, ledgerID, and balanceID parameters specify which organization, ledger, and balance to update.
 // The input parameter contains the balance details to update, such as amount or metadata.
@@ -522,10 +568,10 @@ func (e *balancesEntity) buildURL(organizationID, ledgerID, balanceID string) st
 	baseURL := e.baseURLs["transaction"]
 
 	if balanceID == "" {
-		return fmt.Sprintf("%s/organizations/%s/ledgers/%s/balances", baseURL, organizationID, ledgerID)
+		return fmt.Sprintf("%s/organizations/%s/ledgers/%s/balances", baseURL, pathSegment(organizationID), pathSegment(ledgerID))
 	}
 
-	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/balances/%s", baseURL, organizationID, ledgerID, balanceID)
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/balances/%s", baseURL, pathSegment(organizationID), pathSegment(ledgerID), pathSegment(balanceID))
 }
 
 // buildAccountURL builds the URL for account balances API calls.
@@ -535,7 +581,7 @@ func (e *balancesEntity) buildURL(organizationID, ledgerID, balanceID string) st
 func (e *balancesEntity) buildAccountURL(orgID, ledgerID, accountID string) string {
 	baseURL := e.baseURLs["transaction"]
 
-	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/%s/balances", baseURL, orgID, ledgerID, accountID)
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/%s/balances", baseURL, pathSegment(orgID), pathSegment(ledgerID), pathSegment(accountID))
 }
 
 // CreateBalance creates an additional balance for an account.
@@ -668,16 +714,73 @@ func (e *balancesEntity) ListBalancesByExternalCode(ctx context.Context, orgID, 
 	return &response, nil
 }
 
+// GetAccountBalancesHistory retrieves the historical state of all balances for an account at a specific point in time.
+func (e *balancesEntity) GetAccountBalancesHistory(ctx context.Context, orgID, ledgerID, accountID, date string) ([]models.BalanceHistory, error) {
+	const operation = "GetAccountBalancesHistory"
+
+	if orgID == "" {
+		return nil, errors.NewMissingParameterError(operation, "organizationID")
+	}
+
+	if ledgerID == "" {
+		return nil, errors.NewMissingParameterError(operation, "ledgerID")
+	}
+
+	if accountID == "" {
+		return nil, errors.NewMissingParameterError(operation, "accountID")
+	}
+
+	if date == "" {
+		return nil, errors.NewMissingParameterError(operation, "date")
+	}
+
+	if err := validateBalanceHistoryDate(date); err != nil {
+		return nil, errors.NewValidationError(operation, "invalid date", err)
+	}
+
+	endpoint := e.buildAccountHistoryURL(orgID, ledgerID, accountID, date)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	var response []models.BalanceHistory
+	if err := e.httpClient.sendRequest(req, &response); err != nil {
+		return nil, err
+	}
+
+	return response, nil
+}
+
 // buildAccountAliasURL builds the URL for balance lookups by account alias.
 func (e *balancesEntity) buildAccountAliasURL(orgID, ledgerID, alias string) string {
 	baseURL := e.baseURLs["transaction"]
 
-	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/alias/%s/balances", baseURL, orgID, ledgerID, url.PathEscape(alias))
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/alias/%s/balances", baseURL, pathSegment(orgID), pathSegment(ledgerID), pathSegment(alias))
 }
 
 // buildExternalCodeURL builds the URL for balance lookups by external code.
 func (e *balancesEntity) buildExternalCodeURL(orgID, ledgerID, code string) string {
 	baseURL := e.baseURLs["transaction"]
 
-	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/external/%s/balances", baseURL, orgID, ledgerID, url.PathEscape(code))
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/external/%s/balances", baseURL, pathSegment(orgID), pathSegment(ledgerID), pathSegment(code))
+}
+
+func (e *balancesEntity) buildBalanceHistoryURL(orgID, ledgerID, balanceID, date string) string {
+	baseURL := e.baseURLs["transaction"]
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/balances/%s/history?date=%s", baseURL, pathSegment(orgID), pathSegment(ledgerID), pathSegment(balanceID), url.QueryEscape(date))
+}
+
+func (e *balancesEntity) buildAccountHistoryURL(orgID, ledgerID, accountID, date string) string {
+	baseURL := e.baseURLs["transaction"]
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/%s/balances/history?date=%s", baseURL, pathSegment(orgID), pathSegment(ledgerID), pathSegment(accountID), url.QueryEscape(date))
+}
+
+func validateBalanceHistoryDate(date string) error {
+	if _, err := time.Parse("2006-01-02 15:04:05", date); err != nil {
+		return fmt.Errorf("date must use format yyyy-mm-dd hh:mm:ss: %w", err)
+	}
+
+	return nil
 }

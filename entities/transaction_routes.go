@@ -134,10 +134,10 @@ func (e *transactionRoutesEntity) buildURL(organizationID, ledgerID, transaction
 	baseURL := e.baseURLs["transaction"]
 
 	if transactionRouteID == "" {
-		return fmt.Sprintf("%s/organizations/%s/ledgers/%s/transaction-routes", baseURL, organizationID, ledgerID)
+		return fmt.Sprintf("%s/organizations/%s/ledgers/%s/transaction-routes", baseURL, pathSegment(organizationID), pathSegment(ledgerID))
 	}
 
-	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/transaction-routes/%s", baseURL, organizationID, ledgerID, transactionRouteID)
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/transaction-routes/%s", baseURL, pathSegment(organizationID), pathSegment(ledgerID), pathSegment(transactionRouteID))
 }
 
 // ListTransactionRoutes retrieves a paginated list of transaction routes
@@ -229,7 +229,7 @@ func (e *transactionRoutesEntity) CreateTransactionRoute(ctx context.Context, or
 
 	url := e.buildURL(organizationID, ledgerID, "")
 
-	e.httpClient.debugLog("[%s]: Creating transaction route with input: %+v", operation, input)
+	e.httpClient.debugLog("[%s]: Creating transaction route", operation)
 
 	body, err := json.Marshal(input)
 	if err != nil {
@@ -275,7 +275,7 @@ func (e *transactionRoutesEntity) UpdateTransactionRoute(ctx context.Context, or
 
 	url := e.buildURL(organizationID, ledgerID, transactionRouteID)
 
-	e.httpClient.debugLog("[%s]: Updating transaction route %s with input: %+v", operation, transactionRouteID, input)
+	e.httpClient.debugLog("[%s]: Updating transaction route %s", operation, transactionRouteID)
 
 	body, err := json.Marshal(input)
 	if err != nil {

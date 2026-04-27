@@ -353,17 +353,12 @@ func (e *segmentsEntity) GetSegmentsMetricsCount(ctx context.Context, organizati
 
 	url := e.buildMetricsURL(organizationID, ledgerID)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
+	count, err := e.HTTPClient.doCountRequest(ctx, http.MethodHead, url, nil)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
-
-	var metrics models.MetricsCount
-	if err := e.HTTPClient.sendRequest(req, &metrics); err != nil {
 		return nil, err
 	}
 
-	return &metrics, nil
+	return &models.MetricsCount{SegmentsCount: count}, nil
 }
 
 // buildURL builds the URL for segments API calls.
@@ -372,14 +367,14 @@ func (e *segmentsEntity) buildURL(organizationID, ledgerID, segmentID string) st
 
 	// Segments are directly under ledgers in the API, not under portfolios
 	if segmentID == "" {
-		return fmt.Sprintf("%s/organizations/%s/ledgers/%s/segments", baseURL, organizationID, ledgerID)
+		return fmt.Sprintf("%s/organizations/%s/ledgers/%s/segments", baseURL, pathSegment(organizationID), pathSegment(ledgerID))
 	}
 
-	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/segments/%s", baseURL, organizationID, ledgerID, segmentID)
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/segments/%s", baseURL, pathSegment(organizationID), pathSegment(ledgerID), pathSegment(segmentID))
 }
 
 // buildMetricsURL builds the URL for segments metrics API calls.
 func (e *segmentsEntity) buildMetricsURL(organizationID, ledgerID string) string {
 	baseURL := e.baseURLs["onboarding"]
-	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/segments/metrics/count", baseURL, organizationID, ledgerID)
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/segments/metrics/count", baseURL, pathSegment(organizationID), pathSegment(ledgerID))
 }

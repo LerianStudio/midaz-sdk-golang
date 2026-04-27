@@ -928,23 +928,14 @@ func TestAccountsEntity_GetAccountByAlias(t *testing.T) {
 			ledgerID: "ledger-123",
 			alias:    "test-account",
 			mockResponse: `{
-				"items": [
-					{
-						"id": "acc-123",
-						"name": "Test Account",
-						"assetCode": "USD",
-						"organizationId": "org-123",
-						"ledgerId": "ledger-123",
-						"type": "LIABILITY",
-						"status": {"code": "ACTIVE"},
-						"alias": "test-account"
-					}
-				],
-				"pagination": {
-					"total": 1,
-					"limit": 10,
-					"offset": 0
-				}
+				"id": "acc-123",
+				"name": "Test Account",
+				"assetCode": "USD",
+				"organizationId": "org-123",
+				"ledgerId": "ledger-123",
+				"type": "LIABILITY",
+				"status": {"code": "ACTIVE"},
+				"alias": "test-account"
 			}`,
 			mockStatusCode: http.StatusOK,
 		},
@@ -974,8 +965,8 @@ func TestAccountsEntity_GetAccountByAlias(t *testing.T) {
 			orgID:          "org-123",
 			ledgerID:       "ledger-123",
 			alias:          "not-found",
-			mockResponse:   `{"items": [], "pagination": {"total": 0, "limit": 10, "offset": 0}}`,
-			mockStatusCode: http.StatusOK,
+			mockResponse:   `{"error":"account not found"}`,
+			mockStatusCode: http.StatusNotFound,
 			expectedError:  true,
 		},
 		{

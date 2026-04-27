@@ -2,7 +2,10 @@ package entities
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/entities/mocks"
@@ -90,6 +93,42 @@ func TestListLedgers(t *testing.T) {
 	_, err = mockService.ListLedgers(ctx, "", nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization ID is required")
+}
+
+func TestLedgersEntity_Settings_RequestConstruction(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch r.Method {
+		case http.MethodGet:
+			assert.Equal(t, "/organizations/org%2F1/ledgers/ledger%2F1/settings", r.URL.EscapedPath())
+		case http.MethodPatch:
+			assert.Equal(t, "/organizations/org%2F1/ledgers/ledger%2F1/settings", r.URL.EscapedPath())
+
+			var body map[string]any
+			if !assert.NoError(t, json.NewDecoder(r.Body).Decode(&body)) {
+				http.Error(w, "invalid request body", http.StatusBadRequest)
+				return
+			}
+
+			assert.Contains(t, body, "accounting")
+		default:
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+
+		_, err := w.Write([]byte(`{"accounting":{"validateAccountType":true,"validateRoutes":false}}`))
+		assert.NoError(t, err)
+	}))
+	defer server.Close()
+
+	service := NewLedgersEntity(server.Client(), "token", map[string]string{"onboarding": server.URL})
+	settings, err := service.GetLedgerSettings(context.Background(), "org/1", "ledger/1")
+	require.NoError(t, err)
+	assert.True(t, settings.Accounting.ValidateAccountType)
+
+	settings, err = service.UpdateLedgerSettings(context.Background(), "org/1", "ledger/1", models.NewUpdateLedgerSettingsInput().WithValidateAccountType(true))
+	require.NoError(t, err)
+	assert.True(t, settings.Accounting.ValidateAccountType)
 }
 
 // \1 performs an operation

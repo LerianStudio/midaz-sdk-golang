@@ -95,9 +95,9 @@ func (mr *MockOperationsServiceMockRecorder) GetOperation(ctx, orgID, ledgerID, 
 }
 
 // UpdateOperation mocks base method.
-func (m *MockOperationsService) UpdateOperation(ctx context.Context, orgID, ledgerID, transactionID, operationID string, input any) (*models.Operation, error) {
+func (m *MockOperationsService) UpdateOperation(ctx context.Context, orgID, ledgerID, accountID, operationID string, input any) (*models.Operation, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateOperation", ctx, orgID, ledgerID, transactionID, operationID, input)
+	ret := m.ctrl.Call(m, "UpdateOperation", ctx, orgID, ledgerID, accountID, operationID, input)
 
 	var ret0 *models.Operation
 	if ret[0] != nil {
@@ -113,7 +113,31 @@ func (m *MockOperationsService) UpdateOperation(ctx context.Context, orgID, ledg
 }
 
 // UpdateOperation indicates an expected call of UpdateOperation.
-func (mr *MockOperationsServiceMockRecorder) UpdateOperation(ctx, orgID, ledgerID, transactionID, operationID, input any) *gomock.Call {
+func (mr *MockOperationsServiceMockRecorder) UpdateOperation(ctx, orgID, ledgerID, accountID, operationID, input any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOperation", reflect.TypeOf((*MockOperationsService)(nil).UpdateOperation), ctx, orgID, ledgerID, transactionID, operationID, input)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOperation", reflect.TypeOf((*MockOperationsService)(nil).UpdateOperation), ctx, orgID, ledgerID, accountID, operationID, input)
+}
+
+// UpdateTransactionOperation mocks base method.
+func (m *MockOperationsService) UpdateTransactionOperation(ctx context.Context, orgID, ledgerID, transactionID, operationID string, input any) (*models.Operation, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateTransactionOperation", ctx, orgID, ledgerID, transactionID, operationID, input)
+
+	var ret0 *models.Operation
+	if ret[0] != nil {
+		ret0, _ = ret[0].(*models.Operation) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	var ret1 error
+	if ret[1] != nil {
+		ret1, _ = ret[1].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	return ret0, ret1
+}
+
+// UpdateTransactionOperation indicates an expected call of UpdateTransactionOperation.
+func (mr *MockOperationsServiceMockRecorder) UpdateTransactionOperation(ctx, orgID, ledgerID, transactionID, operationID, input any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTransactionOperation", reflect.TypeOf((*MockOperationsService)(nil).UpdateTransactionOperation), ctx, orgID, ledgerID, transactionID, operationID, input)
 }

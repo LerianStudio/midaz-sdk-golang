@@ -349,21 +349,14 @@ func (e *organizationsEntity) DeleteOrganization(ctx context.Context, id string)
 
 // GetOrganizationsMetricsCount gets the count metrics for organizations.
 func (e *organizationsEntity) GetOrganizationsMetricsCount(ctx context.Context) (*models.MetricsCount, error) {
-	const operation = "GetOrganizationsMetricsCount"
-
 	url := e.buildMetricsURL()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
+	count, err := e.HTTPClient.doCountRequest(ctx, countRequestMethod(), url, countRequestHeaders())
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
-
-	var metrics models.MetricsCount
-	if err := e.HTTPClient.sendRequest(req, &metrics); err != nil {
 		return nil, err
 	}
 
-	return &metrics, nil
+	return &models.MetricsCount{OrganizationsCount: count}, nil
 }
 
 // buildURL builds the URL for organizations API calls.
@@ -374,7 +367,7 @@ func (e *organizationsEntity) buildURL(id string) string {
 		return fmt.Sprintf("%s/organizations", baseURL)
 	}
 
-	return fmt.Sprintf("%s/organizations/%s", baseURL, id)
+	return fmt.Sprintf("%s/organizations/%s", baseURL, pathSegment(id))
 }
 
 // buildMetricsURL builds the URL for organizations metrics API calls.
