@@ -31,8 +31,8 @@ type RelatedParty struct {
 type CreateAliasInput struct {
 	LedgerID         string            `json:"ledgerId"`
 	AccountID        string            `json:"accountId"`
-	Metadata         map[string]any    `json:"metadata"`
-	BankingDetails   *BankingDetails   `json:"bankingDetails"`
+	Metadata         map[string]any    `json:"metadata,omitempty"`
+	BankingDetails   *BankingDetails   `json:"bankingDetails,omitempty"`
 	RegulatoryFields *RegulatoryFields `json:"regulatoryFields,omitempty"`
 	RelatedParties   []*RelatedParty   `json:"relatedParties,omitempty"`
 }
@@ -327,8 +327,13 @@ func validateRelatedPartyRole(index int, role string) error {
 }
 
 func validateRelatedPartyDates(index int, startDateValue string, endDateValue *string) error {
-	if strings.TrimSpace(startDateValue) == "" {
+	trimmedStartDate := strings.TrimSpace(startDateValue)
+	if trimmedStartDate == "" {
 		return fmt.Errorf("relatedParties[%d].startDate is required", index)
+	}
+
+	if startDateValue != trimmedStartDate {
+		return fmt.Errorf("relatedParties[%d].startDate must not contain leading/trailing whitespace", index)
 	}
 
 	startDate, err := parseCRMDate(startDateValue)
@@ -342,6 +347,10 @@ func validateRelatedPartyDates(index int, startDateValue string, endDateValue *s
 func validateRelatedPartyEndDate(index int, startDate time.Time, endDateValue *string) error {
 	if endDateValue == nil {
 		return nil
+	}
+
+	if *endDateValue != strings.TrimSpace(*endDateValue) {
+		return fmt.Errorf("relatedParties[%d].endDate must not contain leading/trailing whitespace", index)
 	}
 
 	endDate, err := parseCRMDate(*endDateValue)

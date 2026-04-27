@@ -31,6 +31,7 @@ GO := go
 GOFMT := gofmt
 GOLINT := golangci-lint
 GOLANGCI_LINT_VERSION := v2.11.4
+GOLANGCI_LINT_VERSION_NUMBER := $(patsubst v%,%,$(GOLANGCI_LINT_VERSION))
 GOSEC_VERSION := v2.25.0
 GOSEC := $(GO) run github.com/securego/gosec/v2/cmd/gosec@$(GOSEC_VERSION)
 GOMOD := $(GO) mod
@@ -180,7 +181,7 @@ coverage:
 lint:
 	$(call print_header,"Running linters")
 	@if find . -name "*.go" -type f | grep -q .; then \
-		if ! command -v $(GOLINT) > /dev/null; then \
+		if ! command -v $(GOLINT) > /dev/null || ! $(GOLINT) --version | grep -q "version $(GOLANGCI_LINT_VERSION_NUMBER)"; then \
 			echo "$(YELLOW)Installing golangci-lint $(GOLANGCI_LINT_VERSION)...$(NC)"; \
 			go install github.com/golangci/golangci-lint/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION); \
 		fi; \

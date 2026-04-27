@@ -137,9 +137,14 @@ func NewEntity(client *http.Client, authToken string, baseURLs map[string]string
 	// Create a new entity with the provided configuration
 	httpClient := NewHTTPClient(client, authToken, observabilityProvider)
 
+	normalizedBaseURLs, err := normalizeBaseURLs(baseURLs)
+	if err != nil {
+		return nil, err
+	}
+
 	entity := &Entity{
 		httpClient:    httpClient,
-		baseURLs:      copyBaseURLs(baseURLs),
+		baseURLs:      normalizedBaseURLs,
 		observability: observabilityProvider,
 	}
 
@@ -190,9 +195,14 @@ func NewEntityWithConfig(config Config, options ...Option) (*Entity, error) {
 	// Create a new entity with the provided configuration
 	httpClient := NewHTTPClient(config.GetHTTPClient(), authToken, config.GetObservabilityProvider())
 
+	normalizedBaseURLs, err := normalizeBaseURLs(config.GetBaseURLs())
+	if err != nil {
+		return nil, err
+	}
+
 	entity := &Entity{
 		httpClient:    httpClient,
-		baseURLs:      copyBaseURLs(config.GetBaseURLs()),
+		baseURLs:      normalizedBaseURLs,
 		observability: config.GetObservabilityProvider(),
 	}
 
@@ -490,14 +500,9 @@ func NewWithServiceURLs(serviceURLs map[string]string, options ...Option) (*Enti
 		return nil, errors.New("missing transaction URL in service URLs map")
 	}
 
-	normalizedBaseURLs := copyBaseURLs(serviceURLs)
-	if strings.TrimSpace(normalizedBaseURLs["crm"]) == "" {
-		crmURL := strings.TrimSpace(os.Getenv("MIDAZ_CRM_URL"))
-		if crmURL == "" {
-			return nil, errors.New("missing crm URL in service URLs map or MIDAZ_CRM_URL")
-		}
-
-		normalizedBaseURLs["crm"] = crmURL
+	normalizedBaseURLs, err := normalizeBaseURLs(serviceURLs)
+	if err != nil {
+		return nil, err
 	}
 
 	// Create a default HTTP client
@@ -538,4 +543,22 @@ func copyBaseURLs(baseURLs map[string]string) map[string]string {
 	}
 
 	return normalized
+}
+
+func normalizeBaseURLs(baseURLs map[string]string) (map[string]string, error) {
+	normalized := copyBaseURLs(baseURLs)
+	if normalized == nil {
+		return nil, errors.New("service URLs map cannot be nil")
+	}
+
+	if strings.TrimSpace(normalized["crm"]) == "" {
+		crmURL := strings.TrimSpace(os.Getenv("MIDAZ_CRM_URL"))
+		if crmURL == "" {
+			return nil, errors.New("missing crm URL in service URLs map or MIDAZ_CRM_URL")
+		}
+
+		normalized["crm"] = crmURL
+	}
+
+	return normalized, nil
 }

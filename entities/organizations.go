@@ -271,8 +271,8 @@ func (e *organizationsEntity) CreateOrganization(ctx context.Context, input *mod
 	mmodelInput := input.ToMmodelCreateOrganizationInput()
 
 	e.httpClient.debugLog("[%s]: Converting SDK input to backend format", operation)
-	e.httpClient.debugLog("[%s]: Original: %+v", operation, input)
-	e.httpClient.debugLog("[%s]: Converted: %+v", operation, mmodelInput)
+	e.httpClient.debugLog("[%s]: Original: %+v", operation, redactedOrgPayloadForLog(input))
+	e.httpClient.debugLog("[%s]: Converted: %+v", operation, redactedOrgPayloadForLog(mmodelInput))
 
 	// Marshal the input to JSON
 	body, err := json.Marshal(mmodelInput)
@@ -291,6 +291,28 @@ func (e *organizationsEntity) CreateOrganization(ctx context.Context, input *mod
 	}
 
 	return &organization, nil
+}
+
+func redactedOrgPayloadForLog(payload any) any {
+	if payload == nil {
+		return nil
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return map[string]any{"redacted": true, "reason": "payload marshal failed"}
+	}
+
+	redacted := map[string]any{}
+	if err := json.Unmarshal(body, &redacted); err != nil {
+		return map[string]any{"redacted": true, "reason": "payload unmarshal failed"}
+	}
+
+	if _, ok := redacted["legalDocument"]; ok {
+		redacted["legalDocument"] = "<redacted>"
+	}
+
+	return redacted
 }
 
 // UpdateOrganization updates an existing organization.

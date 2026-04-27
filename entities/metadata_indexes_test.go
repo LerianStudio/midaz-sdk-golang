@@ -39,11 +39,18 @@ func TestMetadataIndexesEntity_CreateMetadataIndex_RequestConstruction(t *testin
 	defer server.Close()
 
 	service := NewMetadataIndexesEntity(server.Client(), "token", map[string]string{"transaction": server.URL})
-	result, err := service.CreateMetadataIndex(context.Background(), "transaction", models.NewCreateMetadataIndexInput("externalId"))
+	result, err := service.CreateMetadataIndex(context.Background(), "transaction", models.NewCreateMetadataIndexInput("externalId").WithSparse(true))
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.Equal(t, "externalId", result.MetadataKey)
+}
+
+func TestCreateMetadataIndexInput_OmitsSparseWhenUnset(t *testing.T) {
+	body, err := json.Marshal(models.NewCreateMetadataIndexInput("externalId"))
+
+	require.NoError(t, err)
+	assert.NotContains(t, string(body), "sparse")
 }
 
 func TestMetadataIndexValidation(t *testing.T) {

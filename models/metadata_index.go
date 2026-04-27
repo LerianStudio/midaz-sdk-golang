@@ -52,13 +52,10 @@ func (input *CreateMetadataIndexInput) Validate() error {
 	return nil
 }
 
-// NewCreateMetadataIndexInput creates a new CreateMetadataIndexInput with defaults.
+// NewCreateMetadataIndexInput creates a new CreateMetadataIndexInput.
 func NewCreateMetadataIndexInput(metadataKey string) *CreateMetadataIndexInput {
-	sparse := true
-
 	return &CreateMetadataIndexInput{
 		MetadataKey: metadataKey,
-		Sparse:      &sparse,
 	}
 }
 

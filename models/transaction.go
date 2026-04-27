@@ -145,6 +145,10 @@ func validatePositiveDecimalString(value any, field string) error {
 }
 
 func decimalStringFromAny(value any) string {
+	if decimalValue, ok := amountDecimalString(value); ok {
+		return decimalValue
+	}
+
 	switch v := value.(type) {
 	case nil:
 		return ""
@@ -164,6 +168,31 @@ func decimalStringFromAny(value any) string {
 		return v.String()
 	default:
 		return fmt.Sprint(v)
+	}
+}
+
+func amountDecimalString(value any) (string, bool) {
+	switch v := value.(type) {
+	case *decimal.Decimal:
+		if v == nil {
+			return "", true
+		}
+
+		return v.String(), true
+	case Amount:
+		if v.Value == nil {
+			return "", true
+		}
+
+		return v.Value.String(), true
+	case *Amount:
+		if v == nil || v.Value == nil {
+			return "", true
+		}
+
+		return v.Value.String(), true
+	default:
+		return "", false
 	}
 }
 

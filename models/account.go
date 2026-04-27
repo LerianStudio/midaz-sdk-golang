@@ -127,6 +127,10 @@ func (input *CreateAccountInput) Validate() error {
 		return errors.New("name must be at most 256 characters")
 	}
 
+	if input.EntityID != nil && len(*input.EntityID) > 256 {
+		return errors.New("entityId must be at most 256 characters")
+	}
+
 	if input.AssetCode == "" {
 		return errors.New("asset code is required")
 	}
@@ -324,6 +328,10 @@ type UpdateAccountInput struct {
 func (input *UpdateAccountInput) Validate() error {
 	if input.Name != "" && len(input.Name) > 256 {
 		return errors.New("name must be at most 256 characters")
+	}
+
+	if input.EntityID != nil && len(*input.EntityID) > 256 {
+		return errors.New("entityId must be at most 256 characters")
 	}
 
 	// Validate status if provided

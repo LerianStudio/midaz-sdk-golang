@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"mime/multipart"
 	"net/http"
-	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -740,9 +739,9 @@ func (e *transactionsEntity) ListTransactions(ctx context.Context, orgID, ledger
 
 func transactionListQueryParams(opts *models.ListOptions) map[string]string {
 	params := opts.ToQueryParams()
-	delete(params, models.QueryParamPage)
 
 	if opts.Cursor != "" {
+		delete(params, models.QueryParamPage)
 		params[models.QueryParamCursor] = opts.Cursor
 	}
 
@@ -1111,7 +1110,7 @@ func escapeTransactionSuffix(suffix string) string {
 
 	parts := strings.Split(strings.TrimPrefix(suffix, "/"), "/")
 	for i, part := range parts {
-		parts[i] = url.PathEscape(part)
+		parts[i] = pathSegment(part)
 	}
 
 	return "/" + strings.Join(parts, "/")

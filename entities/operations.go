@@ -393,7 +393,7 @@ func (*operationsEntity) UpdateOperation(_ context.Context, _, _, _, _ string, _
 
 // UpdateTransactionOperation updates an operation.
 func (e *operationsEntity) UpdateTransactionOperation(ctx context.Context, orgID, ledgerID, transactionID, operationID string, input any) (*models.Operation, error) {
-	const operation = "UpdateOperation"
+	const operation = "UpdateTransactionOperation"
 
 	if orgID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
