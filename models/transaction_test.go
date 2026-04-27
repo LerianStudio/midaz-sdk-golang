@@ -15,6 +15,23 @@ func newDecimal(value string) decimal.Decimal {
 	return d
 }
 
+func newValidSendInput(value float64) *SendInput {
+	asset := "USD"
+
+	return &SendInput{
+		Asset: asset,
+		Value: value,
+		Source: &SourceInput{From: []FromToInput{{
+			Account: "source-account",
+			Amount:  AmountInput{Asset: asset, Value: value},
+		}}},
+		Distribute: &DistributeInput{To: []FromToInput{{
+			Account: "dest-account",
+			Amount:  AmountInput{Asset: asset, Value: value},
+		}}},
+	}
+}
+
 // =============================================================================
 // CreateTransactionInput Tests
 // =============================================================================
@@ -23,62 +40,45 @@ func TestNewCreateTransactionInput(t *testing.T) {
 	tests := []struct {
 		name      string
 		assetCode string
-		amount    string
+		amount    float64
 		wantAsset string
-		wantAmt   string
+		wantAmt   float64
 	}{
 		{
 			name:      "valid USD transaction",
 			assetCode: "USD",
-			amount:    "100.50",
+			amount:    100.50,
 			wantAsset: "USD",
-			wantAmt:   "100.50",
+			wantAmt:   100.50,
 		},
 		{
 			name:      "valid BRL transaction",
 			assetCode: "BRL",
-			amount:    "1000",
+			amount:    1000,
 			wantAsset: "BRL",
-			wantAmt:   "1000",
+			wantAmt:   1000,
 		},
 		{
 			name:      "valid BTC transaction",
 			assetCode: "BTC",
-			amount:    "0.00001",
+			amount:    0.00001,
 			wantAsset: "BTC",
-			wantAmt:   "0.00001",
+			wantAmt:   0.00001,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			input := NewCreateTransactionInput(tt.assetCode, tt.amount)
-			assert.Equal(t, tt.wantAsset, input.AssetCode)
-			assert.Equal(t, tt.wantAmt, input.Amount)
+			require.NotNil(t, input.Send)
+			assert.Equal(t, tt.wantAsset, input.Send.Asset)
+			assert.Equal(t, decimalStringFromAny(tt.wantAmt), input.Send.Value)
 		})
 	}
 }
 
 func TestCreateTransactionInput_Validate(t *testing.T) {
-	validSend := &SendInput{
-		Asset: "USD",
-		Value: "100",
-		Source: &SourceInput{
-			From: []FromToInput{
-				{Account: "source-account", Amount: AmountInput{Asset: "USD", Value: "100"}},
-			},
-		},
-		Distribute: &DistributeInput{
-			To: []FromToInput{
-				{Account: "dest-account", Amount: AmountInput{Asset: "USD", Value: "100"}},
-			},
-		},
-	}
-
-	validOperations := []CreateOperationInput{
-		{AccountID: "acc-1", Type: "DEBIT", Amount: "100", AssetCode: "USD"},
-		{AccountID: "acc-2", Type: "CREDIT", Amount: "100", AssetCode: "USD"},
-	}
+	validSend := newValidSendInput(100)
 
 	tests := []struct {
 		name    string
@@ -89,78 +89,71 @@ func TestCreateTransactionInput_Validate(t *testing.T) {
 		{
 			name: "valid with send",
 			input: &CreateTransactionInput{
-				AssetCode: "USD",
-				Amount:    "100",
-				Send:      validSend,
+				Send: validSend,
 			},
 			wantErr: false,
 		},
 		{
-			name: "valid with operations",
+			name: "valid with optional fields",
 			input: &CreateTransactionInput{
-				AssetCode:  "USD",
-				Amount:     "100",
-				Operations: validOperations,
+				Description:              "Payment",
+				ChartOfAccountsGroupName: "ASSETS",
+				Metadata:                 map[string]any{"key": "value"},
+				Send:                     validSend,
 			},
 			wantErr: false,
 		},
 		{
-			name: "missing amount",
-			input: &CreateTransactionInput{
-				AssetCode: "USD",
-				Amount:    "",
-				Send:      validSend,
-			},
+			name:    "missing send",
+			input:   &CreateTransactionInput{Description: "No send"},
 			wantErr: true,
-			errMsg:  "amount must be greater than zero",
+			errMsg:  "send is required",
 		},
 		{
-			name: "zero amount",
+			name: "invalid send - zero value",
 			input: &CreateTransactionInput{
-				AssetCode: "USD",
-				Amount:    "0",
-				Send:      validSend,
+				Send: &SendInput{
+					Asset:      "USD",
+					Value:      0,
+					Source:     validSend.Source,
+					Distribute: validSend.Distribute,
+				},
 			},
 			wantErr: true,
-			errMsg:  "amount must be greater than zero",
+			errMsg:  "value must be greater than zero",
 		},
 		{
-			name: "missing asset code",
+			name: "invalid send - missing asset",
 			input: &CreateTransactionInput{
-				AssetCode: "",
-				Amount:    "100",
-				Send:      validSend,
+				Send: &SendInput{
+					Asset:      "",
+					Value:      100,
+					Source:     validSend.Source,
+					Distribute: validSend.Distribute,
+				},
 			},
 			wantErr: true,
-			errMsg:  "assetCode is required",
-		},
-		{
-			name: "invalid asset code format",
-			input: &CreateTransactionInput{
-				AssetCode: "us",
-				Amount:    "100",
-				Send:      validSend,
-			},
-			wantErr: true,
-			errMsg:  "invalid asset code format",
-		},
-		{
-			name: "missing both send and operations",
-			input: &CreateTransactionInput{
-				AssetCode: "USD",
-				Amount:    "100",
-			},
-			wantErr: true,
-			errMsg:  "either operations or send must be provided",
+			errMsg:  "asset is required",
 		},
 		{
 			name: "invalid send - missing source",
 			input: &CreateTransactionInput{
-				AssetCode: "USD",
-				Amount:    "100",
 				Send: &SendInput{
 					Asset:      "USD",
-					Value:      "100",
+					Value:      100,
+					Source:     nil,
+					Distribute: validSend.Distribute,
+				},
+			},
+			wantErr: true,
+			errMsg:  "source is required",
+		},
+		{
+			name: "invalid send - missing source",
+			input: &CreateTransactionInput{
+				Send: &SendInput{
+					Asset:      "USD",
+					Value:      100,
 					Source:     nil,
 					Distribute: validSend.Distribute,
 				},
@@ -188,14 +181,14 @@ func TestCreateTransactionInput_Validate(t *testing.T) {
 
 func TestCreateTransactionInput_WithMethods(t *testing.T) {
 	t.Run("WithDescription", func(t *testing.T) {
-		input := NewCreateTransactionInput("USD", "100")
+		input := NewCreateTransactionInput("USD", 100)
 		result := input.WithDescription("Test payment")
 		assert.Equal(t, "Test payment", result.Description)
 		assert.Same(t, input, result)
 	})
 
 	t.Run("WithMetadata", func(t *testing.T) {
-		input := NewCreateTransactionInput("USD", "100")
+		input := NewCreateTransactionInput("USD", 100)
 		metadata := map[string]any{"key": "value", "number": 42}
 		result := input.WithMetadata(metadata)
 		assert.Equal(t, metadata, result.Metadata)
@@ -203,37 +196,36 @@ func TestCreateTransactionInput_WithMethods(t *testing.T) {
 	})
 
 	t.Run("WithExternalID", func(t *testing.T) {
-		input := NewCreateTransactionInput("USD", "100")
+		input := NewCreateTransactionInput("USD", 100)
 		result := input.WithExternalID("ext-123")
 		assert.Equal(t, "ext-123", result.ExternalID)
 		assert.Same(t, input, result)
 	})
 
-	t.Run("WithOperations", func(t *testing.T) {
-		input := NewCreateTransactionInput("USD", "100")
-		ops := []CreateOperationInput{
-			{AccountID: "acc-1", Type: "DEBIT", Amount: "100", AssetCode: "USD"},
-		}
-		result := input.WithOperations(ops)
-		assert.Equal(t, ops, result.Operations)
+	t.Run("WithCode", func(t *testing.T) {
+		input := NewCreateTransactionInput("USD", 100)
+		result := input.WithCode("TX-001")
+		assert.Equal(t, "TX-001", result.Code)
 		assert.Same(t, input, result)
 	})
 
 	t.Run("WithSend", func(t *testing.T) {
-		input := NewCreateTransactionInput("USD", "100")
-		send := &SendInput{Asset: "USD", Value: "100"}
+		input := NewCreateTransactionInput("USD", 100)
+		send := newValidSendInput(100)
 		result := input.WithSend(send)
 		assert.Equal(t, send, result.Send)
 		assert.Same(t, input, result)
 	})
 
 	t.Run("chained methods", func(t *testing.T) {
-		input := NewCreateTransactionInput("USD", "100").
+		input := NewCreateTransactionInput("USD", 100).
 			WithDescription("Payment").
+			WithCode("TX-CHAIN").
 			WithExternalID("ext-1").
 			WithMetadata(map[string]any{"ref": "123"})
 
 		assert.Equal(t, "Payment", input.Description)
+		assert.Equal(t, "TX-CHAIN", input.Code)
 		assert.Equal(t, "ext-1", input.ExternalID)
 		assert.Equal(t, map[string]any{"ref": "123"}, input.Metadata)
 	})
@@ -269,15 +261,15 @@ func TestCreateTransactionInput_ToLibTransaction(t *testing.T) {
 			Description: "With send",
 			Send: &SendInput{
 				Asset: "USD",
-				Value: "100",
+				Value: 100,
 				Source: &SourceInput{
 					From: []FromToInput{
-						{Account: "source", Amount: AmountInput{Asset: "USD", Value: "100"}},
+						{Account: "source", Amount: AmountInput{Asset: "USD", Value: 100}},
 					},
 				},
 				Distribute: &DistributeInput{
 					To: []FromToInput{
-						{Account: "dest", Amount: AmountInput{Asset: "USD", Value: "100"}},
+						{Account: "dest", Amount: AmountInput{Asset: "USD", Value: 100}},
 					},
 				},
 			},
@@ -317,13 +309,13 @@ func TestCreateTransactionInput_ToLibTransaction(t *testing.T) {
 func TestSendInput_Validate(t *testing.T) {
 	validSource := &SourceInput{
 		From: []FromToInput{
-			{Account: "source-acc", Amount: AmountInput{Asset: "USD", Value: "100"}},
+			{Account: "source-acc", Amount: AmountInput{Asset: "USD", Value: 100}},
 		},
 	}
 
 	validDistribute := &DistributeInput{
 		To: []FromToInput{
-			{Account: "dest-acc", Amount: AmountInput{Asset: "USD", Value: "100"}},
+			{Account: "dest-acc", Amount: AmountInput{Asset: "USD", Value: 100}},
 		},
 	}
 
@@ -337,7 +329,7 @@ func TestSendInput_Validate(t *testing.T) {
 			name: "valid send",
 			input: &SendInput{
 				Asset:      "USD",
-				Value:      "100",
+				Value:      100,
 				Source:     validSource,
 				Distribute: validDistribute,
 			},
@@ -347,7 +339,7 @@ func TestSendInput_Validate(t *testing.T) {
 			name: "missing asset",
 			input: &SendInput{
 				Asset:      "",
-				Value:      "100",
+				Value:      100,
 				Source:     validSource,
 				Distribute: validDistribute,
 			},
@@ -358,7 +350,7 @@ func TestSendInput_Validate(t *testing.T) {
 			name: "missing value",
 			input: &SendInput{
 				Asset:      "USD",
-				Value:      "",
+				Value:      0,
 				Source:     validSource,
 				Distribute: validDistribute,
 			},
@@ -369,7 +361,7 @@ func TestSendInput_Validate(t *testing.T) {
 			name: "zero value",
 			input: &SendInput{
 				Asset:      "USD",
-				Value:      "0",
+				Value:      0,
 				Source:     validSource,
 				Distribute: validDistribute,
 			},
@@ -380,7 +372,7 @@ func TestSendInput_Validate(t *testing.T) {
 			name: "missing source",
 			input: &SendInput{
 				Asset:      "USD",
-				Value:      "100",
+				Value:      100,
 				Source:     nil,
 				Distribute: validDistribute,
 			},
@@ -391,7 +383,7 @@ func TestSendInput_Validate(t *testing.T) {
 			name: "missing distribute",
 			input: &SendInput{
 				Asset:      "USD",
-				Value:      "100",
+				Value:      100,
 				Source:     validSource,
 				Distribute: nil,
 			},
@@ -402,7 +394,7 @@ func TestSendInput_Validate(t *testing.T) {
 			name: "invalid source",
 			input: &SendInput{
 				Asset: "USD",
-				Value: "100",
+				Value: 100,
 				Source: &SourceInput{
 					From: []FromToInput{},
 				},
@@ -415,7 +407,7 @@ func TestSendInput_Validate(t *testing.T) {
 			name: "invalid distribute",
 			input: &SendInput{
 				Asset:  "USD",
-				Value:  "100",
+				Value:  100,
 				Source: validSource,
 				Distribute: &DistributeInput{
 					To: []FromToInput{},
@@ -453,15 +445,15 @@ func TestSendInput_ToMap(t *testing.T) {
 	t.Run("complete send", func(t *testing.T) {
 		input := &SendInput{
 			Asset: "USD",
-			Value: "100",
+			Value: 100,
 			Source: &SourceInput{
 				From: []FromToInput{
-					{Account: "source", Amount: AmountInput{Asset: "USD", Value: "100"}},
+					{Account: "source", Amount: AmountInput{Asset: "USD", Value: 100}},
 				},
 			},
 			Distribute: &DistributeInput{
 				To: []FromToInput{
-					{Account: "dest", Amount: AmountInput{Asset: "USD", Value: "100"}},
+					{Account: "dest", Amount: AmountInput{Asset: "USD", Value: 100}},
 				},
 			},
 		}
@@ -489,7 +481,7 @@ func TestSourceInput_Validate(t *testing.T) {
 			name: "valid source",
 			input: &SourceInput{
 				From: []FromToInput{
-					{Account: "acc-1", Amount: AmountInput{Asset: "USD", Value: "100"}},
+					{Account: "acc-1", Amount: AmountInput{Asset: "USD", Value: 100}},
 				},
 			},
 			wantErr: false,
@@ -498,8 +490,8 @@ func TestSourceInput_Validate(t *testing.T) {
 			name: "multiple from entries",
 			input: &SourceInput{
 				From: []FromToInput{
-					{Account: "acc-1", Amount: AmountInput{Asset: "USD", Value: "50"}},
-					{Account: "acc-2", Amount: AmountInput{Asset: "USD", Value: "50"}},
+					{Account: "acc-1", Amount: AmountInput{Asset: "USD", Value: 50}},
+					{Account: "acc-2", Amount: AmountInput{Asset: "USD", Value: 50}},
 				},
 			},
 			wantErr: false,
@@ -516,7 +508,7 @@ func TestSourceInput_Validate(t *testing.T) {
 			name: "invalid from entry",
 			input: &SourceInput{
 				From: []FromToInput{
-					{Account: "", Amount: AmountInput{Asset: "USD", Value: "100"}},
+					{Account: "", Amount: AmountInput{Asset: "USD", Value: 100}},
 				},
 			},
 			wantErr: true,
@@ -551,7 +543,7 @@ func TestSourceInput_ToMap(t *testing.T) {
 	t.Run("with from entries", func(t *testing.T) {
 		input := &SourceInput{
 			From: []FromToInput{
-				{Account: "acc-1", Amount: AmountInput{Asset: "USD", Value: "100"}},
+				{Account: "acc-1", Amount: AmountInput{Asset: "USD", Value: 100}},
 			},
 		}
 		result := input.ToMap()
@@ -587,7 +579,7 @@ func TestDistributeInput_Validate(t *testing.T) {
 			name: "valid distribute",
 			input: &DistributeInput{
 				To: []FromToInput{
-					{Account: "acc-1", Amount: AmountInput{Asset: "USD", Value: "100"}},
+					{Account: "acc-1", Amount: AmountInput{Asset: "USD", Value: 100}},
 				},
 			},
 			wantErr: false,
@@ -596,8 +588,8 @@ func TestDistributeInput_Validate(t *testing.T) {
 			name: "multiple to entries",
 			input: &DistributeInput{
 				To: []FromToInput{
-					{Account: "acc-1", Amount: AmountInput{Asset: "USD", Value: "50"}},
-					{Account: "acc-2", Amount: AmountInput{Asset: "USD", Value: "50"}},
+					{Account: "acc-1", Amount: AmountInput{Asset: "USD", Value: 50}},
+					{Account: "acc-2", Amount: AmountInput{Asset: "USD", Value: 50}},
 				},
 			},
 			wantErr: false,
@@ -614,7 +606,7 @@ func TestDistributeInput_Validate(t *testing.T) {
 			name: "invalid to entry",
 			input: &DistributeInput{
 				To: []FromToInput{
-					{Account: "", Amount: AmountInput{Asset: "USD", Value: "100"}},
+					{Account: "", Amount: AmountInput{Asset: "USD", Value: 100}},
 				},
 			},
 			wantErr: true,
@@ -649,7 +641,7 @@ func TestDistributeInput_ToMap(t *testing.T) {
 	t.Run("with to entries", func(t *testing.T) {
 		input := &DistributeInput{
 			To: []FromToInput{
-				{Account: "acc-1", Amount: AmountInput{Asset: "USD", Value: "100"}},
+				{Account: "acc-1", Amount: AmountInput{Asset: "USD", Value: 100}},
 			},
 		}
 		result := input.ToMap()
@@ -675,7 +667,7 @@ func TestFromToInput_Validate(t *testing.T) {
 			name: "valid from/to",
 			input: &FromToInput{
 				Account: "acc-123",
-				Amount:  AmountInput{Asset: "USD", Value: "100"},
+				Amount:  AmountInput{Asset: "USD", Value: 100},
 			},
 			wantErr: false,
 		},
@@ -683,7 +675,7 @@ func TestFromToInput_Validate(t *testing.T) {
 			name: "with optional fields",
 			input: &FromToInput{
 				Account:         "acc-123",
-				Amount:          AmountInput{Asset: "USD", Value: "100"},
+				Amount:          AmountInput{Asset: "USD", Value: 100},
 				Route:           "route-1",
 				Description:     "Test description",
 				ChartOfAccounts: "ASSETS",
@@ -696,7 +688,7 @@ func TestFromToInput_Validate(t *testing.T) {
 			name: "missing account",
 			input: &FromToInput{
 				Account: "",
-				Amount:  AmountInput{Asset: "USD", Value: "100"},
+				Amount:  AmountInput{Asset: "USD", Value: 100},
 			},
 			wantErr: true,
 			errMsg:  "account is required",
@@ -705,7 +697,7 @@ func TestFromToInput_Validate(t *testing.T) {
 			name: "invalid amount - missing asset",
 			input: &FromToInput{
 				Account: "acc-123",
-				Amount:  AmountInput{Asset: "", Value: "100"},
+				Amount:  AmountInput{Asset: "", Value: 100},
 			},
 			wantErr: true,
 			errMsg:  "asset is required",
@@ -714,7 +706,7 @@ func TestFromToInput_Validate(t *testing.T) {
 			name: "invalid amount - missing value",
 			input: &FromToInput{
 				Account: "acc-123",
-				Amount:  AmountInput{Asset: "USD", Value: ""},
+				Amount:  AmountInput{Asset: "USD", Value: 0},
 			},
 			wantErr: true,
 			errMsg:  "value must be greater than zero",
@@ -741,7 +733,7 @@ func TestFromToInput_ToMap(t *testing.T) {
 	t.Run("basic input", func(t *testing.T) {
 		input := FromToInput{
 			Account: "acc-123",
-			Amount:  AmountInput{Asset: "USD", Value: "100"},
+			Amount:  AmountInput{Asset: "USD", Value: 100},
 		}
 		result := input.ToMap()
 
@@ -752,7 +744,7 @@ func TestFromToInput_ToMap(t *testing.T) {
 	t.Run("with route", func(t *testing.T) {
 		input := FromToInput{
 			Account: "acc-123",
-			Amount:  AmountInput{Asset: "USD", Value: "100"},
+			Amount:  AmountInput{Asset: "USD", Value: 100},
 			Route:   "main-route",
 		}
 		result := input.ToMap()
@@ -774,29 +766,29 @@ func TestAmountInput_Validate(t *testing.T) {
 	}{
 		{
 			name:    "valid amount",
-			input:   &AmountInput{Asset: "USD", Value: "100"},
+			input:   &AmountInput{Asset: "USD", Value: 100},
 			wantErr: false,
 		},
 		{
 			name:    "valid decimal amount",
-			input:   &AmountInput{Asset: "USD", Value: "100.50"},
+			input:   &AmountInput{Asset: "USD", Value: 100.50},
 			wantErr: false,
 		},
 		{
 			name:    "missing asset",
-			input:   &AmountInput{Asset: "", Value: "100"},
+			input:   &AmountInput{Asset: "", Value: 100},
 			wantErr: true,
 			errMsg:  "asset is required",
 		},
 		{
 			name:    "missing value",
-			input:   &AmountInput{Asset: "USD", Value: ""},
+			input:   &AmountInput{Asset: "USD", Value: 0},
 			wantErr: true,
 			errMsg:  "value must be greater than zero",
 		},
 		{
 			name:    "zero value",
-			input:   &AmountInput{Asset: "USD", Value: "0"},
+			input:   &AmountInput{Asset: "USD", Value: 0},
 			wantErr: true,
 			errMsg:  "value must be greater than zero",
 		},
@@ -819,11 +811,11 @@ func TestAmountInput_Validate(t *testing.T) {
 }
 
 func TestAmountInput_ToMap(t *testing.T) {
-	input := &AmountInput{Asset: "USD", Value: "100.50"}
+	input := &AmountInput{Asset: "USD", Value: 100.50}
 	result := input.ToMap()
 
 	assert.Equal(t, "USD", result["asset"])
-	assert.Equal(t, "100.50", result["value"])
+	assert.Equal(t, "100.5", result["value"])
 }
 
 // =============================================================================
@@ -880,12 +872,11 @@ func TestUpdateTransactionInput_Validate(t *testing.T) {
 			errMsg:  "description must not exceed 256 characters",
 		},
 		{
-			name: "external ID too long",
+			name: "external ID is ignored for validation",
 			input: &UpdateTransactionInput{
 				ExternalID: strings.Repeat("a", 65),
 			},
-			wantErr: true,
-			errMsg:  "externalId must not exceed 64 characters",
+			wantErr: false,
 		},
 		{
 			name: "invalid metadata - empty key",
@@ -958,11 +949,11 @@ func TestUpdateTransactionInput_WithMethods(t *testing.T) {
 func TestNewCreateInflowInput(t *testing.T) {
 	distribute := &DistributeInput{
 		To: []FromToInput{
-			{Account: "dest-acc", Amount: AmountInput{Asset: "USD", Value: "100"}},
+			{Account: "dest-acc", Amount: AmountInput{Asset: "USD", Value: 100}},
 		},
 	}
 
-	input := NewCreateInflowInput("USD", "100", distribute)
+	input := NewCreateInflowInput("USD", 100, distribute)
 
 	assert.NotNil(t, input)
 	assert.NotNil(t, input.Send)
@@ -974,7 +965,7 @@ func TestNewCreateInflowInput(t *testing.T) {
 func TestCreateInflowInput_Validate(t *testing.T) {
 	validDistribute := &DistributeInput{
 		To: []FromToInput{
-			{Account: "dest-acc", Amount: AmountInput{Asset: "USD", Value: "100"}},
+			{Account: "dest-acc", Amount: AmountInput{Asset: "USD", Value: 100}},
 		},
 	}
 
@@ -989,7 +980,7 @@ func TestCreateInflowInput_Validate(t *testing.T) {
 			input: &CreateInflowInput{
 				Send: &SendInflowInput{
 					Asset:      "USD",
-					Value:      "100",
+					Value:      100,
 					Distribute: validDistribute,
 				},
 			},
@@ -1006,7 +997,7 @@ func TestCreateInflowInput_Validate(t *testing.T) {
 			input: &CreateInflowInput{
 				Send: &SendInflowInput{
 					Asset:      "",
-					Value:      "100",
+					Value:      100,
 					Distribute: validDistribute,
 				},
 			},
@@ -1018,7 +1009,7 @@ func TestCreateInflowInput_Validate(t *testing.T) {
 			input: &CreateInflowInput{
 				Send: &SendInflowInput{
 					Asset:      "USD",
-					Value:      "",
+					Value:      0,
 					Distribute: validDistribute,
 				},
 			},
@@ -1030,7 +1021,7 @@ func TestCreateInflowInput_Validate(t *testing.T) {
 			input: &CreateInflowInput{
 				Send: &SendInflowInput{
 					Asset:      "USD",
-					Value:      "0",
+					Value:      0,
 					Distribute: validDistribute,
 				},
 			},
@@ -1042,7 +1033,7 @@ func TestCreateInflowInput_Validate(t *testing.T) {
 			input: &CreateInflowInput{
 				Send: &SendInflowInput{
 					Asset:      "USD",
-					Value:      "100",
+					Value:      100,
 					Distribute: nil,
 				},
 			},
@@ -1054,7 +1045,7 @@ func TestCreateInflowInput_Validate(t *testing.T) {
 			input: &CreateInflowInput{
 				Send: &SendInflowInput{
 					Asset: "USD",
-					Value: "100",
+					Value: 100,
 					Distribute: &DistributeInput{
 						To: []FromToInput{},
 					},
@@ -1084,12 +1075,12 @@ func TestCreateInflowInput_Validate(t *testing.T) {
 func TestCreateInflowInput_WithMethods(t *testing.T) {
 	distribute := &DistributeInput{
 		To: []FromToInput{
-			{Account: "acc", Amount: AmountInput{Asset: "USD", Value: "100"}},
+			{Account: "acc", Amount: AmountInput{Asset: "USD", Value: 100}},
 		},
 	}
 
 	t.Run("WithDescription", func(t *testing.T) {
-		input := NewCreateInflowInput("USD", "100", distribute)
+		input := NewCreateInflowInput("USD", 100, distribute)
 		result := input.WithDescription("Deposit")
 
 		assert.Equal(t, "Deposit", result.Description)
@@ -1097,7 +1088,7 @@ func TestCreateInflowInput_WithMethods(t *testing.T) {
 	})
 
 	t.Run("WithCode", func(t *testing.T) {
-		input := NewCreateInflowInput("USD", "100", distribute)
+		input := NewCreateInflowInput("USD", 100, distribute)
 		result := input.WithCode("DEP-001")
 
 		assert.Equal(t, "DEP-001", result.Code)
@@ -1105,7 +1096,7 @@ func TestCreateInflowInput_WithMethods(t *testing.T) {
 	})
 
 	t.Run("WithMetadata", func(t *testing.T) {
-		input := NewCreateInflowInput("USD", "100", distribute)
+		input := NewCreateInflowInput("USD", 100, distribute)
 		metadata := map[string]any{"source": "bank"}
 		result := input.WithMetadata(metadata)
 
@@ -1114,7 +1105,7 @@ func TestCreateInflowInput_WithMethods(t *testing.T) {
 	})
 
 	t.Run("WithChartOfAccountsGroupName", func(t *testing.T) {
-		input := NewCreateInflowInput("USD", "100", distribute)
+		input := NewCreateInflowInput("USD", 100, distribute)
 		result := input.WithChartOfAccountsGroupName("ASSETS")
 
 		assert.Equal(t, "ASSETS", result.ChartOfAccountsGroupName)
@@ -1122,7 +1113,7 @@ func TestCreateInflowInput_WithMethods(t *testing.T) {
 	})
 
 	t.Run("WithRoute", func(t *testing.T) {
-		input := NewCreateInflowInput("USD", "100", distribute)
+		input := NewCreateInflowInput("USD", 100, distribute)
 		result := input.WithRoute("deposit-route")
 
 		assert.Equal(t, "deposit-route", result.Route)
@@ -1130,7 +1121,7 @@ func TestCreateInflowInput_WithMethods(t *testing.T) {
 	})
 
 	t.Run("chained methods", func(t *testing.T) {
-		input := NewCreateInflowInput("USD", "100", distribute).
+		input := NewCreateInflowInput("USD", 100, distribute).
 			WithDescription("Test deposit").
 			WithCode("DEP-002").
 			WithChartOfAccountsGroupName("ASSETS").
@@ -1152,11 +1143,11 @@ func TestCreateInflowInput_WithMethods(t *testing.T) {
 func TestNewCreateOutflowInput(t *testing.T) {
 	source := &SourceInput{
 		From: []FromToInput{
-			{Account: "source-acc", Amount: AmountInput{Asset: "USD", Value: "100"}},
+			{Account: "source-acc", Amount: AmountInput{Asset: "USD", Value: 100}},
 		},
 	}
 
-	input := NewCreateOutflowInput("USD", "100", source)
+	input := NewCreateOutflowInput("USD", 100, source)
 
 	assert.NotNil(t, input)
 	assert.NotNil(t, input.Send)
@@ -1168,7 +1159,7 @@ func TestNewCreateOutflowInput(t *testing.T) {
 func TestCreateOutflowInput_Validate(t *testing.T) {
 	validSource := &SourceInput{
 		From: []FromToInput{
-			{Account: "source-acc", Amount: AmountInput{Asset: "USD", Value: "100"}},
+			{Account: "source-acc", Amount: AmountInput{Asset: "USD", Value: 100}},
 		},
 	}
 
@@ -1183,7 +1174,7 @@ func TestCreateOutflowInput_Validate(t *testing.T) {
 			input: &CreateOutflowInput{
 				Send: &SendOutflowInput{
 					Asset:  "USD",
-					Value:  "100",
+					Value:  100,
 					Source: validSource,
 				},
 			},
@@ -1200,7 +1191,7 @@ func TestCreateOutflowInput_Validate(t *testing.T) {
 			input: &CreateOutflowInput{
 				Send: &SendOutflowInput{
 					Asset:  "",
-					Value:  "100",
+					Value:  100,
 					Source: validSource,
 				},
 			},
@@ -1212,7 +1203,7 @@ func TestCreateOutflowInput_Validate(t *testing.T) {
 			input: &CreateOutflowInput{
 				Send: &SendOutflowInput{
 					Asset:  "USD",
-					Value:  "",
+					Value:  0,
 					Source: validSource,
 				},
 			},
@@ -1224,7 +1215,7 @@ func TestCreateOutflowInput_Validate(t *testing.T) {
 			input: &CreateOutflowInput{
 				Send: &SendOutflowInput{
 					Asset:  "USD",
-					Value:  "0",
+					Value:  0,
 					Source: validSource,
 				},
 			},
@@ -1236,7 +1227,7 @@ func TestCreateOutflowInput_Validate(t *testing.T) {
 			input: &CreateOutflowInput{
 				Send: &SendOutflowInput{
 					Asset:  "USD",
-					Value:  "100",
+					Value:  100,
 					Source: nil,
 				},
 			},
@@ -1248,7 +1239,7 @@ func TestCreateOutflowInput_Validate(t *testing.T) {
 			input: &CreateOutflowInput{
 				Send: &SendOutflowInput{
 					Asset: "USD",
-					Value: "100",
+					Value: 100,
 					Source: &SourceInput{
 						From: []FromToInput{},
 					},
@@ -1278,12 +1269,12 @@ func TestCreateOutflowInput_Validate(t *testing.T) {
 func TestCreateOutflowInput_WithMethods(t *testing.T) {
 	source := &SourceInput{
 		From: []FromToInput{
-			{Account: "acc", Amount: AmountInput{Asset: "USD", Value: "100"}},
+			{Account: "acc", Amount: AmountInput{Asset: "USD", Value: 100}},
 		},
 	}
 
 	t.Run("WithDescription", func(t *testing.T) {
-		input := NewCreateOutflowInput("USD", "100", source)
+		input := NewCreateOutflowInput("USD", 100, source)
 		result := input.WithDescription("Withdrawal")
 
 		assert.Equal(t, "Withdrawal", result.Description)
@@ -1291,7 +1282,7 @@ func TestCreateOutflowInput_WithMethods(t *testing.T) {
 	})
 
 	t.Run("WithCode", func(t *testing.T) {
-		input := NewCreateOutflowInput("USD", "100", source)
+		input := NewCreateOutflowInput("USD", 100, source)
 		result := input.WithCode("WTH-001")
 
 		assert.Equal(t, "WTH-001", result.Code)
@@ -1299,7 +1290,7 @@ func TestCreateOutflowInput_WithMethods(t *testing.T) {
 	})
 
 	t.Run("WithMetadata", func(t *testing.T) {
-		input := NewCreateOutflowInput("USD", "100", source)
+		input := NewCreateOutflowInput("USD", 100, source)
 		metadata := map[string]any{"destination": "bank"}
 		result := input.WithMetadata(metadata)
 
@@ -1308,7 +1299,7 @@ func TestCreateOutflowInput_WithMethods(t *testing.T) {
 	})
 
 	t.Run("WithChartOfAccountsGroupName", func(t *testing.T) {
-		input := NewCreateOutflowInput("USD", "100", source)
+		input := NewCreateOutflowInput("USD", 100, source)
 		result := input.WithChartOfAccountsGroupName("LIABILITIES")
 
 		assert.Equal(t, "LIABILITIES", result.ChartOfAccountsGroupName)
@@ -1316,7 +1307,7 @@ func TestCreateOutflowInput_WithMethods(t *testing.T) {
 	})
 
 	t.Run("WithRoute", func(t *testing.T) {
-		input := NewCreateOutflowInput("USD", "100", source)
+		input := NewCreateOutflowInput("USD", 100, source)
 		result := input.WithRoute("withdrawal-route")
 
 		assert.Equal(t, "withdrawal-route", result.Route)
@@ -1324,7 +1315,7 @@ func TestCreateOutflowInput_WithMethods(t *testing.T) {
 	})
 
 	t.Run("chained methods", func(t *testing.T) {
-		input := NewCreateOutflowInput("USD", "100", source).
+		input := NewCreateOutflowInput("USD", 100, source).
 			WithDescription("Test withdrawal").
 			WithCode("WTH-002").
 			WithChartOfAccountsGroupName("LIABILITIES").
@@ -1344,10 +1335,63 @@ func TestCreateOutflowInput_WithMethods(t *testing.T) {
 // =============================================================================
 
 func TestNewCreateAnnotationInput(t *testing.T) {
+	input := NewCreateAnnotationInput("Test annotation", newValidSendInput(1))
+
+	assert.NotNil(t, input)
+	assert.Equal(t, "Test annotation", input.Description)
+}
+
+func TestNewCreateAnnotationInput_BackwardCompatibleWithoutSend(t *testing.T) {
 	input := NewCreateAnnotationInput("Test annotation")
 
 	assert.NotNil(t, input)
 	assert.Equal(t, "Test annotation", input.Description)
+	assert.Nil(t, input.Send)
+}
+
+func TestCreateTransactionInput_ValidateTransactionDate(t *testing.T) {
+	validDates := []string{
+		"2021-01-01",
+		"2021-01-01T00:00:00",
+		"2021-01-01T00:00:00Z",
+		"2021-01-01T00:00:00.000Z",
+		"2021-01-01T00:00:00.000000001Z",
+	}
+
+	for _, transactionDate := range validDates {
+		t.Run(transactionDate, func(t *testing.T) {
+			input := NewCreateTransactionInput("USD", 1).
+				WithSend(newValidSendInput(1)).
+				WithTransactionDate(transactionDate)
+
+			require.NoError(t, input.Validate())
+		})
+	}
+
+	t.Run("rejects unsupported space separated date", func(t *testing.T) {
+		input := NewCreateTransactionInput("USD", 1).
+			WithSend(newValidSendInput(1)).
+			WithTransactionDate("2021-01-01 00:00:00")
+
+		require.ErrorContains(t, input.Validate(), "transactionDate must be ISO 8601")
+	})
+
+	t.Run("rejects future date", func(t *testing.T) {
+		input := NewCreateTransactionInput("USD", 1).
+			WithSend(newValidSendInput(1)).
+			WithTransactionDate("2999-01-01T00:00:00Z")
+
+		require.ErrorContains(t, input.Validate(), "transactionDate cannot be in the future")
+	})
+
+	t.Run("rejects pending custom date", func(t *testing.T) {
+		input := NewCreateTransactionInput("USD", 1).
+			WithSend(newValidSendInput(1)).
+			WithPending(true).
+			WithTransactionDate("2021-01-01T00:00:00Z")
+
+		require.ErrorContains(t, input.Validate(), "pending transactions cannot have a custom transactionDate")
+	})
 }
 
 func TestCreateAnnotationInput_Validate(t *testing.T) {
@@ -1361,6 +1405,7 @@ func TestCreateAnnotationInput_Validate(t *testing.T) {
 			name: "valid annotation",
 			input: &CreateAnnotationInput{
 				Description: "Monthly reconciliation note",
+				Send:        newValidSendInput(1),
 			},
 			wantErr: false,
 		},
@@ -1371,16 +1416,17 @@ func TestCreateAnnotationInput_Validate(t *testing.T) {
 				ChartOfAccountsGroupName: "NOTES",
 				Code:                     "ANN-001",
 				Metadata:                 map[string]any{"author": "system"},
+				Send:                     newValidSendInput(1),
 			},
 			wantErr: false,
 		},
 		{
-			name: "missing description",
+			name: "missing description is allowed",
 			input: &CreateAnnotationInput{
 				Description: "",
+				Send:        newValidSendInput(1),
 			},
-			wantErr: true,
-			errMsg:  "description is required for annotation transactions",
+			wantErr: false,
 		},
 	}
 
@@ -1402,7 +1448,7 @@ func TestCreateAnnotationInput_Validate(t *testing.T) {
 
 func TestCreateAnnotationInput_WithMethods(t *testing.T) {
 	t.Run("WithCode", func(t *testing.T) {
-		input := NewCreateAnnotationInput("Test")
+		input := NewCreateAnnotationInput("Test", newValidSendInput(1))
 		result := input.WithCode("ANN-001")
 
 		assert.Equal(t, "ANN-001", result.Code)
@@ -1410,7 +1456,7 @@ func TestCreateAnnotationInput_WithMethods(t *testing.T) {
 	})
 
 	t.Run("WithMetadata", func(t *testing.T) {
-		input := NewCreateAnnotationInput("Test")
+		input := NewCreateAnnotationInput("Test", newValidSendInput(1))
 		metadata := map[string]any{"note_type": "audit"}
 		result := input.WithMetadata(metadata)
 
@@ -1419,18 +1465,19 @@ func TestCreateAnnotationInput_WithMethods(t *testing.T) {
 	})
 
 	t.Run("WithChartOfAccountsGroupName", func(t *testing.T) {
-		input := NewCreateAnnotationInput("Test")
-		result := input.WithChartOfAccountsGroupName("ANNOTATIONS")
+		input := NewCreateAnnotationInput("Test", newValidSendInput(1))
+		input.ChartOfAccountsGroupName = "ANNOTATIONS"
+		result := input
 
 		assert.Equal(t, "ANNOTATIONS", result.ChartOfAccountsGroupName)
 		assert.Same(t, input, result)
 	})
 
 	t.Run("chained methods", func(t *testing.T) {
-		input := NewCreateAnnotationInput("Audit note").
+		input := NewCreateAnnotationInput("Audit note", newValidSendInput(1)).
 			WithCode("AUD-001").
-			WithChartOfAccountsGroupName("AUDIT").
 			WithMetadata(map[string]any{"auditor": "external"})
+		input.ChartOfAccountsGroupName = "AUDIT"
 
 		assert.Equal(t, "Audit note", input.Description)
 		assert.Equal(t, "AUD-001", input.Code)
@@ -1446,7 +1493,7 @@ func TestCreateAnnotationInput_WithMethods(t *testing.T) {
 func TestTransactionDSLInput_Validate(t *testing.T) {
 	validSend := &DSLSend{
 		Asset: "USD",
-		Value: "100",
+		Value: 100,
 		Source: &DSLSource{
 			From: []DSLFromTo{
 				{Account: "source-acc"},
@@ -1468,7 +1515,8 @@ func TestTransactionDSLInput_Validate(t *testing.T) {
 		{
 			name: "valid DSL input",
 			input: &TransactionDSLInput{
-				Send: validSend,
+				ChartOfAccountsGroupName: "TRANSFERS",
+				Send:                     validSend,
 			},
 			wantErr: false,
 		},
@@ -1486,15 +1534,22 @@ func TestTransactionDSLInput_Validate(t *testing.T) {
 		},
 		{
 			name:    "missing send",
-			input:   &TransactionDSLInput{},
+			input:   &TransactionDSLInput{ChartOfAccountsGroupName: "TRANSFERS"},
 			wantErr: true,
 			errMsg:  "send is required",
 		},
 		{
+			name:    "missing chart of accounts group name",
+			input:   &TransactionDSLInput{Send: validSend},
+			wantErr: true,
+			errMsg:  "chartOfAccountsGroupName is required",
+		},
+		{
 			name: "description too long",
 			input: &TransactionDSLInput{
-				Description: strings.Repeat("a", 257),
-				Send:        validSend,
+				ChartOfAccountsGroupName: "TRANSFERS",
+				Description:              strings.Repeat("a", 257),
+				Send:                     validSend,
 			},
 			wantErr: true,
 			errMsg:  "description must be at most 256 characters",
@@ -1511,8 +1566,9 @@ func TestTransactionDSLInput_Validate(t *testing.T) {
 		{
 			name: "invalid transaction code",
 			input: &TransactionDSLInput{
-				Code: "invalid code with spaces!",
-				Send: validSend,
+				ChartOfAccountsGroupName: "TRANSFERS",
+				Code:                     "invalid code with spaces!",
+				Send:                     validSend,
 			},
 			wantErr: true,
 			errMsg:  "invalid transaction code format",
@@ -1520,8 +1576,9 @@ func TestTransactionDSLInput_Validate(t *testing.T) {
 		{
 			name: "invalid metadata",
 			input: &TransactionDSLInput{
-				Metadata: map[string]any{"": "empty key"},
-				Send:     validSend,
+				ChartOfAccountsGroupName: "TRANSFERS",
+				Metadata:                 map[string]any{"": "empty key"},
+				Send:                     validSend,
 			},
 			wantErr: true,
 			errMsg:  "metadata keys cannot be empty",
@@ -1544,6 +1601,52 @@ func TestTransactionDSLInput_Validate(t *testing.T) {
 	}
 }
 
+func TestTransactionDSLInput_RenderDSL(t *testing.T) {
+	validSend := &DSLSend{
+		Asset: "USD",
+		Value: 100,
+		Source: &DSLSource{From: []DSLFromTo{{
+			Account: "source-acc",
+			Amount:  &DSLAmount{Asset: "USD", Value: 100},
+		}}},
+		Distribute: &DSLDistribute{To: []DSLFromTo{{
+			Account: "dest-acc",
+			Amount:  &DSLAmount{Asset: "USD", Value: 100},
+		}}},
+	}
+
+	input := &TransactionDSLInput{
+		ChartOfAccountsGroupName: "TRANSFERS",
+		Send:                     validSend,
+	}
+
+	rendered, err := input.RenderDSL()
+	require.NoError(t, err)
+	assert.Equal(t, `(transaction V1 (chart-of-accounts-group-name TRANSFERS) (send USD 100|0 (source (from source-acc :amount USD 100|0)) (distribute (to dest-acc :amount USD 100|0))))`, string(rendered))
+}
+
+func TestTransactionDSLInput_RenderDSL_RejectsFractionalValues(t *testing.T) {
+	input := &TransactionDSLInput{
+		ChartOfAccountsGroupName: "TRANSFERS",
+		Send: &DSLSend{
+			Asset: "USD",
+			Value: "100.50",
+			Source: &DSLSource{From: []DSLFromTo{{
+				Account: "source-acc",
+				Amount:  &DSLAmount{Asset: "USD", Value: 100},
+			}}},
+			Distribute: &DSLDistribute{To: []DSLFromTo{{
+				Account: "dest-acc",
+				Amount:  &DSLAmount{Asset: "USD", Value: 100},
+			}}},
+		},
+	}
+
+	_, err := input.RenderDSL()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "fractional DSL values are not supported")
+}
+
 func TestTransactionDSLInput_GetMethods(t *testing.T) {
 	t.Run("GetAsset with nil Send", func(t *testing.T) {
 		input := &TransactionDSLInput{}
@@ -1564,14 +1667,14 @@ func TestTransactionDSLInput_GetMethods(t *testing.T) {
 
 	t.Run("GetValue with valid Send", func(t *testing.T) {
 		input := &TransactionDSLInput{
-			Send: &DSLSend{Value: "100.50"},
+			Send: &DSLSend{Value: 100.50},
 		}
 		assert.InDelta(t, 100.50, input.GetValue(), 0.001)
 	})
 
-	t.Run("GetValue with invalid value", func(t *testing.T) {
+	t.Run("GetValue with zero value", func(t *testing.T) {
 		input := &TransactionDSLInput{
-			Send: &DSLSend{Value: "invalid"},
+			Send: &DSLSend{Value: 0},
 		}
 		assert.InDelta(t, float64(0), input.GetValue(), 0.001)
 	})
@@ -1646,7 +1749,7 @@ func TestTransactionDSLInput_ToTransactionMap(t *testing.T) {
 			Metadata:                 map[string]any{"ref": "123"},
 			Send: &DSLSend{
 				Asset: "USD",
-				Value: "100",
+				Value: 100,
 				Source: &DSLSource{
 					Remaining: "remaining-acc",
 					From: []DSLFromTo{
@@ -1703,7 +1806,7 @@ func TestDSLSend_Validate(t *testing.T) {
 			name: "valid send",
 			send: &DSLSend{
 				Asset: "USD",
-				Value: "100",
+				Value: 100,
 				Source: &DSLSource{
 					From: []DSLFromTo{{Account: "acc-1"}},
 				},
@@ -1717,7 +1820,7 @@ func TestDSLSend_Validate(t *testing.T) {
 			name: "missing asset",
 			send: &DSLSend{
 				Asset: "",
-				Value: "100",
+				Value: 100,
 				Source: &DSLSource{
 					From: []DSLFromTo{{Account: "acc-1"}},
 				},
@@ -1732,7 +1835,7 @@ func TestDSLSend_Validate(t *testing.T) {
 			name: "invalid asset format",
 			send: &DSLSend{
 				Asset: "invalid",
-				Value: "100",
+				Value: 100,
 				Source: &DSLSource{
 					From: []DSLFromTo{{Account: "acc-1"}},
 				},
@@ -1747,7 +1850,7 @@ func TestDSLSend_Validate(t *testing.T) {
 			name: "missing value",
 			send: &DSLSend{
 				Asset: "USD",
-				Value: "",
+				Value: 0,
 				Source: &DSLSource{
 					From: []DSLFromTo{{Account: "acc-1"}},
 				},
@@ -1762,7 +1865,7 @@ func TestDSLSend_Validate(t *testing.T) {
 			name: "zero value",
 			send: &DSLSend{
 				Asset: "USD",
-				Value: "0",
+				Value: 0,
 				Source: &DSLSource{
 					From: []DSLFromTo{{Account: "acc-1"}},
 				},
@@ -1777,7 +1880,7 @@ func TestDSLSend_Validate(t *testing.T) {
 			name: "missing source",
 			send: &DSLSend{
 				Asset:  "USD",
-				Value:  "100",
+				Value:  100,
 				Source: nil,
 				Distribute: &DSLDistribute{
 					To: []DSLFromTo{{Account: "acc-2"}},
@@ -1790,7 +1893,7 @@ func TestDSLSend_Validate(t *testing.T) {
 			name: "empty source from",
 			send: &DSLSend{
 				Asset: "USD",
-				Value: "100",
+				Value: 100,
 				Source: &DSLSource{
 					From: []DSLFromTo{},
 				},
@@ -1805,7 +1908,7 @@ func TestDSLSend_Validate(t *testing.T) {
 			name: "missing distribute",
 			send: &DSLSend{
 				Asset: "USD",
-				Value: "100",
+				Value: 100,
 				Source: &DSLSource{
 					From: []DSLFromTo{{Account: "acc-1"}},
 				},
@@ -1818,7 +1921,7 @@ func TestDSLSend_Validate(t *testing.T) {
 			name: "empty distribute to",
 			send: &DSLSend{
 				Asset: "USD",
-				Value: "100",
+				Value: 100,
 				Source: &DSLSource{
 					From: []DSLFromTo{{Account: "acc-1"}},
 				},
@@ -1833,7 +1936,7 @@ func TestDSLSend_Validate(t *testing.T) {
 			name: "source from missing account",
 			send: &DSLSend{
 				Asset: "USD",
-				Value: "100",
+				Value: 100,
 				Source: &DSLSource{
 					From: []DSLFromTo{{Account: ""}},
 				},
@@ -1848,7 +1951,7 @@ func TestDSLSend_Validate(t *testing.T) {
 			name: "distribute to missing account",
 			send: &DSLSend{
 				Asset: "USD",
-				Value: "100",
+				Value: 100,
 				Source: &DSLSource{
 					From: []DSLFromTo{{Account: "acc-1"}},
 				},
@@ -1863,7 +1966,7 @@ func TestDSLSend_Validate(t *testing.T) {
 			name: "valid external account in source",
 			send: &DSLSend{
 				Asset: "USD",
-				Value: "100",
+				Value: 100,
 				Source: &DSLSource{
 					From: []DSLFromTo{{Account: "@external/USD"}},
 				},
@@ -1877,7 +1980,7 @@ func TestDSLSend_Validate(t *testing.T) {
 			name: "external account asset mismatch",
 			send: &DSLSend{
 				Asset: "USD",
-				Value: "100",
+				Value: 100,
 				Source: &DSLSource{
 					From: []DSLFromTo{{Account: "@external/EUR"}},
 				},
@@ -1913,6 +2016,19 @@ func TestDSLSend_Validate(t *testing.T) {
 func TestDSLAccountRef_GetAccount(t *testing.T) {
 	ref := &DSLAccountRef{Account: "test-account"}
 	assert.Equal(t, "test-account", ref.GetAccount())
+
+	var nilRef *DSLAccountRef
+	assert.Empty(t, nilRef.GetAccount())
+}
+
+func TestTransactionDSLInput_NilReceiverHelpers(t *testing.T) {
+	var input *TransactionDSLInput
+
+	assert.Empty(t, input.GetAsset())
+	assert.Zero(t, input.GetValue())
+	assert.Empty(t, input.GetSourceAccounts())
+	assert.Empty(t, input.GetDestinationAccounts())
+	assert.Nil(t, input.GetMetadata())
 }
 
 // =============================================================================
@@ -1947,9 +2063,9 @@ func TestFromTransactionMap(t *testing.T) {
 					"remaining": "rem-acc",
 					"from": []any{
 						map[string]any{
-							"account":     "source-acc",
-							"remaining":   "rem-1",
-							"description": "Source description",
+							"accountAlias": "source-acc",
+							"remaining":    "rem-1",
+							"description":  "Source description",
 							"amount": map[string]any{
 								"asset": "USD",
 								"value": "100.50",
@@ -1971,7 +2087,7 @@ func TestFromTransactionMap(t *testing.T) {
 					"remaining": "dist-rem",
 					"to": []any{
 						map[string]any{
-							"account": "dest-acc",
+							"accountAlias": "dest-acc",
 						},
 					},
 				},
@@ -2026,7 +2142,7 @@ func TestFromTransactionMap(t *testing.T) {
 
 		result := FromTransactionMap(data)
 		require.NotNil(t, result.Send)
-		assert.Equal(t, "100.50", result.Send.Value)
+		assert.Equal(t, "100.5", result.Send.Value)
 	})
 }
 
@@ -2070,15 +2186,16 @@ func TestTransaction_ToTransactionMap(t *testing.T) {
 		fromList, ok := source["from"].([]map[string]any)
 		require.True(t, ok)
 		assert.Len(t, fromList, 1)
-		assert.Equal(t, "acc-1", fromList[0]["account"])
-		assert.Equal(t, "alias-1", fromList[0]["description"])
+		assert.Equal(t, "alias-1", fromList[0]["accountAlias"])
+		assert.NotContains(t, fromList[0], "account")
 
 		distribute, ok := send["distribute"].(map[string]any)
 		require.True(t, ok)
 		toList, ok := distribute["to"].([]map[string]any)
 		require.True(t, ok)
 		assert.Len(t, toList, 1)
-		assert.Equal(t, "acc-2", toList[0]["account"])
+		assert.Equal(t, "alias-2", toList[0]["accountAlias"])
+		assert.NotContains(t, toList[0], "account")
 	})
 }
 
@@ -2163,7 +2280,8 @@ func TestFromToToMap(t *testing.T) {
 		}
 		result := fromToToMap(from)
 
-		assert.Equal(t, "acc-123", result["account"])
+		assert.Equal(t, "acc-123", result["accountAlias"])
+		assert.NotContains(t, result, "account")
 	})
 
 	t.Run("with amount", func(t *testing.T) {
@@ -2171,7 +2289,7 @@ func TestFromToToMap(t *testing.T) {
 			Account: "acc-123",
 			Amount: &DSLAmount{
 				Asset: "USD",
-				Value: "100",
+				Value: 100,
 			},
 		}
 		result := fromToToMap(from)
@@ -2204,7 +2322,7 @@ func TestFromToToMap(t *testing.T) {
 			Rate: &Rate{
 				From:       "USD",
 				To:         "EUR",
-				Value:      "0.85",
+				Value:      0.85,
 				ExternalID: "rate-1",
 			},
 		}
@@ -2241,10 +2359,7 @@ func TestFromToToMap(t *testing.T) {
 
 func TestEdgeCases(t *testing.T) {
 	t.Run("empty strings in CreateTransactionInput", func(t *testing.T) {
-		input := &CreateTransactionInput{
-			AssetCode: "",
-			Amount:    "",
-		}
+		input := &CreateTransactionInput{}
 		err := input.Validate()
 		require.Error(t, err)
 	})
@@ -2271,7 +2386,7 @@ func TestEdgeCases(t *testing.T) {
 		}
 		input := NewUpdateTransactionInput().WithMetadata(metadata)
 		err := input.Validate()
-		require.NoError(t, err)
+		require.Error(t, err)
 	})
 
 	t.Run("metadata with various types", func(t *testing.T) {
@@ -2281,8 +2396,6 @@ func TestEdgeCases(t *testing.T) {
 			"float":  3.14,
 			"bool":   true,
 			"null":   nil,
-			"array":  []any{"a", "b"},
-			"nested": map[string]any{"key": "value"},
 		}
 		input := NewUpdateTransactionInput().WithMetadata(metadata)
 		err := input.Validate()
@@ -2310,7 +2423,7 @@ func TestEdgeCases(t *testing.T) {
 		overLength := strings.Repeat("a", 65)
 		input2 := NewUpdateTransactionInput().WithExternalID(overLength)
 		err2 := input2.Validate()
-		require.Error(t, err2)
+		require.NoError(t, err2)
 	})
 }
 
@@ -2318,7 +2431,7 @@ func TestEdgeCases(t *testing.T) {
 // Operation Validation Tests (within CreateTransactionInput)
 // =============================================================================
 
-func TestCreateTransactionInput_OperationsValidation(t *testing.T) {
+func TestCreateTransactionInput_SendValidation(t *testing.T) {
 	tests := []struct {
 		name    string
 		input   *CreateTransactionInput
@@ -2326,28 +2439,30 @@ func TestCreateTransactionInput_OperationsValidation(t *testing.T) {
 		errMsg  string
 	}{
 		{
-			name: "valid operations",
+			name: "valid send",
 			input: &CreateTransactionInput{
-				AssetCode: "USD",
-				Amount:    "100",
-				Operations: []CreateOperationInput{
-					{AccountID: "acc-1", Type: "DEBIT", Amount: "100", AssetCode: "USD"},
-					{AccountID: "acc-2", Type: "CREDIT", Amount: "100", AssetCode: "USD"},
-				},
+				Send: newValidSendInput(100),
 			},
 			wantErr: false,
 		},
 		{
-			name: "invalid operation - missing account",
+			name: "invalid send - missing account",
 			input: &CreateTransactionInput{
-				AssetCode: "USD",
-				Amount:    "100",
-				Operations: []CreateOperationInput{
-					{AccountID: "", Type: "DEBIT", Amount: "100", AssetCode: "USD"},
+				Send: &SendInput{
+					Asset: "USD",
+					Value: 100,
+					Source: &SourceInput{From: []FromToInput{{
+						Account: "",
+						Amount:  AmountInput{Asset: "USD", Value: 100},
+					}}},
+					Distribute: &DistributeInput{To: []FromToInput{{
+						Account: "dest",
+						Amount:  AmountInput{Asset: "USD", Value: 100},
+					}}},
 				},
 			},
 			wantErr: true,
-			errMsg:  "invalid operation at index 0",
+			errMsg:  "invalid send",
 		},
 	}
 

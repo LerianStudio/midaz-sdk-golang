@@ -15,6 +15,21 @@ import (
 
 // ========== Test Data Helpers ==========
 
+func createValidSendInput(asset string, value float64) *models.SendInput {
+	return &models.SendInput{
+		Asset: asset,
+		Value: value,
+		Source: &models.SourceInput{From: []models.FromToInput{{
+			Account: "source-account",
+			Amount:  models.AmountInput{Asset: asset, Value: value},
+		}}},
+		Distribute: &models.DistributeInput{To: []models.FromToInput{{
+			Account: "dest-account",
+			Amount:  models.AmountInput{Asset: asset, Value: value},
+		}}},
+	}
+}
+
 func createTestTransaction(id, orgID, ledgerID, assetCode, amount, statusCode string) *models.Transaction {
 	return &models.Transaction{
 		ID:             id,
@@ -54,20 +69,18 @@ func createTestTransactionList(orgID, ledgerID string) *models.ListResponse[mode
 
 func createTestTransactionInput() *models.CreateTransactionInput {
 	return &models.CreateTransactionInput{
-		AssetCode:   "USD",
-		Amount:      "100",
 		Description: "Test payment",
 		Send: &models.SendInput{
 			Asset: "USD",
-			Value: "100",
+			Value: 100,
 			Source: &models.SourceInput{
 				From: []models.FromToInput{
-					{Account: "source-account", Amount: models.AmountInput{Asset: "USD", Value: "100"}},
+					{Account: "source-account", Amount: models.AmountInput{Asset: "USD", Value: 100}},
 				},
 			},
 			Distribute: &models.DistributeInput{
 				To: []models.FromToInput{
-					{Account: "dest-account", Amount: models.AmountInput{Asset: "USD", Value: "100"}},
+					{Account: "dest-account", Amount: models.AmountInput{Asset: "USD", Value: 100}},
 				},
 			},
 		},
@@ -79,7 +92,7 @@ func createTestDSLInput() *models.TransactionDSLInput {
 		Description: "DSL Transaction",
 		Send: &models.DSLSend{
 			Asset: "USD",
-			Value: "100",
+			Value: 100,
 			Source: &models.DSLSource{
 				From: []models.DSLFromTo{{Account: "source-account"}},
 			},
@@ -582,6 +595,14 @@ func TestCancelTransaction(t *testing.T) {
 	err := mockService.CancelTransaction(ctx, orgID, ledgerID, transactionID)
 	require.NoError(t, err)
 
+	mockService.EXPECT().
+		CancelTransactionWithResponse(gomock.Any(), orgID, ledgerID, transactionID).
+		Return(&models.Transaction{ID: transactionID}, nil)
+
+	transaction, err := mockService.CancelTransactionWithResponse(ctx, orgID, ledgerID, transactionID)
+	require.NoError(t, err)
+	require.NotNil(t, transaction)
+
 	// Test empty organization ID
 	mockService.EXPECT().
 		CancelTransaction(gomock.Any(), "", ledgerID, transactionID).
@@ -712,9 +733,9 @@ func TestCreateInflowTransaction(t *testing.T) {
 	orgID := "org-123"
 	ledgerID := "ledger-456"
 
-	input := models.NewCreateInflowInput("USD", "100", &models.DistributeInput{
+	input := models.NewCreateInflowInput("USD", 100, &models.DistributeInput{
 		To: []models.FromToInput{
-			{Account: "dest-account", Amount: models.AmountInput{Asset: "USD", Value: "100"}},
+			{Account: "dest-account", Amount: models.AmountInput{Asset: "USD", Value: 100}},
 		},
 	}).WithDescription("Deposit")
 
@@ -771,9 +792,9 @@ func TestCreateOutflowTransaction(t *testing.T) {
 	orgID := "org-123"
 	ledgerID := "ledger-456"
 
-	input := models.NewCreateOutflowInput("USD", "100", &models.SourceInput{
+	input := models.NewCreateOutflowInput("USD", 100, &models.SourceInput{
 		From: []models.FromToInput{
-			{Account: "source-account", Amount: models.AmountInput{Asset: "USD", Value: "100"}},
+			{Account: "source-account", Amount: models.AmountInput{Asset: "USD", Value: 100}},
 		},
 	}).WithDescription("Withdrawal")
 
@@ -830,7 +851,7 @@ func TestCreateAnnotationTransaction(t *testing.T) {
 	orgID := "org-123"
 	ledgerID := "ledger-456"
 
-	input := models.NewCreateAnnotationInput("Annotation note").
+	input := models.NewCreateAnnotationInput("Annotation note", createValidSendInput("USD", 1)).
 		WithCode("ANN-001").
 		WithMetadata(map[string]any{"type": "note"})
 
@@ -875,56 +896,34 @@ func TestCreateAnnotationTransaction(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "input is required")
 
-	// Test empty description validation
+	// Test current CreateTransactionInput validation reused by annotations.
 	invalidInput := &models.CreateAnnotationInput{Description: ""}
 	mockService.EXPECT().
 		CreateAnnotationTransaction(gomock.Any(), orgID, ledgerID, invalidInput).
-		Return(nil, errors.New("description is required"))
+		Return(nil, errors.New("send is required"))
 
 	_, err = mockService.CreateAnnotationTransaction(ctx, orgID, ledgerID, invalidInput)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "description is required")
+	assert.Contains(t, err.Error(), "send is required")
 }
 
 // ========== TestTransactionInputValidation ==========
 
 func TestTransactionInputValidation(t *testing.T) {
 	t.Run("CreateTransactionInput validation", func(t *testing.T) {
-		// Test empty amount
-		input := &models.CreateTransactionInput{
-			AssetCode: "USD",
-			Amount:    "",
-		}
+		// Test missing send
+		input := &models.CreateTransactionInput{}
 		err := input.Validate()
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "amount")
+		assert.Contains(t, err.Error(), "send is required")
 
-		// Test zero amount
+		// Test invalid send
 		input = &models.CreateTransactionInput{
-			AssetCode: "USD",
-			Amount:    "0",
+			Send: &models.SendInput{Asset: "USD"},
 		}
 		err = input.Validate()
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "amount")
-
-		// Test empty asset code
-		input = &models.CreateTransactionInput{
-			AssetCode: "",
-			Amount:    "100",
-		}
-		err = input.Validate()
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "assetCode")
-
-		// Test missing operations and send
-		input = &models.CreateTransactionInput{
-			AssetCode: "USD",
-			Amount:    "100",
-		}
-		err = input.Validate()
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "operations or send")
+		assert.Contains(t, err.Error(), "invalid send")
 	})
 
 	t.Run("UpdateTransactionInput validation", func(t *testing.T) {
@@ -957,7 +956,7 @@ func TestTransactionInputValidation(t *testing.T) {
 		// Test empty asset
 		input = &models.CreateInflowInput{
 			Send: &models.SendInflowInput{
-				Value: "100",
+				Value: 100,
 			},
 		}
 		err = input.Validate()
@@ -968,7 +967,7 @@ func TestTransactionInputValidation(t *testing.T) {
 		input = &models.CreateInflowInput{
 			Send: &models.SendInflowInput{
 				Asset: "USD",
-				Value: "0",
+				Value: 0,
 			},
 		}
 		err = input.Validate()
@@ -979,7 +978,7 @@ func TestTransactionInputValidation(t *testing.T) {
 		input = &models.CreateInflowInput{
 			Send: &models.SendInflowInput{
 				Asset: "USD",
-				Value: "100",
+				Value: 100,
 			},
 		}
 		err = input.Validate()
@@ -997,7 +996,7 @@ func TestTransactionInputValidation(t *testing.T) {
 		// Test empty asset
 		input = &models.CreateOutflowInput{
 			Send: &models.SendOutflowInput{
-				Value: "100",
+				Value: 100,
 			},
 		}
 		err = input.Validate()
@@ -1008,7 +1007,7 @@ func TestTransactionInputValidation(t *testing.T) {
 		input = &models.CreateOutflowInput{
 			Send: &models.SendOutflowInput{
 				Asset: "USD",
-				Value: "0",
+				Value: 0,
 			},
 		}
 		err = input.Validate()
@@ -1019,7 +1018,7 @@ func TestTransactionInputValidation(t *testing.T) {
 		input = &models.CreateOutflowInput{
 			Send: &models.SendOutflowInput{
 				Asset: "USD",
-				Value: "100",
+				Value: 100,
 			},
 		}
 		err = input.Validate()
@@ -1032,10 +1031,10 @@ func TestTransactionInputValidation(t *testing.T) {
 		input := &models.CreateAnnotationInput{Description: ""}
 		err := input.Validate()
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "description is required")
+		assert.Contains(t, err.Error(), "send is required")
 
 		// Test valid input
-		input = models.NewCreateAnnotationInput("Test annotation")
+		input = models.NewCreateAnnotationInput("Test annotation", createValidSendInput("USD", 1))
 		err = input.Validate()
 		require.NoError(t, err)
 	})
@@ -1046,10 +1045,11 @@ func TestTransactionInputValidation(t *testing.T) {
 func TestTransactionDSLInputValidation(t *testing.T) {
 	t.Run("Valid DSL input", func(t *testing.T) {
 		input := &models.TransactionDSLInput{
-			Description: "Test DSL transaction",
+			ChartOfAccountsGroupName: "TRANSFERS",
+			Description:              "Test DSL transaction",
 			Send: &models.DSLSend{
 				Asset: "USD",
-				Value: "100",
+				Value: 100,
 				Source: &models.DSLSource{
 					From: []models.DSLFromTo{{Account: "source"}},
 				},
@@ -1064,7 +1064,8 @@ func TestTransactionDSLInputValidation(t *testing.T) {
 
 	t.Run("Nil send", func(t *testing.T) {
 		input := &models.TransactionDSLInput{
-			Description: "Test",
+			ChartOfAccountsGroupName: "TRANSFERS",
+			Description:              "Test",
 		}
 		err := input.Validate()
 		require.Error(t, err)
@@ -1073,8 +1074,9 @@ func TestTransactionDSLInputValidation(t *testing.T) {
 
 	t.Run("Empty asset", func(t *testing.T) {
 		input := &models.TransactionDSLInput{
+			ChartOfAccountsGroupName: "TRANSFERS",
 			Send: &models.DSLSend{
-				Value: "100",
+				Value: 100,
 			},
 		}
 		err := input.Validate()
@@ -1084,9 +1086,10 @@ func TestTransactionDSLInputValidation(t *testing.T) {
 
 	t.Run("Zero value", func(t *testing.T) {
 		input := &models.TransactionDSLInput{
+			ChartOfAccountsGroupName: "TRANSFERS",
 			Send: &models.DSLSend{
 				Asset: "USD",
-				Value: "0",
+				Value: 0,
 			},
 		}
 		err := input.Validate()
@@ -1096,9 +1099,10 @@ func TestTransactionDSLInputValidation(t *testing.T) {
 
 	t.Run("Missing source", func(t *testing.T) {
 		input := &models.TransactionDSLInput{
+			ChartOfAccountsGroupName: "TRANSFERS",
 			Send: &models.DSLSend{
 				Asset: "USD",
-				Value: "100",
+				Value: 100,
 			},
 		}
 		err := input.Validate()
@@ -1108,9 +1112,10 @@ func TestTransactionDSLInputValidation(t *testing.T) {
 
 	t.Run("Empty source from", func(t *testing.T) {
 		input := &models.TransactionDSLInput{
+			ChartOfAccountsGroupName: "TRANSFERS",
 			Send: &models.DSLSend{
 				Asset: "USD",
-				Value: "100",
+				Value: 100,
 				Source: &models.DSLSource{
 					From: []models.DSLFromTo{},
 				},
@@ -1123,9 +1128,10 @@ func TestTransactionDSLInputValidation(t *testing.T) {
 
 	t.Run("Missing distribute", func(t *testing.T) {
 		input := &models.TransactionDSLInput{
+			ChartOfAccountsGroupName: "TRANSFERS",
 			Send: &models.DSLSend{
 				Asset: "USD",
-				Value: "100",
+				Value: 100,
 				Source: &models.DSLSource{
 					From: []models.DSLFromTo{{Account: "source"}},
 				},
@@ -1143,10 +1149,11 @@ func TestTransactionDSLInputValidation(t *testing.T) {
 		}
 
 		input := &models.TransactionDSLInput{
-			Description: longDesc,
+			ChartOfAccountsGroupName: "TRANSFERS",
+			Description:              longDesc,
 			Send: &models.DSLSend{
 				Asset: "USD",
-				Value: "100",
+				Value: 100,
 				Source: &models.DSLSource{
 					From: []models.DSLFromTo{{Account: "source"}},
 				},
@@ -1173,15 +1180,15 @@ func TestTransactionMapConversion(t *testing.T) {
 			Metadata:                 map[string]any{"key": "value"},
 			Send: &models.SendInput{
 				Asset: "USD",
-				Value: "100",
+				Value: 100,
 				Source: &models.SourceInput{
 					From: []models.FromToInput{
-						{Account: "source", Amount: models.AmountInput{Asset: "USD", Value: "100"}},
+						{Account: "source", Amount: models.AmountInput{Asset: "USD", Value: 100}},
 					},
 				},
 				Distribute: &models.DistributeInput{
 					To: []models.FromToInput{
-						{Account: "dest", Amount: models.AmountInput{Asset: "USD", Value: "100"}},
+						{Account: "dest", Amount: models.AmountInput{Asset: "USD", Value: 100}},
 					},
 				},
 			},
@@ -1206,7 +1213,7 @@ func TestTransactionMapConversion(t *testing.T) {
 			Metadata:                 map[string]any{"type": "transfer"},
 			Send: &models.DSLSend{
 				Asset: "EUR",
-				Value: "500",
+				Value: 500,
 				Source: &models.DSLSource{
 					From: []models.DSLFromTo{{Account: "source-acc"}},
 				},
@@ -1242,23 +1249,23 @@ func TestTransactionMapConversion(t *testing.T) {
 
 func TestTransactionBuilderMethods(t *testing.T) {
 	t.Run("CreateTransactionInput builder", func(t *testing.T) {
-		input := models.NewCreateTransactionInput("USD", "100").
+		input := models.NewCreateTransactionInput("USD", 100).
 			WithDescription("Test payment").
 			WithMetadata(map[string]any{"key": "value"}).
 			WithExternalID("ext-123").
 			WithSend(&models.SendInput{
 				Asset: "USD",
-				Value: "100",
+				Value: 100,
 				Source: &models.SourceInput{
-					From: []models.FromToInput{{Account: "src", Amount: models.AmountInput{Asset: "USD", Value: "100"}}},
+					From: []models.FromToInput{{Account: "src", Amount: models.AmountInput{Asset: "USD", Value: 100}}},
 				},
 				Distribute: &models.DistributeInput{
-					To: []models.FromToInput{{Account: "dst", Amount: models.AmountInput{Asset: "USD", Value: "100"}}},
+					To: []models.FromToInput{{Account: "dst", Amount: models.AmountInput{Asset: "USD", Value: 100}}},
 				},
 			})
 
-		assert.Equal(t, "USD", input.AssetCode)
-		assert.Equal(t, "100", input.Amount)
+		assert.Equal(t, "USD", input.Send.Asset)
+		assert.Equal(t, 100, input.Send.Value)
 		assert.Equal(t, "Test payment", input.Description)
 		assert.Equal(t, "ext-123", input.ExternalID)
 		assert.NotNil(t, input.Metadata)
@@ -1277,8 +1284,8 @@ func TestTransactionBuilderMethods(t *testing.T) {
 	})
 
 	t.Run("CreateInflowInput builder", func(t *testing.T) {
-		input := models.NewCreateInflowInput("USD", "100", &models.DistributeInput{
-			To: []models.FromToInput{{Account: "dest", Amount: models.AmountInput{Asset: "USD", Value: "100"}}},
+		input := models.NewCreateInflowInput("USD", 100, &models.DistributeInput{
+			To: []models.FromToInput{{Account: "dest", Amount: models.AmountInput{Asset: "USD", Value: 100}}},
 		}).
 			WithDescription("Deposit").
 			WithCode("DEP-001").
@@ -1294,8 +1301,8 @@ func TestTransactionBuilderMethods(t *testing.T) {
 	})
 
 	t.Run("CreateOutflowInput builder", func(t *testing.T) {
-		input := models.NewCreateOutflowInput("USD", "100", &models.SourceInput{
-			From: []models.FromToInput{{Account: "source", Amount: models.AmountInput{Asset: "USD", Value: "100"}}},
+		input := models.NewCreateOutflowInput("USD", 100, &models.SourceInput{
+			From: []models.FromToInput{{Account: "source", Amount: models.AmountInput{Asset: "USD", Value: 100}}},
 		}).
 			WithDescription("Withdrawal").
 			WithCode("WTH-001").
@@ -1311,10 +1318,10 @@ func TestTransactionBuilderMethods(t *testing.T) {
 	})
 
 	t.Run("CreateAnnotationInput builder", func(t *testing.T) {
-		input := models.NewCreateAnnotationInput("Note").
+		input := models.NewCreateAnnotationInput("Note", createValidSendInput("USD", 1)).
 			WithCode("NOTE-001").
-			WithMetadata(map[string]any{"type": "comment"}).
-			WithChartOfAccountsGroupName("annotations")
+			WithMetadata(map[string]any{"type": "comment"})
+		input.ChartOfAccountsGroupName = "annotations"
 
 		assert.Equal(t, "Note", input.Description)
 		assert.Equal(t, "NOTE-001", input.Code)
