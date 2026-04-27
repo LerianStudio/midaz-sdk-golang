@@ -9,6 +9,8 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
+const maxAccountFieldLength = 256
+
 // Account represents an account in the Midaz Ledger.
 // This is now an alias to mmodel.Account to avoid duplication while maintaining
 // SDK-specific documentation and examples.
@@ -78,8 +80,8 @@ func GetAccountIdentifier(account Account) string {
 // This structure contains all the fields that can be specified when creating a new account.
 type CreateAccountInput struct {
 	// Name is the human-readable name of the account.
-	// Max length: 256 characters.
-	Name string `json:"name"`
+	// Max length: 256 characters. Optional in the Midaz API.
+	Name string `json:"name,omitempty"`
 
 	// ParentAccountID is the ID of the parent account, if this is a sub-account.
 	// Must be a valid UUID if provided.
@@ -88,6 +90,9 @@ type CreateAccountInput struct {
 	// EntityID is an optional external identifier for the account owner.
 	// Max length: 256 characters.
 	EntityID *string `json:"entityId,omitempty"`
+
+	// Blocked indicates whether the account should start blocked.
+	Blocked *bool `json:"blocked,omitempty"`
 
 	// AssetCode identifies the type of asset held in this account.
 	// Required. Max length: 100 characters.
@@ -120,12 +125,14 @@ type CreateAccountInput struct {
 // Validate checks if the CreateAccountInput meets the validation requirements.
 // It returns an error if any of the validation checks fail.
 func (input *CreateAccountInput) Validate() error {
-	if input.Name == "" {
-		return errors.New("name is required")
+	if err := validateAccountStringLength("name", input.Name); err != nil {
+		return err
 	}
 
-	if len(input.Name) > 256 {
-		return errors.New("name must be at most 256 characters")
+	if input.EntityID != nil {
+		if err := validateAccountStringLength("entityId", *input.EntityID); err != nil {
+			return err
+		}
 	}
 
 	if input.AssetCode == "" {
@@ -267,6 +274,12 @@ func (input *CreateAccountInput) WithMetadata(metadata map[string]any) *CreateAc
 	return input
 }
 
+// WithBlocked sets whether the account should start blocked.
+func (input *CreateAccountInput) WithBlocked(blocked bool) *CreateAccountInput {
+	input.Blocked = &blocked
+	return input
+}
+
 // ToMmodel converts the SDK CreateAccountInput to mmodel.CreateAccountInput.
 // This method is used internally to convert between SDK and backend models.
 func (input CreateAccountInput) ToMmodel() mmodel.CreateAccountInput {
@@ -274,6 +287,7 @@ func (input CreateAccountInput) ToMmodel() mmodel.CreateAccountInput {
 		Name:            input.Name,
 		ParentAccountID: input.ParentAccountID,
 		EntityID:        input.EntityID,
+		Blocked:         input.Blocked,
 		AssetCode:       input.AssetCode,
 		PortfolioID:     input.PortfolioID,
 		SegmentID:       input.SegmentID,
@@ -289,7 +303,7 @@ func (input CreateAccountInput) ToMmodel() mmodel.CreateAccountInput {
 type UpdateAccountInput struct {
 	// Name is the human-readable name of the account.
 	// Max length: 256 characters.
-	Name string `json:"name"`
+	Name string `json:"name,omitempty"`
 
 	// SegmentID is the optional ID of the segment this account belongs to.
 	// Must be a valid UUID if provided.
@@ -305,13 +319,25 @@ type UpdateAccountInput struct {
 	// Metadata contains additional custom data associated with the account.
 	// Keys max length: 100 characters, Values max length: 2000 characters.
 	Metadata map[string]any `json:"metadata,omitempty"`
+
+	// EntityID is an optional external identifier for the account owner.
+	EntityID *string `json:"entityId,omitempty"`
+
+	// Blocked indicates whether the account should be blocked.
+	Blocked *bool `json:"blocked,omitempty"`
 }
 
 // Validate checks if the UpdateAccountInput meets the validation requirements.
 // It returns an error if any of the validation checks fail.
 func (input *UpdateAccountInput) Validate() error {
-	if input.Name != "" && len(input.Name) > 256 {
-		return errors.New("name must be at most 256 characters")
+	if err := validateAccountStringLength("name", input.Name); err != nil {
+		return err
+	}
+
+	if input.EntityID != nil {
+		if err := validateAccountStringLength("entityId", *input.EntityID); err != nil {
+			return err
+		}
 	}
 
 	// Validate status if provided
@@ -323,6 +349,14 @@ func (input *UpdateAccountInput) Validate() error {
 		if err := core.ValidateMetadata(input.Metadata); err != nil {
 			return fmt.Errorf("invalid metadata: %w", err)
 		}
+	}
+
+	return nil
+}
+
+func validateAccountStringLength(field, value string) error {
+	if value != "" && len(value) > maxAccountFieldLength {
+		return fmt.Errorf("%s must be at most %d characters", field, maxAccountFieldLength)
 	}
 
 	return nil
@@ -348,6 +382,12 @@ func NewUpdateAccountInput() *UpdateAccountInput {
 //   - A pointer to the modified UpdateAccountInput for method chaining
 func (input *UpdateAccountInput) WithName(name string) *UpdateAccountInput {
 	input.Name = name
+	return input
+}
+
+// WithEntityID sets the external entity identifier.
+func (input *UpdateAccountInput) WithEntityID(entityID string) *UpdateAccountInput {
+	input.EntityID = &entityID
 	return input
 }
 
@@ -403,6 +443,12 @@ func (input *UpdateAccountInput) WithMetadata(metadata map[string]any) *UpdateAc
 	return input
 }
 
+// WithBlocked sets whether the account should be blocked.
+func (input *UpdateAccountInput) WithBlocked(blocked bool) *UpdateAccountInput {
+	input.Blocked = &blocked
+	return input
+}
+
 // ToMmodel converts the SDK UpdateAccountInput to mmodel.UpdateAccountInput.
 // This method is used internally to convert between SDK and backend models.
 func (input UpdateAccountInput) ToMmodel() mmodel.UpdateAccountInput {
@@ -412,6 +458,8 @@ func (input UpdateAccountInput) ToMmodel() mmodel.UpdateAccountInput {
 		PortfolioID: input.PortfolioID,
 		Status:      input.Status,
 		Metadata:    input.Metadata,
+		EntityID:    input.EntityID,
+		Blocked:     input.Blocked,
 	}
 }
 

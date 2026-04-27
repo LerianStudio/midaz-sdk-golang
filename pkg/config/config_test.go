@@ -53,13 +53,10 @@ func TestDefaultConstants(t *testing.T) {
 		expected any
 	}{
 		{"DefaultTimeout", DefaultTimeout, 60},
-		{"DefaultLocalBaseURL", DefaultLocalBaseURL, "http://localhost"},
-		{"DefaultDevelopmentBaseURL", DefaultDevelopmentBaseURL, "https://api.dev.midaz.io"},
-		{"DefaultProductionBaseURL", DefaultProductionBaseURL, "https://api.midaz.io"},
-		{"DefaultOnboardingPort", DefaultOnboardingPort, "3000"},
-		{"DefaultTransactionPort", DefaultTransactionPort, "3001"},
-		{"DefaultLocalOnboardingPath", DefaultLocalOnboardingPath, ""},
-		{"DefaultLocalTransactionPath", DefaultLocalTransactionPath, ""},
+		{"DefaultLocalLedgerBaseURL", DefaultLocalLedgerBaseURL, "http://localhost:3002"},
+		{"DefaultDevelopmentLedgerBaseURL", DefaultDevelopmentLedgerBaseURL, "https://api.dev.midaz.io"},
+		{"DefaultProductionLedgerBaseURL", DefaultProductionLedgerBaseURL, "https://api.midaz.io"},
+		{"DefaultLedgerAPIVersionPath", DefaultLedgerAPIVersionPath, "/v1"},
 		{"DefaultMaxRetries", DefaultMaxRetries, 3},
 		{"DefaultMinRetryWait", DefaultMinRetryWait, 1 * time.Second},
 		{"DefaultRetryWaitMax", DefaultRetryWaitMax, 30 * time.Second},
@@ -77,6 +74,27 @@ func TestDefaultConstants(t *testing.T) {
 func TestServiceTypeConstants(t *testing.T) {
 	assert.Equal(t, ServiceOnboarding, ServiceType("onboarding"))
 	assert.Equal(t, ServiceTransaction, ServiceType("transaction"))
+	assert.Equal(t, ServiceCRM, ServiceType("crm"))
+}
+
+func TestWithCRMURL(t *testing.T) {
+	cfg := DefaultConfig()
+	err := WithCRMURL("https://crm.example.com/v1")(cfg)
+
+	require.NoError(t, err)
+	assert.Equal(t, "https://crm.example.com/v1", cfg.ServiceURLs[ServiceCRM])
+}
+
+func TestConfigureURLsReadsCRMURL(t *testing.T) {
+	restore := saveEnv([]string{"MIDAZ_CRM_URL"})
+	defer restore()
+
+	require.NoError(t, os.Setenv("MIDAZ_CRM_URL", "https://crm.example.com/v1"))
+
+	cfg := DefaultConfig()
+	require.NoError(t, configureURLs(cfg))
+
+	assert.Equal(t, "https://crm.example.com/v1", cfg.ServiceURLs[ServiceCRM])
 }
 
 func TestEnvironmentConstants(t *testing.T) {
@@ -99,8 +117,8 @@ func TestNewConfig_Defaults(t *testing.T) {
 	assert.True(t, config.EnableIdempotency)
 	assert.False(t, config.Debug)
 	assert.NotNil(t, config.HTTPClient)
-	assert.Equal(t, "http://localhost:3000", config.ServiceURLs[ServiceOnboarding])
-	assert.Equal(t, "http://localhost:3001", config.ServiceURLs[ServiceTransaction])
+	assert.Equal(t, "http://localhost:3002/v1", config.ServiceURLs[ServiceOnboarding])
+	assert.Equal(t, "http://localhost:3002/v1", config.ServiceURLs[ServiceTransaction])
 }
 
 func TestNewConfig_WithAllOptions(t *testing.T) {
@@ -190,20 +208,20 @@ func TestWithEnvironment_WithBaseURL(t *testing.T) {
 		{
 			name:                   "development with base URL",
 			env:                    EnvironmentDevelopment,
-			expectedOnboardingURL:  "https://api.custom.io/onboarding",
-			expectedTransactionURL: "https://api.custom.io/transaction",
+			expectedOnboardingURL:  "https://api.custom.io/v1",
+			expectedTransactionURL: "https://api.custom.io/v1",
 		},
 		{
 			name:                   "production with base URL",
 			env:                    EnvironmentProduction,
-			expectedOnboardingURL:  "https://api.custom.io/onboarding",
-			expectedTransactionURL: "https://api.custom.io/transaction",
+			expectedOnboardingURL:  "https://api.custom.io/v1",
+			expectedTransactionURL: "https://api.custom.io/v1",
 		},
 		{
 			name:                   "local with base URL",
 			env:                    EnvironmentLocal,
-			expectedOnboardingURL:  "https://api.custom.io:3000",
-			expectedTransactionURL: "https://api.custom.io:3001",
+			expectedOnboardingURL:  "https://api.custom.io/v1",
+			expectedTransactionURL: "https://api.custom.io/v1",
 		},
 	}
 
@@ -322,8 +340,8 @@ func TestWithBaseURL_LocalEnvironment(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	assert.Equal(t, "https://custom.example.com:3000", config.ServiceURLs[ServiceOnboarding])
-	assert.Equal(t, "https://custom.example.com:3001", config.ServiceURLs[ServiceTransaction])
+	assert.Equal(t, "https://custom.example.com/v1", config.ServiceURLs[ServiceOnboarding])
+	assert.Equal(t, "https://custom.example.com/v1", config.ServiceURLs[ServiceTransaction])
 }
 
 func TestWithBaseURL_NonLocalEnvironment(t *testing.T) {
@@ -338,8 +356,8 @@ func TestWithBaseURL_NonLocalEnvironment(t *testing.T) {
 			env:     EnvironmentDevelopment,
 			baseURL: "https://custom.example.com",
 			expected: map[ServiceType]string{
-				ServiceOnboarding:  "https://custom.example.com/onboarding",
-				ServiceTransaction: "https://custom.example.com/transaction",
+				ServiceOnboarding:  "https://custom.example.com/v1",
+				ServiceTransaction: "https://custom.example.com/v1",
 			},
 		},
 		{
@@ -347,8 +365,8 @@ func TestWithBaseURL_NonLocalEnvironment(t *testing.T) {
 			env:     EnvironmentProduction,
 			baseURL: "https://api.prod.example.com",
 			expected: map[ServiceType]string{
-				ServiceOnboarding:  "https://api.prod.example.com/onboarding",
-				ServiceTransaction: "https://api.prod.example.com/transaction",
+				ServiceOnboarding:  "https://api.prod.example.com/v1",
+				ServiceTransaction: "https://api.prod.example.com/v1",
 			},
 		},
 	}
@@ -374,7 +392,7 @@ func TestWithBaseURL_TrailingSlash(t *testing.T) {
 		WithAccessManager(auth.AccessManager{Enabled: false}),
 	)
 	require.NoError(t, err)
-	assert.Equal(t, "https://api.example.com/onboarding", config.ServiceURLs[ServiceOnboarding])
+	assert.Equal(t, "https://api.example.com/v1", config.ServiceURLs[ServiceOnboarding])
 }
 
 func TestWithBaseURL_Invalid(t *testing.T) {
@@ -916,7 +934,7 @@ func TestFromEnvironment_BaseURLOverriddenBySpecific(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "https://specific.example.com/onboarding", config.ServiceURLs[ServiceOnboarding])
-	assert.Equal(t, "https://base.example.com:3001", config.ServiceURLs[ServiceTransaction])
+	assert.Equal(t, "https://base.example.com/v1", config.ServiceURLs[ServiceTransaction])
 }
 
 func TestFromEnvironment_PluginAuthDisabled(t *testing.T) {
@@ -962,8 +980,8 @@ func TestDefaultConfig(t *testing.T) {
 	assert.True(t, config.EnableIdempotency)
 	assert.NotNil(t, config.HTTPClient)
 	assert.NotNil(t, config.ServiceURLs)
-	assert.Equal(t, "http://localhost:3000", config.ServiceURLs[ServiceOnboarding])
-	assert.Equal(t, "http://localhost:3001", config.ServiceURLs[ServiceTransaction])
+	assert.Equal(t, "http://localhost:3002/v1", config.ServiceURLs[ServiceOnboarding])
+	assert.Equal(t, "http://localhost:3002/v1", config.ServiceURLs[ServiceTransaction])
 }
 
 func TestNewLocalConfig(t *testing.T) {
@@ -972,8 +990,8 @@ func TestNewLocalConfig(t *testing.T) {
 
 	assert.Equal(t, EnvironmentLocal, config.Environment)
 	assert.False(t, config.AccessManager.Enabled)
-	assert.Equal(t, "http://localhost:3000", config.ServiceURLs[ServiceOnboarding])
-	assert.Equal(t, "http://localhost:3001", config.ServiceURLs[ServiceTransaction])
+	assert.Equal(t, "http://localhost:3002/v1", config.ServiceURLs[ServiceOnboarding])
+	assert.Equal(t, "http://localhost:3002/v1", config.ServiceURLs[ServiceTransaction])
 }
 
 func TestNewLocalConfig_WithEnvVars(t *testing.T) {
@@ -1125,7 +1143,7 @@ func TestOptionOrderMatters(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "https://specific.example.com/onboarding", config.ServiceURLs[ServiceOnboarding])
-	assert.Equal(t, "https://custom.example.com:3001", config.ServiceURLs[ServiceTransaction])
+	assert.Equal(t, "https://custom.example.com/v1", config.ServiceURLs[ServiceTransaction])
 }
 
 func TestIsLocalhost(t *testing.T) {
@@ -1252,18 +1270,18 @@ func TestSetDefaultServiceURLs_AllEnvironments(t *testing.T) {
 	}{
 		{
 			env:                    EnvironmentLocal,
-			expectedOnboardingURL:  "http://localhost:3000",
-			expectedTransactionURL: "http://localhost:3001",
+			expectedOnboardingURL:  "http://localhost:3002/v1",
+			expectedTransactionURL: "http://localhost:3002/v1",
 		},
 		{
 			env:                    EnvironmentDevelopment,
-			expectedOnboardingURL:  "https://api.dev.midaz.io/onboarding",
-			expectedTransactionURL: "https://api.dev.midaz.io/transaction",
+			expectedOnboardingURL:  "https://api.dev.midaz.io/v1",
+			expectedTransactionURL: "https://api.dev.midaz.io/v1",
 		},
 		{
 			env:                    EnvironmentProduction,
-			expectedOnboardingURL:  "https://api.midaz.io/onboarding",
-			expectedTransactionURL: "https://api.midaz.io/transaction",
+			expectedOnboardingURL:  "https://api.midaz.io/v1",
+			expectedTransactionURL: "https://api.midaz.io/v1",
 		},
 	}
 
@@ -1488,6 +1506,20 @@ func TestValidateConfig_Valid(t *testing.T) {
 		ServiceURLs: map[ServiceType]string{
 			ServiceOnboarding:  "https://api.example.com/onboarding",
 			ServiceTransaction: "https://api.example.com/transaction",
+			ServiceCRM:         "https://api.example.com/crm",
+		},
+		AccessManager: auth.AccessManager{Enabled: false},
+	}
+
+	err := validateConfig(config)
+	require.NoError(t, err)
+}
+
+func TestValidateConfig_CRMURLIsOptional(t *testing.T) {
+	config := &Config{
+		ServiceURLs: map[ServiceType]string{
+			ServiceOnboarding:  "https://api.example.com/onboarding",
+			ServiceTransaction: "https://api.example.com/transaction",
 		},
 		AccessManager: auth.AccessManager{Enabled: false},
 	}
@@ -1516,8 +1548,8 @@ func TestWithBaseURL_InitializesServiceURLsMap(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.NotNil(t, config.ServiceURLs)
-	assert.Equal(t, "https://api.example.com/onboarding", config.ServiceURLs[ServiceOnboarding])
-	assert.Equal(t, "https://api.example.com/transaction", config.ServiceURLs[ServiceTransaction])
+	assert.Equal(t, "https://api.example.com/v1", config.ServiceURLs[ServiceOnboarding])
+	assert.Equal(t, "https://api.example.com/v1", config.ServiceURLs[ServiceTransaction])
 }
 
 func TestWithOnboardingURL_InitializesServiceURLsMap(t *testing.T) {
@@ -1579,16 +1611,16 @@ func TestConfigWithTenantID(t *testing.T) {
 	}
 }
 
-func TestConfigTenantIDFromEnv(t *testing.T) {
+func TestConfigTenantIDIgnoresEnv(t *testing.T) {
 	tests := []struct {
 		name     string
 		envValue string
 		expected string
 	}{
 		{
-			name:     "picks up MIDAZ_TENANT_ID from environment",
+			name:     "ignores MIDAZ_TENANT_ID from environment",
 			envValue: "env-tenant-456",
-			expected: "env-tenant-456",
+			expected: "",
 		},
 		{
 			name:     "empty env var leaves TenantID unset",
@@ -1620,8 +1652,8 @@ func TestConfigTenantIDFromEnv(t *testing.T) {
 	}
 }
 
-func TestConfigTenantIDOptionOverridesEnv(t *testing.T) {
-	// Set env var, then override with explicit option
+func TestConfigTenantIDOptionWinsOverEnv(t *testing.T) {
+	// Environment defaults are intentionally ignored; explicit options remain supported.
 	t.Setenv("MIDAZ_TENANT_ID", "env-tenant")
 
 	cfg, err := NewConfig(
@@ -1631,7 +1663,6 @@ func TestConfigTenantIDOptionOverridesEnv(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	// The explicit WithTenantID option should win since it's applied after FromEnvironment
 	assert.Equal(t, "option-tenant", cfg.TenantID)
 }
 

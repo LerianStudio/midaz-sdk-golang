@@ -135,12 +135,12 @@ type PortfoliosService interface {
 // portfoliosEntity implements the PortfoliosService interface.
 // It provides methods for creating, retrieving, updating, and deleting portfolios.
 type portfoliosEntity struct {
-	HTTPClient *HTTPClient
+	httpClient *HTTPClient
 	baseURLs   map[string]string
 }
 
 func (e *portfoliosEntity) setDefaultTenantID(tenantID string) {
-	e.HTTPClient.SetTenantID(tenantID)
+	e.httpClient.SetTenantID(tenantID)
 }
 
 // NewPortfoliosEntity creates a new portfolios entity.
@@ -155,7 +155,7 @@ func NewPortfoliosEntity(client *http.Client, authToken string, baseURLs map[str
 	}
 
 	return &portfoliosEntity{
-		HTTPClient: httpClient,
+		httpClient: httpClient,
 		baseURLs:   baseURLs,
 	}
 }
@@ -191,7 +191,7 @@ func (e *portfoliosEntity) ListPortfolios(ctx context.Context, organizationID, l
 	}
 
 	var response models.ListResponse[models.Portfolio]
-	if err := e.HTTPClient.sendRequest(req, &response); err != nil {
+	if err := e.httpClient.sendRequest(req, &response); err != nil {
 		return nil, err
 	}
 
@@ -222,7 +222,7 @@ func (e *portfoliosEntity) GetPortfolio(ctx context.Context, organizationID, led
 	}
 
 	var portfolio models.Portfolio
-	if err := e.HTTPClient.sendRequest(req, &portfolio); err != nil {
+	if err := e.httpClient.sendRequest(req, &portfolio); err != nil {
 		return nil, err
 	}
 
@@ -258,7 +258,7 @@ func (e *portfoliosEntity) CreatePortfolio(ctx context.Context, organizationID, 
 	}
 
 	var portfolio models.Portfolio
-	if err := e.HTTPClient.sendRequest(req, &portfolio); err != nil {
+	if err := e.httpClient.sendRequest(req, &portfolio); err != nil {
 		return nil, err
 	}
 
@@ -298,7 +298,7 @@ func (e *portfoliosEntity) UpdatePortfolio(ctx context.Context, organizationID, 
 	}
 
 	var portfolio models.Portfolio
-	if err := e.HTTPClient.sendRequest(req, &portfolio); err != nil {
+	if err := e.httpClient.sendRequest(req, &portfolio); err != nil {
 		return nil, err
 	}
 
@@ -328,7 +328,7 @@ func (e *portfoliosEntity) DeletePortfolio(ctx context.Context, organizationID, 
 		return errors.NewInternalError(operation, err)
 	}
 
-	return e.HTTPClient.sendRequest(req, nil)
+	return e.httpClient.sendRequest(req, nil)
 }
 
 // GetPortfoliosMetricsCount gets the count metrics for portfolios in a ledger.
@@ -345,17 +345,12 @@ func (e *portfoliosEntity) GetPortfoliosMetricsCount(ctx context.Context, organi
 
 	url := e.buildMetricsURL(organizationID, ledgerID)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
+	count, err := e.httpClient.doCountRequest(ctx, http.MethodHead, url, nil)
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
-
-	var metrics models.MetricsCount
-	if err := e.HTTPClient.sendRequest(req, &metrics); err != nil {
 		return nil, err
 	}
 
-	return &metrics, nil
+	return &models.MetricsCount{PortfoliosCount: count}, nil
 }
 
 // buildURL builds the URL for portfolios API calls.
@@ -363,14 +358,14 @@ func (e *portfoliosEntity) buildURL(organizationID, ledgerID, portfolioID string
 	baseURL := e.baseURLs["onboarding"]
 
 	if portfolioID == "" {
-		return fmt.Sprintf("%s/organizations/%s/ledgers/%s/portfolios", baseURL, organizationID, ledgerID)
+		return fmt.Sprintf("%s/organizations/%s/ledgers/%s/portfolios", baseURL, pathSegment(organizationID), pathSegment(ledgerID))
 	}
 
-	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/portfolios/%s", baseURL, organizationID, ledgerID, portfolioID)
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/portfolios/%s", baseURL, pathSegment(organizationID), pathSegment(ledgerID), pathSegment(portfolioID))
 }
 
 // buildMetricsURL builds the URL for portfolios metrics API calls.
 func (e *portfoliosEntity) buildMetricsURL(organizationID, ledgerID string) string {
 	baseURL := e.baseURLs["onboarding"]
-	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/portfolios/metrics/count", baseURL, organizationID, ledgerID)
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/portfolios/metrics/count", baseURL, pathSegment(organizationID), pathSegment(ledgerID))
 }

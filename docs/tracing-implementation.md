@@ -1,192 +1,234 @@
-# Tracing Implementation Changelog
+# Tracing implementation note
 
-## OpenTelemetry Tracing Propagation Enhancement
+This note records the tracing propagation implementation in `midaz-sdk-golang`. It is a changelog-style implementation note, not the main tracing guide.
 
-### Overview
-Implemented comprehensive OpenTelemetry tracing propagation throughout the Midaz SDK to enable distributed tracing across service boundaries.
+For usage guidance, keep `docs/tracing.md` as the user-facing guide.
 
-### Changes Made
+## Status
 
-#### 1. HTTP Client Enhancement (`entities/http.go`)
-- **Enhanced `NewHTTPClient`**: Automatically wraps HTTP clients with observability middleware when a provider is configured
-- **Automatic Trace Injection**: HTTP requests now automatically include OpenTelemetry trace headers (`traceparent`, `tracestate`, `baggage`)
-- **Backward Compatibility**: Changes are non-breaking - existing code continues to work without modification
+Tracing propagation is implemented for outbound Entity API HTTP requests.
 
-#### 2. Comprehensive Testing Suite
-- **Created `pkg/observability/tracing_test.go`**: Comprehensive test suite covering:
-  - Basic inject/extract functionality
-  - HTTP middleware trace propagation  
-  - Distributed tracing across services
-  - Baggage propagation
-  - Trace persistence across multiple requests
-  - Performance benchmarks
+The SDK:
 
-- **Created `entities/http_tracing_test.go`**: Integration tests for HTTP client tracing:
-  - Automatic trace header injection
-  - Tracing disabled scenarios
-  - Custom headers with tracing
-  - Error handling with tracing
-  - Distributed tracing between services
+- Stores the configured observability provider on `entities.HTTPClient`.
+- Starts SDK HTTP spans when the tracing component is enabled.
+- Injects trace context into outbound request paths.
+- Uses standard W3C Trace Context and Baggage propagation.
+- Keeps existing SDK calls backward compatible when observability is disabled.
 
-- **Created `pkg/observability/middleware_test.go`**: Direct middleware testing
+## Implementation summary
 
-#### 3. Example Applications
-- **Created `examples/tracing-example/main.go`**: Complete client-side example showing:
-  - Observability provider setup
-  - Complex workflows with nested spans
-  - Custom attributes and baggage
-  - Error handling and span status
-  - Multiple API calls with trace correlation
+### `entities.HTTPClient`
 
-- **Created `examples/tracing-server-example/main.go`**: Server-side example demonstrating:
-  - HTTP middleware for trace extraction
-  - Server span creation
-  - Downstream API calls with propagation
-  - Request correlation with baggage
-  - Error handling in distributed context
+`HTTPClient` stores the observability provider in the `observability` field.
 
-#### 4. Documentation
-- **Created `docs/tracing.md`**: Comprehensive documentation covering:
-  - Quick start guide
-  - Configuration options
-  - Advanced features (baggage, custom middleware)
-  - Testing instructions
-  - Performance considerations
-  - Troubleshooting guide
-  - Integration with popular tracing tools (Jaeger, Zipkin, OTEL Collector)
-  - Best practices
+`NewHTTPClient` accepts the provider and stores it on the client:
 
-### Key Features Implemented
-
-#### Automatic Trace Propagation
-- HTTP clients automatically inject OpenTelemetry headers into outgoing requests
-- No code changes required for existing applications
-- Trace context flows seamlessly across service boundaries
-
-#### Comprehensive Context Support
-- Full W3C Trace Context support (`traceparent`, `tracestate`)
-- Baggage propagation for correlation data
-- Custom propagation headers support
-
-#### Performance Optimized
-- Minimal overhead when tracing is disabled
-- Efficient middleware with minimal allocations
-- Configurable sampling rates
-
-#### Testing Coverage
-- 100% test coverage for new tracing functionality
-- Integration tests with real HTTP servers
-- Performance benchmarks
-- Error scenario coverage
-
-### Usage Examples
-
-#### Basic Setup
 ```go
-// Create observability provider
-provider, err := observability.New(context.Background(),
-    observability.WithServiceName("my-service"),
-    observability.WithComponentEnabled(true, true, true),
-    observability.WithTraceSampleRate(0.1),
-)
-
-// Create Midaz client with tracing
-client, err := client.New(
-    client.WithObservabilityProvider(provider),
-    // ... other options
-)
-
-// API calls automatically include trace context
-ctx, span := provider.Tracer().Start(context.Background(), "business_operation")
-defer span.End()
-
-result, err := client.Organizations().Create(ctx, input)
+func NewHTTPClient(client *http.Client, authToken string, provider observability.Provider) *HTTPClient
 ```
 
-#### Server-side Context Extraction
+The client uses the provider for:
+
+- Span creation through `setupObservabilityContext`.
+- Trace context injection before request execution.
+- Metrics collection when configured.
+
+### Request paths with propagation
+
+Trace context injection happens in these request paths:
+
+- `doRequest`
+- `doRawRequest`
+- `doCountRequest`
+
+`sendRequest` reuses `doRawRequest`, so requests created by service methods also receive trace context injection.
+
+Each path uses:
+
 ```go
-// Extract trace context from incoming requests
-headers := make(map[string]string)
-for name, values := range r.Header {
-    if len(values) > 0 {
-        headers[name] = values[0]
+propagator := propagation.NewCompositeTextMapPropagator(
+    propagation.TraceContext{},
+    propagation.Baggage{},
+)
+propagator.Inject(ctx, propagation.HeaderCarrier(req.Header))
+```
+
+This injects W3C-compatible propagation headers such as:
+
+- `traceparent`
+- `tracestate`
+- `baggage`
+
+## Propagation scope
+
+The SDK-owned outbound request paths support standard W3C Trace Context and Baggage propagation only.
+
+The observability config still stores propagation-related configuration, including `PropagationHeaders`, for compatibility with existing configuration shape. The current HTTP request injection path does not use that list to emit custom propagation headers.
+
+The SDK does not currently provide custom trace propagation header support beyond stored configuration fields.
+
+## Client example
+
+Client examples should import the root module as `client` and enable Entity API access with `client.UseEntityAPI()` or `client.UseAllAPIs()`.
+
+```go
+package main
+
+import (
+    "context"
+    "log"
+
+    client "github.com/LerianStudio/midaz-sdk-golang/v2"
+    "github.com/LerianStudio/midaz-sdk-golang/v2/models"
+    "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
+    "go.opentelemetry.io/otel/attribute"
+    "go.opentelemetry.io/otel/codes"
+)
+
+func main() {
+    ctx := context.Background()
+
+    provider, err := observability.New(ctx,
+        observability.WithServiceName("my-service"),
+        observability.WithServiceVersion("1.0.0"),
+        observability.WithEnvironment("development"),
+        observability.WithComponentEnabled(true, true, true),
+        observability.WithCollectorEndpoint("localhost:4317"),
+        observability.WithTraceSampleRate(0.1),
+    )
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer provider.Shutdown(ctx)
+
+    c, err := client.New(
+        client.WithBaseURL("https://api.midaz.io"),
+        client.WithObservabilityProvider(provider),
+        client.UseEntityAPI(),
+    )
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    tracer := provider.Tracer()
+    ctx, span := tracer.Start(ctx, "create_organization_workflow")
+    defer span.End()
+
+    input := models.NewCreateOrganizationInput(
+        "Example Corporation",
+        "123456789",
+    ).WithDoingBusinessAs("Example Inc.")
+
+    organization, err := c.Entity.Organizations.CreateOrganization(ctx, input)
+    if err != nil {
+        span.RecordError(err)
+        span.SetStatus(codes.Error, err.Error())
+        log.Fatal(err)
+    }
+
+    span.SetAttributes(attribute.String("organization.id", organization.ID))
+    span.SetStatus(codes.Ok, "organization created")
+}
+```
+
+Collector endpoints must use `host:port` format, for example `localhost:4317`. Do not include `http://` or `https://`.
+
+## Server example blocks
+
+The following server snippets are fragments. They depend on imports for `context`, `encoding/json`, `net/http`, `client`, `models`, `observability`, and `go.opentelemetry.io/otel/trace`.
+
+### Extract incoming trace context
+
+```go
+func extractTraceContext(r *http.Request) context.Context {
+    headers := make(map[string]string)
+
+    for name, values := range r.Header {
+        if len(values) > 0 {
+            headers[name] = values[0]
+        }
+    }
+
+    return observability.ExtractContext(r.Context(), headers)
+}
+```
+
+### Create a server span
+
+```go
+func tracingMiddleware(provider observability.Provider, next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        ctx := extractTraceContext(r)
+
+        tracer := provider.Tracer()
+        ctx, span := tracer.Start(ctx, r.Method+" "+r.URL.Path,
+            trace.WithSpanKind(trace.SpanKindServer),
+        )
+        defer span.End()
+
+        r = r.WithContext(ctx)
+        next.ServeHTTP(w, r)
+    })
+}
+```
+
+### Propagate context into downstream SDK calls
+
+```go
+func createOrganizationHandler(c *client.Client) http.HandlerFunc {
+    return func(w http.ResponseWriter, r *http.Request) {
+        input := models.NewCreateOrganizationInput(
+            "Example Corporation",
+            "123456789",
+        )
+
+        organization, err := c.Entity.Organizations.CreateOrganization(r.Context(), input)
+        if err != nil {
+            http.Error(w, err.Error(), http.StatusInternalServerError)
+            return
+        }
+
+        _ = json.NewEncoder(w).Encode(organization)
     }
 }
-ctx := observability.ExtractContext(r.Context(), headers)
-
-// Start child span
-tracer := provider.Tracer()
-ctx, span := tracer.Start(ctx, "handle_request")
-defer span.End()
 ```
 
-### Testing Results
+When the request context contains a valid span, the SDK injects W3C trace context and baggage into the outbound Midaz request.
 
-All new tests pass successfully:
-- `TestTracingPropagation`: ✅ All subtests pass
-- `TestHTTPClientTracingIntegration`: ✅ All subtests pass  
-- `TestHTTPClientDistributedTracing`: ✅ Distributed tracing verified
-- `TestHTTPMiddlewareDirectly`: ✅ Middleware functionality confirmed
+## Tests
 
-### Backward Compatibility
+Tracing coverage is verified by unit and integration-style tests in:
 
-- ✅ No breaking changes to existing APIs
-- ✅ Existing applications continue to work without modification
-- ✅ Tracing can be enabled/disabled via configuration
-- ✅ Zero overhead when observability provider is nil
+- `pkg/observability/tracing_test.go`
+- `pkg/observability/middleware_test.go`
+- `entities/http_tracing_test.go`
 
-### Performance Impact
+Run tracing-specific tests with:
 
-- **Tracing Enabled**: Minimal overhead (~1-2% in benchmarks)
-- **Tracing Disabled**: Zero overhead (noop operations)
-- **Memory Usage**: Traces are batched and exported asynchronously
-- **Network**: Headers add ~100-200 bytes per request
-
-### Future Enhancements
-
-Potential areas for future improvement:
-1. Server-side middleware package for easier integration
-2. Automatic service mesh integration
-3. Custom span processors for business logic
-4. Integration with popular frameworks (Gin, Echo, etc.)
-5. Metrics correlation with traces
-
-### Migration Guide
-
-For existing applications wanting to enable tracing:
-
-1. **Add observability provider** to client creation:
-   ```go
-   client.WithObservabilityProvider(provider)
-   ```
-
-2. **Use context in API calls** (if not already):
-   ```go
-   result, err := client.API().Method(ctx, params)
-   ```
-
-3. **Optional: Add custom spans** for business logic:
-   ```go
-   ctx, span := tracer.Start(ctx, "business_operation")
-   defer span.End()
-   ```
-
-### Testing Instructions
-
-Run the new test suites:
 ```bash
-# Test tracing propagation
 go test ./pkg/observability -v -run TestTracingPropagation
-
-# Test HTTP client integration  
-go test ./entities -v -run TestHTTPClientTracingIntegration
-
-# Test distributed tracing
-go test ./entities -v -run TestHTTPClientDistributedTracing
-
-# Run examples
-go run examples/tracing-example/main.go
-go run examples/tracing-server-example/main.go
+go test ./pkg/observability -v -run TestHTTPMiddlewareDirectly
+go test ./entities -v -run 'TestHTTPClientTracingIntegration|TestHTTPClientDistributedTracing'
 ```
 
-This implementation provides a solid foundation for distributed tracing in the Midaz SDK while maintaining backward compatibility and optimal performance.
+Run the current repository test targets with:
+
+```bash
+make test-fast
+make test
+```
+
+Use the full local pipeline before release work:
+
+```bash
+make ci
+```
+
+## Compatibility notes
+
+- Existing clients continue to work without tracing changes.
+- If observability is disabled, the SDK uses no-op tracing behavior.
+- Entity API access still requires `client.UseEntityAPI()` or `client.UseAllAPIs()`.
+- Authentication remains configured through SDK configuration and Access Manager paths, not through a tracing-specific client option.
+- The SDK exports OTLP through the OpenTelemetry provider configuration. Route Jaeger, Zipkin, or vendor backends through an OpenTelemetry Collector.

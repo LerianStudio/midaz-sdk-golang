@@ -133,10 +133,10 @@ func (e *operationRoutesEntity) buildURL(organizationID, ledgerID, operationRout
 	baseURL := e.baseURLs["transaction"]
 
 	if operationRouteID == "" {
-		return fmt.Sprintf("%s/organizations/%s/ledgers/%s/operation-routes", baseURL, organizationID, ledgerID)
+		return fmt.Sprintf("%s/organizations/%s/ledgers/%s/operation-routes", baseURL, pathSegment(organizationID), pathSegment(ledgerID))
 	}
 
-	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/operation-routes/%s", baseURL, organizationID, ledgerID, operationRouteID)
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/operation-routes/%s", baseURL, pathSegment(organizationID), pathSegment(ledgerID), pathSegment(operationRouteID))
 }
 
 // ListOperationRoutes retrieves a paginated list of operation routes
@@ -228,7 +228,7 @@ func (e *operationRoutesEntity) CreateOperationRoute(ctx context.Context, organi
 
 	url := e.buildURL(organizationID, ledgerID, "")
 
-	e.httpClient.debugLog("[%s]: Creating operation route with input: %+v", operation, input)
+	e.httpClient.debugLog("[%s]: Creating operation route", operation)
 
 	body, err := json.Marshal(input)
 	if err != nil {
@@ -274,7 +274,7 @@ func (e *operationRoutesEntity) UpdateOperationRoute(ctx context.Context, organi
 
 	url := e.buildURL(organizationID, ledgerID, operationRouteID)
 
-	e.httpClient.debugLog("[%s]: Updating operation route %s with input: %+v", operation, operationRouteID, input)
+	e.httpClient.debugLog("[%s]: Updating operation route %s", operation, operationRouteID)
 
 	body, err := json.Marshal(input)
 	if err != nil {

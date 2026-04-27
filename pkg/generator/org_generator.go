@@ -43,7 +43,7 @@ func (g *orgGenerator) Generate(ctx context.Context, template data.OrgTemplate) 
 		return nil, errors.New("entity organizations service not initialized")
 	}
 
-	input := models.NewCreateOrganizationInput(template.LegalName).
+	input := models.NewCreateOrganizationInput(template.LegalName, template.TaxID).
 		WithDoingBusinessAs(template.TradeName).
 		WithLegalDocument(template.TaxID).
 		WithStatus(template.Status).

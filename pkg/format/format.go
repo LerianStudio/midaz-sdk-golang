@@ -664,7 +664,6 @@ func TransactionWithOptions(tx *models.Transaction, opts ...TransactionOption) (
 	// Determine transaction type based on operations
 	txType := determineTransactionType(tx)
 
-	// Use the amount as-is since it's already formatted as a decimal string
 	amountStr := tx.Amount
 
 	// Build summary with optional ID prefix

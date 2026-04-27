@@ -2,6 +2,7 @@ package workflows
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -28,6 +29,9 @@ import (
 func DemonstrateTransactionHelpers(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount, dummyOneAccount, dummyTwoAccount *models.Account) error {
 	ctx, span := observability.StartSpan(ctx, "DemonstrateTransactionHelpers")
 	defer span.End()
+	if customerAccount == nil || merchantAccount == nil || dummyOneAccount == nil || dummyTwoAccount == nil {
+		return errors.New("customer, merchant, and dummy accounts are required")
+	}
 
 	observability.AddAttribute(ctx, "organization_id", orgID)
 	observability.AddAttribute(ctx, "ledger_id", ledgerID)
@@ -49,7 +53,9 @@ func DemonstrateTransactionHelpers(ctx context.Context, midazClient *client.Clie
 		return err
 	}
 
-	demonstrateBatchTransactions(ctx, customerAccount, merchantAccount)
+	if err := demonstrateBatchTransactions(ctx, customerAccount, merchantAccount); err != nil {
+		return err
+	}
 
 	observability.AddEvent(ctx, "TransactionHelpersDemonstrated", nil)
 	fmt.Println("\n🎉 All transaction helpers demonstrated successfully!")
@@ -138,28 +144,34 @@ func demonstrateMultiAccountTransfer(ctx context.Context, midazClient *client.Cl
 	return nil
 }
 
-func demonstrateBatchTransactions(ctx context.Context, customerAccount, merchantAccount *models.Account) {
+func demonstrateBatchTransactions(ctx context.Context, customerAccount, merchantAccount *models.Account) error {
 	fmt.Println("\n📦 Demonstrating batch transactions...")
 
 	_, batchSpan := observability.StartSpan(ctx, "BatchTransactionsWithHelper")
-	batchInputs := buildBatchTransactionInputs(customerAccount, merchantAccount)
+	batchInputs, err := buildBatchTransactionInputs(customerAccount, merchantAccount)
 	batchSpan.End()
+	if err != nil {
+		return err
+	}
 
 	fmt.Printf("\n\n📋 Batch transactions prepared (not executed - batch feature not yet implemented)\n")
 	fmt.Printf("   Total Transactions: %d\n", len(batchInputs))
 	fmt.Printf("   This feature will be implemented in future versions\n")
+
+	return nil
 }
 
-func buildBatchTransactionInputs(customerAccount, merchantAccount *models.Account) []*models.CreateTransactionInput {
+func buildBatchTransactionInputs(customerAccount, merchantAccount *models.Account) ([]*models.CreateTransactionInput, error) {
+	if customerAccount == nil || merchantAccount == nil {
+		return nil, errors.New("customer and merchant accounts are required")
+	}
 	batchInputs := make([]*models.CreateTransactionInput, 0, 5)
 
 	for i := 1; i <= 5; i++ {
-		amount := fmt.Sprintf("%d.00", i)
+		amount := float64(i)
 		input := &models.CreateTransactionInput{
 			ChartOfAccountsGroupName: "default_chart_group",
 			Description:              fmt.Sprintf("Batch transfer #%d", i),
-			Amount:                   amount,
-			AssetCode:                "USD",
 			Metadata: map[string]any{
 				"source": "go-sdk-example",
 				"type":   "batch-transfer",
@@ -183,7 +195,7 @@ func buildBatchTransactionInputs(customerAccount, merchantAccount *models.Accoun
 		batchInputs = append(batchInputs, input)
 	}
 
-	return batchInputs
+	return batchInputs, nil
 }
 
 func printTransactionSuccess(txType string, tx *models.Transaction) {

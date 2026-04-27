@@ -18,8 +18,13 @@ const (
 // Header names used in HTTP requests.
 const (
 	// HeaderTenantID is the HTTP header name used to propagate the tenant identifier.
-	// When set, the Midaz API scopes the request to the specified tenant.
+	// This is an optional compatibility header for deployments or gateways that honor
+	// explicit tenant headers. In the reference Midaz path, authenticated claims remain
+	// the primary tenant source of truth.
 	HeaderTenantID = "X-Tenant-ID"
+
+	// HeaderTotalCount is the HTTP header name used by count endpoints.
+	HeaderTotalCount = "X-Total-Count"
 )
 
 // Environment variable names used for SDK configuration.

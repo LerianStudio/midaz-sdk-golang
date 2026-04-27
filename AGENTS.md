@@ -1,67 +1,74 @@
-# Repository Guidelines
+# Repository guidelines
 
-## Project Structure & Module Organization
+## Project structure and module organization
 
-- `entities/` — HTTP clients and service accessors.
-- `models/` — Public API types (request/response payloads).
-- `pkg/` — SDK utilities (config, validation, observability, retry, performance, generator, integrity).
-- `examples/` — Runnable examples. Start with `examples/mass-demo-generator`.
-- `docs/` — Generated docs and guides; `scripts/` — automation helpers.
-- Root files: `Makefile`, `go.mod`, `.env.example`, `PLAN.md`.
+- `client.go` - Root SDK entry point (`github.com/LerianStudio/midaz-sdk-golang/v2`, package name `client`).
+- `entities/` - Entity service interfaces, HTTP transport, request helpers, and service accessors.
+- `models/` - Public API types, request builders, response wrappers, pagination options, and Midaz model aliases.
+- `pkg/` - SDK utilities including access manager, concurrency, config, errors, formatting, observability, pagination, performance, retry, security, transaction helpers, validation, and versioning.
+- `examples/` - Runnable examples. Start with `examples/mass-demo-generator` for end-to-end demo data.
+- `docs/` - Generated Go docs and hand-written guides; `docs/mapping/` contains public and internal API maps.
+- `scripts/` - Automation helpers for docs and repository maintenance.
+- Root files: `Makefile`, `go.mod`, `.env.example`, `CONTRIBUTING.md`, `README.md`.
 
-## Build, Test, and Development Commands
+## Build, test, and development commands
 
-- `make set-env` — Create `.env` from `.env.example`.
-- `make test` / `make test-fast` — Run all/short tests.
-- `make coverage` — Produce HTML coverage report in `artifacts/`.
-- `make lint` / `make fmt` / `make tidy` — Lint, format, and tidy deps.
-- `make verify-sdk` — Quick API build/compat checks.
-- `go build ./...` — Build all packages.
-- `go test -v ./path/to/file_test.go` — Test single file.
-- `go test -v ./path/to/package -run TestName` — Run specific test.
-- `make docs` — Generate static documentation.
-- Example (interactive off):
-  - `make demo-data`
-  - or `cd examples/mass-demo-generator && DEMO_NON_INTERACTIVE=1 go run main.go --org-locale=br --patterns=false`
-- Docs server: `make godoc` (http://localhost:6060).
+- `make set-env` - Create `.env` from `.env.example`.
+- `make tidy` / `make fmt` / `make lint` - Tidy dependencies, format code, and run `golangci-lint`.
+- `make gosec` - Run security scanning.
+- `make test` / `make test-fast` - Run all tests or short tests.
+- `make coverage` - Produce an HTML coverage report in `artifacts/`.
+- `make verify-sdk` - Run quick API build and compatibility checks.
+- `make ci` - Preferred full local pipeline: tidy, fmt, lint, gosec, test, coverage, and SDK verification.
+- `go build ./...` - Build all packages.
+- `go test -v ./path/to/package -run TestName` - Run a targeted test.
+- `make docs` - Generate static documentation.
+- `make godoc` - Start an interactive docs server at http://localhost:6060.
+- `make demo-data` - Run the mass demo generator in non-interactive mode.
+- `cd examples/mass-demo-generator && DEMO_NON_INTERACTIVE=1 go run . --org-locale=br` - Run the generator directly.
 
-## Coding Style & Naming Conventions
+## Coding style and naming conventions
 
-- Go 1.24.x. Run `make fmt` before committing.
+- Go 1.26.x. Run `make fmt` before committing.
 - Follow standard Go style and [Go Code Review Comments](https://github.com/golang/go/wiki/CodeReviewComments).
-- Package names: lowercase, single-word.
+- Package names: lowercase, single-word when possible.
 - Exported names: CamelCase with first letter capitalized.
 - Unexported names: camelCase with first letter lowercase.
 - Import order: standard library, external packages, internal packages.
-- Keep functions small, context-aware (`context.Context` first param), and return rich errors.
-- Use functional options pattern for configuration.
-- Use interfaces for external dependencies (especially lib-commons).
+- Keep functions small, context-aware (`context.Context` first parameter), and return rich errors.
+- Use functional options for configuration and fluent builders for model input helpers.
+- Use interfaces for external dependencies and service boundaries.
 - Document all exported functions, types, and variables.
-- Lint with `golangci-lint` (`make lint`). No panics in library code.
+- No panics in library code. Return errors instead.
 
-## Testing Guidelines
+## Testing guidelines
 
-- Use Go's `testing` with `testify` for assertions and `gomock` where mocking helps.
-- Name tests `*_test.go`; functions `TestXxx` and table-driven where appropriate.
-- Write unit tests for all new code (minimum 80% coverage).
-- Run `make test` locally; target >80% coverage for new critical logic; generate report with `make coverage`.
+- Use Go's `testing` package with `testify` for assertions and `gomock` where mocking helps.
+- Name test files `*_test.go` and test functions `TestXxx`.
+- Prefer table-driven tests for validation, mapping, transport, and retry behavior.
+- Write unit tests for all new code; target at least 80% coverage for new critical logic.
+- Run `make ci` before opening a PR, or run targeted checks plus `make test` when iterating quickly.
 
-## Commit & Pull Request Guidelines
+## Commit and pull request guidelines
 
-- Conventional Commits: `<type>(<scope>): <description>`
-  - Types: `feat`, `fix`, `docs`, `chore`, `refactor`, `test`
-  - Examples: `feat(accounts): add balance caching`, `fix(retry): handle timeout errors`
-- PRs must include: purpose, scope, key changes, how-to-test, and linked issues.
-- Run `make fmt lint test verify-sdk` before opening a PR. Include example commands for demos when applicable.
+- Use Conventional Commits: `<type>(<scope>): <description>`.
+- Supported types: `feat`, `fix`, `docs`, `chore`, `refactor`, `test`.
+- Examples: `feat(accounts): add balance caching`, `fix(retry): handle timeout errors`.
+- PRs must include purpose, scope, key changes, how to test, and linked issues.
+- Prefer `make ci` before opening a PR. Include example commands for demo or generator changes.
 
-## Security & Configuration Tips
+## Security and configuration tips
 
-- Never commit secrets. Configure via `.env` (copy from `.env.example`).
-- Typical vars: auth token and service URLs for onboarding/transaction APIs.
-- Ensure idempotent requests by setting `X-Idempotency` header via context when needed.
+- Never commit secrets. Configure local runs via `.env` copied from `.env.example`.
+- Service URL variables: `MIDAZ_BASE_URL`, `MIDAZ_ONBOARDING_URL`, `MIDAZ_TRANSACTION_URL`, `MIDAZ_CRM_URL`.
+- Access Manager variables: `PLUGIN_AUTH_ENABLED`, `PLUGIN_AUTH_ADDRESS`, `MIDAZ_CLIENT_ID`, `MIDAZ_CLIENT_SECRET`.
+- Other common variables: `MIDAZ_ENVIRONMENT`, `MIDAZ_USER_AGENT`, `MIDAZ_TIMEOUT`, `MIDAZ_DEBUG`, `MIDAZ_MAX_RETRIES`, `MIDAZ_IDEMPOTENCY`.
+- Environment loading is explicit: use `config.NewConfig(config.FromEnvironment())`.
+- Ensure idempotent unsafe requests by setting `X-Idempotency` via `entities.WithIdempotencyKey(ctx, key)` when needed.
 
-## Agent-Specific Instructions
+## Agent-specific instructions
 
-- Keep changes minimal and scoped; update `PLAN.md` when you finish milestones or add flags/patterns.
-- Touch only relevant packages; follow existing folder conventions.
-- After generator or example changes, verify with `make demo-data` and document new flags in `docs/`.
+- Keep changes minimal and scoped.
+- Touch only relevant packages and docs; follow existing folder conventions.
+- After generator or example changes, verify with `make demo-data` or a targeted `go run` command and update `docs/examples.md`.
+- After public API changes, update `README.md`, `docs/README.md`, and `docs/mapping/`.

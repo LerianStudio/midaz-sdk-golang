@@ -249,6 +249,14 @@ func ValidateMetadata(metadata map[string]any) error {
 			return errors.New("metadata keys cannot be empty")
 		}
 
+		if len(key) > 100 {
+			return fmt.Errorf("metadata key '%s' must be at most 100 characters", key)
+		}
+
+		if strings.Contains(key, ".") || strings.HasPrefix(key, "$") {
+			return fmt.Errorf("metadata key '%s' cannot contain dots or start with '$'", key)
+		}
+
 		if err := validateMetadataValue(key, value); err != nil {
 			return err
 		}
@@ -257,42 +265,14 @@ func ValidateMetadata(metadata map[string]any) error {
 	return nil
 }
 
-// validateMetadataValue validates a single metadata value and handles nested structures
+// validateMetadataValue validates a single flat metadata value.
 func validateMetadataValue(key string, value any) error {
 	if !isValidMetadataValueType(value) {
 		return fmt.Errorf("invalid metadata value type for key '%s': %T (must be string, number, boolean, or nil)", key, value)
 	}
 
-	// Check for nested maps
-	if nestedMap, ok := value.(map[string]any); ok {
-		if err := ValidateMetadata(nestedMap); err != nil {
-			return fmt.Errorf("invalid nested metadata at key '%s': %w", key, err)
-		}
-	}
-
-	// Check for arrays
-	if array, ok := value.([]any); ok {
-		if err := validateMetadataArray(key, array); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// validateMetadataArray validates an array of metadata values
-func validateMetadataArray(key string, array []any) error {
-	for i, item := range array {
-		if !isValidMetadataValueType(item) {
-			return fmt.Errorf("invalid metadata array item type at index %d for key '%s': %T (must be string, number, boolean, or nil)", i, key, item)
-		}
-
-		// Check for nested maps in arrays
-		if nestedMap, ok := item.(map[string]any); ok {
-			if err := ValidateMetadata(nestedMap); err != nil {
-				return fmt.Errorf("invalid nested metadata in array at key '%s', index %d: %w", key, i, err)
-			}
-		}
+	if len(fmt.Sprint(value)) > 2000 {
+		return fmt.Errorf("metadata value for key '%s' must be at most 2000 characters", key)
 	}
 
 	return nil
@@ -301,7 +281,7 @@ func validateMetadataArray(key string, array []any) error {
 // isValidMetadataValueType checks if a value is of a type supported in metadata
 func isValidMetadataValueType(value any) bool {
 	switch value.(type) {
-	case string, int, int32, int64, float32, float64, bool, nil, map[string]any, []any:
+	case string, int, int32, int64, float32, float64, bool, nil:
 		return true
 	default:
 		return false

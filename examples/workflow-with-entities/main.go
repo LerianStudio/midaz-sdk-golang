@@ -30,8 +30,8 @@
 //
 //	MIDAZ_AUTH_TOKEN=example-auth-token
 //	MIDAZ_ENVIRONMENT=local  # Can be local, development, or production
-//	MIDAZ_ONBOARDING_URL=http://localhost:3000/v1 # Optional override
-//	MIDAZ_TRANSACTION_URL=http://localhost:3001/v1 # Optional override
+//	MIDAZ_ONBOARDING_URL=http://localhost:3002/v1 # Optional override
+//	MIDAZ_TRANSACTION_URL=http://localhost:3002/v1 # Optional override
 //	MIDAZ_DEBUG=true # Optional, enables detailed API logging
 //
 // # Workflow Steps

@@ -1123,9 +1123,9 @@ func TestAssetsEntity_GetAssetsMetricsCount(t *testing.T) {
 			name:           "Success",
 			orgID:          "org-123",
 			ledgerID:       "ledger-123",
-			mockStatusCode: http.StatusOK,
+			mockStatusCode: http.StatusNoContent,
 			mockHeaders: map[string]string{
-				"X-Assets-Count": "42",
+				HeaderTotalCount: "42",
 			},
 			expectedCount: 42,
 		},
@@ -1197,6 +1197,7 @@ func TestAssetsEntity_GetAssetsMetricsCount(t *testing.T) {
 
 			require.NoError(t, err)
 			assert.NotNil(t, result)
+			assert.Equal(t, tt.expectedCount, result.AssetsCount)
 		})
 	}
 }
@@ -1583,10 +1584,8 @@ func TestAssetsEntity_QueryParameters(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Contains(t, receivedURL, "limit=5")
-	assert.Contains(t, receivedURL, "offset=10")
-	assert.Contains(t, receivedURL, "orderBy=name")
-	// Note: orderDirection is used instead of sortOrder in this SDK
-	assert.Contains(t, receivedURL, "orderDirection=desc")
+	assert.Contains(t, receivedURL, "page=3")
+	assert.Contains(t, receivedURL, "sort_order=desc")
 }
 
 // TestAssetsEntity_RequestHeaders tests that correct headers are sent

@@ -229,21 +229,23 @@ func TestValidateMetadata(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "Valid metadata with nested map",
+			name: "Invalid metadata with nested map",
 			metadata: map[string]any{
 				"customer": map[string]any{
 					"id":   "cust123",
 					"name": "John Doe",
 				},
 			},
-			wantErr: false,
+			wantErr: true,
+			errMsg:  "invalid metadata value type for key 'customer': map[string]interface {} (must be string, number, boolean, or nil)",
 		},
 		{
-			name: "Valid metadata with array",
+			name: "Invalid metadata with array",
 			metadata: map[string]any{
 				"items": []any{"item1", "item2", "item3"},
 			},
-			wantErr: false,
+			wantErr: true,
+			errMsg:  "invalid metadata value type for key 'items': []interface {} (must be string, number, boolean, or nil)",
 		},
 		{
 			name: "Empty key",
@@ -911,7 +913,7 @@ func TestValidateMetadataWithNestedStructures(t *testing.T) {
 		errMsg   string
 	}{
 		{
-			name: "Valid nested map",
+			name: "Invalid nested map",
 			metadata: map[string]any{
 				"customer": map[string]any{
 					"id":   "cust123",
@@ -919,24 +921,27 @@ func TestValidateMetadataWithNestedStructures(t *testing.T) {
 					"age":  30,
 				},
 			},
-			wantErr: false,
+			wantErr: true,
+			errMsg:  "invalid metadata value type for key 'customer'",
 		},
 		{
-			name: "Valid array",
+			name: "Invalid array",
 			metadata: map[string]any{
 				"items": []any{"item1", "item2", "item3"},
 			},
-			wantErr: false,
+			wantErr: true,
+			errMsg:  "invalid metadata value type for key 'items'",
 		},
 		{
-			name: "Valid array with mixed types",
+			name: "Invalid array with mixed types",
 			metadata: map[string]any{
 				"mixed": []any{"string", 123, 45.67, true, nil},
 			},
-			wantErr: false,
+			wantErr: true,
+			errMsg:  "invalid metadata value type for key 'mixed'",
 		},
 		{
-			name: "Valid deeply nested map",
+			name: "Invalid deeply nested map",
 			metadata: map[string]any{
 				"level1": map[string]any{
 					"level2": map[string]any{
@@ -944,10 +949,11 @@ func TestValidateMetadataWithNestedStructures(t *testing.T) {
 					},
 				},
 			},
-			wantErr: false,
+			wantErr: true,
+			errMsg:  "invalid metadata value type for key 'level1'",
 		},
 		{
-			name: "Valid array with nested map",
+			name: "Invalid array with nested map",
 			metadata: map[string]any{
 				"items": []any{
 					map[string]any{
@@ -960,7 +966,8 @@ func TestValidateMetadataWithNestedStructures(t *testing.T) {
 					},
 				},
 			},
-			wantErr: false,
+			wantErr: true,
+			errMsg:  "invalid metadata value type for key 'items'",
 		},
 		{
 			name: "Valid metadata with int32",
@@ -991,7 +998,7 @@ func TestValidateMetadataWithNestedStructures(t *testing.T) {
 				},
 			},
 			wantErr: true,
-			errMsg:  "metadata keys cannot be empty",
+			errMsg:  "invalid metadata value type for key 'customer'",
 		},
 		{
 			name: "Invalid array with unsupported type",

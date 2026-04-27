@@ -2,6 +2,7 @@ package models
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
@@ -13,6 +14,7 @@ type TransactionRoute = mmodel.TransactionRoute
 // CreateTransactionRouteInput wraps mmodel.CreateTransactionRouteInput to maintain compatibility while using midaz entities.
 type CreateTransactionRouteInput struct {
 	mmodel.CreateTransactionRouteInput
+	parseErr error
 }
 
 // Validate validates the CreateTransactionRouteInput fields.
@@ -21,8 +23,12 @@ func (input *CreateTransactionRouteInput) Validate() error {
 		return errors.New("title is required")
 	}
 
-	if input.Description == "" {
-		return errors.New("description is required")
+	if input.parseErr != nil {
+		return input.parseErr
+	}
+
+	if len(input.OperationRoutes) == 0 {
+		return errors.New("operationRoutes is required")
 	}
 
 	return nil
@@ -49,12 +55,20 @@ func (*UpdateTransactionRouteInput) Validate() error {
 //   - A pointer to the newly created CreateTransactionRouteInput
 func NewCreateTransactionRouteInput(title, description string, operationRoutes []string) *CreateTransactionRouteInput {
 	// Convert string UUIDs to uuid.UUID type
-	uuidRoutes := make([]uuid.UUID, len(operationRoutes))
+	var parseErr error
+
+	uuidRoutes := make([]uuid.UUID, 0, len(operationRoutes))
 
 	for i, routeStr := range operationRoutes {
-		if routeUUID, err := uuid.Parse(routeStr); err == nil {
-			uuidRoutes[i] = routeUUID
+		routeUUID, err := uuid.Parse(routeStr)
+		if err != nil {
+			parseErr = fmt.Errorf("operationRoutes[%d] must be a valid UUID: %w", i, err)
+			uuidRoutes = nil
+
+			break
 		}
+
+		uuidRoutes = append(uuidRoutes, routeUUID)
 	}
 
 	return &CreateTransactionRouteInput{
@@ -63,6 +77,7 @@ func NewCreateTransactionRouteInput(title, description string, operationRoutes [
 			Description:     description,
 			OperationRoutes: uuidRoutes,
 		},
+		parseErr: parseErr,
 	}
 }
 

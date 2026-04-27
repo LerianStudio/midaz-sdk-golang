@@ -332,7 +332,7 @@ func TestBalancesEntity_ListBalances(t *testing.T) {
 			checkRequest: func(t *testing.T, req *http.Request) {
 				t.Helper()
 				assert.Contains(t, req.URL.RawQuery, "limit=5")
-				assert.Contains(t, req.URL.RawQuery, "offset=10")
+				assert.Contains(t, req.URL.RawQuery, "page=3")
 			},
 		},
 		{
@@ -913,11 +913,11 @@ func TestBalancesEntity_UpdateBalance(t *testing.T) {
 		checkRequest   func(t *testing.T, req *http.Request)
 	}{
 		{
-			name:      "Success with metadata",
+			name:      "Success with transfer flags",
 			orgID:     "org-123",
 			ledgerID:  "ledger-456",
 			balanceID: "bal-789",
-			input:     models.NewUpdateBalanceInput().WithMetadata(map[string]any{"updated": "true", "key": "new-value"}),
+			input:     models.NewUpdateBalanceInput().WithAllowSending(false).WithAllowReceiving(true),
 			mockResponse: `{
 				"id": "bal-789",
 				"organizationId": "org-123",
@@ -927,34 +927,27 @@ func TestBalancesEntity_UpdateBalance(t *testing.T) {
 				"available": "1000000",
 				"onHold": "50000",
 				"version": 2,
-				"metadata": {"updated": "true", "key": "new-value"}
+				"allowSending": false,
+				"allowReceiving": true
 			}`,
 			mockStatusCode: http.StatusOK,
 			expectedID:     "bal-789",
 			checkRequest: func(t *testing.T, req *http.Request) {
 				t.Helper()
 				assert.Equal(t, http.MethodPatch, req.Method)
+				body, err := io.ReadAll(req.Body)
+				require.NoError(t, err)
+				assert.JSONEq(t, `{"allowSending":false,"allowReceiving":true}`, string(body))
+				assert.NotContains(t, string(body), "metadata")
 			},
 		},
 		{
-			name:      "Success with empty metadata",
-			orgID:     "org-123",
-			ledgerID:  "ledger-456",
-			balanceID: "bal-789",
-			input:     models.NewUpdateBalanceInput().WithMetadata(map[string]any{}),
-			mockResponse: `{
-				"id": "bal-789",
-				"organizationId": "org-123",
-				"ledgerId": "ledger-456",
-				"accountId": "acc-012",
-				"assetCode": "USD",
-				"available": "1000000",
-				"onHold": "50000",
-				"version": 2,
-				"metadata": {}
-			}`,
-			mockStatusCode: http.StatusOK,
-			expectedID:     "bal-789",
+			name:          "Metadata update is rejected",
+			orgID:         "org-123",
+			ledgerID:      "ledger-456",
+			balanceID:     "bal-789",
+			input:         models.NewUpdateBalanceInput().WithMetadata(map[string]any{"legacy": "ignored"}),
+			expectedError: true,
 		},
 		{
 			name:          "Empty organization ID",
@@ -1054,6 +1047,38 @@ func TestBalancesEntity_UpdateBalance(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestBalancesEntity_History_RequestConstruction(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodGet, r.Method)
+		w.Header().Set("Content-Type", "application/json")
+
+		switch r.URL.EscapedPath() {
+		case "/organizations/org%2F1/ledgers/ledger%2F1/balances/balance%2F1/history":
+			assert.Equal(t, "2026-01-02 03:04:05", r.URL.Query().Get("date"))
+
+			_, err := w.Write([]byte(`{}`))
+			assert.NoError(t, err)
+		case "/organizations/org%2F1/ledgers/ledger%2F1/accounts/account%2F1/balances/history":
+			assert.Equal(t, "2026-01-02 03:04:05", r.URL.Query().Get("date"))
+
+			_, err := w.Write([]byte(`[{}]`))
+			assert.NoError(t, err)
+		default:
+			t.Fatalf("unexpected path: %s", r.URL.EscapedPath())
+		}
+	}))
+	defer server.Close()
+
+	service := NewBalancesEntity(server.Client(), "token", map[string]string{"transaction": server.URL})
+	history, err := service.GetBalanceHistory(context.Background(), "org/1", "ledger/1", "balance/1", "2026-01-02 03:04:05")
+	require.NoError(t, err)
+	require.NotNil(t, history)
+
+	histories, err := service.GetAccountBalancesHistory(context.Background(), "org/1", "ledger/1", "account/1", "2026-01-02 03:04:05")
+	require.NoError(t, err)
+	require.Len(t, histories, 1)
 }
 
 // TestBalancesEntity_DeleteBalance tests the DeleteBalance method
@@ -1692,7 +1717,7 @@ func TestBalancesEntity_HTTPServerIntegration(t *testing.T) {
 			"transaction": server.URL,
 		})
 
-		input := models.NewUpdateBalanceInput().WithMetadata(map[string]any{"updated": "true"})
+		input := models.NewUpdateBalanceInput().WithAllowSending(false)
 		result, err := entity.UpdateBalance(context.Background(), "org-123", "ledger-456", "bal-789", input)
 		require.NoError(t, err)
 		require.NotNil(t, result)
@@ -1934,7 +1959,7 @@ func TestBalancesEntity_QueryParameterEncoding(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Contains(t, capturedURL, "limit=25")
-	assert.Contains(t, capturedURL, "offset=50")
+	assert.Contains(t, capturedURL, "page=3")
 }
 
 // TestBalancesEntity_JSONResponseParsing tests JSON response parsing
@@ -2101,14 +2126,14 @@ func TestUpdateBalanceInput_Validation(t *testing.T) {
 		expectedError bool
 	}{
 		{
-			name:          "Valid input with metadata",
+			name:          "Rejects metadata",
 			input:         models.NewUpdateBalanceInput().WithMetadata(map[string]any{"key": "value"}),
-			expectedError: false,
+			expectedError: true,
 		},
 		{
-			name:          "Valid input with empty metadata",
+			name:          "Rejects empty metadata",
 			input:         models.NewUpdateBalanceInput().WithMetadata(map[string]any{}),
-			expectedError: false,
+			expectedError: true,
 		},
 		{
 			name:          "Valid input with nil metadata",

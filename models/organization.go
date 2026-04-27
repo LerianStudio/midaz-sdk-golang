@@ -21,6 +21,10 @@ func (input *CreateOrganizationInput) Validate() error {
 		return errors.New("legalName is required")
 	}
 
+	if input.LegalDocument == "" {
+		return errors.New("legalDocument is required")
+	}
+
 	return nil
 }
 
@@ -46,10 +50,11 @@ func (input *UpdateOrganizationInput) ToMmodelUpdateOrganizationInput() *mmodel.
 }
 
 // NewCreateOrganizationInput creates a new CreateOrganizationInput with required fields.
-func NewCreateOrganizationInput(legalName string) *CreateOrganizationInput {
+func NewCreateOrganizationInput(legalName, legalDocument string) *CreateOrganizationInput {
 	return &CreateOrganizationInput{
 		CreateOrganizationInput: mmodel.CreateOrganizationInput{
-			LegalName: legalName,
+			LegalName:     legalName,
+			LegalDocument: legalDocument,
 		},
 	}
 }

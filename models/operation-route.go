@@ -20,16 +20,12 @@ func (input *CreateOperationRouteInput) Validate() error {
 		return errors.New("title is required")
 	}
 
-	if input.Description == "" {
-		return errors.New("description is required")
-	}
-
 	if input.OperationType == "" {
 		return errors.New("operationType is required")
 	}
 	// Validate operation type
-	if input.OperationType != "source" && input.OperationType != "destination" {
-		return errors.New("operationType must be 'source' or 'destination'")
+	if input.OperationType != "source" && input.OperationType != "destination" && input.OperationType != "bidirectional" {
+		return errors.New("operationType must be 'source', 'destination', or 'bidirectional'")
 	}
 
 	return nil
@@ -116,6 +112,8 @@ const (
 	OperationRouteTypeSource OperationRouteType = "source"
 	// OperationRouteTypeDestination represents destination operation type
 	OperationRouteTypeDestination OperationRouteType = "destination"
+	// OperationRouteTypeBidirectional represents bidirectional operation type
+	OperationRouteTypeBidirectional OperationRouteType = "bidirectional"
 )
 
 // OperationRouteInputType represents the type for operation route input (different from response)
@@ -127,6 +125,8 @@ const (
 	OperationRouteInputTypeSource OperationRouteInputType = "source"
 	// OperationRouteInputTypeDestination represents destination input type
 	OperationRouteInputTypeDestination OperationRouteInputType = "destination"
+	// OperationRouteInputTypeBidirectional represents bidirectional input type
+	OperationRouteInputTypeBidirectional OperationRouteInputType = "bidirectional"
 )
 
 // NewCreateOperationRouteInput creates a new CreateOperationRouteInput with required fields.
@@ -134,7 +134,7 @@ const (
 // Parameters:
 //   - title: Short text summarizing the purpose of the operation
 //   - description: Detailed description of the operation route purpose and usage
-//   - operationType: The type of the operation route ("source" or "destination")
+//   - operationType: The type of the operation route ("source", "destination", or "bidirectional")
 //
 // Returns:
 //   - A pointer to the newly created CreateOperationRouteInput

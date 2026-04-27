@@ -46,6 +46,10 @@ func (*mockTransactionsService) ListTransactions(_ context.Context, _, _ string,
 	return nil, errors.New("mock: ListTransactions not implemented")
 }
 
+func (*mockTransactionsService) GetTransactionsMetricsCount(_ context.Context, _, _ string, _ *models.ListOptions) (*models.MetricsCount, error) {
+	return nil, errors.New("mock: GetTransactionsMetricsCount not implemented")
+}
+
 func (*mockTransactionsService) UpdateTransaction(_ context.Context, _, _, _ string, _ any) (*models.Transaction, error) {
 	return nil, errors.New("mock: UpdateTransaction not implemented")
 }
@@ -68,6 +72,10 @@ func (m *mockTransactionsService) RevertTransaction(ctx context.Context, orgID, 
 
 func (*mockTransactionsService) CancelTransaction(_ context.Context, _, _, _ string) error {
 	return nil
+}
+
+func (*mockTransactionsService) CancelTransactionWithResponse(_ context.Context, _, _, _ string) (*models.Transaction, error) {
+	return &models.Transaction{}, nil
 }
 
 func (*mockTransactionsService) CreateTransactionWithDSL(_ context.Context, _, _ string, _ *models.TransactionDSLInput) (*models.Transaction, error) {

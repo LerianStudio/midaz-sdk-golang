@@ -126,6 +126,24 @@ type Operation struct {
 	// format: string
 	Route string `json:"route" example:"00000000-0000-0000-0000-000000000000" format:"string"`
 
+	// RouteID is the UUID of the operation route.
+	RouteID string `json:"routeId,omitempty"`
+
+	// RouteCode is the human-readable code of the operation route.
+	RouteCode string `json:"routeCode,omitempty"`
+
+	// RouteDescription is the human-readable description of the operation route.
+	RouteDescription string `json:"routeDescription,omitempty"`
+
+	// Direction indicates whether the operation is a debit or credit.
+	Direction string `json:"direction,omitempty"`
+
+	// BalanceAffected indicates whether the operation changes balances.
+	BalanceAffected *bool `json:"balanceAffected,omitempty"`
+
+	// BalanceKey is the key of the affected balance.
+	BalanceKey string `json:"balanceKey,omitempty"`
+
 	// Timestamp when the operation was created
 	// example: 2021-01-01T00:00:00Z
 	// format: date-time
@@ -323,9 +341,11 @@ type CreateOperationInput struct {
 	// This must be a valid account ID in the ledger
 	AccountID string `json:"accountId"`
 
-	// Amount is the numeric value of the operation as a decimal string
-	// Examples: "100.50", "1000.00", "0.25"
-	Amount string `json:"amount"`
+	// Amount is the exact decimal value of the operation. Use Amount or *Amount
+	// when decimal scaling is required, or pass an already-formatted decimal
+	// string. Raw numeric types such as int and float are treated as literal
+	// decimal strings by normalizedOperationAmount through decimalStringFromAny.
+	Amount any `json:"amount"`
 
 	// AssetCode identifies the currency or asset type for this operation
 	// Common examples include "USD", "EUR", "BTC", etc.
@@ -349,6 +369,10 @@ type CreateOperationInput struct {
 // Returns:
 //   - error: An error if validation fails, nil otherwise
 func (input *CreateOperationInput) Validate() error {
+	if input == nil {
+		return errors.New("input is required")
+	}
+
 	// Validate required fields
 	if input.Type == "" {
 		return errors.New("type is required")
@@ -364,8 +388,12 @@ func (input *CreateOperationInput) Validate() error {
 	}
 
 	// Validate amount
-	if input.Amount == "" {
+	if input.Amount == nil {
 		return errors.New("amount is required")
+	}
+
+	if err := validatePositiveDecimalString(input.Amount, "amount"); err != nil {
+		return fmt.Errorf("invalid amount: %w", err)
 	}
 
 	// Validate asset code if provided

@@ -1,7 +1,9 @@
 package models
 
 import (
+	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -146,17 +148,49 @@ type Pagination struct {
 	// Limit is the number of items per page
 	Limit int `json:"limit"`
 
-	// Offset is the starting position for the current page
-	Offset int `json:"offset"`
+	// Page is the current page number for page-based endpoints.
+	Page int `json:"page,omitempty"`
 
-	// Total is the total number of items available across all pages
-	Total int `json:"total"`
+	// Offset is the starting position for legacy offset-based pagination.
+	Offset int `json:"offset,omitempty"`
+
+	// Total is the total number of items available across all pages when provided.
+	Total int `json:"total,omitempty"`
 
 	// PrevCursor is the cursor for the previous page (for cursor-based pagination)
-	PrevCursor string `json:"prevCursor,omitempty"`
+	PrevCursor string `json:"prev_cursor,omitempty"`
 
 	// NextCursor is the cursor for the next page (for cursor-based pagination)
-	NextCursor string `json:"nextCursor,omitempty"`
+	NextCursor string `json:"next_cursor,omitempty"`
+
+	// ItemCount tracks the number of decoded items for cursor/page heuristics.
+	ItemCount int `json:"-"`
+}
+
+// UnmarshalJSON supports both current snake_case and legacy camelCase cursor keys.
+func (p *Pagination) UnmarshalJSON(data []byte) error {
+	type alias Pagination
+
+	aux := struct {
+		alias
+		PrevCursorLegacy string `json:"prevCursor,omitempty"`
+		NextCursorLegacy string `json:"nextCursor,omitempty"`
+	}{}
+
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	*p = Pagination(aux.alias)
+	if p.PrevCursor == "" {
+		p.PrevCursor = aux.PrevCursorLegacy
+	}
+
+	if p.NextCursor == "" {
+		p.NextCursor = aux.NextCursorLegacy
+	}
+
+	return nil
 }
 
 // HasMorePages returns true if there are more pages available.
@@ -165,7 +199,15 @@ type Pagination struct {
 // Returns:
 //   - true if there are more pages available, false otherwise
 func (p *Pagination) HasMorePages() bool {
-	return p.Offset+p.Limit < p.Total
+	if p.Total > 0 && p.Limit > 0 {
+		if p.Page > 0 {
+			return p.Page*p.Limit < p.Total
+		}
+
+		return p.Offset+p.Limit < p.Total
+	}
+
+	return p.Page > 0 && p.Limit > 0 && p.ItemCount >= p.Limit
 }
 
 // HasPrevPage returns true if there is a previous page available.
@@ -174,7 +216,7 @@ func (p *Pagination) HasMorePages() bool {
 // Returns:
 //   - true if there is a previous page available, false otherwise
 func (p *Pagination) HasPrevPage() bool {
-	return p.Offset > 0 || p.PrevCursor != ""
+	return p.Page > 1 || p.Offset > 0 || p.PrevCursor != ""
 }
 
 // HasNextPage returns true if there is a next page available.
@@ -205,6 +247,13 @@ func (p *Pagination) NextPageOptions() *ListOptions {
 		return options.WithCursor(p.NextCursor)
 	}
 
+	if p.Page > 0 {
+		options.Page = p.Page + 1
+		options.Offset = DefaultOffset
+
+		return options
+	}
+
 	// Fall back to offset-based pagination
 	return options.WithOffset(p.Offset + p.Limit)
 }
@@ -228,6 +277,13 @@ func (p *Pagination) PrevPageOptions() *ListOptions {
 		return options.WithCursor(p.PrevCursor)
 	}
 
+	if p.Page > 1 {
+		options.Page = p.Page - 1
+		options.Offset = DefaultOffset
+
+		return options
+	}
+
 	// Fall back to offset-based pagination
 	newOffset := p.Offset - p.Limit
 	if newOffset < 0 {
@@ -243,6 +299,10 @@ func (p *Pagination) PrevPageOptions() *ListOptions {
 // Returns:
 //   - The current page number (starts from 1)
 func (p *Pagination) CurrentPage() int {
+	if p.Page > 0 {
+		return p.Page
+	}
+
 	if p.Limit <= 0 {
 		return 1
 	}
@@ -256,7 +316,7 @@ func (p *Pagination) CurrentPage() int {
 // Returns:
 //   - The total number of pages
 func (p *Pagination) TotalPages() int {
-	if p.Limit <= 0 {
+	if p.Limit <= 0 || p.Total <= 0 {
 		return 1
 	}
 
@@ -474,6 +534,46 @@ func (o *ListOptions) WithAdditionalParam(key, value string) *ListOptions {
 	return o
 }
 
+// WithIncludeDeleted adds the CRM include_deleted filter.
+func (o *ListOptions) WithIncludeDeleted(includeDeleted bool) *ListOptions {
+	return o.WithAdditionalParam("include_deleted", strconv.FormatBool(includeDeleted))
+}
+
+// WithHolderID adds the CRM holder_id filter.
+func (o *ListOptions) WithHolderID(holderID string) *ListOptions {
+	return o.WithAdditionalParam("holder_id", holderID)
+}
+
+// WithExternalID adds the CRM external_id filter.
+func (o *ListOptions) WithExternalID(externalID string) *ListOptions {
+	return o.WithAdditionalParam("external_id", externalID)
+}
+
+// WithDocument adds the CRM document filter.
+func (o *ListOptions) WithDocument(document string) *ListOptions {
+	return o.WithAdditionalParam("document", document)
+}
+
+// WithAccountID adds the CRM account_id filter.
+func (o *ListOptions) WithAccountID(accountID string) *ListOptions {
+	return o.WithAdditionalParam("account_id", accountID)
+}
+
+// WithLedgerID adds the CRM ledger_id filter.
+func (o *ListOptions) WithLedgerID(ledgerID string) *ListOptions {
+	return o.WithAdditionalParam("ledger_id", ledgerID)
+}
+
+// WithParticipantDocument adds the CRM regulatory_fields_participant_document filter.
+func (o *ListOptions) WithParticipantDocument(document string) *ListOptions {
+	return o.WithAdditionalParam("regulatory_fields_participant_document", document)
+}
+
+// WithRelatedPartyDocument adds the CRM related_party_document filter.
+func (o *ListOptions) WithRelatedPartyDocument(document string) *ListOptions {
+	return o.WithAdditionalParam("related_party_document", document)
+}
+
 // NextPage returns a copy of the ListOptions configured for the next page.
 // This method is useful for implementing pagination in client code.
 //
@@ -532,23 +632,30 @@ func (o *ListOptions) ToQueryParams() map[string]string {
 // Parameters:
 //   - params: The map to add the pagination parameters to
 func (o *ListOptions) addPaginationParams(params map[string]string) {
+	limit := o.Limit
+
 	// Always include limit parameter with at least the default
 	if o.Limit <= 0 {
+		limit = DefaultLimit
 		params[QueryParamLimit] = fmt.Sprintf("%d", DefaultLimit)
 	} else if o.Limit > MaxLimit {
+		limit = MaxLimit
 		params[QueryParamLimit] = fmt.Sprintf("%d", MaxLimit)
 	} else {
 		params[QueryParamLimit] = fmt.Sprintf("%d", o.Limit)
 	}
 
-	// Add offset if specified
-	if o.Offset > 0 {
-		params[QueryParamOffset] = fmt.Sprintf("%d", o.Offset)
-	}
-
-	// These are kept for backward compatibility
 	if o.Page > 0 {
 		params[QueryParamPage] = fmt.Sprintf("%d", o.Page)
+		return
+	}
+
+	if o.Offset > 0 {
+		if o.Offset%limit == 0 {
+			params[QueryParamPage] = fmt.Sprintf("%d", (o.Offset/limit)+1)
+		} else {
+			params[QueryParamOffset] = fmt.Sprintf("%d", o.Offset)
+		}
 	}
 
 	if o.Cursor != "" {
@@ -580,11 +687,8 @@ func (o *ListOptions) addFilteringParams(params map[string]string) {
 // Parameters:
 //   - params: The map to add the sorting parameters to
 func (o *ListOptions) addSortingParams(params map[string]string) {
-	if o.OrderBy != "" {
-		params[QueryParamOrderBy] = o.OrderBy
-	}
-
-	// Always include order direction with at least the default
+	// Midaz list endpoints expose sort direction, but not a generic order-by field.
+	// Keep OrderBy as an SDK-side compatibility field without serializing it.
 	if o.OrderDirection == "" {
 		params[QueryParamOrderDirection] = DefaultSortDirection
 	} else {
@@ -658,6 +762,61 @@ type ListResponse[T any] struct {
 
 	// Pagination contains information about the pagination state
 	Pagination Pagination `json:"pagination,omitempty"`
+}
+
+// UnmarshalJSON supports both the legacy nested pagination envelope and the
+// current Midaz top-level pagination fields.
+func (r *ListResponse[T]) UnmarshalJSON(data []byte) error {
+	type alias ListResponse[T]
+
+	aux := struct {
+		alias
+		Limit            int         `json:"limit,omitempty"`
+		Page             int         `json:"page,omitempty"`
+		Offset           int         `json:"offset,omitempty"`
+		Total            int         `json:"total,omitempty"`
+		NextCursor       string      `json:"next_cursor,omitempty"`
+		PrevCursor       string      `json:"prev_cursor,omitempty"`
+		NextCursorLegacy string      `json:"nextCursor,omitempty"`
+		PrevCursorLegacy string      `json:"prevCursor,omitempty"`
+		Pagination       *Pagination `json:"pagination,omitempty"`
+	}{}
+
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	*r = ListResponse[T](aux.alias)
+	if r.Items == nil {
+		r.Items = make([]T, 0)
+	}
+
+	if aux.Pagination != nil {
+		r.Pagination = *aux.Pagination
+	} else {
+		nextCursor := aux.NextCursor
+		if nextCursor == "" {
+			nextCursor = aux.NextCursorLegacy
+		}
+
+		prevCursor := aux.PrevCursor
+		if prevCursor == "" {
+			prevCursor = aux.PrevCursorLegacy
+		}
+
+		r.Pagination = Pagination{
+			Limit:      aux.Limit,
+			Page:       aux.Page,
+			Offset:     aux.Offset,
+			Total:      aux.Total,
+			NextCursor: nextCursor,
+			PrevCursor: prevCursor,
+		}
+	}
+
+	r.Pagination.ItemCount = len(r.Items)
+
+	return nil
 }
 
 // ErrorResponse represents an error response from the API.

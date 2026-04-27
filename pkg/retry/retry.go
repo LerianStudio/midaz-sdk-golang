@@ -92,6 +92,27 @@ type Options struct {
 	JitterFactor float64
 }
 
+type nonRetryableError struct {
+	err error
+}
+
+func (e nonRetryableError) Error() string {
+	return e.err.Error()
+}
+
+func (e nonRetryableError) Unwrap() error {
+	return e.err
+}
+
+// AsNonRetryable marks an error so the retry engine will stop immediately.
+func AsNonRetryable(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	return nonRetryableError{err: err}
+}
+
 // DefaultRetryableErrors is a list of common error strings that should trigger a retry
 var DefaultRetryableErrors = []string{
 	"connection reset by peer",
@@ -462,6 +483,11 @@ func doWithOptions(ctx context.Context, fn func() error, options *Options) error
 //	}
 func IsRetryableError(err error, options *Options) bool {
 	if err == nil {
+		return false
+	}
+
+	var nonRetryable nonRetryableError
+	if errors.As(err, &nonRetryable) {
 		return false
 	}
 

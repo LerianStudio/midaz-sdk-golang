@@ -60,6 +60,13 @@ func TestValidateOutboundRequest(t *testing.T) {
 			},
 			errContain: "",
 		},
+		{
+			name: "InsecureRemoteHTTP",
+			req: &http.Request{
+				URL: &url.URL{Scheme: "http", Host: "api.example.com"},
+			},
+			errContain: "insecure HTTP is only allowed for localhost targets",
+		},
 	}
 
 	for _, tt := range tests {

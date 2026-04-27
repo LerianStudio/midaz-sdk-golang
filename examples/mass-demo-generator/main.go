@@ -637,10 +637,14 @@ func processAccountTransactions(ctx context.Context, c *client.Client, state *wo
 	}
 
 	if state.demoConfig.txPerAccountVal > 0 {
-		fmt.Printf("Previewing first transaction for ledger %s\n", ledger.ID)
-		if payloadData, err := json.MarshalIndent(inputs[0].ToLibTransaction(), "", "  "); err == nil {
-			fmt.Println(string(payloadData))
-		}
+		first := inputs[0]
+		fmt.Printf("Previewing first transaction for ledger %s: asset=%s amount=%v sources=%d destinations=%d\n",
+			ledger.ID,
+			first.Send.Asset,
+			first.Send.Value,
+			len(first.Send.Source.From),
+			len(first.Send.Distribute.To),
+		)
 	}
 
 	options := txpkg.DefaultBatchOptions()
@@ -698,8 +702,6 @@ func buildAccountTransactions(state *workflowState, accounts []*models.Account, 
 
 			tx := &models.CreateTransactionInput{
 				Description:              fmt.Sprintf("Demo funding for %s #%d", alias, sequence),
-				Amount:                   amountStr,
-				AssetCode:                state.demoConfig.assetCodeVal,
 				ChartOfAccountsGroupName: state.demoConfig.chartGroupVal,
 				IdempotencyKey:           fmt.Sprintf("demo-%s-%05d", account.ID, sequence),
 				Send: &models.SendInput{

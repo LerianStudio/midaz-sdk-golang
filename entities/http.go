@@ -23,7 +23,13 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/security"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/version"
+	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/propagation"
+)
+
+var (
+	errEmptyResponseBody = errors.New("empty response body")
+	errNullResponseBody  = errors.New("null response body")
 )
 
 // getUserAgent retrieves the user agent string from environment variable or uses default
@@ -45,15 +51,17 @@ func getUserAgent() string {
 // - Optimized performance with connection pooling and JSON handling
 // - Observability with tracing, metrics, and logging
 type HTTPClient struct {
-	client        *http.Client
-	authToken     string
-	userAgent     string
-	tenantID      string
-	debug         bool
-	retryOptions  *retry.Options        // Retry options for the client
-	jsonPool      *performance.JSONPool // Pool for JSON encoding/decoding
-	metrics       *observability.MetricsCollector
-	observability observability.Provider
+	client            *http.Client
+	authToken         string
+	userAgent         string
+	tenantID          string
+	debug             bool
+	retryOptions      *retry.Options        // Retry options for the client
+	jsonPool          *performance.JSONPool // Pool for JSON encoding/decoding
+	metrics           *observability.MetricsCollector
+	observability     observability.Provider
+	enableIdempotency bool
+	customRetryPolicy func(*http.Response, error) bool
 }
 
 // NewHTTPClient creates a new HTTP client with the provided configuration.
@@ -76,14 +84,15 @@ func NewHTTPClient(client *http.Client, authToken string, provider observability
 	}
 
 	return &HTTPClient{
-		client:        client,
-		authToken:     authToken,
-		userAgent:     getUserAgent(),
-		debug:         debug,
-		retryOptions:  retryOptions,
-		jsonPool:      performance.NewJSONPool(),
-		metrics:       metrics,
-		observability: provider,
+		client:            client,
+		authToken:         authToken,
+		userAgent:         getUserAgent(),
+		debug:             debug,
+		retryOptions:      retryOptions,
+		jsonPool:          performance.NewJSONPool(),
+		metrics:           metrics,
+		observability:     provider,
+		enableIdempotency: os.Getenv("MIDAZ_IDEMPOTENCY") != "false",
 	}
 }
 
@@ -134,7 +143,7 @@ func logRetryError(provider observability.Provider, format string, args ...any) 
 // WithRetryOptions sets custom retry options for the HTTP client.
 func (c *HTTPClient) WithRetryOptions(options ...retry.Option) *HTTPClient {
 	// Create a new options struct with defaults
-	retryOpts := &retry.Options{}
+	retryOpts := retry.DefaultOptions()
 
 	// Apply all options
 	for _, opt := range options {
@@ -151,12 +160,42 @@ func (c *HTTPClient) WithRetryOptions(options ...retry.Option) *HTTPClient {
 
 // WithRetryOption applies a retry option to the HTTP client.
 func (c *HTTPClient) WithRetryOption(option retry.Option) *HTTPClient {
+	if c.retryOptions == nil {
+		c.retryOptions = retry.DefaultOptions()
+	}
+
 	if err := option(c.retryOptions); err != nil {
 		// Log the error but continue with existing options
 		c.debugLog("Error applying retry option: %v", err)
 	}
 
 	return c
+}
+
+// SetEnableIdempotency enables or disables automatic idempotency header generation.
+func (c *HTTPClient) SetEnableIdempotency(enabled bool) {
+	c.enableIdempotency = enabled
+}
+
+// SetCustomRetryPolicy sets the predicate used to decide whether retries should continue.
+func (c *HTTPClient) SetCustomRetryPolicy(shouldRetry func(*http.Response, error) bool) {
+	c.customRetryPolicy = shouldRetry
+}
+
+func (c *HTTPClient) applyConfigurationFrom(source *HTTPClient) {
+	if source == nil {
+		return
+	}
+
+	c.authToken = source.authToken
+	c.userAgent = source.userAgent
+	c.tenantID = source.tenantID
+	c.debug = source.debug
+	c.observability = source.observability
+	c.metrics = source.metrics
+	c.enableIdempotency = source.enableIdempotency
+	c.customRetryPolicy = source.customRetryPolicy
+	c.retryOptions = cloneRetryOptions(source.retryOptions)
 }
 
 // WithUserAgent sets a custom user agent string for the HTTP client.
@@ -174,6 +213,8 @@ func (c *HTTPClient) WithDebug(debug bool) *HTTPClient {
 // SetTenantID sets the default tenant ID for all requests made by this HTTP client.
 // When a request is made, the tenant ID from the request context takes precedence
 // over this client-level default. If neither is set, no X-Tenant-ID header is sent.
+// This header is best-effort compatibility metadata and is not the sole tenant
+// authority for the reference Midaz path.
 //
 // SetTenantID is not safe for concurrent use with active requests. It should be
 // called during client setup, before any concurrent API calls are made. This is
@@ -246,6 +287,7 @@ func (c *HTTPClient) doRequest(ctx context.Context, method, requestURL string, h
 
 	// Inject context-based headers (idempotency key, tenant ID)
 	headers = c.injectContextHeaders(ctx, headers)
+	headers = c.ensureIdempotencyHeader(method, headers)
 
 	// Setup headers
 	c.setupRequestHeaders(req, headers, body != nil)
@@ -299,7 +341,17 @@ func (c *HTTPClient) doRawRequest(ctx context.Context, method, requestURL string
 		}
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, requestURL, reader)
+	parsedURL, err := url.Parse(requestURL)
+	if err != nil {
+		return fmt.Errorf("failed to parse request URL: %w", err)
+	}
+
+	validationReq := &http.Request{URL: parsedURL}
+	if err := security.ValidateOutboundRequest(validationReq); err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, parsedURL.String(), reader) // #nosec G704 -- request URL validated via security.ValidateOutboundRequest using parsed URL
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
@@ -313,6 +365,7 @@ func (c *HTTPClient) doRawRequest(ctx context.Context, method, requestURL string
 
 	// Inject context-based headers (idempotency key, tenant ID)
 	headers = c.injectContextHeaders(ctx, headers)
+	headers = c.ensureIdempotencyHeader(method, headers)
 
 	c.setupRequestHeaders(req, headers, len(body) > 0)
 
@@ -342,20 +395,75 @@ func (c *HTTPClient) doRawRequest(ctx context.Context, method, requestURL string
 	return c.processResponse(result, responseBody)
 }
 
+func (c *HTTPClient) doCountRequest(ctx context.Context, method, requestURL string, headers map[string]string) (int, error) {
+	ctx, endSpan := c.setupObservabilityContext(ctx, method, requestURL)
+	defer endSpan()
+
+	req, err := http.NewRequestWithContext(ctx, method, requestURL, nil)
+	if err != nil {
+		return 0, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	headers = c.injectContextHeaders(ctx, headers)
+	c.setupRequestHeaders(req, headers, false)
+
+	if c.observability != nil && c.observability.IsEnabled() {
+		propagator := propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{})
+		propagator.Inject(ctx, propagation.HeaderCarrier(req.Header))
+	}
+
+	start := time.Now()
+	resp, responseBody, err := c.executeRequestWithRetry(ctx, req, method, requestURL)
+	elapsed := time.Since(start)
+
+	if err != nil {
+		return 0, err
+	}
+
+	defer func() {
+		if resp != nil && resp.Body != nil {
+			c.closeResponseBody(resp)
+		}
+	}()
+
+	c.recordRequestMetrics(ctx, method, requestURL, resp, elapsed)
+	c.logResponseDetails(method, requestURL, resp, responseBody)
+
+	totalCount := strings.TrimSpace(resp.Header.Get(HeaderTotalCount))
+	if totalCount == "" {
+		return 0, sdkerrors.NewInternalError("CountRequest", fmt.Errorf("missing %s header", HeaderTotalCount))
+	}
+
+	count, err := strconv.Atoi(totalCount)
+	if err != nil {
+		return 0, sdkerrors.NewInternalError("CountRequest", fmt.Errorf("invalid %s header: %w", HeaderTotalCount, err))
+	}
+
+	return count, nil
+}
+
+func countRequestMethod() string {
+	return http.MethodHead
+}
+
+func countRequestHeaders() map[string]string {
+	return nil
+}
+
 // setupObservabilityContext creates tracing span if observability is enabled
 func (c *HTTPClient) setupObservabilityContext(ctx context.Context, method, requestURL string) (context.Context, func()) {
 	if c.observability == nil || !c.observability.IsEnabled() {
 		return ctx, func() {}
 	}
 
-	spanCtx, span := c.observability.Tracer().Start(ctx, fmt.Sprintf("HTTP %s %s", method, requestURL))
+	spanCtx, span := c.observability.Tracer().Start(ctx, fmt.Sprintf("HTTP %s %s", method, normalizeTelemetryURL(requestURL)))
 
 	return spanCtx, func() { span.End() }
 }
 
 // buildHTTPRequest creates the HTTP request with body handling
 func (c *HTTPClient) buildHTTPRequest(ctx context.Context, method, requestURL string, body any) (*http.Request, []byte, error) {
-	c.debugLog("Request URL: %s %s", method, requestURL)
+	c.debugLog("Request URL: %s %s", method, redactDebugURL(requestURL))
 
 	parsedURL, err := url.Parse(requestURL)
 	if err != nil {
@@ -407,7 +515,7 @@ func (c *HTTPClient) prepareRequestBody(body any) (io.Reader, []byte, error) {
 // debugLogRequestBody logs request body if debug mode is enabled
 func (c *HTTPClient) debugLogRequestBody(bodyBytes []byte) {
 	if c.debug {
-		c.debugLog("Request body: %s", string(bodyBytes))
+		c.debugLog("Request body: %s", redactDebugBody(bodyBytes))
 	}
 }
 
@@ -429,61 +537,125 @@ func (c *HTTPClient) setupRequestHeaders(req *http.Request, headers map[string]s
 
 	// Authorization header
 	if c.authToken != "" {
-		req.Header.Set("Authorization", c.authToken)
+		req.Header.Set("Authorization", formatAuthorizationHeader(c.authToken))
 	}
 }
 
 // executeRequestWithRetry handles the request execution with retry logic
 func (c *HTTPClient) executeRequestWithRetry(ctx context.Context, req *http.Request, method, requestURL string) (*http.Response, []byte, error) {
-	var resp *http.Response
+	effectiveRetryOptions := cloneRetryOptions(c.retryOptions)
+	if effectiveRetryOptions == nil {
+		effectiveRetryOptions = retry.DefaultOptions()
+	}
 
-	var responseBody []byte
+	if isUnsafeMethod(req.Method) && req.Header.Get("X-Idempotency") == "" {
+		effectiveRetryOptions.MaxRetries = 0
+	}
 
-	retryCtx := retry.WithOptionsContext(ctx, c.retryOptions)
+	retryCtx := retry.WithOptionsContext(ctx, effectiveRetryOptions)
+	execution := &retryExecution{}
 
 	err := retry.DoWithContext(retryCtx, func() error {
-		var err error
-
-		// Reset request body for retry if GetBody is available
-		if req.GetBody != nil {
-			req.Body, err = req.GetBody()
-			if err != nil {
-				return fmt.Errorf("failed to reset request body for retry: %w", err)
-			}
-		}
-
-		if err := security.ValidateOutboundRequest(req); err != nil {
-			return fmt.Errorf("invalid request URL: %w", err)
-		}
-
-		resp, err = c.client.Do(req) // #nosec G704 -- request URL validated via security.ValidateOutboundRequest
-		if err != nil {
-			c.debugLogRequestError(method, requestURL, err)
-			return fmt.Errorf("HTTP request failed: %w", err)
-		}
-
-		// Ensure response body is always closed, even on error paths
-		defer func() {
-			if resp != nil && resp.Body != nil {
-				c.closeResponseBody(resp)
-			}
-		}()
-
-		responseBody, err = io.ReadAll(resp.Body)
-		if err != nil {
-			return fmt.Errorf("failed to read response body: %w", err)
-		}
-
-		if resp.StatusCode >= 400 {
-			// Extract request ID from response headers for error context
-			requestID := resp.Header.Get("X-Request-ID")
-			return c.handleErrorResponse(resp.StatusCode, responseBody, method, requestURL, requestID)
-		}
-
-		return nil
+		return c.executeRetryAttempt(req, method, requestURL, execution)
 	})
 
-	return resp, responseBody, err
+	return execution.resp, execution.responseBody, err
+}
+
+type retryExecution struct {
+	resp         *http.Response
+	responseBody []byte
+}
+
+func (c *HTTPClient) executeRetryAttempt(req *http.Request, method, requestURL string, execution *retryExecution) error {
+	if err := resetRequestBody(req); err != nil {
+		return err
+	}
+
+	if err := security.ValidateOutboundRequest(req); err != nil {
+		return fmt.Errorf("invalid request URL: %w", err)
+	}
+
+	resp, err := c.client.Do(req) // #nosec G704 -- request URL validated via security.ValidateOutboundRequest
+	if err != nil {
+		return c.handleRequestExecutionError(method, requestURL, err)
+	}
+
+	execution.resp = resp
+
+	defer func() {
+		if resp != nil && resp.Body != nil {
+			c.closeResponseBody(resp)
+		}
+	}()
+
+	responseBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	execution.responseBody = responseBody
+
+	return c.handleRetryAttemptResponse(resp, responseBody, method, requestURL)
+}
+
+func resetRequestBody(req *http.Request) error {
+	if req.GetBody == nil {
+		return nil
+	}
+
+	body, err := req.GetBody()
+	if err != nil {
+		return fmt.Errorf("failed to reset request body for retry: %w", err)
+	}
+
+	req.Body = body
+
+	return nil
+}
+
+func (c *HTTPClient) handleRequestExecutionError(method, requestURL string, err error) error {
+	c.debugLogRequestError(method, requestURL, err)
+
+	requestErr := fmt.Errorf("HTTP request failed: %w", err)
+	if c.customRetryPolicy != nil && !c.customRetryPolicy(nil, requestErr) {
+		return retry.AsNonRetryable(requestErr)
+	}
+
+	return requestErr
+}
+
+func (c *HTTPClient) handleRetryAttemptResponse(resp *http.Response, responseBody []byte, method, requestURL string) error {
+	if resp.StatusCode < 400 {
+		return nil
+	}
+
+	requestID := resp.Header.Get("X-Request-ID")
+
+	apiErr := c.handleErrorResponse(resp.StatusCode, responseBody, method, requestURL, requestID)
+	if c.customRetryPolicy != nil && !c.customRetryPolicy(resp, apiErr) {
+		return retry.AsNonRetryable(apiErr)
+	}
+
+	return retryableHTTPError{err: apiErr, statusCode: resp.StatusCode}
+}
+
+type retryableHTTPError struct {
+	err        error
+	statusCode int
+}
+
+func (e retryableHTTPError) Error() string {
+	return e.err.Error()
+}
+
+func (e retryableHTTPError) Unwrap() error {
+	return e.err
+}
+
+// StatusCode returns the HTTP status code that made the error retryable.
+func (e retryableHTTPError) StatusCode() int {
+	return e.statusCode
 }
 
 // closeResponseBody safely closes response body with debug logging
@@ -505,7 +677,7 @@ func (c *HTTPClient) handleErrorResponse(statusCode int, responseBody []byte, me
 			c.debugLog("Request ID: %s", requestID)
 		}
 
-		c.debugLog("Error body: %s", string(responseBody))
+		c.debugLog("Error body: %s", redactDebugBody(responseBody))
 		c.debugLog("Parsed error: %v", apiErr)
 	}
 
@@ -515,14 +687,14 @@ func (c *HTTPClient) handleErrorResponse(statusCode int, responseBody []byte, me
 // debugLogRequestError logs request failures in debug mode
 func (c *HTTPClient) debugLogRequestError(method, requestURL string, err error) {
 	if c.debug {
-		c.debugLog("HTTP request failed: %s %s - %v", method, requestURL, err)
+		c.debugLog("HTTP request failed: %s %s - %v", method, redactDebugURL(requestURL), err)
 	}
 }
 
 // recordRequestMetrics records performance metrics if enabled
 func (c *HTTPClient) recordRequestMetrics(ctx context.Context, method, requestURL string, resp *http.Response, elapsed time.Duration) {
 	if c.metrics != nil {
-		c.metrics.RecordRequest(ctx, method, requestURL, resp.StatusCode, elapsed)
+		c.metrics.RecordRequest(ctx, method, normalizeTelemetryURL(requestURL), resp.StatusCode, elapsed)
 	}
 }
 
@@ -532,16 +704,24 @@ func (c *HTTPClient) logResponseDetails(method, requestURL string, resp *http.Re
 		return
 	}
 
-	c.debugLog("Response from: %s %s", method, requestURL)
+	c.debugLog("Response from: %s %s", method, redactDebugURL(requestURL))
 	c.debugLog("Response status: %d", resp.StatusCode)
-	c.debugLog("Response headers: %v", resp.Header)
-	c.debugLog("Response body: %s", string(responseBody))
+	c.debugLog("Response headers: %v", redactHeaders(resp.Header))
+	c.debugLog("Response body: %s", redactDebugBody(responseBody))
 }
 
 // processResponse handles JSON unmarshaling of the response
 func (c *HTTPClient) processResponse(result any, responseBody []byte) error {
-	if result == nil || len(responseBody) == 0 {
+	if result == nil {
 		return nil
+	}
+
+	if len(responseBody) == 0 {
+		return errEmptyResponseBody
+	}
+
+	if bytes.Equal(bytes.TrimSpace(responseBody), []byte("null")) {
+		return errNullResponseBody
 	}
 
 	if err := c.jsonPool.Unmarshal(responseBody, result); err != nil {
@@ -566,23 +746,96 @@ func (c *HTTPClient) sendRequest(req *http.Request, v any) error {
 		}
 	}
 
-	// Extract body from the request
+	// Extract the raw body from the request so we can preserve the original payload
+	// without forcing a JSON decode/re-encode cycle.
 	body, err := c.extractRequestBody(req)
 	if err != nil {
 		return err
 	}
 
+	if len(body) > 0 && strings.TrimSpace(headers["Content-Type"]) == "" {
+		headers["Content-Type"] = "application/json"
+	}
+
 	// Use the context from the request
 	ctx := req.Context()
 
-	// Call the new doRequest method
-	return c.doRequest(ctx, method, requestURL, headers, body, v)
+	// Reuse the raw-request path to preserve the original body bytes.
+	return c.doRawRequest(ctx, method, requestURL, headers, body, v)
 }
 
-// extractRequestBody reads and parses the request body.
-func (c *HTTPClient) extractRequestBody(req *http.Request) (any, error) {
+func cloneRetryOptions(options *retry.Options) *retry.Options {
+	if options == nil {
+		return nil
+	}
+
+	cloned := *options
+
+	return &cloned
+}
+
+func formatAuthorizationHeader(token string) string {
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return token
+	}
+
+	if strings.HasPrefix(strings.ToLower(token), "bearer ") {
+		return token
+	}
+
+	return "Bearer " + token
+}
+
+func isUnsafeMethod(method string) bool {
+	switch method {
+	case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
+		return true
+	default:
+		return false
+	}
+}
+
+func (c *HTTPClient) ensureIdempotencyHeader(method string, headers map[string]string) map[string]string {
+	defer func() {
+		if headers != nil {
+			delete(headers, "X-Midaz-Auto-Idempotency")
+		}
+	}()
+
+	if !c.enableIdempotency || !isUnsafeMethod(method) {
+		return headers
+	}
+
+	if headers != nil && strings.TrimSpace(headers["X-Idempotency"]) != "" {
+		return headers
+	}
+
+	if !supportsAutomaticIdempotency(headers) {
+		return headers
+	}
+
+	if headers == nil {
+		headers = map[string]string{}
+	}
+
+	headers["X-Idempotency"] = uuid.NewString()
+
+	return headers
+}
+
+func supportsAutomaticIdempotency(headers map[string]string) bool {
+	if headers == nil {
+		return false
+	}
+
+	return headers["X-Midaz-Auto-Idempotency"] == "true"
+}
+
+// extractRequestBody reads and returns the raw request body bytes.
+func (c *HTTPClient) extractRequestBody(req *http.Request) ([]byte, error) {
 	if req.Body == nil {
-		return nil, nil //nolint:nilnil // nil body with no error is valid
+		return nil, nil
 	}
 
 	bodyBytes, err := io.ReadAll(req.Body)
@@ -595,15 +848,10 @@ func (c *HTTPClient) extractRequestBody(req *http.Request) (any, error) {
 	}
 
 	if len(bodyBytes) == 0 {
-		return nil, nil //nolint:nilnil // empty body with no error is valid
+		return nil, nil
 	}
 
-	var body any
-	if err := json.Unmarshal(bodyBytes, &body); err != nil {
-		return nil, err
-	}
-
-	return body, nil
+	return bodyBytes, nil
 }
 
 // sanitizeLogInput removes control characters from strings to prevent log injection attacks.
@@ -620,6 +868,115 @@ func sanitizeLogInput(input string) string {
 	}
 
 	return input
+}
+
+func redactHeaders(headers http.Header) map[string][]string {
+	redacted := make(map[string][]string, len(headers))
+	for key, values := range headers {
+		switch strings.ToLower(key) {
+		case "authorization", "cookie", "set-cookie", "x-idempotency", strings.ToLower(HeaderTenantID):
+			redacted[key] = []string{"[REDACTED]"}
+		default:
+			copied := make([]string, len(values))
+			copy(copied, values)
+			redacted[key] = copied
+		}
+	}
+
+	return redacted
+}
+
+func redactDebugBody(body []byte) string {
+	if len(body) == 0 {
+		return "[empty]"
+	}
+
+	return fmt.Sprintf("[REDACTED len=%d]", len(body))
+}
+
+func normalizeTelemetryURL(rawURL string) string {
+	parsedURL, err := url.Parse(rawURL)
+	if err != nil {
+		return rawURL
+	}
+
+	parsedURL.RawQuery = ""
+	parsedURL.Fragment = ""
+
+	segments := strings.Split(parsedURL.Path, "/")
+	for i, segment := range segments {
+		if segment == "" {
+			continue
+		}
+
+		if isLikelyTelemetryIdentifier(segment) {
+			segments[i] = ":id"
+		}
+	}
+
+	parsedURL.Path = strings.Join(segments, "/")
+
+	return parsedURL.String()
+}
+
+func redactDebugURL(rawURL string) string {
+	parsedURL, err := url.Parse(rawURL)
+	if err != nil {
+		return rawURL
+	}
+
+	query := parsedURL.Query()
+	for key := range query {
+		if isSensitiveQueryKey(key) {
+			query.Set(key, "[REDACTED]")
+		}
+	}
+
+	parsedURL.RawQuery = query.Encode()
+	parsedURL.Fragment = ""
+
+	return parsedURL.String()
+}
+
+func isSensitiveQueryKey(key string) bool {
+	normalized := strings.ToLower(key)
+	if strings.Contains(normalized, "document") || strings.Contains(normalized, "metadata") {
+		return true
+	}
+
+	switch normalized {
+	case "banking_details_account", "banking_details_iban", "external_id":
+		return true
+	default:
+		return false
+	}
+}
+
+func isLikelyTelemetryIdentifier(segment string) bool {
+	if len(segment) == 36 && strings.Count(segment, "-") == 4 {
+		return true
+	}
+
+	allDigits := true
+	hasDigit := false
+
+	for _, r := range segment {
+		if r < '0' || r > '9' {
+			allDigits = false
+		} else {
+			hasDigit = true
+		}
+	}
+
+	if allDigits && len(segment) > 3 {
+		return true
+	}
+
+	if len(segment) >= 16 && hasDigit {
+		return true
+	}
+
+	return false
 }
 
 // sanitizeLogArgs sanitizes all string arguments to prevent log injection.
@@ -682,8 +1039,8 @@ func (*HTTPClient) parseErrorResponse(statusCode int, body []byte, requestID str
 	}
 
 	if err := json.Unmarshal(body, &apiError); err != nil {
-		// If we can't parse the JSON, return the raw body as the error message
-		return sdkerrors.ErrorFromHTTPResponse(statusCode, requestID, string(body), "", "", "")
+		message := fmt.Sprintf("API returned non-JSON error response with status code %d and body length %d", statusCode, len(body))
+		return sdkerrors.ErrorFromHTTPResponse(statusCode, requestID, message, "", "", "")
 	}
 
 	// Use the message if available, otherwise use the error field
@@ -759,7 +1116,7 @@ func (c *HTTPClient) NewRequest(method, requestURL string, body any) (*http.Requ
 
 	// Add authorization if there's a token
 	if c.authToken != "" {
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.authToken))
+		req.Header.Set("Authorization", formatAuthorizationHeader(c.authToken))
 	}
 
 	return req, nil

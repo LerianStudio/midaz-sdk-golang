@@ -11,6 +11,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -32,6 +33,9 @@ const (
 
 	// ServiceTransaction represents the Transaction service.
 	ServiceTransaction ServiceType = "transaction"
+
+	// ServiceCRM represents the CRM service.
+	ServiceCRM ServiceType = "crm"
 )
 
 // Environment represents a deployment environment for the Midaz API.
@@ -55,13 +59,11 @@ const (
 	DefaultTimeout = 60
 
 	// Default URLs for each environment
-	DefaultLocalBaseURL         = "http://localhost"
-	DefaultDevelopmentBaseURL   = "https://api.dev.midaz.io"
-	DefaultProductionBaseURL    = "https://api.midaz.io"
-	DefaultOnboardingPort       = "3000"
-	DefaultTransactionPort      = "3001"
-	DefaultLocalOnboardingPath  = ""
-	DefaultLocalTransactionPath = ""
+	DefaultLocalLedgerBaseURL       = "http://localhost:3002"
+	DefaultLocalCRMBaseURL          = "http://localhost:4003"
+	DefaultDevelopmentLedgerBaseURL = "https://api.dev.midaz.io"
+	DefaultProductionLedgerBaseURL  = "https://api.midaz.io"
+	DefaultLedgerAPIVersionPath     = "/v1"
 
 	// Default retry configuration
 	DefaultMaxRetries   = 3
@@ -119,8 +121,10 @@ type Config struct {
 	EnableIdempotency bool
 
 	// TenantID is the default tenant identifier sent as X-Tenant-ID on every request.
-	// It can be set via the MIDAZ_TENANT_ID environment variable or the WithTenantID option.
-	// Per-request overrides via entities.WithTenantID(ctx, id) take precedence.
+	// It can be set via the WithTenantID option.
+	// Per-request overrides via entities.WithTenantID(ctx, id) take precedence. This
+	// is an optional compatibility header and may be ignored by deployments that derive
+	// tenant scope from authenticated claims.
 	TenantID string
 
 	// tenantIDSet tracks whether WithTenantID was explicitly called, allowing
@@ -199,6 +203,23 @@ func WithTransactionURL(transactionURL string) Option {
 	}
 }
 
+// WithCRMURL sets the base URL for the CRM API.
+func WithCRMURL(crmURL string) Option {
+	return func(c *Config) error {
+		if err := parseURL(crmURL); err != nil {
+			return fmt.Errorf("invalid crm URL: %w", err)
+		}
+
+		if c.ServiceURLs == nil {
+			c.ServiceURLs = make(map[ServiceType]string)
+		}
+
+		c.ServiceURLs[ServiceCRM] = crmURL
+
+		return nil
+	}
+}
+
 // WithBaseURL sets a common base URL that will be used for all services.
 // Service-specific ports and paths will be automatically added.
 // This is useful for connecting to custom deployments.
@@ -224,14 +245,19 @@ func WithBaseURL(baseURL string) Option {
 			c.ServiceURLs = make(map[ServiceType]string)
 		}
 
-		// Set the URLs for each service
-		if c.Environment == EnvironmentLocal {
-			c.ServiceURLs[ServiceOnboarding] = fmt.Sprintf("%s:%s%s", baseURL, DefaultOnboardingPort, DefaultLocalOnboardingPath)
-			c.ServiceURLs[ServiceTransaction] = fmt.Sprintf("%s:%s%s", baseURL, DefaultTransactionPort, DefaultLocalTransactionPath)
-		} else {
-			c.ServiceURLs[ServiceOnboarding] = fmt.Sprintf("%s/onboarding", baseURL)
-			c.ServiceURLs[ServiceTransaction] = fmt.Sprintf("%s/transaction", baseURL)
+		ledgerURL, err := buildLedgerServiceURL(baseURL)
+		if err != nil {
+			return fmt.Errorf("invalid ledger base URL: %w", err)
 		}
+
+		crmURL, err := buildCRMServiceURL(baseURL)
+		if err != nil {
+			return fmt.Errorf("invalid crm base URL: %w", err)
+		}
+
+		c.ServiceURLs[ServiceOnboarding] = ledgerURL
+		c.ServiceURLs[ServiceTransaction] = ledgerURL
+		c.ServiceURLs[ServiceCRM] = crmURL
 
 		return nil
 	}
@@ -390,7 +416,8 @@ func WithIdempotency(enable bool) Option {
 // WithTenantID sets the default tenant ID for all API requests.
 // The tenant ID is sent as the X-Tenant-ID header on every request.
 // Per-request overrides via entities.WithTenantID(ctx, tenantID) take precedence
-// over this configuration-level default.
+// over this configuration-level default. This header is best-effort compatibility
+// metadata rather than the sole tenant source of truth for the reference Midaz path.
 //
 // Parameters:
 //   - tenantID: The tenant identifier to use
@@ -433,12 +460,12 @@ func WithAccessManager(accessManager auth.AccessManager) Option {
 // - MIDAZ_USER_AGENT: The user agent string to use for HTTP requests
 // - MIDAZ_ONBOARDING_URL: The URL for the Onboarding API
 // - MIDAZ_TRANSACTION_URL: The URL for the Transaction API
+// - MIDAZ_CRM_URL: The URL for the CRM API
 // - MIDAZ_BASE_URL: The base URL for all services
 // - MIDAZ_TIMEOUT: The timeout in seconds for HTTP requests
 // - MIDAZ_DEBUG: Enable debug mode (true/false)
 // - MIDAZ_MAX_RETRIES: Maximum number of retries
 // - MIDAZ_IDEMPOTENCY: Enable idempotency (true/false)
-// - MIDAZ_TENANT_ID: Default tenant ID sent as X-Tenant-ID header
 //
 // Returns:
 //   - Option: A function that sets configuration from environment variables
@@ -529,6 +556,12 @@ func configureSpecificURLs(c *Config) error {
 		}
 	}
 
+	if crmURL := os.Getenv("MIDAZ_CRM_URL"); crmURL != "" {
+		if err := WithCRMURL(crmURL)(c); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -583,12 +616,6 @@ func configureOptionalSettings(c *Config) {
 
 	if idempotency := os.Getenv("MIDAZ_IDEMPOTENCY"); idempotency != "" {
 		c.EnableIdempotency = idempotency == boolTrue
-	}
-
-	if !c.tenantIDSet {
-		if tenantID := strings.TrimSpace(os.Getenv("MIDAZ_TENANT_ID")); tenantID != "" {
-			c.TenantID = tenantID
-		}
 	}
 }
 
@@ -659,17 +686,37 @@ func setDefaultServiceURLs(config *Config) error {
 	// Set default URLs based on environment
 	switch config.Environment {
 	case EnvironmentLocal:
-		baseURL := DefaultLocalBaseURL
-		config.ServiceURLs[ServiceOnboarding] = fmt.Sprintf("%s:%s%s", baseURL, DefaultOnboardingPort, DefaultLocalOnboardingPath)
-		config.ServiceURLs[ServiceTransaction] = fmt.Sprintf("%s:%s%s", baseURL, DefaultTransactionPort, DefaultLocalTransactionPath)
+		ledgerURL, err := buildLedgerServiceURL(DefaultLocalLedgerBaseURL)
+		if err != nil {
+			return err
+		}
+
+		crmURL, err := buildLedgerServiceURL(DefaultLocalCRMBaseURL)
+		if err != nil {
+			return err
+		}
+
+		config.ServiceURLs[ServiceOnboarding] = ledgerURL
+		config.ServiceURLs[ServiceTransaction] = ledgerURL
+		config.ServiceURLs[ServiceCRM] = crmURL
 	case EnvironmentDevelopment:
-		baseURL := DefaultDevelopmentBaseURL
-		config.ServiceURLs[ServiceOnboarding] = fmt.Sprintf("%s/onboarding", baseURL)
-		config.ServiceURLs[ServiceTransaction] = fmt.Sprintf("%s/transaction", baseURL)
+		ledgerURL, err := buildLedgerServiceURL(DefaultDevelopmentLedgerBaseURL)
+		if err != nil {
+			return err
+		}
+
+		config.ServiceURLs[ServiceOnboarding] = ledgerURL
+		config.ServiceURLs[ServiceTransaction] = ledgerURL
+		config.ServiceURLs[ServiceCRM] = ledgerURL
 	case EnvironmentProduction:
-		baseURL := DefaultProductionBaseURL
-		config.ServiceURLs[ServiceOnboarding] = fmt.Sprintf("%s/onboarding", baseURL)
-		config.ServiceURLs[ServiceTransaction] = fmt.Sprintf("%s/transaction", baseURL)
+		ledgerURL, err := buildLedgerServiceURL(DefaultProductionLedgerBaseURL)
+		if err != nil {
+			return err
+		}
+
+		config.ServiceURLs[ServiceOnboarding] = ledgerURL
+		config.ServiceURLs[ServiceTransaction] = ledgerURL
+		config.ServiceURLs[ServiceCRM] = ledgerURL
 	default:
 		return fmt.Errorf("unknown environment: %s", config.Environment)
 	}
@@ -743,19 +790,95 @@ func parseURL(rawURL string) error {
 		return errors.New("URL must include scheme and host")
 	}
 
-	// Warn about insecure HTTP connections (except for localhost/development)
+	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+		return errors.New("URL scheme must be http or https")
+	}
+
+	if parsedURL.User != nil {
+		return errors.New("URL must not include user information")
+	}
+
 	if parsedURL.Scheme == "http" && !isLocalhost(parsedURL.Host) {
-		fmt.Fprintf(os.Stderr, "[Midaz SDK Warning] Using insecure HTTP connection to %s. Consider using HTTPS for production.\n", parsedURL.Host)
+		return fmt.Errorf("insecure HTTP is only allowed for localhost targets: %s", parsedURL.Host)
 	}
 
 	return nil
 }
 
+func buildLedgerServiceURL(baseURL string) (string, error) {
+	parsedURL, err := url.Parse(strings.TrimSuffix(baseURL, "/"))
+	if err != nil {
+		return "", err
+	}
+
+	if parsedURL.Scheme == "" || parsedURL.Host == "" {
+		return "", errors.New("URL must include scheme and host")
+	}
+
+	if isLocalhost(parsedURL.Host) && parsedURL.Port() == "" {
+		parsedURL.Host = withPort(parsedURL.Hostname(), "3002")
+	}
+
+	return ensureAPIVersionPath(parsedURL), nil
+}
+
+func buildCRMServiceURL(baseURL string) (string, error) {
+	parsedURL, err := url.Parse(strings.TrimSuffix(baseURL, "/"))
+	if err != nil {
+		return "", err
+	}
+
+	if parsedURL.Scheme == "" || parsedURL.Host == "" {
+		return "", errors.New("URL must include scheme and host")
+	}
+
+	if isLocalhost(parsedURL.Host) && parsedURL.Port() == "" {
+		parsedURL.Host = withPort(parsedURL.Hostname(), "4003")
+	}
+
+	return ensureAPIVersionPath(parsedURL), nil
+}
+
+func ensureAPIVersionPath(parsedURL *url.URL) string {
+	cleanPath := strings.TrimSuffix(parsedURL.Path, "/")
+	if cleanPath == "" {
+		parsedURL.Path = DefaultLedgerAPIVersionPath
+		return parsedURL.String()
+	}
+
+	if cleanPath == DefaultLedgerAPIVersionPath {
+		parsedURL.Path = cleanPath
+		return parsedURL.String()
+	}
+
+	parsedURL.Path = cleanPath + DefaultLedgerAPIVersionPath
+
+	return parsedURL.String()
+}
+
+func withPort(hostname, port string) string {
+	if strings.Contains(hostname, ":") {
+		return "[" + hostname + "]:" + port
+	}
+
+	return hostname + ":" + port
+}
+
 // isLocalhost checks if the host is a localhost address (for development use).
 func isLocalhost(host string) bool {
-	// Remove port if present
-	hostname := strings.Split(host, ":")[0]
-	return hostname == "localhost" || hostname == "127.0.0.1" || hostname == "::1"
+	hostname := host
+	if splitHost, _, err := net.SplitHostPort(host); err == nil {
+		hostname = splitHost
+	}
+
+	hostname = strings.Trim(hostname, "[]")
+	if hostname == "localhost" {
+		return true
+	}
+
+	ip := net.ParseIP(hostname)
+
+	return ip != nil && ip.IsLoopback()
 }
 
 // DefaultConfig creates a new Config with default values.

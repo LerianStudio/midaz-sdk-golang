@@ -96,7 +96,7 @@ func createOrganizationWithTracing(midazClient *client.Client, provider observab
 	}
 
 	// Create organization input
-	orgInput := models.NewCreateOrganizationInput("Example Corp").
+	orgInput := models.NewCreateOrganizationInput("Example Corp", "123456789012345").
 		WithAddress(models.Address{
 			Line1:   "123 Main St",
 			City:    "San Francisco",

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	stderrors "errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -168,23 +169,29 @@ type OperationsService interface {
 
 	GetOperation(ctx context.Context, orgID, ledgerID, accountID, operationID string, transactionID ...string) (*models.Operation, error)
 
-	// UpdateOperation updates an existing operation.
-	// The orgID, ledgerID, and accountID parameters specify which organization, ledger, and account the operation belongs to.
+	// UpdateTransactionOperation updates an existing operation by transaction scope.
+	// The orgID, ledgerID, and transactionID parameters specify which organization, ledger,
+	// and transaction the operation belongs to.
 	// The operationID parameter is the unique identifier of the operation to update.
 	// The input parameter contains the operation details to update.
 	// Returns the updated operation, or an error if the operation fails.
+	UpdateTransactionOperation(ctx context.Context, orgID, ledgerID, transactionID, operationID string, input any) (*models.Operation, error)
+
+	// UpdateOperation is retained for source compatibility with the former account-scoped
+	// signature. Midaz now updates operations through the transaction-scoped endpoint.
+	// Deprecated: use UpdateTransactionOperation with a transactionID.
 	UpdateOperation(ctx context.Context, orgID, ledgerID, accountID, operationID string, input any) (*models.Operation, error)
 }
 
 // operationsEntity implements the OperationsService interface.
 // It handles the communication with the Midaz API for operation-related operations.
 type operationsEntity struct {
-	HTTPClient *HTTPClient
+	httpClient *HTTPClient
 	baseURLs   map[string]string
 }
 
 func (e *operationsEntity) setDefaultTenantID(tenantID string) {
-	e.HTTPClient.SetTenantID(tenantID)
+	e.httpClient.SetTenantID(tenantID)
 }
 
 // NewOperationsEntity creates a new operations entity.
@@ -234,7 +241,7 @@ func NewOperationsEntity(client *http.Client, authToken string, baseURLs map[str
 	}
 
 	return &operationsEntity{
-		HTTPClient: httpClient,
+		httpClient: httpClient,
 		baseURLs:   baseURLs,
 	}
 }
@@ -274,7 +281,7 @@ func (e *operationsEntity) ListOperations(ctx context.Context, orgID, ledgerID, 
 	}
 
 	var response models.ListResponse[models.Operation]
-	if err := e.HTTPClient.sendRequest(req, &response); err != nil {
+	if err := e.httpClient.sendRequest(req, &response); err != nil {
 		// HTTPClient.DoRequest already returns proper error types
 		return nil, err
 	}
@@ -369,7 +376,7 @@ func (e *operationsEntity) GetOperation(ctx context.Context, orgID, ledgerID, ac
 	}
 
 	var operationModel models.Operation
-	if err := e.HTTPClient.sendRequest(req, &operationModel); err != nil {
+	if err := e.httpClient.sendRequest(req, &operationModel); err != nil {
 		// HTTPClient.DoRequest already returns proper error types
 		return nil, err
 	}
@@ -377,9 +384,16 @@ func (e *operationsEntity) GetOperation(ctx context.Context, orgID, ledgerID, ac
 	return &operationModel, nil
 }
 
-// UpdateOperation updates an operation.
-func (e *operationsEntity) UpdateOperation(ctx context.Context, orgID, ledgerID, accountID, operationID string, input any) (*models.Operation, error) {
-	const operation = "UpdateOperation"
+// UpdateOperation rejects the former account-scoped update path so callers do not
+// silently route an accountID into Midaz's transaction-scoped endpoint.
+// Deprecated: use UpdateTransactionOperation with a transactionID.
+func (*operationsEntity) UpdateOperation(_ context.Context, _, _, _, _ string, _ any) (*models.Operation, error) {
+	return nil, errors.NewValidationError("UpdateOperation", "operation updates are transaction-scoped", stderrors.New("use UpdateTransactionOperation(ctx, orgID, ledgerID, transactionID, operationID, input)"))
+}
+
+// UpdateTransactionOperation updates an operation.
+func (e *operationsEntity) UpdateTransactionOperation(ctx context.Context, orgID, ledgerID, transactionID, operationID string, input any) (*models.Operation, error) {
+	const operation = "UpdateTransactionOperation"
 
 	if orgID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
@@ -389,8 +403,8 @@ func (e *operationsEntity) UpdateOperation(ctx context.Context, orgID, ledgerID,
 		return nil, errors.NewMissingParameterError(operation, "ledgerID")
 	}
 
-	if accountID == "" {
-		return nil, errors.NewMissingParameterError(operation, "accountID")
+	if transactionID == "" {
+		return nil, errors.NewMissingParameterError(operation, "transactionID")
 	}
 
 	if operationID == "" {
@@ -401,7 +415,7 @@ func (e *operationsEntity) UpdateOperation(ctx context.Context, orgID, ledgerID,
 		return nil, errors.NewMissingParameterError(operation, "input")
 	}
 
-	url := fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/%s/operations/%s", e.baseURLs["transaction"], orgID, ledgerID, accountID, operationID)
+	url := fmt.Sprintf("%s/organizations/%s/ledgers/%s/transactions/%s/operations/%s", e.baseURLs["transaction"], pathSegment(orgID), pathSegment(ledgerID), pathSegment(transactionID), pathSegment(operationID))
 
 	body, err := json.Marshal(input)
 	if err != nil {
@@ -414,7 +428,7 @@ func (e *operationsEntity) UpdateOperation(ctx context.Context, orgID, ledgerID,
 	}
 
 	var operationModel models.Operation
-	if err := e.HTTPClient.sendRequest(req, &operationModel); err != nil {
+	if err := e.httpClient.sendRequest(req, &operationModel); err != nil {
 		// HTTPClient.DoRequest already returns proper error types
 		return nil, err
 	}
@@ -430,8 +444,8 @@ func (e *operationsEntity) buildURL(orgID, ledgerID, accountID, operationID stri
 	base = strings.TrimSuffix(base, "/")
 
 	if operationID == "" {
-		return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/%s/operations", base, orgID, ledgerID, accountID)
+		return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/%s/operations", base, pathSegment(orgID), pathSegment(ledgerID), pathSegment(accountID))
 	}
 
-	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/%s/operations/%s", base, orgID, ledgerID, accountID, operationID)
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/%s/operations/%s", base, pathSegment(orgID), pathSegment(ledgerID), pathSegment(accountID), pathSegment(operationID))
 }

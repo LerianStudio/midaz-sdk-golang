@@ -97,7 +97,7 @@ type CreateAccountTypeInput struct{ ... }
     func WithCreateAccountTypeDescription(input *CreateAccountTypeInput, description string) *CreateAccountTypeInput
     func WithCreateAccountTypeMetadata(input *CreateAccountTypeInput, metadata map[string]any) *CreateAccountTypeInput
 type CreateAnnotationInput struct{ ... }
-    func NewCreateAnnotationInput(description string) *CreateAnnotationInput
+    func NewCreateAnnotationInput(description string, send ...*SendInput) *CreateAnnotationInput
 type CreateAssetInput struct{ ... }
     func NewCreateAssetInput(name, code string) *CreateAssetInput
 type CreateAssetRateInput struct{ ... }
@@ -105,7 +105,7 @@ type CreateAssetRateInput struct{ ... }
 type CreateBalanceInput struct{ ... }
     func NewCreateBalanceInput(key string) *CreateBalanceInput
 type CreateInflowInput struct{ ... }
-    func NewCreateInflowInput(asset, value string, distribute *DistributeInput) *CreateInflowInput
+    func NewCreateInflowInput(asset string, value any, distribute *DistributeInput) *CreateInflowInput
 type CreateLedgerInput struct{ ... }
     func NewCreateLedgerInput(name string) *CreateLedgerInput
 type CreateOperationInput struct{ ... }
@@ -115,15 +115,15 @@ type CreateOperationRouteInput struct{ ... }
     func WithCreateOperationRouteAccountType(input *CreateOperationRouteInput, accountTypes []string) *CreateOperationRouteInput
     func WithCreateOperationRouteMetadata(input *CreateOperationRouteInput, metadata map[string]any) *CreateOperationRouteInput
 type CreateOrganizationInput struct{ ... }
-    func NewCreateOrganizationInput(legalName string) *CreateOrganizationInput
+    func NewCreateOrganizationInput(legalName, legalDocument string) *CreateOrganizationInput
 type CreateOutflowInput struct{ ... }
-    func NewCreateOutflowInput(asset, value string, source *SourceInput) *CreateOutflowInput
+    func NewCreateOutflowInput(asset string, value any, source *SourceInput) *CreateOutflowInput
 type CreatePortfolioInput struct{ ... }
     func NewCreatePortfolioInput(entityID, name string) *CreatePortfolioInput
 type CreateSegmentInput struct{ ... }
     func NewCreateSegmentInput(name string) *CreateSegmentInput
 type CreateTransactionInput struct{ ... }
-    func NewCreateTransactionInput(assetCode string, amount string) *CreateTransactionInput
+    func NewCreateTransactionInput(assetCode string, amount any) *CreateTransactionInput
 type CreateTransactionRouteInput struct{ ... }
     func NewCreateTransactionRouteInput(title, description string, operationRoutes []string) *CreateTransactionRouteInput
     func WithTransactionRouteMetadata(input *CreateTransactionRouteInput, metadata map[string]any) *CreateTransactionRouteInput

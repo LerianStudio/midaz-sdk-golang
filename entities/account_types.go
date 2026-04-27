@@ -170,10 +170,10 @@ func (e *accountTypesEntity) buildURL(organizationID, ledgerID, accountTypeID st
 	baseURL := e.baseURLs["onboarding"]
 
 	if accountTypeID == "" {
-		return fmt.Sprintf("%s/organizations/%s/ledgers/%s/account-types", baseURL, organizationID, ledgerID)
+		return fmt.Sprintf("%s/organizations/%s/ledgers/%s/account-types", baseURL, pathSegment(organizationID), pathSegment(ledgerID))
 	}
 
-	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/account-types/%s", baseURL, organizationID, ledgerID, accountTypeID)
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/account-types/%s", baseURL, pathSegment(organizationID), pathSegment(ledgerID), pathSegment(accountTypeID))
 }
 
 // ListAccountTypes lists account types for a ledger with optional filters.
@@ -358,7 +358,7 @@ func (e *accountTypesEntity) DeleteAccountType(ctx context.Context, organization
 }
 
 // GetAccountTypesMetricsCount retrieves the count metrics for account types in a ledger.
-func (e *accountTypesEntity) GetAccountTypesMetricsCount(ctx context.Context, organizationID, ledgerID string) (*models.MetricsCount, error) {
+func (*accountTypesEntity) GetAccountTypesMetricsCount(_ context.Context, organizationID, ledgerID string) (*models.MetricsCount, error) {
 	const operation = "GetAccountTypesMetricsCount"
 
 	if organizationID == "" {
@@ -369,23 +369,5 @@ func (e *accountTypesEntity) GetAccountTypesMetricsCount(ctx context.Context, or
 		return nil, errors.NewMissingParameterError(operation, "ledgerID")
 	}
 
-	url := e.buildMetricsURL(organizationID, ledgerID)
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
-
-	var metrics models.MetricsCount
-	if err := e.httpClient.sendRequest(req, &metrics); err != nil {
-		return nil, err
-	}
-
-	return &metrics, nil
-}
-
-// buildMetricsURL builds the URL for account types metrics API calls.
-func (e *accountTypesEntity) buildMetricsURL(organizationID, ledgerID string) string {
-	baseURL := e.baseURLs["onboarding"]
-	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/account-types/metrics/count", baseURL, organizationID, ledgerID)
+	return nil, errors.NewValidationError(operation, "account type count metrics are not exposed by the Midaz Ledger API", nil)
 }

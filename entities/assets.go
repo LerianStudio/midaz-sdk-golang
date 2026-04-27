@@ -414,17 +414,12 @@ func (e *assetsEntity) GetAssetsMetricsCount(ctx context.Context, organizationID
 
 	url := e.buildMetricsURL(organizationID, ledgerID)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
+	count, err := e.httpClient.doCountRequest(ctx, countRequestMethod(), url, countRequestHeaders())
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
-
-	var metrics models.MetricsCount
-	if err := e.httpClient.sendRequest(req, &metrics); err != nil {
 		return nil, err
 	}
 
-	return &metrics, nil
+	return &models.MetricsCount{AssetsCount: count}, nil
 }
 
 // buildURL builds the URL for assets API calls.
@@ -438,14 +433,16 @@ func (e *assetsEntity) buildURL(organizationID, ledgerID, assetID string) string
 	baseURL = strings.TrimSuffix(baseURL, "/")
 
 	if assetID == "" {
-		return fmt.Sprintf("%s/organizations/%s/ledgers/%s/assets", baseURL, organizationID, ledgerID)
+		return fmt.Sprintf("%s/organizations/%s/ledgers/%s/assets", baseURL, pathSegment(organizationID), pathSegment(ledgerID))
 	}
 
-	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/assets/%s", baseURL, organizationID, ledgerID, assetID)
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/assets/%s", baseURL, pathSegment(organizationID), pathSegment(ledgerID), pathSegment(assetID))
 }
 
 // buildMetricsURL builds the URL for assets metrics API calls.
 func (e *assetsEntity) buildMetricsURL(organizationID, ledgerID string) string {
 	baseURL := e.baseURLs["onboarding"]
-	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/assets/metrics/count", baseURL, organizationID, ledgerID)
+	baseURL = strings.TrimSuffix(baseURL, "/")
+
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/assets/metrics/count", baseURL, pathSegment(organizationID), pathSegment(ledgerID))
 }

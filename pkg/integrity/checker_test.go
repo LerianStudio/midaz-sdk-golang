@@ -137,6 +137,10 @@ func (s *testBalancesService) GetBalance(ctx context.Context, orgID, ledgerID, b
 	return nil, errors.New("mock: GetBalance not implemented")
 }
 
+func (*testBalancesService) GetBalanceHistory(context.Context, string, string, string, string) (*models.BalanceHistory, error) {
+	return nil, errors.New("mock: GetBalanceHistory not implemented")
+}
+
 func (s *testBalancesService) UpdateBalance(ctx context.Context, orgID, ledgerID, balanceID string, input *models.UpdateBalanceInput) (*models.Balance, error) {
 	if s.updateBalanceFn != nil {
 		return s.updateBalanceFn(ctx, orgID, ledgerID, balanceID, input)
@@ -175,6 +179,10 @@ func (s *testBalancesService) ListBalancesByExternalCode(ctx context.Context, or
 	}
 
 	return nil, errors.New("mock: ListBalancesByExternalCode not implemented")
+}
+
+func (*testBalancesService) GetAccountBalancesHistory(context.Context, string, string, string, string) ([]models.BalanceHistory, error) {
+	return nil, errors.New("mock: GetAccountBalancesHistory not implemented")
 }
 
 // testAccountsService implements entities.AccountsService for testing

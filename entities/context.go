@@ -32,9 +32,10 @@ func getIdempotencyKeyFromContext(ctx context.Context) string {
 type contextKeyTenantID struct{}
 
 // WithTenantID attaches a tenant ID to the request context.
-// The HTTP client will add it as an 'X-Tenant-ID' header, which scopes the
-// API request to the specified tenant. If tenantID is empty, the context
-// is returned unchanged and no header will be set from context.
+// The HTTP client will add it as an 'X-Tenant-ID' header for deployments that
+// honor explicit tenant headers. In the reference Midaz path, authenticated claims
+// remain the primary tenant source of truth. If tenantID is empty, the context is
+// returned unchanged and no header will be set from context.
 func WithTenantID(ctx context.Context, tenantID string) context.Context {
 	tenantID = strings.TrimSpace(tenantID)
 	if tenantID == "" {

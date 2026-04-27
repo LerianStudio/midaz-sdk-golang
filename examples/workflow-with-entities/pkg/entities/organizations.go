@@ -42,9 +42,8 @@ func CreateOrganization(ctx context.Context, service entities.OrganizationsServi
 	description := "Organization created"
 
 	// Create input using builder pattern
-	input := models.NewCreateOrganizationInput("Acme Corporation").
+	input := models.NewCreateOrganizationInput("Acme Corporation", "123456789").
 		WithDoingBusinessAs(dba).
-		WithLegalDocument("123456789").
 		WithStatus(models.Status{
 			Code:        "ACTIVE",
 			Description: &description,

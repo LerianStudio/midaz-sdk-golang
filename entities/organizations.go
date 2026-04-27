@@ -135,12 +135,12 @@ type OrganizationsService interface {
 // organizationsEntity implements the OrganizationsService interface.
 // It handles the communication with the Midaz API for organization-related operations.
 type organizationsEntity struct {
-	HTTPClient *HTTPClient
+	httpClient *HTTPClient
 	baseURLs   map[string]string
 }
 
 func (e *organizationsEntity) setDefaultTenantID(tenantID string) {
-	e.HTTPClient.SetTenantID(tenantID)
+	e.httpClient.SetTenantID(tenantID)
 }
 
 // NewOrganizationsEntity creates a new organizations entity.
@@ -187,7 +187,7 @@ func NewOrganizationsEntity(client *http.Client, authToken string, baseURLs map[
 	}
 
 	return &organizationsEntity{
-		HTTPClient: httpClient,
+		httpClient: httpClient,
 		baseURLs:   baseURLs,
 	}
 }
@@ -215,7 +215,7 @@ func (e *organizationsEntity) ListOrganizations(ctx context.Context, opts *model
 	}
 
 	var response models.ListResponse[models.Organization]
-	if err := e.HTTPClient.sendRequest(req, &response); err != nil {
+	if err := e.httpClient.sendRequest(req, &response); err != nil {
 		return nil, err
 	}
 
@@ -238,7 +238,7 @@ func (e *organizationsEntity) GetOrganization(ctx context.Context, id string) (*
 	}
 
 	var organization models.Organization
-	if err := e.HTTPClient.sendRequest(req, &organization); err != nil {
+	if err := e.httpClient.sendRequest(req, &organization); err != nil {
 		return nil, err
 	}
 
@@ -270,9 +270,9 @@ func (e *organizationsEntity) CreateOrganization(ctx context.Context, input *mod
 	// Convert the input to the mmodel format using our utility
 	mmodelInput := input.ToMmodelCreateOrganizationInput()
 
-	e.HTTPClient.debugLog("[%s]: Converting SDK input to backend format", operation)
-	e.HTTPClient.debugLog("[%s]: Original: %+v", operation, input)
-	e.HTTPClient.debugLog("[%s]: Converted: %+v", operation, mmodelInput)
+	e.httpClient.debugLog("[%s]: Converting SDK input to backend format", operation)
+	e.httpClient.debugLog("[%s]: Original: %+v", operation, redactedOrgPayloadForLog(input))
+	e.httpClient.debugLog("[%s]: Converted: %+v", operation, redactedOrgPayloadForLog(mmodelInput))
 
 	// Marshal the input to JSON
 	body, err := json.Marshal(mmodelInput)
@@ -286,11 +286,37 @@ func (e *organizationsEntity) CreateOrganization(ctx context.Context, input *mod
 	}
 
 	var organization models.Organization
-	if err := e.HTTPClient.sendRequest(req, &organization); err != nil {
+	if err := e.httpClient.sendRequest(req, &organization); err != nil {
 		return nil, err
 	}
 
 	return &organization, nil
+}
+
+func redactedOrgPayloadForLog(payload any) any {
+	if payload == nil {
+		return nil
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return map[string]any{"redacted": true, "reason": "payload marshal failed"}
+	}
+
+	redacted := map[string]any{}
+	if err := json.Unmarshal(body, &redacted); err != nil {
+		return map[string]any{"redacted": true, "reason": "payload unmarshal failed"}
+	}
+
+	if _, ok := redacted["legalDocument"]; ok {
+		redacted["legalDocument"] = "<redacted>"
+	}
+
+	if _, ok := redacted["legal_document"]; ok {
+		redacted["legal_document"] = "<redacted>"
+	}
+
+	return redacted
 }
 
 // UpdateOrganization updates an existing organization.
@@ -322,7 +348,7 @@ func (e *organizationsEntity) UpdateOrganization(ctx context.Context, id string,
 	}
 
 	var organization models.Organization
-	if err := e.HTTPClient.sendRequest(req, &organization); err != nil {
+	if err := e.httpClient.sendRequest(req, &organization); err != nil {
 		return nil, err
 	}
 
@@ -344,26 +370,19 @@ func (e *organizationsEntity) DeleteOrganization(ctx context.Context, id string)
 		return errors.NewInternalError(operation, err)
 	}
 
-	return e.HTTPClient.sendRequest(req, nil)
+	return e.httpClient.sendRequest(req, nil)
 }
 
 // GetOrganizationsMetricsCount gets the count metrics for organizations.
 func (e *organizationsEntity) GetOrganizationsMetricsCount(ctx context.Context) (*models.MetricsCount, error) {
-	const operation = "GetOrganizationsMetricsCount"
-
 	url := e.buildMetricsURL()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
+	count, err := e.httpClient.doCountRequest(ctx, countRequestMethod(), url, countRequestHeaders())
 	if err != nil {
-		return nil, errors.NewInternalError(operation, err)
-	}
-
-	var metrics models.MetricsCount
-	if err := e.HTTPClient.sendRequest(req, &metrics); err != nil {
 		return nil, err
 	}
 
-	return &metrics, nil
+	return &models.MetricsCount{OrganizationsCount: count}, nil
 }
 
 // buildURL builds the URL for organizations API calls.
@@ -374,7 +393,7 @@ func (e *organizationsEntity) buildURL(id string) string {
 		return fmt.Sprintf("%s/organizations", baseURL)
 	}
 
-	return fmt.Sprintf("%s/organizations/%s", baseURL, id)
+	return fmt.Sprintf("%s/organizations/%s", baseURL, pathSegment(id))
 }
 
 // buildMetricsURL builds the URL for organizations metrics API calls.

@@ -1,13 +1,16 @@
 package models
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation/core"
+	"github.com/shopspring/decimal"
 )
 
 // Transaction represents a transaction in the Midaz Ledger.
@@ -53,8 +56,7 @@ type Transaction struct {
 	// structures and validation rules
 	Template string `json:"template,omitempty"`
 
-	// Amount is the numeric value of the transaction as a decimal string
-	// This represents the total value of the transaction (e.g., "100.50" for $100.50)
+	// Amount is the exact decimal value of the transaction.
 	Amount string `json:"amount"`
 
 	// AssetCode identifies the currency or asset type for this transaction
@@ -64,6 +66,9 @@ type Transaction struct {
 	// Route is the transaction route identifier that defines the overall flow
 	// of the transaction, including the structure of operations to be executed
 	Route string `json:"route,omitempty"`
+
+	// RouteID is the UUID of the transaction route.
+	RouteID string `json:"routeId,omitempty"`
 
 	// Status indicates the current processing status of the transaction
 	// See the Status enum for possible values (PENDING, COMPLETED, FAILED, CANCELED)
@@ -92,6 +97,9 @@ type Transaction struct {
 	// OrganizationID identifies the organization this transaction belongs to
 	// An organization is the top-level entity that owns ledgers and accounts
 	OrganizationID string `json:"organizationId"`
+
+	// ParentTransactionID identifies the parent transaction for linked/reversal flows.
+	ParentTransactionID string `json:"parentTransactionId,omitempty"`
 
 	// Operations contains the individual debit and credit operations
 	// Each operation represents a single accounting entry (debit or credit)
@@ -123,658 +131,74 @@ type Transaction struct {
 	Description string `json:"description,omitempty"`
 }
 
-// DSLAmount represents an amount with a value and asset code for DSL transactions.
-// This is aligned with the lib-commons Amount structure.
-type DSLAmount struct {
-	// Value is the numeric value of the amount as a decimal string
-	Value string `json:"value"`
-
-	// Asset is the asset code for the amount
-	Asset string `json:"asset,omitempty"`
-}
-
-// DSLFromTo represents a source or destination in a DSL transaction.
-// This is aligned with the lib-commons FromTo structure.
-type DSLFromTo struct {
-	// Account is the identifier of the account
-	Account string `json:"account"`
-
-	// Amount specifies the amount details if applicable
-	Amount *DSLAmount `json:"amount,omitempty"`
-
-	// Share is the sharing configuration
-	Share *Share `json:"share,omitempty"`
-
-	// Remaining is an optional remaining account
-	Remaining string `json:"remaining,omitempty"`
-
-	// Rate is the exchange rate configuration
-	Rate *Rate `json:"rate,omitempty"`
-
-	// Description is a human-readable description
-	Description string `json:"description,omitempty"`
-
-	// ChartOfAccounts is the chart of accounts code
-	ChartOfAccounts string `json:"chartOfAccounts,omitempty"`
-
-	// Metadata contains additional custom data
-	Metadata map[string]any `json:"metadata,omitempty"`
-}
-
-// DSLSource represents the source of a DSL transaction.
-// This is aligned with the lib-commons Source structure.
-type DSLSource struct {
-	// Remaining is an optional remaining account
-	Remaining string `json:"remaining,omitempty"`
-
-	// From is a collection of source accounts and amounts
-	From []DSLFromTo `json:"from"`
-}
-
-// DSLDistribute represents the distribution of a DSL transaction.
-// This is aligned with the lib-commons Distribute structure.
-type DSLDistribute struct {
-	// Remaining is an optional remaining account
-	Remaining string `json:"remaining,omitempty"`
-
-	// To is a collection of destination accounts and amounts
-	To []DSLFromTo `json:"to"`
-}
-
-// DSLSend represents the send operation in a DSL transaction.
-// This is aligned with the lib-commons Send structure.
-type DSLSend struct {
-	// Asset identifies the currency or asset type for this transaction
-	Asset string `json:"asset"`
-
-	// Value is the numeric value of the transaction as a decimal string
-	Value string `json:"value"`
-
-	// Source specifies where the funds come from
-	Source *DSLSource `json:"source,omitempty"`
-
-	// Distribute specifies where the funds go to
-	Distribute *DSLDistribute `json:"distribute,omitempty"`
-}
-
-// TransactionDSLInput represents the input for creating a transaction using DSL.
-// This is aligned with the lib-commons Transaction structure.
-type TransactionDSLInput struct {
-	// ChartOfAccountsGroupName specifies the chart of accounts group to use
-	ChartOfAccountsGroupName string `json:"chartOfAccountsGroupName,omitempty"`
-
-	// Description provides a human-readable description of the transaction
-	Description string `json:"description,omitempty"`
-
-	// Send contains the sending configuration
-	Send *DSLSend `json:"send,omitempty"`
-
-	// Metadata contains additional custom data for the transaction
-	Metadata map[string]any `json:"metadata,omitempty"`
-
-	// Code is a custom transaction code for categorization
-	Code string `json:"code,omitempty"`
-
-	// Pending indicates whether the transaction requires explicit commitment
-	Pending bool `json:"pending,omitempty"`
-}
-
-// DSLAccountRef is a helper struct to implement the AccountReference interface
-type DSLAccountRef struct {
-	Account string
-}
-
-// GetAccount returns the account identifier
-func (ref *DSLAccountRef) GetAccount() string {
-	return ref.Account
-}
-
-// GetAsset returns the asset code for the transaction
-func (input *TransactionDSLInput) GetAsset() string {
-	if input.Send == nil {
-		return ""
-	}
-
-	return input.Send.Asset
-}
-
-// GetValue returns the amount value for the transaction
-func (input *TransactionDSLInput) GetValue() float64 {
-	if input.Send == nil {
-		return 0
-	}
-
-	// Convert string value to float64
-	value, err := strconv.ParseFloat(input.Send.Value, 64)
+func validatePositiveDecimalString(value any, field string) error {
+	parsed, err := decimal.NewFromString(strings.TrimSpace(decimalStringFromAny(value)))
 	if err != nil {
-		return 0
+		return fmt.Errorf("%s must be a valid decimal", field)
 	}
 
-	return value
-}
-
-// GetSourceAccounts returns the source accounts for the transaction
-func (input *TransactionDSLInput) GetSourceAccounts() []validation.AccountReference {
-	var accounts []validation.AccountReference
-
-	if input.Send != nil && input.Send.Source != nil {
-		for _, from := range input.Send.Source.From {
-			accounts = append(accounts, &DSLAccountRef{Account: from.Account})
-		}
-	}
-
-	return accounts
-}
-
-// GetDestinationAccounts returns the destination accounts for the transaction
-func (input *TransactionDSLInput) GetDestinationAccounts() []validation.AccountReference {
-	var accounts []validation.AccountReference
-
-	if input.Send != nil && input.Send.Distribute != nil {
-		for _, to := range input.Send.Distribute.To {
-			accounts = append(accounts, &DSLAccountRef{Account: to.Account})
-		}
-	}
-
-	return accounts
-}
-
-// GetMetadata returns the metadata for the transaction
-func (input *TransactionDSLInput) GetMetadata() map[string]any {
-	return input.Metadata
-}
-
-// Share represents the sharing configuration for a transaction.
-type Share struct {
-	Percentage             int64 `json:"percentage"`
-	PercentageOfPercentage int64 `json:"percentageOfPercentage,omitempty"`
-}
-
-// Rate represents an exchange rate configuration.
-type Rate struct {
-	From       string `json:"from"`
-	To         string `json:"to"`
-	Value      string `json:"value"`
-	ExternalID string `json:"externalId"`
-}
-
-// Validate checks that the DSLSend meets all validation requirements.
-func (send *DSLSend) Validate() error {
-	// Validate required fields
-	if send.Asset == "" {
-		return errors.New("asset is required")
-	}
-
-	// Validate asset code
-	if err := core.ValidateAssetCode(send.Asset); err != nil {
-		return err
-	}
-
-	if send.Value == "" || send.Value == "0" {
-		return errors.New("value must be greater than 0")
-	}
-
-	// Validate source
-	if err := send.validateSource(); err != nil {
-		return err
-	}
-
-	// Validate distribute
-	return send.validateDistribute()
-}
-
-// validateSource validates the source part of a DSLSend
-func (send *DSLSend) validateSource() error {
-	if send.Source == nil || len(send.Source.From) == 0 {
-		return errors.New("source.from must contain at least one entry")
-	}
-
-	for i, from := range send.Source.From {
-		if from.Account == "" {
-			return fmt.Errorf("source.from[%d].account is required", i)
-		}
-
-		if err := send.validateExternalAccount(from.Account, i, "source.from"); err != nil {
-			return err
-		}
+	if !parsed.IsPositive() {
+		return fmt.Errorf("%s must be greater than zero", field)
 	}
 
 	return nil
 }
 
-// validateDistribute validates the distribute part of a DSLSend
-func (send *DSLSend) validateDistribute() error {
-	if send.Distribute == nil || len(send.Distribute.To) == 0 {
-		return errors.New("distribute.to must contain at least one entry")
+func decimalStringFromAny(value any) string {
+	if decimalValue, ok := amountDecimalString(value); ok {
+		return decimalValue
 	}
 
-	for i, to := range send.Distribute.To {
-		if to.Account == "" {
-			return fmt.Errorf("distribute.to[%d].account is required", i)
-		}
-
-		if err := send.validateExternalAccount(to.Account, i, "distribute.to"); err != nil {
-			return err
-		}
+	switch v := value.(type) {
+	case nil:
+		return ""
+	case string:
+		return v
+	case float64:
+		return strconv.FormatFloat(v, 'f', -1, 64)
+	case float32:
+		return strconv.FormatFloat(float64(v), 'f', -1, 32)
+	case int:
+		return strconv.Itoa(v)
+	case int64:
+		return strconv.FormatInt(v, 10)
+	case json.Number:
+		return v.String()
+	case decimal.Decimal:
+		return v.String()
+	default:
+		return fmt.Sprint(v)
 	}
-
-	return nil
 }
 
-// validateExternalAccount validates an external account reference
-func (send *DSLSend) validateExternalAccount(account string, index int, location string) error {
-	if account == "" || account[0] != '@' {
-		return nil
-	}
+func amountDecimalString(value any) (string, bool) {
+	switch v := value.(type) {
+	case *decimal.Decimal:
+		if v == nil {
+			return "", true
+		}
 
-	// For external accounts, check if they match the expected format
-	if !core.ExternalAccountPattern.MatchString(account) {
-		return fmt.Errorf("invalid external account format in %s[%d]: %s", location, index, account)
-	}
+		return v.String(), true
+	case Amount:
+		if v.Value == nil {
+			return "", true
+		}
 
-	// Check if the asset code in the external account matches the transaction asset
-	matches := core.ExternalAccountPattern.FindStringSubmatch(account)
-	if len(matches) > 1 && matches[1] != send.Asset {
-		return fmt.Errorf("asset code mismatch in %s[%d]: transaction uses %s but external account uses %s",
-			location, index, send.Asset, matches[1])
-	}
+		return v.Value.String(), true
+	case *Amount:
+		if v == nil || v.Value == nil {
+			return "", true
+		}
 
-	return nil
+		return v.Value.String(), true
+	default:
+		return "", false
+	}
 }
 
-// Validate checks if the TransactionDSLInput meets the validation requirements.
-// It returns an error if any of the validation checks fail.
-func (input *TransactionDSLInput) Validate() error {
-	// Validate send
-	if input.Send == nil {
-		return errors.New("send is required")
-	}
-
-	// Validate send operation
-	if err := input.Send.Validate(); err != nil {
-		return fmt.Errorf("invalid send operation: %w", err)
-	}
-
-	// Validate string length constraints
-	if len(input.ChartOfAccountsGroupName) > 256 {
-		return errors.New("chartOfAccountsGroupName must be at most 256 characters")
-	}
-
-	if len(input.Description) > 256 {
-		return errors.New("description must be at most 256 characters")
-	}
-
-	// Validate transaction code
-	if input.Code != "" {
-		if err := core.ValidateTransactionCode(input.Code); err != nil {
-			return err
-		}
-	}
-
-	// Validate metadata if present
-	if input.Metadata != nil {
-		if err := core.ValidateMetadata(input.Metadata); err != nil {
-			return fmt.Errorf("invalid metadata: %w", err)
-		}
-	}
-
-	return nil
-}
-
-// ToTransactionMap converts a TransactionDSLInput to a map that can be used for API requests.
-// This replaces the previous direct lib-commons conversion.
-func (input *TransactionDSLInput) ToTransactionMap() map[string]any {
-	if input == nil {
-		return nil
-	}
-
-	// Create base transaction map
-	transaction := map[string]any{
-		"description": input.Description,
-		"metadata":    input.Metadata,
-	}
-
-	// Add optional fields if present
-	if input.ChartOfAccountsGroupName != "" {
-		transaction["chartOfAccountsGroupName"] = input.ChartOfAccountsGroupName
-	}
-
-	if input.Code != "" {
-		transaction["code"] = input.Code
-	}
-
-	if input.Pending {
-		transaction["pending"] = input.Pending
-	}
-
-	// Add Send information if present
-	if input.Send != nil {
-		transaction["send"] = input.sendToMap()
-	}
-
-	return transaction
-}
-
-// sendToMap converts the DSLSend to a map for API requests
-func (input *TransactionDSLInput) sendToMap() map[string]any {
-	if input.Send == nil {
-		return nil
-	}
-
-	send := map[string]any{
-		"asset": input.Send.Asset,
-		"value": input.Send.Value,
-	}
-
-	// Add Source if present
-	if input.Send.Source != nil {
-		send["source"] = input.sourceToMap()
-	}
-
-	// Add Distribute if present
-	if input.Send.Distribute != nil {
-		send["distribute"] = input.distributeToMap()
-	}
-
-	return send
-}
-
-// sourceToMap converts DSLSource to a map for API requests
-func (input *TransactionDSLInput) sourceToMap() map[string]any {
-	if input.Send.Source == nil {
-		return nil
-	}
-
-	source := map[string]any{}
-
-	// Add Remaining if present
-	if input.Send.Source.Remaining != "" {
-		source["remaining"] = input.Send.Source.Remaining
-	}
-
-	// Convert From accounts
-	if len(input.Send.Source.From) > 0 {
-		fromList := make([]map[string]any, 0, len(input.Send.Source.From))
-
-		for _, from := range input.Send.Source.From {
-			fromMap := fromToToMap(from)
-			fromList = append(fromList, fromMap)
-		}
-
-		source["from"] = fromList
-	}
-
-	return source
-}
-
-// distributeToMap converts DSLDistribute to a map for API requests
-func (input *TransactionDSLInput) distributeToMap() map[string]any {
-	if input.Send.Distribute == nil {
-		return nil
-	}
-
-	distribute := map[string]any{}
-
-	// Add Remaining if present
-	if input.Send.Distribute.Remaining != "" {
-		distribute["remaining"] = input.Send.Distribute.Remaining
-	}
-
-	// Convert To accounts
-	if len(input.Send.Distribute.To) > 0 {
-		toList := make([]map[string]any, 0, len(input.Send.Distribute.To))
-
-		for _, to := range input.Send.Distribute.To {
-			toMap := fromToToMap(to)
-			toList = append(toList, toMap)
-		}
-
-		distribute["to"] = toList
-	}
-
-	return distribute
-}
-
-// fromToToMap converts a DSLFromTo to a map for API requests
-func fromToToMap(from DSLFromTo) map[string]any {
-	fromMap := map[string]any{
-		"account": from.Account,
-	}
-
-	// Add Amount if present
-	if from.Amount != nil {
-		fromMap["amount"] = map[string]any{
-			"asset": from.Amount.Asset,
-			"value": from.Amount.Value,
-		}
-	}
-
-	// Add other fields if present
-	if from.Remaining != "" {
-		fromMap["remaining"] = from.Remaining
-	}
-
-	if from.Description != "" {
-		fromMap["description"] = from.Description
-	}
-
-	if from.ChartOfAccounts != "" {
-		fromMap["chartOfAccounts"] = from.ChartOfAccounts
-	}
-
-	if from.Metadata != nil {
-		fromMap["metadata"] = from.Metadata
-	}
-
-	// Add Share if present
-	if from.Share != nil {
-		fromMap["share"] = map[string]any{
-			"percentage":             from.Share.Percentage,
-			"percentageOfPercentage": from.Share.PercentageOfPercentage,
-		}
-	}
-
-	// Add Rate if present
-	if from.Rate != nil {
-		fromMap["rate"] = map[string]any{
-			"from":       from.Rate.From,
-			"to":         from.Rate.To,
-			"value":      from.Rate.Value,
-			"externalId": from.Rate.ExternalID,
-		}
-	}
-
-	return fromMap
-}
-
-// FromTransactionMap converts a map from the API to a TransactionDSLInput.
-// This replaces the previous direct lib-commons conversion.
-func FromTransactionMap(data map[string]any) *TransactionDSLInput {
-	if data == nil {
-		return nil
-	}
-
-	// Extract basic fields
-	input := &TransactionDSLInput{
-		ChartOfAccountsGroupName: getStringFromMap(data, "chartOfAccountsGroupName"),
-		Description:              getStringFromMap(data, "description"),
-		Code:                     getStringFromMap(data, "code"),
-		Metadata:                 getMetadataFromMap(data),
-	}
-
-	// Extract pending flag
-	if pendingVal, ok := data["pending"].(bool); ok {
-		input.Pending = pendingVal
-	}
-
-	// Extract Send information
-	if sendMap, ok := data["send"].(map[string]any); ok {
-		input.Send = extractSend(sendMap)
-	}
-
-	return input
-}
-
-// extractSend converts a map to DSLSend
-func extractSend(data map[string]any) *DSLSend {
-	if data == nil {
-		return nil
-	}
-
-	send := &DSLSend{}
-
-	// Extract basic fields
-	send.Asset = getStringFromMap(data, "asset")
-
-	// Extract numeric values
-	if value, ok := data["value"].(string); ok {
-		send.Value = value
-	} else if value, ok := data["value"].(float64); ok {
-		send.Value = fmt.Sprintf("%.2f", value)
-	}
-
-	// Extract Source
-	if sourceMap, ok := data["source"].(map[string]any); ok {
-		send.Source = extractSource(sourceMap)
-	}
-
-	// Extract Distribute
-	if distMap, ok := data["distribute"].(map[string]any); ok {
-		send.Distribute = extractDistribute(distMap)
-	}
-
-	return send
-}
-
-// extractSource converts a map to DSLSource
-func extractSource(data map[string]any) *DSLSource {
-	if data == nil {
-		return nil
-	}
-
-	source := &DSLSource{
-		Remaining: getStringFromMap(data, "remaining"),
-		From:      []DSLFromTo{},
-	}
-
-	// Extract From entries
-	if fromList, ok := data["from"].([]any); ok {
-		for _, item := range fromList {
-			if fromMap, ok := item.(map[string]any); ok {
-				fromEntry := extractFromTo(fromMap)
-				source.From = append(source.From, fromEntry)
-			}
-		}
-	}
-
-	return source
-}
-
-// extractDistribute converts a map to DSLDistribute
-func extractDistribute(data map[string]any) *DSLDistribute {
-	if data == nil {
-		return nil
-	}
-
-	distribute := &DSLDistribute{
-		Remaining: getStringFromMap(data, "remaining"),
-		To:        []DSLFromTo{},
-	}
-
-	// Extract To entries
-	if toList, ok := data["to"].([]any); ok {
-		for _, item := range toList {
-			if toMap, ok := item.(map[string]any); ok {
-				toEntry := extractFromTo(toMap)
-				distribute.To = append(distribute.To, toEntry)
-			}
-		}
-	}
-
-	return distribute
-}
-
-// extractFromTo converts a map to DSLFromTo
-func extractFromTo(data map[string]any) DSLFromTo {
-	if data == nil {
-		return DSLFromTo{}
-	}
-
-	from := DSLFromTo{
-		Account:         getStringFromMap(data, "account"),
-		Remaining:       getStringFromMap(data, "remaining"),
-		Description:     getStringFromMap(data, "description"),
-		ChartOfAccounts: getStringFromMap(data, "chartOfAccounts"),
-		Metadata:        getMetadataFromMap(data),
-	}
-
-	// Extract Amount
-	if amountMap, ok := data["amount"].(map[string]any); ok {
-		amount := &DSLAmount{
-			Asset: getStringFromMap(amountMap, "asset"),
-		}
-
-		// Extract numeric values
-		if value, ok := amountMap["value"].(string); ok {
-			amount.Value = value
-		} else if value, ok := amountMap["value"].(float64); ok {
-			amount.Value = fmt.Sprintf("%.2f", value)
-		}
-
-		from.Amount = amount
-	}
-
-	// Extract Share
-	if shareMap, ok := data["share"].(map[string]any); ok {
-		share := &Share{}
-
-		if percentage, ok := shareMap["percentage"].(float64); ok {
-			share.Percentage = int64(percentage)
-		}
-
-		if percentageOfPercentage, ok := shareMap["percentageOfPercentage"].(float64); ok {
-			share.PercentageOfPercentage = int64(percentageOfPercentage)
-		}
-
-		from.Share = share
-	}
-
-	// Extract Rate
-	if rateMap, ok := data["rate"].(map[string]any); ok {
-		rate := &Rate{
-			From:       getStringFromMap(rateMap, "from"),
-			To:         getStringFromMap(rateMap, "to"),
-			ExternalID: getStringFromMap(rateMap, "externalId"),
-		}
-
-		if value, ok := rateMap["value"].(float64); ok {
-			rate.Value = fmt.Sprintf("%.2f", value)
-		}
-
-		from.Rate = rate
-	}
-
-	return from
-}
-
-// Helper functions for extracting values from maps
-
-// getStringFromMap safely extracts a string value from a map
-func getStringFromMap(m map[string]any, key string) string {
-	if val, ok := m[key].(string); ok {
-		return val
-	}
-
-	return ""
-}
-
-// getMetadataFromMap safely extracts metadata from a map
-func getMetadataFromMap(m map[string]any) map[string]any {
-	if val, ok := m["metadata"].(map[string]any); ok {
-		return val
-	}
-
-	return nil
+// DecimalStringFromAny converts common numeric response values to exact decimal strings.
+func DecimalStringFromAny(value any) string {
+	return decimalStringFromAny(value)
 }
 
 // CreateTransactionInput is the input for creating a transaction.
@@ -867,27 +291,16 @@ func getMetadataFromMap(m map[string]any) map[string]any {
 //	    return &s
 //	}
 type CreateTransactionInput struct {
-	// Template is an optional identifier for the transaction template to use
-	// Templates can be used to create standardized transactions with predefined
-	// structures and validation rules
-	// Note: This is used for SDK logic but not sent in the API request
-	Template string
+	// Template is retained for backwards compatibility with the pre-send API.
+	Template string `json:"template,omitempty"`
 
-	// Amount is the numeric value of the transaction as a decimal string
-	// This represents the total value of the transaction (e.g., "100.50" for $100.50)
-	// Note: This is used for validation but sent within the Send structure
-	Amount string
+	// Amount is retained for backwards compatibility with operation-based callers.
+	// Prefer Send.Value for new integrations.
+	Amount string `json:"amount,omitempty"`
 
-	// AssetCode identifies the currency or asset type for this transaction
-	// Common examples include "USD", "EUR", "BTC", etc.
-	// Note: This is used for validation but sent within the Send structure
-	AssetCode string
-
-	// Operations contains the individual debit and credit operations
-	// Each operation represents a single accounting entry (debit or credit)
-	// The sum of all operations for each asset must balance to zero
-	// Note: Operations are an alternative to Send and should not be serialized when Send is used
-	Operations []CreateOperationInput
+	// AssetCode is retained for backwards compatibility with operation-based callers.
+	// Prefer Send.Asset for new integrations.
+	AssetCode string `json:"assetCode,omitempty"`
 
 	// ChartOfAccountsGroupName is REQUIRED by the API specification
 	// This categorizes the transaction under a specific chart of accounts group
@@ -901,19 +314,26 @@ type CreateTransactionInput struct {
 	// Pending transactions require explicit commitment before affecting account balances
 	Pending bool `json:"pending,omitempty"`
 
+	// Code is a transaction reference code.
+	Code string `json:"code,omitempty"`
+
 	// Route is the transaction route identifier (optional)
 	// This defines the overall flow of the transaction structure
 	Route string `json:"route,omitempty"`
+
+	// RouteID is the UUID transaction route identifier.
+	RouteID string `json:"routeId,omitempty"`
+
+	// TransactionDate is the effective date/time for the transaction.
+	TransactionDate string `json:"transactionDate,omitempty"`
 
 	// Metadata contains additional custom data for the transaction
 	// This can be used to store application-specific information
 	// such as references to external systems, tags, or other contextual data
 	Metadata map[string]any `json:"metadata,omitempty"`
 
-	// ExternalID is an optional identifier for linking to external systems
-	// This can be used to correlate transactions with records in other systems
-	// and to prevent duplicate transactions
-	// Note: This is handled separately, not in request body for Send format
+	// ExternalID is retained for backward compatibility but is not part of the
+	// current Midaz CreateTransaction contract.
 	ExternalID string
 
 	// IdempotencyKey is a client-generated key to ensure transaction uniqueness
@@ -922,10 +342,11 @@ type CreateTransactionInput struct {
 	// Note: This is sent as a header (X-Idempotency), not in the request body
 	IdempotencyKey string
 
-	// Send contains the source and distribution information for the transaction (REQUIRED by API)
-	// This is an alternative to using Operations and provides a more structured way
-	// to define the transaction flow
+	// Send contains the source and distribution information for the transaction.
 	Send *SendInput `json:"send"`
+
+	// Operations is retained for backwards compatibility with the pre-send API.
+	Operations []CreateOperationInput `json:"operations,omitempty"`
 }
 
 // SendInput represents the send information for a transaction.
@@ -934,8 +355,8 @@ type SendInput struct {
 	// Asset identifies the currency or asset type for this transaction
 	Asset string `json:"asset"`
 
-	// Value is the numeric value of the transaction as a decimal string
-	Value string `json:"value"`
+	// Value is the exact decimal value of the transaction.
+	Value any `json:"value"`
 
 	// Source contains the source accounts for the transaction
 	Source *SourceInput `json:"source"`
@@ -961,7 +382,8 @@ type DistributeInput struct {
 // FromToInput represents a single source or destination account in a transaction.
 // This structure contains the account and amount details.
 type FromToInput struct {
-	// Account identifies the account affected by this operation
+	// Account identifies the account affected by this operation. It is mapped to
+	// accountAlias for Midaz transaction requests.
 	Account string `json:"account"`
 
 	// Amount specifies the amount details for this operation
@@ -970,6 +392,21 @@ type FromToInput struct {
 	// Route is the operation route identifier for this operation (optional)
 	// This links the operation to a specific routing rule
 	Route string `json:"route,omitempty"`
+
+	// RouteID is the operation route UUID used by canonical Midaz route validation.
+	RouteID *string `json:"routeId,omitempty"`
+
+	// BalanceKey targets a non-default balance for this entry.
+	BalanceKey string `json:"balanceKey,omitempty"`
+
+	// Share specifies proportional distribution semantics.
+	Share *Share `json:"share,omitempty"`
+
+	// Remaining specifies the remaining-account token for split transactions.
+	Remaining string `json:"remaining,omitempty"`
+
+	// Rate specifies exchange-rate information for multi-asset flows.
+	Rate *Rate `json:"rate,omitempty"`
 
 	// Description provides additional context for this operation (optional)
 	Description string `json:"description,omitempty"`
@@ -990,56 +427,141 @@ type AmountInput struct {
 	// Asset identifies the currency or asset type for this amount
 	Asset string `json:"asset"`
 
-	// Value is the numeric value of the amount as a decimal string
-	Value string `json:"value"`
+	// Value is the exact decimal value of the amount.
+	Value any `json:"value"`
+}
+
+// transactionDateFormats require explicit timezone information to avoid local-date ambiguity.
+var transactionDateFormats = []string{
+	time.RFC3339Nano,
+	time.RFC3339,
+	"2006-01-02T15:04:05.000Z",
+	"2006-01-02T15:04:05Z",
 }
 
 // Validate checks that the CreateTransactionInput meets all validation requirements.
 // It returns an error if any of the validation checks fail.
 func (input *CreateTransactionInput) Validate() error {
-	if input.Amount == "" || input.Amount == "0" {
-		return errors.New("amount must be greater than zero")
+	if input == nil {
+		return errors.New("input is required")
 	}
 
-	if input.AssetCode == "" {
-		return errors.New("assetCode is required")
-	}
+	input.ensureSendFromLegacyOperations()
 
-	// Validate asset code
-	if err := core.ValidateAssetCode(input.AssetCode); err != nil {
+	if err := validateTransactionCreateCommon(input.Description, input.Code, input.Metadata, input.Route, input.RouteID, input.TransactionDate, input.Pending); err != nil {
 		return err
 	}
 
-	if len(input.Operations) == 0 && input.Send == nil {
-		return errors.New("either operations or send must be provided")
+	if input.Send == nil {
+		return errors.New("send is required")
 	}
 
-	// If Operations is provided, validate each operation
-	if len(input.Operations) > 0 {
-		// Validate operations
-		for i, op := range input.Operations {
-			if err := op.Validate(); err != nil {
-				return fmt.Errorf("invalid operation at index %d: %w", i, err)
-			}
+	if err := input.Send.Validate(); err != nil {
+		return fmt.Errorf("invalid send: %w", err)
+	}
+
+	return nil
+}
+
+func validateTransactionCreateCommon(description, code string, metadata map[string]any, route, routeID, transactionDate string, pending bool) error {
+	if len(description) > 256 {
+		return errors.New("description must be at most 256 characters")
+	}
+
+	if len(code) > 100 {
+		return errors.New("code must be at most 100 characters")
+	}
+
+	if route != "" && len(route) > 250 {
+		return errors.New("route must be at most 250 characters")
+	}
+
+	if routeID != "" && !validation.IsValidUUID(routeID) {
+		return errors.New("routeId must be a valid UUID")
+	}
+
+	if transactionDate != "" {
+		parsedDate, err := parseTransactionDate(transactionDate)
+		if err != nil {
+			return err
+		}
+
+		if parsedDate.After(time.Now()) {
+			return errors.New("transactionDate cannot be in the future")
+		}
+
+		if pending {
+			return errors.New("pending transactions cannot have a custom transactionDate")
 		}
 	}
 
-	// If Send is provided, validate it
-	if input.Send != nil {
-		if err := input.Send.Validate(); err != nil {
-			return fmt.Errorf("invalid send: %w", err)
+	if len(metadata) > 0 {
+		if err := core.ValidateMetadata(metadata); err != nil {
+			return fmt.Errorf("invalid metadata: %w", err)
 		}
 	}
 
 	return nil
 }
 
-// NewCreateTransactionInput creates a new CreateTransactionInput with required fields.
-// This constructor ensures that all mandatory fields are provided when creating a transaction input.
-func NewCreateTransactionInput(assetCode string, amount string) *CreateTransactionInput {
+func parseTransactionDate(value string) (time.Time, error) {
+	for _, format := range transactionDateFormats {
+		if parsed, err := time.Parse(format, value); err == nil {
+			return parsed, nil
+		}
+	}
+
+	return time.Time{}, errors.New("transactionDate must be RFC3339 date-time with explicit timezone")
+}
+
+func transactionCommonMap(chartOfAccountsGroupName, description, code string, metadata map[string]any, route, routeID, transactionDate string, pending bool) map[string]any {
+	tx := map[string]any{}
+	if chartOfAccountsGroupName != "" {
+		tx["chartOfAccountsGroupName"] = chartOfAccountsGroupName
+	}
+
+	if description != "" {
+		tx["description"] = description
+	}
+
+	if code != "" {
+		tx["code"] = code
+	}
+
+	if pending {
+		tx["pending"] = pending
+	}
+
+	if len(metadata) > 0 {
+		tx["metadata"] = metadata
+	}
+
+	if route != "" {
+		tx["route"] = route
+	}
+
+	if routeID != "" {
+		tx["routeId"] = routeID
+	}
+
+	if transactionDate != "" {
+		tx["transactionDate"] = transactionDate
+	}
+
+	return tx
+}
+
+// NewCreateTransactionInput creates a new CreateTransactionInput with the send asset/value initialized.
+func NewCreateTransactionInput(assetCode string, amount any) *CreateTransactionInput {
+	amountValue := decimalStringFromAny(amount)
+
 	return &CreateTransactionInput{
 		AssetCode: assetCode,
-		Amount:    amount,
+		Amount:    amountValue,
+		Send: &SendInput{
+			Asset: assetCode,
+			Value: amountValue,
+		},
 	}
 }
 
@@ -1059,15 +581,27 @@ func (input *CreateTransactionInput) WithMetadata(metadata map[string]any) *Crea
 
 // WithExternalID sets the external ID.
 // This links the transaction to external systems.
+// Deprecated: externalId is not sent in the current Midaz CreateTransaction contract.
 func (input *CreateTransactionInput) WithExternalID(externalID string) *CreateTransactionInput {
 	input.ExternalID = externalID
 	return input
 }
 
-// WithOperations sets the operations list.
-// This defines the individual debit and credit operations.
-func (input *CreateTransactionInput) WithOperations(operations []CreateOperationInput) *CreateTransactionInput {
-	input.Operations = operations
+// WithRouteID sets the route UUID.
+func (input *CreateTransactionInput) WithRouteID(routeID string) *CreateTransactionInput {
+	input.RouteID = routeID
+	return input
+}
+
+// WithTransactionDate sets the transaction effective date/time.
+func (input *CreateTransactionInput) WithTransactionDate(transactionDate string) *CreateTransactionInput {
+	input.TransactionDate = transactionDate
+	return input
+}
+
+// WithPending sets whether the transaction should be created in pending state.
+func (input *CreateTransactionInput) WithPending(pending bool) *CreateTransactionInput {
+	input.Pending = pending
 	return input
 }
 
@@ -1078,17 +612,30 @@ func (input *CreateTransactionInput) WithSend(send *SendInput) *CreateTransactio
 	return input
 }
 
+// WithOperations sets legacy operation inputs and adapts them to the canonical send payload.
+func (input *CreateTransactionInput) WithOperations(operations []CreateOperationInput) *CreateTransactionInput {
+	input.Operations = operations
+	input.Send = nil
+	input.ensureSendFromLegacyOperations()
+
+	return input
+}
+
 // Validate checks that the SendInput meets all validation requirements.
 // It returns an error if any of the validation checks fail.
 func (input *SendInput) Validate() error {
+	if input == nil {
+		return errors.New("send is required")
+	}
+
 	// Validate asset code
 	if input.Asset == "" {
 		return errors.New("asset is required")
 	}
 
 	// Validate value
-	if input.Value == "" || input.Value == "0" {
-		return errors.New("value must be greater than zero")
+	if err := validatePositiveDecimalString(input.Value, "value"); err != nil {
+		return err
 	}
 
 	// Validate source
@@ -1115,6 +662,10 @@ func (input *SendInput) Validate() error {
 // Validate checks that the SourceInput meets all validation requirements.
 // It returns an error if any of the validation checks fail.
 func (input *SourceInput) Validate() error {
+	if input == nil {
+		return errors.New("source is required")
+	}
+
 	// Validate from
 	if len(input.From) == 0 {
 		return errors.New("from is required")
@@ -1133,6 +684,10 @@ func (input *SourceInput) Validate() error {
 // Validate checks that the DistributeInput meets all validation requirements.
 // It returns an error if any of the validation checks fail.
 func (input *DistributeInput) Validate() error {
+	if input == nil {
+		return errors.New("distribute is required")
+	}
+
 	// Validate to
 	if len(input.To) == 0 {
 		return errors.New("to is required")
@@ -1151,8 +706,12 @@ func (input *DistributeInput) Validate() error {
 // Validate checks that the FromToInput meets all validation requirements.
 // It returns an error if any of the validation checks fail.
 func (input *FromToInput) Validate() error {
+	if input == nil {
+		return errors.New("from/to entry is required")
+	}
+
 	// Validate account
-	if input.Account == "" {
+	if input.Account == "" && input.AccountAlias == "" {
 		return errors.New("account is required")
 	}
 
@@ -1161,23 +720,34 @@ func (input *FromToInput) Validate() error {
 		return fmt.Errorf("invalid amount: %w", err)
 	}
 
+	if input.RouteID != nil && strings.TrimSpace(*input.RouteID) != "" {
+		if !validation.IsValidUUID(*input.RouteID) {
+			return errors.New("routeId must be a valid UUID")
+		}
+	}
+
+	if len(input.Metadata) > 0 {
+		if err := core.ValidateMetadata(input.Metadata); err != nil {
+			return fmt.Errorf("invalid metadata: %w", err)
+		}
+	}
+
 	return nil
 }
 
 // Validate checks that the AmountInput meets all validation requirements.
 // It returns an error if any of the validation checks fail.
 func (input *AmountInput) Validate() error {
+	if input == nil {
+		return errors.New("amount is required")
+	}
+
 	// Validate asset
 	if input.Asset == "" {
 		return errors.New("asset is required")
 	}
 
-	// Validate value
-	if input.Value == "" || input.Value == "0" {
-		return errors.New("value must be greater than zero")
-	}
-
-	return nil
+	return validatePositiveDecimalString(input.Value, "value")
 }
 
 // ToLibTransaction converts a CreateTransactionInput to a lib-commons transaction.
@@ -1186,6 +756,8 @@ func (input *CreateTransactionInput) ToLibTransaction() map[string]any {
 	if input == nil {
 		return nil
 	}
+
+	input.ensureSendFromLegacyOperations()
 
 	// Create a map to hold the transaction data
 	tx := map[string]any{}
@@ -1205,9 +777,21 @@ func (input *CreateTransactionInput) ToLibTransaction() map[string]any {
 		tx["pending"] = input.Pending
 	}
 
+	if input.Code != "" {
+		tx["code"] = input.Code
+	}
+
 	// Add route if provided
 	if input.Route != "" {
 		tx["route"] = input.Route
+	}
+
+	if input.RouteID != "" {
+		tx["routeId"] = input.RouteID
+	}
+
+	if input.TransactionDate != "" {
+		tx["transactionDate"] = input.TransactionDate
 	}
 
 	// Add send information if present (required by API)
@@ -1223,6 +807,77 @@ func (input *CreateTransactionInput) ToLibTransaction() map[string]any {
 	return tx
 }
 
+func (input *CreateTransactionInput) ensureSendFromLegacyOperations() {
+	if input == nil || input.Send != nil || len(input.Operations) == 0 {
+		return
+	}
+
+	asset := input.AssetCode
+	if asset == "" && len(input.Operations) > 0 {
+		asset = input.Operations[0].AssetCode
+	}
+
+	send := &SendInput{
+		Asset:      asset,
+		Value:      normalizedOperationAmount(input.Amount),
+		Source:     &SourceInput{},
+		Distribute: &DistributeInput{},
+	}
+
+	for _, operation := range input.Operations {
+		entry := FromToInput{
+			Account: operation.AccountID,
+			Amount: AmountInput{
+				Asset: operation.AssetCode,
+				Value: normalizedOperationAmount(operation.Amount),
+			},
+			Route: operation.Route,
+		}
+		if entry.Amount.Asset == "" {
+			entry.Amount.Asset = asset
+		}
+
+		if operation.AccountAlias != nil && *operation.AccountAlias != "" {
+			entry.Account = *operation.AccountAlias
+			entry.AccountAlias = *operation.AccountAlias
+		}
+
+		switch strings.ToLower(operation.Type) {
+		case "debit", "source":
+			send.Source.From = append(send.Source.From, entry)
+		case "credit", "destination":
+			send.Distribute.To = append(send.Distribute.To, entry)
+		}
+	}
+
+	input.Send = send
+}
+
+func normalizedOperationAmount(amount any) string {
+	switch value := amount.(type) {
+	case Amount:
+		if value.Value == nil {
+			return ""
+		}
+
+		return value.Value.String()
+	case *Amount:
+		if value == nil || value.Value == nil {
+			return ""
+		}
+
+		return value.Value.String()
+	case *decimal.Decimal:
+		if value == nil {
+			return ""
+		}
+
+		return value.String()
+	default:
+		return decimalStringFromAny(amount)
+	}
+}
+
 // ToMap converts a SendInput to a map.
 // This is used internally by the SDK to convert the input to the format expected by the backend.
 func (input *SendInput) ToMap() map[string]any {
@@ -1232,7 +887,7 @@ func (input *SendInput) ToMap() map[string]any {
 
 	send := map[string]any{
 		"asset": input.Asset,
-		"value": input.Value, // API expects value as string
+		"value": decimalStringFromAny(input.Value),
 	}
 
 	// Add source information if present
@@ -1295,16 +950,53 @@ func (input *DistributeInput) ToMap() map[string]any {
 // ToMap converts a FromToInput to a map.
 // This is used internally by the SDK to convert the input to the format expected by the backend.
 func (input FromToInput) ToMap() map[string]any {
-	fromTo := map[string]any{
-		"accountAlias": input.Account,
+	accountAlias := input.AccountAlias
+	if accountAlias == "" {
+		accountAlias = input.Account
 	}
 
-	// Add amount information
-	fromTo["amount"] = input.Amount.ToMap()
+	fromTo := map[string]any{
+		"accountAlias": accountAlias,
+	}
 
-	// Add route information if provided
+	if input.BalanceKey != "" {
+		fromTo["balanceKey"] = input.BalanceKey
+	}
+
+	if amount := input.Amount.ToMap(); amount != nil {
+		fromTo["amount"] = amount
+	}
+
+	if input.Share != nil {
+		fromTo["share"] = input.Share
+	}
+
+	if input.Remaining != "" {
+		fromTo["remaining"] = input.Remaining
+	}
+
+	if input.Rate != nil {
+		fromTo["rate"] = input.Rate
+	}
+
+	if input.Description != "" {
+		fromTo["description"] = input.Description
+	}
+
+	if input.ChartOfAccounts != "" {
+		fromTo["chartOfAccounts"] = input.ChartOfAccounts
+	}
+
+	if len(input.Metadata) > 0 {
+		fromTo["metadata"] = input.Metadata
+	}
+
 	if input.Route != "" {
 		fromTo["route"] = input.Route
+	}
+
+	if input.RouteID != nil && *input.RouteID != "" {
+		fromTo["routeId"] = *input.RouteID
 	}
 
 	return fromTo
@@ -1313,9 +1005,13 @@ func (input FromToInput) ToMap() map[string]any {
 // ToMap converts an AmountInput to a map.
 // This is used internally by the SDK to convert the input to the format expected by the backend.
 func (input *AmountInput) ToMap() map[string]any {
+	if input == nil || (input.Asset == "" && input.Value == "") {
+		return nil
+	}
+
 	return map[string]any{
 		"asset": input.Asset,
-		"value": input.Value, // API expects value as string
+		"value": decimalStringFromAny(input.Value),
 	}
 }
 
@@ -1347,17 +1043,17 @@ func (t *Transaction) ToTransactionMap() map[string]any {
 
 	// Convert Operations
 	for _, op := range t.Operations {
-		entry := map[string]any{
-			"account": op.AccountID,
-			"amount": map[string]any{
-				"value": op.Amount,
-				"asset": op.AssetCode,
-			},
+		accountAlias := op.AccountAlias
+		if accountAlias == "" {
+			accountAlias = op.AccountID
 		}
 
-		// Add alias as description if present
-		if op.AccountAlias != "" {
-			entry["description"] = op.AccountAlias
+		entry := map[string]any{
+			"accountAlias": accountAlias,
+			"amount": map[string]any{
+				"value": op.Amount.Value,
+				"asset": op.AssetCode,
+			},
 		}
 
 		// Add to appropriate list based on operation type
@@ -1421,9 +1117,9 @@ type UpdateTransactionInput struct {
 	// This should provide context about the purpose or nature of the transaction
 	Description string `json:"description,omitempty"`
 
-	// ExternalID is an optional identifier for linking to external systems
-	// This can be used to correlate transactions with records in other systems
-	ExternalID string `json:"externalId,omitempty"`
+	// ExternalID is retained for backward compatibility but is not part of the
+	// current Midaz UpdateTransaction contract.
+	ExternalID string `json:"-"`
 }
 
 // Validate checks if the UpdateTransactionInput meets the validation requirements.
@@ -1432,14 +1128,13 @@ type UpdateTransactionInput struct {
 // Returns:
 //   - error: An error if the input is invalid, nil otherwise
 func (input *UpdateTransactionInput) Validate() error {
+	if input == nil {
+		return errors.New("input is required")
+	}
+
 	// Validate description length if provided
 	if input.Description != "" && len(input.Description) > 256 {
 		return errors.New("description must not exceed 256 characters")
-	}
-
-	// Validate external ID if provided
-	if input.ExternalID != "" && len(input.ExternalID) > 64 {
-		return errors.New("externalId must not exceed 64 characters")
 	}
 
 	// Validate metadata if provided
@@ -1490,6 +1185,7 @@ func (input *UpdateTransactionInput) WithDescription(description string) *Update
 
 // WithExternalID sets the external ID.
 // This method allows setting or updating the external system identifier for the transaction.
+// Deprecated: externalId is not sent in the current Midaz UpdateTransaction contract.
 //
 // Parameters:
 //   - externalID: The external identifier for linking to other systems
@@ -1519,6 +1215,12 @@ type CreateInflowInput struct {
 	// Route is the transaction route identifier
 	Route string `json:"route,omitempty"`
 
+	// RouteID is the UUID transaction route identifier.
+	RouteID string `json:"routeId,omitempty"`
+
+	// TransactionDate is the effective date/time for the transaction.
+	TransactionDate string `json:"transactionDate,omitempty"`
+
 	// Send contains the asset, value, and distribution details
 	Send *SendInflowInput `json:"send"`
 }
@@ -1528,19 +1230,19 @@ type SendInflowInput struct {
 	// Asset is the asset code being transferred
 	Asset string `json:"asset"`
 
-	// Value is the amount being transferred
-	Value string `json:"value"`
+	// Value is the exact decimal amount being transferred.
+	Value any `json:"value"`
 
 	// Distribute contains the destination accounts
 	Distribute *DistributeInput `json:"distribute"`
 }
 
 // NewCreateInflowInput creates a new CreateInflowInput with the required fields.
-func NewCreateInflowInput(asset, value string, distribute *DistributeInput) *CreateInflowInput {
+func NewCreateInflowInput(asset string, value any, distribute *DistributeInput) *CreateInflowInput {
 	return &CreateInflowInput{
 		Send: &SendInflowInput{
 			Asset:      asset,
-			Value:      value,
+			Value:      decimalStringFromAny(value),
 			Distribute: distribute,
 		},
 	}
@@ -1576,25 +1278,72 @@ func (input *CreateInflowInput) WithRoute(route string) *CreateInflowInput {
 	return input
 }
 
+// WithRouteID sets the route UUID.
+func (input *CreateInflowInput) WithRouteID(routeID string) *CreateInflowInput {
+	input.RouteID = routeID
+	return input
+}
+
+// WithTransactionDate sets the transaction effective date/time.
+func (input *CreateInflowInput) WithTransactionDate(transactionDate string) *CreateInflowInput {
+	input.TransactionDate = transactionDate
+	return input
+}
+
 // Validate checks that the CreateInflowInput meets all validation requirements.
 func (input *CreateInflowInput) Validate() error {
+	if input == nil {
+		return errors.New("input is required")
+	}
+
 	if input.Send == nil {
 		return errors.New("send is required")
+	}
+
+	if err := validateTransactionCreateCommon(input.Description, input.Code, input.Metadata, input.Route, input.RouteID, input.TransactionDate, false); err != nil {
+		return err
 	}
 
 	if input.Send.Asset == "" {
 		return errors.New("asset is required")
 	}
 
-	if input.Send.Value == "" || input.Send.Value == "0" {
-		return errors.New("value must be greater than zero")
+	if err := validatePositiveDecimalString(input.Send.Value, "value"); err != nil {
+		return err
 	}
 
 	if input.Send.Distribute == nil || len(input.Send.Distribute.To) == 0 {
 		return errors.New("distribute.to is required")
 	}
 
+	if err := input.Send.Distribute.Validate(); err != nil {
+		return fmt.Errorf("invalid distribute: %w", err)
+	}
+
 	return nil
+}
+
+// ToMap converts a CreateInflowInput to a map for API requests.
+func (input *CreateInflowInput) ToMap() map[string]any {
+	if input == nil {
+		return nil
+	}
+
+	tx := transactionCommonMap(input.ChartOfAccountsGroupName, input.Description, input.Code, input.Metadata, input.Route, input.RouteID, input.TransactionDate, false)
+	if input.Send != nil {
+		send := map[string]any{
+			"asset": input.Send.Asset,
+			"value": decimalStringFromAny(input.Send.Value),
+		}
+
+		if input.Send.Distribute != nil {
+			send["distribute"] = input.Send.Distribute.ToMap()
+		}
+
+		tx["send"] = send
+	}
+
+	return tx
 }
 
 // CreateOutflowInput represents input for creating an outflow transaction.
@@ -1615,6 +1364,15 @@ type CreateOutflowInput struct {
 	// Route is the transaction route identifier
 	Route string `json:"route,omitempty"`
 
+	// RouteID is the UUID transaction route identifier.
+	RouteID string `json:"routeId,omitempty"`
+
+	// Pending indicates whether the transaction should be created in a pending state.
+	Pending bool `json:"pending,omitempty"`
+
+	// TransactionDate is the effective date/time for the transaction.
+	TransactionDate string `json:"transactionDate,omitempty"`
+
 	// Send contains the asset, value, and source details
 	Send *SendOutflowInput `json:"send"`
 }
@@ -1624,19 +1382,19 @@ type SendOutflowInput struct {
 	// Asset is the asset code being transferred
 	Asset string `json:"asset"`
 
-	// Value is the amount being transferred
-	Value string `json:"value"`
+	// Value is the exact decimal amount being transferred.
+	Value any `json:"value"`
 
 	// Source contains the source accounts
 	Source *SourceInput `json:"source"`
 }
 
 // NewCreateOutflowInput creates a new CreateOutflowInput with the required fields.
-func NewCreateOutflowInput(asset, value string, source *SourceInput) *CreateOutflowInput {
+func NewCreateOutflowInput(asset string, value any, source *SourceInput) *CreateOutflowInput {
 	return &CreateOutflowInput{
 		Send: &SendOutflowInput{
 			Asset:  asset,
-			Value:  value,
+			Value:  decimalStringFromAny(value),
 			Source: source,
 		},
 	}
@@ -1672,73 +1430,153 @@ func (input *CreateOutflowInput) WithRoute(route string) *CreateOutflowInput {
 	return input
 }
 
+// WithRouteID sets the route UUID.
+func (input *CreateOutflowInput) WithRouteID(routeID string) *CreateOutflowInput {
+	input.RouteID = routeID
+	return input
+}
+
+// WithTransactionDate sets the transaction effective date/time.
+func (input *CreateOutflowInput) WithTransactionDate(transactionDate string) *CreateOutflowInput {
+	input.TransactionDate = transactionDate
+	return input
+}
+
 // Validate checks that the CreateOutflowInput meets all validation requirements.
 func (input *CreateOutflowInput) Validate() error {
+	if input == nil {
+		return errors.New("input is required")
+	}
+
 	if input.Send == nil {
 		return errors.New("send is required")
+	}
+
+	if err := validateTransactionCreateCommon(input.Description, input.Code, input.Metadata, input.Route, input.RouteID, input.TransactionDate, input.Pending); err != nil {
+		return err
 	}
 
 	if input.Send.Asset == "" {
 		return errors.New("asset is required")
 	}
 
-	if input.Send.Value == "" || input.Send.Value == "0" {
-		return errors.New("value must be greater than zero")
+	if err := validatePositiveDecimalString(input.Send.Value, "value"); err != nil {
+		return err
 	}
 
 	if input.Send.Source == nil || len(input.Send.Source.From) == 0 {
 		return errors.New("source.from is required")
 	}
 
+	if err := input.Send.Source.Validate(); err != nil {
+		return fmt.Errorf("invalid source: %w", err)
+	}
+
 	return nil
 }
 
-// CreateAnnotationInput represents input for creating an annotation transaction.
-// Annotation transactions do not affect balances - they are used for adding metadata/notes to the ledger.
-type CreateAnnotationInput struct {
-	// ChartOfAccountsGroupName for accounting purposes
-	ChartOfAccountsGroupName string `json:"chartOfAccountsGroupName,omitempty"`
+// ToMap converts a CreateOutflowInput to a map for API requests.
+func (input *CreateOutflowInput) ToMap() map[string]any {
+	if input == nil {
+		return nil
+	}
 
-	// Description provides a human-readable explanation (required for annotations)
-	Description string `json:"description"`
+	tx := transactionCommonMap(input.ChartOfAccountsGroupName, input.Description, input.Code, input.Metadata, input.Route, input.RouteID, input.TransactionDate, input.Pending)
+	if input.Send != nil {
+		send := map[string]any{
+			"asset": input.Send.Asset,
+			"value": decimalStringFromAny(input.Send.Value),
+		}
 
-	// Code is a transaction reference code
-	Code string `json:"code,omitempty"`
+		if input.Send.Source != nil {
+			send["source"] = input.Send.Source.ToMap()
+		}
 
-	// Metadata contains custom key-value data
-	Metadata map[string]any `json:"metadata,omitempty"`
+		tx["send"] = send
+	}
+
+	return tx
 }
 
-// NewCreateAnnotationInput creates a new CreateAnnotationInput with the required fields.
-func NewCreateAnnotationInput(description string) *CreateAnnotationInput {
+// CreateAnnotationInput is the payload for creating an annotation transaction.
+type CreateAnnotationInput struct {
+	ChartOfAccountsGroupName string         `json:"chartOfAccountsGroupName,omitempty"`
+	Description              string         `json:"description,omitempty"`
+	Pending                  bool           `json:"pending,omitempty"`
+	Code                     string         `json:"code,omitempty"`
+	Route                    string         `json:"route,omitempty"`
+	RouteID                  string         `json:"routeId,omitempty"`
+	TransactionDate          string         `json:"transactionDate,omitempty"`
+	Metadata                 map[string]any `json:"metadata,omitempty"`
+	Send                     *SendInput     `json:"send,omitempty"`
+}
+
+// NewCreateAnnotationInput creates a new CreateAnnotationInput.
+func NewCreateAnnotationInput(description string, send ...*SendInput) *CreateAnnotationInput {
+	var sendInput *SendInput
+	if len(send) > 0 {
+		sendInput = send[0]
+	}
+
 	return &CreateAnnotationInput{
 		Description: description,
+		Send:        sendInput,
 	}
 }
 
-// WithCode sets the code.
+// Validate checks that the CreateAnnotationInput meets all validation requirements.
+func (input *CreateAnnotationInput) Validate() error {
+	if input == nil {
+		return errors.New("input is required")
+	}
+
+	if err := validateTransactionCreateCommon(input.Description, input.Code, input.Metadata, input.Route, input.RouteID, input.TransactionDate, input.Pending); err != nil {
+		return err
+	}
+
+	if input.Send != nil {
+		if err := input.Send.Validate(); err != nil {
+			return fmt.Errorf("invalid send: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// ToLibTransaction converts a CreateAnnotationInput to the backend transaction payload.
+func (input *CreateAnnotationInput) ToLibTransaction() map[string]any {
+	if input == nil {
+		return nil
+	}
+
+	tx := transactionCommonMap(input.ChartOfAccountsGroupName, input.Description, input.Code, input.Metadata, input.Route, input.RouteID, input.TransactionDate, input.Pending)
+	if input.Send != nil {
+		tx["send"] = input.Send.ToMap()
+	}
+
+	return tx
+}
+
+// WithCode sets the annotation transaction code.
 func (input *CreateAnnotationInput) WithCode(code string) *CreateAnnotationInput {
 	input.Code = code
 	return input
 }
 
-// WithMetadata sets the metadata.
+// WithMetadata sets annotation transaction metadata.
 func (input *CreateAnnotationInput) WithMetadata(metadata map[string]any) *CreateAnnotationInput {
 	input.Metadata = metadata
 	return input
 }
 
-// WithChartOfAccountsGroupName sets the chart of accounts group name.
-func (input *CreateAnnotationInput) WithChartOfAccountsGroupName(name string) *CreateAnnotationInput {
-	input.ChartOfAccountsGroupName = name
+// WithCode sets the transaction code.
+func (input *CreateTransactionInput) WithCode(code string) *CreateTransactionInput {
+	input.Code = code
 	return input
 }
 
-// Validate checks that the CreateAnnotationInput meets all validation requirements.
-func (input *CreateAnnotationInput) Validate() error {
-	if input.Description == "" {
-		return errors.New("description is required for annotation transactions")
-	}
-
-	return nil
+// WithPending sets the pending flag.
+func (input *CreateOutflowInput) WithPending(pending bool) *CreateOutflowInput {
+	input.Pending = pending
+	return input
 }

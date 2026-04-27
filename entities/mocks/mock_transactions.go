@@ -243,6 +243,30 @@ func (mr *MockTransactionsServiceMockRecorder) CancelTransaction(ctx, orgID, led
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CancelTransaction", reflect.TypeOf((*MockTransactionsService)(nil).CancelTransaction), ctx, orgID, ledgerID, transactionID)
 }
 
+// CancelTransactionWithResponse mocks base method.
+func (m *MockTransactionsService) CancelTransactionWithResponse(ctx context.Context, orgID, ledgerID, transactionID string) (*models.Transaction, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CancelTransactionWithResponse", ctx, orgID, ledgerID, transactionID)
+
+	var ret0 *models.Transaction
+	if ret[0] != nil {
+		ret0, _ = ret[0].(*models.Transaction) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	var ret1 error
+	if len(ret) > 1 && ret[1] != nil {
+		ret1, _ = ret[1].(error) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	return ret0, ret1
+}
+
+// CancelTransactionWithResponse indicates an expected call of CancelTransactionWithResponse.
+func (mr *MockTransactionsServiceMockRecorder) CancelTransactionWithResponse(ctx, orgID, ledgerID, transactionID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CancelTransactionWithResponse", reflect.TypeOf((*MockTransactionsService)(nil).CancelTransactionWithResponse), ctx, orgID, ledgerID, transactionID)
+}
+
 // CreateInflowTransaction mocks base method.
 func (m *MockTransactionsService) CreateInflowTransaction(ctx context.Context, orgID, ledgerID string, input *models.CreateInflowInput) (*models.Transaction, error) {
 	m.ctrl.T.Helper()

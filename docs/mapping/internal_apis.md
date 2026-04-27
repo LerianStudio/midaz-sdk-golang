@@ -1,725 +1,254 @@
-# Midaz Go SDK Internal API Map
+# Midaz Go SDK internal API map
 
-This document provides a comprehensive overview of the internal APIs used by the Midaz Go SDK, organized by package and purpose. These APIs are not intended for direct use by SDK consumers but are documented here for SDK maintainers and contributors.
+This map is for SDK maintainers. It describes the implementation structure behind the public API. SDK consumers should prefer [external_apis.md](./external_apis.md).
 
-## Table of Contents
+## Runtime architecture
 
-- [I. Client Package](#i-client-package-midazclient)
-- [II. Resource Clients](#ii-resource-clients-midazclient)
-- [III. Models Package](#iii-models-package-midazmodels)
-- [IV. Error Handling](#iv-error-handling-midazerrors)
-- [V. Implementation Patterns](#v-implementation-patterns)
+The current SDK is organized around a root client and an entity layer:
 
-## I. Client Package (`midaz/client`)
+1. `client.Client` owns configuration, observability, lifecycle, and optional API surface initialization.
+2. `pkg/config.Config` resolves service URLs, Access Manager settings, retry/debug options, HTTP client, and observability provider.
+3. `entities.Entity` exposes the service interfaces used by consumers.
+4. Private entity implementations such as `accountsEntity`, `transactionsEntity`, and `holdersEntity` translate service methods into HTTP requests.
+5. `entities.HTTPClient` handles request construction, authentication headers, tenant/idempotency headers, tracing propagation, retry behavior, debug logging, and response/error conversion.
+6. `models` contains public request/response structures, Midaz model aliases, list options, pagination metadata, and builder helpers.
 
-The client package provides the foundation for all API interactions, handling HTTP requests, authentication, and error processing.
+The SDK does not currently use the older `apiClient`, `httpClient`, or per-resource `organizationClient` style architecture.
 
-### HTTP Client
+## Root client internals
 
-- `httpClient` - Handles all HTTP requests to the Midaz API
+`client.Client` includes:
 
-  ```go
-  type httpClient struct {
-      baseURL       string
-      authToken     string
-      httpClient    *http.Client
-      debug         bool
-      userAgent     string
-      retryOptions  *retry.Options
-      jsonPool      *performance.JSONPool
-      metrics       observability.MetricsProvider
-      observability observability.Provider
-  }
-  ```
+- `Entity *entities.Entity` - Set only when `UseAllAPIs`, `UseEntityAPI`, or `UseEntity` is provided.
+- `config *config.Config` - Resolved SDK configuration.
+- `observability observability.Provider` - Optional tracing, metrics, and logging provider.
+- `httpClient *http.Client` - Underlying HTTP client.
+- Retry, timeout, debug, and URL override fields used while applying client options.
 
-  - `Do(ctx context.Context, req *http.Request) (*http.Response, error)` - Executes an HTTP request with retries and error handling
+Entity initialization is gated by the `useEntity` flag. Docs and examples that access `c.Entity` must create the client with `client.UseAllAPIs()` or `client.UseEntityAPI()`.
 
-    ```go
-    // Implementation pattern
-    func (c *httpClient) Do(ctx context.Context, req *http.Request) (*http.Response, error) {
-        // Add authentication headers
-        req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.authToken))
-        req.Header.Set("User-Agent", c.userAgent)
+## Configuration flow
 
-        // Execute request with retry logic
-        var resp *http.Response
-        var err error
-        for attempt := 0; attempt < maxRetries; attempt++ {
-            resp, err = c.httpClient.Do(req.WithContext(ctx))
-            if err == nil || !isRetryableError(err) {
-                break
-            }
-            time.Sleep(backoffDuration(attempt))
-        }
-
-        // Handle response errors
-        if err != nil {
-            return nil, err
-        }
-
-        if resp.StatusCode >= 400 {
-            return resp, handleErrorResponse(resp)
-        }
-
-        return resp, nil
-    }
-    ```
-
-  - `Get(ctx context.Context, path string, params url.Values) (*http.Response, error)` - Performs an HTTP GET request
-  - `Post(ctx context.Context, path string, body interface{}) (*http.Response, error)` - Performs an HTTP POST request
-  - `Put(ctx context.Context, path string, body interface{}) (*http.Response, error)` - Performs an HTTP PUT request
-  - `Delete(ctx context.Context, path string) (*http.Response, error)` - Performs an HTTP DELETE request
-  - `Patch(ctx context.Context, path string, body interface{}) (*http.Response, error)` - Performs an HTTP PATCH request
-
-### API Client
-
-- `apiClient` - Base client for all API operations
-
-  ```go
-  type apiClient struct {
-      httpClient      *httpClient
-      serviceURLs     map[string]string // Map of service names to URLs
-      timeout         time.Duration
-      debug           bool
-      userAgent       string
-      observability   observability.Provider
-  }
-  ```
-
-  - `SetAuthToken(token string)` - Sets the authentication token
-
-    ```go
-    func (c *apiClient) SetAuthToken(token string) {
-        c.httpClient.authToken = token
-    }
-    ```
-
-  - `SetServiceURLs(serviceURLs map[string]string)` - Sets the service-specific URLs
-
-    ```go
-    func (c *apiClient) SetServiceURLs(serviceURLs map[string]string) {
-        c.serviceURLs = serviceURLs
-    }
-    ```
-
-  - `SetTimeout(seconds int)` - Sets the request timeout
-  - `SetDebug(debug bool)` - Enables or disables debug mode
-  - `SetUserAgent(userAgent string)` - Sets the user agent string used for API requests
-
-## II. Resource Clients (`midaz/client`)
-
-These clients handle specific resource operations. Each client encapsulates the API operations for a specific resource type.
-
-### Organization Client
-
-- `organizationClient` - Handles organization-related API operations
-
-  ```go
-  type organizationClient struct {
-      apiClient *apiClient
-  }
-  ```
-
-  - `List(ctx context.Context, opts *models.ListOptions) (*models.ListResponse[models.Organization], error)` - Lists organizations
-
-    ```go
-    // Implementation pattern
-    func (c *organizationClient) List(ctx context.Context, opts *models.ListOptions) (*models.ListResponse[models.Organization], error) {
-        path := "/organizations"
-        params := url.Values{}
-
-        // Add pagination parameters
-        if opts != nil {
-            if opts.Page > 0 {
-                params.Set("page", strconv.Itoa(opts.Page))
-            }
-            if opts.Limit > 0 {
-                params.Set("limit", strconv.Itoa(opts.Limit))
-            }
-            // Add other filter parameters
-        }
-
-        resp, err := c.apiClient.httpClient.Get(ctx, path, params)
-        if err != nil {
-            return nil, err
-        }
-        defer resp.Body.Close()
-
-        var result models.ListResponse[models.Organization]
-        if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-            return nil, err
-        }
-
-        return &result, nil
-    }
-    ```
-
-  - `Get(ctx context.Context, id string) (*models.Organization, error)` - Gets an organization by ID
-  - `Create(ctx context.Context, input *models.CreateOrganizationInput) (*models.Organization, error)` - Creates a new organization
-  - `Update(ctx context.Context, id string, input *models.UpdateOrganizationInput) (*models.Organization, error)` - Updates an organization
-  - `Delete(ctx context.Context, id string) error` - Deletes an organization
-
-### Ledger Client
-
-- `ledgerClient` - Handles ledger-related API operations
-
-  ```go
-  type ledgerClient struct {
-      apiClient *apiClient
-  }
-  ```
-
-  - `List(ctx context.Context, organizationID string, opts *models.ListOptions) (*models.ListResponse[models.Ledger], error)` - Lists ledgers for an organization
-  - `Get(ctx context.Context, organizationID, id string) (*models.Ledger, error)` - Gets a ledger by ID
-  - `Create(ctx context.Context, organizationID string, input *models.CreateLedgerInput) (*models.Ledger, error)` - Creates a new ledger
-  - `Update(ctx context.Context, organizationID, id string, input *models.UpdateLedgerInput) (*models.Ledger, error)` - Updates a ledger
-  - `Delete(ctx context.Context, organizationID, id string) error` - Deletes a ledger
-
-### Account Client
-
-- `accountClient` - Handles account-related API operations
-
-  ```go
-  type accountClient struct {
-      apiClient *apiClient
-  }
-  ```
-
-  - `List(ctx context.Context, organizationID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Account], error)` - Lists accounts for a ledger
-  - `Get(ctx context.Context, organizationID, ledgerID, id string) (*models.Account, error)` - Gets an account by ID
-  - `GetByAlias(ctx context.Context, organizationID, ledgerID, alias string) (*models.Account, error)` - Gets an account by alias
-  - `Create(ctx context.Context, organizationID, ledgerID string, input *models.CreateAccountInput) (*models.Account, error)` - Creates a new account
-  - `Update(ctx context.Context, organizationID, ledgerID, id string, input *models.UpdateAccountInput) (*models.Account, error)` - Updates an account
-  - `Delete(ctx context.Context, organizationID, ledgerID, id string) error` - Deletes an account
-
-### Asset Client
-
-- `assetClient` - Handles asset-related API operations
-
-  ```go
-  type assetClient struct {
-      apiClient *apiClient
-  }
-  ```
-
-  - `List(ctx context.Context, organizationID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Asset], error)` - Lists assets for a ledger
-  - `Get(ctx context.Context, organizationID, ledgerID, id string) (*models.Asset, error)` - Gets an asset by ID
-  - `Create(ctx context.Context, organizationID, ledgerID string, input *models.CreateAssetInput) (*models.Asset, error)` - Creates a new asset
-  - `Update(ctx context.Context, organizationID, ledgerID, id string, input *models.UpdateAssetInput) (*models.Asset, error)` - Updates an asset
-  - `Delete(ctx context.Context, organizationID, ledgerID, id string) error` - Deletes an asset
-
-### Portfolio Client
-
-- `portfolioClient` - Handles portfolio-related API operations
-
-  ```go
-  type portfolioClient struct {
-      apiClient *apiClient
-  }
-  ```
-
-  - `List(ctx context.Context, organizationID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Portfolio], error)` - Lists portfolios for a ledger
-  - `Get(ctx context.Context, organizationID, ledgerID, id string) (*models.Portfolio, error)` - Gets a portfolio by ID
-  - `Create(ctx context.Context, organizationID, ledgerID string, input *models.CreatePortfolioInput) (*models.Portfolio, error)` - Creates a new portfolio
-  - `Update(ctx context.Context, organizationID, ledgerID, id string, input *models.UpdatePortfolioInput) (*models.Portfolio, error)` - Updates a portfolio
-  - `Delete(ctx context.Context, organizationID, ledgerID, id string) error` - Deletes a portfolio
-
-### Segment Client
-
-- `segmentClient` - Handles segment-related API operations
-
-  ```go
-  type segmentClient struct {
-      apiClient *apiClient
-  }
-  ```
-
-  - `List(ctx context.Context, organizationID, ledgerID, portfolioID string, opts *models.ListOptions) (*models.ListResponse[models.Segment], error)` - Lists segments for a portfolio
-  - `Get(ctx context.Context, organizationID, ledgerID, portfolioID, id string) (*models.Segment, error)` - Gets a segment by ID
-  - `Create(ctx context.Context, organizationID, ledgerID, portfolioID string, input *models.CreateSegmentInput) (*models.Segment, error)` - Creates a new segment
-  - `Update(ctx context.Context, organizationID, ledgerID, portfolioID, id string, input *models.UpdateSegmentInput) (*models.Segment, error)` - Updates a segment
-  - `Delete(ctx context.Context, organizationID, ledgerID, portfolioID, id string) error` - Deletes a segment
-
-### Transaction Client
-
-- `transactionClient` - Handles transaction-related API operations
-
-  ```go
-  type transactionClient struct {
-      apiClient *apiClient
-  }
-  ```
-
-  - `List(ctx context.Context, organizationID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Transaction], error)` - Lists transactions for a ledger
-  - `Get(ctx context.Context, organizationID, ledgerID, id string) (*models.Transaction, error)` - Gets a transaction by ID
-  - `Create(ctx context.Context, organizationID, ledgerID string, input *models.CreateTransactionInput) (*models.Transaction, error)` - Creates a new transaction
-
-    ```go
-    // Implementation pattern
-    func (c *transactionClient) Create(ctx context.Context, organizationID, ledgerID string, input *models.CreateTransactionInput) (*models.Transaction, error) {
-        path := fmt.Sprintf("/organizations/%s/ledgers/%s/transactions", organizationID, ledgerID)
-
-        resp, err := c.apiClient.httpClient.Post(ctx, path, input)
-        if err != nil {
-            return nil, err
-        }
-        defer resp.Body.Close()
-
-        var result models.Transaction
-        if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-            return nil, err
-        }
-
-        return &result, nil
-    }
-    ```
-
-  - `Commit(ctx context.Context, organizationID, ledgerID, id string) (*models.Transaction, error)` - Commits a pending transaction
-  - `Cancel(ctx context.Context, organizationID, ledgerID, id string) (*models.Transaction, error)` - Cancels a pending transaction
-
-### Balance Client
-
-- `balanceClient` - Handles balance-related API operations
-
-  ```go
-  type balanceClient struct {
-      apiClient *apiClient
-  }
-  ```
-
-  - `List(ctx context.Context, organizationID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error)` - Lists balances for a ledger
-  - `Get(ctx context.Context, organizationID, ledgerID, id string) (*models.Balance, error)` - Gets a balance by ID
-  - `Update(ctx context.Context, organizationID, ledgerID, id string, input *models.UpdateBalanceInput) (*models.Balance, error)` - Updates a balance
-
-### Account Type Client
-
-- `accountTypeClient` - Handles account type-related API operations
-
-  ```go
-  type accountTypeClient struct {
-      apiClient *apiClient
-  }
-  ```
-
-  - `List(ctx context.Context, organizationID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.AccountType], error)` - Lists account types for a ledger
-  - `Get(ctx context.Context, organizationID, ledgerID, id string) (*models.AccountType, error)` - Gets an account type by ID
-  - `Create(ctx context.Context, organizationID, ledgerID string, input *models.CreateAccountTypeInput) (*models.AccountType, error)` - Creates a new account type
-  - `Update(ctx context.Context, organizationID, ledgerID, id string, input *models.UpdateAccountTypeInput) (*models.AccountType, error)` - Updates an account type
-  - `Delete(ctx context.Context, organizationID, ledgerID, id string) error` - Deletes an account type
-
-### Operation Route Client
-
-- `operationRouteClient` - Handles operation route-related API operations
-
-  ```go
-  type operationRouteClient struct {
-      apiClient *apiClient
-  }
-  ```
-
-  - `List(ctx context.Context, organizationID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.OperationRoute], error)` - Lists operation routes for a ledger
-  - `Get(ctx context.Context, organizationID, ledgerID, id string) (*models.OperationRoute, error)` - Gets an operation route by ID
-  - `Create(ctx context.Context, organizationID, ledgerID string, input *models.CreateOperationRouteInput) (*models.OperationRoute, error)` - Creates a new operation route
-  - `Update(ctx context.Context, organizationID, ledgerID, id string, input *models.UpdateOperationRouteInput) (*models.OperationRoute, error)` - Updates an operation route
-  - `Delete(ctx context.Context, organizationID, ledgerID, id string) error` - Deletes an operation route
-
-### Transaction Route Client
-
-- `transactionRouteClient` - Handles transaction route-related API operations
-
-  ```go
-  type transactionRouteClient struct {
-      apiClient *apiClient
-  }
-  ```
-
-  - `List(ctx context.Context, organizationID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.TransactionRoute], error)` - Lists transaction routes for a ledger
-  - `Get(ctx context.Context, organizationID, ledgerID, id string) (*models.TransactionRoute, error)` - Gets a transaction route by ID
-  - `Create(ctx context.Context, organizationID, ledgerID string, input *models.CreateTransactionRouteInput) (*models.TransactionRoute, error)` - Creates a new transaction route
-  - `Update(ctx context.Context, organizationID, ledgerID, id string, input *models.UpdateTransactionRouteInput) (*models.TransactionRoute, error)` - Updates a transaction route
-  - `Delete(ctx context.Context, organizationID, ledgerID, id string) error` - Deletes a transaction route
-
-## III. Models Package (`midaz/models`)
-
-The models package defines the data structures used throughout the SDK, representing API resources, request inputs, and responses.
-
-### Resource Models
-
-These structs represent the core resources in the Midaz API:
-
-- `Organization` - Represents an organization in the system
-
-  ```go
-  type Organization struct {
-      ID            string     `json:"id"`
-      LegalName     string     `json:"legalName"`
-      LegalDocument string     `json:"legalDocument,omitempty"`
-      Status        Status     `json:"status"`
-      Address       *Address   `json:"address,omitempty"`
-      CreatedAt     time.Time  `json:"createdAt"`
-      UpdatedAt     time.Time  `json:"updatedAt"`
-      DeletedAt     *time.Time `json:"deletedAt,omitempty"`
-      Metadata      map[string]any `json:"metadata,omitempty"`
-      Tags          []string   `json:"tags,omitempty"`
-  }
-  ```
-
-- `Ledger` - Represents a ledger in the system
-- `Account` - Represents an account in the system
-- `Asset` - Represents an asset in the system
-- `Portfolio` - Represents a portfolio in the system
-- `Segment` - Represents a segment in the system
-- `Transaction` - Represents a transaction in the system
-- `Operation` - Represents an operation within a transaction
-- `Balance` - Represents an account balance
-
-### Input Models
-
-These structs represent the input data for API operations:
-
-- `CreateOrganizationInput` - Input for creating an organization
-
-  ```go
-  type CreateOrganizationInput struct {
-      LegalName     string      `json:"legalName"`
-      LegalDocument string      `json:"legalDocument,omitempty"`
-      Status        Status      `json:"status,omitempty"`
-      Address       *Address    `json:"address,omitempty"`
-      Metadata      map[string]any  `json:"metadata,omitempty"`
-      Tags          []string    `json:"tags,omitempty"`
-  }
-  ```
-
-- `UpdateOrganizationInput` - Input for updating an organization
-- `CreateLedgerInput` - Input for creating a ledger
-- `UpdateLedgerInput` - Input for updating a ledger
-- `CreateAccountInput` - Input for creating an account
-- `UpdateAccountInput` - Input for updating an account
-- `CreateAssetInput` - Input for creating an asset
-- `UpdateAssetInput` - Input for updating an asset
-- `CreatePortfolioInput` - Input for creating a portfolio
-- `UpdatePortfolioInput` - Input for updating a portfolio
-- `CreateSegmentInput` - Input for creating a segment
-- `UpdateSegmentInput` - Input for updating a segment
-- `CreateTransactionInput` - Input for creating a transaction
-- `CreateOperationInput` - Input for creating an operation
-- `UpdateBalanceInput` - Input for updating a balance
-- `CreateAccountTypeInput` - Input for creating an account type
-- `CreateOperationRouteInput` - Input for creating an operation route
-- `CreateTransactionRouteInput` - Input for creating a transaction route
-- `TransactionDSLInput` - Input for creating transactions using DSL
-
-### Response Models
-
-These structs represent API responses:
-
-- `ListResponse` - Generic paginated response for list operations
-
-  ```go
-  type ListResponse[T any] struct {
-      Items      []T   `json:"items"`
-      Page       int   `json:"page"`
-      Limit      int   `json:"limit"`
-      TotalItems int   `json:"totalItems"`
-      TotalPages int   `json:"totalPages"`
-  }
-  ```
-
-- `ListOptions` - Options for list operations
-  ```go
-  type ListOptions struct {
-      Page    int               `json:"page,omitempty"`
-      Limit   int               `json:"limit,omitempty"`
-      Filters map[string]string `json:"filters,omitempty"`
-      Sort    map[string]string `json:"sort,omitempty"`
-  }
-  ```
-
-### Common Types and Constants
-
-- `Status` - Enum for resource status
-
-  ```go
-  type Status string
-
-  const (
-      StatusActive   Status = "active"
-      StatusInactive Status = "inactive"
-      StatusPending  Status = "pending"
-  )
-  ```
-
-- `Address` - Struct for address information
-- Transaction status constants
-- Operation type constants
-- Asset type constants
-
-## IV. Error Handling (`midaz/errors`)
-
-The errors package provides standardized error types and utilities for handling errors in a consistent way.
-
-### Error Types
-
-- `MidazError` - Custom error type with additional context
-
-  ```go
-  type MidazError struct {
-      Code      string
-      Message   string
-      Err       error
-      Resource  string
-      RequestID string
-  }
-
-  // Implements the error interface
-  func (e *MidazError) Error() string {
-      if e.Resource != "" {
-          return fmt.Sprintf("%s: %s (resource: %s)", e.Code, e.Message, e.Resource)
-      }
-      return fmt.Sprintf("%s: %s", e.Code, e.Message)
-  }
-
-  // Implements the Unwrap interface for errors.Is and errors.As
-  func (e *MidazError) Unwrap() error {
-      return e.Err
-  }
-  ```
-
-### Standard Error Codes
-
-- `ErrNotFound` - Returned when a resource is not found
-- `ErrValidation` - Returned when a request fails validation
-- `ErrTimeout` - Returned when a request times out
-- `ErrAuthentication` - Returned when authentication fails
-- `ErrPermission` - Returned when the user does not have permission
-- `ErrRateLimit` - Returned when the API rate limit is exceeded
-- `ErrInternal` - Returned when an unexpected error occurs
-
-### Transaction-Specific Errors
-
-- `ErrAccountEligibility` - Returned when accounts are not eligible for a transaction
-- `ErrAssetMismatch` - Returned when accounts have different asset types
-- `ErrInsufficientBalance` - Returned when a transaction would result in a negative balance
-
-### Error Handling Utilities
-
-- `NewError()` - Creates a new MidazError with the given code and error
-- `NewErrorf()` - Creates a new MidazError with the given code and formatted message
-- `APIErrorToError()` - Converts an internal API error type to a public error
-
-### Error Type Checking
-
-- `IsNotFoundError()` - Checks if the error is a not found error
-- `IsValidationError()` - Checks if the error is a validation error
-- `IsAccountEligibilityError()` - Checks if the error is related to account eligibility
-- `IsInsufficientBalanceError()` - Checks if the error is an insufficient balance error
-- `IsAssetMismatchError()` - Checks if the error is related to asset mismatch
-- `IsTimeoutError()` - Checks if the error is related to timeout
-- `IsAuthenticationError()` - Checks if the error is related to authentication
-- `IsPermissionError()` - Checks if the error is related to permissions
-- `IsRateLimitError()` - Checks if the error is related to rate limiting
-- `IsInternalError()` - Checks if the error is an internal error
-
-### Transaction Error Utilities
-
-- `FormatTransactionError()` - Produces a standardized error message for transaction errors
-- `CategorizeTransactionError()` - Provides the error category as a string
-- `GetTransactionErrorContext()` - Returns detailed context information for transaction errors
-- `IsTransactionRetryable()` - Determines if a transaction error can be safely retried
-
-## V. Implementation Patterns
-
-This section describes common implementation patterns used throughout the SDK.
-
-### Environment Variables
-
-The SDK uses environment variables for configuration, allowing users to customize behavior without changing code:
+Configuration is explicit:
 
 ```go
-// In config/config.go
-func configFromEnvironment() Config {
-    c := Config{
-        AuthToken:       os.Getenv("MIDAZ_AUTH_TOKEN"),
-        UserAgent:       "Midaz-Go-SDK/" + Version, // Uses version constant
-        Environment:     os.Getenv("MIDAZ_ENVIRONMENT"),
-    }
+cfg, err := config.NewConfig(config.FromEnvironment())
+if err != nil {
+    return err
+}
 
-    // Override defaults with environment variables if provided
-    if onboardingURL := os.Getenv("MIDAZ_ONBOARDING_URL"); onboardingURL != "" {
-        c.OnboardingURL = onboardingURL
-    }
+c, err := client.New(
+    client.WithConfig(cfg),
+    client.UseAllAPIs(),
+)
+```
 
-    if transactionURL := os.Getenv("MIDAZ_TRANSACTION_URL"); transactionURL != "" {
-        c.TransactionURL = transactionURL
-    }
+`config.FromEnvironment()` reads:
 
-    if userAgent := os.Getenv("MIDAZ_USER_AGENT"); userAgent != "" {
-        c.UserAgent = userAgent
-    }
+- `MIDAZ_ENVIRONMENT`
+- `MIDAZ_BASE_URL`
+- `MIDAZ_ONBOARDING_URL`
+- `MIDAZ_TRANSACTION_URL`
+- `MIDAZ_CRM_URL`
+- `MIDAZ_USER_AGENT`
+- `MIDAZ_TIMEOUT`
+- `MIDAZ_DEBUG`
+- `MIDAZ_MAX_RETRIES`
+- `MIDAZ_IDEMPOTENCY`
+- `PLUGIN_AUTH_ENABLED`
+- `PLUGIN_AUTH_ADDRESS`
+- `MIDAZ_CLIENT_ID`
+- `MIDAZ_CLIENT_SECRET`
 
-    return c
+Access Manager configuration uses `auth.AccessManager` and `config.WithAccessManager`. `MIDAZ_AUTH_TOKEN` is not part of `config.FromEnvironment()`.
+
+## Service URL model
+
+The entity layer receives a service URL map. The current service keys are:
+
+- `onboarding`
+- `transaction`
+- `crm`
+
+Ledger resources are split between onboarding and transaction URL aliases for compatibility. CRM resources use the CRM URL and pass organization context via `X-Organization-Id`.
+
+## Entity service implementations
+
+Each service has a public interface and a private implementation type. Method names are explicit (`ListAccounts`, `CreateOrganization`, `CreateTransactionWithDSL`) rather than generic CRUD (`List`, `Create`).
+
+### Ledger API services
+
+- `OrganizationsService` implemented by `organizationsEntity`
+- `LedgersService` implemented by `ledgersEntity`
+- `AccountsService` implemented by `accountsEntity`
+- `AccountTypesService` implemented by `accountTypesEntity`
+- `AssetsService` implemented by `assetsEntity`
+- `AssetRatesService` implemented by `assetRatesEntity`
+- `BalancesService` implemented by `balancesEntity`
+- `PortfoliosService` implemented by `portfoliosEntity`
+- `SegmentsService` implemented by `segmentsEntity`
+- `OperationsService` implemented by `operationsEntity`
+- `OperationRoutesService` implemented by `operationRoutesEntity`
+- `TransactionRoutesService` implemented by `transactionRoutesEntity`
+- `TransactionsService` implemented by `transactionsEntity`
+- `MetadataIndexesService` implemented by `metadataIndexesEntity`
+
+### CRM services
+
+- `HoldersService` implemented by `holdersEntity`
+- `AliasesService` implemented by `aliasesEntity`
+
+CRM requests set `X-Organization-Id` and use paths under `/holders` and `/aliases`.
+
+## Transport pattern
+
+The shared `entities.HTTPClient` is responsible for the transport cross-cutting concerns:
+
+- Adds authorization after Access Manager resolves a token.
+- Adds default tenant ID when configured.
+- Adds idempotency keys from `entities.WithIdempotencyKey(ctx, key)`.
+- Injects OpenTelemetry trace context and baggage into outbound HTTP headers when observability is enabled.
+- Applies retry behavior for retryable responses and transient network failures.
+- Avoids retrying unsafe methods unless `X-Idempotency` is present.
+- Converts HTTP failures into `pkg/errors` structured errors.
+- Emits debug logs when `MIDAZ_DEBUG=true` or debug options are enabled.
+
+## Request path construction
+
+The SDK currently builds endpoint paths inside each entity implementation instead of using a central endpoint registry.
+
+Important path groups:
+
+- Organizations: `/organizations`, `/organizations/{id}`
+- Ledgers: `/organizations/{organizationID}/ledgers`, `/organizations/{organizationID}/ledgers/{ledgerID}`
+- Accounts: `/organizations/{organizationID}/ledgers/{ledgerID}/accounts`, `/accounts/{id}`, `/accounts/alias/{alias}`, `/accounts/external/{assetCode}`
+- Account balances: `/accounts/{accountID}/balances`, `/balances/{balanceID}`, balance history endpoints
+- Assets: `/organizations/{organizationID}/ledgers/{ledgerID}/assets`
+- Asset rates: asset-rate endpoints under organization/ledger scope, including asset-code filtered listing
+- Transactions: `/transactions/json`, `/transactions/dsl`, `/transactions/{id}`, `/transactions/{id}/commit`, `/transactions/{id}/cancel`, `/transactions/{id}/revert`, `/transactions/inflow`, `/transactions/outflow`, `/transactions/annotation`
+- Operations: account-scoped operation listing plus transaction operation update paths
+- Routes: operation route and transaction route endpoints under organization/ledger scope
+- Metadata indexes: `/settings/metadata-indexes`
+- CRM holders: `/holders`, `/holders/{holderID}`
+- CRM aliases: `/aliases`, `/holders/{holderID}/aliases`, `/holders/{holderID}/aliases/{aliasID}/related-parties/{relatedPartyID}`
+
+## Model compatibility layer
+
+Several SDK inputs wrap Midaz `mmodel` types to preserve the public SDK package path while using Midaz model contracts internally. Prefer fluent constructors in examples because wrapper fields can differ from direct composite literal expectations.
+
+Common builders:
+
+- `models.NewCreateOrganizationInput(legalName, legalDocument)`
+- `models.NewUpdateOrganizationInput()`
+- `models.NewCreateAssetInput(name, code)`
+- `models.NewUpdateAssetInput()`
+- `models.NewCreateAccountInput(name, assetCode, accountType)`
+- `models.NewCreateTransactionInput(assetCode, amount)`
+- `models.NewAssetRateListOptions()`
+
+## List options and pagination internals
+
+`models.ListOptions` fields:
+
+```go
+type ListOptions struct {
+    Limit            int
+    Offset           int
+    Filters          map[string]string
+    OrderBy          string
+    OrderDirection   string
+    Page             int
+    Cursor           string
+    StartDate        string
+    EndDate          string
+    AdditionalParams map[string]string
 }
 ```
 
-### Service URL Management
+Query serialization rules:
 
-The SDK supports multi-service architecture by mapping service names to URLs:
+- `limit` is always emitted.
+- `Offset` is retained as compatibility input and serialized as `page`.
+- `Page` is emitted as `page` when set.
+- `Cursor` is emitted as `cursor` when set.
+- `Filters` are emitted as query parameters by key.
+- `OrderBy` is retained but not emitted by common serialization.
+- `OrderDirection` is emitted as `sort_order`.
+- `StartDate`, `EndDate`, and `AdditionalParams` are emitted when set.
+- Transactions remove `page` when cursor pagination is used.
+
+`models.ListResponse[T]` contains `Items []T` and `Pagination models.Pagination`. JSON unmarshalling supports both current top-level pagination fields and legacy nested `pagination` payloads.
+
+## Error model internals
+
+The core SDK error type is `*errors.Error` in `pkg/errors`:
 
 ```go
-// Map of service names to URLs
-serviceURLs := map[string]string{
-    "onboarding":  "https://onboarding.api.midaz.com",
-    "transaction": "https://transaction.api.midaz.com",
-}
-
-// Getting the correct URL for a specific service
-func (e *Entity) getServiceURL(service string) string {
-    if url, ok := e.baseURLs[service]; ok {
-        return url
-    }
-    // Fall back to default URL if service-specific URL not found
-    return e.baseURL
+type Error struct {
+    Category   ErrorCategory
+    Code       ErrorCode
+    Message    string
+    Operation  string
+    Resource   string
+    ResourceID string
+    StatusCode int
+    RequestID  string
+    Err        error
 }
 ```
 
-### HTTP Client Configuration
+It implements `error`, `Unwrap`, and `Is`, so callers can use `errors.Is`, `errors.As`, and SDK helper functions.
 
-The HTTP client includes detailed debugging and customizable user agent support:
+Standard sentinel errors include:
 
-```go
-// Creating an HTTP client with debug logging and custom user agent
-client := &HTTPClient{
-    client:     optimizedClient,
-    authToken:  authToken,
-    userAgent:  getUserAgent(), // Gets from environment or uses default
-    debug:      debug,
-    // Additional fields omitted for brevity
-}
+- `ErrValidation`
+- `ErrAuthentication`
+- `ErrPermission`
+- `ErrNotFound`
+- `ErrAlreadyExists`
+- `ErrIdempotency`
+- `ErrRateLimit`
+- `ErrTimeout`
+- `ErrCancellation`
+- `ErrInternal`
+- `ErrInsufficientBalance`
+- `ErrAccountEligibility`
+- `ErrAssetMismatch`
 
-// Debug logging for requests and responses
-if c.debug {
-    c.debugLog("Request URL: %s %s", method, requestURL)
-    c.debugLog("Request headers: %v", req.Header)
-    c.debugLog("Request body: %s", string(bodyBytes))
-}
+## Observability internals
 
-// After the request
-if c.debug {
-    c.debugLog("Response from: %s %s", method, requestURL)
-    c.debugLog("Response status: %d", resp.StatusCode)
-    c.debugLog("Response headers: %v", resp.Header)
-    c.debugLog("Response body: %s", string(responseBody))
-}
-```
+The SDK observability package wraps OpenTelemetry and exposes a `Provider` interface with:
 
-### Interface-Based Design
+- `Tracer()`
+- `Meter()`
+- `Logger()`
+- `Shutdown(ctx)`
+- `IsEnabled()`
 
-The SDK uses interfaces to define the public API, with private implementations:
+Entity HTTP requests inject propagation headers through `observability.InjectContext`. Server-side code can extract incoming context with `observability.ExtractContext` or use the HTTP middleware helpers.
 
-```go
-// Public interface
-type SomeService interface {
-    List(ctx context.Context, opts *models.ListOptions) (*models.ListResponse[models.SomeResource], error)
-    Get(ctx context.Context, id string) (*models.SomeResource, error)
-    Create(ctx context.Context, input *models.CreateSomeResourceInput) (*models.SomeResource, error)
-    Update(ctx context.Context, id string, input *models.UpdateSomeResourceInput) (*models.SomeResource, error)
-    Delete(ctx context.Context, id string) error
-}
+Collector endpoints are passed to the OTLP gRPC exporter as `host:port` values, for example `localhost:4317`.
 
-// Private implementation
-type someServiceImpl struct {
-    client *client.Client
-}
+## Retry internals
 
-// Constructor that returns the interface
-func NewSomeService(client *client.Client) SomeService {
-    return &someServiceImpl{
-        client: client,
-    }
-}
+Retry behavior is implemented in `pkg/retry` and integrated into `entities.HTTPClient`.
 
-// Implementation methods
-func (s *someServiceImpl) List(ctx context.Context, opts *models.ListOptions) (*models.ListResponse[models.SomeResource], error) {
-    // Implementation
-}
+Root-client retry defaults come from `pkg/config` and are applied to entity HTTP clients during setup:
 
-// ... other methods
-```
+- Maximum retries: 3
+- Initial delay: 1s
+- Maximum delay: 30s
+- Backoff factor: 2.0
+- Jitter factor: 0.25
+- Retryable status codes: 408, 429, 500, 502, 503, 504
 
-This pattern allows for:
+Unsafe requests are retried only when an idempotency key is present.
 
-- Clean separation between public API and implementation details
-- Easier testing through interface mocking
-- Future extensibility without breaking changes
+## Maintainer checklist
 
-### Error Wrapping
+When changing public API shape:
 
-The SDK uses error wrapping to preserve context:
-
-```go
-func (c *someClient) Get(ctx context.Context, id string) (*models.SomeResource, error) {
-    resp, err := c.httpClient.Get(ctx, fmt.Sprintf("/resources/%s", id), nil)
-    if err != nil {
-        return nil, fmt.Errorf("failed to get resource: %w", err)
-    }
-
-    // Process response
-}
-```
-
-This pattern allows:
-
-- Preserving the original error for inspection with `errors.Is` and `errors.As`
-- Adding context to errors for better debugging
-- Standardized error handling throughout the SDK
-
-### Pagination Handling
-
-The SDK uses a consistent pattern for handling paginated results:
-
-```go
-func (c *someClient) List(ctx context.Context, opts *models.ListOptions) (*models.ListResponse[models.SomeResource], error) {
-    path := "/resources"
-    params := url.Values{}
-
-    // Add pagination parameters
-    if opts != nil {
-        if opts.Page > 0 {
-            params.Set("page", strconv.Itoa(opts.Page))
-        }
-        if opts.Limit > 0 {
-            params.Set("limit", strconv.Itoa(opts.Limit))
-        }
-
-        // Add filters
-        for key, value := range opts.Filters {
-            params.Set(key, value)
-        }
-
-        // Add sorting
-        for key, value := range opts.Sort {
-            params.Set(fmt.Sprintf("sort[%s]", key), value)
-        }
-    }
-
-    // Execute request
-    resp, err := c.httpClient.Get(ctx, path, params)
-    if err != nil {
-        return nil, err
-    }
-
-    // Parse response
-    var result models.ListResponse[models.SomeResource]
-    if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-        return nil, err
-    }
-
-    return &result, nil
-}
-```
-
-This pattern provides:
-
-- Consistent pagination across all list operations
-- Support for filtering and sorting
-- Clear separation of concerns between pagination, filtering, and API calls
+- Update service interfaces and private implementations together.
+- Update `README.md`, `docs/README.md`, `docs/examples.md`, and `docs/mapping/external_apis.md`.
+- Update this internal map when transport, config, retry, observability, or service URL behavior changes.
+- Run targeted tests for changed packages and prefer `make ci` before PRs.

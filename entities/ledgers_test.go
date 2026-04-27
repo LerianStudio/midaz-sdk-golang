@@ -2,7 +2,10 @@ package entities
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/entities/mocks"
@@ -90,6 +93,89 @@ func TestListLedgers(t *testing.T) {
 	_, err = mockService.ListLedgers(ctx, "", nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization ID is required")
+}
+
+func TestLedgersEntity_Settings_RequestConstruction(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch r.Method {
+		case http.MethodGet:
+			assert.Equal(t, "/organizations/org%2F1/ledgers/ledger%2F1/settings", r.URL.EscapedPath())
+		case http.MethodPatch:
+			assert.Equal(t, "/organizations/org%2F1/ledgers/ledger%2F1/settings", r.URL.EscapedPath())
+
+			var body map[string]any
+			if !assert.NoError(t, json.NewDecoder(r.Body).Decode(&body)) {
+				http.Error(w, "invalid request body", http.StatusBadRequest)
+				return
+			}
+
+			assert.Contains(t, body, "accounting")
+		default:
+			t.Fatalf("unexpected method: %s", r.Method)
+		}
+
+		_, err := w.Write([]byte(`{"accounting":{"validateAccountType":true,"validateRoutes":false}}`))
+		assert.NoError(t, err)
+	}))
+	defer server.Close()
+
+	service := NewLedgersEntity(server.Client(), "token", map[string]string{"onboarding": server.URL})
+	settings, err := service.GetLedgerSettings(context.Background(), "org/1", "ledger/1")
+	require.NoError(t, err)
+	assert.True(t, settings.Accounting.ValidateAccountType)
+
+	settings, err = service.UpdateLedgerSettings(context.Background(), "org/1", "ledger/1", models.NewUpdateLedgerSettingsInput().WithValidateAccountType(true))
+	require.NoError(t, err)
+	assert.True(t, settings.Accounting.ValidateAccountType)
+}
+
+func TestLedgersEntity_Settings_Validation(t *testing.T) {
+	service := NewLedgersEntity(http.DefaultClient, "token", map[string]string{"onboarding": "https://api.example.com"})
+
+	tests := []struct {
+		name string
+		call func() (*models.LedgerSettings, error)
+	}{
+		{
+			name: "get missing organizationID",
+			call: func() (*models.LedgerSettings, error) {
+				return service.GetLedgerSettings(context.Background(), "", "ledger-1")
+			},
+		},
+		{
+			name: "get missing id",
+			call: func() (*models.LedgerSettings, error) {
+				return service.GetLedgerSettings(context.Background(), "org-1", "")
+			},
+		},
+		{
+			name: "update missing organizationID",
+			call: func() (*models.LedgerSettings, error) {
+				return service.UpdateLedgerSettings(context.Background(), "", "ledger-1", models.NewUpdateLedgerSettingsInput())
+			},
+		},
+		{
+			name: "update missing id",
+			call: func() (*models.LedgerSettings, error) {
+				return service.UpdateLedgerSettings(context.Background(), "org-1", "", models.NewUpdateLedgerSettingsInput())
+			},
+		},
+		{
+			name: "update missing input",
+			call: func() (*models.LedgerSettings, error) {
+				return service.UpdateLedgerSettings(context.Background(), "org-1", "ledger-1", nil)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := tt.call()
+			require.Error(t, err)
+		})
+	}
 }
 
 // \1 performs an operation

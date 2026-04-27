@@ -83,7 +83,7 @@ func createTestOperationsEntity(serverURL string) *operationsEntity {
 	}
 
 	return &operationsEntity{
-		HTTPClient: httpClient,
+		httpClient: httpClient,
 		baseURLs: map[string]string{
 			"transaction": serverURL,
 			"onboarding":  serverURL,
@@ -135,7 +135,7 @@ func TestNewOperationsEntity(t *testing.T) {
 
 			entity, ok := service.(*operationsEntity)
 			require.True(t, ok, "service should be *operationsEntity")
-			assert.NotNil(t, entity.HTTPClient)
+			assert.NotNil(t, entity.httpClient)
 			assert.Equal(t, tt.baseURLs, entity.baseURLs)
 		})
 	}
@@ -422,7 +422,7 @@ func TestOperationsEntity_ListOperations_QueryParams(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Contains(t, capturedURL, "limit=25")
-	assert.Contains(t, capturedURL, "offset=50")
+	assert.Contains(t, capturedURL, "page=3")
 }
 
 // TestOperationsEntity_GetOperation tests GetOperation method
@@ -551,6 +551,7 @@ func TestOperationsEntity_GetOperation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				assert.Equal(t, http.MethodGet, r.Method)
+				assert.Contains(t, r.URL.Path, "/accounts/")
 				assert.Contains(t, r.URL.Path, "/operations/")
 
 				w.Header().Set("Content-Type", "application/json")
@@ -630,13 +631,13 @@ func TestOperationsEntity_GetOperation_ResponseFields(t *testing.T) {
 	assert.Equal(t, "value", result.Metadata["key"])
 }
 
-// TestOperationsEntity_UpdateOperation tests UpdateOperation method
-func TestOperationsEntity_UpdateOperation(t *testing.T) {
+// TestOperationsEntity_UpdateTransactionOperation tests UpdateTransactionOperation method.
+func TestOperationsEntity_UpdateTransactionOperation(t *testing.T) {
 	tests := []struct {
 		name           string
 		orgID          string
 		ledgerID       string
-		accountID      string
+		transactionID  string
 		operationID    string
 		input          any
 		mockResponse   any
@@ -645,11 +646,11 @@ func TestOperationsEntity_UpdateOperation(t *testing.T) {
 		errorContains  string
 	}{
 		{
-			name:        "success with description update",
-			orgID:       opTestOrgID,
-			ledgerID:    opTestLedgerID,
-			accountID:   opTestAccountID,
-			operationID: opTestOperationID,
+			name:          "success with description update",
+			orgID:         opTestOrgID,
+			ledgerID:      opTestLedgerID,
+			transactionID: opTestTransactionID,
+			operationID:   opTestOperationID,
 			input: models.UpdateOperationInput{
 				Description: "Updated description",
 			},
@@ -657,11 +658,11 @@ func TestOperationsEntity_UpdateOperation(t *testing.T) {
 			mockStatusCode: http.StatusOK,
 		},
 		{
-			name:        "success with metadata update",
-			orgID:       opTestOrgID,
-			ledgerID:    opTestLedgerID,
-			accountID:   opTestAccountID,
-			operationID: opTestOperationID,
+			name:          "success with metadata update",
+			orgID:         opTestOrgID,
+			ledgerID:      opTestLedgerID,
+			transactionID: opTestTransactionID,
+			operationID:   opTestOperationID,
 			input: models.UpdateOperationInput{
 				Metadata: map[string]any{"newKey": "newValue"},
 			},
@@ -669,11 +670,11 @@ func TestOperationsEntity_UpdateOperation(t *testing.T) {
 			mockStatusCode: http.StatusOK,
 		},
 		{
-			name:        "success with full update",
-			orgID:       opTestOrgID,
-			ledgerID:    opTestLedgerID,
-			accountID:   opTestAccountID,
-			operationID: opTestOperationID,
+			name:          "success with full update",
+			orgID:         opTestOrgID,
+			ledgerID:      opTestLedgerID,
+			transactionID: opTestTransactionID,
+			operationID:   opTestOperationID,
 			input: models.UpdateOperationInput{
 				Description: "Full update",
 				Metadata:    map[string]any{"key1": "value1", "key2": "value2"},
@@ -685,7 +686,7 @@ func TestOperationsEntity_UpdateOperation(t *testing.T) {
 			name:          "empty organization ID",
 			orgID:         "",
 			ledgerID:      opTestLedgerID,
-			accountID:     opTestAccountID,
+			transactionID: opTestTransactionID,
 			operationID:   opTestOperationID,
 			input:         models.UpdateOperationInput{Description: "test"},
 			expectError:   true,
@@ -695,27 +696,27 @@ func TestOperationsEntity_UpdateOperation(t *testing.T) {
 			name:          "empty ledger ID",
 			orgID:         opTestOrgID,
 			ledgerID:      "",
-			accountID:     opTestAccountID,
+			transactionID: opTestTransactionID,
 			operationID:   opTestOperationID,
 			input:         models.UpdateOperationInput{Description: "test"},
 			expectError:   true,
 			errorContains: "ledgerID",
 		},
 		{
-			name:          "empty account ID",
+			name:          "empty transaction ID",
 			orgID:         opTestOrgID,
 			ledgerID:      opTestLedgerID,
-			accountID:     "",
+			transactionID: "",
 			operationID:   opTestOperationID,
 			input:         models.UpdateOperationInput{Description: "test"},
 			expectError:   true,
-			errorContains: "accountID",
+			errorContains: "transactionID",
 		},
 		{
 			name:          "empty operation ID",
 			orgID:         opTestOrgID,
 			ledgerID:      opTestLedgerID,
-			accountID:     opTestAccountID,
+			transactionID: opTestTransactionID,
 			operationID:   "",
 			input:         models.UpdateOperationInput{Description: "test"},
 			expectError:   true,
@@ -725,7 +726,7 @@ func TestOperationsEntity_UpdateOperation(t *testing.T) {
 			name:          "nil input",
 			orgID:         opTestOrgID,
 			ledgerID:      opTestLedgerID,
-			accountID:     opTestAccountID,
+			transactionID: opTestTransactionID,
 			operationID:   opTestOperationID,
 			input:         nil,
 			expectError:   true,
@@ -735,7 +736,7 @@ func TestOperationsEntity_UpdateOperation(t *testing.T) {
 			name:           "not found 404",
 			orgID:          opTestOrgID,
 			ledgerID:       opTestLedgerID,
-			accountID:      opTestAccountID,
+			transactionID:  opTestTransactionID,
 			operationID:    "nonexistent",
 			input:          models.UpdateOperationInput{Description: "test"},
 			mockResponse:   map[string]string{"error": "Operation not found"},
@@ -746,7 +747,7 @@ func TestOperationsEntity_UpdateOperation(t *testing.T) {
 			name:           "unauthorized 401",
 			orgID:          opTestOrgID,
 			ledgerID:       opTestLedgerID,
-			accountID:      opTestAccountID,
+			transactionID:  opTestTransactionID,
 			operationID:    opTestOperationID,
 			input:          models.UpdateOperationInput{Description: "test"},
 			mockResponse:   map[string]string{"error": "Unauthorized"},
@@ -757,7 +758,7 @@ func TestOperationsEntity_UpdateOperation(t *testing.T) {
 			name:           "forbidden 403",
 			orgID:          opTestOrgID,
 			ledgerID:       opTestLedgerID,
-			accountID:      opTestAccountID,
+			transactionID:  opTestTransactionID,
 			operationID:    opTestOperationID,
 			input:          models.UpdateOperationInput{Description: "test"},
 			mockResponse:   map[string]string{"error": "Forbidden"},
@@ -768,7 +769,7 @@ func TestOperationsEntity_UpdateOperation(t *testing.T) {
 			name:           "server error 500",
 			orgID:          opTestOrgID,
 			ledgerID:       opTestLedgerID,
-			accountID:      opTestAccountID,
+			transactionID:  opTestTransactionID,
 			operationID:    opTestOperationID,
 			input:          models.UpdateOperationInput{Description: "test"},
 			mockResponse:   map[string]string{"error": "Internal server error"},
@@ -779,7 +780,7 @@ func TestOperationsEntity_UpdateOperation(t *testing.T) {
 			name:           "bad request 400",
 			orgID:          opTestOrgID,
 			ledgerID:       opTestLedgerID,
-			accountID:      opTestAccountID,
+			transactionID:  opTestTransactionID,
 			operationID:    opTestOperationID,
 			input:          models.UpdateOperationInput{Description: "test"},
 			mockResponse:   map[string]string{"error": "Bad request"},
@@ -812,7 +813,7 @@ func TestOperationsEntity_UpdateOperation(t *testing.T) {
 
 			entity := createTestOperationsEntity(server.URL)
 
-			result, err := entity.UpdateOperation(context.Background(), tt.orgID, tt.ledgerID, tt.accountID, tt.operationID, tt.input)
+			result, err := entity.UpdateTransactionOperation(context.Background(), tt.orgID, tt.ledgerID, tt.transactionID, tt.operationID, tt.input)
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -831,8 +832,8 @@ func TestOperationsEntity_UpdateOperation(t *testing.T) {
 	}
 }
 
-// TestOperationsEntity_UpdateOperation_RequestBody verifies request body is properly serialized
-func TestOperationsEntity_UpdateOperation_RequestBody(t *testing.T) {
+// TestOperationsEntity_UpdateTransactionOperation_RequestBody verifies request body is properly serialized.
+func TestOperationsEntity_UpdateTransactionOperation_RequestBody(t *testing.T) {
 	var capturedBody map[string]any
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -854,13 +855,21 @@ func TestOperationsEntity_UpdateOperation_RequestBody(t *testing.T) {
 		Metadata:    map[string]any{"testKey": "testValue"},
 	}
 
-	_, err := entity.UpdateOperation(context.Background(), opTestOrgID, opTestLedgerID, opTestAccountID, opTestOperationID, input)
+	_, err := entity.UpdateTransactionOperation(context.Background(), opTestOrgID, opTestLedgerID, opTestTransactionID, opTestOperationID, input)
 	require.NoError(t, err)
 
 	assert.Equal(t, "Test description", capturedBody["description"])
 	metadata, ok := capturedBody["metadata"].(map[string]any)
 	require.True(t, ok)
 	assert.Equal(t, "testValue", metadata["testKey"])
+}
+
+func TestOperationsEntity_UpdateOperation_DeprecatedAccountScopedMethodFailsLoudly(t *testing.T) {
+	entity := createTestOperationsEntity("https://ledger.example.com/v1")
+
+	_, err := entity.UpdateOperation(context.Background(), opTestOrgID, opTestLedgerID, opTestAccountID, opTestOperationID, models.UpdateOperationInput{Description: "test"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "UpdateTransactionOperation")
 }
 
 // TestOperationsEntity_ContextCancellation tests that context cancellation is respected
@@ -892,6 +901,7 @@ func TestOperationsEntity_ValidationEdgeCases(t *testing.T) {
 		orgID         string
 		ledgerID      string
 		accountID     string
+		transactionID string
 		operationID   string
 		input         any
 		expectError   bool
@@ -972,7 +982,7 @@ func TestOperationsEntity_ValidationEdgeCases(t *testing.T) {
 			method:        "UpdateOperation",
 			orgID:         opTestOrgID,
 			ledgerID:      opTestLedgerID,
-			accountID:     opTestAccountID,
+			transactionID: opTestTransactionID,
 			operationID:   opTestOperationID,
 			input:         nil,
 			expectError:   true,
@@ -983,7 +993,7 @@ func TestOperationsEntity_ValidationEdgeCases(t *testing.T) {
 			method:        "UpdateOperation",
 			orgID:         "",
 			ledgerID:      opTestLedgerID,
-			accountID:     opTestAccountID,
+			transactionID: opTestTransactionID,
 			operationID:   opTestOperationID,
 			input:         models.UpdateOperationInput{Description: "test"},
 			expectError:   true,
@@ -1003,7 +1013,7 @@ func TestOperationsEntity_ValidationEdgeCases(t *testing.T) {
 			case "GetOperation":
 				_, err = entity.GetOperation(ctx, tt.orgID, tt.ledgerID, tt.accountID, tt.operationID)
 			case "UpdateOperation":
-				_, err = entity.UpdateOperation(ctx, tt.orgID, tt.ledgerID, tt.accountID, tt.operationID, tt.input)
+				_, err = entity.UpdateTransactionOperation(ctx, tt.orgID, tt.ledgerID, tt.transactionID, tt.operationID, tt.input)
 			}
 
 			if tt.expectError {
@@ -1059,8 +1069,8 @@ func TestOperationsEntity_HTTPErrorCodes(t *testing.T) {
 			_, err = entity.GetOperation(context.Background(), opTestOrgID, opTestLedgerID, opTestAccountID, opTestOperationID)
 			require.Error(t, err)
 
-			// Test UpdateOperation
-			_, err = entity.UpdateOperation(context.Background(), opTestOrgID, opTestLedgerID, opTestAccountID, opTestOperationID, models.UpdateOperationInput{})
+			// Test UpdateTransactionOperation
+			_, err = entity.UpdateTransactionOperation(context.Background(), opTestOrgID, opTestLedgerID, opTestTransactionID, opTestOperationID, models.UpdateOperationInput{})
 			require.Error(t, err)
 		})
 	}
@@ -1238,7 +1248,7 @@ func TestOperationsEntity_AuthorizationHeader(t *testing.T) {
 	defer server.Close()
 
 	entity := createTestOperationsEntity(server.URL)
-	entity.HTTPClient.authToken = "test-bearer-token"
+	entity.httpClient.authToken = "test-bearer-token"
 
 	_, err := entity.GetOperation(context.Background(), opTestOrgID, opTestLedgerID, opTestAccountID, opTestOperationID)
 	require.NoError(t, err)
@@ -1264,13 +1274,13 @@ func TestOperationsEntity_ContentTypeHeader(t *testing.T) {
 	entity := createTestOperationsEntity(server.URL)
 
 	input := models.UpdateOperationInput{Description: "test"}
-	_, err := entity.UpdateOperation(context.Background(), opTestOrgID, opTestLedgerID, opTestAccountID, opTestOperationID, input)
+	_, err := entity.UpdateTransactionOperation(context.Background(), opTestOrgID, opTestLedgerID, opTestTransactionID, opTestOperationID, input)
 	require.NoError(t, err)
 
 	assert.Equal(t, "application/json", capturedHeaders.Get("Content-Type"))
 }
 
-// TestOperationsEntity_UpdateWithMapInput tests UpdateOperation with map input type
+// TestOperationsEntity_UpdateWithMapInput tests UpdateTransactionOperation with map input type.
 func TestOperationsEntity_UpdateWithMapInput(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -1287,7 +1297,7 @@ func TestOperationsEntity_UpdateWithMapInput(t *testing.T) {
 		"metadata":    map[string]any{"key": "value"},
 	}
 
-	result, err := entity.UpdateOperation(context.Background(), opTestOrgID, opTestLedgerID, opTestAccountID, opTestOperationID, input)
+	result, err := entity.UpdateTransactionOperation(context.Background(), opTestOrgID, opTestLedgerID, opTestTransactionID, opTestOperationID, input)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 }
@@ -1326,7 +1336,7 @@ func TestOperationsEntity_ListWithAllFilters(t *testing.T) {
 
 	// Verify query parameters
 	assert.Contains(t, capturedQuery, "limit=20")
-	assert.Contains(t, capturedQuery, "offset=40")
+	assert.Contains(t, capturedQuery, "page=3")
 }
 
 // TestMockHTTPClientForOperations tests using the MockHTTPClient pattern
@@ -1361,7 +1371,7 @@ func TestMockHTTPClientForOperations(t *testing.T) {
 	}
 
 	entity := &operationsEntity{
-		HTTPClient: httpClient,
+		httpClient: httpClient,
 		baseURLs:   map[string]string{"transaction": "http://localhost:8080"},
 	}
 
@@ -1391,7 +1401,7 @@ func TestOperationsEntity_URLPathConstruction(t *testing.T) {
 		{
 			name:         "UpdateOperation path",
 			method:       "UpdateOperation",
-			expectedPath: "/organizations/org-123/ledgers/ledger-456/accounts/acc-789/operations/op-abc",
+			expectedPath: "/organizations/org-123/ledgers/ledger-456/transactions/tx-xyz/operations/op-abc",
 		},
 	}
 
@@ -1425,7 +1435,7 @@ func TestOperationsEntity_URLPathConstruction(t *testing.T) {
 			case "GetOperation":
 				entity.GetOperation(context.Background(), opTestOrgID, opTestLedgerID, opTestAccountID, opTestOperationID)
 			case "UpdateOperation":
-				entity.UpdateOperation(context.Background(), opTestOrgID, opTestLedgerID, opTestAccountID, opTestOperationID, models.UpdateOperationInput{})
+				entity.UpdateTransactionOperation(context.Background(), opTestOrgID, opTestLedgerID, opTestTransactionID, opTestOperationID, models.UpdateOperationInput{})
 			}
 
 			assert.Equal(t, tt.expectedPath, capturedPath)
