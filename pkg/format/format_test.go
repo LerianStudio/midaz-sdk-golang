@@ -72,17 +72,17 @@ func TestFormatTransaction(t *testing.T) {
 	// Test minimal transaction
 	tx := &models.Transaction{
 		ID:        "tx-123",
-		Amount:    "100.00",
+		Amount:    "100",
 		AssetCode: "USD",
 		Status:    models.Status{Code: "COMPLETED"},
 	}
 	summary = format.FormatTransaction(tx)
-	assert.Equal(t, "Transaction: 100.00 USD (Completed)", summary)
+	assert.Equal(t, "Transaction: 100 USD (Completed)", summary)
 
 	// Test deposit transaction
 	depositTx := &models.Transaction{
 		ID:        "tx-deposit",
-		Amount:    "250.00",
+		Amount:    "250",
 		AssetCode: "USD",
 		Status:    models.Status{Code: "COMPLETED"},
 		Operations: []models.Operation{
@@ -99,12 +99,12 @@ func TestFormatTransaction(t *testing.T) {
 		},
 	}
 	summary = format.FormatTransaction(depositTx)
-	assert.Equal(t, "Deposit: 250.00 USD from customer-account (Completed)", summary)
+	assert.Equal(t, "Deposit: 250 USD from customer-account (Completed)", summary)
 
 	// Test withdrawal transaction
 	withdrawalTx := &models.Transaction{
 		ID:        "tx-withdrawal",
-		Amount:    "50.00",
+		Amount:    "50",
 		AssetCode: "USD",
 		Status:    models.Status{Code: "PENDING"},
 		Operations: []models.Operation{
@@ -121,12 +121,12 @@ func TestFormatTransaction(t *testing.T) {
 		},
 	}
 	summary = format.FormatTransaction(withdrawalTx)
-	assert.Equal(t, "Withdrawal: 50.00 USD from savings-account (Pending)", summary)
+	assert.Equal(t, "Withdrawal: 50 USD from savings-account (Pending)", summary)
 
 	// Test transfer transaction
 	transferTx := &models.Transaction{
 		ID:        "tx-transfer",
-		Amount:    "15.00",
+		Amount:    "15",
 		AssetCode: "USD",
 		Status:    models.Status{Code: "COMPLETED"},
 		Operations: []models.Operation{
@@ -143,12 +143,12 @@ func TestFormatTransaction(t *testing.T) {
 		},
 	}
 	summary = format.FormatTransaction(transferTx)
-	assert.Equal(t, "Transfer: 15.00 USD from checking to savings (Completed)", summary)
+	assert.Equal(t, "Transfer: 15 USD from checking to savings (Completed)", summary)
 
 	// Test transaction with multiple sources/destinations
 	multiTx := &models.Transaction{
 		ID:        "tx-multi",
-		Amount:    "20.00",
+		Amount:    "20",
 		AssetCode: "USD",
 		Status:    models.Status{Code: "COMPLETED"},
 		Operations: []models.Operation{
@@ -175,7 +175,7 @@ func TestFormatTransaction(t *testing.T) {
 		},
 	}
 	summary = format.FormatTransaction(multiTx)
-	assert.Equal(t, "Transfer: 20.00 USD from multiple accounts (2) to multiple accounts (2) (Completed)", summary)
+	assert.Equal(t, "Transfer: 20 USD from multiple accounts (2) to multiple accounts (2) (Completed)", summary)
 }
 
 func TestFormatDate(t *testing.T) {
@@ -409,7 +409,7 @@ func TestFormatAmountWithOptions(t *testing.T) {
 func TestFormatTransactionWithOptions(t *testing.T) {
 	tx := &models.Transaction{
 		ID:        "tx-123",
-		Amount:    "100.00",
+		Amount:    "100",
 		AssetCode: "USD",
 		Status:    models.Status{Code: "COMPLETED"},
 		CreatedAt: time.Date(2023, 5, 15, 10, 30, 45, 0, time.UTC),
@@ -430,17 +430,17 @@ func TestFormatTransactionWithOptions(t *testing.T) {
 	// Test with default options
 	result, err := format.FormatTransactionWithOptions(tx)
 	require.NoError(t, err)
-	assert.Equal(t, "Transfer: 100.00 USD from checking to savings (Completed)", result)
+	assert.Equal(t, "Transfer: 100 USD from checking to savings (Completed)", result)
 
 	// Test with include ID
 	result, err = format.FormatTransactionWithOptions(tx, format.WithTransactionID(true))
 	require.NoError(t, err)
-	assert.Equal(t, "tx-123 - Transfer: 100.00 USD from checking to savings (Completed)", result)
+	assert.Equal(t, "tx-123 - Transfer: 100 USD from checking to savings (Completed)", result)
 
 	// Test with include timestamp
 	result, err = format.FormatTransactionWithOptions(tx, format.WithTransactionTimestamp(true))
 	require.NoError(t, err)
-	assert.Equal(t, "2023-05-15 10:30:45 - Transfer: 100.00 USD from checking to savings (Completed)", result)
+	assert.Equal(t, "2023-05-15 10:30:45 - Transfer: 100 USD from checking to savings (Completed)", result)
 
 	// Test with custom status mapping
 	result, err = format.FormatTransactionWithOptions(tx,
@@ -449,7 +449,7 @@ func TestFormatTransactionWithOptions(t *testing.T) {
 			"PENDING":   "In Progress",
 		}))
 	require.NoError(t, err)
-	assert.Equal(t, "Transfer: 100.00 USD from checking to savings (Success)", result)
+	assert.Equal(t, "Transfer: 100 USD from checking to savings (Success)", result)
 
 	// Test with error
 	_, err = format.FormatTransactionWithOptions(tx,

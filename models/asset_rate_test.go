@@ -776,7 +776,7 @@ func TestAssetRateListOptionsToQueryParams(t *testing.T) {
 		{
 			name:       "default options",
 			options:    NewAssetRateListOptions(),
-			wantParams: map[string]string{"limit": "10", "sort_order": "desc"},
+			wantParams: map[string]string{"limit": "10", "sort_order": "asc"},
 		},
 		{
 			name: "single to asset",

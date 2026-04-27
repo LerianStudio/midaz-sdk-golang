@@ -100,14 +100,11 @@ func Transfer(
 		idempotencyKey = uuid.New().String()
 	}
 
-	// Convert amount to string with scale
-	amountStr := formatAmount(amount, scale)
+	amountValue := formatAmount(amount, scale)
 
 	// Create the transaction input
 	transferInput := &models.CreateTransactionInput{
 		Description:              opts.Description,
-		Amount:                   amountStr,
-		AssetCode:                assetCode,
 		Metadata:                 opts.Metadata,
 		Pending:                  opts.Pending,
 		IdempotencyKey:           idempotencyKey,
@@ -115,14 +112,14 @@ func Transfer(
 		ChartOfAccountsGroupName: opts.ChartOfAccountsGroupName,
 		Send: &models.SendInput{
 			Asset: assetCode,
-			Value: amountStr,
+			Value: amountValue,
 			Source: &models.SourceInput{
 				From: []models.FromToInput{
 					{
 						Account: fromAccountID,
 						Amount: models.AmountInput{
 							Asset: assetCode,
-							Value: amountStr,
+							Value: amountValue,
 						},
 					},
 				},
@@ -133,7 +130,7 @@ func Transfer(
 						Account: toAccountID,
 						Amount: models.AmountInput{
 							Asset: assetCode,
-							Value: amountStr,
+							Value: amountValue,
 						},
 					},
 				},
@@ -223,13 +220,11 @@ func Deposit(
 	}
 
 	// Convert amount to string with scale
-	amountStr := formatAmount(amount, scale)
+	amountValue := formatAmount(amount, scale)
 
 	// Create the transaction input
 	depositInput := &models.CreateTransactionInput{
 		Description:              opts.Description,
-		Amount:                   amountStr,
-		AssetCode:                assetCode,
 		Metadata:                 opts.Metadata,
 		Pending:                  opts.Pending,
 		IdempotencyKey:           idempotencyKey,
@@ -237,14 +232,14 @@ func Deposit(
 		ChartOfAccountsGroupName: opts.ChartOfAccountsGroupName,
 		Send: &models.SendInput{
 			Asset: assetCode,
-			Value: amountStr,
+			Value: amountValue,
 			Source: &models.SourceInput{
 				From: []models.FromToInput{
 					{
 						Account: externalAccountID,
 						Amount: models.AmountInput{
 							Asset: assetCode,
-							Value: amountStr,
+							Value: amountValue,
 						},
 					},
 				},
@@ -255,7 +250,7 @@ func Deposit(
 						Account: toAccountID,
 						Amount: models.AmountInput{
 							Asset: assetCode,
-							Value: amountStr,
+							Value: amountValue,
 						},
 					},
 				},
@@ -345,13 +340,11 @@ func Withdrawal(
 	}
 
 	// Convert amount to string with scale
-	amountStr := formatAmount(amount, scale)
+	amountValue := formatAmount(amount, scale)
 
 	// Create the transaction input
 	withdrawalInput := &models.CreateTransactionInput{
 		Description:              opts.Description,
-		Amount:                   amountStr,
-		AssetCode:                assetCode,
 		Metadata:                 opts.Metadata,
 		Pending:                  opts.Pending,
 		IdempotencyKey:           idempotencyKey,
@@ -359,14 +352,14 @@ func Withdrawal(
 		ChartOfAccountsGroupName: opts.ChartOfAccountsGroupName,
 		Send: &models.SendInput{
 			Asset: assetCode,
-			Value: amountStr,
+			Value: amountValue,
 			Source: &models.SourceInput{
 				From: []models.FromToInput{
 					{
 						Account: fromAccountID,
 						Amount: models.AmountInput{
 							Asset: assetCode,
-							Value: amountStr,
+							Value: amountValue,
 						},
 					},
 				},
@@ -377,7 +370,7 @@ func Withdrawal(
 						Account: externalAccountID,
 						Amount: models.AmountInput{
 							Asset: assetCode,
-							Value: amountStr,
+							Value: amountValue,
 						},
 					},
 				},
@@ -513,12 +506,12 @@ func buildAccountInputList(accounts map[string]int64, scale int64, assetCode, ac
 			return nil, 0, fmt.Errorf("amount for %s account %s must be positive", accountType, accountID)
 		}
 
-		amountStr := formatAmount(amount, scale)
+		amountValue := formatAmount(amount, scale)
 		inputList = append(inputList, models.FromToInput{
 			Account: accountID,
 			Amount: models.AmountInput{
 				Asset: assetCode,
-				Value: amountStr,
+				Value: amountValue,
 			},
 		})
 
@@ -541,12 +534,10 @@ func validateMultiTransferAmounts(sourceSum, destSum, totalAmount int64) error {
 }
 
 func buildMultiTransferInput(opts *MultiTransferOptions, idempotencyKey string, totalAmount, scale int64, assetCode string, fromList, toList []models.FromToInput) *models.CreateTransactionInput {
-	totalAmountStr := formatAmount(totalAmount, scale)
+	totalAmountValue := formatAmount(totalAmount, scale)
 
 	return &models.CreateTransactionInput{
 		Description:              opts.Description,
-		Amount:                   totalAmountStr,
-		AssetCode:                assetCode,
 		Metadata:                 opts.Metadata,
 		Pending:                  opts.Pending,
 		IdempotencyKey:           idempotencyKey,
@@ -554,7 +545,7 @@ func buildMultiTransferInput(opts *MultiTransferOptions, idempotencyKey string, 
 		ChartOfAccountsGroupName: opts.ChartOfAccountsGroupName,
 		Send: &models.SendInput{
 			Asset: assetCode,
-			Value: totalAmountStr,
+			Value: totalAmountValue,
 			Source: &models.SourceInput{
 				From: fromList,
 			},
@@ -634,20 +625,18 @@ func CreateFromTemplate(
 	mergedMetadata["timestamp"] = time.Now().Unix()
 
 	// Convert amount to string with scale
-	amountStr := formatAmount(amount, template.Scale)
+	amountValue := formatAmount(amount, template.Scale)
 
 	// Create the transaction input
 	input := &models.CreateTransactionInput{
 		Description:              template.Description,
-		Amount:                   amountStr,
-		AssetCode:                template.AssetCode,
 		Metadata:                 mergedMetadata,
 		Pending:                  template.Pending,
 		IdempotencyKey:           idempotencyKey,
 		ChartOfAccountsGroupName: template.ChartOfAccountsGroupName,
 		Send: &models.SendInput{
 			Asset: template.AssetCode,
-			Value: amountStr,
+			Value: amountValue,
 			Source: &models.SourceInput{
 				From: template.BuildSources(amount),
 			},
@@ -752,17 +741,31 @@ func CancelPendingTransaction(
 	entity *entities.Entity,
 	orgID, ledgerID, transactionID string,
 ) (*models.Transaction, error) {
-	// Use dedicated cancel endpoint, which returns no body in our Entities implementation.
-	if err := entity.Transactions.CancelTransaction(ctx, orgID, ledgerID, transactionID); err != nil {
+	if entity == nil {
+		return nil, errors.New("entity is required")
+	}
+
+	if entity.Transactions == nil {
+		return nil, errors.New("transactions service is not initialized")
+	}
+
+	tx, err := entity.Transactions.CancelTransactionWithResponse(ctx, orgID, ledgerID, transactionID)
+	if err != nil {
 		return nil, fmt.Errorf("failed to cancel transaction: %w", err)
 	}
 
-	// Fetch the transaction to return its final state (best-effort).
-	// Error is intentionally ignored: the cancel operation succeeded above,
-	// and this fetch is supplementary to provide the final transaction state.
-	// If the fetch fails, we still return success since cancellation worked.
-	//nolint:errcheck // best-effort fetch after successful cancellation
-	tx, _ := entity.Transactions.GetTransaction(ctx, orgID, ledgerID, transactionID)
+	if tx != nil {
+		return tx, nil
+	}
 
-	return tx, nil
+	fetchedTx, fetchErr := entity.Transactions.GetTransaction(ctx, orgID, ledgerID, transactionID)
+	if fetchErr != nil {
+		return nil, fmt.Errorf("transaction canceled but final state could not be fetched: %w", fetchErr)
+	}
+
+	if fetchedTx == nil {
+		return nil, errors.New("transaction canceled but final state was empty")
+	}
+
+	return fetchedTx, nil
 }

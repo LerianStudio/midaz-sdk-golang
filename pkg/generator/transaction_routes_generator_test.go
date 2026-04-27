@@ -100,7 +100,7 @@ func TestTransactionRouteGenerator_Generate_Success(t *testing.T) {
 	input := models.NewCreateTransactionRouteInput(
 		"Payment Flow",
 		"Customer pays merchant",
-		[]string{"op-route-1", "op-route-2"},
+		[]string{uuid.NewString(), uuid.NewString()},
 	).WithMetadata(map[string]any{"pattern": "payment"})
 
 	result, err := gen.Generate(context.Background(), "org-123", "ledger-123", input)
@@ -124,7 +124,7 @@ func TestTransactionRouteGenerator_Generate_Error(t *testing.T) {
 	input := models.NewCreateTransactionRouteInput(
 		"Test Route",
 		"Test description",
-		[]string{"op-route-1"},
+		[]string{uuid.NewString()},
 	)
 
 	result, err := gen.Generate(context.Background(), "org-123", "ledger-123", input)
@@ -256,7 +256,7 @@ func TestTransactionRouteGenerator_Generate_VerifyIDs(t *testing.T) {
 	input := models.NewCreateTransactionRouteInput(
 		"Test Route",
 		"Test description",
-		[]string{"op-route-1"},
+		[]string{uuid.NewString()},
 	)
 
 	_, err := gen.Generate(context.Background(), "test-org", "test-ledger", input)

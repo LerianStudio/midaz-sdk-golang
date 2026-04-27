@@ -10,11 +10,21 @@ import (
 // Balance is an alias for mmodel.Balance to maintain compatibility while using midaz entities.
 type Balance = mmodel.Balance
 
+// BalanceHistory is an alias for mmodel.BalanceHistory.
+type BalanceHistory = mmodel.BalanceHistory
+
 // UpdateBalanceInput is the input for updating a balance.
 // This structure contains the fields that can be modified when updating an existing balance.
 type UpdateBalanceInput struct {
-	// Metadata contains additional custom data associated with the balance.
-	Metadata map[string]any `json:"metadata,omitempty"`
+	// AllowSending controls whether this balance can be used for outgoing transactions.
+	AllowSending *bool `json:"allowSending,omitempty"`
+
+	// AllowReceiving controls whether this balance can receive incoming transactions.
+	AllowReceiving *bool `json:"allowReceiving,omitempty"`
+
+	// Metadata is retained for backward compatibility, but is not part of the
+	// current Midaz UpdateBalance contract.
+	Metadata map[string]any `json:"-"`
 }
 
 // Validate validates the UpdateBalanceInput fields.
@@ -28,7 +38,20 @@ func NewUpdateBalanceInput() *UpdateBalanceInput {
 	return &UpdateBalanceInput{}
 }
 
-// WithMetadata sets the metadata for UpdateBalanceInput.
+// WithAllowSending sets whether this balance can be used for outgoing transactions.
+func (input *UpdateBalanceInput) WithAllowSending(allow bool) *UpdateBalanceInput {
+	input.AllowSending = &allow
+	return input
+}
+
+// WithAllowReceiving sets whether this balance can receive incoming transactions.
+func (input *UpdateBalanceInput) WithAllowReceiving(allow bool) *UpdateBalanceInput {
+	input.AllowReceiving = &allow
+	return input
+}
+
+// WithMetadata sets legacy metadata data on UpdateBalanceInput.
+// Deprecated: metadata is not sent to the Midaz UpdateBalance endpoint.
 func (input *UpdateBalanceInput) WithMetadata(metadata map[string]any) *UpdateBalanceInput {
 	input.Metadata = metadata
 	return input

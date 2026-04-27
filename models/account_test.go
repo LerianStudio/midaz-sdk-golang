@@ -60,6 +60,7 @@ func TestNewCreateAccountInput(t *testing.T) {
 			assert.Equal(t, "ACTIVE", input.Status.Code)
 			assert.Nil(t, input.ParentAccountID)
 			assert.Nil(t, input.EntityID)
+			assert.Nil(t, input.Blocked)
 			assert.Nil(t, input.PortfolioID)
 			assert.Nil(t, input.SegmentID)
 			assert.Nil(t, input.Alias)
@@ -87,14 +88,13 @@ func TestCreateAccountInputValidate(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name: "empty name",
+			name: "empty name is allowed",
 			input: &CreateAccountInput{
 				Name:      "",
 				AssetCode: "USD",
 				Type:      "deposit",
 			},
-			expectError: true,
-			errContains: "name is required",
+			expectError: false,
 		},
 		{
 			name: "name exceeds max length",
@@ -485,11 +485,13 @@ func TestCreateAccountInputToMmodel(t *testing.T) {
 	entityID := "entity-456"
 	portfolioID := "portfolio-789"
 	segmentID := "segment-012"
+	blocked := true
 
 	input := CreateAccountInput{
 		Name:            "Test Account",
 		ParentAccountID: &parentID,
 		EntityID:        &entityID,
+		Blocked:         &blocked,
 		AssetCode:       "USD",
 		PortfolioID:     &portfolioID,
 		SegmentID:       &segmentID,
@@ -506,6 +508,7 @@ func TestCreateAccountInputToMmodel(t *testing.T) {
 	assert.Equal(t, input.Name, result.Name)
 	assert.Equal(t, input.ParentAccountID, result.ParentAccountID)
 	assert.Equal(t, input.EntityID, result.EntityID)
+	assert.Equal(t, input.Blocked, result.Blocked)
 	assert.Equal(t, input.AssetCode, result.AssetCode)
 	assert.Equal(t, input.PortfolioID, result.PortfolioID)
 	assert.Equal(t, input.SegmentID, result.SegmentID)
@@ -520,6 +523,7 @@ func TestCreateAccountInputBuilderChaining(t *testing.T) {
 	input := NewCreateAccountInput("Chained Account", "EUR", "savings").
 		WithParentAccountID("parent-id").
 		WithEntityID("entity-id").
+		WithBlocked(true).
 		WithPortfolioID("portfolio-id").
 		WithSegmentID("segment-id").
 		WithStatus(NewStatus("PENDING")).
@@ -533,6 +537,8 @@ func TestCreateAccountInputBuilderChaining(t *testing.T) {
 	assert.Equal(t, "parent-id", *input.ParentAccountID)
 	assert.NotNil(t, input.EntityID)
 	assert.Equal(t, "entity-id", *input.EntityID)
+	assert.NotNil(t, input.Blocked)
+	assert.True(t, *input.Blocked)
 	assert.NotNil(t, input.PortfolioID)
 	assert.Equal(t, "portfolio-id", *input.PortfolioID)
 	assert.NotNil(t, input.SegmentID)
@@ -553,6 +559,8 @@ func TestNewUpdateAccountInput(t *testing.T) {
 	assert.Nil(t, input.PortfolioID)
 	assert.Empty(t, input.Status.Code)
 	assert.Nil(t, input.Metadata)
+	assert.Nil(t, input.EntityID)
+	assert.Nil(t, input.Blocked)
 }
 
 // TestUpdateAccountInputValidate tests the Validate method for UpdateAccountInput
@@ -708,11 +716,15 @@ func TestUpdateAccountInputWithMetadata(t *testing.T) {
 func TestUpdateAccountInputToMmodel(t *testing.T) {
 	segmentID := "segment-123"
 	portfolioID := "portfolio-456"
+	entityID := "entity-789"
+	blocked := true
 
 	input := UpdateAccountInput{
 		Name:        "Updated Account",
 		SegmentID:   &segmentID,
 		PortfolioID: &portfolioID,
+		EntityID:    &entityID,
+		Blocked:     &blocked,
 		Status:      NewStatus("ACTIVE"),
 		Metadata: map[string]any{
 			"key": "value",
@@ -724,6 +736,8 @@ func TestUpdateAccountInputToMmodel(t *testing.T) {
 	assert.Equal(t, input.Name, result.Name)
 	assert.Equal(t, input.SegmentID, result.SegmentID)
 	assert.Equal(t, input.PortfolioID, result.PortfolioID)
+	assert.Equal(t, input.EntityID, result.EntityID)
+	assert.Equal(t, input.Blocked, result.Blocked)
 	assert.Equal(t, input.Status.Code, result.Status.Code)
 	assert.Equal(t, input.Metadata, result.Metadata)
 }
@@ -734,6 +748,8 @@ func TestUpdateAccountInputBuilderChaining(t *testing.T) {
 		WithName("Chained Update").
 		WithSegmentID("segment-id").
 		WithPortfolioID("portfolio-id").
+		WithEntityID("entity-id").
+		WithBlocked(true).
 		WithStatus(NewStatus("CLOSED")).
 		WithMetadata(map[string]any{"chain": "update"})
 
@@ -742,6 +758,10 @@ func TestUpdateAccountInputBuilderChaining(t *testing.T) {
 	assert.Equal(t, "segment-id", *input.SegmentID)
 	assert.NotNil(t, input.PortfolioID)
 	assert.Equal(t, "portfolio-id", *input.PortfolioID)
+	assert.NotNil(t, input.EntityID)
+	assert.Equal(t, "entity-id", *input.EntityID)
+	assert.NotNil(t, input.Blocked)
+	assert.True(t, *input.Blocked)
 	assert.Equal(t, "CLOSED", input.Status.Code)
 	assert.Equal(t, "update", input.Metadata["chain"])
 }
@@ -1231,14 +1251,14 @@ func TestMetadataValidation(t *testing.T) {
 					"key": "value",
 				},
 			},
-			expectError: false,
+			expectError: true,
 		},
 		{
 			name: "array value",
 			metadata: map[string]any{
 				"tags": []any{"tag1", "tag2"},
 			},
-			expectError: false,
+			expectError: true,
 		},
 	}
 

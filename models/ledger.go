@@ -10,6 +10,47 @@ import (
 // Ledger is an alias for mmodel.Ledger to maintain compatibility while using midaz entities.
 type Ledger = mmodel.Ledger
 
+// LedgerSettings is an alias for the Midaz ledger settings payload.
+type LedgerSettings = mmodel.LedgerSettings
+
+// UpdateLedgerSettingsAccountingInput is the partial accounting settings payload.
+type UpdateLedgerSettingsAccountingInput struct {
+	ValidateAccountType *bool `json:"validateAccountType,omitempty"`
+	ValidateRoutes      *bool `json:"validateRoutes,omitempty"`
+}
+
+// UpdateLedgerSettingsInput is the partial ledger settings patch payload.
+type UpdateLedgerSettingsInput struct {
+	Accounting *UpdateLedgerSettingsAccountingInput `json:"accounting,omitempty"`
+}
+
+// NewUpdateLedgerSettingsInput creates a new empty ledger settings patch.
+func NewUpdateLedgerSettingsInput() *UpdateLedgerSettingsInput {
+	return &UpdateLedgerSettingsInput{}
+}
+
+// WithValidateAccountType sets the validateAccountType accounting flag.
+func (input *UpdateLedgerSettingsInput) WithValidateAccountType(enabled bool) *UpdateLedgerSettingsInput {
+	if input.Accounting == nil {
+		input.Accounting = &UpdateLedgerSettingsAccountingInput{}
+	}
+
+	input.Accounting.ValidateAccountType = &enabled
+
+	return input
+}
+
+// WithValidateRoutes sets the validateRoutes accounting flag.
+func (input *UpdateLedgerSettingsInput) WithValidateRoutes(enabled bool) *UpdateLedgerSettingsInput {
+	if input.Accounting == nil {
+		input.Accounting = &UpdateLedgerSettingsAccountingInput{}
+	}
+
+	input.Accounting.ValidateRoutes = &enabled
+
+	return input
+}
+
 // CreateLedgerInput wraps mmodel.CreateLedgerInput to maintain compatibility while using midaz entities.
 type CreateLedgerInput struct {
 	mmodel.CreateLedgerInput

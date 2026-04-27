@@ -47,6 +47,14 @@ func (*mockLedgersService) DeleteLedger(_ context.Context, _, _ string) error {
 	return nil
 }
 
+func (*mockLedgersService) GetLedgerSettings(_ context.Context, _, _ string) (*models.LedgerSettings, error) {
+	return nil, errors.New("mock: GetLedgerSettings not implemented")
+}
+
+func (*mockLedgersService) UpdateLedgerSettings(_ context.Context, _, _ string, _ *models.UpdateLedgerSettingsInput) (*models.LedgerSettings, error) {
+	return nil, errors.New("mock: UpdateLedgerSettings not implemented")
+}
+
 func (*mockLedgersService) GetLedgersMetricsCount(_ context.Context, _ string) (*models.MetricsCount, error) {
 	return nil, errors.New("mock: GetLedgersMetricsCount not implemented")
 }

@@ -64,17 +64,11 @@ import (
 // occasional large JSON operations consuming excessive pool memory.
 const maxBufferSize = 1 << 20 // 1MB
 
-// JSONPool provides a pool of JSON encoders and decoders to reduce allocations.
-// This is particularly useful for high-throughput applications that make many API calls.
-//
-// Performance Impact:
-// - Reduces memory allocations by reusing encoder/decoder objects
-// - Decreases garbage collection pressure in high-frequency JSON operations
-// - Improves throughput for applications processing many small JSON documents
+// JSONPool provides pooled buffers for JSON encoding/decoding workflows.
+// The standard library encoders/decoders themselves are still created per use,
+// because they cannot be safely rebound to a new reader/writer.
 type JSONPool struct {
-	encoderPool sync.Pool
-	decoderPool sync.Pool
-	bufferPool  sync.Pool
+	bufferPool sync.Pool
 }
 
 // NewJSONPool creates a new JSONPool with initialized pools.
@@ -89,16 +83,6 @@ type JSONPool struct {
 //	jsonData, err := reportingPool.Marshal(reportData)
 func NewJSONPool() *JSONPool {
 	return &JSONPool{
-		encoderPool: sync.Pool{
-			New: func() any {
-				return json.NewEncoder(nil)
-			},
-		},
-		decoderPool: sync.Pool{
-			New: func() any {
-				return json.NewDecoder(nil)
-			},
-		},
 		bufferPool: sync.Pool{
 			New: func() any {
 				return new(bytes.Buffer)

@@ -143,8 +143,8 @@ func TestPaginationDefaults(t *testing.T) {
 }
 
 func TestDefaultSortDirection(t *testing.T) {
-	if DefaultSortDirection != string(SortDescending) {
-		t.Errorf("Expected DefaultSortDirection to be %s, got %s", string(SortDescending), DefaultSortDirection)
+	if DefaultSortDirection != string(SortAscending) {
+		t.Errorf("Expected DefaultSortDirection to be %s, got %s", string(SortAscending), DefaultSortDirection)
 	}
 }
 
@@ -182,17 +182,17 @@ func TestQueryParamNames(t *testing.T) {
 		{
 			name:     "QueryParamOrderDirection",
 			constant: QueryParamOrderDirection,
-			expected: "orderDirection",
+			expected: "sort_order",
 		},
 		{
 			name:     "QueryParamStartDate",
 			constant: QueryParamStartDate,
-			expected: "startDate",
+			expected: "start_date",
 		},
 		{
 			name:     "QueryParamEndDate",
 			constant: QueryParamEndDate,
-			expected: "endDate",
+			expected: "end_date",
 		},
 	}
 

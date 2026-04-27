@@ -1,6 +1,7 @@
 package models
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -623,8 +624,7 @@ func TestListOptionsToQueryParams(t *testing.T) {
 
 	expectedParams := map[string]string{
 		QueryParamLimit:          "25",
-		QueryParamOffset:         "10",
-		QueryParamOrderBy:        "name",
+		QueryParamPage:           "1",
 		QueryParamOrderDirection: string(SortAscending),
 		QueryParamStartDate:      "2023-01-01",
 		QueryParamEndDate:        "2023-12-31",
@@ -636,6 +636,128 @@ func TestListOptionsToQueryParams(t *testing.T) {
 		if actualValue, exists := params[key]; !exists || actualValue != expectedValue {
 			t.Errorf("Expected %s=%s, got %s=%s", key, expectedValue, key, actualValue)
 		}
+	}
+
+	if _, exists := params[QueryParamOffset]; exists {
+		t.Errorf("Did not expect legacy offset query parameter")
+	}
+
+	if _, exists := params[QueryParamOrderBy]; exists {
+		t.Errorf("Did not expect legacy orderBy query parameter")
+	}
+}
+
+func TestListOptionsCRMFilters(t *testing.T) {
+	params := NewListOptions().
+		WithIncludeDeleted(true).
+		WithHolderID("holder-123").
+		WithExternalID("external-123").
+		WithDocument("12345678900").
+		WithAccountID("account-123").
+		WithLedgerID("ledger-123").
+		WithParticipantDocument("11222333000199").
+		WithRelatedPartyDocument("99988877766").
+		ToQueryParams()
+
+	expected := map[string]string{
+		"include_deleted":                        "true",
+		"holder_id":                              "holder-123",
+		"external_id":                            "external-123",
+		"document":                               "12345678900",
+		"account_id":                             "account-123",
+		"ledger_id":                              "ledger-123",
+		"regulatory_fields_participant_document": "11222333000199",
+		"related_party_document":                 "99988877766",
+	}
+	for key, value := range expected {
+		if params[key] != value {
+			t.Errorf("Expected %s=%s, got %s", key, value, params[key])
+		}
+	}
+}
+
+func TestListResponseUnmarshalJSONTopLevelPagination(t *testing.T) {
+	data := []byte(`{
+		"items": [{"id": "org-1"}],
+		"limit": 10,
+		"page": 2,
+		"next_cursor": "next-123",
+		"prev_cursor": "prev-456"
+	}`)
+
+	var response ListResponse[map[string]any]
+	if err := json.Unmarshal(data, &response); err != nil {
+		t.Fatalf("unexpected unmarshal error: %v", err)
+	}
+
+	if len(response.Items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(response.Items))
+	}
+
+	if response.Pagination.Limit != 10 {
+		t.Fatalf("expected limit 10, got %d", response.Pagination.Limit)
+	}
+
+	if response.Pagination.Page != 2 {
+		t.Fatalf("expected page 2, got %d", response.Pagination.Page)
+	}
+
+	if response.Pagination.NextCursor != "next-123" {
+		t.Fatalf("expected next cursor next-123, got %s", response.Pagination.NextCursor)
+	}
+
+	if response.Pagination.PrevCursor != "prev-456" {
+		t.Fatalf("expected prev cursor prev-456, got %s", response.Pagination.PrevCursor)
+	}
+
+	if response.Pagination.ItemCount != 1 {
+		t.Fatalf("expected item count 1, got %d", response.Pagination.ItemCount)
+	}
+}
+
+func TestListResponseUnmarshalJSONLegacyNestedPagination(t *testing.T) {
+	data := []byte(`{
+		"items": [{"id": "org-1"}],
+		"pagination": {
+			"limit": 10,
+			"offset": 20,
+			"total": 55,
+			"next_cursor": "next-legacy",
+			"prev_cursor": "prev-legacy"
+		}
+	}`)
+
+	var response ListResponse[map[string]any]
+	if err := json.Unmarshal(data, &response); err != nil {
+		t.Fatalf("unexpected unmarshal error: %v", err)
+	}
+
+	if len(response.Items) != 1 {
+		t.Fatalf("expected 1 item, got %d", len(response.Items))
+	}
+
+	if response.Pagination.Limit != 10 {
+		t.Fatalf("expected limit 10, got %d", response.Pagination.Limit)
+	}
+
+	if response.Pagination.Offset != 20 {
+		t.Fatalf("expected offset 20, got %d", response.Pagination.Offset)
+	}
+
+	if response.Pagination.Total != 55 {
+		t.Fatalf("expected total 55, got %d", response.Pagination.Total)
+	}
+
+	if response.Pagination.NextCursor != "next-legacy" {
+		t.Fatalf("expected next cursor next-legacy, got %s", response.Pagination.NextCursor)
+	}
+
+	if response.Pagination.PrevCursor != "prev-legacy" {
+		t.Fatalf("expected prev cursor prev-legacy, got %s", response.Pagination.PrevCursor)
+	}
+
+	if response.Pagination.ItemCount != 1 {
+		t.Fatalf("expected item count 1, got %d", response.Pagination.ItemCount)
 	}
 }
 

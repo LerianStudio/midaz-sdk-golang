@@ -28,5 +28,14 @@ func ValidateOutboundRequest(req *http.Request) error {
 		return fmt.Errorf("unsupported URL scheme: %s", req.URL.Scheme)
 	}
 
+	if scheme == "http" && !isLocalhost(req.URL.Hostname()) {
+		return fmt.Errorf("insecure HTTP is only allowed for localhost targets: %s", req.URL.Host)
+	}
+
 	return nil
+}
+
+func isLocalhost(hostname string) bool {
+	hostname = strings.TrimSpace(strings.ToLower(hostname))
+	return hostname == "localhost" || hostname == "127.0.0.1" || hostname == "::1"
 }

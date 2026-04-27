@@ -106,8 +106,8 @@ const (
 	// DefaultPage is the default page number for backward compatibility
 	DefaultPage = 1
 
-	// DefaultSortDirection is the default sort direction
-	DefaultSortDirection = string(SortDescending)
+	// DefaultSortDirection is the default sort direction.
+	DefaultSortDirection = string(SortAscending)
 )
 
 // QueryParamNames contains the names of query parameters used for API requests.
@@ -116,7 +116,8 @@ const (
 	// QueryParamLimit is the query parameter name for limit
 	QueryParamLimit = "limit"
 
-	// QueryParamOffset is the query parameter name for offset
+	// QueryParamOffset is the legacy query parameter name for offset.
+	// Deprecated: current Midaz list endpoints use page-based pagination on the wire.
 	QueryParamOffset = "offset"
 
 	// QueryParamPage is the query parameter name for page (backward compatibility)
@@ -125,15 +126,16 @@ const (
 	// QueryParamCursor is the query parameter name for cursor
 	QueryParamCursor = "cursor"
 
-	// QueryParamOrderBy is the query parameter name for the field to order by
+	// QueryParamOrderBy is the legacy query parameter name for the field to order by.
+	// Deprecated: current Midaz list endpoints do not expose a generic order-by query parameter.
 	QueryParamOrderBy = "orderBy"
 
-	// QueryParamOrderDirection is the query parameter name for sort direction
-	QueryParamOrderDirection = "orderDirection"
+	// QueryParamOrderDirection is the query parameter name for sort direction.
+	QueryParamOrderDirection = "sort_order"
 
-	// QueryParamStartDate is the query parameter name for start date
-	QueryParamStartDate = "startDate"
+	// QueryParamStartDate is the query parameter name for start date.
+	QueryParamStartDate = "start_date"
 
-	// QueryParamEndDate is the query parameter name for end date
-	QueryParamEndDate = "endDate"
+	// QueryParamEndDate is the query parameter name for end date.
+	QueryParamEndDate = "end_date"
 )
