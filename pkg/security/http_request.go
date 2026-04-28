@@ -37,5 +37,10 @@ func ValidateOutboundRequest(req *http.Request) error {
 
 func isLocalhost(hostname string) bool {
 	hostname = strings.TrimSpace(strings.ToLower(hostname))
-	return hostname == "localhost" || hostname == "127.0.0.1" || hostname == "::1"
+	if hostname == "localhost" || hostname == "127.0.0.1" || hostname == "::1" {
+		return true
+	}
+	// RFC 6761 §6.3: ".localhost" is a reserved special-use TLD that resolvers
+	// must treat as loopback. Used by Docker Compose aliases and dev tooling.
+	return strings.HasSuffix(hostname, ".localhost")
 }
