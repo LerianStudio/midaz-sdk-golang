@@ -875,6 +875,11 @@ func isLocalhost(host string) bool {
 	if hostname == "localhost" {
 		return true
 	}
+	// RFC 6761 §6.3: ".localhost" is a reserved special-use TLD that resolvers
+	// must treat as loopback. Used by Docker Compose aliases and dev tooling.
+	if strings.HasSuffix(hostname, ".localhost") {
+		return true
+	}
 
 	ip := net.ParseIP(hostname)
 

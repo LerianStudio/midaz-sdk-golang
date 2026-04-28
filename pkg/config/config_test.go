@@ -1155,6 +1155,10 @@ func TestIsLocalhost(t *testing.T) {
 		{"localhost:3000", true},
 		{"127.0.0.1", true},
 		{"127.0.0.1:8080", true},
+		// RFC 6761 §6.3: ".localhost" suffix must be treated as loopback.
+		{"mock-midaz.localhost", true},
+		{"foo.bar.localhost", true},
+		{"mock-midaz.localhost:3001", true},
 		// Note: IPv6 localhost (::1) not handled correctly by current implementation
 		// due to strings.Split(host, ":") splitting on colons in IPv6 addresses
 		{"api.example.com", false},
@@ -1162,6 +1166,10 @@ func TestIsLocalhost(t *testing.T) {
 		{"192.168.1.1", false},
 		{"192.168.1.1:8080", false},
 		{"10.0.0.1", false},
+		// Suffix match must be anchored: a host whose .localhost is mid-string is NOT loopback.
+		{"localhost.attacker.com", false},
+		{"notlocalhost", false},
+		{"mock-midaz", false},
 		{"", false},
 	}
 
