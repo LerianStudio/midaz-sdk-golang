@@ -2,8 +2,10 @@ package entities
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net/http"
+	"reflect"
 	"strings"
 )
 
@@ -26,4 +28,42 @@ func prepareServiceBaseURLs(baseURLs map[string]string) map[string]string {
 	}
 
 	return prepared
+}
+
+func buildLedgerScopedURL(baseURL, organizationID, ledgerID string, parts ...string) string {
+	segments := []string{
+		"organizations",
+		pathSegment(organizationID),
+		"ledgers",
+		pathSegment(ledgerID),
+	}
+
+	for _, part := range parts {
+		part = strings.Trim(part, "/")
+		if part == "" {
+			continue
+		}
+
+		for _, piece := range strings.Split(part, "/") {
+			if piece != "" {
+				segments = append(segments, pathSegment(piece))
+			}
+		}
+	}
+
+	return fmt.Sprintf("%s/%s", strings.TrimRight(baseURL, "/"), strings.Join(segments, "/"))
+}
+
+func isNilAny(value any) bool {
+	if value == nil {
+		return true
+	}
+
+	reflected := reflect.ValueOf(value)
+	switch reflected.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return reflected.IsNil()
+	default:
+		return false
+	}
 }

@@ -183,6 +183,8 @@ Compatibility-only method:
 - `GetAssetRate(ctx, organizationID, ledgerID, externalID)`
 - `ListAssetRatesByAssetCode(ctx, organizationID, ledgerID, assetCode, opts)`
 
+`AssetRateListOptions` supports `WithTo`, `WithLimit`, `WithDateRange`, `WithSortOrder`, `WithCursor`, and `ToQueryParams`, serializing to `to`, `limit`, `start_date`, `end_date`, `sort_order`, and `cursor`.
+
 ### BalancesService
 
 - `ListBalances(ctx, orgID, ledgerID, opts)`
@@ -219,7 +221,7 @@ Compatibility-only method:
 - `ListOperations(ctx, orgID, ledgerID, accountID, opts)`
 - `GetOperation(ctx, orgID, ledgerID, accountID, operationID)`
 - `UpdateTransactionOperation(ctx, orgID, ledgerID, transactionID, operationID, input)`
-- `UpdateOperation(ctx, orgID, ledgerID, accountID, operationID, input)` - Deprecated compatibility method.
+- `UpdateOperation(ctx, orgID, ledgerID, accountID, operationID, input)` - Deprecated compatibility shim. It reads the account-scoped operation, extracts `transactionID`, and delegates to `UpdateTransactionOperation`; use `UpdateTransactionOperation` directly when possible.
 
 ### OperationRoutesService
 
@@ -253,6 +255,8 @@ Compatibility-only method:
 - `CreateInflowTransaction(ctx, orgID, ledgerID, input)`
 - `CreateOutflowTransaction(ctx, orgID, ledgerID, input)`
 - `CreateAnnotationTransaction(ctx, orgID, ledgerID, input)`
+
+`CreateTransactionWithDSLFile` sends `POST /transactions/dsl` as multipart form data with field name `transaction`, filename `transaction.dsl`, and UTF-8 DSL content. The SDK rejects empty, invalid UTF-8, and over-limit DSL payloads before network I/O.
 
 ### Count method behavior
 
@@ -340,6 +344,14 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v2/models`.
 - `models.NewCreateSegmentInput(name)`
 - `models.NewUpdateSegmentInput()`
 - `models.NewCreateTransactionInput(assetCode, amount)`
+- `models.NewCreateInflowInput(assetCode, value, distribute)`
+- `models.NewCreateOutflowInput(assetCode, value, source)`
+- `models.NewCreateAnnotationInput(description, send...)`
+- `models.NewCreateOperationRouteInput(title, description, operationType)`
+- `models.NewUpdateOperationRouteInput()`
+- `models.NewCreateTransactionRouteInput(title, description, operationRouteIDs)`
+- `models.NewUpdateTransactionRouteInput()`
+- `models.NewCreateAssetRateInput(from, to, rate)` with `WithScale`, `WithSource`, `WithTTL`, `WithExternalID`, and `WithMetadata`.
 - `models.NewAssetRateListOptions()`
 
 ## Errors package

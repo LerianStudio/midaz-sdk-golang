@@ -166,7 +166,7 @@ tx, err := c.Entity.Transactions.CreateTransactionWithDSL(ctx, orgID, ledgerID, 
 })
 ```
 
-For raw DSL file content, use `CreateTransactionWithDSLFile(ctx, orgID, ledgerID, []byte(content))`.
+For raw DSL file content, use `CreateTransactionWithDSLFile(ctx, orgID, ledgerID, []byte(content))`. The SDK sends `POST /transactions/dsl` as multipart form data using field name `transaction`, filename `transaction.dsl`, and UTF-8 DSL content; empty, invalid UTF-8, and over-limit payloads are rejected before network I/O.
 
 ## Using pagination
 

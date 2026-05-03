@@ -255,9 +255,9 @@ func TestCreateAssetRateInputWithExternalID(t *testing.T) {
 			wantExternalID: "550e8400-e29b-41d4-a716-446655440000",
 		},
 		{
-			name:           "custom external id",
-			externalID:     "rate-usd-brl-2024",
-			wantExternalID: "rate-usd-brl-2024",
+			name:           "another uuid external id",
+			externalID:     "550e8400-e29b-41d4-a716-446655440001",
+			wantExternalID: "550e8400-e29b-41d4-a716-446655440001",
 		},
 		{
 			name:           "empty external id",
@@ -335,7 +335,7 @@ func TestCreateAssetRateInputBuilderChaining(t *testing.T) {
 		WithScale(4).
 		WithSource("Central Bank").
 		WithTTL(3600).
-		WithExternalID("ext-rate-001").
+		WithExternalID("550e8400-e29b-41d4-a716-446655440002").
 		WithMetadata(metadata)
 
 	assert.Equal(t, "USD", input.From)
@@ -347,7 +347,7 @@ func TestCreateAssetRateInputBuilderChaining(t *testing.T) {
 	assert.NotNil(t, input.TTL)
 	assert.Equal(t, 3600, *input.TTL)
 	assert.NotNil(t, input.ExternalID)
-	assert.Equal(t, "ext-rate-001", *input.ExternalID)
+	assert.Equal(t, "550e8400-e29b-41d4-a716-446655440002", *input.ExternalID)
 	assert.Equal(t, metadata, input.Metadata)
 }
 
@@ -370,7 +370,7 @@ func TestCreateAssetRateInputValidate(t *testing.T) {
 		},
 		{
 			name:    "valid input with all optional fields",
-			input:   NewCreateAssetRateInput("USD", "BRL", 525).WithScale(2).WithSource("API").WithTTL(3600).WithExternalID("ext-1"),
+			input:   NewCreateAssetRateInput("USD", "BRL", 525).WithScale(2).WithSource("API").WithTTL(3600).WithExternalID("550e8400-e29b-41d4-a716-446655440003"),
 			wantErr: false,
 		},
 		{

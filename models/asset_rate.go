@@ -4,7 +4,16 @@ package models
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
+
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation/core"
+	"github.com/google/uuid"
+)
+
+const (
+	maxAssetRateCodeLength   = 100
+	maxAssetRateSourceLength = 200
 )
 
 // AssetRate represents a conversion rate between two assets in the Midaz system.
@@ -98,50 +107,127 @@ func NewCreateAssetRateInput(from, to string, rate int) *CreateAssetRateInput {
 
 // WithScale sets the decimal places for the rate.
 func (input *CreateAssetRateInput) WithScale(scale int) *CreateAssetRateInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Scale = scale
+
 	return input
 }
 
 // WithSource sets the source of rate information.
 func (input *CreateAssetRateInput) WithSource(source string) *CreateAssetRateInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Source = &source
+
 	return input
 }
 
 // WithTTL sets the time-to-live in seconds.
 func (input *CreateAssetRateInput) WithTTL(ttl int) *CreateAssetRateInput {
+	if input == nil {
+		return nil
+	}
+
 	input.TTL = &ttl
+
 	return input
 }
 
 // WithExternalID sets the external identifier for integration.
 func (input *CreateAssetRateInput) WithExternalID(externalID string) *CreateAssetRateInput {
+	if input == nil {
+		return nil
+	}
+
 	input.ExternalID = &externalID
+
 	return input
 }
 
 // WithMetadata sets the metadata for the asset rate.
 func (input *CreateAssetRateInput) WithMetadata(metadata map[string]any) *CreateAssetRateInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Metadata = metadata
+
 	return input
 }
 
 // Validate validates the CreateAssetRateInput fields.
 func (input *CreateAssetRateInput) Validate() error {
+	if input == nil {
+		return errors.New("input is required")
+	}
+
+	if err := input.validateAssetCodes(); err != nil {
+		return err
+	}
+
+	if err := input.validateRateFields(); err != nil {
+		return err
+	}
+
+	return input.validateOptionalFields()
+}
+
+func (input *CreateAssetRateInput) validateAssetCodes() error {
 	if input.From == "" {
 		return errors.New("from asset code is required")
+	}
+
+	if len(input.From) > maxAssetRateCodeLength {
+		return fmt.Errorf("from asset code must be at most %d characters", maxAssetRateCodeLength)
 	}
 
 	if input.To == "" {
 		return errors.New("to asset code is required")
 	}
 
+	if len(input.To) > maxAssetRateCodeLength {
+		return fmt.Errorf("to asset code must be at most %d characters", maxAssetRateCodeLength)
+	}
+
+	return nil
+}
+
+func (input *CreateAssetRateInput) validateRateFields() error {
 	if input.Rate <= 0 {
 		return errors.New("rate must be greater than zero")
 	}
 
 	if input.Scale < 0 {
 		return errors.New("scale must be non-negative")
+	}
+
+	return nil
+}
+
+func (input *CreateAssetRateInput) validateOptionalFields() error {
+	if input.Source != nil && len(*input.Source) > maxAssetRateSourceLength {
+		return fmt.Errorf("source must be at most %d characters", maxAssetRateSourceLength)
+	}
+
+	if input.TTL != nil && *input.TTL < 0 {
+		return errors.New("ttl must be non-negative")
+	}
+
+	if input.ExternalID != nil && strings.TrimSpace(*input.ExternalID) != "" {
+		if _, err := uuid.Parse(*input.ExternalID); err != nil {
+			return fmt.Errorf("externalID must be a valid UUID: %w", err)
+		}
+	}
+
+	if input.Metadata != nil {
+		if err := core.ValidateMetadata(input.Metadata); err != nil {
+			return fmt.Errorf("invalid metadata: %w", err)
+		}
 	}
 
 	return nil
@@ -193,12 +279,21 @@ func NewAssetRateListOptions() *AssetRateListOptions {
 
 // WithTo sets the target asset codes filter.
 func (o *AssetRateListOptions) WithTo(to ...string) *AssetRateListOptions {
+	if o == nil {
+		return nil
+	}
+
 	o.To = to
+
 	return o
 }
 
 // WithLimit sets the maximum number of items to return.
 func (o *AssetRateListOptions) WithLimit(limit int) *AssetRateListOptions {
+	if o == nil {
+		return nil
+	}
+
 	if limit <= 0 {
 		o.Limit = DefaultLimit
 	} else if limit > MaxLimit {
@@ -212,6 +307,10 @@ func (o *AssetRateListOptions) WithLimit(limit int) *AssetRateListOptions {
 
 // WithDateRange sets the date range filter.
 func (o *AssetRateListOptions) WithDateRange(startDate, endDate string) *AssetRateListOptions {
+	if o == nil {
+		return nil
+	}
+
 	o.StartDate = startDate
 	o.EndDate = endDate
 
@@ -220,33 +319,35 @@ func (o *AssetRateListOptions) WithDateRange(startDate, endDate string) *AssetRa
 
 // WithSortOrder sets the sort order.
 func (o *AssetRateListOptions) WithSortOrder(sortOrder string) *AssetRateListOptions {
+	if o == nil {
+		return nil
+	}
+
 	o.SortOrder = sortOrder
+
 	return o
 }
 
 // WithCursor sets the pagination cursor.
 func (o *AssetRateListOptions) WithCursor(cursor string) *AssetRateListOptions {
+	if o == nil {
+		return nil
+	}
+
 	o.Cursor = cursor
+
 	return o
 }
 
 // ToQueryParams converts AssetRateListOptions to query parameters.
 func (o *AssetRateListOptions) ToQueryParams() map[string]string {
 	params := make(map[string]string)
+	if o == nil {
+		return params
+	}
 
 	if len(o.To) > 0 {
-		// Join target asset codes with comma
-		var toStr string
-
-		for i, t := range o.To {
-			if i > 0 {
-				toStr += ","
-			}
-
-			toStr += t
-		}
-
-		params["to"] = toStr
+		params["to"] = strings.Join(o.To, ",")
 	}
 
 	if o.Limit > 0 {

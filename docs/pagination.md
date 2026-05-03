@@ -58,8 +58,8 @@ Midaz services do not use one universal pagination shape. Choose options based o
 
 | API family | Methods | Wire pagination | Notes |
 | --- | --- | --- | --- |
-| Ledger page-based lists | Organizations, Ledgers, Assets, Portfolios, Segments, Accounts, Account Types, routes, balances, and similar Ledger resources | `page`, `limit`, filters, and `sort_order` | Use `WithPage` and `WithLimit`. Do not rely on `offset` as a Midaz wire parameter. |
-| Ledger cursor-aware lists | Transactions and any endpoint that returns cursor metadata | `cursor`, `limit`, filters, and `sort_order` | When you set a cursor for transactions, the SDK sends the cursor request and removes page-style pagination parameters. |
+| Ledger page-based lists | Organizations, Ledgers, Assets, Portfolios, Segments, Accounts, Account Types, and balances | `page`, `limit`, filters, and `sort_order` | Use `WithPage` and `WithLimit`. Do not rely on `offset` as a Midaz wire parameter. |
+| Ledger cursor-aware lists | Transactions, Operations, Operation Routes, Transaction Routes, and Asset Rates | `cursor`, `limit`, filters, and `sort_order` | These endpoints do not accept `page` or `offset`; the SDK emits cursor-style query parameters only. Asset rates also support `to`, `start_date`, and `end_date`. |
 | CRM page-based lists | Holders and Aliases | `page`, `limit`, CRM filters, and `sort_order` | CRM filters include `include_deleted`, `holder_id`, `external_id`, `document`, `account_id`, `ledger_id`, `regulatory_fields_participant_document`, and `related_party_document`. |
 
 ## Paginated responses

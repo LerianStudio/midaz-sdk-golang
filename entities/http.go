@@ -487,7 +487,14 @@ func (c *HTTPClient) doRequest(ctx context.Context, method, requestURL string, h
 
 	// Process response
 	if err := c.processResponse(result, responseBody); err != nil {
+		if errors.Is(err, errEmptyResponseBody) || errors.Is(err, errNullResponseBody) {
+			c.recordRequestMetrics(ctx, method, requestURL, resp, elapsed)
+
+			return err
+		}
+
 		c.recordSDKFailure(ctx, method, requestURL, elapsed, err)
+
 		return err
 	}
 
@@ -561,6 +568,10 @@ func (c *HTTPClient) doRawRequest(ctx context.Context, method, requestURL string
 func prepareRawRequestBody(headers map[string]string, body []byte) (io.Reader, map[string]string, error) {
 	if len(body) == 0 {
 		return nil, headers, nil
+	}
+
+	if int64(len(body)) > maxHTTPRequestBodyBytes {
+		return nil, nil, fmt.Errorf("request body exceeds maximum size of %d bytes", maxHTTPRequestBodyBytes)
 	}
 
 	if headers == nil {
@@ -1383,6 +1394,10 @@ func (*HTTPClient) parseErrorResponse(statusCode int, body []byte, requestID str
 		message = fmt.Sprintf("API error with status code %d", statusCode)
 	}
 
+	message = sdkerrors.RedactSensitiveString(message)
+	title := sdkerrors.RedactSensitiveString(apiError.Title)
+	fields := sdkerrors.RedactSensitiveStringSlice(apiError.Fields)
+
 	// Create the appropriate error type based on the status code
 	return sdkerrors.ErrorFromHTTPResponseWithDetails(
 		statusCode,
@@ -1391,8 +1406,8 @@ func (*HTTPClient) parseErrorResponse(statusCode int, body []byte, requestID str
 		apiError.Code,
 		apiError.EntityType,
 		"",
-		apiError.Title,
-		apiError.Fields,
+		title,
+		fields,
 		details,
 	)
 }

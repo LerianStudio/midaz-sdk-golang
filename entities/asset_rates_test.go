@@ -239,13 +239,13 @@ func TestAssetRatesEntity_CreateOrUpdateAssetRate(t *testing.T) {
 				WithScale(2).
 				WithSource("ECB").
 				WithTTL(7200).
-				WithExternalID("ext-rate-001").
+				WithExternalID("550e8400-e29b-41d4-a716-446655440004").
 				WithMetadata(map[string]any{"provider": "forex"}),
 			mockResponse: `{
 				"id": "rate-456",
 				"organizationId": "org-123",
 				"ledgerId": "ledger-456",
-				"externalId": "ext-rate-001",
+				"externalId": "550e8400-e29b-41d4-a716-446655440004",
 				"from": "USD",
 				"to": "EUR",
 				"rate": 0.92,

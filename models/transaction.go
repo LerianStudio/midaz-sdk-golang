@@ -1402,43 +1402,78 @@ func NewCreateOutflowInput(asset string, value any, source *SourceInput) *Create
 
 // WithDescription sets the description.
 func (input *CreateOutflowInput) WithDescription(description string) *CreateOutflowInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Description = description
+
 	return input
 }
 
 // WithCode sets the code.
 func (input *CreateOutflowInput) WithCode(code string) *CreateOutflowInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Code = code
+
 	return input
 }
 
 // WithMetadata sets the metadata.
 func (input *CreateOutflowInput) WithMetadata(metadata map[string]any) *CreateOutflowInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Metadata = metadata
+
 	return input
 }
 
 // WithChartOfAccountsGroupName sets the chart of accounts group name.
 func (input *CreateOutflowInput) WithChartOfAccountsGroupName(name string) *CreateOutflowInput {
+	if input == nil {
+		return nil
+	}
+
 	input.ChartOfAccountsGroupName = name
+
 	return input
 }
 
 // WithRoute sets the route.
 func (input *CreateOutflowInput) WithRoute(route string) *CreateOutflowInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Route = route
+
 	return input
 }
 
 // WithRouteID sets the route UUID.
 func (input *CreateOutflowInput) WithRouteID(routeID string) *CreateOutflowInput {
+	if input == nil {
+		return nil
+	}
+
 	input.RouteID = routeID
+
 	return input
 }
 
 // WithTransactionDate sets the transaction effective date/time.
 func (input *CreateOutflowInput) WithTransactionDate(transactionDate string) *CreateOutflowInput {
+	if input == nil {
+		return nil
+	}
+
 	input.TransactionDate = transactionDate
+
 	return input
 }
 
@@ -1534,6 +1569,10 @@ func (input *CreateAnnotationInput) Validate() error {
 		return err
 	}
 
+	if input.Send == nil {
+		return errors.New("send is required")
+	}
+
 	if input.Send != nil {
 		if err := input.Send.Validate(); err != nil {
 			return fmt.Errorf("invalid send: %w", err)
@@ -1559,24 +1598,44 @@ func (input *CreateAnnotationInput) ToLibTransaction() map[string]any {
 
 // WithCode sets the annotation transaction code.
 func (input *CreateAnnotationInput) WithCode(code string) *CreateAnnotationInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Code = code
+
 	return input
 }
 
 // WithMetadata sets annotation transaction metadata.
 func (input *CreateAnnotationInput) WithMetadata(metadata map[string]any) *CreateAnnotationInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Metadata = metadata
+
 	return input
 }
 
 // WithCode sets the transaction code.
 func (input *CreateTransactionInput) WithCode(code string) *CreateTransactionInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Code = code
+
 	return input
 }
 
 // WithPending sets the pending flag.
 func (input *CreateOutflowInput) WithPending(pending bool) *CreateOutflowInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Pending = pending
+
 	return input
 }

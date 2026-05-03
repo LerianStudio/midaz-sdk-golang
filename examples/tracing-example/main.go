@@ -24,9 +24,9 @@ func main() {
 		observability.WithServiceName("midaz-example-service"),
 		observability.WithServiceVersion("1.0.0"),
 		observability.WithEnvironment("development"),
-		observability.WithComponentEnabled(true, true, true),         // Enable tracing, metrics, and logging
-		observability.WithCollectorEndpoint("http://localhost:4317"), // Optional: OTEL collector
-		observability.WithHighTracingSampling(),                      // High sampling for development
+		observability.WithComponentEnabled(true, true, true),  // Enable tracing, metrics, and logging
+		observability.WithCollectorEndpoint("localhost:4317"), // Optional: OTLP gRPC collector host:port
+		observability.WithHighTracingSampling(),               // High sampling for development
 		observability.WithPropagationHeaders("traceparent", "tracestate", "baggage", "x-request-id"),
 	)
 	if err != nil {

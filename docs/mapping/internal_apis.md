@@ -127,10 +127,10 @@ Important path groups:
 - Accounts: `/organizations/{organizationID}/ledgers/{ledgerID}/accounts`, `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/{accountID}`, `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/alias/{alias}`, `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/external/{assetCode}`
 - Account balances: `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/{accountID}/balances`, `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/alias/{alias}/balances`, `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/external/{assetCode}/balances`, `/balances/{balanceID}`, balance history endpoints
 - Assets: `/organizations/{organizationID}/ledgers/{ledgerID}/assets`
-- Asset rates: asset-rate endpoints under organization/ledger scope, including asset-code filtered listing
-- Transactions: `/transactions/json`, `/transactions/dsl`, `/transactions/{id}`, `/transactions/{id}/commit`, `/transactions/{id}/cancel`, `/transactions/{id}/revert`, `/transactions/inflow`, `/transactions/outflow`, `/transactions/annotation`
-- Operations: account-scoped operation listing plus transaction operation update paths
-- Routes: operation route and transaction route endpoints under organization/ledger scope
+- Asset rates: `/organizations/{organizationID}/ledgers/{ledgerID}/asset-rates`, `/organizations/{organizationID}/ledgers/{ledgerID}/asset-rates/{externalID}`, and `/organizations/{organizationID}/ledgers/{ledgerID}/asset-rates/from/{assetCode}` using cursor filters (`to`, `limit`, `start_date`, `end_date`, `sort_order`, `cursor`).
+- Transactions: `/organizations/{organizationID}/ledgers/{ledgerID}/transactions`, `/organizations/{organizationID}/ledgers/{ledgerID}/transactions/json`, `/organizations/{organizationID}/ledgers/{ledgerID}/transactions/dsl`, `/organizations/{organizationID}/ledgers/{ledgerID}/transactions/{transactionID}`, `/organizations/{organizationID}/ledgers/{ledgerID}/transactions/{transactionID}/commit`, `/organizations/{organizationID}/ledgers/{ledgerID}/transactions/{transactionID}/cancel`, `/organizations/{organizationID}/ledgers/{ledgerID}/transactions/{transactionID}/revert`, `/organizations/{organizationID}/ledgers/{ledgerID}/transactions/inflow`, `/organizations/{organizationID}/ledgers/{ledgerID}/transactions/outflow`, `/organizations/{organizationID}/ledgers/{ledgerID}/transactions/annotation`
+- Operations: account-scoped reads use `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/{accountID}/operations` and `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/{accountID}/operations/{operationID}`. Updates are transaction-scoped through `PATCH /organizations/{organizationID}/ledgers/{ledgerID}/transactions/{transactionID}/operations/{operationID}`.
+- Routes: operation route endpoints use `/organizations/{organizationID}/ledgers/{ledgerID}/operation-routes`; transaction route endpoints use `/organizations/{organizationID}/ledgers/{ledgerID}/transaction-routes`.
 - Metadata indexes: `/settings/metadata-indexes`
 - CRM holders: `/holders`, `/holders/{holderID}`
 - CRM aliases: `/aliases`, `/holders/{holderID}/aliases`, `/holders/{holderID}/aliases/{aliasID}/related-parties/{relatedPartyID}`
@@ -172,6 +172,14 @@ Common builders:
 - `models.NewCreateSegmentInput(name)`
 - `models.NewUpdateSegmentInput()`
 - `models.NewCreateTransactionInput(assetCode, amount)`
+- `models.NewCreateInflowInput(assetCode, value, distribute)`
+- `models.NewCreateOutflowInput(assetCode, value, source)`
+- `models.NewCreateAnnotationInput(description, send...)`
+- `models.NewCreateOperationRouteInput(title, description, operationType)`
+- `models.NewUpdateOperationRouteInput()`
+- `models.NewCreateTransactionRouteInput(title, description, operationRouteIDs)`
+- `models.NewUpdateTransactionRouteInput()`
+- `models.NewCreateAssetRateInput(from, to, rate)` with `WithScale`, `WithSource`, `WithTTL`, `WithExternalID`, and `WithMetadata`.
 - `models.NewAssetRateListOptions()`
 
 ## List options and pagination internals

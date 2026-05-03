@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"os"
 	"strings"
@@ -121,7 +120,7 @@ func NewAssetRatesEntity(client *http.Client, authToken string, baseURLs map[str
 
 	return &assetRatesEntity{
 		httpClient: httpClient,
-		baseURLs:   baseURLs,
+		baseURLs:   prepareServiceBaseURLs(baseURLs),
 	}
 }
 
@@ -156,7 +155,7 @@ func (e *assetRatesEntity) CreateOrUpdateAssetRate(
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, bytes.NewReader(body))
+	req, err := newRequestWithContext(ctx, http.MethodPut, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -165,6 +164,8 @@ func (e *assetRatesEntity) CreateOrUpdateAssetRate(
 	if err := e.httpClient.sendRequest(req, &assetRate); err != nil {
 		return nil, err
 	}
+
+	normalizeAssetRate(&assetRate)
 
 	return &assetRate, nil
 }
@@ -190,7 +191,7 @@ func (e *assetRatesEntity) GetAssetRate(
 
 	url := e.buildURL(organizationID, ledgerID, externalID)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -199,6 +200,8 @@ func (e *assetRatesEntity) GetAssetRate(
 	if err := e.httpClient.sendRequest(req, &assetRate); err != nil {
 		return nil, err
 	}
+
+	normalizeAssetRate(&assetRate)
 
 	return &assetRate, nil
 }
@@ -225,7 +228,7 @@ func (e *assetRatesEntity) ListAssetRatesByAssetCode(
 
 	url := e.buildFromAssetURL(organizationID, ledgerID, assetCode)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -245,22 +248,33 @@ func (e *assetRatesEntity) ListAssetRatesByAssetCode(
 		return nil, err
 	}
 
+	if response.Items == nil {
+		response.Items = []models.AssetRate{}
+	}
+
+	for i := range response.Items {
+		normalizeAssetRate(&response.Items[i])
+	}
+
 	return &response, nil
 }
 
 // buildURL builds the URL for asset rates API calls.
 func (e *assetRatesEntity) buildURL(organizationID, ledgerID, externalID string) string {
-	baseURL := e.baseURLs["transaction"]
-
 	if externalID == "" {
-		return fmt.Sprintf("%s/organizations/%s/ledgers/%s/asset-rates", baseURL, pathSegment(organizationID), pathSegment(ledgerID))
+		return buildLedgerScopedURL(e.baseURLs["transaction"], organizationID, ledgerID, "asset-rates")
 	}
 
-	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/asset-rates/%s", baseURL, pathSegment(organizationID), pathSegment(ledgerID), pathSegment(externalID))
+	return buildLedgerScopedURL(e.baseURLs["transaction"], organizationID, ledgerID, "asset-rates", externalID)
 }
 
 // buildFromAssetURL builds the URL for listing asset rates by source asset code.
 func (e *assetRatesEntity) buildFromAssetURL(organizationID, ledgerID, assetCode string) string {
-	baseURL := e.baseURLs["transaction"]
-	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/asset-rates/from/%s", baseURL, pathSegment(organizationID), pathSegment(ledgerID), pathSegment(assetCode))
+	return buildLedgerScopedURL(e.baseURLs["transaction"], organizationID, ledgerID, "asset-rates", "from", assetCode)
+}
+
+func normalizeAssetRate(assetRate *models.AssetRate) {
+	if assetRate != nil && assetRate.Metadata == nil {
+		assetRate.Metadata = map[string]any{}
+	}
 }

@@ -1468,11 +1468,12 @@ func TestCreateAnnotationInput_Validate(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "send is optional",
+			name: "send is required",
 			input: &CreateAnnotationInput{
 				Description: "Annotation-only note",
 			},
-			wantErr: false,
+			wantErr: true,
+			errMsg:  "send is required",
 		},
 	}
 

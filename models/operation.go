@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation/core"
 	"github.com/shopspring/decimal"
 )
 
@@ -178,6 +179,25 @@ type UpdateOperationInput struct {
 	// example: {"reason": "Purchase refund", "reference": "INV-12345"}
 	Metadata map[string]any `json:"metadata,omitempty"`
 } // @name UpdateOperationInput
+
+// Validate validates the UpdateOperationInput fields.
+func (input *UpdateOperationInput) Validate() error {
+	if input == nil {
+		return errors.New("input is required")
+	}
+
+	if len(input.Description) > maxAccountFieldLength {
+		return fmt.Errorf("description must be at most %d characters", maxAccountFieldLength)
+	}
+
+	if input.Metadata != nil {
+		if err := core.ValidateMetadata(input.Metadata); err != nil {
+			return fmt.Errorf("invalid metadata: %w", err)
+		}
+	}
+
+	return nil
+}
 
 // Operations represents a paginated list of operations.
 //

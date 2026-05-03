@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	stderrors "errors"
-	"fmt"
 	"net/http"
 	"os"
 	"strings"
@@ -242,7 +241,7 @@ func NewOperationsEntity(client *http.Client, authToken string, baseURLs map[str
 
 	return &operationsEntity{
 		httpClient: httpClient,
-		baseURLs:   baseURLs,
+		baseURLs:   prepareServiceBaseURLs(baseURLs),
 	}
 }
 
@@ -264,7 +263,7 @@ func (e *operationsEntity) ListOperations(ctx context.Context, orgID, ledgerID, 
 
 	url := e.buildURL(orgID, ledgerID, accountID, "")
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -273,7 +272,7 @@ func (e *operationsEntity) ListOperations(ctx context.Context, orgID, ledgerID, 
 	if opts != nil {
 		q := req.URL.Query()
 
-		for key, value := range opts.ToQueryParams() {
+		for key, value := range cursorListQueryParams(opts) {
 			q.Add(key, value)
 		}
 
@@ -285,6 +284,8 @@ func (e *operationsEntity) ListOperations(ctx context.Context, orgID, ledgerID, 
 		// HTTPClient.DoRequest already returns proper error types
 		return nil, err
 	}
+
+	normalizeOperationListResponse(&response)
 
 	return &response, nil
 }
@@ -370,7 +371,7 @@ func (e *operationsEntity) GetOperation(ctx context.Context, orgID, ledgerID, ac
 	// Always use the account-based endpoint for GET operations
 	url := e.buildURL(orgID, ledgerID, accountID, operationID)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -381,14 +382,25 @@ func (e *operationsEntity) GetOperation(ctx context.Context, orgID, ledgerID, ac
 		return nil, err
 	}
 
+	normalizeOperation(&operationModel)
+
 	return &operationModel, nil
 }
 
 // UpdateOperation rejects the former account-scoped update path so callers do not
 // silently route an accountID into Midaz's transaction-scoped endpoint.
 // Deprecated: use UpdateTransactionOperation with a transactionID.
-func (*operationsEntity) UpdateOperation(_ context.Context, _, _, _, _ string, _ any) (*models.Operation, error) {
-	return nil, errors.NewValidationError("UpdateOperation", "operation updates are transaction-scoped", stderrors.New("use UpdateTransactionOperation(ctx, orgID, ledgerID, transactionID, operationID, input)"))
+func (e *operationsEntity) UpdateOperation(ctx context.Context, orgID, ledgerID, accountID, operationID string, input any) (*models.Operation, error) {
+	operation, err := e.GetOperation(ctx, orgID, ledgerID, accountID, operationID)
+	if err != nil {
+		return nil, err
+	}
+
+	if strings.TrimSpace(operation.TransactionID) == "" {
+		return nil, errors.NewValidationError("UpdateOperation", "operation updates are transaction-scoped", stderrors.New("operation response did not include transactionID; use UpdateTransactionOperation(ctx, orgID, ledgerID, transactionID, operationID, input)"))
+	}
+
+	return e.UpdateTransactionOperation(ctx, orgID, ledgerID, operation.TransactionID, operationID, input)
 }
 
 // UpdateTransactionOperation updates an operation.
@@ -411,18 +423,18 @@ func (e *operationsEntity) UpdateTransactionOperation(ctx context.Context, orgID
 		return nil, errors.NewMissingParameterError(operation, "operationID")
 	}
 
-	if input == nil {
-		return nil, errors.NewMissingParameterError(operation, "input")
+	if err := validateUpdatePayload(operation, input, "*models.UpdateOperationInput"); err != nil {
+		return nil, err
 	}
 
-	url := fmt.Sprintf("%s/organizations/%s/ledgers/%s/transactions/%s/operations/%s", e.baseURLs["transaction"], pathSegment(orgID), pathSegment(ledgerID), pathSegment(transactionID), pathSegment(operationID))
+	url := buildLedgerScopedURL(e.baseURLs["transaction"], orgID, ledgerID, "transactions", transactionID, "operations", operationID)
 
 	body, err := json.Marshal(input)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, bytes.NewBuffer(body))
+	req, err := newRequestWithContext(ctx, http.MethodPatch, url, bytes.NewBuffer(body))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -433,19 +445,32 @@ func (e *operationsEntity) UpdateTransactionOperation(ctx context.Context, orgID
 		return nil, err
 	}
 
+	normalizeOperation(&operationModel)
+
 	return &operationModel, nil
 }
 
 // buildURL builds the URL for operations API calls using the account-based endpoint.
 func (e *operationsEntity) buildURL(orgID, ledgerID, accountID, operationID string) string {
-	base := e.baseURLs["transaction"]
-
-	// Ensure the base URL doesn't end with a trailing slash
-	base = strings.TrimSuffix(base, "/")
-
 	if operationID == "" {
-		return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/%s/operations", base, pathSegment(orgID), pathSegment(ledgerID), pathSegment(accountID))
+		return buildLedgerScopedURL(e.baseURLs["transaction"], orgID, ledgerID, "accounts", accountID, "operations")
 	}
 
-	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/%s/operations/%s", base, pathSegment(orgID), pathSegment(ledgerID), pathSegment(accountID), pathSegment(operationID))
+	return buildLedgerScopedURL(e.baseURLs["transaction"], orgID, ledgerID, "accounts", accountID, "operations", operationID)
+}
+
+func normalizeOperationListResponse(response *models.ListResponse[models.Operation]) {
+	if response.Items == nil {
+		response.Items = []models.Operation{}
+	}
+
+	for i := range response.Items {
+		normalizeOperation(&response.Items[i])
+	}
+}
+
+func normalizeOperation(operation *models.Operation) {
+	if operation != nil && operation.Metadata == nil {
+		operation.Metadata = map[string]any{}
+	}
 }

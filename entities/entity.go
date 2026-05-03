@@ -144,6 +144,14 @@ func NewEntity(client *http.Client, authToken string, baseURLs map[string]string
 		return nil, err
 	}
 
+	if strings.TrimSpace(normalizedBaseURLs["transaction"]) == "" {
+		normalizedBaseURLs["transaction"] = normalizedBaseURLs["onboarding"]
+	}
+
+	if strings.TrimSpace(normalizedBaseURLs["crm"]) == "" {
+		normalizedBaseURLs["crm"] = normalizedBaseURLs["onboarding"]
+	}
+
 	entity := &Entity{
 		httpClient:    httpClient,
 		baseURLs:      normalizedBaseURLs,

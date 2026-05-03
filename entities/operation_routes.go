@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"os"
 
@@ -31,7 +30,7 @@ type OperationRoutesService interface {
 	//       Limit: 10,
 	//       SortOrder: "asc",
 	//   }
-	//   routes, err := client.OperationRoutes.ListOperationRoutes(ctx, "org-123", "ledger-456", opts)
+	//   routes, err := c.Entity.OperationRoutes.ListOperationRoutes(ctx, "org-123", "ledger-456", opts)
 	ListOperationRoutes(ctx context.Context, organizationID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.OperationRoute], error)
 
 	// GetOperationRoute retrieves a specific operation route by ID
@@ -47,7 +46,7 @@ type OperationRoutesService interface {
 	//   - error: An error if the request fails
 	//
 	// Example:
-	//   route, err := client.OperationRoutes.GetOperationRoute(ctx, "org-123", "ledger-456", "route-789")
+	//   route, err := c.Entity.OperationRoutes.GetOperationRoute(ctx, "org-123", "ledger-456", "route-789")
 	GetOperationRoute(ctx context.Context, organizationID, ledgerID, operationRouteID string) (*models.OperationRoute, error)
 
 	// CreateOperationRoute creates a new operation route
@@ -65,7 +64,7 @@ type OperationRoutesService interface {
 	// Example:
 	//   input := models.NewCreateOperationRouteInput("Cash-in Route", "Handles cash-in operations", "source").
 	//       WithMetadata(map[string]any{"department": "finance"})
-	//   route, err := client.OperationRoutes.CreateOperationRoute(ctx, "org-123", "ledger-456", input)
+	//   route, err := c.Entity.OperationRoutes.CreateOperationRoute(ctx, "org-123", "ledger-456", input)
 	CreateOperationRoute(ctx context.Context, organizationID, ledgerID string, input *models.CreateOperationRouteInput) (*models.OperationRoute, error)
 
 	// UpdateOperationRoute updates an existing operation route
@@ -85,7 +84,7 @@ type OperationRoutesService interface {
 	//   input := models.NewUpdateOperationRouteInput().
 	//       WithTitle("Updated Cash-in Route").
 	//       WithDescription("Updated description")
-	//   route, err := client.OperationRoutes.UpdateOperationRoute(ctx, "org-123", "ledger-456", "route-789", input)
+	//   route, err := c.Entity.OperationRoutes.UpdateOperationRoute(ctx, "org-123", "ledger-456", "route-789", input)
 	UpdateOperationRoute(ctx context.Context, organizationID, ledgerID, operationRouteID string, input *models.UpdateOperationRouteInput) (*models.OperationRoute, error)
 
 	// DeleteOperationRoute deletes an operation route
@@ -100,7 +99,7 @@ type OperationRoutesService interface {
 	//   - error: An error if the request fails
 	//
 	// Example:
-	//   err := client.OperationRoutes.DeleteOperationRoute(ctx, "org-123", "ledger-456", "route-789")
+	//   err := c.Entity.OperationRoutes.DeleteOperationRoute(ctx, "org-123", "ledger-456", "route-789")
 	DeleteOperationRoute(ctx context.Context, organizationID, ledgerID, operationRouteID string) error
 }
 
@@ -124,19 +123,17 @@ func NewOperationRoutesEntity(client *http.Client, authToken string, baseURLs ma
 
 	return &operationRoutesEntity{
 		httpClient: httpClient,
-		baseURLs:   baseURLs,
+		baseURLs:   prepareServiceBaseURLs(baseURLs),
 	}
 }
 
 // buildURL constructs the URL for operation route endpoints
 func (e *operationRoutesEntity) buildURL(organizationID, ledgerID, operationRouteID string) string {
-	baseURL := e.baseURLs["transaction"]
-
 	if operationRouteID == "" {
-		return fmt.Sprintf("%s/organizations/%s/ledgers/%s/operation-routes", baseURL, pathSegment(organizationID), pathSegment(ledgerID))
+		return buildLedgerScopedURL(e.baseURLs["transaction"], organizationID, ledgerID, "operation-routes")
 	}
 
-	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/operation-routes/%s", baseURL, pathSegment(organizationID), pathSegment(ledgerID), pathSegment(operationRouteID))
+	return buildLedgerScopedURL(e.baseURLs["transaction"], organizationID, ledgerID, "operation-routes", operationRouteID)
 }
 
 // ListOperationRoutes retrieves a paginated list of operation routes
@@ -153,14 +150,14 @@ func (e *operationRoutesEntity) ListOperationRoutes(ctx context.Context, organiz
 
 	url := e.buildURL(organizationID, ledgerID, "")
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
 
 	if opts != nil {
 		q := req.URL.Query()
-		for key, value := range opts.ToQueryParams() {
+		for key, value := range cursorListQueryParams(opts) {
 			q.Add(key, value)
 		}
 
@@ -170,6 +167,10 @@ func (e *operationRoutesEntity) ListOperationRoutes(ctx context.Context, organiz
 	var result models.ListResponse[models.OperationRoute]
 	if err := e.httpClient.sendRequest(req, &result); err != nil {
 		return nil, err
+	}
+
+	if result.Items == nil {
+		result.Items = []models.OperationRoute{}
 	}
 
 	return &result, nil
@@ -193,7 +194,7 @@ func (e *operationRoutesEntity) GetOperationRoute(ctx context.Context, organizat
 
 	url := e.buildURL(organizationID, ledgerID, operationRouteID)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -235,7 +236,7 @@ func (e *operationRoutesEntity) CreateOperationRoute(ctx context.Context, organi
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	req, err := newRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -281,7 +282,7 @@ func (e *operationRoutesEntity) UpdateOperationRoute(ctx context.Context, organi
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, bytes.NewReader(body))
+	req, err := newRequestWithContext(ctx, http.MethodPatch, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -314,7 +315,7 @@ func (e *operationRoutesEntity) DeleteOperationRoute(ctx context.Context, organi
 
 	e.httpClient.debugLog("[%s]: Deleting operation route %s", operation, operationRouteID)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
+	req, err := newRequestWithContext(ctx, http.MethodDelete, url, nil)
 	if err != nil {
 		return errors.NewInternalError(operation, err)
 	}

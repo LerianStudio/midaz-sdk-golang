@@ -422,7 +422,7 @@ func TestOperationsEntity_ListOperations_QueryParams(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Contains(t, capturedURL, "limit=25")
-	assert.Contains(t, capturedURL, "page=3")
+	assert.NotContains(t, capturedURL, "page=")
 }
 
 // TestOperationsEntity_GetOperation tests GetOperation method
@@ -865,7 +865,14 @@ func TestOperationsEntity_UpdateTransactionOperation_RequestBody(t *testing.T) {
 }
 
 func TestOperationsEntity_UpdateOperation_DeprecatedAccountScopedMethodFailsLoudly(t *testing.T) {
-	entity := createTestOperationsEntity("https://ledger.example.com/v1")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(models.Operation{ID: opTestOperationID})
+	}))
+	defer server.Close()
+
+	entity := createTestOperationsEntity(server.URL)
 
 	_, err := entity.UpdateOperation(context.Background(), opTestOrgID, opTestLedgerID, opTestAccountID, opTestOperationID, models.UpdateOperationInput{Description: "test"})
 	require.Error(t, err)
@@ -1227,7 +1234,7 @@ func TestOperationsEntity_MetadataHandling(t *testing.T) {
 			require.NoError(t, err)
 
 			if tt.metadata == nil {
-				assert.Nil(t, result.Metadata)
+				assert.Empty(t, result.Metadata)
 			} else {
 				assert.Len(t, result.Metadata, len(tt.metadata))
 			}
@@ -1336,7 +1343,7 @@ func TestOperationsEntity_ListWithAllFilters(t *testing.T) {
 
 	// Verify query parameters
 	assert.Contains(t, capturedQuery, "limit=20")
-	assert.Contains(t, capturedQuery, "page=3")
+	assert.NotContains(t, capturedQuery, "page=")
 }
 
 // TestMockHTTPClientForOperations tests using the MockHTTPClient pattern

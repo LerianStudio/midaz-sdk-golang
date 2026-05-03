@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation/core"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 )
@@ -19,8 +20,20 @@ type CreateTransactionRouteInput struct {
 
 // Validate validates the CreateTransactionRouteInput fields.
 func (input *CreateTransactionRouteInput) Validate() error {
+	if input == nil {
+		return errors.New("input is required")
+	}
+
 	if input.Title == "" {
 		return errors.New("title is required")
+	}
+
+	if err := validateRouteText(input.Title, maxRouteTitleLength, "title"); err != nil {
+		return err
+	}
+
+	if err := validateRouteText(input.Description, maxRouteDescriptionLength, "description"); err != nil {
+		return err
 	}
 
 	if input.parseErr != nil {
@@ -29,6 +42,12 @@ func (input *CreateTransactionRouteInput) Validate() error {
 
 	if len(input.OperationRoutes) == 0 {
 		return errors.New("operationRoutes is required")
+	}
+
+	if input.Metadata != nil {
+		if err := core.ValidateMetadata(input.Metadata); err != nil {
+			return fmt.Errorf("invalid metadata: %w", err)
+		}
 	}
 
 	return nil
@@ -40,8 +59,25 @@ type UpdateTransactionRouteInput struct {
 }
 
 // Validate validates the UpdateTransactionRouteInput fields.
-func (*UpdateTransactionRouteInput) Validate() error {
-	// For updates, fields are optional so validation is minimal
+func (input *UpdateTransactionRouteInput) Validate() error {
+	if input == nil {
+		return errors.New("input is required")
+	}
+
+	if err := validateRouteText(input.Title, maxRouteTitleLength, "title"); err != nil {
+		return err
+	}
+
+	if err := validateRouteText(input.Description, maxRouteDescriptionLength, "description"); err != nil {
+		return err
+	}
+
+	if input.Metadata != nil {
+		if err := core.ValidateMetadata(input.Metadata); err != nil {
+			return fmt.Errorf("invalid metadata: %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -90,13 +126,23 @@ func NewCreateTransactionRouteInput(title, description string, operationRoutes [
 // Returns:
 //   - A pointer to the modified CreateTransactionRouteInput for method chaining
 func WithTransactionRouteMetadata(input *CreateTransactionRouteInput, metadata map[string]any) *CreateTransactionRouteInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Metadata = metadata
+
 	return input
 }
 
 // WithMetadata sets the metadata for CreateTransactionRouteInput (method on struct).
 func (input *CreateTransactionRouteInput) WithMetadata(metadata map[string]any) *CreateTransactionRouteInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Metadata = metadata
+
 	return input
 }
 
@@ -117,7 +163,12 @@ func NewUpdateTransactionRouteInput() *UpdateTransactionRouteInput {
 // Returns:
 //   - A pointer to the modified UpdateTransactionRouteInput for method chaining
 func WithUpdateTransactionRouteTitle(input *UpdateTransactionRouteInput, title string) *UpdateTransactionRouteInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Title = title
+
 	return input
 }
 
@@ -130,7 +181,12 @@ func WithUpdateTransactionRouteTitle(input *UpdateTransactionRouteInput, title s
 // Returns:
 //   - A pointer to the modified UpdateTransactionRouteInput for method chaining
 func WithUpdateTransactionRouteDescription(input *UpdateTransactionRouteInput, description string) *UpdateTransactionRouteInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Description = description
+
 	return input
 }
 
@@ -143,6 +199,11 @@ func WithUpdateTransactionRouteDescription(input *UpdateTransactionRouteInput, d
 // Returns:
 //   - A pointer to the modified UpdateTransactionRouteInput for method chaining
 func WithUpdateTransactionRouteMetadata(input *UpdateTransactionRouteInput, metadata map[string]any) *UpdateTransactionRouteInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Metadata = metadata
+
 	return input
 }

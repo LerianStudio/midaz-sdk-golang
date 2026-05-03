@@ -317,6 +317,25 @@ func redactSensitive(message string) string {
 	return sensitiveKeyValuePattern.ReplaceAllString(redacted, `${1}${2}[REDACTED]`)
 }
 
+// RedactSensitiveString redacts sensitive values from a public API-sourced string.
+func RedactSensitiveString(message string) string {
+	return redactSensitive(message)
+}
+
+// RedactSensitiveStringSlice redacts sensitive values from public API-sourced strings.
+func RedactSensitiveStringSlice(values []string) []string {
+	if values == nil {
+		return nil
+	}
+
+	redacted := make([]string, len(values))
+	for i, value := range values {
+		redacted[i] = redactSensitive(value)
+	}
+
+	return redacted
+}
+
 // RedactSensitiveDetails returns a deep-redacted copy of structured API details.
 // It preserves the shape of the API envelope while removing PII and financial
 // fields that applications commonly log after calling GetErrorDetails.
