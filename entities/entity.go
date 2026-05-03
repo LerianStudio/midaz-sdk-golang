@@ -8,12 +8,14 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
+	"net/url"
+	"reflect"
 	"strings"
 	"time"
 
 	auth "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/access-manager"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/security"
 )
 
 // Config is an interface for accessing configuration values.
@@ -150,6 +152,10 @@ func NewEntity(client *http.Client, authToken string, baseURLs map[string]string
 
 	// Apply the provided options
 	for _, option := range options {
+		if option == nil {
+			return nil, errors.New("option cannot be nil")
+		}
+
 		if err := option(entity); err != nil {
 			return nil, err
 		}
@@ -173,7 +179,7 @@ func NewEntity(client *http.Client, authToken string, baseURLs map[string]string
 //   - *Entity: A pointer to the newly created Entity.
 //   - error: An error if initialization fails.
 func NewEntityWithConfig(config Config, options ...Option) (*Entity, error) {
-	if config == nil {
+	if config == nil || isTypedNil(config) {
 		return nil, errors.New("config cannot be nil")
 	}
 
@@ -184,7 +190,11 @@ func NewEntityWithConfig(config Config, options ...Option) (*Entity, error) {
 
 	if pluginAuth.Enabled {
 		// Get a token from the plugin auth service
-		token, err := auth.GetTokenFromAccessManager(context.Background(), pluginAuth, config.GetHTTPClient())
+		provider := func(ctx context.Context) (string, error) {
+			return auth.GetTokenFromAccessManager(ctx, pluginAuth, config.GetHTTPClient())
+		}
+
+		token, err := provider(context.Background())
 		if err != nil {
 			return nil, fmt.Errorf("failed to get token from plugin auth service: %w", err)
 		}
@@ -205,9 +215,21 @@ func NewEntityWithConfig(config Config, options ...Option) (*Entity, error) {
 		baseURLs:      normalizedBaseURLs,
 		observability: config.GetObservabilityProvider(),
 	}
+	if pluginAuth.Enabled {
+		entity.httpClient.setAuthTokenProvider(
+			func(ctx context.Context) (string, error) {
+				return auth.GetTokenFromAccessManager(ctx, pluginAuth, config.GetHTTPClient())
+			},
+			func() { auth.InvalidateAccessManagerToken(pluginAuth) },
+		)
+	}
 
 	// Apply any additional options
 	for _, option := range options {
+		if option == nil {
+			return nil, errors.New("option cannot be nil")
+		}
+
 		if err := option(entity); err != nil {
 			return nil, err
 		}
@@ -221,6 +243,18 @@ func NewEntityWithConfig(config Config, options ...Option) (*Entity, error) {
 
 // initServices initializes the service interfaces for the entity.
 func (e *Entity) initServices() {
+	if e == nil || e.httpClient == nil {
+		return
+	}
+
+	if e.httpClient.client == nil {
+		e.httpClient.client = defaultHTTPClient()
+	}
+
+	if e.baseURLs == nil {
+		e.baseURLs = map[string]string{}
+	}
+
 	// Create the service interfaces
 	e.Transactions = NewTransactionsEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
 	e.Accounts = NewAccountsEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
@@ -361,6 +395,10 @@ func (e *transactionRoutesEntity) entityHTTPClient() *HTTPClient {
 // InitServices initializes the service interfaces for the entity.
 // This is an exported version of initServices required for the plugin auth interface.
 func (e *Entity) InitServices() {
+	if e == nil {
+		return
+	}
+
 	e.initServices()
 }
 
@@ -370,6 +408,10 @@ func (e *Entity) InitServices() {
 // Returns:
 //   - *HTTPClient: The HTTP client used by the entity for API requests.
 func (e *Entity) GetEntityHTTPClient() *HTTPClient {
+	if e == nil {
+		return nil
+	}
+
 	return e.httpClient
 }
 
@@ -379,6 +421,10 @@ func (e *Entity) GetEntityHTTPClient() *HTTPClient {
 // Returns:
 //   - *http.Client: The standard HTTP client used by the entity for API requests.
 func (e *Entity) GetHTTPClient() *http.Client {
+	if e == nil || e.httpClient == nil {
+		return nil
+	}
+
 	return e.httpClient.client
 }
 
@@ -387,6 +433,10 @@ func (e *Entity) GetHTTPClient() *http.Client {
 // Returns:
 //   - observability.Provider: The observability provider used by the entity.
 func (e *Entity) GetObservabilityProvider() observability.Provider {
+	if e == nil {
+		return nil
+	}
+
 	return e.observability
 }
 
@@ -397,16 +447,26 @@ func (e *Entity) GetObservabilityProvider() observability.Provider {
 // Parameters:
 //   - client: The HTTP client to use for API requests.
 func (e *Entity) SetHTTPClient(client *http.Client) {
+	if e == nil {
+		return
+	}
+
 	if client == nil {
 		return
 	}
 
-	// Preserve tenant ID across HTTP client replacement
-	savedTenantID := e.httpClient.tenantID
+	if e.httpClient == nil {
+		e.httpClient = NewHTTPClient(client, "", e.observability)
+		e.initServices()
+
+		return
+	}
+
+	savedConfig := e.httpClient.cloneConfiguration()
 
 	// Create a new HTTP client with the same auth token and observability
 	e.httpClient = NewHTTPClient(client, e.httpClient.authToken, e.observability)
-	e.httpClient.tenantID = savedTenantID
+	e.httpClient.applyConfigurationSnapshot(savedConfig)
 
 	// Re-initialize services with the new HTTP client
 	e.initServices()
@@ -418,6 +478,10 @@ func (e *Entity) SetHTTPClient(client *http.Client) {
 // Parameters:
 //   - token: The authentication token to use for API requests.
 func (e *Entity) SetAuthToken(token string) {
+	if e == nil || e.httpClient == nil {
+		return
+	}
+
 	if token != "" {
 		// Set the token directly on the HTTP client
 		e.httpClient.authToken = token
@@ -441,11 +505,16 @@ func New(baseURL string, options ...Option) (*Entity, error) {
 		return nil, errors.New("base URL cannot be empty")
 	}
 
+	normalizedURL, err := normalizeServiceURL(baseURL)
+	if err != nil {
+		return nil, err
+	}
+
 	// Create a map with both service URLs pointing to the same base URL
 	baseURLs := map[string]string{
-		"onboarding":  baseURL,
-		"transaction": baseURL,
-		"crm":         baseURL,
+		"onboarding":  normalizedURL,
+		"transaction": normalizedURL,
+		"crm":         normalizedURL,
 	}
 
 	// Create a default HTTP client
@@ -464,6 +533,10 @@ func New(baseURL string, options ...Option) (*Entity, error) {
 
 	// Apply any options
 	for _, option := range options {
+		if option == nil {
+			return nil, errors.New("option cannot be nil")
+		}
+
 		if err := option(entity); err != nil {
 			return nil, err
 		}
@@ -500,6 +573,10 @@ func NewWithServiceURLs(serviceURLs map[string]string, options ...Option) (*Enti
 		return nil, errors.New("missing transaction URL in service URLs map")
 	}
 
+	if strings.TrimSpace(serviceURLs["crm"]) == "" {
+		return nil, errors.New("missing crm URL in service URLs map")
+	}
+
 	normalizedBaseURLs, err := normalizeBaseURLs(serviceURLs)
 	if err != nil {
 		return nil, err
@@ -521,6 +598,10 @@ func NewWithServiceURLs(serviceURLs map[string]string, options ...Option) (*Enti
 
 	// Apply any options
 	for _, option := range options {
+		if option == nil {
+			return nil, errors.New("option cannot be nil")
+		}
+
 		if err := option(entity); err != nil {
 			return nil, err
 		}
@@ -551,18 +632,58 @@ func normalizeBaseURLs(baseURLs map[string]string) (map[string]string, error) {
 		return nil, errors.New("service URLs map cannot be nil")
 	}
 
-	if strings.TrimSpace(normalized["crm"]) == "" {
-		crmURL := strings.TrimSpace(normalized["onboarding"])
-		if crmURL == "" {
-			crmURL = strings.TrimSpace(os.Getenv("MIDAZ_CRM_URL"))
+	for service, serviceURL := range normalized {
+		normalizedURL, err := normalizeServiceURL(serviceURL)
+		if err != nil {
+			return nil, fmt.Errorf("invalid %s URL: %w", service, err)
 		}
 
-		if crmURL == "" {
-			return nil, errors.New("missing crm URL: provide 'crm' key in service URLs map or set MIDAZ_CRM_URL environment variable")
-		}
-
-		normalized["crm"] = crmURL
+		normalized[service] = normalizedURL
 	}
 
 	return normalized, nil
+}
+
+func normalizeServiceURL(rawURL string) (string, error) {
+	parsedURL, err := url.Parse(strings.TrimRight(strings.TrimSpace(rawURL), "/"))
+	if err != nil {
+		return "", err
+	}
+
+	if parsedURL.Scheme == "" || parsedURL.Host == "" {
+		return "", errors.New("URL must include scheme and host")
+	}
+
+	if parsedURL.User != nil {
+		return "", errors.New("URL must not include user information")
+	}
+
+	if err := security.ValidateOutboundRequest(&http.Request{URL: parsedURL}); err != nil {
+		return "", err
+	}
+
+	cleanPath := strings.TrimRight(parsedURL.Path, "/")
+	if cleanPath == "" {
+		parsedURL.Path = "/v1"
+	} else if cleanPath != "/v1" && !strings.HasSuffix(cleanPath, "/v1") {
+		parsedURL.Path = cleanPath + "/v1"
+	} else {
+		parsedURL.Path = cleanPath
+	}
+
+	return parsedURL.String(), nil
+}
+
+func isTypedNil(value any) bool {
+	if value == nil {
+		return false
+	}
+
+	rv := reflect.ValueOf(value)
+	switch rv.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return rv.IsNil()
+	default:
+		return false
+	}
 }

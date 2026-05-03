@@ -62,6 +62,8 @@ c, err := client.New(
 
 Access Manager configuration uses `auth.AccessManager` and `config.WithAccessManager`. `MIDAZ_AUTH_TOKEN` is not part of `config.FromEnvironment()`.
 
+`MIDAZ_ENVIRONMENT` recomputes default service URLs unless `MIDAZ_BASE_URL` or a service-specific URL has already been set. Explicit service URLs take precedence and are normalized by the entity layer to include `/v1`.
+
 ## Service URL model
 
 The entity layer receives a service URL map. The current service keys are:

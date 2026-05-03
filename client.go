@@ -74,6 +74,10 @@ func New(options ...Option) (*Client, error) {
 
 	// Apply all options
 	for _, option := range options {
+		if option == nil {
+			return nil, errors.New("option cannot be nil")
+		}
+
 		if err := option(c); err != nil {
 			return nil, fmt.Errorf("error applying option: %w", err)
 		}
@@ -192,6 +196,13 @@ func WithTimeout(timeout time.Duration) Option {
 	return func(c *Client) error {
 		// Apply to config
 		return config.WithTimeout(timeout)(c.config)
+	}
+}
+
+// WithUserAgent sets the user agent for API requests.
+func WithUserAgent(userAgent string) Option {
+	return func(c *Client) error {
+		return config.WithUserAgent(userAgent)(c.config)
 	}
 }
 
@@ -512,13 +523,7 @@ func WithConfig(cfg *config.Config) Option {
 //   - Option: A function that sets the HTTP client on the Client
 func WithHTTPClient(client *http.Client) Option {
 	return func(c *Client) error {
-		if client == nil {
-			return errors.New("HTTP client cannot be nil")
-		}
-
-		c.config.HTTPClient = client
-
-		return nil
+		return config.WithHTTPClient(client)(c.config)
 	}
 }
 
@@ -631,6 +636,14 @@ func (c *Client) Shutdown(ctx context.Context) error {
 // Returns:
 //   - error: An error if the traced operation fails
 func (c *Client) Trace(name string, fn func(context.Context) error) error {
+	if fn == nil {
+		return errors.New("trace callback cannot be nil")
+	}
+
+	if c == nil {
+		return errors.New("client cannot be nil")
+	}
+
 	if c.observability == nil || !c.observability.IsEnabled() {
 		return fn(c.ctx)
 	}

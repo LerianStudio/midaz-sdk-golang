@@ -36,7 +36,6 @@ _ = c
 | `MIDAZ_USER_AGENT` | User agent header value. | SDK version user agent |
 | `MIDAZ_DEBUG` | Enables debug logging when set to `true`. | `false` |
 | `MIDAZ_MAX_RETRIES` | Maximum retry attempts. | `3` |
-| `MIDAZ_ENABLE_RETRIES` | Disables retries only for direct `entities.NewHTTPClient` usage when set to `false`. | Enabled |
 | `MIDAZ_IDEMPOTENCY` | Enables or disables SDK idempotency support. | `true` |
 | `PLUGIN_AUTH_ENABLED` | Enables Access Manager authentication when set to `true`. | `false` |
 | `PLUGIN_AUTH_ADDRESS` | Access Manager base address. | Empty |
@@ -131,7 +130,7 @@ Transaction: http://localhost:3002/v1
 CRM:         http://localhost:4003/v1
 ```
 
-Note: in the current codebase, `MIDAZ_ENVIRONMENT` stores the environment label but does not recompute service URLs by itself after defaults are initialized. Set `MIDAZ_BASE_URL` or explicit service URLs when you need non-local endpoints.
+`MIDAZ_ENVIRONMENT` recomputes default service URLs unless you explicitly set `MIDAZ_BASE_URL` or service-specific URLs. Explicit URLs always win.
 
 ## HTTP behavior
 
@@ -159,8 +158,6 @@ MIDAZ_MAX_RETRIES=5
 - `entities.NewHTTPClient()`
 
 For the normal client path, use `config.FromEnvironment()` and `client.WithConfig(cfg)`. The client applies `cfg.MaxRetries` to the entity HTTP client during setup.
-
-`MIDAZ_ENABLE_RETRIES=false` is read only by `entities.NewHTTPClient()`. The normal client config does not read this variable, and client setup may override the entity HTTP value from config defaults.
 
 To disable retries at the client level, use `client.DisableRetries()`.
 

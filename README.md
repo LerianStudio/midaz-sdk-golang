@@ -138,7 +138,7 @@ MIDAZ_CLIENT_SECRET=your-client-secret
 
 ```go
 c, err := client.New(
-    client.WithBaseURL("http://localhost:3000"),
+    client.WithBaseURL("http://localhost:3002"),
     client.WithTimeout(30*time.Second),
     client.WithRetries(3, 100*time.Millisecond, 10*time.Second),
     client.UseAllAPIs(),

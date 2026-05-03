@@ -33,7 +33,7 @@ For local testing with a direct base URL:
 
 ```go
 c, err := client.New(
-    client.WithBaseURL("http://localhost:3000"),
+    client.WithBaseURL("http://localhost:3002"),
     client.UseAllAPIs(),
 )
 ```

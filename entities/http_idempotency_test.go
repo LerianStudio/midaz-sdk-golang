@@ -92,10 +92,10 @@ func TestUnsafeMethodRetriesOnlyWithIdempotency(t *testing.T) {
 		expectedSuccess bool
 	}{
 		{
-			name:            "no idempotency disables retry",
+			name:            "auto idempotency enables retry",
 			headers:         nil,
-			expectedCalls:   1,
-			expectedSuccess: false,
+			expectedCalls:   2,
+			expectedSuccess: true,
 		},
 		{
 			name:            "generated idempotency allows retry",

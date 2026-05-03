@@ -18,8 +18,9 @@ This map documents the recommended public SDK surface that consumers should use.
 - `client.WithEnvironment(config.Environment)` - Uses a named environment preset.
 - `client.WithHTTPClient(*http.Client)` - Supplies a custom HTTP client.
 - `client.WithTimeout(time.Duration)` - Sets request timeout.
+- `client.WithUserAgent(string)` - Sets the SDK user agent header.
 - `client.WithRetries(maxRetries int, initialDelay, maxDelay time.Duration)` - Configures retry behavior.
-- `client.WithCustomRetryPolicy(*retry.Options)` - Uses a custom retry policy.
+- `client.WithCustomRetryPolicy(func(*http.Response, error) bool)` - Uses a custom retry predicate. Returning `true` authoritatively permits a retry for that response/error; returning `false` stops retries for that attempt.
 - `client.DisableRetries()` - Disables client retries.
 - `client.WithDebug(bool)` - Enables or disables debug logging.
 - `client.WithTenantID(string)` - Sets a default tenant ID on entity clients.

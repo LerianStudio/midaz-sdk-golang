@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"reflect"
 	"strings"
 	"time"
 
@@ -130,6 +131,12 @@ type Config struct {
 	// tenantIDSet tracks whether WithTenantID was explicitly called, allowing
 	// an empty value to clear any environment-provided default.
 	tenantIDSet bool
+
+	baseURLSet        bool
+	onboardingURLSet  bool
+	transactionURLSet bool
+	crmURLSet         bool
+	httpClientOwned   bool
 }
 
 // Option is a function that configures a Config.
@@ -146,7 +153,17 @@ type Option func(*Config) error
 //   - Option: A function that sets the environment on a Config
 func WithEnvironment(env Environment) Option {
 	return func(c *Config) error {
+		if c == nil {
+			return errors.New("config cannot be nil")
+		}
+
 		c.Environment = env
+		if !c.baseURLSet {
+			if err := setDefaultServiceURLs(c); err != nil {
+				return err
+			}
+		}
+
 		return nil
 	}
 }
@@ -162,6 +179,10 @@ func WithEnvironment(env Environment) Option {
 //   - May return an error if the URL is invalid
 func WithOnboardingURL(onboardingURL string) Option {
 	return func(c *Config) error {
+		if c == nil {
+			return errors.New("config cannot be nil")
+		}
+
 		// Validate URL
 		if err := parseURL(onboardingURL); err != nil {
 			return fmt.Errorf("invalid onboarding URL: %w", err)
@@ -171,7 +192,8 @@ func WithOnboardingURL(onboardingURL string) Option {
 			c.ServiceURLs = make(map[ServiceType]string)
 		}
 
-		c.ServiceURLs[ServiceOnboarding] = onboardingURL
+		c.ServiceURLs[ServiceOnboarding] = strings.TrimRight(onboardingURL, "/")
+		c.onboardingURLSet = true
 
 		return nil
 	}
@@ -188,6 +210,10 @@ func WithOnboardingURL(onboardingURL string) Option {
 //   - May return an error if the URL is invalid
 func WithTransactionURL(transactionURL string) Option {
 	return func(c *Config) error {
+		if c == nil {
+			return errors.New("config cannot be nil")
+		}
+
 		// Validate URL
 		if err := parseURL(transactionURL); err != nil {
 			return fmt.Errorf("invalid transaction URL: %w", err)
@@ -197,7 +223,8 @@ func WithTransactionURL(transactionURL string) Option {
 			c.ServiceURLs = make(map[ServiceType]string)
 		}
 
-		c.ServiceURLs[ServiceTransaction] = transactionURL
+		c.ServiceURLs[ServiceTransaction] = strings.TrimRight(transactionURL, "/")
+		c.transactionURLSet = true
 
 		return nil
 	}
@@ -206,6 +233,10 @@ func WithTransactionURL(transactionURL string) Option {
 // WithCRMURL sets the base URL for the CRM API.
 func WithCRMURL(crmURL string) Option {
 	return func(c *Config) error {
+		if c == nil {
+			return errors.New("config cannot be nil")
+		}
+
 		if err := parseURL(crmURL); err != nil {
 			return fmt.Errorf("invalid crm URL: %w", err)
 		}
@@ -214,7 +245,8 @@ func WithCRMURL(crmURL string) Option {
 			c.ServiceURLs = make(map[ServiceType]string)
 		}
 
-		c.ServiceURLs[ServiceCRM] = crmURL
+		c.ServiceURLs[ServiceCRM] = strings.TrimRight(crmURL, "/")
+		c.crmURLSet = true
 
 		return nil
 	}
@@ -232,6 +264,10 @@ func WithCRMURL(crmURL string) Option {
 //   - May return an error if the URL is invalid
 func WithBaseURL(baseURL string) Option {
 	return func(c *Config) error {
+		if c == nil {
+			return errors.New("config cannot be nil")
+		}
+
 		// Validate the base URL
 		if err := parseURL(baseURL); err != nil {
 			return fmt.Errorf("invalid base URL: %w", err)
@@ -255,9 +291,19 @@ func WithBaseURL(baseURL string) Option {
 			return fmt.Errorf("invalid crm base URL: %w", err)
 		}
 
-		c.ServiceURLs[ServiceOnboarding] = ledgerURL
-		c.ServiceURLs[ServiceTransaction] = ledgerURL
-		c.ServiceURLs[ServiceCRM] = crmURL
+		if !c.onboardingURLSet {
+			c.ServiceURLs[ServiceOnboarding] = ledgerURL
+		}
+
+		if !c.transactionURLSet {
+			c.ServiceURLs[ServiceTransaction] = ledgerURL
+		}
+
+		if !c.crmURLSet {
+			c.ServiceURLs[ServiceCRM] = crmURL
+		}
+
+		c.baseURLSet = true
 
 		return nil
 	}
@@ -273,11 +319,16 @@ func WithBaseURL(baseURL string) Option {
 //   - Option: A function that sets the HTTP client on a Config
 func WithHTTPClient(client *http.Client) Option {
 	return func(c *Config) error {
+		if c == nil {
+			return errors.New("config cannot be nil")
+		}
+
 		if client == nil {
 			return errors.New("HTTP client cannot be nil")
 		}
 
 		c.HTTPClient = client
+		c.httpClientOwned = false
 
 		return nil
 	}
@@ -292,11 +343,18 @@ func WithHTTPClient(client *http.Client) Option {
 //   - Option: A function that sets the timeout on a Config
 func WithTimeout(timeout time.Duration) Option {
 	return func(c *Config) error {
+		if c == nil {
+			return errors.New("config cannot be nil")
+		}
+
 		if timeout <= 0 {
 			return errors.New("timeout must be greater than 0")
 		}
 
 		c.Timeout = timeout
+		if c.HTTPClient != nil && c.httpClientOwned {
+			c.HTTPClient.Timeout = timeout
+		}
 
 		return nil
 	}
@@ -311,6 +369,10 @@ func WithTimeout(timeout time.Duration) Option {
 //   - Option: A function that sets the user agent on a Config
 func WithUserAgent(userAgent string) Option {
 	return func(c *Config) error {
+		if c == nil {
+			return errors.New("config cannot be nil")
+		}
+
 		if userAgent == "" {
 			return errors.New("user agent cannot be empty")
 		}
@@ -332,6 +394,10 @@ func WithUserAgent(userAgent string) Option {
 //   - Option: A function that sets the retry configuration on a Config
 func WithRetryConfig(maxRetries int, minWait, maxWait time.Duration) Option {
 	return func(c *Config) error {
+		if c == nil {
+			return errors.New("config cannot be nil")
+		}
+
 		if maxRetries < 0 {
 			return errors.New("max retries cannot be negative")
 		}
@@ -361,6 +427,10 @@ func WithRetryConfig(maxRetries int, minWait, maxWait time.Duration) Option {
 //   - Option: A function that sets the retry flag on a Config
 func WithRetries(enable bool) Option {
 	return func(c *Config) error {
+		if c == nil {
+			return errors.New("config cannot be nil")
+		}
+
 		c.EnableRetries = enable
 
 		return nil
@@ -392,6 +462,14 @@ func WithDebug(enable bool) Option {
 //   - Option: A function that sets the observability provider on a Config
 func WithObservabilityProvider(provider observability.Provider) Option {
 	return func(c *Config) error {
+		if c == nil {
+			return errors.New("config cannot be nil")
+		}
+
+		if isTypedNil(provider) {
+			return errors.New("observability provider cannot be nil")
+		}
+
 		c.ObservabilityProvider = provider
 
 		return nil
@@ -442,6 +520,10 @@ func WithTenantID(tenantID string) Option {
 //   - Option: A function that sets the plugin authentication on a Config
 func WithAccessManager(accessManager auth.AccessManager) Option {
 	return func(c *Config) error {
+		if c == nil {
+			return errors.New("config cannot be nil")
+		}
+
 		c.AccessManager = accessManager
 
 		return nil
@@ -501,16 +583,14 @@ func configureEnvironment(c *Config) error {
 
 	switch Environment(env) {
 	case EnvironmentLocal:
-		c.Environment = EnvironmentLocal
+		return WithEnvironment(EnvironmentLocal)(c)
 	case EnvironmentDevelopment:
-		c.Environment = EnvironmentDevelopment
+		return WithEnvironment(EnvironmentDevelopment)(c)
 	case EnvironmentProduction:
-		c.Environment = EnvironmentProduction
+		return WithEnvironment(EnvironmentProduction)(c)
 	default:
 		return fmt.Errorf("invalid environment: %s", env)
 	}
-
-	return nil
 }
 
 // configureAccessManager sets up access manager configuration from environment
@@ -586,9 +666,7 @@ func configureTimeout(c *Config) error {
 		return fmt.Errorf("invalid timeout: %w", err)
 	}
 
-	c.Timeout = time.Duration(seconds) * time.Second
-
-	return nil
+	return WithTimeout(time.Duration(seconds) * time.Second)(c)
 }
 
 // configureRetries sets max retries from environment variable
@@ -603,9 +681,7 @@ func configureRetries(c *Config) error {
 		return fmt.Errorf("invalid max retries: %w", err)
 	}
 
-	c.MaxRetries = maxRetries
-
-	return nil
+	return WithMaxRetries(maxRetries)(c)
 }
 
 // configureOptionalSettings sets optional boolean settings from environment
@@ -661,6 +737,10 @@ func NewConfig(options ...Option) (*Config, error) {
 
 	// Apply provided options
 	for _, option := range options {
+		if option == nil {
+			return nil, errors.New("option cannot be nil")
+		}
+
 		if err := option(config); err != nil {
 			return nil, err
 		}
@@ -668,9 +748,8 @@ func NewConfig(options ...Option) (*Config, error) {
 
 	// Create HTTP client if not provided
 	if config.HTTPClient == nil {
-		config.HTTPClient = &http.Client{
-			Timeout: config.Timeout,
-		}
+		config.HTTPClient = NewDefaultHTTPClient(config.Timeout)
+		config.httpClientOwned = true
 	}
 
 	// Validate required fields
@@ -683,45 +762,77 @@ func NewConfig(options ...Option) (*Config, error) {
 
 // setDefaultServiceURLs sets default URLs based on the environment.
 func setDefaultServiceURLs(config *Config) error {
-	// Set default URLs based on environment
-	switch config.Environment {
-	case EnvironmentLocal:
-		ledgerURL, err := buildLedgerServiceURL(DefaultLocalLedgerBaseURL)
-		if err != nil {
-			return err
-		}
+	ensureServiceURLMap(config)
 
-		crmURL, err := buildLedgerServiceURL(DefaultLocalCRMBaseURL)
-		if err != nil {
-			return err
-		}
-
-		config.ServiceURLs[ServiceOnboarding] = ledgerURL
-		config.ServiceURLs[ServiceTransaction] = ledgerURL
-		config.ServiceURLs[ServiceCRM] = crmURL
-	case EnvironmentDevelopment:
-		ledgerURL, err := buildLedgerServiceURL(DefaultDevelopmentLedgerBaseURL)
-		if err != nil {
-			return err
-		}
-
-		config.ServiceURLs[ServiceOnboarding] = ledgerURL
-		config.ServiceURLs[ServiceTransaction] = ledgerURL
-		config.ServiceURLs[ServiceCRM] = ledgerURL
-	case EnvironmentProduction:
-		ledgerURL, err := buildLedgerServiceURL(DefaultProductionLedgerBaseURL)
-		if err != nil {
-			return err
-		}
-
-		config.ServiceURLs[ServiceOnboarding] = ledgerURL
-		config.ServiceURLs[ServiceTransaction] = ledgerURL
-		config.ServiceURLs[ServiceCRM] = ledgerURL
-	default:
-		return fmt.Errorf("unknown environment: %s", config.Environment)
+	serviceURLs, err := defaultServiceURLsForEnvironment(config.Environment)
+	if err != nil {
+		return err
 	}
 
+	applyDefaultServiceURLs(config, serviceURLs)
+
 	return nil
+}
+
+func ensureServiceURLMap(config *Config) {
+	if config.ServiceURLs == nil {
+		config.ServiceURLs = make(map[ServiceType]string)
+	}
+}
+
+type defaultServiceURLs struct {
+	ledgerURL string
+	crmURL    string
+}
+
+func defaultServiceURLsForEnvironment(environment Environment) (defaultServiceURLs, error) {
+	switch environment {
+	case EnvironmentLocal:
+		return defaultLocalServiceURLs()
+	case EnvironmentDevelopment:
+		return defaultLedgerBackedServiceURLs(DefaultDevelopmentLedgerBaseURL)
+	case EnvironmentProduction:
+		return defaultLedgerBackedServiceURLs(DefaultProductionLedgerBaseURL)
+	default:
+		return defaultServiceURLs{}, fmt.Errorf("unknown environment: %s", environment)
+	}
+}
+
+func defaultLocalServiceURLs() (defaultServiceURLs, error) {
+	ledgerURL, err := buildLedgerServiceURL(DefaultLocalLedgerBaseURL)
+	if err != nil {
+		return defaultServiceURLs{}, err
+	}
+
+	crmURL, err := buildCRMServiceURL(DefaultLocalCRMBaseURL)
+	if err != nil {
+		return defaultServiceURLs{}, err
+	}
+
+	return defaultServiceURLs{ledgerURL: ledgerURL, crmURL: crmURL}, nil
+}
+
+func defaultLedgerBackedServiceURLs(baseURL string) (defaultServiceURLs, error) {
+	ledgerURL, err := buildLedgerServiceURL(baseURL)
+	if err != nil {
+		return defaultServiceURLs{}, err
+	}
+
+	return defaultServiceURLs{ledgerURL: ledgerURL, crmURL: ledgerURL}, nil
+}
+
+func applyDefaultServiceURLs(config *Config, serviceURLs defaultServiceURLs) {
+	if !config.onboardingURLSet {
+		config.ServiceURLs[ServiceOnboarding] = serviceURLs.ledgerURL
+	}
+
+	if !config.transactionURLSet {
+		config.ServiceURLs[ServiceTransaction] = serviceURLs.ledgerURL
+	}
+
+	if !config.crmURLSet {
+		config.ServiceURLs[ServiceCRM] = serviceURLs.crmURL
+	}
 }
 
 // validateConfig ensures that the Config has all required fields.
@@ -803,6 +914,35 @@ func parseURL(rawURL string) error {
 	}
 
 	return nil
+}
+
+// NewDefaultHTTPClient returns an SDK-owned HTTP client with a conservative pooled transport.
+func NewDefaultHTTPClient(timeout time.Duration) *http.Client {
+	return &http.Client{
+		Timeout: timeout,
+		Transport: &http.Transport{
+			Proxy:                 http.ProxyFromEnvironment,
+			MaxIdleConns:          100,
+			MaxIdleConnsPerHost:   10,
+			IdleConnTimeout:       90 * time.Second,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ExpectContinueTimeout: time.Second,
+		},
+	}
+}
+
+func isTypedNil(value any) bool {
+	if value == nil {
+		return false
+	}
+
+	rv := reflect.ValueOf(value)
+	switch rv.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return rv.IsNil()
+	default:
+		return false
+	}
 }
 
 func buildLedgerServiceURL(baseURL string) (string, error) {
@@ -912,9 +1052,8 @@ func DefaultConfig() *Config {
 	_ = setDefaultServiceURLs(config) //nolint:errcheck // EnvironmentLocal is hardcoded above and always valid
 
 	// Create HTTP client
-	config.HTTPClient = &http.Client{
-		Timeout: config.Timeout,
-	}
+	config.HTTPClient = NewDefaultHTTPClient(config.Timeout)
+	config.httpClientOwned = true
 
 	return config
 }
