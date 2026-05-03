@@ -121,6 +121,60 @@ func TestHTTPMiddleware_SanitizesSensitiveURLAndHeaders(t *testing.T) {
 	assert.NotContains(t, joined, "organization-secret")
 	assert.NotContains(t, joined, "baggage-secret")
 	assert.Contains(t, joined, "safe=value")
+
+	attrMap := spanAttributesToMap(recorder.Ended()[0].Attributes())
+	assert.Equal(t, http.MethodGet, attrMap[KeyHTTPRequestMethod])
+	assert.Equal(t, "https://api.example.test/v1/accounts?access_token=%5BREDACTED%5D&api_key=%5BREDACTED%5D&document=%5BREDACTED%5D&password=%5BREDACTED%5D&safe=value", attrMap[KeyURLFull])
+	assert.Equal(t, "/v1/accounts", attrMap[KeyURLPath])
+	assert.Equal(t, "https", attrMap[KeyURLScheme])
+	assert.Equal(t, "api.example.test", attrMap[KeyServerAddress])
+	assert.Equal(t, int64(443), attrMap[KeyServerPort])
+	assert.Equal(t, int64(http.StatusOK), attrMap[KeyHTTPResponseStatusCode])
+	assert.NotContains(t, attrMap, "http.method")
+	assert.NotContains(t, attrMap, "http.url")
+	assert.NotContains(t, attrMap, "http.host")
+	assert.NotContains(t, attrMap, "http.path")
+	assert.NotContains(t, attrMap, "http.status_code")
+}
+
+func TestHTTPMiddleware_SemconvErrorTypeForHTTPStatus(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	provider := newRegressionProvider(recorder)
+	transport := NewHTTPMiddleware(provider)(regressionRoundTripper{
+		response: &http.Response{
+			StatusCode: http.StatusInternalServerError,
+			Body:       io.NopCloser(strings.NewReader("error")),
+		},
+	})
+
+	req := mustRequest(t, "https://api.example.test/v1/accounts")
+	resp, err := transport.RoundTrip(req)
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	require.NoError(t, resp.Body.Close())
+
+	require.Len(t, recorder.Ended(), 1)
+	attrs := spanAttributesToMap(recorder.Ended()[0].Attributes())
+	assert.Equal(t, int64(http.StatusInternalServerError), attrs[KeyHTTPResponseStatusCode])
+	assert.Equal(t, "500", attrs[KeyErrorType])
+	assert.NotContains(t, attrs, "error")
+}
+
+func TestHTTPMiddleware_SemconvErrorTypeForTransportError(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	provider := newRegressionProvider(recorder)
+	transport := NewHTTPMiddleware(provider)(regressionRoundTripper{
+		err: errors.New("password=hunter2 token=secret"),
+	})
+
+	_, err := transport.RoundTrip(mustRequest(t, "https://api.example.test/v1/accounts"))
+	require.Error(t, err)
+
+	require.Len(t, recorder.Ended(), 1)
+	attrs := spanAttributesToMap(recorder.Ended()[0].Attributes())
+	assert.Equal(t, "*errors.errorString", attrs[KeyErrorType])
+	assert.NotContains(t, attrs[KeyErrorType], "hunter2")
+	assert.NotContains(t, attrs[KeyErrorType], "secret")
 }
 
 func TestHTTPMiddleware_DNSDoneWithEmptyAddrs_DoesNotPanic(t *testing.T) {
@@ -307,6 +361,22 @@ func attrsToString(attrs []attribute.KeyValue) string {
 	}
 
 	return strings.Join(values, "\n")
+}
+
+func spanAttributesToMap(attrs []attribute.KeyValue) map[string]any {
+	values := make(map[string]any, len(attrs))
+	for _, attr := range attrs {
+		switch attr.Value.Type().String() {
+		case "INT64":
+			values[string(attr.Key)] = attr.Value.AsInt64()
+		case "STRINGSLICE":
+			values[string(attr.Key)] = attr.Value.AsStringSlice()
+		default:
+			values[string(attr.Key)] = attr.Value.AsString()
+		}
+	}
+
+	return values
 }
 
 func timeNowForRegression() time.Time {

@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -17,6 +19,7 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	semconv "go.opentelemetry.io/otel/semconv/v1.34.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -106,6 +109,71 @@ type Server struct {
 	midazClient *client.Client
 }
 
+func requestScheme(r *http.Request) string {
+	if r == nil || r.URL == nil {
+		return ""
+	}
+	if r.URL.Scheme != "" {
+		return r.URL.Scheme
+	}
+	if r.TLS != nil {
+		return "https"
+	}
+	return "http"
+}
+
+func requestHost(r *http.Request) string {
+	if r == nil {
+		return ""
+	}
+	host := r.Host
+	if r.URL != nil && r.URL.Host != "" {
+		host = r.URL.Host
+	}
+	if parsedHost, _, err := net.SplitHostPort(host); err == nil {
+		return parsedHost
+	}
+	return host
+}
+
+func requestPort(r *http.Request) (int, bool) {
+	if r == nil {
+		return 0, false
+	}
+	host := r.Host
+	if r.URL != nil && r.URL.Host != "" {
+		host = r.URL.Host
+	}
+	_, portString, err := net.SplitHostPort(host)
+	if err == nil {
+		port, parseErr := strconv.Atoi(portString)
+		return port, parseErr == nil
+	}
+	switch requestScheme(r) {
+	case "http":
+		return 80, true
+	case "https":
+		return 443, true
+	default:
+		return 0, false
+	}
+}
+
+func requestURL(r *http.Request) string {
+	if r == nil || r.URL == nil {
+		return ""
+	}
+	u := *r.URL
+	if u.Scheme == "" {
+		u.Scheme = requestScheme(r)
+	}
+	if u.Host == "" {
+		u.Host = r.Host
+	}
+	safeURL := &url.URL{Scheme: u.Scheme, Host: u.Host, Path: u.EscapedPath()}
+	return safeURL.String()
+}
+
 // tracingMiddleware extracts tracing context from incoming requests and creates spans
 func (s *Server) tracingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -136,13 +204,19 @@ func (s *Server) tracingMiddleware(next http.Handler) http.Handler {
 
 		// Add request attributes
 		span.SetAttributes(
-			attribute.String("http.method", r.Method),
-			attribute.String("http.url", r.URL.String()),
-			attribute.String("http.scheme", r.URL.Scheme),
-			attribute.String("http.host", r.Host),
-			attribute.String("http.target", r.URL.Path),
+			semconv.HTTPRequestMethodKey.String(r.Method),
+			semconv.URLFull(requestURL(r)),
+			semconv.URLScheme(requestScheme(r)),
+			semconv.URLPath(r.URL.EscapedPath()),
+			semconv.ServerAddress(requestHost(r)),
 			attribute.String("user_agent.original", r.UserAgent()),
 		)
+		if port, ok := requestPort(r); ok {
+			span.SetAttributes(semconv.ServerPort(port))
+		}
+		if r.ProtoMajor > 0 {
+			span.SetAttributes(semconv.NetworkProtocolVersion(fmt.Sprintf("%d.%d", r.ProtoMajor, r.ProtoMinor)))
+		}
 
 		// Extract correlation IDs from headers for baggage
 		if requestID := r.Header.Get("X-Request-ID"); requestID != "" {
@@ -167,7 +241,7 @@ func (s *Server) tracingMiddleware(next http.Handler) http.Handler {
 
 		// Set response attributes
 		span.SetAttributes(
-			attribute.Int("http.status_code", wrapper.statusCode),
+			semconv.HTTPResponseStatusCode(wrapper.statusCode),
 		)
 
 		// Set span status based on HTTP status code

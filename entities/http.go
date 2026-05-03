@@ -733,8 +733,11 @@ func enrichHTTPSpan(ctx context.Context, method, requestURL string, resp *http.R
 	attrs := httpSpanAttributes(method, requestURL)
 	if resp != nil {
 		attrs = append(attrs, attribute.Int(observability.KeyHTTPStatus, resp.StatusCode))
+		if resp.ProtoMajor > 0 {
+			attrs = append(attrs, attribute.String(observability.KeyNetworkProtocolVersion, httpProtocolVersion(resp.ProtoMajor, resp.ProtoMinor)))
+		}
 		if requestID := strings.TrimSpace(resp.Header.Get("X-Request-ID")); requestID != "" {
-			attrs = append(attrs, attribute.String(observability.KeyHTTPRequestID, requestID))
+			attrs = append(attrs, attribute.StringSlice("http.response.header.x-request-id", []string{requestID}))
 		}
 	}
 
@@ -743,6 +746,7 @@ func enrichHTTPSpan(ctx context.Context, method, requestURL string, resp *http.R
 	if err != nil {
 		sanitizedErr := sanitizeTelemetryError(err)
 		span.SetStatus(codes.Error, sanitizedErr)
+		span.SetAttributes(attribute.String(observability.KeyErrorType, telemetryErrorType(err)))
 		span.RecordError(errors.New(sanitizedErr))
 
 		return
@@ -750,6 +754,7 @@ func enrichHTTPSpan(ctx context.Context, method, requestURL string, resp *http.R
 
 	if resp != nil && resp.StatusCode >= http.StatusBadRequest {
 		span.SetStatus(codes.Error, fmt.Sprintf("HTTP status code: %d", resp.StatusCode))
+		span.SetAttributes(attribute.String(observability.KeyErrorType, strconv.Itoa(resp.StatusCode)))
 
 		return
 	}
@@ -768,25 +773,92 @@ func sanitizeTelemetryError(err error) string {
 }
 
 func httpSpanAttributes(method, requestURL string) []attribute.KeyValue {
-	attrs := make([]attribute.KeyValue, 0, 6)
+	normalizedURL := normalizeTelemetryURL(requestURL)
+	attrs := make([]attribute.KeyValue, 0, 10)
 	attrs = append(attrs,
-		attribute.String(observability.KeyHTTPMethod, method),
-		attribute.String(observability.KeyHTTPURL, normalizeTelemetryURL(requestURL)),
-		attribute.String(observability.KeyOperationName, fmt.Sprintf("HTTP %s %s", method, normalizeTelemetryURL(requestURL))),
+		attribute.String(observability.KeyHTTPMethod, semconvHTTPMethod(method)),
+		attribute.String(observability.KeyHTTPURL, normalizedURL),
+		attribute.String(observability.KeyOperationName, fmt.Sprintf("HTTP %s %s", method, normalizedURL)),
 		attribute.String(observability.KeyOperationType, "http.request"),
 	)
+	if original := semconvHTTPMethodOriginal(method); original != "" {
+		attrs = append(attrs, attribute.String("http.request.method_original", original))
+	}
 
-	parsedURL, err := url.Parse(normalizeTelemetryURL(requestURL))
+	parsedURL, err := url.Parse(normalizedURL)
 	if err != nil {
 		return attrs
 	}
 
 	attrs = append(attrs,
 		attribute.String(observability.KeyHTTPPath, parsedURL.EscapedPath()),
-		attribute.String(observability.KeyHTTPHost, parsedURL.Host),
+		attribute.String(observability.KeyURLScheme, parsedURL.Scheme),
 	)
+	if host := parsedURL.Hostname(); host != "" {
+		attrs = append(attrs, attribute.String(observability.KeyServerAddress, host))
+	}
+	if port, ok := telemetryURLPort(parsedURL); ok {
+		attrs = append(attrs, attribute.Int(observability.KeyServerPort, port))
+	}
 
 	return attrs
+}
+
+func telemetryErrorType(err error) string {
+	if err == nil {
+		return "_OTHER"
+	}
+
+	typeName := fmt.Sprintf("%T", err)
+	if typeName == "" || typeName == "<nil>" {
+		return "_OTHER"
+	}
+
+	return typeName
+}
+
+func semconvHTTPMethod(method string) string {
+	upper := strings.ToUpper(method)
+	switch upper {
+	case http.MethodConnect, http.MethodDelete, http.MethodGet, http.MethodHead, http.MethodOptions, http.MethodPatch, http.MethodPost, http.MethodPut, http.MethodTrace:
+		return upper
+	default:
+		return "_OTHER"
+	}
+}
+
+func semconvHTTPMethodOriginal(method string) string {
+	if semconvHTTPMethod(method) == "_OTHER" {
+		return method
+	}
+
+	return ""
+}
+
+func telemetryURLPort(parsedURL *url.URL) (int, bool) {
+	if parsedURL == nil {
+		return 0, false
+	}
+	if portString := parsedURL.Port(); portString != "" {
+		port, err := strconv.Atoi(portString)
+		return port, err == nil
+	}
+	switch strings.ToLower(parsedURL.Scheme) {
+	case "http":
+		return 80, true
+	case "https":
+		return 443, true
+	default:
+		return 0, false
+	}
+}
+
+func httpProtocolVersion(major, minor int) string {
+	if major <= 0 {
+		return ""
+	}
+
+	return fmt.Sprintf("%d.%d", major, minor)
 }
 
 // buildHTTPRequest creates the HTTP request with body handling

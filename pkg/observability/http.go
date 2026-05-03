@@ -5,14 +5,17 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptrace"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	semconv "go.opentelemetry.io/otel/semconv/v1.34.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -244,12 +247,7 @@ func (m *httpMiddleware) setupTraceSpan(req *http.Request) (context.Context, tra
 // addRequestAttributes adds HTTP and custom attributes to the span
 func (m *httpMiddleware) addRequestAttributes(span trace.Span, req *http.Request) {
 	// Add HTTP attributes
-	span.SetAttributes(
-		attribute.String("http.method", requestMethod(req)),
-		attribute.String("http.url", m.sanitizeURL(req.URL)),
-		attribute.String("http.host", requestHost(req)),
-		attribute.String("http.path", requestPath(req)),
-	)
+	span.SetAttributes(httpRequestSemconvAttributes(req, m.sanitizeURL(req.URL))...)
 
 	// Add custom attributes
 	name := fmt.Sprintf("HTTP %s %s", requestMethod(req), requestPath(req))
@@ -270,7 +268,7 @@ func (m *httpMiddleware) addRequestHeaders(span trace.Span, req *http.Request) {
 
 	for key, values := range req.Header {
 		if !m.isIgnoredHeader(key) && len(values) > 0 {
-			span.SetAttributes(attribute.String("http.request.header."+strings.ToLower(key), values[0]))
+			span.SetAttributes(semconv.HTTPRequestHeader(strings.ToLower(key), values...))
 		}
 	}
 }
@@ -316,6 +314,7 @@ func (m *httpMiddleware) executeTracedRequest(ctx context.Context, span trace.Sp
 func (*httpMiddleware) handleRequestError(span trace.Span, resp *http.Response, err error) (*http.Response, error) {
 	sanitizedErr := sanitizeSensitiveString(err.Error())
 	span.SetStatus(codes.Error, sanitizedErr)
+	span.SetAttributes(semconv.ErrorType(err))
 	span.RecordError(errors.New(sanitizedErr))
 	span.End()
 
@@ -332,7 +331,10 @@ func (m *httpMiddleware) handleSuccessfulResponse(span trace.Span, resp *http.Re
 	}
 
 	// Add response attributes
-	span.SetAttributes(attribute.Int("http.status_code", resp.StatusCode))
+	span.SetAttributes(semconv.HTTPResponseStatusCode(resp.StatusCode))
+	if resp.ProtoMajor > 0 {
+		span.SetAttributes(semconv.NetworkProtocolVersion(httpProtocolVersion(resp.ProtoMajor, resp.ProtoMinor)))
+	}
 
 	// Add response headers (excluding sensitive ones)
 	m.addResponseHeaders(span, resp)
@@ -353,7 +355,7 @@ func (m *httpMiddleware) addResponseHeaders(span trace.Span, resp *http.Response
 
 	for key, values := range resp.Header {
 		if !m.isIgnoredHeader(key) && len(values) > 0 {
-			span.SetAttributes(attribute.String("http.response.header."+strings.ToLower(key), values[0]))
+			span.SetAttributes(semconv.HTTPResponseHeader(strings.ToLower(key), values...))
 		}
 	}
 }
@@ -362,7 +364,7 @@ func (m *httpMiddleware) addResponseHeaders(span trace.Span, resp *http.Response
 func (*httpMiddleware) setResponseStatus(span trace.Span, statusCode int) {
 	if statusCode >= 400 {
 		span.SetStatus(codes.Error, fmt.Sprintf("HTTP status code: %d", statusCode))
-		span.SetAttributes(attribute.Bool("error", true))
+		span.SetAttributes(semconv.ErrorTypeKey.String(strconv.Itoa(statusCode)))
 	} else {
 		span.SetStatus(codes.Ok, "")
 	}
@@ -384,14 +386,14 @@ func (m *httpMiddleware) isIgnoredHeader(header string) bool {
 func (m *httpMiddleware) recordRequestMetrics(ctx context.Context, req *http.Request, resp *http.Response, err error, duration time.Duration) {
 	// Create attributes for the metrics
 	attrs := []attribute.KeyValue{
-		attribute.String(KeyHTTPMethod, requestMethod(req)),
-		attribute.String(KeyHTTPPath, requestPath(req)),
-		attribute.String(KeyHTTPHost, requestHost(req)),
+		semconv.HTTPRequestMethodKey.String(semconvHTTPMethod(requestMethod(req))),
+		semconv.URLPath(requestPath(req)),
 	}
+	attrs = append(attrs, serverAddressPortAttributes(req)...)
 
 	// Add status code attribute if we have a response
 	if resp != nil {
-		attrs = append(attrs, attribute.Int(KeyHTTPStatus, resp.StatusCode))
+		attrs = append(attrs, semconv.HTTPResponseStatusCode(resp.StatusCode))
 	}
 
 	// Record count
@@ -407,7 +409,7 @@ func (m *httpMiddleware) recordRequestMetrics(ctx context.Context, req *http.Req
 			errorStatus = fmt.Sprintf("%d", resp.StatusCode)
 		}
 
-		attrs = append(attrs, attribute.String(KeyErrorCode, errorStatus))
+		attrs = append(attrs, semconv.ErrorTypeKey.String(errorStatus))
 		RecordMetric(ctx, m.provider, MetricRequestErrorTotal, 1, attrs...)
 	} else {
 		RecordMetric(ctx, m.provider, MetricRequestSuccess, 1, attrs...)
@@ -418,9 +420,7 @@ func (m *httpMiddleware) recordRequestMetrics(ctx context.Context, req *http.Req
 func (*httpMiddleware) createClientTrace(span trace.Span) *httptrace.ClientTrace {
 	return &httptrace.ClientTrace{
 		GetConn: func(hostPort string) {
-			span.AddEvent("http.get_conn", trace.WithAttributes(
-				attribute.String("http.host_port", hostPort),
-			))
+			span.AddEvent("http.get_conn", trace.WithAttributes(serverAddressPortFromHostPort(hostPort)...))
 		},
 		GotConn: func(info httptrace.GotConnInfo) {
 			span.AddEvent("http.got_conn", trace.WithAttributes(
@@ -503,6 +503,111 @@ func addDNSDoneEvent(span trace.Span, info httptrace.DNSDoneInfo) {
 	}
 
 	span.AddEvent("http.dns_done", trace.WithAttributes(attrs...))
+}
+
+func httpRequestSemconvAttributes(req *http.Request, sanitizedURL string) []attribute.KeyValue {
+	method := requestMethod(req)
+	attrs := []attribute.KeyValue{
+		semconv.HTTPRequestMethodKey.String(semconvHTTPMethod(method)),
+		semconv.URLFull(sanitizedURL),
+		semconv.URLPath(requestPath(req)),
+	}
+	if original := semconvHTTPMethodOriginal(method); original != "" {
+		attrs = append(attrs, semconv.HTTPRequestMethodOriginal(original))
+	}
+	if req != nil && req.URL != nil && req.URL.Scheme != "" {
+		attrs = append(attrs, semconv.URLScheme(req.URL.Scheme))
+	}
+	if req != nil && req.ProtoMajor > 0 {
+		attrs = append(attrs, semconv.NetworkProtocolVersion(httpProtocolVersion(req.ProtoMajor, req.ProtoMinor)))
+	}
+	attrs = append(attrs, serverAddressPortAttributes(req)...)
+
+	return attrs
+}
+
+func serverAddressPortAttributes(req *http.Request) []attribute.KeyValue {
+	if req == nil || req.URL == nil {
+		return nil
+	}
+
+	return serverAddressPortFromURL(req.URL)
+}
+
+func serverAddressPortFromURL(rawURL *url.URL) []attribute.KeyValue {
+	if rawURL == nil {
+		return nil
+	}
+
+	host := rawURL.Hostname()
+	if host == "" {
+		return nil
+	}
+
+	attrs := []attribute.KeyValue{semconv.ServerAddress(host)}
+	if port, ok := urlPort(rawURL); ok {
+		attrs = append(attrs, semconv.ServerPort(port))
+	}
+
+	return attrs
+}
+
+func serverAddressPortFromHostPort(hostPort string) []attribute.KeyValue {
+	host, portString, err := net.SplitHostPort(hostPort)
+	if err != nil {
+		return []attribute.KeyValue{semconv.ServerAddress(hostPort)}
+	}
+
+	attrs := []attribute.KeyValue{semconv.ServerAddress(host)}
+	if port, err := strconv.Atoi(portString); err == nil {
+		attrs = append(attrs, semconv.ServerPort(port))
+	}
+
+	return attrs
+}
+
+func urlPort(rawURL *url.URL) (int, bool) {
+	if rawURL == nil {
+		return 0, false
+	}
+	if portString := rawURL.Port(); portString != "" {
+		port, err := strconv.Atoi(portString)
+		return port, err == nil
+	}
+	switch strings.ToLower(rawURL.Scheme) {
+	case "http":
+		return 80, true
+	case "https":
+		return 443, true
+	default:
+		return 0, false
+	}
+}
+
+func httpProtocolVersion(major, minor int) string {
+	if major <= 0 {
+		return ""
+	}
+
+	return fmt.Sprintf("%d.%d", major, minor)
+}
+
+func semconvHTTPMethod(method string) string {
+	upper := strings.ToUpper(method)
+	switch upper {
+	case http.MethodConnect, http.MethodDelete, http.MethodGet, http.MethodHead, http.MethodOptions, http.MethodPatch, http.MethodPost, http.MethodPut, http.MethodTrace:
+		return upper
+	default:
+		return "_OTHER"
+	}
+}
+
+func semconvHTTPMethodOriginal(method string) string {
+	if semconvHTTPMethod(method) == "_OTHER" {
+		return method
+	}
+
+	return ""
 }
 
 func ensureRoundTripper(next http.RoundTripper) http.RoundTripper {

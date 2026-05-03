@@ -4,8 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	stdErrors "errors"
+	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -399,11 +402,50 @@ func TestHTTPClientSDKInstrumentationCreatesSingleClientSpan(t *testing.T) {
 	assert.Equal(t, trace.SpanKindClient, ended[0].SpanKind())
 	assert.Equal(t, "ok", result["status"])
 
+	serverURL, parseErr := url.Parse(server.URL)
+	require.NoError(t, parseErr)
+	host, port, splitErr := net.SplitHostPort(serverURL.Host)
+	require.NoError(t, splitErr)
+
 	attrs := spanAttributeMap(ended[0])
-	assert.Equal(t, http.MethodGet, attrs[observability.KeyHTTPMethod])
-	assert.Equal(t, "/single", attrs[observability.KeyHTTPPath])
-	assert.Equal(t, int64(http.StatusOK), attrs[observability.KeyHTTPStatus])
-	assert.Equal(t, "req-123", attrs[observability.KeyHTTPRequestID])
+	assert.Equal(t, http.MethodGet, attrs[observability.KeyHTTPRequestMethod])
+	assert.Equal(t, "/single", attrs[observability.KeyURLPath])
+	assert.Equal(t, server.URL+"/single", attrs[observability.KeyURLFull])
+	assert.Equal(t, "http", attrs[observability.KeyURLScheme])
+	assert.Equal(t, host, attrs[observability.KeyServerAddress])
+	assert.Equal(t, port, attrIntString(attrs[observability.KeyServerPort]))
+	assert.Equal(t, "1.1", attrs[observability.KeyNetworkProtocolVersion])
+	assert.Equal(t, int64(http.StatusOK), attrs[observability.KeyHTTPResponseStatusCode])
+	assert.Equal(t, []string{"req-123"}, attrs["http.response.header.x-request-id"])
+
+	assert.NotContains(t, attrs, "http.method")
+	assert.NotContains(t, attrs, "http.path")
+	assert.NotContains(t, attrs, "http.url")
+	assert.NotContains(t, attrs, "http.host")
+	assert.NotContains(t, attrs, "http.status_code")
+}
+
+func TestHTTPClientSDKInstrumentationUsesOtherForNonStandardMethod(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	provider := newSlice3Provider(recorder)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	}))
+	defer server.Close()
+
+	httpClient := NewHTTPClient(server.Client(), "token", provider)
+	var result map[string]string
+
+	err := httpClient.doRequest(context.Background(), "BREW", server.URL+"/coffee", nil, nil, &result)
+	require.NoError(t, err)
+
+	ended := recorder.Ended()
+	require.Len(t, ended, 1)
+	attrs := spanAttributeMap(ended[0])
+	assert.Equal(t, "_OTHER", attrs[observability.KeyHTTPRequestMethod])
+	assert.Equal(t, "BREW", attrs["http.request.method_original"])
 }
 
 func TestHTTPClientErrorSpanRedactsSensitiveValues(t *testing.T) {
@@ -439,12 +481,25 @@ func spanAttributeMap(span sdktrace.ReadOnlySpan) map[string]any {
 		switch attr.Value.Type().String() {
 		case "INT64":
 			attrs[string(attr.Key)] = attr.Value.AsInt64()
+		case "STRINGSLICE":
+			attrs[string(attr.Key)] = attr.Value.AsStringSlice()
 		default:
 			attrs[string(attr.Key)] = attr.Value.AsString()
 		}
 	}
 
 	return attrs
+}
+
+func attrIntString(value any) string {
+	switch v := value.(type) {
+	case int64:
+		return fmt.Sprintf("%d", v)
+	case string:
+		return v
+	default:
+		return ""
+	}
 }
 
 // BenchmarkHTTPClientWithTracing benchmarks HTTP client performance with tracing enabled

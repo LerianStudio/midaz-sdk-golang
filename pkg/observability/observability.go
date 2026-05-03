@@ -43,15 +43,32 @@ const (
 	KeyLedgerID       = "midaz.ledger_id"
 	KeyAccountID      = "midaz.account_id"
 
-	// HTTP request attributes
-	KeyHTTPMethod    = "http.method"
-	KeyHTTPPath      = "http.path"
-	KeyHTTPStatus    = "http.status_code"
-	KeyHTTPHost      = "http.host"
-	KeyHTTPURL       = "http.url"
+	// HTTP semantic convention attributes
+	KeyHTTPRequestMethod      = "http.request.method"
+	KeyHTTPResponseStatusCode = "http.response.status_code"
+	KeyURLFull                = "url.full"
+	KeyURLPath                = "url.path"
+	KeyURLScheme              = "url.scheme"
+	KeyServerAddress          = "server.address"
+	KeyServerPort             = "server.port"
+	KeyNetworkProtocolVersion = "network.protocol.version"
+	KeyErrorType              = "error.type"
+
+	// Deprecated: use KeyHTTPRequestMethod.
+	KeyHTTPMethod = KeyHTTPRequestMethod
+	// Deprecated: use KeyURLPath.
+	KeyHTTPPath = KeyURLPath
+	// Deprecated: use KeyHTTPResponseStatusCode.
+	KeyHTTPStatus = KeyHTTPResponseStatusCode
+	// Deprecated: use KeyServerAddress and KeyServerPort.
+	KeyHTTPHost = KeyServerAddress
+	// Deprecated: use KeyURLFull.
+	KeyHTTPURL = KeyURLFull
+	// Deprecated: use HTTP response header attributes such as http.response.header.x-request-id.
 	KeyHTTPRequestID = "http.request_id"
-	KeyErrorCode     = "error.code"
-	KeyErrorMessage  = "error.message"
+	// Deprecated: use KeyErrorType.
+	KeyErrorCode    = KeyErrorType
+	KeyErrorMessage = "error.message"
 
 	// Metric names
 	MetricRequestTotal        = "midaz.sdk.request.total"
