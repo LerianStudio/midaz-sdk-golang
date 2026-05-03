@@ -383,26 +383,26 @@ func TestAccountGenerator_GenerateBatch_PartialError(t *testing.T) {
 	assert.Len(t, results, 2)
 }
 
-func TestMapAccountClass(t *testing.T) {
+func TestAccountTypeKeyForTemplate(t *testing.T) {
 	tests := []struct {
 		name     string
 		input    string
 		expected string
 	}{
-		{"expense type", "expense", "EXPENSE"},
-		{"revenue type", "revenue", "REVENUE"},
-		{"liability type", "liability", "LIABILITY"},
-		{"equity type", "equity", "EQUITY"},
-		{"creditCard type", "creditCard", "LIABILITY"},
-		{"deposit type", "deposit", "ASSET"},
-		{"savings type", "savings", "ASSET"},
-		{"unknown type", "unknown", "ASSET"},
-		{"empty type", "", "ASSET"},
+		{"expense type", "expense", AccountTypeKeyExpense},
+		{"revenue type", "revenue", AccountTypeKeyRevenue},
+		{"liability type", "liability", AccountTypeKeyLiability},
+		{"equity type", "equity", AccountTypeKeyEquity},
+		{"creditCard type", "creditCard", AccountTypeKeyCreditCard},
+		{"deposit type", "deposit", AccountTypeKeyChecking},
+		{"savings type", "savings", AccountTypeKeySavings},
+		{"unknown type", "unknown", AccountTypeKeyChecking},
+		{"empty type", "", AccountTypeKeyChecking},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := mapAccountClass(tt.input)
+			result := accountTypeKeyForTemplate(data.AccountTemplate{Type: tt.input})
 			assert.Equal(t, tt.expected, result)
 		})
 	}

@@ -17,13 +17,17 @@ type (
 // WithWorkers stores a preferred worker count in context for batch generation.
 func WithWorkers(ctx context.Context, workers int) context.Context {
 	if workers <= 0 {
-		return ctx
+		return normalizeContext(ctx)
 	}
+
+	ctx = normalizeContext(ctx)
 
 	return context.WithValue(ctx, contextKeyWorkers{}, workers)
 }
 
 func getWorkers(ctx context.Context) int {
+	ctx = normalizeContext(ctx)
+
 	if v := ctx.Value(contextKeyWorkers{}); v != nil {
 		if n, ok := v.(int); ok && n > 0 {
 			// Apply upper limit to prevent resource exhaustion
@@ -50,13 +54,17 @@ func getWorkers(ctx context.Context) int {
 // WithCircuitBreaker stores a circuit breaker in context for generator calls.
 func WithCircuitBreaker(ctx context.Context, cb *conc.CircuitBreaker) context.Context {
 	if cb == nil {
-		return ctx
+		return normalizeContext(ctx)
 	}
+
+	ctx = normalizeContext(ctx)
 
 	return context.WithValue(ctx, contextKeyCircuitBreaker{}, cb)
 }
 
 func getCircuitBreaker(ctx context.Context) *conc.CircuitBreaker {
+	ctx = normalizeContext(ctx)
+
 	v := ctx.Value(contextKeyCircuitBreaker{})
 	if v == nil {
 		return nil
@@ -73,13 +81,17 @@ func getCircuitBreaker(ctx context.Context) *conc.CircuitBreaker {
 // Supported values include "us" (default) and "br" (CNPJ).
 func WithOrgLocale(ctx context.Context, locale string) context.Context {
 	if locale == "" {
-		return ctx
+		return normalizeContext(ctx)
 	}
+
+	ctx = normalizeContext(ctx)
 
 	return context.WithValue(ctx, contextKeyOrgLocale{}, locale)
 }
 
 func getOrgLocale(ctx context.Context) string {
+	ctx = normalizeContext(ctx)
+
 	if v := ctx.Value(contextKeyOrgLocale{}); v != nil {
 		if s, ok := v.(string); ok && s != "" {
 			return s
@@ -87,4 +99,12 @@ func getOrgLocale(ctx context.Context) string {
 	}
 
 	return "us"
+}
+
+func normalizeContext(ctx context.Context) context.Context {
+	if ctx == nil {
+		return context.Background()
+	}
+
+	return ctx
 }

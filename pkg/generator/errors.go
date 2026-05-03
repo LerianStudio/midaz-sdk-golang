@@ -1,6 +1,9 @@
 package generator
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
 // errorsJoin aggregates multiple errors using errors.Join.
 // Returns nil when no errors, or the single error when only one.
@@ -14,4 +17,8 @@ func errorsJoin(errs ...error) error {
 	}
 
 	return errors.Join(errs...)
+}
+
+func errNilGenerated(entity string) error {
+	return fmt.Errorf("%s generation returned nil response", entity)
 }

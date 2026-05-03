@@ -338,6 +338,13 @@ cd examples/mass-demo-generator
 DEMO_NON_INTERACTIVE=1 go run . --org-locale=br
 ```
 
+For a bounded smoke run, use:
+
+```bash
+cd examples/mass-demo-generator
+DEMO_NON_INTERACTIVE=1 go run . --orgs=1 --ledgers=1 --accounts=1 --tx=0
+```
+
 ## Testing
 
 ```bash

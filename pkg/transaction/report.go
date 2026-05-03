@@ -3,10 +3,13 @@ package transaction
 import (
 	"encoding/json"
 	"fmt"
+	"html"
 	"os"
 	"strings"
 	"time"
 )
+
+const maxReportResults = 1000
 
 // ReportEntities contains counts and identifiers for created entities.
 type ReportEntities struct {
@@ -66,10 +69,15 @@ type GenerationReport struct {
 
 // NewGenerationReport creates a report from batch results.
 func NewGenerationReport(results []BatchResult, notes string, additional map[string]any) *GenerationReport {
+	capturedResults := results
+	if len(capturedResults) > maxReportResults {
+		capturedResults = append([]BatchResult(nil), capturedResults[:maxReportResults]...)
+	}
+
 	return &GenerationReport{
 		GeneratedAt:           time.Now().UTC(),
 		Summary:               GetBatchSummary(results),
-		Results:               results,
+		Results:               capturedResults,
 		Notes:                 notes,
 		AdditionalInformation: additional,
 	}
@@ -108,10 +116,10 @@ func writeHTMLMapSection(b *strings.Builder, title string, data map[string]int) 
 		return
 	}
 
-	_, _ = fmt.Fprintf(b, "<div class=\"section\"><h2>%s</h2><table><tbody>", title)
+	_, _ = fmt.Fprintf(b, "<div class=\"section\"><h2>%s</h2><table><tbody>", html.EscapeString(title))
 
 	for k, v := range data {
-		_, _ = fmt.Fprintf(b, "<tr><th>%s</th><td>%d</td></tr>", k, v)
+		_, _ = fmt.Fprintf(b, "<tr><th>%s</th><td>%d</td></tr>", html.EscapeString(k), v)
 	}
 
 	_, _ = fmt.Fprintf(b, "</tbody></table></div>")
@@ -123,10 +131,10 @@ func writeHTMLStringMapSection(b *strings.Builder, title string, data map[string
 		return
 	}
 
-	_, _ = fmt.Fprintf(b, "<div class=\"section\"><h2>%s</h2><table><tbody>", title)
+	_, _ = fmt.Fprintf(b, "<div class=\"section\"><h2>%s</h2><table><tbody>", html.EscapeString(title))
 
 	for k, v := range data {
-		_, _ = fmt.Fprintf(b, "<tr><th>%s</th><td>%s</td></tr>", k, v)
+		_, _ = fmt.Fprintf(b, "<tr><th>%s</th><td>%s</td></tr>", html.EscapeString(k), html.EscapeString(v))
 	}
 
 	_, _ = fmt.Fprintf(b, "</tbody></table></div>")
@@ -183,7 +191,7 @@ func (r *GenerationReport) writeHTMLAPIStatsSection(b *strings.Builder) {
 	_, _ = fmt.Fprintf(b, "<tr><th>Total API Calls</th><td>%d</td></tr>", r.APIStats.APICalls)
 
 	for k, v := range r.APIStats.Errors {
-		_, _ = fmt.Fprintf(b, "<tr><th>Error %s</th><td>%d</td></tr>", k, v)
+		_, _ = fmt.Fprintf(b, "<tr><th>Error %s</th><td>%d</td></tr>", html.EscapeString(k), v)
 	}
 
 	_, _ = fmt.Fprintf(b, "</tbody></table></div>")

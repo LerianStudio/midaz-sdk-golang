@@ -413,9 +413,9 @@ func TestBatchProcessorCallProgressCallback(t *testing.T) {
 
 		// Simulate input count
 		result := BatchResult{Index: 3, TransactionID: "tx-123"}
-		bp.callProgressCallback(3, result)
+		bp.callProgressCallback(result)
 
-		assert.Equal(t, 4, calledWith.completed) // index + 1
+		assert.Equal(t, 1, calledWith.completed)
 		assert.Equal(t, 10, calledWith.total)
 		assert.Equal(t, "tx-123", calledWith.result.TransactionID)
 	})
@@ -433,7 +433,7 @@ func TestBatchProcessorCallProgressCallback(t *testing.T) {
 
 		// Should not panic
 		assert.NotPanics(t, func() {
-			bp.callProgressCallback(0, BatchResult{})
+			bp.callProgressCallback(BatchResult{})
 		})
 	})
 }

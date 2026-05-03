@@ -5,6 +5,7 @@ package transaction
 
 import (
 	"context"
+	stdErrors "errors"
 	"fmt"
 	"sync"
 	"time"
@@ -51,6 +52,9 @@ type BatchOptions struct {
 	// StopOnError determines if the batch processing should stop on the first error
 	// Default is false (continue processing even if some transactions fail)
 	StopOnError bool
+	// AllowPartialSuccess controls whether failed individual transactions are returned
+	// only in BatchResult.Error without also returning an aggregate error.
+	AllowPartialSuccess bool
 }
 
 // DefaultBatchOptions returns the default batch processing options
@@ -62,6 +66,7 @@ func DefaultBatchOptions() *BatchOptions {
 		RetryDelay:           100 * time.Millisecond,
 		IdempotencyKeyPrefix: "batch",
 		StopOnError:          false,
+		AllowPartialSuccess:  false,
 	}
 }
 
@@ -89,6 +94,18 @@ func BatchTransactions(
 	inputs []*models.CreateTransactionInput,
 	options *BatchOptions,
 ) ([]BatchResult, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	if midazClient == nil || midazClient.Entity == nil || midazClient.Entity.Transactions == nil {
+		return nil, stdErrors.New("transaction service is not initialized")
+	}
+
+	if orgID == "" || ledgerID == "" {
+		return nil, stdErrors.New("organization and ledger IDs are required")
+	}
+
 	options = normalizeOptions(options)
 	results := make([]BatchResult, len(inputs))
 
@@ -109,10 +126,37 @@ func BatchTransactions(
 func normalizeOptions(options *BatchOptions) *BatchOptions {
 	if options == nil {
 		options = DefaultBatchOptions()
+	} else {
+		cloned := *options
+		options = &cloned
 	}
 
 	if options.Concurrency < 1 {
 		options.Concurrency = 1
+	}
+
+	if options.Concurrency > 100 {
+		options.Concurrency = 100
+	}
+
+	if options.BatchSize < 1 {
+		options.BatchSize = DefaultBatchOptions().BatchSize
+	}
+
+	if options.BatchSize > 10_000 {
+		options.BatchSize = 10_000
+	}
+
+	if options.RetryCount < 0 {
+		options.RetryCount = 0
+	}
+
+	if options.RetryDelay <= 0 {
+		options.RetryDelay = DefaultBatchOptions().RetryDelay
+	}
+
+	if options.IdempotencyKeyPrefix == "" {
+		options.IdempotencyKeyPrefix = DefaultBatchOptions().IdempotencyKeyPrefix
 	}
 
 	return options
@@ -127,6 +171,9 @@ type batchProcessor struct {
 	inputs   []*models.CreateTransactionInput
 	options  *BatchOptions
 	results  []BatchResult
+
+	progressMu sync.Mutex
+	completed  int
 }
 
 // execute runs the batch processing logic.
@@ -137,6 +184,11 @@ func (bp *batchProcessor) execute() ([]BatchResult, error) {
 	errChan := make(chan error, 1)
 
 	for i := 0; i < len(bp.inputs); i += bp.options.BatchSize {
+		if err := bp.ctx.Err(); err != nil {
+			bp.markUnscheduledFrom(i, err)
+			break
+		}
+
 		end := bp.calculateBatchEnd(i)
 
 		if err := bp.processBatch(i, end, &wg, semaphore, errChan); err != nil {
@@ -162,13 +214,21 @@ func (bp *batchProcessor) calculateBatchEnd(start int) int {
 // processBatch processes a single batch of transactions.
 func (bp *batchProcessor) processBatch(start, end int, wg *sync.WaitGroup, semaphore chan struct{}, errChan chan error) error {
 	for j := start; j < end; j++ {
+		if err := bp.ctx.Err(); err != nil {
+			bp.markUnscheduledFrom(j, err)
+			return nil
+		}
+
 		if bp.options.StopOnError {
 			if err := bp.checkForEarlyError(errChan); err != nil {
 				return err
 			}
 		}
 
-		bp.startTransactionWorker(j, wg, semaphore, errChan)
+		if err := bp.startTransactionWorker(j, wg, semaphore, errChan); err != nil {
+			bp.markUnscheduledFrom(j, err)
+			return nil
+		}
 	}
 
 	return nil
@@ -185,8 +245,12 @@ func (*batchProcessor) checkForEarlyError(errChan chan error) error {
 }
 
 // startTransactionWorker starts a worker goroutine to process a transaction.
-func (bp *batchProcessor) startTransactionWorker(index int, wg *sync.WaitGroup, semaphore chan struct{}, errChan chan error) {
-	semaphore <- struct{}{}
+func (bp *batchProcessor) startTransactionWorker(index int, wg *sync.WaitGroup, semaphore chan struct{}, errChan chan error) error {
+	select {
+	case semaphore <- struct{}{}:
+	case <-bp.ctx.Done():
+		return bp.ctx.Err()
+	}
 
 	wg.Add(1)
 
@@ -202,19 +266,29 @@ func (bp *batchProcessor) startTransactionWorker(index int, wg *sync.WaitGroup, 
 			}
 		}
 	}(index)
+
+	return nil
 }
 
 // processTransaction processes a single transaction with retries.
 func (bp *batchProcessor) processTransaction(index int) error {
 	startTime := time.Now()
+
 	input := bp.inputs[index]
+	if input == nil {
+		result := bp.createResult(index, nil, fmt.Errorf("transaction input at index %d is nil", index), time.Since(startTime))
+		bp.results[index] = result
+		bp.callProgressCallback(result)
+
+		return result.Error
+	}
 
 	bp.ensureIdempotencyKey(input, index)
 	tx, err := bp.executeWithRetries(input)
 
 	result := bp.createResult(index, tx, err, time.Since(startTime))
 	bp.results[index] = result
-	bp.callProgressCallback(index, result)
+	bp.callProgressCallback(result)
 
 	return err
 }
@@ -287,6 +361,10 @@ func (*batchProcessor) calculateBackoffFactor(attempt int) uint {
 
 // createResult creates a BatchResult for the transaction.
 func (*batchProcessor) createResult(index int, tx *models.Transaction, err error, duration time.Duration) BatchResult {
+	if err == nil && tx == nil {
+		err = fmt.Errorf("transaction at index %d returned nil response", index)
+	}
+
 	result := BatchResult{
 		Index:         index,
 		TransactionID: "",
@@ -302,9 +380,13 @@ func (*batchProcessor) createResult(index int, tx *models.Transaction, err error
 }
 
 // callProgressCallback calls the progress callback if configured.
-func (bp *batchProcessor) callProgressCallback(index int, result BatchResult) {
+func (bp *batchProcessor) callProgressCallback(result BatchResult) {
 	if bp.options.OnProgress != nil {
-		bp.options.OnProgress(index+1, len(bp.inputs), result)
+		bp.progressMu.Lock()
+		bp.completed++
+		completed := bp.completed
+		bp.options.OnProgress(completed, len(bp.inputs), result)
+		bp.progressMu.Unlock()
 	}
 }
 
@@ -318,7 +400,37 @@ func (bp *batchProcessor) checkFinalErrors(errChan chan error) ([]BatchResult, e
 		}
 	}
 
+	if !bp.options.AllowPartialSuccess {
+		var errs []error
+
+		for i := range bp.results {
+			if bp.results[i].Error != nil {
+				errs = append(errs, bp.results[i].Error)
+			}
+		}
+
+		if len(errs) > 0 {
+			return bp.results, stdErrors.Join(errs...)
+		}
+	}
+
 	return bp.results, nil
+}
+
+func (bp *batchProcessor) markUnscheduledFrom(start int, err error) {
+	if err == nil {
+		return
+	}
+
+	for i := start; i < len(bp.results); i++ {
+		if bp.results[i].Error != nil || bp.results[i].TransactionID != "" {
+			continue
+		}
+
+		result := bp.createResult(i, nil, err, 0)
+		bp.results[i] = result
+		bp.callProgressCallback(result)
+	}
 }
 
 // BatchSummary provides statistics about a batch operation

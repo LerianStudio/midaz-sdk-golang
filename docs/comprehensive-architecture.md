@@ -779,8 +779,11 @@ RUN go mod download
 COPY . .
 RUN go build -o /out/mass-demo-generator ./examples/mass-demo-generator
 
-FROM gcr.io/distroless/base-debian12
+FROM gcr.io/distroless/base-debian12:nonroot
+WORKDIR /app
 COPY --from=build /out/mass-demo-generator /usr/local/bin/mass-demo-generator
+COPY --from=build /src/examples/mass-demo-generator/default.yaml /app/default.yaml
+USER nonroot:nonroot
 ENTRYPOINT ["/usr/local/bin/mass-demo-generator"]
 ```
 

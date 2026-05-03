@@ -24,6 +24,8 @@ func NewTransactionLifecycle(e *entities.Entity, obs observability.Provider) Tra
 
 // CreatePending creates a transaction marked as pending, respecting idempotency and retries.
 func (l *lifecycle) CreatePending(ctx context.Context, input *models.CreateTransactionInput) (*models.Transaction, error) {
+	ctx = normalizeContext(ctx)
+
 	if l.e == nil || l.e.Transactions == nil {
 		return nil, errors.New("entity transactions service not initialized")
 	}
@@ -70,6 +72,8 @@ func (l *lifecycle) CreatePending(ctx context.Context, input *models.CreateTrans
 
 // Commit commits a pending transaction using the dedicated API endpoint.
 func (l *lifecycle) Commit(ctx context.Context, txID string) error {
+	ctx = normalizeContext(ctx)
+
 	if l.e == nil || l.e.Transactions == nil {
 		return errors.New("entity transactions service not initialized")
 	}
@@ -99,6 +103,8 @@ func (l *lifecycle) Commit(ctx context.Context, txID string) error {
 
 // Revert reverts a committed transaction.
 func (l *lifecycle) Revert(ctx context.Context, txID string) error {
+	ctx = normalizeContext(ctx)
+
 	if l.e == nil || l.e.Transactions == nil {
 		return errors.New("entity transactions service not initialized")
 	}
@@ -155,5 +161,7 @@ type contextKeyLedgerID struct{}
 //	ctx = generator.WithLedgerID(ctx, ledgerID)
 //	tx, err := lifecycle.CreatePending(ctx, input)
 func WithLedgerID(ctx context.Context, ledgerID string) context.Context {
+	ctx = normalizeContext(ctx)
+
 	return context.WithValue(ctx, contextKeyLedgerID{}, ledgerID)
 }

@@ -269,9 +269,22 @@ DEMO_NON_INTERACTIVE=1 go run . \
 
 The generator also reads non-interactive defaults from `examples/mass-demo-generator/default.yaml`. Batch-demo controls include:
 
+- `DEMO_TIMEOUT` - Overall timeout in seconds.
+- `DEMO_ORGS` - Organizations to create.
+- `DEMO_LEDGERS_PER_ORG` - Ledgers per organization.
+- `DEMO_ACCOUNTS_PER_LEDGER` - Accounts per ledger.
+- `DEMO_TX_PER_ACCOUNT` - Transactions per account.
+- `DEMO_CONCURRENCY` - Worker pool size.
+- `DEMO_BATCH_SIZE` - Batch size.
+- `DEMO_ASSETS` - Assets per ledger.
+- `DEMO_CREATE_HIERARCHY` - Enable account hierarchy generation.
+- `DEMO_RUN_FLOW` - Enable the organization/ledger/account generation flow.
 - `DEMO_RUN_BATCH` - Enable the send-based transfer batch demo.
 - `DEMO_ASSET_CODE` - Asset code used by the batch demo.
 - `DEMO_CHART_GROUP` - Chart of accounts group for transaction creation.
+- `DEMO_LOCALE` - Organization locale (`us` or `br`).
+
+Configuration precedence is explicit CLI flag, then `DEMO_*` environment variable, then `default.yaml`, then hardcoded fallback.
 
 ### Generated data structure
 
@@ -287,7 +300,13 @@ The generator creates:
 
 ### Reports and output
 
-The generator writes report files in its working directory, including machine-readable entity references and generation summaries. Console output includes progress and performance metrics.
+The generator writes report files in its working directory, including machine-readable entity references and generation summaries. Console output includes progress and performance metrics. These files contain operational identifiers and should not be shared publicly. JSON/HTML reports summarize the full batch and retain a bounded sample of transaction results to avoid huge local artifacts.
+
+Generated artifacts can be removed with:
+
+```bash
+rm -f examples/mass-demo-generator/mass-demo-report.* examples/mass-demo-generator/mass-demo-entities.json
+```
 
 ### Example scenarios
 
@@ -306,6 +325,7 @@ Larger performance dataset:
 
 ```bash
 DEMO_NON_INTERACTIVE=1 go run . \
+	--timeout=1800 \
   --orgs=10 \
   --ledgers=3 \
   --accounts=100 \
@@ -323,5 +343,10 @@ DEMO_NON_INTERACTIVE=1 go run . --org-locale=br
 CI-friendly bounded run:
 
 ```bash
-timeout 600 go run . --timeout=600 --orgs=5 --tx=100
+DEMO_NON_INTERACTIVE=1 go run . \
+  --timeout=120 \
+  --orgs=1 \
+  --ledgers=1 \
+  --accounts=1 \
+  --tx=0
 ```

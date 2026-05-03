@@ -3,6 +3,8 @@ package generator
 import (
 	"context"
 	"errors"
+	"fmt"
+	"math"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
@@ -23,6 +25,8 @@ func NewAssetGenerator(e *entities.Entity, obs observability.Provider) AssetGene
 
 // Generate creates an asset from the provided template.
 func (g *assetGenerator) Generate(ctx context.Context, ledgerID string, template data.AssetTemplate) (*models.Asset, error) {
+	ctx = normalizeContext(ctx)
+
 	if g.e == nil || g.e.Assets == nil {
 		return nil, errors.New("entity assets service not initialized")
 	}
@@ -60,19 +64,59 @@ func (g *assetGenerator) Generate(ctx context.Context, ledgerID string, template
 		return nil, err
 	}
 
+	if out == nil {
+		return nil, errNilGenerated("asset")
+	}
+
 	return out, nil
 }
 
 // GenerateWithRates creates an asset with rate management (not implemented in current SDK version).
-func (*assetGenerator) GenerateWithRates(_ context.Context, _, _ string) error {
-	// Rate management is not exposed in current SDK; defer to a future phase.
-	return errors.New("asset rate management not implemented in this SDK version")
+func (g *assetGenerator) GenerateWithRates(ctx context.Context, ledgerID, baseAsset string) error {
+	if baseAsset == "" {
+		return errors.New("base asset is required")
+	}
+
+	rates := map[string]float64{"EUR": 0.92, "BRL": 5.25}
+	delete(rates, baseAsset)
+
+	return g.updateRatesFrom(ctx, ledgerID, baseAsset, rates)
 }
 
-// UpdateRates updates asset rates (not implemented in current SDK version).
-func (*assetGenerator) UpdateRates(_ context.Context, _ string, _ map[string]float64) error {
-	// Rate management is not exposed in current SDK; defer to a future phase.
-	return errors.New("asset rate management not implemented in this SDK version")
+// UpdateRates creates or updates asset rates using the organization ID stored in context via WithOrgID.
+func (g *assetGenerator) UpdateRates(ctx context.Context, ledgerID string, rates map[string]float64) error {
+	return g.updateRatesFrom(ctx, ledgerID, "USD", rates)
+}
+
+func (g *assetGenerator) updateRatesFrom(ctx context.Context, ledgerID, fromAsset string, rates map[string]float64) error {
+	ctx = normalizeContext(ctx)
+
+	if g.e == nil || g.e.AssetRates == nil {
+		return errors.New("entity asset rates service not initialized")
+	}
+
+	orgID, _ := ctx.Value(contextKeyOrgID{}).(string) //nolint:errcheck // Empty string is validated below.
+	if orgID == "" || ledgerID == "" || fromAsset == "" {
+		return errors.New("organization and ledger IDs are required for asset rate updates")
+	}
+
+	var errs []error
+
+	for toAsset, rate := range rates {
+		if toAsset == "" || math.IsNaN(rate) || math.IsInf(rate, 0) || rate <= 0 {
+			errs = append(errs, fmt.Errorf("invalid asset rate for %s", toAsset))
+			continue
+		}
+
+		input := models.NewCreateAssetRateInput(fromAsset, toAsset, int(math.Round(rate*100))).
+			WithScale(2).
+			WithSource("mass-demo-generator")
+		if _, err := g.e.AssetRates.CreateOrUpdateAssetRate(ctx, orgID, ledgerID, input); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	return errorsJoin(errs...)
 }
 
 // contextKeyOrgID is a private key to extract orgID from context for asset creation.
@@ -80,6 +124,8 @@ type contextKeyOrgID struct{}
 
 // WithOrgID returns a derived context that carries the organization ID.
 func WithOrgID(ctx context.Context, orgID string) context.Context {
+	ctx = normalizeContext(ctx)
+
 	return context.WithValue(ctx, contextKeyOrgID{}, orgID)
 }
 

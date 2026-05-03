@@ -39,6 +39,8 @@ func NewOrganizationGenerator(e *entities.Entity, obs observability.Provider) Or
 
 // Generate creates a single organization from the provided template.
 func (g *orgGenerator) Generate(ctx context.Context, template data.OrgTemplate) (*models.Organization, error) {
+	ctx = normalizeContext(ctx)
+
 	if g.e == nil || g.e.Organizations == nil {
 		return nil, errors.New("entity organizations service not initialized")
 	}
@@ -71,11 +73,19 @@ func (g *orgGenerator) Generate(ctx context.Context, template data.OrgTemplate) 
 		return nil, err
 	}
 
+	if out == nil {
+		return nil, errNilGenerated("organization")
+	}
+
 	return out, nil
 }
 
 // GenerateBatch creates multiple organizations concurrently.
+//
+//nolint:cyclop // Batch orchestration branches are kept local for readability.
 func (g *orgGenerator) GenerateBatch(ctx context.Context, count int) ([]*models.Organization, error) {
+	ctx = normalizeContext(ctx)
+
 	if count <= 0 {
 		return []*models.Organization{}, nil
 	}
@@ -163,6 +173,11 @@ func (g *orgGenerator) GenerateBatch(ctx context.Context, count int) ([]*models.
 	for _, r := range results {
 		if r.Error != nil {
 			errs = append(errs, r.Error)
+			continue
+		}
+
+		if r.Value == nil {
+			errs = append(errs, errNilGenerated("organization"))
 			continue
 		}
 

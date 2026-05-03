@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -62,16 +63,27 @@ type demoDefaultsWrapper struct {
 
 const demoDefaultsPath = "default.yaml"
 
+const (
+	maxDemoTimeoutSeconds = 24 * 60 * 60
+	maxDemoOrgs           = 100
+	maxDemoLedgersPerOrg  = 50
+	maxDemoAccounts       = 10_000
+	maxDemoTransactions   = 10_000
+	maxDemoAssets         = 100
+	maxDemoBatchSize      = 10_000
+	maxDemoConcurrency    = 100
+)
+
 var (
 	demoDefaultsOnce   sync.Once
 	cachedDemoDefaults demoFileDefaults
 )
 
 // gatherUserConfiguration collects configuration from user input or environment
-func gatherUserConfiguration(timeoutSec, orgs, ledgersPerOrg, accountsPerLedger, txPerAccount, concurrency, batchSize *int, orgLocaleFlag *string) demoConfig {
+func gatherUserConfiguration(timeoutSec, orgs, ledgersPerOrg, accountsPerLedger, txPerAccount, concurrency, batchSize *int, orgLocaleFlag *string, explicit map[string]bool) demoConfig {
 	fmt.Println("\n=== Mass Demo Generator — Booting ===")
 
-	defaults := defaultDemoConfig(timeoutSec, orgs, ledgersPerOrg, accountsPerLedger, txPerAccount, concurrency, batchSize, resolveLocale(*orgLocaleFlag))
+	defaults := defaultDemoConfig(timeoutSec, orgs, ledgersPerOrg, accountsPerLedger, txPerAccount, concurrency, batchSize, resolveLocale(*orgLocaleFlag), explicit)
 
 	if os.Getenv("DEMO_NON_INTERACTIVE") == "1" {
 		fmt.Println("Running in non-interactive mode (DEMO_NON_INTERACTIVE=1)")
@@ -96,54 +108,59 @@ func getDemoFileDefaults() demoFileDefaults {
 }
 
 func loadDemoFileDefaults(path string) demoFileDefaults {
+	for _, candidate := range demoDefaultsCandidates(path) {
+		if defaults, ok := tryLoadDemoFileDefaults(candidate); ok {
+			return defaults
+		}
+	}
+
+	return demoFileDefaults{}
+}
+
+func demoDefaultsCandidates(path string) []string {
+	if path == demoDefaultsPath {
+		return []string{demoDefaultsPath, filepath.Join("examples", "mass-demo-generator", demoDefaultsPath)}
+	}
+
+	return []string{path}
+}
+
+func tryLoadDemoFileDefaults(path string) (demoFileDefaults, bool) {
 	// Validate and sanitize the file path to prevent directory traversal attacks
 	cleanPath := filepath.Clean(path)
-
-	// Get the absolute path of the expected config file in the current working directory
-	expectedAbsPath, err := filepath.Abs(demoDefaultsPath)
-	if err != nil {
-		log.Printf("warning: could not resolve expected config file path: %v", err)
-		return demoFileDefaults{}
-	}
 
 	// Get the absolute path of the provided path
 	providedAbsPath, err := filepath.Abs(cleanPath)
 	if err != nil {
 		log.Printf("warning: could not resolve provided config file path: %v", err)
-		return demoFileDefaults{}
-	}
-
-	// Ensure we're only reading from the expected default configuration file
-	if providedAbsPath != expectedAbsPath {
-		log.Printf("warning: invalid configuration file path: %s", path)
-		return demoFileDefaults{}
+		return demoFileDefaults{}, false
 	}
 
 	// Check if file exists and is a regular file (not a directory or special file)
 	fileInfo, err := os.Stat(providedAbsPath)
 	if err != nil {
-		return demoFileDefaults{}
+		return demoFileDefaults{}, false
 	}
 
 	if !fileInfo.Mode().IsRegular() {
 		log.Printf("warning: configuration path is not a regular file: %s", providedAbsPath)
-		return demoFileDefaults{}
+		return demoFileDefaults{}, false
 	}
 
 	// #nosec G304 - Configuration file path is validated (exists, is regular file) before reading.
 	// This is a CLI tool, not a web service, so the path comes from the operator, not untrusted input.
 	data, err := os.ReadFile(providedAbsPath)
 	if err != nil {
-		return demoFileDefaults{}
+		return demoFileDefaults{}, false
 	}
 
 	var wrapper demoDefaultsWrapper
 	if err := yaml.Unmarshal(data, &wrapper); err != nil {
 		log.Printf("warning: failed to parse %s: %v", providedAbsPath, err)
-		return demoFileDefaults{}
+		return demoFileDefaults{}, false
 	}
 
-	return wrapper.MassDemo
+	return wrapper.MassDemo, true
 }
 
 func coalesceIntPtr(ptr *int, fallback int) int {
@@ -192,17 +209,17 @@ func envBool(name string, fallback bool) bool {
 	return fallback
 }
 
-func defaultDemoConfig(timeoutSec, orgs, ledgersPerOrg, accountsPerLedger, txPerAccount, concurrency, batchSize *int, locale string) demoConfig {
+func defaultDemoConfig(timeoutSec, orgs, ledgersPerOrg, accountsPerLedger, txPerAccount, concurrency, batchSize *int, locale string, explicit map[string]bool) demoConfig {
 	fileDefaults := getDemoFileDefaults()
 
 	cfg := demoConfig{
-		timeoutSecVal:        envInt("DEMO_TIMEOUT", *timeoutSec),
-		orgsVal:              envInt("DEMO_ORGS", *orgs),
-		ledgersPerOrgVal:     envInt("DEMO_LEDGERS_PER_ORG", *ledgersPerOrg),
-		accountsPerLedgerVal: envInt("DEMO_ACCOUNTS_PER_LEDGER", *accountsPerLedger),
-		txPerAccountVal:      envInt("DEMO_TX_PER_ACCOUNT", *txPerAccount),
-		concurrencyVal:       envInt("DEMO_CONCURRENCY", *concurrency),
-		batchSizeVal:         envInt("DEMO_BATCH_SIZE", *batchSize),
+		timeoutSecVal:        envIntUnlessFlag("DEMO_TIMEOUT", *timeoutSec, "timeout", explicit),
+		orgsVal:              envIntUnlessFlag("DEMO_ORGS", *orgs, "orgs", explicit),
+		ledgersPerOrgVal:     envIntUnlessFlag("DEMO_LEDGERS_PER_ORG", *ledgersPerOrg, "ledgers", explicit),
+		accountsPerLedgerVal: envIntUnlessFlag("DEMO_ACCOUNTS_PER_LEDGER", *accountsPerLedger, "accounts", explicit),
+		txPerAccountVal:      envIntUnlessFlag("DEMO_TX_PER_ACCOUNT", *txPerAccount, "tx", explicit),
+		concurrencyVal:       envIntUnlessFlag("DEMO_CONCURRENCY", *concurrency, "concurrency", explicit),
+		batchSizeVal:         envIntUnlessFlag("DEMO_BATCH_SIZE", *batchSize, "batch", explicit),
 		doDemoVal:            envBool("DEMO_RUN_FLOW", coalesceBoolPtr(fileDefaults.RunFlow, true)),
 		assetsCountVal:       envInt("DEMO_ASSETS", coalesceIntPtr(fileDefaults.Assets, 3)),
 		createHierarchyVal:   envBool("DEMO_CREATE_HIERARCHY", coalesceBoolPtr(fileDefaults.CreateHierarchy, true)),
@@ -213,9 +230,52 @@ func defaultDemoConfig(timeoutSec, orgs, ledgersPerOrg, accountsPerLedger, txPer
 	}
 
 	localeFallback := coalesceStringPtr(fileDefaults.Locale, cfg.orgLocaleVal)
-	cfg.orgLocaleVal = strings.ToLower(envString("DEMO_LOCALE", localeFallback))
+	if explicit["org-locale"] {
+		cfg.orgLocaleVal = strings.ToLower(locale)
+	} else {
+		cfg.orgLocaleVal = strings.ToLower(envString("DEMO_LOCALE", localeFallback))
+	}
 
 	return cfg
+}
+
+func validateDemoConfig(cfg demoConfig) error {
+	checks := []struct {
+		name  string
+		value int
+		min   int
+		max   int
+	}{
+		{name: "timeout", value: cfg.timeoutSecVal, min: 1, max: maxDemoTimeoutSeconds},
+		{name: "orgs", value: cfg.orgsVal, min: 0, max: maxDemoOrgs},
+		{name: "ledgers", value: cfg.ledgersPerOrgVal, min: 0, max: maxDemoLedgersPerOrg},
+		{name: "accounts", value: cfg.accountsPerLedgerVal, min: 0, max: maxDemoAccounts},
+		{name: "tx", value: cfg.txPerAccountVal, min: 0, max: maxDemoTransactions},
+		{name: "assets", value: cfg.assetsCountVal, min: 0, max: maxDemoAssets},
+		{name: "batch", value: cfg.batchSizeVal, min: 1, max: maxDemoBatchSize},
+		{name: "concurrency", value: cfg.concurrencyVal, min: 0, max: maxDemoConcurrency},
+	}
+
+	for _, check := range checks {
+		if check.value < check.min || check.value > check.max {
+			return fmt.Errorf("%s must be between %d and %d", check.name, check.min, check.max)
+		}
+	}
+
+	switch cfg.orgLocaleVal {
+	case "", "us", "br":
+		return nil
+	default:
+		return errors.New("org locale must be us or br")
+	}
+}
+
+func envIntUnlessFlag(name string, fallback int, flagName string, explicit map[string]bool) int {
+	if explicit[flagName] {
+		return fallback
+	}
+
+	return envInt(name, fallback)
 }
 
 func resolveLocale(flagValue string) string {

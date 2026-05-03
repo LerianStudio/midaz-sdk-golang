@@ -437,3 +437,29 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry`.
 - `retry.WithRetryableHTTPCodes([]int)`
 - `retry.WithHighReliability()`
 - `retry.WithNoRetry()`
+
+## Generator package
+
+Use `github.com/LerianStudio/midaz-sdk-golang/v2/pkg/generator` for demo-data workflows and example tooling.
+
+- `generator.DefaultConfig() generator.GeneratorConfig`
+- `(*generator.GeneratorConfig).WithOverrides(generator.GeneratorConfig)` - Additive merge helper. Numeric zero values and empty slices do not override; boolean fields are additive and cannot disable an already-enabled value.
+- `generator.WithWorkers(context.Context, int) context.Context`
+- `generator.WithCircuitBreaker(context.Context, *concurrent.CircuitBreaker) context.Context`
+- `generator.WithOrgLocale(context.Context, string) context.Context`
+- `generator.WithOrgID(context.Context, string) context.Context` - Required by compatibility asset generator methods that do not take organization ID explicitly.
+- `generator.WithLedgerID(context.Context, string) context.Context` - Required by transaction lifecycle methods.
+- `generator.NewOrganizationGenerator(entity, provider)`
+- `generator.NewLedgerGenerator(entity, provider, defaultOrg)`
+- `generator.NewAssetGenerator(entity, provider)`
+- `generator.NewAccountTypeGenerator(entity, provider)`
+- `generator.NewAccountGenerator(entity, provider)`
+- `generator.NewOperationRouteGenerator(entity, provider)`
+- `generator.NewTransactionRouteGenerator(entity, provider)`
+- `generator.NewPortfolioGenerator(entity, provider)`
+- `generator.NewSegmentGenerator(entity, provider)`
+- `generator.NewTransactionGenerator(entity, provider)`
+- `generator.NewTransactionLifecycle(entity, provider)`
+- `generator.NewAccountHierarchyGenerator(accountGenerator)`
+
+The mass demo generator is example tooling, not an idempotent migration system. It creates remote resources and writes local report artifacts containing operational identifiers.

@@ -37,6 +37,7 @@ type CircuitBreaker struct {
 	openTimeout      time.Duration
 	name             string
 	logger           CBLogger
+	halfOpenProbe    bool
 }
 
 // Default circuit breaker configuration values.
@@ -108,13 +109,19 @@ func (cb *CircuitBreaker) canProceed() bool {
 		if time.Since(cb.lastFailureTime) >= cb.openTimeout {
 			cb.st = halfOpen
 			cb.successCount = 0
+			cb.halfOpenProbe = true
 
 			return true
 		}
 
 		return false
 	case halfOpen:
-		// Allow limited probes, treat as single probe here
+		if cb.halfOpenProbe {
+			return false
+		}
+
+		cb.halfOpenProbe = true
+
 		return true
 	default:
 		return true
@@ -124,6 +131,10 @@ func (cb *CircuitBreaker) canProceed() bool {
 func (cb *CircuitBreaker) after(err error) {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
+
+	if cb.st == halfOpen {
+		cb.halfOpenProbe = false
+	}
 
 	if err == nil {
 		switch cb.st {
@@ -155,6 +166,7 @@ func (cb *CircuitBreaker) after(err error) {
 
 func (cb *CircuitBreaker) open() {
 	cb.st = open
+	cb.halfOpenProbe = false
 	cb.lastFailureTime = time.Now()
 
 	if cb.logger != nil && cb.name != "" {
@@ -166,6 +178,7 @@ func (cb *CircuitBreaker) reset() {
 	cb.st = closed
 	cb.failureCount = 0
 	cb.successCount = 0
+	cb.halfOpenProbe = false
 
 	if cb.logger != nil && cb.name != "" {
 		cb.logger.Printf("circuit '%s' closed after recovery", cb.name)

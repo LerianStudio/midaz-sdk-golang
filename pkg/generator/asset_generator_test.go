@@ -162,15 +162,15 @@ func TestAssetGenerator_Generate_Error(t *testing.T) {
 	assert.Contains(t, err.Error(), "asset creation failed")
 }
 
-func TestAssetGenerator_GenerateWithRates_NotImplemented(t *testing.T) {
+func TestAssetGenerator_GenerateWithRates_MissingService(t *testing.T) {
 	gen := NewAssetGenerator(nil, nil)
 
 	err := gen.GenerateWithRates(context.Background(), "ledger-123", "USD")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not implemented")
+	assert.Contains(t, err.Error(), "not initialized")
 }
 
-func TestAssetGenerator_UpdateRates_NotImplemented(t *testing.T) {
+func TestAssetGenerator_UpdateRates_MissingService(t *testing.T) {
 	gen := NewAssetGenerator(nil, nil)
 
 	rates := map[string]float64{
@@ -180,7 +180,7 @@ func TestAssetGenerator_UpdateRates_NotImplemented(t *testing.T) {
 
 	err := gen.UpdateRates(context.Background(), "ledger-123", rates)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not implemented")
+	assert.Contains(t, err.Error(), "not initialized")
 }
 
 func TestMergeMetadata(t *testing.T) {

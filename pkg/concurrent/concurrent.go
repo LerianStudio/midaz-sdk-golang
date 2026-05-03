@@ -75,9 +75,12 @@ package concurrent
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 )
+
+var errWorkerPoolItemNotProcessed = errors.New("worker pool item was not processed")
 
 // WorkFunc is a generic worker function that processes an item and returns a result and error.
 type WorkFunc[T, R any] func(ctx context.Context, item T) (R, error)
@@ -136,6 +139,10 @@ func WorkerPool[T, R any](
 	workFn WorkFunc[T, R],
 	opts ...PoolOption,
 ) []Result[T, R] {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	options := applyPoolOptions(opts...)
 
 	// Create channels for coordinating workers
@@ -149,7 +156,7 @@ func WorkerPool[T, R any](
 	startItemSender(ctx, &wg, items, itemCh, resultCh)
 
 	// Collect and return results
-	return collectResults(resultCh, len(items), options.ordered)
+	return collectResults(ctx, resultCh, items, options.ordered)
 }
 
 // applyPoolOptions applies all pool options to create configuration
@@ -263,16 +270,18 @@ func sendItemsToWorkers[T any](ctx context.Context, items []T, itemCh chan<- ind
 }
 
 // collectResults gathers results from workers, maintaining order if requested
-func collectResults[T, R any](resultCh <-chan Result[T, R], itemCount int, ordered bool) []Result[T, R] {
+func collectResults[T, R any](ctx context.Context, resultCh <-chan Result[T, R], items []T, ordered bool) []Result[T, R] {
 	if ordered {
-		return collectOrderedResults(resultCh, itemCount)
+		return collectOrderedResults(ctx, resultCh, items)
 	}
 
-	return collectUnorderedResults(resultCh, itemCount)
+	return collectUnorderedResults(resultCh, len(items))
 }
 
 // collectOrderedResults collects results and returns them in original order
-func collectOrderedResults[T, R any](resultCh <-chan Result[T, R], itemCount int) []Result[T, R] {
+func collectOrderedResults[T, R any](ctx context.Context, resultCh <-chan Result[T, R], items []T) []Result[T, R] {
+	itemCount := len(items)
+
 	allResults := make([]Result[T, R], 0, itemCount)
 	for r := range resultCh {
 		allResults = append(allResults, r)
@@ -280,9 +289,24 @@ func collectOrderedResults[T, R any](resultCh <-chan Result[T, R], itemCount int
 
 	// Create ordered results slice
 	results := make([]Result[T, R], itemCount)
+	seen := make([]bool, itemCount)
 
 	for _, r := range allResults {
 		results[r.Index] = r
+		seen[r.Index] = true
+	}
+
+	missingErr := ctx.Err()
+	if missingErr == nil {
+		missingErr = errWorkerPoolItemNotProcessed
+	}
+
+	for i := range results {
+		if seen[i] {
+			continue
+		}
+
+		results[i] = Result[T, R]{Item: items[i], Index: i, Error: missingErr}
 	}
 
 	return results

@@ -3,6 +3,7 @@ package generator
 import (
 	"context"
 	"errors"
+	"math"
 	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
@@ -35,6 +36,8 @@ func NewTransactionGenerator(e *entities.Entity, obs observability.Provider) Tra
 
 // GenerateWithDSL creates a transaction using the DSL pattern.
 func (g *transactionGenerator) GenerateWithDSL(ctx context.Context, orgID, ledgerID string, pattern data.TransactionPattern) (*models.Transaction, error) {
+	ctx = normalizeContext(ctx)
+
 	if g.e == nil || g.e.Transactions == nil {
 		return nil, errors.New("entity transactions service not initialized")
 	}
@@ -69,17 +72,25 @@ func (g *transactionGenerator) GenerateWithDSL(ctx context.Context, orgID, ledge
 		return nil, err
 	}
 
+	if out == nil {
+		return nil, errNilGenerated("transaction")
+	}
+
 	return out, nil
 }
 
 // setupThrottleTicker creates a ticker channel for TPS throttling.
 // Returns the ticker channel (nil if no throttling) and a cleanup function.
 func setupThrottleTicker(tps float64) (<-chan time.Time, func()) {
-	if tps <= 0 {
+	if tps <= 0 || math.IsNaN(tps) || math.IsInf(tps, 0) || tps > 1e9 {
 		return nil, func() {}
 	}
 
 	interval := time.Duration(float64(time.Second) / tps)
+	if interval <= 0 {
+		interval = time.Nanosecond
+	}
+
 	ticker := time.NewTicker(interval)
 
 	return ticker.C, ticker.Stop
@@ -97,6 +108,11 @@ func collectBatchResults(results []concurrent.Result[int, *models.Transaction]) 
 			continue
 		}
 
+		if r.Value == nil {
+			errs = append(errs, errNilGenerated("transaction"))
+			continue
+		}
+
 		out = append(out, r.Value)
 	}
 
@@ -105,6 +121,8 @@ func collectBatchResults(results []concurrent.Result[int, *models.Transaction]) 
 
 // GenerateBatch submits a list of DSL patterns with a target TPS throttle.
 func (g *transactionGenerator) GenerateBatch(ctx context.Context, orgID, ledgerID string, patterns []data.TransactionPattern, tps float64) ([]*models.Transaction, error) {
+	ctx = normalizeContext(ctx)
+
 	if len(patterns) == 0 {
 		return []*models.Transaction{}, nil
 	}
