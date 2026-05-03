@@ -655,7 +655,7 @@ func (e *transactionsEntity) GetTransaction(ctx context.Context, orgID, ledgerID
 	}
 
 	// Build the URL for the transaction
-	endpointURL := e.buildURL(orgID, ledgerID, fmt.Sprintf("/%s", transactionID))
+	endpointURL := e.buildTransactionURL(orgID, ledgerID, transactionID)
 
 	req, err := newRequestWithContext(ctx, http.MethodGet, endpointURL, nil)
 	if err != nil {
@@ -841,7 +841,7 @@ func (e *transactionsEntity) UpdateTransaction(ctx context.Context, orgID, ledge
 	}
 
 	// Build the URL for the transaction
-	endpointURL := e.buildURL(orgID, ledgerID, fmt.Sprintf("/%s", transactionID))
+	endpointURL := e.buildTransactionURL(orgID, ledgerID, transactionID)
 
 	body, err := json.Marshal(input)
 	if err != nil {
@@ -879,7 +879,7 @@ func (e *transactionsEntity) RevertTransaction(ctx context.Context, orgID, ledge
 		return nil, sdkerrors.NewMissingParameterError(operation, "transaction ID")
 	}
 
-	endpointURL := e.buildURL(orgID, ledgerID, fmt.Sprintf("/%s/revert", transactionID))
+	endpointURL := e.buildTransactionURL(orgID, ledgerID, transactionID, "revert")
 
 	req, err := newRequestWithContext(ctx, http.MethodPost, endpointURL, nil)
 	if err != nil {
@@ -912,7 +912,7 @@ func (e *transactionsEntity) CommitTransaction(ctx context.Context, orgID, ledge
 		return nil, sdkerrors.NewMissingParameterError(operation, "transaction ID")
 	}
 
-	endpointURL := e.buildURL(orgID, ledgerID, fmt.Sprintf("/%s/commit", transactionID))
+	endpointURL := e.buildTransactionURL(orgID, ledgerID, transactionID, "commit")
 
 	req, err := newRequestWithContext(ctx, http.MethodPost, endpointURL, nil)
 	if err != nil {
@@ -952,7 +952,7 @@ func (e *transactionsEntity) CancelTransactionWithResponse(ctx context.Context, 
 		return nil, sdkerrors.NewMissingParameterError(operation, "transaction ID")
 	}
 
-	endpointURL := e.buildURL(orgID, ledgerID, fmt.Sprintf("/%s/cancel", transactionID))
+	endpointURL := e.buildTransactionURL(orgID, ledgerID, transactionID, "cancel")
 
 	req, err := newRequestWithContext(ctx, http.MethodPost, endpointURL, nil)
 	if err != nil {
@@ -1110,6 +1110,32 @@ func (e *transactionsEntity) buildURL(orgID, ledgerID, suffix string) string {
 	}
 
 	return buildLedgerScopedURL(e.baseURLs["transaction"], orgID, ledgerID, parts...)
+}
+
+func (e *transactionsEntity) buildTransactionURL(orgID, ledgerID, transactionID string, parts ...string) string {
+	segments := []string{
+		"organizations",
+		pathSegment(orgID),
+		"ledgers",
+		pathSegment(ledgerID),
+		"transactions",
+		pathSegment(transactionID),
+	}
+
+	for _, part := range parts {
+		part = strings.Trim(part, "/")
+		if part == "" {
+			continue
+		}
+
+		for _, piece := range strings.Split(part, "/") {
+			if piece != "" {
+				segments = append(segments, pathSegment(piece))
+			}
+		}
+	}
+
+	return fmt.Sprintf("%s/%s", strings.TrimRight(e.baseURLs["transaction"], "/"), strings.Join(segments, "/"))
 }
 
 func (e *transactionsEntity) buildMetricsURL(orgID, ledgerID string) string {
