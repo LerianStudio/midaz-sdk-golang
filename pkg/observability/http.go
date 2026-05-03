@@ -13,7 +13,6 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -286,10 +285,8 @@ func (m *httpMiddleware) injectTraceContext(ctx context.Context, req *http.Reque
 		req.Header = make(http.Header)
 	}
 
-	// Inject trace context into request headers
-	carrier := propagation.HeaderCarrier(req.Header)
-	propagator := propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{})
-	propagator.Inject(ctx, carrier)
+	ctx = WithProvider(ctx, m.provider)
+	InjectHTTPContext(ctx, req.Header)
 
 	// Update request with trace context
 	return req.WithContext(httptrace.WithClientTrace(ctx, m.createClientTrace(span)))

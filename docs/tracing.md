@@ -6,7 +6,7 @@ The SDK can propagate OpenTelemetry trace context through outbound entity HTTP r
 
 - OpenTelemetry tracer, meter, and logger provider abstraction.
 - Automatic trace context and baggage injection on outbound entity HTTP requests.
-- Context extraction and injection helpers for HTTP boundaries.
+- Context extraction and injection helpers for HTTP boundaries, including `http.Header` convenience helpers.
 - Baggage helpers for cross-service correlation.
 - HTTP middleware helpers for server applications.
 - No-op behavior when observability is disabled.
@@ -83,20 +83,14 @@ span.SetAttributes(attribute.String("organization.id", organization.ID))
 span.SetStatus(codes.Ok, "organization created")
 ```
 
-Outbound SDK calls automatically inject trace headers from `ctx`.
+Outbound SDK calls automatically create one SDK client span and inject trace headers from `ctx`. The SDK honors the provider configured on the context or client, so propagation works even when `observability.WithRegisterGlobally(false)` is used.
 
 ## Server-side context extraction
 
 ```go
 func handleRequest(w http.ResponseWriter, r *http.Request) {
-    headers := make(map[string]string)
-    for name, values := range r.Header {
-        if len(values) > 0 {
-            headers[name] = values[0]
-        }
-    }
-
-    ctx := observability.ExtractContext(r.Context(), headers)
+    ctx := observability.WithProvider(r.Context(), provider)
+    ctx = observability.ExtractHTTPContext(ctx, r.Header)
     tracer := provider.Tracer()
     ctx, span := tracer.Start(ctx, "handle_request")
     defer span.End()
@@ -112,6 +106,39 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
     _ = json.NewEncoder(w).Encode(result)
 }
 ```
+
+For non-HTTP boundaries, use `observability.ExtractContext(ctx, map[string]string)` and `observability.InjectContext(ctx, map[string]string)`. For HTTP boundaries, prefer `ExtractHTTPContext` and `InjectHTTPContext` so multi-value headers and provider-specific propagators are handled consistently.
+
+`observability.WithPropagationHeaders(...)` limits which inbound headers are considered during extraction. By default, W3C `traceparent`, `tracestate`, and `baggage` are accepted along with request/correlation IDs.
+
+## Unified client-app, SDK, and Midaz API trace
+
+```go
+func handlePayment(w http.ResponseWriter, r *http.Request) {
+    ctx := observability.WithProvider(r.Context(), provider)
+    ctx = observability.ExtractHTTPContext(ctx, r.Header)
+
+    ctx, span := provider.Tracer().Start(ctx, "payments.create")
+    defer span.End()
+
+    tx, err := midazClient.Entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
+    if err != nil {
+        span.RecordError(err)
+        http.Error(w, "transaction failed", http.StatusBadGateway)
+        return
+    }
+
+    _ = json.NewEncoder(w).Encode(tx)
+}
+```
+
+The inbound request span, SDK HTTP client span, and downstream Midaz API span share the same trace ID when the Midaz API also extracts W3C trace context.
+
+## Business events
+
+When logging is enabled, high-value entity lifecycle methods emit structured business events such as `midaz.account.created`, `midaz.transaction.created`, `midaz.transaction.committed`, `midaz.transaction.reverted`, and `midaz.transaction.cancelled`.
+
+Business events include safe identifiers only, such as `organizationId`, `ledgerId`, `accountId`, `transactionId`, `operationId`, `assetId`, `status`, `operation`, and `event`. The SDK does not log payloads, metadata, names, documents, addresses, auth headers, idempotency keys, or raw request/response bodies.
 
 ## Baggage
 

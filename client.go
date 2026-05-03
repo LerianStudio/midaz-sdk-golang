@@ -342,17 +342,6 @@ func WithObservability(enableTracing, enableMetrics, enableLogging bool) Option 
 		// Update the context with the provider
 		c.ctx = observability.WithProvider(c.ctx, provider)
 
-		// If HTTP client is already configured, wrap with observability middleware
-		if c.Entity != nil && provider.IsEnabled() {
-			httpClient := c.Entity.GetEntityHTTPClient()
-			if httpClient != nil {
-				httpClient := &http.Client{
-					Transport: observability.NewHTTPMiddleware(provider)(http.DefaultTransport),
-				}
-				c.Entity.SetHTTPClient(httpClient)
-			}
-		}
-
 		return nil
 	}
 }

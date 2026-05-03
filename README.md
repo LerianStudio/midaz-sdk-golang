@@ -278,7 +278,9 @@ c, err := client.New(
 )
 ```
 
-See [tracing](docs/tracing.md) for OpenTelemetry propagation and server-side extraction examples.
+The SDK creates one outbound SDK HTTP span per entity request, propagates W3C `traceparent` and `baggage`, and emits structured business events for high-value lifecycle operations when logging is enabled. Business logs include safe IDs such as `organizationId`, `ledgerId`, `accountId`, and `transactionId`; they do not include payloads, metadata, documents, names, addresses, auth headers, idempotency keys, or raw bodies.
+
+See [tracing](docs/tracing.md) for OpenTelemetry propagation, incoming HTTP extraction, and safe business logging examples.
 
 ## Environment variables
 

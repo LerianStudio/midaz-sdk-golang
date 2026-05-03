@@ -442,10 +442,13 @@ func (e *operationsEntity) UpdateTransactionOperation(ctx context.Context, orgID
 	var operationModel models.Operation
 	if err := e.httpClient.sendRequest(req, &operationModel); err != nil {
 		// HTTPClient.DoRequest already returns proper error types
+		e.httpClient.emitBusinessError(ctx, businessEventOperationUpdated, map[string]any{"operation": operation, "organizationId": orgID, "ledgerId": ledgerID, "transactionId": transactionID, "operationId": operationID}, err)
+
 		return nil, err
 	}
 
 	normalizeOperation(&operationModel)
+	e.httpClient.emitBusinessEvent(ctx, businessEventOperationUpdated, map[string]any{"operation": operation, "organizationId": orgID, "ledgerId": ledgerID, "transactionId": transactionID, "operationId": operationModel.ID, "status": operationModel.Status.Code})
 
 	return &operationModel, nil
 }

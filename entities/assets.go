@@ -267,8 +267,12 @@ func (e *assetsEntity) GetAsset(
 	var asset models.Asset
 	if err := e.httpClient.sendRequest(req, &asset); err != nil {
 		// HTTPClient.DoRequest already returns proper error types
+		e.httpClient.emitBusinessError(ctx, businessEventAssetCreated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID}, err)
+
 		return nil, err
 	}
+
+	e.httpClient.emitBusinessEvent(ctx, businessEventAssetCreated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "assetId": asset.ID, "status": asset.Status.Code})
 
 	return &asset, nil
 }
@@ -364,8 +368,12 @@ func (e *assetsEntity) UpdateAsset(
 
 	var asset models.Asset
 	if err := e.httpClient.sendRequest(req, &asset); err != nil {
+		e.httpClient.emitBusinessError(ctx, businessEventAssetUpdated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "assetId": id}, err)
+
 		return nil, err
 	}
+
+	e.httpClient.emitBusinessEvent(ctx, businessEventAssetUpdated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "assetId": asset.ID, "status": asset.Status.Code})
 
 	return &asset, nil
 }
@@ -401,8 +409,12 @@ func (e *assetsEntity) DeleteAsset(
 
 	if err := e.httpClient.sendRequest(req, nil); err != nil {
 		// HTTPClient.DoRequest already returns proper error types
+		e.httpClient.emitBusinessError(ctx, businessEventAssetDeleted, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "assetId": id}, err)
+
 		return err
 	}
+
+	e.httpClient.emitBusinessEvent(ctx, businessEventAssetDeleted, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "assetId": id})
 
 	return nil
 }

@@ -239,8 +239,12 @@ func (e *organizationsEntity) GetOrganization(ctx context.Context, id string) (*
 
 	var organization models.Organization
 	if err := e.httpClient.sendRequest(req, &organization); err != nil {
+		e.httpClient.emitBusinessError(ctx, businessEventOrganizationCreated, map[string]any{"operation": operation}, err)
+
 		return nil, err
 	}
+
+	e.httpClient.emitBusinessEvent(ctx, businessEventOrganizationCreated, map[string]any{"operation": operation, "organizationId": organization.ID, "status": organization.Status.Code})
 
 	return &organization, nil
 }
@@ -279,8 +283,12 @@ func (e *organizationsEntity) CreateOrganization(ctx context.Context, input *mod
 
 	var organization models.Organization
 	if err := e.httpClient.sendRequest(req, &organization); err != nil {
+		e.httpClient.emitBusinessError(ctx, businessEventOrganizationCreated, map[string]any{"operation": operation}, err)
+
 		return nil, err
 	}
+
+	e.httpClient.emitBusinessEvent(ctx, businessEventOrganizationCreated, map[string]any{"operation": operation, "organizationId": organization.ID, "status": organization.Status.Code})
 
 	return &organization, nil
 }
@@ -316,8 +324,12 @@ func (e *organizationsEntity) UpdateOrganization(ctx context.Context, id string,
 
 	var organization models.Organization
 	if err := e.httpClient.sendRequest(req, &organization); err != nil {
+		e.httpClient.emitBusinessError(ctx, businessEventOrganizationUpdated, map[string]any{"operation": operation, "organizationId": id}, err)
+
 		return nil, err
 	}
+
+	e.httpClient.emitBusinessEvent(ctx, businessEventOrganizationUpdated, map[string]any{"operation": operation, "organizationId": organization.ID, "status": organization.Status.Code})
 
 	return &organization, nil
 }
@@ -337,7 +349,15 @@ func (e *organizationsEntity) DeleteOrganization(ctx context.Context, id string)
 		return errors.NewInternalError(operation, err)
 	}
 
-	return e.httpClient.sendRequest(req, nil)
+	if err := e.httpClient.sendRequest(req, nil); err != nil {
+		e.httpClient.emitBusinessError(ctx, businessEventOrganizationDeleted, map[string]any{"operation": operation, "organizationId": id}, err)
+
+		return err
+	}
+
+	e.httpClient.emitBusinessEvent(ctx, businessEventOrganizationDeleted, map[string]any{"operation": operation, "organizationId": id})
+
+	return nil
 }
 
 // GetOrganizationsMetricsCount gets the count metrics for organizations.

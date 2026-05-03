@@ -12,6 +12,8 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -323,6 +325,99 @@ func TestHTTPClientDistributedTracing(t *testing.T) {
 	require.Len(t, parts, 4, "traceparent should have 4 parts")
 	assert.Equal(t, "00", parts[0], "version should be 00")
 	assert.Equal(t, originalTraceID.String(), parts[1], "trace ID should match")
+}
+
+func TestHTTPClientPropagatesExtractedIncomingTraceWithRegisterGloballyFalse(t *testing.T) {
+	provider, err := observability.New(context.Background(),
+		observability.WithServiceName("sdk-service"),
+		observability.WithComponentEnabled(true, false, false),
+		observability.WithFullTracingSampling(),
+		observability.WithRegisterGlobally(false),
+	)
+	require.NoError(t, err)
+
+	defer func() { assert.NoError(t, provider.Shutdown(context.Background())) }()
+
+	tracer := provider.Tracer()
+
+	incomingCtx, incomingSpan := tracer.Start(observability.WithProvider(context.Background(), provider), "client-app-request")
+	defer incomingSpan.End()
+
+	incomingHeaders := http.Header{}
+	observability.InjectHTTPContext(incomingCtx, incomingHeaders)
+	extractedCtx := observability.ExtractHTTPContext(observability.WithProvider(context.Background(), provider), incomingHeaders)
+	originalTraceID := trace.SpanContextFromContext(incomingCtx).TraceID().String()
+
+	var (
+		receivedBaggage     string
+		receivedTraceparent string
+	)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedTraceparent = r.Header.Get("traceparent")
+		receivedBaggage = r.Header.Get("baggage")
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	}))
+	defer server.Close()
+
+	extractedCtx, err = observability.WithBaggageItem(extractedCtx, "tenant", "acme")
+	require.NoError(t, err)
+
+	httpClient := NewHTTPClient(server.Client(), "token", provider)
+
+	var result map[string]string
+
+	err = httpClient.doRequest(extractedCtx, http.MethodGet, server.URL+"/unified", nil, nil, &result)
+	require.NoError(t, err)
+
+	assert.Contains(t, receivedTraceparent, originalTraceID)
+	assert.Contains(t, receivedBaggage, "tenant=acme")
+}
+
+func TestHTTPClientSDKInstrumentationCreatesSingleClientSpan(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	provider := newSlice3Provider(recorder)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-Request-ID", "req-123")
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	}))
+	defer server.Close()
+
+	httpClient := NewHTTPClient(server.Client(), "token", provider)
+
+	var result map[string]string
+
+	err := httpClient.doRequest(context.Background(), http.MethodGet, server.URL+"/single", nil, nil, &result)
+	require.NoError(t, err)
+
+	ended := recorder.Ended()
+	require.Len(t, ended, 1)
+	assert.Equal(t, trace.SpanKindClient, ended[0].SpanKind())
+	assert.Equal(t, "ok", result["status"])
+
+	attrs := spanAttributeMap(ended[0])
+	assert.Equal(t, http.MethodGet, attrs[observability.KeyHTTPMethod])
+	assert.Equal(t, "/single", attrs[observability.KeyHTTPPath])
+	assert.Equal(t, int64(http.StatusOK), attrs[observability.KeyHTTPStatus])
+	assert.Equal(t, "req-123", attrs[observability.KeyHTTPRequestID])
+}
+
+func spanAttributeMap(span sdktrace.ReadOnlySpan) map[string]any {
+	attrs := map[string]any{}
+
+	for _, attr := range span.Attributes() {
+		switch attr.Value.Type().String() {
+		case "INT64":
+			attrs[string(attr.Key)] = attr.Value.AsInt64()
+		default:
+			attrs[string(attr.Key)] = attr.Value.AsString()
+		}
+	}
+
+	return attrs
 }
 
 // BenchmarkHTTPClientWithTracing benchmarks HTTP client performance with tracing enabled

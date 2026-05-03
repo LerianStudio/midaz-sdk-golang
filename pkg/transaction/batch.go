@@ -14,7 +14,9 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // BatchResult represents the result of a transaction in a batch operation
@@ -108,6 +110,7 @@ func BatchTransactions(
 
 	options = normalizeOptions(options)
 	results := make([]BatchResult, len(inputs))
+	recordBatchEvent(ctx, "midaz.transaction.batch.started", orgID, ledgerID, len(inputs), -1, "")
 
 	processor := &batchProcessor{
 		ctx:      ctx,
@@ -119,7 +122,11 @@ func BatchTransactions(
 		results:  results,
 	}
 
-	return processor.execute()
+	results, err := processor.execute()
+
+	recordBatchEvent(ctx, "midaz.transaction.batch.completed", orgID, ledgerID, len(inputs), -1, "")
+
+	return results, err
 }
 
 // normalizeOptions ensures options are valid.
@@ -288,6 +295,7 @@ func (bp *batchProcessor) processTransaction(index int) error {
 
 	result := bp.createResult(index, tx, err, time.Since(startTime))
 	bp.results[index] = result
+	bp.recordTransactionResultEvent(result)
 	bp.callProgressCallback(result)
 
 	return err
@@ -429,8 +437,37 @@ func (bp *batchProcessor) markUnscheduledFrom(start int, err error) {
 
 		result := bp.createResult(i, nil, err, 0)
 		bp.results[i] = result
+		bp.recordTransactionResultEvent(result)
 		bp.callProgressCallback(result)
 	}
+}
+
+func (bp *batchProcessor) recordTransactionResultEvent(result BatchResult) {
+	event := "midaz.transaction.batch.item.succeeded"
+	if result.Error != nil {
+		event = "midaz.transaction.batch.item.failed"
+	}
+
+	recordBatchEvent(bp.ctx, event, bp.orgID, bp.ledgerID, len(bp.inputs), result.Index, result.TransactionID)
+}
+
+func recordBatchEvent(ctx context.Context, event, orgID, ledgerID string, total, index int, transactionID string) {
+	attrs := []attribute.KeyValue{
+		attribute.String("midaz.business.event", event),
+		attribute.String("midaz.business.organizationId", orgID),
+		attribute.String("midaz.business.ledgerId", ledgerID),
+		attribute.Int("midaz.business.batch.count", total),
+	}
+
+	if index >= 0 {
+		attrs = append(attrs, attribute.Int("midaz.business.batch.index", index))
+	}
+
+	if transactionID != "" {
+		attrs = append(attrs, attribute.String("midaz.business.transactionId", transactionID))
+	}
+
+	observability.AddSpanEvent(ctx, event, attrs...)
 }
 
 // BatchSummary provides statistics about a batch operation

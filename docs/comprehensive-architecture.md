@@ -604,9 +604,14 @@ Do not include `http://` or `https://` in the OTLP gRPC endpoint value.
 When the corresponding observability components are enabled, outbound entity requests can:
 
 - create HTTP spans when tracing is enabled,
-- inject W3C trace context and baggage into request headers,
+- inject W3C trace context and baggage into request headers using the configured provider propagator,
 - record request metrics through `MetricsCollector` when metrics are enabled,
-- use the provider logger for SDK warnings or errors when logging is enabled.
+- use the provider logger for SDK warnings or errors when logging is enabled,
+- emit safe structured business events for lifecycle operations such as account creation and transaction commit/cancel flows.
+
+`entities.HTTPClient` is the default SDK HTTP instrumentation point. Root client observability options attach the provider to the entity layer rather than wrapping the transport by default, which avoids duplicate client spans. Incoming HTTP applications should call `observability.ExtractHTTPContext(observability.WithProvider(r.Context(), provider), r.Header)` before invoking SDK methods so the application span, SDK span, and Midaz API span stay in one trace even when `observability.WithRegisterGlobally(false)` is used.
+
+Business logs are allowlisted. Safe identifiers such as `organizationId`, `ledgerId`, `assetId`, `accountId`, `transactionId`, `operationId`, `portfolioId`, `segmentId`, `balanceId`, `holderId`, `aliasId`, `routeId`, `status`, `operation`, and `event` may appear in logs and span events. Payloads, metadata, documents, names, addresses, auth headers, idempotency keys, secrets, and raw request/response bodies are not logged.
 
 The SDK does not read `MIDAZ_OTEL_ENDPOINT` or `MIDAZ_LOG_LEVEL` in `config.FromEnvironment()`. Configure observability in code.
 

@@ -254,8 +254,12 @@ func (e *ledgersEntity) GetLedger(
 
 	var ledger models.Ledger
 	if err := e.httpClient.sendRequest(req, &ledger); err != nil {
+		e.httpClient.emitBusinessError(ctx, businessEventLedgerCreated, map[string]any{"operation": operation, "organizationId": organizationID}, err)
+
 		return nil, err
 	}
+
+	e.httpClient.emitBusinessEvent(ctx, businessEventLedgerCreated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledger.ID, "status": ledger.Status.Code})
 
 	return &ledger, nil
 }
@@ -294,8 +298,12 @@ func (e *ledgersEntity) CreateLedger(
 
 	var ledger models.Ledger
 	if err := e.httpClient.sendRequest(req, &ledger); err != nil {
+		e.httpClient.emitBusinessError(ctx, businessEventLedgerCreated, map[string]any{"operation": operation, "organizationId": organizationID}, err)
+
 		return nil, err
 	}
+
+	e.httpClient.emitBusinessEvent(ctx, businessEventLedgerCreated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledger.ID, "status": ledger.Status.Code})
 
 	return &ledger, nil
 }
@@ -342,8 +350,12 @@ func (e *ledgersEntity) UpdateLedger(
 
 	var ledger models.Ledger
 	if err := e.httpClient.sendRequest(req, &ledger); err != nil {
+		e.httpClient.emitBusinessError(ctx, businessEventLedgerUpdated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": id}, err)
+
 		return nil, err
 	}
+
+	e.httpClient.emitBusinessEvent(ctx, businessEventLedgerUpdated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledger.ID, "status": ledger.Status.Code})
 
 	return &ledger, nil
 }
@@ -436,7 +448,15 @@ func (e *ledgersEntity) DeleteLedger(
 		return errors.NewInternalError(operation, err)
 	}
 
-	return e.httpClient.sendRequest(req, nil)
+	if err := e.httpClient.sendRequest(req, nil); err != nil {
+		e.httpClient.emitBusinessError(ctx, businessEventLedgerDeleted, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": id}, err)
+
+		return err
+	}
+
+	e.httpClient.emitBusinessEvent(ctx, businessEventLedgerDeleted, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": id})
+
+	return nil
 }
 
 // GetLedgersMetricsCount gets the count metrics for ledgers in an organization.

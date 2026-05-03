@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
+	"strings"
 	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/version"
@@ -41,12 +43,14 @@ const (
 	KeyAccountID      = "midaz.account_id"
 
 	// HTTP request attributes
-	KeyHTTPMethod   = "http.method"
-	KeyHTTPPath     = "http.path"
-	KeyHTTPStatus   = "http.status_code"
-	KeyHTTPHost     = "http.host"
-	KeyErrorCode    = "error.code"
-	KeyErrorMessage = "error.message"
+	KeyHTTPMethod    = "http.method"
+	KeyHTTPPath      = "http.path"
+	KeyHTTPStatus    = "http.status_code"
+	KeyHTTPHost      = "http.host"
+	KeyHTTPURL       = "http.url"
+	KeyHTTPRequestID = "http.request_id"
+	KeyErrorCode     = "error.code"
+	KeyErrorMessage  = "error.message"
 
 	// Metric names
 	MetricRequestTotal        = "midaz.sdk.request.total"
@@ -75,6 +79,10 @@ type Provider interface {
 
 	// IsEnabled returns true if observability is enabled
 	IsEnabled() bool
+}
+
+type propagatorProvider interface {
+	TextMapPropagator() propagation.TextMapPropagator
 }
 
 // Config holds the configuration for the observability provider
@@ -696,6 +704,20 @@ func (p *MidazProvider) IsEnabled() bool {
 	return p.enabled
 }
 
+// TextMapPropagator returns the provider-specific propagator without requiring
+// this method on the public Provider interface.
+func (p *MidazProvider) TextMapPropagator() propagation.TextMapPropagator {
+	if p == nil || p.config == nil || !p.enabled || !p.config.EnabledComponents.Tracing {
+		return propagation.NewCompositeTextMapPropagator()
+	}
+
+	if len(p.config.Propagators) > 0 {
+		return propagation.NewCompositeTextMapPropagator(p.config.Propagators...)
+	}
+
+	return defaultTextMapPropagator()
+}
+
 // WithSpan creates a new span and executes the function within the context of that span.
 // It automatically ends the span when the function returns.
 func WithSpan(ctx context.Context, provider Provider, name string, fn func(context.Context) error, opts ...trace.SpanStartOption) error {
@@ -799,7 +821,7 @@ func ExtractContext(ctx context.Context, headers map[string]string) context.Cont
 		return ctx
 	}
 
-	return defaultTextMapPropagator().Extract(ctx, propagation.MapCarrier(headers))
+	return textMapPropagatorForContext(ctx).Extract(ctx, propagation.MapCarrier(filterPropagationMap(ctx, headers)))
 }
 
 // InjectContext injects context into HTTP headers for distributed tracing
@@ -808,7 +830,29 @@ func InjectContext(ctx context.Context, headers map[string]string) {
 		return
 	}
 
-	defaultTextMapPropagator().Inject(ctx, propagation.MapCarrier(headers))
+	textMapPropagatorForContext(ctx).Inject(ctx, propagation.MapCarrier(headers))
+}
+
+// ExtractHTTPContext extracts distributed tracing context from HTTP headers.
+func ExtractHTTPContext(ctx context.Context, headers http.Header) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	if headers == nil {
+		return ctx
+	}
+
+	return textMapPropagatorForContext(ctx).Extract(ctx, propagation.HeaderCarrier(filterPropagationHeaders(ctx, headers)))
+}
+
+// InjectHTTPContext injects distributed tracing context into HTTP headers.
+func InjectHTTPContext(ctx context.Context, headers http.Header) {
+	if ctx == nil || headers == nil {
+		return
+	}
+
+	textMapPropagatorForContext(ctx).Inject(ctx, propagation.HeaderCarrier(headers))
 }
 
 func defaultTextMapPropagator() propagation.TextMapPropagator {
@@ -816,6 +860,77 @@ func defaultTextMapPropagator() propagation.TextMapPropagator {
 		propagation.TraceContext{},
 		propagation.Baggage{},
 	)
+}
+
+func textMapPropagatorForContext(ctx context.Context) propagation.TextMapPropagator {
+	return textMapPropagatorForProvider(GetProvider(ctx))
+}
+
+func textMapPropagatorForProvider(provider Provider) propagation.TextMapPropagator {
+	if provider == nil {
+		return defaultTextMapPropagator()
+	}
+
+	if !provider.IsEnabled() {
+		return propagation.NewCompositeTextMapPropagator()
+	}
+
+	if pp, ok := provider.(propagatorProvider); ok {
+		return pp.TextMapPropagator()
+	}
+
+	return defaultTextMapPropagator()
+}
+
+func filterPropagationMap(ctx context.Context, headers map[string]string) map[string]string {
+	allowed := propagationHeaderSet(ctx)
+	if len(allowed) == 0 {
+		return headers
+	}
+
+	filtered := make(map[string]string, len(headers))
+	for key, value := range headers {
+		if _, ok := allowed[strings.ToLower(key)]; ok {
+			filtered[key] = value
+		}
+	}
+
+	return filtered
+}
+
+func filterPropagationHeaders(ctx context.Context, headers http.Header) http.Header {
+	allowed := propagationHeaderSet(ctx)
+	if len(allowed) == 0 {
+		return headers
+	}
+
+	filtered := make(http.Header, len(headers))
+	for key, values := range headers {
+		if _, ok := allowed[strings.ToLower(key)]; ok {
+			filtered[key] = append([]string(nil), values...)
+		}
+	}
+
+	return filtered
+}
+
+func propagationHeaderSet(ctx context.Context) map[string]struct{} {
+	provider := GetProvider(ctx)
+
+	midazProvider, ok := provider.(*MidazProvider)
+	if !ok || midazProvider == nil || midazProvider.config == nil || len(midazProvider.config.PropagationHeaders) == 0 {
+		return nil
+	}
+
+	allowed := make(map[string]struct{}, len(midazProvider.config.PropagationHeaders))
+	for _, header := range midazProvider.config.PropagationHeaders {
+		header = strings.ToLower(strings.TrimSpace(header))
+		if header != "" {
+			allowed[header] = struct{}{}
+		}
+	}
+
+	return allowed
 }
 
 func filterMetricAttributes(attrs []attribute.KeyValue) []attribute.KeyValue {

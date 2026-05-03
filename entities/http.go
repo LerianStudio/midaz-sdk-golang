@@ -25,7 +25,9 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/security"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/version"
 	"github.com/google/uuid"
-	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 var (
@@ -464,11 +466,7 @@ func (c *HTTPClient) doRequest(ctx context.Context, method, requestURL string, h
 	// Setup headers
 	c.setupRequestHeaders(req, headers, body != nil)
 
-	// Inject trace context into request headers for distributed tracing
-	if snapshot := c.cloneConfiguration(); snapshot.observability != nil && snapshot.observability.IsEnabled() {
-		propagator := propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{})
-		propagator.Inject(ctx, propagation.HeaderCarrier(req.Header))
-	}
+	c.injectTraceContext(ctx, req)
 
 	// Execute request with retry logic and capture elapsed time
 	start := time.Now()
@@ -535,11 +533,7 @@ func (c *HTTPClient) doRawRequest(ctx context.Context, method, requestURL string
 
 	c.setupRequestHeaders(req, headers, len(body) > 0)
 
-	// Inject trace context into request headers for distributed tracing
-	if snapshot := c.cloneConfiguration(); snapshot.observability != nil && snapshot.observability.IsEnabled() {
-		propagator := propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{})
-		propagator.Inject(ctx, propagation.HeaderCarrier(req.Header))
-	}
+	c.injectTraceContext(ctx, req)
 
 	start := time.Now()
 	resp, responseBody, err := c.executeRequestWithRetry(ctx, req, method, requestURL)
@@ -628,10 +622,7 @@ func (c *HTTPClient) doCountRequest(ctx context.Context, method, requestURL stri
 	headers = c.injectContextHeaders(ctx, method, headers)
 	c.setupRequestHeaders(req, headers, false)
 
-	if snapshot := c.cloneConfiguration(); snapshot.observability != nil && snapshot.observability.IsEnabled() {
-		propagator := propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{})
-		propagator.Inject(ctx, propagation.HeaderCarrier(req.Header))
-	}
+	c.injectTraceContext(ctx, req)
 
 	start := time.Now()
 	resp, responseBody, err := c.executeRequestWithRetry(ctx, req, method, requestURL)
@@ -698,9 +689,89 @@ func (c *HTTPClient) setupObservabilityContext(ctx context.Context, method, requ
 		return ctx, func() {}
 	}
 
-	spanCtx, span := snapshot.observability.Tracer().Start(ctx, fmt.Sprintf("HTTP %s %s", method, normalizeTelemetryURL(requestURL)))
+	spanCtx, span := snapshot.observability.Tracer().Start(
+		ctx,
+		fmt.Sprintf("HTTP %s %s", method, normalizeTelemetryURL(requestURL)),
+		trace.WithSpanKind(trace.SpanKindClient),
+	)
+	spanCtx = observability.WithProvider(spanCtx, snapshot.observability)
+	enrichHTTPSpan(spanCtx, method, requestURL, nil, nil)
 
 	return spanCtx, func() { span.End() }
+}
+
+func (c *HTTPClient) injectTraceContext(ctx context.Context, req *http.Request) {
+	if req == nil {
+		return
+	}
+
+	snapshot := c.cloneConfiguration()
+	if snapshot.observability == nil || !snapshot.observability.IsEnabled() {
+		return
+	}
+
+	if req.Header == nil {
+		req.Header = make(http.Header)
+	}
+
+	observability.InjectHTTPContext(ctx, req.Header)
+}
+
+func enrichHTTPSpan(ctx context.Context, method, requestURL string, resp *http.Response, err error) {
+	span := trace.SpanFromContext(ctx)
+	if !span.IsRecording() {
+		return
+	}
+
+	attrs := httpSpanAttributes(method, requestURL)
+	if resp != nil {
+		attrs = append(attrs, attribute.Int(observability.KeyHTTPStatus, resp.StatusCode))
+		if requestID := strings.TrimSpace(resp.Header.Get("X-Request-ID")); requestID != "" {
+			attrs = append(attrs, attribute.String(observability.KeyHTTPRequestID, requestID))
+		}
+	}
+
+	span.SetAttributes(attrs...)
+
+	if err != nil {
+		sanitizedErr := sanitizeLogInput(err.Error())
+		span.SetStatus(codes.Error, sanitizedErr)
+		span.RecordError(errors.New(sanitizedErr))
+
+		return
+	}
+
+	if resp != nil && resp.StatusCode >= http.StatusBadRequest {
+		span.SetStatus(codes.Error, fmt.Sprintf("HTTP status code: %d", resp.StatusCode))
+
+		return
+	}
+
+	if resp != nil {
+		span.SetStatus(codes.Ok, "")
+	}
+}
+
+func httpSpanAttributes(method, requestURL string) []attribute.KeyValue {
+	attrs := make([]attribute.KeyValue, 0, 6)
+	attrs = append(attrs,
+		attribute.String(observability.KeyHTTPMethod, method),
+		attribute.String(observability.KeyHTTPURL, normalizeTelemetryURL(requestURL)),
+		attribute.String(observability.KeyOperationName, fmt.Sprintf("HTTP %s %s", method, normalizeTelemetryURL(requestURL))),
+		attribute.String(observability.KeyOperationType, "http.request"),
+	)
+
+	parsedURL, err := url.Parse(requestURL)
+	if err != nil {
+		return attrs
+	}
+
+	attrs = append(attrs,
+		attribute.String(observability.KeyHTTPPath, parsedURL.EscapedPath()),
+		attribute.String(observability.KeyHTTPHost, parsedURL.Host),
+	)
+
+	return attrs
 }
 
 // buildHTTPRequest creates the HTTP request with body handling
@@ -1011,6 +1082,8 @@ func (c *HTTPClient) debugLogRequestError(method, requestURL string, err error) 
 
 // recordRequestMetrics records performance metrics if enabled
 func (c *HTTPClient) recordRequestMetrics(ctx context.Context, method, requestURL string, resp *http.Response, elapsed time.Duration) {
+	enrichHTTPSpan(ctx, method, requestURL, resp, nil)
+
 	snapshot := c.cloneConfiguration()
 	if snapshot.metrics != nil && resp != nil {
 		snapshot.metrics.RecordRequest(ctx, method, normalizeTelemetryURL(requestURL), resp.StatusCode, elapsed)
@@ -1018,6 +1091,8 @@ func (c *HTTPClient) recordRequestMetrics(ctx context.Context, method, requestUR
 }
 
 func (c *HTTPClient) recordRequestFailure(ctx context.Context, method, requestURL string, resp *http.Response, elapsed time.Duration, err error) {
+	enrichHTTPSpan(ctx, method, requestURL, resp, err)
+
 	statusCode := http.StatusInternalServerError
 	if resp != nil {
 		statusCode = resp.StatusCode
@@ -1027,6 +1102,8 @@ func (c *HTTPClient) recordRequestFailure(ctx context.Context, method, requestUR
 }
 
 func (c *HTTPClient) recordSDKFailure(ctx context.Context, method, requestURL string, elapsed time.Duration, err error) {
+	enrichHTTPSpan(ctx, method, requestURL, nil, err)
+
 	c.recordFailure(ctx, method, requestURL, http.StatusInternalServerError, elapsed, err)
 }
 
