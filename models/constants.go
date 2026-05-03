@@ -116,8 +116,9 @@ const (
 	// QueryParamLimit is the query parameter name for limit
 	QueryParamLimit = "limit"
 
-	// QueryParamOffset is the legacy query parameter name for offset.
-	// Deprecated: current Midaz list endpoints use page-based pagination on the wire.
+	// QueryParamOffset is the unsupported legacy query parameter name for offset.
+	// Deprecated: current Midaz list endpoints use page-based pagination on the wire;
+	// ListOptions.ToQueryParams never emits this parameter.
 	QueryParamOffset = "offset"
 
 	// QueryParamPage is the query parameter name for page (backward compatibility)

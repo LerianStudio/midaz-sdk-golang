@@ -129,6 +129,7 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v2/entities`. Consumers usually ac
 - `CreateOrganization(ctx, input)`
 - `UpdateOrganization(ctx, id, input)`
 - `DeleteOrganization(ctx, id)`
+- `GetOrganizationsMetricsCount(ctx)`
 
 ### LedgersService
 
@@ -137,6 +138,7 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v2/entities`. Consumers usually ac
 - `CreateLedger(ctx, organizationID, input)`
 - `UpdateLedger(ctx, organizationID, id, input)`
 - `DeleteLedger(ctx, organizationID, id)`
+- `GetLedgersMetricsCount(ctx, organizationID)`
 
 ### AccountsService
 
@@ -159,7 +161,10 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v2/entities`. Consumers usually ac
 - `CreateAccountType(ctx, organizationID, ledgerID, input)`
 - `UpdateAccountType(ctx, organizationID, ledgerID, id, input)`
 - `DeleteAccountType(ctx, organizationID, ledgerID, id)`
-- `GetAccountTypesMetricsCount(ctx, organizationID, ledgerID)`
+
+Compatibility-only method:
+
+- `GetAccountTypesMetricsCount(ctx, organizationID, ledgerID)` - Deprecated and unsupported. The method remains for source compatibility, but the Midaz Ledger API does not expose account type count metrics and the SDK returns a validation error.
 
 ### AssetsService
 
@@ -168,6 +173,7 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v2/entities`. Consumers usually ac
 - `CreateAsset(ctx, organizationID, ledgerID, input)`
 - `UpdateAsset(ctx, organizationID, ledgerID, id, input)`
 - `DeleteAsset(ctx, organizationID, ledgerID, id)`
+- `GetAssetsMetricsCount(ctx, organizationID, ledgerID)`
 
 ### AssetRatesService
 
@@ -195,6 +201,7 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v2/entities`. Consumers usually ac
 - `CreatePortfolio(ctx, organizationID, ledgerID, input)`
 - `UpdatePortfolio(ctx, organizationID, ledgerID, id, input)`
 - `DeletePortfolio(ctx, organizationID, ledgerID, id)`
+- `GetPortfoliosMetricsCount(ctx, organizationID, ledgerID)`
 
 ### SegmentsService
 
@@ -203,6 +210,7 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v2/entities`. Consumers usually ac
 - `CreateSegment(ctx, organizationID, ledgerID, input)`
 - `UpdateSegment(ctx, organizationID, ledgerID, id, input)`
 - `DeleteSegment(ctx, organizationID, ledgerID, id)`
+- `GetSegmentsMetricsCount(ctx, organizationID, ledgerID)`
 
 ### OperationsService
 
@@ -244,6 +252,12 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v2/entities`. Consumers usually ac
 - `CreateOutflowTransaction(ctx, orgID, ledgerID, input)`
 - `CreateAnnotationTransaction(ctx, orgID, ledgerID, input)`
 
+### Count method behavior
+
+The supported count methods are `GetOrganizationsMetricsCount`, `GetLedgersMetricsCount`, `GetAssetsMetricsCount`, `GetPortfoliosMetricsCount`, `GetSegmentsMetricsCount`, `GetAccountsMetricsCount`, and `GetTransactionsMetricsCount`.
+
+These methods call Midaz `metrics/count` endpoints with `HEAD` and read the integer count from the `X-Total-Count` response header. If the header is missing or contains a non-integer value, the SDK returns an internal count-request error.
+
 ### MetadataIndexesService
 
 - `ListMetadataIndexes(ctx, entityName)`
@@ -278,8 +292,8 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v2/models`.
 ### List and pagination
 
 - `models.NewListOptions()`
-- `(*models.ListOptions).WithLimit(int)`
-- `(*models.ListOptions).WithOffset(int)` - Compatibility input; query serialization uses `page`.
+- `(*models.ListOptions).WithLimit(int)` - Capped at `models.MaxLimit` (`100`) for entity list methods.
+- `(*models.ListOptions).WithOffset(int)` - Compatibility input for older callers. Current Midaz list endpoints use `page`, `limit`, and `cursor` where supported; do not treat `offset` as a supported wire parameter.
 - `(*models.ListOptions).WithPage(int)`
 - `(*models.ListOptions).WithCursor(string)`
 - `(*models.ListOptions).WithOrderBy(string)` - Stored for compatibility; not sent by common query serialization.
@@ -302,7 +316,7 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v2/models`.
 - `(*models.Pagination).HasPrevPage()`
 - `(*models.Pagination).PrevPageOptions()`
 - `(*models.Pagination).CurrentPage()`
-- `(*models.Pagination).TotalPages()`
+- `(*models.Pagination).TotalPages()` - Meaningful only when the API response includes `total`; current Midaz list responses commonly omit it, so traversal should use `HasNextPage` and cursor metadata.
 
 ### Common input builders
 
@@ -319,10 +333,11 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v2/models`.
 Use `github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors`.
 
 - Core type: `*errors.Error`.
-- Sentinel errors: `ErrValidation`, `ErrAuthentication`, `ErrPermission`, `ErrNotFound`, `ErrAlreadyExists`, `ErrIdempotency`, `ErrRateLimit`, `ErrTimeout`, `ErrCancellation`, `ErrInternal`, `ErrInsufficientBalance`, `ErrAccountEligibility`, `ErrAssetMismatch`.
+- Sentinel errors: `ErrValidation`, `ErrAuthentication`, `ErrPermission`, `ErrNotFound`, `ErrAlreadyExists`, `ErrIdempotency`, `ErrRateLimit`, `ErrTimeout`, `ErrCancellation`, `ErrInternal`, `ErrUnprocessable`, `ErrInsufficientBalance`, `ErrAccountEligibility`, `ErrAssetMismatch`.
 - Checkers: `IsValidationError`, `IsNotFoundError`, `IsAuthenticationError`, `IsAuthorizationError`, `IsPermissionError`, `IsConflictError`, `IsAlreadyExistsError`, `IsRateLimitError`, `IsTimeoutError`, `IsNetworkError`, `IsCancellationError`, `IsInternalError`, `IsInsufficientBalanceError`, `IsAccountEligibilityError`, `IsAssetMismatchError`, `IsIdempotencyError`.
 - Accessors: `GetErrorCategory`, `GetStatusCode`, `GetErrorCode`, `GetErrorDetails`, `GetTransactionErrorContext`.
-- Constructors: `NewValidationError`, `NewInvalidInputError`, `NewNotFoundError`, `NewAuthenticationError`, `NewAuthorizationError`, `NewConflictError`, `NewRateLimitError`, `NewTimeoutError`, `NewInternalError`.
+- Constructors: `NewValidationError`, `NewInvalidInputError`, `NewNotFoundError`, `NewAuthenticationError`, `NewAuthorizationError`, `NewConflictError`, `NewRateLimitError`, `NewTimeoutError`, `NewInternalError`, `NewUnprocessableError`.
+- Midaz wire errors may include `code`, `title`, `message`, `entityType`, and `fields`; CRM errors may include `err`. The SDK preserves expanded envelope data on `Error.APICode`, `Error.Title`, `Error.EntityType`, `Error.Fields`, and `Error.Details` when available.
 
 ## Observability package
 

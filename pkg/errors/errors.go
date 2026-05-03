@@ -132,6 +132,9 @@ type Error struct {
 	// APICode is the raw Midaz/CRM API error code, when returned by the API.
 	APICode string
 
+	// Title is the raw API error title, when returned by the API.
+	Title string
+
 	// Message is the human-readable error message
 	Message string
 
@@ -143,6 +146,15 @@ type Error struct {
 
 	// ResourceID is the identifier of the resource involved, if applicable
 	ResourceID string
+
+	// EntityType is the raw API entity type, when returned by the API.
+	EntityType string
+
+	// Fields is the raw API field list, when returned by the API.
+	Fields []string
+
+	// Details contains the raw API error details, when returned by the API.
+	Details map[string]any
 
 	// StatusCode is the HTTP status code, if applicable
 	StatusCode int
@@ -270,7 +282,7 @@ func (e *Error) GetOperation() string {
 
 var (
 	sensitiveBearerPattern   = regexp.MustCompile(`(?i)\b(authorization\s*[:=]\s*Bearer\s+)[^\s,;]+`)
-	sensitiveKeyValuePattern = regexp.MustCompile(`(?i)\b(token|password|api_key|authorization|secret|idempotency)(\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s,;]+)`)
+	sensitiveKeyValuePattern = regexp.MustCompile(`(?i)\b(token|password|api_key|authorization|secret|idempotency|document|legal_document|external_id|banking_details_account|banking_details_iban|metadata(?:\.[\w.-]+)?|related_party_document|regulatory_fields_participant_document)(\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s,;]+)`)
 )
 
 func isNilError(err error) bool {
@@ -305,10 +317,19 @@ func redactSensitive(message string) string {
 	return sensitiveKeyValuePattern.ReplaceAllString(redacted, `${1}${2}[REDACTED]`)
 }
 
+func normalizeError(err error) error {
+	if isNilError(err) {
+		return nil
+	}
+
+	return err
+}
+
 // Standard error constructors
 
 // NewValidationError creates a validation error.
 func NewValidationError(operation, message string, err error) *Error {
+	err = normalizeError(err)
 	if err != nil {
 		message = fmt.Sprintf("%s: %v", message, err)
 	}
@@ -325,6 +346,8 @@ func NewValidationError(operation, message string, err error) *Error {
 
 // NewInvalidInputError creates a validation error for invalid input.
 func NewInvalidInputError(operation string, err error) *Error {
+	err = normalizeError(err)
+
 	message := "invalid input"
 	if err != nil {
 		message = fmt.Sprintf("invalid input: %v", err)
@@ -356,6 +379,8 @@ func NewMissingParameterError(operation, paramName string) *Error {
 
 // NewNotFoundError creates a not found error.
 func NewNotFoundError(operation, resource, resourceID string, err error) *Error {
+	err = normalizeError(err)
+
 	message := fmt.Sprintf("%s not found", resource)
 	if resourceID != "" {
 		message = fmt.Sprintf("%s not found: %s", resource, resourceID)
@@ -375,6 +400,7 @@ func NewNotFoundError(operation, resource, resourceID string, err error) *Error 
 
 // NewAuthenticationError creates an authentication error.
 func NewAuthenticationError(operation, message string, err error) *Error {
+	err = normalizeError(err)
 	if err != nil {
 		message = fmt.Sprintf("%s: %v", message, err)
 	}
@@ -391,6 +417,7 @@ func NewAuthenticationError(operation, message string, err error) *Error {
 
 // NewAuthorizationError creates an authorization error.
 func NewAuthorizationError(operation, message string, err error) *Error {
+	err = normalizeError(err)
 	if err != nil {
 		message = fmt.Sprintf("%s: %v", message, err)
 	}
@@ -407,6 +434,8 @@ func NewAuthorizationError(operation, message string, err error) *Error {
 
 // NewConflictError creates a conflict error.
 func NewConflictError(operation, resource, resourceID string, err error) *Error {
+	err = normalizeError(err)
+
 	message := fmt.Sprintf("%s already exists", resource)
 	if resourceID != "" {
 		message = fmt.Sprintf("%s already exists: %s", resource, resourceID)
@@ -426,6 +455,8 @@ func NewConflictError(operation, resource, resourceID string, err error) *Error 
 
 // NewRateLimitError creates a rate limit error.
 func NewRateLimitError(operation, message string, err error) *Error {
+	err = normalizeError(err)
+
 	if message == "" {
 		message = "rate limit exceeded"
 	}
@@ -442,6 +473,8 @@ func NewRateLimitError(operation, message string, err error) *Error {
 
 // NewTimeoutError creates a timeout error.
 func NewTimeoutError(operation, message string, err error) *Error {
+	err = normalizeError(err)
+
 	if message == "" {
 		message = "operation timed out"
 	}
@@ -458,6 +491,8 @@ func NewTimeoutError(operation, message string, err error) *Error {
 
 // NewCancellationError creates a cancellation error for cancelled contexts.
 func NewCancellationError(operation string, err error) *Error {
+	err = normalizeError(err)
+
 	message := "operation cancelled"
 	if err != nil {
 		message = fmt.Sprintf("operation cancelled: %v", err)
@@ -475,6 +510,8 @@ func NewCancellationError(operation string, err error) *Error {
 
 // NewNetworkError creates a network error.
 func NewNetworkError(operation string, err error) *Error {
+	err = normalizeError(err)
+
 	message := "network error"
 	if err != nil {
 		message = fmt.Sprintf("network error: %v", err)
@@ -492,6 +529,8 @@ func NewNetworkError(operation string, err error) *Error {
 
 // NewInternalError creates an internal error.
 func NewInternalError(operation string, err error) *Error {
+	err = normalizeError(err)
+
 	message := "internal error"
 	if err != nil {
 		message = fmt.Sprintf("internal error: %v", err)
@@ -509,6 +548,8 @@ func NewInternalError(operation string, err error) *Error {
 
 // NewUnprocessableError creates an unprocessable entity error.
 func NewUnprocessableError(operation, resource string, err error) *Error {
+	err = normalizeError(err)
+
 	message := fmt.Sprintf("unprocessable %s", resource)
 	if err != nil {
 		message = fmt.Sprintf("unprocessable %s: %v", resource, err)
@@ -527,6 +568,8 @@ func NewUnprocessableError(operation, resource string, err error) *Error {
 
 // NewInsufficientBalanceError creates an insufficient balance error.
 func NewInsufficientBalanceError(operation, accountID string, err error) *Error {
+	err = normalizeError(err)
+
 	message := "insufficient balance"
 	if err != nil {
 		message = fmt.Sprintf("insufficient balance: %v", err)
@@ -546,6 +589,7 @@ func NewInsufficientBalanceError(operation, accountID string, err error) *Error 
 
 // NewAssetMismatchError creates an asset mismatch error.
 func NewAssetMismatchError(operation, expected, actual string, err error) *Error {
+	err = normalizeError(err)
 	message := fmt.Sprintf("asset mismatch: expected %s, got %s", expected, actual)
 
 	return &Error{
@@ -560,6 +604,8 @@ func NewAssetMismatchError(operation, expected, actual string, err error) *Error
 
 // NewAccountEligibilityError creates an account eligibility error.
 func NewAccountEligibilityError(operation, accountID string, err error) *Error {
+	err = normalizeError(err)
+
 	message := "account not eligible for this operation"
 	if err != nil {
 		message = fmt.Sprintf("account eligibility error: %v", err)
@@ -595,7 +641,7 @@ func (e *MidazError) Error() string {
 		result += ": " + redactSensitive(e.Message)
 	}
 
-	if e.Err != nil {
+	if !isNilError(e.Err) {
 		result += ": " + safeErrorString(e.Err)
 	}
 
@@ -630,6 +676,8 @@ func (e *MidazError) Is(target error) bool {
 //
 // Deprecated: use Error and the typed constructors in this package instead.
 func NewMidazError(code ErrorCode, err error) *MidazError {
+	err = normalizeError(err)
+
 	message := ""
 	if err != nil {
 		message = safeErrorString(err)
@@ -1200,6 +1248,12 @@ func applyAPICodeMapping(mapping httpErrorMapping, apiCode string) httpErrorMapp
 
 // ErrorFromHTTPResponse creates an appropriate error based on the HTTP response
 func ErrorFromHTTPResponse(statusCode int, requestID, message, apiCode, entityType, resourceID string) error {
+	return ErrorFromHTTPResponseWithDetails(statusCode, requestID, message, apiCode, entityType, resourceID, "", nil, nil)
+}
+
+// ErrorFromHTTPResponseWithDetails creates an appropriate error based on the HTTP response
+// and preserves raw structured API envelope metadata when available.
+func ErrorFromHTTPResponseWithDetails(statusCode int, requestID, message, apiCode, entityType, resourceID, title string, fields []string, details map[string]any) error {
 	mapping, ok := httpErrorMappings[statusCode]
 	if !ok {
 		mapping = httpErrorMapping{CategoryInternal, CodeInternal, false}
@@ -1211,9 +1265,13 @@ func ErrorFromHTTPResponse(statusCode int, requestID, message, apiCode, entityTy
 		Category:   mapping.category,
 		Code:       mapping.code,
 		APICode:    apiCode,
+		Title:      title,
 		Message:    message,
 		StatusCode: statusCode,
 		RequestID:  requestID,
+		EntityType: entityType,
+		Fields:     fields,
+		Details:    details,
 	}
 
 	if mapping.withResource {

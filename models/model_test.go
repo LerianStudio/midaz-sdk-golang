@@ -624,7 +624,6 @@ func TestListOptionsToQueryParams(t *testing.T) {
 
 	expectedParams := map[string]string{
 		QueryParamLimit:          "25",
-		QueryParamOffset:         "10",
 		QueryParamOrderDirection: string(SortAscending),
 		QueryParamStartDate:      "2023-01-01",
 		QueryParamEndDate:        "2023-12-31",
@@ -642,8 +641,138 @@ func TestListOptionsToQueryParams(t *testing.T) {
 		t.Errorf("Did not expect lossy page query parameter for non-aligned offset")
 	}
 
+	if _, exists := params[QueryParamOffset]; exists {
+		t.Errorf("Did not expect unsupported offset query parameter")
+	}
+
 	if _, exists := params[QueryParamOrderBy]; exists {
 		t.Errorf("Did not expect legacy orderBy query parameter")
+	}
+}
+
+func TestListOptionsToQueryParamsNilReceiverSafe(t *testing.T) {
+	var options *ListOptions
+
+	params := options.ToQueryParams()
+
+	if params[QueryParamLimit] != "10" {
+		t.Fatalf("expected default limit 10, got %q", params[QueryParamLimit])
+	}
+
+	if _, exists := params[QueryParamOffset]; exists {
+		t.Fatalf("nil receiver must not emit unsupported offset query parameter")
+	}
+}
+
+func TestListOptionsWithFiltersDeepCopiesInput(t *testing.T) {
+	filters := map[string]string{"status": "active"}
+	options := NewListOptions().WithFilters(filters)
+
+	filters["status"] = "mutated"
+	filters["new"] = "value"
+
+	if options.Filters["status"] != "active" {
+		t.Fatalf("expected filters to be deep-copied, got status=%q", options.Filters["status"])
+	}
+
+	if _, exists := options.Filters["new"]; exists {
+		t.Fatalf("expected filters copy to be isolated from source map mutation")
+	}
+}
+
+func TestListOptionsNextPagePreservesStateAndDeepCopiesMaps(t *testing.T) {
+	options := NewListOptions().
+		WithLimit(25).
+		WithPage(2).
+		WithFilter("status", "active").
+		WithDateRange("2024-01-01", "2024-12-31").
+		WithAdditionalParam("include_deleted", "true").
+		WithOrderBy("name").
+		WithOrderDirection(SortDescending)
+
+	next := options.NextPage()
+
+	if next.Page != 3 {
+		t.Fatalf("expected next page 3, got %d", next.Page)
+	}
+
+	if next.Filters["status"] != "active" || next.AdditionalParams["include_deleted"] != "true" {
+		t.Fatalf("expected filters/additional params to be preserved, got %#v %#v", next.Filters, next.AdditionalParams)
+	}
+
+	if next.StartDate != "2024-01-01" || next.EndDate != "2024-12-31" || next.OrderBy != "name" || next.OrderDirection != string(SortDescending) {
+		t.Fatalf("expected date and sort state to be preserved, got %#v", next)
+	}
+
+	next.Filters["status"] = "mutated"
+	next.AdditionalParams["include_deleted"] = "false"
+
+	if options.Filters["status"] != "active" || options.AdditionalParams["include_deleted"] != "true" {
+		t.Fatalf("expected NextPage to deep-copy maps without mutating original")
+	}
+}
+
+func TestNextPageOptionsFromPreservesState(t *testing.T) {
+	current := NewListOptions().
+		WithLimit(10).
+		WithFilter("status", "active").
+		WithAdditionalParam("holder_id", "holder-123").
+		WithDateRange("2024-01-01", "2024-12-31")
+
+	pagination := Pagination{Limit: 10, Page: 1, Total: 30}
+	next := NextPageOptionsFrom(current, &pagination)
+
+	if next == nil {
+		t.Fatal("expected next page options")
+	}
+
+	if next.Page != 2 || next.Filters["status"] != "active" || next.AdditionalParams["holder_id"] != "holder-123" {
+		t.Fatalf("expected state-preserving next options, got %#v", next)
+	}
+
+	if next.StartDate != "2024-01-01" || next.EndDate != "2024-12-31" {
+		t.Fatalf("expected date range to be preserved, got %#v", next)
+	}
+}
+
+func TestPaginationNilReceiverMethodsAreSafe(t *testing.T) {
+	var pagination *Pagination
+
+	if pagination.HasMorePages() || pagination.HasPrevPage() || pagination.HasNextPage() {
+		t.Fatal("nil pagination receiver should report no available pages")
+	}
+
+	if pagination.CurrentPage() != DefaultPage {
+		t.Fatalf("expected nil pagination current page to default to %d", DefaultPage)
+	}
+
+	if pagination.TotalPages() != 1 {
+		t.Fatalf("expected nil pagination total pages to default to 1")
+	}
+
+	if pagination.NextPageOptions() != nil || pagination.PrevPageOptions() != nil {
+		t.Fatalf("nil pagination receiver should not produce page options")
+	}
+}
+
+func TestListResponseZeroValueMarshalUsesEmptyItems(t *testing.T) {
+	data, err := json.Marshal(ListResponse[string]{})
+	if err != nil {
+		t.Fatalf("unexpected marshal error: %v", err)
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(data, &payload); err != nil {
+		t.Fatalf("unexpected unmarshal error: %v", err)
+	}
+
+	items, ok := payload["items"].([]any)
+	if !ok {
+		t.Fatalf("expected items to marshal as an empty array, got %s", string(data))
+	}
+
+	if len(items) != 0 {
+		t.Fatalf("expected empty items array, got %v", items)
 	}
 }
 

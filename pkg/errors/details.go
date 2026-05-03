@@ -35,6 +35,24 @@ type ErrorDetails struct {
 	// Code is the error code, if available
 	Code string
 
+	// APICode is the raw API error code, if available.
+	APICode string
+
+	// Title is the raw API error title, if available.
+	Title string
+
+	// EntityType is the raw API entity type, if available.
+	EntityType string
+
+	// Fields is the raw API field list, if available.
+	Fields []string
+
+	// Details contains raw API error details, if available.
+	Details map[string]any
+
+	// RequestID is the API request ID, if available.
+	RequestID string
+
 	// HTTPStatus is the HTTP status code, if available
 	HTTPStatus int
 
@@ -54,6 +72,7 @@ func GetErrorDetails(err error) ErrorDetails {
 	}
 	details.Code = extractErrorCode(err)
 	details.HTTPStatus = extractErrorHTTPStatus(err)
+	populateStructuredErrorDetails(err, &details)
 
 	// If no status code was found, try to determine it from the error type
 	if details.HTTPStatus == 0 {
@@ -61,6 +80,20 @@ func GetErrorDetails(err error) ErrorDetails {
 	}
 
 	return details
+}
+
+func populateStructuredErrorDetails(err error, details *ErrorDetails) {
+	var sdkErr *Error
+	if !errors.As(err, &sdkErr) || sdkErr == nil || details == nil {
+		return
+	}
+
+	details.APICode = sdkErr.APICode
+	details.Title = sdkErr.Title
+	details.EntityType = sdkErr.EntityType
+	details.Fields = sdkErr.Fields
+	details.Details = sdkErr.Details
+	details.RequestID = sdkErr.RequestID
 }
 
 func extractErrorCode(err error) string {

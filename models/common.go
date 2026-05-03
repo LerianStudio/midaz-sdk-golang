@@ -199,6 +199,10 @@ func (p *Pagination) UnmarshalJSON(data []byte) error {
 // Returns:
 //   - true if there are more pages available, false otherwise
 func (p *Pagination) HasMorePages() bool {
+	if p == nil {
+		return false
+	}
+
 	if p.Total > 0 && p.Limit > 0 {
 		if p.Page > 0 {
 			return p.Page*p.Limit < p.Total
@@ -216,6 +220,10 @@ func (p *Pagination) HasMorePages() bool {
 // Returns:
 //   - true if there is a previous page available, false otherwise
 func (p *Pagination) HasPrevPage() bool {
+	if p == nil {
+		return false
+	}
+
 	return p.Page > 1 || p.Offset > 0 || p.PrevCursor != ""
 }
 
@@ -225,6 +233,10 @@ func (p *Pagination) HasPrevPage() bool {
 // Returns:
 //   - true if there is a next page available, false otherwise
 func (p *Pagination) HasNextPage() bool {
+	if p == nil {
+		return false
+	}
+
 	return p.HasMorePages() || p.NextCursor != ""
 }
 
@@ -236,6 +248,10 @@ func (p *Pagination) HasNextPage() bool {
 //   - A new ListOptions instance configured for the next page
 //   - nil if there is no next page available
 func (p *Pagination) NextPageOptions() *ListOptions {
+	if p == nil {
+		return nil
+	}
+
 	if !p.HasNextPage() {
 		return nil
 	}
@@ -266,6 +282,10 @@ func (p *Pagination) NextPageOptions() *ListOptions {
 //   - A new ListOptions instance configured for the previous page
 //   - nil if there is no previous page available
 func (p *Pagination) PrevPageOptions() *ListOptions {
+	if p == nil {
+		return nil
+	}
+
 	if !p.HasPrevPage() {
 		return nil
 	}
@@ -299,6 +319,10 @@ func (p *Pagination) PrevPageOptions() *ListOptions {
 // Returns:
 //   - The current page number (starts from 1)
 func (p *Pagination) CurrentPage() int {
+	if p == nil {
+		return DefaultPage
+	}
+
 	if p.Page > 0 {
 		return p.Page
 	}
@@ -316,6 +340,10 @@ func (p *Pagination) CurrentPage() int {
 // Returns:
 //   - The total number of pages
 func (p *Pagination) TotalPages() int {
+	if p == nil {
+		return 1
+	}
+
 	if p.Limit <= 0 || p.Total <= 0 {
 		return 1
 	}
@@ -380,6 +408,40 @@ func NewListOptions() *ListOptions {
 	}
 }
 
+func ensureListOptions(options *ListOptions) *ListOptions {
+	if options == nil {
+		return NewListOptions()
+	}
+
+	return options
+}
+
+func cloneStringMap(values map[string]string) map[string]string {
+	if values == nil {
+		return nil
+	}
+
+	clone := make(map[string]string, len(values))
+	for key, value := range values {
+		clone[key] = value
+	}
+
+	return clone
+}
+
+// Clone returns a deep copy of the list options.
+func (o *ListOptions) Clone() *ListOptions {
+	if o == nil {
+		return NewListOptions()
+	}
+
+	clone := *o
+	clone.Filters = cloneStringMap(o.Filters)
+	clone.AdditionalParams = cloneStringMap(o.AdditionalParams)
+
+	return &clone
+}
+
 // WithLimit sets the maximum number of items to return per page.
 // This method validates that the limit is within acceptable bounds.
 //
@@ -389,6 +451,8 @@ func NewListOptions() *ListOptions {
 // Returns:
 //   - The modified ListOptions instance for method chaining
 func (o *ListOptions) WithLimit(limit int) *ListOptions {
+	o = ensureListOptions(o)
+
 	if limit <= 0 {
 		o.Limit = DefaultLimit
 	} else if limit > MaxLimit {
@@ -400,7 +464,9 @@ func (o *ListOptions) WithLimit(limit int) *ListOptions {
 	return o
 }
 
-// WithOffset sets the starting position for pagination.
+// WithOffset sets the legacy starting position for pagination.
+// Midaz APIs do not accept offset on the wire; ToQueryParams only converts
+// aligned offsets to deterministic page values and never emits offset.
 //
 // Parameters:
 //   - offset: The starting position (must be >= 0)
@@ -408,6 +474,8 @@ func (o *ListOptions) WithLimit(limit int) *ListOptions {
 // Returns:
 //   - The modified ListOptions instance for method chaining
 func (o *ListOptions) WithOffset(offset int) *ListOptions {
+	o = ensureListOptions(o)
+
 	if offset < 0 {
 		o.Offset = DefaultOffset
 	} else {
@@ -417,8 +485,8 @@ func (o *ListOptions) WithOffset(offset int) *ListOptions {
 	return o
 }
 
-// WithPage sets the page number for backward compatibility.
-// Note: Using offset-based pagination (WithOffset) is recommended over page-based pagination.
+// WithPage sets the page number for Midaz page-based pagination.
+// Page-based pagination is the supported wire format for current list endpoints.
 //
 // Parameters:
 //   - page: The page number (must be >= 1)
@@ -426,6 +494,8 @@ func (o *ListOptions) WithOffset(offset int) *ListOptions {
 // Returns:
 //   - The modified ListOptions instance for method chaining
 func (o *ListOptions) WithPage(page int) *ListOptions {
+	o = ensureListOptions(o)
+
 	if page < 1 {
 		o.Page = DefaultPage
 	} else {
@@ -442,7 +512,11 @@ func (o *ListOptions) WithPage(page int) *ListOptions {
 //
 // Returns:
 //   - The modified ListOptions instance for method chaining
+//
+//nolint:wsl_v5
 func (o *ListOptions) WithCursor(cursor string) *ListOptions {
+	o = ensureListOptions(o)
+
 	o.Cursor = cursor
 	return o
 }
@@ -454,7 +528,11 @@ func (o *ListOptions) WithCursor(cursor string) *ListOptions {
 //
 // Returns:
 //   - The modified ListOptions instance for method chaining
+//
+//nolint:wsl_v5
 func (o *ListOptions) WithOrderBy(field string) *ListOptions {
+	o = ensureListOptions(o)
+
 	o.OrderBy = field
 	return o
 }
@@ -466,7 +544,11 @@ func (o *ListOptions) WithOrderBy(field string) *ListOptions {
 //
 // Returns:
 //   - The modified ListOptions instance for method chaining
+//
+//nolint:wsl_v5
 func (o *ListOptions) WithOrderDirection(direction SortDirection) *ListOptions {
+	o = ensureListOptions(o)
+
 	o.OrderDirection = string(direction)
 	return o
 }
@@ -480,6 +562,8 @@ func (o *ListOptions) WithOrderDirection(direction SortDirection) *ListOptions {
 // Returns:
 //   - The modified ListOptions instance for method chaining
 func (o *ListOptions) WithFilter(key, value string) *ListOptions {
+	o = ensureListOptions(o)
+
 	if o.Filters == nil {
 		o.Filters = make(map[string]string)
 	}
@@ -496,8 +580,11 @@ func (o *ListOptions) WithFilter(key, value string) *ListOptions {
 //
 // Returns:
 //   - The modified ListOptions instance for method chaining
+//
+//nolint:wsl_v5
 func (o *ListOptions) WithFilters(filters map[string]string) *ListOptions {
-	o.Filters = filters
+	o = ensureListOptions(o)
+	o.Filters = cloneStringMap(filters)
 	return o
 }
 
@@ -510,6 +597,8 @@ func (o *ListOptions) WithFilters(filters map[string]string) *ListOptions {
 // Returns:
 //   - The modified ListOptions instance for method chaining
 func (o *ListOptions) WithDateRange(startDate, endDate string) *ListOptions {
+	o = ensureListOptions(o)
+
 	o.StartDate = startDate
 	o.EndDate = endDate
 
@@ -525,6 +614,8 @@ func (o *ListOptions) WithDateRange(startDate, endDate string) *ListOptions {
 // Returns:
 //   - The modified ListOptions instance for method chaining
 func (o *ListOptions) WithAdditionalParam(key, value string) *ListOptions {
+	o = ensureListOptions(o)
+
 	if o.AdditionalParams == nil {
 		o.AdditionalParams = make(map[string]string)
 	}
@@ -580,8 +671,8 @@ func (o *ListOptions) WithRelatedPartyDocument(document string) *ListOptions {
 // Returns:
 //   - A new ListOptions instance configured for the next page
 func (o *ListOptions) NextPage() *ListOptions {
-	// Make a shallow copy of the current options
-	next := *o
+	o = ensureListOptions(o)
+	next := o.Clone()
 
 	// If using offset-based pagination
 	if o.Offset >= 0 && o.Limit > 0 {
@@ -596,7 +687,44 @@ func (o *ListOptions) NextPage() *ListOptions {
 	// Clear cursor to avoid conflicts
 	next.Cursor = ""
 
-	return &next
+	return next
+}
+
+// NextPageOptionsFrom returns next-page options while preserving all state from current.
+//
+//nolint:wsl_v5
+func NextPageOptionsFrom(current *ListOptions, pagination *Pagination) *ListOptions {
+	if pagination == nil || !pagination.HasNextPage() {
+		return nil
+	}
+
+	next := ensureListOptions(current).Clone()
+	limit := pagination.Limit
+	if limit <= 0 {
+		limit = next.Limit
+	}
+	if limit <= 0 {
+		limit = DefaultLimit
+	}
+	next.WithLimit(limit)
+
+	if pagination.NextCursor != "" {
+		next.Cursor = pagination.NextCursor
+		next.Offset = DefaultOffset
+		return next
+	}
+
+	if pagination.Page > 0 {
+		next.Page = pagination.Page + 1
+		next.Cursor = ""
+		next.Offset = DefaultOffset
+		return next
+	}
+
+	next.Offset = pagination.Offset + limit
+	next.Cursor = ""
+
+	return next
 }
 
 // ToQueryParams converts ListOptions to a map of query parameters.
@@ -606,6 +734,8 @@ func (o *ListOptions) NextPage() *ListOptions {
 // Returns:
 //   - A map of string key-value pairs representing the query parameters
 func (o *ListOptions) ToQueryParams() map[string]string {
+	o = ensureListOptions(o)
+
 	params := make(map[string]string)
 
 	// Add pagination parameters
@@ -650,12 +780,8 @@ func (o *ListOptions) addPaginationParams(params map[string]string) {
 		return
 	}
 
-	if o.Offset > 0 {
-		if o.Offset%limit == 0 {
-			params[QueryParamPage] = fmt.Sprintf("%d", (o.Offset/limit)+1)
-		} else {
-			params[QueryParamOffset] = fmt.Sprintf("%d", o.Offset)
-		}
+	if o.Offset > 0 && o.Offset%limit == 0 {
+		params[QueryParamPage] = fmt.Sprintf("%d", (o.Offset/limit)+1)
 	}
 
 	if o.Cursor != "" {
@@ -762,6 +888,19 @@ type ListResponse[T any] struct {
 
 	// Pagination contains information about the pagination state
 	Pagination Pagination `json:"pagination,omitempty"`
+}
+
+// MarshalJSON ensures zero-value list responses encode items as an empty array.
+//
+//nolint:wsl_v5
+func (r ListResponse[T]) MarshalJSON() ([]byte, error) {
+	type alias ListResponse[T]
+	response := alias(r)
+	if response.Items == nil {
+		response.Items = make([]T, 0)
+	}
+
+	return json.Marshal(response)
 }
 
 // UnmarshalJSON supports both the legacy nested pagination envelope and the

@@ -380,15 +380,15 @@ func (c *HTTPClient) GetTenantID() string {
 
 // injectContextHeaders adds context-based headers (idempotency key, tenant ID) to the provided
 // headers map. If headers is nil and there are headers to inject, a new map is created and returned.
-func (c *HTTPClient) injectContextHeaders(ctx context.Context, headers map[string]string) map[string]string {
+func (c *HTTPClient) injectContextHeaders(ctx context.Context, method string, headers map[string]string) map[string]string {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
 	snapshot := c.cloneConfiguration()
-	// Inject idempotency header from context if present.
-	// If key is empty, no header is set (which is the expected behavior for non-idempotent requests).
-	if key := getIdempotencyKeyFromContext(ctx); key != "" {
+	// Inject idempotency header from context only for unsafe methods. Safe GET/HEAD
+	// list/count requests are not idempotency participants and must not leak keys.
+	if key := getIdempotencyKeyFromContext(ctx); isUnsafeMethod(method) && key != "" {
 		if headers == nil {
 			headers = map[string]string{}
 		}
@@ -444,7 +444,7 @@ func (c *HTTPClient) doRequest(ctx context.Context, method, requestURL string, h
 	}
 
 	// Inject context-based headers (idempotency key, tenant ID)
-	headers = c.injectContextHeaders(ctx, headers)
+	headers = c.injectContextHeaders(ctx, method, headers)
 	headers = c.ensureIdempotencyHeader(method, headers)
 
 	// Setup headers
@@ -462,6 +462,7 @@ func (c *HTTPClient) doRequest(ctx context.Context, method, requestURL string, h
 	elapsed := time.Since(start)
 
 	if err != nil {
+		c.recordRequestFailure(ctx, method, requestURL, resp, elapsed, err)
 		return err
 	}
 	// Ensure response body is closed after we're done with it
@@ -471,12 +472,17 @@ func (c *HTTPClient) doRequest(ctx context.Context, method, requestURL string, h
 		}
 	}()
 
-	// Record metrics and debug logging
-	c.recordRequestMetrics(ctx, method, requestURL, resp, elapsed)
 	c.logResponseDetails(method, requestURL, resp, responseBody)
 
 	// Process response
-	return c.processResponse(result, responseBody)
+	if err := c.processResponse(result, responseBody); err != nil {
+		c.recordSDKFailure(ctx, method, requestURL, elapsed, err)
+		return err
+	}
+
+	c.recordRequestMetrics(ctx, method, requestURL, resp, elapsed)
+
+	return nil
 }
 
 // doRawRequest performs an HTTP request using a pre-built byte payload without JSON encoding.
@@ -516,7 +522,7 @@ func (c *HTTPClient) doRawRequest(ctx context.Context, method, requestURL string
 	}
 
 	// Inject context-based headers (idempotency key, tenant ID)
-	headers = c.injectContextHeaders(ctx, headers)
+	headers = c.injectContextHeaders(ctx, method, headers)
 	headers = c.ensureIdempotencyHeader(method, headers)
 
 	c.setupRequestHeaders(req, headers, len(body) > 0)
@@ -532,6 +538,7 @@ func (c *HTTPClient) doRawRequest(ctx context.Context, method, requestURL string
 	elapsed := time.Since(start)
 
 	if err != nil {
+		c.recordRequestFailure(ctx, method, requestURL, resp, elapsed, err)
 		return err
 	}
 	// Ensure response body is closed after we're done with it
@@ -541,10 +548,16 @@ func (c *HTTPClient) doRawRequest(ctx context.Context, method, requestURL string
 		}
 	}()
 
-	c.recordRequestMetrics(ctx, method, requestURL, resp, elapsed)
 	c.logResponseDetails(method, requestURL, resp, responseBody)
 
-	return c.processResponse(result, responseBody)
+	if err := c.processResponse(result, responseBody); err != nil {
+		c.recordSDKFailure(ctx, method, requestURL, elapsed, err)
+		return err
+	}
+
+	c.recordRequestMetrics(ctx, method, requestURL, resp, elapsed)
+
+	return nil
 }
 
 func prepareRawRequestBody(headers map[string]string, body []byte) (io.Reader, map[string]string, error) {
@@ -576,7 +589,7 @@ func (c *HTTPClient) doCountRequest(ctx context.Context, method, requestURL stri
 		return 0, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	headers = c.injectContextHeaders(ctx, headers)
+	headers = c.injectContextHeaders(ctx, method, headers)
 	c.setupRequestHeaders(req, headers, false)
 
 	if snapshot := c.cloneConfiguration(); snapshot.observability != nil && snapshot.observability.IsEnabled() {
@@ -589,6 +602,7 @@ func (c *HTTPClient) doCountRequest(ctx context.Context, method, requestURL stri
 	elapsed := time.Since(start)
 
 	if err != nil {
+		c.recordRequestFailure(ctx, method, requestURL, resp, elapsed, err)
 		return 0, err
 	}
 
@@ -598,20 +612,35 @@ func (c *HTTPClient) doCountRequest(ctx context.Context, method, requestURL stri
 		}
 	}()
 
-	c.recordRequestMetrics(ctx, method, requestURL, resp, elapsed)
 	c.logResponseDetails(method, requestURL, resp, responseBody)
 
-	totalCount := strings.TrimSpace(resp.Header.Get(HeaderTotalCount))
-	if totalCount == "" {
-		return 0, sdkerrors.NewInternalError("CountRequest", fmt.Errorf("missing %s header", HeaderTotalCount))
+	count, err := parseTotalCountHeader(resp.Header)
+	if err != nil {
+		countErr := sdkerrors.NewInternalError("CountRequest", err)
+		c.recordSDKFailure(ctx, method, requestURL, elapsed, countErr)
+
+		return 0, countErr
 	}
 
-	count, err := strconv.Atoi(totalCount)
-	if err != nil {
-		return 0, sdkerrors.NewInternalError("CountRequest", fmt.Errorf("invalid %s header: %w", HeaderTotalCount, err))
-	}
+	c.recordRequestMetrics(ctx, method, requestURL, resp, elapsed)
 
 	return count, nil
+}
+
+func parseTotalCountHeader(headers http.Header) (int, error) {
+	raw := headers.Get(HeaderTotalCount)
+
+	totalCount := strings.TrimSpace(raw)
+	if totalCount == "" {
+		return 0, fmt.Errorf("missing %s header", HeaderTotalCount)
+	}
+
+	count, err := strconv.ParseInt(totalCount, 10, 0)
+	if err != nil || count < 0 {
+		return 0, fmt.Errorf("invalid %s header", HeaderTotalCount)
+	}
+
+	return int(count), nil
 }
 
 func countRequestMethod() string {
@@ -936,8 +965,32 @@ func (c *HTTPClient) debugLogRequestError(method, requestURL string, err error) 
 // recordRequestMetrics records performance metrics if enabled
 func (c *HTTPClient) recordRequestMetrics(ctx context.Context, method, requestURL string, resp *http.Response, elapsed time.Duration) {
 	snapshot := c.cloneConfiguration()
-	if snapshot.metrics != nil {
+	if snapshot.metrics != nil && resp != nil {
 		snapshot.metrics.RecordRequest(ctx, method, normalizeTelemetryURL(requestURL), resp.StatusCode, elapsed)
+	}
+}
+
+func (c *HTTPClient) recordRequestFailure(ctx context.Context, method, requestURL string, resp *http.Response, elapsed time.Duration, err error) {
+	statusCode := http.StatusInternalServerError
+	if resp != nil {
+		statusCode = resp.StatusCode
+	}
+
+	c.recordFailure(ctx, method, requestURL, statusCode, elapsed, err)
+}
+
+func (c *HTTPClient) recordSDKFailure(ctx context.Context, method, requestURL string, elapsed time.Duration, err error) {
+	c.recordFailure(ctx, method, requestURL, http.StatusInternalServerError, elapsed, err)
+}
+
+func (c *HTTPClient) recordFailure(ctx context.Context, method, requestURL string, statusCode int, elapsed time.Duration, err error) {
+	snapshot := c.cloneConfiguration()
+	if snapshot.metrics != nil {
+		snapshot.metrics.RecordRequest(ctx, method, normalizeTelemetryURL(requestURL), statusCode, elapsed)
+	}
+
+	if snapshot.observability != nil && snapshot.observability.IsEnabled() {
+		observability.RecordError(ctx, err, "http_request_failed")
 	}
 }
 
@@ -1265,14 +1318,28 @@ func (*HTTPClient) parseErrorResponse(statusCode int, body []byte, requestID str
 
 	// Try to parse the error body as a JSON object
 	var apiError struct {
-		Error   string `json:"error"`
-		Message string `json:"message"`
-		Code    string `json:"code"`
+		Error      string         `json:"error"`
+		Message    string         `json:"message"`
+		Code       string         `json:"code"`
+		Title      string         `json:"title"`
+		EntityType string         `json:"entityType"`
+		Fields     []string       `json:"fields"`
+		Details    map[string]any `json:"details"`
+		Err        any            `json:"err"`
 	}
 
 	if err := json.Unmarshal(body, &apiError); err != nil {
 		message := fmt.Sprintf("API returned non-JSON error response with status code %d and body length %d", statusCode, len(body))
 		return sdkerrors.ErrorFromHTTPResponse(statusCode, requestID, message, "", "", "")
+	}
+
+	details := apiError.Details
+	if details == nil {
+		details = map[string]any{}
+	}
+
+	if apiError.Err != nil {
+		details["err"] = apiError.Err
 	}
 
 	// Use the message if available, otherwise use the error field
@@ -1287,7 +1354,17 @@ func (*HTTPClient) parseErrorResponse(statusCode int, body []byte, requestID str
 	}
 
 	// Create the appropriate error type based on the status code
-	return sdkerrors.ErrorFromHTTPResponse(statusCode, requestID, message, apiError.Code, "", "")
+	return sdkerrors.ErrorFromHTTPResponseWithDetails(
+		statusCode,
+		requestID,
+		message,
+		apiError.Code,
+		apiError.EntityType,
+		"",
+		apiError.Title,
+		apiError.Fields,
+		details,
+	)
 }
 
 // AddURLParams adds query parameters to a URL.

@@ -15,7 +15,7 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
 )
 
-func TestIdempotencyHeaderInjection(t *testing.T) {
+func TestIdempotencyHeaderInjectionSkipsSafeGET(t *testing.T) {
 	var seen string
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -37,7 +37,7 @@ func TestIdempotencyHeaderInjection(t *testing.T) {
 	err := c.doRequest(ctx, http.MethodGet, srv.URL, nil, nil, &out)
 	require.NoError(t, err)
 
-	assert.Equal(t, "abc123", seen)
+	assert.Empty(t, seen)
 }
 
 func TestRedactDebugURLMasksSensitiveQueryValues(t *testing.T) {

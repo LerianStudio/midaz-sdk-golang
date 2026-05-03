@@ -134,6 +134,20 @@ Important path groups:
 - CRM holders: `/holders`, `/holders/{holderID}`
 - CRM aliases: `/aliases`, `/holders/{holderID}/aliases`, `/holders/{holderID}/aliases/{aliasID}/related-parties/{relatedPartyID}`
 
+Supported count paths use `HEAD` and read `X-Total-Count`:
+
+| Resource | Method | Path |
+| --- | --- | --- |
+| Organizations | `GetOrganizationsMetricsCount` | `/organizations/metrics/count` |
+| Ledgers | `GetLedgersMetricsCount` | `/organizations/{organizationID}/ledgers/metrics/count` |
+| Assets | `GetAssetsMetricsCount` | `/organizations/{organizationID}/ledgers/{ledgerID}/assets/metrics/count` |
+| Portfolios | `GetPortfoliosMetricsCount` | `/organizations/{organizationID}/ledgers/{ledgerID}/portfolios/metrics/count` |
+| Segments | `GetSegmentsMetricsCount` | `/organizations/{organizationID}/ledgers/{ledgerID}/segments/metrics/count` |
+| Accounts | `GetAccountsMetricsCount` | `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/metrics/count` |
+| Transactions | `GetTransactionsMetricsCount` | `/organizations/{organizationID}/ledgers/{ledgerID}/transactions/metrics/count` |
+
+`doCountRequest` returns an internal SDK error when `X-Total-Count` is missing or cannot be parsed as an integer. `GetAccountTypesMetricsCount` is a deprecated compatibility-only method. It validates IDs and returns a validation error because Midaz Ledger does not expose account type count metrics.
+
 ## Model compatibility layer
 
 Several SDK inputs wrap Midaz `mmodel` types to preserve the public SDK package path while using Midaz model contracts internally. Prefer fluent constructors in examples because wrapper fields can differ from direct composite literal expectations.
@@ -169,9 +183,9 @@ type ListOptions struct {
 
 Query serialization rules:
 
-- `limit` is always emitted.
-- `Offset` is retained as compatibility input and serialized as `page`.
-- `Page` is emitted as `page` when set.
+- `limit` is always emitted and entity list requests are capped by `models.MaxLimit` (`100`).
+- `Offset` is retained as compatibility input for older callers. Current Midaz endpoints should be documented and exercised through `page`, `limit`, and `cursor` where supported; do not describe `offset` as a supported Midaz wire parameter.
+- `Page` is emitted as `page` when set and is the preferred page-based control.
 - `Cursor` is emitted as `cursor` when set.
 - `Filters` are emitted as query parameters by key.
 - `OrderBy` is retained but not emitted by common serialization.
@@ -181,6 +195,16 @@ Query serialization rules:
 
 `models.ListResponse[T]` contains `Items []T` and `Pagination models.Pagination`. JSON unmarshalling supports both current top-level pagination fields and legacy nested `pagination` payloads.
 
+`Pagination.TotalPages()` depends on `Pagination.Total`. Current Midaz responses commonly omit `total`, so traversal logic should use `HasNextPage`, `NextPageOptions`, and cursor metadata instead of assuming total pages are available.
+
+Pagination behavior differs by API family:
+
+| API family | Internal behavior |
+| --- | --- |
+| Ledger page-based resources | Common serialization sends `page`, `limit`, filters, and `sort_order`. |
+| Ledger cursor-aware resources | Transactions use cursor-aware handling and remove page-style parameters when `Cursor` is set. |
+| CRM holders and aliases | CRM services use page-based list calls plus CRM-specific filters stored in `AdditionalParams`. |
+
 ## Error model internals
 
 The core SDK error type is `*errors.Error` in `pkg/errors`:
@@ -189,10 +213,15 @@ The core SDK error type is `*errors.Error` in `pkg/errors`:
 type Error struct {
     Category   ErrorCategory
     Code       ErrorCode
+    APICode    string
+    Title      string
     Message    string
     Operation  string
     Resource   string
     ResourceID string
+    EntityType string
+    Fields     []string
+    Details    map[string]any
     StatusCode int
     RequestID  string
     Err        error
@@ -213,9 +242,12 @@ Standard sentinel errors include:
 - `ErrTimeout`
 - `ErrCancellation`
 - `ErrInternal`
+- `ErrUnprocessable`
 - `ErrInsufficientBalance`
 - `ErrAccountEligibility`
 - `ErrAssetMismatch`
+
+Midaz wire error envelopes may contain `code`, `title`, `message`, `entityType`, and `fields`. CRM error responses may contain `err`. Preserve the wire `code` separately from the SDK-normalized `Code`, and keep expanded envelope data in `APICode`, `Title`, `EntityType`, `Fields`, and `Details` when available.
 
 ## Observability internals
 
