@@ -1,6 +1,7 @@
 package core_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -105,13 +106,13 @@ func TestValidateAccountAlias(t *testing.T) {
 			name:    "With special characters",
 			alias:   "savings@account",
 			wantErr: true,
-			errMsg:  "invalid account alias format: savings@account (must be alphanumeric with optional underscores and hyphens, max 50 chars)",
+			errMsg:  "invalid account alias format: savings@account (must contain only letters, numbers, underscores, hyphens, dots, colons, and an optional leading @; max 100 chars)",
 		},
 		{
 			name:    "Too long alias",
-			alias:   "a123456789012345678901234567890123456789012345678901", // 51 chars
+			alias:   strings.Repeat("a", 101),
 			wantErr: true,
-			errMsg:  "invalid account alias format: a123456789012345678901234567890123456789012345678901 (must be alphanumeric with optional underscores and hyphens, max 50 chars)",
+			errMsg:  "invalid account alias format: " + strings.Repeat("a", 101) + " (must contain only letters, numbers, underscores, hyphens, dots, colons, and an optional leading @; max 100 chars)",
 		},
 	}
 
@@ -1094,13 +1095,13 @@ func TestValidateAccountAliasBoundaryValues(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "Exactly 50 characters",
+			name:    "Exactly 100 characters",
 			alias:   "a2345678901234567890123456789012345678901234567890",
 			wantErr: false,
 		},
 		{
-			name:    "51 characters - exceeds limit",
-			alias:   "a23456789012345678901234567890123456789012345678901",
+			name:    "101 characters - exceeds limit",
+			alias:   strings.Repeat("a", 101),
 			wantErr: true,
 		},
 		{
@@ -1214,6 +1215,9 @@ func TestRegexPatterns(t *testing.T) {
 			"SAVINGS",
 			"savings_account",
 			"savings-account",
+			"savings.account",
+			"@treasury_checking",
+			"customer:john.doe",
 			"savings123",
 			"a",
 			"a2345678901234567890123456789012345678901234567890",
@@ -1226,8 +1230,7 @@ func TestRegexPatterns(t *testing.T) {
 			"",
 			"savings account",
 			"savings@account",
-			"savings.account",
-			"a23456789012345678901234567890123456789012345678901",
+			strings.Repeat("a", 101),
 		}
 		for _, tc := range invalidCases {
 			assert.False(t, core.AccountAliasPattern.MatchString(tc), "Expected %s to not match", tc)

@@ -1442,7 +1442,7 @@ func TestOperationsEntity_URLPathConstruction(t *testing.T) {
 			case "GetOperation":
 				entity.GetOperation(context.Background(), opTestOrgID, opTestLedgerID, opTestAccountID, opTestOperationID)
 			case "UpdateOperation":
-				entity.UpdateTransactionOperation(context.Background(), opTestOrgID, opTestLedgerID, opTestTransactionID, opTestOperationID, models.UpdateOperationInput{})
+				entity.UpdateTransactionOperation(context.Background(), opTestOrgID, opTestLedgerID, opTestTransactionID, opTestOperationID, models.UpdateOperationInput{Description: "updated"})
 			}
 
 			assert.Equal(t, tt.expectedPath, capturedPath)

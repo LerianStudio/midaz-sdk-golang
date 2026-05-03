@@ -10,6 +10,11 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
+const (
+	maxAssetNameLength = 256
+	maxAssetCodeLength = 100
+)
+
 // Asset is an alias for mmodel.Asset to maintain compatibility while using midaz entities.
 type Asset = mmodel.Asset
 
@@ -68,7 +73,7 @@ func (input *CreateAssetInput) WithMetadata(metadata map[string]any) *CreateAsse
 		return nil
 	}
 
-	input.Metadata = metadata
+	input.Metadata = cloneAnyMap(metadata)
 
 	return input
 }
@@ -83,8 +88,16 @@ func (input *CreateAssetInput) Validate() error {
 		return errors.New("name is required")
 	}
 
+	if len(input.Name) > maxAssetNameLength {
+		return fmt.Errorf("name must be at most %d characters", maxAssetNameLength)
+	}
+
 	if input.Code == "" {
 		return errors.New("code is required")
+	}
+
+	if len(input.Code) > maxAssetCodeLength {
+		return fmt.Errorf("code must be at most %d characters", maxAssetCodeLength)
 	}
 
 	if input.Type == "" {
@@ -151,7 +164,7 @@ func (input *UpdateAssetInput) WithMetadata(metadata map[string]any) *UpdateAsse
 		return nil
 	}
 
-	input.Metadata = metadata
+	input.Metadata = cloneAnyMap(metadata)
 
 	return input
 }
@@ -162,6 +175,14 @@ func (input *UpdateAssetInput) Validate() error {
 		return errors.New("input cannot be nil")
 	}
 
+	if !input.hasChanges() {
+		return errors.New("empty update payload not allowed")
+	}
+
+	if len(input.Name) > maxAssetNameLength {
+		return fmt.Errorf("name must be at most %d characters", maxAssetNameLength)
+	}
+
 	if input.Metadata != nil {
 		if err := core.ValidateMetadata(input.Metadata); err != nil {
 			return fmt.Errorf("invalid metadata: %w", err)
@@ -169,6 +190,14 @@ func (input *UpdateAssetInput) Validate() error {
 	}
 
 	return nil
+}
+
+func (input *UpdateAssetInput) hasChanges() bool {
+	if input == nil {
+		return false
+	}
+
+	return input.Name != "" || !IsStatusEmpty(input.Status) || input.Metadata != nil
 }
 
 // MarshalJSON emits only fields explicitly set on the SDK PATCH input.

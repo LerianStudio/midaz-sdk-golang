@@ -10,6 +10,8 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
+const maxLedgerNameLength = 256
+
 // Ledger is an alias for mmodel.Ledger to maintain compatibility while using midaz entities.
 type Ledger = mmodel.Ledger
 
@@ -98,7 +100,7 @@ func (input *CreateLedgerInput) WithMetadata(metadata map[string]any) *CreateLed
 		return nil
 	}
 
-	input.Metadata = metadata
+	input.Metadata = cloneAnyMap(metadata)
 
 	return input
 }
@@ -111,6 +113,10 @@ func (input *CreateLedgerInput) Validate() error {
 
 	if input.Name == "" {
 		return errors.New("name is required")
+	}
+
+	if len(input.Name) > maxLedgerNameLength {
+		return fmt.Errorf("name must be at most %d characters", maxLedgerNameLength)
 	}
 
 	if input.Metadata != nil {
@@ -175,7 +181,7 @@ func (input *UpdateLedgerInput) WithMetadata(metadata map[string]any) *UpdateLed
 		return nil
 	}
 
-	input.Metadata = metadata
+	input.Metadata = cloneAnyMap(metadata)
 
 	return input
 }
@@ -186,6 +192,14 @@ func (input *UpdateLedgerInput) Validate() error {
 		return errors.New("input cannot be nil")
 	}
 
+	if !input.hasChanges() {
+		return errors.New("empty update payload not allowed")
+	}
+
+	if len(input.Name) > maxLedgerNameLength {
+		return fmt.Errorf("name must be at most %d characters", maxLedgerNameLength)
+	}
+
 	if input.Metadata != nil {
 		if err := core.ValidateMetadata(input.Metadata); err != nil {
 			return fmt.Errorf("invalid metadata: %w", err)
@@ -193,6 +207,14 @@ func (input *UpdateLedgerInput) Validate() error {
 	}
 
 	return nil
+}
+
+func (input *UpdateLedgerInput) hasChanges() bool {
+	if input == nil {
+		return false
+	}
+
+	return input.Name != "" || !IsStatusEmpty(input.Status) || input.Metadata != nil
 }
 
 // MarshalJSON emits only fields explicitly set on the SDK PATCH input.

@@ -136,14 +136,14 @@ func TestCreateAccountInputValidate(t *testing.T) {
 			errContains: "account type is required",
 		},
 		{
-			name: "invalid account type",
+			name: "reserved account type",
 			input: &CreateAccountInput{
 				Name:      "Test Account",
 				AssetCode: "USD",
-				Type:      "invalid_type",
+				Type:      "external",
 			},
 			expectError: true,
-			errContains: "invalid account type",
+			errContains: "type cannot be external",
 		},
 		{
 			name: "valid alias",
@@ -172,7 +172,7 @@ func TestCreateAccountInputValidate(t *testing.T) {
 				Name:      "Test Account",
 				AssetCode: "USD",
 				Type:      "deposit",
-				Alias:     stringPtr(strings.Repeat("a", 51)),
+				Alias:     stringPtr(strings.Repeat("a", 101)),
 			},
 			expectError: true,
 			errContains: "invalid account alias format",
@@ -183,7 +183,7 @@ func TestCreateAccountInputValidate(t *testing.T) {
 				Name:      "Test Account",
 				AssetCode: "USD",
 				Type:      "deposit",
-				Alias:     stringPtr(strings.Repeat("a", 50)),
+				Alias:     stringPtr(strings.Repeat("a", 100)),
 			},
 			expectError: false,
 		},
@@ -481,10 +481,10 @@ func TestCreateAccountInputWithMetadata(t *testing.T) {
 // TestCreateAccountInputToMmodel tests the ToMmodel conversion method
 func TestCreateAccountInputToMmodel(t *testing.T) {
 	alias := "test_alias"
-	parentID := "parent-123"
+	parentID := "550e8400-e29b-41d4-a716-446655440010"
 	entityID := "entity-456"
-	portfolioID := "portfolio-789"
-	segmentID := "segment-012"
+	portfolioID := "550e8400-e29b-41d4-a716-446655440011"
+	segmentID := "550e8400-e29b-41d4-a716-446655440012"
 	blocked := true
 
 	input := CreateAccountInput{
@@ -572,9 +572,10 @@ func TestUpdateAccountInputValidate(t *testing.T) {
 		errContains string
 	}{
 		{
-			name:        "empty input is valid",
+			name:        "empty input is rejected",
 			input:       &UpdateAccountInput{},
-			expectError: false,
+			expectError: true,
+			errContains: "empty update payload not allowed",
 		},
 		{
 			name: "valid name",
@@ -1075,10 +1076,10 @@ func TestValidAccountTypes(t *testing.T) {
 
 // TestCreateAccountInputWithAllFields tests creating an input with all fields populated
 func TestCreateAccountInputWithAllFields(t *testing.T) {
-	parentID := "parent-123"
+	parentID := "550e8400-e29b-41d4-a716-446655440010"
 	entityID := "entity-456"
-	portfolioID := "portfolio-789"
-	segmentID := "segment-012"
+	portfolioID := "550e8400-e29b-41d4-a716-446655440011"
+	segmentID := "550e8400-e29b-41d4-a716-446655440012"
 	alias := "full_account"
 	description := "Test account"
 
@@ -1102,11 +1103,11 @@ func TestCreateAccountInputWithAllFields(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, "Full Account", input.Name)
-	assert.Equal(t, "parent-123", *input.ParentAccountID)
+	assert.Equal(t, parentID, *input.ParentAccountID)
 	assert.Equal(t, "entity-456", *input.EntityID)
 	assert.Equal(t, "USD", input.AssetCode)
-	assert.Equal(t, "portfolio-789", *input.PortfolioID)
-	assert.Equal(t, "segment-012", *input.SegmentID)
+	assert.Equal(t, portfolioID, *input.PortfolioID)
+	assert.Equal(t, segmentID, *input.SegmentID)
 	assert.Equal(t, "ACTIVE", input.Status.Code)
 	assert.Equal(t, description, *input.Status.Description)
 	assert.Equal(t, "full_account", *input.Alias)
@@ -1142,7 +1143,6 @@ func TestAccountAliasValidCharacters(t *testing.T) {
 func TestAccountAliasInvalidCharacters(t *testing.T) {
 	invalidAliases := []string{
 		"test@account",
-		"test.account",
 		"test account",
 		"test!account",
 		"test#account",
@@ -1165,7 +1165,7 @@ func TestAccountAliasInvalidCharacters(t *testing.T) {
 		"test<account",
 		"test>account",
 		"test,account",
-		strings.Repeat("a", 51),
+		strings.Repeat("a", 101),
 	}
 
 	for _, alias := range invalidAliases {
@@ -1187,7 +1187,7 @@ func TestMetadataValidation(t *testing.T) {
 		{
 			name:        "nil metadata",
 			metadata:    nil,
-			expectError: false,
+			expectError: true,
 		},
 		{
 			name:        "empty metadata",

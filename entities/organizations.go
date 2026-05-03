@@ -85,7 +85,7 @@ type OrganizationsService interface {
 	//	        Line1:      "123 Main Street",
 	//	        City:       "San Francisco",
 	//	        State:      "CA",
-	//	        PostalCode: "94105",
+	//	        ZipCode: "94105",
 	//	        Country:    "US",
 	//	    },
 	//	).WithMetadata(

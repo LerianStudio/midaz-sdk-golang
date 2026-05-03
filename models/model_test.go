@@ -625,7 +625,6 @@ func TestListOptionsToQueryParams(t *testing.T) {
 
 	expectedParams := map[string]string{
 		QueryParamLimit:          "25",
-		QueryParamPage:           "1",
 		QueryParamOrderDirection: string(SortAscending),
 		QueryParamStartDate:      "2023-01-01",
 		QueryParamEndDate:        "2023-12-31",

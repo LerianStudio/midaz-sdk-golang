@@ -2,6 +2,7 @@ package models
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -57,7 +58,12 @@ func addStringPtrField(fields map[string]any, name string, value *string) {
 
 func addStatusField(fields map[string]any, value Status) {
 	if !IsStatusEmpty(value) {
-		fields["status"] = value
+		status := map[string]any{"code": value.Code}
+		if value.Description != nil {
+			status["description"] = *value.Description
+		}
+
+		fields["status"] = status
 	}
 }
 
@@ -193,6 +199,10 @@ type Pagination struct {
 
 // UnmarshalJSON supports both current snake_case and legacy camelCase cursor keys.
 func (p *Pagination) UnmarshalJSON(data []byte) error {
+	if p == nil {
+		return errors.New("pagination receiver cannot be nil")
+	}
+
 	type alias Pagination
 
 	aux := struct {
@@ -388,7 +398,8 @@ type ListOptions struct {
 	// Limit is the maximum number of items to return per page
 	Limit int `json:"limit,omitempty"`
 
-	// Offset is the starting position for pagination
+	// Offset is a legacy local compatibility field. Midaz APIs do not accept
+	// offset on the wire; aligned offsets may be converted to page numbers.
 	Offset int `json:"offset,omitempty"`
 
 	// Filters are additional filters to apply to the query
@@ -446,6 +457,19 @@ func cloneStringMap(values map[string]string) map[string]string {
 	}
 
 	clone := make(map[string]string, len(values))
+	for key, value := range values {
+		clone[key] = value
+	}
+
+	return clone
+}
+
+func cloneAnyMap(values map[string]any) map[string]any {
+	if values == nil {
+		return nil
+	}
+
+	clone := make(map[string]any, len(values))
 	for key, value := range values {
 		clone[key] = value
 	}
@@ -874,7 +898,7 @@ func (o *ListOptions) addPaginationParams(params map[string]string) {
 		return
 	}
 
-	if o.Offset > 0 {
+	if o.Offset > 0 && o.Offset%limit == 0 {
 		params[QueryParamPage] = fmt.Sprintf("%d", (o.Offset/limit)+1)
 	}
 
@@ -909,10 +933,13 @@ func (o *ListOptions) addFilteringParams(params map[string]string) {
 func (o *ListOptions) addSortingParams(params map[string]string) {
 	// Midaz list endpoints expose sort direction, but not a generic order-by field.
 	// Keep OrderBy as an SDK-side compatibility field without serializing it.
-	if o.OrderDirection == "" {
+	switch o.OrderDirection {
+	case "":
 		params[QueryParamOrderDirection] = DefaultSortDirection
-	} else {
+	case string(SortAscending), string(SortDescending):
 		params[QueryParamOrderDirection] = o.OrderDirection
+	default:
+		params[QueryParamOrderDirection] = DefaultSortDirection
 	}
 }
 
@@ -1017,19 +1044,25 @@ func (r ListResponse[T]) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON supports both the legacy nested pagination envelope and the
 // current Midaz top-level pagination fields.
 func (r *ListResponse[T]) UnmarshalJSON(data []byte) error {
+	if r == nil {
+		return errors.New("list response receiver cannot be nil")
+	}
+
 	type alias ListResponse[T]
 
 	aux := struct {
 		alias
-		Limit            int         `json:"limit,omitempty"`
-		Page             int         `json:"page,omitempty"`
-		Offset           int         `json:"offset,omitempty"`
-		Total            int         `json:"total,omitempty"`
-		NextCursor       string      `json:"next_cursor,omitempty"`
-		PrevCursor       string      `json:"prev_cursor,omitempty"`
-		NextCursorLegacy string      `json:"nextCursor,omitempty"`
-		PrevCursorLegacy string      `json:"prevCursor,omitempty"`
-		Pagination       *Pagination `json:"pagination,omitempty"`
+		Limit              int         `json:"limit,omitempty"`
+		Page               int         `json:"page,omitempty"`
+		Offset             int         `json:"offset,omitempty"`
+		Total              int         `json:"total,omitempty"`
+		NextCursor         string      `json:"next_cursor,omitempty"`
+		PrevCursor         string      `json:"prev_cursor,omitempty"`
+		NextCursorLegacy   string      `json:"nextCursor,omitempty"`
+		PrevCursorLegacy   string      `json:"prevCursor,omitempty"`
+		Pagination         *Pagination `json:"pagination,omitempty"`
+		HTTPPagination     *Pagination `json:"http.Pagination,omitempty"`
+		HTTPPaginationFlat *Pagination `json:"httpPagination,omitempty"`
 	}{}
 
 	if err := json.Unmarshal(data, &aux); err != nil {
@@ -1041,27 +1074,9 @@ func (r *ListResponse[T]) UnmarshalJSON(data []byte) error {
 		r.Items = make([]T, 0)
 	}
 
-	if aux.Pagination != nil {
-		r.Pagination = *aux.Pagination
-	} else {
-		nextCursor := aux.NextCursor
-		if nextCursor == "" {
-			nextCursor = aux.NextCursorLegacy
-		}
-
-		prevCursor := aux.PrevCursor
-		if prevCursor == "" {
-			prevCursor = aux.PrevCursorLegacy
-		}
-
-		r.Pagination = Pagination{
-			Limit:      aux.Limit,
-			Page:       aux.Page,
-			Offset:     aux.Offset,
-			Total:      aux.Total,
-			NextCursor: nextCursor,
-			PrevCursor: prevCursor,
-		}
+	r.Pagination = firstPagination(aux.Pagination, aux.HTTPPagination, aux.HTTPPaginationFlat)
+	if isEmptyPagination(r.Pagination) {
+		r.Pagination = topLevelPagination(aux.Limit, aux.Page, aux.Offset, aux.Total, aux.NextCursor, aux.NextCursorLegacy, aux.PrevCursor, aux.PrevCursorLegacy)
 	}
 
 	r.Pagination.ItemCount = len(r.Items)
@@ -1069,15 +1084,53 @@ func (r *ListResponse[T]) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func firstPagination(paginations ...*Pagination) Pagination {
+	for _, pagination := range paginations {
+		if pagination != nil {
+			return *pagination
+		}
+	}
+
+	return Pagination{}
+}
+
+func topLevelPagination(limit, page, offset, total int, nextCursor, nextCursorLegacy, prevCursor, prevCursorLegacy string) Pagination {
+	if nextCursor == "" {
+		nextCursor = nextCursorLegacy
+	}
+
+	if prevCursor == "" {
+		prevCursor = prevCursorLegacy
+	}
+
+	return Pagination{Limit: limit, Page: page, Offset: offset, Total: total, NextCursor: nextCursor, PrevCursor: prevCursor}
+}
+
+func isEmptyPagination(p Pagination) bool {
+	return p.Limit == 0 && p.Page == 0 && p.Offset == 0 && p.Total == 0 && p.NextCursor == "" && p.PrevCursor == ""
+}
+
 // ErrorResponse represents an error response from the API.
 // This structure is used to parse and represent error responses
 // returned by the Midaz API.
 type ErrorResponse struct {
 	// Error is the error message
-	Error string `json:"error"`
+	Error string `json:"error,omitempty"`
 
 	// Code is the error code for programmatic handling
 	Code string `json:"code,omitempty"`
+
+	// Title is the short human-readable API error title.
+	Title string `json:"title,omitempty"`
+
+	// Message is the detailed Midaz API error message.
+	Message string `json:"message,omitempty"`
+
+	// EntityType identifies the resource type associated with the error.
+	EntityType string `json:"entityType,omitempty"`
+
+	// Fields contains field-level validation errors returned by Midaz.
+	Fields map[string]string `json:"fields,omitempty"`
 
 	// Details contains additional information about the error
 	Details map[string]any `json:"details,omitempty"`
@@ -1096,5 +1149,9 @@ type ObjectWithMetadata struct {
 // Returns:
 //   - true if the object has metadata, false otherwise
 func (o *ObjectWithMetadata) HasMetadata() bool {
+	if o == nil {
+		return false
+	}
+
 	return len(o.Metadata) > 0
 }

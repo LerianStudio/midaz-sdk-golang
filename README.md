@@ -199,6 +199,7 @@ txInput := models.NewCreateTransactionInput("USD", "100.00").
             },
         },
     })
+txInput.IdempotencyKey = "payment-2026-05-03-0001"
 
 tx, err := c.Entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, txInput)
 ```

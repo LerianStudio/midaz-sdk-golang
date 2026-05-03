@@ -21,15 +21,15 @@ const (
 
 // CreateHolderInput is the payload for creating a CRM holder.
 type CreateHolderInput struct {
-	ExternalID    *string        `json:"externalId"`
+	ExternalID    *string        `json:"externalId,omitempty"`
 	Type          *string        `json:"type"`
 	Name          string         `json:"name"`
 	Document      string         `json:"document"`
-	Addresses     *Addresses     `json:"addresses"`
-	Contact       *Contact       `json:"contact"`
-	NaturalPerson *NaturalPerson `json:"naturalPerson"`
-	LegalPerson   *LegalPerson   `json:"legalPerson"`
-	Metadata      map[string]any `json:"metadata"`
+	Addresses     *Addresses     `json:"addresses,omitempty"`
+	Contact       *Contact       `json:"contact,omitempty"`
+	NaturalPerson *NaturalPerson `json:"naturalPerson,omitempty"`
+	LegalPerson   *LegalPerson   `json:"legalPerson,omitempty"`
+	Metadata      map[string]any `json:"metadata,omitempty"`
 }
 
 // UpdateHolderInput is the payload for updating a CRM holder.
@@ -114,7 +114,7 @@ func (input *CreateHolderInput) WithMetadata(metadata map[string]any) *CreateHol
 		return nil
 	}
 
-	input.Metadata = metadata
+	input.Metadata = cloneAnyMap(metadata)
 
 	return input
 }
@@ -196,7 +196,7 @@ func (input *UpdateHolderInput) WithMetadata(metadata map[string]any) *UpdateHol
 		return nil
 	}
 
-	input.Metadata = metadata
+	input.Metadata = cloneAnyMap(metadata)
 
 	return input
 }

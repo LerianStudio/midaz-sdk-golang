@@ -47,9 +47,13 @@ type QueueData struct {
 // Returns:
 //   - A pointer to the modified Queue for method chaining
 func (q *Queue) AddQueueData(id uuid.UUID, value json.RawMessage) *Queue {
+	if q == nil {
+		return nil
+	}
+
 	q.QueueData = append(q.QueueData, QueueData{
 		ID:    id,
-		Value: value,
+		Value: append(json.RawMessage(nil), value...),
 	})
 
 	return q
@@ -75,7 +79,7 @@ func FromMmodelQueue(queue mmodel.Queue) Queue {
 	for _, data := range queue.QueueData {
 		result.QueueData = append(result.QueueData, QueueData{
 			ID:    data.ID,
-			Value: data.Value,
+			Value: append(json.RawMessage(nil), data.Value...),
 		})
 	}
 
@@ -103,7 +107,7 @@ func (q *Queue) ToMmodelQueue() mmodel.Queue {
 	for _, data := range q.QueueData {
 		result.QueueData = append(result.QueueData, mmodel.QueueData{
 			ID:    data.ID,
-			Value: data.Value,
+			Value: append(json.RawMessage(nil), data.Value...),
 		})
 	}
 

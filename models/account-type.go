@@ -10,6 +10,12 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
+const (
+	maxAccountTypeNameLength        = 100
+	maxAccountTypeDescriptionLength = 500
+	maxAccountTypeKeyValueLength    = 50
+)
+
 // AccountType represents an account type in the Midaz Ledger.
 // Account types define templates or categories for accounts, specifying
 // their behavior and characteristics within the ledger system.
@@ -75,10 +81,38 @@ func (input *CreateAccountTypeInput) Validate() error {
 		return errors.New("keyValue is required")
 	}
 
+	if err := validateAccountTypeLengths(input.Name, input.Description, input.KeyValue, true); err != nil {
+		return err
+	}
+
 	if input.Metadata != nil {
 		if err := core.ValidateMetadata(input.Metadata); err != nil {
 			return fmt.Errorf("invalid metadata: %w", err)
 		}
+	}
+
+	return nil
+}
+
+func (input *UpdateAccountTypeInput) hasChanges() bool {
+	if input == nil {
+		return false
+	}
+
+	return input.Name != "" || input.Description != "" || input.Metadata != nil
+}
+
+func validateAccountTypeLengths(name, description, keyValue string, validateKey bool) error {
+	if len(name) > maxAccountTypeNameLength {
+		return fmt.Errorf("name must be at most %d characters", maxAccountTypeNameLength)
+	}
+
+	if len(description) > maxAccountTypeDescriptionLength {
+		return fmt.Errorf("description must be at most %d characters", maxAccountTypeDescriptionLength)
+	}
+
+	if validateKey && len(keyValue) > maxAccountTypeKeyValueLength {
+		return fmt.Errorf("keyValue must be at most %d characters", maxAccountTypeKeyValueLength)
 	}
 
 	return nil
@@ -103,6 +137,14 @@ func (input *CreateAccountTypeInput) MarshalJSON() ([]byte, error) {
 func (input *UpdateAccountTypeInput) Validate() error {
 	if input == nil {
 		return errors.New("input cannot be nil")
+	}
+
+	if !input.hasChanges() {
+		return errors.New("empty update payload not allowed")
+	}
+
+	if err := validateAccountTypeLengths(input.Name, input.Description, "", false); err != nil {
+		return err
 	}
 
 	if input.Metadata != nil {
@@ -169,7 +211,7 @@ func (input *CreateAccountTypeInput) WithMetadata(metadata map[string]any) *Crea
 		return nil
 	}
 
-	input.Metadata = metadata
+	input.Metadata = cloneAnyMap(metadata)
 
 	return input
 }
@@ -189,7 +231,7 @@ func WithCreateAccountTypeMetadata(input *CreateAccountTypeInput, metadata map[s
 		return nil
 	}
 
-	input.Metadata = metadata
+	input.Metadata = cloneAnyMap(metadata)
 
 	return input
 }
@@ -254,7 +296,7 @@ func (input *UpdateAccountTypeInput) WithMetadata(metadata map[string]any) *Upda
 		return nil
 	}
 
-	input.Metadata = metadata
+	input.Metadata = cloneAnyMap(metadata)
 
 	return input
 }
@@ -294,7 +336,7 @@ func WithUpdateAccountTypeMetadata(input *UpdateAccountTypeInput, metadata map[s
 		return nil
 	}
 
-	input.Metadata = metadata
+	input.Metadata = cloneAnyMap(metadata)
 
 	return input
 }

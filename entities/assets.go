@@ -86,7 +86,7 @@ type AssetsService interface {
 	//	    "org-123",
 	//	    "ledger-456",
 	//	    models.NewCreateAssetInputWithType("Apple Inc. Stock", "AAPL", "security").
-	//	        WithStatus(models.StatusActive).
+	//	        WithStatus(models.NewStatus(models.StatusActive)).
 	//	        WithMetadata(map[string]any{
 	//	            "exchange": "NASDAQ",
 	//	            "sector": "Technology",

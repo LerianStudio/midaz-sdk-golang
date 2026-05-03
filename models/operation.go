@@ -1,6 +1,7 @@
 package models
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -14,9 +15,9 @@ import (
 // Amount structure for marshaling/unmarshalling JSON.
 //
 // swagger:model Amount
-// @Description Amount is the struct designed to represent the amount of an operation. Contains the value and scale (decimal places) of an operation amount.
+// @Description Amount represents the exact decimal value of an operation amount.
 type Amount struct {
-	// The amount value in the smallest unit of the asset (e.g., cents)
+	// The exact decimal amount value.
 	// example: 1500
 	// minimum: 0
 	Value *decimal.Decimal `json:"value" example:"1500" minimum:"0"`
@@ -31,22 +32,28 @@ func (a Amount) IsEmpty() bool {
 // Named OperationBalance to avoid conflict with existing Balance model
 //
 // swagger:model OperationBalance
-// @Description OperationBalance is the struct designed to represent the account balance. Contains available and on-hold amounts along with the scale (decimal places).
+// @Description OperationBalance represents the account balance snapshot before or after an operation.
 type OperationBalance struct {
-	// Amount available for transactions (in the smallest unit of asset)
+	// Amount available for transactions.
 	// example: 1500
 	// minimum: 0
 	Available *decimal.Decimal `json:"available" example:"1500" minimum:"0"`
 
-	// Amount on hold and unavailable for transactions (in the smallest unit of asset)
+	// Amount on hold and unavailable for transactions.
 	// example: 500
 	// minimum: 0
 	OnHold *decimal.Decimal `json:"onHold" example:"500" minimum:"0"`
+
+	// Version is the optimistic concurrency version of the balance.
+	Version int64 `json:"version,omitempty" example:"1" minimum:"1"`
+
+	// OverdraftUsed is the amount of overdraft consumed by this balance snapshot.
+	OverdraftUsed *decimal.Decimal `json:"overdraftUsed,omitempty" example:"0" minimum:"0"`
 } // @name OperationBalance
 
 // IsEmpty method that set empty or nil in fields
 func (b OperationBalance) IsEmpty() bool {
-	return b.Available == nil && b.OnHold == nil
+	return b.Available == nil && b.OnHold == nil && b.Version == 0 && b.OverdraftUsed == nil
 }
 
 // Operation is a struct designed to encapsulate response payload data.
@@ -173,7 +180,7 @@ type UpdateOperationInput struct {
 	// Human-readable description of the operation
 	// example: Credit card operation
 	// maxLength: 256
-	Description string `json:"description" validate:"max=256" example:"Credit card operation" maxLength:"256"`
+	Description string `json:"description,omitempty" validate:"max=256" example:"Credit card operation" maxLength:"256"`
 
 	// Additional custom attributes
 	// example: {"reason": "Purchase refund", "reference": "INV-12345"}
@@ -184,6 +191,10 @@ type UpdateOperationInput struct {
 func (input *UpdateOperationInput) Validate() error {
 	if input == nil {
 		return errors.New("input is required")
+	}
+
+	if input.Description == "" && input.Metadata == nil {
+		return errors.New("empty update payload not allowed")
 	}
 
 	if len(input.Description) > maxAccountFieldLength {
@@ -214,6 +225,18 @@ type Operations struct {
 		PrevCursor *string `json:"prev_cursor,omitempty"`
 	} `json:"pagination"`
 } // @name Operations
+
+// MarshalJSON ensures zero-value operation lists encode items as an empty array.
+func (o Operations) MarshalJSON() ([]byte, error) {
+	type alias Operations
+
+	out := alias(o)
+	if out.Items == nil {
+		out.Items = []Operation{}
+	}
+
+	return json.Marshal(out)
+}
 
 // OperationResponse represents a success response containing a single operation.
 //

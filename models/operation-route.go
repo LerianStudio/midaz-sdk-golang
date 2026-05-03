@@ -72,6 +72,10 @@ func (input *UpdateOperationRouteInput) Validate() error {
 		return errors.New("input is required")
 	}
 
+	if !input.hasChanges() {
+		return errors.New("empty update payload not allowed")
+	}
+
 	if err := validateRouteText(input.Title, maxRouteTitleLength, "title"); err != nil {
 		return err
 	}
@@ -91,6 +95,20 @@ func (input *UpdateOperationRouteInput) Validate() error {
 	}
 
 	return nil
+}
+
+func (input *UpdateOperationRouteInput) hasChanges() bool {
+	if input == nil {
+		return false
+	}
+
+	return input.Title != "" ||
+		input.Description != "" ||
+		input.Code != "" || //nolint:staticcheck // Deprecated field remains part of compatibility DTO change detection.
+		input.Metadata != nil ||
+		input.Account != nil ||
+		input.AccountingEntries != nil ||
+		len(input.AccountingEntriesRaw) > 0
 }
 
 func validateRouteText(value string, maxLength int, field string) error {
@@ -146,7 +164,7 @@ func (input *CreateOperationRouteInput) WithMetadata(metadata map[string]any) *C
 		return nil
 	}
 
-	input.Metadata = metadata
+	input.Metadata = cloneAnyMap(metadata)
 
 	return input
 }
@@ -182,7 +200,7 @@ func (input *UpdateOperationRouteInput) WithMetadata(metadata map[string]any) *U
 		return nil
 	}
 
-	input.Metadata = metadata
+	input.Metadata = cloneAnyMap(metadata)
 
 	return input
 }
@@ -296,7 +314,7 @@ func WithCreateOperationRouteMetadata(input *CreateOperationRouteInput, metadata
 		return nil
 	}
 
-	input.Metadata = metadata
+	input.Metadata = cloneAnyMap(metadata)
 
 	return input
 }
@@ -400,7 +418,7 @@ func WithUpdateOperationRouteMetadata(input *UpdateOperationRouteInput, metadata
 		return nil
 	}
 
-	input.Metadata = metadata
+	input.Metadata = cloneAnyMap(metadata)
 
 	return input
 }

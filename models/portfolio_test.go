@@ -417,9 +417,9 @@ func TestUpdatePortfolioInput_Validate(t *testing.T) {
 		expectError bool
 	}{
 		{
-			name:        "empty input is valid",
+			name:        "empty input is rejected",
 			setupFunc:   func(_ *UpdatePortfolioInput) {},
-			expectError: false,
+			expectError: true,
 		},
 		{
 			name: "only name set",
@@ -452,11 +452,11 @@ func TestUpdatePortfolioInput_Validate(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name: "empty name is valid for update",
+			name: "empty name is rejected for update",
 			setupFunc: func(input *UpdatePortfolioInput) {
 				input.WithName("")
 			},
-			expectError: false,
+			expectError: true,
 		},
 	}
 
@@ -573,7 +573,7 @@ func TestCreatePortfolioInput_ValidationOrder(t *testing.T) {
 }
 
 func TestPortfolioInput_MetadataImmutability(t *testing.T) {
-	t.Run("CreatePortfolioInput metadata reference", func(t *testing.T) {
+	t.Run("CreatePortfolioInput metadata copy", func(t *testing.T) {
 		originalMetadata := map[string]any{
 			"key": "original",
 		}
@@ -583,11 +583,11 @@ func TestPortfolioInput_MetadataImmutability(t *testing.T) {
 
 		originalMetadata["key"] = "modified"
 
-		assert.Equal(t, "modified", input.Metadata["key"],
-			"Metadata is passed by reference, modifications affect the input")
+		assert.Equal(t, "original", input.Metadata["key"],
+			"Metadata is copied at the builder boundary")
 	})
 
-	t.Run("UpdatePortfolioInput metadata reference", func(t *testing.T) {
+	t.Run("UpdatePortfolioInput metadata copy", func(t *testing.T) {
 		originalMetadata := map[string]any{
 			"key": "original",
 		}
@@ -597,8 +597,8 @@ func TestPortfolioInput_MetadataImmutability(t *testing.T) {
 
 		originalMetadata["key"] = "modified"
 
-		assert.Equal(t, "modified", input.Metadata["key"],
-			"Metadata is passed by reference, modifications affect the input")
+		assert.Equal(t, "original", input.Metadata["key"],
+			"Metadata is copied at the builder boundary")
 	})
 }
 
@@ -622,7 +622,7 @@ func TestPortfolioInput_NilSafety(t *testing.T) {
 		input.WithMetadata(nil)
 		assert.Nil(t, input.Metadata)
 
-		require.NoError(t, input.Validate())
+		require.ErrorContains(t, input.Validate(), "empty update payload not allowed")
 	})
 }
 

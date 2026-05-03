@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -12,6 +13,8 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation/core"
 	"github.com/shopspring/decimal"
 )
+
+const maxDecimalInputLength = 128
 
 // Transaction represents a transaction in the Midaz Ledger.
 // A transaction is a financial event that affects one or more accounts
@@ -31,7 +34,7 @@ import (
 //
 //	// Accessing transaction details
 //	fmt.Printf("Transaction ID: %s\n", transaction.ID)
-//	fmt.Printf("Amount: %d (scale: %d)\n", transaction.Amount, transaction.Scale)
+//	fmt.Printf("Amount: %s\n", transaction.Amount)
 //	fmt.Printf("Asset: %s\n", transaction.AssetCode)
 //	fmt.Printf("Status: %s\n", transaction.Status)
 //	fmt.Printf("Created: %s\n", transaction.CreatedAt.Format(time.RFC3339))
@@ -132,6 +135,10 @@ type Transaction struct {
 }
 
 func validatePositiveDecimalString(value any, field string) error {
+	if err := validateDecimalInputBound(value, field); err != nil {
+		return err
+	}
+
 	parsed, err := decimal.NewFromString(strings.TrimSpace(decimalStringFromAny(value)))
 	if err != nil {
 		return fmt.Errorf("%s must be a valid decimal", field)
@@ -139,6 +146,18 @@ func validatePositiveDecimalString(value any, field string) error {
 
 	if !parsed.IsPositive() {
 		return fmt.Errorf("%s must be greater than zero", field)
+	}
+
+	return nil
+}
+
+func validateDecimalInputBound(value any, field string) error {
+	if floatValue, ok := value.(float64); ok && (math.IsInf(floatValue, 0) || math.IsNaN(floatValue)) {
+		return fmt.Errorf("%s must be a finite decimal", field)
+	}
+
+	if decimalText := strings.TrimSpace(decimalStringFromAny(value)); len(decimalText) > maxDecimalInputLength {
+		return fmt.Errorf("%s exceeds maximum length of %d characters", field, maxDecimalInputLength)
 	}
 
 	return nil
@@ -209,87 +228,31 @@ func DecimalStringFromAny(value any) string {
 // It allows for specifying the transaction details including operations, metadata,
 // and other properties.
 //
-// When creating a transaction, the following rules apply:
-//   - The transaction must be balanced (total debits must equal total credits for each asset)
-//   - Each operation must specify an account, type (debit or credit), amount, and asset code
-//   - The transaction can be created as pending (requiring explicit commitment later)
-//   - External IDs and idempotency keys can be used to prevent duplicate transactions
+// When creating a transaction, the send payload must include a source and a
+// distribution whose values balance for each asset. Set IdempotencyKey or use
+// entities.WithIdempotencyKey for retry-safe unsafe requests.
 //
 // Example - Creating a simple payment transaction:
 //
-//	// Create a payment transaction with two operations (debit and credit)
-//	input := &models.CreateTransactionInput{
-//	    Description: "Payment for invoice #123",
-//	    AssetCode:   "USD",
-//	    Amount:      10000,
-//	    Scale:       2, // $100.00
-//	    Operations: []models.CreateOperationInput{
-//	        {
-//	            // Debit the customer's account (decrease balance)
-//	            Type:        "debit",
-//	            AccountID:   "acc-123", // Customer account ID
-//	            AccountAlias: stringPtr("customer:john.doe"), // Optional alias
-//	            Amount:      10000,
-//	            AssetCode:   "USD",
-//	            Scale:       2,
-//	        },
-//	        {
-//	            // Credit the revenue account (increase balance)
-//	            Type:        "credit",
-//	            AccountID:   "acc-456", // Revenue account ID
-//	            AccountAlias: stringPtr("revenue:payments"), // Optional alias
-//	            Amount:      10000,
-//	            AssetCode:   "USD",
-//	            Scale:       2,
-//	        },
-//	    },
-//	    Metadata: map[string]any{
-//	        "invoice_id": "inv-123",
-//	        "customer_id": "cust-456",
-//	    },
-//	    ExternalID: "payment-inv123-20230401",
-//	}
+//	input := models.NewCreateTransactionInput("USD", "100.00").WithSend(&models.SendInput{
+//	    Asset: "USD",
+//	    Value: "100.00",
+//	    Source: &models.SourceInput{From: []models.FromToInput{
+//	        {Account: "customer_john_doe", Amount: models.AmountInput{Asset: "USD", Value: "100.00"}},
+//	    }},
+//	    Distribute: &models.DistributeInput{To: []models.FromToInput{
+//	        {Account: "merchant_primary", Amount: models.AmountInput{Asset: "USD", Value: "100.00"}},
+//	    }},
+//	}).WithMetadata(map[string]any{"invoice_id": "inv-123"})
+//	input.IdempotencyKey = "payment-inv123-20230401"
 //
 // Example - Creating a pending transaction:
 //
-//	// Create a pending transaction that requires explicit commitment
-//	input := &models.CreateTransactionInput{
-//	    Description: "Large transfer pending approval",
-//	    AssetCode:   "USD",
-//	    Amount:      100000,
-//	    Scale:       2, // $1,000.00
-//	    Operations: []models.CreateOperationInput{
-//	        // Debit operation
-//	        {
-//	            Type:        "debit",
-//	            AccountID:   "acc-789", // Source account ID
-//	            Amount:      100000,
-//	            AssetCode:   "USD",
-//	            Scale:       2,
-//	        },
-//	        // Credit operation
-//	        {
-//	            Type:        "credit",
-//	            AccountID:   "acc-012", // Target account ID
-//	            Amount:      100000,
-//	            AssetCode:   "USD",
-//	            Scale:       2,
-//	        },
-//	    },
-//	    Metadata: map[string]any{
-//	        "requires_approval": true,
-//	        "approval_level": "manager",
-//	    },
-//	}
+//	input := models.NewCreateTransactionInput("USD", "1000.00").WithPending(true)
+//	input = input.WithSend(&models.SendInput{/* source and distribute omitted for brevity */})
 //
 //	// Later, after approval:
-//	// client.Transactions.CommitTransaction(ctx, orgID, ledgerID, tx.ID)
-//
-// Helper function for creating string pointers:
-//
-//	func stringPtr(s string) *string {
-//	    return &s
-//	}
+//	// c.Entity.Transactions.CommitTransaction(ctx, orgID, ledgerID, tx.ID)
 type CreateTransactionInput struct {
 	// Template is retained for backwards compatibility with the pre-send API.
 	Template string `json:"template,omitempty"`
@@ -302,13 +265,11 @@ type CreateTransactionInput struct {
 	// Prefer Send.Asset for new integrations.
 	AssetCode string `json:"assetCode,omitempty"`
 
-	// ChartOfAccountsGroupName is REQUIRED by the API specification
-	// This categorizes the transaction under a specific chart of accounts group
-	ChartOfAccountsGroupName string `json:"chartOfAccountsGroupName"`
+	// ChartOfAccountsGroupName optionally categorizes the transaction under a chart of accounts group.
+	ChartOfAccountsGroupName string `json:"chartOfAccountsGroupName,omitempty"`
 
-	// Description is a human-readable description of the transaction (REQUIRED by API)
-	// This should provide context about the purpose or nature of the transaction
-	Description string `json:"description"`
+	// Description is an optional human-readable description of the transaction.
+	Description string `json:"description,omitempty"`
 
 	// Pending indicates whether the transaction should be created in a pending state
 	// Pending transactions require explicit commitment before affecting account balances
@@ -334,13 +295,13 @@ type CreateTransactionInput struct {
 
 	// ExternalID is retained for backward compatibility but is not part of the
 	// current Midaz CreateTransaction contract.
-	ExternalID string
+	ExternalID string `json:"-"`
 
 	// IdempotencyKey is a client-generated key to ensure transaction uniqueness
 	// If a transaction with the same idempotency key already exists, that transaction
 	// will be returned instead of creating a new one
 	// Note: This is sent as a header (X-Idempotency), not in the request body
-	IdempotencyKey string
+	IdempotencyKey string `json:"-"`
 
 	// Send contains the source and distribution information for the transaction.
 	Send *SendInput `json:"send"`
@@ -568,14 +529,24 @@ func NewCreateTransactionInput(assetCode string, amount any) *CreateTransactionI
 // WithDescription sets the description.
 // This adds a human-readable description to the transaction.
 func (input *CreateTransactionInput) WithDescription(description string) *CreateTransactionInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Description = description
+
 	return input
 }
 
 // WithMetadata sets the metadata.
 // This adds custom key-value data to the transaction.
 func (input *CreateTransactionInput) WithMetadata(metadata map[string]any) *CreateTransactionInput {
-	input.Metadata = metadata
+	if input == nil {
+		return nil
+	}
+
+	input.Metadata = cloneAnyMap(metadata)
+
 	return input
 }
 
@@ -583,38 +554,67 @@ func (input *CreateTransactionInput) WithMetadata(metadata map[string]any) *Crea
 // This links the transaction to external systems.
 // Deprecated: externalId is not sent in the current Midaz CreateTransaction contract.
 func (input *CreateTransactionInput) WithExternalID(externalID string) *CreateTransactionInput {
+	if input == nil {
+		return nil
+	}
+
 	input.ExternalID = externalID
+
 	return input
 }
 
 // WithRouteID sets the route UUID.
 func (input *CreateTransactionInput) WithRouteID(routeID string) *CreateTransactionInput {
+	if input == nil {
+		return nil
+	}
+
 	input.RouteID = routeID
+
 	return input
 }
 
 // WithTransactionDate sets the transaction effective date/time.
 func (input *CreateTransactionInput) WithTransactionDate(transactionDate string) *CreateTransactionInput {
+	if input == nil {
+		return nil
+	}
+
 	input.TransactionDate = transactionDate
+
 	return input
 }
 
 // WithPending sets whether the transaction should be created in pending state.
 func (input *CreateTransactionInput) WithPending(pending bool) *CreateTransactionInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Pending = pending
+
 	return input
 }
 
 // WithSend sets the send structure.
 // This provides an alternative way to define transaction flow.
 func (input *CreateTransactionInput) WithSend(send *SendInput) *CreateTransactionInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Send = send
+
 	return input
 }
 
 // WithOperations sets legacy operation inputs and adapts them to the canonical send payload.
 func (input *CreateTransactionInput) WithOperations(operations []CreateOperationInput) *CreateTransactionInput {
-	input.Operations = operations
+	if input == nil {
+		return nil
+	}
+
+	input.Operations = append([]CreateOperationInput(nil), operations...)
 	input.Send = nil
 	input.ensureSendFromLegacyOperations()
 
@@ -750,7 +750,8 @@ func (input *AmountInput) Validate() error {
 	return validatePositiveDecimalString(input.Value, "value")
 }
 
-// ToLibTransaction converts a CreateTransactionInput to a lib-commons transaction.
+// ToLibTransaction converts a CreateTransactionInput to the Midaz transaction payload.
+// Deprecated: this is an internal SDK adapter and may be replaced by an unexported helper.
 // This is used internally by the SDK to convert the input to the format expected by the backend.
 func (input *CreateTransactionInput) ToLibTransaction() map[string]any {
 	if input == nil {
@@ -762,12 +763,12 @@ func (input *CreateTransactionInput) ToLibTransaction() map[string]any {
 	// Create a map to hold the transaction data
 	tx := map[string]any{}
 
-	// Add chart of accounts group name if provided (required by API)
+	// Add chart of accounts group name if provided.
 	if input.ChartOfAccountsGroupName != "" {
 		tx["chartOfAccountsGroupName"] = input.ChartOfAccountsGroupName
 	}
 
-	// Only add description if provided (required by API)
+	// Only add description if provided.
 	if input.Description != "" {
 		tx["description"] = input.Description
 	}
@@ -1104,7 +1105,7 @@ func (t *Transaction) ToTransactionMap() map[string]any {
 //	    },
 //	}
 //
-//	updatedTx, err := client.Transactions.UpdateTransaction(
+//	updatedTx, err := c.Entity.Transactions.UpdateTransaction(
 //	    ctx, orgID, ledgerID, transactionID, input,
 //	)
 type UpdateTransactionInput struct {
@@ -1132,6 +1133,10 @@ func (input *UpdateTransactionInput) Validate() error {
 		return errors.New("input is required")
 	}
 
+	if !input.hasChanges() {
+		return errors.New("empty update payload not allowed")
+	}
+
 	// Validate description length if provided
 	if input.Description != "" && len(input.Description) > 256 {
 		return errors.New("description must not exceed 256 characters")
@@ -1145,6 +1150,14 @@ func (input *UpdateTransactionInput) Validate() error {
 	}
 
 	return nil
+}
+
+func (input *UpdateTransactionInput) hasChanges() bool {
+	if input == nil {
+		return false
+	}
+
+	return input.Metadata != nil || input.Description != "" || input.ExternalID != ""
 }
 
 // NewUpdateTransactionInput creates a new UpdateTransactionInput.
@@ -1166,7 +1179,12 @@ func NewUpdateTransactionInput() *UpdateTransactionInput {
 // Returns:
 //   - A pointer to the modified UpdateTransactionInput for method chaining
 func (input *UpdateTransactionInput) WithMetadata(metadata map[string]any) *UpdateTransactionInput {
-	input.Metadata = metadata
+	if input == nil {
+		return nil
+	}
+
+	input.Metadata = cloneAnyMap(metadata)
+
 	return input
 }
 
@@ -1179,7 +1197,12 @@ func (input *UpdateTransactionInput) WithMetadata(metadata map[string]any) *Upda
 // Returns:
 //   - A pointer to the modified UpdateTransactionInput for method chaining
 func (input *UpdateTransactionInput) WithDescription(description string) *UpdateTransactionInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Description = description
+
 	return input
 }
 
@@ -1193,7 +1216,12 @@ func (input *UpdateTransactionInput) WithDescription(description string) *Update
 // Returns:
 //   - A pointer to the modified UpdateTransactionInput for method chaining
 func (input *UpdateTransactionInput) WithExternalID(externalID string) *UpdateTransactionInput {
+	if input == nil {
+		return nil
+	}
+
 	input.ExternalID = externalID
+
 	return input
 }
 
@@ -1250,43 +1278,78 @@ func NewCreateInflowInput(asset string, value any, distribute *DistributeInput) 
 
 // WithDescription sets the description.
 func (input *CreateInflowInput) WithDescription(description string) *CreateInflowInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Description = description
+
 	return input
 }
 
 // WithCode sets the code.
 func (input *CreateInflowInput) WithCode(code string) *CreateInflowInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Code = code
+
 	return input
 }
 
 // WithMetadata sets the metadata.
 func (input *CreateInflowInput) WithMetadata(metadata map[string]any) *CreateInflowInput {
-	input.Metadata = metadata
+	if input == nil {
+		return nil
+	}
+
+	input.Metadata = cloneAnyMap(metadata)
+
 	return input
 }
 
 // WithChartOfAccountsGroupName sets the chart of accounts group name.
 func (input *CreateInflowInput) WithChartOfAccountsGroupName(name string) *CreateInflowInput {
+	if input == nil {
+		return nil
+	}
+
 	input.ChartOfAccountsGroupName = name
+
 	return input
 }
 
 // WithRoute sets the route.
 func (input *CreateInflowInput) WithRoute(route string) *CreateInflowInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Route = route
+
 	return input
 }
 
 // WithRouteID sets the route UUID.
 func (input *CreateInflowInput) WithRouteID(routeID string) *CreateInflowInput {
+	if input == nil {
+		return nil
+	}
+
 	input.RouteID = routeID
+
 	return input
 }
 
 // WithTransactionDate sets the transaction effective date/time.
 func (input *CreateInflowInput) WithTransactionDate(transactionDate string) *CreateInflowInput {
+	if input == nil {
+		return nil
+	}
+
 	input.TransactionDate = transactionDate
+
 	return input
 }
 
@@ -1428,7 +1491,7 @@ func (input *CreateOutflowInput) WithMetadata(metadata map[string]any) *CreateOu
 		return nil
 	}
 
-	input.Metadata = metadata
+	input.Metadata = cloneAnyMap(metadata)
 
 	return input
 }
@@ -1613,7 +1676,7 @@ func (input *CreateAnnotationInput) WithMetadata(metadata map[string]any) *Creat
 		return nil
 	}
 
-	input.Metadata = metadata
+	input.Metadata = cloneAnyMap(metadata)
 
 	return input
 }

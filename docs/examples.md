@@ -134,10 +134,11 @@ txInput := models.NewCreateTransactionInput("USD", "100.00").
             },
         },
     }).
-    WithMetadata(map[string]any{
-        "payment_id":  "pay-123",
-        "customer_id": "cust-123",
-    })
+	WithMetadata(map[string]any{
+		"payment_id":  "pay-123",
+		"customer_id": "cust-123",
+	})
+txInput.IdempotencyKey = "payment-2026-05-03-0001"
 
 tx, err := c.Entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, txInput)
 ```

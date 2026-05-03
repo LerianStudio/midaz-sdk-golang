@@ -6,9 +6,12 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation/core"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
+
+const maxOrganizationFieldLength = 256
 
 // Organization is an alias for mmodel.Organization to maintain compatibility while using midaz entities.
 type Organization = mmodel.Organization
@@ -30,6 +33,24 @@ func (input *CreateOrganizationInput) Validate() error {
 
 	if input.LegalDocument == "" {
 		return errors.New("legalDocument is required")
+	}
+
+	if err := validateOrganizationStringLength("legalName", input.LegalName); err != nil {
+		return err
+	}
+
+	if err := validateOrganizationStringLength("legalDocument", input.LegalDocument); err != nil {
+		return err
+	}
+
+	if input.DoingBusinessAs != nil {
+		if err := validateOrganizationStringLength("doingBusinessAs", *input.DoingBusinessAs); err != nil {
+			return err
+		}
+	}
+
+	if err := validateOptionalOrganizationUUID("parentOrganizationId", input.ParentOrganizationID); err != nil {
+		return err
 	}
 
 	if input.Metadata != nil {
@@ -63,7 +84,7 @@ func (input *CreateOrganizationInput) MarshalJSON() ([]byte, error) {
 	addStringPtrField(fields, "doingBusinessAs", input.DoingBusinessAs)
 
 	if !input.Address.IsEmpty() {
-		fields["address"] = input.Address
+		fields["address"] = Address(input.Address)
 	}
 
 	addStatusField(fields, input.Status)
@@ -89,7 +110,58 @@ func (input *UpdateOrganizationInput) Validate() error {
 		}
 	}
 
+	if err := validateOrganizationStringLength("legalName", input.LegalName); err != nil {
+		return err
+	}
+
+	if input.DoingBusinessAs != nil {
+		if err := validateOrganizationStringLength("doingBusinessAs", *input.DoingBusinessAs); err != nil {
+			return err
+		}
+	}
+
+	if err := validateOptionalOrganizationUUID("parentOrganizationId", input.ParentOrganizationID); err != nil {
+		return err
+	}
+
+	if !input.hasChanges() {
+		return errors.New("empty update payload not allowed")
+	}
+
 	return nil
+}
+
+func validateOrganizationStringLength(field, value string) error {
+	if value != "" && len(value) > maxOrganizationFieldLength {
+		return fmt.Errorf("%s must be at most %d characters", field, maxOrganizationFieldLength)
+	}
+
+	return nil
+}
+
+func validateOptionalOrganizationUUID(field string, value *string) error {
+	if value == nil || *value == "" {
+		return nil
+	}
+
+	if !validation.IsValidUUID(*value) {
+		return fmt.Errorf("%s must be a valid UUID", field)
+	}
+
+	return nil
+}
+
+func (input *UpdateOrganizationInput) hasChanges() bool {
+	if input == nil {
+		return false
+	}
+
+	return input.LegalName != "" ||
+		input.ParentOrganizationID != nil ||
+		input.DoingBusinessAs != nil ||
+		!input.Address.IsEmpty() ||
+		!IsStatusEmpty(input.Status) ||
+		input.Metadata != nil
 }
 
 // ToMmodelUpdateOrganizationInput converts the SDK UpdateOrganizationInput to mmodel UpdateOrganizationInput.
@@ -113,7 +185,7 @@ func (input *UpdateOrganizationInput) MarshalJSON() ([]byte, error) {
 	addStringPtrField(fields, "doingBusinessAs", input.DoingBusinessAs)
 
 	if !input.Address.IsEmpty() {
-		fields["address"] = input.Address
+		fields["address"] = Address(input.Address)
 	}
 
 	addStatusField(fields, input.Status)
@@ -182,7 +254,7 @@ func (input *CreateOrganizationInput) WithMetadata(metadata map[string]any) *Cre
 		return nil
 	}
 
-	input.Metadata = metadata
+	input.Metadata = cloneAnyMap(metadata)
 
 	return input
 }
@@ -211,9 +283,29 @@ func (input *UpdateOrganizationInput) WithUpdateMetadata(metadata map[string]any
 		return nil
 	}
 
-	input.Metadata = metadata
+	input.Metadata = cloneAnyMap(metadata)
 
 	return input
+}
+
+// WithMetadata sets the metadata for update.
+func (input *UpdateOrganizationInput) WithMetadata(metadata map[string]any) *UpdateOrganizationInput {
+	return input.WithUpdateMetadata(metadata)
+}
+
+// WithDoingBusinessAs sets the doing business as name for update.
+func (input *UpdateOrganizationInput) WithDoingBusinessAs(dba string) *UpdateOrganizationInput {
+	return input.WithDoingBusinessAsUpdate(dba)
+}
+
+// WithAddress sets the organization address for update.
+func (input *UpdateOrganizationInput) WithAddress(address Address) *UpdateOrganizationInput {
+	return input.WithAddressUpdate(address)
+}
+
+// WithStatus sets the organization status for update.
+func (input *UpdateOrganizationInput) WithStatus(status Status) *UpdateOrganizationInput {
+	return input.WithStatusUpdate(status)
 }
 
 // WithDoingBusinessAsUpdate sets the doing business as name for update.

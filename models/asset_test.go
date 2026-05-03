@@ -463,9 +463,9 @@ func TestUpdateAssetInput_Validate(t *testing.T) {
 		wantError bool
 	}{
 		{
-			name:      "empty update input is valid",
+			name:      "empty update input is rejected",
 			input:     NewUpdateAssetInput(),
-			wantError: false,
+			wantError: true,
 		},
 		{
 			name:      "update with name only is valid",
@@ -491,9 +491,9 @@ func TestUpdateAssetInput_Validate(t *testing.T) {
 			wantError: false,
 		},
 		{
-			name:      "update with empty name is valid",
+			name:      "update with empty name is rejected",
 			input:     NewUpdateAssetInput().WithName(""),
-			wantError: false,
+			wantError: true,
 		},
 	}
 
@@ -782,7 +782,7 @@ func TestUpdateAssetInput_MetadataEdgeCases(t *testing.T) {
 		metadata map[string]any
 	}{
 		{
-			name:     "nil metadata clears existing",
+			name:     "nil metadata is not a change",
 			metadata: nil,
 		},
 		{
@@ -804,6 +804,11 @@ func TestUpdateAssetInput_MetadataEdgeCases(t *testing.T) {
 			assert.Equal(t, tt.metadata, input.Metadata)
 
 			err := input.Validate()
+			if tt.metadata == nil {
+				require.ErrorContains(t, err, "empty update payload not allowed")
+				return
+			}
+
 			require.NoError(t, err)
 		})
 	}

@@ -76,7 +76,7 @@ type SegmentsService interface {
 	//
 	//	// Create a segment with custom metadata
 	//	input := models.NewCreateSegmentInput("EMEA Region").
-	//	    WithStatus(models.StatusActive).
+	//	    WithStatus(models.NewStatus(models.StatusActive)).
 	//	    WithMetadata(map[string]any{
 	//	        "regionCode": "EMEA",
 	//	        "countries": []string{"UK", "France", "Germany", "Italy"},

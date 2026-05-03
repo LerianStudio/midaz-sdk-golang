@@ -10,6 +10,8 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
+const maxPortfolioFieldLength = 256
+
 // Portfolio is an alias for mmodel.Portfolio to maintain compatibility while using midaz entities.
 type Portfolio = mmodel.Portfolio
 
@@ -61,7 +63,7 @@ func (input *CreatePortfolioInput) WithMetadata(metadata map[string]any) *Create
 		return nil
 	}
 
-	input.Metadata = metadata
+	input.Metadata = cloneAnyMap(metadata)
 
 	return input
 }
@@ -74,6 +76,14 @@ func (input *CreatePortfolioInput) Validate() error {
 
 	if input.Name == "" {
 		return errors.New("name is required")
+	}
+
+	if len(input.Name) > maxPortfolioFieldLength {
+		return fmt.Errorf("name must be at most %d characters", maxPortfolioFieldLength)
+	}
+
+	if len(input.EntityID) > maxPortfolioFieldLength {
+		return fmt.Errorf("entityId must be at most %d characters", maxPortfolioFieldLength)
 	}
 
 	if input.Metadata != nil {
@@ -146,7 +156,7 @@ func (input *UpdatePortfolioInput) WithMetadata(metadata map[string]any) *Update
 		return nil
 	}
 
-	input.Metadata = metadata
+	input.Metadata = cloneAnyMap(metadata)
 
 	return input
 }
@@ -157,6 +167,18 @@ func (input *UpdatePortfolioInput) Validate() error {
 		return errors.New("input cannot be nil")
 	}
 
+	if !input.hasChanges() {
+		return errors.New("empty update payload not allowed")
+	}
+
+	if len(input.Name) > maxPortfolioFieldLength {
+		return fmt.Errorf("name must be at most %d characters", maxPortfolioFieldLength)
+	}
+
+	if len(input.EntityID) > maxPortfolioFieldLength {
+		return fmt.Errorf("entityId must be at most %d characters", maxPortfolioFieldLength)
+	}
+
 	if input.Metadata != nil {
 		if err := core.ValidateMetadata(input.Metadata); err != nil {
 			return fmt.Errorf("invalid metadata: %w", err)
@@ -164,6 +186,14 @@ func (input *UpdatePortfolioInput) Validate() error {
 	}
 
 	return nil
+}
+
+func (input *UpdatePortfolioInput) hasChanges() bool {
+	if input == nil {
+		return false
+	}
+
+	return input.EntityID != "" || input.Name != "" || !IsStatusEmpty(input.Status) || input.Metadata != nil
 }
 
 // MarshalJSON emits only fields explicitly set on the SDK PATCH input.

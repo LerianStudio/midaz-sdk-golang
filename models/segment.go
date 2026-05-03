@@ -10,6 +10,8 @@ import (
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
+const maxSegmentNameLength = 256
+
 // Segment is an alias for mmodel.Segment to maintain compatibility while using midaz entities.
 type Segment = mmodel.Segment
 
@@ -49,7 +51,7 @@ func (input *CreateSegmentInput) WithMetadata(metadata map[string]any) *CreateSe
 		return nil
 	}
 
-	input.Metadata = metadata
+	input.Metadata = cloneAnyMap(metadata)
 
 	return input
 }
@@ -62,6 +64,10 @@ func (input *CreateSegmentInput) Validate() error {
 
 	if input.Name == "" {
 		return errors.New("name is required")
+	}
+
+	if len(input.Name) > maxSegmentNameLength {
+		return fmt.Errorf("name must be at most %d characters", maxSegmentNameLength)
 	}
 
 	if input.Metadata != nil {
@@ -122,7 +128,7 @@ func (input *UpdateSegmentInput) WithMetadata(metadata map[string]any) *UpdateSe
 		return nil
 	}
 
-	input.Metadata = metadata
+	input.Metadata = cloneAnyMap(metadata)
 
 	return input
 }
@@ -133,6 +139,14 @@ func (input *UpdateSegmentInput) Validate() error {
 		return errors.New("input cannot be nil")
 	}
 
+	if !input.hasChanges() {
+		return errors.New("empty update payload not allowed")
+	}
+
+	if len(input.Name) > maxSegmentNameLength {
+		return fmt.Errorf("name must be at most %d characters", maxSegmentNameLength)
+	}
+
 	if input.Metadata != nil {
 		if err := core.ValidateMetadata(input.Metadata); err != nil {
 			return fmt.Errorf("invalid metadata: %w", err)
@@ -140,6 +154,14 @@ func (input *UpdateSegmentInput) Validate() error {
 	}
 
 	return nil
+}
+
+func (input *UpdateSegmentInput) hasChanges() bool {
+	if input == nil {
+		return false
+	}
+
+	return input.Name != "" || !IsStatusEmpty(input.Status) || input.Metadata != nil
 }
 
 // MarshalJSON emits only fields explicitly set on the SDK PATCH input.

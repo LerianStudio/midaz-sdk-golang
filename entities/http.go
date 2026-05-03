@@ -1362,7 +1362,7 @@ func (*HTTPClient) parseErrorResponse(statusCode int, body []byte, requestID str
 		Code       string         `json:"code"`
 		Title      string         `json:"title"`
 		EntityType string         `json:"entityType"`
-		Fields     []string       `json:"fields"`
+		Fields     any            `json:"fields"`
 		Details    map[string]any `json:"details"`
 		Err        any            `json:"err"`
 	}
@@ -1396,7 +1396,12 @@ func (*HTTPClient) parseErrorResponse(statusCode int, body []byte, requestID str
 
 	message = sdkerrors.RedactSensitiveString(message)
 	title := sdkerrors.RedactSensitiveString(apiError.Title)
-	fields := sdkerrors.RedactSensitiveStringSlice(apiError.Fields)
+
+	fields := normalizeAPIErrorFields(apiError.Fields)
+	if len(fields) > 0 {
+		details["fields"] = apiError.Fields
+		details = sdkerrors.RedactSensitiveDetails(details)
+	}
 
 	// Create the appropriate error type based on the status code
 	return sdkerrors.ErrorFromHTTPResponseWithDetails(
@@ -1410,6 +1415,33 @@ func (*HTTPClient) parseErrorResponse(statusCode int, body []byte, requestID str
 		fields,
 		details,
 	)
+}
+
+func normalizeAPIErrorFields(fields any) []string {
+	switch typed := fields.(type) {
+	case nil:
+		return nil
+	case []string:
+		return sdkerrors.RedactSensitiveStringSlice(typed)
+	case []any:
+		out := make([]string, 0, len(typed))
+		for _, field := range typed {
+			if text, ok := field.(string); ok {
+				out = append(out, text)
+			}
+		}
+
+		return sdkerrors.RedactSensitiveStringSlice(out)
+	case map[string]any:
+		out := make([]string, 0, len(typed))
+		for field := range typed {
+			out = append(out, field)
+		}
+
+		return sdkerrors.RedactSensitiveStringSlice(out)
+	default:
+		return nil
+	}
 }
 
 // AddURLParams adds query parameters to a URL.

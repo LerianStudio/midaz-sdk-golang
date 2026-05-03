@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation/core"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
@@ -121,6 +122,8 @@ type CreateAccountInput struct {
 
 // Validate checks if the CreateAccountInput meets the validation requirements.
 // It returns an error if any of the validation checks fail.
+//
+//nolint:gocyclo,cyclop
 func (input *CreateAccountInput) Validate() error {
 	if input == nil {
 		return errors.New("input cannot be nil")
@@ -134,6 +137,18 @@ func (input *CreateAccountInput) Validate() error {
 		if err := validateAccountStringLength("entityId", *input.EntityID); err != nil {
 			return err
 		}
+	}
+
+	if err := validateOptionalUUIDPtr("parentAccountId", input.ParentAccountID); err != nil {
+		return err
+	}
+
+	if err := validateOptionalUUIDPtr("portfolioId", input.PortfolioID); err != nil {
+		return err
+	}
+
+	if err := validateOptionalUUIDPtr("segmentId", input.SegmentID); err != nil {
+		return err
 	}
 
 	if input.AssetCode == "" {
@@ -150,9 +165,8 @@ func (input *CreateAccountInput) Validate() error {
 		return errors.New("account type is required")
 	}
 
-	// Validate account type using the core validation package
-	if err := core.ValidateAccountType(input.Type); err != nil {
-		return fmt.Errorf("invalid account type: %w", err)
+	if err := validateAccountTypeContract(input.Type); err != nil {
+		return err
 	}
 
 	// Validate alias if provided using the core validation package
@@ -311,7 +325,7 @@ func (input *CreateAccountInput) WithMetadata(metadata map[string]any) *CreateAc
 		return nil
 	}
 
-	input.Metadata = metadata
+	input.Metadata = cloneAnyMap(metadata)
 
 	return input
 }
@@ -391,6 +405,18 @@ func (input *UpdateAccountInput) Validate() error {
 		}
 	}
 
+	if err := validateOptionalUUIDPtr("portfolioId", input.PortfolioID); err != nil {
+		return err
+	}
+
+	if err := validateOptionalUUIDPtr("segmentId", input.SegmentID); err != nil {
+		return err
+	}
+
+	if !input.hasChanges() {
+		return errors.New("empty update payload not allowed")
+	}
+
 	// Validate status if provided
 	// Status is an enum type, so we don't need additional validation here
 	// The API will validate if the status is valid
@@ -442,6 +468,48 @@ func validateAccountStringLength(field, value string) error {
 	}
 
 	return nil
+}
+
+func validateOptionalUUIDPtr(field string, value *string) error {
+	if value == nil || *value == "" {
+		return nil
+	}
+
+	if !validation.IsValidUUID(*value) {
+		return fmt.Errorf("%s must be a valid UUID", field)
+	}
+
+	return nil
+}
+
+func validateAccountTypeContract(accountType string) error {
+	if accountType == "" {
+		return errors.New("account type is required")
+	}
+
+	if len(accountType) > maxAccountFieldLength {
+		return fmt.Errorf("type must be at most %d characters", maxAccountFieldLength)
+	}
+
+	if accountType == "external" {
+		return errors.New("type cannot be external")
+	}
+
+	return nil
+}
+
+func (input *UpdateAccountInput) hasChanges() bool {
+	if input == nil {
+		return false
+	}
+
+	return input.Name != "" ||
+		input.SegmentID != nil ||
+		input.PortfolioID != nil ||
+		!IsStatusEmpty(input.Status) ||
+		input.Metadata != nil ||
+		input.EntityID != nil ||
+		input.Blocked != nil
 }
 
 // NewUpdateAccountInput creates a new UpdateAccountInput.
@@ -550,7 +618,7 @@ func (input *UpdateAccountInput) WithMetadata(metadata map[string]any) *UpdateAc
 		return nil
 	}
 
-	input.Metadata = metadata
+	input.Metadata = cloneAnyMap(metadata)
 
 	return input
 }
@@ -629,6 +697,10 @@ type ListAccountInput struct {
 // Returns:
 //   - error: An error if the input is invalid, nil otherwise
 func (input *ListAccountInput) Validate() error {
+	if input == nil {
+		return errors.New("input cannot be nil")
+	}
+
 	// Validate page number if provided
 	if input.Page < 0 {
 		return errors.New("page number cannot be negative")

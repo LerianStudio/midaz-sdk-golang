@@ -69,7 +69,7 @@ func (input *CreateAliasInput) WithMetadata(metadata map[string]any) *CreateAlia
 		return nil
 	}
 
-	input.Metadata = metadata
+	input.Metadata = cloneAnyMap(metadata)
 
 	return input
 }
@@ -102,7 +102,7 @@ func (input *CreateAliasInput) WithRelatedParties(relatedParties []*RelatedParty
 		return nil
 	}
 
-	input.RelatedParties = relatedParties
+	input.RelatedParties = cloneRelatedParties(relatedParties)
 
 	return input
 }
@@ -118,7 +118,7 @@ func (input *UpdateAliasInput) WithMetadata(metadata map[string]any) *UpdateAlia
 		return nil
 	}
 
-	input.Metadata = metadata
+	input.Metadata = cloneAnyMap(metadata)
 
 	return input
 }
@@ -151,7 +151,7 @@ func (input *UpdateAliasInput) WithRelatedParties(relatedParties []*RelatedParty
 		return nil
 	}
 
-	input.RelatedParties = relatedParties
+	input.RelatedParties = append(input.RelatedParties, cloneRelatedParties(relatedParties)...)
 
 	return input
 }
@@ -266,6 +266,24 @@ var validAliasNullFields = map[string]bool{
 	"bankingDetails":   true,
 	"regulatoryFields": true,
 	"relatedParties":   true,
+}
+
+func cloneRelatedParties(parties []*RelatedParty) []*RelatedParty {
+	if parties == nil {
+		return nil
+	}
+
+	clone := make([]*RelatedParty, len(parties))
+	for i, party := range parties {
+		if party == nil {
+			continue
+		}
+
+		partyCopy := *party
+		clone[i] = &partyCopy
+	}
+
+	return clone
 }
 
 // Validate validates the UpdateAliasInput fields.

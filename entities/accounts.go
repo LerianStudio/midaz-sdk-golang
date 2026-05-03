@@ -100,7 +100,7 @@ type AccountsService interface {
 	//	        AssetCode: "USD",
 	//	        PortfolioID: "portfolio-789",
 	//	        SegmentID: "segment-012",
-	//	        Status: models.StatusActive,
+	//	        Status: models.NewStatus(models.StatusActive),
 	//	    },
 	//	)
 	//

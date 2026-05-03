@@ -171,10 +171,10 @@ Common builders:
 - `models.NewUpdatePortfolioInput()`
 - `models.NewCreateSegmentInput(name)`
 - `models.NewUpdateSegmentInput()`
-- `models.NewCreateTransactionInput(assetCode, amount)`
-- `models.NewCreateInflowInput(assetCode, value, distribute)`
-- `models.NewCreateOutflowInput(assetCode, value, source)`
-- `models.NewCreateAnnotationInput(description, send...)`
+- `models.NewCreateTransactionInput(assetCode, amount)` - Must include `send.source` and `send.distribute` before sending, either through `WithSend(...)` or legacy operation adaptation. Set `IdempotencyKey` or use `entities.WithIdempotencyKey` for retry-safe unsafe requests.
+- `models.NewCreateInflowInput(assetCode, value, distribute)` - Requires a non-empty `distribute.to` payload.
+- `models.NewCreateOutflowInput(assetCode, value, source)` - Requires a non-empty `source.from` payload.
+- `models.NewCreateAnnotationInput(description, send...)` - `send` is required before sending; the variadic constructor argument exists for compatibility.
 - `models.NewCreateOperationRouteInput(title, description, operationType)`
 - `models.NewUpdateOperationRouteInput()`
 - `models.NewCreateTransactionRouteInput(title, description, operationRouteIDs)`

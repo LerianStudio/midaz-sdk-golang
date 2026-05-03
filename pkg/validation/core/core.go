@@ -157,8 +157,10 @@ func NewValidationConfig(options ...ValidationOption) (*ValidationConfig, error)
 // ExternalAccountPattern is the regex pattern for external account references
 var ExternalAccountPattern = regexp.MustCompile(`^@external/([A-Z]{3,4})$`)
 
-// AccountAliasPattern is the regex pattern for account aliases
-var AccountAliasPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,50}$`)
+// AccountAliasPattern is the regex pattern for account aliases.
+// Midaz accepts aliases such as @treasury_checking and legacy colon-separated
+// references used by transaction accountAlias payloads.
+var AccountAliasPattern = regexp.MustCompile(`^@?[a-zA-Z0-9_.:-]{1,100}$`)
 
 // AssetCodePattern is the regex pattern for asset codes
 var AssetCodePattern = regexp.MustCompile(`^[A-Z]{3,4}$`)
@@ -187,7 +189,8 @@ func ValidateAssetCode(assetCode string) error {
 }
 
 // ValidateAccountAlias checks if an account alias is valid.
-// Account aliases should be alphanumeric with optional underscores and hyphens.
+// Account aliases may include letters, numbers, underscores, hyphens, dots,
+// colons, and an optional leading @.
 //
 // Example:
 //
@@ -200,7 +203,7 @@ func ValidateAccountAlias(alias string) error {
 	}
 
 	if !AccountAliasPattern.MatchString(alias) {
-		return fmt.Errorf("invalid account alias format: %s (must be alphanumeric with optional underscores and hyphens, max 50 chars)", alias)
+		return fmt.Errorf("invalid account alias format: %s (must contain only letters, numbers, underscores, hyphens, dots, colons, and an optional leading @; max 100 chars)", alias)
 	}
 
 	return nil

@@ -2,6 +2,7 @@
 package models
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -12,8 +13,9 @@ import (
 )
 
 const (
-	maxAssetRateCodeLength   = 100
+	maxAssetRateCodeLength   = 10
 	maxAssetRateSourceLength = 200
+	maxAssetRateScale        = 18
 )
 
 // AssetRate represents a conversion rate between two assets in the Midaz system.
@@ -155,7 +157,7 @@ func (input *CreateAssetRateInput) WithMetadata(metadata map[string]any) *Create
 		return nil
 	}
 
-	input.Metadata = metadata
+	input.Metadata = cloneAnyMap(metadata)
 
 	return input
 }
@@ -206,6 +208,10 @@ func (input *CreateAssetRateInput) validateRateFields() error {
 		return errors.New("scale must be non-negative")
 	}
 
+	if input.Scale > maxAssetRateScale {
+		return fmt.Errorf("scale must be at most %d", maxAssetRateScale)
+	}
+
 	return nil
 }
 
@@ -248,6 +254,18 @@ type AssetRatesResponse struct {
 	PrevCursor *string `json:"prev_cursor,omitempty"`
 }
 
+// MarshalJSON ensures zero-value asset-rate lists encode items as an empty array.
+func (r AssetRatesResponse) MarshalJSON() ([]byte, error) {
+	type alias AssetRatesResponse
+
+	out := alias(r)
+	if out.Items == nil {
+		out.Items = []AssetRate{}
+	}
+
+	return json.Marshal(out)
+}
+
 // AssetRateListOptions represents options for listing asset rates by asset code.
 type AssetRateListOptions struct {
 	// To filters by target asset codes (comma-separated, e.g., "BRL,USD,SGD")
@@ -283,7 +301,8 @@ func (o *AssetRateListOptions) WithTo(to ...string) *AssetRateListOptions {
 		return nil
 	}
 
-	o.To = to
+	o.To = make([]string, len(to))
+	copy(o.To, to)
 
 	return o
 }
@@ -323,7 +342,9 @@ func (o *AssetRateListOptions) WithSortOrder(sortOrder string) *AssetRateListOpt
 		return nil
 	}
 
-	o.SortOrder = sortOrder
+	if sortOrder == string(SortAscending) || sortOrder == string(SortDescending) || sortOrder == "" {
+		o.SortOrder = sortOrder
+	}
 
 	return o
 }
@@ -350,8 +371,13 @@ func (o *AssetRateListOptions) ToQueryParams() map[string]string {
 		params["to"] = strings.Join(o.To, ",")
 	}
 
-	if o.Limit > 0 {
-		params["limit"] = fmt.Sprintf("%d", o.Limit)
+	limit := o.Limit
+	if limit > MaxLimit {
+		limit = MaxLimit
+	}
+
+	if limit > 0 {
+		params["limit"] = fmt.Sprintf("%d", limit)
 	}
 
 	if o.StartDate != "" {
@@ -362,7 +388,7 @@ func (o *AssetRateListOptions) ToQueryParams() map[string]string {
 		params["end_date"] = o.EndDate
 	}
 
-	if o.SortOrder != "" {
+	if o.SortOrder == string(SortAscending) || o.SortOrder == string(SortDescending) {
 		params["sort_order"] = o.SortOrder
 	}
 

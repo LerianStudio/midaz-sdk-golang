@@ -291,9 +291,9 @@ func TestUpdateLedgerInput_Validate(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name:    "empty input is valid",
+			name:    "empty input is rejected",
 			input:   NewUpdateLedgerInput(),
-			wantErr: false,
+			wantErr: true,
 		},
 		{
 			name:    "input with name only is valid",
@@ -301,9 +301,9 @@ func TestUpdateLedgerInput_Validate(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "input with empty name is valid",
+			name:    "input with empty name is rejected",
 			input:   NewUpdateLedgerInput().WithName(""),
-			wantErr: false,
+			wantErr: true,
 		},
 		{
 			name:    "input with status only is valid",
@@ -619,7 +619,7 @@ func TestLedgerEdgeCases(t *testing.T) {
 		assert.Same(t, afterStatus, afterMeta)
 	})
 
-	t.Run("very long name is accepted", func(t *testing.T) {
+	t.Run("very long name is rejected", func(t *testing.T) {
 		longName := ""
 		for i := 0; i < 1000; i++ {
 			longName += "a"
@@ -627,7 +627,7 @@ func TestLedgerEdgeCases(t *testing.T) {
 
 		input := NewCreateLedgerInput(longName)
 		assert.Len(t, input.Name, 1000)
-		require.NoError(t, input.Validate())
+		require.ErrorContains(t, input.Validate(), "name must be at most")
 	})
 
 	t.Run("special unicode characters in name", func(t *testing.T) {
@@ -654,24 +654,24 @@ func TestLedgerEdgeCases(t *testing.T) {
 		assert.True(t, IsStatusEmpty(input.Status))
 	})
 
-	t.Run("update input with all empty values is valid", func(t *testing.T) {
+	t.Run("update input with all empty values is rejected", func(t *testing.T) {
 		input := NewUpdateLedgerInput().
 			WithName("").
 			WithStatus(Status{}).
 			WithMetadata(nil)
 
-		require.NoError(t, input.Validate())
+		require.ErrorContains(t, input.Validate(), "empty update payload not allowed")
 	})
 }
 
 func TestLedgerInputImmutability(t *testing.T) {
-	t.Run("metadata map is not copied", func(t *testing.T) {
+	t.Run("metadata map is copied", func(t *testing.T) {
 		metadata := map[string]any{"key": "original"}
 		input := NewCreateLedgerInput("Test").WithMetadata(metadata)
 
 		metadata["key"] = "modified"
 
-		assert.Equal(t, "modified", input.Metadata["key"])
+		assert.Equal(t, "original", input.Metadata["key"])
 	})
 
 	t.Run("modifying input does not affect original metadata reference", func(t *testing.T) {
@@ -680,7 +680,7 @@ func TestLedgerInputImmutability(t *testing.T) {
 
 		input.Metadata["newKey"] = "newValue"
 
-		assert.Contains(t, originalMeta, "newKey")
+		assert.NotContains(t, originalMeta, "newKey")
 	})
 }
 

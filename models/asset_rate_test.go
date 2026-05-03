@@ -704,9 +704,9 @@ func TestAssetRateListOptionsWithSortOrder(t *testing.T) {
 			wantSortOrder: "",
 		},
 		{
-			name:          "custom order value",
+			name:          "custom order value is ignored",
 			sortOrder:     "custom",
-			wantSortOrder: "custom",
+			wantSortOrder: DefaultSortDirection,
 		},
 	}
 

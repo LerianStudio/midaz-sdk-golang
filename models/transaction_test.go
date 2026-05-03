@@ -871,9 +871,10 @@ func TestUpdateTransactionInput_Validate(t *testing.T) {
 		errMsg  string
 	}{
 		{
-			name:    "empty input is valid",
+			name:    "empty input is rejected",
 			input:   &UpdateTransactionInput{},
-			wantErr: false,
+			wantErr: true,
+			errMsg:  "empty update payload not allowed",
 		},
 		{
 			name: "valid with metadata",
@@ -2414,7 +2415,7 @@ func TestEdgeCases(t *testing.T) {
 	t.Run("nil metadata", func(t *testing.T) {
 		input := NewUpdateTransactionInput().WithMetadata(nil)
 		err := input.Validate()
-		require.NoError(t, err)
+		require.ErrorContains(t, err, "empty update payload not allowed")
 	})
 
 	t.Run("empty metadata map", func(t *testing.T) {

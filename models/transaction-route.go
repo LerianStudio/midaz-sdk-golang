@@ -64,6 +64,10 @@ func (input *UpdateTransactionRouteInput) Validate() error {
 		return errors.New("input is required")
 	}
 
+	if !input.hasChanges() {
+		return errors.New("empty update payload not allowed")
+	}
+
 	if err := validateRouteText(input.Title, maxRouteTitleLength, "title"); err != nil {
 		return err
 	}
@@ -79,6 +83,14 @@ func (input *UpdateTransactionRouteInput) Validate() error {
 	}
 
 	return nil
+}
+
+func (input *UpdateTransactionRouteInput) hasChanges() bool {
+	if input == nil {
+		return false
+	}
+
+	return input.Title != "" || input.Description != "" || input.Metadata != nil || input.OperationRoutes != nil
 }
 
 // NewCreateTransactionRouteInput creates a new CreateTransactionRouteInput with required fields.
@@ -130,7 +142,7 @@ func WithTransactionRouteMetadata(input *CreateTransactionRouteInput, metadata m
 		return nil
 	}
 
-	input.Metadata = metadata
+	input.Metadata = cloneAnyMap(metadata)
 
 	return input
 }
@@ -141,7 +153,7 @@ func (input *CreateTransactionRouteInput) WithMetadata(metadata map[string]any) 
 		return nil
 	}
 
-	input.Metadata = metadata
+	input.Metadata = cloneAnyMap(metadata)
 
 	return input
 }
@@ -203,7 +215,7 @@ func WithUpdateTransactionRouteMetadata(input *UpdateTransactionRouteInput, meta
 		return nil
 	}
 
-	input.Metadata = metadata
+	input.Metadata = cloneAnyMap(metadata)
 
 	return input
 }

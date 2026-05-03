@@ -78,7 +78,7 @@ type LedgersService interface {
 	//	    context.Background(),
 	//	    "org-123",
 	//	    models.NewCreateLedgerInput("Finance Ledger").
-	//	        WithStatus(models.StatusActive).
+	//	        WithStatus(models.NewStatus(models.StatusActive)).
 	//	        WithMetadata(map[string]any{
 	//	            "department": "Finance",
 	//	            "fiscalYear": 2025,
