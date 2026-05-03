@@ -182,7 +182,7 @@ func NewLedgersEntity(client *http.Client, authToken string, baseURLs map[string
 
 	return &ledgersEntity{
 		httpClient: httpClient,
-		baseURLs:   baseURLs,
+		baseURLs:   prepareServiceBaseURLs(baseURLs),
 	}
 }
 
@@ -203,7 +203,7 @@ func (e *ledgersEntity) ListLedgers(
 
 	url := e.buildURL(organizationID, "")
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -247,7 +247,7 @@ func (e *ledgersEntity) GetLedger(
 
 	url := e.buildURL(organizationID, id)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -276,6 +276,10 @@ func (e *ledgersEntity) CreateLedger(
 		return nil, errors.NewMissingParameterError(operation, "input")
 	}
 
+	if err := input.Validate(); err != nil {
+		return nil, errors.NewValidationError(operation, "ledger validation failed", err)
+	}
+
 	url := e.buildURL(organizationID, "")
 
 	body, err := json.Marshal(input)
@@ -283,7 +287,7 @@ func (e *ledgersEntity) CreateLedger(
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	req, err := newRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -320,6 +324,10 @@ func (e *ledgersEntity) UpdateLedger(
 		return nil, errors.NewMissingParameterError(operation, "input")
 	}
 
+	if err := input.Validate(); err != nil {
+		return nil, errors.NewValidationError(operation, "ledger validation failed", err)
+	}
+
 	url := e.buildURL(organizationID, id)
 
 	body, err := json.Marshal(input)
@@ -327,7 +335,7 @@ func (e *ledgersEntity) UpdateLedger(
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, bytes.NewReader(body))
+	req, err := newRequestWithContext(ctx, http.MethodPatch, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -354,7 +362,7 @@ func (e *ledgersEntity) GetLedgerSettings(ctx context.Context, organizationID, i
 
 	url := e.buildSettingsURL(organizationID, id)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -390,7 +398,7 @@ func (e *ledgersEntity) UpdateLedgerSettings(ctx context.Context, organizationID
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, bytes.NewReader(body))
+	req, err := newRequestWithContext(ctx, http.MethodPatch, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -423,7 +431,7 @@ func (e *ledgersEntity) DeleteLedger(
 
 	url := e.buildURL(organizationID, id)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
+	req, err := newRequestWithContext(ctx, http.MethodDelete, url, nil)
 	if err != nil {
 		return errors.NewInternalError(operation, err)
 	}

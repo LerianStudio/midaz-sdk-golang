@@ -92,16 +92,16 @@ func TestUnsafeMethodRetriesOnlyWithIdempotency(t *testing.T) {
 		expectedSuccess bool
 	}{
 		{
-			name:            "auto idempotency enables retry",
+			name:            "auto idempotency does not enable unsafe retry",
 			headers:         nil,
-			expectedCalls:   2,
-			expectedSuccess: true,
+			expectedCalls:   1,
+			expectedSuccess: false,
 		},
 		{
-			name:            "generated idempotency allows retry",
+			name:            "internal auto idempotency marker does not enable unsafe retry",
 			headers:         map[string]string{"X-Midaz-Auto-Idempotency": "true"},
-			expectedCalls:   2,
-			expectedSuccess: true,
+			expectedCalls:   1,
+			expectedSuccess: false,
 		},
 	}
 

@@ -176,6 +176,8 @@ balance, err := c.Entity.Accounts.GetBalance(ctx, orgID, ledgerID, accountID)
 holders, err := c.Entity.Holders.ListHolders(ctx, orgID, models.NewListOptions().WithLimit(20))
 ```
 
+`Accounts.GetBalance` and `Accounts.GetExternalAccountBalance` are convenience helpers for accounts with exactly one balance. Use the `Balances` service list methods when an account can have multiple balances.
+
 ## Transactions
 
 The current transaction contract uses a send-based payload:

@@ -574,7 +574,8 @@ func NewWithServiceURLs(serviceURLs map[string]string, options ...Option) (*Enti
 	}
 
 	if strings.TrimSpace(serviceURLs["crm"]) == "" {
-		return nil, errors.New("missing crm URL in service URLs map")
+		serviceURLs = copyBaseURLs(serviceURLs)
+		serviceURLs["crm"] = serviceURLs["onboarding"]
 	}
 
 	normalizedBaseURLs, err := normalizeBaseURLs(serviceURLs)

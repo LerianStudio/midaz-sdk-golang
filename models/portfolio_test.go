@@ -181,11 +181,10 @@ func TestCreatePortfolioInput_Validate(t *testing.T) {
 			errorMsg:    "name is required",
 		},
 		{
-			name:        "missing entityID",
+			name:        "missing entityID is allowed",
 			entityID:    "",
 			nameVal:     "My Portfolio",
-			expectError: true,
-			errorMsg:    "entityID is required",
+			expectError: false,
 		},
 		{
 			name:        "missing both name and entityID - name error first",
@@ -570,10 +569,7 @@ func TestCreatePortfolioInput_ValidationOrder(t *testing.T) {
 	assert.Equal(t, "name is required", err2.Error())
 
 	input3 := NewCreatePortfolioInput("", "Valid Name")
-	err3 := input3.Validate()
-
-	require.Error(t, err3)
-	assert.Equal(t, "entityID is required", err3.Error())
+	require.NoError(t, input3.Validate())
 }
 
 func TestPortfolioInput_MetadataImmutability(t *testing.T) {
@@ -664,11 +660,9 @@ func TestPortfolioInput_EmptyStringVsNil(t *testing.T) {
 		assert.Equal(t, "name is required", err.Error())
 	})
 
-	t.Run("empty string entityID fails validation", func(t *testing.T) {
+	t.Run("empty string entityID is omitted-compatible", func(t *testing.T) {
 		input := NewCreatePortfolioInput("", "Valid Name")
-		err := input.Validate()
-		require.Error(t, err)
-		assert.Equal(t, "entityID is required", err.Error())
+		require.NoError(t, input.Validate())
 	})
 
 	t.Run("empty status code is allowed", func(t *testing.T) {

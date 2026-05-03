@@ -254,7 +254,7 @@ func TestCreateAssetInput_Validate(t *testing.T) {
 	}{
 		{
 			name:      "valid input with name and code",
-			input:     NewCreateAssetInput("US Dollar", "USD"),
+			input:     NewCreateAssetInputWithType("US Dollar", "USD", "currency"),
 			wantError: false,
 		},
 		{
@@ -282,22 +282,22 @@ func TestCreateAssetInput_Validate(t *testing.T) {
 		},
 		{
 			name:      "whitespace only name",
-			input:     NewCreateAssetInput("   ", "USD"),
+			input:     NewCreateAssetInputWithType("   ", "USD", "currency"),
 			wantError: false, // Current implementation doesn't trim whitespace
 		},
 		{
 			name:      "whitespace only code",
-			input:     NewCreateAssetInput("US Dollar", "   "),
+			input:     NewCreateAssetInputWithType("US Dollar", "   ", "currency"),
 			wantError: false, // Current implementation doesn't trim whitespace
 		},
 		{
 			name:      "name with leading/trailing spaces",
-			input:     NewCreateAssetInput(" US Dollar ", "USD"),
+			input:     NewCreateAssetInputWithType(" US Dollar ", "USD", "currency"),
 			wantError: false,
 		},
 		{
 			name:      "code with leading/trailing spaces",
-			input:     NewCreateAssetInput("US Dollar", " USD "),
+			input:     NewCreateAssetInputWithType("US Dollar", " USD ", "currency"),
 			wantError: false,
 		},
 	}
@@ -601,7 +601,7 @@ func TestCreateAssetInput_AssetCodes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			input := NewCreateAssetInput("Test Asset", tt.code)
+			input := NewCreateAssetInputWithType("Test Asset", tt.code, "currency")
 			err := input.Validate()
 
 			if tt.wantValid {
@@ -658,7 +658,7 @@ func TestCreateAssetInput_AssetNames(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			input := NewCreateAssetInput(tt.assetName, "TST")
+			input := NewCreateAssetInputWithType(tt.assetName, "TST", "currency")
 			err := input.Validate()
 
 			if tt.wantValid {
@@ -672,8 +672,9 @@ func TestCreateAssetInput_AssetNames(t *testing.T) {
 
 func TestCreateAssetInput_MetadataEdgeCases(t *testing.T) {
 	tests := []struct {
-		name     string
-		metadata map[string]any
+		name      string
+		metadata  map[string]any
+		wantError bool
 	}{
 		{
 			name:     "nil metadata",
@@ -688,6 +689,7 @@ func TestCreateAssetInput_MetadataEdgeCases(t *testing.T) {
 			metadata: map[string]any{
 				"": "empty key",
 			},
+			wantError: true,
 		},
 		{
 			name: "metadata with empty string value",
@@ -710,12 +712,14 @@ func TestCreateAssetInput_MetadataEdgeCases(t *testing.T) {
 					},
 				},
 			},
+			wantError: true,
 		},
 		{
 			name: "metadata with array",
 			metadata: map[string]any{
 				"tags": []string{"tag1", "tag2", "tag3"},
 			},
+			wantError: true,
 		},
 		{
 			name: "metadata with mixed types",
@@ -734,6 +738,7 @@ func TestCreateAssetInput_MetadataEdgeCases(t *testing.T) {
 				"key_with_underscore": "value2",
 				"key.with.dots":       "value3",
 			},
+			wantError: true,
 		},
 		{
 			name: "metadata with unicode key",
@@ -757,10 +762,15 @@ func TestCreateAssetInput_MetadataEdgeCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			input := NewCreateAssetInput("Test Asset", "TST").WithMetadata(tt.metadata)
+			input := NewCreateAssetInputWithType("Test Asset", "TST", "currency").WithMetadata(tt.metadata)
 			assert.Equal(t, tt.metadata, input.Metadata)
 
 			err := input.Validate()
+			if tt.wantError {
+				require.Error(t, err)
+				return
+			}
+
 			require.NoError(t, err)
 		})
 	}
@@ -780,14 +790,10 @@ func TestUpdateAssetInput_MetadataEdgeCases(t *testing.T) {
 			metadata: map[string]any{},
 		},
 		{
-			name: "metadata with complex nested structure",
+			name: "metadata with additional scalar values",
 			metadata: map[string]any{
-				"config": map[string]any{
-					"settings": map[string]any{
-						"enabled": true,
-						"options": []int{1, 2, 3},
-					},
-				},
+				"enabled": true,
+				"version": 2,
 			},
 		},
 	}
@@ -836,7 +842,7 @@ func TestCreateAssetInput_StatusEdgeCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			input := NewCreateAssetInput("Test Asset", "TST").WithStatus(tt.status)
+			input := NewCreateAssetInputWithType("Test Asset", "TST", "currency").WithStatus(tt.status)
 			assert.Equal(t, tt.status.Code, input.Status.Code)
 
 			err := input.Validate()
@@ -890,6 +896,13 @@ func TestCreateAssetInput_TypeEdgeCases(t *testing.T) {
 			assert.Equal(t, tt.assetType, input.Type)
 
 			err := input.Validate()
+			if tt.assetType == "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "type is required")
+
+				return
+			}
+
 			require.NoError(t, err)
 		})
 	}

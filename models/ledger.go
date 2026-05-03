@@ -2,8 +2,11 @@
 package models
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation/core"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
@@ -31,6 +34,10 @@ func NewUpdateLedgerSettingsInput() *UpdateLedgerSettingsInput {
 
 // WithValidateAccountType sets the validateAccountType accounting flag.
 func (input *UpdateLedgerSettingsInput) WithValidateAccountType(enabled bool) *UpdateLedgerSettingsInput {
+	if input == nil {
+		return nil
+	}
+
 	if input.Accounting == nil {
 		input.Accounting = &UpdateLedgerSettingsAccountingInput{}
 	}
@@ -42,6 +49,10 @@ func (input *UpdateLedgerSettingsInput) WithValidateAccountType(enabled bool) *U
 
 // WithValidateRoutes sets the validateRoutes accounting flag.
 func (input *UpdateLedgerSettingsInput) WithValidateRoutes(enabled bool) *UpdateLedgerSettingsInput {
+	if input == nil {
+		return nil
+	}
+
 	if input.Accounting == nil {
 		input.Accounting = &UpdateLedgerSettingsAccountingInput{}
 	}
@@ -72,23 +83,61 @@ func NewCreateLedgerInput(name string) *CreateLedgerInput {
 
 // WithStatus sets the status.
 func (input *CreateLedgerInput) WithStatus(status Status) *CreateLedgerInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Status = status
+
 	return input
 }
 
 // WithMetadata sets the metadata.
 func (input *CreateLedgerInput) WithMetadata(metadata map[string]any) *CreateLedgerInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Metadata = metadata
+
 	return input
 }
 
 // Validate validates the CreateLedgerInput fields.
 func (input *CreateLedgerInput) Validate() error {
+	if input == nil {
+		return errors.New("input cannot be nil")
+	}
+
 	if input.Name == "" {
 		return errors.New("name is required")
 	}
 
+	if input.Metadata != nil {
+		if err := core.ValidateMetadata(input.Metadata); err != nil {
+			return fmt.Errorf("invalid metadata: %w", err)
+		}
+	}
+
 	return nil
+}
+
+// MarshalJSON omits optional create fields when callers leave them unset.
+func (input *CreateLedgerInput) MarshalJSON() ([]byte, error) {
+	if input == nil {
+		return []byte("null"), nil
+	}
+
+	fields := map[string]any{}
+	addStringField(fields, "name", input.Name)
+	addStatusField(fields, input.Status)
+	addMetadataField(fields, input.Metadata)
+
+	if input.Settings != nil {
+		fields["settings"] = input.Settings
+	}
+
+	return json.Marshal(fields)
 }
 
 // NewUpdateLedgerInput creates a new UpdateLedgerInput.
@@ -100,24 +149,62 @@ func NewUpdateLedgerInput() *UpdateLedgerInput {
 
 // WithName sets the name for UpdateLedgerInput.
 func (input *UpdateLedgerInput) WithName(name string) *UpdateLedgerInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Name = name
+
 	return input
 }
 
 // WithStatus sets the status for UpdateLedgerInput.
 func (input *UpdateLedgerInput) WithStatus(status Status) *UpdateLedgerInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Status = status
+
 	return input
 }
 
 // WithMetadata sets the metadata for UpdateLedgerInput.
 func (input *UpdateLedgerInput) WithMetadata(metadata map[string]any) *UpdateLedgerInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Metadata = metadata
+
 	return input
 }
 
 // Validate validates the UpdateLedgerInput fields.
-func (*UpdateLedgerInput) Validate() error {
-	// For update operations, most fields are optional
+func (input *UpdateLedgerInput) Validate() error {
+	if input == nil {
+		return errors.New("input cannot be nil")
+	}
+
+	if input.Metadata != nil {
+		if err := core.ValidateMetadata(input.Metadata); err != nil {
+			return fmt.Errorf("invalid metadata: %w", err)
+		}
+	}
+
 	return nil
+}
+
+// MarshalJSON emits only fields explicitly set on the SDK PATCH input.
+func (input *UpdateLedgerInput) MarshalJSON() ([]byte, error) {
+	if input == nil {
+		return []byte("null"), nil
+	}
+
+	fields := map[string]any{}
+	addStringField(fields, "name", input.Name)
+	addStatusField(fields, input.Status)
+	addMetadataField(fields, input.Metadata)
+
+	return json.Marshal(fields)
 }

@@ -223,7 +223,7 @@ func (wc *workflowContext) createSingleAsset(ctx context.Context, assetName stri
 		attribute.String("ledger.id", wc.ledger.ID),
 	)
 
-	assetInput := models.NewCreateAssetInput(assetName, assetName)
+	assetInput := models.NewCreateAssetInputWithType(assetName, assetName, "currency")
 	asset, err := wc.midazClient.Entity.Assets.CreateAsset(ctx, wc.orgID, wc.ledger.ID, assetInput)
 	if err != nil {
 		assetSpan.SetStatus(codes.Error, err.Error())

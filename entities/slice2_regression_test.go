@@ -78,13 +78,13 @@ func TestZeroValueEntityExportedMethods_AreSafe(t *testing.T) {
 	require.NotPanics(t, func() { e.SetAuthToken("token") })
 }
 
-func TestSlice2NewWithServiceURLs_RequiresCRMURL(t *testing.T) {
-	_, err := NewWithServiceURLs(map[string]string{
+func TestSlice2NewWithServiceURLs_DefaultsMissingCRMURLToOnboarding(t *testing.T) {
+	entity, err := NewWithServiceURLs(map[string]string{
 		"onboarding":  "https://api.example.com/onboarding",
 		"transaction": "https://api.example.com/transaction",
 	})
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "missing crm URL")
+	require.NoError(t, err)
+	require.Equal(t, "https://api.example.com/onboarding/v1", entity.baseURLs["crm"])
 }
 
 func TestEntityURLs_NormalizeV1AndRejectUnsafeDirectURLs(t *testing.T) {

@@ -123,8 +123,9 @@ Important path groups:
 
 - Organizations: `/organizations`, `/organizations/{id}`
 - Ledgers: `/organizations/{organizationID}/ledgers`, `/organizations/{organizationID}/ledgers/{ledgerID}`
-- Accounts: `/organizations/{organizationID}/ledgers/{ledgerID}/accounts`, `/accounts/{id}`, `/accounts/alias/{alias}`, `/accounts/external/{assetCode}`
-- Account balances: `/accounts/{accountID}/balances`, `/balances/{balanceID}`, balance history endpoints
+- Ledger settings: `/organizations/{organizationID}/ledgers/{ledgerID}/settings` with `GET` and `PATCH` for `accounting.validateAccountType` and `accounting.validateRoutes`.
+- Accounts: `/organizations/{organizationID}/ledgers/{ledgerID}/accounts`, `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/{accountID}`, `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/alias/{alias}`, `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/external/{assetCode}`
+- Account balances: `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/{accountID}/balances`, `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/alias/{alias}/balances`, `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/external/{assetCode}/balances`, `/balances/{balanceID}`, balance history endpoints
 - Assets: `/organizations/{organizationID}/ledgers/{ledgerID}/assets`
 - Asset rates: asset-rate endpoints under organization/ledger scope, including asset-code filtered listing
 - Transactions: `/transactions/json`, `/transactions/dsl`, `/transactions/{id}`, `/transactions/{id}/commit`, `/transactions/{id}/cancel`, `/transactions/{id}/revert`, `/transactions/inflow`, `/transactions/outflow`, `/transactions/annotation`
@@ -146,7 +147,7 @@ Supported count paths use `HEAD` and read `X-Total-Count`:
 | Accounts | `GetAccountsMetricsCount` | `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/metrics/count` |
 | Transactions | `GetTransactionsMetricsCount` | `/organizations/{organizationID}/ledgers/{ledgerID}/transactions/metrics/count` |
 
-`doCountRequest` returns an internal SDK error when `X-Total-Count` is missing or cannot be parsed as an integer. `GetAccountTypesMetricsCount` is a deprecated compatibility-only method. It validates IDs and returns a validation error because Midaz Ledger does not expose account type count metrics.
+`doCountRequest` returns an internal SDK error when `X-Total-Count` is missing, blank, non-integer, negative, or overflowing. `GetAccountTypesMetricsCount` is a deprecated compatibility-only method. It validates IDs and returns a validation error because Midaz Ledger does not expose account type count metrics.
 
 ## Model compatibility layer
 
@@ -156,9 +157,20 @@ Common builders:
 
 - `models.NewCreateOrganizationInput(legalName, legalDocument)`
 - `models.NewUpdateOrganizationInput()`
-- `models.NewCreateAssetInput(name, code)`
-- `models.NewUpdateAssetInput()`
+- `models.NewCreateLedgerInput(name)`
+- `models.NewUpdateLedgerInput()`
+- `models.NewUpdateLedgerSettingsInput()`
 - `models.NewCreateAccountInput(name, assetCode, accountType)`
+- `models.NewUpdateAccountInput()`
+- `models.NewCreateAccountTypeInput(name, keyValue)`
+- `models.NewUpdateAccountTypeInput()`
+- `models.NewCreateAssetInputWithType(name, code, assetType)`
+- `models.NewCreateAssetInput(name, code)` - Deprecated compatibility builder; callers must set type with `WithType` before sending.
+- `models.NewUpdateAssetInput()`
+- `models.NewCreatePortfolioInput(entityID, name)`
+- `models.NewUpdatePortfolioInput()`
+- `models.NewCreateSegmentInput(name)`
+- `models.NewUpdateSegmentInput()`
 - `models.NewCreateTransactionInput(assetCode, amount)`
 - `models.NewAssetRateListOptions()`
 

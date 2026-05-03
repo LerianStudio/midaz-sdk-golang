@@ -137,6 +137,8 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v2/entities`. Consumers usually ac
 - `GetLedger(ctx, organizationID, id)`
 - `CreateLedger(ctx, organizationID, input)`
 - `UpdateLedger(ctx, organizationID, id, input)`
+- `GetLedgerSettings(ctx, organizationID, id)` - `GET /organizations/{organizationID}/ledgers/{ledgerID}/settings`.
+- `UpdateLedgerSettings(ctx, organizationID, id, input)` - `PATCH /organizations/{organizationID}/ledgers/{ledgerID}/settings`; allowed fields are `accounting.validateAccountType` and `accounting.validateRoutes`.
 - `DeleteLedger(ctx, organizationID, id)`
 - `GetLedgersMetricsCount(ctx, organizationID)`
 
@@ -148,11 +150,11 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v2/entities`. Consumers usually ac
 - `CreateAccount(ctx, organizationID, ledgerID, input)`
 - `UpdateAccount(ctx, organizationID, ledgerID, id, input)`
 - `DeleteAccount(ctx, organizationID, ledgerID, id)`
-- `GetBalance(ctx, organizationID, ledgerID, accountID)`
+- `GetBalance(ctx, organizationID, ledgerID, accountID)` - Convenience helper for accounts with exactly one balance; returns not found for zero balances and a validation error when multiple balances exist. Use `BalancesService.ListAccountBalances` for full balance lists.
 - `GetAccountsMetricsCount(ctx, organizationID, ledgerID)`
 - `GetExternalAccount(ctx, organizationID, ledgerID, assetCode)`
-- `GetExternalAccountBalance(ctx, organizationID, ledgerID, assetCode)`
-- `GetAccountByAliasPath(ctx, organizationID, ledgerID, alias)`
+- `GetExternalAccountBalance(ctx, organizationID, ledgerID, assetCode)` - Convenience helper for external accounts with exactly one balance; returns not found for zero balances and a validation error when multiple balances exist. Use `BalancesService.ListBalancesByExternalCode` for full balance lists.
+- `GetAccountByAliasPath(ctx, organizationID, ledgerID, alias)` - Deprecated compatibility alias for `GetAccountByAlias`.
 
 ### AccountTypesService
 
@@ -256,7 +258,7 @@ Compatibility-only method:
 
 The supported count methods are `GetOrganizationsMetricsCount`, `GetLedgersMetricsCount`, `GetAssetsMetricsCount`, `GetPortfoliosMetricsCount`, `GetSegmentsMetricsCount`, `GetAccountsMetricsCount`, and `GetTransactionsMetricsCount`.
 
-These methods call Midaz `metrics/count` endpoints with `HEAD` and read the integer count from the `X-Total-Count` response header. If the header is missing or contains a non-integer value, the SDK returns an internal count-request error.
+These methods call Midaz `metrics/count` endpoints with `HEAD` and read the integer count from the `X-Total-Count` response header. If the header is missing, blank, non-integer, negative, or overflowing, the SDK returns an internal count-request error.
 
 ### MetadataIndexesService
 
@@ -302,6 +304,7 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v2/models`.
 - `(*models.ListOptions).WithFilters(map[string]string)`
 - `(*models.ListOptions).WithDateRange(startDate, endDate string)`
 - `(*models.ListOptions).WithAdditionalParam(key, value string)`
+- Account filters: `WithPortfolioID`, `WithSegmentID`, `WithStatusFilter`, `WithTypeFilter`, `WithAssetCode`, `WithEntityID`, `WithBlocked`, `WithParentAccountID`, `WithNameFilter`, and `WithAlias` serialize to the Midaz onboarding account query names.
 - `(*models.ListOptions).WithIncludeDeleted(bool)`
 - `(*models.ListOptions).WithHolderID(string)`
 - `(*models.ListOptions).WithExternalID(string)`
@@ -322,10 +325,21 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v2/models`.
 
 - `models.NewCreateOrganizationInput(legalName, legalDocument)`
 - `models.NewUpdateOrganizationInput()`
-- `models.NewCreateAssetInput(name, code)`
-- `models.NewUpdateAssetInput()`
-- `models.NewCreateTransactionInput(assetCode, amount)`
+- `models.NewCreateLedgerInput(name)`
+- `models.NewUpdateLedgerInput()`
+- `models.NewUpdateLedgerSettingsInput()`
 - `models.NewCreateAccountInput(name, assetCode, accountType)`
+- `models.NewUpdateAccountInput()`
+- `models.NewCreateAccountTypeInput(name, keyValue)`
+- `models.NewUpdateAccountTypeInput()`
+- `models.NewCreateAssetInputWithType(name, code, assetType)` - Preferred asset builder because Midaz requires `type`.
+- `models.NewCreateAssetInput(name, code)` - Deprecated compatibility builder; callers must still set type with `WithType` before sending.
+- `models.NewUpdateAssetInput()`
+- `models.NewCreatePortfolioInput(entityID, name)` - `entityID` is optional by contract and may be empty; use `WithEntityID` when needed.
+- `models.NewUpdatePortfolioInput()`
+- `models.NewCreateSegmentInput(name)`
+- `models.NewUpdateSegmentInput()`
+- `models.NewCreateTransactionInput(assetCode, amount)`
 - `models.NewAssetRateListOptions()`
 
 ## Errors package

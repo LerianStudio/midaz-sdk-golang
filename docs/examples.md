@@ -75,8 +75,7 @@ orgs, err := c.Entity.Organizations.ListOrganizations(ctx,
 ## Account and asset management
 
 ```go
-assetInput := models.NewCreateAssetInput("US Dollar", "USD").
-    WithType("currency").
+assetInput := models.NewCreateAssetInputWithType("US Dollar", "USD", "currency").
     WithMetadata(map[string]any{
         "symbol":  "$",
         "country": "US",

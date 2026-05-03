@@ -624,6 +624,7 @@ func TestListOptionsToQueryParams(t *testing.T) {
 
 	expectedParams := map[string]string{
 		QueryParamLimit:          "25",
+		QueryParamPage:           "1",
 		QueryParamOrderDirection: string(SortAscending),
 		QueryParamStartDate:      "2023-01-01",
 		QueryParamEndDate:        "2023-12-31",
@@ -635,10 +636,6 @@ func TestListOptionsToQueryParams(t *testing.T) {
 		if actualValue, exists := params[key]; !exists || actualValue != expectedValue {
 			t.Errorf("Expected %s=%s, got %s=%s", key, expectedValue, key, actualValue)
 		}
-	}
-
-	if _, exists := params[QueryParamPage]; exists {
-		t.Errorf("Did not expect lossy page query parameter for non-aligned offset")
 	}
 
 	if _, exists := params[QueryParamOffset]; exists {

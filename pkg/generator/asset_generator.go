@@ -36,8 +36,7 @@ func (g *assetGenerator) Generate(ctx context.Context, ledgerID string, template
 		return nil, errors.New("organization id missing in context for asset creation")
 	}
 
-	input := models.NewCreateAssetInput(template.Name, template.Code).
-		WithType(template.Type).
+	input := models.NewCreateAssetInputWithType(template.Name, template.Code, template.Type).
 		WithStatus(models.NewStatus(models.StatusActive)).
 		WithMetadata(mergeMetadata(template.Metadata, map[string]any{"scale": template.Scale}))
 

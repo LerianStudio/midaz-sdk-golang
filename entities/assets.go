@@ -40,8 +40,8 @@ type AssetsService interface {
 	//   - input: The asset details, including required fields:
 	//     - Name: The human-readable name of the asset (e.g., "US Dollar")
 	//     - Code: The unique asset code (e.g., "USD")
+	//     - Type: The asset type (e.g., "currency", "security", "commodity")
 	//     Optional fields include:
-	//     - Type: The asset type (e.g., "CURRENCY", "SECURITY", "COMMODITY")
 	//     - Status: The initial status (defaults to ACTIVE if not specified)
 	//     - Metadata: Additional custom information about the asset
 	//
@@ -66,7 +66,7 @@ type AssetsService interface {
 	//	    &models.CreateAssetInput{
 	//	        Name: "US Dollar",
 	//	        Code: "USD",
-	//	        Type: "CURRENCY",
+	//	        Type: "currency",
 	//	    },
 	//	)
 	//
@@ -85,8 +85,7 @@ type AssetsService interface {
 	//	    context.Background(),
 	//	    "org-123",
 	//	    "ledger-456",
-	//	    models.NewCreateAssetInput("Apple Inc. Stock", "AAPL").
-	//	        WithType("SECURITY").
+	//	    models.NewCreateAssetInputWithType("Apple Inc. Stock", "AAPL", "security").
 	//	        WithStatus(models.StatusActive).
 	//	        WithMetadata(map[string]any{
 	//	            "exchange": "NASDAQ",
@@ -166,7 +165,7 @@ func (e *assetsEntity) setDefaultTenantID(tenantID string) {
 //	    &models.CreateAssetInput{
 //	        Name: "US Dollar",
 //	        Code: "USD",
-//	        Type: "CURRENCY",
+//	        Type: "currency",
 //	    },
 //	)
 //
@@ -186,7 +185,7 @@ func NewAssetsEntity(client *http.Client, authToken string, baseURLs map[string]
 
 	return &assetsEntity{
 		httpClient: httpClient,
-		baseURLs:   baseURLs,
+		baseURLs:   prepareServiceBaseURLs(baseURLs),
 	}
 }
 
@@ -211,7 +210,7 @@ func (e *assetsEntity) ListAssets(
 
 	url := e.buildURL(organizationID, ledgerID, "")
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -260,7 +259,7 @@ func (e *assetsEntity) GetAsset(
 
 	url := e.buildURL(organizationID, ledgerID, id)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -294,6 +293,10 @@ func (e *assetsEntity) CreateAsset(
 		return nil, errors.NewMissingParameterError(operation, "input")
 	}
 
+	if err := input.Validate(); err != nil {
+		return nil, errors.NewValidationError(operation, "asset validation failed", err)
+	}
+
 	url := e.buildURL(organizationID, ledgerID, "")
 
 	body, err := json.Marshal(input)
@@ -301,7 +304,7 @@ func (e *assetsEntity) CreateAsset(
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	req, err := newRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -343,6 +346,10 @@ func (e *assetsEntity) UpdateAsset(
 		return nil, errors.NewMissingParameterError(operation, "input")
 	}
 
+	if err := input.Validate(); err != nil {
+		return nil, errors.NewValidationError(operation, "asset validation failed", err)
+	}
+
 	url := e.buildURL(organizationID, ledgerID, id)
 
 	body, err := json.Marshal(input)
@@ -350,7 +357,7 @@ func (e *assetsEntity) UpdateAsset(
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, bytes.NewReader(body))
+	req, err := newRequestWithContext(ctx, http.MethodPatch, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -387,7 +394,7 @@ func (e *assetsEntity) DeleteAsset(
 
 	url := e.buildURL(organizationID, ledgerID, id)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
+	req, err := newRequestWithContext(ctx, http.MethodDelete, url, nil)
 	if err != nil {
 		return errors.NewInternalError(operation, err)
 	}

@@ -1041,7 +1041,7 @@ func TestAccountsEntity_CreateAccount(t *testing.T) {
 			ledgerID: "ledger-123",
 			input: &models.CreateAccountInput{
 				Name:      "New Account",
-				Type:      "ASSET",
+				Type:      "deposit",
 				AssetCode: "USD",
 			},
 			mockResponse: `{
@@ -1050,7 +1050,7 @@ func TestAccountsEntity_CreateAccount(t *testing.T) {
 				"assetCode": "USD",
 				"organizationId": "org-123",
 				"ledgerId": "ledger-123",
-				"type": "ASSET",
+				"type": "deposit",
 				"status": {"code": "ACTIVE"}
 			}`,
 			mockStatusCode: http.StatusOK,
@@ -1061,7 +1061,7 @@ func TestAccountsEntity_CreateAccount(t *testing.T) {
 			ledgerID: "ledger-123",
 			input: &models.CreateAccountInput{
 				Name:      "New Account",
-				Type:      "ASSET",
+				Type:      "deposit",
 				AssetCode: "USD",
 			},
 			expectedError: true,
@@ -1072,7 +1072,7 @@ func TestAccountsEntity_CreateAccount(t *testing.T) {
 			ledgerID: "",
 			input: &models.CreateAccountInput{
 				Name:      "New Account",
-				Type:      "ASSET",
+				Type:      "deposit",
 				AssetCode: "USD",
 			},
 			expectedError: true,
@@ -1090,7 +1090,7 @@ func TestAccountsEntity_CreateAccount(t *testing.T) {
 			ledgerID: "ledger-123",
 			input: &models.CreateAccountInput{
 				Name:      "New Account",
-				Type:      "ASSET",
+				Type:      "deposit",
 				AssetCode: "USD",
 			},
 			mockStatusCode: http.StatusInternalServerError,
@@ -1148,7 +1148,7 @@ func TestAccountsEntity_CreateAccount(t *testing.T) {
 			assert.Equal(t, "acc-new", result.ID)
 			assert.Equal(t, "New Account", result.Name)
 			assert.Equal(t, "USD", result.AssetCode)
-			assert.Equal(t, "ASSET", result.Type)
+			assert.Equal(t, "deposit", result.Type)
 			assert.Equal(t, "ACTIVE", result.Status.Code)
 		})
 	}

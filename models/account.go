@@ -2,6 +2,7 @@
 package models
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -15,12 +16,8 @@ const maxAccountFieldLength = 256
 // This is now an alias to mmodel.Account to avoid duplication while maintaining
 // SDK-specific documentation and examples.
 //
-// Account Types:
-//   - ASSET: Represents resources owned by the entity (e.g., cash, inventory, receivables)
-//   - LIABILITY: Represents obligations owed by the entity (e.g., loans, payables)
-//   - EQUITY: Represents the residual interest in the assets after deducting liabilities
-//   - REVENUE: Represents increases in economic benefits during the accounting period
-//   - EXPENSE: Represents decreases in economic benefits during the accounting period
+// Account types are deployment-defined Midaz account categories such as
+// deposit, savings, loans, marketplace, and creditCard.
 //
 // Account Statuses:
 //   - ACTIVE: The account is in use and can participate in transactions
@@ -34,7 +31,7 @@ const maxAccountFieldLength = 256
 //	customerAccount := models.NewCreateAccountInput(
 //	    "John Doe",
 //	    "USD",
-//	    "ASSET",
+//	    "deposit",
 //	).WithAlias("customer:john.doe").
 //	  WithMetadata(map[string]any{
 //	    "customer_id": "cust-123",
@@ -113,7 +110,7 @@ type CreateAccountInput struct {
 	// Max length: 100 characters.
 	Alias *string `json:"alias,omitempty"`
 
-	// Type defines the account type (e.g., "ASSET", "LIABILITY", "EQUITY").
+	// Type defines the account type (e.g., "deposit", "savings").
 	// Required.
 	Type string `json:"type"`
 
@@ -125,6 +122,10 @@ type CreateAccountInput struct {
 // Validate checks if the CreateAccountInput meets the validation requirements.
 // It returns an error if any of the validation checks fail.
 func (input *CreateAccountInput) Validate() error {
+	if input == nil {
+		return errors.New("input cannot be nil")
+	}
+
 	if err := validateAccountStringLength("name", input.Name); err != nil {
 		return err
 	}
@@ -161,6 +162,12 @@ func (input *CreateAccountInput) Validate() error {
 		}
 	}
 
+	if input.Metadata != nil {
+		if err := core.ValidateMetadata(input.Metadata); err != nil {
+			return fmt.Errorf("invalid metadata: %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -168,9 +175,9 @@ func (input *CreateAccountInput) Validate() error {
 // This constructor ensures that all mandatory fields are provided when creating an account input.
 //
 // Parameters:
-//   - name: Human-readable name for the account
+//   - name: Optional human-readable name for the account
 //   - assetCode: Code identifying the type of asset for this account
-//   - accountType: Type of the account (e.g., "ASSET", "LIABILITY", "EQUITY")
+//   - accountType: Type of the account (e.g., "deposit", "savings")
 //
 // Returns:
 //   - A pointer to the newly created CreateAccountInput with default active status
@@ -192,7 +199,12 @@ func NewCreateAccountInput(name, assetCode, accountType string) *CreateAccountIn
 // Returns:
 //   - A pointer to the modified CreateAccountInput for method chaining
 func (input *CreateAccountInput) WithParentAccountID(parentAccountID string) *CreateAccountInput {
+	if input == nil {
+		return nil
+	}
+
 	input.ParentAccountID = &parentAccountID
+
 	return input
 }
 
@@ -205,7 +217,12 @@ func (input *CreateAccountInput) WithParentAccountID(parentAccountID string) *Cr
 // Returns:
 //   - A pointer to the modified CreateAccountInput for method chaining
 func (input *CreateAccountInput) WithEntityID(entityID string) *CreateAccountInput {
+	if input == nil {
+		return nil
+	}
+
 	input.EntityID = &entityID
+
 	return input
 }
 
@@ -218,7 +235,12 @@ func (input *CreateAccountInput) WithEntityID(entityID string) *CreateAccountInp
 // Returns:
 //   - A pointer to the modified CreateAccountInput for method chaining
 func (input *CreateAccountInput) WithPortfolioID(portfolioID string) *CreateAccountInput {
+	if input == nil {
+		return nil
+	}
+
 	input.PortfolioID = &portfolioID
+
 	return input
 }
 
@@ -231,7 +253,12 @@ func (input *CreateAccountInput) WithPortfolioID(portfolioID string) *CreateAcco
 // Returns:
 //   - A pointer to the modified CreateAccountInput for method chaining
 func (input *CreateAccountInput) WithSegmentID(segmentID string) *CreateAccountInput {
+	if input == nil {
+		return nil
+	}
+
 	input.SegmentID = &segmentID
+
 	return input
 }
 
@@ -244,7 +271,12 @@ func (input *CreateAccountInput) WithSegmentID(segmentID string) *CreateAccountI
 // Returns:
 //   - A pointer to the modified CreateAccountInput for method chaining
 func (input *CreateAccountInput) WithStatus(status Status) *CreateAccountInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Status = status
+
 	return input
 }
 
@@ -257,7 +289,12 @@ func (input *CreateAccountInput) WithStatus(status Status) *CreateAccountInput {
 // Returns:
 //   - A pointer to the modified CreateAccountInput for method chaining
 func (input *CreateAccountInput) WithAlias(alias string) *CreateAccountInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Alias = &alias
+
 	return input
 }
 
@@ -270,13 +307,23 @@ func (input *CreateAccountInput) WithAlias(alias string) *CreateAccountInput {
 // Returns:
 //   - A pointer to the modified CreateAccountInput for method chaining
 func (input *CreateAccountInput) WithMetadata(metadata map[string]any) *CreateAccountInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Metadata = metadata
+
 	return input
 }
 
 // WithBlocked sets whether the account should start blocked.
 func (input *CreateAccountInput) WithBlocked(blocked bool) *CreateAccountInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Blocked = &blocked
+
 	return input
 }
 
@@ -330,6 +377,10 @@ type UpdateAccountInput struct {
 // Validate checks if the UpdateAccountInput meets the validation requirements.
 // It returns an error if any of the validation checks fail.
 func (input *UpdateAccountInput) Validate() error {
+	if input == nil {
+		return errors.New("input cannot be nil")
+	}
+
 	if err := validateAccountStringLength("name", input.Name); err != nil {
 		return err
 	}
@@ -352,6 +403,37 @@ func (input *UpdateAccountInput) Validate() error {
 	}
 
 	return nil
+}
+
+// MarshalJSON emits only fields explicitly set on the SDK PATCH input.
+func (input *UpdateAccountInput) MarshalJSON() ([]byte, error) {
+	if input == nil {
+		return []byte("null"), nil
+	}
+
+	fields := map[string]any{}
+	addStringField(fields, "name", input.Name)
+
+	if input.SegmentID != nil {
+		fields["segmentId"] = input.SegmentID
+	}
+
+	if input.PortfolioID != nil {
+		fields["portfolioId"] = input.PortfolioID
+	}
+
+	addStatusField(fields, input.Status)
+	addMetadataField(fields, input.Metadata)
+
+	if input.EntityID != nil {
+		fields["entityId"] = input.EntityID
+	}
+
+	if input.Blocked != nil {
+		fields["blocked"] = input.Blocked
+	}
+
+	return json.Marshal(fields)
 }
 
 func validateAccountStringLength(field, value string) error {
@@ -381,13 +463,23 @@ func NewUpdateAccountInput() *UpdateAccountInput {
 // Returns:
 //   - A pointer to the modified UpdateAccountInput for method chaining
 func (input *UpdateAccountInput) WithName(name string) *UpdateAccountInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Name = name
+
 	return input
 }
 
 // WithEntityID sets the external entity identifier.
 func (input *UpdateAccountInput) WithEntityID(entityID string) *UpdateAccountInput {
+	if input == nil {
+		return nil
+	}
+
 	input.EntityID = &entityID
+
 	return input
 }
 
@@ -400,7 +492,12 @@ func (input *UpdateAccountInput) WithEntityID(entityID string) *UpdateAccountInp
 // Returns:
 //   - A pointer to the modified UpdateAccountInput for method chaining
 func (input *UpdateAccountInput) WithSegmentID(segmentID string) *UpdateAccountInput {
+	if input == nil {
+		return nil
+	}
+
 	input.SegmentID = &segmentID
+
 	return input
 }
 
@@ -413,7 +510,12 @@ func (input *UpdateAccountInput) WithSegmentID(segmentID string) *UpdateAccountI
 // Returns:
 //   - A pointer to the modified UpdateAccountInput for method chaining
 func (input *UpdateAccountInput) WithPortfolioID(portfolioID string) *UpdateAccountInput {
+	if input == nil {
+		return nil
+	}
+
 	input.PortfolioID = &portfolioID
+
 	return input
 }
 
@@ -426,7 +528,12 @@ func (input *UpdateAccountInput) WithPortfolioID(portfolioID string) *UpdateAcco
 // Returns:
 //   - A pointer to the modified UpdateAccountInput for method chaining
 func (input *UpdateAccountInput) WithStatus(status Status) *UpdateAccountInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Status = status
+
 	return input
 }
 
@@ -439,13 +546,23 @@ func (input *UpdateAccountInput) WithStatus(status Status) *UpdateAccountInput {
 // Returns:
 //   - A pointer to the modified UpdateAccountInput for method chaining
 func (input *UpdateAccountInput) WithMetadata(metadata map[string]any) *UpdateAccountInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Metadata = metadata
+
 	return input
 }
 
 // WithBlocked sets whether the account should be blocked.
 func (input *UpdateAccountInput) WithBlocked(blocked bool) *UpdateAccountInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Blocked = &blocked
+
 	return input
 }
 

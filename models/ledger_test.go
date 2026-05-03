@@ -540,19 +540,16 @@ func TestLedgerStatusValues(t *testing.T) {
 }
 
 func TestLedgerMetadataHandling(t *testing.T) {
-	t.Run("create input accepts various metadata types", func(t *testing.T) {
+	t.Run("create input accepts scalar metadata types", func(t *testing.T) {
 		metadata := map[string]any{
-			"string_val":  "text",
-			"int_val":     42,
-			"float_val":   3.14159,
-			"bool_val":    true,
-			"nil_val":     nil,
-			"array_val":   []int{1, 2, 3},
-			"nested_val":  map[string]any{"inner": "value"},
-			"empty_str":   "",
-			"zero_int":    0,
-			"false_bool":  false,
-			"empty_array": []string{},
+			"string_val": "text",
+			"int_val":    42,
+			"float_val":  3.14159,
+			"bool_val":   true,
+			"nil_val":    nil,
+			"empty_str":  "",
+			"zero_int":   0,
+			"false_bool": false,
 		}
 
 		input := NewCreateLedgerInput("Metadata Test").WithMetadata(metadata)
@@ -561,11 +558,11 @@ func TestLedgerMetadataHandling(t *testing.T) {
 		require.NoError(t, input.Validate())
 	})
 
-	t.Run("update input accepts various metadata types", func(t *testing.T) {
+	t.Run("update input accepts scalar metadata types", func(t *testing.T) {
 		metadata := map[string]any{
 			"updated_at": "2024-01-15T10:30:00Z",
 			"version":    2,
-			"tags":       []string{"finance", "main"},
+			"active":     true,
 		}
 
 		input := NewUpdateLedgerInput().WithMetadata(metadata)

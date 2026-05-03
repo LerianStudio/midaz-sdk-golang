@@ -317,6 +317,72 @@ func redactSensitive(message string) string {
 	return sensitiveKeyValuePattern.ReplaceAllString(redacted, `${1}${2}[REDACTED]`)
 }
 
+// RedactSensitiveDetails returns a deep-redacted copy of structured API details.
+// It preserves the shape of the API envelope while removing PII and financial
+// fields that applications commonly log after calling GetErrorDetails.
+func RedactSensitiveDetails(details map[string]any) map[string]any {
+	if details == nil {
+		return nil
+	}
+
+	redacted := make(map[string]any, len(details))
+	for key, value := range details {
+		redacted[key] = redactSensitiveDetailValue(key, value)
+	}
+
+	return redacted
+}
+
+func redactSensitiveDetailValue(key string, value any) any {
+	if isSensitiveDetailKey(key) {
+		return "[REDACTED]"
+	}
+
+	switch typed := value.(type) {
+	case map[string]any:
+		return RedactSensitiveDetails(typed)
+	case []any:
+		items := make([]any, len(typed))
+		for i, item := range typed {
+			items[i] = redactSensitiveDetailValue(key, item)
+		}
+
+		return items
+	case string:
+		return redactSensitive(typed)
+	default:
+		return typed
+	}
+}
+
+func isSensitiveDetailKey(key string) bool {
+	normalized := strings.ToLower(strings.NewReplacer("_", "", "-", "", ".", "").Replace(key))
+
+	sensitiveFragments := []string{
+		"authorization",
+		"apikey",
+		"bankingdetails",
+		"cookie",
+		"document",
+		"externalid",
+		"idempotency",
+		"metadata",
+		"password",
+		"participantdocument",
+		"relatedparty",
+		"secret",
+		"token",
+	}
+
+	for _, fragment := range sensitiveFragments {
+		if strings.Contains(normalized, fragment) {
+			return true
+		}
+	}
+
+	return false
+}
+
 func normalizeError(err error) error {
 	if isNilError(err) {
 		return nil

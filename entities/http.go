@@ -33,7 +33,15 @@ var (
 	errNullResponseBody  = errors.New("null response body")
 )
 
-const maxHTTPResponseBodyBytes = int64(10 << 20)
+const (
+	maxHTTPResponseBodyBytes = int64(10 << 20)
+	maxHTTPRequestBodyBytes  = int64(10 << 20)
+)
+
+const (
+	internalCallerIdempotencyHeader = "X-Midaz-Caller-Idempotency"
+	internalAutoIdempotencyHeader   = "X-Midaz-Auto-Idempotency"
+)
 
 // getUserAgent retrieves the user agent string from environment variable or uses default
 func getUserAgent() string {
@@ -394,6 +402,7 @@ func (c *HTTPClient) injectContextHeaders(ctx context.Context, method string, he
 		}
 
 		headers["X-Idempotency"] = key
+		headers[internalCallerIdempotencyHeader] = BoolTrue
 	}
 
 	// Inject tenant ID header from context or client-level default.
@@ -440,6 +449,8 @@ func (c *HTTPClient) doRequest(ctx context.Context, method, requestURL string, h
 	// Build HTTP request
 	req, _, err := c.buildHTTPRequest(ctx, method, requestURL, body)
 	if err != nil {
+		c.recordSDKFailure(ctx, method, requestURL, 0, err)
+
 		return err
 	}
 
@@ -494,24 +505,11 @@ func (c *HTTPClient) doRawRequest(ctx context.Context, method, requestURL string
 	ctx, endSpan := c.setupObservabilityContext(ctx, method, requestURL)
 	defer endSpan()
 
-	reader, headers, err := prepareRawRequestBody(headers, body)
+	req, headers, err := buildRawHTTPRequest(ctx, method, requestURL, headers, body)
 	if err != nil {
+		c.recordSDKFailure(ctx, method, requestURL, 0, err)
+
 		return err
-	}
-
-	parsedURL, err := url.Parse(requestURL)
-	if err != nil {
-		return fmt.Errorf("failed to parse request URL: %w", err)
-	}
-
-	validationReq := &http.Request{URL: parsedURL}
-	if err := security.ValidateOutboundRequest(validationReq); err != nil {
-		return err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, method, parsedURL.String(), reader) // #nosec G704 -- request URL validated via security.ValidateOutboundRequest using parsed URL
-	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
 	}
 
 	// Set GetBody for retry support - allows body to be recreated on retries
@@ -574,6 +572,30 @@ func prepareRawRequestBody(headers map[string]string, body []byte) (io.Reader, m
 	}
 
 	return bytes.NewReader(body), headers, nil
+}
+
+func buildRawHTTPRequest(ctx context.Context, method, requestURL string, headers map[string]string, body []byte) (*http.Request, map[string]string, error) {
+	reader, headers, err := prepareRawRequestBody(headers, body)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	parsedURL, err := url.Parse(requestURL)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to parse request URL: %w", err)
+	}
+
+	validationReq := &http.Request{URL: parsedURL}
+	if err := security.ValidateOutboundRequest(validationReq); err != nil {
+		return nil, nil, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, parsedURL.String(), reader) // #nosec G704 -- request URL validated via security.ValidateOutboundRequest using parsed URL
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	return req, headers, nil
 }
 
 func (c *HTTPClient) doCountRequest(ctx context.Context, method, requestURL string, headers map[string]string) (int, error) {
@@ -713,6 +735,10 @@ func (c *HTTPClient) prepareRequestBody(body any) (io.Reader, []byte, error) {
 		return nil, nil, err
 	}
 
+	if int64(len(bodyBytes)) > maxHTTPRequestBodyBytes {
+		return nil, nil, fmt.Errorf("request body exceeds maximum size of %d bytes", maxHTTPRequestBodyBytes)
+	}
+
 	c.debugLogRequestBody(bodyBytes)
 
 	return bytes.NewReader(bodyBytes), bodyBytes, nil
@@ -751,6 +777,9 @@ func (c *HTTPClient) setupRequestHeaders(req *http.Request, headers map[string]s
 // executeRequestWithRetry handles the request execution with retry logic
 func (c *HTTPClient) executeRequestWithRetry(ctx context.Context, req *http.Request, method, requestURL string) (*http.Response, []byte, error) {
 	snapshot := c.cloneConfiguration()
+	callerProvidedIdempotency := req.Header.Get(internalCallerIdempotencyHeader) == BoolTrue
+	req.Header.Del(internalCallerIdempotencyHeader)
+	req.Header.Del(internalAutoIdempotencyHeader)
 
 	effectiveRetryOptions := cloneRetryOptions(snapshot.retryOptions)
 	if effectiveRetryOptions == nil {
@@ -759,7 +788,7 @@ func (c *HTTPClient) executeRequestWithRetry(ctx context.Context, req *http.Requ
 
 	effectiveRetryOptions.RetryableErrors = append(effectiveRetryOptions.RetryableErrors, "custom retryable")
 
-	if isUnsafeMethod(req.Method) && req.Header.Get("X-Idempotency") == "" {
+	if isUnsafeMethod(req.Method) && !callerProvidedIdempotency {
 		effectiveRetryOptions.MaxRetries = 0
 	}
 
@@ -1093,12 +1122,6 @@ func isUnsafeMethod(method string) bool {
 }
 
 func (c *HTTPClient) ensureIdempotencyHeader(method string, headers map[string]string) map[string]string {
-	defer func() {
-		if headers != nil {
-			delete(headers, "X-Midaz-Auto-Idempotency")
-		}
-	}()
-
 	if !c.cloneConfiguration().enableIdempotency || !isUnsafeMethod(method) {
 		return headers
 	}
@@ -1112,6 +1135,7 @@ func (c *HTTPClient) ensureIdempotencyHeader(method string, headers map[string]s
 	}
 
 	headers["X-Idempotency"] = uuid.NewString()
+	headers[internalAutoIdempotencyHeader] = BoolTrue
 
 	return headers
 }
@@ -1125,6 +1149,10 @@ func (c *HTTPClient) extractRequestBody(req *http.Request) ([]byte, error) {
 	bodyBytes, err := io.ReadAll(req.Body)
 	if err != nil {
 		return nil, err
+	}
+
+	if int64(len(bodyBytes)) > maxHTTPRequestBodyBytes {
+		return nil, fmt.Errorf("request body exceeds maximum size of %d bytes", maxHTTPRequestBodyBytes)
 	}
 
 	if closeErr := req.Body.Close(); closeErr != nil && c.cloneConfiguration().debug {
@@ -1341,6 +1369,8 @@ func (*HTTPClient) parseErrorResponse(statusCode int, body []byte, requestID str
 	if apiError.Err != nil {
 		details["err"] = apiError.Err
 	}
+
+	details = sdkerrors.RedactSensitiveDetails(details)
 
 	// Use the message if available, otherwise use the error field
 	message := apiError.Message

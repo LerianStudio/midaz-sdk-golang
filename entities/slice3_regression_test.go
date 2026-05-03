@@ -63,7 +63,7 @@ func TestHTTPClient_ParseErrorResponse_PreservesStructuredMidazEnvelope(t *testi
 	assert.Equal(t, "account", sdkErr.EntityType)
 	assert.Equal(t, []string{"legalDocument", "metadata.taxId"}, sdkErr.Fields)
 	assert.Equal(t, "invalid document", sdkErr.Details["reason"])
-	assert.Equal(t, "12345678900", sdkErr.Details["document"])
+	assert.Equal(t, "[REDACTED]", sdkErr.Details["document"])
 	assert.Equal(t, "req-123", sdkErr.RequestID)
 }
 

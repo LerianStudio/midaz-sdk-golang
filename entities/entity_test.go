@@ -12,16 +12,16 @@ func TestMainFunction(_ *testing.T) {
 	// so that the testing package will execute all test files in the package.
 }
 
-func TestNewWithServiceURLs_RequiresCRMURL(t *testing.T) {
+func TestNewWithServiceURLs_DefaultsMissingCRMURLToOnboarding(t *testing.T) {
 	t.Setenv("MIDAZ_CRM_URL", "")
 
-	_, err := NewWithServiceURLs(map[string]string{
+	entity, err := NewWithServiceURLs(map[string]string{
 		"onboarding":  "https://api.example.com/onboarding",
 		"transaction": "https://api.example.com/transaction",
 	})
 
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "missing crm URL")
+	require.NoError(t, err)
+	require.Equal(t, "https://api.example.com/onboarding/v1", entity.baseURLs["crm"])
 }
 
 func TestNormalizeBaseURLs_DoesNotUseEnvironmentFallbackForCRM(t *testing.T) {

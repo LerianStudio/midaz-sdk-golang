@@ -43,6 +43,30 @@ func IsStatusEmpty(status Status) bool {
 	return status.Code == "" && status.Description == nil
 }
 
+func addStringField(fields map[string]any, name, value string) {
+	if value != "" {
+		fields[name] = value
+	}
+}
+
+func addStringPtrField(fields map[string]any, name string, value *string) {
+	if value != nil {
+		fields[name] = value
+	}
+}
+
+func addStatusField(fields map[string]any, value Status) {
+	if !IsStatusEmpty(value) {
+		fields["status"] = value
+	}
+}
+
+func addMetadataField(fields map[string]any, metadata map[string]any) {
+	if metadata != nil {
+		fields["metadata"] = metadata
+	}
+}
+
 // Address represents a physical address.
 // This structure is used across various models where address information is required,
 // such as for organizations or account holders.
@@ -650,6 +674,56 @@ func (o *ListOptions) WithAccountID(accountID string) *ListOptions {
 	return o.WithAdditionalParam("account_id", accountID)
 }
 
+// WithPortfolioID adds the onboarding portfolio_id account filter.
+func (o *ListOptions) WithPortfolioID(portfolioID string) *ListOptions {
+	return o.WithAdditionalParam("portfolio_id", portfolioID)
+}
+
+// WithSegmentID adds the onboarding segment_id account filter.
+func (o *ListOptions) WithSegmentID(segmentID string) *ListOptions {
+	return o.WithAdditionalParam("segment_id", segmentID)
+}
+
+// WithStatusFilter adds the onboarding status filter.
+func (o *ListOptions) WithStatusFilter(status string) *ListOptions {
+	return o.WithAdditionalParam("status", status)
+}
+
+// WithTypeFilter adds the onboarding type account filter.
+func (o *ListOptions) WithTypeFilter(accountType string) *ListOptions {
+	return o.WithAdditionalParam("type", accountType)
+}
+
+// WithAssetCode adds the onboarding asset_code account filter.
+func (o *ListOptions) WithAssetCode(assetCode string) *ListOptions {
+	return o.WithAdditionalParam("asset_code", assetCode)
+}
+
+// WithEntityID adds the onboarding entity_id account filter.
+func (o *ListOptions) WithEntityID(entityID string) *ListOptions {
+	return o.WithAdditionalParam("entity_id", entityID)
+}
+
+// WithBlocked adds the onboarding blocked account filter.
+func (o *ListOptions) WithBlocked(blocked bool) *ListOptions {
+	return o.WithAdditionalParam("blocked", strconv.FormatBool(blocked))
+}
+
+// WithParentAccountID adds the onboarding parent_account_id account filter.
+func (o *ListOptions) WithParentAccountID(parentAccountID string) *ListOptions {
+	return o.WithAdditionalParam("parent_account_id", parentAccountID)
+}
+
+// WithNameFilter adds the onboarding name filter.
+func (o *ListOptions) WithNameFilter(name string) *ListOptions {
+	return o.WithAdditionalParam("name", name)
+}
+
+// WithAlias adds the onboarding alias account filter.
+func (o *ListOptions) WithAlias(alias string) *ListOptions {
+	return o.WithAdditionalParam("alias", alias)
+}
+
 // WithLedgerID adds the CRM ledger_id filter.
 func (o *ListOptions) WithLedgerID(ledgerID string) *ListOptions {
 	return o.WithAdditionalParam("ledger_id", ledgerID)
@@ -780,7 +854,7 @@ func (o *ListOptions) addPaginationParams(params map[string]string) {
 		return
 	}
 
-	if o.Offset > 0 && o.Offset%limit == 0 {
+	if o.Offset > 0 {
 		params[QueryParamPage] = fmt.Sprintf("%d", (o.Offset/limit)+1)
 	}
 

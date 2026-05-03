@@ -2,8 +2,11 @@
 package models
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation/core"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
@@ -31,23 +34,57 @@ func NewCreateSegmentInput(name string) *CreateSegmentInput {
 
 // WithStatus sets the status.
 func (input *CreateSegmentInput) WithStatus(status Status) *CreateSegmentInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Status = status
+
 	return input
 }
 
 // WithMetadata sets the metadata.
 func (input *CreateSegmentInput) WithMetadata(metadata map[string]any) *CreateSegmentInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Metadata = metadata
+
 	return input
 }
 
 // Validate validates the CreateSegmentInput fields.
 func (input *CreateSegmentInput) Validate() error {
+	if input == nil {
+		return errors.New("input cannot be nil")
+	}
+
 	if input.Name == "" {
 		return errors.New("name is required")
 	}
 
+	if input.Metadata != nil {
+		if err := core.ValidateMetadata(input.Metadata); err != nil {
+			return fmt.Errorf("invalid metadata: %w", err)
+		}
+	}
+
 	return nil
+}
+
+// MarshalJSON omits optional create fields when callers leave them unset.
+func (input *CreateSegmentInput) MarshalJSON() ([]byte, error) {
+	if input == nil {
+		return []byte("null"), nil
+	}
+
+	fields := map[string]any{}
+	addStringField(fields, "name", input.Name)
+	addStatusField(fields, input.Status)
+	addMetadataField(fields, input.Metadata)
+
+	return json.Marshal(fields)
 }
 
 // NewUpdateSegmentInput creates a new UpdateSegmentInput.
@@ -59,24 +96,62 @@ func NewUpdateSegmentInput() *UpdateSegmentInput {
 
 // WithName sets the name for UpdateSegmentInput.
 func (input *UpdateSegmentInput) WithName(name string) *UpdateSegmentInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Name = name
+
 	return input
 }
 
 // WithStatus sets the status for UpdateSegmentInput.
 func (input *UpdateSegmentInput) WithStatus(status Status) *UpdateSegmentInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Status = status
+
 	return input
 }
 
 // WithMetadata sets the metadata for UpdateSegmentInput.
 func (input *UpdateSegmentInput) WithMetadata(metadata map[string]any) *UpdateSegmentInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Metadata = metadata
+
 	return input
 }
 
 // Validate validates the UpdateSegmentInput fields.
-func (*UpdateSegmentInput) Validate() error {
-	// For update operations, most fields are optional
+func (input *UpdateSegmentInput) Validate() error {
+	if input == nil {
+		return errors.New("input cannot be nil")
+	}
+
+	if input.Metadata != nil {
+		if err := core.ValidateMetadata(input.Metadata); err != nil {
+			return fmt.Errorf("invalid metadata: %w", err)
+		}
+	}
+
 	return nil
+}
+
+// MarshalJSON emits only fields explicitly set on the SDK PATCH input.
+func (input *UpdateSegmentInput) MarshalJSON() ([]byte, error) {
+	if input == nil {
+		return []byte("null"), nil
+	}
+
+	fields := map[string]any{}
+	addStringField(fields, "name", input.Name)
+	addStatusField(fields, input.Status)
+	addMetadataField(fields, input.Metadata)
+
+	return json.Marshal(fields)
 }
