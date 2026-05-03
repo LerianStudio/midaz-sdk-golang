@@ -254,12 +254,8 @@ func (e *ledgersEntity) GetLedger(
 
 	var ledger models.Ledger
 	if err := e.httpClient.sendRequest(req, &ledger); err != nil {
-		e.httpClient.emitBusinessError(ctx, businessEventLedgerCreated, map[string]any{"operation": operation, "organizationId": organizationID}, err)
-
 		return nil, err
 	}
-
-	e.httpClient.emitBusinessEvent(ctx, businessEventLedgerCreated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledger.ID, "status": ledger.Status.Code})
 
 	return &ledger, nil
 }

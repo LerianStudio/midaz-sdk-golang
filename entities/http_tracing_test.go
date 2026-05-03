@@ -3,6 +3,7 @@ package entities
 import (
 	"context"
 	"encoding/json"
+	stdErrors "errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -403,6 +404,32 @@ func TestHTTPClientSDKInstrumentationCreatesSingleClientSpan(t *testing.T) {
 	assert.Equal(t, "/single", attrs[observability.KeyHTTPPath])
 	assert.Equal(t, int64(http.StatusOK), attrs[observability.KeyHTTPStatus])
 	assert.Equal(t, "req-123", attrs[observability.KeyHTTPRequestID])
+}
+
+func TestHTTPClientErrorSpanRedactsSensitiveValues(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	provider := newSlice3Provider(recorder)
+	httpClient := NewHTTPClient(&http.Client{Transport: failingRoundTripper{}}, "token", provider)
+
+	var result map[string]string
+
+	err := httpClient.doRequest(context.Background(), http.MethodGet, "https://example.com/error", nil, nil, &result)
+	require.Error(t, err)
+
+	ended := recorder.Ended()
+	require.Len(t, ended, 1)
+
+	statusDescription := ended[0].Status().Description
+	assert.NotContains(t, statusDescription, "super-secret")
+	assert.NotContains(t, statusDescription, "idem-secret")
+	assert.NotContains(t, statusDescription, "token-secret")
+	assert.Contains(t, statusDescription, "[REDACTED]")
+}
+
+type failingRoundTripper struct{}
+
+func (failingRoundTripper) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, stdErrors.New("Authorization: Bearer super-secret X-Idempotency=idem-secret token=token-secret")
 }
 
 func spanAttributeMap(span sdktrace.ReadOnlySpan) map[string]any {

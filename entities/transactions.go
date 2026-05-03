@@ -553,12 +553,8 @@ func (e *transactionsEntity) CreateTransactionWithDSL(ctx context.Context, orgID
 
 	transaction, err := e.CreateTransactionWithDSLFile(ctx, orgID, ledgerID, dslContent)
 	if err != nil {
-		e.httpClient.emitBusinessError(ctx, businessEventTransactionCreated, map[string]any{"operation": operation, "organizationId": orgID, "ledgerId": ledgerID}, err)
-
 		return nil, err
 	}
-
-	e.httpClient.emitBusinessEvent(ctx, businessEventTransactionCreated, map[string]any{"operation": operation, "organizationId": orgID, "ledgerId": ledgerID, "transactionId": transaction.ID, "status": transaction.Status.Code})
 
 	return transaction, nil
 }
@@ -683,13 +679,10 @@ func (e *transactionsEntity) GetTransaction(ctx context.Context, orgID, ledgerID
 
 	var transaction models.Transaction
 	if err := e.httpClient.sendRequest(req, &transaction); err != nil {
-		e.httpClient.emitBusinessError(ctx, businessEventTransactionUpdated, map[string]any{"operation": operation, "organizationId": orgID, "ledgerId": ledgerID, "transactionId": transactionID}, err)
-
 		return nil, err
 	}
 
 	e.normalizeTransaction(&transaction)
-	e.httpClient.emitBusinessEvent(ctx, businessEventTransactionUpdated, map[string]any{"operation": operation, "organizationId": orgID, "ledgerId": ledgerID, "transactionId": transaction.ID, "status": transaction.Status.Code})
 
 	return &transaction, nil
 }
@@ -877,13 +870,13 @@ func (e *transactionsEntity) UpdateTransaction(ctx context.Context, orgID, ledge
 
 	var transaction models.Transaction
 	if err := e.httpClient.sendRequest(req, &transaction); err != nil {
-		e.httpClient.emitBusinessError(ctx, businessEventTransactionReverted, map[string]any{"operation": operation, "organizationId": orgID, "ledgerId": ledgerID, "transactionId": transactionID}, err)
+		e.httpClient.emitBusinessError(ctx, businessEventTransactionUpdated, map[string]any{"operation": operation, "organizationId": orgID, "ledgerId": ledgerID, "transactionId": transactionID}, err)
 
 		return nil, err
 	}
 
 	e.normalizeTransaction(&transaction)
-	e.httpClient.emitBusinessEvent(ctx, businessEventTransactionReverted, map[string]any{"operation": operation, "organizationId": orgID, "ledgerId": ledgerID, "transactionId": transaction.ID, "status": transaction.Status.Code})
+	e.httpClient.emitBusinessEvent(ctx, businessEventTransactionUpdated, map[string]any{"operation": operation, "organizationId": orgID, "ledgerId": ledgerID, "transactionId": transaction.ID, "status": transaction.Status.Code})
 
 	return &transaction, nil
 }

@@ -286,12 +286,8 @@ func (e *accountsEntity) GetAccount(ctx context.Context, organizationID, ledgerI
 
 	var account models.Account
 	if err := e.httpClient.sendRequest(req, &account); err != nil {
-		e.httpClient.emitBusinessError(ctx, businessEventAccountCreated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID}, err)
-
 		return nil, err
 	}
-
-	e.httpClient.emitBusinessEvent(ctx, businessEventAccountCreated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "accountId": account.ID, "status": account.Status.Code})
 
 	return &account, nil
 }
@@ -321,12 +317,8 @@ func (e *accountsEntity) GetAccountByAlias(ctx context.Context, organizationID, 
 
 	var account models.Account
 	if err := e.httpClient.sendRequest(req, &account); err != nil {
-		e.httpClient.emitBusinessError(ctx, businessEventAccountCreated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID}, err)
-
 		return nil, err
 	}
-
-	e.httpClient.emitBusinessEvent(ctx, businessEventAccountCreated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "accountId": account.ID, "status": account.Status.Code})
 
 	return &account, nil
 }
@@ -413,8 +405,12 @@ func (e *accountsEntity) UpdateAccount(ctx context.Context, organizationID, ledg
 
 	var account models.Account
 	if err := e.httpClient.sendRequest(req, &account); err != nil {
+		e.httpClient.emitBusinessError(ctx, businessEventAccountUpdated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "accountId": id}, err)
+
 		return nil, err
 	}
+
+	e.httpClient.emitBusinessEvent(ctx, businessEventAccountUpdated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "accountId": account.ID, "status": account.Status.Code})
 
 	return &account, nil
 }

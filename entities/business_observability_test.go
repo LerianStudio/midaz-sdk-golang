@@ -120,6 +120,71 @@ func TestBusinessObservability_AccountAndTransactionLifecycle(t *testing.T) {
 	assert.Contains(t, events, "midaz.transaction.cancelled")
 }
 
+func TestBusinessObservability_ReadMethodsDoNotEmitMutationEvents(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	logs := &bytes.Buffer{}
+	provider := newBusinessTestProvider(recorder, logs)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodGet, r.Method)
+		assert.Equal(t, "/v1/organizations/org-1/ledgers/ledger-1/accounts/account-1", r.URL.EscapedPath())
+		writeBusinessJSON(t, w, map[string]any{"id": "account-1", "status": map[string]any{"code": "ACTIVE"}})
+	}))
+	defer server.Close()
+
+	entity, err := NewEntity(server.Client(), "token", map[string]string{"onboarding": server.URL, "transaction": server.URL}, provider, WithObservability(provider))
+	require.NoError(t, err)
+
+	ctx, span := provider.Tracer().Start(context.Background(), "business-read")
+
+	account, err := entity.Accounts.GetAccount(ctx, "org-1", "ledger-1", "account-1")
+	require.NoError(t, err)
+	assert.Equal(t, "account-1", account.ID)
+
+	span.End()
+
+	logText := logs.String()
+	assert.NotContains(t, logText, "midaz.account.created")
+	assert.NotContains(t, logText, "midaz.account.updated")
+
+	events := collectBusinessEvents(recorder.Ended())
+	assert.NotContains(t, events, "midaz.account.created")
+	assert.NotContains(t, events, "midaz.account.updated")
+}
+
+func TestBusinessObservability_UpdateTransactionUsesUpdatedEvent(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	logs := &bytes.Buffer{}
+	provider := newBusinessTestProvider(recorder, logs)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodPatch, r.Method)
+		assert.Equal(t, "/v1/organizations/org-1/ledgers/ledger-1/transactions/tx-1", r.URL.EscapedPath())
+		writeBusinessJSON(t, w, map[string]any{"id": "tx-1", "status": map[string]any{"code": "PENDING"}})
+	}))
+	defer server.Close()
+
+	entity, err := NewEntity(server.Client(), "token", map[string]string{"onboarding": server.URL, "transaction": server.URL}, provider, WithObservability(provider))
+	require.NoError(t, err)
+
+	ctx, span := provider.Tracer().Start(context.Background(), "business-update")
+
+	tx, err := entity.Transactions.UpdateTransaction(ctx, "org-1", "ledger-1", "tx-1", models.NewUpdateTransactionInput().WithDescription("Sensitive description"))
+	require.NoError(t, err)
+	assert.Equal(t, "tx-1", tx.ID)
+
+	span.End()
+
+	logText := logs.String()
+	assert.Contains(t, logText, "midaz.transaction.updated")
+	assert.NotContains(t, logText, "midaz.transaction.reverted")
+	assert.NotContains(t, logText, "Sensitive description")
+
+	events := collectBusinessEvents(recorder.Ended())
+	assert.Contains(t, events, "midaz.transaction.updated")
+	assert.NotContains(t, events, "midaz.transaction.reverted")
+}
+
 func writeBusinessJSON(t *testing.T, w http.ResponseWriter, body any) {
 	t.Helper()
 

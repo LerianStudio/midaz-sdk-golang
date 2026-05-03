@@ -267,12 +267,8 @@ func (e *assetsEntity) GetAsset(
 	var asset models.Asset
 	if err := e.httpClient.sendRequest(req, &asset); err != nil {
 		// HTTPClient.DoRequest already returns proper error types
-		e.httpClient.emitBusinessError(ctx, businessEventAssetCreated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID}, err)
-
 		return nil, err
 	}
-
-	e.httpClient.emitBusinessEvent(ctx, businessEventAssetCreated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "assetId": asset.ID, "status": asset.Status.Code})
 
 	return &asset, nil
 }
@@ -316,8 +312,12 @@ func (e *assetsEntity) CreateAsset(
 	var asset models.Asset
 	if err := e.httpClient.sendRequest(req, &asset); err != nil {
 		// HTTPClient.DoRequest already returns proper error types
+		e.httpClient.emitBusinessError(ctx, businessEventAssetCreated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID}, err)
+
 		return nil, err
 	}
+
+	e.httpClient.emitBusinessEvent(ctx, businessEventAssetCreated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "assetId": asset.ID, "status": asset.Status.Code})
 
 	return &asset, nil
 }

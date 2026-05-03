@@ -239,12 +239,8 @@ func (e *organizationsEntity) GetOrganization(ctx context.Context, id string) (*
 
 	var organization models.Organization
 	if err := e.httpClient.sendRequest(req, &organization); err != nil {
-		e.httpClient.emitBusinessError(ctx, businessEventOrganizationCreated, map[string]any{"operation": operation}, err)
-
 		return nil, err
 	}
-
-	e.httpClient.emitBusinessEvent(ctx, businessEventOrganizationCreated, map[string]any{"operation": operation, "organizationId": organization.ID, "status": organization.Status.Code})
 
 	return &organization, nil
 }

@@ -85,6 +85,25 @@ span.SetStatus(codes.Ok, "organization created")
 
 Outbound SDK calls automatically create one SDK client span and inject trace headers from `ctx`. The SDK honors the provider configured on the context or client, so propagation works even when `observability.WithRegisterGlobally(false)` is used.
 
+Do not wrap the SDK HTTP transport with `observability.NewHTTPMiddleware(provider)` when the client is already configured with `client.WithObservabilityProvider(provider)` or `client.WithObservability(...)`. The entity HTTP client is the SDK instrumentation point; wrapping the same transport adds nested client spans for the same outbound request.
+
+For applications that manage multiple OpenTelemetry providers in one process, keep the SDK provider local and attach it to request contexts explicitly:
+
+```go
+provider, err := observability.New(ctx,
+    observability.WithServiceName("payments-api"),
+    observability.WithRegisterGlobally(false),
+)
+if err != nil {
+    return err
+}
+
+midazClient, err := client.New(
+    client.WithObservabilityProvider(provider),
+    client.UseAllAPIs(),
+)
+```
+
 ## Server-side context extraction
 
 ```go
@@ -136,7 +155,7 @@ The inbound request span, SDK HTTP client span, and downstream Midaz API span sh
 
 ## Business events
 
-When logging is enabled, high-value entity lifecycle methods emit structured business events such as `midaz.account.created`, `midaz.transaction.created`, `midaz.transaction.committed`, `midaz.transaction.reverted`, and `midaz.transaction.cancelled`.
+When logging is enabled, high-value mutation lifecycle methods emit structured business events such as `midaz.account.created`, `midaz.account.updated`, `midaz.transaction.created`, `midaz.transaction.updated`, `midaz.transaction.committed`, `midaz.transaction.reverted`, and `midaz.transaction.cancelled`. Read-only `Get*` methods do not emit mutation lifecycle events.
 
 Business events include safe identifiers only, such as `organizationId`, `ledgerId`, `accountId`, `transactionId`, `operationId`, `assetId`, `status`, `operation`, and `event`. The SDK does not log payloads, metadata, names, documents, addresses, auth headers, idempotency keys, or raw request/response bodies.
 

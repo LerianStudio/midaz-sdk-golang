@@ -10,6 +10,8 @@ import (
 	pkgerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
 
 // TestDefaultBatchOptions tests the default batch options
@@ -178,6 +180,55 @@ func TestGetBatchSummary(t *testing.T) {
 		assert.Equal(t, 3, summary.ErrorCount)
 		assert.NotEmpty(t, summary.ErrorCategories)
 	})
+}
+
+func TestBatchTelemetryUsesAggregateOutcomeEvents(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	tracerProvider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	ctx, span := tracerProvider.Tracer("batch-telemetry-test").Start(context.Background(), "batch")
+
+	results := []BatchResult{
+		{Index: 0, TransactionID: "tx-1", Duration: 10 * time.Millisecond},
+		{Index: 1, Error: errors.New("failed"), Duration: 20 * time.Millisecond},
+	}
+
+	recordBatchStartedEvent(ctx, "org-1", "ledger-1", len(results))
+	recordBatchCompletedEvent(ctx, "org-1", "ledger-1", results, errors.New("failed"), 30*time.Millisecond)
+	span.End()
+
+	ended := recorder.Ended()
+	require.Len(t, ended, 1)
+
+	events := ended[0].Events()
+	require.Len(t, events, 2)
+	assert.Equal(t, "midaz.transaction.batch.started", events[0].Name)
+	assert.Equal(t, "midaz.transaction.batch.completed", events[1].Name)
+
+	for _, event := range events {
+		assert.NotContains(t, event.Name, ".item.")
+	}
+
+	attrs := batchEventAttributes(events[1])
+	assert.Equal(t, "partial", attrs["midaz.business.batch.status"])
+	assert.Equal(t, int64(1), attrs["midaz.business.batch.success_count"])
+	assert.Equal(t, int64(1), attrs["midaz.business.batch.error_count"])
+	assert.NotContains(t, attrs, "midaz.business.transactionId")
+	assert.NotContains(t, attrs, "midaz.business.batch.index")
+}
+
+func batchEventAttributes(event sdktrace.Event) map[string]any {
+	attrs := map[string]any{}
+
+	for _, attr := range event.Attributes {
+		switch attr.Value.Type().String() {
+		case "INT64":
+			attrs[string(attr.Key)] = attr.Value.AsInt64()
+		default:
+			attrs[string(attr.Key)] = attr.Value.AsString()
+		}
+	}
+
+	return attrs
 }
 
 // TestNormalizeOptions tests the normalizeOptions function

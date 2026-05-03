@@ -282,7 +282,7 @@ func (e *Error) GetOperation() string {
 
 var (
 	sensitiveBearerPattern   = regexp.MustCompile(`(?i)\b(authorization\s*[:=]\s*Bearer\s+)[^\s,;]+`)
-	sensitiveKeyValuePattern = regexp.MustCompile(`(?i)\b(token|password|api_key|authorization|secret|idempotency|document|legal_document|external_id|banking_details_account|banking_details_iban|metadata(?:\.[\w.-]+)?|related_party_document|regulatory_fields_participant_document)(\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s,;]+)`)
+	sensitiveKeyValuePattern = regexp.MustCompile(`(?i)\b(token|password|api_key|authorization|secret|(?:x[-_])?idempotency|document|legal_document|external_id|banking_details_account|banking_details_iban|metadata(?:\.[\w.-]+)?|related_party_document|regulatory_fields_participant_document)(\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s,;]+)`)
 )
 
 func isNilError(err error) bool {

@@ -553,7 +553,14 @@ func (c *HTTPClient) doRawRequest(ctx context.Context, method, requestURL string
 	c.logResponseDetails(method, requestURL, resp, responseBody)
 
 	if err := c.processResponse(result, responseBody); err != nil {
+		if errors.Is(err, errEmptyResponseBody) || errors.Is(err, errNullResponseBody) {
+			c.recordRequestMetrics(ctx, method, requestURL, resp, elapsed)
+
+			return err
+		}
+
 		c.recordSDKFailure(ctx, method, requestURL, elapsed, err)
+
 		return err
 	}
 
@@ -734,7 +741,7 @@ func enrichHTTPSpan(ctx context.Context, method, requestURL string, resp *http.R
 	span.SetAttributes(attrs...)
 
 	if err != nil {
-		sanitizedErr := sanitizeLogInput(err.Error())
+		sanitizedErr := sanitizeTelemetryError(err)
 		span.SetStatus(codes.Error, sanitizedErr)
 		span.RecordError(errors.New(sanitizedErr))
 
@@ -752,6 +759,14 @@ func enrichHTTPSpan(ctx context.Context, method, requestURL string, resp *http.R
 	}
 }
 
+func sanitizeTelemetryError(err error) string {
+	if err == nil {
+		return ""
+	}
+
+	return sanitizeLogInput(sdkerrors.RedactSensitiveString(err.Error()))
+}
+
 func httpSpanAttributes(method, requestURL string) []attribute.KeyValue {
 	attrs := make([]attribute.KeyValue, 0, 6)
 	attrs = append(attrs,
@@ -761,7 +776,7 @@ func httpSpanAttributes(method, requestURL string) []attribute.KeyValue {
 		attribute.String(observability.KeyOperationType, "http.request"),
 	)
 
-	parsedURL, err := url.Parse(requestURL)
+	parsedURL, err := url.Parse(normalizeTelemetryURL(requestURL))
 	if err != nil {
 		return attrs
 	}

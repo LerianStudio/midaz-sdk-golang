@@ -7,6 +7,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	sdkresource "go.opentelemetry.io/otel/sdk/resource"
@@ -89,6 +90,7 @@ type Logger interface {
 
 // LoggerImpl is the standard implementation of the Logger interface
 type LoggerImpl struct {
+	mu       *sync.Mutex
 	level    LogLevel
 	output   io.Writer
 	fields   map[string]any
@@ -111,6 +113,7 @@ func NewLogger(level LogLevel, output io.Writer, resource *sdkresource.Resource)
 	}
 
 	return &LoggerImpl{
+		mu:       &sync.Mutex{},
 		level:    level,
 		output:   output,
 		fields:   fields,
@@ -122,6 +125,10 @@ func NewLogger(level LogLevel, output io.Writer, resource *sdkresource.Resource)
 // By default, Fatal only logs without exiting (safe for library use).
 // Applications can set this to os.Exit if they want Fatal to terminate the process.
 func (l *LoggerImpl) SetExitFunc(exitFunc func(int)) {
+	l.ensureMutex()
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
 	l.exitFunc = exitFunc
 }
 
@@ -130,6 +137,8 @@ func (l *LoggerImpl) log(level LogLevel, msg string) {
 	if level < l.level {
 		return
 	}
+
+	l.ensureMutex()
 
 	// Get caller information
 	_, file, line, ok := runtime.Caller(2)
@@ -167,15 +176,26 @@ func (l *LoggerImpl) log(level LogLevel, msg string) {
 	// Write to output
 	b = append(b, '\n')
 
+	l.mu.Lock()
+
 	_, err = l.output.Write(b)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to write log entry: %v\n", err)
 	}
 
+	exitFunc := l.exitFunc
+	l.mu.Unlock()
+
 	// If fatal and exit function is set, call it to terminate
 	// Library code defaults to nil exitFunc, so Fatal just logs without terminating
-	if level == FatalLevel && l.exitFunc != nil {
-		l.exitFunc(1)
+	if level == FatalLevel && exitFunc != nil {
+		exitFunc(1)
+	}
+}
+
+func (l *LoggerImpl) ensureMutex() {
+	if l.mu == nil {
+		l.mu = &sync.Mutex{}
 	}
 }
 
@@ -242,6 +262,7 @@ func (l *LoggerImpl) With(fields map[string]any) Logger {
 	}
 
 	return &LoggerImpl{
+		mu:       l.mu,
 		level:    l.level,
 		output:   l.output,
 		fields:   newFields,

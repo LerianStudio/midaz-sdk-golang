@@ -64,7 +64,7 @@ func (c *HTTPClient) emitBusinessError(ctx context.Context, event string, fields
 		fields["errorClass"] = classifyBusinessError(err)
 	}
 
-	c.emitBusiness(ctx, observability.ErrorLevel, event, fields)
+	c.emitBusiness(ctx, businessLogLevelForError(fields["errorClass"]), event, fields)
 }
 
 func (c *HTTPClient) emitBusiness(ctx context.Context, level observability.LogLevel, event string, fields map[string]any) {
@@ -80,7 +80,6 @@ func (c *HTTPClient) emitBusiness(ctx context.Context, level observability.LogLe
 
 	attrs := businessAttributes(safeFields)
 	if span.IsRecording() {
-		span.SetAttributes(attrs...)
 		span.AddEvent(event, trace.WithAttributes(attrs...))
 	}
 
@@ -98,6 +97,15 @@ func (c *HTTPClient) emitBusiness(ctx context.Context, level observability.LogLe
 		logger.Warn(event)
 	default:
 		logger.Info(event)
+	}
+}
+
+func businessLogLevelForError(errorClass any) observability.LogLevel {
+	switch errorClass {
+	case "validation", "missing_parameter", "unauthorized", "forbidden", "not_found":
+		return observability.WarnLevel
+	default:
+		return observability.ErrorLevel
 	}
 }
 

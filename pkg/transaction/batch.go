@@ -110,7 +110,9 @@ func BatchTransactions(
 
 	options = normalizeOptions(options)
 	results := make([]BatchResult, len(inputs))
-	recordBatchEvent(ctx, "midaz.transaction.batch.started", orgID, ledgerID, len(inputs), -1, "")
+	start := time.Now()
+
+	recordBatchStartedEvent(ctx, orgID, ledgerID, len(inputs))
 
 	processor := &batchProcessor{
 		ctx:      ctx,
@@ -124,7 +126,7 @@ func BatchTransactions(
 
 	results, err := processor.execute()
 
-	recordBatchEvent(ctx, "midaz.transaction.batch.completed", orgID, ledgerID, len(inputs), -1, "")
+	recordBatchCompletedEvent(ctx, orgID, ledgerID, results, err, time.Since(start))
 
 	return results, err
 }
@@ -185,7 +187,10 @@ type batchProcessor struct {
 
 // execute runs the batch processing logic.
 func (bp *batchProcessor) execute() ([]BatchResult, error) {
-	var wg sync.WaitGroup
+	var (
+		wg       sync.WaitGroup
+		firstErr error
+	)
 
 	semaphore := make(chan struct{}, bp.options.Concurrency)
 	errChan := make(chan error, 1)
@@ -193,17 +198,25 @@ func (bp *batchProcessor) execute() ([]BatchResult, error) {
 	for i := 0; i < len(bp.inputs); i += bp.options.BatchSize {
 		if err := bp.ctx.Err(); err != nil {
 			bp.markUnscheduledFrom(i, err)
+			firstErr = err
+
 			break
 		}
 
 		end := bp.calculateBatchEnd(i)
 
 		if err := bp.processBatch(i, end, &wg, semaphore, errChan); err != nil {
-			return bp.results, err
+			firstErr = err
+
+			break
 		}
 	}
 
 	wg.Wait()
+
+	if firstErr != nil && bp.options.StopOnError {
+		return bp.results, firstErr
+	}
 
 	return bp.checkFinalErrors(errChan)
 }
@@ -228,6 +241,8 @@ func (bp *batchProcessor) processBatch(start, end int, wg *sync.WaitGroup, semap
 
 		if bp.options.StopOnError {
 			if err := bp.checkForEarlyError(errChan); err != nil {
+				bp.markUnscheduledFrom(j, err)
+
 				return err
 			}
 		}
@@ -295,7 +310,6 @@ func (bp *batchProcessor) processTransaction(index int) error {
 
 	result := bp.createResult(index, tx, err, time.Since(startTime))
 	bp.results[index] = result
-	bp.recordTransactionResultEvent(result)
 	bp.callProgressCallback(result)
 
 	return err
@@ -437,35 +451,58 @@ func (bp *batchProcessor) markUnscheduledFrom(start int, err error) {
 
 		result := bp.createResult(i, nil, err, 0)
 		bp.results[i] = result
-		bp.recordTransactionResultEvent(result)
 		bp.callProgressCallback(result)
 	}
 }
 
-func (bp *batchProcessor) recordTransactionResultEvent(result BatchResult) {
-	event := "midaz.transaction.batch.item.succeeded"
-	if result.Error != nil {
-		event = "midaz.transaction.batch.item.failed"
-	}
-
-	recordBatchEvent(bp.ctx, event, bp.orgID, bp.ledgerID, len(bp.inputs), result.Index, result.TransactionID)
+func recordBatchStartedEvent(ctx context.Context, orgID, ledgerID string, total int) {
+	recordBatchEvent(ctx, "midaz.transaction.batch.started", orgID, ledgerID, total,
+		attribute.String("midaz.business.batch.status", "started"),
+	)
 }
 
-func recordBatchEvent(ctx context.Context, event, orgID, ledgerID string, total, index int, transactionID string) {
+func recordBatchCompletedEvent(ctx context.Context, orgID, ledgerID string, results []BatchResult, err error, duration time.Duration) {
+	summary := GetBatchSummary(results)
+	status := batchTelemetryStatus(ctx, summary, err)
 	attrs := []attribute.KeyValue{
+		attribute.String("midaz.business.batch.status", status),
+		attribute.Int("midaz.business.batch.success_count", summary.SuccessCount),
+		attribute.Int("midaz.business.batch.error_count", summary.ErrorCount),
+		attribute.Int64("midaz.business.batch.duration_ms", duration.Milliseconds()),
+	}
+
+	if err != nil {
+		attrs = append(attrs, attribute.String("midaz.business.errorClass", string(errors.GetErrorCategory(err))))
+	}
+
+	recordBatchEvent(ctx, "midaz.transaction.batch.completed", orgID, ledgerID, len(results), attrs...)
+}
+
+func batchTelemetryStatus(ctx context.Context, summary BatchSummary, err error) string {
+	if ctx != nil && ctx.Err() != nil {
+		return "cancelled"
+	}
+
+	if err == nil && summary.ErrorCount == 0 {
+		return "completed"
+	}
+
+	if summary.SuccessCount > 0 && summary.ErrorCount > 0 {
+		return "partial"
+	}
+
+	return "failed"
+}
+
+func recordBatchEvent(ctx context.Context, event, orgID, ledgerID string, total int, extraAttrs ...attribute.KeyValue) {
+	attrs := make([]attribute.KeyValue, 0, 4+len(extraAttrs))
+	attrs = append(attrs,
 		attribute.String("midaz.business.event", event),
 		attribute.String("midaz.business.organizationId", orgID),
 		attribute.String("midaz.business.ledgerId", ledgerID),
 		attribute.Int("midaz.business.batch.count", total),
-	}
-
-	if index >= 0 {
-		attrs = append(attrs, attribute.Int("midaz.business.batch.index", index))
-	}
-
-	if transactionID != "" {
-		attrs = append(attrs, attribute.String("midaz.business.transactionId", transactionID))
-	}
+	)
+	attrs = append(attrs, extraAttrs...)
 
 	observability.AddSpanEvent(ctx, event, attrs...)
 }

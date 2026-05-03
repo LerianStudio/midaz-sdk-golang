@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -115,6 +116,32 @@ func TestProviderAwarePropagation(t *testing.T) {
 		assert.Equal(t, "custom", headers["x-custom-propagator"])
 	})
 
+	t.Run("CustomProviderPropagatorExtractionUsesPropagatorFields", func(t *testing.T) {
+		provider, err := New(context.Background(),
+			WithComponentEnabled(true, false, false),
+			WithPropagators(contextValuePropagator{}),
+			WithRegisterGlobally(false),
+		)
+		require.NoError(t, err)
+
+		defer func() { assert.NoError(t, provider.Shutdown(context.Background())) }()
+
+		extracted := ExtractContext(WithProvider(context.Background(), provider), map[string]string{"x-custom-propagator": "custom"})
+
+		assert.Equal(t, "custom", extracted.Value(customPropagationContextKey{}))
+	})
+
+	t.Run("NilProviderUsesGlobalPropagator", func(t *testing.T) {
+		previous := otel.GetTextMapPropagator()
+
+		otel.SetTextMapPropagator(contextValuePropagator{})
+		defer otel.SetTextMapPropagator(previous)
+
+		extracted := ExtractContext(context.Background(), map[string]string{"x-custom-propagator": "global"})
+
+		assert.Equal(t, "global", extracted.Value(customPropagationContextKey{}))
+	})
+
 	t.Run("PropagationHeadersFilterExtraction", func(t *testing.T) {
 		provider, err := New(context.Background(),
 			WithComponentEnabled(true, false, false),
@@ -144,6 +171,28 @@ func (customHeaderPropagator) Extract(ctx context.Context, _ propagation.TextMap
 }
 
 func (customHeaderPropagator) Fields() []string {
+	return []string{"x-custom-propagator"}
+}
+
+type customPropagationContextKey struct{}
+
+type contextValuePropagator struct{}
+
+func (contextValuePropagator) Inject(ctx context.Context, carrier propagation.TextMapCarrier) {
+	if value, ok := ctx.Value(customPropagationContextKey{}).(string); ok {
+		carrier.Set("x-custom-propagator", value)
+	}
+}
+
+func (contextValuePropagator) Extract(ctx context.Context, carrier propagation.TextMapCarrier) context.Context {
+	if value := carrier.Get("x-custom-propagator"); value != "" {
+		return context.WithValue(ctx, customPropagationContextKey{}, value)
+	}
+
+	return ctx
+}
+
+func (contextValuePropagator) Fields() []string {
 	return []string{"x-custom-propagator"}
 }
 

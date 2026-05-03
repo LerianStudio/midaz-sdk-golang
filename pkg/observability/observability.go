@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/version"
@@ -121,7 +122,8 @@ type Config struct {
 	Propagators []propagation.TextMapPropagator
 
 	// Headers to extract for trace context propagation
-	PropagationHeaders []string
+	PropagationHeaders         []string
+	propagationHeadersExplicit bool
 
 	// RegisterGlobally controls whether to register providers as global OpenTelemetry providers.
 	// When true (default), providers are registered globally via otel.Set*Provider calls.
@@ -271,7 +273,7 @@ func WithPropagators(propagators ...propagation.TextMapPropagator) Option {
 			return errors.New("at least one propagator must be provided")
 		}
 
-		c.Propagators = propagators
+		c.Propagators = append([]propagation.TextMapPropagator(nil), propagators...)
 
 		return nil
 	}
@@ -284,7 +286,8 @@ func WithPropagationHeaders(headers ...string) Option {
 			return errors.New("at least one propagation header must be provided")
 		}
 
-		c.PropagationHeaders = headers
+		c.PropagationHeaders = append([]string(nil), headers...)
+		c.propagationHeadersExplicit = true
 
 		return nil
 	}
@@ -376,6 +379,7 @@ func DefaultConfig() *Config {
 // MidazProvider is the main implementation of the Provider interface
 // It provides access to OpenTelemetry tracing, metrics, and logging
 type MidazProvider struct {
+	lifecycleMu       sync.RWMutex
 	config            *Config
 	tracerProvider    *sdktrace.TracerProvider
 	meterProvider     *sdkmetric.MeterProvider
@@ -644,7 +648,7 @@ func (p *MidazProvider) setupPropagation() {
 
 // Tracer returns a tracer for creating spans
 func (p *MidazProvider) Tracer() trace.Tracer {
-	if p == nil || p.config == nil || !p.enabled || !p.config.EnabledComponents.Tracing || p.tracer == nil {
+	if p == nil || p.config == nil || !p.isEnabled() || !p.config.EnabledComponents.Tracing || p.tracer == nil {
 		// Return a no-op tracer if tracing is disabled
 		return noop.NewTracerProvider().Tracer("")
 	}
@@ -654,7 +658,7 @@ func (p *MidazProvider) Tracer() trace.Tracer {
 
 // Meter returns a meter for creating metrics
 func (p *MidazProvider) Meter() metric.Meter {
-	if p == nil || p.config == nil || !p.enabled || !p.config.EnabledComponents.Metrics || p.meter == nil {
+	if p == nil || p.config == nil || !p.isEnabled() || !p.config.EnabledComponents.Metrics || p.meter == nil {
 		return metricnoop.NewMeterProvider().Meter("")
 	}
 
@@ -663,7 +667,7 @@ func (p *MidazProvider) Meter() metric.Meter {
 
 // Logger returns a logger
 func (p *MidazProvider) Logger() Logger {
-	if p == nil || p.config == nil || !p.enabled || !p.config.EnabledComponents.Logging || p.logger == nil {
+	if p == nil || p.config == nil || !p.isEnabled() || !p.config.EnabledComponents.Logging || p.logger == nil {
 		// Return a no-op logger if logging is disabled
 		return NewNoopLogger()
 	}
@@ -673,16 +677,24 @@ func (p *MidazProvider) Logger() Logger {
 
 // Shutdown gracefully shuts down the provider and all its components
 func (p *MidazProvider) Shutdown(ctx context.Context) error {
+	if p == nil {
+		return nil
+	}
+
+	p.lifecycleMu.Lock()
 	if !p.enabled {
+		p.lifecycleMu.Unlock()
 		return nil
 	}
 
 	p.enabled = false
+	shutdownFunctions := append([]func(context.Context) error(nil), p.shutdownFunctions...)
+	p.lifecycleMu.Unlock()
 
 	// Call all shutdown functions
 	var shutdownErrs []error
 
-	for _, shutdownFn := range p.shutdownFunctions {
+	for _, shutdownFn := range shutdownFunctions {
 		if err := shutdownFn(ctx); err != nil {
 			shutdownErrs = append(shutdownErrs, err)
 		}
@@ -697,17 +709,13 @@ func (p *MidazProvider) Shutdown(ctx context.Context) error {
 
 // IsEnabled returns true if observability is enabled
 func (p *MidazProvider) IsEnabled() bool {
-	if p == nil {
-		return false
-	}
-
-	return p.enabled
+	return p.isEnabled()
 }
 
 // TextMapPropagator returns the provider-specific propagator without requiring
 // this method on the public Provider interface.
 func (p *MidazProvider) TextMapPropagator() propagation.TextMapPropagator {
-	if p == nil || p.config == nil || !p.enabled || !p.config.EnabledComponents.Tracing {
+	if p == nil || p.config == nil || !p.isEnabled() || !p.config.EnabledComponents.Tracing {
 		return propagation.NewCompositeTextMapPropagator()
 	}
 
@@ -716,6 +724,17 @@ func (p *MidazProvider) TextMapPropagator() propagation.TextMapPropagator {
 	}
 
 	return defaultTextMapPropagator()
+}
+
+func (p *MidazProvider) isEnabled() bool {
+	if p == nil {
+		return false
+	}
+
+	p.lifecycleMu.RLock()
+	defer p.lifecycleMu.RUnlock()
+
+	return p.enabled
 }
 
 // WithSpan creates a new span and executes the function within the context of that span.
@@ -868,7 +887,12 @@ func textMapPropagatorForContext(ctx context.Context) propagation.TextMapPropaga
 
 func textMapPropagatorForProvider(provider Provider) propagation.TextMapPropagator {
 	if provider == nil {
-		return defaultTextMapPropagator()
+		global := otel.GetTextMapPropagator()
+		if global == nil || len(global.Fields()) == 0 {
+			return defaultTextMapPropagator()
+		}
+
+		return global
 	}
 
 	if !provider.IsEnabled() {
@@ -927,6 +951,15 @@ func propagationHeaderSet(ctx context.Context) map[string]struct{} {
 		header = strings.ToLower(strings.TrimSpace(header))
 		if header != "" {
 			allowed[header] = struct{}{}
+		}
+	}
+
+	if !midazProvider.config.propagationHeadersExplicit {
+		for _, header := range textMapPropagatorForProvider(provider).Fields() {
+			header = strings.ToLower(strings.TrimSpace(header))
+			if header != "" {
+				allowed[header] = struct{}{}
+			}
 		}
 	}
 
