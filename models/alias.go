@@ -96,7 +96,7 @@ func (input *CreateAliasInput) WithRegulatoryFields(regulatoryFields *Regulatory
 	return input
 }
 
-// WithRelatedParties sets alias related parties.
+// WithRelatedParties sets related parties for alias creation.
 func (input *CreateAliasInput) WithRelatedParties(relatedParties []*RelatedParty) *CreateAliasInput {
 	if input == nil {
 		return nil
@@ -145,7 +145,7 @@ func (input *UpdateAliasInput) WithRegulatoryFields(regulatoryFields *Regulatory
 	return input
 }
 
-// WithRelatedParties sets alias related parties for update.
+// WithRelatedParties appends related parties to the existing alias on update.
 func (input *UpdateAliasInput) WithRelatedParties(relatedParties []*RelatedParty) *UpdateAliasInput {
 	if input == nil {
 		return nil

@@ -664,6 +664,8 @@ CRM requests use the `crm` service URL and send the organization context through
 X-Organization-Id: <organizationID>
 ```
 
+If a default tenant ID is configured, the shared HTTP client may also send `X-Tenant-ID`. That header does not replace the CRM `organizationID`; holder and alias methods still require `organizationID` and send it as `X-Organization-Id`. Per-request `entities.WithTenantID(ctx, id)` overrides only the default tenant header.
+
 Example:
 
 ```go

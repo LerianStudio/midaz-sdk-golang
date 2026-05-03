@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestNewStatus(t *testing.T) {
@@ -783,6 +784,10 @@ func TestListOptionsCRMFilters(t *testing.T) {
 		WithLedgerID("ledger-123").
 		WithParticipantDocument("11222333000199").
 		WithRelatedPartyDocument("99988877766").
+		WithBankingDetailsBranch("0001").
+		WithBankingDetailsAccount("123450").
+		WithBankingDetailsIBAN("US12345678901234567890").
+		WithRelatedPartyRole(RelatedPartyRolePrimaryHolder).
 		ToQueryParams()
 
 	expected := map[string]string{
@@ -794,12 +799,32 @@ func TestListOptionsCRMFilters(t *testing.T) {
 		"ledger_id":                              "ledger-123",
 		"regulatory_fields_participant_document": "11222333000199",
 		"related_party_document":                 "99988877766",
+		"banking_details_branch":                 "0001",
+		"banking_details_account":                "123450",
+		"banking_details_iban":                   "US12345678901234567890",
+		"related_party_role":                     RelatedPartyRolePrimaryHolder,
 	}
 	for key, value := range expected {
 		if params[key] != value {
 			t.Errorf("Expected %s=%s, got %s", key, value, params[key])
 		}
 	}
+}
+
+func TestListOptionsAdditionalParamsSkipEmptyAndDoNotOverrideReservedParams(t *testing.T) {
+	params := NewListOptions().
+		WithLimit(25).
+		WithPage(2).
+		WithAdditionalParam(QueryParamLimit, "999").
+		WithAdditionalParam(QueryParamPage, "99").
+		WithAdditionalParam("holder_id", "").
+		WithAdditionalParam("document", "12345678900").
+		ToQueryParams()
+
+	assert.Equal(t, "25", params[QueryParamLimit])
+	assert.Equal(t, "2", params[QueryParamPage])
+	assert.NotContains(t, params, "holder_id")
+	assert.Equal(t, "12345678900", params["document"])
 }
 
 func TestListResponseUnmarshalJSONTopLevelPagination(t *testing.T) {

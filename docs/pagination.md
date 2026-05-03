@@ -38,6 +38,11 @@ CRM helper filters are also available on `ListOptions`:
 - `WithAccountID(string)`
 - `WithLedgerID(string)`
 - `WithParticipantDocument(string)`
+- `WithRelatedPartyDocument(string)`
+- `WithBankingDetailsBranch(string)`
+- `WithBankingDetailsAccount(string)`
+- `WithBankingDetailsIBAN(string)`
+- `WithRelatedPartyRole(string)`
 
 ## Constants
 
@@ -60,7 +65,7 @@ Midaz services do not use one universal pagination shape. Choose options based o
 | --- | --- | --- | --- |
 | Ledger page-based lists | Organizations, Ledgers, Assets, Portfolios, Segments, Accounts, Account Types, and balances | `page`, `limit`, filters, and `sort_order` | Use `WithPage` and `WithLimit`. Do not rely on `offset` as a Midaz wire parameter. |
 | Ledger cursor-aware lists | Transactions, Operations, Operation Routes, Transaction Routes, and Asset Rates | `cursor`, `limit`, filters, and `sort_order` | These endpoints do not accept `page` or `offset`; the SDK emits cursor-style query parameters only. Asset rates also support `to`, `start_date`, and `end_date`. |
-| CRM page-based lists | Holders and Aliases | `page`, `limit`, CRM filters, and `sort_order` | CRM filters include `include_deleted`, `holder_id`, `external_id`, `document`, `account_id`, `ledger_id`, `regulatory_fields_participant_document`, and `related_party_document`. |
+| CRM page-based lists | Holders and Aliases | `page`, `limit`, CRM filters, and `sort_order` | CRM filters include `include_deleted`, `holder_id`, `external_id`, `document`, `account_id`, `ledger_id`, `banking_details_branch`, `banking_details_account`, `banking_details_iban`, `regulatory_fields_participant_document`, `related_party_document`, and `related_party_role`. |
 
 ## Paginated responses
 

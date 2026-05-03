@@ -12,6 +12,13 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation/core"
 )
 
+const (
+	// HolderTypeNaturalPerson identifies an individual CRM holder.
+	HolderTypeNaturalPerson = "NATURAL_PERSON"
+	// HolderTypeLegalPerson identifies a company CRM holder.
+	HolderTypeLegalPerson = "LEGAL_PERSON"
+)
+
 // CreateHolderInput is the payload for creating a CRM holder.
 type CreateHolderInput struct {
 	ExternalID    *string        `json:"externalId"`
@@ -289,7 +296,26 @@ func (input UpdateHolderInput) MarshalJSON() ([]byte, error) {
 		payload[field] = nil
 	}
 
+	if len(payload) == 0 {
+		return nil, errors.New("empty update payload not allowed")
+	}
+
 	return json.Marshal(payload)
+}
+
+func (input *UpdateHolderInput) hasChanges() bool {
+	if input == nil {
+		return false
+	}
+
+	return input.ExternalID != nil ||
+		input.Name != nil ||
+		input.Addresses != nil ||
+		input.Contact != nil ||
+		input.NaturalPerson != nil ||
+		input.LegalPerson != nil ||
+		input.Metadata != nil ||
+		len(input.NullFields) > 0
 }
 
 func (input *UpdateHolderInput) validateNullFieldConflicts() error {
@@ -329,7 +355,7 @@ var validHolderNullFields = map[string]bool{
 
 func isValidHolderType(holderType string) bool {
 	switch holderType {
-	case "NATURAL_PERSON", "LEGAL_PERSON":
+	case HolderTypeNaturalPerson, HolderTypeLegalPerson:
 		return true
 	default:
 		return false
@@ -355,6 +381,10 @@ func validateCRMNullFields(fields []string, allowed map[string]bool) error {
 func (input *UpdateHolderInput) Validate() error {
 	if input == nil {
 		return errors.New("input is required")
+	}
+
+	if !input.hasChanges() {
+		return errors.New("empty update payload not allowed")
 	}
 
 	if len(input.Metadata) > 0 {

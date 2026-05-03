@@ -218,6 +218,14 @@ func NewEntityWithConfig(config Config, options ...Option) (*Entity, error) {
 		return nil, err
 	}
 
+	if strings.TrimSpace(normalizedBaseURLs["transaction"]) == "" {
+		normalizedBaseURLs["transaction"] = normalizedBaseURLs["onboarding"]
+	}
+
+	if strings.TrimSpace(normalizedBaseURLs["crm"]) == "" {
+		normalizedBaseURLs["crm"] = normalizedBaseURLs["onboarding"]
+	}
+
 	entity := &Entity{
 		httpClient:    httpClient,
 		baseURLs:      normalizedBaseURLs,

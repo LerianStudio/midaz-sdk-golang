@@ -272,7 +272,7 @@ These methods call Midaz `metrics/count` endpoints with `HEAD` and read the inte
 
 ### CRM services
 
-CRM services use the CRM base URL and set the organization through the `X-Organization-Id` header.
+CRM services use the CRM base URL and set the organization through the `X-Organization-Id` header. If `X-Tenant-ID` is configured on the shared HTTP client or request context, it may also be sent, but it does not replace the required `organizationID` argument.
 
 #### HoldersService
 
@@ -317,6 +317,10 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v2/models`.
 - `(*models.ListOptions).WithLedgerID(string)`
 - `(*models.ListOptions).WithParticipantDocument(string)`
 - `(*models.ListOptions).WithRelatedPartyDocument(string)`
+- `(*models.ListOptions).WithBankingDetailsBranch(string)`
+- `(*models.ListOptions).WithBankingDetailsAccount(string)`
+- `(*models.ListOptions).WithBankingDetailsIBAN(string)`
+- `(*models.ListOptions).WithRelatedPartyRole(string)`
 - `(*models.ListOptions).ToQueryParams()`
 - `(*models.Pagination).HasNextPage()`
 - `(*models.Pagination).NextPageOptions()`
@@ -353,6 +357,10 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v2/models`.
 - `models.NewUpdateTransactionRouteInput()`
 - `models.NewCreateAssetRateInput(from, to, rate)` with `WithScale`, `WithSource`, `WithTTL`, `WithExternalID`, and `WithMetadata`.
 - `models.NewAssetRateListOptions()`
+- `models.NewCreateHolderInput(holderType, name, document)` with `WithExternalID`, `WithAddresses`, `WithContact`, `WithNaturalPerson`, `WithLegalPerson`, and `WithMetadata`.
+- `models.NewUpdateHolderInput()` with field setters and `WithNullFields` / `WithNullField` for explicit JSON null removals. Empty holder updates are rejected by the SDK.
+- `models.NewCreateAliasInput(ledgerID, accountID)` with `WithMetadata`, `WithBankingDetails`, `WithRegulatoryFields`, and `WithRelatedParties`.
+- `models.NewUpdateAliasInput()` with field setters and `WithNullFields` for explicit JSON null removals. `WithRelatedParties` appends related parties to the existing alias on update; empty alias updates are rejected by the SDK.
 
 ## Errors package
 

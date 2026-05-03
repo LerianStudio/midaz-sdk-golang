@@ -42,24 +42,32 @@ func NewAliasesEntity(client *http.Client, authToken string, baseURLs map[string
 		httpClient.debug = true
 	}
 
-	return &aliasesEntity{httpClient: httpClient, baseURLs: baseURLs}
+	return &aliasesEntity{httpClient: httpClient, baseURLs: prepareServiceBaseURLs(baseURLs)}
 }
 
 // ListAliases retrieves aliases for an organization.
 func (e *aliasesEntity) ListAliases(ctx context.Context, organizationID string, opts *models.ListOptions) (*models.ListResponse[models.Alias], error) {
 	const operation = "ListAliases"
-	if organizationID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+
+	organizationID, err := validateCRMOrganizationID(operation, organizationID)
+	if err != nil {
+		return nil, err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, e.listURL(), nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, e.listURL(), nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	if opts != nil {
+	params, err := validatedAliasListQueryParams(operation, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(params) > 0 {
 		q := req.URL.Query()
-		for key, value := range opts.ToQueryParams() {
+
+		for key, value := range params {
 			q.Add(key, value)
 		}
 
@@ -77,12 +85,15 @@ func (e *aliasesEntity) ListAliases(ctx context.Context, organizationID string, 
 // CreateAlias creates an alias for a holder.
 func (e *aliasesEntity) CreateAlias(ctx context.Context, organizationID, holderID string, input *models.CreateAliasInput) (*models.Alias, error) {
 	const operation = "CreateAlias"
-	if organizationID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+
+	organizationID, err := validateCRMOrganizationID(operation, organizationID)
+	if err != nil {
+		return nil, err
 	}
 
-	if holderID == "" {
-		return nil, errors.NewMissingParameterError(operation, "holderID")
+	holderID, err = validateCRMUUIDParam(operation, "holderID", holderID)
+	if err != nil {
+		return nil, err
 	}
 
 	if input == nil {
@@ -104,16 +115,20 @@ func (e *aliasesEntity) CreateAlias(ctx context.Context, organizationID, holderI
 // GetAlias retrieves an alias by ID.
 func (e *aliasesEntity) GetAlias(ctx context.Context, organizationID, holderID, aliasID string, includeDeleted bool) (*models.Alias, error) {
 	const operation = "GetAlias"
-	if organizationID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+
+	organizationID, err := validateCRMOrganizationID(operation, organizationID)
+	if err != nil {
+		return nil, err
 	}
 
-	if holderID == "" {
-		return nil, errors.NewMissingParameterError(operation, "holderID")
+	holderID, err = validateCRMUUIDParam(operation, "holderID", holderID)
+	if err != nil {
+		return nil, err
 	}
 
-	if aliasID == "" {
-		return nil, errors.NewMissingParameterError(operation, "aliasID")
+	aliasID, err = validateCRMUUIDParam(operation, "aliasID", aliasID)
+	if err != nil {
+		return nil, err
 	}
 
 	endpoint := e.aliasURL(holderID, aliasID)
@@ -132,16 +147,20 @@ func (e *aliasesEntity) GetAlias(ctx context.Context, organizationID, holderID, 
 // UpdateAlias updates an alias by ID.
 func (e *aliasesEntity) UpdateAlias(ctx context.Context, organizationID, holderID, aliasID string, input *models.UpdateAliasInput) (*models.Alias, error) {
 	const operation = "UpdateAlias"
-	if organizationID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+
+	organizationID, err := validateCRMOrganizationID(operation, organizationID)
+	if err != nil {
+		return nil, err
 	}
 
-	if holderID == "" {
-		return nil, errors.NewMissingParameterError(operation, "holderID")
+	holderID, err = validateCRMUUIDParam(operation, "holderID", holderID)
+	if err != nil {
+		return nil, err
 	}
 
-	if aliasID == "" {
-		return nil, errors.NewMissingParameterError(operation, "aliasID")
+	aliasID, err = validateCRMUUIDParam(operation, "aliasID", aliasID)
+	if err != nil {
+		return nil, err
 	}
 
 	if input == nil {
@@ -163,16 +182,20 @@ func (e *aliasesEntity) UpdateAlias(ctx context.Context, organizationID, holderI
 // DeleteAlias deletes an alias by ID.
 func (e *aliasesEntity) DeleteAlias(ctx context.Context, organizationID, holderID, aliasID string, hardDelete bool) error {
 	const operation = "DeleteAlias"
-	if organizationID == "" {
-		return errors.NewMissingParameterError(operation, "organizationID")
+
+	organizationID, err := validateCRMOrganizationID(operation, organizationID)
+	if err != nil {
+		return err
 	}
 
-	if holderID == "" {
-		return errors.NewMissingParameterError(operation, "holderID")
+	holderID, err = validateCRMUUIDParam(operation, "holderID", holderID)
+	if err != nil {
+		return err
 	}
 
-	if aliasID == "" {
-		return errors.NewMissingParameterError(operation, "aliasID")
+	aliasID, err = validateCRMUUIDParam(operation, "aliasID", aliasID)
+	if err != nil {
+		return err
 	}
 
 	endpoint := e.aliasURL(holderID, aliasID)
@@ -186,29 +209,60 @@ func (e *aliasesEntity) DeleteAlias(ctx context.Context, organizationID, holderI
 // DeleteRelatedParty deletes a related party from an alias.
 func (e *aliasesEntity) DeleteRelatedParty(ctx context.Context, organizationID, holderID, aliasID, relatedPartyID string) error {
 	const operation = "DeleteRelatedParty"
-	if organizationID == "" {
-		return errors.NewMissingParameterError(operation, "organizationID")
+
+	organizationID, err := validateCRMOrganizationID(operation, organizationID)
+	if err != nil {
+		return err
 	}
 
-	if holderID == "" {
-		return errors.NewMissingParameterError(operation, "holderID")
+	holderID, err = validateCRMUUIDParam(operation, "holderID", holderID)
+	if err != nil {
+		return err
 	}
 
-	if aliasID == "" {
-		return errors.NewMissingParameterError(operation, "aliasID")
+	aliasID, err = validateCRMUUIDParam(operation, "aliasID", aliasID)
+	if err != nil {
+		return err
 	}
 
-	if relatedPartyID == "" {
-		return errors.NewMissingParameterError(operation, "relatedPartyID")
+	relatedPartyID, err = validateCRMUUIDParam(operation, "relatedPartyID", relatedPartyID)
+	if err != nil {
+		return err
 	}
 
-	endpoint := fmt.Sprintf("%s/holders/%s/aliases/%s/related-parties/%s", e.baseURLs["crm"], pathSegment(holderID), pathSegment(aliasID), pathSegment(relatedPartyID))
+	endpoint := fmt.Sprintf("%s/related-parties/%s", e.aliasURL(holderID, aliasID), pathSegment(relatedPartyID))
 
 	return e.httpClient.doRequest(ctx, http.MethodDelete, endpoint, crmHeaders(organizationID), nil, nil)
 }
 
 func (e *aliasesEntity) listURL() string {
 	return fmt.Sprintf("%s/aliases", e.baseURLs["crm"])
+}
+
+func validatedAliasListQueryParams(operation string, opts *models.ListOptions) (map[string]string, error) {
+	if opts == nil {
+		return map[string]string{}, nil
+	}
+
+	params := opts.ToQueryParams()
+
+	holderID, ok := params["holder_id"]
+	if !ok {
+		return params, nil
+	}
+
+	validatedHolderID, err := validateOptionalCRMUUIDParam(operation, "holder_id", holderID)
+	if err != nil {
+		return nil, err
+	}
+
+	if validatedHolderID == "" {
+		delete(params, "holder_id")
+	} else {
+		params["holder_id"] = validatedHolderID
+	}
+
+	return params, nil
 }
 
 func (e *aliasesEntity) aliasURL(holderID, aliasID string) string {

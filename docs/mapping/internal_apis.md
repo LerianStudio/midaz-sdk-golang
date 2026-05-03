@@ -100,7 +100,7 @@ Each service has a public interface and a private implementation type. Method na
 - `HoldersService` implemented by `holdersEntity`
 - `AliasesService` implemented by `aliasesEntity`
 
-CRM requests set `X-Organization-Id` and use paths under `/holders` and `/aliases`.
+CRM requests set `X-Organization-Id` and use paths under `/holders` and `/aliases`. A configured `X-Tenant-ID` can also be sent by the shared HTTP client, but CRM holder/alias scoping still comes from the required `organizationID` method argument.
 
 ## Transport pattern
 
@@ -133,7 +133,7 @@ Important path groups:
 - Routes: operation route endpoints use `/organizations/{organizationID}/ledgers/{ledgerID}/operation-routes`; transaction route endpoints use `/organizations/{organizationID}/ledgers/{ledgerID}/transaction-routes`.
 - Metadata indexes: `/settings/metadata-indexes`
 - CRM holders: `/holders`, `/holders/{holderID}`
-- CRM aliases: `/aliases`, `/holders/{holderID}/aliases`, `/holders/{holderID}/aliases/{aliasID}/related-parties/{relatedPartyID}`
+- CRM aliases: `/aliases`, `/holders/{holderID}/aliases`, `/holders/{holderID}/aliases/{aliasID}`, `/holders/{holderID}/aliases/{aliasID}/related-parties/{relatedPartyID}`
 
 Supported count paths use `HEAD` and read `X-Total-Count`:
 
@@ -181,6 +181,10 @@ Common builders:
 - `models.NewUpdateTransactionRouteInput()`
 - `models.NewCreateAssetRateInput(from, to, rate)` with `WithScale`, `WithSource`, `WithTTL`, `WithExternalID`, and `WithMetadata`.
 - `models.NewAssetRateListOptions()`
+- `models.NewCreateHolderInput(holderType, name, document)` with `WithExternalID`, `WithAddresses`, `WithContact`, `WithNaturalPerson`, `WithLegalPerson`, and `WithMetadata`.
+- `models.NewUpdateHolderInput()` with field setters and `WithNullFields` / `WithNullField` for explicit JSON null removals. Empty holder updates are rejected by the SDK.
+- `models.NewCreateAliasInput(ledgerID, accountID)` with `WithMetadata`, `WithBankingDetails`, `WithRegulatoryFields`, and `WithRelatedParties`.
+- `models.NewUpdateAliasInput()` with field setters and `WithNullFields` for explicit JSON null removals. `WithRelatedParties` appends related parties to the existing alias on update; empty alias updates are rejected by the SDK.
 
 ## List options and pagination internals
 

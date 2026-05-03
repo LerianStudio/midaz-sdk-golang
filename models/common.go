@@ -739,6 +739,26 @@ func (o *ListOptions) WithRelatedPartyDocument(document string) *ListOptions {
 	return o.WithAdditionalParam("related_party_document", document)
 }
 
+// WithBankingDetailsBranch adds the CRM banking_details_branch alias filter.
+func (o *ListOptions) WithBankingDetailsBranch(branch string) *ListOptions {
+	return o.WithAdditionalParam("banking_details_branch", branch)
+}
+
+// WithBankingDetailsAccount adds the CRM banking_details_account alias filter.
+func (o *ListOptions) WithBankingDetailsAccount(account string) *ListOptions {
+	return o.WithAdditionalParam("banking_details_account", account)
+}
+
+// WithBankingDetailsIBAN adds the CRM banking_details_iban alias filter.
+func (o *ListOptions) WithBankingDetailsIBAN(iban string) *ListOptions {
+	return o.WithAdditionalParam("banking_details_iban", iban)
+}
+
+// WithRelatedPartyRole adds the CRM related_party_role alias filter.
+func (o *ListOptions) WithRelatedPartyRole(role string) *ListOptions {
+	return o.WithAdditionalParam("related_party_role", role)
+}
+
 // NextPage returns a copy of the ListOptions configured for the next page.
 // This method is useful for implementing pagination in client code.
 //
@@ -919,8 +939,25 @@ func (o *ListOptions) addDateRangeParams(params map[string]string) {
 func (o *ListOptions) addAdditionalParams(params map[string]string) {
 	if o.AdditionalParams != nil {
 		for k, v := range o.AdditionalParams {
+			if v == "" {
+				continue
+			}
+
+			if _, exists := params[k]; exists && isReservedListQueryParam(k) {
+				continue
+			}
+
 			params[k] = v
 		}
+	}
+}
+
+func isReservedListQueryParam(key string) bool {
+	switch key {
+	case QueryParamLimit, QueryParamPage, QueryParamCursor, QueryParamOrderDirection, QueryParamStartDate, QueryParamEndDate:
+		return true
+	default:
+		return false
 	}
 }
 
