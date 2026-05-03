@@ -28,11 +28,14 @@ type MetricsCollector struct {
 // NewMetricsCollector creates a new MetricsCollector for recording SDK metrics
 func NewMetricsCollector(provider Provider) (*MetricsCollector, error) {
 	// If provider is not enabled, return a no-op collector
-	if !provider.IsEnabled() {
+	if provider == nil || !provider.IsEnabled() {
 		return &MetricsCollector{provider: provider}, nil
 	}
 
 	meter := provider.Meter()
+	if meter == nil {
+		return &MetricsCollector{provider: provider}, nil
+	}
 
 	requestCounter, err := meter.Float64Counter(
 		MetricRequestTotal,
@@ -107,7 +110,7 @@ func NewMetricsCollector(provider Provider) (*MetricsCollector, error) {
 // RecordRequest records a request with its result and duration
 func (m *MetricsCollector) RecordRequest(ctx context.Context, operation, resourceType string, statusCode int, duration time.Duration, attrs ...attribute.KeyValue) {
 	// If provider is not enabled, do nothing
-	if !m.provider.IsEnabled() {
+	if m == nil || m.provider == nil || !m.provider.IsEnabled() || m.requestCounter == nil || m.requestDuration == nil {
 		return
 	}
 
@@ -142,7 +145,7 @@ func (m *MetricsCollector) RecordRequest(ctx context.Context, operation, resourc
 // RecordBatchRequest records a batch request with its size and latency
 func (m *MetricsCollector) RecordBatchRequest(ctx context.Context, operation, resourceType string, batchSize int, duration time.Duration, attrs ...attribute.KeyValue) {
 	// If provider is not enabled, do nothing
-	if !m.provider.IsEnabled() {
+	if m == nil || m.provider == nil || !m.provider.IsEnabled() || m.requestBatchSize == nil || m.requestBatchLatency == nil {
 		return
 	}
 
@@ -167,7 +170,7 @@ func (m *MetricsCollector) RecordBatchRequest(ctx context.Context, operation, re
 // RecordRetry records a retry attempt
 func (m *MetricsCollector) RecordRetry(ctx context.Context, operation, resourceType string, attempt int, attrs ...attribute.KeyValue) {
 	// If provider is not enabled, do nothing
-	if !m.provider.IsEnabled() {
+	if m == nil || m.provider == nil || !m.provider.IsEnabled() || m.retryCounter == nil {
 		return
 	}
 
@@ -211,6 +214,10 @@ func (m *MetricsCollector) NewTimer(ctx context.Context, operation, resourceType
 
 // Stop records the duration of the operation with the result
 func (t *Timer) Stop(statusCode int, additionalAttrs ...attribute.KeyValue) {
+	if t == nil || t.collector == nil {
+		return
+	}
+
 	duration := time.Since(t.startTime)
 	allAttrs := append(t.attrs, additionalAttrs...)
 	t.collector.RecordRequest(t.ctx, t.operation, t.resourceType, statusCode, duration, allAttrs...)
@@ -218,6 +225,10 @@ func (t *Timer) Stop(statusCode int, additionalAttrs ...attribute.KeyValue) {
 
 // StopBatch records the duration of a batch operation
 func (t *Timer) StopBatch(batchSize int, additionalAttrs ...attribute.KeyValue) {
+	if t == nil || t.collector == nil {
+		return
+	}
+
 	duration := time.Since(t.startTime)
 	allAttrs := append(t.attrs, additionalAttrs...)
 	t.collector.RecordBatchRequest(t.ctx, t.operation, t.resourceType, batchSize, duration, allAttrs...)

@@ -1,13 +1,25 @@
 package performance
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
 
 func createMockBatchServer() *httptest.Server {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -66,6 +78,10 @@ func createMockBatchServer() *httptest.Server {
 	})
 
 	return httptest.NewServer(handler)
+}
+
+func nilContext() context.Context {
+	return nil
 }
 
 //nolint:revive // cognitive-complexity: comprehensive test with many sub-tests
@@ -319,6 +335,194 @@ func TestBatchProcessor_ExecuteBatch(t *testing.T) {
 	})
 }
 
+func TestBatchProcessor_RetryRebuildsRequestBody(t *testing.T) {
+	var attempts int32
+
+	client := &http.Client{
+		Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+			attempt := atomic.AddInt32(&attempts, 1)
+
+			body, err := io.ReadAll(req.Body)
+			if err != nil {
+				t.Fatalf("failed to read request body on attempt %d: %v", attempt, err)
+			}
+
+			if len(body) == 0 {
+				t.Fatalf("request body was empty on attempt %d", attempt)
+			}
+
+			if attempt == 1 {
+				return nil, errors.New("transient network failure")
+			}
+
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     make(http.Header),
+				Body:       io.NopCloser(strings.NewReader(`[{"statusCode":200,"id":"req_1","body":{"ok":true}}]`)),
+			}, nil
+		}),
+	}
+
+	processor := NewBatchProcessorWithDefaults(client, "https://api.example.com", &BatchOptions{
+		Timeout:         time.Second,
+		MaxBatchSize:    10,
+		RetryCount:      1,
+		RetryBackoff:    time.Millisecond,
+		ContinueOnError: false,
+	})
+
+	result, err := processor.ExecuteBatch(context.Background(), []BatchRequest{{Method: http.MethodPost, Path: "/retry", ID: "req_1", Body: map[string]string{"name": "retry"}}})
+	if err != nil {
+		t.Fatalf("ExecuteBatch returned error: %v", err)
+	}
+
+	if got := atomic.LoadInt32(&attempts); got != 2 {
+		t.Fatalf("Expected 2 attempts, got %d", got)
+	}
+
+	if len(result.Responses) != 1 {
+		t.Fatalf("Expected 1 response, got %d", len(result.Responses))
+	}
+}
+
+func TestBatchProcessor_RetryBackoffHonorsCancellation(t *testing.T) {
+	client := &http.Client{
+		Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			return nil, errors.New("transient network failure")
+		}),
+	}
+
+	processor := NewBatchProcessorWithDefaults(client, "https://api.example.com", &BatchOptions{
+		Timeout:         time.Second,
+		MaxBatchSize:    10,
+		RetryCount:      3,
+		RetryBackoff:    time.Hour,
+		ContinueOnError: false,
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	start := time.Now()
+
+	_, err := processor.ExecuteBatch(ctx, []BatchRequest{{Method: http.MethodGet, Path: "/cancel"}})
+	if err == nil {
+		t.Fatal("Expected cancellation error, got nil")
+	}
+
+	if elapsed := time.Since(start); elapsed > 250*time.Millisecond {
+		t.Fatalf("Expected cancelled retry to return quickly, took %v", elapsed)
+	}
+}
+
+func TestBatchProcessor_LargeBatchPanicReturnsError(t *testing.T) {
+	client := &http.Client{
+		Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			panic("simulated transport panic")
+		}),
+	}
+
+	processor := NewBatchProcessorWithDefaults(client, "https://api.example.com", &BatchOptions{
+		Timeout:         time.Second,
+		MaxBatchSize:    1,
+		RetryCount:      0,
+		RetryBackoff:    time.Millisecond,
+		ContinueOnError: true,
+	})
+
+	result, err := processor.ExecuteBatch(context.Background(), []BatchRequest{
+		{Method: http.MethodGet, Path: "/panic-1"},
+		{Method: http.MethodGet, Path: "/panic-2"},
+	})
+	if err == nil {
+		t.Fatal("Expected panic to be converted to error, got nil")
+	}
+
+	if result == nil {
+		t.Fatal("Expected non-nil result with panic error")
+	}
+
+	if !strings.Contains(err.Error(), "panic") {
+		t.Fatalf("Expected panic error, got %v", err)
+	}
+}
+
+func TestBatchProcessor_RejectsConflictingTenantHeader(t *testing.T) {
+	processor := NewBatchProcessorWithDefaults(http.DefaultClient, "https://api.example.com", nil)
+	processor.SetDefaultHeader("X-Tenant-ID", "tenant-a")
+
+	_, err := processor.ExecuteBatch(context.Background(), []BatchRequest{{
+		Method: http.MethodGet,
+		Path:   "/conflict",
+		Headers: map[string]string{
+			"X-Tenant-ID": "tenant-b",
+		},
+	}})
+	if err == nil {
+		t.Fatal("Expected conflicting tenant header to be rejected")
+	}
+
+	if !strings.Contains(err.Error(), "conflicting X-Tenant-ID") {
+		t.Fatalf("Expected conflicting tenant header error, got %v", err)
+	}
+}
+
+func TestBatchProcessor_NilInputsAreSafe(t *testing.T) {
+	t.Run("NilReceiverExecute", func(t *testing.T) {
+		var processor *BatchProcessor
+
+		_, err := processor.ExecuteBatch(context.Background(), []BatchRequest{{Method: http.MethodGet, Path: "/nil"}})
+		if err == nil {
+			t.Fatal("Expected nil receiver error, got nil")
+		}
+	})
+
+	t.Run("NilContextUsesBackground", func(t *testing.T) {
+		processor := NewBatchProcessorWithDefaults(&http.Client{
+			Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Header:     make(http.Header),
+					Body:       io.NopCloser(bytes.NewReader([]byte(`[{"statusCode":200,"id":"req_0"}]`))),
+				}, nil
+			}),
+		}, "https://api.example.com", nil)
+
+		_, err := processor.ExecuteBatch(nilContext(), []BatchRequest{{Method: http.MethodGet, Path: "/nil-context"}})
+		if err != nil {
+			t.Fatalf("Expected nil context to use context.Background, got %v", err)
+		}
+	})
+
+	t.Run("NilMapsAreAccepted", func(_ *testing.T) {
+		processor := NewBatchProcessorWithDefaults(http.DefaultClient, "https://api.example.com", nil)
+		processor.SetDefaultHeaders(nil)
+		processor.SetDefaultHeader("", "ignored")
+	})
+}
+
+func TestAdapterRegistryConcurrentAccess(_ *testing.T) {
+	const goroutines = 32
+
+	const iterations = 100
+
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+
+	for i := 0; i < goroutines; i++ {
+		go func() {
+			defer wg.Done()
+
+			for j := 0; j < iterations; j++ {
+				processor := CreateBatchProcessor(http.DefaultClient, "https://api.example.com", nil)
+				_ = adapterRegistry.Get(processor)
+			}
+		}()
+	}
+
+	wg.Wait()
+}
+
 func TestDefaultBatchOptions(t *testing.T) {
 	options := DefaultBatchOptions()
 
@@ -513,24 +717,24 @@ func TestNewBatchProcessor(t *testing.T) {
 		"http://example.com",
 		WithBatchOptions(nil),
 	)
-	if err == nil {
-		t.Fatalf("Expected NewBatchProcessor to return an error for nil options, got nil")
+	if err != nil {
+		t.Fatalf("Expected nil batch options to be ignored, got %v", err)
 	}
 
 	_, err = NewBatchProcessor(
 		"http://example.com",
 		WithDefaultHeader("", "value"),
 	)
-	if err == nil {
-		t.Fatalf("Expected NewBatchProcessor to return an error for empty header key, got nil")
+	if err != nil {
+		t.Fatalf("Expected empty header key to be ignored, got %v", err)
 	}
 
 	_, err = NewBatchProcessor(
 		"http://example.com",
 		WithDefaultHeaders(nil),
 	)
-	if err == nil {
-		t.Fatalf("Expected NewBatchProcessor to return an error for nil headers, got nil")
+	if err != nil {
+		t.Fatalf("Expected nil headers to be ignored, got %v", err)
 	}
 
 	// Test backward compatibility function
@@ -672,12 +876,16 @@ func TestBatchProcessor_WithJSONPool(t *testing.T) {
 	}
 
 	// Test nil JSON pool
-	_, err = NewBatchProcessor(
+	processor, err = NewBatchProcessor(
 		"http://example.com",
 		WithJSONPool(nil),
 	)
-	if err == nil {
-		t.Error("Expected error for nil JSONPool, got nil")
+	if err != nil {
+		t.Fatalf("Expected nil JSONPool to be ignored, got %v", err)
+	}
+
+	if processor.jsonPool == nil {
+		t.Error("Expected default JSONPool when nil JSONPool option is provided")
 	}
 }
 

@@ -47,6 +47,10 @@ func TestNewTransport(t *testing.T) {
 		t.Errorf("Expected DisableCompression=false, got %v", transport.DisableCompression)
 	}
 
+	if !transport.ForceAttemptHTTP2 {
+		t.Error("Expected ForceAttemptHTTP2=true by default")
+	}
+
 	// Test with custom options
 	customTransport, err := NewTransport(
 		WithMaxIdleConns(200),
@@ -90,6 +94,17 @@ func TestNewTransport(t *testing.T) {
 	)
 	if err == nil {
 		t.Fatalf("Expected NewTransport with negative MaxIdleConns to return an error, got nil")
+	}
+}
+
+func TestNewTransport_NilOptionAndHTTP2OptOut(t *testing.T) {
+	transport, err := NewTransport(nil, WithForceAttemptHTTP2(false))
+	if err != nil {
+		t.Fatalf("NewTransport returned error: %v", err)
+	}
+
+	if transport.ForceAttemptHTTP2 {
+		t.Error("Expected ForceAttemptHTTP2=false when explicitly disabled")
 	}
 }
 
@@ -241,6 +256,7 @@ func TestDefaultTransportConfig(t *testing.T) {
 		DisableCompression:    false,
 		DialTimeout:           DefaultTimeout,
 		KeepAlive:             DefaultKeepAlive,
+		ForceAttemptHTTP2:     true,
 	}
 
 	if !reflect.DeepEqual(config, expected) {

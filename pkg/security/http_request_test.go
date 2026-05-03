@@ -86,6 +86,55 @@ func TestValidateOutboundRequest(t *testing.T) {
 			},
 			errContain: "insecure HTTP is only allowed for localhost targets",
 		},
+		{
+			name: "ValidHTTPIPv6LoopbackBracketed",
+			req: &http.Request{
+				URL: &url.URL{Scheme: "http", Host: "[::1]:8080"},
+			},
+			errContain: "",
+		},
+		{
+			name: "ValidHTTPIPv4LoopbackAlias",
+			req: &http.Request{
+				URL: &url.URL{Scheme: "http", Host: "127.1:8080"},
+			},
+			errContain: "",
+		},
+		{
+			name: "ValidHTTPTrailingDotLocalhost",
+			req: &http.Request{
+				URL: &url.URL{Scheme: "http", Host: "localhost.:8080"},
+			},
+			errContain: "",
+		},
+		{
+			name: "RejectHTTPMetadataAddress",
+			req: &http.Request{
+				URL: &url.URL{Scheme: "http", Host: "169.254.169.254"},
+			},
+			errContain: "insecure HTTP is only allowed for localhost targets",
+		},
+		{
+			name: "RejectHTTPPrivateAddress",
+			req: &http.Request{
+				URL: &url.URL{Scheme: "http", Host: "10.0.0.1"},
+			},
+			errContain: "insecure HTTP is only allowed for localhost targets",
+		},
+		{
+			name: "RejectHTTPUserinfoHostConfusion",
+			req: &http.Request{
+				URL: &url.URL{Scheme: "http", User: url.User("localhost"), Host: "api.example.com"},
+			},
+			errContain: "insecure HTTP is only allowed for localhost targets",
+		},
+		{
+			name: "AllowHTTPSPrivateAddressCompatibility",
+			req: &http.Request{
+				URL: &url.URL{Scheme: "https", Host: "10.0.0.1"},
+			},
+			errContain: "",
+		},
 	}
 
 	for _, tt := range tests {
@@ -112,7 +161,11 @@ func TestIsLocalhost(t *testing.T) {
 	}{
 		{name: "Localhost", hostname: "localhost", want: true},
 		{name: "IPv4Loopback", hostname: "127.0.0.1", want: true},
+		{name: "IPv4LoopbackAlias", hostname: "127.1", want: true},
+		{name: "IPv4LoopbackAlternate", hostname: "127.0.1.1", want: true},
 		{name: "IPv6Loopback", hostname: "::1", want: true},
+		{name: "TrailingDotLocalhost", hostname: "localhost.", want: true},
+		{name: "TrailingDotLocalhostSubdomain", hostname: "mock-midaz.localhost.", want: true},
 		{name: "UpperCaseLocalhost", hostname: "LOCALHOST", want: true},
 		{name: "DotLocalhostSubdomain", hostname: "mock-midaz.localhost", want: true},
 		{name: "DotLocalhostMultiLabel", hostname: "foo.bar.localhost", want: true},

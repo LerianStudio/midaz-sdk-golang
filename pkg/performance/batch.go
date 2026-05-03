@@ -180,6 +180,10 @@ func NewBatchOptions(opts ...BatchOption) (*BatchOptions, error) {
 
 	// Apply all provided options
 	for _, opt := range opts {
+		if opt == nil {
+			continue
+		}
+
 		if err := opt(options); err != nil {
 			return nil, fmt.Errorf("failed to apply batch option: %w", err)
 		}
@@ -190,6 +194,8 @@ func NewBatchOptions(opts ...BatchOption) (*BatchOptions, error) {
 
 // BatchProcessor handles batching of HTTP requests.
 type BatchProcessor struct {
+	mu sync.RWMutex
+
 	// httpClient is the HTTP client to use for requests
 	httpClient *http.Client
 
@@ -239,7 +245,7 @@ func WithBaseURL(url string) BatchProcessorOption {
 func WithBatchOptions(options *BatchOptions) BatchProcessorOption {
 	return func(p *BatchProcessor) error {
 		if options == nil {
-			return errors.New("batch options cannot be nil")
+			return nil
 		}
 
 		p.options = options
@@ -252,7 +258,14 @@ func WithBatchOptions(options *BatchOptions) BatchProcessorOption {
 func WithDefaultHeader(key, value string) BatchProcessorOption {
 	return func(p *BatchProcessor) error {
 		if key == "" {
-			return errors.New("header key cannot be empty")
+			return nil
+		}
+
+		p.mu.Lock()
+		defer p.mu.Unlock()
+
+		if p.defaultHeaders == nil {
+			p.defaultHeaders = make(map[string]string)
 		}
 
 		p.defaultHeaders[key] = value
@@ -265,7 +278,14 @@ func WithDefaultHeader(key, value string) BatchProcessorOption {
 func WithDefaultHeaders(headers map[string]string) BatchProcessorOption {
 	return func(p *BatchProcessor) error {
 		if headers == nil {
-			return errors.New("headers map cannot be nil")
+			return nil
+		}
+
+		p.mu.Lock()
+		defer p.mu.Unlock()
+
+		if p.defaultHeaders == nil {
+			p.defaultHeaders = make(map[string]string)
 		}
 
 		for k, v := range headers {
@@ -280,7 +300,7 @@ func WithDefaultHeaders(headers map[string]string) BatchProcessorOption {
 func WithJSONPool(pool *JSONPool) BatchProcessorOption {
 	return func(p *BatchProcessor) error {
 		if pool == nil {
-			return errors.New("JSON pool cannot be nil")
+			return nil
 		}
 
 		p.jsonPool = pool
@@ -319,6 +339,10 @@ func NewBatchProcessor(baseURL string, opts ...BatchProcessorOption) (*BatchProc
 
 	// Apply all provided options
 	for _, opt := range opts {
+		if opt == nil {
+			continue
+		}
+
 		if err := opt(processor); err != nil {
 			return nil, fmt.Errorf("failed to apply batch processor option: %w", err)
 		}
@@ -350,19 +374,105 @@ func NewBatchProcessorWithDefaults(client *http.Client, baseURL string, options 
 // SetDefaultHeader sets a default header for all requests.
 // This method is maintained for backward compatibility.
 func (b *BatchProcessor) SetDefaultHeader(key, value string) {
+	if b == nil || key == "" {
+		return
+	}
+
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if b.defaultHeaders == nil {
+		b.defaultHeaders = make(map[string]string)
+	}
+
 	b.defaultHeaders[key] = value
 }
 
 // SetDefaultHeaders sets multiple default headers for all requests.
 // This method is maintained for backward compatibility.
 func (b *BatchProcessor) SetDefaultHeaders(headers map[string]string) {
+	if b == nil || headers == nil {
+		return
+	}
+
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if b.defaultHeaders == nil {
+		b.defaultHeaders = make(map[string]string)
+	}
+
 	for k, v := range headers {
 		b.defaultHeaders[k] = v
 	}
 }
 
+func processorNilError(operation string) error {
+	return pkgerrors.NewInternalError(operation, errors.New("batch processor is nil"))
+}
+
+func (b *BatchProcessor) ensureRuntimeDefaults() error {
+	if b == nil {
+		return processorNilError("BatchProcessor")
+	}
+
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	defaults := DefaultBatchOptions()
+	if b.options == nil {
+		b.options = defaults
+	}
+
+	if b.options.MaxBatchSize <= 0 {
+		b.options.MaxBatchSize = defaults.MaxBatchSize
+	}
+
+	if b.jsonPool == nil {
+		b.jsonPool = NewJSONPool()
+	}
+
+	if b.defaultHeaders == nil {
+		b.defaultHeaders = make(map[string]string)
+	}
+
+	if b.httpClient == nil {
+		b.httpClient = http.DefaultClient
+	}
+
+	return nil
+}
+
+func (b *BatchProcessor) defaultHeadersSnapshot() map[string]string {
+	if b == nil {
+		return nil
+	}
+
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	if len(b.defaultHeaders) == 0 {
+		return nil
+	}
+
+	headers := make(map[string]string, len(b.defaultHeaders))
+	for k, v := range b.defaultHeaders {
+		headers[k] = v
+	}
+
+	return headers
+}
+
 // ExecuteBatch executes a batch of requests and returns the results.
 func (b *BatchProcessor) ExecuteBatch(ctx context.Context, requests []BatchRequest) (*BatchResult, error) {
+	if err := b.ensureRuntimeDefaults(); err != nil {
+		return nil, err
+	}
+
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	// Early return for empty requests
 	if len(requests) == 0 {
 		return &BatchResult{Responses: []BatchResponse{}}, nil
@@ -389,6 +499,10 @@ func (b *BatchProcessor) ExecuteBatch(ctx context.Context, requests []BatchReque
 
 // executeSingleBatch processes a single batch of requests
 func (b *BatchProcessor) executeSingleBatch(ctx context.Context, requests []BatchRequest) (*BatchResult, error) {
+	if err := b.validateBatchHeaders(requests); err != nil {
+		return nil, err
+	}
+
 	// Prepare requests
 	requests = b.assignRequestIDs(requests)
 
@@ -426,21 +540,17 @@ func (*BatchProcessor) assignRequestIDs(requests []BatchRequest) []BatchRequest 
 
 // sendBatchRequest creates and sends the HTTP request with retry logic
 func (b *BatchProcessor) sendBatchRequest(ctx context.Context, requests []BatchRequest) (*http.Response, error) {
-	req, err := b.buildHTTPRequest(ctx, requests)
-	if err != nil {
-		return nil, err
-	}
-
-	return b.executeWithRetry(ctx, req)
-}
-
-// buildHTTPRequest creates the HTTP request with proper headers and body
-func (b *BatchProcessor) buildHTTPRequest(ctx context.Context, requests []BatchRequest) (*http.Request, error) {
 	reqBody, err := b.jsonPool.Marshal(requests)
 	if err != nil {
 		return nil, pkgerrors.NewInternalError("BatchRequest", err)
 	}
 
+	return b.executeWithRetry(ctx, func() (*http.Request, error) {
+		return b.buildHTTPRequestWithBody(ctx, reqBody)
+	})
+}
+
+func (b *BatchProcessor) buildHTTPRequestWithBody(ctx context.Context, reqBody []byte) (*http.Request, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, b.baseURL+"/batch", bytes.NewReader(reqBody))
 	if err != nil {
 		return nil, pkgerrors.NewInternalError("BatchRequest", err)
@@ -455,22 +565,59 @@ func (b *BatchProcessor) buildHTTPRequest(ctx context.Context, requests []BatchR
 func (b *BatchProcessor) setRequestHeaders(req *http.Request) {
 	req.Header.Set("Content-Type", "application/json")
 
-	for k, v := range b.defaultHeaders {
+	for k, v := range b.defaultHeadersSnapshot() {
 		req.Header.Set(k, v)
 	}
 }
 
-// executeWithRetry executes the request with retry logic
-func (b *BatchProcessor) executeWithRetry(ctx context.Context, req *http.Request) (*http.Response, error) {
-	if err := security.ValidateOutboundRequest(req); err != nil {
-		return nil, pkgerrors.NewValidationError("BatchRequest", "invalid request URL", err)
+func (b *BatchProcessor) validateBatchHeaders(requests []BatchRequest) error {
+	defaultTenantID := headerValue(b.defaultHeadersSnapshot(), "X-Tenant-ID")
+	for i, req := range requests {
+		tenantID := headerValue(req.Headers, "X-Tenant-ID")
+		if tenantID != "" && defaultTenantID != "" && tenantID != defaultTenantID {
+			return pkgerrors.NewValidationError("BatchRequest", fmt.Sprintf("conflicting X-Tenant-ID for request %d", i), nil)
+		}
+
+		organizationID := headerValue(req.Headers, "X-Organization-Id")
+		if tenantID != "" && organizationID != "" && tenantID != organizationID {
+			return pkgerrors.NewValidationError("BatchRequest", fmt.Sprintf("conflicting X-Tenant-ID and X-Organization-Id for request %d", i), nil)
+		}
 	}
 
+	return nil
+}
+
+func headerValue(headers map[string]string, key string) string {
+	if len(headers) == 0 {
+		return ""
+	}
+
+	canonicalKey := http.CanonicalHeaderKey(key)
+	for k, v := range headers {
+		if http.CanonicalHeaderKey(k) == canonicalKey {
+			return v
+		}
+	}
+
+	return ""
+}
+
+// executeWithRetry executes the request with retry logic.
+func (b *BatchProcessor) executeWithRetry(ctx context.Context, newRequest func() (*http.Request, error)) (*http.Response, error) {
 	var resp *http.Response
 
 	var respErr error
 
 	for retry := 0; retry <= b.options.RetryCount; retry++ {
+		req, err := newRequest()
+		if err != nil {
+			return nil, err
+		}
+
+		if err := security.ValidateOutboundRequest(req); err != nil {
+			return nil, pkgerrors.NewValidationError("BatchRequest", "invalid request URL", err)
+		}
+
 		resp, respErr = b.httpClient.Do(req) // #nosec G704 -- request URL validated via security.ValidateOutboundRequest
 		if respErr == nil {
 			return resp, nil
@@ -499,10 +646,17 @@ func (b *BatchProcessor) shouldRetry(ctx context.Context, retry int) bool {
 
 // waitForRetry waits for the retry backoff period or context cancellation
 func (b *BatchProcessor) waitForRetry(ctx context.Context) error {
+	if b.options.RetryBackoff <= 0 {
+		return nil
+	}
+
+	timer := time.NewTimer(b.options.RetryBackoff)
+	defer timer.Stop()
+
 	select {
 	case <-ctx.Done():
 		return pkgerrors.NewCancellationError("BatchRequest", ctx.Err())
-	case <-time.After(b.options.RetryBackoff):
+	case <-timer.C:
 		return nil
 	}
 }
@@ -592,6 +746,11 @@ func (b *BatchProcessor) executeBatches(ctx context.Context, requests []BatchReq
 
 		go func(batch []BatchRequest) {
 			defer wg.Done()
+			defer func() {
+				if recovered := recover(); recovered != nil {
+					errorsChan <- pkgerrors.NewInternalError("BatchRequest", fmt.Errorf("batch goroutine panic: %v", recovered))
+				}
+			}()
 
 			result, err := b.executeSingleBatch(ctx, batch)
 			if err != nil {
@@ -636,6 +795,10 @@ func (b *BatchProcessor) executeBatches(ctx context.Context, requests []BatchReq
 
 // ParseBatchResponse parses a batch response for a specific request ID into the target.
 func (b *BatchProcessor) ParseBatchResponse(result *BatchResult, requestID string, target any) error {
+	if err := b.ensureRuntimeDefaults(); err != nil {
+		return err
+	}
+
 	if result == nil {
 		return pkgerrors.NewInternalError("ParseBatchResponse", errors.New("batch result is nil"))
 	}

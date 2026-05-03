@@ -17,6 +17,7 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/metric"
+	metricnoop "go.opentelemetry.io/otel/metric/noop"
 	"go.opentelemetry.io/otel/propagation"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	sdkresource "go.opentelemetry.io/otel/sdk/resource"
@@ -611,7 +612,7 @@ func (p *MidazProvider) initLogging(res *sdkresource.Resource) error {
 // setupPropagation configures context propagation for distributed tracing
 func (p *MidazProvider) setupPropagation() {
 	// Only set global propagator if RegisterGlobally is true
-	if !p.config.RegisterGlobally {
+	if p == nil || p.config == nil || !p.config.RegisterGlobally || !p.config.EnabledComponents.Tracing {
 		return
 	}
 
@@ -631,7 +632,7 @@ func (p *MidazProvider) setupPropagation() {
 
 // Tracer returns a tracer for creating spans
 func (p *MidazProvider) Tracer() trace.Tracer {
-	if !p.enabled || !p.config.EnabledComponents.Tracing {
+	if p == nil || p.config == nil || !p.enabled || !p.config.EnabledComponents.Tracing || p.tracer == nil {
 		// Return a no-op tracer if tracing is disabled
 		return noop.NewTracerProvider().Tracer("")
 	}
@@ -641,9 +642,8 @@ func (p *MidazProvider) Tracer() trace.Tracer {
 
 // Meter returns a meter for creating metrics
 func (p *MidazProvider) Meter() metric.Meter {
-	if !p.enabled || !p.config.EnabledComponents.Metrics || p.meter == nil {
-		// Return the default global meter if metrics are disabled
-		return otel.GetMeterProvider().Meter("")
+	if p == nil || p.config == nil || !p.enabled || !p.config.EnabledComponents.Metrics || p.meter == nil {
+		return metricnoop.NewMeterProvider().Meter("")
 	}
 
 	return p.meter
@@ -651,7 +651,7 @@ func (p *MidazProvider) Meter() metric.Meter {
 
 // Logger returns a logger
 func (p *MidazProvider) Logger() Logger {
-	if !p.enabled || !p.config.EnabledComponents.Logging {
+	if p == nil || p.config == nil || !p.enabled || !p.config.EnabledComponents.Logging || p.logger == nil {
 		// Return a no-op logger if logging is disabled
 		return NewNoopLogger()
 	}
@@ -691,6 +691,14 @@ func (p *MidazProvider) IsEnabled() bool {
 // WithSpan creates a new span and executes the function within the context of that span.
 // It automatically ends the span when the function returns.
 func WithSpan(ctx context.Context, provider Provider, name string, fn func(context.Context) error, opts ...trace.SpanStartOption) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	if fn == nil {
+		return nil
+	}
+
 	// If provider is nil or observability is disabled, just run the function
 	if provider == nil || !provider.IsEnabled() {
 		return fn(ctx)
@@ -703,8 +711,9 @@ func WithSpan(ctx context.Context, provider Provider, name string, fn func(conte
 	// Run the function and handle errors
 	err := fn(ctx)
 	if err != nil {
-		span.SetStatus(codes.Error, err.Error())
-		span.RecordError(err)
+		sanitizedErr := sanitizeSensitiveString(err.Error())
+		span.SetStatus(codes.Error, sanitizedErr)
+		span.RecordError(errors.New(sanitizedErr))
 	} else {
 		span.SetStatus(codes.Ok, "Success")
 	}
@@ -719,13 +728,26 @@ func RecordMetric(ctx context.Context, provider Provider, name string, value flo
 		return
 	}
 
-	counter, err := provider.Meter().Float64Counter(name)
-	if err != nil {
-		provider.Logger().Errorf("Failed to create counter for metric %s: %v", name, err)
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	meter := provider.Meter()
+	if meter == nil {
 		return
 	}
 
-	counter.Add(ctx, value, metric.WithAttributes(attrs...))
+	counter, err := meter.Float64Counter(name)
+	if err != nil {
+		logger := provider.Logger()
+		if logger != nil {
+			logger.Errorf("Failed to create counter for metric %s: %v", name, err)
+		}
+
+		return
+	}
+
+	counter.Add(ctx, value, metric.WithAttributes(filterMetricAttributes(attrs)...))
 }
 
 // RecordDuration records a duration metric using the provided meter
@@ -735,23 +757,69 @@ func RecordDuration(ctx context.Context, provider Provider, name string, start t
 		return
 	}
 
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	duration := time.Since(start).Milliseconds()
 
-	histogram, err := provider.Meter().Int64Histogram(name)
-	if err != nil {
-		provider.Logger().Errorf("Failed to create histogram for metric %s: %v", name, err)
+	meter := provider.Meter()
+	if meter == nil {
 		return
 	}
 
-	histogram.Record(ctx, duration, metric.WithAttributes(attrs...))
+	histogram, err := meter.Int64Histogram(name)
+	if err != nil {
+		logger := provider.Logger()
+		if logger != nil {
+			logger.Errorf("Failed to create histogram for metric %s: %v", name, err)
+		}
+
+		return
+	}
+
+	histogram.Record(ctx, duration, metric.WithAttributes(filterMetricAttributes(attrs)...))
 }
 
 // ExtractContext extracts context from HTTP headers for distributed tracing
 func ExtractContext(ctx context.Context, headers map[string]string) context.Context {
-	return otel.GetTextMapPropagator().Extract(ctx, propagation.MapCarrier(headers))
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	if headers == nil {
+		return ctx
+	}
+
+	return defaultTextMapPropagator().Extract(ctx, propagation.MapCarrier(headers))
 }
 
 // InjectContext injects context into HTTP headers for distributed tracing
 func InjectContext(ctx context.Context, headers map[string]string) {
-	otel.GetTextMapPropagator().Inject(ctx, propagation.MapCarrier(headers))
+	if ctx == nil || headers == nil {
+		return
+	}
+
+	defaultTextMapPropagator().Inject(ctx, propagation.MapCarrier(headers))
+}
+
+func defaultTextMapPropagator() propagation.TextMapPropagator {
+	return propagation.NewCompositeTextMapPropagator(
+		propagation.TraceContext{},
+		propagation.Baggage{},
+	)
+}
+
+func filterMetricAttributes(attrs []attribute.KeyValue) []attribute.KeyValue {
+	filtered := make([]attribute.KeyValue, 0, len(attrs))
+	for _, attr := range attrs {
+		switch string(attr.Key) {
+		case "trace_id", "span_id":
+			continue
+		default:
+			filtered = append(filtered, attr)
+		}
+	}
+
+	return filtered
 }

@@ -89,6 +89,11 @@ type TransportConfig struct {
 	// connection. If zero, keep-alives are enabled if supported
 	// by the protocol and operating system.
 	KeepAlive time.Duration
+
+	// ForceAttemptHTTP2 controls whether the transport should attempt HTTP/2.
+	// The default is true to preserve historical SDK behavior. Use
+	// WithForceAttemptHTTP2(false) when a legacy endpoint has HTTP/2 issues.
+	ForceAttemptHTTP2 bool
 }
 
 // TransportOption defines a function that configures a TransportConfig
@@ -227,6 +232,14 @@ func WithKeepAlive(d time.Duration) TransportOption {
 	}
 }
 
+// WithForceAttemptHTTP2 sets whether the transport should attempt HTTP/2.
+func WithForceAttemptHTTP2(enabled bool) TransportOption {
+	return func(c *TransportConfig) error {
+		c.ForceAttemptHTTP2 = enabled
+		return nil
+	}
+}
+
 // WithHighThroughput configures the transport for high throughput operations
 func WithHighThroughput() TransportOption {
 	return func(c *TransportConfig) error {
@@ -266,6 +279,7 @@ func DefaultTransportConfig() *TransportConfig {
 		DisableCompression:    false,
 		DialTimeout:           DefaultTimeout,
 		KeepAlive:             DefaultKeepAlive,
+		ForceAttemptHTTP2:     true,
 	}
 }
 
@@ -276,6 +290,10 @@ func NewTransportConfig(opts ...TransportOption) (*TransportConfig, error) {
 
 	// Apply all provided options
 	for _, opt := range opts {
+		if opt == nil {
+			continue
+		}
+
 		if err := opt(config); err != nil {
 			return nil, fmt.Errorf("failed to apply transport option: %w", err)
 		}
@@ -315,7 +333,7 @@ func newTransportWithConfig(config *TransportConfig) *http.Transport {
 		ExpectContinueTimeout: config.ExpectContinueTimeout,
 		DisableKeepAlives:     config.DisableKeepAlives,
 		DisableCompression:    config.DisableCompression,
-		ForceAttemptHTTP2:     true,
+		ForceAttemptHTTP2:     config.ForceAttemptHTTP2,
 	}
 }
 
@@ -359,6 +377,10 @@ func NewClient(opts ...HTTPClientOption) (*http.Client, error) {
 
 	// Apply all provided options
 	for _, opt := range opts {
+		if opt == nil {
+			continue
+		}
+
 		if err := opt(client); err != nil {
 			return nil, fmt.Errorf("failed to apply HTTP client option: %w", err)
 		}
@@ -396,9 +418,7 @@ func applyTransportDefaults(transport *http.Transport, config *TransportConfig) 
 	applyConnectionPoolDefaults(transport, config)
 	applyTimeoutDefaults(transport, config)
 
-	if !transport.ForceAttemptHTTP2 {
-		transport.ForceAttemptHTTP2 = true
-	}
+	transport.ForceAttemptHTTP2 = config.ForceAttemptHTTP2
 }
 
 func applyConnectionPoolDefaults(transport *http.Transport, config *TransportConfig) {

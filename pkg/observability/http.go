@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptrace"
+	"net/url"
 	"strings"
 	"time"
 
@@ -27,6 +28,41 @@ type httpMiddleware struct {
 	maskedParams  []string
 	hideBody      bool
 }
+
+var defaultIgnoredHeaders = []string{
+	"authorization",
+	"cookie",
+	"set-cookie",
+	"x-api-key",
+	"x-auth-token",
+	"x-forwarded-authorization",
+	"x-jwt-token",
+	"x-middleware-token",
+	"x-idempotency",
+	"idempotency-key",
+	"x-midaz-auto-idempotency",
+	"x-tenant-id",
+	"x-organization-id",
+	"baggage",
+}
+
+var defaultMaskedParams = []string{
+	"access_token",
+	"api_key",
+	"apikey",
+	"auth_token",
+	"key",
+	"password",
+	"secret",
+	"token",
+	"access-token",
+	"jwt",
+	"refresh_token",
+	"refresh-token",
+	"document",
+}
+
+var errNilHTTPResponse = errors.New("observability: nil http response")
 
 // WithIgnoreHeaders specifies HTTP header names that should not be logged
 func WithIgnoreHeaders(headers ...string) HTTPOption {
@@ -93,16 +129,7 @@ func WithHideRequestBody(hide bool) HTTPOption {
 // WithDefaultSensitiveHeaders sets the default list of headers to ignore for security
 func WithDefaultSensitiveHeaders() HTTPOption {
 	return func(m *httpMiddleware) error {
-		m.ignoreHeaders = []string{
-			"authorization",
-			"cookie",
-			"set-cookie",
-			"x-api-key",
-			"x-auth-token",
-			"x-forwarded-authorization",
-			"x-jwt-token",
-			"x-middleware-token",
-		}
+		m.ignoreHeaders = append([]string(nil), defaultIgnoredHeaders...)
 
 		return nil
 	}
@@ -111,20 +138,7 @@ func WithDefaultSensitiveHeaders() HTTPOption {
 // WithDefaultSensitiveParams sets the default list of parameters to mask for security
 func WithDefaultSensitiveParams() HTTPOption {
 	return func(m *httpMiddleware) error {
-		m.maskedParams = []string{
-			"access_token",
-			"api_key",
-			"apikey",
-			"auth_token",
-			"key",
-			"password",
-			"secret",
-			"token",
-			"access-token",
-			"jwt",
-			"refresh_token",
-			"refresh-token",
-		}
+		m.maskedParams = append([]string(nil), defaultMaskedParams...)
 
 		return nil
 	}
@@ -152,30 +166,15 @@ func NewHTTPMiddleware(provider Provider, opts ...HTTPOption) func(http.RoundTri
 	if provider == nil {
 		// Return a no-op middleware
 		return func(next http.RoundTripper) http.RoundTripper {
-			return next
+			return ensureRoundTripper(next)
 		}
 	}
 
 	// Create with default configuration
 	m := &httpMiddleware{
-		provider: provider,
-		ignoreHeaders: []string{
-			"authorization",
-			"cookie",
-			"set-cookie",
-			"x-api-key",
-			"x-auth-token",
-		},
-		maskedParams: []string{
-			"access_token",
-			"api_key",
-			"apikey",
-			"auth_token",
-			"key",
-			"password",
-			"secret",
-			"token",
-		},
+		provider:      provider,
+		ignoreHeaders: append([]string(nil), defaultIgnoredHeaders...),
+		maskedParams:  append([]string(nil), defaultMaskedParams...),
 	}
 
 	// Apply options
@@ -193,13 +192,19 @@ func NewHTTPMiddleware(provider Provider, opts ...HTTPOption) func(http.RoundTri
 
 // middleware wraps an http.RoundTripper with tracing and metrics
 func (m *httpMiddleware) middleware(next http.RoundTripper) http.RoundTripper {
+	next = ensureRoundTripper(next)
+
 	return roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+		if req == nil {
+			return nil, errors.New("observability: nil http request")
+		}
+
 		// Early returns for disabled or ignored paths
-		if !m.provider.IsEnabled() {
+		if m == nil || m.provider == nil || !m.provider.IsEnabled() {
 			return next.RoundTrip(req)
 		}
 
-		if m.shouldIgnorePath(req.URL.Path) {
+		if m.shouldIgnorePath(requestPath(req)) {
 			return next.RoundTrip(req)
 		}
 
@@ -228,7 +233,7 @@ func (m *httpMiddleware) shouldIgnorePath(path string) bool {
 
 // setupTraceSpan creates a new tracing span for the request
 func (m *httpMiddleware) setupTraceSpan(req *http.Request) (context.Context, trace.Span) {
-	name := fmt.Sprintf("HTTP %s %s", req.Method, req.URL.Path)
+	name := fmt.Sprintf("HTTP %s %s", requestMethod(req), requestPath(req))
 
 	return m.provider.Tracer().Start(
 		req.Context(),
@@ -241,14 +246,14 @@ func (m *httpMiddleware) setupTraceSpan(req *http.Request) (context.Context, tra
 func (m *httpMiddleware) addRequestAttributes(span trace.Span, req *http.Request) {
 	// Add HTTP attributes
 	span.SetAttributes(
-		attribute.String("http.method", req.Method),
-		attribute.String("http.url", req.URL.String()),
-		attribute.String("http.host", req.URL.Host),
-		attribute.String("http.path", req.URL.Path),
+		attribute.String("http.method", requestMethod(req)),
+		attribute.String("http.url", m.sanitizeURL(req.URL)),
+		attribute.String("http.host", requestHost(req)),
+		attribute.String("http.path", requestPath(req)),
 	)
 
 	// Add custom attributes
-	name := fmt.Sprintf("HTTP %s %s", req.Method, req.URL.Path)
+	name := fmt.Sprintf("HTTP %s %s", requestMethod(req), requestPath(req))
 	span.SetAttributes(
 		attribute.String(KeyOperationName, name),
 		attribute.String(KeyOperationType, "http.request"),
@@ -260,6 +265,10 @@ func (m *httpMiddleware) addRequestAttributes(span trace.Span, req *http.Request
 
 // addRequestHeaders adds non-sensitive request headers to the span
 func (m *httpMiddleware) addRequestHeaders(span trace.Span, req *http.Request) {
+	if req == nil {
+		return
+	}
+
 	for key, values := range req.Header {
 		if !m.isIgnoredHeader(key) && len(values) > 0 {
 			span.SetAttributes(attribute.String("http.request.header."+strings.ToLower(key), values[0]))
@@ -269,6 +278,14 @@ func (m *httpMiddleware) addRequestHeaders(span trace.Span, req *http.Request) {
 
 // injectTraceContext injects trace context into request headers and updates the request
 func (m *httpMiddleware) injectTraceContext(ctx context.Context, req *http.Request, span trace.Span) *http.Request {
+	if req == nil {
+		return req
+	}
+
+	if req.Header == nil {
+		req.Header = make(http.Header)
+	}
+
 	// Inject trace context into request headers
 	carrier := propagation.HeaderCarrier(req.Header)
 	propagator := propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{})
@@ -283,7 +300,7 @@ func (m *httpMiddleware) executeTracedRequest(ctx context.Context, span trace.Sp
 	start := time.Now()
 
 	// Execute the request
-	resp, err := next.RoundTrip(req)
+	resp, err := ensureRoundTripper(next).RoundTrip(req)
 	duration := time.Since(start)
 
 	// Record metrics
@@ -300,8 +317,9 @@ func (m *httpMiddleware) executeTracedRequest(ctx context.Context, span trace.Sp
 
 // handleRequestError processes request errors and sets span status
 func (*httpMiddleware) handleRequestError(span trace.Span, resp *http.Response, err error) (*http.Response, error) {
-	span.SetStatus(codes.Error, err.Error())
-	span.RecordError(err)
+	sanitizedErr := sanitizeSensitiveString(err.Error())
+	span.SetStatus(codes.Error, sanitizedErr)
+	span.RecordError(errors.New(sanitizedErr))
 	span.End()
 
 	return resp, err
@@ -309,6 +327,13 @@ func (*httpMiddleware) handleRequestError(span trace.Span, resp *http.Response, 
 
 // handleSuccessfulResponse processes successful responses and adds response attributes
 func (m *httpMiddleware) handleSuccessfulResponse(span trace.Span, resp *http.Response) (*http.Response, error) {
+	if resp == nil {
+		span.SetStatus(codes.Ok, "")
+		span.End()
+
+		return nil, errNilHTTPResponse
+	}
+
 	// Add response attributes
 	span.SetAttributes(attribute.Int("http.status_code", resp.StatusCode))
 
@@ -325,6 +350,10 @@ func (m *httpMiddleware) handleSuccessfulResponse(span trace.Span, resp *http.Re
 
 // addResponseHeaders adds non-sensitive response headers to the span
 func (m *httpMiddleware) addResponseHeaders(span trace.Span, resp *http.Response) {
+	if resp == nil {
+		return
+	}
+
 	for key, values := range resp.Header {
 		if !m.isIgnoredHeader(key) && len(values) > 0 {
 			span.SetAttributes(attribute.String("http.response.header."+strings.ToLower(key), values[0]))
@@ -358,9 +387,9 @@ func (m *httpMiddleware) isIgnoredHeader(header string) bool {
 func (m *httpMiddleware) recordRequestMetrics(ctx context.Context, req *http.Request, resp *http.Response, err error, duration time.Duration) {
 	// Create attributes for the metrics
 	attrs := []attribute.KeyValue{
-		attribute.String(KeyHTTPMethod, req.Method),
-		attribute.String(KeyHTTPPath, req.URL.Path),
-		attribute.String(KeyHTTPHost, req.URL.Host),
+		attribute.String(KeyHTTPMethod, requestMethod(req)),
+		attribute.String(KeyHTTPPath, requestPath(req)),
+		attribute.String(KeyHTTPHost, requestHost(req)),
 	}
 
 	// Add status code attribute if we have a response
@@ -406,7 +435,7 @@ func (*httpMiddleware) createClientTrace(span trace.Span) *httptrace.ClientTrace
 		PutIdleConn: func(err error) {
 			attrs := []attribute.KeyValue{}
 			if err != nil {
-				attrs = append(attrs, attribute.String("error", err.Error()))
+				attrs = append(attrs, attribute.String("error", sanitizeSensitiveString(err.Error())))
 			}
 
 			span.AddEvent("http.put_idle_conn", trace.WithAttributes(attrs...))
@@ -417,14 +446,7 @@ func (*httpMiddleware) createClientTrace(span trace.Span) *httptrace.ClientTrace
 			))
 		},
 		DNSDone: func(info httptrace.DNSDoneInfo) {
-			attrs := []attribute.KeyValue{
-				attribute.String("address", info.Addrs[0].String()),
-			}
-			if info.Err != nil {
-				attrs = append(attrs, attribute.String("error", info.Err.Error()))
-			}
-
-			span.AddEvent("http.dns_done", trace.WithAttributes(attrs...))
+			addDNSDoneEvent(span, info)
 		},
 		ConnectStart: func(network, addr string) {
 			span.AddEvent("http.connect_start", trace.WithAttributes(
@@ -438,7 +460,7 @@ func (*httpMiddleware) createClientTrace(span trace.Span) *httptrace.ClientTrace
 				attribute.String("addr", addr),
 			}
 			if err != nil {
-				attrs = append(attrs, attribute.String("error", err.Error()))
+				attrs = append(attrs, attribute.String("error", sanitizeSensitiveString(err.Error())))
 			}
 
 			span.AddEvent("http.connect_done", trace.WithAttributes(attrs...))
@@ -452,7 +474,7 @@ func (*httpMiddleware) createClientTrace(span trace.Span) *httptrace.ClientTrace
 				attribute.String("cipher_suite", tlsCipherSuiteString(state.CipherSuite)),
 			}
 			if err != nil {
-				attrs = append(attrs, attribute.String("error", err.Error()))
+				attrs = append(attrs, attribute.String("error", sanitizeSensitiveString(err.Error())))
 			}
 
 			span.AddEvent("http.tls_handshake_done", trace.WithAttributes(attrs...))
@@ -460,7 +482,7 @@ func (*httpMiddleware) createClientTrace(span trace.Span) *httptrace.ClientTrace
 		WroteRequest: func(info httptrace.WroteRequestInfo) {
 			attrs := []attribute.KeyValue{}
 			if info.Err != nil {
-				attrs = append(attrs, attribute.String("error", info.Err.Error()))
+				attrs = append(attrs, attribute.String("error", sanitizeSensitiveString(info.Err.Error())))
 			}
 
 			span.AddEvent("http.wrote_request", trace.WithAttributes(attrs...))
@@ -469,6 +491,94 @@ func (*httpMiddleware) createClientTrace(span trace.Span) *httptrace.ClientTrace
 			span.AddEvent("http.got_first_response_byte")
 		},
 	}
+}
+
+func addDNSDoneEvent(span trace.Span, info httptrace.DNSDoneInfo) {
+	attrs := []attribute.KeyValue{
+		attribute.Int("address_count", len(info.Addrs)),
+	}
+	if len(info.Addrs) > 0 {
+		attrs = append(attrs, attribute.String("address", info.Addrs[0].String()))
+	}
+
+	if info.Err != nil {
+		attrs = append(attrs, attribute.String("error", sanitizeSensitiveString(info.Err.Error())))
+	}
+
+	span.AddEvent("http.dns_done", trace.WithAttributes(attrs...))
+}
+
+func ensureRoundTripper(next http.RoundTripper) http.RoundTripper {
+	if next != nil {
+		return next
+	}
+
+	return roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+		if req == nil {
+			return nil, errors.New("observability: nil http request")
+		}
+
+		return nil, errors.New("observability: nil http round tripper")
+	})
+}
+
+func requestMethod(req *http.Request) string {
+	if req == nil || req.Method == "" {
+		return http.MethodGet
+	}
+
+	return req.Method
+}
+
+func requestPath(req *http.Request) string {
+	if req == nil || req.URL == nil {
+		return ""
+	}
+
+	return req.URL.Path
+}
+
+func requestHost(req *http.Request) string {
+	if req == nil || req.URL == nil {
+		return ""
+	}
+
+	return req.URL.Host
+}
+
+func (m *httpMiddleware) sanitizeURL(rawURL *url.URL) string {
+	if rawURL == nil {
+		return ""
+	}
+
+	safeURL := *rawURL
+
+	query := safeURL.Query()
+	for key, values := range query {
+		if m.isMaskedParam(key) {
+			maskedValues := make([]string, len(values))
+			for i := range maskedValues {
+				maskedValues[i] = "[REDACTED]"
+			}
+
+			query[key] = maskedValues
+		}
+	}
+
+	safeURL.RawQuery = query.Encode()
+
+	return safeURL.String()
+}
+
+func (m *httpMiddleware) isMaskedParam(param string) bool {
+	lowerParam := strings.ToLower(param)
+	for _, masked := range m.maskedParams {
+		if lowerParam == strings.ToLower(masked) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // roundTripperFunc adapts a function to the RoundTripper interface

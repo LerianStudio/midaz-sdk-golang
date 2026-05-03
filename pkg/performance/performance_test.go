@@ -1,6 +1,7 @@
 package performance
 
 import (
+	"sync"
 	"testing"
 )
 
@@ -26,6 +27,17 @@ func TestDefaultOptions(t *testing.T) {
 
 //nolint:revive // cognitive-complexity: comprehensive options test with many sub-tests
 func TestNewOptions(t *testing.T) {
+	t.Run("NilOptionIgnored", func(t *testing.T) {
+		opts, err := NewOptions(nil, WithBatchSize(75))
+		if err != nil {
+			t.Fatalf("NewOptions returned error: %v", err)
+		}
+
+		if opts.BatchSize != 75 {
+			t.Errorf("Expected BatchSize=75, got %d", opts.BatchSize)
+		}
+	})
+
 	t.Run("DefaultValues", func(t *testing.T) {
 		opts, err := NewOptions()
 		if err != nil {
@@ -157,6 +169,39 @@ func TestNewOptions(t *testing.T) {
 			t.Error("Expected UseJSONIterator=false")
 		}
 	})
+}
+
+func TestGlobalOptionsConcurrentAccess(_ *testing.T) {
+	originalOptions := GetGlobalOptions()
+	defer ApplyGlobalPerformanceOptions(originalOptions)
+
+	const goroutines = 32
+
+	const iterations = 200
+
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+
+	for i := 0; i < goroutines; i++ {
+		go func(worker int) {
+			defer wg.Done()
+
+			for j := 0; j < iterations; j++ {
+				ApplyGlobalPerformanceOptions(Options{
+					BatchSize:           worker + j + 1,
+					EnableHTTPPooling:   j%2 == 0,
+					MaxIdleConnsPerHost: worker + 1,
+					UseJSONIterator:     j%2 != 0,
+				})
+
+				_ = GetGlobalOptions()
+				_ = GetBatchSize()
+				_ = GetOptimalBatchSize(1000, 0)
+			}
+		}(i)
+	}
+
+	wg.Wait()
 }
 
 func TestApplyGlobalPerformanceOptions(t *testing.T) {

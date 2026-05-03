@@ -48,6 +48,7 @@ package performance
 
 import (
 	"fmt"
+	"sync/atomic"
 )
 
 // Options represents global performance configuration for the SDK
@@ -117,7 +118,11 @@ func WithMaxIdleConnsPerHost(maxIdle int) Option {
 	}
 }
 
-// WithJSONIterator enables or disables the use of jsoniter for JSON parsing
+// WithJSONIterator enables or disables the use of jsoniter for JSON parsing.
+//
+// Deprecated: this option is retained for API compatibility only. The SDK uses
+// the standard library JSON implementation; enabling this flag does not switch
+// to jsoniter.
 func WithJSONIterator(enabled bool) Option {
 	return func(o *Options) error {
 		o.UseJSONIterator = enabled
@@ -134,7 +139,11 @@ var defaultOptions = Options{
 }
 
 // globalOptions holds the global performance options
-var globalOptions = defaultOptions
+var globalOptions atomic.Value
+
+func init() {
+	globalOptions.Store(defaultOptions)
+}
 
 // DefaultOptions returns a copy of the default performance options
 func DefaultOptions() Options {
@@ -148,6 +157,10 @@ func NewOptions(opts ...Option) (*Options, error) {
 
 	// Apply all provided options
 	for _, opt := range opts {
+		if opt == nil {
+			continue
+		}
+
 		if err := opt(&options); err != nil {
 			return nil, fmt.Errorf("failed to apply performance option: %w", err)
 		}
@@ -159,18 +172,21 @@ func NewOptions(opts ...Option) (*Options, error) {
 // ApplyGlobalPerformanceOptions applies performance options globally
 func ApplyGlobalPerformanceOptions(options Options) {
 	// Apply non-zero options
+	current := GetGlobalOptions()
+
 	if options.BatchSize > 0 {
-		globalOptions.BatchSize = options.BatchSize
+		current.BatchSize = options.BatchSize
 	}
 
 	// Apply boolean options explicitly set
-	globalOptions.EnableHTTPPooling = options.EnableHTTPPooling
+	current.EnableHTTPPooling = options.EnableHTTPPooling
 
 	if options.MaxIdleConnsPerHost > 0 {
-		globalOptions.MaxIdleConnsPerHost = options.MaxIdleConnsPerHost
+		current.MaxIdleConnsPerHost = options.MaxIdleConnsPerHost
 	}
 
-	globalOptions.UseJSONIterator = options.UseJSONIterator
+	current.UseJSONIterator = options.UseJSONIterator
+	globalOptions.Store(current)
 }
 
 // ApplyGlobalOptions applies the given options to the global configuration
@@ -188,19 +204,28 @@ func ApplyGlobalOptions(opts ...Option) error {
 // ApplyBatchingOptions applies options specific to batching operations
 func ApplyBatchingOptions(options Options) {
 	// Only update batch size if provided
+	current := GetGlobalOptions()
+
 	if options.BatchSize > 0 {
-		globalOptions.BatchSize = options.BatchSize
+		current.BatchSize = options.BatchSize
 	}
+
+	globalOptions.Store(current)
 }
 
 // GetGlobalOptions returns the current global performance options
 func GetGlobalOptions() Options {
-	return globalOptions
+	options, ok := globalOptions.Load().(Options)
+	if !ok {
+		return defaultOptions
+	}
+
+	return options
 }
 
 // GetBatchSize returns the current global batch size
 func GetBatchSize() int {
-	return globalOptions.BatchSize
+	return GetGlobalOptions().BatchSize
 }
 
 // GetOptimalBatchSize calculates an optimal batch size based on the total count and maximum batch size.
@@ -217,7 +242,7 @@ func GetBatchSize() int {
 func GetOptimalBatchSize(totalCount, maxBatchSize int) int {
 	// If no maximum is provided, use the global batch size
 	if maxBatchSize <= 0 {
-		return globalOptions.BatchSize
+		return GetBatchSize()
 	}
 
 	// If total count is less than the maximum, use the total count

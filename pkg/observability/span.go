@@ -2,34 +2,43 @@ package observability
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 )
 
 // Default global provider for simple usage
 var defaultProvider Provider
 
-// Initialize the default provider
-func init() {
-	// Create a simple default provider with default options
-	// New() with no options always succeeds - error check is safe to ignore
-	p, _ := New(context.Background()) //nolint:errcheck // default options never fail
-	defaultProvider = p
-}
+type traceIDContextKey struct{}
 
 // StartSpan starts a new span with the given name
 func StartSpan(ctx context.Context, name string) (context.Context, trace.Span) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	if defaultProvider == nil {
+		provider, err := New(ctx,
+			WithComponentEnabled(true, false, false),
+			WithFullTracingSampling(),
+			WithRegisterGlobally(false),
+		)
+		if err == nil {
+			defaultProvider = provider
+		}
+	}
+
 	// Use the default provider if initialized
-	if defaultProvider != nil {
+	if defaultProvider != nil && defaultProvider.IsEnabled() {
 		return defaultProvider.Tracer().Start(ctx, name)
 	}
 
-	// Fall back to global tracer if no default provider
-	return otel.Tracer("github.com/LerianStudio/midaz-sdk-golang/v2").Start(ctx, name)
+	return noop.NewTracerProvider().Tracer("github.com/LerianStudio/midaz-sdk-golang/v2").Start(ctx, name)
 }
 
 // AddAttribute adds an attribute to the current span in the context
@@ -73,24 +82,25 @@ func RecordError(ctx context.Context, err error, eventName string, attrs ...map[
 	}
 
 	// Set error status
-	span.SetStatus(codes.Error, err.Error())
+	sanitizedErr := sanitizeSensitiveString(err.Error())
+	span.SetStatus(codes.Error, sanitizedErr)
 
 	// Convert map attributes to attribute.KeyValue slice
 	var eventAttrs []attribute.KeyValue
 
 	if len(attrs) > 0 {
 		for k, v := range attrs[0] {
-			eventAttrs = append(eventAttrs, attribute.String(k, v))
+			eventAttrs = append(eventAttrs, attribute.String(k, sanitizeSensitiveString(v)))
 		}
 	}
 
 	// Add error details as event
 	span.AddEvent(eventName, trace.WithAttributes(
-		append(eventAttrs, attribute.String("error.message", err.Error()))...,
+		append(eventAttrs, attribute.String("error.message", sanitizedErr))...,
 	))
 
 	// Record error
-	span.RecordError(err)
+	span.RecordError(errors.New(sanitizedErr))
 }
 
 // AddEvent adds an event to the current span
@@ -103,7 +113,7 @@ func AddEvent(ctx context.Context, name string, attrs map[string]string) {
 	// Convert map attributes to attribute.KeyValue slice
 	eventAttrs := make([]attribute.KeyValue, 0, len(attrs))
 	for k, v := range attrs {
-		eventAttrs = append(eventAttrs, attribute.String(k, v))
+		eventAttrs = append(eventAttrs, attribute.String(k, sanitizeSensitiveString(v)))
 	}
 
 	span.AddEvent(name, trace.WithAttributes(eventAttrs...))
@@ -115,22 +125,19 @@ func RecordSpanMetric(ctx context.Context, name string, value float64) {
 		return
 	}
 
-	// Extract trace ID and span ID for correlation
-	span := trace.SpanFromContext(ctx)
-
-	var attrs []attribute.KeyValue
-
-	if span.IsRecording() {
-		attrs = append(attrs, attribute.String("trace_id", span.SpanContext().TraceID().String()))
-		attrs = append(attrs, attribute.String("span_id", span.SpanContext().SpanID().String()))
-	}
-
 	// Use RecordMetric from the provider
-	RecordMetric(ctx, defaultProvider, name, value, attrs...)
+	RecordMetric(ctx, defaultProvider, name, value)
 }
 
 // WithTraceID adds a trace ID to the context for correlation
-func WithTraceID(ctx context.Context, _ string) context.Context {
-	// Add trace ID to context
-	return ctx
+func WithTraceID(ctx context.Context, traceID string) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	if traceID == "" {
+		return ctx
+	}
+
+	return context.WithValue(ctx, traceIDContextKey{}, traceID)
 }

@@ -3,6 +3,7 @@ package performance
 import (
 	"context"
 	"net/http"
+	"sync"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/concurrent"
 )
@@ -16,6 +17,14 @@ import (
 // CreateBatchProcessor creates a BatchProcessor that uses the concurrent.HTTPBatchProcessor internally.
 // This adapter function allows existing code to use the new implementation.
 func CreateBatchProcessor(client *http.Client, baseURL string, options *BatchOptions) *BatchProcessor {
+	if options == nil {
+		options = DefaultBatchOptions()
+	}
+
+	if client == nil {
+		client = http.DefaultClient
+	}
+
 	// Create the HTTP batch processor with functional options
 	httpBatchProcessor := concurrent.NewHTTPBatchProcessor(
 		client,
@@ -34,6 +43,7 @@ func CreateBatchProcessor(client *http.Client, baseURL string, options *BatchOpt
 		baseURL:        baseURL,
 		defaultHeaders: make(map[string]string),
 		options:        options,
+		jsonPool:       NewJSONPool(),
 	}
 
 	// Store the HTTP batch processor in the adapter data
@@ -49,16 +59,31 @@ var adapterRegistry = &concurrentRegistry{
 
 // concurrentRegistry is a registry of BatchProcessor instances and their underlying HTTPBatchProcessor
 type concurrentRegistry struct {
+	mu         sync.RWMutex
 	processors map[*BatchProcessor]*concurrent.HTTPBatchProcessor
 }
 
 // Store adds a mapping from a BatchProcessor to its underlying HTTPBatchProcessor
 func (r *concurrentRegistry) Store(processor *BatchProcessor, httpProcessor *concurrent.HTTPBatchProcessor) {
+	if r == nil || processor == nil || httpProcessor == nil {
+		return
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	r.processors[processor] = httpProcessor
 }
 
 // Get returns the HTTPBatchProcessor for a given BatchProcessor
 func (r *concurrentRegistry) Get(processor *BatchProcessor) *concurrent.HTTPBatchProcessor {
+	if r == nil || processor == nil {
+		return nil
+	}
+
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
 	return r.processors[processor]
 }
 
@@ -110,6 +135,10 @@ func ConvertResult(httpResult *concurrent.HTTPBatchResult) *BatchResult {
 
 // ExecuteBatchWithAdapter executes a batch of requests using the HTTPBatchProcessor
 func ExecuteBatchWithAdapter(ctx context.Context, processor *BatchProcessor, requests []BatchRequest) (*BatchResult, error) {
+	if processor == nil {
+		return nil, processorNilError("ExecuteBatchWithAdapter")
+	}
+
 	// Get the HTTP batch processor
 	httpBatchProcessor := adapterRegistry.Get(processor)
 	if httpBatchProcessor == nil {
@@ -132,6 +161,14 @@ func ExecuteBatchWithAdapter(ctx context.Context, processor *BatchProcessor, req
 
 // ParseResponseWithAdapter parses a batch response using the HTTPBatchProcessor
 func ParseResponseWithAdapter(processor *BatchProcessor, result *BatchResult, requestID string, target any) error {
+	if processor == nil {
+		return processorNilError("ParseResponseWithAdapter")
+	}
+
+	if result == nil {
+		return processor.ParseBatchResponse(result, requestID, target)
+	}
+
 	// Get the HTTP batch processor
 	httpBatchProcessor := adapterRegistry.Get(processor)
 	if httpBatchProcessor == nil {

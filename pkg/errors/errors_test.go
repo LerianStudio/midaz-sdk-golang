@@ -351,6 +351,123 @@ func TestErrorFromHTTPResponse(t *testing.T) {
 	}
 }
 
+func TestErrorFromHTTPResponse_Regressions(t *testing.T) {
+	t.Run("preserves raw API code separately from SDK mapped code", func(t *testing.T) {
+		err := sdkerrors.ErrorFromHTTPResponse(http.StatusConflict, "req-raw", "duplicate idempotency key", "0084", "transaction", "tx-123")
+
+		var mdzErr *sdkerrors.Error
+		require.ErrorAs(t, err, &mdzErr)
+		assert.Equal(t, "0084", mdzErr.APICode)
+		assert.Equal(t, sdkerrors.CodeIdempotency, mdzErr.Code)
+		assert.True(t, sdkerrors.IsIdempotencyError(err))
+	})
+
+	t.Run("unprocessable response maps to non-internal SDK code", func(t *testing.T) {
+		err := sdkerrors.ErrorFromHTTPResponse(http.StatusUnprocessableEntity, "req-422", "invalid transaction state", "MIDAZ-0422", "transaction", "tx-456")
+
+		var mdzErr *sdkerrors.Error
+		require.ErrorAs(t, err, &mdzErr)
+		assert.Equal(t, sdkerrors.CategoryUnprocessable, mdzErr.Category)
+		assert.NotEqual(t, sdkerrors.CodeInternal, mdzErr.Code)
+		assert.Equal(t, "MIDAZ-0422", mdzErr.APICode)
+	})
+}
+
+func TestErrorDetailsAndFormatting_Regressions(t *testing.T) {
+	t.Run("GetErrorStatusCode and GetErrorDetails agree for Error", func(t *testing.T) {
+		err := sdkerrors.NewUnprocessableError("PostTransaction", "transaction", nil)
+
+		details := sdkerrors.GetErrorDetails(err)
+		assert.Equal(t, http.StatusUnprocessableEntity, details.HTTPStatus)
+		assert.Equal(t, string(err.Code), details.Code)
+		assert.Equal(t, details.HTTPStatus, sdkerrors.GetErrorStatusCode(err))
+	})
+
+	t.Run("redacts sensitive values in display helpers", func(t *testing.T) {
+		raw := errors.New("token=abc123 password=hunter2 api_key=key123 authorization=Bearer xyz secret=sauce idempotency=idem-123")
+
+		outputs := []string{
+			sdkerrors.FormatErrorForDisplay(raw),
+			sdkerrors.FormatErrorDetails(raw),
+			sdkerrors.FormatOperationError(raw, "CreateTransaction"),
+			sdkerrors.FormatTransactionError(raw, "CreateTransaction"),
+		}
+
+		for _, output := range outputs {
+			assert.NotContains(t, output, "abc123")
+			assert.NotContains(t, output, "hunter2")
+			assert.NotContains(t, output, "key123")
+			assert.NotContains(t, output, "Bearer xyz")
+			assert.NotContains(t, output, "sauce")
+			assert.NotContains(t, output, "idem-123")
+			assert.Contains(t, output, "[REDACTED]")
+		}
+	})
+
+	t.Run("redacts sensitive values in structured Error string", func(t *testing.T) {
+		err := &sdkerrors.Error{
+			Category: sdkerrors.CategoryValidation,
+			Message:  "invalid token=abc123",
+			Err:      errors.New("password=hunter2"),
+		}
+
+		output := err.Error()
+		assert.NotContains(t, output, "abc123")
+		assert.NotContains(t, output, "hunter2")
+		assert.Contains(t, output, "[REDACTED]")
+	})
+}
+
+func TestErrorNilReceiverSafety_Regressions(t *testing.T) {
+	t.Run("Error methods tolerate nil receiver", func(t *testing.T) {
+		var err *sdkerrors.Error
+
+		assert.NotPanics(t, func() {
+			assert.Empty(t, err.Error())
+			assert.NoError(t, err.Unwrap())
+			assert.False(t, err.Is(sdkerrors.ErrValidation))
+			assert.Empty(t, err.GetCategory())
+			assert.Equal(t, 0, err.GetStatusCode())
+			assert.Empty(t, err.GetRequestID())
+			assert.Empty(t, err.GetResource())
+			assert.Empty(t, err.GetResourceID())
+			assert.Empty(t, err.GetOperation())
+		})
+	})
+
+	t.Run("MidazError methods tolerate nil receiver", func(t *testing.T) {
+		var err *sdkerrors.MidazError
+
+		assert.NotPanics(t, func() {
+			assert.Empty(t, err.Error())
+			assert.NoError(t, err.Unwrap())
+			assert.False(t, err.Is(&sdkerrors.MidazError{Code: sdkerrors.CodeValidation}))
+		})
+	})
+
+	t.Run("errors.Is tolerates typed nil Error and typed nil target", func(t *testing.T) {
+		var typedNilErr error = (*sdkerrors.Error)(nil)
+
+		var typedNilTarget *sdkerrors.Error
+
+		assert.NotPanics(t, func() {
+			assert.NotErrorIs(t, typedNilErr, sdkerrors.ErrValidation)
+			assert.False(t, sdkerrors.ErrValidation.Is(typedNilTarget))
+		})
+	})
+
+	t.Run("errors.Is tolerates typed nil MidazError and typed nil target", func(t *testing.T) {
+		var typedNilErr error = (*sdkerrors.MidazError)(nil)
+
+		var typedNilTarget *sdkerrors.MidazError
+
+		assert.NotPanics(t, func() {
+			assert.NotErrorIs(t, typedNilErr, &sdkerrors.MidazError{Code: sdkerrors.CodeValidation})
+			assert.False(t, (&sdkerrors.MidazError{Code: sdkerrors.CodeValidation}).Is(typedNilTarget))
+		})
+	})
+}
+
 func TestFormatErrorForDisplay(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -672,7 +789,7 @@ func TestCategorizeTransactionError(t *testing.T) {
 		{
 			name:           "unknown error",
 			err:            errors.New("unknown error"),
-			expectedResult: "unknown",
+			expectedResult: "internal",
 		},
 	}
 
@@ -896,7 +1013,7 @@ func TestNewUnprocessableError(t *testing.T) {
 		err := sdkerrors.NewUnprocessableError("ProcessTransaction", "transaction", underlyingErr)
 
 		assert.Equal(t, sdkerrors.CategoryUnprocessable, err.Category)
-		assert.Equal(t, sdkerrors.CodeInternal, err.Code)
+		assert.Equal(t, sdkerrors.CodeUnprocessable, err.Code)
 		assert.Equal(t, "ProcessTransaction", err.Operation)
 		assert.Equal(t, "transaction", err.Resource)
 		assert.Equal(t, "unprocessable transaction: invalid state", err.Message)
@@ -1400,7 +1517,7 @@ func TestErrorFromHTTPResponse_AllCodes(t *testing.T) {
 		{http.StatusConflict, sdkerrors.CategoryConflict, sdkerrors.CodeAlreadyExists},
 		{http.StatusTooManyRequests, sdkerrors.CategoryLimitExceeded, sdkerrors.CodeRateLimit},
 		{http.StatusGatewayTimeout, sdkerrors.CategoryTimeout, sdkerrors.CodeTimeout},
-		{http.StatusUnprocessableEntity, sdkerrors.CategoryUnprocessable, sdkerrors.CodeInternal},
+		{http.StatusUnprocessableEntity, sdkerrors.CategoryUnprocessable, sdkerrors.CodeUnprocessable},
 		{http.StatusServiceUnavailable, sdkerrors.CategoryNetwork, sdkerrors.CodeInternal},
 		{http.StatusInternalServerError, sdkerrors.CategoryInternal, sdkerrors.CodeInternal},
 		{999, sdkerrors.CategoryInternal, sdkerrors.CodeInternal}, // Unknown status code
@@ -1923,6 +2040,7 @@ func TestErrorCodeConstants(t *testing.T) {
 	assert.Equal(t, sdkerrors.CodeCancellation, sdkerrors.ErrorCode("cancelled"))
 	assert.Equal(t, sdkerrors.CodeInternal, sdkerrors.ErrorCode("internal_error"))
 	assert.Equal(t, sdkerrors.CodeNetwork, sdkerrors.ErrorCode("network_error"))
+	assert.Equal(t, sdkerrors.CodeUnprocessable, sdkerrors.ErrorCode("unprocessable_error"))
 }
 
 // --------------------------------

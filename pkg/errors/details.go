@@ -44,38 +44,16 @@ type ErrorDetails struct {
 
 // GetErrorDetails extracts detailed information from an error
 func GetErrorDetails(err error) ErrorDetails {
-	if err == nil {
+	if isNilError(err) {
 		return ErrorDetails{}
 	}
 
 	details := ErrorDetails{
-		Message:       err.Error(),
+		Message:       safeErrorString(err),
 		OriginalError: err,
 	}
-
-	// Try to extract error code using errors.As
-	var (
-		ce  codeError
-		ece errorCodeError
-	)
-
-	if errors.As(err, &ce) {
-		details.Code = ce.Code()
-	} else if errors.As(err, &ece) {
-		details.Code = ece.ErrorCode()
-	}
-
-	// Try to extract HTTP status code using errors.As
-	var (
-		sce  statusCodeError
-		hsce httpStatusCodeError
-	)
-
-	if errors.As(err, &sce) {
-		details.HTTPStatus = sce.StatusCode()
-	} else if errors.As(err, &hsce) {
-		details.HTTPStatus = hsce.HTTPStatusCode()
-	}
+	details.Code = extractErrorCode(err)
+	details.HTTPStatus = extractErrorHTTPStatus(err)
 
 	// If no status code was found, try to determine it from the error type
 	if details.HTTPStatus == 0 {
@@ -85,10 +63,61 @@ func GetErrorDetails(err error) ErrorDetails {
 	return details
 }
 
+func extractErrorCode(err error) string {
+	var sdkErr *Error
+	if errors.As(err, &sdkErr) && sdkErr != nil {
+		return string(sdkErr.Code)
+	}
+
+	var midazErr *MidazError
+	if errors.As(err, &midazErr) && midazErr != nil {
+		return string(midazErr.Code)
+	}
+
+	// Try to extract error code using errors.As
+	var (
+		ce  codeError
+		ece errorCodeError
+	)
+
+	if errors.As(err, &ce) {
+		return ce.Code()
+	}
+
+	if errors.As(err, &ece) {
+		return ece.ErrorCode()
+	}
+
+	return ""
+}
+
+func extractErrorHTTPStatus(err error) int {
+	var sdkErr *Error
+	if errors.As(err, &sdkErr) && sdkErr != nil {
+		return sdkErr.StatusCode
+	}
+
+	// Try to extract HTTP status code using errors.As
+	var (
+		sce  statusCodeError
+		hsce httpStatusCodeError
+	)
+
+	if errors.As(err, &sce) {
+		return sce.StatusCode()
+	}
+
+	if errors.As(err, &hsce) {
+		return hsce.HTTPStatusCode()
+	}
+
+	return 0
+}
+
 // determineHTTPStatusFromError tries to determine an appropriate HTTP status code
 // based on the error type and message
 func determineHTTPStatusFromError(err error) int {
-	errString := strings.ToLower(err.Error())
+	errString := strings.ToLower(safeErrorString(err))
 
 	if strings.Contains(errString, "not found") {
 		return http.StatusNotFound
@@ -129,7 +158,7 @@ func GetErrorStatusCode(err error) int {
 
 // FormatErrorDetails formats an error for display to the user
 func FormatErrorDetails(err error) string {
-	if err == nil {
+	if isNilError(err) {
 		return ""
 	}
 
@@ -144,7 +173,7 @@ func FormatErrorDetails(err error) string {
 
 // FormatOperationError formats an error specific to transaction operations
 func FormatOperationError(err error, operation string) string {
-	if err == nil {
+	if isNilError(err) {
 		return ""
 	}
 

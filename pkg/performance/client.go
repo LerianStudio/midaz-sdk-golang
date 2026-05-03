@@ -38,6 +38,9 @@ func DefaultHTTPClientOptions() HTTPClientOptions {
 // OptimizeClient configures the provided http.Client for optimal performance.
 // If the client is nil, a new client is created.
 // If options is nil, default options are used.
+//
+// Deprecated: use OptimizeHTTPClient for new code. OptimizeClient delegates to
+// OptimizeHTTPClient while preserving the legacy HTTPClientOptions behavior.
 func OptimizeClient(client *http.Client, options *HTTPClientOptions) *http.Client {
 	// Use default options if none provided
 	opts := DefaultHTTPClientOptions()
@@ -45,47 +48,31 @@ func OptimizeClient(client *http.Client, options *HTTPClientOptions) *http.Clien
 		opts = *options
 	}
 
-	// Create a new client if none provided
-	if client == nil {
-		client = &http.Client{}
+	optimized, err := OptimizeHTTPClient(
+		client,
+		WithTransportMaxIdleConnsPerHost(opts.MaxIdleConnsPerHost),
+		WithIdleConnTimeout(opts.IdleConnTimeout),
+		WithTLSHandshakeTimeout(opts.TLSHandshakeTimeout),
+		WithDisableCompression(opts.DisableCompression),
+		WithDisableKeepAlives(opts.DisableKeepAlives),
+	)
+	if err != nil {
+		return client
 	}
 
-	// Create a transport if client doesn't have one
-	transport := client.Transport
-	if transport == nil {
-		transport = &http.Transport{}
-	}
+	if transport, ok := optimized.Transport.(*http.Transport); ok {
+		transport.MaxIdleConnsPerHost = opts.MaxIdleConnsPerHost
+		transport.DisableCompression = opts.DisableCompression
+		transport.DisableKeepAlives = opts.DisableKeepAlives
 
-	// Type assert to *http.Transport to modify settings
-	if t, ok := transport.(*http.Transport); ok {
-		// Configure connection pooling and timeouts
-		t.MaxIdleConnsPerHost = opts.MaxIdleConnsPerHost
-
-		// Only set these if they're not already set
-		if t.IdleConnTimeout == 0 {
-			t.IdleConnTimeout = opts.IdleConnTimeout
-		}
-
-		if t.TLSHandshakeTimeout == 0 {
-			t.TLSHandshakeTimeout = opts.TLSHandshakeTimeout
-		}
-
-		// Set optional flags
-		t.DisableCompression = opts.DisableCompression
-		t.DisableKeepAlives = opts.DisableKeepAlives
-
-		// Configure DNS cache
-		if t.DialContext == nil {
+		if transport.DialContext == nil {
 			dialer := &net.Dialer{
 				Timeout:   30 * time.Second,
 				KeepAlive: 30 * time.Second,
 			}
-			t.DialContext = dialer.DialContext
+			transport.DialContext = dialer.DialContext
 		}
-
-		// Update the client transport
-		client.Transport = t
 	}
 
-	return client
+	return optimized
 }

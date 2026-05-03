@@ -8,9 +8,18 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/security"
+)
+
+const maxHTTPResponseBodyBytes int64 = 10 << 20
+
+var (
+	errNilHTTPContext = errors.New("HTTP retry context is nil")
+	errNilHTTPRequest = errors.New("HTTP retry request is nil")
+	errNilHTTPOption  = errors.New("HTTP retry option is nil")
 )
 
 // HTTPResponse represents the result of an HTTP request.
@@ -54,7 +63,9 @@ type HTTPOptions struct {
 	// RetryOn4xx is a list of 4xx status codes that should trigger a retry.
 	RetryOn4xx []int
 
-	// PreRetryHook is called before each retry attempt.
+	// PreRetryHook is called only after retry eligibility is confirmed and immediately
+	// before each retry attempt. HTTPResponse.Response is nil only for connection
+	// errors where no response was received.
 	PreRetryHook func(ctx context.Context, req *http.Request, resp *HTTPResponse) error
 
 	// JitterFactor is the amount of jitter to add to the delay (0.0-1.0)
@@ -296,11 +307,23 @@ func WithHTTPNoRetry() HTTPOption {
 //	    retry.WithHTTPMaxRetries(3),
 //	    retry.WithHTTPInitialDelay(100*time.Millisecond))
 func DoHTTPRequest(ctx context.Context, client *http.Client, req *http.Request, opts ...HTTPOption) (*HTTPResponse, error) {
+	if ctx == nil {
+		return nil, errNilHTTPContext
+	}
+
+	if req == nil {
+		return nil, errNilHTTPRequest
+	}
+
 	// Start with default options
 	options := DefaultHTTPOptions()
 
 	// Apply all provided options
 	for _, opt := range opts {
+		if opt == nil {
+			return nil, errNilHTTPOption
+		}
+
 		if err := opt(options); err != nil {
 			return nil, fmt.Errorf("failed to apply HTTP retry option: %w", err)
 		}
@@ -321,14 +344,35 @@ func DoHTTPRequest(ctx context.Context, client *http.Client, req *http.Request, 
 //	req, _ := http.NewRequestWithContext(ctx, "GET", "https://api.example.com", nil)
 //	resp, err := retry.DoHTTPRequestWithContext(ctx, client, req)
 func DoHTTPRequestWithContext(ctx context.Context, client *http.Client, req *http.Request) (*HTTPResponse, error) {
+	if ctx == nil {
+		return nil, errNilHTTPContext
+	}
+
+	if req == nil {
+		return nil, errNilHTTPRequest
+	}
+
 	options := GetHTTPOptionsFromContext(ctx)
+
 	return doHTTPRequestWithOptions(ctx, client, req, options)
 }
 
 // doHTTPRequestWithOptions performs an HTTP request with retries.
 func doHTTPRequestWithOptions(ctx context.Context, client *http.Client, req *http.Request, options *HTTPOptions) (*HTTPResponse, error) {
+	if ctx == nil {
+		return nil, errNilHTTPContext
+	}
+
+	if req == nil {
+		return nil, errNilHTTPRequest
+	}
+
 	if client == nil {
 		client = http.DefaultClient
+	}
+
+	if options == nil {
+		options = DefaultHTTPOptions()
 	}
 
 	retryState := &httpRetryState{
@@ -390,10 +434,18 @@ func (r *httpRetryState) checkContextCancellation(attempt int) error {
 // prepareRequest clones the request for retry attempts.
 func (r *httpRetryState) prepareRequest(req *http.Request, attempt int) (*http.Request, error) {
 	if attempt == 0 {
-		return req, nil
+		return r.cloneRequestForContext(req), nil
 	}
 
 	return r.cloneRequest(req)
+}
+
+func (r *httpRetryState) cloneRequestForContext(req *http.Request) *http.Request {
+	reqClone := req.Clone(r.ctx)
+	reqClone.Body = req.Body
+	reqClone.GetBody = req.GetBody
+
+	return reqClone
 }
 
 // cloneRequest creates a clone of the HTTP request for retry.
@@ -406,13 +458,13 @@ func (r *httpRetryState) cloneRequest(req *http.Request) (*http.Request, error) 
 }
 
 // cloneRequestWithBody clones a request that has a body.
-func (*httpRetryState) cloneRequestWithBody(req *http.Request) (*http.Request, error) {
+func (r *httpRetryState) cloneRequestWithBody(req *http.Request) (*http.Request, error) {
 	reqBody, err := req.GetBody()
 	if err != nil {
 		return nil, fmt.Errorf("failed to clone request body: %w", err)
 	}
 
-	reqClone := req.Clone(req.Context())
+	reqClone := req.Clone(r.ctx)
 	reqClone.Body = reqBody
 	reqClone.GetBody = req.GetBody
 
@@ -420,8 +472,8 @@ func (*httpRetryState) cloneRequestWithBody(req *http.Request) (*http.Request, e
 }
 
 // cloneRequestWithoutBody clones a request that doesn't have a body.
-func (*httpRetryState) cloneRequestWithoutBody(req *http.Request) (*http.Request, error) {
-	reqClone := req.Clone(req.Context())
+func (r *httpRetryState) cloneRequestWithoutBody(req *http.Request) (*http.Request, error) {
+	reqClone := req.Clone(r.ctx)
 	reqClone.Body = nil
 
 	return reqClone, nil
@@ -455,12 +507,8 @@ func (r *httpRetryState) executeAttempt(req *http.Request, attempt int) (*HTTPRe
 		Attempt:  attempt,
 	}
 
-	if err := r.callPreRetryHook(req, httpResp, attempt); err != nil {
-		return httpResp, false, err
-	}
-
 	if respErr != nil {
-		return r.handleConnectionError(httpResp, respErr, attempt)
+		return r.handleConnectionError(req, httpResp, respErr, attempt)
 	}
 
 	result, shouldRetry, err := r.handleResponse(httpResp, attempt)
@@ -482,14 +530,22 @@ func (r *httpRetryState) callPreRetryHook(req *http.Request, httpResp *HTTPRespo
 }
 
 // handleConnectionError handles connection errors during HTTP requests.
-func (r *httpRetryState) handleConnectionError(httpResp *HTTPResponse, respErr error, attempt int) (*HTTPResponse, bool, error) {
+func (r *httpRetryState) handleConnectionError(req *http.Request, httpResp *HTTPResponse, respErr error, attempt int) (*HTTPResponse, bool, error) {
 	r.lastErr = respErr
+
+	if r.ctx.Err() != nil {
+		return httpResp, false, fmt.Errorf("operation cancelled: %w", r.ctx.Err())
+	}
 
 	if !isNetworkErrorRetryable(respErr, r.options) {
 		return httpResp, false, fmt.Errorf("HTTP request failed: %w", respErr)
 	}
 
-	if attempt >= r.options.MaxRetries {
+	if !r.canRetryRequest(req, httpResp, attempt) {
+		if httpResp.Error != nil {
+			return httpResp, false, httpResp.Error
+		}
+
 		return httpResp, false, fmt.Errorf("HTTP request failed: %w", respErr)
 	}
 
@@ -522,7 +578,8 @@ func (r *httpRetryState) readResponseBody(httpResp *HTTPResponse) error {
 		return nil
 	}
 
-	respBody, readErr := io.ReadAll(r.resp.Body)
+	limitedBody := io.LimitReader(r.resp.Body, maxHTTPResponseBodyBytes+1)
+	respBody, readErr := io.ReadAll(limitedBody)
 
 	// Silently close the body - close errors are non-actionable in library code
 	_ = r.resp.Body.Close()
@@ -530,6 +587,11 @@ func (r *httpRetryState) readResponseBody(httpResp *HTTPResponse) error {
 	if readErr != nil {
 		httpResp.Error = readErr
 		return fmt.Errorf("failed to read response body: %w", readErr)
+	}
+
+	if int64(len(respBody)) > maxHTTPResponseBodyBytes {
+		httpResp.Error = fmt.Errorf("HTTP response body exceeds retry buffer limit of %d bytes", maxHTTPResponseBodyBytes)
+		return httpResp.Error
 	}
 
 	r.respBody = respBody
@@ -540,8 +602,18 @@ func (r *httpRetryState) readResponseBody(httpResp *HTTPResponse) error {
 
 // handleErrorResponse handles HTTP error responses.
 func (r *httpRetryState) handleErrorResponse(httpResp *HTTPResponse, statusCode, attempt int) (*HTTPResponse, bool, error) {
-	if !isStatusCodeRetryable(statusCode, r.options) || attempt >= r.options.MaxRetries {
+	if !isStatusCodeRetryable(statusCode, r.options) {
 		httpResp.Error = fmt.Errorf("HTTP request failed with status %d", statusCode)
+		return httpResp, false, httpResp.Error
+	}
+
+	if !r.canRetryRequest(nil, httpResp, attempt) {
+		if httpResp.Error != nil {
+			return httpResp, false, httpResp.Error
+		}
+
+		httpResp.Error = fmt.Errorf("HTTP request failed with status %d", statusCode)
+
 		return httpResp, false, httpResp.Error
 	}
 
@@ -550,6 +622,31 @@ func (r *httpRetryState) handleErrorResponse(httpResp *HTTPResponse, statusCode,
 	}
 
 	return nil, true, nil // Continue with retry
+}
+
+func (r *httpRetryState) canRetryRequest(req *http.Request, httpResp *HTTPResponse, attempt int) bool {
+	if attempt >= r.options.MaxRetries {
+		return false
+	}
+
+	if req == nil && httpResp != nil && httpResp.Response != nil {
+		req = httpResp.Response.Request
+	}
+
+	if req == nil {
+		return true
+	}
+
+	if !isRequestMethodRetryable(req) || !isRequestBodyReplayable(req) {
+		return false
+	}
+
+	if err := r.callPreRetryHook(req, httpResp, attempt); err != nil {
+		httpResp.Error = err
+		return false
+	}
+
+	return true
 }
 
 // waitForRetry waits for the calculated backoff duration.
@@ -600,6 +697,10 @@ func (r *httpRetryState) createFinalErrorResponse() *HTTPResponse {
 //	    retry.WithHTTPMaxRetries(3),
 //	    retry.WithHTTPInitialDelay(100*time.Millisecond))
 func DoHTTP(ctx context.Context, client *http.Client, method, url string, body io.Reader, opts ...HTTPOption) (*HTTPResponse, error) {
+	if ctx == nil {
+		return nil, errNilHTTPContext
+	}
+
 	// Create the request
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
 	if err != nil {
@@ -611,6 +712,10 @@ func DoHTTP(ctx context.Context, client *http.Client, method, url string, body i
 
 // isStatusCodeRetryable checks if a status code should trigger a retry.
 func isStatusCodeRetryable(statusCode int, options *HTTPOptions) bool {
+	if options == nil {
+		options = DefaultHTTPOptions()
+	}
+
 	// Check for 5xx errors if RetryAllServerErrors is true
 	if options.RetryAllServerErrors && statusCode >= 500 && statusCode < 600 {
 		return true
@@ -639,8 +744,12 @@ func isNetworkErrorRetryable(err error, options *HTTPOptions) bool {
 		return false
 	}
 
+	if options == nil {
+		options = DefaultHTTPOptions()
+	}
+
 	// Check for context cancellation
-	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+	if errors.Is(err, context.Canceled) {
 		return false
 	}
 
@@ -657,14 +766,55 @@ func isNetworkErrorRetryable(err error, options *HTTPOptions) bool {
 
 // WithHTTPOptionsContext returns a new context with the HTTP retry options set.
 func WithHTTPOptionsContext(ctx context.Context, options *HTTPOptions) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	return context.WithValue(ctx, contextKey("http-retry-options"), options)
 }
 
 // GetHTTPOptionsFromContext gets the HTTP retry options from the context.
 func GetHTTPOptionsFromContext(ctx context.Context) *HTTPOptions {
+	if ctx == nil {
+		return DefaultHTTPOptions()
+	}
+
 	if options, ok := ctx.Value(contextKey("http-retry-options")).(*HTTPOptions); ok {
+		if options == nil {
+			return DefaultHTTPOptions()
+		}
+
 		return options
 	}
 
 	return DefaultHTTPOptions()
+}
+
+func isRequestMethodRetryable(req *http.Request) bool {
+	if req == nil {
+		return false
+	}
+
+	switch strings.ToUpper(req.Method) {
+	case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
+		return hasIdempotencyHeader(req)
+	default:
+		return true
+	}
+}
+
+func hasIdempotencyHeader(req *http.Request) bool {
+	return req.Header.Get("X-Idempotency") != "" || req.Header.Get("Idempotency-Key") != ""
+}
+
+func isRequestBodyReplayable(req *http.Request) bool {
+	if req == nil {
+		return false
+	}
+
+	if req.Body == nil || req.Body == http.NoBody {
+		return true
+	}
+
+	return req.GetBody != nil
 }

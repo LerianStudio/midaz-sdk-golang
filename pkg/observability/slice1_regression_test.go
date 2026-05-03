@@ -1,0 +1,314 @@
+package observability
+
+import (
+	"context"
+	"errors"
+	"io"
+	"net/http"
+	"net/http/httptrace"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
+	metricnoop "go.opentelemetry.io/otel/metric/noop"
+	"go.opentelemetry.io/otel/propagation"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	"go.opentelemetry.io/otel/trace"
+	tracenoop "go.opentelemetry.io/otel/trace/noop"
+)
+
+type regressionProvider struct {
+	tracer trace.Tracer
+	meter  metric.Meter
+	logger Logger
+}
+
+func newRegressionProvider(recorder *tracetest.SpanRecorder) *regressionProvider {
+	tracerProvider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+
+	return &regressionProvider{
+		tracer: tracerProvider.Tracer("slice1-regression"),
+		meter:  metricnoop.NewMeterProvider().Meter("slice1-regression"),
+		logger: NewNoopLogger(),
+	}
+}
+
+func (p *regressionProvider) Tracer() trace.Tracer { return p.tracer }
+
+func (p *regressionProvider) Meter() metric.Meter { return p.meter }
+
+func (p *regressionProvider) Logger() Logger { return p.logger }
+
+func (*regressionProvider) Shutdown(context.Context) error { return nil }
+
+func (*regressionProvider) IsEnabled() bool { return true }
+
+type regressionRoundTripper struct {
+	response *http.Response
+	err      error
+}
+
+func (r regressionRoundTripper) RoundTrip(*http.Request) (*http.Response, error) {
+	return r.response, r.err
+}
+
+type sentinelPropagator struct{}
+
+func (sentinelPropagator) Inject(context.Context, propagation.TextMapCarrier) {}
+
+func (sentinelPropagator) Extract(ctx context.Context, _ propagation.TextMapCarrier) context.Context {
+	return ctx
+}
+
+func (sentinelPropagator) Fields() []string { return []string{"sentinel"} }
+
+func TestHTTPMiddleware_SanitizesSensitiveURLAndHeaders(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	provider := newRegressionProvider(recorder)
+	transport := NewHTTPMiddleware(provider)(regressionRoundTripper{
+		response: &http.Response{
+			StatusCode: http.StatusOK,
+			Header: http.Header{
+				"X-Idempotency": []string{"response-idempotency-secret"},
+			},
+			Body: io.NopCloser(strings.NewReader("ok")),
+		},
+	})
+
+	req, err := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodGet,
+		"https://api.example.test/v1/accounts?access_token=token-secret&api_key=api-secret&password=password-secret&document=12345678900&safe=value",
+		nil,
+	)
+	require.NoError(t, err)
+	req.Header.Set("X-Idempotency", "request-idempotency-secret")
+	req.Header.Set("Idempotency-Key", "request-idempotency-key-secret")
+	req.Header.Set("X-Midaz-Auto-Idempotency", "auto-idempotency-secret")
+	req.Header.Set("X-Tenant-Id", "tenant-secret")
+	req.Header.Set("X-Organization-Id", "organization-secret")
+	req.Header.Set("Baggage", "access_token=baggage-secret")
+
+	resp, err := transport.RoundTrip(req)
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	require.NoError(t, resp.Body.Close())
+	require.Len(t, recorder.Ended(), 1)
+
+	attrs := recorder.Ended()[0].Attributes()
+	observed := make([]string, 0, len(attrs)*2)
+
+	for _, attr := range attrs {
+		observed = append(observed, string(attr.Key), attr.Value.AsString())
+	}
+
+	joined := strings.Join(observed, "\n")
+
+	assert.NotContains(t, joined, "token-secret")
+	assert.NotContains(t, joined, "api-secret")
+	assert.NotContains(t, joined, "password-secret")
+	assert.NotContains(t, joined, "12345678900")
+	assert.NotContains(t, joined, "request-idempotency-secret")
+	assert.NotContains(t, joined, "request-idempotency-key-secret")
+	assert.NotContains(t, joined, "auto-idempotency-secret")
+	assert.NotContains(t, joined, "tenant-secret")
+	assert.NotContains(t, joined, "organization-secret")
+	assert.NotContains(t, joined, "baggage-secret")
+	assert.Contains(t, joined, "safe=value")
+}
+
+func TestHTTPMiddleware_DNSDoneWithEmptyAddrs_DoesNotPanic(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	provider := newRegressionProvider(recorder)
+	_, span := provider.Tracer().Start(context.Background(), "dns-test")
+
+	traceHooks := (&httpMiddleware{}).createClientTrace(span)
+	require.NotNil(t, traceHooks.DNSDone)
+
+	require.NotPanics(t, func() {
+		traceHooks.DNSDone(httptrace.DNSDoneInfo{Err: errors.New("dns failed")})
+	})
+	span.End()
+}
+
+func TestHTTPMiddleware_NilSafety(t *testing.T) {
+	tests := []struct {
+		name     string
+		provider Provider
+		next     http.RoundTripper
+		req      *http.Request
+	}{
+		{
+			name:     "nil provider and nil next returns safe transport",
+			provider: nil,
+			next:     nil,
+			req:      nil,
+		},
+		{
+			name:     "enabled provider with nil request",
+			provider: newRegressionProvider(tracetest.NewSpanRecorder()),
+			next:     regressionRoundTripper{response: &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("ok"))}},
+			req:      nil,
+		},
+		{
+			name:     "enabled provider with nil next",
+			provider: newRegressionProvider(tracetest.NewSpanRecorder()),
+			next:     nil,
+			req:      mustRequest(t, "https://api.example.test/v1/accounts"),
+		},
+		{
+			name:     "nil response with nil error",
+			provider: newRegressionProvider(tracetest.NewSpanRecorder()),
+			next:     regressionRoundTripper{},
+			req:      mustRequest(t, "https://api.example.test/v1/accounts"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			transport := NewHTTPMiddleware(tt.provider)(tt.next)
+			require.NotNil(t, transport)
+			require.NotPanics(t, func() {
+				resp, roundTripErr := transport.RoundTrip(tt.req)
+				if roundTripErr != nil || resp == nil || resp.Body == nil {
+					return
+				}
+
+				require.NoError(t, resp.Body.Close())
+			})
+		})
+	}
+}
+
+func TestObservabilityHelpers_NilSafety(t *testing.T) {
+	require.NotPanics(t, func() {
+		collector, err := NewMetricsCollector(nil)
+		require.NoError(t, err)
+		collector.RecordRequest(context.Background(), "op", "resource", http.StatusOK, 0)
+		collector.RecordBatchRequest(context.Background(), "op", "resource", 1, 0)
+		collector.RecordRetry(context.Background(), "op", "resource", 1)
+		collector.NewTimer(context.Background(), "op", "resource").Stop(http.StatusOK)
+	})
+
+	require.NotPanics(t, func() {
+		err := WithSpan(context.Background(), nil, "nil-provider", nil)
+		require.NoError(t, err)
+	})
+
+	require.NotPanics(t, func() {
+		RecordMetric(context.Background(), nil, MetricRequestTotal, 1)
+		RecordDuration(context.Background(), nil, MetricRequestDuration, timeNowForRegression())
+		InjectContext(context.Background(), nil)
+	})
+}
+
+func TestMidazProvider_DisabledOrNilPathsReturnNoopComponents(t *testing.T) {
+	provider := &MidazProvider{
+		config:  &Config{EnabledComponents: EnabledComponents{Tracing: true, Metrics: true, Logging: true}},
+		enabled: true,
+	}
+
+	require.NotPanics(t, func() {
+		_, span := provider.Tracer().Start(context.Background(), "noop-safe")
+		span.End()
+		provider.Meter().Float64Counter("noop.safe.metric")
+		provider.Logger().Info("noop-safe")
+	})
+}
+
+func TestObservability_DefaultHelpersDoNotMutateGlobalOpenTelemetryState(t *testing.T) {
+	previousTracerProvider := otel.GetTracerProvider()
+	previousMeterProvider := otel.GetMeterProvider()
+	previousPropagator := otel.GetTextMapPropagator()
+
+	t.Cleanup(func() {
+		otel.SetTracerProvider(previousTracerProvider)
+		otel.SetMeterProvider(previousMeterProvider)
+		otel.SetTextMapPropagator(previousPropagator)
+	})
+
+	tracerProvider := tracenoop.NewTracerProvider()
+	meterProvider := metricnoop.NewMeterProvider()
+	propagator := sentinelPropagator{}
+
+	otel.SetTracerProvider(tracerProvider)
+	otel.SetMeterProvider(meterProvider)
+	otel.SetTextMapPropagator(propagator)
+
+	ctx, span := StartSpan(context.Background(), "default-helper")
+	span.End()
+	RecordSpanMetric(ctx, "default-helper.metric", 1)
+
+	_, err := New(context.Background(), WithComponentEnabled(false, false, false))
+	require.NoError(t, err)
+
+	assert.Equal(t, tracerProvider, otel.GetTracerProvider())
+	assert.Equal(t, meterProvider, otel.GetMeterProvider())
+	assert.Equal(t, propagator, otel.GetTextMapPropagator())
+}
+
+func TestRecordError_SanitizesSensitiveErrorValues(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	provider := newRegressionProvider(recorder)
+	ctx, span := provider.Tracer().Start(context.Background(), "error-sanitize")
+
+	RecordError(ctx, errors.New("request failed password=hunter2 api_key=secret-key X-Idempotency=idem-secret"), "request_failed")
+	span.End()
+
+	require.Len(t, recorder.Ended(), 1)
+	ended := recorder.Ended()[0]
+	assert.NotContains(t, ended.Status().Description, "hunter2")
+	assert.NotContains(t, ended.Status().Description, "secret-key")
+	assert.NotContains(t, ended.Status().Description, "idem-secret")
+
+	var attrs []attribute.KeyValue
+	for _, event := range ended.Events() {
+		attrs = append(attrs, event.Attributes...)
+	}
+
+	joined := attrsToString(attrs)
+	assert.NotContains(t, joined, "hunter2")
+	assert.NotContains(t, joined, "secret-key")
+	assert.NotContains(t, joined, "idem-secret")
+}
+
+func TestRecordSpanMetric_DoesNotEmitTraceOrSpanIDMetricAttributes(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	provider := newRegressionProvider(recorder)
+	previousDefault := defaultProvider
+	defaultProvider = provider
+
+	t.Cleanup(func() { defaultProvider = previousDefault })
+
+	ctx, span := provider.Tracer().Start(context.Background(), "metric-cardinality")
+	RecordSpanMetric(ctx, "metric.cardinality", 1)
+	span.End()
+}
+
+func mustRequest(t *testing.T, rawURL string) *http.Request {
+	t.Helper()
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, rawURL, nil)
+	require.NoError(t, err)
+
+	return req
+}
+
+func attrsToString(attrs []attribute.KeyValue) string {
+	values := make([]string, 0, len(attrs)*2)
+	for _, attr := range attrs {
+		values = append(values, string(attr.Key), attr.Value.AsString())
+	}
+
+	return strings.Join(values, "\n")
+}
+
+func timeNowForRegression() time.Time {
+	return time.Now()
+}

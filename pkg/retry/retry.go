@@ -63,6 +63,12 @@ import (
 	"time"
 )
 
+var (
+	errNilContext = errors.New("retry context is nil")
+	errNilFunc    = errors.New("retry function is nil")
+	errNilOption  = errors.New("retry option is nil")
+)
+
 // Options configures the retry behavior
 //
 // This struct allows you to fine-tune retry strategies for different scenarios:
@@ -342,13 +348,25 @@ const retryOptionsKey = contextKey("retry-options")
 //	// Later, use the options from the context
 //	err := retry.DoWithContext(ctx, myFunction)
 func WithOptionsContext(ctx context.Context, options *Options) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	return context.WithValue(ctx, retryOptionsKey, options)
 }
 
 // GetOptionsFromContext gets the retry options from the context.
 // If no options are set in the context, it returns the default options.
 func GetOptionsFromContext(ctx context.Context) *Options {
+	if ctx == nil {
+		return DefaultOptions()
+	}
+
 	if options, ok := ctx.Value(retryOptionsKey).(*Options); ok {
+		if options == nil {
+			return DefaultOptions()
+		}
+
 		return options
 	}
 
@@ -377,11 +395,23 @@ func GetOptionsFromContext(ctx context.Context) *Options {
 //	    return nil
 //	}, retry.WithMaxRetries(3), retry.WithInitialDelay(250*time.Millisecond))
 func Do(ctx context.Context, fn func() error, opts ...Option) error {
+	if ctx == nil {
+		return errNilContext
+	}
+
+	if fn == nil {
+		return errNilFunc
+	}
+
 	// Start with default options
 	options := DefaultOptions()
 
 	// Apply all provided options
 	for _, opt := range opts {
+		if opt == nil {
+			return errNilOption
+		}
+
 		if err := opt(options); err != nil {
 			return fmt.Errorf("failed to apply retry option: %w", err)
 		}
@@ -401,13 +431,34 @@ func Do(ctx context.Context, fn func() error, opts ...Option) error {
 //	// Later, use the options from the context
 //	err := retry.DoWithContext(ctx, makeAPIRequest)
 func DoWithContext(ctx context.Context, fn func() error) error {
+	if ctx == nil {
+		return errNilContext
+	}
+
+	if fn == nil {
+		return errNilFunc
+	}
+
 	options := GetOptionsFromContext(ctx)
+
 	return doWithOptions(ctx, fn, options)
 }
 
 // doWithOptions executes the given function with retries based on the provided options.
 // It's an internal function used by Do and DoWithContext.
 func doWithOptions(ctx context.Context, fn func() error, options *Options) error {
+	if ctx == nil {
+		return errNilContext
+	}
+
+	if fn == nil {
+		return errNilFunc
+	}
+
+	if options == nil {
+		options = DefaultOptions()
+	}
+
 	var err error
 
 	for attempt := 0; attempt <= options.MaxRetries; attempt++ {
@@ -484,6 +535,10 @@ func doWithOptions(ctx context.Context, fn func() error, options *Options) error
 func IsRetryableError(err error, options *Options) bool {
 	if err == nil {
 		return false
+	}
+
+	if options == nil {
+		options = DefaultOptions()
 	}
 
 	var nonRetryable nonRetryableError
