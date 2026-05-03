@@ -37,7 +37,7 @@ func (e *holdersEntity) setDefaultTenantID(tenantID string) {
 func NewHoldersEntity(client *http.Client, authToken string, baseURLs map[string]string) HoldersService {
 	httpClient := NewHTTPClient(client, authToken, nil)
 	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
-		httpClient.debug = true
+		httpClient.setDebugLocked(true)
 	}
 
 	return &holdersEntity{httpClient: httpClient, baseURLs: prepareServiceBaseURLs(baseURLs)}

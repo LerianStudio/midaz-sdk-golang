@@ -279,7 +279,12 @@ func DefaultTransportConfig() *TransportConfig {
 		DisableCompression:    false,
 		DialTimeout:           DefaultTimeout,
 		KeepAlive:             DefaultKeepAlive,
-		ForceAttemptHTTP2:     false,
+		// HTTP/2 is the documented default for net/http itself, and most
+		// production endpoints prefer it for multiplexing efficiency.
+		// Default to true so consumers using Midaz over modern reverse
+		// proxies / load balancers keep HTTP/2 unless they explicitly opt
+		// out via WithForceAttemptHTTP2(false).
+		ForceAttemptHTTP2: true,
 	}
 }
 
@@ -418,7 +423,20 @@ func applyTransportDefaults(transport *http.Transport, config *TransportConfig) 
 	applyConnectionPoolDefaults(transport, config)
 	applyTimeoutDefaults(transport, config)
 
-	transport.ForceAttemptHTTP2 = config.ForceAttemptHTTP2
+	// Preserve a pre-existing ForceAttemptHTTP2=true on the transport. The
+	// older behavior here unconditionally overwrote the field with the
+	// config value, which silently downgraded SDK consumers that had
+	// already opted into HTTP/2 on their own transport (a recurring source
+	// of "we set HTTP/2 and the SDK turned it off" bug reports).
+	//
+	// Rule: turn HTTP/2 ON when EITHER the transport already wants it OR
+	// the config asks for it. The only way to actively disable is to pass
+	// a transport with ForceAttemptHTTP2=false AND a config that also
+	// has it false (the default-config path now defaults to true, so the
+	// default is now keep-on).
+	if config.ForceAttemptHTTP2 {
+		transport.ForceAttemptHTTP2 = true
+	}
 }
 
 func applyConnectionPoolDefaults(transport *http.Transport, config *TransportConfig) {

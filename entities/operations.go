@@ -7,7 +7,6 @@ import (
 	stderrors "errors"
 	"net/http"
 	"os"
-	"strings"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
@@ -236,7 +235,7 @@ func NewOperationsEntity(client *http.Client, authToken string, baseURLs map[str
 
 	// Check if we're using the debug flag from the environment
 	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
-		httpClient.debug = true
+		httpClient.setDebugLocked(true)
 	}
 
 	return &operationsEntity{
@@ -387,20 +386,23 @@ func (e *operationsEntity) GetOperation(ctx context.Context, orgID, ledgerID, ac
 	return &operationModel, nil
 }
 
-// UpdateOperation rejects the former account-scoped update path so callers do not
-// silently route an accountID into Midaz's transaction-scoped endpoint.
-// Deprecated: use UpdateTransactionOperation with a transactionID.
-func (e *operationsEntity) UpdateOperation(ctx context.Context, orgID, ledgerID, accountID, operationID string, input any) (*models.Operation, error) {
-	operation, err := e.GetOperation(ctx, orgID, ledgerID, accountID, operationID)
-	if err != nil {
-		return nil, err
-	}
-
-	if strings.TrimSpace(operation.TransactionID) == "" {
-		return nil, errors.NewValidationError("UpdateOperation", "operation updates are transaction-scoped", stderrors.New("operation response did not include transactionID; use UpdateTransactionOperation(ctx, orgID, ledgerID, transactionID, operationID, input)"))
-	}
-
-	return e.UpdateTransactionOperation(ctx, orgID, ledgerID, operation.TransactionID, operationID, input)
+// UpdateOperation is the deprecated account-scoped update method. It fails
+// LOUDLY without performing any network call.
+//
+// The previous behavior — silently issuing a GET to discover transactionID
+// and then re-routing the PATCH to the transaction-scoped endpoint —
+// hid a contract change behind two RPCs and made consumers believe the
+// account-scoped path still worked. We now refuse the call up front so
+// the deprecation surface is immediate and unambiguous.
+//
+// Deprecated: use UpdateTransactionOperation(ctx, orgID, ledgerID,
+// transactionID, operationID, input).
+func (e *operationsEntity) UpdateOperation(_ context.Context, _, _, _, _ string, _ any) (*models.Operation, error) {
+	return nil, errors.NewValidationError(
+		"UpdateOperation",
+		"the account-scoped operation update path has been removed",
+		stderrors.New("use UpdateTransactionOperation(ctx, orgID, ledgerID, transactionID, operationID, input) — the SDK no longer auto-resolves transactionID via a hidden GET"),
+	)
 }
 
 // UpdateTransactionOperation updates an operation.
@@ -472,8 +474,12 @@ func normalizeOperationListResponse(response *models.ListResponse[models.Operati
 	}
 }
 
-func normalizeOperation(operation *models.Operation) {
-	if operation != nil && operation.Metadata == nil {
-		operation.Metadata = map[string]any{}
-	}
+// normalizeOperation reserves a place for any future server-shape
+// normalization that the SDK should apply to operations on the way out.
+//
+// Historically this helper rewrote a server-returned nil Metadata into an
+// empty map. We stopped doing that — the wire shape is the wire shape, and
+// callers who want a guaranteed-non-nil view should use the
+// (*Operation).MetadataOrEmpty accessor.
+func normalizeOperation(_ *models.Operation) {
 }

@@ -64,11 +64,19 @@ import (
 // occasional large JSON operations consuming excessive pool memory.
 const maxBufferSize = 1 << 20 // 1MB
 
-// JSONPool provides pooled buffers for JSON encoding/decoding workflows.
-// The standard library encoders/decoders themselves are still created per use,
-// because they cannot be safely rebound to a new reader/writer.
-// A nil or zero-value JSONPool is safe to use; it falls back to allocating a
-// fresh buffer when its internal sync.Pool has not been initialized.
+// JSONPool provides buffer pooling for JSON encode/decode workflows.
+//
+// Despite the historical name and the ReleaseEncoder/ReleaseDecoder helpers
+// retained on this type for API compatibility, ONLY the underlying
+// *bytes.Buffer is actually pooled. The standard library's *json.Encoder
+// and *json.Decoder cannot be safely rebound to a new io.Writer / io.Reader,
+// so a fresh encoder/decoder is constructed on every operation. The
+// meaningful win — and the documented goal of this type — is the buffer
+// pool: it eliminates the per-Marshal allocation of a fresh bytes.Buffer
+// on the hot path.
+//
+// A nil or zero-value JSONPool is safe to use; the sync.Pool's New func
+// falls back to allocating a fresh buffer when the pool is empty.
 type JSONPool struct {
 	bufferPool sync.Pool
 }
@@ -156,12 +164,16 @@ func (p *JSONPool) NewDecoder(r io.Reader) *json.Decoder {
 	return dec
 }
 
-// ReleaseEncoder is retained for API compatibility; encoders are not pooled.
+// ReleaseEncoder is a no-op kept for API compatibility. Encoders are NOT
+// pooled (json.Encoder cannot be safely rebound). The original signature
+// is retained so existing callers don't need to change.
 func (p *JSONPool) ReleaseEncoder(enc *json.Encoder) {
 	p.putEncoder(enc)
 }
 
-// ReleaseDecoder is retained for API compatibility; decoders are not pooled.
+// ReleaseDecoder is a no-op kept for API compatibility. Decoders are NOT
+// pooled (json.Decoder cannot be safely rebound). The original signature
+// is retained so existing callers don't need to change.
 func (p *JSONPool) ReleaseDecoder(dec *json.Decoder) {
 	p.putDecoder(dec)
 }

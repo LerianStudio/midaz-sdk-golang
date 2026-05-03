@@ -1,6 +1,7 @@
 package validation
 
 import (
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
@@ -72,8 +73,14 @@ func isValidMetadataValueType(value any) bool {
 	}
 }
 
-// validateMetadataSize validates the total size of metadata
-// This function is needed by enhanced.go
+// validateMetadataSize validates the total size of metadata.
+//
+// We estimate the on-the-wire size by approximating each value's JSON
+// encoding length. The previous implementation used fmt.Sprint(v) for
+// arrays, which produces Go's debug syntax ("[a 1 true]") rather than JSON
+// ("[\"a\",1,true]"); the resulting byte count routinely under-estimated
+// the JSON size and let payloads slip through that the backend later
+// rejected. Using json.Marshal here matches the wire shape exactly.
 func validateMetadataSize(metadata map[string]any) error {
 	totalSize := 0
 	for key, value := range metadata {
@@ -89,7 +96,12 @@ func validateMetadataSize(metadata map[string]any) error {
 				return err
 			}
 
-			totalSize += len(fmt.Sprint(v))
+			jsonBytes, err := json.Marshal(v)
+			if err != nil {
+				return fmt.Errorf("failed to estimate JSON size for metadata key %q: %w", key, err)
+			}
+
+			totalSize += len(jsonBytes)
 		}
 	}
 

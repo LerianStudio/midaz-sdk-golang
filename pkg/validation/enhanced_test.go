@@ -14,7 +14,9 @@ func TestEnhancedValidateAssetCode(t *testing.T) {
 	}{
 		{"Valid asset code", "USD", false},
 		{"Valid 4-letter asset code", "USDT", false},
-		{"Valid custom asset code", "USDOL", false},
+		// Asset codes outside the 3-4 letter bound are now rejected.
+		{"Five-letter custom asset code is rejected", "USDOL", true},
+		{"Two-letter code is rejected", "US", true},
 		{"Empty asset code", "", true},
 		{"Invalid asset code - lowercase", "usd", true},
 		{"Invalid asset code - with number", "USD1", true},
@@ -126,7 +128,8 @@ func TestEnhancedValidateExternalAccount(t *testing.T) {
 	}{
 		{"Valid external account", "@external/USD", false},
 		{"Valid external account - 4 letters", "@external/USDT", false},
-		{"Valid external account - custom asset", "@external/USDOL", false},
+		// External account asset codes are now bounded to 3-4 letters.
+		{"Five-letter external asset is rejected", "@external/USDOL", true},
 		{"Empty account", "", true},
 		{"Missing @ prefix", "external/USD", true},
 		{"Invalid format", "@externalUSD", true},

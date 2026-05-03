@@ -123,6 +123,16 @@ type CreateAccountInput struct {
 // Validate checks if the CreateAccountInput meets the validation requirements.
 // It returns an error if any of the validation checks fail.
 //
+// Client-side preconditions worth knowing:
+//
+//   - ParentAccountID, PortfolioID, and SegmentID, when set, MUST be valid
+//     UUID strings. The SDK validates these locally so a typo is surfaced
+//     at the call site rather than as a generic 400 from the backend.
+//   - AssetCode is required and is loosely validated as a currency code;
+//     custom (non-ISO-4217) codes are accepted because the backend owns
+//     the canonical asset registry.
+//   - Type is required.
+//
 //nolint:gocyclo,cyclop
 func (input *CreateAccountInput) Validate() error {
 	if input == nil {

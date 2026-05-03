@@ -61,7 +61,13 @@ func (input *CreateOperationRouteInput) Validate() error {
 	return nil
 }
 
-// UpdateOperationRouteInput wraps mmodel.UpdateOperationRouteInput to maintain compatibility while using midaz entities.
+// UpdateOperationRouteInput wraps mmodel.UpdateOperationRouteInput to maintain
+// compatibility while using midaz entities.
+//
+// An empty update payload — no setters and no null-fields — returns a
+// marshal error from MarshalJSON. This is intentional: an empty PATCH
+// would be a no-op round trip. Use the dedicated builder helpers to
+// either set a value or explicitly null out a field.
 type UpdateOperationRouteInput struct {
 	mmodel.UpdateOperationRouteInput
 }

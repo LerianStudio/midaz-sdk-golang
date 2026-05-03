@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"reflect"
 	"strings"
@@ -21,8 +22,13 @@ func newRequestWithContext(ctx context.Context, method, url string, body io.Read
 	return http.NewRequestWithContext(requestContext(ctx), method, url, body)
 }
 
+// prepareServiceBaseURLs returns a normalized clone of the input map. It
+// trims surrounding whitespace and trailing slashes off each base URL so
+// downstream concatenation is forgiving about input shape. The returned map
+// is independent of the caller's map (we use maps.Clone, which mirrors the
+// previous "copy then mutate" semantics without a hand-rolled helper).
 func prepareServiceBaseURLs(baseURLs map[string]string) map[string]string {
-	prepared := copyBaseURLs(baseURLs)
+	prepared := maps.Clone(baseURLs)
 	for service, serviceURL := range prepared {
 		prepared[service] = strings.TrimRight(strings.TrimSpace(serviceURL), "/")
 	}

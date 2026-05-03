@@ -80,10 +80,14 @@ func TestErrorCheckingFunctions(t *testing.T) {
 			expectedResult: true,
 		},
 		{
-			name:           "IsValidationError with string containing 'validation'",
+			// Substring matching on err.Error() was intentionally removed
+			// in favor of typed-error classification. A plain error whose
+			// message merely contains the word "validation" is no longer
+			// classified as a validation error.
+			name:           "IsValidationError with string containing 'validation' (no longer matches)",
 			err:            errors.New("this is a validation error"),
 			checkFunc:      sdkerrors.IsValidationError,
-			expectedResult: true,
+			expectedResult: false,
 		},
 		{
 			name:           "IsValidationError with unrelated error",

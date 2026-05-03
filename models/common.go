@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
+	"os"
 	"strconv"
 	"time"
 
@@ -451,19 +453,6 @@ func ensureListOptions(options *ListOptions) *ListOptions {
 	return options
 }
 
-func cloneStringMap(values map[string]string) map[string]string {
-	if values == nil {
-		return nil
-	}
-
-	clone := make(map[string]string, len(values))
-	for key, value := range values {
-		clone[key] = value
-	}
-
-	return clone
-}
-
 func cloneAnyMap(values map[string]any) map[string]any {
 	if values == nil {
 		return nil
@@ -484,8 +473,8 @@ func (o *ListOptions) Clone() *ListOptions {
 	}
 
 	clone := *o
-	clone.Filters = cloneStringMap(o.Filters)
-	clone.AdditionalParams = cloneStringMap(o.AdditionalParams)
+	clone.Filters = maps.Clone(o.Filters)
+	clone.AdditionalParams = maps.Clone(o.AdditionalParams)
 
 	return &clone
 }
@@ -632,7 +621,7 @@ func (o *ListOptions) WithFilter(key, value string) *ListOptions {
 //nolint:wsl_v5
 func (o *ListOptions) WithFilters(filters map[string]string) *ListOptions {
 	o = ensureListOptions(o)
-	o.Filters = cloneStringMap(filters)
+	o.Filters = maps.Clone(filters)
 	return o
 }
 
@@ -874,6 +863,35 @@ func (o *ListOptions) ToQueryParams() map[string]string {
 	return params
 }
 
+// Validate enforces SDK-side preconditions on the ListOptions shape.
+//
+// The most important rule enforced here: a non-zero Offset must be a
+// multiple of Limit. Midaz only speaks page-based pagination on the wire,
+// and the SDK converts an aligned offset (e.g. 50 with limit 25 → page 3)
+// for backward compatibility. An UNALIGNED offset cannot be expressed as
+// a page number, and the previous addPaginationParams silently dropped
+// it — leaving callers stuck on page 1 wondering why their offset
+// "didn't work". Validate surfaces the mismatch as an error so consumers
+// can fix it instead of debugging missing rows.
+//
+// Validate is safe to call on a nil or zero-value ListOptions.
+func (o *ListOptions) Validate() error {
+	if o == nil {
+		return nil
+	}
+
+	limit := o.Limit
+	if limit <= 0 {
+		limit = DefaultLimit
+	}
+
+	if o.Offset > 0 && o.Offset%limit != 0 {
+		return fmt.Errorf("offset (%d) must be a multiple of limit (%d) — Midaz pagination only supports page boundaries", o.Offset, limit)
+	}
+
+	return nil
+}
+
 // addPaginationParams adds pagination-related parameters to the query parameters map.
 // This is an internal helper method used by ToQueryParams.
 //
@@ -898,8 +916,18 @@ func (o *ListOptions) addPaginationParams(params map[string]string) {
 		return
 	}
 
-	if o.Offset > 0 && o.Offset%limit == 0 {
-		params[QueryParamPage] = fmt.Sprintf("%d", (o.Offset/limit)+1)
+	if o.Offset > 0 {
+		if o.Offset%limit == 0 {
+			params[QueryParamPage] = fmt.Sprintf("%d", (o.Offset/limit)+1)
+		} else {
+			// Unaligned offset would map to a non-existent page boundary.
+			// Surface a stderr warning so the silent-drop bug is at least
+			// observable; consumers should call ListOptions.Validate()
+			// before serializing to fail fast on this case.
+			fmt.Fprintf(os.Stderr,
+				"[Midaz SDK] WARN: unaligned Offset (%d) for Limit (%d) was dropped from query parameters; call ListOptions.Validate() before sending\n",
+				o.Offset, limit)
+		}
 	}
 
 	if o.Cursor != "" {

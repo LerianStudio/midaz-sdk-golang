@@ -2,7 +2,10 @@ package auth
 
 import (
 	"bytes"
+	"container/list"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,12 +17,21 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/security"
+	"golang.org/x/sync/singleflight"
 )
 
 const (
 	accessManagerOAuthLoginPath       = "/v1/login/oauth/access_token"
 	maxAccessManagerResponseBodyBytes = int64(1 << 20)
 	accessManagerRefreshSkew          = 30 * time.Second
+
+	// accessManagerCacheCapacity bounds the in-process token cache. The cache
+	// is keyed by (endpoint, clientID, secretHash) so the upper bound is the
+	// number of distinct (auth host × client) pairs the SDK ever uses in a
+	// single process. 256 entries is generous for any realistic deployment
+	// while still preventing the unbounded growth that the previous
+	// sync.Map exposed.
+	accessManagerCacheCapacity = 256
 )
 
 type cachedToken struct {
@@ -27,7 +39,115 @@ type cachedToken struct {
 	expiresAt time.Time
 }
 
-var accessManagerTokenCache sync.Map
+// boundedTokenCache is a small concurrency-safe LRU keyed by string. It exists
+// because the previous implementation used a sync.Map with no eviction, which
+// is unbounded growth in long-lived SDK processes that rotate credentials.
+//
+// The cache stores cachedToken values; expired entries are evicted lazily on
+// read (loadCachedToken) and proactively on write (Store). Dead entries from
+// expired credentials therefore never linger past the next access.
+type boundedTokenCache struct {
+	mu       sync.Mutex
+	capacity int
+	entries  map[string]*list.Element
+	order    *list.List
+}
+
+type cacheEntry struct {
+	key   string
+	value cachedToken
+}
+
+func newBoundedTokenCache(capacity int) *boundedTokenCache {
+	if capacity <= 0 {
+		capacity = accessManagerCacheCapacity
+	}
+
+	return &boundedTokenCache{
+		capacity: capacity,
+		entries:  make(map[string]*list.Element, capacity),
+		order:    list.New(),
+	}
+}
+
+// Load returns the cached value for key and whether it was present. Touching
+// an entry promotes it to the front of the LRU.
+func (c *boundedTokenCache) Load(key string) (cachedToken, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	element, ok := c.entries[key]
+	if !ok {
+		return cachedToken{}, false
+	}
+
+	c.order.MoveToFront(element)
+
+	entry := element.Value.(*cacheEntry)
+
+	return entry.value, true
+}
+
+// Store inserts or replaces an entry, evicting the least-recently-used entry
+// when capacity is exceeded.
+func (c *boundedTokenCache) Store(key string, value cachedToken) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if element, ok := c.entries[key]; ok {
+		element.Value.(*cacheEntry).value = value
+		c.order.MoveToFront(element)
+
+		return
+	}
+
+	entry := &cacheEntry{key: key, value: value}
+	element := c.order.PushFront(entry)
+	c.entries[key] = element
+
+	for c.order.Len() > c.capacity {
+		oldest := c.order.Back()
+		if oldest == nil {
+			return
+		}
+
+		c.order.Remove(oldest)
+		delete(c.entries, oldest.Value.(*cacheEntry).key)
+	}
+}
+
+// Delete removes the entry for key (no-op when absent).
+func (c *boundedTokenCache) Delete(key string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if element, ok := c.entries[key]; ok {
+		c.order.Remove(element)
+		delete(c.entries, key)
+	}
+}
+
+// Reset removes every entry. Test helper exposed via ClearAccessManagerCache.
+func (c *boundedTokenCache) Reset() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.entries = make(map[string]*list.Element, c.capacity)
+	c.order = list.New()
+}
+
+var (
+	accessManagerTokenCache   = newBoundedTokenCache(accessManagerCacheCapacity)
+	accessManagerSingleFlight singleflight.Group
+)
+
+// ClearAccessManagerCache wipes the in-process token cache. Tests use it to
+// reset state between scenarios; production callers may call it after
+// rotating credentials so the next request re-issues the token-exchange
+// request instead of serving the stale cached entry.
+func ClearAccessManagerCache() {
+	accessManagerTokenCache.Reset()
+}
 
 // EntityOption is a function that configures an entity with authentication.
 type EntityOption func(e any) error
@@ -103,6 +223,11 @@ func WithAccessManager(accessMgr AccessManager) EntityOption {
 // GetTokenFromAccessManager retrieves an authentication token from the plugin auth service
 // when plugin authentication is enabled.
 //
+// Concurrent callers asking for a token under the same cache key share a
+// single underlying HTTP exchange via singleflight — a thundering herd of
+// SDK-internal goroutines (e.g. workers reacting to a 401 fan-out) only
+// hits the auth service once.
+//
 // Parameters:
 //   - ctx: The context for the operation, which can be used for cancellation and timeouts.
 //   - accessMgr: The plugin access manager configuration.
@@ -129,14 +254,35 @@ func GetTokenFromAccessManager(ctx context.Context, accessMgr AccessManager, htt
 		return token, nil
 	}
 
-	tokenResp, err := requestAccessManagerToken(ctx, accessMgr, httpClient)
+	// Use singleflight so concurrent requests for the same cacheKey share a
+	// single backend call. The closure re-checks the cache to catch the
+	// "two callers, second arrived after the first one's token landed"
+	// race: we don't want to issue a second HTTP request just because the
+	// caller raced past loadCachedToken.
+	result, err, _ := accessManagerSingleFlight.Do(cacheKey, func() (any, error) {
+		if token, ok := loadCachedToken(cacheKey); ok {
+			return token, nil
+		}
+
+		tokenResp, err := requestAccessManagerToken(ctx, accessMgr, httpClient)
+		if err != nil {
+			return "", err
+		}
+
+		storeCachedToken(cacheKey, tokenResp)
+
+		return tokenResp.AccessToken, nil
+	})
 	if err != nil {
 		return "", err
 	}
 
-	storeCachedToken(cacheKey, tokenResp)
+	token, ok := result.(string)
+	if !ok {
+		return "", errors.New("plugin auth service returned an unexpected token type")
+	}
 
-	return tokenResp.AccessToken, nil
+	return token, nil
 }
 
 func validateAccessManagerTokenRequest(accessMgr AccessManager, httpClient *http.Client) error {
@@ -290,28 +436,55 @@ func accessManagerEndpoint(address string) (string, error) {
 	return baseURL.String(), nil
 }
 
+// accessManagerCacheKey derives a stable cache identifier from the access
+// manager configuration. We deliberately fold the SHA-256 of the client
+// secret (truncated to the first 16 hex chars) into the key — when a caller
+// rotates ClientSecret while keeping ClientID + Address constant, the cache
+// must NOT serve the previous credential's cached token. Hashing rather
+// than including the raw secret keeps the secret out of memory in the
+// cache map's keys (which can survive longer than the value if a single
+// allocation is replayed elsewhere).
 func accessManagerCacheKey(accessMgr AccessManager) (string, error) {
 	endpoint, err := accessManagerEndpoint(accessMgr.Address)
 	if err != nil {
 		return "", err
 	}
 
-	return endpoint + "|" + strings.TrimSpace(accessMgr.ClientID), nil
+	secretHash := hashClientSecret(accessMgr.ClientSecret)
+
+	return endpoint + "|" + strings.TrimSpace(accessMgr.ClientID) + "|" + secretHash, nil
+}
+
+// hashClientSecret returns a 16-hex-character SHA-256 prefix of the client
+// secret. The prefix length matches the previous "best-effort fingerprint"
+// shape used elsewhere in the SDK and is sufficient to detect rotation; we
+// deliberately do NOT use the raw secret as part of the key.
+func hashClientSecret(secret string) string {
+	sum := sha256.Sum256([]byte(strings.TrimSpace(secret)))
+	return hex.EncodeToString(sum[:])[:16]
 }
 
 func loadCachedToken(cacheKey string) (string, bool) {
-	value, ok := accessManagerTokenCache.Load(cacheKey)
+	cached, ok := accessManagerTokenCache.Load(cacheKey)
 	if !ok {
 		return "", false
 	}
 
-	cached, ok := value.(cachedToken)
-	if !ok || strings.TrimSpace(cached.token) == "" {
+	if strings.TrimSpace(cached.token) == "" {
 		accessManagerTokenCache.Delete(cacheKey)
 		return "", false
 	}
 
-	if !cached.expiresAt.IsZero() && time.Now().Add(accessManagerRefreshSkew).After(cached.expiresAt) {
+	// Reject zero-expiry entries on read. storeCachedToken is supposed to
+	// drop these before they hit the cache, but defending against a stray
+	// zero-expiry entry here costs almost nothing and keeps the contract
+	// "cached tokens have known expiry" airtight.
+	if cached.expiresAt.IsZero() {
+		accessManagerTokenCache.Delete(cacheKey)
+		return "", false
+	}
+
+	if time.Now().Add(accessManagerRefreshSkew).After(cached.expiresAt) {
 		accessManagerTokenCache.Delete(cacheKey)
 		return "", false
 	}
@@ -319,14 +492,27 @@ func loadCachedToken(cacheKey string) (string, bool) {
 	return cached.token, true
 }
 
+// storeCachedToken caches a successful token exchange.
+//
+// We only cache tokens whose ExpiresAt is non-empty AND parses cleanly as
+// RFC 3339. The previous behavior cached tokens with zero expiry, which
+// effectively cached them forever (the loadCachedToken guard treated
+// IsZero as "no expiry, always valid"). Refusing to cache zero-expiry
+// tokens turns that silent-forever-cache bug into a clean re-exchange
+// every time, which is the safest fallback when the upstream provider
+// withholds expiry metadata.
 func storeCachedToken(cacheKey string, tokenResp TokenResponse) {
-	expiresAt := time.Time{}
-
-	if tokenResp.ExpiresAt != "" {
-		if parsed, err := time.Parse(time.RFC3339, tokenResp.ExpiresAt); err == nil {
-			expiresAt = parsed
-		}
+	if tokenResp.ExpiresAt == "" {
+		return
 	}
 
-	accessManagerTokenCache.Store(cacheKey, cachedToken{token: tokenResp.AccessToken, expiresAt: expiresAt})
+	parsed, err := time.Parse(time.RFC3339, tokenResp.ExpiresAt)
+	if err != nil {
+		return
+	}
+
+	accessManagerTokenCache.Store(cacheKey, cachedToken{
+		token:     tokenResp.AccessToken,
+		expiresAt: parsed,
+	})
 }

@@ -402,14 +402,26 @@ func (*batchProcessor) createResult(index int, tx *models.Transaction, err error
 }
 
 // callProgressCallback calls the progress callback if configured.
+//
+// We deliberately drop the mutex BEFORE invoking the user callback. The
+// previous implementation held progressMu across the call, which meant a
+// slow or blocking callback would serialize every other worker — a
+// guaranteed throughput cliff for any user that, say, wrote progress to
+// stdout. The mutex now only protects the bp.completed increment.
 func (bp *batchProcessor) callProgressCallback(result BatchResult) {
-	if bp.options.OnProgress != nil {
-		bp.progressMu.Lock()
-		bp.completed++
-		completed := bp.completed
-		bp.options.OnProgress(completed, len(bp.inputs), result)
-		bp.progressMu.Unlock()
+	if bp.options.OnProgress == nil {
+		return
 	}
+
+	bp.progressMu.Lock()
+	bp.completed++
+	completed := bp.completed
+	total := len(bp.inputs)
+	bp.progressMu.Unlock()
+
+	// User callback runs unlocked. Workers can keep making progress even
+	// if this callback is slow.
+	bp.options.OnProgress(completed, total, result)
 }
 
 // checkFinalErrors checks for any final errors if StopOnError is enabled.
@@ -464,18 +476,43 @@ func recordBatchStartedEvent(ctx context.Context, orgID, ledgerID string, total 
 func recordBatchCompletedEvent(ctx context.Context, orgID, ledgerID string, results []BatchResult, err error, duration time.Duration) {
 	summary := GetBatchSummary(results)
 	status := batchTelemetryStatus(ctx, summary, err)
-	attrs := []attribute.KeyValue{
+
+	// Span events are reserved for state transitions ("started", "completed",
+	// "errored"). The cumulative aggregates (success_count, error_count,
+	// duration_ms) move to the metric pipeline below — they are
+	// pre-aggregated counters/histograms that fit naturally into metrics
+	// and do NOT belong as high-cardinality span-event attributes (every
+	// run would have a unique attribute set, defeating aggregation).
+	stateAttrs := []attribute.KeyValue{
 		attribute.String("midaz.business.batch.status", status),
-		attribute.Int("midaz.business.batch.success_count", summary.SuccessCount),
-		attribute.Int("midaz.business.batch.error_count", summary.ErrorCount),
-		attribute.Int64("midaz.business.batch.duration_ms", duration.Milliseconds()),
 	}
 
 	if err != nil {
-		attrs = append(attrs, attribute.String("midaz.business.errorClass", string(errors.GetErrorCategory(err))))
+		stateAttrs = append(stateAttrs, attribute.String("midaz.business.errorClass", string(errors.GetErrorCategory(err))))
 	}
 
-	recordBatchEvent(ctx, "midaz.transaction.batch.completed", orgID, ledgerID, len(results), attrs...)
+	recordBatchEvent(ctx, "midaz.transaction.batch.completed", orgID, ledgerID, len(results), stateAttrs...)
+
+	// Emit metrics for the aggregates. We use RecordMetric (counter) for
+	// integer counts and a per-batch duration metric. The orgID + ledgerID
+	// tags keep the attribute set bounded — there's a finite set of
+	// (org, ledger, status) tuples.
+	provider := observability.GetProvider(ctx)
+	if provider == nil || !provider.IsEnabled() {
+		return
+	}
+
+	metricAttrs := []attribute.KeyValue{
+		attribute.String("midaz.organization_id", orgID),
+		attribute.String("midaz.ledger_id", ledgerID),
+		attribute.String("midaz.batch.status", status),
+	}
+
+	observability.RecordMetric(ctx, provider, "midaz.transaction.batch.success_count", float64(summary.SuccessCount), metricAttrs...)
+	observability.RecordMetric(ctx, provider, "midaz.transaction.batch.error_count", float64(summary.ErrorCount), metricAttrs...)
+	// RecordDuration takes a start time and uses time.Since internally; we
+	// already have the duration so reconstruct an equivalent start.
+	observability.RecordDuration(ctx, provider, "midaz.transaction.batch.duration", time.Now().Add(-duration), metricAttrs...)
 }
 
 func batchTelemetryStatus(ctx context.Context, summary BatchSummary, err error) string {

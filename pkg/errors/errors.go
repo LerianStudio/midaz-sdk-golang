@@ -801,6 +801,13 @@ func legacyMidazTarget(err error, code ErrorCode) error {
 // Error checking functions
 
 // CheckValidationError checks if an error is a validation error.
+//
+// Classification is performed strictly by error type — we look for *Error from
+// this package (Category == CategoryValidation), the legacy *MidazError shape
+// (Code == CodeValidation), or sentinel ErrValidation. Substring matching on
+// err.Error() was removed in favor of the typed predicate so unrelated error
+// strings that happen to contain the word "validation" no longer get
+// reclassified.
 func CheckValidationError(err error) bool {
 	if isNilError(err) {
 		return false
@@ -811,13 +818,9 @@ func CheckValidationError(err error) bool {
 		return mdzErr.Category == CategoryValidation
 	}
 
-	if strings.Contains(strings.ToLower(safeErrorString(err)), "validation") {
-		return true
-	}
-
 	legacyTarget := legacyMidazTarget(err, CodeValidation)
 
-	// Backward compatibility checks
+	// Backward compatibility: sentinel + typed legacy error.
 	return errors.Is(err, ErrValidation) ||
 		(legacyTarget != nil && errors.Is(err, legacyTarget))
 }

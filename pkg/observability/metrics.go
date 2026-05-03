@@ -120,7 +120,7 @@ func (m *MetricsCollector) RecordRequest(ctx context.Context, operation, resourc
 		attribute.String(KeyOperationName, operation),
 		attribute.String(KeyOperationType, "api.request"),
 		attribute.String(KeyResourceType, resourceType),
-		attribute.Int(KeyHTTPStatus, statusCode),
+		attribute.Int(KeyHTTPResponseStatusCode, statusCode),
 	)
 
 	// Combine with additional attributes

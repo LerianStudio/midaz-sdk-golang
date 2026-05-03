@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"sync"
 	"time"
 
@@ -162,23 +163,10 @@ func normalizePageOptions(options PageOptions, defaultLimit int) PageOptions {
 		options.Limit = MaxPaginationLimit
 	}
 
-	options.Filters = cloneStringMap(options.Filters)
-	options.AdditionalParams = cloneStringMap(options.AdditionalParams)
+	options.Filters = maps.Clone(options.Filters)
+	options.AdditionalParams = maps.Clone(options.AdditionalParams)
 
 	return options
-}
-
-func cloneStringMap(values map[string]string) map[string]string {
-	if values == nil {
-		return nil
-	}
-
-	clone := make(map[string]string, len(values))
-	for key, value := range values {
-		clone[key] = value
-	}
-
-	return clone
 }
 
 // WithOffset sets the initial page offset
@@ -205,7 +193,7 @@ func WithCursor(cursor string) PaginatorOption {
 // WithFilters sets the initial filters
 func WithFilters(filters map[string]string) PaginatorOption {
 	return func(o *PaginatorOptions) error {
-		o.PageOptions.Filters = cloneStringMap(filters)
+		o.PageOptions.Filters = maps.Clone(filters)
 		return nil
 	}
 }

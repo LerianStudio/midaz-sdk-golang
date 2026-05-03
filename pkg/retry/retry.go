@@ -72,9 +72,11 @@ var (
 // Options configures the retry behavior
 //
 // This struct allows you to fine-tune retry strategies for different scenarios:
-// - MaxRetries and timing parameters control how long and how often to retry
-// - RetryableErrors and RetryableHTTPCodes determine which failures trigger retries
-// - JitterFactor helps prevent thundering herd problems in distributed systems
+//   - MaxRetries and timing parameters control how long and how often to retry
+//   - RetryableErrors and RetryableHTTPCodes determine which failures trigger retries
+//   - JitterFactor helps prevent thundering herd problems in distributed systems
+//   - ErrorPredicate is an escape hatch for typed-error matching (errors.As)
+//     that callers prefer over substring matching
 type Options struct {
 	// MaxRetries is the maximum number of retries to attempt
 	MaxRetries int
@@ -96,6 +98,14 @@ type Options struct {
 
 	// JitterFactor is the amount of jitter to add to the delay (0.0-1.0)
 	JitterFactor float64
+
+	// ErrorPredicate, when non-nil, is consulted by IsRetryableError BEFORE
+	// substring/HTTP-code checks. Returning true forces the error to be
+	// treated as retryable; returning false defers to the rest of the
+	// classification chain. This is the recommended way to surface typed
+	// retryable sentinels (e.g. via errors.As) without polluting
+	// RetryableErrors with magic substrings.
+	ErrorPredicate func(error) bool
 }
 
 type nonRetryableError struct {
@@ -285,6 +295,24 @@ func WithJitterFactor(factor float64) Option {
 
 		o.JitterFactor = factor
 
+		return nil
+	}
+}
+
+// WithErrorPredicate installs a typed-error predicate that takes precedence
+// over substring matching. This is the preferred way to surface custom
+// retryable error types (via errors.As) instead of appending magic strings
+// to RetryableErrors.
+//
+// Example:
+//
+//	err := retry.Do(ctx, myFunc, retry.WithErrorPredicate(func(err error) bool {
+//	    var custom *MyRetryableError
+//	    return errors.As(err, &custom)
+//	}))
+func WithErrorPredicate(predicate func(error) bool) Option {
+	return func(o *Options) error {
+		o.ErrorPredicate = predicate
 		return nil
 	}
 }
@@ -556,7 +584,14 @@ func IsRetryableError(err error, options *Options) bool {
 		return false
 	}
 
-	// Check for retryable error strings
+	// 1) Caller-supplied typed predicate wins. This avoids polluting
+	// RetryableErrors with substring tokens just to round-trip a typed
+	// sentinel (e.g. retryableCustomPolicyError) into a "yes, retry".
+	if options.ErrorPredicate != nil && options.ErrorPredicate(err) {
+		return true
+	}
+
+	// 2) Retryable error string matching.
 	errMsg := err.Error()
 	for _, retryableErr := range options.RetryableErrors {
 		if retryableErr != "" && errMatchesPattern(errMsg, retryableErr) {
@@ -564,9 +599,7 @@ func IsRetryableError(err error, options *Options) bool {
 		}
 	}
 
-	// Check for retryable HTTP status codes
-	// This assumes the error might implement a method to get the HTTP status code
-	// For example, if using a custom error type that wraps an HTTP response
+	// 3) Retryable HTTP status codes via structural interface.
 	if httpErr, ok := err.(interface{ StatusCode() int }); ok {
 		for _, code := range options.RetryableHTTPCodes {
 			if httpErr.StatusCode() == code {

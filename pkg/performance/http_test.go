@@ -47,8 +47,11 @@ func TestNewTransport(t *testing.T) {
 		t.Errorf("Expected DisableCompression=false, got %v", transport.DisableCompression)
 	}
 
-	if transport.ForceAttemptHTTP2 {
-		t.Error("Expected ForceAttemptHTTP2=false by default")
+	// HTTP/2 is now ON by default (was previously off). Consumers behind
+	// modern reverse proxies expect HTTP/2 multiplexing without having to
+	// flip a flag. Opt-out via WithForceAttemptHTTP2(false).
+	if !transport.ForceAttemptHTTP2 {
+		t.Error("Expected ForceAttemptHTTP2=true by default")
 	}
 
 	// Test with custom options
@@ -256,7 +259,8 @@ func TestDefaultTransportConfig(t *testing.T) {
 		DisableCompression:    false,
 		DialTimeout:           DefaultTimeout,
 		KeepAlive:             DefaultKeepAlive,
-		ForceAttemptHTTP2:     false,
+		// HTTP/2 is now ON by default; see DefaultTransportConfig docs.
+		ForceAttemptHTTP2: true,
 	}
 
 	if !reflect.DeepEqual(config, expected) {

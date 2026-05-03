@@ -8,11 +8,11 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"reflect"
 	"strings"
 	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/internal/reflectutil"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/config"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
@@ -360,7 +360,7 @@ func WithObservabilityProvider(provider observability.Provider) Option {
 			return nil
 		}
 
-		if isTypedNil(provider) {
+		if reflectutil.IsTypedNil(provider) {
 			return errors.New("observability provider cannot be nil")
 		}
 
@@ -503,7 +503,7 @@ func WithConfig(cfg *config.Config) Option {
 		}
 
 		c.config = cfg.Clone()
-		if provider := c.config.GetObservabilityProvider(); provider != nil && !isTypedNil(provider) {
+		if provider := c.config.GetObservabilityProvider(); provider != nil && !reflectutil.IsTypedNil(provider) {
 			c.observability = provider
 			if provider.IsEnabled() {
 				metrics, err := observability.NewMetricsCollector(provider)
@@ -701,12 +701,17 @@ func (c *Client) GetContext() context.Context {
 	return c.ctx
 }
 
-// GetConfiguration returns the client configuration.
-// This is useful for debugging and testing. It returns a defensive copy, but the
-// copy can still contain Access Manager credentials; do not log it without redaction.
+// GetConfiguration returns a deep copy of the client's configuration.
+//
+// Mutating the returned *config.Config does NOT affect the live client.
+// The clone is safe to inspect for debugging or to feed into another
+// client constructor; it is NOT a handle for runtime tweaks.
+//
+// The clone can still carry Access Manager credentials, so do not log
+// it without redaction.
 //
 // Returns:
-//   - *config.Config: The client configuration
+//   - *config.Config: An independent copy of the client configuration.
 func (c *Client) GetConfiguration() *config.Config {
 	if c == nil {
 		return nil
@@ -722,20 +727,6 @@ func (c *Client) GetConfiguration() *config.Config {
 //   - *config.Config: The client configuration
 func (c *Client) GetConfig() *config.Config {
 	return c.GetConfiguration()
-}
-
-func isTypedNil(value any) bool {
-	if value == nil {
-		return false
-	}
-
-	rv := reflect.ValueOf(value)
-	switch rv.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return rv.IsNil()
-	default:
-		return false
-	}
 }
 
 // NewAccount constructs a basic account.

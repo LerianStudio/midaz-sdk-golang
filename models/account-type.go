@@ -62,7 +62,13 @@ type CreateAccountTypeInput struct {
 	mmodel.CreateAccountTypeInput
 }
 
-// UpdateAccountTypeInput wraps mmodel.UpdateAccountTypeInput to maintain compatibility while using midaz entities.
+// UpdateAccountTypeInput wraps mmodel.UpdateAccountTypeInput to maintain
+// compatibility while using midaz entities.
+//
+// An empty update payload — no setters and no null-fields — returns a
+// marshal error from MarshalJSON. This is intentional: an empty PATCH
+// would be a no-op round trip. Use the dedicated builder helpers to
+// either set a value or explicitly null out a field.
 type UpdateAccountTypeInput struct {
 	mmodel.UpdateAccountTypeInput
 }

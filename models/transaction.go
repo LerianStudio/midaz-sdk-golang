@@ -750,9 +750,16 @@ func (input *AmountInput) Validate() error {
 	return validatePositiveDecimalString(input.Value, "value")
 }
 
-// ToLibTransaction converts a CreateTransactionInput to the Midaz transaction payload.
-// Deprecated: this is an internal SDK adapter and may be replaced by an unexported helper.
-// This is used internally by the SDK to convert the input to the format expected by the backend.
+// ToLibTransaction converts a CreateTransactionInput into the loosely-typed
+// map[string]any payload expected by the Midaz transactions endpoint. It is
+// the documented adapter between the SDK's typed input shape and the
+// wire-level JSON object — consumers may call it directly when they need
+// to inspect or mutate the payload before it leaves the process (for
+// example, to attach extension fields the typed model doesn't yet
+// expose).
+//
+// This is stable internal-use API: stable enough that the SDK's own
+// transaction service depends on it on every Create call.
 func (input *CreateTransactionInput) ToLibTransaction() map[string]any {
 	if input == nil {
 		return nil
@@ -1152,12 +1159,17 @@ func (input *UpdateTransactionInput) Validate() error {
 	return nil
 }
 
+// hasChanges reports whether the update payload contains any actionable
+// mutation. ExternalID is intentionally excluded — it is documented as
+// deprecated and the backend silently ignores it on update; including it
+// here would make "set ExternalID, no other change" look like a real
+// update and fire a marshal/round-trip for an effectively no-op call.
 func (input *UpdateTransactionInput) hasChanges() bool {
 	if input == nil {
 		return false
 	}
 
-	return input.Metadata != nil || input.Description != "" || input.ExternalID != ""
+	return input.Metadata != nil || input.Description != ""
 }
 
 // NewUpdateTransactionInput creates a new UpdateTransactionInput.

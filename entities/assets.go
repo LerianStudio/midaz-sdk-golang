@@ -180,7 +180,7 @@ func NewAssetsEntity(client *http.Client, authToken string, baseURLs map[string]
 
 	// Check if we're using the debug flag from the environment
 	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
-		httpClient.debug = true
+		httpClient.setDebugLocked(true)
 	}
 
 	return &assetsEntity{

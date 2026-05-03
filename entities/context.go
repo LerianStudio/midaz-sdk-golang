@@ -72,3 +72,35 @@ func TenantIDFromContext(ctx context.Context) string {
 
 	return ""
 }
+
+// suppressAutoIdempotency context helpers — used to opt OUT of automatic
+// idempotency-key generation for a single call when client-level
+// idempotency is enabled.
+type contextKeySuppressAutoIdempotency struct{}
+
+// WithoutAutoIdempotency tags the context so that the HTTP client will NOT
+// generate an automatic idempotency key for the next request, even when
+// client-level idempotency is enabled (see HTTPClient.SetEnableIdempotency).
+//
+// This is the per-call escape hatch for the "client-level opt-out" model:
+// turn idempotency on globally, then disable it for the rare call where it's
+// genuinely undesired (e.g. fire-and-forget administrative endpoints). A
+// caller-supplied key via WithIdempotencyKey takes precedence — it is
+// honored even when WithoutAutoIdempotency is set, since an explicit key
+// always wins.
+func WithoutAutoIdempotency(ctx context.Context) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	return context.WithValue(ctx, contextKeySuppressAutoIdempotency{}, true)
+}
+
+func autoIdempotencySuppressed(ctx context.Context) bool {
+	if ctx == nil {
+		return false
+	}
+
+	v, _ := ctx.Value(contextKeySuppressAutoIdempotency{}).(bool)
+	return v
+}

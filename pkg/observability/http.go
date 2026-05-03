@@ -64,7 +64,12 @@ var defaultMaskedParams = []string{
 	"document",
 }
 
-var errNilHTTPResponse = errors.New("observability: nil http response")
+// ErrNilHTTPResponse is returned by helpers in this package when they are
+// asked to record a span/metric for an *http.Response that is nil. Callers
+// can use errors.Is to distinguish this case from real I/O failures —
+// for example, a transport-level error vs. an SDK programming bug that
+// passed a nil response to an enrichment helper.
+var ErrNilHTTPResponse = errors.New("observability: nil http response")
 
 // WithIgnoreHeaders specifies HTTP header names that should not be logged
 func WithIgnoreHeaders(headers ...string) HTTPOption {
@@ -327,7 +332,7 @@ func (m *httpMiddleware) handleSuccessfulResponse(span trace.Span, resp *http.Re
 		span.SetStatus(codes.Ok, "")
 		span.End()
 
-		return nil, errNilHTTPResponse
+		return nil, ErrNilHTTPResponse
 	}
 
 	// Add response attributes

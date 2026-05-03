@@ -7,12 +7,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/url"
-	"reflect"
 	"strings"
 	"time"
 
+	"github.com/LerianStudio/midaz-sdk-golang/v2/internal/reflectutil"
 	auth "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/access-manager"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/security"
@@ -187,7 +188,7 @@ func NewEntity(client *http.Client, authToken string, baseURLs map[string]string
 //   - *Entity: A pointer to the newly created Entity.
 //   - error: An error if initialization fails.
 func NewEntityWithConfig(config Config, options ...Option) (*Entity, error) {
-	if config == nil || isTypedNil(config) {
+	if config == nil || reflectutil.IsTypedNil(config) {
 		return nil, errors.New("config cannot be nil")
 	}
 
@@ -308,7 +309,7 @@ type httpClientConfigurator interface {
 // It iterates over service fields and calls the tenantSetter interface rather than
 // hard-coding each concrete type, so adding new services cannot silently break propagation.
 func (e *Entity) propagateTenantID() {
-	tid := e.httpClient.tenantID
+	tid := e.httpClient.GetTenantID()
 	if tid == "" {
 		return
 	}
@@ -493,14 +494,17 @@ func (e *Entity) SetHTTPClient(client *http.Client) {
 //
 // Parameters:
 //   - token: The authentication token to use for API requests.
+//
+// SetAuthToken is safe for concurrent callers; the underlying field write
+// is performed through the HTTPClient's locked setter so it does not race
+// with concurrent in-flight requests reading the token.
 func (e *Entity) SetAuthToken(token string) {
 	if e == nil || e.httpClient == nil {
 		return
 	}
 
 	if token != "" {
-		// Set the token directly on the HTTP client
-		e.httpClient.authToken = token
+		e.httpClient.setAuthTokenLocked(token)
 		e.propagateHTTPClientConfiguration()
 	}
 }
@@ -590,7 +594,7 @@ func NewWithServiceURLs(serviceURLs map[string]string, options ...Option) (*Enti
 	}
 
 	if strings.TrimSpace(serviceURLs["crm"]) == "" {
-		serviceURLs = copyBaseURLs(serviceURLs)
+		serviceURLs = maps.Clone(serviceURLs)
 		serviceURLs["crm"] = serviceURLs["onboarding"]
 	}
 
@@ -630,21 +634,8 @@ func NewWithServiceURLs(serviceURLs map[string]string, options ...Option) (*Enti
 	return entity, nil
 }
 
-func copyBaseURLs(baseURLs map[string]string) map[string]string {
-	if baseURLs == nil {
-		return nil
-	}
-
-	normalized := make(map[string]string, len(baseURLs)+1)
-	for service, serviceURL := range baseURLs {
-		normalized[service] = serviceURL
-	}
-
-	return normalized
-}
-
 func normalizeBaseURLs(baseURLs map[string]string) (map[string]string, error) {
-	normalized := copyBaseURLs(baseURLs)
+	normalized := maps.Clone(baseURLs)
 	if normalized == nil {
 		return nil, errors.New("service URLs map cannot be nil")
 	}
@@ -689,18 +680,4 @@ func normalizeServiceURL(rawURL string) (string, error) {
 	}
 
 	return parsedURL.String(), nil
-}
-
-func isTypedNil(value any) bool {
-	if value == nil {
-		return false
-	}
-
-	rv := reflect.ValueOf(value)
-	switch rv.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return rv.IsNil()
-	default:
-		return false
-	}
 }

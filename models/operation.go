@@ -10,6 +10,12 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+// maxOperationDescriptionLength bounds the operation Description field on
+// updates. The constant is operation-scoped to avoid the previous reuse of
+// maxAccountFieldLength, which made "why is the limit on operation
+// descriptions named like an account constant" a routine confusion.
+const maxOperationDescriptionLength = 256
+
 // Note: Status type is defined in common.go as Status = mmodel.Status
 
 // Amount structure for marshaling/unmarshalling JSON.
@@ -172,6 +178,19 @@ type Operation struct {
 	Metadata map[string]any `json:"metadata"`
 } // @name Operation
 
+// MetadataOrEmpty returns o.Metadata when non-nil, or a freshly-allocated
+// empty map when the server omitted metadata. The SDK no longer mutates
+// the wire shape (nil stays nil), so consumers that want a guaranteed-
+// non-nil view for downstream code should reach for this accessor
+// instead of writing the same nil-check at every call site.
+func (o *Operation) MetadataOrEmpty() map[string]any {
+	if o == nil || o.Metadata == nil {
+		return map[string]any{}
+	}
+
+	return o.Metadata
+}
+
 // UpdateOperationInput is a struct design to encapsulate payload data.
 //
 // swagger:model UpdateOperationInput
@@ -197,8 +216,8 @@ func (input *UpdateOperationInput) Validate() error {
 		return errors.New("empty update payload not allowed")
 	}
 
-	if len(input.Description) > maxAccountFieldLength {
-		return fmt.Errorf("description must be at most %d characters", maxAccountFieldLength)
+	if len(input.Description) > maxOperationDescriptionLength {
+		return fmt.Errorf("description must be at most %d characters", maxOperationDescriptionLength)
 	}
 
 	if input.Metadata != nil {

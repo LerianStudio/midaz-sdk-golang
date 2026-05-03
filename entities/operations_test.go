@@ -864,11 +864,18 @@ func TestOperationsEntity_UpdateTransactionOperation_RequestBody(t *testing.T) {
 	assert.Equal(t, "testValue", metadata["testKey"])
 }
 
+// TestOperationsEntity_UpdateOperation_DeprecatedAccountScopedMethodFailsLoudly
+// pins down that the account-scoped UpdateOperation now refuses to make ANY
+// HTTP call. The previous "auto-resolve via hidden GET" path was a
+// silent re-route that hid a contract change. Failing locally with a
+// clear error message is the audit-friendly behavior.
 func TestOperationsEntity_UpdateOperation_DeprecatedAccountScopedMethodFailsLoudly(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(models.Operation{ID: opTestOperationID})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// We assert from the test goroutine via t.Errorf (goroutine-safe);
+		// do NOT use t.Fatal* from inside an httptest handler because that
+		// is undefined behavior per the testing package docs.
+		t.Errorf("UpdateOperation must not perform any HTTP call (got %s %s)", r.Method, r.URL.Path)
+		http.Error(w, "unexpected call", http.StatusInternalServerError)
 	}))
 	defer server.Close()
 

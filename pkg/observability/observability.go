@@ -54,20 +54,6 @@ const (
 	KeyNetworkProtocolVersion = "network.protocol.version"
 	KeyErrorType              = "error.type"
 
-	// Deprecated: use KeyHTTPRequestMethod.
-	KeyHTTPMethod = KeyHTTPRequestMethod
-	// Deprecated: use KeyURLPath.
-	KeyHTTPPath = KeyURLPath
-	// Deprecated: use KeyHTTPResponseStatusCode.
-	KeyHTTPStatus = KeyHTTPResponseStatusCode
-	// Deprecated: use KeyServerAddress and KeyServerPort.
-	KeyHTTPHost = KeyServerAddress
-	// Deprecated: use KeyURLFull.
-	KeyHTTPURL = KeyURLFull
-	// Deprecated: use HTTP response header attributes such as http.response.header.x-request-id.
-	KeyHTTPRequestID = "http.request_id"
-	// Deprecated: use KeyErrorType.
-	KeyErrorCode    = KeyErrorType
 	KeyErrorMessage = "error.message"
 
 	// Metric names
@@ -405,6 +391,16 @@ type MidazProvider struct {
 	meter             metric.Meter
 	enabled           bool
 	shutdownFunctions []func(context.Context) error
+
+	// propagationHeadersOnce + propagationHeadersAllow cache the lowercased
+	// allow-set used by filterPropagationHeaders / filterPropagationMap.
+	// Building the set on every header filter call (which is itself on the
+	// hot path of every outbound request) walked PropagationHeaders +
+	// strings.ToLower for each header on each call. Caching once per
+	// provider lifetime is correct because PropagationHeaders is set at
+	// construction and the propagator's own Fields() are stable too.
+	propagationHeadersOnce  sync.Once
+	propagationHeadersAllow map[string]struct{}
 }
 
 // New creates a new observability provider with the given options
@@ -963,15 +959,26 @@ func propagationHeaderSet(ctx context.Context) map[string]struct{} {
 		return nil
 	}
 
-	allowed := make(map[string]struct{}, len(midazProvider.config.PropagationHeaders))
-	for _, header := range midazProvider.config.PropagationHeaders {
+	midazProvider.propagationHeadersOnce.Do(func() {
+		midazProvider.propagationHeadersAllow = buildPropagationHeaderAllowSet(provider, midazProvider.config)
+	})
+
+	return midazProvider.propagationHeadersAllow
+}
+
+// buildPropagationHeaderAllowSet computes the lowercased set of permitted
+// propagation header names. It is invoked exactly once per provider via
+// sync.Once and the resulting map is shared read-only.
+func buildPropagationHeaderAllowSet(provider Provider, config *Config) map[string]struct{} {
+	allowed := make(map[string]struct{}, len(config.PropagationHeaders))
+	for _, header := range config.PropagationHeaders {
 		header = strings.ToLower(strings.TrimSpace(header))
 		if header != "" {
 			allowed[header] = struct{}{}
 		}
 	}
 
-	if !midazProvider.config.propagationHeadersExplicit {
+	if !config.propagationHeadersExplicit {
 		for _, header := range textMapPropagatorForProvider(provider).Fields() {
 			header = strings.ToLower(strings.TrimSpace(header))
 			if header != "" {

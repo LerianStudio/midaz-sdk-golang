@@ -20,7 +20,7 @@ func WithDebug(debug bool) Option {
 			return errors.New("entity HTTP client cannot be nil")
 		}
 
-		e.httpClient.debug = debug
+		e.httpClient.setDebugLocked(debug)
 
 		return nil
 	}
@@ -33,7 +33,7 @@ func WithUserAgent(userAgent string) Option {
 			return errors.New("entity HTTP client cannot be nil")
 		}
 
-		e.httpClient.userAgent = userAgent
+		e.httpClient.setUserAgentLocked(userAgent)
 
 		return nil
 	}
@@ -50,21 +50,21 @@ func WithObservability(provider observability.Provider) Option {
 			return nil // No-op if the provider is nil
 		}
 
-		// Set the provider on the entity
+		// Set the provider on the entity (single-writer at construction).
 		e.observability = provider
 
-		// Set the provider on the HTTP client
-		e.httpClient.observability = provider
-
-		// Create metrics collector if needed
+		// Reconfigure the HTTP client through a single locked setter so the
+		// provider and its derived metrics collector flip atomically.
+		var metrics *observability.MetricsCollector
 		if provider.IsEnabled() {
-			var err error
-
-			e.httpClient.metrics, err = observability.NewMetricsCollector(provider)
+			collector, err := observability.NewMetricsCollector(provider)
 			if err != nil {
 				return err
 			}
+			metrics = collector
 		}
+
+		e.httpClient.setObservabilityLocked(provider, metrics)
 
 		return nil
 	}
@@ -135,7 +135,7 @@ func WithDefaultTenantID(tenantID string) Option {
 			return nil
 		}
 
-		e.httpClient.tenantID = tenantID
+		e.httpClient.setTenantIDLocked(tenantID)
 
 		return nil
 	}

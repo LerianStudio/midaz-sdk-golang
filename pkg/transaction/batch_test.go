@@ -182,6 +182,15 @@ func TestGetBatchSummary(t *testing.T) {
 	})
 }
 
+// TestBatchTelemetryUsesAggregateOutcomeEvents verifies that:
+//
+//   - Batch start/end emit span events for the state transition only
+//     (these are state markers a tracing UI can render in the timeline).
+//   - Cumulative counters (success/error counts) and durations are NOT
+//     embedded as span event attributes — those move to the metric
+//     pipeline so they can be aggregated correctly. Putting cumulative
+//     numbers on per-run span events makes them effectively unusable
+//     because each run has a unique attribute set.
 func TestBatchTelemetryUsesAggregateOutcomeEvents(t *testing.T) {
 	recorder := tracetest.NewSpanRecorder()
 	tracerProvider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
@@ -208,14 +217,24 @@ func TestBatchTelemetryUsesAggregateOutcomeEvents(t *testing.T) {
 		assert.NotContains(t, event.Name, ".item.")
 	}
 
+	// The completed event keeps the status (a low-cardinality state
+	// marker) but no longer carries the cumulative counters — those are
+	// emitted as metrics now.
 	attrs := batchEventAttributes(events[1])
 	assert.Equal(t, "partial", attrs["midaz.business.batch.status"])
-	assert.Equal(t, int64(1), attrs["midaz.business.batch.success_count"])
-	assert.Equal(t, int64(1), attrs["midaz.business.batch.error_count"])
+	assert.NotContains(t, attrs, "midaz.business.batch.success_count")
+	assert.NotContains(t, attrs, "midaz.business.batch.error_count")
+	assert.NotContains(t, attrs, "midaz.business.batch.duration_ms")
 	assert.NotContains(t, attrs, "midaz.business.transactionId")
 	assert.NotContains(t, attrs, "midaz.business.batch.index")
 }
 
+// batchEventAttributes flattens an OTel span event's attributes into a
+// type-aware map for assertions. Only INT64 is unwrapped explicitly — every
+// other attribute type (STRING, BOOL, FLOAT64, slices, ...) is stringified
+// via attr.Value.AsString(). Tests that need to compare a non-int, non-
+// string value should reach into the raw event.Attributes slice rather
+// than relying on the stringified shape.
 func batchEventAttributes(event sdktrace.Event) map[string]any {
 	attrs := map[string]any{}
 

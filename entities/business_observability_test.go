@@ -59,7 +59,13 @@ func TestBusinessObservability_AccountAndTransactionLifecycle(t *testing.T) {
 		case "/v1/organizations/org-1/ledgers/ledger-1/transactions/tx-1/cancel":
 			writeBusinessJSON(t, w, map[string]any{"id": "tx-1", "status": map[string]any{"code": "CANCELED"}})
 		default:
-			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.String())
+			// t.Fatalf from a non-test goroutine is undefined behavior per
+			// the testing package docs. Surface the unexpected request via
+			// t.Errorf (which is goroutine-safe) and respond with a 404 so
+			// the SDK side sees the failure as a real error from the
+			// transport rather than as an indefinite hang.
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.String())
+			http.Error(w, "unexpected request", http.StatusNotFound)
 		}
 	}))
 	defer server.Close()

@@ -115,7 +115,7 @@ func NewAssetRatesEntity(client *http.Client, authToken string, baseURLs map[str
 	httpClient := NewHTTPClient(client, authToken, nil)
 
 	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
-		httpClient.debug = true
+		httpClient.setDebugLocked(true)
 	}
 
 	return &assetRatesEntity{

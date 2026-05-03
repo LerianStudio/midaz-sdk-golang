@@ -151,7 +151,7 @@ func NewPortfoliosEntity(client *http.Client, authToken string, baseURLs map[str
 
 	// Check if we're using the debug flag from the environment
 	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
-		httpClient.debug = true
+		httpClient.setDebugLocked(true)
 	}
 
 	return &portfoliosEntity{

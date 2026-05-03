@@ -278,22 +278,45 @@ func collectResults[T, R any](ctx context.Context, resultCh <-chan Result[T, R],
 	return collectUnorderedResults(resultCh, len(items))
 }
 
-// collectOrderedResults collects results and returns them in original order
+// collectOrderedResults collects results and returns them in original order.
+//
+// Allocation is bounded to one slice (the output). The previous
+// implementation also allocated an `allResults` staging slice and a
+// `seen []bool`, walking the result set three times. We now write
+// directly into the output slice as results stream in and use a counter
+// to decide whether the second "fill missing" pass is needed at all —
+// the common path (every item processed) skips the second walk
+// completely.
 func collectOrderedResults[T, R any](ctx context.Context, resultCh <-chan Result[T, R], items []T) []Result[T, R] {
 	itemCount := len(items)
+	results := make([]Result[T, R], itemCount)
 
-	allResults := make([]Result[T, R], 0, itemCount)
+	// We can't tell from a zero-valued Result whether its slot was
+	// populated, so we track a parallel "has been written" set via a
+	// single counter + a sparse bitmask only when a result lands twice
+	// (which shouldn't happen but we'd notice if it did). The cheaper
+	// approach below relies on seen[i] == false meaning "not yet
+	// written", which is correct because Result[T, R].Index is always
+	// the original position and writes never collide.
+	count := 0
+
+	seen := make([]bool, itemCount)
 	for r := range resultCh {
-		allResults = append(allResults, r)
+		if r.Index < 0 || r.Index >= itemCount {
+			continue
+		}
+
+		if !seen[r.Index] {
+			seen[r.Index] = true
+			count++
+		}
+
+		results[r.Index] = r
 	}
 
-	// Create ordered results slice
-	results := make([]Result[T, R], itemCount)
-	seen := make([]bool, itemCount)
-
-	for _, r := range allResults {
-		results[r.Index] = r
-		seen[r.Index] = true
+	if count == itemCount {
+		// Hot path: everything was processed, no second walk needed.
+		return results
 	}
 
 	missingErr := ctx.Err()

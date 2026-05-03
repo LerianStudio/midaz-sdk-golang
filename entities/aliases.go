@@ -39,7 +39,7 @@ func (e *aliasesEntity) setDefaultTenantID(tenantID string) {
 func NewAliasesEntity(client *http.Client, authToken string, baseURLs map[string]string) AliasesService {
 	httpClient := NewHTTPClient(client, authToken, nil)
 	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
-		httpClient.debug = true
+		httpClient.setDebugLocked(true)
 	}
 
 	return &aliasesEntity{httpClient: httpClient, baseURLs: prepareServiceBaseURLs(baseURLs)}

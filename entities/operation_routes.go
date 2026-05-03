@@ -118,7 +118,7 @@ func NewOperationRoutesEntity(client *http.Client, authToken string, baseURLs ma
 	httpClient := NewHTTPClient(client, authToken, nil)
 
 	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
-		httpClient.debug = true
+		httpClient.setDebugLocked(true)
 	}
 
 	return &operationRoutesEntity{

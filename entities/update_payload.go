@@ -21,6 +21,13 @@ func validateUpdatePayload(operation string, input any, typedName string) error 
 		return nil
 	}
 
+	// The Validate() methods on UpdateOperationInput / UpdateTransactionInput
+	// are pointer-receivers, so a value passed in via interface{} doesn't
+	// satisfy the interface{ Validate() error } type assertion above. Match
+	// the value types here and address them locally to call Validate.
+	// Callers that already own a pointer should hit the typed-interface
+	// branch above (preferred), but we accept both shapes so existing
+	// "pass UpdateOperationInput{...}" call sites keep working.
 	switch typed := input.(type) {
 	case models.UpdateOperationInput:
 		if err := (&typed).Validate(); err != nil {

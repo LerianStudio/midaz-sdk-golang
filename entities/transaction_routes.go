@@ -119,7 +119,7 @@ func NewTransactionRoutesEntity(client *http.Client, authToken string, baseURLs 
 	httpClient := NewHTTPClient(client, authToken, nil)
 
 	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
-		httpClient.debug = true
+		httpClient.setDebugLocked(true)
 	}
 
 	return &transactionRoutesEntity{

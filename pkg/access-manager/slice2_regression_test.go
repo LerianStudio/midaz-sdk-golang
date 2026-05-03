@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -89,7 +90,11 @@ func TestGetTokenFromAccessManager_CachesTokenUntilRefreshWindow(t *testing.T) {
 
 		w.Header().Set("Content-Type", "application/json")
 
-		if err := json.NewEncoder(w).Encode(TokenResponse{AccessToken: "token-" + string('0'+call), ExpiresAt: time.Now().Add(time.Hour).Format(time.RFC3339)}); err != nil {
+		// Use fmt.Sprintf so call counts above 9 still produce a sensible
+		// token string. The previous expression — "token-" + string('0'+call)
+		// — relied on rune arithmetic and only worked for single-digit
+		// values, which silently corrupted assertions on higher counts.
+		if err := json.NewEncoder(w).Encode(TokenResponse{AccessToken: fmt.Sprintf("token-%d", call), ExpiresAt: time.Now().Add(time.Hour).Format(time.RFC3339)}); err != nil {
 			t.Errorf("encode token response: %v", err)
 		}
 	}))

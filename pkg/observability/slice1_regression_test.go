@@ -17,6 +17,8 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	metricnoop "go.opentelemetry.io/otel/metric/noop"
 	"go.opentelemetry.io/otel/propagation"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
@@ -332,9 +334,28 @@ func TestRecordError_SanitizesSensitiveErrorValues(t *testing.T) {
 	assert.NotContains(t, joined, "idem-secret")
 }
 
+// TestRecordSpanMetric_DoesNotEmitTraceOrSpanIDMetricAttributes is the
+// regression guard for the metric-cardinality leak: trace.id and span.id
+// must NEVER appear as attribute keys on emitted metric data points.
+// Metrics are pre-aggregated; treating high-cardinality identifiers as
+// metric attributes blows up the storage backend.
+//
+// NOTE: this test mutates the package-level defaultProvider and is NOT
+// safe to run under t.Parallel(). It guards against a behaviour that
+// affects every consumer of this package, so we leave it as a
+// process-wide test by design.
 func TestRecordSpanMetric_DoesNotEmitTraceOrSpanIDMetricAttributes(t *testing.T) {
+	reader := sdkmetric.NewManualReader()
+	meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+
+	t.Cleanup(func() {
+		_ = meterProvider.Shutdown(context.Background())
+	})
+
 	recorder := tracetest.NewSpanRecorder()
 	provider := newRegressionProvider(recorder)
+	provider.meter = meterProvider.Meter("slice1-regression-metrics")
+
 	previousDefault := defaultProvider
 	defaultProvider = provider
 
@@ -343,6 +364,55 @@ func TestRecordSpanMetric_DoesNotEmitTraceOrSpanIDMetricAttributes(t *testing.T)
 	ctx, span := provider.Tracer().Start(context.Background(), "metric-cardinality")
 	RecordSpanMetric(ctx, "metric.cardinality", 1)
 	span.End()
+
+	var collected metricdata.ResourceMetrics
+	require.NoError(t, reader.Collect(context.Background(), &collected))
+
+	// Walk every emitted metric stream and assert that neither trace.id nor
+	// span.id (in any spelling — dot, underscore, hyphen) appears as an
+	// attribute key. The implementation strips them via filterMetricAttributes;
+	// the test ensures that filter remains in place.
+	forbidden := []string{"trace.id", "trace_id", "traceid", "span.id", "span_id", "spanid"}
+
+	for _, scope := range collected.ScopeMetrics {
+		for _, metricStream := range scope.Metrics {
+			switch data := metricStream.Data.(type) {
+			case metricdata.Sum[float64]:
+				for _, dp := range data.DataPoints {
+					assertNoForbiddenAttributes(t, metricStream.Name, dp.Attributes, forbidden)
+				}
+			case metricdata.Sum[int64]:
+				for _, dp := range data.DataPoints {
+					assertNoForbiddenAttributes(t, metricStream.Name, dp.Attributes, forbidden)
+				}
+			case metricdata.Gauge[float64]:
+				for _, dp := range data.DataPoints {
+					assertNoForbiddenAttributes(t, metricStream.Name, dp.Attributes, forbidden)
+				}
+			case metricdata.Gauge[int64]:
+				for _, dp := range data.DataPoints {
+					assertNoForbiddenAttributes(t, metricStream.Name, dp.Attributes, forbidden)
+				}
+			case metricdata.Histogram[float64]:
+				for _, dp := range data.DataPoints {
+					assertNoForbiddenAttributes(t, metricStream.Name, dp.Attributes, forbidden)
+				}
+			}
+		}
+	}
+}
+
+func assertNoForbiddenAttributes(t *testing.T, metricName string, attrs attribute.Set, forbidden []string) {
+	t.Helper()
+
+	iter := attrs.Iter()
+	for iter.Next() {
+		key := strings.ToLower(string(iter.Attribute().Key))
+		for _, banned := range forbidden {
+			require.NotEqualf(t, banned, key,
+				"metric %q must not carry attribute %q (high-cardinality)", metricName, key)
+		}
+	}
 }
 
 func mustRequest(t *testing.T, rawURL string) *http.Request {

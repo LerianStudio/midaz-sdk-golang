@@ -80,10 +80,12 @@ const (
 	OpTypeCredit = "CREDIT"
 )
 
-// externalAccountPattern is the regex pattern for external account references
-var externalAccountPattern = regexp.MustCompile(`^@external/([A-Z]{1,100})$`)
+// externalAccountPattern mirrors core.ExternalAccountPattern. Both bind the
+// captured asset code to 3-4 uppercase letters; we re-declare here to keep
+// the call sites in this file self-contained.
+var externalAccountPattern = core.ExternalAccountPattern
 
-// assetCodePattern is the regex pattern for asset codes
+// assetCodePattern mirrors core.AssetCodePattern (3-4 uppercase letters).
 var assetCodePattern = core.AssetCodePattern
 
 // chartOfAccountsGroupNamePattern is the regex pattern for chart of accounts group names.
@@ -118,7 +120,7 @@ func ValidateTransactionDSL(input TransactionDSLValidator) error {
 	}
 
 	if !assetCodePattern.MatchString(asset) {
-		return fmt.Errorf("invalid asset code format: %s (must be 1-100 uppercase letters)", asset)
+		return fmt.Errorf("invalid asset code format: %s (must be 3-4 uppercase letters)", asset)
 	}
 
 	// Validate amount
@@ -230,7 +232,7 @@ func validateAccountReference(account string, transactionAsset string) error {
 		externalAsset := matches[1]
 		// Validate the external asset code format
 		if !assetCodePattern.MatchString(externalAsset) {
-			return fmt.Errorf("invalid asset code in external account: %s (must be 1-100 uppercase letters)", externalAsset)
+			return fmt.Errorf("invalid asset code in external account: %s (must be 3-4 uppercase letters)", externalAsset)
 		}
 
 		// Validate that the external asset matches the transaction asset
@@ -254,7 +256,7 @@ func GetExternalAccountReference(assetCode string) string {
 }
 
 // ValidateAssetCode checks if an asset code is valid.
-// Asset codes should be 1-100 uppercase letters (e.g., USD, EUR, BTC).
+// Asset codes should be 3-4 uppercase letters (e.g., USD, EUR, BTC).
 //
 // Example:
 //
@@ -332,7 +334,15 @@ func (v *Validator) ValidateMetadata(metadata map[string]any) error {
 	return v.validateMetadataSize(metadata)
 }
 
-// validateMetadataKey validates a single metadata key
+// validateMetadataKey validates a single metadata key.
+//
+// In addition to the empty-string and length checks, this rejects keys that
+// MongoDB treats specially:
+//   - keys containing '.' would be interpreted as dotted-path lookups, and
+//   - keys with a leading '$' are reserved for operators ($set, $inc, ...).
+//
+// Catching these at the SDK boundary surfaces the failure where the user
+// can fix it instead of after the backend persists a corrupt document.
 func (*Validator) validateMetadataKey(key string) error {
 	if key == "" {
 		return errors.New("metadata key cannot be empty")
@@ -340,6 +350,10 @@ func (*Validator) validateMetadataKey(key string) error {
 
 	if len(key) > 100 {
 		return fmt.Errorf("metadata key '%s' exceeds maximum length of 100 characters", key)
+	}
+
+	if strings.Contains(key, ".") || strings.HasPrefix(key, "$") {
+		return fmt.Errorf("metadata key '%s' must not contain '.' or start with '$' (reserved by storage layer)", key)
 	}
 
 	return nil
@@ -916,29 +930,42 @@ func extractOperationAmount(op map[string]any) (float64, bool) {
 	return 0, false
 }
 
-// accumulateOperationTotals accumulates debit and credit totals from an operation.
-func accumulateOperationTotals(op map[string]any, totalDebits, totalCredits *int64) {
+// errNonIntegerOperationAmount is a sentinel returned by
+// accumulateOperationTotals when an operation amount cannot be coerced to a
+// whole int64. Without this sentinel, a non-integer amount silently dropped
+// out of the totals accumulator, which then surfaced downstream as a
+// misleading "operations total (0) != transaction amount (X.00)" error —
+// hiding the real problem (the non-integer amount itself).
+var errNonIntegerOperationAmount = errors.New("operation amount must be an integer (got a non-integer value)")
+
+// accumulateOperationTotals accumulates debit and credit totals from an
+// operation. Returns errNonIntegerOperationAmount when the amount has a
+// non-zero fractional part so the caller can emit a focused error instead
+// of a generic totals-mismatch.
+func accumulateOperationTotals(op map[string]any, totalDebits, totalCredits *int64) error {
 	if op["type"] == nil {
-		return
+		return nil
 	}
 
 	opType, typeOk := op["type"].(string)
 	amount, amountOk := extractOperationAmount(op)
 
 	if !typeOk || !amountOk {
-		return
+		return nil
+	}
+
+	if math.Trunc(amount) != amount {
+		return errNonIntegerOperationAmount
 	}
 
 	switch opType {
 	case OpTypeDebit:
-		if math.Trunc(amount) == amount {
-			*totalDebits += int64(amount)
-		}
+		*totalDebits += int64(amount)
 	case OpTypeCredit:
-		if math.Trunc(amount) == amount {
-			*totalCredits += int64(amount)
-		}
+		*totalCredits += int64(amount)
 	}
+
+	return nil
 }
 
 // validateTransactionOperations validates the operations in a transaction
@@ -959,7 +986,10 @@ func validateTransactionOperations(summary *Summary, input map[string]any) {
 		assetCode = ac
 	}
 
-	var totalDebits, totalCredits int64
+	var (
+		totalDebits, totalCredits int64
+		sawNonIntegerAmount       bool
+	)
 
 	for i, op := range operations {
 		validationErrs, valid := validateOperation(op, i, assetCode)
@@ -969,10 +999,24 @@ func validateTransactionOperations(summary *Summary, input map[string]any) {
 			}
 		}
 
-		accumulateOperationTotals(op, &totalDebits, &totalCredits)
+		if err := accumulateOperationTotals(op, &totalDebits, &totalCredits); err != nil {
+			// Surface the precise reason for the running totals being off
+			// instead of letting it bubble up as a "totals mismatch" later.
+			if errors.Is(err, errNonIntegerOperationAmount) {
+				sawNonIntegerAmount = true
+				summary.AddError(fmt.Errorf("operation %d: %w", i, err))
+			}
+		}
 	}
 
-	validateTransactionBalance(summary, input, totalDebits, totalCredits)
+	// If any operation amount wasn't an integer, the totals are not
+	// authoritative and the downstream "operations total != transaction
+	// amount" message is more confusing than helpful. Skip the totals
+	// reconciliation in that case — the per-operation error already
+	// pinpoints the problem.
+	if !sawNonIntegerAmount {
+		validateTransactionBalance(summary, input, totalDebits, totalCredits)
+	}
 }
 
 // validateTransactionBalance validates that the transaction is balanced

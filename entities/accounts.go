@@ -214,7 +214,7 @@ func NewAccountsEntity(client *http.Client, authToken string, baseURLs map[strin
 
 	// Check if we're using the debug flag from the environment
 	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
-		httpClient.debug = true
+		httpClient.setDebugLocked(true)
 	}
 
 	return &accountsEntity{
@@ -587,15 +587,23 @@ func (e *accountsEntity) buildExternalAccountURL(organizationID, ledgerID, asset
 	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/external/%s", baseURL, pathSegment(organizationID), pathSegment(ledgerID), pathSegment(assetCode))
 }
 
+// balanceQueryLimit is the page size used for "fetch the balance for this
+// single (account, asset)" lookups. Setting limit=2 (NOT 1) is intentional:
+// the upstream balances endpoint can return more than one record when an
+// account has been split across balance scopes, and we need to detect that
+// multi-balance shape so we can surface a clear error instead of silently
+// returning the first one. Reducing to 1 would mask the multi-balance case.
+const balanceQueryLimit = 2
+
 // buildExternalAccountBalanceURL builds the URL for external account balance API calls.
 func (e *accountsEntity) buildExternalAccountBalanceURL(organizationID, ledgerID, assetCode string) string {
 	baseURL := e.baseURLs["transaction"]
-	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/external/%s/balances?limit=2", baseURL, pathSegment(organizationID), pathSegment(ledgerID), pathSegment(assetCode))
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/external/%s/balances?limit=%d", baseURL, pathSegment(organizationID), pathSegment(ledgerID), pathSegment(assetCode), balanceQueryLimit)
 }
 
 func (e *accountsEntity) buildAccountBalanceURL(organizationID, ledgerID, accountID string) string {
 	baseURL := e.baseURLs["transaction"]
-	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/%s/balances?limit=2", baseURL, pathSegment(organizationID), pathSegment(ledgerID), pathSegment(accountID))
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/%s/balances?limit=%d", baseURL, pathSegment(organizationID), pathSegment(ledgerID), pathSegment(accountID), balanceQueryLimit)
 }
 
 // GetAccountByAliasPath retrieves a specific account by its alias using the dedicated path endpoint.

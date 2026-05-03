@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -125,6 +124,11 @@ func TestEntitySetHTTPClient_PreservesProtocolConfiguration(t *testing.T) {
 	require.Equal(t, 7, hc.retryOptions.MaxRetries)
 }
 
+// TestHTTPClient_DebugErrorPathRedactsURL captures debug output via the
+// public WithDebugWriter option instead of swapping os.Stderr globally.
+// Mutating os.Stderr races against any parallel test that also touches
+// it, so the bytes.Buffer + WithDebugWriter pattern is the correct
+// goroutine-safe shape.
 func TestHTTPClient_DebugErrorPathRedactsURL(t *testing.T) {
 	writeErrs := make(chan error, 1)
 
@@ -136,29 +140,20 @@ func TestHTTPClient_DebugErrorPathRedactsURL(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	oldStderr := os.Stderr
-	r, w, err := os.Pipe()
-	require.NoError(t, err)
+	var debugBuf bytes.Buffer
 
-	os.Stderr = w
-
-	defer func() { os.Stderr = oldStderr }()
-
-	c := NewHTTPClient(srv.Client(), "", nil).WithDebug(true)
+	c := NewHTTPClient(srv.Client(), "", nil).
+		WithDebug(true).
+		WithDebugWriter(&debugBuf)
 
 	var out map[string]any
 
-	err = c.doRequest(context.Background(), http.MethodGet, srv.URL+"?document=12345678900&limit=10", nil, nil, &out)
+	err := c.doRequest(context.Background(), http.MethodGet, srv.URL+"?document=12345678900&limit=10", nil, nil, &out)
 	require.Error(t, err)
 	requireHandlerNoError(t, writeErrs)
-	require.NoError(t, w.Close())
 
-	var buf bytes.Buffer
-
-	_, err = buf.ReadFrom(r)
-	require.NoError(t, err)
-	require.NotContains(t, buf.String(), "12345678900")
-	require.Contains(t, buf.String(), "%5BREDACTED%5D")
+	require.NotContains(t, debugBuf.String(), "12345678900")
+	require.Contains(t, debugBuf.String(), "%5BREDACTED%5D")
 }
 
 func TestHTTPClient_ResponseBodyLimit(t *testing.T) {

@@ -1,8 +1,10 @@
 package performance
 
 import (
+	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"time"
 )
 
@@ -57,14 +59,22 @@ func OptimizeClient(client *http.Client, options *HTTPClientOptions) *http.Clien
 		WithDisableKeepAlives(opts.DisableKeepAlives),
 	)
 	if err != nil {
+		// OptimizeHTTPClient previously failed silently here, which made
+		// "I configured pooling but my requests still feel slow" reports
+		// impossible to debug. Surface the error to stderr so it shows up
+		// in the consumer's logs while preserving the no-fail return
+		// contract (we still hand back the original client).
+		fmt.Fprintf(os.Stderr, "[Midaz SDK Performance] OptimizeHTTPClient failed: %v\n", err)
+
 		return client
 	}
 
 	if transport, ok := optimized.Transport.(*http.Transport); ok {
-		transport.MaxIdleConnsPerHost = opts.MaxIdleConnsPerHost
-		transport.DisableCompression = opts.DisableCompression
-		transport.DisableKeepAlives = opts.DisableKeepAlives
-
+		// MaxIdleConnsPerHost / DisableCompression / DisableKeepAlives are
+		// already applied by OptimizeHTTPClient via the With* options
+		// above. We used to write them again here, which was redundant
+		// and made it look like the function was the source of truth for
+		// those fields.
 		if transport.DialContext == nil {
 			dialer := &net.Dialer{
 				Timeout:   30 * time.Second,

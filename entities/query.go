@@ -2,14 +2,31 @@ package entities
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 )
 
+// cursorListQueryParams renders pagination/filtering options for endpoints
+// that ONLY accept cursor-based pagination (currently: operations,
+// transactions, operation_routes, transaction_routes). Page-based
+// pagination fields (Page, Offset) on the input are ignored — they make
+// no semantic sense on these endpoints. We emit a stderr warning when
+// either is non-zero so consumers don't silently lose pagination state.
+//
+// Intentionally separate from ListOptions.ToQueryParams (which is for
+// page-based endpoints): the two contracts are incompatible and merging
+// them caused exactly this kind of "Page silently dropped" surprise.
 func cursorListQueryParams(opts *models.ListOptions) map[string]string {
 	params := map[string]string{}
 	if opts == nil {
 		return params
+	}
+
+	if opts.Page > 0 || opts.Offset > 0 {
+		fmt.Fprintf(os.Stderr,
+			"[Midaz SDK] WARN: cursor-only endpoint received Page=%d / Offset=%d; both fields are ignored. Use ListOptions.Cursor for pagination on these endpoints.\n",
+			opts.Page, opts.Offset)
 	}
 
 	limit := opts.Limit
@@ -26,11 +43,11 @@ func cursorListQueryParams(opts *models.ListOptions) map[string]string {
 	}
 
 	if opts.StartDate != "" {
-		params["start_date"] = opts.StartDate
+		params[models.QueryParamStartDate] = opts.StartDate
 	}
 
 	if opts.EndDate != "" {
-		params["end_date"] = opts.EndDate
+		params[models.QueryParamEndDate] = opts.EndDate
 	}
 
 	if opts.OrderDirection != "" {

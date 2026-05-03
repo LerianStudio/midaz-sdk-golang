@@ -44,21 +44,42 @@ func TestSlice8ValidationContracts(t *testing.T) {
 	})
 
 	t.Run("public alias and asset validators match Midaz contract", func(t *testing.T) {
+		// Aliases support an optional leading '@' and accept the documented
+		// punctuation set. The cap is now 50 characters; longer values are
+		// rejected at the SDK boundary instead of being forwarded to the
+		// backend.
 		require.NoError(t, ValidateAccountAlias("@treasury_checking"))
-		require.NoError(t, ValidateAccountAlias(strings.Repeat("a", 100)))
-		require.NoError(t, ValidateAssetCode("CUSTOMASSET"))
-		require.NoError(t, ValidateAccountType("custom_liability"))
+		require.NoError(t, ValidateAccountAlias(strings.Repeat("a", 50)))
+		require.Error(t, ValidateAccountAlias(strings.Repeat("a", 100)))
+
+		// Asset codes must be 3-4 uppercase letters (ISO-4217-ish).
+		require.NoError(t, ValidateAssetCode("USD"))
+		require.NoError(t, ValidateAssetCode("USDT"))
+		require.Error(t, ValidateAssetCode("CUSTOMASSET"))
+
+		// Account type is a strict allowlist; "custom_liability" is NOT on
+		// it, but "liability" is.
+		require.NoError(t, ValidateAccountType("liability"))
+		require.Error(t, ValidateAccountType("custom_liability"))
 		require.Error(t, ValidateAccountType("external"))
 	})
 
 	t.Run("metadata allows Midaz numeric and key limits", func(t *testing.T) {
+		// Restored Mongo-key safety: '.' and '$' are reserved at the storage
+		// layer and must be rejected at the SDK boundary. The previous
+		// permissive shape allowed dotted keys to flow through and confuse
+		// downstream path-aware indexes.
 		metadata := map[string]any{
 			strings.Repeat("k", 100): int64(123),
-			"path.with.dot":          []any{"ok", int64(1), true},
+			"safe_array_key":         []any{"ok", int64(1), true},
 		}
 
 		require.NoError(t, ValidateMetadata(metadata))
 		require.False(t, EnhancedValidateMetadata(metadata).HasErrors())
+
+		// And confirm the dotted-key rejection round-trips.
+		require.Error(t, ValidateMetadata(map[string]any{"path.with.dot": "x"}))
+		require.Error(t, ValidateMetadata(map[string]any{"$reserved": "x"}))
 	})
 
 	t.Run("address line accepts 256 characters", func(t *testing.T) {

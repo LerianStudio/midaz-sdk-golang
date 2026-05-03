@@ -2,6 +2,7 @@ package performance
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"sync"
 
@@ -159,14 +160,18 @@ func ExecuteBatchWithAdapter(ctx context.Context, processor *BatchProcessor, req
 	return ConvertResult(httpResult), nil
 }
 
-// ParseResponseWithAdapter parses a batch response using the HTTPBatchProcessor
+// ParseResponseWithAdapter parses a batch response using the HTTPBatchProcessor.
+//
+// A nil result is rejected at the entry point so callers get an immediate,
+// actionable error instead of a downstream nil pointer dereference deep
+// inside ParseBatchResponse. Both processor and result are required.
 func ParseResponseWithAdapter(processor *BatchProcessor, result *BatchResult, requestID string, target any) error {
 	if processor == nil {
 		return processorNilError("ParseResponseWithAdapter")
 	}
 
 	if result == nil {
-		return processor.ParseBatchResponse(result, requestID, target)
+		return fmt.Errorf("ParseResponseWithAdapter: result cannot be nil")
 	}
 
 	// Get the HTTP batch processor

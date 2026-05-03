@@ -134,7 +134,7 @@ func NewTransactionsEntity(client *http.Client, authToken string, baseURLs map[s
 
 	// Check if we're using the debug flag from the environment
 	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
-		httpClient.debug = true
+		httpClient.setDebugLocked(true)
 	}
 
 	return &transactionsEntity{
@@ -986,10 +986,23 @@ func (e *transactionsEntity) CancelTransactionWithResponse(ctx context.Context, 
 	var transaction models.Transaction
 	if err := e.httpClient.sendRequest(req, &transaction); err != nil {
 		if errors.Is(err, errEmptyResponseBody) || errors.Is(err, errNullResponseBody) {
-			transaction := &models.Transaction{ID: transactionID}
-			e.httpClient.emitBusinessEvent(ctx, businessEventTransactionCancelled, map[string]any{"operation": operation, "organizationId": orgID, "ledgerId": ledgerID, "transactionId": transactionID})
+			// The cancel endpoint sometimes returns a 204/empty body. Even
+			// in that case we want callers to receive a normalized
+			// Transaction value (with Status populated) and the business
+			// event to carry the same status field as the non-empty path,
+			// so downstream consumers don't see a status-less event for
+			// the empty-body case.
+			tx := &models.Transaction{ID: transactionID}
+			e.normalizeTransaction(tx)
+			e.httpClient.emitBusinessEvent(ctx, businessEventTransactionCancelled, map[string]any{
+				"operation":      operation,
+				"organizationId": orgID,
+				"ledgerId":       ledgerID,
+				"transactionId":  transactionID,
+				"status":         tx.Status.Code,
+			})
 
-			return transaction, nil
+			return tx, nil
 		}
 
 		e.httpClient.emitBusinessError(ctx, businessEventTransactionCancelled, map[string]any{"operation": operation, "organizationId": orgID, "ledgerId": ledgerID, "transactionId": transactionID}, err)

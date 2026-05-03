@@ -90,7 +90,7 @@ func buildFormatSuggestionMatchers(_ string, _ any) []formatSuggestionMatcher {
 
 func getAssetCodeSuggestions(_ any) []string {
 	return []string{
-		"Use 1-100 uppercase letters for asset codes (e.g., 'USD', 'EUR', 'BTC')",
+		"Use 3-4 uppercase letters for asset codes (e.g., 'USD', 'EUR', 'BTC')",
 		"Check for incorrect letter case, asset codes must be all uppercase",
 	}
 }
@@ -155,7 +155,7 @@ func getExternalAccountSuggestions(_ any) []string {
 	return []string{
 		"Use format '@external/XXX' where XXX is the asset code",
 		"Example: '@external/USD'",
-		"Asset code must be 1-100 uppercase letters",
+		"Asset code must be 3-4 uppercase letters",
 	}
 }
 

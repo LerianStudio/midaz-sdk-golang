@@ -246,14 +246,18 @@ func TestValidateAssetCode(t *testing.T) {
 			errorContains: "asset code is required",
 		},
 		{
-			name:          "Valid short custom asset code",
+			// Asset codes shorter than 3 characters are now rejected.
+			name:          "Two-letter code is rejected",
 			assetCode:     "US",
-			expectedError: false,
+			expectedError: true,
+			errorContains: "invalid asset code format",
 		},
 		{
-			name:          "Valid long custom asset code",
+			// Asset codes longer than 4 characters are now rejected.
+			name:          "Five-letter code is rejected",
 			assetCode:     "USDOL",
-			expectedError: false,
+			expectedError: true,
+			errorContains: "invalid asset code format",
 		},
 		{
 			name:          "Lowercase asset code",
@@ -1329,15 +1333,18 @@ func TestValidateAccountType(t *testing.T) {
 			errContains: "account type is required",
 		},
 		{
-			name:        "Valid custom account type",
+			// Restored strict allowlist: arbitrary custom account types are
+			// rejected at the SDK boundary.
+			name:        "Unknown account type is rejected",
 			accountType: "invalid",
-			wantErr:     false,
+			wantErr:     true,
+			errContains: "must be one of",
 		},
 		{
 			name:        "Reserved external account type",
 			accountType: "external",
 			wantErr:     true,
-			errContains: "external",
+			errContains: "must be one of",
 		},
 	}
 

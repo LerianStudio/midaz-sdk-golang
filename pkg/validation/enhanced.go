@@ -185,6 +185,19 @@ func validateMetadataKey(errors *FieldErrors, key string) bool {
 			fmt.Sprintf("Metadata key exceeds maximum length of 100 characters (length: %d)", len(key))).
 			WithConstraint("maxLength").
 			WithSuggestions(GetCommonSuggestions("metadata.key", key, Range)...)
+
+		return false
+	}
+
+	// Reject keys reserved by Mongo: '.' is a path separator and a leading
+	// '$' marks an operator. Either pattern would be silently mishandled by
+	// the storage layer.
+	if strings.Contains(key, ".") || strings.HasPrefix(key, "$") {
+		errors.Add(fmt.Sprintf("metadata.%s", key), key,
+			"Metadata key must not contain '.' or start with '$' (reserved by storage layer)").
+			WithConstraint("format")
+
+		return false
 	}
 
 	return true
@@ -322,7 +335,7 @@ func EnhancedValidateExternalAccount(account string) *FieldError {
 			WithConstraint("format").
 			WithSuggestions(
 				"Use format '@external/XXX' where XXX is a valid asset code",
-				"Asset code must be 1-100 uppercase letters",
+				"Asset code must be 3-4 uppercase letters",
 				"Example: '@external/USD'",
 			)
 	}
@@ -333,7 +346,7 @@ func EnhancedValidateExternalAccount(account string) *FieldError {
 			WithConstraint("format").
 			WithSuggestions(
 				"Use format '@external/XXX' where XXX is a valid asset code",
-				"Asset code must be 1-100 uppercase letters",
+				"Asset code must be 3-4 uppercase letters",
 				"Example: '@external/USD'",
 			)
 	}

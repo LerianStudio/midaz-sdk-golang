@@ -103,7 +103,12 @@ func TestSlice7LegacyListWrappersMarshalEmptyItems(t *testing.T) {
 	assert.Contains(t, string(operations), `"items":[]`)
 }
 
-func TestSlice7UpdateAliasRelatedPartiesAppendOnRepeatedBuilderCalls(t *testing.T) {
+// TestSlice7UpdateAliasRelatedPartiesReplaceOnRepeatedBuilderCalls pins
+// down the documented contract: repeated WithRelatedParties calls REPLACE
+// rather than append. Builders with replace semantics are idempotent;
+// "I called this twice with two values, why are there four?" was a
+// recurring bug report under the previous append behavior.
+func TestSlice7UpdateAliasRelatedPartiesReplaceOnRepeatedBuilderCalls(t *testing.T) {
 	first := &RelatedParty{Document: "DOC-1", Name: "A", Role: RelatedPartyRolePrimaryHolder, StartDate: "2026-01-01"}
 	second := &RelatedParty{Document: "DOC-2", Name: "B", Role: RelatedPartyRoleResponsibleParty, StartDate: "2026-01-01"}
 
@@ -111,9 +116,8 @@ func TestSlice7UpdateAliasRelatedPartiesAppendOnRepeatedBuilderCalls(t *testing.
 		WithRelatedParties([]*RelatedParty{first}).
 		WithRelatedParties([]*RelatedParty{second})
 
-	require.Len(t, input.RelatedParties, 2)
-	assert.Equal(t, "DOC-1", input.RelatedParties[0].Document)
-	assert.Equal(t, "DOC-2", input.RelatedParties[1].Document)
+	require.Len(t, input.RelatedParties, 1, "second WithRelatedParties call must replace, not append")
+	assert.Equal(t, "DOC-2", input.RelatedParties[0].Document)
 }
 
 func TestSlice7UUIDValidatedBodyFields(t *testing.T) {

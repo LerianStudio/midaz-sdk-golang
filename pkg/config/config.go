@@ -15,11 +15,11 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"reflect"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/LerianStudio/midaz-sdk-golang/v2/internal/reflectutil"
 	auth "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/access-manager"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/security"
@@ -472,7 +472,7 @@ func WithObservabilityProvider(provider observability.Provider) Option {
 			return errors.New("config cannot be nil")
 		}
 
-		if isTypedNil(provider) {
+		if reflectutil.IsTypedNil(provider) {
 			return errors.New("observability provider cannot be nil")
 		}
 
@@ -903,6 +903,18 @@ func (c *Config) GetObservabilityProvider() observability.Provider {
 }
 
 // Clone returns an independent copy of the configuration.
+//
+// The clone is safe to mutate without affecting the receiver. In particular,
+// when c.HTTPClient is non-nil and the SDK owns it, the clone receives a
+// freshly allocated http.Client value so that scalar mutations via WithTimeout
+// on the clone (which only writes when httpClientOwned == true) do not race
+// with the original config's client. The underlying Transport is intentionally
+// shared because http.Transport is goroutine-safe by design and is expensive
+// to rebuild; consumers needing an isolated transport should rebuild it
+// explicitly with WithHTTPClient.
+//
+// For caller-supplied (non-owned) clients we keep the original pointer so the
+// surrounding "do not mutate caller's client" contract is preserved.
 func (c *Config) Clone() *Config {
 	if c == nil {
 		return nil
@@ -914,6 +926,12 @@ func (c *Config) Clone() *Config {
 		for service, serviceURL := range c.ServiceURLs {
 			cloned.ServiceURLs[service] = serviceURL
 		}
+	}
+
+	if c.HTTPClient != nil && c.httpClientOwned {
+		clientCopy := *c.HTTPClient
+		cloned.HTTPClient = &clientCopy
+		cloned.httpClientOwned = true
 	}
 
 	return &cloned
@@ -962,20 +980,6 @@ func NewDefaultHTTPClient(timeout time.Duration) *http.Client {
 			TLSHandshakeTimeout:   10 * time.Second,
 			ExpectContinueTimeout: time.Second,
 		},
-	}
-}
-
-func isTypedNil(value any) bool {
-	if value == nil {
-		return false
-	}
-
-	rv := reflect.ValueOf(value)
-	switch rv.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return rv.IsNil()
-	default:
-		return false
 	}
 }
 

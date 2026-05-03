@@ -516,6 +516,16 @@ func applyOrganizationLocale(template *data.OrgTemplate, locale string, index in
 	template.Metadata["locale"] = "br"
 }
 
+// demoCNPJ returns a demo-only CNPJ string keyed by seed.
+//
+// IMPORTANT: the check digits are HARDCODED to "95" so the output is NOT a
+// valid CNPJ — strict CNPJ validation (e.g. mod-11 check-digit) will
+// reject it. This is acceptable for the mass-demo generator (the goal is
+// data shape, not realism) but is NOT suitable for any code path that
+// runs CNPJ validation upstream.
+//
+// TODO: implement proper CNPJ check-digit calculation if real-validity is
+// required for downstream consumers of the demo dataset.
 func demoCNPJ(seed int) string {
 	root := seed % 1_000_000
 	return fmt.Sprintf("12.%03d.%03d/0001-95", root/1000, root%1000)

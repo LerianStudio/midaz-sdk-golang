@@ -732,11 +732,21 @@ func TestCreateAssetInput_MetadataEdgeCases(t *testing.T) {
 			},
 		},
 		{
-			name: "metadata with special characters in key",
+			// Dotted keys are reserved by Mongo's path syntax. The SDK now
+			// rejects them at the boundary; "-" and "_" are still safe.
+			name: "metadata with dotted key is rejected",
 			metadata: map[string]any{
 				"key-with-dash":       "value1",
 				"key_with_underscore": "value2",
 				"key.with.dots":       "value3",
+			},
+			wantError: true,
+		},
+		{
+			name: "metadata with safe special characters",
+			metadata: map[string]any{
+				"key-with-dash":       "value1",
+				"key_with_underscore": "value2",
 			},
 			wantError: false,
 		},

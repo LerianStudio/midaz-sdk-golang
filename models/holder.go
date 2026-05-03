@@ -20,6 +20,8 @@ const (
 )
 
 // CreateHolderInput is the payload for creating a CRM holder.
+//
+// Optional fields use json:"...,omitempty"; absent ≡ null per RFC 7396 (compatible with Midaz CRM decoder).
 type CreateHolderInput struct {
 	ExternalID    *string        `json:"externalId,omitempty"`
 	Type          *string        `json:"type"`
@@ -33,6 +35,12 @@ type CreateHolderInput struct {
 }
 
 // UpdateHolderInput is the payload for updating a CRM holder.
+//
+// An empty update payload — no setters AND no NullFields — returns a
+// marshal error from MarshalJSON. Sending an empty PATCH would be a
+// no-op round trip; we surface the mistake at marshal time so callers
+// fix it instead of paying for a useless network request. To explicitly
+// null out a field use WithNullFields.
 type UpdateHolderInput struct {
 	ExternalID    *string        `json:"externalId,omitempty"`
 	Name          *string        `json:"name,omitempty"`

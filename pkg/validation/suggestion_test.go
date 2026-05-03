@@ -22,7 +22,7 @@ func TestGetCommonSuggestions(t *testing.T) {
 			field:        "asset_code",
 			value:        "us",
 			suggType:     Format,
-			wantContains: []string{"1-100 uppercase letters", "USD", "EUR"},
+			wantContains: []string{"3-4 uppercase letters", "USD", "EUR"},
 			wantMinLen:   1,
 		},
 		{
@@ -30,7 +30,7 @@ func TestGetCommonSuggestions(t *testing.T) {
 			field:        "currency",
 			value:        "invalid",
 			suggType:     Format,
-			wantContains: []string{"1-100 uppercase letters"},
+			wantContains: []string{"3-4 uppercase letters"},
 			wantMinLen:   1,
 		},
 		{

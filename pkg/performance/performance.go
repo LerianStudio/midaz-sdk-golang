@@ -48,6 +48,7 @@ package performance
 
 import (
 	"fmt"
+	"sync"
 	"sync/atomic"
 )
 
@@ -138,8 +139,16 @@ var defaultOptions = Options{
 	UseJSONIterator:     true,
 }
 
-// globalOptions holds the global performance options
-var globalOptions atomic.Value
+// globalOptions holds the global performance options. Reads use the
+// atomic.Value's lock-free fast path; writes go through performanceMu so
+// the read-modify-store in ApplyGlobalPerformanceOptions /
+// ApplyBatchingOptions remains a single critical section. Without this
+// mutex, two concurrent callers could each Load(), each modify their own
+// copy, and one's Store() would silently clobber the other's mutation.
+var (
+	globalOptions atomic.Value
+	performanceMu sync.Mutex
+)
 
 func init() {
 	globalOptions.Store(defaultOptions)
@@ -169,9 +178,13 @@ func NewOptions(opts ...Option) (*Options, error) {
 	return &options, nil
 }
 
-// ApplyGlobalPerformanceOptions applies performance options globally
+// ApplyGlobalPerformanceOptions applies performance options globally.
+// The read-modify-store sequence is wrapped by performanceMu so concurrent
+// callers cannot race each other's partial updates.
 func ApplyGlobalPerformanceOptions(options Options) {
-	// Apply non-zero options
+	performanceMu.Lock()
+	defer performanceMu.Unlock()
+
 	current := GetGlobalOptions()
 
 	if options.BatchSize > 0 {
@@ -201,9 +214,13 @@ func ApplyGlobalOptions(opts ...Option) error {
 	return nil
 }
 
-// ApplyBatchingOptions applies options specific to batching operations
+// ApplyBatchingOptions applies options specific to batching operations.
+// Like ApplyGlobalPerformanceOptions, the read-modify-store cycle runs
+// under performanceMu so it cannot race a parallel caller.
 func ApplyBatchingOptions(options Options) {
-	// Only update batch size if provided
+	performanceMu.Lock()
+	defer performanceMu.Unlock()
+
 	current := GetGlobalOptions()
 
 	if options.BatchSize > 0 {
