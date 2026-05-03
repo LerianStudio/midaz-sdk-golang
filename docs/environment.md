@@ -186,14 +186,13 @@ MIDAZ_IDEMPOTENCY=true
 
 Idempotency support is enabled by default. Set it to `false` to disable SDK-generated idempotency behavior.
 
-Automatic key generation is opt-in per request path. The entity HTTP client generates an `X-Idempotency` UUID only when all of these are true:
+Automatic key generation applies to unsafe entity HTTP requests. The entity HTTP client generates an `X-Idempotency` UUID only when all of these are true:
 
 - Idempotency support is enabled.
 - The HTTP method is unsafe: `POST`, `PUT`, `PATCH`, or `DELETE`.
 - The request does not already include `X-Idempotency`.
-- The request includes the internal opt-in header `X-Midaz-Auto-Idempotency: true`.
 
-The SDK removes `X-Midaz-Auto-Idempotency` before sending the request.
+The SDK removes internal idempotency marker headers before sending the request.
 
 Transaction creation opts in automatically. If you set `CreateTransactionInput.IdempotencyKey`, the SDK uses your key. Otherwise, it generates one when idempotency is enabled.
 
@@ -203,7 +202,7 @@ You can also provide an explicit key through context:
 ctx := entities.WithIdempotencyKey(context.Background(), "transaction-2026-04-27-001")
 ```
 
-Unsafe requests without an `X-Idempotency` header do not retry, even when retries are enabled.
+Unsafe requests retry only when the idempotency key was supplied by the caller through `CreateTransactionInput.IdempotencyKey` or `entities.WithIdempotencyKey`. SDK-generated keys provide server-side deduplication, but they do not enable unsafe retries by themselves.
 
 ## Observability
 

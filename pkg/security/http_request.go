@@ -24,6 +24,10 @@ func ValidateOutboundRequest(req *http.Request) error {
 		return errors.New("http request URL must include host")
 	}
 
+	if req.URL.User != nil {
+		return errors.New("URL must not include user information")
+	}
+
 	scheme := strings.ToLower(req.URL.Scheme)
 	if scheme != "http" && scheme != "https" {
 		return fmt.Errorf("unsupported URL scheme: %s", req.URL.Scheme)

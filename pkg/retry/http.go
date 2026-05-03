@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -24,7 +25,8 @@ var (
 
 // HTTPResponse represents the result of an HTTP request.
 type HTTPResponse struct {
-	// Response is the HTTP response.
+	// Response is the HTTP response. Its Body has already been consumed and closed;
+	// use Body for the buffered response payload.
 	Response *http.Response
 
 	// Body is the response body as bytes.
@@ -79,8 +81,8 @@ func DefaultHTTPOptions() *HTTPOptions {
 		InitialDelay:           100 * time.Millisecond,
 		MaxDelay:               10 * time.Second,
 		BackoffFactor:          2.0,
-		RetryableHTTPCodes:     DefaultRetryableHTTPCodes,
-		RetryableNetworkErrors: DefaultRetryableErrors,
+		RetryableHTTPCodes:     cloneInts(DefaultRetryableHTTPCodes),
+		RetryableNetworkErrors: cloneStrings(DefaultRetryableErrors),
 		RetryAllServerErrors:   true,
 		RetryOn4xx:             []int{429}, // Too Many Requests
 		JitterFactor:           0.25,
@@ -152,7 +154,7 @@ func WithHTTPMaxDelay(delay time.Duration) HTTPOption {
 //	resp, err := retry.DoHTTPRequest(ctx, client, req, retry.WithHTTPBackoffFactor(1.5))
 func WithHTTPBackoffFactor(factor float64) HTTPOption {
 	return func(o *HTTPOptions) error {
-		if factor < 1.0 {
+		if math.IsNaN(factor) || math.IsInf(factor, 0) || factor < 1.0 {
 			return fmt.Errorf("backoffFactor must be at least 1.0, got %f", factor)
 		}
 
@@ -173,7 +175,7 @@ func WithHTTPBackoffFactor(factor float64) HTTPOption {
 //	}))
 func WithHTTPRetryableHTTPCodes(codes []int) HTTPOption {
 	return func(o *HTTPOptions) error {
-		o.RetryableHTTPCodes = codes
+		o.RetryableHTTPCodes = cloneInts(codes)
 		return nil
 	}
 }
@@ -189,7 +191,7 @@ func WithHTTPRetryableHTTPCodes(codes []int) HTTPOption {
 //	}))
 func WithHTTPRetryableNetworkErrors(networkErrors []string) HTTPOption {
 	return func(o *HTTPOptions) error {
-		o.RetryableNetworkErrors = networkErrors
+		o.RetryableNetworkErrors = cloneStrings(networkErrors)
 		return nil
 	}
 }
@@ -234,8 +236,11 @@ func WithHTTPRetryOn4xx(codes []int) HTTPOption {
 // Example:
 //
 //	hook := func(ctx context.Context, req *http.Request, resp *retry.HTTPResponse) error {
-//	    log.Printf("Retrying request to %s after attempt %d with status %d",
-//	        req.URL, resp.Attempt, resp.Response.StatusCode)
+//	    if resp != nil && resp.Response != nil {
+//	        recordRetry(req.URL.String(), resp.Attempt, resp.Response.StatusCode, nil)
+//	    } else if resp != nil && resp.Error != nil {
+//	        recordRetry(req.URL.String(), resp.Attempt, 0, resp.Error)
+//	    }
 //	    return nil
 //	}
 //	resp, err := retry.DoHTTPRequest(ctx, client, req, retry.WithHTTPPreRetryHook(hook))
@@ -254,7 +259,7 @@ func WithHTTPPreRetryHook(hook func(ctx context.Context, req *http.Request, resp
 //	resp, err := retry.DoHTTPRequest(ctx, client, req, retry.WithHTTPJitterFactor(0.5))
 func WithHTTPJitterFactor(factor float64) HTTPOption {
 	return func(o *HTTPOptions) error {
-		if factor < 0.0 || factor > 1.0 {
+		if math.IsNaN(factor) || math.IsInf(factor, 0) || factor < 0.0 || factor > 1.0 {
 			return fmt.Errorf("jitterFactor must be between 0.0 and 1.0, got %f", factor)
 		}
 
@@ -373,6 +378,11 @@ func doHTTPRequestWithOptions(ctx context.Context, client *http.Client, req *htt
 
 	if options == nil {
 		options = DefaultHTTPOptions()
+	}
+
+	options = cloneHTTPOptions(options)
+	if err := validateHTTPOptions(options); err != nil {
+		return nil, err
 	}
 
 	retryState := &httpRetryState{
@@ -690,6 +700,9 @@ func (r *httpRetryState) createFinalErrorResponse() *HTTPResponse {
 }
 
 // DoHTTP is a simpler version of DoHTTPRequest that handles creating the request.
+// Requests with non-nil bodies are not replayable through this helper and therefore
+// will not be retried; use DoHTTPRequest with a request GetBody function for
+// retryable body-bearing requests.
 //
 // Example:
 //
@@ -770,7 +783,7 @@ func WithHTTPOptionsContext(ctx context.Context, options *HTTPOptions) context.C
 		ctx = context.Background()
 	}
 
-	return context.WithValue(ctx, contextKey("http-retry-options"), options)
+	return context.WithValue(ctx, contextKey("http-retry-options"), cloneHTTPOptions(options))
 }
 
 // GetHTTPOptionsFromContext gets the HTTP retry options from the context.
@@ -784,10 +797,51 @@ func GetHTTPOptionsFromContext(ctx context.Context) *HTTPOptions {
 			return DefaultHTTPOptions()
 		}
 
-		return options
+		return cloneHTTPOptions(options)
 	}
 
 	return DefaultHTTPOptions()
+}
+
+func validateHTTPOptions(options *HTTPOptions) error {
+	if options.MaxRetries < 0 {
+		return fmt.Errorf("maxRetries must be non-negative, got %d", options.MaxRetries)
+	}
+
+	if options.InitialDelay <= 0 {
+		return fmt.Errorf("initialDelay must be positive, got %v", options.InitialDelay)
+	}
+
+	if options.MaxDelay <= 0 {
+		return fmt.Errorf("maxDelay must be positive, got %v", options.MaxDelay)
+	}
+
+	if options.MaxDelay < options.InitialDelay {
+		return fmt.Errorf("maxDelay must be greater than or equal to initialDelay, got %v < %v", options.MaxDelay, options.InitialDelay)
+	}
+
+	if math.IsNaN(options.BackoffFactor) || math.IsInf(options.BackoffFactor, 0) || options.BackoffFactor < 1.0 {
+		return fmt.Errorf("backoffFactor must be at least 1.0, got %f", options.BackoffFactor)
+	}
+
+	if math.IsNaN(options.JitterFactor) || math.IsInf(options.JitterFactor, 0) || options.JitterFactor < 0.0 || options.JitterFactor > 1.0 {
+		return fmt.Errorf("jitterFactor must be between 0.0 and 1.0, got %f", options.JitterFactor)
+	}
+
+	return nil
+}
+
+func cloneHTTPOptions(options *HTTPOptions) *HTTPOptions {
+	if options == nil {
+		return nil
+	}
+
+	cloned := *options
+	cloned.RetryableHTTPCodes = cloneInts(options.RetryableHTTPCodes)
+	cloned.RetryableNetworkErrors = cloneStrings(options.RetryableNetworkErrors)
+	cloned.RetryOn4xx = cloneInts(options.RetryOn4xx)
+
+	return &cloned
 }
 
 func isRequestMethodRetryable(req *http.Request) bool {

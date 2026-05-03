@@ -147,8 +147,8 @@ func DefaultOptions() *Options {
 		InitialDelay:       100 * time.Millisecond,
 		MaxDelay:           10 * time.Second,
 		BackoffFactor:      2.0,
-		RetryableErrors:    DefaultRetryableErrors,
-		RetryableHTTPCodes: DefaultRetryableHTTPCodes,
+		RetryableErrors:    cloneStrings(DefaultRetryableErrors),
+		RetryableHTTPCodes: cloneInts(DefaultRetryableHTTPCodes),
 		JitterFactor:       0.25,
 	}
 }
@@ -229,7 +229,7 @@ func WithMaxDelay(delay time.Duration) Option {
 //	err := retry.Do(ctx, myFunction, retry.WithBackoffFactor(1.5))
 func WithBackoffFactor(factor float64) Option {
 	return func(o *Options) error {
-		if factor < 1.0 {
+		if math.IsNaN(factor) || math.IsInf(factor, 0) || factor < 1.0 {
 			return fmt.Errorf("backoffFactor must be at least 1.0, got %f", factor)
 		}
 
@@ -250,7 +250,7 @@ func WithBackoffFactor(factor float64) Option {
 //	}))
 func WithRetryableErrors(retryableErrors []string) Option {
 	return func(o *Options) error {
-		o.RetryableErrors = retryableErrors
+		o.RetryableErrors = cloneStrings(retryableErrors)
 		return nil
 	}
 }
@@ -266,7 +266,7 @@ func WithRetryableErrors(retryableErrors []string) Option {
 //	}))
 func WithRetryableHTTPCodes(codes []int) Option {
 	return func(o *Options) error {
-		o.RetryableHTTPCodes = codes
+		o.RetryableHTTPCodes = cloneInts(codes)
 		return nil
 	}
 }
@@ -279,7 +279,7 @@ func WithRetryableHTTPCodes(codes []int) Option {
 //	err := retry.Do(ctx, myFunction, retry.WithJitterFactor(0.5))
 func WithJitterFactor(factor float64) Option {
 	return func(o *Options) error {
-		if factor < 0.0 || factor > 1.0 {
+		if math.IsNaN(factor) || math.IsInf(factor, 0) || factor < 0.0 || factor > 1.0 {
 			return fmt.Errorf("jitterFactor must be between 0.0 and 1.0, got %f", factor)
 		}
 
@@ -352,7 +352,7 @@ func WithOptionsContext(ctx context.Context, options *Options) context.Context {
 		ctx = context.Background()
 	}
 
-	return context.WithValue(ctx, retryOptionsKey, options)
+	return context.WithValue(ctx, retryOptionsKey, cloneOptions(options))
 }
 
 // GetOptionsFromContext gets the retry options from the context.
@@ -367,7 +367,7 @@ func GetOptionsFromContext(ctx context.Context) *Options {
 			return DefaultOptions()
 		}
 
-		return options
+		return cloneOptions(options)
 	}
 
 	return DefaultOptions()
@@ -457,6 +457,11 @@ func doWithOptions(ctx context.Context, fn func() error, options *Options) error
 
 	if options == nil {
 		options = DefaultOptions()
+	}
+
+	options = cloneOptions(options)
+	if err := validateOptions(options); err != nil {
+		return err
 	}
 
 	var err error
@@ -589,6 +594,62 @@ func calculateBackoff(attempt int, options *Options) time.Duration {
 	}
 
 	return time.Duration(delayF)
+}
+
+func validateOptions(options *Options) error {
+	if options.MaxRetries < 0 {
+		return fmt.Errorf("maxRetries must be non-negative, got %d", options.MaxRetries)
+	}
+
+	if options.InitialDelay <= 0 {
+		return fmt.Errorf("initialDelay must be positive, got %v", options.InitialDelay)
+	}
+
+	if options.MaxDelay <= 0 {
+		return fmt.Errorf("maxDelay must be positive, got %v", options.MaxDelay)
+	}
+
+	if options.MaxDelay < options.InitialDelay {
+		return fmt.Errorf("maxDelay must be greater than or equal to initialDelay, got %v < %v", options.MaxDelay, options.InitialDelay)
+	}
+
+	if math.IsNaN(options.BackoffFactor) || math.IsInf(options.BackoffFactor, 0) || options.BackoffFactor < 1.0 {
+		return fmt.Errorf("backoffFactor must be at least 1.0, got %f", options.BackoffFactor)
+	}
+
+	if math.IsNaN(options.JitterFactor) || math.IsInf(options.JitterFactor, 0) || options.JitterFactor < 0.0 || options.JitterFactor > 1.0 {
+		return fmt.Errorf("jitterFactor must be between 0.0 and 1.0, got %f", options.JitterFactor)
+	}
+
+	return nil
+}
+
+func cloneOptions(options *Options) *Options {
+	if options == nil {
+		return nil
+	}
+
+	cloned := *options
+	cloned.RetryableErrors = cloneStrings(options.RetryableErrors)
+	cloned.RetryableHTTPCodes = cloneInts(options.RetryableHTTPCodes)
+
+	return &cloned
+}
+
+func cloneStrings(values []string) []string {
+	if values == nil {
+		return nil
+	}
+
+	return append([]string(nil), values...)
+}
+
+func cloneInts(values []int) []int {
+	if values == nil {
+		return nil
+	}
+
+	return append([]int(nil), values...)
 }
 
 // addJitter adds random jitter to the delay to avoid thundering herd

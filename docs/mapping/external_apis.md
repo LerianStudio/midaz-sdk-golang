@@ -20,7 +20,7 @@ This map documents the recommended public SDK surface that consumers should use.
 - `client.WithTimeout(time.Duration)` - Sets request timeout.
 - `client.WithUserAgent(string)` - Sets the SDK user agent header.
 - `client.WithRetries(maxRetries int, initialDelay, maxDelay time.Duration)` - Configures retry behavior.
-- `client.WithCustomRetryPolicy(func(*http.Response, error) bool)` - Uses a custom retry predicate. Returning `true` authoritatively permits a retry for that response/error; returning `false` stops retries for that attempt.
+- `client.WithCustomRetryPolicy(func(*http.Response, error) bool)` - Uses a custom retry predicate. Returning `true` marks that response/error retryable inside the SDK retry guard; unsafe methods still require a caller-provided idempotency key to retry.
 - `client.DisableRetries()` - Disables client retries.
 - `client.WithDebug(bool)` - Enables or disables debug logging.
 - `client.WithTenantID(string)` - Sets a default tenant ID on entity clients.
@@ -45,6 +45,29 @@ This map documents the recommended public SDK surface that consumers should use.
 - `Client.GetContext() context.Context` - Returns the client base context.
 - `Client.GetConfiguration() *config.Config` - Returns the current configuration.
 - `Client.GetConfig() *config.Config` - Compatibility alias for `GetConfiguration`.
+- `Client.NewAccount() *models.Account` - Constructs an empty account model.
+- `Client.NewLedger() *models.Ledger` - Constructs an empty ledger model.
+- `Client.NewOrganization() *models.Organization` - Constructs an empty organization model.
+- `Client.NewTransaction() *models.Transaction` - Constructs an empty transaction model.
+- `Client.NewOperation() *models.Operation` - Constructs an empty operation model.
+- `Client.NewAsset() *models.Asset` - Constructs an empty asset model.
+
+`GetConfiguration` and `GetConfig` return a defensive copy. The copy still contains configured Access Manager credentials; do not log or serialize it without redaction.
+
+## Validation package
+
+Use `github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation` for optional client-side validation helpers.
+
+- `validation.NewValidator(options ...core.ValidationOption) (*validation.Validator, error)`
+- `validation.DefaultValidator() *validation.Validator`
+- `validation.ValidateAssetCode(string) error`
+- `validation.ValidateAccountAlias(string) error`
+- `validation.ValidateAccountType(string) error`
+- `validation.ValidateTransactionCode(string) error`
+- `validation.ValidateMetadata(map[string]any) error`
+- `validation.ValidateAddress(*validation.Address) error`
+- `validation.ValidateCreateTransactionInput(map[string]any) validation.Summary`
+- `validation.EnhancedValidateTransactionInput(map[string]any) *validation.FieldErrors`
 
 ## Configuration package
 

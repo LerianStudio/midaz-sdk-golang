@@ -91,8 +91,8 @@ type TransportConfig struct {
 	KeepAlive time.Duration
 
 	// ForceAttemptHTTP2 controls whether the transport should attempt HTTP/2.
-	// The default is true to preserve historical SDK behavior. Use
-	// WithForceAttemptHTTP2(false) when a legacy endpoint has HTTP/2 issues.
+	// The default is false to match the SDK-owned transport resilience profile.
+	// Use WithForceAttemptHTTP2(true) when an endpoint is known to support HTTP/2 safely.
 	ForceAttemptHTTP2 bool
 }
 
@@ -279,7 +279,7 @@ func DefaultTransportConfig() *TransportConfig {
 		DisableCompression:    false,
 		DialTimeout:           DefaultTimeout,
 		KeepAlive:             DefaultKeepAlive,
-		ForceAttemptHTTP2:     true,
+		ForceAttemptHTTP2:     false,
 	}
 }
 

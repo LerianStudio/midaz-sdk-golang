@@ -47,8 +47,8 @@ func TestNewTransport(t *testing.T) {
 		t.Errorf("Expected DisableCompression=false, got %v", transport.DisableCompression)
 	}
 
-	if !transport.ForceAttemptHTTP2 {
-		t.Error("Expected ForceAttemptHTTP2=true by default")
+	if transport.ForceAttemptHTTP2 {
+		t.Error("Expected ForceAttemptHTTP2=false by default")
 	}
 
 	// Test with custom options
@@ -256,7 +256,7 @@ func TestDefaultTransportConfig(t *testing.T) {
 		DisableCompression:    false,
 		DialTimeout:           DefaultTimeout,
 		KeepAlive:             DefaultKeepAlive,
-		ForceAttemptHTTP2:     true,
+		ForceAttemptHTTP2:     false,
 	}
 
 	if !reflect.DeepEqual(config, expected) {

@@ -738,7 +738,7 @@ func TestCreateAssetInput_MetadataEdgeCases(t *testing.T) {
 				"key_with_underscore": "value2",
 				"key.with.dots":       "value3",
 			},
-			wantError: true,
+			wantError: false,
 		},
 		{
 			name: "metadata with unicode key",

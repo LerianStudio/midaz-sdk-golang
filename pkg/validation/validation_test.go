@@ -1,6 +1,7 @@
 package validation_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -242,19 +243,17 @@ func TestValidateAssetCode(t *testing.T) {
 			name:          "Empty asset code",
 			assetCode:     "",
 			expectedError: true,
-			errorContains: "asset code cannot be empty",
+			errorContains: "asset code is required",
 		},
 		{
-			name:          "Too short asset code",
+			name:          "Valid short custom asset code",
 			assetCode:     "US",
-			expectedError: true,
-			errorContains: "invalid asset code format",
+			expectedError: false,
 		},
 		{
-			name:          "Too long asset code",
+			name:          "Valid long custom asset code",
 			assetCode:     "USDOL",
-			expectedError: true,
-			errorContains: "invalid asset code format",
+			expectedError: false,
 		},
 		{
 			name:          "Lowercase asset code",
@@ -349,7 +348,7 @@ func TestValidateAccountAlias(t *testing.T) {
 		},
 		{
 			name:          "Too long alias",
-			alias:         "this_is_a_very_long_account_alias_that_exceeds_the_maximum_allowed_length_of_fifty_characters_which_is_not_allowed",
+			alias:         strings.Repeat("a", 101),
 			expectedError: true,
 			errorContains: "invalid account alias format",
 		},
@@ -418,7 +417,7 @@ func TestValidateTransactionCode(t *testing.T) {
 		},
 		{
 			name:          "Too long code",
-			code:          "TX_123456_THIS_IS_A_VERY_LONG_TRANSACTION_CODE_THAT_EXCEEDS_THE_MAXIMUM_ALLOWED_LENGTH",
+			code:          strings.Repeat("T", 101),
 			expectedError: true,
 			errorContains: "invalid transaction code format",
 		},
@@ -514,13 +513,13 @@ func TestValidateMetadata(t *testing.T) {
 		{
 			name: "Invalid metadata with too long key",
 			metadata: map[string]any{
-				"this_is_a_very_long_metadata_key_that_exceeds_the_maximum_allowed_length_of_sixty_four_characters": "value",
+				strings.Repeat("k", 101): "value",
 			},
 			expectedError: true,
-			errorContains: "exceeds maximum length of 64 characters",
+			errorContains: "exceeds maximum length of 100 characters",
 		},
 		{
-			name: "Invalid metadata with unsupported type (slice)",
+			name: "Invalid metadata with unsupported typed slice",
 			metadata: map[string]any{
 				"tags": []string{"tag1", "tag2"},
 			},
@@ -538,18 +537,10 @@ func TestValidateMetadata(t *testing.T) {
 		{
 			name: "Invalid metadata with string too long",
 			metadata: map[string]any{
-				"description": string(make([]byte, 300)),
+				"description": string(make([]byte, 2001)),
 			},
 			expectedError: true,
 			errorContains: "exceeds maximum length",
-		},
-		{
-			name: "Invalid metadata with integer out of range",
-			metadata: map[string]any{
-				"big_number": 10000000000,
-			},
-			expectedError: true,
-			errorContains: "outside allowed range",
 		},
 	}
 
@@ -840,7 +831,7 @@ func TestValidateCreateTransactionInput(t *testing.T) {
 			name: "Invalid amount type",
 			input: map[string]any{
 				"asset_code": "USD",
-				"amount":     "1000",
+				"amount":     "invalid",
 				"scale":      2,
 				"operations": []map[string]any{
 					{"type": "DEBIT", "account_id": "acc1", "amount": float64(1000)},
@@ -848,7 +839,7 @@ func TestValidateCreateTransactionInput(t *testing.T) {
 				},
 			},
 			expectValid: false,
-			errContains: []string{"amount must be a number"},
+			errContains: []string{"amount must be a finite number"},
 		},
 		{
 			name: "Zero amount",
@@ -1338,10 +1329,15 @@ func TestValidateAccountType(t *testing.T) {
 			errContains: "account type is required",
 		},
 		{
-			name:        "Invalid account type",
+			name:        "Valid custom account type",
 			accountType: "invalid",
+			wantErr:     false,
+		},
+		{
+			name:        "Reserved external account type",
+			accountType: "external",
 			wantErr:     true,
-			errContains: "invalid account type",
+			errContains: "external",
 		},
 	}
 
@@ -1467,7 +1463,7 @@ func TestValidateCountryCode(t *testing.T) {
 
 func TestValidateAddress(t *testing.T) {
 	line2 := "Apt 4B"
-	longLine := string(make([]byte, 101))
+	longLine := string(make([]byte, 257))
 	longZip := string(make([]byte, 21))
 	longCity := string(make([]byte, 101))
 	longState := string(make([]byte, 101))
@@ -1706,7 +1702,7 @@ func TestDefaultValidator(t *testing.T) {
 	})
 }
 
-func TestValidatorMetadataNumericRanges(t *testing.T) {
+func TestValidatorMetadataNumericValues(t *testing.T) {
 	tests := []struct {
 		name     string
 		metadata map[string]any
@@ -1723,14 +1719,14 @@ func TestValidatorMetadataNumericRanges(t *testing.T) {
 			wantErr:  false,
 		},
 		{
-			name:     "Invalid int above max",
+			name:     "Valid int above previous SDK range",
 			metadata: map[string]any{"val": 10000000000},
-			wantErr:  true,
+			wantErr:  false,
 		},
 		{
-			name:     "Invalid int below min",
+			name:     "Valid int below previous SDK range",
 			metadata: map[string]any{"val": -10000000000},
-			wantErr:  true,
+			wantErr:  false,
 		},
 		{
 			name:     "Valid float64 at max boundary",
@@ -1743,14 +1739,14 @@ func TestValidatorMetadataNumericRanges(t *testing.T) {
 			wantErr:  false,
 		},
 		{
-			name:     "Invalid float64 above max",
+			name:     "Valid float64 above previous SDK range",
 			metadata: map[string]any{"val": 10000000000.0},
-			wantErr:  true,
+			wantErr:  false,
 		},
 		{
-			name:     "Invalid float64 below min",
+			name:     "Valid float64 below previous SDK range",
 			metadata: map[string]any{"val": -10000000000.0},
-			wantErr:  true,
+			wantErr:  false,
 		},
 	}
 

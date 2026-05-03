@@ -28,6 +28,11 @@ func TestValidateAssetCode(t *testing.T) {
 			wantErr:   false,
 		},
 		{
+			name:      "Valid long custom code",
+			assetCode: "USDOL",
+			wantErr:   false,
+		},
+		{
 			name:      "Empty code",
 			assetCode: "",
 			wantErr:   true,
@@ -37,19 +42,13 @@ func TestValidateAssetCode(t *testing.T) {
 			name:      "Lowercase code",
 			assetCode: "usd",
 			wantErr:   true,
-			errMsg:    "invalid asset code format: usd (must be 3-4 uppercase letters)",
-		},
-		{
-			name:      "Too long code",
-			assetCode: "USDOL",
-			wantErr:   true,
-			errMsg:    "invalid asset code format: USDOL (must be 3-4 uppercase letters)",
+			errMsg:    "invalid asset code format: usd (must be 1-100 uppercase letters)",
 		},
 		{
 			name:      "With numbers",
 			assetCode: "US1",
 			wantErr:   true,
-			errMsg:    "invalid asset code format: US1 (must be 3-4 uppercase letters)",
+			errMsg:    "invalid asset code format: US1 (must be 1-100 uppercase letters)",
 		},
 	}
 
@@ -238,15 +237,14 @@ func TestValidateMetadata(t *testing.T) {
 				},
 			},
 			wantErr: true,
-			errMsg:  "invalid metadata value type for key 'customer': map[string]interface {} (must be string, number, boolean, or nil)",
+			errMsg:  "invalid metadata value type for key 'customer': map[string]interface {} (must be string, number, boolean, array, or nil)",
 		},
 		{
-			name: "Invalid metadata with array",
+			name: "Valid metadata with array",
 			metadata: map[string]any{
 				"items": []any{"item1", "item2", "item3"},
 			},
-			wantErr: true,
-			errMsg:  "invalid metadata value type for key 'items': []interface {} (must be string, number, boolean, or nil)",
+			wantErr: false,
 		},
 		{
 			name: "Empty key",
@@ -262,7 +260,7 @@ func TestValidateMetadata(t *testing.T) {
 				"complex": complex(1, 2),
 			},
 			wantErr: true,
-			errMsg:  "invalid metadata value type for key 'complex': complex128 (must be string, number, boolean, or nil)",
+			errMsg:  "invalid metadata value type for key 'complex': complex128 (must be string, number, boolean, array, or nil)",
 		},
 	}
 
@@ -525,8 +523,8 @@ func TestValidationConfig(t *testing.T) {
 		config := core.DefaultValidationConfig()
 		assert.NotNil(t, config)
 		assert.Equal(t, 4096, config.MaxMetadataSize)
-		assert.Equal(t, 256, config.MaxStringLength)
-		assert.Equal(t, 100, config.MaxAddressLineLength)
+		assert.Equal(t, 2000, config.MaxStringLength)
+		assert.Equal(t, 256, config.MaxAddressLineLength)
 		assert.Equal(t, 20, config.MaxZipCodeLength)
 		assert.Equal(t, 100, config.MaxCityLength)
 		assert.Equal(t, 100, config.MaxStateLength)
@@ -678,16 +676,20 @@ func TestValidateAccountType(t *testing.T) {
 			errContains: "account type is required",
 		},
 		{
-			name:        "Invalid account type",
+			name:        "Valid custom account type",
 			accountType: "invalid_type",
-			wantErr:     true,
-			errContains: "invalid account type",
+			wantErr:     false,
 		},
 		{
-			name:        "Invalid account type - uppercase",
+			name:        "Valid uppercase custom account type",
 			accountType: "DEPOSIT",
+			wantErr:     false,
+		},
+		{
+			name:        "Reserved external account type",
+			accountType: "external",
 			wantErr:     true,
-			errContains: "invalid account type",
+			errContains: "external",
 		},
 	}
 
@@ -926,20 +928,18 @@ func TestValidateMetadataWithNestedStructures(t *testing.T) {
 			errMsg:  "invalid metadata value type for key 'customer'",
 		},
 		{
-			name: "Invalid array",
+			name: "Valid array",
 			metadata: map[string]any{
 				"items": []any{"item1", "item2", "item3"},
 			},
-			wantErr: true,
-			errMsg:  "invalid metadata value type for key 'items'",
+			wantErr: false,
 		},
 		{
-			name: "Invalid array with mixed types",
+			name: "Valid array with mixed scalar types",
 			metadata: map[string]any{
 				"mixed": []any{"string", 123, 45.67, true, nil},
 			},
-			wantErr: true,
-			errMsg:  "invalid metadata value type for key 'mixed'",
+			wantErr: false,
 		},
 		{
 			name: "Invalid deeply nested map",
@@ -1191,6 +1191,7 @@ func TestRegexPatterns(t *testing.T) {
 			"@external/EUR",
 			"@external/BTC",
 			"@external/USDT",
+			"@external/USDOL",
 		}
 		for _, tc := range validCases {
 			assert.True(t, core.ExternalAccountPattern.MatchString(tc), "Expected %s to match", tc)
@@ -1198,7 +1199,6 @@ func TestRegexPatterns(t *testing.T) {
 
 		invalidCases := []string{
 			"@external/us",
-			"@external/USDOL",
 			"external/USD",
 			"@ext/USD",
 			"@external/123",
@@ -1239,11 +1239,13 @@ func TestRegexPatterns(t *testing.T) {
 
 	t.Run("AssetCodePattern", func(t *testing.T) {
 		validCases := []string{
+			"US",
 			"USD",
 			"EUR",
 			"BTC",
 			"USDT",
 			"ETH",
+			"USDOL",
 		}
 		for _, tc := range validCases {
 			assert.True(t, core.AssetCodePattern.MatchString(tc), "Expected %s to match", tc)
@@ -1252,8 +1254,6 @@ func TestRegexPatterns(t *testing.T) {
 		invalidCases := []string{
 			"",
 			"us",
-			"USDOL",
-			"US",
 			"USD1",
 			"123",
 		}

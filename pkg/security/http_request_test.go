@@ -126,7 +126,7 @@ func TestValidateOutboundRequest(t *testing.T) {
 			req: &http.Request{
 				URL: &url.URL{Scheme: "http", User: url.User("localhost"), Host: "api.example.com"},
 			},
-			errContain: "insecure HTTP is only allowed for localhost targets",
+			errContain: "URL must not include user information",
 		},
 		{
 			name: "AllowHTTPSPrivateAddressCompatibility",

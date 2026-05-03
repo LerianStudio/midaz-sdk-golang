@@ -8,6 +8,7 @@ package core
 import (
 	"errors"
 	"fmt"
+	"math"
 	"regexp"
 	"strings"
 	"time"
@@ -46,8 +47,8 @@ type ValidationOption func(*ValidationConfig) error
 func DefaultValidationConfig() *ValidationConfig {
 	return &ValidationConfig{
 		MaxMetadataSize:      4096,
-		MaxStringLength:      256,
-		MaxAddressLineLength: 100,
+		MaxStringLength:      2000,
+		MaxAddressLineLength: 256,
 		MaxZipCodeLength:     20,
 		MaxCityLength:        100,
 		MaxStateLength:       100,
@@ -155,7 +156,7 @@ func NewValidationConfig(options ...ValidationOption) (*ValidationConfig, error)
 }
 
 // ExternalAccountPattern is the regex pattern for external account references
-var ExternalAccountPattern = regexp.MustCompile(`^@external/([A-Z]{3,4})$`)
+var ExternalAccountPattern = regexp.MustCompile(`^@external/([A-Z]{1,100})$`)
 
 // AccountAliasPattern is the regex pattern for account aliases.
 // Midaz accepts aliases such as @treasury_checking and legacy colon-separated
@@ -163,13 +164,13 @@ var ExternalAccountPattern = regexp.MustCompile(`^@external/([A-Z]{3,4})$`)
 var AccountAliasPattern = regexp.MustCompile(`^@?[a-zA-Z0-9_.:-]{1,100}$`)
 
 // AssetCodePattern is the regex pattern for asset codes
-var AssetCodePattern = regexp.MustCompile(`^[A-Z]{3,4}$`)
+var AssetCodePattern = regexp.MustCompile(`^[A-Z]{1,100}$`)
 
 // TransactionCodePattern is the regex pattern for transaction codes
 var TransactionCodePattern = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,100}$`)
 
 // ValidateAssetCode checks if an asset code is valid.
-// Asset codes should be 3-4 uppercase letters (e.g., USD, EUR, BTC).
+// Asset codes should be 1-100 uppercase letters (e.g., USD, EUR, BTC).
 //
 // Example:
 //
@@ -182,7 +183,7 @@ func ValidateAssetCode(assetCode string) error {
 	}
 
 	if !AssetCodePattern.MatchString(assetCode) {
-		return fmt.Errorf("invalid asset code format: %s (must be 3-4 uppercase letters)", assetCode)
+		return fmt.Errorf("invalid asset code format: %s (must be 1-100 uppercase letters)", assetCode)
 	}
 
 	return nil
@@ -256,10 +257,6 @@ func ValidateMetadata(metadata map[string]any) error {
 			return fmt.Errorf("metadata key '%s' must be at most 100 characters", key)
 		}
 
-		if strings.Contains(key, ".") || strings.HasPrefix(key, "$") {
-			return fmt.Errorf("metadata key '%s' cannot contain dots or start with '$'", key)
-		}
-
 		if err := validateMetadataValue(key, value); err != nil {
 			return err
 		}
@@ -271,7 +268,11 @@ func ValidateMetadata(metadata map[string]any) error {
 // validateMetadataValue validates a single flat metadata value.
 func validateMetadataValue(key string, value any) error {
 	if !isValidMetadataValueType(value) {
-		return fmt.Errorf("invalid metadata value type for key '%s': %T (must be string, number, boolean, or nil)", key, value)
+		return fmt.Errorf("invalid metadata value type for key '%s': %T (must be string, number, boolean, array, or nil)", key, value)
+	}
+
+	if err := validateFiniteMetadataNumber(key, value); err != nil {
+		return err
 	}
 
 	if len(fmt.Sprint(value)) > 2000 {
@@ -281,10 +282,33 @@ func validateMetadataValue(key string, value any) error {
 	return nil
 }
 
+func validateFiniteMetadataNumber(key string, value any) error {
+	switch v := value.(type) {
+	case float32:
+		if math.IsNaN(float64(v)) || math.IsInf(float64(v), 0) {
+			return fmt.Errorf("metadata value for key '%s' must be finite", key)
+		}
+	case float64:
+		if math.IsNaN(v) || math.IsInf(v, 0) {
+			return fmt.Errorf("metadata value for key '%s' must be finite", key)
+		}
+	}
+
+	return nil
+}
+
 // isValidMetadataValueType checks if a value is of a type supported in metadata
 func isValidMetadataValueType(value any) bool {
-	switch value.(type) {
+	switch value := value.(type) {
 	case string, int, int32, int64, float32, float64, bool, nil:
+		return true
+	case []any:
+		for _, item := range value {
+			if !isValidMetadataValueType(item) {
+				return false
+			}
+		}
+
 		return true
 	default:
 		return false
@@ -319,14 +343,12 @@ func ValidateAccountType(accountType string) error {
 		return errors.New("account type is required")
 	}
 
-	// Use commons.ValidateAccountType to ensure consistency with backend APIs
-	if err := midazutils.ValidateAccountType(accountType); err != nil {
-		// Convert the error to a more user-friendly message
-		// Create a list of valid types for the error message
-		validTypes := []string{"deposit", "savings", "loans", "marketplace", "creditCard"}
+	if len(accountType) > 256 {
+		return errors.New("account type must be at most 256 characters")
+	}
 
-		return fmt.Errorf("invalid account type: %s. Valid types are: %s",
-			accountType, strings.Join(validTypes, ", "))
+	if strings.Contains(strings.ToLower(accountType), "external") {
+		return errors.New("account type cannot contain reserved value external")
 	}
 
 	return nil

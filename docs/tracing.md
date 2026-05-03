@@ -140,7 +140,11 @@ Keep baggage small. Baggage is propagated on every downstream request.
 traceID := observability.TraceID(ctx)
 spanID := observability.SpanID(ctx)
 
-log.Printf("processing request trace_id=%s span_id=%s", traceID, spanID)
+logger := provider.Logger()
+logger.Info("processing request", map[string]any{
+    "trace_id": traceID,
+    "span_id":  spanID,
+})
 ```
 
 ## Configuration options

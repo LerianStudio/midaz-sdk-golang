@@ -22,8 +22,11 @@ The SDK does not currently use the older `apiClient`, `httpClient`, or per-resou
 - `Entity *entities.Entity` - Set only when `UseAllAPIs`, `UseEntityAPI`, or `UseEntity` is provided.
 - `config *config.Config` - Resolved SDK configuration.
 - `observability observability.Provider` - Optional tracing, metrics, and logging provider.
-- `httpClient *http.Client` - Underlying HTTP client.
-- Retry, timeout, debug, and URL override fields used while applying client options.
+- `customRetryPolicy func(*http.Response, error) bool` - Optional retry predicate propagated to the entity HTTP client.
+- `ctx context.Context` - Client base context used by client-level helpers and observability setup.
+- Default tenant fields used while applying client options.
+
+HTTP client ownership lives in `pkg/config.Config` and `entities.HTTPClient`, not directly on `client.Client`.
 
 Entity initialization is gated by the `useEntity` flag. Docs and examples that access `c.Entity` must create the client with `client.UseAllAPIs()` or `client.UseEntityAPI()`.
 

@@ -26,14 +26,16 @@ c, err := client.New(
 if err != nil {
     return err
 }
-defer c.Shutdown(context.Background())
+defer func() {
+    _ = c.Shutdown(context.Background())
+}()
 ```
 
 For local testing with a direct base URL:
 
 ```go
 c, err := client.New(
-    client.WithBaseURL("http://localhost:3002"),
+    client.WithBaseURL("http://localhost"),
     client.UseAllAPIs(),
 )
 ```
@@ -147,20 +149,21 @@ For DSL-style structured transactions, use `TransactionDSLInput`:
 
 ```go
 tx, err := c.Entity.Transactions.CreateTransactionWithDSL(ctx, orgID, ledgerID, &models.TransactionDSLInput{
+    ChartOfAccountsGroupName: "FUNDING",
     Description: "Split payment transaction",
     Send: &models.DSLSend{
         Asset: "USD",
-        Value: "100.00",
+        Value: "10000",
         Source: &models.DSLSource{
             From: []models.DSLFromTo{
-                {Account: customerAccountAlias, Amount: &models.DSLAmount{Asset: "USD", Value: "100.00"}},
+                {Account: customerAccountAlias, Amount: &models.DSLAmount{Asset: "USD", Value: "10000"}},
             },
         },
         Distribute: &models.DSLDistribute{
             To: []models.DSLFromTo{
-                {Account: merchantAccountAlias, Amount: &models.DSLAmount{Asset: "USD", Value: "85.00"}},
-                {Account: platformFeeAlias, Amount: &models.DSLAmount{Asset: "USD", Value: "10.00"}},
-                {Account: processorFeeAlias, Amount: &models.DSLAmount{Asset: "USD", Value: "5.00"}},
+                {Account: merchantAccountAlias, Amount: &models.DSLAmount{Asset: "USD", Value: "8500"}},
+                {Account: platformFeeAlias, Amount: &models.DSLAmount{Asset: "USD", Value: "1000"}},
+                {Account: processorFeeAlias, Amount: &models.DSLAmount{Asset: "USD", Value: "500"}},
             },
         },
     },

@@ -125,6 +125,9 @@ func NewHTTPClient(client *http.Client, authToken string, provider observability
 func defaultHTTPClient() *http.Client {
 	return &http.Client{
 		Timeout: 30 * time.Second,
+		CheckRedirect: func(req *http.Request, _ []*http.Request) error {
+			return security.ValidateOutboundRequest(req)
+		},
 		Transport: &http.Transport{
 			Proxy:                 http.ProxyFromEnvironment,
 			MaxIdleConns:          100,
@@ -911,7 +914,11 @@ func (c *HTTPClient) handleRequestExecutionError(method, requestURL string, err 
 	requestErr := fmt.Errorf("HTTP request failed: %w", err)
 
 	snapshot := c.cloneConfiguration()
-	if snapshot.customRetryPolicy != nil && !snapshot.customRetryPolicy(nil, requestErr) {
+	if snapshot.customRetryPolicy != nil {
+		if snapshot.customRetryPolicy(nil, requestErr) {
+			return retryableCustomPolicyError{err: requestErr}
+		}
+
 		return retry.AsNonRetryable(requestErr)
 	}
 
@@ -1106,6 +1113,8 @@ func cloneRetryOptions(options *retry.Options) *retry.Options {
 	}
 
 	cloned := *options
+	cloned.RetryableErrors = append([]string(nil), options.RetryableErrors...)
+	cloned.RetryableHTTPCodes = append([]int(nil), options.RetryableHTTPCodes...)
 
 	return &cloned
 }
@@ -1472,8 +1481,22 @@ func AddURLParams(baseURL string, params map[string]string) string {
 }
 
 // NewRequest creates a new HTTP request with the given method, URL, and body.
-// It's a convenient wrapper around http.NewRequest for backward compatibility.
+// It uses context.Background for backward compatibility. Use NewRequestWithContext
+// when cancellation, deadlines, or request-scoped values are required.
 func (c *HTTPClient) NewRequest(method, requestURL string, body any) (*http.Request, error) {
+	return c.NewRequestWithContext(context.Background(), method, requestURL, body)
+}
+
+// NewRequestWithContext creates a new HTTP request with the given context, method, URL, and body.
+func (c *HTTPClient) NewRequestWithContext(ctx context.Context, method, requestURL string, body any) (*http.Request, error) {
+	if c == nil {
+		return nil, errors.New("HTTP client cannot be nil")
+	}
+
+	if ctx == nil {
+		return nil, errors.New("request context cannot be nil")
+	}
+
 	var bodyReader io.Reader
 
 	if body != nil {
@@ -1486,7 +1509,7 @@ func (c *HTTPClient) NewRequest(method, requestURL string, body any) (*http.Requ
 		bodyReader = bytes.NewReader(bodyBytes)
 	}
 
-	req, err := http.NewRequestWithContext(context.Background(), method, requestURL, bodyReader)
+	req, err := http.NewRequestWithContext(ctx, method, requestURL, bodyReader)
 	if err != nil {
 		return nil, err
 	}

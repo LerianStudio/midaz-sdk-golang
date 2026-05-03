@@ -1227,10 +1227,7 @@ func TestParseEnvInt_Valid(t *testing.T) {
 		{"42", 42},
 		{"100", 100},
 		{"-5", -5},
-		// Note: fmt.Sscanf with %d parses leading integers from strings
-		{"1.5", 1},      // parses "1" from "1.5"
-		{"1a", 1},       // parses "1" from "1a"
-		{"123abc", 123}, // parses "123" from "123abc"
+		{" 42 ", 42},
 	}
 
 	for _, tc := range tests {
@@ -1247,6 +1244,10 @@ func TestParseEnvInt_Invalid(t *testing.T) {
 		"",
 		"abc",
 		"a1",
+		"1.5",
+		"1a",
+		"123abc",
+		"10s",
 		" ",
 		"notanumber",
 	}

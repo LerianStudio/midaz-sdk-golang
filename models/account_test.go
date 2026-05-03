@@ -1258,7 +1258,7 @@ func TestMetadataValidation(t *testing.T) {
 			metadata: map[string]any{
 				"tags": []any{"tag1", "tag2"},
 			},
-			expectError: true,
+			expectError: false,
 		},
 	}
 

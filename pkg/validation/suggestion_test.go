@@ -22,7 +22,7 @@ func TestGetCommonSuggestions(t *testing.T) {
 			field:        "asset_code",
 			value:        "us",
 			suggType:     Format,
-			wantContains: []string{"3-4 uppercase letters", "USD", "EUR"},
+			wantContains: []string{"1-100 uppercase letters", "USD", "EUR"},
 			wantMinLen:   1,
 		},
 		{
@@ -30,7 +30,7 @@ func TestGetCommonSuggestions(t *testing.T) {
 			field:        "currency",
 			value:        "invalid",
 			suggType:     Format,
-			wantContains: []string{"3-4 uppercase letters"},
+			wantContains: []string{"1-100 uppercase letters"},
 			wantMinLen:   1,
 		},
 		{
@@ -38,7 +38,7 @@ func TestGetCommonSuggestions(t *testing.T) {
 			field:        "account_alias",
 			value:        "invalid@alias",
 			suggType:     Format,
-			wantContains: []string{"alphanumeric", "underscore", "hyphen"},
+			wantContains: []string{"leading @", "underscores", "hyphens"},
 			wantMinLen:   2,
 		},
 		{
@@ -172,7 +172,7 @@ func TestGetCommonSuggestions(t *testing.T) {
 			field:        "account_type",
 			value:        "invalid",
 			suggType:     Enumeration,
-			wantContains: []string{"deposit", "savings", "loans"},
+			wantContains: []string{"deployment-defined", "external"},
 			wantMinLen:   2,
 		},
 		{
@@ -574,18 +574,18 @@ func TestGetEnumerationSuggestions(t *testing.T) {
 	})
 
 	t.Run("Account type returns valid options", func(t *testing.T) {
-		suggestions := getEnumerationSuggestions("account_type", "invalid")
+		suggestions := getEnumerationSuggestions("account_type", "external")
 
 		found := false
 
 		for _, s := range suggestions {
-			if containsIgnoreCase(s, "deposit") && containsIgnoreCase(s, "savings") {
+			if containsIgnoreCase(s, "external") {
 				found = true
 				break
 			}
 		}
 
-		assert.True(t, found, "Should list valid account types")
+		assert.True(t, found, "Should explain custom account type rules")
 	})
 }
 

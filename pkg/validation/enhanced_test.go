@@ -1,6 +1,7 @@
 package validation
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -13,10 +14,9 @@ func TestEnhancedValidateAssetCode(t *testing.T) {
 	}{
 		{"Valid asset code", "USD", false},
 		{"Valid 4-letter asset code", "USDT", false},
+		{"Valid custom asset code", "USDOL", false},
 		{"Empty asset code", "", true},
 		{"Invalid asset code - lowercase", "usd", true},
-		{"Invalid asset code - too short", "US", true},
-		{"Invalid asset code - too long", "USDOL", true},
 		{"Invalid asset code - with number", "USD1", true},
 		{"Invalid asset code - with symbol", "US$", true},
 	}
@@ -51,10 +51,11 @@ func TestEnhancedValidateAccountAlias(t *testing.T) {
 		wantErr bool
 	}{
 		{"Valid alias", "savings_account", false},
+		{"Valid alias with at sign", "@treasury_checking", false},
 		{"Valid alias with hyphen", "savings-account", false},
 		{"Valid alias with numbers", "account123", false},
 		{"Empty alias", "", true},
-		{"Too long alias", "this_is_a_very_long_alias_that_exceeds_the_maximum_allowed_length_for_an_account_alias_in_the_system", true},
+		{"Too long alias", strings.Repeat("a", 101), true},
 		{"Invalid characters", "savings@account", true},
 	}
 
@@ -125,10 +126,10 @@ func TestEnhancedValidateExternalAccount(t *testing.T) {
 	}{
 		{"Valid external account", "@external/USD", false},
 		{"Valid external account - 4 letters", "@external/USDT", false},
+		{"Valid external account - custom asset", "@external/USDOL", false},
 		{"Empty account", "", true},
 		{"Missing @ prefix", "external/USD", true},
 		{"Invalid format", "@externalUSD", true},
-		{"Invalid asset code", "@external/US", true},
 		{"Invalid asset code with number", "@external/USD1", true},
 		{"Invalid asset code with lowercase", "@external/usd", true},
 	}
@@ -204,14 +205,14 @@ func TestEnhancedValidateMetadata(t *testing.T) {
 		{
 			"Invalid - key too long",
 			map[string]any{
-				"this_is_a_very_long_key_that_exceeds_the_maximum_allowed_length_for_metadata_keys_in_the_system_and_should_cause_a_validation_error": "value",
+				strings.Repeat("k", 101): "value",
 			},
 			true,
 		},
 		{
 			"Invalid - string value too long",
 			map[string]any{
-				"key": string(make([]byte, 300)),
+				"key": string(make([]byte, 2001)),
 			},
 			true,
 		},
@@ -219,13 +220,6 @@ func TestEnhancedValidateMetadata(t *testing.T) {
 			"Invalid - unsupported value type",
 			map[string]any{
 				"key": []string{"not", "supported"},
-			},
-			true,
-		},
-		{
-			"Invalid - number out of range",
-			map[string]any{
-				"key": 10000000000, // 10 billion
 			},
 			true,
 		},
@@ -367,7 +361,7 @@ func TestEnhancedValidateTransactionDSL(t *testing.T) {
 		{
 			"Invalid asset code",
 			&mockTransactionDSLValidator{
-				asset:               "US", // Too short
+				asset:               "us", // lowercase
 				value:               100.0,
 				sourceAccounts:      []AccountReference{mockAccountReference{account: "account1"}},
 				destinationAccounts: []AccountReference{mockAccountReference{account: "account2"}},

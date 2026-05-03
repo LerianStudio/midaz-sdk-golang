@@ -385,6 +385,10 @@ func New(ctx context.Context, opts ...Option) (Provider, error) {
 
 	// Apply all options
 	for _, opt := range opts {
+		if opt == nil {
+			return nil, errors.New("observability option cannot be nil")
+		}
+
 		if err := opt(config); err != nil {
 			return nil, fmt.Errorf("failed to apply option: %w", err)
 		}
@@ -685,6 +689,10 @@ func (p *MidazProvider) Shutdown(ctx context.Context) error {
 
 // IsEnabled returns true if observability is enabled
 func (p *MidazProvider) IsEnabled() bool {
+	if p == nil {
+		return false
+	}
+
 	return p.enabled
 }
 

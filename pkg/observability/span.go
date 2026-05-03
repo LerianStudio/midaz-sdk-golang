@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -12,7 +13,10 @@ import (
 )
 
 // Default global provider for simple usage
-var defaultProvider Provider
+var (
+	defaultProvider     Provider
+	defaultProviderOnce sync.Once
+)
 
 type traceIDContextKey struct{}
 
@@ -22,7 +26,7 @@ func StartSpan(ctx context.Context, name string) (context.Context, trace.Span) {
 		ctx = context.Background()
 	}
 
-	if defaultProvider == nil {
+	defaultProviderOnce.Do(func() {
 		provider, err := New(ctx,
 			WithComponentEnabled(true, false, false),
 			WithFullTracingSampling(),
@@ -31,7 +35,7 @@ func StartSpan(ctx context.Context, name string) (context.Context, trace.Span) {
 		if err == nil {
 			defaultProvider = provider
 		}
-	}
+	})
 
 	// Use the default provider if initialized
 	if defaultProvider != nil && defaultProvider.IsEnabled() {

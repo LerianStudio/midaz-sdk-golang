@@ -4,7 +4,10 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"sync"
 )
+
+var suggestionPatternCache sync.Map
 
 // SuggestionType represents the type of suggestion to provide
 type SuggestionType string
@@ -87,15 +90,15 @@ func buildFormatSuggestionMatchers(_ string, _ any) []formatSuggestionMatcher {
 
 func getAssetCodeSuggestions(_ any) []string {
 	return []string{
-		"Use 3-4 uppercase letters for asset codes (e.g., 'USD', 'EUR', 'BTC')",
+		"Use 1-100 uppercase letters for asset codes (e.g., 'USD', 'EUR', 'BTC')",
 		"Check for incorrect letter case, asset codes must be all uppercase",
 	}
 }
 
 func getAliasSuggestions(value any) []string {
 	return []string{
-		"Use alphanumeric characters with optional underscores or hyphens",
-		"Ensure length is between 1-50 characters",
+		"Use letters, numbers, underscores, hyphens, dots, colons, and an optional leading @",
+		"Ensure length is between 1-100 characters",
 		fmt.Sprintf("Current value '%v' may contain invalid characters", value),
 	}
 }
@@ -133,9 +136,9 @@ func getUUIDSuggestions(_ any) []string {
 
 func getMetadataSuggestions(_ any) []string {
 	return []string{
-		"Metadata keys must be 1-64 characters",
-		"Metadata values must be strings, numbers, booleans, or nil",
-		"String values must be 1-256 characters",
+		"Metadata keys must be 1-100 characters",
+		"Metadata values must be flat strings, numbers, booleans, arrays, or nil",
+		"String values must be 1-2000 characters",
 		"Total metadata size must be under 4KB",
 	}
 }
@@ -152,7 +155,7 @@ func getExternalAccountSuggestions(_ any) []string {
 	return []string{
 		"Use format '@external/XXX' where XXX is the asset code",
 		"Example: '@external/USD'",
-		"Asset code must be 3-4 uppercase letters",
+		"Asset code must be 1-100 uppercase letters",
 	}
 }
 
@@ -238,9 +241,9 @@ func getEnumerationSuggestions(field string, value any) []string {
 	// Account type suggestions
 	if match(fieldLower, "account.*type") {
 		return []string{
-			"Valid account types are: 'deposit', 'savings', 'loans', 'marketplace', 'creditCard'",
-			fmt.Sprintf("The value '%v' is not a valid account type", value),
-			"Account types are case-sensitive",
+			"Use a deployment-defined account type up to 256 characters",
+			"The reserved value 'external' is not allowed for user-created accounts",
+			fmt.Sprintf("The value '%v' may contain a reserved or unsupported account type", value),
 		}
 	}
 
@@ -353,13 +356,30 @@ func getStructureSuggestions(field string) []string {
 
 // match checks if the field name matches a regular expression pattern.
 func match(field, pattern string) bool {
-	matched, err := regexp.MatchString(pattern, field)
+	compiled, ok := suggestionPatternCache.Load(pattern)
+	if ok {
+		re, ok := compiled.(*regexp.Regexp)
+		if !ok {
+			return false
+		}
+
+		return re.MatchString(field)
+	}
+
+	re, err := regexp.Compile(pattern)
 	if err != nil {
 		// Invalid pattern - return false rather than panic
 		return false
 	}
 
-	return matched
+	actual, _ := suggestionPatternCache.LoadOrStore(pattern, re)
+
+	stored, ok := actual.(*regexp.Regexp)
+	if !ok {
+		return false
+	}
+
+	return stored.MatchString(field)
 }
 
 // GetExampleValue provides example values for common fields

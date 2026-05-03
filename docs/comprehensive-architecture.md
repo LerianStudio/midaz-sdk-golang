@@ -382,10 +382,15 @@ The actual error shape is:
 type Error struct {
     Category   ErrorCategory
     Code       ErrorCode
+    APICode    string
+    Title      string
     Message    string
     Operation  string
     Resource   string
     ResourceID string
+    EntityType string
+    Fields     []string
+    Details    map[string]any
     StatusCode int
     RequestID  string
     Err        error
@@ -418,7 +423,7 @@ if err != nil {
 }
 ```
 
-Use `errors.As` from the standard library when you need fields such as operation, resource, status code, or request ID:
+Use `errors.As` from the standard library when you need fields such as operation, resource, API code, status code, request ID, or structured API details:
 
 ```go
 var sdkErr *sdkerrors.Error
@@ -434,7 +439,7 @@ if stderrors.As(err, &sdkErr) {
 }
 ```
 
-Field-level validation details are not stored on `pkg/errors.Error`. Some validation paths can return `pkg/validation.FieldErrors`.
+Remote API field details are preserved on `pkg/errors.Error.Fields` and `pkg/errors.Error.Details` when the API returns them. Local client-side validation helpers can also return `pkg/validation.FieldErrors`.
 
 ## Retry behavior
 
@@ -542,14 +547,13 @@ input.IdempotencyKey = "payment-2026-04-27-0001"
 tx, err := c.Entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
 ```
 
-Automatic idempotency is intentionally limited. The HTTP layer only auto-generates `X-Idempotency` when:
+Automatic idempotency applies to unsafe entity HTTP requests. The HTTP layer auto-generates `X-Idempotency` when:
 
 1. idempotency is enabled,
 2. the method is unsafe,
-3. no idempotency key is already present, and
-4. the service sets the internal `X-Midaz-Auto-Idempotency: true` marker.
+3. no idempotency key is already present.
 
-The HTTP layer removes the internal marker before the request is sent. It is an SDK implementation detail, not a public API header.
+The HTTP layer removes internal idempotency marker headers before the request is sent. Unsafe retries still require a caller-provided key; SDK-generated keys provide server-side deduplication but do not enable unsafe retries by themselves.
 
 ## Observability
 

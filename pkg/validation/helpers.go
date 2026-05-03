@@ -1,9 +1,14 @@
 package validation
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation/core"
 )
+
+var uuidPattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 
 // IsValidUUID checks if a string is a valid UUID.
 func IsValidUUID(s string) bool {
@@ -11,10 +16,7 @@ func IsValidUUID(s string) bool {
 		return false
 	}
 
-	// UUID format: 8-4-4-4-12 hexadecimal digits
-	r := regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
-
-	return r.MatchString(strings.ToLower(s))
+	return uuidPattern.MatchString(strings.ToLower(s))
 }
 
 // IsValidAmount checks if an amount value is valid for a given scale.
@@ -63,7 +65,7 @@ func IsValidAuthToken(token string) bool {
 // This function is needed by enhanced.go
 func isValidMetadataValueType(value any) bool {
 	switch value.(type) {
-	case string, bool, int, float64, nil:
+	case string, bool, int, int32, int64, float32, float64, []any, nil:
 		return true
 	default:
 		return false
@@ -80,8 +82,14 @@ func validateMetadataSize(metadata map[string]any) error {
 		switch v := value.(type) {
 		case string:
 			totalSize += len(v)
-		case bool, int, float64:
+		case bool, int, int32, int64, float32, float64:
 			totalSize += 8 // Approximate size for these types
+		case []any:
+			if err := core.ValidateMetadata(map[string]any{key: v}); err != nil {
+				return err
+			}
+
+			totalSize += len(fmt.Sprint(v))
 		}
 	}
 

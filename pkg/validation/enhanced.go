@@ -7,8 +7,11 @@ package validation
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"time"
+
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation/core"
 )
 
 // EnhancedValidateAssetCode checks if an asset code is valid and returns field-level errors
@@ -38,8 +41,8 @@ func EnhancedValidateAccountAlias(alias string) *FieldError {
 			WithSuggestions(GetCommonSuggestions("alias", alias, Required)...)
 	}
 
-	if !accountAliasPattern.MatchString(alias) {
-		return BuildFieldError("alias", alias, "Invalid account alias format").
+	if err := ValidateAccountAlias(alias); err != nil {
+		return BuildFieldError("alias", alias, err.Error()).
 			WithConstraint("format").
 			WithSuggestions(GetCommonSuggestions("alias", alias, Format)...)
 	}
@@ -88,7 +91,7 @@ func EnhancedValidateAccountType(accountType string) *FieldError {
 // EnhancedValidateAmount validates a transaction amount and returns field-level errors
 // with suggestions when invalid.
 func EnhancedValidateAmount(amount, scale int64) *FieldError {
-	if amount <= 0 {
+	if !isFinitePositive(float64(amount)) {
 		return BuildFieldError("amount", amount, "Amount must be greater than zero").
 			WithConstraint("min").
 			WithSuggestions(GetCommonSuggestions("amount", amount, Range)...)
@@ -177,9 +180,9 @@ func validateMetadataKey(errors *FieldErrors, key string) bool {
 		return false
 	}
 
-	if len(key) > 64 {
+	if len(key) > 100 {
 		errors.Add(fmt.Sprintf("metadata.%s", key), key,
-			fmt.Sprintf("Metadata key exceeds maximum length of 64 characters (length: %d)", len(key))).
+			fmt.Sprintf("Metadata key exceeds maximum length of 100 characters (length: %d)", len(key))).
 			WithConstraint("maxLength").
 			WithSuggestions(GetCommonSuggestions("metadata.key", key, Range)...)
 	}
@@ -202,37 +205,21 @@ func validateMetadataValueType(errors *FieldErrors, key string, value any) bool 
 
 func validateMetadataStringLength(errors *FieldErrors, key string, value any) {
 	strValue, ok := value.(string)
-	if !ok || len(strValue) <= 256 {
+	if !ok || len(strValue) <= 2000 {
 		return
 	}
 
 	errors.Add(fmt.Sprintf("metadata.%s", key), strValue,
-		fmt.Sprintf("Metadata string value exceeds maximum length of 256 characters (length: %d)", len(strValue))).
+		fmt.Sprintf("Metadata string value exceeds maximum length of 2000 characters (length: %d)", len(strValue))).
 		WithConstraint("maxLength").
 		WithSuggestions(GetCommonSuggestions("metadata.value", strValue, Range)...)
 }
 
 func validateMetadataNumericRange(errors *FieldErrors, key string, value any) {
-	const (
-		maxIntValue   = 9999999999
-		maxFloatValue = 9999999999.0
-	)
-
-	switch v := value.(type) {
-	case int:
-		if v < -maxIntValue || v > maxIntValue {
-			errors.Add(fmt.Sprintf("metadata.%s", key), v,
-				"Integer value is outside allowed range (-9999999999 to 9999999999)").
-				WithConstraint("range").
-				WithSuggestions(GetCommonSuggestions("metadata.value", v, Range)...)
-		}
-	case float64:
-		if v < -maxFloatValue || v > maxFloatValue {
-			errors.Add(fmt.Sprintf("metadata.%s", key), v,
-				"Float value is outside allowed range (-9999999999.0 to 9999999999.0)").
-				WithConstraint("range").
-				WithSuggestions(GetCommonSuggestions("metadata.value", v, Range)...)
-		}
+	if err := core.ValidateMetadata(map[string]any{key: value}); err != nil {
+		errors.Add(fmt.Sprintf("metadata.%s", key), value, err.Error()).
+			WithConstraint("format").
+			WithSuggestions(GetCommonSuggestions("metadata.value", value, Format)...)
 	}
 }
 
@@ -335,7 +322,7 @@ func EnhancedValidateExternalAccount(account string) *FieldError {
 			WithConstraint("format").
 			WithSuggestions(
 				"Use format '@external/XXX' where XXX is a valid asset code",
-				"Asset code must be 3-4 uppercase letters",
+				"Asset code must be 1-100 uppercase letters",
 				"Example: '@external/USD'",
 			)
 	}
@@ -346,7 +333,7 @@ func EnhancedValidateExternalAccount(account string) *FieldError {
 			WithConstraint("format").
 			WithSuggestions(
 				"Use format '@external/XXX' where XXX is a valid asset code",
-				"Asset code must be 3-4 uppercase letters",
+				"Asset code must be 1-100 uppercase letters",
 				"Example: '@external/USD'",
 			)
 	}
@@ -415,8 +402,8 @@ func EnhancedValidateTransactionCode(code string) *FieldError {
 			WithSuggestions(GetCommonSuggestions("transactionCode", code, Required)...)
 	}
 
-	if !accountAliasPattern.MatchString(code) {
-		return BuildFieldError("transactionCode", code, "Invalid transaction code format").
+	if err := ValidateTransactionCode(code); err != nil {
+		return BuildFieldError("transactionCode", code, err.Error()).
 			WithConstraint("format").
 			WithSuggestions(GetCommonSuggestions("transactionCode", code, Format)...)
 	}
@@ -490,6 +477,15 @@ func (v *transactionInputValidator) validate() *FieldErrors {
 		return v.errors
 	}
 
+	if _, ok := v.input["send"]; ok {
+		v.validateSend()
+		v.validateMetadata()
+		v.validateTransactionCode()
+		v.validateChartOfAccountsGroupName()
+
+		return v.errors
+	}
+
 	v.validateAssetCode()
 	v.validateAmount()
 	v.validateScale()
@@ -499,6 +495,17 @@ func (v *transactionInputValidator) validate() *FieldErrors {
 	v.validateChartOfAccountsGroupName()
 
 	return v.errors
+}
+
+func (v *transactionInputValidator) validateSend() {
+	summary := Summary{Valid: true}
+	validateSendTransactionFields(&summary, v.input)
+
+	for _, err := range summary.Errors {
+		if err != nil {
+			v.errors.Add("send", nil, err.Error()).WithConstraint("contract")
+		}
+	}
 }
 
 // addNilInputError adds an error for nil transaction input.
@@ -542,7 +549,7 @@ func (v *transactionInputValidator) validateAmount() {
 		return
 	}
 
-	amount, ok := v.input["amount"].(float64)
+	amount, ok := extractNumericAmount(v.input["amount"])
 	if !ok {
 		v.errors.Add("amount", v.input["amount"], "Amount must be a number").
 			WithConstraint("type").
@@ -551,7 +558,7 @@ func (v *transactionInputValidator) validateAmount() {
 		return
 	}
 
-	if amount <= 0 {
+	if !isFinitePositive(amount) {
 		v.errors.Add("amount", amount, "Amount must be greater than zero").
 			WithConstraint("min").
 			WithSuggestions(GetCommonSuggestions("amount", amount, Range)...)
@@ -568,7 +575,7 @@ func (v *transactionInputValidator) validateScale() {
 		return
 	}
 
-	scale, ok := v.input["scale"].(int)
+	scale, ok := extractIntegerScale(v.input["scale"])
 	if !ok {
 		v.errors.Add("scale", v.input["scale"], "Scale must be an integer").
 			WithConstraint("type").
@@ -752,8 +759,12 @@ func (v *operationValidator) validateOperationType(op map[string]any, field stri
 
 // trackOperationTotals updates the debit/credit totals for balance validation.
 func (v *operationValidator) trackOperationTotals(op map[string]any, opType string) {
-	amount, ok := op["amount"].(float64)
+	amount, ok := extractNumericAmount(op["amount"])
 	if !ok {
+		return
+	}
+
+	if !isFinitePositive(amount) || math.Trunc(amount) != amount {
 		return
 	}
 
@@ -817,7 +828,7 @@ func (v *operationValidator) validateAmount(op map[string]any, field string) {
 		return
 	}
 
-	amount, ok := op["amount"].(float64)
+	amount, ok := extractNumericAmount(op["amount"])
 	if !ok {
 		v.errors.Add(fmt.Sprintf("%s.amount", field), op["amount"], "Operation amount must be a number").
 			WithConstraint("type").
@@ -826,10 +837,18 @@ func (v *operationValidator) validateAmount(op map[string]any, field string) {
 		return
 	}
 
-	if amount <= 0 {
+	if !isFinitePositive(amount) {
 		v.errors.Add(fmt.Sprintf("%s.amount", field), amount, "Operation amount must be greater than zero").
 			WithConstraint("min").
 			WithSuggestions(GetCommonSuggestions("amount", amount, Range)...)
+
+		return
+	}
+
+	if math.Trunc(amount) != amount {
+		v.errors.Add(fmt.Sprintf("%s.amount", field), amount, "Operation amount must be an integer minor unit").
+			WithConstraint("format").
+			WithSuggestions(GetCommonSuggestions("amount", amount, Format)...)
 	}
 }
 
@@ -910,7 +929,7 @@ func validateTransactionStructureEnhanced(errors *FieldErrors, debitCount, credi
 	}
 
 	// Check if total matches transaction amount
-	if amount, ok := input["amount"].(float64); ok && totalDebits != int64(amount) {
+	if amount, ok := extractNumericAmount(input["amount"]); ok && totalDebits != int64(amount) {
 		errors.Add("transaction.amount", nil,
 			fmt.Sprintf("Operation amounts do not match transaction amount: operations total (%d) != transaction amount (%.2f)",
 				totalDebits, amount)).
@@ -992,6 +1011,14 @@ func validateTransactionDSLSourceAccounts(errors *FieldErrors, input Transaction
 	asset := input.GetAsset()
 
 	for i, account := range sourceAccounts {
+		if account == nil {
+			errors.Add(fmt.Sprintf("sourceAccounts[%d]", i), nil, "Source account cannot be nil").
+				WithConstraint("required").
+				WithSuggestions(GetCommonSuggestions("account", nil, Required)...)
+
+			continue
+		}
+
 		if account.GetAccount() == "" {
 			errors.Add(fmt.Sprintf("sourceAccounts[%d]", i), account.GetAccount(), "Source account cannot be empty").
 				WithConstraint("required").
@@ -1021,6 +1048,14 @@ func validateTransactionDSLDestinationAccounts(errors *FieldErrors, input Transa
 	asset := input.GetAsset()
 
 	for i, account := range destAccounts {
+		if account == nil {
+			errors.Add(fmt.Sprintf("destinationAccounts[%d]", i), nil, "Destination account cannot be nil").
+				WithConstraint("required").
+				WithSuggestions(GetCommonSuggestions("account", nil, Required)...)
+
+			continue
+		}
+
 		if account.GetAccount() == "" {
 			errors.Add(fmt.Sprintf("destinationAccounts[%d]", i), account.GetAccount(), "Destination account cannot be empty").
 				WithConstraint("required").

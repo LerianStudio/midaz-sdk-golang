@@ -16,11 +16,13 @@ import (
 	"net/url"
 	"os"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
 	auth "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/access-manager"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/security"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/version"
 )
 
@@ -447,6 +449,10 @@ func WithRetries(enable bool) Option {
 //   - Option: A function that sets the debug flag on a Config
 func WithDebug(enable bool) Option {
 	return func(c *Config) error {
+		if c == nil {
+			return errors.New("config cannot be nil")
+		}
+
 		c.Debug = enable
 
 		return nil
@@ -485,6 +491,10 @@ func WithObservabilityProvider(provider observability.Provider) Option {
 //   - Option: A function that sets the idempotency flag on a Config
 func WithIdempotency(enable bool) Option {
 	return func(c *Config) error {
+		if c == nil {
+			return errors.New("config cannot be nil")
+		}
+
 		c.EnableIdempotency = enable
 
 		return nil
@@ -504,6 +514,10 @@ func WithIdempotency(enable bool) Option {
 //   - Option: A function that sets the tenant ID on a Config
 func WithTenantID(tenantID string) Option {
 	return func(c *Config) error {
+		if c == nil {
+			return errors.New("config cannot be nil")
+		}
+
 		c.TenantID = strings.TrimSpace(tenantID)
 		c.tenantIDSet = true
 
@@ -697,8 +711,8 @@ func configureOptionalSettings(c *Config) {
 
 // parseEnvInt parses an integer from an environment variable.
 func parseEnvInt(value string) (int, error) {
-	var result int
-	if _, err := fmt.Sscanf(value, "%d", &result); err != nil {
+	result, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil {
 		return 0, err
 	}
 
@@ -888,6 +902,23 @@ func (c *Config) GetObservabilityProvider() observability.Provider {
 	return c.ObservabilityProvider
 }
 
+// Clone returns an independent copy of the configuration.
+func (c *Config) Clone() *Config {
+	if c == nil {
+		return nil
+	}
+
+	cloned := *c
+	if c.ServiceURLs != nil {
+		cloned.ServiceURLs = make(map[ServiceType]string, len(c.ServiceURLs))
+		for service, serviceURL := range c.ServiceURLs {
+			cloned.ServiceURLs[service] = serviceURL
+		}
+	}
+
+	return &cloned
+}
+
 // parseURL validates that a URL is properly formatted.
 // It also warns (via stderr) if using HTTP instead of HTTPS for non-localhost URLs.
 func parseURL(rawURL string) error {
@@ -920,6 +951,9 @@ func parseURL(rawURL string) error {
 func NewDefaultHTTPClient(timeout time.Duration) *http.Client {
 	return &http.Client{
 		Timeout: timeout,
+		CheckRedirect: func(req *http.Request, _ []*http.Request) error {
+			return security.ValidateOutboundRequest(req)
+		},
 		Transport: &http.Transport{
 			Proxy:                 http.ProxyFromEnvironment,
 			MaxIdleConns:          100,
@@ -1067,6 +1101,10 @@ func DefaultConfig() *Config {
 //   - Option: A function that sets the max retries on a Config
 func WithMaxRetries(maxRetries int) Option {
 	return func(c *Config) error {
+		if c == nil {
+			return errors.New("config cannot be nil")
+		}
+
 		if maxRetries < 0 {
 			return errors.New("max retries cannot be negative")
 		}
@@ -1086,6 +1124,10 @@ func WithMaxRetries(maxRetries int) Option {
 //   - Option: A function that sets the minimum retry wait time on a Config
 func WithRetryWaitMin(waitTime time.Duration) Option {
 	return func(c *Config) error {
+		if c == nil {
+			return errors.New("config cannot be nil")
+		}
+
 		if waitTime <= 0 {
 			return errors.New("minimum wait time must be greater than 0")
 		}
@@ -1105,6 +1147,10 @@ func WithRetryWaitMin(waitTime time.Duration) Option {
 //   - Option: A function that sets the maximum retry wait time on a Config
 func WithRetryWaitMax(waitTime time.Duration) Option {
 	return func(c *Config) error {
+		if c == nil {
+			return errors.New("config cannot be nil")
+		}
+
 		if waitTime <= 0 {
 			return errors.New("maximum wait time must be greater than 0")
 		}
@@ -1123,8 +1169,7 @@ func WithRetryWaitMax(waitTime time.Duration) Option {
 // This is a convenience function for quickly setting up a local configuration.
 //
 // Parameters:
-//   - authToken: The authentication token to use (deprecated, use PLUGIN_AUTH_ADDRESS env var instead)
-//   - options: Additional options to apply
+//   - options: Additional options to apply after local defaults and Access Manager environment values
 //
 // Returns:
 //   - *Config: A configuration for local development
