@@ -1,9 +1,20 @@
 package models
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
+	"strings"
+	"unicode/utf8"
 
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation/core"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+)
+
+const (
+	maxRouteTitleLength       = 255
+	maxRouteDescriptionLength = 250
+	maxRouteCodeLength        = 100
 )
 
 // OperationRoute is an alias for mmodel.OperationRoute to maintain compatibility while using midaz entities.
@@ -16,8 +27,25 @@ type CreateOperationRouteInput struct {
 
 // Validate validates the CreateOperationRouteInput fields.
 func (input *CreateOperationRouteInput) Validate() error {
-	if input.Title == "" {
+	if input == nil {
+		return errors.New("input is required")
+	}
+
+	title := strings.TrimSpace(input.Title)
+	if title == "" {
 		return errors.New("title is required")
+	}
+
+	if err := validateRouteText(title, maxRouteTitleLength, "title"); err != nil {
+		return err
+	}
+
+	if err := validateRouteText(input.Description, maxRouteDescriptionLength, "description"); err != nil {
+		return err
+	}
+
+	if err := validateRouteText(input.Code, maxRouteCodeLength, "code"); err != nil { //nolint:staticcheck // Code is deprecated but still accepted on compatibility DTOs and must be bounded.
+		return err
 	}
 
 	if input.OperationType == "" {
@@ -28,22 +56,110 @@ func (input *CreateOperationRouteInput) Validate() error {
 		return errors.New("operationType must be 'source', 'destination', or 'bidirectional'")
 	}
 
+	if input.Metadata != nil {
+		if err := core.ValidateMetadata(input.Metadata); err != nil {
+			return fmt.Errorf("invalid metadata: %w", err)
+		}
+	}
+
 	return nil
 }
 
-// UpdateOperationRouteInput wraps mmodel.UpdateOperationRouteInput to maintain compatibility while using midaz entities.
+// UpdateOperationRouteInput wraps mmodel.UpdateOperationRouteInput to maintain
+// compatibility while using midaz entities.
+//
+// An empty update payload returns a validation error because it would be a
+// no-op PATCH. AccountingEntriesRaw preserves explicit null JSON for callers
+// that need RFC 7396 merge-patch removal semantics.
 type UpdateOperationRouteInput struct {
 	mmodel.UpdateOperationRouteInput
 }
 
 // Validate validates the UpdateOperationRouteInput fields.
-func (*UpdateOperationRouteInput) Validate() error {
-	// For updates, fields are optional so validation is minimal
+func (input *UpdateOperationRouteInput) Validate() error {
+	if input == nil {
+		return errors.New("input is required")
+	}
+
+	if input.Title != "" && strings.TrimSpace(input.Title) == "" {
+		return errors.New("title is required")
+	}
+
+	if !input.hasChanges() {
+		return errors.New("empty update payload not allowed")
+	}
+
+	if err := validateRouteText(strings.TrimSpace(input.Title), maxRouteTitleLength, "title"); err != nil {
+		return err
+	}
+
+	if err := validateRouteText(input.Description, maxRouteDescriptionLength, "description"); err != nil {
+		return err
+	}
+
+	if err := validateRouteText(input.Code, maxRouteCodeLength, "code"); err != nil { //nolint:staticcheck // Code is deprecated but still accepted on compatibility DTOs and must be bounded.
+		return err
+	}
+
+	if input.Metadata != nil {
+		if err := core.ValidateMetadata(input.Metadata); err != nil {
+			return fmt.Errorf("invalid metadata: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func (input *UpdateOperationRouteInput) hasChanges() bool {
+	if input == nil {
+		return false
+	}
+
+	return strings.TrimSpace(input.Title) != "" ||
+		input.Description != "" ||
+		input.Code != "" || //nolint:staticcheck // Deprecated field remains part of compatibility DTO change detection.
+		input.Metadata != nil ||
+		input.Account != nil ||
+		input.AccountingEntries != nil ||
+		len(input.AccountingEntriesRaw) > 0
+}
+
+// MarshalJSON emits only fields explicitly set on the SDK PATCH input.
+func (input UpdateOperationRouteInput) MarshalJSON() ([]byte, error) {
+	fields := map[string]any{}
+	addStringField(fields, "title", input.Title)
+	addStringField(fields, "description", input.Description)
+	addStringField(fields, "code", input.Code) //nolint:staticcheck // Deprecated field remains part of compatibility DTO serialization.
+
+	if len(input.AccountingEntriesRaw) > 0 {
+		fields["accountingEntries"] = input.AccountingEntriesRaw
+	} else if input.AccountingEntries != nil {
+		fields["accountingEntries"] = input.AccountingEntries
+	}
+
+	addMetadataField(fields, input.Metadata)
+
+	if input.Account != nil {
+		fields["account"] = input.Account
+	}
+
+	return json.Marshal(fields)
+}
+
+func validateRouteText(value string, maxLength int, field string) error {
+	if utf8.RuneCountInString(value) > maxLength {
+		return fmt.Errorf("%s must be at most %d characters", field, maxLength)
+	}
+
 	return nil
 }
 
 // WithAccountAlias sets the account rule to use alias-based selection (method on struct).
 func (input *CreateOperationRouteInput) WithAccountAlias(alias string) *CreateOperationRouteInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Account = &AccountRule{
 		RuleType: "alias",
 		ValidIf:  alias,
@@ -54,6 +170,10 @@ func (input *CreateOperationRouteInput) WithAccountAlias(alias string) *CreateOp
 
 // WithAccountTypes sets the account rule to use account type-based selection (method on struct).
 func (input *CreateOperationRouteInput) WithAccountTypes(accountTypes []string) *CreateOperationRouteInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Account = &AccountRule{
 		RuleType: "account_type",
 		ValidIf:  accountTypes,
@@ -64,24 +184,43 @@ func (input *CreateOperationRouteInput) WithAccountTypes(accountTypes []string) 
 
 // WithTitle sets the title for UpdateOperationRouteInput (method on struct).
 func (input *UpdateOperationRouteInput) WithTitle(title string) *UpdateOperationRouteInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Title = title
+
 	return input
 }
 
 // WithMetadata sets the metadata for CreateOperationRouteInput (method on struct).
 func (input *CreateOperationRouteInput) WithMetadata(metadata map[string]any) *CreateOperationRouteInput {
-	input.Metadata = metadata
+	if input == nil {
+		return nil
+	}
+
+	input.Metadata = cloneAnyMap(metadata)
+
 	return input
 }
 
 // WithDescription sets the description for UpdateOperationRouteInput (method on struct).
 func (input *UpdateOperationRouteInput) WithDescription(description string) *UpdateOperationRouteInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Description = description
+
 	return input
 }
 
 // WithAccountTypes sets the account rule to use account type-based selection for UpdateOperationRouteInput (method on struct).
 func (input *UpdateOperationRouteInput) WithAccountTypes(accountTypes []string) *UpdateOperationRouteInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Account = &AccountRule{
 		RuleType: "account_type",
 		ValidIf:  accountTypes,
@@ -92,7 +231,12 @@ func (input *UpdateOperationRouteInput) WithAccountTypes(accountTypes []string) 
 
 // WithMetadata sets the metadata for UpdateOperationRouteInput (method on struct).
 func (input *UpdateOperationRouteInput) WithMetadata(metadata map[string]any) *UpdateOperationRouteInput {
-	input.Metadata = metadata
+	if input == nil {
+		return nil
+	}
+
+	input.Metadata = cloneAnyMap(metadata)
+
 	return input
 }
 
@@ -102,11 +246,13 @@ type AccountRule = mmodel.AccountRule
 // OperationRouteType represents the type of operation route for backward compatibility
 type OperationRouteType string
 
-// OperationRouteType constants define valid operation route types.
+// OperationRouteType constants define operation route types.
 const (
-	// OperationRouteTypeDebit represents debit operation type
+	// OperationRouteTypeDebit represents a legacy response value.
+	// Deprecated: debit is not accepted when creating or updating operation routes.
 	OperationRouteTypeDebit OperationRouteType = "debit"
-	// OperationRouteTypeCredit represents credit operation type
+	// OperationRouteTypeCredit represents a legacy response value.
+	// Deprecated: credit is not accepted when creating or updating operation routes.
 	OperationRouteTypeCredit OperationRouteType = "credit"
 	// OperationRouteTypeSource represents source operation type
 	OperationRouteTypeSource OperationRouteType = "source"
@@ -157,6 +303,10 @@ func NewCreateOperationRouteInput(title, description, operationType string) *Cre
 // Returns:
 //   - A pointer to the modified CreateOperationRouteInput for method chaining
 func WithCreateOperationRouteAccountAlias(input *CreateOperationRouteInput, alias string) *CreateOperationRouteInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Account = &AccountRule{
 		RuleType: "alias",
 		ValidIf:  alias,
@@ -174,6 +324,10 @@ func WithCreateOperationRouteAccountAlias(input *CreateOperationRouteInput, alia
 // Returns:
 //   - A pointer to the modified CreateOperationRouteInput for method chaining
 func WithCreateOperationRouteAccountType(input *CreateOperationRouteInput, accountTypes []string) *CreateOperationRouteInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Account = &AccountRule{
 		RuleType: "account_type",
 		ValidIf:  accountTypes,
@@ -191,7 +345,12 @@ func WithCreateOperationRouteAccountType(input *CreateOperationRouteInput, accou
 // Returns:
 //   - A pointer to the modified CreateOperationRouteInput for method chaining
 func WithCreateOperationRouteMetadata(input *CreateOperationRouteInput, metadata map[string]any) *CreateOperationRouteInput {
-	input.Metadata = metadata
+	if input == nil {
+		return nil
+	}
+
+	input.Metadata = cloneAnyMap(metadata)
+
 	return input
 }
 
@@ -212,7 +371,12 @@ func NewUpdateOperationRouteInput() *UpdateOperationRouteInput {
 // Returns:
 //   - A pointer to the modified UpdateOperationRouteInput for method chaining
 func WithUpdateOperationRouteTitle(input *UpdateOperationRouteInput, title string) *UpdateOperationRouteInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Title = title
+
 	return input
 }
 
@@ -225,7 +389,12 @@ func WithUpdateOperationRouteTitle(input *UpdateOperationRouteInput, title strin
 // Returns:
 //   - A pointer to the modified UpdateOperationRouteInput for method chaining
 func WithUpdateOperationRouteDescription(input *UpdateOperationRouteInput, description string) *UpdateOperationRouteInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Description = description
+
 	return input
 }
 
@@ -238,6 +407,10 @@ func WithUpdateOperationRouteDescription(input *UpdateOperationRouteInput, descr
 // Returns:
 //   - A pointer to the modified UpdateOperationRouteInput for method chaining
 func WithUpdateOperationRouteAccountAlias(input *UpdateOperationRouteInput, alias string) *UpdateOperationRouteInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Account = &AccountRule{
 		RuleType: "alias",
 		ValidIf:  alias,
@@ -255,6 +428,10 @@ func WithUpdateOperationRouteAccountAlias(input *UpdateOperationRouteInput, alia
 // Returns:
 //   - A pointer to the modified UpdateOperationRouteInput for method chaining
 func WithUpdateOperationRouteAccountType(input *UpdateOperationRouteInput, accountTypes []string) *UpdateOperationRouteInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Account = &AccountRule{
 		RuleType: "account_type",
 		ValidIf:  accountTypes,
@@ -272,7 +449,12 @@ func WithUpdateOperationRouteAccountType(input *UpdateOperationRouteInput, accou
 // Returns:
 //   - A pointer to the modified UpdateOperationRouteInput for method chaining
 func WithUpdateOperationRouteMetadata(input *UpdateOperationRouteInput, metadata map[string]any) *UpdateOperationRouteInput {
-	input.Metadata = metadata
+	if input == nil {
+		return nil
+	}
+
+	input.Metadata = cloneAnyMap(metadata)
+
 	return input
 }
 

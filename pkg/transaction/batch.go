@@ -5,6 +5,7 @@ package transaction
 
 import (
 	"context"
+	stdErrors "errors"
 	"fmt"
 	"sync"
 	"time"
@@ -13,7 +14,9 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // BatchResult represents the result of a transaction in a batch operation
@@ -51,6 +54,9 @@ type BatchOptions struct {
 	// StopOnError determines if the batch processing should stop on the first error
 	// Default is false (continue processing even if some transactions fail)
 	StopOnError bool
+	// AllowPartialSuccess controls whether failed individual transactions are returned
+	// only in BatchResult.Error without also returning an aggregate error.
+	AllowPartialSuccess bool
 }
 
 // DefaultBatchOptions returns the default batch processing options
@@ -62,6 +68,7 @@ func DefaultBatchOptions() *BatchOptions {
 		RetryDelay:           100 * time.Millisecond,
 		IdempotencyKeyPrefix: "batch",
 		StopOnError:          false,
+		AllowPartialSuccess:  false,
 	}
 }
 
@@ -89,8 +96,23 @@ func BatchTransactions(
 	inputs []*models.CreateTransactionInput,
 	options *BatchOptions,
 ) ([]BatchResult, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	if midazClient == nil || midazClient.Entity == nil || midazClient.Entity.Transactions == nil {
+		return nil, stdErrors.New("transaction service is not initialized")
+	}
+
+	if orgID == "" || ledgerID == "" {
+		return nil, stdErrors.New("organization and ledger IDs are required")
+	}
+
 	options = normalizeOptions(options)
 	results := make([]BatchResult, len(inputs))
+	start := time.Now()
+
+	recordBatchStartedEvent(ctx, orgID, ledgerID, len(inputs))
 
 	processor := &batchProcessor{
 		ctx:      ctx,
@@ -102,17 +124,48 @@ func BatchTransactions(
 		results:  results,
 	}
 
-	return processor.execute()
+	results, err := processor.execute()
+
+	recordBatchCompletedEvent(ctx, orgID, ledgerID, results, err, time.Since(start))
+
+	return results, err
 }
 
 // normalizeOptions ensures options are valid.
 func normalizeOptions(options *BatchOptions) *BatchOptions {
 	if options == nil {
 		options = DefaultBatchOptions()
+	} else {
+		cloned := *options
+		options = &cloned
 	}
 
 	if options.Concurrency < 1 {
 		options.Concurrency = 1
+	}
+
+	if options.Concurrency > 100 {
+		options.Concurrency = 100
+	}
+
+	if options.BatchSize < 1 {
+		options.BatchSize = DefaultBatchOptions().BatchSize
+	}
+
+	if options.BatchSize > 10_000 {
+		options.BatchSize = 10_000
+	}
+
+	if options.RetryCount < 0 {
+		options.RetryCount = 0
+	}
+
+	if options.RetryDelay <= 0 {
+		options.RetryDelay = DefaultBatchOptions().RetryDelay
+	}
+
+	if options.IdempotencyKeyPrefix == "" {
+		options.IdempotencyKeyPrefix = DefaultBatchOptions().IdempotencyKeyPrefix
 	}
 
 	return options
@@ -127,24 +180,43 @@ type batchProcessor struct {
 	inputs   []*models.CreateTransactionInput
 	options  *BatchOptions
 	results  []BatchResult
+
+	progressMu sync.Mutex
+	completed  int
 }
 
 // execute runs the batch processing logic.
 func (bp *batchProcessor) execute() ([]BatchResult, error) {
-	var wg sync.WaitGroup
+	var (
+		wg       sync.WaitGroup
+		firstErr error
+	)
 
 	semaphore := make(chan struct{}, bp.options.Concurrency)
 	errChan := make(chan error, 1)
 
 	for i := 0; i < len(bp.inputs); i += bp.options.BatchSize {
+		if err := bp.ctx.Err(); err != nil {
+			bp.markUnscheduledFrom(i, err)
+			firstErr = err
+
+			break
+		}
+
 		end := bp.calculateBatchEnd(i)
 
 		if err := bp.processBatch(i, end, &wg, semaphore, errChan); err != nil {
-			return bp.results, err
+			firstErr = err
+
+			break
 		}
 	}
 
 	wg.Wait()
+
+	if firstErr != nil && bp.options.StopOnError {
+		return bp.results, firstErr
+	}
 
 	return bp.checkFinalErrors(errChan)
 }
@@ -162,13 +234,23 @@ func (bp *batchProcessor) calculateBatchEnd(start int) int {
 // processBatch processes a single batch of transactions.
 func (bp *batchProcessor) processBatch(start, end int, wg *sync.WaitGroup, semaphore chan struct{}, errChan chan error) error {
 	for j := start; j < end; j++ {
+		if err := bp.ctx.Err(); err != nil {
+			bp.markUnscheduledFrom(j, err)
+			return nil
+		}
+
 		if bp.options.StopOnError {
 			if err := bp.checkForEarlyError(errChan); err != nil {
+				bp.markUnscheduledFrom(j, err)
+
 				return err
 			}
 		}
 
-		bp.startTransactionWorker(j, wg, semaphore, errChan)
+		if err := bp.startTransactionWorker(j, wg, semaphore, errChan); err != nil {
+			bp.markUnscheduledFrom(j, err)
+			return nil
+		}
 	}
 
 	return nil
@@ -185,8 +267,12 @@ func (*batchProcessor) checkForEarlyError(errChan chan error) error {
 }
 
 // startTransactionWorker starts a worker goroutine to process a transaction.
-func (bp *batchProcessor) startTransactionWorker(index int, wg *sync.WaitGroup, semaphore chan struct{}, errChan chan error) {
-	semaphore <- struct{}{}
+func (bp *batchProcessor) startTransactionWorker(index int, wg *sync.WaitGroup, semaphore chan struct{}, errChan chan error) error {
+	select {
+	case semaphore <- struct{}{}:
+	case <-bp.ctx.Done():
+		return bp.ctx.Err()
+	}
 
 	wg.Add(1)
 
@@ -202,19 +288,29 @@ func (bp *batchProcessor) startTransactionWorker(index int, wg *sync.WaitGroup, 
 			}
 		}
 	}(index)
+
+	return nil
 }
 
 // processTransaction processes a single transaction with retries.
 func (bp *batchProcessor) processTransaction(index int) error {
 	startTime := time.Now()
+
 	input := bp.inputs[index]
+	if input == nil {
+		result := bp.createResult(index, nil, fmt.Errorf("transaction input at index %d is nil", index), time.Since(startTime))
+		bp.results[index] = result
+		bp.callProgressCallback(result)
+
+		return result.Error
+	}
 
 	bp.ensureIdempotencyKey(input, index)
 	tx, err := bp.executeWithRetries(input)
 
 	result := bp.createResult(index, tx, err, time.Since(startTime))
 	bp.results[index] = result
-	bp.callProgressCallback(index, result)
+	bp.callProgressCallback(result)
 
 	return err
 }
@@ -287,6 +383,10 @@ func (*batchProcessor) calculateBackoffFactor(attempt int) uint {
 
 // createResult creates a BatchResult for the transaction.
 func (*batchProcessor) createResult(index int, tx *models.Transaction, err error, duration time.Duration) BatchResult {
+	if err == nil && tx == nil {
+		err = fmt.Errorf("transaction at index %d returned nil response", index)
+	}
+
 	result := BatchResult{
 		Index:         index,
 		TransactionID: "",
@@ -302,10 +402,26 @@ func (*batchProcessor) createResult(index int, tx *models.Transaction, err error
 }
 
 // callProgressCallback calls the progress callback if configured.
-func (bp *batchProcessor) callProgressCallback(index int, result BatchResult) {
-	if bp.options.OnProgress != nil {
-		bp.options.OnProgress(index+1, len(bp.inputs), result)
+//
+// We deliberately drop the mutex BEFORE invoking the user callback. The
+// previous implementation held progressMu across the call, which meant a
+// slow or blocking callback would serialize every other worker — a
+// guaranteed throughput cliff for any user that, say, wrote progress to
+// stdout. The mutex now only protects the bp.completed increment.
+func (bp *batchProcessor) callProgressCallback(result BatchResult) {
+	if bp.options.OnProgress == nil {
+		return
 	}
+
+	bp.progressMu.Lock()
+	bp.completed++
+	completed := bp.completed
+	total := len(bp.inputs)
+	bp.progressMu.Unlock()
+
+	// User callback runs unlocked. Workers can keep making progress even
+	// if this callback is slow.
+	bp.options.OnProgress(completed, total, result)
 }
 
 // checkFinalErrors checks for any final errors if StopOnError is enabled.
@@ -318,7 +434,114 @@ func (bp *batchProcessor) checkFinalErrors(errChan chan error) ([]BatchResult, e
 		}
 	}
 
+	if !bp.options.AllowPartialSuccess {
+		var errs []error
+
+		for i := range bp.results {
+			if bp.results[i].Error != nil {
+				errs = append(errs, bp.results[i].Error)
+			}
+		}
+
+		if len(errs) > 0 {
+			return bp.results, stdErrors.Join(errs...)
+		}
+	}
+
 	return bp.results, nil
+}
+
+func (bp *batchProcessor) markUnscheduledFrom(start int, err error) {
+	if err == nil {
+		return
+	}
+
+	for i := start; i < len(bp.results); i++ {
+		if bp.results[i].Error != nil || bp.results[i].TransactionID != "" {
+			continue
+		}
+
+		result := bp.createResult(i, nil, err, 0)
+		bp.results[i] = result
+		bp.callProgressCallback(result)
+	}
+}
+
+func recordBatchStartedEvent(ctx context.Context, orgID, ledgerID string, total int) {
+	recordBatchEvent(ctx, "midaz.transaction.batch.started", orgID, ledgerID, total,
+		attribute.String("midaz.business.batch.status", "started"),
+	)
+}
+
+func recordBatchCompletedEvent(ctx context.Context, orgID, ledgerID string, results []BatchResult, err error, duration time.Duration) {
+	summary := GetBatchSummary(results)
+	status := batchTelemetryStatus(ctx, summary, err)
+
+	// Span events are reserved for state transitions ("started", "completed",
+	// "errored"). The cumulative aggregates (success_count, error_count,
+	// duration_ms) move to the metric pipeline below — they are
+	// pre-aggregated counters/histograms that fit naturally into metrics
+	// and do NOT belong as high-cardinality span-event attributes (every
+	// run would have a unique attribute set, defeating aggregation).
+	stateAttrs := []attribute.KeyValue{
+		attribute.String("midaz.business.batch.status", status),
+	}
+
+	if err != nil {
+		stateAttrs = append(stateAttrs, attribute.String("midaz.business.errorClass", string(errors.GetErrorCategory(err))))
+	}
+
+	recordBatchEvent(ctx, "midaz.transaction.batch.completed", orgID, ledgerID, len(results), stateAttrs...)
+
+	// Emit metrics for the aggregates. We use RecordMetric (counter) for
+	// integer counts and a per-batch duration metric. The orgID + ledgerID
+	// tags keep the attribute set bounded — there's a finite set of
+	// (org, ledger, status) tuples.
+	provider := observability.GetProvider(ctx)
+	if provider == nil || !provider.IsEnabled() {
+		return
+	}
+
+	metricAttrs := []attribute.KeyValue{
+		attribute.String("midaz.organization_id", orgID),
+		attribute.String("midaz.ledger_id", ledgerID),
+		attribute.String("midaz.batch.status", status),
+	}
+
+	observability.RecordMetric(ctx, provider, "midaz.transaction.batch.success_count", float64(summary.SuccessCount), metricAttrs...)
+	observability.RecordMetric(ctx, provider, "midaz.transaction.batch.error_count", float64(summary.ErrorCount), metricAttrs...)
+	// RecordDuration takes a start time and uses time.Since internally; we
+	// already have the duration so reconstruct an equivalent start.
+	observability.RecordDuration(ctx, provider, "midaz.transaction.batch.duration", time.Now().Add(-duration), metricAttrs...)
+}
+
+func batchTelemetryStatus(ctx context.Context, summary BatchSummary, err error) string {
+	if ctx != nil && ctx.Err() != nil {
+		return "cancelled"
+	}
+
+	if err == nil && summary.ErrorCount == 0 {
+		return "completed"
+	}
+
+	if summary.SuccessCount > 0 && summary.ErrorCount > 0 {
+		return "partial"
+	}
+
+	return "failed"
+}
+
+func recordBatchEvent(ctx context.Context, event, orgID, ledgerID string, total int, extraAttrs ...attribute.KeyValue) {
+	attrs := make([]attribute.KeyValue, 0, 4+len(extraAttrs))
+	attrs = append(attrs,
+		attribute.String("midaz.business.event", event),
+		attribute.String("midaz.business.organizationId", orgID),
+		attribute.String("midaz.business.ledgerId", ledgerID),
+		attribute.Int("midaz.business.batch.count", total),
+	)
+	attrs = append(attrs, extraAttrs...)
+
+	observability.AddSpanEvent(ctx, event, attrs...)
 }
 
 // BatchSummary provides statistics about a batch operation

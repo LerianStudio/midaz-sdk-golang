@@ -34,6 +34,8 @@ func NewAccountGenerator(e *entities.Entity, obs observability.Provider) Account
 
 // Generate creates a single account from the provided template.
 func (g *accountGenerator) Generate(ctx context.Context, orgID, ledgerID, assetCode string, t data.AccountTemplate) (*models.Account, error) {
+	ctx = normalizeContext(ctx)
+
 	if err := g.validateInputs(orgID, ledgerID, assetCode); err != nil {
 		return nil, err
 	}
@@ -64,11 +66,21 @@ func (g *accountGenerator) validateInputs(orgID, ledgerID, assetCode string) err
 
 // buildAccountInput creates the basic account input from template
 func (*accountGenerator) buildAccountInput(t data.AccountTemplate, assetCode string) *models.CreateAccountInput {
-	accountClass := mapAccountClass(t.Type)
-
-	return models.NewCreateAccountInput(t.Name, assetCode, accountClass).
+	return models.NewCreateAccountInput(t.Name, assetCode, t.Type).
 		WithStatus(t.Status).
 		WithMetadata(t.Metadata)
+}
+
+func accountTypeKeyForTemplate(t data.AccountTemplate) string {
+	if t.AccountTypeKey != nil && isSupportedAccountTypeKey(*t.AccountTypeKey) {
+		return *t.AccountTypeKey
+	}
+
+	if key := inferAccountTypeKey(t.Type); key != "" {
+		return key
+	}
+
+	return AccountTypeKeyChecking
 }
 
 // applyTemplateFields applies optional template fields to the account input
@@ -146,11 +158,17 @@ func (g *accountGenerator) createAccount(ctx context.Context, orgID, ledgerID st
 		return nil, err
 	}
 
+	if out == nil {
+		return nil, errNilGenerated("account")
+	}
+
 	return out, nil
 }
 
 // GenerateBatch creates multiple accounts concurrently from the provided templates.
 func (g *accountGenerator) GenerateBatch(ctx context.Context, orgID, ledgerID, assetCode string, templates []data.AccountTemplate) ([]*models.Account, error) {
+	ctx = normalizeContext(ctx)
+
 	if len(templates) == 0 {
 		return []*models.Account{}, nil
 	}
@@ -188,6 +206,11 @@ func (g *accountGenerator) GenerateBatch(ctx context.Context, orgID, ledgerID, a
 			continue
 		}
 
+		if r.Value == nil {
+			errs = append(errs, errNilGenerated("account"))
+			continue
+		}
+
 		out = append(out, r.Value)
 	}
 
@@ -207,25 +230,6 @@ func (g *accountGenerator) GenerateBatch(ctx context.Context, orgID, ledgerID, a
 	}
 
 	return out, nil
-}
-
-// mapAccountClass maps a domain-specific template type to an accounting class.
-// Defaults to ASSET when uncertain to ensure account creation succeeds in demos.
-func mapAccountClass(t string) string {
-	switch t {
-	case "expense":
-		return "EXPENSE"
-	case "revenue":
-		return "REVENUE"
-	case "liability":
-		return "LIABILITY"
-	case "equity":
-		return "EQUITY"
-	case "creditCard":
-		return "LIABILITY"
-	default:
-		return "ASSET"
-	}
 }
 
 // inferAccountTypeKey maps a domain template type to a default AccountType key.

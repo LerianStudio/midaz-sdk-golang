@@ -99,3 +99,5 @@ c, err := client.New(
 ```
 
 See [Environment variables](./environment.md) for the full list of supported variables.
+
+Unsafe transaction create calls receive an auto-generated `X-Idempotency` header by default. Use `entities.WithIdempotencyKey` or input-level idempotency keys when a caller-chosen stable key is required, or when auto-idempotency has been disabled for a client or request.

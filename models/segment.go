@@ -2,10 +2,16 @@
 package models
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
+	"strings"
 
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation/core"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
+
+const maxSegmentNameLength = 256
 
 // Segment is an alias for mmodel.Segment to maintain compatibility while using midaz entities.
 type Segment = mmodel.Segment
@@ -31,23 +37,62 @@ func NewCreateSegmentInput(name string) *CreateSegmentInput {
 
 // WithStatus sets the status.
 func (input *CreateSegmentInput) WithStatus(status Status) *CreateSegmentInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Status = status
+
 	return input
 }
 
 // WithMetadata sets the metadata.
 func (input *CreateSegmentInput) WithMetadata(metadata map[string]any) *CreateSegmentInput {
-	input.Metadata = metadata
+	if input == nil {
+		return nil
+	}
+
+	input.Metadata = cloneAnyMap(metadata)
+
 	return input
 }
 
 // Validate validates the CreateSegmentInput fields.
 func (input *CreateSegmentInput) Validate() error {
-	if input.Name == "" {
+	if input == nil {
+		return errors.New("input cannot be nil")
+	}
+
+	name := strings.TrimSpace(input.Name)
+	if name == "" {
 		return errors.New("name is required")
 	}
 
+	if len(name) > maxSegmentNameLength {
+		return fmt.Errorf("name must be at most %d characters", maxSegmentNameLength)
+	}
+
+	if input.Metadata != nil {
+		if err := core.ValidateMetadata(input.Metadata); err != nil {
+			return fmt.Errorf("invalid metadata: %w", err)
+		}
+	}
+
 	return nil
+}
+
+// MarshalJSON omits optional create fields when callers leave them unset.
+func (input *CreateSegmentInput) MarshalJSON() ([]byte, error) {
+	if input == nil {
+		return []byte("null"), nil
+	}
+
+	fields := map[string]any{}
+	addStringField(fields, "name", input.Name)
+	addStatusField(fields, input.Status)
+	addMetadataField(fields, input.Metadata)
+
+	return json.Marshal(fields)
 }
 
 // NewUpdateSegmentInput creates a new UpdateSegmentInput.
@@ -59,24 +104,82 @@ func NewUpdateSegmentInput() *UpdateSegmentInput {
 
 // WithName sets the name for UpdateSegmentInput.
 func (input *UpdateSegmentInput) WithName(name string) *UpdateSegmentInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Name = name
+
 	return input
 }
 
 // WithStatus sets the status for UpdateSegmentInput.
 func (input *UpdateSegmentInput) WithStatus(status Status) *UpdateSegmentInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Status = status
+
 	return input
 }
 
 // WithMetadata sets the metadata for UpdateSegmentInput.
 func (input *UpdateSegmentInput) WithMetadata(metadata map[string]any) *UpdateSegmentInput {
-	input.Metadata = metadata
+	if input == nil {
+		return nil
+	}
+
+	input.Metadata = cloneAnyMap(metadata)
+
 	return input
 }
 
 // Validate validates the UpdateSegmentInput fields.
-func (*UpdateSegmentInput) Validate() error {
-	// For update operations, most fields are optional
+func (input *UpdateSegmentInput) Validate() error {
+	if input == nil {
+		return errors.New("input cannot be nil")
+	}
+
+	if input.Name != "" && strings.TrimSpace(input.Name) == "" {
+		return errors.New("name must not be blank")
+	}
+
+	if !input.hasChanges() {
+		return errors.New("empty update payload not allowed")
+	}
+
+	if len(strings.TrimSpace(input.Name)) > maxSegmentNameLength {
+		return fmt.Errorf("name must be at most %d characters", maxSegmentNameLength)
+	}
+
+	if input.Metadata != nil {
+		if err := core.ValidateMetadata(input.Metadata); err != nil {
+			return fmt.Errorf("invalid metadata: %w", err)
+		}
+	}
+
 	return nil
+}
+
+func (input *UpdateSegmentInput) hasChanges() bool {
+	if input == nil {
+		return false
+	}
+
+	return strings.TrimSpace(input.Name) != "" || !IsStatusEmpty(input.Status) || input.Metadata != nil
+}
+
+// MarshalJSON emits only fields explicitly set on the SDK PATCH input.
+func (input *UpdateSegmentInput) MarshalJSON() ([]byte, error) {
+	if input == nil {
+		return []byte("null"), nil
+	}
+
+	fields := map[string]any{}
+	addStringField(fields, "name", input.Name)
+	addStatusField(fields, input.Status)
+	addMetadataField(fields, input.Metadata)
+
+	return json.Marshal(fields)
 }

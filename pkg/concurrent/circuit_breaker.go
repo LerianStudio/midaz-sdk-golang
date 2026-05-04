@@ -3,6 +3,7 @@ package concurrent
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 )
@@ -37,6 +38,7 @@ type CircuitBreaker struct {
 	openTimeout      time.Duration
 	name             string
 	logger           CBLogger
+	halfOpenProbe    bool
 }
 
 // Default circuit breaker configuration values.
@@ -84,15 +86,20 @@ func (cb *CircuitBreaker) WithLogger(l CBLogger) *CircuitBreaker {
 }
 
 // Execute runs fn under circuit breaker control.
-func (cb *CircuitBreaker) Execute(_ context.Context, fn func() error) error {
+func (cb *CircuitBreaker) Execute(_ context.Context, fn func() error) (err error) {
 	if !cb.canProceed() {
 		return ErrCircuitOpen
 	}
 
-	err := fn()
-	cb.after(err)
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("circuit breaker operation panicked: %v", recovered)
+		}
 
-	return err
+		cb.after(err)
+	}()
+
+	return fn()
 }
 
 // canProceed determines if the circuit breaker will allow the operation to proceed.
@@ -108,13 +115,19 @@ func (cb *CircuitBreaker) canProceed() bool {
 		if time.Since(cb.lastFailureTime) >= cb.openTimeout {
 			cb.st = halfOpen
 			cb.successCount = 0
+			cb.halfOpenProbe = true
 
 			return true
 		}
 
 		return false
 	case halfOpen:
-		// Allow limited probes, treat as single probe here
+		if cb.halfOpenProbe {
+			return false
+		}
+
+		cb.halfOpenProbe = true
+
 		return true
 	default:
 		return true
@@ -124,6 +137,10 @@ func (cb *CircuitBreaker) canProceed() bool {
 func (cb *CircuitBreaker) after(err error) {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
+
+	if cb.st == halfOpen {
+		cb.halfOpenProbe = false
+	}
 
 	if err == nil {
 		switch cb.st {
@@ -155,6 +172,7 @@ func (cb *CircuitBreaker) after(err error) {
 
 func (cb *CircuitBreaker) open() {
 	cb.st = open
+	cb.halfOpenProbe = false
 	cb.lastFailureTime = time.Now()
 
 	if cb.logger != nil && cb.name != "" {
@@ -166,6 +184,7 @@ func (cb *CircuitBreaker) reset() {
 	cb.st = closed
 	cb.failureCount = 0
 	cb.successCount = 0
+	cb.halfOpenProbe = false
 
 	if cb.logger != nil && cb.name != "" {
 		cb.logger.Printf("circuit '%s' closed after recovery", cb.name)

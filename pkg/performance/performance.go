@@ -48,6 +48,8 @@ package performance
 
 import (
 	"fmt"
+	"sync"
+	"sync/atomic"
 )
 
 // Options represents global performance configuration for the SDK
@@ -117,7 +119,11 @@ func WithMaxIdleConnsPerHost(maxIdle int) Option {
 	}
 }
 
-// WithJSONIterator enables or disables the use of jsoniter for JSON parsing
+// WithJSONIterator enables or disables the use of jsoniter for JSON parsing.
+//
+// Deprecated: this option is retained for API compatibility only. The SDK uses
+// the standard library JSON implementation; enabling this flag does not switch
+// to jsoniter.
 func WithJSONIterator(enabled bool) Option {
 	return func(o *Options) error {
 		o.UseJSONIterator = enabled
@@ -133,8 +139,20 @@ var defaultOptions = Options{
 	UseJSONIterator:     true,
 }
 
-// globalOptions holds the global performance options
-var globalOptions = defaultOptions
+// globalOptions holds the global performance options. Reads use the
+// atomic.Value's lock-free fast path; writes go through performanceMu so
+// the read-modify-store in ApplyGlobalPerformanceOptions /
+// ApplyBatchingOptions remains a single critical section. Without this
+// mutex, two concurrent callers could each Load(), each modify their own
+// copy, and one's Store() would silently clobber the other's mutation.
+var (
+	globalOptions atomic.Value
+	performanceMu sync.Mutex
+)
+
+func init() {
+	globalOptions.Store(defaultOptions)
+}
 
 // DefaultOptions returns a copy of the default performance options
 func DefaultOptions() Options {
@@ -148,6 +166,10 @@ func NewOptions(opts ...Option) (*Options, error) {
 
 	// Apply all provided options
 	for _, opt := range opts {
+		if opt == nil {
+			continue
+		}
+
 		if err := opt(&options); err != nil {
 			return nil, fmt.Errorf("failed to apply performance option: %w", err)
 		}
@@ -156,21 +178,28 @@ func NewOptions(opts ...Option) (*Options, error) {
 	return &options, nil
 }
 
-// ApplyGlobalPerformanceOptions applies performance options globally
+// ApplyGlobalPerformanceOptions applies performance options globally.
+// The read-modify-store sequence is wrapped by performanceMu so concurrent
+// callers cannot race each other's partial updates.
 func ApplyGlobalPerformanceOptions(options Options) {
-	// Apply non-zero options
+	performanceMu.Lock()
+	defer performanceMu.Unlock()
+
+	current := GetGlobalOptions()
+
 	if options.BatchSize > 0 {
-		globalOptions.BatchSize = options.BatchSize
+		current.BatchSize = options.BatchSize
 	}
 
 	// Apply boolean options explicitly set
-	globalOptions.EnableHTTPPooling = options.EnableHTTPPooling
+	current.EnableHTTPPooling = options.EnableHTTPPooling
 
 	if options.MaxIdleConnsPerHost > 0 {
-		globalOptions.MaxIdleConnsPerHost = options.MaxIdleConnsPerHost
+		current.MaxIdleConnsPerHost = options.MaxIdleConnsPerHost
 	}
 
-	globalOptions.UseJSONIterator = options.UseJSONIterator
+	current.UseJSONIterator = options.UseJSONIterator
+	globalOptions.Store(current)
 }
 
 // ApplyGlobalOptions applies the given options to the global configuration
@@ -185,22 +214,35 @@ func ApplyGlobalOptions(opts ...Option) error {
 	return nil
 }
 
-// ApplyBatchingOptions applies options specific to batching operations
+// ApplyBatchingOptions applies options specific to batching operations.
+// Like ApplyGlobalPerformanceOptions, the read-modify-store cycle runs
+// under performanceMu so it cannot race a parallel caller.
 func ApplyBatchingOptions(options Options) {
-	// Only update batch size if provided
+	performanceMu.Lock()
+	defer performanceMu.Unlock()
+
+	current := GetGlobalOptions()
+
 	if options.BatchSize > 0 {
-		globalOptions.BatchSize = options.BatchSize
+		current.BatchSize = options.BatchSize
 	}
+
+	globalOptions.Store(current)
 }
 
 // GetGlobalOptions returns the current global performance options
 func GetGlobalOptions() Options {
-	return globalOptions
+	options, ok := globalOptions.Load().(Options)
+	if !ok {
+		return defaultOptions
+	}
+
+	return options
 }
 
 // GetBatchSize returns the current global batch size
 func GetBatchSize() int {
-	return globalOptions.BatchSize
+	return GetGlobalOptions().BatchSize
 }
 
 // GetOptimalBatchSize calculates an optimal batch size based on the total count and maximum batch size.
@@ -217,7 +259,7 @@ func GetBatchSize() int {
 func GetOptimalBatchSize(totalCount, maxBatchSize int) int {
 	// If no maximum is provided, use the global batch size
 	if maxBatchSize <= 0 {
-		return globalOptions.BatchSize
+		return GetBatchSize()
 	}
 
 	// If total count is less than the maximum, use the total count

@@ -16,7 +16,11 @@ type Option func(*Entity) error
 // WithDebug returns an Option that enables or disables debug mode for the Entity.
 func WithDebug(debug bool) Option {
 	return func(e *Entity) error {
-		e.httpClient.debug = debug
+		if e == nil || e.httpClient == nil {
+			return errors.New("entity HTTP client cannot be nil")
+		}
+
+		e.httpClient.setDebugLocked(debug)
 
 		return nil
 	}
@@ -25,7 +29,11 @@ func WithDebug(debug bool) Option {
 // WithUserAgent returns an Option that sets the user agent for the Entity.
 func WithUserAgent(userAgent string) Option {
 	return func(e *Entity) error {
-		e.httpClient.userAgent = userAgent
+		if e == nil || e.httpClient == nil {
+			return errors.New("entity HTTP client cannot be nil")
+		}
+
+		e.httpClient.setUserAgentLocked(userAgent)
 
 		return nil
 	}
@@ -34,25 +42,29 @@ func WithUserAgent(userAgent string) Option {
 // WithObservability returns an Option that sets the observability provider for the Entity.
 func WithObservability(provider observability.Provider) Option {
 	return func(e *Entity) error {
+		if e == nil || e.httpClient == nil {
+			return errors.New("entity HTTP client cannot be nil")
+		}
+
 		if provider == nil {
 			return nil // No-op if the provider is nil
 		}
 
-		// Set the provider on the entity
-		e.observability = provider
+		// Reconfigure the HTTP client through a single locked setter so the
+		// provider and its derived metrics collector flip atomically.
+		var metrics *observability.MetricsCollector
 
-		// Set the provider on the HTTP client
-		e.httpClient.observability = provider
-
-		// Create metrics collector if needed
 		if provider.IsEnabled() {
-			var err error
-
-			e.httpClient.metrics, err = observability.NewMetricsCollector(provider)
+			collector, err := observability.NewMetricsCollector(provider)
 			if err != nil {
 				return err
 			}
+
+			metrics = collector
 		}
+
+		e.httpClient.setObservabilityLocked(provider, metrics)
+		e.observability = provider
 
 		return nil
 	}
@@ -80,16 +92,26 @@ func WithContext(ctx context.Context) Option {
 // The tenant ID configured on the entity is preserved across the replacement.
 func WithHTTPClient(client *http.Client) Option {
 	return func(e *Entity) error {
+		if e == nil {
+			return errors.New("entity cannot be nil")
+		}
+
 		if client == nil {
 			return errors.New("HTTP client cannot be nil")
 		}
 
-		// Preserve tenant ID across HTTP client replacement
-		savedTenantID := e.httpClient.tenantID
+		if e.httpClient == nil {
+			e.httpClient = NewHTTPClient(client, "", e.observability)
+			e.initServices()
+
+			return nil
+		}
+
+		savedConfig := e.httpClient.cloneConfiguration()
 
 		// Create a new HTTP client with the same auth token and observability
 		e.httpClient = NewHTTPClient(client, e.httpClient.authToken, e.observability)
-		e.httpClient.tenantID = savedTenantID
+		e.httpClient.applyConfigurationSnapshot(savedConfig)
 
 		// Re-initialize services with the new HTTP client
 		e.initServices()
@@ -104,12 +126,16 @@ func WithHTTPClient(client *http.Client) Option {
 // If tenantID is empty, the option is a no-op.
 func WithDefaultTenantID(tenantID string) Option {
 	return func(e *Entity) error {
+		if e == nil || e.httpClient == nil {
+			return errors.New("entity HTTP client cannot be nil")
+		}
+
 		tenantID = strings.TrimSpace(tenantID)
 		if tenantID == "" {
 			return nil
 		}
 
-		e.httpClient.tenantID = tenantID
+		e.httpClient.setTenantIDLocked(tenantID)
 
 		return nil
 	}

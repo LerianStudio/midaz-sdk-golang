@@ -40,8 +40,8 @@ type AssetsService interface {
 	//   - input: The asset details, including required fields:
 	//     - Name: The human-readable name of the asset (e.g., "US Dollar")
 	//     - Code: The unique asset code (e.g., "USD")
+	//     - Type: The asset type (e.g., "currency", "security", "commodity")
 	//     Optional fields include:
-	//     - Type: The asset type (e.g., "CURRENCY", "SECURITY", "COMMODITY")
 	//     - Status: The initial status (defaults to ACTIVE if not specified)
 	//     - Metadata: Additional custom information about the asset
 	//
@@ -66,7 +66,7 @@ type AssetsService interface {
 	//	    &models.CreateAssetInput{
 	//	        Name: "US Dollar",
 	//	        Code: "USD",
-	//	        Type: "CURRENCY",
+	//	        Type: "currency",
 	//	    },
 	//	)
 	//
@@ -85,9 +85,8 @@ type AssetsService interface {
 	//	    context.Background(),
 	//	    "org-123",
 	//	    "ledger-456",
-	//	    models.NewCreateAssetInput("Apple Inc. Stock", "AAPL").
-	//	        WithType("SECURITY").
-	//	        WithStatus(models.StatusActive).
+	//	    models.NewCreateAssetInputWithType("Apple Inc. Stock", "AAPL", "security").
+	//	        WithStatus(models.NewStatus(models.StatusActive)).
 	//	        WithMetadata(map[string]any{
 	//	            "exchange": "NASDAQ",
 	//	            "sector": "Technology",
@@ -166,7 +165,7 @@ func (e *assetsEntity) setDefaultTenantID(tenantID string) {
 //	    &models.CreateAssetInput{
 //	        Name: "US Dollar",
 //	        Code: "USD",
-//	        Type: "CURRENCY",
+//	        Type: "currency",
 //	    },
 //	)
 //
@@ -181,12 +180,12 @@ func NewAssetsEntity(client *http.Client, authToken string, baseURLs map[string]
 
 	// Check if we're using the debug flag from the environment
 	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
-		httpClient.debug = true
+		httpClient.setDebugLocked(true)
 	}
 
 	return &assetsEntity{
 		httpClient: httpClient,
-		baseURLs:   baseURLs,
+		baseURLs:   prepareServiceBaseURLs(baseURLs),
 	}
 }
 
@@ -211,7 +210,7 @@ func (e *assetsEntity) ListAssets(
 
 	url := e.buildURL(organizationID, ledgerID, "")
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -260,7 +259,7 @@ func (e *assetsEntity) GetAsset(
 
 	url := e.buildURL(organizationID, ledgerID, id)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -294,6 +293,10 @@ func (e *assetsEntity) CreateAsset(
 		return nil, errors.NewMissingParameterError(operation, "input")
 	}
 
+	if err := input.Validate(); err != nil {
+		return nil, errors.NewValidationError(operation, "asset validation failed", err)
+	}
+
 	url := e.buildURL(organizationID, ledgerID, "")
 
 	body, err := json.Marshal(input)
@@ -301,7 +304,7 @@ func (e *assetsEntity) CreateAsset(
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	req, err := newRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -309,8 +312,12 @@ func (e *assetsEntity) CreateAsset(
 	var asset models.Asset
 	if err := e.httpClient.sendRequest(req, &asset); err != nil {
 		// HTTPClient.DoRequest already returns proper error types
+		e.httpClient.emitBusinessError(ctx, businessEventAssetCreated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID}, err)
+
 		return nil, err
 	}
+
+	e.httpClient.emitBusinessEvent(ctx, businessEventAssetCreated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "assetId": asset.ID, "status": asset.Status.Code})
 
 	return &asset, nil
 }
@@ -343,6 +350,10 @@ func (e *assetsEntity) UpdateAsset(
 		return nil, errors.NewMissingParameterError(operation, "input")
 	}
 
+	if err := input.Validate(); err != nil {
+		return nil, errors.NewValidationError(operation, "asset validation failed", err)
+	}
+
 	url := e.buildURL(organizationID, ledgerID, id)
 
 	body, err := json.Marshal(input)
@@ -350,15 +361,19 @@ func (e *assetsEntity) UpdateAsset(
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, bytes.NewReader(body))
+	req, err := newRequestWithContext(ctx, http.MethodPatch, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
 
 	var asset models.Asset
 	if err := e.httpClient.sendRequest(req, &asset); err != nil {
+		e.httpClient.emitBusinessError(ctx, businessEventAssetUpdated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "assetId": id}, err)
+
 		return nil, err
 	}
+
+	e.httpClient.emitBusinessEvent(ctx, businessEventAssetUpdated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "assetId": asset.ID, "status": asset.Status.Code})
 
 	return &asset, nil
 }
@@ -387,15 +402,19 @@ func (e *assetsEntity) DeleteAsset(
 
 	url := e.buildURL(organizationID, ledgerID, id)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
+	req, err := newRequestWithContext(ctx, http.MethodDelete, url, nil)
 	if err != nil {
 		return errors.NewInternalError(operation, err)
 	}
 
 	if err := e.httpClient.sendRequest(req, nil); err != nil {
 		// HTTPClient.DoRequest already returns proper error types
+		e.httpClient.emitBusinessError(ctx, businessEventAssetDeleted, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "assetId": id}, err)
+
 		return err
 	}
+
+	e.httpClient.emitBusinessEvent(ctx, businessEventAssetDeleted, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "assetId": id})
 
 	return nil
 }

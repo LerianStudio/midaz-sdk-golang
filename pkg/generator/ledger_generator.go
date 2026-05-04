@@ -38,6 +38,8 @@ func NewLedgerGenerator(e *entities.Entity, obs observability.Provider, defaultO
 
 // Generate creates a single ledger from the provided template.
 func (g *ledgerGenerator) Generate(ctx context.Context, orgID string, template data.LedgerTemplate) (*models.Ledger, error) {
+	ctx = normalizeContext(ctx)
+
 	if g.e == nil || g.e.Ledgers == nil {
 		return nil, errors.New("entity ledgers service not initialized")
 	}
@@ -70,11 +72,17 @@ func (g *ledgerGenerator) Generate(ctx context.Context, orgID string, template d
 		return nil, err
 	}
 
+	if out == nil {
+		return nil, errNilGenerated("ledger")
+	}
+
 	return out, nil
 }
 
 // GenerateForOrg creates multiple ledgers for the specified organization.
 func (g *ledgerGenerator) GenerateForOrg(ctx context.Context, orgID string, count int) ([]*models.Ledger, error) {
+	ctx = normalizeContext(ctx)
+
 	if count <= 0 {
 		return []*models.Ledger{}, nil
 	}
@@ -129,6 +137,11 @@ func (g *ledgerGenerator) GenerateForOrg(ctx context.Context, orgID string, coun
 			continue
 		}
 
+		if r.Value == nil {
+			errs = append(errs, errNilGenerated("ledger"))
+			continue
+		}
+
 		out = append(out, r.Value)
 	}
 
@@ -149,8 +162,14 @@ func (g *ledgerGenerator) GenerateForOrg(ctx context.Context, orgID string, coun
 
 // ListWithPagination retrieves ledgers with pagination support.
 func (g *ledgerGenerator) ListWithPagination(ctx context.Context, opts *models.ListOptions) (*models.ListResponse[models.Ledger], error) {
+	ctx = normalizeContext(ctx)
+
 	if g.defaultOrg == "" {
 		return nil, errors.New("default organization id not configured for listing")
+	}
+
+	if g.e == nil || g.e.Ledgers == nil {
+		return nil, errors.New("entity ledgers service not initialized")
 	}
 
 	var out *models.ListResponse[models.Ledger]
@@ -160,6 +179,10 @@ func (g *ledgerGenerator) ListWithPagination(ctx context.Context, opts *models.L
 			resp, err := g.e.Ledgers.ListLedgers(ctx, g.defaultOrg, opts)
 			if err != nil {
 				return err
+			}
+
+			if resp == nil {
+				return errNilGenerated("ledger list")
 			}
 
 			out = resp

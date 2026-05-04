@@ -14,7 +14,7 @@ package models
 //	// Check if a transaction is pending and needs to be committed
 //	if transaction.Status == models.TransactionStatusPending {
 //	    // Commit the transaction
-//	    committedTx, err := client.Transactions.CommitTransaction(
+//	    committedTx, err := c.Entity.Transactions.CommitTransaction(
 //	        context.Background(),
 //	        "org-123",
 //	        "ledger-456",
@@ -29,7 +29,7 @@ package models
 //	case models.TransactionStatusPending:
 //	    fmt.Println("Transaction is pending commitment")
 //	case models.TransactionStatusFailed:
-//	    fmt.Println("Transaction failed: ", transaction.FailureReason)
+//	    fmt.Println("Transaction failed; inspect the returned SDK error for details")
 //	case models.TransactionStatusCancelled:
 //	    fmt.Println("Transaction was cancelled")
 //	}
@@ -48,8 +48,8 @@ const (
 
 	// TransactionStatusFailed represents a transaction that failed to process
 	// Failed transactions encountered an error during processing and were
-	// not applied to account balances. The transaction's FailureReason field
-	// provides details about why the transaction failed.
+	// not applied to account balances. Inspect the SDK error returned by the
+	// failing operation for details.
 	TransactionStatusFailed = "failed"
 
 	// TransactionStatusCancelled represents a transaction that was cancelled
@@ -116,8 +116,9 @@ const (
 	// QueryParamLimit is the query parameter name for limit
 	QueryParamLimit = "limit"
 
-	// QueryParamOffset is the legacy query parameter name for offset.
-	// Deprecated: current Midaz list endpoints use page-based pagination on the wire.
+	// QueryParamOffset is the unsupported legacy query parameter name for offset.
+	// Deprecated: current Midaz list endpoints use page-based pagination on the wire;
+	// ListOptions.ToQueryParams never emits this parameter.
 	QueryParamOffset = "offset"
 
 	// QueryParamPage is the query parameter name for page (backward compatibility)

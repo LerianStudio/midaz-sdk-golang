@@ -2,6 +2,7 @@ package validation
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 )
 
@@ -30,6 +31,10 @@ type FieldError struct {
 
 // Error implements the error interface for FieldError
 func (fe *FieldError) Error() string {
+	if fe == nil {
+		return "<nil field error>"
+	}
+
 	var builder strings.Builder
 
 	// Start with the field name
@@ -37,7 +42,7 @@ func (fe *FieldError) Error() string {
 
 	// Add the value if available
 	if fe.Value != nil {
-		_, _ = fmt.Fprintf(&builder, ": '%v'", fe.Value)
+		_, _ = fmt.Fprintf(&builder, ": '%s'", fe.safeValue())
 	}
 
 	// Add the message
@@ -60,6 +65,27 @@ func (fe *FieldError) Error() string {
 	}
 
 	return builder.String()
+}
+
+func (fe *FieldError) safeValue() string {
+	if strings.Contains(strings.ToLower(fe.Field), "metadata") {
+		return "<redacted>"
+	}
+
+	rv := reflect.ValueOf(fe.Value)
+	if rv.IsValid() {
+		switch rv.Kind() {
+		case reflect.Map, reflect.Slice, reflect.Array:
+			return fmt.Sprintf("<%T redacted>", fe.Value)
+		}
+	}
+
+	value := fmt.Sprint(fe.Value)
+	if len(value) > 128 {
+		return value[:128] + "..."
+	}
+
+	return value
 }
 
 // BuildFieldError creates a field error with common fields
@@ -96,6 +122,10 @@ type FieldErrors struct {
 
 // Add adds a new field error to the collection
 func (fe *FieldErrors) Add(field string, value any, message string) *FieldError {
+	if fe == nil {
+		return BuildFieldError(field, value, message)
+	}
+
 	fieldError := BuildFieldError(field, value, message)
 	fe.Errors = append(fe.Errors, fieldError)
 
@@ -104,11 +134,19 @@ func (fe *FieldErrors) Add(field string, value any, message string) *FieldError 
 
 // AddError adds an existing field error to the collection
 func (fe *FieldErrors) AddError(err *FieldError) {
+	if fe == nil || err == nil {
+		return
+	}
+
 	fe.Errors = append(fe.Errors, err)
 }
 
 // HasErrors returns true if there are any errors in the collection
 func (fe *FieldErrors) HasErrors() bool {
+	if fe == nil {
+		return false
+	}
+
 	return len(fe.Errors) > 0
 }
 
@@ -123,6 +161,10 @@ func (fe *FieldErrors) Error() string {
 	_, _ = fmt.Fprintf(&builder, "Validation failed with %d field errors:\n", len(fe.Errors))
 
 	for i, err := range fe.Errors {
+		if err == nil {
+			continue
+		}
+
 		_, _ = fmt.Fprintf(&builder, "%d. %s\n", i+1, err.Error())
 	}
 
@@ -131,14 +173,26 @@ func (fe *FieldErrors) Error() string {
 
 // GetFieldErrors returns all field errors in the collection
 func (fe *FieldErrors) GetFieldErrors() []*FieldError {
+	if fe == nil {
+		return nil
+	}
+
 	return fe.Errors
 }
 
 // GetErrorsForField returns all errors for a specific field
 func (fe *FieldErrors) GetErrorsForField(field string) []*FieldError {
+	if fe == nil {
+		return nil
+	}
+
 	var errors []*FieldError
 
 	for _, err := range fe.Errors {
+		if err == nil {
+			continue
+		}
+
 		// Match exact field or field with dot notation path
 		if err.Field == field || strings.HasPrefix(err.Field, field+".") {
 			errors = append(errors, err)
@@ -157,5 +211,9 @@ func NewFieldErrors() *FieldErrors {
 
 // WrapError wraps a regular error as a field error
 func WrapError(field string, value any, err error) *FieldError {
+	if err == nil {
+		return nil
+	}
+
 	return BuildFieldError(field, value, err.Error())
 }

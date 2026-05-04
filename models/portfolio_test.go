@@ -181,11 +181,10 @@ func TestCreatePortfolioInput_Validate(t *testing.T) {
 			errorMsg:    "name is required",
 		},
 		{
-			name:        "missing entityID",
+			name:        "missing entityID is allowed",
 			entityID:    "",
 			nameVal:     "My Portfolio",
-			expectError: true,
-			errorMsg:    "entityID is required",
+			expectError: false,
 		},
 		{
 			name:        "missing both name and entityID - name error first",
@@ -418,9 +417,9 @@ func TestUpdatePortfolioInput_Validate(t *testing.T) {
 		expectError bool
 	}{
 		{
-			name:        "empty input is valid",
+			name:        "empty input is rejected",
 			setupFunc:   func(_ *UpdatePortfolioInput) {},
-			expectError: false,
+			expectError: true,
 		},
 		{
 			name: "only name set",
@@ -453,11 +452,11 @@ func TestUpdatePortfolioInput_Validate(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name: "empty name is valid for update",
+			name: "empty name is rejected for update",
 			setupFunc: func(input *UpdatePortfolioInput) {
 				input.WithName("")
 			},
-			expectError: false,
+			expectError: true,
 		},
 	}
 
@@ -570,14 +569,11 @@ func TestCreatePortfolioInput_ValidationOrder(t *testing.T) {
 	assert.Equal(t, "name is required", err2.Error())
 
 	input3 := NewCreatePortfolioInput("", "Valid Name")
-	err3 := input3.Validate()
-
-	require.Error(t, err3)
-	assert.Equal(t, "entityID is required", err3.Error())
+	require.NoError(t, input3.Validate())
 }
 
 func TestPortfolioInput_MetadataImmutability(t *testing.T) {
-	t.Run("CreatePortfolioInput metadata reference", func(t *testing.T) {
+	t.Run("CreatePortfolioInput metadata copy", func(t *testing.T) {
 		originalMetadata := map[string]any{
 			"key": "original",
 		}
@@ -587,11 +583,11 @@ func TestPortfolioInput_MetadataImmutability(t *testing.T) {
 
 		originalMetadata["key"] = "modified"
 
-		assert.Equal(t, "modified", input.Metadata["key"],
-			"Metadata is passed by reference, modifications affect the input")
+		assert.Equal(t, "original", input.Metadata["key"],
+			"Metadata is copied at the builder boundary")
 	})
 
-	t.Run("UpdatePortfolioInput metadata reference", func(t *testing.T) {
+	t.Run("UpdatePortfolioInput metadata copy", func(t *testing.T) {
 		originalMetadata := map[string]any{
 			"key": "original",
 		}
@@ -601,8 +597,8 @@ func TestPortfolioInput_MetadataImmutability(t *testing.T) {
 
 		originalMetadata["key"] = "modified"
 
-		assert.Equal(t, "modified", input.Metadata["key"],
-			"Metadata is passed by reference, modifications affect the input")
+		assert.Equal(t, "original", input.Metadata["key"],
+			"Metadata is copied at the builder boundary")
 	})
 }
 
@@ -626,7 +622,7 @@ func TestPortfolioInput_NilSafety(t *testing.T) {
 		input.WithMetadata(nil)
 		assert.Nil(t, input.Metadata)
 
-		require.NoError(t, input.Validate())
+		require.ErrorContains(t, input.Validate(), "empty update payload not allowed")
 	})
 }
 
@@ -664,11 +660,9 @@ func TestPortfolioInput_EmptyStringVsNil(t *testing.T) {
 		assert.Equal(t, "name is required", err.Error())
 	})
 
-	t.Run("empty string entityID fails validation", func(t *testing.T) {
+	t.Run("empty string entityID is omitted-compatible", func(t *testing.T) {
 		input := NewCreatePortfolioInput("", "Valid Name")
-		err := input.Validate()
-		require.Error(t, err)
-		assert.Equal(t, "entityID is required", err.Error())
+		require.NoError(t, input.Validate())
 	})
 
 	t.Run("empty status code is allowed", func(t *testing.T) {

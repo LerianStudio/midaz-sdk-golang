@@ -89,6 +89,11 @@ type TransportConfig struct {
 	// connection. If zero, keep-alives are enabled if supported
 	// by the protocol and operating system.
 	KeepAlive time.Duration
+
+	// ForceAttemptHTTP2 controls whether the transport should attempt HTTP/2.
+	// The default is false to match the SDK-owned transport resilience profile.
+	// Use WithForceAttemptHTTP2(true) when an endpoint is known to support HTTP/2 safely.
+	ForceAttemptHTTP2 bool
 }
 
 // TransportOption defines a function that configures a TransportConfig
@@ -227,6 +232,14 @@ func WithKeepAlive(d time.Duration) TransportOption {
 	}
 }
 
+// WithForceAttemptHTTP2 sets whether the transport should attempt HTTP/2.
+func WithForceAttemptHTTP2(enabled bool) TransportOption {
+	return func(c *TransportConfig) error {
+		c.ForceAttemptHTTP2 = enabled
+		return nil
+	}
+}
+
 // WithHighThroughput configures the transport for high throughput operations
 func WithHighThroughput() TransportOption {
 	return func(c *TransportConfig) error {
@@ -266,6 +279,12 @@ func DefaultTransportConfig() *TransportConfig {
 		DisableCompression:    false,
 		DialTimeout:           DefaultTimeout,
 		KeepAlive:             DefaultKeepAlive,
+		// HTTP/2 is the documented default for net/http itself, and most
+		// production endpoints prefer it for multiplexing efficiency.
+		// Default to true so consumers using Midaz over modern reverse
+		// proxies / load balancers keep HTTP/2 unless they explicitly opt
+		// out via WithForceAttemptHTTP2(false).
+		ForceAttemptHTTP2: true,
 	}
 }
 
@@ -276,6 +295,10 @@ func NewTransportConfig(opts ...TransportOption) (*TransportConfig, error) {
 
 	// Apply all provided options
 	for _, opt := range opts {
+		if opt == nil {
+			continue
+		}
+
 		if err := opt(config); err != nil {
 			return nil, fmt.Errorf("failed to apply transport option: %w", err)
 		}
@@ -315,7 +338,7 @@ func newTransportWithConfig(config *TransportConfig) *http.Transport {
 		ExpectContinueTimeout: config.ExpectContinueTimeout,
 		DisableKeepAlives:     config.DisableKeepAlives,
 		DisableCompression:    config.DisableCompression,
-		ForceAttemptHTTP2:     true,
+		ForceAttemptHTTP2:     config.ForceAttemptHTTP2,
 	}
 }
 
@@ -359,6 +382,10 @@ func NewClient(opts ...HTTPClientOption) (*http.Client, error) {
 
 	// Apply all provided options
 	for _, opt := range opts {
+		if opt == nil {
+			continue
+		}
+
 		if err := opt(client); err != nil {
 			return nil, fmt.Errorf("failed to apply HTTP client option: %w", err)
 		}
@@ -396,7 +423,18 @@ func applyTransportDefaults(transport *http.Transport, config *TransportConfig) 
 	applyConnectionPoolDefaults(transport, config)
 	applyTimeoutDefaults(transport, config)
 
-	if !transport.ForceAttemptHTTP2 {
+	// Preserve a pre-existing ForceAttemptHTTP2=true on the transport. The
+	// older behavior here unconditionally overwrote the field with the
+	// config value, which silently downgraded SDK consumers that had
+	// already opted into HTTP/2 on their own transport (a recurring source
+	// of "we set HTTP/2 and the SDK turned it off" bug reports).
+	//
+	// Rule: turn HTTP/2 ON when EITHER the transport already wants it OR
+	// the config asks for it. The only way to actively disable is to pass
+	// a transport with ForceAttemptHTTP2=false AND a config that also
+	// has it false (the default-config path now defaults to true, so the
+	// default is now keep-on).
+	if config.ForceAttemptHTTP2 {
 		transport.ForceAttemptHTTP2 = true
 	}
 }

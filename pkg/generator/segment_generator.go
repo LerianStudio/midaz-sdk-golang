@@ -27,6 +27,8 @@ func NewSegmentGenerator(e *entities.Entity, obs observability.Provider) Segment
 
 // Generate creates a single segment with the specified parameters.
 func (g *segmentGenerator) Generate(ctx context.Context, orgID, ledgerID, name string, metadata map[string]any) (*models.Segment, error) {
+	ctx = normalizeContext(ctx)
+
 	if g.e == nil || g.e.Segments == nil {
 		return nil, errors.New("entity segments service not initialized")
 	}
@@ -53,6 +55,10 @@ func (g *segmentGenerator) Generate(ctx context.Context, orgID, ledgerID, name s
 	})
 	if err != nil {
 		return nil, err
+	}
+
+	if out == nil {
+		return nil, errNilGenerated("segment")
 	}
 
 	return out, nil

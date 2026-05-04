@@ -1,9 +1,15 @@
 package validation
 
 import (
+	"encoding/json"
+	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation/core"
 )
+
+var uuidPattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 
 // IsValidUUID checks if a string is a valid UUID.
 func IsValidUUID(s string) bool {
@@ -11,10 +17,7 @@ func IsValidUUID(s string) bool {
 		return false
 	}
 
-	// UUID format: 8-4-4-4-12 hexadecimal digits
-	r := regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
-
-	return r.MatchString(strings.ToLower(s))
+	return uuidPattern.MatchString(strings.ToLower(s))
 }
 
 // IsValidAmount checks if an amount value is valid for a given scale.
@@ -63,15 +66,21 @@ func IsValidAuthToken(token string) bool {
 // This function is needed by enhanced.go
 func isValidMetadataValueType(value any) bool {
 	switch value.(type) {
-	case string, bool, int, float64, nil:
+	case string, bool, int, int32, int64, float32, float64, []any, nil:
 		return true
 	default:
 		return false
 	}
 }
 
-// validateMetadataSize validates the total size of metadata
-// This function is needed by enhanced.go
+// validateMetadataSize validates the total size of metadata.
+//
+// We estimate the on-the-wire size by approximating each value's JSON
+// encoding length. The previous implementation used fmt.Sprint(v) for
+// arrays, which produces Go's debug syntax ("[a 1 true]") rather than JSON
+// ("[\"a\",1,true]"); the resulting byte count routinely under-estimated
+// the JSON size and let payloads slip through that the backend later
+// rejected. Using json.Marshal here matches the wire shape exactly.
 func validateMetadataSize(metadata map[string]any) error {
 	totalSize := 0
 	for key, value := range metadata {
@@ -80,8 +89,19 @@ func validateMetadataSize(metadata map[string]any) error {
 		switch v := value.(type) {
 		case string:
 			totalSize += len(v)
-		case bool, int, float64:
+		case bool, int, int32, int64, float32, float64:
 			totalSize += 8 // Approximate size for these types
+		case []any:
+			if err := core.ValidateMetadata(map[string]any{key: v}); err != nil {
+				return err
+			}
+
+			jsonBytes, err := json.Marshal(v)
+			if err != nil {
+				return fmt.Errorf("failed to estimate JSON size for metadata key %q: %w", key, err)
+			}
+
+			totalSize += len(jsonBytes)
 		}
 	}
 

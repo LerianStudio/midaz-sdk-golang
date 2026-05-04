@@ -544,6 +544,24 @@ func TestGenerationReportSaveHTML(t *testing.T) {
 	})
 }
 
+func TestGenerationReportSaveHTMLEscapesStrings(t *testing.T) {
+	dir := t.TempDir()
+	filePath := filepath.Join(dir, "report.html")
+
+	report := NewGenerationReport([]BatchResult{}, "", nil)
+	report.StepTimings = map[string]string{"<script>alert(1)</script>": "<b>bad</b>"}
+	report.APIStats = &ReportAPIStats{Errors: map[string]int{"<img src=x onerror=alert(1)>": 1}}
+
+	err := report.SaveHTML(filePath)
+	require.NoError(t, err)
+
+	content, err := os.ReadFile(filePath)
+	require.NoError(t, err)
+	assert.NotContains(t, string(content), "<script>alert(1)</script>")
+	assert.NotContains(t, string(content), "<img src=x onerror=alert(1)>")
+	assert.Contains(t, string(content), "&lt;script&gt;alert(1)&lt;/script&gt;")
+}
+
 // TestReportEntityCountsZeroValues tests default zero values
 func TestReportEntityCountsZeroValues(t *testing.T) {
 	counts := ReportEntityCounts{}

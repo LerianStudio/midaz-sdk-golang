@@ -1,7 +1,7 @@
 // Package performance provides utilities for optimizing the performance of the Midaz SDK.
 //
 // This package implements various performance optimizations including:
-// - JSON encoder/decoder pooling to reduce memory allocations
+// - JSON buffer pooling to reduce memory allocations
 // - Connection pooling for efficient HTTP requests
 // - Request batching for bulk operations
 //
@@ -9,7 +9,7 @@
 //
 //  1. High-Frequency API Operations:
 //     When your application makes frequent API calls with JSON payloads, using the JSONPool
-//     can significantly reduce memory allocations and garbage collection pressure:
+//     can reduce buffer allocations and garbage collection pressure:
 //
 //     ```go
 //     // Create a dedicated pool for a high-traffic service
@@ -25,7 +25,7 @@
 //
 //  2. Large JSON Document Processing:
 //     When working with large JSON documents (e.g., bulk data exports/imports),
-//     pooled encoders/decoders reduce memory fragmentation:
+//     pooled buffers reduce memory fragmentation:
 //
 //     ```go
 //     // Export large data set as JSON with minimal memory overhead
@@ -35,8 +35,8 @@
 //     ```
 //
 //  3. JSON Streaming in Web Services:
-//     For web servers handling many concurrent JSON requests, encoder pooling
-//     reduces GC pause times, improving response time consistency:
+//     For web servers handling many concurrent JSON requests, buffer pooling
+//     reduces some GC pressure. Encoders and decoders are created per use:
 //
 //     ```go
 //     // In an HTTP handler function
@@ -64,9 +64,19 @@ import (
 // occasional large JSON operations consuming excessive pool memory.
 const maxBufferSize = 1 << 20 // 1MB
 
-// JSONPool provides pooled buffers for JSON encoding/decoding workflows.
-// The standard library encoders/decoders themselves are still created per use,
-// because they cannot be safely rebound to a new reader/writer.
+// JSONPool provides buffer pooling for JSON encode/decode workflows.
+//
+// Despite the historical name and the ReleaseEncoder/ReleaseDecoder helpers
+// retained on this type for API compatibility, ONLY the underlying
+// *bytes.Buffer is actually pooled. The standard library's *json.Encoder
+// and *json.Decoder cannot be safely rebound to a new io.Writer / io.Reader,
+// so a fresh encoder/decoder is constructed on every operation. The
+// meaningful win — and the documented goal of this type — is the buffer
+// pool: it eliminates the per-Marshal allocation of a fresh bytes.Buffer
+// on the hot path.
+//
+// A nil or zero-value JSONPool is safe to use; the sync.Pool's New func
+// falls back to allocating a fresh buffer when the pool is empty.
 type JSONPool struct {
 	bufferPool sync.Pool
 }
@@ -94,8 +104,8 @@ func NewJSONPool() *JSONPool {
 // DefaultJSONPool is a shared instance of JSONPool for general use.
 var DefaultJSONPool = NewJSONPool()
 
-// Marshal encodes the value to JSON using a pooled encoder.
-// This reduces allocations compared to json.Marshal.
+// Marshal encodes the value to JSON using a pooled buffer and a per-use encoder.
+// This reduces buffer allocations compared to creating a new bytes.Buffer each time.
 //
 // Example use case: When serializing thousands of transactions
 // for a batch processing operation:
@@ -121,8 +131,7 @@ func (p *JSONPool) Marshal(v any) ([]byte, error) {
 	return append([]byte(nil), buf.Bytes()...), nil
 }
 
-// Unmarshal decodes JSON data into the value using a pooled decoder.
-// This reduces allocations compared to json.Unmarshal.
+// Unmarshal decodes JSON data into the value using a per-use decoder.
 //
 // Example use case: When processing a large batch of incoming
 // transaction records from an API:
@@ -143,24 +152,28 @@ func (p *JSONPool) Unmarshal(data []byte, v any) error {
 	return err
 }
 
-// NewEncoder returns a pooled encoder that writes to w.
+// NewEncoder returns a new encoder that writes to w.
 func (p *JSONPool) NewEncoder(w io.Writer) *json.Encoder {
 	enc := p.getEncoder(w)
 	return enc
 }
 
-// NewDecoder returns a pooled decoder that reads from r.
+// NewDecoder returns a new decoder that reads from r.
 func (p *JSONPool) NewDecoder(r io.Reader) *json.Decoder {
 	dec := p.getDecoder(r)
 	return dec
 }
 
-// ReleaseEncoder returns an encoder to the pool.
+// ReleaseEncoder is a no-op kept for API compatibility. Encoders are NOT
+// pooled (json.Encoder cannot be safely rebound). The original signature
+// is retained so existing callers don't need to change.
 func (p *JSONPool) ReleaseEncoder(enc *json.Encoder) {
 	p.putEncoder(enc)
 }
 
-// ReleaseDecoder returns a decoder to the pool.
+// ReleaseDecoder is a no-op kept for API compatibility. Decoders are NOT
+// pooled (json.Decoder cannot be safely rebound). The original signature
+// is retained so existing callers don't need to change.
 func (p *JSONPool) ReleaseDecoder(dec *json.Decoder) {
 	p.putDecoder(dec)
 }
@@ -195,8 +208,18 @@ func (*JSONPool) putDecoder(_ *json.Decoder) {
 
 // getBuffer gets a buffer from the pool.
 func (p *JSONPool) getBuffer() *bytes.Buffer {
+	if p == nil {
+		return new(bytes.Buffer)
+	}
+
 	// Type assertion is safe because the pool's New function always returns *bytes.Buffer
-	buf := p.bufferPool.Get().(*bytes.Buffer) //nolint:errcheck // pool New always returns *bytes.Buffer
+	pooled := p.bufferPool.Get()
+
+	buf, ok := pooled.(*bytes.Buffer)
+	if !ok || buf == nil {
+		buf = new(bytes.Buffer)
+	}
+
 	buf.Reset()
 
 	return buf
@@ -205,6 +228,10 @@ func (p *JSONPool) getBuffer() *bytes.Buffer {
 // putBuffer returns a buffer to the pool.
 // Buffers larger than maxBufferSize are discarded to prevent memory bloat.
 func (p *JSONPool) putBuffer(buf *bytes.Buffer) {
+	if p == nil || buf == nil {
+		return
+	}
+
 	if buf.Cap() > maxBufferSize {
 		return // Don't pool oversized buffers
 	}

@@ -8,6 +8,7 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
+	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
 type operationRouteGenerator struct {
@@ -22,8 +23,14 @@ func NewOperationRouteGenerator(e *entities.Entity, obs observability.Provider) 
 
 // Generate creates a single operation route from the provided input.
 func (g *operationRouteGenerator) Generate(ctx context.Context, orgID, ledgerID string, input *models.CreateOperationRouteInput) (*models.OperationRoute, error) {
+	ctx = normalizeContext(ctx)
+
 	if g.e == nil || g.e.OperationRoutes == nil {
 		return nil, errors.New("entity operation routes service not initialized")
+	}
+
+	if input == nil {
+		return nil, errors.New("operation route input is required")
 	}
 
 	validationErr := input.Validate()
@@ -51,6 +58,10 @@ func (g *operationRouteGenerator) Generate(ctx context.Context, orgID, ledgerID 
 		return nil, err
 	}
 
+	if out == nil {
+		return nil, errNilGenerated("operation route")
+	}
+
 	return out, nil
 }
 
@@ -64,6 +75,15 @@ func (g *operationRouteGenerator) GenerateDefaults(ctx context.Context, orgID, l
 		"Allows checking-type customer accounts as source",
 		string(models.OperationRouteInputTypeSource),
 	).WithAccountTypes([]string{"CHECKING"}).WithMetadata(map[string]any{"role": "customer", "route": "source_checking"})
+	srcCustomer.AccountingEntries = sourceDirectAccountingEntries("customer")
+
+	// Source: External (any account) for demo funding flows.
+	srcExternal := models.NewCreateOperationRouteInput(
+		"Source: External (any)",
+		"Allows external source funding entries",
+		string(models.OperationRouteInputTypeSource),
+	).WithMetadata(map[string]any{"role": "external", "route": "source_external"})
+	srcExternal.AccountingEntries = sourceDirectAccountingEntries("external")
 
 	// Source: Merchant (CHECKING)
 	srcMerchant := models.NewCreateOperationRouteInput(
@@ -71,6 +91,7 @@ func (g *operationRouteGenerator) GenerateDefaults(ctx context.Context, orgID, l
 		"Allows checking-type merchant accounts as source (refund)",
 		string(models.OperationRouteInputTypeSource),
 	).WithAccountTypes([]string{"CHECKING"}).WithMetadata(map[string]any{"role": "merchant", "route": "source_checking_merchant"})
+	srcMerchant.AccountingEntries = sourceDirectAccountingEntries("merchant")
 
 	// Destination: Merchant (CHECKING)
 	dstMerchant := models.NewCreateOperationRouteInput(
@@ -78,6 +99,7 @@ func (g *operationRouteGenerator) GenerateDefaults(ctx context.Context, orgID, l
 		"Allows checking-type merchant accounts as destination",
 		string(models.OperationRouteInputTypeDestination),
 	).WithAccountTypes([]string{"CHECKING"}).WithMetadata(map[string]any{"role": "merchant", "route": "dest_checking"})
+	dstMerchant.AccountingEntries = destinationDirectAccountingEntries("merchant")
 
 	// Destination: Platform Fee (alias)
 	dstPlatformFee := models.NewCreateOperationRouteInput(
@@ -86,6 +108,7 @@ func (g *operationRouteGenerator) GenerateDefaults(ctx context.Context, orgID, l
 		string(models.OperationRouteInputTypeDestination),
 	).WithMetadata(map[string]any{"role": "internal", "route": "dest_platform_fee"})
 	dstPlatformFee = models.WithCreateOperationRouteAccountAlias(dstPlatformFee, "platform_fee")
+	dstPlatformFee.AccountingEntries = destinationDirectAccountingEntries("platform_fee")
 
 	// Destination: Settlement Pool (alias)
 	dstSettlement := models.NewCreateOperationRouteInput(
@@ -94,6 +117,7 @@ func (g *operationRouteGenerator) GenerateDefaults(ctx context.Context, orgID, l
 		string(models.OperationRouteInputTypeDestination),
 	).WithMetadata(map[string]any{"role": "internal", "route": "dest_settlement"})
 	dstSettlement = models.WithCreateOperationRouteAccountAlias(dstSettlement, "settlement_pool")
+	dstSettlement.AccountingEntries = destinationDirectAccountingEntries("settlement")
 
 	// Destination: Customer (CHECKING) for refunds
 	dstCustomer := models.NewCreateOperationRouteInput(
@@ -101,8 +125,9 @@ func (g *operationRouteGenerator) GenerateDefaults(ctx context.Context, orgID, l
 		"Allows checking-type customer accounts as destination (refund)",
 		string(models.OperationRouteInputTypeDestination),
 	).WithAccountTypes([]string{"CHECKING"}).WithMetadata(map[string]any{"role": "customer", "route": "dest_checking_customer"})
+	dstCustomer.AccountingEntries = destinationDirectAccountingEntries("customer")
 
-	templates := []*models.CreateOperationRouteInput{srcCustomer, srcMerchant, dstMerchant, dstPlatformFee, dstSettlement, dstCustomer}
+	templates := []*models.CreateOperationRouteInput{srcCustomer, srcExternal, srcMerchant, dstMerchant, dstPlatformFee, dstSettlement, dstCustomer}
 	for _, tpl := range templates {
 		or, err := g.Generate(ctx, orgID, ledgerID, tpl)
 		if err != nil {
@@ -113,4 +138,16 @@ func (g *operationRouteGenerator) GenerateDefaults(ctx context.Context, orgID, l
 	}
 
 	return out, nil
+}
+
+func sourceDirectAccountingEntries(label string) *mmodel.AccountingEntries {
+	return &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{Debit: accountingRubric("1000", label+" debit")}}
+}
+
+func destinationDirectAccountingEntries(label string) *mmodel.AccountingEntries {
+	return &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{Credit: accountingRubric("2000", label+" credit")}}
+}
+
+func accountingRubric(code, description string) *mmodel.AccountingRubric {
+	return &mmodel.AccountingRubric{Code: code, Description: description}
 }

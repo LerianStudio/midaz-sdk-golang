@@ -161,8 +161,8 @@ func TestOperationRouteGenerator_GenerateDefaults_Success(t *testing.T) {
 
 	results, err := gen.GenerateDefaults(context.Background(), "org-123", "ledger-123")
 	require.NoError(t, err)
-	assert.Len(t, results, 6)
-	assert.Len(t, createdRoutes, 6)
+	assert.Len(t, results, 7)
+	assert.Len(t, createdRoutes, 7)
 }
 
 func TestOperationRouteGenerator_GenerateDefaults_Error(t *testing.T) {
@@ -248,6 +248,11 @@ func TestOperationRouteGenerator_GenerateDefaults_VerifyTemplates(t *testing.T) 
 		}
 	}
 
-	assert.Equal(t, 2, sourceCount)
+	assert.Equal(t, 3, sourceCount)
 	assert.Equal(t, 4, destCount)
+
+	for _, input := range createdInputs {
+		assert.NotNil(t, input.AccountingEntries)
+		assert.NotNil(t, input.AccountingEntries.Direct)
+	}
 }

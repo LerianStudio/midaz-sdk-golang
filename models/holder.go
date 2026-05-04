@@ -12,20 +12,35 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation/core"
 )
 
+const (
+	// HolderTypeNaturalPerson identifies an individual CRM holder.
+	HolderTypeNaturalPerson = "NATURAL_PERSON"
+	// HolderTypeLegalPerson identifies a company CRM holder.
+	HolderTypeLegalPerson = "LEGAL_PERSON"
+)
+
 // CreateHolderInput is the payload for creating a CRM holder.
+//
+// Optional fields use json:"...,omitempty"; absent ≡ null per RFC 7396 (compatible with Midaz CRM decoder).
 type CreateHolderInput struct {
-	ExternalID    *string        `json:"externalId"`
+	ExternalID    *string        `json:"externalId,omitempty"`
 	Type          *string        `json:"type"`
 	Name          string         `json:"name"`
 	Document      string         `json:"document"`
-	Addresses     *Addresses     `json:"addresses"`
-	Contact       *Contact       `json:"contact"`
-	NaturalPerson *NaturalPerson `json:"naturalPerson"`
-	LegalPerson   *LegalPerson   `json:"legalPerson"`
-	Metadata      map[string]any `json:"metadata"`
+	Addresses     *Addresses     `json:"addresses,omitempty"`
+	Contact       *Contact       `json:"contact,omitempty"`
+	NaturalPerson *NaturalPerson `json:"naturalPerson,omitempty"`
+	LegalPerson   *LegalPerson   `json:"legalPerson,omitempty"`
+	Metadata      map[string]any `json:"metadata,omitempty"`
 }
 
 // UpdateHolderInput is the payload for updating a CRM holder.
+//
+// An empty update payload — no setters AND no NullFields — returns a
+// marshal error from MarshalJSON. Sending an empty PATCH would be a
+// no-op round trip; we surface the mistake at marshal time so callers
+// fix it instead of paying for a useless network request. To explicitly
+// null out a field use WithNullFields.
 type UpdateHolderInput struct {
 	ExternalID    *string        `json:"externalId,omitempty"`
 	Name          *string        `json:"name,omitempty"`
@@ -107,7 +122,7 @@ func (input *CreateHolderInput) WithMetadata(metadata map[string]any) *CreateHol
 		return nil
 	}
 
-	input.Metadata = metadata
+	input.Metadata = cloneAnyMap(metadata)
 
 	return input
 }
@@ -189,7 +204,7 @@ func (input *UpdateHolderInput) WithMetadata(metadata map[string]any) *UpdateHol
 		return nil
 	}
 
-	input.Metadata = metadata
+	input.Metadata = cloneAnyMap(metadata)
 
 	return input
 }
@@ -289,7 +304,26 @@ func (input UpdateHolderInput) MarshalJSON() ([]byte, error) {
 		payload[field] = nil
 	}
 
+	if len(payload) == 0 {
+		return nil, errors.New("empty update payload not allowed")
+	}
+
 	return json.Marshal(payload)
+}
+
+func (input *UpdateHolderInput) hasChanges() bool {
+	if input == nil {
+		return false
+	}
+
+	return input.ExternalID != nil ||
+		input.Name != nil ||
+		input.Addresses != nil ||
+		input.Contact != nil ||
+		input.NaturalPerson != nil ||
+		input.LegalPerson != nil ||
+		input.Metadata != nil ||
+		len(input.NullFields) > 0
 }
 
 func (input *UpdateHolderInput) validateNullFieldConflicts() error {
@@ -329,7 +363,7 @@ var validHolderNullFields = map[string]bool{
 
 func isValidHolderType(holderType string) bool {
 	switch holderType {
-	case "NATURAL_PERSON", "LEGAL_PERSON":
+	case HolderTypeNaturalPerson, HolderTypeLegalPerson:
 		return true
 	default:
 		return false
@@ -355,6 +389,10 @@ func validateCRMNullFields(fields []string, allowed map[string]bool) error {
 func (input *UpdateHolderInput) Validate() error {
 	if input == nil {
 		return errors.New("input is required")
+	}
+
+	if !input.hasChanges() {
+		return errors.New("empty update payload not allowed")
 	}
 
 	if len(input.Metadata) > 0 {

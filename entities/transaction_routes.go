@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"os"
 
@@ -31,7 +30,7 @@ type TransactionRoutesService interface {
 	//       Limit: 10,
 	//       SortOrder: "asc",
 	//   }
-	//   routes, err := client.TransactionRoutes.ListTransactionRoutes(ctx, "org-123", "ledger-456", opts)
+	//   routes, err := c.Entity.TransactionRoutes.ListTransactionRoutes(ctx, "org-123", "ledger-456", opts)
 	ListTransactionRoutes(ctx context.Context, organizationID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.TransactionRoute], error)
 
 	// GetTransactionRoute retrieves a specific transaction route by ID
@@ -47,7 +46,7 @@ type TransactionRoutesService interface {
 	//   - error: An error if the request fails
 	//
 	// Example:
-	//   route, err := client.TransactionRoutes.GetTransactionRoute(ctx, "org-123", "ledger-456", "route-789")
+	//   route, err := c.Entity.TransactionRoutes.GetTransactionRoute(ctx, "org-123", "ledger-456", "route-789")
 	GetTransactionRoute(ctx context.Context, organizationID, ledgerID, transactionRouteID string) (*models.TransactionRoute, error)
 
 	// CreateTransactionRoute creates a new transaction route
@@ -66,7 +65,7 @@ type TransactionRoutesService interface {
 	//   operationRoutes := []string{"route1-id", "route2-id"}
 	//   input := models.NewCreateTransactionRouteInput("Settlement Route", "Handles settlements", operationRoutes).
 	//       WithMetadata(map[string]any{"department": "finance"})
-	//   route, err := client.TransactionRoutes.CreateTransactionRoute(ctx, "org-123", "ledger-456", input)
+	//   route, err := c.Entity.TransactionRoutes.CreateTransactionRoute(ctx, "org-123", "ledger-456", input)
 	CreateTransactionRoute(ctx context.Context, organizationID, ledgerID string, input *models.CreateTransactionRouteInput) (*models.TransactionRoute, error)
 
 	// UpdateTransactionRoute updates an existing transaction route
@@ -86,7 +85,7 @@ type TransactionRoutesService interface {
 	//   input := models.NewUpdateTransactionRouteInput().
 	//       WithTitle("Updated Settlement Route").
 	//       WithDescription("Updated description")
-	//   route, err := client.TransactionRoutes.UpdateTransactionRoute(ctx, "org-123", "ledger-456", "route-789", input)
+	//   route, err := c.Entity.TransactionRoutes.UpdateTransactionRoute(ctx, "org-123", "ledger-456", "route-789", input)
 	UpdateTransactionRoute(ctx context.Context, organizationID, ledgerID, transactionRouteID string, input *models.UpdateTransactionRouteInput) (*models.TransactionRoute, error)
 
 	// DeleteTransactionRoute deletes a transaction route
@@ -101,7 +100,7 @@ type TransactionRoutesService interface {
 	//   - error: An error if the request fails
 	//
 	// Example:
-	//   err := client.TransactionRoutes.DeleteTransactionRoute(ctx, "org-123", "ledger-456", "route-789")
+	//   err := c.Entity.TransactionRoutes.DeleteTransactionRoute(ctx, "org-123", "ledger-456", "route-789")
 	DeleteTransactionRoute(ctx context.Context, organizationID, ledgerID, transactionRouteID string) error
 }
 
@@ -120,24 +119,22 @@ func NewTransactionRoutesEntity(client *http.Client, authToken string, baseURLs 
 	httpClient := NewHTTPClient(client, authToken, nil)
 
 	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
-		httpClient.debug = true
+		httpClient.setDebugLocked(true)
 	}
 
 	return &transactionRoutesEntity{
 		httpClient: httpClient,
-		baseURLs:   baseURLs,
+		baseURLs:   prepareServiceBaseURLs(baseURLs),
 	}
 }
 
 // buildURL constructs the URL for transaction route endpoints
 func (e *transactionRoutesEntity) buildURL(organizationID, ledgerID, transactionRouteID string) string {
-	baseURL := e.baseURLs["transaction"]
-
 	if transactionRouteID == "" {
-		return fmt.Sprintf("%s/organizations/%s/ledgers/%s/transaction-routes", baseURL, pathSegment(organizationID), pathSegment(ledgerID))
+		return buildLedgerScopedURL(e.baseURLs["transaction"], organizationID, ledgerID, "transaction-routes")
 	}
 
-	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/transaction-routes/%s", baseURL, pathSegment(organizationID), pathSegment(ledgerID), pathSegment(transactionRouteID))
+	return buildLedgerScopedURL(e.baseURLs["transaction"], organizationID, ledgerID, "transaction-routes", transactionRouteID)
 }
 
 // ListTransactionRoutes retrieves a paginated list of transaction routes
@@ -154,14 +151,14 @@ func (e *transactionRoutesEntity) ListTransactionRoutes(ctx context.Context, org
 
 	url := e.buildURL(organizationID, ledgerID, "")
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
 
 	if opts != nil {
 		q := req.URL.Query()
-		for key, value := range opts.ToQueryParams() {
+		for key, value := range cursorListQueryParams(opts) {
 			q.Add(key, value)
 		}
 
@@ -171,6 +168,10 @@ func (e *transactionRoutesEntity) ListTransactionRoutes(ctx context.Context, org
 	var result models.ListResponse[models.TransactionRoute]
 	if err := e.httpClient.sendRequest(req, &result); err != nil {
 		return nil, err
+	}
+
+	if result.Items == nil {
+		result.Items = []models.TransactionRoute{}
 	}
 
 	return &result, nil
@@ -194,7 +195,7 @@ func (e *transactionRoutesEntity) GetTransactionRoute(ctx context.Context, organ
 
 	url := e.buildURL(organizationID, ledgerID, transactionRouteID)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -236,7 +237,7 @@ func (e *transactionRoutesEntity) CreateTransactionRoute(ctx context.Context, or
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	req, err := newRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -282,7 +283,7 @@ func (e *transactionRoutesEntity) UpdateTransactionRoute(ctx context.Context, or
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, bytes.NewReader(body))
+	req, err := newRequestWithContext(ctx, http.MethodPatch, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -315,7 +316,7 @@ func (e *transactionRoutesEntity) DeleteTransactionRoute(ctx context.Context, or
 
 	e.httpClient.debugLog("[%s]: Deleting transaction route %s", operation, transactionRouteID)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
+	req, err := newRequestWithContext(ctx, http.MethodDelete, url, nil)
 	if err != nil {
 		return errors.NewInternalError(operation, err)
 	}

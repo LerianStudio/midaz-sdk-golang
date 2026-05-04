@@ -38,6 +38,13 @@ type ledgerContext struct {
 	assetScales       map[string]int
 	baseAccounts      []*models.Account
 	hierarchyAccounts []*models.Account
+	routes            demoRouteContext
+}
+
+type demoRouteContext struct {
+	transactionRouteID string
+	sourceRouteID      string
+	destinationRouteID string
 }
 
 type cliFlags struct {
@@ -65,28 +72,37 @@ func main() {
 	flags := parseCLIFlags()
 	flag.Parse()
 
-	userConfig, obsProvider, err := prepareRun(flags)
+	if err := run(flags, explicitCLIFlags()); err != nil {
+		log.Printf("mass demo generator failed: %v", err)
+		os.Exit(1)
+	}
+}
+
+func run(flags cliFlags, explicit map[string]bool) error {
+	userConfig, obsProvider, err := prepareRun(flags, explicit)
 	if err != nil {
-		log.Fatalf("Failed to prepare run: %v", err)
+		return fmt.Errorf("failed to prepare run: %w", err)
 	}
 	defer shutdownObservability(obsProvider)
 
 	ctx, c, gcfg, shutdownFn, err := setupSDKAndContext(userConfig, obsProvider)
 	if err != nil {
-		log.Fatalf("Failed to setup SDK and context: %v", err)
+		return fmt.Errorf("failed to setup SDK and context: %w", err)
 	}
 	defer shutdownFn()
 
 	orgTemplates, assetTemplates, accountTemplates, err := loadTemplates()
 	if err != nil {
-		log.Fatalf("Failed to load templates: %v", err)
+		return fmt.Errorf("failed to load templates: %w", err)
 	}
 
 	if userConfig.doDemoVal {
 		if err := runGenerationWorkflow(ctx, c, obsProvider, gcfg, userConfig, orgTemplates, assetTemplates, accountTemplates); err != nil {
-			log.Fatalf("Failed to run generation workflow: %v", err)
+			return fmt.Errorf("failed to run generation workflow: %w", err)
 		}
 	}
+
+	return nil
 }
 
 func parseCLIFlags() cliFlags {
@@ -99,7 +115,7 @@ func parseCLIFlags() cliFlags {
 	txDefault := coalesceIntPtr(fileDefaults.TxPerAccount, 20)
 	concurrencyDefault := coalesceIntPtr(fileDefaults.Concurrency, 0)
 	batchDefault := coalesceIntPtr(fileDefaults.BatchSize, 50)
-	localeDefault := coalesceStringPtr(fileDefaults.Locale, "")
+	localeDefault := coalesceStringPtr(fileDefaults.Locale, "us")
 
 	flags := cliFlags{
 		timeoutSec:        flag.Int("timeout", timeoutDefault, "overall generation timeout in seconds"),
@@ -113,6 +129,15 @@ func parseCLIFlags() cliFlags {
 	}
 
 	return flags
+}
+
+func explicitCLIFlags() map[string]bool {
+	seen := map[string]bool{}
+	flag.Visit(func(f *flag.Flag) {
+		seen[f.Name] = true
+	})
+
+	return seen
 }
 
 func formatAmountByScale(amount int64, scale int64) string {
@@ -228,7 +253,7 @@ func askBool(r *bufio.Reader, prompt string, def bool) bool {
 	}
 }
 
-func prepareRun(flags cliFlags) (demoConfig, observability.Provider, error) {
+func prepareRun(flags cliFlags, explicit map[string]bool) (demoConfig, observability.Provider, error) {
 	if err := godotenv.Load("examples/mass-demo-generator/.env"); err != nil {
 		log.Printf("note: could not load examples/mass-demo-generator/.env: %v", err)
 	}
@@ -256,12 +281,24 @@ func prepareRun(flags cliFlags) (demoConfig, observability.Provider, error) {
 		flags.concurrency,
 		flags.batchSize,
 		flags.orgLocale,
+		explicit,
 	)
+	if err := validateDemoConfig(userConfig); err != nil {
+		if shutdownErr := obsProvider.Shutdown(context.Background()); shutdownErr != nil {
+			log.Printf("warning: observability shutdown after invalid config failed: %v", shutdownErr)
+		}
+
+		return demoConfig{}, nil, err
+	}
 
 	return userConfig, obsProvider, nil
 }
 
 func shutdownObservability(obsProvider observability.Provider) {
+	if obsProvider == nil {
+		return
+	}
+
 	sdCtx, sdCancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer sdCancel()
 
@@ -310,7 +347,7 @@ func loadTemplates() ([]data.OrgTemplate, []data.AssetTemplate, []data.AccountTe
 	return orgTemplates, assetTemplates, accountTemplates, nil
 }
 
-//nolint:gocognit,revive,funlen // Demo workflow function - complexity acceptable for example code showing complete flow
+//nolint:gocognit,gocyclo,cyclop,revive,funlen // Demo workflow function - complexity acceptable for example code showing complete flow
 func runGenerationWorkflow(ctx context.Context, c *client.Client, obsProvider observability.Provider, gcfg gen.GeneratorConfig, userConfig demoConfig, orgTemplates []data.OrgTemplate, assetTemplates []data.AssetTemplate, accountTemplates []data.AccountTemplate) error {
 	fmt.Println("\n🚀 Running generation workflow (org + ledger + assets + accounts + transactions)...")
 
@@ -330,11 +367,12 @@ func runGenerationWorkflow(ctx context.Context, c *client.Client, obsProvider ob
 		}
 
 		for _, lc := range ledgers {
-			accounts, portfolio, segNA, segEU, err := createAccountResources(ctx, c, obsProvider, state, org, lc.ledger, accountTemplates)
+			accounts, portfolio, segNA, segEU, routes, err := createAccountResources(ctx, c, obsProvider, state, org, lc.ledger, accountTemplates)
 			if err != nil {
 				return fmt.Errorf("failed to create account resources: %w", err)
 			}
 			lc.baseAccounts = accounts
+			lc.routes = routes
 
 			if state.demoConfig.createHierarchyVal {
 				hierarchyAccounts, err := createAccountHierarchy(ctx, c, obsProvider, state, org, lc.ledger, portfolio, segNA, segEU)
@@ -355,7 +393,11 @@ func runGenerationWorkflow(ctx context.Context, c *client.Client, obsProvider ob
 
 	if state.demoConfig.runBatchVal {
 		for _, lc := range ledgerContexts {
-			results := runAccountTransactions(ctx, c, state, lc.org, lc.ledger, lc.assetScales, lc.baseAccounts)
+			results, err := runAccountTransactions(ctx, c, state, lc.org, lc.ledger, lc.assetScales, lc.baseAccounts, lc.routes)
+			if err != nil {
+				return err
+			}
+
 			allResults = append(allResults, results...)
 			allAccounts = append(allAccounts, lc.baseAccounts...)
 			if reportOrg == nil {
@@ -369,7 +411,10 @@ func runGenerationWorkflow(ctx context.Context, c *client.Client, obsProvider ob
 		}
 	}
 
-	configuredTarget := state.demoConfig.orgsVal * state.demoConfig.ledgersPerOrgVal * state.demoConfig.accountsPerLedgerVal * state.demoConfig.txPerAccountVal
+	configuredTarget := 0
+	if state.demoConfig.runBatchVal {
+		configuredTarget = state.demoConfig.orgsVal * state.demoConfig.ledgersPerOrgVal * state.demoConfig.accountsPerLedgerVal * state.demoConfig.txPerAccountVal
+	}
 	generated := 0
 	for _, count := range state.accountTxnCounts {
 		generated += count
@@ -377,10 +422,14 @@ func runGenerationWorkflow(ctx context.Context, c *client.Client, obsProvider ob
 
 	fmt.Printf("Configured transaction target: %d\n", configuredTarget)
 	fmt.Printf("Transactions generated: %d across %d accounts\n", generated, len(state.accountTxnCounts))
-	if generated != configuredTarget {
-		fmt.Println("⚠️  Generated transaction count did not match the configured target. Check logs above for errors.")
-	} else {
+	if state.demoConfig.runBatchVal && generated != configuredTarget {
+		return fmt.Errorf("generated transaction count %d did not match configured target %d", generated, configuredTarget)
+	} else if state.demoConfig.runBatchVal {
 		fmt.Println("✅ Generated transaction volume matches configured target.")
+	}
+
+	if err := saveEntitiesIDs("./mass-demo-entities.json", state.reportEntities.IDs); err != nil {
+		return fmt.Errorf("failed to save entity IDs: %w", err)
 	}
 
 	fmt.Println("✅ Generation run complete.")
@@ -392,6 +441,7 @@ func createOrganizationResources(ctx context.Context, orgGen gen.OrganizationGen
 
 	orgTemplate := tpl
 	orgTemplate.LegalName = fmt.Sprintf("%s %d", tpl.LegalName, orgIdx+1)
+	applyOrganizationLocale(&orgTemplate, state.demoConfig.orgLocaleVal, orgIdx)
 
 	org, err := orgGen.Generate(ctx, orgTemplate)
 	if err != nil {
@@ -401,7 +451,7 @@ func createOrganizationResources(ctx context.Context, orgGen gen.OrganizationGen
 	state.apiCalls++
 	state.reportEntities.Counts.Organizations++
 	state.reportEntities.IDs.OrganizationIDs = append(state.reportEntities.IDs.OrganizationIDs, org.ID)
-	fmt.Println("Created org:", org.ID, org.LegalName)
+	fmt.Println("Created org:", shortID(org.ID), org.LegalName)
 
 	ledgerContexts := make([]*ledgerContext, 0, ledgersPerOrg)
 
@@ -420,7 +470,7 @@ func createOrganizationResources(ctx context.Context, orgGen gen.OrganizationGen
 		state.apiCalls++
 		state.reportEntities.Counts.Ledgers++
 		state.reportEntities.IDs.LedgerIDs = append(state.reportEntities.IDs.LedgerIDs, ledger.ID)
-		fmt.Println("Created ledger:", ledger.ID, ledger.Name)
+		fmt.Println("Created ledger:", shortID(ledger.ID), ledger.Name)
 
 		assetCtx := gen.WithOrgID(ctx, org.ID)
 		assetScales := map[string]int{}
@@ -442,7 +492,7 @@ func createOrganizationResources(ctx context.Context, orgGen gen.OrganizationGen
 			state.reportEntities.IDs.AssetIDs = append(state.reportEntities.IDs.AssetIDs, asset.ID)
 			assetScales[asset.Code] = tpl.Scale
 
-			fmt.Println("Created asset:", asset.ID, asset.Code)
+			fmt.Println("Created asset:", shortID(asset.ID), asset.Code)
 		}
 
 		ledgerContexts = append(ledgerContexts, &ledgerContext{org: org, ledger: ledger, assetScales: assetScales})
@@ -453,11 +503,23 @@ func createOrganizationResources(ctx context.Context, orgGen gen.OrganizationGen
 	return org, ledgerContexts, nil
 }
 
+func applyOrganizationLocale(template *data.OrgTemplate, locale string, _ int) {
+	if template == nil || locale != "br" {
+		return
+	}
+
+	template.Address = models.NewAddress("Avenida Paulista 1000", "01310-100", "Sao Paulo", "SP", "BR")
+	if template.Metadata == nil {
+		template.Metadata = map[string]any{}
+	}
+	template.Metadata["locale"] = "br"
+}
+
 //nolint:funlen // Demo function - length acceptable for example code showing complete resource creation
-func createAccountResources(ctx context.Context, c *client.Client, obsProvider observability.Provider, state *workflowState, org *models.Organization, ledger *models.Ledger, accountTemplates []data.AccountTemplate) (accounts []*models.Account, portfolio *models.Portfolio, segNA *models.Segment, segEU *models.Segment, err error) {
+func createAccountResources(ctx context.Context, c *client.Client, obsProvider observability.Provider, state *workflowState, org *models.Organization, ledger *models.Ledger, accountTemplates []data.AccountTemplate) (accounts []*models.Account, portfolio *models.Portfolio, segNA *models.Segment, segEU *models.Segment, routes demoRouteContext, err error) {
 	atGen := gen.NewAccountTypeGenerator(c.Entity, obsProvider)
 	if _, err := atGen.GenerateDefaults(ctx, org.ID, ledger.ID); err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("account type generation failed: %w", err)
+		return nil, nil, nil, nil, demoRouteContext{}, fmt.Errorf("account type generation failed: %w", err)
 	}
 
 	state.apiCalls++
@@ -466,7 +528,7 @@ func createAccountResources(ctx context.Context, c *client.Client, obsProvider o
 	orGen := gen.NewOperationRouteGenerator(c.Entity, obsProvider)
 	opRoutes, err := orGen.GenerateDefaults(ctx, org.ID, ledger.ID)
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("operation routes generation failed: %w", err)
+		return nil, nil, nil, nil, demoRouteContext{}, fmt.Errorf("operation routes generation failed: %w", err)
 	}
 
 	state.apiCalls += len(opRoutes)
@@ -475,11 +537,15 @@ func createAccountResources(ctx context.Context, c *client.Client, obsProvider o
 	trGen := gen.NewTransactionRouteGenerator(c.Entity, obsProvider)
 	troutes, err := trGen.GenerateDefaults(ctx, org.ID, ledger.ID, opRoutes)
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("transaction routes generation failed: %w", err)
+		return nil, nil, nil, nil, demoRouteContext{}, fmt.Errorf("transaction routes generation failed: %w", err)
 	}
 
 	state.apiCalls += len(troutes)
 	fmt.Printf("Created transaction routes: %d\n", len(troutes))
+	routes, err = selectDemoRoutes(opRoutes, troutes)
+	if err != nil {
+		return nil, nil, nil, nil, demoRouteContext{}, fmt.Errorf("demo route selection failed: %w", err)
+	}
 
 	accGen := gen.NewAccountGenerator(c.Entity, obsProvider)
 	totalAccounts := state.demoConfig.accountsPerLedgerVal
@@ -488,10 +554,7 @@ func createAccountResources(ctx context.Context, c *client.Client, obsProvider o
 	}
 
 	batch := make([]data.AccountTemplate, 0, totalAccounts)
-	prefix := ledger.ID
-	if len(prefix) > 8 {
-		prefix = prefix[:8]
-	}
+	prefix := shortID(ledger.ID)
 
 	for i := 0; i < totalAccounts; i++ {
 		base := accountTemplates[i%len(accountTemplates)]
@@ -508,7 +571,7 @@ func createAccountResources(ctx context.Context, c *client.Client, obsProvider o
 	tAcc := time.Now()
 	created, err := accGen.GenerateBatch(ctx, org.ID, ledger.ID, state.demoConfig.assetCodeVal, batch)
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("account generation failed: %w", err)
+		return nil, nil, nil, nil, demoRouteContext{}, fmt.Errorf("account generation failed: %w", err)
 	}
 
 	state.apiCalls += len(created)
@@ -525,33 +588,74 @@ func createAccountResources(ctx context.Context, c *client.Client, obsProvider o
 	portfolioName := fmt.Sprintf("Customer Portfolio %s", prefix)
 	portfolio, err = pGen.Generate(ctx, org.ID, ledger.ID, portfolioName, fmt.Sprintf("demo-entity-%s", prefix), map[string]any{"category": "customer"})
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("portfolio generation failed: %w", err)
+		return nil, nil, nil, nil, demoRouteContext{}, fmt.Errorf("portfolio generation failed: %w", err)
 	}
 
 	state.apiCalls++
 	state.reportEntities.Counts.Portfolios++
 	state.reportEntities.IDs.PortfolioIDs = append(state.reportEntities.IDs.PortfolioIDs, portfolio.ID)
-	fmt.Println("Created portfolio:", portfolio.ID)
+	fmt.Println("Created portfolio:", shortID(portfolio.ID))
 
 	sGen := gen.NewSegmentGenerator(c.Entity, obsProvider)
 	segNA, err = sGen.Generate(ctx, org.ID, ledger.ID, fmt.Sprintf("NA-%s", prefix), map[string]any{"region": "north_america", "ledger": ledger.ID})
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("segment generation failed: %w", err)
+		return nil, nil, nil, nil, demoRouteContext{}, fmt.Errorf("segment generation failed: %w", err)
 	}
 
 	state.apiCalls++
 	segEU, err = sGen.Generate(ctx, org.ID, ledger.ID, fmt.Sprintf("EU-%s", prefix), map[string]any{"region": "europe", "ledger": ledger.ID})
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("segment generation failed: %w", err)
+		return nil, nil, nil, nil, demoRouteContext{}, fmt.Errorf("segment generation failed: %w", err)
 	}
 
 	state.apiCalls++
 	state.reportEntities.Counts.Segments += 2
 	state.reportEntities.IDs.SegmentIDs = append(state.reportEntities.IDs.SegmentIDs, segNA.ID, segEU.ID)
 	state.stepTimings[fmt.Sprintf("ledger_%s_portfolio_segments", ledger.ID)] = time.Since(tPS).String()
-	fmt.Println("Created segments:", segNA.ID, segEU.ID)
+	fmt.Println("Created segments:", shortID(segNA.ID), shortID(segEU.ID))
 
-	return created, portfolio, segNA, segEU, nil
+	return created, portfolio, segNA, segEU, routes, nil
+}
+
+func selectDemoRoutes(opRoutes []*models.OperationRoute, txRoutes []*models.TransactionRoute) (demoRouteContext, error) {
+	routes := demoRouteContext{}
+	for _, route := range opRoutes {
+		if route == nil {
+			continue
+		}
+		switch route.Title {
+		case "Source: External (any)":
+			routes.sourceRouteID = route.ID.String()
+		case "Destination: Customer (CHECKING)":
+			routes.destinationRouteID = route.ID.String()
+		}
+	}
+
+	for _, route := range txRoutes {
+		if route == nil {
+			continue
+		}
+		if route.Title == "External Funding Flow" {
+			routes.transactionRouteID = route.ID.String()
+			break
+		}
+	}
+
+	missing := make([]string, 0, 3)
+	if routes.sourceRouteID == "" {
+		missing = append(missing, "operation route Source: External (any)")
+	}
+	if routes.destinationRouteID == "" {
+		missing = append(missing, "operation route Destination: Customer (CHECKING)")
+	}
+	if routes.transactionRouteID == "" {
+		missing = append(missing, "transaction route External Funding Flow")
+	}
+	if len(missing) > 0 {
+		return demoRouteContext{}, fmt.Errorf("missing required demo routes: %s", strings.Join(missing, ", "))
+	}
+
+	return routes, nil
 }
 
 func cloneAccountTemplate(base data.AccountTemplate) data.AccountTemplate {
@@ -571,9 +675,10 @@ func createAccountHierarchy(ctx context.Context, c *client.Client, obsProvider o
 	accGen := gen.NewAccountGenerator(c.Entity, obsProvider)
 	hGen := gen.NewAccountHierarchyGenerator(accGen)
 
-	customersRootAlias := fmt.Sprintf("customers_root_%s", ledger.ID[:8])
-	customerAAlias := fmt.Sprintf("customer_a_%s", ledger.ID[:8])
-	customerBAlias := fmt.Sprintf("customer_b_%s", ledger.ID[:8])
+	prefix := shortID(ledger.ID)
+	customersRootAlias := fmt.Sprintf("customers_root_%s", prefix)
+	customerAAlias := fmt.Sprintf("customer_a_%s", prefix)
+	customerBAlias := fmt.Sprintf("customer_b_%s", prefix)
 
 	nodes := []gen.AccountNode{
 		{
@@ -613,27 +718,27 @@ func createAccountHierarchy(ctx context.Context, c *client.Client, obsProvider o
 	return createdTree, nil
 }
 
-func runAccountTransactions(ctx context.Context, c *client.Client, state *workflowState, org *models.Organization, ledger *models.Ledger, assetScales map[string]int, accounts []*models.Account) []txpkg.BatchResult {
+func runAccountTransactions(ctx context.Context, c *client.Client, state *workflowState, org *models.Organization, ledger *models.Ledger, assetScales map[string]int, accounts []*models.Account, routes demoRouteContext) ([]txpkg.BatchResult, error) {
 	if len(accounts) == 0 {
 		fmt.Println("No accounts available for transaction demo; skipping batch run")
-		return nil
+		return nil, nil
 	}
 
-	return processAccountTransactions(ctx, c, state, org, ledger, assetScales, accounts)
+	return processAccountTransactions(ctx, c, state, org, ledger, assetScales, accounts, routes)
 }
 
-func processAccountTransactions(ctx context.Context, c *client.Client, state *workflowState, org *models.Organization, ledger *models.Ledger, assetScales map[string]int, accounts []*models.Account) []txpkg.BatchResult {
+func processAccountTransactions(ctx context.Context, c *client.Client, state *workflowState, org *models.Organization, ledger *models.Ledger, assetScales map[string]int, accounts []*models.Account, routes demoRouteContext) ([]txpkg.BatchResult, error) {
 	scale := assetScales[state.demoConfig.assetCodeVal]
 	if scale == 0 {
 		scale = 2
 	}
 
 	amtGen := data.NewAmountGenerator(state.genConfig.GenerationSeed)
-	inputs := buildAccountTransactions(state, accounts, scale, amtGen)
+	inputs := buildAccountTransactions(state, accounts, scale, amtGen, routes)
 
 	if len(inputs) == 0 {
 		fmt.Println("No transaction inputs generated; skipping batch run")
-		return nil
+		return nil, nil
 	}
 
 	if state.demoConfig.txPerAccountVal > 0 {
@@ -648,6 +753,7 @@ func processAccountTransactions(ctx context.Context, c *client.Client, state *wo
 	}
 
 	options := txpkg.DefaultBatchOptions()
+	options.RetryCount = 0 // SDK HTTP retries already protect unsafe calls with caller idempotency keys.
 	if state.genConfig.ConcurrencyLevel > 0 {
 		options.Concurrency = state.genConfig.ConcurrencyLevel
 	}
@@ -677,16 +783,24 @@ func processAccountTransactions(ctx context.Context, c *client.Client, state *wo
 
 	printSampleErrors(results)
 
-	return results
+	if err != nil {
+		return results, fmt.Errorf("transaction batch failed: %w", err)
+	}
+
+	return results, nil
 }
 
-func buildAccountTransactions(state *workflowState, accounts []*models.Account, scale int, amtGen *data.AmountGenerator) []*models.CreateTransactionInput {
+func buildAccountTransactions(state *workflowState, accounts []*models.Account, scale int, amtGen *data.AmountGenerator, routes demoRouteContext) []*models.CreateTransactionInput {
 	perAccount := state.demoConfig.txPerAccountVal
 	total := len(accounts) * perAccount
 	inputs := make([]*models.CreateTransactionInput, 0, total)
 	extAlias := fmt.Sprintf("@external/%s", state.demoConfig.assetCodeVal)
 
 	for _, account := range accounts {
+		if account == nil {
+			continue
+		}
+
 		alias := models.GetAccountAlias(*account)
 		if alias == "" {
 			alias = account.ID
@@ -704,16 +818,19 @@ func buildAccountTransactions(state *workflowState, accounts []*models.Account, 
 				Description:              fmt.Sprintf("Demo funding for %s #%d", alias, sequence),
 				ChartOfAccountsGroupName: state.demoConfig.chartGroupVal,
 				IdempotencyKey:           fmt.Sprintf("demo-%s-%05d", account.ID, sequence),
+				RouteID:                  routes.transactionRouteID,
 				Send: &models.SendInput{
 					Asset: state.demoConfig.assetCodeVal,
 					Value: amountStr,
 					Source: &models.SourceInput{From: []models.FromToInput{{
 						Account: extAlias,
 						Amount:  models.AmountInput{Asset: state.demoConfig.assetCodeVal, Value: amountStr},
+						RouteID: stringPtrIfNotEmpty(routes.sourceRouteID),
 					}}},
 					Distribute: &models.DistributeInput{To: []models.FromToInput{{
 						Account: alias,
 						Amount:  models.AmountInput{Asset: state.demoConfig.assetCodeVal, Value: amountStr},
+						RouteID: stringPtrIfNotEmpty(routes.destinationRouteID),
 					}}},
 				},
 				Metadata: map[string]any{
@@ -729,6 +846,22 @@ func buildAccountTransactions(state *workflowState, accounts []*models.Account, 
 	}
 
 	return inputs
+}
+
+func stringPtrIfNotEmpty(value string) *string {
+	if value == "" {
+		return nil
+	}
+
+	return &value
+}
+
+func shortID(id string) string {
+	if len(id) <= 8 {
+		return id
+	}
+
+	return id[:8]
 }
 
 func generateFinalReport(ctx context.Context, c *client.Client, state *workflowState, org *models.Organization, ledger *models.Ledger, results []txpkg.BatchResult, accounts []*models.Account) {
@@ -758,6 +891,10 @@ func buildReportDataSummary(state *workflowState, accounts []*models.Account, su
 	}
 
 	for _, account := range accounts {
+		if account == nil {
+			continue
+		}
+
 		reportDataSummary.AccountDistributionByType[strings.ToUpper(account.Type)]++
 	}
 
@@ -773,6 +910,10 @@ func fetchAccountBalances(ctx context.Context, c *client.Client, state *workflow
 	balancesFetched := 0
 
 	for _, account := range accounts {
+		if account == nil {
+			continue
+		}
+
 		if balancesFetched >= 2 {
 			break
 		}

@@ -1,11 +1,13 @@
 package retry_test
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -13,6 +15,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func nilContext() context.Context {
+	return nil
+}
 
 func TestDoHTTPRequest_Success(t *testing.T) {
 	// Create a test server that succeeds on the first try
@@ -166,6 +172,312 @@ func TestDoHTTPRequest_NetworkError(t *testing.T) {
 	assert.NotNil(t, resp)
 	assert.Nil(t, resp.Response) // There should be no response
 	require.Error(t, resp.Error) // Error should be captured in the response
+}
+
+func TestHTTPRetryExportedAPIs_NilInputsDoNotPanic(t *testing.T) {
+	tests := []struct {
+		name string
+		run  func() (*retry.HTTPResponse, error)
+	}{
+		{
+			name: "DoHTTPRequest with nil context returns error",
+			run: func() (*retry.HTTPResponse, error) {
+				req, err := http.NewRequest(http.MethodGet, "https://example.com", nil)
+				require.NoError(t, err)
+
+				return retry.DoHTTPRequest(nilContext(), http.DefaultClient, req)
+			},
+		},
+		{
+			name: "DoHTTPRequest with nil request returns error",
+			run: func() (*retry.HTTPResponse, error) {
+				return retry.DoHTTPRequest(context.Background(), http.DefaultClient, nil)
+			},
+		},
+		{
+			name: "DoHTTPRequest with nil option returns error",
+			run: func() (*retry.HTTPResponse, error) {
+				req, err := http.NewRequest(http.MethodGet, "https://example.com", nil)
+				require.NoError(t, err)
+
+				return retry.DoHTTPRequest(context.Background(), http.DefaultClient, req, nil)
+			},
+		},
+		{
+			name: "DoHTTPRequestWithContext with nil context returns error",
+			run: func() (*retry.HTTPResponse, error) {
+				req, err := http.NewRequest(http.MethodGet, "https://example.com", nil)
+				require.NoError(t, err)
+
+				return retry.DoHTTPRequestWithContext(nilContext(), http.DefaultClient, req)
+			},
+		},
+		{
+			name: "DoHTTP with nil context returns error",
+			run: func() (*retry.HTTPResponse, error) {
+				return retry.DoHTTP(nilContext(), http.DefaultClient, http.MethodGet, "https://example.com", nil)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			defer func() {
+				if recovered := recover(); recovered != nil {
+					t.Fatalf("expected error instead of panic, got panic: %v", recovered)
+				}
+			}()
+
+			_, err := tt.run()
+			require.Error(t, err)
+		})
+	}
+}
+
+func TestHTTPRetryContextOptions_NilInputsReturnDefaults(t *testing.T) {
+	t.Run("WithHTTPOptionsContext nil parent uses background", func(t *testing.T) {
+		ctx := retry.WithHTTPOptionsContext(nilContext(), &retry.HTTPOptions{MaxRetries: 9})
+		if ctx == nil {
+			t.Fatal("expected context, got nil")
+		}
+
+		options := retry.GetHTTPOptionsFromContext(ctx)
+		assert.Equal(t, 9, options.MaxRetries)
+	})
+
+	t.Run("GetHTTPOptionsFromContext nil context returns defaults", func(t *testing.T) {
+		options := retry.GetHTTPOptionsFromContext(nilContext())
+		require.NotNil(t, options)
+		assert.Equal(t, retry.DefaultHTTPOptions().MaxRetries, options.MaxRetries)
+	})
+
+	t.Run("nil context-stored options return defaults", func(t *testing.T) {
+		ctx := retry.WithHTTPOptionsContext(context.Background(), nil)
+		options := retry.GetHTTPOptionsFromContext(ctx)
+		require.NotNil(t, options)
+		assert.Equal(t, retry.DefaultHTTPOptions().MaxRetries, options.MaxRetries)
+	})
+}
+
+func TestDoHTTPRequest_UnsafePOSTWithoutIdempotencyDoesNotRetry(t *testing.T) {
+	var attempts int32
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		atomic.AddInt32(&attempts, 1)
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	req, err := http.NewRequest(http.MethodPost, server.URL, nil)
+	require.NoError(t, err)
+
+	resp, err := retry.DoHTTPRequest(
+		context.Background(),
+		http.DefaultClient,
+		req,
+		retry.WithHTTPMaxRetries(3),
+		retry.WithHTTPInitialDelay(time.Millisecond),
+	)
+
+	require.Error(t, err)
+	require.NotNil(t, resp)
+	assert.Equal(t, http.StatusInternalServerError, resp.Response.StatusCode)
+	assert.Equal(t, int32(1), atomic.LoadInt32(&attempts))
+}
+
+func TestDoHTTPRequest_UnsafePOSTWithIdempotencyAndReplayableBodyRetriesIdenticalBody(t *testing.T) {
+	var (
+		attempts    int32
+		bodies      []string
+		handlerErrs = make(chan error, 2)
+	)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&attempts, 1)
+
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			handlerErrs <- err
+
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+
+			return
+		}
+
+		bodies = append(bodies, string(body))
+
+		if atomic.LoadInt32(&attempts) == 1 {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	body := []byte(`{"amount":100}`)
+	req, err := http.NewRequest(http.MethodPost, server.URL, bytes.NewReader(body))
+	require.NoError(t, err)
+	req.Header.Set("X-Idempotency", "idem-123")
+	req.GetBody = func() (io.ReadCloser, error) {
+		return io.NopCloser(bytes.NewReader(body)), nil
+	}
+
+	resp, err := retry.DoHTTPRequest(
+		context.Background(),
+		http.DefaultClient,
+		req,
+		retry.WithHTTPMaxRetries(1),
+		retry.WithHTTPInitialDelay(time.Millisecond),
+	)
+
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	assertNoHandlerError(t, handlerErrs)
+	assert.Equal(t, http.StatusOK, resp.Response.StatusCode)
+	assert.Equal(t, int32(2), atomic.LoadInt32(&attempts))
+	require.Len(t, bodies, 2)
+	assert.Equal(t, string(body), bodies[0])
+	assert.Equal(t, string(body), bodies[1])
+}
+
+func TestDoHTTPRequest_BodyWithoutGetBodyDoesNotRetryWithEmptyBody(t *testing.T) {
+	var (
+		attempts     int32
+		receivedBody string
+		handlerErrs  = make(chan error, 1)
+	)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&attempts, 1)
+
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			handlerErrs <- err
+
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+
+			return
+		}
+
+		receivedBody = string(body)
+
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	req, err := http.NewRequest(http.MethodPost, server.URL, io.NopCloser(strings.NewReader(`{"amount":100}`)))
+	require.NoError(t, err)
+	req.Header.Set("X-Idempotency", "idem-123")
+	req.GetBody = nil
+
+	resp, err := retry.DoHTTPRequest(
+		context.Background(),
+		http.DefaultClient,
+		req,
+		retry.WithHTTPMaxRetries(1),
+		retry.WithHTTPInitialDelay(time.Millisecond),
+	)
+
+	require.Error(t, err)
+	require.NotNil(t, resp)
+	assertNoHandlerError(t, handlerErrs)
+	assert.Equal(t, int32(1), atomic.LoadInt32(&attempts))
+	assert.Equal(t, `{"amount":100}`, receivedBody)
+}
+
+func TestDoHTTPRequest_RetryContextCancellationStopsActualRequestAttempt(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(started)
+		<-release
+
+		select {
+		case <-r.Context().Done():
+			return
+		default:
+			w.WriteHeader(http.StatusOK)
+		}
+	}))
+	defer server.Close()
+
+	req, err := http.NewRequest(http.MethodGet, server.URL, nil)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	errCh := make(chan error, 1)
+
+	go func() {
+		_, err := retry.DoHTTPRequest(ctx, http.DefaultClient, req, retry.WithHTTPMaxRetries(0))
+		errCh <- err
+	}()
+
+	<-started
+	cancel()
+	close(release)
+
+	select {
+	case err := <-errCh:
+		require.Error(t, err)
+		require.ErrorIs(t, err, context.Canceled)
+	case <-time.After(time.Second):
+		t.Fatal("expected request attempt to stop after retry context cancellation")
+	}
+}
+
+func TestDoHTTPRequest_PreRetryHookRunsOnlyForRealRetries(t *testing.T) {
+	var (
+		attempts  int32
+		hookCalls int32
+	)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		attempt := atomic.AddInt32(&attempts, 1)
+		if attempt == 1 {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	req, err := http.NewRequest(http.MethodGet, server.URL, nil)
+	require.NoError(t, err)
+
+	resp, err := retry.DoHTTPRequest(
+		context.Background(),
+		http.DefaultClient,
+		req,
+		retry.WithHTTPMaxRetries(3),
+		retry.WithHTTPInitialDelay(time.Millisecond),
+		retry.WithHTTPPreRetryHook(func(_ context.Context, _ *http.Request, resp *retry.HTTPResponse) error {
+			require.NotNil(t, resp)
+			require.NotNil(t, resp.Response)
+			assert.Equal(t, http.StatusInternalServerError, resp.Response.StatusCode)
+			atomic.AddInt32(&hookCalls, 1)
+
+			return nil
+		}),
+	)
+
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+	assert.Equal(t, http.StatusOK, resp.Response.StatusCode)
+	assert.Equal(t, int32(2), atomic.LoadInt32(&attempts))
+	assert.Equal(t, int32(1), atomic.LoadInt32(&hookCalls))
+}
+
+func assertNoHandlerError(t *testing.T, errs <-chan error) {
+	t.Helper()
+
+	select {
+	case err := <-errs:
+		require.NoError(t, err)
+	default:
+	}
 }
 
 func TestDoHTTPRequest_ContextCancellation(t *testing.T) {

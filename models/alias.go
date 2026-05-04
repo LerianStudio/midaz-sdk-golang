@@ -69,7 +69,7 @@ func (input *CreateAliasInput) WithMetadata(metadata map[string]any) *CreateAlia
 		return nil
 	}
 
-	input.Metadata = metadata
+	input.Metadata = cloneAnyMap(metadata)
 
 	return input
 }
@@ -96,13 +96,13 @@ func (input *CreateAliasInput) WithRegulatoryFields(regulatoryFields *Regulatory
 	return input
 }
 
-// WithRelatedParties sets alias related parties.
+// WithRelatedParties sets related parties for alias creation.
 func (input *CreateAliasInput) WithRelatedParties(relatedParties []*RelatedParty) *CreateAliasInput {
 	if input == nil {
 		return nil
 	}
 
-	input.RelatedParties = relatedParties
+	input.RelatedParties = cloneRelatedParties(relatedParties)
 
 	return input
 }
@@ -118,7 +118,7 @@ func (input *UpdateAliasInput) WithMetadata(metadata map[string]any) *UpdateAlia
 		return nil
 	}
 
-	input.Metadata = metadata
+	input.Metadata = cloneAnyMap(metadata)
 
 	return input
 }
@@ -145,13 +145,20 @@ func (input *UpdateAliasInput) WithRegulatoryFields(regulatoryFields *Regulatory
 	return input
 }
 
-// WithRelatedParties sets alias related parties for update.
+// WithRelatedParties replaces the related-parties slice on the update payload.
+//
+// Replace (not append) is the documented contract for builders on Update*
+// inputs throughout the SDK and matches CreateAliasInput.WithRelatedParties.
+// Callers who need to add to an existing slice must compose the desired
+// slice themselves and pass the whole thing — keeping the builder
+// idempotent makes "I called this twice with two values, why are there
+// four?" bug reports impossible.
 func (input *UpdateAliasInput) WithRelatedParties(relatedParties []*RelatedParty) *UpdateAliasInput {
 	if input == nil {
 		return nil
 	}
 
-	input.RelatedParties = relatedParties
+	input.RelatedParties = cloneRelatedParties(relatedParties)
 
 	return input
 }
@@ -266,6 +273,41 @@ var validAliasNullFields = map[string]bool{
 	"bankingDetails":   true,
 	"regulatoryFields": true,
 	"relatedParties":   true,
+}
+
+// cloneRelatedParties returns an independent copy of parties. Each non-nil
+// element is deep-copied including its pointer fields (ID *uuid.UUID and
+// EndDate *string), so subsequent mutations to the source slice — or to
+// the pointed-at values — cannot leak into the clone. The previous shallow
+// copy aliased these pointers, which made "I changed party.EndDate on my
+// input and the saved entity changed too" a real bug.
+func cloneRelatedParties(parties []*RelatedParty) []*RelatedParty {
+	if parties == nil {
+		return nil
+	}
+
+	clone := make([]*RelatedParty, len(parties))
+	for i, party := range parties {
+		if party == nil {
+			continue
+		}
+
+		partyCopy := *party
+
+		if party.ID != nil {
+			idCopy := *party.ID
+			partyCopy.ID = &idCopy
+		}
+
+		if party.EndDate != nil {
+			endDateCopy := *party.EndDate
+			partyCopy.EndDate = &endDateCopy
+		}
+
+		clone[i] = &partyCopy
+	}
+
+	return clone
 }
 
 // Validate validates the UpdateAliasInput fields.

@@ -85,7 +85,7 @@ type OrganizationsService interface {
 	//	        Line1:      "123 Main Street",
 	//	        City:       "San Francisco",
 	//	        State:      "CA",
-	//	        PostalCode: "94105",
+	//	        ZipCode: "94105",
 	//	        Country:    "US",
 	//	    },
 	//	).WithMetadata(
@@ -183,12 +183,12 @@ func NewOrganizationsEntity(client *http.Client, authToken string, baseURLs map[
 
 	// Check if we're using the debug flag from the environment
 	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
-		httpClient.debug = true
+		httpClient.setDebugLocked(true)
 	}
 
 	return &organizationsEntity{
 		httpClient: httpClient,
-		baseURLs:   baseURLs,
+		baseURLs:   prepareServiceBaseURLs(baseURLs),
 	}
 }
 
@@ -198,7 +198,7 @@ func (e *organizationsEntity) ListOrganizations(ctx context.Context, opts *model
 
 	url := e.buildURL("")
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -232,7 +232,7 @@ func (e *organizationsEntity) GetOrganization(ctx context.Context, id string) (*
 
 	url := e.buildURL(id)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -257,66 +257,36 @@ func (e *organizationsEntity) CreateOrganization(ctx context.Context, input *mod
 		return nil, errors.NewMissingParameterError(operation, "input")
 	}
 
-	if input.LegalName == "" {
-		return nil, errors.NewValidationError(operation, "legal name is required", nil)
-	}
-
-	if input.LegalDocument == "" {
-		return nil, errors.NewValidationError(operation, "legal document is required", nil)
+	if err := input.Validate(); err != nil {
+		return nil, errors.NewValidationError(operation, "organization validation failed", err)
 	}
 
 	url := e.buildURL("")
 
-	// Convert the input to the mmodel format using our utility
-	mmodelInput := input.ToMmodelCreateOrganizationInput()
-
 	e.httpClient.debugLog("[%s]: Converting SDK input to backend format", operation)
-	e.httpClient.debugLog("[%s]: Original: %+v", operation, redactedOrgPayloadForLog(input))
-	e.httpClient.debugLog("[%s]: Converted: %+v", operation, redactedOrgPayloadForLog(mmodelInput))
+	e.httpClient.debugLog("[%s]: Payload: [REDACTED]", operation)
 
 	// Marshal the input to JSON
-	body, err := json.Marshal(mmodelInput)
+	body, err := json.Marshal(input)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	req, err := newRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
 
 	var organization models.Organization
 	if err := e.httpClient.sendRequest(req, &organization); err != nil {
+		e.httpClient.emitBusinessError(ctx, businessEventOrganizationCreated, map[string]any{"operation": operation}, err)
+
 		return nil, err
 	}
 
+	e.httpClient.emitBusinessEvent(ctx, businessEventOrganizationCreated, map[string]any{"operation": operation, "organizationId": organization.ID, "status": organization.Status.Code})
+
 	return &organization, nil
-}
-
-func redactedOrgPayloadForLog(payload any) any {
-	if payload == nil {
-		return nil
-	}
-
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return map[string]any{"redacted": true, "reason": "payload marshal failed"}
-	}
-
-	redacted := map[string]any{}
-	if err := json.Unmarshal(body, &redacted); err != nil {
-		return map[string]any{"redacted": true, "reason": "payload unmarshal failed"}
-	}
-
-	if _, ok := redacted["legalDocument"]; ok {
-		redacted["legalDocument"] = "<redacted>"
-	}
-
-	if _, ok := redacted["legal_document"]; ok {
-		redacted["legal_document"] = "<redacted>"
-	}
-
-	return redacted
 }
 
 // UpdateOrganization updates an existing organization.
@@ -333,24 +303,29 @@ func (e *organizationsEntity) UpdateOrganization(ctx context.Context, id string,
 
 	url := e.buildURL(id)
 
-	// Convert the input to the mmodel format
-	mmodelInput := input.ToMmodelUpdateOrganizationInput()
+	if err := input.Validate(); err != nil {
+		return nil, errors.NewValidationError(operation, "organization validation failed", err)
+	}
 
 	// Marshal the input to JSON
-	body, err := json.Marshal(mmodelInput)
+	body, err := json.Marshal(input)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, bytes.NewReader(body))
+	req, err := newRequestWithContext(ctx, http.MethodPatch, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
 
 	var organization models.Organization
 	if err := e.httpClient.sendRequest(req, &organization); err != nil {
+		e.httpClient.emitBusinessError(ctx, businessEventOrganizationUpdated, map[string]any{"operation": operation, "organizationId": id}, err)
+
 		return nil, err
 	}
+
+	e.httpClient.emitBusinessEvent(ctx, businessEventOrganizationUpdated, map[string]any{"operation": operation, "organizationId": organization.ID, "status": organization.Status.Code})
 
 	return &organization, nil
 }
@@ -365,12 +340,20 @@ func (e *organizationsEntity) DeleteOrganization(ctx context.Context, id string)
 
 	url := e.buildURL(id)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
+	req, err := newRequestWithContext(ctx, http.MethodDelete, url, nil)
 	if err != nil {
 		return errors.NewInternalError(operation, err)
 	}
 
-	return e.httpClient.sendRequest(req, nil)
+	if err := e.httpClient.sendRequest(req, nil); err != nil {
+		e.httpClient.emitBusinessError(ctx, businessEventOrganizationDeleted, map[string]any{"operation": operation, "organizationId": id}, err)
+
+		return err
+	}
+
+	e.httpClient.emitBusinessEvent(ctx, businessEventOrganizationDeleted, map[string]any{"operation": operation, "organizationId": id})
+
+	return nil
 }
 
 // GetOrganizationsMetricsCount gets the count metrics for organizations.

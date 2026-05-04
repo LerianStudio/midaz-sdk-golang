@@ -10,6 +10,10 @@ import (
 	"time"
 )
 
+func nilContext() context.Context {
+	return nil
+}
+
 // TestDo_Success tests successful execution with no retries
 func TestDo_Success(t *testing.T) {
 	ctx := context.Background()
@@ -199,6 +203,96 @@ func TestGetOptionsFromContext_Default(t *testing.T) {
 	if options.MaxRetries != defaultOptions.MaxRetries {
 		t.Errorf("Expected default MaxRetries %d, got %d", defaultOptions.MaxRetries, options.MaxRetries)
 	}
+}
+
+func TestRetryExportedAPIs_NilInputsDoNotPanic(t *testing.T) {
+	tests := []struct {
+		name string
+		run  func() error
+	}{
+		{
+			name: "Do with nil context returns error",
+			run: func() error {
+				return Do(nilContext(), func() error { return nil })
+			},
+		},
+		{
+			name: "Do with nil function returns error",
+			run: func() error {
+				return Do(context.Background(), nil)
+			},
+		},
+		{
+			name: "Do with nil option returns error",
+			run: func() error {
+				return Do(context.Background(), func() error { return nil }, nil)
+			},
+		},
+		{
+			name: "DoWithContext with nil context returns error",
+			run: func() error {
+				return DoWithContext(nilContext(), func() error { return nil })
+			},
+		},
+		{
+			name: "DoWithContext with nil function returns error",
+			run: func() error {
+				return DoWithContext(context.Background(), nil)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			defer func() {
+				if recovered := recover(); recovered != nil {
+					t.Fatalf("expected error instead of panic, got panic: %v", recovered)
+				}
+			}()
+
+			if err := tt.run(); err == nil {
+				t.Fatal("expected error, got nil")
+			}
+		})
+	}
+}
+
+func TestRetryContextOptions_NilInputsReturnDefaults(t *testing.T) {
+	t.Run("WithOptionsContext nil parent uses background", func(t *testing.T) {
+		ctx := WithOptionsContext(nilContext(), &Options{MaxRetries: 9})
+		if ctx == nil {
+			t.Fatal("expected context, got nil")
+		}
+
+		options := GetOptionsFromContext(ctx)
+		if options.MaxRetries != 9 {
+			t.Fatalf("expected stored max retries, got %d", options.MaxRetries)
+		}
+	})
+
+	t.Run("GetOptionsFromContext nil context returns defaults", func(t *testing.T) {
+		options := GetOptionsFromContext(nilContext())
+		if options == nil {
+			t.Fatal("expected default options, got nil")
+		}
+
+		if options.MaxRetries != DefaultOptions().MaxRetries {
+			t.Fatalf("expected default max retries, got %d", options.MaxRetries)
+		}
+	})
+
+	t.Run("nil context-stored options return defaults", func(t *testing.T) {
+		ctx := WithOptionsContext(context.Background(), nil)
+
+		options := GetOptionsFromContext(ctx)
+		if options == nil {
+			t.Fatal("expected default options, got nil")
+		}
+
+		if options.MaxRetries != DefaultOptions().MaxRetries {
+			t.Fatalf("expected default max retries, got %d", options.MaxRetries)
+		}
+	})
 }
 
 // TestCalculateBackoff tests the backoff calculation

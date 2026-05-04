@@ -30,8 +30,9 @@ endef
 GO := go
 GOFMT := gofmt
 GOLINT := golangci-lint
-GOLANGCI_LINT_VERSION := v2.11.4
+GOLANGCI_LINT_VERSION := v2.12.1
 GOLANGCI_LINT_VERSION_NUMBER := $(patsubst v%,%,$(GOLANGCI_LINT_VERSION))
+GOLANGCI_LINT_MODULE := github.com/golangci/golangci-lint/v2/cmd/golangci-lint
 GOSEC_VERSION := v2.25.0
 GOSEC := $(GO) run github.com/securego/gosec/v2/cmd/gosec@$(GOSEC_VERSION)
 GOMOD := $(GO) mod
@@ -89,7 +90,8 @@ help:
 	@echo ""
 	@echo "Example Commands:"
 	@echo "  make example                     - Run complete workflow example"
-	@echo "  make demo-data                   - Run mass demo data generator (interactive)"
+	@echo "  make demo-data                   - Run mass demo data generator (non-interactive)"
+	@echo "  make demo-data-interactive       - Run mass demo data generator with prompts"
 	@echo ""
 	@echo "Documentation Commands:"
 	@echo "  make godoc                       - Start a godoc server for interactive documentation"
@@ -180,10 +182,11 @@ coverage:
 
 lint:
 	$(call print_header,"Running linters")
-	@if find . -name "*.go" -type f | grep -q .; then \
+	@set -e; \
+	if find . -name "*.go" -type f | grep -q .; then \
 		if ! command -v $(GOLINT) > /dev/null || ! $(GOLINT) --version | grep -q "version $(GOLANGCI_LINT_VERSION_NUMBER)"; then \
 			echo "$(YELLOW)Installing golangci-lint $(GOLANGCI_LINT_VERSION)...$(NC)"; \
-			go install github.com/golangci/golangci-lint/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION); \
+			go install $(GOLANGCI_LINT_MODULE)@$(GOLANGCI_LINT_VERSION); \
 		fi; \
 		$(GOLINT) run; \
 		echo "$(GREEN)[ok]$(NC) Linting completed successfully$(GREEN) ✔️$(NC)"; \
@@ -232,18 +235,17 @@ example:
 	@cp $(ENV_FILE) examples/workflow-with-entities/.env
 	@cd examples/workflow-with-entities && go run main.go
 
-.PHONY: demo-data
+.PHONY: demo-data demo-data-interactive
+
+DEMO_NON_INTERACTIVE ?= 1
 
 demo-data:
 	$(call print_header,Running Mass Demo Data Generator)
-	$(call print_header,Ensure Midaz services are running on localhost:3000 (onboarding) and :3001 (transaction))
-	@if [ -f "$(ENV_FILE)" ]; then \
-		cp $(ENV_FILE) examples/mass-demo-generator/.env; \
-	else \
-		echo "⚠️  Warning: $(ENV_FILE) not found. Run 'make set-env' first or create .env manually."; \
-		exit 1; \
-	fi
-	@cd examples/mass-demo-generator && DEMO_NON_INTERACTIVE=0 go run .
+	$(call print_header,Ensure Midaz Ledger is on localhost:3002/v1 and CRM is on localhost:4003/v1 or set MIDAZ_* URLs)
+	@DEMO_NON_INTERACTIVE=$(DEMO_NON_INTERACTIVE) go run ./examples/mass-demo-generator
+
+demo-data-interactive:
+	@$(MAKE) demo-data DEMO_NON_INTERACTIVE=0
 
 #-------------------------------------------------------
 # Documentation Commands
@@ -273,6 +275,7 @@ PACKAGES := \
 	$(MODULE)/pkg/validation/core \
 	$(MODULE)/pkg/errors \
 	$(MODULE)/pkg/format \
+	$(MODULE)/pkg/generator \
 	$(MODULE)/pkg/retry \
 	$(MODULE)/pkg/performance
 

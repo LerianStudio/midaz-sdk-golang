@@ -22,8 +22,11 @@ The SDK does not currently use the older `apiClient`, `httpClient`, or per-resou
 - `Entity *entities.Entity` - Set only when `UseAllAPIs`, `UseEntityAPI`, or `UseEntity` is provided.
 - `config *config.Config` - Resolved SDK configuration.
 - `observability observability.Provider` - Optional tracing, metrics, and logging provider.
-- `httpClient *http.Client` - Underlying HTTP client.
-- Retry, timeout, debug, and URL override fields used while applying client options.
+- `customRetryPolicy func(*http.Response, error) bool` - Optional retry predicate propagated to the entity HTTP client.
+- `ctx context.Context` - Client base context used by client-level helpers and observability setup.
+- Default tenant fields used while applying client options.
+
+HTTP client ownership lives in `pkg/config.Config` and `entities.HTTPClient`, not directly on `client.Client`.
 
 Entity initialization is gated by the `useEntity` flag. Docs and examples that access `c.Entity` must create the client with `client.UseAllAPIs()` or `client.UseEntityAPI()`.
 
@@ -62,6 +65,8 @@ c, err := client.New(
 
 Access Manager configuration uses `auth.AccessManager` and `config.WithAccessManager`. `MIDAZ_AUTH_TOKEN` is not part of `config.FromEnvironment()`.
 
+`MIDAZ_ENVIRONMENT` recomputes default service URLs unless `MIDAZ_BASE_URL` or a service-specific URL has already been set. Explicit service URLs take precedence and are normalized by the entity layer to include `/v1`.
+
 ## Service URL model
 
 The entity layer receives a service URL map. The current service keys are:
@@ -98,7 +103,7 @@ Each service has a public interface and a private implementation type. Method na
 - `HoldersService` implemented by `holdersEntity`
 - `AliasesService` implemented by `aliasesEntity`
 
-CRM requests set `X-Organization-Id` and use paths under `/holders` and `/aliases`.
+CRM requests set `X-Organization-Id` and use paths under `/holders` and `/aliases`. A configured `X-Tenant-ID` can also be sent by the shared HTTP client, but CRM holder/alias scoping still comes from the required `organizationID` method argument.
 
 ## Transport pattern
 
@@ -121,16 +126,31 @@ Important path groups:
 
 - Organizations: `/organizations`, `/organizations/{id}`
 - Ledgers: `/organizations/{organizationID}/ledgers`, `/organizations/{organizationID}/ledgers/{ledgerID}`
-- Accounts: `/organizations/{organizationID}/ledgers/{ledgerID}/accounts`, `/accounts/{id}`, `/accounts/alias/{alias}`, `/accounts/external/{assetCode}`
-- Account balances: `/accounts/{accountID}/balances`, `/balances/{balanceID}`, balance history endpoints
+- Ledger settings: `/organizations/{organizationID}/ledgers/{ledgerID}/settings` with `GET` and `PATCH` for `accounting.validateAccountType` and `accounting.validateRoutes`.
+- Accounts: `/organizations/{organizationID}/ledgers/{ledgerID}/accounts`, `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/{accountID}`, `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/alias/{alias}`, `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/external/{assetCode}`
+- Account balances: `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/{accountID}/balances`, `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/alias/{alias}/balances`, `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/external/{assetCode}/balances`, `/balances/{balanceID}`, balance history endpoints
 - Assets: `/organizations/{organizationID}/ledgers/{ledgerID}/assets`
-- Asset rates: asset-rate endpoints under organization/ledger scope, including asset-code filtered listing
-- Transactions: `/transactions/json`, `/transactions/dsl`, `/transactions/{id}`, `/transactions/{id}/commit`, `/transactions/{id}/cancel`, `/transactions/{id}/revert`, `/transactions/inflow`, `/transactions/outflow`, `/transactions/annotation`
-- Operations: account-scoped operation listing plus transaction operation update paths
-- Routes: operation route and transaction route endpoints under organization/ledger scope
+- Asset rates: `/organizations/{organizationID}/ledgers/{ledgerID}/asset-rates`, `/organizations/{organizationID}/ledgers/{ledgerID}/asset-rates/{externalID}`, and `/organizations/{organizationID}/ledgers/{ledgerID}/asset-rates/from/{assetCode}` using cursor filters (`to`, `limit`, `start_date`, `end_date`, `sort_order`, `cursor`).
+- Transactions: `/organizations/{organizationID}/ledgers/{ledgerID}/transactions`, `/organizations/{organizationID}/ledgers/{ledgerID}/transactions/json`, `/organizations/{organizationID}/ledgers/{ledgerID}/transactions/dsl`, `/organizations/{organizationID}/ledgers/{ledgerID}/transactions/{transactionID}`, `/organizations/{organizationID}/ledgers/{ledgerID}/transactions/{transactionID}/commit`, `/organizations/{organizationID}/ledgers/{ledgerID}/transactions/{transactionID}/cancel`, `/organizations/{organizationID}/ledgers/{ledgerID}/transactions/{transactionID}/revert`, `/organizations/{organizationID}/ledgers/{ledgerID}/transactions/inflow`, `/organizations/{organizationID}/ledgers/{ledgerID}/transactions/outflow`, `/organizations/{organizationID}/ledgers/{ledgerID}/transactions/annotation`
+- Operations: account-scoped reads use `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/{accountID}/operations` and `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/{accountID}/operations/{operationID}`. Updates are transaction-scoped through `PATCH /organizations/{organizationID}/ledgers/{ledgerID}/transactions/{transactionID}/operations/{operationID}`.
+- Routes: operation route endpoints use `/organizations/{organizationID}/ledgers/{ledgerID}/operation-routes`; transaction route endpoints use `/organizations/{organizationID}/ledgers/{ledgerID}/transaction-routes`.
 - Metadata indexes: `/settings/metadata-indexes`
 - CRM holders: `/holders`, `/holders/{holderID}`
-- CRM aliases: `/aliases`, `/holders/{holderID}/aliases`, `/holders/{holderID}/aliases/{aliasID}/related-parties/{relatedPartyID}`
+- CRM aliases: `/aliases`, `/holders/{holderID}/aliases`, `/holders/{holderID}/aliases/{aliasID}`, `/holders/{holderID}/aliases/{aliasID}/related-parties/{relatedPartyID}`
+
+Supported count paths use `HEAD` and read `X-Total-Count`:
+
+| Resource | Method | Path |
+| --- | --- | --- |
+| Organizations | `GetOrganizationsMetricsCount` | `/organizations/metrics/count` |
+| Ledgers | `GetLedgersMetricsCount` | `/organizations/{organizationID}/ledgers/metrics/count` |
+| Assets | `GetAssetsMetricsCount` | `/organizations/{organizationID}/ledgers/{ledgerID}/assets/metrics/count` |
+| Portfolios | `GetPortfoliosMetricsCount` | `/organizations/{organizationID}/ledgers/{ledgerID}/portfolios/metrics/count` |
+| Segments | `GetSegmentsMetricsCount` | `/organizations/{organizationID}/ledgers/{ledgerID}/segments/metrics/count` |
+| Accounts | `GetAccountsMetricsCount` | `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/metrics/count` |
+| Transactions | `GetTransactionsMetricsCount` | `/organizations/{organizationID}/ledgers/{ledgerID}/transactions/metrics/count` |
+
+`doCountRequest` returns an internal SDK error when `X-Total-Count` is missing, blank, non-integer, negative, or overflowing. `GetAccountTypesMetricsCount` is a deprecated compatibility-only method. It validates IDs and returns a validation error because Midaz Ledger does not expose account type count metrics.
 
 ## Model compatibility layer
 
@@ -140,11 +160,34 @@ Common builders:
 
 - `models.NewCreateOrganizationInput(legalName, legalDocument)`
 - `models.NewUpdateOrganizationInput()`
-- `models.NewCreateAssetInput(name, code)`
-- `models.NewUpdateAssetInput()`
+- `models.NewCreateLedgerInput(name)`
+- `models.NewUpdateLedgerInput()`
+- `models.NewUpdateLedgerSettingsInput()`
 - `models.NewCreateAccountInput(name, assetCode, accountType)`
-- `models.NewCreateTransactionInput(assetCode, amount)`
+- `models.NewUpdateAccountInput()`
+- `models.NewCreateAccountTypeInput(name, keyValue)`
+- `models.NewUpdateAccountTypeInput()`
+- `models.NewCreateAssetInputWithType(name, code, assetType)`
+- `models.NewCreateAssetInput(name, code)` - Deprecated compatibility builder; callers must set type with `WithType` before sending.
+- `models.NewUpdateAssetInput()`
+- `models.NewCreatePortfolioInput(entityID, name)`
+- `models.NewUpdatePortfolioInput()`
+- `models.NewCreateSegmentInput(name)`
+- `models.NewUpdateSegmentInput()`
+- `models.NewCreateTransactionInput(assetCode, amount)` - Must include `send.source` and `send.distribute` before sending, either through `WithSend(...)` or legacy operation adaptation. Unsafe transaction create requests receive an auto-generated `X-Idempotency` header by default; set `IdempotencyKey` or use `entities.WithIdempotencyKey` when the caller needs a stable key or has disabled auto-idempotency.
+- `models.NewCreateInflowInput(assetCode, value, distribute)` - Requires a non-empty `distribute.to` payload.
+- `models.NewCreateOutflowInput(assetCode, value, source)` - Requires a non-empty `source.from` payload.
+- `models.NewCreateAnnotationInput(description, send...)` - `send` is required before sending; the variadic constructor argument exists for compatibility.
+- `models.NewCreateOperationRouteInput(title, description, operationType)`
+- `models.NewUpdateOperationRouteInput()`
+- `models.NewCreateTransactionRouteInput(title, description, operationRouteIDs)`
+- `models.NewUpdateTransactionRouteInput()`
+- `models.NewCreateAssetRateInput(from, to, rate)` with `WithScale`, `WithSource`, `WithTTL`, `WithExternalID`, and `WithMetadata`.
 - `models.NewAssetRateListOptions()`
+- `models.NewCreateHolderInput(holderType, name, document)` with `WithExternalID`, `WithAddresses`, `WithContact`, `WithNaturalPerson`, `WithLegalPerson`, and `WithMetadata`.
+- `models.NewUpdateHolderInput()` with field setters and `WithNullFields` / `WithNullField` for explicit JSON null removals. Empty holder updates are rejected by the SDK.
+- `models.NewCreateAliasInput(ledgerID, accountID)` with `WithMetadata`, `WithBankingDetails`, `WithRegulatoryFields`, and `WithRelatedParties`.
+- `models.NewUpdateAliasInput()` with field setters and `WithNullFields` for explicit JSON null removals. Repeated `WithRelatedParties` calls replace the in-builder related-party list; empty alias updates are rejected by the SDK.
 
 ## List options and pagination internals
 
@@ -167,9 +210,9 @@ type ListOptions struct {
 
 Query serialization rules:
 
-- `limit` is always emitted.
-- `Offset` is retained as compatibility input and serialized as `page`.
-- `Page` is emitted as `page` when set.
+- `limit` is always emitted and entity list requests are capped by `models.MaxLimit` (`100`).
+- `Offset` is retained as compatibility input for older callers. Current Midaz endpoints should be documented and exercised through `page`, `limit`, and `cursor` where supported; do not describe `offset` as a supported Midaz wire parameter.
+- `Page` is emitted as `page` when set and is the preferred page-based control.
 - `Cursor` is emitted as `cursor` when set.
 - `Filters` are emitted as query parameters by key.
 - `OrderBy` is retained but not emitted by common serialization.
@@ -179,6 +222,16 @@ Query serialization rules:
 
 `models.ListResponse[T]` contains `Items []T` and `Pagination models.Pagination`. JSON unmarshalling supports both current top-level pagination fields and legacy nested `pagination` payloads.
 
+`Pagination.TotalPages()` depends on `Pagination.Total`. Current Midaz responses commonly omit `total`, so traversal logic should use `HasNextPage`, `NextPageOptions`, and cursor metadata instead of assuming total pages are available.
+
+Pagination behavior differs by API family:
+
+| API family | Internal behavior |
+| --- | --- |
+| Ledger page-based resources | Common serialization sends `page`, `limit`, filters, and `sort_order`. |
+| Ledger cursor-aware resources | Transactions use cursor-aware handling and remove page-style parameters when `Cursor` is set. |
+| CRM holders and aliases | CRM services use page-based list calls plus CRM-specific filters stored in `AdditionalParams`. |
+
 ## Error model internals
 
 The core SDK error type is `*errors.Error` in `pkg/errors`:
@@ -187,10 +240,15 @@ The core SDK error type is `*errors.Error` in `pkg/errors`:
 type Error struct {
     Category   ErrorCategory
     Code       ErrorCode
+    APICode    string
+    Title      string
     Message    string
     Operation  string
     Resource   string
     ResourceID string
+    EntityType string
+    Fields     []string
+    Details    map[string]any
     StatusCode int
     RequestID  string
     Err        error
@@ -211,9 +269,12 @@ Standard sentinel errors include:
 - `ErrTimeout`
 - `ErrCancellation`
 - `ErrInternal`
+- `ErrUnprocessable`
 - `ErrInsufficientBalance`
 - `ErrAccountEligibility`
 - `ErrAssetMismatch`
+
+Midaz wire error envelopes may contain `code`, `title`, `message`, `entityType`, and `fields`. CRM error responses may contain `err`. Preserve the wire `code` separately from the SDK-normalized `Code`, and keep expanded envelope data in `APICode`, `Title`, `EntityType`, `Fields`, and `Details` when available.
 
 ## Observability internals
 

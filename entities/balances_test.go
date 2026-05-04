@@ -2136,9 +2136,9 @@ func TestUpdateBalanceInput_Validation(t *testing.T) {
 			expectedError: true,
 		},
 		{
-			name:          "Valid input with nil metadata",
+			name:          "Empty update is rejected",
 			input:         models.NewUpdateBalanceInput(),
-			expectedError: false,
+			expectedError: true,
 		},
 	}
 

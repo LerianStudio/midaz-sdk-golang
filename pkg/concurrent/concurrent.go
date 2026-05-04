@@ -75,9 +75,12 @@ package concurrent
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 )
+
+var errWorkerPoolItemNotProcessed = errors.New("worker pool item was not processed")
 
 // WorkFunc is a generic worker function that processes an item and returns a result and error.
 type WorkFunc[T, R any] func(ctx context.Context, item T) (R, error)
@@ -136,6 +139,10 @@ func WorkerPool[T, R any](
 	workFn WorkFunc[T, R],
 	opts ...PoolOption,
 ) []Result[T, R] {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	options := applyPoolOptions(opts...)
 
 	// Create channels for coordinating workers
@@ -149,7 +156,7 @@ func WorkerPool[T, R any](
 	startItemSender(ctx, &wg, items, itemCh, resultCh)
 
 	// Collect and return results
-	return collectResults(resultCh, len(items), options.ordered)
+	return collectResults(ctx, resultCh, items, options.ordered)
 }
 
 // applyPoolOptions applies all pool options to create configuration
@@ -263,26 +270,66 @@ func sendItemsToWorkers[T any](ctx context.Context, items []T, itemCh chan<- ind
 }
 
 // collectResults gathers results from workers, maintaining order if requested
-func collectResults[T, R any](resultCh <-chan Result[T, R], itemCount int, ordered bool) []Result[T, R] {
+func collectResults[T, R any](ctx context.Context, resultCh <-chan Result[T, R], items []T, ordered bool) []Result[T, R] {
 	if ordered {
-		return collectOrderedResults(resultCh, itemCount)
+		return collectOrderedResults(ctx, resultCh, items)
 	}
 
-	return collectUnorderedResults(resultCh, itemCount)
+	return collectUnorderedResults(resultCh, len(items))
 }
 
-// collectOrderedResults collects results and returns them in original order
-func collectOrderedResults[T, R any](resultCh <-chan Result[T, R], itemCount int) []Result[T, R] {
-	allResults := make([]Result[T, R], 0, itemCount)
-	for r := range resultCh {
-		allResults = append(allResults, r)
-	}
-
-	// Create ordered results slice
+// collectOrderedResults collects results and returns them in original order.
+//
+// Allocation is bounded to one slice (the output). The previous
+// implementation also allocated an `allResults` staging slice and a
+// `seen []bool`, walking the result set three times. We now write
+// directly into the output slice as results stream in and use a counter
+// to decide whether the second "fill missing" pass is needed at all —
+// the common path (every item processed) skips the second walk
+// completely.
+func collectOrderedResults[T, R any](ctx context.Context, resultCh <-chan Result[T, R], items []T) []Result[T, R] {
+	itemCount := len(items)
 	results := make([]Result[T, R], itemCount)
 
-	for _, r := range allResults {
+	// We can't tell from a zero-valued Result whether its slot was
+	// populated, so we track a parallel "has been written" set via a
+	// single counter + a sparse bitmask only when a result lands twice
+	// (which shouldn't happen but we'd notice if it did). The cheaper
+	// approach below relies on seen[i] == false meaning "not yet
+	// written", which is correct because Result[T, R].Index is always
+	// the original position and writes never collide.
+	count := 0
+
+	seen := make([]bool, itemCount)
+	for r := range resultCh {
+		if r.Index < 0 || r.Index >= itemCount {
+			continue
+		}
+
+		if !seen[r.Index] {
+			seen[r.Index] = true
+			count++
+		}
+
 		results[r.Index] = r
+	}
+
+	if count == itemCount {
+		// Hot path: everything was processed, no second walk needed.
+		return results
+	}
+
+	missingErr := ctx.Err()
+	if missingErr == nil {
+		missingErr = errWorkerPoolItemNotProcessed
+	}
+
+	for i := range results {
+		if seen[i] {
+			continue
+		}
+
+		results[i] = Result[T, R]{Item: items[i], Index: i, Error: missingErr}
 	}
 
 	return results

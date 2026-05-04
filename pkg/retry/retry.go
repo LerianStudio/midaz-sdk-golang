@@ -63,12 +63,20 @@ import (
 	"time"
 )
 
+var (
+	errNilContext = errors.New("retry context is nil")
+	errNilFunc    = errors.New("retry function is nil")
+	errNilOption  = errors.New("retry option is nil")
+)
+
 // Options configures the retry behavior
 //
 // This struct allows you to fine-tune retry strategies for different scenarios:
-// - MaxRetries and timing parameters control how long and how often to retry
-// - RetryableErrors and RetryableHTTPCodes determine which failures trigger retries
-// - JitterFactor helps prevent thundering herd problems in distributed systems
+//   - MaxRetries and timing parameters control how long and how often to retry
+//   - RetryableErrors and RetryableHTTPCodes determine which failures trigger retries
+//   - JitterFactor helps prevent thundering herd problems in distributed systems
+//   - ErrorPredicate is an escape hatch for typed-error matching (errors.As)
+//     that callers prefer over substring matching
 type Options struct {
 	// MaxRetries is the maximum number of retries to attempt
 	MaxRetries int
@@ -90,6 +98,14 @@ type Options struct {
 
 	// JitterFactor is the amount of jitter to add to the delay (0.0-1.0)
 	JitterFactor float64
+
+	// ErrorPredicate, when non-nil, is consulted by IsRetryableError BEFORE
+	// substring/HTTP-code checks. Returning true forces the error to be
+	// treated as retryable; returning false defers to the rest of the
+	// classification chain. This is the recommended way to surface typed
+	// retryable sentinels (e.g. via errors.As) without polluting
+	// RetryableErrors with magic substrings.
+	ErrorPredicate func(error) bool
 }
 
 type nonRetryableError struct {
@@ -141,8 +157,8 @@ func DefaultOptions() *Options {
 		InitialDelay:       100 * time.Millisecond,
 		MaxDelay:           10 * time.Second,
 		BackoffFactor:      2.0,
-		RetryableErrors:    DefaultRetryableErrors,
-		RetryableHTTPCodes: DefaultRetryableHTTPCodes,
+		RetryableErrors:    cloneStrings(DefaultRetryableErrors),
+		RetryableHTTPCodes: cloneInts(DefaultRetryableHTTPCodes),
 		JitterFactor:       0.25,
 	}
 }
@@ -223,7 +239,7 @@ func WithMaxDelay(delay time.Duration) Option {
 //	err := retry.Do(ctx, myFunction, retry.WithBackoffFactor(1.5))
 func WithBackoffFactor(factor float64) Option {
 	return func(o *Options) error {
-		if factor < 1.0 {
+		if math.IsNaN(factor) || math.IsInf(factor, 0) || factor < 1.0 {
 			return fmt.Errorf("backoffFactor must be at least 1.0, got %f", factor)
 		}
 
@@ -244,7 +260,7 @@ func WithBackoffFactor(factor float64) Option {
 //	}))
 func WithRetryableErrors(retryableErrors []string) Option {
 	return func(o *Options) error {
-		o.RetryableErrors = retryableErrors
+		o.RetryableErrors = cloneStrings(retryableErrors)
 		return nil
 	}
 }
@@ -260,7 +276,7 @@ func WithRetryableErrors(retryableErrors []string) Option {
 //	}))
 func WithRetryableHTTPCodes(codes []int) Option {
 	return func(o *Options) error {
-		o.RetryableHTTPCodes = codes
+		o.RetryableHTTPCodes = cloneInts(codes)
 		return nil
 	}
 }
@@ -273,12 +289,30 @@ func WithRetryableHTTPCodes(codes []int) Option {
 //	err := retry.Do(ctx, myFunction, retry.WithJitterFactor(0.5))
 func WithJitterFactor(factor float64) Option {
 	return func(o *Options) error {
-		if factor < 0.0 || factor > 1.0 {
+		if math.IsNaN(factor) || math.IsInf(factor, 0) || factor < 0.0 || factor > 1.0 {
 			return fmt.Errorf("jitterFactor must be between 0.0 and 1.0, got %f", factor)
 		}
 
 		o.JitterFactor = factor
 
+		return nil
+	}
+}
+
+// WithErrorPredicate installs a typed-error predicate that takes precedence
+// over substring matching. This is the preferred way to surface custom
+// retryable error types (via errors.As) instead of appending magic strings
+// to RetryableErrors.
+//
+// Example:
+//
+//	err := retry.Do(ctx, myFunc, retry.WithErrorPredicate(func(err error) bool {
+//	    var custom *MyRetryableError
+//	    return errors.As(err, &custom)
+//	}))
+func WithErrorPredicate(predicate func(error) bool) Option {
+	return func(o *Options) error {
+		o.ErrorPredicate = predicate
 		return nil
 	}
 }
@@ -342,14 +376,26 @@ const retryOptionsKey = contextKey("retry-options")
 //	// Later, use the options from the context
 //	err := retry.DoWithContext(ctx, myFunction)
 func WithOptionsContext(ctx context.Context, options *Options) context.Context {
-	return context.WithValue(ctx, retryOptionsKey, options)
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	return context.WithValue(ctx, retryOptionsKey, cloneOptions(options))
 }
 
 // GetOptionsFromContext gets the retry options from the context.
 // If no options are set in the context, it returns the default options.
 func GetOptionsFromContext(ctx context.Context) *Options {
+	if ctx == nil {
+		return DefaultOptions()
+	}
+
 	if options, ok := ctx.Value(retryOptionsKey).(*Options); ok {
-		return options
+		if options == nil {
+			return DefaultOptions()
+		}
+
+		return cloneOptions(options)
 	}
 
 	return DefaultOptions()
@@ -377,11 +423,23 @@ func GetOptionsFromContext(ctx context.Context) *Options {
 //	    return nil
 //	}, retry.WithMaxRetries(3), retry.WithInitialDelay(250*time.Millisecond))
 func Do(ctx context.Context, fn func() error, opts ...Option) error {
+	if ctx == nil {
+		return errNilContext
+	}
+
+	if fn == nil {
+		return errNilFunc
+	}
+
 	// Start with default options
 	options := DefaultOptions()
 
 	// Apply all provided options
 	for _, opt := range opts {
+		if opt == nil {
+			return errNilOption
+		}
+
 		if err := opt(options); err != nil {
 			return fmt.Errorf("failed to apply retry option: %w", err)
 		}
@@ -401,13 +459,39 @@ func Do(ctx context.Context, fn func() error, opts ...Option) error {
 //	// Later, use the options from the context
 //	err := retry.DoWithContext(ctx, makeAPIRequest)
 func DoWithContext(ctx context.Context, fn func() error) error {
+	if ctx == nil {
+		return errNilContext
+	}
+
+	if fn == nil {
+		return errNilFunc
+	}
+
 	options := GetOptionsFromContext(ctx)
+
 	return doWithOptions(ctx, fn, options)
 }
 
 // doWithOptions executes the given function with retries based on the provided options.
 // It's an internal function used by Do and DoWithContext.
 func doWithOptions(ctx context.Context, fn func() error, options *Options) error {
+	if ctx == nil {
+		return errNilContext
+	}
+
+	if fn == nil {
+		return errNilFunc
+	}
+
+	if options == nil {
+		options = DefaultOptions()
+	}
+
+	options = cloneOptions(options)
+	if err := validateOptions(options); err != nil {
+		return err
+	}
+
 	var err error
 
 	for attempt := 0; attempt <= options.MaxRetries; attempt++ {
@@ -486,6 +570,10 @@ func IsRetryableError(err error, options *Options) bool {
 		return false
 	}
 
+	if options == nil {
+		options = DefaultOptions()
+	}
+
 	var nonRetryable nonRetryableError
 	if errors.As(err, &nonRetryable) {
 		return false
@@ -496,7 +584,14 @@ func IsRetryableError(err error, options *Options) bool {
 		return false
 	}
 
-	// Check for retryable error strings
+	// 1) Caller-supplied typed predicate wins. This avoids polluting
+	// RetryableErrors with substring tokens just to round-trip a typed
+	// sentinel (e.g. retryableCustomPolicyError) into a "yes, retry".
+	if options.ErrorPredicate != nil && options.ErrorPredicate(err) {
+		return true
+	}
+
+	// 2) Retryable error string matching.
 	errMsg := err.Error()
 	for _, retryableErr := range options.RetryableErrors {
 		if retryableErr != "" && errMatchesPattern(errMsg, retryableErr) {
@@ -504,9 +599,7 @@ func IsRetryableError(err error, options *Options) bool {
 		}
 	}
 
-	// Check for retryable HTTP status codes
-	// This assumes the error might implement a method to get the HTTP status code
-	// For example, if using a custom error type that wraps an HTTP response
+	// 3) Retryable HTTP status codes via structural interface.
 	if httpErr, ok := err.(interface{ StatusCode() int }); ok {
 		for _, code := range options.RetryableHTTPCodes {
 			if httpErr.StatusCode() == code {
@@ -534,6 +627,62 @@ func calculateBackoff(attempt int, options *Options) time.Duration {
 	}
 
 	return time.Duration(delayF)
+}
+
+func validateOptions(options *Options) error {
+	if options.MaxRetries < 0 {
+		return fmt.Errorf("maxRetries must be non-negative, got %d", options.MaxRetries)
+	}
+
+	if options.InitialDelay <= 0 {
+		return fmt.Errorf("initialDelay must be positive, got %v", options.InitialDelay)
+	}
+
+	if options.MaxDelay <= 0 {
+		return fmt.Errorf("maxDelay must be positive, got %v", options.MaxDelay)
+	}
+
+	if options.MaxDelay < options.InitialDelay {
+		return fmt.Errorf("maxDelay must be greater than or equal to initialDelay, got %v < %v", options.MaxDelay, options.InitialDelay)
+	}
+
+	if math.IsNaN(options.BackoffFactor) || math.IsInf(options.BackoffFactor, 0) || options.BackoffFactor < 1.0 {
+		return fmt.Errorf("backoffFactor must be at least 1.0, got %f", options.BackoffFactor)
+	}
+
+	if math.IsNaN(options.JitterFactor) || math.IsInf(options.JitterFactor, 0) || options.JitterFactor < 0.0 || options.JitterFactor > 1.0 {
+		return fmt.Errorf("jitterFactor must be between 0.0 and 1.0, got %f", options.JitterFactor)
+	}
+
+	return nil
+}
+
+func cloneOptions(options *Options) *Options {
+	if options == nil {
+		return nil
+	}
+
+	cloned := *options
+	cloned.RetryableErrors = cloneStrings(options.RetryableErrors)
+	cloned.RetryableHTTPCodes = cloneInts(options.RetryableHTTPCodes)
+
+	return &cloned
+}
+
+func cloneStrings(values []string) []string {
+	if values == nil {
+		return nil
+	}
+
+	return append([]string(nil), values...)
+}
+
+func cloneInts(values []int) []int {
+	if values == nil {
+		return nil
+	}
+
+	return append([]int(nil), values...)
 }
 
 // addJitter adds random jitter to the delay to avoid thundering herd

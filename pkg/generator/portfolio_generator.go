@@ -27,6 +27,8 @@ func NewPortfolioGenerator(e *entities.Entity, obs observability.Provider) Portf
 
 // Generate creates a single portfolio with the specified parameters.
 func (g *portfolioGenerator) Generate(ctx context.Context, orgID, ledgerID, name, entityID string, metadata map[string]any) (*models.Portfolio, error) {
+	ctx = normalizeContext(ctx)
+
 	if g.e == nil || g.e.Portfolios == nil {
 		return nil, errors.New("entity portfolios service not initialized")
 	}
@@ -53,6 +55,10 @@ func (g *portfolioGenerator) Generate(ctx context.Context, orgID, ledgerID, name
 	})
 	if err != nil {
 		return nil, err
+	}
+
+	if out == nil {
+		return nil, errNilGenerated("portfolio")
 	}
 
 	return out, nil

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	client "github.com/LerianStudio/midaz-sdk-golang/v2"
+	sdkentities "github.com/LerianStudio/midaz-sdk-golang/v2/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 )
 
@@ -25,10 +26,10 @@ func CreateAsset(ctx context.Context, midazClient *client.Client, orgID, ledgerI
 
 	fmt.Println("Creating USD asset...")
 
+	reqCtx := sdkentities.WithIdempotencyKey(ctx, fmt.Sprintf("asset-%s-%s-USD", orgID, ledgerID))
 	usdAsset, err := midazClient.Entity.Assets.CreateAsset(
-		ctx, orgID, ledgerID,
-		models.NewCreateAssetInput("US Dollar", "USD").
-			WithType("currency").
+		reqCtx, orgID, ledgerID,
+		models.NewCreateAssetInputWithType("US Dollar", "USD", "currency").
 			WithMetadata(map[string]any{"purpose": "main"}),
 	)
 	if err != nil {

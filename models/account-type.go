@@ -2,9 +2,18 @@
 package models
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 
+	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation/core"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+)
+
+const (
+	maxAccountTypeNameLength        = 100
+	maxAccountTypeDescriptionLength = 500
+	maxAccountTypeKeyValueLength    = 50
 )
 
 // AccountType represents an account type in the Midaz Ledger.
@@ -53,13 +62,23 @@ type CreateAccountTypeInput struct {
 	mmodel.CreateAccountTypeInput
 }
 
-// UpdateAccountTypeInput wraps mmodel.UpdateAccountTypeInput to maintain compatibility while using midaz entities.
+// UpdateAccountTypeInput wraps mmodel.UpdateAccountTypeInput to maintain
+// compatibility while using midaz entities.
+//
+// An empty update payload — no setters and no null-fields — returns a
+// marshal error from MarshalJSON. This is intentional: an empty PATCH
+// would be a no-op round trip. Use the dedicated builder helpers to
+// either set a value or explicitly null out a field.
 type UpdateAccountTypeInput struct {
 	mmodel.UpdateAccountTypeInput
 }
 
 // Validate validates the CreateAccountTypeInput fields.
 func (input *CreateAccountTypeInput) Validate() error {
+	if input == nil {
+		return errors.New("input cannot be nil")
+	}
+
 	if input.Name == "" {
 		return errors.New("name is required")
 	}
@@ -68,12 +87,78 @@ func (input *CreateAccountTypeInput) Validate() error {
 		return errors.New("keyValue is required")
 	}
 
+	if err := validateAccountTypeLengths(input.Name, input.Description, input.KeyValue, true); err != nil {
+		return err
+	}
+
+	if input.Metadata != nil {
+		if err := core.ValidateMetadata(input.Metadata); err != nil {
+			return fmt.Errorf("invalid metadata: %w", err)
+		}
+	}
+
 	return nil
 }
 
+func (input *UpdateAccountTypeInput) hasChanges() bool {
+	if input == nil {
+		return false
+	}
+
+	return input.Name != "" || input.Description != "" || input.Metadata != nil
+}
+
+func validateAccountTypeLengths(name, description, keyValue string, validateKey bool) error {
+	if len(name) > maxAccountTypeNameLength {
+		return fmt.Errorf("name must be at most %d characters", maxAccountTypeNameLength)
+	}
+
+	if len(description) > maxAccountTypeDescriptionLength {
+		return fmt.Errorf("description must be at most %d characters", maxAccountTypeDescriptionLength)
+	}
+
+	if validateKey && len(keyValue) > maxAccountTypeKeyValueLength {
+		return fmt.Errorf("keyValue must be at most %d characters", maxAccountTypeKeyValueLength)
+	}
+
+	return nil
+}
+
+// MarshalJSON omits optional create fields when callers leave them unset.
+func (input *CreateAccountTypeInput) MarshalJSON() ([]byte, error) {
+	if input == nil {
+		return []byte("null"), nil
+	}
+
+	fields := map[string]any{}
+	addStringField(fields, "name", input.Name)
+	addStringField(fields, "description", input.Description)
+	addStringField(fields, "keyValue", input.KeyValue)
+	addMetadataField(fields, input.Metadata)
+
+	return json.Marshal(fields)
+}
+
 // Validate validates the UpdateAccountTypeInput fields.
-func (*UpdateAccountTypeInput) Validate() error {
-	// For update operations, most fields are optional
+func (input *UpdateAccountTypeInput) Validate() error {
+	if input == nil {
+		return errors.New("input cannot be nil")
+	}
+
+	if !input.hasChanges() {
+		return errors.New("empty update payload not allowed")
+	}
+
+	if err := validateAccountTypeLengths(input.Name, input.Description, "", false); err != nil {
+		return err
+	}
+
+	if input.Metadata != nil {
+		if err := core.ValidateMetadata(input.Metadata); err != nil {
+			return fmt.Errorf("invalid metadata: %w", err)
+		}
+	}
+
 	return nil
 }
 
@@ -96,6 +181,7 @@ func NewCreateAccountTypeInput(name, keyValue string) *CreateAccountTypeInput {
 }
 
 // WithCreateAccountTypeDescription sets the description for CreateAccountTypeInput.
+// Deprecated: use (*CreateAccountTypeInput).WithDescription.
 // This adds a detailed description to the account type.
 //
 // Parameters:
@@ -105,23 +191,39 @@ func NewCreateAccountTypeInput(name, keyValue string) *CreateAccountTypeInput {
 // Returns:
 //   - A pointer to the modified CreateAccountTypeInput for method chaining
 func WithCreateAccountTypeDescription(input *CreateAccountTypeInput, description string) *CreateAccountTypeInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Description = description
+
 	return input
 }
 
 // WithDescription sets the description for CreateAccountTypeInput (method on struct).
 func (input *CreateAccountTypeInput) WithDescription(description string) *CreateAccountTypeInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Description = description
+
 	return input
 }
 
 // WithMetadata sets the metadata for CreateAccountTypeInput (method on struct).
 func (input *CreateAccountTypeInput) WithMetadata(metadata map[string]any) *CreateAccountTypeInput {
-	input.Metadata = metadata
+	if input == nil {
+		return nil
+	}
+
+	input.Metadata = cloneAnyMap(metadata)
+
 	return input
 }
 
 // WithCreateAccountTypeMetadata sets the metadata for CreateAccountTypeInput.
+// Deprecated: use (*CreateAccountTypeInput).WithMetadata.
 // Metadata can store additional custom information about the account type.
 //
 // Parameters:
@@ -131,7 +233,12 @@ func (input *CreateAccountTypeInput) WithMetadata(metadata map[string]any) *Crea
 // Returns:
 //   - A pointer to the modified CreateAccountTypeInput for method chaining
 func WithCreateAccountTypeMetadata(input *CreateAccountTypeInput, metadata map[string]any) *CreateAccountTypeInput {
-	input.Metadata = metadata
+	if input == nil {
+		return nil
+	}
+
+	input.Metadata = cloneAnyMap(metadata)
+
 	return input
 }
 
@@ -148,6 +255,7 @@ func NewUpdateAccountTypeInput() *UpdateAccountTypeInput {
 }
 
 // WithUpdateAccountTypeName sets the name for UpdateAccountTypeInput.
+// Deprecated: use (*UpdateAccountTypeInput).WithName.
 // This updates the human-readable name of the account type.
 //
 // Parameters:
@@ -157,29 +265,50 @@ func NewUpdateAccountTypeInput() *UpdateAccountTypeInput {
 // Returns:
 //   - A pointer to the modified UpdateAccountTypeInput for method chaining
 func WithUpdateAccountTypeName(input *UpdateAccountTypeInput, name string) *UpdateAccountTypeInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Name = name
+
 	return input
 }
 
 // WithName sets the name for UpdateAccountTypeInput (method on struct).
 func (input *UpdateAccountTypeInput) WithName(name string) *UpdateAccountTypeInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Name = name
+
 	return input
 }
 
 // WithDescription sets the description for UpdateAccountTypeInput (method on struct).
 func (input *UpdateAccountTypeInput) WithDescription(description string) *UpdateAccountTypeInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Description = description
+
 	return input
 }
 
 // WithMetadata sets the metadata for UpdateAccountTypeInput (method on struct).
 func (input *UpdateAccountTypeInput) WithMetadata(metadata map[string]any) *UpdateAccountTypeInput {
-	input.Metadata = metadata
+	if input == nil {
+		return nil
+	}
+
+	input.Metadata = cloneAnyMap(metadata)
+
 	return input
 }
 
 // WithUpdateAccountTypeDescription sets the description for UpdateAccountTypeInput.
+// Deprecated: use (*UpdateAccountTypeInput).WithDescription.
 // This updates the detailed description of the account type.
 //
 // Parameters:
@@ -189,11 +318,17 @@ func (input *UpdateAccountTypeInput) WithMetadata(metadata map[string]any) *Upda
 // Returns:
 //   - A pointer to the modified UpdateAccountTypeInput for method chaining
 func WithUpdateAccountTypeDescription(input *UpdateAccountTypeInput, description string) *UpdateAccountTypeInput {
+	if input == nil {
+		return nil
+	}
+
 	input.Description = description
+
 	return input
 }
 
 // WithUpdateAccountTypeMetadata sets the metadata for UpdateAccountTypeInput.
+// Deprecated: use (*UpdateAccountTypeInput).WithMetadata.
 // This updates the custom metadata associated with the account type.
 //
 // Parameters:
@@ -203,6 +338,25 @@ func WithUpdateAccountTypeDescription(input *UpdateAccountTypeInput, description
 // Returns:
 //   - A pointer to the modified UpdateAccountTypeInput for method chaining
 func WithUpdateAccountTypeMetadata(input *UpdateAccountTypeInput, metadata map[string]any) *UpdateAccountTypeInput {
-	input.Metadata = metadata
+	if input == nil {
+		return nil
+	}
+
+	input.Metadata = cloneAnyMap(metadata)
+
 	return input
+}
+
+// MarshalJSON emits only fields explicitly set on the SDK PATCH input.
+func (input *UpdateAccountTypeInput) MarshalJSON() ([]byte, error) {
+	if input == nil {
+		return []byte("null"), nil
+	}
+
+	fields := map[string]any{}
+	addStringField(fields, "name", input.Name)
+	addStringField(fields, "description", input.Description)
+	addMetadataField(fields, input.Metadata)
+
+	return json.Marshal(fields)
 }

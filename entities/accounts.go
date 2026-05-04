@@ -46,9 +46,10 @@ type AccountsService interface {
 	//   - ledgerID: The ID of the ledger where the account will be created. Must be a valid ledger ID.
 	//   - input: The account details, including name, type, asset code, and optional fields.
 	//     Required fields in the input are:
+	//     - Type: The account type (e.g., "deposit", "savings", "loans")
+	//     - AssetCode: The currency or asset code (e.g., "USD", "EUR")
+	//     Optional fields include:
 	//     - Name: The human-readable name of the account (max 256 characters)
-	//     - Type: The account type (e.g., "customer", "revenue", "liability")
-	//     - AssetCode: The currency or asset code (e.g., "USD", "EUR") if applicable
 	//
 	// Returns:
 	//   - *models.Account: The created account if successful, containing the account ID,
@@ -69,7 +70,7 @@ type AccountsService interface {
 	//	    "ledger-456",
 	//	    &models.CreateAccountInput{
 	//	        Name: "John Doe",
-	//	        Type: "customer",
+	//	        Type: "deposit",
 	//	        AssetCode: "USD",
 	//	        Metadata: map[string]any{
 	//	            "customer_id": "cust-789",
@@ -99,7 +100,7 @@ type AccountsService interface {
 	//	        AssetCode: "USD",
 	//	        PortfolioID: "portfolio-789",
 	//	        SegmentID: "segment-012",
-	//	        Status: models.StatusActive,
+	//	        Status: models.NewStatus(models.StatusActive),
 	//	    },
 	//	)
 	//
@@ -197,7 +198,7 @@ func (e *accountsEntity) setDefaultTenantID(tenantID string) {
 //	    "ledger-456",
 //	    &models.CreateAccountInput{
 //	        Name: "Customer Account",
-//	        Type: "customer",
+//	        Type: "deposit",
 //	        AssetCode: "USD",
 //	    },
 //	)
@@ -213,12 +214,12 @@ func NewAccountsEntity(client *http.Client, authToken string, baseURLs map[strin
 
 	// Check if we're using the debug flag from the environment
 	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
-		httpClient.debug = true
+		httpClient.setDebugLocked(true)
 	}
 
 	return &accountsEntity{
 		httpClient: httpClient,
-		baseURLs:   baseURLs,
+		baseURLs:   prepareServiceBaseURLs(baseURLs),
 	}
 }
 
@@ -236,7 +237,7 @@ func (e *accountsEntity) ListAccounts(ctx context.Context, organizationID, ledge
 
 	endpoint := e.buildURL(organizationID, ledgerID, "")
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -278,7 +279,7 @@ func (e *accountsEntity) GetAccount(ctx context.Context, organizationID, ledgerI
 
 	endpoint := e.buildURL(organizationID, ledgerID, id)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -309,7 +310,7 @@ func (e *accountsEntity) GetAccountByAlias(ctx context.Context, organizationID, 
 
 	endpoint := e.buildAliasURL(organizationID, ledgerID, alias)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -338,6 +339,10 @@ func (e *accountsEntity) CreateAccount(ctx context.Context, organizationID, ledg
 		return nil, errors.NewMissingParameterError(operation, "input")
 	}
 
+	if err := input.Validate(); err != nil {
+		return nil, errors.NewValidationError(operation, "account validation failed", err)
+	}
+
 	endpoint := e.buildURL(organizationID, ledgerID, "")
 
 	body, err := json.Marshal(input)
@@ -345,15 +350,19 @@ func (e *accountsEntity) CreateAccount(ctx context.Context, organizationID, ledg
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	req, err := newRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
 
 	var account models.Account
 	if err := e.httpClient.sendRequest(req, &account); err != nil {
+		e.httpClient.emitBusinessError(ctx, businessEventAccountCreated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID}, err)
+
 		return nil, err
 	}
+
+	e.httpClient.emitBusinessEvent(ctx, businessEventAccountCreated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "accountId": account.ID, "status": account.Status.Code})
 
 	return &account, nil
 }
@@ -378,6 +387,10 @@ func (e *accountsEntity) UpdateAccount(ctx context.Context, organizationID, ledg
 		return nil, errors.NewMissingParameterError(operation, "input")
 	}
 
+	if err := input.Validate(); err != nil {
+		return nil, errors.NewValidationError(operation, "account validation failed", err)
+	}
+
 	endpoint := e.buildURL(organizationID, ledgerID, id)
 
 	body, err := json.Marshal(input)
@@ -385,15 +398,19 @@ func (e *accountsEntity) UpdateAccount(ctx context.Context, organizationID, ledg
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, endpoint, bytes.NewReader(body))
+	req, err := newRequestWithContext(ctx, http.MethodPatch, endpoint, bytes.NewReader(body))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
 
 	var account models.Account
 	if err := e.httpClient.sendRequest(req, &account); err != nil {
+		e.httpClient.emitBusinessError(ctx, businessEventAccountUpdated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "accountId": id}, err)
+
 		return nil, err
 	}
+
+	e.httpClient.emitBusinessEvent(ctx, businessEventAccountUpdated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "accountId": account.ID, "status": account.Status.Code})
 
 	return &account, nil
 }
@@ -416,12 +433,20 @@ func (e *accountsEntity) DeleteAccount(ctx context.Context, organizationID, ledg
 
 	endpoint := e.buildURL(organizationID, ledgerID, id)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, endpoint, nil)
+	req, err := newRequestWithContext(ctx, http.MethodDelete, endpoint, nil)
 	if err != nil {
 		return errors.NewInternalError(operation, err)
 	}
 
-	return e.httpClient.sendRequest(req, nil)
+	if err := e.httpClient.sendRequest(req, nil); err != nil {
+		e.httpClient.emitBusinessError(ctx, businessEventAccountDeleted, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "accountId": id}, err)
+
+		return err
+	}
+
+	e.httpClient.emitBusinessEvent(ctx, businessEventAccountDeleted, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "accountId": id})
+
+	return nil
 }
 
 // GetBalance gets an account's balance.
@@ -442,7 +467,7 @@ func (e *accountsEntity) GetBalance(ctx context.Context, organizationID, ledgerI
 
 	accountsURL := e.buildAccountBalanceURL(organizationID, ledgerID, accountID)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, accountsURL, nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, accountsURL, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -512,7 +537,7 @@ func (e *accountsEntity) GetExternalAccount(ctx context.Context, organizationID,
 
 	endpoint := e.buildExternalAccountURL(organizationID, ledgerID, assetCode)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -543,7 +568,7 @@ func (e *accountsEntity) GetExternalAccountBalance(ctx context.Context, organiza
 
 	endpoint := e.buildExternalAccountBalanceURL(organizationID, ledgerID, assetCode)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -562,15 +587,23 @@ func (e *accountsEntity) buildExternalAccountURL(organizationID, ledgerID, asset
 	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/external/%s", baseURL, pathSegment(organizationID), pathSegment(ledgerID), pathSegment(assetCode))
 }
 
+// balanceQueryLimit is the page size used for "fetch the balance for this
+// single (account, asset)" lookups. Setting limit=2 (NOT 1) is intentional:
+// the upstream balances endpoint can return more than one record when an
+// account has been split across balance scopes, and we need to detect that
+// multi-balance shape so we can surface a clear error instead of silently
+// returning the first one. Reducing to 1 would mask the multi-balance case.
+const balanceQueryLimit = 2
+
 // buildExternalAccountBalanceURL builds the URL for external account balance API calls.
 func (e *accountsEntity) buildExternalAccountBalanceURL(organizationID, ledgerID, assetCode string) string {
-	baseURL := e.baseURLs["onboarding"]
-	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/external/%s/balances", baseURL, pathSegment(organizationID), pathSegment(ledgerID), pathSegment(assetCode))
+	baseURL := e.baseURLs["transaction"]
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/external/%s/balances?limit=%d", baseURL, pathSegment(organizationID), pathSegment(ledgerID), pathSegment(assetCode), balanceQueryLimit)
 }
 
 func (e *accountsEntity) buildAccountBalanceURL(organizationID, ledgerID, accountID string) string {
 	baseURL := e.baseURLs["transaction"]
-	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/%s/balances", baseURL, pathSegment(organizationID), pathSegment(ledgerID), pathSegment(accountID))
+	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/%s/balances?limit=%d", baseURL, pathSegment(organizationID), pathSegment(ledgerID), pathSegment(accountID), balanceQueryLimit)
 }
 
 // GetAccountByAliasPath retrieves a specific account by its alias using the dedicated path endpoint.

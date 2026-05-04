@@ -47,8 +47,7 @@ func CreateAsset(
 	service entities.AssetsService,
 ) (*models.Asset, error) {
 	// Create input using the builder pattern
-	input := models.NewCreateAssetInput(name, code).
-		WithType(assetType).
+	input := models.NewCreateAssetInputWithType(name, code, assetType).
 		WithMetadata(map[string]any{
 			"description": fmt.Sprintf("%s asset for %s", code, name),
 		})

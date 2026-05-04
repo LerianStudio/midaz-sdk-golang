@@ -15,7 +15,7 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
 )
 
-func TestIdempotencyHeaderInjection(t *testing.T) {
+func TestIdempotencyHeaderInjectionSkipsSafeGET(t *testing.T) {
 	var seen string
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -37,7 +37,7 @@ func TestIdempotencyHeaderInjection(t *testing.T) {
 	err := c.doRequest(ctx, http.MethodGet, srv.URL, nil, nil, &out)
 	require.NoError(t, err)
 
-	assert.Equal(t, "abc123", seen)
+	assert.Empty(t, seen)
 }
 
 func TestRedactDebugURLMasksSensitiveQueryValues(t *testing.T) {
@@ -84,24 +84,97 @@ func TestAutomaticIdempotencyHeaderForUnsafeMethods(t *testing.T) {
 	assert.Empty(t, autoHeader)
 }
 
+// TestWithoutAutoIdempotencySuppressesAutoKey verifies that the per-call
+// suppression escape hatch keeps the X-Idempotency header off the wire
+// even when client-level idempotency is enabled.
+func TestWithoutAutoIdempotencySuppressesAutoKey(t *testing.T) {
+	var seenIdem string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seenIdem = r.Header.Get("X-Idempotency")
+		w.Header().Set("Content-Type", "application/json")
+
+		_, err := w.Write([]byte(`{}`))
+		assert.NoError(t, err)
+	}))
+	defer srv.Close()
+
+	c := NewHTTPClient(srv.Client(), "", nil)
+
+	var out map[string]any
+
+	ctx := WithoutAutoIdempotency(context.Background())
+	err := c.doRequest(ctx, http.MethodPost, srv.URL, nil, map[string]string{"ok": "true"}, &out)
+	require.NoError(t, err)
+
+	assert.Empty(t, seenIdem, "WithoutAutoIdempotency should suppress the auto-generated key")
+}
+
+// TestExplicitIdempotencyKeyWinsOverSuppression verifies the documented
+// ordering rule: explicit caller key > suppression > auto-generation.
+func TestExplicitIdempotencyKeyWinsOverSuppression(t *testing.T) {
+	var seenIdem string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seenIdem = r.Header.Get("X-Idempotency")
+		w.Header().Set("Content-Type", "application/json")
+
+		_, err := w.Write([]byte(`{}`))
+		assert.NoError(t, err)
+	}))
+	defer srv.Close()
+
+	c := NewHTTPClient(srv.Client(), "", nil)
+
+	var out map[string]any
+
+	ctx := WithoutAutoIdempotency(WithIdempotencyKey(context.Background(), "explicit-key"))
+	err := c.doRequest(ctx, http.MethodPost, srv.URL, nil, map[string]string{"ok": "true"}, &out)
+	require.NoError(t, err)
+
+	assert.Equal(t, "explicit-key", seenIdem, "explicit key must win over suppression")
+}
+
 func TestUnsafeMethodRetriesOnlyWithIdempotency(t *testing.T) {
+	// As of the cluster-D rework, an SDK-generated idempotency key (the
+	// MIDAZ_IDEMPOTENCY=on path that auto-attaches X-Idempotency to every
+	// unsafe method) DOES enable retries — otherwise idempotency would be
+	// useful for at-most-once delivery but useless for transient failure
+	// recovery, defeating the entire point of opting in.
+	//
+	// The two rows below assert the new behavior:
+	//   1. headers=nil → ensureIdempotencyHeader auto-generates a key →
+	//      retry on 5xx is allowed → after 1 transient failure we succeed
+	//      on the 2nd attempt.
+	//   2. headers explicitly carry the internal marker → behavior matches
+	//      the implicit auto path (one retry, then success).
 	tests := []struct {
 		name            string
+		ctx             context.Context
 		headers         map[string]string
 		expectedCalls   int32
 		expectedSuccess bool
 	}{
 		{
-			name:            "no idempotency disables retry",
+			name:            "auto idempotency enables unsafe retry",
+			ctx:             context.Background(),
 			headers:         nil,
-			expectedCalls:   1,
-			expectedSuccess: false,
+			expectedCalls:   2,
+			expectedSuccess: true,
 		},
 		{
-			name:            "generated idempotency allows retry",
+			name:            "internal auto idempotency marker enables unsafe retry",
+			ctx:             context.Background(),
 			headers:         map[string]string{"X-Midaz-Auto-Idempotency": "true"},
 			expectedCalls:   2,
 			expectedSuccess: true,
+		},
+		{
+			name:            "suppressed auto idempotency disables unsafe retry",
+			ctx:             WithoutAutoIdempotency(context.Background()),
+			headers:         nil,
+			expectedCalls:   1,
+			expectedSuccess: false,
 		},
 	}
 
@@ -148,7 +221,7 @@ func TestUnsafeMethodRetriesOnlyWithIdempotency(t *testing.T) {
 
 			var out map[string]any
 
-			err := c.doRequest(context.Background(), http.MethodPost, srv.URL, tt.headers, map[string]string{"ok": "true"}, &out)
+			err := c.doRequest(tt.ctx, http.MethodPost, srv.URL, tt.headers, map[string]string{"ok": "true"}, &out)
 
 			if tt.expectedSuccess {
 				require.NoError(t, err)

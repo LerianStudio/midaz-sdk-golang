@@ -353,19 +353,24 @@ func TestIsValidMetadataValueType(t *testing.T) {
 			want:  true,
 		},
 		{
-			name:  "Invalid int32",
+			name:  "Valid int32",
 			value: int32(123),
-			want:  false,
+			want:  true,
 		},
 		{
-			name:  "Invalid int64",
+			name:  "Valid int64",
 			value: int64(123),
-			want:  false,
+			want:  true,
 		},
 		{
-			name:  "Invalid float32",
+			name:  "Valid float32",
 			value: float32(123.45),
-			want:  false,
+			want:  true,
+		},
+		{
+			name:  "Valid scalar array",
+			value: []any{"a", int64(1), true},
+			want:  true,
 		},
 		{
 			name:  "Invalid slice",

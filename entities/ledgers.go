@@ -78,7 +78,7 @@ type LedgersService interface {
 	//	    context.Background(),
 	//	    "org-123",
 	//	    models.NewCreateLedgerInput("Finance Ledger").
-	//	        WithStatus(models.StatusActive).
+	//	        WithStatus(models.NewStatus(models.StatusActive)).
 	//	        WithMetadata(map[string]any{
 	//	            "department": "Finance",
 	//	            "fiscalYear": 2025,
@@ -177,12 +177,12 @@ func NewLedgersEntity(client *http.Client, authToken string, baseURLs map[string
 
 	// Check if we're using the debug flag from the environment
 	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
-		httpClient.debug = true
+		httpClient.setDebugLocked(true)
 	}
 
 	return &ledgersEntity{
 		httpClient: httpClient,
-		baseURLs:   baseURLs,
+		baseURLs:   prepareServiceBaseURLs(baseURLs),
 	}
 }
 
@@ -203,7 +203,7 @@ func (e *ledgersEntity) ListLedgers(
 
 	url := e.buildURL(organizationID, "")
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -247,7 +247,7 @@ func (e *ledgersEntity) GetLedger(
 
 	url := e.buildURL(organizationID, id)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -276,6 +276,10 @@ func (e *ledgersEntity) CreateLedger(
 		return nil, errors.NewMissingParameterError(operation, "input")
 	}
 
+	if err := input.Validate(); err != nil {
+		return nil, errors.NewValidationError(operation, "ledger validation failed", err)
+	}
+
 	url := e.buildURL(organizationID, "")
 
 	body, err := json.Marshal(input)
@@ -283,15 +287,19 @@ func (e *ledgersEntity) CreateLedger(
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	req, err := newRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
 
 	var ledger models.Ledger
 	if err := e.httpClient.sendRequest(req, &ledger); err != nil {
+		e.httpClient.emitBusinessError(ctx, businessEventLedgerCreated, map[string]any{"operation": operation, "organizationId": organizationID}, err)
+
 		return nil, err
 	}
+
+	e.httpClient.emitBusinessEvent(ctx, businessEventLedgerCreated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledger.ID, "status": ledger.Status.Code})
 
 	return &ledger, nil
 }
@@ -320,6 +328,10 @@ func (e *ledgersEntity) UpdateLedger(
 		return nil, errors.NewMissingParameterError(operation, "input")
 	}
 
+	if err := input.Validate(); err != nil {
+		return nil, errors.NewValidationError(operation, "ledger validation failed", err)
+	}
+
 	url := e.buildURL(organizationID, id)
 
 	body, err := json.Marshal(input)
@@ -327,15 +339,19 @@ func (e *ledgersEntity) UpdateLedger(
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, bytes.NewReader(body))
+	req, err := newRequestWithContext(ctx, http.MethodPatch, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
 
 	var ledger models.Ledger
 	if err := e.httpClient.sendRequest(req, &ledger); err != nil {
+		e.httpClient.emitBusinessError(ctx, businessEventLedgerUpdated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": id}, err)
+
 		return nil, err
 	}
+
+	e.httpClient.emitBusinessEvent(ctx, businessEventLedgerUpdated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledger.ID, "status": ledger.Status.Code})
 
 	return &ledger, nil
 }
@@ -354,7 +370,7 @@ func (e *ledgersEntity) GetLedgerSettings(ctx context.Context, organizationID, i
 
 	url := e.buildSettingsURL(organizationID, id)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -390,7 +406,7 @@ func (e *ledgersEntity) UpdateLedgerSettings(ctx context.Context, organizationID
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, bytes.NewReader(body))
+	req, err := newRequestWithContext(ctx, http.MethodPatch, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -423,12 +439,20 @@ func (e *ledgersEntity) DeleteLedger(
 
 	url := e.buildURL(organizationID, id)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
+	req, err := newRequestWithContext(ctx, http.MethodDelete, url, nil)
 	if err != nil {
 		return errors.NewInternalError(operation, err)
 	}
 
-	return e.httpClient.sendRequest(req, nil)
+	if err := e.httpClient.sendRequest(req, nil); err != nil {
+		e.httpClient.emitBusinessError(ctx, businessEventLedgerDeleted, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": id}, err)
+
+		return err
+	}
+
+	e.httpClient.emitBusinessEvent(ctx, businessEventLedgerDeleted, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": id})
+
+	return nil
 }
 
 // GetLedgersMetricsCount gets the count metrics for ledgers in an organization.

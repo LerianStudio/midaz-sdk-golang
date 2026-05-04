@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v2/internal/reflectutil"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/config"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
@@ -74,6 +75,10 @@ func New(options ...Option) (*Client, error) {
 
 	// Apply all options
 	for _, option := range options {
+		if option == nil {
+			return nil, errors.New("option cannot be nil")
+		}
+
 		if err := option(c); err != nil {
 			return nil, fmt.Errorf("error applying option: %w", err)
 		}
@@ -192,6 +197,13 @@ func WithTimeout(timeout time.Duration) Option {
 	return func(c *Client) error {
 		// Apply to config
 		return config.WithTimeout(timeout)(c.config)
+	}
+}
+
+// WithUserAgent sets the user agent for API requests.
+func WithUserAgent(userAgent string) Option {
+	return func(c *Client) error {
+		return config.WithUserAgent(userAgent)(c.config)
 	}
 }
 
@@ -330,17 +342,6 @@ func WithObservability(enableTracing, enableMetrics, enableLogging bool) Option 
 		// Update the context with the provider
 		c.ctx = observability.WithProvider(c.ctx, provider)
 
-		// If HTTP client is already configured, wrap with observability middleware
-		if c.Entity != nil && provider.IsEnabled() {
-			httpClient := c.Entity.GetEntityHTTPClient()
-			if httpClient != nil {
-				httpClient := &http.Client{
-					Transport: observability.NewHTTPMiddleware(provider)(http.DefaultTransport),
-				}
-				c.Entity.SetHTTPClient(httpClient)
-			}
-		}
-
 		return nil
 	}
 }
@@ -357,6 +358,10 @@ func WithObservabilityProvider(provider observability.Provider) Option {
 	return func(c *Client) error {
 		if provider == nil {
 			return nil
+		}
+
+		if reflectutil.IsTypedNil(provider) {
+			return errors.New("observability provider cannot be nil")
 		}
 
 		// Set the provider on the client
@@ -438,8 +443,9 @@ func WithEnvironment(env config.Environment) Option {
 	}
 }
 
-// WithContext sets the context for the client.
-// This context will be used for all API requests.
+// WithContext sets the client base context used by client-level helpers and
+// observability setup. Entity service methods still use the context passed to
+// each service call.
 //
 // Parameters:
 //   - ctx: The context to use
@@ -496,7 +502,19 @@ func WithConfig(cfg *config.Config) Option {
 			return errors.New("config cannot be nil")
 		}
 
-		c.config = cfg
+		c.config = cfg.Clone()
+		if provider := c.config.GetObservabilityProvider(); provider != nil && !reflectutil.IsTypedNil(provider) {
+			c.observability = provider
+			c.ctx = observability.WithProvider(c.ctx, provider)
+			if provider.IsEnabled() {
+				metrics, err := observability.NewMetricsCollector(provider)
+				if err != nil {
+					return err
+				}
+
+				c.metrics = metrics
+			}
+		}
 
 		return nil
 	}
@@ -512,13 +530,7 @@ func WithConfig(cfg *config.Config) Option {
 //   - Option: A function that sets the HTTP client on the Client
 func WithHTTPClient(client *http.Client) Option {
 	return func(c *Client) error {
-		if client == nil {
-			return errors.New("HTTP client cannot be nil")
-		}
-
-		c.config.HTTPClient = client
-
-		return nil
+		return config.WithHTTPClient(client)(c.config)
 	}
 }
 
@@ -611,6 +623,10 @@ func UseEntity() Option {
 // Returns:
 //   - error: An error if the shutdown operation fails
 func (c *Client) Shutdown(ctx context.Context) error {
+	if c == nil {
+		return nil
+	}
+
 	// Shutdown observability provider
 	if c.observability != nil {
 		if err := c.observability.Shutdown(ctx); err != nil {
@@ -631,6 +647,14 @@ func (c *Client) Shutdown(ctx context.Context) error {
 // Returns:
 //   - error: An error if the traced operation fails
 func (c *Client) Trace(name string, fn func(context.Context) error) error {
+	if fn == nil {
+		return errors.New("trace callback cannot be nil")
+	}
+
+	if c == nil {
+		return errors.New("client cannot be nil")
+	}
+
 	if c.observability == nil || !c.observability.IsEnabled() {
 		return fn(c.ctx)
 	}
@@ -678,13 +702,23 @@ func (c *Client) GetContext() context.Context {
 	return c.ctx
 }
 
-// GetConfiguration returns the client configuration.
-// This is useful for debugging and testing.
+// GetConfiguration returns a deep copy of the client's configuration.
+//
+// Mutating the returned *config.Config does NOT affect the live client.
+// The clone is safe to inspect for debugging or to feed into another
+// client constructor; it is NOT a handle for runtime tweaks.
+//
+// The clone can still carry Access Manager credentials, so do not log
+// it without redaction.
 //
 // Returns:
-//   - *config.Config: The client configuration
+//   - *config.Config: An independent copy of the client configuration.
 func (c *Client) GetConfiguration() *config.Config {
-	return c.config
+	if c == nil || c.config == nil {
+		return nil
+	}
+
+	return c.config.Clone()
 }
 
 // GetConfig returns the client configuration.
@@ -693,7 +727,7 @@ func (c *Client) GetConfiguration() *config.Config {
 // Returns:
 //   - *config.Config: The client configuration
 func (c *Client) GetConfig() *config.Config {
-	return c.config
+	return c.GetConfiguration()
 }
 
 // NewAccount constructs a basic account.

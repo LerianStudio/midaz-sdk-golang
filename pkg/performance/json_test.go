@@ -67,6 +67,52 @@ func TestJSONPoolMarshalUnmarshal(t *testing.T) {
 	}
 }
 
+func TestJSONPoolNilAndZeroValueSafe(t *testing.T) {
+	testData := generateTestData()
+
+	t.Run("ZeroValueMarshalUnmarshal", func(t *testing.T) {
+		var pool JSONPool
+
+		data, err := pool.Marshal(testData)
+		if err != nil {
+			t.Fatalf("Marshal failed for zero-value pool: %v", err)
+		}
+
+		var result testStruct
+		if err := pool.Unmarshal(data, &result); err != nil {
+			t.Fatalf("Unmarshal failed for zero-value pool: %v", err)
+		}
+
+		if !reflect.DeepEqual(testData, result) {
+			t.Errorf("Zero-value pool round trip mismatch. Got: %+v Expected: %+v", result, testData)
+		}
+	})
+
+	t.Run("NilReceiverMarshalUnmarshal", func(t *testing.T) {
+		var pool *JSONPool
+
+		data, err := pool.Marshal(testData)
+		if err != nil {
+			t.Fatalf("Marshal failed for nil pool: %v", err)
+		}
+
+		var result testStruct
+		if err := pool.Unmarshal(data, &result); err != nil {
+			t.Fatalf("Unmarshal failed for nil pool: %v", err)
+		}
+
+		if !reflect.DeepEqual(testData, result) {
+			t.Errorf("Nil pool round trip mismatch. Got: %+v Expected: %+v", result, testData)
+		}
+	})
+
+	t.Run("NilReleaseIsNoop", func(_ *testing.T) {
+		var pool *JSONPool
+		pool.ReleaseEncoder(nil)
+		pool.ReleaseDecoder(nil)
+	})
+}
+
 func TestJSONPoolEncoderDecoder(t *testing.T) {
 	pool := NewJSONPool()
 	testData := generateTestData()

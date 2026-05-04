@@ -12,7 +12,7 @@ func TestMainFunction(_ *testing.T) {
 	// so that the testing package will execute all test files in the package.
 }
 
-func TestNewWithServiceURLs_FallsBackToOnboardingURLForCRM(t *testing.T) {
+func TestNewWithServiceURLs_DefaultsMissingCRMURLToOnboarding(t *testing.T) {
 	t.Setenv("MIDAZ_CRM_URL", "")
 
 	entity, err := NewWithServiceURLs(map[string]string{
@@ -21,17 +21,17 @@ func TestNewWithServiceURLs_FallsBackToOnboardingURLForCRM(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	require.NotNil(t, entity)
-	require.Equal(t, "https://api.example.com/onboarding", entity.baseURLs["crm"])
+	require.Equal(t, "https://api.example.com/onboarding/v1", entity.baseURLs["crm"])
 }
 
-func TestNormalizeBaseURLs_UsesCRMURLFromEnvironmentWhenOnboardingMissing(t *testing.T) {
+func TestNormalizeBaseURLs_RequiresOnboardingURL(t *testing.T) {
 	t.Setenv("MIDAZ_CRM_URL", "https://api.example.com/crm")
 
 	baseURLs, err := normalizeBaseURLs(map[string]string{
 		"transaction": "https://api.example.com/transaction",
 	})
 
-	require.NoError(t, err)
-	require.Equal(t, "https://api.example.com/crm", baseURLs["crm"])
+	require.Error(t, err)
+	require.Nil(t, baseURLs)
+	require.Contains(t, err.Error(), "missing onboarding URL")
 }

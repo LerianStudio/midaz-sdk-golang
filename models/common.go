@@ -2,7 +2,10 @@ package models
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"maps"
+	"os"
 	"strconv"
 	"time"
 
@@ -41,6 +44,35 @@ func WithStatusDescription(status Status, description string) Status {
 // IsStatusEmpty returns true if the status is empty.
 func IsStatusEmpty(status Status) bool {
 	return status.Code == "" && status.Description == nil
+}
+
+func addStringField(fields map[string]any, name, value string) {
+	if value != "" {
+		fields[name] = value
+	}
+}
+
+func addStringPtrField(fields map[string]any, name string, value *string) {
+	if value != nil {
+		fields[name] = value
+	}
+}
+
+func addStatusField(fields map[string]any, value Status) {
+	if !IsStatusEmpty(value) {
+		status := map[string]any{"code": value.Code}
+		if value.Description != nil {
+			status["description"] = *value.Description
+		}
+
+		fields["status"] = status
+	}
+}
+
+func addMetadataField(fields map[string]any, metadata map[string]any) {
+	if metadata != nil {
+		fields["metadata"] = metadata
+	}
 }
 
 // Address represents a physical address.
@@ -169,6 +201,10 @@ type Pagination struct {
 
 // UnmarshalJSON supports both current snake_case and legacy camelCase cursor keys.
 func (p *Pagination) UnmarshalJSON(data []byte) error {
+	if p == nil {
+		return errors.New("pagination receiver cannot be nil")
+	}
+
 	type alias Pagination
 
 	aux := struct {
@@ -199,6 +235,10 @@ func (p *Pagination) UnmarshalJSON(data []byte) error {
 // Returns:
 //   - true if there are more pages available, false otherwise
 func (p *Pagination) HasMorePages() bool {
+	if p == nil {
+		return false
+	}
+
 	if p.Total > 0 && p.Limit > 0 {
 		if p.Page > 0 {
 			return p.Page*p.Limit < p.Total
@@ -216,6 +256,10 @@ func (p *Pagination) HasMorePages() bool {
 // Returns:
 //   - true if there is a previous page available, false otherwise
 func (p *Pagination) HasPrevPage() bool {
+	if p == nil {
+		return false
+	}
+
 	return p.Page > 1 || p.Offset > 0 || p.PrevCursor != ""
 }
 
@@ -225,6 +269,10 @@ func (p *Pagination) HasPrevPage() bool {
 // Returns:
 //   - true if there is a next page available, false otherwise
 func (p *Pagination) HasNextPage() bool {
+	if p == nil {
+		return false
+	}
+
 	return p.HasMorePages() || p.NextCursor != ""
 }
 
@@ -236,6 +284,10 @@ func (p *Pagination) HasNextPage() bool {
 //   - A new ListOptions instance configured for the next page
 //   - nil if there is no next page available
 func (p *Pagination) NextPageOptions() *ListOptions {
+	if p == nil {
+		return nil
+	}
+
 	if !p.HasNextPage() {
 		return nil
 	}
@@ -266,6 +318,10 @@ func (p *Pagination) NextPageOptions() *ListOptions {
 //   - A new ListOptions instance configured for the previous page
 //   - nil if there is no previous page available
 func (p *Pagination) PrevPageOptions() *ListOptions {
+	if p == nil {
+		return nil
+	}
+
 	if !p.HasPrevPage() {
 		return nil
 	}
@@ -299,6 +355,10 @@ func (p *Pagination) PrevPageOptions() *ListOptions {
 // Returns:
 //   - The current page number (starts from 1)
 func (p *Pagination) CurrentPage() int {
+	if p == nil {
+		return DefaultPage
+	}
+
 	if p.Page > 0 {
 		return p.Page
 	}
@@ -316,6 +376,10 @@ func (p *Pagination) CurrentPage() int {
 // Returns:
 //   - The total number of pages
 func (p *Pagination) TotalPages() int {
+	if p == nil {
+		return 1
+	}
+
 	if p.Limit <= 0 || p.Total <= 0 {
 		return 1
 	}
@@ -336,7 +400,8 @@ type ListOptions struct {
 	// Limit is the maximum number of items to return per page
 	Limit int `json:"limit,omitempty"`
 
-	// Offset is the starting position for pagination
+	// Offset is a legacy local compatibility field. Midaz APIs do not accept
+	// offset on the wire; aligned offsets may be converted to page numbers.
 	Offset int `json:"offset,omitempty"`
 
 	// Filters are additional filters to apply to the query
@@ -380,6 +445,40 @@ func NewListOptions() *ListOptions {
 	}
 }
 
+func ensureListOptions(options *ListOptions) *ListOptions {
+	if options == nil {
+		return NewListOptions()
+	}
+
+	return options
+}
+
+func cloneAnyMap(values map[string]any) map[string]any {
+	if values == nil {
+		return nil
+	}
+
+	clone := make(map[string]any, len(values))
+	for key, value := range values {
+		clone[key] = value
+	}
+
+	return clone
+}
+
+// Clone returns a deep copy of the list options.
+func (o *ListOptions) Clone() *ListOptions {
+	if o == nil {
+		return NewListOptions()
+	}
+
+	clone := *o
+	clone.Filters = maps.Clone(o.Filters)
+	clone.AdditionalParams = maps.Clone(o.AdditionalParams)
+
+	return &clone
+}
+
 // WithLimit sets the maximum number of items to return per page.
 // This method validates that the limit is within acceptable bounds.
 //
@@ -389,6 +488,8 @@ func NewListOptions() *ListOptions {
 // Returns:
 //   - The modified ListOptions instance for method chaining
 func (o *ListOptions) WithLimit(limit int) *ListOptions {
+	o = ensureListOptions(o)
+
 	if limit <= 0 {
 		o.Limit = DefaultLimit
 	} else if limit > MaxLimit {
@@ -400,7 +501,9 @@ func (o *ListOptions) WithLimit(limit int) *ListOptions {
 	return o
 }
 
-// WithOffset sets the starting position for pagination.
+// WithOffset sets the legacy starting position for pagination.
+// Midaz APIs do not accept offset on the wire; ToQueryParams only converts
+// aligned offsets to deterministic page values and never emits offset.
 //
 // Parameters:
 //   - offset: The starting position (must be >= 0)
@@ -408,6 +511,8 @@ func (o *ListOptions) WithLimit(limit int) *ListOptions {
 // Returns:
 //   - The modified ListOptions instance for method chaining
 func (o *ListOptions) WithOffset(offset int) *ListOptions {
+	o = ensureListOptions(o)
+
 	if offset < 0 {
 		o.Offset = DefaultOffset
 	} else {
@@ -417,8 +522,8 @@ func (o *ListOptions) WithOffset(offset int) *ListOptions {
 	return o
 }
 
-// WithPage sets the page number for backward compatibility.
-// Note: Using offset-based pagination (WithOffset) is recommended over page-based pagination.
+// WithPage sets the page number for Midaz page-based pagination.
+// Page-based pagination is the supported wire format for current list endpoints.
 //
 // Parameters:
 //   - page: The page number (must be >= 1)
@@ -426,6 +531,8 @@ func (o *ListOptions) WithOffset(offset int) *ListOptions {
 // Returns:
 //   - The modified ListOptions instance for method chaining
 func (o *ListOptions) WithPage(page int) *ListOptions {
+	o = ensureListOptions(o)
+
 	if page < 1 {
 		o.Page = DefaultPage
 	} else {
@@ -442,7 +549,11 @@ func (o *ListOptions) WithPage(page int) *ListOptions {
 //
 // Returns:
 //   - The modified ListOptions instance for method chaining
+//
+//nolint:wsl_v5
 func (o *ListOptions) WithCursor(cursor string) *ListOptions {
+	o = ensureListOptions(o)
+
 	o.Cursor = cursor
 	return o
 }
@@ -454,7 +565,11 @@ func (o *ListOptions) WithCursor(cursor string) *ListOptions {
 //
 // Returns:
 //   - The modified ListOptions instance for method chaining
+//
+//nolint:wsl_v5
 func (o *ListOptions) WithOrderBy(field string) *ListOptions {
+	o = ensureListOptions(o)
+
 	o.OrderBy = field
 	return o
 }
@@ -466,7 +581,11 @@ func (o *ListOptions) WithOrderBy(field string) *ListOptions {
 //
 // Returns:
 //   - The modified ListOptions instance for method chaining
+//
+//nolint:wsl_v5
 func (o *ListOptions) WithOrderDirection(direction SortDirection) *ListOptions {
+	o = ensureListOptions(o)
+
 	o.OrderDirection = string(direction)
 	return o
 }
@@ -480,6 +599,8 @@ func (o *ListOptions) WithOrderDirection(direction SortDirection) *ListOptions {
 // Returns:
 //   - The modified ListOptions instance for method chaining
 func (o *ListOptions) WithFilter(key, value string) *ListOptions {
+	o = ensureListOptions(o)
+
 	if o.Filters == nil {
 		o.Filters = make(map[string]string)
 	}
@@ -496,8 +617,11 @@ func (o *ListOptions) WithFilter(key, value string) *ListOptions {
 //
 // Returns:
 //   - The modified ListOptions instance for method chaining
+//
+//nolint:wsl_v5
 func (o *ListOptions) WithFilters(filters map[string]string) *ListOptions {
-	o.Filters = filters
+	o = ensureListOptions(o)
+	o.Filters = maps.Clone(filters)
 	return o
 }
 
@@ -510,6 +634,8 @@ func (o *ListOptions) WithFilters(filters map[string]string) *ListOptions {
 // Returns:
 //   - The modified ListOptions instance for method chaining
 func (o *ListOptions) WithDateRange(startDate, endDate string) *ListOptions {
+	o = ensureListOptions(o)
+
 	o.StartDate = startDate
 	o.EndDate = endDate
 
@@ -525,6 +651,8 @@ func (o *ListOptions) WithDateRange(startDate, endDate string) *ListOptions {
 // Returns:
 //   - The modified ListOptions instance for method chaining
 func (o *ListOptions) WithAdditionalParam(key, value string) *ListOptions {
+	o = ensureListOptions(o)
+
 	if o.AdditionalParams == nil {
 		o.AdditionalParams = make(map[string]string)
 	}
@@ -559,6 +687,56 @@ func (o *ListOptions) WithAccountID(accountID string) *ListOptions {
 	return o.WithAdditionalParam("account_id", accountID)
 }
 
+// WithPortfolioID adds the onboarding portfolio_id account filter.
+func (o *ListOptions) WithPortfolioID(portfolioID string) *ListOptions {
+	return o.WithAdditionalParam("portfolio_id", portfolioID)
+}
+
+// WithSegmentID adds the onboarding segment_id account filter.
+func (o *ListOptions) WithSegmentID(segmentID string) *ListOptions {
+	return o.WithAdditionalParam("segment_id", segmentID)
+}
+
+// WithStatusFilter adds the onboarding status filter.
+func (o *ListOptions) WithStatusFilter(status string) *ListOptions {
+	return o.WithAdditionalParam("status", status)
+}
+
+// WithTypeFilter adds the onboarding type account filter.
+func (o *ListOptions) WithTypeFilter(accountType string) *ListOptions {
+	return o.WithAdditionalParam("type", accountType)
+}
+
+// WithAssetCode adds the onboarding asset_code account filter.
+func (o *ListOptions) WithAssetCode(assetCode string) *ListOptions {
+	return o.WithAdditionalParam("asset_code", assetCode)
+}
+
+// WithEntityID adds the onboarding entity_id account filter.
+func (o *ListOptions) WithEntityID(entityID string) *ListOptions {
+	return o.WithAdditionalParam("entity_id", entityID)
+}
+
+// WithBlocked adds the onboarding blocked account filter.
+func (o *ListOptions) WithBlocked(blocked bool) *ListOptions {
+	return o.WithAdditionalParam("blocked", strconv.FormatBool(blocked))
+}
+
+// WithParentAccountID adds the onboarding parent_account_id account filter.
+func (o *ListOptions) WithParentAccountID(parentAccountID string) *ListOptions {
+	return o.WithAdditionalParam("parent_account_id", parentAccountID)
+}
+
+// WithNameFilter adds the onboarding name filter.
+func (o *ListOptions) WithNameFilter(name string) *ListOptions {
+	return o.WithAdditionalParam("name", name)
+}
+
+// WithAlias adds the onboarding alias account filter.
+func (o *ListOptions) WithAlias(alias string) *ListOptions {
+	return o.WithAdditionalParam("alias", alias)
+}
+
 // WithLedgerID adds the CRM ledger_id filter.
 func (o *ListOptions) WithLedgerID(ledgerID string) *ListOptions {
 	return o.WithAdditionalParam("ledger_id", ledgerID)
@@ -574,14 +752,34 @@ func (o *ListOptions) WithRelatedPartyDocument(document string) *ListOptions {
 	return o.WithAdditionalParam("related_party_document", document)
 }
 
+// WithBankingDetailsBranch adds the CRM banking_details_branch alias filter.
+func (o *ListOptions) WithBankingDetailsBranch(branch string) *ListOptions {
+	return o.WithAdditionalParam("banking_details_branch", branch)
+}
+
+// WithBankingDetailsAccount adds the CRM banking_details_account alias filter.
+func (o *ListOptions) WithBankingDetailsAccount(account string) *ListOptions {
+	return o.WithAdditionalParam("banking_details_account", account)
+}
+
+// WithBankingDetailsIBAN adds the CRM banking_details_iban alias filter.
+func (o *ListOptions) WithBankingDetailsIBAN(iban string) *ListOptions {
+	return o.WithAdditionalParam("banking_details_iban", iban)
+}
+
+// WithRelatedPartyRole adds the CRM related_party_role alias filter.
+func (o *ListOptions) WithRelatedPartyRole(role string) *ListOptions {
+	return o.WithAdditionalParam("related_party_role", role)
+}
+
 // NextPage returns a copy of the ListOptions configured for the next page.
 // This method is useful for implementing pagination in client code.
 //
 // Returns:
 //   - A new ListOptions instance configured for the next page
 func (o *ListOptions) NextPage() *ListOptions {
-	// Make a shallow copy of the current options
-	next := *o
+	o = ensureListOptions(o)
+	next := o.Clone()
 
 	// If using offset-based pagination
 	if o.Offset >= 0 && o.Limit > 0 {
@@ -596,7 +794,46 @@ func (o *ListOptions) NextPage() *ListOptions {
 	// Clear cursor to avoid conflicts
 	next.Cursor = ""
 
-	return &next
+	return next
+}
+
+// NextPageOptionsFrom returns next-page options while preserving all state from current.
+//
+//nolint:wsl_v5
+func NextPageOptionsFrom(current *ListOptions, pagination *Pagination) *ListOptions {
+	if pagination == nil || !pagination.HasNextPage() {
+		return nil
+	}
+
+	next := ensureListOptions(current).Clone()
+	limit := pagination.Limit
+	if limit <= 0 {
+		limit = next.Limit
+	}
+	if limit <= 0 {
+		limit = DefaultLimit
+	}
+	next.WithLimit(limit)
+
+	if pagination.NextCursor != "" {
+		next.Page = 0
+		next.Cursor = pagination.NextCursor
+		next.Offset = DefaultOffset
+		return next
+	}
+
+	if pagination.Page > 0 {
+		next.Page = pagination.Page + 1
+		next.Cursor = ""
+		next.Offset = DefaultOffset
+		return next
+	}
+
+	next.Page = 0
+	next.Offset = pagination.Offset + limit
+	next.Cursor = ""
+
+	return next
 }
 
 // ToQueryParams converts ListOptions to a map of query parameters.
@@ -606,6 +843,8 @@ func (o *ListOptions) NextPage() *ListOptions {
 // Returns:
 //   - A map of string key-value pairs representing the query parameters
 func (o *ListOptions) ToQueryParams() map[string]string {
+	o = ensureListOptions(o)
+
 	params := make(map[string]string)
 
 	// Add pagination parameters
@@ -624,6 +863,35 @@ func (o *ListOptions) ToQueryParams() map[string]string {
 	o.addAdditionalParams(params)
 
 	return params
+}
+
+// Validate enforces SDK-side preconditions on the ListOptions shape.
+//
+// The most important rule enforced here: a non-zero Offset must be a
+// multiple of Limit. Midaz only speaks page-based pagination on the wire,
+// and the SDK converts an aligned offset (e.g. 50 with limit 25 → page 3)
+// for backward compatibility. An UNALIGNED offset cannot be expressed as
+// a page number, and the previous addPaginationParams silently dropped
+// it — leaving callers stuck on page 1 wondering why their offset
+// "didn't work". Validate surfaces the mismatch as an error so consumers
+// can fix it instead of debugging missing rows.
+//
+// Validate is safe to call on a nil or zero-value ListOptions.
+func (o *ListOptions) Validate() error {
+	if o == nil {
+		return nil
+	}
+
+	limit := o.Limit
+	if limit <= 0 {
+		limit = DefaultLimit
+	}
+
+	if o.Offset > 0 && o.Offset%limit != 0 {
+		return fmt.Errorf("offset (%d) must be a multiple of limit (%d) — Midaz pagination only supports page boundaries", o.Offset, limit)
+	}
+
+	return nil
 }
 
 // addPaginationParams adds pagination-related parameters to the query parameters map.
@@ -654,7 +922,13 @@ func (o *ListOptions) addPaginationParams(params map[string]string) {
 		if o.Offset%limit == 0 {
 			params[QueryParamPage] = fmt.Sprintf("%d", (o.Offset/limit)+1)
 		} else {
-			params[QueryParamOffset] = fmt.Sprintf("%d", o.Offset)
+			// Unaligned offset would map to a non-existent page boundary.
+			// Surface a stderr warning so the silent-drop bug is at least
+			// observable; consumers should call ListOptions.Validate()
+			// before serializing to fail fast on this case.
+			fmt.Fprintf(os.Stderr,
+				"[Midaz SDK] WARN: unaligned Offset (%d) for Limit (%d) was dropped from query parameters; call ListOptions.Validate() before sending\n",
+				o.Offset, limit)
 		}
 	}
 
@@ -689,10 +963,13 @@ func (o *ListOptions) addFilteringParams(params map[string]string) {
 func (o *ListOptions) addSortingParams(params map[string]string) {
 	// Midaz list endpoints expose sort direction, but not a generic order-by field.
 	// Keep OrderBy as an SDK-side compatibility field without serializing it.
-	if o.OrderDirection == "" {
+	switch o.OrderDirection {
+	case "":
 		params[QueryParamOrderDirection] = DefaultSortDirection
-	} else {
+	case string(SortAscending), string(SortDescending):
 		params[QueryParamOrderDirection] = o.OrderDirection
+	default:
+		params[QueryParamOrderDirection] = DefaultSortDirection
 	}
 }
 
@@ -719,8 +996,25 @@ func (o *ListOptions) addDateRangeParams(params map[string]string) {
 func (o *ListOptions) addAdditionalParams(params map[string]string) {
 	if o.AdditionalParams != nil {
 		for k, v := range o.AdditionalParams {
+			if v == "" {
+				continue
+			}
+
+			if isReservedListQueryParam(k) {
+				continue
+			}
+
 			params[k] = v
 		}
+	}
+}
+
+func isReservedListQueryParam(key string) bool {
+	switch key {
+	case QueryParamLimit, QueryParamPage, QueryParamOffset, QueryParamCursor, QueryParamOrderBy, QueryParamOrderDirection, QueryParamStartDate, QueryParamEndDate:
+		return true
+	default:
+		return false
 	}
 }
 
@@ -764,22 +1058,41 @@ type ListResponse[T any] struct {
 	Pagination Pagination `json:"pagination,omitempty"`
 }
 
+// MarshalJSON ensures zero-value list responses encode items as an empty array.
+//
+//nolint:wsl_v5
+func (r ListResponse[T]) MarshalJSON() ([]byte, error) {
+	type alias ListResponse[T]
+	response := alias(r)
+	if response.Items == nil {
+		response.Items = make([]T, 0)
+	}
+
+	return json.Marshal(response)
+}
+
 // UnmarshalJSON supports both the legacy nested pagination envelope and the
 // current Midaz top-level pagination fields.
 func (r *ListResponse[T]) UnmarshalJSON(data []byte) error {
+	if r == nil {
+		return errors.New("list response receiver cannot be nil")
+	}
+
 	type alias ListResponse[T]
 
 	aux := struct {
 		alias
-		Limit            int         `json:"limit,omitempty"`
-		Page             int         `json:"page,omitempty"`
-		Offset           int         `json:"offset,omitempty"`
-		Total            int         `json:"total,omitempty"`
-		NextCursor       string      `json:"next_cursor,omitempty"`
-		PrevCursor       string      `json:"prev_cursor,omitempty"`
-		NextCursorLegacy string      `json:"nextCursor,omitempty"`
-		PrevCursorLegacy string      `json:"prevCursor,omitempty"`
-		Pagination       *Pagination `json:"pagination,omitempty"`
+		Limit              int         `json:"limit,omitempty"`
+		Page               int         `json:"page,omitempty"`
+		Offset             int         `json:"offset,omitempty"`
+		Total              int         `json:"total,omitempty"`
+		NextCursor         string      `json:"next_cursor,omitempty"`
+		PrevCursor         string      `json:"prev_cursor,omitempty"`
+		NextCursorLegacy   string      `json:"nextCursor,omitempty"`
+		PrevCursorLegacy   string      `json:"prevCursor,omitempty"`
+		Pagination         *Pagination `json:"pagination,omitempty"`
+		HTTPPagination     *Pagination `json:"http.Pagination,omitempty"`
+		HTTPPaginationFlat *Pagination `json:"httpPagination,omitempty"`
 	}{}
 
 	if err := json.Unmarshal(data, &aux); err != nil {
@@ -791,27 +1104,9 @@ func (r *ListResponse[T]) UnmarshalJSON(data []byte) error {
 		r.Items = make([]T, 0)
 	}
 
-	if aux.Pagination != nil {
-		r.Pagination = *aux.Pagination
-	} else {
-		nextCursor := aux.NextCursor
-		if nextCursor == "" {
-			nextCursor = aux.NextCursorLegacy
-		}
-
-		prevCursor := aux.PrevCursor
-		if prevCursor == "" {
-			prevCursor = aux.PrevCursorLegacy
-		}
-
-		r.Pagination = Pagination{
-			Limit:      aux.Limit,
-			Page:       aux.Page,
-			Offset:     aux.Offset,
-			Total:      aux.Total,
-			NextCursor: nextCursor,
-			PrevCursor: prevCursor,
-		}
+	r.Pagination = firstPagination(aux.Pagination, aux.HTTPPagination, aux.HTTPPaginationFlat)
+	if isEmptyPagination(r.Pagination) {
+		r.Pagination = topLevelPagination(aux.Limit, aux.Page, aux.Offset, aux.Total, aux.NextCursor, aux.NextCursorLegacy, aux.PrevCursor, aux.PrevCursorLegacy)
 	}
 
 	r.Pagination.ItemCount = len(r.Items)
@@ -819,15 +1114,53 @@ func (r *ListResponse[T]) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func firstPagination(paginations ...*Pagination) Pagination {
+	for _, pagination := range paginations {
+		if pagination != nil {
+			return *pagination
+		}
+	}
+
+	return Pagination{}
+}
+
+func topLevelPagination(limit, page, offset, total int, nextCursor, nextCursorLegacy, prevCursor, prevCursorLegacy string) Pagination {
+	if nextCursor == "" {
+		nextCursor = nextCursorLegacy
+	}
+
+	if prevCursor == "" {
+		prevCursor = prevCursorLegacy
+	}
+
+	return Pagination{Limit: limit, Page: page, Offset: offset, Total: total, NextCursor: nextCursor, PrevCursor: prevCursor}
+}
+
+func isEmptyPagination(p Pagination) bool {
+	return p.Limit == 0 && p.Page == 0 && p.Offset == 0 && p.Total == 0 && p.NextCursor == "" && p.PrevCursor == ""
+}
+
 // ErrorResponse represents an error response from the API.
 // This structure is used to parse and represent error responses
 // returned by the Midaz API.
 type ErrorResponse struct {
 	// Error is the error message
-	Error string `json:"error"`
+	Error string `json:"error,omitempty"`
 
 	// Code is the error code for programmatic handling
 	Code string `json:"code,omitempty"`
+
+	// Title is the short human-readable API error title.
+	Title string `json:"title,omitempty"`
+
+	// Message is the detailed Midaz API error message.
+	Message string `json:"message,omitempty"`
+
+	// EntityType identifies the resource type associated with the error.
+	EntityType string `json:"entityType,omitempty"`
+
+	// Fields contains field-level validation errors returned by Midaz.
+	Fields map[string]string `json:"fields,omitempty"`
 
 	// Details contains additional information about the error
 	Details map[string]any `json:"details,omitempty"`
@@ -846,5 +1179,9 @@ type ObjectWithMetadata struct {
 // Returns:
 //   - true if the object has metadata, false otherwise
 func (o *ObjectWithMetadata) HasMetadata() bool {
+	if o == nil {
+		return false
+	}
+
 	return len(o.Metadata) > 0
 }

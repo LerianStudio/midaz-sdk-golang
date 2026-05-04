@@ -157,9 +157,15 @@ func configurationFromEnvironment() error {
 		fmt.Printf("Error setting environment variable: %v\n", err)
 	}
 
-	// Create a client that loads configuration from environment variables
+	// Create a config that explicitly loads configuration from environment variables.
+	cfg, err := config.NewConfig(config.FromEnvironment())
+	if err != nil {
+		return fmt.Errorf("failed to load environment config: %w", err)
+	}
+
+	// Create a client with the environment-backed config.
 	c, err := client.New(
-		// No explicit configuration needed - it will be loaded from environment
+		client.WithConfig(cfg),
 		client.UseAllAPIs(),
 	)
 	if err != nil {

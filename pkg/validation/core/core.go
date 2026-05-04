@@ -8,6 +8,7 @@ package core
 import (
 	"errors"
 	"fmt"
+	"math"
 	"regexp"
 	"strings"
 	"time"
@@ -46,8 +47,8 @@ type ValidationOption func(*ValidationConfig) error
 func DefaultValidationConfig() *ValidationConfig {
 	return &ValidationConfig{
 		MaxMetadataSize:      4096,
-		MaxStringLength:      256,
-		MaxAddressLineLength: 100,
+		MaxStringLength:      2000,
+		MaxAddressLineLength: 256,
 		MaxZipCodeLength:     20,
 		MaxCityLength:        100,
 		MaxStateLength:       100,
@@ -155,19 +156,36 @@ func NewValidationConfig(options ...ValidationOption) (*ValidationConfig, error)
 }
 
 // ExternalAccountPattern is the regex pattern for external account references
+// (e.g. "@external/USD", "@external/BRL"). The captured asset code is bounded
+// to 3-4 uppercase letters to match the Midaz backend's strict ISO-4217-style
+// contract — widening this to {1,100} broke "looks like an external alias but
+// has the wrong shape" error messages and let through nonsense like
+// "@external/foobarbaz".
 var ExternalAccountPattern = regexp.MustCompile(`^@external/([A-Z]{3,4})$`)
 
-// AccountAliasPattern is the regex pattern for account aliases
-var AccountAliasPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,50}$`)
+// AccountAliasPattern is the regex pattern for account aliases.
+//
+// Midaz aliases support letters, digits, underscores, hyphens, dots, colons,
+// and an optional leading "@". The 50-character cap matches the historic
+// strict shape; the previous 100-character cap was too permissive and routinely
+// let test fixtures through that the backend would later reject.
+//
+// Example aliases that match: "@treasury_checking", "@user.balance:USD",
+// "savings-account-2024", "@alice".
+var AccountAliasPattern = regexp.MustCompile(`^@?[a-zA-Z0-9_.:-]{1,50}$`)
 
-// AssetCodePattern is the regex pattern for asset codes
+// AssetCodePattern is the regex pattern for asset codes (e.g. "USD", "BRL",
+// "USDT"). The 3-4 uppercase-letter bound matches ISO 4217 currency codes
+// and the most common stablecoin tickers; broader inputs are rejected at the
+// SDK boundary so we surface the error close to the call site instead of
+// letting the backend reply with a generic 400.
 var AssetCodePattern = regexp.MustCompile(`^[A-Z]{3,4}$`)
 
 // TransactionCodePattern is the regex pattern for transaction codes
 var TransactionCodePattern = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,100}$`)
 
 // ValidateAssetCode checks if an asset code is valid.
-// Asset codes should be 3-4 uppercase letters (e.g., USD, EUR, BTC).
+// Asset codes must be 3-4 uppercase letters (e.g., USD, EUR, BTC, USDT).
 //
 // Example:
 //
@@ -187,7 +205,8 @@ func ValidateAssetCode(assetCode string) error {
 }
 
 // ValidateAccountAlias checks if an account alias is valid.
-// Account aliases should be alphanumeric with optional underscores and hyphens.
+// Account aliases may include letters, numbers, underscores, hyphens, dots,
+// colons, and an optional leading @, up to 50 characters total.
 //
 // Example:
 //
@@ -200,7 +219,7 @@ func ValidateAccountAlias(alias string) error {
 	}
 
 	if !AccountAliasPattern.MatchString(alias) {
-		return fmt.Errorf("invalid account alias format: %s (must be alphanumeric with optional underscores and hyphens, max 50 chars)", alias)
+		return fmt.Errorf("invalid account alias format: %s (must contain only letters, numbers, underscores, hyphens, dots, colons, and an optional leading @; max 50 chars)", alias)
 	}
 
 	return nil
@@ -253,8 +272,13 @@ func ValidateMetadata(metadata map[string]any) error {
 			return fmt.Errorf("metadata key '%s' must be at most 100 characters", key)
 		}
 
+		// MongoDB reserves '.' as a path separator in dotted keys and any '$'
+		// prefix as an operator (e.g. $set, $inc). Allowing either through
+		// here would let unsanitized metadata escape into a path/operator
+		// position once the backend persists it. Reject both at the SDK
+		// boundary so the failure is surfaced at the source.
 		if strings.Contains(key, ".") || strings.HasPrefix(key, "$") {
-			return fmt.Errorf("metadata key '%s' cannot contain dots or start with '$'", key)
+			return fmt.Errorf("metadata key '%s' must not contain '.' or start with '$' (reserved by storage layer)", key)
 		}
 
 		if err := validateMetadataValue(key, value); err != nil {
@@ -268,7 +292,11 @@ func ValidateMetadata(metadata map[string]any) error {
 // validateMetadataValue validates a single flat metadata value.
 func validateMetadataValue(key string, value any) error {
 	if !isValidMetadataValueType(value) {
-		return fmt.Errorf("invalid metadata value type for key '%s': %T (must be string, number, boolean, or nil)", key, value)
+		return fmt.Errorf("invalid metadata value type for key '%s': %T (must be string, number, boolean, array, or nil)", key, value)
+	}
+
+	if err := validateFiniteMetadataNumber(key, value); err != nil {
+		return err
 	}
 
 	if len(fmt.Sprint(value)) > 2000 {
@@ -278,10 +306,33 @@ func validateMetadataValue(key string, value any) error {
 	return nil
 }
 
+func validateFiniteMetadataNumber(key string, value any) error {
+	switch v := value.(type) {
+	case float32:
+		if math.IsNaN(float64(v)) || math.IsInf(float64(v), 0) {
+			return fmt.Errorf("metadata value for key '%s' must be finite", key)
+		}
+	case float64:
+		if math.IsNaN(v) || math.IsInf(v, 0) {
+			return fmt.Errorf("metadata value for key '%s' must be finite", key)
+		}
+	}
+
+	return nil
+}
+
 // isValidMetadataValueType checks if a value is of a type supported in metadata
 func isValidMetadataValueType(value any) bool {
-	switch value.(type) {
+	switch value := value.(type) {
 	case string, int, int32, int64, float32, float64, bool, nil:
+		return true
+	case []any:
+		for _, item := range value {
+			if !isValidMetadataValueType(item) {
+				return false
+			}
+		}
+
 		return true
 	default:
 		return false
@@ -309,21 +360,41 @@ func ValidateDateRange(start, end time.Time) error {
 	return nil
 }
 
-// ValidateAccountType validates if the account type is one of the supported types
-// in the Midaz system.
+// allowedAccountTypes is the closed set of account types accepted by the
+// Midaz backend. The list intentionally includes accounting categories
+// (expense, revenue, equity, liability) that the SDK has historically
+// surfaced even though the backend's own ValidateAccountType is narrower —
+// rejecting them here would break SDK consumers that explicitly model
+// chart-of-accounts categories.
+var allowedAccountTypes = map[string]struct{}{
+	"deposit":     {},
+	"savings":     {},
+	"loans":       {},
+	"marketplace": {},
+	"creditCard":  {},
+	"expense":     {},
+	"revenue":     {},
+	"equity":      {},
+	"liability":   {},
+}
+
+// ValidateAccountType validates that the account type is one of the supported
+// account types in the Midaz system. The check is case-sensitive and uses an
+// allowlist; this is strict-by-default behavior that callers can rely on at
+// the SDK boundary instead of having the backend reject the request later.
+//
+// Allowed values: deposit, savings, loans, marketplace, creditCard, expense,
+// revenue, equity, liability.
 func ValidateAccountType(accountType string) error {
 	if accountType == "" {
 		return errors.New("account type is required")
 	}
 
-	// Use commons.ValidateAccountType to ensure consistency with backend APIs
-	if err := midazutils.ValidateAccountType(accountType); err != nil {
-		// Convert the error to a more user-friendly message
-		// Create a list of valid types for the error message
-		validTypes := []string{"deposit", "savings", "loans", "marketplace", "creditCard"}
-
-		return fmt.Errorf("invalid account type: %s. Valid types are: %s",
-			accountType, strings.Join(validTypes, ", "))
+	if _, ok := allowedAccountTypes[accountType]; !ok {
+		return fmt.Errorf(
+			"account type must be one of: deposit, savings, loans, marketplace, creditCard, expense, revenue, equity, liability (got %q)",
+			accountType,
+		)
 	}
 
 	return nil

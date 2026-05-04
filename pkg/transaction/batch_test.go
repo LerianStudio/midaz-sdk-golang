@@ -10,6 +10,8 @@ import (
 	pkgerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
 
 // TestDefaultBatchOptions tests the default batch options
@@ -178,6 +180,74 @@ func TestGetBatchSummary(t *testing.T) {
 		assert.Equal(t, 3, summary.ErrorCount)
 		assert.NotEmpty(t, summary.ErrorCategories)
 	})
+}
+
+// TestBatchTelemetryUsesAggregateOutcomeEvents verifies that:
+//
+//   - Batch start/end emit span events for the state transition only
+//     (these are state markers a tracing UI can render in the timeline).
+//   - Cumulative counters (success/error counts) and durations are NOT
+//     embedded as span event attributes — those move to the metric
+//     pipeline so they can be aggregated correctly. Putting cumulative
+//     numbers on per-run span events makes them effectively unusable
+//     because each run has a unique attribute set.
+func TestBatchTelemetryUsesAggregateOutcomeEvents(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	tracerProvider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	ctx, span := tracerProvider.Tracer("batch-telemetry-test").Start(context.Background(), "batch")
+
+	results := []BatchResult{
+		{Index: 0, TransactionID: "tx-1", Duration: 10 * time.Millisecond},
+		{Index: 1, Error: errors.New("failed"), Duration: 20 * time.Millisecond},
+	}
+
+	recordBatchStartedEvent(ctx, "org-1", "ledger-1", len(results))
+	recordBatchCompletedEvent(ctx, "org-1", "ledger-1", results, errors.New("failed"), 30*time.Millisecond)
+	span.End()
+
+	ended := recorder.Ended()
+	require.Len(t, ended, 1)
+
+	events := ended[0].Events()
+	require.Len(t, events, 2)
+	assert.Equal(t, "midaz.transaction.batch.started", events[0].Name)
+	assert.Equal(t, "midaz.transaction.batch.completed", events[1].Name)
+
+	for _, event := range events {
+		assert.NotContains(t, event.Name, ".item.")
+	}
+
+	// The completed event keeps the status (a low-cardinality state
+	// marker) but no longer carries the cumulative counters — those are
+	// emitted as metrics now.
+	attrs := batchEventAttributes(events[1])
+	assert.Equal(t, "partial", attrs["midaz.business.batch.status"])
+	assert.NotContains(t, attrs, "midaz.business.batch.success_count")
+	assert.NotContains(t, attrs, "midaz.business.batch.error_count")
+	assert.NotContains(t, attrs, "midaz.business.batch.duration_ms")
+	assert.NotContains(t, attrs, "midaz.business.transactionId")
+	assert.NotContains(t, attrs, "midaz.business.batch.index")
+}
+
+// batchEventAttributes flattens an OTel span event's attributes into a
+// type-aware map for assertions. Only INT64 is unwrapped explicitly — every
+// other attribute type (STRING, BOOL, FLOAT64, slices, ...) is stringified
+// via attr.Value.AsString(). Tests that need to compare a non-int, non-
+// string value should reach into the raw event.Attributes slice rather
+// than relying on the stringified shape.
+func batchEventAttributes(event sdktrace.Event) map[string]any {
+	attrs := map[string]any{}
+
+	for _, attr := range event.Attributes {
+		switch attr.Value.Type().String() {
+		case "INT64":
+			attrs[string(attr.Key)] = attr.Value.AsInt64()
+		default:
+			attrs[string(attr.Key)] = attr.Value.AsString()
+		}
+	}
+
+	return attrs
 }
 
 // TestNormalizeOptions tests the normalizeOptions function
@@ -413,9 +483,9 @@ func TestBatchProcessorCallProgressCallback(t *testing.T) {
 
 		// Simulate input count
 		result := BatchResult{Index: 3, TransactionID: "tx-123"}
-		bp.callProgressCallback(3, result)
+		bp.callProgressCallback(result)
 
-		assert.Equal(t, 4, calledWith.completed) // index + 1
+		assert.Equal(t, 1, calledWith.completed)
 		assert.Equal(t, 10, calledWith.total)
 		assert.Equal(t, "tx-123", calledWith.result.TransactionID)
 	})
@@ -433,7 +503,7 @@ func TestBatchProcessorCallProgressCallback(t *testing.T) {
 
 		// Should not panic
 		assert.NotPanics(t, func() {
-			bp.callProgressCallback(0, BatchResult{})
+			bp.callProgressCallback(BatchResult{})
 		})
 	})
 }

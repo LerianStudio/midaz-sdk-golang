@@ -1155,6 +1155,10 @@ func TestIsLocalhost(t *testing.T) {
 		{"localhost:3000", true},
 		{"127.0.0.1", true},
 		{"127.0.0.1:8080", true},
+		// RFC 6761 §6.3: ".localhost" suffix must be treated as loopback.
+		{"mock-midaz.localhost", true},
+		{"foo.bar.localhost", true},
+		{"mock-midaz.localhost:3001", true},
 		// Note: IPv6 localhost (::1) not handled correctly by current implementation
 		// due to strings.Split(host, ":") splitting on colons in IPv6 addresses
 		{"api.example.com", false},
@@ -1162,6 +1166,10 @@ func TestIsLocalhost(t *testing.T) {
 		{"192.168.1.1", false},
 		{"192.168.1.1:8080", false},
 		{"10.0.0.1", false},
+		// Suffix match must be anchored: a host whose .localhost is mid-string is NOT loopback.
+		{"localhost.attacker.com", false},
+		{"notlocalhost", false},
+		{"mock-midaz", false},
 		{"", false},
 	}
 
@@ -1219,10 +1227,7 @@ func TestParseEnvInt_Valid(t *testing.T) {
 		{"42", 42},
 		{"100", 100},
 		{"-5", -5},
-		// Note: fmt.Sscanf with %d parses leading integers from strings
-		{"1.5", 1},      // parses "1" from "1.5"
-		{"1a", 1},       // parses "1" from "1a"
-		{"123abc", 123}, // parses "123" from "123abc"
+		{" 42 ", 42},
 	}
 
 	for _, tc := range tests {
@@ -1239,6 +1244,10 @@ func TestParseEnvInt_Invalid(t *testing.T) {
 		"",
 		"abc",
 		"a1",
+		"1.5",
+		"1a",
+		"123abc",
+		"10s",
 		" ",
 		"notanumber",
 	}

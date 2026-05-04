@@ -94,9 +94,11 @@ type AccountTypesService interface {
 	// Returns an error if the operation fails.
 	DeleteAccountType(ctx context.Context, organizationID, ledgerID, id string) error
 
-	// GetAccountTypesMetricsCount retrieves the count metrics for account types in a ledger.
+	// GetAccountTypesMetricsCount no longer retrieves account type count metrics.
 	// The organizationID and ledgerID parameters specify which organization and ledger to get metrics for.
-	// Returns the metrics count if successful, or an error if the operation fails.
+	// It does not return a *models.MetricsCount because the endpoint is not exposed.
+	// Deprecated: Midaz Ledger does not expose account type count metrics; this method
+	// always returns an error and will be removed in the next major version.
 	GetAccountTypesMetricsCount(ctx context.Context, organizationID, ledgerID string) (*models.MetricsCount, error)
 }
 
@@ -156,12 +158,12 @@ func NewAccountTypesEntity(client *http.Client, authToken string, baseURLs map[s
 
 	// Check if we're using the debug flag from the environment
 	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
-		httpClient.debug = true
+		httpClient.setDebugLocked(true)
 	}
 
 	return &accountTypesEntity{
 		httpClient: httpClient,
-		baseURLs:   baseURLs,
+		baseURLs:   prepareServiceBaseURLs(baseURLs),
 	}
 }
 
@@ -190,7 +192,7 @@ func (e *accountTypesEntity) ListAccountTypes(ctx context.Context, organizationI
 
 	url := e.buildURL(organizationID, ledgerID, "")
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -232,7 +234,7 @@ func (e *accountTypesEntity) GetAccountType(ctx context.Context, organizationID,
 
 	url := e.buildURL(organizationID, ledgerID, id)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -273,7 +275,7 @@ func (e *accountTypesEntity) CreateAccountType(ctx context.Context, organization
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	req, err := newRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -318,7 +320,7 @@ func (e *accountTypesEntity) UpdateAccountType(ctx context.Context, organization
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, bytes.NewReader(body))
+	req, err := newRequestWithContext(ctx, http.MethodPatch, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -349,7 +351,7 @@ func (e *accountTypesEntity) DeleteAccountType(ctx context.Context, organization
 
 	url := e.buildURL(organizationID, ledgerID, id)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
+	req, err := newRequestWithContext(ctx, http.MethodDelete, url, nil)
 	if err != nil {
 		return errors.NewInternalError(operation, err)
 	}
@@ -358,6 +360,8 @@ func (e *accountTypesEntity) DeleteAccountType(ctx context.Context, organization
 }
 
 // GetAccountTypesMetricsCount retrieves the count metrics for account types in a ledger.
+// Deprecated: Midaz Ledger does not expose account type count metrics; this method
+// always returns an error and will be removed in the next major version.
 func (*accountTypesEntity) GetAccountTypesMetricsCount(_ context.Context, organizationID, ledgerID string) (*models.MetricsCount, error) {
 	const operation = "GetAccountTypesMetricsCount"
 

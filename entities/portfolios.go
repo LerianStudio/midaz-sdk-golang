@@ -151,12 +151,12 @@ func NewPortfoliosEntity(client *http.Client, authToken string, baseURLs map[str
 
 	// Check if we're using the debug flag from the environment
 	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
-		httpClient.debug = true
+		httpClient.setDebugLocked(true)
 	}
 
 	return &portfoliosEntity{
 		httpClient: httpClient,
-		baseURLs:   baseURLs,
+		baseURLs:   prepareServiceBaseURLs(baseURLs),
 	}
 }
 
@@ -174,7 +174,7 @@ func (e *portfoliosEntity) ListPortfolios(ctx context.Context, organizationID, l
 
 	url := e.buildURL(organizationID, ledgerID, "")
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -216,7 +216,7 @@ func (e *portfoliosEntity) GetPortfolio(ctx context.Context, organizationID, led
 
 	url := e.buildURL(organizationID, ledgerID, id)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -245,6 +245,10 @@ func (e *portfoliosEntity) CreatePortfolio(ctx context.Context, organizationID, 
 		return nil, errors.NewMissingParameterError(operation, "input")
 	}
 
+	if err := input.Validate(); err != nil {
+		return nil, errors.NewValidationError(operation, "portfolio validation failed", err)
+	}
+
 	url := e.buildURL(organizationID, ledgerID, "")
 
 	body, err := json.Marshal(input)
@@ -252,7 +256,7 @@ func (e *portfoliosEntity) CreatePortfolio(ctx context.Context, organizationID, 
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	req, err := newRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -285,6 +289,10 @@ func (e *portfoliosEntity) UpdatePortfolio(ctx context.Context, organizationID, 
 		return nil, errors.NewMissingParameterError(operation, "input")
 	}
 
+	if err := input.Validate(); err != nil {
+		return nil, errors.NewValidationError(operation, "portfolio validation failed", err)
+	}
+
 	url := e.buildURL(organizationID, ledgerID, id)
 
 	body, err := json.Marshal(input)
@@ -292,7 +300,7 @@ func (e *portfoliosEntity) UpdatePortfolio(ctx context.Context, organizationID, 
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, bytes.NewReader(body))
+	req, err := newRequestWithContext(ctx, http.MethodPatch, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -323,7 +331,7 @@ func (e *portfoliosEntity) DeletePortfolio(ctx context.Context, organizationID, 
 
 	url := e.buildURL(organizationID, ledgerID, id)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
+	req, err := newRequestWithContext(ctx, http.MethodDelete, url, nil)
 	if err != nil {
 		return errors.NewInternalError(operation, err)
 	}

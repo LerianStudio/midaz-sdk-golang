@@ -2,7 +2,10 @@ package pagination
 
 import (
 	"context"
+	"reflect"
 	"testing"
+
+	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 )
 
 // Mock structures for testing
@@ -429,4 +432,167 @@ func TestCreateEntityPaginator(t *testing.T) {
 			t.Error("Expected more pages")
 		}
 	})
+}
+
+//nolint:revive,wsl_v5
+func TestModelAdapterRealSDKModelsAdvancePaginationState(t *testing.T) {
+	tests := []struct {
+		name        string
+		initial     *models.ListOptions
+		responses   []*models.ListResponse[int]
+		wantCursors []string
+		wantPages   []int
+	}{
+		{
+			name: "cursor pagination applies evolving cursor to real SDK list options",
+			initial: models.NewListOptions().
+				WithLimit(2).
+				WithCursor("start").
+				WithFilter("status", "active").
+				WithAdditionalParam("holder_id", "holder-123"),
+			responses: []*models.ListResponse[int]{
+				{Items: []int{1, 2}, Pagination: models.Pagination{Limit: 2, NextCursor: "next", Total: 3}},
+				{Items: []int{3}, Pagination: models.Pagination{Limit: 2, Total: 3}},
+			},
+			wantCursors: []string{"start", "next"},
+		},
+		{
+			name: "page pagination applies evolving page to real SDK list options",
+			initial: models.NewListOptions().
+				WithLimit(2).
+				WithPage(1).
+				WithFilter("status", "active"),
+			responses: []*models.ListResponse[int]{
+				{Items: []int{1, 2}, Pagination: models.Pagination{Limit: 2, Page: 1, Total: 3}},
+				{Items: []int{3}, Pagination: models.Pagination{Limit: 2, Page: 2, Total: 3}},
+			},
+			wantPages: []int{1, 2},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var gotCursors []string
+			var gotPages []int
+			var gotFilters []map[string]string
+			var gotAdditional []map[string]string
+
+			call := 0
+			listFn := func(_ context.Context, opts any) (any, error) {
+				listOptions, ok := opts.(*models.ListOptions)
+				if !ok {
+					t.Fatalf("expected *models.ListOptions, got %T", opts)
+				}
+
+				gotCursors = append(gotCursors, listOptions.Cursor)
+				gotPages = append(gotPages, listOptions.Page)
+				gotFilters = append(gotFilters, cloneStringMapForTest(listOptions.Filters))
+				gotAdditional = append(gotAdditional, cloneStringMapForTest(listOptions.AdditionalParams))
+
+				if call >= len(tt.responses) {
+					t.Fatalf("unexpected repeated fetch %d with options %#v", call+1, listOptions)
+				}
+
+				response := tt.responses[call]
+				call++
+
+				return response, nil
+			}
+
+			paginator, err := CreateEntityPaginator[int, int](
+				context.Background(),
+				listFn,
+				func(item int) int { return item },
+				WithEntityInitialOptions(tt.initial),
+			)
+			if err != nil {
+				t.Fatalf("unexpected paginator construction error: %v", err)
+			}
+
+			items, err := paginator.All(context.Background())
+			if err != nil {
+				t.Fatalf("All failed: %v", err)
+			}
+
+			if len(items) != 3 {
+				t.Fatalf("expected 3 items, got %d", len(items))
+			}
+
+			if len(tt.wantCursors) > 0 && !reflect.DeepEqual(gotCursors, tt.wantCursors) {
+				t.Fatalf("expected cursors %v, got %v", tt.wantCursors, gotCursors)
+			}
+
+			if len(tt.wantPages) > 0 && !reflect.DeepEqual(gotPages, tt.wantPages) {
+				t.Fatalf("expected pages %v, got %v", tt.wantPages, gotPages)
+			}
+
+			for _, filters := range gotFilters {
+				if filters["status"] != "active" {
+					t.Fatalf("expected filters to be preserved on every fetch, got %v", gotFilters)
+				}
+			}
+
+			if tt.initial.AdditionalParams != nil {
+				for _, additional := range gotAdditional {
+					if additional["holder_id"] != "holder-123" {
+						t.Fatalf("expected additional params to be preserved on every fetch, got %v", gotAdditional)
+					}
+				}
+			}
+
+			if call != len(tt.responses) {
+				t.Fatalf("expected %d fetches, got %d", len(tt.responses), call)
+			}
+		})
+	}
+}
+
+func TestCreateEntityPaginatorRejectsNilInputs(t *testing.T) {
+	listFn := func(context.Context, any) (any, error) {
+		return &models.ListResponse[int]{Items: []int{}}, nil
+	}
+
+	if paginator, err := CreateEntityPaginator[int, int](context.Background(), nil, func(item int) int { return item }, WithEntityInitialOptions(models.NewListOptions())); err == nil || paginator != nil {
+		t.Fatalf("expected nil list function to fail construction, paginator=%v err=%v", paginator, err)
+	}
+
+	if paginator, err := CreateEntityPaginator[int, int](context.Background(), listFn, nil, WithEntityInitialOptions(models.NewListOptions())); err == nil || paginator != nil {
+		t.Fatalf("expected nil extractor to fail construction, paginator=%v err=%v", paginator, err)
+	}
+
+	if paginator, err := CreateEntityPaginator[int, int](context.Background(), listFn, func(item int) int { return item }, nil); err == nil || paginator != nil {
+		t.Fatalf("expected nil entity paginator option to fail construction, paginator=%v err=%v", paginator, err)
+	}
+}
+
+func TestNewModelAdapterRejectsNilOption(t *testing.T) {
+	adapter, err := NewModelAdapter(nil)
+	if err == nil || adapter != nil {
+		t.Fatalf("expected nil adapter option to fail construction, adapter=%v err=%v", adapter, err)
+	}
+}
+
+func TestPageResultFromRealSDKResponseRejectsNilExtractor(t *testing.T) {
+	adapter, err := NewModelAdapter()
+	if err != nil {
+		t.Fatalf("unexpected adapter error: %v", err)
+	}
+
+	result, err := PageResultFromResponseE[int, int](adapter, &models.ListResponse[int]{Items: []int{1}}, nil)
+	if err == nil || result != nil {
+		t.Fatalf("expected nil extractor to fail safely, result=%v err=%v", result, err)
+	}
+}
+
+func cloneStringMapForTest(values map[string]string) map[string]string {
+	if values == nil {
+		return nil
+	}
+
+	clone := make(map[string]string, len(values))
+	for key, value := range values {
+		clone[key] = value
+	}
+
+	return clone
 }

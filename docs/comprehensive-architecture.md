@@ -382,10 +382,15 @@ The actual error shape is:
 type Error struct {
     Category   ErrorCategory
     Code       ErrorCode
+    APICode    string
+    Title      string
     Message    string
     Operation  string
     Resource   string
     ResourceID string
+    EntityType string
+    Fields     []string
+    Details    map[string]any
     StatusCode int
     RequestID  string
     Err        error
@@ -418,7 +423,7 @@ if err != nil {
 }
 ```
 
-Use `errors.As` from the standard library when you need fields such as operation, resource, status code, or request ID:
+Use `errors.As` from the standard library when you need fields such as operation, resource, API code, status code, request ID, or structured API details:
 
 ```go
 var sdkErr *sdkerrors.Error
@@ -434,7 +439,7 @@ if stderrors.As(err, &sdkErr) {
 }
 ```
 
-Field-level validation details are not stored on `pkg/errors.Error`. Some validation paths can return `pkg/validation.FieldErrors`.
+Remote API field details are preserved on `pkg/errors.Error.Fields` and `pkg/errors.Error.Details` when the API returns them. Local client-side validation helpers can also return `pkg/validation.FieldErrors`.
 
 ## Retry behavior
 
@@ -542,14 +547,13 @@ input.IdempotencyKey = "payment-2026-04-27-0001"
 tx, err := c.Entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
 ```
 
-Automatic idempotency is intentionally limited. The HTTP layer only auto-generates `X-Idempotency` when:
+Automatic idempotency applies to unsafe entity HTTP requests. The HTTP layer auto-generates `X-Idempotency` when:
 
 1. idempotency is enabled,
 2. the method is unsafe,
-3. no idempotency key is already present, and
-4. the service sets the internal `X-Midaz-Auto-Idempotency: true` marker.
+3. no idempotency key is already present.
 
-The HTTP layer removes the internal marker before the request is sent. It is an SDK implementation detail, not a public API header.
+The HTTP layer removes internal idempotency marker headers before the request is sent. Unsafe retries still require a caller-provided key; SDK-generated keys provide server-side deduplication but do not enable unsafe retries by themselves.
 
 ## Observability
 
@@ -600,9 +604,14 @@ Do not include `http://` or `https://` in the OTLP gRPC endpoint value.
 When the corresponding observability components are enabled, outbound entity requests can:
 
 - create HTTP spans when tracing is enabled,
-- inject W3C trace context and baggage into request headers,
+- inject W3C trace context and baggage into request headers using the configured provider propagator,
 - record request metrics through `MetricsCollector` when metrics are enabled,
-- use the provider logger for SDK warnings or errors when logging is enabled.
+- use the provider logger for SDK warnings or errors when logging is enabled,
+- emit safe structured business events for lifecycle operations such as account creation and transaction commit/cancel flows.
+
+`entities.HTTPClient` is the default SDK HTTP instrumentation point. Root client observability options attach the provider to the entity layer rather than wrapping the transport by default, which avoids duplicate client spans. Incoming HTTP applications should call `observability.ExtractHTTPContext(observability.WithProvider(r.Context(), provider), r.Header)` before invoking SDK methods so the application span, SDK span, and Midaz API span stay in one trace even when `observability.WithRegisterGlobally(false)` is used.
+
+Business logs are allowlisted. Safe identifiers such as `organizationId`, `ledgerId`, `assetId`, `accountId`, `transactionId`, `operationId`, `portfolioId`, `segmentId`, `balanceId`, `holderId`, `aliasId`, `routeId`, `status`, `operation`, and `event` may appear in logs and span events. Payloads, metadata, documents, names, addresses, auth headers, idempotency keys, secrets, and raw request/response bodies are not logged.
 
 The SDK does not read `MIDAZ_OTEL_ENDPOINT` or `MIDAZ_LOG_LEVEL` in `config.FromEnvironment()`. Configure observability in code.
 
@@ -663,6 +672,8 @@ CRM requests use the `crm` service URL and send the organization context through
 ```text
 X-Organization-Id: <organizationID>
 ```
+
+If a default tenant ID is configured, the shared HTTP client may also send `X-Tenant-ID`. That header does not replace the CRM `organizationID`; holder and alias methods still require `organizationID` and send it as `X-Organization-Id`. Per-request `entities.WithTenantID(ctx, id)` overrides only the default tenant header.
 
 Example:
 
@@ -773,8 +784,11 @@ RUN go mod download
 COPY . .
 RUN go build -o /out/mass-demo-generator ./examples/mass-demo-generator
 
-FROM gcr.io/distroless/base-debian12
+FROM gcr.io/distroless/base-debian12:nonroot
+WORKDIR /app
 COPY --from=build /out/mass-demo-generator /usr/local/bin/mass-demo-generator
+COPY --from=build /src/examples/mass-demo-generator/default.yaml /app/default.yaml
+USER nonroot:nonroot
 ENTRYPOINT ["/usr/local/bin/mass-demo-generator"]
 ```
 

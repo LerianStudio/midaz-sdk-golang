@@ -6,6 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"reflect"
+	"regexp"
+	"strings"
 )
 
 // ErrorCode represents a standardized error code for Midaz API errors.
@@ -54,10 +57,15 @@ const (
 
 	// CodeNetwork indicates a network-related error
 	CodeNetwork ErrorCode = "network_error"
+
+	// CodeUnprocessable indicates a business rule prevented processing
+	CodeUnprocessable ErrorCode = "unprocessable_error"
 )
 
 // ErrorCategory represents the general category of an error
 type ErrorCategory string
+
+const statusClientClosedRequest = 499
 
 const (
 	// CategoryValidation represents validation errors
@@ -94,13 +102,6 @@ const (
 	CategoryUnprocessable ErrorCategory = "unprocessable"
 )
 
-// Test-specific error message constants.
-const (
-	// testUnknownError is a special error message used in tests to bypass
-	// certain error type checking logic.
-	testUnknownError = "unknown error"
-)
-
 // Standard error types that wrap all our error codes
 // These are created as Error types rather than simple strings to make error checking work correctly
 var (
@@ -117,6 +118,7 @@ var (
 	ErrTimeout             = &Error{Category: CategoryTimeout, Code: CodeTimeout, Message: "timeout"}
 	ErrCancellation        = &Error{Category: CategoryCancellation, Code: CodeCancellation, Message: "operation cancelled"}
 	ErrInternal            = &Error{Category: CategoryInternal, Code: CodeInternal, Message: "internal error"}
+	ErrUnprocessable       = &Error{Category: CategoryUnprocessable, Code: CodeUnprocessable, Message: "unprocessable error"}
 )
 
 // Error represents a standardized error in the Midaz SDK.
@@ -128,6 +130,12 @@ type Error struct {
 
 	// Code is the specific error code
 	Code ErrorCode
+
+	// APICode is the raw Midaz/CRM API error code, when returned by the API.
+	APICode string
+
+	// Title is the raw API error title, when returned by the API.
+	Title string
 
 	// Message is the human-readable error message
 	Message string
@@ -141,6 +149,15 @@ type Error struct {
 	// ResourceID is the identifier of the resource involved, if applicable
 	ResourceID string
 
+	// EntityType is the raw API entity type, when returned by the API.
+	EntityType string
+
+	// Fields is the raw API field list, when returned by the API.
+	Fields []string
+
+	// Details contains the raw API error details, when returned by the API.
+	Details map[string]any
+
 	// StatusCode is the HTTP status code, if applicable
 	StatusCode int
 
@@ -153,7 +170,11 @@ type Error struct {
 
 // Error implements the error interface.
 func (e *Error) Error() string {
-	base := e.Message
+	if e == nil {
+		return ""
+	}
+
+	base := redactSensitive(e.Message)
 
 	// Add context based on available information
 	var errorContext string
@@ -170,21 +191,29 @@ func (e *Error) Error() string {
 
 	// Handle operation-specific context
 	if e.Operation != "" {
-		return fmt.Sprintf("%s during %s: %s", errorContext, e.Operation, base)
+		return redactSensitive(fmt.Sprintf("%s during %s: %s", errorContext, e.Operation, base))
 	}
 
-	return fmt.Sprintf("%s: %s", errorContext, base)
+	return redactSensitive(fmt.Sprintf("%s: %s", errorContext, base))
 }
 
 // Unwrap returns the underlying error.
 func (e *Error) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+
 	return e.Err
 }
 
 // Is checks if the target error is of the same type as this error.
 func (e *Error) Is(target error) bool {
+	if e == nil || isNilError(target) {
+		return false
+	}
+
 	t, ok := target.(*Error)
-	if !ok {
+	if !ok || t == nil {
 		return false
 	}
 
@@ -201,38 +230,193 @@ func (e *Error) Is(target error) bool {
 
 // GetCategory returns the error category.
 func (e *Error) GetCategory() ErrorCategory {
+	if e == nil {
+		return ""
+	}
+
 	return e.Category
 }
 
 // GetStatusCode returns the HTTP status code, if available.
 func (e *Error) GetStatusCode() int {
+	if e == nil {
+		return 0
+	}
+
 	return e.StatusCode
 }
 
 // GetRequestID returns the request ID, if available.
 func (e *Error) GetRequestID() string {
+	if e == nil {
+		return ""
+	}
+
 	return e.RequestID
 }
 
 // GetResource returns the resource type.
 func (e *Error) GetResource() string {
+	if e == nil {
+		return ""
+	}
+
 	return e.Resource
 }
 
 // GetResourceID returns the resource ID.
 func (e *Error) GetResourceID() string {
+	if e == nil {
+		return ""
+	}
+
 	return e.ResourceID
 }
 
 // GetOperation returns the operation name.
 func (e *Error) GetOperation() string {
+	if e == nil {
+		return ""
+	}
+
 	return e.Operation
+}
+
+var (
+	sensitiveBearerPattern   = regexp.MustCompile(`(?i)\b(authorization\s*[:=]\s*Bearer\s+)[^\s,;]+`)
+	sensitiveKeyValuePattern = regexp.MustCompile(`(?i)\b(token|password|api_key|authorization|secret|(?:x[-_])?idempotency|document|legal_document|external_id|banking_details_account|banking_details_iban|metadata(?:\.[\w.-]+)?|related_party_document|regulatory_fields_participant_document)(\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s,;]+)`)
+)
+
+func isNilError(err error) bool {
+	if err == nil {
+		return true
+	}
+
+	value := reflect.ValueOf(err)
+	switch value.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return value.IsNil()
+	default:
+		return false
+	}
+}
+
+func safeErrorString(err error) string {
+	if isNilError(err) {
+		return ""
+	}
+
+	return redactSensitive(err.Error())
+}
+
+func redactSensitive(message string) string {
+	if message == "" {
+		return ""
+	}
+
+	redacted := sensitiveBearerPattern.ReplaceAllString(message, `${1}[REDACTED]`)
+
+	return sensitiveKeyValuePattern.ReplaceAllString(redacted, `${1}${2}[REDACTED]`)
+}
+
+// RedactSensitiveString redacts sensitive values from a public API-sourced string.
+func RedactSensitiveString(message string) string {
+	return redactSensitive(message)
+}
+
+// RedactSensitiveStringSlice redacts sensitive values from public API-sourced strings.
+func RedactSensitiveStringSlice(values []string) []string {
+	if values == nil {
+		return nil
+	}
+
+	redacted := make([]string, len(values))
+	for i, value := range values {
+		redacted[i] = redactSensitive(value)
+	}
+
+	return redacted
+}
+
+// RedactSensitiveDetails returns a deep-redacted copy of structured API details.
+// It preserves the shape of the API envelope while removing PII and financial
+// fields that applications commonly log after calling GetErrorDetails.
+func RedactSensitiveDetails(details map[string]any) map[string]any {
+	if details == nil {
+		return nil
+	}
+
+	redacted := make(map[string]any, len(details))
+	for key, value := range details {
+		redacted[key] = redactSensitiveDetailValue(key, value)
+	}
+
+	return redacted
+}
+
+func redactSensitiveDetailValue(key string, value any) any {
+	if isSensitiveDetailKey(key) {
+		return "[REDACTED]"
+	}
+
+	switch typed := value.(type) {
+	case map[string]any:
+		return RedactSensitiveDetails(typed)
+	case []any:
+		items := make([]any, len(typed))
+		for i, item := range typed {
+			items[i] = redactSensitiveDetailValue(key, item)
+		}
+
+		return items
+	case string:
+		return redactSensitive(typed)
+	default:
+		return typed
+	}
+}
+
+func isSensitiveDetailKey(key string) bool {
+	normalized := strings.ToLower(strings.NewReplacer("_", "", "-", "", ".", "").Replace(key))
+
+	sensitiveFragments := []string{
+		"authorization",
+		"apikey",
+		"bankingdetails",
+		"cookie",
+		"document",
+		"externalid",
+		"idempotency",
+		"metadata",
+		"password",
+		"participantdocument",
+		"relatedparty",
+		"secret",
+		"token",
+	}
+
+	for _, fragment := range sensitiveFragments {
+		if strings.Contains(normalized, fragment) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func normalizeError(err error) error {
+	if isNilError(err) {
+		return nil
+	}
+
+	return err
 }
 
 // Standard error constructors
 
 // NewValidationError creates a validation error.
 func NewValidationError(operation, message string, err error) *Error {
+	err = normalizeError(err)
 	if err != nil {
 		message = fmt.Sprintf("%s: %v", message, err)
 	}
@@ -249,6 +433,8 @@ func NewValidationError(operation, message string, err error) *Error {
 
 // NewInvalidInputError creates a validation error for invalid input.
 func NewInvalidInputError(operation string, err error) *Error {
+	err = normalizeError(err)
+
 	message := "invalid input"
 	if err != nil {
 		message = fmt.Sprintf("invalid input: %v", err)
@@ -280,6 +466,8 @@ func NewMissingParameterError(operation, paramName string) *Error {
 
 // NewNotFoundError creates a not found error.
 func NewNotFoundError(operation, resource, resourceID string, err error) *Error {
+	err = normalizeError(err)
+
 	message := fmt.Sprintf("%s not found", resource)
 	if resourceID != "" {
 		message = fmt.Sprintf("%s not found: %s", resource, resourceID)
@@ -299,6 +487,7 @@ func NewNotFoundError(operation, resource, resourceID string, err error) *Error 
 
 // NewAuthenticationError creates an authentication error.
 func NewAuthenticationError(operation, message string, err error) *Error {
+	err = normalizeError(err)
 	if err != nil {
 		message = fmt.Sprintf("%s: %v", message, err)
 	}
@@ -315,6 +504,7 @@ func NewAuthenticationError(operation, message string, err error) *Error {
 
 // NewAuthorizationError creates an authorization error.
 func NewAuthorizationError(operation, message string, err error) *Error {
+	err = normalizeError(err)
 	if err != nil {
 		message = fmt.Sprintf("%s: %v", message, err)
 	}
@@ -331,6 +521,8 @@ func NewAuthorizationError(operation, message string, err error) *Error {
 
 // NewConflictError creates a conflict error.
 func NewConflictError(operation, resource, resourceID string, err error) *Error {
+	err = normalizeError(err)
+
 	message := fmt.Sprintf("%s already exists", resource)
 	if resourceID != "" {
 		message = fmt.Sprintf("%s already exists: %s", resource, resourceID)
@@ -350,6 +542,8 @@ func NewConflictError(operation, resource, resourceID string, err error) *Error 
 
 // NewRateLimitError creates a rate limit error.
 func NewRateLimitError(operation, message string, err error) *Error {
+	err = normalizeError(err)
+
 	if message == "" {
 		message = "rate limit exceeded"
 	}
@@ -366,6 +560,8 @@ func NewRateLimitError(operation, message string, err error) *Error {
 
 // NewTimeoutError creates a timeout error.
 func NewTimeoutError(operation, message string, err error) *Error {
+	err = normalizeError(err)
+
 	if message == "" {
 		message = "operation timed out"
 	}
@@ -382,6 +578,8 @@ func NewTimeoutError(operation, message string, err error) *Error {
 
 // NewCancellationError creates a cancellation error for cancelled contexts.
 func NewCancellationError(operation string, err error) *Error {
+	err = normalizeError(err)
+
 	message := "operation cancelled"
 	if err != nil {
 		message = fmt.Sprintf("operation cancelled: %v", err)
@@ -393,12 +591,14 @@ func NewCancellationError(operation string, err error) *Error {
 		Message:    message,
 		Operation:  operation,
 		Err:        err,
-		StatusCode: 499, // Use 499 Client Closed Request which is the standard for cancelled requests
+		StatusCode: statusClientClosedRequest,
 	}
 }
 
 // NewNetworkError creates a network error.
 func NewNetworkError(operation string, err error) *Error {
+	err = normalizeError(err)
+
 	message := "network error"
 	if err != nil {
 		message = fmt.Sprintf("network error: %v", err)
@@ -416,6 +616,8 @@ func NewNetworkError(operation string, err error) *Error {
 
 // NewInternalError creates an internal error.
 func NewInternalError(operation string, err error) *Error {
+	err = normalizeError(err)
+
 	message := "internal error"
 	if err != nil {
 		message = fmt.Sprintf("internal error: %v", err)
@@ -433,6 +635,8 @@ func NewInternalError(operation string, err error) *Error {
 
 // NewUnprocessableError creates an unprocessable entity error.
 func NewUnprocessableError(operation, resource string, err error) *Error {
+	err = normalizeError(err)
+
 	message := fmt.Sprintf("unprocessable %s", resource)
 	if err != nil {
 		message = fmt.Sprintf("unprocessable %s: %v", resource, err)
@@ -440,7 +644,7 @@ func NewUnprocessableError(operation, resource string, err error) *Error {
 
 	return &Error{
 		Category:   CategoryUnprocessable,
-		Code:       CodeInternal, // Using internal as there's no specific unprocessable code
+		Code:       CodeUnprocessable,
 		Message:    message,
 		Operation:  operation,
 		Resource:   resource,
@@ -451,6 +655,8 @@ func NewUnprocessableError(operation, resource string, err error) *Error {
 
 // NewInsufficientBalanceError creates an insufficient balance error.
 func NewInsufficientBalanceError(operation, accountID string, err error) *Error {
+	err = normalizeError(err)
+
 	message := "insufficient balance"
 	if err != nil {
 		message = fmt.Sprintf("insufficient balance: %v", err)
@@ -470,6 +676,7 @@ func NewInsufficientBalanceError(operation, accountID string, err error) *Error 
 
 // NewAssetMismatchError creates an asset mismatch error.
 func NewAssetMismatchError(operation, expected, actual string, err error) *Error {
+	err = normalizeError(err)
 	message := fmt.Sprintf("asset mismatch: expected %s, got %s", expected, actual)
 
 	return &Error{
@@ -484,6 +691,8 @@ func NewAssetMismatchError(operation, expected, actual string, err error) *Error
 
 // NewAccountEligibilityError creates an account eligibility error.
 func NewAccountEligibilityError(operation, accountID string, err error) *Error {
+	err = normalizeError(err)
+
 	message := "account not eligible for this operation"
 	if err != nil {
 		message = fmt.Sprintf("account eligibility error: %v", err)
@@ -510,39 +719,55 @@ type MidazError struct {
 
 // Error implements the error interface for MidazError
 func (e *MidazError) Error() string {
+	if e == nil {
+		return ""
+	}
+
 	result := string(e.Code)
 	if e.Message != "" {
-		result += ": " + e.Message
+		result += ": " + redactSensitive(e.Message)
 	}
 
-	if e.Err != nil {
-		result += ": " + e.Err.Error()
+	if !isNilError(e.Err) {
+		result += ": " + safeErrorString(e.Err)
 	}
 
-	return result
+	return redactSensitive(result)
 }
 
 // Unwrap returns the underlying error
 func (e *MidazError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+
 	return e.Err
 }
 
 // Is checks if the target error is of the same type as this error.
 // This enables compatibility with errors.Is for MidazError.
 func (e *MidazError) Is(target error) bool {
+	if e == nil || isNilError(target) {
+		return false
+	}
+
 	t, ok := target.(*MidazError)
-	if !ok {
+	if !ok || t == nil {
 		return false
 	}
 
 	return e.Code == t.Code
 }
 
-// NewMidazError creates a new MidazError for tests
+// NewMidazError creates a new MidazError for legacy callers.
+//
+// Deprecated: use Error and the typed constructors in this package instead.
 func NewMidazError(code ErrorCode, err error) *MidazError {
+	err = normalizeError(err)
+
 	message := ""
 	if err != nil {
-		message = err.Error()
+		message = safeErrorString(err)
 	}
 
 	return &MidazError{
@@ -552,10 +777,12 @@ func NewMidazError(code ErrorCode, err error) *MidazError {
 	}
 }
 
-// ValueOfOriginalType creates a value of the same type as the original error
+// ValueOfOriginalType creates a value of the same type as the original error.
+//
+// Deprecated: this helper exists for compatibility with legacy MidazError tests.
 func ValueOfOriginalType(err error, value any) error {
 	var errCase0 *MidazError
-	if errors.As(err, &errCase0) {
+	if errors.As(err, &errCase0) && errCase0 != nil {
 		if code, ok := value.(ErrorCode); ok {
 			return &MidazError{Code: code, Message: "Test error for " + string(code)}
 		}
@@ -564,142 +791,160 @@ func ValueOfOriginalType(err error, value any) error {
 	return err
 }
 
+func legacyMidazTarget(err error, code ErrorCode) error {
+	var mdzErr *MidazError
+	if errors.As(err, &mdzErr) && mdzErr != nil {
+		return &MidazError{Code: code}
+	}
+
+	return nil
+}
+
 // Error checking functions
 
 // CheckValidationError checks if an error is a validation error.
+//
+// Classification is performed strictly by error type — we look for *Error from
+// this package (Category == CategoryValidation), the legacy *MidazError shape
+// (Code == CodeValidation), or sentinel ErrValidation. Substring matching on
+// err.Error() was removed in favor of the typed predicate so unrelated error
+// strings that happen to contain the word "validation" no longer get
+// reclassified.
 func CheckValidationError(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	// Test-specific exceptions
-	errStr := err.Error()
-	if errStr == "unrelated error" || errStr == testUnknownError {
+	if isNilError(err) {
 		return false
 	}
 
 	var mdzErr *Error
-	if errors.As(err, &mdzErr) {
+	if errors.As(err, &mdzErr) && mdzErr != nil {
 		return mdzErr.Category == CategoryValidation
 	}
 
-	// Backward compatibility checks
+	legacyTarget := legacyMidazTarget(err, CodeValidation)
+
+	// Backward compatibility: sentinel + typed legacy error.
 	return errors.Is(err, ErrValidation) ||
-		errors.Is(err, ValueOfOriginalType(err, CodeValidation)) ||
-		errors.Is(err, ValueOfOriginalType(err, CategoryValidation))
+		(legacyTarget != nil && errors.Is(err, legacyTarget))
 }
 
 // CheckNotFoundError checks if an error is a not found error.
 func CheckNotFoundError(err error) bool {
-	if err == nil {
+	if isNilError(err) {
 		return false
 	}
 
 	var mdzErr *Error
-	if errors.As(err, &mdzErr) {
+	if errors.As(err, &mdzErr) && mdzErr != nil {
 		return mdzErr.Category == CategoryNotFound
 	}
 
+	legacyTarget := legacyMidazTarget(err, CodeNotFound)
+
 	// Backward compatibility checks
 	return errors.Is(err, ErrNotFound) ||
-		errors.Is(err, ValueOfOriginalType(err, CodeNotFound)) ||
-		errors.Is(err, ValueOfOriginalType(err, CategoryNotFound))
+		(legacyTarget != nil && errors.Is(err, legacyTarget))
 }
 
 // CheckAuthenticationError checks if an error is an authentication error.
 func CheckAuthenticationError(err error) bool {
-	if err == nil {
+	if isNilError(err) {
 		return false
 	}
 
 	var mdzErr *Error
-	if errors.As(err, &mdzErr) {
+	if errors.As(err, &mdzErr) && mdzErr != nil {
 		return mdzErr.Category == CategoryAuthentication
 	}
 
+	legacyTarget := legacyMidazTarget(err, CodeAuthentication)
+
 	// Backward compatibility checks
 	return errors.Is(err, ErrAuthentication) ||
-		errors.Is(err, ValueOfOriginalType(err, CodeAuthentication)) ||
-		errors.Is(err, ValueOfOriginalType(err, CategoryAuthentication))
+		(legacyTarget != nil && errors.Is(err, legacyTarget))
 }
 
 // CheckAuthorizationError checks if an error is an authorization error.
 func CheckAuthorizationError(err error) bool {
-	if err == nil {
+	if isNilError(err) {
 		return false
 	}
 
 	var mdzErr *Error
-	if errors.As(err, &mdzErr) {
+	if errors.As(err, &mdzErr) && mdzErr != nil {
 		return mdzErr.Category == CategoryAuthorization
 	}
 
+	legacyTarget := legacyMidazTarget(err, CodePermission)
+
 	// Backward compatibility checks
 	return errors.Is(err, ErrPermission) ||
-		errors.Is(err, ValueOfOriginalType(err, CodePermission)) ||
-		errors.Is(err, ValueOfOriginalType(err, CategoryAuthorization))
+		(legacyTarget != nil && errors.Is(err, legacyTarget))
 }
 
 // CheckConflictError checks if an error is a conflict error.
 func CheckConflictError(err error) bool {
-	if err == nil {
+	if isNilError(err) {
 		return false
 	}
 
 	var mdzErr *Error
-	if errors.As(err, &mdzErr) {
+	if errors.As(err, &mdzErr) && mdzErr != nil {
 		return mdzErr.Category == CategoryConflict
 	}
 
+	legacyTarget := legacyMidazTarget(err, CodeAlreadyExists)
+
 	// Backward compatibility checks
 	return errors.Is(err, ErrAlreadyExists) ||
-		errors.Is(err, ValueOfOriginalType(err, CodeAlreadyExists)) ||
-		errors.Is(err, ValueOfOriginalType(err, CategoryConflict))
+		(legacyTarget != nil && errors.Is(err, legacyTarget))
 }
 
 // CheckRateLimitError checks if an error is a rate limit error.
 func CheckRateLimitError(err error) bool {
-	if err == nil {
+	if isNilError(err) {
 		return false
 	}
 
 	var mdzErr *Error
-	if errors.As(err, &mdzErr) {
+	if errors.As(err, &mdzErr) && mdzErr != nil {
 		return mdzErr.Category == CategoryLimitExceeded
 	}
 
+	legacyTarget := legacyMidazTarget(err, CodeRateLimit)
+
 	// Backward compatibility checks
 	return errors.Is(err, ErrRateLimit) ||
-		errors.Is(err, ValueOfOriginalType(err, CodeRateLimit)) ||
-		errors.Is(err, ValueOfOriginalType(err, CategoryLimitExceeded))
+		(legacyTarget != nil && errors.Is(err, legacyTarget))
 }
 
 // CheckTimeoutError checks if an error is a timeout error.
 func CheckTimeoutError(err error) bool {
-	if err == nil {
+	if isNilError(err) {
 		return false
 	}
 
 	var mdzErr *Error
-	if errors.As(err, &mdzErr) {
+	if errors.As(err, &mdzErr) && mdzErr != nil {
 		return mdzErr.Category == CategoryTimeout
 	}
 
+	legacyTarget := legacyMidazTarget(err, CodeTimeout)
+
 	// Backward compatibility checks
 	return errors.Is(err, ErrTimeout) ||
-		errors.Is(err, ValueOfOriginalType(err, CodeTimeout)) ||
-		errors.Is(err, ValueOfOriginalType(err, CategoryTimeout))
+		errors.Is(err, context.DeadlineExceeded) ||
+		(legacyTarget != nil && errors.Is(err, legacyTarget))
 }
 
 // CheckCancellationError checks if an error is a cancellation error.
 func CheckCancellationError(err error) bool {
-	if err == nil {
+	if isNilError(err) {
 		return false
 	}
 
 	// First check our own error type
 	var mdzErr *Error
-	if errors.As(err, &mdzErr) {
+	if errors.As(err, &mdzErr) && mdzErr != nil {
 		return mdzErr.Category == CategoryCancellation
 	}
 
@@ -709,12 +954,12 @@ func CheckCancellationError(err error) bool {
 
 // CheckNetworkError checks if an error is a network error.
 func CheckNetworkError(err error) bool {
-	if err == nil {
+	if isNilError(err) {
 		return false
 	}
 
 	var mdzErr *Error
-	if errors.As(err, &mdzErr) {
+	if errors.As(err, &mdzErr) && mdzErr != nil {
 		return mdzErr.Category == CategoryNetwork
 	}
 
@@ -723,50 +968,48 @@ func CheckNetworkError(err error) bool {
 
 // CheckInternalError checks if an error is an internal error.
 func CheckInternalError(err error) bool {
-	if err == nil {
+	if isNilError(err) {
 		return false
 	}
 
 	var mdzErr *Error
-	if errors.As(err, &mdzErr) {
+	if errors.As(err, &mdzErr) && mdzErr != nil {
 		return mdzErr.Category == CategoryInternal
 	}
 
+	legacyTarget := legacyMidazTarget(err, CodeInternal)
+
 	// Backward compatibility checks
 	return errors.Is(err, ErrInternal) ||
-		errors.Is(err, ValueOfOriginalType(err, CodeInternal)) ||
-		errors.Is(err, ValueOfOriginalType(err, CategoryInternal))
+		(legacyTarget != nil && errors.Is(err, legacyTarget))
 }
 
 // CheckInsufficientBalanceError checks if an error is an insufficient balance error.
 func CheckInsufficientBalanceError(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	// Special case for tests
-	if err.Error() == testUnknownError {
+	if isNilError(err) {
 		return false
 	}
 
 	var mdzErr *Error
-	if errors.As(err, &mdzErr) {
+	if errors.As(err, &mdzErr) && mdzErr != nil {
 		return mdzErr.Code == CodeInsufficientBalance
 	}
 
+	legacyTarget := legacyMidazTarget(err, CodeInsufficientBalance)
+
 	// Backward compatibility checks
 	return errors.Is(err, ErrInsufficientBalance) ||
-		errors.Is(err, ValueOfOriginalType(err, CodeInsufficientBalance))
+		(legacyTarget != nil && errors.Is(err, legacyTarget))
 }
 
 // CheckIdempotencyError checks if an error is an idempotency error.
 func CheckIdempotencyError(err error) bool {
-	if err == nil {
+	if isNilError(err) {
 		return false
 	}
 
 	var mdzErr *Error
-	if errors.As(err, &mdzErr) {
+	if errors.As(err, &mdzErr) && mdzErr != nil {
 		return mdzErr.Code == CodeIdempotency
 	}
 
@@ -775,12 +1018,12 @@ func CheckIdempotencyError(err error) bool {
 
 // CheckAccountEligibilityError checks if an error is an account eligibility error.
 func CheckAccountEligibilityError(err error) bool {
-	if err == nil {
+	if isNilError(err) {
 		return false
 	}
 
 	var mdzErr *Error
-	if errors.As(err, &mdzErr) {
+	if errors.As(err, &mdzErr) && mdzErr != nil {
 		return mdzErr.Code == CodeAccountEligibility
 	}
 
@@ -789,12 +1032,12 @@ func CheckAccountEligibilityError(err error) bool {
 
 // CheckAssetMismatchError checks if an error is an asset mismatch error.
 func CheckAssetMismatchError(err error) bool {
-	if err == nil {
+	if isNilError(err) {
 		return false
 	}
 
 	var mdzErr *Error
-	if errors.As(err, &mdzErr) {
+	if errors.As(err, &mdzErr) && mdzErr != nil {
 		return mdzErr.Code == CodeAssetMismatch
 	}
 
@@ -888,7 +1131,7 @@ func IsAssetMismatchError(err error) bool {
 
 // GetErrorCategory returns the category of an error.
 func GetErrorCategory(err error) ErrorCategory {
-	if err == nil {
+	if isNilError(err) {
 		return ""
 	}
 
@@ -909,7 +1152,7 @@ func GetErrorCategory(err error) ErrorCategory {
 // getMidazErrorCategory extracts category from Midaz Error type
 func getMidazErrorCategory(err error) ErrorCategory {
 	var mdzErr *Error
-	if errors.As(err, &mdzErr) {
+	if errors.As(err, &mdzErr) && mdzErr != nil {
 		return mdzErr.Category
 	}
 
@@ -918,7 +1161,7 @@ func getMidazErrorCategory(err error) ErrorCategory {
 
 // getTestCaseCategory handles special test error messages
 func getTestCaseCategory(err error) ErrorCategory {
-	errorMsg := err.Error()
+	errorMsg := safeErrorString(err)
 
 	switch errorMsg {
 	case "generic error", "something went wrong":
@@ -941,6 +1184,7 @@ func categorizeByErrorChecks(err error) ErrorCategory {
 		{CheckConflictError, CategoryConflict},
 		{isRateLimitErrorType, CategoryLimitExceeded},
 		{isTimeoutErrorType, CategoryTimeout},
+		{CheckCancellationError, CategoryCancellation},
 		{CheckNetworkError, CategoryNetwork},
 		{isInternalErrorType, CategoryInternal},
 	}
@@ -979,80 +1223,80 @@ func isInternalErrorType(err error) bool {
 	return CheckInternalError(err)
 }
 
+var statusCodesByCategory = map[ErrorCategory]int{
+	CategoryValidation:     http.StatusBadRequest,
+	CategoryNotFound:       http.StatusNotFound,
+	CategoryAuthentication: http.StatusUnauthorized,
+	CategoryAuthorization:  http.StatusForbidden,
+	CategoryConflict:       http.StatusConflict,
+	CategoryLimitExceeded:  http.StatusTooManyRequests,
+	CategoryTimeout:        http.StatusGatewayTimeout,
+	CategoryCancellation:   statusClientClosedRequest,
+	CategoryNetwork:        http.StatusServiceUnavailable,
+	CategoryUnprocessable:  http.StatusUnprocessableEntity,
+}
+
 // GetStatusCode gets the HTTP status code associated with an error.
 func GetStatusCode(err error) int {
-	if err == nil {
+	if isNilError(err) {
 		return http.StatusOK
 	}
 
 	var mdzErr *Error
-	if errors.As(err, &mdzErr) {
-		return mdzErr.StatusCode
+	if errors.As(err, &mdzErr) && mdzErr != nil {
+		if mdzErr.StatusCode != 0 {
+			return mdzErr.StatusCode
+		}
 	}
 
 	// For the tests, generic error should map to internal server error
-	if err.Error() == "generic error" || err.Error() == "something went wrong" {
+	if safeErrorString(err) == "generic error" || safeErrorString(err) == "something went wrong" {
 		return http.StatusInternalServerError
 	}
 
 	// Map categories to status codes
-	switch GetErrorCategory(err) {
-	case CategoryValidation:
-		return http.StatusBadRequest
-	case CategoryNotFound:
-		return http.StatusNotFound
-	case CategoryAuthentication:
-		return http.StatusUnauthorized
-	case CategoryAuthorization:
-		return http.StatusForbidden
-	case CategoryConflict:
-		return http.StatusConflict
-	case CategoryLimitExceeded:
-		return http.StatusTooManyRequests
-	case CategoryTimeout:
-		return http.StatusGatewayTimeout
-	case CategoryNetwork:
-		return http.StatusServiceUnavailable
-	case CategoryUnprocessable:
-		return http.StatusUnprocessableEntity
-	default:
-		return http.StatusInternalServerError
+	if statusCode, ok := statusCodesByCategory[GetErrorCategory(err)]; ok {
+		return statusCode
 	}
+
+	return http.StatusInternalServerError
 }
 
 // FormatErrorForDisplay formats an error for display to end users.
 func FormatErrorForDisplay(err error) string {
-	if err == nil {
+	if isNilError(err) {
 		return ""
 	}
 
 	var mdzErr *Error
-	if errors.As(err, &mdzErr) {
+	if errors.As(err, &mdzErr) && mdzErr != nil {
 		switch mdzErr.Category {
 		case CategoryValidation:
-			return fmt.Sprintf("Invalid request: %s", mdzErr.Message)
+			return fmt.Sprintf("Invalid request: %s", redactSensitive(mdzErr.Message))
 		case CategoryNotFound:
-			return fmt.Sprintf("Resource not found: %s", mdzErr.Message)
+			return fmt.Sprintf("Resource not found: %s", redactSensitive(mdzErr.Message))
 		case CategoryAuthentication:
 			return "Authentication failed. Please check your credentials."
 		case CategoryAuthorization:
 			return "You don't have permission to perform this action."
 		case CategoryConflict:
-			return fmt.Sprintf("Resource conflict: %s", mdzErr.Message)
+			return fmt.Sprintf("Resource conflict: %s", redactSensitive(mdzErr.Message))
 		case CategoryLimitExceeded:
 			return "Rate limit exceeded. Please try again later."
 		case CategoryTimeout:
 			return "The operation timed out. Please try again later."
+		case CategoryCancellation:
+			return "The operation was cancelled."
 		case CategoryNetwork:
 			return "Network error. Please check your connection and try again."
 		case CategoryUnprocessable:
-			return fmt.Sprintf("Operation could not be processed: %s", mdzErr.Message)
+			return fmt.Sprintf("Operation could not be processed: %s", redactSensitive(mdzErr.Message))
 		default:
 			return "An unexpected error occurred. Please try again later."
 		}
 	}
 
-	return err.Error()
+	return safeErrorString(err)
 }
 
 // httpErrorMapping contains the category and code mapping for HTTP status codes.
@@ -1071,23 +1315,60 @@ var httpErrorMappings = map[int]httpErrorMapping{
 	http.StatusConflict:            {CategoryConflict, CodeAlreadyExists, true},
 	http.StatusTooManyRequests:     {CategoryLimitExceeded, CodeRateLimit, false},
 	http.StatusGatewayTimeout:      {CategoryTimeout, CodeTimeout, false},
-	http.StatusUnprocessableEntity: {CategoryUnprocessable, CodeInternal, true},
+	http.StatusUnprocessableEntity: {CategoryUnprocessable, CodeUnprocessable, true},
 	http.StatusServiceUnavailable:  {CategoryNetwork, CodeInternal, false},
 }
 
+var apiErrorCodeMappings = map[string]httpErrorMapping{
+	"0084":                          {CategoryConflict, CodeIdempotency, false},
+	string(CodeIdempotency):         {CategoryConflict, CodeIdempotency, false},
+	string(CodeInsufficientBalance): {CategoryUnprocessable, CodeInsufficientBalance, true},
+	string(CodeAccountEligibility):  {CategoryValidation, CodeAccountEligibility, true},
+	string(CodeAssetMismatch):       {CategoryValidation, CodeAssetMismatch, true},
+}
+
+func applyAPICodeMapping(mapping httpErrorMapping, apiCode string) httpErrorMapping {
+	apiCode = strings.TrimSpace(apiCode)
+	if apiCode == "" {
+		return mapping
+	}
+
+	apiMapping, ok := apiErrorCodeMappings[apiCode]
+	if !ok {
+		return mapping
+	}
+
+	apiMapping.withResource = apiMapping.withResource || mapping.withResource
+
+	return apiMapping
+}
+
 // ErrorFromHTTPResponse creates an appropriate error based on the HTTP response
-func ErrorFromHTTPResponse(statusCode int, requestID, message, _, entityType, resourceID string) error {
+func ErrorFromHTTPResponse(statusCode int, requestID, message, apiCode, entityType, resourceID string) error {
+	return ErrorFromHTTPResponseWithDetails(statusCode, requestID, message, apiCode, entityType, resourceID, "", nil, nil)
+}
+
+// ErrorFromHTTPResponseWithDetails creates an appropriate error based on the HTTP response
+// and preserves raw structured API envelope metadata when available.
+func ErrorFromHTTPResponseWithDetails(statusCode int, requestID, message, apiCode, entityType, resourceID, title string, fields []string, details map[string]any) error {
 	mapping, ok := httpErrorMappings[statusCode]
 	if !ok {
 		mapping = httpErrorMapping{CategoryInternal, CodeInternal, false}
 	}
 
+	mapping = applyAPICodeMapping(mapping, apiCode)
+
 	err := &Error{
 		Category:   mapping.category,
 		Code:       mapping.code,
+		APICode:    apiCode,
+		Title:      title,
 		Message:    message,
 		StatusCode: statusCode,
 		RequestID:  requestID,
+		EntityType: entityType,
+		Fields:     fields,
+		Details:    details,
 	}
 
 	if mapping.withResource {
@@ -1100,7 +1381,7 @@ func ErrorFromHTTPResponse(statusCode int, requestID, message, _, entityType, re
 
 // FormatTransactionError produces a standardized error message
 func FormatTransactionError(err error, operationType string) string {
-	if err == nil {
+	if isNilError(err) {
 		return ""
 	}
 
@@ -1109,13 +1390,8 @@ func FormatTransactionError(err error, operationType string) string {
 
 // FormatUnifiedTransactionError produces a standardized error message for transactions
 func FormatUnifiedTransactionError(err error, operationType string) string {
-	if err == nil {
+	if isNilError(err) {
 		return ""
-	}
-
-	// Handle special test cases
-	if testMessage := getTestErrorMessage(err, operationType); testMessage != "" {
-		return testMessage
 	}
 
 	// Try to format structured Midaz error
@@ -1127,24 +1403,16 @@ func FormatUnifiedTransactionError(err error, operationType string) string {
 	return formatGenericError(err, operationType)
 }
 
-// getTestErrorMessage handles special test case error messages
-func getTestErrorMessage(err error, operationType string) string {
-	if err.Error() == testUnknownError {
-		return fmt.Sprintf("%s failed: %s", operationType, testUnknownError)
-	}
-
-	return ""
-}
-
 // formatMidazError formats structured Midaz Error types
 func formatMidazError(err error, operationType string) string {
 	var mdzErr *Error
-	if !errors.As(err, &mdzErr) {
+	if !errors.As(err, &mdzErr) || mdzErr == nil {
 		return ""
 	}
 
 	codeToMessage := map[ErrorCode]string{
 		CodeValidation:          "Invalid parameters",
+		CodeUnprocessable:       "Unprocessable entity",
 		CodeInsufficientBalance: "Insufficient account balance",
 		CodeAccountEligibility:  "Account not eligible",
 		CodeAssetMismatch:       "Asset type mismatch",
@@ -1158,10 +1426,10 @@ func formatMidazError(err error, operationType string) string {
 	}
 
 	if message, exists := codeToMessage[mdzErr.Code]; exists {
-		return fmt.Sprintf("%s failed: %s - %s", operationType, message, mdzErr.Message)
+		return fmt.Sprintf("%s failed: %s - %s", operationType, message, redactSensitive(mdzErr.Message))
 	}
 
-	return fmt.Sprintf("%s failed: %s", operationType, mdzErr.Message)
+	return fmt.Sprintf("%s failed: %s", operationType, redactSensitive(mdzErr.Message))
 }
 
 // formatGenericError formats non-structured error types
@@ -1186,22 +1454,17 @@ func formatGenericError(err error, operationType string) string {
 
 	for _, errorCheck := range errorChecks {
 		if errorCheck.check(err) {
-			return fmt.Sprintf("%s failed: %s - %v", operationType, errorCheck.message, err)
+			return fmt.Sprintf("%s failed: %s - %s", operationType, errorCheck.message, safeErrorString(err))
 		}
 	}
 
-	return fmt.Sprintf("%s failed: %v", operationType, err)
+	return fmt.Sprintf("%s failed: %s", operationType, safeErrorString(err))
 }
 
 // CategorizeTransactionError provides the error category
 func CategorizeTransactionError(err error) string {
-	if err == nil {
+	if isNilError(err) {
 		return "none"
-	}
-
-	// Test case for unknown error
-	if err.Error() == testUnknownError {
-		return "unknown"
 	}
 
 	// Special cases for specific transaction error types
@@ -1219,7 +1482,7 @@ func CategorizeTransactionError(err error) string {
 	// Map from the error category
 	category := GetErrorCategory(err)
 	switch category {
-	case CategoryValidation:
+	case CategoryValidation, CategoryUnprocessable:
 		return "validation"
 	case CategoryAuthentication:
 		return "authentication"

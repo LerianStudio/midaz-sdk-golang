@@ -138,7 +138,7 @@ MIDAZ_CLIENT_SECRET=your-client-secret
 
 ```go
 c, err := client.New(
-    client.WithBaseURL("http://localhost:3000"),
+    client.WithBaseURL("http://localhost"),
     client.WithTimeout(30*time.Second),
     client.WithRetries(3, 100*time.Millisecond, 10*time.Second),
     client.UseAllAPIs(),
@@ -176,6 +176,8 @@ balance, err := c.Entity.Accounts.GetBalance(ctx, orgID, ledgerID, accountID)
 holders, err := c.Entity.Holders.ListHolders(ctx, orgID, models.NewListOptions().WithLimit(20))
 ```
 
+`Accounts.GetBalance` and `Accounts.GetExternalAccountBalance` are convenience helpers for accounts with exactly one balance. Use the `Balances` service list methods when an account can have multiple balances.
+
 ## Transactions
 
 The current transaction contract uses a send-based payload:
@@ -197,6 +199,7 @@ txInput := models.NewCreateTransactionInput("USD", "100.00").
             },
         },
     })
+txInput.IdempotencyKey = "payment-2026-05-03-0001"
 
 tx, err := c.Entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, txInput)
 ```
@@ -275,7 +278,9 @@ c, err := client.New(
 )
 ```
 
-See [tracing](docs/tracing.md) for OpenTelemetry propagation and server-side extraction examples.
+The SDK creates one outbound SDK HTTP span per entity request, propagates W3C `traceparent` and `baggage`, and emits structured business events for high-value lifecycle operations when logging is enabled. Business logs include safe IDs such as `organizationId`, `ledgerId`, `accountId`, and `transactionId`; they do not include payloads, metadata, documents, names, addresses, auth headers, idempotency keys, or raw bodies.
+
+See [tracing](docs/tracing.md) for OpenTelemetry propagation, incoming HTTP extraction, and safe business logging examples.
 
 ## Environment variables
 
@@ -333,6 +338,13 @@ Run the mass demo generator:
 ```bash
 cd examples/mass-demo-generator
 DEMO_NON_INTERACTIVE=1 go run . --org-locale=br
+```
+
+For a bounded smoke run, use:
+
+```bash
+cd examples/mass-demo-generator
+DEMO_NON_INTERACTIVE=1 go run . --orgs=1 --ledgers=1 --accounts=1 --tx=0
 ```
 
 ## Testing

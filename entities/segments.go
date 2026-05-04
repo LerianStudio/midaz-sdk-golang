@@ -76,7 +76,7 @@ type SegmentsService interface {
 	//
 	//	// Create a segment with custom metadata
 	//	input := models.NewCreateSegmentInput("EMEA Region").
-	//	    WithStatus(models.StatusActive).
+	//	    WithStatus(models.NewStatus(models.StatusActive)).
 	//	    WithMetadata(map[string]any{
 	//	        "regionCode": "EMEA",
 	//	        "countries": []string{"UK", "France", "Germany", "Italy"},
@@ -135,7 +135,7 @@ func (e *segmentsEntity) setDefaultTenantID(tenantID string) {
 func NewSegmentsEntity(client *http.Client, authToken string, baseURLs map[string]string) SegmentsService {
 	return &segmentsEntity{
 		httpClient: NewHTTPClient(client, authToken, nil),
-		baseURLs:   baseURLs,
+		baseURLs:   prepareServiceBaseURLs(baseURLs),
 	}
 }
 
@@ -157,7 +157,7 @@ func (e *segmentsEntity) ListSegments(
 
 	url := e.buildURL(organizationID, ledgerID, "")
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -202,7 +202,7 @@ func (e *segmentsEntity) GetSegment(
 
 	url := e.buildURL(organizationID, ledgerID, id)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -239,6 +239,10 @@ func (e *segmentsEntity) CreateSegment(
 		return nil, errors.NewMissingParameterError(operation, "input")
 	}
 
+	if err := input.Validate(); err != nil {
+		return nil, errors.NewValidationError(operation, "segment validation failed", err)
+	}
+
 	url := e.buildURL(organizationID, ledgerID, "")
 
 	body, err := json.Marshal(input)
@@ -246,7 +250,7 @@ func (e *segmentsEntity) CreateSegment(
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	req, err := newRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -284,6 +288,10 @@ func (e *segmentsEntity) UpdateSegment(
 		return nil, errors.NewMissingParameterError(operation, "input")
 	}
 
+	if err := input.Validate(); err != nil {
+		return nil, errors.NewValidationError(operation, "segment validation failed", err)
+	}
+
 	url := e.buildURL(organizationID, ledgerID, id)
 
 	body, err := json.Marshal(input)
@@ -291,7 +299,7 @@ func (e *segmentsEntity) UpdateSegment(
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, bytes.NewReader(body))
+	req, err := newRequestWithContext(ctx, http.MethodPatch, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -326,7 +334,7 @@ func (e *segmentsEntity) DeleteSegment(
 
 	url := e.buildURL(organizationID, ledgerID, id)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
+	req, err := newRequestWithContext(ctx, http.MethodDelete, url, nil)
 	if err != nil {
 		return errors.NewInternalError(operation, err)
 	}

@@ -5,14 +5,17 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptrace"
+	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/propagation"
+	semconv "go.opentelemetry.io/otel/semconv/v1.34.0"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -27,6 +30,46 @@ type httpMiddleware struct {
 	maskedParams  []string
 	hideBody      bool
 }
+
+var defaultIgnoredHeaders = []string{
+	"authorization",
+	"cookie",
+	"set-cookie",
+	"x-api-key",
+	"x-auth-token",
+	"x-forwarded-authorization",
+	"x-jwt-token",
+	"x-middleware-token",
+	"x-idempotency",
+	"idempotency-key",
+	"x-midaz-auto-idempotency",
+	"x-tenant-id",
+	"x-organization-id",
+	"baggage",
+}
+
+var defaultMaskedParams = []string{
+	"access_token",
+	"api_key",
+	"apikey",
+	"auth_token",
+	"key",
+	"password",
+	"secret",
+	"token",
+	"access-token",
+	"jwt",
+	"refresh_token",
+	"refresh-token",
+	"document",
+}
+
+// ErrNilHTTPResponse is returned by helpers in this package when they are
+// asked to record a span/metric for an *http.Response that is nil. Callers
+// can use errors.Is to distinguish this case from real I/O failures —
+// for example, a transport-level error vs. an SDK programming bug that
+// passed a nil response to an enrichment helper.
+var ErrNilHTTPResponse = errors.New("observability: nil http response")
 
 // WithIgnoreHeaders specifies HTTP header names that should not be logged
 func WithIgnoreHeaders(headers ...string) HTTPOption {
@@ -93,16 +136,7 @@ func WithHideRequestBody(hide bool) HTTPOption {
 // WithDefaultSensitiveHeaders sets the default list of headers to ignore for security
 func WithDefaultSensitiveHeaders() HTTPOption {
 	return func(m *httpMiddleware) error {
-		m.ignoreHeaders = []string{
-			"authorization",
-			"cookie",
-			"set-cookie",
-			"x-api-key",
-			"x-auth-token",
-			"x-forwarded-authorization",
-			"x-jwt-token",
-			"x-middleware-token",
-		}
+		m.ignoreHeaders = append([]string(nil), defaultIgnoredHeaders...)
 
 		return nil
 	}
@@ -111,20 +145,7 @@ func WithDefaultSensitiveHeaders() HTTPOption {
 // WithDefaultSensitiveParams sets the default list of parameters to mask for security
 func WithDefaultSensitiveParams() HTTPOption {
 	return func(m *httpMiddleware) error {
-		m.maskedParams = []string{
-			"access_token",
-			"api_key",
-			"apikey",
-			"auth_token",
-			"key",
-			"password",
-			"secret",
-			"token",
-			"access-token",
-			"jwt",
-			"refresh_token",
-			"refresh-token",
-		}
+		m.maskedParams = append([]string(nil), defaultMaskedParams...)
 
 		return nil
 	}
@@ -152,30 +173,15 @@ func NewHTTPMiddleware(provider Provider, opts ...HTTPOption) func(http.RoundTri
 	if provider == nil {
 		// Return a no-op middleware
 		return func(next http.RoundTripper) http.RoundTripper {
-			return next
+			return ensureRoundTripper(next)
 		}
 	}
 
 	// Create with default configuration
 	m := &httpMiddleware{
-		provider: provider,
-		ignoreHeaders: []string{
-			"authorization",
-			"cookie",
-			"set-cookie",
-			"x-api-key",
-			"x-auth-token",
-		},
-		maskedParams: []string{
-			"access_token",
-			"api_key",
-			"apikey",
-			"auth_token",
-			"key",
-			"password",
-			"secret",
-			"token",
-		},
+		provider:      provider,
+		ignoreHeaders: append([]string(nil), defaultIgnoredHeaders...),
+		maskedParams:  append([]string(nil), defaultMaskedParams...),
 	}
 
 	// Apply options
@@ -193,13 +199,19 @@ func NewHTTPMiddleware(provider Provider, opts ...HTTPOption) func(http.RoundTri
 
 // middleware wraps an http.RoundTripper with tracing and metrics
 func (m *httpMiddleware) middleware(next http.RoundTripper) http.RoundTripper {
+	next = ensureRoundTripper(next)
+
 	return roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+		if req == nil {
+			return nil, errors.New("observability: nil http request")
+		}
+
 		// Early returns for disabled or ignored paths
-		if !m.provider.IsEnabled() {
+		if m == nil || m.provider == nil || !m.provider.IsEnabled() {
 			return next.RoundTrip(req)
 		}
 
-		if m.shouldIgnorePath(req.URL.Path) {
+		if m.shouldIgnorePath(requestPath(req)) {
 			return next.RoundTrip(req)
 		}
 
@@ -228,7 +240,7 @@ func (m *httpMiddleware) shouldIgnorePath(path string) bool {
 
 // setupTraceSpan creates a new tracing span for the request
 func (m *httpMiddleware) setupTraceSpan(req *http.Request) (context.Context, trace.Span) {
-	name := fmt.Sprintf("HTTP %s %s", req.Method, req.URL.Path)
+	name := fmt.Sprintf("HTTP %s %s", requestMethod(req), requestPath(req))
 
 	return m.provider.Tracer().Start(
 		req.Context(),
@@ -240,15 +252,10 @@ func (m *httpMiddleware) setupTraceSpan(req *http.Request) (context.Context, tra
 // addRequestAttributes adds HTTP and custom attributes to the span
 func (m *httpMiddleware) addRequestAttributes(span trace.Span, req *http.Request) {
 	// Add HTTP attributes
-	span.SetAttributes(
-		attribute.String("http.method", req.Method),
-		attribute.String("http.url", req.URL.String()),
-		attribute.String("http.host", req.URL.Host),
-		attribute.String("http.path", req.URL.Path),
-	)
+	span.SetAttributes(httpRequestSemconvAttributes(req, m.sanitizeURL(req.URL))...)
 
 	// Add custom attributes
-	name := fmt.Sprintf("HTTP %s %s", req.Method, req.URL.Path)
+	name := fmt.Sprintf("HTTP %s %s", requestMethod(req), requestPath(req))
 	span.SetAttributes(
 		attribute.String(KeyOperationName, name),
 		attribute.String(KeyOperationType, "http.request"),
@@ -260,19 +267,29 @@ func (m *httpMiddleware) addRequestAttributes(span trace.Span, req *http.Request
 
 // addRequestHeaders adds non-sensitive request headers to the span
 func (m *httpMiddleware) addRequestHeaders(span trace.Span, req *http.Request) {
+	if req == nil {
+		return
+	}
+
 	for key, values := range req.Header {
 		if !m.isIgnoredHeader(key) && len(values) > 0 {
-			span.SetAttributes(attribute.String("http.request.header."+strings.ToLower(key), values[0]))
+			span.SetAttributes(semconv.HTTPRequestHeader(strings.ToLower(key), values...))
 		}
 	}
 }
 
 // injectTraceContext injects trace context into request headers and updates the request
 func (m *httpMiddleware) injectTraceContext(ctx context.Context, req *http.Request, span trace.Span) *http.Request {
-	// Inject trace context into request headers
-	carrier := propagation.HeaderCarrier(req.Header)
-	propagator := propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{})
-	propagator.Inject(ctx, carrier)
+	if req == nil {
+		return req
+	}
+
+	if req.Header == nil {
+		req.Header = make(http.Header)
+	}
+
+	ctx = WithProvider(ctx, m.provider)
+	InjectHTTPContext(ctx, req.Header)
 
 	// Update request with trace context
 	return req.WithContext(httptrace.WithClientTrace(ctx, m.createClientTrace(span)))
@@ -283,7 +300,7 @@ func (m *httpMiddleware) executeTracedRequest(ctx context.Context, span trace.Sp
 	start := time.Now()
 
 	// Execute the request
-	resp, err := next.RoundTrip(req)
+	resp, err := ensureRoundTripper(next).RoundTrip(req)
 	duration := time.Since(start)
 
 	// Record metrics
@@ -300,8 +317,10 @@ func (m *httpMiddleware) executeTracedRequest(ctx context.Context, span trace.Sp
 
 // handleRequestError processes request errors and sets span status
 func (*httpMiddleware) handleRequestError(span trace.Span, resp *http.Response, err error) (*http.Response, error) {
-	span.SetStatus(codes.Error, err.Error())
-	span.RecordError(err)
+	sanitizedErr := sanitizeSensitiveString(err.Error())
+	span.SetStatus(codes.Error, sanitizedErr)
+	span.SetAttributes(semconv.ErrorType(err))
+	span.RecordError(errors.New(sanitizedErr))
 	span.End()
 
 	return resp, err
@@ -309,8 +328,18 @@ func (*httpMiddleware) handleRequestError(span trace.Span, resp *http.Response, 
 
 // handleSuccessfulResponse processes successful responses and adds response attributes
 func (m *httpMiddleware) handleSuccessfulResponse(span trace.Span, resp *http.Response) (*http.Response, error) {
+	if resp == nil {
+		span.SetStatus(codes.Ok, "")
+		span.End()
+
+		return nil, ErrNilHTTPResponse
+	}
+
 	// Add response attributes
-	span.SetAttributes(attribute.Int("http.status_code", resp.StatusCode))
+	span.SetAttributes(semconv.HTTPResponseStatusCode(resp.StatusCode))
+	if resp.ProtoMajor > 0 {
+		span.SetAttributes(semconv.NetworkProtocolVersion(httpProtocolVersion(resp.ProtoMajor, resp.ProtoMinor)))
+	}
 
 	// Add response headers (excluding sensitive ones)
 	m.addResponseHeaders(span, resp)
@@ -325,9 +354,13 @@ func (m *httpMiddleware) handleSuccessfulResponse(span trace.Span, resp *http.Re
 
 // addResponseHeaders adds non-sensitive response headers to the span
 func (m *httpMiddleware) addResponseHeaders(span trace.Span, resp *http.Response) {
+	if resp == nil {
+		return
+	}
+
 	for key, values := range resp.Header {
 		if !m.isIgnoredHeader(key) && len(values) > 0 {
-			span.SetAttributes(attribute.String("http.response.header."+strings.ToLower(key), values[0]))
+			span.SetAttributes(semconv.HTTPResponseHeader(strings.ToLower(key), values...))
 		}
 	}
 }
@@ -336,7 +369,7 @@ func (m *httpMiddleware) addResponseHeaders(span trace.Span, resp *http.Response
 func (*httpMiddleware) setResponseStatus(span trace.Span, statusCode int) {
 	if statusCode >= 400 {
 		span.SetStatus(codes.Error, fmt.Sprintf("HTTP status code: %d", statusCode))
-		span.SetAttributes(attribute.Bool("error", true))
+		span.SetAttributes(semconv.ErrorTypeKey.String(strconv.Itoa(statusCode)))
 	} else {
 		span.SetStatus(codes.Ok, "")
 	}
@@ -358,14 +391,14 @@ func (m *httpMiddleware) isIgnoredHeader(header string) bool {
 func (m *httpMiddleware) recordRequestMetrics(ctx context.Context, req *http.Request, resp *http.Response, err error, duration time.Duration) {
 	// Create attributes for the metrics
 	attrs := []attribute.KeyValue{
-		attribute.String(KeyHTTPMethod, req.Method),
-		attribute.String(KeyHTTPPath, req.URL.Path),
-		attribute.String(KeyHTTPHost, req.URL.Host),
+		semconv.HTTPRequestMethodKey.String(semconvHTTPMethod(requestMethod(req))),
+		semconv.URLPath(requestPath(req)),
 	}
+	attrs = append(attrs, serverAddressPortAttributes(req)...)
 
 	// Add status code attribute if we have a response
 	if resp != nil {
-		attrs = append(attrs, attribute.Int(KeyHTTPStatus, resp.StatusCode))
+		attrs = append(attrs, semconv.HTTPResponseStatusCode(resp.StatusCode))
 	}
 
 	// Record count
@@ -381,7 +414,7 @@ func (m *httpMiddleware) recordRequestMetrics(ctx context.Context, req *http.Req
 			errorStatus = fmt.Sprintf("%d", resp.StatusCode)
 		}
 
-		attrs = append(attrs, attribute.String(KeyErrorCode, errorStatus))
+		attrs = append(attrs, semconv.ErrorTypeKey.String(errorStatus))
 		RecordMetric(ctx, m.provider, MetricRequestErrorTotal, 1, attrs...)
 	} else {
 		RecordMetric(ctx, m.provider, MetricRequestSuccess, 1, attrs...)
@@ -392,9 +425,7 @@ func (m *httpMiddleware) recordRequestMetrics(ctx context.Context, req *http.Req
 func (*httpMiddleware) createClientTrace(span trace.Span) *httptrace.ClientTrace {
 	return &httptrace.ClientTrace{
 		GetConn: func(hostPort string) {
-			span.AddEvent("http.get_conn", trace.WithAttributes(
-				attribute.String("http.host_port", hostPort),
-			))
+			span.AddEvent("http.get_conn", trace.WithAttributes(serverAddressPortFromHostPort(hostPort)...))
 		},
 		GotConn: func(info httptrace.GotConnInfo) {
 			span.AddEvent("http.got_conn", trace.WithAttributes(
@@ -406,7 +437,7 @@ func (*httpMiddleware) createClientTrace(span trace.Span) *httptrace.ClientTrace
 		PutIdleConn: func(err error) {
 			attrs := []attribute.KeyValue{}
 			if err != nil {
-				attrs = append(attrs, attribute.String("error", err.Error()))
+				attrs = append(attrs, attribute.String("error", sanitizeSensitiveString(err.Error())))
 			}
 
 			span.AddEvent("http.put_idle_conn", trace.WithAttributes(attrs...))
@@ -417,14 +448,7 @@ func (*httpMiddleware) createClientTrace(span trace.Span) *httptrace.ClientTrace
 			))
 		},
 		DNSDone: func(info httptrace.DNSDoneInfo) {
-			attrs := []attribute.KeyValue{
-				attribute.String("address", info.Addrs[0].String()),
-			}
-			if info.Err != nil {
-				attrs = append(attrs, attribute.String("error", info.Err.Error()))
-			}
-
-			span.AddEvent("http.dns_done", trace.WithAttributes(attrs...))
+			addDNSDoneEvent(span, info)
 		},
 		ConnectStart: func(network, addr string) {
 			span.AddEvent("http.connect_start", trace.WithAttributes(
@@ -438,7 +462,7 @@ func (*httpMiddleware) createClientTrace(span trace.Span) *httptrace.ClientTrace
 				attribute.String("addr", addr),
 			}
 			if err != nil {
-				attrs = append(attrs, attribute.String("error", err.Error()))
+				attrs = append(attrs, attribute.String("error", sanitizeSensitiveString(err.Error())))
 			}
 
 			span.AddEvent("http.connect_done", trace.WithAttributes(attrs...))
@@ -452,7 +476,7 @@ func (*httpMiddleware) createClientTrace(span trace.Span) *httptrace.ClientTrace
 				attribute.String("cipher_suite", tlsCipherSuiteString(state.CipherSuite)),
 			}
 			if err != nil {
-				attrs = append(attrs, attribute.String("error", err.Error()))
+				attrs = append(attrs, attribute.String("error", sanitizeSensitiveString(err.Error())))
 			}
 
 			span.AddEvent("http.tls_handshake_done", trace.WithAttributes(attrs...))
@@ -460,7 +484,7 @@ func (*httpMiddleware) createClientTrace(span trace.Span) *httptrace.ClientTrace
 		WroteRequest: func(info httptrace.WroteRequestInfo) {
 			attrs := []attribute.KeyValue{}
 			if info.Err != nil {
-				attrs = append(attrs, attribute.String("error", info.Err.Error()))
+				attrs = append(attrs, attribute.String("error", sanitizeSensitiveString(info.Err.Error())))
 			}
 
 			span.AddEvent("http.wrote_request", trace.WithAttributes(attrs...))
@@ -469,6 +493,191 @@ func (*httpMiddleware) createClientTrace(span trace.Span) *httptrace.ClientTrace
 			span.AddEvent("http.got_first_response_byte")
 		},
 	}
+}
+
+func addDNSDoneEvent(span trace.Span, info httptrace.DNSDoneInfo) {
+	attrs := []attribute.KeyValue{
+		attribute.Int("address_count", len(info.Addrs)),
+	}
+	if len(info.Addrs) > 0 {
+		attrs = append(attrs, attribute.String("address", info.Addrs[0].String()))
+	}
+
+	if info.Err != nil {
+		attrs = append(attrs, attribute.String("error", sanitizeSensitiveString(info.Err.Error())))
+	}
+
+	span.AddEvent("http.dns_done", trace.WithAttributes(attrs...))
+}
+
+func httpRequestSemconvAttributes(req *http.Request, sanitizedURL string) []attribute.KeyValue {
+	method := requestMethod(req)
+	attrs := []attribute.KeyValue{
+		semconv.HTTPRequestMethodKey.String(semconvHTTPMethod(method)),
+		semconv.URLFull(sanitizedURL),
+		semconv.URLPath(requestPath(req)),
+	}
+	if original := semconvHTTPMethodOriginal(method); original != "" {
+		attrs = append(attrs, semconv.HTTPRequestMethodOriginal(original))
+	}
+	if req != nil && req.URL != nil && req.URL.Scheme != "" {
+		attrs = append(attrs, semconv.URLScheme(req.URL.Scheme))
+	}
+	if req != nil && req.ProtoMajor > 0 {
+		attrs = append(attrs, semconv.NetworkProtocolVersion(httpProtocolVersion(req.ProtoMajor, req.ProtoMinor)))
+	}
+	attrs = append(attrs, serverAddressPortAttributes(req)...)
+
+	return attrs
+}
+
+func serverAddressPortAttributes(req *http.Request) []attribute.KeyValue {
+	if req == nil || req.URL == nil {
+		return nil
+	}
+
+	return serverAddressPortFromURL(req.URL)
+}
+
+func serverAddressPortFromURL(rawURL *url.URL) []attribute.KeyValue {
+	if rawURL == nil {
+		return nil
+	}
+
+	host := rawURL.Hostname()
+	if host == "" {
+		return nil
+	}
+
+	attrs := []attribute.KeyValue{semconv.ServerAddress(host)}
+	if port, ok := urlPort(rawURL); ok {
+		attrs = append(attrs, semconv.ServerPort(port))
+	}
+
+	return attrs
+}
+
+func serverAddressPortFromHostPort(hostPort string) []attribute.KeyValue {
+	host, portString, err := net.SplitHostPort(hostPort)
+	if err != nil {
+		return []attribute.KeyValue{semconv.ServerAddress(hostPort)}
+	}
+
+	attrs := []attribute.KeyValue{semconv.ServerAddress(host)}
+	if port, err := strconv.Atoi(portString); err == nil {
+		attrs = append(attrs, semconv.ServerPort(port))
+	}
+
+	return attrs
+}
+
+func urlPort(rawURL *url.URL) (int, bool) {
+	if rawURL == nil {
+		return 0, false
+	}
+	if portString := rawURL.Port(); portString != "" {
+		port, err := strconv.Atoi(portString)
+		return port, err == nil
+	}
+	switch strings.ToLower(rawURL.Scheme) {
+	case "http":
+		return 80, true
+	case "https":
+		return 443, true
+	default:
+		return 0, false
+	}
+}
+
+func httpProtocolVersion(major, minor int) string {
+	if major <= 0 {
+		return ""
+	}
+
+	return fmt.Sprintf("%d.%d", major, minor)
+}
+
+func semconvHTTPMethod(method string) string {
+	upper := strings.ToUpper(method)
+	switch upper {
+	case http.MethodConnect, http.MethodDelete, http.MethodGet, http.MethodHead, http.MethodOptions, http.MethodPatch, http.MethodPost, http.MethodPut, http.MethodTrace:
+		return upper
+	default:
+		return "_OTHER"
+	}
+}
+
+func semconvHTTPMethodOriginal(method string) string {
+	if semconvHTTPMethod(method) == "_OTHER" {
+		return method
+	}
+
+	return ""
+}
+
+func ensureRoundTripper(next http.RoundTripper) http.RoundTripper {
+	if next != nil {
+		return next
+	}
+
+	return roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+		if req == nil {
+			return nil, errors.New("observability: nil http request")
+		}
+
+		return nil, errors.New("observability: nil http round tripper")
+	})
+}
+
+func requestMethod(req *http.Request) string {
+	if req == nil || req.Method == "" {
+		return http.MethodGet
+	}
+
+	return req.Method
+}
+
+func requestPath(req *http.Request) string {
+	if req == nil || req.URL == nil {
+		return ""
+	}
+
+	return req.URL.Path
+}
+
+func (m *httpMiddleware) sanitizeURL(rawURL *url.URL) string {
+	if rawURL == nil {
+		return ""
+	}
+
+	safeURL := *rawURL
+
+	query := safeURL.Query()
+	for key, values := range query {
+		if m.isMaskedParam(key) {
+			maskedValues := make([]string, len(values))
+			for i := range maskedValues {
+				maskedValues[i] = "[REDACTED]"
+			}
+
+			query[key] = maskedValues
+		}
+	}
+
+	safeURL.RawQuery = query.Encode()
+
+	return safeURL.String()
+}
+
+func (m *httpMiddleware) isMaskedParam(param string) bool {
+	lowerParam := strings.ToLower(param)
+	for _, masked := range m.maskedParams {
+		if lowerParam == strings.ToLower(masked) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // roundTripperFunc adapts a function to the RoundTripper interface

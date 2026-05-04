@@ -134,12 +134,12 @@ func NewTransactionsEntity(client *http.Client, authToken string, baseURLs map[s
 
 	// Check if we're using the debug flag from the environment
 	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
-		httpClient.debug = true
+		httpClient.setDebugLocked(true)
 	}
 
 	return &transactionsEntity{
 		httpClient: httpClient,
-		baseURLs:   baseURLs,
+		baseURLs:   prepareServiceBaseURLs(baseURLs),
 	}
 }
 
@@ -177,11 +177,16 @@ func (e *transactionsEntity) CreateTransaction(ctx context.Context, orgID, ledge
 	// Send request to API
 	responseMap, err := e.sendCreateTransactionRequest(ctx, orgID, ledgerID, input)
 	if err != nil {
+		e.httpClient.emitBusinessError(ctx, businessEventTransactionCreated, map[string]any{"operation": operation, "organizationId": orgID, "ledgerId": ledgerID}, err)
+
 		return nil, err
 	}
 
 	// Convert response to transaction model
-	return e.parseTransactionResponse(responseMap), nil
+	transaction := e.parseTransactionResponse(responseMap)
+	e.httpClient.emitBusinessEvent(ctx, businessEventTransactionCreated, map[string]any{"operation": operation, "organizationId": orgID, "ledgerId": ledgerID, "transactionId": transaction.ID, "status": transaction.Status.Code})
+
+	return transaction, nil
 }
 
 // validateCreateTransactionInput validates all input parameters for CreateTransaction
@@ -211,9 +216,10 @@ func (e *transactionsEntity) sendCreateTransactionRequest(ctx context.Context, o
 
 	var responseMap map[string]any
 
-	headers := map[string]string{"X-Midaz-Auto-Idempotency": "true"}
+	headers := map[string]string{}
 	if key := strings.TrimSpace(input.IdempotencyKey); key != "" {
 		headers["X-Idempotency"] = key
+		headers[internalCallerIdempotencyHeader] = BoolTrue
 	}
 
 	if err := e.httpClient.doRequest(ctx, http.MethodPost, e.buildURL(orgID, ledgerID, "/json"), headers, txMap, &responseMap); err != nil {
@@ -545,7 +551,12 @@ func (e *transactionsEntity) CreateTransactionWithDSL(ctx context.Context, orgID
 		return nil, sdkerrors.NewValidationError(operation, "failed to render DSL input", err)
 	}
 
-	return e.CreateTransactionWithDSLFile(ctx, orgID, ledgerID, dslContent)
+	transaction, err := e.CreateTransactionWithDSLFile(ctx, orgID, ledgerID, dslContent)
+	if err != nil {
+		return nil, err
+	}
+
+	return transaction, nil
 }
 
 // CreateTransactionWithDSLFile creates a new transaction using a DSL file.
@@ -562,6 +573,10 @@ func (e *transactionsEntity) CreateTransactionWithDSLFile(ctx context.Context, o
 	// Validate DSL payload before sending
 	if err := validateDSLContent(dslContent); err != nil {
 		return nil, err
+	}
+
+	if int64(len(dslContent)) > maxHTTPRequestBodyBytes {
+		return nil, sdkerrors.NewValidationError("CreateTransactionWithDSLFile", "DSL content exceeds maximum request size", nil)
 	}
 
 	// Use DSL endpoint with raw body payload
@@ -584,17 +599,19 @@ func (e *transactionsEntity) CreateTransactionWithDSLFile(ctx context.Context, o
 		return nil, sdkerrors.NewInternalError("CreateTransactionWithDSLFile", fmt.Errorf("failed to finalize multipart body: %w", err))
 	}
 
-	headers := map[string]string{
-		"Content-Type":             writer.FormDataContentType(),
-		"X-Midaz-Auto-Idempotency": "true",
-	}
+	headers := map[string]string{"Content-Type": writer.FormDataContentType()}
 
 	var responseMap map[string]any
 	if err := e.httpClient.doRawRequest(ctx, http.MethodPost, endpointURL, headers, body.Bytes(), &responseMap); err != nil {
+		e.httpClient.emitBusinessError(ctx, businessEventTransactionCreated, map[string]any{"operation": "CreateTransactionWithDSLFile", "organizationId": orgID, "ledgerId": ledgerID}, err)
+
 		return nil, err
 	}
 
-	return e.parseTransactionResponse(responseMap), nil
+	transaction := e.parseTransactionResponse(responseMap)
+	e.httpClient.emitBusinessEvent(ctx, businessEventTransactionCreated, map[string]any{"operation": "CreateTransactionWithDSLFile", "organizationId": orgID, "ledgerId": ledgerID, "transactionId": transaction.ID, "status": transaction.Status.Code})
+
+	return transaction, nil
 }
 
 func validateDSLContent(dslContent []byte) error {
@@ -650,9 +667,9 @@ func (e *transactionsEntity) GetTransaction(ctx context.Context, orgID, ledgerID
 	}
 
 	// Build the URL for the transaction
-	endpointURL := e.buildURL(orgID, ledgerID, fmt.Sprintf("/%s", transactionID))
+	endpointURL := e.buildTransactionURL(orgID, ledgerID, transactionID)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpointURL, nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, endpointURL, nil)
 	if err != nil {
 		return nil, sdkerrors.NewInternalError(operation, fmt.Errorf("failed to create request: %w", err))
 	}
@@ -711,7 +728,7 @@ func (e *transactionsEntity) ListTransactions(ctx context.Context, orgID, ledger
 	// Build the URL for the transactions
 	endpointURL := e.buildURL(orgID, ledgerID, "")
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpointURL, nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, endpointURL, nil)
 	if err != nil {
 		return nil, sdkerrors.NewInternalError(operation, fmt.Errorf("failed to create request: %w", err))
 	}
@@ -738,14 +755,7 @@ func (e *transactionsEntity) ListTransactions(ctx context.Context, orgID, ledger
 }
 
 func transactionListQueryParams(opts *models.ListOptions) map[string]string {
-	params := opts.ToQueryParams()
-
-	if opts.Cursor != "" {
-		delete(params, models.QueryParamPage)
-		params[models.QueryParamCursor] = opts.Cursor
-	}
-
-	return params
+	return cursorListQueryParams(opts)
 }
 
 // GetTransactionsMetricsCount retrieves the count of transactions that match the supplied filters.
@@ -762,7 +772,7 @@ func (e *transactionsEntity) GetTransactionsMetricsCount(ctx context.Context, or
 
 	endpointURL := e.buildMetricsURL(orgID, ledgerID)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodHead, endpointURL, nil)
+	req, err := newRequestWithContext(ctx, http.MethodHead, endpointURL, nil)
 	if err != nil {
 		return nil, sdkerrors.NewInternalError(operation, fmt.Errorf("failed to create request: %w", err))
 	}
@@ -785,11 +795,37 @@ func (e *transactionsEntity) GetTransactionsMetricsCount(ctx context.Context, or
 }
 
 func transactionMetricsCountQueryParams(opts *models.ListOptions) map[string]string {
-	params := opts.ToQueryParams()
-	delete(params, models.QueryParamPage)
-	delete(params, models.QueryParamCursor)
-	delete(params, models.QueryParamLimit)
-	delete(params, models.QueryParamOffset)
+	params := map[string]string{}
+	if opts == nil {
+		return params
+	}
+
+	allowed := map[string]struct{}{
+		"route":      {},
+		"status":     {},
+		"start_date": {},
+		"end_date":   {},
+	}
+
+	if opts.StartDate != "" {
+		params["start_date"] = opts.StartDate
+	}
+
+	if opts.EndDate != "" {
+		params["end_date"] = opts.EndDate
+	}
+
+	for key, value := range opts.Filters {
+		if _, ok := allowed[key]; ok && value != "" {
+			params[key] = value
+		}
+	}
+
+	for key, value := range opts.AdditionalParams {
+		if _, ok := allowed[key]; ok && value != "" {
+			params[key] = value
+		}
+	}
 
 	return params
 }
@@ -812,29 +848,32 @@ func (e *transactionsEntity) UpdateTransaction(ctx context.Context, orgID, ledge
 		return nil, sdkerrors.NewMissingParameterError(operation, "transaction ID")
 	}
 
-	if input == nil {
-		return nil, sdkerrors.NewMissingParameterError(operation, "input")
+	if err := validateUpdatePayload(operation, input, "*models.UpdateTransactionInput"); err != nil {
+		return nil, err
 	}
 
 	// Build the URL for the transaction
-	endpointURL := e.buildURL(orgID, ledgerID, fmt.Sprintf("/%s", transactionID))
+	endpointURL := e.buildTransactionURL(orgID, ledgerID, transactionID)
 
 	body, err := json.Marshal(input)
 	if err != nil {
 		return nil, sdkerrors.NewInternalError(operation, fmt.Errorf("failed to marshal request body: %w", err))
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, endpointURL, bytes.NewBuffer(body))
+	req, err := newRequestWithContext(ctx, http.MethodPatch, endpointURL, bytes.NewBuffer(body))
 	if err != nil {
 		return nil, sdkerrors.NewInternalError(operation, fmt.Errorf("failed to create request: %w", err))
 	}
 
 	var transaction models.Transaction
 	if err := e.httpClient.sendRequest(req, &transaction); err != nil {
+		e.httpClient.emitBusinessError(ctx, businessEventTransactionUpdated, map[string]any{"operation": operation, "organizationId": orgID, "ledgerId": ledgerID, "transactionId": transactionID}, err)
+
 		return nil, err
 	}
 
 	e.normalizeTransaction(&transaction)
+	e.httpClient.emitBusinessEvent(ctx, businessEventTransactionUpdated, map[string]any{"operation": operation, "organizationId": orgID, "ledgerId": ledgerID, "transactionId": transaction.ID, "status": transaction.Status.Code})
 
 	return &transaction, nil
 }
@@ -855,19 +894,22 @@ func (e *transactionsEntity) RevertTransaction(ctx context.Context, orgID, ledge
 		return nil, sdkerrors.NewMissingParameterError(operation, "transaction ID")
 	}
 
-	endpointURL := e.buildURL(orgID, ledgerID, fmt.Sprintf("/%s/revert", transactionID))
+	endpointURL := e.buildTransactionURL(orgID, ledgerID, transactionID, "revert")
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpointURL, nil)
+	req, err := newRequestWithContext(ctx, http.MethodPost, endpointURL, nil)
 	if err != nil {
 		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	var transaction models.Transaction
 	if err := e.httpClient.sendRequest(req, &transaction); err != nil {
+		e.httpClient.emitBusinessError(ctx, businessEventTransactionReverted, map[string]any{"operation": operation, "organizationId": orgID, "ledgerId": ledgerID, "transactionId": transactionID}, err)
+
 		return nil, err
 	}
 
 	e.normalizeTransaction(&transaction)
+	e.httpClient.emitBusinessEvent(ctx, businessEventTransactionReverted, map[string]any{"operation": operation, "organizationId": orgID, "ledgerId": ledgerID, "transactionId": transaction.ID, "status": transaction.Status.Code})
 
 	return &transaction, nil
 }
@@ -888,42 +930,31 @@ func (e *transactionsEntity) CommitTransaction(ctx context.Context, orgID, ledge
 		return nil, sdkerrors.NewMissingParameterError(operation, "transaction ID")
 	}
 
-	endpointURL := e.buildURL(orgID, ledgerID, fmt.Sprintf("/%s/commit", transactionID))
+	endpointURL := e.buildTransactionURL(orgID, ledgerID, transactionID, "commit")
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpointURL, nil)
+	req, err := newRequestWithContext(ctx, http.MethodPost, endpointURL, nil)
 	if err != nil {
 		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	var transaction models.Transaction
 	if err := e.httpClient.sendRequest(req, &transaction); err != nil {
+		e.httpClient.emitBusinessError(ctx, businessEventTransactionCommitted, map[string]any{"operation": operation, "organizationId": orgID, "ledgerId": ledgerID, "transactionId": transactionID}, err)
+
 		return nil, err
 	}
 
 	e.normalizeTransaction(&transaction)
+	e.httpClient.emitBusinessEvent(ctx, businessEventTransactionCommitted, map[string]any{"operation": operation, "organizationId": orgID, "ledgerId": ledgerID, "transactionId": transaction.ID, "status": transaction.Status.Code})
 
 	return &transaction, nil
 }
 
 // CancelTransaction cancels a pending transaction.
 func (e *transactionsEntity) CancelTransaction(ctx context.Context, orgID, ledgerID, transactionID string) error {
-	const operation = "CancelTransaction"
+	_, err := e.CancelTransactionWithResponse(ctx, orgID, ledgerID, transactionID)
 
-	if orgID == "" {
-		return sdkerrors.NewMissingParameterError(operation, "organization ID")
-	}
-
-	if ledgerID == "" {
-		return sdkerrors.NewMissingParameterError(operation, "ledger ID")
-	}
-
-	if transactionID == "" {
-		return sdkerrors.NewMissingParameterError(operation, "transaction ID")
-	}
-
-	endpointURL := e.buildURL(orgID, ledgerID, fmt.Sprintf("/%s/cancel", transactionID))
-
-	return e.httpClient.doRawRequest(ctx, http.MethodPost, endpointURL, nil, nil, nil)
+	return err
 }
 
 // CancelTransactionWithResponse cancels a pending transaction and returns the cancelled transaction.
@@ -942,9 +973,9 @@ func (e *transactionsEntity) CancelTransactionWithResponse(ctx context.Context, 
 		return nil, sdkerrors.NewMissingParameterError(operation, "transaction ID")
 	}
 
-	endpointURL := e.buildURL(orgID, ledgerID, fmt.Sprintf("/%s/cancel", transactionID))
+	endpointURL := e.buildTransactionURL(orgID, ledgerID, transactionID, "cancel")
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpointURL, nil)
+	req, err := newRequestWithContext(ctx, http.MethodPost, endpointURL, nil)
 	if err != nil {
 		return nil, sdkerrors.NewInternalError(operation, err)
 	}
@@ -952,13 +983,32 @@ func (e *transactionsEntity) CancelTransactionWithResponse(ctx context.Context, 
 	var transaction models.Transaction
 	if err := e.httpClient.sendRequest(req, &transaction); err != nil {
 		if errors.Is(err, errEmptyResponseBody) || errors.Is(err, errNullResponseBody) {
-			return &models.Transaction{ID: transactionID}, nil
+			// The cancel endpoint sometimes returns a 204/empty body. Even
+			// in that case we want callers to receive a normalized
+			// Transaction value (with Status populated) and the business
+			// event to carry the same status field as the non-empty path,
+			// so downstream consumers don't see a status-less event for
+			// the empty-body case.
+			tx := &models.Transaction{ID: transactionID, Status: models.Status{Code: "CANCELED"}}
+			e.normalizeTransaction(tx)
+			e.httpClient.emitBusinessEvent(ctx, businessEventTransactionCancelled, map[string]any{
+				"operation":      operation,
+				"organizationId": orgID,
+				"ledgerId":       ledgerID,
+				"transactionId":  transactionID,
+				"status":         tx.Status.Code,
+			})
+
+			return tx, nil
 		}
+
+		e.httpClient.emitBusinessError(ctx, businessEventTransactionCancelled, map[string]any{"operation": operation, "organizationId": orgID, "ledgerId": ledgerID, "transactionId": transactionID}, err)
 
 		return nil, err
 	}
 
 	e.normalizeTransaction(&transaction)
+	e.httpClient.emitBusinessEvent(ctx, businessEventTransactionCancelled, map[string]any{"operation": operation, "organizationId": orgID, "ledgerId": ledgerID, "transactionId": transaction.ID, "status": transaction.Status.Code})
 
 	return &transaction, nil
 }
@@ -990,13 +1040,12 @@ func (e *transactionsEntity) CreateInflowTransaction(ctx context.Context, orgID,
 		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpointURL, bytes.NewReader(body))
+	req, err := newRequestWithContext(ctx, http.MethodPost, endpointURL, bytes.NewReader(body))
 	if err != nil {
 		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Midaz-Auto-Idempotency", "true")
 
 	var result map[string]any
 	if err := e.httpClient.sendRequest(req, &result); err != nil {
@@ -1033,13 +1082,12 @@ func (e *transactionsEntity) CreateOutflowTransaction(ctx context.Context, orgID
 		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpointURL, bytes.NewReader(body))
+	req, err := newRequestWithContext(ctx, http.MethodPost, endpointURL, bytes.NewReader(body))
 	if err != nil {
 		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Midaz-Auto-Idempotency", "true")
 
 	var result map[string]any
 	if err := e.httpClient.sendRequest(req, &result); err != nil {
@@ -1076,13 +1124,12 @@ func (e *transactionsEntity) CreateAnnotationTransaction(ctx context.Context, or
 		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpointURL, bytes.NewReader(body))
+	req, err := newRequestWithContext(ctx, http.MethodPost, endpointURL, bytes.NewReader(body))
 	if err != nil {
 		return nil, sdkerrors.NewInternalError(operation, err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Midaz-Auto-Idempotency", "true")
 
 	var result map[string]any
 	if err := e.httpClient.sendRequest(req, &result); err != nil {
@@ -1094,26 +1141,42 @@ func (e *transactionsEntity) CreateAnnotationTransaction(ctx context.Context, or
 
 // buildURL builds the URL for transactions API calls with the specified suffix.
 func (e *transactionsEntity) buildURL(orgID, ledgerID, suffix string) string {
-	base := e.baseURLs["transaction"]
-	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/transactions%s", base, pathSegment(orgID), pathSegment(ledgerID), escapeTransactionSuffix(suffix))
+	parts := []string{"transactions"}
+	if suffix != "" {
+		parts = append(parts, strings.Split(strings.TrimPrefix(suffix, "/"), "/")...)
+	}
+
+	return buildLedgerScopedURL(e.baseURLs["transaction"], orgID, ledgerID, parts...)
+}
+
+func (e *transactionsEntity) buildTransactionURL(orgID, ledgerID, transactionID string, parts ...string) string {
+	segments := []string{
+		"organizations",
+		pathSegment(orgID),
+		"ledgers",
+		pathSegment(ledgerID),
+		"transactions",
+		pathSegment(transactionID),
+	}
+
+	for _, part := range parts {
+		part = strings.Trim(part, "/")
+		if part == "" {
+			continue
+		}
+
+		for _, piece := range strings.Split(part, "/") {
+			if piece != "" {
+				segments = append(segments, pathSegment(piece))
+			}
+		}
+	}
+
+	return fmt.Sprintf("%s/%s", strings.TrimRight(e.baseURLs["transaction"], "/"), strings.Join(segments, "/"))
 }
 
 func (e *transactionsEntity) buildMetricsURL(orgID, ledgerID string) string {
-	base := e.baseURLs["transaction"]
-	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/transactions/metrics/count", base, pathSegment(orgID), pathSegment(ledgerID))
-}
-
-func escapeTransactionSuffix(suffix string) string {
-	if suffix == "" {
-		return ""
-	}
-
-	parts := strings.Split(strings.TrimPrefix(suffix, "/"), "/")
-	for i, part := range parts {
-		parts[i] = pathSegment(part)
-	}
-
-	return "/" + strings.Join(parts, "/")
+	return buildLedgerScopedURL(e.baseURLs["transaction"], orgID, ledgerID, "transactions", "metrics", "count")
 }
 
 // getString safely extracts a string value from a map

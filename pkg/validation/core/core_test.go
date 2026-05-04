@@ -1,6 +1,7 @@
 package core_test
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -27,6 +28,19 @@ func TestValidateAssetCode(t *testing.T) {
 			wantErr:   false,
 		},
 		{
+			// Asset codes outside the 3-4 character bound are rejected.
+			name:      "Five-letter custom code is rejected",
+			assetCode: "USDOL",
+			wantErr:   true,
+			errMsg:    "invalid asset code format: USDOL (must be 3-4 uppercase letters)",
+		},
+		{
+			name:      "Two-letter code is rejected",
+			assetCode: "US",
+			wantErr:   true,
+			errMsg:    "invalid asset code format: US (must be 3-4 uppercase letters)",
+		},
+		{
 			name:      "Empty code",
 			assetCode: "",
 			wantErr:   true,
@@ -37,12 +51,6 @@ func TestValidateAssetCode(t *testing.T) {
 			assetCode: "usd",
 			wantErr:   true,
 			errMsg:    "invalid asset code format: usd (must be 3-4 uppercase letters)",
-		},
-		{
-			name:      "Too long code",
-			assetCode: "USDOL",
-			wantErr:   true,
-			errMsg:    "invalid asset code format: USDOL (must be 3-4 uppercase letters)",
 		},
 		{
 			name:      "With numbers",
@@ -105,13 +113,13 @@ func TestValidateAccountAlias(t *testing.T) {
 			name:    "With special characters",
 			alias:   "savings@account",
 			wantErr: true,
-			errMsg:  "invalid account alias format: savings@account (must be alphanumeric with optional underscores and hyphens, max 50 chars)",
+			errMsg:  "invalid account alias format: savings@account (must contain only letters, numbers, underscores, hyphens, dots, colons, and an optional leading @; max 50 chars)",
 		},
 		{
 			name:    "Too long alias",
-			alias:   "a123456789012345678901234567890123456789012345678901", // 51 chars
+			alias:   strings.Repeat("a", 51),
 			wantErr: true,
-			errMsg:  "invalid account alias format: a123456789012345678901234567890123456789012345678901 (must be alphanumeric with optional underscores and hyphens, max 50 chars)",
+			errMsg:  "invalid account alias format: " + strings.Repeat("a", 51) + " (must contain only letters, numbers, underscores, hyphens, dots, colons, and an optional leading @; max 50 chars)",
 		},
 	}
 
@@ -237,15 +245,14 @@ func TestValidateMetadata(t *testing.T) {
 				},
 			},
 			wantErr: true,
-			errMsg:  "invalid metadata value type for key 'customer': map[string]interface {} (must be string, number, boolean, or nil)",
+			errMsg:  "invalid metadata value type for key 'customer': map[string]interface {} (must be string, number, boolean, array, or nil)",
 		},
 		{
-			name: "Invalid metadata with array",
+			name: "Valid metadata with array",
 			metadata: map[string]any{
 				"items": []any{"item1", "item2", "item3"},
 			},
-			wantErr: true,
-			errMsg:  "invalid metadata value type for key 'items': []interface {} (must be string, number, boolean, or nil)",
+			wantErr: false,
 		},
 		{
 			name: "Empty key",
@@ -261,7 +268,7 @@ func TestValidateMetadata(t *testing.T) {
 				"complex": complex(1, 2),
 			},
 			wantErr: true,
-			errMsg:  "invalid metadata value type for key 'complex': complex128 (must be string, number, boolean, or nil)",
+			errMsg:  "invalid metadata value type for key 'complex': complex128 (must be string, number, boolean, array, or nil)",
 		},
 	}
 
@@ -524,8 +531,8 @@ func TestValidationConfig(t *testing.T) {
 		config := core.DefaultValidationConfig()
 		assert.NotNil(t, config)
 		assert.Equal(t, 4096, config.MaxMetadataSize)
-		assert.Equal(t, 256, config.MaxStringLength)
-		assert.Equal(t, 100, config.MaxAddressLineLength)
+		assert.Equal(t, 2000, config.MaxStringLength)
+		assert.Equal(t, 256, config.MaxAddressLineLength)
 		assert.Equal(t, 20, config.MaxZipCodeLength)
 		assert.Equal(t, 100, config.MaxCityLength)
 		assert.Equal(t, 100, config.MaxStateLength)
@@ -671,22 +678,53 @@ func TestValidateAccountType(t *testing.T) {
 			wantErr:     false,
 		},
 		{
+			name:        "Valid expense type",
+			accountType: "expense",
+			wantErr:     false,
+		},
+		{
+			name:        "Valid revenue type",
+			accountType: "revenue",
+			wantErr:     false,
+		},
+		{
+			name:        "Valid equity type",
+			accountType: "equity",
+			wantErr:     false,
+		},
+		{
+			name:        "Valid liability type",
+			accountType: "liability",
+			wantErr:     false,
+		},
+		{
 			name:        "Empty account type",
 			accountType: "",
 			wantErr:     true,
 			errContains: "account type is required",
 		},
 		{
-			name:        "Invalid account type",
+			// ValidateAccountType is now strict-by-default and rejects any
+			// value that isn't on the allowlist. Custom or backend-extended
+			// types should be filed as feature requests rather than
+			// papered over with a soft validator.
+			name:        "Unknown custom account type is rejected",
 			accountType: "invalid_type",
 			wantErr:     true,
-			errContains: "invalid account type",
+			errContains: "must be one of",
 		},
 		{
-			name:        "Invalid account type - uppercase",
+			// The allowlist is case-sensitive; "DEPOSIT" is not "deposit".
+			name:        "Uppercase variant is rejected (case-sensitive allowlist)",
 			accountType: "DEPOSIT",
 			wantErr:     true,
-			errContains: "invalid account type",
+			errContains: "must be one of",
+		},
+		{
+			name:        "Reserved external account type",
+			accountType: "external",
+			wantErr:     true,
+			errContains: "must be one of",
 		},
 	}
 
@@ -925,20 +963,18 @@ func TestValidateMetadataWithNestedStructures(t *testing.T) {
 			errMsg:  "invalid metadata value type for key 'customer'",
 		},
 		{
-			name: "Invalid array",
+			name: "Valid array",
 			metadata: map[string]any{
 				"items": []any{"item1", "item2", "item3"},
 			},
-			wantErr: true,
-			errMsg:  "invalid metadata value type for key 'items'",
+			wantErr: false,
 		},
 		{
-			name: "Invalid array with mixed types",
+			name: "Valid array with mixed scalar types",
 			metadata: map[string]any{
 				"mixed": []any{"string", 123, 45.67, true, nil},
 			},
-			wantErr: true,
-			errMsg:  "invalid metadata value type for key 'mixed'",
+			wantErr: false,
 		},
 		{
 			name: "Invalid deeply nested map",
@@ -1094,13 +1130,21 @@ func TestValidateAccountAliasBoundaryValues(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "Exactly 50 characters",
+			// The alias upper bound is 50; 50 is allowed.
+			name:    "Exactly 50 characters (upper bound)",
 			alias:   "a2345678901234567890123456789012345678901234567890",
 			wantErr: false,
 		},
 		{
-			name:    "51 characters - exceeds limit",
-			alias:   "a23456789012345678901234567890123456789012345678901",
+			// 100 chars exercises a value that is well past the bound but
+			// might be accepted by a regression that re-widens the regex.
+			name:    "Exactly 100 characters - exceeds 50-char limit",
+			alias:   strings.Repeat("a", 100),
+			wantErr: true,
+		},
+		{
+			name:    "101 characters - exceeds limit",
+			alias:   strings.Repeat("a", 101),
 			wantErr: true,
 		},
 		{
@@ -1185,6 +1229,8 @@ func TestValidateDateRangeEdgeCases(t *testing.T) {
 
 func TestRegexPatterns(t *testing.T) {
 	t.Run("ExternalAccountPattern", func(t *testing.T) {
+		// External account asset codes are bounded to 3-4 uppercase letters
+		// (ISO-4217 plus a small allowance for stablecoin tickers like USDT).
 		validCases := []string{
 			"@external/USD",
 			"@external/EUR",
@@ -1197,7 +1243,8 @@ func TestRegexPatterns(t *testing.T) {
 
 		invalidCases := []string{
 			"@external/us",
-			"@external/USDOL",
+			"@external/USDOL", // 5 letters — outside {3,4}
+			"@external/U",     // 1 letter — outside {3,4}
 			"external/USD",
 			"@ext/USD",
 			"@external/123",
@@ -1214,8 +1261,12 @@ func TestRegexPatterns(t *testing.T) {
 			"SAVINGS",
 			"savings_account",
 			"savings-account",
+			"savings.account",
+			"@treasury_checking",
+			"customer:john.doe",
 			"savings123",
 			"a",
+			// Exactly 50 characters — the upper bound is inclusive.
 			"a2345678901234567890123456789012345678901234567890",
 		}
 		for _, tc := range validCases {
@@ -1226,8 +1277,10 @@ func TestRegexPatterns(t *testing.T) {
 			"",
 			"savings account",
 			"savings@account",
-			"savings.account",
-			"a23456789012345678901234567890123456789012345678901",
+			// 51 characters — one past the bound.
+			strings.Repeat("a", 51),
+			// 100 chars — far past the bound.
+			strings.Repeat("a", 100),
 		}
 		for _, tc := range invalidCases {
 			assert.False(t, core.AccountAliasPattern.MatchString(tc), "Expected %s to not match", tc)
@@ -1235,12 +1288,14 @@ func TestRegexPatterns(t *testing.T) {
 	})
 
 	t.Run("AssetCodePattern", func(t *testing.T) {
+		// Asset codes are bounded to 3-4 uppercase letters (ISO-4217 plus
+		// a small allowance for popular 4-letter stablecoin/utility tokens).
 		validCases := []string{
 			"USD",
 			"EUR",
 			"BTC",
-			"USDT",
 			"ETH",
+			"USDT",
 		}
 		for _, tc := range validCases {
 			assert.True(t, core.AssetCodePattern.MatchString(tc), "Expected %s to match", tc)
@@ -1249,8 +1304,8 @@ func TestRegexPatterns(t *testing.T) {
 		invalidCases := []string{
 			"",
 			"us",
-			"USDOL",
-			"US",
+			"US",    // 2 letters — outside {3,4}
+			"USDOL", // 5 letters — outside {3,4}
 			"USD1",
 			"123",
 		}

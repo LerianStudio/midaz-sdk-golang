@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -34,6 +35,165 @@ func TestTracingPropagation(t *testing.T) {
 	t.Run("TraceContextPersistenceAcrossRequests", func(t *testing.T) {
 		testTraceContextPersistenceAcrossRequests(t)
 	})
+}
+
+func TestProviderAwarePropagation(t *testing.T) {
+	t.Run("HTTPHeaderHelpersHonorRegisterGloballyFalse", func(t *testing.T) {
+		provider, err := New(context.Background(),
+			WithComponentEnabled(true, false, false),
+			WithFullTracingSampling(),
+			WithRegisterGlobally(false),
+		)
+		require.NoError(t, err)
+
+		defer func() { assert.NoError(t, provider.Shutdown(context.Background())) }()
+
+		tracer := provider.Tracer()
+
+		ctx, span := tracer.Start(WithProvider(context.Background(), provider), "incoming-request")
+		defer span.End()
+
+		headers := http.Header{}
+		InjectHTTPContext(ctx, headers)
+		require.NotEmpty(t, headers.Get("traceparent"))
+
+		extractedCtx := ExtractHTTPContext(WithProvider(context.Background(), provider), headers)
+
+		childCtx, childSpan := tracer.Start(extractedCtx, "sdk-child")
+		defer childSpan.End()
+
+		assert.Equal(t, trace.SpanContextFromContext(ctx).TraceID(), trace.SpanContextFromContext(childCtx).TraceID())
+	})
+
+	t.Run("BaggagePropagatesThroughHTTPHelpers", func(t *testing.T) {
+		provider, err := New(context.Background(),
+			WithComponentEnabled(true, false, false),
+			WithFullTracingSampling(),
+			WithRegisterGlobally(false),
+		)
+		require.NoError(t, err)
+
+		defer func() { assert.NoError(t, provider.Shutdown(context.Background())) }()
+
+		ctx := WithProvider(context.Background(), provider)
+		ctx, err = WithBaggageItem(ctx, "tenant", "acme")
+		require.NoError(t, err)
+
+		headers := http.Header{}
+		InjectHTTPContext(ctx, headers)
+		assert.Contains(t, headers.Get("baggage"), "tenant=acme")
+
+		extractedCtx := ExtractHTTPContext(WithProvider(context.Background(), provider), headers)
+		assert.Equal(t, "acme", GetBaggageItem(extractedCtx, "tenant"))
+	})
+
+	t.Run("TracingDisabledDoesNotInjectTraceparent", func(t *testing.T) {
+		provider, err := New(context.Background(), WithComponentEnabled(false, false, true))
+		require.NoError(t, err)
+
+		defer func() { assert.NoError(t, provider.Shutdown(context.Background())) }()
+
+		ctx := WithProvider(context.Background(), provider)
+		headers := http.Header{}
+		InjectHTTPContext(ctx, headers)
+
+		assert.Empty(t, headers.Get("traceparent"))
+	})
+
+	t.Run("CustomProviderPropagatorIsHonored", func(t *testing.T) {
+		provider, err := New(context.Background(),
+			WithComponentEnabled(true, false, false),
+			WithPropagators(customHeaderPropagator{}),
+			WithRegisterGlobally(false),
+		)
+		require.NoError(t, err)
+
+		defer func() { assert.NoError(t, provider.Shutdown(context.Background())) }()
+
+		headers := map[string]string{}
+		InjectContext(WithProvider(context.Background(), provider), headers)
+
+		assert.Equal(t, "custom", headers["x-custom-propagator"])
+	})
+
+	t.Run("CustomProviderPropagatorExtractionUsesPropagatorFields", func(t *testing.T) {
+		provider, err := New(context.Background(),
+			WithComponentEnabled(true, false, false),
+			WithPropagators(contextValuePropagator{}),
+			WithRegisterGlobally(false),
+		)
+		require.NoError(t, err)
+
+		defer func() { assert.NoError(t, provider.Shutdown(context.Background())) }()
+
+		extracted := ExtractContext(WithProvider(context.Background(), provider), map[string]string{"x-custom-propagator": "custom"})
+
+		assert.Equal(t, "custom", extracted.Value(customPropagationContextKey{}))
+	})
+
+	t.Run("NilProviderUsesGlobalPropagator", func(t *testing.T) {
+		previous := otel.GetTextMapPropagator()
+
+		otel.SetTextMapPropagator(contextValuePropagator{})
+		defer otel.SetTextMapPropagator(previous)
+
+		extracted := ExtractContext(context.Background(), map[string]string{"x-custom-propagator": "global"})
+
+		assert.Equal(t, "global", extracted.Value(customPropagationContextKey{}))
+	})
+
+	t.Run("PropagationHeadersFilterExtraction", func(t *testing.T) {
+		provider, err := New(context.Background(),
+			WithComponentEnabled(true, false, false),
+			WithPropagationHeaders("traceparent"),
+			WithRegisterGlobally(false),
+		)
+		require.NoError(t, err)
+
+		defer func() { assert.NoError(t, provider.Shutdown(context.Background())) }()
+
+		headers := http.Header{}
+		headers.Set("baggage", "tenant=blocked")
+		ctx := ExtractHTTPContext(WithProvider(context.Background(), provider), headers)
+
+		assert.Empty(t, GetBaggageItem(ctx, "tenant"))
+	})
+}
+
+type customHeaderPropagator struct{}
+
+func (customHeaderPropagator) Inject(_ context.Context, carrier propagation.TextMapCarrier) {
+	carrier.Set("x-custom-propagator", "custom")
+}
+
+func (customHeaderPropagator) Extract(ctx context.Context, _ propagation.TextMapCarrier) context.Context {
+	return ctx
+}
+
+func (customHeaderPropagator) Fields() []string {
+	return []string{"x-custom-propagator"}
+}
+
+type customPropagationContextKey struct{}
+
+type contextValuePropagator struct{}
+
+func (contextValuePropagator) Inject(ctx context.Context, carrier propagation.TextMapCarrier) {
+	if value, ok := ctx.Value(customPropagationContextKey{}).(string); ok {
+		carrier.Set("x-custom-propagator", value)
+	}
+}
+
+func (contextValuePropagator) Extract(ctx context.Context, carrier propagation.TextMapCarrier) context.Context {
+	if value := carrier.Get("x-custom-propagator"); value != "" {
+		return context.WithValue(ctx, customPropagationContextKey{}, value)
+	}
+
+	return ctx
+}
+
+func (contextValuePropagator) Fields() []string {
+	return []string{"x-custom-propagator"}
 }
 
 // testInjectAndExtractTraceContext tests basic inject/extract functionality

@@ -5,10 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	stderrors "errors"
-	"fmt"
 	"net/http"
 	"os"
-	"strings"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
@@ -18,30 +16,24 @@ import (
 // It provides methods to list, retrieve, and update operations
 // associated with accounts and transactions.
 type OperationsService interface {
-	// ListOperations retrieves a paginated list of operations for a specific account.
+	// ListOperations retrieves a cursor-paginated list of operations for a specific account.
 	//
 	// Operations represent the individual accounting entries (debits and credits) that make up
 	// transactions in the ledger. This method allows you to retrieve all operations for a
-	// specific account, with optional filtering and pagination controls.
+	// specific account, with optional filtering and cursor pagination controls.
 	//
 	// Parameters:
 	//   - ctx: Context for the request, which can be used for cancellation and timeout.
 	//   - orgID: The ID of the organization that owns the ledger. Must be a valid organization ID.
 	//   - ledgerID: The ID of the ledger containing the account. Must be a valid ledger ID.
 	//   - accountID: The ID of the account to retrieve operations for. Must be a valid account ID.
-	//   - opts: Optional pagination and filtering options:
-	//     - Page: The page number to retrieve (1-based indexing)
-	//     - Limit: The maximum number of items per page
-	//     - Filter: Criteria to filter operations by (e.g., by transaction ID or asset code)
-	//     - Sort: Sorting options for the results
-	//     If nil, default pagination settings will be used.
+	//   - opts: Optional cursor pagination and filtering options. ListOptions.Cursor and
+	//     ListOptions.Limit are serialized by cursorListQueryParams; Page and Offset are
+	//     ignored for this cursor-only endpoint and are not sent on the wire.
 	//
 	// Returns:
-	//   - *models.ListResponse[models.Operation]: A paginated list of operations, including:
-	//     - Items: The array of operation objects for the current page
-	//     - Page: The current page number
-	//     - Limit: The maximum number of items per page
-	//     - Total: The total number of operations matching the filter criteria
+	//   - *models.ListResponse[models.Operation]: A cursor-paginated list of operations.
+	//     Use response pagination cursor fields, not Total/TotalPages, for traversal.
 	//   - error: An error if the operation fails. Possible errors include:
 	//     - Authentication failure (invalid auth token)
 	//     - Authorization failure (insufficient permissions)
@@ -50,13 +42,13 @@ type OperationsService interface {
 	//
 	// Example - Basic usage:
 	//
-	//	// List operations with default pagination
+	//	// List operations with default cursor pagination
 	//	operations, err := operationsService.ListOperations(
 	//	    context.Background(),
 	//	    "org-123",
 	//	    "ledger-456",
 	//	    "account-789",
-	//	    nil, // Use default pagination
+	//	    nil, // Use default cursor pagination
 	//	)
 	//
 	//	if err != nil {
@@ -65,8 +57,8 @@ type OperationsService interface {
 
 	//
 	//	// Process the operations
-	//	fmt.Printf("Retrieved %d operations (page %d of %d)\n",
-	//	    len(operations.Items), operations.Page, operations.TotalPages)
+	//	fmt.Printf("Retrieved %d operations; next cursor: %s\n",
+	//	    len(operations.Items), operations.Pagination.NextCursor)
 	//
 	//	for _, op := range operations.Items {
 	//	    fmt.Printf("Operation: %s, Type: %s, Amount: %d %s\n",
@@ -76,15 +68,15 @@ type OperationsService interface {
 	//
 	// Example - With pagination and filtering:
 	//
-	//	// Create pagination options with filtering
+	//	// Create cursor pagination options with filtering
 	//	opts := &models.ListOptions{
-	//	    Page: 1,
 	//	    Limit: 10,
-	//	    Filter: map[string]any{
+	//	    Cursor: "next-cursor-from-previous-response",
+	//	    Filters: map[string]string{
 	//	        "type": "debit", // Only show debit operations
 	//	        "assetCode": "USD", // Only show USD operations
 	//	    },
-	//	    Sort: []string{"createdAt:desc"}, // Sort by creation time (newest first)
+	//	    OrderDirection: "desc",
 	//	}
 
 	//
@@ -237,12 +229,12 @@ func NewOperationsEntity(client *http.Client, authToken string, baseURLs map[str
 
 	// Check if we're using the debug flag from the environment
 	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
-		httpClient.debug = true
+		httpClient.setDebugLocked(true)
 	}
 
 	return &operationsEntity{
 		httpClient: httpClient,
-		baseURLs:   baseURLs,
+		baseURLs:   prepareServiceBaseURLs(baseURLs),
 	}
 }
 
@@ -264,7 +256,7 @@ func (e *operationsEntity) ListOperations(ctx context.Context, orgID, ledgerID, 
 
 	url := e.buildURL(orgID, ledgerID, accountID, "")
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -273,7 +265,7 @@ func (e *operationsEntity) ListOperations(ctx context.Context, orgID, ledgerID, 
 	if opts != nil {
 		q := req.URL.Query()
 
-		for key, value := range opts.ToQueryParams() {
+		for key, value := range cursorListQueryParams(opts) {
 			q.Add(key, value)
 		}
 
@@ -285,6 +277,8 @@ func (e *operationsEntity) ListOperations(ctx context.Context, orgID, ledgerID, 
 		// HTTPClient.DoRequest already returns proper error types
 		return nil, err
 	}
+
+	normalizeOperationListResponse(&response)
 
 	return &response, nil
 }
@@ -370,7 +364,7 @@ func (e *operationsEntity) GetOperation(ctx context.Context, orgID, ledgerID, ac
 	// Always use the account-based endpoint for GET operations
 	url := e.buildURL(orgID, ledgerID, accountID, operationID)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -381,14 +375,28 @@ func (e *operationsEntity) GetOperation(ctx context.Context, orgID, ledgerID, ac
 		return nil, err
 	}
 
+	normalizeOperation(&operationModel)
+
 	return &operationModel, nil
 }
 
-// UpdateOperation rejects the former account-scoped update path so callers do not
-// silently route an accountID into Midaz's transaction-scoped endpoint.
-// Deprecated: use UpdateTransactionOperation with a transactionID.
+// UpdateOperation is the deprecated account-scoped update method. It fails
+// LOUDLY without performing any network call.
+//
+// The previous behavior — silently issuing a GET to discover transactionID
+// and then re-routing the PATCH to the transaction-scoped endpoint —
+// hid a contract change behind two RPCs and made consumers believe the
+// account-scoped path still worked. We now refuse the call up front so
+// the deprecation surface is immediate and unambiguous.
+//
+// Deprecated: use UpdateTransactionOperation(ctx, orgID, ledgerID,
+// transactionID, operationID, input).
 func (*operationsEntity) UpdateOperation(_ context.Context, _, _, _, _ string, _ any) (*models.Operation, error) {
-	return nil, errors.NewValidationError("UpdateOperation", "operation updates are transaction-scoped", stderrors.New("use UpdateTransactionOperation(ctx, orgID, ledgerID, transactionID, operationID, input)"))
+	return nil, errors.NewValidationError(
+		"UpdateOperation",
+		"the account-scoped operation update path has been removed",
+		stderrors.New("use UpdateTransactionOperation(ctx, orgID, ledgerID, transactionID, operationID, input) — the SDK no longer auto-resolves transactionID via a hidden GET"),
+	)
 }
 
 // UpdateTransactionOperation updates an operation.
@@ -411,18 +419,18 @@ func (e *operationsEntity) UpdateTransactionOperation(ctx context.Context, orgID
 		return nil, errors.NewMissingParameterError(operation, "operationID")
 	}
 
-	if input == nil {
-		return nil, errors.NewMissingParameterError(operation, "input")
+	if err := validateUpdatePayload(operation, input, "*models.UpdateOperationInput"); err != nil {
+		return nil, err
 	}
 
-	url := fmt.Sprintf("%s/organizations/%s/ledgers/%s/transactions/%s/operations/%s", e.baseURLs["transaction"], pathSegment(orgID), pathSegment(ledgerID), pathSegment(transactionID), pathSegment(operationID))
+	url := buildLedgerScopedURL(e.baseURLs["transaction"], orgID, ledgerID, "transactions", transactionID, "operations", operationID)
 
 	body, err := json.Marshal(input)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, bytes.NewBuffer(body))
+	req, err := newRequestWithContext(ctx, http.MethodPatch, url, bytes.NewBuffer(body))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -430,22 +438,42 @@ func (e *operationsEntity) UpdateTransactionOperation(ctx context.Context, orgID
 	var operationModel models.Operation
 	if err := e.httpClient.sendRequest(req, &operationModel); err != nil {
 		// HTTPClient.DoRequest already returns proper error types
+		e.httpClient.emitBusinessError(ctx, businessEventOperationUpdated, map[string]any{"operation": operation, "organizationId": orgID, "ledgerId": ledgerID, "transactionId": transactionID, "operationId": operationID}, err)
+
 		return nil, err
 	}
+
+	normalizeOperation(&operationModel)
+	e.httpClient.emitBusinessEvent(ctx, businessEventOperationUpdated, map[string]any{"operation": operation, "organizationId": orgID, "ledgerId": ledgerID, "transactionId": transactionID, "operationId": operationModel.ID, "status": operationModel.Status.Code})
 
 	return &operationModel, nil
 }
 
 // buildURL builds the URL for operations API calls using the account-based endpoint.
 func (e *operationsEntity) buildURL(orgID, ledgerID, accountID, operationID string) string {
-	base := e.baseURLs["transaction"]
-
-	// Ensure the base URL doesn't end with a trailing slash
-	base = strings.TrimSuffix(base, "/")
-
 	if operationID == "" {
-		return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/%s/operations", base, pathSegment(orgID), pathSegment(ledgerID), pathSegment(accountID))
+		return buildLedgerScopedURL(e.baseURLs["transaction"], orgID, ledgerID, "accounts", accountID, "operations")
 	}
 
-	return fmt.Sprintf("%s/organizations/%s/ledgers/%s/accounts/%s/operations/%s", base, pathSegment(orgID), pathSegment(ledgerID), pathSegment(accountID), pathSegment(operationID))
+	return buildLedgerScopedURL(e.baseURLs["transaction"], orgID, ledgerID, "accounts", accountID, "operations", operationID)
+}
+
+func normalizeOperationListResponse(response *models.ListResponse[models.Operation]) {
+	if response.Items == nil {
+		response.Items = []models.Operation{}
+	}
+
+	for i := range response.Items {
+		normalizeOperation(&response.Items[i])
+	}
+}
+
+// normalizeOperation reserves a place for any future server-shape
+// normalization that the SDK should apply to operations on the way out.
+//
+// Historically this helper rewrote a server-returned nil Metadata into an
+// empty map. We stopped doing that — the wire shape is the wire shape, and
+// callers who want a guaranteed-non-nil view should use the
+// (*Operation).MetadataOrEmpty accessor.
+func normalizeOperation(_ *models.Operation) {
 }

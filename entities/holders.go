@@ -37,20 +37,22 @@ func (e *holdersEntity) setDefaultTenantID(tenantID string) {
 func NewHoldersEntity(client *http.Client, authToken string, baseURLs map[string]string) HoldersService {
 	httpClient := NewHTTPClient(client, authToken, nil)
 	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
-		httpClient.debug = true
+		httpClient.setDebugLocked(true)
 	}
 
-	return &holdersEntity{httpClient: httpClient, baseURLs: baseURLs}
+	return &holdersEntity{httpClient: httpClient, baseURLs: prepareServiceBaseURLs(baseURLs)}
 }
 
 // ListHolders retrieves holders for an organization.
 func (e *holdersEntity) ListHolders(ctx context.Context, organizationID string, opts *models.ListOptions) (*models.ListResponse[models.Holder], error) {
 	const operation = "ListHolders"
-	if organizationID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+
+	organizationID, err := validateCRMOrganizationID(operation, organizationID)
+	if err != nil {
+		return nil, err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, e.buildURL(""), nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, e.buildURL(""), nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -75,8 +77,10 @@ func (e *holdersEntity) ListHolders(ctx context.Context, organizationID string, 
 // CreateHolder creates a holder.
 func (e *holdersEntity) CreateHolder(ctx context.Context, organizationID string, input *models.CreateHolderInput) (*models.Holder, error) {
 	const operation = "CreateHolder"
-	if organizationID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+
+	organizationID, err := validateCRMOrganizationID(operation, organizationID)
+	if err != nil {
+		return nil, err
 	}
 
 	if input == nil {
@@ -98,12 +102,15 @@ func (e *holdersEntity) CreateHolder(ctx context.Context, organizationID string,
 // GetHolder retrieves a holder by ID.
 func (e *holdersEntity) GetHolder(ctx context.Context, organizationID, holderID string, includeDeleted bool) (*models.Holder, error) {
 	const operation = "GetHolder"
-	if organizationID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+
+	organizationID, err := validateCRMOrganizationID(operation, organizationID)
+	if err != nil {
+		return nil, err
 	}
 
-	if holderID == "" {
-		return nil, errors.NewMissingParameterError(operation, "holderID")
+	holderID, err = validateCRMUUIDParam(operation, "holderID", holderID)
+	if err != nil {
+		return nil, err
 	}
 
 	endpoint := e.buildURL(holderID)
@@ -122,12 +129,15 @@ func (e *holdersEntity) GetHolder(ctx context.Context, organizationID, holderID 
 // UpdateHolder updates a holder by ID.
 func (e *holdersEntity) UpdateHolder(ctx context.Context, organizationID, holderID string, input *models.UpdateHolderInput) (*models.Holder, error) {
 	const operation = "UpdateHolder"
-	if organizationID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
+
+	organizationID, err := validateCRMOrganizationID(operation, organizationID)
+	if err != nil {
+		return nil, err
 	}
 
-	if holderID == "" {
-		return nil, errors.NewMissingParameterError(operation, "holderID")
+	holderID, err = validateCRMUUIDParam(operation, "holderID", holderID)
+	if err != nil {
+		return nil, err
 	}
 
 	if input == nil {
@@ -151,12 +161,15 @@ func (e *holdersEntity) UpdateHolder(ctx context.Context, organizationID, holder
 // DeleteHolder deletes a holder by ID.
 func (e *holdersEntity) DeleteHolder(ctx context.Context, organizationID, holderID string, hardDelete bool) error {
 	const operation = "DeleteHolder"
-	if organizationID == "" {
-		return errors.NewMissingParameterError(operation, "organizationID")
+
+	organizationID, err := validateCRMOrganizationID(operation, organizationID)
+	if err != nil {
+		return err
 	}
 
-	if holderID == "" {
-		return errors.NewMissingParameterError(operation, "holderID")
+	holderID, err = validateCRMUUIDParam(operation, "holderID", holderID)
+	if err != nil {
+		return err
 	}
 
 	endpoint := e.buildURL(holderID)

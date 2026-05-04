@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
+	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 )
 
 // ModelAdapter provides adapter functions to convert between SDK models and pagination utilities
@@ -33,6 +35,10 @@ func WithAdapterDefaultLimit(limit int) ModelAdapterOption {
 			return fmt.Errorf("default limit must be positive, got %d", limit)
 		}
 
+		if limit > MaxPaginationLimit {
+			return fmt.Errorf("default limit must not exceed %d, got %d", MaxPaginationLimit, limit)
+		}
+
 		a.defaultLimit = limit
 
 		return nil
@@ -59,10 +65,23 @@ func WithDefaultFilters(filters map[string]string) ModelAdapterOption {
 			return errors.New("default filters map cannot be nil")
 		}
 
-		a.defaultFilters = filters
+		a.defaultFilters = copyStringMap(filters)
 
 		return nil
 	}
+}
+
+func copyStringMap(values map[string]string) map[string]string {
+	if values == nil {
+		return nil
+	}
+
+	clone := make(map[string]string, len(values))
+	for key, value := range values {
+		clone[key] = value
+	}
+
+	return clone
 }
 
 // NewModelAdapter creates a new model adapter with the provided options
@@ -70,6 +89,10 @@ func NewModelAdapter(options ...ModelAdapterOption) (*ModelAdapter, error) {
 	adapter := DefaultModelAdapter()
 
 	for _, option := range options {
+		if option == nil {
+			return nil, errors.New("model adapter option cannot be nil")
+		}
+
 		if err := option(adapter); err != nil {
 			return nil, fmt.Errorf("failed to apply adapter option: %w", err)
 		}
@@ -80,6 +103,21 @@ func NewModelAdapter(options ...ModelAdapterOption) (*ModelAdapter, error) {
 
 // OptionsToPageOptions converts SDK ListOptions to PageOptions
 func (a *ModelAdapter) OptionsToPageOptions(opts any) PageOptions {
+	if a == nil {
+		a = DefaultModelAdapter()
+	}
+
+	if listOpts, ok := opts.(*models.ListOptions); ok && listOpts != nil {
+		return PageOptions{
+			Limit:            normalizeLimit(listOpts.Limit, a.defaultLimit),
+			Offset:           listOpts.Offset,
+			Page:             listOpts.Page,
+			Cursor:           listOpts.Cursor,
+			Filters:          copyStringMap(listOpts.Filters),
+			AdditionalParams: copyStringMap(listOpts.AdditionalParams),
+		}
+	}
+
 	// This is just a type assertion example; adjust based on actual SDK types
 	if listOpts, ok := opts.(interface {
 		GetLimit() int
@@ -88,10 +126,10 @@ func (a *ModelAdapter) OptionsToPageOptions(opts any) PageOptions {
 		GetFilters() map[string]string
 	}); ok {
 		return PageOptions{
-			Limit:   listOpts.GetLimit(),
+			Limit:   normalizeLimit(listOpts.GetLimit(), a.defaultLimit),
 			Offset:  listOpts.GetOffset(),
 			Cursor:  listOpts.GetCursor(),
-			Filters: listOpts.GetFilters(),
+			Filters: copyStringMap(listOpts.GetFilters()),
 		}
 	}
 
@@ -99,13 +137,79 @@ func (a *ModelAdapter) OptionsToPageOptions(opts any) PageOptions {
 	return PageOptions{
 		Limit:   a.defaultLimit,
 		Offset:  a.defaultOffset,
-		Filters: a.defaultFilters,
+		Filters: copyStringMap(a.defaultFilters),
 	}
+}
+
+func normalizeLimit(limit, defaultLimit int) int {
+	if limit <= 0 {
+		if defaultLimit <= 0 {
+			return models.DefaultLimit
+		}
+
+		return defaultLimit
+	}
+
+	if limit > MaxPaginationLimit {
+		return MaxPaginationLimit
+	}
+
+	return limit
+}
+
+//nolint:wsl_v5
+func (a *ModelAdapter) applyPageOptions(initialOptions any, pageOptions PageOptions) any {
+	if listOptions, ok := initialOptions.(*models.ListOptions); ok {
+		updated := listOptions.Clone()
+		updated.WithLimit(normalizeLimit(pageOptions.Limit, a.defaultLimit))
+		updated.Offset = pageOptions.Offset
+		updated.Page = pageOptions.Page
+		updated.Cursor = pageOptions.Cursor
+		if pageOptions.Filters != nil {
+			updated.Filters = copyStringMap(pageOptions.Filters)
+		}
+		if pageOptions.AdditionalParams != nil {
+			updated.AdditionalParams = copyStringMap(pageOptions.AdditionalParams)
+		}
+
+		return updated
+	}
+
+	return initialOptions
 }
 
 // PageResultFromResponse converts a ListResponse to PageResult
 // The T and R type parameters represent the target item type and response item type respectively
 func PageResultFromResponse[T any, R any](_ *ModelAdapter, response any, itemsExtractor func(R) T) *PageResult[T] {
+	result, err := PageResultFromResponseE[T, R](nil, response, itemsExtractor)
+	if err != nil {
+		return &PageResult[T]{Items: []T{}, HasMore: false}
+	}
+
+	return result
+}
+
+// PageResultFromResponseE converts a ListResponse to PageResult and reports unsafe conversions.
+func PageResultFromResponseE[T any, R any](_ *ModelAdapter, response any, itemsExtractor func(R) T) (*PageResult[T], error) {
+	if itemsExtractor == nil {
+		return nil, errors.New("items extractor cannot be nil")
+	}
+
+	if listResp, ok := response.(*models.ListResponse[R]); ok && listResp != nil {
+		extractedItems := make([]T, 0, len(listResp.Items))
+		for _, item := range listResp.Items {
+			extractedItems = append(extractedItems, itemsExtractor(item))
+		}
+
+		return &PageResult[T]{
+			Items:      extractedItems,
+			NextCursor: listResp.Pagination.NextCursor,
+			PrevCursor: listResp.Pagination.PrevCursor,
+			Total:      listResp.Pagination.Total,
+			HasMore:    listResp.Pagination.HasNextPage(),
+		}, nil
+	}
+
 	// This is just a type assertion example; adjust based on actual SDK types
 	if listResp, ok := response.(interface {
 		GetItems() []R
@@ -124,20 +228,24 @@ func PageResultFromResponse[T any, R any](_ *ModelAdapter, response any, itemsEx
 			extractedItems = append(extractedItems, itemsExtractor(item))
 		}
 
+		if pagination == nil {
+			return &PageResult[T]{Items: extractedItems, HasMore: false}, nil
+		}
+
 		return &PageResult[T]{
 			Items:      extractedItems,
 			NextCursor: pagination.GetNextCursor(),
 			PrevCursor: pagination.GetPrevCursor(),
 			Total:      pagination.GetTotal(),
 			HasMore:    pagination.HasMorePages(),
-		}
+		}, nil
 	}
 
 	// Return empty result if conversion fails
 	return &PageResult[T]{
 		Items:   []T{},
 		HasMore: false,
-	}
+	}, nil
 }
 
 // EntityPaginatorOption defines a function that configures a EntityPaginatorOptions object
@@ -238,9 +346,21 @@ func CreateEntityPaginator[T any, R any](
 
 	// Apply all provided options
 	for _, option := range options {
+		if option == nil {
+			return nil, errors.New("entity paginator option cannot be nil")
+		}
+
 		if err := option(opts); err != nil {
 			return nil, fmt.Errorf("failed to apply entity paginator option: %w", err)
 		}
+	}
+
+	if listFn == nil {
+		return nil, errors.New("list function cannot be nil")
+	}
+
+	if itemsExtractor == nil {
+		return nil, errors.New("items extractor cannot be nil")
 	}
 
 	// Create adapter with options
@@ -260,9 +380,8 @@ func CreateEntityPaginator[T any, R any](
 	}, opts.PaginatorOptions...)
 
 	// Create a fetcher function that adapts the SDK list function
-	fetcher := func(ctx context.Context, _ PageOptions) (*PageResult[T], error) {
-		// Convert options back to SDK format (this would depend on the actual SDK)
-		sdkOptions := opts.InitialOptions // A shallow copy would be made here
+	fetcher := func(ctx context.Context, pageOptions PageOptions) (*PageResult[T], error) {
+		sdkOptions := adapter.applyPageOptions(opts.InitialOptions, pageOptions)
 
 		// Call the list function
 		response, err := listFn(ctx, sdkOptions)
@@ -271,7 +390,7 @@ func CreateEntityPaginator[T any, R any](
 		}
 
 		// Convert the response
-		return PageResultFromResponse[T, R](adapter, response, itemsExtractor), nil
+		return PageResultFromResponseE[T, R](adapter, response, itemsExtractor)
 	}
 
 	// Create and return the paginator

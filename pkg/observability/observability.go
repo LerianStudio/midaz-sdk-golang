@@ -7,6 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/version"
@@ -17,6 +20,7 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/metric"
+	metricnoop "go.opentelemetry.io/otel/metric/noop"
 	"go.opentelemetry.io/otel/propagation"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	sdkresource "go.opentelemetry.io/otel/sdk/resource"
@@ -39,12 +43,17 @@ const (
 	KeyLedgerID       = "midaz.ledger_id"
 	KeyAccountID      = "midaz.account_id"
 
-	// HTTP request attributes
-	KeyHTTPMethod   = "http.method"
-	KeyHTTPPath     = "http.path"
-	KeyHTTPStatus   = "http.status_code"
-	KeyHTTPHost     = "http.host"
-	KeyErrorCode    = "error.code"
+	// HTTP semantic convention attributes
+	KeyHTTPRequestMethod      = "http.request.method"
+	KeyHTTPResponseStatusCode = "http.response.status_code"
+	KeyURLFull                = "url.full"
+	KeyURLPath                = "url.path"
+	KeyURLScheme              = "url.scheme"
+	KeyServerAddress          = "server.address"
+	KeyServerPort             = "server.port"
+	KeyNetworkProtocolVersion = "network.protocol.version"
+	KeyErrorType              = "error.type"
+
 	KeyErrorMessage = "error.message"
 
 	// Metric names
@@ -74,6 +83,10 @@ type Provider interface {
 
 	// IsEnabled returns true if observability is enabled
 	IsEnabled() bool
+}
+
+type propagatorProvider interface {
+	TextMapPropagator() propagation.TextMapPropagator
 }
 
 // Config holds the configuration for the observability provider
@@ -112,7 +125,8 @@ type Config struct {
 	Propagators []propagation.TextMapPropagator
 
 	// Headers to extract for trace context propagation
-	PropagationHeaders []string
+	PropagationHeaders         []string
+	propagationHeadersExplicit bool
 
 	// RegisterGlobally controls whether to register providers as global OpenTelemetry providers.
 	// When true (default), providers are registered globally via otel.Set*Provider calls.
@@ -262,7 +276,7 @@ func WithPropagators(propagators ...propagation.TextMapPropagator) Option {
 			return errors.New("at least one propagator must be provided")
 		}
 
-		c.Propagators = propagators
+		c.Propagators = append([]propagation.TextMapPropagator(nil), propagators...)
 
 		return nil
 	}
@@ -275,7 +289,8 @@ func WithPropagationHeaders(headers ...string) Option {
 			return errors.New("at least one propagation header must be provided")
 		}
 
-		c.PropagationHeaders = headers
+		c.PropagationHeaders = append([]string(nil), headers...)
+		c.propagationHeadersExplicit = true
 
 		return nil
 	}
@@ -367,6 +382,7 @@ func DefaultConfig() *Config {
 // MidazProvider is the main implementation of the Provider interface
 // It provides access to OpenTelemetry tracing, metrics, and logging
 type MidazProvider struct {
+	lifecycleMu       sync.RWMutex
 	config            *Config
 	tracerProvider    *sdktrace.TracerProvider
 	meterProvider     *sdkmetric.MeterProvider
@@ -375,6 +391,16 @@ type MidazProvider struct {
 	meter             metric.Meter
 	enabled           bool
 	shutdownFunctions []func(context.Context) error
+
+	// propagationHeadersOnce + propagationHeadersAllow cache the lowercased
+	// allow-set used by filterPropagationHeaders / filterPropagationMap.
+	// Building the set on every header filter call (which is itself on the
+	// hot path of every outbound request) walked PropagationHeaders +
+	// strings.ToLower for each header on each call. Caching once per
+	// provider lifetime is correct because PropagationHeaders is set at
+	// construction and the propagator's own Fields() are stable too.
+	propagationHeadersOnce  sync.Once
+	propagationHeadersAllow map[string]struct{}
 }
 
 // New creates a new observability provider with the given options
@@ -384,6 +410,10 @@ func New(ctx context.Context, opts ...Option) (Provider, error) {
 
 	// Apply all options
 	for _, opt := range opts {
+		if opt == nil {
+			return nil, errors.New("observability option cannot be nil")
+		}
+
 		if err := opt(config); err != nil {
 			return nil, fmt.Errorf("failed to apply option: %w", err)
 		}
@@ -611,7 +641,7 @@ func (p *MidazProvider) initLogging(res *sdkresource.Resource) error {
 // setupPropagation configures context propagation for distributed tracing
 func (p *MidazProvider) setupPropagation() {
 	// Only set global propagator if RegisterGlobally is true
-	if !p.config.RegisterGlobally {
+	if p == nil || p.config == nil || !p.config.RegisterGlobally || !p.config.EnabledComponents.Tracing {
 		return
 	}
 
@@ -631,7 +661,7 @@ func (p *MidazProvider) setupPropagation() {
 
 // Tracer returns a tracer for creating spans
 func (p *MidazProvider) Tracer() trace.Tracer {
-	if !p.enabled || !p.config.EnabledComponents.Tracing {
+	if p == nil || p.config == nil || !p.isEnabled() || !p.config.EnabledComponents.Tracing || p.tracer == nil {
 		// Return a no-op tracer if tracing is disabled
 		return noop.NewTracerProvider().Tracer("")
 	}
@@ -641,9 +671,8 @@ func (p *MidazProvider) Tracer() trace.Tracer {
 
 // Meter returns a meter for creating metrics
 func (p *MidazProvider) Meter() metric.Meter {
-	if !p.enabled || !p.config.EnabledComponents.Metrics || p.meter == nil {
-		// Return the default global meter if metrics are disabled
-		return otel.GetMeterProvider().Meter("")
+	if p == nil || p.config == nil || !p.isEnabled() || !p.config.EnabledComponents.Metrics || p.meter == nil {
+		return metricnoop.NewMeterProvider().Meter("")
 	}
 
 	return p.meter
@@ -651,7 +680,7 @@ func (p *MidazProvider) Meter() metric.Meter {
 
 // Logger returns a logger
 func (p *MidazProvider) Logger() Logger {
-	if !p.enabled || !p.config.EnabledComponents.Logging {
+	if p == nil || p.config == nil || !p.isEnabled() || !p.config.EnabledComponents.Logging || p.logger == nil {
 		// Return a no-op logger if logging is disabled
 		return NewNoopLogger()
 	}
@@ -661,16 +690,24 @@ func (p *MidazProvider) Logger() Logger {
 
 // Shutdown gracefully shuts down the provider and all its components
 func (p *MidazProvider) Shutdown(ctx context.Context) error {
+	if p == nil {
+		return nil
+	}
+
+	p.lifecycleMu.Lock()
 	if !p.enabled {
+		p.lifecycleMu.Unlock()
 		return nil
 	}
 
 	p.enabled = false
+	shutdownFunctions := append([]func(context.Context) error(nil), p.shutdownFunctions...)
+	p.lifecycleMu.Unlock()
 
 	// Call all shutdown functions
 	var shutdownErrs []error
 
-	for _, shutdownFn := range p.shutdownFunctions {
+	for _, shutdownFn := range shutdownFunctions {
 		if err := shutdownFn(ctx); err != nil {
 			shutdownErrs = append(shutdownErrs, err)
 		}
@@ -685,12 +722,45 @@ func (p *MidazProvider) Shutdown(ctx context.Context) error {
 
 // IsEnabled returns true if observability is enabled
 func (p *MidazProvider) IsEnabled() bool {
+	return p.isEnabled()
+}
+
+// TextMapPropagator returns the provider-specific propagator without requiring
+// this method on the public Provider interface.
+func (p *MidazProvider) TextMapPropagator() propagation.TextMapPropagator {
+	if p == nil || p.config == nil || !p.isEnabled() || !p.config.EnabledComponents.Tracing {
+		return propagation.NewCompositeTextMapPropagator()
+	}
+
+	if len(p.config.Propagators) > 0 {
+		return propagation.NewCompositeTextMapPropagator(p.config.Propagators...)
+	}
+
+	return defaultTextMapPropagator()
+}
+
+func (p *MidazProvider) isEnabled() bool {
+	if p == nil {
+		return false
+	}
+
+	p.lifecycleMu.RLock()
+	defer p.lifecycleMu.RUnlock()
+
 	return p.enabled
 }
 
 // WithSpan creates a new span and executes the function within the context of that span.
 // It automatically ends the span when the function returns.
 func WithSpan(ctx context.Context, provider Provider, name string, fn func(context.Context) error, opts ...trace.SpanStartOption) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	if fn == nil {
+		return nil
+	}
+
 	// If provider is nil or observability is disabled, just run the function
 	if provider == nil || !provider.IsEnabled() {
 		return fn(ctx)
@@ -703,8 +773,9 @@ func WithSpan(ctx context.Context, provider Provider, name string, fn func(conte
 	// Run the function and handle errors
 	err := fn(ctx)
 	if err != nil {
-		span.SetStatus(codes.Error, err.Error())
-		span.RecordError(err)
+		sanitizedErr := sanitizeSensitiveString(err.Error())
+		span.SetStatus(codes.Error, sanitizedErr)
+		span.RecordError(errors.New(sanitizedErr))
 	} else {
 		span.SetStatus(codes.Ok, "Success")
 	}
@@ -719,13 +790,26 @@ func RecordMetric(ctx context.Context, provider Provider, name string, value flo
 		return
 	}
 
-	counter, err := provider.Meter().Float64Counter(name)
-	if err != nil {
-		provider.Logger().Errorf("Failed to create counter for metric %s: %v", name, err)
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	meter := provider.Meter()
+	if meter == nil {
 		return
 	}
 
-	counter.Add(ctx, value, metric.WithAttributes(attrs...))
+	counter, err := meter.Float64Counter(name)
+	if err != nil {
+		logger := provider.Logger()
+		if logger != nil {
+			logger.Errorf("Failed to create counter for metric %s: %v", name, err)
+		}
+
+		return
+	}
+
+	counter.Add(ctx, value, metric.WithAttributes(filterMetricAttributes(attrs)...))
 }
 
 // RecordDuration records a duration metric using the provided meter
@@ -735,23 +819,187 @@ func RecordDuration(ctx context.Context, provider Provider, name string, start t
 		return
 	}
 
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	duration := time.Since(start).Milliseconds()
 
-	histogram, err := provider.Meter().Int64Histogram(name)
-	if err != nil {
-		provider.Logger().Errorf("Failed to create histogram for metric %s: %v", name, err)
+	meter := provider.Meter()
+	if meter == nil {
 		return
 	}
 
-	histogram.Record(ctx, duration, metric.WithAttributes(attrs...))
+	histogram, err := meter.Int64Histogram(name)
+	if err != nil {
+		logger := provider.Logger()
+		if logger != nil {
+			logger.Errorf("Failed to create histogram for metric %s: %v", name, err)
+		}
+
+		return
+	}
+
+	histogram.Record(ctx, duration, metric.WithAttributes(filterMetricAttributes(attrs)...))
 }
 
 // ExtractContext extracts context from HTTP headers for distributed tracing
 func ExtractContext(ctx context.Context, headers map[string]string) context.Context {
-	return otel.GetTextMapPropagator().Extract(ctx, propagation.MapCarrier(headers))
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	if headers == nil {
+		return ctx
+	}
+
+	return textMapPropagatorForContext(ctx).Extract(ctx, propagation.MapCarrier(filterPropagationMap(ctx, headers)))
 }
 
 // InjectContext injects context into HTTP headers for distributed tracing
 func InjectContext(ctx context.Context, headers map[string]string) {
-	otel.GetTextMapPropagator().Inject(ctx, propagation.MapCarrier(headers))
+	if ctx == nil || headers == nil {
+		return
+	}
+
+	textMapPropagatorForContext(ctx).Inject(ctx, propagation.MapCarrier(headers))
+}
+
+// ExtractHTTPContext extracts distributed tracing context from HTTP headers.
+func ExtractHTTPContext(ctx context.Context, headers http.Header) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	if headers == nil {
+		return ctx
+	}
+
+	return textMapPropagatorForContext(ctx).Extract(ctx, propagation.HeaderCarrier(filterPropagationHeaders(ctx, headers)))
+}
+
+// InjectHTTPContext injects distributed tracing context into HTTP headers.
+func InjectHTTPContext(ctx context.Context, headers http.Header) {
+	if ctx == nil || headers == nil {
+		return
+	}
+
+	textMapPropagatorForContext(ctx).Inject(ctx, propagation.HeaderCarrier(headers))
+}
+
+func defaultTextMapPropagator() propagation.TextMapPropagator {
+	return propagation.NewCompositeTextMapPropagator(
+		propagation.TraceContext{},
+		propagation.Baggage{},
+	)
+}
+
+func textMapPropagatorForContext(ctx context.Context) propagation.TextMapPropagator {
+	return textMapPropagatorForProvider(GetProvider(ctx))
+}
+
+func textMapPropagatorForProvider(provider Provider) propagation.TextMapPropagator {
+	if provider == nil {
+		global := otel.GetTextMapPropagator()
+		if global == nil || len(global.Fields()) == 0 {
+			return defaultTextMapPropagator()
+		}
+
+		return global
+	}
+
+	if !provider.IsEnabled() {
+		return propagation.NewCompositeTextMapPropagator()
+	}
+
+	if pp, ok := provider.(propagatorProvider); ok {
+		return pp.TextMapPropagator()
+	}
+
+	return defaultTextMapPropagator()
+}
+
+func filterPropagationMap(ctx context.Context, headers map[string]string) map[string]string {
+	allowed := propagationHeaderSet(ctx)
+	if len(allowed) == 0 {
+		return headers
+	}
+
+	filtered := make(map[string]string, len(headers))
+	for key, value := range headers {
+		if _, ok := allowed[strings.ToLower(key)]; ok {
+			filtered[key] = value
+		}
+	}
+
+	return filtered
+}
+
+func filterPropagationHeaders(ctx context.Context, headers http.Header) http.Header {
+	allowed := propagationHeaderSet(ctx)
+	if len(allowed) == 0 {
+		return headers
+	}
+
+	filtered := make(http.Header, len(headers))
+	for key, values := range headers {
+		if _, ok := allowed[strings.ToLower(key)]; ok {
+			filtered[key] = append([]string(nil), values...)
+		}
+	}
+
+	return filtered
+}
+
+func propagationHeaderSet(ctx context.Context) map[string]struct{} {
+	provider := GetProvider(ctx)
+
+	midazProvider, ok := provider.(*MidazProvider)
+	if !ok || midazProvider == nil || midazProvider.config == nil || len(midazProvider.config.PropagationHeaders) == 0 {
+		return nil
+	}
+
+	midazProvider.propagationHeadersOnce.Do(func() {
+		midazProvider.propagationHeadersAllow = buildPropagationHeaderAllowSet(provider, midazProvider.config)
+	})
+
+	return midazProvider.propagationHeadersAllow
+}
+
+// buildPropagationHeaderAllowSet computes the lowercased set of permitted
+// propagation header names. It is invoked exactly once per provider via
+// sync.Once and the resulting map is shared read-only.
+func buildPropagationHeaderAllowSet(provider Provider, config *Config) map[string]struct{} {
+	allowed := make(map[string]struct{}, len(config.PropagationHeaders))
+	for _, header := range config.PropagationHeaders {
+		header = strings.ToLower(strings.TrimSpace(header))
+		if header != "" {
+			allowed[header] = struct{}{}
+		}
+	}
+
+	if !config.propagationHeadersExplicit {
+		for _, header := range textMapPropagatorForProvider(provider).Fields() {
+			header = strings.ToLower(strings.TrimSpace(header))
+			if header != "" {
+				allowed[header] = struct{}{}
+			}
+		}
+	}
+
+	return allowed
+}
+
+func filterMetricAttributes(attrs []attribute.KeyValue) []attribute.KeyValue {
+	filtered := make([]attribute.KeyValue, 0, len(attrs))
+	for _, attr := range attrs {
+		switch string(attr.Key) {
+		case "trace_id", "span_id":
+			continue
+		default:
+			filtered = append(filtered, attr)
+		}
+	}
+
+	return filtered
 }

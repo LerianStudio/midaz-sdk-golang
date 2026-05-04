@@ -20,6 +20,7 @@ permissions:
 
 env:
   GO_VERSION: "1.26.2"
+  GOLANGCI_LINT_VERSION: "v2.12.1"
 
 jobs:
   GolangCI-Lint:
@@ -41,7 +42,7 @@ jobs:
           lerian_ci_cd_user_email: ${{ secrets.LERIAN_CI_CD_USER_EMAIL }}
           go_version: ${{ env.GO_VERSION }} # Versão do Go, se necessário alterar
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          golangci_lint_version: "v2.11.4" # Versão do GolangCI-Lint, se necessário mude para a versão desejada
+          golangci_lint_version: ${{ env.GOLANGCI_LINT_VERSION }} # Versão do GolangCI-Lint, se necessário mude para a versão desejada
 
   GoSec:
     name: Run GoSec to SDK
@@ -55,9 +56,7 @@ jobs:
           cache: false
 
       - name: Gosec Scanner
-        uses: securego/gosec@5e5517beec77b8228ba43ec8d7cc22d82ed31924 # v2.25.0
-        with:
-          args: ./...
+        run: make gosec
 
   test:
     name: Test

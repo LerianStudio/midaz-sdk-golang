@@ -7,6 +7,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	sdkresource "go.opentelemetry.io/otel/sdk/resource"
@@ -87,8 +88,17 @@ type Logger interface {
 	WithSpan(span trace.Span) Logger
 }
 
-// LoggerImpl is the standard implementation of the Logger interface
+// LoggerImpl is the standard implementation of the Logger interface.
+//
+// Each LoggerImpl owns its own *sync.Mutex; child loggers produced by With,
+// WithContext, or WithSpan get a freshly allocated mutex so that high-fanout
+// per-tenant logging in batch workers does not serialize on a single shared
+// lock. The muInit sync.Once is the safety net for the rare case where a
+// LoggerImpl was constructed via a struct literal (without NewLogger) and the
+// mu field was left zero.
 type LoggerImpl struct {
+	mu       *sync.Mutex
+	muInit   sync.Once
 	level    LogLevel
 	output   io.Writer
 	fields   map[string]any
@@ -110,18 +120,25 @@ func NewLogger(level LogLevel, output io.Writer, resource *sdkresource.Resource)
 		}
 	}
 
-	return &LoggerImpl{
+	logger := &LoggerImpl{
 		level:    level,
 		output:   output,
 		fields:   fields,
 		exitFunc: nil, // Library code should not call os.Exit; callers can set this if needed
 	}
+	logger.ensureMutex()
+
+	return logger
 }
 
 // SetExitFunc sets a custom exit function for applications that need Fatal to terminate.
 // By default, Fatal only logs without exiting (safe for library use).
 // Applications can set this to os.Exit if they want Fatal to terminate the process.
 func (l *LoggerImpl) SetExitFunc(exitFunc func(int)) {
+	l.ensureMutex()
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
 	l.exitFunc = exitFunc
 }
 
@@ -130,6 +147,8 @@ func (l *LoggerImpl) log(level LogLevel, msg string) {
 	if level < l.level {
 		return
 	}
+
+	l.ensureMutex()
 
 	// Get caller information
 	_, file, line, ok := runtime.Caller(2)
@@ -142,17 +161,31 @@ func (l *LoggerImpl) log(level LogLevel, msg string) {
 		file = file[lastSlash+1:]
 	}
 
-	// Create log entry
+	// Create log entry. The message itself is sanitized as defense-in-depth
+	// — callers occasionally hand us err.Error() or formatted bodies that
+	// contain Bearer tokens or Authorization assignments. We perform the
+	// same sanitization on string-valued user fields below so leaks cannot
+	// reach the writer regardless of where the secret was carried.
 	entry := map[string]any{
 		"timestamp": time.Now().Format(time.RFC3339),
 		"level":     level.String(),
-		"message":   msg,
+		"message":   sanitizeSensitiveString(msg),
 		"caller":    fmt.Sprintf("%s:%d", file, line),
 	}
 
-	// Add fields, skipping reserved keys to prevent log injection
+	// Add fields, skipping reserved keys to prevent log injection. String
+	// values are sanitized; non-string values are passed through (numbers,
+	// bools, structured payloads cannot carry the credential patterns the
+	// regex engine targets, and round-tripping them through the regex
+	// would be wasteful).
 	for k, v := range l.fields {
-		if !reservedLogFields[k] {
+		if reservedLogFields[k] {
+			continue
+		}
+
+		if s, ok := v.(string); ok {
+			entry[k] = sanitizeSensitiveString(s)
+		} else {
 			entry[k] = v
 		}
 	}
@@ -167,16 +200,33 @@ func (l *LoggerImpl) log(level LogLevel, msg string) {
 	// Write to output
 	b = append(b, '\n')
 
+	l.mu.Lock()
+
 	_, err = l.output.Write(b)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to write log entry: %v\n", err)
 	}
 
+	exitFunc := l.exitFunc
+	l.mu.Unlock()
+
 	// If fatal and exit function is set, call it to terminate
 	// Library code defaults to nil exitFunc, so Fatal just logs without terminating
-	if level == FatalLevel && l.exitFunc != nil {
-		l.exitFunc(1)
+	if level == FatalLevel && exitFunc != nil {
+		exitFunc(1)
 	}
+}
+
+// ensureMutex lazily initializes the logger's mutex exactly once. The check-
+// then-set pattern is delegated to sync.Once so two goroutines racing into
+// the first Info/Warn/... call cannot both see a nil mu and clobber each
+// other.
+func (l *LoggerImpl) ensureMutex() {
+	l.muInit.Do(func() {
+		if l.mu == nil {
+			l.mu = &sync.Mutex{}
+		}
+	})
 }
 
 // Debug logs a message at debug level
@@ -229,7 +279,15 @@ func (l *LoggerImpl) Fatalf(format string, args ...any) {
 	l.log(FatalLevel, fmt.Sprintf(format, args...))
 }
 
-// With returns a logger with added structured fields
+// With returns a logger with added structured fields.
+//
+// The returned logger has its OWN mutex (not aliased to the parent's). This
+// matters in fan-out hot paths — for example, a batch worker that calls
+// logger.With(perTenantFields) per tenant should not have all derived
+// loggers serialize on the parent's mu. Output destinations are still
+// shared, so io.Writer implementations are still expected to be safe for
+// concurrent use; the new mutex only protects each logger's own state and
+// its individual write call.
 func (l *LoggerImpl) With(fields map[string]any) Logger {
 	// Create a new map with existing fields
 	newFields := make(map[string]any, len(l.fields)+len(fields))
@@ -241,12 +299,15 @@ func (l *LoggerImpl) With(fields map[string]any) Logger {
 		newFields[k] = v
 	}
 
-	return &LoggerImpl{
+	derived := &LoggerImpl{
+		mu:       &sync.Mutex{},
 		level:    l.level,
 		output:   l.output,
 		fields:   newFields,
 		exitFunc: l.exitFunc,
 	}
+
+	return derived
 }
 
 // WithContext returns a logger with context information (trace ID, etc.)

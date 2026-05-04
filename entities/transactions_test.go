@@ -1027,10 +1027,11 @@ func TestTransactionInputValidation(t *testing.T) {
 	})
 
 	t.Run("CreateAnnotationInput validation", func(t *testing.T) {
-		// Annotation-only transactions do not require send details.
+		// Annotation transactions use the CreateTransactionInput contract and require send details.
 		input := &models.CreateAnnotationInput{Description: ""}
 		err := input.Validate()
-		require.NoError(t, err)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "send is required")
 
 		// Test valid input
 		input = models.NewCreateAnnotationInput("Test annotation", createValidSendInput("USD", 1))

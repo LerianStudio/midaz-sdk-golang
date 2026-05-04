@@ -31,7 +31,9 @@ package validation
 import (
 	"errors"
 	"fmt"
+	"math"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -78,14 +80,13 @@ const (
 	OpTypeCredit = "CREDIT"
 )
 
-// externalAccountPattern is the regex pattern for external account references
-var externalAccountPattern = regexp.MustCompile(`^@external/([A-Z]{3,4})$`)
+// externalAccountPattern mirrors core.ExternalAccountPattern. Both bind the
+// captured asset code to 3-4 uppercase letters; we re-declare here to keep
+// the call sites in this file self-contained.
+var externalAccountPattern = core.ExternalAccountPattern
 
-// accountAliasPattern is the regex pattern for account aliases
-var accountAliasPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,50}$`)
-
-// assetCodePattern is the regex pattern for asset codes
-var assetCodePattern = regexp.MustCompile(`^[A-Z]{3,4}$`)
+// assetCodePattern mirrors core.AssetCodePattern (3-4 uppercase letters).
+var assetCodePattern = core.AssetCodePattern
 
 // chartOfAccountsGroupNamePattern is the regex pattern for chart of accounts group names.
 // Allows alphanumeric characters, spaces, underscores, and hyphens.
@@ -123,7 +124,7 @@ func ValidateTransactionDSL(input TransactionDSLValidator) error {
 	}
 
 	// Validate amount
-	if input.GetValue() <= 0 {
+	if !isFinitePositive(input.GetValue()) {
 		return errors.New("transaction amount must be greater than zero")
 	}
 
@@ -133,10 +134,8 @@ func ValidateTransactionDSL(input TransactionDSLValidator) error {
 		return errors.New("at least one source account is required")
 	}
 
-	for i, account := range sourceAccounts {
-		if err := validateAccountReference(account.GetAccount(), asset); err != nil {
-			return fmt.Errorf("invalid source account at index %d: %w", i, err)
-		}
+	if err := validateAccountReferences(sourceAccounts, asset, "source"); err != nil {
+		return err
 	}
 
 	// Validate destination accounts
@@ -145,10 +144,8 @@ func ValidateTransactionDSL(input TransactionDSLValidator) error {
 		return errors.New("at least one destination account is required")
 	}
 
-	for i, account := range destAccounts {
-		if err := validateAccountReference(account.GetAccount(), asset); err != nil {
-			return fmt.Errorf("invalid destination account at index %d: %w", i, err)
-		}
+	if err := validateAccountReferences(destAccounts, asset, "destination"); err != nil {
+		return err
 	}
 
 	// Validate asset consistency across external accounts
@@ -167,10 +164,28 @@ func ValidateTransactionDSL(input TransactionDSLValidator) error {
 	return nil
 }
 
+func validateAccountReferences(accounts []AccountReference, asset, label string) error {
+	for i, account := range accounts {
+		if account == nil {
+			return fmt.Errorf("invalid %s account at index %d: account reference cannot be nil", label, i)
+		}
+
+		if err := validateAccountReference(account.GetAccount(), asset); err != nil {
+			return fmt.Errorf("invalid %s account at index %d: %w", label, i, err)
+		}
+	}
+
+	return nil
+}
+
 // validateAssetConsistency checks that all accounts in the transaction
 // are using the same asset code
 func validateAssetConsistency(input TransactionDSLValidator) error {
 	for _, account := range input.GetSourceAccounts() {
+		if account == nil {
+			continue
+		}
+
 		matches := externalAccountPattern.FindStringSubmatch(account.GetAccount())
 		if len(matches) > 1 {
 			externalAsset := matches[1]
@@ -182,6 +197,10 @@ func validateAssetConsistency(input TransactionDSLValidator) error {
 	}
 
 	for _, account := range input.GetDestinationAccounts() {
+		if account == nil {
+			continue
+		}
+
 		matches := externalAccountPattern.FindStringSubmatch(account.GetAccount())
 		if len(matches) > 1 {
 			externalAsset := matches[1]
@@ -226,6 +245,10 @@ func validateAccountReference(account string, transactionAsset string) error {
 	return nil
 }
 
+func isFinitePositive(value float64) bool {
+	return !math.IsNaN(value) && !math.IsInf(value, 0) && value > 0
+}
+
 // GetExternalAccountReference creates a properly formatted external account reference
 // for the given asset code
 func GetExternalAccountReference(assetCode string) string {
@@ -241,15 +264,7 @@ func GetExternalAccountReference(assetCode string) string {
 //	    log.Fatal(err)
 //	}
 func ValidateAssetCode(assetCode string) error {
-	if assetCode == "" {
-		return errors.New("asset code cannot be empty")
-	}
-
-	if !assetCodePattern.MatchString(assetCode) {
-		return fmt.Errorf("invalid asset code format: %s (must be 3-4 uppercase letters)", assetCode)
-	}
-
-	return nil
+	return core.ValidateAssetCode(assetCode)
 }
 
 // ValidateAccountAlias checks if an account alias is valid.
@@ -261,15 +276,7 @@ func ValidateAssetCode(assetCode string) error {
 //	    log.Fatal(err)
 //	}
 func ValidateAccountAlias(alias string) error {
-	if alias == "" {
-		return errors.New("account alias cannot be empty")
-	}
-
-	if !accountAliasPattern.MatchString(alias) {
-		return fmt.Errorf("invalid account alias format: %s (must be alphanumeric with optional underscores and hyphens, max 50 chars)", alias)
-	}
-
-	return nil
+	return core.ValidateAccountAlias(alias)
 }
 
 // ValidateTransactionCode checks if a transaction code is valid.
@@ -281,16 +288,7 @@ func ValidateAccountAlias(alias string) error {
 //	    log.Fatal(err)
 //	}
 func ValidateTransactionCode(code string) error {
-	if code == "" {
-		return errors.New("transaction code cannot be empty")
-	}
-
-	// Use the same pattern as account alias for now
-	if !accountAliasPattern.MatchString(code) {
-		return fmt.Errorf("invalid transaction code format: %s (must be alphanumeric with optional underscores and hyphens, max 50 chars)", code)
-	}
-
-	return nil
+	return core.ValidateTransactionCode(code)
 }
 
 // ValidateMetadata checks if transaction metadata is valid with the default validator.
@@ -313,6 +311,10 @@ func ValidateMetadata(metadata map[string]any) error {
 // ValidateMetadata checks if transaction metadata is valid using this validator's configuration.
 // This method verifies that metadata values are of supported types.
 func (v *Validator) ValidateMetadata(metadata map[string]any) error {
+	if v == nil || v.config == nil {
+		return errors.New("validator cannot be nil")
+	}
+
 	if metadata == nil {
 		return nil
 	}
@@ -332,14 +334,26 @@ func (v *Validator) ValidateMetadata(metadata map[string]any) error {
 	return v.validateMetadataSize(metadata)
 }
 
-// validateMetadataKey validates a single metadata key
+// validateMetadataKey validates a single metadata key.
+//
+// In addition to the empty-string and length checks, this rejects keys that
+// MongoDB treats specially:
+//   - keys containing '.' would be interpreted as dotted-path lookups, and
+//   - keys with a leading '$' are reserved for operators ($set, $inc, ...).
+//
+// Catching these at the SDK boundary surfaces the failure where the user
+// can fix it instead of after the backend persists a corrupt document.
 func (*Validator) validateMetadataKey(key string) error {
 	if key == "" {
 		return errors.New("metadata key cannot be empty")
 	}
 
-	if len(key) > 64 {
-		return fmt.Errorf("metadata key '%s' exceeds maximum length of 64 characters", key)
+	if len(key) > 100 {
+		return fmt.Errorf("metadata key '%s' exceeds maximum length of 100 characters", key)
+	}
+
+	if strings.Contains(key, ".") || strings.HasPrefix(key, "$") {
+		return fmt.Errorf("metadata key '%s' must not contain '.' or start with '$' (reserved by storage layer)", key)
 	}
 
 	return nil
@@ -349,7 +363,7 @@ func (*Validator) validateMetadataKey(key string) error {
 func (v *Validator) validateMetadataValue(key string, value any) error {
 	// Validate value type
 	if !v.isValidMetadataValueType(value) {
-		return fmt.Errorf("metadata value for key '%s' has unsupported type: %T (supported types: string, bool, int, float64, nil)", key, value)
+		return fmt.Errorf("metadata value for key '%s' has unsupported type: %T (supported types: string, bool, number, array, nil)", key, value)
 	}
 
 	// Check string value length
@@ -362,20 +376,7 @@ func (v *Validator) validateMetadataValue(key string, value any) error {
 		return nil
 	}
 
-	// Always validate numeric ranges for backward compatibility
-	// Check numeric value range
-	switch value := value.(type) {
-	case int:
-		if value < -9999999999 || value > 9999999999 {
-			return fmt.Errorf("metadata integer value for key '%s' is outside allowed range (-9999999999 to 9999999999)", key)
-		}
-	case float64:
-		if value < -9999999999.0 || value > 9999999999.0 {
-			return fmt.Errorf("metadata float value for key '%s' is outside allowed range (-9999999999.0 to 9999999999.0)", key)
-		}
-	}
-
-	return nil
+	return core.ValidateMetadata(map[string]any{key: value})
 }
 
 // validateMetadataSize validates the total size of metadata
@@ -387,8 +388,10 @@ func (v *Validator) validateMetadataSize(metadata map[string]any) error {
 		switch val := value.(type) {
 		case string:
 			totalSize += len(val)
-		case bool, int, float64:
+		case bool, int, int32, int64, float32, float64:
 			totalSize += 8 // Approximate size for these types
+		case []any:
+			totalSize += len(fmt.Sprint(val))
 		}
 	}
 
@@ -403,7 +406,7 @@ func (v *Validator) validateMetadataSize(metadata map[string]any) error {
 // isValidMetadataValueType checks if a value is of a type supported in metadata
 func (*Validator) isValidMetadataValueType(value any) bool {
 	switch value.(type) {
-	case string, bool, int, float64, nil:
+	case string, bool, int, int32, int64, float32, float64, []any, nil:
 		return true
 	default:
 		return false
@@ -448,6 +451,10 @@ type Summary struct {
 
 // AddError adds an error to the validation summary and marks it as invalid
 func (vs *Summary) AddError(err error) {
+	if err == nil {
+		return
+	}
+
 	vs.Valid = false
 	vs.Errors = append(vs.Errors, err)
 }
@@ -460,6 +467,11 @@ func (vs *Summary) GetErrorMessages() []string {
 
 	messages := make([]string, len(vs.Errors))
 	for i, err := range vs.Errors {
+		if err == nil {
+			messages[i] = "<nil validation error>"
+			continue
+		}
+
 		messages[i] = err.Error()
 	}
 
@@ -477,6 +489,11 @@ func (vs *Summary) GetErrorSummary() string {
 	_, _ = fmt.Fprintf(&builder, "Validation failed with %d errors:\n", len(vs.Errors))
 
 	for i, err := range vs.Errors {
+		if err == nil {
+			_, _ = fmt.Fprintf(&builder, "%d. <nil validation error>\n", i+1)
+			continue
+		}
+
 		_, _ = fmt.Fprintf(&builder, "%d. %s\n", i+1, err.Error())
 	}
 
@@ -559,8 +576,12 @@ func validateOperationAmount(op map[string]any, index int) error {
 		return fmt.Errorf("operation %d: amount must be a number", index)
 	}
 
-	if amount <= 0 {
+	if !isFinitePositive(amount) {
 		return fmt.Errorf("operation %d: amount must be greater than zero", index)
+	}
+
+	if math.Trunc(amount) != amount {
+		return fmt.Errorf("operation %d: amount must be an integer minor unit", index)
 	}
 
 	return nil
@@ -673,11 +694,109 @@ func ValidateCreateTransactionInput(input map[string]any) Summary {
 		return summary
 	}
 
+	if _, ok := input["send"]; ok {
+		validateSendTransactionFields(&summary, input)
+		validateAdditionalTransactionFields(&summary, input)
+
+		return summary
+	}
+
 	validateBasicTransactionFields(&summary, input)
 	validateTransactionOperations(&summary, input)
 	validateAdditionalTransactionFields(&summary, input)
 
 	return summary
+}
+
+func validateSendTransactionFields(summary *Summary, input map[string]any) {
+	send, ok := input["send"].(map[string]any)
+	if !ok {
+		summary.AddError(errors.New("send must be an object"))
+		return
+	}
+
+	asset, ok := send["asset"].(string)
+	if !ok {
+		summary.AddError(errors.New("send.asset must be a string"))
+	}
+
+	if err := ValidateAssetCode(asset); err != nil {
+		summary.AddError(fmt.Errorf("send.asset: %w", err))
+	}
+
+	value, ok := extractNumericAmount(send["value"])
+	if !ok || !isFinitePositive(value) {
+		summary.AddError(errors.New("send.value must be a finite number greater than zero"))
+	}
+
+	validateSendEndpointList(summary, send["source"], "send.source.from", "from")
+	validateSendEndpointList(summary, send["distribute"], "send.distribute.to", "to")
+}
+
+func validateSendEndpointList(summary *Summary, container any, field, child string) {
+	containerMap, ok := container.(map[string]any)
+	if !ok {
+		summary.AddError(fmt.Errorf("%s parent must be an object", field))
+		return
+	}
+
+	items, ok := extractObjectList(containerMap[child])
+	if !ok || len(items) == 0 {
+		summary.AddError(fmt.Errorf("%s must contain at least one object", field))
+		return
+	}
+
+	for i, item := range items {
+		validateSendEndpointItem(summary, field, i, item)
+	}
+}
+
+func validateSendEndpointItem(summary *Summary, field string, index int, item map[string]any) {
+	if alias, ok := item["accountAlias"].(string); ok && alias != "" {
+		if err := ValidateAccountAlias(alias); err != nil {
+			summary.AddError(fmt.Errorf("%s[%d].accountAlias: %w", field, index, err))
+		}
+	}
+
+	amount, ok := item["amount"].(map[string]any)
+	if !ok {
+		return
+	}
+
+	validateSendAmount(summary, field, index, amount)
+}
+
+func validateSendAmount(summary *Summary, field string, index int, amount map[string]any) {
+	if asset, ok := amount["asset"].(string); ok && asset != "" {
+		if err := ValidateAssetCode(asset); err != nil {
+			summary.AddError(fmt.Errorf("%s[%d].amount.asset: %w", field, index, err))
+		}
+	}
+
+	if value, ok := extractNumericAmount(amount["value"]); !ok || !isFinitePositive(value) {
+		summary.AddError(fmt.Errorf("%s[%d].amount.value must be a finite number greater than zero", field, index))
+	}
+}
+
+func extractObjectList(value any) ([]map[string]any, bool) {
+	switch items := value.(type) {
+	case []map[string]any:
+		return items, true
+	case []any:
+		result := make([]map[string]any, 0, len(items))
+		for _, item := range items {
+			m, ok := item.(map[string]any)
+			if !ok {
+				return nil, false
+			}
+
+			result = append(result, m)
+		}
+
+		return result, true
+	default:
+		return nil, false
+	}
 }
 
 // validateBasicTransactionFields validates the basic required fields of a transaction
@@ -714,11 +833,11 @@ func validateAmountField(summary *Summary, input map[string]any) {
 
 	amount, ok := extractNumericAmount(input["amount"])
 	if !ok {
-		summary.AddError(errors.New("amount must be a number"))
+		summary.AddError(errors.New("amount must be a finite number"))
 		return
 	}
 
-	if amount <= 0 {
+	if !isFinitePositive(amount) {
 		summary.AddError(fmt.Errorf("amount must be greater than zero (got %.2f)", amount))
 	}
 }
@@ -726,11 +845,28 @@ func validateAmountField(summary *Summary, input map[string]any) {
 // extractNumericAmount extracts a float64 amount from various numeric types.
 func extractNumericAmount(value any) (float64, bool) {
 	if amount, ok := value.(float64); ok {
+		if math.IsNaN(amount) || math.IsInf(amount, 0) {
+			return 0, false
+		}
+
 		return amount, true
 	}
 
 	if intAmount, ok := value.(int); ok {
 		return float64(intAmount), true
+	}
+
+	if intAmount, ok := value.(int64); ok {
+		return float64(intAmount), true
+	}
+
+	if stringAmount, ok := value.(string); ok {
+		amount, err := strconv.ParseFloat(strings.TrimSpace(stringAmount), 64)
+		if err != nil || math.IsNaN(amount) || math.IsInf(amount, 0) {
+			return 0, false
+		}
+
+		return amount, true
 	}
 
 	return 0, false
@@ -761,6 +897,10 @@ func extractIntegerScale(value any) (int, bool) {
 	}
 
 	if floatScale, ok := value.(float64); ok {
+		if math.IsNaN(floatScale) || math.IsInf(floatScale, 0) || math.Trunc(floatScale) != floatScale {
+			return 0, false
+		}
+
 		return int(floatScale), true
 	}
 
@@ -776,6 +916,10 @@ func extractOperationAmount(op map[string]any) (float64, bool) {
 
 	amount, ok := op["amount"].(float64)
 	if ok {
+		if math.IsNaN(amount) || math.IsInf(amount, 0) {
+			return 0, false
+		}
+
 		return amount, true
 	}
 
@@ -786,17 +930,32 @@ func extractOperationAmount(op map[string]any) (float64, bool) {
 	return 0, false
 }
 
-// accumulateOperationTotals accumulates debit and credit totals from an operation.
-func accumulateOperationTotals(op map[string]any, totalDebits, totalCredits *int64) {
+// errNonIntegerOperationAmount is a sentinel returned by
+// accumulateOperationTotals when an operation amount cannot be coerced to a
+// whole int64. Without this sentinel, a non-integer amount silently dropped
+// out of the totals accumulator, which then surfaced downstream as a
+// misleading "operations total (0) != transaction amount (X.00)" error —
+// hiding the real problem (the non-integer amount itself).
+var errNonIntegerOperationAmount = errors.New("operation amount must be an integer (got a non-integer value)")
+
+// accumulateOperationTotals accumulates debit and credit totals from an
+// operation. Returns errNonIntegerOperationAmount when the amount has a
+// non-zero fractional part so the caller can emit a focused error instead
+// of a generic totals-mismatch.
+func accumulateOperationTotals(op map[string]any, totalDebits, totalCredits *int64) error {
 	if op["type"] == nil {
-		return
+		return nil
 	}
 
 	opType, typeOk := op["type"].(string)
 	amount, amountOk := extractOperationAmount(op)
 
 	if !typeOk || !amountOk {
-		return
+		return nil
+	}
+
+	if math.Trunc(amount) != amount {
+		return errNonIntegerOperationAmount
 	}
 
 	switch opType {
@@ -805,6 +964,8 @@ func accumulateOperationTotals(op map[string]any, totalDebits, totalCredits *int
 	case OpTypeCredit:
 		*totalCredits += int64(amount)
 	}
+
+	return nil
 }
 
 // validateTransactionOperations validates the operations in a transaction
@@ -825,7 +986,10 @@ func validateTransactionOperations(summary *Summary, input map[string]any) {
 		assetCode = ac
 	}
 
-	var totalDebits, totalCredits int64
+	var (
+		totalDebits, totalCredits int64
+		sawNonIntegerAmount       bool
+	)
 
 	for i, op := range operations {
 		validationErrs, valid := validateOperation(op, i, assetCode)
@@ -835,10 +999,24 @@ func validateTransactionOperations(summary *Summary, input map[string]any) {
 			}
 		}
 
-		accumulateOperationTotals(op, &totalDebits, &totalCredits)
+		if err := accumulateOperationTotals(op, &totalDebits, &totalCredits); err != nil {
+			// Surface the precise reason for the running totals being off
+			// instead of letting it bubble up as a "totals mismatch" later.
+			if errors.Is(err, errNonIntegerOperationAmount) {
+				sawNonIntegerAmount = true
+				summary.AddError(fmt.Errorf("operation %d: %w", i, err))
+			}
+		}
 	}
 
-	validateTransactionBalance(summary, input, totalDebits, totalCredits)
+	// If any operation amount wasn't an integer, the totals are not
+	// authoritative and the downstream "operations total != transaction
+	// amount" message is more confusing than helpful. Skip the totals
+	// reconciliation in that case — the per-operation error already
+	// pinpoints the problem.
+	if !sawNonIntegerAmount {
+		validateTransactionBalance(summary, input, totalDebits, totalCredits)
+	}
 }
 
 // validateTransactionBalance validates that the transaction is balanced
@@ -939,21 +1117,7 @@ func ValidateAssetType(assetType string) error {
 // ValidateAccountType validates if the account type is one of the supported types
 // in the Midaz system.
 func ValidateAccountType(accountType string) error {
-	if accountType == "" {
-		return errors.New("account type is required")
-	}
-
-	// Use commons.ValidateAccountType to ensure consistency with backend APIs
-	if err := midazutils.ValidateAccountType(accountType); err != nil {
-		// Convert the error to a more user-friendly message
-		// Create a list of valid types for the error message
-		validTypes := []string{"deposit", "savings", "loans", "marketplace", "creditCard"}
-
-		return fmt.Errorf("invalid account type: %s. Valid types are: %s",
-			accountType, strings.Join(validTypes, ", "))
-	}
-
-	return nil
+	return core.ValidateAccountType(accountType)
 }
 
 // ValidateCurrencyCode checks if the currency code is valid according to ISO 4217.
@@ -1003,6 +1167,10 @@ func ValidateAddress(address *Address) error {
 // ValidateAddress validates an address structure using this validator's configuration.
 // This method validates for completeness and correctness.
 func (v *Validator) ValidateAddress(address *Address) error {
+	if v == nil || v.config == nil {
+		return errors.New("validator cannot be nil")
+	}
+
 	if address == nil {
 		return errors.New("address cannot be nil")
 	}

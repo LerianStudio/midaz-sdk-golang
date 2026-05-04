@@ -14,7 +14,7 @@ import (
 )
 
 // DSLAmount represents an amount with a value and asset code for DSL transactions.
-// This is aligned with the lib-commons Amount structure.
+// This is aligned with the Midaz DSL amount contract.
 type DSLAmount struct {
 	// Value is the exact decimal value of the amount.
 	Value any `json:"value"`
@@ -24,7 +24,7 @@ type DSLAmount struct {
 }
 
 // DSLFromTo represents a source or destination in a DSL transaction.
-// This is aligned with the lib-commons FromTo structure.
+// This is aligned with the Midaz DSL source/destination contract.
 type DSLFromTo struct {
 	// Account is the identifier of the account
 	Account string `json:"account"`
@@ -52,7 +52,7 @@ type DSLFromTo struct {
 }
 
 // DSLSource represents the source of a DSL transaction.
-// This is aligned with the lib-commons Source structure.
+// This is aligned with the Midaz DSL source contract.
 type DSLSource struct {
 	// Remaining is an optional remaining account
 	Remaining string `json:"remaining,omitempty"`
@@ -62,7 +62,7 @@ type DSLSource struct {
 }
 
 // DSLDistribute represents the distribution of a DSL transaction.
-// This is aligned with the lib-commons Distribute structure.
+// This is aligned with the Midaz DSL distribution contract.
 type DSLDistribute struct {
 	// Remaining is an optional remaining account
 	Remaining string `json:"remaining,omitempty"`
@@ -72,7 +72,7 @@ type DSLDistribute struct {
 }
 
 // DSLSend represents the send operation in a DSL transaction.
-// This is aligned with the lib-commons Send structure.
+// This is aligned with the Midaz DSL send contract.
 type DSLSend struct {
 	// Asset identifies the currency or asset type for this transaction
 	Asset string `json:"asset"`
@@ -88,7 +88,7 @@ type DSLSend struct {
 }
 
 // TransactionDSLInput represents the input for creating a transaction using DSL.
-// This is aligned with the lib-commons Transaction structure.
+// This is aligned with the Midaz DSL transaction contract.
 type TransactionDSLInput struct {
 	// ChartOfAccountsGroupName specifies the chart of accounts group to use
 	ChartOfAccountsGroupName string `json:"chartOfAccountsGroupName,omitempty"`
@@ -333,7 +333,7 @@ func (input *TransactionDSLInput) Validate() error {
 }
 
 // ToTransactionMap converts a TransactionDSLInput to a map that can be used for API requests.
-// This replaces the previous direct lib-commons conversion.
+// This replaces the previous direct internal payload conversion.
 func (input *TransactionDSLInput) ToTransactionMap() map[string]any {
 	if input == nil {
 		return nil
@@ -895,7 +895,7 @@ func fromToToMap(from DSLFromTo) map[string]any {
 }
 
 // FromTransactionMap converts a map from the API to a TransactionDSLInput.
-// This replaces the previous direct lib-commons conversion.
+// This replaces the previous direct internal payload conversion.
 func FromTransactionMap(data map[string]any) *TransactionDSLInput {
 	if data == nil {
 		return nil

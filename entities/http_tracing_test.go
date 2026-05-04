@@ -3,8 +3,12 @@ package entities
 import (
 	"context"
 	"encoding/json"
+	stdErrors "errors"
+	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -12,6 +16,8 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -323,6 +329,183 @@ func TestHTTPClientDistributedTracing(t *testing.T) {
 	require.Len(t, parts, 4, "traceparent should have 4 parts")
 	assert.Equal(t, "00", parts[0], "version should be 00")
 	assert.Equal(t, originalTraceID.String(), parts[1], "trace ID should match")
+}
+
+func TestHTTPClientPropagatesExtractedIncomingTraceWithRegisterGloballyFalse(t *testing.T) {
+	provider, err := observability.New(context.Background(),
+		observability.WithServiceName("sdk-service"),
+		observability.WithComponentEnabled(true, false, false),
+		observability.WithFullTracingSampling(),
+		observability.WithRegisterGlobally(false),
+	)
+	require.NoError(t, err)
+
+	defer func() { assert.NoError(t, provider.Shutdown(context.Background())) }()
+
+	tracer := provider.Tracer()
+
+	incomingCtx, incomingSpan := tracer.Start(observability.WithProvider(context.Background(), provider), "client-app-request")
+	defer incomingSpan.End()
+
+	incomingHeaders := http.Header{}
+	observability.InjectHTTPContext(incomingCtx, incomingHeaders)
+	extractedCtx := observability.ExtractHTTPContext(observability.WithProvider(context.Background(), provider), incomingHeaders)
+	originalTraceID := trace.SpanContextFromContext(incomingCtx).TraceID().String()
+
+	type capturedTraceHeaders struct {
+		baggage     string
+		traceparent string
+	}
+
+	receivedHeaders := make(chan capturedTraceHeaders, 1)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedHeaders <- capturedTraceHeaders{
+			baggage:     r.Header.Get("baggage"),
+			traceparent: r.Header.Get("traceparent"),
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	}))
+	defer server.Close()
+
+	extractedCtx, err = observability.WithBaggageItem(extractedCtx, "tenant", "acme")
+	require.NoError(t, err)
+
+	httpClient := NewHTTPClient(server.Client(), "token", provider)
+
+	var result map[string]string
+
+	err = httpClient.doRequest(extractedCtx, http.MethodGet, server.URL+"/unified", nil, nil, &result)
+	require.NoError(t, err)
+
+	headers := <-receivedHeaders
+	assert.Contains(t, headers.traceparent, originalTraceID)
+	assert.Contains(t, headers.baggage, "tenant=acme")
+}
+
+func TestHTTPClientSDKInstrumentationCreatesSingleClientSpan(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	provider := newSlice3Provider(recorder)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-Request-ID", "req-123")
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	}))
+	defer server.Close()
+
+	httpClient := NewHTTPClient(server.Client(), "token", provider)
+
+	var result map[string]string
+
+	err := httpClient.doRequest(context.Background(), http.MethodGet, server.URL+"/single", nil, nil, &result)
+	require.NoError(t, err)
+
+	ended := recorder.Ended()
+	require.Len(t, ended, 1)
+	assert.Equal(t, trace.SpanKindClient, ended[0].SpanKind())
+	assert.Equal(t, "ok", result["status"])
+
+	serverURL, parseErr := url.Parse(server.URL)
+	require.NoError(t, parseErr)
+	host, port, splitErr := net.SplitHostPort(serverURL.Host)
+	require.NoError(t, splitErr)
+
+	attrs := spanAttributeMap(ended[0])
+	assert.Equal(t, http.MethodGet, attrs[observability.KeyHTTPRequestMethod])
+	assert.Equal(t, "/single", attrs[observability.KeyURLPath])
+	assert.Equal(t, server.URL+"/single", attrs[observability.KeyURLFull])
+	assert.Equal(t, "http", attrs[observability.KeyURLScheme])
+	assert.Equal(t, host, attrs[observability.KeyServerAddress])
+	assert.Equal(t, port, attrIntString(attrs[observability.KeyServerPort]))
+	assert.Equal(t, "1.1", attrs[observability.KeyNetworkProtocolVersion])
+	assert.Equal(t, int64(http.StatusOK), attrs[observability.KeyHTTPResponseStatusCode])
+	assert.Equal(t, []string{"req-123"}, attrs["http.response.header.x-request-id"])
+
+	assert.NotContains(t, attrs, "http.method")
+	assert.NotContains(t, attrs, "http.path")
+	assert.NotContains(t, attrs, "http.url")
+	assert.NotContains(t, attrs, "http.host")
+	assert.NotContains(t, attrs, "http.status_code")
+}
+
+func TestHTTPClientSDKInstrumentationUsesOtherForNonStandardMethod(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	provider := newSlice3Provider(recorder)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	}))
+	defer server.Close()
+
+	httpClient := NewHTTPClient(server.Client(), "token", provider)
+	var result map[string]string
+
+	err := httpClient.doRequest(context.Background(), "BREW", server.URL+"/coffee", nil, nil, &result)
+	require.NoError(t, err)
+
+	ended := recorder.Ended()
+	require.Len(t, ended, 1)
+	attrs := spanAttributeMap(ended[0])
+	assert.Equal(t, "_OTHER", attrs[observability.KeyHTTPRequestMethod])
+	assert.Equal(t, "BREW", attrs["http.request.method_original"])
+}
+
+func TestHTTPClientErrorSpanRedactsSensitiveValues(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	provider := newSlice3Provider(recorder)
+	httpClient := NewHTTPClient(&http.Client{Transport: failingRoundTripper{}}, "token", provider)
+
+	var result map[string]string
+
+	err := httpClient.doRequest(context.Background(), http.MethodGet, "https://example.com/error", nil, nil, &result)
+	require.Error(t, err)
+
+	ended := recorder.Ended()
+	require.Len(t, ended, 1)
+
+	statusDescription := ended[0].Status().Description
+	assert.NotContains(t, statusDescription, "super-secret")
+	assert.NotContains(t, statusDescription, "idem-secret")
+	assert.NotContains(t, statusDescription, "token-secret")
+	assert.Contains(t, statusDescription, "[REDACTED]")
+}
+
+type failingRoundTripper struct{}
+
+func (failingRoundTripper) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, stdErrors.New("Authorization: Bearer super-secret X-Idempotency=idem-secret token=token-secret")
+}
+
+func spanAttributeMap(span sdktrace.ReadOnlySpan) map[string]any {
+	attrs := map[string]any{}
+
+	for _, attr := range span.Attributes() {
+		switch attr.Value.Type().String() {
+		case "INT64":
+			attrs[string(attr.Key)] = attr.Value.AsInt64()
+		case "STRINGSLICE":
+			attrs[string(attr.Key)] = attr.Value.AsStringSlice()
+		default:
+			attrs[string(attr.Key)] = attr.Value.AsString()
+		}
+	}
+
+	return attrs
+}
+
+func attrIntString(value any) string {
+	switch v := value.(type) {
+	case int64:
+		return fmt.Sprintf("%d", v)
+	case string:
+		return v
+	default:
+		return ""
+	}
 }
 
 // BenchmarkHTTPClientWithTracing benchmarks HTTP client performance with tracing enabled

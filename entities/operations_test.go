@@ -422,7 +422,10 @@ func TestOperationsEntity_ListOperations_QueryParams(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Contains(t, capturedURL, "limit=25")
-	assert.Contains(t, capturedURL, "page=3")
+	assert.NotContains(t, capturedURL, "page=")
+	assert.NotContains(t, capturedURL, "offset=")
+	assert.NotContains(t, capturedURL, "orderBy=")
+	assert.Contains(t, capturedURL, "sort_order=desc")
 }
 
 // TestOperationsEntity_GetOperation tests GetOperation method
@@ -864,8 +867,22 @@ func TestOperationsEntity_UpdateTransactionOperation_RequestBody(t *testing.T) {
 	assert.Equal(t, "testValue", metadata["testKey"])
 }
 
+// TestOperationsEntity_UpdateOperation_DeprecatedAccountScopedMethodFailsLoudly
+// pins down that the account-scoped UpdateOperation now refuses to make ANY
+// HTTP call. The previous "auto-resolve via hidden GET" path was a
+// silent re-route that hid a contract change. Failing locally with a
+// clear error message is the audit-friendly behavior.
 func TestOperationsEntity_UpdateOperation_DeprecatedAccountScopedMethodFailsLoudly(t *testing.T) {
-	entity := createTestOperationsEntity("https://ledger.example.com/v1")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// We assert from the test goroutine via t.Errorf (goroutine-safe);
+		// do NOT use t.Fatal* from inside an httptest handler because that
+		// is undefined behavior per the testing package docs.
+		t.Errorf("UpdateOperation must not perform any HTTP call (got %s %s)", r.Method, r.URL.Path)
+		http.Error(w, "unexpected call", http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	entity := createTestOperationsEntity(server.URL)
 
 	_, err := entity.UpdateOperation(context.Background(), opTestOrgID, opTestLedgerID, opTestAccountID, opTestOperationID, models.UpdateOperationInput{Description: "test"})
 	require.Error(t, err)
@@ -1336,7 +1353,10 @@ func TestOperationsEntity_ListWithAllFilters(t *testing.T) {
 
 	// Verify query parameters
 	assert.Contains(t, capturedQuery, "limit=20")
-	assert.Contains(t, capturedQuery, "page=3")
+	assert.NotContains(t, capturedQuery, "page=")
+	assert.NotContains(t, capturedQuery, "offset=")
+	assert.NotContains(t, capturedQuery, "orderBy=")
+	assert.Contains(t, capturedQuery, "sort_order=asc")
 }
 
 // TestMockHTTPClientForOperations tests using the MockHTTPClient pattern
@@ -1435,7 +1455,7 @@ func TestOperationsEntity_URLPathConstruction(t *testing.T) {
 			case "GetOperation":
 				entity.GetOperation(context.Background(), opTestOrgID, opTestLedgerID, opTestAccountID, opTestOperationID)
 			case "UpdateOperation":
-				entity.UpdateTransactionOperation(context.Background(), opTestOrgID, opTestLedgerID, opTestTransactionID, opTestOperationID, models.UpdateOperationInput{})
+				entity.UpdateTransactionOperation(context.Background(), opTestOrgID, opTestLedgerID, opTestTransactionID, opTestOperationID, models.UpdateOperationInput{Description: "updated"})
 			}
 
 			assert.Equal(t, tt.expectedPath, capturedPath)

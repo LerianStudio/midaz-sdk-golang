@@ -871,9 +871,10 @@ func TestUpdateTransactionInput_Validate(t *testing.T) {
 		errMsg  string
 	}{
 		{
-			name:    "empty input is valid",
+			name:    "empty input is rejected",
 			input:   &UpdateTransactionInput{},
-			wantErr: false,
+			wantErr: true,
+			errMsg:  "empty update payload not allowed",
 		},
 		{
 			name: "valid with metadata",
@@ -890,11 +891,16 @@ func TestUpdateTransactionInput_Validate(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "valid with external ID",
+			// ExternalID is deprecated and intentionally excluded from
+			// hasChanges, so an update payload that ONLY sets ExternalID
+			// is treated as empty and rejected. Callers must combine it
+			// with at least one of Metadata / Description.
+			name: "external ID alone is rejected as empty payload",
 			input: &UpdateTransactionInput{
 				ExternalID: "ext-456",
 			},
-			wantErr: false,
+			wantErr: true,
+			errMsg:  "empty update payload not allowed",
 		},
 		{
 			name: "description too long",
@@ -905,9 +911,13 @@ func TestUpdateTransactionInput_Validate(t *testing.T) {
 			errMsg:  "description must not exceed 256 characters",
 		},
 		{
-			name: "external ID is ignored for validation",
+			// ExternalID is deprecated; even paired with another mutation
+			// it is not validated for length. The presence of Description
+			// is what makes the payload valid.
+			name: "external ID is ignored for validation when paired with description",
 			input: &UpdateTransactionInput{
-				ExternalID: strings.Repeat("a", 65),
+				Description: "non-empty",
+				ExternalID:  strings.Repeat("a", 65),
 			},
 			wantErr: false,
 		},
@@ -1468,11 +1478,12 @@ func TestCreateAnnotationInput_Validate(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "send is optional",
+			name: "send is required",
 			input: &CreateAnnotationInput{
 				Description: "Annotation-only note",
 			},
-			wantErr: false,
+			wantErr: true,
+			errMsg:  "send is required",
 		},
 	}
 
@@ -2413,7 +2424,7 @@ func TestEdgeCases(t *testing.T) {
 	t.Run("nil metadata", func(t *testing.T) {
 		input := NewUpdateTransactionInput().WithMetadata(nil)
 		err := input.Validate()
-		require.NoError(t, err)
+		require.ErrorContains(t, err, "empty update payload not allowed")
 	})
 
 	t.Run("empty metadata map", func(t *testing.T) {
@@ -2461,13 +2472,21 @@ func TestEdgeCases(t *testing.T) {
 	})
 
 	t.Run("boundary values for external ID length", func(t *testing.T) {
+		// ExternalID is deprecated and excluded from change-detection. An
+		// update payload that ONLY sets ExternalID is treated as empty
+		// regardless of length. Tests must combine ExternalID with a
+		// real mutation to exercise the validator at all.
 		exactLength := strings.Repeat("a", 64)
-		input := NewUpdateTransactionInput().WithExternalID(exactLength)
+		input := NewUpdateTransactionInput().
+			WithExternalID(exactLength).
+			WithDescription("non-empty")
 		err := input.Validate()
 		require.NoError(t, err)
 
 		overLength := strings.Repeat("a", 65)
-		input2 := NewUpdateTransactionInput().WithExternalID(overLength)
+		input2 := NewUpdateTransactionInput().
+			WithExternalID(overLength).
+			WithDescription("non-empty")
 		err2 := input2.Validate()
 		require.NoError(t, err2)
 	})

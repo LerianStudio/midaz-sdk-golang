@@ -4,24 +4,28 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"sync"
 	"time"
+
+	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 )
 
 // MaxPaginationLimit is the maximum allowed limit for pagination requests.
 // This prevents excessive memory usage from overly large page requests.
-const MaxPaginationLimit = 1000
+const MaxPaginationLimit = models.MaxLimit
 
 // PageFetcher is a generic function type for fetching a page of results
 type PageFetcher[T any] func(ctx context.Context, options PageOptions) (*PageResult[T], error)
 
 // PageOptions represents options for fetching a page
 type PageOptions struct {
-	Limit  int
-	Offset int
-	Cursor string
-	// Other filter parameters can be added as needed
-	Filters map[string]string
+	Limit            int
+	Offset           int
+	Page             int
+	Cursor           string
+	Filters          map[string]string
+	AdditionalParams map[string]string
 }
 
 // PaginatorOption defines a function that configures a PaginatorOptions object
@@ -46,6 +50,12 @@ type PaginatorOptions struct {
 
 	// Default limit when not specified
 	DefaultLimit int
+
+	// MaxPages limits how many pages bulk operations may fetch. Zero means unlimited.
+	MaxPages int
+
+	// MaxItems limits how many items bulk operations may return/process. Zero means unlimited.
+	MaxItems int
 }
 
 // PageResult represents a single page of results
@@ -102,6 +112,9 @@ type defaultPaginator[T any] struct {
 	observer      Observer
 	operationName string
 	entityType    string
+	maxPages      int
+	maxItems      int
+	exhausted     bool
 	mu            sync.Mutex
 }
 
@@ -135,6 +148,27 @@ func WithLimit(limit int) PaginatorOption {
 	}
 }
 
+//nolint:wsl_v5
+func normalizePageOptions(options PageOptions, defaultLimit int) PageOptions {
+	if defaultLimit <= 0 {
+		defaultLimit = models.DefaultLimit
+	}
+	if defaultLimit > MaxPaginationLimit {
+		defaultLimit = MaxPaginationLimit
+	}
+
+	if options.Limit <= 0 {
+		options.Limit = defaultLimit
+	} else if options.Limit > MaxPaginationLimit {
+		options.Limit = MaxPaginationLimit
+	}
+
+	options.Filters = maps.Clone(options.Filters)
+	options.AdditionalParams = maps.Clone(options.AdditionalParams)
+
+	return options
+}
+
 // WithOffset sets the initial page offset
 func WithOffset(offset int) PaginatorOption {
 	return func(o *PaginatorOptions) error {
@@ -159,7 +193,7 @@ func WithCursor(cursor string) PaginatorOption {
 // WithFilters sets the initial filters
 func WithFilters(filters map[string]string) PaginatorOption {
 	return func(o *PaginatorOptions) error {
-		o.PageOptions.Filters = filters
+		o.PageOptions.Filters = maps.Clone(filters)
 		return nil
 	}
 }
@@ -167,7 +201,33 @@ func WithFilters(filters map[string]string) PaginatorOption {
 // WithPageOptions sets all initial page options at once
 func WithPageOptions(options PageOptions) PaginatorOption {
 	return func(o *PaginatorOptions) error {
-		o.PageOptions = options
+		o.PageOptions = normalizePageOptions(options, o.DefaultLimit)
+		return nil
+	}
+}
+
+// WithMaxPages sets the maximum number of pages fetched by All, ForEach, and Concurrent.
+func WithMaxPages(maxPages int) PaginatorOption {
+	return func(o *PaginatorOptions) error {
+		if maxPages < 0 {
+			return fmt.Errorf("max pages must be non-negative, got %d", maxPages)
+		}
+
+		o.MaxPages = maxPages
+
+		return nil
+	}
+}
+
+// WithMaxItems sets the maximum number of items returned or processed by bulk operations.
+func WithMaxItems(maxItems int) PaginatorOption {
+	return func(o *PaginatorOptions) error {
+		if maxItems < 0 {
+			return fmt.Errorf("max items must be non-negative, got %d", maxItems)
+		}
+
+		o.MaxItems = maxItems
+
 		return nil
 	}
 }
@@ -231,6 +291,10 @@ func WithDefaultLimit(defaultLimit int) PaginatorOption {
 			return fmt.Errorf("default limit must be positive, got %d", defaultLimit)
 		}
 
+		if defaultLimit > MaxPaginationLimit {
+			return fmt.Errorf("default limit must not exceed %d, got %d", MaxPaginationLimit, defaultLimit)
+		}
+
 		o.DefaultLimit = defaultLimit
 
 		return nil
@@ -242,11 +306,19 @@ func NewPaginator[T any](
 	fetcher PageFetcher[T],
 	options ...PaginatorOption,
 ) (Paginator[T], error) {
+	if fetcher == nil {
+		return nil, errors.New("page fetcher cannot be nil")
+	}
+
 	// Start with default options
 	opts := DefaultPaginatorOptions()
 
 	// Apply all provided options
 	for _, option := range options {
+		if option == nil {
+			return nil, errors.New("paginator option cannot be nil")
+		}
+
 		if err := option(opts); err != nil {
 			return nil, fmt.Errorf("failed to apply option: %w", err)
 		}
@@ -257,10 +329,7 @@ func NewPaginator[T any](
 		opts.Observer = NewObserver()
 	}
 
-	// Ensure we have a valid limit
-	if opts.PageOptions.Limit <= 0 {
-		opts.PageOptions.Limit = opts.DefaultLimit
-	}
+	opts.PageOptions = normalizePageOptions(opts.PageOptions, opts.DefaultLimit)
 
 	// Create and return the paginator
 	return &defaultPaginator[T]{
@@ -270,6 +339,8 @@ func NewPaginator[T any](
 		observer:      opts.Observer,
 		operationName: opts.OperationName,
 		entityType:    opts.EntityType,
+		maxPages:      opts.MaxPages,
+		maxItems:      opts.MaxItems,
 	}, nil
 }
 
@@ -310,7 +381,7 @@ func NewPaginatorWithDefaults[T any](
 
 		return &defaultPaginator[T]{
 			fetcher:       fetcher,
-			options:       initialOptions,
+			options:       normalizePageOptions(initialOptions, 10),
 			pageNumber:    0,
 			observer:      observerToUse,
 			operationName: operationName,
@@ -321,71 +392,158 @@ func NewPaginatorWithDefaults[T any](
 	return paginator
 }
 
-// Next advances to the next page of results
+// Next advances to the next page of results.
+//
+//nolint:funlen,nestif,wsl_v5
 func (p *defaultPaginator[T]) Next(ctx context.Context) bool {
+	if p == nil {
+		return false
+	}
+
+	if err := ctx.Err(); err != nil {
+		p.setErr(err)
+		return false
+	}
+
 	p.mu.Lock()
-	defer p.mu.Unlock()
+	if p.err != nil || p.exhausted {
+		p.mu.Unlock()
+		return false
+	}
+
+	options := p.options
+	nextPageNumber := p.pageNumber + 1
+	operationName := p.operationName
+	entityType := p.entityType
+	fetcher := p.fetcher
+	p.mu.Unlock()
 
 	start := time.Now()
 	event := &Event{
-		Operation:  p.operationName,
-		EntityType: p.entityType,
-		Limit:      p.options.Limit,
-		Offset:     p.options.Offset,
-		Page:       p.pageNumber + 1,
-		CursorUsed: p.options.Cursor != "",
+		Operation:  operationName,
+		EntityType: entityType,
+		Limit:      options.Limit,
+		Offset:     options.Offset,
+		Page:       nextPageNumber,
+		CursorUsed: options.Cursor != "",
 	}
 
 	// Fetch the next page
-	var err error
-
-	p.currentPage, err = p.fetcher(ctx, p.options)
+	pageResult, err := fetcher(ctx, options)
 
 	// Record pagination metrics
 	duration := time.Since(start)
 
 	if err != nil {
-		p.err = err
+		p.setErr(err)
 		event.Error = err
 		event.Duration = duration
-		p.observer.RecordEvent(ctx, event)
+		p.recordEvent(ctx, event)
 
 		return false
 	}
+	if pageResult == nil {
+		err = errors.New("page fetcher returned nil page result")
+		p.setErr(err)
+		event.Error = err
+		event.Duration = duration
+		p.recordEvent(ctx, event)
+
+		return false
+	}
+	if pageResult.Items == nil {
+		pageResult.Items = make([]T, 0)
+	}
+
+	p.mu.Lock()
+	p.currentPage = pageResult
 
 	// Update page information
 	p.pageNumber++
 
-	if p.currentPage.Total > 0 {
-		p.totalItems = p.currentPage.Total
+	if pageResult.Total > 0 {
+		p.totalItems = pageResult.Total
 	}
 
 	// Update options for the next page
-	if p.currentPage.NextCursor != "" {
+	if pageResult.NextCursor != "" {
 		// Use cursor-based pagination if available
-		p.options.Cursor = p.currentPage.NextCursor
+		p.options.Cursor = pageResult.NextCursor
 		p.options.Offset = 0 // Reset offset when using cursor
+		p.options.Page = 0
+	} else if options.Cursor != "" {
+		p.exhausted = true
+	} else if pageResult.HasMore {
+		if p.options.Page > 0 {
+			p.options.Page++
+		} else {
+			p.options.Offset += p.options.Limit
+		}
 	} else {
-		// Fall back to offset-based pagination
-		p.options.Offset += p.options.Limit
+		p.exhausted = true
 	}
+	if len(pageResult.Items) == 0 {
+		p.exhausted = true
+	}
+	totalItems := p.totalItems
+	p.mu.Unlock()
 
-	event.ProcessedItems = len(p.currentPage.Items)
-	event.TotalItems = p.totalItems
-	event.HasNextPage = p.currentPage.HasMore
+	event.ProcessedItems = len(pageResult.Items)
+	event.TotalItems = totalItems
+	event.HasNextPage = pageResult.HasMore && !p.isExhausted()
 	event.Duration = duration
-	p.observer.RecordEvent(ctx, event)
+	p.recordEvent(ctx, event)
 
 	// Return false if we've reached the end or got an empty page
-	return len(p.currentPage.Items) > 0
+	return len(pageResult.Items) > 0
+}
+
+//nolint:wsl_v5
+func (p *defaultPaginator[T]) setErr(err error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.err = err
+}
+
+//nolint:wsl_v5
+func (p *defaultPaginator[T]) isExhausted() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.exhausted
+}
+
+//nolint:wsl_v5
+func (p *defaultPaginator[T]) recordEvent(ctx context.Context, event *Event) {
+	p.mu.Lock()
+	observer := p.observer
+	p.mu.Unlock()
+
+	if observer == nil {
+		return
+	}
+
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			return
+		}
+	}()
+	observer.RecordEvent(ctx, event)
 }
 
 // Items returns the items in the current page
 func (p *defaultPaginator[T]) Items() []T {
+	if p == nil {
+		return []T{}
+	}
+
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
 	if p.currentPage == nil {
+		return []T{}
+	}
+
+	if p.currentPage.Items == nil {
 		return []T{}
 	}
 
@@ -394,6 +552,10 @@ func (p *defaultPaginator[T]) Items() []T {
 
 // Err returns any error that occurred during pagination
 func (p *defaultPaginator[T]) Err() error {
+	if p == nil {
+		return nil
+	}
+
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -402,6 +564,10 @@ func (p *defaultPaginator[T]) Err() error {
 
 // PageInfo returns information about the current page
 func (p *defaultPaginator[T]) PageInfo() PageInfo {
+	if p == nil {
+		return PageInfo{}
+	}
+
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -412,7 +578,7 @@ func (p *defaultPaginator[T]) PageInfo() PageInfo {
 	}
 
 	if p.currentPage != nil {
-		info.HasNextPage = p.currentPage.HasMore
+		info.HasNextPage = p.currentPage.HasMore && !p.exhausted
 		info.HasPrevPage = p.pageNumber > 1 || p.currentPage.PrevCursor != ""
 
 		// Calculate total pages if we know the total items
@@ -424,54 +590,75 @@ func (p *defaultPaginator[T]) PageInfo() PageInfo {
 	return info
 }
 
-// All retrieves all remaining items across multiple pages
+// All retrieves all remaining items across multiple pages.
+//
+//nolint:wsl_v5
 func (p *defaultPaginator[T]) All(ctx context.Context) ([]T, error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	var allItems []T
-
-	// Add current page items if we already have a page
-	if p.currentPage != nil {
-		allItems = append(allItems, p.currentPage.Items...)
+	if p == nil {
+		return []T{}, nil
+	}
+	if err := ctx.Err(); err != nil {
+		return []T{}, err
 	}
 
-	// Fetch all remaining pages directly
-	// We're already under lock so we can use our own fetcher
-	for {
-		pageResult, err := p.fetcher(ctx, p.options)
-		if err != nil {
+	allItems := make([]T, 0)
+	pagesFetched := 0
+
+	// Add current page items if we already have a page
+	p.mu.Lock()
+	if p.currentPage != nil {
+		allItems = append(allItems, p.currentPage.Items...)
+		pagesFetched = 1
+	}
+	p.mu.Unlock()
+	if p.maxItems > 0 && len(allItems) >= p.maxItems {
+		return allItems[:p.maxItems], nil
+	}
+
+	for p.maxPages == 0 || pagesFetched < p.maxPages {
+		if err := ctx.Err(); err != nil {
 			return allItems, err
 		}
-
-		if len(pageResult.Items) == 0 {
+		if !p.Next(ctx) {
 			break
 		}
 
-		allItems = append(allItems, pageResult.Items...)
+		pagesFetched++
+		allItems = append(allItems, p.Items()...)
 
-		// Update options for next page
-		if pageResult.NextCursor != "" {
-			p.options.Cursor = pageResult.NextCursor
-			p.options.Offset = 0
-		} else {
-			p.options.Offset += p.options.Limit
+		if p.maxItems > 0 && len(allItems) >= p.maxItems {
+			return allItems[:p.maxItems], nil
 		}
+	}
 
-		// Check if we should stop
-		if !pageResult.HasMore {
-			break
-		}
+	if err := p.Err(); err != nil {
+		return allItems, err
 	}
 
 	return allItems, nil
 }
 
-// ForEach iterates through all items across pages
+// ForEach iterates through all items across pages.
+//
+//nolint:cyclop,gocognit,gocyclo,revive,wsl_v5
 func (p *defaultPaginator[T]) ForEach(ctx context.Context, fn func(item T) error) error {
+	if p == nil {
+		return nil
+	}
+	if fn == nil {
+		return errors.New("item callback cannot be nil")
+	}
+
+	processed := 0
+	pagesFetched := 0
+
 	// Process current page items if we already have a page
-	if p.currentPage != nil {
-		for _, item := range p.currentPage.Items {
+	p.mu.Lock()
+	currentPage := p.currentPage
+	p.mu.Unlock()
+	if currentPage != nil {
+		pagesFetched = 1
+		for _, item := range currentPage.Items {
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
@@ -479,11 +666,16 @@ func (p *defaultPaginator[T]) ForEach(ctx context.Context, fn func(item T) error
 			if err := fn(item); err != nil {
 				return err
 			}
+			processed++
+			if p.maxItems > 0 && processed >= p.maxItems {
+				return nil
+			}
 		}
 	}
 
 	// Process all remaining pages
-	for p.Next(ctx) {
+	for (p.maxPages == 0 || pagesFetched < p.maxPages) && p.Next(ctx) {
+		pagesFetched++
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
@@ -495,6 +687,10 @@ func (p *defaultPaginator[T]) ForEach(ctx context.Context, fn func(item T) error
 
 			if err := fn(item); err != nil {
 				return err
+			}
+			processed++
+			if p.maxItems > 0 && processed >= p.maxItems {
+				return nil
 			}
 		}
 	}
@@ -511,8 +707,19 @@ type concurrentWorkerConfig[T any] struct {
 }
 
 // startWorker runs a single worker that processes items from the channel.
+//
+//nolint:wsl_v5
 func startWorker[T any](ctx context.Context, wg *sync.WaitGroup, cfg *concurrentWorkerConfig[T]) {
 	defer wg.Done()
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			select {
+			case cfg.errCh <- fmt.Errorf("pagination worker panic: %v", recovered):
+			default:
+			}
+			cfg.cancel()
+		}
+	}()
 
 	for item := range cfg.itemCh {
 		if ctx.Err() != nil {
@@ -533,20 +740,18 @@ func startWorker[T any](ctx context.Context, wg *sync.WaitGroup, cfg *concurrent
 }
 
 // feedItemsToChannel sends items to the worker channel, respecting context cancellation.
-func feedItemsToChannel[T any](ctx context.Context, items []T, itemCh chan<- T, errCh chan error) {
+func feedItemsToChannel[T any](ctx context.Context, items []T, itemCh chan<- T, errCh <-chan error) error {
 	for _, item := range items {
 		select {
 		case <-ctx.Done():
-			return
+			return ctx.Err()
 		case err := <-errCh:
-			errCh <- err // Put it back for the main goroutine to find
-
-			return
-		default:
+			return err
+		case itemCh <- item:
 		}
-
-		itemCh <- item
 	}
+
+	return nil
 }
 
 // collectWorkerError checks for errors from workers after processing completes.
@@ -559,8 +764,20 @@ func collectWorkerError(errCh <-chan error) error {
 	}
 }
 
-// Concurrent processes items concurrently with the specified number of workers
+// Concurrent processes items concurrently with the specified number of workers.
+//
+//nolint:cyclop,funlen,gocognit,gocyclo,revive,wsl_v5
 func (p *defaultPaginator[T]) Concurrent(ctx context.Context, workers int, fn func(item T) error) error {
+	if p == nil {
+		return nil
+	}
+	if fn == nil {
+		return errors.New("item callback cannot be nil")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	if workers <= 0 {
 		workers = 5 // Default to 5 workers
 	}
@@ -588,13 +805,43 @@ func (p *defaultPaginator[T]) Concurrent(ctx context.Context, workers int, fn fu
 	}
 
 	// Process current page if we already have one
-	if p.currentPage != nil && len(p.currentPage.Items) > 0 {
-		feedItemsToChannel(ctx, p.Items(), itemCh, errCh)
+	pagesFetched := 0
+	p.mu.Lock()
+	currentPage := p.currentPage
+	p.mu.Unlock()
+	if currentPage != nil && len(currentPage.Items) > 0 {
+		pagesFetched = 1
+		if err := feedItemsToChannel(ctx, p.Items(), itemCh, errCh); err != nil {
+			close(itemCh)
+			wg.Wait()
+			if collectedErr := collectWorkerError(errCh); collectedErr != nil {
+				return collectedErr
+			}
+
+			return err
+		}
 	}
 
 	// Process all remaining pages
-	for p.Next(ctx) {
-		feedItemsToChannel(ctx, p.Items(), itemCh, errCh)
+	var workerErr error
+	for p.maxPages == 0 || pagesFetched < p.maxPages {
+		if err := collectWorkerError(errCh); err != nil {
+			workerErr = err
+			break
+		}
+		if !p.Next(ctx) {
+			break
+		}
+		pagesFetched++
+		if err := feedItemsToChannel(ctx, p.Items(), itemCh, errCh); err != nil {
+			close(itemCh)
+			wg.Wait()
+			if collectedErr := collectWorkerError(errCh); collectedErr != nil {
+				return collectedErr
+			}
+
+			return err
+		}
 
 		if ctx.Err() != nil {
 			break
@@ -603,12 +850,14 @@ func (p *defaultPaginator[T]) Concurrent(ctx context.Context, workers int, fn fu
 
 	close(itemCh)
 	wg.Wait()
-
-	if err := p.Err(); err != nil {
+	if workerErr != nil {
+		return workerErr
+	}
+	if err := collectWorkerError(errCh); err != nil {
 		return err
 	}
 
-	return collectWorkerError(errCh)
+	return p.Err()
 }
 
 // CollectAll is a shortcut function to create a Paginator and collect all items
@@ -618,12 +867,17 @@ func CollectAll[T any](
 	entityType string,
 	fetcher PageFetcher[T],
 	options PageOptions,
+	additionalOptions ...PaginatorOption,
 ) ([]T, error) {
-	paginator, err := NewPaginator(fetcher,
+	paginatorOptions := make([]PaginatorOption, 0, 3+len(additionalOptions))
+	paginatorOptions = append(paginatorOptions,
 		WithOperationName(operationName),
 		WithEntityType(entityType),
 		WithPageOptions(options),
 	)
+	paginatorOptions = append(paginatorOptions, additionalOptions...)
+
+	paginator, err := NewPaginator(fetcher, paginatorOptions...)
 	if err != nil {
 		return []T{}, err
 	}
