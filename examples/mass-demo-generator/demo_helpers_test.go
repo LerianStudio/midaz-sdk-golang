@@ -5,7 +5,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/transaction"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -38,4 +40,55 @@ func TestSaveEntitiesIDsUsesOwnerOnlyPermissions(t *testing.T) {
 	info, err := os.Stat(path)
 	require.NoError(t, err)
 	require.Equal(t, os.FileMode(0o600), info.Mode().Perm())
+}
+
+func TestTryLoadDemoFileDefaultsRequiresMassDemoBlock(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "default.yaml")
+	require.NoError(t, os.WriteFile(path, []byte("timeout: 10\n"), 0o600))
+
+	defaults, ok := tryLoadDemoFileDefaults(path)
+
+	require.False(t, ok)
+	require.Equal(t, demoFileDefaults{}, defaults)
+}
+
+func TestTryLoadDemoFileDefaultsAcceptsMassDemoBlock(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "default.yaml")
+	require.NoError(t, os.WriteFile(path, []byte("mass_demo:\n  timeout: 30\n"), 0o600))
+
+	defaults, ok := tryLoadDemoFileDefaults(path)
+
+	require.True(t, ok)
+	require.NotNil(t, defaults.Timeout)
+	require.Equal(t, 30, *defaults.Timeout)
+}
+
+func TestSelectDemoRoutesReturnsRequiredIDs(t *testing.T) {
+	sourceID := uuid.New()
+	destinationID := uuid.New()
+	transactionID := uuid.New()
+
+	routes, err := selectDemoRoutes(
+		[]*models.OperationRoute{
+			{ID: sourceID, Title: "Source: External (any)"},
+			{ID: destinationID, Title: "Destination: Customer (CHECKING)"},
+		},
+		[]*models.TransactionRoute{{ID: transactionID, Title: "External Funding Flow"}},
+	)
+
+	require.NoError(t, err)
+	require.Equal(t, sourceID.String(), routes.sourceRouteID)
+	require.Equal(t, destinationID.String(), routes.destinationRouteID)
+	require.Equal(t, transactionID.String(), routes.transactionRouteID)
+}
+
+func TestSelectDemoRoutesRequiresDefaultRoutes(t *testing.T) {
+	_, err := selectDemoRoutes(
+		[]*models.OperationRoute{{ID: uuid.New(), Title: "Source: External (any)"}},
+		[]*models.TransactionRoute{},
+	)
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "operation route Destination: Customer (CHECKING)")
+	require.Contains(t, err.Error(), "transaction route External Funding Flow")
 }

@@ -313,7 +313,10 @@ func GetTokenFromAccessManager(ctx context.Context, accessMgr AccessManager, htt
 			return token, nil
 		}
 
-		tokenResp, err := requestAccessManagerToken(context.WithoutCancel(ctx), accessMgr, httpClient)
+		tokenCtx, cancel := accessManagerSingleflightContext(ctx)
+		defer cancel()
+
+		tokenResp, err := requestAccessManagerToken(tokenCtx, accessMgr, httpClient)
 		if err != nil {
 			return "", err
 		}
@@ -338,6 +341,15 @@ func GetTokenFromAccessManager(ctx context.Context, accessMgr AccessManager, htt
 
 		return token, nil
 	}
+}
+
+func accessManagerSingleflightContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	tokenCtx := context.WithoutCancel(ctx)
+	if deadline, ok := ctx.Deadline(); ok {
+		return context.WithDeadline(tokenCtx, deadline)
+	}
+
+	return tokenCtx, func() {}
 }
 
 func validateAccessManagerTokenRequest(accessMgr AccessManager, httpClient *http.Client) error {

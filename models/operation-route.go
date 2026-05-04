@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation/core"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -124,7 +125,7 @@ func (input *UpdateOperationRouteInput) hasChanges() bool {
 }
 
 func validateRouteText(value string, maxLength int, field string) error {
-	if len(value) > maxLength {
+	if utf8.RuneCountInString(value) > maxLength {
 		return fmt.Errorf("%s must be at most %d characters", field, maxLength)
 	}
 

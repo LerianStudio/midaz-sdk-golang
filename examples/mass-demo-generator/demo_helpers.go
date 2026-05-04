@@ -58,7 +58,7 @@ type demoFileDefaults struct {
 }
 
 type demoDefaultsWrapper struct {
-	MassDemo demoFileDefaults `yaml:"mass_demo"`
+	MassDemo *demoFileDefaults `yaml:"mass_demo"`
 }
 
 const demoDefaultsPath = "default.yaml"
@@ -160,7 +160,12 @@ func tryLoadDemoFileDefaults(path string) (demoFileDefaults, bool) {
 		return demoFileDefaults{}, false
 	}
 
-	return wrapper.MassDemo, true
+	if wrapper.MassDemo == nil {
+		log.Printf("warning: %s does not contain a mass_demo defaults block", providedAbsPath)
+		return demoFileDefaults{}, false
+	}
+
+	return *wrapper.MassDemo, true
 }
 
 func coalesceIntPtr(ptr *int, fallback int) int {

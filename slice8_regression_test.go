@@ -42,6 +42,18 @@ func TestSlice8ClientHelpers(t *testing.T) {
 		require.Equal(t, "https://original.example.com/v1", c.config.ServiceURLs[config.ServiceOnboarding])
 	})
 
+	t.Run("WithConfig attaches observability provider to context", func(t *testing.T) {
+		provider, err := observability.New(context.Background(), observability.WithComponentEnabled(false, false, false))
+		require.NoError(t, err)
+
+		cfg := createTestConfig(t)
+		require.NoError(t, config.WithObservabilityProvider(provider)(cfg))
+
+		c, err := New(WithConfig(cfg))
+		require.NoError(t, err)
+		require.Same(t, provider, observability.GetProvider(c.GetContext()))
+	})
+
 	t.Run("nil shutdown is safe", func(t *testing.T) {
 		var c *Client
 		require.NoError(t, c.Shutdown(context.Background()))

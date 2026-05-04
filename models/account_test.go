@@ -1,6 +1,7 @@
 package models
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -714,6 +715,25 @@ func TestUpdateAccountInputWithMetadata(t *testing.T) {
 
 	assert.Same(t, input, result)
 	assert.Equal(t, metadata, input.Metadata)
+}
+
+func TestUpdateAccountInputMarshalJSONValueOmitsUnsetFields(t *testing.T) {
+	blocked := false
+	input := UpdateAccountInput{Name: "Updated Account", Blocked: &blocked}
+
+	data, err := json.Marshal(input)
+
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"blocked":false,"name":"Updated Account"}`, string(data))
+}
+
+func TestUpdateAccountInputMarshalJSONNilPointer(t *testing.T) {
+	var input *UpdateAccountInput
+
+	data, err := json.Marshal(input)
+
+	require.NoError(t, err)
+	assert.Equal(t, "null", string(data))
 }
 
 // TestUpdateAccountInputToMmodel tests the ToMmodel conversion method

@@ -505,6 +505,7 @@ func WithConfig(cfg *config.Config) Option {
 		c.config = cfg.Clone()
 		if provider := c.config.GetObservabilityProvider(); provider != nil && !reflectutil.IsTypedNil(provider) {
 			c.observability = provider
+			c.ctx = observability.WithProvider(c.ctx, provider)
 			if provider.IsEnabled() {
 				metrics, err := observability.NewMetricsCollector(provider)
 				if err != nil {

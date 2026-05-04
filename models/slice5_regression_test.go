@@ -41,6 +41,12 @@ func TestSlice5RouteValidators_ContractLimitsAndMetadata(t *testing.T) {
 	operationRoute = NewCreateOperationRouteInput("title", "desc", "source").WithMetadata(map[string]any{strings.Repeat("m", 101): "value"})
 	require.ErrorContains(t, operationRoute.Validate(), "metadata")
 
+	operationRoute = NewCreateOperationRouteInput(strings.Repeat("\u00e9", maxRouteTitleLength), "desc", "source")
+	require.NoError(t, operationRoute.Validate())
+
+	operationRoute = NewCreateOperationRouteInput(strings.Repeat("\u00e9", maxRouteTitleLength+1), "desc", "source")
+	require.ErrorContains(t, operationRoute.Validate(), "title")
+
 	txRoute := NewCreateTransactionRouteInput("title", strings.Repeat("d", maxRouteDescriptionLength+1), []string{uuid.NewString()})
 	require.ErrorContains(t, txRoute.Validate(), "description")
 

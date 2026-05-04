@@ -65,6 +65,8 @@ const (
 // ErrorCategory represents the general category of an error
 type ErrorCategory string
 
+const statusClientClosedRequest = 499
+
 const (
 	// CategoryValidation represents validation errors
 	CategoryValidation ErrorCategory = "validation"
@@ -589,7 +591,7 @@ func NewCancellationError(operation string, err error) *Error {
 		Message:    message,
 		Operation:  operation,
 		Err:        err,
-		StatusCode: 499, // Use 499 Client Closed Request which is the standard for cancelled requests
+		StatusCode: statusClientClosedRequest,
 	}
 }
 
@@ -930,6 +932,7 @@ func CheckTimeoutError(err error) bool {
 
 	// Backward compatibility checks
 	return errors.Is(err, ErrTimeout) ||
+		errors.Is(err, context.DeadlineExceeded) ||
 		(legacyTarget != nil && errors.Is(err, legacyTarget))
 }
 
@@ -1181,6 +1184,7 @@ func categorizeByErrorChecks(err error) ErrorCategory {
 		{CheckConflictError, CategoryConflict},
 		{isRateLimitErrorType, CategoryLimitExceeded},
 		{isTimeoutErrorType, CategoryTimeout},
+		{CheckCancellationError, CategoryCancellation},
 		{CheckNetworkError, CategoryNetwork},
 		{isInternalErrorType, CategoryInternal},
 	}
@@ -1227,6 +1231,7 @@ var statusCodesByCategory = map[ErrorCategory]int{
 	CategoryConflict:       http.StatusConflict,
 	CategoryLimitExceeded:  http.StatusTooManyRequests,
 	CategoryTimeout:        http.StatusGatewayTimeout,
+	CategoryCancellation:   statusClientClosedRequest,
 	CategoryNetwork:        http.StatusServiceUnavailable,
 	CategoryUnprocessable:  http.StatusUnprocessableEntity,
 }

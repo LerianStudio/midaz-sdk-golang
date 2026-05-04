@@ -273,6 +273,16 @@ func TestGetErrorCategory(t *testing.T) {
 			err:      errors.New("something went wrong"),
 			expected: sdkerrors.CategoryInternal,
 		},
+		{
+			name:     "context canceled",
+			err:      context.Canceled,
+			expected: sdkerrors.CategoryCancellation,
+		},
+		{
+			name:     "context deadline exceeded",
+			err:      context.DeadlineExceeded,
+			expected: sdkerrors.CategoryTimeout,
+		},
 	}
 
 	for _, tt := range tests {
@@ -614,6 +624,16 @@ func TestGetStatusCode(t *testing.T) {
 			name:     "generic error",
 			err:      errors.New("something went wrong"),
 			expected: http.StatusInternalServerError,
+		},
+		{
+			name:     "context canceled",
+			err:      context.Canceled,
+			expected: 499,
+		},
+		{
+			name:     "context deadline exceeded",
+			err:      context.DeadlineExceeded,
+			expected: http.StatusGatewayTimeout,
 		},
 	}
 

@@ -50,11 +50,7 @@ func cursorListQueryParams(opts *models.ListOptions) map[string]string {
 		params[models.QueryParamEndDate] = opts.EndDate
 	}
 
-	if opts.OrderDirection != "" {
-		params[models.QueryParamOrderDirection] = opts.OrderDirection
-	} else {
-		params[models.QueryParamOrderDirection] = models.DefaultSortDirection
-	}
+	params[models.QueryParamOrderDirection] = cursorOrderDirection(opts.OrderDirection)
 
 	for key, value := range opts.Filters {
 		if value != "" {
@@ -71,6 +67,17 @@ func cursorListQueryParams(opts *models.ListOptions) map[string]string {
 	}
 
 	return params
+}
+
+func cursorOrderDirection(direction string) string {
+	switch direction {
+	case "":
+		return models.DefaultSortDirection
+	case string(models.SortAscending), string(models.SortDescending):
+		return direction
+	default:
+		return models.DefaultSortDirection
+	}
 }
 
 func isReservedCursorQueryParam(key string) bool {

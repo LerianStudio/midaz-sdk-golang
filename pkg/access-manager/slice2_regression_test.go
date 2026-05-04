@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -108,4 +110,43 @@ func TestGetTokenFromAccessManager_CachesTokenUntilRefreshWindow(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, first, second)
 	require.Equal(t, int32(1), calls.Load())
+}
+
+func TestGetTokenFromAccessManager_PreservesCallerDeadlineForSingleflightRequest(t *testing.T) {
+	deadline := time.Now().Add(time.Hour)
+	ctx, cancel := context.WithDeadline(context.Background(), deadline)
+	defer cancel()
+
+	var gotDeadline time.Time
+	var hasDeadline bool
+	client := &http.Client{Transport: accessManagerRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		gotDeadline, hasDeadline = req.Context().Deadline()
+		return accessManagerTokenResponse(req), nil
+	})}
+
+	mgr := AccessManager{Enabled: true, Address: "http://localhost:4000", ClientID: "deadline-client", ClientSecret: "deadline-secret"}
+	InvalidateAccessManagerToken(mgr)
+
+	token, err := GetTokenFromAccessManager(ctx, mgr, client)
+
+	require.NoError(t, err)
+	require.Equal(t, "token", token)
+	require.True(t, hasDeadline)
+	require.WithinDuration(t, deadline, gotDeadline, time.Second)
+}
+
+type accessManagerRoundTripFunc func(*http.Request) (*http.Response, error)
+
+func (fn accessManagerRoundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return fn(req)
+}
+
+func accessManagerTokenResponse(req *http.Request) *http.Response {
+	body := `{"accessToken":"token","expiresAt":"` + time.Now().Add(time.Hour).Format(time.RFC3339) + `"}`
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     make(http.Header),
+		Body:       io.NopCloser(strings.NewReader(body)),
+		Request:    req,
+	}
 }

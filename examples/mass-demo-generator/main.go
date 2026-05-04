@@ -542,7 +542,10 @@ func createAccountResources(ctx context.Context, c *client.Client, obsProvider o
 
 	state.apiCalls += len(troutes)
 	fmt.Printf("Created transaction routes: %d\n", len(troutes))
-	routes = selectDemoRoutes(opRoutes, troutes)
+	routes, err = selectDemoRoutes(opRoutes, troutes)
+	if err != nil {
+		return nil, nil, nil, nil, demoRouteContext{}, fmt.Errorf("demo route selection failed: %w", err)
+	}
 
 	accGen := gen.NewAccountGenerator(c.Entity, obsProvider)
 	totalAccounts := state.demoConfig.accountsPerLedgerVal
@@ -614,7 +617,7 @@ func createAccountResources(ctx context.Context, c *client.Client, obsProvider o
 	return created, portfolio, segNA, segEU, routes, nil
 }
 
-func selectDemoRoutes(opRoutes []*models.OperationRoute, txRoutes []*models.TransactionRoute) demoRouteContext {
+func selectDemoRoutes(opRoutes []*models.OperationRoute, txRoutes []*models.TransactionRoute) (demoRouteContext, error) {
 	routes := demoRouteContext{}
 	for _, route := range opRoutes {
 		if route == nil {
@@ -638,7 +641,21 @@ func selectDemoRoutes(opRoutes []*models.OperationRoute, txRoutes []*models.Tran
 		}
 	}
 
-	return routes
+	missing := make([]string, 0, 3)
+	if routes.sourceRouteID == "" {
+		missing = append(missing, "operation route Source: External (any)")
+	}
+	if routes.destinationRouteID == "" {
+		missing = append(missing, "operation route Destination: Customer (CHECKING)")
+	}
+	if routes.transactionRouteID == "" {
+		missing = append(missing, "transaction route External Funding Flow")
+	}
+	if len(missing) > 0 {
+		return demoRouteContext{}, fmt.Errorf("missing required demo routes: %s", strings.Join(missing, ", "))
+	}
+
+	return routes, nil
 }
 
 func cloneAccountTemplate(base data.AccountTemplate) data.AccountTemplate {
