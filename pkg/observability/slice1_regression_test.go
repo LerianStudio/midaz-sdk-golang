@@ -149,7 +149,7 @@ func TestHTTPMiddleware_SemconvErrorTypeForHTTPStatus(t *testing.T) {
 		},
 	})
 
-	req := mustRequest(t, "https://api.example.test/v1/accounts")
+	req := mustRequest(t)
 	resp, err := transport.RoundTrip(req)
 	require.NoError(t, err)
 	require.NotNil(t, resp)
@@ -169,7 +169,11 @@ func TestHTTPMiddleware_SemconvErrorTypeForTransportError(t *testing.T) {
 		err: errors.New("password=hunter2 token=secret"),
 	})
 
-	_, err := transport.RoundTrip(mustRequest(t, "https://api.example.test/v1/accounts"))
+	resp, err := transport.RoundTrip(mustRequest(t))
+	if resp != nil && resp.Body != nil {
+		require.NoError(t, resp.Body.Close())
+	}
+
 	require.Error(t, err)
 
 	require.Len(t, recorder.Ended(), 1)
@@ -216,13 +220,13 @@ func TestHTTPMiddleware_NilSafety(t *testing.T) {
 			name:     "enabled provider with nil next",
 			provider: newRegressionProvider(tracetest.NewSpanRecorder()),
 			next:     nil,
-			req:      mustRequest(t, "https://api.example.test/v1/accounts"),
+			req:      mustRequest(t),
 		},
 		{
 			name:     "nil response with nil error",
 			provider: newRegressionProvider(tracetest.NewSpanRecorder()),
 			next:     regressionRoundTripper{},
-			req:      mustRequest(t, "https://api.example.test/v1/accounts"),
+			req:      mustRequest(t),
 		},
 	}
 
@@ -374,31 +378,44 @@ func TestRecordSpanMetric_DoesNotEmitTraceOrSpanIDMetricAttributes(t *testing.T)
 	// the test ensures that filter remains in place.
 	forbidden := []string{"trace.id", "trace_id", "traceid", "span.id", "span_id", "spanid"}
 
+	for _, metricStream := range metricStreams(collected) {
+		assertMetricStreamHasNoForbiddenAttributes(t, metricStream, forbidden)
+	}
+}
+
+func metricStreams(collected metricdata.ResourceMetrics) []metricdata.Metrics {
+	streams := make([]metricdata.Metrics, 0)
 	for _, scope := range collected.ScopeMetrics {
-		for _, metricStream := range scope.Metrics {
-			switch data := metricStream.Data.(type) {
-			case metricdata.Sum[float64]:
-				for _, dp := range data.DataPoints {
-					assertNoForbiddenAttributes(t, metricStream.Name, dp.Attributes, forbidden)
-				}
-			case metricdata.Sum[int64]:
-				for _, dp := range data.DataPoints {
-					assertNoForbiddenAttributes(t, metricStream.Name, dp.Attributes, forbidden)
-				}
-			case metricdata.Gauge[float64]:
-				for _, dp := range data.DataPoints {
-					assertNoForbiddenAttributes(t, metricStream.Name, dp.Attributes, forbidden)
-				}
-			case metricdata.Gauge[int64]:
-				for _, dp := range data.DataPoints {
-					assertNoForbiddenAttributes(t, metricStream.Name, dp.Attributes, forbidden)
-				}
-			case metricdata.Histogram[float64]:
-				for _, dp := range data.DataPoints {
-					assertNoForbiddenAttributes(t, metricStream.Name, dp.Attributes, forbidden)
-				}
-			}
+		streams = append(streams, scope.Metrics...)
+	}
+
+	return streams
+}
+
+func assertMetricStreamHasNoForbiddenAttributes(t *testing.T, metricStream metricdata.Metrics, forbidden []string) {
+	t.Helper()
+
+	switch data := metricStream.Data.(type) {
+	case metricdata.Sum[float64]:
+		assertNumberDataPointAttributes(t, metricStream.Name, data.DataPoints, forbidden)
+	case metricdata.Sum[int64]:
+		assertNumberDataPointAttributes(t, metricStream.Name, data.DataPoints, forbidden)
+	case metricdata.Gauge[float64]:
+		assertNumberDataPointAttributes(t, metricStream.Name, data.DataPoints, forbidden)
+	case metricdata.Gauge[int64]:
+		assertNumberDataPointAttributes(t, metricStream.Name, data.DataPoints, forbidden)
+	case metricdata.Histogram[float64]:
+		for _, dp := range data.DataPoints {
+			assertNoForbiddenAttributes(t, metricStream.Name, dp.Attributes, forbidden)
 		}
+	}
+}
+
+func assertNumberDataPointAttributes[N int64 | float64](t *testing.T, metricName string, dataPoints []metricdata.DataPoint[N], forbidden []string) {
+	t.Helper()
+
+	for _, dp := range dataPoints {
+		assertNoForbiddenAttributes(t, metricName, dp.Attributes, forbidden)
 	}
 }
 
@@ -415,10 +432,10 @@ func assertNoForbiddenAttributes(t *testing.T, metricName string, attrs attribut
 	}
 }
 
-func mustRequest(t *testing.T, rawURL string) *http.Request {
+func mustRequest(t *testing.T) *http.Request {
 	t.Helper()
 
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, rawURL, nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://api.example.test/v1/accounts", nil)
 	require.NoError(t, err)
 
 	return req

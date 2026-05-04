@@ -1223,8 +1223,8 @@ func (c *HTTPClient) refreshAuthToken(ctx context.Context, snapshot httpClientCo
 		return "", false
 	}
 
-	token, _ := result.(string)
-	if token == "" {
+	token, ok := result.(string)
+	if !ok || token == "" {
 		return "", false
 	}
 

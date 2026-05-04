@@ -2,7 +2,7 @@ package performance
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"net/http"
 	"sync"
 
@@ -171,7 +171,7 @@ func ParseResponseWithAdapter(processor *BatchProcessor, result *BatchResult, re
 	}
 
 	if result == nil {
-		return fmt.Errorf("ParseResponseWithAdapter: result cannot be nil")
+		return errors.New("ParseResponseWithAdapter: result cannot be nil")
 	}
 
 	// Get the HTTP batch processor

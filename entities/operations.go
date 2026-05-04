@@ -391,7 +391,7 @@ func (e *operationsEntity) GetOperation(ctx context.Context, orgID, ledgerID, ac
 //
 // Deprecated: use UpdateTransactionOperation(ctx, orgID, ledgerID,
 // transactionID, operationID, input).
-func (e *operationsEntity) UpdateOperation(_ context.Context, _, _, _, _ string, _ any) (*models.Operation, error) {
+func (*operationsEntity) UpdateOperation(_ context.Context, _, _, _, _ string, _ any) (*models.Operation, error) {
 	return nil, errors.NewValidationError(
 		"UpdateOperation",
 		"the account-scoped operation update path has been removed",

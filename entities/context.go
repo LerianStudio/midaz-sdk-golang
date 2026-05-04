@@ -101,6 +101,6 @@ func autoIdempotencySuppressed(ctx context.Context) bool {
 		return false
 	}
 
-	v, _ := ctx.Value(contextKeySuppressAutoIdempotency{}).(bool)
-	return v
+	v, ok := ctx.Value(contextKeySuppressAutoIdempotency{}).(bool)
+	return ok && v
 }

@@ -645,14 +645,6 @@ func requestPath(req *http.Request) string {
 	return req.URL.Path
 }
 
-func requestHost(req *http.Request) string {
-	if req == nil || req.URL == nil {
-		return ""
-	}
-
-	return req.URL.Host
-}
-
 func (m *httpMiddleware) sanitizeURL(rawURL *url.URL) string {
 	if rawURL == nil {
 		return ""

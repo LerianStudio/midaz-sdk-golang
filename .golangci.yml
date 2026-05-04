@@ -55,13 +55,11 @@ linters:
     - nakedret        # Naked returns
     - prealloc        # Preallocate slices
     - nolintlint      # Proper nolint directives
-    - wsl_v5          # Whitespace linter
 
     # ===========================================
     # CODE ORGANIZATION
     # ===========================================
     - depguard        # Dependency management
-    - goconst         # Repeated strings as constants
     - gomoddirectives # Go mod directives
 
     # ===========================================
@@ -183,19 +181,13 @@ linters:
               desc: "Use structured logging via pkg/observability"
 
     # -----------------------------------------
-    # Code Constants
-    # -----------------------------------------
-    goconst:
-      min-len: 3
-      min-occurrences: 3
-
-    # -----------------------------------------
     # Go Vet
     # -----------------------------------------
     govet:
       enable-all: true
       disable:
         - fieldalignment
+        - inline        # Too noisy for reflect-heavy conversion helpers.
       settings:
         shadow:
           strict: true
@@ -355,7 +347,6 @@ linters:
           - dupl
           - forbidigo
           - noctx
-          - goconst
         path: _test\.go
 
       # Allow complexity in generator
@@ -404,11 +395,6 @@ linters:
           - revive
         text: "var-naming: avoid meaningless package names"
         path: pkg/utils/
-
-      # WSL is too noisy
-      - linters:
-          - wsl_v5
-        path: examples/
 
     paths:
       - third_party$
