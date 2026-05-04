@@ -241,7 +241,7 @@ DEMO_NON_INTERACTIVE ?= 1
 
 demo-data:
 	$(call print_header,Running Mass Demo Data Generator)
-	$(call print_header,Ensure Midaz Ledger is on localhost:3002/v1 and CRM is on localhost:4003/v1, or set MIDAZ_* URLs)
+	$(call print_header,Ensure Midaz Ledger is on localhost:3002/v1 and CRM is on localhost:4003/v1 or set MIDAZ_* URLs)
 	@DEMO_NON_INTERACTIVE=$(DEMO_NON_INTERACTIVE) go run ./examples/mass-demo-generator
 
 demo-data-interactive:

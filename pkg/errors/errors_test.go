@@ -635,6 +635,21 @@ func TestGetStatusCode(t *testing.T) {
 			err:      context.DeadlineExceeded,
 			expected: http.StatusGatewayTimeout,
 		},
+		{
+			name:     "validation sentinel category fallback",
+			err:      sdkerrors.ErrValidation,
+			expected: http.StatusBadRequest,
+		},
+		{
+			name:     "unprocessable sentinel category fallback",
+			err:      sdkerrors.ErrUnprocessable,
+			expected: http.StatusUnprocessableEntity,
+		},
+		{
+			name:     "manual error category fallback",
+			err:      &sdkerrors.Error{Category: sdkerrors.CategoryNetwork, Message: "network"},
+			expected: http.StatusServiceUnavailable,
+		},
 	}
 
 	for _, tt := range tests {
@@ -1578,8 +1593,7 @@ func TestFormatErrorForDisplay_AllCategories(t *testing.T) {
 		{"network", sdkerrors.NewNetworkError("Test", nil), "Network error"},
 		{"unprocessable", sdkerrors.NewUnprocessableError("Test", "transaction", nil), "Operation could not be processed"},
 		{"internal", sdkerrors.NewInternalError("Test", nil), "An unexpected error occurred"},
-		// Cancellation falls through to default case which returns "unexpected error"
-		{"cancellation", sdkerrors.NewCancellationError("Test", nil), "unexpected error"},
+		{"cancellation", sdkerrors.NewCancellationError("Test", nil), "operation was cancelled"},
 	}
 
 	for _, tt := range tests {
@@ -2003,8 +2017,7 @@ func TestGetStatusCode_CategoryMapping(t *testing.T) {
 func TestFormatErrorForDisplay_Cancellation(t *testing.T) {
 	err := sdkerrors.NewCancellationError("Test", nil)
 	result := sdkerrors.FormatErrorForDisplay(err)
-	// Cancellation falls through to default in FormatErrorForDisplay
-	assert.Contains(t, result, "unexpected error")
+	assert.Contains(t, result, "operation was cancelled")
 }
 
 // --------------------------------

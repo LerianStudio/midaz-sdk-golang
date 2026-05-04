@@ -423,6 +423,9 @@ func TestOperationsEntity_ListOperations_QueryParams(t *testing.T) {
 
 	assert.Contains(t, capturedURL, "limit=25")
 	assert.NotContains(t, capturedURL, "page=")
+	assert.NotContains(t, capturedURL, "offset=")
+	assert.NotContains(t, capturedURL, "orderBy=")
+	assert.Contains(t, capturedURL, "sort_order=desc")
 }
 
 // TestOperationsEntity_GetOperation tests GetOperation method
@@ -1351,6 +1354,9 @@ func TestOperationsEntity_ListWithAllFilters(t *testing.T) {
 	// Verify query parameters
 	assert.Contains(t, capturedQuery, "limit=20")
 	assert.NotContains(t, capturedQuery, "page=")
+	assert.NotContains(t, capturedQuery, "offset=")
+	assert.NotContains(t, capturedQuery, "orderBy=")
+	assert.Contains(t, capturedQuery, "sort_order=asc")
 }
 
 // TestMockHTTPClientForOperations tests using the MockHTTPClient pattern

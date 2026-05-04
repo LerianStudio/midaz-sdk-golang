@@ -1,6 +1,7 @@
 package models
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -67,10 +68,9 @@ func (input *CreateOperationRouteInput) Validate() error {
 // UpdateOperationRouteInput wraps mmodel.UpdateOperationRouteInput to maintain
 // compatibility while using midaz entities.
 //
-// An empty update payload — no setters and no null-fields — returns a
-// marshal error from MarshalJSON. This is intentional: an empty PATCH
-// would be a no-op round trip. Use the dedicated builder helpers to
-// either set a value or explicitly null out a field.
+// An empty update payload returns a validation error because it would be a
+// no-op PATCH. AccountingEntriesRaw preserves explicit null JSON for callers
+// that need RFC 7396 merge-patch removal semantics.
 type UpdateOperationRouteInput struct {
 	mmodel.UpdateOperationRouteInput
 }
@@ -122,6 +122,28 @@ func (input *UpdateOperationRouteInput) hasChanges() bool {
 		input.Account != nil ||
 		input.AccountingEntries != nil ||
 		len(input.AccountingEntriesRaw) > 0
+}
+
+// MarshalJSON emits only fields explicitly set on the SDK PATCH input.
+func (input UpdateOperationRouteInput) MarshalJSON() ([]byte, error) {
+	fields := map[string]any{}
+	addStringField(fields, "title", input.Title)
+	addStringField(fields, "description", input.Description)
+	addStringField(fields, "code", input.Code) //nolint:staticcheck // Deprecated field remains part of compatibility DTO serialization.
+
+	if len(input.AccountingEntriesRaw) > 0 {
+		fields["accountingEntries"] = input.AccountingEntriesRaw
+	} else if input.AccountingEntries != nil {
+		fields["accountingEntries"] = input.AccountingEntries
+	}
+
+	addMetadataField(fields, input.Metadata)
+
+	if input.Account != nil {
+		fields["account"] = input.Account
+	}
+
+	return json.Marshal(fields)
 }
 
 func validateRouteText(value string, maxLength int, field string) error {

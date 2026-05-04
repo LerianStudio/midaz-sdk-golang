@@ -1208,7 +1208,7 @@ func TestMetadataValidation(t *testing.T) {
 		expectError bool
 	}{
 		{
-			name:        "nil metadata",
+			name:        "nil metadata alone triggers empty payload error",
 			metadata:    nil,
 			expectError: true,
 		},

@@ -1244,7 +1244,9 @@ func GetStatusCode(err error) int {
 
 	var mdzErr *Error
 	if errors.As(err, &mdzErr) && mdzErr != nil {
-		return mdzErr.StatusCode
+		if mdzErr.StatusCode != 0 {
+			return mdzErr.StatusCode
+		}
 	}
 
 	// For the tests, generic error should map to internal server error
@@ -1283,6 +1285,8 @@ func FormatErrorForDisplay(err error) string {
 			return "Rate limit exceeded. Please try again later."
 		case CategoryTimeout:
 			return "The operation timed out. Please try again later."
+		case CategoryCancellation:
+			return "The operation was cancelled."
 		case CategoryNetwork:
 			return "Network error. Please check your connection and try again."
 		case CategoryUnprocessable:
