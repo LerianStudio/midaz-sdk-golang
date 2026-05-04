@@ -174,7 +174,7 @@ Common builders:
 - `models.NewUpdatePortfolioInput()`
 - `models.NewCreateSegmentInput(name)`
 - `models.NewUpdateSegmentInput()`
-- `models.NewCreateTransactionInput(assetCode, amount)` - Must include `send.source` and `send.distribute` before sending, either through `WithSend(...)` or legacy operation adaptation. Set `IdempotencyKey` or use `entities.WithIdempotencyKey` for retry-safe unsafe requests.
+- `models.NewCreateTransactionInput(assetCode, amount)` - Must include `send.source` and `send.distribute` before sending, either through `WithSend(...)` or legacy operation adaptation. Unsafe transaction create requests receive an auto-generated `X-Idempotency` header by default; set `IdempotencyKey` or use `entities.WithIdempotencyKey` when the caller needs a stable key or has disabled auto-idempotency.
 - `models.NewCreateInflowInput(assetCode, value, distribute)` - Requires a non-empty `distribute.to` payload.
 - `models.NewCreateOutflowInput(assetCode, value, source)` - Requires a non-empty `source.from` payload.
 - `models.NewCreateAnnotationInput(description, send...)` - `send` is required before sending; the variadic constructor argument exists for compatibility.
@@ -187,7 +187,7 @@ Common builders:
 - `models.NewCreateHolderInput(holderType, name, document)` with `WithExternalID`, `WithAddresses`, `WithContact`, `WithNaturalPerson`, `WithLegalPerson`, and `WithMetadata`.
 - `models.NewUpdateHolderInput()` with field setters and `WithNullFields` / `WithNullField` for explicit JSON null removals. Empty holder updates are rejected by the SDK.
 - `models.NewCreateAliasInput(ledgerID, accountID)` with `WithMetadata`, `WithBankingDetails`, `WithRegulatoryFields`, and `WithRelatedParties`.
-- `models.NewUpdateAliasInput()` with field setters and `WithNullFields` for explicit JSON null removals. `WithRelatedParties` appends related parties to the existing alias on update; empty alias updates are rejected by the SDK.
+- `models.NewUpdateAliasInput()` with field setters and `WithNullFields` for explicit JSON null removals. Repeated `WithRelatedParties` calls replace the in-builder related-party list; empty alias updates are rejected by the SDK.
 
 ## List options and pagination internals
 

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"unicode/utf8"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation/core"
@@ -132,7 +133,7 @@ func (input *UpdateOrganizationInput) Validate() error {
 }
 
 func validateOrganizationStringLength(field, value string) error {
-	if value != "" && len(value) > maxOrganizationFieldLength {
+	if value != "" && utf8.RuneCountInString(value) > maxOrganizationFieldLength {
 		return fmt.Errorf("%s must be at most %d characters", field, maxOrganizationFieldLength)
 	}
 

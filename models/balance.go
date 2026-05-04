@@ -48,6 +48,10 @@ func (s *BalanceSettings) Validate() error {
 		return fmt.Errorf("balanceScope must be %q or %q", BalanceScopeTransactional, BalanceScopeInternal)
 	}
 
+	if s.OverdraftLimitEnabled && !s.AllowOverdraft {
+		return errors.New("allowOverdraft must be true when overdraftLimitEnabled is true")
+	}
+
 	if !s.OverdraftLimitEnabled {
 		if s.OverdraftLimit != nil {
 			return errors.New("overdraftLimit must be omitted when overdraftLimitEnabled is false")

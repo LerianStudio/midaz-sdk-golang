@@ -66,9 +66,7 @@ func (g *accountGenerator) validateInputs(orgID, ledgerID, assetCode string) err
 
 // buildAccountInput creates the basic account input from template
 func (*accountGenerator) buildAccountInput(t data.AccountTemplate, assetCode string) *models.CreateAccountInput {
-	accountClass := accountTypeKeyForTemplate(t)
-
-	return models.NewCreateAccountInput(t.Name, assetCode, accountClass).
+	return models.NewCreateAccountInput(t.Name, assetCode, t.Type).
 		WithStatus(t.Status).
 		WithMetadata(t.Metadata)
 }

@@ -263,7 +263,7 @@ func validateDemoConfig(cfg demoConfig) error {
 	}
 
 	switch cfg.orgLocaleVal {
-	case "", "us", "br":
+	case "us", "br":
 		return nil
 	default:
 		return errors.New("org locale must be us or br")

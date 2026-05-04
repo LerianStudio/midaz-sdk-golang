@@ -246,8 +246,10 @@ func TestHTTPClient_CustomRetryPolicyCanForceRetryForNonDefaultStatus(t *testing
 func TestHTTPClient_AccessManagerTokenInvalidatedAndRefetchedOnceOnUnauthorized(t *testing.T) {
 	var calls atomic.Int32
 
-	authHeaders := make(chan string, 2)
-	writeErrs := make(chan error, 2)
+	// Keep buffers above expected calls so unexpected retries fail assertions,
+	// not by blocking the handler goroutine.
+	authHeaders := make(chan string, 8)
+	writeErrs := make(chan error, 8)
 	c := NewHTTPClient(http.DefaultClient, "expired", nil)
 	c.setAuthTokenProvider(func(context.Context) (string, error) { return "fresh", nil }, func() {})
 

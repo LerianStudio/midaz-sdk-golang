@@ -150,21 +150,31 @@ func TestUnsafeMethodRetriesOnlyWithIdempotency(t *testing.T) {
 	//      the implicit auto path (one retry, then success).
 	tests := []struct {
 		name            string
+		ctx             context.Context
 		headers         map[string]string
 		expectedCalls   int32
 		expectedSuccess bool
 	}{
 		{
 			name:            "auto idempotency enables unsafe retry",
+			ctx:             context.Background(),
 			headers:         nil,
 			expectedCalls:   2,
 			expectedSuccess: true,
 		},
 		{
 			name:            "internal auto idempotency marker enables unsafe retry",
+			ctx:             context.Background(),
 			headers:         map[string]string{"X-Midaz-Auto-Idempotency": "true"},
 			expectedCalls:   2,
 			expectedSuccess: true,
+		},
+		{
+			name:            "suppressed auto idempotency disables unsafe retry",
+			ctx:             WithoutAutoIdempotency(context.Background()),
+			headers:         nil,
+			expectedCalls:   1,
+			expectedSuccess: false,
 		},
 	}
 
@@ -211,7 +221,7 @@ func TestUnsafeMethodRetriesOnlyWithIdempotency(t *testing.T) {
 
 			var out map[string]any
 
-			err := c.doRequest(context.Background(), http.MethodPost, srv.URL, tt.headers, map[string]string{"ok": "true"}, &out)
+			err := c.doRequest(tt.ctx, http.MethodPost, srv.URL, tt.headers, map[string]string{"ok": "true"}, &out)
 
 			if tt.expectedSuccess {
 				require.NoError(t, err)

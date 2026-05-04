@@ -91,8 +91,20 @@ func populateStructuredErrorDetails(err error, details *ErrorDetails) {
 	details.APICode = sdkErr.APICode
 	details.Title = sdkErr.Title
 	details.EntityType = sdkErr.EntityType
-	details.Fields = sdkErr.Fields
-	details.Details = sdkErr.Details
+
+	if sdkErr.Fields != nil {
+		details.Fields = append([]string(nil), sdkErr.Fields...)
+	}
+
+	if sdkErr.Details != nil {
+		clonedDetails := make(map[string]any, len(sdkErr.Details))
+		for key, value := range sdkErr.Details {
+			clonedDetails[key] = value
+		}
+
+		details.Details = clonedDetails
+	}
+
 	details.RequestID = sdkErr.RequestID
 }
 

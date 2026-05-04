@@ -1241,6 +1241,7 @@ func TestOperationsEntity_MetadataHandling(t *testing.T) {
 			require.NoError(t, err)
 
 			if tt.metadata == nil {
+				assert.Nil(t, result.Metadata)
 				assert.Empty(t, result.Metadata)
 			} else {
 				assert.Len(t, result.Metadata, len(tt.metadata))

@@ -90,6 +90,8 @@ Do not wrap the SDK HTTP transport with `observability.NewHTTPMiddleware(provide
 For applications that manage multiple OpenTelemetry providers in one process, keep the SDK provider local and attach it to request contexts explicitly:
 
 ```go
+ctx := context.Background()
+
 provider, err := observability.New(ctx,
     observability.WithServiceName("payments-api"),
     observability.WithRegisterGlobally(false),

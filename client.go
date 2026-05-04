@@ -713,7 +713,7 @@ func (c *Client) GetContext() context.Context {
 // Returns:
 //   - *config.Config: An independent copy of the client configuration.
 func (c *Client) GetConfiguration() *config.Config {
-	if c == nil {
+	if c == nil || c.config == nil {
 		return nil
 	}
 

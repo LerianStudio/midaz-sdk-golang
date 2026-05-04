@@ -151,4 +151,10 @@ func TestSlice4UnsafeRetriesRequireCallerIdempotencyKey(t *testing.T) {
 	err := client.doRequest(WithIdempotencyKey(context.Background(), "caller-key"), http.MethodPost, server.URL, nil, map[string]string{"ok": "true"}, &out)
 	require.NoError(t, err)
 	assert.Equal(t, int32(2), calls.Load())
+
+	calls.Store(0)
+	client.SetEnableIdempotency(false)
+	err = client.doRequest(context.Background(), http.MethodPost, server.URL, nil, map[string]string{"ok": "true"}, &out)
+	require.Error(t, err)
+	assert.Equal(t, int32(1), calls.Load())
 }

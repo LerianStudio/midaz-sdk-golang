@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation/core"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -62,11 +63,12 @@ func (input *CreateSegmentInput) Validate() error {
 		return errors.New("input cannot be nil")
 	}
 
-	if input.Name == "" {
+	name := strings.TrimSpace(input.Name)
+	if name == "" {
 		return errors.New("name is required")
 	}
 
-	if len(input.Name) > maxSegmentNameLength {
+	if len(name) > maxSegmentNameLength {
 		return fmt.Errorf("name must be at most %d characters", maxSegmentNameLength)
 	}
 
@@ -139,11 +141,15 @@ func (input *UpdateSegmentInput) Validate() error {
 		return errors.New("input cannot be nil")
 	}
 
+	if input.Name != "" && strings.TrimSpace(input.Name) == "" {
+		return errors.New("name must not be blank")
+	}
+
 	if !input.hasChanges() {
 		return errors.New("empty update payload not allowed")
 	}
 
-	if len(input.Name) > maxSegmentNameLength {
+	if len(strings.TrimSpace(input.Name)) > maxSegmentNameLength {
 		return fmt.Errorf("name must be at most %d characters", maxSegmentNameLength)
 	}
 
@@ -161,7 +167,7 @@ func (input *UpdateSegmentInput) hasChanges() bool {
 		return false
 	}
 
-	return input.Name != "" || !IsStatusEmpty(input.Status) || input.Metadata != nil
+	return strings.TrimSpace(input.Name) != "" || !IsStatusEmpty(input.Status) || input.Metadata != nil
 }
 
 // MarshalJSON emits only fields explicitly set on the SDK PATCH input.

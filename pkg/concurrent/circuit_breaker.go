@@ -3,6 +3,7 @@ package concurrent
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 )
@@ -85,15 +86,20 @@ func (cb *CircuitBreaker) WithLogger(l CBLogger) *CircuitBreaker {
 }
 
 // Execute runs fn under circuit breaker control.
-func (cb *CircuitBreaker) Execute(_ context.Context, fn func() error) error {
+func (cb *CircuitBreaker) Execute(_ context.Context, fn func() error) (err error) {
 	if !cb.canProceed() {
 		return ErrCircuitOpen
 	}
 
-	err := fn()
-	cb.after(err)
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("circuit breaker operation panicked: %v", recovered)
+		}
 
-	return err
+		cb.after(err)
+	}()
+
+	return fn()
 }
 
 // canProceed determines if the circuit breaker will allow the operation to proceed.

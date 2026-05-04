@@ -181,6 +181,10 @@ func (g *ledgerGenerator) ListWithPagination(ctx context.Context, opts *models.L
 				return err
 			}
 
+			if resp == nil {
+				return errNilGenerated("ledger list")
+			}
+
 			out = resp
 
 			return nil

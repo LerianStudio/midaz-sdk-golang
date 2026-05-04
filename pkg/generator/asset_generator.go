@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strconv"
+	"strings"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
@@ -17,6 +19,8 @@ type assetGenerator struct {
 	e   *entities.Entity
 	obs observability.Provider
 }
+
+const generatedAssetRateMaxScale = 18
 
 // NewAssetGenerator creates a new AssetGenerator backed by entities API.
 func NewAssetGenerator(e *entities.Entity, obs observability.Provider) AssetGenerator {
@@ -73,12 +77,15 @@ func (g *assetGenerator) Generate(ctx context.Context, ledgerID string, template
 
 // GenerateWithRates creates an asset with rate management (not implemented in current SDK version).
 func (g *assetGenerator) GenerateWithRates(ctx context.Context, ledgerID, baseAsset string) error {
+	baseAsset = strings.ToUpper(strings.TrimSpace(baseAsset))
 	if baseAsset == "" {
 		return errors.New("base asset is required")
 	}
 
-	rates := map[string]float64{"EUR": 0.92, "BRL": 5.25}
-	delete(rates, baseAsset)
+	rates, err := defaultAssetRatesFrom(baseAsset)
+	if err != nil {
+		return err
+	}
 
 	return g.updateRatesFrom(ctx, ledgerID, baseAsset, rates)
 }
@@ -86,6 +93,47 @@ func (g *assetGenerator) GenerateWithRates(ctx context.Context, ledgerID, baseAs
 // UpdateRates creates or updates asset rates using the organization ID stored in context via WithOrgID.
 func (g *assetGenerator) UpdateRates(ctx context.Context, ledgerID string, rates map[string]float64) error {
 	return g.updateRatesFrom(ctx, ledgerID, "USD", rates)
+}
+
+func defaultAssetRatesFrom(baseAsset string) (map[string]float64, error) {
+	usdRates := map[string]float64{"USD": 1, "EUR": 0.92, "BRL": 5.25}
+
+	baseRate, ok := usdRates[baseAsset]
+	if !ok {
+		return nil, fmt.Errorf("unsupported base asset %q", baseAsset)
+	}
+
+	rates := make(map[string]float64, len(usdRates)-1)
+	for asset, usdRate := range usdRates {
+		if asset == baseAsset {
+			continue
+		}
+
+		rates[asset] = usdRate / baseRate
+	}
+
+	return rates, nil
+}
+
+func scaledAssetRate(rate float64) (rateValue int, scale int, err error) {
+	text := strconv.FormatFloat(rate, 'f', -1, 64)
+
+	if dot := strings.IndexByte(text, '.'); dot >= 0 {
+		scale = len(text) - dot - 1
+	}
+
+	if scale > generatedAssetRateMaxScale {
+		scale = generatedAssetRateMaxScale
+	}
+
+	scaled := math.Round(rate * math.Pow10(scale))
+
+	maxInt := int(^uint(0) >> 1)
+	if scaled > float64(maxInt) {
+		return 0, 0, fmt.Errorf("asset rate %v exceeds integer range at scale %d", rate, scale)
+	}
+
+	return int(scaled), scale, nil
 }
 
 func (g *assetGenerator) updateRatesFrom(ctx context.Context, ledgerID, fromAsset string, rates map[string]float64) error {
@@ -108,8 +156,14 @@ func (g *assetGenerator) updateRatesFrom(ctx context.Context, ledgerID, fromAsse
 			continue
 		}
 
-		input := models.NewCreateAssetRateInput(fromAsset, toAsset, int(math.Round(rate*100))).
-			WithScale(2).
+		scaledRate, scale, err := scaledAssetRate(rate)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+
+		input := models.NewCreateAssetRateInput(fromAsset, toAsset, scaledRate).
+			WithScale(scale).
 			WithSource("mass-demo-generator")
 		if _, err := g.e.AssetRates.CreateOrUpdateAssetRate(ctx, orgID, ledgerID, input); err != nil {
 			errs = append(errs, err)

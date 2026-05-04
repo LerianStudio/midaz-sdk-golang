@@ -816,6 +816,7 @@ func NextPageOptionsFrom(current *ListOptions, pagination *Pagination) *ListOpti
 	next.WithLimit(limit)
 
 	if pagination.NextCursor != "" {
+		next.Page = 0
 		next.Cursor = pagination.NextCursor
 		next.Offset = DefaultOffset
 		return next
@@ -828,6 +829,7 @@ func NextPageOptionsFrom(current *ListOptions, pagination *Pagination) *ListOpti
 		return next
 	}
 
+	next.Page = 0
 	next.Offset = pagination.Offset + limit
 	next.Cursor = ""
 
@@ -998,7 +1000,7 @@ func (o *ListOptions) addAdditionalParams(params map[string]string) {
 				continue
 			}
 
-			if _, exists := params[k]; exists && isReservedListQueryParam(k) {
+			if isReservedListQueryParam(k) {
 				continue
 			}
 
@@ -1009,7 +1011,7 @@ func (o *ListOptions) addAdditionalParams(params map[string]string) {
 
 func isReservedListQueryParam(key string) bool {
 	switch key {
-	case QueryParamLimit, QueryParamPage, QueryParamCursor, QueryParamOrderDirection, QueryParamStartDate, QueryParamEndDate:
+	case QueryParamLimit, QueryParamPage, QueryParamOffset, QueryParamCursor, QueryParamOrderBy, QueryParamOrderDirection, QueryParamStartDate, QueryParamEndDate:
 		return true
 	default:
 		return false

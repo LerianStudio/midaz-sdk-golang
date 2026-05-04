@@ -207,6 +207,7 @@ func TestAssetRatesEntity_CreateOrUpdateAssetRate(t *testing.T) {
 		mockResponse   string
 		mockStatusCode int
 		mockError      error
+		externalID     string
 		expectedError  bool
 		errorContains  string
 	}{
@@ -230,6 +231,7 @@ func TestAssetRatesEntity_CreateOrUpdateAssetRate(t *testing.T) {
 				"updatedAt": "2024-01-01T00:00:00Z"
 			}`,
 			mockStatusCode: http.StatusOK,
+			externalID:     "ext-001",
 		},
 		{
 			name:     "success with all fields",
@@ -257,6 +259,7 @@ func TestAssetRatesEntity_CreateOrUpdateAssetRate(t *testing.T) {
 				"metadata": {"provider": "forex"}
 			}`,
 			mockStatusCode: http.StatusOK,
+			externalID:     "550e8400-e29b-41d4-a716-446655440004",
 		},
 		{
 			name:          "empty organization ID",
@@ -413,6 +416,7 @@ func TestAssetRatesEntity_CreateOrUpdateAssetRate(t *testing.T) {
 			assert.NotEmpty(t, result.ID)
 			assert.Equal(t, tt.orgID, result.OrganizationID)
 			assert.Equal(t, tt.ledgerID, result.LedgerID)
+			assert.Equal(t, tt.externalID, result.ExternalID)
 		})
 	}
 }

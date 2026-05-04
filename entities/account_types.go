@@ -94,9 +94,9 @@ type AccountTypesService interface {
 	// Returns an error if the operation fails.
 	DeleteAccountType(ctx context.Context, organizationID, ledgerID, id string) error
 
-	// GetAccountTypesMetricsCount retrieves the count metrics for account types in a ledger.
+	// GetAccountTypesMetricsCount no longer retrieves account type count metrics.
 	// The organizationID and ledgerID parameters specify which organization and ledger to get metrics for.
-	// Returns the metrics count if successful, or an error if the operation fails.
+	// It does not return a *models.MetricsCount because the endpoint is not exposed.
 	// Deprecated: Midaz Ledger does not expose account type count metrics; this method
 	// always returns an error and will be removed in the next major version.
 	GetAccountTypesMetricsCount(ctx context.Context, organizationID, ledgerID string) (*models.MetricsCount, error)

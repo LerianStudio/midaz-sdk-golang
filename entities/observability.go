@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"reflect"
 	"strings"
 
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
@@ -22,6 +23,15 @@ const (
 	statusForbiddenStr    = "403"
 	statusNotFoundStr     = "404"
 	statusUnprocessable   = "422"
+)
+
+const (
+	businessErrorClassValidation       = "validation"
+	businessErrorClassMissingParameter = "missing_parameter"
+	businessErrorClassUnauthorized     = "unauthorized"
+	businessErrorClassForbidden        = "forbidden"
+	businessErrorClassNotFound         = "not_found"
+	businessErrorClassSDK              = "sdk_error"
 )
 
 const (
@@ -66,6 +76,18 @@ var safeBusinessFields = map[string]struct{}{
 	"errorClass":         {},
 	"httpStatus":         {},
 }
+
+var businessErrorLevels = map[string]observability.LogLevel{
+	businessErrorClassValidation:       observability.WarnLevel,
+	businessErrorClassMissingParameter: observability.WarnLevel,
+	businessErrorClassUnauthorized:     observability.WarnLevel,
+	businessErrorClassForbidden:        observability.WarnLevel,
+	businessErrorClassNotFound:         observability.WarnLevel,
+}
+
+type businessStatusCoder interface{ StatusCode() int }
+
+type businessHTTPStatusCoder interface{ HTTPStatus() int }
 
 func (c *HTTPClient) emitBusinessEvent(ctx context.Context, event string, fields map[string]any) {
 	c.emitBusiness(ctx, observability.InfoLevel, event, fields)
@@ -114,16 +136,16 @@ func (c *HTTPClient) emitBusiness(ctx context.Context, level observability.LogLe
 }
 
 func businessLogLevelForError(errorClass any) observability.LogLevel {
-	switch errorClass {
-	// Client-side / business-rule failures are noisy WARN events; everything
-	// else (network, internal, sdk_error fallback) is ERROR. We deliberately
-	// default to ERROR — when classification is uncertain we'd rather over-
-	// report than silence a real fault.
-	case "validation", "missing_parameter", "unauthorized", "forbidden", "not_found":
-		return observability.WarnLevel
-	default:
+	label, ok := errorClass.(string)
+	if !ok {
 		return observability.ErrorLevel
 	}
+
+	if level, ok := businessErrorLevels[label]; ok {
+		return level
+	}
+
+	return observability.ErrorLevel
 }
 
 // filterBusinessFields drops any key not listed in safeBusinessFields and
@@ -135,24 +157,16 @@ func filterBusinessFields(fields map[string]any) map[string]any {
 	filtered := map[string]any{}
 
 	for key, value := range fields {
-		if _, ok := safeBusinessFields[key]; !ok || value == nil {
+		if _, ok := safeBusinessFields[key]; !ok {
 			continue
 		}
 
-		switch v := value.(type) {
-		case string:
-			if strings.TrimSpace(v) != "" {
-				filtered[key] = v
-			}
-		case fmt.Stringer:
-			if text := strings.TrimSpace(v.String()); text != "" {
-				filtered[key] = text
-			}
-		case int, int8, int16, int32, int64,
-			uint, uint8, uint16, uint32, uint64,
-			float32, float64, bool:
-			filtered[key] = v
+		normalized, ok := normalizeBusinessField(value)
+		if !ok {
+			continue
 		}
+
+		filtered[key] = normalized
 	}
 
 	return filtered
@@ -162,51 +176,81 @@ func businessAttributes(fields map[string]any) []attribute.KeyValue {
 	attrs := make([]attribute.KeyValue, 0, len(fields))
 
 	for key, value := range fields {
-		attrKey := "midaz.business." + key
-
-		switch v := value.(type) {
-		case string:
-			attrs = append(attrs, attribute.String(attrKey, v))
-		case bool:
-			attrs = append(attrs, attribute.Bool(attrKey, v))
-		case int:
-			attrs = append(attrs, attribute.Int(attrKey, v))
-		case int8:
-			attrs = append(attrs, attribute.Int(attrKey, int(v)))
-		case int16:
-			attrs = append(attrs, attribute.Int(attrKey, int(v)))
-		case int32:
-			attrs = append(attrs, attribute.Int64(attrKey, int64(v)))
-		case int64:
-			attrs = append(attrs, attribute.Int64(attrKey, v))
-		case uint:
-			// On 64-bit platforms uint can exceed int64 max. Saturate to
-			// avoid an undefined wrap; gosec G115 enforces this for us.
-			if v > math.MaxInt64 {
-				attrs = append(attrs, attribute.Int64(attrKey, math.MaxInt64))
-			} else {
-				attrs = append(attrs, attribute.Int64(attrKey, int64(v))) //nolint:gosec // bounded above
-			}
-		case uint8:
-			attrs = append(attrs, attribute.Int(attrKey, int(v)))
-		case uint16:
-			attrs = append(attrs, attribute.Int(attrKey, int(v)))
-		case uint32:
-			attrs = append(attrs, attribute.Int64(attrKey, int64(v)))
-		case uint64:
-			if v > math.MaxInt64 {
-				attrs = append(attrs, attribute.Int64(attrKey, math.MaxInt64))
-			} else {
-				attrs = append(attrs, attribute.Int64(attrKey, int64(v))) //nolint:gosec // bounded above
-			}
-		case float32:
-			attrs = append(attrs, attribute.Float64(attrKey, float64(v)))
-		case float64:
-			attrs = append(attrs, attribute.Float64(attrKey, v))
+		attr, ok := businessAttribute(key, value)
+		if !ok {
+			continue
 		}
+
+		attrs = append(attrs, attr)
 	}
 
 	return attrs
+}
+
+func normalizeBusinessField(value any) (any, bool) {
+	if value == nil {
+		return nil, false
+	}
+
+	switch v := value.(type) {
+	case string:
+		return nonBlankBusinessString(v)
+	case fmt.Stringer:
+		return nonBlankBusinessString(v.String())
+	case bool:
+		return v, true
+	}
+
+	return normalizeBusinessNumber(value)
+}
+
+func nonBlankBusinessString(value string) (string, bool) {
+	if strings.TrimSpace(value) == "" {
+		return "", false
+	}
+
+	return value, true
+}
+
+func normalizeBusinessNumber(value any) (any, bool) {
+	reflected := reflect.ValueOf(value)
+	switch reflected.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return reflected.Int(), true
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		unsigned := reflected.Uint()
+		if unsigned > math.MaxInt64 {
+			return int64(math.MaxInt64), true
+		}
+
+		return int64(unsigned), true
+	case reflect.Float32, reflect.Float64:
+		return reflected.Float(), true
+	default:
+		return nil, false
+	}
+}
+
+func businessAttribute(key string, value any) (attribute.KeyValue, bool) {
+	normalized, ok := normalizeBusinessField(value)
+	if !ok {
+		return attribute.KeyValue{}, false
+	}
+
+	attrKey := "midaz.business." + key
+
+	switch v := normalized.(type) {
+	case string:
+		return attribute.String(attrKey, v), true
+	case bool:
+		return attribute.Bool(attrKey, v), true
+	case int64:
+		return attribute.Int64(attrKey, v), true
+	case float64:
+		return attribute.Float64(attrKey, v), true
+	default:
+		return attribute.KeyValue{}, false
+	}
 }
 
 func cloneBusinessFields(fields map[string]any) map[string]any {
@@ -238,7 +282,18 @@ func classifyBusinessError(err error) string {
 		return ""
 	}
 
-	// 1) Typed SDK error with category + status code.
+	if class := classifyTypedBusinessError(err); class != "" {
+		return class
+	}
+
+	if class := classifyStructuralBusinessError(err); class != "" {
+		return class
+	}
+
+	return classifyBusinessErrorText(err.Error())
+}
+
+func classifyTypedBusinessError(err error) string {
 	var sdkErr *sdkerrors.Error
 	if errors.As(err, &sdkErr) && sdkErr != nil {
 		if class := classifyByStatusCode(sdkErr.StatusCode); class != "" {
@@ -250,7 +305,6 @@ func classifyBusinessError(err error) string {
 		}
 	}
 
-	// 1b) Legacy *MidazError shape — code-only, no status.
 	var legacy *sdkerrors.MidazError
 	if errors.As(err, &legacy) && legacy != nil {
 		if class := classifyByCategory("", legacy.Code); class != "" {
@@ -258,40 +312,39 @@ func classifyBusinessError(err error) string {
 		}
 	}
 
-	// 2) Structural interface — anything that can self-report a status code.
-	type statusCoder interface{ StatusCode() int }
-	type httpStatusCoder interface{ HTTPStatus() int }
+	return ""
+}
 
-	var sc statusCoder
+func classifyStructuralBusinessError(err error) string {
+	var sc businessStatusCoder
 	if errors.As(err, &sc) {
 		if class := classifyByStatusCode(sc.StatusCode()); class != "" {
 			return class
 		}
 	}
 
-	var hsc httpStatusCoder
+	var hsc businessHTTPStatusCoder
 	if errors.As(err, &hsc) {
 		if class := classifyByStatusCode(hsc.HTTPStatus()); class != "" {
 			return class
 		}
 	}
 
-	// 3) Last-resort substring matching against precomputed status strings.
-	// We deliberately do NOT match on the bare word "validation" or
-	// "missing" anymore — those are too noisy and routinely misclassified
-	// unrelated errors. Status-code digits are a more reliable signal.
-	text := err.Error()
+	return ""
+}
+
+func classifyBusinessErrorText(text string) string {
 	switch {
 	case strings.Contains(text, statusUnauthorizedStr):
-		return "unauthorized"
+		return businessErrorClassUnauthorized
 	case strings.Contains(text, statusForbiddenStr):
-		return "forbidden"
+		return businessErrorClassForbidden
 	case strings.Contains(text, statusNotFoundStr):
-		return "not_found"
+		return businessErrorClassNotFound
 	case strings.Contains(text, statusUnprocessable):
-		return "validation"
+		return businessErrorClassValidation
 	default:
-		return "sdk_error"
+		return businessErrorClassSDK
 	}
 }
 
@@ -301,13 +354,13 @@ func classifyBusinessError(err error) string {
 func classifyByStatusCode(code int) string {
 	switch code {
 	case 401:
-		return "unauthorized"
+		return businessErrorClassUnauthorized
 	case 403:
-		return "forbidden"
+		return businessErrorClassForbidden
 	case 404:
-		return "not_found"
+		return businessErrorClassNotFound
 	case 400, 422:
-		return "validation"
+		return businessErrorClassValidation
 	default:
 		return ""
 	}
@@ -319,24 +372,24 @@ func classifyByStatusCode(code int) string {
 func classifyByCategory(category sdkerrors.ErrorCategory, code sdkerrors.ErrorCode) string {
 	switch category {
 	case sdkerrors.CategoryValidation, sdkerrors.CategoryUnprocessable:
-		return "validation"
+		return businessErrorClassValidation
 	case sdkerrors.CategoryAuthentication:
-		return "unauthorized"
+		return businessErrorClassUnauthorized
 	case sdkerrors.CategoryAuthorization:
-		return "forbidden"
+		return businessErrorClassForbidden
 	case sdkerrors.CategoryNotFound:
-		return "not_found"
+		return businessErrorClassNotFound
 	}
 
 	switch code {
 	case sdkerrors.CodeValidation, sdkerrors.CodeUnprocessable:
-		return "validation"
+		return businessErrorClassValidation
 	case sdkerrors.CodeAuthentication:
-		return "unauthorized"
+		return businessErrorClassUnauthorized
 	case sdkerrors.CodePermission:
-		return "forbidden"
+		return businessErrorClassForbidden
 	case sdkerrors.CodeNotFound:
-		return "not_found"
+		return businessErrorClassNotFound
 	}
 
 	return ""

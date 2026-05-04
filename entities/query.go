@@ -63,10 +63,28 @@ func cursorListQueryParams(opts *models.ListOptions) map[string]string {
 	}
 
 	for key, value := range opts.AdditionalParams {
-		if value != "" {
-			params[key] = value
+		if value == "" || isReservedCursorQueryParam(key) {
+			continue
 		}
+
+		params[key] = value
 	}
 
 	return params
+}
+
+func isReservedCursorQueryParam(key string) bool {
+	switch key {
+	case models.QueryParamLimit,
+		models.QueryParamPage,
+		models.QueryParamOffset,
+		models.QueryParamCursor,
+		models.QueryParamOrderBy,
+		models.QueryParamOrderDirection,
+		models.QueryParamStartDate,
+		models.QueryParamEndDate:
+		return true
+	default:
+		return false
+	}
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation/core"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -84,23 +85,25 @@ func (input *CreateAssetInput) Validate() error {
 		return errors.New("input cannot be nil")
 	}
 
-	if input.Name == "" {
+	name := strings.TrimSpace(input.Name)
+	if name == "" {
 		return errors.New("name is required")
 	}
 
-	if len(input.Name) > maxAssetNameLength {
+	if len(name) > maxAssetNameLength {
 		return fmt.Errorf("name must be at most %d characters", maxAssetNameLength)
 	}
 
-	if input.Code == "" {
+	code := strings.TrimSpace(input.Code)
+	if code == "" {
 		return errors.New("code is required")
 	}
 
-	if len(input.Code) > maxAssetCodeLength {
+	if len(code) > maxAssetCodeLength {
 		return fmt.Errorf("code must be at most %d characters", maxAssetCodeLength)
 	}
 
-	if input.Type == "" {
+	if strings.TrimSpace(input.Type) == "" {
 		return errors.New("type is required")
 	}
 
@@ -175,11 +178,15 @@ func (input *UpdateAssetInput) Validate() error {
 		return errors.New("input cannot be nil")
 	}
 
+	if input.Name != "" && strings.TrimSpace(input.Name) == "" {
+		return errors.New("name must not be blank")
+	}
+
 	if !input.hasChanges() {
 		return errors.New("empty update payload not allowed")
 	}
 
-	if len(input.Name) > maxAssetNameLength {
+	if len(strings.TrimSpace(input.Name)) > maxAssetNameLength {
 		return fmt.Errorf("name must be at most %d characters", maxAssetNameLength)
 	}
 
@@ -197,7 +204,7 @@ func (input *UpdateAssetInput) hasChanges() bool {
 		return false
 	}
 
-	return input.Name != "" || !IsStatusEmpty(input.Status) || input.Metadata != nil
+	return strings.TrimSpace(input.Name) != "" || !IsStatusEmpty(input.Status) || input.Metadata != nil
 }
 
 // MarshalJSON emits only fields explicitly set on the SDK PATCH input.

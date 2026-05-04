@@ -57,6 +57,10 @@ func (l *lifecycle) CreatePending(ctx context.Context, input *models.CreateTrans
 					return err
 				}
 
+				if tx == nil {
+					return errNilGenerated("transaction")
+				}
+
 				out = tx
 
 				return nil

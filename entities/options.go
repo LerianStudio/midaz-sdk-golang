@@ -50,21 +50,21 @@ func WithObservability(provider observability.Provider) Option {
 			return nil // No-op if the provider is nil
 		}
 
-		// Set the provider on the entity (single-writer at construction).
-		e.observability = provider
-
 		// Reconfigure the HTTP client through a single locked setter so the
 		// provider and its derived metrics collector flip atomically.
 		var metrics *observability.MetricsCollector
+
 		if provider.IsEnabled() {
 			collector, err := observability.NewMetricsCollector(provider)
 			if err != nil {
 				return err
 			}
+
 			metrics = collector
 		}
 
 		e.httpClient.setObservabilityLocked(provider, metrics)
+		e.observability = provider
 
 		return nil
 	}

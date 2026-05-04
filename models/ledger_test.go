@@ -596,7 +596,8 @@ func TestLedgerEdgeCases(t *testing.T) {
 	t.Run("CreateLedgerInput with whitespace-only name fails validation", func(t *testing.T) {
 		input := NewCreateLedgerInput("   ")
 		err := input.Validate()
-		require.NoError(t, err, "whitespace-only name currently passes validation")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "name is required")
 	})
 
 	t.Run("CreateLedgerInput pointer is same through chain", func(t *testing.T) {

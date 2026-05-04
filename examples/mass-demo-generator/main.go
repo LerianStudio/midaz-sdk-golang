@@ -115,7 +115,7 @@ func parseCLIFlags() cliFlags {
 	txDefault := coalesceIntPtr(fileDefaults.TxPerAccount, 20)
 	concurrencyDefault := coalesceIntPtr(fileDefaults.Concurrency, 0)
 	batchDefault := coalesceIntPtr(fileDefaults.BatchSize, 50)
-	localeDefault := coalesceStringPtr(fileDefaults.Locale, "")
+	localeDefault := coalesceStringPtr(fileDefaults.Locale, "us")
 
 	flags := cliFlags{
 		timeoutSec:        flag.Int("timeout", timeoutDefault, "overall generation timeout in seconds"),
@@ -503,32 +503,16 @@ func createOrganizationResources(ctx context.Context, orgGen gen.OrganizationGen
 	return org, ledgerContexts, nil
 }
 
-func applyOrganizationLocale(template *data.OrgTemplate, locale string, index int) {
+func applyOrganizationLocale(template *data.OrgTemplate, locale string, _ int) {
 	if template == nil || locale != "br" {
 		return
 	}
 
-	template.TaxID = demoCNPJ(index + 1)
 	template.Address = models.NewAddress("Avenida Paulista 1000", "01310-100", "Sao Paulo", "SP", "BR")
 	if template.Metadata == nil {
 		template.Metadata = map[string]any{}
 	}
 	template.Metadata["locale"] = "br"
-}
-
-// demoCNPJ returns a demo-only CNPJ string keyed by seed.
-//
-// IMPORTANT: the check digits are HARDCODED to "95" so the output is NOT a
-// valid CNPJ — strict CNPJ validation (e.g. mod-11 check-digit) will
-// reject it. This is acceptable for the mass-demo generator (the goal is
-// data shape, not realism) but is NOT suitable for any code path that
-// runs CNPJ validation upstream.
-//
-// TODO: implement proper CNPJ check-digit calculation if real-validity is
-// required for downstream consumers of the demo dataset.
-func demoCNPJ(seed int) string {
-	root := seed % 1_000_000
-	return fmt.Sprintf("12.%03d.%03d/0001-95", root/1000, root%1000)
 }
 
 //nolint:funlen // Demo function - length acceptable for example code showing complete resource creation

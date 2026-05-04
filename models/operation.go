@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"time"
+	"unicode/utf8"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation/core"
 	"github.com/shopspring/decimal"
@@ -212,15 +213,15 @@ func (input *UpdateOperationInput) Validate() error {
 		return errors.New("input is required")
 	}
 
-	if input.Description == "" && input.Metadata == nil {
+	if input.Description == "" && len(input.Metadata) == 0 {
 		return errors.New("empty update payload not allowed")
 	}
 
-	if len(input.Description) > maxOperationDescriptionLength {
+	if utf8.RuneCountInString(input.Description) > maxOperationDescriptionLength {
 		return fmt.Errorf("description must be at most %d characters", maxOperationDescriptionLength)
 	}
 
-	if input.Metadata != nil {
+	if len(input.Metadata) > 0 {
 		if err := core.ValidateMetadata(input.Metadata); err != nil {
 			return fmt.Errorf("invalid metadata: %w", err)
 		}

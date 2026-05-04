@@ -1403,6 +1403,7 @@ func formatMidazError(err error, operationType string) string {
 
 	codeToMessage := map[ErrorCode]string{
 		CodeValidation:          "Invalid parameters",
+		CodeUnprocessable:       "Unprocessable entity",
 		CodeInsufficientBalance: "Insufficient account balance",
 		CodeAccountEligibility:  "Account not eligible",
 		CodeAssetMismatch:       "Asset type mismatch",
@@ -1472,7 +1473,7 @@ func CategorizeTransactionError(err error) string {
 	// Map from the error category
 	category := GetErrorCategory(err)
 	switch category {
-	case CategoryValidation:
+	case CategoryValidation, CategoryUnprocessable:
 		return "validation"
 	case CategoryAuthentication:
 		return "authentication"

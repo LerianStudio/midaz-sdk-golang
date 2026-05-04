@@ -352,14 +352,19 @@ func TestHTTPClientPropagatesExtractedIncomingTraceWithRegisterGloballyFalse(t *
 	extractedCtx := observability.ExtractHTTPContext(observability.WithProvider(context.Background(), provider), incomingHeaders)
 	originalTraceID := trace.SpanContextFromContext(incomingCtx).TraceID().String()
 
-	var (
-		receivedBaggage     string
-		receivedTraceparent string
-	)
+	type capturedTraceHeaders struct {
+		baggage     string
+		traceparent string
+	}
+
+	receivedHeaders := make(chan capturedTraceHeaders, 1)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		receivedTraceparent = r.Header.Get("traceparent")
-		receivedBaggage = r.Header.Get("baggage")
+		receivedHeaders <- capturedTraceHeaders{
+			baggage:     r.Header.Get("baggage"),
+			traceparent: r.Header.Get("traceparent"),
+		}
+
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	}))
@@ -375,8 +380,9 @@ func TestHTTPClientPropagatesExtractedIncomingTraceWithRegisterGloballyFalse(t *
 	err = httpClient.doRequest(extractedCtx, http.MethodGet, server.URL+"/unified", nil, nil, &result)
 	require.NoError(t, err)
 
-	assert.Contains(t, receivedTraceparent, originalTraceID)
-	assert.Contains(t, receivedBaggage, "tenant=acme")
+	headers := <-receivedHeaders
+	assert.Contains(t, headers.traceparent, originalTraceID)
+	assert.Contains(t, headers.baggage, "tenant=acme")
 }
 
 func TestHTTPClientSDKInstrumentationCreatesSingleClientSpan(t *testing.T) {

@@ -83,7 +83,13 @@ func (c *boundedTokenCache) Load(key string) (cachedToken, bool) {
 
 	c.order.MoveToFront(element)
 
-	entry := element.Value.(*cacheEntry)
+	entry, ok := element.Value.(*cacheEntry)
+	if !ok {
+		c.order.Remove(element)
+		delete(c.entries, key)
+
+		return cachedToken{}, false
+	}
 
 	return entry.value, true
 }
@@ -95,14 +101,23 @@ func (c *boundedTokenCache) Store(key string, value cachedToken) {
 	defer c.mu.Unlock()
 
 	if element, ok := c.entries[key]; ok {
-		element.Value.(*cacheEntry).value = value
+		storedEntry, ok := element.Value.(*cacheEntry)
+		if !ok {
+			c.order.Remove(element)
+			delete(c.entries, key)
+
+			return
+		}
+
+		storedEntry.value = value
+
 		c.order.MoveToFront(element)
 
 		return
 	}
 
-	entry := &cacheEntry{key: key, value: value}
-	element := c.order.PushFront(entry)
+	newEntry := &cacheEntry{key: key, value: value}
+	element := c.order.PushFront(newEntry)
 	c.entries[key] = element
 
 	for c.order.Len() > c.capacity {
@@ -112,7 +127,10 @@ func (c *boundedTokenCache) Store(key string, value cachedToken) {
 		}
 
 		c.order.Remove(oldest)
-		delete(c.entries, oldest.Value.(*cacheEntry).key)
+
+		if oldestEntry, ok := oldest.Value.(*cacheEntry); ok {
+			delete(c.entries, oldestEntry.key)
+		}
 	}
 }
 
@@ -125,6 +143,37 @@ func (c *boundedTokenCache) Delete(key string) {
 		c.order.Remove(element)
 		delete(c.entries, key)
 	}
+}
+
+func (c *boundedTokenCache) loadValid(key string, now time.Time) (cachedToken, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	element, ok := c.entries[key]
+	if !ok {
+		return cachedToken{}, false
+	}
+
+	entry, ok := element.Value.(*cacheEntry)
+	if !ok {
+		c.order.Remove(element)
+		delete(c.entries, key)
+
+		return cachedToken{}, false
+	}
+
+	if strings.TrimSpace(entry.value.token) == "" ||
+		entry.value.expiresAt.IsZero() ||
+		now.Add(accessManagerRefreshSkew).After(entry.value.expiresAt) {
+		c.order.Remove(element)
+		delete(c.entries, key)
+
+		return cachedToken{}, false
+	}
+
+	c.order.MoveToFront(element)
+
+	return entry.value, true
 }
 
 // Reset removes every entry. Test helper exposed via ClearAccessManagerCache.
@@ -259,12 +308,12 @@ func GetTokenFromAccessManager(ctx context.Context, accessMgr AccessManager, htt
 	// "two callers, second arrived after the first one's token landed"
 	// race: we don't want to issue a second HTTP request just because the
 	// caller raced past loadCachedToken.
-	result, err, _ := accessManagerSingleFlight.Do(cacheKey, func() (any, error) {
+	resultCh := accessManagerSingleFlight.DoChan(cacheKey, func() (any, error) {
 		if token, ok := loadCachedToken(cacheKey); ok {
 			return token, nil
 		}
 
-		tokenResp, err := requestAccessManagerToken(ctx, accessMgr, httpClient)
+		tokenResp, err := requestAccessManagerToken(context.WithoutCancel(ctx), accessMgr, httpClient)
 		if err != nil {
 			return "", err
 		}
@@ -273,16 +322,22 @@ func GetTokenFromAccessManager(ctx context.Context, accessMgr AccessManager, htt
 
 		return tokenResp.AccessToken, nil
 	})
-	if err != nil {
-		return "", err
-	}
 
-	token, ok := result.(string)
-	if !ok {
-		return "", errors.New("plugin auth service returned an unexpected token type")
-	}
+	select {
+	case <-ctx.Done():
+		return "", ctx.Err()
+	case result := <-resultCh:
+		if result.Err != nil {
+			return "", result.Err
+		}
 
-	return token, nil
+		token, ok := result.Val.(string)
+		if !ok {
+			return "", errors.New("plugin auth service returned an unexpected token type")
+		}
+
+		return token, nil
+	}
 }
 
 func validateAccessManagerTokenRequest(accessMgr AccessManager, httpClient *http.Client) error {
@@ -465,27 +520,8 @@ func hashClientSecret(secret string) string {
 }
 
 func loadCachedToken(cacheKey string) (string, bool) {
-	cached, ok := accessManagerTokenCache.Load(cacheKey)
+	cached, ok := accessManagerTokenCache.loadValid(cacheKey, time.Now())
 	if !ok {
-		return "", false
-	}
-
-	if strings.TrimSpace(cached.token) == "" {
-		accessManagerTokenCache.Delete(cacheKey)
-		return "", false
-	}
-
-	// Reject zero-expiry entries on read. storeCachedToken is supposed to
-	// drop these before they hit the cache, but defending against a stray
-	// zero-expiry entry here costs almost nothing and keeps the contract
-	// "cached tokens have known expiry" airtight.
-	if cached.expiresAt.IsZero() {
-		accessManagerTokenCache.Delete(cacheKey)
-		return "", false
-	}
-
-	if time.Now().Add(accessManagerRefreshSkew).After(cached.expiresAt) {
-		accessManagerTokenCache.Delete(cacheKey)
 		return "", false
 	}
 

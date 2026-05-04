@@ -216,7 +216,7 @@ func (e *transactionsEntity) sendCreateTransactionRequest(ctx context.Context, o
 
 	var responseMap map[string]any
 
-	headers := map[string]string{"X-Midaz-Auto-Idempotency": "true"}
+	headers := map[string]string{}
 	if key := strings.TrimSpace(input.IdempotencyKey); key != "" {
 		headers["X-Idempotency"] = key
 		headers[internalCallerIdempotencyHeader] = BoolTrue
@@ -599,10 +599,7 @@ func (e *transactionsEntity) CreateTransactionWithDSLFile(ctx context.Context, o
 		return nil, sdkerrors.NewInternalError("CreateTransactionWithDSLFile", fmt.Errorf("failed to finalize multipart body: %w", err))
 	}
 
-	headers := map[string]string{
-		"Content-Type":             writer.FormDataContentType(),
-		"X-Midaz-Auto-Idempotency": "true",
-	}
+	headers := map[string]string{"Content-Type": writer.FormDataContentType()}
 
 	var responseMap map[string]any
 	if err := e.httpClient.doRawRequest(ctx, http.MethodPost, endpointURL, headers, body.Bytes(), &responseMap); err != nil {
@@ -992,7 +989,7 @@ func (e *transactionsEntity) CancelTransactionWithResponse(ctx context.Context, 
 			// event to carry the same status field as the non-empty path,
 			// so downstream consumers don't see a status-less event for
 			// the empty-body case.
-			tx := &models.Transaction{ID: transactionID}
+			tx := &models.Transaction{ID: transactionID, Status: models.Status{Code: "CANCELED"}}
 			e.normalizeTransaction(tx)
 			e.httpClient.emitBusinessEvent(ctx, businessEventTransactionCancelled, map[string]any{
 				"operation":      operation,
@@ -1049,7 +1046,6 @@ func (e *transactionsEntity) CreateInflowTransaction(ctx context.Context, orgID,
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Midaz-Auto-Idempotency", "true")
 
 	var result map[string]any
 	if err := e.httpClient.sendRequest(req, &result); err != nil {
@@ -1092,7 +1088,6 @@ func (e *transactionsEntity) CreateOutflowTransaction(ctx context.Context, orgID
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Midaz-Auto-Idempotency", "true")
 
 	var result map[string]any
 	if err := e.httpClient.sendRequest(req, &result); err != nil {
@@ -1135,7 +1130,6 @@ func (e *transactionsEntity) CreateAnnotationTransaction(ctx context.Context, or
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Midaz-Auto-Idempotency", "true")
 
 	var result map[string]any
 	if err := e.httpClient.sendRequest(req, &result); err != nil {

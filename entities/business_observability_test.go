@@ -51,12 +51,16 @@ func TestBusinessObservability_AccountAndTransactionLifecycle(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.EscapedPath() {
 		case "/v1/organizations/org-1/ledgers/ledger-1/accounts":
+			assert.Equal(t, http.MethodPost, r.Method)
 			writeBusinessJSON(t, w, map[string]any{"id": "account-1", "status": map[string]any{"code": "ACTIVE"}})
 		case "/v1/organizations/org-1/ledgers/ledger-1/transactions/json":
+			assert.Equal(t, http.MethodPost, r.Method)
 			writeBusinessJSON(t, w, map[string]any{"id": "tx-1", "status": map[string]any{"code": "PENDING"}})
 		case "/v1/organizations/org-1/ledgers/ledger-1/transactions/tx-1/commit":
+			assert.Equal(t, http.MethodPost, r.Method)
 			writeBusinessJSON(t, w, map[string]any{"id": "tx-1", "status": map[string]any{"code": "COMPLETED"}})
 		case "/v1/organizations/org-1/ledgers/ledger-1/transactions/tx-1/cancel":
+			assert.Equal(t, http.MethodPost, r.Method)
 			writeBusinessJSON(t, w, map[string]any{"id": "tx-1", "status": map[string]any{"code": "CANCELED"}})
 		default:
 			// t.Fatalf from a non-test goroutine is undefined behavior per

@@ -283,12 +283,14 @@ func TestCreateAssetInput_Validate(t *testing.T) {
 		{
 			name:      "whitespace only name",
 			input:     NewCreateAssetInputWithType("   ", "USD", "currency"),
-			wantError: false, // Current implementation doesn't trim whitespace
+			wantError: true,
+			errorMsg:  "name is required",
 		},
 		{
 			name:      "whitespace only code",
 			input:     NewCreateAssetInputWithType("US Dollar", "   ", "currency"),
-			wantError: false, // Current implementation doesn't trim whitespace
+			wantError: true,
+			errorMsg:  "code is required",
 		},
 		{
 			name:      "name with leading/trailing spaces",

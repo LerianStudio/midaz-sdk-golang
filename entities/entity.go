@@ -640,6 +640,19 @@ func normalizeBaseURLs(baseURLs map[string]string) (map[string]string, error) {
 		return nil, errors.New("service URLs map cannot be nil")
 	}
 
+	onboarding := strings.TrimSpace(normalized["onboarding"])
+	if onboarding == "" {
+		return nil, errors.New("missing onboarding URL in service URLs map")
+	}
+
+	if strings.TrimSpace(normalized["transaction"]) == "" {
+		normalized["transaction"] = onboarding
+	}
+
+	if strings.TrimSpace(normalized["crm"]) == "" {
+		normalized["crm"] = onboarding
+	}
+
 	for service, serviceURL := range normalized {
 		normalizedURL, err := normalizeServiceURL(serviceURL)
 		if err != nil {
@@ -664,6 +677,10 @@ func normalizeServiceURL(rawURL string) (string, error) {
 
 	if parsedURL.User != nil {
 		return "", errors.New("URL must not include user information")
+	}
+
+	if parsedURL.RawQuery != "" || parsedURL.Fragment != "" {
+		return "", errors.New("URL must not include query parameters or fragments")
 	}
 
 	if err := security.ValidateOutboundRequest(&http.Request{URL: parsedURL}); err != nil {

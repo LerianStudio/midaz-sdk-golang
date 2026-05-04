@@ -16,30 +16,24 @@ import (
 // It provides methods to list, retrieve, and update operations
 // associated with accounts and transactions.
 type OperationsService interface {
-	// ListOperations retrieves a paginated list of operations for a specific account.
+	// ListOperations retrieves a cursor-paginated list of operations for a specific account.
 	//
 	// Operations represent the individual accounting entries (debits and credits) that make up
 	// transactions in the ledger. This method allows you to retrieve all operations for a
-	// specific account, with optional filtering and pagination controls.
+	// specific account, with optional filtering and cursor pagination controls.
 	//
 	// Parameters:
 	//   - ctx: Context for the request, which can be used for cancellation and timeout.
 	//   - orgID: The ID of the organization that owns the ledger. Must be a valid organization ID.
 	//   - ledgerID: The ID of the ledger containing the account. Must be a valid ledger ID.
 	//   - accountID: The ID of the account to retrieve operations for. Must be a valid account ID.
-	//   - opts: Optional pagination and filtering options:
-	//     - Page: The page number to retrieve (1-based indexing)
-	//     - Limit: The maximum number of items per page
-	//     - Filter: Criteria to filter operations by (e.g., by transaction ID or asset code)
-	//     - Sort: Sorting options for the results
-	//     If nil, default pagination settings will be used.
+	//   - opts: Optional cursor pagination and filtering options. ListOptions.Cursor and
+	//     ListOptions.Limit are serialized by cursorListQueryParams; Page and Offset are
+	//     ignored for this cursor-only endpoint and are not sent on the wire.
 	//
 	// Returns:
-	//   - *models.ListResponse[models.Operation]: A paginated list of operations, including:
-	//     - Items: The array of operation objects for the current page
-	//     - Page: The current page number
-	//     - Limit: The maximum number of items per page
-	//     - Total: The total number of operations matching the filter criteria
+	//   - *models.ListResponse[models.Operation]: A cursor-paginated list of operations.
+	//     Use response pagination cursor fields, not Total/TotalPages, for traversal.
 	//   - error: An error if the operation fails. Possible errors include:
 	//     - Authentication failure (invalid auth token)
 	//     - Authorization failure (insufficient permissions)
@@ -48,13 +42,13 @@ type OperationsService interface {
 	//
 	// Example - Basic usage:
 	//
-	//	// List operations with default pagination
+	//	// List operations with default cursor pagination
 	//	operations, err := operationsService.ListOperations(
 	//	    context.Background(),
 	//	    "org-123",
 	//	    "ledger-456",
 	//	    "account-789",
-	//	    nil, // Use default pagination
+	//	    nil, // Use default cursor pagination
 	//	)
 	//
 	//	if err != nil {
@@ -63,8 +57,8 @@ type OperationsService interface {
 
 	//
 	//	// Process the operations
-	//	fmt.Printf("Retrieved %d operations (page %d of %d)\n",
-	//	    len(operations.Items), operations.Page, operations.TotalPages)
+	//	fmt.Printf("Retrieved %d operations; next cursor: %s\n",
+	//	    len(operations.Items), operations.Pagination.NextCursor)
 	//
 	//	for _, op := range operations.Items {
 	//	    fmt.Printf("Operation: %s, Type: %s, Amount: %d %s\n",
@@ -74,15 +68,15 @@ type OperationsService interface {
 	//
 	// Example - With pagination and filtering:
 	//
-	//	// Create pagination options with filtering
+	//	// Create cursor pagination options with filtering
 	//	opts := &models.ListOptions{
-	//	    Page: 1,
 	//	    Limit: 10,
-	//	    Filter: map[string]any{
+	//	    Cursor: "next-cursor-from-previous-response",
+	//	    Filters: map[string]string{
 	//	        "type": "debit", // Only show debit operations
 	//	        "assetCode": "USD", // Only show USD operations
 	//	    },
-	//	    Sort: []string{"createdAt:desc"}, // Sort by creation time (newest first)
+	//	    OrderDirection: "desc",
 	//	}
 
 	//

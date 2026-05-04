@@ -420,9 +420,9 @@ func TestCircuitBreakerFunctionErrors(t *testing.T) {
 			panic("test panic")
 		}
 
-		assert.Panics(t, func() {
-			_ = cb.Execute(context.Background(), fn)
-		})
+		err := cb.Execute(context.Background(), fn)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "test panic")
 	})
 }
 

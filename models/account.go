@@ -481,8 +481,12 @@ func validateAccountStringLength(field, value string) error {
 }
 
 func validateOptionalUUIDPtr(field string, value *string) error {
-	if value == nil || *value == "" {
+	if value == nil {
 		return nil
+	}
+
+	if *value == "" {
+		return fmt.Errorf("%s must be a valid UUID", field)
 	}
 
 	if !validation.IsValidUUID(*value) {

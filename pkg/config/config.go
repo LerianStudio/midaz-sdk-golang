@@ -567,6 +567,10 @@ func WithAccessManager(accessManager auth.AccessManager) Option {
 //   - Option: A function that sets configuration from environment variables
 func FromEnvironment() Option {
 	return func(c *Config) error {
+		if c == nil {
+			return errors.New("config cannot be nil")
+		}
+
 		if err := configureEnvironment(c); err != nil {
 			return err
 		}

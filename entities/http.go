@@ -741,6 +741,10 @@ func (c *HTTPClient) doCountRequest(ctx context.Context, method, requestURL stri
 		return 0, fmt.Errorf("failed to create request: %w", err)
 	}
 
+	if err := security.ValidateOutboundRequest(req); err != nil {
+		return 0, err
+	}
+
 	headers = c.injectContextHeaders(ctx, method, headers)
 	c.setupRequestHeaders(req, headers, false)
 

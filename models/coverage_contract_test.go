@@ -22,11 +22,12 @@ func TestBalanceSettingsAndInputsContracts(t *testing.T) {
 		wantErr string
 	}{
 		{name: "valid transactional default", setting: &BalanceSettings{BalanceScope: BalanceScopeTransactional}},
-		{name: "valid internal overdraft", setting: &BalanceSettings{BalanceScope: BalanceScopeInternal, OverdraftLimitEnabled: true, OverdraftLimit: &limit}},
+		{name: "valid internal overdraft", setting: &BalanceSettings{BalanceScope: BalanceScopeInternal, AllowOverdraft: true, OverdraftLimitEnabled: true, OverdraftLimit: &limit}},
 		{name: "invalid scope", setting: &BalanceSettings{BalanceScope: "external"}, wantErr: "balanceScope"},
 		{name: "limit forbidden when disabled", setting: &BalanceSettings{OverdraftLimit: &limit}, wantErr: "omitted"},
-		{name: "limit required when enabled", setting: &BalanceSettings{OverdraftLimitEnabled: true}, wantErr: "required"},
-		{name: "limit positive decimal", setting: &BalanceSettings{OverdraftLimitEnabled: true, OverdraftLimit: ptrString("0")}, wantErr: "positive"},
+		{name: "limit enabled requires overdraft allowed", setting: &BalanceSettings{OverdraftLimitEnabled: true, OverdraftLimit: &limit}, wantErr: "allowOverdraft"},
+		{name: "limit required when enabled", setting: &BalanceSettings{AllowOverdraft: true, OverdraftLimitEnabled: true}, wantErr: "required"},
+		{name: "limit positive decimal", setting: &BalanceSettings{AllowOverdraft: true, OverdraftLimitEnabled: true, OverdraftLimit: ptrString("0")}, wantErr: "positive"},
 	}
 
 	for _, tt := range tests {

@@ -3,6 +3,7 @@ package models
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation/core"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
@@ -28,11 +29,12 @@ func (input *CreateOperationRouteInput) Validate() error {
 		return errors.New("input is required")
 	}
 
-	if input.Title == "" {
+	title := strings.TrimSpace(input.Title)
+	if title == "" {
 		return errors.New("title is required")
 	}
 
-	if err := validateRouteText(input.Title, maxRouteTitleLength, "title"); err != nil {
+	if err := validateRouteText(title, maxRouteTitleLength, "title"); err != nil {
 		return err
 	}
 
@@ -78,11 +80,15 @@ func (input *UpdateOperationRouteInput) Validate() error {
 		return errors.New("input is required")
 	}
 
+	if input.Title != "" && strings.TrimSpace(input.Title) == "" {
+		return errors.New("title is required")
+	}
+
 	if !input.hasChanges() {
 		return errors.New("empty update payload not allowed")
 	}
 
-	if err := validateRouteText(input.Title, maxRouteTitleLength, "title"); err != nil {
+	if err := validateRouteText(strings.TrimSpace(input.Title), maxRouteTitleLength, "title"); err != nil {
 		return err
 	}
 
@@ -108,7 +114,7 @@ func (input *UpdateOperationRouteInput) hasChanges() bool {
 		return false
 	}
 
-	return input.Title != "" ||
+	return strings.TrimSpace(input.Title) != "" ||
 		input.Description != "" ||
 		input.Code != "" || //nolint:staticcheck // Deprecated field remains part of compatibility DTO change detection.
 		input.Metadata != nil ||

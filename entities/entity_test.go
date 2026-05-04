@@ -24,13 +24,14 @@ func TestNewWithServiceURLs_DefaultsMissingCRMURLToOnboarding(t *testing.T) {
 	require.Equal(t, "https://api.example.com/onboarding/v1", entity.baseURLs["crm"])
 }
 
-func TestNormalizeBaseURLs_DoesNotUseEnvironmentFallbackForCRM(t *testing.T) {
+func TestNormalizeBaseURLs_RequiresOnboardingURL(t *testing.T) {
 	t.Setenv("MIDAZ_CRM_URL", "https://api.example.com/crm")
 
 	baseURLs, err := normalizeBaseURLs(map[string]string{
 		"transaction": "https://api.example.com/transaction",
 	})
 
-	require.NoError(t, err)
-	require.Empty(t, baseURLs["crm"])
+	require.Error(t, err)
+	require.Nil(t, baseURLs)
+	require.Contains(t, err.Error(), "missing onboarding URL")
 }
