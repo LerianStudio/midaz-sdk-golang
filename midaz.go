@@ -225,28 +225,20 @@ func (c *Client) setupEntity() error {
 		return fmt.Errorf("failed to configure observability provider: %w", err)
 	}
 
-	// Create the entity API with service-specific URLs
-	options := []entities.Option{entities.WithObservability(c.observability)}
-
-	// Propagate tenant ID to the entity layer if configured.
-	// Client-level tenantID takes precedence over config-level TenantID.
-	// When tenantIDSet is true, the client override wins even if empty
-	// (allowing explicit clearing of the config/env default).
-	var tenantID string
+	// Reconcile the tenant ID before constructing the Entity. The client-level
+	// override (set via WithTenantID) wins over the config/env default; we
+	// mutate the config copy so entities.NewEntityWithConfig sees one
+	// consistent source of truth via Config.GetTenantID().
 	if c.tenantIDSet {
-		tenantID = c.tenantID
-	} else {
-		tenantID = c.config.TenantID
+		c.config.TenantID = c.tenantID
 	}
 
-	if tenantID != "" {
-		options = append(options, entities.WithDefaultTenantID(tenantID))
-	}
-
-	options = append(options,
+	// Create the entity API with service-specific URLs.
+	options := []entities.Option{
+		entities.WithObservability(c.observability),
 		entities.WithDebug(c.config.Debug),
 		entities.WithUserAgent(c.config.UserAgent),
-	)
+	}
 
 	entity, err := entities.NewEntityWithConfig(c.config, options...)
 	if err != nil {

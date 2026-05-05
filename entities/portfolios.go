@@ -139,7 +139,7 @@ type portfoliosEntity struct {
 }
 
 func (e *portfoliosEntity) setDefaultTenantID(tenantID string) {
-	e.httpClient.SetTenantID(tenantID)
+	e.httpClient.setTenantIDLocked(tenantID)
 }
 
 // newPortfoliosEntity creates a new portfolios entity.

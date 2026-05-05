@@ -130,7 +130,7 @@ type assetsEntity struct {
 }
 
 func (e *assetsEntity) setDefaultTenantID(tenantID string) {
-	e.httpClient.SetTenantID(tenantID)
+	e.httpClient.setTenantIDLocked(tenantID)
 }
 
 // newAssetsEntity wires the AssetsService backed by the shared HTTP transport.

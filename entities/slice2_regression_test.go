@@ -25,6 +25,7 @@ func (*typedNilConfig) GetHTTPClient() *http.Client                      { retur
 func (*typedNilConfig) GetBaseURLs() map[string]string                   { return nil }
 func (*typedNilConfig) GetObservabilityProvider() observability.Provider { return nil }
 func (*typedNilConfig) GetPluginAuth() auth.AccessManager                { return auth.AccessManager{} }
+func (*typedNilConfig) GetTenantID() string                              { return "" }
 
 func nilContext() context.Context { return nil }
 
@@ -70,7 +71,6 @@ func TestZeroValueEntityExportedMethods_AreSafe(t *testing.T) {
 	require.Nil(t, e.GetHTTPClient())
 	require.Nil(t, e.GetObservabilityProvider())
 	require.NotPanics(t, func() { e.SetHTTPClient(&http.Client{Timeout: time.Second}) })
-	require.NotPanics(t, func() { e.SetAuthToken("token") })
 }
 
 // Default-CRM-to-onboarding behavior is covered in entity_test.go via
@@ -101,7 +101,11 @@ func TestEntitySetHTTPClient_PreservesProtocolConfiguration(t *testing.T) {
 		"onboarding":  "http://localhost:3002",
 		"transaction": "http://localhost:3002",
 		"crm":         "http://localhost:3002",
-	}, nil, WithDebug(true), WithUserAgent("slice2-agent"), WithDefaultTenantID("tenant-1"))
+	}, nil, WithDebug(true), WithUserAgent("slice2-agent"))
+	// Seed the tenant directly via the unexported setter (the v3-canonical path
+	// via Config.GetTenantID is exercised in http_tenant_test.go); here we
+	// only need a non-empty value to verify SetHTTPClient preserves it.
+	entity.httpClient.setTenantIDLocked("tenant-1")
 	entity.GetEntityHTTPClient().SetEnableIdempotency(false)
 	entity.GetEntityHTTPClient().SetCustomRetryPolicy(func(*http.Response, error) bool { return true })
 	entity.GetEntityHTTPClient().WithRetryOptions(retry.WithMaxRetries(7))

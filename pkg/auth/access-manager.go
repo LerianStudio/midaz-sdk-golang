@@ -198,20 +198,16 @@ func ClearAccessManagerCache() {
 	accessManagerTokenCache.Reset()
 }
 
-// EntityOption is a function that configures an entity with authentication.
-type EntityOption func(e any) error
-
-// WithAccessManager returns an EntityOption that configures plugin-based authentication.
-// When plugin-based authentication is enabled, the function will make a request to the authentication service
-// to retrieve an authentication token before interacting with Midaz.
-//
-// Parameters:
-//   - AccessManager: The plugin authentication configuration.
-//
-// Returns:
-//   - EntityOption: A function that configures plugin authentication.
-
 // AccessManager represents the configuration for plugin-based authentication.
+//
+// Construct one and pass it via [github.com/LerianStudio/midaz-sdk-golang/v3.WithAccessManager]
+// (or [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config.WithAccessManager]
+// when building a *config.Config directly). The midaz package re-exports this
+// type as [github.com/LerianStudio/midaz-sdk-golang/v3.AccessManager] so a
+// typical setup needs only one import.
+//
+// The Enabled field is auto-populated by WithAccessManager — callers do not
+// set it themselves. Address, ClientID, and ClientSecret are all required.
 type AccessManager struct {
 	Enabled      bool
 	Address      string
@@ -226,47 +222,6 @@ type TokenResponse struct {
 	TokenType    string `json:"tokenType"`
 	RefreshToken string `json:"refreshToken"` // #nosec G117 -- response contract from external OAuth provider
 	ExpiresAt    string `json:"expiresAt,omitempty"`
-}
-
-// WithAccessManager returns an EntityOption that configures plugin-based authentication.
-func WithAccessManager(accessMgr AccessManager) EntityOption {
-	return func(e any) error {
-		// Type assertion to access the required methods
-		type entityWithAuth interface {
-			GetHTTPClient() *http.Client
-			SetAuthToken(token string)
-			InitServices()
-		}
-
-		entity, ok := e.(entityWithAuth)
-		if !ok {
-			return errors.New("entity does not implement required methods for plugin auth")
-		}
-
-		// If plugin auth is not enabled, nothing to do
-		if !accessMgr.Enabled {
-			return nil
-		}
-
-		// Validate plugin auth configuration
-		if accessMgr.Address == "" {
-			return errors.New("plugin auth address is required when plugin auth is enabled")
-		}
-
-		// Get a token from the plugin auth service
-		token, err := GetTokenFromAccessManager(context.Background(), accessMgr, entity.GetHTTPClient())
-		if err != nil {
-			return fmt.Errorf("failed to get token from plugin auth service: %w", err)
-		}
-
-		// Set the token on the entity
-		entity.SetAuthToken(token)
-
-		// Re-initialize services to update the token
-		entity.InitServices()
-
-		return nil
-	}
 }
 
 // GetTokenFromAccessManager retrieves an authentication token from the plugin auth service

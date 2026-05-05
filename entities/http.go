@@ -415,25 +415,6 @@ func (c *HTTPClient) WithDebug(debug bool) *HTTPClient {
 	return c
 }
 
-// SetTenantID sets the default tenant ID for all requests made by this HTTP client.
-// When a request is made, the tenant ID from the request context takes precedence
-// over this client-level default. If neither is set, no X-Tenant-ID header is sent.
-// This header is best-effort compatibility metadata and is not the sole tenant
-// authority for the reference Midaz path.
-//
-// SetTenantID is safe for concurrent use; it acquires the client's write lock.
-// All other field-mutating helpers in this file (setObservabilityLocked,
-// setDebugLocked, setUserAgentLocked, setMetricsLocked, setTenantIDLocked)
-// follow the same convention so that constructors and Option callbacks
-// cannot bypass the mutex.
-func (c *HTTPClient) SetTenantID(tenantID string) {
-	if c == nil {
-		return
-	}
-
-	c.setTenantIDLocked(strings.TrimSpace(tenantID))
-}
-
 // setDebugLocked sets the debug flag under the write lock. Internal callers
 // (constructors that observe MIDAZ_DEBUG, Option setters) must use this
 // helper instead of writing c.debug directly so that race detector runs
@@ -490,10 +471,10 @@ func (c *HTTPClient) setTenantIDLocked(tenantID string) {
 }
 
 // setAuthTokenLocked sets the auth token under the write lock. Used by
-// Entity.SetAuthToken (plugin-auth refresh path) and the in-request 401
-// refresh path. The auth token is read on every request to populate the
-// Authorization header, so concurrent mutation absolutely must go through
-// the same lock the readers use.
+// the access-manager token-refresh path (refreshAuthToken) and the initial
+// token seeding inside NewEntityWithConfig. The auth token is read on every
+// request to populate the Authorization header, so concurrent mutation
+// absolutely must go through the same lock the readers use.
 func (c *HTTPClient) setAuthTokenLocked(token string) {
 	if c == nil {
 		return

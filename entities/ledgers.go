@@ -128,7 +128,7 @@ type ledgersEntity struct {
 }
 
 func (e *ledgersEntity) setDefaultTenantID(tenantID string) {
-	e.httpClient.SetTenantID(tenantID)
+	e.httpClient.setTenantIDLocked(tenantID)
 }
 
 // newLedgersEntity wires the LedgersService backed by the shared HTTP transport.

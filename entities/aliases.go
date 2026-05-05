@@ -31,7 +31,7 @@ type aliasesEntity struct {
 }
 
 func (e *aliasesEntity) setDefaultTenantID(tenantID string) {
-	e.httpClient.SetTenantID(tenantID)
+	e.httpClient.setTenantIDLocked(tenantID)
 }
 
 // newAliasesEntity creates a new AliasesService instance.

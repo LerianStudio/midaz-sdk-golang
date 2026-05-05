@@ -25,7 +25,7 @@ type metadataIndexesEntity struct {
 }
 
 func (e *metadataIndexesEntity) setDefaultTenantID(tenantID string) {
-	e.httpClient.SetTenantID(tenantID)
+	e.httpClient.setTenantIDLocked(tenantID)
 }
 
 // newMetadataIndexesEntity creates a new MetadataIndexesService instance.

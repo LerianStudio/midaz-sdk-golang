@@ -3,9 +3,7 @@ package entities
 import (
 	"errors"
 	"net/http"
-	"strings"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/auth"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
 )
 
@@ -98,35 +96,5 @@ func WithHTTPClient(client *http.Client) Option {
 		e.initServices()
 
 		return nil
-	}
-}
-
-// WithDefaultTenantID returns an Option that sets the default tenant ID for all
-// requests made through this Entity. Per-request tenant IDs set via
-// [sdkctx.WithRequestTenantID] take precedence over this default.
-// If tenantID is empty, the option is a no-op.
-func WithDefaultTenantID(tenantID string) Option {
-	return func(e *Entity) error {
-		if e == nil || e.httpClient == nil {
-			return errors.New("entity HTTP client cannot be nil")
-		}
-
-		tenantID = strings.TrimSpace(tenantID)
-		if tenantID == "" {
-			return nil
-		}
-
-		e.httpClient.setTenantIDLocked(tenantID)
-
-		return nil
-	}
-}
-
-// WithPluginAuth returns an Option that configures plugin-based authentication.
-// This is a wrapper around auth.WithAccessManager to make it compatible with entities.Option.
-func WithPluginAuth(pluginAuth auth.AccessManager) Option {
-	return func(e *Entity) error {
-		// Call the auth.WithAccessManager function with the entity
-		return auth.WithAccessManager(pluginAuth)(e)
 	}
 }

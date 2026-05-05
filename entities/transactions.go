@@ -112,7 +112,7 @@ type transactionsEntity struct {
 }
 
 func (e *transactionsEntity) setDefaultTenantID(tenantID string) {
-	e.httpClient.SetTenantID(tenantID)
+	e.httpClient.setTenantIDLocked(tenantID)
 }
 
 // newTransactionsEntity creates a new transactions entity.

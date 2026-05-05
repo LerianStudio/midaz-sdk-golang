@@ -1022,6 +1022,14 @@ func (c *Config) GetObservabilityProvider() observability.Provider {
 	return c.ObservabilityProvider
 }
 
+// GetTenantID returns the default tenant ID configured for this Config.
+// Used by [github.com/LerianStudio/midaz-sdk-golang/v3/entities.NewEntityWithConfig]
+// to seed the entity HTTP client without forcing the midaz package to thread
+// the tenant value through the entities.Option chain.
+func (c *Config) GetTenantID() string {
+	return c.TenantID
+}
+
 // Clone returns an independent copy of the configuration.
 //
 // The clone is safe to mutate without affecting the receiver. In particular,

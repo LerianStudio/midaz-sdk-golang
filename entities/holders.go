@@ -29,7 +29,7 @@ type holdersEntity struct {
 }
 
 func (e *holdersEntity) setDefaultTenantID(tenantID string) {
-	e.httpClient.SetTenantID(tenantID)
+	e.httpClient.setTenantIDLocked(tenantID)
 }
 
 // newHoldersEntity creates a new HoldersService instance.

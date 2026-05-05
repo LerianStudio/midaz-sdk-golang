@@ -109,7 +109,7 @@ type operationRoutesEntity struct {
 }
 
 func (e *operationRoutesEntity) setDefaultTenantID(tenantID string) {
-	e.httpClient.SetTenantID(tenantID)
+	e.httpClient.setTenantIDLocked(tenantID)
 }
 
 // newOperationRoutesEntity creates a new OperationRoutesService instance

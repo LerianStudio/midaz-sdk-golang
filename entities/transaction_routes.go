@@ -110,7 +110,7 @@ type transactionRoutesEntity struct {
 }
 
 func (e *transactionRoutesEntity) setDefaultTenantID(tenantID string) {
-	e.httpClient.SetTenantID(tenantID)
+	e.httpClient.setTenantIDLocked(tenantID)
 }
 
 // newTransactionRoutesEntity creates a new TransactionRoutesService instance

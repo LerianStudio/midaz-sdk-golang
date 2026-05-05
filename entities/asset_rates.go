@@ -98,7 +98,7 @@ type assetRatesEntity struct {
 }
 
 func (e *assetRatesEntity) setDefaultTenantID(tenantID string) {
-	e.httpClient.SetTenantID(tenantID)
+	e.httpClient.setTenantIDLocked(tenantID)
 }
 
 // newAssetRatesEntity creates a new asset rates entity.

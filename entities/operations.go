@@ -182,7 +182,7 @@ type operationsEntity struct {
 }
 
 func (e *operationsEntity) setDefaultTenantID(tenantID string) {
-	e.httpClient.SetTenantID(tenantID)
+	e.httpClient.setTenantIDLocked(tenantID)
 }
 
 // newOperationsEntity wires the OperationsService backed by the shared HTTP transport.

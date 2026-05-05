@@ -239,7 +239,7 @@ type balancesEntity struct {
 }
 
 func (e *balancesEntity) setDefaultTenantID(tenantID string) {
-	e.httpClient.SetTenantID(tenantID)
+	e.httpClient.setTenantIDLocked(tenantID)
 }
 
 // newBalancesEntity wires the BalancesService backed by the shared HTTP transport.

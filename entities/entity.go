@@ -32,6 +32,12 @@ type Config interface {
 
 	// GetPluginAuth returns the plugin authentication configuration.
 	GetPluginAuth() auth.AccessManager
+
+	// GetTenantID returns the default tenant ID applied to every request
+	// made by entity HTTP clients. Per-request overrides via
+	// [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx.WithRequestTenantID]
+	// take precedence. An empty value disables the X-Tenant-ID header.
+	GetTenantID() string
 }
 
 // Entity provides a centralized access point to all entity types in the Midaz SDK.
@@ -120,6 +126,14 @@ func NewEntityWithConfig(config Config, options ...Option) (*Entity, error) {
 		baseURLs:      normalizedBaseURLs,
 		observability: config.GetObservabilityProvider(),
 	}
+	// Seed the default tenant ID from Config so the midaz package's
+	// client-level WithTenantID option propagates straight through to the
+	// HTTP client without going through the entities.Option chain. Per-request
+	// sdkctx.WithRequestTenantID overrides still win at request time.
+	if tid := strings.TrimSpace(config.GetTenantID()); tid != "" {
+		entity.httpClient.setTenantIDLocked(tid)
+	}
+
 	if pluginAuth.Enabled {
 		entity.httpClient.setAuthTokenProvider(
 			func(ctx context.Context) (string, error) {
@@ -375,26 +389,6 @@ func (e *Entity) SetHTTPClient(client *http.Client) {
 
 	// Re-initialize services with the new HTTP client
 	e.initServices()
-}
-
-// SetAuthToken sets the authentication token for the entity.
-// This is required for the plugin auth interface.
-//
-// Parameters:
-//   - token: The authentication token to use for API requests.
-//
-// SetAuthToken is safe for concurrent callers; the underlying field write
-// is performed through the HTTPClient's locked setter so it does not race
-// with concurrent in-flight requests reading the token.
-func (e *Entity) SetAuthToken(token string) {
-	if e == nil || e.httpClient == nil {
-		return
-	}
-
-	if token != "" {
-		e.httpClient.setAuthTokenLocked(token)
-		e.propagateHTTPClientConfiguration()
-	}
 }
 
 func normalizeBaseURLs(baseURLs map[string]string) (map[string]string, error) {

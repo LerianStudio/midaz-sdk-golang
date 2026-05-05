@@ -109,7 +109,7 @@ type accountTypesEntity struct {
 }
 
 func (e *accountTypesEntity) setDefaultTenantID(tenantID string) {
-	e.httpClient.SetTenantID(tenantID)
+	e.httpClient.setTenantIDLocked(tenantID)
 }
 
 // newAccountTypesEntity wires the AccountTypesService backed by the shared HTTP transport.

@@ -139,7 +139,7 @@ type organizationsEntity struct {
 }
 
 func (e *organizationsEntity) setDefaultTenantID(tenantID string) {
-	e.httpClient.SetTenantID(tenantID)
+	e.httpClient.setTenantIDLocked(tenantID)
 }
 
 // newOrganizationsEntity wires the OrganizationsService backed by the shared HTTP transport.

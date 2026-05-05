@@ -127,7 +127,7 @@ type segmentsEntity struct {
 }
 
 func (e *segmentsEntity) setDefaultTenantID(tenantID string) {
-	e.httpClient.SetTenantID(tenantID)
+	e.httpClient.setTenantIDLocked(tenantID)
 }
 
 // newSegmentsEntity creates a new segments entity.
