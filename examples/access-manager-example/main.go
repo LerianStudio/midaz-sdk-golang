@@ -21,6 +21,7 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v3"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
 	"github.com/joho/godotenv"
 )
 
@@ -75,7 +76,14 @@ func buildClient() (*midaz.Client, error) {
 
 	return midaz.New(
 		midaz.WithConfig(cfg),
-		midaz.WithObservability(true, true, true),
+		// v3: midaz.WithObservability(t,m,l bool) was deleted. The canonical
+		// expression chains observability.WithComponentEnabled through
+		// midaz.WithObservabilityOptions, which composes uniformly with
+		// every other observability.Option (service name, collector endpoint,
+		// sampling, attributes, etc.).
+		midaz.WithObservabilityOptions(
+			observability.WithComponentEnabled(true, true, true),
+		),
 	)
 }
 

@@ -38,7 +38,12 @@ func TestClientOptionsAccessorsAndConstructors(t *testing.T) {
 		WithCustomRetryPolicy(func(resp *http.Response, err error) bool {
 			return err != nil || (resp != nil && resp.StatusCode == http.StatusTooManyRequests)
 		}),
-		WithObservability(false, false, false),
+		// v3: WithObservability(t,m,l bool) was deleted. The replacement is
+		// WithObservabilityOptions(observability.WithComponentEnabled(t,m,l)).
+		// All-disabled here matches the New()-installed default; this call
+		// exists to exercise the WithObservabilityOptions path without
+		// changing the effective enabled state.
+		WithObservabilityOptions(observability.WithComponentEnabled(false, false, false)),
 	)
 	require.NoError(t, err)
 	require.NotNil(t, c.Entity)
@@ -52,7 +57,14 @@ func TestClientOptionsAccessorsAndConstructors(t *testing.T) {
 	assert.Equal(t, "value", c.GetContext().Value(testContextKey{}))
 	assert.NotNil(t, c.GetObservabilityProvider())
 	assert.NotNil(t, c.Logger())
-	assert.Nil(t, c.GetMetricsCollector())
+	// In v3, WithObservabilityOptions builds a MetricsCollector whenever
+	// provider.IsEnabled() returns true, regardless of which OTel components
+	// (tracing/metrics/logging) are individually toggled. The collector
+	// emits noop counters when the metrics component is off, so its
+	// presence is harmless. The deleted v2 WithObservability(t,m,l)
+	// macro short-circuited via its closure bool — that asymmetry is now
+	// gone in favor of uniform construction.
+	assert.NotNil(t, c.GetMetricsCollector())
 	assert.NotNil(t, c.NewAccount())
 	assert.NotNil(t, c.NewLedger())
 	assert.NotNil(t, c.NewOrganization())
@@ -141,7 +153,19 @@ func TestClientObservabilityOptionVariants(t *testing.T) {
 }
 
 func TestClientCollectorEndpointOptionCreatesProvider(t *testing.T) {
-	c, err := New(WithConfig(createTestConfig(t)), WithCollectorEndpoint("localhost:4317"))
+	// v3: midaz.WithCollectorEndpoint was deleted. It was sugar for the
+	// equivalent observability.Option chain; users now compose explicitly.
+	// This test ensures the canonical path produces a working provider +
+	// metrics collector for the same input shape (collector endpoint +
+	// all components enabled).
+	c, err := New(
+		WithConfig(createTestConfig(t)),
+		WithObservabilityOptions(
+			observability.WithServiceName("midaz-go-sdk"),
+			observability.WithCollectorEndpoint("localhost:4317"),
+			observability.WithComponentEnabled(true, true, true),
+		),
+	)
 	require.NoError(t, err)
 	assert.NotNil(t, c.GetObservabilityProvider())
 	assert.NotNil(t, c.GetMetricsCollector())

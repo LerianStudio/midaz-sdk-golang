@@ -114,6 +114,22 @@ type Client struct {
 // c.Entity could be nil after construction is gone in v3 — every service is
 // initialized and ready to use upon successful return.
 //
+// Default observability provider: New always installs a default
+// [observability.Provider] with all three OTel components (tracing, metrics,
+// logging) DISABLED. [Client.GetObservabilityProvider] therefore always
+// returns a non-nil provider, even if no With*Observability option was
+// passed. This default is REPLACED wholesale by the first call to
+// [WithObservabilityOptions] or [WithObservabilityProvider] in the option
+// chain — there is no merge step. See those options' godoc for replacement
+// semantics.
+//
+// Default logger: New installs a silent [slog.Logger] backed by
+// [slog.DiscardHandler] unless [WithLogger] was passed. When [WithLogger]
+// is absent and [Config.Debug] is true (e.g. via MIDAZ_DEBUG=true with
+// [config.FromEnvironment]), the default is upgraded to a stderr text
+// handler at debug level. User-supplied loggers via [WithLogger] always
+// win over both defaults.
+//
 // Returns:
 //   - *Client: A fully-initialized client. All service fields (c.Accounts,
 //     c.Transactions, etc.) are non-nil and ready for API calls.
@@ -430,25 +446,67 @@ func WithoutRetries() Option {
 	}
 }
 
-// WithObservabilityOptions configures observability for the client with custom options.
+// WithObservabilityOptions builds a fresh observability provider from the
+// supplied [observability.Option] chain and installs it on the Client. This
+// is the canonical entry point for configuring tracing/metrics/logging via
+// the OTel-aligned pkg/observability surface.
+//
+// Replacement semantics: WithObservabilityOptions REPLACES any provider
+// previously installed on this Client — including the default disabled
+// provider that [New] installs at construction time (see [New] godoc).
+// Subsequent WithObservabilityOptions calls likewise replace. There is no
+// composition or merge step; the last call wins. To start from a known set
+// of defaults, include [observability.WithDevelopmentDefaults] or
+// [observability.WithProductionDefaults] as the first item in the chain.
+//
+// If the resulting provider IsEnabled, a [observability.MetricsCollector] is
+// constructed and made available via [Client.GetMetricsCollector]. The
+// Client's context is also updated so [observability.WithProvider] is
+// reachable on every per-request context derived from [Client.GetContext].
+//
+// Use this when you need full control over the provider construction:
+// custom service name, custom collector endpoint, sample rate, attributes,
+// propagators, log level, log output, or component toggles.
+//
+// Example — full-tracing dev setup with custom collector:
+//
+//	client, _ := midaz.New(
+//	    midaz.WithObservabilityOptions(
+//	        observability.WithServiceName("my-service"),
+//	        observability.WithCollectorEndpoint("localhost:4317"),
+//	        observability.WithComponentEnabled(true, true, true),
+//	        observability.WithFullTracingSampling(),
+//	    ),
+//	)
+//
+// Example — install a known set of dev defaults then tweak one knob:
+//
+//	midaz.WithObservabilityOptions(
+//	    observability.WithDevelopmentDefaults(),
+//	    observability.WithServiceName("my-service"),
+//	)
+//
+// For sharing a pre-built provider across multiple clients, prefer
+// [WithObservabilityProvider] which skips the construction step.
 //
 // Parameters:
-//   - options: The observability options to apply to the provider
+//   - options: The [observability.Option] chain used to build the provider
 //
 // Returns:
-//   - Option: A function that configures observability for the Client with custom options
+//   - Option: A function that installs the new provider on the Client
 func WithObservabilityOptions(options ...observability.Option) Option {
 	return func(c *Client) error {
-		// Create the provider with custom options
+		// Build the provider from the supplied chain. Any previously
+		// installed provider (default-disabled from New, or a prior
+		// WithObservabilityOptions / WithObservabilityProvider call) is
+		// replaced wholesale — see godoc for replacement semantics.
 		provider, err := observability.New(c.ctx, options...)
 		if err != nil {
 			return err
 		}
 
-		// Set the provider on the client
 		c.observability = provider
 
-		// Initialize metrics collector if needed
 		if provider.IsEnabled() {
 			c.metrics, err = observability.NewMetricsCollector(provider)
 			if err != nil {
@@ -456,69 +514,36 @@ func WithObservabilityOptions(options ...observability.Option) Option {
 			}
 		}
 
-		// Update the context with the provider
-		c.ctx = observability.WithProvider(c.ctx, provider)
-
-		// Note: HTTP client configuration is handled during entity creation
-
-		return nil
-	}
-}
-
-// WithObservability enables or disables observability features (tracing, metrics, logging).
-// This allows for monitoring and debugging of SDK operations.
-//
-// Parameters:
-//   - enableTracing: Whether to enable distributed tracing
-//   - enableMetrics: Whether to enable metrics collection
-//   - enableLogging: Whether to enable structured logging
-//
-// Returns:
-//   - Option: A function that configures observability for the Client
-func WithObservability(enableTracing, enableMetrics, enableLogging bool) Option {
-	return func(c *Client) error {
-		// Create the provider with functional options
-		provider, err := observability.New(c.ctx,
-			observability.WithServiceName("midaz-go-sdk"),
-			observability.WithServiceVersion(Version),
-			observability.WithEnvironment(string(c.config.Environment)),
-			observability.WithComponentEnabled(enableTracing, enableMetrics, enableLogging),
-		)
-		if err != nil {
-			return err
-		}
-
-		// Set the provider on the client
-		c.observability = provider
-
-		// Initialize metrics collector if needed
-		if enableMetrics {
-			c.metrics, err = observability.NewMetricsCollector(provider)
-			if err != nil {
-				return err
-			}
-		}
-
-		// Update the context with the provider
 		c.ctx = observability.WithProvider(c.ctx, provider)
 
 		return nil
 	}
 }
 
-// WithObservabilityProvider sets a custom observability provider for the client.
+// WithObservabilityProvider installs a pre-built [observability.Provider]
+// on the Client. Use this when you want to share an observability provider
+// across multiple Midaz clients (e.g. one provider, many tenant-scoped
+// clients) or when the provider was constructed elsewhere in your
+// application's bootstrap.
+//
 // Two-layer surface: this is the user-facing wrapper. It delegates to
-// [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config.WithObservabilityProvider], which most
-// callers should not invoke directly. Prefer this option when constructing the
-// client via [New].
+// [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config.WithObservabilityProvider],
+// which most callers should not invoke directly. Prefer this option when
+// constructing the client via [New].
 //
-// This is useful when you want to share an observability provider across multiple clients.
+// Replacement semantics: WithObservabilityProvider REPLACES any provider
+// previously installed on this Client — including the default disabled
+// provider that [New] installs at construction time. See [New] godoc.
+//
+// Nil handling: a typed-nil [observability.Provider] (e.g. (*Provider)(nil))
+// returns an error; a literal nil interface is treated as a no-op and the
+// existing provider is preserved.
 //
 // Parameters:
-//   - provider: The observability provider to use
+//   - provider: The pre-built observability provider to install
 //
 // Returns:
-//   - Option: A function that sets the observability provider on the Client
+//   - Option: A function that installs the provider on the Client
 func WithObservabilityProvider(provider observability.Provider) Option {
 	return func(c *Client) error {
 		if provider == nil {
@@ -529,10 +554,10 @@ func WithObservabilityProvider(provider observability.Provider) Option {
 			return errors.New("observability provider cannot be nil")
 		}
 
-		// Set the provider on the client
+		// Replace any previously installed provider (default-disabled or
+		// otherwise). See godoc for replacement semantics.
 		c.observability = provider
 
-		// Initialize metrics collector if needed
 		if provider.IsEnabled() {
 			var err error
 
@@ -542,51 +567,6 @@ func WithObservabilityProvider(provider observability.Provider) Option {
 			}
 		}
 
-		// Update the context with the provider
-		c.ctx = observability.WithProvider(c.ctx, provider)
-
-		return nil
-	}
-}
-
-// WithCollectorEndpoint sets the OTLP collector endpoint for observability.
-// This is used to send traces, metrics, and logs to an OpenTelemetry collector.
-//
-// Parameters:
-//   - endpoint: The endpoint for the OpenTelemetry collector
-//
-// Returns:
-//   - Option: A function that sets the collector endpoint on the Client
-func WithCollectorEndpoint(endpoint string) Option {
-	return func(c *Client) error {
-		// Check if there's an existing provider
-		current := c.observability
-		if current == nil {
-			return nil
-		}
-
-		// Create the provider with functional options
-		provider, err := observability.New(c.ctx,
-			observability.WithServiceName("midaz-go-sdk"),
-			observability.WithServiceVersion(Version),
-			observability.WithEnvironment(string(c.config.Environment)),
-			observability.WithCollectorEndpoint(endpoint),
-			observability.WithComponentEnabled(true, true, true), // Enable all components
-		)
-		if err != nil {
-			return err
-		}
-
-		// Set the provider on the client
-		c.observability = provider
-
-		// Initialize metrics collector
-		c.metrics, err = observability.NewMetricsCollector(provider)
-		if err != nil {
-			return err
-		}
-
-		// Update the context with the provider
 		c.ctx = observability.WithProvider(c.ctx, provider)
 
 		return nil
@@ -983,11 +963,16 @@ func (c *Client) Logger() *slog.Logger {
 	return c.logger
 }
 
-// GetObservabilityProvider returns the observability provider.
-// This is useful when you want to use the provider directly.
+// GetObservabilityProvider returns the observability provider installed on
+// this Client. The return value is never nil for a Client constructed via
+// [New]: if no [WithObservabilityOptions] or [WithObservabilityProvider]
+// option was passed, [New] installs a default provider with all three OTel
+// components (tracing, metrics, logging) disabled. Use
+// [observability.Provider.IsEnabled] to distinguish the default-disabled
+// provider from a user-installed enabled one.
 //
 // Returns:
-//   - Provider: The observability provider
+//   - Provider: The observability provider (never nil after [New])
 func (c *Client) GetObservabilityProvider() observability.Provider {
 	return c.observability
 }

@@ -11,6 +11,7 @@ import (
 	sdkentities "github.com/LerianStudio/midaz-sdk-golang/v3/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
 	"github.com/google/uuid"
 )
 
@@ -136,7 +137,12 @@ func initializeMidazClient() (*client.Client, error) {
 
 	midazClient, err := client.New(
 		client.WithConfig(cfg),
-		client.WithObservability(true, true, true),
+		// v3: WithObservability(t,m,l bool) was deleted. Compose explicitly
+		// through WithObservabilityOptions for uniformity with every other
+		// observability.Option.
+		client.WithObservabilityOptions(
+			observability.WithComponentEnabled(true, true, true),
+		),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create client: %w", err)
