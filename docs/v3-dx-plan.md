@@ -1,9 +1,80 @@
 # Midaz Go SDK v3 — DX Plan
 
-> **Status:** DRAFT — actively iterating
+> **Status:** IN PROGRESS — Phase A active (Track 1 at 5 of 7 batches done)
 > **Owner:** Fred (Lerian)
-> **Last updated:** 2026-05-05
+> **Last updated:** 2026-05-05 (post-session 1)
 > **Scope:** Greenfield v3 with breaking-change budget. Deprecated shims acceptable for 1–2 minor versions to ease migration.
+
+---
+
+## ⚡ Resume State (read this first if picking up the work)
+
+**Current branch:** `v3` (created from `develop`, **NOT yet pushed to origin**)
+
+**Last commit on v3:** `582dd99 feat(v3): eager validation contract at midaz.New()`
+
+**Total v3 commits so far:** 7 (1 docs + 6 feat)
+
+```
+582dd99 feat(v3): eager validation contract at midaz.New()           ← Batch 1F ✅
+eb16c8e docs(v3): update status tracker after batches 1A-1D
+af8bbea feat(v3)!: introduce pkg/sdkctx for per-request helpers      ← Batch 1D ✅
+d5e410a feat(v3)!: hoist services to top-level Client                ← Batch 1C ✅
+f2a0fee feat(v3)!: always initialize Entity surface; delete Use*     ← Batch 1B ✅
+f8e2109 feat(v3)!: rename module to /v3 and root package to midaz    ← Batch 1A ✅
+424aae0 docs(v3): add comprehensive v3 DX plan                       ← This doc
+```
+
+**Verification status (last run end of session 1):**
+- `go build ./...` → clean
+- `go test ./...` → 27/27 packages green, zero failures
+- `make verify-sdk` → ✅ clean
+
+**Next action when resuming:** Execute **Batch 1E** (constructor cleanup). See [Track 1 — Naked SDK & Entry Points](#track-1--naked-sdk--entry-points) section for full scope. Specifically:
+1. Unexport the 16 `entities.NewXxxEntity` constructors (move bodies to `internal/services/` or unexport in place)
+2. Delete `entities.NewEntity`, `entities.New`, `entities.NewWithServiceURLs`
+3. Delete the 6 `Client.NewAccount/NewLedger/NewOrganization/NewTransaction/NewOperation/NewAsset` empty-struct factory traps in `midaz.go:733-761`
+4. Verify with `go build && go test ./... && make verify-sdk`
+
+**Then Batch 1G** (top-level type re-exports: `midaz.Account = models.Account` for ~15 hot types) closes out Track 1.
+
+**Then Phase A continues with Tracks 2 (auth/tenant), 3 (env reads), 4 (logging).**
+
+**Important context preserved for the next session:**
+
+- The migration uses **anonymous embedding** of `*entities.Entity` in `Client`, which gives both `c.Accounts.X` (new v3 idiom) and `c.Entity.Accounts.X` (back-compat) for free. This is intentional and works because Go's embedded-field name is the type name without the pointer.
+- All implicit env-var reads in `entities/*.go` (the 14 `MIDAZ_DEBUG` reads + `MIDAZ_USER_AGENT` + `MIDAZ_IDEMPOTENCY` + `MIDAZ_MAX_RETRIES` + `MIDAZ_ENABLE_RETRIES`) are still present. **Track 3 will eliminate them.** Don't worry about them in Track 1 batches.
+- The 32 example files still use `client "github.com/.../v3"` import alias and `client.X` references. They work via Go's alias mechanism even though the package is now `midaz`. Track 9 (Phase C) rewrites examples to use the canonical `midaz.X` idiom.
+- `pkg/transaction/batch.go` had a quirk: `goimports` (or similar tool) auto-inserted `github.com/moby/moby/client` when I dropped the `client` alias. Watch for this when modifying files that previously imported the root v3 package as `client`.
+- An auto-tool also stripped `sdkerrors` import from `midaz.go` once after I added it. Re-add it explicitly if needed.
+- The plan's original Batch 1D ambition was to fully delete `entities/` package. We deferred this — `entities/` still exists as a thin layer because services live there. Full deletion happens in Phase B (Track 7) when services move to per-service packages.
+
+**Customer-visible v3 changes shipped on the v3 branch so far:**
+
+```go
+// v2 (current main/develop)
+import client "github.com/LerianStudio/midaz-sdk-golang/v2"
+import "github.com/LerianStudio/midaz-sdk-golang/v2/entities"
+
+c, _ := client.New(client.WithConfig(cfg), client.UseAllAPIs())  // panic if you forget UseAllAPIs
+ctx = entities.WithIdempotencyKey(ctx, key)
+ctx = entities.WithTenantID(ctx, tenant)  // confused with client.WithTenantID
+acc, _ := c.Entity.Accounts.GetAccount(ctx, ...)
+
+// v3 (current v3 branch state)
+import "github.com/LerianStudio/midaz-sdk-golang/v3"
+import "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
+
+c, err := midaz.New(midaz.WithConfig(cfg))      // Entity always init'd; eager validation
+if errors.IsConfigurationError(err) {            // typed setup errors
+    log.Fatalf("midaz misconfigured: %v", err)
+}
+ctx = sdkctx.WithIdempotencyKey(ctx, key)
+ctx = sdkctx.WithRequestTenantID(ctx, tenant)    // unambiguous; renamed from WithTenantID
+ctx = sdkctx.WithIncludeDeleted(ctx, true)       // NEW (Track 7 dependency)
+ctx = sdkctx.WithHardDelete(ctx, true)           // NEW (Track 7 dependency)
+acc, _ := c.Accounts.GetAccount(ctx, ...)        // hoisted via embedded Entity
+```
 
 ---
 
@@ -276,14 +347,28 @@ Notes:
 
 #### Acceptance criteria
 
-- [ ] `client.New()` with zero options returns a typed error: `"no auth source configured; use WithAuthToken, WithAccessManager, or WithAnonymous"` — does not panic, does not silently produce a localhost client
-- [ ] `client.New()` with valid options returns a client where every service field is non-nil and immediately usable
-- [ ] `client.WithAuthToken("...")` works as a single-line auth setup with no `pkg/config` imports
-- [ ] `Client.Logger()` returns a non-nil `*slog.Logger` always (default = discard handler)
-- [ ] All 16 `entities.NewXxxEntity` are unexported; godoc on `entities` shows only the canonical entry path
-- [ ] Top-level `client` package re-exports `Account`, `Transaction`, `ListOpts`, `CreateAccountInput`, etc. via type aliases
-- [ ] `client.New()` runs `c.config.Validate()` after applying options; validation errors are typed `*errors.Error{Category: Configuration}` with operation context
-- [ ] Compile-time: no test in `examples/` uses `c.Entity.X.Y` form anymore (all migrate to `c.X.Y`)
+- [ ] **(Pending Track 2)** `midaz.New()` with zero options returns a typed error: `"no auth source configured; use WithAuthToken, WithAccessManager, or WithAnonymous"` — does not panic, does not silently produce a localhost client. *Currently New() with zero options succeeds because no auth check exists yet; Track 2 adds the WithAuthToken option and the auth-required check.*
+- [x] **(Batch 1B)** `midaz.New()` with valid options returns a client where every service field is non-nil and immediately usable. ✅ Embedded `*entities.Entity` always initialized.
+- [ ] **(Pending Track 2)** `midaz.WithAuthToken("...")` works as a single-line auth setup with no `pkg/config` imports.
+- [ ] **(Pending Track 4)** `Client.Logger()` returns a non-nil `*slog.Logger` always (default = discard handler). *Currently Logger() can return nil; Track 4 fixes.*
+- [ ] **(Pending Batch 1E)** All 16 `entities.NewXxxEntity` are unexported; godoc on `entities` shows only the canonical entry path.
+- [ ] **(Pending Batch 1G)** Top-level `midaz` package re-exports `Account`, `Transaction`, `ListOpts`, `CreateAccountInput`, etc. via type aliases.
+- [x] **(Batch 1F)** `midaz.New()` runs `c.config.Validate()` after applying options; validation errors are typed `*errors.Error{Category: CategoryConfiguration}` with operation context. ✅ `errors.IsConfigurationError(err)` works.
+- [ ] **(Pending Phase C / Track 9)** Compile-time: no test in `examples/` uses `c.Entity.X.Y` form anymore (all migrate to `c.X.Y`). *Currently mass-replaced internally; examples still use `client.UseAllAPIs()`-era patterns. Track 9 polishes.*
+
+**Additional Track 1 acceptance criteria delivered (not in original plan):**
+
+- [x] **(Batch 1A)** Module path migrated to `github.com/LerianStudio/midaz-sdk-golang/v3`
+- [x] **(Batch 1A)** Root package renamed `client` → `midaz`
+- [x] **(Batch 1B)** `UseAllAPIs`, `UseEntityAPI`, `UseEntity` trio deleted; `useEntity` flag removed from `Client` struct
+- [x] **(Batch 1C)** Services hoisted via embedded `*entities.Entity`: `c.Accounts`, `c.Transactions`, etc. work directly. Back-compat `c.Entity.Accounts` still works.
+- [x] **(Batch 1D)** `pkg/sdkctx/` package created with 5 helpers: `WithIdempotencyKey`, `WithoutAutoIdempotency`, `WithRequestTenantID` (renamed from `WithTenantID`), `WithIncludeDeleted` (NEW), `WithHardDelete` (NEW)
+- [x] **(Batch 1D)** `entities/context.go` reduced to deprecated shims that delegate to `sdkctx`
+- [x] **(Batch 1F)** `errors.NewConfigurationError`, `errors.IsConfigurationError`, `errors.ErrConfiguration`, `errors.CategoryConfiguration`, `errors.CodeConfiguration` all added
+- [x] **(Batch 1F)** Nil-option errors include the option's array index for debuggability
+- [x] **(Batch 1F)** `pkg/config.Config.Validate()` is now a public method (was private `validateConfig`)
+- [x] **(Batch 1F)** 11 new validation contract tests added in `validation_contract_test.go`
+- [x] **(Batch 1D)** 8 new sdkctx tests added in `pkg/sdkctx/sdkctx_test.go`
 
 ---
 
@@ -2036,42 +2121,76 @@ A running record of design decisions with rationale. Append-only; never edit his
 **Rationale:** `MIDAZ_ENABLE_RETRIES` was undocumented, lived only in `entities/http.go:175`, and duplicated functionality already covered by `MIDAZ_MAX_RETRIES`.
 **Tradeoffs:** Anyone (internal or external) using `MIDAZ_ENABLE_RETRIES=false` in their deployment configs needs to migrate to `MIDAZ_MAX_RETRIES=0`. Mitigated by: this var was undocumented, so customer impact should be zero.
 
+### 2026-05-05 — Batch 1A: module path `/v2` → `/v3`, package `client` → `midaz` (commit f8e2109)
+**Decision:** Mass rename via sed: 201 Go files updated to `/v3` import path; root package renamed; `client.go` → `midaz.go`. Aliases (`client "..."`) in 32 importers were initially left in place because Go doesn't require alias to match package name; the alias still resolves to the renamed `midaz` package.
+**Implementation surprise:** When dropping the `client` alias in `pkg/transaction/batch.go`, `goimports` (or some auto-tool in the dev environment) silently inserted `github.com/moby/moby/client` to satisfy the orphan `client.X` references. Workaround: explicitly add the v3 import without an alias and verify with `go build` immediately after.
+**Tradeoffs:** Examples still use `client "..."` aliases as a back-compat. Track 9 (Phase C) rewrites them to use the canonical `midaz.X` idiom from day 1.
+
+### 2026-05-05 — Batch 1B: always-on Entity surface (commit f2a0fee)
+**Decision:** Removed `Client.useEntity` flag; deleted `UseAllAPIs`, `UseEntityAPI`, `UseEntity` trio; `setupEntity()` is called unconditionally in `New()`.
+**Rationale:** The opt-in flag was a footgun: customers forgetting `UseAllAPIs()` got `c.Entity == nil` and panicked on first call. v3 makes it impossible.
+**Net change:** -56 lines (pure deletion). 14 files touched (5 source + tests + 12 example files where `Use*` calls were stripped).
+
+### 2026-05-05 — Batch 1C: services hoisted via anonymous embed (commit d5e410a)
+**Decision:** `Client` embeds `*entities.Entity` anonymously. Promoted fields (`c.Accounts`, `c.Transactions`, ...) become the v3 idiom; `c.Entity.Accounts` remains accessible because the embedded field name is `Entity` (matches the type name without `*`).
+**Rationale:** Embedding gives both new idiom AND back-compat for free. Considered Option B (explicit per-service fields, no `Entity` field at all) but rejected — embedding is one line of struct change with promotion as a bonus, and the back-compat eases v2.99 transition.
+**Implementation note:** Mass `sed -E` replaced `.Entity.<Service>` → `.<Service>` across 30 non-entity files in one pass. Macro pattern enumerates all 16 service names; verified no collision risk because no `<Service>Service` field exists on the Entity struct (only types).
+
+### 2026-05-05 — Batch 1D: `pkg/sdkctx/` introduced; entities helpers deprecated (commit af8bbea)
+**Decision:** Created new `pkg/sdkctx/` package with 5 helpers. Renamed `entities.WithTenantID` → `sdkctx.WithRequestTenantID` to disambiguate from the client-level `midaz.WithTenantID` option. Added two new helpers (`WithIncludeDeleted`, `WithHardDelete`) as Track 7 dependencies.
+**Implementation note:** Originally planned to fully delete `entities/` package in this batch. Deferred — `entities/` still hosts the 16 service interfaces and HTTP client, which is too much to move in one batch. Full deletion happens in Phase B (Track 7) when services move to per-service packages. For now, `entities/context.go` is reduced to deprecated shims that delegate to sdkctx.
+**Tests:** 8 new tests in `pkg/sdkctx/sdkctx_test.go` covering all helpers, edge cases (nil ctx, whitespace trim, empty key no-op), precedence rules (explicit key beats suppression), and helper independence (5-channel non-interference).
+
+### 2026-05-05 — Batch 1F: eager validation contract (commit 582dd99)
+**Decision:** `midaz.New()` runs `c.config.Validate()` after applying options. Failures become typed `*errors.Error{Category: CategoryConfiguration}`. Underlying option-apply errors are wrapped via `%w` and reachable via `errors.Unwrap`.
+**Public API additions:** `errors.CategoryConfiguration`, `errors.CodeConfiguration`, `errors.ErrConfiguration` sentinel, `errors.NewConfigurationError(operation, message, err) *Error` constructor, `errors.IsConfigurationError(err) bool` predicate, `pkg/config.Config.Validate()` (was private `validateConfig`).
+**Migration cost for tests:** 3 existing tests asserted on raw error strings (`"option cannot be nil"`, `"config cannot be nil"`). Updated to use `errors.IsConfigurationError(err)` + `errors.Unwrap(err)` for the original message check.
+**Implementation note:** When I added `sdkerrors "github.com/.../v3/pkg/errors"` import to midaz.go, an auto-tool stripped it once. Re-added explicitly. Watch for this pattern in dev env.
+
+### 2026-05-05 — Anonymous embedding decision deferred Track 7's mmodel concern
+**Observation:** The current `Entity.Accounts` field is typed `entities.AccountsService` (an interface). When we eventually delete `entities/` in Phase B, the embed becomes `*services.Hub` or similar. The migration path: change one line in Client struct, regenerate `c.X` references. Easy. Documented here so future-me doesn't trip over it.
+
 ---
 
 ## Status Tracker
 
-Live as of: 2026-05-05. Update with every commit batch.
+Live as of: 2026-05-05 (post-session 1). Update with every commit batch.
 
 ### Phase A — Foundation
 
-| Track | Status | Started | Completed | PR / Branch | Notes |
-|-------|--------|---------|-----------|-------------|-------|
-| 1 — Naked SDK & Entry Points | 🟡 In progress | 2026-05-05 | — | branch:`v3` (5+ commits) | Batches 1A-1D + 1F done (module rename, always-on Entity, service hoisting, sdkctx migration, validation contract); 1E + 1G pending |
-| 2 — Auth & Tenant Chaos | 🔵 Not started | — | — | — | Depends on Track 1 |
-| 3 — Implicit env reads | 🔵 Not started | — | — | — | Independent; can run parallel to Track 1 |
-| 4 — Logging gap | 🔵 Not started | — | — | — | Depends on Tracks 1, 3 |
+| Track | Status | Started | Completed | Branch / Commits | Notes |
+|-------|--------|---------|-----------|------------------|-------|
+| 1 — Naked SDK & Entry Points | 🟡 In progress (5/7 batches) | 2026-05-05 | — | `v3` branch, commits f8e2109..582dd99 | 1A, 1B, 1C, 1D, 1F done. **1E + 1G pending.** See per-batch detail below. |
+| 2 — Auth & Tenant Chaos | 🔵 Not started | — | — | — | Depends on Track 1 completion. Adds `WithAuthToken`, re-exports `AccessManager`, renames `pkg/access-manager` → `pkg/auth`. |
+| 3 — Implicit env reads | 🔵 Not started | — | — | — | Independent; can start any time. **High-impact mechanical cleanup**: 14 redundant `os.Getenv("MIDAZ_DEBUG")` reads + 5 hidden env vars in `entities/http.go`. |
+| 4 — Logging gap | 🔵 Not started | — | — | — | Depends on Tracks 1, 3. **Fred-flagged critical**. Introduces `*slog.Logger` as canonical contract; deletes `MIDAZ_DEBUG` bypass; adds retry-attempt logging. |
 
 ### Phase B — Models & Data Flow
 
-| Track | Status | Started | Completed | PR / Branch | Notes |
-|-------|--------|---------|-----------|-------------|-------|
-| 5 — Pagination footguns | 🔵 Not started | — | — | — | Depends on Tracks 1, 6 |
-| 6 — Functional options sprawl | 🔵 Not started | — | — | — | Must land before 5, 7 |
-| 7 — Builder/Model API drift | 🔵 Not started | — | — | — | Depends on Track 6 |
-| 8 — Error system actionability | 🔵 Not started | — | — | — | Depends on Tracks 1, 4 |
+| Track | Status | Started | Completed | Branch / Commits | Notes |
+|-------|--------|---------|-----------|------------------|-------|
+| 5 — Pagination footguns | 🔵 Not started | — | — | — | Depends on Tracks 1, 6. Per-service typed `ListOpts`, `iter.Seq2` iterators, deletes dead `pkg/pagination`. |
+| 6 — Functional options sprawl | 🔵 Not started | — | — | — | Must land before 5, 7. Consolidates ~120 options to ≤60. |
+| 7 — Builder/Model API drift | 🔵 Not started | — | — | — | Depends on Track 6. Converges every entity on Account-shaped pattern. |
+| 8 — Error system actionability | 🔵 Not started | — | — | — | Depends on Tracks 1, 4. Network-error typing, `Operation`/`ResourceID` plumbing. |
 
 ### Phase C — Polish
 
-| Track | Status | Started | Completed | PR / Branch | Notes |
-|-------|--------|---------|-----------|-------------|-------|
-| 9 — Examples, godoc, mocks | 🔵 Not started | — | — | — | Depends on Phase A + B stable |
+| Track | Status | Started | Completed | Branch / Commits | Notes |
+|-------|--------|---------|-----------|------------------|-------|
+| 9 — Examples, godoc, mocks | 🔵 Not started | — | — | — | Depends on Phase A + B stable. Per-example READMEs, hello-world, slog example, mocks → `go.uber.org/mock`. |
 
-### Status legend
-- 🔵 Not started
-- 🟡 In progress
-- 🟢 Complete (PR merged)
-- 🔴 Blocked (see notes)
-- ⚪ Cancelled
+### Track 1 batch-level progress
+
+| Batch | Scope | Status | Commit | Verification |
+|-------|-------|--------|--------|--------------|
+| 1A | go.mod /v3, package midaz, ~80 file imports | ✅ Done | `f8e2109` | 202 files, 458/458 sym swap, all green |
+| 1B | Always-on Entity, delete Use* trio | ✅ Done | `f2a0fee` | 14 files, -56 net lines, all green |
+| 1C | Service hoisting via embedded `*entities.Entity` | ✅ Done | `d5e410a` | 31 files, +8 net, all green |
+| 1D | Introduce `pkg/sdkctx`; deprecated shims in entities | ✅ Done | `af8bbea` | 9 files, +324 net, +8 sdkctx tests |
+| 1E | Constructor cleanup (16 `entities.NewXxxEntity` unexport, factory traps deleted) | 🔵 Pending | — | Next batch when resuming |
+| 1F | Eager validation contract at `midaz.New()` | ✅ Done | `582dd99` | 7 files, +271 net, +11 validation tests |
+| 1G | Top-level type re-exports (`midaz.Account` aliases) | 🔵 Pending | — | Final Track 1 batch |
 
 ---
 
