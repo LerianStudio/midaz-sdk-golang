@@ -1,8 +1,8 @@
 # Midaz Go SDK v3 — DX Plan
 
-> **Status:** IN PROGRESS — **Phase A COMPLETE** (4/4 tracks). **Phase B in progress: Track 6 kickoff (2026-05-06)**, 6 batches planned.
-> **Owner:** Fred (Lerian)
-> **Last updated:** 2026-05-06 (post-session 6, Track 6 kickoff)
+> **Status:** IN PROGRESS — **Phase A COMPLETE** (4/4 tracks). **Phase B in progress: Track 6 closed (2026-05-06)**, 5 of 6 batches shipped (6A–6D + 6F); 6E (naming sweep) deferred.
+
+> **Last updated:** 2026-05-06 (post-session 6, Track 6 close)
 > **Scope:** Greenfield v3 — clean-cut major version. **No transitional v2.99 shim release; no deprecated-symbol window.** Customers swap their import from `/v2` to `/v3` and migrate at the same moment. The `Migration Story` section below has been revised to reflect this stance (the original 2-step v2.99 → v3.0 plan is preserved as historical context).
 
 ---
@@ -67,7 +67,7 @@ f8e2109 feat(v3)!: rename module to /v3 and root package to midaz    ← Batch 1
 
 **Next action when resuming:**
 1. **Push `v3` branch to origin.** 24 commits sitting locally (23 Phase A + 1 plan reconciliation `977f036` + Track 6 kickoff doc — about to commit). Phase A's foundation is the single biggest API-shape decision in the v3 cycle and deserves to be durable.
-2. **Track 6 in progress (kickoff 2026-05-06).** Phase B opened. Six batches planned: 6A delete dead Options, 6B two-layer canonical formalization (`midaz.With*` user-facing + `pkg/config.With*` internal/test), 6C `WithRetries` collision resolution, 6D observability family canonicalization, 6E naming convention sweep, 6F lint rule + `docs/configuration.md`. See 2026-05-06 Decision Log entry for the four hinge decisions made at kickoff.
+2. **Track 6 closed (2026-05-06).** Phase B's first track shipped in 5 batches: 6A delete 20 dead/redundant Options; 6B delete `entities/options.go` + formalize two-layer godoc on 24 sites; 6C `WithRetries` collision → `WithRetryOptions` + `WithoutRetries`; 6D observability surface 4 → 2 + dead-gate bug fix; 6F close `WithIdempotency` parity gap + CI lint rule + `docs/configuration.md`. **6E (naming sweep) deferred** — mechanical renames with no semantic value, can land later without blocking Track 7. Final delta: 222 → 194 option-shaped functions (-28, -12.6%). Two-layer parity now enforced by `make verify-sdk`. See 2026-05-06 Decision Log entries for kickoff hinge decisions and close-batch rationale.
 3. **Phase C** (Track 9): examples rewrite, full README rewrite, godoc audit, mock generation. Depends on Phase B for stable surfaces.
 
 **Important context preserved for the next session:**
@@ -2375,9 +2375,76 @@ A running record of design decisions with rationale. Append-only; never edit his
 
 ---
 
+### 2026-05-06 — Track 6 close: 5-batch outcome, deferred-6E rationale, ongoing two-layer parity guarantee
+
+**Context:** Track 6 ran 5 of 6 planned batches in a single session. Each batch
+landed as a single `feat(v3)!` commit reviewed independently; cumulative
+`make ci` gate held green throughout. 6E (naming sweep) was deferred per
+user direction at the close moment.
+
+**Final state:** 222 → 194 option-shaped functions (-28, -12.6%). The
+two-layer canonical surface (`midaz.With*` user-facing + `pkg/config.With*`
+internal/test) is enforced by `scripts/check-config-parity.sh`, wired into
+`make verify-sdk` (and therefore `make ci`). Allow-list of three Config-only
+Options documented in the script header: `WithMaxRetries`, `WithRetryWaitMin`,
+`WithRetryWaitMax`. The lint rule fails the build the moment new drift
+appears.
+
+**Per-batch outcome:**
+
+| Batch | Commit | Net Δ | Outcome |
+|-------|--------|-------|---------|
+| 6A | `52e4684` | -20 | Deleted 16 dead model "options" (free functions where struct fluent methods exist), `pkg/performance.WithJSONIterator` + `Options.UseJSONIterator` field, `pkg/concurrent.WithWaitGroup` placeholder, `entities.WithHTTPClient` (zero callers). Added 3 missing fluent methods to fill gaps. -413 lines, 15 files. |
+| 6B | `3c12cd1` | -3 | Deleted `entities/options.go` and `entities/options_test.go` entirely. Promoted `setDebugLocked`/`setUserAgentLocked`/`setObservabilityLocked` private setters to public `SetDebug`/`SetUserAgent`/`SetObservability`. Removed `...Option` variadic from `NewEntityWithConfig`. Injected `Two-layer surface:` godoc on 24 declarations (12 `midaz.With*` ↔ `pkg/config.With*` pairs). |
+| 6C | `e8dc996` | -4 | Collapsed retry surface to one canonical entry per concern. Deleted `midaz.WithRetries(int,dur,dur)`, `pkg/config.WithRetries(bool)`, `pkg/config.WithRetryConfig(int,dur,dur)`, `pkg/retry.WithNoRetry()`, `pkg/retry.WithHTTPNoRetry()`. Renamed `DisableRetries()` → `WithoutRetries()`. Added `WithRetryOptions(...retry.Option)` with override-on-conflict semantics. Deleted `Config.EnableRetries` field + `DefaultEnableRetries` const (one source of truth: `MaxRetries==0` → off). |
+| 6D | `9c25fb3` | -2 | Collapsed midaz observability surface 4 → 2. Deleted `midaz.WithObservability(t,m,l bool)` (3-positional-bool macro) and `midaz.WithCollectorEndpoint(string)` (sugar with guaranteed-dead defensive gate — three categories of dead code in 6 lines). Surviving `WithObservabilityOptions` + `WithObservabilityProvider` carry full replacement-semantic godoc. Documented New()-installed default-disabled provider in New() and GetObservabilityProvider() godoc. |
+| 6F | (this commit) | +1 | Closed two-layer parity gap with new `midaz.WithIdempotency(enabled bool)`. Added `scripts/check-config-parity.sh` lint rule + Makefile integration. Wrote `docs/configuration.md` (496 lines, 7 sections: surfaces, precedence, env vars, sdkctx, common patterns, where-to-look-next, summary cheat sheet). |
+
+**6E deferral rationale:** 6E was scoped as the naming sweep — `enable*` bool
+params → `enabled*`, formalize `Without*` prefix as canonical off-switch
+convention, rename `pkg/performance.WithHTTPClient` → `WithBatchHTTPClient`,
+`pkg/performance/http.go.WithTimeout` → `WithHTTPTimeout`. **All three
+classes of work are mechanical regex substitutions with no semantic value
+at risk.** They don't unlock anything for downstream tracks. Deferring lets
+Phase B move forward to Track 7 (Builder/Model API drift, the dependency
+chain's next hard gate) without blocking on cosmetic renames. 6E will land
+as part of a later sweep — likely batched with Track 9 docs polish for
+maximum context coherence.
+
+**Acceptance metric outcome (revised post-kickoff):**
+
+- ✅ Zero name+signature collisions where Option type AND meaning are
+  identical (the 4 collisions present at kickoff — `WithRetries`,
+  `WithDebug`, `WithUserAgent`, `WithObservabilityProvider` — are now
+  either deleted, layered with explicit godoc, or routed through new
+  composing surfaces like `WithRetryOptions`).
+- ✅ `entities/options.go` deleted (6B).
+- ✅ One canonical `Without*` per concept where applicable (`WithoutRetries`
+  shipped in 6C; `WithoutAutoIdempotency` already existed in `sdkctx`;
+  observability and tenant ID don't need off-switches because the default
+  state is "off"/"empty" already).
+- ⏸ Boolean params named `enabled` (deferred to 6E; new
+  `midaz.WithIdempotency(enabled bool)` already follows the convention).
+- ✅ CI lint rule blocks regression (`scripts/check-config-parity.sh`
+  wired into `make verify-sdk`).
+
+**Cumulative diff size across Track 6:** ~+1,140 / ~-1,560 = ~-420 net
+lines (negative net because godoc additions don't outweigh deletions; this
+is a healthy sign — the surface is genuinely smaller). 6F's `docs/configuration.md`
+adds 496 lines but offsets nothing structural.
+
+**What's protected going forward:** the parity rule means future PRs that
+add `pkg/config.WithFoo` without `midaz.WithFoo` (or an explicit allow-list
+entry with justification) will fail `make ci`. This is the durability
+guarantee — Track 6's contract survives churn.
+
+**Decided by:** session execution, retrospective written 2026-05-06.
+
+---
+
 ## Status Tracker
 
-Live as of: 2026-05-06 (post-session 5, Phase A close). Update with every commit batch.
+Live as of: 2026-05-06 (post-session 6, Track 6 close). Update with every commit batch.
 
 ### Phase A — Foundation
 
@@ -2388,15 +2455,16 @@ Live as of: 2026-05-06 (post-session 5, Phase A close). Update with every commit
 | 3 — Implicit env reads | 🟢 **COMPLETE** | 2026-05-06 | 2026-05-06 | `v3` branch, commit `8cdafd2` | Single-commit batch. 39 production env reads → 15 (all in pkg/config FromEnvironment path). 20 files, **-156 net lines**. `MIDAZ_ENABLE_RETRIES` killswitch deleted. |
 | 4 — Logging gap | 🟢 **COMPLETE** | 2026-05-06 | 2026-05-06 | `v3` branch, commit `d54c930` | Single-commit batch. `*slog.Logger` canonical contract. `WithLogger` + `WithSlowCallThreshold` options. Retry-attempt logging wired (was `// TODO`). `RecordRetry` called from production. 3 stderr writes removed. `Fatal`/`Fatalf` removed from Logger interface. New `docs/logging.md` + `examples/logging-slog/`. 14 files, +842 / -223 lines. |
 
-### Phase B — Models & Data Flow (ready to start)
+### Phase B — Models & Data Flow (Track 6 closed; 5/7/8 ready)
 
-All Phase A dependencies are satisfied. Tracks can begin in dependency order:
-**6 first**, then **7** (depends on 6), then **5** + **8** in parallel (both depend on 1+6, with 8 also needing 4).
+All Phase A and Track-6 dependencies are satisfied. Remaining Phase B
+dependency order: **7 next** (depends on 6, now closed), then **5** + **8**
+in parallel (both depend on 1+6, with 8 also needing 4).
 
 | Track | Status | Started | Completed | Branch / Commits | Notes |
 |-------|--------|---------|-----------|------------------|-------|
 | 5 — Pagination footguns | 🔵 Not started | — | — | — | Depends on Tracks 1, 6. Per-service typed `ListOpts`, `iter.Seq2` iterators, deletes dead `pkg/pagination`. The 3 stderr writes deleted in Track 4 (cursor warning, offset warning, optimizer error) need their semantics re-homed here as typed errors on the new `ListOpts`. |
-| 6 — Functional options sprawl | 🟡 **IN PROGRESS** (kickoff 2026-05-06) | 2026-05-06 | — | `v3` branch, batches 6A–6F planned | Must land before 5, 7. **Pre-flight audit found 222 option-shaped functions across 28 files** (plan's "~120" baseline was wrong — it counted only client-facing Options; the 222 includes all per-package Option types). 4 hinge decisions made at kickoff (see 2026-05-06 Decision Log entry): (1) two-layer canonical `midaz.With*` / `pkg/config.With*` formalized rather than collapsed; (2) `entities/options.go` deleted entirely (4 Options including 1 dead, 3 internal-plumbing); (3) `WithRetries` collision resolved via new `WithRetryOptions(...retry.Option)` + `WithoutRetries()`; (4) 6-batch cadence (6A delete dead → 6B two-layer formalization → 6C retries → 6D observability → 6E naming sweep → 6F lint+docs). |
+| 6 — Functional options sprawl | 🟢 **COMPLETE** (5/6 batches; 6E deferred) | 2026-05-06 | 2026-05-06 | `v3` branch, commits `52e4684` `3c12cd1` `e8dc996` `9c25fb3` `<6F>` | 5-batch close. **Pre-flight audit:** 222 option-shaped functions across 28 files. **Final state:** 194 functions (-28, -12.6%). **Per batch:** 6A delete 20 dead/redundant Options (`52e4684`). 6B delete `entities/options.go` + formalize two-layer godoc (`3c12cd1`). 6C `WithRetries` collision → new `WithRetryOptions(...retry.Option)` + `WithoutRetries()`; deleted `Config.EnableRetries` field, `DefaultEnableRetries`, and 5 redundant Options (`e8dc996`). 6D collapse observability surface 4 → 2 (`WithObservability` 3-bool macro deleted; `WithCollectorEndpoint` deleted with its dead-gate bug; `WithObservabilityOptions` + `WithObservabilityProvider` carry full replacement-semantic godoc) (`9c25fb3`). 6F close two-layer parity gap with new `midaz.WithIdempotency`; CI lint rule `scripts/check-config-parity.sh` wired into `make verify-sdk`; `docs/configuration.md` (496 lines, 7 sections). 6E (naming sweep — `enable*` → `enabled*`, formalize `Without*` prefix, rename `pkg/performance.WithHTTPClient` → `WithBatchHTTPClient`) **deferred per user direction** — pure mechanical renames with no semantic value at risk; can land in a later sweep without blocking Phase B Track 7 progress. |
 | 7 — Builder/Model API drift | 🔵 Not started | — | — | — | Depends on Track 6. Converges every entity on Account-shaped pattern. The deferred Track 3 acceptance criterion (`entities.NewHTTPClient` accepts an explicit `HTTPClientConfig` struct) folds into this track. |
 | 8 — Error system actionability | 🔵 Not started | — | — | — | Depends on Tracks 1, 4. Network-error typing, `Operation`/`ResourceID` plumbing. Track 4 already added `errors.NewConfigurationError` + `IsConfigurationError`; Track 8 extends the same pattern to network/HTTP errors. |
 
