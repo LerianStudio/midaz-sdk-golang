@@ -228,14 +228,27 @@ func (p *Pagination) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// HasMorePages returns true if there are more pages available.
-// This is determined by checking if the offset plus limit is less than the total.
+// HasMore reports whether more results are available after the current
+// page. It is the primary signal callers should use to decide whether to
+// fetch another page.
 //
-// Returns:
-//   - true if there are more pages available, false otherwise
-func (p *Pagination) HasMorePages() bool {
+// Decision logic, in priority order:
+//
+//  1. NextCursor present → cursor pagination has more (definitive).
+//  2. Total + Limit known → arithmetic determines whether more pages
+//     remain (page-based with known total).
+//  3. ItemCount equals Limit → page is full, server probably has more
+//     (heuristic for endpoints that don't report Total).
+//  4. Otherwise → no more.
+//
+// Nil-receiver-safe: returns false on a nil *Pagination.
+func (p *Pagination) HasMore() bool {
 	if p == nil {
 		return false
+	}
+
+	if p.NextCursor != "" {
+		return true
 	}
 
 	if p.Total > 0 && p.Limit > 0 {
@@ -249,12 +262,15 @@ func (p *Pagination) HasMorePages() bool {
 	return p.Page > 0 && p.Limit > 0 && p.ItemCount >= p.Limit
 }
 
-// HasPrevPage returns true if there is a previous page available.
-// This is determined by checking if the offset is greater than 0 or if a previous cursor is available.
+// HasPrev reports whether a page exists before the current one.
 //
-// Returns:
-//   - true if there is a previous page available, false otherwise
-func (p *Pagination) HasPrevPage() bool {
+// True when any of:
+//   - a server-issued PrevCursor is present (cursor pagination)
+//   - Page > 1 (page-based pagination, not on first page)
+//   - Offset > 0 (legacy offset pagination, not at start)
+//
+// Nil-receiver-safe: returns false on a nil *Pagination.
+func (p *Pagination) HasPrev() bool {
 	if p == nil {
 		return false
 	}
@@ -262,134 +278,26 @@ func (p *Pagination) HasPrevPage() bool {
 	return p.Page > 1 || p.Offset > 0 || p.PrevCursor != ""
 }
 
-// HasNextPage returns true if there is a next page available.
-// This is determined by checking if there are more pages or if a next cursor is available.
+// TotalKnown reports whether the server populated Pagination.Total with
+// a non-zero value. Use this to decide whether arithmetic on Total is
+// meaningful — Midaz cursor endpoints generally omit Total, leaving the
+// field zero.
 //
-// Returns:
-//   - true if there is a next page available, false otherwise
-func (p *Pagination) HasNextPage() bool {
+// Replaces the v2 TotalPages() method, which silently returned 1 when
+// Total was unknown and produced misleading "Page N of 1" UIs. Callers
+// who want a page count should compute it explicitly:
+//
+//	if p.TotalKnown() && p.Limit > 0 {
+//	    totalPages := (p.Total + p.Limit - 1) / p.Limit
+//	}
+//
+// Nil-receiver-safe: returns false on a nil *Pagination.
+func (p *Pagination) TotalKnown() bool {
 	if p == nil {
 		return false
 	}
 
-	return p.HasMorePages() || p.NextCursor != ""
-}
-
-// NextPageOptions returns options for fetching the next page.
-// This method uses the most appropriate pagination method (offset or cursor-based)
-// based on what information is available.
-//
-// Returns:
-//   - A new ListOptions instance configured for the next page
-//   - nil if there is no next page available
-func (p *Pagination) NextPageOptions() *ListOptions {
-	if p == nil {
-		return nil
-	}
-
-	if !p.HasNextPage() {
-		return nil
-	}
-
-	options := NewListOptions().WithLimit(p.Limit)
-
-	// Prefer cursor-based pagination if available
-	if p.NextCursor != "" {
-		return options.WithCursor(p.NextCursor)
-	}
-
-	if p.Page > 0 {
-		options.Page = p.Page + 1
-		options.Offset = DefaultOffset
-
-		return options
-	}
-
-	// Fall back to offset-based pagination
-	return options.WithOffset(p.Offset + p.Limit)
-}
-
-// PrevPageOptions returns options for fetching the previous page.
-// This method uses the most appropriate pagination method (offset or cursor-based)
-// based on what information is available.
-//
-// Returns:
-//   - A new ListOptions instance configured for the previous page
-//   - nil if there is no previous page available
-func (p *Pagination) PrevPageOptions() *ListOptions {
-	if p == nil {
-		return nil
-	}
-
-	if !p.HasPrevPage() {
-		return nil
-	}
-
-	options := NewListOptions().WithLimit(p.Limit)
-
-	// Prefer cursor-based pagination if available
-	if p.PrevCursor != "" {
-		return options.WithCursor(p.PrevCursor)
-	}
-
-	if p.Page > 1 {
-		options.Page = p.Page - 1
-		options.Offset = DefaultOffset
-
-		return options
-	}
-
-	// Fall back to offset-based pagination
-	newOffset := p.Offset - p.Limit
-	if newOffset < 0 {
-		newOffset = 0
-	}
-
-	return options.WithOffset(newOffset)
-}
-
-// CurrentPage returns the current page number (1-based).
-// This is calculated based on the limit and offset values.
-//
-// Returns:
-//   - The current page number (starts from 1)
-func (p *Pagination) CurrentPage() int {
-	if p == nil {
-		return DefaultPage
-	}
-
-	if p.Page > 0 {
-		return p.Page
-	}
-
-	if p.Limit <= 0 {
-		return 1
-	}
-
-	return (p.Offset / p.Limit) + 1
-}
-
-// TotalPages returns the total number of pages available.
-// This is calculated based on the total items and limit values.
-//
-// Returns:
-//   - The total number of pages
-func (p *Pagination) TotalPages() int {
-	if p == nil {
-		return 1
-	}
-
-	if p.Limit <= 0 || p.Total <= 0 {
-		return 1
-	}
-
-	pages := p.Total / p.Limit
-
-	if p.Total%p.Limit > 0 {
-		pages++
-	}
-
-	return pages
+	return p.Total > 0
 }
 
 // ListOptions represents the common options for list operations.
@@ -800,7 +708,7 @@ func (o *ListOptions) NextPage() *ListOptions {
 //
 //nolint:wsl_v5
 func NextPageOptionsFrom(current *ListOptions, pagination *Pagination) *ListOptions {
-	if pagination == nil || !pagination.HasNextPage() {
+	if pagination == nil || !pagination.HasMore() {
 		return nil
 	}
 

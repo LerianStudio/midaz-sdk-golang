@@ -229,7 +229,6 @@ func TestPaginationHasMethods(t *testing.T) {
 		pagination Pagination
 		hasMore    bool
 		hasPrev    bool
-		hasNext    bool
 	}{
 		{
 			name: "first page with more pages",
@@ -240,7 +239,6 @@ func TestPaginationHasMethods(t *testing.T) {
 			},
 			hasMore: true,
 			hasPrev: false,
-			hasNext: true,
 		},
 		{
 			name: "middle page",
@@ -251,7 +249,6 @@ func TestPaginationHasMethods(t *testing.T) {
 			},
 			hasMore: true,
 			hasPrev: true,
-			hasNext: true,
 		},
 		{
 			name: "last page",
@@ -262,7 +259,6 @@ func TestPaginationHasMethods(t *testing.T) {
 			},
 			hasMore: false,
 			hasPrev: true,
-			hasNext: false,
 		},
 		{
 			name: "single page",
@@ -273,10 +269,9 @@ func TestPaginationHasMethods(t *testing.T) {
 			},
 			hasMore: false,
 			hasPrev: false,
-			hasNext: false,
 		},
 		{
-			name: "with cursors",
+			name: "with next cursor (cursor pagination has more)",
 			pagination: Pagination{
 				Limit:      10,
 				Offset:     0,
@@ -284,169 +279,55 @@ func TestPaginationHasMethods(t *testing.T) {
 				PrevCursor: "prev",
 				NextCursor: "next",
 			},
+			hasMore: true, // v3: NextCursor != "" → HasMore() is true (cursor pagination is definitive)
+			hasPrev: true,
+		},
+		{
+			name: "cursor with no next",
+			pagination: Pagination{
+				Limit:      10,
+				PrevCursor: "prev",
+			},
 			hasMore: false,
 			hasPrev: true,
-			hasNext: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.pagination.HasMorePages(); got != tt.hasMore {
-				t.Errorf("HasMorePages() = %v, want %v", got, tt.hasMore)
+			if got := tt.pagination.HasMore(); got != tt.hasMore {
+				t.Errorf("HasMore() = %v, want %v", got, tt.hasMore)
 			}
 
-			if got := tt.pagination.HasPrevPage(); got != tt.hasPrev {
-				t.Errorf("HasPrevPage() = %v, want %v", got, tt.hasPrev)
-			}
-
-			if got := tt.pagination.HasNextPage(); got != tt.hasNext {
-				t.Errorf("HasNextPage() = %v, want %v", got, tt.hasNext)
+			if got := tt.pagination.HasPrev(); got != tt.hasPrev {
+				t.Errorf("HasPrev() = %v, want %v", got, tt.hasPrev)
 			}
 		})
 	}
 }
 
-func TestPaginationCurrentPageTotalPages(t *testing.T) {
-	tests := []struct {
-		name        string
-		pagination  Pagination
-		currentPage int
-		totalPages  int
-	}{
-		{
-			name: "first page",
-			pagination: Pagination{
-				Limit:  10,
-				Offset: 0,
-				Total:  100,
-			},
-			currentPage: 1,
-			totalPages:  10,
-		},
-		{
-			name: "middle page",
-			pagination: Pagination{
-				Limit:  10,
-				Offset: 25,
-				Total:  100,
-			},
-			currentPage: 3,
-			totalPages:  10,
-		},
-		{
-			name: "with remainder",
-			pagination: Pagination{
-				Limit:  10,
-				Offset: 0,
-				Total:  95,
-			},
-			currentPage: 1,
-			totalPages:  10,
-		},
-		{
-			name: "zero limit",
-			pagination: Pagination{
-				Limit:  0,
-				Offset: 0,
-				Total:  100,
-			},
-			currentPage: 1,
-			totalPages:  1,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.pagination.CurrentPage(); got != tt.currentPage {
-				t.Errorf("CurrentPage() = %v, want %v", got, tt.currentPage)
-			}
-
-			if got := tt.pagination.TotalPages(); got != tt.totalPages {
-				t.Errorf("TotalPages() = %v, want %v", got, tt.totalPages)
-			}
-		})
-	}
-}
-
-func TestPaginationNextPageOptions(t *testing.T) {
+func TestPaginationTotalKnown(t *testing.T) {
 	tests := []struct {
 		name       string
 		pagination Pagination
-		wantNil    bool
-		wantOffset int
-		wantCursor string
-		wantLimit  int
+		want       bool
 	}{
-		{
-			name: "has next page with offset",
-			pagination: Pagination{
-				Limit:  10,
-				Offset: 0,
-				Total:  100,
-			},
-			wantNil:    false,
-			wantOffset: 10,
-			wantLimit:  10,
-		},
-		{
-			name: "has next page with cursor",
-			pagination: Pagination{
-				Limit:      10,
-				Offset:     0,
-				Total:      5,
-				NextCursor: "next-cursor",
-			},
-			wantNil:    false,
-			wantCursor: "next-cursor",
-			wantLimit:  10,
-		},
-		{
-			name: "no next page",
-			pagination: Pagination{
-				Limit:  10,
-				Offset: 90,
-				Total:  100,
-			},
-			wantNil: true,
-		},
+		{name: "total populated", pagination: Pagination{Total: 100}, want: true},
+		{name: "zero total", pagination: Pagination{Total: 0}, want: false},
+		{name: "cursor without total", pagination: Pagination{NextCursor: "c"}, want: false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			options := tt.pagination.NextPageOptions()
-			assertPaginationNextPageOptions(t, options, tt.wantNil, tt.wantLimit, tt.wantOffset, tt.wantCursor)
+			if got := tt.pagination.TotalKnown(); got != tt.want {
+				t.Errorf("TotalKnown() = %v, want %v", got, tt.want)
+			}
 		})
 	}
-}
 
-// assertPaginationNextPageOptions validates the next page options from pagination
-func assertPaginationNextPageOptions(t *testing.T, options *ListOptions, wantNil bool, wantLimit, wantOffset int, wantCursor string) {
-	t.Helper()
-
-	if wantNil {
-		if options != nil {
-			t.Error("Expected nil but got options")
-		}
-
-		return
-	}
-
-	if options == nil {
-		t.Error("Expected options but got nil")
-		return
-	}
-
-	if options.Limit != wantLimit {
-		t.Errorf("Expected Limit to be %d, got %d", wantLimit, options.Limit)
-	}
-
-	if wantCursor != "" {
-		if options.Cursor != wantCursor {
-			t.Errorf("Expected Cursor to be %s, got %s", wantCursor, options.Cursor)
-		}
-	} else if options.Offset != wantOffset {
-		t.Errorf("Expected Offset to be %d, got %d", wantOffset, options.Offset)
+	var nilPagination *Pagination
+	if nilPagination.TotalKnown() {
+		t.Error("nil receiver TotalKnown() returned true, want false")
 	}
 }
 
@@ -735,20 +616,12 @@ func TestNextPageOptionsFromPreservesState(t *testing.T) {
 func TestPaginationNilReceiverMethodsAreSafe(t *testing.T) {
 	var pagination *Pagination
 
-	if pagination.HasMorePages() || pagination.HasPrevPage() || pagination.HasNextPage() {
+	if pagination.HasMore() || pagination.HasPrev() {
 		t.Fatal("nil pagination receiver should report no available pages")
 	}
 
-	if pagination.CurrentPage() != DefaultPage {
-		t.Fatalf("expected nil pagination current page to default to %d", DefaultPage)
-	}
-
-	if pagination.TotalPages() != 1 {
-		t.Fatalf("expected nil pagination total pages to default to 1")
-	}
-
-	if pagination.NextPageOptions() != nil || pagination.PrevPageOptions() != nil {
-		t.Fatalf("nil pagination receiver should not produce page options")
+	if pagination.TotalKnown() {
+		t.Fatal("nil pagination receiver should report total as unknown")
 	}
 }
 

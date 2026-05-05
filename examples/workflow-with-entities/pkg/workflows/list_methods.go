@@ -89,18 +89,45 @@ func handleOrganizationError(err error) error {
 
 // printOrganizationsResults prints the organization results
 func printOrganizationsResults(orgsResponse *models.ListResponse[models.Organization]) {
-	fmt.Printf("✅ Found %d organizations (page %d of %d)\n",
-		len(orgsResponse.Items),
-		orgsResponse.Pagination.CurrentPage(),
-		orgsResponse.Pagination.TotalPages())
+	page, totalPages := pageStats(orgsResponse.Pagination)
+	if totalPages > 0 {
+		fmt.Printf("✅ Found %d organizations (page %d of %d)\n",
+			len(orgsResponse.Items), page, totalPages)
+	} else {
+		fmt.Printf("✅ Found %d organizations (page %d)\n",
+			len(orgsResponse.Items), page)
+	}
 
 	for i, org := range orgsResponse.Items {
 		fmt.Printf("   %d. %s (ID: %s)\n", i+1, org.LegalName, org.ID)
 	}
 
-	if orgsResponse.Pagination.HasNextPage() {
+	if orgsResponse.Pagination.HasMore() {
 		fmt.Println("   (More organizations available on next page)")
 	}
+}
+
+// pageStats computes the current 1-based page number and the total
+// page count from a Pagination shape. Returns totalPages == 0 when the
+// server did not report Total (cursor-paginated endpoints typically
+// omit it). Callers should check the return value before formatting
+// "page N of M" strings.
+//
+// Replaces the deleted Pagination.CurrentPage() and Pagination.TotalPages()
+// methods, which silently returned misleading values when Total was zero.
+func pageStats(p models.Pagination) (page, totalPages int) {
+	page = 1
+	if p.Page > 0 {
+		page = p.Page
+	} else if p.Limit > 0 {
+		page = (p.Offset / p.Limit) + 1
+	}
+
+	if p.TotalKnown() && p.Limit > 0 {
+		totalPages = (p.Total + p.Limit - 1) / p.Limit
+	}
+
+	return page, totalPages
 }
 
 // testListLedgers tests the ListLedgers method with filtering
@@ -142,7 +169,7 @@ func testListAccountsWithPagination(ctx context.Context, midazClient *client.Cli
 	printAccountsResults(accountsResponse)
 
 	// Demonstrate multi-page iteration if available
-	if accountsResponse.Pagination.HasNextPage() {
+	if accountsResponse.Pagination.HasMore() {
 		return demonstrateAccountPagination(ctx, midazClient, orgID, ledgerID, accountsResponse)
 	}
 
@@ -163,10 +190,14 @@ func handleAccountError(err error) error {
 
 // printAccountsResults prints the accounts results
 func printAccountsResults(accountsResponse *models.ListResponse[models.Account]) {
-	fmt.Printf("✅ Found %d customer accounts (page %d of %d)\n",
-		len(accountsResponse.Items),
-		accountsResponse.Pagination.CurrentPage(),
-		accountsResponse.Pagination.TotalPages())
+	page, totalPages := pageStats(accountsResponse.Pagination)
+	if totalPages > 0 {
+		fmt.Printf("✅ Found %d customer accounts (page %d of %d)\n",
+			len(accountsResponse.Items), page, totalPages)
+	} else {
+		fmt.Printf("✅ Found %d customer accounts (page %d)\n",
+			len(accountsResponse.Items), page)
+	}
 
 	for i, account := range accountsResponse.Items {
 		fmt.Printf("   %d. %s (ID: %s, Type: %s)\n", i+1, account.Name, account.ID, account.Type)
@@ -181,8 +212,14 @@ func demonstrateAccountPagination(ctx context.Context, midazClient *client.Clien
 	pageCount := 1
 
 	// Continue fetching pages while there are more (limit to 3 pages for demo)
-	for currentPage.Pagination.HasNextPage() && pageCount < 3 {
-		nextOptions := currentPage.Pagination.NextPageOptions()
+	baseOpts := models.NewListOptions().
+		WithLimit(3).
+		WithOrderBy("createdAt").
+		WithOrderDirection(models.SortDescending).
+		WithFilter("type", "CUSTOMER")
+
+	for currentPage.Pagination.HasMore() && pageCount < 3 {
+		nextOptions := models.NextPageOptionsFrom(baseOpts, &currentPage.Pagination)
 
 		var err error
 
@@ -193,8 +230,9 @@ func demonstrateAccountPagination(ctx context.Context, midazClient *client.Clien
 
 		pageCount++
 
+		page, _ := pageStats(currentPage.Pagination)
 		fmt.Printf("\n📄 Page %d (offset %d):\n",
-			currentPage.Pagination.CurrentPage(),
+			page,
 			currentPage.Pagination.Offset)
 
 		for i, account := range currentPage.Items {

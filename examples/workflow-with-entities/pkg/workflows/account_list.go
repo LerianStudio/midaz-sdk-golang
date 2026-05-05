@@ -69,17 +69,38 @@ func createBasicListOptions() *models.ListOptions {
 
 // displayAccountsPage prints account information for a page
 func displayAccountsPage(accounts []models.Account, pagination models.Pagination) {
-	fmt.Printf("✅ Found %d accounts (showing page %d of %d):\n",
-		len(accounts), pagination.CurrentPage(), pagination.TotalPages())
+	if pagination.TotalKnown() && pagination.Limit > 0 {
+		totalPages := (pagination.Total + pagination.Limit - 1) / pagination.Limit
+		fmt.Printf("✅ Found %d accounts (showing page %d of %d):\n",
+			len(accounts), currentPageNumber(pagination), totalPages)
+	} else {
+		fmt.Printf("✅ Found %d accounts (page %d):\n",
+			len(accounts), currentPageNumber(pagination))
+	}
 
 	for i, account := range accounts {
 		fmt.Printf("   %d. %q (ID: %q, Type: %q)\n", i+1, account.Name, account.ID, account.Type)
 	}
 }
 
+// currentPageNumber computes the 1-based page number from a Pagination
+// shape. Replaces the deleted Pagination.CurrentPage() method by making
+// the calculation explicit at the call site.
+func currentPageNumber(p models.Pagination) int {
+	if p.Page > 0 {
+		return p.Page
+	}
+
+	if p.Limit <= 0 {
+		return 1
+	}
+
+	return (p.Offset / p.Limit) + 1
+}
+
 // demonstratePagination shows next/previous page navigation
 func demonstratePagination(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, accounts *models.ListResponse[models.Account]) error {
-	if !accounts.Pagination.HasMorePages() {
+	if !accounts.Pagination.HasMore() {
 		return nil
 	}
 
@@ -95,9 +116,15 @@ func demonstratePagination(ctx context.Context, midazClient *client.Client, orgI
 	return demonstrateGoingBack(ctx, midazClient, orgID, ledgerID, nextPage)
 }
 
-// fetchNextPage retrieves the next page of accounts
+// fetchNextPage retrieves the next page of accounts.
+//
+// Uses models.NextPageOptionsFrom to derive next-page options while
+// preserving filter/sort state from the original request. This is the
+// v3-recommended pattern; the deleted Pagination.NextPageOptions()
+// method dropped state and produced silently-broken filtered queries.
 func fetchNextPage(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, accounts *models.ListResponse[models.Account]) (*models.ListResponse[models.Account], error) {
-	nextPageOptions := accounts.Pagination.NextPageOptions()
+	nextPageOptions := models.NextPageOptionsFrom(createBasicListOptions(), &accounts.Pagination)
+
 	nextPage, err := midazClient.Accounts.ListAccounts(ctx, orgID, ledgerID, nextPageOptions)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch next page: %w", err)
@@ -106,15 +133,20 @@ func fetchNextPage(ctx context.Context, midazClient *client.Client, orgID, ledge
 	return nextPage, nil
 }
 
-// demonstrateGoingBack shows how to navigate to previous pages
+// demonstrateGoingBack shows how to navigate to previous pages.
+//
+// v3 has no PrevPageOptionsFrom helper — backwards navigation is
+// uncommon and the construction is straightforward. Build the options
+// inline using the prev cursor or page number from the response.
 func demonstrateGoingBack(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, nextPage *models.ListResponse[models.Account]) error {
-	if !nextPage.Pagination.HasPrevPage() {
+	if !nextPage.Pagination.HasPrev() {
 		return nil
 	}
 
 	fmt.Println("\nDemonstrating pagination - returning to first page...")
 
-	prevPageOptions := nextPage.Pagination.PrevPageOptions()
+	prevPageOptions := buildPrevPageOptions(createBasicListOptions(), nextPage.Pagination)
+
 	prevPage, err := midazClient.Accounts.ListAccounts(ctx, orgID, ledgerID, prevPageOptions)
 	if err != nil {
 		return fmt.Errorf("failed to fetch previous page: %w", err)
@@ -123,6 +155,41 @@ func demonstrateGoingBack(ctx context.Context, midazClient *client.Client, orgID
 	fmt.Printf("✅ Back to first page with %d accounts\n", len(prevPage.Items))
 
 	return nil
+}
+
+// buildPrevPageOptions constructs prev-page options preserving filters
+// from the original request. Replaces the deleted
+// Pagination.PrevPageOptions() method.
+func buildPrevPageOptions(current *models.ListOptions, pagination models.Pagination) *models.ListOptions {
+	prev := current.Clone()
+	if pagination.Limit > 0 {
+		prev.WithLimit(pagination.Limit)
+	}
+
+	if pagination.PrevCursor != "" {
+		prev.Cursor = pagination.PrevCursor
+		prev.Page = 0
+		prev.Offset = models.DefaultOffset
+		return prev
+	}
+
+	if pagination.Page > 1 {
+		prev.Page = pagination.Page - 1
+		prev.Cursor = ""
+		prev.Offset = models.DefaultOffset
+		return prev
+	}
+
+	prev.Cursor = ""
+	prev.Page = 0
+	newOffset := pagination.Offset - pagination.Limit
+	if newOffset < 0 {
+		newOffset = 0
+	}
+
+	prev.Offset = newOffset
+
+	return prev
 }
 
 // demonstrateParallelFetching shows advanced concurrent account fetching
@@ -140,7 +207,7 @@ func demonstrateParallelFetching(ctx context.Context, midazClient *client.Client
 	totalAccounts := len(firstPage.Items)
 	fmt.Printf("✅ Page 1: %d accounts (total so far: %d)\n", len(firstPage.Items), totalAccounts)
 
-	if firstPage.Pagination.HasMorePages() {
+	if firstPage.Pagination.HasMore() {
 		totalAccounts = performParallelFetching(listCtx, midazClient, orgID, ledgerID, firstPage, totalAccounts)
 	}
 
@@ -172,9 +239,14 @@ func handleFirstPageError(err error) error {
 func performParallelFetching(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, firstPage *models.ListResponse[models.Account], totalAccounts int) int {
 	fmt.Println("\n2️⃣ Implementing parallel page fetching with WorkerPool...")
 
-	remainingPages := firstPage.Pagination.TotalPages() - 1
+	totalPages := 1
+	if firstPage.Pagination.TotalKnown() && firstPage.Pagination.Limit > 0 {
+		totalPages = (firstPage.Pagination.Total + firstPage.Pagination.Limit - 1) / firstPage.Pagination.Limit
+	}
+
+	remainingPages := totalPages - 1
 	fmt.Printf("🔢 Total pages to fetch: %d (already fetched: 1, remaining: %d)\n",
-		firstPage.Pagination.TotalPages(), remainingPages)
+		totalPages, remainingPages)
 
 	if remainingPages <= 0 {
 		return totalAccounts
