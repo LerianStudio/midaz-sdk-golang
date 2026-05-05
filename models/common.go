@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"os"
 	"strconv"
 	"time"
 
@@ -918,19 +917,13 @@ func (o *ListOptions) addPaginationParams(params map[string]string) {
 		return
 	}
 
-	if o.Offset > 0 {
-		if o.Offset%limit == 0 {
-			params[QueryParamPage] = fmt.Sprintf("%d", (o.Offset/limit)+1)
-		} else {
-			// Unaligned offset would map to a non-existent page boundary.
-			// Surface a stderr warning so the silent-drop bug is at least
-			// observable; consumers should call ListOptions.Validate()
-			// before serializing to fail fast on this case.
-			fmt.Fprintf(os.Stderr,
-				"[Midaz SDK] WARN: unaligned Offset (%d) for Limit (%d) was dropped from query parameters; call ListOptions.Validate() before sending\n",
-				o.Offset, limit)
-		}
+	if o.Offset > 0 && o.Offset%limit == 0 {
+		params[QueryParamPage] = fmt.Sprintf("%d", (o.Offset/limit)+1)
 	}
+	// Unaligned offsets are silently dropped here. v3 contract: callers
+	// should run ListOptions.Validate() before list calls. Track 5 of the
+	// v3-dx plan replaces this whole shape with per-service typed
+	// ListOpts so the misuse becomes uncompilable.
 
 	if o.Cursor != "" {
 		params[QueryParamCursor] = o.Cursor

@@ -2,7 +2,6 @@ package entities
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 )
@@ -11,22 +10,19 @@ import (
 // that ONLY accept cursor-based pagination (currently: operations,
 // transactions, operation_routes, transaction_routes). Page-based
 // pagination fields (Page, Offset) on the input are ignored — they make
-// no semantic sense on these endpoints. We emit a stderr warning when
-// either is non-zero so consumers don't silently lose pagination state.
+// no semantic sense on these endpoints.
+//
+// v3 contract: callers should run ListOptions.Validate() before invoking
+// list methods. Track 5 of the v3-dx plan redesigns pagination into
+// per-service typed ListOpts, which makes invalid combinations
+// uncompilable rather than silently dropped.
 //
 // Intentionally separate from ListOptions.ToQueryParams (which is for
-// page-based endpoints): the two contracts are incompatible and merging
-// them caused exactly this kind of "Page silently dropped" surprise.
+// page-based endpoints): the two contracts are incompatible.
 func cursorListQueryParams(opts *models.ListOptions) map[string]string {
 	params := map[string]string{}
 	if opts == nil {
 		return params
-	}
-
-	if opts.Page > 0 || opts.Offset > 0 {
-		fmt.Fprintf(os.Stderr,
-			"[Midaz SDK] WARN: cursor-only endpoint received Page=%d / Offset=%d; both fields are ignored. Use ListOptions.Cursor for pagination on these endpoints.\n",
-			opts.Page, opts.Offset)
 	}
 
 	limit := opts.Limit

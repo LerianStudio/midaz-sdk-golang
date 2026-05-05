@@ -169,6 +169,12 @@ linters:
     # -----------------------------------------
     # Dependency Guard
     # -----------------------------------------
+    # v3 contract: log/slog (stdlib structured logging) is the canonical
+    # logging surface — see docs/logging.md and Track 4 of the v3 DX plan.
+    # The v1 stdlib `log` package is no longer denied here because depguard
+    # matches deny entries by prefix; banning `log` would also ban `log/slog`.
+    # If v1 log usage creeps in, code review and the slog-everywhere idiom
+    # will catch it.
     depguard:
       rules:
         main:
@@ -177,8 +183,6 @@ linters:
               desc: "Deprecated: Use io and os packages instead (Go 1.16+)"
             - pkg: github.com/pkg/errors
               desc: "Use standard errors package with fmt.Errorf and %w"
-            - pkg: log
-              desc: "Use structured logging via pkg/observability"
 
     # -----------------------------------------
     # Go Vet

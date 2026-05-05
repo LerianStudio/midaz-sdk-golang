@@ -363,6 +363,51 @@ type contextKey string
 // retryOptionsKey is the context key for retry options
 const retryOptionsKey = contextKey("retry-options")
 
+// retryAttemptHookKey is the context key for the retry-attempt hook.
+const retryAttemptHookKey = contextKey("retry-attempt-hook")
+
+// AttemptHook is invoked once per retry attempt — i.e. after a failed call
+// has been classified as retryable and the next attempt's delay computed,
+// but BEFORE the timer fires. It receives the attempt number that just
+// failed (1-based), the cause error, and the delay before the next attempt.
+//
+// The hook is intended for structured logging and metrics emission. Hosts
+// should keep the implementation cheap (no I/O blocking, no panics) — it
+// runs on the hot retry path. Long work belongs in a goroutine.
+//
+// Defined as a function type instead of an interface so callers don't need
+// to depend on slog or any specific observability framework. The retry
+// package itself remains free of observability imports.
+type AttemptHook func(ctx context.Context, attempt int, cause error, delay time.Duration)
+
+// WithAttemptHook attaches a per-attempt hook to the context. Subsequent
+// retry executions on this ctx invoke the hook once per retry. Passing nil
+// clears any previously-installed hook.
+//
+// Returns:
+//   - context.Context: A child ctx carrying the hook.
+func WithAttemptHook(ctx context.Context, hook AttemptHook) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	return context.WithValue(ctx, retryAttemptHookKey, hook)
+}
+
+// attemptHookFromContext extracts the per-attempt hook installed via
+// WithAttemptHook, or returns nil if none is set.
+func attemptHookFromContext(ctx context.Context) AttemptHook {
+	if ctx == nil {
+		return nil
+	}
+
+	if hook, ok := ctx.Value(retryAttemptHookKey).(AttemptHook); ok {
+		return hook
+	}
+
+	return nil
+}
+
 // WithOptionsContext returns a new context with the retry options set.
 // This allows retry options to be propagated through a context across function boundaries.
 //
@@ -522,6 +567,17 @@ func doWithOptions(ctx context.Context, fn func() error, options *Options) error
 
 		// Add jitter to avoid thundering herd
 		delayWithJitter := addJitter(delay, options.JitterFactor)
+
+		// Invoke the per-attempt observability hook AFTER classifying the
+		// error as retryable AND computing the delay, but BEFORE the
+		// timer fires. This is the moment with all the relevant context:
+		// we know the cause, the attempt that just failed, and the wait
+		// before the next try. Hosts (e.g. entities/http.go) install the
+		// hook via retry.WithAttemptHook(ctx, hook) and use it for
+		// structured logging and metrics emission.
+		if hook := attemptHookFromContext(ctx); hook != nil {
+			hook(ctx, attempt+1, err, delayWithJitter)
+		}
 
 		// Wait for the calculated delay or until context is done
 		timer := time.NewTimer(delayWithJitter)

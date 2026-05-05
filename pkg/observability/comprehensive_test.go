@@ -1203,62 +1203,10 @@ func TestLoggerWithSpanNil(t *testing.T) {
 	assert.Equal(t, logger, spanLogger)
 }
 
-func TestLoggerFatal(t *testing.T) {
-	var buf bytes.Buffer
-
-	logger := NewLogger(DebugLevel, &buf, nil).(*LoggerImpl)
-
-	// With nil exit function (default for library code), Fatal just logs without terminating
-	logger.SetExitFunc(nil)
-
-	// Should not panic - library code should not terminate the caller
-	assert.NotPanics(t, func() {
-		logger.Fatal("fatal message")
-	})
-
-	// Verify the message was logged
-	assert.Contains(t, buf.String(), "fatal message")
-	assert.Contains(t, buf.String(), "FATAL")
-}
-
-func TestLoggerFatalf(t *testing.T) {
-	var buf bytes.Buffer
-
-	logger := NewLogger(DebugLevel, &buf, nil).(*LoggerImpl)
-
-	// With nil exit function (default for library code), Fatal just logs without terminating
-	logger.SetExitFunc(nil)
-
-	// Should not panic - library code should not terminate the caller
-	assert.NotPanics(t, func() {
-		logger.Fatalf("fatal %s", "formatted")
-	})
-
-	// Verify the message was logged
-	assert.Contains(t, buf.String(), "fatal formatted")
-	assert.Contains(t, buf.String(), "FATAL")
-}
-
-func TestLoggerFatalWithCustomExit(t *testing.T) {
-	var buf bytes.Buffer
-
-	logger := NewLogger(DebugLevel, &buf, nil).(*LoggerImpl)
-
-	var (
-		exitCalled bool
-		exitCode   int
-	)
-
-	logger.SetExitFunc(func(code int) {
-		exitCalled = true
-		exitCode = code
-	})
-
-	logger.Fatal("fatal message")
-
-	assert.True(t, exitCalled)
-	assert.Equal(t, 1, exitCode)
-}
+// Note: TestLoggerFatal, TestLoggerFatalf, and TestLoggerFatalWithCustomExit
+// were removed in v3 (Track 4). The Fatal/Fatalf surface was deleted from the
+// Logger interface — library code must not call os.Exit on behalf of the
+// host. The exitFunc/SetExitFunc machinery went with them.
 
 func TestNoopLogger(t *testing.T) {
 	logger := NewNoopLogger()
@@ -1272,8 +1220,6 @@ func TestNoopLogger(t *testing.T) {
 	logger.Warnf("warn %s", "formatted")
 	logger.Error("error")
 	logger.Errorf("error %s", "formatted")
-	logger.Fatal("fatal")
-	logger.Fatalf("fatal %s", "formatted")
 
 	// With should return the same logger
 	withLogger := logger.With(map[string]any{"key": "value"})
@@ -2062,15 +2008,14 @@ func TestHTTPMiddleware4xxStatusCode(t *testing.T) {
 func TestNoopLoggerAllMethods(_ *testing.T) {
 	logger := NewNoopLogger()
 
-	// Test all noop methods explicitly
+	// Test all noop methods explicitly. Fatal/Fatalf were removed from the
+	// Logger interface in v3 (Track 4).
 	logger.Info("info")
 	logger.Infof("info %s", "formatted")
 	logger.Warn("warn")
 	logger.Warnf("warn %s", "formatted")
 	logger.Error("error")
 	logger.Errorf("error %s", "formatted")
-	logger.Fatal("fatal")
-	logger.Fatalf("fatal %s", "formatted")
 }
 
 func TestWithDevelopmentDefaultsErrors(t *testing.T) {

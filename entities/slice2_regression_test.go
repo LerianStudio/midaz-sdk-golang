@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -115,11 +116,11 @@ func TestEntitySetHTTPClient_PreservesProtocolConfiguration(t *testing.T) {
 	require.Equal(t, 7, hc.retryOptions.MaxRetries)
 }
 
-// TestHTTPClient_DebugErrorPathRedactsURL captures debug output via the
-// public WithDebugWriter option instead of swapping os.Stderr globally.
-// Mutating os.Stderr races against any parallel test that also touches
-// it, so the bytes.Buffer + WithDebugWriter pattern is the correct
-// goroutine-safe shape.
+// TestHTTPClient_DebugErrorPathRedactsURL captures debug output via a
+// *slog.Logger that writes to a bytes.Buffer. v3 contract: debug output
+// flows through the configured *slog.Logger; the v2 WithDebugWriter
+// stderr-bypass is gone. Constructing a per-test slog handler avoids
+// racing against os.Stderr (which any parallel test could also touch).
 func TestHTTPClient_DebugErrorPathRedactsURL(t *testing.T) {
 	writeErrs := make(chan error, 1)
 
@@ -132,10 +133,11 @@ func TestHTTPClient_DebugErrorPathRedactsURL(t *testing.T) {
 	defer srv.Close()
 
 	var debugBuf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&debugBuf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
 	c := NewHTTPClient(srv.Client(), "", nil).
-		WithDebug(true).
-		WithDebugWriter(&debugBuf)
+		WithDebug(true)
+	c.SetLogger(logger)
 
 	var out map[string]any
 

@@ -8,11 +8,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"html"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -69,7 +68,6 @@ type HTTPClient struct {
 	userAgent         string
 	tenantID          string
 	debug             bool
-	debugWriter       io.Writer             // optional sink for debug logs (default: os.Stderr)
 	retryOptions      *retry.Options        // Retry options for the client
 	jsonPool          *performance.JSONPool // Pool for JSON encoding/decoding
 	metrics           *observability.MetricsCollector
@@ -78,6 +76,14 @@ type HTTPClient struct {
 	customRetryPolicy func(*http.Response, error) bool
 	tokenProvider     func(context.Context) (string, error)
 	tokenInvalidator  func()
+	// logger is the canonical *slog.Logger for retry/slow-call/internal
+	// warnings. Always non-nil after midaz.New() wires the parent client's
+	// logger via SetLogger. Per-service HTTP clients inherit it through
+	// applyConfigurationFrom.
+	logger *slog.Logger
+	// slowCallThreshold is the duration above which a successful call
+	// emits a Warn-level structured log. Zero disables the warning.
+	slowCallThreshold time.Duration
 	// tokenRefreshGroup serializes concurrent 401-driven token refreshes per
 	// cache key. A burst of in-flight requests that all hit a 401 at the
 	// same time funnel through one underlying call to tokenProvider, which
@@ -91,7 +97,6 @@ type httpClientConfigSnapshot struct {
 	userAgent         string
 	tenantID          string
 	debug             bool
-	debugWriter       io.Writer
 	retryOptions      *retry.Options
 	metrics           *observability.MetricsCollector
 	observability     observability.Provider
@@ -99,6 +104,8 @@ type httpClientConfigSnapshot struct {
 	customRetryPolicy func(*http.Response, error) bool
 	tokenProvider     func(context.Context) (string, error)
 	tokenInvalidator  func()
+	logger            *slog.Logger
+	slowCallThreshold time.Duration
 }
 
 // NewHTTPClient creates a new HTTP client with safe v3 defaults.
@@ -229,6 +236,54 @@ func (c *HTTPClient) WithRetryOption(option retry.Option) *HTTPClient {
 	return c
 }
 
+// SetLogger installs the *slog.Logger used for retry/slow-call/internal
+// warnings. Passing nil reverts to a discard handler. The logger is shared
+// with all per-service HTTP clients via propagateHTTPClientConfiguration.
+func (c *HTTPClient) SetLogger(logger *slog.Logger) {
+	if c == nil {
+		return
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.logger = logger
+}
+
+// Logger returns the configured *slog.Logger or a discard logger if none was
+// installed. Always non-nil so callers can write log lines unconditionally.
+func (c *HTTPClient) Logger() *slog.Logger {
+	if c == nil {
+		return slog.New(slog.DiscardHandler)
+	}
+
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if c.logger == nil {
+		return slog.New(slog.DiscardHandler)
+	}
+
+	return c.logger
+}
+
+// SetSlowCallThreshold installs the duration above which a successful call
+// emits a Warn-level log line. Zero or negative values disable the warning.
+func (c *HTTPClient) SetSlowCallThreshold(threshold time.Duration) {
+	if c == nil {
+		return
+	}
+
+	if threshold < 0 {
+		threshold = 0
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.slowCallThreshold = threshold
+}
+
 // SetEnableIdempotency enables or disables automatic idempotency header
 // generation at the HTTP client level.
 //
@@ -296,7 +351,6 @@ func (c *HTTPClient) cloneConfiguration() httpClientConfigSnapshot {
 		userAgent:         c.userAgent,
 		tenantID:          c.tenantID,
 		debug:             c.debug,
-		debugWriter:       c.debugWriter,
 		retryOptions:      cloneRetryOptions(c.retryOptions),
 		metrics:           c.metrics,
 		observability:     c.observability,
@@ -304,6 +358,8 @@ func (c *HTTPClient) cloneConfiguration() httpClientConfigSnapshot {
 		customRetryPolicy: c.customRetryPolicy,
 		tokenProvider:     c.tokenProvider,
 		tokenInvalidator:  c.tokenInvalidator,
+		logger:            c.logger,
+		slowCallThreshold: c.slowCallThreshold,
 	}
 }
 
@@ -319,7 +375,6 @@ func (c *HTTPClient) applyConfigurationSnapshot(snapshot httpClientConfigSnapsho
 	c.userAgent = snapshot.userAgent
 	c.tenantID = snapshot.tenantID
 	c.debug = snapshot.debug
-	c.debugWriter = snapshot.debugWriter
 	c.retryOptions = cloneRetryOptions(snapshot.retryOptions)
 	c.metrics = snapshot.metrics
 	c.observability = snapshot.observability
@@ -327,6 +382,8 @@ func (c *HTTPClient) applyConfigurationSnapshot(snapshot httpClientConfigSnapsho
 	c.customRetryPolicy = snapshot.customRetryPolicy
 	c.tokenProvider = snapshot.tokenProvider
 	c.tokenInvalidator = snapshot.tokenInvalidator
+	c.logger = snapshot.logger
+	c.slowCallThreshold = snapshot.slowCallThreshold
 }
 
 // WithUserAgent sets a custom user agent string for the HTTP client.
@@ -353,23 +410,6 @@ func (c *HTTPClient) WithDebug(debug bool) *HTTPClient {
 	defer c.mu.Unlock()
 
 	c.debug = debug
-
-	return c
-}
-
-// WithDebugWriter sets an alternate sink for debug-mode log output. By
-// default debug logs go to os.Stderr; tests use this option to capture
-// the output into a *bytes.Buffer instead of mutating the global
-// os.Stderr (which races against parallel tests).
-func (c *HTTPClient) WithDebugWriter(w io.Writer) *HTTPClient {
-	if c == nil {
-		return nil
-	}
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	c.debugWriter = w
 
 	return c
 }
@@ -1072,6 +1112,62 @@ func (c *HTTPClient) executeRequestWithRetry(ctx context.Context, req *http.Requ
 	}
 
 	retryCtx := retry.WithOptionsContext(ctx, effectiveRetryOptions)
+
+	// Install the per-attempt observability hook on the retry context.
+	// The hook emits a structured slog line and records a metric for
+	// every retry attempt — the pieces that used to be a // TODO.
+	logger := snapshot.logger
+	if logger == nil {
+		logger = slog.New(slog.DiscardHandler)
+	}
+
+	metrics := snapshot.metrics
+
+	hook := func(hookCtx context.Context, attempt int, cause error, delay time.Duration) {
+		urlPath := normalizeTelemetryURLForLog(requestURL)
+
+		causeMsg := ""
+		statusCode := 0
+		var statusErr interface{ StatusCode() int }
+		if cause != nil {
+			causeMsg = sdkerrors.RedactSensitiveString(cause.Error())
+			if errors.As(cause, &statusErr) {
+				statusCode = statusErr.StatusCode()
+			}
+		}
+
+		attrs := []slog.Attr{
+			slog.String("sdk.name", sdkLoggerName),
+			slog.String("sdk.component", "retry"),
+			slog.String("operation", method),
+			slog.String("http.method", method),
+			slog.String("url.path", urlPath),
+			slog.Int("attempt", attempt),
+			slog.Int("max_attempts", effectiveRetryOptions.MaxRetries),
+			slog.Int64("delay_ms", delay.Milliseconds()),
+			slog.String("cause", causeMsg),
+		}
+
+		if statusCode > 0 {
+			attrs = append(attrs, slog.Int("http.status_code", statusCode))
+		}
+
+		level := slog.LevelDebug
+		if attempt >= effectiveRetryOptions.MaxRetries {
+			// Final attempt before exhaustion → warn level so it shows up
+			// in production log filters that suppress debug.
+			level = slog.LevelWarn
+		}
+
+		logger.LogAttrs(hookCtx, level, "retrying request", attrs...)
+
+		if metrics != nil {
+			metrics.RecordRetry(hookCtx, method, "http", attempt)
+		}
+	}
+
+	retryCtx = retry.WithAttemptHook(retryCtx, hook)
+
 	execution := &retryExecution{}
 
 	err := retry.DoWithContext(retryCtx, func() error {
@@ -1079,6 +1175,57 @@ func (c *HTTPClient) executeRequestWithRetry(ctx context.Context, req *http.Requ
 	})
 
 	return execution.resp, execution.responseBody, err
+}
+
+// sdkLoggerName is the value emitted under the sdk.name structured log
+// field. Constant so callers can rely on a stable string.
+const sdkLoggerName = "midaz-go-sdk"
+
+// normalizeTelemetryURLForLog strips dynamic IDs from a request URL so
+// structured log lines have stable cardinality (good for log search and
+// metric labels). Falls back to the raw URL on parse error.
+func normalizeTelemetryURLForLog(rawURL string) string {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return rawURL
+	}
+
+	// Replace path segments that look like UUIDs / numeric IDs with
+	// placeholders. This matches the entity-id pattern used elsewhere
+	// in the SDK's observability tooling.
+	parts := strings.Split(parsed.Path, "/")
+	for i, p := range parts {
+		if isLikelyID(p) {
+			parts[i] = ":id"
+		}
+	}
+
+	parsed.Path = strings.Join(parts, "/")
+	parsed.RawQuery = "" // never include query strings in log fields
+
+	return parsed.String()
+}
+
+// isLikelyID returns true if the segment looks like an entity identifier
+// (UUID-shaped or all digits).
+func isLikelyID(segment string) bool {
+	if segment == "" {
+		return false
+	}
+
+	// UUID-shaped (36 chars with 4 hyphens)
+	if len(segment) == 36 && strings.Count(segment, "-") == 4 {
+		return true
+	}
+
+	// All digits
+	for _, r := range segment {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+
+	return len(segment) > 0
 }
 
 // isInternalRetryableError matches the SDK's internal "always retryable"
@@ -1365,6 +1512,52 @@ func (c *HTTPClient) recordRequestMetrics(ctx context.Context, method, requestUR
 	if snapshot.metrics != nil && resp != nil {
 		snapshot.metrics.RecordRequest(ctx, method, normalizeTelemetryURL(requestURL), resp.StatusCode, elapsed)
 	}
+
+	c.maybeLogSlowCall(ctx, snapshot, method, requestURL, resp, elapsed)
+}
+
+// maybeLogSlowCall emits a Warn-level structured log line when the call
+// duration exceeds the configured WithSlowCallThreshold. Zero (default) or
+// negative thresholds disable the warning. The line uses the same field
+// schema as retry logs for consistent dashboards.
+//
+// Receiver is unused (intentionally a method for symmetry with the rest of
+// the recordRequest* family) — silenced via _ to satisfy revive.
+func (*HTTPClient) maybeLogSlowCall(ctx context.Context, snapshot httpClientConfigSnapshot, method, requestURL string, resp *http.Response, elapsed time.Duration) {
+	threshold := snapshot.slowCallThreshold
+	if threshold <= 0 || elapsed < threshold {
+		return
+	}
+
+	logger := snapshot.logger
+	if logger == nil {
+		// No logger means nowhere to emit. Threshold without a logger
+		// is a harmless no-op (covered by the WithSlowCallThreshold
+		// godoc note).
+		return
+	}
+
+	statusCode := 0
+	if resp != nil {
+		statusCode = resp.StatusCode
+	}
+
+	requestID := ""
+	if resp != nil {
+		requestID = resp.Header.Get("X-Request-ID")
+	}
+
+	logger.LogAttrs(ctx, slog.LevelWarn, "slow API call",
+		slog.String("sdk.name", sdkLoggerName),
+		slog.String("sdk.component", "http"),
+		slog.String("operation", method),
+		slog.String("http.method", method),
+		slog.String("url.path", normalizeTelemetryURLForLog(requestURL)),
+		slog.Int("http.status_code", statusCode),
+		slog.Int64("duration_ms", elapsed.Milliseconds()),
+		slog.Int64("threshold_ms", threshold.Milliseconds()),
+		slog.String("request_id", requestID),
+	)
 }
 
 func (c *HTTPClient) recordRequestFailure(ctx context.Context, method, requestURL string, resp *http.Response, elapsed time.Duration, err error) {
@@ -1703,12 +1896,24 @@ func sanitizeLogArgs(args []any) []any {
 	return sanitized
 }
 
-// debugLog logs a debug message if debug mode is enabled.
-// Uses observability logger when available, otherwise falls back to stderr.
-// All string arguments are sanitized to prevent log injection attacks.
+// debugLog routes a debug-level message through the configured *slog.Logger
+// when WithDebug(true) is enabled. v3 contract: there is exactly one log
+// path. The MIDAZ_DEBUG-bypass that wrote raw text to stderr in v2 is gone.
+//
+// All string arguments are sanitized to prevent log injection attacks; the
+// pre-formatted message is wrapped as a single 'message' attribute so the
+// underlying handler can structure it appropriately (JSON keeps the literal
+// message; text handlers emit it as the msg field).
 func (c *HTTPClient) debugLog(format string, args ...any) {
 	snapshot := c.cloneConfiguration()
 	if !snapshot.debug {
+		return
+	}
+
+	logger := snapshot.logger
+	if logger == nil {
+		// HTTPClient created outside of midaz.New (e.g., test or
+		// access-manager bootstrap). v3 silent default.
 		return
 	}
 
@@ -1718,27 +1923,12 @@ func (c *HTTPClient) debugLog(format string, args ...any) {
 	sanitizedArgs := sanitizeLogArgs(args)
 	message := fmt.Sprintf(format, sanitizedArgs...)
 
-	// Use observability logger if available
-	if snapshot.observability != nil && snapshot.observability.IsEnabled() && snapshot.observability.Logger() != nil {
-		// Log injection mitigated: all arguments are sanitized via strconv.Quote in sanitizeLogArgs()
-		// which escapes all control characters including \n, \r, \t, and non-printable chars.
-		snapshot.observability.Logger().Debug(message) // lgtm[go/log-injection]
-		return
-	}
-
-	// Fall back to a writer (default os.Stderr; tests can redirect via
-	// WithDebugWriter). Ensure output is HTML-escaped to satisfy XSS
-	// taint analysis in gosec.
-	safeMessage := html.EscapeString(message)
-
-	writer := snapshot.debugWriter
-	if writer == nil {
-		writer = os.Stderr
-	}
-
-	// Log injection mitigated: message is pre-sanitized via strconv.Quote
-	// Error is intentionally ignored as debug logging should not affect program flow
-	_, _ = fmt.Fprintln(writer, "[Midaz SDK Debug] "+safeMessage) //#nosec G705 -- stderr is not an XSS sink; lgtm[go/log-injection]
+	// Log injection mitigated: all arguments are sanitized via strconv.Quote in sanitizeLogArgs()
+	// which escapes all control characters including \n, \r, \t, and non-printable chars.
+	logger.Debug(message,
+		slog.String("sdk.name", sdkLoggerName),
+		slog.String("sdk.component", "http"),
+	)
 }
 
 // parseErrorResponse parses an error response from the API and converts it to an SDK error.

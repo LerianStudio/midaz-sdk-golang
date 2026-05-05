@@ -184,16 +184,37 @@ Keep baggage small. Baggage is propagated on every downstream request.
 
 ## Trace IDs for logs
 
+In v3 the canonical logger is `*slog.Logger` (configurable via `midaz.WithLogger`).
+Use slog's structured-attribute API to attach trace/span IDs:
+
 ```go
+import "log/slog"
+
 traceID := observability.TraceID(ctx)
 spanID := observability.SpanID(ctx)
 
-logger := provider.Logger()
-logger.Info("processing request", map[string]any{
-    "trace_id": traceID,
-    "span_id":  spanID,
-})
+c.Logger().LogAttrs(ctx, slog.LevelInfo, "processing request",
+    slog.String("trace_id", traceID),
+    slog.String("span_id", spanID),
+)
 ```
+
+If you need to share trace context across many log lines, derive a child logger:
+
+```go
+log := c.Logger().With(
+    slog.String("trace_id", traceID),
+    slog.String("span_id", spanID),
+)
+
+log.Info("processing request")
+log.Info("validation passed")
+log.Warn("slow downstream call", slog.Int64("duration_ms", 1450))
+```
+
+The bespoke `provider.Logger()` interface (Logger.Info(args ...any)) still
+exists for downstream observability code paths but is no longer the recommended
+SDK surface.
 
 ## Configuration options
 

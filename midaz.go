@@ -19,8 +19,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -69,6 +71,23 @@ type Client struct {
 	observability     observability.Provider
 	metrics           *observability.MetricsCollector
 	customRetryPolicy func(*http.Response, error) bool
+
+	// logger is the canonical structured logger for the SDK. Always non-nil
+	// after New(). Default: slog.New(slog.DiscardHandler) (silent). Configure
+	// via WithLogger(...). When Config.Debug is true and WithLogger was not
+	// called, midaz.New() installs a stderr text handler at debug level —
+	// user-supplied loggers always win over the MIDAZ_DEBUG-driven default.
+	logger *slog.Logger
+
+	// loggerSet tracks whether WithLogger was explicitly called. Used to
+	// decide whether the Config.Debug-driven default handler should replace
+	// the discard default at construction time.
+	loggerSet bool
+
+	// slowCallThreshold is the duration above which a successful API call
+	// emits a Warn-level structured log line. Zero (default) means no
+	// slow-call warnings. Configure via WithSlowCallThreshold(...).
+	slowCallThreshold time.Duration
 }
 
 // New creates a new Midaz client with the provided options.
@@ -136,6 +155,12 @@ func New(options ...Option) (*Client, error) {
 		return nil, sdkerrors.NewConfigurationError(operation, "invalid configuration", err)
 	}
 
+	// Resolve the default logger. WithLogger always wins; otherwise the
+	// MIDAZ_DEBUG-driven path installs a stderr text handler at debug
+	// level (only when Config.Debug=true and FromEnvironment opted in);
+	// otherwise the SDK is silent (discard handler).
+	c.logger = resolveLogger(c.logger, c.loggerSet, c.config.Debug)
+
 	// Always initialize the Entity surface. The "naked SDK" footgun
 	// (c.Entity == nil after New) is gone in v3.
 	if err := c.setupEntity(); err != nil {
@@ -143,6 +168,31 @@ func New(options ...Option) (*Client, error) {
 	}
 
 	return c, nil
+}
+
+// resolveLogger applies the v3 logger-priority rule:
+//
+//  1. If WithLogger was explicitly called (loggerSet=true), use that logger
+//     (even if it's nil — caller asked for silence).
+//  2. Else if Config.Debug is true (typically via FromEnvironment loading
+//     MIDAZ_DEBUG=true), install a stderr text handler at debug level.
+//  3. Else: discard handler (silent default).
+//
+// Exposed for tests that exercise the priority rule without going through New().
+func resolveLogger(explicit *slog.Logger, explicitSet bool, debugFromConfig bool) *slog.Logger {
+	if explicitSet {
+		if explicit == nil {
+			return slog.New(slog.DiscardHandler)
+		}
+
+		return explicit
+	}
+
+	if debugFromConfig {
+		return slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	}
+
+	return slog.New(slog.DiscardHandler)
 }
 
 // Option is a functional option for configuring the client.
@@ -209,6 +259,12 @@ func (c *Client) setupEntity() error {
 	if c.customRetryPolicy != nil {
 		httpClient.SetCustomRetryPolicy(c.customRetryPolicy)
 	}
+
+	// Push the resolved logger and slow-call threshold into the entity
+	// HTTP client BEFORE InitServices, so per-service HTTP clients
+	// inherit the values via the snapshot/applyConfigurationFrom path.
+	httpClient.SetLogger(c.logger)
+	httpClient.SetSlowCallThreshold(c.slowCallThreshold)
 
 	entity.InitServices()
 
@@ -632,6 +688,73 @@ func WithTenantID(tenantID string) Option {
 	}
 }
 
+// WithLogger sets the canonical *slog.Logger for the client. Once configured,
+// the SDK emits structured log lines for retry attempts, slow calls, and
+// internal warnings through this logger.
+//
+// The SDK is silent by default (discard handler). Pass WithLogger to opt in.
+// When both WithLogger and Config.Debug=true (typically via FromEnvironment)
+// are present, WithLogger always wins — the MIDAZ_DEBUG bypass that existed
+// in v2 is gone in v3.
+//
+// Integrations:
+//
+//	// stdlib slog with JSON to stdout
+//	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+//	c, _ := midaz.New(midaz.WithLogger(logger), midaz.WithAuthToken("..."))
+//
+//	// charmbracelet/log
+//	import charm "github.com/charmbracelet/log"
+//	clog := charm.NewWithOptions(os.Stderr, charm.Options{Level: charm.DebugLevel})
+//	c, _ := midaz.New(midaz.WithLogger(slog.New(clog)), midaz.WithAuthToken("..."))
+//
+//	// zap via slog adapter (Go 1.22+)
+//	import "go.uber.org/zap/exp/zapslog"
+//	zl, _ := zap.NewProduction()
+//	c, _ := midaz.New(
+//	    midaz.WithLogger(slog.New(zapslog.NewHandler(zl.Core(), nil))),
+//	    midaz.WithAuthToken("..."),
+//	)
+//
+// Passing nil clears any previously-configured logger and reverts to the
+// silent discard default.
+//
+// Returns:
+//   - Option: A function that sets the logger on a Client.
+func WithLogger(logger *slog.Logger) Option {
+	return func(c *Client) error {
+		c.logger = logger
+		c.loggerSet = true
+
+		return nil
+	}
+}
+
+// WithSlowCallThreshold configures the duration above which a successful API
+// call triggers a Warn-level structured log line on the configured logger.
+// The line includes operation, http.method, url.path, http.status_code,
+// duration_ms, and request_id when available.
+//
+// Zero (default) disables slow-call warnings.
+//
+// Negative values are coerced to zero (disabled). Setting a positive
+// threshold without WithLogger is harmless — the warning lands on the
+// discard handler.
+//
+// Returns:
+//   - Option: A function that sets the slow-call threshold on a Client.
+func WithSlowCallThreshold(threshold time.Duration) Option {
+	return func(c *Client) error {
+		if threshold < 0 {
+			threshold = 0
+		}
+
+		c.slowCallThreshold = threshold
+
+		return nil
+	}
+}
+
 // Shutdown gracefully shuts down the client, releasing any resources.
 // This ensures that any pending operations are completed and resources are released.
 //
@@ -680,17 +803,28 @@ func (c *Client) Trace(name string, fn func(context.Context) error) error {
 	return observability.WithSpan(c.ctx, c.observability, name, fn)
 }
 
-// Logger returns the logger from the observability provider.
-// This is a convenience function for getting the logger.
+// Logger returns the canonical *slog.Logger for this client. The return value
+// is always non-nil — when no WithLogger was configured and Config.Debug is
+// false, the logger is wired to a discard handler (silent).
+//
+// Use this to emit application-side log lines that should follow the same
+// handler as SDK-internal lines, or to inspect the configured logger in tests.
+//
+// In v3 the return type changed from observability.Logger to *slog.Logger.
+// Code that needs the bespoke observability.Logger interface should reach
+// for c.GetObservabilityProvider().Logger() instead.
 //
 // Returns:
-//   - Logger: The logger from the observability provider
-func (c *Client) Logger() observability.Logger {
-	if c.observability == nil {
-		return nil
+//   - *slog.Logger: A non-nil logger. Discard by default.
+func (c *Client) Logger() *slog.Logger {
+	if c == nil || c.logger == nil {
+		// Defensive: a properly-constructed client always has a non-nil
+		// logger after New(). This branch only triggers if the caller
+		// constructed a Client struct directly (which is unsupported).
+		return slog.New(slog.DiscardHandler)
 	}
 
-	return c.observability.Logger()
+	return c.logger
 }
 
 // GetObservabilityProvider returns the observability provider.
