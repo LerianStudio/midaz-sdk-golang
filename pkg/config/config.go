@@ -124,15 +124,13 @@ type Config struct {
 	EnableIdempotency bool
 
 	// TenantID is the default tenant identifier sent as X-Tenant-ID on every request.
-	// It can be set via the WithTenantID option.
-	// Per-request overrides via sdkctx.WithRequestTenantID(ctx, id) take precedence. This
-	// is an optional compatibility header and may be ignored by deployments that derive
-	// tenant scope from authenticated claims.
+	// In v3, this field is set via [github.com/LerianStudio/midaz-sdk-golang/v3.WithTenantID]
+	// (the client-level option) or by FromEnvironment when MIDAZ_TENANT_ID is set, or
+	// by direct assignment on a Config the caller owns.
+	// Per-request overrides via sdkctx.WithRequestTenantID(ctx, id) take precedence.
+	// This is an optional compatibility header and may be ignored by deployments that
+	// derive tenant scope from authenticated claims.
 	TenantID string
-
-	// tenantIDSet tracks whether WithTenantID was explicitly called, allowing
-	// an empty value to clear any environment-provided default.
-	tenantIDSet bool
 
 	baseURLSet        bool
 	onboardingURLSet  bool
@@ -517,30 +515,6 @@ func WithIdempotency(enable bool) Option {
 	}
 }
 
-// WithTenantID sets the default tenant ID for all API requests.
-// The tenant ID is sent as the X-Tenant-ID header on every request.
-// Per-request overrides via sdkctx.WithRequestTenantID(ctx, tenantID) take precedence
-// over this configuration-level default. This header is best-effort compatibility
-// metadata rather than the sole tenant source of truth for the reference Midaz path.
-//
-// Parameters:
-//   - tenantID: The tenant identifier to use
-//
-// Returns:
-//   - Option: A function that sets the tenant ID on a Config
-func WithTenantID(tenantID string) Option {
-	return func(c *Config) error {
-		if c == nil {
-			return errors.New("config cannot be nil")
-		}
-
-		c.TenantID = strings.TrimSpace(tenantID)
-		c.tenantIDSet = true
-
-		return nil
-	}
-}
-
 // WithAccessManager sets the plugin-based authentication configuration.
 //
 // The Enabled field of the supplied AccessManager is OVERRIDDEN to true —
@@ -786,7 +760,6 @@ func configureOptionalSettings(c *Config) {
 
 	if tenantID := strings.TrimSpace(os.Getenv("MIDAZ_TENANT_ID")); tenantID != "" {
 		c.TenantID = tenantID
-		c.tenantIDSet = true
 	}
 
 	// MIDAZ_SKIP_AUTH_CHECK is a test-plumbing escape hatch read only via

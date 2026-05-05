@@ -24,7 +24,6 @@ func TestSlice8ConfigStrictnessAndCopying(t *testing.T) {
 		options := []Option{
 			WithDebug(true),
 			WithIdempotency(true),
-			WithTenantID("tenant"),
 			WithMaxRetries(1),
 			WithRetryWaitMin(time.Millisecond),
 			WithRetryWaitMax(time.Second),

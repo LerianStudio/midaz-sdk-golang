@@ -1580,41 +1580,6 @@ func TestWithTransactionURL_InitializesServiceURLsMap(t *testing.T) {
 	assert.Equal(t, "https://api.example.com/transaction", config.ServiceURLs[ServiceTransaction])
 }
 
-func TestConfigWithTenantID(t *testing.T) {
-	tests := []struct {
-		name     string
-		tenantID string
-		expected string
-	}{
-		{
-			name:     "sets tenant ID",
-			tenantID: "my-tenant-123",
-			expected: "my-tenant-123",
-		},
-		{
-			name:     "empty tenant ID is accepted",
-			tenantID: "",
-			expected: "",
-		},
-		{
-			name:     "UUID-style tenant ID",
-			tenantID: "550e8400-e29b-41d4-a716-446655440000",
-			expected: "550e8400-e29b-41d4-a716-446655440000",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			cfg, err := NewConfig(
-				WithTenantID(tc.tenantID),
-				WithAnonymous(),
-			)
-			require.NoError(t, err)
-			assert.Equal(t, tc.expected, cfg.TenantID)
-		})
-	}
-}
-
 // TestConfigTenantIDFromEnv asserts the v3 contract: MIDAZ_TENANT_ID is read
 // only when FromEnvironment() is in the option chain. Track 2 added this read
 // to FromEnvironment per the explicit-opt-in principle (see Track 3 close).
@@ -1662,20 +1627,23 @@ func TestConfigTenantIDFromEnv(t *testing.T) {
 	}
 }
 
-// TestConfigTenantIDOptionWinsOverEnv asserts WithTenantID overrides
-// MIDAZ_TENANT_ID regardless of option order, because option chains apply
-// last-write-wins and explicit options always follow FromEnvironment.
-func TestConfigTenantIDOptionWinsOverEnv(t *testing.T) {
+// TestConfigTenantIDDirectAssignmentWinsOverEnv asserts that direct
+// post-FromEnvironment mutation of Config.TenantID wins over the env var.
+// In v3, pkg/config.WithTenantID was deleted — programmatic callers either
+// (a) use midaz.WithTenantID at the client level, or (b) mutate
+// Config.TenantID directly on a config they own. This test exercises (b).
+func TestConfigTenantIDDirectAssignmentWinsOverEnv(t *testing.T) {
 	t.Setenv("MIDAZ_TENANT_ID", "env-tenant")
 
 	cfg, err := NewConfig(
 		FromEnvironment(),
-		WithTenantID("option-tenant"),
 		WithAnonymous(),
 	)
 	require.NoError(t, err)
+	assert.Equal(t, "env-tenant", cfg.TenantID)
 
-	assert.Equal(t, "option-tenant", cfg.TenantID)
+	cfg.TenantID = "direct-tenant"
+	assert.Equal(t, "direct-tenant", cfg.TenantID)
 }
 
 func TestDefaultConfigHasEmptyTenantID(t *testing.T) {
