@@ -90,10 +90,10 @@ func TestSlice7ErrorResponseJSONContract(t *testing.T) {
 }
 
 func TestSlice7LegacyListWrappersMarshalEmptyItems(t *testing.T) {
-	assetRates, err := json.Marshal(AssetRatesResponse{})
-	require.NoError(t, err)
-	assert.Contains(t, string(assetRates), `"items":[]`)
-
+	// v3: AssetRatesResponse was deleted in Track 5 Batch 5C; asset
+	// rates now ride the unified ListResponse[T]/Pagination contract,
+	// covered separately by TestListResponseZeroValueMarshalUsesEmptyItems
+	// in model_test.go.
 	accounts, err := json.Marshal(Accounts{})
 	require.NoError(t, err)
 	assert.Contains(t, string(accounts), `"items":[]`)
