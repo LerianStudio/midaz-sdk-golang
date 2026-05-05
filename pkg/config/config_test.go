@@ -17,14 +17,17 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/version"
 )
 
-// Helper function to disable auth check for tests
-func disableAuthCheck(t *testing.T) func() {
+// disableAuthCheck is a test-only helper that returns an Option which sets
+// the internal skipAuthCheck flag. v3 contract: validateConfig consults the
+// field, never the env directly. The legacy env-driven path still works via
+// FromEnvironment() (verified by TestFromEnvironment_AllVariables and the
+// MIDAZ_SKIP_AUTH_CHECK case below).
+func disableAuthCheck(t *testing.T) Option {
 	t.Helper()
 
-	_ = os.Setenv("MIDAZ_SKIP_AUTH_CHECK", "true")
-
-	return func() {
-		_ = os.Unsetenv("MIDAZ_SKIP_AUTH_CHECK")
+	return func(c *Config) error {
+		c.skipAuthCheck = true
+		return nil
 	}
 }
 
@@ -733,10 +736,7 @@ func TestWithAccessManager(t *testing.T) {
 		ClientSecret: "secret-456",
 	}
 
-	cleanup := disableAuthCheck(t)
-	defer cleanup()
-
-	config, err := NewConfig(WithAccessManager(accessManager))
+	config, err := NewConfig(disableAuthCheck(t), WithAccessManager(accessManager))
 	require.NoError(t, err)
 
 	assert.True(t, config.AccessManager.Enabled)
@@ -755,10 +755,7 @@ func TestValidateConfig_MissingAuthAddress(t *testing.T) {
 }
 
 func TestValidateConfig_AuthCheckSkipped(t *testing.T) {
-	cleanup := disableAuthCheck(t)
-	defer cleanup()
-
-	config, err := NewConfig(WithAccessManager(auth.AccessManager{
+	config, err := NewConfig(disableAuthCheck(t), WithAccessManager(auth.AccessManager{
 		Enabled: true,
 		Address: "",
 	}))
@@ -1000,9 +997,6 @@ func TestNewLocalConfig_WithEnvVars(t *testing.T) {
 	restore := saveEnv(envVars)
 	defer restore()
 
-	cleanup := disableAuthCheck(t)
-	defer cleanup()
-
 	_ = os.Setenv("PLUGIN_AUTH_ENABLED", "true")
 	_ = os.Setenv("PLUGIN_AUTH_ADDRESS", "http://auth.local.example.com")
 	_ = os.Setenv("MIDAZ_CLIENT_ID", "local-client")
@@ -1064,10 +1058,7 @@ func TestGetHTTPClient_Default(t *testing.T) {
 }
 
 func TestGetPluginAuth(t *testing.T) {
-	cleanup := disableAuthCheck(t)
-	defer cleanup()
-
-	config, err := NewConfig(WithAccessManager(auth.AccessManager{
+	config, err := NewConfig(disableAuthCheck(t), WithAccessManager(auth.AccessManager{
 		Enabled:      true,
 		Address:      "http://auth.example.com",
 		ClientID:     "test-client",
@@ -1084,10 +1075,7 @@ func TestGetPluginAuth(t *testing.T) {
 }
 
 func TestGetPluginAuth_ReturnsCopy(t *testing.T) {
-	cleanup := disableAuthCheck(t)
-	defer cleanup()
-
-	config, err := NewConfig(WithAccessManager(auth.AccessManager{
+	config, err := NewConfig(disableAuthCheck(t), WithAccessManager(auth.AccessManager{
 		Enabled:      true,
 		Address:      "http://auth.example.com",
 		ClientID:     "original-client",

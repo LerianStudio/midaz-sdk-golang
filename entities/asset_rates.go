@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"os"
 	"strings"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
@@ -113,10 +112,6 @@ func (e *assetRatesEntity) setDefaultTenantID(tenantID string) {
 //   - AssetRatesService: An implementation of the AssetRatesService interface.
 func newAssetRatesEntity(client *http.Client, authToken string, baseURLs map[string]string) AssetRatesService {
 	httpClient := NewHTTPClient(client, authToken, nil)
-
-	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
-		httpClient.setDebugLocked(true)
-	}
 
 	return &assetRatesEntity{
 		httpClient: httpClient,

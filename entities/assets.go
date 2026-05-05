@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
@@ -139,11 +138,6 @@ func (e *assetsEntity) setDefaultTenantID(tenantID string) {
 func newAssetsEntity(client *http.Client, authToken string, baseURLs map[string]string) AssetsService {
 	// Create a new HTTP client with the shared implementation
 	httpClient := NewHTTPClient(client, authToken, nil)
-
-	// Check if we're using the debug flag from the environment
-	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
-		httpClient.setDebugLocked(true)
-	}
 
 	return &assetsEntity{
 		httpClient: httpClient,

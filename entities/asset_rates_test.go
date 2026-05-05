@@ -64,8 +64,13 @@ func Test_newAssetRatesEntity(t *testing.T) {
 	}
 }
 
+// Test_newAssetRatesEntity_DebugMode verifies the v3 contract: env vars do NOT
+// flow into entity constructors directly. Setting MIDAZ_DEBUG=true in the shell
+// must NOT make a freshly constructed asset-rates entity start in debug mode.
+// Debug propagates only through pkg/config.Config (populated by FromEnvironment
+// when the caller opts in) and the WithDebug option.
 func Test_newAssetRatesEntity_DebugMode(t *testing.T) {
-	t.Run("with MIDAZ_DEBUG=true", func(t *testing.T) {
+	t.Run("MIDAZ_DEBUG=true does NOT flip debug on the constructed service (v3 contract)", func(t *testing.T) {
 		t.Setenv("MIDAZ_DEBUG", "true")
 
 		service := newAssetRatesEntity(
@@ -73,42 +78,32 @@ func Test_newAssetRatesEntity_DebugMode(t *testing.T) {
 			"test-token",
 			map[string]string{"transaction": "https://api.example.com"},
 		)
-		assert.NotNil(t, service)
-
 		entity, ok := service.(*assetRatesEntity)
 		assert.True(t, ok)
-		assert.NotNil(t, entity.httpClient)
-		assert.True(t, entity.httpClient.debug)
+		assert.False(t, entity.httpClient.debug,
+			"v3 invariant: env vars must not bypass the explicit configuration path")
 	})
 
-	t.Run("with MIDAZ_DEBUG=false", func(t *testing.T) {
-		t.Setenv("MIDAZ_DEBUG", "false")
-
+	t.Run("default (no env, no option) is debug=false", func(t *testing.T) {
 		service := newAssetRatesEntity(
 			&http.Client{},
 			"test-token",
 			map[string]string{"transaction": "https://api.example.com"},
 		)
-		assert.NotNil(t, service)
-
 		entity, ok := service.(*assetRatesEntity)
 		assert.True(t, ok)
-		assert.NotNil(t, entity.httpClient)
 		assert.False(t, entity.httpClient.debug)
 	})
 
-	t.Run("without MIDAZ_DEBUG env var", func(t *testing.T) {
-		service := newAssetRatesEntity(
-			&http.Client{},
-			"test-token",
-			map[string]string{"transaction": "https://api.example.com"},
-		)
-		assert.NotNil(t, service)
-
-		entity, ok := service.(*assetRatesEntity)
-		assert.True(t, ok)
-		assert.NotNil(t, entity.httpClient)
-		assert.False(t, entity.httpClient.debug)
+	t.Run("WithDebug(true) option flips debug on (v3 path)", func(t *testing.T) {
+		// Build a parent entity, apply WithDebug, propagate, and verify
+		// the per-service entity inherits the debug flag.
+		ent := newTestEntity(t, &http.Client{}, "test-token",
+			map[string]string{"onboarding": "https://api.example.com", "transaction": "https://api.example.com"},
+			nil, WithDebug(true))
+		ar := ent.AssetRates.(*assetRatesEntity)
+		assert.True(t, ar.httpClient.debug,
+			"WithDebug(true) on parent must propagate to per-service HTTP clients")
 	})
 }
 

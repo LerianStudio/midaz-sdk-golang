@@ -46,13 +46,11 @@ const (
 	internalAutoIdempotencyHeader   = "X-Midaz-Auto-Idempotency"
 )
 
-// getUserAgent retrieves the user agent string from environment variable or uses default
-func getUserAgent() string {
-	// Check for environment variable
-	if userAgent := os.Getenv("MIDAZ_USER_AGENT"); userAgent != "" {
-		return userAgent
-	}
-	// Fall back to centralized version
+// defaultUserAgent returns the SDK's centralized user-agent string.
+// The configured value flows in via the WithUserAgent option (driven from
+// pkg/config.Config.UserAgent, which itself can be populated from the
+// MIDAZ_USER_AGENT env var when the caller opts in via FromEnvironment).
+func defaultUserAgent() string {
 	return version.UserAgent()
 }
 
@@ -103,19 +101,21 @@ type httpClientConfigSnapshot struct {
 	tokenInvalidator  func()
 }
 
-// NewHTTPClient creates a new HTTP client with the provided configuration.
-// The debug flag is set to false by default and can be overridden using the WithDebug option.
+// NewHTTPClient creates a new HTTP client with safe v3 defaults.
+//
+// v3 invariant (Track 3): no environment variables are read here. Configuration
+// flows in exclusively through pkg/config.Config and the WithDebug / WithUserAgent
+// / WithObservability / WithRetryOptions / SetEnableIdempotency setters. Callers
+// who want env-driven configuration must opt in via config.NewConfig(config.FromEnvironment()).
+//
+// Defaults: debug=false, userAgent=version.UserAgent(), enableIdempotency=true,
+// retryOptions=retry.DefaultOptions().
 //
 // Parameters:
-//   - client: The HTTP client to use for requests.
+//   - client: The underlying *http.Client. If nil, the SDK's package-level default is used.
 //   - authToken: The authentication token for API authorization.
 //   - provider: The observability provider for tracing, metrics, and logging (can be nil).
 func NewHTTPClient(client *http.Client, authToken string, provider observability.Provider) *HTTPClient {
-	debug := os.Getenv(EnvMidazDebug) == BoolTrue
-	retryOptions := initRetryOptionsFromEnv(provider)
-	metrics := initMetricsCollector(provider)
-
-	// Use the default client if none is provided
 	if client == nil {
 		client = defaultHTTPClient()
 	}
@@ -123,13 +123,13 @@ func NewHTTPClient(client *http.Client, authToken string, provider observability
 	return &HTTPClient{
 		client:            client,
 		authToken:         authToken,
-		userAgent:         getUserAgent(),
-		debug:             debug,
-		retryOptions:      retryOptions,
+		userAgent:         defaultUserAgent(),
+		debug:             false,
+		retryOptions:      retry.DefaultOptions(),
 		jsonPool:          performance.NewJSONPool(),
-		metrics:           metrics,
+		metrics:           initMetricsCollector(provider),
 		observability:     provider,
-		enableIdempotency: os.Getenv("MIDAZ_IDEMPOTENCY") != "false",
+		enableIdempotency: true,
 	}
 }
 
@@ -158,29 +158,6 @@ var defaultHTTPClient = sync.OnceValue(func() *http.Client {
 	}
 })
 
-// initRetryOptionsFromEnv initializes retry options from environment variables.
-func initRetryOptionsFromEnv(provider observability.Provider) *retry.Options {
-	retryOptions := retry.DefaultOptions()
-
-	// Check for retry configuration in environment variables
-	if maxRetries := os.Getenv("MIDAZ_MAX_RETRIES"); maxRetries != "" {
-		if val, err := strconv.Atoi(maxRetries); err == nil && val >= 0 {
-			if err := retry.WithMaxRetries(val)(retryOptions); err != nil {
-				logRetryError(provider, "Failed to set max retries: %v", err)
-			}
-		}
-	}
-
-	// Check if retries are disabled
-	if retryEnv := os.Getenv("MIDAZ_ENABLE_RETRIES"); retryEnv == "false" {
-		if err := retry.WithMaxRetries(0)(retryOptions); err != nil {
-			logRetryError(provider, "Failed to disable retries: %v", err)
-		}
-	}
-
-	return retryOptions
-}
-
 // initMetricsCollector initializes the metrics collector if observability is enabled.
 func initMetricsCollector(provider observability.Provider) *observability.MetricsCollector {
 	if provider == nil || !provider.IsEnabled() {
@@ -193,13 +170,6 @@ func initMetricsCollector(provider observability.Provider) *observability.Metric
 	}
 
 	return metrics
-}
-
-// logRetryError logs a retry configuration error if observability is enabled.
-func logRetryError(provider observability.Provider, format string, args ...any) {
-	if provider != nil && provider.IsEnabled() {
-		provider.Logger().Errorf(format, args...)
-	}
 }
 
 // WithRetryOptions sets custom retry options for the HTTP client.

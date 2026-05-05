@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
@@ -137,11 +136,6 @@ func (e *ledgersEntity) setDefaultTenantID(tenantID string) {
 func newLedgersEntity(client *http.Client, authToken string, baseURLs map[string]string) LedgersService {
 	// Create a new HTTP client with the shared implementation
 	httpClient := NewHTTPClient(client, authToken, nil)
-
-	// Check if we're using the debug flag from the environment
-	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
-		httpClient.setDebugLocked(true)
-	}
 
 	return &ledgersEntity{
 		httpClient: httpClient,

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
@@ -36,10 +35,6 @@ func (e *holdersEntity) setDefaultTenantID(tenantID string) {
 // newHoldersEntity creates a new HoldersService instance.
 func newHoldersEntity(client *http.Client, authToken string, baseURLs map[string]string) HoldersService {
 	httpClient := NewHTTPClient(client, authToken, nil)
-	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
-		httpClient.setDebugLocked(true)
-	}
-
 	return &holdersEntity{httpClient: httpClient, baseURLs: prepareServiceBaseURLs(baseURLs)}
 }
 

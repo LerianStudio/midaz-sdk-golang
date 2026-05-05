@@ -139,6 +139,13 @@ type Config struct {
 	transactionURLSet bool
 	crmURLSet         bool
 	httpClientOwned   bool
+
+	// skipAuthCheck bypasses the "plugin auth address required" validation when
+	// AccessManager.Enabled is true. Populated only by FromEnvironment when
+	// MIDAZ_SKIP_AUTH_CHECK=true is set; never read from env directly elsewhere.
+	// This is a test plumbing escape hatch — programmatic configuration should
+	// never set it.
+	skipAuthCheck bool
 }
 
 // Option is a function that configures a Config.
@@ -711,6 +718,13 @@ func configureOptionalSettings(c *Config) {
 	if idempotency := os.Getenv("MIDAZ_IDEMPOTENCY"); idempotency != "" {
 		c.EnableIdempotency = idempotency == boolTrue
 	}
+
+	// MIDAZ_SKIP_AUTH_CHECK is a test-plumbing escape hatch read only via
+	// FromEnvironment so validateConfig can consult c.skipAuthCheck instead
+	// of reading the environment directly.
+	if skip := os.Getenv("MIDAZ_SKIP_AUTH_CHECK"); skip == boolTrue {
+		c.skipAuthCheck = true
+	}
 }
 
 // parseEnvInt parses an integer from an environment variable.
@@ -885,12 +899,11 @@ func validateConfig(config *Config) error {
 		return errors.New("transaction URL is required")
 	}
 
-	// When plugin auth is enabled, we require the plugin auth address
-	if config.AccessManager.Enabled && config.AccessManager.Address == "" {
-		// But for tests, we'll skip this check
-		if os.Getenv("MIDAZ_SKIP_AUTH_CHECK") != boolTrue {
-			return errors.New("plugin auth address is required")
-		}
+	// When plugin auth is enabled, we require the plugin auth address.
+	// The skipAuthCheck escape hatch is populated only by FromEnvironment
+	// (via MIDAZ_SKIP_AUTH_CHECK=true) and is intended for tests only.
+	if config.AccessManager.Enabled && config.AccessManager.Address == "" && !config.skipAuthCheck {
+		return errors.New("plugin auth address is required")
 	}
 
 	return nil
@@ -1195,47 +1208,26 @@ func WithRetryWaitMax(waitTime time.Duration) Option {
 }
 
 // NewLocalConfig creates a Config for local development.
-// This is a convenience function for quickly setting up a local configuration.
+// This is a convenience function that combines:
+//   - Environment defaults pinned to EnvironmentLocal
+//   - Full env-var loading via FromEnvironment (PLUGIN_AUTH_*, MIDAZ_*, proxy)
+//   - Caller-supplied options applied last so they override env values
 //
 // Parameters:
-//   - options: Additional options to apply after local defaults and Access Manager environment values
+//   - options: Additional options to apply after the local + env-driven baseline
 //
 // Returns:
 //   - *Config: A configuration for local development
 //   - error: An error if configuration fails
+//
+// Behavior change vs v2: v2 only loaded PLUGIN_AUTH_* env vars in this path.
+// v3 routes every env-driven knob through FromEnvironment so there is exactly
+// one place that reads the environment.
 func NewLocalConfig(options ...Option) (*Config, error) {
-	// Get plugin auth values from environment
-	pluginAuthEnabled := false
-	pluginAuthAddress := "" // Default to authToken for backward compatibility
-	pluginAuthClientID := ""
-	pluginAuthClientSecret := ""
-
-	if enabled := os.Getenv("PLUGIN_AUTH_ENABLED"); enabled != "" {
-		pluginAuthEnabled = enabled == boolTrue || enabled == "1"
-	}
-
-	if address := os.Getenv("PLUGIN_AUTH_ADDRESS"); address != "" {
-		pluginAuthAddress = address
-	}
-
-	if clientID := os.Getenv("MIDAZ_CLIENT_ID"); clientID != "" {
-		pluginAuthClientID = clientID
-	}
-
-	if clientSecret := os.Getenv("MIDAZ_CLIENT_SECRET"); clientSecret != "" {
-		pluginAuthClientSecret = clientSecret
-	}
-
-	// Start with local environment
 	localOptions := append(
 		[]Option{
 			WithEnvironment(EnvironmentLocal),
-			WithAccessManager(auth.AccessManager{
-				Enabled:      pluginAuthEnabled,
-				Address:      pluginAuthAddress,
-				ClientID:     pluginAuthClientID,
-				ClientSecret: pluginAuthClientSecret,
-			}),
+			FromEnvironment(),
 		},
 		options...,
 	)

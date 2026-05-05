@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"mime/multipart"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -131,11 +130,6 @@ func (e *transactionsEntity) setDefaultTenantID(tenantID string) {
 //     methods for creating, retrieving, and managing transactions.
 func newTransactionsEntity(client *http.Client, authToken string, baseURLs map[string]string) TransactionsService {
 	httpClient := NewHTTPClient(client, authToken, nil)
-
-	// Check if we're using the debug flag from the environment
-	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
-		httpClient.setDebugLocked(true)
-	}
 
 	return &transactionsEntity{
 		httpClient: httpClient,

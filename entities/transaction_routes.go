@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"os"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
@@ -117,10 +116,6 @@ func (e *transactionRoutesEntity) setDefaultTenantID(tenantID string) {
 // newTransactionRoutesEntity creates a new TransactionRoutesService instance
 func newTransactionRoutesEntity(client *http.Client, authToken string, baseURLs map[string]string) TransactionRoutesService {
 	httpClient := NewHTTPClient(client, authToken, nil)
-
-	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
-		httpClient.setDebugLocked(true)
-	}
 
 	return &transactionRoutesEntity{
 		httpClient: httpClient,

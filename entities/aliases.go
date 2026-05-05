@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
@@ -38,10 +37,6 @@ func (e *aliasesEntity) setDefaultTenantID(tenantID string) {
 // newAliasesEntity creates a new AliasesService instance.
 func newAliasesEntity(client *http.Client, authToken string, baseURLs map[string]string) AliasesService {
 	httpClient := NewHTTPClient(client, authToken, nil)
-	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
-		httpClient.setDebugLocked(true)
-	}
-
 	return &aliasesEntity{httpClient: httpClient, baseURLs: prepareServiceBaseURLs(baseURLs)}
 }
 

@@ -27,14 +27,9 @@ const (
 	HeaderTotalCount = "X-Total-Count"
 )
 
-// Environment variable names used for SDK configuration.
+// Common boolean string literal used in HTTP header values for internal
+// idempotency negotiation (X-Midaz-Caller-Idempotency, X-Midaz-Auto-Idempotency).
 const (
-	// EnvMidazDebug is the environment variable name for enabling debug mode.
-	EnvMidazDebug = "MIDAZ_DEBUG"
-)
-
-// Boolean string values for environment variable comparison.
-const (
-	// BoolTrue represents the string value "true" for boolean environment variables.
+	// BoolTrue represents the string value "true".
 	BoolTrue = "true"
 )
