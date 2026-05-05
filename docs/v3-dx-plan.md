@@ -1,9 +1,9 @@
 # Midaz Go SDK v3 — DX Plan
 
-> **Status:** IN PROGRESS — Phase A active (Track 1 at 5 of 7 batches done)
+> **Status:** IN PROGRESS — **Phase A COMPLETE** (4/4 tracks). Phase B (Tracks 5–8) ready to start.
 > **Owner:** Fred (Lerian)
-> **Last updated:** 2026-05-05 (post-session 1)
-> **Scope:** Greenfield v3 with breaking-change budget. Deprecated shims acceptable for 1–2 minor versions to ease migration.
+> **Last updated:** 2026-05-06 (post-session 5, Phase A close)
+> **Scope:** Greenfield v3 — clean-cut major version. **No transitional v2.99 shim release; no deprecated-symbol window.** Customers swap their import from `/v2` to `/v3` and migrate at the same moment. The `Migration Story` section below has been revised to reflect this stance (the original 2-step v2.99 → v3.0 plan is preserved as historical context).
 
 ---
 
@@ -1953,12 +1953,12 @@ Week 3:   Track 2 (Auth & Tenant) — depends on Track 1
 Week 4-5: Track 4 (Logging) — depends on Tracks 1, 3
 ```
 
-**Phase A exit criteria:**
-- [ ] `client.New(client.WithAuthToken("..."), client.WithEnvironment(client.EnvProduction))` produces a fully-validated client
-- [ ] All implicit env-var reads removed; `FromEnvironment()` is the only env loader
-- [ ] `client.WithLogger(*slog.Logger)` is the canonical logging surface
-- [ ] No `MIDAZ_DEBUG` bypass path; debug routes through the logger
-- [ ] All deprecated v2 surface marked with `// Deprecated:` with migration breadcrumbs
+**Phase A exit criteria:** ✅ ALL MET (2026-05-06)
+- [x] `midaz.New(midaz.WithAccessManager(...), midaz.WithEnvironment(midaz.EnvProduction))` produces a fully-validated client. (Note: `WithAuthToken` was removed from scope per Decision 1 — `WithAccessManager` and `WithAnonymous` are the two sanctioned paths; `midaz.New()` with neither returns a typed configuration error.)
+- [x] All implicit env-var reads removed; `FromEnvironment()` is the only env loader. Verified by `rg "os.Getenv" --type go | grep -v _test.go | grep -v examples/ | grep -v ProxyFromEnvironment` returning 15 matches, all in `pkg/config/config.go` inside `FromEnvironment`.
+- [x] `midaz.WithLogger(*slog.Logger)` is the canonical logging surface. `Client.Logger()` always returns non-nil (discard handler default).
+- [x] No `MIDAZ_DEBUG` bypass path; debug routes through the logger. The 3 unconditional `os.Stderr` writes deleted; `MIDAZ_DEBUG` only takes effect via `FromEnvironment`.
+- [x] **REVISED criterion** (clean-cut decision in Track 2 prep, session 5): "All deprecated v2 surface marked with `// Deprecated:` with migration breadcrumbs" no longer applies — v3 removed deprecated shims entirely (no `entities/context.go`, no `entities.WithTenantID(ctx, ...)`, no `Entity.SetAuthToken`, etc.). Customers move from `/v2` to `/v3` in one step. The migration story below was revised accordingly.
 
 ### Phase B — Models & Data Flow (4–6 weeks)
 
@@ -2005,37 +2005,29 @@ Week 3: docs/ updates, migration guide, release prep
 
 ## Migration Story
 
-The v3 release ships with deprecated shims for one minor version (v2.99.x) so downstream Lerian customers have a graceful migration path. Two release vehicles:
+> **Revised 2026-05-06 (Track 2 prep, session 5):** the original two-release plan (v2.99.x transition release with deprecated shims, then v3.0 cleanup) was **abandoned** in favor of a **clean-cut major version**. Customers swap their import from `/v2` to `/v3` and migrate at the same moment. Rationale: deprecated shims that exist solely to ease a 30-day transition window add maintenance debt to the v3 codebase indefinitely (v2-shaped names linger in IDE autocomplete, godoc, CI), and the v2.99 lint-warning approach was speculative — there's no evidence customers would have adopted the warnings before the cutoff. The migration burden lands once, at `/v2 → /v3`, and the v3 surface stays clean.
 
-### v2.99.0 (transition release)
+### v3.0.0 (clean-cut release)
 
-Adds v3-shaped APIs **alongside** v2 APIs as opt-in. Marks v2 surface as `// Deprecated:` with replacement breadcrumbs.
-
-```go
-// v2.99.0 example: both styles work
-c, _ := client.New(
-    client.WithAuthToken("..."),    // NEW v3-style
-    client.WithEnvironment(client.EnvProduction),
-)
-
-// also works with deprecation warning:
-c, _ := client.New(
-    client.WithConfig(cfg),         // DEPRECATED — see WithAuthToken/WithAccessManager
-    client.UseAllAPIs(),            // DEPRECATED — Entity is always initialized in v3
-)
-```
-
-CI lints customer code for deprecated symbols and emits warnings.
-
-### v3.0.0 (cleanup release)
-
-Removes all deprecated v2 surface. Adopts the `/v3` module path:
+Single release vehicle. Adopts the `/v3` module path:
 
 ```go
-import client "github.com/LerianStudio/midaz-sdk-golang/v3"
+import "github.com/LerianStudio/midaz-sdk-golang/v3"
 ```
 
-`go.mod` major-version bump to v3. Customers update their import path; deprecated APIs are no longer available.
+Customers update their `go.mod` import path. The v2 surface continues to exist on the `develop` and `main` branches as `github.com/.../midaz-sdk-golang` (unsuffixed). It is in maintenance mode: bug fixes only, no new features.
+
+**v3 has zero deprecated shims.** No `entities.WithTenantID(ctx, ...)`, no `client.WithAuthToken`, no `Entity.SetAuthToken`, no `pkg/access-manager` directory. The migration guide below tells customers exactly what to swap.
+
+### Historical context (the abandoned plan)
+
+The original `v2.99 → v3.0` plan is preserved here because it shaped the early-Phase-A architecture decisions (e.g., Batch 1D originally created deprecated shim files in `entities/context.go`, which Track 2 / Batch 2B then deleted). Future readers reviewing the commit history will see this transition.
+
+The original two-step plan was:
+- **v2.99.0** (transition): v3-shaped APIs added alongside v2 APIs, v2 surface marked `// Deprecated:`, customers migrate at their own pace
+- **v3.0.0** (cleanup): all deprecated v2 surface removed, `/v3` module path adopted
+
+The clean-cut decision (session 5) consolidates both steps into v3.0.0. `entities/context.go` was the canonical shim file embodying the transitional approach; deleting it in Batch 2B was the explicit moment we abandoned the v2.99 plan.
 
 ### `docs/migration-v2-to-v3.md`
 
@@ -2059,53 +2051,52 @@ c, _ := client.New(client.WithAccessManager(client.AccessManager{...}))
 
 (Repeat for every track's breaking changes.)
 
-### Backward-compat fallbacks (v2.99 only)
+### Backward-compat fallbacks — ABANDONED with the v2.99 plan
 
-Some changes are sufficiently invasive that the v2.99 shim is non-trivial. Notably:
+The original plan listed three "non-trivial shim" cases (`*ListOptions` → typed `ListOpts`, `c.Entity.X` → `c.X`, dual `Validate()` semantics) that would have lived in v2.99 as deprecated aliases. **None of these shims will ship.** The clean-cut approach takes each as a hard breaking change:
 
-- **`*ListOptions` → per-service typed `ListOpts`** — v2.99 keeps `*ListOptions` as a deprecated alias that converts to/from the typed struct internally
-- **`c.Entity.Accounts.X` → `c.Accounts.X`** — v2.99 keeps `c.Entity` as a deprecated struct that delegates to the new top-level fields
-- **Two `Validate()` semantics (first-error vs accumulated)** — v2.99 keeps both signatures; deprecated path returns first error, new path returns `*FieldErrors`
+- `*ListOptions` → per-service typed `ListOpts`: Track 5 deletes `*ListOptions` outright. Customers switch to the typed struct in one step.
+- `c.Entity.Accounts.X` → `c.Accounts.X`: already shipped in Track 1 (Batch 1C). `c.Entity` survives as the embedded pointer for direct access (`c.Entity` is `*entities.Entity`); `c.Accounts.X` is the canonical idiom.
+- Dual `Validate()` semantics: Track 7 picks one (`*FieldErrors`, accumulated) and migrates every input.
 
-These are documented as v2.99 → v3 breaking changes in the migration guide so customers know what to expect.
+### Customer notification timeline (revised)
 
-### Customer notification timeline
+- **T-0 (v3.0.0 release):** Announce v3; migration guide live; `docs/migration-v2-to-v3.md` covers every breaking change with side-by-side code; `/v2` continues in maintenance mode (bug fixes only).
+- **T+90 days:** v2 reaches end-of-feature-life; security patches only.
+- **T+365 days:** v2 fully sunset.
 
-- **T-0 (v2.99.0 release):** Announce v3 design; migration guide live; v2 marked deprecated; customers can begin migrating
-- **T+30 days (v2.99.1+):** Bug-fix patches only on v2.99; new features land only on v3 main
-- **T+60 days (v3.0.0 release):** Hard cutoff; v2 surface fully removed
-- **T+180 days (v3.1.0+):** v2.99 maintenance ends; security fixes only
+The original 60-day v2.99 → v3.0 cutoff was based on the assumption that the dual-API release would catch most consumers. The clean-cut approach lengthens the v2-maintenance window because there's no transitional release to lean on.
 
 ---
 
 ## Acceptance Criteria Summary
 
-A v3 candidate release passes ALL of these:
+A v3 candidate release passes ALL of these. **Phase A items (Tracks 1–4) all checked as of 2026-05-06.**
 
-### Track 1 — Naked SDK
-- [ ] `client.New()` (zero opts) returns typed configuration error
-- [ ] All services on `*Client` always non-nil after `New()` succeeds
-- [ ] No public `entities.NewXxxEntity` constructors
-- [ ] No `Use*` options
-- [ ] Top-level package re-exports common types
+### Track 1 — Naked SDK ✅ COMPLETE
+- [x] `midaz.New()` (zero opts) returns typed configuration error (initially via missing required URLs; Track 2 strengthened this with the auth-required gate)
+- [x] All services on `*Client` always non-nil after `New()` succeeds
+- [x] No public `entities.NewXxxEntity` constructors
+- [x] No `Use*` options
+- [x] Top-level package re-exports common types (56 type aliases on `midaz.*`)
 
-### Track 2 — Auth & Tenant
-- [ ] `client.WithAuthToken("token")` is a single-line setup
-- [ ] `client.WithAccessManager(am)` works without `pkg/config` import
-- [ ] `pkg/auth` directory matches package name
-- [ ] `docs/auth.md` and `docs/multi-tenancy.md` exist
+### Track 2 — Auth & Tenant ✅ COMPLETE
+- [x] **REVISED:** `WithAuthToken` removed from scope per Decision 1. `midaz.WithAccessManager(am)` is the production path; `midaz.WithAnonymous()` is the explicit auth-less path. Construction with neither returns a typed configuration error.
+- [x] `midaz.WithAccessManager(am)` works without `pkg/config` import (re-exported via `types.go`)
+- [x] `pkg/auth` directory matches package name (renamed from `pkg/access-manager`)
+- [x] `docs/auth.md` and `docs/multi-tenancy.md` exist
 
-### Track 3 — Implicit env reads
-- [ ] `os.Getenv` calls outside `pkg/config/FromEnvironment` and stdlib proxy: 0
-- [ ] `MIDAZ_DEBUG=true` does NOT override `WithDebug(false)` (test asserted)
-- [ ] `MIDAZ_ENABLE_RETRIES` removed from codebase
+### Track 3 — Implicit env reads ✅ COMPLETE
+- [x] `os.Getenv` calls outside `pkg/config/FromEnvironment` and stdlib proxy: 0
+- [x] `MIDAZ_DEBUG=true` does NOT override `WithDebug(false)` (test asserted via `Test_newAssetRatesEntity_DebugMode`)
+- [x] `MIDAZ_ENABLE_RETRIES` removed from codebase (`rg MIDAZ_ENABLE_RETRIES` → 0 matches)
 
-### Track 4 — Logging
-- [ ] `client.WithLogger(*slog.Logger)` works with stdlib slog
-- [ ] `Client.Logger()` returns non-nil always
-- [ ] Retry attempts emit structured logs with documented field schema
-- [ ] No unconditional stderr writes anywhere
-- [ ] `docs/logging.md` with integration examples for slog/charm/zap/zerolog
+### Track 4 — Logging ✅ COMPLETE
+- [x] `midaz.WithLogger(*slog.Logger)` works with stdlib slog
+- [x] `Client.Logger()` returns non-nil always (discard handler default)
+- [x] Retry attempts emit structured logs with documented field schema (sdk.name, sdk.component='retry', operation, http.method, url.path, attempt, max_attempts, delay_ms, cause, http.status_code)
+- [x] No unconditional stderr writes anywhere (3 deleted in Track 4)
+- [x] `docs/logging.md` with integration examples for slog/charm/zap/zerolog
 
 ### Track 5 — Pagination
 - [ ] Every list method exposes `List`, `ListAll`, `ListPages`
@@ -2332,31 +2323,34 @@ A running record of design decisions with rationale. Append-only; never edit his
 
 ## Status Tracker
 
-Live as of: 2026-05-05 (post-session 1). Update with every commit batch.
+Live as of: 2026-05-06 (post-session 5, Phase A close). Update with every commit batch.
 
 ### Phase A — Foundation
 
 | Track | Status | Started | Completed | Branch / Commits | Notes |
 |-------|--------|---------|-----------|------------------|-------|
-| 1 — Naked SDK & Entry Points | 🟢 **COMPLETE** (7/7 + lint sweep) | 2026-05-05 | 2026-05-06 | `v3` branch, commits f8e2109..588997a | All batches shipped. Acceptance criteria for `WithAuthToken` (Track 2), `Logger()` non-nil (Track 4), and example migration (Track 9) intentionally deferred. |
+| 1 — Naked SDK & Entry Points | 🟢 **COMPLETE** (7/7 + lint sweep) | 2026-05-05 | 2026-05-06 | `v3` branch, commits f8e2109..588997a | All 7 batches + lint sweep shipped. Track 1's deferred acceptance criteria all closed by downstream tracks: `WithAuthToken` was REMOVED FROM SCOPE in Track 2 (Decision 1, no static-token capability in v3); `Logger()` non-nil delivered by Track 4; example migration deferred to Phase C / Track 9 (still 32 example files use the `client` import alias). |
 | 2 — Auth & Tenant Chaos | 🟢 **COMPLETE** | 2026-05-06 | 2026-05-06 | `v3` branch, commits `5f22b2c` → `fc38b74` (6 batches) | 6-batch close. **Decision change during execution:** dropped `WithAuthToken` from scope per Decision 1 — v3 has zero static-token capability. Only paths: `WithAccessManager` (auto-enables) + `WithAnonymous`. Auth-required gate at `validateConfig`. Directory rename `pkg/access-manager` → `pkg/auth`. New `Config.GetTenantID()` interface drives tenant propagation (replaces Option-chain bridge). 5 dead public surfaces deleted (`WithDefaultTenantID`, `WithPluginAuth`, `Entity.SetAuthToken`, `HTTPClient.SetTenantID`, `config.WithTenantID`) plus `pkg/auth.EntityOption` flavor of `WithAccessManager` and the `entities/context.go` shim file. New `docs/auth.md` + `docs/multi-tenancy.md`. Net delta across 6 batches: ~+1,100 / ~-1,300 = **net -200 lines** (counting docs additions). |
 | 3 — Implicit env reads | 🟢 **COMPLETE** | 2026-05-06 | 2026-05-06 | `v3` branch, commit `8cdafd2` | Single-commit batch. 39 production env reads → 15 (all in pkg/config FromEnvironment path). 20 files, **-156 net lines**. `MIDAZ_ENABLE_RETRIES` killswitch deleted. |
 | 4 — Logging gap | 🟢 **COMPLETE** | 2026-05-06 | 2026-05-06 | `v3` branch, commit `d54c930` | Single-commit batch. `*slog.Logger` canonical contract. `WithLogger` + `WithSlowCallThreshold` options. Retry-attempt logging wired (was `// TODO`). `RecordRetry` called from production. 3 stderr writes removed. `Fatal`/`Fatalf` removed from Logger interface. New `docs/logging.md` + `examples/logging-slog/`. 14 files, +842 / -223 lines. |
 
-### Phase B — Models & Data Flow
+### Phase B — Models & Data Flow (ready to start)
+
+All Phase A dependencies are satisfied. Tracks can begin in dependency order:
+**6 first**, then **7** (depends on 6), then **5** + **8** in parallel (both depend on 1+6, with 8 also needing 4).
 
 | Track | Status | Started | Completed | Branch / Commits | Notes |
 |-------|--------|---------|-----------|------------------|-------|
-| 5 — Pagination footguns | 🔵 Not started | — | — | — | Depends on Tracks 1, 6. Per-service typed `ListOpts`, `iter.Seq2` iterators, deletes dead `pkg/pagination`. |
-| 6 — Functional options sprawl | 🔵 Not started | — | — | — | Must land before 5, 7. Consolidates ~120 options to ≤60. |
-| 7 — Builder/Model API drift | 🔵 Not started | — | — | — | Depends on Track 6. Converges every entity on Account-shaped pattern. |
-| 8 — Error system actionability | 🔵 Not started | — | — | — | Depends on Tracks 1, 4. Network-error typing, `Operation`/`ResourceID` plumbing. |
+| 5 — Pagination footguns | 🔵 Not started | — | — | — | Depends on Tracks 1, 6. Per-service typed `ListOpts`, `iter.Seq2` iterators, deletes dead `pkg/pagination`. The 3 stderr writes deleted in Track 4 (cursor warning, offset warning, optimizer error) need their semantics re-homed here as typed errors on the new `ListOpts`. |
+| 6 — Functional options sprawl | 🔵 Not started | — | — | — | Must land before 5, 7. Consolidates ~120 options to ≤60. v3 already deleted ~10 redundant options across Phase A (Use\* trio, WithDefaultTenantID, WithPluginAuth, config.WithTenantID, etc.) so the starting count is ~110. |
+| 7 — Builder/Model API drift | 🔵 Not started | — | — | — | Depends on Track 6. Converges every entity on Account-shaped pattern. The deferred Track 3 acceptance criterion (`entities.NewHTTPClient` accepts an explicit `HTTPClientConfig` struct) folds into this track. |
+| 8 — Error system actionability | 🔵 Not started | — | — | — | Depends on Tracks 1, 4. Network-error typing, `Operation`/`ResourceID` plumbing. Track 4 already added `errors.NewConfigurationError` + `IsConfigurationError`; Track 8 extends the same pattern to network/HTTP errors. |
 
-### Phase C — Polish
+### Phase C — Polish (blocked on Phase B)
 
 | Track | Status | Started | Completed | Branch / Commits | Notes |
 |-------|--------|---------|-----------|------------------|-------|
-| 9 — Examples, godoc, mocks | 🔵 Not started | — | — | — | Depends on Phase A + B stable. Per-example READMEs, hello-world, slog example, mocks → `go.uber.org/mock`. |
+| 9 — Examples, godoc, mocks | 🔵 Not started | — | — | — | Depends on Phase A + B stable. Includes the deferred Track 1 acceptance criterion (rewrite all 32 example files from `client.X` alias to canonical `midaz.X` idiom). Per-example READMEs, hello-world, slog example (already shipped in Track 4 as `examples/logging-slog/`), mocks → `go.uber.org/mock`. README full rewrite — Track 2 made auth-section minimum updates only. |
 
 ### Track 1 batch-level progress
 
@@ -2375,82 +2369,64 @@ Live as of: 2026-05-05 (post-session 1). Update with every commit batch.
 
 ## Open Questions
 
-A list of decisions deferred to later phases or pending Fred input. Move to Decision Log once resolved.
+A list of decisions pending Fred input or deferred to a later phase. Resolved questions move to the Decision Log.
 
-### Q1: Module path strategy for v3 — ✅ DECIDED 2026-05-05
-**Decision:** `github.com/LerianStudio/midaz-sdk-golang/v3` — clean Go semantic import versioning. Customers update their import path; deprecated APIs are no longer available in v3.
-**Decided by:** Fred
+### Resolved during execution
 
-### Q2: `c.Entity` deprecation shim duration
-**Question:** Should v2.99 keep `c.Entity` as a deprecated field that delegates to top-level services, or is that too much shim code?
+| # | Question | Resolution | Phase |
+|---|----------|------------|-------|
+| Q1 | Module path strategy for v3 | ✅ `/v3` semantic import versioning | Pre-execution |
+| Q2 | `c.Entity` deprecation shim duration | ✅ ABANDONED with the v2.99 plan. `c.Entity` is the embedded pointer for direct access (`c.Entity` is `*entities.Entity`); the deprecation-window concept doesn't apply to a clean-cut release. | Track 1 / session 5 |
+| Q3 | AccessManager re-export type strategy | ✅ Type alias (`type AccessManager = auth.AccessManager`) shipped in Track 2 Batch 2A via `types.go`. Track 1's pattern (56 model aliases) was the precedent. | Track 2 |
+| Q7 | Naming of `entities` package | ✅ `pkg/sdkctx` carries context helpers (shipped in Batch 1D). `entities/` partially survives — services live there. Full deletion deferred to Phase B / Track 7 when services move to per-service packages. | Track 1 |
+| Q8 | Top-level package import name | ✅ `midaz` (renamed from `client` in Batch 1A) | Track 1 |
+
+### Pending — block on Fred input
+
+#### Q4: Eager health check default
+**Question:** Should `midaz.New()` perform an eager `GET /health` check by default, or stay lazy?
 **Options:**
-- A: Keep `c.Entity` for the full v2.99 lifetime (~30 days)
-- B: Remove `c.Entity` immediately in v2.99; force migration before v3.0
-**Recommendation:** A. Reduces customer migration friction.
-**Status:** Pending Fred decision.
+- A: Lazy by default; opt-in via `midaz.WithEagerCheck(true)`. Lower init time; failures surface on first call.
+- B: Eager by default; opt-out via `midaz.WithoutEagerCheck()`. Slower init but fail-fast.
 
-### Q3: AccessManager re-export type strategy
-**Question:** `client.AccessManager` should be a type alias (`type AccessManager = auth.AccessManager`) or a wrapping struct?
-**Options:**
-- A: Type alias — zero-cost, identical to underlying type
-- B: Wrapping struct — allows future evolution without breaking clients of `client.AccessManager`
-**Recommendation:** A. Aliases are sufficient; we can break v3→v4 if needed.
-**Status:** Pending Fred decision.
+**Status:** Pending. Track 2's auth-required gate (Batch 2C) eagerly fetches a token from Access Manager, which is itself a strong "fail-fast at construction" signal — the gate already catches misconfigured auth before the first API call. An eager `/health` check would be **additional** fail-fast coverage for misconfigured service URLs. Recommendation **B** seems more aligned with the rest of the v3 ergonomics (eager validation in Track 1's Batch 1F, eager token fetch in Track 2). Decide before Phase B closes; the implementation is small but the default has cascading test-fixture implications.
 
-### Q4: Eager health check default
-**Question:** Should `client.New()` perform an eager `GET /health` check by default, or stay lazy?
-**Options:**
-- A: Lazy by default; opt-in via `client.WithEagerCheck(true)`. Lower init time; failures surface on first call.
-- B: Eager by default; opt-out via `client.WithoutEagerCheck()`. Slower init but fail-fast.
-**Recommendation:** A. Eager checks add network calls during init that surprise users.
-**Status:** Pending Fred decision.
-
-### Q5: How to handle the `transactions.CreateInflow/Outflow/Annotation` family
+#### Q5: How to handle the `transactions.CreateInflow/Outflow/Annotation` family
 **Question:** Six Create methods on `TransactionsService` (Create, CreateFromDSL, CreateFromDSLFile, CreateInflow, CreateOutflow, CreateAnnotation). Keep all six?
 **Options:**
 - A: Keep all six; document the decision tree at the interface top
 - B: Collapse into one `Create(ctx, ..., input TransactionInput)` where `TransactionInput` is an interface implemented by 5 concrete types
 - C: Three methods: `Create`, `CreateFromDSL`, `CreateSpecial(ctx, ..., kind, input)`
-**Recommendation:** A. Each hits a different endpoint; explicit names map to explicit endpoints.
-**Status:** Pending Fred decision.
 
-### Q6: Should `client.WithDebug(true)` install a default logger or only affect log level?
-**Question:** If user calls `WithDebug(true)` but never `WithLogger(...)`, do we install a default debug-level stderr slog handler, or leave the discard handler and emit nothing?
+**Status:** Pending. Belongs in Phase B / Track 7 (Builder/Model API drift). Recommendation **A** still stands — each method hits a different endpoint, and explicit names map to explicit endpoints.
+
+#### Q6: Should `WithDebug(true)` install a default logger?
+**Question:** If user calls `midaz.WithDebug(true)` but never `WithLogger(...)`, do we install a default debug-level stderr slog handler, or leave the discard handler and emit nothing?
 **Options:**
 - A: Install default debug handler — convenient; matches today's "MIDAZ_DEBUG=true → see output" behavior
 - B: Leave discard handler — strict; user must explicitly opt in via `WithLogger`
-**Recommendation:** A. Maintains today's user expectation; explicit opt-out via `WithoutLogger()` if user really wants silence.
-**Status:** Pending Fred decision.
 
-### Q7: Naming of `entities` package in v3 — ✅ DECIDED 2026-05-05
-**Decision:** Move all context helpers (`WithIdempotencyKey`, `WithRequestTenantID`, `WithoutAutoIdempotency`, new `WithIncludeDeleted`/`WithHardDelete`) to a new `pkg/sdkctx/` package. **Delete `entities/` entirely.** Service interfaces live directly on `*midaz.Client`. The "entity" abstraction was transitional; v3 retires it.
-**Customer-facing migration:**
-```go
-// v2 (deprecated)
-ctx = entities.WithIdempotencyKey(ctx, "key-123")
-ctx = entities.WithTenantID(ctx, "acme")
+**Status:** **Partially answered by Track 4.** `MIDAZ_DEBUG=true` (only via `FromEnvironment`) DOES install a stderr text handler at debug level when `WithLogger` was not called (option A behavior). The remaining sub-question is whether `midaz.WithDebug(true)` (the explicit option) should do the same. Today it sets `Config.Debug=true` which `resolveLogger` reads as "install default handler". **Effectively answered A**, but document explicitly when Track 9 rewrites the WithDebug godoc.
 
-// v3
-import "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
+### New questions raised during Phase A execution
 
-ctx = sdkctx.WithIdempotencyKey(ctx, "key-123")
-ctx = sdkctx.WithRequestTenantID(ctx, "acme")
-```
-**Decided by:** Fred
+#### Q9: Behavior of `MIDAZ_TENANT_ID` when `WithConfig` is used without `FromEnvironment`
+**Question:** A user calls `midaz.New(midaz.WithConfig(myCfg), midaz.WithTenantID("acme"))`. The user-supplied `myCfg` was built without `FromEnvironment()`. `MIDAZ_TENANT_ID=other` is in the shell. What should happen?
+**Current behavior (post-Track 2):** The shell value is ignored — `myCfg.TenantID` was never populated by `FromEnvironment`. The client uses `"acme"` per `WithTenantID`. This matches the v3 explicit-opt-in principle.
+**Status:** No action required. Documented in `docs/multi-tenancy.md`. Flagging here so Phase B reviewers don't re-litigate.
 
-### Q8: Top-level package import name — ✅ DECIDED 2026-05-05
-**Decision:** Rename root package from `client` to `midaz`. Customers write `c := midaz.New(...)` instead of `client.New(...)`. Reads naturally; matches the product name; idiomatic for a domain SDK (cf. `aws.NewSession`, `stripe.NewClient`).
-**Customer-facing migration:**
-```go
-// v2 (deprecated)
-import client "github.com/LerianStudio/midaz-sdk-golang/v2"
-c, _ := client.New(client.WithConfig(cfg), client.UseAllAPIs())
+#### Q10: How aggressive should Track 6 be on consolidating duplicated `WithDebug` / `WithUserAgent` / `WithMaxRetries` across `midaz` / `pkg/config` / `entities`?
+**Question:** v3 currently has parallel `WithDebug` etc. at three layers. Track 6's "≤60 options" target requires picking one canonical layer.
+**Options:**
+- A: Push everything to `midaz.With*` (the canonical user-facing surface). `pkg/config` becomes value-shape only (no Options). `entities.With*` deletes.
+- B: Keep `pkg/config.With*` as the canonical "build a Config you own" path. `midaz.With*` becomes a thin wrapper. `entities.With*` deletes.
+- C: Deduplicate but keep both layers. Document precedence.
 
-// v3
-import "github.com/LerianStudio/midaz-sdk-golang/v3"
-c, _ := midaz.New(midaz.WithAuthToken("..."), midaz.WithEnvironment(midaz.EnvProduction))
-```
-**Decided by:** Fred
+**Status:** Pending. Belongs to Track 6 design phase. Recommendation **A** matches the Track 1 / Track 2 trajectory (delete redundant layers, push to root). Decide at Track 6 kickoff.
+
+#### Q11: Should Phase B Track 7 fold in the deferred `HTTPClientConfig` struct refactor from Track 3?
+**Question:** Track 3 deferred the `entities.NewHTTPClient(HTTPClientConfig)` struct-based constructor refactor to "Track 7 / Phase B". Track 7 is "Builder/Model API drift" — primarily about input/output model shapes. Does the HTTPClient constructor refactor naturally fit there, or is it Track 6 (options) work?
+**Status:** Pending. Likely **Track 6** since it's option-shape work, not model-shape work. Decide at Phase B kickoff.
 
 ---
 
@@ -2458,18 +2434,32 @@ c, _ := midaz.New(midaz.WithAuthToken("..."), midaz.WithEnvironment(midaz.EnvPro
 
 Per Fred's decision to roll quick wins into v3 (no v2.x patch ship), these surgical fixes become part of the v3 commit history. Listed here for traceability.
 
-| # | Fix | Track | Effort |
-|---|-----|-------|--------|
-| QW1 | Remove 14 redundant `os.Getenv("MIDAZ_DEBUG")` blocks from entity constructors | 3 | 30 min |
-| QW2 | Strip `"custom retryable: "` prefix from `retryableCustomPolicyError.Error()` | 8 | 5 min |
-| QW3 | Wrap network errors in `NewNetworkError` at `entities/http.go:1289` | 8 | 30 min |
-| QW4 | Plumb `Operation` into `parseErrorResponse` | 8 | 1 hour |
-| QW5 | Plumb `ResourceID` from `Get*`/`Update*`/`Delete*` call sites | 8 | 2 hours |
-| QW6 | Add `pkg/errors/doc.go` with taxonomy | 8 | 30 min |
-| QW7 | Add `examples/README.md` index + per-example READMEs | 9 | 4 hours |
-| QW8 | Add `examples/01-hello-world/` | 9 | 1 hour |
-| QW9 | Fix broken `docs/tracing.md:191-195` example | 4 | 5 min |
-| QW10 | Migrate `entities/mocks/` to `go.uber.org/mock` | 9 | 2 hours |
+| # | Fix | Track | Status | Shipped in |
+|---|-----|-------|--------|-----------|
+| QW1 | Remove 14 redundant `os.Getenv("MIDAZ_DEBUG")` blocks from entity constructors | 3 | ✅ Done | Track 3 (commit 8cdafd2) |
+| QW2 | Strip `"custom retryable: "` prefix from `retryableCustomPolicyError.Error()` | 8 | 🔵 Pending | Phase B / Track 8 |
+| QW3 | Wrap network errors in `NewNetworkError` at `entities/http.go:1289` | 8 | 🔵 Pending | Phase B / Track 8 |
+| QW4 | Plumb `Operation` into `parseErrorResponse` | 8 | 🔵 Pending | Phase B / Track 8 |
+| QW5 | Plumb `ResourceID` from `Get*`/`Update*`/`Delete*` call sites | 8 | 🔵 Pending | Phase B / Track 8 |
+| QW6 | Add `pkg/errors/doc.go` with taxonomy | 8 | 🔵 Pending | Phase B / Track 8 |
+| QW7 | Add `examples/README.md` index + per-example READMEs | 9 | 🔵 Pending | Phase C / Track 9 |
+| QW8 | Add `examples/01-hello-world/` | 9 | 🔵 Pending | Phase C / Track 9 |
+| QW9 | Fix broken `docs/tracing.md:191-195` example | 4 | ✅ Done | Track 4 (commit d54c930) |
+| QW10 | Migrate `entities/mocks/` to `go.uber.org/mock` | 9 | 🔵 Pending | Phase C / Track 9 |
+
+**Phase A unplanned wins (folded in during execution):**
+
+| # | Fix | Track | Shipped in |
+|---|-----|-------|-----------|
+| QW-A1 | Lint baseline cleanup: 11 pre-existing issues → 0 | 1 | Track 1 lint sweep (commit ab98a64) |
+| QW-A2 | `MIDAZ_ENABLE_RETRIES` killswitch deleted | 3 | Track 3 (commit 8cdafd2) |
+| QW-A3 | `Logger.Fatal/Fatalf` removed from public Logger interface | 4 | Track 4 (commit d54c930) |
+| QW-A4 | 3 unconditional `os.Stderr` writes deleted | 4 | Track 4 (commit d54c930) |
+| QW-A5 | `MetricsCollector.RecordRetry` called from production (was test-only) | 4 | Track 4 (commit d54c930) |
+| QW-A6 | `entities/context.go` shim file deleted entirely | 2 | Track 2 / Batch 2B (commit f6ad4bf) |
+| QW-A7 | `pkg/auth.EntityOption` and EntityOption-flavor `WithAccessManager` deleted (zero production callers) | 2 | Track 2 / Batch 2D (commit ff8e5d4) |
+| QW-A8 | `pkg/config.WithTenantID` Option deleted (redundant with `midaz.WithTenantID`) | 2 | Track 2 / Batch 2E (commit 161ee0e) |
+| QW-A9 | depguard `pkg: log` deny rule removed (was blocking `log/slog` by prefix) | 4 | Track 4 (commit d54c930) |
 
 ---
 
