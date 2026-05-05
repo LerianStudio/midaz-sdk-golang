@@ -107,7 +107,7 @@ func TestEnvironmentConstants(t *testing.T) {
 }
 
 func TestNewConfig_Defaults(t *testing.T) {
-	config, err := NewConfig(WithAccessManager(auth.AccessManager{Enabled: false}))
+	config, err := NewConfig(WithAnonymous())
 	require.NoError(t, err)
 
 	assert.Equal(t, EnvironmentLocal, config.Environment)
@@ -190,7 +190,7 @@ func TestWithEnvironment_AllEnvironments(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			config, err := NewConfig(
 				WithEnvironment(tc.env),
-				WithAccessManager(auth.AccessManager{Enabled: false}),
+				WithAnonymous(),
 			)
 			require.NoError(t, err)
 			assert.Equal(t, tc.env, config.Environment)
@@ -233,7 +233,7 @@ func TestWithEnvironment_WithBaseURL(t *testing.T) {
 			config, err := NewConfig(
 				WithEnvironment(tc.env),
 				WithBaseURL("https://api.custom.io"),
-				WithAccessManager(auth.AccessManager{Enabled: false}),
+				WithAnonymous(),
 			)
 			require.NoError(t, err)
 			assert.Equal(t, tc.env, config.Environment)
@@ -258,7 +258,7 @@ func TestWithOnboardingURL_Valid(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			config, err := NewConfig(
 				WithOnboardingURL(tc.url),
-				WithAccessManager(auth.AccessManager{Enabled: false}),
+				WithAnonymous(),
 			)
 			require.NoError(t, err)
 			assert.Equal(t, tc.url, config.ServiceURLs[ServiceOnboarding])
@@ -282,7 +282,7 @@ func TestWithOnboardingURL_Invalid(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := NewConfig(
 				WithOnboardingURL(tc.url),
-				WithAccessManager(auth.AccessManager{Enabled: false}),
+				WithAnonymous(),
 			)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tc.expectedErr)
@@ -304,7 +304,7 @@ func TestWithTransactionURL_Valid(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			config, err := NewConfig(
 				WithTransactionURL(tc.url),
-				WithAccessManager(auth.AccessManager{Enabled: false}),
+				WithAnonymous(),
 			)
 			require.NoError(t, err)
 			assert.Equal(t, tc.url, config.ServiceURLs[ServiceTransaction])
@@ -327,7 +327,7 @@ func TestWithTransactionURL_Invalid(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := NewConfig(
 				WithTransactionURL(tc.url),
-				WithAccessManager(auth.AccessManager{Enabled: false}),
+				WithAnonymous(),
 			)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tc.expectedErr)
@@ -339,7 +339,7 @@ func TestWithBaseURL_LocalEnvironment(t *testing.T) {
 	config, err := NewConfig(
 		WithEnvironment(EnvironmentLocal),
 		WithBaseURL("https://custom.example.com"),
-		WithAccessManager(auth.AccessManager{Enabled: false}),
+		WithAnonymous(),
 	)
 	require.NoError(t, err)
 
@@ -379,7 +379,7 @@ func TestWithBaseURL_NonLocalEnvironment(t *testing.T) {
 			config, err := NewConfig(
 				WithEnvironment(tc.env),
 				WithBaseURL(tc.baseURL),
-				WithAccessManager(auth.AccessManager{Enabled: false}),
+				WithAnonymous(),
 			)
 			require.NoError(t, err)
 			assert.Equal(t, tc.expected[ServiceOnboarding], config.ServiceURLs[ServiceOnboarding])
@@ -392,7 +392,7 @@ func TestWithBaseURL_TrailingSlash(t *testing.T) {
 	config, err := NewConfig(
 		WithEnvironment(EnvironmentProduction),
 		WithBaseURL("https://api.example.com/"),
-		WithAccessManager(auth.AccessManager{Enabled: false}),
+		WithAnonymous(),
 	)
 	require.NoError(t, err)
 	assert.Equal(t, "https://api.example.com/v1", config.ServiceURLs[ServiceOnboarding])
@@ -401,7 +401,7 @@ func TestWithBaseURL_TrailingSlash(t *testing.T) {
 func TestWithBaseURL_Invalid(t *testing.T) {
 	_, err := NewConfig(
 		WithBaseURL("invalid-url"),
-		WithAccessManager(auth.AccessManager{Enabled: false}),
+		WithAnonymous(),
 	)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid base URL")
@@ -411,7 +411,7 @@ func TestWithHTTPClient_Valid(t *testing.T) {
 	customClient := &http.Client{Timeout: 120 * time.Second}
 	config, err := NewConfig(
 		WithHTTPClient(customClient),
-		WithAccessManager(auth.AccessManager{Enabled: false}),
+		WithAnonymous(),
 	)
 	require.NoError(t, err)
 	assert.Equal(t, customClient, config.HTTPClient)
@@ -420,7 +420,7 @@ func TestWithHTTPClient_Valid(t *testing.T) {
 func TestWithHTTPClient_Nil(t *testing.T) {
 	_, err := NewConfig(
 		WithHTTPClient(nil),
-		WithAccessManager(auth.AccessManager{Enabled: false}),
+		WithAnonymous(),
 	)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "HTTP client cannot be nil")
@@ -441,7 +441,7 @@ func TestWithTimeout_Valid(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			config, err := NewConfig(
 				WithTimeout(tc.timeout),
-				WithAccessManager(auth.AccessManager{Enabled: false}),
+				WithAnonymous(),
 			)
 			require.NoError(t, err)
 			assert.Equal(t, tc.timeout, config.Timeout)
@@ -462,7 +462,7 @@ func TestWithTimeout_Invalid(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := NewConfig(
 				WithTimeout(tc.timeout),
-				WithAccessManager(auth.AccessManager{Enabled: false}),
+				WithAnonymous(),
 			)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "timeout must be greater than 0")
@@ -473,7 +473,7 @@ func TestWithTimeout_Invalid(t *testing.T) {
 func TestWithUserAgent_Valid(t *testing.T) {
 	config, err := NewConfig(
 		WithUserAgent("custom-agent/2.0"),
-		WithAccessManager(auth.AccessManager{Enabled: false}),
+		WithAnonymous(),
 	)
 	require.NoError(t, err)
 	assert.Equal(t, "custom-agent/2.0", config.UserAgent)
@@ -482,7 +482,7 @@ func TestWithUserAgent_Valid(t *testing.T) {
 func TestWithUserAgent_Empty(t *testing.T) {
 	_, err := NewConfig(
 		WithUserAgent(""),
-		WithAccessManager(auth.AccessManager{Enabled: false}),
+		WithAnonymous(),
 	)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "user agent cannot be empty")
@@ -505,7 +505,7 @@ func TestWithRetryConfig_Valid(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			config, err := NewConfig(
 				WithRetryConfig(tc.maxRetries, tc.minWait, tc.maxWait),
-				WithAccessManager(auth.AccessManager{Enabled: false}),
+				WithAnonymous(),
 			)
 			require.NoError(t, err)
 			assert.Equal(t, tc.maxRetries, config.MaxRetries)
@@ -533,7 +533,7 @@ func TestWithRetryConfig_Invalid(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := NewConfig(
 				WithRetryConfig(tc.maxRetries, tc.minWait, tc.maxWait),
-				WithAccessManager(auth.AccessManager{Enabled: false}),
+				WithAnonymous(),
 			)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tc.expectedErr)
@@ -556,7 +556,7 @@ func TestWithMaxRetries_Valid(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			config, err := NewConfig(
 				WithMaxRetries(tc.maxRetries),
-				WithAccessManager(auth.AccessManager{Enabled: false}),
+				WithAnonymous(),
 			)
 			require.NoError(t, err)
 			assert.Equal(t, tc.maxRetries, config.MaxRetries)
@@ -567,7 +567,7 @@ func TestWithMaxRetries_Valid(t *testing.T) {
 func TestWithMaxRetries_Invalid(t *testing.T) {
 	_, err := NewConfig(
 		WithMaxRetries(-1),
-		WithAccessManager(auth.AccessManager{Enabled: false}),
+		WithAnonymous(),
 	)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "max retries cannot be negative")
@@ -576,7 +576,7 @@ func TestWithMaxRetries_Invalid(t *testing.T) {
 func TestWithRetryWaitMin_Valid(t *testing.T) {
 	config, err := NewConfig(
 		WithRetryWaitMin(5*time.Second),
-		WithAccessManager(auth.AccessManager{Enabled: false}),
+		WithAnonymous(),
 	)
 	require.NoError(t, err)
 	assert.Equal(t, 5*time.Second, config.RetryWaitMin)
@@ -595,7 +595,7 @@ func TestWithRetryWaitMin_Invalid(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := NewConfig(
 				WithRetryWaitMin(tc.minWait),
-				WithAccessManager(auth.AccessManager{Enabled: false}),
+				WithAnonymous(),
 			)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "minimum wait time must be greater than 0")
@@ -606,7 +606,7 @@ func TestWithRetryWaitMin_Invalid(t *testing.T) {
 func TestWithRetryWaitMax_Valid(t *testing.T) {
 	config, err := NewConfig(
 		WithRetryWaitMax(60*time.Second),
-		WithAccessManager(auth.AccessManager{Enabled: false}),
+		WithAnonymous(),
 	)
 	require.NoError(t, err)
 	assert.Equal(t, 60*time.Second, config.RetryWaitMax)
@@ -628,7 +628,7 @@ func TestWithRetryWaitMax_Invalid(t *testing.T) {
 			_, err := NewConfig(
 				WithRetryWaitMin(tc.minWait),
 				WithRetryWaitMax(tc.maxWait),
-				WithAccessManager(auth.AccessManager{Enabled: false}),
+				WithAnonymous(),
 			)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tc.expectedErr)
@@ -640,7 +640,7 @@ func TestWithRetryWaitMax_LessThanMin(t *testing.T) {
 	_, err := NewConfig(
 		WithRetryWaitMin(30*time.Second),
 		WithRetryWaitMax(10*time.Second),
-		WithAccessManager(auth.AccessManager{Enabled: false}),
+		WithAnonymous(),
 	)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "maximum wait time must be greater than or equal to minimum wait time")
@@ -659,7 +659,7 @@ func TestWithRetries_Toggle(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			config, err := NewConfig(
 				WithRetries(tc.enabled),
-				WithAccessManager(auth.AccessManager{Enabled: false}),
+				WithAnonymous(),
 			)
 			require.NoError(t, err)
 			assert.Equal(t, tc.enabled, config.EnableRetries)
@@ -680,7 +680,7 @@ func TestWithDebug_Toggle(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			config, err := NewConfig(
 				WithDebug(tc.enabled),
-				WithAccessManager(auth.AccessManager{Enabled: false}),
+				WithAnonymous(),
 			)
 			require.NoError(t, err)
 			assert.Equal(t, tc.enabled, config.Debug)
@@ -701,7 +701,7 @@ func TestWithIdempotency_Toggle(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			config, err := NewConfig(
 				WithIdempotency(tc.enabled),
-				WithAccessManager(auth.AccessManager{Enabled: false}),
+				WithAnonymous(),
 			)
 			require.NoError(t, err)
 			assert.Equal(t, tc.enabled, config.EnableIdempotency)
@@ -713,7 +713,7 @@ func TestWithObservabilityProvider(t *testing.T) {
 	provider := &mockObservabilityProvider{}
 	config, err := NewConfig(
 		WithObservabilityProvider(provider),
-		WithAccessManager(auth.AccessManager{Enabled: false}),
+		WithAnonymous(),
 	)
 	require.NoError(t, err)
 	assert.Equal(t, provider, config.ObservabilityProvider)
@@ -722,7 +722,7 @@ func TestWithObservabilityProvider(t *testing.T) {
 func TestWithObservabilityProvider_Nil(t *testing.T) {
 	config, err := NewConfig(
 		WithObservabilityProvider(nil),
-		WithAccessManager(auth.AccessManager{Enabled: false}),
+		WithAnonymous(),
 	)
 	require.NoError(t, err)
 	assert.Nil(t, config.ObservabilityProvider)
@@ -840,7 +840,7 @@ func TestFromEnvironment_PartialVariables(t *testing.T) {
 	_ = os.Setenv("MIDAZ_DEBUG", "true")
 	_ = os.Setenv("MIDAZ_TIMEOUT", "90")
 
-	config, err := NewConfig(FromEnvironment())
+	config, err := NewConfig(FromEnvironment(), WithAnonymous())
 	require.NoError(t, err)
 
 	assert.Equal(t, EnvironmentLocal, config.Environment)
@@ -927,7 +927,7 @@ func TestFromEnvironment_BaseURLOverriddenBySpecific(t *testing.T) {
 	_ = os.Setenv("MIDAZ_BASE_URL", "https://base.example.com")
 	_ = os.Setenv("MIDAZ_ONBOARDING_URL", "https://specific.example.com/onboarding")
 
-	config, err := NewConfig(FromEnvironment())
+	config, err := NewConfig(FromEnvironment(), WithAnonymous())
 	require.NoError(t, err)
 
 	assert.Equal(t, "https://specific.example.com/onboarding", config.ServiceURLs[ServiceOnboarding])
@@ -945,7 +945,12 @@ func TestFromEnvironment_PluginAuthDisabled(t *testing.T) {
 	_ = os.Setenv("MIDAZ_CLIENT_ID", "client-id")
 	_ = os.Setenv("MIDAZ_CLIENT_SECRET", "client-secret")
 
-	config, err := NewConfig(FromEnvironment())
+	// PLUGIN_AUTH_ENABLED=false leaves the AccessManager fields populated
+	// but Enabled=false, which counts as no active auth source. Add
+	// WithAnonymous to satisfy the auth-required gate; WithAnonymous
+	// preserves the other AccessManager fields so we can still verify
+	// that PLUGIN_AUTH_ADDRESS was captured.
+	config, err := NewConfig(FromEnvironment(), WithAnonymous())
 	require.NoError(t, err)
 
 	assert.False(t, config.AccessManager.Enabled)
@@ -958,7 +963,7 @@ func TestFromEnvironment_IdempotencyTrue(t *testing.T) {
 
 	_ = os.Setenv("MIDAZ_IDEMPOTENCY", "true")
 
-	config, err := NewConfig(FromEnvironment())
+	config, err := NewConfig(FromEnvironment(), WithAnonymous())
 	require.NoError(t, err)
 	assert.True(t, config.EnableIdempotency)
 }
@@ -1027,7 +1032,7 @@ func TestGetBaseURLs(t *testing.T) {
 	config, err := NewConfig(
 		WithOnboardingURL("https://api.example.com/onboarding"),
 		WithTransactionURL("https://api.example.com/transaction"),
-		WithAccessManager(auth.AccessManager{Enabled: false}),
+		WithAnonymous(),
 	)
 	require.NoError(t, err)
 
@@ -1041,7 +1046,7 @@ func TestGetHTTPClient(t *testing.T) {
 	customClient := &http.Client{Timeout: 120 * time.Second}
 	config, err := NewConfig(
 		WithHTTPClient(customClient),
-		WithAccessManager(auth.AccessManager{Enabled: false}),
+		WithAnonymous(),
 	)
 	require.NoError(t, err)
 
@@ -1049,7 +1054,7 @@ func TestGetHTTPClient(t *testing.T) {
 }
 
 func TestGetHTTPClient_Default(t *testing.T) {
-	config, err := NewConfig(WithAccessManager(auth.AccessManager{Enabled: false}))
+	config, err := NewConfig(WithAnonymous())
 	require.NoError(t, err)
 
 	client := config.GetHTTPClient()
@@ -1096,7 +1101,7 @@ func TestGetObservabilityProvider(t *testing.T) {
 	provider := &mockObservabilityProvider{}
 	config, err := NewConfig(
 		WithObservabilityProvider(provider),
-		WithAccessManager(auth.AccessManager{Enabled: false}),
+		WithAnonymous(),
 	)
 	require.NoError(t, err)
 
@@ -1104,7 +1109,7 @@ func TestGetObservabilityProvider(t *testing.T) {
 }
 
 func TestGetObservabilityProvider_Nil(t *testing.T) {
-	config, err := NewConfig(WithAccessManager(auth.AccessManager{Enabled: false}))
+	config, err := NewConfig(WithAnonymous())
 	require.NoError(t, err)
 
 	assert.Nil(t, config.GetObservabilityProvider())
@@ -1115,7 +1120,7 @@ func TestOptionOverrides(t *testing.T) {
 		WithTimeout(30*time.Second),
 		WithTimeout(60*time.Second),
 		WithTimeout(90*time.Second),
-		WithAccessManager(auth.AccessManager{Enabled: false}),
+		WithAnonymous(),
 	)
 	require.NoError(t, err)
 	assert.Equal(t, 90*time.Second, config.Timeout)
@@ -1126,7 +1131,7 @@ func TestOptionOrderMatters(t *testing.T) {
 		WithEnvironment(EnvironmentLocal),
 		WithBaseURL("https://custom.example.com"),
 		WithOnboardingURL("https://specific.example.com/onboarding"),
-		WithAccessManager(auth.AccessManager{Enabled: false}),
+		WithAnonymous(),
 	)
 	require.NoError(t, err)
 
@@ -1505,7 +1510,7 @@ func TestValidateConfig_Valid(t *testing.T) {
 			ServiceTransaction: "https://api.example.com/transaction",
 			ServiceCRM:         "https://api.example.com/crm",
 		},
-		AccessManager: auth.AccessManager{Enabled: false},
+		Anonymous: true,
 	}
 
 	err := validateConfig(config)
@@ -1518,7 +1523,9 @@ func TestValidateConfig_CRMURLIsOptional(t *testing.T) {
 			ServiceOnboarding:  "https://api.example.com/onboarding",
 			ServiceTransaction: "https://api.example.com/transaction",
 		},
-		AccessManager: auth.AccessManager{Enabled: false},
+		// Anonymous=true is the v3-canonical way to assert no-auth at
+		// validation time without going through the option chain.
+		Anonymous: true,
 	}
 
 	err := validateConfig(config)
@@ -1600,7 +1607,7 @@ func TestConfigWithTenantID(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg, err := NewConfig(
 				WithTenantID(tc.tenantID),
-				WithAccessManager(auth.AccessManager{Enabled: false}),
+				WithAnonymous(),
 			)
 			require.NoError(t, err)
 			assert.Equal(t, tc.expected, cfg.TenantID)
@@ -1647,7 +1654,7 @@ func TestConfigTenantIDFromEnv(t *testing.T) {
 
 			cfg, err := NewConfig(
 				FromEnvironment(),
-				WithAccessManager(auth.AccessManager{Enabled: false}),
+				WithAnonymous(),
 			)
 			require.NoError(t, err)
 			assert.Equal(t, tc.expected, cfg.TenantID)
@@ -1664,7 +1671,7 @@ func TestConfigTenantIDOptionWinsOverEnv(t *testing.T) {
 	cfg, err := NewConfig(
 		FromEnvironment(),
 		WithTenantID("option-tenant"),
-		WithAccessManager(auth.AccessManager{Enabled: false}),
+		WithAnonymous(),
 	)
 	require.NoError(t, err)
 

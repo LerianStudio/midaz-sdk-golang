@@ -33,7 +33,7 @@ func main() {
 
     c, err := midaz.New(
         midaz.WithLogger(logger),
-        midaz.WithAuthToken("midaz_pat_..."),
+        midaz.WithAnonymous(),
         midaz.WithSlowCallThreshold(2 * time.Second),
     )
     if err != nil { return }
@@ -73,7 +73,7 @@ import (
 logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
     Level: slog.LevelInfo,
 }))
-c, _ := midaz.New(midaz.WithLogger(logger), midaz.WithAuthToken("..."))
+c, _ := midaz.New(midaz.WithLogger(logger), midaz.WithAnonymous())
 ```
 
 For pretty text output instead of JSON:
@@ -103,7 +103,7 @@ clog := charm.NewWithOptions(os.Stderr, charm.Options{
     Level:           charm.DebugLevel,
 })
 
-c, _ := midaz.New(midaz.WithLogger(slog.New(clog)), midaz.WithAuthToken("..."))
+c, _ := midaz.New(midaz.WithLogger(slog.New(clog)), midaz.WithAnonymous())
 ```
 
 ### Uber zap (via slog adapter)
@@ -121,7 +121,7 @@ defer zl.Sync()
 
 c, _ := midaz.New(
     midaz.WithLogger(slog.New(zapslog.NewHandler(zl.Core(), nil))),
-    midaz.WithAuthToken("..."),
+    midaz.WithAnonymous(),
 )
 ```
 
@@ -141,7 +141,7 @@ handler := slogzerolog.Option{Level: slog.LevelDebug, Logger: &zlog}.NewZerologH
 
 c, _ := midaz.New(
     midaz.WithLogger(slog.New(handler)),
-    midaz.WithAuthToken("..."),
+    midaz.WithAnonymous(),
 )
 ```
 
@@ -154,7 +154,7 @@ successful API call exceeds `d`. The line includes `duration_ms`,
 ```go
 c, _ := midaz.New(
     midaz.WithLogger(logger),
-    midaz.WithAuthToken("..."),
+    midaz.WithAnonymous(),
     midaz.WithSlowCallThreshold(2 * time.Second),
 )
 ```

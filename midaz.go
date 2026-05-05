@@ -1,15 +1,24 @@
 // Package midaz is the entry point for the Midaz Go SDK.
 //
-// Quickstart:
+// Quickstart (Access Manager auth):
 //
 //	c, err := midaz.New(
 //	    midaz.WithEnvironment(midaz.EnvProduction),
-//	    midaz.WithAuthToken("midaz_pat_..."),
+//	    midaz.WithAccessManager(midaz.AccessManager{
+//	        Address:      "https://auth.midaz.io",
+//	        ClientID:     os.Getenv("MIDAZ_CLIENT_ID"),
+//	        ClientSecret: os.Getenv("MIDAZ_CLIENT_SECRET"),
+//	    }),
 //	)
 //	if err != nil { return err }
 //	defer c.Shutdown(ctx)
 //
 //	org, err := c.Organizations.GetOrganization(ctx, "org-id")
+//
+// For local development against an unsecured stack, swap WithAccessManager
+// for [WithAnonymous]. v3 requires exactly one of those two options at
+// construction time; calls to midaz.New() with no auth source fail with a
+// typed configuration error.
 //
 // See docs/auth.md for authentication, docs/multi-tenancy.md for tenant routing,
 // and docs/v3-dx-plan.md for the v3 design rationale.
@@ -688,6 +697,63 @@ func WithTenantID(tenantID string) Option {
 	}
 }
 
+// WithAccessManager configures plugin-based authentication via the Lerian
+// Access Manager service. The supplied AccessManager must have Address,
+// ClientID, and ClientSecret populated; the Enabled field is auto-set to
+// true (the act of calling this option is the opt-in).
+//
+// Example:
+//
+//	c, err := midaz.New(
+//	    midaz.WithEnvironment(midaz.EnvProduction),
+//	    midaz.WithAccessManager(midaz.AccessManager{
+//	        Address:      "https://auth.midaz.io",
+//	        ClientID:     "abc",
+//	        ClientSecret: os.Getenv("MIDAZ_CLIENT_SECRET"),
+//	    }),
+//	)
+//
+// WithAccessManager and [WithAnonymous] are mutually exclusive — applying
+// one clears the other. v3 requires exactly one auth source at construction
+// time; without either, midaz.New() returns a configuration error.
+//
+// See docs/auth.md for the full setup walkthrough.
+//
+// Parameters:
+//   - am: AccessManager configuration. Address, ClientID, ClientSecret are
+//     all required; Enabled is auto-populated.
+//
+// Returns:
+//   - Option: a function that wires AccessManager onto the underlying Config.
+func WithAccessManager(am AccessManager) Option {
+	return func(c *Client) error {
+		return config.WithAccessManager(am)(c.config)
+	}
+}
+
+// WithAnonymous explicitly opts the client out of authentication. This is
+// the only sanctioned way to construct a client without credentials in v3 —
+// without WithAnonymous AND without [WithAccessManager], midaz.New()
+// returns a typed configuration error of the form
+//
+//	"no auth source configured; use WithAccessManager or WithAnonymous"
+//
+// Use cases: local development against an unsecured midaz stack, integration
+// tests against testcontainers, or read-only inspection where the operator
+// has confirmed the target endpoints don't require auth.
+//
+// WithAnonymous and [WithAccessManager] are mutually exclusive — applying
+// one clears the other.
+//
+// Returns:
+//   - Option: a function that flags the underlying Config as deliberately
+//     auth-less so validation accepts it.
+func WithAnonymous() Option {
+	return func(c *Client) error {
+		return config.WithAnonymous()(c.config)
+	}
+}
+
 // WithLogger sets the canonical *slog.Logger for the client. Once configured,
 // the SDK emits structured log lines for retry attempts, slow calls, and
 // internal warnings through this logger.
@@ -697,23 +763,24 @@ func WithTenantID(tenantID string) Option {
 // are present, WithLogger always wins — the MIDAZ_DEBUG bypass that existed
 // in v2 is gone in v3.
 //
-// Integrations:
+// Integrations (paired with WithAnonymous for brevity in these snippets;
+// production setups would supply WithAccessManager):
 //
 //	// stdlib slog with JSON to stdout
 //	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-//	c, _ := midaz.New(midaz.WithLogger(logger), midaz.WithAuthToken("..."))
+//	c, _ := midaz.New(midaz.WithLogger(logger), midaz.WithAnonymous())
 //
 //	// charmbracelet/log
 //	import charm "github.com/charmbracelet/log"
 //	clog := charm.NewWithOptions(os.Stderr, charm.Options{Level: charm.DebugLevel})
-//	c, _ := midaz.New(midaz.WithLogger(slog.New(clog)), midaz.WithAuthToken("..."))
+//	c, _ := midaz.New(midaz.WithLogger(slog.New(clog)), midaz.WithAnonymous())
 //
 //	// zap via slog adapter (Go 1.22+)
 //	import "go.uber.org/zap/exp/zapslog"
 //	zl, _ := zap.NewProduction()
 //	c, _ := midaz.New(
 //	    midaz.WithLogger(slog.New(zapslog.NewHandler(zl.Core(), nil))),
-//	    midaz.WithAuthToken("..."),
+//	    midaz.WithAnonymous(),
 //	)
 //
 // Passing nil clears any previously-configured logger and reverts to the

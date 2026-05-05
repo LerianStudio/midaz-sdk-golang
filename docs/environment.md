@@ -50,7 +50,7 @@ All variables below are read by `config.FromEnvironment()`. Standard library rea
 | `MIDAZ_CLIENT_SECRET` | Access Manager client secret. | empty |
 | `MIDAZ_SKIP_AUTH_CHECK` | **Test plumbing only.** Bypasses the "plugin auth address required" validation when set to `true`. Programmatic configuration cannot set this. | `false` |
 
-`MIDAZ_AUTH_TOKEN` is **not** a configuration environment variable. `config.FromEnvironment()` does not read it. Pass auth tokens through `midaz.WithAuthToken(token)` or via Access Manager credentials.
+`MIDAZ_AUTH_TOKEN` is **not** a configuration environment variable. `config.FromEnvironment()` does not read it, and v3 deliberately exposes no `WithAuthToken` option. The two sanctioned auth paths are `midaz.WithAccessManager(...)` (OAuth via the Lerian Access Manager service) and `midaz.WithAnonymous()` (explicit auth-less mode for local development and tests). Static-token deployments configure their access manager to mint tokens.
 
 ## Removed in v3
 

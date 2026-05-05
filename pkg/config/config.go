@@ -146,6 +146,15 @@ type Config struct {
 	// This is a test plumbing escape hatch — programmatic configuration should
 	// never set it.
 	skipAuthCheck bool
+
+	// Anonymous is the explicit acknowledgment that the client is being
+	// constructed without any authentication source. Programmatic callers set
+	// this via [github.com/LerianStudio/midaz-sdk-golang/v3.WithAnonymous] (the
+	// midaz package re-export) to prove that omitting AccessManager was
+	// intentional — typically for local development against an unsecured
+	// midaz-onboarding/midaz-transaction stack, or for tests. v3 rejects
+	// construction with no auth source AND no Anonymous=true via validateConfig.
+	Anonymous bool
 }
 
 // Option is a function that configures a Config.
@@ -534,8 +543,18 @@ func WithTenantID(tenantID string) Option {
 
 // WithAccessManager sets the plugin-based authentication configuration.
 //
+// The Enabled field of the supplied AccessManager is OVERRIDDEN to true —
+// the act of calling WithAccessManager is the user's signal that they want
+// auth enabled. Callers MUST populate Address, ClientID, and ClientSecret;
+// validation will reject an Enabled-but-Address-less config at New() time.
+//
+// To construct a client deliberately without an authentication source — for
+// example, against an unsecured local stack — use [WithAnonymous] instead of
+// passing a zero-value AccessManager.
+//
 // Parameters:
-//   - accessManager: The plugin authentication configuration
+//   - accessManager: The plugin authentication configuration. Address,
+//     ClientID, and ClientSecret are all required.
 //
 // Returns:
 //   - Option: A function that sets the plugin authentication on a Config
@@ -545,7 +564,52 @@ func WithAccessManager(accessManager auth.AccessManager) Option {
 			return errors.New("config cannot be nil")
 		}
 
+		// Auto-enable: callers don't need to set Enabled themselves. The
+		// existence of the WithAccessManager call is the opt-in.
+		accessManager.Enabled = true
 		c.AccessManager = accessManager
+		// Anonymous and AccessManager are mutually exclusive by definition;
+		// the last-applied option wins. Clearing Anonymous here keeps the
+		// final config consistent with the user's most recent intent.
+		c.Anonymous = false
+
+		return nil
+	}
+}
+
+// WithAnonymous explicitly opts the client out of authentication. Use this
+// for local development against an unsecured midaz stack, or for tests that
+// don't exercise auth-protected endpoints.
+//
+// Without WithAnonymous AND without WithAccessManager, [Config.Validate]
+// returns an error of the form
+//
+//	"no auth source configured; use WithAccessManager or WithAnonymous"
+//
+// This converts the v2 silent-localhost footgun (where a client without
+// credentials happily issued unauthenticated requests and got 401s on the
+// first real call) into an explicit construction-time choice.
+//
+// WithAnonymous and WithAccessManager are mutually exclusive — the last
+// option applied wins. Calling WithAnonymous after WithAccessManager
+// disables the previously-set Access Manager configuration.
+//
+// Returns:
+//   - Option: A function that flags the Config as deliberately auth-less.
+func WithAnonymous() Option {
+	return func(c *Config) error {
+		if c == nil {
+			return errors.New("config cannot be nil")
+		}
+
+		c.Anonymous = true
+		// Disable any previously-applied AccessManager so validateConfig
+		// correctly recognizes the Anonymous opt-out as the active path.
+		// Other AccessManager fields (Address, ClientID, ClientSecret) are
+		// preserved — env-driven loaders may have populated them and tests
+		// often introspect the captured values; only Enabled controls the
+		// auth-source semantics.
+		c.AccessManager.Enabled = false
 
 		return nil
 	}
@@ -888,6 +952,9 @@ func applyDefaultServiceURLs(config *Config, serviceURLs defaultServiceURLs) {
 // Validation rules:
 //   - ServiceURLs[ServiceOnboarding] must be set.
 //   - ServiceURLs[ServiceTransaction] must be set.
+//   - Exactly one auth source must be configured: either WithAccessManager
+//     (enables AccessManager and requires Address) or WithAnonymous (explicit
+//     auth-less mode). Construction without either fails.
 //   - If AccessManager.Enabled, AccessManager.Address must be set
 //     (unless MIDAZ_SKIP_AUTH_CHECK=true is in the env via FromEnvironment).
 func (c *Config) Validate() error {
@@ -905,9 +972,18 @@ func validateConfig(config *Config) error {
 		return errors.New("transaction URL is required")
 	}
 
+	// Auth-required gate: refuse to build a client that has no auth source
+	// and no explicit Anonymous opt-out. This closes v2's silent-localhost
+	// footgun where construction succeeded with no credentials and every
+	// real request returned 401.
+	//
+	// The skipAuthCheck escape hatch (set only by FromEnvironment when
+	// MIDAZ_SKIP_AUTH_CHECK=true is in the env) bypasses the gate for tests.
+	if !config.AccessManager.Enabled && !config.Anonymous && !config.skipAuthCheck {
+		return errors.New("no auth source configured; use WithAccessManager or WithAnonymous")
+	}
+
 	// When plugin auth is enabled, we require the plugin auth address.
-	// The skipAuthCheck escape hatch is populated only by FromEnvironment
-	// (via MIDAZ_SKIP_AUTH_CHECK=true) and is intended for tests only.
 	if config.AccessManager.Enabled && config.AccessManager.Address == "" && !config.skipAuthCheck {
 		return errors.New("plugin auth address is required")
 	}
@@ -1229,10 +1305,17 @@ func WithRetryWaitMax(waitTime time.Duration) Option {
 // Behavior change vs v2: v2 only loaded PLUGIN_AUTH_* env vars in this path.
 // v3 routes every env-driven knob through FromEnvironment so there is exactly
 // one place that reads the environment.
+//
+// Auth posture: NewLocalConfig is for local development — it pre-applies
+// [WithAnonymous] so the config validates without requiring auth credentials.
+// Callers that DO want auth on a local config can override by appending
+// [WithAccessManager] in the options list (last-applied wins, and
+// WithAccessManager clears Anonymous).
 func NewLocalConfig(options ...Option) (*Config, error) {
 	localOptions := append(
 		[]Option{
 			WithEnvironment(EnvironmentLocal),
+			WithAnonymous(),
 			FromEnvironment(),
 		},
 		options...,

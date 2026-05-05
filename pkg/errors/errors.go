@@ -655,7 +655,7 @@ func NewInternalError(operation string, err error) *Error {
 //	err := errors.NewConfigurationError(
 //	    "midaz.New",
 //	    "no auth source configured",
-//	    fmt.Errorf("use WithAuthToken or WithAccessManager"),
+//	    fmt.Errorf("use WithAccessManager or WithAnonymous"),
 //	)
 //
 // Parameters:

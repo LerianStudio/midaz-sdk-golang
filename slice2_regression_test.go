@@ -89,7 +89,7 @@ func TestClientEntityOptions_PropagateToServiceHTTPClients(t *testing.T) {
 }
 
 func TestClientNew_WithEnvironmentRecomputesDefaultServiceURLs(t *testing.T) {
-	c, err := New(WithEnvironment(config.EnvironmentProduction))
+	c, err := New(WithEnvironment(config.EnvironmentProduction), WithAnonymous())
 	require.NoError(t, err)
 
 	urls := c.GetConfig().ServiceURLs
@@ -104,6 +104,7 @@ func TestClientNew_WithEnvironmentDoesNotOverrideExplicitURLs(t *testing.T) {
 		WithTransactionURL("https://transaction.example.com/v1"),
 		WithCRMURL("https://crm.example.com/v1"),
 		WithEnvironment(config.EnvironmentProduction),
+		WithAnonymous(),
 	)
 	require.NoError(t, err)
 

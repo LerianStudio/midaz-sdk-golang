@@ -30,6 +30,7 @@ func TestSlice8ClientHelpers(t *testing.T) {
 	t.Run("WithConfig clones caller-owned config", func(t *testing.T) {
 		cfg := config.DefaultConfig()
 		cfg.ServiceURLs[config.ServiceOnboarding] = "https://original.example.com/v1"
+		cfg.Anonymous = true // satisfies v3 auth-required gate
 
 		c, err := New(WithConfig(cfg))
 		require.NoError(t, err)

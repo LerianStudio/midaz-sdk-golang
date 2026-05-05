@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/auth"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
 	"github.com/stretchr/testify/require"
 )
@@ -18,7 +17,7 @@ func createTestConfig(t *testing.T) *config.Config {
 	t.Setenv("MIDAZ_SKIP_AUTH_CHECK", "true")
 
 	cfg, err := config.NewConfig(
-		config.WithAccessManager(auth.AccessManager{Enabled: false, Address: ""}),
+		config.WithAnonymous(),
 		config.WithEnvironment(config.EnvironmentLocal),
 	)
 	if err != nil {
@@ -95,7 +94,7 @@ func TestNewClient(t *testing.T) {
 
 	// Test creating a client with a complete config
 	cfg, err := config.NewConfig(
-		config.WithAccessManager(auth.AccessManager{Enabled: false, Address: ""}),
+		config.WithAnonymous(),
 		config.WithEnvironment(config.EnvironmentProduction),
 	)
 	if err != nil {

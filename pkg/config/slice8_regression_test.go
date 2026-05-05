@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/auth"
 	"github.com/stretchr/testify/require"
 )
 
@@ -37,7 +36,7 @@ func TestSlice8ConfigStrictnessAndCopying(t *testing.T) {
 	})
 
 	t.Run("clone copies service URL map", func(t *testing.T) {
-		cfg, err := NewConfig(WithAccessManager(auth.AccessManager{}))
+		cfg, err := NewConfig(WithAnonymous())
 		require.NoError(t, err)
 
 		cloned := cfg.Clone()
