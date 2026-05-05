@@ -11,6 +11,7 @@ import (
 
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/metric"
@@ -173,7 +174,7 @@ func TestHTTPClient_ContextIdempotencyKey_SkipsSafeMethods(t *testing.T) {
 			defer srv.Close()
 
 			client := NewHTTPClient(srv.Client(), "", nil)
-			ctx := WithIdempotencyKey(context.Background(), "idem-safe-test")
+			ctx := sdkctx.WithIdempotencyKey(context.Background(), "idem-safe-test")
 
 			if tt.useCount {
 				_, err := client.doCountRequest(ctx, tt.method, srv.URL, nil)

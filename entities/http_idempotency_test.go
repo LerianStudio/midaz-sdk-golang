@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
 )
 
 func TestIdempotencyHeaderInjectionSkipsSafeGET(t *testing.T) {
@@ -30,7 +31,7 @@ func TestIdempotencyHeaderInjectionSkipsSafeGET(t *testing.T) {
 	hc := srv.Client()
 	c := NewHTTPClient(hc, "", nil)
 
-	ctx := WithIdempotencyKey(context.Background(), "abc123")
+	ctx := sdkctx.WithIdempotencyKey(context.Background(), "abc123")
 
 	var out map[string]any
 
@@ -103,7 +104,7 @@ func TestWithoutAutoIdempotencySuppressesAutoKey(t *testing.T) {
 
 	var out map[string]any
 
-	ctx := WithoutAutoIdempotency(context.Background())
+	ctx := sdkctx.WithoutAutoIdempotency(context.Background())
 	err := c.doRequest(ctx, http.MethodPost, srv.URL, nil, map[string]string{"ok": "true"}, &out)
 	require.NoError(t, err)
 
@@ -128,7 +129,7 @@ func TestExplicitIdempotencyKeyWinsOverSuppression(t *testing.T) {
 
 	var out map[string]any
 
-	ctx := WithoutAutoIdempotency(WithIdempotencyKey(context.Background(), "explicit-key"))
+	ctx := sdkctx.WithoutAutoIdempotency(sdkctx.WithIdempotencyKey(context.Background(), "explicit-key"))
 	err := c.doRequest(ctx, http.MethodPost, srv.URL, nil, map[string]string{"ok": "true"}, &out)
 	require.NoError(t, err)
 
@@ -171,7 +172,7 @@ func TestUnsafeMethodRetriesOnlyWithIdempotency(t *testing.T) {
 		},
 		{
 			name:            "suppressed auto idempotency disables unsafe retry",
-			ctx:             WithoutAutoIdempotency(context.Background()),
+			ctx:             sdkctx.WithoutAutoIdempotency(context.Background()),
 			headers:         nil,
 			expectedCalls:   1,
 			expectedSuccess: false,

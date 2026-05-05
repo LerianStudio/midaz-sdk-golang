@@ -15,6 +15,7 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/auth"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
 	"github.com/stretchr/testify/require"
 )
 
@@ -43,14 +44,14 @@ func requireHandlerNoError(t *testing.T, errs <-chan error) {
 // constructors used to live here but were removed in v3 (Batch 1E).
 
 func TestEntityContextHelpers_WithNilContext_AreSafe(t *testing.T) {
-	ctx := WithIdempotencyKey(nilContext(), "idem-1")
+	ctx := sdkctx.WithIdempotencyKey(nilContext(), "idem-1")
 	require.NotNil(t, ctx)
 	require.Equal(t, "idem-1", getIdempotencyKeyFromContext(ctx))
 
-	ctx = WithTenantID(nilContext(), "tenant-1")
+	ctx = sdkctx.WithRequestTenantID(nilContext(), "tenant-1")
 	require.NotNil(t, ctx)
-	require.Equal(t, "tenant-1", TenantIDFromContext(ctx))
-	require.Empty(t, TenantIDFromContext(nilContext()))
+	require.Equal(t, "tenant-1", sdkctx.TenantIDFromContext(ctx))
+	require.Empty(t, sdkctx.TenantIDFromContext(nilContext()))
 }
 
 func TestNewEntityWithConfig_WithTypedNilConfig_ReturnsError(t *testing.T) {

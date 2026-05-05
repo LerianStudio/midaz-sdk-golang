@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -93,7 +94,7 @@ func TestSlice6CRMHeadersPreserveOrganizationAndTenantBoundary(t *testing.T) {
 	service := newHoldersEntity(server.Client(), "token", map[string]string{"crm": server.URL}).(*holdersEntity)
 	service.setDefaultTenantID("tenant-default")
 
-	ctx := WithIdempotencyKey(WithTenantID(context.Background(), "tenant-context"), "crm-idem")
+	ctx := sdkctx.WithIdempotencyKey(sdkctx.WithRequestTenantID(context.Background(), "tenant-context"), "crm-idem")
 	holderType := models.HolderTypeNaturalPerson
 
 	holder, err := service.CreateHolder(ctx, " "+crmOrgID+" ", &models.CreateHolderInput{

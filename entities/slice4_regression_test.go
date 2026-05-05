@@ -11,6 +11,7 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -148,7 +149,7 @@ func TestSlice4UnsafeRetriesRequireCallerIdempotencyKey(t *testing.T) {
 
 	var out map[string]any
 
-	err := client.doRequest(WithIdempotencyKey(context.Background(), "caller-key"), http.MethodPost, server.URL, nil, map[string]string{"ok": "true"}, &out)
+	err := client.doRequest(sdkctx.WithIdempotencyKey(context.Background(), "caller-key"), http.MethodPost, server.URL, nil, map[string]string{"ok": "true"}, &out)
 	require.NoError(t, err)
 	assert.Equal(t, int32(2), calls.Load())
 
