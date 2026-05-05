@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v2"
+	client "github.com/LerianStudio/midaz-sdk-golang/v3"
 )
 
 // TestGetMethods tests various Get methods of the Midaz SDK

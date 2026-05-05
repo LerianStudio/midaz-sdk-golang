@@ -42,7 +42,7 @@ func StartSpan(ctx context.Context, name string) (context.Context, trace.Span) {
 		return defaultProvider.Tracer().Start(ctx, name)
 	}
 
-	return noop.NewTracerProvider().Tracer("github.com/LerianStudio/midaz-sdk-golang/v2").Start(ctx, name)
+	return noop.NewTracerProvider().Tracer("github.com/LerianStudio/midaz-sdk-golang/v3").Start(ctx, name)
 }
 
 // AddAttribute adds an attribute to the current span in the context

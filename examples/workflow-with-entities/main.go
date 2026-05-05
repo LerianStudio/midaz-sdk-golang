@@ -65,11 +65,11 @@ import (
 	"strings"
 	"time"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v2"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/examples/workflow-with-entities/pkg/workflows"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/config"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
+	client "github.com/LerianStudio/midaz-sdk-golang/v3"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/examples/workflow-with-entities/pkg/workflows"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry"
 	"github.com/joho/godotenv"
 )
 

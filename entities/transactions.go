@@ -15,8 +15,8 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
 )
 
 // TransactionsService defines the interface for transaction-related operations.

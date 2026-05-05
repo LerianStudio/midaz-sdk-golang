@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v2"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
+	client "github.com/LerianStudio/midaz-sdk-golang/v3"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 )
 
 // CreateSegments creates segments within a ledger

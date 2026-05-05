@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	pkgerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/security"
+	pkgerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/security"
 )
 
 // BatchRequest represents a single request in a batch.

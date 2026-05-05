@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"strings"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v2"
-	ourEntities "github.com/LerianStudio/midaz-sdk-golang/v2/examples/workflow-with-entities/pkg/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
+	client "github.com/LerianStudio/midaz-sdk-golang/v3"
+	ourEntities "github.com/LerianStudio/midaz-sdk-golang/v3/examples/workflow-with-entities/pkg/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
 )
 
 // DemonstrateTransactionHelpers showcases the transaction helpers in the SDK

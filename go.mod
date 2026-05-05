@@ -1,4 +1,4 @@
-module github.com/LerianStudio/midaz-sdk-golang/v2
+module github.com/LerianStudio/midaz-sdk-golang/v3
 
 go 1.26.0
 

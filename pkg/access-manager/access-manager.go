@@ -16,7 +16,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/security"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/security"
 	"golang.org/x/sync/singleflight"
 )
 

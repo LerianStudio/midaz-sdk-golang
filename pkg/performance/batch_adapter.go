@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/concurrent"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/concurrent"
 )
 
 // Adapter Functions

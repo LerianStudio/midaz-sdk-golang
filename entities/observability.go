@@ -8,8 +8,8 @@ import (
 	"reflect"
 	"strings"
 
-	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )

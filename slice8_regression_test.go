@@ -1,11 +1,11 @@
-package client
+package midaz
 
 import (
 	"context"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/config"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"

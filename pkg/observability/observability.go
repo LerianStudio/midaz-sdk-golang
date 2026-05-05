@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/version"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/version"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -580,7 +580,7 @@ func (p *MidazProvider) initTracing(ctx context.Context, res *sdkresource.Resour
 	}
 
 	// Create a tracer for this library
-	p.tracer = p.tracerProvider.Tracer("github.com/LerianStudio/midaz-sdk-golang/v2")
+	p.tracer = p.tracerProvider.Tracer("github.com/LerianStudio/midaz-sdk-golang/v3")
 
 	// Add shutdown function
 	p.shutdownFunctions = append(p.shutdownFunctions, func(ctx context.Context) error {
@@ -619,7 +619,7 @@ func (p *MidazProvider) initMetrics(ctx context.Context, res *sdkresource.Resour
 	}
 
 	// Create a meter for this library
-	p.meter = p.meterProvider.Meter("github.com/LerianStudio/midaz-sdk-golang/v2")
+	p.meter = p.meterProvider.Meter("github.com/LerianStudio/midaz-sdk-golang/v3")
 
 	// Add shutdown function
 	p.shutdownFunctions = append(p.shutdownFunctions, func(ctx context.Context) error {

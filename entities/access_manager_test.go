@@ -6,8 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	auth "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/access-manager"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
+	auth "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/access-manager"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

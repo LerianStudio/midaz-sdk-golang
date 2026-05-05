@@ -10,11 +10,11 @@ import (
 	"sync"
 	"time"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v2"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v3"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -91,7 +91,7 @@ func DefaultBatchOptions() *BatchOptions {
 // regardless of the order in which transactions are processed.
 func BatchTransactions(
 	ctx context.Context,
-	midazClient *client.Client,
+	midazClient *midaz.Client,
 	orgID, ledgerID string,
 	inputs []*models.CreateTransactionInput,
 	options *BatchOptions,
@@ -174,7 +174,7 @@ func normalizeOptions(options *BatchOptions) *BatchOptions {
 // batchProcessor handles the batch transaction processing logic.
 type batchProcessor struct {
 	ctx      context.Context
-	client   *client.Client
+	client   *midaz.Client
 	orgID    string
 	ledgerID string
 	inputs   []*models.CreateTransactionInput

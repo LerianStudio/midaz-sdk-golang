@@ -19,11 +19,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/internal/reflectutil"
-	auth "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/access-manager"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/security"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/version"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/internal/reflectutil"
+	auth "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/access-manager"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/security"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/version"
 )
 
 // ServiceType represents a type of service in the Midaz API ecosystem.

@@ -3,7 +3,7 @@ package entities
 import (
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/stretchr/testify/require"
 )
 

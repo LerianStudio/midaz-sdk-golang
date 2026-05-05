@@ -6,7 +6,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/pagination"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/pagination"
 )
 
 // This example demonstrates how to use the pagination package with custom types

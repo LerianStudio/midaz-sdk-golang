@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v2"
-	sdkentities "github.com/LerianStudio/midaz-sdk-golang/v2/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
+	client "github.com/LerianStudio/midaz-sdk-golang/v3"
+	sdkentities "github.com/LerianStudio/midaz-sdk-golang/v3/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 )
 
 // CreateAsset creates a new USD asset

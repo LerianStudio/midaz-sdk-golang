@@ -3,9 +3,9 @@ package entities
 import (
 	"fmt"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation/core"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation/core"
 )
 
 func validateUpdatePayload(operation string, input any, typedName string) error {

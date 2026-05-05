@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

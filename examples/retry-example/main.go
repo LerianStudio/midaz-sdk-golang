@@ -14,9 +14,9 @@ import (
 	"net/http"
 	"time"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v2"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/config"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	client "github.com/LerianStudio/midaz-sdk-golang/v3"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
 )
 
 func main() {

@@ -7,7 +7,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation/core"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation/core"
 	"github.com/shopspring/decimal"
 )
 

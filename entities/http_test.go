@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/performance"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/performance"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/stretchr/testify/require"
 )

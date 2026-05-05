@@ -11,8 +11,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
 )
 
 // BalancesService defines the interface for balance-related operations.

@@ -1,6 +1,6 @@
 // Package client provides a client for the Midaz API.
 // It is the top-level entry point for interacting with the SDK.
-package client
+package midaz
 
 import (
 	"context"
@@ -11,12 +11,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/internal/reflectutil"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/config"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/internal/reflectutil"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry"
 )
 
 // Version is the current version of the SDK.

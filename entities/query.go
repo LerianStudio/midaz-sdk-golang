@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 )
 
 // cursorListQueryParams renders pagination/filtering options for endpoints

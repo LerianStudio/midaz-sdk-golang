@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/concurrent"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/stats"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/concurrent"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/data"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/stats"
 )
 
 type accountGenerator struct {

@@ -13,13 +13,13 @@ import (
 	"strings"
 	"time"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v2"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
-	gen "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/generator"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/integrity"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
-	txpkg "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/transaction"
+	client "github.com/LerianStudio/midaz-sdk-golang/v3"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/data"
+	gen "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/generator"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/integrity"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
+	txpkg "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/transaction"
 	"github.com/joho/godotenv"
 )
 

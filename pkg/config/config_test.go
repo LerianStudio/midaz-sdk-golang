@@ -12,9 +12,9 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
-	auth "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/access-manager"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/version"
+	auth "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/access-manager"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/version"
 )
 
 // Helper function to disable auth check for tests

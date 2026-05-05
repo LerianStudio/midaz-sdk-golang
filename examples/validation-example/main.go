@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation"
 )
 
 func main() {

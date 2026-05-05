@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/security"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/security"
 )
 
 const maxHTTPResponseBodyBytes int64 = 10 << 20
