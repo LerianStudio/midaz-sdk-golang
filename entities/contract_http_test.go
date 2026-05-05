@@ -192,7 +192,10 @@ func TestRoutesEntity_HTTPContracts(t *testing.T) {
 	opRoutes := newOperationRoutesEntity(server.Client(), "token", map[string]string{"transaction": server.URL})
 	txRoutes := newTransactionRoutesEntity(server.Client(), "token", map[string]string{"transaction": server.URL})
 
-	opList, err := opRoutes.ListOperationRoutes(ctx, "org/1", "ledger/1", (&models.ListOptions{}).WithLimit(5).WithFilter("status", "ACTIVE"))
+	opList, err := opRoutes.ListOperationRoutes(ctx, "org/1", "ledger/1", models.OperationRoutesListOpts{
+		CursorListOpts: models.CursorListOpts{Limit: 5},
+		Filters:        models.OperationRoutesFilters{Status: "ACTIVE"},
+	})
 	require.NoError(t, err)
 	assert.Equal(t, operationRouteID, opList.Items[0].ID.String())
 

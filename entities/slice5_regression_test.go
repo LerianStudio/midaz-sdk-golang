@@ -62,10 +62,14 @@ func TestSlice5RouteServices_HTTPContracts(t *testing.T) {
 			wantPath:   "/organizations/org%2F1/ledgers/ledger%2F1/operation-routes",
 		},
 		{
-			name: "transaction route list omits page",
+			name: "transaction route list (cursor-only)",
 			call: func(baseURL string) error {
 				svc := newTransactionRoutesEntity(nil, "token", map[string]string{"transaction": baseURL})
-				_, err := svc.ListTransactionRoutes(nilContext, "org/1", "ledger/1", models.NewListOptions().WithPage(3).WithCursor("next"))
+				// v3 TransactionRoutesListOpts has NO Page field —
+				// compile-time prevention of the v2 silent-drop footgun.
+				_, err := svc.ListTransactionRoutes(nilContext, "org/1", "ledger/1", models.TransactionRoutesListOpts{
+					CursorListOpts: models.CursorListOpts{Cursor: "next"},
+				})
 
 				return err
 			},
@@ -109,7 +113,12 @@ func TestSlice5TransactionsCount_WhitelistsContractFilters(t *testing.T) {
 	defer server.Close()
 
 	svc := newTransactionsEntity(server.Client(), "token", map[string]string{"transaction": server.URL})
-	count, err := svc.GetTransactionsMetricsCount(context.Background(), "org", "ledger", models.NewListOptions().WithPage(3).WithLimit(50).WithCursor("abc").WithAdditionalParam("route", "cashin").WithAdditionalParam("status", "APPROVED"))
+	// v3: cursor/limit/sort don't apply to HEAD /metrics/count.
+	// transactionMetricsCountQueryParams emits ONLY status, route, dates.
+	count, err := svc.GetTransactionsMetricsCount(context.Background(), "org", "ledger", models.TransactionsListOpts{
+		CursorListOpts: models.CursorListOpts{Limit: 50, Cursor: "abc"},
+		Filters:        models.TransactionsFilters{Route: "cashin", Status: "APPROVED"},
+	})
 	require.NoError(t, err)
 	assert.Equal(t, 42, count.TransactionsCount)
 	assert.Equal(t, http.MethodHead, seen.Method)

@@ -3,6 +3,7 @@ package generator
 import (
 	"context"
 	"errors"
+	"iter"
 	"strconv"
 	"sync/atomic"
 	"testing"
@@ -42,11 +43,19 @@ func (*mockTransactionsService) GetTransaction(_ context.Context, _, _, _ string
 	return nil, errors.New("mock: GetTransaction not implemented")
 }
 
-func (*mockTransactionsService) ListTransactions(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.Transaction], error) {
+func (*mockTransactionsService) ListTransactions(_ context.Context, _, _ string, _ models.TransactionsListOpts) (*models.ListResponse[models.Transaction], error) {
 	return nil, errors.New("mock: ListTransactions not implemented")
 }
 
-func (*mockTransactionsService) GetTransactionsMetricsCount(_ context.Context, _, _ string, _ *models.ListOptions) (*models.MetricsCount, error) {
+func (*mockTransactionsService) ListTransactionsAll(_ context.Context, _, _ string, _ models.TransactionsListOpts) iter.Seq2[models.Transaction, error] {
+	return func(_ func(models.Transaction, error) bool) {}
+}
+
+func (*mockTransactionsService) ListTransactionsPages(_ context.Context, _, _ string, _ models.TransactionsListOpts) iter.Seq2[*models.ListResponse[models.Transaction], error] {
+	return func(_ func(*models.ListResponse[models.Transaction], error) bool) {}
+}
+
+func (*mockTransactionsService) GetTransactionsMetricsCount(_ context.Context, _, _ string, _ models.TransactionsListOpts) (*models.MetricsCount, error) {
 	return nil, errors.New("mock: GetTransactionsMetricsCount not implemented")
 }
 

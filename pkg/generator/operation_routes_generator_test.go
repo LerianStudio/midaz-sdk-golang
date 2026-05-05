@@ -3,6 +3,7 @@ package generator
 import (
 	"context"
 	"errors"
+	"iter"
 	"testing"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/entities"
@@ -27,8 +28,16 @@ func (*mockOperationRoutesService) GetOperationRoute(_ context.Context, _, _, _ 
 	return nil, errors.New("mock: GetOperationRoute not implemented")
 }
 
-func (*mockOperationRoutesService) ListOperationRoutes(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.OperationRoute], error) {
+func (*mockOperationRoutesService) ListOperationRoutes(_ context.Context, _, _ string, _ models.OperationRoutesListOpts) (*models.ListResponse[models.OperationRoute], error) {
 	return nil, errors.New("mock: ListOperationRoutes not implemented")
+}
+
+func (*mockOperationRoutesService) ListOperationRoutesAll(_ context.Context, _, _ string, _ models.OperationRoutesListOpts) iter.Seq2[models.OperationRoute, error] {
+	return func(_ func(models.OperationRoute, error) bool) {}
+}
+
+func (*mockOperationRoutesService) ListOperationRoutesPages(_ context.Context, _, _ string, _ models.OperationRoutesListOpts) iter.Seq2[*models.ListResponse[models.OperationRoute], error] {
+	return func(_ func(*models.ListResponse[models.OperationRoute], error) bool) {}
 }
 
 func (*mockOperationRoutesService) UpdateOperationRoute(_ context.Context, _, _, _ string, _ *models.UpdateOperationRouteInput) (*models.OperationRoute, error) {

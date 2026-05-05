@@ -122,7 +122,7 @@ func TestListTransactions(t *testing.T) {
 		ListTransactions(gomock.Any(), orgID, ledgerID, gomock.Any()).
 		Return(txList, nil)
 
-	result, err := mockService.ListTransactions(ctx, orgID, ledgerID, nil)
+	result, err := mockService.ListTransactions(ctx, orgID, ledgerID, models.TransactionsListOpts{})
 	require.NoError(t, err)
 	assert.Equal(t, 2, result.Pagination.Total)
 	assert.Len(t, result.Items, 2)
@@ -146,7 +146,7 @@ func TestListTransactions(t *testing.T) {
 		ListTransactions(gomock.Any(), orgID, ledgerID, gomock.Any()).
 		Return(paginatedList, nil)
 
-	result, err = mockService.ListTransactions(ctx, orgID, ledgerID, &models.ListOptions{Limit: 5, Offset: 10})
+	result, err = mockService.ListTransactions(ctx, orgID, ledgerID, models.TransactionsListOpts{CursorListOpts: models.CursorListOpts{Limit: 5}})
 	require.NoError(t, err)
 	assert.Equal(t, 11, result.Pagination.Total)
 	assert.Len(t, result.Items, 1)
@@ -156,7 +156,7 @@ func TestListTransactions(t *testing.T) {
 		ListTransactions(gomock.Any(), "", ledgerID, gomock.Any()).
 		Return(nil, errors.New("organization ID is required"))
 
-	_, err = mockService.ListTransactions(ctx, "", ledgerID, nil)
+	_, err = mockService.ListTransactions(ctx, "", ledgerID, models.TransactionsListOpts{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization ID is required")
 
@@ -165,7 +165,7 @@ func TestListTransactions(t *testing.T) {
 		ListTransactions(gomock.Any(), orgID, "", gomock.Any()).
 		Return(nil, errors.New("ledger ID is required"))
 
-	_, err = mockService.ListTransactions(ctx, orgID, "", nil)
+	_, err = mockService.ListTransactions(ctx, orgID, "", models.TransactionsListOpts{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ledger ID is required")
 
@@ -179,7 +179,7 @@ func TestListTransactions(t *testing.T) {
 		ListTransactions(gomock.Any(), orgID, ledgerID, gomock.Any()).
 		Return(emptyList, nil)
 
-	result, err = mockService.ListTransactions(ctx, orgID, ledgerID, nil)
+	result, err = mockService.ListTransactions(ctx, orgID, ledgerID, models.TransactionsListOpts{})
 	require.NoError(t, err)
 	assert.Empty(t, result.Items)
 	assert.Equal(t, 0, result.Pagination.Total)
@@ -189,7 +189,7 @@ func TestListTransactions(t *testing.T) {
 		ListTransactions(gomock.Any(), orgID, ledgerID, gomock.Any()).
 		Return(nil, errors.New("internal server error"))
 
-	_, err = mockService.ListTransactions(ctx, orgID, ledgerID, nil)
+	_, err = mockService.ListTransactions(ctx, orgID, ledgerID, models.TransactionsListOpts{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "internal server error")
 }

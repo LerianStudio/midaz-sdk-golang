@@ -2,6 +2,7 @@ package mocks
 
 import (
 	"context"
+	"iter"
 	"reflect"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
@@ -100,7 +101,7 @@ func (mr *MockOperationRoutesServiceMockRecorder) GetOperationRoute(ctx, organiz
 }
 
 // ListOperationRoutes mocks base method.
-func (m *MockOperationRoutesService) ListOperationRoutes(ctx context.Context, organizationID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.OperationRoute], error) {
+func (m *MockOperationRoutesService) ListOperationRoutes(ctx context.Context, organizationID, ledgerID string, opts models.OperationRoutesListOpts) (*models.ListResponse[models.OperationRoute], error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListOperationRoutes", ctx, organizationID, ledgerID, opts)
 
@@ -145,4 +146,42 @@ func (m *MockOperationRoutesService) UpdateOperationRoute(ctx context.Context, o
 func (mr *MockOperationRoutesServiceMockRecorder) UpdateOperationRoute(ctx, organizationID, ledgerID, operationRouteID, input any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOperationRoute", reflect.TypeOf((*MockOperationRoutesService)(nil).UpdateOperationRoute), ctx, organizationID, ledgerID, operationRouteID, input)
+}
+
+// ListOperationRoutesAll mocks base method.
+func (m *MockOperationRoutesService) ListOperationRoutesAll(ctx context.Context, organizationID, ledgerID string, opts models.OperationRoutesListOpts) iter.Seq2[models.OperationRoute, error] {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListOperationRoutesAll", ctx, organizationID, ledgerID, opts)
+
+	var ret0 iter.Seq2[models.OperationRoute, error]
+	if ret[0] != nil {
+		ret0, _ = ret[0].(iter.Seq2[models.OperationRoute, error]) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	return ret0
+}
+
+// ListOperationRoutesAll indicates an expected call of ListOperationRoutesAll.
+func (mr *MockOperationRoutesServiceMockRecorder) ListOperationRoutesAll(ctx, organizationID, ledgerID, opts any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListOperationRoutesAll", reflect.TypeOf((*MockOperationRoutesService)(nil).ListOperationRoutesAll), ctx, organizationID, ledgerID, opts)
+}
+
+// ListOperationRoutesPages mocks base method.
+func (m *MockOperationRoutesService) ListOperationRoutesPages(ctx context.Context, organizationID, ledgerID string, opts models.OperationRoutesListOpts) iter.Seq2[*models.ListResponse[models.OperationRoute], error] {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListOperationRoutesPages", ctx, organizationID, ledgerID, opts)
+
+	var ret0 iter.Seq2[*models.ListResponse[models.OperationRoute], error]
+	if ret[0] != nil {
+		ret0, _ = ret[0].(iter.Seq2[*models.ListResponse[models.OperationRoute], error]) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	return ret0
+}
+
+// ListOperationRoutesPages indicates an expected call of ListOperationRoutesPages.
+func (mr *MockOperationRoutesServiceMockRecorder) ListOperationRoutesPages(ctx, organizationID, ledgerID, opts any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListOperationRoutesPages", reflect.TypeOf((*MockOperationRoutesService)(nil).ListOperationRoutesPages), ctx, organizationID, ledgerID, opts)
 }

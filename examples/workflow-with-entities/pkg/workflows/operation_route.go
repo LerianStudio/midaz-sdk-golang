@@ -141,9 +141,8 @@ func GetOperationRoute(ctx context.Context, midazClient *client.Client, orgID, l
 func ListOperationRoutes(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) (*models.ListResponse[models.OperationRoute], error) {
 	fmt.Println("\n📋 Listing Operation Routes...")
 
-	listOpts := &models.ListOptions{
-		Limit: 10,
-		Page:  1,
+	listOpts := models.OperationRoutesListOpts{
+		CursorListOpts: models.CursorListOpts{Limit: 10},
 	}
 
 	routesList, err := midazClient.OperationRoutes.ListOperationRoutes(ctx, orgID, ledgerID, listOpts)

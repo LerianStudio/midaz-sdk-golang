@@ -94,7 +94,7 @@ func ListTransactionRoutes(
 	service entities.TransactionRoutesService,
 ) ([]*models.TransactionRoute, error) {
 	// List transaction routes
-	response, err := service.ListTransactionRoutes(ctx, orgID, ledgerID, nil)
+	response, err := service.ListTransactionRoutes(ctx, orgID, ledgerID, models.TransactionRoutesListOpts{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list transaction routes: %w", err)
 	}

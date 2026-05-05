@@ -2,6 +2,7 @@ package mocks
 
 import (
 	"context"
+	"iter"
 	"reflect"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
@@ -129,7 +130,7 @@ func (mr *MockTransactionsServiceMockRecorder) GetTransaction(ctx, orgID, ledger
 }
 
 // ListTransactions mocks base method.
-func (m *MockTransactionsService) ListTransactions(ctx context.Context, orgID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Transaction], error) {
+func (m *MockTransactionsService) ListTransactions(ctx context.Context, orgID, ledgerID string, opts models.TransactionsListOpts) (*models.ListResponse[models.Transaction], error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListTransactions", ctx, orgID, ledgerID, opts)
 
@@ -337,4 +338,42 @@ func (m *MockTransactionsService) CreateAnnotationTransaction(ctx context.Contex
 func (mr *MockTransactionsServiceMockRecorder) CreateAnnotationTransaction(ctx, orgID, ledgerID, input any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAnnotationTransaction", reflect.TypeOf((*MockTransactionsService)(nil).CreateAnnotationTransaction), ctx, orgID, ledgerID, input)
+}
+
+// ListTransactionsAll mocks base method.
+func (m *MockTransactionsService) ListTransactionsAll(ctx context.Context, orgID, ledgerID string, opts models.TransactionsListOpts) iter.Seq2[models.Transaction, error] {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListTransactionsAll", ctx, orgID, ledgerID, opts)
+
+	var ret0 iter.Seq2[models.Transaction, error]
+	if ret[0] != nil {
+		ret0, _ = ret[0].(iter.Seq2[models.Transaction, error]) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	return ret0
+}
+
+// ListTransactionsAll indicates an expected call of ListTransactionsAll.
+func (mr *MockTransactionsServiceMockRecorder) ListTransactionsAll(ctx, orgID, ledgerID, opts any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListTransactionsAll", reflect.TypeOf((*MockTransactionsService)(nil).ListTransactionsAll), ctx, orgID, ledgerID, opts)
+}
+
+// ListTransactionsPages mocks base method.
+func (m *MockTransactionsService) ListTransactionsPages(ctx context.Context, orgID, ledgerID string, opts models.TransactionsListOpts) iter.Seq2[*models.ListResponse[models.Transaction], error] {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListTransactionsPages", ctx, orgID, ledgerID, opts)
+
+	var ret0 iter.Seq2[*models.ListResponse[models.Transaction], error]
+	if ret[0] != nil {
+		ret0, _ = ret[0].(iter.Seq2[*models.ListResponse[models.Transaction], error]) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	return ret0
+}
+
+// ListTransactionsPages indicates an expected call of ListTransactionsPages.
+func (mr *MockTransactionsServiceMockRecorder) ListTransactionsPages(ctx, orgID, ledgerID, opts any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListTransactionsPages", reflect.TypeOf((*MockTransactionsService)(nil).ListTransactionsPages), ctx, orgID, ledgerID, opts)
 }

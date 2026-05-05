@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	stderrors "errors"
+	"iter"
 	"net/http"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
@@ -26,9 +27,11 @@ type OperationsService interface {
 	//   - orgID: The ID of the organization that owns the ledger. Must be a valid organization ID.
 	//   - ledgerID: The ID of the ledger containing the account. Must be a valid ledger ID.
 	//   - accountID: The ID of the account to retrieve operations for. Must be a valid account ID.
-	//   - opts: Optional cursor pagination and filtering options. ListOptions.Cursor and
-	//     ListOptions.Limit are serialized by cursorListQueryParams; Page and Offset are
-	//     ignored for this cursor-only endpoint and are not sent on the wire.
+	//   - opts: Typed OperationsListOpts. The struct exposes Cursor and
+	//     Limit; Page and Offset are intentionally absent because this is a
+	//     cursor-only endpoint. Compile-time prevents the v2 footgun
+	//     where setting WithPage on a cursor endpoint silently dropped the
+	//     value (audit finding 5.5).
 	//
 	// Returns:
 	//   - *models.ListResponse[models.Operation]: A cursor-paginated list of operations.
@@ -95,7 +98,11 @@ type OperationsService interface {
 	//
 	//	// Process the operations
 	//	fmt.Printf("Retrieved %d debit operations in USD\n", len(operations.Items))
-	ListOperations(ctx context.Context, orgID, ledgerID, accountID string, opts *models.ListOptions) (*models.ListResponse[models.Operation], error)
+	ListOperations(ctx context.Context, orgID, ledgerID, accountID string, opts models.OperationsListOpts) (*models.ListResponse[models.Operation], error)
+
+	ListOperationsAll(ctx context.Context, orgID, ledgerID, accountID string, opts models.OperationsListOpts) iter.Seq2[models.Operation, error]
+
+	ListOperationsPages(ctx context.Context, orgID, ledgerID, accountID string, opts models.OperationsListOpts) iter.Seq2[*models.ListResponse[models.Operation], error]
 
 	// GetOperation retrieves a specific operation by its ID.
 	//
@@ -198,7 +205,7 @@ func newOperationsEntity(client *http.Client, authToken string, baseURLs map[str
 }
 
 // ListOperations lists operations for an account with optional filters.
-func (e *operationsEntity) ListOperations(ctx context.Context, orgID, ledgerID, accountID string, opts *models.ListOptions) (*models.ListResponse[models.Operation], error) {
+func (e *operationsEntity) ListOperations(ctx context.Context, orgID, ledgerID, accountID string, opts models.OperationsListOpts) (*models.ListResponse[models.Operation], error) {
 	const operation = "ListOperations"
 
 	if orgID == "" {
@@ -220,11 +227,9 @@ func (e *operationsEntity) ListOperations(ctx context.Context, orgID, ledgerID, 
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	// Add query parameters if provided
-	if opts != nil {
+	if params := opts.ToQueryParams(); len(params) > 0 {
 		q := req.URL.Query()
-
-		for key, value := range cursorListQueryParams(opts) {
+		for key, value := range params {
 			q.Add(key, value)
 		}
 
@@ -240,6 +245,44 @@ func (e *operationsEntity) ListOperations(ctx context.Context, orgID, ledgerID, 
 	normalizeOperationListResponse(&response)
 
 	return &response, nil
+}
+
+// ListOperationsAll yields every operation matching the request,
+// transparently advancing pagination via the server-issued NextCursor.
+func (e *operationsEntity) ListOperationsAll(ctx context.Context, orgID, ledgerID, accountID string, opts models.OperationsListOpts) iter.Seq2[models.Operation, error] {
+	return flattenPages(e.ListOperationsPages(ctx, orgID, ledgerID, accountID, opts))
+}
+
+// ListOperationsPages yields one full *ListResponse[Operation] per page,
+// transparently advancing pagination via the server-issued NextCursor.
+func (e *operationsEntity) ListOperationsPages(ctx context.Context, orgID, ledgerID, accountID string, opts models.OperationsListOpts) iter.Seq2[*models.ListResponse[models.Operation], error] {
+	return func(yield func(*models.ListResponse[models.Operation], error) bool) {
+		current := opts
+
+		for {
+			if ctx.Err() != nil {
+				yield(nil, ctx.Err())
+				return
+			}
+
+			page, err := e.ListOperations(ctx, orgID, ledgerID, accountID, current)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			if !yield(page, nil) {
+				return
+			}
+
+			next := page.Pagination.NextCursor
+			if next == "" {
+				return
+			}
+
+			current.Cursor = next
+		}
+	}
 }
 
 // GetOperation retrieves an operation by its ID.

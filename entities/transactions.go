@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"iter"
 	"mime/multipart"
 	"net/http"
 	"strings"
@@ -52,10 +53,17 @@ type TransactionsService interface {
 	// The orgID and ledgerID parameters specify which organization and ledger to query.
 	// The opts parameter can be used to specify pagination, sorting, and filtering options.
 	// Returns a ListResponse containing the transactions and pagination information, or an error if the operation fails.
-	ListTransactions(ctx context.Context, orgID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Transaction], error)
+	ListTransactions(ctx context.Context, orgID, ledgerID string, opts models.TransactionsListOpts) (*models.ListResponse[models.Transaction], error)
+
+	// ListTransactionsAll yields every transaction matching the request,
+	// transparently advancing pagination via the server-issued NextCursor.
+	ListTransactionsAll(ctx context.Context, orgID, ledgerID string, opts models.TransactionsListOpts) iter.Seq2[models.Transaction, error]
+
+	// ListTransactionsPages yields one full *ListResponse[Transaction] per page.
+	ListTransactionsPages(ctx context.Context, orgID, ledgerID string, opts models.TransactionsListOpts) iter.Seq2[*models.ListResponse[models.Transaction], error]
 
 	// GetTransactionsMetricsCount retrieves the count of transactions that match the supplied filters.
-	GetTransactionsMetricsCount(ctx context.Context, orgID, ledgerID string, opts *models.ListOptions) (*models.MetricsCount, error)
+	GetTransactionsMetricsCount(ctx context.Context, orgID, ledgerID string, opts models.TransactionsListOpts) (*models.MetricsCount, error)
 
 	// UpdateTransaction updates an existing transaction.
 	// The orgID and ledgerID parameters specify which organization and ledger the transaction belongs to.
@@ -705,21 +713,21 @@ func (e *transactionsEntity) GetTransaction(ctx context.Context, orgID, ledgerID
 //   - Resource not found (invalid organization or ledger ID)
 //   - Invalid parameters (negative page number, etc.)
 //   - Network or server errors
-func (e *transactionsEntity) ListTransactions(ctx context.Context, orgID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Transaction], error) {
-	// Operation name for error context
+func (e *transactionsEntity) ListTransactions(ctx context.Context, orgID, ledgerID string, opts models.TransactionsListOpts) (*models.ListResponse[models.Transaction], error) {
 	const operation = "ListTransactions"
 
-	// Validate required parameters
 	if orgID == "" {
 		return nil, sdkerrors.NewMissingParameterError(operation, "organization ID")
 	}
 
-	// Validate required parameters
 	if ledgerID == "" {
 		return nil, sdkerrors.NewMissingParameterError(operation, "ledger ID")
 	}
 
-	// Build the URL for the transactions
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+
 	endpointURL := e.buildURL(orgID, ledgerID, "")
 
 	req, err := newRequestWithContext(ctx, http.MethodGet, endpointURL, nil)
@@ -727,11 +735,9 @@ func (e *transactionsEntity) ListTransactions(ctx context.Context, orgID, ledger
 		return nil, sdkerrors.NewInternalError(operation, fmt.Errorf("failed to create request: %w", err))
 	}
 
-	// Add query parameters if options are provided
-	if opts != nil {
+	if params := opts.ToQueryParams(); len(params) > 0 {
 		q := req.URL.Query()
-
-		for key, value := range transactionListQueryParams(opts) {
+		for key, value := range params {
 			q.Add(key, value)
 		}
 
@@ -748,12 +754,46 @@ func (e *transactionsEntity) ListTransactions(ctx context.Context, orgID, ledger
 	return &response, nil
 }
 
-func transactionListQueryParams(opts *models.ListOptions) map[string]string {
-	return cursorListQueryParams(opts)
+// ListTransactionsAll yields every transaction matching the request,
+// transparently advancing pagination via the server-issued NextCursor.
+func (e *transactionsEntity) ListTransactionsAll(ctx context.Context, orgID, ledgerID string, opts models.TransactionsListOpts) iter.Seq2[models.Transaction, error] {
+	return flattenPages(e.ListTransactionsPages(ctx, orgID, ledgerID, opts))
+}
+
+// ListTransactionsPages yields one full *ListResponse[Transaction] per page,
+// transparently advancing pagination via the server-issued NextCursor.
+func (e *transactionsEntity) ListTransactionsPages(ctx context.Context, orgID, ledgerID string, opts models.TransactionsListOpts) iter.Seq2[*models.ListResponse[models.Transaction], error] {
+	return func(yield func(*models.ListResponse[models.Transaction], error) bool) {
+		current := opts
+
+		for {
+			if ctx.Err() != nil {
+				yield(nil, ctx.Err())
+				return
+			}
+
+			page, err := e.ListTransactions(ctx, orgID, ledgerID, current)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			if !yield(page, nil) {
+				return
+			}
+
+			next := page.Pagination.NextCursor
+			if next == "" {
+				return
+			}
+
+			current.Cursor = next
+		}
+	}
 }
 
 // GetTransactionsMetricsCount retrieves the count of transactions that match the supplied filters.
-func (e *transactionsEntity) GetTransactionsMetricsCount(ctx context.Context, orgID, ledgerID string, opts *models.ListOptions) (*models.MetricsCount, error) {
+func (e *transactionsEntity) GetTransactionsMetricsCount(ctx context.Context, orgID, ledgerID string, opts models.TransactionsListOpts) (*models.MetricsCount, error) {
 	const operation = "GetTransactionsMetricsCount"
 
 	if orgID == "" {
@@ -764,6 +804,10 @@ func (e *transactionsEntity) GetTransactionsMetricsCount(ctx context.Context, or
 		return nil, sdkerrors.NewMissingParameterError(operation, "ledger ID")
 	}
 
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+
 	endpointURL := e.buildMetricsURL(orgID, ledgerID)
 
 	req, err := newRequestWithContext(ctx, http.MethodHead, endpointURL, nil)
@@ -771,9 +815,9 @@ func (e *transactionsEntity) GetTransactionsMetricsCount(ctx context.Context, or
 		return nil, sdkerrors.NewInternalError(operation, fmt.Errorf("failed to create request: %w", err))
 	}
 
-	if opts != nil {
+	if params := transactionMetricsCountQueryParams(opts); len(params) > 0 {
 		q := req.URL.Query()
-		for key, value := range transactionMetricsCountQueryParams(opts) {
+		for key, value := range params {
 			q.Add(key, value)
 		}
 
@@ -788,18 +832,13 @@ func (e *transactionsEntity) GetTransactionsMetricsCount(ctx context.Context, or
 	return &models.MetricsCount{TransactionsCount: count}, nil
 }
 
-func transactionMetricsCountQueryParams(opts *models.ListOptions) map[string]string {
+// transactionMetricsCountQueryParams renders ONLY the filter keys the
+// HEAD /metrics/count endpoint honors: status, route, start_date,
+// end_date. The full TransactionsListOpts.ToQueryParams shape is too
+// broad for this endpoint (cursor/limit/sort don't apply to a HEAD
+// count).
+func transactionMetricsCountQueryParams(opts models.TransactionsListOpts) map[string]string {
 	params := map[string]string{}
-	if opts == nil {
-		return params
-	}
-
-	allowed := map[string]struct{}{
-		"route":      {},
-		"status":     {},
-		"start_date": {},
-		"end_date":   {},
-	}
 
 	if opts.StartDate != "" {
 		params["start_date"] = opts.StartDate
@@ -809,16 +848,12 @@ func transactionMetricsCountQueryParams(opts *models.ListOptions) map[string]str
 		params["end_date"] = opts.EndDate
 	}
 
-	for key, value := range opts.Filters {
-		if _, ok := allowed[key]; ok && value != "" {
-			params[key] = value
-		}
+	if opts.Filters.Status != "" {
+		params["status"] = opts.Filters.Status
 	}
 
-	for key, value := range opts.AdditionalParams {
-		if _, ok := allowed[key]; ok && value != "" {
-			params[key] = value
-		}
+	if opts.Filters.Route != "" {
+		params["route"] = opts.Filters.Route
 	}
 
 	return params

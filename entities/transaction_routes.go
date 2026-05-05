@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"iter"
 	"net/http"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
@@ -30,7 +31,11 @@ type TransactionRoutesService interface {
 	//       SortOrder: "asc",
 	//   }
 	//   routes, err := c.Entity.TransactionRoutes.ListTransactionRoutes(ctx, "org-123", "ledger-456", opts)
-	ListTransactionRoutes(ctx context.Context, organizationID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.TransactionRoute], error)
+	ListTransactionRoutes(ctx context.Context, organizationID, ledgerID string, opts models.TransactionRoutesListOpts) (*models.ListResponse[models.TransactionRoute], error)
+
+	ListTransactionRoutesAll(ctx context.Context, organizationID, ledgerID string, opts models.TransactionRoutesListOpts) iter.Seq2[models.TransactionRoute, error]
+
+	ListTransactionRoutesPages(ctx context.Context, organizationID, ledgerID string, opts models.TransactionRoutesListOpts) iter.Seq2[*models.ListResponse[models.TransactionRoute], error]
 
 	// GetTransactionRoute retrieves a specific transaction route by ID
 	//
@@ -133,7 +138,7 @@ func (e *transactionRoutesEntity) buildURL(organizationID, ledgerID, transaction
 }
 
 // ListTransactionRoutes retrieves a paginated list of transaction routes
-func (e *transactionRoutesEntity) ListTransactionRoutes(ctx context.Context, organizationID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.TransactionRoute], error) {
+func (e *transactionRoutesEntity) ListTransactionRoutes(ctx context.Context, organizationID, ledgerID string, opts models.TransactionRoutesListOpts) (*models.ListResponse[models.TransactionRoute], error) {
 	operation := "ListTransactionRoutes"
 
 	if organizationID == "" {
@@ -151,9 +156,9 @@ func (e *transactionRoutesEntity) ListTransactionRoutes(ctx context.Context, org
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	if opts != nil {
+	if params := opts.ToQueryParams(); len(params) > 0 {
 		q := req.URL.Query()
-		for key, value := range cursorListQueryParams(opts) {
+		for key, value := range params {
 			q.Add(key, value)
 		}
 
@@ -170,6 +175,44 @@ func (e *transactionRoutesEntity) ListTransactionRoutes(ctx context.Context, org
 	}
 
 	return &result, nil
+}
+
+// ListTransactionRoutesAll yields every transactionroute matching the request,
+// transparently advancing pagination via the server-issued NextCursor.
+func (e *transactionRoutesEntity) ListTransactionRoutesAll(ctx context.Context, organizationID, ledgerID string, opts models.TransactionRoutesListOpts) iter.Seq2[models.TransactionRoute, error] {
+	return flattenPages(e.ListTransactionRoutesPages(ctx, organizationID, ledgerID, opts))
+}
+
+// ListTransactionRoutesPages yields one full *ListResponse[TransactionRoute] per page,
+// transparently advancing pagination via the server-issued NextCursor.
+func (e *transactionRoutesEntity) ListTransactionRoutesPages(ctx context.Context, organizationID, ledgerID string, opts models.TransactionRoutesListOpts) iter.Seq2[*models.ListResponse[models.TransactionRoute], error] {
+	return func(yield func(*models.ListResponse[models.TransactionRoute], error) bool) {
+		current := opts
+
+		for {
+			if ctx.Err() != nil {
+				yield(nil, ctx.Err())
+				return
+			}
+
+			page, err := e.ListTransactionRoutes(ctx, organizationID, ledgerID, current)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			if !yield(page, nil) {
+				return
+			}
+
+			next := page.Pagination.NextCursor
+			if next == "" {
+				return
+			}
+
+			current.Cursor = next
+		}
+	}
 }
 
 // GetTransactionRoute retrieves a specific transaction route by ID

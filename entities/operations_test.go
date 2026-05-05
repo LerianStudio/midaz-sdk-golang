@@ -204,7 +204,7 @@ func TestOperationsEntity_ListOperations(t *testing.T) {
 		orgID          string
 		ledgerID       string
 		accountID      string
-		opts           *models.ListOptions
+		opts           models.OperationsListOpts
 		mockResponse   any
 		mockStatusCode int
 		expectError    bool
@@ -216,7 +216,7 @@ func TestOperationsEntity_ListOperations(t *testing.T) {
 			orgID:     opTestOrgID,
 			ledgerID:  opTestLedgerID,
 			accountID: opTestAccountID,
-			opts:      nil,
+			opts:      models.OperationsListOpts{},
 			mockResponse: models.ListResponse[models.Operation]{
 				Items: []models.Operation{createTestOperation()},
 				Pagination: models.Pagination{
@@ -233,11 +233,11 @@ func TestOperationsEntity_ListOperations(t *testing.T) {
 			orgID:     opTestOrgID,
 			ledgerID:  opTestLedgerID,
 			accountID: opTestAccountID,
-			opts: &models.ListOptions{
-				Limit:          5,
-				Offset:         10,
-				OrderBy:        "createdAt",
-				OrderDirection: "desc",
+			opts: models.OperationsListOpts{
+				CursorListOpts: models.CursorListOpts{
+					Limit:         5,
+					SortDirection: models.SortDescending,
+				},
 			},
 			mockResponse: models.ListResponse[models.Operation]{
 				Items: []models.Operation{createTestOperation(), createTestOperation()},
@@ -255,8 +255,8 @@ func TestOperationsEntity_ListOperations(t *testing.T) {
 			orgID:     opTestOrgID,
 			ledgerID:  opTestLedgerID,
 			accountID: opTestAccountID,
-			opts: &models.ListOptions{
-				Filters: map[string]string{"type": "DEBIT"},
+			opts: models.OperationsListOpts{
+				Filters: models.OperationsFilters{Type: "DEBIT"},
 			},
 			mockResponse: models.ListResponse[models.Operation]{
 				Items: []models.Operation{createTestOperation()},
@@ -411,11 +411,11 @@ func TestOperationsEntity_ListOperations_QueryParams(t *testing.T) {
 
 	entity := createTestOperationsEntity(server.URL)
 
-	opts := &models.ListOptions{
-		Limit:          25,
-		Offset:         50,
-		OrderBy:        "createdAt",
-		OrderDirection: "desc",
+	opts := models.OperationsListOpts{
+		CursorListOpts: models.CursorListOpts{
+			Limit:         25,
+			SortDirection: models.SortDescending,
+		},
 	}
 
 	_, err := entity.ListOperations(context.Background(), opTestOrgID, opTestLedgerID, opTestAccountID, opts)
@@ -1026,7 +1026,7 @@ func TestOperationsEntity_ValidationEdgeCases(t *testing.T) {
 
 			switch tt.method {
 			case "ListOperations":
-				_, err = entity.ListOperations(ctx, tt.orgID, tt.ledgerID, tt.accountID, nil)
+				_, err = entity.ListOperations(ctx, tt.orgID, tt.ledgerID, tt.accountID, models.OperationsListOpts{})
 			case "GetOperation":
 				_, err = entity.GetOperation(ctx, tt.orgID, tt.ledgerID, tt.accountID, tt.operationID)
 			case "UpdateOperation":
@@ -1079,7 +1079,7 @@ func TestOperationsEntity_HTTPErrorCodes(t *testing.T) {
 			entity := createTestOperationsEntity(server.URL)
 
 			// Test ListOperations
-			_, err := entity.ListOperations(context.Background(), opTestOrgID, opTestLedgerID, opTestAccountID, nil)
+			_, err := entity.ListOperations(context.Background(), opTestOrgID, opTestLedgerID, opTestAccountID, models.OperationsListOpts{})
 			require.Error(t, err)
 
 			// Test GetOperation
@@ -1337,14 +1337,14 @@ func TestOperationsEntity_ListWithAllFilters(t *testing.T) {
 
 	entity := createTestOperationsEntity(server.URL)
 
-	opts := &models.ListOptions{
-		Limit:          20,
-		Offset:         40,
-		OrderBy:        "updatedAt",
-		OrderDirection: "asc",
-		Filters: map[string]string{
-			"type":      "CREDIT",
-			"assetCode": "EUR",
+	opts := models.OperationsListOpts{
+		CursorListOpts: models.CursorListOpts{
+			Limit:         20,
+			SortDirection: models.SortAscending,
+		},
+		Filters: models.OperationsFilters{
+			Type:      "CREDIT",
+			AssetCode: "EUR",
 		},
 	}
 
@@ -1451,7 +1451,7 @@ func TestOperationsEntity_URLPathConstruction(t *testing.T) {
 
 			switch tt.method {
 			case "ListOperations":
-				entity.ListOperations(context.Background(), opTestOrgID, opTestLedgerID, opTestAccountID, nil)
+				entity.ListOperations(context.Background(), opTestOrgID, opTestLedgerID, opTestAccountID, models.OperationsListOpts{})
 			case "GetOperation":
 				entity.GetOperation(context.Background(), opTestOrgID, opTestLedgerID, opTestAccountID, opTestOperationID)
 			case "UpdateOperation":
@@ -1532,7 +1532,7 @@ func TestOperationsEntity_LargeResponseHandling(t *testing.T) {
 
 	entity := createTestOperationsEntity(server.URL)
 
-	result, err := entity.ListOperations(context.Background(), opTestOrgID, opTestLedgerID, opTestAccountID, nil)
+	result, err := entity.ListOperations(context.Background(), opTestOrgID, opTestLedgerID, opTestAccountID, models.OperationsListOpts{})
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.Len(t, result.Items, 100)

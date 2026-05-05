@@ -2,6 +2,7 @@ package mocks
 
 import (
 	"context"
+	"iter"
 	"reflect"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
@@ -33,7 +34,7 @@ func (m *MockOperationsService) EXPECT() *MockOperationsServiceMockRecorder {
 }
 
 // ListOperations mocks base method.
-func (m *MockOperationsService) ListOperations(ctx context.Context, orgID, ledgerID, accountID string, opts *models.ListOptions) (*models.ListResponse[models.Operation], error) {
+func (m *MockOperationsService) ListOperations(ctx context.Context, orgID, ledgerID, accountID string, opts models.OperationsListOpts) (*models.ListResponse[models.Operation], error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListOperations", ctx, orgID, ledgerID, accountID, opts)
 
@@ -140,4 +141,42 @@ func (m *MockOperationsService) UpdateTransactionOperation(ctx context.Context, 
 func (mr *MockOperationsServiceMockRecorder) UpdateTransactionOperation(ctx, orgID, ledgerID, transactionID, operationID, input any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTransactionOperation", reflect.TypeOf((*MockOperationsService)(nil).UpdateTransactionOperation), ctx, orgID, ledgerID, transactionID, operationID, input)
+}
+
+// ListOperationsAll mocks base method.
+func (m *MockOperationsService) ListOperationsAll(ctx context.Context, orgID, ledgerID, accountID string, opts models.OperationsListOpts) iter.Seq2[models.Operation, error] {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListOperationsAll", ctx, orgID, ledgerID, accountID, opts)
+
+	var ret0 iter.Seq2[models.Operation, error]
+	if ret[0] != nil {
+		ret0, _ = ret[0].(iter.Seq2[models.Operation, error]) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	return ret0
+}
+
+// ListOperationsAll indicates an expected call of ListOperationsAll.
+func (mr *MockOperationsServiceMockRecorder) ListOperationsAll(ctx, orgID, ledgerID, accountID, opts any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListOperationsAll", reflect.TypeOf((*MockOperationsService)(nil).ListOperationsAll), ctx, orgID, ledgerID, accountID, opts)
+}
+
+// ListOperationsPages mocks base method.
+func (m *MockOperationsService) ListOperationsPages(ctx context.Context, orgID, ledgerID, accountID string, opts models.OperationsListOpts) iter.Seq2[*models.ListResponse[models.Operation], error] {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListOperationsPages", ctx, orgID, ledgerID, accountID, opts)
+
+	var ret0 iter.Seq2[*models.ListResponse[models.Operation], error]
+	if ret[0] != nil {
+		ret0, _ = ret[0].(iter.Seq2[*models.ListResponse[models.Operation], error]) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	return ret0
+}
+
+// ListOperationsPages indicates an expected call of ListOperationsPages.
+func (mr *MockOperationsServiceMockRecorder) ListOperationsPages(ctx, orgID, ledgerID, accountID, opts any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListOperationsPages", reflect.TypeOf((*MockOperationsService)(nil).ListOperationsPages), ctx, orgID, ledgerID, accountID, opts)
 }

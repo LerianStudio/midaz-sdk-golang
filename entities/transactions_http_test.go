@@ -101,7 +101,9 @@ func TestTransactionsEntity_ListTransactions_UsesCursorPagination(t *testing.T) 
 	defer server.Close()
 
 	service := newTransactionsEntity(server.Client(), "token", map[string]string{"transaction": server.URL})
-	_, err := service.ListTransactions(context.Background(), "org-1", "ledger-1", models.NewListOptions().WithPage(3).WithCursor("cursor-123").WithLimit(25))
+	_, err := service.ListTransactions(context.Background(), "org-1", "ledger-1", models.TransactionsListOpts{
+		CursorListOpts: models.CursorListOpts{Limit: 25, Cursor: "cursor-123"},
+	})
 	require.NoError(t, err)
 }
 

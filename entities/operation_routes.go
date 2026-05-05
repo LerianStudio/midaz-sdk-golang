@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"iter"
 	"net/http"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
@@ -30,7 +31,11 @@ type OperationRoutesService interface {
 	//       SortOrder: "asc",
 	//   }
 	//   routes, err := c.Entity.OperationRoutes.ListOperationRoutes(ctx, "org-123", "ledger-456", opts)
-	ListOperationRoutes(ctx context.Context, organizationID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.OperationRoute], error)
+	ListOperationRoutes(ctx context.Context, organizationID, ledgerID string, opts models.OperationRoutesListOpts) (*models.ListResponse[models.OperationRoute], error)
+
+	ListOperationRoutesAll(ctx context.Context, organizationID, ledgerID string, opts models.OperationRoutesListOpts) iter.Seq2[models.OperationRoute, error]
+
+	ListOperationRoutesPages(ctx context.Context, organizationID, ledgerID string, opts models.OperationRoutesListOpts) iter.Seq2[*models.ListResponse[models.OperationRoute], error]
 
 	// GetOperationRoute retrieves a specific operation route by ID
 	//
@@ -132,7 +137,7 @@ func (e *operationRoutesEntity) buildURL(organizationID, ledgerID, operationRout
 }
 
 // ListOperationRoutes retrieves a paginated list of operation routes
-func (e *operationRoutesEntity) ListOperationRoutes(ctx context.Context, organizationID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.OperationRoute], error) {
+func (e *operationRoutesEntity) ListOperationRoutes(ctx context.Context, organizationID, ledgerID string, opts models.OperationRoutesListOpts) (*models.ListResponse[models.OperationRoute], error) {
 	operation := "ListOperationRoutes"
 
 	if organizationID == "" {
@@ -150,9 +155,9 @@ func (e *operationRoutesEntity) ListOperationRoutes(ctx context.Context, organiz
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	if opts != nil {
+	if params := opts.ToQueryParams(); len(params) > 0 {
 		q := req.URL.Query()
-		for key, value := range cursorListQueryParams(opts) {
+		for key, value := range params {
 			q.Add(key, value)
 		}
 
@@ -169,6 +174,44 @@ func (e *operationRoutesEntity) ListOperationRoutes(ctx context.Context, organiz
 	}
 
 	return &result, nil
+}
+
+// ListOperationRoutesAll yields every operationroute matching the request,
+// transparently advancing pagination via the server-issued NextCursor.
+func (e *operationRoutesEntity) ListOperationRoutesAll(ctx context.Context, organizationID, ledgerID string, opts models.OperationRoutesListOpts) iter.Seq2[models.OperationRoute, error] {
+	return flattenPages(e.ListOperationRoutesPages(ctx, organizationID, ledgerID, opts))
+}
+
+// ListOperationRoutesPages yields one full *ListResponse[OperationRoute] per page,
+// transparently advancing pagination via the server-issued NextCursor.
+func (e *operationRoutesEntity) ListOperationRoutesPages(ctx context.Context, organizationID, ledgerID string, opts models.OperationRoutesListOpts) iter.Seq2[*models.ListResponse[models.OperationRoute], error] {
+	return func(yield func(*models.ListResponse[models.OperationRoute], error) bool) {
+		current := opts
+
+		for {
+			if ctx.Err() != nil {
+				yield(nil, ctx.Err())
+				return
+			}
+
+			page, err := e.ListOperationRoutes(ctx, organizationID, ledgerID, current)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			if !yield(page, nil) {
+				return
+			}
+
+			next := page.Pagination.NextCursor
+			if next == "" {
+				return
+			}
+
+			current.Cursor = next
+		}
+	}
 }
 
 // GetOperationRoute retrieves a specific operation route by ID
