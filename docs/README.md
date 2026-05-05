@@ -30,7 +30,7 @@ Run an interactive Go documentation server with:
 make godoc
 ```
 
-Then open http://localhost:6060/pkg/github.com/LerianStudio/midaz-sdk-golang/v2/.
+Then open http://localhost:6060/pkg/github.com/LerianStudio/midaz-sdk-golang/v3/.
 
 Generated docs currently include:
 
@@ -49,10 +49,10 @@ Generated docs currently include:
 
 ## Package structure
 
-- `github.com/LerianStudio/midaz-sdk-golang/v2` - Root package. Exposes `Client`, `New`, and client functional options.
+- `github.com/LerianStudio/midaz-sdk-golang/v3` - Root package. Exposes `Client`, `New`, and client functional options.
 - `entities` - Entity service interfaces and HTTP implementations for Ledger and CRM API resources.
 - `models` - Public SDK request/response types, fluent builders, aliases, pagination helpers, and common constants.
-- `pkg/access-manager` - Plugin-based authentication using Access Manager credentials.
+- `pkg/auth` - Plugin-based authentication using Access Manager credentials.
 - `pkg/config` - Environment-aware configuration and service URL resolution.
 - `pkg/errors` - Structured SDK error type, categories, codes, constructors, and checking helpers.
 - `pkg/observability` - OpenTelemetry tracing, metrics, logging, propagation, and middleware helpers.

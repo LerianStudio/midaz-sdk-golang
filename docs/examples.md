@@ -10,8 +10,8 @@ Environment loading is explicit. Use `config.FromEnvironment()` when you want pr
 import (
     "context"
 
-    client "github.com/LerianStudio/midaz-sdk-golang/v2"
-    "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/config"
+    client "github.com/LerianStudio/midaz-sdk-golang/v3"
+    "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
 )
 
 cfg, err := config.NewConfig(config.FromEnvironment())

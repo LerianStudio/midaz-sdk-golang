@@ -2,7 +2,7 @@
 
 This document explains how the current Midaz Go SDK is organized, how requests move through the SDK, and which extension points are available. It focuses on the implemented codebase, not planned architecture.
 
-The SDK is an idiomatic Go client for Midaz Ledger and CRM APIs. The root module is `github.com/LerianStudio/midaz-sdk-golang/v2`, and the root package name is `client` in `client.go`.
+The SDK is an idiomatic Go client for Midaz Ledger and CRM APIs. The root module is `github.com/LerianStudio/midaz-sdk-golang/v3`, and the root package name is `client` in `client.go`.
 
 ## Architecture at a glance
 
@@ -69,7 +69,7 @@ The major layers are:
 | `entities/` | Entity service interfaces, private HTTP-backed implementations, entity factory, request context helpers, URL builders, and transport helpers. |
 | `models/` | Public SDK types, request inputs, fluent builders, list responses, pagination options, CRM models, transaction models, and Midaz model aliases. |
 | `pkg/config/` | SDK configuration, service URL resolution, environment reading, HTTP client setup, Access Manager config, retry defaults, and idempotency flags. |
-| `pkg/access-manager/` | Access Manager client-credentials token request support. |
+| `pkg/auth/` | Access Manager client-credentials token request support. |
 | `pkg/errors/` | Structured SDK error type, categories, codes, constructors, and helper checkers. |
 | `pkg/observability/` | OpenTelemetry provider abstraction, tracing, metrics, logging, context propagation, and HTTP helpers. |
 | `pkg/retry/` | Retry options, retry engine, HTTP retry helpers, exponential backoff, jitter, and retryable status/error matching. |
@@ -315,12 +315,12 @@ The tenant header is compatibility metadata. The reference Midaz path treats aut
 
 ## Access Manager authentication
 
-Access Manager support lives in `pkg/access-manager`.
+Access Manager support lives in `pkg/auth`.
 
 The SDK supports client-credentials token fetching through:
 
 ```go
-import auth "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/access-manager"
+import auth "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/auth"
 
 cfg, err := config.NewConfig(
     config.WithAccessManager(auth.AccessManager{
@@ -374,7 +374,7 @@ Important boundaries:
 
 ## Errors
 
-Most SDK operational errors use `*errors.Error` from `github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors`.
+Most SDK operational errors use `*errors.Error` from `github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors`.
 
 The actual error shape is:
 
@@ -406,7 +406,7 @@ type Error struct {
 Use the helper checkers for common branches:
 
 ```go
-import sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+import sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
 
 account, err := c.Entity.Accounts.GetAccount(ctx, orgID, ledgerID, accountID)
 if err != nil {

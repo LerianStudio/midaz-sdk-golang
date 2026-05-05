@@ -19,7 +19,7 @@ The Midaz Go SDK is an idiomatic Go client for the Midaz financial ledger APIs. 
 - **Current Midaz API coverage**: Ledger resources plus CRM holders, aliases, and MetadataIndexes.
 - **Entity service API**: Access services through `c.Entity.<Service>` with explicit methods such as `CreateOrganization`, `ListAccounts`, and `CreateTransactionWithDSL`.
 - **Functional options**: Configure clients with `client.WithConfig`, `client.WithBaseURL`, `client.WithRetries`, `client.WithObservabilityProvider`, and related options.
-- **Access Manager authentication**: Configure plugin authentication with `auth.AccessManager` and `config.WithAccessManager` or environment variables.
+- **Access Manager authentication**: OAuth client-credentials via `midaz.WithAccessManager`. Anonymous mode via `midaz.WithAnonymous` for local-dev. Construction without one of the two fails fast with a typed configuration error. See [docs/auth.md](docs/auth.md).
 - **Structured errors**: Use `pkg/errors` categories, codes, helper checkers, status accessors, and request/resource context.
 - **Retries and idempotency**: Built-in retry behavior for transient failures, with idempotency-aware retries for unsafe requests.
 - **Pagination**: `models.ListOptions`, `models.ListResponse[T]`, and pagination metadata helpers.
@@ -29,7 +29,7 @@ The Midaz Go SDK is an idiomatic Go client for the Midaz financial ledger APIs. 
 ## Installation
 
 ```bash
-go get github.com/LerianStudio/midaz-sdk-golang/v2
+go get github.com/LerianStudio/midaz-sdk-golang/v3
 ```
 
 ## Quick start
@@ -42,9 +42,9 @@ import (
     "fmt"
     "log"
 
-    client "github.com/LerianStudio/midaz-sdk-golang/v2"
-    "github.com/LerianStudio/midaz-sdk-golang/v2/models"
-    "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/config"
+    client "github.com/LerianStudio/midaz-sdk-golang/v3"
+    "github.com/LerianStudio/midaz-sdk-golang/v3/models"
+    "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
 )
 
 func main() {
@@ -100,32 +100,33 @@ c, err := client.New(
 )
 ```
 
-### Access Manager configuration
+### Authentication
+
+v3 has exactly two auth paths and refuses to construct a client without one. See [docs/auth.md](docs/auth.md) for full coverage.
+
+**Production: Access Manager (OAuth client-credentials):**
 
 ```go
-import auth "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/access-manager"
-
-accessManager := auth.AccessManager{
-    Enabled:      true,
-    Address:      "https://your-auth-service.com",
-    ClientID:     "your-client-id",
-    ClientSecret: "your-client-secret",
-}
-
-cfg, err := config.NewConfig(
-    config.WithAccessManager(accessManager),
-)
-if err != nil {
-    return err
-}
-
-c, err := client.New(
-    client.WithConfig(cfg),
-    client.UseAllAPIs(),
+c, err := midaz.New(
+    midaz.WithEnvironment(midaz.EnvProduction),
+    midaz.WithAccessManager(midaz.AccessManager{
+        Address:      "https://your-auth-service.com",
+        ClientID:     os.Getenv("MIDAZ_CLIENT_ID"),
+        ClientSecret: os.Getenv("MIDAZ_CLIENT_SECRET"),
+    }),
 )
 ```
 
-Equivalent environment variables:
+**Local development / tests: Anonymous mode:**
+
+```go
+c, err := midaz.New(
+    midaz.WithBaseURL("http://localhost:3000"),
+    midaz.WithAnonymous(),
+)
+```
+
+Equivalent environment variables (loaded only when `config.FromEnvironment()` is in the option chain):
 
 ```bash
 PLUGIN_AUTH_ENABLED=true
@@ -133,6 +134,8 @@ PLUGIN_AUTH_ADDRESS=https://your-auth-service.com
 MIDAZ_CLIENT_ID=your-client-id
 MIDAZ_CLIENT_SECRET=your-client-secret
 ```
+
+There is no `WithAuthToken` option in v3 — static-token deployments configure their Access Manager to mint tokens.
 
 ### Direct URL configuration
 
@@ -254,7 +257,7 @@ if err != nil {
 Import the error package as:
 
 ```go
-import sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+import sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
 ```
 
 See [error handling](docs/errors.md) for categories, status accessors, retry boundaries, and validation details.

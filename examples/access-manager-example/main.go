@@ -1,29 +1,33 @@
+// Package main demonstrates v3 Access Manager authentication.
+//
+// Run with credentials in your .env or shell:
+//
+//	PLUGIN_AUTH_ENABLED=true
+//	PLUGIN_AUTH_ADDRESS=https://your-auth-service.example.com
+//	MIDAZ_CLIENT_ID=...
+//	MIDAZ_CLIENT_SECRET=...
+//
+// The SDK reads these via config.FromEnvironment() — explicit opt-in,
+// no implicit shell-set behavior. See docs/auth.md for the full setup.
 package main
 
 import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 	"strings"
 	"time"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v3"
+	"github.com/LerianStudio/midaz-sdk-golang/v3"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/auth"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
 	"github.com/joho/godotenv"
 )
 
 func main() {
-	pluginAuth, cfg, err := setupConfiguration()
+	c, err := buildClient()
 	if err != nil {
-		log.Fatalf("Failed to setup configuration: %v", err)
-	}
-
-	c, err := createClient(cfg)
-	if err != nil {
-		log.Fatalf("Failed to create client: %v", err)
+		log.Fatalf("midaz.New: %v", err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -42,41 +46,36 @@ func main() {
 
 	organization, err := c.Organizations.CreateOrganization(ctx, input)
 	if err != nil {
-		handleCreationError(err, pluginAuth)
+		handleCreationError(err, c.GetConfig().AccessManager.Address)
 	} else {
-		printOrganizationDetails(organization, pluginAuth)
+		printOrganizationDetails(organization, c.GetConfig().AccessManager.Enabled)
 	}
 
 	fmt.Println("\nTest completed.")
 }
 
-func setupConfiguration() (auth.AccessManager, *config.Config, error) {
+// buildClient assembles a *midaz.Client from environment variables. The
+// pattern is: load .env (best-effort), build a *config.Config that reads
+// PLUGIN_AUTH_* via FromEnvironment, then pass it to midaz.New through
+// WithConfig. The auth-required gate accepts FromEnvironment-driven
+// AccessManager (when PLUGIN_AUTH_ENABLED=true) the same way it accepts a
+// programmatic midaz.WithAccessManager call.
+func buildClient() (*midaz.Client, error) {
 	if err := godotenv.Load(); err != nil {
-		log.Printf("Warning: Error loading .env file: %q", err.Error())
+		log.Printf("Warning: error loading .env file: %v", err)
 	}
 
-	pluginAuth := auth.AccessManager{
-		Enabled:      os.Getenv("PLUGIN_AUTH_ENABLED") == "true",
-		Address:      os.Getenv("PLUGIN_AUTH_ADDRESS"),
-		ClientID:     os.Getenv("MIDAZ_CLIENT_ID"),
-		ClientSecret: os.Getenv("MIDAZ_CLIENT_SECRET"),
-	}
-
-	cfg, err := config.NewConfig(config.WithAccessManager(pluginAuth))
+	cfg, err := config.NewConfig(config.FromEnvironment())
 	if err != nil {
-		return auth.AccessManager{}, nil, fmt.Errorf("failed to create config: %w", err)
+		return nil, fmt.Errorf("config.NewConfig: %w", err)
 	}
 
-	log.Printf("Debug: SDK Version: %q", client.Version)
+	log.Printf("Debug: SDK Version: %q", midaz.Version)
 	log.Printf("Debug: Environment: %q", cfg.Environment)
 
-	return pluginAuth, cfg, nil
-}
-
-func createClient(cfg *config.Config) (*client.Client, error) {
-	return client.New(
-		client.WithConfig(cfg),
-		client.WithObservability(true, true, true),
+	return midaz.New(
+		midaz.WithConfig(cfg),
+		midaz.WithObservability(true, true, true),
 	)
 }
 
@@ -103,12 +102,12 @@ func buildOrganizationInput() *models.CreateOrganizationInput {
 		})
 }
 
-func handleCreationError(err error, pluginAuth auth.AccessManager) {
-	log.Printf("Failed to create organization: %q", err.Error())
+func handleCreationError(err error, accessManagerAddress string) {
+	log.Printf("Failed to create organization: %v", err)
 
 	if strings.Contains(err.Error(), "Internal Server Error") {
 		log.Printf("This is a server-side error. Check the following:")
-		log.Printf("1. Is the plugin auth service running and accessible at %q?", pluginAuth.Address)
+		log.Printf("1. Is the plugin auth service running and accessible at %q?", accessManagerAddress)
 		log.Printf("2. Are the client ID and secret correct?")
 		log.Printf("3. Does the token have the necessary permissions?")
 		log.Printf("4. Is the Midaz API server running and properly configured?")
@@ -119,10 +118,10 @@ func handleCreationError(err error, pluginAuth auth.AccessManager) {
 	}
 }
 
-func printOrganizationDetails(organization *models.Organization, pluginAuth auth.AccessManager) {
+func printOrganizationDetails(organization *models.Organization, accessManagerEnabled bool) {
 	fmt.Println("Organization created successfully!")
 	fmt.Println("Plugin Auth:")
-	fmt.Printf("- Enabled: %t\n", pluginAuth.Enabled)
+	fmt.Printf("- Enabled: %t\n", accessManagerEnabled)
 	fmt.Printf("- ID: %q\n", organization.ID)
 	fmt.Printf("- Legal Name: %q\n", organization.LegalName)
 

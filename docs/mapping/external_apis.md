@@ -1,6 +1,6 @@
 # Midaz Go SDK public API map
 
-This map documents the recommended public SDK surface that consumers should use. It is not a replacement for generated Go docs. The root module is `github.com/LerianStudio/midaz-sdk-golang/v2`; the Go package name is `client`.
+This map documents the recommended public SDK surface that consumers should use. It is not a replacement for generated Go docs. The root module is `github.com/LerianStudio/midaz-sdk-golang/v3`; the Go package name is `client`.
 
 ## Root package
 
@@ -56,7 +56,7 @@ This map documents the recommended public SDK surface that consumers should use.
 
 ## Validation package
 
-Use `github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation` for optional client-side validation helpers.
+Use `github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation` for optional client-side validation helpers.
 
 - `validation.NewValidator(options ...core.ValidationOption) (*validation.Validator, error)`
 - `validation.DefaultValidator() *validation.Validator`
@@ -71,7 +71,7 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation` for optional cl
 
 ## Configuration package
 
-Use `github.com/LerianStudio/midaz-sdk-golang/v2/pkg/config`.
+Use `github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config`.
 
 ### Constructors and options
 
@@ -94,9 +94,9 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v2/pkg/config`.
 - `config.WithRetryWaitMax(time.Duration) config.Option`
 - `config.WithRetries(bool) config.Option`
 - `config.WithDebug(bool) config.Option`
-- `config.WithTenantID(string) config.Option`
 - `config.WithIdempotency(bool) config.Option`
 - `config.WithObservabilityProvider(observability.Provider) config.Option`
+- `config.WithAnonymous() config.Option` (v3 — explicit auth-less mode; required for non-AccessManager construction)
 
 ### Environment variables read by `config.FromEnvironment`
 
@@ -110,6 +110,8 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v2/pkg/config`.
 - `MIDAZ_DEBUG`
 - `MIDAZ_MAX_RETRIES`
 - `MIDAZ_IDEMPOTENCY`
+- `MIDAZ_TENANT_ID` (v3)
+- `MIDAZ_SKIP_AUTH_CHECK` (test plumbing)
 - `PLUGIN_AUTH_ENABLED`
 - `PLUGIN_AUTH_ADDRESS`
 - `MIDAZ_CLIENT_ID`
@@ -117,14 +119,17 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v2/pkg/config`.
 
 ## Access Manager package
 
-Use `github.com/LerianStudio/midaz-sdk-golang/v2/pkg/access-manager` with alias `auth`.
+Use `github.com/LerianStudio/midaz-sdk-golang/v3/pkg/auth` (no alias needed; package name is `auth`).
 
-- `auth.AccessManager` - Plugin authentication configuration with `Enabled`, `Address`, `ClientID`, and `ClientSecret`.
-- `config.WithAccessManager(auth.AccessManager)` - Attaches Access Manager configuration to SDK config.
+- `auth.AccessManager` - Plugin authentication configuration with `Enabled`, `Address`, `ClientID`, and `ClientSecret`. Re-exported as `midaz.AccessManager` so a typical setup needs only the root import.
+- `config.WithAccessManager(auth.AccessManager)` / `midaz.WithAccessManager(midaz.AccessManager)` - Configure plugin auth. The Enabled field is auto-set to true; callers populate Address/ClientID/ClientSecret only.
+- `midaz.WithAnonymous()` / `config.WithAnonymous()` - Explicit auth-less mode for local development and tests.
+
+v3 contract: `midaz.New()` requires exactly one of `WithAccessManager` or `WithAnonymous`. See [docs/auth.md](../auth.md).
 
 ## Entity package
 
-Use `github.com/LerianStudio/midaz-sdk-golang/v2/entities`. Consumers usually access services through `c.Entity`.
+Use `github.com/LerianStudio/midaz-sdk-golang/v3/entities`. Consumers usually access services through `c.Entity`.
 
 ### Entity access point
 
@@ -316,7 +321,7 @@ CRM services use the CRM base URL and set the organization through the `X-Organi
 
 ## Models package
 
-Use `github.com/LerianStudio/midaz-sdk-golang/v2/models`.
+Use `github.com/LerianStudio/midaz-sdk-golang/v3/models`.
 
 ### List and pagination
 
@@ -387,7 +392,7 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v2/models`.
 
 ## Errors package
 
-Use `github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors`.
+Use `github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors`.
 
 - Core type: `*errors.Error`.
 - Sentinel errors: `ErrValidation`, `ErrAuthentication`, `ErrPermission`, `ErrNotFound`, `ErrAlreadyExists`, `ErrIdempotency`, `ErrRateLimit`, `ErrTimeout`, `ErrCancellation`, `ErrInternal`, `ErrUnprocessable`, `ErrInsufficientBalance`, `ErrAccountEligibility`, `ErrAssetMismatch`.
@@ -398,7 +403,7 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors`.
 
 ## Observability package
 
-Use `github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability`.
+Use `github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability`.
 
 - `observability.New(ctx, opts...)`
 - `observability.WithServiceName(string)`
@@ -424,7 +429,7 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability`.
 
 ## Retry package
 
-Use `github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry`.
+Use `github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry`.
 
 - `retry.Do(ctx, fn, opts...)`
 - `retry.DoWithContext(ctx, fn)`
@@ -440,7 +445,7 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry`.
 
 ## Generator package
 
-Use `github.com/LerianStudio/midaz-sdk-golang/v2/pkg/generator` for demo-data workflows and example tooling.
+Use `github.com/LerianStudio/midaz-sdk-golang/v3/pkg/generator` for demo-data workflows and example tooling.
 
 - `generator.DefaultConfig() generator.GeneratorConfig`
 - `(*generator.GeneratorConfig).WithOverrides(generator.GeneratorConfig)` - Additive merge helper. Numeric zero values and empty slices do not override; boolean fields are additive and cannot disable an already-enabled value.

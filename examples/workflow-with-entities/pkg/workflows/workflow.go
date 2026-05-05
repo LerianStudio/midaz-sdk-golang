@@ -10,7 +10,6 @@ import (
 	client "github.com/LerianStudio/midaz-sdk-golang/v3"
 	sdkentities "github.com/LerianStudio/midaz-sdk-golang/v3/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/auth"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
 	"github.com/google/uuid"
 )
@@ -114,42 +113,36 @@ type workflowAccounts struct {
 	dummyTwoAccount *models.Account
 }
 
-// initializeMidazClient initializes and configures the Midaz client
+// initializeMidazClient initializes and configures the Midaz client.
+//
+// In v3 the auth flow is consolidated: config.FromEnvironment() reads the
+// PLUGIN_AUTH_* + MIDAZ_CLIENT_ID + MIDAZ_CLIENT_SECRET env vars on its own,
+// and validateConfig enforces that exactly one of WithAccessManager or
+// WithAnonymous is configured. When PLUGIN_AUTH_ENABLED=true is set, the
+// resulting Config has AccessManager.Enabled=true and the gate accepts it
+// directly. When the env opts out (or the vars aren't set), we fall back
+// to WithAnonymous so the example keeps running locally without spinning
+// up an Access Manager.
 func initializeMidazClient() (*client.Client, error) {
-	pluginAuth := createPluginAuth()
+	options := []config.Option{config.FromEnvironment()}
+	if os.Getenv("PLUGIN_AUTH_ENABLED") != "true" {
+		options = append(options, config.WithAnonymous())
+	}
 
-	cfg, err := config.NewConfig(
-		config.FromEnvironment(),
-		config.WithAccessManager(pluginAuth),
-	)
+	cfg, err := config.NewConfig(options...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create config: %w", err)
 	}
 
 	midazClient, err := client.New(
 		client.WithConfig(cfg),
-		client.WithObservability(true, true, true), // Enable observability
+		client.WithObservability(true, true, true),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create client: %w", err)
 	}
 
 	return midazClient, nil
-}
-
-// createPluginAuth creates the plugin authentication configuration
-func createPluginAuth() auth.AccessManager {
-	pluginAuthEnabled := os.Getenv("PLUGIN_AUTH_ENABLED") == "true"
-	pluginAuthAddress := os.Getenv("PLUGIN_AUTH_ADDRESS")
-	clientID := os.Getenv("MIDAZ_CLIENT_ID")
-	clientSecret := os.Getenv("MIDAZ_CLIENT_SECRET")
-
-	return auth.AccessManager{
-		Enabled:      pluginAuthEnabled,
-		Address:      pluginAuthAddress,
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-	}
 }
 
 // executeCoreSetup executes the core setup phase of the workflow
