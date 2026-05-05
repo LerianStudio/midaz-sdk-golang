@@ -11,11 +11,18 @@
 
 **Current branch:** `v3` (created from `develop`, **NOT yet pushed to origin**)
 
-**Last commit on v3:** `d54c930 feat(v3)!: introduce *slog.Logger contract with retry/slow-call observability`
+**Last commit on v3:** `fc38b74 docs(v3): auth.md + multi-tenancy.md + README/examples for Track 2`
 
-**Total v3 commits so far:** 16 (3 docs + 11 feat + 1 chore + 1 docs-track-1-close)
+**Total v3 commits so far:** 23 (4 docs + 17 feat + 1 chore + 1 docs-track-1-close). **Phase A complete.**
 
 ```
+fc38b74 docs(v3): auth.md + multi-tenancy.md + README/examples       ← Track 2 ✅ Batch 2F
+161ee0e feat(v3)!: delete pkg/config.WithTenantID                    ← Track 2 ✅ Batch 2E
+ff8e5d4 feat(v3)!: delete 5 dead surfaces; tenant via Config.Get..   ← Track 2 ✅ Batch 2D
+f5794ff feat(v3)!: auth-required + WithAccessManager + WithAnonymous ← Track 2 ✅ Batch 2C
+f6ad4bf feat(v3)!: delete entities/context.go shim                   ← Track 2 ✅ Batch 2B
+5f22b2c feat(v3)!: rename pkg/access-manager → pkg/auth              ← Track 2 ✅ Batch 2A
+8654121 docs(v3): close Track 4 in plan; Phase A 3/4 done
 d54c930 feat(v3)!: introduce *slog.Logger contract                    ← Track 4 ✅ CLOSED
 e5aa3ee docs(v3): record Track 3 completion in plan
 8cdafd2 feat(v3)!: collapse all env-var reads into FromEnvironment   ← Track 3 ✅ CLOSED
@@ -47,18 +54,21 @@ f8e2109 feat(v3)!: rename module to /v3 and root package to midaz    ← Batch 1
 
 **Track 4 — STATUS: COMPLETE.** Single-commit batch (d54c930). `*slog.Logger` is the canonical logging surface. `midaz.WithLogger`, `midaz.WithSlowCallThreshold`, `Client.Logger()` returning non-nil `*slog.Logger`. Retry-attempt logging wired (was a `// TODO`); `MetricsCollector.RecordRetry` called from production. `MIDAZ_DEBUG` bypass deleted. 3 unconditional `os.Stderr` writes removed. `Logger.Fatal`/`Logger.Fatalf` deleted from public surface. New `docs/logging.md` + `examples/logging-slog/main.go`.
 
-**Phase A status: 3/4 tracks complete.**
+**Track 2 — STATUS: COMPLETE.** Six-batch close (5f22b2c → fc38b74). Decision 1 from session enforcement: NO static-token capability in v3 — there is no `WithAuthToken`. The two sanctioned auth paths are `midaz.WithAccessManager` (auto-enables) and `midaz.WithAnonymous` (explicit auth-less mode). Auth-required gate at `validateConfig` returns typed error `"no auth source configured; use WithAccessManager or WithAnonymous"` for misconfigured construction. `pkg/access-manager` directory renamed to `pkg/auth` (matches the long-standing `package auth` declaration); `auth` aliases dropped. `MIDAZ_TENANT_ID` env added to `FromEnvironment`. Five dead public surfaces deleted: `entities.WithDefaultTenantID`, `entities.WithPluginAuth`, `Entity.SetAuthToken`, `HTTPClient.SetTenantID`, `pkg/config.WithTenantID` (plus `pkg/auth.EntityOption`/`WithAccessManager` EntityOption flavor and `Config.tenantIDSet` private field). `entities/context.go` shim file deleted entirely (4 deprecated context helpers + 2 internal helpers relocated to `entities/internal_context.go`). Tenant propagation now flows through new `Config.GetTenantID()` interface method instead of an Option-chain bridge. New `docs/auth.md` + `docs/multi-tenancy.md`. Examples (`access-manager-example`, `workflow-with-entities`) and README updated.
+
+**Phase A status: 4/4 tracks complete. Phase A CLOSED.**
 
 | Track | Status | Effort | Outcome |
 |-------|--------|--------|---------|
 | 1 — Naked SDK & Entry Points | 🟢 COMPLETE | M | Single entry point (`midaz.New()`), services on root, 56 type aliases |
-| 2 — Auth & Tenant Chaos | 🔵 Not started | M | `WithAuthToken`, AccessManager re-export, auth required |
+| 2 — Auth & Tenant Chaos | 🟢 COMPLETE | M | `WithAccessManager` + `WithAnonymous`, auth required, `pkg/auth`, 5 dead surfaces deleted |
 | 3 — Implicit Env-Var Reads | 🟢 COMPLETE | S | All env reads gated on `FromEnvironment()` opt-in |
 | 4 — Logging Gap | 🟢 COMPLETE | M | `*slog.Logger` canonical, retry logging shipped, no MIDAZ_DEBUG bypass |
 
 **Next action when resuming:**
-1. **Track 2** (Auth & Tenant Chaos) — last Phase A track. Adds `midaz.WithAuthToken(token)` option, re-exports `AccessManager`, renames `pkg/access-manager` → `pkg/auth`, makes auth source required at construction (returns typed error `"no auth source configured; use WithAuthToken, WithAccessManager, or WithAnonymous"`). Closes Track 1's deferred `WithAuthToken` acceptance criterion.
-2. **Phase B** (Tracks 5-8) — opens after Phase A closes. Pagination, options sprawl, builder API drift, error system actionability.
+1. **Push `v3` branch to origin.** 23 commits sitting locally; Phase A's foundation is the single biggest API-shape decision in the v3 cycle and deserves to be durable.
+2. **Phase B opens.** Tracks 5-8: pagination footguns (`iter.Seq2` migration), options sprawl audit (deduplicate the 50+ Options across midaz/config/entities), builder API drift (model package builders that don't compose), error system actionability (typed predicates that return false on real network errors). Per-track dependencies are described in their respective sections below.
+3. **Phase C** (Track 9): examples rewrite, full README rewrite, godoc audit, mock generation. Depends on Phase B for stable surfaces.
 
 **Important context preserved for the next session:**
 
@@ -90,26 +100,32 @@ acc, _ := c.Entity.Accounts.GetAccount(ctx, ...)
 input := models.CreateAccountInput{...}  // every input/output type qualified
 
 // v3 (current v3 branch state) — 2 imports, 1 way to construct, typed errors,
-// structured logging, single env path
+// structured logging, single env path, auth REQUIRED at construction
 import "github.com/LerianStudio/midaz-sdk-golang/v3"
 import "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
 
 logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
 c, err := midaz.New(
-    midaz.WithConfig(cfg),                       // env reads only via FromEnvironment
-    midaz.WithLogger(logger),                    // *slog.Logger canonical
-    midaz.WithSlowCallThreshold(2*time.Second),  // structured Warn on slow calls
+    midaz.WithEnvironment(midaz.EnvProduction),
+    midaz.WithAccessManager(midaz.AccessManager{   // OAuth via Lerian Access Manager
+        Address:      "https://auth.midaz.io",     // OR midaz.WithAnonymous() for local-dev
+        ClientID:     os.Getenv("MIDAZ_CLIENT_ID"),
+        ClientSecret: os.Getenv("MIDAZ_CLIENT_SECRET"),
+    }),                                            // Enabled is auto-set; don't touch it
+    midaz.WithTenantID("acme-prod"),               // client-level default tenant
+    midaz.WithLogger(logger),                      // *slog.Logger canonical
+    midaz.WithSlowCallThreshold(2*time.Second),    // structured Warn on slow calls
 )
-if errors.IsConfigurationError(err) {            // typed setup errors
+if errors.IsConfigurationError(err) {              // typed setup errors
     log.Fatalf("midaz misconfigured: %v", err)
 }
 ctx = sdkctx.WithIdempotencyKey(ctx, key)
-ctx = sdkctx.WithRequestTenantID(ctx, tenant)    // unambiguous; renamed from WithTenantID
-ctx = sdkctx.WithIncludeDeleted(ctx, true)       // NEW (Track 7 dependency)
-ctx = sdkctx.WithHardDelete(ctx, true)           // NEW (Track 7 dependency)
-acc, _ := c.Accounts.GetAccount(ctx, ...)        // hoisted via embedded Entity
-input := midaz.CreateAccountInput{...}           // 56 hot types re-exported on midaz.*
+ctx = sdkctx.WithRequestTenantID(ctx, "acme-stg")  // per-request beats client default
+ctx = sdkctx.WithIncludeDeleted(ctx, true)         // NEW (Track 7 dependency)
+ctx = sdkctx.WithHardDelete(ctx, true)             // NEW (Track 7 dependency)
+acc, _ := c.Accounts.GetAccount(ctx, ...)          // hoisted via embedded Entity
+input := midaz.CreateAccountInput{...}             // 56 hot types re-exported on midaz.*
 c.Logger().Info("processed", slog.String("account_id", acc.ID))
 
 // What's GONE in v3:
@@ -122,7 +138,16 @@ c.Logger().Info("processed", slog.String("account_id", acc.ID))
 //   * Logger.Fatal / Logger.Fatalf (library code mustn't os.Exit)
 //   * MIDAZ_DEBUG stderr-bypass logging path
 //   * 3 unconditional fmt.Fprintf(os.Stderr, ...) calls
-// midaz.New() is the canonical entry point. One way to do it.
+//   * client.WithAuthToken (no static-token capability in v3 — use Access Manager)
+//   * Construction without an auth source (typed error: "no auth source configured")
+//   * pkg/access-manager directory (renamed to pkg/auth — directory matches package)
+//   * entities.WithDefaultTenantID Option (tenant flows through Config.GetTenantID now)
+//   * entities.WithPluginAuth Option (auth flows through NewEntityWithConfig directly)
+//   * Entity.SetAuthToken method (no post-construction static-token mutation)
+//   * HTTPClient.SetTenantID public method (un-exported as setTenantIDLocked)
+//   * pkg/config.WithTenantID Option (use midaz.WithTenantID or assign field directly)
+//   * entities/context.go shim file (sdkctx is the only public context API)
+// midaz.New() is the canonical entry point. One way to do it. Auth is required.
 ```
 
 ---
@@ -513,15 +538,25 @@ Per-request context > client option > FromEnvironment > error
 
 #### Acceptance criteria
 
-- [ ] `client.WithAuthToken("token")` configures auth in a single line — no `pkg/config` import required
-- [ ] `client.WithAccessManager(am)` works without touching `pkg/config` or `pkg/auth`
-- [ ] `client.AccessManager` is the public type (re-exported from `pkg/auth`)
-- [ ] Without an auth source AND without explicit `WithAnonymous()`, `client.New()` returns a typed error
-- [ ] Tenant ID precedence implemented + documented + tested (per-request > client > env)
-- [ ] `docs/auth.md` and `docs/multi-tenancy.md` exist with runnable examples
-- [ ] `pkg/access-manager` directory renamed to `pkg/auth`; package name matches directory; godoc surfaces auth as a discoverable subpackage
-- [ ] `entities.WithRequestTenantID` is the only context helper for tenant ID; `entities.WithTenantID` (the old context one) is gone
-- [ ] `MIDAZ_TENANT_ID` env var added to `FromEnvironment()` (currently absent)
+- [x] **DECISION CHANGE during execution:** `client.WithAuthToken` was REMOVED from scope (Decision 1, session 4). v3 has zero static-token capability. The only paths are `WithAccessManager` (auto-enables) and `WithAnonymous` (explicit auth-less). Static-token deployments configure their access manager to mint tokens. Documented in `docs/auth.md` and `docs/environment.md`.
+- [x] `midaz.WithAccessManager(am)` works without touching `pkg/config` or `pkg/auth`. Verified in `validation_contract_test.go:TestWithAccessManagerAutoEnables`.
+- [x] `midaz.AccessManager` is the public type, re-exported from `pkg/auth` via `types.go` (Track 1 alias pattern). `AccessManager.Enabled` is auto-set by `WithAccessManager` so callers never touch the field.
+- [x] Without an auth source AND without `WithAnonymous()`, `midaz.New()` returns a typed error: `"no auth source configured; use WithAccessManager or WithAnonymous"`. Verified in `validation_contract_test.go:TestNewRejectsConstructionWithoutAuthSource` (4 assertions: typed configuration error, sentinel `ErrConfiguration`, exact phrase, both option names mentioned).
+- [x] Tenant ID precedence implemented + documented + tested. The 3-layer model (`sdkctx.WithRequestTenantID` > `midaz.WithTenantID` > `MIDAZ_TENANT_ID` env via FromEnvironment) is enforced in `entities/http.go:540` (per-request beats client default), in `midaz.go:setupEntity` (client beats config/env), and in `pkg/config/configureOptionalSettings` (env populates Config). Documented in `docs/multi-tenancy.md`. Tested in `entities/http_tenant_test.go:TestTenantIDHeaderMatrix` (cross-product of context-vs-client tenant) and `pkg/config/config_test.go:TestConfigTenantIDDirectAssignmentWinsOverEnv`.
+- [x] `docs/auth.md` and `docs/multi-tenancy.md` exist with runnable examples. Each ~140 lines covering setup, behavior at construction, env contract, mutual exclusion, and a v2-to-v3 migration table.
+- [x] `pkg/access-manager` directory renamed to `pkg/auth`. Package name matches directory. `auth` aliases dropped at all 10 import sites (the package name is `auth`, so the alias was redundant). Godoc surfaces `pkg/auth` as a discoverable subpackage at `pkg.go.dev/github.com/LerianStudio/midaz-sdk-golang/v3/pkg/auth`.
+- [x] **CLARIFICATION on context helper rename:** the original criterion said "`entities.WithRequestTenantID` is the only context helper". v3 went further: `entities/context.go` was deleted entirely (Batch 2B). The canonical context helpers ALL live in `pkg/sdkctx`. There is no `entities.WithRequestTenantID` because there is no entities-level public context API at all in v3.
+- [x] `MIDAZ_TENANT_ID` env var added to `FromEnvironment()`. Reads via `configureOptionalSettings` (Batch 2A). Verified in `pkg/config/config_test.go:TestConfigTenantIDFromEnv` (3 sub-tests: positive case, empty case, whitespace-trimming).
+
+#### Bonus deletions (not in original criteria, included in Track 2 scope)
+
+- [x] `entities.WithDefaultTenantID` Option deleted (Batch 2D). Tenant propagation now goes through the new `Config.GetTenantID()` interface method.
+- [x] `entities.WithPluginAuth` Option deleted (Batch 2D). Was zero-production-callers — only existed for `entities.Option` compatibility with the EntityOption-flavor `WithAccessManager`.
+- [x] `Entity.SetAuthToken` method deleted (Batch 2D). Decision 1 enforcement: post-construction static-token mutation is not a v3 capability.
+- [x] `HTTPClient.SetTenantID` public method deleted (Batch 2D). 16 service-entity propagators migrated to call the unexported `setTenantIDLocked` directly.
+- [x] `pkg/auth.WithAccessManager` (the EntityOption flavor) and `pkg/auth.EntityOption` type deleted (Batch 2D). Production auth flow goes through `auth.GetTokenFromAccessManager` called directly from `NewEntityWithConfig`; the EntityOption was only used by the deleted `entities.WithPluginAuth`.
+- [x] `pkg/config.WithTenantID` Option deleted (Batch 2E). Programmatic callers use `midaz.WithTenantID` (client-level) or assign `cfg.TenantID` directly. The `Config.tenantIDSet` private field also deleted (no consumers without the option).
+- [x] `entities/context.go` shim file deleted entirely (Batch 2B). 4 deprecated public helpers removed; 2 internal helpers relocated to `entities/internal_context.go`. v2 compat shims have no place in a clean-cut major version.
 
 ---
 
@@ -2237,6 +2272,34 @@ A running record of design decisions with rationale. Append-only; never edit his
   - `TestAliasesUsableInUserFlow`: 2 directional checks proving values flow without conversions or boxing — the practical user-flow proof.
 **Track 1 closes here.** All Batch 1A-1G acceptance criteria within Track 1's scope are satisfied. Three deferred items (`WithAuthToken`, `Logger()` non-nil, examples migration) live in Tracks 2/4/9 respectively per the original sequencing plan.
 
+### 2026-05-06 — Track 2 six-batch close: clean-cut auth + tenant rebuild, Phase A complete (commits 5f22b2c → fc38b74)
+
+**Decision:** Track 2 closed in 6 atomic batches. The most architecturally fraught Phase A track (4+ paths to set auth, 4+ paths to set tenant, two parallel `WithAccessManager` definitions, dead surfaces propped up by deprecated shim files) is rebuilt around a single principle: **two paths to authenticate, three layers to set tenant, zero v2 compatibility shims surviving the boundary**.
+
+**Decision-change-during-execution: removing `WithAuthToken` from scope.** The plan's original criterion was "`client.WithAuthToken("token")` configures auth in a single line". Mid-execution Fred decided to drop static-token capability entirely — per Decision 1 (session 4): "remove the static token capability". v3 has only `WithAccessManager` (OAuth via Lerian Access Manager) and `WithAnonymous` (explicit auth-less). Static-token deployments configure their access manager to mint tokens. The error message reflects this: `"no auth source configured; use WithAccessManager or WithAnonymous"`. This is a stronger architectural stance than the plan envisioned and forces every production user through the proper credential-rotation path.
+
+**Architectural decision: `Config.GetTenantID()` interface method drives tenant propagation.** The plan called for `entities.WithDefaultTenantID` to bridge client-level tenantID to the entity layer. Inside the implementation we realized that's an Option-chain abstraction over a value that already lives on `Config`. New approach: extend the `entities.Config` interface with `GetTenantID() string`. `pkg/config.Config` implements it trivially. `entities.NewEntityWithConfig` seeds the HTTPClient's tenantID from `Config.GetTenantID()` directly. `midaz.go:setupEntity` mutates `c.config.TenantID` with the client-level override before constructing the Entity. This eliminates the bridge Option entirely and consolidates tenant flow at one architectural layer (Config) instead of two (Config + Options).
+
+**Architectural decision: `WithAccessManager` auto-sets `Enabled: true`.** v2 required callers to write `auth.AccessManager{Enabled: true, Address: ..., ClientID: ..., ClientSecret: ...}` — a footgun where forgetting `Enabled: true` produced a silently-disabled auth source. v3 makes the act of calling `WithAccessManager` THE opt-in: `Enabled` is overridden to true inside the option function regardless of what the caller passed. Same applies to `WithAnonymous`: it sets `Anonymous=true` and clears `AccessManager.Enabled` (preserving Address/ClientID/ClientSecret for env-driven introspection — only `Enabled` controls the active source). Mutual exclusion is built in: last-applied option wins.
+
+**Architectural decision: clean cut on `entities/context.go` (Batch 2B).** The shim file held 4 deprecated public helpers (`WithIdempotencyKey`, `WithTenantID`, `TenantIDFromContext`, `WithoutAutoIdempotency`) plus 2 internal helpers consumed by `entities/http.go`. The plan called for deleting only `WithTenantID`. Per the user-stated principle ("no shim files, no aliases capabilities only to keep backward compat — clean cut"), all 4 deprecated public shims went. The 2 internal helpers moved to a new `entities/internal_context.go` so the boundary is documented and visible. `entities/http.go:540` migrated from the in-package `TenantIDFromContext` shim to a direct `sdkctx.TenantIDFromContext` call.
+
+**Architectural decision: hooked tenant propagation via Config, not Option re-exports.** When deleting `entities.WithDefaultTenantID` (Batch 2D), I considered three migration paths: (a) un-export the Option as `withDefaultTenantID` and call it across packages somehow (impossible — Go enforces unexport), (b) keep a public Option but mark it Deprecated for a release window (rejected per "clean cut"), (c) move the propagation behavior INTO the entity construction flow via the Config interface. Path (c) won. It treats tenant propagation as a *property of Config* rather than a *step in client setup*, which is the more truthful model.
+
+**Mutual exclusion semantics deliberately asymmetric.** When `WithAnonymous` is called after `WithAccessManager`, only `AccessManager.Enabled=false` flips — `Address`, `ClientID`, `ClientSecret` are preserved. This is because env-driven loaders (`FromEnvironment` reading `PLUGIN_AUTH_*`) populate those fields even when `PLUGIN_AUTH_ENABLED=false`, and tests assert against the captured values. Clearing the entire struct would break valid introspection. When `WithAccessManager` is called after `WithAnonymous`, the new AccessManager replaces the struct entirely AND sets `Anonymous=false` — there's no asymmetry concern since the new AccessManager is the authoritative source.
+
+**Test surface decision: contract tests at the Config layer (validation_contract_test.go).** Tests for `WithAccessManager` auto-enabling and the mutual-exclusion contract were initially written at the `midaz.New()` layer. They failed because `NewEntityWithConfig` eagerly fetches a token from the AccessManager URL during construction (the existing v2 flow). Two paths forward: spin up a fake httptest server for the auth endpoint, or test at the Config layer where the option logic lives. Chose the latter — token-fetch integration belongs in `entities/access_manager_test.go:TestEntityWithPluginAuth` (which already exists and exercises that path). Kept the Config-layer tests minimal and focused on option semantics.
+
+**Test surface decision: deletion of redundant context-helper unit tests.** `entities/http_tenant_test.go` had 4 tests (TestTenantIDContextHelpers, TestTenantIDEmptyStringReturnsOriginalContext, TestTenantIDWhitespaceOnlyReturnsOriginalContext, TestTenantIDFromContext_BackgroundContext, TestTenantIDContextOverwrite — 5 actually) that unit-tested the deprecated `entities.WithTenantID` shim. Same coverage exists in `pkg/sdkctx/sdkctx_test.go` since the shim was a 1:1 delegate. Deleted ~85 lines of test pass-through. Kept the 3 tests that exercise REAL integration (header injection from sdkctx-stored value into outgoing requests).
+
+**Documentation decision: two NEW guides, README minimum-update.** `docs/auth.md` and `docs/multi-tenancy.md` are new files (each ~140 lines) covering setup, behavior, mutual exclusion, env contract, migration tables. The README received auth-section rewrite + bulk v2→v3 path replacement, but its broader structural cleanup is deferred to Track 9 (Phase C). v3-dx-plan.md is the source-of-truth and didn't need to chase v2 references on its own.
+
+**Bulk migrations (37 occurrences across 6 files):** Batch 2A's `pkg/access-manager` → `pkg/auth` rename touched 10 import sites; Batch 2B's `entities.WithTenantID(ctx, ...)` → `sdkctx.WithRequestTenantID(ctx, ...)` migration touched 6 test files (36 occurrences in test code, 1 in production); Batch 2C's `WithAccessManager(auth.AccessManager{Enabled: false})` → `WithAnonymous()` test pattern migration touched 41 sites in `pkg/config/config_test.go`; Batch 2D's `e.httpClient.SetTenantID(tenantID)` → `e.httpClient.setTenantIDLocked(tenantID)` propagator migration touched 16 service-entity files. Bulk patches via Python were faster than per-file edits and produced clean diffs.
+
+**Net delta across 6 batches:** roughly +1,100 / -1,300 = **-200 LOC**. The track ADDED `docs/auth.md`, `docs/multi-tenancy.md`, `entities/internal_context.go`, plus extensive contract tests, BUT REMOVED 5 dead public surfaces, 1 entire shim file, ~140 lines of EntityOption pass-through tests, ~85 lines of redundant context-helper tests, and the WithTenantID config option + tenantIDSet field. The headline number understates the architectural simplification.
+
+**Phase A close:** with Track 2 done, the v3 surface for entry points, env reads, observability, auth, and tenancy is locked. 23 commits on the `v3` branch, ready to push to origin. Phase B (pagination, options sprawl, builders, errors) opens next.
+
 ### 2026-05-06 — Track 4 single-batch close: `*slog.Logger` canonical contract (commit d54c930)
 **Decision:** Track 4 closed in a single atomic commit. The most confused subsystem in v2 (two parallel logging systems, no logger injection, retry logging that was a `// TODO`, three scattered `os.Stderr` writes) is reshaped around `*slog.Logger`. The principle: one logger, one path, silent by default, structured everywhere.
 **Net delta:** 14 files (12 modified + 2 new), +842 / -223 lines. Bulk additions are the new `docs/logging.md` (156 lines) and `examples/logging-slog/main.go` (~70 lines); code-only delta in modified files is roughly net-neutral.
@@ -2276,7 +2339,7 @@ Live as of: 2026-05-05 (post-session 1). Update with every commit batch.
 | Track | Status | Started | Completed | Branch / Commits | Notes |
 |-------|--------|---------|-----------|------------------|-------|
 | 1 — Naked SDK & Entry Points | 🟢 **COMPLETE** (7/7 + lint sweep) | 2026-05-05 | 2026-05-06 | `v3` branch, commits f8e2109..588997a | All batches shipped. Acceptance criteria for `WithAuthToken` (Track 2), `Logger()` non-nil (Track 4), and example migration (Track 9) intentionally deferred. |
-| 2 — Auth & Tenant Chaos | 🔵 Not started | — | — | — | Depends on Track 1 completion. Adds `WithAuthToken`, re-exports `AccessManager`, renames `pkg/access-manager` → `pkg/auth`. |
+| 2 — Auth & Tenant Chaos | 🟢 **COMPLETE** | 2026-05-06 | 2026-05-06 | `v3` branch, commits `5f22b2c` → `fc38b74` (6 batches) | 6-batch close. **Decision change during execution:** dropped `WithAuthToken` from scope per Decision 1 — v3 has zero static-token capability. Only paths: `WithAccessManager` (auto-enables) + `WithAnonymous`. Auth-required gate at `validateConfig`. Directory rename `pkg/access-manager` → `pkg/auth`. New `Config.GetTenantID()` interface drives tenant propagation (replaces Option-chain bridge). 5 dead public surfaces deleted (`WithDefaultTenantID`, `WithPluginAuth`, `Entity.SetAuthToken`, `HTTPClient.SetTenantID`, `config.WithTenantID`) plus `pkg/auth.EntityOption` flavor of `WithAccessManager` and the `entities/context.go` shim file. New `docs/auth.md` + `docs/multi-tenancy.md`. Net delta across 6 batches: ~+1,100 / ~-1,300 = **net -200 lines** (counting docs additions). |
 | 3 — Implicit env reads | 🟢 **COMPLETE** | 2026-05-06 | 2026-05-06 | `v3` branch, commit `8cdafd2` | Single-commit batch. 39 production env reads → 15 (all in pkg/config FromEnvironment path). 20 files, **-156 net lines**. `MIDAZ_ENABLE_RETRIES` killswitch deleted. |
 | 4 — Logging gap | 🟢 **COMPLETE** | 2026-05-06 | 2026-05-06 | `v3` branch, commit `d54c930` | Single-commit batch. `*slog.Logger` canonical contract. `WithLogger` + `WithSlowCallThreshold` options. Retry-attempt logging wired (was `// TODO`). `RecordRetry` called from production. 3 stderr writes removed. `Fatal`/`Fatalf` removed from Logger interface. New `docs/logging.md` + `examples/logging-slog/`. 14 files, +842 / -223 lines. |
 
