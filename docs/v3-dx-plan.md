@@ -11,11 +11,13 @@
 
 **Current branch:** `v3` (created from `develop`, **NOT yet pushed to origin**)
 
-**Last commit on v3:** `588997a feat(v3): re-export 56 hot model types at the midaz package level`
+**Last commit on v3:** `8cdafd2 feat(v3)!: collapse all env-var reads into config.FromEnvironment()`
 
-**Total v3 commits so far:** 12 (3 docs + 8 feat + 1 chore)
+**Total v3 commits so far:** 14 (3 docs + 9 feat + 1 chore + 1 docs-track-1-close)
 
 ```
+8cdafd2 feat(v3)!: collapse all env-var reads into FromEnvironment   ← Track 3 ✅ CLOSED
+5093e7c docs(v3): close Track 1 in plan; record lint sweep + 1G
 588997a feat(v3): re-export 56 hot model types at midaz package      ← Batch 1G ✅ — Track 1 CLOSED
 ab98a64 chore(v3): sweep 11 pre-existing lint issues                 ← Lint sweep ✅
 36f292f docs(v3): record Batch 1E completion in plan
@@ -30,29 +32,30 @@ f8e2109 feat(v3)!: rename module to /v3 and root package to midaz    ← Batch 1
 424aae0 docs(v3): add comprehensive v3 DX plan                       ← This doc
 ```
 
-**Verification status (last run end of Batch 1G):**
+**Verification status (last run end of Track 3):**
 - `go build ./...` → clean
-- `go test ./...` → 27/27 packages green, zero failures (59 new tests added in Batch 1G)
+- `go test ./...` → 27/27 packages green, zero failures
 - `make verify-sdk` → ✅ clean
-- `make lint` → ✅ 0 issues (lint sweep brought codebase to fully clean state)
+- `make lint` → ✅ 0 issues
+- `make ci` → ✅ full pipeline (tidy, fmt, lint, gosec, test, coverage, verify-sdk)
 
-**Track 1 — STATUS: COMPLETE.** All 7 batches (1A-1G) shipped. Acceptance criteria status:
-- ✅ Module path → `/v3`
-- ✅ Root package → `midaz`
-- ✅ Use* trio deleted
-- ✅ Services hoisted via embedded `*entities.Entity` (`c.Accounts.X` works; back-compat `c.Entity.Accounts.X` works)
-- ✅ `pkg/sdkctx/` package with 5 helpers
-- ✅ Eager validation at `midaz.New()` (`errors.IsConfigurationError(err)` works)
-- ✅ 16 service constructors unexported; 3 redundant entity constructors deleted; `WithContext` no-op deleted
-- ✅ 56 type aliases on root midaz package
-- ⏸️ `WithAuthToken` → deferred to **Track 2**
-- ⏸️ `Logger()` always non-nil → deferred to **Track 4**
-- ⏸️ Examples migration → deferred to **Track 9**
+**Track 1 — STATUS: COMPLETE.** All 7 batches (1A-1G) shipped. See Track 1 acceptance criteria below for full breakdown.
+
+**Track 3 — STATUS: COMPLETE.** Single-commit batch (8cdafd2). All 24 implicit env reads outside `pkg/config` eliminated. `MIDAZ_ENABLE_RETRIES` killswitch deleted. `MIDAZ_SKIP_AUTH_CHECK` migrated to internal Config field. `NewLocalConfig` deduplicated by routing through `FromEnvironment`. `docs/environment.md` rewritten for v3.
+
+**Phase A status: 2/4 tracks complete.**
+
+| Track | Status | Effort | Outcome |
+|-------|--------|--------|---------|
+| 1 — Naked SDK & Entry Points | 🟢 COMPLETE | M | Single entry point (`midaz.New()`), services on root, 56 type aliases |
+| 2 — Auth & Tenant Chaos | 🔵 Not started | M | `WithAuthToken`, AccessManager re-export, auth required |
+| 3 — Implicit Env-Var Reads | 🟢 COMPLETE | S | All env reads gated on `FromEnvironment()` opt-in |
+| 4 — Logging Gap | 🔵 Not started | M | `*slog.Logger` canonical, retry logging, no MIDAZ_DEBUG bypass |
 
 **Next action when resuming:**
-1. **Track 2** (Auth & Tenant Chaos) — adds `midaz.WithAuthToken(token)` option, re-exports `AccessManager`, renames `pkg/access-manager` → `pkg/auth`, makes auth source required at construction (`midaz.New()` with no auth source returns typed error `"no auth source configured; use WithAuthToken, WithAccessManager, or WithAnonymous"`).
-2. **Track 3** (Implicit env-var reads) — independent of Track 2; can run parallel. Eliminates the 14× `os.Getenv("MIDAZ_DEBUG")` reads in `entities/*.go` plus `MIDAZ_USER_AGENT`, `MIDAZ_IDEMPOTENCY`, `MIDAZ_MAX_RETRIES`, `MIDAZ_ENABLE_RETRIES`, `MIDAZ_SKIP_AUTH_CHECK` (all reads should go through `*config.Config`).
-3. **Track 4** (Logging gap) — depends on Track 3. Introduces `*slog.Logger` as canonical logging contract; deletes `MIDAZ_DEBUG` bypass; adds retry-attempt logging.
+1. **Track 4** (Logging gap) — Track 3 unblocked it. Introduces `*slog.Logger` as canonical logging contract; deletes `entities.HTTPClient.debugLog` two-system mess; adds retry-attempt logging (currently a `// TODO`); makes `Client.Logger()` always return non-nil. **Fred-flagged critical.**
+2. **Track 2** (Auth & Tenant Chaos) — adds `midaz.WithAuthToken(token)` option, re-exports `AccessManager`, renames `pkg/access-manager` → `pkg/auth`, makes auth source required at construction (returns typed error `"no auth source configured; use WithAuthToken, WithAccessManager, or WithAnonymous"`).
+3. **Phase B** (Tracks 5-8) — opens after Phase A closes. Pagination, options sprawl, builder API drift, error system actionability.
 
 **Important context preserved for the next session:**
 
@@ -591,13 +594,13 @@ The env var becomes test plumbing only, set inside `FromEnvironment()` if it's s
 
 #### Acceptance criteria
 
-- [ ] `rg "os.Getenv" /Users/fredamaral/repos/lerianstudio/midaz-sdk-golang --type go | grep -v _test.go | grep -v examples/ | grep -v ProxyFromEnvironment` returns ≤ 17 matches (the 17 explicit reads in `pkg/config/config.go` inside `FromEnvironment` and `NewLocalConfig`)
-- [ ] Setting `MIDAZ_DEBUG=true` in shell has zero effect on `client.New(client.WithDebug(false))` behavior (validated by integration test)
-- [ ] `MIDAZ_ENABLE_RETRIES` is removed from the codebase entirely; `docs/environment.md` documents `MIDAZ_MAX_RETRIES=0` as the disable path
-- [ ] `MIDAZ_SKIP_AUTH_CHECK` env var still works for tests but only via `FromEnvironment()`-driven config; programmatic `NewConfig` ignores it unless explicitly opted in
-- [ ] `docs/environment.md` lists every env var the SDK reads, organized by `FromEnvironment()`-loaded vs stdlib proxy
-- [ ] No entity constructor calls `os.Getenv` (verified via grep + test)
-- [ ] `entities.NewHTTPClient` accepts an explicit `HTTPClientConfig` struct; all knobs are caller-supplied
+- [x] `rg "os.Getenv" --type go | grep -v _test.go | grep -v examples/ | grep -v ProxyFromEnvironment` returns **15 matches** (down from 39), all in `pkg/config/config.go` inside `FromEnvironment` (`NewLocalConfig` was deduplicated to call `FromEnvironment` instead of reading env directly).
+- [x] Setting `MIDAZ_DEBUG=true` in shell has zero effect on `midaz.New()` (no `WithConfig(FromEnvironment())`). Verified by `Test_newAssetRatesEntity_DebugMode` which asserts the env var does NOT bypass the explicit configuration path.
+- [x] `MIDAZ_ENABLE_RETRIES` is removed from the codebase entirely (`rg MIDAZ_ENABLE_RETRIES` → 0 matches). `docs/environment.md` documents `MIDAZ_MAX_RETRIES=0` as the disable path under the "Removed in v3" section.
+- [x] `MIDAZ_SKIP_AUTH_CHECK` env var still works for tests via `FromEnvironment()`; programmatic `NewConfig` ignores it (it's now a private `Config.skipAuthCheck` field).
+- [x] `docs/environment.md` lists every env var the SDK reads, with a "v3 contract" preamble making the explicit-opt-in principle clear, and a separate "Standard library proxy variables" section for stdlib transport reads.
+- [x] No entity constructor calls `os.Getenv` (verified: `rg "os.Getenv" entities/*.go` → 0 production matches; tests stripped of env-dependent assertions, retain coverage via the explicit Config path).
+- [ ] **DEFERRED to Track 7 / Phase B**: `entities.NewHTTPClient` accepts an explicit `HTTPClientConfig` struct; all knobs are caller-supplied. *Track 3 took a softer approach: NewHTTPClient retains its 3-arg signature but reads zero env vars. Defaults flow in via the existing setter chain (WithDebug, WithUserAgent, etc.) which is already driven from Config. Full struct-based refactor would force-update every caller and is not necessary to satisfy the explicit-config principle.*
 
 ---
 
@@ -2218,6 +2221,17 @@ A running record of design decisions with rationale. Append-only; never edit his
   - `TestAliasesUsableInUserFlow`: 2 directional checks proving values flow without conversions or boxing — the practical user-flow proof.
 **Track 1 closes here.** All Batch 1A-1G acceptance criteria within Track 1's scope are satisfied. Three deferred items (`WithAuthToken`, `Logger()` non-nil, examples migration) live in Tracks 2/4/9 respectively per the original sequencing plan.
 
+### 2026-05-06 — Track 3 single-batch close: env reads gated on `FromEnvironment()` opt-in (commit 8cdafd2)
+**Decision:** Track 3 closed in a single atomic commit (vs the multi-batch model used for Track 1) because the changes were mechanically related and shipping them together kept the diff coherent. 24 implicit env reads in production code eliminated; remaining 15 reads consolidated inside `pkg/config/FromEnvironment` paths.
+**Net delta:** 20 files, **-156 lines** (308 deletions, 152 insertions). 14 entity service files lost their dead-code MIDAZ_DEBUG re-read blocks (3-4 lines each). `entities/http.go` lost 5 env reads + the `initRetryOptionsFromEnv`/`logRetryError` helpers + the dead `EnvMidazDebug` constant.
+**Architectural decision: HTTPClientConfig struct deferred.** The original Track 3 plan called for a full `HTTPClientConfig` struct refactor of `NewHTTPClient`. Took the softer path: keep the 3-arg signature, read zero env vars, set safe defaults that get overridden via the existing setter chain (already Config-driven via `entities.WithDebug(c.config.Debug)` etc. in `midaz.go:188`). Customer impact and refactor blast radius minimized; explicit-config principle satisfied. The struct-based refactor can come later if Track 7 (per-service packages) wants it.
+**Architectural decision: NewLocalConfig deduplication.** v2's `NewLocalConfig` manually read PLUGIN_AUTH_* env vars (4 of them). v3 routes through `FromEnvironment()` so there is exactly one place that reads env. Side effect: `NewLocalConfig` now also honors MIDAZ_DEBUG, MIDAZ_TIMEOUT, MIDAZ_USER_AGENT — previously it didn't. This is an enhancement consistent with v3's "one way to do it" principle.
+**Architectural decision: MIDAZ_SKIP_AUTH_CHECK as private field.** The auth-check bypass is now `Config.skipAuthCheck` (unexported). Populated only by `FromEnvironment` reading MIDAZ_SKIP_AUTH_CHECK=true. Programmatic `NewConfig` cannot bypass auth check — that's intentional. Tests using the bypass refactored from cleanup-style env mutation to an Option-based helper that sets the field directly: `NewConfig(disableAuthCheck(t), WithAccessManager(...))`.
+**Test migration cost:** 2 tests required updates. (1) `Test_newAssetRatesEntity_DebugMode` was asserting that env vars flowed into entity construction; now asserts the v3 contract (env alone does NOT bypass explicit config; default is false; WithDebug propagates through `newTestEntity`). (2) `disableAuthCheck` helper migrated from env-mutation to Option-returning. 4 callers in `config_test.go` updated to chain it as the first option.
+**Documentation:** `docs/environment.md` fully rewritten. Added "v3 contract" preamble making the explicit-opt-in principle clear. Added "Removed in v3" section listing MIDAZ_ENABLE_RETRIES + the 4 implicit reads removed from entity layer. All v2 import/usage references removed (was using `client.UseEntityAPI()`, `entities.WithIdempotencyKey` patterns). Added "Standard library proxy variables" callout for HTTP_PROXY/HTTPS_PROXY/NO_PROXY which are stdlib transport-level and unaffected by the v3 contract.
+**Implementation surprise:** Initial sed-based mass deletion left 9 files with unused `os` imports. Caught by `go build` immediately. Two-pass Python script handled the deletion: pass 1 removed the if-block, pass 2 removed the orphan `\t"os"\n` import line. The Python regex-with-multiline approach was easier than wrestling BSD sed for multi-line patterns.
+**Process improvement carrying forward:** `make ci` is now confirmed as the canonical full-pipeline check (tidy, fmt, lint, gosec, test, coverage, verify-sdk). Used at end of Track 3 verification.
+
 ### 2026-05-05 — Anonymous embedding decision deferred Track 7's mmodel concern
 **Observation:** The current `Entity.Accounts` field is typed `entities.AccountsService` (an interface). When we eventually delete `entities/` in Phase B, the embed becomes `*services.Hub` or similar. The migration path: change one line in Client struct, regenerate `c.X` references. Easy. Documented here so future-me doesn't trip over it.
 
@@ -2233,7 +2247,7 @@ Live as of: 2026-05-05 (post-session 1). Update with every commit batch.
 |-------|--------|---------|-----------|------------------|-------|
 | 1 — Naked SDK & Entry Points | 🟢 **COMPLETE** (7/7 + lint sweep) | 2026-05-05 | 2026-05-06 | `v3` branch, commits f8e2109..588997a | All batches shipped. Acceptance criteria for `WithAuthToken` (Track 2), `Logger()` non-nil (Track 4), and example migration (Track 9) intentionally deferred. |
 | 2 — Auth & Tenant Chaos | 🔵 Not started | — | — | — | Depends on Track 1 completion. Adds `WithAuthToken`, re-exports `AccessManager`, renames `pkg/access-manager` → `pkg/auth`. |
-| 3 — Implicit env reads | 🔵 Not started | — | — | — | Independent; can start any time. **High-impact mechanical cleanup**: 14 redundant `os.Getenv("MIDAZ_DEBUG")` reads + 5 hidden env vars in `entities/http.go`. |
+| 3 — Implicit env reads | 🟢 **COMPLETE** | 2026-05-06 | 2026-05-06 | `v3` branch, commit `8cdafd2` | Single-commit batch. 39 production env reads → 15 (all in pkg/config FromEnvironment path). 20 files, **-156 net lines**. `MIDAZ_ENABLE_RETRIES` killswitch deleted. |
 | 4 — Logging gap | 🔵 Not started | — | — | — | Depends on Tracks 1, 3. **Fred-flagged critical**. Introduces `*slog.Logger` as canonical contract; deletes `MIDAZ_DEBUG` bypass; adds retry-attempt logging. |
 
 ### Phase B — Models & Data Flow
