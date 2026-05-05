@@ -299,7 +299,7 @@ func WithCustomRetryPolicy(shouldRetry func(*http.Response, error) bool) Option 
 		c.customRetryPolicy = shouldRetry
 
 		if c.Entity != nil {
-			httpClient := c.Entity.GetEntityHTTPClient()
+			httpClient := c.GetEntityHTTPClient()
 			if httpClient != nil {
 				httpClient.SetCustomRetryPolicy(shouldRetry)
 			}

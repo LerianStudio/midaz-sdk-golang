@@ -29,6 +29,7 @@ func TestWithIdempotencyKey(t *testing.T) {
 }
 
 func TestIdempotencyKeyFromContext_NilCtx(t *testing.T) {
+	//nolint:staticcheck // intentional nil-context for nil-safety verification
 	if got := sdkctx.IdempotencyKeyFromContext(nil); got != "" {
 		t.Errorf("expected empty string from nil ctx, got %q", got)
 	}
@@ -42,6 +43,7 @@ func TestWithoutAutoIdempotency(t *testing.T) {
 	if !sdkctx.AutoIdempotencySuppressed(sdkctx.WithoutAutoIdempotency(ctx)) {
 		t.Error("WithoutAutoIdempotency should set suppression flag")
 	}
+	//nolint:staticcheck // intentional nil-context for nil-safety verification
 	if !sdkctx.AutoIdempotencySuppressed(sdkctx.WithoutAutoIdempotency(nil)) {
 		t.Error("nil ctx should be promoted to background and accept the flag")
 	}
@@ -71,6 +73,7 @@ func TestWithRequestTenantID(t *testing.T) {
 }
 
 func TestTenantIDFromContext_NilCtx(t *testing.T) {
+	//nolint:staticcheck // intentional nil-context for nil-safety verification
 	if got := sdkctx.TenantIDFromContext(nil); got != "" {
 		t.Errorf("expected empty string from nil ctx, got %q", got)
 	}
@@ -87,6 +90,7 @@ func TestWithIncludeDeleted(t *testing.T) {
 	if sdkctx.IncludeDeletedFromContext(sdkctx.WithIncludeDeleted(ctx, false)) {
 		t.Error("WithIncludeDeleted(false) should NOT set the flag")
 	}
+	//nolint:staticcheck // intentional nil-context for nil-safety verification
 	if !sdkctx.IncludeDeletedFromContext(sdkctx.WithIncludeDeleted(nil, true)) {
 		t.Error("nil ctx should be promoted to background")
 	}
@@ -103,6 +107,7 @@ func TestWithHardDelete(t *testing.T) {
 	if sdkctx.HardDeleteFromContext(sdkctx.WithHardDelete(ctx, false)) {
 		t.Error("WithHardDelete(false) should NOT set the flag")
 	}
+	//nolint:staticcheck // intentional nil-context for nil-safety verification
 	if !sdkctx.HardDeleteFromContext(sdkctx.WithHardDelete(nil, true)) {
 		t.Error("nil ctx should be promoted to background")
 	}

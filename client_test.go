@@ -180,7 +180,7 @@ func assertEntityTenantID(t *testing.T, c *Client, wantTID string) {
 		t.Fatal("Expected Entity to be set")
 	}
 
-	entityHTTPClient := c.Entity.GetEntityHTTPClient()
+	entityHTTPClient := c.GetEntityHTTPClient()
 	if entityHTTPClient == nil {
 		t.Fatal("Expected Entity HTTP client to be set")
 	}

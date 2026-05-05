@@ -50,19 +50,19 @@ func TestNewReturnsTypedConfigurationError(t *testing.T) {
 			// All construction errors are typed configuration errors.
 			assert.True(t, sdkerrors.IsConfigurationError(err),
 				"expected ErrConfiguration, got %T: %v", err, err)
-			assert.True(t, stderrors.Is(err, sdkerrors.ErrConfiguration),
+			require.ErrorIs(t, err, sdkerrors.ErrConfiguration,
 				"errors.Is(err, ErrConfiguration) must return true")
 
 			// Operation context is set so users know where it came from.
 			var sdkErr *sdkerrors.Error
-			require.True(t, stderrors.As(err, &sdkErr), "should be *errors.Error")
+			require.ErrorAs(t, err, &sdkErr, "should be *errors.Error")
 			assert.Equal(t, "midaz.New", sdkErr.Operation,
 				"operation must be midaz.New for construction errors")
 
 			// Underlying option errors are reachable via Unwrap.
 			if tt.wantUnwrapPhrase != "" {
 				inner := stderrors.Unwrap(err)
-				require.NotNil(t, inner, "wrapped error must be reachable via Unwrap")
+				require.Error(t, inner, "wrapped error must be reachable via Unwrap")
 				assert.Contains(t, inner.Error(), tt.wantUnwrapPhrase)
 			}
 		})

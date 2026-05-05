@@ -40,7 +40,7 @@ func TestClientWithTimeout_PropagatesToOwnedEntityHTTPClient(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.NotNil(t, c.Entity)
-	require.Equal(t, 7*time.Second, c.Entity.GetHTTPClient().Timeout)
+	require.Equal(t, 7*time.Second, c.GetHTTPClient().Timeout)
 }
 
 func TestClientWithTimeout_DoesNotMutateUserOwnedCustomHTTPClient(t *testing.T) {
@@ -52,7 +52,7 @@ func TestClientWithTimeout_DoesNotMutateUserOwnedCustomHTTPClient(t *testing.T) 
 	)
 	require.NoError(t, err)
 	require.NotNil(t, c.Entity)
-	require.Same(t, custom, c.Entity.GetHTTPClient())
+	require.Same(t, custom, c.GetHTTPClient())
 	require.Equal(t, 55*time.Second, custom.Timeout)
 }
 
