@@ -170,7 +170,6 @@ func createSDKClient(cfg *config.Config) (*client.Client, error) {
 
 	c, err := client.New(
 		client.WithConfig(cfg),
-		client.UseAllAPIs(),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create client: %w", err)

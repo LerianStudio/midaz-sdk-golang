@@ -128,7 +128,6 @@ func initializeMidazClient() (*client.Client, error) {
 
 	midazClient, err := client.New(
 		client.WithConfig(cfg),
-		client.UseEntityAPI(),                      // Enable the Entity API
 		client.WithObservability(true, true, true), // Enable observability
 	)
 	if err != nil {

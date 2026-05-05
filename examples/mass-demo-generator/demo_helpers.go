@@ -434,7 +434,6 @@ func createSDKClient(cfg *config.Config, obsProvider observability.Provider) (*c
 	c, err := client.New(
 		client.WithConfig(cfg),
 		client.WithObservabilityProvider(obsProvider),
-		client.UseAllAPIs(),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create SDK client: %w", err)

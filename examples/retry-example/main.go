@@ -52,7 +52,6 @@ func defaultRetryExample() error {
 	// Create a client with default retry settings
 	c, err := client.New(
 		client.WithEnvironment(config.EnvironmentLocal),
-		client.UseAllAPIs(),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create client: %w", err)
@@ -93,7 +92,6 @@ func customRetryConfigExample() error {
 		client.WithEnvironment(config.EnvironmentLocal),
 		// Configure a more aggressive retry strategy
 		client.WithRetries(5, 200*time.Millisecond, 10*time.Second),
-		client.UseAllAPIs(),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create client: %w", err)
@@ -146,7 +144,6 @@ func customRetryPolicyExample() error {
 		client.WithEnvironment(config.EnvironmentLocal),
 		client.WithRetries(3, 100*time.Millisecond, 1*time.Second),
 		client.WithCustomRetryPolicy(customShouldRetry),
-		client.UseAllAPIs(),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create client: %w", err)
@@ -175,7 +172,6 @@ func disableRetriesExample() error {
 	c, err := client.New(
 		client.WithEnvironment(config.EnvironmentLocal),
 		client.DisableRetries(),
-		client.UseAllAPIs(),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create client: %w", err)

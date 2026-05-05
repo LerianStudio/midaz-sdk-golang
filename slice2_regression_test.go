@@ -33,7 +33,6 @@ func TestClientWithTimeout_PropagatesToOwnedEntityHTTPClient(t *testing.T) {
 	c, err := New(
 		WithConfig(createTestConfig(t)),
 		WithTimeout(7*time.Second),
-		UseEntityAPI(),
 	)
 	require.NoError(t, err)
 	require.NotNil(t, c.Entity)
@@ -46,7 +45,6 @@ func TestClientWithTimeout_DoesNotMutateUserOwnedCustomHTTPClient(t *testing.T) 
 		WithConfig(createTestConfig(t)),
 		WithHTTPClient(custom),
 		WithTimeout(8*time.Second),
-		UseEntityAPI(),
 	)
 	require.NoError(t, err)
 	require.NotNil(t, c.Entity)
@@ -75,7 +73,6 @@ func TestClientEntityOptions_PropagateToServiceHTTPClients(t *testing.T) {
 		WithBaseURL(srv.URL),
 		WithUserAgent("slice2-agent/1.0"),
 		WithTenantID("tenant-root"),
-		UseEntityAPI(),
 	)
 	require.NoError(t, err)
 

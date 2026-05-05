@@ -62,7 +62,6 @@ func TestNewClient(t *testing.T) {
 		WithTimeout(30*time.Second),
 		WithDebug(true),
 		WithEnvironment(config.EnvironmentDevelopment),
-		UseEntity(),
 	)
 	if err != nil {
 		t.Fatalf("Failed to create client with options: %v", err)
@@ -94,10 +93,6 @@ func TestNewClient(t *testing.T) {
 	require.NotNil(t, client.Entity.Aliases)
 	require.NotNil(t, client.Entity.MetadataIndexes)
 
-	if !client.useEntity {
-		t.Error("Expected useEntity to be true")
-	}
-
 	// Test creating a client with a complete config
 	cfg, err := config.NewConfig(
 		config.WithAccessManager(auth.AccessManager{Enabled: false, Address: ""}),
@@ -117,15 +112,17 @@ func TestNewClient(t *testing.T) {
 	}
 }
 
-func TestUseAllAPIs(t *testing.T) {
-	client, err := New(UseAllAPIs(), WithConfig(createTestConfig(t)))
+func TestEntityAlwaysInitialized(t *testing.T) {
+	// v3: Entity surface is always initialized; no opt-in required.
+	c, err := New(WithConfig(createTestConfig(t)))
 	if err != nil {
 		t.Fatalf("Failed to create client: %v", err)
 	}
 
-	if !client.useEntity {
-		t.Error("Expected useEntity to be true")
-	}
+	require.NotNil(t, c.Entity, "v3 must always initialize Entity")
+	require.NotNil(t, c.Entity.Accounts)
+	require.NotNil(t, c.Entity.Transactions)
+	require.NotNil(t, c.Entity.Organizations)
 }
 
 func TestGetConfig(t *testing.T) {
@@ -146,11 +143,11 @@ type tenantTestCase struct {
 	clientTenantID  string // value for WithTenantID
 	setClientTenant bool   // true = apply WithTenantID option
 	configTenantID  string // if non-empty, set on config before New()
-	useEntityAPI    bool
 	wantClientTID   string
 	wantConfigTID   string // only checked when checkConfigTID is true
 	checkConfigTID  bool
-	wantEntityTID   string // only checked when useEntityAPI is true
+	wantEntityTID   string // checked when checkEntityTID is true
+	checkEntityTID  bool
 }
 
 // buildTenantTestClient creates a Client from a tenantTestCase.
@@ -165,10 +162,6 @@ func buildTenantTestClient(t *testing.T, tt tenantTestCase) *Client {
 	opts := []Option{WithConfig(cfg)}
 	if tt.setClientTenant {
 		opts = append(opts, WithTenantID(tt.clientTenantID))
-	}
-
-	if tt.useEntityAPI {
-		opts = append(opts, UseEntityAPI())
 	}
 
 	c, err := New(opts...)
@@ -218,14 +211,14 @@ func TestClientTenantOptions(t *testing.T) {
 			name:            "propagated to entity",
 			clientTenantID:  "propagated-tenant",
 			setClientTenant: true,
-			useEntityAPI:    true,
+			checkEntityTID:  true,
 			wantClientTID:   "propagated-tenant",
 			wantEntityTID:   "propagated-tenant",
 		},
 		{
 			name:           "config fallback when no client tenant",
 			configTenantID: "config-tenant",
-			useEntityAPI:   true,
+			checkEntityTID: true,
 			wantClientTID:  "",
 			checkConfigTID: true,
 			wantConfigTID:  "config-tenant",
@@ -236,7 +229,7 @@ func TestClientTenantOptions(t *testing.T) {
 			clientTenantID:  "",
 			setClientTenant: true,
 			configTenantID:  "config-tenant",
-			useEntityAPI:    true,
+			checkEntityTID:  true,
 			wantClientTID:   "",
 			wantEntityTID:   "",
 		},
@@ -244,7 +237,7 @@ func TestClientTenantOptions(t *testing.T) {
 			name:            "whitespace trimmed",
 			clientTenantID:  "  tenant-a  ",
 			setClientTenant: true,
-			useEntityAPI:    true,
+			checkEntityTID:  true,
 			wantClientTID:   "tenant-a",
 			wantEntityTID:   "tenant-a",
 		},
@@ -252,7 +245,7 @@ func TestClientTenantOptions(t *testing.T) {
 			name:            "whitespace-only becomes empty",
 			clientTenantID:  "   ",
 			setClientTenant: true,
-			useEntityAPI:    true,
+			checkEntityTID:  true,
 			wantClientTID:   "",
 			wantEntityTID:   "",
 		},
@@ -270,7 +263,7 @@ func TestClientTenantOptions(t *testing.T) {
 				t.Errorf("Expected config TenantID %q, got %q", tt.wantConfigTID, c.config.TenantID)
 			}
 
-			if tt.useEntityAPI {
+			if tt.checkEntityTID {
 				assertEntityTenantID(t, c, tt.wantEntityTID)
 			}
 		})

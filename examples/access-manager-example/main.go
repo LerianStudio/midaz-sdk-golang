@@ -76,7 +76,6 @@ func setupConfiguration() (auth.AccessManager, *config.Config, error) {
 func createClient(cfg *config.Config) (*client.Client, error) {
 	return client.New(
 		client.WithConfig(cfg),
-		client.UseEntityAPI(),
 		client.WithObservability(true, true, true),
 	)
 }

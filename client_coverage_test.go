@@ -28,7 +28,6 @@ func TestClientOptionsAccessorsAndConstructors(t *testing.T) {
 			return err != nil || (resp != nil && resp.StatusCode == http.StatusTooManyRequests)
 		}),
 		WithObservability(false, false, false),
-		UseAllAPIs(),
 	)
 	require.NoError(t, err)
 	require.NotNil(t, c.Entity)
@@ -89,7 +88,7 @@ func TestClientOptionErrorsAndNilReceivers(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid base URL")
 
-	c, err := New(WithConfig(createTestConfig(t)), DisableRetries(), UseEntityAPI())
+	c, err := New(WithConfig(createTestConfig(t)), DisableRetries())
 	require.NoError(t, err)
 	assert.False(t, c.config.EnableRetries)
 	require.NotNil(t, c.Entity)

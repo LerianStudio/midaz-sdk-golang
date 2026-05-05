@@ -44,7 +44,6 @@ func main() {
 func setupAndFetchAccounts() (*client.Client, []string, context.Context, context.CancelFunc, error) {
 	c, err := client.New(
 		client.WithEnvironment(config.EnvironmentLocal),
-		client.UseAllAPIs(),
 	)
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("failed to create client: %w", err)

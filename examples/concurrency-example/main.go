@@ -29,7 +29,6 @@ func main() {
 	// Create a client for use in examples
 	c, err := client.New(
 		client.WithEnvironment(config.EnvironmentLocal),
-		client.UseAllAPIs(),
 	)
 	if err != nil {
 		log.Fatalf("Failed to create client: %v", err)

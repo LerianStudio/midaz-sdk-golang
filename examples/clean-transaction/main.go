@@ -32,7 +32,6 @@ func main() {
 	c, err := client.New(
 		client.WithEnvironment(config.EnvironmentLocal),
 		client.WithObservabilityProvider(observabilityProvider),
-		client.UseAllAPIs(),
 	)
 	if err != nil {
 		log.Fatalf("Failed to create client: %v", err)

@@ -1,5 +1,18 @@
-// Package client provides a client for the Midaz API.
-// It is the top-level entry point for interacting with the SDK.
+// Package midaz is the entry point for the Midaz Go SDK.
+//
+// Quickstart:
+//
+//	c, err := midaz.New(
+//	    midaz.WithEnvironment(midaz.EnvProduction),
+//	    midaz.WithAuthToken("midaz_pat_..."),
+//	)
+//	if err != nil { return err }
+//	defer c.Shutdown(ctx)
+//
+//	org, err := c.Entity.Organizations.GetOrganization(ctx, "org-id")
+//
+// See docs/auth.md for authentication, docs/multi-tenancy.md for tenant routing,
+// and docs/v3-dx-plan.md for the v3 design rationale.
 package midaz
 
 import (
@@ -31,11 +44,8 @@ type Client struct {
 	config *config.Config
 	ctx    context.Context
 
-	// Optional API interfaces
+	// Entity exposes every Midaz service. Always non-nil after a successful New().
 	Entity *entities.Entity
-
-	// API interface flags
-	useEntity bool
 
 	// tenantID is the default tenant identifier sent as X-Tenant-ID on every request.
 	// Per-request overrides via entities.WithTenantID(ctx, id) take precedence.
@@ -84,11 +94,10 @@ func New(options ...Option) (*Client, error) {
 		}
 	}
 
-	// Create API interfaces if enabled
-	if c.useEntity {
-		if err := c.setupEntity(); err != nil {
-			return nil, fmt.Errorf("error setting up Entity API: %w", err)
-		}
+	// Always initialize the Entity surface. The "naked SDK" footgun
+	// (c.Entity == nil after New) is gone in v3.
+	if err := c.setupEntity(); err != nil {
+		return nil, fmt.Errorf("error setting up Entity API: %w", err)
 	}
 
 	return c, nil
@@ -464,30 +473,6 @@ func WithContext(ctx context.Context) Option {
 	}
 }
 
-// UseAllAPIs enables all available API interfaces.
-// This is a convenience function for enabling all APIs at once.
-//
-// Returns:
-//   - Option: A function that enables all APIs on the Client
-func UseAllAPIs() Option {
-	return func(c *Client) error {
-		c.useEntity = true
-		return nil
-	}
-}
-
-// UseEntityAPI enables the Entity API interface.
-// This is the high-level API for working with Midaz entities.
-//
-// Returns:
-//   - Option: A function that enables the Entity API on the Client
-func UseEntityAPI() Option {
-	return func(c *Client) error {
-		c.useEntity = true
-		return nil
-	}
-}
-
 // WithConfig sets a custom configuration for the client.
 // This allows for using a pre-configured Config object instead of individual options.
 //
@@ -603,15 +588,6 @@ func WithTenantID(tenantID string) Option {
 
 		return nil
 	}
-}
-
-// UseEntity enables the Entity API interface.
-// This is an alias for UseEntityAPI for backward compatibility.
-//
-// Returns:
-//   - Option: A function that enables the Entity API on the Client
-func UseEntity() Option {
-	return UseEntityAPI()
 }
 
 // Shutdown gracefully shuts down the client, releasing any resources.

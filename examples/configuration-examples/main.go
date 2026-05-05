@@ -60,9 +60,7 @@ func basicConfiguration() error {
 	fmt.Println("-----------------------------")
 
 	// Create a client with minimal configuration
-	c, err := client.New(
-		client.UseAllAPIs(),
-	)
+	c, err := client.New()
 	if err != nil {
 		return fmt.Errorf("failed to create client: %w", err)
 	}
@@ -92,7 +90,6 @@ func environmentBasedConfiguration() error {
 	// Local development environment
 	localClient, err := client.New(
 		client.WithEnvironment(config.EnvironmentLocal),
-		client.UseAllAPIs(),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create local client: %w", err)
@@ -101,7 +98,6 @@ func environmentBasedConfiguration() error {
 	// Staging/Development environment
 	stagingClient, err := client.New(
 		client.WithEnvironment(config.EnvironmentDevelopment),
-		client.UseAllAPIs(),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create staging client: %w", err)
@@ -110,7 +106,6 @@ func environmentBasedConfiguration() error {
 	// Production environment
 	productionClient, err := client.New(
 		client.WithEnvironment(config.EnvironmentProduction),
-		client.UseAllAPIs(),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create production client: %w", err)
@@ -166,7 +161,6 @@ func configurationFromEnvironment() error {
 	// Create a client with the environment-backed config.
 	c, err := client.New(
 		client.WithConfig(cfg),
-		client.UseAllAPIs(),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create client: %w", err)
@@ -227,7 +221,6 @@ func advancedHTTPConfiguration() error {
 	c, err := client.New(
 		client.WithHTTPClient(customClient),
 		client.WithTimeout(45*time.Second), // Can be redundant if set on HTTPClient
-		client.UseAllAPIs(),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create client: %w", err)
@@ -272,7 +265,6 @@ func comprehensiveConfiguration() error {
 	// Use the config in the client
 	c, err := client.New(
 		client.WithConfig(cfg),
-		client.UseAllAPIs(),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create client: %w", err)
