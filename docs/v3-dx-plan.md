@@ -11,11 +11,13 @@
 
 **Current branch:** `v3` (created from `develop`, **NOT yet pushed to origin**)
 
-**Last commit on v3:** `582dd99 feat(v3): eager validation contract at midaz.New()`
+**Last commit on v3:** `ab69e05 feat(v3)!: collapse entities/ constructors to a single canonical entry`
 
-**Total v3 commits so far:** 7 (1 docs + 6 feat)
+**Total v3 commits so far:** 9 (2 docs + 7 feat)
 
 ```
+ab69e05 feat(v3)!: collapse entities/ constructors to single entry    ← Batch 1E ✅
+507a64e docs(v3): update plan with session 1 progress
 582dd99 feat(v3): eager validation contract at midaz.New()           ← Batch 1F ✅
 eb16c8e docs(v3): update status tracker after batches 1A-1D
 af8bbea feat(v3)!: introduce pkg/sdkctx for per-request helpers      ← Batch 1D ✅
@@ -25,20 +27,16 @@ f8e2109 feat(v3)!: rename module to /v3 and root package to midaz    ← Batch 1
 424aae0 docs(v3): add comprehensive v3 DX plan                       ← This doc
 ```
 
-**Verification status (last run end of session 1):**
+**Verification status (last run end of Batch 1E):**
 - `go build ./...` → clean
 - `go test ./...` → 27/27 packages green, zero failures
 - `make verify-sdk` → ✅ clean
+- `make lint` → ❌ 11 pre-existing issues (NOT introduced by 1E; see "Tech debt" below)
 
-**Next action when resuming:** Execute **Batch 1E** (constructor cleanup). See [Track 1 — Naked SDK & Entry Points](#track-1--naked-sdk--entry-points) section for full scope. Specifically:
-1. Unexport the 16 `entities.NewXxxEntity` constructors (move bodies to `internal/services/` or unexport in place)
-2. Delete `entities.NewEntity`, `entities.New`, `entities.NewWithServiceURLs`
-3. Delete the 6 `Client.NewAccount/NewLedger/NewOrganization/NewTransaction/NewOperation/NewAsset` empty-struct factory traps in `midaz.go:733-761`
-4. Verify with `go build && go test ./... && make verify-sdk`
-
-**Then Batch 1G** (top-level type re-exports: `midaz.Account = models.Account` for ~15 hot types) closes out Track 1.
-
-**Then Phase A continues with Tracks 2 (auth/tenant), 3 (env reads), 4 (logging).**
+**Next action when resuming:**
+1. **Lint sweep** — fix the 11 pre-existing lint issues (8 staticcheck QF1008 `drop .Entity from selector`, 3 testifylint `use ErrorIs/ErrorAs`, 5 SA1012 nil-context that need `//nolint:staticcheck` justifications). Apparently `make lint` was not run during Batches 1A-1F. Trivial fixes; commit as `chore(v3): clean up pre-existing lint issues from earlier batches`.
+2. **Batch 1G** — top-level type re-exports (`midaz.Account = models.Account` for ~15 hot types). Closes out Track 1.
+3. **Phase A continues** with Tracks 2 (auth/tenant), 3 (env reads), 4 (logging).
 
 **Important context preserved for the next session:**
 
@@ -48,6 +46,16 @@ f8e2109 feat(v3)!: rename module to /v3 and root package to midaz    ← Batch 1
 - `pkg/transaction/batch.go` had a quirk: `goimports` (or similar tool) auto-inserted `github.com/moby/moby/client` when I dropped the `client` alias. Watch for this when modifying files that previously imported the root v3 package as `client`.
 - An auto-tool also stripped `sdkerrors` import from `midaz.go` once after I added it. Re-add it explicitly if needed.
 - The plan's original Batch 1D ambition was to fully delete `entities/` package. We deferred this — `entities/` still exists as a thin layer because services live there. Full deletion happens in Phase B (Track 7) when services move to per-service packages.
+- **Resume-state correction from Batch 1E**: the original plan claimed 6 'factory traps' on Client (`NewAccount/NewLedger/...`) at `midaz.go:733-761`. They don't exist (verified via grep). Either deleted in 1A-1D, or never existed in v2. Scope item considered satisfied.
+- **Batch 1E test infrastructure note**: `entities/entity_test.go` now hosts `newTestEntity(t, ...)` — a private test helper that mirrors the deleted `entities.NewEntity` contract. Tests inside `entities/*_test.go` cannot route through `midaz.New()` because of the import cycle direction (entities is a leaf), so this helper is the in-package replacement. External tests (`pkg/transaction/helper_contract_test.go`) DO use `midaz.New()` + `c.SetAuthToken(...)`.
+
+**Tech debt logged in Batch 1E** (deferred to dedicated commit before Track 1 closes):
+
+| Source | Count | Type | Fix |
+|--------|-------|------|-----|
+| client_test.go, midaz.go, slice2_regression_test.go, helper_contract_test.go (already fixed), pkg/transaction/helper_contract_test.go | 8 | staticcheck QF1008 `drop .Entity from selector` | Replace `c.Entity.X` → `c.X` (uses promoted field) |
+| validation_contract_test.go | 3 | testifylint `error-is-as`, `error-nil` | Replace `assert.True(t, stderrors.Is(err, target))` → `assert.ErrorIs(t, err, target)` |
+| pkg/sdkctx/sdkctx_test.go | 5 | staticcheck SA1012 'do not pass nil context' | Add `//nolint:staticcheck // intentional nil-safety test` annotations (these tests deliberately exercise nil ctx behavior) |
 
 **Customer-visible v3 changes shipped on the v3 branch so far:**
 
@@ -59,6 +67,7 @@ import "github.com/LerianStudio/midaz-sdk-golang/v2/entities"
 c, _ := client.New(client.WithConfig(cfg), client.UseAllAPIs())  // panic if you forget UseAllAPIs
 ctx = entities.WithIdempotencyKey(ctx, key)
 ctx = entities.WithTenantID(ctx, tenant)  // confused with client.WithTenantID
+e, _ := entities.NewEntity(httpClient, token, urls, nil)  // 4 redundant ways to construct
 acc, _ := c.Entity.Accounts.GetAccount(ctx, ...)
 
 // v3 (current v3 branch state)
@@ -74,6 +83,8 @@ ctx = sdkctx.WithRequestTenantID(ctx, tenant)    // unambiguous; renamed from Wi
 ctx = sdkctx.WithIncludeDeleted(ctx, true)       // NEW (Track 7 dependency)
 ctx = sdkctx.WithHardDelete(ctx, true)           // NEW (Track 7 dependency)
 acc, _ := c.Accounts.GetAccount(ctx, ...)        // hoisted via embedded Entity
+// entities.NewEntity / .New / .NewWithServiceURLs / .WithContext are GONE.
+// 16 NewXxxEntity service constructors are unexported. midaz.New() is the only entry point.
 ```
 
 ---
@@ -351,7 +362,7 @@ Notes:
 - [x] **(Batch 1B)** `midaz.New()` with valid options returns a client where every service field is non-nil and immediately usable. ✅ Embedded `*entities.Entity` always initialized.
 - [ ] **(Pending Track 2)** `midaz.WithAuthToken("...")` works as a single-line auth setup with no `pkg/config` imports.
 - [ ] **(Pending Track 4)** `Client.Logger()` returns a non-nil `*slog.Logger` always (default = discard handler). *Currently Logger() can return nil; Track 4 fixes.*
-- [ ] **(Pending Batch 1E)** All 16 `entities.NewXxxEntity` are unexported; godoc on `entities` shows only the canonical entry path.
+- [x] **(Batch 1E)** All 16 `entities.NewXxxEntity` are unexported (`newAccountsEntity`, `newTransactionsEntity`, etc.); 3 redundant entity-level constructors deleted (`entities.NewEntity`, `entities.New`, `entities.NewWithServiceURLs`); `entities.WithContext` no-op deleted. Godoc on `entities` shows only the canonical entry path (`NewEntityWithConfig` for embedders + `NewHTTPClient` for access-manager + `InitServices` for plugin auth duck-typing).
 - [ ] **(Pending Batch 1G)** Top-level `midaz` package re-exports `Account`, `Transaction`, `ListOpts`, `CreateAccountInput`, etc. via type aliases.
 - [x] **(Batch 1F)** `midaz.New()` runs `c.config.Validate()` after applying options; validation errors are typed `*errors.Error{Category: CategoryConfiguration}` with operation context. ✅ `errors.IsConfigurationError(err)` works.
 - [ ] **(Pending Phase C / Track 9)** Compile-time: no test in `examples/` uses `c.Entity.X.Y` form anymore (all migrate to `c.X.Y`). *Currently mass-replaced internally; examples still use `client.UseAllAPIs()`-era patterns. Track 9 polishes.*
@@ -2147,6 +2158,22 @@ A running record of design decisions with rationale. Append-only; never edit his
 **Migration cost for tests:** 3 existing tests asserted on raw error strings (`"option cannot be nil"`, `"config cannot be nil"`). Updated to use `errors.IsConfigurationError(err)` + `errors.Unwrap(err)` for the original message check.
 **Implementation note:** When I added `sdkerrors "github.com/.../v3/pkg/errors"` import to midaz.go, an auto-tool stripped it once. Re-added explicitly. Watch for this pattern in dev env.
 
+### 2026-05-06 — Batch 1E: collapse `entities/` constructors to single canonical entry (commit ab69e05)
+**Decision:** Made `entities.NewEntityWithConfig` (called only by `midaz.New()`) the single supported construction path. Deleted 3 redundant entity-level constructors (`NewEntity`, `New`, `NewWithServiceURLs`) and the no-op `WithContext` option. Unexported all 16 service constructors (`NewAccountsEntity` → `newAccountsEntity` etc.). Stripped tutorial-style godoc bloat from 7 service constructors that demonstrated now-impossible external usage.
+**Net delta:** 39 files, **-490 lines** (749 deletions, 259 insertions). Largest cleanup batch in Track 1 by far.
+**Resume-state correction:** The previous resume note claimed 6 factory traps existed on `Client` (`NewAccount/NewLedger/...` at `midaz.go:733-761`). They don't (verified via grep + reading). Either deleted in 1A-1D or never existed in v2. Scope item considered satisfied by absence; no code change needed.
+**Test infrastructure decision:** Tests inside `entities/*_test.go` cannot use `midaz.New()` because of the import cycle direction (entities is a leaf; root depends on it). Three options considered: (a) directly construct `&Entity{...}` per call site — 8 lines × ~10 sites = 80 lines of boilerplate; (b) use `NewEntityWithConfig` with a fake Config interface impl — verbose for tests; (c) add a private `newTestEntity(t, ...)` helper that mirrors the deleted `NewEntity` contract and lives in `entities/entity_test.go`. Chose (c). 11 test sites migrated cleanly. The helper depends on the same internal primitives (`normalizeBaseURLs`, `NewHTTPClient`, `initServices`) so it stays in lock-step with production behavior.
+**Test migrations completed:**
+  - `pkg/transaction/helper_contract_test.go`: now routes through `midaz.New()` + `c.SetAuthToken("token")`. This is the *correct* v3 path for any external test, and the migration verified end-to-end public construction works.
+  - `entities/entity_test.go`: refactored `TestNewWithServiceURLs_DefaultsMissingCRMURLToOnboarding` to test `normalizeBaseURLs` directly (semantically equivalent; tests the actual primitive doing the work).
+  - `entities/business_observability_test.go` (3 sites), `entities/http_tenant_test.go` (4 sites), `entities/slice2_regression_test.go` (4 sites): all migrated to `newTestEntity`.
+  - `TestEntityConstructors_WithNilOption_ReturnError` and `TestSlice2NewWithServiceURLs_DefaultsMissingCRMURLToOnboarding` deleted as duplicates (coverage now lives in `validation_contract_test.go` and `entity_test.go` respectively).
+**Implementation surprise — sed corrupted test names:** The mass `s/NewXxxEntity/newXxxEntity/g` rename also caught test function names: `func TestNewAccountsEntity` → `func TestnewAccountsEntity`, which `go vet` rejects with "first letter after 'Test' must not be lowercase". Renamed all 8 affected to `Test_newXxxEntity` form (Go's test framework allows `Test_xxx` for unexported subjects). Lesson: when bulk-renaming a function, anchor your sed with `func Newname(` or `Newname\(` to avoid catching test names.
+**Lint regression:** Batch 1E added exactly **1 net lint issue** (`c.Entity.SetAuthToken("token")` should be `c.SetAuthToken("token")` via promoted method) — fixed before commit. Discovery: `make lint` pre-1E shows **11 pre-existing issues** that were never caught during 1A-1F. Apparently the lint step was not part of the verification flow. **Action item logged**: dedicated lint-cleanup commit before Batch 1G or Track 1 close. Categorized:
+  - 8 staticcheck `QF1008 drop .Entity from selector` in `client_test.go`, `midaz.go`, `slice2_regression_test.go` — trivial.
+  - 3 testifylint `error-is-as` / `error-nil` in `validation_contract_test.go` (Batch 1F) — refactor to `assert.ErrorIs(t, err, target)` etc.
+  - 5 staticcheck `SA1012 do not pass nil context` in `pkg/sdkctx/sdkctx_test.go` (Batch 1D) — these are *intentional* nil-safety tests. Fix is `//nolint:staticcheck // intentional nil-context for nil-safety verification` annotations.
+
 ### 2026-05-05 — Anonymous embedding decision deferred Track 7's mmodel concern
 **Observation:** The current `Entity.Accounts` field is typed `entities.AccountsService` (an interface). When we eventually delete `entities/` in Phase B, the embed becomes `*services.Hub` or similar. The migration path: change one line in Client struct, regenerate `c.X` references. Easy. Documented here so future-me doesn't trip over it.
 
@@ -2160,7 +2187,7 @@ Live as of: 2026-05-05 (post-session 1). Update with every commit batch.
 
 | Track | Status | Started | Completed | Branch / Commits | Notes |
 |-------|--------|---------|-----------|------------------|-------|
-| 1 — Naked SDK & Entry Points | 🟡 In progress (5/7 batches) | 2026-05-05 | — | `v3` branch, commits f8e2109..582dd99 | 1A, 1B, 1C, 1D, 1F done. **1E + 1G pending.** See per-batch detail below. |
+| 1 — Naked SDK & Entry Points | 🟡 In progress (6/7 batches) | 2026-05-05 | — | `v3` branch, commits f8e2109..ab69e05 | 1A, 1B, 1C, 1D, 1E, 1F done. **1G + lint sweep pending.** See per-batch detail below. |
 | 2 — Auth & Tenant Chaos | 🔵 Not started | — | — | — | Depends on Track 1 completion. Adds `WithAuthToken`, re-exports `AccessManager`, renames `pkg/access-manager` → `pkg/auth`. |
 | 3 — Implicit env reads | 🔵 Not started | — | — | — | Independent; can start any time. **High-impact mechanical cleanup**: 14 redundant `os.Getenv("MIDAZ_DEBUG")` reads + 5 hidden env vars in `entities/http.go`. |
 | 4 — Logging gap | 🔵 Not started | — | — | — | Depends on Tracks 1, 3. **Fred-flagged critical**. Introduces `*slog.Logger` as canonical contract; deletes `MIDAZ_DEBUG` bypass; adds retry-attempt logging. |
@@ -2188,9 +2215,10 @@ Live as of: 2026-05-05 (post-session 1). Update with every commit batch.
 | 1B | Always-on Entity, delete Use* trio | ✅ Done | `f2a0fee` | 14 files, -56 net lines, all green |
 | 1C | Service hoisting via embedded `*entities.Entity` | ✅ Done | `d5e410a` | 31 files, +8 net, all green |
 | 1D | Introduce `pkg/sdkctx`; deprecated shims in entities | ✅ Done | `af8bbea` | 9 files, +324 net, +8 sdkctx tests |
-| 1E | Constructor cleanup (16 `entities.NewXxxEntity` unexport, factory traps deleted) | 🔵 Pending | — | Next batch when resuming |
+| 1E | Constructor cleanup (16 `entities.NewXxxEntity` unexport, 3 redundant entity constructors deleted, `entities.WithContext` no-op deleted) | ✅ Done | `ab69e05` | 39 files, **-490 net** (749 deletions, 259 insertions), test infrastructure helper added |
 | 1F | Eager validation contract at `midaz.New()` | ✅ Done | `582dd99` | 7 files, +271 net, +11 validation tests |
 | 1G | Top-level type re-exports (`midaz.Account` aliases) | 🔵 Pending | — | Final Track 1 batch |
+| 1-Lint | Sweep 11 pre-existing lint issues (8 staticcheck QF1008, 3 testifylint, 5 SA1012 nolint) | 🔵 Pending | — | Tech debt from earlier batches; zero net behavior change |
 
 ---
 
