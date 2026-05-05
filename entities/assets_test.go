@@ -384,8 +384,8 @@ func newAssetsHTTPClientAdapter(mock *MockHTTPClient) *HTTPClient {
 	}
 }
 
-// TestNewAssetsEntity tests the NewAssetsEntity constructor
-func TestNewAssetsEntity(t *testing.T) {
+// Test_newAssetsEntity tests the newAssetsEntity constructor
+func Test_newAssetsEntity(t *testing.T) {
 	tests := []struct {
 		name      string
 		client    *http.Client
@@ -423,7 +423,7 @@ func TestNewAssetsEntity(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			service := NewAssetsEntity(tt.client, tt.authToken, tt.baseURLs)
+			service := newAssetsEntity(tt.client, tt.authToken, tt.baseURLs)
 			assert.NotNil(t, service)
 
 			entity, ok := service.(*assetsEntity)
@@ -1325,7 +1325,7 @@ func TestAssetsEntity_ListAssetsWithHTTPTestServer(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := NewAssetsEntity(server.Client(), "test-token", map[string]string{"onboarding": server.URL})
+	service := newAssetsEntity(server.Client(), "test-token", map[string]string{"onboarding": server.URL})
 
 	result, err := service.ListAssets(context.Background(), "org-123", "ledger-123", nil)
 
@@ -1358,7 +1358,7 @@ func TestAssetsEntity_GetAssetWithHTTPTestServer(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := NewAssetsEntity(server.Client(), "test-token", map[string]string{"onboarding": server.URL})
+	service := newAssetsEntity(server.Client(), "test-token", map[string]string{"onboarding": server.URL})
 
 	result, err := service.GetAsset(context.Background(), "org-123", "ledger-123", "asset-123")
 
@@ -1391,7 +1391,7 @@ func TestAssetsEntity_CreateAssetWithHTTPTestServer(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := NewAssetsEntity(server.Client(), "test-token", map[string]string{"onboarding": server.URL})
+	service := newAssetsEntity(server.Client(), "test-token", map[string]string{"onboarding": server.URL})
 
 	input := models.NewCreateAssetInput("US Dollar", "USD").WithType("CURRENCY")
 	result, err := service.CreateAsset(context.Background(), "org-123", "ledger-123", input)
@@ -1424,7 +1424,7 @@ func TestAssetsEntity_UpdateAssetWithHTTPTestServer(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := NewAssetsEntity(server.Client(), "test-token", map[string]string{"onboarding": server.URL})
+	service := newAssetsEntity(server.Client(), "test-token", map[string]string{"onboarding": server.URL})
 
 	input := models.NewUpdateAssetInput().WithName("Updated Dollar").WithStatus(models.NewStatus("INACTIVE"))
 	result, err := service.UpdateAsset(context.Background(), "org-123", "ledger-123", "asset-123", input)
@@ -1446,7 +1446,7 @@ func TestAssetsEntity_DeleteAssetWithHTTPTestServer(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := NewAssetsEntity(server.Client(), "test-token", map[string]string{"onboarding": server.URL})
+	service := newAssetsEntity(server.Client(), "test-token", map[string]string{"onboarding": server.URL})
 
 	err := service.DeleteAsset(context.Background(), "org-123", "ledger-123", "asset-123")
 
@@ -1514,7 +1514,7 @@ func TestAssetsEntity_HTTPErrorHandling(t *testing.T) {
 			}))
 			defer server.Close()
 
-			service := NewAssetsEntity(server.Client(), "test-token", map[string]string{"onboarding": server.URL})
+			service := newAssetsEntity(server.Client(), "test-token", map[string]string{"onboarding": server.URL})
 
 			// Test ListAssets
 			_, err := service.ListAssets(context.Background(), "org-123", "ledger-123", nil)
@@ -1549,7 +1549,7 @@ func TestAssetsEntity_ContextCancellation(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := NewAssetsEntity(server.Client(), "test-token", map[string]string{"onboarding": server.URL})
+	service := newAssetsEntity(server.Client(), "test-token", map[string]string{"onboarding": server.URL})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
 	defer cancel()
@@ -1571,7 +1571,7 @@ func TestAssetsEntity_QueryParameters(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := NewAssetsEntity(server.Client(), "test-token", map[string]string{"onboarding": server.URL})
+	service := newAssetsEntity(server.Client(), "test-token", map[string]string{"onboarding": server.URL})
 
 	opts := &models.ListOptions{
 		Limit:          5,
@@ -1600,7 +1600,7 @@ func TestAssetsEntity_RequestHeaders(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := NewAssetsEntity(server.Client(), "test-auth-token", map[string]string{"onboarding": server.URL})
+	service := newAssetsEntity(server.Client(), "test-auth-token", map[string]string{"onboarding": server.URL})
 
 	_, err := service.GetAsset(context.Background(), "org-123", "ledger-123", "asset-123")
 	require.NoError(t, err)
@@ -1626,7 +1626,7 @@ func TestAssetsEntity_CreateAssetRequestBody(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := NewAssetsEntity(server.Client(), "test-token", map[string]string{"onboarding": server.URL})
+	service := newAssetsEntity(server.Client(), "test-token", map[string]string{"onboarding": server.URL})
 
 	input := models.NewCreateAssetInput("US Dollar", "USD").
 		WithType("CURRENCY").
@@ -1649,7 +1649,7 @@ func TestAssetsEntity_EmptyResponse(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := NewAssetsEntity(server.Client(), "test-token", map[string]string{"onboarding": server.URL})
+	service := newAssetsEntity(server.Client(), "test-token", map[string]string{"onboarding": server.URL})
 
 	err := service.DeleteAsset(context.Background(), "org-123", "ledger-123", "asset-123")
 	require.NoError(t, err)
@@ -1664,7 +1664,7 @@ func TestAssetsEntity_MalformedJSONResponse(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := NewAssetsEntity(server.Client(), "test-token", map[string]string{"onboarding": server.URL})
+	service := newAssetsEntity(server.Client(), "test-token", map[string]string{"onboarding": server.URL})
 
 	_, err := service.ListAssets(context.Background(), "org-123", "ledger-123", nil)
 	require.Error(t, err)
@@ -1689,7 +1689,7 @@ func TestAssetsEntity_LargeResponse(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := NewAssetsEntity(server.Client(), "test-token", map[string]string{"onboarding": server.URL})
+	service := newAssetsEntity(server.Client(), "test-token", map[string]string{"onboarding": server.URL})
 
 	result, err := service.ListAssets(context.Background(), "org-123", "ledger-123", nil)
 	require.NoError(t, err)

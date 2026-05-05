@@ -49,7 +49,7 @@ func TestLedgersEntity_HTTPContracts(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := NewLedgersEntity(server.Client(), "token", map[string]string{"onboarding": server.URL})
+	service := newLedgersEntity(server.Client(), "token", map[string]string{"onboarding": server.URL})
 	ctx := context.Background()
 
 	list, err := service.ListLedgers(ctx, "org/1", (&models.ListOptions{}).WithLimit(7).WithPage(3).WithOrderDirection("desc").WithOffset(70))
@@ -110,7 +110,7 @@ func TestOrganizationsAndPortfoliosEntity_HTTPContracts(t *testing.T) {
 	}))
 	defer server.Close()
 
-	orgs := NewOrganizationsEntity(server.Client(), "token", map[string]string{"onboarding": server.URL})
+	orgs := newOrganizationsEntity(server.Client(), "token", map[string]string{"onboarding": server.URL})
 	ctx := context.Background()
 
 	org, err := orgs.GetOrganization(ctx, "org/1")
@@ -127,7 +127,7 @@ func TestOrganizationsAndPortfoliosEntity_HTTPContracts(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 3, orgMetrics.OrganizationsCount)
 
-	portfolios := NewPortfoliosEntity(server.Client(), "token", map[string]string{"onboarding": server.URL})
+	portfolios := newPortfoliosEntity(server.Client(), "token", map[string]string{"onboarding": server.URL})
 	portfolioList, err := portfolios.ListPortfolios(ctx, "org/1", "ledger/1", (&models.ListOptions{}).WithLimit(11).WithCursor("cursor-1"))
 	require.NoError(t, err)
 	assert.Equal(t, "portfolio/1", portfolioList.Items[0].ID)
@@ -186,8 +186,8 @@ func TestRoutesEntity_HTTPContracts(t *testing.T) {
 	defer server.Close()
 
 	ctx := context.Background()
-	opRoutes := NewOperationRoutesEntity(server.Client(), "token", map[string]string{"transaction": server.URL})
-	txRoutes := NewTransactionRoutesEntity(server.Client(), "token", map[string]string{"transaction": server.URL})
+	opRoutes := newOperationRoutesEntity(server.Client(), "token", map[string]string{"transaction": server.URL})
+	txRoutes := newTransactionRoutesEntity(server.Client(), "token", map[string]string{"transaction": server.URL})
 
 	opList, err := opRoutes.ListOperationRoutes(ctx, "org/1", "ledger/1", (&models.ListOptions{}).WithLimit(5).WithFilter("status", "ACTIVE"))
 	require.NoError(t, err)
@@ -242,7 +242,7 @@ func TestAccountsEntity_SpecialEndpointContracts(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := NewAccountsEntity(server.Client(), "token", map[string]string{"onboarding": server.URL, "transaction": server.URL})
+	service := newAccountsEntity(server.Client(), "token", map[string]string{"onboarding": server.URL, "transaction": server.URL})
 	ctx := context.Background()
 
 	balance, err := service.GetBalance(ctx, "org/1", "ledger/1", "account/1")
@@ -306,7 +306,7 @@ func TestTransactionsEntity_JSONDSLAndLifecycleContracts(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := NewTransactionsEntity(server.Client(), "token", map[string]string{"transaction": server.URL})
+	service := newTransactionsEntity(server.Client(), "token", map[string]string{"transaction": server.URL})
 	ctx := context.Background()
 
 	jsonInput := models.NewCreateTransactionInput("USD", "10.00").WithDescription("wire transfer").WithSend(&models.SendInput{
@@ -368,19 +368,19 @@ func TestEntityValidationDoesNotHitServer(t *testing.T) {
 	defer server.Close()
 
 	ctx := context.Background()
-	ledgers := NewLedgersEntity(server.Client(), "token", map[string]string{"onboarding": server.URL})
+	ledgers := newLedgersEntity(server.Client(), "token", map[string]string{"onboarding": server.URL})
 	_, err := ledgers.GetLedger(ctx, "", "ledger-1")
 	require.Error(t, err)
 	err = ledgers.DeleteLedger(ctx, "org-1", "")
 	require.Error(t, err)
 
-	accounts := NewAccountsEntity(server.Client(), "token", map[string]string{"onboarding": server.URL, "transaction": server.URL})
+	accounts := newAccountsEntity(server.Client(), "token", map[string]string{"onboarding": server.URL, "transaction": server.URL})
 	_, err = accounts.GetBalance(ctx, "org-1", "", "account-1")
 	require.Error(t, err)
 	_, err = accounts.GetExternalAccount(ctx, "org-1", "ledger-1", "")
 	require.Error(t, err)
 
-	transactions := NewTransactionsEntity(server.Client(), "token", map[string]string{"transaction": server.URL})
+	transactions := newTransactionsEntity(server.Client(), "token", map[string]string{"transaction": server.URL})
 	_, err = transactions.GetTransaction(ctx, "org-1", "ledger-1", "")
 	require.Error(t, err)
 	_, err = transactions.CreateTransactionWithDSL(ctx, "", "ledger-1", &models.TransactionDSLInput{})

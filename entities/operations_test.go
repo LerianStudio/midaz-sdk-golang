@@ -91,8 +91,8 @@ func createTestOperationsEntity(serverURL string) *operationsEntity {
 	}
 }
 
-// TestNewOperationsEntity tests the NewOperationsEntity constructor
-func TestNewOperationsEntity(t *testing.T) {
+// Test_newOperationsEntity tests the newOperationsEntity constructor
+func Test_newOperationsEntity(t *testing.T) {
 	tests := []struct {
 		name      string
 		client    *http.Client
@@ -130,7 +130,7 @@ func TestNewOperationsEntity(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			service := NewOperationsEntity(tt.client, tt.authToken, tt.baseURLs)
+			service := newOperationsEntity(tt.client, tt.authToken, tt.baseURLs)
 			require.NotNil(t, service)
 
 			entity, ok := service.(*operationsEntity)

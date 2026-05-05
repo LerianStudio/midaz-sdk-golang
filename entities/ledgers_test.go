@@ -121,7 +121,7 @@ func TestLedgersEntity_Settings_RequestConstruction(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := NewLedgersEntity(server.Client(), "token", map[string]string{"onboarding": server.URL})
+	service := newLedgersEntity(server.Client(), "token", map[string]string{"onboarding": server.URL})
 	settings, err := service.GetLedgerSettings(context.Background(), "org/1", "ledger/1")
 	require.NoError(t, err)
 	assert.True(t, settings.Accounting.ValidateAccountType)
@@ -132,7 +132,7 @@ func TestLedgersEntity_Settings_RequestConstruction(t *testing.T) {
 }
 
 func TestLedgersEntity_Settings_Validation(t *testing.T) {
-	service := NewLedgersEntity(http.DefaultClient, "token", map[string]string{"onboarding": "https://api.example.com"})
+	service := newLedgersEntity(http.DefaultClient, "token", map[string]string{"onboarding": "https://api.example.com"})
 
 	tests := []struct {
 		name string

@@ -39,7 +39,7 @@ func TestMetadataIndexesEntity_CreateMetadataIndex_RequestConstruction(t *testin
 	}))
 	defer server.Close()
 
-	service := NewMetadataIndexesEntity(server.Client(), "token", map[string]string{"transaction": server.URL})
+	service := newMetadataIndexesEntity(server.Client(), "token", map[string]string{"transaction": server.URL})
 	result, err := service.CreateMetadataIndex(context.Background(), "transaction", models.NewCreateMetadataIndexInput("externalId").WithSparse(true))
 
 	require.NoError(t, err)
@@ -67,7 +67,7 @@ func TestMetadataIndexValidation(t *testing.T) {
 }
 
 func TestMetadataIndexesEntity_RejectsInvalidEntityName(t *testing.T) {
-	service := NewMetadataIndexesEntity(http.DefaultClient, "token", map[string]string{"transaction": "https://ledger.example.com/v1"})
+	service := newMetadataIndexesEntity(http.DefaultClient, "token", map[string]string{"transaction": "https://ledger.example.com/v1"})
 	_, err := service.CreateMetadataIndex(context.Background(), "invalid_entity", models.NewCreateMetadataIndexInput("tier"))
 
 	require.Error(t, err)
@@ -92,7 +92,7 @@ func TestMetadataIndexesEntity_ListAndDelete_RequestConstruction(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := NewMetadataIndexesEntity(server.Client(), "token", map[string]string{"transaction": server.URL})
+	service := newMetadataIndexesEntity(server.Client(), "token", map[string]string{"transaction": server.URL})
 	indexes, err := service.ListMetadataIndexes(context.Background(), "transaction")
 	require.NoError(t, err)
 	require.Len(t, indexes, 1)

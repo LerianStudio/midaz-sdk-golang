@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNewAssetRatesEntity(t *testing.T) {
+func Test_newAssetRatesEntity(t *testing.T) {
 	tests := []struct {
 		name      string
 		client    *http.Client
@@ -53,7 +53,7 @@ func TestNewAssetRatesEntity(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			service := NewAssetRatesEntity(tt.client, tt.authToken, tt.baseURLs)
+			service := newAssetRatesEntity(tt.client, tt.authToken, tt.baseURLs)
 			assert.NotNil(t, service)
 
 			entity, ok := service.(*assetRatesEntity)
@@ -64,11 +64,11 @@ func TestNewAssetRatesEntity(t *testing.T) {
 	}
 }
 
-func TestNewAssetRatesEntity_DebugMode(t *testing.T) {
+func Test_newAssetRatesEntity_DebugMode(t *testing.T) {
 	t.Run("with MIDAZ_DEBUG=true", func(t *testing.T) {
 		t.Setenv("MIDAZ_DEBUG", "true")
 
-		service := NewAssetRatesEntity(
+		service := newAssetRatesEntity(
 			&http.Client{},
 			"test-token",
 			map[string]string{"transaction": "https://api.example.com"},
@@ -84,7 +84,7 @@ func TestNewAssetRatesEntity_DebugMode(t *testing.T) {
 	t.Run("with MIDAZ_DEBUG=false", func(t *testing.T) {
 		t.Setenv("MIDAZ_DEBUG", "false")
 
-		service := NewAssetRatesEntity(
+		service := newAssetRatesEntity(
 			&http.Client{},
 			"test-token",
 			map[string]string{"transaction": "https://api.example.com"},
@@ -98,7 +98,7 @@ func TestNewAssetRatesEntity_DebugMode(t *testing.T) {
 	})
 
 	t.Run("without MIDAZ_DEBUG env var", func(t *testing.T) {
-		service := NewAssetRatesEntity(
+		service := newAssetRatesEntity(
 			&http.Client{},
 			"test-token",
 			map[string]string{"transaction": "https://api.example.com"},
@@ -905,7 +905,7 @@ func TestAssetRatesEntity_IntegrationWithHTTPTestServer(t *testing.T) {
 		}))
 		defer server.Close()
 
-		entity := NewAssetRatesEntity(
+		entity := newAssetRatesEntity(
 			server.Client(),
 			"test-token",
 			map[string]string{"transaction": server.URL},
@@ -942,7 +942,7 @@ func TestAssetRatesEntity_IntegrationWithHTTPTestServer(t *testing.T) {
 		}))
 		defer server.Close()
 
-		entity := NewAssetRatesEntity(
+		entity := newAssetRatesEntity(
 			server.Client(),
 			"test-token",
 			map[string]string{"transaction": server.URL},
@@ -997,7 +997,7 @@ func TestAssetRatesEntity_IntegrationWithHTTPTestServer(t *testing.T) {
 		}))
 		defer server.Close()
 
-		entity := NewAssetRatesEntity(
+		entity := newAssetRatesEntity(
 			server.Client(),
 			"test-token",
 			map[string]string{"transaction": server.URL},
@@ -1022,7 +1022,7 @@ func TestAssetRatesEntity_ContextCancellation(t *testing.T) {
 		}))
 		defer server.Close()
 
-		entity := NewAssetRatesEntity(
+		entity := newAssetRatesEntity(
 			server.Client(),
 			"test-token",
 			map[string]string{"transaction": server.URL},
@@ -1044,7 +1044,7 @@ func TestAssetRatesEntity_ContextCancellation(t *testing.T) {
 		}))
 		defer server.Close()
 
-		entity := NewAssetRatesEntity(
+		entity := newAssetRatesEntity(
 			server.Client(),
 			"test-token",
 			map[string]string{"transaction": server.URL},
@@ -1065,7 +1065,7 @@ func TestAssetRatesEntity_ContextCancellation(t *testing.T) {
 		}))
 		defer server.Close()
 
-		entity := NewAssetRatesEntity(
+		entity := newAssetRatesEntity(
 			server.Client(),
 			"test-token",
 			map[string]string{"transaction": server.URL},

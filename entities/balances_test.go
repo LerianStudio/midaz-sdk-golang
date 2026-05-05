@@ -19,8 +19,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestNewBalancesEntity tests the constructor for balances entity
-func TestNewBalancesEntity(t *testing.T) {
+// Test_newBalancesEntity tests the constructor for balances entity
+func Test_newBalancesEntity(t *testing.T) {
 	tests := []struct {
 		name      string
 		client    *http.Client
@@ -58,7 +58,7 @@ func TestNewBalancesEntity(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			service := NewBalancesEntity(tt.client, tt.authToken, tt.baseURLs)
+			service := newBalancesEntity(tt.client, tt.authToken, tt.baseURLs)
 			require.NotNil(t, service)
 
 			entity, ok := service.(*balancesEntity)
@@ -1071,7 +1071,7 @@ func TestBalancesEntity_History_RequestConstruction(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := NewBalancesEntity(server.Client(), "token", map[string]string{"transaction": server.URL})
+	service := newBalancesEntity(server.Client(), "token", map[string]string{"transaction": server.URL})
 	history, err := service.GetBalanceHistory(context.Background(), "org/1", "ledger/1", "balance/1", "2026-01-02 03:04:05")
 	require.NoError(t, err)
 	require.NotNil(t, history)
@@ -1604,7 +1604,7 @@ func TestBalancesEntity_HTTPServerIntegration(t *testing.T) {
 		}))
 		defer server.Close()
 
-		entity := NewBalancesEntity(server.Client(), "test-token", map[string]string{
+		entity := newBalancesEntity(server.Client(), "test-token", map[string]string{
 			"transaction": server.URL,
 		})
 
@@ -1638,7 +1638,7 @@ func TestBalancesEntity_HTTPServerIntegration(t *testing.T) {
 		}))
 		defer server.Close()
 
-		entity := NewBalancesEntity(server.Client(), "test-token", map[string]string{
+		entity := newBalancesEntity(server.Client(), "test-token", map[string]string{
 			"transaction": server.URL,
 		})
 
@@ -1679,7 +1679,7 @@ func TestBalancesEntity_HTTPServerIntegration(t *testing.T) {
 		}))
 		defer server.Close()
 
-		entity := NewBalancesEntity(server.Client(), "test-token", map[string]string{
+		entity := newBalancesEntity(server.Client(), "test-token", map[string]string{
 			"transaction": server.URL,
 		})
 
@@ -1713,7 +1713,7 @@ func TestBalancesEntity_HTTPServerIntegration(t *testing.T) {
 		}))
 		defer server.Close()
 
-		entity := NewBalancesEntity(server.Client(), "test-token", map[string]string{
+		entity := newBalancesEntity(server.Client(), "test-token", map[string]string{
 			"transaction": server.URL,
 		})
 
@@ -1734,7 +1734,7 @@ func TestBalancesEntity_HTTPServerIntegration(t *testing.T) {
 		}))
 		defer server.Close()
 
-		entity := NewBalancesEntity(server.Client(), "test-token", map[string]string{
+		entity := newBalancesEntity(server.Client(), "test-token", map[string]string{
 			"transaction": server.URL,
 		})
 
@@ -1773,7 +1773,7 @@ func TestBalancesEntity_HTTPServerIntegration(t *testing.T) {
 		}))
 		defer server.Close()
 
-		entity := NewBalancesEntity(server.Client(), "test-token", map[string]string{
+		entity := newBalancesEntity(server.Client(), "test-token", map[string]string{
 			"transaction": server.URL,
 		})
 
@@ -1814,7 +1814,7 @@ func TestBalancesEntity_HTTPServerIntegration(t *testing.T) {
 		}))
 		defer server.Close()
 
-		entity := NewBalancesEntity(server.Client(), "test-token", map[string]string{
+		entity := newBalancesEntity(server.Client(), "test-token", map[string]string{
 			"transaction": server.URL,
 		})
 
@@ -1880,7 +1880,7 @@ func TestBalancesEntity_ErrorHandling(t *testing.T) {
 			}))
 			defer server.Close()
 
-			entity := NewBalancesEntity(server.Client(), "test-token", map[string]string{
+			entity := newBalancesEntity(server.Client(), "test-token", map[string]string{
 				"transaction": server.URL,
 			})
 
@@ -1898,7 +1898,7 @@ func TestBalancesEntity_ContextCancellation(t *testing.T) {
 	}))
 	defer server.Close()
 
-	entity := NewBalancesEntity(server.Client(), "test-token", map[string]string{
+	entity := newBalancesEntity(server.Client(), "test-token", map[string]string{
 		"transaction": server.URL,
 	})
 
@@ -1917,7 +1917,7 @@ func TestBalancesEntity_ContextTimeout(t *testing.T) {
 	}))
 	defer server.Close()
 
-	entity := NewBalancesEntity(server.Client(), "test-token", map[string]string{
+	entity := newBalancesEntity(server.Client(), "test-token", map[string]string{
 		"transaction": server.URL,
 	})
 
@@ -1944,7 +1944,7 @@ func TestBalancesEntity_QueryParameterEncoding(t *testing.T) {
 	}))
 	defer server.Close()
 
-	entity := NewBalancesEntity(server.Client(), "test-token", map[string]string{
+	entity := newBalancesEntity(server.Client(), "test-token", map[string]string{
 		"transaction": server.URL,
 	})
 
@@ -1992,7 +1992,7 @@ func TestBalancesEntity_JSONResponseParsing(t *testing.T) {
 		}))
 		defer server.Close()
 
-		entity := NewBalancesEntity(server.Client(), "test-token", map[string]string{
+		entity := newBalancesEntity(server.Client(), "test-token", map[string]string{
 			"transaction": server.URL,
 		})
 
@@ -2034,7 +2034,7 @@ func TestBalancesEntity_JSONResponseParsing(t *testing.T) {
 		}))
 		defer server.Close()
 
-		entity := NewBalancesEntity(server.Client(), "test-token", map[string]string{
+		entity := newBalancesEntity(server.Client(), "test-token", map[string]string{
 			"transaction": server.URL,
 		})
 
@@ -2065,7 +2065,7 @@ func TestBalancesEntity_ListOptionsFilters(t *testing.T) {
 	}))
 	defer server.Close()
 
-	entity := NewBalancesEntity(server.Client(), "test-token", map[string]string{
+	entity := newBalancesEntity(server.Client(), "test-token", map[string]string{
 		"transaction": server.URL,
 	})
 

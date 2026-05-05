@@ -37,15 +37,9 @@ func requireHandlerNoError(t *testing.T, errs <-chan error) {
 	}
 }
 
-func TestEntityConstructors_WithNilOption_ReturnError(t *testing.T) {
-	_, err := New("http://localhost:3002", nil)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "option cannot be nil")
-
-	_, err = NewWithServiceURLs(map[string]string{"onboarding": "http://localhost:3002", "transaction": "http://localhost:3002", "crm": "http://localhost:4003"}, nil)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "option cannot be nil")
-}
+// Note: nil-option handling for the public midaz.New() entry point is exercised
+// by validation_contract_test.go in the root package; the entities-level helper
+// constructors used to live here but were removed in v3 (Batch 1E).
 
 func TestEntityContextHelpers_WithNilContext_AreSafe(t *testing.T) {
 	ctx := WithIdempotencyKey(nilContext(), "idem-1")
@@ -77,38 +71,35 @@ func TestZeroValueEntityExportedMethods_AreSafe(t *testing.T) {
 	require.NotPanics(t, func() { e.SetAuthToken("token") })
 }
 
-func TestSlice2NewWithServiceURLs_DefaultsMissingCRMURLToOnboarding(t *testing.T) {
-	entity, err := NewWithServiceURLs(map[string]string{
-		"onboarding":  "https://api.example.com/onboarding",
-		"transaction": "https://api.example.com/transaction",
-	})
-	require.NoError(t, err)
-	require.Equal(t, "https://api.example.com/onboarding/v1", entity.baseURLs["crm"])
-}
+// Default-CRM-to-onboarding behavior is covered in entity_test.go via
+// TestNormalizeBaseURLs_DefaultsMissingCRMURLToOnboarding (Batch 1E refactor).
 
 func TestEntityURLs_NormalizeV1AndRejectUnsafeDirectURLs(t *testing.T) {
-	entity, err := NewWithServiceURLs(map[string]string{
+	normalized, err := normalizeBaseURLs(map[string]string{
 		"onboarding":  "http://localhost:3002///",
 		"transaction": "http://localhost:3002/api",
 		"crm":         "http://localhost:4003",
 	})
 	require.NoError(t, err)
-	require.Equal(t, "http://localhost:3002/v1", entity.baseURLs["onboarding"])
-	require.Equal(t, "http://localhost:3002/api/v1", entity.baseURLs["transaction"])
-	require.Equal(t, "http://localhost:4003/v1", entity.baseURLs["crm"])
+	require.Equal(t, "http://localhost:3002/v1", normalized["onboarding"])
+	require.Equal(t, "http://localhost:3002/api/v1", normalized["transaction"])
+	require.Equal(t, "http://localhost:4003/v1", normalized["crm"])
 
-	_, err = New("https://user:pass@example.com")
+	_, err = normalizeServiceURL("https://user:pass@example.com")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "user information")
 
-	_, err = New("http://api.example.com")
+	_, err = normalizeServiceURL("http://api.example.com")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "insecure HTTP")
 }
 
 func TestEntitySetHTTPClient_PreservesProtocolConfiguration(t *testing.T) {
-	entity, err := New("http://localhost:3002", WithDebug(true), WithUserAgent("slice2-agent"), WithDefaultTenantID("tenant-1"))
-	require.NoError(t, err)
+	entity := newTestEntity(t, &http.Client{Timeout: 30 * time.Second}, "", map[string]string{
+		"onboarding":  "http://localhost:3002",
+		"transaction": "http://localhost:3002",
+		"crm":         "http://localhost:3002",
+	}, nil, WithDebug(true), WithUserAgent("slice2-agent"), WithDefaultTenantID("tenant-1"))
 	entity.GetEntityHTTPClient().SetEnableIdempotency(false)
 	entity.GetEntityHTTPClient().SetCustomRetryPolicy(func(*http.Response, error) bool { return true })
 	entity.GetEntityHTTPClient().WithRetryOptions(retry.WithMaxRetries(7))

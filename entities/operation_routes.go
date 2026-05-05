@@ -113,8 +113,8 @@ func (e *operationRoutesEntity) setDefaultTenantID(tenantID string) {
 	e.httpClient.SetTenantID(tenantID)
 }
 
-// NewOperationRoutesEntity creates a new OperationRoutesService instance
-func NewOperationRoutesEntity(client *http.Client, authToken string, baseURLs map[string]string) OperationRoutesService {
+// newOperationRoutesEntity creates a new OperationRoutesService instance
+func newOperationRoutesEntity(client *http.Client, authToken string, baseURLs map[string]string) OperationRoutesService {
 	httpClient := NewHTTPClient(client, authToken, nil)
 
 	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {

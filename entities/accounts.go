@@ -168,47 +168,9 @@ func (e *accountsEntity) setDefaultTenantID(tenantID string) {
 	e.httpClient.SetTenantID(tenantID)
 }
 
-// NewAccountsEntity creates a new accounts entity.
-//
-// Parameters:
-//   - httpClient: The HTTP client used for API requests. Can be configured with custom timeouts
-//     and transport options. If nil, a default client will be used.
-//   - authToken: The authentication token for API authorization. Must be a valid JWT token
-//     issued by the Midaz authentication service.
-//   - baseURLs: Map of service names to base URLs. Must include an "onboarding" key with
-//     the URL of the onboarding service (e.g., "https://api.midaz.io/v1").
-//
-// Returns:
-//   - AccountsService: An implementation of the AccountsService interface that provides
-//     methods for creating, retrieving, updating, and managing accounts.
-//
-// Example:
-//
-//	// Create an accounts entity with default HTTP client
-//	accountsEntity := entities.NewAccountsEntity(
-//	    &http.Client{Timeout: 30 * time.Second},
-//	    "your-auth-token",
-//	    map[string]string{"onboarding": "https://api.midaz.io/v1"},
-//	)
-//
-//	// Use the entity to create an account
-//	account, err := accountsEntity.CreateAccount(
-//	    context.Background(),
-//	    "org-123",
-//	    "ledger-456",
-//	    &models.CreateAccountInput{
-//	        Name: "Customer Account",
-//	        Type: "deposit",
-//	        AssetCode: "USD",
-//	    },
-//	)
-//
-//	if err != nil {
-//	    log.Fatalf("Failed to create account: %v", err)
-//	}
-//
-//	fmt.Printf("Account created: %s\n", account.ID)
-func NewAccountsEntity(client *http.Client, authToken string, baseURLs map[string]string) AccountsService {
+// newAccountsEntity wires the AccountsService backed by the shared HTTP transport.
+// Internal: invoked by Entity.initServices; callers should reach the service via Client.Accounts.
+func newAccountsEntity(client *http.Client, authToken string, baseURLs map[string]string) AccountsService {
 	// Create a new HTTP client with the shared implementation
 	httpClient := NewHTTPClient(client, authToken, nil)
 

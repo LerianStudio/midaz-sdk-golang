@@ -64,7 +64,7 @@ func TestTransactionsEntity_CreateTransaction_HTTPRequest(t *testing.T) {
 	defer server.Close()
 
 	routeID := "550e8400-e29b-41d4-a716-446655440000"
-	service := NewTransactionsEntity(server.Client(), "token", map[string]string{"transaction": server.URL})
+	service := newTransactionsEntity(server.Client(), "token", map[string]string{"transaction": server.URL})
 	result, err := service.CreateTransaction(context.Background(), "org/1", "ledger/1", &models.CreateTransactionInput{
 		Send: &models.SendInput{
 			Asset: "USD",
@@ -100,7 +100,7 @@ func TestTransactionsEntity_ListTransactions_UsesCursorPagination(t *testing.T) 
 	}))
 	defer server.Close()
 
-	service := NewTransactionsEntity(server.Client(), "token", map[string]string{"transaction": server.URL})
+	service := newTransactionsEntity(server.Client(), "token", map[string]string{"transaction": server.URL})
 	_, err := service.ListTransactions(context.Background(), "org-1", "ledger-1", models.NewListOptions().WithPage(3).WithCursor("cursor-123").WithLimit(25))
 	require.NoError(t, err)
 }
@@ -206,7 +206,7 @@ func TestTransactionsEntity_CreateSpecializedTransactions_HTTPWireShape(t *testi
 			}))
 			defer server.Close()
 
-			service := NewTransactionsEntity(server.Client(), "token", map[string]string{"transaction": server.URL})
+			service := newTransactionsEntity(server.Client(), "token", map[string]string{"transaction": server.URL})
 			result, err := tt.call(service)
 			require.NoError(t, err)
 			assert.Equal(t, "tx-1", result.ID)
@@ -235,7 +235,7 @@ func TestTransactionsEntity_CreateTransaction_ParsesOperationFinancialFields(t *
 	}))
 	defer server.Close()
 
-	service := NewTransactionsEntity(server.Client(), "token", map[string]string{"transaction": server.URL})
+	service := newTransactionsEntity(server.Client(), "token", map[string]string{"transaction": server.URL})
 	result, err := service.CreateTransaction(context.Background(), "org-1", "ledger-1", &models.CreateTransactionInput{
 		Send: &models.SendInput{
 			Asset: "USD", Value: 100,
@@ -299,7 +299,7 @@ func TestTransactionsEntity_CreateTransactionWithDSLFile_HTTPMultipart(t *testin
 	}))
 	defer server.Close()
 
-	service := NewTransactionsEntity(server.Client(), "token", map[string]string{"transaction": server.URL})
+	service := newTransactionsEntity(server.Client(), "token", map[string]string{"transaction": server.URL})
 	result, err := service.CreateTransactionWithDSLFile(context.Background(), "org-1", "ledger-1", []byte("(transaction V1)"))
 
 	require.NoError(t, err)
@@ -314,7 +314,7 @@ func TestTransactionsEntity_CancelTransaction_AllowsEmptySuccessBody(t *testing.
 	}))
 	defer server.Close()
 
-	service := NewTransactionsEntity(server.Client(), "token", map[string]string{"transaction": server.URL})
+	service := newTransactionsEntity(server.Client(), "token", map[string]string{"transaction": server.URL})
 	err := service.CancelTransaction(context.Background(), "org-1", "ledger-1", "tx-1")
 	require.NoError(t, err)
 
@@ -334,7 +334,7 @@ func TestTransactionsEntity_CancelTransactionWithResponse_HTTP(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := NewTransactionsEntity(server.Client(), "token", map[string]string{"transaction": server.URL})
+	service := newTransactionsEntity(server.Client(), "token", map[string]string{"transaction": server.URL})
 	result, err := service.CancelTransactionWithResponse(context.Background(), "org-1", "ledger-1", "tx-1")
 	require.NoError(t, err)
 	require.NotNil(t, result)

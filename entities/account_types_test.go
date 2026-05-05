@@ -12,12 +12,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNewAccountTypesEntity(t *testing.T) {
+func Test_newAccountTypesEntity(t *testing.T) {
 	client := &http.Client{Timeout: 30 * time.Second}
 	authToken := "test-token"
 	baseURLs := map[string]string{"onboarding": "https://api.midaz.io"}
 
-	entity := NewAccountTypesEntity(client, authToken, baseURLs)
+	entity := newAccountTypesEntity(client, authToken, baseURLs)
 
 	assert.NotNil(t, entity)
 	assert.IsType(t, &accountTypesEntity{}, entity)

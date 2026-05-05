@@ -28,8 +28,8 @@ func (e *metadataIndexesEntity) setDefaultTenantID(tenantID string) {
 	e.httpClient.SetTenantID(tenantID)
 }
 
-// NewMetadataIndexesEntity creates a new MetadataIndexesService instance.
-func NewMetadataIndexesEntity(client *http.Client, authToken string, baseURLs map[string]string) MetadataIndexesService {
+// newMetadataIndexesEntity creates a new MetadataIndexesService instance.
+func newMetadataIndexesEntity(client *http.Client, authToken string, baseURLs map[string]string) MetadataIndexesService {
 	httpClient := NewHTTPClient(client, authToken, nil)
 
 	return &metadataIndexesEntity{

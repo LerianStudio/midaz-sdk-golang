@@ -44,7 +44,7 @@ func newMockSegmentsHTTPClientAdapter(mock *MockHTTPClient) *HTTPClient {
 	}
 }
 
-func TestNewSegmentsEntity(t *testing.T) {
+func Test_newSegmentsEntity(t *testing.T) {
 	tests := []struct {
 		name      string
 		client    *http.Client
@@ -82,7 +82,7 @@ func TestNewSegmentsEntity(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			service := NewSegmentsEntity(tt.client, tt.authToken, tt.baseURLs)
+			service := newSegmentsEntity(tt.client, tt.authToken, tt.baseURLs)
 			require.NotNil(t, service)
 
 			entity, ok := service.(*segmentsEntity)
@@ -1404,7 +1404,7 @@ func TestSegmentsEntity_IntegrationWithHTTPTestServer(t *testing.T) {
 		}))
 		defer server.Close()
 
-		entity := NewSegmentsEntity(server.Client(), "test-token", map[string]string{
+		entity := newSegmentsEntity(server.Client(), "test-token", map[string]string{
 			"onboarding": server.URL,
 		})
 
@@ -1434,7 +1434,7 @@ func TestSegmentsEntity_IntegrationWithHTTPTestServer(t *testing.T) {
 		}))
 		defer server.Close()
 
-		entity := NewSegmentsEntity(server.Client(), "test-token", map[string]string{
+		entity := newSegmentsEntity(server.Client(), "test-token", map[string]string{
 			"onboarding": server.URL,
 		})
 
@@ -1473,7 +1473,7 @@ func TestSegmentsEntity_IntegrationWithHTTPTestServer(t *testing.T) {
 		}))
 		defer server.Close()
 
-		entity := NewSegmentsEntity(server.Client(), "test-token", map[string]string{
+		entity := newSegmentsEntity(server.Client(), "test-token", map[string]string{
 			"onboarding": server.URL,
 		})
 
@@ -1502,7 +1502,7 @@ func TestSegmentsEntity_IntegrationWithHTTPTestServer(t *testing.T) {
 		}))
 		defer server.Close()
 
-		entity := NewSegmentsEntity(server.Client(), "test-token", map[string]string{
+		entity := newSegmentsEntity(server.Client(), "test-token", map[string]string{
 			"onboarding": server.URL,
 		})
 
@@ -1522,7 +1522,7 @@ func TestSegmentsEntity_IntegrationWithHTTPTestServer(t *testing.T) {
 		}))
 		defer server.Close()
 
-		entity := NewSegmentsEntity(server.Client(), "test-token", map[string]string{
+		entity := newSegmentsEntity(server.Client(), "test-token", map[string]string{
 			"onboarding": server.URL,
 		})
 
@@ -1549,7 +1549,7 @@ func TestSegmentsEntity_IntegrationWithHTTPTestServer(t *testing.T) {
 				}))
 				defer server.Close()
 
-				entity := NewSegmentsEntity(server.Client(), "test-token", map[string]string{
+				entity := newSegmentsEntity(server.Client(), "test-token", map[string]string{
 					"onboarding": server.URL,
 				})
 
@@ -1568,7 +1568,7 @@ func TestSegmentsEntity_ContextCancellation(t *testing.T) {
 	}))
 	defer server.Close()
 
-	entity := NewSegmentsEntity(server.Client(), "test-token", map[string]string{
+	entity := newSegmentsEntity(server.Client(), "test-token", map[string]string{
 		"onboarding": server.URL,
 	})
 
@@ -1600,7 +1600,7 @@ func TestSegmentsEntity_RequestURLConstruction(t *testing.T) {
 	}))
 	defer server.Close()
 
-	entity := NewSegmentsEntity(server.Client(), "test-token", map[string]string{
+	entity := newSegmentsEntity(server.Client(), "test-token", map[string]string{
 		"onboarding": server.URL,
 	})
 
@@ -1652,7 +1652,7 @@ func TestSegmentsEntity_ResponseParsing(t *testing.T) {
 		}))
 		defer server.Close()
 
-		entity := NewSegmentsEntity(server.Client(), "test-token", map[string]string{
+		entity := newSegmentsEntity(server.Client(), "test-token", map[string]string{
 			"onboarding": server.URL,
 		})
 
@@ -1685,7 +1685,7 @@ func TestSegmentsEntity_ResponseParsing(t *testing.T) {
 		}))
 		defer server.Close()
 
-		entity := NewSegmentsEntity(server.Client(), "test-token", map[string]string{
+		entity := newSegmentsEntity(server.Client(), "test-token", map[string]string{
 			"onboarding": server.URL,
 		})
 
@@ -1717,7 +1717,7 @@ func TestSegmentsEntity_ResponseParsing(t *testing.T) {
 		}))
 		defer server.Close()
 
-		entity := NewSegmentsEntity(server.Client(), "test-token", map[string]string{
+		entity := newSegmentsEntity(server.Client(), "test-token", map[string]string{
 			"onboarding": server.URL,
 		})
 
@@ -1744,7 +1744,7 @@ func TestSegmentsEntity_ConcurrentRequests(t *testing.T) {
 	}))
 	defer server.Close()
 
-	entity := NewSegmentsEntity(server.Client(), "test-token", map[string]string{
+	entity := newSegmentsEntity(server.Client(), "test-token", map[string]string{
 		"onboarding": server.URL,
 	})
 

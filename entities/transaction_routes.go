@@ -114,8 +114,8 @@ func (e *transactionRoutesEntity) setDefaultTenantID(tenantID string) {
 	e.httpClient.SetTenantID(tenantID)
 }
 
-// NewTransactionRoutesEntity creates a new TransactionRoutesService instance
-func NewTransactionRoutesEntity(client *http.Client, authToken string, baseURLs map[string]string) TransactionRoutesService {
+// newTransactionRoutesEntity creates a new TransactionRoutesService instance
+func newTransactionRoutesEntity(client *http.Client, authToken string, baseURLs map[string]string) TransactionRoutesService {
 	httpClient := NewHTTPClient(client, authToken, nil)
 
 	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {

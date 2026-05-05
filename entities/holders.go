@@ -33,8 +33,8 @@ func (e *holdersEntity) setDefaultTenantID(tenantID string) {
 	e.httpClient.SetTenantID(tenantID)
 }
 
-// NewHoldersEntity creates a new HoldersService instance.
-func NewHoldersEntity(client *http.Client, authToken string, baseURLs map[string]string) HoldersService {
+// newHoldersEntity creates a new HoldersService instance.
+func newHoldersEntity(client *http.Client, authToken string, baseURLs map[string]string) HoldersService {
 	httpClient := NewHTTPClient(client, authToken, nil)
 	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
 		httpClient.setDebugLocked(true)

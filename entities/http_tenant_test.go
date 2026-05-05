@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -321,21 +322,16 @@ func TestTenantIDPropagationThroughServiceEntity(t *testing.T) {
 	defer srv.Close()
 
 	// Create an Entity using the test server URL and a default tenant ID.
-	// New() sets both "onboarding" and "transaction" base URLs to the same value.
-	entity, err := New(srv.URL, WithDefaultTenantID("e2e-tenant"))
-	require.NoError(t, err)
-
-	// Replace the underlying http.Client with the test server's client so that
-	// TLS certificates are accepted for the httptest server.
-	entity.httpClient.client = srv.Client()
-
-	// Reinitialize services so they pick up the test server's HTTP client.
-	// We must also re-propagate the tenant ID since initServices creates fresh HTTPClients.
-	entity.initServices()
+	// We pass srv.Client() up front so TLS certificates are accepted for the httptest server.
+	entity := newTestEntity(t, srv.Client(), "", map[string]string{
+		"onboarding":  srv.URL,
+		"transaction": srv.URL,
+		"crm":         srv.URL,
+	}, nil, WithDefaultTenantID("e2e-tenant"))
 
 	// Call a service method — this exercises the full path:
 	// Entity.Organizations -> organizationsEntity.HTTPClient -> doRequest -> header injection
-	_, err = entity.Organizations.ListOrganizations(context.Background(), nil)
+	_, err := entity.Organizations.ListOrganizations(context.Background(), nil)
 	require.NoError(t, err)
 
 	assert.Equal(t, "e2e-tenant", receivedHeader,
@@ -355,14 +351,14 @@ func TestTenantIDPropagationThroughServiceEntityWithUnexportedField(t *testing.T
 	}))
 	defer srv.Close()
 
-	entity, err := New(srv.URL, WithDefaultTenantID("e2e-tenant-accounts"))
-	require.NoError(t, err)
-
-	entity.httpClient.client = srv.Client()
-	entity.initServices()
+	entity := newTestEntity(t, srv.Client(), "", map[string]string{
+		"onboarding":  srv.URL,
+		"transaction": srv.URL,
+		"crm":         srv.URL,
+	}, nil, WithDefaultTenantID("e2e-tenant-accounts"))
 
 	// Call a service method on Accounts (uses unexported httpClient field)
-	_, err = entity.Accounts.ListAccounts(context.Background(), "org-1", "ledger-1", nil)
+	_, err := entity.Accounts.ListAccounts(context.Background(), "org-1", "ledger-1", nil)
 	require.NoError(t, err)
 
 	assert.Equal(t, "e2e-tenant-accounts", receivedHeader,
@@ -403,8 +399,11 @@ func TestWithHTTPClientOptionPreservesTenantID(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	entity, err := New(srv.URL, WithDefaultTenantID("option-preserved-tenant"))
-	require.NoError(t, err)
+	entity := newTestEntity(t, &http.Client{Timeout: 30 * time.Second}, "", map[string]string{
+		"onboarding":  srv.URL,
+		"transaction": srv.URL,
+		"crm":         srv.URL,
+	}, nil, WithDefaultTenantID("option-preserved-tenant"))
 
 	// Verify root HTTPClient has the tenant
 	assert.Equal(t, "option-preserved-tenant", entity.httpClient.tenantID,
@@ -412,7 +411,7 @@ func TestWithHTTPClientOptionPreservesTenantID(t *testing.T) {
 
 	// Replace the HTTP client via option
 	opt := WithHTTPClient(srv.Client())
-	err = opt(entity)
+	err := opt(entity)
 	require.NoError(t, err)
 
 	// Verify root field survived
@@ -440,13 +439,16 @@ func TestTenantIDPropagationAfterSetHTTPClient(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	entity, err := New(srv.URL, WithDefaultTenantID("surviving-tenant"))
-	require.NoError(t, err)
+	entity := newTestEntity(t, &http.Client{Timeout: 30 * time.Second}, "", map[string]string{
+		"onboarding":  srv.URL,
+		"transaction": srv.URL,
+		"crm":         srv.URL,
+	}, nil, WithDefaultTenantID("surviving-tenant"))
 
 	// Replace the HTTP client — tenant ID should survive
 	entity.SetHTTPClient(srv.Client())
 
-	_, err = entity.Organizations.ListOrganizations(context.Background(), nil)
+	_, err := entity.Organizations.ListOrganizations(context.Background(), nil)
 	require.NoError(t, err)
 
 	assert.Equal(t, "surviving-tenant", receivedHeader,

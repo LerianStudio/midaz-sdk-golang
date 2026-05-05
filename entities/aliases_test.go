@@ -33,7 +33,7 @@ func TestAliasesEntity_CreateAlias_RequestConstruction(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := NewAliasesEntity(server.Client(), "token", map[string]string{"crm": server.URL}).(*aliasesEntity)
+	service := newAliasesEntity(server.Client(), "token", map[string]string{"crm": server.URL}).(*aliasesEntity)
 	alias, err := service.CreateAlias(context.Background(), crmOrgID, crmHolderID, &models.CreateAliasInput{LedgerID: "ledger-123", AccountID: "account-123"})
 
 	require.NoError(t, err)
@@ -64,7 +64,7 @@ func TestAliasesEntity_UpdateAlias_OmitsNilFields(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := NewAliasesEntity(server.Client(), "token", map[string]string{"crm": server.URL}).(*aliasesEntity)
+	service := newAliasesEntity(server.Client(), "token", map[string]string{"crm": server.URL}).(*aliasesEntity)
 	alias, err := service.UpdateAlias(context.Background(), crmOrgID, crmHolderID, crmAliasID, &models.UpdateAliasInput{Metadata: map[string]any{"risk": "low"}})
 
 	require.NoError(t, err)
@@ -73,7 +73,7 @@ func TestAliasesEntity_UpdateAlias_OmitsNilFields(t *testing.T) {
 }
 
 func TestAliasesEntity_ValidationErrors(t *testing.T) {
-	service := NewAliasesEntity(http.DefaultClient, "token", map[string]string{"crm": "https://crm.example.com/v1"}).(*aliasesEntity)
+	service := newAliasesEntity(http.DefaultClient, "token", map[string]string{"crm": "https://crm.example.com/v1"}).(*aliasesEntity)
 
 	_, err := service.CreateAlias(context.Background(), crmOrgID, crmHolderID, &models.CreateAliasInput{AccountID: "account-123"})
 	require.Error(t, err)
@@ -118,7 +118,7 @@ func TestAliasesEntity_ListGetDelete_RequestConstruction(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := NewAliasesEntity(server.Client(), "token", map[string]string{"crm": server.URL}).(*aliasesEntity)
+	service := newAliasesEntity(server.Client(), "token", map[string]string{"crm": server.URL}).(*aliasesEntity)
 	list, err := service.ListAliases(context.Background(), crmOrgID, models.NewListOptions().WithHolderID(crmHolderID))
 	require.NoError(t, err)
 	require.Len(t, list.Items, 1)

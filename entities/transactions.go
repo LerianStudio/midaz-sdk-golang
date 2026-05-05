@@ -116,7 +116,7 @@ func (e *transactionsEntity) setDefaultTenantID(tenantID string) {
 	e.httpClient.SetTenantID(tenantID)
 }
 
-// NewTransactionsEntity creates a new transactions entity.
+// newTransactionsEntity creates a new transactions entity.
 //
 // Parameters:
 //   - client: The HTTP client used for API requests. Can be configured with custom timeouts
@@ -129,7 +129,7 @@ func (e *transactionsEntity) setDefaultTenantID(tenantID string) {
 // Returns:
 //   - TransactionsService: An implementation of the TransactionsService interface that provides
 //     methods for creating, retrieving, and managing transactions.
-func NewTransactionsEntity(client *http.Client, authToken string, baseURLs map[string]string) TransactionsService {
+func newTransactionsEntity(client *http.Client, authToken string, baseURLs map[string]string) TransactionsService {
 	httpClient := NewHTTPClient(client, authToken, nil)
 
 	// Check if we're using the debug flag from the environment

@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/LerianStudio/midaz-sdk-golang/v3"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/stretchr/testify/assert"
@@ -245,15 +246,15 @@ func TestTransactionHelpers_ErrorPaths(t *testing.T) {
 func newTransactionHelperEntity(t *testing.T, server *httptest.Server) *entities.Entity {
 	t.Helper()
 
-	entity, err := entities.NewEntity(
-		server.Client(),
-		"token",
-		map[string]string{"onboarding": server.URL, "transaction": server.URL},
-		nil,
+	c, err := midaz.New(
+		midaz.WithHTTPClient(server.Client()),
+		midaz.WithOnboardingURL(server.URL),
+		midaz.WithTransactionURL(server.URL),
 	)
 	require.NoError(t, err)
 
-	return entity
+	c.SetAuthToken("token")
+	return c.Entity
 }
 
 func decodeJSONBody(t *testing.T, r *http.Request) map[string]any {

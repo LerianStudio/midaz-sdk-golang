@@ -143,9 +143,9 @@ func (e *portfoliosEntity) setDefaultTenantID(tenantID string) {
 	e.httpClient.SetTenantID(tenantID)
 }
 
-// NewPortfoliosEntity creates a new portfolios entity.
+// newPortfoliosEntity creates a new portfolios entity.
 // It initializes the HTTP client and base URLs for API requests.
-func NewPortfoliosEntity(client *http.Client, authToken string, baseURLs map[string]string) PortfoliosService {
+func newPortfoliosEntity(client *http.Client, authToken string, baseURLs map[string]string) PortfoliosService {
 	// Create a new HTTP client with the shared implementation
 	httpClient := NewHTTPClient(client, authToken, nil)
 

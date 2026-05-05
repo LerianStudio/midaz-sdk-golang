@@ -1,7 +1,6 @@
 package entities
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"strings"
@@ -66,24 +65,6 @@ func WithObservability(provider observability.Provider) Option {
 		e.httpClient.setObservabilityLocked(provider, metrics)
 		e.observability = provider
 
-		return nil
-	}
-}
-
-// WithContext returns an Option that sets a default context for the Entity.
-//
-// Deprecated: This option is currently a no-op placeholder for future implementation.
-// Use context.Context as the first parameter in individual API calls instead.
-// Each service method (e.g., CreateOrganization, GetAccount) accepts a context
-// parameter that should be used for request-scoped cancellation and timeouts.
-func WithContext(ctx context.Context) Option {
-	return func(_ *Entity) error {
-		if ctx == nil {
-			return errors.New("context cannot be nil")
-		}
-
-		// Note: This is a no-op. Context should be passed to individual API calls.
-		// Keeping this option for API compatibility.
 		return nil
 	}
 }

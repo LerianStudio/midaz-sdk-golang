@@ -130,9 +130,9 @@ func (e *segmentsEntity) setDefaultTenantID(tenantID string) {
 	e.httpClient.SetTenantID(tenantID)
 }
 
-// NewSegmentsEntity creates a new segments entity.
+// newSegmentsEntity creates a new segments entity.
 // It initializes the HTTP client and base URLs for API requests.
-func NewSegmentsEntity(client *http.Client, authToken string, baseURLs map[string]string) SegmentsService {
+func newSegmentsEntity(client *http.Client, authToken string, baseURLs map[string]string) SegmentsService {
 	return &segmentsEntity{
 		httpClient: NewHTTPClient(client, authToken, nil),
 		baseURLs:   prepareServiceBaseURLs(baseURLs),

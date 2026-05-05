@@ -28,7 +28,7 @@ func TestSlice4OnboardingEntities_UseContractMethodsPathsAndBodies(t *testing.T)
 		{
 			name: "organization create",
 			call: func(baseURL string) error {
-				svc := NewOrganizationsEntity(nil, "token", map[string]string{"onboarding": baseURL})
+				svc := newOrganizationsEntity(nil, "token", map[string]string{"onboarding": baseURL})
 				_, err := svc.CreateOrganization(nilContext, models.NewCreateOrganizationInput("Lerian", "123"))
 
 				return err
@@ -40,7 +40,7 @@ func TestSlice4OnboardingEntities_UseContractMethodsPathsAndBodies(t *testing.T)
 		{
 			name: "account type create",
 			call: func(baseURL string) error {
-				svc := NewAccountTypesEntity(nil, "token", map[string]string{"onboarding": baseURL})
+				svc := newAccountTypesEntity(nil, "token", map[string]string{"onboarding": baseURL})
 				_, err := svc.CreateAccountType(nilContext, "org/1", "ledger/1", models.NewCreateAccountTypeInput("Deposit", "deposit"))
 
 				return err
@@ -52,7 +52,7 @@ func TestSlice4OnboardingEntities_UseContractMethodsPathsAndBodies(t *testing.T)
 		{
 			name: "portfolio create with optional entity omitted",
 			call: func(baseURL string) error {
-				svc := NewPortfoliosEntity(nil, "token", map[string]string{"onboarding": baseURL})
+				svc := newPortfoliosEntity(nil, "token", map[string]string{"onboarding": baseURL})
 				_, err := svc.CreatePortfolio(nilContext, "org/1", "ledger/1", models.NewCreatePortfolioInput("", "Retail"))
 
 				return err
@@ -109,7 +109,7 @@ func TestSlice4AccountBalanceHelpers_UseTransactionURLAndLimitTwo(t *testing.T) 
 	}))
 	defer transaction.Close()
 
-	svc := NewAccountsEntity(transaction.Client(), "token", map[string]string{
+	svc := newAccountsEntity(transaction.Client(), "token", map[string]string{
 		"onboarding":  onboarding.URL,
 		"transaction": transaction.URL,
 	})
@@ -121,7 +121,7 @@ func TestSlice4AccountBalanceHelpers_UseTransactionURLAndLimitTwo(t *testing.T) 
 
 func TestSlice4DirectConstructors_CopyBaseURLs(t *testing.T) {
 	baseURLs := map[string]string{"onboarding": "https://api.example.com/"}
-	svc := NewSegmentsEntity(nil, "token", baseURLs).(*segmentsEntity)
+	svc := newSegmentsEntity(nil, "token", baseURLs).(*segmentsEntity)
 	baseURLs["onboarding"] = "https://evil.example.com"
 
 	assert.Equal(t, "https://api.example.com", svc.baseURLs["onboarding"])

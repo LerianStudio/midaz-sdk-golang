@@ -35,8 +35,8 @@ func (e *aliasesEntity) setDefaultTenantID(tenantID string) {
 	e.httpClient.SetTenantID(tenantID)
 }
 
-// NewAliasesEntity creates a new AliasesService instance.
-func NewAliasesEntity(client *http.Client, authToken string, baseURLs map[string]string) AliasesService {
+// newAliasesEntity creates a new AliasesService instance.
+func newAliasesEntity(client *http.Client, authToken string, baseURLs map[string]string) AliasesService {
 	httpClient := NewHTTPClient(client, authToken, nil)
 	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
 		httpClient.setDebugLocked(true)

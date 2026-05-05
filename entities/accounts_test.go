@@ -616,7 +616,7 @@ func (t *mockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return t.mock.DoFunc(req)
 }
 
-func TestNewAccountsEntity(t *testing.T) {
+func Test_newAccountsEntity(t *testing.T) {
 	tests := []struct {
 		name      string
 		client    *http.Client
@@ -639,7 +639,7 @@ func TestNewAccountsEntity(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			service := NewAccountsEntity(tt.client, tt.authToken, tt.baseURLs)
+			service := newAccountsEntity(tt.client, tt.authToken, tt.baseURLs)
 			assert.NotNil(t, service)
 
 			// Type assertion to check internal fields

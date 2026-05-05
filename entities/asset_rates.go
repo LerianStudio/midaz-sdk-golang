@@ -102,7 +102,7 @@ func (e *assetRatesEntity) setDefaultTenantID(tenantID string) {
 	e.httpClient.SetTenantID(tenantID)
 }
 
-// NewAssetRatesEntity creates a new asset rates entity.
+// newAssetRatesEntity creates a new asset rates entity.
 //
 // Parameters:
 //   - client: The HTTP client used for API requests.
@@ -111,7 +111,7 @@ func (e *assetRatesEntity) setDefaultTenantID(tenantID string) {
 //
 // Returns:
 //   - AssetRatesService: An implementation of the AssetRatesService interface.
-func NewAssetRatesEntity(client *http.Client, authToken string, baseURLs map[string]string) AssetRatesService {
+func newAssetRatesEntity(client *http.Client, authToken string, baseURLs map[string]string) AssetRatesService {
 	httpClient := NewHTTPClient(client, authToken, nil)
 
 	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {

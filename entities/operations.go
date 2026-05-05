@@ -186,44 +186,9 @@ func (e *operationsEntity) setDefaultTenantID(tenantID string) {
 	e.httpClient.SetTenantID(tenantID)
 }
 
-// NewOperationsEntity creates a new operations entity.
-//
-// Parameters:
-//   - client: The HTTP client used for API requests. Can be configured with custom timeouts
-//     and transport options. If nil, a default client will be used.
-//   - authToken: The authentication token for API authorization. Must be a valid JWT token
-//     issued by the Midaz authentication service.
-//   - baseURLs: Map of service names to base URLs. Must include an "onboarding" key with
-//     the URL of the onboarding service (e.g., "https://api.midaz.io/v1").
-//
-// Returns:
-//   - OperationsService: An implementation of the OperationsService interface that provides
-//     methods for retrieving, updating, and managing transaction operations.
-//
-// Example:
-//
-//	// Create an operations entity with default HTTP client
-//	operationsEntity := entities.NewOperationsEntity(
-//	    &http.Client{Timeout: 30 * time.Second},
-//	    "your-auth-token",
-//	    map[string]string{"onboarding": "https://api.midaz.io/v1"},
-//	)
-//
-//	// Use the entity to retrieve operations for an account
-//	operations, err := operationsEntity.ListOperations(
-//	    context.Background(),
-//	    "org-123",
-//	    "ledger-456",
-//	    "account-789",
-//	    nil, // No pagination options
-//	)
-//
-//	if err != nil {
-//	    log.Fatalf("Failed to retrieve operations: %v", err)
-//	}
-//
-//	fmt.Printf("Retrieved %d operations\n", len(operations.Items))
-func NewOperationsEntity(client *http.Client, authToken string, baseURLs map[string]string) OperationsService {
+// newOperationsEntity wires the OperationsService backed by the shared HTTP transport.
+// Internal: invoked by Entity.initServices; callers should reach the service via Client.Operations.
+func newOperationsEntity(client *http.Client, authToken string, baseURLs map[string]string) OperationsService {
 	// Create a new HTTP client with the shared implementation
 	httpClient := NewHTTPClient(client, authToken, nil)
 

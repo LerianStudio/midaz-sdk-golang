@@ -34,7 +34,7 @@ func TestHoldersEntity_CreateHolder_RequestConstruction(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := NewHoldersEntity(server.Client(), "token", map[string]string{"crm": server.URL}).(*holdersEntity)
+	service := newHoldersEntity(server.Client(), "token", map[string]string{"crm": server.URL}).(*holdersEntity)
 	holderType := "NATURAL_PERSON"
 	holder, err := service.CreateHolder(context.Background(), crmOrgID, &models.CreateHolderInput{Type: &holderType, Name: "Jane Doe", Document: "12345678900"})
 
@@ -68,7 +68,7 @@ func TestHoldersEntity_UpdateHolder_OmitsNilFields(t *testing.T) {
 	defer server.Close()
 
 	name := "Jane Updated"
-	service := NewHoldersEntity(server.Client(), "token", map[string]string{"crm": server.URL}).(*holdersEntity)
+	service := newHoldersEntity(server.Client(), "token", map[string]string{"crm": server.URL}).(*holdersEntity)
 	holder, err := service.UpdateHolder(context.Background(), crmOrgID, crmHolderID, &models.UpdateHolderInput{Name: &name})
 
 	require.NoError(t, err)
@@ -77,7 +77,7 @@ func TestHoldersEntity_UpdateHolder_OmitsNilFields(t *testing.T) {
 }
 
 func TestHoldersEntity_ValidationErrors(t *testing.T) {
-	service := NewHoldersEntity(http.DefaultClient, "token", map[string]string{"crm": "https://crm.example.com/v1"}).(*holdersEntity)
+	service := newHoldersEntity(http.DefaultClient, "token", map[string]string{"crm": "https://crm.example.com/v1"}).(*holdersEntity)
 
 	_, err := service.CreateHolder(context.Background(), crmOrgID, &models.CreateHolderInput{Name: "Jane", Document: "123"})
 	require.Error(t, err)
@@ -119,7 +119,7 @@ func TestHoldersEntity_ListGetDelete_RequestConstruction(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := NewHoldersEntity(server.Client(), "token", map[string]string{"crm": server.URL}).(*holdersEntity)
+	service := newHoldersEntity(server.Client(), "token", map[string]string{"crm": server.URL}).(*holdersEntity)
 	list, err := service.ListHolders(context.Background(), crmOrgID, models.NewListOptions().WithExternalID("external-123"))
 	require.NoError(t, err)
 	require.Len(t, list.Items, 1)
