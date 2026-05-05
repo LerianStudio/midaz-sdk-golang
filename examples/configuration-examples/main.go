@@ -254,7 +254,11 @@ func comprehensiveConfiguration() error {
 		config.WithEnvironment(config.EnvironmentProduction),
 		config.WithUserAgent("MyApp/1.0"),
 		config.WithTimeout(45*time.Second),
-		config.WithRetryConfig(3, 500*time.Millisecond, 5*time.Second),
+		// Retry knobs are now individual single-concern Options. Chain them
+		// instead of the v2 WithRetryConfig(int, dur, dur) macro.
+		config.WithMaxRetries(3),
+		config.WithRetryWaitMin(500*time.Millisecond),
+		config.WithRetryWaitMax(5*time.Second),
 		config.WithDebug(true),
 		config.WithIdempotency(true),
 	)
@@ -278,7 +282,7 @@ func comprehensiveConfiguration() error {
 	fmt.Printf("Max Retries: %d\n", c.GetConfig().MaxRetries)
 	fmt.Printf("Retry Wait Min: %s\n", c.GetConfig().RetryWaitMin)
 	fmt.Printf("Retry Wait Max: %s\n", c.GetConfig().RetryWaitMax)
-	fmt.Printf("Enable Retries: %t\n", c.GetConfig().EnableRetries)
+	fmt.Printf("Enable Retries: %t\n", c.GetConfig().MaxRetries > 0)
 	fmt.Printf("Debug Mode: %t\n", c.GetConfig().Debug)
 	fmt.Printf("Enable Idempotency: %t\n", c.GetConfig().EnableIdempotency)
 	fmt.Printf("Onboarding URL: %s\n", c.GetConfig().ServiceURLs[config.ServiceOnboarding])

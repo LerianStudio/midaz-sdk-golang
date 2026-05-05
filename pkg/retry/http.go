@@ -290,18 +290,6 @@ func WithHTTPHighReliability() HTTPOption {
 	}
 }
 
-// WithHTTPNoRetry returns an HTTPOption that disables retries for HTTP requests.
-//
-// Example:
-//
-//	resp, err := retry.DoHTTPRequest(ctx, client, req, retry.WithHTTPNoRetry())
-func WithHTTPNoRetry() HTTPOption {
-	return func(o *HTTPOptions) error {
-		o.MaxRetries = 0
-		return nil
-	}
-}
-
 // DoHTTPRequest performs an HTTP request with retries.
 // It handles connection errors, HTTP status codes, and reading the response body.
 //

@@ -75,7 +75,6 @@ const (
 
 	// Default feature flags
 	DefaultEnableIdempotency = true
-	DefaultEnableRetries     = true
 )
 
 // Boolean string values for environment variable comparison.
@@ -108,11 +107,13 @@ type Config struct {
 	// UserAgent is the user agent string sent in HTTP requests.
 	UserAgent string
 
-	// Retry configuration for failed requests
-	MaxRetries    int
-	RetryWaitMin  time.Duration
-	RetryWaitMax  time.Duration
-	EnableRetries bool
+	// Retry configuration for failed requests.
+	// Retries are off when MaxRetries == 0; there is no separate enable flag.
+	// Use [github.com/LerianStudio/midaz-sdk-golang/v3.WithoutRetries] (canonical
+	// off-switch) or [WithMaxRetries](0) to disable.
+	MaxRetries   int
+	RetryWaitMin time.Duration
+	RetryWaitMax time.Duration
 
 	// Debug enables verbose logging of requests and responses.
 	Debug bool
@@ -439,60 +440,6 @@ func WithUserAgent(userAgent string) Option {
 		}
 
 		c.UserAgent = userAgent
-
-		return nil
-	}
-}
-
-// WithRetryConfig sets the retry configuration for HTTP requests.
-//
-// Parameters:
-//   - maxRetries: The maximum number of retry attempts
-//   - minWait: The minimum wait time between retries
-//   - maxWait: The maximum wait time between retries
-//
-// Returns:
-//   - Option: A function that sets the retry configuration on a Config
-func WithRetryConfig(maxRetries int, minWait, maxWait time.Duration) Option {
-	return func(c *Config) error {
-		if c == nil {
-			return errors.New("config cannot be nil")
-		}
-
-		if maxRetries < 0 {
-			return errors.New("max retries cannot be negative")
-		}
-
-		if minWait <= 0 {
-			return errors.New("minimum wait time must be greater than 0")
-		}
-
-		if maxWait < minWait {
-			return errors.New("maximum wait time must be greater than or equal to minimum wait time")
-		}
-
-		c.MaxRetries = maxRetries
-		c.RetryWaitMin = minWait
-		c.RetryWaitMax = maxWait
-
-		return nil
-	}
-}
-
-// WithRetries enables or disables retry functionality.
-//
-// Parameters:
-//   - enable: Whether to enable retries
-//
-// Returns:
-//   - Option: A function that sets the retry flag on a Config
-func WithRetries(enable bool) Option {
-	return func(c *Config) error {
-		if c == nil {
-			return errors.New("config cannot be nil")
-		}
-
-		c.EnableRetries = enable
 
 		return nil
 	}
@@ -868,7 +815,6 @@ func NewConfig(options ...Option) (*Config, error) {
 		MaxRetries:        DefaultMaxRetries,
 		RetryWaitMin:      DefaultMinRetryWait,
 		RetryWaitMax:      DefaultRetryWaitMax,
-		EnableRetries:     DefaultEnableRetries,
 		EnableIdempotency: DefaultEnableIdempotency,
 	}
 
@@ -1248,7 +1194,6 @@ func DefaultConfig() *Config {
 		MaxRetries:        DefaultMaxRetries,
 		RetryWaitMin:      DefaultMinRetryWait,
 		RetryWaitMax:      DefaultRetryWaitMax,
-		EnableRetries:     DefaultEnableRetries,
 		EnableIdempotency: DefaultEnableIdempotency,
 	}
 

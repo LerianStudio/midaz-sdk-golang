@@ -81,6 +81,12 @@ type Client struct {
 	metrics           *observability.MetricsCollector
 	customRetryPolicy func(*http.Response, error) bool
 
+	// retryOpts is the user-supplied retry.Option chain accumulated by
+	// WithRetryOptions calls. Threaded onto the entity HTTPClient AFTER the
+	// config-derived seeds (MaxRetries / RetryWaitMin / RetryWaitMax) so the
+	// last write wins per the override-on-conflict contract.
+	retryOpts []retry.Option
+
 	// logger is the canonical structured logger for the SDK. Always non-nil
 	// after New(). Default: slog.New(slog.DiscardHandler) (silent). Configure
 	// via WithLogger(...). When Config.Debug is true and WithLogger was not
@@ -250,15 +256,20 @@ func (c *Client) setupEntity() error {
 	httpClient.SetDebug(c.config.Debug)
 	httpClient.SetUserAgent(c.config.UserAgent)
 	httpClient.SetEnableIdempotency(c.config.EnableIdempotency)
-	httpClient.WithRetryOptions(
-		retry.WithMaxRetries(c.config.MaxRetries),
-		retry.WithInitialDelay(c.config.RetryWaitMin),
-		retry.WithMaxDelay(c.config.RetryWaitMax),
-	)
 
-	if !c.config.EnableRetries {
-		httpClient.WithRetryOption(retry.WithMaxRetries(0))
-	}
+	// Retry chain construction: config seeds first, user overrides last.
+	// Override-on-conflict semantics — see [WithRetryOptions] godoc.
+	// MaxRetries == 0 (set via [WithoutRetries] or pkg/config.WithMaxRetries(0))
+	// flows through naturally; no separate enable flag is consulted.
+	retryChain := append(
+		[]retry.Option{
+			retry.WithMaxRetries(c.config.MaxRetries),
+			retry.WithInitialDelay(c.config.RetryWaitMin),
+			retry.WithMaxDelay(c.config.RetryWaitMax),
+		},
+		c.retryOpts...,
+	)
+	httpClient.WithRetryOptions(retryChain...)
 
 	if c.customRetryPolicy != nil {
 		httpClient.SetCustomRetryPolicy(c.customRetryPolicy)
@@ -330,31 +341,47 @@ func WithUserAgent(userAgent string) Option {
 	}
 }
 
-// WithRetries configures the retry policy for failed requests.
+// WithRetryOptions threads pkg/retry tuning knobs onto the entity HTTPClient
+// after construction. Use this to override the defaults seeded from
+// [pkg/config.WithMaxRetries] / [pkg/config.WithRetryWaitMin] /
+// [pkg/config.WithRetryWaitMax], or to set knobs that have no Config
+// counterpart (BackoffFactor, JitterFactor, RetryableErrors, RetryableHTTPCodes).
 //
-// Parameters:
-//   - maxRetries: The maximum number of retry attempts.
-//   - minBackoff: The minimum backoff duration between retries.
-//   - maxBackoff: The maximum backoff duration between retries.
+// Semantics: override-on-conflict. Config-derived knobs (MaxRetries,
+// InitialDelay=RetryWaitMin, MaxDelay=RetryWaitMax) are applied first during
+// [setupEntity]; any retry.Option passed here runs afterward and the last
+// write wins. Equivalently, the chain is:
+//
+//	retry.WithMaxRetries(c.config.MaxRetries),     // from Config
+//	retry.WithInitialDelay(c.config.RetryWaitMin), // from Config
+//	retry.WithMaxDelay(c.config.RetryWaitMax),     // from Config
+//	opts...,                                       // user-supplied here
+//
+// [WithoutRetries] is implemented as a sugar that prepends
+// retry.WithMaxRetries(0); pass WithRetryOptions(retry.WithMaxRetries(N))
+// after WithoutRetries to re-enable.
+//
+// Example:
+//
+//	client, _ := midaz.New(
+//	    midaz.WithEnvironment(midaz.EnvironmentLocal),
+//	    midaz.WithRetryOptions(
+//	        retry.WithMaxRetries(5),
+//	        retry.WithJitterFactor(0.4),
+//	        retry.WithRetryableHTTPCodes([]int{408, 429, 500, 502, 503, 504}),
+//	    ),
+//	)
+//
+// Or use a preset:
+//
+//	midaz.WithRetryOptions(retry.WithHighReliability())
 //
 // Returns:
-//   - Option: A function that configures the retry policy on the Client
-func WithRetries(maxRetries int, minBackoff, maxBackoff time.Duration) Option {
+//   - Option: A function that appends the retry options to the Client's pending chain
+func WithRetryOptions(opts ...retry.Option) Option {
 	return func(c *Client) error {
-		// Apply to config
-		if err := config.WithRetries(true)(c.config); err != nil {
-			return err
-		}
-
-		if err := config.WithMaxRetries(maxRetries)(c.config); err != nil {
-			return err
-		}
-
-		if err := config.WithRetryWaitMin(minBackoff)(c.config); err != nil {
-			return err
-		}
-
-		return config.WithRetryWaitMax(maxBackoff)(c.config)
+		c.retryOpts = append(c.retryOpts, opts...)
+		return nil
 	}
 }
 
@@ -381,15 +408,25 @@ func WithCustomRetryPolicy(shouldRetry func(*http.Response, error) bool) Option 
 	}
 }
 
-// DisableRetries disables the retry mechanism.
-// This is useful for testing or when you want to handle retries yourself.
+// WithoutRetries is the canonical off-switch for the retry mechanism.
+// It pins MaxRetries to 0 on the Config; downstream HTTP calls execute
+// exactly once with no automatic retry on transient failures.
+//
+// Soft-disable semantics: WithoutRetries simply sets MaxRetries=0. A
+// subsequent [WithRetryOptions](retry.WithMaxRetries(N)) in the same
+// option chain will re-enable retries with N attempts. Last write wins.
+// Use this when you want a default-off posture that test code or callers
+// can still override.
+//
+// Use cases:
+//   - Tests that must never retry (combine with no override).
+//   - Callers that handle their own retry logic at a higher layer.
 //
 // Returns:
 //   - Option: A function that disables retries on the Client
-func DisableRetries() Option {
+func WithoutRetries() Option {
 	return func(c *Client) error {
-		// Apply the retry disable to the config
-		return config.WithRetries(false)(c.config)
+		return config.WithMaxRetries(0)(c.config)
 	}
 }
 

@@ -18,13 +18,23 @@ func TestClientOptionsAccessorsAndConstructors(t *testing.T) {
 	ctx := context.WithValue(context.Background(), testContextKey{}, "value")
 	customHTTPClient := &http.Client{Timeout: 5 * time.Second}
 
+	// v3: build a Config with retry knobs at the config layer using the
+	// individual single-concern Options. The deleted v2 WithRetries(int,dur,dur)
+	// macro was a 3-positional-arg shortcut; the v3 expression is more verbose
+	// but every Option has exactly one concern. WithRetryOptions at the client
+	// layer is the override path for retry-package knobs that don't have a
+	// Config counterpart (BackoffFactor, JitterFactor, etc.).
+	cfg := createTestConfig(t)
+	require.NoError(t, config.WithMaxRetries(2)(cfg))
+	require.NoError(t, config.WithRetryWaitMin(10*time.Millisecond)(cfg))
+	require.NoError(t, config.WithRetryWaitMax(20*time.Millisecond)(cfg))
+
 	c, err := New(
-		WithConfig(createTestConfig(t)),
+		WithConfig(cfg),
 		WithContext(ctx),
 		WithHTTPClient(customHTTPClient),
 		WithBaseURL("https://api.example.com"),
 		WithUserAgent("midaz-test/coverage"),
-		WithRetries(2, 10*time.Millisecond, 20*time.Millisecond),
 		WithCustomRetryPolicy(func(resp *http.Response, err error) bool {
 			return err != nil || (resp != nil && resp.StatusCode == http.StatusTooManyRequests)
 		}),
@@ -35,7 +45,7 @@ func TestClientOptionsAccessorsAndConstructors(t *testing.T) {
 
 	assert.Same(t, customHTTPClient, c.config.HTTPClient)
 	assert.Equal(t, "midaz-test/coverage", c.config.UserAgent)
-	assert.True(t, c.config.EnableRetries)
+	// In v3, retries are off iff MaxRetries == 0; here we set 2 above.
 	assert.Equal(t, 2, c.config.MaxRetries)
 	assert.Equal(t, 10*time.Millisecond, c.config.RetryWaitMin)
 	assert.Equal(t, 20*time.Millisecond, c.config.RetryWaitMax)
@@ -98,9 +108,11 @@ func TestClientOptionErrorsAndNilReceivers(t *testing.T) {
 	assert.True(t, sdkerrors.IsConfigurationError(err))
 	assert.Contains(t, errors.Unwrap(err).Error(), "invalid base URL")
 
-	c, err := New(WithConfig(createTestConfig(t)), DisableRetries())
+	// v3: DisableRetries() was renamed to WithoutRetries(). Sets MaxRetries=0;
+	// the EnableRetries field was deleted (one source of truth).
+	c, err := New(WithConfig(createTestConfig(t)), WithoutRetries())
 	require.NoError(t, err)
-	assert.False(t, c.config.EnableRetries)
+	assert.Equal(t, 0, c.config.MaxRetries, "WithoutRetries should set MaxRetries to 0")
 	require.NotNil(t, c.Entity)
 
 	assert.Nil(t, (*Client)(nil).GetConfiguration())

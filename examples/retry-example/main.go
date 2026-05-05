@@ -17,6 +17,7 @@ import (
 	client "github.com/LerianStudio/midaz-sdk-golang/v3"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry"
 )
 
 func main() {
@@ -62,7 +63,7 @@ func defaultRetryExample() error {
 	fmt.Printf("  - Max retries: %d\n", c.GetConfig().MaxRetries)
 	fmt.Printf("  - Min wait: %v\n", c.GetConfig().RetryWaitMin)
 	fmt.Printf("  - Max wait: %v\n", c.GetConfig().RetryWaitMax)
-	fmt.Printf("  - Retries enabled: %v\n", c.GetConfig().EnableRetries)
+	fmt.Printf("  - Retries enabled: %v\n", c.GetConfig().MaxRetries > 0)
 
 	// In production code, the retry mechanism automatically handles:
 	// - Network errors (connection timeouts, DNS issues)
@@ -90,8 +91,15 @@ func customRetryConfigExample() error {
 	// Create a client with custom retry settings
 	c, err := client.New(
 		client.WithEnvironment(config.EnvironmentLocal),
-		// Configure a more aggressive retry strategy
-		client.WithRetries(5, 200*time.Millisecond, 10*time.Second),
+		// Configure a more aggressive retry strategy via the v3 surface.
+		// WithRetryOptions threads pkg/retry knobs onto the entity HTTPClient;
+		// the override-on-conflict semantic means anything passed here wins
+		// over the config-seeded defaults (3 retries, 1s..30s).
+		client.WithRetryOptions(
+			retry.WithMaxRetries(5),
+			retry.WithInitialDelay(200*time.Millisecond),
+			retry.WithMaxDelay(10*time.Second),
+		),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create client: %w", err)
@@ -142,7 +150,11 @@ func customRetryPolicyExample() error {
 	// Create a client with the custom retry policy
 	c, err := client.New(
 		client.WithEnvironment(config.EnvironmentLocal),
-		client.WithRetries(3, 100*time.Millisecond, 1*time.Second),
+		client.WithRetryOptions(
+			retry.WithMaxRetries(3),
+			retry.WithInitialDelay(100*time.Millisecond),
+			retry.WithMaxDelay(1*time.Second),
+		),
 		client.WithCustomRetryPolicy(customShouldRetry),
 	)
 	if err != nil {
@@ -171,7 +183,7 @@ func disableRetriesExample() error {
 	// Create a client with retries disabled
 	c, err := client.New(
 		client.WithEnvironment(config.EnvironmentLocal),
-		client.DisableRetries(),
+		client.WithoutRetries(),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create client: %w", err)
@@ -180,7 +192,7 @@ func disableRetriesExample() error {
 	// Show retry settings
 	fmt.Println("Retry settings:")
 	fmt.Printf("  - Max retries: %d\n", c.GetConfig().MaxRetries)
-	fmt.Printf("  - Retries enabled: %v\n", c.GetConfig().EnableRetries)
+	fmt.Printf("  - Retries enabled: %v\n", c.GetConfig().MaxRetries > 0)
 
 	// Example call with retries disabled
 	fmt.Println("\nExample call with retries disabled:")

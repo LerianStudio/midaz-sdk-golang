@@ -502,8 +502,12 @@ func TestOptionHelpers(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:   "WithNoRetry",
-			option: WithNoRetry(),
+			// In v3, WithNoRetry was deleted. Use WithMaxRetries(0) directly —
+			// the canonical "no retries" expression. This test ensures the
+			// equivalent semantic is still reachable through the surviving
+			// surface.
+			name:   "WithMaxRetries(0)",
+			option: WithMaxRetries(0),
 			check: func(o *Options) bool {
 				return o.MaxRetries == 0
 			},
@@ -672,8 +676,10 @@ func TestHTTPOptionHelpers(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:   "WithHTTPNoRetry",
-			option: WithHTTPNoRetry(),
+			// In v3, WithHTTPNoRetry was deleted. Use WithHTTPMaxRetries(0)
+			// directly — the canonical "no retries" expression for HTTP.
+			name:   "WithHTTPMaxRetries(0)",
+			option: WithHTTPMaxRetries(0),
 			check: func(o *HTTPOptions) bool {
 				return o.MaxRetries == 0
 			},

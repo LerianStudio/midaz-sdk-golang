@@ -345,18 +345,6 @@ func WithHighReliability() Option {
 	}
 }
 
-// WithNoRetry returns an Option that disables retries.
-//
-// Example:
-//
-//	err := retry.Do(ctx, myFunction, retry.WithNoRetry())
-func WithNoRetry() Option {
-	return func(o *Options) error {
-		o.MaxRetries = 0
-		return nil
-	}
-}
-
 // contextKey is a type for context keys specific to this package
 type contextKey string
 

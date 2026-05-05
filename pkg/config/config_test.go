@@ -64,7 +64,6 @@ func TestDefaultConstants(t *testing.T) {
 		{"DefaultMinRetryWait", DefaultMinRetryWait, 1 * time.Second},
 		{"DefaultRetryWaitMax", DefaultRetryWaitMax, 30 * time.Second},
 		{"DefaultEnableIdempotency", DefaultEnableIdempotency, true},
-		{"DefaultEnableRetries", DefaultEnableRetries, true},
 	}
 
 	for _, tc := range tests {
@@ -116,7 +115,8 @@ func TestNewConfig_Defaults(t *testing.T) {
 	assert.Equal(t, DefaultMaxRetries, config.MaxRetries)
 	assert.Equal(t, DefaultMinRetryWait, config.RetryWaitMin)
 	assert.Equal(t, DefaultRetryWaitMax, config.RetryWaitMax)
-	assert.True(t, config.EnableRetries)
+	// In v3, retries are off iff MaxRetries == 0; default is DefaultMaxRetries (3).
+	assert.Positive(t, config.MaxRetries)
 	assert.True(t, config.EnableIdempotency)
 	assert.False(t, config.Debug)
 	assert.NotNil(t, config.HTTPClient)
@@ -135,8 +135,11 @@ func TestNewConfig_WithAllOptions(t *testing.T) {
 		WithHTTPClient(customClient),
 		WithTimeout(90*time.Second),
 		WithUserAgent("test-agent/1.0"),
-		WithRetryConfig(5, 2*time.Second, 60*time.Second),
-		WithRetries(false),
+		// v3: WithRetryConfig was deleted; chain the 3 individual knobs.
+		// v3: WithRetries(bool) was deleted; retries are off iff MaxRetries == 0.
+		WithMaxRetries(5),
+		WithRetryWaitMin(2*time.Second),
+		WithRetryWaitMax(60*time.Second),
 		WithDebug(true),
 		WithIdempotency(false),
 		WithObservabilityProvider(mockProvider),
@@ -158,7 +161,6 @@ func TestNewConfig_WithAllOptions(t *testing.T) {
 	assert.Equal(t, 5, config.MaxRetries)
 	assert.Equal(t, 2*time.Second, config.RetryWaitMin)
 	assert.Equal(t, 60*time.Second, config.RetryWaitMax)
-	assert.False(t, config.EnableRetries)
 	assert.True(t, config.Debug)
 	assert.False(t, config.EnableIdempotency)
 	assert.Equal(t, mockProvider, config.ObservabilityProvider)
@@ -488,58 +490,10 @@ func TestWithUserAgent_Empty(t *testing.T) {
 	assert.Contains(t, err.Error(), "user agent cannot be empty")
 }
 
-func TestWithRetryConfig_Valid(t *testing.T) {
-	tests := []struct {
-		name       string
-		maxRetries int
-		minWait    time.Duration
-		maxWait    time.Duration
-	}{
-		{"standard config", 3, 1 * time.Second, 30 * time.Second},
-		{"zero retries", 0, 1 * time.Second, 5 * time.Second},
-		{"equal min max", 5, 10 * time.Second, 10 * time.Second},
-		{"large values", 100, 1 * time.Millisecond, 10 * time.Minute},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			config, err := NewConfig(
-				WithRetryConfig(tc.maxRetries, tc.minWait, tc.maxWait),
-				WithAnonymous(),
-			)
-			require.NoError(t, err)
-			assert.Equal(t, tc.maxRetries, config.MaxRetries)
-			assert.Equal(t, tc.minWait, config.RetryWaitMin)
-			assert.Equal(t, tc.maxWait, config.RetryWaitMax)
-		})
-	}
-}
-
-func TestWithRetryConfig_Invalid(t *testing.T) {
-	tests := []struct {
-		name        string
-		maxRetries  int
-		minWait     time.Duration
-		maxWait     time.Duration
-		expectedErr string
-	}{
-		{"negative retries", -1, 1 * time.Second, 30 * time.Second, "max retries cannot be negative"},
-		{"zero minWait", 3, 0, 30 * time.Second, "minimum wait time must be greater than 0"},
-		{"negative minWait", 3, -1 * time.Second, 30 * time.Second, "minimum wait time must be greater than 0"},
-		{"maxWait less than minWait", 3, 30 * time.Second, 1 * time.Second, "maximum wait time must be greater than or equal"},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			_, err := NewConfig(
-				WithRetryConfig(tc.maxRetries, tc.minWait, tc.maxWait),
-				WithAnonymous(),
-			)
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), tc.expectedErr)
-		})
-	}
-}
+// TestWithRetryConfig_Valid / _Invalid were deleted in v3 alongside the
+// WithRetryConfig macro. Their coverage is preserved by TestWithMaxRetries_*,
+// TestWithRetryWaitMin_*, and TestWithRetryWaitMax_* which exercise each
+// single-concern Option independently.
 
 func TestWithMaxRetries_Valid(t *testing.T) {
 	tests := []struct {
@@ -646,26 +600,10 @@ func TestWithRetryWaitMax_LessThanMin(t *testing.T) {
 	assert.Contains(t, err.Error(), "maximum wait time must be greater than or equal to minimum wait time")
 }
 
-func TestWithRetries_Toggle(t *testing.T) {
-	tests := []struct {
-		name    string
-		enabled bool
-	}{
-		{"enabled", true},
-		{"disabled", false},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			config, err := NewConfig(
-				WithRetries(tc.enabled),
-				WithAnonymous(),
-			)
-			require.NoError(t, err)
-			assert.Equal(t, tc.enabled, config.EnableRetries)
-		})
-	}
-}
+// TestWithRetries_Toggle was deleted in v3 alongside the WithRetries(bool)
+// Option and the EnableRetries field. The semantic equivalent — "retries are
+// off when MaxRetries == 0" — is exercised by TestWithMaxRetries_Valid which
+// includes a 0-value test case.
 
 func TestWithDebug_Toggle(t *testing.T) {
 	tests := []struct {
@@ -978,7 +916,8 @@ func TestDefaultConfig(t *testing.T) {
 	assert.Equal(t, DefaultMaxRetries, config.MaxRetries)
 	assert.Equal(t, DefaultMinRetryWait, config.RetryWaitMin)
 	assert.Equal(t, DefaultRetryWaitMax, config.RetryWaitMax)
-	assert.True(t, config.EnableRetries)
+	// In v3, retries are off iff MaxRetries == 0; default is DefaultMaxRetries (3).
+	assert.Positive(t, config.MaxRetries)
 	assert.True(t, config.EnableIdempotency)
 	assert.NotNil(t, config.HTTPClient)
 	assert.NotNil(t, config.ServiceURLs)
