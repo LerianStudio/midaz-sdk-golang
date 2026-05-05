@@ -160,6 +160,12 @@ type Config struct {
 type Option func(*Config) error
 
 // WithEnvironment sets the environment for the Config.
+// Two-layer surface: this is the internal/test-layer Option that operates on
+// [Config]. The user-facing wrapper at
+// [github.com/LerianStudio/midaz-sdk-golang/v3.WithEnvironment] is what most callers
+// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v3.New]
+// directly.
+//
 // This determines the default URLs used for services if not explicitly overridden.
 //
 // Parameters:
@@ -185,6 +191,12 @@ func WithEnvironment(env Environment) Option {
 }
 
 // WithOnboardingURL sets the base URL for the Onboarding API.
+// Two-layer surface: this is the internal/test-layer Option that operates on
+// [Config]. The user-facing wrapper at
+// [github.com/LerianStudio/midaz-sdk-golang/v3.WithOnboardingURL] is what most callers
+// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v3.New]
+// directly.
+//
 // This overrides any URL derived from the Environment setting.
 //
 // Parameters:
@@ -216,6 +228,12 @@ func WithOnboardingURL(onboardingURL string) Option {
 }
 
 // WithTransactionURL sets the base URL for the Transaction API.
+// Two-layer surface: this is the internal/test-layer Option that operates on
+// [Config]. The user-facing wrapper at
+// [github.com/LerianStudio/midaz-sdk-golang/v3.WithTransactionURL] is what most callers
+// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v3.New]
+// directly.
+//
 // This overrides any URL derived from the Environment setting.
 //
 // Parameters:
@@ -247,6 +265,11 @@ func WithTransactionURL(transactionURL string) Option {
 }
 
 // WithCRMURL sets the base URL for the CRM API.
+// Two-layer surface: this is the internal/test-layer Option that operates on
+// [Config]. The user-facing wrapper at
+// [github.com/LerianStudio/midaz-sdk-golang/v3.WithCRMURL] is what most callers
+// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v3.New]
+// directly.
 func WithCRMURL(crmURL string) Option {
 	return func(c *Config) error {
 		if c == nil {
@@ -269,6 +292,12 @@ func WithCRMURL(crmURL string) Option {
 }
 
 // WithBaseURL sets a common base URL that will be used for all services.
+// Two-layer surface: this is the internal/test-layer Option that operates on
+// [Config]. The user-facing wrapper at
+// [github.com/LerianStudio/midaz-sdk-golang/v3.WithBaseURL] is what most callers
+// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v3.New]
+// directly.
+//
 // Service-specific ports and paths will be automatically added.
 // This is useful for connecting to custom deployments.
 //
@@ -326,6 +355,12 @@ func WithBaseURL(baseURL string) Option {
 }
 
 // WithHTTPClient sets a custom HTTP client for the Config.
+// Two-layer surface: this is the internal/test-layer Option that operates on
+// [Config]. The user-facing wrapper at
+// [github.com/LerianStudio/midaz-sdk-golang/v3.WithHTTPClient] is what most callers
+// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v3.New]
+// directly.
+//
 // This allows for advanced customization of the HTTP client behavior.
 //
 // Parameters:
@@ -351,6 +386,11 @@ func WithHTTPClient(client *http.Client) Option {
 }
 
 // WithTimeout sets the timeout duration for HTTP requests.
+// Two-layer surface: this is the internal/test-layer Option that operates on
+// [Config]. The user-facing wrapper at
+// [github.com/LerianStudio/midaz-sdk-golang/v3.WithTimeout] is what most callers
+// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v3.New]
+// directly.
 //
 // Parameters:
 //   - timeout: The timeout duration
@@ -377,6 +417,11 @@ func WithTimeout(timeout time.Duration) Option {
 }
 
 // WithUserAgent sets the user agent for HTTP requests.
+// Two-layer surface: this is the internal/test-layer Option that operates on
+// [Config]. The user-facing wrapper at
+// [github.com/LerianStudio/midaz-sdk-golang/v3.WithUserAgent] is what most callers
+// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v3.New]
+// directly.
 //
 // Parameters:
 //   - userAgent: The user agent string
@@ -454,6 +499,12 @@ func WithRetries(enable bool) Option {
 }
 
 // WithDebug enables or disables debug mode.
+// Two-layer surface: this is the internal/test-layer Option that operates on
+// [Config]. The user-facing wrapper at
+// [github.com/LerianStudio/midaz-sdk-golang/v3.WithDebug] is what most callers
+// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v3.New]
+// directly.
+//
 // In debug mode, the SDK logs detailed information about requests and responses.
 //
 // Parameters:
@@ -474,6 +525,11 @@ func WithDebug(enable bool) Option {
 }
 
 // WithObservabilityProvider sets the observability provider.
+// Two-layer surface: this is the internal/test-layer Option that operates on
+// [Config]. The user-facing wrapper at
+// [github.com/LerianStudio/midaz-sdk-golang/v3.WithObservabilityProvider] is what most callers
+// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v3.New]
+// directly.
 //
 // Parameters:
 //   - provider: The observability provider to use
@@ -516,6 +572,11 @@ func WithIdempotency(enable bool) Option {
 }
 
 // WithAccessManager sets the plugin-based authentication configuration.
+// Two-layer surface: this is the internal/test-layer Option that operates on
+// [Config]. The user-facing wrapper at
+// [github.com/LerianStudio/midaz-sdk-golang/v3.WithAccessManager] is what most callers
+// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v3.New]
+// directly.
 //
 // The Enabled field of the supplied AccessManager is OVERRIDDEN to true —
 // the act of calling WithAccessManager is the user's signal that they want
@@ -565,6 +626,12 @@ func WithAccessManager(accessManager auth.AccessManager) Option {
 // first real call) into an explicit construction-time choice.
 //
 // WithAnonymous and WithAccessManager are mutually exclusive — the last
+// Two-layer surface: this is the internal/test-layer Option that operates on
+// [Config]. The user-facing wrapper at
+// [github.com/LerianStudio/midaz-sdk-golang/v3.WithAnonymous] is what most callers
+// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v3.New]
+// directly.
+//
 // option applied wins. Calling WithAnonymous after WithAccessManager
 // disables the previously-set Access Manager configuration.
 //

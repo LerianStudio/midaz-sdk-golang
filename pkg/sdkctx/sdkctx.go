@@ -25,8 +25,11 @@
 // helper. As a general rule: per-request context > client option > env var.
 //
 // In v2, these helpers lived in the entities package. v3 moved them here as
-// part of the convergence pass; entities.With* shims remain for one minor
-// release window before v3.0 hard-removes them.
+// part of the convergence pass and the entities.With* shims (the four
+// per-request context helpers + the post-construction Options like
+// entities.WithDebug/WithUserAgent/WithObservability) have been deleted.
+// pkg/sdkctx is the only sanctioned place for per-request context plumbing
+// in v3.
 package sdkctx
 
 import (

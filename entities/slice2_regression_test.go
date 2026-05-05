@@ -101,7 +101,9 @@ func TestEntitySetHTTPClient_PreservesProtocolConfiguration(t *testing.T) {
 		"onboarding":  "http://localhost:3002",
 		"transaction": "http://localhost:3002",
 		"crm":         "http://localhost:3002",
-	}, nil, WithDebug(true), WithUserAgent("slice2-agent"))
+	}, nil)
+	entity.GetEntityHTTPClient().SetDebug(true)
+	entity.GetEntityHTTPClient().SetUserAgent("slice2-agent")
 	// Seed the tenant directly via the unexported setter (the v3-canonical path
 	// via Config.GetTenantID is exercised in http_tenant_test.go); here we
 	// only need a non-empty value to verify SetHTTPClient preserves it.
@@ -140,8 +142,8 @@ func TestHTTPClient_DebugErrorPathRedactsURL(t *testing.T) {
 	var debugBuf bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&debugBuf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
-	c := NewHTTPClient(srv.Client(), "", nil).
-		WithDebug(true)
+	c := NewHTTPClient(srv.Client(), "", nil)
+	c.SetDebug(true)
 	c.SetLogger(logger)
 
 	var out map[string]any

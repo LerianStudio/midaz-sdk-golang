@@ -47,9 +47,9 @@ const (
 )
 
 // defaultUserAgent returns the SDK's centralized user-agent string.
-// The configured value flows in via the WithUserAgent option (driven from
-// pkg/config.Config.UserAgent, which itself can be populated from the
-// MIDAZ_USER_AGENT env var when the caller opts in via FromEnvironment).
+// The configured value flows in via (*HTTPClient).SetUserAgent (driven
+// from pkg/config.Config.UserAgent, which itself can be populated from
+// the MIDAZ_USER_AGENT env var when the caller opts in via FromEnvironment).
 func defaultUserAgent() string {
 	return version.UserAgent()
 }
@@ -112,9 +112,10 @@ type httpClientConfigSnapshot struct {
 // NewHTTPClient creates a new HTTP client with safe v3 defaults.
 //
 // v3 invariant (Track 3): no environment variables are read here. Configuration
-// flows in exclusively through pkg/config.Config and the WithDebug / WithUserAgent
-// / WithObservability / WithRetryOptions / SetEnableIdempotency setters. Callers
-// who want env-driven configuration must opt in via config.NewConfig(config.FromEnvironment()).
+// flows in exclusively through pkg/config.Config and the SetDebug / SetUserAgent /
+// SetEnableIdempotency / WithRetryOptions setters (plus (*Entity).SetObservability
+// for observability). Callers who want env-driven configuration must opt in via
+// config.NewConfig(config.FromEnvironment()).
 //
 // Defaults: debug=false, userAgent=version.UserAgent(), enableIdempotency=true,
 // retryOptions=retry.DefaultOptions().
@@ -387,39 +388,11 @@ func (c *HTTPClient) applyConfigurationSnapshot(snapshot httpClientConfigSnapsho
 	c.slowCallThreshold = snapshot.slowCallThreshold
 }
 
-// WithUserAgent sets a custom user agent string for the HTTP client.
-func (c *HTTPClient) WithUserAgent(userAgent string) *HTTPClient {
-	if c == nil {
-		return nil
-	}
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	c.userAgent = userAgent
-
-	return c
-}
-
-// WithDebug enables or disables debug mode for the HTTP client.
-func (c *HTTPClient) WithDebug(debug bool) *HTTPClient {
-	if c == nil {
-		return nil
-	}
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	c.debug = debug
-
-	return c
-}
-
-// setDebugLocked sets the debug flag under the write lock. Internal callers
-// (constructors that observe MIDAZ_DEBUG, Option setters) must use this
-// helper instead of writing c.debug directly so that race detector runs
-// stay clean.
-func (c *HTTPClient) setDebugLocked(debug bool) {
+// SetDebug enables or disables debug-mode logging for the HTTP client.
+//
+// Acquires the HTTPClient write lock so the field flip is race-detector
+// clean even when called concurrently with in-flight requests.
+func (c *HTTPClient) SetDebug(debug bool) {
 	if c == nil {
 		return
 	}
@@ -430,8 +403,12 @@ func (c *HTTPClient) setDebugLocked(debug bool) {
 	c.debug = debug
 }
 
-// setUserAgentLocked sets the user agent under the write lock.
-func (c *HTTPClient) setUserAgentLocked(userAgent string) {
+// SetUserAgent sets the User-Agent header value sent on every outbound
+// request issued by this HTTPClient.
+//
+// Acquires the HTTPClient write lock; safe to call concurrently with
+// in-flight requests.
+func (c *HTTPClient) SetUserAgent(userAgent string) {
 	if c == nil {
 		return
 	}
@@ -1879,8 +1856,10 @@ func sanitizeLogArgs(args []any) []any {
 }
 
 // debugLog routes a debug-level message through the configured *slog.Logger
-// when WithDebug(true) is enabled. v3 contract: there is exactly one log
-// path. The MIDAZ_DEBUG-bypass that wrote raw text to stderr in v2 is gone.
+// when SetDebug(true) was called (typically driven from
+// midaz.WithDebug / pkg/config.WithDebug). v3 contract: there is exactly
+// one log path. The MIDAZ_DEBUG-bypass that wrote raw text to stderr in
+// v2 is gone.
 //
 // All string arguments are sanitized to prevent log injection attacks; the
 // pre-formatted message is wrapped as a single 'message' attribute so the

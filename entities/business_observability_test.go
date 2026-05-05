@@ -74,7 +74,8 @@ func TestBusinessObservability_AccountAndTransactionLifecycle(t *testing.T) {
 	}))
 	defer server.Close()
 
-	entity := newTestEntity(t, server.Client(), "token", map[string]string{"onboarding": server.URL, "transaction": server.URL}, provider, WithObservability(provider))
+	entity := newTestEntity(t, server.Client(), "token", map[string]string{"onboarding": server.URL, "transaction": server.URL}, provider)
+	require.NoError(t, entity.SetObservability(provider))
 
 	ctx, span := provider.Tracer().Start(context.Background(), "business-flow")
 
@@ -141,7 +142,8 @@ func TestBusinessObservability_ReadMethodsDoNotEmitMutationEvents(t *testing.T) 
 	}))
 	defer server.Close()
 
-	entity := newTestEntity(t, server.Client(), "token", map[string]string{"onboarding": server.URL, "transaction": server.URL}, provider, WithObservability(provider))
+	entity := newTestEntity(t, server.Client(), "token", map[string]string{"onboarding": server.URL, "transaction": server.URL}, provider)
+	require.NoError(t, entity.SetObservability(provider))
 
 	ctx, span := provider.Tracer().Start(context.Background(), "business-read")
 
@@ -172,7 +174,8 @@ func TestBusinessObservability_UpdateTransactionUsesUpdatedEvent(t *testing.T) {
 	}))
 	defer server.Close()
 
-	entity := newTestEntity(t, server.Client(), "token", map[string]string{"onboarding": server.URL, "transaction": server.URL}, provider, WithObservability(provider))
+	entity := newTestEntity(t, server.Client(), "token", map[string]string{"onboarding": server.URL, "transaction": server.URL}, provider)
+	require.NoError(t, entity.SetObservability(provider))
 
 	ctx, span := provider.Tracer().Start(context.Background(), "business-update")
 

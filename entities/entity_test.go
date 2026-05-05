@@ -18,7 +18,12 @@ func TestMainFunction(_ *testing.T) {
 // directly from raw inputs. It mirrors the contract of the deleted public
 // NewEntity constructor for tests that cannot route through midaz.New() because
 // of the import cycle. External callers must always go through midaz.New().
-func newTestEntity(t *testing.T, client *http.Client, authToken string, baseURLs map[string]string, provider observability.Provider, options ...Option) *Entity {
+//
+// Post-construction tuning is exposed through the same setters production code
+// uses: (*HTTPClient).SetDebug, SetUserAgent and (*Entity).SetObservability.
+// Tests that previously passed entities.WithDebug/WithUserAgent/WithObservability
+// as options must invoke the equivalent setter on the returned *Entity directly.
+func newTestEntity(t *testing.T, client *http.Client, authToken string, baseURLs map[string]string, provider observability.Provider) *Entity {
 	t.Helper()
 
 	normalizedBaseURLs, err := normalizeBaseURLs(baseURLs)
@@ -28,10 +33,6 @@ func newTestEntity(t *testing.T, client *http.Client, authToken string, baseURLs
 		httpClient:    NewHTTPClient(client, authToken, provider),
 		baseURLs:      normalizedBaseURLs,
 		observability: provider,
-	}
-
-	for _, opt := range options {
-		require.NoError(t, opt(entity))
 	}
 
 	entity.initServices()

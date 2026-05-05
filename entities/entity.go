@@ -74,14 +74,20 @@ type Entity struct {
 // This is a convenience constructor that integrates with the config package.
 //
 // Parameters:
-//   - config: A configuration object from the config package. Must have AuthToken
-//     and service URLs properly configured.
-//   - options: Optional configuration options for customizing the entity behavior.
+//   - config: A configuration object from the config package. Must have
+//     auth (Access Manager) and service URLs properly configured.
 //
 // Returns:
 //   - *Entity: A pointer to the newly created Entity.
 //   - error: An error if initialization fails.
-func NewEntityWithConfig(config Config, options ...Option) (*Entity, error) {
+//
+// Post-construction tuning is exposed via dedicated setters:
+//   - (*Entity).SetHTTPClient — replace the underlying *http.Client
+//   - (*Entity).SetObservability — install / replace the observability provider
+//   - (*HTTPClient).SetDebug — flip the debug-log flag
+//   - (*HTTPClient).SetUserAgent — override the User-Agent header
+//   - (*HTTPClient).SetLogger / SetSlowCallThreshold — observability tuning
+func NewEntityWithConfig(config Config) (*Entity, error) {
 	if config == nil || reflectutil.IsTypedNil(config) {
 		return nil, errors.New("config cannot be nil")
 	}
@@ -128,8 +134,8 @@ func NewEntityWithConfig(config Config, options ...Option) (*Entity, error) {
 	}
 	// Seed the default tenant ID from Config so the midaz package's
 	// client-level WithTenantID option propagates straight through to the
-	// HTTP client without going through the entities.Option chain. Per-request
-	// sdkctx.WithRequestTenantID overrides still win at request time.
+	// HTTP client. Per-request sdkctx.WithRequestTenantID overrides still
+	// win at request time.
 	if tid := strings.TrimSpace(config.GetTenantID()); tid != "" {
 		entity.httpClient.setTenantIDLocked(tid)
 	}
@@ -141,17 +147,6 @@ func NewEntityWithConfig(config Config, options ...Option) (*Entity, error) {
 			},
 			func() { auth.InvalidateAccessManagerToken(pluginAuth) },
 		)
-	}
-
-	// Apply any additional options
-	for _, option := range options {
-		if option == nil {
-			return nil, errors.New("option cannot be nil")
-		}
-
-		if err := option(entity); err != nil {
-			return nil, err
-		}
 	}
 
 	// Initialize service interfaces
@@ -389,6 +384,49 @@ func (e *Entity) SetHTTPClient(client *http.Client) {
 
 	// Re-initialize services with the new HTTP client
 	e.initServices()
+}
+
+// SetObservability installs an observability provider on the entity and its
+// underlying HTTPClient.
+//
+// When the provider reports IsEnabled() == true, a fresh
+// observability.MetricsCollector is constructed (see observability.NewMetricsCollector)
+// and attached atomically alongside the provider, so observers never see
+// a new provider with the previous metrics collector or vice versa.
+//
+// A nil provider is a no-op.
+//
+// Returns an error only if the metrics collector fails to initialize.
+//
+// Parameters:
+//   - provider: The observability.Provider to install.
+//
+// Returns:
+//   - error: Non-nil only if MetricsCollector construction fails.
+func (e *Entity) SetObservability(provider observability.Provider) error {
+	if e == nil || e.httpClient == nil {
+		return errors.New("entity HTTP client cannot be nil")
+	}
+
+	if provider == nil {
+		return nil
+	}
+
+	var metrics *observability.MetricsCollector
+
+	if provider.IsEnabled() {
+		collector, err := observability.NewMetricsCollector(provider)
+		if err != nil {
+			return err
+		}
+
+		metrics = collector
+	}
+
+	e.httpClient.setObservabilityLocked(provider, metrics)
+	e.observability = provider
+
+	return nil
 }
 
 func normalizeBaseURLs(baseURLs map[string]string) (map[string]string, error) {

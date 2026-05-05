@@ -233,19 +233,22 @@ func (c *Client) setupEntity() error {
 		c.config.TenantID = c.tenantID
 	}
 
-	// Create the entity API with service-specific URLs.
-	options := []entities.Option{
-		entities.WithObservability(c.observability),
-		entities.WithDebug(c.config.Debug),
-		entities.WithUserAgent(c.config.UserAgent),
-	}
-
-	entity, err := entities.NewEntityWithConfig(c.config, options...)
+	// Construct the Entity from the resolved Config. Post-construction tuning
+	// (observability, debug, user-agent, idempotency, retries, logger,
+	// slow-call threshold, custom retry policy) flows through dedicated
+	// setters below — Batch 6B retired the entities.Option indirection.
+	entity, err := entities.NewEntityWithConfig(c.config)
 	if err != nil {
 		return err
 	}
 
+	if err := entity.SetObservability(c.observability); err != nil {
+		return fmt.Errorf("failed to install observability provider: %w", err)
+	}
+
 	httpClient := entity.GetEntityHTTPClient()
+	httpClient.SetDebug(c.config.Debug)
+	httpClient.SetUserAgent(c.config.UserAgent)
 	httpClient.SetEnableIdempotency(c.config.EnableIdempotency)
 	httpClient.WithRetryOptions(
 		retry.WithMaxRetries(c.config.MaxRetries),
@@ -275,6 +278,10 @@ func (c *Client) setupEntity() error {
 }
 
 // WithBaseURL sets the base URL for API requests.
+// Two-layer surface: this is the user-facing wrapper. It delegates to
+// [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config.WithBaseURL], which most
+// callers should not invoke directly. Prefer this option when constructing the
+// client via [New].
 //
 // Parameters:
 //   - baseURL: The base URL for API requests (e.g. "https://api.midaz.io").
@@ -295,6 +302,10 @@ func WithBaseURL(baseURL string) Option {
 }
 
 // WithTimeout sets the request timeout for API requests.
+// Two-layer surface: this is the user-facing wrapper. It delegates to
+// [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config.WithTimeout], which most
+// callers should not invoke directly. Prefer this option when constructing the
+// client via [New].
 //
 // Parameters:
 //   - timeout: The timeout duration for requests.
@@ -309,6 +320,10 @@ func WithTimeout(timeout time.Duration) Option {
 }
 
 // WithUserAgent sets the user agent for API requests.
+// Two-layer surface: this is the user-facing wrapper. It delegates to
+// [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config.WithUserAgent], which most
+// callers should not invoke directly. Prefer this option when constructing the
+// client via [New].
 func WithUserAgent(userAgent string) Option {
 	return func(c *Client) error {
 		return config.WithUserAgent(userAgent)(c.config)
@@ -455,6 +470,11 @@ func WithObservability(enableTracing, enableMetrics, enableLogging bool) Option 
 }
 
 // WithObservabilityProvider sets a custom observability provider for the client.
+// Two-layer surface: this is the user-facing wrapper. It delegates to
+// [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config.WithObservabilityProvider], which most
+// callers should not invoke directly. Prefer this option when constructing the
+// client via [New].
+//
 // This is useful when you want to share an observability provider across multiple clients.
 //
 // Parameters:
@@ -537,6 +557,11 @@ func WithCollectorEndpoint(endpoint string) Option {
 }
 
 // WithEnvironment sets the environment for the client.
+// Two-layer surface: this is the user-facing wrapper. It delegates to
+// [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config.WithEnvironment], which most
+// callers should not invoke directly. Prefer this option when constructing the
+// client via [New].
+//
 // This is used for configuration options that vary by environment.
 //
 // Parameters:
@@ -605,6 +630,11 @@ func WithConfig(cfg *config.Config) Option {
 }
 
 // WithHTTPClient sets a custom HTTP client for the Client.
+// Two-layer surface: this is the user-facing wrapper. It delegates to
+// [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config.WithHTTPClient], which most
+// callers should not invoke directly. Prefer this option when constructing the
+// client via [New].
+//
 // This allows for advanced customization of HTTP client behavior.
 //
 // Parameters:
@@ -619,6 +649,11 @@ func WithHTTPClient(client *http.Client) Option {
 }
 
 // WithOnboardingURL sets the URL for the Onboarding API.
+// Two-layer surface: this is the user-facing wrapper. It delegates to
+// [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config.WithOnboardingURL], which most
+// callers should not invoke directly. Prefer this option when constructing the
+// client via [New].
+//
 // This overrides any URL derived from the Environment setting.
 //
 // Parameters:
@@ -633,6 +668,11 @@ func WithOnboardingURL(onboardingURL string) Option {
 }
 
 // WithTransactionURL sets the URL for the Transaction API.
+// Two-layer surface: this is the user-facing wrapper. It delegates to
+// [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config.WithTransactionURL], which most
+// callers should not invoke directly. Prefer this option when constructing the
+// client via [New].
+//
 // This overrides any URL derived from the Environment setting.
 //
 // Parameters:
@@ -647,6 +687,11 @@ func WithTransactionURL(transactionURL string) Option {
 }
 
 // WithCRMURL sets the URL for the CRM API.
+// Two-layer surface: this is the user-facing wrapper. It delegates to
+// [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config.WithCRMURL], which most
+// callers should not invoke directly. Prefer this option when constructing the
+// client via [New].
+//
 // This overrides any URL derived from the Environment setting.
 func WithCRMURL(crmURL string) Option {
 	return func(c *Client) error {
@@ -655,6 +700,11 @@ func WithCRMURL(crmURL string) Option {
 }
 
 // WithDebug enables or disables debug mode.
+// Two-layer surface: this is the user-facing wrapper. It delegates to
+// [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config.WithDebug], which most
+// callers should not invoke directly. Prefer this option when constructing the
+// client via [New].
+//
 // In debug mode, the SDK logs detailed information about requests and responses.
 //
 // Parameters:
@@ -706,6 +756,11 @@ func WithTenantID(tenantID string) Option {
 //	)
 //
 // WithAccessManager and [WithAnonymous] are mutually exclusive — applying
+// Two-layer surface: this is the user-facing wrapper. It delegates to
+// [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config.WithAccessManager], which most
+// callers should not invoke directly. Prefer this option when constructing the
+// client via [New].
+//
 // one clears the other. v3 requires exactly one auth source at construction
 // time; without either, midaz.New() returns a configuration error.
 //
@@ -735,6 +790,11 @@ func WithAccessManager(am AccessManager) Option {
 // has confirmed the target endpoints don't require auth.
 //
 // WithAnonymous and [WithAccessManager] are mutually exclusive — applying
+// Two-layer surface: this is the user-facing wrapper. It delegates to
+// [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config.WithAnonymous], which most
+// callers should not invoke directly. Prefer this option when constructing the
+// client via [New].
+//
 // one clears the other.
 //
 // Returns:

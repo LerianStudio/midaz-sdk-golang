@@ -95,15 +95,19 @@ func Test_newAssetRatesEntity_DebugMode(t *testing.T) {
 		assert.False(t, entity.httpClient.debug)
 	})
 
-	t.Run("WithDebug(true) option flips debug on (v3 path)", func(t *testing.T) {
-		// Build a parent entity, apply WithDebug, propagate, and verify
-		// the per-service entity inherits the debug flag.
+	t.Run("SetDebug(true) flips debug on (v3 path)", func(t *testing.T) {
+		// Build a parent entity, flip debug on the root HTTPClient, then
+		// re-init services so the per-service entities pick up the new
+		// snapshot. This mirrors the production path where midaz.New()
+		// invokes httpClient.SetDebug(...) BEFORE entity.InitServices().
 		ent := newTestEntity(t, &http.Client{}, "test-token",
 			map[string]string{"onboarding": "https://api.example.com", "transaction": "https://api.example.com"},
-			nil, WithDebug(true))
+			nil)
+		ent.GetEntityHTTPClient().SetDebug(true)
+		ent.InitServices()
 		ar := ent.AssetRates.(*assetRatesEntity)
 		assert.True(t, ar.httpClient.debug,
-			"WithDebug(true) on parent must propagate to per-service HTTP clients")
+			"SetDebug(true) on parent must propagate to per-service HTTP clients after InitServices")
 	})
 }
 
