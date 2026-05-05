@@ -107,7 +107,7 @@ func (g *operationRouteGenerator) GenerateDefaults(ctx context.Context, orgID, l
 		"Routes to platform fee account by alias",
 		string(models.OperationRouteInputTypeDestination),
 	).WithMetadata(map[string]any{"role": "internal", "route": "dest_platform_fee"})
-	dstPlatformFee = models.WithCreateOperationRouteAccountAlias(dstPlatformFee, "platform_fee")
+	dstPlatformFee = dstPlatformFee.WithAccountAlias("platform_fee")
 	dstPlatformFee.AccountingEntries = destinationDirectAccountingEntries("platform_fee")
 
 	// Destination: Settlement Pool (alias)
@@ -116,7 +116,7 @@ func (g *operationRouteGenerator) GenerateDefaults(ctx context.Context, orgID, l
 		"Routes to settlement pool account by alias",
 		string(models.OperationRouteInputTypeDestination),
 	).WithMetadata(map[string]any{"role": "internal", "route": "dest_settlement"})
-	dstSettlement = models.WithCreateOperationRouteAccountAlias(dstSettlement, "settlement_pool")
+	dstSettlement = dstSettlement.WithAccountAlias("settlement_pool")
 	dstSettlement.AccountingEntries = destinationDirectAccountingEntries("settlement")
 
 	// Destination: Customer (CHECKING) for refunds

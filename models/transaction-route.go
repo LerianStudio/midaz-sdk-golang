@@ -129,25 +129,13 @@ func NewCreateTransactionRouteInput(title, description string, operationRoutes [
 	}
 }
 
-// WithTransactionRouteMetadata sets the metadata for CreateTransactionRouteInput.
+// WithMetadata sets the metadata for CreateTransactionRouteInput.
 //
 // Parameters:
-//   - input: The CreateTransactionRouteInput to modify
 //   - metadata: A map of key-value pairs to store as metadata
 //
 // Returns:
 //   - A pointer to the modified CreateTransactionRouteInput for method chaining
-func WithTransactionRouteMetadata(input *CreateTransactionRouteInput, metadata map[string]any) *CreateTransactionRouteInput {
-	if input == nil {
-		return nil
-	}
-
-	input.Metadata = cloneAnyMap(metadata)
-
-	return input
-}
-
-// WithMetadata sets the metadata for CreateTransactionRouteInput (method on struct).
 func (input *CreateTransactionRouteInput) WithMetadata(metadata map[string]any) *CreateTransactionRouteInput {
 	if input == nil {
 		return nil
@@ -166,15 +154,14 @@ func NewUpdateTransactionRouteInput() *UpdateTransactionRouteInput {
 	return &UpdateTransactionRouteInput{}
 }
 
-// WithUpdateTransactionRouteTitle sets the title for UpdateTransactionRouteInput.
+// WithTitle sets the title for UpdateTransactionRouteInput.
 //
 // Parameters:
-//   - input: The UpdateTransactionRouteInput to modify
 //   - title: The new title for the transaction route
 //
 // Returns:
 //   - A pointer to the modified UpdateTransactionRouteInput for method chaining
-func WithUpdateTransactionRouteTitle(input *UpdateTransactionRouteInput, title string) *UpdateTransactionRouteInput {
+func (input *UpdateTransactionRouteInput) WithTitle(title string) *UpdateTransactionRouteInput {
 	if input == nil {
 		return nil
 	}
@@ -184,15 +171,14 @@ func WithUpdateTransactionRouteTitle(input *UpdateTransactionRouteInput, title s
 	return input
 }
 
-// WithUpdateTransactionRouteDescription sets the description for UpdateTransactionRouteInput.
+// WithDescription sets the description for UpdateTransactionRouteInput.
 //
 // Parameters:
-//   - input: The UpdateTransactionRouteInput to modify
 //   - description: The new description for the transaction route
 //
 // Returns:
 //   - A pointer to the modified UpdateTransactionRouteInput for method chaining
-func WithUpdateTransactionRouteDescription(input *UpdateTransactionRouteInput, description string) *UpdateTransactionRouteInput {
+func (input *UpdateTransactionRouteInput) WithDescription(description string) *UpdateTransactionRouteInput {
 	if input == nil {
 		return nil
 	}
@@ -202,15 +188,14 @@ func WithUpdateTransactionRouteDescription(input *UpdateTransactionRouteInput, d
 	return input
 }
 
-// WithUpdateTransactionRouteMetadata sets the metadata for UpdateTransactionRouteInput.
+// WithMetadata sets the metadata for UpdateTransactionRouteInput.
 //
 // Parameters:
-//   - input: The UpdateTransactionRouteInput to modify
 //   - metadata: A map of key-value pairs to store as metadata
 //
 // Returns:
 //   - A pointer to the modified UpdateTransactionRouteInput for method chaining
-func WithUpdateTransactionRouteMetadata(input *UpdateTransactionRouteInput, metadata map[string]any) *UpdateTransactionRouteInput {
+func (input *UpdateTransactionRouteInput) WithMetadata(metadata map[string]any) *UpdateTransactionRouteInput {
 	if input == nil {
 		return nil
 	}

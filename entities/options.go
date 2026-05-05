@@ -2,7 +2,6 @@ package entities
 
 import (
 	"errors"
-	"net/http"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
 )
@@ -62,38 +61,6 @@ func WithObservability(provider observability.Provider) Option {
 
 		e.httpClient.setObservabilityLocked(provider, metrics)
 		e.observability = provider
-
-		return nil
-	}
-}
-
-// WithHTTPClient returns an Option that sets the HTTP client for the Entity.
-// The tenant ID configured on the entity is preserved across the replacement.
-func WithHTTPClient(client *http.Client) Option {
-	return func(e *Entity) error {
-		if e == nil {
-			return errors.New("entity cannot be nil")
-		}
-
-		if client == nil {
-			return errors.New("HTTP client cannot be nil")
-		}
-
-		if e.httpClient == nil {
-			e.httpClient = NewHTTPClient(client, "", e.observability)
-			e.initServices()
-
-			return nil
-		}
-
-		savedConfig := e.httpClient.cloneConfiguration()
-
-		// Create a new HTTP client with the same auth token and observability
-		e.httpClient = NewHTTPClient(client, e.httpClient.authToken, e.observability)
-		e.httpClient.applyConfigurationSnapshot(savedConfig)
-
-		// Re-initialize services with the new HTTP client
-		e.initServices()
 
 		return nil
 	}

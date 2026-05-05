@@ -819,9 +819,8 @@ func demonstrateConnectionPooling(ctx context.Context, midazClient *client.Clien
 	// Apply performance optimizations
 	perfOptions := performance.Options{
 		EnableHTTPPooling:   true,
-		MaxIdleConnsPerHost: 50,   // Increase from default 10
-		UseJSONIterator:     true, // Faster JSON processing
-		BatchSize:           100,  // Optimal batch size
+		MaxIdleConnsPerHost: 50,  // Increase from default 10
+		BatchSize:           100, // Optimal batch size
 	}
 	performance.ApplyGlobalPerformanceOptions(perfOptions)
 
@@ -982,8 +981,7 @@ func demonstrateCombinedOptimizations(ctx context.Context, midazClient *client.C
 	perfOptions := performance.Options{
 		EnableHTTPPooling:   true,
 		MaxIdleConnsPerHost: 100, // Maximum connections
-		UseJSONIterator:     true,
-		BatchSize:           50, // Large batch size
+		BatchSize:           50,  // Large batch size
 	}
 	performance.ApplyGlobalPerformanceOptions(perfOptions)
 

@@ -259,8 +259,7 @@ func ExecuteCustomerToMerchantConcurrent(ctx context.Context, midazClient *clien
 
 func applyC2MPerformanceOptions() {
 	perfOptions := performance.Options{
-		BatchSize:       50,
-		UseJSONIterator: true,
+		BatchSize: 50,
 	}
 	performance.ApplyGlobalPerformanceOptions(perfOptions)
 }
@@ -461,7 +460,6 @@ func applyM2CPerformanceOptions() {
 		BatchSize:           100,
 		EnableHTTPPooling:   true,
 		MaxIdleConnsPerHost: 10,
-		UseJSONIterator:     true,
 	}
 	performance.ApplyBatchingOptions(perfOptions)
 }

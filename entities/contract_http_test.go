@@ -211,7 +211,7 @@ func TestRoutesEntity_HTTPContracts(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, transactionRouteID, txRoute.ID.String())
 
-	txRoute, err = txRoutes.UpdateTransactionRoute(ctx, "org/1", "ledger/1", transactionRouteID, models.WithUpdateTransactionRouteTitle(&models.UpdateTransactionRouteInput{}, "funding updated"))
+	txRoute, err = txRoutes.UpdateTransactionRoute(ctx, "org/1", "ledger/1", transactionRouteID, (&models.UpdateTransactionRouteInput{}).WithTitle("funding updated"))
 	require.NoError(t, err)
 	assert.Equal(t, "funding updated", txRoute.Title)
 

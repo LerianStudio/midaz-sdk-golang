@@ -182,12 +182,15 @@ func TestRouteAndAccountTypeInputContracts(t *testing.T) {
 	require.Error(t, NewCreateTransactionRouteInput("Funding", "Funding route", nil).Validate())
 	assert.Nil(t, (*CreateTransactionRouteInput)(nil).WithMetadata(map[string]any{"x": "y"}))
 
-	updateTxRoute := WithUpdateTransactionRouteMetadata(WithUpdateTransactionRouteDescription(WithUpdateTransactionRouteTitle(NewUpdateTransactionRouteInput(), "Funding Updated"), "desc"), map[string]any{"v": 1})
+	updateTxRoute := NewUpdateTransactionRouteInput().
+		WithTitle("Funding Updated").
+		WithDescription("desc").
+		WithMetadata(map[string]any{"v": 1})
 	require.NoError(t, updateTxRoute.Validate())
 	require.Error(t, NewUpdateTransactionRouteInput().Validate())
-	assert.Nil(t, WithUpdateTransactionRouteTitle(nil, "x"))
-	assert.Nil(t, WithUpdateTransactionRouteDescription(nil, "x"))
-	assert.Nil(t, WithUpdateTransactionRouteMetadata(nil, map[string]any{"x": "y"}))
+	assert.Nil(t, (*UpdateTransactionRouteInput)(nil).WithTitle("x"))
+	assert.Nil(t, (*UpdateTransactionRouteInput)(nil).WithDescription("x"))
+	assert.Nil(t, (*UpdateTransactionRouteInput)(nil).WithMetadata(map[string]any{"x": "y"}))
 }
 
 func TestCoreResourceInputValidationAndMarshalContracts(t *testing.T) {

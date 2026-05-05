@@ -662,14 +662,3 @@ func (r *RateLimiter) Stop() {
 	r.ticker.Stop()
 	r.wg.Wait()
 }
-
-// WithWaitGroup creates a worker pool that utilizes an external wait group
-// in addition to the internal one. This is useful when you want to wait
-// for all worker pools to complete from outside.
-func WithWaitGroup(_ *sync.WaitGroup) PoolOption {
-	return func(_ *poolOptions) {
-		// This is implemented in the WorkerPool function
-		// through closure capture of the provided WaitGroup
-		// This option is just a placeholder for design consistency
-	}
-}

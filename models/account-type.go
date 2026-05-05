@@ -180,27 +180,7 @@ func NewCreateAccountTypeInput(name, keyValue string) *CreateAccountTypeInput {
 	}
 }
 
-// WithCreateAccountTypeDescription sets the description for CreateAccountTypeInput.
-// Deprecated: use (*CreateAccountTypeInput).WithDescription.
-// This adds a detailed description to the account type.
-//
-// Parameters:
-//   - input: The CreateAccountTypeInput to modify
-//   - description: The description for the account type
-//
-// Returns:
-//   - A pointer to the modified CreateAccountTypeInput for method chaining
-func WithCreateAccountTypeDescription(input *CreateAccountTypeInput, description string) *CreateAccountTypeInput {
-	if input == nil {
-		return nil
-	}
-
-	input.Description = description
-
-	return input
-}
-
-// WithDescription sets the description for CreateAccountTypeInput (method on struct).
+// WithDescription sets the description for CreateAccountTypeInput.
 func (input *CreateAccountTypeInput) WithDescription(description string) *CreateAccountTypeInput {
 	if input == nil {
 		return nil
@@ -211,28 +191,8 @@ func (input *CreateAccountTypeInput) WithDescription(description string) *Create
 	return input
 }
 
-// WithMetadata sets the metadata for CreateAccountTypeInput (method on struct).
+// WithMetadata sets the metadata for CreateAccountTypeInput.
 func (input *CreateAccountTypeInput) WithMetadata(metadata map[string]any) *CreateAccountTypeInput {
-	if input == nil {
-		return nil
-	}
-
-	input.Metadata = cloneAnyMap(metadata)
-
-	return input
-}
-
-// WithCreateAccountTypeMetadata sets the metadata for CreateAccountTypeInput.
-// Deprecated: use (*CreateAccountTypeInput).WithMetadata.
-// Metadata can store additional custom information about the account type.
-//
-// Parameters:
-//   - input: The CreateAccountTypeInput to modify
-//   - metadata: A map of key-value pairs to store as metadata
-//
-// Returns:
-//   - A pointer to the modified CreateAccountTypeInput for method chaining
-func WithCreateAccountTypeMetadata(input *CreateAccountTypeInput, metadata map[string]any) *CreateAccountTypeInput {
 	if input == nil {
 		return nil
 	}
@@ -254,27 +214,7 @@ func NewUpdateAccountTypeInput() *UpdateAccountTypeInput {
 	}
 }
 
-// WithUpdateAccountTypeName sets the name for UpdateAccountTypeInput.
-// Deprecated: use (*UpdateAccountTypeInput).WithName.
-// This updates the human-readable name of the account type.
-//
-// Parameters:
-//   - input: The UpdateAccountTypeInput to modify
-//   - name: The new name for the account type
-//
-// Returns:
-//   - A pointer to the modified UpdateAccountTypeInput for method chaining
-func WithUpdateAccountTypeName(input *UpdateAccountTypeInput, name string) *UpdateAccountTypeInput {
-	if input == nil {
-		return nil
-	}
-
-	input.Name = name
-
-	return input
-}
-
-// WithName sets the name for UpdateAccountTypeInput (method on struct).
+// WithName sets the name for UpdateAccountTypeInput.
 func (input *UpdateAccountTypeInput) WithName(name string) *UpdateAccountTypeInput {
 	if input == nil {
 		return nil
@@ -285,7 +225,7 @@ func (input *UpdateAccountTypeInput) WithName(name string) *UpdateAccountTypeInp
 	return input
 }
 
-// WithDescription sets the description for UpdateAccountTypeInput (method on struct).
+// WithDescription sets the description for UpdateAccountTypeInput.
 func (input *UpdateAccountTypeInput) WithDescription(description string) *UpdateAccountTypeInput {
 	if input == nil {
 		return nil
@@ -296,48 +236,8 @@ func (input *UpdateAccountTypeInput) WithDescription(description string) *Update
 	return input
 }
 
-// WithMetadata sets the metadata for UpdateAccountTypeInput (method on struct).
+// WithMetadata sets the metadata for UpdateAccountTypeInput.
 func (input *UpdateAccountTypeInput) WithMetadata(metadata map[string]any) *UpdateAccountTypeInput {
-	if input == nil {
-		return nil
-	}
-
-	input.Metadata = cloneAnyMap(metadata)
-
-	return input
-}
-
-// WithUpdateAccountTypeDescription sets the description for UpdateAccountTypeInput.
-// Deprecated: use (*UpdateAccountTypeInput).WithDescription.
-// This updates the detailed description of the account type.
-//
-// Parameters:
-//   - input: The UpdateAccountTypeInput to modify
-//   - description: The new description for the account type
-//
-// Returns:
-//   - A pointer to the modified UpdateAccountTypeInput for method chaining
-func WithUpdateAccountTypeDescription(input *UpdateAccountTypeInput, description string) *UpdateAccountTypeInput {
-	if input == nil {
-		return nil
-	}
-
-	input.Description = description
-
-	return input
-}
-
-// WithUpdateAccountTypeMetadata sets the metadata for UpdateAccountTypeInput.
-// Deprecated: use (*UpdateAccountTypeInput).WithMetadata.
-// This updates the custom metadata associated with the account type.
-//
-// Parameters:
-//   - input: The UpdateAccountTypeInput to modify
-//   - metadata: The new metadata map
-//
-// Returns:
-//   - A pointer to the modified UpdateAccountTypeInput for method chaining
-func WithUpdateAccountTypeMetadata(input *UpdateAccountTypeInput, metadata map[string]any) *UpdateAccountTypeInput {
 	if input == nil {
 		return nil
 	}

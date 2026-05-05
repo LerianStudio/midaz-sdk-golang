@@ -28,7 +28,7 @@ func TestSlice5RouteAndAssetRateValidators_NilSafe(t *testing.T) {
 	require.Nil(t, createOperationRoute.WithMetadata(map[string]any{"k": "v"}))
 	require.Nil(t, updateOperationRoute.WithTitle("title"))
 	require.Nil(t, createTransactionRoute.WithMetadata(map[string]any{"k": "v"}))
-	require.Nil(t, WithUpdateTransactionRouteMetadata(updateTransactionRoute, map[string]any{"k": "v"}))
+	require.Nil(t, updateTransactionRoute.WithMetadata(map[string]any{"k": "v"}))
 	require.Nil(t, createAssetRate.WithScale(2))
 }
 

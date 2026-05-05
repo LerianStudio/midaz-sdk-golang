@@ -1096,21 +1096,6 @@ func TestPoolOptions(t *testing.T) {
 		}
 	})
 
-	// Test WithWaitGroup option (placeholder option)
-	t.Run("WithWaitGroup", func(t *testing.T) {
-		var wg sync.WaitGroup
-
-		opt := WithWaitGroup(&wg)
-
-		opts := defaultPoolOptions()
-		opt(opts)
-
-		// The option is a placeholder, so it shouldn't change anything
-		if opts.workers != 5 {
-			t.Errorf("Expected workers to remain 5, got %d", opts.workers)
-		}
-	})
-
 	// Test combining multiple options
 	t.Run("CombinedOptions", func(t *testing.T) {
 		items := []int{1, 2, 3, 4, 5}

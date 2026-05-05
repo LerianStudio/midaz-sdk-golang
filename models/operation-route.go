@@ -215,7 +215,27 @@ func (input *UpdateOperationRouteInput) WithDescription(description string) *Upd
 	return input
 }
 
-// WithAccountTypes sets the account rule to use account type-based selection for UpdateOperationRouteInput (method on struct).
+// WithAccountAlias sets the account rule to use alias-based selection for UpdateOperationRouteInput.
+//
+// Parameters:
+//   - alias: The account alias to use for selection
+//
+// Returns:
+//   - A pointer to the modified UpdateOperationRouteInput for method chaining
+func (input *UpdateOperationRouteInput) WithAccountAlias(alias string) *UpdateOperationRouteInput {
+	if input == nil {
+		return nil
+	}
+
+	input.Account = &AccountRule{
+		RuleType: "alias",
+		ValidIf:  alias,
+	}
+
+	return input
+}
+
+// WithAccountTypes sets the account rule to use account type-based selection for UpdateOperationRouteInput.
 func (input *UpdateOperationRouteInput) WithAccountTypes(accountTypes []string) *UpdateOperationRouteInput {
 	if input == nil {
 		return nil
@@ -229,7 +249,7 @@ func (input *UpdateOperationRouteInput) WithAccountTypes(accountTypes []string) 
 	return input
 }
 
-// WithMetadata sets the metadata for UpdateOperationRouteInput (method on struct).
+// WithMetadata sets the metadata for UpdateOperationRouteInput.
 func (input *UpdateOperationRouteInput) WithMetadata(metadata map[string]any) *UpdateOperationRouteInput {
 	if input == nil {
 		return nil
@@ -294,66 +314,6 @@ func NewCreateOperationRouteInput(title, description, operationType string) *Cre
 	}
 }
 
-// WithCreateOperationRouteAccountAlias sets the account rule to use alias-based selection.
-//
-// Parameters:
-//   - input: The CreateOperationRouteInput to modify
-//   - alias: The account alias to use for selection
-//
-// Returns:
-//   - A pointer to the modified CreateOperationRouteInput for method chaining
-func WithCreateOperationRouteAccountAlias(input *CreateOperationRouteInput, alias string) *CreateOperationRouteInput {
-	if input == nil {
-		return nil
-	}
-
-	input.Account = &AccountRule{
-		RuleType: "alias",
-		ValidIf:  alias,
-	}
-
-	return input
-}
-
-// WithCreateOperationRouteAccountType sets the account rule to use account type-based selection.
-//
-// Parameters:
-//   - input: The CreateOperationRouteInput to modify
-//   - accountTypes: The account types to use for selection
-//
-// Returns:
-//   - A pointer to the modified CreateOperationRouteInput for method chaining
-func WithCreateOperationRouteAccountType(input *CreateOperationRouteInput, accountTypes []string) *CreateOperationRouteInput {
-	if input == nil {
-		return nil
-	}
-
-	input.Account = &AccountRule{
-		RuleType: "account_type",
-		ValidIf:  accountTypes,
-	}
-
-	return input
-}
-
-// WithCreateOperationRouteMetadata sets the metadata for CreateOperationRouteInput.
-//
-// Parameters:
-//   - input: The CreateOperationRouteInput to modify
-//   - metadata: A map of key-value pairs to store as metadata
-//
-// Returns:
-//   - A pointer to the modified CreateOperationRouteInput for method chaining
-func WithCreateOperationRouteMetadata(input *CreateOperationRouteInput, metadata map[string]any) *CreateOperationRouteInput {
-	if input == nil {
-		return nil
-	}
-
-	input.Metadata = cloneAnyMap(metadata)
-
-	return input
-}
-
 // NewUpdateOperationRouteInput creates a new UpdateOperationRouteInput.
 //
 // Returns:
@@ -361,103 +321,3 @@ func WithCreateOperationRouteMetadata(input *CreateOperationRouteInput, metadata
 func NewUpdateOperationRouteInput() *UpdateOperationRouteInput {
 	return &UpdateOperationRouteInput{}
 }
-
-// WithUpdateOperationRouteTitle sets the title for UpdateOperationRouteInput.
-//
-// Parameters:
-//   - input: The UpdateOperationRouteInput to modify
-//   - title: The new title for the operation route
-//
-// Returns:
-//   - A pointer to the modified UpdateOperationRouteInput for method chaining
-func WithUpdateOperationRouteTitle(input *UpdateOperationRouteInput, title string) *UpdateOperationRouteInput {
-	if input == nil {
-		return nil
-	}
-
-	input.Title = title
-
-	return input
-}
-
-// WithUpdateOperationRouteDescription sets the description for UpdateOperationRouteInput.
-//
-// Parameters:
-//   - input: The UpdateOperationRouteInput to modify
-//   - description: The new description for the operation route
-//
-// Returns:
-//   - A pointer to the modified UpdateOperationRouteInput for method chaining
-func WithUpdateOperationRouteDescription(input *UpdateOperationRouteInput, description string) *UpdateOperationRouteInput {
-	if input == nil {
-		return nil
-	}
-
-	input.Description = description
-
-	return input
-}
-
-// WithUpdateOperationRouteAccountAlias sets the account rule to use alias-based selection.
-//
-// Parameters:
-//   - input: The UpdateOperationRouteInput to modify
-//   - alias: The account alias to use for selection
-//
-// Returns:
-//   - A pointer to the modified UpdateOperationRouteInput for method chaining
-func WithUpdateOperationRouteAccountAlias(input *UpdateOperationRouteInput, alias string) *UpdateOperationRouteInput {
-	if input == nil {
-		return nil
-	}
-
-	input.Account = &AccountRule{
-		RuleType: "alias",
-		ValidIf:  alias,
-	}
-
-	return input
-}
-
-// WithUpdateOperationRouteAccountType sets the account rule to use account type-based selection.
-//
-// Parameters:
-//   - input: The UpdateOperationRouteInput to modify
-//   - accountTypes: The account types to use for selection
-//
-// Returns:
-//   - A pointer to the modified UpdateOperationRouteInput for method chaining
-func WithUpdateOperationRouteAccountType(input *UpdateOperationRouteInput, accountTypes []string) *UpdateOperationRouteInput {
-	if input == nil {
-		return nil
-	}
-
-	input.Account = &AccountRule{
-		RuleType: "account_type",
-		ValidIf:  accountTypes,
-	}
-
-	return input
-}
-
-// WithUpdateOperationRouteMetadata sets the metadata for UpdateOperationRouteInput.
-//
-// Parameters:
-//   - input: The UpdateOperationRouteInput to modify
-//   - metadata: A map of key-value pairs to store as metadata
-//
-// Returns:
-//   - A pointer to the modified UpdateOperationRouteInput for method chaining
-func WithUpdateOperationRouteMetadata(input *UpdateOperationRouteInput, metadata map[string]any) *UpdateOperationRouteInput {
-	if input == nil {
-		return nil
-	}
-
-	input.Metadata = cloneAnyMap(metadata)
-
-	return input
-}
-
-// Note: For backward compatibility, you can use the helper functions:
-// - WithCreateOperationRouteAccountAlias(input, alias) instead of input.WithAccountAlias(alias)
-// - WithCreateOperationRouteMetadata(input, metadata) instead of input.WithMetadata(metadata)

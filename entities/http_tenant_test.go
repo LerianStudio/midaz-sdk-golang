@@ -267,43 +267,6 @@ func TestSetHTTPClientPreservesTenantID(t *testing.T) {
 		"SetHTTPClient should preserve the tenant ID")
 }
 
-// TestWithHTTPClientOptionPreservesTenantID verifies that the WithHTTPClient option
-// preserves the previously configured tenant ID when replacing the HTTP client,
-// and that the tenant ID is propagated end-to-end through actual service requests.
-func TestWithHTTPClientOptionPreservesTenantID(t *testing.T) {
-	var receivedHeader string
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		receivedHeader = r.Header.Get(HeaderTenantID)
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"items":[]}`))
-	}))
-	defer srv.Close()
-
-	entity := newTestEntityWithTenant(t, &http.Client{Timeout: 30 * time.Second}, map[string]string{
-		"onboarding":  srv.URL,
-		"transaction": srv.URL,
-		"crm":         srv.URL,
-	}, "option-preserved-tenant")
-
-	assert.Equal(t, "option-preserved-tenant", entity.httpClient.tenantID,
-		"root HTTPClient should have the tenant ID")
-
-	// Replace the HTTP client via option
-	opt := WithHTTPClient(srv.Client())
-	err := opt(entity)
-	require.NoError(t, err)
-
-	assert.Equal(t, "option-preserved-tenant", entity.httpClient.tenantID,
-		"WithHTTPClient option should preserve the tenant ID")
-
-	_, err = entity.Organizations.ListOrganizations(context.Background(), nil)
-	require.NoError(t, err)
-
-	assert.Equal(t, "option-preserved-tenant", receivedHeader,
-		"tenant ID should propagate to service entities after WithHTTPClient")
-}
-
 // TestTenantIDPropagationAfterSetHTTPClient verifies the full round-trip: setting a
 // tenant ID, replacing the HTTP client via SetHTTPClient, and confirming the tenant ID
 // reaches the server through a service entity call.
