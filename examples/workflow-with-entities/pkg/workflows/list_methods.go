@@ -64,7 +64,7 @@ func testListOrganizations(ctx context.Context, midazClient *client.Client) erro
 		WithOrderBy("legalName").
 		WithOrderDirection(models.SortAscending)
 
-	orgsResponse, err := midazClient.Entity.Organizations.ListOrganizations(ctx, orgOptions)
+	orgsResponse, err := midazClient.Organizations.ListOrganizations(ctx, orgOptions)
 	if err != nil {
 		return handleOrganizationError(err)
 	}
@@ -110,7 +110,7 @@ func testListLedgers(ctx context.Context, midazClient *client.Client, orgID stri
 	ledgerOptions := models.NewListOptions().
 		WithFilter("status", models.StatusActive)
 
-	ledgersResponse, err := midazClient.Entity.Ledgers.ListLedgers(ctx, orgID, ledgerOptions)
+	ledgersResponse, err := midazClient.Ledgers.ListLedgers(ctx, orgID, ledgerOptions)
 	if err != nil {
 		return fmt.Errorf("ledger listing failed: %s", pkgerrors.FormatErrorDetails(err))
 	}
@@ -134,7 +134,7 @@ func testListAccountsWithPagination(ctx context.Context, midazClient *client.Cli
 		WithOrderDirection(models.SortDescending).
 		WithFilter("type", "CUSTOMER")
 
-	accountsResponse, err := midazClient.Entity.Accounts.ListAccounts(ctx, orgID, ledgerID, accountOptions)
+	accountsResponse, err := midazClient.Accounts.ListAccounts(ctx, orgID, ledgerID, accountOptions)
 	if err != nil {
 		return handleAccountError(err)
 	}
@@ -186,7 +186,7 @@ func demonstrateAccountPagination(ctx context.Context, midazClient *client.Clien
 
 		var err error
 
-		currentPage, err = midazClient.Entity.Accounts.ListAccounts(ctx, orgID, ledgerID, nextOptions)
+		currentPage, err = midazClient.Accounts.ListAccounts(ctx, orgID, ledgerID, nextOptions)
 		if err != nil {
 			return fmt.Errorf("failed to fetch page %d: %w", pageCount+1, err)
 		}
@@ -211,7 +211,7 @@ func demonstrateAccountPagination(ctx context.Context, midazClient *client.Clien
 func testListPortfolios(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) error {
 	fmt.Println("\n🔍 Testing ListPortfolios...")
 
-	portfoliosResponse, err := midazClient.Entity.Portfolios.ListPortfolios(ctx, orgID, ledgerID, models.NewListOptions())
+	portfoliosResponse, err := midazClient.Portfolios.ListPortfolios(ctx, orgID, ledgerID, models.NewListOptions())
 	if err != nil {
 		return fmt.Errorf("failed to list portfolios: %w", err)
 	}
@@ -232,7 +232,7 @@ func testListSegments(ctx context.Context, midazClient *client.Client, orgID, le
 	segmentOptions := models.NewListOptions().
 		WithDateRange("2023-01-01", "2100-12-31") // Wide range to ensure results
 
-	segmentsResponse, err := midazClient.Entity.Segments.ListSegments(ctx, orgID, ledgerID, segmentOptions)
+	segmentsResponse, err := midazClient.Segments.ListSegments(ctx, orgID, ledgerID, segmentOptions)
 	if err != nil {
 		return fmt.Errorf("failed to list segments: %w", err)
 	}

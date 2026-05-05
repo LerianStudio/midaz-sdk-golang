@@ -252,7 +252,7 @@ func DecimalStringFromAny(value any) string {
 //	input = input.WithSend(&models.SendInput{/* source and distribute omitted for brevity */})
 //
 //	// Later, after approval:
-//	// c.Entity.Transactions.CommitTransaction(ctx, orgID, ledgerID, tx.ID)
+//	// c.Transactions.CommitTransaction(ctx, orgID, ledgerID, tx.ID)
 type CreateTransactionInput struct {
 	// Template is retained for backwards compatibility with the pre-send API.
 	Template string `json:"template,omitempty"`
@@ -1112,7 +1112,7 @@ func (t *Transaction) ToTransactionMap() map[string]any {
 //	    },
 //	}
 //
-//	updatedTx, err := c.Entity.Transactions.UpdateTransaction(
+//	updatedTx, err := c.Transactions.UpdateTransaction(
 //	    ctx, orgID, ledgerID, transactionID, input,
 //	)
 type UpdateTransactionInput struct {

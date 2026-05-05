@@ -89,9 +89,9 @@ func TestNewClient(t *testing.T) {
 	}
 
 	require.NotNil(t, client.Entity)
-	require.NotNil(t, client.Entity.Holders)
-	require.NotNil(t, client.Entity.Aliases)
-	require.NotNil(t, client.Entity.MetadataIndexes)
+	require.NotNil(t, client.Holders)
+	require.NotNil(t, client.Aliases)
+	require.NotNil(t, client.MetadataIndexes)
 
 	// Test creating a client with a complete config
 	cfg, err := config.NewConfig(
@@ -120,9 +120,9 @@ func TestEntityAlwaysInitialized(t *testing.T) {
 	}
 
 	require.NotNil(t, c.Entity, "v3 must always initialize Entity")
-	require.NotNil(t, c.Entity.Accounts)
-	require.NotNil(t, c.Entity.Transactions)
-	require.NotNil(t, c.Entity.Organizations)
+	require.NotNil(t, c.Accounts)
+	require.NotNil(t, c.Transactions)
+	require.NotNil(t, c.Organizations)
 }
 
 func TestGetConfig(t *testing.T) {

@@ -113,7 +113,7 @@ func createOrganizationWithTracing(midazClient *client.Client, provider observab
 	logger := provider.Logger()
 	logger.Info("Creating organization", "name", fmt.Sprintf("%q", orgInput.LegalName))
 
-	organization, err := midazClient.Entity.Organizations.CreateOrganization(ctx, orgInput)
+	organization, err := midazClient.Organizations.CreateOrganization(ctx, orgInput)
 	if err != nil {
 		// Record error in span
 		span.SetStatus(codes.Error, err.Error())
@@ -153,7 +153,7 @@ func (wc *workflowContext) listOrganizationsStep(ctx context.Context) (context.C
 
 	wc.logger.Info("Listing organizations")
 
-	organizations, err := wc.midazClient.Entity.Organizations.ListOrganizations(ctx, nil)
+	organizations, err := wc.midazClient.Organizations.ListOrganizations(ctx, nil)
 	if err != nil {
 		listSpan.SetStatus(codes.Error, err.Error())
 		listSpan.RecordError(err)
@@ -181,7 +181,7 @@ func (wc *workflowContext) createLedgerStep(ctx context.Context) (context.Contex
 	ledgerSpan.SetAttributes(attribute.String("organization.id", wc.orgID))
 
 	ledgerInput := models.NewCreateLedgerInput("Main Ledger")
-	ledger, err := wc.midazClient.Entity.Ledgers.CreateLedger(ctx, wc.orgID, ledgerInput)
+	ledger, err := wc.midazClient.Ledgers.CreateLedger(ctx, wc.orgID, ledgerInput)
 	if err != nil {
 		ledgerSpan.SetStatus(codes.Error, err.Error())
 		ledgerSpan.RecordError(err)
@@ -224,7 +224,7 @@ func (wc *workflowContext) createSingleAsset(ctx context.Context, assetName stri
 	)
 
 	assetInput := models.NewCreateAssetInputWithType(assetName, assetName, "currency")
-	asset, err := wc.midazClient.Entity.Assets.CreateAsset(ctx, wc.orgID, wc.ledger.ID, assetInput)
+	asset, err := wc.midazClient.Assets.CreateAsset(ctx, wc.orgID, wc.ledger.ID, assetInput)
 	if err != nil {
 		assetSpan.SetStatus(codes.Error, err.Error())
 		assetSpan.RecordError(err)
@@ -244,7 +244,7 @@ func (wc *workflowContext) createPortfolioStep(ctx context.Context) (*models.Por
 
 	startTime := time.Now()
 	portfolioInput := models.NewCreatePortfolioInput(wc.orgID, "Main Portfolio")
-	portfolio, err := wc.midazClient.Entity.Portfolios.CreatePortfolio(ctx, wc.orgID, wc.ledger.ID, portfolioInput)
+	portfolio, err := wc.midazClient.Portfolios.CreatePortfolio(ctx, wc.orgID, wc.ledger.ID, portfolioInput)
 
 	duration := time.Since(startTime)
 	portfolioSpan.SetAttributes(attribute.Int64("operation.duration_ms", duration.Milliseconds()))

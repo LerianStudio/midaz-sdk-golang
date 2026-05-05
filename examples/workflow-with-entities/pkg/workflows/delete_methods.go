@@ -50,7 +50,7 @@ func testDeleteMethods(ctx context.Context, midazClient *client.Client, orgID, l
 func deleteAllSegments(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) error {
 	fmt.Println("\nDeleting all segments...")
 
-	segmentsResponse, err := midazClient.Entity.Segments.ListSegments(ctx, orgID, ledgerID, nil)
+	segmentsResponse, err := midazClient.Segments.ListSegments(ctx, orgID, ledgerID, nil)
 	if err != nil {
 		return fmt.Errorf("failed to list segments: %w", err)
 	}
@@ -58,7 +58,7 @@ func deleteAllSegments(ctx context.Context, midazClient *client.Client, orgID, l
 	for _, segment := range segmentsResponse.Items {
 		fmt.Printf("   Deleting segment: %q (ID: %q)...\n", segment.Name, segment.ID)
 
-		if err := midazClient.Entity.Segments.DeleteSegment(ctx, orgID, ledgerID, segment.ID); err != nil {
+		if err := midazClient.Segments.DeleteSegment(ctx, orgID, ledgerID, segment.ID); err != nil {
 			return fmt.Errorf("failed to delete segment %q: %w", segment.ID, err)
 		}
 
@@ -71,7 +71,7 @@ func deleteAllSegments(ctx context.Context, midazClient *client.Client, orgID, l
 func deleteAllPortfolios(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) error {
 	fmt.Println("\nDeleting all portfolios...")
 
-	portfoliosResponse, err := midazClient.Entity.Portfolios.ListPortfolios(ctx, orgID, ledgerID, nil)
+	portfoliosResponse, err := midazClient.Portfolios.ListPortfolios(ctx, orgID, ledgerID, nil)
 	if err != nil {
 		return fmt.Errorf("failed to list portfolios: %w", err)
 	}
@@ -79,7 +79,7 @@ func deleteAllPortfolios(ctx context.Context, midazClient *client.Client, orgID,
 	for _, portfolio := range portfoliosResponse.Items {
 		fmt.Printf("   Deleting portfolio: %q (ID: %q)...\n", portfolio.Name, portfolio.ID)
 
-		if err := midazClient.Entity.Portfolios.DeletePortfolio(ctx, orgID, ledgerID, portfolio.ID); err != nil {
+		if err := midazClient.Portfolios.DeletePortfolio(ctx, orgID, ledgerID, portfolio.ID); err != nil {
 			return fmt.Errorf("failed to delete portfolio %q: %w", portfolio.ID, err)
 		}
 
@@ -92,7 +92,7 @@ func deleteAllPortfolios(ctx context.Context, midazClient *client.Client, orgID,
 func deleteAllAccounts(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) error {
 	fmt.Println("\nDeleting all accounts...")
 
-	accountsResponse, err := midazClient.Entity.Accounts.ListAccounts(ctx, orgID, ledgerID, nil)
+	accountsResponse, err := midazClient.Accounts.ListAccounts(ctx, orgID, ledgerID, nil)
 	if err != nil {
 		return fmt.Errorf("failed to list accounts: %w", err)
 	}
@@ -105,7 +105,7 @@ func deleteAllAccounts(ctx context.Context, midazClient *client.Client, orgID, l
 
 		fmt.Printf("   Deleting account: %q (ID: %q)...\n", account.Name, account.ID)
 
-		if err := midazClient.Entity.Accounts.DeleteAccount(ctx, orgID, ledgerID, account.ID); err != nil {
+		if err := midazClient.Accounts.DeleteAccount(ctx, orgID, ledgerID, account.ID); err != nil {
 			return fmt.Errorf("failed to delete account %q: %w", account.ID, err)
 		}
 
@@ -118,7 +118,7 @@ func deleteAllAccounts(ctx context.Context, midazClient *client.Client, orgID, l
 func deleteLedgerAndOrg(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) error {
 	fmt.Println("\nDeleting ledger...")
 
-	if err := midazClient.Entity.Ledgers.DeleteLedger(ctx, orgID, ledgerID); err != nil {
+	if err := midazClient.Ledgers.DeleteLedger(ctx, orgID, ledgerID); err != nil {
 		fmt.Printf("   ⚠️  Could not delete ledger (ID: %q): %q\n", ledgerID, err.Error())
 		fmt.Println("   Note: Ledger deletion may be restricted in staging/production environments")
 	} else {
@@ -127,7 +127,7 @@ func deleteLedgerAndOrg(ctx context.Context, midazClient *client.Client, orgID, 
 
 	fmt.Println("\nDeleting organization...")
 
-	if err := midazClient.Entity.Organizations.DeleteOrganization(ctx, orgID); err != nil {
+	if err := midazClient.Organizations.DeleteOrganization(ctx, orgID); err != nil {
 		fmt.Printf("   ⚠️  Could not delete organization (ID: %q): %q\n", orgID, err.Error())
 		fmt.Println("   Note: Organization deletion may be restricted in staging/production environments")
 	} else {

@@ -40,7 +40,7 @@ func main() {
 
 	log.Printf("Creating organization with legal name: %q", input.LegalName)
 
-	organization, err := c.Entity.Organizations.CreateOrganization(ctx, input)
+	organization, err := c.Organizations.CreateOrganization(ctx, input)
 	if err != nil {
 		handleCreationError(err, pluginAuth)
 	} else {

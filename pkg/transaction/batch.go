@@ -100,7 +100,7 @@ func BatchTransactions(
 		ctx = context.Background()
 	}
 
-	if midazClient == nil || midazClient.Entity == nil || midazClient.Entity.Transactions == nil {
+	if midazClient == nil || midazClient.Entity == nil || midazClient.Transactions == nil {
 		return nil, stdErrors.New("transaction service is not initialized")
 	}
 
@@ -337,7 +337,7 @@ func (bp *batchProcessor) executeWithRetries(input *models.CreateTransactionInpu
 
 		// Inject idempotency key into context so HTTP layer can add header
 		ctx := entities.WithIdempotencyKey(bp.ctx, input.IdempotencyKey)
-		tx, err = bp.client.Entity.Transactions.CreateTransaction(ctx, bp.orgID, bp.ledgerID, input)
+		tx, err = bp.client.Transactions.CreateTransaction(ctx, bp.orgID, bp.ledgerID, input)
 
 		if err == nil || !isRetryableError(err) {
 			break

@@ -68,7 +68,7 @@ func timeoutExample(c *client.Client) {
 	// Attempt to call an API with the timeout context
 	fmt.Println("Starting operation with a 100ms timeout...")
 
-	_, err := c.Entity.Organizations.GetOrganization(ctx, "org-id")
+	_, err := c.Organizations.GetOrganization(ctx, "org-id")
 
 	// Handle the timeout error
 	handleContextError(err)
@@ -93,7 +93,7 @@ func cancellationExample(c *client.Client) {
 	// Attempt to call an API with the context that will be cancelled
 	fmt.Println("Starting operation that will be cancelled...")
 
-	_, err := c.Entity.Organizations.GetOrganization(ctx, "org-id")
+	_, err := c.Organizations.GetOrganization(ctx, "org-id")
 
 	// Handle the cancellation error
 	handleContextError(err)
@@ -127,12 +127,12 @@ func operationGroupExample(c *client.Client) {
 	// Example operations (would typically be API calls)
 	fmt.Println("First operation using the timeout client")
 
-	_, err1 := timeoutClient.Entity.Organizations.GetOrganization(ctx, "org-id")
+	_, err1 := timeoutClient.Organizations.GetOrganization(ctx, "org-id")
 	handleContextError(err1)
 
 	fmt.Println("Second operation using the timeout client")
 
-	_, err2 := timeoutClient.Entity.Ledgers.GetLedger(ctx, "org-id", "ledger-id")
+	_, err2 := timeoutClient.Ledgers.GetLedger(ctx, "org-id", "ledger-id")
 	handleContextError(err2)
 
 	// You can also override the client context for specific operations
@@ -142,7 +142,7 @@ func operationGroupExample(c *client.Client) {
 
 	defer customCancel()
 
-	_, err3 := timeoutClient.Entity.Organizations.GetOrganization(customCtx, "org-id")
+	_, err3 := timeoutClient.Organizations.GetOrganization(customCtx, "org-id")
 	handleContextError(err3)
 }
 
@@ -176,7 +176,7 @@ func resourceCleanupExample(c *client.Client) {
 	// Attempt to perform an operation
 	fmt.Println("Performing operation...")
 
-	_, err := c.Entity.Organizations.GetOrganization(ctx, "org-id")
+	_, err := c.Organizations.GetOrganization(ctx, "org-id")
 	handleContextError(err)
 
 	// Wait a bit to see the cleanup happen
@@ -203,7 +203,7 @@ func realWorldCancellationExample(c *client.Client) {
 
 	// Operation 1: Create an account (will likely timeout)
 	go func() {
-		account, err := c.Entity.Accounts.CreateAccount(
+		account, err := c.Accounts.CreateAccount(
 			ctx,
 			"org-id",
 			"ledger-id",
@@ -223,7 +223,7 @@ func realWorldCancellationExample(c *client.Client) {
 	go func() {
 		time.Sleep(100 * time.Millisecond) // Simulate some processing
 
-		account, err := c.Entity.Accounts.GetAccount(
+		account, err := c.Accounts.GetAccount(
 			ctx,
 			"org-id",
 			"ledger-id",

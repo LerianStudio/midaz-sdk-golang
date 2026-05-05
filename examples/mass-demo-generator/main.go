@@ -923,7 +923,7 @@ func fetchAccountBalances(ctx context.Context, c *client.Client, state *workflow
 			alias = account.ID
 		}
 
-		bal, err := c.Entity.Accounts.GetBalance(ctx, orgID, ledgerID, account.ID)
+		bal, err := c.Accounts.GetBalance(ctx, orgID, ledgerID, account.ID)
 		if err != nil || bal == nil {
 			continue
 		}

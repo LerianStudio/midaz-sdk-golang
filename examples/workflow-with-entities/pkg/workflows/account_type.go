@@ -30,7 +30,7 @@ func CreateAccountType(ctx context.Context, midazClient *client.Client, orgID, l
 		})
 
 	// Create the account type
-	accountType, err := midazClient.Entity.AccountTypes.CreateAccountType(ctx, orgID, ledgerID, input)
+	accountType, err := midazClient.AccountTypes.CreateAccountType(ctx, orgID, ledgerID, input)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create account type: %w", err)
 	}
@@ -75,7 +75,7 @@ func UpdateAccountType(ctx context.Context, midazClient *client.Client, orgID, l
 		})
 
 	// Update the account type
-	updatedAccountType, err := midazClient.Entity.AccountTypes.UpdateAccountType(ctx, orgID, ledgerID, accountTypeID, input)
+	updatedAccountType, err := midazClient.AccountTypes.UpdateAccountType(ctx, orgID, ledgerID, accountTypeID, input)
 	if err != nil {
 		return fmt.Errorf("failed to update account type: %w", err)
 	}
@@ -107,7 +107,7 @@ func GetAccountType(ctx context.Context, midazClient *client.Client, orgID, ledg
 	fmt.Println("\n🔍 Retrieving Account Type...")
 
 	// Get the account type
-	accountType, err := midazClient.Entity.AccountTypes.GetAccountType(ctx, orgID, ledgerID, accountTypeID)
+	accountType, err := midazClient.AccountTypes.GetAccountType(ctx, orgID, ledgerID, accountTypeID)
 	if err != nil {
 		return fmt.Errorf("failed to get account type: %w", err)
 	}
@@ -146,7 +146,7 @@ func ListAccountTypes(ctx context.Context, midazClient *client.Client, orgID, le
 		Limit: 10,
 	}
 
-	accountTypes, err := midazClient.Entity.AccountTypes.ListAccountTypes(ctx, orgID, ledgerID, opts)
+	accountTypes, err := midazClient.AccountTypes.ListAccountTypes(ctx, orgID, ledgerID, opts)
 	if err != nil {
 		return fmt.Errorf("failed to list account types: %w", err)
 	}
@@ -183,7 +183,7 @@ func DeleteAccountType(ctx context.Context, midazClient *client.Client, orgID, l
 	fmt.Println("\n🗑️  Deleting Account Type...")
 
 	// Delete the account type
-	err := midazClient.Entity.AccountTypes.DeleteAccountType(ctx, orgID, ledgerID, accountTypeID)
+	err := midazClient.AccountTypes.DeleteAccountType(ctx, orgID, ledgerID, accountTypeID)
 	if err != nil {
 		return fmt.Errorf("failed to delete account type: %w", err)
 	}

@@ -40,7 +40,7 @@ func main() {
 	// Create a simple transaction using the DSL input format
 	// Note that we're using only SDK-specific models, with no direct
 	// dependency on lib-commons or other internal libraries
-	tx, err := createDSLTransaction(context.Background(), c.Entity.Transactions)
+	tx, err := createDSLTransaction(context.Background(), c.Transactions)
 	if err != nil {
 		log.Fatalf("Failed to create transaction: %s", strconv.Quote(err.Error())) // lgtm[go/log-injection]
 	}

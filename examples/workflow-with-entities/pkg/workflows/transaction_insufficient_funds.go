@@ -121,7 +121,7 @@ func runInsufficientFundsTest(ctx context.Context, midazClient *client.Client, o
 	}
 
 	startTime := time.Now()
-	_, err = midazClient.Entity.Transactions.CreateTransaction(testCtx, orgID, ledgerID, transferInput)
+	_, err = midazClient.Transactions.CreateTransaction(testCtx, orgID, ledgerID, transferInput)
 	duration := time.Since(startTime)
 
 	observability.RecordSpanMetric(testCtx, "test_duration_ms", float64(duration.Milliseconds()))

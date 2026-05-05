@@ -76,7 +76,7 @@ func defaultRetryExample() error {
 	// Example call that would be retried if it failed with a retryable error
 	fmt.Println("\nExample call that would be retried if it failed:")
 
-	_, err = c.Entity.Organizations.GetOrganization(context.Background(), "org-id")
+	_, err = c.Organizations.GetOrganization(context.Background(), "org-id")
 	fmt.Printf("Result: %q\n", fmt.Sprint(err))
 
 	return nil
@@ -106,7 +106,7 @@ func customRetryConfigExample() error {
 	// Example call with custom retry settings
 	fmt.Println("\nExample call with custom retry settings:")
 
-	_, err = c.Entity.Organizations.GetOrganization(context.Background(), "org-id")
+	_, err = c.Organizations.GetOrganization(context.Background(), "org-id")
 	fmt.Printf("Result: %q\n", fmt.Sprint(err))
 
 	return nil
@@ -157,7 +157,7 @@ func customRetryPolicyExample() error {
 	// Example call with custom retry policy
 	fmt.Println("\nExample call with custom retry policy:")
 
-	_, err = c.Entity.Organizations.GetOrganization(context.Background(), "org-id")
+	_, err = c.Organizations.GetOrganization(context.Background(), "org-id")
 	fmt.Printf("Result: %q\n", fmt.Sprint(err))
 
 	return nil
@@ -185,7 +185,7 @@ func disableRetriesExample() error {
 	// Example call with retries disabled
 	fmt.Println("\nExample call with retries disabled:")
 
-	_, err = c.Entity.Organizations.GetOrganization(context.Background(), "org-id")
+	_, err = c.Organizations.GetOrganization(context.Background(), "org-id")
 
 	// Handle the error without retries
 	if err == nil {

@@ -9,7 +9,7 @@
 //	if err != nil { return err }
 //	defer c.Shutdown(ctx)
 //
-//	org, err := c.Entity.Organizations.GetOrganization(ctx, "org-id")
+//	org, err := c.Organizations.GetOrganization(ctx, "org-id")
 //
 // See docs/auth.md for authentication, docs/multi-tenancy.md for tenant routing,
 // and docs/v3-dx-plan.md for the v3 design rationale.
@@ -39,13 +39,21 @@ const Version = "1.1.0-beta.2"
 // Client is the main entry point for using the Midaz API.
 // It provides access to all API services, connection management,
 // authentication, rate limiting, and retry handling.
+//
+// All services are exposed as promoted fields via the embedded *entities.Entity.
+// In v3, prefer c.Accounts.X over c.Entity.Accounts.X — they refer to the same
+// instance, but the shorter form is the canonical idiom. The embedded Entity
+// pointer remains accessible as c.Entity for back-compat during the v2 → v3
+// migration window.
 type Client struct {
 	// Configuration
 	config *config.Config
 	ctx    context.Context
 
-	// Entity exposes every Midaz service. Always non-nil after a successful New().
-	Entity *entities.Entity
+	// Embedded Entity. Promoted fields expose every service directly on Client:
+	//   c.Accounts, c.Transactions, c.Ledgers, c.Organizations, etc.
+	// The embedded pointer is also accessible as c.Entity for back-compat.
+	*entities.Entity
 
 	// tenantID is the default tenant identifier sent as X-Tenant-ID on every request.
 	// Per-request overrides via entities.WithTenantID(ctx, id) take precedence.

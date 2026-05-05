@@ -76,7 +76,7 @@ func TestClientEntityOptions_PropagateToServiceHTTPClients(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	_, err = c.Entity.Organizations.CreateOrganization(context.Background(), models.NewCreateOrganizationInput("Acme", "123"))
+	_, err = c.Organizations.CreateOrganization(context.Background(), models.NewCreateOrganizationInput("Acme", "123"))
 	require.NoError(t, err)
 	require.NoError(t, <-writeErrs)
 	require.Equal(t, "slice2-agent/1.0", seenUserAgent)

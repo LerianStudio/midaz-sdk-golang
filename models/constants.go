@@ -14,7 +14,7 @@ package models
 //	// Check if a transaction is pending and needs to be committed
 //	if transaction.Status == models.TransactionStatusPending {
 //	    // Commit the transaction
-//	    committedTx, err := c.Entity.Transactions.CommitTransaction(
+//	    committedTx, err := c.Transactions.CommitTransaction(
 //	        context.Background(),
 //	        "org-123",
 //	        "ledger-456",

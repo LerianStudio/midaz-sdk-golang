@@ -48,7 +48,7 @@ func demonstrateBasicListing(ctx context.Context, midazClient *client.Client, or
 
 	listOptions := createBasicListOptions()
 
-	accounts, err := midazClient.Entity.Accounts.ListAccounts(ctx, orgID, ledgerID, listOptions)
+	accounts, err := midazClient.Accounts.ListAccounts(ctx, orgID, ledgerID, listOptions)
 	if err != nil {
 		return fmt.Errorf("failed to list accounts: %w", err)
 	}
@@ -98,7 +98,7 @@ func demonstratePagination(ctx context.Context, midazClient *client.Client, orgI
 // fetchNextPage retrieves the next page of accounts
 func fetchNextPage(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, accounts *models.ListResponse[models.Account]) (*models.ListResponse[models.Account], error) {
 	nextPageOptions := accounts.Pagination.NextPageOptions()
-	nextPage, err := midazClient.Entity.Accounts.ListAccounts(ctx, orgID, ledgerID, nextPageOptions)
+	nextPage, err := midazClient.Accounts.ListAccounts(ctx, orgID, ledgerID, nextPageOptions)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch next page: %w", err)
 	}
@@ -115,7 +115,7 @@ func demonstrateGoingBack(ctx context.Context, midazClient *client.Client, orgID
 	fmt.Println("\nDemonstrating pagination - returning to first page...")
 
 	prevPageOptions := nextPage.Pagination.PrevPageOptions()
-	prevPage, err := midazClient.Entity.Accounts.ListAccounts(ctx, orgID, ledgerID, prevPageOptions)
+	prevPage, err := midazClient.Accounts.ListAccounts(ctx, orgID, ledgerID, prevPageOptions)
 	if err != nil {
 		return fmt.Errorf("failed to fetch previous page: %w", err)
 	}
@@ -155,7 +155,7 @@ func fetchFirstPage(ctx context.Context, midazClient *client.Client, orgID, ledg
 
 	iterationOptions := models.NewListOptions().WithLimit(2)
 
-	return midazClient.Entity.Accounts.ListAccounts(ctx, orgID, ledgerID, iterationOptions)
+	return midazClient.Accounts.ListAccounts(ctx, orgID, ledgerID, iterationOptions)
 }
 
 // handleFirstPageError processes first page fetch errors
@@ -228,7 +228,7 @@ func createFetchPageFunction(midazClient *client.Client, orgID, ledgerID string)
 
 		simulateLatency(options.Page)
 
-		page, err := midazClient.Entity.Accounts.ListAccounts(ctx, orgID, ledgerID, options)
+		page, err := midazClient.Accounts.ListAccounts(ctx, orgID, ledgerID, options)
 		if err != nil {
 			return nil, err
 		}
@@ -311,7 +311,7 @@ func demonstrateContextCancellation(ctx context.Context, midazClient *client.Cli
 	}()
 
 	// Attempt fetch with cancellable context
-	_, err := midazClient.Entity.Accounts.ListAccounts(cancelCtx, orgID, ledgerID, models.NewListOptions())
+	_, err := midazClient.Accounts.ListAccounts(cancelCtx, orgID, ledgerID, models.NewListOptions())
 
 	handleCancellationResult(err)
 
