@@ -129,7 +129,7 @@ set-env:
 # SDK Quality Check Targets
 #-------------------------------------------------------
 
-.PHONY: check-references check-api-compatibility verify-sdk hooks
+.PHONY: check-references check-api-compatibility check-config-parity verify-sdk hooks
 
 # Check that no lib-commons references appear in public packages
 check-references:
@@ -143,8 +143,15 @@ check-api-compatibility:
 	@go build ./models ./entities ./pkg/...
 	@echo "$(GREEN)✅ API builds successfully$(NC)"
 
+# Track 6 lint rule: enforce midaz.With* / pkg/config.With* two-layer parity.
+# Fails the build when a pkg/config Option lacks a midaz wrapper (with the
+# documented retry-knob exception list). See scripts/check-config-parity.sh.
+check-config-parity:
+	@echo "$(YELLOW)Checking midaz / pkg/config two-layer Option parity...$(NC)"
+	@./scripts/check-config-parity.sh
+
 # Verify our implementation
-verify-sdk: check-references check-api-compatibility
+verify-sdk: check-references check-api-compatibility check-config-parity
 	@echo "$(GREEN)✅ All SDK quality checks passed!$(NC)"
 
 # Install git hooks

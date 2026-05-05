@@ -500,6 +500,11 @@ func WithObservabilityProvider(provider observability.Provider) Option {
 }
 
 // WithIdempotency enables or disables automatic idempotency key generation.
+// Two-layer surface: this is the internal/test-layer Option that operates on
+// [Config]. The user-facing wrapper at
+// [github.com/LerianStudio/midaz-sdk-golang/v3.WithIdempotency] is what most
+// callers should use; it composes with
+// [github.com/LerianStudio/midaz-sdk-golang/v3.New] directly.
 //
 // Parameters:
 //   - enable: Whether to enable idempotency key generation

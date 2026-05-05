@@ -735,6 +735,32 @@ func WithDebug(enable bool) Option {
 	}
 }
 
+// WithIdempotency enables or disables automatic idempotency-key generation
+// for unsafe HTTP methods (POST, PUT, PATCH, DELETE). When enabled, the SDK
+// attaches an X-Idempotency header derived from a UUID to each unsafe
+// request unless [entities.WithIdempotencyKey] was used to set an explicit
+// key on the per-request context.
+//
+// Two-layer surface: this is the user-facing wrapper. It delegates to
+// [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config.WithIdempotency],
+// which most callers should not invoke directly. Prefer this option when
+// constructing the client via [New].
+//
+// Default: enabled (Config.EnableIdempotency = DefaultEnableIdempotency = true).
+// Disable when you have an upstream gateway that handles idempotency, or
+// when running tests that assert exact request bodies.
+//
+// Parameters:
+//   - enabled: Whether to enable automatic idempotency-key generation
+//
+// Returns:
+//   - Option: A function that sets the idempotency flag on the Client
+func WithIdempotency(enabled bool) Option {
+	return func(c *Client) error {
+		return config.WithIdempotency(enabled)(c.config)
+	}
+}
+
 // WithTenantID sets the default tenant ID for all API requests made through this client.
 // The tenant ID is sent as the X-Tenant-ID header on every request.
 // Per-request overrides via sdkctx.WithRequestTenantID(ctx, tenantID) take precedence
