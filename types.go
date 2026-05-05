@@ -20,7 +20,10 @@
 
 package midaz
 
-import "github.com/LerianStudio/midaz-sdk-golang/v3/models"
+import (
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/auth"
+)
 
 // The aliases below are intentionally undocumented per-line: each alias just
 // re-exports the type of the same name from the models package, and the
@@ -128,4 +131,22 @@ type (
 type (
 	Status  = models.Status
 	Address = models.Address
+)
+
+// -----------------------------------------------------------------------------
+// Auth — re-exported from pkg/auth so a static-credential setup needs only
+// the midaz package import:
+//
+//	c, err := midaz.New(midaz.WithAccessManager(midaz.AccessManager{
+//	    Address:      "https://auth.midaz.io",
+//	    ClientID:     "abc",
+//	    ClientSecret: "xyz",
+//	}))
+//
+// The Enabled field on AccessManager is auto-populated by midaz.WithAccessManager
+// — callers should not set it themselves.
+// -----------------------------------------------------------------------------
+
+type (
+	AccessManager = auth.AccessManager
 )

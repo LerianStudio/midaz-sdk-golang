@@ -13,7 +13,7 @@ import (
 	"strings"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/internal/reflectutil"
-	auth "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/access-manager"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/auth"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/security"
 )

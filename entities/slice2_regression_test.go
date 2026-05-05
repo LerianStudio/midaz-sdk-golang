@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
-	auth "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/access-manager"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/auth"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry"
 	"github.com/stretchr/testify/require"

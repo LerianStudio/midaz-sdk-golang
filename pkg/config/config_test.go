@@ -12,7 +12,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
-	auth "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/access-manager"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/auth"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/version"
 )
@@ -1608,31 +1608,37 @@ func TestConfigWithTenantID(t *testing.T) {
 	}
 }
 
-func TestConfigTenantIDIgnoresEnv(t *testing.T) {
+// TestConfigTenantIDFromEnv asserts the v3 contract: MIDAZ_TENANT_ID is read
+// only when FromEnvironment() is in the option chain. Track 2 added this read
+// to FromEnvironment per the explicit-opt-in principle (see Track 3 close).
+func TestConfigTenantIDFromEnv(t *testing.T) {
 	tests := []struct {
 		name     string
 		envValue string
 		expected string
 	}{
 		{
-			name:     "ignores MIDAZ_TENANT_ID from environment",
+			name:     "MIDAZ_TENANT_ID populates TenantID via FromEnvironment",
 			envValue: "env-tenant-456",
-			expected: "",
+			expected: "env-tenant-456",
 		},
 		{
 			name:     "empty env var leaves TenantID unset",
 			envValue: "",
 			expected: "",
 		},
+		{
+			name:     "whitespace-only env var leaves TenantID unset",
+			envValue: "   ",
+			expected: "",
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Use t.Setenv which automatically cleans up after the test
 			if tc.envValue != "" {
 				t.Setenv("MIDAZ_TENANT_ID", tc.envValue)
 			} else {
-				// Ensure the env var is not set from a previous test
 				restore := saveEnv([]string{"MIDAZ_TENANT_ID"})
 				defer restore()
 
@@ -1649,8 +1655,10 @@ func TestConfigTenantIDIgnoresEnv(t *testing.T) {
 	}
 }
 
+// TestConfigTenantIDOptionWinsOverEnv asserts WithTenantID overrides
+// MIDAZ_TENANT_ID regardless of option order, because option chains apply
+// last-write-wins and explicit options always follow FromEnvironment.
 func TestConfigTenantIDOptionWinsOverEnv(t *testing.T) {
-	// Environment defaults are intentionally ignored; explicit options remain supported.
 	t.Setenv("MIDAZ_TENANT_ID", "env-tenant")
 
 	cfg, err := NewConfig(

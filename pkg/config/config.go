@@ -20,7 +20,7 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/internal/reflectutil"
-	auth "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/access-manager"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/auth"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/security"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/version"
@@ -569,6 +569,7 @@ func WithAccessManager(accessManager auth.AccessManager) Option {
 // - MIDAZ_DEBUG: Enable debug mode (true/false)
 // - MIDAZ_MAX_RETRIES: Maximum number of retries
 // - MIDAZ_IDEMPOTENCY: Enable idempotency (true/false)
+// - MIDAZ_TENANT_ID: Default tenant ID applied to every request unless overridden by per-request context
 //
 // Returns:
 //   - Option: A function that sets configuration from environment variables
@@ -717,6 +718,11 @@ func configureOptionalSettings(c *Config) {
 
 	if idempotency := os.Getenv("MIDAZ_IDEMPOTENCY"); idempotency != "" {
 		c.EnableIdempotency = idempotency == boolTrue
+	}
+
+	if tenantID := strings.TrimSpace(os.Getenv("MIDAZ_TENANT_ID")); tenantID != "" {
+		c.TenantID = tenantID
+		c.tenantIDSet = true
 	}
 
 	// MIDAZ_SKIP_AUTH_CHECK is a test-plumbing escape hatch read only via
