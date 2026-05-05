@@ -28,6 +28,7 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v3/internal/reflectutil"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry"
 )
@@ -71,7 +72,23 @@ type Client struct {
 }
 
 // New creates a new Midaz client with the provided options.
+//
+// New validates configuration eagerly. If any required field is missing or any
+// option fails, it returns a typed configuration error
+// (see [pkg/errors.IsConfigurationError]) so callers can distinguish setup
+// mistakes from runtime API failures. The "naked SDK" footgun where
+// c.Entity could be nil after construction is gone in v3 — every service is
+// initialized and ready to use upon successful return.
+//
+// Returns:
+//   - *Client: A fully-initialized client. All service fields (c.Accounts,
+//     c.Transactions, etc.) are non-nil and ready for API calls.
+//   - error: A *errors.Error with Category=CategoryConfiguration when New
+//     cannot construct a usable client. Use errors.Is(err, errors.ErrConfiguration)
+//     or errors.IsConfigurationError(err) to check.
 func New(options ...Option) (*Client, error) {
+	const operation = "midaz.New"
+
 	// Create a new client with default settings
 	c := &Client{
 		ctx: context.Background(), // Default context that can be overridden with WithContext
@@ -83,7 +100,7 @@ func New(options ...Option) (*Client, error) {
 		observability.WithComponentEnabled(false, false, false), // All disabled by default
 	)
 	if err != nil {
-		return nil, err
+		return nil, sdkerrors.NewConfigurationError(operation, "failed to initialize observability provider", err)
 	}
 
 	c.observability = obsProvider
@@ -91,21 +108,38 @@ func New(options ...Option) (*Client, error) {
 	// Create default configuration
 	c.config = config.DefaultConfig()
 
-	// Apply all options
-	for _, option := range options {
+	// Apply all options. Index nil options in the error message so callers
+	// can identify exactly which option in their list is the culprit.
+	for i, option := range options {
 		if option == nil {
-			return nil, errors.New("option cannot be nil")
+			return nil, sdkerrors.NewConfigurationError(
+				operation,
+				fmt.Sprintf("option at index %d is nil", i),
+				nil,
+			)
 		}
 
 		if err := option(c); err != nil {
-			return nil, fmt.Errorf("error applying option: %w", err)
+			return nil, sdkerrors.NewConfigurationError(
+				operation,
+				fmt.Sprintf("option at index %d failed to apply", i),
+				err,
+			)
 		}
+	}
+
+	// Eager validation: enforce that the merged config has every required
+	// field populated. This catches misconfigurations at New() time instead
+	// of letting them surface as cryptic 401/connection-refused errors on
+	// the first API call.
+	if err := c.config.Validate(); err != nil {
+		return nil, sdkerrors.NewConfigurationError(operation, "invalid configuration", err)
 	}
 
 	// Always initialize the Entity surface. The "naked SDK" footgun
 	// (c.Entity == nil after New) is gone in v3.
 	if err := c.setupEntity(); err != nil {
-		return nil, fmt.Errorf("error setting up Entity API: %w", err)
+		return nil, sdkerrors.NewConfigurationError(operation, "failed to initialize entity API", err)
 	}
 
 	return c, nil

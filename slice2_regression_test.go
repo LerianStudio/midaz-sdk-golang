@@ -11,13 +11,17 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v3/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
 	"github.com/stretchr/testify/require"
 )
 
 func TestClientNew_WithNilOption_ReturnsError(t *testing.T) {
 	_, err := New(nil)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "option cannot be nil")
+	require.True(t, sdkerrors.IsConfigurationError(err),
+		"nil option should yield a typed ErrConfiguration")
+	require.Contains(t, err.Error(), "index 0",
+		"error should identify which option index was nil")
 }
 
 func TestClientTrace_WithNilCallback_ReturnsError(t *testing.T) {

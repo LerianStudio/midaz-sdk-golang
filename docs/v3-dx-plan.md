@@ -2046,7 +2046,7 @@ Live as of: 2026-05-05. Update with every commit batch.
 
 | Track | Status | Started | Completed | PR / Branch | Notes |
 |-------|--------|---------|-----------|-------------|-------|
-| 1 — Naked SDK & Entry Points | 🟡 In progress | 2026-05-05 | — | branch:`v3` (4 commits) | Batches 1A-1D done (module rename, always-on Entity, service hoisting, sdkctx migration); 1E-1G pending |
+| 1 — Naked SDK & Entry Points | 🟡 In progress | 2026-05-05 | — | branch:`v3` (5+ commits) | Batches 1A-1D + 1F done (module rename, always-on Entity, service hoisting, sdkctx migration, validation contract); 1E + 1G pending |
 | 2 — Auth & Tenant Chaos | 🔵 Not started | — | — | — | Depends on Track 1 |
 | 3 — Implicit env reads | 🔵 Not started | — | — | — | Independent; can run parallel to Track 1 |
 | 4 — Logging gap | 🔵 Not started | — | — | — | Depends on Tracks 1, 3 |

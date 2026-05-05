@@ -853,6 +853,27 @@ func applyDefaultServiceURLs(config *Config, serviceURLs defaultServiceURLs) {
 	}
 }
 
+// Validate reports whether the Config has all required fields populated and
+// is internally consistent.
+//
+// midaz.New() calls Validate() automatically after applying all options. Most
+// callers will never invoke Validate() directly; it is exported so advanced
+// users (e.g. config-loading helpers, test fixtures) can re-validate after
+// mutating a Config they constructed via DefaultConfig().
+//
+// Returns nil on success or an error describing the first problem encountered.
+// Use [Config.ValidateAll] for an accumulated multi-problem view (planned for
+// v3 Track 8).
+//
+// Validation rules:
+//   - ServiceURLs[ServiceOnboarding] must be set.
+//   - ServiceURLs[ServiceTransaction] must be set.
+//   - If AccessManager.Enabled, AccessManager.Address must be set
+//     (unless MIDAZ_SKIP_AUTH_CHECK=true is in the env via FromEnvironment).
+func (c *Config) Validate() error {
+	return validateConfig(c)
+}
+
 // validateConfig ensures that the Config has all required fields.
 func validateConfig(config *Config) error {
 	// Check that we have URLs for required services

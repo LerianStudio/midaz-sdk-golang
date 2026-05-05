@@ -60,6 +60,9 @@ const (
 
 	// CodeUnprocessable indicates a business rule prevented processing
 	CodeUnprocessable ErrorCode = "unprocessable_error"
+
+	// CodeConfiguration is for SDK setup / client construction errors.
+	CodeConfiguration ErrorCode = "configuration_error"
 )
 
 // ErrorCategory represents the general category of an error
@@ -100,6 +103,12 @@ const (
 
 	// CategoryUnprocessable represents unprocessable operations
 	CategoryUnprocessable ErrorCategory = "unprocessable"
+
+	// CategoryConfiguration represents SDK setup / client construction errors
+	// (missing required options, invalid URLs, conflicting auth sources, etc.).
+	// These errors are produced eagerly by midaz.New() and indicate misuse of
+	// the SDK rather than a server-side or transport problem.
+	CategoryConfiguration ErrorCategory = "configuration"
 )
 
 // Standard error types that wrap all our error codes
@@ -119,6 +128,7 @@ var (
 	ErrCancellation        = &Error{Category: CategoryCancellation, Code: CodeCancellation, Message: "operation cancelled"}
 	ErrInternal            = &Error{Category: CategoryInternal, Code: CodeInternal, Message: "internal error"}
 	ErrUnprocessable       = &Error{Category: CategoryUnprocessable, Code: CodeUnprocessable, Message: "unprocessable error"}
+	ErrConfiguration       = &Error{Category: CategoryConfiguration, Code: CodeConfiguration, Message: "configuration error"}
 )
 
 // Error represents a standardized error in the Midaz SDK.
@@ -633,6 +643,48 @@ func NewInternalError(operation string, err error) *Error {
 	}
 }
 
+// NewConfigurationError creates a configuration error for SDK setup failures.
+//
+// Use this for client construction problems: missing required options,
+// invalid URLs, conflicting auth sources, validation failures at New() time.
+// These errors are returned eagerly by midaz.New() so users discover misuse
+// at construction rather than on the first API call.
+//
+// Example:
+//
+//	err := errors.NewConfigurationError(
+//	    "midaz.New",
+//	    "no auth source configured",
+//	    fmt.Errorf("use WithAuthToken or WithAccessManager"),
+//	)
+//
+// Parameters:
+//   - operation: The operation context, typically "midaz.New" or
+//     "<package>.<func>" describing the call site.
+//   - message: A human-readable, actionable message that tells the caller
+//     what to fix.
+//   - err: An optional underlying cause. May be nil.
+//
+// Returns:
+//   - *Error: A configuration error with Category=CategoryConfiguration and
+//     Code=CodeConfiguration. errors.Is(err, ErrConfiguration) matches it.
+func NewConfigurationError(operation, message string, err error) *Error {
+	err = normalizeError(err)
+
+	if message == "" {
+		message = "configuration error"
+	}
+
+	return &Error{
+		Category:   CategoryConfiguration,
+		Code:       CodeConfiguration,
+		Message:    message,
+		Operation:  operation,
+		Err:        err,
+		StatusCode: http.StatusBadRequest,
+	}
+}
+
 // NewUnprocessableError creates an unprocessable entity error.
 func NewUnprocessableError(operation, resource string, err error) *Error {
 	err = normalizeError(err)
@@ -1072,6 +1124,28 @@ func IsConflictError(err error) bool {
 	return CheckConflictError(err)
 }
 
+// IsConfigurationError reports whether err is an SDK configuration error.
+//
+// Configuration errors are produced eagerly by midaz.New() when the client is
+// misconfigured (missing auth, invalid URLs, conflicting options, etc.) so
+// callers can distinguish setup mistakes from runtime API failures.
+//
+// Use this when you want to react specifically to setup problems:
+//
+//	c, err := midaz.New(...)
+//	if errors.IsConfigurationError(err) {
+//	    log.Fatalf("midaz client misconfigured: %v", err)
+//	}
+//
+// See also [NewConfigurationError], [ErrConfiguration].
+func IsConfigurationError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	return errors.Is(err, ErrConfiguration)
+}
+
 // IsPermissionError checks if an error is a permission error.
 func IsPermissionError(err error) bool {
 	return CheckAuthorizationError(err)
@@ -1234,6 +1308,7 @@ var statusCodesByCategory = map[ErrorCategory]int{
 	CategoryCancellation:   statusClientClosedRequest,
 	CategoryNetwork:        http.StatusServiceUnavailable,
 	CategoryUnprocessable:  http.StatusUnprocessableEntity,
+	CategoryConfiguration:  http.StatusBadRequest,
 }
 
 // GetStatusCode gets the HTTP status code associated with an error.

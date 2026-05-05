@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -70,23 +71,32 @@ func TestClientOptionsAccessorsAndConstructors(t *testing.T) {
 }
 
 func TestClientOptionErrorsAndNilReceivers(t *testing.T) {
+	// v3: every construction error is a typed *errors.Error with
+	// Category=CategoryConfiguration. The wrapped underlying cause is
+	// reachable via errors.Unwrap.
+
 	_, err := New(nil)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "option cannot be nil")
+	assert.True(t, sdkerrors.IsConfigurationError(err), "nil option should yield ErrConfiguration")
+	assert.Contains(t, err.Error(), "index 0", "error should identify which option index was nil")
 
 	_, err = New(WithConfig(nil))
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "config cannot be nil")
+	assert.True(t, sdkerrors.IsConfigurationError(err))
+	assert.Contains(t, errors.Unwrap(err).Error(), "config cannot be nil",
+		"underlying option error should be reachable via Unwrap")
 
 	var nilContext context.Context
 
 	_, err = New(WithConfig(createTestConfig(t)), WithContext(nilContext))
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "context cannot be nil")
+	assert.True(t, sdkerrors.IsConfigurationError(err))
+	assert.Contains(t, errors.Unwrap(err).Error(), "context cannot be nil")
 
 	_, err = New(WithConfig(createTestConfig(t)), WithBaseURL("://bad-url"))
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid base URL")
+	assert.True(t, sdkerrors.IsConfigurationError(err))
+	assert.Contains(t, errors.Unwrap(err).Error(), "invalid base URL")
 
 	c, err := New(WithConfig(createTestConfig(t)), DisableRetries())
 	require.NoError(t, err)
