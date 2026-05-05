@@ -56,11 +56,11 @@ func TestListLedgers(t *testing.T) {
 
 	// Setup expectations for default options
 	mockService.EXPECT().
-		ListLedgers(gomock.Any(), orgID, gomock.Nil()).
+		ListLedgers(gomock.Any(), orgID, gomock.Any()).
 		Return(ledgersList, nil)
 
 	// Test listing ledgers with default options
-	result, err := mockService.ListLedgers(ctx, orgID, nil)
+	result, err := mockService.ListLedgers(ctx, orgID, models.LedgersListOpts{})
 	require.NoError(t, err)
 	assert.Equal(t, 2, result.Pagination.Total)
 	assert.Len(t, result.Items, 2)
@@ -70,12 +70,7 @@ func TestListLedgers(t *testing.T) {
 	assert.Equal(t, orgID, result.Items[0].OrganizationID)
 
 	// Test with options
-	opts := &models.ListOptions{
-		Limit:          5,
-		Offset:         0,
-		OrderBy:        "created_at",
-		OrderDirection: "desc",
-	}
+	opts := models.LedgersListOpts{PageListOpts: models.PageListOpts{Limit: 5, Page: 1, OrderBy: "created_at", SortDirection: models.SortDescending}}
 
 	mockService.EXPECT().
 		ListLedgers(gomock.Any(), orgID, opts).
@@ -90,7 +85,7 @@ func TestListLedgers(t *testing.T) {
 		ListLedgers(gomock.Any(), "", gomock.Any()).
 		Return(nil, errors.New("organization ID is required"))
 
-	_, err = mockService.ListLedgers(ctx, "", nil)
+	_, err = mockService.ListLedgers(ctx, "", models.LedgersListOpts{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization ID is required")
 }

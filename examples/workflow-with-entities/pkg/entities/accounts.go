@@ -94,7 +94,7 @@ func ListAccounts(
 	service entities.AccountsService,
 ) ([]*models.Account, error) {
 	// List accounts
-	response, err := service.ListAccounts(ctx, orgID, ledgerID, nil)
+	response, err := service.ListAccounts(ctx, orgID, ledgerID, models.AccountsListOpts{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list accounts: %w", err)
 	}

@@ -67,7 +67,7 @@ func TestListAssets(t *testing.T) {
 		ListAssets(gomock.Any(), orgID, ledgerID, gomock.Any()).
 		Return(assetsList, nil)
 
-	result, err := mockService.ListAssets(ctx, orgID, ledgerID, nil)
+	result, err := mockService.ListAssets(ctx, orgID, ledgerID, models.AssetsListOpts{})
 	require.NoError(t, err)
 	assert.Equal(t, 2, result.Pagination.Total)
 	assert.Len(t, result.Items, 2)
@@ -81,7 +81,7 @@ func TestListAssets(t *testing.T) {
 		ListAssets(gomock.Any(), "", ledgerID, gomock.Any()).
 		Return(nil, errors.New("organization ID is required"))
 
-	_, err = mockService.ListAssets(ctx, "", ledgerID, nil)
+	_, err = mockService.ListAssets(ctx, "", ledgerID, models.AssetsListOpts{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization ID is required")
 
@@ -89,7 +89,7 @@ func TestListAssets(t *testing.T) {
 		ListAssets(gomock.Any(), orgID, "", gomock.Any()).
 		Return(nil, errors.New("ledger ID is required"))
 
-	_, err = mockService.ListAssets(ctx, orgID, "", nil)
+	_, err = mockService.ListAssets(ctx, orgID, "", models.AssetsListOpts{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ledger ID is required")
 }
@@ -440,7 +440,7 @@ func TestAssetsEntity_ListAssets(t *testing.T) {
 		name           string
 		orgID          string
 		ledgerID       string
-		opts           *models.ListOptions
+		opts           models.AssetsListOpts
 		mockResponse   string
 		mockStatusCode int
 		mockError      error
@@ -451,7 +451,7 @@ func TestAssetsEntity_ListAssets(t *testing.T) {
 			name:     "Success with no options",
 			orgID:    "org-123",
 			ledgerID: "ledger-123",
-			opts:     nil,
+			opts:     models.AssetsListOpts{},
 			mockResponse: `{
 				"items": [
 					{
@@ -486,12 +486,14 @@ func TestAssetsEntity_ListAssets(t *testing.T) {
 			name:     "Success with options",
 			orgID:    "org-123",
 			ledgerID: "ledger-123",
-			opts: &models.ListOptions{
-				Limit:          5,
-				Offset:         10,
-				OrderBy:        "name",
-				OrderDirection: "asc",
-				Filters:        map[string]string{"type": "CURRENCY"},
+			opts: models.AssetsListOpts{
+				PageListOpts: models.PageListOpts{
+					Limit:         5,
+					Page:          2,
+					OrderBy:       "name",
+					SortDirection: models.SortAscending,
+				},
+				Filters: models.AssetsFilters{Type: "CURRENCY"},
 			},
 			mockResponse: `{
 				"items": [
@@ -518,7 +520,7 @@ func TestAssetsEntity_ListAssets(t *testing.T) {
 			name:     "Success with empty result",
 			orgID:    "org-123",
 			ledgerID: "ledger-123",
-			opts:     nil,
+			opts:     models.AssetsListOpts{},
 			mockResponse: `{
 				"items": [],
 				"pagination": {
@@ -1327,7 +1329,7 @@ func TestAssetsEntity_ListAssetsWithHTTPTestServer(t *testing.T) {
 
 	service := newAssetsEntity(server.Client(), "test-token", map[string]string{"onboarding": server.URL})
 
-	result, err := service.ListAssets(context.Background(), "org-123", "ledger-123", nil)
+	result, err := service.ListAssets(context.Background(), "org-123", "ledger-123", models.AssetsListOpts{})
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -1517,7 +1519,7 @@ func TestAssetsEntity_HTTPErrorHandling(t *testing.T) {
 			service := newAssetsEntity(server.Client(), "test-token", map[string]string{"onboarding": server.URL})
 
 			// Test ListAssets
-			_, err := service.ListAssets(context.Background(), "org-123", "ledger-123", nil)
+			_, err := service.ListAssets(context.Background(), "org-123", "ledger-123", models.AssetsListOpts{})
 			require.Error(t, err)
 
 			// Test GetAsset
@@ -1554,7 +1556,7 @@ func TestAssetsEntity_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
 	defer cancel()
 
-	_, err := service.ListAssets(ctx, "org-123", "ledger-123", nil)
+	_, err := service.ListAssets(ctx, "org-123", "ledger-123", models.AssetsListOpts{})
 	require.Error(t, err)
 }
 
@@ -1573,11 +1575,13 @@ func TestAssetsEntity_QueryParameters(t *testing.T) {
 
 	service := newAssetsEntity(server.Client(), "test-token", map[string]string{"onboarding": server.URL})
 
-	opts := &models.ListOptions{
-		Limit:          5,
-		Offset:         10,
-		OrderBy:        "name",
-		OrderDirection: "desc",
+	opts := models.AssetsListOpts{
+		PageListOpts: models.PageListOpts{
+			Limit:         5,
+			Page:          3,
+			OrderBy:       "name",
+			SortDirection: models.SortDescending,
+		},
 	}
 
 	_, err := service.ListAssets(context.Background(), "org-123", "ledger-123", opts)
@@ -1666,7 +1670,7 @@ func TestAssetsEntity_MalformedJSONResponse(t *testing.T) {
 
 	service := newAssetsEntity(server.Client(), "test-token", map[string]string{"onboarding": server.URL})
 
-	_, err := service.ListAssets(context.Background(), "org-123", "ledger-123", nil)
+	_, err := service.ListAssets(context.Background(), "org-123", "ledger-123", models.AssetsListOpts{})
 	require.Error(t, err)
 
 	_, err = service.GetAsset(context.Background(), "org-123", "ledger-123", "asset-123")
@@ -1691,7 +1695,7 @@ func TestAssetsEntity_LargeResponse(t *testing.T) {
 
 	service := newAssetsEntity(server.Client(), "test-token", map[string]string{"onboarding": server.URL})
 
-	result, err := service.ListAssets(context.Background(), "org-123", "ledger-123", nil)
+	result, err := service.ListAssets(context.Background(), "org-123", "ledger-123", models.AssetsListOpts{})
 	require.NoError(t, err)
 	assert.Len(t, result.Items, 100)
 	assert.Equal(t, 100, result.Pagination.Total)

@@ -2,6 +2,7 @@ package mocks
 
 import (
 	"context"
+	"iter"
 	"reflect"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
@@ -34,7 +35,7 @@ func (m *MockPortfoliosService) EXPECT() *MockPortfoliosServiceMockRecorder {
 }
 
 // ListPortfolios mocks base method.
-func (m *MockPortfoliosService) ListPortfolios(ctx context.Context, organizationID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Portfolio], error) {
+func (m *MockPortfoliosService) ListPortfolios(ctx context.Context, organizationID, ledgerID string, opts models.PortfoliosListOpts) (*models.ListResponse[models.Portfolio], error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListPortfolios", ctx, organizationID, ledgerID, opts)
 
@@ -149,7 +150,7 @@ func (mr *MockPortfoliosServiceMockRecorder) DeletePortfolio(ctx, organizationID
 }
 
 // ListSegments mocks base method.
-func (m *MockPortfoliosService) ListSegments(ctx context.Context, organizationID, ledgerID, portfolioID string, opts *models.ListOptions) (*models.ListResponse[models.Segment], error) {
+func (m *MockPortfoliosService) ListSegments(ctx context.Context, organizationID, ledgerID, portfolioID string, opts models.SegmentsListOpts) (*models.ListResponse[models.Segment], error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListSegments", ctx, organizationID, ledgerID, portfolioID, opts)
 
@@ -261,4 +262,42 @@ func (m *MockPortfoliosService) DeleteSegment(ctx context.Context, organizationI
 func (mr *MockPortfoliosServiceMockRecorder) DeleteSegment(ctx, organizationID, ledgerID, portfolioID, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteSegment", reflect.TypeOf((*MockPortfoliosService)(nil).DeleteSegment), ctx, organizationID, ledgerID, portfolioID, id)
+}
+
+// ListPortfoliosAll mocks base method.
+func (m *MockPortfoliosService) ListPortfoliosAll(ctx context.Context, organizationID, ledgerID string, opts models.PortfoliosListOpts) iter.Seq2[models.Portfolio, error] {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListPortfoliosAll", ctx, organizationID, ledgerID, opts)
+
+	var ret0 iter.Seq2[models.Portfolio, error]
+	if ret[0] != nil {
+		ret0, _ = ret[0].(iter.Seq2[models.Portfolio, error]) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	return ret0
+}
+
+// ListPortfoliosAll indicates an expected call of ListPortfoliosAll.
+func (mr *MockPortfoliosServiceMockRecorder) ListPortfoliosAll(ctx, organizationID, ledgerID, opts any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListPortfoliosAll", reflect.TypeOf((*MockPortfoliosService)(nil).ListPortfoliosAll), ctx, organizationID, ledgerID, opts)
+}
+
+// ListPortfoliosPages mocks base method.
+func (m *MockPortfoliosService) ListPortfoliosPages(ctx context.Context, organizationID, ledgerID string, opts models.PortfoliosListOpts) iter.Seq2[*models.ListResponse[models.Portfolio], error] {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListPortfoliosPages", ctx, organizationID, ledgerID, opts)
+
+	var ret0 iter.Seq2[*models.ListResponse[models.Portfolio], error]
+	if ret[0] != nil {
+		ret0, _ = ret[0].(iter.Seq2[*models.ListResponse[models.Portfolio], error]) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	return ret0
+}
+
+// ListPortfoliosPages indicates an expected call of ListPortfoliosPages.
+func (mr *MockPortfoliosServiceMockRecorder) ListPortfoliosPages(ctx, organizationID, ledgerID, opts any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListPortfoliosPages", reflect.TypeOf((*MockPortfoliosService)(nil).ListPortfoliosPages), ctx, organizationID, ledgerID, opts)
 }

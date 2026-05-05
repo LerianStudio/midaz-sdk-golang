@@ -89,7 +89,7 @@ func TestAccountTypesEntity_ListAccountTypes_ValidationErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := entity.ListAccountTypes(ctx, tt.organizationID, tt.ledgerID, nil)
+			_, err := entity.ListAccountTypes(ctx, tt.organizationID, tt.ledgerID, models.AccountTypesListOpts{})
 
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.expectedError)

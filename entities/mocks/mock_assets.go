@@ -2,6 +2,7 @@ package mocks
 
 import (
 	"context"
+	"iter"
 	"reflect"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
@@ -34,7 +35,7 @@ func (m *MockAssetsService) EXPECT() *MockAssetsServiceMockRecorder {
 }
 
 // ListAssets mocks base method.
-func (m *MockAssetsService) ListAssets(ctx context.Context, organizationID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Asset], error) {
+func (m *MockAssetsService) ListAssets(ctx context.Context, organizationID, ledgerID string, opts models.AssetsListOpts) (*models.ListResponse[models.Asset], error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListAssets", ctx, organizationID, ledgerID, opts)
 
@@ -146,4 +147,42 @@ func (m *MockAssetsService) DeleteAsset(ctx context.Context, organizationID, led
 func (mr *MockAssetsServiceMockRecorder) DeleteAsset(ctx, organizationID, ledgerID, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAsset", reflect.TypeOf((*MockAssetsService)(nil).DeleteAsset), ctx, organizationID, ledgerID, id)
+}
+
+// ListAssetsAll mocks base method.
+func (m *MockAssetsService) ListAssetsAll(ctx context.Context, organizationID, ledgerID string, opts models.AssetsListOpts) iter.Seq2[models.Asset, error] {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListAssetsAll", ctx, organizationID, ledgerID, opts)
+
+	var ret0 iter.Seq2[models.Asset, error]
+	if ret[0] != nil {
+		ret0, _ = ret[0].(iter.Seq2[models.Asset, error]) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	return ret0
+}
+
+// ListAssetsAll indicates an expected call of ListAssetsAll.
+func (mr *MockAssetsServiceMockRecorder) ListAssetsAll(ctx, organizationID, ledgerID, opts any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAssetsAll", reflect.TypeOf((*MockAssetsService)(nil).ListAssetsAll), ctx, organizationID, ledgerID, opts)
+}
+
+// ListAssetsPages mocks base method.
+func (m *MockAssetsService) ListAssetsPages(ctx context.Context, organizationID, ledgerID string, opts models.AssetsListOpts) iter.Seq2[*models.ListResponse[models.Asset], error] {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListAssetsPages", ctx, organizationID, ledgerID, opts)
+
+	var ret0 iter.Seq2[*models.ListResponse[models.Asset], error]
+	if ret[0] != nil {
+		ret0, _ = ret[0].(iter.Seq2[*models.ListResponse[models.Asset], error]) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	return ret0
+}
+
+// ListAssetsPages indicates an expected call of ListAssetsPages.
+func (mr *MockAssetsServiceMockRecorder) ListAssetsPages(ctx, organizationID, ledgerID, opts any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAssetsPages", reflect.TypeOf((*MockAssetsService)(nil).ListAssetsPages), ctx, organizationID, ledgerID, opts)
 }

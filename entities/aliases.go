@@ -3,6 +3,7 @@ package entities
 import (
 	"context"
 	"fmt"
+	"iter"
 	"net/http"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
@@ -12,7 +13,11 @@ import (
 // AliasesService defines CRM alias operations.
 type AliasesService interface {
 	// ListAliases retrieves aliases for an organization.
-	ListAliases(ctx context.Context, organizationID string, opts *models.ListOptions) (*models.ListResponse[models.Alias], error)
+	ListAliases(ctx context.Context, organizationID string, opts models.AliasesListOpts) (*models.ListResponse[models.Alias], error)
+
+	ListAliasesAll(ctx context.Context, organizationID string, opts models.AliasesListOpts) iter.Seq2[models.Alias, error]
+
+	ListAliasesPages(ctx context.Context, organizationID string, opts models.AliasesListOpts) iter.Seq2[*models.ListResponse[models.Alias], error]
 	// CreateAlias creates an alias for a holder.
 	CreateAlias(ctx context.Context, organizationID, holderID string, input *models.CreateAliasInput) (*models.Alias, error)
 	// GetAlias retrieves an alias by ID.
@@ -41,11 +46,15 @@ func newAliasesEntity(client *http.Client, authToken string, baseURLs map[string
 }
 
 // ListAliases retrieves aliases for an organization.
-func (e *aliasesEntity) ListAliases(ctx context.Context, organizationID string, opts *models.ListOptions) (*models.ListResponse[models.Alias], error) {
+func (e *aliasesEntity) ListAliases(ctx context.Context, organizationID string, opts models.AliasesListOpts) (*models.ListResponse[models.Alias], error) {
 	const operation = "ListAliases"
 
 	organizationID, err := validateCRMOrganizationID(operation, organizationID)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
 
@@ -75,6 +84,44 @@ func (e *aliasesEntity) ListAliases(ctx context.Context, organizationID string, 
 	}
 
 	return &response, nil
+}
+
+// ListAliasesAll yields every alias matching the request, transparently advancing pagination.
+func (e *aliasesEntity) ListAliasesAll(ctx context.Context, organizationID string, opts models.AliasesListOpts) iter.Seq2[models.Alias, error] {
+	return flattenPages(e.ListAliasesPages(ctx, organizationID, opts))
+}
+
+// ListAliasesPages yields one full *ListResponse[Alias] per page.
+func (e *aliasesEntity) ListAliasesPages(ctx context.Context, organizationID string, opts models.AliasesListOpts) iter.Seq2[*models.ListResponse[models.Alias], error] {
+	return func(yield func(*models.ListResponse[models.Alias], error) bool) {
+		current := opts
+		if current.Page <= 0 {
+			current.Page = 1
+		}
+
+		for {
+			if ctx.Err() != nil {
+				yield(nil, ctx.Err())
+				return
+			}
+
+			page, err := e.ListAliases(ctx, organizationID, current)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			if !yield(page, nil) {
+				return
+			}
+
+			if !page.Pagination.HasMore() {
+				return
+			}
+
+			current.Page++
+		}
+	}
 }
 
 // CreateAlias creates an alias for a holder.
@@ -234,11 +281,7 @@ func (e *aliasesEntity) listURL() string {
 	return fmt.Sprintf("%s/aliases", e.baseURLs["crm"])
 }
 
-func validatedAliasListQueryParams(operation string, opts *models.ListOptions) (map[string]string, error) {
-	if opts == nil {
-		return map[string]string{}, nil
-	}
-
+func validatedAliasListQueryParams(operation string, opts models.AliasesListOpts) (map[string]string, error) {
 	params := opts.ToQueryParams()
 
 	holderID, ok := params["holder_id"]

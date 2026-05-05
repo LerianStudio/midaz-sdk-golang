@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"iter"
 	"net/http"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
@@ -19,7 +20,11 @@ type SegmentsService interface {
 	// The organizationID, ledgerID parameters specify which organization, ledger to query.
 	// The opts parameter can be used to specify pagination, sorting, and filtering options.
 	// Returns a ListResponse containing the segments and pagination information, or an error if the operation fails.
-	ListSegments(ctx context.Context, organizationID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Segment], error)
+	ListSegments(ctx context.Context, organizationID, ledgerID string, opts models.SegmentsListOpts) (*models.ListResponse[models.Segment], error)
+
+	ListSegmentsAll(ctx context.Context, organizationID, ledgerID string, opts models.SegmentsListOpts) iter.Seq2[models.Segment, error]
+
+	ListSegmentsPages(ctx context.Context, organizationID, ledgerID string, opts models.SegmentsListOpts) iter.Seq2[*models.ListResponse[models.Segment], error]
 
 	// GetSegment retrieves a specific segment by its ID.
 	// The organizationID, ledgerID parameters specify which organization, ledger the segment belongs to.
@@ -140,11 +145,7 @@ func newSegmentsEntity(client *http.Client, authToken string, baseURLs map[strin
 }
 
 // ListSegments lists segments for a ledger with optional filters.
-func (e *segmentsEntity) ListSegments(
-	ctx context.Context,
-	organizationID, ledgerID string,
-	opts *models.ListOptions,
-) (*models.ListResponse[models.Segment], error) {
+func (e *segmentsEntity) ListSegments(ctx context.Context, organizationID, ledgerID string, opts models.SegmentsListOpts) (*models.ListResponse[models.Segment], error) {
 	const operation = "ListSegments"
 
 	if organizationID == "" {
@@ -155,6 +156,10 @@ func (e *segmentsEntity) ListSegments(
 		return nil, errors.NewMissingParameterError(operation, "ledgerID")
 	}
 
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+
 	url := e.buildURL(organizationID, ledgerID, "")
 
 	req, err := newRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -162,11 +167,9 @@ func (e *segmentsEntity) ListSegments(
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	// Add query parameters if provided
-	if opts != nil {
+	if params := opts.ToQueryParams(); len(params) > 0 {
 		q := req.URL.Query()
-
-		for key, value := range opts.ToQueryParams() {
+		for key, value := range params {
 			q.Add(key, value)
 		}
 
@@ -179,6 +182,44 @@ func (e *segmentsEntity) ListSegments(
 	}
 
 	return &response, nil
+}
+
+// ListSegmentsAll yields every segment matching the request, transparently advancing pagination.
+func (e *segmentsEntity) ListSegmentsAll(ctx context.Context, organizationID, ledgerID string, opts models.SegmentsListOpts) iter.Seq2[models.Segment, error] {
+	return flattenPages(e.ListSegmentsPages(ctx, organizationID, ledgerID, opts))
+}
+
+// ListSegmentsPages yields one full *ListResponse[Segment] per page.
+func (e *segmentsEntity) ListSegmentsPages(ctx context.Context, organizationID, ledgerID string, opts models.SegmentsListOpts) iter.Seq2[*models.ListResponse[models.Segment], error] {
+	return func(yield func(*models.ListResponse[models.Segment], error) bool) {
+		current := opts
+		if current.Page <= 0 {
+			current.Page = 1
+		}
+
+		for {
+			if ctx.Err() != nil {
+				yield(nil, ctx.Err())
+				return
+			}
+
+			page, err := e.ListSegments(ctx, organizationID, ledgerID, current)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			if !yield(page, nil) {
+				return
+			}
+
+			if !page.Pagination.HasMore() {
+				return
+			}
+
+			current.Page++
+		}
+	}
 }
 
 // GetSegment gets a segment by ID.

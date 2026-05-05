@@ -3,6 +3,7 @@ package generator
 import (
 	"context"
 	"errors"
+	"iter"
 	"testing"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/entities"
@@ -28,8 +29,16 @@ func (*mockAssetsService) GetAsset(_ context.Context, _, _, _ string) (*models.A
 	return nil, errors.New("mock: GetAsset not implemented")
 }
 
-func (*mockAssetsService) ListAssets(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.Asset], error) {
+func (*mockAssetsService) ListAssets(_ context.Context, _, _ string, _ models.AssetsListOpts) (*models.ListResponse[models.Asset], error) {
 	return nil, errors.New("mock: ListAssets not implemented")
+}
+
+func (*mockAssetsService) ListAssetsAll(_ context.Context, _, _ string, _ models.AssetsListOpts) iter.Seq2[models.Asset, error] {
+	return func(_ func(models.Asset, error) bool) {}
+}
+
+func (*mockAssetsService) ListAssetsPages(_ context.Context, _, _ string, _ models.AssetsListOpts) iter.Seq2[*models.ListResponse[models.Asset], error] {
+	return func(_ func(*models.ListResponse[models.Asset], error) bool) {}
 }
 
 func (*mockAssetsService) UpdateAsset(_ context.Context, _, _, _ string, _ *models.UpdateAssetInput) (*models.Asset, error) {

@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -213,7 +214,7 @@ func TestTenantIDPropagationThroughServiceEntity(t *testing.T) {
 		"crm":         srv.URL,
 	}, "e2e-tenant")
 
-	_, err := entity.Organizations.ListOrganizations(context.Background(), nil)
+	_, err := entity.Organizations.ListOrganizations(context.Background(), models.OrganizationsListOpts{})
 	require.NoError(t, err)
 
 	assert.Equal(t, "e2e-tenant", receivedHeader,
@@ -239,7 +240,7 @@ func TestTenantIDPropagationThroughServiceEntityWithUnexportedField(t *testing.T
 		"crm":         srv.URL,
 	}, "e2e-tenant-accounts")
 
-	_, err := entity.Accounts.ListAccounts(context.Background(), "org-1", "ledger-1", nil)
+	_, err := entity.Accounts.ListAccounts(context.Background(), "org-1", "ledger-1", models.AccountsListOpts{})
 	require.NoError(t, err)
 
 	assert.Equal(t, "e2e-tenant-accounts", receivedHeader,
@@ -288,7 +289,7 @@ func TestTenantIDPropagationAfterSetHTTPClient(t *testing.T) {
 
 	entity.SetHTTPClient(srv.Client())
 
-	_, err := entity.Organizations.ListOrganizations(context.Background(), nil)
+	_, err := entity.Organizations.ListOrganizations(context.Background(), models.OrganizationsListOpts{})
 	require.NoError(t, err)
 
 	assert.Equal(t, "surviving-tenant", receivedHeader,

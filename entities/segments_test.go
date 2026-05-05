@@ -174,7 +174,7 @@ func TestSegmentsEntity_ListSegments(t *testing.T) {
 		name           string
 		orgID          string
 		ledgerID       string
-		opts           *models.ListOptions
+		opts           models.SegmentsListOpts
 		mockResponse   string
 		mockStatusCode int
 		mockError      error
@@ -186,7 +186,7 @@ func TestSegmentsEntity_ListSegments(t *testing.T) {
 			name:     "success with no options",
 			orgID:    testOrgID,
 			ledgerID: testLedgerID,
-			opts:     nil,
+			opts:     models.SegmentsListOpts{},
 			mockResponse: `{
 				"items": [
 					{"id": "seg-1", "name": "Segment 1", "organizationId": "org-123", "ledgerId": "ledger-456", "status": {"code": "ACTIVE"}},
@@ -201,9 +201,8 @@ func TestSegmentsEntity_ListSegments(t *testing.T) {
 			name:     "success with pagination options",
 			orgID:    testOrgID,
 			ledgerID: testLedgerID,
-			opts: &models.ListOptions{
-				Limit:  5,
-				Offset: 10,
+			opts: models.SegmentsListOpts{
+				PageListOpts: models.PageListOpts{Limit: 5, Page: 3},
 			},
 			mockResponse: `{
 				"items": [
@@ -218,11 +217,13 @@ func TestSegmentsEntity_ListSegments(t *testing.T) {
 			name:     "success with sorting and filtering",
 			orgID:    testOrgID,
 			ledgerID: testLedgerID,
-			opts: &models.ListOptions{
-				Limit:          10,
-				OrderBy:        "name",
-				OrderDirection: "asc",
-				Filters:        map[string]string{"status": "ACTIVE"},
+			opts: models.SegmentsListOpts{
+				PageListOpts: models.PageListOpts{
+					Limit:         10,
+					OrderBy:       "name",
+					SortDirection: models.SortAscending,
+				},
+				Filters: models.SegmentsFilters{Status: "ACTIVE"},
 			},
 			mockResponse: `{
 				"items": [
@@ -360,12 +361,14 @@ func TestSegmentsEntity_ListSegments_QueryParams(t *testing.T) {
 		baseURLs:   map[string]string{"onboarding": "https://api.example.com"},
 	}
 
-	opts := &models.ListOptions{
-		Limit:          20,
-		Offset:         40,
-		OrderBy:        "createdAt",
-		OrderDirection: "desc",
-		Filters:        map[string]string{"status": "ACTIVE"},
+	opts := models.SegmentsListOpts{
+		PageListOpts: models.PageListOpts{
+			Limit:         20,
+			Page:          3,
+			OrderBy:       "createdAt",
+			SortDirection: models.SortDescending,
+		},
+		Filters: models.SegmentsFilters{Status: "ACTIVE"},
 	}
 
 	_, err := entity.ListSegments(context.Background(), testOrgID, testLedgerID, opts)
@@ -1253,7 +1256,7 @@ func TestSegmentsEntity_ValidationEdgeCases_ListSegments(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := entity.ListSegments(ctx, tc.orgID, tc.ledgerID, nil)
+			_, err := entity.ListSegments(ctx, tc.orgID, tc.ledgerID, models.SegmentsListOpts{})
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tc.errorContains)
 		})
@@ -1408,7 +1411,7 @@ func TestSegmentsEntity_IntegrationWithHTTPTestServer(t *testing.T) {
 			"onboarding": server.URL,
 		})
 
-		result, err := entity.ListSegments(context.Background(), "org-123", "ledger-456", nil)
+		result, err := entity.ListSegments(context.Background(), "org-123", "ledger-456", models.SegmentsListOpts{})
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.Len(t, result.Items, 2)
@@ -1607,7 +1610,7 @@ func TestSegmentsEntity_RequestURLConstruction(t *testing.T) {
 	ctx := context.Background()
 
 	// Test ListSegments URL
-	_, _ = entity.ListSegments(ctx, "org-abc", "ledger-xyz", nil)
+	_, _ = entity.ListSegments(ctx, "org-abc", "ledger-xyz", models.SegmentsListOpts{})
 
 	require.Len(t, capturedRequests, 1)
 	assert.Equal(t, http.MethodGet, capturedRequests[0].Method)
@@ -1615,9 +1618,8 @@ func TestSegmentsEntity_RequestURLConstruction(t *testing.T) {
 
 	// Reset and test with options
 	capturedRequests = nil
-	_, _ = entity.ListSegments(ctx, "org-123", "ledger-456", &models.ListOptions{
-		Limit:  25,
-		Offset: 50,
+	_, _ = entity.ListSegments(ctx, "org-123", "ledger-456", models.SegmentsListOpts{
+		PageListOpts: models.PageListOpts{Limit: 25, Page: 3},
 	})
 
 	require.Len(t, capturedRequests, 1)
@@ -1721,7 +1723,7 @@ func TestSegmentsEntity_ResponseParsing(t *testing.T) {
 			"onboarding": server.URL,
 		})
 
-		result, err := entity.ListSegments(context.Background(), "org-123", "ledger-456", nil)
+		result, err := entity.ListSegments(context.Background(), "org-123", "ledger-456", models.SegmentsListOpts{})
 		require.NoError(t, err)
 		require.NotNil(t, result)
 

@@ -2,6 +2,7 @@ package mocks
 
 import (
 	"context"
+	"iter"
 	"reflect"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
@@ -34,7 +35,7 @@ func (m *MockLedgersService) EXPECT() *MockLedgersServiceMockRecorder {
 }
 
 // ListLedgers mocks base method.
-func (m *MockLedgersService) ListLedgers(ctx context.Context, organizationID string, opts *models.ListOptions) (*models.ListResponse[models.Ledger], error) {
+func (m *MockLedgersService) ListLedgers(ctx context.Context, organizationID string, opts models.LedgersListOpts) (*models.ListResponse[models.Ledger], error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListLedgers", ctx, organizationID, opts)
 
@@ -146,4 +147,42 @@ func (m *MockLedgersService) DeleteLedger(ctx context.Context, organizationID, i
 func (mr *MockLedgersServiceMockRecorder) DeleteLedger(ctx, organizationID, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteLedger", reflect.TypeOf((*MockLedgersService)(nil).DeleteLedger), ctx, organizationID, id)
+}
+
+// ListLedgersAll mocks base method.
+func (m *MockLedgersService) ListLedgersAll(ctx context.Context, organizationID string, opts models.LedgersListOpts) iter.Seq2[models.Ledger, error] {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListLedgersAll", ctx, organizationID, opts)
+
+	var ret0 iter.Seq2[models.Ledger, error]
+	if ret[0] != nil {
+		ret0, _ = ret[0].(iter.Seq2[models.Ledger, error]) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	return ret0
+}
+
+// ListLedgersAll indicates an expected call of ListLedgersAll.
+func (mr *MockLedgersServiceMockRecorder) ListLedgersAll(ctx, organizationID, opts any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListLedgersAll", reflect.TypeOf((*MockLedgersService)(nil).ListLedgersAll), ctx, organizationID, opts)
+}
+
+// ListLedgersPages mocks base method.
+func (m *MockLedgersService) ListLedgersPages(ctx context.Context, organizationID string, opts models.LedgersListOpts) iter.Seq2[*models.ListResponse[models.Ledger], error] {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListLedgersPages", ctx, organizationID, opts)
+
+	var ret0 iter.Seq2[*models.ListResponse[models.Ledger], error]
+	if ret[0] != nil {
+		ret0, _ = ret[0].(iter.Seq2[*models.ListResponse[models.Ledger], error]) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	return ret0
+}
+
+// ListLedgersPages indicates an expected call of ListLedgersPages.
+func (mr *MockLedgersServiceMockRecorder) ListLedgersPages(ctx, organizationID, opts any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListLedgersPages", reflect.TypeOf((*MockLedgersService)(nil).ListLedgersPages), ctx, organizationID, opts)
 }

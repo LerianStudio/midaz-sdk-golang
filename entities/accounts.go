@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"iter"
 	"net/http"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
@@ -15,11 +16,30 @@ import (
 // It provides methods to create, read, update, and delete accounts,
 // as well as manage account balances.
 type AccountsService interface {
-	// ListAccounts retrieves a paginated list of accounts for a ledger with optional filters.
-	// The organizationID and ledgerID parameters specify which organization and ledger to query.
-	// The opts parameter can be used to specify pagination, sorting, and filtering options.
-	// Returns a ListResponse containing the accounts and pagination information, or an error if the operation fails.
-	ListAccounts(ctx context.Context, organizationID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Account], error)
+	// ListAccounts retrieves one page of accounts for a ledger.
+	//
+	// Validates opts before issuing the HTTP request. A failed
+	// validation returns a typed *errors.Error with category
+	// validation; the request is not sent.
+	//
+	// For most consumers prefer ListAccountsAll, which handles the
+	// page-traversal loop automatically and yields one item at a time
+	// via iter.Seq2.
+	ListAccounts(ctx context.Context, organizationID, ledgerID string, opts models.AccountsListOpts) (*models.ListResponse[models.Account], error)
+
+	// ListAccountsAll yields every account on the ledger, transparently
+	// advancing pagination. The returned iter.Seq2 short-circuits on
+	// the first transport or validation error.
+	//
+	// Pair with entities.Collect to materialize a bounded slice or
+	// entities.CollectAll for an unbounded drain.
+	ListAccountsAll(ctx context.Context, organizationID, ledgerID string, opts models.AccountsListOpts) iter.Seq2[models.Account, error]
+
+	// ListAccountsPages yields one full *ListResponse[Account] per
+	// page, transparently advancing pagination. Use this when the
+	// caller needs page-level metadata (Pagination shape, per-page
+	// item counts).
+	ListAccountsPages(ctx context.Context, organizationID, ledgerID string, opts models.AccountsListOpts) iter.Seq2[*models.ListResponse[models.Account], error]
 
 	// GetAccount retrieves a specific account by its ID.
 	// The organizationID and ledgerID parameters specify which organization and ledger the account belongs to.
@@ -179,8 +199,8 @@ func newAccountsEntity(client *http.Client, authToken string, baseURLs map[strin
 	}
 }
 
-// ListAccounts lists accounts for a ledger with optional filters.
-func (e *accountsEntity) ListAccounts(ctx context.Context, organizationID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Account], error) {
+// ListAccounts lists one page of accounts for a ledger.
+func (e *accountsEntity) ListAccounts(ctx context.Context, organizationID, ledgerID string, opts models.AccountsListOpts) (*models.ListResponse[models.Account], error) {
 	const operation = "ListAccounts"
 
 	if organizationID == "" {
@@ -191,6 +211,10 @@ func (e *accountsEntity) ListAccounts(ctx context.Context, organizationID, ledge
 		return nil, errors.NewMissingParameterError(operation, "ledgerID")
 	}
 
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+
 	endpoint := e.buildURL(organizationID, ledgerID, "")
 
 	req, err := newRequestWithContext(ctx, http.MethodGet, endpoint, nil)
@@ -198,11 +222,9 @@ func (e *accountsEntity) ListAccounts(ctx context.Context, organizationID, ledge
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	// Add query parameters if provided
-	if opts != nil {
+	if params := opts.ToQueryParams(); len(params) > 0 {
 		q := req.URL.Query()
-
-		for key, value := range opts.ToQueryParams() {
+		for key, value := range params {
 			q.Add(key, value)
 		}
 
@@ -215,6 +237,45 @@ func (e *accountsEntity) ListAccounts(ctx context.Context, organizationID, ledge
 	}
 
 	return &response, nil
+}
+
+// ListAccountsAll yields every account on the ledger, transparently
+// advancing pagination.
+func (e *accountsEntity) ListAccountsAll(ctx context.Context, organizationID, ledgerID string, opts models.AccountsListOpts) iter.Seq2[models.Account, error] {
+	return flattenPages(e.ListAccountsPages(ctx, organizationID, ledgerID, opts))
+}
+
+// ListAccountsPages yields one full *ListResponse[Account] per page.
+func (e *accountsEntity) ListAccountsPages(ctx context.Context, organizationID, ledgerID string, opts models.AccountsListOpts) iter.Seq2[*models.ListResponse[models.Account], error] {
+	return func(yield func(*models.ListResponse[models.Account], error) bool) {
+		current := opts
+		if current.Page <= 0 {
+			current.Page = 1
+		}
+
+		for {
+			if ctx.Err() != nil {
+				yield(nil, ctx.Err())
+				return
+			}
+
+			page, err := e.ListAccounts(ctx, organizationID, ledgerID, current)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			if !yield(page, nil) {
+				return
+			}
+
+			if !page.Pagination.HasMore() {
+				return
+			}
+
+			current.Page++
+		}
+	}
 }
 
 // GetAccount gets an account by ID.

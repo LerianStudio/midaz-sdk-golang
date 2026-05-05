@@ -3,7 +3,11 @@
 
 package entities
 
-import "iter"
+import (
+	"iter"
+
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+)
 
 // Collect drains up to maxItems items from a paginated iter.Seq2[T, error]
 // into a slice and short-circuits on the first error.
@@ -112,6 +116,33 @@ func CollectAll[T any](seq iter.Seq2[T, error]) ([]T, error) {
 	}
 
 	return out, nil
+}
+
+// flattenPages adapts an iter.Seq2 of *ListResponse[T] pages into an
+// iter.Seq2 of T items. Used internally by per-entity ListAll
+// methods to share the page-to-item flattening loop instead of
+// re-implementing it 12 times.
+//
+// On error the source iterator yields (nil, err). flattenPages
+// translates that to (zero T, err) on the output iterator.
+func flattenPages[T any](pages iter.Seq2[*models.ListResponse[T], error]) iter.Seq2[T, error] {
+	return func(yield func(T, error) bool) {
+		for page, err := range pages {
+			if err != nil {
+				var zero T
+
+				yield(zero, err)
+
+				return
+			}
+
+			for _, item := range page.Items {
+				if !yield(item, nil) {
+					return
+				}
+			}
+		}
+	}
 }
 
 // minCap returns the smaller of a and b, with both clamped to ≥ 0.

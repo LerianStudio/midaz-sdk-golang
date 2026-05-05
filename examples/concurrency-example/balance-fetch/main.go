@@ -56,7 +56,7 @@ func setupAndFetchAccounts() (*client.Client, []string, context.Context, context
 
 	fmt.Println("Fetching accounts...")
 
-	accounts, err := c.Accounts.ListAccounts(ctx, orgID, ledgerID, &models.ListOptions{})
+	accounts, err := c.Accounts.ListAccounts(ctx, orgID, ledgerID, models.AccountsListOpts{})
 	if err != nil {
 		cancel()
 		return nil, nil, nil, nil, fmt.Errorf("failed to list accounts: %w", err)

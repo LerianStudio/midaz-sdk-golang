@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	stderrors "errors"
 	"fmt"
+	"iter"
 	"net/http"
 	"net/url"
 	"time"
@@ -100,7 +101,9 @@ type BalancesService interface {
 	//
 	//	// Process the balances
 	//	fmt.Printf("Retrieved %d USD balances\n", len(balances.Items))
-	ListBalances(ctx context.Context, orgID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error)
+	ListBalances(ctx context.Context, orgID, ledgerID string, opts models.BalancesListOpts) (*models.ListResponse[models.Balance], error)
+	ListBalancesAll(ctx context.Context, orgID, ledgerID string, opts models.BalancesListOpts) iter.Seq2[models.Balance, error]
+	ListBalancesPages(ctx context.Context, orgID, ledgerID string, opts models.BalancesListOpts) iter.Seq2[*models.ListResponse[models.Balance], error]
 
 	// ListAccountBalances retrieves a paginated list of all balances for a specific account.
 	//
@@ -190,7 +193,9 @@ type BalancesService interface {
 	//	    fmt.Printf("%s: %.2f\n", balance.AssetCode, decimalValue)
 	//	}
 
-	ListAccountBalances(ctx context.Context, orgID, ledgerID, accountID string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error)
+	ListAccountBalances(ctx context.Context, orgID, ledgerID, accountID string, opts models.BalancesListOpts) (*models.ListResponse[models.Balance], error)
+	ListAccountBalancesAll(ctx context.Context, orgID, ledgerID, accountID string, opts models.BalancesListOpts) iter.Seq2[models.Balance, error]
+	ListAccountBalancesPages(ctx context.Context, orgID, ledgerID, accountID string, opts models.BalancesListOpts) iter.Seq2[*models.ListResponse[models.Balance], error]
 
 	// GetBalance retrieves a specific balance by its ID.
 	// The orgID, ledgerID, and balanceID parameters specify which organization, ledger, and balance to retrieve.
@@ -220,12 +225,16 @@ type BalancesService interface {
 	// ListBalancesByAccountAlias retrieves balances for an account identified by its alias.
 	// The alias is a human-readable identifier for the account.
 	// Returns a paginated list of balances, or an error if the operation fails.
-	ListBalancesByAccountAlias(ctx context.Context, orgID, ledgerID, alias string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error)
+	ListBalancesByAccountAlias(ctx context.Context, orgID, ledgerID, alias string, opts models.BalancesListOpts) (*models.ListResponse[models.Balance], error)
+	ListBalancesByAccountAliasAll(ctx context.Context, orgID, ledgerID, alias string, opts models.BalancesListOpts) iter.Seq2[models.Balance, error]
+	ListBalancesByAccountAliasPages(ctx context.Context, orgID, ledgerID, alias string, opts models.BalancesListOpts) iter.Seq2[*models.ListResponse[models.Balance], error]
 
 	// ListBalancesByExternalCode retrieves balances for an account identified by its external code.
 	// The external code links the account to external systems.
 	// Returns a paginated list of balances, or an error if the operation fails.
-	ListBalancesByExternalCode(ctx context.Context, orgID, ledgerID, code string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error)
+	ListBalancesByExternalCode(ctx context.Context, orgID, ledgerID, code string, opts models.BalancesListOpts) (*models.ListResponse[models.Balance], error)
+	ListBalancesByExternalCodeAll(ctx context.Context, orgID, ledgerID, code string, opts models.BalancesListOpts) iter.Seq2[models.Balance, error]
+	ListBalancesByExternalCodePages(ctx context.Context, orgID, ledgerID, code string, opts models.BalancesListOpts) iter.Seq2[*models.ListResponse[models.Balance], error]
 
 	// GetAccountBalancesHistory retrieves the historical state of all balances for an account at a specific point in time.
 	GetAccountBalancesHistory(ctx context.Context, orgID, ledgerID, accountID, date string) ([]models.BalanceHistory, error)
@@ -260,9 +269,8 @@ func newBalancesEntity(client *http.Client, authToken string, baseURLs map[strin
 // Returns a ListResponse containing the balances and pagination information, or an error if the operation fails.
 func (e *balancesEntity) ListBalances(
 	ctx context.Context,
-	orgID,
-	ledgerID string,
-	opts *models.ListOptions,
+	orgID, ledgerID string,
+	opts models.BalancesListOpts,
 ) (*models.ListResponse[models.Balance], error) {
 	const operation = "ListBalances"
 
@@ -274,6 +282,10 @@ func (e *balancesEntity) ListBalances(
 		return nil, errors.NewMissingParameterError(operation, "ledgerID")
 	}
 
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+
 	endpoint := e.buildURL(orgID, ledgerID, "")
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
@@ -281,11 +293,9 @@ func (e *balancesEntity) ListBalances(
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	// Add query parameters if provided
-	if opts != nil {
+	if params := opts.ToQueryParams(); len(params) > 0 {
 		q := req.URL.Query()
-
-		for key, value := range opts.ToQueryParams() {
+		for key, value := range params {
 			q.Add(key, value)
 		}
 
@@ -307,10 +317,8 @@ func (e *balancesEntity) ListBalances(
 // Returns a ListResponse containing the account balances and pagination information, or an error if the operation fails.
 func (e *balancesEntity) ListAccountBalances(
 	ctx context.Context,
-	orgID,
-	ledgerID,
-	accountID string,
-	opts *models.ListOptions,
+	orgID, ledgerID, accountID string,
+	opts models.BalancesListOpts,
 ) (*models.ListResponse[models.Balance], error) {
 	const operation = "ListAccountBalances"
 
@@ -326,6 +334,10 @@ func (e *balancesEntity) ListAccountBalances(
 		return nil, errors.NewMissingParameterError(operation, "accountID")
 	}
 
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+
 	endpoint := e.buildAccountURL(orgID, ledgerID, accountID)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
@@ -333,11 +345,9 @@ func (e *balancesEntity) ListAccountBalances(
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	// Add query parameters if provided
-	if opts != nil {
+	if params := opts.ToQueryParams(); len(params) > 0 {
 		q := req.URL.Query()
-
-		for key, value := range opts.ToQueryParams() {
+		for key, value := range params {
 			q.Add(key, value)
 		}
 
@@ -592,7 +602,7 @@ func (e *balancesEntity) CreateBalance(ctx context.Context, orgID, ledgerID, acc
 }
 
 // ListBalancesByAccountAlias retrieves balances for an account identified by its alias.
-func (e *balancesEntity) ListBalancesByAccountAlias(ctx context.Context, orgID, ledgerID, alias string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error) {
+func (e *balancesEntity) ListBalancesByAccountAlias(ctx context.Context, orgID, ledgerID, alias string, opts models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
 	const operation = "ListBalancesByAccountAlias"
 
 	if orgID == "" {
@@ -607,6 +617,10 @@ func (e *balancesEntity) ListBalancesByAccountAlias(ctx context.Context, orgID, 
 		return nil, errors.NewMissingParameterError(operation, "alias")
 	}
 
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+
 	endpoint := e.buildAccountAliasURL(orgID, ledgerID, alias)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
@@ -614,11 +628,9 @@ func (e *balancesEntity) ListBalancesByAccountAlias(ctx context.Context, orgID, 
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	// Add query parameters if provided
-	if opts != nil {
+	if params := opts.ToQueryParams(); len(params) > 0 {
 		q := req.URL.Query()
-
-		for key, value := range opts.ToQueryParams() {
+		for key, value := range params {
 			q.Add(key, value)
 		}
 
@@ -634,7 +646,7 @@ func (e *balancesEntity) ListBalancesByAccountAlias(ctx context.Context, orgID, 
 }
 
 // ListBalancesByExternalCode retrieves balances for an account identified by its external code.
-func (e *balancesEntity) ListBalancesByExternalCode(ctx context.Context, orgID, ledgerID, code string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error) {
+func (e *balancesEntity) ListBalancesByExternalCode(ctx context.Context, orgID, ledgerID, code string, opts models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
 	const operation = "ListBalancesByExternalCode"
 
 	if orgID == "" {
@@ -649,6 +661,10 @@ func (e *balancesEntity) ListBalancesByExternalCode(ctx context.Context, orgID, 
 		return nil, errors.NewMissingParameterError(operation, "code")
 	}
 
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+
 	endpoint := e.buildExternalCodeURL(orgID, ledgerID, code)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
@@ -656,11 +672,9 @@ func (e *balancesEntity) ListBalancesByExternalCode(ctx context.Context, orgID, 
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	// Add query parameters if provided
-	if opts != nil {
+	if params := opts.ToQueryParams(); len(params) > 0 {
 		q := req.URL.Query()
-
-		for key, value := range opts.ToQueryParams() {
+		for key, value := range params {
 			q.Add(key, value)
 		}
 
@@ -752,4 +766,160 @@ func validateBalanceHistoryDate(date string) error {
 	}
 
 	return stderrors.New("date must use YYYY-MM-DD, YYYY-MM-DD HH:MM:SS, or RFC3339")
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// iter.Seq2 iterators (Track 5 Batch 5D)
+// ─────────────────────────────────────────────────────────────────────
+
+// ListBalancesAll yields every balance on the ledger, transparently advancing pagination.
+func (e *balancesEntity) ListBalancesAll(ctx context.Context, orgID, ledgerID string, opts models.BalancesListOpts) iter.Seq2[models.Balance, error] {
+	return flattenPages(e.ListBalancesPages(ctx, orgID, ledgerID, opts))
+}
+
+// ListBalancesPages yields one full *ListResponse[Balance] per page.
+func (e *balancesEntity) ListBalancesPages(ctx context.Context, orgID, ledgerID string, opts models.BalancesListOpts) iter.Seq2[*models.ListResponse[models.Balance], error] {
+	return func(yield func(*models.ListResponse[models.Balance], error) bool) {
+		current := opts
+		if current.Page <= 0 {
+			current.Page = 1
+		}
+
+		for {
+			if ctx.Err() != nil {
+				yield(nil, ctx.Err())
+				return
+			}
+
+			page, err := e.ListBalances(ctx, orgID, ledgerID, current)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			if !yield(page, nil) {
+				return
+			}
+
+			if !page.Pagination.HasMore() {
+				return
+			}
+
+			current.Page++
+		}
+	}
+}
+
+// ListAccountBalancesAll yields every balance for an account, transparently advancing pagination.
+func (e *balancesEntity) ListAccountBalancesAll(ctx context.Context, orgID, ledgerID, accountID string, opts models.BalancesListOpts) iter.Seq2[models.Balance, error] {
+	return flattenPages(e.ListAccountBalancesPages(ctx, orgID, ledgerID, accountID, opts))
+}
+
+// ListAccountBalancesPages yields one full *ListResponse[Balance] per page for an account.
+func (e *balancesEntity) ListAccountBalancesPages(ctx context.Context, orgID, ledgerID, accountID string, opts models.BalancesListOpts) iter.Seq2[*models.ListResponse[models.Balance], error] {
+	return func(yield func(*models.ListResponse[models.Balance], error) bool) {
+		current := opts
+		if current.Page <= 0 {
+			current.Page = 1
+		}
+
+		for {
+			if ctx.Err() != nil {
+				yield(nil, ctx.Err())
+				return
+			}
+
+			page, err := e.ListAccountBalances(ctx, orgID, ledgerID, accountID, current)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			if !yield(page, nil) {
+				return
+			}
+
+			if !page.Pagination.HasMore() {
+				return
+			}
+
+			current.Page++
+		}
+	}
+}
+
+// ListBalancesByAccountAliasAll yields every balance for an account alias, transparently advancing pagination.
+func (e *balancesEntity) ListBalancesByAccountAliasAll(ctx context.Context, orgID, ledgerID, alias string, opts models.BalancesListOpts) iter.Seq2[models.Balance, error] {
+	return flattenPages(e.ListBalancesByAccountAliasPages(ctx, orgID, ledgerID, alias, opts))
+}
+
+// ListBalancesByAccountAliasPages yields one full *ListResponse[Balance] per page for an alias.
+func (e *balancesEntity) ListBalancesByAccountAliasPages(ctx context.Context, orgID, ledgerID, alias string, opts models.BalancesListOpts) iter.Seq2[*models.ListResponse[models.Balance], error] {
+	return func(yield func(*models.ListResponse[models.Balance], error) bool) {
+		current := opts
+		if current.Page <= 0 {
+			current.Page = 1
+		}
+
+		for {
+			if ctx.Err() != nil {
+				yield(nil, ctx.Err())
+				return
+			}
+
+			page, err := e.ListBalancesByAccountAlias(ctx, orgID, ledgerID, alias, current)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			if !yield(page, nil) {
+				return
+			}
+
+			if !page.Pagination.HasMore() {
+				return
+			}
+
+			current.Page++
+		}
+	}
+}
+
+// ListBalancesByExternalCodeAll yields every balance for an external code, transparently advancing pagination.
+func (e *balancesEntity) ListBalancesByExternalCodeAll(ctx context.Context, orgID, ledgerID, code string, opts models.BalancesListOpts) iter.Seq2[models.Balance, error] {
+	return flattenPages(e.ListBalancesByExternalCodePages(ctx, orgID, ledgerID, code, opts))
+}
+
+// ListBalancesByExternalCodePages yields one full *ListResponse[Balance] per page for an external code.
+func (e *balancesEntity) ListBalancesByExternalCodePages(ctx context.Context, orgID, ledgerID, code string, opts models.BalancesListOpts) iter.Seq2[*models.ListResponse[models.Balance], error] {
+	return func(yield func(*models.ListResponse[models.Balance], error) bool) {
+		current := opts
+		if current.Page <= 0 {
+			current.Page = 1
+		}
+
+		for {
+			if ctx.Err() != nil {
+				yield(nil, ctx.Err())
+				return
+			}
+
+			page, err := e.ListBalancesByExternalCode(ctx, orgID, ledgerID, code, current)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			if !yield(page, nil) {
+				return
+			}
+
+			if !page.Pagination.HasMore() {
+				return
+			}
+
+			current.Page++
+		}
+	}
 }

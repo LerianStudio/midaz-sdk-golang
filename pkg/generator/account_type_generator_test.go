@@ -3,6 +3,7 @@ package generator
 import (
 	"context"
 	"errors"
+	"iter"
 	"testing"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/entities"
@@ -28,8 +29,16 @@ func (*mockAccountTypesService) GetAccountType(_ context.Context, _, _, _ string
 	return nil, errors.New("mock: GetAccountType not implemented")
 }
 
-func (*mockAccountTypesService) ListAccountTypes(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.AccountType], error) {
+func (*mockAccountTypesService) ListAccountTypes(_ context.Context, _, _ string, _ models.AccountTypesListOpts) (*models.ListResponse[models.AccountType], error) {
 	return nil, errors.New("mock: ListAccountTypes not implemented")
+}
+
+func (*mockAccountTypesService) ListAccountTypesAll(_ context.Context, _, _ string, _ models.AccountTypesListOpts) iter.Seq2[models.AccountType, error] {
+	return func(_ func(models.AccountType, error) bool) {}
+}
+
+func (*mockAccountTypesService) ListAccountTypesPages(_ context.Context, _, _ string, _ models.AccountTypesListOpts) iter.Seq2[*models.ListResponse[models.AccountType], error] {
+	return func(_ func(*models.ListResponse[models.AccountType], error) bool) {}
 }
 
 func (*mockAccountTypesService) UpdateAccountType(_ context.Context, _, _, _ string, _ *models.UpdateAccountTypeInput) (*models.AccountType, error) {

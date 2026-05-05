@@ -2,6 +2,7 @@ package mocks
 
 import (
 	"context"
+	"iter"
 	"reflect"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
@@ -33,7 +34,7 @@ func (m *MockSegmentsService) EXPECT() *MockSegmentsServiceMockRecorder {
 }
 
 // ListSegments mocks base method.
-func (m *MockSegmentsService) ListSegments(ctx context.Context, organizationID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Segment], error) {
+func (m *MockSegmentsService) ListSegments(ctx context.Context, organizationID, ledgerID string, opts models.SegmentsListOpts) (*models.ListResponse[models.Segment], error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListSegments", ctx, organizationID, ledgerID, opts)
 
@@ -145,4 +146,42 @@ func (m *MockSegmentsService) DeleteSegment(ctx context.Context, organizationID,
 func (mr *MockSegmentsServiceMockRecorder) DeleteSegment(ctx, organizationID, ledgerID, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteSegment", reflect.TypeOf((*MockSegmentsService)(nil).DeleteSegment), ctx, organizationID, ledgerID, id)
+}
+
+// ListSegmentsAll mocks base method.
+func (m *MockSegmentsService) ListSegmentsAll(ctx context.Context, organizationID, ledgerID string, opts models.SegmentsListOpts) iter.Seq2[models.Segment, error] {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListSegmentsAll", ctx, organizationID, ledgerID, opts)
+
+	var ret0 iter.Seq2[models.Segment, error]
+	if ret[0] != nil {
+		ret0, _ = ret[0].(iter.Seq2[models.Segment, error]) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	return ret0
+}
+
+// ListSegmentsAll indicates an expected call of ListSegmentsAll.
+func (mr *MockSegmentsServiceMockRecorder) ListSegmentsAll(ctx, organizationID, ledgerID, opts any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListSegmentsAll", reflect.TypeOf((*MockSegmentsService)(nil).ListSegmentsAll), ctx, organizationID, ledgerID, opts)
+}
+
+// ListSegmentsPages mocks base method.
+func (m *MockSegmentsService) ListSegmentsPages(ctx context.Context, organizationID, ledgerID string, opts models.SegmentsListOpts) iter.Seq2[*models.ListResponse[models.Segment], error] {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListSegmentsPages", ctx, organizationID, ledgerID, opts)
+
+	var ret0 iter.Seq2[*models.ListResponse[models.Segment], error]
+	if ret[0] != nil {
+		ret0, _ = ret[0].(iter.Seq2[*models.ListResponse[models.Segment], error]) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	return ret0
+}
+
+// ListSegmentsPages indicates an expected call of ListSegmentsPages.
+func (mr *MockSegmentsServiceMockRecorder) ListSegmentsPages(ctx, organizationID, ledgerID, opts any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListSegmentsPages", reflect.TypeOf((*MockSegmentsService)(nil).ListSegmentsPages), ctx, organizationID, ledgerID, opts)
 }

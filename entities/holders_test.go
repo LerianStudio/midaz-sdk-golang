@@ -120,7 +120,9 @@ func TestHoldersEntity_ListGetDelete_RequestConstruction(t *testing.T) {
 	defer server.Close()
 
 	service := newHoldersEntity(server.Client(), "token", map[string]string{"crm": server.URL}).(*holdersEntity)
-	list, err := service.ListHolders(context.Background(), crmOrgID, models.NewListOptions().WithExternalID("external-123"))
+	list, err := service.ListHolders(context.Background(), crmOrgID, models.HoldersListOpts{
+		Filters: models.HoldersFilters{ExternalID: "external-123"},
+	})
 	require.NoError(t, err)
 	require.Len(t, list.Items, 1)
 	assert.Equal(t, 10, list.Pagination.Limit)

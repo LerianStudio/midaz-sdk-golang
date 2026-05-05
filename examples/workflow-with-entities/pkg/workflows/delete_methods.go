@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	client "github.com/LerianStudio/midaz-sdk-golang/v3"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 )
 
 // TestDeleteMethods tests various Delete methods of the Midaz SDK
@@ -50,7 +51,7 @@ func testDeleteMethods(ctx context.Context, midazClient *client.Client, orgID, l
 func deleteAllSegments(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) error {
 	fmt.Println("\nDeleting all segments...")
 
-	segmentsResponse, err := midazClient.Segments.ListSegments(ctx, orgID, ledgerID, nil)
+	segmentsResponse, err := midazClient.Segments.ListSegments(ctx, orgID, ledgerID, models.SegmentsListOpts{})
 	if err != nil {
 		return fmt.Errorf("failed to list segments: %w", err)
 	}
@@ -71,7 +72,7 @@ func deleteAllSegments(ctx context.Context, midazClient *client.Client, orgID, l
 func deleteAllPortfolios(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) error {
 	fmt.Println("\nDeleting all portfolios...")
 
-	portfoliosResponse, err := midazClient.Portfolios.ListPortfolios(ctx, orgID, ledgerID, nil)
+	portfoliosResponse, err := midazClient.Portfolios.ListPortfolios(ctx, orgID, ledgerID, models.PortfoliosListOpts{})
 	if err != nil {
 		return fmt.Errorf("failed to list portfolios: %w", err)
 	}
@@ -92,7 +93,7 @@ func deleteAllPortfolios(ctx context.Context, midazClient *client.Client, orgID,
 func deleteAllAccounts(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) error {
 	fmt.Println("\nDeleting all accounts...")
 
-	accountsResponse, err := midazClient.Accounts.ListAccounts(ctx, orgID, ledgerID, nil)
+	accountsResponse, err := midazClient.Accounts.ListAccounts(ctx, orgID, ledgerID, models.AccountsListOpts{})
 	if err != nil {
 		return fmt.Errorf("failed to list accounts: %w", err)
 	}

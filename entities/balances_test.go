@@ -247,7 +247,7 @@ func TestBalancesEntity_ListBalances(t *testing.T) {
 		name           string
 		orgID          string
 		ledgerID       string
-		opts           *models.ListOptions
+		opts           models.BalancesListOpts
 		mockResponse   string
 		mockStatusCode int
 		mockError      error
@@ -259,7 +259,7 @@ func TestBalancesEntity_ListBalances(t *testing.T) {
 			name:     "Success with no options",
 			orgID:    "org-123",
 			ledgerID: "ledger-456",
-			opts:     nil,
+			opts:     models.BalancesListOpts{},
 			mockResponse: `{
 				"items": [
 					{
@@ -304,10 +304,7 @@ func TestBalancesEntity_ListBalances(t *testing.T) {
 			name:     "Success with pagination options",
 			orgID:    "org-123",
 			ledgerID: "ledger-456",
-			opts: &models.ListOptions{
-				Limit:  5,
-				Offset: 10,
-			},
+			opts:     models.BalancesListOpts{PageListOpts: models.PageListOpts{Limit: 5, Page: 3}},
 			mockResponse: `{
 				"items": [
 					{
@@ -441,7 +438,7 @@ func TestBalancesEntity_ListAccountBalances(t *testing.T) {
 		orgID          string
 		ledgerID       string
 		accountID      string
-		opts           *models.ListOptions
+		opts           models.BalancesListOpts
 		mockResponse   string
 		mockStatusCode int
 		mockError      error
@@ -453,7 +450,7 @@ func TestBalancesEntity_ListAccountBalances(t *testing.T) {
 			orgID:     "org-123",
 			ledgerID:  "ledger-456",
 			accountID: "acc-789",
-			opts:      nil,
+			opts:      models.BalancesListOpts{},
 			mockResponse: `{
 				"items": [
 					{
@@ -491,10 +488,7 @@ func TestBalancesEntity_ListAccountBalances(t *testing.T) {
 			orgID:     "org-123",
 			ledgerID:  "ledger-456",
 			accountID: "acc-789",
-			opts: &models.ListOptions{
-				Limit:  5,
-				Offset: 0,
-			},
+			opts:      models.BalancesListOpts{PageListOpts: models.PageListOpts{Limit: 5, Page: 1}},
 			mockResponse: `{
 				"items": [
 					{
@@ -1216,7 +1210,7 @@ func TestBalancesEntity_ListBalancesByAccountAlias(t *testing.T) {
 		orgID          string
 		ledgerID       string
 		alias          string
-		opts           *models.ListOptions
+		opts           models.BalancesListOpts
 		mockResponse   string
 		mockStatusCode int
 		mockError      error
@@ -1229,7 +1223,7 @@ func TestBalancesEntity_ListBalancesByAccountAlias(t *testing.T) {
 			orgID:    "org-123",
 			ledgerID: "ledger-456",
 			alias:    "@person1",
-			opts:     nil,
+			opts:     models.BalancesListOpts{},
 			mockResponse: `{
 				"items": [
 					{
@@ -1262,10 +1256,7 @@ func TestBalancesEntity_ListBalancesByAccountAlias(t *testing.T) {
 			orgID:    "org-123",
 			ledgerID: "ledger-456",
 			alias:    "my-account",
-			opts: &models.ListOptions{
-				Limit:  5,
-				Offset: 0,
-			},
+			opts:     models.BalancesListOpts{PageListOpts: models.PageListOpts{Limit: 5, Page: 1}},
 			mockResponse: `{
 				"items": [
 					{
@@ -1394,7 +1385,7 @@ func TestBalancesEntity_ListBalancesByExternalCode(t *testing.T) {
 		orgID          string
 		ledgerID       string
 		code           string
-		opts           *models.ListOptions
+		opts           models.BalancesListOpts
 		mockResponse   string
 		mockStatusCode int
 		mockError      error
@@ -1407,7 +1398,7 @@ func TestBalancesEntity_ListBalancesByExternalCode(t *testing.T) {
 			orgID:    "org-123",
 			ledgerID: "ledger-456",
 			code:     "EXT-001",
-			opts:     nil,
+			opts:     models.BalancesListOpts{},
 			mockResponse: `{
 				"items": [
 					{
@@ -1439,10 +1430,7 @@ func TestBalancesEntity_ListBalancesByExternalCode(t *testing.T) {
 			orgID:    "org-123",
 			ledgerID: "ledger-456",
 			code:     "customer123456",
-			opts: &models.ListOptions{
-				Limit:  10,
-				Offset: 0,
-			},
+			opts:     models.BalancesListOpts{PageListOpts: models.PageListOpts{Limit: 10, Page: 1}},
 			mockResponse: `{
 				"items": [
 					{
@@ -1608,7 +1596,7 @@ func TestBalancesEntity_HTTPServerIntegration(t *testing.T) {
 			"transaction": server.URL,
 		})
 
-		result, err := entity.ListBalances(context.Background(), "org-123", "ledger-456", nil)
+		result, err := entity.ListBalances(context.Background(), "org-123", "ledger-456", models.BalancesListOpts{})
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.Len(t, result.Items, 1)
@@ -1777,7 +1765,7 @@ func TestBalancesEntity_HTTPServerIntegration(t *testing.T) {
 			"transaction": server.URL,
 		})
 
-		result, err := entity.ListBalancesByAccountAlias(context.Background(), "org-123", "ledger-456", "@person1", nil)
+		result, err := entity.ListBalancesByAccountAlias(context.Background(), "org-123", "ledger-456", "@person1", models.BalancesListOpts{})
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.Len(t, result.Items, 1)
@@ -1818,7 +1806,7 @@ func TestBalancesEntity_HTTPServerIntegration(t *testing.T) {
 			"transaction": server.URL,
 		})
 
-		result, err := entity.ListBalancesByExternalCode(context.Background(), "org-123", "ledger-456", "EXT-001", nil)
+		result, err := entity.ListBalancesByExternalCode(context.Background(), "org-123", "ledger-456", "EXT-001", models.BalancesListOpts{})
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.Len(t, result.Items, 1)
@@ -1905,7 +1893,7 @@ func TestBalancesEntity_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, err := entity.ListBalances(ctx, "org-123", "ledger-456", nil)
+	_, err := entity.ListBalances(ctx, "org-123", "ledger-456", models.BalancesListOpts{})
 	require.Error(t, err)
 }
 
@@ -1948,12 +1936,7 @@ func TestBalancesEntity_QueryParameterEncoding(t *testing.T) {
 		"transaction": server.URL,
 	})
 
-	opts := &models.ListOptions{
-		Limit:          25,
-		Offset:         50,
-		OrderBy:        "createdAt",
-		OrderDirection: "desc",
-	}
+	opts := models.BalancesListOpts{PageListOpts: models.PageListOpts{Limit: 25, Page: 3, OrderBy: "createdAt", SortDirection: models.SortDescending}}
 
 	_, err := entity.ListBalances(context.Background(), "org-123", "ledger-456", opts)
 	require.NoError(t, err)
@@ -2070,15 +2053,14 @@ func TestBalancesEntity_ListOptionsFilters(t *testing.T) {
 	})
 
 	t.Run("With filters", func(t *testing.T) {
-		opts := &models.ListOptions{
-			Limit:   10,
-			Offset:  0,
-			Filters: map[string]string{"assetCode": "USD"},
+		opts := models.BalancesListOpts{
+			PageListOpts: models.PageListOpts{Limit: 10},
+			Filters:      models.BalancesFilters{AssetCode: "USD"},
 		}
 
 		_, err := entity.ListBalances(context.Background(), "org-123", "ledger-456", opts)
 		require.NoError(t, err)
-		assert.Contains(t, capturedQuery, "assetCode=USD")
+		assert.Contains(t, capturedQuery, "asset_code=USD")
 	})
 }
 

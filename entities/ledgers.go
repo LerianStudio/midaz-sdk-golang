@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"iter"
 	"net/http"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
@@ -19,7 +20,11 @@ type LedgersService interface {
 	// The organizationID parameter specifies which organization to query.
 	// The opts parameter can be used to specify pagination, sorting, and filtering options.
 	// Returns a ListResponse containing the ledgers and pagination information, or an error if the operation fails.
-	ListLedgers(ctx context.Context, organizationID string, opts *models.ListOptions) (*models.ListResponse[models.Ledger], error)
+	ListLedgers(ctx context.Context, organizationID string, opts models.LedgersListOpts) (*models.ListResponse[models.Ledger], error)
+
+	ListLedgersAll(ctx context.Context, organizationID string, opts models.LedgersListOpts) iter.Seq2[models.Ledger, error]
+
+	ListLedgersPages(ctx context.Context, organizationID string, opts models.LedgersListOpts) iter.Seq2[*models.ListResponse[models.Ledger], error]
 
 	// GetLedger retrieves a specific ledger by its ID.
 	// The organizationID parameter specifies which organization the ledger belongs to.
@@ -147,15 +152,15 @@ func newLedgersEntity(client *http.Client, authToken string, baseURLs map[string
 // The organizationID parameter specifies which organization to query.
 // The opts parameter can be used to specify pagination, sorting, and filtering options.
 // Returns a ListResponse containing the ledgers and pagination information, or an error if the operation fails.
-func (e *ledgersEntity) ListLedgers(
-	ctx context.Context,
-	organizationID string,
-	opts *models.ListOptions,
-) (*models.ListResponse[models.Ledger], error) {
+func (e *ledgersEntity) ListLedgers(ctx context.Context, organizationID string, opts models.LedgersListOpts) (*models.ListResponse[models.Ledger], error) {
 	const operation = "ListLedgers"
 
 	if organizationID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
+	}
+
+	if err := opts.Validate(); err != nil {
+		return nil, err
 	}
 
 	url := e.buildURL(organizationID, "")
@@ -165,11 +170,9 @@ func (e *ledgersEntity) ListLedgers(
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	// Add query parameters if provided
-	if opts != nil {
+	if params := opts.ToQueryParams(); len(params) > 0 {
 		q := req.URL.Query()
-
-		for key, value := range opts.ToQueryParams() {
+		for key, value := range params {
 			q.Add(key, value)
 		}
 
@@ -182,6 +185,44 @@ func (e *ledgersEntity) ListLedgers(
 	}
 
 	return &response, nil
+}
+
+// ListLedgersAll yields every ledger matching the request, transparently advancing pagination.
+func (e *ledgersEntity) ListLedgersAll(ctx context.Context, organizationID string, opts models.LedgersListOpts) iter.Seq2[models.Ledger, error] {
+	return flattenPages(e.ListLedgersPages(ctx, organizationID, opts))
+}
+
+// ListLedgersPages yields one full *ListResponse[Ledger] per page.
+func (e *ledgersEntity) ListLedgersPages(ctx context.Context, organizationID string, opts models.LedgersListOpts) iter.Seq2[*models.ListResponse[models.Ledger], error] {
+	return func(yield func(*models.ListResponse[models.Ledger], error) bool) {
+		current := opts
+		if current.Page <= 0 {
+			current.Page = 1
+		}
+
+		for {
+			if ctx.Err() != nil {
+				yield(nil, ctx.Err())
+				return
+			}
+
+			page, err := e.ListLedgers(ctx, organizationID, current)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			if !yield(page, nil) {
+				return
+			}
+
+			if !page.Pagination.HasMore() {
+				return
+			}
+
+			current.Page++
+		}
+	}
 }
 
 // GetLedger gets a ledger by ID.

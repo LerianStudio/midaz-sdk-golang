@@ -119,7 +119,9 @@ func TestAliasesEntity_ListGetDelete_RequestConstruction(t *testing.T) {
 	defer server.Close()
 
 	service := newAliasesEntity(server.Client(), "token", map[string]string{"crm": server.URL}).(*aliasesEntity)
-	list, err := service.ListAliases(context.Background(), crmOrgID, models.NewListOptions().WithHolderID(crmHolderID))
+	list, err := service.ListAliases(context.Background(), crmOrgID, models.AliasesListOpts{
+		Filters: models.AliasesFilters{HolderID: crmHolderID},
+	})
 	require.NoError(t, err)
 	require.Len(t, list.Items, 1)
 	assert.Equal(t, 10, list.Pagination.Limit)

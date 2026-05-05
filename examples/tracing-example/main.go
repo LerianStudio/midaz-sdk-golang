@@ -153,7 +153,7 @@ func (wc *workflowContext) listOrganizationsStep(ctx context.Context) (context.C
 
 	wc.logger.Info("Listing organizations")
 
-	organizations, err := wc.midazClient.Organizations.ListOrganizations(ctx, nil)
+	organizations, err := wc.midazClient.Organizations.ListOrganizations(ctx, models.OrganizationsListOpts{})
 	if err != nil {
 		listSpan.SetStatus(codes.Error, err.Error())
 		listSpan.RecordError(err)

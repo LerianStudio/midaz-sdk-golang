@@ -2,6 +2,7 @@ package mocks
 
 import (
 	"context"
+	"iter"
 	"reflect"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
@@ -34,7 +35,7 @@ func (m *MockOrganizationsService) EXPECT() *MockOrganizationsServiceMockRecorde
 }
 
 // ListOrganizations mocks base method.
-func (m *MockOrganizationsService) ListOrganizations(ctx context.Context, opts *models.ListOptions) (*models.ListResponse[models.Organization], error) {
+func (m *MockOrganizationsService) ListOrganizations(ctx context.Context, opts models.OrganizationsListOpts) (*models.ListResponse[models.Organization], error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListOrganizations", ctx, opts)
 
@@ -146,4 +147,42 @@ func (m *MockOrganizationsService) DeleteOrganization(ctx context.Context, id st
 func (mr *MockOrganizationsServiceMockRecorder) DeleteOrganization(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOrganization", reflect.TypeOf((*MockOrganizationsService)(nil).DeleteOrganization), ctx, id)
+}
+
+// ListOrganizationsAll mocks base method.
+func (m *MockOrganizationsService) ListOrganizationsAll(ctx context.Context, opts models.OrganizationsListOpts) iter.Seq2[models.Organization, error] {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListOrganizationsAll", ctx, opts)
+
+	var ret0 iter.Seq2[models.Organization, error]
+	if ret[0] != nil {
+		ret0, _ = ret[0].(iter.Seq2[models.Organization, error]) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	return ret0
+}
+
+// ListOrganizationsAll indicates an expected call of ListOrganizationsAll.
+func (mr *MockOrganizationsServiceMockRecorder) ListOrganizationsAll(ctx, opts any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListOrganizationsAll", reflect.TypeOf((*MockOrganizationsService)(nil).ListOrganizationsAll), ctx, opts)
+}
+
+// ListOrganizationsPages mocks base method.
+func (m *MockOrganizationsService) ListOrganizationsPages(ctx context.Context, opts models.OrganizationsListOpts) iter.Seq2[*models.ListResponse[models.Organization], error] {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListOrganizationsPages", ctx, opts)
+
+	var ret0 iter.Seq2[*models.ListResponse[models.Organization], error]
+	if ret[0] != nil {
+		ret0, _ = ret[0].(iter.Seq2[*models.ListResponse[models.Organization], error]) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	return ret0
+}
+
+// ListOrganizationsPages indicates an expected call of ListOrganizationsPages.
+func (mr *MockOrganizationsServiceMockRecorder) ListOrganizationsPages(ctx, opts any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListOrganizationsPages", reflect.TypeOf((*MockOrganizationsService)(nil).ListOrganizationsPages), ctx, opts)
 }

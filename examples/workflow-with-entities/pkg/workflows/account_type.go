@@ -140,10 +140,8 @@ func GetAccountType(ctx context.Context, midazClient *client.Client, orgID, ledg
 func ListAccountTypes(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) error {
 	fmt.Println("\n📄 Listing Account Types...")
 
-	// List account types with pagination options
-	opts := &models.ListOptions{
-		Page:  1,
-		Limit: 10,
+	opts := models.AccountTypesListOpts{
+		PageListOpts: models.PageListOpts{Page: 1, Limit: 10},
 	}
 
 	accountTypes, err := midazClient.AccountTypes.ListAccountTypes(ctx, orgID, ledgerID, opts)

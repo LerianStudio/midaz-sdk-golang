@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"iter"
 	"net/http"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
@@ -15,10 +16,14 @@ import (
 // It provides methods to create, read, update, and delete organizations
 // in the Midaz platform.
 type OrganizationsService interface {
-	// ListOrganizations retrieves a paginated list of organizations with optional filters.
-	// The opts parameter can be used to specify pagination, sorting, and filtering options.
-	// Returns a ListResponse containing the organizations and pagination information, or an error if the operation fails.
-	ListOrganizations(ctx context.Context, opts *models.ListOptions) (*models.ListResponse[models.Organization], error)
+	// ListOrganizations retrieves one page of organizations.
+	ListOrganizations(ctx context.Context, opts models.OrganizationsListOpts) (*models.ListResponse[models.Organization], error)
+
+	// ListOrganizationsAll yields every organization, transparently advancing pagination.
+	ListOrganizationsAll(ctx context.Context, opts models.OrganizationsListOpts) iter.Seq2[models.Organization, error]
+
+	// ListOrganizationsPages yields one full *ListResponse[Organization] per page.
+	ListOrganizationsPages(ctx context.Context, opts models.OrganizationsListOpts) iter.Seq2[*models.ListResponse[models.Organization], error]
 
 	// GetOrganization retrieves a specific organization by its ID.
 	// The id parameter is the unique identifier of the organization to retrieve.
@@ -154,9 +159,13 @@ func newOrganizationsEntity(client *http.Client, authToken string, baseURLs map[
 	}
 }
 
-// ListOrganizations lists organizations with optional filters.
-func (e *organizationsEntity) ListOrganizations(ctx context.Context, opts *models.ListOptions) (*models.ListResponse[models.Organization], error) {
+// ListOrganizations lists one page of organizations.
+func (e *organizationsEntity) ListOrganizations(ctx context.Context, opts models.OrganizationsListOpts) (*models.ListResponse[models.Organization], error) {
 	const operation = "ListOrganizations"
+
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
 
 	url := e.buildURL("")
 
@@ -165,11 +174,9 @@ func (e *organizationsEntity) ListOrganizations(ctx context.Context, opts *model
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	// Add query parameters if provided
-	if opts != nil {
+	if params := opts.ToQueryParams(); len(params) > 0 {
 		q := req.URL.Query()
-
-		for key, value := range opts.ToQueryParams() {
+		for key, value := range params {
 			q.Add(key, value)
 		}
 
@@ -182,6 +189,44 @@ func (e *organizationsEntity) ListOrganizations(ctx context.Context, opts *model
 	}
 
 	return &response, nil
+}
+
+// ListOrganizationsAll yields every organization, transparently advancing pagination.
+func (e *organizationsEntity) ListOrganizationsAll(ctx context.Context, opts models.OrganizationsListOpts) iter.Seq2[models.Organization, error] {
+	return flattenPages(e.ListOrganizationsPages(ctx, opts))
+}
+
+// ListOrganizationsPages yields one full *ListResponse[Organization] per page.
+func (e *organizationsEntity) ListOrganizationsPages(ctx context.Context, opts models.OrganizationsListOpts) iter.Seq2[*models.ListResponse[models.Organization], error] {
+	return func(yield func(*models.ListResponse[models.Organization], error) bool) {
+		current := opts
+		if current.Page <= 0 {
+			current.Page = 1
+		}
+
+		for {
+			if ctx.Err() != nil {
+				yield(nil, ctx.Err())
+				return
+			}
+
+			page, err := e.ListOrganizations(ctx, current)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			if !yield(page, nil) {
+				return
+			}
+
+			if !page.Pagination.HasMore() {
+				return
+			}
+
+			current.Page++
+		}
+	}
 }
 
 // GetOrganization gets an organization by ID.

@@ -587,7 +587,7 @@ func TestAssetRatesEntity_ListAssetRatesByAssetCode(t *testing.T) {
 		orgID          string
 		ledgerID       string
 		assetCode      string
-		opts           AssetRatesListOpts
+		opts           models.AssetRatesListOpts
 		mockResponse   string
 		mockStatusCode int
 		mockError      error
@@ -601,7 +601,7 @@ func TestAssetRatesEntity_ListAssetRatesByAssetCode(t *testing.T) {
 			orgID:     "org-123",
 			ledgerID:  "ledger-456",
 			assetCode: "USD",
-			opts:      AssetRatesListOpts{},
+			opts:      models.AssetRatesListOpts{},
 			mockResponse: `{
 				"items": [
 					{
@@ -635,11 +635,11 @@ func TestAssetRatesEntity_ListAssetRatesByAssetCode(t *testing.T) {
 			orgID:     "org-123",
 			ledgerID:  "ledger-456",
 			assetCode: "USD",
-			opts: AssetRatesListOpts{
+			opts: models.AssetRatesListOpts{
 				Limit:         5,
 				Cursor:        "cursor-abc",
 				SortDirection: models.SortDescending,
-				Filters: AssetRatesFilters{
+				Filters: models.AssetRatesFilters{
 					To:        []string{"BRL", "EUR"},
 					StartDate: "2024-01-01",
 					EndDate:   "2024-12-31",
@@ -680,7 +680,7 @@ func TestAssetRatesEntity_ListAssetRatesByAssetCode(t *testing.T) {
 			orgID:     "org-123",
 			ledgerID:  "ledger-456",
 			assetCode: "USD",
-			opts:      AssetRatesListOpts{Cursor: "next-page-cursor"},
+			opts:      models.AssetRatesListOpts{Cursor: "next-page-cursor"},
 			mockResponse: `{
 				"items": [
 					{
@@ -705,7 +705,7 @@ func TestAssetRatesEntity_ListAssetRatesByAssetCode(t *testing.T) {
 			orgID:         "",
 			ledgerID:      "ledger-456",
 			assetCode:     "USD",
-			opts:          AssetRatesListOpts{},
+			opts:          models.AssetRatesListOpts{},
 			expectedError: true,
 			errorContains: "organizationID",
 		},
@@ -714,7 +714,7 @@ func TestAssetRatesEntity_ListAssetRatesByAssetCode(t *testing.T) {
 			orgID:         "org-123",
 			ledgerID:      "",
 			assetCode:     "USD",
-			opts:          AssetRatesListOpts{},
+			opts:          models.AssetRatesListOpts{},
 			expectedError: true,
 			errorContains: "ledgerID",
 		},
@@ -723,7 +723,7 @@ func TestAssetRatesEntity_ListAssetRatesByAssetCode(t *testing.T) {
 			orgID:         "org-123",
 			ledgerID:      "ledger-456",
 			assetCode:     "",
-			opts:          AssetRatesListOpts{},
+			opts:          models.AssetRatesListOpts{},
 			expectedError: true,
 			errorContains: "assetCode",
 		},
@@ -732,7 +732,7 @@ func TestAssetRatesEntity_ListAssetRatesByAssetCode(t *testing.T) {
 			orgID:          "org-123",
 			ledgerID:       "ledger-456",
 			assetCode:      "INVALID",
-			opts:           AssetRatesListOpts{},
+			opts:           models.AssetRatesListOpts{},
 			mockStatusCode: http.StatusBadRequest,
 			mockResponse:   `{"error": "Invalid asset code"}`,
 			expectedError:  true,
@@ -742,7 +742,7 @@ func TestAssetRatesEntity_ListAssetRatesByAssetCode(t *testing.T) {
 			orgID:          "org-123",
 			ledgerID:       "ledger-456",
 			assetCode:      "USD",
-			opts:           AssetRatesListOpts{},
+			opts:           models.AssetRatesListOpts{},
 			mockStatusCode: http.StatusUnauthorized,
 			mockResponse:   `{"error": "Invalid or expired token"}`,
 			expectedError:  true,
@@ -752,7 +752,7 @@ func TestAssetRatesEntity_ListAssetRatesByAssetCode(t *testing.T) {
 			orgID:          "org-123",
 			ledgerID:       "ledger-456",
 			assetCode:      "USD",
-			opts:           AssetRatesListOpts{},
+			opts:           models.AssetRatesListOpts{},
 			mockStatusCode: http.StatusForbidden,
 			mockResponse:   `{"error": "Access denied"}`,
 			expectedError:  true,
@@ -762,7 +762,7 @@ func TestAssetRatesEntity_ListAssetRatesByAssetCode(t *testing.T) {
 			orgID:          "org-123",
 			ledgerID:       "not-found-ledger",
 			assetCode:      "USD",
-			opts:           AssetRatesListOpts{},
+			opts:           models.AssetRatesListOpts{},
 			mockStatusCode: http.StatusNotFound,
 			mockResponse:   `{"error": "Ledger not found"}`,
 			expectedError:  true,
@@ -772,7 +772,7 @@ func TestAssetRatesEntity_ListAssetRatesByAssetCode(t *testing.T) {
 			orgID:          "org-123",
 			ledgerID:       "ledger-456",
 			assetCode:      "USD",
-			opts:           AssetRatesListOpts{},
+			opts:           models.AssetRatesListOpts{},
 			mockStatusCode: http.StatusInternalServerError,
 			mockResponse:   `{"error": "Internal server error"}`,
 			expectedError:  true,
@@ -782,7 +782,7 @@ func TestAssetRatesEntity_ListAssetRatesByAssetCode(t *testing.T) {
 			orgID:         "org-123",
 			ledgerID:      "ledger-456",
 			assetCode:     "USD",
-			opts:          AssetRatesListOpts{},
+			opts:          models.AssetRatesListOpts{},
 			mockError:     errors.New("connection refused"),
 			expectedError: true,
 		},
@@ -791,7 +791,7 @@ func TestAssetRatesEntity_ListAssetRatesByAssetCode(t *testing.T) {
 			orgID:     "org-123",
 			ledgerID:  "ledger-456",
 			assetCode: "XYZ",
-			opts:      AssetRatesListOpts{},
+			opts:      models.AssetRatesListOpts{},
 			mockResponse: `{
 				"items": [],
 				"limit": 10
@@ -814,7 +814,7 @@ func runListAssetRatesByAssetCodeTest(t *testing.T, tt struct {
 	orgID          string
 	ledgerID       string
 	assetCode      string
-	opts           AssetRatesListOpts
+	opts           models.AssetRatesListOpts
 	mockResponse   string
 	mockStatusCode int
 	mockError      error
@@ -1006,9 +1006,9 @@ func TestAssetRatesEntity_IntegrationWithHTTPTestServer(t *testing.T) {
 			map[string]string{"transaction": server.URL},
 		)
 
-		opts := AssetRatesListOpts{
+		opts := models.AssetRatesListOpts{
 			Limit:   10,
-			Filters: AssetRatesFilters{To: []string{"BRL", "EUR"}},
+			Filters: models.AssetRatesFilters{To: []string{"BRL", "EUR"}},
 		}
 		result, err := entity.ListAssetRatesByAssetCode(context.Background(), "org-123", "ledger-456", "USD", opts)
 
@@ -1080,7 +1080,7 @@ func TestAssetRatesEntity_ContextCancellation(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
-		_, err := entity.ListAssetRatesByAssetCode(ctx, "org-123", "ledger-456", "USD", AssetRatesListOpts{})
+		_, err := entity.ListAssetRatesByAssetCode(ctx, "org-123", "ledger-456", "USD", models.AssetRatesListOpts{})
 
 		require.Error(t, err)
 	})
@@ -1113,7 +1113,7 @@ func TestAssetRatesEntity_ValidationEdgeCases(t *testing.T) {
 	})
 
 	t.Run("ListAssetRatesByAssetCode with whitespace-only asset code", func(t *testing.T) {
-		_, err := entity.ListAssetRatesByAssetCode(context.Background(), "org-123", "ledger-456", "   ", AssetRatesListOpts{})
+		_, err := entity.ListAssetRatesByAssetCode(context.Background(), "org-123", "ledger-456", "   ", models.AssetRatesListOpts{})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "assetCode")
 	})
@@ -1199,7 +1199,7 @@ func TestAssetRatesEntity_ResponseParsing(t *testing.T) {
 			baseURLs:   map[string]string{"transaction": "https://api.example.com"},
 		}
 
-		result, err := entity.ListAssetRatesByAssetCode(context.Background(), "org-123", "ledger-456", "USD", AssetRatesListOpts{})
+		result, err := entity.ListAssetRatesByAssetCode(context.Background(), "org-123", "ledger-456", "USD", models.AssetRatesListOpts{})
 
 		require.NoError(t, err)
 		assert.Equal(t, 10, result.Pagination.Limit)
@@ -1238,21 +1238,21 @@ func TestAssetRatesEntity_ResponseParsing(t *testing.T) {
 func TestAssetRatesListOpts_Validate(t *testing.T) {
 	tests := []struct {
 		name    string
-		opts    AssetRatesListOpts
+		opts    models.AssetRatesListOpts
 		wantErr string
 	}{
-		{name: "zero value valid", opts: AssetRatesListOpts{}},
-		{name: "valid populated", opts: AssetRatesListOpts{
+		{name: "zero value valid", opts: models.AssetRatesListOpts{}},
+		{name: "valid populated", opts: models.AssetRatesListOpts{
 			Limit:         50,
 			Cursor:        "abc",
 			SortDirection: models.SortAscending,
-			Filters:       AssetRatesFilters{To: []string{"BRL"}},
+			Filters:       models.AssetRatesFilters{To: []string{"BRL"}},
 		}},
-		{name: "valid at max limit", opts: AssetRatesListOpts{Limit: models.MaxLimit}},
-		{name: "negative limit", opts: AssetRatesListOpts{Limit: -1}, wantErr: "limit must be non-negative"},
-		{name: "limit over max", opts: AssetRatesListOpts{Limit: models.MaxLimit + 1}, wantErr: "limit exceeds maximum"},
-		{name: "limit way over max", opts: AssetRatesListOpts{Limit: 5000}, wantErr: "limit exceeds maximum"},
-		{name: "invalid sort direction", opts: AssetRatesListOpts{SortDirection: "weird"}, wantErr: "sort direction must be empty"},
+		{name: "valid at max limit", opts: models.AssetRatesListOpts{Limit: models.MaxLimit}},
+		{name: "negative limit", opts: models.AssetRatesListOpts{Limit: -1}, wantErr: "limit must be non-negative"},
+		{name: "limit over max", opts: models.AssetRatesListOpts{Limit: models.MaxLimit + 1}, wantErr: "limit exceeds maximum"},
+		{name: "limit way over max", opts: models.AssetRatesListOpts{Limit: 5000}, wantErr: "limit exceeds maximum"},
+		{name: "invalid sort direction", opts: models.AssetRatesListOpts{SortDirection: "weird"}, wantErr: "sort direction must be empty"},
 	}
 
 	for _, tt := range tests {
@@ -1272,22 +1272,22 @@ func TestAssetRatesListOpts_Validate(t *testing.T) {
 func TestAssetRatesListOpts_ToQueryParams(t *testing.T) {
 	tests := []struct {
 		name string
-		opts AssetRatesListOpts
+		opts models.AssetRatesListOpts
 		want map[string]string
 	}{
-		{name: "zero value emits no params", opts: AssetRatesListOpts{}, want: map[string]string{}},
+		{name: "zero value emits no params", opts: models.AssetRatesListOpts{}, want: map[string]string{}},
 		{
 			name: "limit + cursor",
-			opts: AssetRatesListOpts{Limit: 25, Cursor: "next-token"},
+			opts: models.AssetRatesListOpts{Limit: 25, Cursor: "next-token"},
 			want: map[string]string{"limit": "25", "cursor": "next-token"},
 		},
 		{
 			name: "all fields populated",
-			opts: AssetRatesListOpts{
+			opts: models.AssetRatesListOpts{
 				Limit:         50,
 				Cursor:        "abc",
 				SortDirection: models.SortDescending,
-				Filters: AssetRatesFilters{
+				Filters: models.AssetRatesFilters{
 					To:        []string{"BRL", "EUR", "USD"},
 					StartDate: "2024-01-01",
 					EndDate:   "2024-12-31",
@@ -1304,14 +1304,14 @@ func TestAssetRatesListOpts_ToQueryParams(t *testing.T) {
 		},
 		{
 			name: "filters only",
-			opts: AssetRatesListOpts{Filters: AssetRatesFilters{To: []string{"BRL"}}},
+			opts: models.AssetRatesListOpts{Filters: models.AssetRatesFilters{To: []string{"BRL"}}},
 			want: map[string]string{"to": "BRL"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := tt.opts.toQueryParams()
+			got := tt.opts.ToQueryParams()
 			assert.Equal(t, tt.want, got)
 		})
 	}
@@ -1368,7 +1368,7 @@ func TestListAssetRatesByAssetCodePages_TraversesCursors(t *testing.T) {
 
 	for page, err := range entity.ListAssetRatesByAssetCodePages(
 		context.Background(), "org-1", "ledger-1", "USD",
-		AssetRatesListOpts{Limit: 1},
+		models.AssetRatesListOpts{Limit: 1},
 	) {
 		require.NoError(t, err)
 		require.NotNil(t, page)
@@ -1408,7 +1408,7 @@ func TestListAssetRatesByAssetCodeAll_ItemLevelIteration(t *testing.T) {
 
 	rates, err := CollectAll(entity.ListAssetRatesByAssetCodeAll(
 		context.Background(), "org-1", "ledger-1", "USD",
-		AssetRatesListOpts{Limit: 2},
+		models.AssetRatesListOpts{Limit: 2},
 	))
 	require.NoError(t, err)
 	require.Len(t, rates, 3)
@@ -1448,7 +1448,7 @@ func TestListAssetRatesByAssetCodeAll_BoundedByCollect(t *testing.T) {
 	// even draining the rest of page 1, and never request page 2.
 	rates, err := Collect(entity.ListAssetRatesByAssetCodeAll(
 		context.Background(), "org-1", "ledger-1", "USD",
-		AssetRatesListOpts{Limit: 2},
+		models.AssetRatesListOpts{Limit: 2},
 	), 2)
 	require.NoError(t, err)
 	require.Len(t, rates, 2)
@@ -1470,7 +1470,7 @@ func TestListAssetRatesByAssetCode_ValidatesOptsBeforeRequest(t *testing.T) {
 
 	_, err := entity.ListAssetRatesByAssetCode(
 		context.Background(), "org-1", "ledger-1", "USD",
-		AssetRatesListOpts{Limit: 5000}, // exceeds MaxLimit
+		models.AssetRatesListOpts{Limit: 5000}, // exceeds MaxLimit
 	)
 
 	require.Error(t, err)

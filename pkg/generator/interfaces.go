@@ -17,7 +17,7 @@ type OrganizationGenerator interface {
 type LedgerGenerator interface {
 	Generate(ctx context.Context, orgID string, template data.LedgerTemplate) (*models.Ledger, error)
 	GenerateForOrg(ctx context.Context, orgID string, count int) ([]*models.Ledger, error)
-	ListWithPagination(ctx context.Context, opts *models.ListOptions) (*models.ListResponse[models.Ledger], error)
+	ListWithPagination(ctx context.Context, opts models.LedgersListOpts) (*models.ListResponse[models.Ledger], error)
 }
 
 // AssetGenerator creates assets and manages their rates.

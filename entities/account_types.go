@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"iter"
 	"net/http"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
@@ -18,7 +19,11 @@ type AccountTypesService interface {
 	// The organizationID and ledgerID parameters specify which organization and ledger to query.
 	// The opts parameter can be used to specify pagination, sorting, and filtering options.
 	// Returns a ListResponse containing the account types and pagination information, or an error if the operation fails.
-	ListAccountTypes(ctx context.Context, organizationID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.AccountType], error)
+	ListAccountTypes(ctx context.Context, organizationID, ledgerID string, opts models.AccountTypesListOpts) (*models.ListResponse[models.AccountType], error)
+
+	ListAccountTypesAll(ctx context.Context, organizationID, ledgerID string, opts models.AccountTypesListOpts) iter.Seq2[models.AccountType, error]
+
+	ListAccountTypesPages(ctx context.Context, organizationID, ledgerID string, opts models.AccountTypesListOpts) iter.Seq2[*models.ListResponse[models.AccountType], error]
 
 	// GetAccountType retrieves a specific account type by its ID.
 	// The organizationID and ledgerID parameters specify which organization and ledger the account type belongs to.
@@ -136,7 +141,7 @@ func (e *accountTypesEntity) buildURL(organizationID, ledgerID, accountTypeID st
 }
 
 // ListAccountTypes lists account types for a ledger with optional filters.
-func (e *accountTypesEntity) ListAccountTypes(ctx context.Context, organizationID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.AccountType], error) {
+func (e *accountTypesEntity) ListAccountTypes(ctx context.Context, organizationID, ledgerID string, opts models.AccountTypesListOpts) (*models.ListResponse[models.AccountType], error) {
 	const operation = "ListAccountTypes"
 
 	if organizationID == "" {
@@ -147,6 +152,10 @@ func (e *accountTypesEntity) ListAccountTypes(ctx context.Context, organizationI
 		return nil, errors.NewMissingParameterError(operation, "ledgerID")
 	}
 
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+
 	url := e.buildURL(organizationID, ledgerID, "")
 
 	req, err := newRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -154,11 +163,9 @@ func (e *accountTypesEntity) ListAccountTypes(ctx context.Context, organizationI
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	// Add query parameters if provided
-	if opts != nil {
+	if params := opts.ToQueryParams(); len(params) > 0 {
 		q := req.URL.Query()
-
-		for key, value := range opts.ToQueryParams() {
+		for key, value := range params {
 			q.Add(key, value)
 		}
 
@@ -171,6 +178,44 @@ func (e *accountTypesEntity) ListAccountTypes(ctx context.Context, organizationI
 	}
 
 	return &response, nil
+}
+
+// ListAccountTypesAll yields every accounttype matching the request, transparently advancing pagination.
+func (e *accountTypesEntity) ListAccountTypesAll(ctx context.Context, organizationID, ledgerID string, opts models.AccountTypesListOpts) iter.Seq2[models.AccountType, error] {
+	return flattenPages(e.ListAccountTypesPages(ctx, organizationID, ledgerID, opts))
+}
+
+// ListAccountTypesPages yields one full *ListResponse[AccountType] per page.
+func (e *accountTypesEntity) ListAccountTypesPages(ctx context.Context, organizationID, ledgerID string, opts models.AccountTypesListOpts) iter.Seq2[*models.ListResponse[models.AccountType], error] {
+	return func(yield func(*models.ListResponse[models.AccountType], error) bool) {
+		current := opts
+		if current.Page <= 0 {
+			current.Page = 1
+		}
+
+		for {
+			if ctx.Err() != nil {
+				yield(nil, ctx.Err())
+				return
+			}
+
+			page, err := e.ListAccountTypes(ctx, organizationID, ledgerID, current)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			if !yield(page, nil) {
+				return
+			}
+
+			if !page.Pagination.HasMore() {
+				return
+			}
+
+			current.Page++
+		}
+	}
 }
 
 // GetAccountType gets an account type by ID.

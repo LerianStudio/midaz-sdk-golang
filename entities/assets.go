@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"iter"
 	"net/http"
 	"strings"
 
@@ -19,7 +20,11 @@ type AssetsService interface {
 	// The organizationID and ledgerID parameters specify which organization and ledger to query.
 	// The opts parameter can be used to specify pagination, sorting, and filtering options.
 	// Returns a ListResponse containing the assets and pagination information, or an error if the operation fails.
-	ListAssets(ctx context.Context, organizationID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Asset], error)
+	ListAssets(ctx context.Context, organizationID, ledgerID string, opts models.AssetsListOpts) (*models.ListResponse[models.Asset], error)
+
+	ListAssetsAll(ctx context.Context, organizationID, ledgerID string, opts models.AssetsListOpts) iter.Seq2[models.Asset, error]
+
+	ListAssetsPages(ctx context.Context, organizationID, ledgerID string, opts models.AssetsListOpts) iter.Seq2[*models.ListResponse[models.Asset], error]
 
 	// GetAsset retrieves a specific asset by its ID.
 	// The organizationID and ledgerID parameters specify which organization and ledger the asset belongs to.
@@ -149,11 +154,7 @@ func newAssetsEntity(client *http.Client, authToken string, baseURLs map[string]
 // The organizationID and ledgerID parameters specify which organization and ledger to query.
 // The opts parameter can be used to specify pagination, sorting, and filtering options.
 // Returns a ListResponse containing the assets and pagination information, or an error if the operation fails.
-func (e *assetsEntity) ListAssets(
-	ctx context.Context,
-	organizationID, ledgerID string,
-	opts *models.ListOptions,
-) (*models.ListResponse[models.Asset], error) {
+func (e *assetsEntity) ListAssets(ctx context.Context, organizationID, ledgerID string, opts models.AssetsListOpts) (*models.ListResponse[models.Asset], error) {
 	const operation = "ListAssets"
 
 	if organizationID == "" {
@@ -164,6 +165,10 @@ func (e *assetsEntity) ListAssets(
 		return nil, errors.NewMissingParameterError(operation, "ledgerID")
 	}
 
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+
 	url := e.buildURL(organizationID, ledgerID, "")
 
 	req, err := newRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -171,11 +176,9 @@ func (e *assetsEntity) ListAssets(
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	// Add query parameters if provided
-	if opts != nil {
+	if params := opts.ToQueryParams(); len(params) > 0 {
 		q := req.URL.Query()
-
-		for key, value := range opts.ToQueryParams() {
+		for key, value := range params {
 			q.Add(key, value)
 		}
 
@@ -189,6 +192,44 @@ func (e *assetsEntity) ListAssets(
 	}
 
 	return &response, nil
+}
+
+// ListAssetsAll yields every asset matching the request, transparently advancing pagination.
+func (e *assetsEntity) ListAssetsAll(ctx context.Context, organizationID, ledgerID string, opts models.AssetsListOpts) iter.Seq2[models.Asset, error] {
+	return flattenPages(e.ListAssetsPages(ctx, organizationID, ledgerID, opts))
+}
+
+// ListAssetsPages yields one full *ListResponse[Asset] per page.
+func (e *assetsEntity) ListAssetsPages(ctx context.Context, organizationID, ledgerID string, opts models.AssetsListOpts) iter.Seq2[*models.ListResponse[models.Asset], error] {
+	return func(yield func(*models.ListResponse[models.Asset], error) bool) {
+		current := opts
+		if current.Page <= 0 {
+			current.Page = 1
+		}
+
+		for {
+			if ctx.Err() != nil {
+				yield(nil, ctx.Err())
+				return
+			}
+
+			page, err := e.ListAssets(ctx, organizationID, ledgerID, current)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			if !yield(page, nil) {
+				return
+			}
+
+			if !page.Pagination.HasMore() {
+				return
+			}
+
+			current.Page++
+		}
+	}
 }
 
 // GetAsset gets an asset by ID.

@@ -20,6 +20,7 @@ import (
 	"time"
 
 	midaz "github.com/LerianStudio/midaz-sdk-golang/v3"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 )
 
 func main() {
@@ -71,7 +72,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	_, err = c.Organizations.ListOrganizations(ctx, nil)
+	_, err = c.Organizations.ListOrganizations(ctx, models.OrganizationsListOpts{})
 	if err != nil {
 		// Application-side error logging — same logger, same structure.
 		c.Logger().Warn("ListOrganizations failed",

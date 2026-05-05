@@ -50,11 +50,11 @@ func TestListOrganizations(t *testing.T) {
 
 	// Setup expectations for default options
 	mockService.EXPECT().
-		ListOrganizations(gomock.Any(), gomock.Nil()).
+		ListOrganizations(gomock.Any(), gomock.Any()).
 		Return(orgsList, nil)
 
 	// Test listing organizations with default options
-	result, err := mockService.ListOrganizations(ctx, nil)
+	result, err := mockService.ListOrganizations(ctx, models.OrganizationsListOpts{})
 	require.NoError(t, err)
 	assert.Equal(t, 2, result.Pagination.Total)
 	assert.Len(t, result.Items, 2)
@@ -64,11 +64,13 @@ func TestListOrganizations(t *testing.T) {
 	assert.Equal(t, "Test Org 2", result.Items[1].LegalName)
 
 	// Test with options
-	opts := &models.ListOptions{
-		Page:           2,
-		Limit:          5,
-		OrderBy:        "created_at",
-		OrderDirection: "desc",
+	opts := models.OrganizationsListOpts{
+		PageListOpts: models.PageListOpts{
+			Page:          2,
+			Limit:         5,
+			OrderBy:       "created_at",
+			SortDirection: models.SortDescending,
+		},
 	}
 
 	mockService.EXPECT().

@@ -52,7 +52,9 @@ func TestLedgersEntity_HTTPContracts(t *testing.T) {
 	service := newLedgersEntity(server.Client(), "token", map[string]string{"onboarding": server.URL})
 	ctx := context.Background()
 
-	list, err := service.ListLedgers(ctx, "org/1", (&models.ListOptions{}).WithLimit(7).WithPage(3).WithOrderDirection("desc").WithOffset(70))
+	list, err := service.ListLedgers(ctx, "org/1", models.LedgersListOpts{
+		PageListOpts: models.PageListOpts{Limit: 7, Page: 3, SortDirection: models.SortDescending},
+	})
 	require.NoError(t, err)
 	assert.Equal(t, "ledger/1", list.Items[0].ID)
 
@@ -91,7 +93,6 @@ func TestOrganizationsAndPortfoliosEntity_HTTPContracts(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/organizations/org%2F1/ledgers/ledger%2F1/portfolios":
 			assert.Equal(t, "11", r.URL.Query().Get("limit"))
-			assert.Equal(t, "cursor-1", r.URL.Query().Get("cursor"))
 			writeEntityJSON(t, w, map[string]any{"items": []map[string]any{{"id": "portfolio/1", "name": "Retail"}}})
 		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/organizations/org%2F1/ledgers/ledger%2F1/portfolios/portfolio%2F1":
 			writeEntityJSON(t, w, map[string]any{"id": "portfolio/1", "name": "Retail"})
@@ -128,7 +129,9 @@ func TestOrganizationsAndPortfoliosEntity_HTTPContracts(t *testing.T) {
 	assert.Equal(t, 3, orgMetrics.OrganizationsCount)
 
 	portfolios := newPortfoliosEntity(server.Client(), "token", map[string]string{"onboarding": server.URL})
-	portfolioList, err := portfolios.ListPortfolios(ctx, "org/1", "ledger/1", (&models.ListOptions{}).WithLimit(11).WithCursor("cursor-1"))
+	portfolioList, err := portfolios.ListPortfolios(ctx, "org/1", "ledger/1", models.PortfoliosListOpts{
+		PageListOpts: models.PageListOpts{Limit: 11},
+	})
 	require.NoError(t, err)
 	assert.Equal(t, "portfolio/1", portfolioList.Items[0].ID)
 

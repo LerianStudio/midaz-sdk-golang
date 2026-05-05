@@ -103,25 +103,16 @@ func (c *Checker) GenerateLedgerReport(ctx context.Context, orgID, ledgerID stri
 
 // processBalances processes all balances with pagination
 func (c *Checker) processBalances(ctx context.Context, orgID, ledgerID string, totals map[string]*BalanceTotals, accountAliasCache map[string]string) error {
-	opts := models.NewListOptions().WithLimit(100)
+	opts := models.BalancesListOpts{PageListOpts: models.PageListOpts{Limit: 100}}
 
-	for {
-		resp, err := c.e.Balances.ListBalances(ctx, orgID, ledgerID, opts)
+	for b, err := range c.e.Balances.ListBalancesAll(ctx, orgID, ledgerID, opts) {
 		if err != nil {
 			return err
 		}
 
-		for _, b := range resp.Items {
-			if err := c.processBalance(ctx, orgID, ledgerID, b, totals, accountAliasCache); err != nil {
-				return err
-			}
+		if err := c.processBalance(ctx, orgID, ledgerID, b, totals, accountAliasCache); err != nil {
+			return err
 		}
-
-		if resp.Pagination.NextCursor == "" {
-			break
-		}
-
-		opts = models.NewListOptions().WithCursor(resp.Pagination.NextCursor).WithLimit(100)
 	}
 
 	return nil

@@ -43,11 +43,11 @@ func TestSlice6CRMConstructorsCopyTrimAndListNilContext(t *testing.T) {
 	aliases := newAliasesEntity(server.Client(), "token", baseURLs).(*aliasesEntity)
 	baseURLs["crm"] = "https://mutated.example.com/v1"
 
-	holdersList, err := holders.ListHolders(nilContext(), "  "+crmOrgID+"  ", nil)
+	holdersList, err := holders.ListHolders(nilContext(), "  "+crmOrgID+"  ", models.HoldersListOpts{})
 	require.NoError(t, err)
 	require.NotNil(t, holdersList.Items)
 
-	aliasesList, err := aliases.ListAliases(nilContext(), crmOrgID, nil)
+	aliasesList, err := aliases.ListAliases(nilContext(), crmOrgID, models.AliasesListOpts{})
 	require.NoError(t, err)
 	require.NotNil(t, aliasesList.Items)
 }
@@ -65,13 +65,15 @@ func TestSlice6CRMRejectsInvalidScopedIdentifiersBeforeTransport(t *testing.T) {
 	holders := newHoldersEntity(server.Client(), "token", map[string]string{"crm": server.URL}).(*holdersEntity)
 	aliases := newAliasesEntity(server.Client(), "token", map[string]string{"crm": server.URL}).(*aliasesEntity)
 
-	_, err := holders.ListHolders(context.Background(), "   ", nil)
+	_, err := holders.ListHolders(context.Background(), "   ", models.HoldersListOpts{})
 	require.ErrorContains(t, err, "organizationID")
 
 	_, err = holders.GetHolder(context.Background(), crmOrgID, "holder-123", false)
 	require.ErrorContains(t, err, "holderID must be a valid UUID")
 
-	_, err = aliases.ListAliases(context.Background(), crmOrgID, models.NewListOptions().WithHolderID("holder-123"))
+	_, err = aliases.ListAliases(context.Background(), crmOrgID, models.AliasesListOpts{
+		Filters: models.AliasesFilters{HolderID: "holder-123"},
+	})
 	require.ErrorContains(t, err, "holder_id must be a valid UUID")
 
 	err = aliases.DeleteRelatedParty(context.Background(), crmOrgID, crmHolderID, crmAliasID, "party-123")

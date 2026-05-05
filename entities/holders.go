@@ -3,6 +3,7 @@ package entities
 import (
 	"context"
 	"fmt"
+	"iter"
 	"net/http"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
@@ -12,7 +13,11 @@ import (
 // HoldersService defines CRM holder operations.
 type HoldersService interface {
 	// ListHolders retrieves holders for an organization.
-	ListHolders(ctx context.Context, organizationID string, opts *models.ListOptions) (*models.ListResponse[models.Holder], error)
+	ListHolders(ctx context.Context, organizationID string, opts models.HoldersListOpts) (*models.ListResponse[models.Holder], error)
+
+	ListHoldersAll(ctx context.Context, organizationID string, opts models.HoldersListOpts) iter.Seq2[models.Holder, error]
+
+	ListHoldersPages(ctx context.Context, organizationID string, opts models.HoldersListOpts) iter.Seq2[*models.ListResponse[models.Holder], error]
 	// CreateHolder creates a holder.
 	CreateHolder(ctx context.Context, organizationID string, input *models.CreateHolderInput) (*models.Holder, error)
 	// GetHolder retrieves a holder by ID.
@@ -39,11 +44,15 @@ func newHoldersEntity(client *http.Client, authToken string, baseURLs map[string
 }
 
 // ListHolders retrieves holders for an organization.
-func (e *holdersEntity) ListHolders(ctx context.Context, organizationID string, opts *models.ListOptions) (*models.ListResponse[models.Holder], error) {
+func (e *holdersEntity) ListHolders(ctx context.Context, organizationID string, opts models.HoldersListOpts) (*models.ListResponse[models.Holder], error) {
 	const operation = "ListHolders"
 
 	organizationID, err := validateCRMOrganizationID(operation, organizationID)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
 
@@ -52,9 +61,9 @@ func (e *holdersEntity) ListHolders(ctx context.Context, organizationID string, 
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	if opts != nil {
+	if params := opts.ToQueryParams(); len(params) > 0 {
 		q := req.URL.Query()
-		for key, value := range opts.ToQueryParams() {
+		for key, value := range params {
 			q.Add(key, value)
 		}
 
@@ -67,6 +76,44 @@ func (e *holdersEntity) ListHolders(ctx context.Context, organizationID string, 
 	}
 
 	return &response, nil
+}
+
+// ListHoldersAll yields every holder matching the request, transparently advancing pagination.
+func (e *holdersEntity) ListHoldersAll(ctx context.Context, organizationID string, opts models.HoldersListOpts) iter.Seq2[models.Holder, error] {
+	return flattenPages(e.ListHoldersPages(ctx, organizationID, opts))
+}
+
+// ListHoldersPages yields one full *ListResponse[Holder] per page.
+func (e *holdersEntity) ListHoldersPages(ctx context.Context, organizationID string, opts models.HoldersListOpts) iter.Seq2[*models.ListResponse[models.Holder], error] {
+	return func(yield func(*models.ListResponse[models.Holder], error) bool) {
+		current := opts
+		if current.Page <= 0 {
+			current.Page = 1
+		}
+
+		for {
+			if ctx.Err() != nil {
+				yield(nil, ctx.Err())
+				return
+			}
+
+			page, err := e.ListHolders(ctx, organizationID, current)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			if !yield(page, nil) {
+				return
+			}
+
+			if !page.Pagination.HasMore() {
+				return
+			}
+
+			current.Page++
+		}
+	}
 }
 
 // CreateHolder creates a holder.

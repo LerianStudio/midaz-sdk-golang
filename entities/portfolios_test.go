@@ -64,11 +64,11 @@ func TestListPortfolios(t *testing.T) {
 
 	// Setup expectations for default options
 	mockService.EXPECT().
-		ListPortfolios(gomock.Any(), orgID, ledgerID, gomock.Nil()).
+		ListPortfolios(gomock.Any(), orgID, ledgerID, gomock.Any()).
 		Return(portfoliosList, nil)
 
 	// Test listing portfolios with default options
-	result, err := mockService.ListPortfolios(ctx, orgID, ledgerID, nil)
+	result, err := mockService.ListPortfolios(ctx, orgID, ledgerID, models.PortfoliosListOpts{})
 	require.NoError(t, err)
 	assert.Equal(t, 2, result.Pagination.Total)
 	assert.Len(t, result.Items, 2)
@@ -79,12 +79,7 @@ func TestListPortfolios(t *testing.T) {
 	assert.Equal(t, ledgerID, result.Items[0].LedgerID)
 
 	// Test with options
-	opts := &models.ListOptions{
-		Limit:          5,
-		Offset:         0,
-		OrderBy:        "created_at",
-		OrderDirection: "desc",
-	}
+	opts := models.PortfoliosListOpts{PageListOpts: models.PageListOpts{Limit: 5, Page: 1, OrderBy: "created_at", SortDirection: models.SortDescending}}
 
 	mockService.EXPECT().
 		ListPortfolios(gomock.Any(), orgID, ledgerID, opts).
@@ -99,7 +94,7 @@ func TestListPortfolios(t *testing.T) {
 		ListPortfolios(gomock.Any(), "", ledgerID, gomock.Any()).
 		Return(nil, errors.New("organization ID is required"))
 
-	_, err = mockService.ListPortfolios(ctx, "", ledgerID, nil)
+	_, err = mockService.ListPortfolios(ctx, "", ledgerID, models.PortfoliosListOpts{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization ID is required")
 
@@ -108,7 +103,7 @@ func TestListPortfolios(t *testing.T) {
 		ListPortfolios(gomock.Any(), orgID, "", gomock.Any()).
 		Return(nil, errors.New("ledger ID is required"))
 
-	_, err = mockService.ListPortfolios(ctx, orgID, "", nil)
+	_, err = mockService.ListPortfolios(ctx, orgID, "", models.PortfoliosListOpts{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ledger ID is required")
 }
@@ -478,11 +473,11 @@ func TestListSegments(t *testing.T) {
 
 	// Setup expectations for default options
 	mockService.EXPECT().
-		ListSegments(gomock.Any(), orgID, ledgerID, portfolioID, gomock.Nil()).
+		ListSegments(gomock.Any(), orgID, ledgerID, portfolioID, gomock.Any()).
 		Return(segmentsList, nil)
 
 	// Test listing segments with default options
-	result, err := mockService.ListSegments(ctx, orgID, ledgerID, portfolioID, nil)
+	result, err := mockService.ListSegments(ctx, orgID, ledgerID, portfolioID, models.SegmentsListOpts{})
 	require.NoError(t, err)
 	assert.Equal(t, 2, result.Pagination.Total)
 	assert.Len(t, result.Items, 2)
@@ -493,18 +488,13 @@ func TestListSegments(t *testing.T) {
 	assert.Equal(t, ledgerID, result.Items[0].LedgerID)
 
 	// Test with options
-	opts := &models.ListOptions{
-		Limit:          5,
-		Offset:         0,
-		OrderBy:        "created_at",
-		OrderDirection: "desc",
-	}
+	segmentOpts := models.SegmentsListOpts{PageListOpts: models.PageListOpts{Limit: 5, Page: 1, OrderBy: "created_at", SortDirection: models.SortDescending}}
 
 	mockService.EXPECT().
-		ListSegments(gomock.Any(), orgID, ledgerID, portfolioID, opts).
+		ListSegments(gomock.Any(), orgID, ledgerID, portfolioID, segmentOpts).
 		Return(segmentsList, nil)
 
-	result, err = mockService.ListSegments(ctx, orgID, ledgerID, portfolioID, opts)
+	result, err = mockService.ListSegments(ctx, orgID, ledgerID, portfolioID, segmentOpts)
 	require.NoError(t, err)
 	assert.Equal(t, 2, result.Pagination.Total)
 
@@ -513,7 +503,7 @@ func TestListSegments(t *testing.T) {
 		ListSegments(gomock.Any(), "", ledgerID, portfolioID, gomock.Any()).
 		Return(nil, errors.New("organization ID is required"))
 
-	_, err = mockService.ListSegments(ctx, "", ledgerID, portfolioID, nil)
+	_, err = mockService.ListSegments(ctx, "", ledgerID, portfolioID, models.SegmentsListOpts{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization ID is required")
 
@@ -522,7 +512,7 @@ func TestListSegments(t *testing.T) {
 		ListSegments(gomock.Any(), orgID, "", portfolioID, gomock.Any()).
 		Return(nil, errors.New("ledger ID is required"))
 
-	_, err = mockService.ListSegments(ctx, orgID, "", portfolioID, nil)
+	_, err = mockService.ListSegments(ctx, orgID, "", portfolioID, models.SegmentsListOpts{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ledger ID is required")
 
@@ -531,7 +521,7 @@ func TestListSegments(t *testing.T) {
 		ListSegments(gomock.Any(), orgID, ledgerID, "", gomock.Any()).
 		Return(nil, errors.New("portfolio ID is required"))
 
-	_, err = mockService.ListSegments(ctx, orgID, ledgerID, "", nil)
+	_, err = mockService.ListSegments(ctx, orgID, ledgerID, "", models.SegmentsListOpts{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "portfolio ID is required")
 }

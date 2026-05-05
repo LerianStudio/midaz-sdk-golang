@@ -161,7 +161,7 @@ func (g *ledgerGenerator) GenerateForOrg(ctx context.Context, orgID string, coun
 }
 
 // ListWithPagination retrieves ledgers with pagination support.
-func (g *ledgerGenerator) ListWithPagination(ctx context.Context, opts *models.ListOptions) (*models.ListResponse[models.Ledger], error) {
+func (g *ledgerGenerator) ListWithPagination(ctx context.Context, opts models.LedgersListOpts) (*models.ListResponse[models.Ledger], error) {
 	ctx = normalizeContext(ctx)
 
 	if g.defaultOrg == "" {

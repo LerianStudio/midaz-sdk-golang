@@ -70,7 +70,7 @@ func TestListAccounts(t *testing.T) {
 		Return(accountsList, nil)
 
 	// Test with default options
-	result, err := mockService.ListAccounts(ctx, orgID, ledgerID, nil)
+	result, err := mockService.ListAccounts(ctx, orgID, ledgerID, models.AccountsListOpts{})
 	require.NoError(t, err)
 	assert.Equal(t, 2, result.Pagination.Total)
 	assert.Len(t, result.Items, 2)
@@ -85,7 +85,7 @@ func TestListAccounts(t *testing.T) {
 		ListAccounts(gomock.Any(), "", ledgerID, gomock.Any()).
 		Return(nil, errors.New("organization ID is required"))
 
-	_, err = mockService.ListAccounts(ctx, "", ledgerID, nil)
+	_, err = mockService.ListAccounts(ctx, "", ledgerID, models.AccountsListOpts{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization ID is required")
 
@@ -94,7 +94,7 @@ func TestListAccounts(t *testing.T) {
 		ListAccounts(gomock.Any(), orgID, "", gomock.Any()).
 		Return(nil, errors.New("ledger ID is required"))
 
-	_, err = mockService.ListAccounts(ctx, orgID, "", nil)
+	_, err = mockService.ListAccounts(ctx, orgID, "", models.AccountsListOpts{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ledger ID is required")
 }
@@ -656,7 +656,7 @@ func TestAccountsEntity_ListAccounts(t *testing.T) {
 		name           string
 		orgID          string
 		ledgerID       string
-		opts           *models.ListOptions
+		opts           models.AccountsListOpts
 		mockResponse   string
 		mockStatusCode int
 		mockError      error
@@ -667,7 +667,7 @@ func TestAccountsEntity_ListAccounts(t *testing.T) {
 			name:     "Success with no options",
 			orgID:    "org-123",
 			ledgerID: "ledger-123",
-			opts:     nil,
+			opts:     models.AccountsListOpts{},
 			mockResponse: `{
 				"items": [
 					{
@@ -702,12 +702,14 @@ func TestAccountsEntity_ListAccounts(t *testing.T) {
 			name:     "Success with options",
 			orgID:    "org-123",
 			ledgerID: "ledger-123",
-			opts: &models.ListOptions{
-				Limit:          5,
-				Offset:         10,
-				OrderBy:        "name",
-				OrderDirection: "asc",
-				Filters:        map[string]string{"type": "ASSET"},
+			opts: models.AccountsListOpts{
+				PageListOpts: models.PageListOpts{
+					Limit:         5,
+					Page:          2,
+					OrderBy:       "name",
+					SortDirection: models.SortAscending,
+				},
+				Filters: models.AccountsFilters{Type: "ASSET"},
 			},
 			mockResponse: `{
 				"items": [

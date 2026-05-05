@@ -2,6 +2,7 @@ package mocks
 
 import (
 	"context"
+	"iter"
 	"reflect"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
@@ -34,7 +35,7 @@ func (m *MockAccountTypesService) EXPECT() *MockAccountTypesServiceMockRecorder 
 }
 
 // ListAccountTypes mocks base method.
-func (m *MockAccountTypesService) ListAccountTypes(ctx context.Context, organizationID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.AccountType], error) {
+func (m *MockAccountTypesService) ListAccountTypes(ctx context.Context, organizationID, ledgerID string, opts models.AccountTypesListOpts) (*models.ListResponse[models.AccountType], error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListAccountTypes", ctx, organizationID, ledgerID, opts)
 
@@ -151,4 +152,42 @@ func (mr *MockAccountTypesServiceMockRecorder) DeleteAccountType(ctx, organizati
 	mr.mock.ctrl.T.Helper()
 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAccountType", reflect.TypeOf((*MockAccountTypesService)(nil).DeleteAccountType), ctx, organizationID, ledgerID, id)
+}
+
+// ListAccountTypesAll mocks base method.
+func (m *MockAccountTypesService) ListAccountTypesAll(ctx context.Context, organizationID, ledgerID string, opts models.AccountTypesListOpts) iter.Seq2[models.AccountType, error] {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListAccountTypesAll", ctx, organizationID, ledgerID, opts)
+
+	var ret0 iter.Seq2[models.AccountType, error]
+	if ret[0] != nil {
+		ret0, _ = ret[0].(iter.Seq2[models.AccountType, error]) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	return ret0
+}
+
+// ListAccountTypesAll indicates an expected call of ListAccountTypesAll.
+func (mr *MockAccountTypesServiceMockRecorder) ListAccountTypesAll(ctx, organizationID, ledgerID, opts any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAccountTypesAll", reflect.TypeOf((*MockAccountTypesService)(nil).ListAccountTypesAll), ctx, organizationID, ledgerID, opts)
+}
+
+// ListAccountTypesPages mocks base method.
+func (m *MockAccountTypesService) ListAccountTypesPages(ctx context.Context, organizationID, ledgerID string, opts models.AccountTypesListOpts) iter.Seq2[*models.ListResponse[models.AccountType], error] {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListAccountTypesPages", ctx, organizationID, ledgerID, opts)
+
+	var ret0 iter.Seq2[*models.ListResponse[models.AccountType], error]
+	if ret[0] != nil {
+		ret0, _ = ret[0].(iter.Seq2[*models.ListResponse[models.AccountType], error]) //nolint:errcheck // Type guaranteed by mock setup
+	}
+
+	return ret0
+}
+
+// ListAccountTypesPages indicates an expected call of ListAccountTypesPages.
+func (mr *MockAccountTypesServiceMockRecorder) ListAccountTypesPages(ctx, organizationID, ledgerID, opts any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListAccountTypesPages", reflect.TypeOf((*MockAccountTypesService)(nil).ListAccountTypesPages), ctx, organizationID, ledgerID, opts)
 }
