@@ -11,12 +11,15 @@
 
 **Current branch:** `v3` (created from `develop`, **NOT yet pushed to origin**)
 
-**Last commit on v3:** `ab69e05 feat(v3)!: collapse entities/ constructors to a single canonical entry`
+**Last commit on v3:** `588997a feat(v3): re-export 56 hot model types at the midaz package level`
 
-**Total v3 commits so far:** 9 (2 docs + 7 feat)
+**Total v3 commits so far:** 12 (3 docs + 8 feat + 1 chore)
 
 ```
-ab69e05 feat(v3)!: collapse entities/ constructors to single entry    ← Batch 1E ✅
+588997a feat(v3): re-export 56 hot model types at midaz package      ← Batch 1G ✅ — Track 1 CLOSED
+ab98a64 chore(v3): sweep 11 pre-existing lint issues                 ← Lint sweep ✅
+36f292f docs(v3): record Batch 1E completion in plan
+ab69e05 feat(v3)!: collapse entities/ constructors to single entry   ← Batch 1E ✅
 507a64e docs(v3): update plan with session 1 progress
 582dd99 feat(v3): eager validation contract at midaz.New()           ← Batch 1F ✅
 eb16c8e docs(v3): update status tracker after batches 1A-1D
@@ -27,16 +30,29 @@ f8e2109 feat(v3)!: rename module to /v3 and root package to midaz    ← Batch 1
 424aae0 docs(v3): add comprehensive v3 DX plan                       ← This doc
 ```
 
-**Verification status (last run end of Batch 1E):**
+**Verification status (last run end of Batch 1G):**
 - `go build ./...` → clean
-- `go test ./...` → 27/27 packages green, zero failures
+- `go test ./...` → 27/27 packages green, zero failures (59 new tests added in Batch 1G)
 - `make verify-sdk` → ✅ clean
-- `make lint` → ❌ 11 pre-existing issues (NOT introduced by 1E; see "Tech debt" below)
+- `make lint` → ✅ 0 issues (lint sweep brought codebase to fully clean state)
+
+**Track 1 — STATUS: COMPLETE.** All 7 batches (1A-1G) shipped. Acceptance criteria status:
+- ✅ Module path → `/v3`
+- ✅ Root package → `midaz`
+- ✅ Use* trio deleted
+- ✅ Services hoisted via embedded `*entities.Entity` (`c.Accounts.X` works; back-compat `c.Entity.Accounts.X` works)
+- ✅ `pkg/sdkctx/` package with 5 helpers
+- ✅ Eager validation at `midaz.New()` (`errors.IsConfigurationError(err)` works)
+- ✅ 16 service constructors unexported; 3 redundant entity constructors deleted; `WithContext` no-op deleted
+- ✅ 56 type aliases on root midaz package
+- ⏸️ `WithAuthToken` → deferred to **Track 2**
+- ⏸️ `Logger()` always non-nil → deferred to **Track 4**
+- ⏸️ Examples migration → deferred to **Track 9**
 
 **Next action when resuming:**
-1. **Lint sweep** — fix the 11 pre-existing lint issues (8 staticcheck QF1008 `drop .Entity from selector`, 3 testifylint `use ErrorIs/ErrorAs`, 5 SA1012 nil-context that need `//nolint:staticcheck` justifications). Apparently `make lint` was not run during Batches 1A-1F. Trivial fixes; commit as `chore(v3): clean up pre-existing lint issues from earlier batches`.
-2. **Batch 1G** — top-level type re-exports (`midaz.Account = models.Account` for ~15 hot types). Closes out Track 1.
-3. **Phase A continues** with Tracks 2 (auth/tenant), 3 (env reads), 4 (logging).
+1. **Track 2** (Auth & Tenant Chaos) — adds `midaz.WithAuthToken(token)` option, re-exports `AccessManager`, renames `pkg/access-manager` → `pkg/auth`, makes auth source required at construction (`midaz.New()` with no auth source returns typed error `"no auth source configured; use WithAuthToken, WithAccessManager, or WithAnonymous"`).
+2. **Track 3** (Implicit env-var reads) — independent of Track 2; can run parallel. Eliminates the 14× `os.Getenv("MIDAZ_DEBUG")` reads in `entities/*.go` plus `MIDAZ_USER_AGENT`, `MIDAZ_IDEMPOTENCY`, `MIDAZ_MAX_RETRIES`, `MIDAZ_ENABLE_RETRIES`, `MIDAZ_SKIP_AUTH_CHECK` (all reads should go through `*config.Config`).
+3. **Track 4** (Logging gap) — depends on Track 3. Introduces `*slog.Logger` as canonical logging contract; deletes `MIDAZ_DEBUG` bypass; adds retry-attempt logging.
 
 **Important context preserved for the next session:**
 
@@ -48,29 +64,26 @@ f8e2109 feat(v3)!: rename module to /v3 and root package to midaz    ← Batch 1
 - The plan's original Batch 1D ambition was to fully delete `entities/` package. We deferred this — `entities/` still exists as a thin layer because services live there. Full deletion happens in Phase B (Track 7) when services move to per-service packages.
 - **Resume-state correction from Batch 1E**: the original plan claimed 6 'factory traps' on Client (`NewAccount/NewLedger/...`) at `midaz.go:733-761`. They don't exist (verified via grep). Either deleted in 1A-1D, or never existed in v2. Scope item considered satisfied.
 - **Batch 1E test infrastructure note**: `entities/entity_test.go` now hosts `newTestEntity(t, ...)` — a private test helper that mirrors the deleted `entities.NewEntity` contract. Tests inside `entities/*_test.go` cannot route through `midaz.New()` because of the import cycle direction (entities is a leaf), so this helper is the in-package replacement. External tests (`pkg/transaction/helper_contract_test.go`) DO use `midaz.New()` + `c.SetAuthToken(...)`.
-
-**Tech debt logged in Batch 1E** (deferred to dedicated commit before Track 1 closes):
-
-| Source | Count | Type | Fix |
-|--------|-------|------|-----|
-| client_test.go, midaz.go, slice2_regression_test.go, helper_contract_test.go (already fixed), pkg/transaction/helper_contract_test.go | 8 | staticcheck QF1008 `drop .Entity from selector` | Replace `c.Entity.X` → `c.X` (uses promoted field) |
-| validation_contract_test.go | 3 | testifylint `error-is-as`, `error-nil` | Replace `assert.True(t, stderrors.Is(err, target))` → `assert.ErrorIs(t, err, target)` |
-| pkg/sdkctx/sdkctx_test.go | 5 | staticcheck SA1012 'do not pass nil context' | Add `//nolint:staticcheck // intentional nil-safety test` annotations (these tests deliberately exercise nil ctx behavior) |
+- **Process improvement (Batch 1E discovery)**: `make lint` was apparently NOT run during Batches 1A-1F. 11 issues had accumulated. **Going forward, `make lint` is part of the verification flow alongside `go build`, `go test`, and `make verify-sdk`** for every batch.
+- **Generic type aliases work in Go 1.26.x** (Batch 1G uses one: `ListResponse[T any] = models.ListResponse[T]`). Verified via `TestGenericListResponseAlias`. Useful pattern for future track work that needs to alias generic types.
+- **Lint accommodation pattern (Batch 1G)**: when a file has many type aliases that are self-documenting (`X = models.X`), use `//revive:disable:exported` at file scope with a written rationale, instead of adding 50+ near-identical `// X is an alias for models.X` comments. Rationale: godoc follows the alias and surfaces the source doc directly, which is the canonical view users get.
 
 **Customer-visible v3 changes shipped on the v3 branch so far:**
 
 ```go
-// v2 (current main/develop)
+// v2 (current main/develop) — 3 imports, 4 ways to construct, panic risk
 import client "github.com/LerianStudio/midaz-sdk-golang/v2"
 import "github.com/LerianStudio/midaz-sdk-golang/v2/entities"
+import "github.com/LerianStudio/midaz-sdk-golang/v2/models"
 
 c, _ := client.New(client.WithConfig(cfg), client.UseAllAPIs())  // panic if you forget UseAllAPIs
 ctx = entities.WithIdempotencyKey(ctx, key)
 ctx = entities.WithTenantID(ctx, tenant)  // confused with client.WithTenantID
-e, _ := entities.NewEntity(httpClient, token, urls, nil)  // 4 redundant ways to construct
+e, _ := entities.NewEntity(httpClient, token, urls, nil)  // 4 redundant entity constructors
 acc, _ := c.Entity.Accounts.GetAccount(ctx, ...)
+input := models.CreateAccountInput{...}  // every input/output type qualified
 
-// v3 (current v3 branch state)
+// v3 (current v3 branch state) — 2 imports, 1 way to construct, typed errors
 import "github.com/LerianStudio/midaz-sdk-golang/v3"
 import "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
 
@@ -83,8 +96,14 @@ ctx = sdkctx.WithRequestTenantID(ctx, tenant)    // unambiguous; renamed from Wi
 ctx = sdkctx.WithIncludeDeleted(ctx, true)       // NEW (Track 7 dependency)
 ctx = sdkctx.WithHardDelete(ctx, true)           // NEW (Track 7 dependency)
 acc, _ := c.Accounts.GetAccount(ctx, ...)        // hoisted via embedded Entity
-// entities.NewEntity / .New / .NewWithServiceURLs / .WithContext are GONE.
-// 16 NewXxxEntity service constructors are unexported. midaz.New() is the only entry point.
+input := midaz.CreateAccountInput{...}           // 56 hot types re-exported on midaz.*
+
+// What's GONE in v3:
+//   * entities.NewEntity / .New / .NewWithServiceURLs / .WithContext
+//   * 16 NewXxxEntity service constructors (unexported)
+//   * UseAllAPIs / UseEntityAPI / UseEntity trio (Entity always init'd)
+//   * Models import for everyday work (56 type aliases on midaz package)
+// midaz.New() is the canonical entry point. One way to do it.
 ```
 
 ---
@@ -363,7 +382,7 @@ Notes:
 - [ ] **(Pending Track 2)** `midaz.WithAuthToken("...")` works as a single-line auth setup with no `pkg/config` imports.
 - [ ] **(Pending Track 4)** `Client.Logger()` returns a non-nil `*slog.Logger` always (default = discard handler). *Currently Logger() can return nil; Track 4 fixes.*
 - [x] **(Batch 1E)** All 16 `entities.NewXxxEntity` are unexported (`newAccountsEntity`, `newTransactionsEntity`, etc.); 3 redundant entity-level constructors deleted (`entities.NewEntity`, `entities.New`, `entities.NewWithServiceURLs`); `entities.WithContext` no-op deleted. Godoc on `entities` shows only the canonical entry path (`NewEntityWithConfig` for embedders + `NewHTTPClient` for access-manager + `InitServices` for plugin auth duck-typing).
-- [ ] **(Pending Batch 1G)** Top-level `midaz` package re-exports `Account`, `Transaction`, `ListOpts`, `CreateAccountInput`, etc. via type aliases.
+- [x] **(Batch 1G)** Top-level `midaz` package re-exports **56 hot model types** via type aliases: 16 resource entities (Account, Transaction, Ledger, ...), 16 Create inputs, 14 Update inputs, 5 transaction sub-DTOs (AmountInput, FromToInput, SendInput, SourceInput, DistributeInput), 3 pagination/list types (including the generic `ListResponse[T any]`), 2 common types (Status, Address). Verified via 59 contract tests (typed-identity check + cross-package mutual assignability).
 - [x] **(Batch 1F)** `midaz.New()` runs `c.config.Validate()` after applying options; validation errors are typed `*errors.Error{Category: CategoryConfiguration}` with operation context. ✅ `errors.IsConfigurationError(err)` works.
 - [ ] **(Pending Phase C / Track 9)** Compile-time: no test in `examples/` uses `c.Entity.X.Y` form anymore (all migrate to `c.X.Y`). *Currently mass-replaced internally; examples still use `client.UseAllAPIs()`-era patterns. Track 9 polishes.*
 
@@ -2174,6 +2193,31 @@ A running record of design decisions with rationale. Append-only; never edit his
   - 3 testifylint `error-is-as` / `error-nil` in `validation_contract_test.go` (Batch 1F) — refactor to `assert.ErrorIs(t, err, target)` etc.
   - 5 staticcheck `SA1012 do not pass nil context` in `pkg/sdkctx/sdkctx_test.go` (Batch 1D) — these are *intentional* nil-safety tests. Fix is `//nolint:staticcheck // intentional nil-context for nil-safety verification` annotations.
 
+### 2026-05-06 — Lint sweep: 11 pre-existing issues cleaned (commit ab98a64)
+**Decision:** Brought the v3 branch to a fully lint-clean state by addressing all 11 pre-existing issues that had accumulated during Batches 1A-1F. `make lint` was apparently not part of the verification flow until Batch 1E surfaced the gap. Going forward, `make lint` joins `go build`, `go test`, and `make verify-sdk` as required verification before every batch commit.
+**Categories fixed:**
+  - 3 staticcheck QF1008 `drop .Entity from selector` in `client_test.go:183`, `midaz.go:302`, `slice2_regression_test.go:43,55`. The .Entity qualifier was redundant once Client embeds *entities.Entity (Batch 1C); the linter was right that the v3 'flat surface' contract obscured itself when test code still wrote the long form.
+  - 3 testifylint in `validation_contract_test.go` (Batch 1F): `assert.True(t, stderrors.Is(err, target))` → `require.ErrorIs(t, err, target)`; `require.True(t, stderrors.As(err, &sdkErr))` → `require.ErrorAs(t, err, &sdkErr)`; `require.NotNil(t, inner)` → `require.Error(t, inner)` (last one because `Unwrap` returns an `error` value; the canonical 'wrap-reachable' assertion is `require.Error`).
+  - 5 staticcheck SA1012 `do not pass nil context` in `pkg/sdkctx/sdkctx_test.go` (Batch 1D): annotated each with `//nolint:staticcheck // intentional nil-context for nil-safety verification`. These tests deliberately exercise nil-ctx behavior on the helpers (which promote nil to context.Background and return zero-values from extractors). The nil pass IS the test; rewriting to context.TODO() would defeat the test.
+**Net:** 5 files, +12/-7. Zero behavior change. Lint baseline 11 → 0.
+
+### 2026-05-06 — Batch 1G: 56 type aliases at midaz package level (commit 588997a)
+**Decision:** Re-exported 56 high-value types from `models/` via Go's `type X = Y` form (true type identity, not distinct types). Single source of truth: types live in `models/`; the aliases in `types.go` are pure naming convenience that lets user code stay on a single import path. Curated from a 106-type universe in `models/` — anything sitting in 95% of normal SDK usage is included; deprecated types and internal request shapes stay in `models/` only.
+**Aliases by category:**
+  - 16 resource entities (Account, AccountType, Alias, Asset, AssetRate, Balance, Holder, Ledger, MetadataIndex, Operation, OperationRoute, Organization, Portfolio, Segment, Transaction, TransactionRoute)
+  - 16 Create inputs (CreateAccountInput, …, CreateTransactionRouteInput)
+  - 14 Update inputs (UpdateAccountInput, …, UpdateTransactionRouteInput) — note 14 not 16 because UpdateMetadataIndexInput and UpdateAssetRateInput don't exist as standalone types in v2 schema
+  - 5 transaction sub-DTOs (AmountInput, DistributeInput, FromToInput, SendInput, SourceInput)
+  - 3 pagination & list types (ListOptions, ListResponse[T], Pagination)
+  - 2 common (Status, Address)
+**Generic alias technical note:** `type ListResponse[T any] = models.ListResponse[T]` is a Go 1.24+ feature (parameterized type aliases). Repo runs Go 1.26.0+ per `go.mod`, so this is safe. Verified via `TestGenericListResponseAlias`.
+**Lint accommodation:** revive flagged each alias as 'exported needs doc comment' (56 issues). Adding 56 near-identical `// X is an alias for models.X` comments would be noise without info — godoc follows the alias and surfaces the source type's doc directly, which is the canonical user view. Suppressed via `//revive:disable:exported` at file scope with a written rationale comment. The package-level commentary documents the contract.
+**Tests added (59 cases in `types_contract_test.go`):**
+  - `TestTypeAliasesAreIdentical`: 56 sub-tests using `reflect.TypeOf` comparison — the canonical proof of type identity. If any future commit silently downgrades a `type X = Y` alias to a distinct type `type X Y`, this test fails.
+  - `TestGenericListResponseAlias`: separate case for the generic alias (because reflect.TypeOf needs a concrete instantiation).
+  - `TestAliasesUsableInUserFlow`: 2 directional checks proving values flow without conversions or boxing — the practical user-flow proof.
+**Track 1 closes here.** All Batch 1A-1G acceptance criteria within Track 1's scope are satisfied. Three deferred items (`WithAuthToken`, `Logger()` non-nil, examples migration) live in Tracks 2/4/9 respectively per the original sequencing plan.
+
 ### 2026-05-05 — Anonymous embedding decision deferred Track 7's mmodel concern
 **Observation:** The current `Entity.Accounts` field is typed `entities.AccountsService` (an interface). When we eventually delete `entities/` in Phase B, the embed becomes `*services.Hub` or similar. The migration path: change one line in Client struct, regenerate `c.X` references. Easy. Documented here so future-me doesn't trip over it.
 
@@ -2187,7 +2231,7 @@ Live as of: 2026-05-05 (post-session 1). Update with every commit batch.
 
 | Track | Status | Started | Completed | Branch / Commits | Notes |
 |-------|--------|---------|-----------|------------------|-------|
-| 1 — Naked SDK & Entry Points | 🟡 In progress (6/7 batches) | 2026-05-05 | — | `v3` branch, commits f8e2109..ab69e05 | 1A, 1B, 1C, 1D, 1E, 1F done. **1G + lint sweep pending.** See per-batch detail below. |
+| 1 — Naked SDK & Entry Points | 🟢 **COMPLETE** (7/7 + lint sweep) | 2026-05-05 | 2026-05-06 | `v3` branch, commits f8e2109..588997a | All batches shipped. Acceptance criteria for `WithAuthToken` (Track 2), `Logger()` non-nil (Track 4), and example migration (Track 9) intentionally deferred. |
 | 2 — Auth & Tenant Chaos | 🔵 Not started | — | — | — | Depends on Track 1 completion. Adds `WithAuthToken`, re-exports `AccessManager`, renames `pkg/access-manager` → `pkg/auth`. |
 | 3 — Implicit env reads | 🔵 Not started | — | — | — | Independent; can start any time. **High-impact mechanical cleanup**: 14 redundant `os.Getenv("MIDAZ_DEBUG")` reads + 5 hidden env vars in `entities/http.go`. |
 | 4 — Logging gap | 🔵 Not started | — | — | — | Depends on Tracks 1, 3. **Fred-flagged critical**. Introduces `*slog.Logger` as canonical contract; deletes `MIDAZ_DEBUG` bypass; adds retry-attempt logging. |
@@ -2217,8 +2261,8 @@ Live as of: 2026-05-05 (post-session 1). Update with every commit batch.
 | 1D | Introduce `pkg/sdkctx`; deprecated shims in entities | ✅ Done | `af8bbea` | 9 files, +324 net, +8 sdkctx tests |
 | 1E | Constructor cleanup (16 `entities.NewXxxEntity` unexport, 3 redundant entity constructors deleted, `entities.WithContext` no-op deleted) | ✅ Done | `ab69e05` | 39 files, **-490 net** (749 deletions, 259 insertions), test infrastructure helper added |
 | 1F | Eager validation contract at `midaz.New()` | ✅ Done | `582dd99` | 7 files, +271 net, +11 validation tests |
-| 1G | Top-level type re-exports (`midaz.Account` aliases) | 🔵 Pending | — | Final Track 1 batch |
-| 1-Lint | Sweep 11 pre-existing lint issues (8 staticcheck QF1008, 3 testifylint, 5 SA1012 nolint) | 🔵 Pending | — | Tech debt from earlier batches; zero net behavior change |
+| 1G | Top-level type re-exports (56 type aliases on `midaz.*`) | ✅ Done | `588997a` | 2 files (+279 lines), 59 contract tests added (typed-identity verification + cross-package assignability) |
+| 1-Lint | Sweep 11 pre-existing lint issues (3 staticcheck QF1008, 3 testifylint, 5 SA1012 nolint) | ✅ Done | `ab98a64` | 5 files, +12/-7, takes lint baseline from 11 to 0 |
 
 ---
 
