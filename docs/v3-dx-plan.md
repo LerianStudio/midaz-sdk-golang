@@ -1,8 +1,8 @@
 # Midaz Go SDK v3 — DX Plan
 
-> **Status:** IN PROGRESS — **Phase A COMPLETE** (4/4 tracks). Phase B (Tracks 5–8) ready to start.
+> **Status:** IN PROGRESS — **Phase A COMPLETE** (4/4 tracks). **Phase B in progress: Track 6 kickoff (2026-05-06)**, 6 batches planned.
 > **Owner:** Fred (Lerian)
-> **Last updated:** 2026-05-06 (post-session 5, Phase A close)
+> **Last updated:** 2026-05-06 (post-session 6, Track 6 kickoff)
 > **Scope:** Greenfield v3 — clean-cut major version. **No transitional v2.99 shim release; no deprecated-symbol window.** Customers swap their import from `/v2` to `/v3` and migrate at the same moment. The `Migration Story` section below has been revised to reflect this stance (the original 2-step v2.99 → v3.0 plan is preserved as historical context).
 
 ---
@@ -66,8 +66,8 @@ f8e2109 feat(v3)!: rename module to /v3 and root package to midaz    ← Batch 1
 | 4 — Logging Gap | 🟢 COMPLETE | M | `*slog.Logger` canonical, retry logging shipped, no MIDAZ_DEBUG bypass |
 
 **Next action when resuming:**
-1. **Push `v3` branch to origin.** 23 commits sitting locally; Phase A's foundation is the single biggest API-shape decision in the v3 cycle and deserves to be durable.
-2. **Phase B opens.** Tracks 5-8: pagination footguns (`iter.Seq2` migration), options sprawl audit (deduplicate the 50+ Options across midaz/config/entities), builder API drift (model package builders that don't compose), error system actionability (typed predicates that return false on real network errors). Per-track dependencies are described in their respective sections below.
+1. **Push `v3` branch to origin.** 24 commits sitting locally (23 Phase A + 1 plan reconciliation `977f036` + Track 6 kickoff doc — about to commit). Phase A's foundation is the single biggest API-shape decision in the v3 cycle and deserves to be durable.
+2. **Track 6 in progress (kickoff 2026-05-06).** Phase B opened. Six batches planned: 6A delete dead Options, 6B two-layer canonical formalization (`midaz.With*` user-facing + `pkg/config.With*` internal/test), 6C `WithRetries` collision resolution, 6D observability family canonicalization, 6E naming convention sweep, 6F lint rule + `docs/configuration.md`. See 2026-05-06 Decision Log entry for the four hinge decisions made at kickoff.
 3. **Phase C** (Track 9): examples rewrite, full README rewrite, godoc audit, mock generation. Depends on Phase B for stable surfaces.
 
 **Important context preserved for the next session:**
@@ -2319,6 +2319,60 @@ A running record of design decisions with rationale. Append-only; never edit his
 ### 2026-05-05 — Anonymous embedding decision deferred Track 7's mmodel concern
 **Observation:** The current `Entity.Accounts` field is typed `entities.AccountsService` (an interface). When we eventually delete `entities/` in Phase B, the embed becomes `*services.Hub` or similar. The migration path: change one line in Client struct, regenerate `c.X` references. Easy. Documented here so future-me doesn't trip over it.
 
+### 2026-05-06 — Track 6 kickoff: four hinge decisions before any code moves
+**Context:** Phase B opens with Track 6 (Functional Options Sprawl). Pre-flight audit shows **222 option-shaped functions across 28 files** (the plan's "~120" baseline was wrong). Real shape of the problem post-Phase A:
+
+- **8 genuine `midaz.With*` ↔ `pkg/config.With*` duplicates** where `midaz.With*` is a thin delegating wrapper. `pkg/config.With*` is independently consumed by tests (`validation_contract_test.go`, `client_test.go`) that need Config-layer construction without firing `NewEntityWithConfig`'s eager token fetch — that's a legitimate use case that prevents simple deletion.
+- **3 residual `entities.With*` Options** that are internal plumbing dressed as Options: `WithDebug`, `WithUserAgent`, `WithObservability` are called only from `midaz.go:setupEntity` to push values into the post-construction HTTPClient via private `set*Locked` setters. `entities.WithHTTPClient` has zero callers (dead code).
+- **1 contradictory signature pair** (the plan's `6.1` CRITICAL): `midaz.WithRetries(int, dur, dur)` vs `pkg/config.WithRetries(bool)`. Same name, two different concepts (budget vs on/off).
+- **Naming-collision-but-different-Option-types** cases (`pkg/performance.WithHTTPClient` returns `BatchProcessorOption`, etc.): semantically distinct, just hostile to autocomplete. Lower priority — rename for clarity but no architectural change needed.
+
+**Decisions:**
+
+1. **Two-layer canonical for `midaz.With*` / `pkg/config.With*` (Q10 resolved option A).** Both layers stay. `midaz.With*` is the user-facing surface — always documented as the recommended path. `pkg/config.With*` is the internal/test surface — godoc updated to read "Use `midaz.With*` unless you specifically need Config-layer construction." Add CI lint check (or grep-based pre-commit hook) that blocks new `pkg/config.With*` lacking a `midaz.With*` counterpart. Rationale: deletion of either layer breaks legitimate code (tests need Config layer; users need ergonomic root-package surface). The duplication is ~18 functions but the maintenance cost is low because `midaz.With*` are 3-line delegators.
+
+2. **Delete all 4 `entities.With*` Options; replace with direct setter calls.** `WithDebug`, `WithUserAgent`, `WithObservability` get inlined at the 3 `midaz.go:setupEntity` call sites (lines 238-240) using newly-exported `entity.GetEntityHTTPClient().SetDebug/SetUserAgent/SetObservability` package-internal setters (or by passing the values as fields on a small `entities.Bootstrap` struct to `NewEntityWithConfig`). `WithHTTPClient` deletes (zero callers). Result: `entities/options.go` becomes a 0-line file we delete entirely. Rationale: entities are services, not configurable objects. The Option dressing was vestigial.
+
+3. **Delete both `WithRetries` variants; introduce `WithRetryOptions(...retry.Option)` + `WithoutRetries()`.** Surfaces the full `pkg/retry.Option` palette (jitter, predicates, presets like `retry.WithHighReliability()`) instead of hiding it behind a 3-arg constructor. Customer migration:
+   ```go
+   // v2
+   midaz.New(client.WithRetries(5, 100*time.Millisecond, 5*time.Second))
+   // v3
+   midaz.New(midaz.WithRetryOptions(
+       retry.WithMaxRetries(5),
+       retry.WithInitialDelay(100*time.Millisecond),
+       retry.WithMaxDelay(5*time.Second),
+   ))
+
+   // v2 off-switch
+   midaz.New(client.DisableRetries())
+   // v3
+   midaz.New(midaz.WithoutRetries())
+   ```
+   Net: -2 ambiguous names (`midaz.WithRetries`, `config.WithRetries`), -1 verb-spaghetti (`DisableRetries`), +1 power-tool (`WithRetryOptions`), +1 clear off-switch (`WithoutRetries`).
+
+4. **Six-batch cadence for Track 6.** Each batch is one `feat(v3)!` commit, reviewed independently, hard `make ci` gate.
+
+| Batch | Scope | Estimated effort |
+|-------|-------|------------------|
+| **6A** | Delete dead Options: `entities.WithHTTPClient`, `pkg/performance.WithJSONIterator`, `pkg/concurrent.WithWaitGroup`, free-function model "options" in `models/{account-type,operation-route,transaction-route}.go` | S — pure deletion, no semantic shift |
+| **6B** | Two-layer canonical formalization: godoc rewrites on all 18 `pkg/config.With*` declaring "use `midaz.With*` unless..."; godoc rewrites on `midaz.With*` mirroring; **delete `entities/options.go` entirely** (Decision 2); inline the 3 internal setter calls at midaz.go:setupEntity | M — coordinated edits across 3 packages |
+| **6C** | Retries family: delete `midaz.WithRetries(int,dur,dur)`, `pkg/config.WithRetries(bool)`; introduce `midaz.WithRetryOptions(...retry.Option)` + `midaz.WithoutRetries()`; promote `pkg/retry.WithHighReliability` etc. via documented examples; delete `pkg/retry.WithNoRetry`, `pkg/retry.WithHTTPNoRetry` | M — touches retry hook plumbing, tests, examples |
+| **6D** | Observability family: collapse `midaz.WithObservability(bool,bool,bool)` + `WithObservabilityOptions` + `WithCollectorEndpoint` into `midaz.WithObservability(...observability.Option)` + `midaz.WithObservabilityProvider(p)` (BYO escape hatch) + `midaz.WithoutObservability()`; promote `pkg/observability/http.go` Ignore/Mask/Hide options via `midaz.WithObservabilityHTTPOptions(...)` | M — 4 overlapping APIs collapse to 3 with clear semantics |
+| **6E** | Naming convention sweep: all boolean params named `enabled` (no `enable`/`enableX`); `Without*` off-switches for retries, observability, tenant ID, logger, idempotency; rename `pkg/performance.WithHTTPClient` → `WithBatchHTTPClient` (it's a `BatchProcessorOption`, not the same concept), `pkg/performance/http.go.WithTimeout` → `WithHTTPTimeout` | M — many small rename edits |
+| **6F** | New `docs/configuration.md` documenting precedence (option order, env vs option, per-request vs default); CI lint rule (golangci-lint custom check or shell hook) blocking new `pkg/config.With*` without a `midaz.With*` counterpart; close Track 6 in plan + Decision Log | S — docs + tooling only |
+
+**Acceptance metric (revised from plan):** Track 6 success is no longer "≤60 With\* options" because the 222-function baseline includes legitimate per-package Option types (pkg/retry.Option, pkg/observability.Option, etc.) which we **want** to keep — they're the composable advanced surface. The right metric:
+- [ ] Zero `func With*` collisions across packages where the Option type is identical (`func(*Client) error`) AND the meaning is identical
+- [ ] Zero contradictory signatures for the same name (kills WithRetries collision)
+- [ ] All `midaz.With*` and `pkg/config.With*` duplicates documented as "user-facing layer / internal-test layer"
+- [ ] `entities/options.go` deleted
+- [ ] One canonical `Without*` per concept (retries, observability, tenant ID, logger, idempotency)
+- [ ] All boolean params named `enabled`
+- [ ] CI lint rule blocks regression
+
+**Decided by:** Fred (4-question questionnaire, 2026-05-06)
+
 ---
 
 ## Status Tracker
@@ -2342,7 +2396,7 @@ All Phase A dependencies are satisfied. Tracks can begin in dependency order:
 | Track | Status | Started | Completed | Branch / Commits | Notes |
 |-------|--------|---------|-----------|------------------|-------|
 | 5 — Pagination footguns | 🔵 Not started | — | — | — | Depends on Tracks 1, 6. Per-service typed `ListOpts`, `iter.Seq2` iterators, deletes dead `pkg/pagination`. The 3 stderr writes deleted in Track 4 (cursor warning, offset warning, optimizer error) need their semantics re-homed here as typed errors on the new `ListOpts`. |
-| 6 — Functional options sprawl | 🔵 Not started | — | — | — | Must land before 5, 7. Consolidates ~120 options to ≤60. v3 already deleted ~10 redundant options across Phase A (Use\* trio, WithDefaultTenantID, WithPluginAuth, config.WithTenantID, etc.) so the starting count is ~110. |
+| 6 — Functional options sprawl | 🟡 **IN PROGRESS** (kickoff 2026-05-06) | 2026-05-06 | — | `v3` branch, batches 6A–6F planned | Must land before 5, 7. **Pre-flight audit found 222 option-shaped functions across 28 files** (plan's "~120" baseline was wrong — it counted only client-facing Options; the 222 includes all per-package Option types). 4 hinge decisions made at kickoff (see 2026-05-06 Decision Log entry): (1) two-layer canonical `midaz.With*` / `pkg/config.With*` formalized rather than collapsed; (2) `entities/options.go` deleted entirely (4 Options including 1 dead, 3 internal-plumbing); (3) `WithRetries` collision resolved via new `WithRetryOptions(...retry.Option)` + `WithoutRetries()`; (4) 6-batch cadence (6A delete dead → 6B two-layer formalization → 6C retries → 6D observability → 6E naming sweep → 6F lint+docs). |
 | 7 — Builder/Model API drift | 🔵 Not started | — | — | — | Depends on Track 6. Converges every entity on Account-shaped pattern. The deferred Track 3 acceptance criterion (`entities.NewHTTPClient` accepts an explicit `HTTPClientConfig` struct) folds into this track. |
 | 8 — Error system actionability | 🔵 Not started | — | — | — | Depends on Tracks 1, 4. Network-error typing, `Operation`/`ResourceID` plumbing. Track 4 already added `errors.NewConfigurationError` + `IsConfigurationError`; Track 8 extends the same pattern to network/HTTP errors. |
 
