@@ -455,17 +455,17 @@ func WithUserAgent(userAgent string) Option {
 // In debug mode, the SDK logs detailed information about requests and responses.
 //
 // Parameters:
-//   - enable: Whether to enable debug mode
+//   - enabled: Whether to enable debug mode
 //
 // Returns:
 //   - Option: A function that sets the debug flag on a Config
-func WithDebug(enable bool) Option {
+func WithDebug(enabled bool) Option {
 	return func(c *Config) error {
 		if c == nil {
 			return errors.New("config cannot be nil")
 		}
 
-		c.Debug = enable
+		c.Debug = enabled
 
 		return nil
 	}
@@ -507,17 +507,17 @@ func WithObservabilityProvider(provider observability.Provider) Option {
 // [github.com/LerianStudio/midaz-sdk-golang/v3.New] directly.
 //
 // Parameters:
-//   - enable: Whether to enable idempotency key generation
+//   - enabled: Whether to enable idempotency key generation
 //
 // Returns:
 //   - Option: A function that sets the idempotency flag on a Config
-func WithIdempotency(enable bool) Option {
+func WithIdempotency(enabled bool) Option {
 	return func(c *Config) error {
 		if c == nil {
 			return errors.New("config cannot be nil")
 		}
 
-		c.EnableIdempotency = enable
+		c.EnableIdempotency = enabled
 
 		return nil
 	}

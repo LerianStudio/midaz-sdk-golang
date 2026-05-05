@@ -215,8 +215,14 @@ type BatchProcessor struct {
 // BatchProcessorOption defines a function that configures a BatchProcessor
 type BatchProcessorOption func(*BatchProcessor) error
 
-// WithHTTPClient sets the HTTP client for the batch processor
-func WithHTTPClient(client *http.Client) BatchProcessorOption {
+// WithBatchHTTPClient sets the HTTP client for the batch processor.
+//
+// In v2/early-v3 this was named WithHTTPClient, which collided in
+// autocomplete with [github.com/LerianStudio/midaz-sdk-golang/v3.WithHTTPClient]
+// and [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config.WithHTTPClient]
+// despite returning a different Option type ([BatchProcessorOption], not
+// [Option]). Track 6 Batch 6E renamed it to break the collision.
+func WithBatchHTTPClient(client *http.Client) BatchProcessorOption {
 	return func(p *BatchProcessor) error {
 		if client == nil {
 			return errors.New("HTTP client cannot be nil")
@@ -357,7 +363,7 @@ func NewBatchProcessorWithDefaults(client *http.Client, baseURL string, options 
 	var opts []BatchProcessorOption
 
 	if client != nil {
-		opts = append(opts, WithHTTPClient(client))
+		opts = append(opts, WithBatchHTTPClient(client))
 	}
 
 	if options != nil {

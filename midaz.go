@@ -725,13 +725,13 @@ func WithCRMURL(crmURL string) Option {
 // In debug mode, the SDK logs detailed information about requests and responses.
 //
 // Parameters:
-//   - enable: Whether to enable debug mode
+//   - enabled: Whether to enable debug mode
 //
 // Returns:
 //   - Option: A function that sets the debug flag on the Client
-func WithDebug(enable bool) Option {
+func WithDebug(enabled bool) Option {
 	return func(c *Client) error {
-		return config.WithDebug(enable)(c.config)
+		return config.WithDebug(enabled)(c.config)
 	}
 }
 

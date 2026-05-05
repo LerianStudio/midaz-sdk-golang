@@ -653,7 +653,7 @@ func TestNewBatchProcessor(t *testing.T) {
 	// Test with valid options
 	processor, err := NewBatchProcessor(
 		"http://example.com",
-		WithHTTPClient(http.DefaultClient),
+		WithBatchHTTPClient(http.DefaultClient),
 		WithBatchOptions(&BatchOptions{
 			Timeout:         120 * time.Second,
 			MaxBatchSize:    200,
@@ -700,14 +700,14 @@ func TestNewBatchProcessor(t *testing.T) {
 	}
 
 	// Test with invalid options
-	_, err = NewBatchProcessor("", WithHTTPClient(http.DefaultClient))
+	_, err = NewBatchProcessor("", WithBatchHTTPClient(http.DefaultClient))
 	if err == nil {
 		t.Fatalf("Expected NewBatchProcessor to return an error for empty baseURL, got nil")
 	}
 
 	_, err = NewBatchProcessor(
 		"http://example.com",
-		WithHTTPClient(nil),
+		WithBatchHTTPClient(nil),
 	)
 	if err == nil {
 		t.Fatalf("Expected NewBatchProcessor to return an error for nil client, got nil")
@@ -1138,7 +1138,7 @@ func BenchmarkBatchProcessing(b *testing.B) {
 	// Benchmark with small batch
 	b.Run("SmallBatch", func(b *testing.B) {
 		// Create a processor with default options
-		processor, err := NewBatchProcessor(server.URL, WithHTTPClient(http.DefaultClient))
+		processor, err := NewBatchProcessor(server.URL, WithBatchHTTPClient(http.DefaultClient))
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -1156,7 +1156,7 @@ func BenchmarkBatchProcessing(b *testing.B) {
 	// Benchmark with large batch
 	b.Run("LargeBatch", func(b *testing.B) {
 		// Create a processor with default options
-		processor, err := NewBatchProcessor(server.URL, WithHTTPClient(http.DefaultClient))
+		processor, err := NewBatchProcessor(server.URL, WithBatchHTTPClient(http.DefaultClient))
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -1181,7 +1181,7 @@ func BenchmarkBatchProcessing(b *testing.B) {
 
 		processor, err := NewBatchProcessor(
 			server.URL,
-			WithHTTPClient(http.DefaultClient),
+			WithBatchHTTPClient(http.DefaultClient),
 			WithBatchOptions(options),
 		)
 		if err != nil {
@@ -1203,7 +1203,7 @@ func BenchmarkBatchProcessing(b *testing.B) {
 		// Create a processor with parallel processing config
 		processor, err := NewBatchProcessor(
 			server.URL,
-			WithHTTPClient(http.DefaultClient),
+			WithBatchHTTPClient(http.DefaultClient),
 			WithBatchOptions(&BatchOptions{
 				MaxBatchSize: 10,
 				RetryCount:   3,
