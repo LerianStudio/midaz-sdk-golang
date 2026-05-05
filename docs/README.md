@@ -44,7 +44,6 @@ Generated docs currently include:
 - [Concurrent package](./godoc/pkg/concurrent/index.txt)
 - [Retry package](./godoc/pkg/retry/index.txt)
 - [Performance package](./godoc/pkg/performance/index.txt)
-- [Pagination package](./godoc/pkg/pagination/index.txt)
 - [Format package](./godoc/pkg/format/index.txt)
 
 ## Package structure
@@ -57,7 +56,6 @@ Generated docs currently include:
 - `pkg/errors` - Structured SDK error type, categories, codes, constructors, and checking helpers.
 - `pkg/observability` - OpenTelemetry tracing, metrics, logging, propagation, and middleware helpers.
 - `pkg/retry` - Retry policies, backoff, jitter, and HTTP retry helpers.
-- `pkg/pagination` - Generic paginator utilities separate from `models.ListOptions`.
 - `pkg/concurrent` - Worker pool, batch, and rate-limit helpers.
 - `pkg/security`, `pkg/validation`, `pkg/format`, `pkg/transaction`, `pkg/version` - Supporting utility packages.
 

@@ -55,7 +55,7 @@ models.SortAscending
 models.SortDescending
 ```
 
-`models.DefaultLimit` is `10`, and `models.MaxLimit` is `100`. The generic `pkg/pagination` paginator uses the same cap through `MaxPaginationLimit`, so SDK entity list methods and paginator helpers enforce the same maximum limit.
+`models.DefaultLimit` is `10`, and `models.MaxLimit` is `100`. SDK entity list methods enforce this cap on every request.
 
 ## Ledger and CRM pagination semantics
 

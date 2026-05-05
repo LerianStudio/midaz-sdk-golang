@@ -73,7 +73,6 @@ The major layers are:
 | `pkg/errors/` | Structured SDK error type, categories, codes, constructors, and helper checkers. |
 | `pkg/observability/` | OpenTelemetry provider abstraction, tracing, metrics, logging, context propagation, and HTTP helpers. |
 | `pkg/retry/` | Retry options, retry engine, HTTP retry helpers, exponential backoff, jitter, and retryable status/error matching. |
-| `pkg/pagination/` | Generic pagination helpers separate from `models.ListOptions`. |
 | `pkg/security/` | Outbound request validation and related safety checks. |
 | `pkg/validation/` | Validation helpers and field-level validation structures. |
 | `pkg/concurrent/` | Worker pool, batching, and rate-limit utilities. |
