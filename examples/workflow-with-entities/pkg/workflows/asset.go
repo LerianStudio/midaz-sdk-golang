@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	client "github.com/LerianStudio/midaz-sdk-golang/v3"
-	sdkentities "github.com/LerianStudio/midaz-sdk-golang/v3/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
 )
 
 // CreateAsset creates a new USD asset
@@ -26,7 +26,7 @@ func CreateAsset(ctx context.Context, midazClient *client.Client, orgID, ledgerI
 
 	fmt.Println("Creating USD asset...")
 
-	reqCtx := sdkentities.WithIdempotencyKey(ctx, fmt.Sprintf("asset-%s-%s-USD", orgID, ledgerID))
+	reqCtx := sdkctx.WithIdempotencyKey(ctx, fmt.Sprintf("asset-%s-%s-USD", orgID, ledgerID))
 	usdAsset, err := midazClient.Assets.CreateAsset(
 		reqCtx, orgID, ledgerID,
 		models.NewCreateAssetInputWithType("US Dollar", "USD", "currency").

@@ -11,10 +11,10 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -336,7 +336,7 @@ func (bp *batchProcessor) executeWithRetries(input *models.CreateTransactionInpu
 		}
 
 		// Inject idempotency key into context so HTTP layer can add header
-		ctx := entities.WithIdempotencyKey(bp.ctx, input.IdempotencyKey)
+		ctx := sdkctx.WithIdempotencyKey(bp.ctx, input.IdempotencyKey)
 		tx, err = bp.client.Transactions.CreateTransaction(ctx, bp.orgID, bp.ledgerID, input)
 
 		if err == nil || !isRetryableError(err) {

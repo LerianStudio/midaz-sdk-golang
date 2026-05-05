@@ -230,7 +230,7 @@ func DecimalStringFromAny(value any) string {
 //
 // When creating a transaction, the send payload must include a source and a
 // distribution whose values balance for each asset. Set IdempotencyKey or use
-// entities.WithIdempotencyKey for retry-safe unsafe requests.
+// sdkctx.WithIdempotencyKey for retry-safe unsafe requests.
 //
 // Example - Creating a simple payment transaction:
 //

@@ -12,6 +12,7 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/data"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/stats"
 )
 
@@ -50,7 +51,7 @@ func (g *transactionGenerator) GenerateWithDSL(ctx context.Context, orgID, ledge
 
 	// Inject idempotency key into context so HTTP layer can add header
 	if pattern.IdempotencyKey != "" {
-		ctx = entities.WithIdempotencyKey(ctx, pattern.IdempotencyKey)
+		ctx = sdkctx.WithIdempotencyKey(ctx, pattern.IdempotencyKey)
 	}
 
 	err := observability.WithSpan(ctx, g.obs, "GenerateTransactionDSL", func(ctx context.Context) error {

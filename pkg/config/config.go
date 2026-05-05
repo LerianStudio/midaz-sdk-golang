@@ -125,7 +125,7 @@ type Config struct {
 
 	// TenantID is the default tenant identifier sent as X-Tenant-ID on every request.
 	// It can be set via the WithTenantID option.
-	// Per-request overrides via entities.WithTenantID(ctx, id) take precedence. This
+	// Per-request overrides via sdkctx.WithRequestTenantID(ctx, id) take precedence. This
 	// is an optional compatibility header and may be ignored by deployments that derive
 	// tenant scope from authenticated claims.
 	TenantID string
@@ -503,7 +503,7 @@ func WithIdempotency(enable bool) Option {
 
 // WithTenantID sets the default tenant ID for all API requests.
 // The tenant ID is sent as the X-Tenant-ID header on every request.
-// Per-request overrides via entities.WithTenantID(ctx, tenantID) take precedence
+// Per-request overrides via sdkctx.WithRequestTenantID(ctx, tenantID) take precedence
 // over this configuration-level default. This header is best-effort compatibility
 // metadata rather than the sole tenant source of truth for the reference Midaz path.
 //
