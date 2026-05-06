@@ -1,4 +1,4 @@
-// Package errors provides error handling utilities for the Midaz SDK.
+// (Package documentation lives in doc.go.)
 package errors
 
 import (
@@ -109,6 +109,13 @@ const (
 	// These errors are produced eagerly by midaz.New() and indicate misuse of
 	// the SDK rather than a server-side or transport problem.
 	CategoryConfiguration ErrorCategory = "configuration"
+
+	// CategoryAuth is the canonical v3 category for any authentication or
+	// authorization failure. It replaces the v2 split between
+	// CategoryAuthentication and CategoryAuthorization. Callers that need
+	// to distinguish 401 from 403 should inspect [Error.StatusCode] or
+	// [Error.Code] (CodeAuthentication vs CodePermission).
+	CategoryAuth ErrorCategory = "auth"
 )
 
 // Standard error types that wrap all our error codes
@@ -120,15 +127,23 @@ var (
 	ErrAssetMismatch       = &Error{Category: CategoryValidation, Code: CodeAssetMismatch, Message: "asset mismatch"}
 	ErrAuthentication      = &Error{Category: CategoryAuthentication, Code: CodeAuthentication, Message: "authentication error"}
 	ErrPermission          = &Error{Category: CategoryAuthorization, Code: CodePermission, Message: "permission error"}
-	ErrNotFound            = &Error{Category: CategoryNotFound, Code: CodeNotFound, Message: "not found"}
-	ErrAlreadyExists       = &Error{Category: CategoryConflict, Code: CodeAlreadyExists, Message: "already exists"}
-	ErrIdempotency         = &Error{Category: CategoryConflict, Code: CodeIdempotency, Message: "idempotency error"}
-	ErrRateLimit           = &Error{Category: CategoryLimitExceeded, Code: CodeRateLimit, Message: "rate limit exceeded"}
-	ErrTimeout             = &Error{Category: CategoryTimeout, Code: CodeTimeout, Message: "timeout"}
-	ErrCancellation        = &Error{Category: CategoryCancellation, Code: CodeCancellation, Message: "operation cancelled"}
-	ErrInternal            = &Error{Category: CategoryInternal, Code: CodeInternal, Message: "internal error"}
-	ErrUnprocessable       = &Error{Category: CategoryUnprocessable, Code: CodeUnprocessable, Message: "unprocessable error"}
-	ErrConfiguration       = &Error{Category: CategoryConfiguration, Code: CodeConfiguration, Message: "configuration error"}
+	// ErrAuth matches any auth failure (authentication or authorization).
+	// Use with errors.Is for broad matching:
+	//
+	//	if errors.Is(err, errors.ErrAuth) { /* re-prompt for credentials */ }
+	//
+	// To distinguish 401 from 403, extract the typed error and inspect
+	// Error.StatusCode or Error.Code.
+	ErrAuth          = &Error{Category: CategoryAuth, Message: "authentication or authorization error"}
+	ErrNotFound      = &Error{Category: CategoryNotFound, Code: CodeNotFound, Message: "not found"}
+	ErrAlreadyExists = &Error{Category: CategoryConflict, Code: CodeAlreadyExists, Message: "already exists"}
+	ErrIdempotency   = &Error{Category: CategoryConflict, Code: CodeIdempotency, Message: "idempotency error"}
+	ErrRateLimit     = &Error{Category: CategoryLimitExceeded, Code: CodeRateLimit, Message: "rate limit exceeded"}
+	ErrTimeout       = &Error{Category: CategoryTimeout, Code: CodeTimeout, Message: "timeout"}
+	ErrCancellation  = &Error{Category: CategoryCancellation, Code: CodeCancellation, Message: "operation cancelled"}
+	ErrInternal      = &Error{Category: CategoryInternal, Code: CodeInternal, Message: "internal error"}
+	ErrUnprocessable = &Error{Category: CategoryUnprocessable, Code: CodeUnprocessable, Message: "unprocessable error"}
+	ErrConfiguration = &Error{Category: CategoryConfiguration, Code: CodeConfiguration, Message: "configuration error"}
 )
 
 // Error represents a standardized error in the Midaz SDK.
@@ -217,6 +232,17 @@ func (e *Error) Unwrap() error {
 }
 
 // Is checks if the target error is of the same type as this error.
+//
+// Matching rules, evaluated in order:
+//
+//  1. If target.Category is [CategoryAuth], match e.Category against
+//     CategoryAuth, CategoryAuthentication, OR CategoryAuthorization.
+//     This is the v3 unified-auth bridge: callers can use
+//     errors.Is(err, ErrAuth) without caring whether the underlying
+//     error is 401 or 403.
+//  2. If target.Category is non-empty, match exactly.
+//  3. If target.Code is non-empty, match exactly.
+//  4. Otherwise the errors are equivalent.
 func (e *Error) Is(target error) bool {
 	if e == nil || isNilError(target) {
 		return false
@@ -227,7 +253,13 @@ func (e *Error) Is(target error) bool {
 		return false
 	}
 
-	if t.Category != "" && e.Category != t.Category {
+	if t.Category == CategoryAuth {
+		if e.Category != CategoryAuth &&
+			e.Category != CategoryAuthentication &&
+			e.Category != CategoryAuthorization {
+			return false
+		}
+	} else if t.Category != "" && e.Category != t.Category {
 		return false
 	}
 
@@ -1119,6 +1151,42 @@ func IsAuthorizationError(err error) bool {
 	return CheckAuthorizationError(err)
 }
 
+// IsAuthError reports whether err is any kind of authentication or
+// authorization failure. It matches CategoryAuth, CategoryAuthentication,
+// and CategoryAuthorization so callers can react to the broad notion of
+// "auth failed" without caring whether the server returned 401 or 403.
+//
+// Example:
+//
+//	if errors.IsAuthError(err) {
+//	    // refresh token, re-prompt, or surface a generic "please sign in"
+//	}
+//
+// To distinguish 401 from 403, extract the typed error:
+//
+//	var sdkErr *errors.Error
+//	if errors.As(err, &sdkErr) && sdkErr.StatusCode == http.StatusForbidden {
+//	    // the user is signed in but lacks permission
+//	}
+func IsAuthError(err error) bool {
+	if isNilError(err) {
+		return false
+	}
+
+	var sdkErr *Error
+	if errors.As(err, &sdkErr) && sdkErr != nil {
+		switch sdkErr.Category {
+		case CategoryAuth, CategoryAuthentication, CategoryAuthorization:
+			return true
+		}
+	}
+
+	// Fall back to the legacy predicates so callers see consistent
+	// behavior even when the underlying error came from a code path
+	// that hasn't yet been migrated to the v3 typed shape.
+	return CheckAuthenticationError(err) || CheckAuthorizationError(err)
+}
+
 // IsConflictError checks if an error is a conflict error.
 func IsConflictError(err error) bool {
 	return CheckConflictError(err)
@@ -1139,8 +1207,13 @@ func IsConflictError(err error) bool {
 //
 // See also [NewConfigurationError], [ErrConfiguration].
 func IsConfigurationError(err error) bool {
-	if err == nil {
+	if isNilError(err) {
 		return false
+	}
+
+	var sdkErr *Error
+	if errors.As(err, &sdkErr) && sdkErr != nil {
+		return sdkErr.Category == CategoryConfiguration
 	}
 
 	return errors.Is(err, ErrConfiguration)
@@ -1199,6 +1272,27 @@ func IsAccountEligibilityError(err error) bool {
 // IsAssetMismatchError checks if an error is an asset mismatch error.
 func IsAssetMismatchError(err error) bool {
 	return CheckAssetMismatchError(err)
+}
+
+// IsUnprocessableError reports whether err represents a server-side
+// "unprocessable entity" response — typically a domain rule violation
+// such as insufficient balance, account ineligibility, or asset
+// mismatch. Matches any error whose Category is [CategoryUnprocessable].
+//
+// To react to specific unprocessable codes (e.g. only insufficient
+// balance), use [IsInsufficientBalanceError], [IsAccountEligibilityError],
+// or [IsAssetMismatchError] which match by Code.
+func IsUnprocessableError(err error) bool {
+	if isNilError(err) {
+		return false
+	}
+
+	var sdkErr *Error
+	if errors.As(err, &sdkErr) && sdkErr != nil {
+		return sdkErr.Category == CategoryUnprocessable
+	}
+
+	return errors.Is(err, ErrUnprocessable)
 }
 
 // Extract helpful information from errors

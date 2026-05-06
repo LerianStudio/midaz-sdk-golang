@@ -2118,4 +2118,99 @@ func TestSentinelErrors(t *testing.T) {
 	assert.Equal(t, sdkerrors.CategoryTimeout, sdkerrors.ErrTimeout.Category)
 	assert.Equal(t, sdkerrors.CategoryCancellation, sdkerrors.ErrCancellation.Category)
 	assert.Equal(t, sdkerrors.CategoryInternal, sdkerrors.ErrInternal.Category)
+	assert.Equal(t, sdkerrors.CategoryAuth, sdkerrors.ErrAuth.Category)
+	assert.Equal(t, sdkerrors.CategoryConfiguration, sdkerrors.ErrConfiguration.Category)
+}
+
+// TestErrAuthBridge verifies that errors.Is(err, ErrAuth) matches all three
+// auth categories: CategoryAuth, CategoryAuthentication, CategoryAuthorization.
+// This bridge lets v3 callers write a single `IsAuth` check without caring
+// whether the underlying error came from a 401 or 403 path.
+func TestErrAuthBridge(t *testing.T) {
+	tests := []struct {
+		name    string
+		err     *sdkerrors.Error
+		matches bool
+	}{
+		{"explicit auth category", &sdkerrors.Error{Category: sdkerrors.CategoryAuth, Code: sdkerrors.CodeAuthentication}, true},
+		{"legacy authentication", &sdkerrors.Error{Category: sdkerrors.CategoryAuthentication, Code: sdkerrors.CodeAuthentication}, true},
+		{"legacy authorization", &sdkerrors.Error{Category: sdkerrors.CategoryAuthorization, Code: sdkerrors.CodePermission}, true},
+		{"validation does not match", &sdkerrors.Error{Category: sdkerrors.CategoryValidation, Code: sdkerrors.CodeValidation}, false},
+		{"not_found does not match", &sdkerrors.Error{Category: sdkerrors.CategoryNotFound, Code: sdkerrors.CodeNotFound}, false},
+		{"conflict does not match", &sdkerrors.Error{Category: sdkerrors.CategoryConflict, Code: sdkerrors.CodeAlreadyExists}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.matches, errors.Is(tt.err, sdkerrors.ErrAuth),
+				"errors.Is(%v, ErrAuth) mismatch", tt.err)
+		})
+	}
+}
+
+// TestIsAuthError verifies the predicate matches both auth subcategories
+// and is nil-safe.
+func TestIsAuthError(t *testing.T) {
+	tests := []struct {
+		name    string
+		err     error
+		matches bool
+	}{
+		{"nil", nil, false},
+		{"plain error", errors.New("boom"), false},
+		{"authentication error", sdkerrors.NewAuthenticationError("op", "bad token", nil), true},
+		{"authorization error", sdkerrors.NewAuthorizationError("op", "forbidden", nil), true},
+		{"validation error", sdkerrors.NewValidationError("op", "bad input", nil), false},
+		{"sentinel ErrAuthentication", sdkerrors.ErrAuthentication, true},
+		{"sentinel ErrPermission", sdkerrors.ErrPermission, true},
+		{"sentinel ErrAuth", sdkerrors.ErrAuth, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.matches, sdkerrors.IsAuthError(tt.err))
+		})
+	}
+}
+
+// TestIsUnprocessableError verifies the predicate matches CategoryUnprocessable
+// (broad — covers insufficient balance, account eligibility, asset mismatch,
+// and generic unprocessable).
+func TestIsUnprocessableError(t *testing.T) {
+	tests := []struct {
+		name    string
+		err     error
+		matches bool
+	}{
+		{"nil", nil, false},
+		{"plain error", errors.New("boom"), false},
+		{"insufficient balance", sdkerrors.NewInsufficientBalanceError("transactions.Create", "acc_1", nil), true},
+		{"generic unprocessable", sdkerrors.NewUnprocessableError("op", "ledger", nil), true},
+		{"validation does not match", sdkerrors.NewValidationError("op", "bad", nil), false},
+		{"sentinel ErrUnprocessable", sdkerrors.ErrUnprocessable, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.matches, sdkerrors.IsUnprocessableError(tt.err))
+		})
+	}
+}
+
+// TestIsConfigurationError_CategoryMatch verifies the predicate matches by
+// category, not just by sentinel pointer identity. A constructed *Error with
+// CategoryConfiguration but a different Code or Message must still match.
+func TestIsConfigurationError_CategoryMatch(t *testing.T) {
+	custom := sdkerrors.NewConfigurationError(
+		"midaz.New",
+		"baseURL must be a valid http(s) URL",
+		errors.New("invalid scheme"),
+	)
+	assert.True(t, sdkerrors.IsConfigurationError(custom),
+		"IsConfigurationError must match by category, not just sentinel identity")
+
+	plain := errors.New("boom")
+	assert.False(t, sdkerrors.IsConfigurationError(plain))
+
+	assert.False(t, sdkerrors.IsConfigurationError(nil))
 }
