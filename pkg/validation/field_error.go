@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
 )
 
 // FieldError represents a validation error for a specific field
@@ -216,4 +218,162 @@ func WrapError(field string, value any, err error) *FieldError {
 	}
 
 	return BuildFieldError(field, value, err.Error())
+}
+
+// FieldOption configures a FieldError when added via [FieldErrors.AppendWith].
+// Options are composable and applied left-to-right; later options overwrite
+// earlier ones for the same field.
+type FieldOption func(*FieldError)
+
+// Value attaches the offending value to a FieldError. Sensitive fields
+// (any path containing the substring "metadata") have their value
+// redacted automatically when rendered.
+func Value(value any) FieldOption {
+	return func(fe *FieldError) { fe.Value = value }
+}
+
+// Code attaches a machine-readable code to a FieldError.
+func Code(code string) FieldOption {
+	return func(fe *FieldError) { fe.Code = code }
+}
+
+// Constraint attaches a constraint name (e.g., "required", "min", "max",
+// "format", "enum") to a FieldError.
+func Constraint(constraint string) FieldOption {
+	return func(fe *FieldError) { fe.Constraint = constraint }
+}
+
+// Suggest attaches one or more remediation suggestions to a FieldError.
+// Each call replaces any prior suggestions; pass all suggestions in a
+// single call.
+func Suggest(suggestions ...string) FieldOption {
+	return func(fe *FieldError) { fe.Suggestions = suggestions }
+}
+
+// Append records a single field-level validation problem with the given
+// message. It is the ergonomic shortcut for the common case where the
+// caller does not need to attach a value, code, constraint, or
+// suggestions. Append is nil-safe; calling it on a nil receiver is a
+// no-op (matching the pattern other accumulator methods use).
+//
+// Example:
+//
+//	var errs validation.FieldErrors
+//	if input.Name == "" {
+//	    errs.Append("name", "is required")
+//	}
+//	return errs.OrNil()
+func (fe *FieldErrors) Append(field, message string) {
+	if fe == nil {
+		return
+	}
+
+	fe.Errors = append(fe.Errors, &FieldError{Field: field, Message: message})
+}
+
+// AppendWith records a field-level validation problem and applies one or
+// more [FieldOption]s for additional context. Use this when a plain
+// message is not enough — e.g., to attach a constraint name, the
+// offending value, or remediation suggestions.
+//
+// Example:
+//
+//	var errs validation.FieldErrors
+//	errs.AppendWith("assetCode", "must be 3-4 uppercase letters",
+//	    validation.Constraint("format"),
+//	    validation.Suggest("Use codes like USD, EUR, BTC"),
+//	)
+func (fe *FieldErrors) AppendWith(field, message string, opts ...FieldOption) {
+	if fe == nil {
+		return
+	}
+
+	item := &FieldError{Field: field, Message: message}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(item)
+		}
+	}
+
+	fe.Errors = append(fe.Errors, item)
+}
+
+// OrNil returns nil when the accumulator is empty, and the accumulator
+// itself otherwise. Use this as the final statement of a Validate
+// method to return a typed-nil-safe error.
+//
+// Without OrNil, the naïve pattern
+//
+//	func (i *Input) Validate() error { var fe validation.FieldErrors; ...; return &fe }
+//
+// returns a non-nil *FieldErrors wrapped in a non-nil error interface
+// even when no problems were collected — the classic Go interface-nil
+// pitfall. OrNil sidesteps it by returning an untyped nil when
+// appropriate.
+//
+// Example:
+//
+//	func (i *CreateInput) Validate() error {
+//	    var errs validation.FieldErrors
+//	    if i.Name == "" { errs.Append("name", "is required") }
+//	    return errs.OrNil()
+//	}
+func (fe *FieldErrors) OrNil() error {
+	if fe == nil || len(fe.Errors) == 0 {
+		return nil
+	}
+
+	return fe
+}
+
+// Errs returns the accumulated field errors. Returns nil for a nil
+// receiver and an empty slice for an empty accumulator — never nil
+// when the accumulator has been initialized.
+func (fe *FieldErrors) Errs() []*FieldError {
+	if fe == nil {
+		return nil
+	}
+
+	return fe.Errors
+}
+
+// Len returns the number of accumulated field errors.
+func (fe *FieldErrors) Len() int {
+	if fe == nil {
+		return 0
+	}
+
+	return len(fe.Errors)
+}
+
+// Is reports whether this FieldErrors collection should be treated as
+// the same kind of error as target. It returns true when target is
+// [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors.ErrValidation],
+// enabling the canonical pattern:
+//
+//	if errors.Is(err, sdkerrors.ErrValidation) { ... }
+//
+// to match both server-side validation errors (returned as *Error with
+// CategoryValidation) and client-side accumulators alike.
+//
+// Callers who want to walk individual field problems should use
+// [errors.As] to extract the *FieldErrors:
+//
+//	var fe *validation.FieldErrors
+//	if errors.As(err, &fe) {
+//	    for _, item := range fe.Errs() {
+//	        log.Printf("field=%s message=%s", item.Field, item.Message)
+//	    }
+//	}
+func (fe *FieldErrors) Is(target error) bool {
+	if fe == nil || target == nil {
+		return false
+	}
+
+	t, ok := target.(*sdkerrors.Error)
+	if !ok || t == nil {
+		return false
+	}
+
+	return t.Category == sdkerrors.CategoryValidation
 }

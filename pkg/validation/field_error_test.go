@@ -4,7 +4,9 @@ import (
 	"errors"
 	"testing"
 
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestFieldError_Error(t *testing.T) {
@@ -398,4 +400,155 @@ func TestWrapError(t *testing.T) {
 
 		assert.Nil(t, fieldErr.Value)
 	})
+}
+
+// 8B — accumulator ergonomics tests.
+
+func TestFieldErrors_Append(t *testing.T) {
+	t.Run("appends a single field error with field and message", func(t *testing.T) {
+		var fe FieldErrors
+		fe.Append("name", "is required")
+
+		assert.Equal(t, 1, fe.Len())
+		assert.Equal(t, "name", fe.Errs()[0].Field)
+		assert.Equal(t, "is required", fe.Errs()[0].Message)
+		assert.Nil(t, fe.Errs()[0].Value)
+	})
+
+	t.Run("preserves order of multiple appends", func(t *testing.T) {
+		var fe FieldErrors
+		fe.Append("a", "first")
+		fe.Append("b", "second")
+		fe.Append("c", "third")
+
+		assert.Equal(t, 3, fe.Len())
+		assert.Equal(t, "a", fe.Errs()[0].Field)
+		assert.Equal(t, "b", fe.Errs()[1].Field)
+		assert.Equal(t, "c", fe.Errs()[2].Field)
+	})
+
+	t.Run("nil receiver is a no-op", func(t *testing.T) {
+		var fe *FieldErrors
+		assert.NotPanics(t, func() { fe.Append("name", "msg") })
+	})
+}
+
+func TestFieldErrors_AppendWith(t *testing.T) {
+	t.Run("applies all options", func(t *testing.T) {
+		var fe FieldErrors
+		fe.AppendWith("assetCode", "must be uppercase",
+			Value("usd"),
+			Code("INVALID_ASSET_CODE"),
+			Constraint("format"),
+			Suggest("Use ISO 4217 codes like USD, EUR, BTC"),
+		)
+
+		require := assert.New(t)
+		require.Equal(1, fe.Len())
+
+		item := fe.Errs()[0]
+		assert.Equal(t, "assetCode", item.Field)
+		assert.Equal(t, "must be uppercase", item.Message)
+		assert.Equal(t, "usd", item.Value)
+		assert.Equal(t, "INVALID_ASSET_CODE", item.Code)
+		assert.Equal(t, "format", item.Constraint)
+		assert.Equal(t, []string{"Use ISO 4217 codes like USD, EUR, BTC"}, item.Suggestions)
+	})
+
+	t.Run("no options is equivalent to Append", func(t *testing.T) {
+		var fe FieldErrors
+		fe.AppendWith("x", "msg")
+
+		assert.Equal(t, 1, fe.Len())
+		assert.Equal(t, "x", fe.Errs()[0].Field)
+		assert.Equal(t, "msg", fe.Errs()[0].Message)
+	})
+
+	t.Run("nil option is skipped", func(t *testing.T) {
+		var fe FieldErrors
+		fe.AppendWith("x", "msg", nil, Code("C"))
+
+		assert.Equal(t, "C", fe.Errs()[0].Code)
+	})
+
+	t.Run("nil receiver is a no-op", func(t *testing.T) {
+		var fe *FieldErrors
+		assert.NotPanics(t, func() { fe.AppendWith("name", "msg", Code("X")) })
+	})
+}
+
+// TestFieldErrors_OrNil_NilSafety verifies the Go interface-nil pitfall is
+// handled. A naïve `return &fe` returns a non-nil error interface even when
+// the slice is empty, which silently breaks `if err != nil` checks.
+func TestFieldErrors_OrNil(t *testing.T) {
+	t.Run("empty accumulator returns untyped nil", func(t *testing.T) {
+		var fe FieldErrors
+		err := fe.OrNil()
+
+		// Critical: must be untyped-nil, not a typed-nil-pointer wrapped
+		// in a non-nil error interface. The Go interface-nil pitfall is
+		// the entire reason OrNil exists.
+		require.NoError(t, err)
+		//nolint:testifylint // explicit untyped-nil check is the contract under test
+		assert.True(t, err == nil, "must compare equal to untyped nil")
+	})
+
+	t.Run("non-empty accumulator returns the accumulator", func(t *testing.T) {
+		var fe FieldErrors
+		fe.Append("name", "is required")
+		err := fe.OrNil()
+
+		require.Error(t, err)
+		var extracted *FieldErrors
+		require.ErrorAs(t, err, &extracted)
+		assert.Equal(t, 1, extracted.Len())
+	})
+
+	t.Run("nil receiver returns nil", func(t *testing.T) {
+		var fe *FieldErrors
+		require.NoError(t, fe.OrNil())
+	})
+}
+
+// TestFieldErrors_Is_Bridge verifies the bridge to sdkerrors.ErrValidation.
+// errors.Is(err, sdkerrors.ErrValidation) must succeed for any non-empty
+// FieldErrors so callers can write unified validation predicates.
+func TestFieldErrors_Is(t *testing.T) {
+	t.Run("matches ErrValidation when non-empty", func(t *testing.T) {
+		var fe FieldErrors
+		fe.Append("name", "is required")
+		err := fe.OrNil()
+
+		require.ErrorIs(t, err, sdkerrors.ErrValidation,
+			"errors.Is(err, sdkerrors.ErrValidation) must match a non-empty FieldErrors")
+	})
+
+	t.Run("does not match unrelated sentinel", func(t *testing.T) {
+		var fe FieldErrors
+		fe.Append("name", "is required")
+		err := fe.OrNil()
+
+		require.NotErrorIs(t, err, sdkerrors.ErrNotFound)
+		require.NotErrorIs(t, err, sdkerrors.ErrAuth)
+	})
+
+	t.Run("errors.As extracts FieldErrors for field walk", func(t *testing.T) {
+		var fe FieldErrors
+		fe.Append("name", "is required")
+		fe.Append("email", "invalid format")
+		err := fe.OrNil()
+
+		var extracted *FieldErrors
+		require.ErrorAs(t, err, &extracted)
+		require.Equal(t, 2, extracted.Len())
+		require.Equal(t, "name", extracted.Errs()[0].Field)
+		require.Equal(t, "email", extracted.Errs()[1].Field)
+	})
+}
+
+// TestFieldErrors_Errs_NilSafety covers the accessor on a nil receiver.
+func TestFieldErrors_Errs_NilSafety(t *testing.T) {
+	var fe *FieldErrors
+	assert.Nil(t, fe.Errs())
+	assert.Equal(t, 0, fe.Len())
 }
