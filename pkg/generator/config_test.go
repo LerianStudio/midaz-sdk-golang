@@ -262,12 +262,12 @@ func TestGeneratorConfig_ApplyPerformanceOverrides(t *testing.T) {
 			},
 		},
 		{
-			name:     "Circuit breaker OR logic",
+			name:     "Circuit breaker override always replaces",
 			base:     GeneratorConfig{EnableCircuitBreaker: true},
 			override: GeneratorConfig{EnableCircuitBreaker: false},
 			check: func(t *testing.T, result GeneratorConfig) {
 				t.Helper()
-				assert.True(t, result.EnableCircuitBreaker)
+				assert.False(t, result.EnableCircuitBreaker)
 			},
 		},
 		{
@@ -405,21 +405,21 @@ func TestGeneratorConfig_ApplyTrackingOverrides(t *testing.T) {
 			},
 		},
 		{
-			name:     "Idempotency OR logic",
+			name:     "Idempotency override always replaces",
 			base:     GeneratorConfig{EnableIdempotency: true},
 			override: GeneratorConfig{EnableIdempotency: false},
 			check: func(t *testing.T, result GeneratorConfig) {
 				t.Helper()
-				assert.True(t, result.EnableIdempotency)
+				assert.False(t, result.EnableIdempotency)
 			},
 		},
 		{
-			name:     "UseExternalIDs OR logic",
+			name:     "UseExternalIDs override always replaces",
 			base:     GeneratorConfig{UseExternalIDs: true},
 			override: GeneratorConfig{UseExternalIDs: false},
 			check: func(t *testing.T, result GeneratorConfig) {
 				t.Helper()
-				assert.True(t, result.UseExternalIDs)
+				assert.False(t, result.UseExternalIDs)
 			},
 		},
 	}

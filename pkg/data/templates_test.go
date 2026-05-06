@@ -182,7 +182,6 @@ func TestTransactionPatternStructFromTemplates(t *testing.T) {
 		ChartOfAccountsGroupName: "test_group",
 		Description:              "Test transaction pattern",
 		DSLTemplate:              "send [USD 100] (source = @a)",
-		RequiresCommit:           true,
 		IdempotencyKey:           "idem-key-123",
 		ExternalID:               "ext-id-456",
 		Metadata:                 map[string]any{"pattern": "test"},
@@ -191,7 +190,6 @@ func TestTransactionPatternStructFromTemplates(t *testing.T) {
 	assert.Equal(t, "test_group", pattern.ChartOfAccountsGroupName)
 	assert.Equal(t, "Test transaction pattern", pattern.Description)
 	assert.Equal(t, "send [USD 100] (source = @a)", pattern.DSLTemplate)
-	assert.True(t, pattern.RequiresCommit)
 	assert.Equal(t, "idem-key-123", pattern.IdempotencyKey)
 	assert.Equal(t, "ext-id-456", pattern.ExternalID)
 	assert.Equal(t, "test", pattern.Metadata["pattern"])
@@ -203,7 +201,6 @@ func TestTransactionPatternStructWithDefaults(t *testing.T) {
 	assert.Empty(t, pattern.ChartOfAccountsGroupName)
 	assert.Empty(t, pattern.Description)
 	assert.Empty(t, pattern.DSLTemplate)
-	assert.False(t, pattern.RequiresCommit)
 	assert.Empty(t, pattern.IdempotencyKey)
 	assert.Empty(t, pattern.ExternalID)
 	assert.Nil(t, pattern.Metadata)
@@ -253,7 +250,6 @@ func TestTemplateStructsZeroValues(t *testing.T) {
 		assert.Empty(t, pattern.ChartOfAccountsGroupName)
 		assert.Empty(t, pattern.Description)
 		assert.Empty(t, pattern.DSLTemplate)
-		assert.False(t, pattern.RequiresCommit)
 		assert.Empty(t, pattern.IdempotencyKey)
 		assert.Empty(t, pattern.ExternalID)
 		assert.Nil(t, pattern.Metadata)

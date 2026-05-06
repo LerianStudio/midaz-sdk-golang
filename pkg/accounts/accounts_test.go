@@ -732,3 +732,28 @@ func TestGetAccountBalanceSummary(t *testing.T) {
 		})
 	}
 }
+
+// TestGetAccountBalanceSummary_NilBalance_ReturnsError verifies that passing a
+// nil balance returns a clean error instead of panicking on a nil deref of
+// balance.Scale.
+func TestGetAccountBalanceSummary_NilBalance_ReturnsError(t *testing.T) {
+	account := &accounts.Account{
+		ID:        "acc_123",
+		Name:      "Savings",
+		AssetCode: "USD",
+		Alias:     strPtr("savings"),
+	}
+
+	require.NotPanics(t, func() {
+		summary, err := accounts.GetAccountBalanceSummary(account, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "balance cannot be nil")
+		assert.Equal(t, accounts.AccountBalanceSummary{}, summary)
+	})
+
+	// Also nil-balance with nil-account must not panic.
+	require.NotPanics(t, func() {
+		_, err := accounts.GetAccountBalanceSummary(nil, nil)
+		require.Error(t, err)
+	})
+}

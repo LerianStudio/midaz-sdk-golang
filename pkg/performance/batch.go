@@ -75,6 +75,12 @@ type BatchOptions struct {
 
 	// ContinueOnError determines whether to continue processing if one request fails
 	ContinueOnError bool
+
+	// Workers is the maximum number of batches that can be executed concurrently
+	// when a request set is split across multiple batches. Bounding this prevents
+	// unbounded goroutine fan-out under large workloads (e.g. 100k requests at
+	// MaxBatchSize=100 would otherwise spawn 1000 concurrent goroutines).
+	Workers int
 }
 
 // BatchOption defines a function that configures BatchOptions
@@ -140,6 +146,21 @@ func WithContinueOnError(continueOnError bool) BatchOption {
 	}
 }
 
+// WithBatchWorkers sets the maximum number of concurrent goroutines that may
+// execute batches in parallel when a request set is split. The value must be
+// positive; pass a small constant to bound fan-out under large workloads.
+func WithBatchWorkers(workers int) BatchOption {
+	return func(o *BatchOptions) error {
+		if workers <= 0 {
+			return fmt.Errorf("workers must be positive, got %d", workers)
+		}
+
+		o.Workers = workers
+
+		return nil
+	}
+}
+
 // WithHighThroughputBatching configures batch options for high throughput
 func WithHighThroughputBatching() BatchOption {
 	return func(o *BatchOptions) error {
@@ -170,6 +191,7 @@ func DefaultBatchOptions() *BatchOptions {
 		RetryCount:      3,
 		RetryBackoff:    500 * time.Millisecond,
 		ContinueOnError: false,
+		Workers:         10,
 	}
 }
 
@@ -726,6 +748,34 @@ func (*BatchProcessor) hasResponseErrors(responses []BatchResponse) bool {
 	return false
 }
 
+// runBatchWorker executes a single batch in a goroutine, releases the semaphore
+// slot on exit, and routes the outcome to either resultsChan or errorsChan.
+// A recovered panic is converted to an internal error and reported via errorsChan.
+func (b *BatchProcessor) runBatchWorker(
+	ctx context.Context,
+	batch []BatchRequest,
+	sem chan struct{},
+	resultsChan chan<- []BatchResponse,
+	errorsChan chan<- error,
+	wg *sync.WaitGroup,
+) {
+	defer wg.Done()
+	defer func() { <-sem }()
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			errorsChan <- pkgerrors.NewInternalError("BatchRequest", fmt.Errorf("batch goroutine panic: %v", recovered))
+		}
+	}()
+
+	result, err := b.executeSingleBatch(ctx, batch)
+	if err != nil {
+		errorsChan <- err
+		return
+	}
+
+	resultsChan <- result.Responses
+}
+
 // executeBatches splits a large batch into smaller batches and executes them.
 func (b *BatchProcessor) executeBatches(ctx context.Context, requests []BatchRequest) (*BatchResult, error) {
 	// Calculate the number of batches needed
@@ -735,11 +785,24 @@ func (b *BatchProcessor) executeBatches(ctx context.Context, requests []BatchReq
 	resultsChan := make(chan []BatchResponse, batchCount)
 	errorsChan := make(chan error, batchCount)
 
+	// Bound goroutine fan-out with a semaphore. Without this, a 100k-request
+	// payload at MaxBatchSize=100 would spawn 1000 concurrent goroutines.
+	workers := b.options.Workers
+	if workers <= 0 {
+		workers = 10
+	}
+
+	if workers > batchCount {
+		workers = batchCount
+	}
+
+	sem := make(chan struct{}, workers)
+
 	var wg sync.WaitGroup
 
 	wg.Add(batchCount)
 
-	// Process each batch concurrently
+	// Process each batch concurrently, gated by the semaphore.
 	for i := 0; i < batchCount; i++ {
 		start := i * b.options.MaxBatchSize
 		end := start + b.options.MaxBatchSize
@@ -750,22 +813,9 @@ func (b *BatchProcessor) executeBatches(ctx context.Context, requests []BatchReq
 
 		batch := requests[start:end]
 
-		go func(batch []BatchRequest) {
-			defer wg.Done()
-			defer func() {
-				if recovered := recover(); recovered != nil {
-					errorsChan <- pkgerrors.NewInternalError("BatchRequest", fmt.Errorf("batch goroutine panic: %v", recovered))
-				}
-			}()
+		sem <- struct{}{}
 
-			result, err := b.executeSingleBatch(ctx, batch)
-			if err != nil {
-				errorsChan <- err
-				return
-			}
-
-			resultsChan <- result.Responses
-		}(batch)
+		go b.runBatchWorker(ctx, batch, sem, resultsChan, errorsChan, &wg)
 	}
 
 	// Wait for all batches to complete

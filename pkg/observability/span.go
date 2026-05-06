@@ -57,7 +57,7 @@ func AddAttribute(ctx context.Context, key string, value any) {
 
 	switch v := value.(type) {
 	case string:
-		attr = attribute.String(key, v)
+		attr = attribute.String(key, sanitizeSensitiveString(v))
 	case int:
 		attr = attribute.Int(key, v)
 	case int64:
@@ -68,7 +68,7 @@ func AddAttribute(ctx context.Context, key string, value any) {
 		attr = attribute.Bool(key, v)
 	default:
 		// For other types, convert to string
-		attr = attribute.String(key, fmt.Sprintf("%v", v))
+		attr = attribute.String(key, sanitizeSensitiveString(fmt.Sprintf("%v", v)))
 	}
 
 	span.SetAttributes(attr)

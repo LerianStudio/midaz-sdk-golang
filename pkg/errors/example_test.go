@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation"
 )
 
 // ExampleIsNotFoundError demonstrates the canonical not-found check.
@@ -107,4 +108,25 @@ func ExampleAs() {
 		fmt.Printf("op=%s resource=%s\n", sdkErr.Operation, sdkErr.Resource)
 	}
 	// Output: op=GetOrganization resource=organization
+}
+
+// ExampleAs_fieldErrors mirrors the doc.go snippet that walks
+// client-side validation field errors. Its purpose is to lock the
+// API surface referenced by the godoc example so the snippet stays
+// compilable: fe.Errs() returns the slice, each item carries Field
+// and Message. Previously the doc claimed fe.Errors() and item.Path,
+// neither of which existed.
+func ExampleAs_fieldErrors() {
+	var errs validation.FieldErrors
+	errs.Append("amount", "must be positive")
+
+	err := errs.OrNil()
+
+	var fe *validation.FieldErrors
+	if errors.As(err, &fe) {
+		for _, item := range fe.Errs() {
+			fmt.Printf("field=%s message=%s\n", item.Field, item.Message)
+		}
+	}
+	// Output: field=amount message=must be positive
 }

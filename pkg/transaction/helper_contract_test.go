@@ -59,7 +59,7 @@ func TestTransactionHelpers_CreateCanonicalSendPayloads(t *testing.T) {
 			wantSource: "@external/card-usd",
 			wantDest:   "customer",
 			wantAsset:  "USD",
-			wantAmount: "50",
+			wantAmount: "50.00",
 			wantDesc:   "card funding",
 			wantIdem:   "idem-deposit",
 		},
@@ -183,7 +183,7 @@ func TestTransactionHelpers_MultiTransferTemplateAndLifecycle(t *testing.T) {
 	require.Len(t, requests, 2)
 
 	multiSend := requireMap(t, requests[0]["send"])
-	assert.Equal(t, "10", multiSend["value"])
+	assert.Equal(t, "10.00", multiSend["value"])
 	assert.Len(t, requireMapSlice(t, requireMap(t, multiSend["source"])["from"]), 2)
 	assert.Len(t, requireMapSlice(t, requireMap(t, multiSend["distribute"])["to"]), 2)
 

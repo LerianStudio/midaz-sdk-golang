@@ -8,12 +8,21 @@ import (
 const (
 	redactedValue = "[REDACTED]"
 
-	// sanitizeMaxScanBytes caps the slice we scan for sensitive tokens. Very
-	// large response bodies are not a typical source of credentials and the
-	// regex passes are O(n); truncating the scan window keeps log redaction
-	// bounded under pathological input. The original (untruncated) string is
-	// still returned to the caller — only the scanning cost is capped.
-	sanitizeMaxScanBytes = 8 * 1024
+	// sanitizeMaxScanBytes caps the slice we scan for sensitive tokens. The
+	// regex passes are O(n) but with non-trivial constants; an unbounded
+	// scan turns multi-megabyte response bodies into a denial-of-service
+	// vector for log redaction. Truncating the scan window keeps redaction
+	// bounded under pathological input. The original (untruncated) string
+	// is still returned to the caller — only the scanning cost is capped.
+	//
+	// The cap is a trade-off: anything past the window ships unredacted.
+	// 64 KiB covers typical HTTP error bodies (4xx/5xx JSON responses
+	// rarely exceed a few KiB) and the larger upstream payloads we have
+	// seen in practice, while keeping a single ReplaceAllString pass well
+	// under a millisecond on commodity hardware. Callers that intentionally
+	// pass larger blobs through here should redact at the source instead
+	// of relying on this best-effort post-hoc scrub.
+	sanitizeMaxScanBytes = 64 * 1024
 )
 
 var (

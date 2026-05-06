@@ -12,6 +12,7 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v3/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/data"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -268,7 +269,9 @@ func TestTransactionGenerator_GenerateWithDSL_WithIdempotencyKey(t *testing.T) {
 
 	_, err := gen.GenerateWithDSL(context.Background(), "org-123", "ledger-123", pattern)
 	require.NoError(t, err)
-	assert.NotNil(t, capturedCtx)
+	require.NotNil(t, capturedCtx)
+	assert.Equal(t, "unique-key-456", sdkctx.IdempotencyKeyFromContext(capturedCtx),
+		"idempotency key from pattern must be propagated into request context")
 }
 
 func TestTransactionGenerator_GenerateBatch_EmptyPatterns(t *testing.T) {
@@ -421,7 +424,6 @@ func TestTransactionPattern_Fields(t *testing.T) {
 			ChartOfAccountsGroupName: "payments",
 			Description:              "Customer payment",
 			DSLTemplate:              "send 100 USD from @customer to @merchant",
-			RequiresCommit:           true,
 			IdempotencyKey:           "idem-123",
 			ExternalID:               "ext-456",
 			Metadata: map[string]any{
@@ -432,7 +434,6 @@ func TestTransactionPattern_Fields(t *testing.T) {
 		assert.Equal(t, "payments", pattern.ChartOfAccountsGroupName)
 		assert.Equal(t, "Customer payment", pattern.Description)
 		assert.NotEmpty(t, pattern.DSLTemplate)
-		assert.True(t, pattern.RequiresCommit)
 		assert.Equal(t, "idem-123", pattern.IdempotencyKey)
 		assert.Equal(t, "ext-456", pattern.ExternalID)
 		assert.NotNil(t, pattern.Metadata)
@@ -448,7 +449,6 @@ func TestTransactionPattern_Fields(t *testing.T) {
 		assert.Equal(t, "test", pattern.ChartOfAccountsGroupName)
 		assert.NotEmpty(t, pattern.DSLTemplate)
 		assert.Equal(t, "key", pattern.IdempotencyKey)
-		assert.False(t, pattern.RequiresCommit)
 		assert.Nil(t, pattern.Metadata)
 	})
 }

@@ -636,7 +636,18 @@ func IsRetryableError(err error, options *Options) bool {
 		return true
 	}
 
-	// 2) Retryable error string matching.
+	// 2) Typed retryable taxonomy: any error that exposes Retryable() bool wins.
+	// This makes pkg/errors.Error.Retryable() the canonical SDK-wide policy
+	// while remaining decoupled (structural interface — no import cycle).
+	// It must run BEFORE the substring scan, otherwise an auth error whose
+	// message happens to contain "timeout" (e.g. "Token expired due to timeout")
+	// would be misclassified as retryable.
+	var retryable interface{ Retryable() bool }
+	if errors.As(err, &retryable) {
+		return retryable.Retryable()
+	}
+
+	// 3) Retryable error string matching.
 	errMsg := err.Error()
 	for _, retryableErr := range options.RetryableErrors {
 		if retryableErr != "" && errMatchesPattern(errMsg, retryableErr) {
@@ -644,10 +655,12 @@ func IsRetryableError(err error, options *Options) bool {
 		}
 	}
 
-	// 3) Retryable HTTP status codes via structural interface.
-	if httpErr, ok := err.(interface{ StatusCode() int }); ok {
+	// 4) Retryable HTTP status codes via structural interface.
+	// Use errors.As so wrapped errors are detected through the chain.
+	var statusErr interface{ StatusCode() int }
+	if errors.As(err, &statusErr) {
 		for _, code := range options.RetryableHTTPCodes {
-			if httpErr.StatusCode() == code {
+			if statusErr.StatusCode() == code {
 				return true
 			}
 		}

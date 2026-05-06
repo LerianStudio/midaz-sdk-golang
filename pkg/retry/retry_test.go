@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
 )
 
 func nilContext() context.Context {
@@ -782,4 +784,91 @@ func (e mockHTTPError) Error() string {
 
 func (e mockHTTPError) StatusCode() int {
 	return e.statusCode
+}
+
+// TestIsRetryableError_TypedRetryable_OverridesSubstringMatch verifies that
+// the typed Retryable() taxonomy wins over the substring scan. An auth error
+// whose Message contains "timeout" must NOT be retryable, even though the
+// default RetryableErrors list contains "timeout".
+//
+// Regression: previously the substring scan ran first and would misclassify
+// a 401 with body "Token expired due to timeout, please re-authenticate" as
+// retryable, wasting retry budget and (for non-idempotent POSTs) risking
+// double-bookkeeping.
+func TestIsRetryableError_TypedRetryable_OverridesSubstringMatch(t *testing.T) {
+	authErr := &sdkerrors.Error{
+		Category: sdkerrors.CategoryAuth,
+		Code:     sdkerrors.CodeAuthentication,
+		Message:  "Token expired due to timeout, please re-authenticate",
+	}
+
+	// Sanity: the substring scan WOULD have matched ("timeout" is a default token).
+	require.Contains(t, strings.ToLower(authErr.Error()), "timeout",
+		"precondition: error message must contain the substring that previously caused the bug")
+
+	// The typed taxonomy must override the substring match.
+	if IsRetryableError(authErr, DefaultOptions()) {
+		t.Fatalf("auth error with 'timeout' in message must NOT be retryable; "+
+			"typed Retryable() should override DefaultRetryableErrors substring scan; got err=%v", authErr)
+	}
+}
+
+// TestIsRetryableError_TypedRetryable_NetworkCategory verifies that a typed
+// network error is recognised as retryable through the structural Retryable()
+// interface even when its message contains no recognised substring tokens.
+func TestIsRetryableError_TypedRetryable_NetworkCategory(t *testing.T) {
+	netErr := &sdkerrors.Error{
+		Category: sdkerrors.CategoryNetwork,
+		Code:     sdkerrors.CodeNetwork,
+		Message:  "no recognised tokens here",
+	}
+
+	if !IsRetryableError(netErr, DefaultOptions()) {
+		t.Fatalf("typed network error must be retryable via Error.Retryable(); got err=%v", netErr)
+	}
+}
+
+// TestIsRetryableError_TypedRetryable_ValidationNotRetryable verifies the
+// non-retryable side of the taxonomy: validation errors must not retry, even
+// when their message contains "timeout"-like tokens.
+func TestIsRetryableError_TypedRetryable_ValidationNotRetryable(t *testing.T) {
+	valErr := &sdkerrors.Error{
+		Category: sdkerrors.CategoryValidation,
+		Code:     sdkerrors.CodeValidation,
+		Message:  "field 'deadline' must be a positive timeout duration",
+	}
+
+	if IsRetryableError(valErr, DefaultOptions()) {
+		t.Fatalf("typed validation error must NOT be retryable, even when message contains 'timeout'; got err=%v", valErr)
+	}
+}
+
+// TestIsRetryableError_StructuralStatusCode_UnwrapsViaErrorsAs verifies that
+// the structural StatusCode() interface assertion now uses errors.As, so a
+// retryable HTTP error wrapped via fmt.Errorf("...%w", ...) is still detected.
+//
+// Regression: a bare type assertion (err.(interface{StatusCode() int})) would
+// fail to see through %w wrapping.
+func TestIsRetryableError_StructuralStatusCode_UnwrapsViaErrorsAs(t *testing.T) {
+	options := &Options{
+		MaxRetries:         3,
+		InitialDelay:       1 * time.Millisecond,
+		MaxDelay:           5 * time.Millisecond,
+		BackoffFactor:      2.0,
+		RetryableErrors:    []string{}, // disable substring scan for this test
+		RetryableHTTPCodes: []int{http.StatusServiceUnavailable},
+	}
+
+	httpErr := mockHTTPError{statusCode: http.StatusServiceUnavailable}
+	wrapped := fmt.Errorf("transport call failed: %w", httpErr)
+
+	if !IsRetryableError(wrapped, options) {
+		t.Fatalf("wrapped HTTP error with retryable status code must be detected via errors.As; got err=%v", wrapped)
+	}
+
+	// Negative: non-retryable status code wrapped the same way must not retry.
+	nonRetryable := fmt.Errorf("transport call failed: %w", mockHTTPError{statusCode: http.StatusBadRequest})
+	if IsRetryableError(nonRetryable, options) {
+		t.Fatalf("wrapped HTTP error with 400 must NOT be retryable; got err=%v", nonRetryable)
+	}
 }

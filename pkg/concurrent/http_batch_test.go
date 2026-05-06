@@ -1272,3 +1272,56 @@ func TestHTTPBatchProcessorWithRetry(t *testing.T) {
 		assert.Len(t, result.Responses, 3)
 	})
 }
+
+// TestExecuteBatch_NilContext_NormalizesToBackground verifies that callers
+// passing a nil context do not trigger a runtime panic on ctx.Deadline(). The
+// processor must normalize nil to context.Background() before any deadline
+// inspection.
+func TestExecuteBatch_NilContext_NormalizesToBackground(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var requests []concurrent.HTTPBatchRequest
+
+		err := json.NewDecoder(r.Body).Decode(&requests)
+		if !assert.NoError(t, err) {
+			http.Error(w, "decode failed", http.StatusInternalServerError)
+			return
+		}
+
+		responses := make([]concurrent.HTTPBatchResponse, len(requests))
+		for i, req := range requests {
+			responses[i] = concurrent.HTTPBatchResponse{
+				ID:         req.ID,
+				StatusCode: 200,
+				Body:       json.RawMessage(`{"ok":true}`),
+			}
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(responses)
+	}))
+	defer server.Close()
+
+	processor := concurrent.NewHTTPBatchProcessor(server.Client(), server.URL)
+
+	requests := []concurrent.HTTPBatchRequest{
+		{Method: "GET", Path: "/data", ID: "req_1"},
+	}
+
+	t.Run("ExecuteBatch with nil context", func(t *testing.T) {
+		require.NotPanics(t, func() {
+			//nolint:staticcheck // intentionally pass nil to verify normalization
+			result, err := processor.ExecuteBatch(nil, requests)
+			require.NoError(t, err)
+			assert.Len(t, result.Responses, 1)
+		})
+	})
+
+	t.Run("ExecuteBatchWithPoolOptions with nil context", func(t *testing.T) {
+		require.NotPanics(t, func() {
+			//nolint:staticcheck // intentionally pass nil to verify normalization
+			result, err := processor.ExecuteBatchWithPoolOptions(nil, requests)
+			require.NoError(t, err)
+			assert.Len(t, result.Responses, 1)
+		})
+	})
+}

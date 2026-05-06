@@ -357,6 +357,10 @@ func (b *HTTPBatchProcessor) SetDefaultHeaders(headers map[string]string) {
 
 // ExecuteBatch executes a batch of requests and returns the results.
 func (b *HTTPBatchProcessor) ExecuteBatch(ctx context.Context, requests []HTTPBatchRequest) (*HTTPBatchResult, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	if len(requests) == 0 {
 		return &HTTPBatchResult{Responses: []HTTPBatchResponse{}}, nil
 	}
@@ -645,6 +649,10 @@ func (b *HTTPBatchProcessor) parseResponseBody(resp *HTTPBatchResponse, requestI
 
 // ExecuteBatchWithPoolOptions executes a batch of requests with custom worker pool options.
 func (b *HTTPBatchProcessor) ExecuteBatchWithPoolOptions(ctx context.Context, requests []HTTPBatchRequest, opts ...PoolOption) (*HTTPBatchResult, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	if len(requests) == 0 {
 		return &HTTPBatchResult{
 			Responses: []HTTPBatchResponse{},

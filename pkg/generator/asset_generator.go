@@ -47,7 +47,7 @@ func (g *assetGenerator) Generate(ctx context.Context, ledgerID string, template
 
 	input := models.NewCreateAssetInputWithType(template.Name, template.Code, template.Type).
 		WithStatus(models.NewStatus(models.StatusActive)).
-		WithMetadata(mergeMetadata(template.Metadata, map[string]any{"scale": template.Scale}))
+		WithMetadata(template.Metadata)
 
 	var out *models.Asset
 
@@ -220,22 +220,4 @@ func WithOrgID(ctx context.Context, organizationID string) context.Context {
 	ctx = normalizeContext(ctx)
 
 	return context.WithValue(ctx, contextKeyOrgID{}, organizationID)
-}
-
-func mergeMetadata(a map[string]any, b map[string]any) map[string]any {
-	if a == nil && b == nil {
-		return nil
-	}
-
-	out := map[string]any{}
-
-	for k, v := range a {
-		out[k] = v
-	}
-
-	for k, v := range b {
-		out[k] = v
-	}
-
-	return out
 }

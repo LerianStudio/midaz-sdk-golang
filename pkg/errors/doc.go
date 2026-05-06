@@ -35,7 +35,7 @@
 //	│                    │ idempotency_error             │              │
 //	│ auth               │ authentication_error          │ refresh+yes  │
 //	│                    │ permission_error              │ no           │
-//	│ rate_limit         │ rate_limit_exceeded           │ yes (backoff)│
+//	│ limit_exceeded     │ rate_limit_exceeded           │ yes (backoff)│
 //	│ timeout            │ timeout                       │ yes          │
 //	│ cancellation       │ cancelled                     │ no           │
 //	│ network            │ network_error                 │ yes          │
@@ -76,8 +76,8 @@
 //
 //	var fe *validation.FieldErrors
 //	if errors.As(err, &fe) {
-//	    for _, item := range fe.Errors() {
-//	        log.Printf("field=%s message=%s", item.Path, item.Message)
+//	    for _, item := range fe.Errs() {
+//	        log.Printf("field=%s message=%s", item.Field, item.Message)
 //	    }
 //	}
 //

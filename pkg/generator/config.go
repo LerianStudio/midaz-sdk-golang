@@ -84,6 +84,10 @@ func DefaultConfig() GeneratorConfig {
 
 // WithOverrides applies non-zero/meaningful overrides from src onto dst.
 // This is a lightweight helper to merge configuration sources.
+//
+// Boolean fields in src always replace the destination value, including false.
+// To selectively flip a boolean off, populate the override struct with the
+// surrounding fields you want to preserve, or update dst directly.
 func (dst *GeneratorConfig) WithOverrides(src GeneratorConfig) {
 	dst.applyScaleOverrides(src)
 	dst.applyPerformanceOverrides(src)
@@ -133,7 +137,7 @@ func (dst *GeneratorConfig) applyPerformanceOverrides(src GeneratorConfig) {
 		dst.BatchSize = src.BatchSize
 	}
 
-	dst.EnableCircuitBreaker = src.EnableCircuitBreaker || dst.EnableCircuitBreaker
+	dst.EnableCircuitBreaker = src.EnableCircuitBreaker
 
 	if src.MaxRetries > 0 {
 		dst.MaxRetries = src.MaxRetries
@@ -161,8 +165,8 @@ func (dst *GeneratorConfig) applyPatternOverrides(src GeneratorConfig) {
 
 // applyTrackingOverrides applies idempotency and tracking configuration overrides
 func (dst *GeneratorConfig) applyTrackingOverrides(src GeneratorConfig) {
-	dst.EnableIdempotency = src.EnableIdempotency || dst.EnableIdempotency
-	dst.UseExternalIDs = src.UseExternalIDs || dst.UseExternalIDs
+	dst.EnableIdempotency = src.EnableIdempotency
+	dst.UseExternalIDs = src.UseExternalIDs
 
 	if src.GenerationSeed != 0 {
 		dst.GenerationSeed = src.GenerationSeed

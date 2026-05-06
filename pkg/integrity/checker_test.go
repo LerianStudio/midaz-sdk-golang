@@ -1837,3 +1837,47 @@ func (*testAccountsService) ListAccountsAll(_ context.Context, _, _ string, _ mo
 func (*testAccountsService) ListAccountsPages(_ context.Context, _, _ string, _ models.AccountsListOpts) iter.Seq2[*models.ListResponse[models.Account], error] {
 	return func(_ func(*models.ListResponse[models.Account], error) bool) {}
 }
+
+// TestChecker_WithObservability_NilReceiver_DoesNotPanic verifies that the
+// builder methods on Checker accept a nil receiver without panicking. This is
+// defensive against accidental misuse, e.g. chaining onto a NewChecker call
+// that returned nil under future refactors.
+func TestChecker_WithObservability_NilReceiver_DoesNotPanic(t *testing.T) {
+	var c *Checker
+
+	t.Run("WithObservability", func(t *testing.T) {
+		require.NotPanics(t, func() {
+			result := c.WithObservability(newMockObservabilityProvider(true))
+			assert.Nil(t, result)
+		})
+	})
+
+	t.Run("WithAccountLookupDelay", func(t *testing.T) {
+		require.NotPanics(t, func() {
+			result := c.WithAccountLookupDelay(time.Second)
+			assert.Nil(t, result)
+		})
+	})
+
+	t.Run("GenerateLedgerReport", func(t *testing.T) {
+		require.NotPanics(t, func() {
+			report, err := c.GenerateLedgerReport(context.Background(), "org", "ledger")
+			require.Error(t, err)
+			assert.Nil(t, report)
+			assert.Contains(t, err.Error(), "checker is nil")
+		})
+	})
+}
+
+// TestReport_ToSummaryMap_NilReceiver_ReturnsEmpty verifies that calling
+// ToSummaryMap on a nil *Report returns an empty (non-nil) map rather than
+// panicking on r.TotalsByAsset deref.
+func TestReport_ToSummaryMap_NilReceiver_ReturnsEmpty(t *testing.T) {
+	var r *Report
+
+	require.NotPanics(t, func() {
+		out := r.ToSummaryMap()
+		assert.NotNil(t, out)
+		assert.Empty(t, out)
+	})
+}

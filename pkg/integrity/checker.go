@@ -48,13 +48,22 @@ func NewChecker(e *entities.Entity) *Checker { return &Checker{e: e} }
 
 // WithObservability sets the observability provider for logging and tracing.
 func (c *Checker) WithObservability(obs observability.Provider) *Checker {
+	if c == nil {
+		return nil
+	}
+
 	c.obs = obs
+
 	return c
 }
 
 // WithAccountLookupDelay sets an optional delay inserted before each account lookup.
 // Useful to rate-limit calls when processing very large ledgers.
 func (c *Checker) WithAccountLookupDelay(d time.Duration) *Checker {
+	if c == nil {
+		return nil
+	}
+
 	// Clamp to a sensible range [0, maxAccountLookupDelay]
 	if d < 0 {
 		d = 0
@@ -71,6 +80,10 @@ func (c *Checker) WithAccountLookupDelay(d time.Duration) *Checker {
 
 // GenerateLedgerReport aggregates balances and performs lightweight double-entry checks.
 func (c *Checker) GenerateLedgerReport(ctx context.Context, organizationID, ledgerID string) (*Report, error) {
+	if c == nil {
+		return nil, errors.New("checker is nil")
+	}
+
 	if c.e == nil || c.e.Balances == nil || c.e.Accounts == nil {
 		return nil, errors.New("entities not initialized for integrity checks")
 	}
@@ -265,6 +278,10 @@ func formatLogMessage(format string, args ...any) string {
 
 // ToSummaryMap renders a compact map suitable for report embedding (JSON-friendly).
 func (r *Report) ToSummaryMap() map[string]map[string]any {
+	if r == nil {
+		return map[string]map[string]any{}
+	}
+
 	out := map[string]map[string]any{}
 	for asset, t := range r.TotalsByAsset {
 		out[asset] = map[string]any{

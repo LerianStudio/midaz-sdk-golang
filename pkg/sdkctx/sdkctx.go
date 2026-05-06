@@ -45,9 +45,18 @@ type idempotencyKeyType struct{}
 // The HTTP client emits it as the X-Idempotency header on the next unsafe
 // request. An empty key is a no-op.
 //
-// An explicit key set via this helper always takes precedence over an
-// auto-generated key (see [WithoutAutoIdempotency] for the per-call
-// opt-out from auto-generation).
+// Precedence (first non-empty source wins):
+//  1. Caller-supplied input field — for service methods whose input struct
+//     carries an IdempotencyKey field (e.g.,
+//     [github.com/LerianStudio/midaz-sdk-golang/v3/models.CreateTransactionInput]),
+//     the input-level value is the most explicit caller assertion and wins
+//     over a ctx-supplied key.
+//  2. ctx-supplied via WithIdempotencyKey — request-scoped, useful when the
+//     input struct lacks the field or when propagating the same key across
+//     a chain of calls.
+//  3. Auto-generated UUID — applied by the HTTP client when client-level
+//     auto-idempotency is enabled (see [WithoutAutoIdempotency] for the
+//     per-call opt-out).
 //
 // See also [IdempotencyKeyFromContext], [WithoutAutoIdempotency].
 func WithIdempotencyKey(ctx context.Context, key string) context.Context {

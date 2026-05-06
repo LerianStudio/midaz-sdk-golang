@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"strconv"
 	"time"
 
@@ -16,24 +15,45 @@ import (
 	"github.com/google/uuid"
 )
 
-// formatAmount converts an int64 amount with scale to a decimal string
+// formatAmount converts an int64 amount with scale to a decimal string using
+// integer math only — no float64 conversion. Float64 has only ~15-17 significant
+// decimal digits, so round-tripping fixed-point values at scale 8 (BTC sat) or
+// scale 18 (wei) silently loses precision past the 2^53 mantissa boundary.
+//
+// For scale outside [0, 18] the raw integer is returned for backward compatibility.
+// Scale 18 is the practical maximum (wei); higher scales overflow int64 divisor math.
 func formatAmount(amount int64, scale int64) string {
-	if scale == 0 {
+	if scale <= 0 || scale > 18 {
 		return strconv.FormatInt(amount, 10)
 	}
 
-	divisor := int64(math.Pow10(int(scale)))
-	whole := amount / divisor
-	fractional := amount % divisor
-
-	if fractional == 0 {
-		return strconv.FormatInt(whole, 10)
+	sign := ""
+	// Avoid -math.MinInt64 overflow: handle sign via formatting, not negation.
+	abs := amount
+	if amount < 0 {
+		sign = "-"
+		// MinInt64 cannot be negated; uint64 conversion handles it.
+		if amount == -1<<63 {
+			// Format using uint64 to avoid overflow.
+			absU := uint64(1 << 63)
+			divisor := uint64(1)
+			for i := int64(0); i < scale; i++ {
+				divisor *= 10
+			}
+			whole := absU / divisor
+			frac := absU % divisor
+			return fmt.Sprintf("%s%d.%0*d", sign, whole, int(scale), frac)
+		}
+		abs = -amount
 	}
 
-	// Format with proper decimal places
-	formatStr := fmt.Sprintf("%%.%df", scale)
-
-	return fmt.Sprintf(formatStr, float64(amount)/float64(divisor))
+	divisor := int64(1)
+	for i := int64(0); i < scale; i++ {
+		divisor *= 10
+	}
+	whole := abs / divisor
+	frac := abs % divisor
+	return fmt.Sprintf("%s%d.%0*d", sign, whole, int(scale), frac)
 }
 
 // TransferOptions provides configuration options for transfer transactions
@@ -89,6 +109,14 @@ func Transfer(
 	assetCode string,
 	opts *TransferOptions,
 ) (*models.Transaction, error) {
+	if entity == nil {
+		return nil, errors.New("entity is required")
+	}
+
+	if entity.Transactions == nil {
+		return nil, errors.New("transactions service is not initialized")
+	}
+
 	// Use default options if none provided
 	if opts == nil {
 		opts = DefaultTransferOptions()
@@ -202,6 +230,14 @@ func Deposit(
 	assetCode string,
 	opts *DepositOptions,
 ) (*models.Transaction, error) {
+	if entity == nil {
+		return nil, errors.New("entity is required")
+	}
+
+	if entity.Transactions == nil {
+		return nil, errors.New("transactions service is not initialized")
+	}
+
 	// Use default options if none provided
 	if opts == nil {
 		opts = DefaultDepositOptions()
@@ -322,6 +358,14 @@ func Withdrawal(
 	assetCode string,
 	opts *WithdrawalOptions,
 ) (*models.Transaction, error) {
+	if entity == nil {
+		return nil, errors.New("entity is required")
+	}
+
+	if entity.Transactions == nil {
+		return nil, errors.New("transactions service is not initialized")
+	}
+
 	// Use default options if none provided
 	if opts == nil {
 		opts = DefaultWithdrawalOptions()
@@ -441,6 +485,14 @@ func MultiAccountTransfer(
 	assetCode string,
 	opts *MultiTransferOptions,
 ) (*models.Transaction, error) {
+	if entity == nil {
+		return nil, errors.New("entity is required")
+	}
+
+	if entity.Transactions == nil {
+		return nil, errors.New("transactions service is not initialized")
+	}
+
 	opts, idempotencyKey := resolveMultiTransferOptions(opts)
 
 	if err := validateMultiTransferAccounts(sourceAccounts, destAccounts); err != nil {
@@ -600,6 +652,14 @@ func CreateFromTemplate(
 	metadata map[string]any,
 	idempotencyKey string,
 ) (*models.Transaction, error) {
+	if entity == nil {
+		return nil, errors.New("entity is required")
+	}
+
+	if entity.Transactions == nil {
+		return nil, errors.New("transactions service is not initialized")
+	}
+
 	if template == nil {
 		return nil, errors.New("transaction template cannot be nil")
 	}
@@ -715,6 +775,14 @@ func CommitPendingTransaction(
 	entity *entities.Entity,
 	orgID, ledgerID, transactionID string,
 ) (*models.Transaction, error) {
+	if entity == nil {
+		return nil, errors.New("entity is required")
+	}
+
+	if entity.Transactions == nil {
+		return nil, errors.New("transactions service is not initialized")
+	}
+
 	// Use dedicated commit endpoint
 	committed, err := entity.Transactions.CommitTransaction(ctx, orgID, ledgerID, transactionID)
 	if err != nil {

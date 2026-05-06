@@ -238,14 +238,13 @@ func (e *Error) Unwrap() error {
 
 // Retryable reports whether the SDK retry layer should consider this
 // error a candidate for automatic retry. The decision is derived
-// from [Error.Category] (and, for HTTP-mapped errors, from
-// [Error.StatusCode]) and represents the canonical SDK-wide policy.
+// from [Error.Category] and represents the canonical SDK-wide policy.
 //
 // Retryable categories:
-//   - CategoryNetwork    — DNS, conn-refused, broken pipe.
-//   - CategoryTimeout    — request deadline exceeded.
-//   - CategoryRateLimit  /  CategoryLimitExceeded — server is throttling.
-//   - CategoryInternal   — 5xx server errors, transient.
+//   - CategoryNetwork        — DNS, conn-refused, broken pipe.
+//   - CategoryTimeout        — request deadline exceeded.
+//   - CategoryLimitExceeded  — server is throttling (rate / quota).
+//   - CategoryInternal       — 5xx server errors, transient.
 //
 // Non-retryable categories:
 //   - CategoryValidation     — caller's payload is wrong.

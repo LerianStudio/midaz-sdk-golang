@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -1375,6 +1376,101 @@ func TestParseResponseWithAdapter(t *testing.T) {
 
 	if target.Name != "test" {
 		t.Errorf("Expected name=test, got %s", target.Name)
+	}
+}
+
+// TestBatchProcessor_ExecuteBatches_BoundedConcurrency verifies that splitting
+// a large request set across multiple batches does not spawn more concurrent
+// goroutines than BatchOptions.Workers. Without bounding, 100 requests at
+// MaxBatchSize=1 would spawn 100 concurrent goroutines.
+func TestBatchProcessor_ExecuteBatches_BoundedConcurrency(t *testing.T) {
+	const (
+		totalRequests = 100
+		maxBatchSize  = 1 // force one batch per request -> 100 batches
+		workers       = 4
+	)
+
+	var (
+		current int32
+		peak    int32
+	)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Track concurrent in-flight handlers; each batch produces exactly one
+		// HTTP request, so this is a faithful proxy for goroutine fan-out.
+		now := atomic.AddInt32(&current, 1)
+		// Atomically update peak if `now` is greater.
+		for {
+			old := atomic.LoadInt32(&peak)
+			if now <= old {
+				break
+			}
+
+			if atomic.CompareAndSwapInt32(&peak, old, now) {
+				break
+			}
+		}
+
+		// Hold the request open long enough that any unbounded fan-out would
+		// be visible in the peak counter.
+		time.Sleep(50 * time.Millisecond)
+
+		atomic.AddInt32(&current, -1)
+
+		var requests []BatchRequest
+
+		_ = json.NewDecoder(r.Body).Decode(&requests)
+
+		responses := make([]BatchResponse, len(requests))
+		for i, req := range requests {
+			responses[i] = BatchResponse{
+				ID:         req.ID,
+				StatusCode: http.StatusOK,
+				Body:       json.RawMessage(`{"ok":true}`),
+			}
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(responses)
+	}))
+	defer server.Close()
+
+	options := &BatchOptions{
+		Timeout:      30 * time.Second,
+		MaxBatchSize: maxBatchSize,
+		RetryCount:   0,
+		Workers:      workers,
+	}
+
+	processor := NewBatchProcessorWithDefaults(server.Client(), server.URL, options)
+
+	requests := make([]BatchRequest, totalRequests)
+	for i := 0; i < totalRequests; i++ {
+		requests[i] = BatchRequest{
+			Method: "GET",
+			Path:   "/success",
+			ID:     fmt.Sprintf("req_%d", i),
+		}
+	}
+
+	result, err := processor.ExecuteBatch(context.Background(), requests)
+	if err != nil {
+		t.Fatalf("ExecuteBatch returned error: %v", err)
+	}
+
+	if len(result.Responses) != totalRequests {
+		t.Fatalf("expected %d responses, got %d", totalRequests, len(result.Responses))
+	}
+
+	observedPeak := atomic.LoadInt32(&peak)
+	if observedPeak > int32(workers) {
+		t.Fatalf("peak concurrent in-flight batches = %d, exceeds Workers limit of %d", observedPeak, workers)
+	}
+
+	// Sanity: at least some concurrency happened (otherwise the test isn't
+	// meaningful). With 100 1-request batches and 4 workers we expect peak >= 2.
+	if observedPeak < 2 {
+		t.Fatalf("peak concurrency was only %d; test did not exercise concurrency", observedPeak)
 	}
 }
 
