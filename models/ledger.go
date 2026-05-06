@@ -65,6 +65,33 @@ func (input *UpdateLedgerSettingsInput) WithValidateRoutes(enabled bool) *Update
 	return input
 }
 
+// hasChanges reports whether any field on the patch has been set.
+func (input *UpdateLedgerSettingsInput) hasChanges() bool {
+	if input == nil || input.Accounting == nil {
+		return false
+	}
+
+	return input.Accounting.ValidateAccountType != nil ||
+		input.Accounting.ValidateRoutes != nil
+}
+
+// Validate validates the UpdateLedgerSettingsInput fields.
+//
+// An empty patch (no setters invoked) is rejected. The server treats an
+// empty PATCH as a no-op which would silently mask a programming error,
+// so the SDK refuses to send one.
+func (input *UpdateLedgerSettingsInput) Validate() error {
+	if input == nil {
+		return errors.New("input is required")
+	}
+
+	if !input.hasChanges() {
+		return errors.New("empty update payload not allowed")
+	}
+
+	return nil
+}
+
 // CreateLedgerInput wraps mmodel.CreateLedgerInput to maintain compatibility while using midaz entities.
 type CreateLedgerInput struct {
 	mmodel.CreateLedgerInput

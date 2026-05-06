@@ -304,10 +304,12 @@ func (input UpdateHolderInput) MarshalJSON() ([]byte, error) {
 		payload[field] = nil
 	}
 
-	if len(payload) == 0 {
-		return nil, errors.New("empty update payload not allowed")
-	}
-
+	// NOTE: empty-payload rejection lives in Validate(), not here. MarshalJSON
+	// trusts that the entity layer called Validate() first; reaching this
+	// function with len(payload) == 0 indicates the entity skipped Validate(),
+	// which is itself a bug. We intentionally let an empty `{}` go through
+	// rather than emit a duplicate error message that fragments the source
+	// of truth across two functions.
 	return json.Marshal(payload)
 }
 

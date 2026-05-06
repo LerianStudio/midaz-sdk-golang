@@ -57,7 +57,9 @@ func TestNewCreateAccountInput(t *testing.T) {
 			assert.Equal(t, tt.accountName, input.Name)
 			assert.Equal(t, tt.assetCode, input.AssetCode)
 			assert.Equal(t, tt.accountType, input.Type)
-			assert.Equal(t, "ACTIVE", input.Status.Code)
+			// Status is left zero so the server applies its canonical default
+			// (audit 7.11). Callers opt in via WithStatus(NewStatus("ACTIVE")).
+			assert.Empty(t, input.Status.Code)
 			assert.Nil(t, input.ParentAccountID)
 			assert.Nil(t, input.EntityID)
 			assert.Nil(t, input.Blocked)

@@ -204,13 +204,15 @@ func (input *CreateAccountInput) Validate() error {
 //   - accountType: Type of the account (e.g., "deposit", "savings")
 //
 // Returns:
-//   - A pointer to the newly created CreateAccountInput with default active status
+//   - A pointer to the newly created CreateAccountInput. Status is left
+//     zero so the server applies its canonical default (ACTIVE today, but
+//     the SDK does not encode that policy locally — see audit 7.11). Set
+//     it explicitly with WithStatus when you need a non-default value.
 func NewCreateAccountInput(name, assetCode, accountType string) *CreateAccountInput {
 	return &CreateAccountInput{
 		Name:      name,
 		AssetCode: assetCode,
 		Type:      accountType,
-		Status:    NewStatus("ACTIVE"), // Default status
 	}
 }
 

@@ -227,10 +227,8 @@ func (input UpdateAliasInput) MarshalJSON() ([]byte, error) {
 		payload[field] = nil
 	}
 
-	if len(payload) == 0 {
-		return nil, errors.New("empty update payload not allowed")
-	}
-
+	// NOTE: empty-payload rejection lives in Validate(), not here. See
+	// UpdateHolderInput.MarshalJSON for the architectural rationale.
 	return json.Marshal(payload)
 }
 

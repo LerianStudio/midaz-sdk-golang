@@ -397,6 +397,10 @@ func (e *ledgersEntity) UpdateLedgerSettings(ctx context.Context, organizationID
 		return nil, errors.NewMissingParameterError(operation, "input")
 	}
 
+	if err := input.Validate(); err != nil {
+		return nil, errors.NewValidationError(operation, "ledger settings validation failed", err)
+	}
+
 	url := e.buildSettingsURL(organizationID, id)
 
 	body, err := json.Marshal(input)
