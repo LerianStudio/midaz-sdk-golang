@@ -92,6 +92,7 @@ help:
 	@echo "  make example                     - Run complete workflow example"
 	@echo "  make demo-data                   - Run mass demo data generator (non-interactive)"
 	@echo "  make demo-data-interactive       - Run mass demo data generator with prompts"
+	@echo "  make examples-test               - Build every example and run their test suites"
 	@echo ""
 	@echo "Documentation Commands:"
 	@echo "  make godoc                       - Start a godoc server for interactive documentation"
@@ -266,6 +267,20 @@ demo-data:
 
 demo-data-interactive:
 	@$(MAKE) demo-data DEMO_NON_INTERACTIVE=0
+
+.PHONY: examples-test
+
+# examples-test builds every example program under examples/ and runs
+# the test suite for examples that ship one (notably 09-testing-with-mocks).
+# It is the compile-time guarantee that every example tracks the public SDK
+# surface — refactors that break a documented call shape break the build here.
+examples-test:
+	$(call print_header,"Building all examples")
+	@go build ./examples/... 2>&1
+	@echo "$(GREEN)[ok]$(NC) All examples build cleanly$(GREEN) ✔️$(NC)"
+	$(call print_header,"Running example tests")
+	@go test ./examples/... 2>&1
+	@echo "$(GREEN)[ok]$(NC) Example tests passed$(GREEN) ✔️$(NC)"
 
 #-------------------------------------------------------
 # Documentation Commands

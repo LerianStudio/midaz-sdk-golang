@@ -12,19 +12,38 @@
 
 # Midaz Go SDK
 
-The Midaz Go SDK is an idiomatic Go client for the Midaz financial ledger APIs. It exposes entity services for Ledger resources, CRM holders and aliases, structured errors, explicit configuration, retries, pagination helpers, concurrency utilities, and OpenTelemetry observability.
+The Midaz Go SDK is the idiomatic v3 client for the Midaz financial-ledger
+APIs. v3 is a clean major version: typed list-opts, `iter.Seq2`-based
+pagination, structured errors with retry classification, `*slog.Logger`
+canonical logging, OpenTelemetry observability, and a single canonical
+auth surface (Access Manager OAuth or anonymous local-stack mode).
 
-## Features
+## What's new in v3
 
-- **Current Midaz API coverage**: Ledger resources plus CRM holders, aliases, and MetadataIndexes.
-- **Entity service API**: Access services through `c.Entity.<Service>` with explicit methods such as `CreateOrganization`, `ListAccounts`, and `CreateTransactionWithDSL`.
-- **Functional options**: Configure clients with `client.WithConfig`, `client.WithBaseURL`, `client.WithRetries`, `client.WithObservabilityProvider`, and related options.
-- **Access Manager authentication**: OAuth client-credentials via `midaz.WithAccessManager`. Anonymous mode via `midaz.WithAnonymous` for local-dev. Construction without one of the two fails fast with a typed configuration error. See [docs/auth.md](docs/auth.md).
-- **Structured errors**: Use `pkg/errors` categories, codes, helper checkers, status accessors, and request/resource context.
-- **Retries and idempotency**: Built-in retry behavior for transient failures, with idempotency-aware retries for unsafe requests.
-- **Pagination**: `models.ListOptions`, `models.ListResponse[T]`, and pagination metadata helpers.
-- **Observability**: OpenTelemetry tracing propagation, metrics, logging, and middleware helpers.
-- **Concurrency utilities**: Worker pools, batching, and rate limiting in `pkg/concurrent`.
+v3 is the result of a 9-track DX overhaul. Highlights:
+
+- **One auth source, enforced**: `WithAccessManager` for production OAuth,
+  `WithAnonymous` for local stacks. Calling `New()` with neither returns a
+  typed configuration error at construction time.
+- **Typed pagination opts at the type system**: page-based and cursor-based
+  endpoints have separate opts types. Wrong-shape opts don't compile.
+- **`iter.Seq2[T, error]`**: every list method ships in a trio —
+  `List` (one page) / `ListAll` (every item) / `ListPages` (every page
+  envelope).
+- **Structured errors**: every error is a `*pkg/errors.Error` with
+  `Category`, `Code`, `Operation`, `Resource`, and a canonical
+  `Retryable()` method. Real network/timeout/auth/validation classification.
+- **Canonical logging**: `*slog.Logger` is the only surface. The SDK is
+  silent by default (`slog.DiscardHandler`); opt in with `WithLogger`.
+- **OpenTelemetry first-class**: spans + metrics + logs through one
+  `observability.Provider` wired by `WithObservabilityProvider`.
+- **Idempotency by default**: auto-generated `X-Idempotency` per unsafe
+  request. Override with `sdkctx.WithIdempotencyKey` for stable
+  caller-supplied keys; suppress per-call with `WithoutAutoIdempotency`.
+- **Mocks via `go.uber.org/mock`**: pre-generated mocks for every service
+  ship under `entities/mocks/`. Regenerate with `go generate ./entities/...`.
+
+For the full v3 design rationale see [`docs/v3-dx-plan.md`](docs/v3-dx-plan.md).
 
 ## Installation
 
@@ -32,7 +51,12 @@ The Midaz Go SDK is an idiomatic Go client for the Midaz financial ledger APIs. 
 go get github.com/LerianStudio/midaz-sdk-golang/v3
 ```
 
+Requires Go 1.26+ (the `iter.Seq2` and `log/slog` features are stdlib in
+v3).
+
 ## Quick start
+
+The minimum-viable shape — local stack, anonymous auth, list 5 organizations:
 
 ```go
 package main
@@ -42,335 +66,322 @@ import (
     "fmt"
     "log"
 
-    client "github.com/LerianStudio/midaz-sdk-golang/v3"
+    midaz "github.com/LerianStudio/midaz-sdk-golang/v3"
     "github.com/LerianStudio/midaz-sdk-golang/v3/models"
-    "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
 )
 
 func main() {
-    cfg, err := config.NewConfig(config.FromEnvironment())
-    if err != nil {
-        log.Fatalf("failed to create config: %v", err)
-    }
-
-    c, err := client.New(
-        client.WithConfig(cfg),
-        client.UseAllAPIs(),
+    c, err := midaz.New(
+        midaz.WithEnvironment(midaz.EnvironmentLocal),
+        midaz.WithAnonymous(),
     )
     if err != nil {
-        log.Fatalf("failed to create client: %v", err)
+        log.Fatalf("midaz.New: %v", err)
     }
     defer c.Shutdown(context.Background())
 
-    ctx := context.Background()
-    orgInput := models.NewCreateOrganizationInput("Example Corporation", "123456789").
-        WithDoingBusinessAs("Example Inc.").
-        WithAddress(models.Address{
-            Line1:   "123 Main St",
-            City:    "New York",
-            State:   "NY",
-            ZipCode: "10001",
-            Country: "US",
+    page, err := c.Organizations.ListOrganizations(context.Background(),
+        models.OrganizationsListOpts{
+            PageListOpts: models.PageListOpts{Limit: 5},
         })
-
-    org, err := c.Entity.Organizations.CreateOrganization(ctx, orgInput)
     if err != nil {
-        log.Fatalf("failed to create organization: %v", err)
+        log.Fatalf("ListOrganizations: %v", err)
     }
-
-    fmt.Printf("organization created: %s\n", org.ID)
+    for _, org := range page.Items {
+        fmt.Printf("- %s (%s)\n", org.LegalName, org.ID)
+    }
 }
 ```
 
-`config.FromEnvironment()` is explicit. Environment variables are not loaded unless you pass that option to `config.NewConfig`.
+For Access Manager auth (production) and the full client-construction
+matrix see [`docs/auth.md`](docs/auth.md) and [`docs/configuration.md`](docs/configuration.md).
 
-## Client configuration
+## Core surfaces
 
-### Environment-based configuration
+### Service access
+
+Every public service is a promoted field on `*midaz.Client`. The canonical
+shape is `c.<Service>.<Method>`:
 
 ```go
-cfg, err := config.NewConfig(config.FromEnvironment())
-if err != nil {
-    return err
+orgs, err := c.Organizations.ListOrganizations(ctx, opts)
+ledger, err := c.Ledgers.CreateLedger(ctx, orgID, input)
+account, err := c.Accounts.GetAccount(ctx, orgID, ledgerID, accountID)
+balance, err := c.Balances.GetBalance(ctx, orgID, ledgerID, accountID)
+tx, err := c.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
+```
+
+The full service list: `Organizations`, `Ledgers`, `Assets`, `AssetRates`,
+`Accounts`, `AccountTypes`, `Balances`, `Holders`, `MetadataIndexes`,
+`Operations`, `OperationRoutes`, `Portfolios`, `Segments`, `Transactions`,
+`TransactionRoutes`.
+
+### Pagination
+
+Every list method ships in three flavors:
+
+```go
+// One page, you decide when to advance.
+page, err := c.Accounts.ListAccounts(ctx, orgID, ledgerID, opts)
+
+// iter.Seq2 over every item across every page (SDK handles paging).
+for acc, err := range c.Accounts.ListAccountsAll(ctx, orgID, ledgerID, opts) {
+    if err != nil { return err }
+    process(acc)
 }
 
-c, err := client.New(
-    client.WithConfig(cfg),
-    client.UseAllAPIs(),
-)
-```
-
-### Authentication
-
-v3 has exactly two auth paths and refuses to construct a client without one. See [docs/auth.md](docs/auth.md) for full coverage.
-
-**Production: Access Manager (OAuth client-credentials):**
-
-```go
-c, err := midaz.New(
-    midaz.WithEnvironment(midaz.EnvProduction),
-    midaz.WithAccessManager(midaz.AccessManager{
-        Address:      "https://your-auth-service.com",
-        ClientID:     os.Getenv("MIDAZ_CLIENT_ID"),
-        ClientSecret: os.Getenv("MIDAZ_CLIENT_SECRET"),
-    }),
-)
-```
-
-**Local development / tests: Anonymous mode:**
-
-```go
-c, err := midaz.New(
-    midaz.WithBaseURL("http://localhost:3000"),
-    midaz.WithAnonymous(),
-)
-```
-
-Equivalent environment variables (loaded only when `config.FromEnvironment()` is in the option chain):
-
-```bash
-PLUGIN_AUTH_ENABLED=true
-PLUGIN_AUTH_ADDRESS=https://your-auth-service.com
-MIDAZ_CLIENT_ID=your-client-id
-MIDAZ_CLIENT_SECRET=your-client-secret
-```
-
-There is no `WithAuthToken` option in v3 — static-token deployments configure their Access Manager to mint tokens.
-
-### Direct URL configuration
-
-```go
-c, err := client.New(
-    client.WithBaseURL("http://localhost"),
-    client.WithTimeout(30*time.Second),
-    client.WithRetries(3, 100*time.Millisecond, 10*time.Second),
-    client.UseAllAPIs(),
-)
-```
-
-## Entity services
-
-Enable entity services with `client.UseAllAPIs()` or `client.UseEntityAPI()`. The current service surface is:
-
-- `Accounts`
-- `AccountTypes`
-- `Assets`
-- `AssetRates`
-- `Balances`
-- `Holders`
-- `Aliases`
-- `Ledgers`
-- `MetadataIndexes`
-- `Operations`
-- `OperationRoutes`
-- `Organizations`
-- `Portfolios`
-- `Segments`
-- `Transactions`
-- `TransactionRoutes`
-
-Example calls:
-
-```go
-orgs, err := c.Entity.Organizations.ListOrganizations(ctx, models.NewListOptions().WithLimit(20))
-ledger, err := c.Entity.Ledgers.CreateLedger(ctx, orgID, models.NewCreateLedgerInput("Main Ledger"))
-account, err := c.Entity.Accounts.GetAccount(ctx, orgID, ledgerID, accountID)
-balance, err := c.Entity.Accounts.GetBalance(ctx, orgID, ledgerID, accountID)
-holders, err := c.Entity.Holders.ListHolders(ctx, orgID, models.NewListOptions().WithLimit(20))
-```
-
-`Accounts.GetBalance` and `Accounts.GetExternalAccountBalance` are convenience helpers for accounts with exactly one balance. Use the `Balances` service list methods when an account can have multiple balances.
-
-## Transactions
-
-The current transaction contract uses a send-based payload:
-
-```go
-txInput := models.NewCreateTransactionInput("USD", "100.00").
-    WithDescription("Payment from customer to merchant").
-    WithSend(&models.SendInput{
-        Asset: "USD",
-        Value: "100.00",
-        Source: &models.SourceInput{
-            From: []models.FromToInput{
-                {Account: customerAlias, Amount: models.AmountInput{Asset: "USD", Value: "100.00"}},
-            },
-        },
-        Distribute: &models.DistributeInput{
-            To: []models.FromToInput{
-                {Account: merchantAlias, Amount: models.AmountInput{Asset: "USD", Value: "100.00"}},
-            },
-        },
-    })
-txInput.IdempotencyKey = "payment-2026-05-03-0001"
-
-tx, err := c.Entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, txInput)
-```
-
-DSL-style structured transactions are available with `CreateTransactionWithDSL`, and raw DSL file content can be sent with `CreateTransactionWithDSLFile`.
-
-## Pagination
-
-```go
-options := models.NewListOptions().
-    WithLimit(50).
-    WithFilter("status", "ACTIVE")
-
-for {
-    page, err := c.Entity.Accounts.ListAccounts(ctx, orgID, ledgerID, options)
-    if err != nil {
-        return err
-    }
-
-    for _, account := range page.Items {
-        process(account)
-    }
-
-    if !page.Pagination.HasNextPage() {
-        break
-    }
-
-    options = page.Pagination.NextPageOptions()
+// iter.Seq2 over page envelopes (with metadata for checkpointing).
+for batch, err := range c.Accounts.ListAccountsPages(ctx, orgID, ledgerID, opts) {
+    if err != nil { return err }
+    log.Printf("page %d: %d items", batch.Pagination.Page, len(batch.Items))
 }
 ```
 
-See [pagination](docs/pagination.md) for page, cursor, and sorting details.
+Page-based and cursor-based endpoints use separate opts types. See
+[`examples/05-listing-pages/`](examples/05-listing-pages/) and
+[`examples/04-listing-cursor/`](examples/04-listing-cursor/).
 
-## Error handling
+### Idempotency
+
+Auto-on by default. The SDK emits `X-Idempotency: <uuid>` and
+`X-Midaz-Auto-Idempotency: true` on every unsafe request. Override per-call:
 
 ```go
-account, err := c.Entity.Accounts.GetAccount(ctx, orgID, ledgerID, accountID)
+import "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
+
+// Stable key for at-least-once producers (saga steps, outbox rows, UI submissions):
+ctx := sdkctx.WithIdempotencyKey(ctx, "tx-2026-05-06-001")
+
+// Suppress for one call (rare — fire-and-forget administrative endpoints):
+ctx := sdkctx.WithoutAutoIdempotency(ctx)
+```
+
+Disable globally with `midaz.WithIdempotency(false)`. See
+[`examples/06-idempotency/`](examples/06-idempotency/).
+
+### Errors
+
+Every error is a `*pkg/errors.Error`. Use the typed predicates or
+`errors.As` for structured field access:
+
+```go
+import sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
+
+acc, err := c.Accounts.GetAccount(ctx, orgID, ledgerID, accountID)
 if err != nil {
     switch {
     case sdkerrors.IsNotFoundError(err):
         return fmt.Errorf("account not found: %w", err)
-    case sdkerrors.IsAuthenticationError(err):
-        return fmt.Errorf("authentication failed: %w", err)
-    case sdkerrors.IsRateLimitError(err):
-        return fmt.Errorf("rate limited: %w", err)
-    default:
-        return fmt.Errorf("failed to get account: %w", err)
+    case sdkerrors.IsAuthError(err):
+        return fmt.Errorf("re-authenticate: %w", err)
+    case sdkerrors.IsValidationError(err):
+        return fmt.Errorf("input invalid: %w", err)
+    case sdkerrors.IsNetworkError(err):
+        return fmt.Errorf("transient transport: %w", err) // retry-safe
     }
 }
 ```
 
-Import the error package as:
+Or walk fields:
 
 ```go
-import sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
-```
-
-See [error handling](docs/errors.md) for categories, status accessors, retry boundaries, and validation details.
-
-## Observability
-
-```go
-provider, err := observability.New(context.Background(),
-    observability.WithServiceName("my-service"),
-    observability.WithComponentEnabled(true, true, true),
-    observability.WithCollectorEndpoint("localhost:4317"),
-)
-if err != nil {
-    return err
+var sdkErr *sdkerrors.Error
+if errors.As(err, &sdkErr) {
+    log.Printf("op=%s resource=%s code=%s retryable=%v",
+        sdkErr.Operation, sdkErr.Resource, sdkErr.Code, sdkErr.Retryable())
 }
-defer provider.Shutdown(context.Background())
+```
 
-c, err := client.New(
-    client.WithObservabilityProvider(provider),
-    client.UseAllAPIs(),
+`Retryable()` is the canonical retry-policy source — derived from
+`Category`. Use it instead of re-implementing a category switch in
+consumer code.
+
+### Logging
+
+Inject a `*slog.Logger`:
+
+```go
+import "log/slog"
+
+logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+c, err := midaz.New(
+    midaz.WithEnvironment(midaz.EnvironmentLocal),
+    midaz.WithAnonymous(),
+    midaz.WithLogger(logger),
 )
 ```
 
-The SDK creates one outbound SDK HTTP span per entity request, propagates W3C `traceparent` and `baggage`, and emits structured business events for high-value lifecycle operations when logging is enabled. Business logs include safe IDs such as `organizationId`, `ledgerId`, `accountId`, and `transactionId`; they do not include payloads, metadata, documents, names, addresses, auth headers, idempotency keys, or raw bodies.
+Adapters for zap, zerolog, logrus all go through `slog.Handler`. See
+[`docs/logging.md`](docs/logging.md) and [`examples/08-logging-slog/`](examples/08-logging-slog/).
 
-See [tracing](docs/tracing.md) for OpenTelemetry propagation, incoming HTTP extraction, and safe business logging examples.
+### Retries
+
+Default policy: 3 retries, exponential backoff with 25% jitter, retryable
+on transport errors + 5xx + 408 + 425 + 429. Customize:
+
+```go
+import "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry"
+
+c, err := midaz.New(
+    midaz.WithEnvironment(midaz.EnvironmentLocal),
+    midaz.WithAnonymous(),
+    midaz.WithRetryOptions(
+        retry.WithMaxRetries(5),
+        retry.WithInitialDelay(200*time.Millisecond),
+    ),
+)
+```
+
+Or `WithCustomRetryPolicy(func(*Response, error) bool)` for arbitrary
+predicates. Disable with `WithoutRetries()`. See [`examples/07-retries/`](examples/07-retries/).
+
+### Observability (OpenTelemetry)
+
+```go
+import "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
+
+provider, err := observability.New(ctx,
+    observability.WithServiceName("payments-api"),
+    observability.WithEnvironment("production"),
+    observability.WithComponentEnabled(true, true, true), // tracing, metrics, logs
+)
+if err != nil { return err }
+defer provider.Shutdown(ctx)
+
+c, err := midaz.New(
+    midaz.WithEnvironment(midaz.EnvironmentProduction),
+    midaz.WithAccessManager(am),
+    midaz.WithObservabilityProvider(provider),
+)
+```
+
+The SDK emits one HTTP span per outbound request with proper W3C
+`traceparent` propagation. Business logs carry safe IDs only — never
+payloads, names, addresses, or auth headers. See [`docs/tracing.md`](docs/tracing.md)
+and [`examples/10-observability-otel/`](examples/10-observability-otel/).
+
+### Multi-tenancy
+
+```go
+// Client-level default tenant:
+c, err := midaz.New(
+    midaz.WithEnvironment(midaz.EnvironmentProduction),
+    midaz.WithAccessManager(am),
+    midaz.WithTenantID("tenant-prod-1"),
+)
+
+// Per-request override:
+import "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
+ctx = sdkctx.WithRequestTenantID(ctx, "tenant-other")
+```
+
+See [`docs/multi-tenancy.md`](docs/multi-tenancy.md).
+
+### Testing with mocks
+
+Every service has a generated mock under `entities/mocks/`:
+
+```go
+import (
+    "github.com/LerianStudio/midaz-sdk-golang/v3/entities/mocks"
+    "go.uber.org/mock/gomock"
+)
+
+func TestMyHandler(t *testing.T) {
+    ctrl := gomock.NewController(t)
+    mockSvc := mocks.NewMockAccountsService(ctrl)
+    mockSvc.EXPECT().
+        GetAccount(gomock.Any(), "org-1", "ledger-1", "acc-1").
+        Return(&models.Account{ID: "acc-1"}, nil)
+    // ... use mockSvc as entities.AccountsService in your code under test
+}
+```
+
+Mocks are regenerated via `go generate ./entities/...` (each service
+file has a `//go:generate mockgen` directive). See [`examples/09-testing-with-mocks/`](examples/09-testing-with-mocks/).
 
 ## Environment variables
 
-The SDK reads these variables when `config.FromEnvironment()` is used:
+The SDK reads these only when `config.FromEnvironment()` is in the option
+chain — there is no implicit env-var loading:
 
-- `MIDAZ_ENVIRONMENT`
-- `MIDAZ_BASE_URL`
-- `MIDAZ_ONBOARDING_URL`
-- `MIDAZ_TRANSACTION_URL`
-- `MIDAZ_CRM_URL`
-- `MIDAZ_USER_AGENT`
-- `MIDAZ_TIMEOUT`
-- `MIDAZ_DEBUG`
-- `MIDAZ_MAX_RETRIES`
-- `MIDAZ_IDEMPOTENCY`
-- `PLUGIN_AUTH_ENABLED`
-- `PLUGIN_AUTH_ADDRESS`
-- `MIDAZ_CLIENT_ID`
-- `MIDAZ_CLIENT_SECRET`
+- Service URLs: `MIDAZ_ENVIRONMENT`, `MIDAZ_BASE_URL`, `MIDAZ_ONBOARDING_URL`,
+  `MIDAZ_TRANSACTION_URL`, `MIDAZ_CRM_URL`
+- Auth: `PLUGIN_AUTH_ENABLED`, `PLUGIN_AUTH_ADDRESS`, `MIDAZ_CLIENT_ID`,
+  `MIDAZ_CLIENT_SECRET`
+- Tenant: `MIDAZ_TENANT_ID`
+- Behavior: `MIDAZ_TIMEOUT`, `MIDAZ_USER_AGENT`, `MIDAZ_DEBUG`,
+  `MIDAZ_MAX_RETRIES`, `MIDAZ_IDEMPOTENCY`
+
+See [`docs/configuration.md`](docs/configuration.md) for the full matrix.
 
 ## Documentation
 
-- [SDK documentation](docs/README.md)
-- [Examples](docs/examples.md)
-- [External API mapping](docs/mapping/external_apis.md)
-- [Internal API mapping](docs/mapping/internal_apis.md)
-- [Generated Go package documentation](docs/godoc/index.txt)
+- [`docs/auth.md`](docs/auth.md) — authentication setup and migration
+- [`docs/configuration.md`](docs/configuration.md) — every available SDK option, both layers
+- [`docs/multi-tenancy.md`](docs/multi-tenancy.md) — tenant routing
+- [`docs/logging.md`](docs/logging.md) — `*slog.Logger` contract + adapter recipes
+- [`docs/tracing.md`](docs/tracing.md) — OpenTelemetry tracing + metrics + business logs
+- [`docs/pagination.md`](docs/pagination.md) — pagination contract
+- [`docs/errors.md`](docs/errors.md) — error categories, codes, retry boundaries
+- [`docs/examples.md`](docs/examples.md) — runnable example index
+- [`docs/v3-dx-plan.md`](docs/v3-dx-plan.md) — v3 design rationale (the master plan)
+- [`pkg.go.dev/github.com/LerianStudio/midaz-sdk-golang/v3`](https://pkg.go.dev/github.com/LerianStudio/midaz-sdk-golang/v3) — generated API reference
 
-Generate docs with:
+Generate docs locally:
 
 ```bash
-make docs
-```
-
-Start an interactive docs server with:
-
-```bash
-make godoc
+make docs       # static HTML to docs/godoc/
+make godoc      # interactive server at http://localhost:6060
 ```
 
 ## Examples
 
-See [`examples/`](examples/) for the full numbered list. Highlights:
+See [`examples/README.md`](examples/README.md) for the full numbered list
+with a Start-Here / Common workflows / Behavior & resilience / Testing &
+observability / Reference structure. Highlights:
 
-- [`02-auth/`](examples/02-auth/main.go) — Access Manager authentication.
-- [`03-end-to-end/`](examples/03-end-to-end/main.go) — Org → ledger → account → transaction.
-- [`04-listing-cursor/`](examples/04-listing-cursor/main.go) — Cursor pagination with `iter.Seq2`.
-- [`07-retries/`](examples/07-retries/main.go) — Retry policies.
-- [`08-logging-slog/`](examples/08-logging-slog/main.go) — `*slog.Logger` integration.
-- [`10-observability-otel/`](examples/10-observability-otel/observability_demo.go) — OpenTelemetry.
-- [`workflow-with-entities/`](examples/workflow-with-entities/main.go) — Complete entity workflow.
-- [`mass-demo-generator/`](examples/mass-demo-generator) — End-to-end demo data generation.
+- [`examples/01-hello-world/`](examples/01-hello-world/) — minimum-viable shape (~17 body lines)
+- [`examples/02-auth/`](examples/02-auth/) — Access Manager authentication
+- [`examples/03-end-to-end/`](examples/03-end-to-end/) — org → ledger → account → transaction
+- [`examples/06-idempotency/`](examples/06-idempotency/) — idempotency mode reference
+- [`examples/07-retries/`](examples/07-retries/) — retry policies
+- [`examples/08-logging-slog/`](examples/08-logging-slog/) — `*slog.Logger` integration
+- [`examples/09-testing-with-mocks/`](examples/09-testing-with-mocks/) — unit-testing pattern
+- [`examples/10-observability-otel/`](examples/10-observability-otel/) — OpenTelemetry
+- [`examples/mass-demo-generator/`](examples/mass-demo-generator/) — production-shaped data generator at scale
+- [`examples/workflow-with-entities/`](examples/workflow-with-entities/) — every public service through full CRUD
 
-Run the mass demo generator:
+Run the demo data generator:
 
 ```bash
-cd examples/mass-demo-generator
-DEMO_NON_INTERACTIVE=1 go run . --org-locale=br
+make demo-data
+# or
+DEMO_NON_INTERACTIVE=1 go run ./examples/mass-demo-generator --org-locale=br
 ```
 
-For a bounded smoke run, use:
+Build all examples:
 
 ```bash
-cd examples/mass-demo-generator
-DEMO_NON_INTERACTIVE=1 go run . --orgs=1 --ledgers=1 --accounts=1 --tx=0
+make examples-test
 ```
 
 ## Testing
 
 ```bash
-make test
-make coverage
-make verify-sdk
-```
-
-For the full local pipeline, run:
-
-```bash
-make ci
+make test                    # unit tests
+make coverage                # HTML coverage report under artifacts/
+make verify-sdk              # API compatibility + parity checks
+make examples-test           # build every example, run example tests
+make ci                      # full local pipeline: tidy + fmt + lint + gosec + test + verify-sdk
 ```
 
 ## Contributing
 
-Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+Contributions are welcome. See [`CONTRIBUTING.md`](CONTRIBUTING.md) for guidelines.
 
 ## License
 
-This project is licensed under the Apache License, Version 2.0. See [LICENSE.md](LICENSE.md) for details.
+This project is licensed under the Apache License, Version 2.0. See [`LICENSE.md`](LICENSE.md) for details.
 
 Copyright 2025 Lerian Studio
