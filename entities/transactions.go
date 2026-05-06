@@ -1,5 +1,7 @@
 package entities
 
+//go:generate mockgen -source=transactions.go -destination=mocks/mock_transactions.go -package=mocks TransactionsService
+
 import (
 	"bytes"
 	"context"

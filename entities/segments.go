@@ -1,5 +1,7 @@
 package entities
 
+//go:generate mockgen -source=segments.go -destination=mocks/mock_segments.go -package=mocks SegmentsService
+
 import (
 	"bytes"
 	"context"

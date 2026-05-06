@@ -1,5 +1,7 @@
 package entities
 
+//go:generate mockgen -source=ledgers.go -destination=mocks/mock_ledgers.go -package=mocks LedgersService
+
 import (
 	"bytes"
 	"context"

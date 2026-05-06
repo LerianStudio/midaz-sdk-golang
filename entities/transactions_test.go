@@ -8,9 +8,9 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/entities/mocks"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 )
 
 // ========== Test Data Helpers ==========

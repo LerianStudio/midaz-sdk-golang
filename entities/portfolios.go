@@ -1,5 +1,7 @@
 package entities
 
+//go:generate mockgen -source=portfolios.go -destination=mocks/mock_portfolios.go -package=mocks PortfoliosService
+
 import (
 	"bytes"
 	"context"

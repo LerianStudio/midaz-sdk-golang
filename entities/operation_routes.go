@@ -1,5 +1,7 @@
 package entities
 
+//go:generate mockgen -source=operation_routes.go -destination=mocks/mock_operation_routes.go -package=mocks OperationRoutesService
+
 import (
 	"bytes"
 	"context"

@@ -1,5 +1,7 @@
 package entities
 
+//go:generate mockgen -source=transaction_routes.go -destination=mocks/mock_transaction_routes.go -package=mocks TransactionRoutesService
+
 import (
 	"bytes"
 	"context"

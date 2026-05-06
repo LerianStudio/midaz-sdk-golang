@@ -1,5 +1,7 @@
 package entities
 
+//go:generate mockgen -source=assets.go -destination=mocks/mock_assets.go -package=mocks AssetsService
+
 import (
 	"bytes"
 	"context"
