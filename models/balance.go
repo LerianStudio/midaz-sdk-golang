@@ -2,7 +2,6 @@
 package models
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -253,28 +252,4 @@ func (input *CreateBalanceInput) Validate() error {
 	}
 
 	return nil
-}
-
-// MarshalJSON ensures zero-value account collections encode items as an empty array.
-func (a Accounts) MarshalJSON() ([]byte, error) {
-	type alias Accounts
-
-	out := alias(a)
-	if out.Items == nil {
-		out.Items = []Account{}
-	}
-
-	return json.Marshal(out)
-}
-
-// MarshalJSON ensures zero-value account collections encode items as an empty array.
-func (r ListAccountResponse) MarshalJSON() ([]byte, error) {
-	type alias ListAccountResponse
-
-	out := alias(r)
-	if out.Items == nil {
-		out.Items = []Account{}
-	}
-
-	return json.Marshal(out)
 }

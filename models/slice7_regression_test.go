@@ -62,12 +62,13 @@ func TestSlice7NilUnmarshalReceiversReturnErrors(t *testing.T) {
 	require.ErrorContains(t, list.UnmarshalJSON([]byte(`{"items":[]}`)), "receiver cannot be nil")
 }
 
-func TestSlice7ListOptionsNonAlignedOffsetDoesNotEmitPage(t *testing.T) {
-	params := NewListOptions().WithLimit(10).WithOffset(15).ToQueryParams()
-
-	assert.NotContains(t, params, QueryParamPage)
-	assert.NotContains(t, params, QueryParamOffset)
-}
+// TestSlice7ListOptionsNonAlignedOffsetDoesNotEmitPage existed in v2 to
+// pin down the silent-conversion rule (offset 15, limit 10 → unaligned →
+// drop offset, do NOT synthesize page=2). v3 deletes models.ListOptions
+// entirely; per-entity typed Opts (PageListOpts, CursorListOpts) have no
+// Offset field, so the misalignment scenario is structurally impossible.
+// The test is intentionally removed — its invariant is encoded in the
+// type system rather than enforced at runtime.
 
 func TestSlice7LedgerSettingsExplicitFalseSerializes(t *testing.T) {
 	data, err := json.Marshal(NewUpdateLedgerSettingsInput().WithValidateRoutes(false))
@@ -89,19 +90,12 @@ func TestSlice7ErrorResponseJSONContract(t *testing.T) {
 	assert.Equal(t, "must not be external", response.Fields["type"])
 }
 
-func TestSlice7LegacyListWrappersMarshalEmptyItems(t *testing.T) {
-	// v3: AssetRatesResponse was deleted in Track 5 Batch 5C; asset
-	// rates now ride the unified ListResponse[T]/Pagination contract,
-	// covered separately by TestListResponseZeroValueMarshalUsesEmptyItems
-	// in model_test.go.
-	accounts, err := json.Marshal(Accounts{})
-	require.NoError(t, err)
-	assert.Contains(t, string(accounts), `"items":[]`)
-
-	operations, err := json.Marshal(Operations{})
-	require.NoError(t, err)
-	assert.Contains(t, string(operations), `"items":[]`)
-}
+// TestSlice7LegacyListWrappersMarshalEmptyItems existed in v2 to pin down
+// JSON empty-items behavior on the legacy list wrapper types. v3 Batch 5C
+// deleted AssetRatesResponse; Batch 5F deletes models.Accounts and
+// models.Operations. All list responses now ride the unified
+// ListResponse[T] generic, covered by TestListResponseZeroValueMarshalUsesEmptyItems
+// in model_test.go.
 
 // TestSlice7UpdateAliasRelatedPartiesReplaceOnRepeatedBuilderCalls pins
 // down the documented contract: repeated WithRelatedParties calls REPLACE

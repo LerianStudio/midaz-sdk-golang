@@ -1,7 +1,6 @@
 package models
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -230,34 +229,6 @@ func (input *UpdateOperationInput) Validate() error {
 	return nil
 }
 
-// Operations represents a paginated list of operations.
-//
-// swagger:model Operations
-// @Description Operations represents a paginated response containing a list of operations with pagination metadata.
-type Operations struct {
-	// Array of operation records returned in this page
-	Items []Operation `json:"items"`
-
-	// Pagination information
-	Pagination struct {
-		Limit      int     `json:"limit"`
-		NextCursor *string `json:"next_cursor,omitempty"`
-		PrevCursor *string `json:"prev_cursor,omitempty"`
-	} `json:"pagination"`
-} // @name Operations
-
-// MarshalJSON ensures zero-value operation lists encode items as an empty array.
-func (o Operations) MarshalJSON() ([]byte, error) {
-	type alias Operations
-
-	out := alias(o)
-	if out.Items == nil {
-		out.Items = []Operation{}
-	}
-
-	return json.Marshal(out)
-}
-
 // OperationResponse represents a success response containing a single operation.
 //
 // swagger:response OperationResponse
@@ -265,15 +236,6 @@ func (o Operations) MarshalJSON() ([]byte, error) {
 type OperationResponse struct {
 	// in: body
 	Body Operation
-}
-
-// OperationsResponse represents a success response containing a paginated list of operations.
-//
-// swagger:response OperationsResponse
-// @Description Successful response containing a paginated list of operations.
-type OperationsResponse struct {
-	// in: body
-	Body Operations
 }
 
 // OperationLog is a struct designed to represent the operation data that should be stored in the audit log

@@ -2449,9 +2449,102 @@ guarantee — Track 6's contract survives churn.
 
 ---
 
+### 2026-05-07 — Track 5 close: 6-batch outcome, two-base-struct contract, audit 5.5/5.7/5.11 dispositions
+
+**Context:** Track 5 ran all 6 planned batches. Each batch landed as a single
+`feat(v3)!` commit reviewed independently; cumulative `make ci` gate held green
+throughout. Audit had pre-classified 5 cursor-based methods incorrectly — pre-flight
+in 5D found `operation_routes` and `transaction_routes` also use cursor pagination,
+so the page-vs-cursor batching boundary moved at execution time (10/4 instead of
+12/2). The biggest architectural ship was the **two-base-struct ListOpts contract**:
+`models.PageListOpts` and `models.CursorListOpts` are NOT in a subset/superset
+relationship. The wrong shape doesn't compile. Audit finding 5.5 (silent `WithPage`
+drop on cursor endpoints) is structurally impossible in v3, not just runtime-checked.
+
+**Final state:** All 14 list-bearing entities expose the iterator trio
+(`List` + `ListAll` + `ListPages`). `ListAll` returns `iter.Seq2[T, error]`;
+`ListPages` returns `iter.Seq2[*ListResponse[T], error]`. `Validate()` runs
+client-side BEFORE any HTTP request — invalid opts fail fast as
+`*errors.Error` of category `validation`. The 1488-line `pkg/pagination`
+helper layer is gone. The 482-line `models/common.go` mega-struct is gone.
+Three `os.Stderr` writes Track 4 deleted (footgun warnings) are now obsolete
+by construction.
+
+**Per-batch outcome:**
+
+| Batch | Commit | Net Δ | Outcome |
+|-------|--------|-------|---------|
+| 5A | `b188d86` | -2,970 | Deleted `pkg/pagination` (1488 LOC paginator + 1430 LOC adapters/tests). Zero entity callers; the package was speculative scaffolding from a future that never arrived. |
+| 5B | `0132f12` | -105 | Reshaped `Pagination`: deleted `TotalPages`/`NextPageOptions`/`PrevPageOptions`/`CurrentPage` (4 footgun methods); added `HasMore`/`HasPrev`/`TotalKnown`. Added `entities.Collect[T]`/`CollectAll[T]` + `flattenPages[T]` (the iter.Seq2 generic helpers consumed by every later batch). |
+| 5C | `2dbbaa7` | -177 | AssetRates migration: typed `AssetRatesListOpts` + `AssetRatesFilters`; full iterator trio. Deleted `models.AssetRatesResponse`, bespoke `*string` cursor pattern, `AssetRateListOptions`. ~22 v2 tests deleted. |
+| 5D | `bbaa688` | +777 | Page-based bulk: 10 entities, 12 list methods (`Accounts/AccountTypes/Aliases/Assets/Balances×3/Holders/Ledgers/Organizations/Portfolios/Segments`). 12 new `models/<entity>_list_opts.go` files. `models.PageListOpts` shared base + `ValidatePageListOpts` + `PageQueryParams`. Mid-execution pivot: typed Opts canonical home moved from `entities/` to `models/` to break import cycle with `entities/mocks`. |
+| 5E | `bb915a8` | +246 | Cursor-based bulk: 4 entities (`Transactions/Operations/OperationRoutes/TransactionRoutes`). New `models.CursorListOpts` shared base — NO `Page`/`Offset` field by construction. Deleted `entities/query.go` (`cursorListQueryParams` helper, dead). `transactionMetricsCountQueryParams` retained as narrow filter (status+route+dates) for HEAD `/metrics/count`. |
+| 5F | `<this commit>` | -880 | Cleanup: deleted `models.ListOptions` (482 lines) + 30 fluent setters + `NextPageOptionsFrom` + `Clone` + `Validate` + `ToQueryParams` + `addPaginationParams`/`addFilteringParams`/`addSortingParams`/`addDateRangeParams`/`addAdditionalParams` + `isReservedListQueryParam` + `ensureListOptions`. Deleted `models.Accounts`, `models.AccountFilter`, `models.ListAccountInput`, `models.ListAccountResponse`, `models.Operations`, `models.OperationsResponse`, `models.FromMmodel` (legacy v2 list wrapper types — zero callers after 5C/5D/5E). Deleted associated tests in `model_test.go` (-335), `account_test.go` (-177), `slice7_regression_test.go` (-13). Removed `midaz.ListOptions` type alias from `types.go`. Rewrote 5 stale godoc blocks in `entities/balances.go`, `operations.go`, `operation_routes.go`, `transaction_routes.go`. Added `examples/cursor-pagination-example/main.go` (4 idioms: manual cursor loop, page iter, flat item iter, early termination). Added `entities/example_test.go` with `ExampleAccountsService_ListAccountsAll` + `ExampleTransactionsService_ListTransactionsAll`. |
+
+**Two-base-struct contract — the architectural core of Track 5:**
+
+v3 ships TWO base structs in `models/`, intentionally NOT sharing fields by composition:
+
+- `models.PageListOpts` → `Limit`, `Page`, `OrderBy`, `SortDirection`, `StartDate`, `EndDate`
+- `models.CursorListOpts` → `Limit`, `Cursor`, `SortDirection`, `StartDate`, `EndDate`
+
+Each per-entity ListOpts embeds exactly one. A caller cannot write code
+that compiles for both shapes and silently drops the wrong field. This
+eliminates audit finding 5.5 — the v2 footgun where setting `WithPage`
+on a cursor endpoint silently dropped the value AND emitted an
+unconditional stderr warning. v3 makes the wrong shape **uncompilable**.
+
+The lesson: making invalid combinations uncompilable is structurally
+different from making them invalid-at-runtime. Compile-time checking
+catches the mistake at code-write time, in the IDE, before the PR even
+opens. The two-base-struct design is the materialization of "audit 5.5
+cannot recur."
+
+**Audit finding dispositions:**
+
+| # | Disposition | Resolution |
+|---|-------------|------------|
+| 5.1 | ✅ Resolved | Five pagination shapes collapsed to two (page-based + cursor-based), each typed and compile-time distinct |
+| 5.2 | ✅ Resolved | `pkg/pagination` deleted in 5A (-2,970 lines) |
+| 5.3 | ✅ Resolved | `iter.Seq2` helpers shipped in 5B; every list method exposes `ListAll` + `ListPages` |
+| 5.4 | ✅ Resolved | Default limit (10) preserved; `MaxLimit=100` validation now FAILS instead of silently capping (5C/5D/5E) |
+| 5.5 | ✅ **Structurally resolved** | `Page`/`Offset` are absent from `CursorListOpts` by design — wrong shape doesn't compile (5E) |
+| 5.6 | ✅ Resolved | Typed `ListOpts` are value types, not pointer-shared mutable structs; goroutine-safe by construction |
+| 5.7 | ✅ Resolved | `Validate()` runs client-side before HTTP; `Limit > MaxLimit` returns `*errors.Error` of category `validation` (5C) |
+| 5.8 | ✅ Resolved | `Pagination.TotalPages()` deleted in 5B (5.5 made it un-implementable on cursor endpoints anyway) |
+| 5.9 | ✅ Resolved | All 14 entity `List*` implementations call `opts.Validate()` before HTTP (5C/5D/5E) |
+| 5.10 | ✅ Resolved | `AssetRatesResponse` deleted in 5C; asset rates ride unified `*ListResponse[T]` |
+| 5.11 | ❌ **Rejected with rationale** | `ListMetadataIndexes` returns `[]MetadataIndex` not `*ListResponse[T]` because the wire endpoint has no server-side pagination — wrapping would synthesize a fake `Pagination{Limit:len, Page:1}` and create the impression of pagination where none exists. Consistency-for-consistency's-sake is the wrong tradeoff when the wire shape genuinely differs. |
+| 5.12 | ✅ Resolved | Per-entity typed `Filters` structs replace the 30-method `ListOptions.WithX` explosion. Each filter is statically typed and only valid for the entities that accept it. |
+
+**Cumulative diff size across Track 5 (6 batches):** ~+2,134 / ~-5,243 = **~-3,109 net lines**.
+
+The negative net is the durability dividend — every dead surface deleted
+is a class of mistake that cannot recur. The positive contributions
+(typed `<X>ListOpts` + iterator trio + iter.Seq2 helpers) carry their
+weight because they ship 3 list methods per entity vs v2's 1.
+
+**Acceptance metric outcome:**
+
+- ✅ Every `List*` method exposes `List` + `ListAll` + `ListPages` (14/14 entities).
+- ✅ `iter.Seq2[T, error]` is the iteration contract (Go 1.26 idiom).
+- ✅ `Validate()` runs client-side BEFORE any HTTP request (eliminates audit 5.7 silent capping).
+- ✅ Cursor-based and page-based shapes are compile-time distinct (eliminates audit 5.5 silent drops).
+- ✅ Zero internal callers of `models.ListOptions` (deleted in 5F).
+- ✅ Zero stderr writes for pagination misuse (the v2 footgun warnings are obsolete by construction).
+
+**What's protected going forward:** the type system. Future code that
+tries to pass page-shaped opts to a cursor endpoint, or sets `Limit`
+above `MaxLimit`, fails at compile time or at `Validate()` — never at
+the wire and never with silent surprises.
+
+**Decided by:** session execution, retrospective written 2026-05-07.
+
+---
+
 ## Status Tracker
 
-Live as of: 2026-05-06 (post-session 6, Track 6 fully closed including 6E). Update with every commit batch.
+Live as of: 2026-05-07 (post-session 7, Track 5 fully closed: 6/6 batches). Update with every commit batch.
 
 ### Phase A — Foundation
 
@@ -2462,15 +2555,16 @@ Live as of: 2026-05-06 (post-session 6, Track 6 fully closed including 6E). Upda
 | 3 — Implicit env reads | 🟢 **COMPLETE** | 2026-05-06 | 2026-05-06 | `v3` branch, commit `8cdafd2` | Single-commit batch. 39 production env reads → 15 (all in pkg/config FromEnvironment path). 20 files, **-156 net lines**. `MIDAZ_ENABLE_RETRIES` killswitch deleted. |
 | 4 — Logging gap | 🟢 **COMPLETE** | 2026-05-06 | 2026-05-06 | `v3` branch, commit `d54c930` | Single-commit batch. `*slog.Logger` canonical contract. `WithLogger` + `WithSlowCallThreshold` options. Retry-attempt logging wired (was `// TODO`). `RecordRetry` called from production. 3 stderr writes removed. `Fatal`/`Fatalf` removed from Logger interface. New `docs/logging.md` + `examples/logging-slog/`. 14 files, +842 / -223 lines. |
 
-### Phase B — Models & Data Flow (Track 6 closed; 5/7/8 ready)
+### Phase B — Models & Data Flow (Tracks 5+6 closed; 7/8 ready)
 
-All Phase A and Track-6 dependencies are satisfied. Remaining Phase B
-dependency order: **7 next** (depends on 6, now closed), then **5** + **8**
-in parallel (both depend on 1+6, with 8 also needing 4).
+All Phase A and Track-5/6 dependencies are satisfied. Remaining Phase B
+work: **Track 7** (depends on 6, now closed) and **Track 8** (depends on
+1+4, both closed). Track 7 and Track 8 are independent and can run in
+parallel.
 
 | Track | Status | Started | Completed | Branch / Commits | Notes |
 |-------|--------|---------|-----------|------------------|-------|
-| 5 — Pagination footguns | 🔵 Not started | — | — | — | Depends on Tracks 1, 6. Per-service typed `ListOpts`, `iter.Seq2` iterators, deletes dead `pkg/pagination`. The 3 stderr writes deleted in Track 4 (cursor warning, offset warning, optimizer error) need their semantics re-homed here as typed errors on the new `ListOpts`. |
+| 5 — Pagination footguns | 🟢 **COMPLETE** (6/6 batches) | 2026-05-07 | 2026-05-07 | `v3` branch, commits `b188d86` `0132f12` `2dbbaa7` `bbaa688` `bb915a8` `<5F>` | 6-batch close. **Two-base-struct contract:** `models.PageListOpts` + `models.CursorListOpts` are NOT in subset/superset relationship. Wrong-shape opts don't compile. Audit 5.5 (silent `WithPage` drop on cursor endpoints) is structurally impossible in v3. **Per batch:** 5A delete `pkg/pagination` (-2,970 net); 5B reshape `Pagination` + iter.Seq2 helpers (-105); 5C AssetRates typed migration (-177); 5D page-based bulk across 10 entities/12 list methods (+777); 5E cursor-based bulk across 4 entities (+246); 5F cleanup — delete `models.ListOptions` + 30 fluent setters + dead types `Accounts/AccountFilter/ListAccountInput/ListAccountResponse/Operations/OperationsResponse/FromMmodel`, godoc rewrites, `examples/cursor-pagination-example/`, `entities/example_test.go`. **Cumulative net delta: ~-3,109 lines.** All 14 list-bearing entities expose `List` + `ListAll` + `ListPages` (iter.Seq2 trio). `Validate()` runs client-side BEFORE HTTP. Audit 5.11 rejected with documented architectural rationale (unpaginated endpoint shouldn't synthesize fake `Pagination`). The 3 stderr writes Track 4 deleted are obsolete by construction — their semantics are encoded in the type system itself. |
 | 6 — Functional options sprawl | 🟢 **COMPLETE** (6/6 batches) | 2026-05-06 | 2026-05-06 | `v3` branch, commits `52e4684` `3c12cd1` `e8dc996` `9c25fb3` `5573439` `0915c09` | 6-batch close. **Pre-flight audit:** 222 option-shaped functions across 28 files. **Final state:** 194 functions (-28, -12.6%). **Per batch:** 6A delete 20 dead/redundant Options (`52e4684`). 6B delete `entities/options.go` + formalize two-layer godoc (`3c12cd1`). 6C `WithRetries` collision → new `WithRetryOptions(...retry.Option)` + `WithoutRetries()`; deleted `Config.EnableRetries` field, `DefaultEnableRetries`, and 5 redundant Options (`e8dc996`). 6D collapse observability surface 4 → 2 (`WithObservability` 3-bool macro deleted; `WithCollectorEndpoint` deleted with its dead-gate bug; `WithObservabilityOptions` + `WithObservabilityProvider` carry full replacement-semantic godoc) (`9c25fb3`). 6F close two-layer parity gap with new `midaz.WithIdempotency`; CI lint rule `scripts/check-config-parity.sh` wired into `make verify-sdk`; `docs/configuration.md` (496 lines, 7 sections) (`5573439`). 6E naming convention sweep (`enable` → `enabled` on 3 functions; `pkg/performance.WithHTTPClient` → `WithBatchHTTPClient` and `pkg/performance.WithTimeout` → `WithHTTPTimeout` to break cross-package collisions) (`0915c09`). All 5 acceptance criteria from kickoff revised metric shipped: zero name+signature collisions, `entities/options.go` deleted, one canonical `Without*` per concept, all bool params named `enabled`, CI lint rule blocks regression. |
 | 7 — Builder/Model API drift | 🔵 Not started | — | — | — | Depends on Track 6. Converges every entity on Account-shaped pattern. The deferred Track 3 acceptance criterion (`entities.NewHTTPClient` accepts an explicit `HTTPClientConfig` struct) folds into this track. |
 | 8 — Error system actionability | 🔵 Not started | — | — | — | Depends on Tracks 1, 4. Network-error typing, `Operation`/`ResourceID` plumbing. Track 4 already added `errors.NewConfigurationError` + `IsConfigurationError`; Track 8 extends the same pattern to network/HTTP errors. |
@@ -2480,6 +2574,19 @@ in parallel (both depend on 1+6, with 8 also needing 4).
 | Track | Status | Started | Completed | Branch / Commits | Notes |
 |-------|--------|---------|-----------|------------------|-------|
 | 9 — Examples, godoc, mocks | 🔵 Not started | — | — | — | Depends on Phase A + B stable. Includes the deferred Track 1 acceptance criterion (rewrite all 32 example files from `client.X` alias to canonical `midaz.X` idiom). Per-example READMEs, hello-world, slog example (already shipped in Track 4 as `examples/logging-slog/`), mocks → `go.uber.org/mock`. README full rewrite — Track 2 made auth-section minimum updates only. |
+
+### Track 5 batch-level progress
+
+| Batch | Scope | Status | Commit | Verification |
+|-------|-------|--------|--------|--------------|
+| 5A | Delete `pkg/pagination` (1488-line paginator + adapters; zero entity callers) | ✅ Done | `b188d86` | 4 files, **-2,970 net** |
+| 5B | Reshape `Pagination`: delete `TotalPages`/`NextPageOptions`/`PrevPageOptions`/`CurrentPage`; add `HasMore`/`HasPrev`/`TotalKnown`. Add `entities.Collect[T]`/`CollectAll[T]` + `flattenPages[T]` (iter.Seq2 helpers) | ✅ Done | `0132f12` | -105 net; new helpers consumed by every later batch |
+| 5C | AssetRates typed migration: `AssetRatesListOpts` + `AssetRatesFilters` + iterator trio. Delete `AssetRatesResponse`, bespoke `*string` cursor pattern, `AssetRateListOptions` | ✅ Done | `2dbbaa7` | -177 net; ~22 v2 tests deleted |
+| 5D | Page-based bulk: 10 entities, 12 list methods. New `models.PageListOpts` shared base + `ValidatePageListOpts` + `PageQueryParams`. 12 new `models/<entity>_list_opts.go` files | ✅ Done | `bbaa688` | +777 net; canonical `ListOpts` home moved from `entities/` to `models/` (import-cycle fix) |
+| 5E | Cursor-based bulk: 4 entities (`Transactions/Operations/OperationRoutes/TransactionRoutes`). New `models.CursorListOpts` (NO `Page`/`Offset`). Delete `entities/query.go` (dead `cursorListQueryParams`) | ✅ Done | `bb915a8` | +246 net; `transactionMetricsCountQueryParams` retained as narrow filter |
+| 5F | Cleanup: delete `models.ListOptions` + 30 fluent setters + dead types (`Accounts/AccountFilter/ListAccountInput/ListAccountResponse/Operations/OperationsResponse/FromMmodel`); godoc rewrites in 4 entity files; new `examples/cursor-pagination-example/`; new `entities/example_test.go` (godoc Examples for `ListAccountsAll`/`ListTransactionsAll`); reject audit 5.11 with documented rationale | ✅ Done | `<this commit>` | ~-880 net |
+
+**Cumulative Track 5 delta: ~-3,109 net lines.**
 
 ### Track 1 batch-level progress
 

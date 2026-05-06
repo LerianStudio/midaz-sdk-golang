@@ -16,92 +16,57 @@ import (
 // It provides methods to list, retrieve, and update operations
 // associated with accounts and transactions.
 type OperationsService interface {
-	// ListOperations retrieves a cursor-paginated list of operations for a specific account.
+	// ListOperations retrieves one cursor-paginated page of operations for a specific account.
 	//
 	// Operations represent the individual accounting entries (debits and credits) that make up
-	// transactions in the ledger. This method allows you to retrieve all operations for a
-	// specific account, with optional filtering and cursor pagination controls.
+	// transactions in the ledger. This endpoint uses cursor-based pagination; advance pages by
+	// reading page.Pagination.NextCursor and assigning it to opts.Cursor. The
+	// OperationsListOpts struct has no Page or Offset field by construction — the v2 footgun
+	// where setting WithPage on a cursor endpoint silently dropped the value (audit 5.5) is
+	// structurally impossible in v3.
 	//
 	// Parameters:
-	//   - ctx: Context for the request, which can be used for cancellation and timeout.
-	//   - orgID: The ID of the organization that owns the ledger. Must be a valid organization ID.
-	//   - ledgerID: The ID of the ledger containing the account. Must be a valid ledger ID.
-	//   - accountID: The ID of the account to retrieve operations for. Must be a valid account ID.
-	//   - opts: Typed OperationsListOpts. The struct exposes Cursor and
-	//     Limit; Page and Offset are intentionally absent because this is a
-	//     cursor-only endpoint. Compile-time prevents the v2 footgun
-	//     where setting WithPage on a cursor endpoint silently dropped the
-	//     value (audit finding 5.5).
+	//   - ctx: Context for the request, used for cancellation and timeout.
+	//   - orgID: The ID of the organization that owns the ledger.
+	//   - ledgerID: The ID of the ledger containing the account.
+	//   - accountID: The ID of the account to retrieve operations for.
+	//   - opts: Typed cursor list options. Limit caps the page size; Filters narrow results.
 	//
 	// Returns:
-	//   - *models.ListResponse[models.Operation]: A cursor-paginated list of operations.
-	//     Use response pagination cursor fields, not Total/TotalPages, for traversal.
-	//   - error: An error if the operation fails. Possible errors include:
-	//     - Authentication failure (invalid auth token)
-	//     - Authorization failure (insufficient permissions)
-	//     - Resource not found (invalid organization, ledger, or account ID)
-	//     - Network or server errors
+	//   - *models.ListResponse[models.Operation]: One page of operations. Use Pagination.NextCursor
+	//     for traversal — Total may be unknown on cursor endpoints.
+	//   - error: A typed *errors.Error. Validation errors return category validation BEFORE
+	//     any HTTP request is sent.
 	//
-	// Example - Basic usage:
+	// Example - One-page fetch with filtering:
 	//
-	//	// List operations with default cursor pagination
-	//	operations, err := operationsService.ListOperations(
-	//	    context.Background(),
-	//	    "org-123",
-	//	    "ledger-456",
-	//	    "account-789",
-	//	    nil, // Use default cursor pagination
-	//	)
-	//
-	//	if err != nil {
-	//	    log.Fatalf("Failed to list operations: %v", err)
-	//	}
-
-	//
-	//	// Process the operations
-	//	fmt.Printf("Retrieved %d operations; next cursor: %s\n",
-	//	    len(operations.Items), operations.Pagination.NextCursor)
-	//
-	//	for _, op := range operations.Items {
-	//	    fmt.Printf("Operation: %s, Type: %s, Amount: %d %s\n",
-	//	        op.ID, op.Type, op.Amount, op.AssetCode)
-	//	}
-
-	//
-	// Example - With pagination and filtering:
-	//
-	//	// Create cursor pagination options with filtering
-	//	opts := &models.ListOptions{
-	//	    Limit: 10,
-	//	    Cursor: "next-cursor-from-previous-response",
-	//	    Filters: map[string]string{
-	//	        "type": "debit", // Only show debit operations
-	//	        "assetCode": "USD", // Only show USD operations
+	//	opts := models.OperationsListOpts{
+	//	    CursorListOpts: models.CursorListOpts{
+	//	        Limit:         10,
+	//	        SortDirection: models.SortDesc,
 	//	    },
-	//	    OrderDirection: "desc",
+	//	    Filters: models.OperationsFilters{Type: "debit", AssetCode: "USD"},
 	//	}
-
-	//
-	//	// List operations with pagination and filtering
-	//	operations, err := operationsService.ListOperations(
-	//	    context.Background(),
-	//	    "org-123",
-	//	    "ledger-456",
-	//	    "account-789",
-	//	    opts,
-	//	)
-	//
-	//	if err != nil {
-	//	    log.Fatalf("Failed to list operations: %v", err)
+	//	page, err := c.Entity.Operations.ListOperations(ctx, "org-123", "ledger-456", "account-789", opts)
+	//	if err != nil { return err }
+	//	for _, op := range page.Items {
+	//	    fmt.Printf("op %s: %s %d %s\n", op.ID, op.Type, op.Amount, op.AssetCode)
 	//	}
-
 	//
-	//	// Process the operations
-	//	fmt.Printf("Retrieved %d debit operations in USD\n", len(operations.Items))
+	// For multi-page traversal, prefer ListOperationsAll (auto cursor advance, range-loop friendly).
 	ListOperations(ctx context.Context, orgID, ledgerID, accountID string, opts models.OperationsListOpts) (*models.ListResponse[models.Operation], error)
 
+	// ListOperationsAll returns an iter.Seq2 that yields each Operation across every page
+	// until the cursor is exhausted or the context is cancelled. Idiomatic v3 iteration:
+	//
+	//	for op, err := range c.Entity.Operations.ListOperationsAll(ctx, orgID, ledgerID, accountID, opts) {
+	//	    if err != nil { return err }
+	//	    process(op)
+	//	}
 	ListOperationsAll(ctx context.Context, orgID, ledgerID, accountID string, opts models.OperationsListOpts) iter.Seq2[models.Operation, error]
 
+	// ListOperationsPages returns an iter.Seq2 that yields each *ListResponse page. Use this
+	// when you need page-level metadata (Pagination, ItemCount) rather than flattened items.
 	ListOperationsPages(ctx context.Context, orgID, ledgerID, accountID string, opts models.OperationsListOpts) iter.Seq2[*models.ListResponse[models.Operation], error]
 
 	// GetOperation retrieves a specific operation by its ID.

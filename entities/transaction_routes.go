@@ -13,28 +13,43 @@ import (
 
 // TransactionRoutesService defines the interface for transaction route operations
 type TransactionRoutesService interface {
-	// ListTransactionRoutes retrieves a paginated list of transaction routes for a specific ledger
+	// ListTransactionRoutes retrieves a paginated page of transaction routes for a specific ledger.
+	// This endpoint uses cursor-based pagination; advance pages by reading
+	// page.Pagination.NextCursor and assigning it to opts.Cursor.
 	//
 	// Parameters:
 	//   - ctx: Context for the request
 	//   - organizationID: The unique identifier of the organization
 	//   - ledgerID: The unique identifier of the ledger
-	//   - opts: Optional parameters for pagination and filtering
+	//   - opts: Typed cursor list options. Limit caps the page size; Filters narrow results.
 	//
 	// Returns:
-	//   - *models.ListResponse[models.TransactionRoute]: A paginated list of transaction routes
-	//   - error: An error if the request fails
+	//   - *models.ListResponse[models.TransactionRoute]: A page of transaction routes
+	//   - error: An error if the request fails. Validation errors return *errors.Error
+	//     (category validation) before any HTTP request is sent.
 	//
 	// Example:
-	//   opts := &models.ListOptions{
-	//       Limit: 10,
-	//       SortOrder: "asc",
-	//   }
-	//   routes, err := c.Entity.TransactionRoutes.ListTransactionRoutes(ctx, "org-123", "ledger-456", opts)
+	//
+	//	opts := models.TransactionRoutesListOpts{
+	//	    CursorListOpts: models.CursorListOpts{Limit: 10, SortDirection: models.SortAsc},
+	//	    Filters: models.TransactionRoutesFilters{Status: "ACTIVE"},
+	//	}
+	//	routes, err := c.Entity.TransactionRoutes.ListTransactionRoutes(ctx, "org-123", "ledger-456", opts)
 	ListTransactionRoutes(ctx context.Context, organizationID, ledgerID string, opts models.TransactionRoutesListOpts) (*models.ListResponse[models.TransactionRoute], error)
 
+	// ListTransactionRoutesAll returns an iter.Seq2 that yields each TransactionRoute
+	// across every page until the cursor is exhausted or the context is cancelled.
+	// Idiomatic v3 iteration:
+	//
+	//	for route, err := range c.Entity.TransactionRoutes.ListTransactionRoutesAll(ctx, orgID, ledgerID, opts) {
+	//	    if err != nil { return err }
+	//	    process(route)
+	//	}
 	ListTransactionRoutesAll(ctx context.Context, organizationID, ledgerID string, opts models.TransactionRoutesListOpts) iter.Seq2[models.TransactionRoute, error]
 
+	// ListTransactionRoutesPages returns an iter.Seq2 that yields each *ListResponse
+	// page. Use this when you need page-level metadata (Pagination, ItemCount) rather
+	// than flattened items.
 	ListTransactionRoutesPages(ctx context.Context, organizationID, ledgerID string, opts models.TransactionRoutesListOpts) iter.Seq2[*models.ListResponse[models.TransactionRoute], error]
 
 	// GetTransactionRoute retrieves a specific transaction route by ID

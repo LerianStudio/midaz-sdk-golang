@@ -13,28 +13,43 @@ import (
 
 // OperationRoutesService defines the interface for operation route operations
 type OperationRoutesService interface {
-	// ListOperationRoutes retrieves a paginated list of operation routes for a specific ledger
+	// ListOperationRoutes retrieves a paginated page of operation routes for a specific ledger.
+	// This endpoint uses cursor-based pagination; advance pages by reading
+	// page.Pagination.NextCursor and assigning it to opts.Cursor.
 	//
 	// Parameters:
 	//   - ctx: Context for the request
 	//   - organizationID: The unique identifier of the organization
 	//   - ledgerID: The unique identifier of the ledger
-	//   - opts: Optional parameters for pagination and filtering
+	//   - opts: Typed cursor list options. Limit caps the page size; Filters narrow results.
 	//
 	// Returns:
-	//   - *models.ListResponse[models.OperationRoute]: A paginated list of operation routes
-	//   - error: An error if the request fails
+	//   - *models.ListResponse[models.OperationRoute]: A page of operation routes
+	//   - error: An error if the request fails. Validation errors return *errors.Error
+	//     (category validation) before any HTTP request is sent.
 	//
 	// Example:
-	//   opts := &models.ListOptions{
-	//       Limit: 10,
-	//       SortOrder: "asc",
-	//   }
-	//   routes, err := c.Entity.OperationRoutes.ListOperationRoutes(ctx, "org-123", "ledger-456", opts)
+	//
+	//	opts := models.OperationRoutesListOpts{
+	//	    CursorListOpts: models.CursorListOpts{Limit: 10, SortDirection: models.SortAsc},
+	//	    Filters: models.OperationRoutesFilters{OperationType: "credit"},
+	//	}
+	//	routes, err := c.Entity.OperationRoutes.ListOperationRoutes(ctx, "org-123", "ledger-456", opts)
 	ListOperationRoutes(ctx context.Context, organizationID, ledgerID string, opts models.OperationRoutesListOpts) (*models.ListResponse[models.OperationRoute], error)
 
+	// ListOperationRoutesAll returns an iter.Seq2 that yields each OperationRoute
+	// across every page until the cursor is exhausted or the context is cancelled.
+	// Idiomatic v3 iteration:
+	//
+	//	for route, err := range c.Entity.OperationRoutes.ListOperationRoutesAll(ctx, orgID, ledgerID, opts) {
+	//	    if err != nil { return err }
+	//	    process(route)
+	//	}
 	ListOperationRoutesAll(ctx context.Context, organizationID, ledgerID string, opts models.OperationRoutesListOpts) iter.Seq2[models.OperationRoute, error]
 
+	// ListOperationRoutesPages returns an iter.Seq2 that yields each *ListResponse
+	// page. Use this when you need page-level metadata (Pagination, ItemCount) rather
+	// than flattened items.
 	ListOperationRoutesPages(ctx context.Context, organizationID, ledgerID string, opts models.OperationRoutesListOpts) iter.Seq2[*models.ListResponse[models.OperationRoute], error]
 
 	// GetOperationRoute retrieves a specific operation route by ID

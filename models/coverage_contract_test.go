@@ -62,14 +62,6 @@ func TestBalanceSettingsAndInputsContracts(t *testing.T) {
 	createJSON, err := json.Marshal(create)
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"key":"available","allowSending":true,"allowReceiving":false,"direction":"credit","settings":{"balanceScope":"transactional","allowOverdraft":false,"overdraftLimitEnabled":false}}`, string(createJSON))
-
-	accountsJSON, err := json.Marshal(Accounts{})
-	require.NoError(t, err)
-	assert.Contains(t, string(accountsJSON), `"items":[]`)
-
-	listJSON, err := json.Marshal(ListAccountResponse{})
-	require.NoError(t, err)
-	assert.Contains(t, string(listJSON), `"items":[]`)
 }
 
 func TestMetadataIndexContracts(t *testing.T) {

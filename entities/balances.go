@@ -19,182 +19,76 @@ import (
 // It provides methods to list, retrieve, update, and delete balances
 // for both ledgers and specific accounts.
 type BalancesService interface {
-	// ListBalances retrieves a paginated list of all balances for a specified ledger.
-	//
-	// This method returns all balances within a ledger, with optional filtering and
-	// pagination controls. Balances represent the current state of funds for each
-	// account-asset combination in the ledger.
+	// ListBalances retrieves one page of balances for a specified ledger.
+	// Balances represent the current state of funds for each account-asset combination.
+	// This endpoint uses page-based pagination; advance pages by incrementing opts.Page.
 	//
 	// Parameters:
-	//   - ctx: Context for the request, which can be used for cancellation and timeout.
-	//   - orgID: The ID of the organization that owns the ledger. Must be a valid organization ID.
-	//   - ledgerID: The ID of the ledger to retrieve balances from. Must be a valid ledger ID.
-	//   - opts: Optional pagination and filtering options:
-	//     - Page: The page number to retrieve (1-based indexing)
-	//     - Limit: The maximum number of items per page
-	//     - Filter: Criteria to filter balances by (e.g., by account ID or asset code)
-	//     - Sort: Sorting options for the results
-	//     If nil, default pagination settings will be used.
+	//   - ctx: Context for the request.
+	//   - orgID: The organization ID.
+	//   - ledgerID: The ledger ID.
+	//   - opts: Typed page list options. Limit caps page size; Filters narrow results
+	//     (Alias, AssetCode, AccountID, IDs).
 	//
 	// Returns:
-	//   - *models.ListResponse[models.Balance]: A paginated list of balances, including:
-	//     - Items: The array of balance objects for the current page
-	//     - Page: The current page number
-	//     - Limit: The maximum number of items per page
-	//     - Total: The total number of balances matching the filter criteria
-	//   - error: An error if the operation fails. Possible errors include:
-	//     - Authentication failure (invalid auth token)
-	//     - Authorization failure (insufficient permissions)
-	//     - Resource not found (invalid organization or ledger ID)
-	//     - Network or server errors
+	//   - *models.ListResponse[models.Balance]: One page of balances.
+	//   - error: A typed *errors.Error. Validation errors return category validation
+	//     before any HTTP request is sent.
 	//
-	// Example - Basic usage:
+	// Example - One page with filtering:
 	//
-	//	// List balances with default pagination
-	//	balances, err := balancesService.ListBalances(
-	//	    context.Background(),
-	//	    "org-123",
-	//	    "ledger-456",
-	//	    nil, // Use default pagination
-	//	)
-	//
-	//	if err != nil {
-	//	    log.Fatalf("Failed to list balances: %v", err)
+	//	opts := models.BalancesListOpts{
+	//	    PageListOpts: models.PageListOpts{Limit: 10, Page: 1},
+	//	    Filters:      models.BalancesFilters{AssetCode: "USD"},
 	//	}
-
-	//
-	//	// Process the balances
-	//	fmt.Printf("Retrieved %d balances (page %d of %d)\n",
-	//	    len(balances.Items), balances.Page, balances.TotalPages)
-	//
-	//	for _, balance := range balances.Items {
-	//	    fmt.Printf("Balance: %s, Asset: %s, Available: %d/%d\n",
-	//	        balance.ID, balance.AssetCode, balance.Available, balance.Scale)
+	//	page, err := c.Entity.Balances.ListBalances(ctx, "org-123", "ledger-456", opts)
+	//	if err != nil { return err }
+	//	for _, b := range page.Items {
+	//	    fmt.Printf("balance %s: %s available=%d/%d\n", b.ID, b.AssetCode, b.Available, b.Scale)
 	//	}
-
 	//
-	// Example - With pagination and filtering:
-	//
-	//	// Create pagination options with filtering
-	//	opts := &models.ListOptions{
-	//	    Page: 1,
-	//	    Limit: 10,
-	//	    Filter: map[string]any{
-	//	        "assetCode": "USD", // Only show USD balances
-	//	    },
-	//	    Sort: []string{"available:desc"}, // Sort by available amount (descending)
-	//	}
-
-	//
-	//	// List balances with pagination and filtering
-	//	balances, err := balancesService.ListBalances(
-	//	    context.Background(),
-	//	    "org-123",
-	//	    "ledger-456",
-	//	    opts,
-	//	)
-	//
-	//	if err != nil {
-	//	    log.Fatalf("Failed to list balances: %v", err)
-	//	}
-
-	//
-	//	// Process the balances
-	//	fmt.Printf("Retrieved %d USD balances\n", len(balances.Items))
+	// For multi-page traversal, prefer ListBalancesAll (auto page advance, range-loop friendly).
 	ListBalances(ctx context.Context, orgID, ledgerID string, opts models.BalancesListOpts) (*models.ListResponse[models.Balance], error)
+
+	// ListBalancesAll returns an iter.Seq2 that yields each Balance across every page until
+	// the ledger is exhausted or the context is cancelled.
 	ListBalancesAll(ctx context.Context, orgID, ledgerID string, opts models.BalancesListOpts) iter.Seq2[models.Balance, error]
+
+	// ListBalancesPages returns an iter.Seq2 that yields each *ListResponse page. Use this
+	// when you need page-level metadata (Pagination, ItemCount) rather than flattened items.
 	ListBalancesPages(ctx context.Context, orgID, ledgerID string, opts models.BalancesListOpts) iter.Seq2[*models.ListResponse[models.Balance], error]
 
-	// ListAccountBalances retrieves a paginated list of all balances for a specific account.
-	//
-	// This method returns all balances for a single account within a ledger, with optional
-	// filtering and pagination controls. Each balance represents a different asset held
-	// by the account.
+	// ListAccountBalances retrieves one page of balances for a specific account.
+	// Each balance represents a different asset held by the account.
+	// This endpoint uses page-based pagination; advance pages by incrementing opts.Page.
 	//
 	// Parameters:
-	//   - ctx: Context for the request, which can be used for cancellation and timeout.
-	//   - orgID: The ID of the organization that owns the ledger. Must be a valid organization ID.
-	//   - ledgerID: The ID of the ledger containing the account. Must be a valid ledger ID.
-	//   - accountID: The ID of the account to retrieve balances for. Must be a valid account ID.
-	//   - opts: Optional pagination and filtering options:
-	//     - Page: The page number to retrieve (1-based indexing)
-	//     - Limit: The maximum number of items per page
-	//     - Filter: Criteria to filter balances by (e.g., by asset code)
-	//     - Sort: Sorting options for the results
-	//     If nil, default pagination settings will be used.
+	//   - ctx: Context for the request.
+	//   - orgID: The organization ID.
+	//   - ledgerID: The ledger ID.
+	//   - accountID: The account ID.
+	//   - opts: Typed page list options. Limit caps page size; Filters narrow results.
 	//
 	// Returns:
-	//   - *models.ListResponse[models.Balance]: A paginated list of balances for the account, including:
-	//     - Items: The array of balance objects for the current page
-	//     - Page: The current page number
-	//     - Limit: The maximum number of items per page
-	//     - Total: The total number of balances matching the filter criteria
-	//   - error: An error if the operation fails. Possible errors include:
-	//     - Authentication failure (invalid auth token)
-	//     - Authorization failure (insufficient permissions)
-	//     - Resource not found (invalid organization, ledger, or account ID)
-	//     - Network or server errors
+	//   - *models.ListResponse[models.Balance]: One page of balances for the account.
+	//   - error: A typed *errors.Error.
 	//
-	// Example - Basic usage:
+	// Example:
 	//
-	//	// List all balances for an account with default pagination
-	//	balances, err := balancesService.ListAccountBalances(
-	//	    context.Background(),
-	//	    "org-123",
-	//	    "ledger-456",
-	//	    "account-789",
-	//	    nil, // Use default pagination
-	//	)
-	//
-	//	if err != nil {
-	//	    log.Fatalf("Failed to list account balances: %v", err)
+	//	opts := models.BalancesListOpts{
+	//	    PageListOpts: models.PageListOpts{Limit: 10},
+	//	    Filters:      models.BalancesFilters{AssetCode: "USD"},
 	//	}
-
+	//	page, err := c.Entity.Balances.ListAccountBalances(ctx, "org", "ledger", "account", opts)
 	//
-	//	// Process the balances
-	//	fmt.Printf("Account has %d different asset balances\n", len(balances.Items))
-	//
-	//	for _, balance := range balances.Items {
-	//	    // Calculate the decimal value of the balance
-	//	    decimalValue := float64(balance.Available) / math.Pow10(int(balance.Scale))
-	//	    fmt.Printf("Asset: %s, Available: %.2f\n", balance.AssetCode, decimalValue)
-	//	}
-
-	//
-	// Example - With filtering by asset code:
-	//
-	//	// Create pagination options with filtering for specific assets
-	//	opts := &models.ListOptions{
-	//	    Filter: map[string]any{
-	//	        "assetCode": []string{"USD", "EUR", "GBP"}, // Only show these currencies
-	//	    },
-	//	    Sort: []string{"assetCode:asc"}, // Sort alphabetically by asset code
-	//	}
-
-	//
-	//	// List filtered balances for an account
-	//	balances, err := balancesService.ListAccountBalances(
-	//	    context.Background(),
-	//	    "org-123",
-	//	    "ledger-456",
-	//	    "account-789",
-	//	    opts,
-	//	)
-	//
-	//	if err != nil {
-	//	    log.Fatalf("Failed to list account balances: %v", err)
-	//	}
-
-	//
-	//	// Process the balances
-	//	fmt.Println("Currency balances for account:")
-	//	for _, balance := range balances.Items {
-	//	    decimalValue := float64(balance.Available) / math.Pow10(int(balance.Scale))
-	//	    fmt.Printf("%s: %.2f\n", balance.AssetCode, decimalValue)
-	//	}
-
+	// For multi-page traversal, prefer ListAccountBalancesAll.
 	ListAccountBalances(ctx context.Context, orgID, ledgerID, accountID string, opts models.BalancesListOpts) (*models.ListResponse[models.Balance], error)
+
+	// ListAccountBalancesAll returns an iter.Seq2 that yields each Balance for the account
+	// across every page until exhausted or the context is cancelled.
 	ListAccountBalancesAll(ctx context.Context, orgID, ledgerID, accountID string, opts models.BalancesListOpts) iter.Seq2[models.Balance, error]
+
+	// ListAccountBalancesPages returns an iter.Seq2 that yields each *ListResponse page.
 	ListAccountBalancesPages(ctx context.Context, orgID, ledgerID, accountID string, opts models.BalancesListOpts) iter.Seq2[*models.ListResponse[models.Balance], error]
 
 	// GetBalance retrieves a specific balance by its ID.

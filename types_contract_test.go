@@ -82,7 +82,6 @@ func TestTypeAliasesAreIdentical(t *testing.T) {
 		{"SourceInput", midaz.SourceInput{}, models.SourceInput{}},
 
 		// Pagination & lists.
-		{"ListOptions", midaz.ListOptions{}, models.ListOptions{}},
 		{"Pagination", midaz.Pagination{}, models.Pagination{}},
 
 		// Common.

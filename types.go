@@ -119,7 +119,6 @@ type (
 // -----------------------------------------------------------------------------
 
 type (
-	ListOptions         = models.ListOptions
 	Pagination          = models.Pagination
 	ListResponse[T any] = models.ListResponse[T]
 )

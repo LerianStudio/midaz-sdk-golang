@@ -5,7 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -790,129 +789,6 @@ func TestUpdateAccountInputBuilderChaining(t *testing.T) {
 	assert.Equal(t, "update", input.Metadata["chain"])
 }
 
-// TestListAccountInputValidate tests the Validate method for ListAccountInput
-func TestListAccountInputValidate(t *testing.T) {
-	tests := []struct {
-		name        string
-		input       *ListAccountInput
-		expectError bool
-		errContains string
-	}{
-		{
-			name:        "empty input is valid",
-			input:       &ListAccountInput{},
-			expectError: false,
-		},
-		{
-			name: "valid page and perPage",
-			input: &ListAccountInput{
-				Page:    1,
-				PerPage: 10,
-			},
-			expectError: false,
-		},
-		{
-			name: "negative page",
-			input: &ListAccountInput{
-				Page: -1,
-			},
-			expectError: true,
-			errContains: "page number cannot be negative",
-		},
-		{
-			name: "negative perPage",
-			input: &ListAccountInput{
-				PerPage: -1,
-			},
-			expectError: true,
-			errContains: "perPage cannot be negative",
-		},
-		{
-			name: "perPage exceeds max",
-			input: &ListAccountInput{
-				PerPage: 101,
-			},
-			expectError: true,
-			errContains: "perPage cannot exceed 100",
-		},
-		{
-			name: "perPage at max",
-			input: &ListAccountInput{
-				PerPage: 100,
-			},
-			expectError: false,
-		},
-		{
-			name: "valid filter",
-			input: &ListAccountInput{
-				Filter: AccountFilter{
-					Status: []string{"ACTIVE", "PENDING"},
-				},
-			},
-			expectError: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := tt.input.Validate()
-
-			if tt.expectError {
-				require.Error(t, err)
-
-				if tt.errContains != "" {
-					assert.Contains(t, err.Error(), tt.errContains)
-				}
-			} else {
-				require.NoError(t, err)
-			}
-		})
-	}
-}
-
-// TestAccountsFromMmodel tests the FromMmodel conversion function
-func TestAccountsFromMmodel(t *testing.T) {
-	mmodelAccounts := mmodel.Accounts{
-		Items: []mmodel.Account{
-			{
-				ID:   "acc-1",
-				Name: "Account 1",
-			},
-			{
-				ID:   "acc-2",
-				Name: "Account 2",
-			},
-		},
-		Page:  1,
-		Limit: 10,
-	}
-
-	result := FromMmodel(mmodelAccounts)
-
-	assert.Len(t, result.Items, 2)
-	assert.Equal(t, "acc-1", result.Items[0].ID)
-	assert.Equal(t, "Account 1", result.Items[0].Name)
-	assert.Equal(t, "acc-2", result.Items[1].ID)
-	assert.Equal(t, "Account 2", result.Items[1].Name)
-	assert.Equal(t, 1, result.Page)
-	assert.Equal(t, 10, result.Limit)
-}
-
-// TestAccountsFromMmodelEmpty tests FromMmodel with empty accounts
-func TestAccountsFromMmodelEmpty(t *testing.T) {
-	mmodelAccounts := mmodel.Accounts{
-		Items: []mmodel.Account{},
-		Page:  1,
-		Limit: 10,
-	}
-
-	result := FromMmodel(mmodelAccounts)
-
-	assert.Empty(t, result.Items)
-	assert.Equal(t, 1, result.Page)
-	assert.Equal(t, 10, result.Limit)
-}
-
 // TestGetAccountAlias tests the GetAccountAlias helper function
 func TestGetAccountAlias(t *testing.T) {
 	tests := []struct {
@@ -993,60 +869,6 @@ func TestGetAccountIdentifier(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
-}
-
-// TestAccountFilterStructure tests the AccountFilter structure
-func TestAccountFilterStructure(t *testing.T) {
-	filter := AccountFilter{
-		Status: []string{"ACTIVE", "PENDING", "BLOCKED"},
-	}
-
-	assert.Len(t, filter.Status, 3)
-	assert.Contains(t, filter.Status, "ACTIVE")
-	assert.Contains(t, filter.Status, "PENDING")
-	assert.Contains(t, filter.Status, "BLOCKED")
-}
-
-// TestAccountFilterEmpty tests an empty AccountFilter
-func TestAccountFilterEmpty(t *testing.T) {
-	filter := AccountFilter{}
-
-	assert.Nil(t, filter.Status)
-}
-
-// TestListAccountResponseStructure tests the ListAccountResponse structure
-func TestListAccountResponseStructure(t *testing.T) {
-	response := ListAccountResponse{
-		Items: []Account{
-			{ID: "acc-1", Name: "Account 1"},
-			{ID: "acc-2", Name: "Account 2"},
-		},
-		Total:       100,
-		CurrentPage: 1,
-		PageSize:    10,
-		TotalPages:  10,
-	}
-
-	assert.Len(t, response.Items, 2)
-	assert.Equal(t, 100, response.Total)
-	assert.Equal(t, 1, response.CurrentPage)
-	assert.Equal(t, 10, response.PageSize)
-	assert.Equal(t, 10, response.TotalPages)
-}
-
-// TestAccountsStructure tests the Accounts structure
-func TestAccountsStructure(t *testing.T) {
-	accounts := Accounts{
-		Items: []Account{
-			{ID: "acc-1", Name: "Account 1"},
-		},
-		Page:  2,
-		Limit: 25,
-	}
-
-	assert.Len(t, accounts.Items, 1)
-	assert.Equal(t, 2, accounts.Page)
-	assert.Equal(t, 25, accounts.Limit)
 }
 
 // TestStatusCodesForAccount tests various status codes used for accounts
