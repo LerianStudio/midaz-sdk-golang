@@ -59,7 +59,7 @@ func (*mockTransactionsService) GetTransactionsMetricsCount(_ context.Context, _
 	return nil, errors.New("mock: GetTransactionsMetricsCount not implemented")
 }
 
-func (*mockTransactionsService) UpdateTransaction(_ context.Context, _, _, _ string, _ any) (*models.Transaction, error) {
+func (*mockTransactionsService) UpdateTransaction(_ context.Context, _, _, _ string, _ *models.UpdateTransactionInput) (*models.Transaction, error) {
 	return nil, errors.New("mock: UpdateTransaction not implemented")
 }
 

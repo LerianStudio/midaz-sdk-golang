@@ -68,9 +68,10 @@ type TransactionsService interface {
 	// UpdateTransaction updates an existing transaction.
 	// The orgID and ledgerID parameters specify which organization and ledger the transaction belongs to.
 	// The transactionID parameter is the unique identifier of the transaction to update.
-	// The input parameter contains the transaction details to update, which can be of various types.
+	// The input parameter contains the transaction details to update; it must be non-nil and at least
+	// one mutable field must be set (input.Validate() enforces "empty update payload not allowed").
 	// Returns the updated transaction, or an error if the operation fails.
-	UpdateTransaction(ctx context.Context, orgID, ledgerID, transactionID string, input any) (*models.Transaction, error)
+	UpdateTransaction(ctx context.Context, orgID, ledgerID, transactionID string, input *models.UpdateTransactionInput) (*models.Transaction, error)
 
 	// RevertTransaction reverts a committed transaction.
 	// The orgID and ledgerID parameters specify which organization and ledger the transaction belongs to.
@@ -860,7 +861,7 @@ func transactionMetricsCountQueryParams(opts models.TransactionsListOpts) map[st
 }
 
 // UpdateTransaction updates an existing transaction.
-func (e *transactionsEntity) UpdateTransaction(ctx context.Context, orgID, ledgerID, transactionID string, input any) (*models.Transaction, error) {
+func (e *transactionsEntity) UpdateTransaction(ctx context.Context, orgID, ledgerID, transactionID string, input *models.UpdateTransactionInput) (*models.Transaction, error) {
 	// Operation name for error context
 	const operation = "UpdateTransaction"
 
@@ -877,8 +878,12 @@ func (e *transactionsEntity) UpdateTransaction(ctx context.Context, orgID, ledge
 		return nil, sdkerrors.NewMissingParameterError(operation, "transaction ID")
 	}
 
-	if err := validateUpdatePayload(operation, input, "*models.UpdateTransactionInput"); err != nil {
-		return nil, err
+	if input == nil {
+		return nil, sdkerrors.NewMissingParameterError(operation, "input")
+	}
+
+	if err := input.Validate(); err != nil {
+		return nil, sdkerrors.NewValidationError(operation, "update validation failed", err)
 	}
 
 	// Build the URL for the transaction

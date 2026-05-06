@@ -428,3 +428,97 @@ func (input *CreateOperationInput) Validate() error {
 
 	return nil
 }
+
+// NewCreateOperationInput creates a new CreateOperationInput with the required fields.
+// Use the With* methods to set optional fields fluently.
+//
+// Parameters:
+//   - operationType: One of OperationTypeDebit ("DEBIT") or OperationTypeCredit ("CREDIT").
+//   - accountID:     The unique identifier of the account to be affected.
+//   - amount:        The exact decimal value of the operation. Use *decimal.Decimal,
+//     models.Amount, or a pre-formatted decimal string.
+//   - assetCode:     The currency or asset code (e.g. "USD", "EUR", "BTC").
+//
+// Returns:
+//   - A pointer to the newly created CreateOperationInput.
+//
+// Example:
+//
+//	input := models.NewCreateOperationInput(
+//	    string(models.OperationTypeDebit),
+//	    "00000000-0000-0000-0000-000000000000",
+//	    "150.00",
+//	    "USD",
+//	).WithRoute("payment-route").WithAccountAlias("@customer.john")
+func NewCreateOperationInput(operationType, accountID string, amount any, assetCode string) *CreateOperationInput {
+	return &CreateOperationInput{
+		Type:      operationType,
+		AccountID: accountID,
+		Amount:    amount,
+		AssetCode: assetCode,
+	}
+}
+
+// WithAccountAlias sets the optional human-readable alias for the account.
+// Returns the modified input for chaining.
+func (input *CreateOperationInput) WithAccountAlias(alias string) *CreateOperationInput {
+	if input == nil {
+		return nil
+	}
+
+	input.AccountAlias = &alias
+
+	return input
+}
+
+// WithRoute sets the optional operation-route identifier.
+// Returns the modified input for chaining.
+func (input *CreateOperationInput) WithRoute(route string) *CreateOperationInput {
+	if input == nil {
+		return nil
+	}
+
+	input.Route = route
+
+	return input
+}
+
+// NewUpdateOperationInput creates a new empty UpdateOperationInput.
+// Use the With* methods to set optional fields fluently.
+//
+// Returns:
+//   - A pointer to the newly created UpdateOperationInput.
+//
+// Example:
+//
+//	input := models.NewUpdateOperationInput().
+//	    WithDescription("refund for invoice 12345").
+//	    WithMetadata(map[string]any{"reason": "customer requested"})
+func NewUpdateOperationInput() *UpdateOperationInput {
+	return &UpdateOperationInput{}
+}
+
+// WithDescription sets the human-readable description on the update payload.
+// Returns the modified input for chaining.
+func (input *UpdateOperationInput) WithDescription(description string) *UpdateOperationInput {
+	if input == nil {
+		return nil
+	}
+
+	input.Description = description
+
+	return input
+}
+
+// WithMetadata sets the operation metadata on the update payload. The map is
+// deep-copied so subsequent caller mutations do not leak into the input.
+// Returns the modified input for chaining.
+func (input *UpdateOperationInput) WithMetadata(metadata map[string]any) *UpdateOperationInput {
+	if input == nil {
+		return nil
+	}
+
+	input.Metadata = cloneAnyMap(metadata)
+
+	return input
+}

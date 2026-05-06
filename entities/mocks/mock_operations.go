@@ -58,17 +58,9 @@ func (mr *MockOperationsServiceMockRecorder) ListOperations(ctx, orgID, ledgerID
 }
 
 // GetOperation mocks base method.
-func (m *MockOperationsService) GetOperation(ctx context.Context, orgID, ledgerID, accountID, operationID string, transactionID ...string) (*models.Operation, error) {
+func (m *MockOperationsService) GetOperation(ctx context.Context, orgID, ledgerID, accountID, operationID string) (*models.Operation, error) {
 	m.ctrl.T.Helper()
-
-	varargs := make([]any, 0, 5+len(transactionID))
-	varargs = append(varargs, ctx, orgID, ledgerID, accountID, operationID)
-
-	for _, a := range transactionID {
-		varargs = append(varargs, a)
-	}
-
-	ret := m.ctrl.Call(m, "GetOperation", varargs...)
+	ret := m.ctrl.Call(m, "GetOperation", ctx, orgID, ledgerID, accountID, operationID)
 
 	var ret0 *models.Operation
 	if ret[0] != nil {
@@ -84,43 +76,13 @@ func (m *MockOperationsService) GetOperation(ctx context.Context, orgID, ledgerI
 }
 
 // GetOperation indicates an expected call of GetOperation.
-func (mr *MockOperationsServiceMockRecorder) GetOperation(ctx, orgID, ledgerID, accountID, operationID any, transactionID ...any) *gomock.Call {
+func (mr *MockOperationsServiceMockRecorder) GetOperation(ctx, orgID, ledgerID, accountID, operationID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-
-	varargs := make([]any, 0, 5+len(transactionID))
-	varargs = append(varargs, ctx, orgID, ledgerID, accountID, operationID)
-
-	varargs = append(varargs, transactionID...)
-
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOperation", reflect.TypeOf((*MockOperationsService)(nil).GetOperation), varargs...)
-}
-
-// UpdateOperation mocks base method.
-func (m *MockOperationsService) UpdateOperation(ctx context.Context, orgID, ledgerID, accountID, operationID string, input any) (*models.Operation, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateOperation", ctx, orgID, ledgerID, accountID, operationID, input)
-
-	var ret0 *models.Operation
-	if ret[0] != nil {
-		ret0, _ = ret[0].(*models.Operation) //nolint:errcheck // Type guaranteed by mock setup
-	}
-
-	var ret1 error
-	if ret[1] != nil {
-		ret1, _ = ret[1].(error) //nolint:errcheck // Type guaranteed by mock setup
-	}
-
-	return ret0, ret1
-}
-
-// UpdateOperation indicates an expected call of UpdateOperation.
-func (mr *MockOperationsServiceMockRecorder) UpdateOperation(ctx, orgID, ledgerID, accountID, operationID, input any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateOperation", reflect.TypeOf((*MockOperationsService)(nil).UpdateOperation), ctx, orgID, ledgerID, accountID, operationID, input)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOperation", reflect.TypeOf((*MockOperationsService)(nil).GetOperation), ctx, orgID, ledgerID, accountID, operationID)
 }
 
 // UpdateTransactionOperation mocks base method.
-func (m *MockOperationsService) UpdateTransactionOperation(ctx context.Context, orgID, ledgerID, transactionID, operationID string, input any) (*models.Operation, error) {
+func (m *MockOperationsService) UpdateTransactionOperation(ctx context.Context, orgID, ledgerID, transactionID, operationID string, input *models.UpdateOperationInput) (*models.Operation, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateTransactionOperation", ctx, orgID, ledgerID, transactionID, operationID, input)
 

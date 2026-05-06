@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	stderrors "errors"
 	"iter"
 	"net/http"
 
@@ -130,20 +129,16 @@ type OperationsService interface {
 	//	    fmt.Println("This is a credit operation (funds entering the account)")
 	//	}
 
-	GetOperation(ctx context.Context, orgID, ledgerID, accountID, operationID string, transactionID ...string) (*models.Operation, error)
+	GetOperation(ctx context.Context, orgID, ledgerID, accountID, operationID string) (*models.Operation, error)
 
 	// UpdateTransactionOperation updates an existing operation by transaction scope.
 	// The orgID, ledgerID, and transactionID parameters specify which organization, ledger,
 	// and transaction the operation belongs to.
 	// The operationID parameter is the unique identifier of the operation to update.
-	// The input parameter contains the operation details to update.
+	// The input parameter contains the operation details to update; it must be non-nil
+	// and at least one mutable field must be set.
 	// Returns the updated operation, or an error if the operation fails.
-	UpdateTransactionOperation(ctx context.Context, orgID, ledgerID, transactionID, operationID string, input any) (*models.Operation, error)
-
-	// UpdateOperation is retained for source compatibility with the former account-scoped
-	// signature. Midaz now updates operations through the transaction-scoped endpoint.
-	// Deprecated: use UpdateTransactionOperation with a transactionID.
-	UpdateOperation(ctx context.Context, orgID, ledgerID, accountID, operationID string, input any) (*models.Operation, error)
+	UpdateTransactionOperation(ctx context.Context, orgID, ledgerID, transactionID, operationID string, input *models.UpdateOperationInput) (*models.Operation, error)
 }
 
 // operationsEntity implements the OperationsService interface.
@@ -309,7 +304,7 @@ func (e *operationsEntity) ListOperationsPages(ctx context.Context, orgID, ledge
 //	} else if operation.Type == models.OperationTypeCredit {
 //	    fmt.Println("This is a credit operation (funds entering the account)")
 //	}
-func (e *operationsEntity) GetOperation(ctx context.Context, orgID, ledgerID, accountID, operationID string, _ ...string) (*models.Operation, error) {
+func (e *operationsEntity) GetOperation(ctx context.Context, orgID, ledgerID, accountID, operationID string) (*models.Operation, error) {
 	const operation = "GetOperation"
 
 	if orgID == "" {
@@ -347,27 +342,8 @@ func (e *operationsEntity) GetOperation(ctx context.Context, orgID, ledgerID, ac
 	return &operationModel, nil
 }
 
-// UpdateOperation is the deprecated account-scoped update method. It fails
-// LOUDLY without performing any network call.
-//
-// The previous behavior — silently issuing a GET to discover transactionID
-// and then re-routing the PATCH to the transaction-scoped endpoint —
-// hid a contract change behind two RPCs and made consumers believe the
-// account-scoped path still worked. We now refuse the call up front so
-// the deprecation surface is immediate and unambiguous.
-//
-// Deprecated: use UpdateTransactionOperation(ctx, orgID, ledgerID,
-// transactionID, operationID, input).
-func (*operationsEntity) UpdateOperation(_ context.Context, _, _, _, _ string, _ any) (*models.Operation, error) {
-	return nil, errors.NewValidationError(
-		"UpdateOperation",
-		"the account-scoped operation update path has been removed",
-		stderrors.New("use UpdateTransactionOperation(ctx, orgID, ledgerID, transactionID, operationID, input) — the SDK no longer auto-resolves transactionID via a hidden GET"),
-	)
-}
-
 // UpdateTransactionOperation updates an operation.
-func (e *operationsEntity) UpdateTransactionOperation(ctx context.Context, orgID, ledgerID, transactionID, operationID string, input any) (*models.Operation, error) {
+func (e *operationsEntity) UpdateTransactionOperation(ctx context.Context, orgID, ledgerID, transactionID, operationID string, input *models.UpdateOperationInput) (*models.Operation, error) {
 	const operation = "UpdateTransactionOperation"
 
 	if orgID == "" {
@@ -386,8 +362,12 @@ func (e *operationsEntity) UpdateTransactionOperation(ctx context.Context, orgID
 		return nil, errors.NewMissingParameterError(operation, "operationID")
 	}
 
-	if err := validateUpdatePayload(operation, input, "*models.UpdateOperationInput"); err != nil {
-		return nil, err
+	if input == nil {
+		return nil, errors.NewMissingParameterError(operation, "input")
+	}
+
+	if err := input.Validate(); err != nil {
+		return nil, errors.NewValidationError(operation, "update validation failed", err)
 	}
 
 	url := buildLedgerScopedURL(e.baseURLs["transaction"], orgID, ledgerID, "transactions", transactionID, "operations", operationID)

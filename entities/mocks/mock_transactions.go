@@ -154,7 +154,7 @@ func (mr *MockTransactionsServiceMockRecorder) ListTransactions(ctx, orgID, ledg
 }
 
 // UpdateTransaction mocks base method.
-func (m *MockTransactionsService) UpdateTransaction(ctx context.Context, orgID, ledgerID, transactionID string, input any) (*models.Transaction, error) {
+func (m *MockTransactionsService) UpdateTransaction(ctx context.Context, orgID, ledgerID, transactionID string, input *models.UpdateTransactionInput) (*models.Transaction, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateTransaction", ctx, orgID, ledgerID, transactionID, input)
 
