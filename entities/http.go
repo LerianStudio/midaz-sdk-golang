@@ -1362,10 +1362,26 @@ func resetRequestBody(req *http.Request) error {
 	return nil
 }
 
+// handleRequestExecutionError converts a transport-layer client.Do
+// failure into a typed SDK error. Audit 8.1 (CRITICAL): before this
+// path landed, network failures (DNS, conn-refused, TLS handshake)
+// arrived at callers as bare *net.OpError shapes, so IsNetworkError(err)
+// returned false on real network errors.
+//
+// Now: every transport failure passes through ClassifyTransportError,
+// which produces a *errors.Error with the right Category (Network for
+// DNS/conn-refused, Timeout for deadline-exceeded, Cancellation for
+// context.Canceled, Internal as a final fallback). The wrapped err is
+// preserved as Error.Err so errors.Unwrap walks the full causal chain.
+//
+// The operation string is derived from method + requestURL so the
+// transport layer can produce a non-empty Operation even before
+// service-method call sites thread their own context through (deferred
+// to 8F per the kickoff scope).
 func (c *HTTPClient) handleRequestExecutionError(method, requestURL string, err error) error {
 	c.debugLogRequestError(method, requestURL, err)
 
-	requestErr := fmt.Errorf("HTTP request failed: %w", err)
+	requestErr := sdkerrors.ClassifyTransportError(transportOperation(method, requestURL), err)
 
 	snapshot := c.cloneConfiguration()
 	if snapshot.customRetryPolicy != nil {
@@ -1377,6 +1393,24 @@ func (c *HTTPClient) handleRequestExecutionError(method, requestURL string, err 
 	}
 
 	return requestErr
+}
+
+// transportOperation produces a synthetic Operation string from the
+// HTTP method. The transport layer doesn't know the service-method
+// name (e.g. "accounts.Create") that called it, so we surface
+// "http GET" / "http POST" so the typed Operation field is non-empty
+// without leaking the request URL (which may carry tenant identifiers
+// or path-borne IDs).
+//
+// Service-method-aware operations — the threading from the entity
+// layer's call sites — is deferred to 8F. _ is reserved for that
+// future expansion.
+func transportOperation(method, _ string) string {
+	if method == "" {
+		return "http"
+	}
+
+	return "http " + method
 }
 
 func (c *HTTPClient) handleRetryAttemptResponse(resp *http.Response, responseBody []byte, method, requestURL string) error {
@@ -1418,12 +1452,25 @@ func (e retryableHTTPError) StatusCode() int {
 	return e.statusCode
 }
 
+// retryableCustomPolicyError is the internal sentinel that signals
+// "the user-supplied custom retry policy or post-401 token refresh
+// said this is retryable." It is NOT a public-facing error shape.
+//
+// Audit 8.3 (HIGH): the v2 implementation prefixed every Error()
+// rendering with "custom retryable: " — internal wrapper noise that
+// leaked into user-facing error strings. The prefix is gone in v3.
+// The wrapper still implements Unwrap so the underlying typed error
+// reaches errors.Is/As walks correctly.
 type retryableCustomPolicyError struct {
 	err error
 }
 
 func (e retryableCustomPolicyError) Error() string {
-	return "custom retryable: " + e.err.Error()
+	if e.err == nil {
+		return ""
+	}
+
+	return e.err.Error()
 }
 
 func (e retryableCustomPolicyError) Unwrap() error {
