@@ -139,24 +139,13 @@ type OrganizationsService interface {
 // organizationsEntity implements the OrganizationsService interface.
 // It handles the communication with the Midaz API for organization-related operations.
 type organizationsEntity struct {
-	httpClient *HTTPClient
-	baseURLs   map[string]string
-}
-
-func (e *organizationsEntity) setDefaultTenantID(tenantID string) {
-	e.httpClient.setTenantIDLocked(tenantID)
+	serviceEntity
 }
 
 // newOrganizationsEntity wires the OrganizationsService backed by the shared HTTP transport.
 // Internal: invoked by Entity.initServices; callers should reach the service via Client.Organizations.
 func newOrganizationsEntity(client *http.Client, authToken string, baseURLs map[string]string) OrganizationsService {
-	// Create a new HTTP client with the shared implementation
-	httpClient := NewHTTPClient(client, authToken, nil)
-
-	return &organizationsEntity{
-		httpClient: httpClient,
-		baseURLs:   prepareServiceBaseURLs(baseURLs),
-	}
+	return &organizationsEntity{serviceEntity: newServiceEntity(client, authToken, baseURLs)}
 }
 
 // ListOrganizations lists one page of organizations.

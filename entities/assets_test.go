@@ -597,10 +597,7 @@ func TestAssetsEntity_ListAssets(t *testing.T) {
 				},
 			}
 
-			entity := &assetsEntity{
-				httpClient: newAssetsHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"onboarding": "https://api.example.com"},
-			}
+			entity := &assetsEntity{serviceEntity: serviceEntity{httpClient: newAssetsHTTPClientAdapter(mockClient), baseURLs: map[string]string{"onboarding": "https://api.example.com"}}}
 
 			result, err := entity.ListAssets(context.Background(), tt.orgID, tt.ledgerID, tt.opts)
 
@@ -713,10 +710,7 @@ func TestAssetsEntity_GetAsset(t *testing.T) {
 				},
 			}
 
-			entity := &assetsEntity{
-				httpClient: newAssetsHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"onboarding": "https://api.example.com"},
-			}
+			entity := &assetsEntity{serviceEntity: serviceEntity{httpClient: newAssetsHTTPClientAdapter(mockClient), baseURLs: map[string]string{"onboarding": "https://api.example.com"}}}
 
 			result, err := entity.GetAsset(context.Background(), tt.orgID, tt.ledgerID, tt.assetID)
 
@@ -850,10 +844,7 @@ func TestAssetsEntity_CreateAsset(t *testing.T) {
 				},
 			}
 
-			entity := &assetsEntity{
-				httpClient: newAssetsHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"onboarding": "https://api.example.com"},
-			}
+			entity := &assetsEntity{serviceEntity: serviceEntity{httpClient: newAssetsHTTPClientAdapter(mockClient), baseURLs: map[string]string{"onboarding": "https://api.example.com"}}}
 
 			result, err := entity.CreateAsset(context.Background(), tt.orgID, tt.ledgerID, tt.input)
 
@@ -989,10 +980,7 @@ func TestAssetsEntity_UpdateAsset(t *testing.T) {
 				},
 			}
 
-			entity := &assetsEntity{
-				httpClient: newAssetsHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"onboarding": "https://api.example.com"},
-			}
+			entity := &assetsEntity{serviceEntity: serviceEntity{httpClient: newAssetsHTTPClientAdapter(mockClient), baseURLs: map[string]string{"onboarding": "https://api.example.com"}}}
 
 			result, err := entity.UpdateAsset(context.Background(), tt.orgID, tt.ledgerID, tt.assetID, tt.input)
 
@@ -1092,10 +1080,7 @@ func TestAssetsEntity_DeleteAsset(t *testing.T) {
 				},
 			}
 
-			entity := &assetsEntity{
-				httpClient: newAssetsHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"onboarding": "https://api.example.com"},
-			}
+			entity := &assetsEntity{serviceEntity: serviceEntity{httpClient: newAssetsHTTPClientAdapter(mockClient), baseURLs: map[string]string{"onboarding": "https://api.example.com"}}}
 
 			err := entity.DeleteAsset(context.Background(), tt.orgID, tt.ledgerID, tt.assetID)
 
@@ -1185,10 +1170,7 @@ func TestAssetsEntity_GetAssetsMetricsCount(t *testing.T) {
 				},
 			}
 
-			entity := &assetsEntity{
-				httpClient: newAssetsHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"onboarding": "https://api.example.com"},
-			}
+			entity := &assetsEntity{serviceEntity: serviceEntity{httpClient: newAssetsHTTPClientAdapter(mockClient), baseURLs: map[string]string{"onboarding": "https://api.example.com"}}}
 
 			result, err := entity.GetAssetsMetricsCount(context.Background(), tt.orgID, tt.ledgerID)
 
@@ -1250,9 +1232,7 @@ func TestAssetsEntity_buildURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			entity := &assetsEntity{
-				baseURLs: map[string]string{"onboarding": tt.baseURL},
-			}
+			entity := &assetsEntity{serviceEntity: serviceEntity{baseURLs: map[string]string{"onboarding": tt.baseURL}}}
 
 			result := entity.buildURL(tt.orgID, tt.ledgerID, tt.assetID)
 			assert.Equal(t, tt.expectedURL, result)
@@ -1287,9 +1267,7 @@ func TestAssetsEntity_buildMetricsURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			entity := &assetsEntity{
-				baseURLs: map[string]string{"onboarding": tt.baseURL},
-			}
+			entity := &assetsEntity{serviceEntity: serviceEntity{baseURLs: map[string]string{"onboarding": tt.baseURL}}}
 
 			result := entity.buildMetricsURL(tt.orgID, tt.ledgerID)
 			assert.Equal(t, tt.expectedURL, result)

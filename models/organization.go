@@ -279,8 +279,14 @@ func (input *UpdateOrganizationInput) WithLegalName(legalName string) *UpdateOrg
 	return input
 }
 
-// WithUpdateMetadata sets the metadata for update.
-func (input *UpdateOrganizationInput) WithUpdateMetadata(metadata map[string]any) *UpdateOrganizationInput {
+// WithMetadata sets the metadata for update.
+//
+// Track 7F (audit 7.14) — the v2 *Update-suffixed siblings
+// (WithUpdateMetadata, WithDoingBusinessAsUpdate, WithAddressUpdate,
+// WithStatusUpdate) have been retired. They duplicated the canonical
+// non-suffixed setters with no semantic difference. Callers using the
+// suffixed names should switch to the canonical setters below.
+func (input *UpdateOrganizationInput) WithMetadata(metadata map[string]any) *UpdateOrganizationInput {
 	if input == nil {
 		return nil
 	}
@@ -290,28 +296,8 @@ func (input *UpdateOrganizationInput) WithUpdateMetadata(metadata map[string]any
 	return input
 }
 
-// WithMetadata sets the metadata for update.
-func (input *UpdateOrganizationInput) WithMetadata(metadata map[string]any) *UpdateOrganizationInput {
-	return input.WithUpdateMetadata(metadata)
-}
-
 // WithDoingBusinessAs sets the doing business as name for update.
 func (input *UpdateOrganizationInput) WithDoingBusinessAs(dba string) *UpdateOrganizationInput {
-	return input.WithDoingBusinessAsUpdate(dba)
-}
-
-// WithAddress sets the organization address for update.
-func (input *UpdateOrganizationInput) WithAddress(address Address) *UpdateOrganizationInput {
-	return input.WithAddressUpdate(address)
-}
-
-// WithStatus sets the organization status for update.
-func (input *UpdateOrganizationInput) WithStatus(status Status) *UpdateOrganizationInput {
-	return input.WithStatusUpdate(status)
-}
-
-// WithDoingBusinessAsUpdate sets the doing business as name for update.
-func (input *UpdateOrganizationInput) WithDoingBusinessAsUpdate(dba string) *UpdateOrganizationInput {
 	if input == nil {
 		return nil
 	}
@@ -321,8 +307,8 @@ func (input *UpdateOrganizationInput) WithDoingBusinessAsUpdate(dba string) *Upd
 	return input
 }
 
-// WithAddressUpdate sets the organization address for update.
-func (input *UpdateOrganizationInput) WithAddressUpdate(address Address) *UpdateOrganizationInput {
+// WithAddress sets the organization address for update.
+func (input *UpdateOrganizationInput) WithAddress(address Address) *UpdateOrganizationInput {
 	if input == nil {
 		return nil
 	}
@@ -332,8 +318,8 @@ func (input *UpdateOrganizationInput) WithAddressUpdate(address Address) *Update
 	return input
 }
 
-// WithStatusUpdate sets the organization status for update.
-func (input *UpdateOrganizationInput) WithStatusUpdate(status Status) *UpdateOrganizationInput {
+// WithStatus sets the organization status for update.
+func (input *UpdateOrganizationInput) WithStatus(status Status) *UpdateOrganizationInput {
 	if input == nil {
 		return nil
 	}

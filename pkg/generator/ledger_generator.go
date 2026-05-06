@@ -37,14 +37,14 @@ func NewLedgerGenerator(e *entities.Entity, obs observability.Provider, defaultO
 }
 
 // Generate creates a single ledger from the provided template.
-func (g *ledgerGenerator) Generate(ctx context.Context, orgID string, template data.LedgerTemplate) (*models.Ledger, error) {
+func (g *ledgerGenerator) Generate(ctx context.Context, organizationID string, template data.LedgerTemplate) (*models.Ledger, error) {
 	ctx = normalizeContext(ctx)
 
 	if g.e == nil || g.e.Ledgers == nil {
 		return nil, errors.New("entity ledgers service not initialized")
 	}
 
-	if orgID == "" {
+	if organizationID == "" {
 		return nil, errors.New("organization id is required")
 	}
 
@@ -57,7 +57,7 @@ func (g *ledgerGenerator) Generate(ctx context.Context, orgID string, template d
 	err := observability.WithSpan(ctx, g.obs, "GenerateLedger", func(ctx context.Context) error {
 		return executeWithCircuitBreaker(ctx, func() error {
 			return retry.DoWithContext(ctx, func() error {
-				ledger, err := g.e.Ledgers.CreateLedger(ctx, orgID, input)
+				ledger, err := g.e.Ledgers.CreateLedger(ctx, organizationID, input)
 				if err != nil {
 					return err
 				}
@@ -80,7 +80,7 @@ func (g *ledgerGenerator) Generate(ctx context.Context, orgID string, template d
 }
 
 // GenerateForOrg creates multiple ledgers for the specified organization.
-func (g *ledgerGenerator) GenerateForOrg(ctx context.Context, orgID string, count int) ([]*models.Ledger, error) {
+func (g *ledgerGenerator) GenerateForOrg(ctx context.Context, organizationID string, count int) ([]*models.Ledger, error) {
 	ctx = normalizeContext(ctx)
 
 	if count <= 0 {
@@ -119,7 +119,7 @@ func (g *ledgerGenerator) GenerateForOrg(ctx context.Context, orgID string, coun
 			},
 		}
 
-		ledger, err := g.Generate(ctx, orgID, t)
+		ledger, err := g.Generate(ctx, organizationID, t)
 		if err == nil {
 			counter.RecordSuccess()
 		}

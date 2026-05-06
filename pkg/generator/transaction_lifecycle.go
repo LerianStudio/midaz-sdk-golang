@@ -37,13 +37,13 @@ func (l *lifecycle) CreatePending(ctx context.Context, input *models.CreateTrans
 	// Ensure Pending flag is set
 	input.Pending = true
 
-	// orgID and ledgerID are required; pass them via context to keep interface minimal
+	// organizationID and ledgerID are required; pass them via context to keep interface minimal
 	// Type assertion ok values are intentionally ignored - empty string check handles both
 	// cases (missing key and wrong type)
-	orgID, _ := ctx.Value(contextKeyOrgID{}).(string)       //nolint:errcheck // ok check unnecessary, empty string validated below
-	ledgerID, _ := ctx.Value(contextKeyLedgerID{}).(string) //nolint:errcheck // ok check unnecessary, empty string validated below
+	organizationID, _ := ctx.Value(contextKeyOrgID{}).(string) //nolint:errcheck // ok check unnecessary, empty string validated below
+	ledgerID, _ := ctx.Value(contextKeyLedgerID{}).(string)    //nolint:errcheck // ok check unnecessary, empty string validated below
 
-	if orgID == "" || ledgerID == "" {
+	if organizationID == "" || ledgerID == "" {
 		return nil, errors.New("organization and ledger IDs are required in context")
 	}
 
@@ -52,7 +52,7 @@ func (l *lifecycle) CreatePending(ctx context.Context, input *models.CreateTrans
 	err := observability.WithSpan(ctx, l.obs, "Lifecycle.CreatePending", func(ctx context.Context) error {
 		return executeWithCircuitBreaker(ctx, func() error {
 			return retry.DoWithContext(ctx, func() error {
-				tx, err := l.e.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
+				tx, err := l.e.Transactions.CreateTransaction(ctx, organizationID, ledgerID, input)
 				if err != nil {
 					return err
 				}
@@ -88,17 +88,17 @@ func (l *lifecycle) Commit(ctx context.Context, txID string) error {
 
 	// Type assertion ok values are intentionally ignored - empty string check handles both
 	// cases (missing key and wrong type)
-	orgID, _ := ctx.Value(contextKeyOrgID{}).(string)       //nolint:errcheck // ok check unnecessary, empty string validated below
-	ledgerID, _ := ctx.Value(contextKeyLedgerID{}).(string) //nolint:errcheck // ok check unnecessary, empty string validated below
+	organizationID, _ := ctx.Value(contextKeyOrgID{}).(string) //nolint:errcheck // ok check unnecessary, empty string validated below
+	ledgerID, _ := ctx.Value(contextKeyLedgerID{}).(string)    //nolint:errcheck // ok check unnecessary, empty string validated below
 
-	if orgID == "" || ledgerID == "" {
+	if organizationID == "" || ledgerID == "" {
 		return errors.New("organization and ledger IDs are required in context")
 	}
 
 	return observability.WithSpan(ctx, l.obs, "Lifecycle.Commit", func(ctx context.Context) error {
 		return executeWithCircuitBreaker(ctx, func() error {
 			return retry.DoWithContext(ctx, func() error {
-				_, err := l.e.Transactions.CommitTransaction(ctx, orgID, ledgerID, txID)
+				_, err := l.e.Transactions.CommitTransaction(ctx, organizationID, ledgerID, txID)
 				return err
 			})
 		})
@@ -119,17 +119,17 @@ func (l *lifecycle) Revert(ctx context.Context, txID string) error {
 
 	// Type assertion ok values are intentionally ignored - empty string check handles both
 	// cases (missing key and wrong type)
-	orgID, _ := ctx.Value(contextKeyOrgID{}).(string)       //nolint:errcheck // ok check unnecessary, empty string validated below
-	ledgerID, _ := ctx.Value(contextKeyLedgerID{}).(string) //nolint:errcheck // ok check unnecessary, empty string validated below
+	organizationID, _ := ctx.Value(contextKeyOrgID{}).(string) //nolint:errcheck // ok check unnecessary, empty string validated below
+	ledgerID, _ := ctx.Value(contextKeyLedgerID{}).(string)    //nolint:errcheck // ok check unnecessary, empty string validated below
 
-	if orgID == "" || ledgerID == "" {
+	if organizationID == "" || ledgerID == "" {
 		return errors.New("organization and ledger IDs are required in context")
 	}
 
 	return observability.WithSpan(ctx, l.obs, "Lifecycle.Revert", func(ctx context.Context) error {
 		return executeWithCircuitBreaker(ctx, func() error {
 			return retry.DoWithContext(ctx, func() error {
-				_, err := l.e.Transactions.RevertTransaction(ctx, orgID, ledgerID, txID)
+				_, err := l.e.Transactions.RevertTransaction(ctx, organizationID, ledgerID, txID)
 				return err
 			})
 		})
@@ -161,7 +161,7 @@ type contextKeyLedgerID struct{}
 //
 // Usage:
 //
-//	ctx := generator.WithOrgID(ctx, orgID)
+//	ctx := generator.WithOrgID(ctx, organizationID)
 //	ctx = generator.WithLedgerID(ctx, ledgerID)
 //	tx, err := lifecycle.CreatePending(ctx, input)
 func WithLedgerID(ctx context.Context, ledgerID string) context.Context {

@@ -127,21 +127,13 @@ type SegmentsService interface {
 // segmentsEntity implements the SegmentsService interface.
 // It provides methods for creating, retrieving, updating, and deleting segments.
 type segmentsEntity struct {
-	httpClient *HTTPClient
-	baseURLs   map[string]string
-}
-
-func (e *segmentsEntity) setDefaultTenantID(tenantID string) {
-	e.httpClient.setTenantIDLocked(tenantID)
+	serviceEntity
 }
 
 // newSegmentsEntity creates a new segments entity.
 // It initializes the HTTP client and base URLs for API requests.
 func newSegmentsEntity(client *http.Client, authToken string, baseURLs map[string]string) SegmentsService {
-	return &segmentsEntity{
-		httpClient: NewHTTPClient(client, authToken, nil),
-		baseURLs:   prepareServiceBaseURLs(baseURLs),
-	}
+	return &segmentsEntity{serviceEntity: newServiceEntity(client, authToken, baseURLs)}
 }
 
 // ListSegments lists segments for a ledger with optional filters.

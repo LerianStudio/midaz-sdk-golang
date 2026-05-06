@@ -94,9 +94,7 @@ func Test_newSegmentsEntity(t *testing.T) {
 }
 
 func TestSegmentsEntity_buildURL(t *testing.T) {
-	entity := &segmentsEntity{
-		baseURLs: map[string]string{"onboarding": "https://api.example.com"},
-	}
+	entity := &segmentsEntity{serviceEntity: serviceEntity{baseURLs: map[string]string{"onboarding": "https://api.example.com"}}}
 
 	tests := []struct {
 		name        string
@@ -137,9 +135,7 @@ func TestSegmentsEntity_buildURL(t *testing.T) {
 }
 
 func TestSegmentsEntity_buildMetricsURL(t *testing.T) {
-	entity := &segmentsEntity{
-		baseURLs: map[string]string{"onboarding": "https://api.example.com"},
-	}
+	entity := &segmentsEntity{serviceEntity: serviceEntity{baseURLs: map[string]string{"onboarding": "https://api.example.com"}}}
 
 	tests := []struct {
 		name        string
@@ -315,10 +311,7 @@ func TestSegmentsEntity_ListSegments(t *testing.T) {
 				},
 			}
 
-			entity := &segmentsEntity{
-				httpClient: newMockSegmentsHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"onboarding": "https://api.example.com"},
-			}
+			entity := &segmentsEntity{serviceEntity: serviceEntity{httpClient: newMockSegmentsHTTPClientAdapter(mockClient), baseURLs: map[string]string{"onboarding": "https://api.example.com"}}}
 
 			result, err := entity.ListSegments(context.Background(), tt.orgID, tt.ledgerID, tt.opts)
 
@@ -356,10 +349,7 @@ func TestSegmentsEntity_ListSegments_QueryParams(t *testing.T) {
 		},
 	}
 
-	entity := &segmentsEntity{
-		httpClient: newMockSegmentsHTTPClientAdapter(mockClient),
-		baseURLs:   map[string]string{"onboarding": "https://api.example.com"},
-	}
+	entity := &segmentsEntity{serviceEntity: serviceEntity{httpClient: newMockSegmentsHTTPClientAdapter(mockClient), baseURLs: map[string]string{"onboarding": "https://api.example.com"}}}
 
 	opts := models.SegmentsListOpts{
 		PageListOpts: models.PageListOpts{
@@ -515,10 +505,7 @@ func TestSegmentsEntity_GetSegment(t *testing.T) {
 				},
 			}
 
-			entity := &segmentsEntity{
-				httpClient: newMockSegmentsHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"onboarding": "https://api.example.com"},
-			}
+			entity := &segmentsEntity{serviceEntity: serviceEntity{httpClient: newMockSegmentsHTTPClientAdapter(mockClient), baseURLs: map[string]string{"onboarding": "https://api.example.com"}}}
 
 			result, err := entity.GetSegment(context.Background(), tt.orgID, tt.ledgerID, tt.segmentID)
 
@@ -715,10 +702,7 @@ func createSegmentEntityWithMock(t *testing.T, mockError error, statusCode int, 
 		},
 	}
 
-	return &segmentsEntity{
-		httpClient: newMockSegmentsHTTPClientAdapter(mockClient),
-		baseURLs:   map[string]string{"onboarding": "https://api.example.com"},
-	}
+	return &segmentsEntity{serviceEntity: serviceEntity{httpClient: newMockSegmentsHTTPClientAdapter(mockClient), baseURLs: map[string]string{"onboarding": "https://api.example.com"}}}
 }
 
 // assertSegmentResult validates the result and error from segment operations
@@ -936,10 +920,7 @@ func TestSegmentsEntity_UpdateSegment(t *testing.T) {
 				},
 			}
 
-			entity := &segmentsEntity{
-				httpClient: newMockSegmentsHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"onboarding": "https://api.example.com"},
-			}
+			entity := &segmentsEntity{serviceEntity: serviceEntity{httpClient: newMockSegmentsHTTPClientAdapter(mockClient), baseURLs: map[string]string{"onboarding": "https://api.example.com"}}}
 
 			result, err := entity.UpdateSegment(context.Background(), tt.orgID, tt.ledgerID, tt.segmentID, tt.input)
 
@@ -1090,10 +1071,7 @@ func TestSegmentsEntity_DeleteSegment(t *testing.T) {
 				},
 			}
 
-			entity := &segmentsEntity{
-				httpClient: newMockSegmentsHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"onboarding": "https://api.example.com"},
-			}
+			entity := &segmentsEntity{serviceEntity: serviceEntity{httpClient: newMockSegmentsHTTPClientAdapter(mockClient), baseURLs: map[string]string{"onboarding": "https://api.example.com"}}}
 
 			err := entity.DeleteSegment(context.Background(), tt.orgID, tt.ledgerID, tt.segmentID)
 
@@ -1200,10 +1178,7 @@ func TestSegmentsEntity_GetSegmentsMetricsCount(t *testing.T) {
 				},
 			}
 
-			entity := &segmentsEntity{
-				httpClient: newMockSegmentsHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"onboarding": "https://api.example.com"},
-			}
+			entity := &segmentsEntity{serviceEntity: serviceEntity{httpClient: newMockSegmentsHTTPClientAdapter(mockClient), baseURLs: map[string]string{"onboarding": "https://api.example.com"}}}
 
 			result, err := entity.GetSegmentsMetricsCount(context.Background(), tt.orgID, tt.ledgerID)
 
@@ -1226,17 +1201,14 @@ func TestSegmentsEntity_GetSegmentsMetricsCount(t *testing.T) {
 
 // newValidationTestEntity creates a segment entity for validation testing
 func newValidationTestEntity() *segmentsEntity {
-	return &segmentsEntity{
-		httpClient: newMockSegmentsHTTPClientAdapter(&MockHTTPClient{
-			DoFunc: func(_ *http.Request) (*http.Response, error) {
-				return &http.Response{
-					StatusCode: http.StatusOK,
-					Body:       io.NopCloser(strings.NewReader(`{}`)),
-				}, nil
-			},
-		}),
-		baseURLs: map[string]string{"onboarding": "https://api.example.com"},
-	}
+	return &segmentsEntity{serviceEntity: serviceEntity{httpClient: newMockSegmentsHTTPClientAdapter(&MockHTTPClient{
+		DoFunc: func(_ *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{}`)),
+			}, nil
+		},
+	}), baseURLs: map[string]string{"onboarding": "https://api.example.com"}}}
 }
 
 func TestSegmentsEntity_ValidationEdgeCases_ListSegments(t *testing.T) {

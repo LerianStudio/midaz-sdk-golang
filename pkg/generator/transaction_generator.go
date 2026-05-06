@@ -36,7 +36,7 @@ func NewTransactionGenerator(e *entities.Entity, obs observability.Provider) Tra
 }
 
 // GenerateWithDSL creates a transaction using the DSL pattern.
-func (g *transactionGenerator) GenerateWithDSL(ctx context.Context, orgID, ledgerID string, pattern data.TransactionPattern) (*models.Transaction, error) {
+func (g *transactionGenerator) GenerateWithDSL(ctx context.Context, organizationID, ledgerID string, pattern data.TransactionPattern) (*models.Transaction, error) {
 	ctx = normalizeContext(ctx)
 
 	if g.e == nil || g.e.Transactions == nil {
@@ -58,7 +58,7 @@ func (g *transactionGenerator) GenerateWithDSL(ctx context.Context, orgID, ledge
 		return executeWithCircuitBreaker(ctx, func() error {
 			return retry.DoWithContext(ctx, func() error {
 				// Use DSL file endpoint for free-form DSL
-				tx, err := g.e.Transactions.CreateTransactionWithDSLFile(ctx, orgID, ledgerID, []byte(pattern.DSLTemplate))
+				tx, err := g.e.Transactions.CreateTransactionWithDSLFile(ctx, organizationID, ledgerID, []byte(pattern.DSLTemplate))
 				if err != nil {
 					return err
 				}
@@ -121,7 +121,7 @@ func collectBatchResults(results []concurrent.Result[int, *models.Transaction]) 
 }
 
 // GenerateBatch submits a list of DSL patterns with a target TPS throttle.
-func (g *transactionGenerator) GenerateBatch(ctx context.Context, orgID, ledgerID string, patterns []data.TransactionPattern, tps float64) ([]*models.Transaction, error) {
+func (g *transactionGenerator) GenerateBatch(ctx context.Context, organizationID, ledgerID string, patterns []data.TransactionPattern, tps float64) ([]*models.Transaction, error) {
 	ctx = normalizeContext(ctx)
 
 	if len(patterns) == 0 {
@@ -150,7 +150,7 @@ func (g *transactionGenerator) GenerateBatch(ctx context.Context, orgID, ledgerI
 			return nil, err
 		}
 
-		tx, err := g.GenerateWithDSL(ctx, orgID, ledgerID, patterns[i])
+		tx, err := g.GenerateWithDSL(ctx, organizationID, ledgerID, patterns[i])
 		if err == nil {
 			counter.RecordSuccess()
 		}

@@ -34,13 +34,13 @@ func (g *assetGenerator) Generate(ctx context.Context, ledgerID string, template
 	if g.e == nil || g.e.Assets == nil {
 		return nil, errors.New("entity assets service not initialized")
 	}
-	// We require orgID to create assets; since Assets API needs orgID and ledgerID,
-	// we cannot derive orgID from ledgerID here, so expect callers to embed org information in ctx.
-	// To keep the interface stable, we attempt to extract orgID from context key if provided.
+	// We require organizationID to create assets; since Assets API needs organizationID and ledgerID,
+	// we cannot derive organizationID from ledgerID here, so expect callers to embed org information in ctx.
+	// To keep the interface stable, we attempt to extract organizationID from context key if provided.
 	// Type assertion ok value is intentionally ignored - empty string check handles both
 	// cases (missing key and wrong type)
-	orgID, _ := ctx.Value(contextKeyOrgID{}).(string) //nolint:errcheck // ok check unnecessary, empty string validated below
-	if orgID == "" {
+	organizationID, _ := ctx.Value(contextKeyOrgID{}).(string) //nolint:errcheck // ok check unnecessary, empty string validated below
+	if organizationID == "" {
 		return nil, errors.New("organization id missing in context for asset creation")
 	}
 
@@ -53,7 +53,7 @@ func (g *assetGenerator) Generate(ctx context.Context, ledgerID string, template
 	err := observability.WithSpan(ctx, g.obs, "GenerateAsset", func(ctx context.Context) error {
 		return executeWithCircuitBreaker(ctx, func() error {
 			return retry.DoWithContext(ctx, func() error {
-				asset, err := g.e.Assets.CreateAsset(ctx, orgID, ledgerID, input)
+				asset, err := g.e.Assets.CreateAsset(ctx, organizationID, ledgerID, input)
 				if err != nil {
 					return err
 				}
@@ -143,8 +143,8 @@ func (g *assetGenerator) updateRatesFrom(ctx context.Context, ledgerID, fromAsse
 		return errors.New("entity asset rates service not initialized")
 	}
 
-	orgID, _ := ctx.Value(contextKeyOrgID{}).(string) //nolint:errcheck // Empty string is validated below.
-	if orgID == "" || ledgerID == "" || fromAsset == "" {
+	organizationID, _ := ctx.Value(contextKeyOrgID{}).(string) //nolint:errcheck // Empty string is validated below.
+	if organizationID == "" || ledgerID == "" || fromAsset == "" {
 		return errors.New("organization and ledger IDs are required for asset rate updates")
 	}
 
@@ -165,7 +165,7 @@ func (g *assetGenerator) updateRatesFrom(ctx context.Context, ledgerID, fromAsse
 		input := models.NewCreateAssetRateInput(fromAsset, toAsset, scaledRate).
 			WithScale(scale).
 			WithSource("mass-demo-generator")
-		if _, err := g.e.AssetRates.CreateOrUpdateAssetRate(ctx, orgID, ledgerID, input); err != nil {
+		if _, err := g.e.AssetRates.CreateOrUpdateAssetRate(ctx, organizationID, ledgerID, input); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -173,14 +173,14 @@ func (g *assetGenerator) updateRatesFrom(ctx context.Context, ledgerID, fromAsse
 	return errorsJoin(errs...)
 }
 
-// contextKeyOrgID is a private key to extract orgID from context for asset creation.
+// contextKeyOrgID is a private key to extract organizationID from context for asset creation.
 type contextKeyOrgID struct{}
 
 // WithOrgID returns a derived context that carries the organization ID.
-func WithOrgID(ctx context.Context, orgID string) context.Context {
+func WithOrgID(ctx context.Context, organizationID string) context.Context {
 	ctx = normalizeContext(ctx)
 
-	return context.WithValue(ctx, contextKeyOrgID{}, orgID)
+	return context.WithValue(ctx, contextKeyOrgID{}, organizationID)
 }
 
 func mergeMetadata(a map[string]any, b map[string]any) map[string]any {

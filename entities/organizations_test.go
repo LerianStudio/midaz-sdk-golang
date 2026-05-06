@@ -205,8 +205,8 @@ func TestUpdateOrganization(t *testing.T) {
 	// Create test input
 	input := models.NewUpdateOrganizationInput().
 		WithLegalName("Updated Org").
-		WithStatusUpdate(models.NewStatus("INACTIVE")).
-		WithUpdateMetadata(map[string]any{
+		WithStatus(models.NewStatus("INACTIVE")).
+		WithMetadata(map[string]any{
 			"key": "updated",
 		})
 

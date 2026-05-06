@@ -781,10 +781,7 @@ func TestAccountsEntity_ListAccounts(t *testing.T) {
 				},
 			}
 
-			entity := &accountsEntity{
-				httpClient: newHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"onboarding": "https://api.example.com"},
-			}
+			entity := &accountsEntity{serviceEntity: serviceEntity{httpClient: newHTTPClientAdapter(mockClient), baseURLs: map[string]string{"onboarding": "https://api.example.com"}}}
 
 			result, err := entity.ListAccounts(context.Background(), tt.orgID, tt.ledgerID, tt.opts)
 
@@ -888,10 +885,7 @@ func TestAccountsEntity_GetAccount(t *testing.T) {
 				},
 			}
 
-			entity := &accountsEntity{
-				httpClient: newHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"onboarding": "https://api.example.com"},
-			}
+			entity := &accountsEntity{serviceEntity: serviceEntity{httpClient: newHTTPClientAdapter(mockClient), baseURLs: map[string]string{"onboarding": "https://api.example.com"}}}
 
 			result, err := entity.GetAccount(context.Background(), tt.orgID, tt.ledgerID, tt.accountID)
 
@@ -1001,10 +995,7 @@ func TestAccountsEntity_GetAccountByAlias(t *testing.T) {
 				},
 			}
 
-			entity := &accountsEntity{
-				httpClient: newHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"onboarding": "https://api.example.com"},
-			}
+			entity := &accountsEntity{serviceEntity: serviceEntity{httpClient: newHTTPClientAdapter(mockClient), baseURLs: map[string]string{"onboarding": "https://api.example.com"}}}
 
 			result, err := entity.GetAccountByAlias(context.Background(), tt.orgID, tt.ledgerID, tt.alias)
 
@@ -1133,10 +1124,7 @@ func TestAccountsEntity_CreateAccount(t *testing.T) {
 				},
 			}
 
-			entity := &accountsEntity{
-				httpClient: newHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"onboarding": "https://api.example.com"},
-			}
+			entity := &accountsEntity{serviceEntity: serviceEntity{httpClient: newHTTPClientAdapter(mockClient), baseURLs: map[string]string{"onboarding": "https://api.example.com"}}}
 
 			result, err := entity.CreateAccount(context.Background(), tt.orgID, tt.ledgerID, tt.input)
 
@@ -1270,10 +1258,7 @@ func TestAccountsEntity_UpdateAccount(t *testing.T) {
 				},
 			}
 
-			entity := &accountsEntity{
-				httpClient: newHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"onboarding": "https://api.example.com"},
-			}
+			entity := &accountsEntity{serviceEntity: serviceEntity{httpClient: newHTTPClientAdapter(mockClient), baseURLs: map[string]string{"onboarding": "https://api.example.com"}}}
 
 			result, err := entity.UpdateAccount(context.Background(), tt.orgID, tt.ledgerID, tt.accountID, tt.input)
 
@@ -1354,10 +1339,7 @@ func TestAccountsEntity_DeleteAccount(t *testing.T) {
 				},
 			}
 
-			entity := &accountsEntity{
-				httpClient: newHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"onboarding": "https://api.example.com"},
-			}
+			entity := &accountsEntity{serviceEntity: serviceEntity{httpClient: newHTTPClientAdapter(mockClient), baseURLs: map[string]string{"onboarding": "https://api.example.com"}}}
 
 			err := entity.DeleteAccount(context.Background(), tt.orgID, tt.ledgerID, tt.accountID)
 

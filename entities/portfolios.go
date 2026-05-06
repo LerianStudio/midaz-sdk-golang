@@ -139,24 +139,13 @@ type PortfoliosService interface {
 // portfoliosEntity implements the PortfoliosService interface.
 // It provides methods for creating, retrieving, updating, and deleting portfolios.
 type portfoliosEntity struct {
-	httpClient *HTTPClient
-	baseURLs   map[string]string
-}
-
-func (e *portfoliosEntity) setDefaultTenantID(tenantID string) {
-	e.httpClient.setTenantIDLocked(tenantID)
+	serviceEntity
 }
 
 // newPortfoliosEntity creates a new portfolios entity.
 // It initializes the HTTP client and base URLs for API requests.
 func newPortfoliosEntity(client *http.Client, authToken string, baseURLs map[string]string) PortfoliosService {
-	// Create a new HTTP client with the shared implementation
-	httpClient := NewHTTPClient(client, authToken, nil)
-
-	return &portfoliosEntity{
-		httpClient: httpClient,
-		baseURLs:   prepareServiceBaseURLs(baseURLs),
-	}
+	return &portfoliosEntity{serviceEntity: newServiceEntity(client, authToken, baseURLs)}
 }
 
 // ListPortfolios lists portfolios for a ledger with optional filters.

@@ -102,24 +102,13 @@ type AccountTypesService interface {
 // accountTypesEntity implements the AccountTypesService interface.
 // It handles the communication with the Midaz API for account type-related operations.
 type accountTypesEntity struct {
-	httpClient *HTTPClient
-	baseURLs   map[string]string
-}
-
-func (e *accountTypesEntity) setDefaultTenantID(tenantID string) {
-	e.httpClient.setTenantIDLocked(tenantID)
+	serviceEntity
 }
 
 // newAccountTypesEntity wires the AccountTypesService backed by the shared HTTP transport.
 // Internal: invoked by Entity.initServices; callers should reach the service via Client.AccountTypes.
 func newAccountTypesEntity(client *http.Client, authToken string, baseURLs map[string]string) AccountTypesService {
-	// Create a new HTTP client with the shared implementation
-	httpClient := NewHTTPClient(client, authToken, nil)
-
-	return &accountTypesEntity{
-		httpClient: httpClient,
-		baseURLs:   prepareServiceBaseURLs(baseURLs),
-	}
+	return &accountTypesEntity{serviceEntity: newServiceEntity(client, authToken, baseURLs)}
 }
 
 // buildURL constructs the URL for account type operations.

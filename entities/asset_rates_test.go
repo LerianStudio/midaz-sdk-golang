@@ -112,9 +112,7 @@ func Test_newAssetRatesEntity_DebugMode(t *testing.T) {
 }
 
 func TestAssetRatesEntity_buildURL(t *testing.T) {
-	entity := &assetRatesEntity{
-		baseURLs: map[string]string{"transaction": "https://api.example.com"},
-	}
+	entity := &assetRatesEntity{serviceEntity: serviceEntity{baseURLs: map[string]string{"transaction": "https://api.example.com"}}}
 
 	tests := []struct {
 		name           string
@@ -155,9 +153,7 @@ func TestAssetRatesEntity_buildURL(t *testing.T) {
 }
 
 func TestAssetRatesEntity_buildFromAssetURL(t *testing.T) {
-	entity := &assetRatesEntity{
-		baseURLs: map[string]string{"transaction": "https://api.example.com"},
-	}
+	entity := &assetRatesEntity{serviceEntity: serviceEntity{baseURLs: map[string]string{"transaction": "https://api.example.com"}}}
 
 	tests := []struct {
 		name           string
@@ -393,10 +389,7 @@ func TestAssetRatesEntity_CreateOrUpdateAssetRate(t *testing.T) {
 				},
 			}
 
-			entity := &assetRatesEntity{
-				httpClient: newHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"transaction": "https://api.example.com"},
-			}
+			entity := &assetRatesEntity{serviceEntity: serviceEntity{httpClient: newHTTPClientAdapter(mockClient), baseURLs: map[string]string{"transaction": "https://api.example.com"}}}
 
 			result, err := entity.CreateOrUpdateAssetRate(context.Background(), tt.orgID, tt.ledgerID, tt.input)
 
@@ -554,10 +547,7 @@ func TestAssetRatesEntity_GetAssetRate(t *testing.T) {
 				},
 			}
 
-			entity := &assetRatesEntity{
-				httpClient: newHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"transaction": "https://api.example.com"},
-			}
+			entity := &assetRatesEntity{serviceEntity: serviceEntity{httpClient: newHTTPClientAdapter(mockClient), baseURLs: map[string]string{"transaction": "https://api.example.com"}}}
 
 			result, err := entity.GetAssetRate(context.Background(), tt.orgID, tt.ledgerID, tt.externalID)
 
@@ -827,10 +817,7 @@ func runListAssetRatesByAssetCodeTest(t *testing.T, tt struct {
 	t.Helper()
 
 	mockClient := createListAssetRatesMockClient(t, tt.mockError, tt.mockStatusCode, tt.mockResponse, tt.checkRequest)
-	entity := &assetRatesEntity{
-		httpClient: newHTTPClientAdapter(mockClient),
-		baseURLs:   map[string]string{"transaction": "https://api.example.com"},
-	}
+	entity := &assetRatesEntity{serviceEntity: serviceEntity{httpClient: newHTTPClientAdapter(mockClient), baseURLs: map[string]string{"transaction": "https://api.example.com"}}}
 
 	result, err := entity.ListAssetRatesByAssetCode(context.Background(), tt.orgID, tt.ledgerID, tt.assetCode, tt.opts)
 
@@ -1087,17 +1074,14 @@ func TestAssetRatesEntity_ContextCancellation(t *testing.T) {
 }
 
 func TestAssetRatesEntity_ValidationEdgeCases(t *testing.T) {
-	entity := &assetRatesEntity{
-		httpClient: newHTTPClientAdapter(&MockHTTPClient{
-			DoFunc: func(_ *http.Request) (*http.Response, error) {
-				return &http.Response{
-					StatusCode: http.StatusOK,
-					Body:       io.NopCloser(strings.NewReader(`{}`)),
-				}, nil
-			},
-		}),
-		baseURLs: map[string]string{"transaction": "https://api.example.com"},
-	}
+	entity := &assetRatesEntity{serviceEntity: serviceEntity{httpClient: newHTTPClientAdapter(&MockHTTPClient{
+		DoFunc: func(_ *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{}`)),
+			}, nil
+		},
+	}), baseURLs: map[string]string{"transaction": "https://api.example.com"}}}
 
 	t.Run("CreateOrUpdateAssetRate with whitespace-only organization ID", func(t *testing.T) {
 		input := models.NewCreateAssetRateInput("USD", "BRL", 500)
@@ -1151,10 +1135,7 @@ func TestAssetRatesEntity_ResponseParsing(t *testing.T) {
 			},
 		}
 
-		entity := &assetRatesEntity{
-			httpClient: newHTTPClientAdapter(mockClient),
-			baseURLs:   map[string]string{"transaction": "https://api.example.com"},
-		}
+		entity := &assetRatesEntity{serviceEntity: serviceEntity{httpClient: newHTTPClientAdapter(mockClient), baseURLs: map[string]string{"transaction": "https://api.example.com"}}}
 
 		input := models.NewCreateAssetRateInput("USD", "BRL", 525).WithScale(2)
 		result, err := entity.CreateOrUpdateAssetRate(context.Background(), "org-123", "ledger-456", input)
@@ -1194,10 +1175,7 @@ func TestAssetRatesEntity_ResponseParsing(t *testing.T) {
 			},
 		}
 
-		entity := &assetRatesEntity{
-			httpClient: newHTTPClientAdapter(mockClient),
-			baseURLs:   map[string]string{"transaction": "https://api.example.com"},
-		}
+		entity := &assetRatesEntity{serviceEntity: serviceEntity{httpClient: newHTTPClientAdapter(mockClient), baseURLs: map[string]string{"transaction": "https://api.example.com"}}}
 
 		result, err := entity.ListAssetRatesByAssetCode(context.Background(), "org-123", "ledger-456", "USD", models.AssetRatesListOpts{})
 
@@ -1219,10 +1197,7 @@ func TestAssetRatesEntity_ResponseParsing(t *testing.T) {
 			},
 		}
 
-		entity := &assetRatesEntity{
-			httpClient: newHTTPClientAdapter(mockClient),
-			baseURLs:   map[string]string{"transaction": "https://api.example.com"},
-		}
+		entity := &assetRatesEntity{serviceEntity: serviceEntity{httpClient: newHTTPClientAdapter(mockClient), baseURLs: map[string]string{"transaction": "https://api.example.com"}}}
 
 		input := models.NewCreateAssetRateInput("USD", "BRL", 500)
 		_, err := entity.CreateOrUpdateAssetRate(context.Background(), "org-123", "ledger-456", input)
@@ -1463,10 +1438,7 @@ func TestListAssetRatesByAssetCode_ValidatesOptsBeforeRequest(t *testing.T) {
 		},
 	}
 
-	entity := &assetRatesEntity{
-		httpClient: newHTTPClientAdapter(mockClient),
-		baseURLs:   map[string]string{"transaction": "https://api.example.com"},
-	}
+	entity := &assetRatesEntity{serviceEntity: serviceEntity{httpClient: newHTTPClientAdapter(mockClient), baseURLs: map[string]string{"transaction": "https://api.example.com"}}}
 
 	_, err := entity.ListAssetRatesByAssetCode(
 		context.Background(), "org-1", "ledger-1", "USD",

@@ -125,22 +125,12 @@ type TransactionRoutesService interface {
 
 // transactionRoutesEntity implements the TransactionRoutesService interface
 type transactionRoutesEntity struct {
-	httpClient *HTTPClient
-	baseURLs   map[string]string
-}
-
-func (e *transactionRoutesEntity) setDefaultTenantID(tenantID string) {
-	e.httpClient.setTenantIDLocked(tenantID)
+	serviceEntity
 }
 
 // newTransactionRoutesEntity creates a new TransactionRoutesService instance
 func newTransactionRoutesEntity(client *http.Client, authToken string, baseURLs map[string]string) TransactionRoutesService {
-	httpClient := NewHTTPClient(client, authToken, nil)
-
-	return &transactionRoutesEntity{
-		httpClient: httpClient,
-		baseURLs:   prepareServiceBaseURLs(baseURLs),
-	}
+	return &transactionRoutesEntity{serviceEntity: newServiceEntity(client, authToken, baseURLs)}
 }
 
 // buildURL constructs the URL for transaction route endpoints

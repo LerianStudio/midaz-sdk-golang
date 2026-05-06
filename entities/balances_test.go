@@ -71,9 +71,7 @@ func Test_newBalancesEntity(t *testing.T) {
 
 // TestBalancesEntity_buildURL tests the URL building helper
 func TestBalancesEntity_buildURL(t *testing.T) {
-	entity := &balancesEntity{
-		baseURLs: map[string]string{"transaction": "https://api.example.com/v1"},
-	}
+	entity := &balancesEntity{serviceEntity: serviceEntity{baseURLs: map[string]string{"transaction": "https://api.example.com/v1"}}}
 
 	tests := []struct {
 		name      string
@@ -115,9 +113,7 @@ func TestBalancesEntity_buildURL(t *testing.T) {
 
 // TestBalancesEntity_buildAccountURL tests the account URL builder
 func TestBalancesEntity_buildAccountURL(t *testing.T) {
-	entity := &balancesEntity{
-		baseURLs: map[string]string{"transaction": "https://api.example.com/v1"},
-	}
+	entity := &balancesEntity{serviceEntity: serviceEntity{baseURLs: map[string]string{"transaction": "https://api.example.com/v1"}}}
 
 	tests := []struct {
 		name      string
@@ -152,9 +148,7 @@ func TestBalancesEntity_buildAccountURL(t *testing.T) {
 
 // TestBalancesEntity_buildAccountAliasURL tests the account alias URL builder
 func TestBalancesEntity_buildAccountAliasURL(t *testing.T) {
-	entity := &balancesEntity{
-		baseURLs: map[string]string{"transaction": "https://api.example.com/v1"},
-	}
+	entity := &balancesEntity{serviceEntity: serviceEntity{baseURLs: map[string]string{"transaction": "https://api.example.com/v1"}}}
 
 	tests := []struct {
 		name     string
@@ -189,9 +183,7 @@ func TestBalancesEntity_buildAccountAliasURL(t *testing.T) {
 
 // TestBalancesEntity_buildExternalCodeURL tests the external code URL builder
 func TestBalancesEntity_buildExternalCodeURL(t *testing.T) {
-	entity := &balancesEntity{
-		baseURLs: map[string]string{"transaction": "https://api.example.com/v1"},
-	}
+	entity := &balancesEntity{serviceEntity: serviceEntity{baseURLs: map[string]string{"transaction": "https://api.example.com/v1"}}}
 
 	tests := []struct {
 		name     string
@@ -408,10 +400,7 @@ func TestBalancesEntity_ListBalances(t *testing.T) {
 				},
 			}
 
-			entity := &balancesEntity{
-				httpClient: newBalancesHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"transaction": "https://api.example.com/v1"},
-			}
+			entity := &balancesEntity{serviceEntity: serviceEntity{httpClient: newBalancesHTTPClientAdapter(mockClient), baseURLs: map[string]string{"transaction": "https://api.example.com/v1"}}}
 
 			result, err := entity.ListBalances(context.Background(), tt.orgID, tt.ledgerID, tt.opts)
 
@@ -571,10 +560,7 @@ func TestBalancesEntity_ListAccountBalances(t *testing.T) {
 				},
 			}
 
-			entity := &balancesEntity{
-				httpClient: newBalancesHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"transaction": "https://api.example.com/v1"},
-			}
+			entity := &balancesEntity{serviceEntity: serviceEntity{httpClient: newBalancesHTTPClientAdapter(mockClient), baseURLs: map[string]string{"transaction": "https://api.example.com/v1"}}}
 
 			result, err := entity.ListAccountBalances(context.Background(), tt.orgID, tt.ledgerID, tt.accountID, tt.opts)
 
@@ -696,10 +682,7 @@ func TestBalancesEntity_GetBalance(t *testing.T) {
 				},
 			}
 
-			entity := &balancesEntity{
-				httpClient: newBalancesHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"transaction": "https://api.example.com/v1"},
-			}
+			entity := &balancesEntity{serviceEntity: serviceEntity{httpClient: newBalancesHTTPClientAdapter(mockClient), baseURLs: map[string]string{"transaction": "https://api.example.com/v1"}}}
 
 			result, err := entity.GetBalance(context.Background(), tt.orgID, tt.ledgerID, tt.balanceID)
 
@@ -868,10 +851,7 @@ func TestBalancesEntity_CreateBalance(t *testing.T) {
 				},
 			}
 
-			entity := &balancesEntity{
-				httpClient: newBalancesHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"transaction": "https://api.example.com/v1"},
-			}
+			entity := &balancesEntity{serviceEntity: serviceEntity{httpClient: newBalancesHTTPClientAdapter(mockClient), baseURLs: map[string]string{"transaction": "https://api.example.com/v1"}}}
 
 			result, err := entity.CreateBalance(context.Background(), tt.orgID, tt.ledgerID, tt.accountID, tt.input)
 
@@ -1020,10 +1000,7 @@ func TestBalancesEntity_UpdateBalance(t *testing.T) {
 				},
 			}
 
-			entity := &balancesEntity{
-				httpClient: newBalancesHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"transaction": "https://api.example.com/v1"},
-			}
+			entity := &balancesEntity{serviceEntity: serviceEntity{httpClient: newBalancesHTTPClientAdapter(mockClient), baseURLs: map[string]string{"transaction": "https://api.example.com/v1"}}}
 
 			result, err := entity.UpdateBalance(context.Background(), tt.orgID, tt.ledgerID, tt.balanceID, tt.input)
 
@@ -1182,10 +1159,7 @@ func TestBalancesEntity_DeleteBalance(t *testing.T) {
 				},
 			}
 
-			entity := &balancesEntity{
-				httpClient: newBalancesHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"transaction": "https://api.example.com/v1"},
-			}
+			entity := &balancesEntity{serviceEntity: serviceEntity{httpClient: newBalancesHTTPClientAdapter(mockClient), baseURLs: map[string]string{"transaction": "https://api.example.com/v1"}}}
 
 			err := entity.DeleteBalance(context.Background(), tt.orgID, tt.ledgerID, tt.balanceID)
 
@@ -1355,10 +1329,7 @@ func TestBalancesEntity_ListBalancesByAccountAlias(t *testing.T) {
 				},
 			}
 
-			entity := &balancesEntity{
-				httpClient: newBalancesHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"transaction": "https://api.example.com/v1"},
-			}
+			entity := &balancesEntity{serviceEntity: serviceEntity{httpClient: newBalancesHTTPClientAdapter(mockClient), baseURLs: map[string]string{"transaction": "https://api.example.com/v1"}}}
 
 			result, err := entity.ListBalancesByAccountAlias(context.Background(), tt.orgID, tt.ledgerID, tt.alias, tt.opts)
 
@@ -1537,10 +1508,7 @@ func TestBalancesEntity_ListBalancesByExternalCode(t *testing.T) {
 				},
 			}
 
-			entity := &balancesEntity{
-				httpClient: newBalancesHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"transaction": "https://api.example.com/v1"},
-			}
+			entity := &balancesEntity{serviceEntity: serviceEntity{httpClient: newBalancesHTTPClientAdapter(mockClient), baseURLs: map[string]string{"transaction": "https://api.example.com/v1"}}}
 
 			result, err := entity.ListBalancesByExternalCode(context.Background(), tt.orgID, tt.ledgerID, tt.code, tt.opts)
 

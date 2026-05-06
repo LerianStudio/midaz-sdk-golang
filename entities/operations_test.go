@@ -82,13 +82,10 @@ func createTestOperationsEntity(serverURL string) *operationsEntity {
 		jsonPool:     performance.NewJSONPool(),
 	}
 
-	return &operationsEntity{
-		httpClient: httpClient,
-		baseURLs: map[string]string{
-			"transaction": serverURL,
-			"onboarding":  serverURL,
-		},
-	}
+	return &operationsEntity{serviceEntity: serviceEntity{httpClient: httpClient, baseURLs: map[string]string{
+		"transaction": serverURL,
+		"onboarding":  serverURL,
+	}}}
 }
 
 // Test_newOperationsEntity tests the newOperationsEntity constructor
@@ -143,11 +140,9 @@ func Test_newOperationsEntity(t *testing.T) {
 
 // TestOperationsEntity_buildURL tests the buildURL helper function
 func TestOperationsEntity_buildURL(t *testing.T) {
-	entity := &operationsEntity{
-		baseURLs: map[string]string{
-			"transaction": "https://api.example.com",
-		},
-	}
+	entity := &operationsEntity{serviceEntity: serviceEntity{baseURLs: map[string]string{
+		"transaction": "https://api.example.com",
+	}}}
 
 	tests := []struct {
 		name        string
@@ -1331,10 +1326,7 @@ func TestMockHTTPClientForOperations(t *testing.T) {
 		jsonPool:     performance.NewJSONPool(),
 	}
 
-	entity := &operationsEntity{
-		httpClient: httpClient,
-		baseURLs:   map[string]string{"transaction": "http://localhost:8080"},
-	}
+	entity := &operationsEntity{serviceEntity: serviceEntity{httpClient: httpClient, baseURLs: map[string]string{"transaction": "http://localhost:8080"}}}
 
 	result, err := entity.GetOperation(context.Background(), opTestOrgID, opTestLedgerID, opTestAccountID, opTestOperationID)
 	require.NoError(t, err)

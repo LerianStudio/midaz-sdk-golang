@@ -22,7 +22,7 @@ func NewOperationRouteGenerator(e *entities.Entity, obs observability.Provider) 
 }
 
 // Generate creates a single operation route from the provided input.
-func (g *operationRouteGenerator) Generate(ctx context.Context, orgID, ledgerID string, input *models.CreateOperationRouteInput) (*models.OperationRoute, error) {
+func (g *operationRouteGenerator) Generate(ctx context.Context, organizationID, ledgerID string, input *models.CreateOperationRouteInput) (*models.OperationRoute, error) {
 	ctx = normalizeContext(ctx)
 
 	if g.e == nil || g.e.OperationRoutes == nil {
@@ -43,7 +43,7 @@ func (g *operationRouteGenerator) Generate(ctx context.Context, orgID, ledgerID 
 	err := observability.WithSpan(ctx, g.obs, "GenerateOperationRoute", func(ctx context.Context) error {
 		return executeWithCircuitBreaker(ctx, func() error {
 			return retry.DoWithContext(ctx, func() error {
-				or, err := g.e.OperationRoutes.CreateOperationRoute(ctx, orgID, ledgerID, input)
+				or, err := g.e.OperationRoutes.CreateOperationRoute(ctx, organizationID, ledgerID, input)
 				if err != nil {
 					return err
 				}
@@ -66,7 +66,7 @@ func (g *operationRouteGenerator) Generate(ctx context.Context, orgID, ledgerID 
 }
 
 // GenerateDefaults creates a minimal set of operation routes for common flows.
-func (g *operationRouteGenerator) GenerateDefaults(ctx context.Context, orgID, ledgerID string) ([]*models.OperationRoute, error) {
+func (g *operationRouteGenerator) GenerateDefaults(ctx context.Context, organizationID, ledgerID string) ([]*models.OperationRoute, error) {
 	out := make([]*models.OperationRoute, 0, 5)
 
 	// Source: Customer (CHECKING)
@@ -129,7 +129,7 @@ func (g *operationRouteGenerator) GenerateDefaults(ctx context.Context, orgID, l
 
 	templates := []*models.CreateOperationRouteInput{srcCustomer, srcExternal, srcMerchant, dstMerchant, dstPlatformFee, dstSettlement, dstCustomer}
 	for _, tpl := range templates {
-		or, err := g.Generate(ctx, orgID, ledgerID, tpl)
+		or, err := g.Generate(ctx, organizationID, ledgerID, tpl)
 		if err != nil {
 			return nil, err
 		}

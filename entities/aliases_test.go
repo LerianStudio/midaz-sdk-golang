@@ -86,7 +86,7 @@ func TestAliasesEntity_ValidationErrors(t *testing.T) {
 }
 
 func TestAliasesEntity_DeleteRelatedParty_EscapesAllIDs(t *testing.T) {
-	entity := &aliasesEntity{baseURLs: map[string]string{"crm": "https://crm.example.com/v1"}}
+	entity := &aliasesEntity{serviceEntity: serviceEntity{baseURLs: map[string]string{"crm": "https://crm.example.com/v1"}}}
 	endpoint := entity.aliasURL("holder/1", "alias/2")
 
 	assert.Equal(t, "https://crm.example.com/v1/holders/holder%2F1/aliases/alias%2F2", endpoint)

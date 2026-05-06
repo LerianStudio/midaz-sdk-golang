@@ -87,10 +87,10 @@ func UpdateOrganization(ctx context.Context, midazClient *client.Client, orgID s
 	updatedOrg, err := midazClient.Organizations.UpdateOrganization(ctx, orgID,
 		models.NewUpdateOrganizationInput().
 			WithLegalName(org.LegalName).
-			WithDoingBusinessAsUpdate(dbaValue).
-			WithAddressUpdate(org.Address).
-			WithStatusUpdate(org.Status).
-			WithUpdateMetadata(map[string]any{
+			WithDoingBusinessAs(dbaValue).
+			WithAddress(org.Address).
+			WithStatus(org.Status).
+			WithMetadata(map[string]any{
 				"industry":      "Technology",
 				"size":          "Medium", // Changed from "Small" to "Medium"
 				"lastUpdatedAt": time.Now().Format(time.RFC3339),

@@ -20,22 +20,12 @@ type MetadataIndexesService interface {
 }
 
 type metadataIndexesEntity struct {
-	httpClient *HTTPClient
-	baseURLs   map[string]string
-}
-
-func (e *metadataIndexesEntity) setDefaultTenantID(tenantID string) {
-	e.httpClient.setTenantIDLocked(tenantID)
+	serviceEntity
 }
 
 // newMetadataIndexesEntity creates a new MetadataIndexesService instance.
 func newMetadataIndexesEntity(client *http.Client, authToken string, baseURLs map[string]string) MetadataIndexesService {
-	httpClient := NewHTTPClient(client, authToken, nil)
-
-	return &metadataIndexesEntity{
-		httpClient: httpClient,
-		baseURLs:   baseURLs,
-	}
+	return &metadataIndexesEntity{serviceEntity: newServiceEntity(client, authToken, baseURLs)}
 }
 
 func (e *metadataIndexesEntity) buildBaseURL() string {

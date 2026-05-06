@@ -90,7 +90,7 @@ func TestHoldersEntity_ValidationErrors(t *testing.T) {
 }
 
 func TestHoldersEntity_URLFlagsAndEscaping(t *testing.T) {
-	entity := &holdersEntity{baseURLs: map[string]string{"crm": "https://crm.example.com/v1"}}
+	entity := &holdersEntity{serviceEntity: serviceEntity{baseURLs: map[string]string{"crm": "https://crm.example.com/v1"}}}
 
 	assert.Equal(t, "https://crm.example.com/v1/holders/a%2Fb", entity.buildURL("a/b"))
 }

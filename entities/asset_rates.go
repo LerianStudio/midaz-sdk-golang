@@ -13,12 +13,19 @@ import (
 )
 
 // AssetRatesService defines the interface for asset rate operations.
-// It provides methods to create, update, and retrieve asset conversion rates.
+//
+// AssetRates intentionally has no separate CreateAssetRate / UpdateAssetRate
+// pair (audit 7.17 — Track 7F). The Midaz server endpoint is upsert-style
+// (PUT-semantics keyed on the from/to asset code tuple), so the SDK
+// surfaces a single CreateOrUpdateAssetRate method that mirrors the wire
+// contract truthfully. Splitting it into a fictitious Create + Update
+// pair would be DX theater that diverges from server reality.
 type AssetRatesService interface {
 	// CreateOrUpdateAssetRate creates a new asset rate or updates an existing one.
 	//
-	// This method uses PUT semantics - if an asset rate with the same from/to asset
+	// This method uses PUT semantics — if an asset rate with the same from/to asset
 	// codes exists, it will be updated; otherwise, a new one will be created.
+	// There is no separate Update endpoint; this method is the canonical mutation path.
 	//
 	// Parameters:
 	//   - ctx: Context for the request, which can be used for cancellation and timeout.
@@ -131,12 +138,7 @@ type AssetRatesService interface {
 
 // assetRatesEntity implements the AssetRatesService interface.
 type assetRatesEntity struct {
-	httpClient *HTTPClient
-	baseURLs   map[string]string
-}
-
-func (e *assetRatesEntity) setDefaultTenantID(tenantID string) {
-	e.httpClient.setTenantIDLocked(tenantID)
+	serviceEntity
 }
 
 // newAssetRatesEntity creates a new asset rates entity.
@@ -149,12 +151,7 @@ func (e *assetRatesEntity) setDefaultTenantID(tenantID string) {
 // Returns:
 //   - AssetRatesService: An implementation of the AssetRatesService interface.
 func newAssetRatesEntity(client *http.Client, authToken string, baseURLs map[string]string) AssetRatesService {
-	httpClient := NewHTTPClient(client, authToken, nil)
-
-	return &assetRatesEntity{
-		httpClient: httpClient,
-		baseURLs:   prepareServiceBaseURLs(baseURLs),
-	}
+	return &assetRatesEntity{serviceEntity: newServiceEntity(client, authToken, baseURLs)}
 }
 
 // CreateOrUpdateAssetRate creates a new asset rate or updates an existing one.

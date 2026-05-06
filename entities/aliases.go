@@ -39,18 +39,12 @@ type AliasesService interface {
 }
 
 type aliasesEntity struct {
-	httpClient *HTTPClient
-	baseURLs   map[string]string
-}
-
-func (e *aliasesEntity) setDefaultTenantID(tenantID string) {
-	e.httpClient.setTenantIDLocked(tenantID)
+	serviceEntity
 }
 
 // newAliasesEntity creates a new AliasesService instance.
 func newAliasesEntity(client *http.Client, authToken string, baseURLs map[string]string) AliasesService {
-	httpClient := NewHTTPClient(client, authToken, nil)
-	return &aliasesEntity{httpClient: httpClient, baseURLs: prepareServiceBaseURLs(baseURLs)}
+	return &aliasesEntity{serviceEntity: newServiceEntity(client, authToken, baseURLs)}
 }
 
 // ListAliases retrieves aliases for an organization.

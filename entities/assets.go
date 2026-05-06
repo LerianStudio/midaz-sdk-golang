@@ -130,24 +130,13 @@ type AssetsService interface {
 // assetsEntity implements the AssetsService interface.
 // It handles the communication with the Midaz API for asset-related operations.
 type assetsEntity struct {
-	httpClient *HTTPClient
-	baseURLs   map[string]string
-}
-
-func (e *assetsEntity) setDefaultTenantID(tenantID string) {
-	e.httpClient.setTenantIDLocked(tenantID)
+	serviceEntity
 }
 
 // newAssetsEntity wires the AssetsService backed by the shared HTTP transport.
 // Internal: invoked by Entity.initServices; callers should reach the service via Client.Assets.
 func newAssetsEntity(client *http.Client, authToken string, baseURLs map[string]string) AssetsService {
-	// Create a new HTTP client with the shared implementation
-	httpClient := NewHTTPClient(client, authToken, nil)
-
-	return &assetsEntity{
-		httpClient: httpClient,
-		baseURLs:   prepareServiceBaseURLs(baseURLs),
-	}
+	return &assetsEntity{serviceEntity: newServiceEntity(client, authToken, baseURLs)}
 }
 
 // ListAssets lists assets for a ledger with optional filters.

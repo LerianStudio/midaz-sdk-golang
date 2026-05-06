@@ -12,7 +12,7 @@ import (
 
 // SegmentGenerator creates segments within a ledger.
 type SegmentGenerator interface {
-	Generate(ctx context.Context, orgID, ledgerID, name string, metadata map[string]any) (*models.Segment, error)
+	Generate(ctx context.Context, organizationID, ledgerID, name string, metadata map[string]any) (*models.Segment, error)
 }
 
 type segmentGenerator struct {
@@ -26,7 +26,7 @@ func NewSegmentGenerator(e *entities.Entity, obs observability.Provider) Segment
 }
 
 // Generate creates a single segment with the specified parameters.
-func (g *segmentGenerator) Generate(ctx context.Context, orgID, ledgerID, name string, metadata map[string]any) (*models.Segment, error) {
+func (g *segmentGenerator) Generate(ctx context.Context, organizationID, ledgerID, name string, metadata map[string]any) (*models.Segment, error) {
 	ctx = normalizeContext(ctx)
 
 	if g.e == nil || g.e.Segments == nil {
@@ -42,7 +42,7 @@ func (g *segmentGenerator) Generate(ctx context.Context, orgID, ledgerID, name s
 	err := observability.WithSpan(ctx, g.obs, "GenerateSegment", func(ctx context.Context) error {
 		return executeWithCircuitBreaker(ctx, func() error {
 			return retry.DoWithContext(ctx, func() error {
-				s, err := g.e.Segments.CreateSegment(ctx, orgID, ledgerID, input)
+				s, err := g.e.Segments.CreateSegment(ctx, organizationID, ledgerID, input)
 				if err != nil {
 					return err
 				}

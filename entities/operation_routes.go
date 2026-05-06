@@ -124,22 +124,12 @@ type OperationRoutesService interface {
 
 // operationRoutesEntity implements the OperationRoutesService interface
 type operationRoutesEntity struct {
-	httpClient *HTTPClient
-	baseURLs   map[string]string
-}
-
-func (e *operationRoutesEntity) setDefaultTenantID(tenantID string) {
-	e.httpClient.setTenantIDLocked(tenantID)
+	serviceEntity
 }
 
 // newOperationRoutesEntity creates a new OperationRoutesService instance
 func newOperationRoutesEntity(client *http.Client, authToken string, baseURLs map[string]string) OperationRoutesService {
-	httpClient := NewHTTPClient(client, authToken, nil)
-
-	return &operationRoutesEntity{
-		httpClient: httpClient,
-		baseURLs:   prepareServiceBaseURLs(baseURLs),
-	}
+	return &operationRoutesEntity{serviceEntity: newServiceEntity(client, authToken, baseURLs)}
 }
 
 // buildURL constructs the URL for operation route endpoints

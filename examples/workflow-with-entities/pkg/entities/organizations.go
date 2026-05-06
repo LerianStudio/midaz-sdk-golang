@@ -102,7 +102,7 @@ func UpdateOrganization(
 	// Create update input using builder pattern
 	input := models.NewUpdateOrganizationInput().
 		WithLegalName(newName).
-		WithUpdateMetadata(map[string]any{
+		WithMetadata(map[string]any{
 			"industry": "Finance",
 			"size":     "Medium",
 			"updated":  true,

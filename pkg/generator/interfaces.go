@@ -15,8 +15,8 @@ type OrganizationGenerator interface {
 
 // LedgerGenerator creates ledgers and supports pagination listing.
 type LedgerGenerator interface {
-	Generate(ctx context.Context, orgID string, template data.LedgerTemplate) (*models.Ledger, error)
-	GenerateForOrg(ctx context.Context, orgID string, count int) ([]*models.Ledger, error)
+	Generate(ctx context.Context, organizationID string, template data.LedgerTemplate) (*models.Ledger, error)
+	GenerateForOrg(ctx context.Context, organizationID string, count int) ([]*models.Ledger, error)
 	ListWithPagination(ctx context.Context, opts models.LedgersListOpts) (*models.ListResponse[models.Ledger], error)
 }
 
@@ -29,8 +29,8 @@ type AssetGenerator interface {
 
 // TransactionGenerator creates transactions based on DSL patterns.
 type TransactionGenerator interface {
-	GenerateWithDSL(ctx context.Context, orgID, ledgerID string, pattern data.TransactionPattern) (*models.Transaction, error)
-	GenerateBatch(ctx context.Context, orgID, ledgerID string, patterns []data.TransactionPattern, tps float64) ([]*models.Transaction, error)
+	GenerateWithDSL(ctx context.Context, organizationID, ledgerID string, pattern data.TransactionPattern) (*models.Transaction, error)
+	GenerateBatch(ctx context.Context, organizationID, ledgerID string, patterns []data.TransactionPattern, tps float64) ([]*models.Transaction, error)
 }
 
 // TransactionLifecycle manages transaction states (pending/commit/revert).
@@ -49,24 +49,24 @@ type Generator interface {
 
 // AccountTypeGenerator creates a set of account types for a ledger.
 type AccountTypeGenerator interface {
-	Generate(ctx context.Context, orgID, ledgerID string, name, key string, metadata map[string]any) (*models.AccountType, error)
-	GenerateDefaults(ctx context.Context, orgID, ledgerID string) ([]*models.AccountType, error)
+	Generate(ctx context.Context, organizationID, ledgerID string, name, key string, metadata map[string]any) (*models.AccountType, error)
+	GenerateDefaults(ctx context.Context, organizationID, ledgerID string) ([]*models.AccountType, error)
 }
 
 // AccountGenerator creates accounts with hierarchy and metadata applied.
 type AccountGenerator interface {
-	Generate(ctx context.Context, orgID, ledgerID, assetCode string, template data.AccountTemplate) (*models.Account, error)
-	GenerateBatch(ctx context.Context, orgID, ledgerID, assetCode string, templates []data.AccountTemplate) ([]*models.Account, error)
+	Generate(ctx context.Context, organizationID, ledgerID, assetCode string, template data.AccountTemplate) (*models.Account, error)
+	GenerateBatch(ctx context.Context, organizationID, ledgerID, assetCode string, templates []data.AccountTemplate) ([]*models.Account, error)
 }
 
 // OperationRouteGenerator creates operation routes (source/destination) for validation.
 type OperationRouteGenerator interface {
-	Generate(ctx context.Context, orgID, ledgerID string, input *models.CreateOperationRouteInput) (*models.OperationRoute, error)
-	GenerateDefaults(ctx context.Context, orgID, ledgerID string) ([]*models.OperationRoute, error)
+	Generate(ctx context.Context, organizationID, ledgerID string, input *models.CreateOperationRouteInput) (*models.OperationRoute, error)
+	GenerateDefaults(ctx context.Context, organizationID, ledgerID string) ([]*models.OperationRoute, error)
 }
 
 // TransactionRouteGenerator creates transaction routes that orchestrate operation routes.
 type TransactionRouteGenerator interface {
-	Generate(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionRouteInput) (*models.TransactionRoute, error)
-	GenerateDefaults(ctx context.Context, orgID, ledgerID string, opRoutes []*models.OperationRoute) ([]*models.TransactionRoute, error)
+	Generate(ctx context.Context, organizationID, ledgerID string, input *models.CreateTransactionRouteInput) (*models.TransactionRoute, error)
+	GenerateDefaults(ctx context.Context, organizationID, ledgerID string, opRoutes []*models.OperationRoute) ([]*models.TransactionRoute, error)
 }

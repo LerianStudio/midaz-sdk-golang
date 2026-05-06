@@ -128,24 +128,13 @@ type LedgersService interface {
 // ledgersEntity implements the LedgersService interface.
 // It handles the communication with the Midaz API for ledger-related operations.
 type ledgersEntity struct {
-	httpClient *HTTPClient
-	baseURLs   map[string]string
-}
-
-func (e *ledgersEntity) setDefaultTenantID(tenantID string) {
-	e.httpClient.setTenantIDLocked(tenantID)
+	serviceEntity
 }
 
 // newLedgersEntity wires the LedgersService backed by the shared HTTP transport.
 // Internal: invoked by Entity.initServices; callers should reach the service via Client.Ledgers.
 func newLedgersEntity(client *http.Client, authToken string, baseURLs map[string]string) LedgersService {
-	// Create a new HTTP client with the shared implementation
-	httpClient := NewHTTPClient(client, authToken, nil)
-
-	return &ledgersEntity{
-		httpClient: httpClient,
-		baseURLs:   prepareServiceBaseURLs(baseURLs),
-	}
+	return &ledgersEntity{serviceEntity: newServiceEntity(client, authToken, baseURLs)}
 }
 
 // ListLedgers lists all ledgers for an organization with optional filters.

@@ -37,18 +37,12 @@ type HoldersService interface {
 }
 
 type holdersEntity struct {
-	httpClient *HTTPClient
-	baseURLs   map[string]string
-}
-
-func (e *holdersEntity) setDefaultTenantID(tenantID string) {
-	e.httpClient.setTenantIDLocked(tenantID)
+	serviceEntity
 }
 
 // newHoldersEntity creates a new HoldersService instance.
 func newHoldersEntity(client *http.Client, authToken string, baseURLs map[string]string) HoldersService {
-	httpClient := NewHTTPClient(client, authToken, nil)
-	return &holdersEntity{httpClient: httpClient, baseURLs: prepareServiceBaseURLs(baseURLs)}
+	return &holdersEntity{serviceEntity: newServiceEntity(client, authToken, baseURLs)}
 }
 
 // ListHolders retrieves holders for an organization.
