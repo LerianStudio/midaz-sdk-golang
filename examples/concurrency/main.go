@@ -17,22 +17,21 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/examples/internal/quickstart"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/concurrent"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
 )
 
 func main() {
 	fmt.Println("Concurrency Helpers Examples")
 	fmt.Println("===========================")
 
-	// Create a client for use in examples
-	c, err := midaz.New(
-		midaz.WithEnvironment(config.EnvironmentLocal),
-	)
+	// Create a client for use in examples via the shared bootstrap helper.
+	c, err := quickstart.LocalClient()
 	if err != nil {
 		log.Fatalf("Failed to create client: %v", err)
 	}
+	defer quickstart.Shutdown(context.Background(), c)
 
 	// Example 1: Worker Pool for Parallel Processing
 	workerPoolExample(c)

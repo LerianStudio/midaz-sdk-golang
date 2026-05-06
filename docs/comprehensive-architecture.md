@@ -316,14 +316,16 @@ The tenant header is compatibility metadata. The reference Midaz path treats aut
 
 Access Manager support lives in `pkg/auth`.
 
-The SDK supports client-credentials token fetching through:
+The SDK supports client-credentials token fetching through `midaz.WithAccessManager`:
 
 ```go
-import auth "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/auth"
+import (
+    "github.com/LerianStudio/midaz-sdk-golang/v3"
+)
 
-cfg, err := config.NewConfig(
-    config.WithAccessManager(auth.AccessManager{
-        Enabled:      true,
+c, err := midaz.New(
+    midaz.WithEnvironment(midaz.EnvProduction),
+    midaz.WithAccessManager(midaz.AccessManager{
         Address:      "https://access-manager.example.com",
         ClientID:     "midaz-client",
         ClientSecret: "secret",
@@ -332,11 +334,9 @@ cfg, err := config.NewConfig(
 if err != nil {
     return err
 }
-
-c, err := midaz.New(
-    midaz.WithConfig(cfg),
-)
 ```
+
+`Enabled` is auto-set by `WithAccessManager`; calling the option is the opt-in. See [`docs/auth.md`](./auth.md) for the full auth surface, including environment-driven configuration via `config.FromEnvironment()`.
 
 When Access Manager is enabled, `entities.NewEntityWithConfig(...)` calls:
 

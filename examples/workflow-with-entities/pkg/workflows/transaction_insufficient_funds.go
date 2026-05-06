@@ -61,6 +61,14 @@ func ExecuteInsufficientFundsTransactions(ctx context.Context, midazClient *mida
 }
 
 func validateInsufficientFundsAccounts(ctx context.Context, customerAccount, merchantAccount *models.Account) bool {
+	if customerAccount == nil || merchantAccount == nil {
+		err := errors.New("customer and merchant accounts are required")
+		observability.RecordError(ctx, err, "missing_accounts")
+		fmt.Printf("❌ Error: %s\n", err.Error())
+
+		return false
+	}
+
 	if !validation.IsValidUUID(customerAccount.ID) || !validation.IsValidUUID(merchantAccount.ID) {
 		err := errors.New("invalid account IDs")
 		observability.RecordError(ctx, err, "invalid_account_ids")

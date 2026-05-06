@@ -40,4 +40,5 @@ require (
 	google.golang.org/protobuf v1.36.11 // indirect
 )
 
+// TODO: document why this version is excluded
 exclude go.opentelemetry.io/auto/sdk v1.1.0

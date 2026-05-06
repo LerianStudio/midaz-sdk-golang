@@ -85,10 +85,6 @@ import (
 func main() {
 	loadEnvFile()
 
-	if err := validateEnvironment(); err != nil {
-		log.Fatalf("Environment validation failed: %v", err)
-	}
-
 	shutdownObservability := setupObservability()
 	defer shutdownObservability()
 
@@ -227,11 +223,6 @@ func getEnvInt(envVar string, defaultValue int) (int, error) {
 	}
 
 	return intValue, nil
-}
-
-// validateEnvironment validates required environment variables
-func validateEnvironment() error {
-	return nil
 }
 
 // setupObservability initializes the observability module

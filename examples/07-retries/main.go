@@ -50,9 +50,11 @@ func defaultRetryExample() error {
 	fmt.Println("\nExample 1: Using default retry settings")
 	fmt.Println("-------------------------------------")
 
-	// Create a client with default retry settings
+	// Create a client with default retry settings.
+	// WithAnonymous satisfies v3's "exactly one auth source" invariant for local stacks.
 	c, err := midaz.New(
 		midaz.WithEnvironment(config.EnvironmentLocal),
+		midaz.WithAnonymous(),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create client: %w", err)
@@ -91,6 +93,7 @@ func customRetryConfigExample() error {
 	// Create a client with custom retry settings
 	c, err := midaz.New(
 		midaz.WithEnvironment(config.EnvironmentLocal),
+		midaz.WithAnonymous(),
 		// Configure a more aggressive retry strategy via the v3 surface.
 		// WithRetryOptions threads pkg/retry knobs onto the entity HTTPClient;
 		// the override-on-conflict semantic means anything passed here wins
@@ -150,6 +153,7 @@ func customRetryPolicyExample() error {
 	// Create a client with the custom retry policy
 	c, err := midaz.New(
 		midaz.WithEnvironment(config.EnvironmentLocal),
+		midaz.WithAnonymous(),
 		midaz.WithRetryOptions(
 			retry.WithMaxRetries(3),
 			retry.WithInitialDelay(100*time.Millisecond),
@@ -183,6 +187,7 @@ func disableRetriesExample() error {
 	// Create a client with retries disabled
 	c, err := midaz.New(
 		midaz.WithEnvironment(config.EnvironmentLocal),
+		midaz.WithAnonymous(),
 		midaz.WithoutRetries(),
 	)
 	if err != nil {

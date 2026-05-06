@@ -28,9 +28,12 @@ func main() {
 		log.Fatalf("Failed to create observability provider: %v", err)
 	}
 
-	// Setup SDK client with the observability provider using the standardized options pattern
+	// Setup SDK client with the observability provider using the standardized options pattern.
+	// WithAnonymous opts out of auth — required for v3's "exactly one auth source" invariant
+	// when running against a local stack with auth disabled.
 	c, err := midaz.New(
 		midaz.WithEnvironment(config.EnvironmentLocal),
+		midaz.WithAnonymous(),
 		midaz.WithObservabilityProvider(observabilityProvider),
 	)
 	if err != nil {

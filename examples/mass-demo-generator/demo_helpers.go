@@ -386,11 +386,20 @@ func setupSDKAndContext(userConfig demoConfig, obsProvider observability.Provide
 }
 
 func createSDKConfig() (*config.Config, error) {
-	cfg, err := config.NewConfig(
+	opts := []config.Option{
 		config.FromEnvironment(),
 		config.WithEnvironment(config.EnvironmentLocal),
 		config.WithIdempotency(true),
-	)
+	}
+
+	// v3 requires exactly one auth source. When PLUGIN_AUTH_ENABLED is unset,
+	// FromEnvironment doesn't install one — add an explicit Anonymous opt-out
+	// so the demo runs against a local stack with auth disabled.
+	if os.Getenv("PLUGIN_AUTH_ENABLED") != "true" {
+		opts = append(opts, config.WithAnonymous())
+	}
+
+	cfg, err := config.NewConfig(opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create SDK config: %w", err)
 	}
@@ -486,10 +495,6 @@ func printBootstrapInfo(cfg *config.Config, gcfg gen.GeneratorConfig) {
 		gcfg.ConcurrencyLevel,
 		gcfg.BatchSize,
 	)
-
-	if os.Getenv("MIDAZ_AUTH_TOKEN") == "" {
-		fmt.Println("Warning: MIDAZ_AUTH_TOKEN is not set. Local dev server allows any token.")
-	}
 }
 
 func shutdownClient(c *midaz.Client) {

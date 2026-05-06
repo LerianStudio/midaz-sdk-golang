@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/examples/internal/quickstart"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/concurrent"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
 	"github.com/shopspring/decimal"
 )
 
@@ -42,9 +42,7 @@ func main() {
 }
 
 func setupAndFetchAccounts() (*midaz.Client, []string, context.Context, context.CancelFunc, error) {
-	c, err := midaz.New(
-		midaz.WithEnvironment(config.EnvironmentLocal),
-	)
+	c, err := quickstart.LocalClient()
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("failed to create client: %w", err)
 	}

@@ -1,9 +1,15 @@
 # Midaz Go SDK v3 — DX Plan
 
-> **Status:** IN PROGRESS — **Phase A COMPLETE** (4/4 tracks). **Phase B in progress: Track 6 fully closed (2026-05-06)**, all 6 batches shipped (6A–6F).
-
-> **Last updated:** 2026-05-06 (post-session 6, Track 6 fully closed including 6E)
-> **Scope:** Greenfield v3 — clean-cut major version. **No transitional v2.99 shim release; no deprecated-symbol window.** Customers swap their import from `/v2` to `/v3` and migrate at the same moment. The `Migration Story` section below has been revised to reflect this stance (the original 2-step v2.99 → v3.0 plan is preserved as historical context).
+> **Internal/historical planning document.**
+> This file captures the v3 redesign rationale, batch-level work plan, and
+> decision log accumulated during the v3 rewrite. File:line references reflect
+> code state at the time each section was written; many refer to files that
+> have since been renamed or deleted (e.g., `client.go` → `midaz.go`,
+> `pkg/access-manager/` → `pkg/auth/`, `pkg/pagination/` deleted).
+>
+> For current API documentation, see [README.md](../README.md) and [docs/](./).
+> This file is kept in-tree as a historical artifact and does not document
+> current behavior.
 
 ---
 

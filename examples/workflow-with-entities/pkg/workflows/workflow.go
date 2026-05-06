@@ -21,17 +21,19 @@ import (
 //   - ctx: The context for the operation, which can be used for cancellation
 //   - entity: The initialized Midaz SDK entity client
 //   - customerToMerchantTxs: Number of customer to merchant transactions to execute
+//     when ExecuteConcurrentTransactions is wired into the flow.
 //   - merchantToCustomerTxs: Number of merchant to customer transactions to execute
+//     when ExecuteConcurrentTransactions is wired into the flow.
+//
+// The two transaction-count parameters are passed through to the per-call sites
+// (e.g. ExecuteConcurrentTransactions) rather than stored in package-level state,
+// so the workflow stays free of cross-call mutation.
 //
 // Returns:
 //   - error: Any error encountered during the operation
-func RunCompleteWorkflow(ctx context.Context, _ *sdkentities.Entity, customerToMerchantTxs, merchantToCustomerTxs int) error {
+func RunCompleteWorkflow(ctx context.Context, _ *sdkentities.Entity, _ /* customerToMerchantTxs */, _ /* merchantToCustomerTxs */ int) error {
 	fmt.Println("\n🚀 STARTING COMPLETE WORKFLOW")
 	fmt.Println(strings.Repeat("=", 50))
-
-	// Set the global variables for concurrent transactions
-	concurrentCustomerToMerchantTxs = customerToMerchantTxs
-	concurrentMerchantToCustomerTxs = merchantToCustomerTxs
 
 	// Initialize the Midaz client
 	midazClient, err := initializeMidazClient()

@@ -12,7 +12,6 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/format"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/performance"
-	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 )
 
@@ -51,7 +50,7 @@ func ExecuteTransactions(ctx context.Context, midazClient *midaz.Client, orgID, 
 
 func formatTransactionAmount(tx *models.Transaction) string {
 	if tx == nil {
-		return format.FormatCurrency(0, 2, "")
+		return format.Currency(0, 2, "")
 	}
 
 	amount, err := decimal.NewFromString(tx.Amount)
@@ -59,7 +58,7 @@ func formatTransactionAmount(tx *models.Transaction) string {
 		return tx.Amount + " " + tx.AssetCode
 	}
 
-	return format.FormatCurrency(amount.Mul(decimal.NewFromInt(100)).IntPart(), 2, tx.AssetCode)
+	return format.Currency(amount.Mul(decimal.NewFromInt(100)).IntPart(), 2, tx.AssetCode)
 }
 
 func accountIdentifier(account *models.Account) (string, error) {
@@ -159,7 +158,6 @@ func executeInitialDeposit(ctx context.Context, midazClient *midaz.Client, orgID
 				},
 			},
 		},
-		IdempotencyKey: uuid.New().String(),
 	}
 
 	tx, err := midazClient.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
@@ -221,7 +219,6 @@ func executeTransfer(ctx context.Context, midazClient *midaz.Client, orgID, ledg
 				},
 			},
 		},
-		IdempotencyKey: uuid.New().String(),
 	}
 
 	tx, err := midazClient.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
@@ -353,7 +350,6 @@ func executeInitialDepositWithRoutes(ctx context.Context, midazClient *midaz.Cli
 				},
 			},
 		},
-		IdempotencyKey: uuid.New().String(),
 	}
 
 	// Add transaction route if available
@@ -434,7 +430,6 @@ func executeTransferWithRoutes(ctx context.Context, midazClient *midaz.Client, o
 				},
 			},
 		},
-		IdempotencyKey: uuid.New().String(),
 	}
 
 	// Add transaction route if available
@@ -502,7 +497,6 @@ func CreateTransferInput(description string, amount float64, fromAccountID, toAc
 				},
 			},
 		},
-		IdempotencyKey: uuid.New().String(),
 	}
 }
 
@@ -620,7 +614,6 @@ func buildParallelTransactionInput(index int, amount float64, customerAccountID,
 				},
 			},
 		},
-		IdempotencyKey: uuid.New().String(),
 	}
 }
 
@@ -646,7 +639,6 @@ func buildOptimizedTransferInput(chartGroup, description, routeID, customerAccou
 				}},
 			},
 		},
-		IdempotencyKey: uuid.New().String(),
 	}
 }
 
@@ -670,6 +662,10 @@ func processTransactionResults(results []concurrent.Result[int, *models.Transact
 }
 
 func printTransactionResult(index int, tx *models.Transaction) {
+	if tx == nil {
+		return
+	}
+
 	formattedAmount := formatTransactionAmount(tx)
 	fmt.Printf("   Transaction #%d completed: %s (ID: %s)\n", index, formattedAmount, tx.ID)
 }
@@ -772,7 +768,6 @@ func demonstrateHighWorkerCount(ctx context.Context, midazClient *midaz.Client, 
 					}},
 				},
 			},
-			IdempotencyKey: uuid.New().String(),
 		}
 
 		return midazClient.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
@@ -854,7 +849,6 @@ func demonstrateConnectionPooling(ctx context.Context, midazClient *midaz.Client
 					}},
 				},
 			},
-			IdempotencyKey: uuid.New().String(),
 		}
 
 		return midazClient.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
@@ -1015,7 +1009,6 @@ func demonstrateCombinedOptimizations(ctx context.Context, midazClient *midaz.Cl
 					}},
 				},
 			},
-			IdempotencyKey: uuid.New().String(),
 		}
 
 		return midazClient.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)

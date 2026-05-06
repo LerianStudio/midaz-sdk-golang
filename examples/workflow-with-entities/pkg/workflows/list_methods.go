@@ -61,7 +61,6 @@ func testListOrganizations(ctx context.Context, midazClient *midaz.Client) error
 	orgOptions := models.OrganizationsListOpts{
 		PageListOpts: models.PageListOpts{
 			Limit:         5,
-			OrderBy:       "legalName",
 			SortDirection: models.SortAscending,
 		},
 	}
@@ -163,7 +162,6 @@ func testListAccountsWithPagination(ctx context.Context, midazClient *midaz.Clie
 	accountOptions := models.AccountsListOpts{
 		PageListOpts: models.PageListOpts{
 			Limit:         3,
-			OrderBy:       "createdAt",
 			SortDirection: models.SortDescending,
 		},
 		Filters: models.AccountsFilters{Type: "CUSTOMER"},

@@ -25,9 +25,12 @@ func main() {
 	fmt.Println("Context Propagation Examples")
 	fmt.Println("===========================")
 
-	// Create a client with a default auth token for examples
+	// Create a client for the examples. WithAnonymous opts out of auth so
+	// the example builds without credentials; v3 requires exactly one auth
+	// source (Anonymous or AccessManager) at construction.
 	c, err := midaz.New(
 		midaz.WithEnvironment(config.EnvironmentLocal),
+		midaz.WithAnonymous(),
 	)
 	if err != nil {
 		log.Fatalf("Failed to create client: %v", err)
@@ -113,6 +116,7 @@ func operationGroupExample(c *midaz.Client) {
 	// Create a new client with the timeout context
 	timeoutClient, err := midaz.New(
 		midaz.WithEnvironment(config.EnvironmentLocal),
+		midaz.WithAnonymous(),
 		midaz.WithContext(ctx), // Set the context on the client
 	)
 	if err != nil {

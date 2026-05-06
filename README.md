@@ -43,7 +43,7 @@ v3 is the result of a 9-track DX overhaul. Highlights:
 - **Mocks via `go.uber.org/mock`**: pre-generated mocks for every service
   ship under `entities/mocks/`. Regenerate with `go generate ./entities/...`.
 
-For the full v3 design rationale see [`docs/v3-dx-plan.md`](docs/v3-dx-plan.md).
+Historical planning artifact — see [`docs/v3-dx-plan.md`](docs/v3-dx-plan.md) for the original design rationale (note: file:line refs may be stale).
 
 ## Installation
 
@@ -325,7 +325,7 @@ See [`docs/configuration.md`](docs/configuration.md) for the full matrix.
 - [`docs/pagination.md`](docs/pagination.md) — pagination contract
 - [`docs/errors.md`](docs/errors.md) — error categories, codes, retry boundaries
 - [`docs/examples.md`](docs/examples.md) — runnable example index
-- [`docs/v3-dx-plan.md`](docs/v3-dx-plan.md) — v3 design rationale (the master plan)
+- [`docs/v3-dx-plan.md`](docs/v3-dx-plan.md) — historical v3 planning artifact (file:line refs may be stale)
 - [`pkg.go.dev/github.com/LerianStudio/midaz-sdk-golang/v3`](https://pkg.go.dev/github.com/LerianStudio/midaz-sdk-golang/v3) — generated API reference
 
 Generate docs locally:

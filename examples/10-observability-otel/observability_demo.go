@@ -164,8 +164,6 @@ func demonstrateHTTPMiddleware(provider observability.Provider, logger observabi
 	)(http.DefaultTransport)
 
 	client := &http.Client{Transport: transport}
-	_ = client.Transport
-	_ = client
 
-	logger.Info("Created HTTP client with middleware (transport wrapped with tracing)")
+	logger.Infof("Created HTTP client with middleware (transport wrapped with tracing): %T", client.Transport)
 }

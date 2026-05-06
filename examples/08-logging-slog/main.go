@@ -43,9 +43,11 @@ func main() {
 	//   - WARN lines for any successful call slower than 1s
 	c, err := midaz.New(
 		midaz.WithLogger(logger),
-		// Note: no auth options here so you can run the example
-		// without credentials. New() succeeds with a discard
-		// auth path; the first API call will fail with 401.
+		// WithAnonymous opts out of auth so the example runs without
+		// credentials against a local stack. v3 requires exactly one auth
+		// source at construction; the first API call will still fail with
+		// 401 if the server enforces auth.
+		midaz.WithAnonymous(),
 		midaz.WithSlowCallThreshold(1*time.Second),
 		midaz.WithEnvironment("local"),
 	)

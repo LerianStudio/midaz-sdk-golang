@@ -6,7 +6,7 @@ This directory contains hand-written guides and generated package documentation 
 
 - [Environment variables](./environment.md) - Runtime configuration and `.env` usage.
 - [Error handling](./errors.md) - SDK error categories, helpers, and retry boundaries.
-- [Architecture](./architecture.md) - SDK structure and implementation overview.
+- [Architecture](./comprehensive-architecture.md) - SDK structure and implementation overview. (Older [architecture.md](./architecture.md) is retained as historical context only.)
 - [Examples](./examples.md) - Runnable examples and common workflows.
 - [Pagination](./pagination.md) - List options, page metadata, and cursor behavior.
 - [Tracing](./tracing.md) - OpenTelemetry setup and trace propagation.
@@ -37,9 +37,11 @@ Generated docs currently include:
 - [Root package](./godoc/index.txt)
 - [Entities package](./godoc/entities/index.txt)
 - [Models package](./godoc/models/index.txt)
+- [Auth package](./godoc/pkg/auth/index.txt)
 - [Config package](./godoc/pkg/config/index.txt)
 - [Errors package](./godoc/pkg/errors/index.txt)
 - [Observability package](./godoc/pkg/observability/index.txt)
+- [SDK context package](./godoc/pkg/sdkctx/index.txt)
 - [Validation package](./godoc/pkg/validation/index.txt)
 - [Concurrent package](./godoc/pkg/concurrent/index.txt)
 - [Retry package](./godoc/pkg/retry/index.txt)

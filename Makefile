@@ -300,9 +300,11 @@ PACKAGES := \
 	$(MODULE) \
 	$(MODULE)/entities \
 	$(MODULE)/models \
+	$(MODULE)/pkg/auth \
 	$(MODULE)/pkg/config \
 	$(MODULE)/pkg/concurrent \
 	$(MODULE)/pkg/observability \
+	$(MODULE)/pkg/sdkctx \
 	$(MODULE)/pkg/validation \
 	$(MODULE)/pkg/validation/core \
 	$(MODULE)/pkg/errors \

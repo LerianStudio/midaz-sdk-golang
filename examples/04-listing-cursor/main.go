@@ -40,7 +40,15 @@ func main() {
 	ledgerID := getEnv("MIDAZ_LEDGER_ID", "ledger-456")
 	accountID := getEnv("MIDAZ_ACCOUNT_ID", "account-789")
 
-	cfg, err := config.NewConfig(config.FromEnvironment())
+	// v3 requires exactly one auth source. When PLUGIN_AUTH_ENABLED is unset
+	// (typical for local dev), FromEnvironment doesn't install one — add the
+	// explicit Anonymous opt-out at the config layer so NewConfig validates.
+	cfgOpts := []config.Option{config.FromEnvironment()}
+	if os.Getenv("PLUGIN_AUTH_ENABLED") != "true" {
+		cfgOpts = append(cfgOpts, config.WithAnonymous())
+	}
+
+	cfg, err := config.NewConfig(cfgOpts...)
 	if err != nil {
 		log.Fatalf("config: %v", err)
 	}

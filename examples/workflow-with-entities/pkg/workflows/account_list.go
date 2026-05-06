@@ -47,7 +47,6 @@ func demonstrateBasicListing(ctx context.Context, midazClient *midaz.Client, org
 	opts := models.AccountsListOpts{
 		PageListOpts: models.PageListOpts{
 			Limit:         5,
-			OrderBy:       "name",
 			SortDirection: models.SortAscending,
 		},
 		Filters: models.AccountsFilters{Status: models.StatusActive},

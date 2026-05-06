@@ -59,8 +59,10 @@ func basicConfiguration() error {
 	fmt.Println("Example 1: Basic Configuration")
 	fmt.Println("-----------------------------")
 
-	// Create a client with minimal configuration
-	c, err := midaz.New()
+	// Create a client with minimal configuration. WithAnonymous opts out of
+	// auth so the example builds without credentials; v3 requires exactly
+	// one auth source (Anonymous or AccessManager) at construction.
+	c, err := midaz.New(midaz.WithAnonymous())
 	if err != nil {
 		return fmt.Errorf("failed to create client: %w", err)
 	}
@@ -87,9 +89,12 @@ func environmentBasedConfiguration() error {
 	fmt.Println("Example 2: Environment-Based Configuration")
 	fmt.Println("----------------------------------------")
 
-	// Local development environment
+	// Local development environment. WithAnonymous keeps the example
+	// constructible without credentials; in real staging/production code
+	// you would replace it with WithAccessManager(...).
 	localClient, err := midaz.New(
 		midaz.WithEnvironment(config.EnvironmentLocal),
+		midaz.WithAnonymous(),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create local client: %w", err)
@@ -98,6 +103,7 @@ func environmentBasedConfiguration() error {
 	// Staging/Development environment
 	stagingClient, err := midaz.New(
 		midaz.WithEnvironment(config.EnvironmentDevelopment),
+		midaz.WithAnonymous(),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create staging client: %w", err)
@@ -106,6 +112,7 @@ func environmentBasedConfiguration() error {
 	// Production environment
 	productionClient, err := midaz.New(
 		midaz.WithEnvironment(config.EnvironmentProduction),
+		midaz.WithAnonymous(),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create production client: %w", err)
@@ -128,29 +135,55 @@ func environmentBasedConfiguration() error {
 	return nil
 }
 
+// setupConfigurationEnv installs the env vars used by configurationFromEnvironment.
+// PLUGIN_AUTH_ENABLED + PLUGIN_AUTH_ADDRESS install the Access Manager auth source,
+// satisfying v3's "exactly one auth source" invariant.
+func setupConfigurationEnv() {
+	envs := map[string]string{
+		"PLUGIN_AUTH_ENABLED": "true",
+		"PLUGIN_AUTH_ADDRESS": "http://localhost:4000",
+		"MIDAZ_CLIENT_ID":     "1234567890",
+		"MIDAZ_CLIENT_SECRET": "1234567890",
+		"MIDAZ_ENVIRONMENT":   "development",
+		"MIDAZ_DEBUG":         "true",
+	}
+
+	for k, v := range envs {
+		if err := os.Setenv(k, v); err != nil {
+			fmt.Printf("Error setting %s: %v\n", k, err)
+		}
+	}
+}
+
+// cleanupConfigurationEnv removes the env vars installed by setupConfigurationEnv.
+// Errors from Unsetenv are logged for visibility but don't stop the demo.
+func cleanupConfigurationEnv() {
+	keys := []string{
+		"PLUGIN_AUTH_ENABLED",
+		"PLUGIN_AUTH_ADDRESS",
+		"MIDAZ_CLIENT_ID",
+		"MIDAZ_CLIENT_SECRET",
+		"MIDAZ_ENVIRONMENT",
+		"MIDAZ_DEBUG",
+	}
+
+	for _, k := range keys {
+		if err := os.Unsetenv(k); err != nil {
+			fmt.Printf("Warning: failed to unset %s: %v\n", k, err)
+		}
+	}
+}
+
 // configurationFromEnvironment demonstrates how to load configuration
 // from environment variables.
 func configurationFromEnvironment() error {
 	fmt.Println("Example 3: Configuration from Environment Variables")
 	fmt.Println("------------------------------------------------")
 
-	// Set environment variables for demonstration
-	// In a real application, these would be set externally
-	if err := os.Setenv("MIDAZ_CLIENT_ID", "1234567890"); err != nil {
-		fmt.Printf("Error setting environment variable: %v\n", err)
-	}
-
-	if err := os.Setenv("MIDAZ_CLIENT_SECRET", "1234567890"); err != nil {
-		fmt.Printf("Error setting environment variable: %v\n", err)
-	}
-
-	if err := os.Setenv("MIDAZ_ENVIRONMENT", "development"); err != nil {
-		fmt.Printf("Error setting environment variable: %v\n", err)
-	}
-
-	if err := os.Setenv("MIDAZ_DEBUG", "true"); err != nil {
-		fmt.Printf("Error setting environment variable: %v\n", err)
-	}
+	// Set environment variables for demonstration.
+	// In a real application, these would be set externally.
+	setupConfigurationEnv()
+	defer cleanupConfigurationEnv()
 
 	// Create a config that explicitly loads configuration from environment variables.
 	cfg, err := config.NewConfig(config.FromEnvironment())
@@ -175,24 +208,6 @@ func configurationFromEnvironment() error {
 	fmt.Printf("Onboarding URL: %s\n", c.GetConfig().ServiceURLs[config.ServiceOnboarding])
 	fmt.Printf("Transaction URL: %s\n", c.GetConfig().ServiceURLs[config.ServiceTransaction])
 	fmt.Println()
-
-	// Clean up environment variables after demonstration
-	// Errors from Unsetenv are logged for visibility but don't stop the demo
-	if err := os.Unsetenv("MIDAZ_CLIENT_ID"); err != nil {
-		fmt.Printf("Warning: failed to unset MIDAZ_CLIENT_ID: %v\n", err)
-	}
-
-	if err := os.Unsetenv("MIDAZ_CLIENT_SECRET"); err != nil {
-		fmt.Printf("Warning: failed to unset MIDAZ_CLIENT_SECRET: %v\n", err)
-	}
-
-	if err := os.Unsetenv("MIDAZ_ENVIRONMENT"); err != nil {
-		fmt.Printf("Warning: failed to unset MIDAZ_ENVIRONMENT: %v\n", err)
-	}
-
-	if err := os.Unsetenv("MIDAZ_DEBUG"); err != nil {
-		fmt.Printf("Warning: failed to unset MIDAZ_DEBUG: %v\n", err)
-	}
 
 	return nil
 }
@@ -220,6 +235,7 @@ func advancedHTTPConfiguration() error {
 	// Create a client with the custom HTTP client
 	c, err := midaz.New(
 		midaz.WithHTTPClient(customClient),
+		midaz.WithAnonymous(),
 		midaz.WithTimeout(45*time.Second), // Can be redundant if set on HTTPClient
 	)
 	if err != nil {
@@ -266,9 +282,11 @@ func comprehensiveConfiguration() error {
 		return fmt.Errorf("failed to create config: %w", err)
 	}
 
-	// Use the config in the client
+	// Use the config in the client. WithAnonymous opts out of auth at the
+	// client layer; for production you would replace it with WithAccessManager.
 	c, err := midaz.New(
 		midaz.WithConfig(cfg),
+		midaz.WithAnonymous(),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create client: %w", err)
