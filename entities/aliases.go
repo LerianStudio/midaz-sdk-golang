@@ -19,8 +19,10 @@ type AliasesService interface {
 	// ListAliases retrieves aliases for an organization.
 	ListAliases(ctx context.Context, organizationID string, opts models.AliasesListOpts) (*models.ListResponse[models.Alias], error)
 
+	// ListAliasesAll yields every alias matching opts, transparently advancing pagination.
 	ListAliasesAll(ctx context.Context, organizationID string, opts models.AliasesListOpts) iter.Seq2[models.Alias, error]
 
+	// ListAliasesPages yields one full *ListResponse[Alias] per page.
 	ListAliasesPages(ctx context.Context, organizationID string, opts models.AliasesListOpts) iter.Seq2[*models.ListResponse[models.Alias], error]
 	// CreateAlias creates an alias for a holder.
 	CreateAlias(ctx context.Context, organizationID, holderID string, input *models.CreateAliasInput) (*models.Alias, error)
@@ -105,7 +107,7 @@ func (e *aliasesEntity) ListAliasesPages(ctx context.Context, organizationID str
 
 	return func(yield func(*models.ListResponse[models.Alias], error) bool) {
 		current := opts
-		if current.Page <= 0 {
+		if current.Page == 0 {
 			current.Page = 1
 		}
 

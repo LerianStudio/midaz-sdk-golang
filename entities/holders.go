@@ -96,7 +96,7 @@ func (e *holdersEntity) ListHoldersPages(ctx context.Context, organizationID str
 
 	return func(yield func(*models.ListResponse[models.Holder], error) bool) {
 		current := opts
-		if current.Page <= 0 {
+		if current.Page == 0 {
 			current.Page = 1
 		}
 

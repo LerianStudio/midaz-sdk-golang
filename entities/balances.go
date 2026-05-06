@@ -35,7 +35,7 @@ type BalancesService interface {
 	//   - organizationID: The organization ID.
 	//   - ledgerID: The ledger ID.
 	//   - opts: Typed page list options. Limit caps page size; Filters narrow results
-	//     (Alias, AssetCode, AccountID, IDs).
+	//     (AccountID, AssetCode, Status).
 	//
 	// Returns:
 	//   - *models.ListResponse[models.Balance]: One page of balances.
@@ -679,7 +679,7 @@ func (e *balancesEntity) ListBalancesPages(ctx context.Context, organizationID, 
 
 	return func(yield func(*models.ListResponse[models.Balance], error) bool) {
 		current := opts
-		if current.Page <= 0 {
+		if current.Page == 0 {
 			current.Page = 1
 		}
 
@@ -719,7 +719,7 @@ func (e *balancesEntity) ListAccountBalancesPages(ctx context.Context, organizat
 
 	return func(yield func(*models.ListResponse[models.Balance], error) bool) {
 		current := opts
-		if current.Page <= 0 {
+		if current.Page == 0 {
 			current.Page = 1
 		}
 
@@ -759,7 +759,7 @@ func (e *balancesEntity) ListBalancesByAccountAliasPages(ctx context.Context, or
 
 	return func(yield func(*models.ListResponse[models.Balance], error) bool) {
 		current := opts
-		if current.Page <= 0 {
+		if current.Page == 0 {
 			current.Page = 1
 		}
 
@@ -799,7 +799,7 @@ func (e *balancesEntity) ListBalancesByExternalCodePages(ctx context.Context, or
 
 	return func(yield func(*models.ListResponse[models.Balance], error) bool) {
 		current := opts
-		if current.Page <= 0 {
+		if current.Page == 0 {
 			current.Page = 1
 		}
 

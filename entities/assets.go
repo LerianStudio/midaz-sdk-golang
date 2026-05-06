@@ -196,7 +196,7 @@ func (e *assetsEntity) ListAssetsPages(ctx context.Context, organizationID, ledg
 
 	return func(yield func(*models.ListResponse[models.Asset], error) bool) {
 		current := opts
-		if current.Page <= 0 {
+		if current.Page == 0 {
 			current.Page = 1
 		}
 

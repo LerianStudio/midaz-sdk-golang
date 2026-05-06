@@ -249,7 +249,7 @@ func (e *accountsEntity) ListAccountsPages(ctx context.Context, organizationID, 
 
 	return func(yield func(*models.ListResponse[models.Account], error) bool) {
 		current := opts
-		if current.Page <= 0 {
+		if current.Page == 0 {
 			current.Page = 1
 		}
 
