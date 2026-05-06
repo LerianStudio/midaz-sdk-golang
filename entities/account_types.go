@@ -175,7 +175,7 @@ func (e *accountTypesEntity) ListAccountTypesPages(ctx context.Context, organiza
 
 	return func(yield func(*models.ListResponse[models.AccountType], error) bool) {
 		current := opts
-		if current.Page <= 0 {
+		if current.Page == 0 {
 			current.Page = 1
 		}
 

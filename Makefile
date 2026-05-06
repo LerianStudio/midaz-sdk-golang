@@ -138,15 +138,11 @@ check-references:
 	@! grep -r "lib-commons" --include="*.go" ./models ./entities | grep -v "//.*lib-commons" || (echo "$(RED)❌ Found lib-commons references in public API!$(NC)" && exit 1)
 	@echo "$(GREEN)✅ No lib-commons references found in public API$(NC)"
 
-# Track 7E: enforce no mmodel references in public API.
+# Track 7E: enforce no mmodel references in public API (root, models, entities, pkg/...).
 check-mmodel-references:
 	@echo "$(YELLOW)Checking for mmodel references in public API...$(NC)"
-	@bad=$$(grep -r "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/mmodel" --include="*.go" ./models ./entities | grep -v '^[[:space:]]*//' || true); \
-		if [ -n "$$bad" ]; then \
-			echo "$(RED)❌ Found unexpected mmodel references in public API:$(NC)"; \
-			echo "$$bad"; \
-			exit 1; \
-		fi
+	@bad=$$(grep -rl "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/mmodel" --include="*.go" --exclude="*_test.go" ./*.go ./models ./entities ./pkg 2>/dev/null | xargs -I{} grep -Hn "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/mmodel" {} | grep -v '^[^:]*:[[:space:]]*//' || true); \
+		if [ -n "$$bad" ]; then echo "$(RED)❌ Found unexpected mmodel references in public API:$(NC)"; echo "$$bad"; exit 1; fi
 	@echo "$(GREEN)✅ No unexpected mmodel references in public API$(NC)"
 
 # Verify that our refactoring doesn't break API compatibility

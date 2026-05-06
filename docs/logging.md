@@ -20,6 +20,7 @@ slow API calls, and internal warnings.
 
 ```go
 import (
+    "context"
     "log/slog"
     "os"
     "time"

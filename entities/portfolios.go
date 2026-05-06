@@ -201,7 +201,7 @@ func (e *portfoliosEntity) ListPortfoliosPages(ctx context.Context, organization
 
 	return func(yield func(*models.ListResponse[models.Portfolio], error) bool) {
 		current := opts
-		if current.Page <= 0 {
+		if current.Page == 0 {
 			current.Page = 1
 		}
 

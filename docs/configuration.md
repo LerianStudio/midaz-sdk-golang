@@ -444,7 +444,10 @@ for _, tenantID := range tenantIDs {
 ### 5.6 Custom logger
 
 ```go
-import "log/slog"
+import (
+    "log/slog"
+    "os"
+)
 
 logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
     Level: slog.LevelDebug,
