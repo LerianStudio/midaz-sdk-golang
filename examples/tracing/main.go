@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"os"
 	"strconv"
 	"time"
 
@@ -38,20 +37,9 @@ func main() {
 		}
 	}()
 
-	// Create Midaz client with observability
-	// Set auth token via environment variable or replace "your-api-token" with actual token
-	err = os.Setenv("MIDAZ_AUTH_TOKEN", "your-api-token")
-	if err != nil {
-		log.Fatalf("Failed to set MIDAZ_AUTH_TOKEN environment variable: %v", err)
-	}
-	defer func() {
-		if err := os.Unsetenv("MIDAZ_AUTH_TOKEN"); err != nil {
-			log.Printf("Warning: Failed to unset MIDAZ_AUTH_TOKEN: %q", err.Error())
-		}
-	}()
-
 	midazClient, err := midaz.New(
 		midaz.WithBaseURL("https://api.midaz.com"),
+		midaz.WithAnonymous(),
 		midaz.WithObservabilityProvider(provider),
 	)
 	if err != nil {

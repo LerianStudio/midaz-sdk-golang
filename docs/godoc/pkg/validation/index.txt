@@ -1,4 +1,4 @@
-package validation // import "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation"
+package validation // import "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation"
 
 where the final return value is intentionally discarded. The error is already
 added to the FieldErrors collection via Add(), and the chained methods modify
@@ -74,6 +74,11 @@ type FieldErrors struct{ ... }
     func EnhancedValidateTransactionDSL(input TransactionDSLValidator) *FieldErrors
     func EnhancedValidateTransactionInput(input map[string]any) *FieldErrors
     func NewFieldErrors() *FieldErrors
+type FieldOption func(*FieldError)
+    func Code(code string) FieldOption
+    func Constraint(constraint string) FieldOption
+    func Suggest(suggestions ...string) FieldOption
+    func Value(value any) FieldOption
 type SuggestionType string
     const Format SuggestionType = "format" ...
 type Summary struct{ ... }

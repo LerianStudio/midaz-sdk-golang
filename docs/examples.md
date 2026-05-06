@@ -10,7 +10,7 @@ Environment loading is explicit. Use `config.FromEnvironment()` when you want pr
 import (
     "context"
 
-    client "github.com/LerianStudio/midaz-sdk-golang/v3"
+    "github.com/LerianStudio/midaz-sdk-golang/v3"
     "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
 )
 
@@ -19,9 +19,9 @@ if err != nil {
     return err
 }
 
-c, err := client.New(
-    client.WithConfig(cfg),
-    client.UseAllAPIs(),
+c, err := midaz.New(
+    midaz.WithConfig(cfg),
+    midaz.WithAnonymous(),
 )
 if err != nil {
     return err
@@ -34,9 +34,9 @@ defer func() {
 For local testing with a direct base URL:
 
 ```go
-c, err := client.New(
-    client.WithBaseURL("http://localhost"),
-    client.UseAllAPIs(),
+c, err := midaz.New(
+    midaz.WithBaseURL("http://localhost"),
+    midaz.WithAnonymous(),
 )
 ```
 

@@ -28,7 +28,6 @@
 // The example uses the SDK's config package to load configuration from environment variables.
 // You can set these variables in a .env file:
 //
-//	MIDAZ_AUTH_TOKEN=example-auth-token
 //	MIDAZ_ENVIRONMENT=local  # Can be local, development, or production
 //	MIDAZ_ONBOARDING_URL=http://localhost:3002/v1 # Optional override
 //	MIDAZ_TRANSACTION_URL=http://localhost:3002/v1 # Optional override
@@ -57,12 +56,10 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3"
@@ -140,6 +137,7 @@ func createConfiguration() (*config.Config, error) {
 	options := []config.Option{
 		config.FromEnvironment(),
 		config.WithEnvironment(config.EnvironmentLocal),
+		config.WithAnonymous(),
 	}
 
 	cfg, err := config.NewConfig(options...)
@@ -233,28 +231,6 @@ func getEnvInt(envVar string, defaultValue int) (int, error) {
 
 // validateEnvironment validates required environment variables
 func validateEnvironment() error {
-	requiredVars := []string{
-		"MIDAZ_AUTH_TOKEN",
-	}
-
-	var missingVars []string
-
-	for _, varName := range requiredVars {
-		if os.Getenv(varName) == "" {
-			missingVars = append(missingVars, varName)
-		}
-	}
-
-	if len(missingVars) > 0 {
-		return fmt.Errorf("missing required environment variables: %q", strings.Join(missingVars, ","))
-	}
-
-	// Use validation package to validate auth token format
-	token := os.Getenv("MIDAZ_AUTH_TOKEN")
-	if !isValidAuthToken(token) {
-		return errors.New("invalid auth token format")
-	}
-
 	return nil
 }
 
@@ -314,10 +290,4 @@ func setupRetryOptions() *retry.Options {
 	}
 
 	return options
-}
-
-// isValidAuthToken is a simple validation function for auth tokens
-func isValidAuthToken(token string) bool {
-	// Simple validation - token should be non-empty
-	return token != ""
 }

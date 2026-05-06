@@ -6,7 +6,7 @@ This map is for SDK maintainers. It describes the implementation structure behin
 
 The current SDK is organized around a root client and an entity layer:
 
-1. `client.Client` owns configuration, observability, lifecycle, and optional API surface initialization.
+1. `midaz.Client` owns configuration, observability, lifecycle, and service initialization.
 2. `pkg/config.Config` resolves service URLs, Access Manager settings, retry/debug options, HTTP client, and observability provider.
 3. `entities.Entity` exposes the service interfaces used by consumers.
 4. Private entity implementations such as `accountsEntity`, `transactionsEntity`, and `holdersEntity` translate service methods into HTTP requests.
@@ -17,18 +17,18 @@ The SDK does not currently use the older `apiClient`, `httpClient`, or per-resou
 
 ## Root client internals
 
-`client.Client` includes:
+`midaz.Client` includes:
 
-- `Entity *entities.Entity` - Set only when `UseAllAPIs`, `UseEntityAPI`, or `UseEntity` is provided.
+- `Entity *entities.Entity` - Initialized by `midaz.New(...)` when configuration validates; promoted service fields are also available directly on the client.
 - `config *config.Config` - Resolved SDK configuration.
 - `observability observability.Provider` - Optional tracing, metrics, and logging provider.
 - `customRetryPolicy func(*http.Response, error) bool` - Optional retry predicate propagated to the entity HTTP client.
 - `ctx context.Context` - Client base context used by client-level helpers and observability setup.
 - Default tenant fields used while applying client options.
 
-HTTP client ownership lives in `pkg/config.Config` and `entities.HTTPClient`, not directly on `client.Client`.
+HTTP client ownership lives in `pkg/config.Config` and `entities.HTTPClient`, not directly on `midaz.Client`.
 
-Entity initialization is gated by the `useEntity` flag. Docs and examples that access `c.Entity` must create the client with `client.UseAllAPIs()` or `client.UseEntityAPI()`.
+Entity initialization happens inside `midaz.New(...)` with an explicit auth posture such as `midaz.WithAccessManager(...)` or `midaz.WithAnonymous()`.
 
 ## Configuration flow
 
@@ -40,9 +40,9 @@ if err != nil {
     return err
 }
 
-c, err := client.New(
-    client.WithConfig(cfg),
-    client.UseAllAPIs(),
+c, err := midaz.New(
+    midaz.WithConfig(cfg),
+    midaz.WithAnonymous(),
 )
 ```
 
@@ -111,7 +111,7 @@ The shared `entities.HTTPClient` is responsible for the transport cross-cutting 
 
 - Adds authorization after Access Manager resolves a token.
 - Adds default tenant ID when configured.
-- Adds idempotency keys from `entities.WithIdempotencyKey(ctx, key)`.
+- Adds idempotency keys from `sdkctx.WithIdempotencyKey(ctx, key)`.
 - Injects OpenTelemetry trace context and baggage into outbound HTTP headers when observability is enabled.
 - Applies retry behavior for retryable responses and transient network failures.
 - Avoids retrying unsafe methods unless `X-Idempotency` is present.
@@ -174,7 +174,7 @@ Common builders:
 - `models.NewUpdatePortfolioInput()`
 - `models.NewCreateSegmentInput(name)`
 - `models.NewUpdateSegmentInput()`
-- `models.NewCreateTransactionInput(assetCode, amount)` - Must include `send.source` and `send.distribute` before sending, either through `WithSend(...)` or legacy operation adaptation. Unsafe transaction create requests receive an auto-generated `X-Idempotency` header by default; set `IdempotencyKey` or use `entities.WithIdempotencyKey` when the caller needs a stable key or has disabled auto-idempotency.
+- `models.NewCreateTransactionInput(assetCode, amount)` - Must include `send.source` and `send.distribute` before sending, either through `WithSend(...)` or legacy operation adaptation. Unsafe transaction create requests receive an auto-generated `X-Idempotency` header by default; set `IdempotencyKey` or use `sdkctx.WithIdempotencyKey` when the caller needs a stable key or has disabled auto-idempotency.
 - `models.NewCreateInflowInput(assetCode, value, distribute)` - Requires a non-empty `distribute.to` payload.
 - `models.NewCreateOutflowInput(assetCode, value, source)` - Requires a non-empty `source.from` payload.
 - `models.NewCreateAnnotationInput(description, send...)` - `send` is required before sending; the variadic constructor argument exists for compatibility.

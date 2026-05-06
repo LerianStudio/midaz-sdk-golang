@@ -61,7 +61,7 @@ Generated docs currently include:
 
 ## Entity services
 
-The root client exposes entity services through `c.Entity` when created with `client.UseAllAPIs()` or `client.UseEntityAPI()`:
+The root client initializes entity services when `midaz.New(...)` succeeds. You can access services directly from the client, such as `c.Accounts`, or through the compatibility `c.Entity` field:
 
 - `Accounts`
 - `AccountTypes`
@@ -90,12 +90,12 @@ if err != nil {
     return err
 }
 
-c, err := client.New(
-    client.WithConfig(cfg),
-    client.UseAllAPIs(),
+c, err := midaz.New(
+    midaz.WithConfig(cfg),
+    midaz.WithAnonymous(),
 )
 ```
 
 See [Environment variables](./environment.md) for the full list of supported variables.
 
-Unsafe transaction create calls receive an auto-generated `X-Idempotency` header by default. Use `entities.WithIdempotencyKey` or input-level idempotency keys when a caller-chosen stable key is required, or when auto-idempotency has been disabled for a client or request.
+Unsafe transaction create calls receive an auto-generated `X-Idempotency` header by default. Use `sdkctx.WithIdempotencyKey` or input-level idempotency keys when a caller-chosen stable key is required, or when auto-idempotency has been disabled for a client or request.

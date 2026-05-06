@@ -1,4 +1,4 @@
-package concurrent // import "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/concurrent"
+package concurrent // import "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/concurrent"
 
 Package concurrent provides utilities for working with concurrent operations in
 the Midaz SDK.
@@ -106,7 +106,6 @@ type PoolOption func(*poolOptions)
     func WithBufferSize(size int) PoolOption
     func WithRateLimit(operationsPerSecond int) PoolOption
     func WithUnorderedResults() PoolOption
-    func WithWaitGroup(_ *sync.WaitGroup) PoolOption
     func WithWorkers(workers int) PoolOption
 type RateLimiter struct{ ... }
     func NewRateLimiter(opsPerSecond int, maxBurst int) *RateLimiter

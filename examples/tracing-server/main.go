@@ -9,7 +9,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -54,20 +53,9 @@ func main() {
 		}
 	}()
 
-	// Create Midaz client for downstream calls
-	// Set auth token via environment variable or replace "your-api-token" with actual token
-	err = os.Setenv("MIDAZ_AUTH_TOKEN", "your-api-token")
-	if err != nil {
-		log.Fatalf("Failed to set MIDAZ_AUTH_TOKEN environment variable: %v", err)
-	}
-	defer func() {
-		if err := os.Unsetenv("MIDAZ_AUTH_TOKEN"); err != nil {
-			log.Printf("Warning: Failed to unset MIDAZ_AUTH_TOKEN: %q", err.Error())
-		}
-	}()
-
 	midazClient, err := midaz.New(
 		midaz.WithBaseURL("https://api.midaz.com"),
+		midaz.WithAnonymous(),
 		midaz.WithObservabilityProvider(provider),
 	)
 	if err != nil {
@@ -88,19 +76,64 @@ func main() {
 	mux.Handle("/api/ledgers", server.tracingMiddleware(http.HandlerFunc(server.handleLedgers)))
 	mux.Handle("/api/health", server.tracingMiddleware(http.HandlerFunc(server.handleHealth)))
 
-	fmt.Println("Server starting on :8080")
+	handler := securityHeadersMiddleware(rateLimitMiddleware(bodyLimitMiddleware(mux, 1<<20), 20, time.Second))
+
+	fmt.Println("Server starting on http://127.0.0.1:8080")
 	fmt.Println("Test with: curl -H 'traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01' http://localhost:8080/api/organizations")
 
 	// Create HTTP server with proper timeouts for security
 	srv := &http.Server{
-		Addr:         ":8080",
-		Handler:      mux,
+		Addr:         "127.0.0.1:8080",
+		Handler:      handler,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
 
 	log.Fatal(srv.ListenAndServe())
+}
+
+func securityHeadersMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("Referrer-Policy", "no-referrer")
+		next.ServeHTTP(w, r)
+	})
+}
+
+func bodyLimitMiddleware(next http.Handler, maxBytes int64) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
+		next.ServeHTTP(w, r)
+	})
+}
+
+func rateLimitMiddleware(next http.Handler, burst int, refillEvery time.Duration) http.Handler {
+	tokens := make(chan struct{}, burst)
+	for range burst {
+		tokens <- struct{}{}
+	}
+
+	go func() {
+		ticker := time.NewTicker(refillEvery)
+		defer ticker.Stop()
+		for range ticker.C {
+			select {
+			case tokens <- struct{}{}:
+			default:
+			}
+		}
+	}()
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-tokens:
+			next.ServeHTTP(w, r)
+		default:
+			http.Error(w, "Too many requests", http.StatusTooManyRequests)
+		}
+	})
 }
 
 // Server represents our HTTP server with tracing capabilities
@@ -338,7 +371,7 @@ func (s *Server) createOrganization(ctx context.Context, w http.ResponseWriter, 
 		Metadata      map[string]any `json:"metadata,omitempty"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&reqBody); err != nil {
 		span.SetStatus(codes.Error, "Invalid request body")
 		span.RecordError(err)
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
@@ -420,7 +453,8 @@ func (s *Server) handleLedgers(w http.ResponseWriter, r *http.Request) {
 	if err := s.performLedgerOperations(ctx); err != nil {
 		span.SetStatus(codes.Error, err.Error())
 		span.RecordError(err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		logger.Error("Failed to perform ledger operations", "error", sanitizeLogInput(err.Error()))
+		http.Error(w, "Failed to perform ledger operations", http.StatusInternalServerError)
 		return
 	}
 

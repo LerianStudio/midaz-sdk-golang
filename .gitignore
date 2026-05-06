@@ -65,6 +65,7 @@ coverage.xml
 .test_coverage.txt
 
 # Documentation artifacts
+/docs/codereview/
 /docs/godoc # Since it's auto-generated during the CI/CD process
 /doc/tmp/
 /docs/tmp/

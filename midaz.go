@@ -96,7 +96,7 @@ import (
 
 // Version is the current version of the SDK.
 // This is automatically updated during the release process.
-const Version = "1.1.0-beta.2"
+const Version = "3.0.0-beta.1"
 
 // Client is the main entry point for using the Midaz API.
 // It provides access to all API services, connection management,
@@ -829,7 +829,7 @@ func WithDebug(enabled bool) Option {
 // WithIdempotency enables or disables automatic idempotency-key generation
 // for unsafe HTTP methods (POST, PUT, PATCH, DELETE). When enabled, the SDK
 // attaches an X-Idempotency header derived from a UUID to each unsafe
-// request unless [entities.WithIdempotencyKey] was used to set an explicit
+// request unless [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx.WithIdempotencyKey] was used to set an explicit
 // key on the per-request context.
 //
 // Two-layer surface: this is the user-facing wrapper. It delegates to

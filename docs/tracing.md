@@ -1,6 +1,6 @@
 # OpenTelemetry tracing in the Midaz Go SDK
 
-The SDK can propagate OpenTelemetry trace context through outbound entity HTTP requests. Tracing is configured with `pkg/observability` and attached to the client with `client.WithObservabilityProvider` or SDK-created observability options.
+The SDK can propagate OpenTelemetry trace context through outbound entity HTTP requests. Tracing is configured with `pkg/observability` and attached to the client with `midaz.WithObservabilityProvider` or SDK-created observability options.
 
 ## What the SDK provides
 
@@ -13,7 +13,7 @@ The SDK can propagate OpenTelemetry trace context through outbound entity HTTP r
 
 ## Client setup
 
-Import the root module and alias it as `client`:
+Import the root module and use the `midaz` package:
 
 ```go
 import (
@@ -23,15 +23,15 @@ import (
     "net/http"
     "time"
 
-    client "github.com/LerianStudio/midaz-sdk-golang/v2"
-    "github.com/LerianStudio/midaz-sdk-golang/v2/models"
-    "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
+    "github.com/LerianStudio/midaz-sdk-golang/v3"
+    "github.com/LerianStudio/midaz-sdk-golang/v3/models"
+    "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
     "go.opentelemetry.io/otel/attribute"
     "go.opentelemetry.io/otel/codes"
 )
 ```
 
-Create an observability provider and enable entity APIs:
+Create an observability provider and pass an explicit auth posture. This local-development example uses `midaz.WithAnonymous()`:
 
 ```go
 provider, err := observability.New(context.Background(),
@@ -47,20 +47,18 @@ if err != nil {
 }
 defer provider.Shutdown(context.Background())
 
-midazClient, err := client.New(
-    client.WithBaseURL("https://api.midaz.com"),
-    client.WithHTTPClient(&http.Client{Timeout: 30 * time.Second}),
-    client.WithObservabilityProvider(provider),
-    client.UseAllAPIs(),
+midazClient, err := midaz.New(
+    midaz.WithBaseURL("https://api.midaz.com"),
+    midaz.WithHTTPClient(&http.Client{Timeout: 30 * time.Second}),
+    midaz.WithObservabilityProvider(provider),
+    midaz.WithAnonymous(),
 )
 if err != nil {
     log.Fatal(err)
 }
 ```
 
-`client.UseAllAPIs()` or `client.UseEntityAPI()` is required before accessing `midazClient.Entity`.
-
-Authentication is configured through SDK config and Access Manager, not through a `client.WithAuth` option.
+Authentication is configured through `midaz.WithAccessManager(...)` for production-shaped OAuth or `midaz.WithAnonymous()` for auth-less local stacks. Entity services are initialized by `midaz.New(...)` after configuration validates.
 
 ## Tracing an operation
 
@@ -72,7 +70,7 @@ defer span.End()
 orgInput := models.NewCreateOrganizationInput("Example Corporation", "123456789").
     WithDoingBusinessAs("Example Inc.")
 
-organization, err := midazClient.Entity.Organizations.CreateOrganization(ctx, orgInput)
+organization, err := midazClient.Organizations.CreateOrganization(ctx, orgInput)
 if err != nil {
     span.RecordError(err)
     span.SetStatus(codes.Error, err.Error())
@@ -85,7 +83,7 @@ span.SetStatus(codes.Ok, "organization created")
 
 Outbound SDK calls automatically create one SDK client span and inject trace headers from `ctx`. The SDK honors the provider configured on the context or client, so propagation works even when `observability.WithRegisterGlobally(false)` is used.
 
-Do not wrap the SDK HTTP transport with `observability.NewHTTPMiddleware(provider)` when the client is already configured with `client.WithObservabilityProvider(provider)` or `client.WithObservability(...)`. The entity HTTP client is the SDK instrumentation point; wrapping the same transport adds nested client spans for the same outbound request.
+Do not wrap the SDK HTTP transport with `observability.NewHTTPMiddleware(provider)` when the client is already configured with `midaz.WithObservabilityProvider(provider)` or `midaz.WithObservability(...)`. The entity HTTP client is the SDK instrumentation point; wrapping the same transport adds nested client spans for the same outbound request.
 
 For applications that manage multiple OpenTelemetry providers in one process, keep the SDK provider local and attach it to request contexts explicitly:
 
@@ -100,9 +98,9 @@ if err != nil {
     return err
 }
 
-midazClient, err := client.New(
-    client.WithObservabilityProvider(provider),
-    client.UseAllAPIs(),
+midazClient, err := midaz.New(
+    midaz.WithObservabilityProvider(provider),
+    midaz.WithAnonymous(),
 )
 ```
 
@@ -142,7 +140,7 @@ func handlePayment(w http.ResponseWriter, r *http.Request) {
     ctx, span := provider.Tracer().Start(ctx, "payments.create")
     defer span.End()
 
-    tx, err := midazClient.Entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
+    tx, err := midazClient.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
     if err != nil {
         span.RecordError(err)
         http.Error(w, "transaction failed", http.StatusBadGateway)
