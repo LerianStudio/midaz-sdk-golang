@@ -168,6 +168,14 @@ func (a Address) WithLine2(line2 string) Address {
 // Pagination represents pagination information for list operations.
 // This structure is used in list responses to provide context about the pagination state
 // and to help with navigating through paginated results.
+//
+// See also:
+//   - [PageListOpts] — request-side options for page-based endpoints.
+//   - [CursorListOpts] — request-side options for cursor-based endpoints.
+//   - [ListResponse] — the envelope this Pagination is embedded in.
+//   - examples/04-listing-cursor — cursor pagination demo.
+//   - examples/05-listing-pages — page pagination demo.
+//   - docs/pagination.md — full pagination contract.
 type Pagination struct {
 	// Limit is the number of items per page
 	Limit int `json:"limit"`

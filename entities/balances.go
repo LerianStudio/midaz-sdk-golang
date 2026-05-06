@@ -20,6 +20,11 @@ import (
 // BalancesService defines the interface for balance-related operations.
 // It provides methods to list, retrieve, update, and delete balances
 // for both ledgers and specific accounts.
+//
+// See also:
+//   - [github.com/LerianStudio/midaz-sdk-golang/v3.Client.Balances] — the production wiring.
+//   - [github.com/LerianStudio/midaz-sdk-golang/v3/entities/mocks.NewMockBalancesService] — generated mock for unit tests.
+//   - examples/concurrency/balance-fetch — concurrent balance fetching pattern.
 type BalancesService interface {
 	// ListBalances retrieves one page of balances for a specified ledger.
 	// Balances represent the current state of funds for each account-asset combination.

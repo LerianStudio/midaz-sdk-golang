@@ -1,5 +1,3 @@
-// Package retry provides utilities for implementing retry logic with exponential backoff,
-// including specialized support for HTTP requests.
 package retry
 
 import (

@@ -1,5 +1,3 @@
-// Package observability provides utilities for adding observability capabilities
-// to the Midaz SDK, including metrics, logging, and distributed tracing.
 package observability
 
 import (

@@ -74,6 +74,12 @@ func GetAccountIdentifier(account Account) string {
 
 // CreateAccountInput is the input for creating an account.
 // This structure contains all the fields that can be specified when creating a new account.
+//
+// See also:
+//   - [CreateAccountInput.Validate] — multi-field validation accumulator.
+//   - [UpdateAccountInput] — partial-update shape.
+//   - [github.com/LerianStudio/midaz-sdk-golang/v3/entities.AccountsService.CreateAccount]
+//   - [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx.WithIdempotencyKey] — make creation safe under retries.
 type CreateAccountInput struct {
 	// Name is the human-readable name of the account.
 	// Max length: 256 characters. Optional in the Midaz API.

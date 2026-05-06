@@ -23,6 +23,7 @@ package midaz
 import (
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/auth"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
 )
 
 // The aliases below are intentionally undocumented per-line: each alias just
@@ -148,4 +149,34 @@ type (
 
 type (
 	AccessManager = auth.AccessManager
+)
+
+// -----------------------------------------------------------------------------
+// Environment — re-exported from pkg/config so client construction needs only
+// the midaz package import:
+//
+//	c, err := midaz.New(
+//	    midaz.WithEnvironment(midaz.EnvironmentProduction),
+//	    midaz.WithAccessManager(midaz.AccessManager{ ... }),
+//	)
+//
+// The three values cover every Midaz deployment shape:
+//   - [EnvironmentLocal] — developer machine running the open-source
+//     stack via docker-compose. No auth by default.
+//   - [EnvironmentDevelopment] — shared development / staging cluster.
+//   - [EnvironmentProduction] — production traffic. Requires Access
+//     Manager authentication; anonymous clients return a typed
+//     configuration error at construction time.
+//
+// See also [WithEnvironment], [WithAccessManager], docs/auth.md.
+// -----------------------------------------------------------------------------
+
+type (
+	Environment = config.Environment
+)
+
+const (
+	EnvironmentLocal       = config.EnvironmentLocal
+	EnvironmentDevelopment = config.EnvironmentDevelopment
+	EnvironmentProduction  = config.EnvironmentProduction
 )

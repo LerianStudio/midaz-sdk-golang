@@ -1,9 +1,9 @@
 // Package midaz is the entry point for the Midaz Go SDK.
 //
-// Quickstart (Access Manager auth):
+// # Quickstart (Access Manager auth)
 //
 //	c, err := midaz.New(
-//	    midaz.WithEnvironment(midaz.EnvProduction),
+//	    midaz.WithEnvironment(midaz.EnvironmentProduction),
 //	    midaz.WithAccessManager(midaz.AccessManager{
 //	        Address:      "https://auth.midaz.io",
 //	        ClientID:     os.Getenv("MIDAZ_CLIENT_ID"),
@@ -15,13 +15,63 @@
 //
 //	org, err := c.Organizations.GetOrganization(ctx, "org-id")
 //
-// For local development against an unsecured stack, swap WithAccessManager
-// for [WithAnonymous]. v3 requires exactly one of those two options at
-// construction time; calls to midaz.New() with no auth source fail with a
-// typed configuration error.
+// # Authentication
 //
-// See docs/auth.md for authentication, docs/multi-tenancy.md for tenant routing,
-// and docs/v3-dx-plan.md for the v3 design rationale.
+// v3 requires exactly one auth source at construction time:
+//   - [WithAccessManager] — production-shape OAuth via the Lerian
+//     Access Manager. Recommended for any non-local stack.
+//   - [WithAnonymous] — opt out of authentication. Suitable only for
+//     a local Midaz stack with auth disabled.
+//
+// Calling [New] with neither returns a typed configuration error.
+// See docs/auth.md for the full walkthrough.
+//
+// # Multi-tenancy
+//
+// Set a default tenant via [WithTenantID]; override per-request via
+// [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx.WithRequestTenantID].
+// See docs/multi-tenancy.md.
+//
+// # Logging and observability
+//
+// Inject a *slog.Logger via [WithLogger]. Wire OpenTelemetry via
+// [WithObservabilityProvider] or [WithObservabilityOptions]. The SDK is
+// silent by default (slog.DiscardHandler). See docs/logging.md and
+// docs/tracing.md.
+//
+// # Pagination
+//
+// Every List* method returns one page. ListAll yields iter.Seq2[T, error]
+// for full-collection iteration; ListPages yields page envelopes with
+// metadata. Page-based and cursor-based endpoints are distinguished at
+// the type system — wrong-shape opts don't compile. See docs/pagination.md.
+//
+// # Errors
+//
+// Every error returned by SDK code is a *[github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors.Error]
+// with structured Category, Code, Operation, and Resource fields. Use
+// errors.Is, errors.As, and the typed predicates (IsNotFoundError,
+// IsValidationError, IsNetworkError, IsAuthError, etc.). The Retryable()
+// method on *Error is the canonical retry-policy source.
+//
+// # Idempotency and retries
+//
+// Auto-idempotency is on by default; the SDK emits an X-Idempotency
+// header per unsafe request. Override per-call via
+// [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx.WithIdempotencyKey]
+// (caller-supplied key) or
+// [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx.WithoutAutoIdempotency]
+// (suppression). Disable globally via [WithIdempotency](false). Retries
+// follow the default exponential-backoff policy on 5xx + 408/425/429 +
+// transport errors; customize via [WithRetryOptions] /
+// [WithCustomRetryPolicy] / [WithoutRetries]. See examples/06-idempotency
+// and examples/07-retries.
+//
+// # Examples
+//
+// See examples/ for runnable demos. Start with examples/01-hello-world
+// for the minimum-viable shape; examples/03-end-to-end walks the full
+// resource hierarchy. See docs/v3-dx-plan.md for the v3 design rationale.
 package midaz
 
 import (
@@ -136,6 +186,14 @@ type Client struct {
 //   - error: A *errors.Error with Category=CategoryConfiguration when New
 //     cannot construct a usable client. Use errors.Is(err, errors.ErrConfiguration)
 //     or errors.IsConfigurationError(err) to check.
+//
+// See also:
+//   - [WithAccessManager], [WithAnonymous] — required auth source.
+//   - [WithEnvironment] — pin a deployment environment.
+//   - [WithLogger] — wire a *slog.Logger.
+//   - [Client.Shutdown] — graceful teardown (call via defer).
+//   - examples/01-hello-world — the smallest possible demo.
+//   - examples/03-end-to-end — full resource hierarchy walk.
 func New(options ...Option) (*Client, error) {
 	const operation = "midaz.New"
 
@@ -315,6 +373,10 @@ func (c *Client) setupEntity() error {
 //
 // Returns:
 //   - Option: A function that sets the base URL on the Client
+//
+// See also:
+//   - [WithEnvironment] — preferred for production stacks.
+//   - [WithOnboardingURL], [WithTransactionURL], [WithCRMURL] — per-service overrides.
 func WithBaseURL(baseURL string) Option {
 	return func(c *Client) error {
 		// Validate URL
@@ -394,6 +456,12 @@ func WithUserAgent(userAgent string) Option {
 //
 // Returns:
 //   - Option: A function that appends the retry options to the Client's pending chain
+//
+// See also:
+//   - [WithCustomRetryPolicy] — replace the policy with an arbitrary predicate.
+//   - [WithoutRetries] — disable retries for this client.
+//   - [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry] — option catalog.
+//   - examples/07-retries — runnable demo.
 func WithRetryOptions(opts ...retry.Option) Option {
 	return func(c *Client) error {
 		c.retryOpts = append(c.retryOpts, opts...)
@@ -409,6 +477,11 @@ func WithRetryOptions(opts ...retry.Option) Option {
 //
 // Returns:
 //   - Option: A function that sets the retry policy on the Client
+//
+// See also:
+//   - [WithRetryOptions] — tune the default policy without replacing it.
+//   - [WithoutRetries] — disable retries entirely.
+//   - examples/07-retries — runnable demo.
 func WithCustomRetryPolicy(shouldRetry func(*http.Response, error) bool) Option {
 	return func(c *Client) error {
 		c.customRetryPolicy = shouldRetry
@@ -440,6 +513,10 @@ func WithCustomRetryPolicy(shouldRetry func(*http.Response, error) bool) Option 
 //
 // Returns:
 //   - Option: A function that disables retries on the Client
+//
+// See also:
+//   - [WithRetryOptions], [WithCustomRetryPolicy] — alternatives.
+//   - examples/07-retries — runnable demo.
 func WithoutRetries() Option {
 	return func(c *Client) error {
 		return config.WithMaxRetries(0)(c.config)
@@ -494,6 +571,11 @@ func WithoutRetries() Option {
 //
 // Returns:
 //   - Option: A function that installs the new provider on the Client
+//
+// See also:
+//   - [WithObservabilityProvider] — pass a pre-built provider.
+//   - [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability] — option catalog.
+//   - examples/10-observability-otel — runnable demo.
 func WithObservabilityOptions(options ...observability.Option) Option {
 	return func(c *Client) error {
 		// Build the provider from the supplied chain. Any previously
@@ -544,6 +626,11 @@ func WithObservabilityOptions(options ...observability.Option) Option {
 //
 // Returns:
 //   - Option: A function that installs the provider on the Client
+//
+// See also:
+//   - [WithObservabilityOptions] — build a provider inline.
+//   - [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability.Provider]
+//   - examples/10-observability-otel — runnable demo.
 func WithObservabilityProvider(provider observability.Provider) Option {
 	return func(c *Client) error {
 		if provider == nil {
@@ -586,6 +673,10 @@ func WithObservabilityProvider(provider observability.Provider) Option {
 //
 // Returns:
 //   - Option: A function that sets the environment on the Client
+//
+// See also:
+//   - [EnvironmentLocal], [EnvironmentDevelopment], [EnvironmentProduction] — the three values.
+//   - [WithBaseURL] — for self-hosted stacks not covered by the standard environments.
 func WithEnvironment(env config.Environment) Option {
 	return func(c *Client) error {
 		// Apply to config
@@ -755,6 +846,11 @@ func WithDebug(enabled bool) Option {
 //
 // Returns:
 //   - Option: A function that sets the idempotency flag on the Client
+//
+// See also:
+//   - [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx.WithIdempotencyKey] — caller-supplied key for one request.
+//   - [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx.WithoutAutoIdempotency] — per-call suppression.
+//   - examples/06-idempotency — runnable demo.
 func WithIdempotency(enabled bool) Option {
 	return func(c *Client) error {
 		return config.WithIdempotency(enabled)(c.config)
@@ -773,6 +869,10 @@ func WithIdempotency(enabled bool) Option {
 //
 // Returns:
 //   - Option: A function that sets the tenant ID on the Client
+//
+// See also:
+//   - [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx.WithRequestTenantID] — per-request override.
+//   - docs/multi-tenancy.md — full multi-tenant routing contract.
 func WithTenantID(tenantID string) Option {
 	return func(c *Client) error {
 		c.tenantID = strings.TrimSpace(tenantID)
@@ -790,7 +890,7 @@ func WithTenantID(tenantID string) Option {
 // Example:
 //
 //	c, err := midaz.New(
-//	    midaz.WithEnvironment(midaz.EnvProduction),
+//	    midaz.WithEnvironment(midaz.EnvironmentProduction),
 //	    midaz.WithAccessManager(midaz.AccessManager{
 //	        Address:      "https://auth.midaz.io",
 //	        ClientID:     "abc",
@@ -815,6 +915,12 @@ func WithTenantID(tenantID string) Option {
 //
 // Returns:
 //   - Option: a function that wires AccessManager onto the underlying Config.
+//
+// See also:
+//   - [WithAnonymous] — opt out of authentication (local stacks only).
+//   - [AccessManager] — the credential bag.
+//   - docs/auth.md — authentication setup walkthrough.
+//   - examples/02-auth — runnable demo.
 func WithAccessManager(am AccessManager) Option {
 	return func(c *Client) error {
 		return config.WithAccessManager(am)(c.config)
@@ -843,6 +949,10 @@ func WithAccessManager(am AccessManager) Option {
 // Returns:
 //   - Option: a function that flags the underlying Config as deliberately
 //     auth-less so validation accepts it.
+//
+// See also:
+//   - [WithAccessManager] — production-shape OAuth via Lerian Access Manager.
+//   - docs/auth.md — when to use anonymous vs authenticated.
 func WithAnonymous() Option {
 	return func(c *Client) error {
 		return config.WithAnonymous()(c.config)
@@ -883,6 +993,11 @@ func WithAnonymous() Option {
 //
 // Returns:
 //   - Option: A function that sets the logger on a Client.
+//
+// See also:
+//   - [WithSlowCallThreshold] — emit a warn-level record for slow calls.
+//   - docs/logging.md — logging contract and adapter recipes (zap, zerolog, logrus).
+//   - examples/08-logging-slog — runnable demo.
 func WithLogger(logger *slog.Logger) Option {
 	return func(c *Client) error {
 		c.logger = logger

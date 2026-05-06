@@ -17,6 +17,12 @@ import (
 // LedgersService defines the interface for ledger-related operations.
 // It provides methods to create, read, update, and delete ledgers
 // within an organization.
+//
+// See also:
+//   - [github.com/LerianStudio/midaz-sdk-golang/v3.Client.Ledgers] — the production wiring.
+//   - [github.com/LerianStudio/midaz-sdk-golang/v3/entities/mocks.NewMockLedgersService] — generated mock for unit tests.
+//   - [github.com/LerianStudio/midaz-sdk-golang/v3/models.LedgersListOpts] — typed list-opts.
+//   - examples/03-end-to-end — org → ledger → account → transaction walk.
 type LedgersService interface {
 	// ListLedgers retrieves a paginated list of ledgers for an organization with optional filters.
 	// The organizationID parameter specifies which organization to query.

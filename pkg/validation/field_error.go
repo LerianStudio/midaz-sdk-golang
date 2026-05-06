@@ -117,7 +117,16 @@ func (fe *FieldError) WithSuggestions(suggestions ...string) *FieldError {
 	return fe
 }
 
-// FieldErrors represents a collection of field errors
+// FieldErrors represents a collection of field errors. The canonical
+// multi-field validation accumulator used by every Validate() method
+// in [github.com/LerianStudio/midaz-sdk-golang/v3/models].
+//
+// See also:
+//   - [FieldErrors.Append] — record a field problem.
+//   - [FieldErrors.AppendWith] — record with structured Value/Code/Constraint/Suggest.
+//   - [FieldErrors.OrNil] — return nil when no errors accumulated (Go nil-interface trap fix).
+//   - [FieldErrors.Errs] — programmatic walk over accumulated errors.
+//   - [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors.ErrValidation] — sentinel for errors.Is.
 type FieldErrors struct {
 	Errors []*FieldError
 }

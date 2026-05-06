@@ -17,6 +17,13 @@ import (
 // AccountsService defines the interface for account-related operations.
 // It provides methods to create, read, update, and delete accounts,
 // as well as manage account balances.
+//
+// See also:
+//   - [github.com/LerianStudio/midaz-sdk-golang/v3.Client.Accounts] — the production wiring.
+//   - [github.com/LerianStudio/midaz-sdk-golang/v3/entities/mocks.NewMockAccountsService] — generated mock for unit tests.
+//   - [github.com/LerianStudio/midaz-sdk-golang/v3/models.AccountsListOpts] — typed list-opts.
+//   - examples/05-listing-pages — page-based pagination across accounts.
+//   - examples/09-testing-with-mocks — unit-testing pattern.
 type AccountsService interface {
 	// ListAccounts retrieves one page of accounts for a ledger.
 	//

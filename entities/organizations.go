@@ -17,6 +17,12 @@ import (
 // OrganizationsService defines the interface for organization-related operations.
 // It provides methods to create, read, update, and delete organizations
 // in the Midaz platform.
+//
+// See also:
+//   - [github.com/LerianStudio/midaz-sdk-golang/v3.Client.Organizations] — the production wiring.
+//   - [github.com/LerianStudio/midaz-sdk-golang/v3/entities/mocks.NewMockOrganizationsService] — generated mock for unit tests.
+//   - [github.com/LerianStudio/midaz-sdk-golang/v3/models.OrganizationsListOpts] — typed list-opts.
+//   - examples/01-hello-world — minimal-viable demo (lists organizations).
 type OrganizationsService interface {
 	// ListOrganizations retrieves one page of organizations.
 	ListOrganizations(ctx context.Context, opts models.OrganizationsListOpts) (*models.ListResponse[models.Organization], error)
