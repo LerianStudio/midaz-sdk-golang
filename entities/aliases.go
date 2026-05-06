@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"iter"
 	"net/http"
+	"net/url"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
@@ -181,7 +182,9 @@ func (e *aliasesEntity) GetAlias(ctx context.Context, organizationID, holderID, 
 
 	endpoint := e.aliasURL(holderID, aliasID)
 	if sdkctx.IncludeDeletedFromContext(ctx) {
-		endpoint += "?include_deleted=true"
+		q := url.Values{}
+		q.Set("include_deleted", "true")
+		endpoint = endpoint + "?" + q.Encode()
 	}
 
 	var alias models.Alias
@@ -251,7 +254,9 @@ func (e *aliasesEntity) DeleteAlias(ctx context.Context, organizationID, holderI
 
 	endpoint := e.aliasURL(holderID, aliasID)
 	if sdkctx.HardDeleteFromContext(ctx) {
-		endpoint += "?hard_delete=true"
+		q := url.Values{}
+		q.Set("hard_delete", "true")
+		endpoint = endpoint + "?" + q.Encode()
 	}
 
 	return e.httpClient.doRequest(ctx, http.MethodDelete, endpoint, crmHeaders(organizationID), nil, nil)

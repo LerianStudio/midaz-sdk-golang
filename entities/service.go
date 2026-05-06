@@ -37,6 +37,17 @@ func (e *serviceEntity) setDefaultTenantID(tenantID string) {
 	e.httpClient.setTenantIDLocked(tenantID)
 }
 
+// entityHTTPClient returns the embedded *HTTPClient. Promoted automatically
+// to every embedding entity, eliminating the 16-copy boilerplate that lived
+// in v2 and satisfying the httpClientConfigurator interface for free.
+func (e *serviceEntity) entityHTTPClient() *HTTPClient {
+	if e == nil {
+		return nil
+	}
+
+	return e.httpClient
+}
+
 // newServiceEntity builds the shared HTTPClient and prepares the per-service
 // base URL map. Used by every entity constructor, replacing 18 duplicated
 // copies of the same three lines.

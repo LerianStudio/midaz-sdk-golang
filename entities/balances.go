@@ -178,7 +178,7 @@ func (e *balancesEntity) ListBalances(
 
 	endpoint := e.buildURL(organizationID, ledgerID, "")
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -230,7 +230,7 @@ func (e *balancesEntity) ListAccountBalances(
 
 	endpoint := e.buildAccountURL(organizationID, ledgerID, accountID)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -278,7 +278,7 @@ func (e *balancesEntity) GetBalance(
 
 	endpoint := e.buildURL(organizationID, ledgerID, balanceID)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -318,7 +318,7 @@ func (e *balancesEntity) GetBalanceHistory(ctx context.Context, organizationID, 
 
 	endpoint := e.buildBalanceHistoryURL(organizationID, ledgerID, balanceID, date)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -372,7 +372,7 @@ func (e *balancesEntity) UpdateBalance(
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, endpoint, bytes.NewBuffer(payload))
+	req, err := newRequestWithContext(ctx, http.MethodPatch, endpoint, bytes.NewBuffer(payload))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -411,7 +411,7 @@ func (e *balancesEntity) DeleteBalance(
 
 	endpoint := e.buildURL(organizationID, ledgerID, balanceID)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, endpoint, nil)
+	req, err := newRequestWithContext(ctx, http.MethodDelete, endpoint, nil)
 	if err != nil {
 		return errors.NewInternalError(operation, err)
 	}
@@ -476,7 +476,7 @@ func (e *balancesEntity) CreateBalance(ctx context.Context, organizationID, ledg
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	req, err := newRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -513,7 +513,7 @@ func (e *balancesEntity) ListBalancesByAccountAlias(ctx context.Context, organiz
 
 	endpoint := e.buildAccountAliasURL(organizationID, ledgerID, alias)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -557,7 +557,7 @@ func (e *balancesEntity) ListBalancesByExternalCode(ctx context.Context, organiz
 
 	endpoint := e.buildExternalCodeURL(organizationID, ledgerID, code)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -605,7 +605,7 @@ func (e *balancesEntity) GetAccountBalancesHistory(ctx context.Context, organiza
 
 	endpoint := e.buildAccountHistoryURL(organizationID, ledgerID, accountID, date)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}

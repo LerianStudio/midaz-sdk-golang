@@ -216,7 +216,6 @@ func TestSegmentsEntity_ListSegments(t *testing.T) {
 			opts: models.SegmentsListOpts{
 				PageListOpts: models.PageListOpts{
 					Limit:         10,
-					OrderBy:       "name",
 					SortDirection: models.SortAscending,
 				},
 				Filters: models.SegmentsFilters{Status: "ACTIVE"},
@@ -355,7 +354,6 @@ func TestSegmentsEntity_ListSegments_QueryParams(t *testing.T) {
 		PageListOpts: models.PageListOpts{
 			Limit:         20,
 			Page:          3,
-			OrderBy:       "createdAt",
 			SortDirection: models.SortDescending,
 		},
 		Filters: models.SegmentsFilters{Status: "ACTIVE"},

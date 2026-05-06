@@ -1904,7 +1904,7 @@ func TestBalancesEntity_QueryParameterEncoding(t *testing.T) {
 		"transaction": server.URL,
 	})
 
-	opts := models.BalancesListOpts{PageListOpts: models.PageListOpts{Limit: 25, Page: 3, OrderBy: "createdAt", SortDirection: models.SortDescending}}
+	opts := models.BalancesListOpts{PageListOpts: models.PageListOpts{Limit: 25, Page: 3, SortDirection: models.SortDescending}}
 
 	_, err := entity.ListBalances(context.Background(), "org-123", "ledger-456", opts)
 	require.NoError(t, err)

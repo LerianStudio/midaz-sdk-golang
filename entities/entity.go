@@ -192,42 +192,18 @@ func (e *Entity) initServices() {
 	e.propagateHTTPClientConfiguration()
 }
 
-// tenantSetter is implemented by service entities that can receive a tenant ID.
-// This decouples propagateTenantID from knowing every concrete service type.
-type tenantSetter interface {
-	setDefaultTenantID(tenantID string)
-}
-
+// httpClientConfigurator is satisfied by every service entity via the
+// entityHTTPClient method promoted from the embedded *serviceEntity. It lets
+// propagateHTTPClientConfiguration iterate without knowing concrete types.
 type httpClientConfigurator interface {
 	entityHTTPClient() *HTTPClient
 }
 
-// propagateTenantID copies the entity-level tenant ID to all service entity HTTP clients.
-// It iterates over service fields and calls the tenantSetter interface rather than
-// hard-coding each concrete type, so adding new services cannot silently break propagation.
-func (e *Entity) propagateTenantID() {
-	tid := e.httpClient.GetTenantID()
-	if tid == "" {
-		return
-	}
-
-	services := []any{
-		e.Accounts, e.AccountTypes, e.Assets, e.AssetRates,
-		e.Aliases, e.Balances, e.Holders, e.Ledgers, e.MetadataIndexes, e.Operations, e.OperationRoutes,
-		e.Organizations, e.Portfolios, e.Segments,
-		e.Transactions, e.TransactionRoutes,
-	}
-
-	for _, svc := range services {
-		if ts, ok := svc.(tenantSetter); ok {
-			ts.setDefaultTenantID(tid)
-		}
-	}
-}
-
+// propagateHTTPClientConfiguration copies the entity-level HTTPClient state
+// (tenant ID, auth token, observability, etc.) into every service entity's
+// own HTTPClient via applyConfigurationFrom — which clones the full
+// httpClientConfigSnapshot under lock, so tenantID rides along automatically.
 func (e *Entity) propagateHTTPClientConfiguration() {
-	e.propagateTenantID()
-
 	services := []any{
 		e.Accounts, e.AccountTypes, e.Assets, e.AssetRates,
 		e.Aliases, e.Balances, e.Holders, e.Ledgers, e.MetadataIndexes, e.Operations, e.OperationRoutes,
@@ -240,70 +216,6 @@ func (e *Entity) propagateHTTPClientConfiguration() {
 			configurator.entityHTTPClient().applyConfigurationFrom(e.httpClient)
 		}
 	}
-}
-
-func (e *accountsEntity) entityHTTPClient() *HTTPClient {
-	return e.httpClient
-}
-
-func (e *accountTypesEntity) entityHTTPClient() *HTTPClient {
-	return e.httpClient
-}
-
-func (e *assetsEntity) entityHTTPClient() *HTTPClient {
-	return e.httpClient
-}
-
-func (e *assetRatesEntity) entityHTTPClient() *HTTPClient {
-	return e.httpClient
-}
-
-func (e *balancesEntity) entityHTTPClient() *HTTPClient {
-	return e.httpClient
-}
-
-func (e *holdersEntity) entityHTTPClient() *HTTPClient {
-	return e.httpClient
-}
-
-func (e *aliasesEntity) entityHTTPClient() *HTTPClient {
-	return e.httpClient
-}
-
-func (e *ledgersEntity) entityHTTPClient() *HTTPClient {
-	return e.httpClient
-}
-
-func (e *metadataIndexesEntity) entityHTTPClient() *HTTPClient {
-	return e.httpClient
-}
-
-func (e *operationsEntity) entityHTTPClient() *HTTPClient {
-	return e.httpClient
-}
-
-func (e *operationRoutesEntity) entityHTTPClient() *HTTPClient {
-	return e.httpClient
-}
-
-func (e *organizationsEntity) entityHTTPClient() *HTTPClient {
-	return e.httpClient
-}
-
-func (e *portfoliosEntity) entityHTTPClient() *HTTPClient {
-	return e.httpClient
-}
-
-func (e *segmentsEntity) entityHTTPClient() *HTTPClient {
-	return e.httpClient
-}
-
-func (e *transactionsEntity) entityHTTPClient() *HTTPClient {
-	return e.httpClient
-}
-
-func (e *transactionRoutesEntity) entityHTTPClient() *HTTPClient {
-	return e.httpClient
 }
 
 // InitServices initializes the service interfaces for the entity.

@@ -83,7 +83,7 @@ func TestListPortfolios(t *testing.T) {
 	assert.Equal(t, ledgerID, result.Items[0].LedgerID)
 
 	// Test with options
-	opts := models.PortfoliosListOpts{PageListOpts: models.PageListOpts{Limit: 5, Page: 1, OrderBy: "created_at", SortDirection: models.SortDescending}}
+	opts := models.PortfoliosListOpts{PageListOpts: models.PageListOpts{Limit: 5, Page: 1, SortDirection: models.SortDescending}}
 
 	mockService.EXPECT().
 		ListPortfolios(gomock.Any(), orgID, ledgerID, opts).
@@ -127,7 +127,7 @@ func TestPortfoliosEntity_ListPortfolios_HTTPServer(t *testing.T) {
 		assert.Equal(t, "entity-789", query.Get("entity_id"))
 		assert.Equal(t, "ACTIVE", query.Get("status"))
 		assert.Equal(t, "true", query.Get("include_deleted"))
-		assert.Empty(t, query.Get("orderBy"), "OrderBy is retained on opts but not emitted by page query params")
+		assert.Empty(t, query.Get("orderBy"), "PageListOpts no longer carries OrderBy; ensure SDK never emits it")
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -154,7 +154,6 @@ func TestPortfoliosEntity_ListPortfolios_HTTPServer(t *testing.T) {
 		PageListOpts: models.PageListOpts{
 			Limit:         25,
 			Page:          2,
-			OrderBy:       "createdAt",
 			SortDirection: models.SortDescending,
 			StartDate:     "2026-01-01",
 			EndDate:       "2026-01-31",

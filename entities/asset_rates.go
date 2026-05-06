@@ -327,6 +327,8 @@ func (e *assetRatesEntity) ListAssetRatesByAssetCodePages(
 	organizationID, ledgerID, assetCode string,
 	opts models.AssetRatesListOpts,
 ) iter.Seq2[*models.ListResponse[models.AssetRate], error] {
+	ctx = requestContext(ctx)
+
 	return func(yield func(*models.ListResponse[models.AssetRate], error) bool) {
 		current := opts
 

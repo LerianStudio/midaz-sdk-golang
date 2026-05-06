@@ -211,34 +211,6 @@ func (c *HTTPClient) WithRetryOptions(options ...retry.Option) *HTTPClient {
 	return c
 }
 
-// WithRetryOption applies a retry option to the HTTP client.
-func (c *HTTPClient) WithRetryOption(option retry.Option) *HTTPClient {
-	if c == nil {
-		return nil
-	}
-
-	if option == nil {
-		c.debugLog("Error applying retry option: retry option cannot be nil")
-		return c
-	}
-
-	c.mu.Lock()
-
-	if c.retryOptions == nil {
-		c.retryOptions = retry.DefaultOptions()
-	}
-
-	if err := option(c.retryOptions); err != nil {
-		c.mu.Unlock()
-		c.debugLog("Error applying retry option: %v", err)
-
-		return c
-	}
-	c.mu.Unlock()
-
-	return c
-}
-
 // SetLogger installs the *slog.Logger used for retry/slow-call/internal
 // warnings. Passing nil reverts to a discard handler. The logger is shared
 // with all per-service HTTP clients via propagateHTTPClientConfiguration.
@@ -478,6 +450,24 @@ func (c *HTTPClient) GetTenantID() string {
 
 // injectContextHeaders adds context-based headers (idempotency key, tenant ID) to the provided
 // headers map. If headers is nil and there are headers to inject, a new map is created and returned.
+//
+// Idempotency key precedence (first non-empty source wins):
+//  1. Caller-supplied input field — service methods that accept an
+//     IdempotencyKey on their input struct (e.g., CreateTransactionInput)
+//     write it directly into headers along with the
+//     [internalCallerIdempotencyHeader] marker. That marker tells this
+//     function the caller has spoken; we MUST NOT overwrite the value here.
+//  2. ctx-supplied via [sdkctx.WithIdempotencyKey] — request-scoped override,
+//     used when the input struct doesn't carry the field or the caller wants
+//     to propagate a key across a chain of calls.
+//  3. Auto-generated UUID — applied later in [ensureIdempotencyHeader] when
+//     client-level idempotency is enabled and neither (1) nor (2) supplied a
+//     key.
+//
+// For a ledger SDK, getting this ordering wrong is the difference between
+// proper dedup and double-bookkeeping under retries — the input-level key
+// is the caller's most explicit assertion of "this transaction has key X"
+// and must not be silently replaced.
 func (c *HTTPClient) injectContextHeaders(ctx context.Context, method string, headers map[string]string) map[string]string {
 	if ctx == nil {
 		ctx = context.Background()
@@ -491,8 +481,14 @@ func (c *HTTPClient) injectContextHeaders(ctx context.Context, method string, he
 			headers = map[string]string{}
 		}
 
-		headers["X-Idempotency"] = key
-		headers[internalCallerIdempotencyHeader] = BoolTrue
+		// Caller-supplied input.IdempotencyKey wins over ctx-supplied key.
+		// Detected via the internal marker that input-level call sites set
+		// alongside the header.
+		callerSupplied := headers[internalCallerIdempotencyHeader] == BoolTrue && strings.TrimSpace(headers["X-Idempotency"]) != ""
+		if !callerSupplied {
+			headers["X-Idempotency"] = key
+			headers[internalCallerIdempotencyHeader] = BoolTrue
+		}
 	}
 
 	// Inject tenant ID header from context or client-level default.
@@ -708,6 +704,8 @@ func (c *HTTPClient) doCountRequest(ctx context.Context, method, requestURL stri
 
 	req, err := http.NewRequestWithContext(ctx, method, requestURL, nil)
 	if err != nil {
+		c.recordSDKFailure(ctx, method, requestURL, 0, err)
+
 		return 0, fmt.Errorf("failed to create request: %w", err)
 	}
 
@@ -2034,84 +2032,4 @@ func normalizeAPIErrorFields(fields any) []string {
 	default:
 		return nil
 	}
-}
-
-// AddURLParams adds query parameters to a URL.
-func AddURLParams(baseURL string, params map[string]string) string {
-	if len(params) == 0 {
-		return baseURL
-	}
-
-	// Parse the existing URL
-	u, err := url.Parse(baseURL)
-	if err != nil {
-		// If we can't parse the URL, just return it as-is
-		return baseURL
-	}
-
-	// Get existing query values
-	q := u.Query()
-
-	// Add new parameters
-	for key, value := range params {
-		q.Set(key, value)
-	}
-
-	// Update the URL with the new query string
-	u.RawQuery = q.Encode()
-
-	return u.String()
-}
-
-// NewRequest creates a new HTTP request with the given method, URL, and body.
-// It uses context.Background for backward compatibility. Use NewRequestWithContext
-// when cancellation, deadlines, or request-scoped values are required.
-func (c *HTTPClient) NewRequest(method, requestURL string, body any) (*http.Request, error) {
-	return c.NewRequestWithContext(context.Background(), method, requestURL, body)
-}
-
-// NewRequestWithContext creates a new HTTP request with the given context, method, URL, and body.
-func (c *HTTPClient) NewRequestWithContext(ctx context.Context, method, requestURL string, body any) (*http.Request, error) {
-	if c == nil {
-		return nil, errors.New("HTTP client cannot be nil")
-	}
-
-	if ctx == nil {
-		return nil, errors.New("request context cannot be nil")
-	}
-
-	var bodyReader io.Reader
-
-	if body != nil {
-		// Serialize the request body to JSON
-		bodyBytes, err := c.jsonPool.Marshal(body)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal request body: %w", err)
-		}
-
-		bodyReader = bytes.NewReader(bodyBytes)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, method, requestURL, bodyReader)
-	if err != nil {
-		return nil, err
-	}
-
-	// Add standard headers
-	req.Header.Set("Accept", "application/json")
-
-	snapshot := c.cloneConfiguration()
-	req.Header.Set("User-Agent", snapshot.userAgent)
-
-	// Add content type if there's a body
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
-
-	// Add authorization if there's a token
-	if snapshot.authToken != "" {
-		req.Header.Set("Authorization", formatAuthorizationHeader(snapshot.authToken))
-	}
-
-	return req, nil
 }

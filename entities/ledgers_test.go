@@ -70,7 +70,7 @@ func TestListLedgers(t *testing.T) {
 	assert.Equal(t, orgID, result.Items[0].OrganizationID)
 
 	// Test with options
-	opts := models.LedgersListOpts{PageListOpts: models.PageListOpts{Limit: 5, Page: 1, OrderBy: "created_at", SortDirection: models.SortDescending}}
+	opts := models.LedgersListOpts{PageListOpts: models.PageListOpts{Limit: 5, Page: 1, SortDirection: models.SortDescending}}
 
 	mockService.EXPECT().
 		ListLedgers(gomock.Any(), orgID, opts).

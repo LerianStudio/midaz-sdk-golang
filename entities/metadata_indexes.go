@@ -36,7 +36,7 @@ func (e *metadataIndexesEntity) buildBaseURL() string {
 func (e *metadataIndexesEntity) ListMetadataIndexes(ctx context.Context, entityName string) ([]models.MetadataIndex, error) {
 	const operation = "ListMetadataIndexes"
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, e.buildBaseURL(), nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, e.buildBaseURL(), nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -111,7 +111,7 @@ func (e *metadataIndexesEntity) DeleteMetadataIndex(ctx context.Context, entityN
 
 	endpoint := fmt.Sprintf("%s/entities/%s/key/%s", e.buildBaseURL(), pathSegment(entityName), pathSegment(metadataKey))
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, endpoint, nil)
+	req, err := newRequestWithContext(ctx, http.MethodDelete, endpoint, nil)
 	if err != nil {
 		return errors.NewInternalError(operation, err)
 	}

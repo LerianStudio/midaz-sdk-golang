@@ -68,7 +68,6 @@ func TestListOrganizations(t *testing.T) {
 		PageListOpts: models.PageListOpts{
 			Page:          2,
 			Limit:         5,
-			OrderBy:       "created_at",
 			SortDirection: models.SortDescending,
 		},
 	}

@@ -197,7 +197,7 @@ func TestSetTenantIDLocked(t *testing.T) {
 // the Entity level (via the v3 Config.GetTenantID seeding path, modeled here
 // by newTestEntityWithTenant) is propagated to service entities and arrives
 // as an X-Tenant-ID header when a service method makes an HTTP request. This
-// is the end-to-end test for the initServices -> propagateTenantID flow.
+// is the end-to-end test for the initServices -> propagateHTTPClientConfiguration flow.
 func TestTenantIDPropagationThroughServiceEntity(t *testing.T) {
 	var receivedHeader string
 
@@ -223,7 +223,7 @@ func TestTenantIDPropagationThroughServiceEntity(t *testing.T) {
 
 // TestTenantIDPropagationThroughServiceEntityWithUnexportedField verifies tenant ID
 // propagation through a service entity that uses an unexported httpClient field
-// (e.g., accountsEntity), covering the other code path in propagateTenantID.
+// (e.g., accountsEntity), covering tenant ID propagation via applyConfigurationFrom.
 func TestTenantIDPropagationThroughServiceEntityWithUnexportedField(t *testing.T) {
 	var receivedHeader string
 

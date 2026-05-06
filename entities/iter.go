@@ -136,6 +136,10 @@ func flattenPages[T any](pages iter.Seq2[*models.ListResponse[T], error]) iter.S
 				return
 			}
 
+			if page == nil {
+				continue
+			}
+
 			for _, item := range page.Items {
 				if !yield(item, nil) {
 					return

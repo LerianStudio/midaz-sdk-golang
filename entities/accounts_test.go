@@ -706,7 +706,6 @@ func TestAccountsEntity_ListAccounts(t *testing.T) {
 				PageListOpts: models.PageListOpts{
 					Limit:         5,
 					Page:          2,
-					OrderBy:       "name",
 					SortDirection: models.SortAscending,
 				},
 				Filters: models.AccountsFilters{Type: "ASSET"},

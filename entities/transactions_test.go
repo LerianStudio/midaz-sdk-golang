@@ -304,11 +304,11 @@ func TestCreateTransaction(t *testing.T) {
 	// Test nil input
 	mockService.EXPECT().
 		CreateTransaction(gomock.Any(), orgID, ledgerID, nil).
-		Return(nil, errors.New("input is required"))
+		Return(nil, errors.New("input cannot be nil"))
 
 	_, err = mockService.CreateTransaction(ctx, orgID, ledgerID, nil)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "input is required")
+	assert.Contains(t, err.Error(), "input cannot be nil")
 
 	// Test validation error from server
 	mockService.EXPECT().
@@ -365,11 +365,11 @@ func TestCreateTransactionWithDSL(t *testing.T) {
 	// Test nil input
 	mockService.EXPECT().
 		CreateTransactionWithDSL(gomock.Any(), orgID, ledgerID, nil).
-		Return(nil, errors.New("input is required"))
+		Return(nil, errors.New("input cannot be nil"))
 
 	_, err = mockService.CreateTransactionWithDSL(ctx, orgID, ledgerID, nil)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "input is required")
+	assert.Contains(t, err.Error(), "input cannot be nil")
 }
 
 // ========== TestCreateTransactionWithDSLFile ==========
@@ -485,11 +485,11 @@ func TestUpdateTransaction(t *testing.T) {
 	// Test nil input
 	mockService.EXPECT().
 		UpdateTransaction(gomock.Any(), orgID, ledgerID, transactionID, nil).
-		Return(nil, errors.New("input is required"))
+		Return(nil, errors.New("input cannot be nil"))
 
 	_, err = mockService.UpdateTransaction(ctx, orgID, ledgerID, transactionID, nil)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "input is required")
+	assert.Contains(t, err.Error(), "input cannot be nil")
 
 	// Test not found error
 	mockService.EXPECT().
@@ -773,11 +773,11 @@ func TestCreateInflowTransaction(t *testing.T) {
 	// Test nil input
 	mockService.EXPECT().
 		CreateInflowTransaction(gomock.Any(), orgID, ledgerID, nil).
-		Return(nil, errors.New("input is required"))
+		Return(nil, errors.New("input cannot be nil"))
 
 	_, err = mockService.CreateInflowTransaction(ctx, orgID, ledgerID, nil)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "input is required")
+	assert.Contains(t, err.Error(), "input cannot be nil")
 }
 
 // ========== TestCreateOutflowTransaction ==========
@@ -832,11 +832,11 @@ func TestCreateOutflowTransaction(t *testing.T) {
 	// Test nil input
 	mockService.EXPECT().
 		CreateOutflowTransaction(gomock.Any(), orgID, ledgerID, nil).
-		Return(nil, errors.New("input is required"))
+		Return(nil, errors.New("input cannot be nil"))
 
 	_, err = mockService.CreateOutflowTransaction(ctx, orgID, ledgerID, nil)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "input is required")
+	assert.Contains(t, err.Error(), "input cannot be nil")
 }
 
 // ========== TestCreateAnnotationTransaction ==========
@@ -890,11 +890,11 @@ func TestCreateAnnotationTransaction(t *testing.T) {
 	// Test nil input
 	mockService.EXPECT().
 		CreateAnnotationTransaction(gomock.Any(), orgID, ledgerID, nil).
-		Return(nil, errors.New("input is required"))
+		Return(nil, errors.New("input cannot be nil"))
 
 	_, err = mockService.CreateAnnotationTransaction(ctx, orgID, ledgerID, nil)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "input is required")
+	assert.Contains(t, err.Error(), "input cannot be nil")
 
 	// Test current CreateTransactionInput validation reused by annotations.
 	invalidInput := &models.CreateAnnotationInput{Description: ""}

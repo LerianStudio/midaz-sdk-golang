@@ -94,18 +94,41 @@ type TransactionsService interface {
 	// The organizationID and ledgerID parameters specify which organization and ledger the transaction belongs to.
 	// The transactionID parameter is the unique identifier of the transaction to revert.
 	// Returns the reverted transaction, or an error if the operation fails.
+	//
+	// Idempotency contract: the SDK auto-attaches an X-Idempotency header to
+	// the underlying POST when client-level idempotency is enabled (the
+	// default). The server is expected to honor X-Idempotency on this
+	// endpoint to dedupe network retries — without server-side honoring, a
+	// transient retry could produce two reversal transactions
+	// (double-entry catastrophe). If the deployed server-side contract
+	// differs, callers SHOULD disable auto-retry for this code path
+	// (e.g., via retry.WithMaxRetries(0)) or suppress idempotency via
+	// [sdkctx.WithoutAutoIdempotency] only when retries are explicitly
+	// non-fatal.
 	RevertTransaction(ctx context.Context, organizationID, ledgerID, transactionID string) (*models.Transaction, error)
 
 	// CommitTransaction commits a pending transaction.
 	// The organizationID and ledgerID parameters specify which organization and ledger the transaction belongs to.
 	// The transactionID parameter is the unique identifier of the transaction to commit.
 	// Returns the committed transaction, or an error if the operation fails.
+	//
+	// Idempotency contract: same as [TransactionsService.RevertTransaction] —
+	// the server is expected to honor X-Idempotency on this endpoint to
+	// dedupe network retries. If the deployed server-side contract differs,
+	// callers SHOULD disable auto-retry for this code path
+	// (e.g., via retry.WithMaxRetries(0)) to avoid duplicate commits.
 	CommitTransaction(ctx context.Context, organizationID, ledgerID, transactionID string) (*models.Transaction, error)
 
 	// CancelTransaction cancels a pending transaction.
 	// The organizationID and ledgerID parameters specify which organization and ledger the transaction belongs to.
 	// The transactionID parameter is the unique identifier of the transaction to cancel.
 	// Returns an error if the operation fails.
+	//
+	// Idempotency contract: same as [TransactionsService.RevertTransaction] —
+	// the server is expected to honor X-Idempotency on this endpoint to
+	// dedupe network retries. If the deployed server-side contract differs,
+	// callers SHOULD disable auto-retry for this code path
+	// (e.g., via retry.WithMaxRetries(0)) to avoid duplicate cancellations.
 	CancelTransaction(ctx context.Context, organizationID, ledgerID, transactionID string) error
 
 	// CancelTransactionWithResponse cancels a pending transaction and returns the cancelled transaction.

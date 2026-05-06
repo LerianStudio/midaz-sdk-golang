@@ -1147,9 +1147,10 @@ func TestAssetRatesEntity_ResponseParsing(t *testing.T) {
 		assert.Equal(t, "ext-full", result.ExternalID)
 		assert.Equal(t, "USD", result.From)
 		assert.Equal(t, "BRL", result.To)
-		assert.InDelta(t, 5.25, result.Rate, 0.001)
-		assert.NotNil(t, result.Scale)
-		assert.InDelta(t, float64(2), *result.Scale, 0.001)
+		require.NotNil(t, result.Rate)
+		assert.Equal(t, "5.25", result.Rate.String())
+		require.NotNil(t, result.Scale)
+		assert.Equal(t, 2, *result.Scale)
 		assert.NotNil(t, result.Source)
 		assert.Equal(t, "Central Bank", *result.Source)
 		assert.Equal(t, 3600, result.TTL)
@@ -1448,4 +1449,44 @@ func TestListAssetRatesByAssetCode_ValidatesOptsBeforeRequest(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "limit exceeds maximum")
 	assert.False(t, called, "request should not have been issued when validation fails")
+}
+
+// TestAssetRatesEntity_ListAssetRatesByAssetCodePages_NilContext is the
+// regression for the Track 10C nil-context fix omission — without
+// requestContext(ctx) at the top of the iterator, calling Pages with a
+// nil context panicked on the first ctx.Err() inside the closure.
+//
+// Mirrors TestPortfoliosEntity_ListPortfoliosPages_NilContext in spirit:
+// the contract under test is "iterator must accept a nil context without
+// panicking". We use a MockHTTPClient that returns a single empty page so
+// the iterator drains cleanly — what matters is the absence of a panic
+// on the first iteration's ctx.Err() check.
+func TestAssetRatesEntity_ListAssetRatesByAssetCodePages_NilContext(t *testing.T) {
+	mockClient := &MockHTTPClient{
+		DoFunc: func(_ *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body: io.NopCloser(strings.NewReader(
+					`{"items":[],"pagination":{"limit":10}}`,
+				)),
+				Header: make(http.Header),
+			}, nil
+		},
+	}
+
+	entity := &assetRatesEntity{serviceEntity: serviceEntity{
+		httpClient: newHTTPClientAdapter(mockClient),
+		baseURLs:   map[string]string{"transaction": "https://api.example.com"},
+	}}
+
+	var nilCtx context.Context
+
+	require.NotPanics(t, func() {
+		for _, err := range entity.ListAssetRatesByAssetCodePages(
+			nilCtx, "org-123", "ledger-456", "USD",
+			models.AssetRatesListOpts{Limit: 10},
+		) {
+			require.NoError(t, err)
+		}
+	})
 }

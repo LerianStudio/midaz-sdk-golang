@@ -490,7 +490,6 @@ func TestAssetsEntity_ListAssets(t *testing.T) {
 				PageListOpts: models.PageListOpts{
 					Limit:         5,
 					Page:          2,
-					OrderBy:       "name",
 					SortDirection: models.SortAscending,
 				},
 				Filters: models.AssetsFilters{Type: "CURRENCY"},
@@ -1557,7 +1556,6 @@ func TestAssetsEntity_QueryParameters(t *testing.T) {
 		PageListOpts: models.PageListOpts{
 			Limit:         5,
 			Page:          3,
-			OrderBy:       "name",
 			SortDirection: models.SortDescending,
 		},
 	}
