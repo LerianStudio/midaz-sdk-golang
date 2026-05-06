@@ -11,7 +11,7 @@ reports.
 
 # Public surface
 
-  - Per-resource generators: [OrgGenerator], LedgerGenerator,
+  - Per-resource generators: [OrganizationGenerator], LedgerGenerator,
     AssetGenerator, AccountGenerator, PortfolioGenerator, SegmentGenerator,
     TransactionGenerator, etc. Each takes a parent resource ID and produces N
     child resources.

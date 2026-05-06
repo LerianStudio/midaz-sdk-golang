@@ -15,7 +15,6 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
-// \1 performs an operation
 func TestListLedgers(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -173,7 +172,6 @@ func TestLedgersEntity_Settings_Validation(t *testing.T) {
 	}
 }
 
-// \1 performs an operation
 func TestGetLedger(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -237,7 +235,6 @@ func TestGetLedger(t *testing.T) {
 	assert.Contains(t, err.Error(), "not found")
 }
 
-// \1 performs an operation
 func TestCreateLedger(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -335,7 +332,6 @@ func TestCreateLedger(t *testing.T) {
 	assert.Contains(t, err.Error(), "metadata exceeds maximum nesting depth")
 }
 
-// \1 performs an operation
 func TestUpdateLedger(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -453,7 +449,6 @@ func TestUpdateLedger(t *testing.T) {
 	assert.Contains(t, err.Error(), "not found")
 }
 
-// \1 performs an operation
 func TestDeleteLedger(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

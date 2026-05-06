@@ -26,16 +26,16 @@ type AliasesService interface {
 	CreateAlias(ctx context.Context, organizationID, holderID string, input *models.CreateAliasInput) (*models.Alias, error)
 	// GetAlias retrieves an alias by ID.
 	//
-	// To include soft-deleted aliases in the response, tag the context with
-	// [sdkctx.WithIncludeDeleted](ctx, true) before calling.
+	// To include soft-deleted aliases in the response, call
+	// [sdkctx.WithIncludeDeleted] on the context before invoking GetAlias.
 	GetAlias(ctx context.Context, organizationID, holderID, aliasID string) (*models.Alias, error)
 	// UpdateAlias updates an alias by ID.
 	UpdateAlias(ctx context.Context, organizationID, holderID, aliasID string, input *models.UpdateAliasInput) (*models.Alias, error)
 	// DeleteAlias deletes an alias by ID.
 	//
 	// By default the operation performs a soft delete (the record is marked deleted
-	// but preserved). To perform a hard delete (permanent removal), tag the context
-	// with [sdkctx.WithHardDelete](ctx, true) before calling.
+	// but preserved). To perform a hard delete (permanent removal), call
+	// [sdkctx.WithHardDelete] on the context before invoking DeleteAlias.
 	DeleteAlias(ctx context.Context, organizationID, holderID, aliasID string) error
 	// DeleteRelatedParty deletes a related party from an alias.
 	DeleteRelatedParty(ctx context.Context, organizationID, holderID, aliasID, relatedPartyID string) error
@@ -166,7 +166,7 @@ func (e *aliasesEntity) CreateAlias(ctx context.Context, organizationID, holderI
 
 // GetAlias retrieves an alias by ID.
 //
-// Use [sdkctx.WithIncludeDeleted](ctx, true) to include soft-deleted aliases.
+// Use [sdkctx.WithIncludeDeleted] on the context to include soft-deleted aliases.
 func (e *aliasesEntity) GetAlias(ctx context.Context, organizationID, holderID, aliasID string) (*models.Alias, error) {
 	const operation = "GetAlias"
 
@@ -238,7 +238,7 @@ func (e *aliasesEntity) UpdateAlias(ctx context.Context, organizationID, holderI
 // DeleteAlias deletes an alias by ID.
 //
 // The default is a soft delete (record preserved, marked deleted). Use
-// [sdkctx.WithHardDelete](ctx, true) to perform a hard delete (permanent).
+// [sdkctx.WithHardDelete] on the context to perform a hard delete (permanent).
 func (e *aliasesEntity) DeleteAlias(ctx context.Context, organizationID, holderID, aliasID string) error {
 	const operation = "DeleteAlias"
 

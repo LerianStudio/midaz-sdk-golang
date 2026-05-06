@@ -141,7 +141,7 @@ check-references:
 # Track 7E: enforce no mmodel references in public API.
 check-mmodel-references:
 	@echo "$(YELLOW)Checking for mmodel references in public API...$(NC)"
-	@bad=$$(grep -r "midaz/v3/pkg/mmodel" --include="*.go" ./models ./entities | grep -v "//" || true); \
+	@bad=$$(grep -r "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/mmodel" --include="*.go" ./models ./entities | grep -v '^[[:space:]]*//' || true); \
 		if [ -n "$$bad" ]; then \
 			echo "$(RED)❌ Found unexpected mmodel references in public API:$(NC)"; \
 			echo "$$bad"; \
@@ -163,7 +163,7 @@ check-config-parity:
 	@./scripts/check-config-parity.sh
 
 # Verify our implementation
-verify-sdk: check-references check-mmodel-references check-api-compatibility check-config-parity
+verify-sdk: check-references check-mmodel-references check-api-compatibility check-config-parity examples-test
 	@echo "$(GREEN)✅ All SDK quality checks passed!$(NC)"
 
 # Install git hooks

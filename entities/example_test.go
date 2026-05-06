@@ -10,9 +10,11 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
 )
 
-// Compile-time assertions that the methods referenced by ExampleAccountsService_*
-// and ExampleTransactionsService_* below exist on the corresponding service
-// interfaces. These also satisfy go vet's example-naming requirement.
+// Anchor identifiers that satisfy go vet's example-naming requirement
+// (Example<Type>_<Method> needs <Type> to be in scope from this test
+// package). The concrete implementations are unexported, so we cannot
+// assert they satisfy the interface here — see the corresponding _test.go
+// files in package entities for the concrete-type compile checks.
 var (
 	_ entities.AccountsService     = (entities.AccountsService)(nil)
 	_ entities.TransactionsService = (entities.TransactionsService)(nil)
@@ -33,7 +35,7 @@ func ExampleAccountsService_ListAccountsAll() {
 		return
 	}
 
-	c, err := client.New(client.WithConfig(cfg))
+	c, err := client.New(client.WithConfig(cfg), client.WithAnonymous())
 	if err != nil {
 		fmt.Println("client error")
 		return
@@ -74,7 +76,7 @@ func ExampleTransactionsService_ListTransactionsAll() {
 		return
 	}
 
-	c, err := client.New(client.WithConfig(cfg))
+	c, err := client.New(client.WithConfig(cfg), client.WithAnonymous())
 	if err != nil {
 		fmt.Println("client error")
 		return

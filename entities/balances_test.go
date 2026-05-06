@@ -2103,3 +2103,153 @@ func TestUpdateBalanceInput_Validation(t *testing.T) {
 		})
 	}
 }
+
+// twoPageBalancesMock returns a MockHTTPClient that serves two pages of
+// balances. Page 1 reports Total=2/Limit=1 (HasMore true via Total/Limit
+// math); page 2 reports Total=2/Page=2/Limit=1 (HasMore false). The shared
+// pagesRequested slice records every requested ?page= value so callers can
+// assert page advancement and early termination.
+func twoPageBalancesMock() (*MockHTTPClient, *[]string) {
+	pagesRequested := []string{}
+	mock := &MockHTTPClient{
+		DoFunc: func(req *http.Request) (*http.Response, error) {
+			page := req.URL.Query().Get("page")
+			pagesRequested = append(pagesRequested, page)
+
+			body := `{
+				"items": [{"id":"bal-` + page + `","assetCode":"USD","available":"100","onHold":"0","version":1}],
+				"pagination": {"total": 2, "limit": 1, "page": ` + page + `}
+			}`
+
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(body)),
+			}, nil
+		},
+	}
+
+	return mock, &pagesRequested
+}
+
+// TestBalancesEntity_ListBalancesPages_DefaultsAndAdvances covers the three
+// happy-path invariants of the iter.Seq2 helpers: opts.Page==0 is normalized
+// to 1, subsequent pages are fetched until HasMore==false, and every page is
+// yielded.
+func TestBalancesEntity_ListBalancesPages_DefaultsAndAdvances(t *testing.T) {
+	mock, pagesRequested := twoPageBalancesMock()
+
+	entity := &balancesEntity{serviceEntity: serviceEntity{
+		httpClient: newBalancesHTTPClientAdapter(mock),
+		baseURLs:   map[string]string{"transaction": "https://api.example.com/v1"},
+	}}
+
+	opts := models.BalancesListOpts{PageListOpts: models.PageListOpts{Limit: 1}}
+
+	pages := 0
+
+	for page, err := range entity.ListBalancesPages(context.Background(), "org", "ledger", opts) {
+		require.NoError(t, err)
+		require.NotNil(t, page)
+		pages++
+	}
+
+	assert.Equal(t, 2, pages, "expected two yielded pages")
+	assert.Equal(t, []string{"1", "2"}, *pagesRequested,
+		"first request must default Page to 1, second must advance to 2")
+}
+
+// TestBalancesEntity_ListBalancesAll_FlattenAcrossPages verifies that
+// ListBalancesAll yields every Balance across the page boundary.
+func TestBalancesEntity_ListBalancesAll_FlattenAcrossPages(t *testing.T) {
+	mock, _ := twoPageBalancesMock()
+
+	entity := &balancesEntity{serviceEntity: serviceEntity{
+		httpClient: newBalancesHTTPClientAdapter(mock),
+		baseURLs:   map[string]string{"transaction": "https://api.example.com/v1"},
+	}}
+
+	opts := models.BalancesListOpts{PageListOpts: models.PageListOpts{Limit: 1}}
+
+	items := 0
+	for bal, err := range entity.ListBalancesAll(context.Background(), "org", "ledger", opts) {
+		require.NoError(t, err)
+		require.NotEmpty(t, bal.ID)
+		items++
+	}
+
+	assert.Equal(t, 2, items, "expected one item per page across two pages")
+}
+
+// TestBalancesEntity_ListBalancesPages_EarlyTermination verifies that
+// breaking out of the range loop after the first page stops further HTTP
+// requests — the iterator must respect a false yield return.
+func TestBalancesEntity_ListBalancesPages_EarlyTermination(t *testing.T) {
+	mock, pagesRequested := twoPageBalancesMock()
+
+	entity := &balancesEntity{serviceEntity: serviceEntity{
+		httpClient: newBalancesHTTPClientAdapter(mock),
+		baseURLs:   map[string]string{"transaction": "https://api.example.com/v1"},
+	}}
+
+	opts := models.BalancesListOpts{PageListOpts: models.PageListOpts{Limit: 1}}
+
+	for page, err := range entity.ListBalancesPages(context.Background(), "org", "ledger", opts) {
+		require.NoError(t, err)
+		require.NotNil(t, page)
+		break // early termination after the first page
+	}
+
+	assert.Equal(t, []string{"1"}, *pagesRequested,
+		"early break must stop the iterator before requesting page 2")
+}
+
+// TestBalancesEntity_ListBalancesPages_ContextCancellation verifies that a
+// cancelled context yields ctx.Err() instead of issuing further requests.
+func TestBalancesEntity_ListBalancesPages_ContextCancellation(t *testing.T) {
+	mock, _ := twoPageBalancesMock()
+
+	entity := &balancesEntity{serviceEntity: serviceEntity{
+		httpClient: newBalancesHTTPClientAdapter(mock),
+		baseURLs:   map[string]string{"transaction": "https://api.example.com/v1"},
+	}}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // cancel before the first iteration
+
+	opts := models.BalancesListOpts{PageListOpts: models.PageListOpts{Limit: 1}}
+
+	var observed error
+
+	for _, err := range entity.ListBalancesPages(ctx, "org", "ledger", opts) {
+		observed = err
+		break
+	}
+
+	require.Error(t, observed)
+	assert.ErrorIs(t, observed, context.Canceled)
+}
+
+// TestBalancesEntity_ListBalancesByAccountAliasPages_AdvancesPages exercises
+// the alias variant to confirm the pagination loop behaves identically to
+// the ledger-scoped helper.
+func TestBalancesEntity_ListBalancesByAccountAliasPages_AdvancesPages(t *testing.T) {
+	mock, pagesRequested := twoPageBalancesMock()
+
+	entity := &balancesEntity{serviceEntity: serviceEntity{
+		httpClient: newBalancesHTTPClientAdapter(mock),
+		baseURLs:   map[string]string{"transaction": "https://api.example.com/v1"},
+	}}
+
+	opts := models.BalancesListOpts{PageListOpts: models.PageListOpts{Limit: 1}}
+
+	pages := 0
+
+	for page, err := range entity.ListBalancesByAccountAliasPages(context.Background(), "org", "ledger", "@alias", opts) {
+		require.NoError(t, err)
+		require.NotNil(t, page)
+		pages++
+	}
+
+	assert.Equal(t, 2, pages, "alias helper must traverse both pages")
+	assert.Equal(t, []string{"1", "2"}, *pagesRequested)
+}

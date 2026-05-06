@@ -106,7 +106,8 @@ examples/workflow-with-entities/workflow-with-entities
 /concurrency
 /configuration
 /context
-/observability_demo
+/mass-demo-generator
 /pkg-validation-demo
 /tracing
 /tracing-server
+/workflow-with-entities

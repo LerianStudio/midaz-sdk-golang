@@ -22,6 +22,7 @@ slow API calls, and internal warnings.
 import (
     "log/slog"
     "os"
+    "time"
 
     midaz "github.com/LerianStudio/midaz-sdk-golang/v3"
 )

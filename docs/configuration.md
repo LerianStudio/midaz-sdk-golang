@@ -159,7 +159,7 @@ ctx = sdkctx.WithIdempotencyKey(ctx, "user-action-42-2026-05-06")
 
 // This single call uses tenant "tenant-xyz" + the explicit key,
 // regardless of client.GetConfig().TenantID or the auto-generated UUID.
-err := client.Transactions.Create(ctx, input)
+err := client.Transactions.CreateTransaction(ctx, input)
 ```
 
 The full list:
@@ -328,11 +328,11 @@ client, _ := midaz.New(
 )
 
 // All calls send X-Tenant-ID: tenant-default
-client.Organizations.Get(ctx, orgID)
+client.Organizations.GetOrganization(ctx, orgID)
 
 // Override for one specific call:
 specialCtx := sdkctx.WithRequestTenantID(ctx, "tenant-vip")
-client.Organizations.Get(specialCtx, orgID)  // X-Tenant-ID: tenant-vip
+client.Organizations.GetOrganization(specialCtx, orgID)  // X-Tenant-ID: tenant-vip
 ```
 
 ### 4.2 Idempotency keys
@@ -345,11 +345,11 @@ auto-generated key for a specific call:
 // Use an explicit key (e.g. derived from a user-action ID):
 ctx := sdkctx.WithIdempotencyKey(context.Background(),
     fmt.Sprintf("user-%d-action-%s", userID, actionUUID))
-client.Transactions.Create(ctx, input)
+client.Transactions.CreateTransaction(ctx, input)
 
 // Skip auto-generation entirely (caller does NOT want the header):
 ctx := sdkctx.WithoutAutoIdempotency(context.Background())
-client.Transactions.Create(ctx, input)
+client.Transactions.CreateTransaction(ctx, input)
 ```
 
 ### 4.3 Soft-delete vs hard-delete
@@ -357,11 +357,11 @@ client.Transactions.Create(ctx, input)
 ```go
 // Include soft-deleted records in a list response:
 ctx := sdkctx.WithIncludeDeleted(context.Background(), true)
-list, _ := client.Accounts.List(ctx, opts)
+list, _ := client.Accounts.ListAccounts(ctx, opts)
 
 // Hard-delete instead of soft-delete (irreversible; admin only):
 ctx := sdkctx.WithHardDelete(context.Background(), true)
-err := client.Accounts.Delete(ctx, accountID)
+err := client.Accounts.DeleteAccount(ctx, accountID)
 ```
 
 ---

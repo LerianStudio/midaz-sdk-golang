@@ -48,10 +48,10 @@ type BalancesService interface {
 	//	    PageListOpts: models.PageListOpts{Limit: 10, Page: 1},
 	//	    Filters:      models.BalancesFilters{AssetCode: "USD"},
 	//	}
-	//	page, err := c.Entity.Balances.ListBalances(ctx, "org-123", "ledger-456", opts)
+	//	page, err := c.Balances.ListBalances(ctx, "org-123", "ledger-456", opts)
 	//	if err != nil { return err }
 	//	for _, b := range page.Items {
-	//	    fmt.Printf("balance %s: %s available=%d/%d\n", b.ID, b.AssetCode, b.Available, b.Scale)
+	//	    fmt.Printf("balance %s: %s available=%s\n", b.ID, b.AssetCode, b.Available.String())
 	//	}
 	//
 	// For multi-page traversal, prefer ListBalancesAll (auto page advance, range-loop friendly).
@@ -86,7 +86,7 @@ type BalancesService interface {
 	//	    PageListOpts: models.PageListOpts{Limit: 10},
 	//	    Filters:      models.BalancesFilters{AssetCode: "USD"},
 	//	}
-	//	page, err := c.Entity.Balances.ListAccountBalances(ctx, "org", "ledger", "account", opts)
+	//	page, err := c.Balances.ListAccountBalances(ctx, "org", "ledger", "account", opts)
 	//
 	// For multi-page traversal, prefer ListAccountBalancesAll.
 	ListAccountBalances(ctx context.Context, organizationID, ledgerID, accountID string, opts models.BalancesListOpts) (*models.ListResponse[models.Balance], error)
@@ -127,14 +127,18 @@ type BalancesService interface {
 	// The alias is a human-readable identifier for the account.
 	// Returns a paginated list of balances, or an error if the operation fails.
 	ListBalancesByAccountAlias(ctx context.Context, organizationID, ledgerID, alias string, opts models.BalancesListOpts) (*models.ListResponse[models.Balance], error)
+	// ListBalancesByAccountAliasAll yields every balance for an account alias across all pages, transparently advancing pagination.
 	ListBalancesByAccountAliasAll(ctx context.Context, organizationID, ledgerID, alias string, opts models.BalancesListOpts) iter.Seq2[models.Balance, error]
+	// ListBalancesByAccountAliasPages yields one *ListResponse[Balance] per page for an account alias.
 	ListBalancesByAccountAliasPages(ctx context.Context, organizationID, ledgerID, alias string, opts models.BalancesListOpts) iter.Seq2[*models.ListResponse[models.Balance], error]
 
 	// ListBalancesByExternalCode retrieves balances for an account identified by its external code.
 	// The external code links the account to external systems.
 	// Returns a paginated list of balances, or an error if the operation fails.
 	ListBalancesByExternalCode(ctx context.Context, organizationID, ledgerID, code string, opts models.BalancesListOpts) (*models.ListResponse[models.Balance], error)
+	// ListBalancesByExternalCodeAll yields every balance for an external code across all pages, transparently advancing pagination.
 	ListBalancesByExternalCodeAll(ctx context.Context, organizationID, ledgerID, code string, opts models.BalancesListOpts) iter.Seq2[models.Balance, error]
+	// ListBalancesByExternalCodePages yields one *ListResponse[Balance] per page for an external code.
 	ListBalancesByExternalCodePages(ctx context.Context, organizationID, ledgerID, code string, opts models.BalancesListOpts) iter.Seq2[*models.ListResponse[models.Balance], error]
 
 	// GetAccountBalancesHistory retrieves the historical state of all balances for an account at a specific point in time.
@@ -376,6 +380,8 @@ func (e *balancesEntity) UpdateBalance(
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
+
+	req.Header.Set("Content-Type", "application/json")
 
 	var balance models.Balance
 	if err := e.httpClient.sendRequest(req, &balance); err != nil {

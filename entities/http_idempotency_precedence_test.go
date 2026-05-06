@@ -23,10 +23,10 @@ import (
 // caller's input-level key — a dedup-vs-double-bookkeeping hazard for a
 // ledger SDK.
 func TestIdempotencyPrecedence_InputKeyBeatsCtxKey(t *testing.T) {
-	var seen string
+	seenCh := make(chan string, 1)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		seen = r.Header.Get("X-Idempotency")
+		seenCh <- r.Header.Get("X-Idempotency")
 		w.Header().Set("Content-Type", "application/json")
 
 		_, err := w.Write([]byte(`{}`))
@@ -51,6 +51,7 @@ func TestIdempotencyPrecedence_InputKeyBeatsCtxKey(t *testing.T) {
 	err := c.doRequest(ctx, http.MethodPost, srv.URL, headers, map[string]string{"ok": "true"}, &out)
 	require.NoError(t, err)
 
+	seen := <-seenCh
 	assert.Equal(t, "input-key", seen, "input-level IdempotencyKey must win over ctx-supplied key")
 }
 
@@ -58,10 +59,10 @@ func TestIdempotencyPrecedence_InputKeyBeatsCtxKey(t *testing.T) {
 // only the ctx-supplied key is set (no input-level header / marker), the
 // ctx key is the one emitted on the wire.
 func TestIdempotencyPrecedence_CtxKeyUsedWhenInputAbsent(t *testing.T) {
-	var seen string
+	seenCh := make(chan string, 1)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		seen = r.Header.Get("X-Idempotency")
+		seenCh <- r.Header.Get("X-Idempotency")
 		w.Header().Set("Content-Type", "application/json")
 
 		_, err := w.Write([]byte(`{}`))
@@ -78,6 +79,7 @@ func TestIdempotencyPrecedence_CtxKeyUsedWhenInputAbsent(t *testing.T) {
 	err := c.doRequest(ctx, http.MethodPost, srv.URL, nil, map[string]string{"ok": "true"}, &out)
 	require.NoError(t, err)
 
+	seen := <-seenCh
 	assert.Equal(t, "ctx-key", seen, "ctx key must be emitted when no input-level key is set")
 }
 
@@ -86,10 +88,10 @@ func TestIdempotencyPrecedence_CtxKeyUsedWhenInputAbsent(t *testing.T) {
 // SDK auto-generates a UUIDv4 idempotency key (the default with
 // client-level idempotency enabled).
 func TestIdempotencyPrecedence_AutoGenWhenBothAbsent(t *testing.T) {
-	var seen string
+	seenCh := make(chan string, 1)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		seen = r.Header.Get("X-Idempotency")
+		seenCh <- r.Header.Get("X-Idempotency")
 		w.Header().Set("Content-Type", "application/json")
 
 		_, err := w.Write([]byte(`{}`))
@@ -104,6 +106,7 @@ func TestIdempotencyPrecedence_AutoGenWhenBothAbsent(t *testing.T) {
 	err := c.doRequest(context.Background(), http.MethodPost, srv.URL, nil, map[string]string{"ok": "true"}, &out)
 	require.NoError(t, err)
 
+	seen := <-seenCh
 	require.NotEmpty(t, seen, "auto-generated key must be emitted when neither input nor ctx set one")
 	// UUIDv4 string form is 36 chars with 4 hyphens.
 	assert.Len(t, seen, 36)
