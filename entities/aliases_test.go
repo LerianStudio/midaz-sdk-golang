@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -128,10 +129,12 @@ func TestAliasesEntity_ListGetDelete_RequestConstruction(t *testing.T) {
 	assert.Equal(t, 1, list.Pagination.Page)
 	assert.Equal(t, 1, list.Pagination.ItemCount)
 
-	alias, err := service.GetAlias(context.Background(), crmOrgID, crmHolderID, crmAliasID, true)
+	getCtx := sdkctx.WithIncludeDeleted(context.Background(), true)
+	alias, err := service.GetAlias(getCtx, crmOrgID, crmHolderID, crmAliasID)
 	require.NoError(t, err)
 	assert.Equal(t, "ledger-123", *alias.LedgerID)
 
-	require.NoError(t, service.DeleteAlias(context.Background(), crmOrgID, crmHolderID, crmAliasID, true))
+	deleteCtx := sdkctx.WithHardDelete(context.Background(), true)
+	require.NoError(t, service.DeleteAlias(deleteCtx, crmOrgID, crmHolderID, crmAliasID))
 	require.NoError(t, service.DeleteRelatedParty(context.Background(), crmOrgID, crmHolderID, crmAliasID, crmRelatedPartyID))
 }

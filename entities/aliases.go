@@ -8,6 +8,7 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
 )
 
 // AliasesService defines CRM alias operations.
@@ -21,11 +22,18 @@ type AliasesService interface {
 	// CreateAlias creates an alias for a holder.
 	CreateAlias(ctx context.Context, organizationID, holderID string, input *models.CreateAliasInput) (*models.Alias, error)
 	// GetAlias retrieves an alias by ID.
-	GetAlias(ctx context.Context, organizationID, holderID, aliasID string, includeDeleted bool) (*models.Alias, error)
+	//
+	// To include soft-deleted aliases in the response, tag the context with
+	// [sdkctx.WithIncludeDeleted](ctx, true) before calling.
+	GetAlias(ctx context.Context, organizationID, holderID, aliasID string) (*models.Alias, error)
 	// UpdateAlias updates an alias by ID.
 	UpdateAlias(ctx context.Context, organizationID, holderID, aliasID string, input *models.UpdateAliasInput) (*models.Alias, error)
 	// DeleteAlias deletes an alias by ID.
-	DeleteAlias(ctx context.Context, organizationID, holderID, aliasID string, hardDelete bool) error
+	//
+	// By default the operation performs a soft delete (the record is marked deleted
+	// but preserved). To perform a hard delete (permanent removal), tag the context
+	// with [sdkctx.WithHardDelete](ctx, true) before calling.
+	DeleteAlias(ctx context.Context, organizationID, holderID, aliasID string) error
 	// DeleteRelatedParty deletes a related party from an alias.
 	DeleteRelatedParty(ctx context.Context, organizationID, holderID, aliasID, relatedPartyID string) error
 }
@@ -155,7 +163,9 @@ func (e *aliasesEntity) CreateAlias(ctx context.Context, organizationID, holderI
 }
 
 // GetAlias retrieves an alias by ID.
-func (e *aliasesEntity) GetAlias(ctx context.Context, organizationID, holderID, aliasID string, includeDeleted bool) (*models.Alias, error) {
+//
+// Use [sdkctx.WithIncludeDeleted](ctx, true) to include soft-deleted aliases.
+func (e *aliasesEntity) GetAlias(ctx context.Context, organizationID, holderID, aliasID string) (*models.Alias, error) {
 	const operation = "GetAlias"
 
 	organizationID, err := validateCRMOrganizationID(operation, organizationID)
@@ -174,7 +184,7 @@ func (e *aliasesEntity) GetAlias(ctx context.Context, organizationID, holderID, 
 	}
 
 	endpoint := e.aliasURL(holderID, aliasID)
-	if includeDeleted {
+	if sdkctx.IncludeDeletedFromContext(ctx) {
 		endpoint += "?include_deleted=true"
 	}
 
@@ -222,7 +232,10 @@ func (e *aliasesEntity) UpdateAlias(ctx context.Context, organizationID, holderI
 }
 
 // DeleteAlias deletes an alias by ID.
-func (e *aliasesEntity) DeleteAlias(ctx context.Context, organizationID, holderID, aliasID string, hardDelete bool) error {
+//
+// The default is a soft delete (record preserved, marked deleted). Use
+// [sdkctx.WithHardDelete](ctx, true) to perform a hard delete (permanent).
+func (e *aliasesEntity) DeleteAlias(ctx context.Context, organizationID, holderID, aliasID string) error {
 	const operation = "DeleteAlias"
 
 	organizationID, err := validateCRMOrganizationID(operation, organizationID)
@@ -241,7 +254,7 @@ func (e *aliasesEntity) DeleteAlias(ctx context.Context, organizationID, holderI
 	}
 
 	endpoint := e.aliasURL(holderID, aliasID)
-	if hardDelete {
+	if sdkctx.HardDeleteFromContext(ctx) {
 		endpoint += "?hard_delete=true"
 	}
 

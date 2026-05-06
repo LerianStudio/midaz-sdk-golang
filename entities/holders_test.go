@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -129,9 +130,11 @@ func TestHoldersEntity_ListGetDelete_RequestConstruction(t *testing.T) {
 	assert.Equal(t, 1, list.Pagination.Page)
 	assert.Equal(t, 1, list.Pagination.ItemCount)
 
-	holder, err := service.GetHolder(context.Background(), crmOrgID, crmHolderID, true)
+	getCtx := sdkctx.WithIncludeDeleted(context.Background(), true)
+	holder, err := service.GetHolder(getCtx, crmOrgID, crmHolderID)
 	require.NoError(t, err)
 	assert.Equal(t, "Jane Doe", *holder.Name)
 
-	require.NoError(t, service.DeleteHolder(context.Background(), crmOrgID, crmHolderID, true))
+	deleteCtx := sdkctx.WithHardDelete(context.Background(), true)
+	require.NoError(t, service.DeleteHolder(deleteCtx, crmOrgID, crmHolderID))
 }

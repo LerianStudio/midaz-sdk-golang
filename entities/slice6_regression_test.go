@@ -68,7 +68,7 @@ func TestSlice6CRMRejectsInvalidScopedIdentifiersBeforeTransport(t *testing.T) {
 	_, err := holders.ListHolders(context.Background(), "   ", models.HoldersListOpts{})
 	require.ErrorContains(t, err, "organizationID")
 
-	_, err = holders.GetHolder(context.Background(), crmOrgID, "holder-123", false)
+	_, err = holders.GetHolder(context.Background(), crmOrgID, "holder-123")
 	require.ErrorContains(t, err, "holderID must be a valid UUID")
 
 	_, err = aliases.ListAliases(context.Background(), crmOrgID, models.AliasesListOpts{
@@ -128,6 +128,6 @@ func TestSlice6CRMResultMethodsReturnErrorOnNullResponse(t *testing.T) {
 	defer server.Close()
 
 	service := newHoldersEntity(server.Client(), "token", map[string]string{"crm": server.URL}).(*holdersEntity)
-	_, err := service.GetHolder(context.Background(), crmOrgID, crmHolderID, false)
+	_, err := service.GetHolder(context.Background(), crmOrgID, crmHolderID)
 	require.ErrorContains(t, err, "null response body")
 }

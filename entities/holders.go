@@ -8,6 +8,7 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
 )
 
 // HoldersService defines CRM holder operations.
@@ -21,11 +22,18 @@ type HoldersService interface {
 	// CreateHolder creates a holder.
 	CreateHolder(ctx context.Context, organizationID string, input *models.CreateHolderInput) (*models.Holder, error)
 	// GetHolder retrieves a holder by ID.
-	GetHolder(ctx context.Context, organizationID, holderID string, includeDeleted bool) (*models.Holder, error)
+	//
+	// To include soft-deleted holders in the response, tag the context with
+	// [sdkctx.WithIncludeDeleted](ctx, true) before calling.
+	GetHolder(ctx context.Context, organizationID, holderID string) (*models.Holder, error)
 	// UpdateHolder updates a holder by ID.
 	UpdateHolder(ctx context.Context, organizationID, holderID string, input *models.UpdateHolderInput) (*models.Holder, error)
 	// DeleteHolder deletes a holder by ID.
-	DeleteHolder(ctx context.Context, organizationID, holderID string, hardDelete bool) error
+	//
+	// By default the operation performs a soft delete (the record is marked deleted
+	// but preserved). To perform a hard delete (permanent removal), tag the context
+	// with [sdkctx.WithHardDelete](ctx, true) before calling.
+	DeleteHolder(ctx context.Context, organizationID, holderID string) error
 }
 
 type holdersEntity struct {
@@ -142,7 +150,9 @@ func (e *holdersEntity) CreateHolder(ctx context.Context, organizationID string,
 }
 
 // GetHolder retrieves a holder by ID.
-func (e *holdersEntity) GetHolder(ctx context.Context, organizationID, holderID string, includeDeleted bool) (*models.Holder, error) {
+//
+// Use [sdkctx.WithIncludeDeleted](ctx, true) to include soft-deleted holders.
+func (e *holdersEntity) GetHolder(ctx context.Context, organizationID, holderID string) (*models.Holder, error) {
 	const operation = "GetHolder"
 
 	organizationID, err := validateCRMOrganizationID(operation, organizationID)
@@ -156,7 +166,7 @@ func (e *holdersEntity) GetHolder(ctx context.Context, organizationID, holderID 
 	}
 
 	endpoint := e.buildURL(holderID)
-	if includeDeleted {
+	if sdkctx.IncludeDeletedFromContext(ctx) {
 		endpoint += "?include_deleted=true"
 	}
 
@@ -201,7 +211,10 @@ func (e *holdersEntity) UpdateHolder(ctx context.Context, organizationID, holder
 }
 
 // DeleteHolder deletes a holder by ID.
-func (e *holdersEntity) DeleteHolder(ctx context.Context, organizationID, holderID string, hardDelete bool) error {
+//
+// The default is a soft delete (record preserved, marked deleted). Use
+// [sdkctx.WithHardDelete](ctx, true) to perform a hard delete (permanent).
+func (e *holdersEntity) DeleteHolder(ctx context.Context, organizationID, holderID string) error {
 	const operation = "DeleteHolder"
 
 	organizationID, err := validateCRMOrganizationID(operation, organizationID)
@@ -215,7 +228,7 @@ func (e *holdersEntity) DeleteHolder(ctx context.Context, organizationID, holder
 	}
 
 	endpoint := e.buildURL(holderID)
-	if hardDelete {
+	if sdkctx.HardDeleteFromContext(ctx) {
 		endpoint += "?hard_delete=true"
 	}
 
