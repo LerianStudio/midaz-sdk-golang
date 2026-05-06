@@ -2,7 +2,8 @@
 
 ## Project structure and module organization
 
-- `client.go` - Root SDK entry point (`github.com/LerianStudio/midaz-sdk-golang/v2`, package name `client`).
+- `midaz.go` - Root SDK entry point (`github.com/LerianStudio/midaz-sdk-golang/v3`, package name `midaz`). Defines `Client`, `New`, and the user-facing `With*` options.
+- `types.go` - Re-exports of the most commonly used `models.*` types (Account, Ledger, Transaction, etc.) and the `Environment` constants under the `midaz` package.
 - `entities/` - Entity service interfaces, HTTP transport, request helpers, and service accessors.
 - `models/` - Public API types, request builders, response wrappers, pagination options, and Midaz model aliases.
 - `pkg/` - SDK utilities including access manager, concurrency, config, errors, formatting, observability, pagination, performance, retry, security, transaction helpers, validation, and versioning.
@@ -64,7 +65,7 @@
 - Access Manager variables: `PLUGIN_AUTH_ENABLED`, `PLUGIN_AUTH_ADDRESS`, `MIDAZ_CLIENT_ID`, `MIDAZ_CLIENT_SECRET`.
 - Other common variables: `MIDAZ_ENVIRONMENT`, `MIDAZ_USER_AGENT`, `MIDAZ_TIMEOUT`, `MIDAZ_DEBUG`, `MIDAZ_MAX_RETRIES`, `MIDAZ_IDEMPOTENCY`.
 - Environment loading is explicit: use `config.NewConfig(config.FromEnvironment())`.
-- Ensure idempotent unsafe requests by setting `X-Idempotency` via `entities.WithIdempotencyKey(ctx, key)` when needed.
+- Ensure idempotent unsafe requests by setting `X-Idempotency` via `sdkctx.WithIdempotencyKey(ctx, key)` when a stable caller-supplied key is required. The SDK auto-generates one for unsafe methods by default.
 
 ## Agent-specific instructions
 

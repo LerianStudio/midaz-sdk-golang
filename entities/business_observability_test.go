@@ -8,8 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/metric"
@@ -74,8 +74,8 @@ func TestBusinessObservability_AccountAndTransactionLifecycle(t *testing.T) {
 	}))
 	defer server.Close()
 
-	entity, err := NewEntity(server.Client(), "token", map[string]string{"onboarding": server.URL, "transaction": server.URL}, provider, WithObservability(provider))
-	require.NoError(t, err)
+	entity := newTestEntity(t, server.Client(), "token", map[string]string{"onboarding": server.URL, "transaction": server.URL}, provider)
+	require.NoError(t, entity.SetObservability(provider))
 
 	ctx, span := provider.Tracer().Start(context.Background(), "business-flow")
 
@@ -142,8 +142,8 @@ func TestBusinessObservability_ReadMethodsDoNotEmitMutationEvents(t *testing.T) 
 	}))
 	defer server.Close()
 
-	entity, err := NewEntity(server.Client(), "token", map[string]string{"onboarding": server.URL, "transaction": server.URL}, provider, WithObservability(provider))
-	require.NoError(t, err)
+	entity := newTestEntity(t, server.Client(), "token", map[string]string{"onboarding": server.URL, "transaction": server.URL}, provider)
+	require.NoError(t, entity.SetObservability(provider))
 
 	ctx, span := provider.Tracer().Start(context.Background(), "business-read")
 
@@ -174,8 +174,8 @@ func TestBusinessObservability_UpdateTransactionUsesUpdatedEvent(t *testing.T) {
 	}))
 	defer server.Close()
 
-	entity, err := NewEntity(server.Client(), "token", map[string]string{"onboarding": server.URL, "transaction": server.URL}, provider, WithObservability(provider))
-	require.NoError(t, err)
+	entity := newTestEntity(t, server.Client(), "token", map[string]string{"onboarding": server.URL, "transaction": server.URL}, provider)
+	require.NoError(t, entity.SetObservability(provider))
 
 	ctx, span := provider.Tracer().Start(context.Background(), "business-update")
 

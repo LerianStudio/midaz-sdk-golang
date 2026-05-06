@@ -1,17 +1,21 @@
 package models
 
 import (
+	"bytes"
+	"encoding/json"
 	"testing"
 	"time"
 
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestAssetRateStruct(t *testing.T) {
-	scale := 4.0
+	scale := 4
 	source := "Central Bank"
 	now := time.Now()
+	rateValue := decimal.RequireFromString("5.25")
 
 	rate := AssetRate{
 		ID:             "rate-123",
@@ -20,7 +24,7 @@ func TestAssetRateStruct(t *testing.T) {
 		ExternalID:     "ext-001",
 		From:           "USD",
 		To:             "BRL",
-		Rate:           5.25,
+		Rate:           &rateValue,
 		Scale:          &scale,
 		Source:         &source,
 		TTL:            3600,
@@ -37,9 +41,10 @@ func TestAssetRateStruct(t *testing.T) {
 	assert.Equal(t, "ext-001", rate.ExternalID)
 	assert.Equal(t, "USD", rate.From)
 	assert.Equal(t, "BRL", rate.To)
-	assert.InDelta(t, 5.25, rate.Rate, 0.001)
+	require.NotNil(t, rate.Rate)
+	assert.Equal(t, "5.25", rate.Rate.String())
 	assert.NotNil(t, rate.Scale)
-	assert.InDelta(t, 4.0, *rate.Scale, 0.001)
+	assert.Equal(t, 4, *rate.Scale)
 	assert.NotNil(t, rate.Source)
 	assert.Equal(t, "Central Bank", *rate.Source)
 	assert.Equal(t, 3600, rate.TTL)
@@ -53,16 +58,54 @@ func TestAssetRateStructWithNilOptionalFields(t *testing.T) {
 		ID:   "rate-123",
 		From: "USD",
 		To:   "EUR",
-		Rate: 0.92,
 	}
 
 	assert.Equal(t, "rate-123", rate.ID)
 	assert.Equal(t, "USD", rate.From)
 	assert.Equal(t, "EUR", rate.To)
-	assert.InDelta(t, 0.92, rate.Rate, 0.001)
+	assert.Nil(t, rate.Rate)
 	assert.Nil(t, rate.Scale)
 	assert.Nil(t, rate.Source)
 	assert.Nil(t, rate.Metadata)
+}
+
+// TestAssetRate_LargeIntRoundTrip verifies that wire payloads carrying a
+// large fixed-point integer (the create-path shape: int + scale) decode
+// without precision loss. Float64 cannot represent integers above 2^53 –
+// 1 exactly; declaring Rate as *decimal.Decimal preserves the full value.
+func TestAssetRate_LargeIntRoundTrip(t *testing.T) {
+	const largeInt = "1234567890123456789"
+
+	wire := []byte(`{"id":"rate-large","from":"USD","to":"BRL","rate":` + largeInt + `,"scale":4}`)
+
+	dec := json.NewDecoder(bytes.NewReader(wire))
+	dec.UseNumber() // Mirrors the SDK's HTTP client decode path.
+
+	var rate AssetRate
+	require.NoError(t, dec.Decode(&rate))
+
+	require.NotNil(t, rate.Rate)
+	assert.Equal(t, largeInt, rate.Rate.String(), "wire integer must survive decode without precision loss")
+	require.NotNil(t, rate.Scale)
+	assert.Equal(t, 4, *rate.Scale)
+}
+
+// TestAssetRate_LegacyFloatBackwardCompat verifies that response payloads
+// emitting "rate": 5.25 (legacy float-shaped) still decode correctly into
+// the typed *decimal.Decimal field.
+func TestAssetRate_LegacyFloatBackwardCompat(t *testing.T) {
+	wire := []byte(`{"id":"rate-legacy","from":"USD","to":"BRL","rate":5.25,"scale":2}`)
+
+	dec := json.NewDecoder(bytes.NewReader(wire))
+	dec.UseNumber()
+
+	var rate AssetRate
+	require.NoError(t, dec.Decode(&rate))
+
+	require.NotNil(t, rate.Rate)
+	assert.Equal(t, "5.25", rate.Rate.String())
+	require.NotNil(t, rate.Scale)
+	assert.Equal(t, 2, *rate.Scale)
 }
 
 func TestNewCreateAssetRateInput(t *testing.T) {
@@ -469,536 +512,14 @@ func TestCreateAssetRateInputValidate(t *testing.T) {
 
 			if tt.wantErr {
 				require.Error(t, err)
-				assert.Equal(t, tt.errMsg, err.Error())
+				// 8C: Validate accumulates field errors. Substring
+				// match instead of full equality so multi-field
+				// cases ("both from and to empty") that surface
+				// MORE diagnostics still pass the contract.
+				assert.Contains(t, err.Error(), tt.errMsg)
 			} else {
 				require.NoError(t, err)
 			}
 		})
 	}
-}
-
-func TestAssetRatesResponse(t *testing.T) {
-	nextCursor := "next-abc123"
-	prevCursor := "prev-xyz789"
-
-	response := AssetRatesResponse{
-		Items: []AssetRate{
-			{
-				ID:   "rate-1",
-				From: "USD",
-				To:   "BRL",
-				Rate: 5.25,
-			},
-			{
-				ID:   "rate-2",
-				From: "EUR",
-				To:   "BRL",
-				Rate: 5.75,
-			},
-		},
-		Limit:      10,
-		NextCursor: &nextCursor,
-		PrevCursor: &prevCursor,
-	}
-
-	assert.Len(t, response.Items, 2)
-	assert.Equal(t, 10, response.Limit)
-	assert.NotNil(t, response.NextCursor)
-	assert.Equal(t, "next-abc123", *response.NextCursor)
-	assert.NotNil(t, response.PrevCursor)
-	assert.Equal(t, "prev-xyz789", *response.PrevCursor)
-}
-
-func TestAssetRatesResponseEmptyItems(t *testing.T) {
-	response := AssetRatesResponse{
-		Items: []AssetRate{},
-		Limit: 10,
-	}
-
-	assert.Empty(t, response.Items)
-	assert.Equal(t, 10, response.Limit)
-	assert.Nil(t, response.NextCursor)
-	assert.Nil(t, response.PrevCursor)
-}
-
-func TestAssetRatesResponseNilCursors(t *testing.T) {
-	response := AssetRatesResponse{
-		Items: []AssetRate{
-			{ID: "rate-1", From: "USD", To: "BRL", Rate: 5.25},
-		},
-		Limit: 10,
-	}
-
-	assert.Len(t, response.Items, 1)
-	assert.Equal(t, "rate-1", response.Items[0].ID)
-	assert.Equal(t, 10, response.Limit)
-	assert.Nil(t, response.NextCursor)
-	assert.Nil(t, response.PrevCursor)
-}
-
-func TestNewAssetRateListOptions(t *testing.T) {
-	options := NewAssetRateListOptions()
-
-	assert.NotNil(t, options)
-	assert.Equal(t, DefaultLimit, options.Limit)
-	assert.Equal(t, DefaultSortDirection, options.SortOrder)
-	assert.Empty(t, options.To)
-	assert.Empty(t, options.StartDate)
-	assert.Empty(t, options.EndDate)
-	assert.Empty(t, options.Cursor)
-}
-
-func TestAssetRateListOptionsWithTo(t *testing.T) {
-	tests := []struct {
-		name   string
-		to     []string
-		wantTo []string
-	}{
-		{
-			name:   "single target asset",
-			to:     []string{"BRL"},
-			wantTo: []string{"BRL"},
-		},
-		{
-			name:   "multiple target assets",
-			to:     []string{"BRL", "EUR", "GBP"},
-			wantTo: []string{"BRL", "EUR", "GBP"},
-		},
-		{
-			name:   "empty target assets",
-			to:     []string{},
-			wantTo: []string{},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			options := NewAssetRateListOptions().WithTo(tt.to...)
-
-			assert.Equal(t, tt.wantTo, options.To)
-		})
-	}
-}
-
-func TestAssetRateListOptionsWithLimit(t *testing.T) {
-	tests := []struct {
-		name      string
-		limit     int
-		wantLimit int
-	}{
-		{
-			name:      "valid limit",
-			limit:     25,
-			wantLimit: 25,
-		},
-		{
-			name:      "zero limit defaults to default",
-			limit:     0,
-			wantLimit: DefaultLimit,
-		},
-		{
-			name:      "negative limit defaults to default",
-			limit:     -5,
-			wantLimit: DefaultLimit,
-		},
-		{
-			name:      "limit exceeding max gets capped",
-			limit:     150,
-			wantLimit: MaxLimit,
-		},
-		{
-			name:      "limit at max",
-			limit:     MaxLimit,
-			wantLimit: MaxLimit,
-		},
-		{
-			name:      "limit at 1",
-			limit:     1,
-			wantLimit: 1,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			options := NewAssetRateListOptions().WithLimit(tt.limit)
-
-			assert.Equal(t, tt.wantLimit, options.Limit)
-		})
-	}
-}
-
-func TestAssetRateListOptionsWithDateRange(t *testing.T) {
-	tests := []struct {
-		name          string
-		startDate     string
-		endDate       string
-		wantStartDate string
-		wantEndDate   string
-	}{
-		{
-			name:          "valid date range",
-			startDate:     "2024-01-01",
-			endDate:       "2024-12-31",
-			wantStartDate: "2024-01-01",
-			wantEndDate:   "2024-12-31",
-		},
-		{
-			name:          "same start and end date",
-			startDate:     "2024-06-15",
-			endDate:       "2024-06-15",
-			wantStartDate: "2024-06-15",
-			wantEndDate:   "2024-06-15",
-		},
-		{
-			name:          "only start date",
-			startDate:     "2024-01-01",
-			endDate:       "",
-			wantStartDate: "2024-01-01",
-			wantEndDate:   "",
-		},
-		{
-			name:          "only end date",
-			startDate:     "",
-			endDate:       "2024-12-31",
-			wantStartDate: "",
-			wantEndDate:   "2024-12-31",
-		},
-		{
-			name:          "empty dates",
-			startDate:     "",
-			endDate:       "",
-			wantStartDate: "",
-			wantEndDate:   "",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			options := NewAssetRateListOptions().WithDateRange(tt.startDate, tt.endDate)
-
-			assert.Equal(t, tt.wantStartDate, options.StartDate)
-			assert.Equal(t, tt.wantEndDate, options.EndDate)
-		})
-	}
-}
-
-func TestAssetRateListOptionsWithSortOrder(t *testing.T) {
-	tests := []struct {
-		name          string
-		sortOrder     string
-		wantSortOrder string
-	}{
-		{
-			name:          "ascending order",
-			sortOrder:     "asc",
-			wantSortOrder: "asc",
-		},
-		{
-			name:          "descending order",
-			sortOrder:     "desc",
-			wantSortOrder: "desc",
-		},
-		{
-			name:          "empty order",
-			sortOrder:     "",
-			wantSortOrder: "",
-		},
-		{
-			name:          "custom order value is ignored",
-			sortOrder:     "custom",
-			wantSortOrder: DefaultSortDirection,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			options := NewAssetRateListOptions().WithSortOrder(tt.sortOrder)
-
-			assert.Equal(t, tt.wantSortOrder, options.SortOrder)
-		})
-	}
-}
-
-func TestAssetRateListOptionsWithCursor(t *testing.T) {
-	tests := []struct {
-		name       string
-		cursor     string
-		wantCursor string
-	}{
-		{
-			name:       "valid cursor",
-			cursor:     "abc123xyz",
-			wantCursor: "abc123xyz",
-		},
-		{
-			name:       "empty cursor",
-			cursor:     "",
-			wantCursor: "",
-		},
-		{
-			name:       "long cursor",
-			cursor:     "eyJsYXN0X2lkIjoiMTIzNDU2Nzg5MCIsImxhc3RfdmFsdWUiOiIyMDI0LTAxLTE1VDEwOjMwOjAwWiJ9",
-			wantCursor: "eyJsYXN0X2lkIjoiMTIzNDU2Nzg5MCIsImxhc3RfdmFsdWUiOiIyMDI0LTAxLTE1VDEwOjMwOjAwWiJ9",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			options := NewAssetRateListOptions().WithCursor(tt.cursor)
-
-			assert.Equal(t, tt.wantCursor, options.Cursor)
-		})
-	}
-}
-
-func TestAssetRateListOptionsBuilderChaining(t *testing.T) {
-	options := NewAssetRateListOptions().
-		WithTo("BRL", "EUR", "GBP").
-		WithLimit(50).
-		WithDateRange("2024-01-01", "2024-12-31").
-		WithSortOrder("asc").
-		WithCursor("cursor123")
-
-	assert.Equal(t, []string{"BRL", "EUR", "GBP"}, options.To)
-	assert.Equal(t, 50, options.Limit)
-	assert.Equal(t, "2024-01-01", options.StartDate)
-	assert.Equal(t, "2024-12-31", options.EndDate)
-	assert.Equal(t, "asc", options.SortOrder)
-	assert.Equal(t, "cursor123", options.Cursor)
-}
-
-func TestAssetRateListOptionsToQueryParams(t *testing.T) {
-	tests := []struct {
-		name       string
-		options    *AssetRateListOptions
-		wantParams map[string]string
-	}{
-		{
-			name:       "default options",
-			options:    NewAssetRateListOptions(),
-			wantParams: map[string]string{"limit": "10", "sort_order": "asc"},
-		},
-		{
-			name: "single to asset",
-			options: &AssetRateListOptions{
-				To:        []string{"BRL"},
-				Limit:     10,
-				SortOrder: "desc",
-			},
-			wantParams: map[string]string{"to": "BRL", "limit": "10", "sort_order": "desc"},
-		},
-		{
-			name: "multiple to assets",
-			options: &AssetRateListOptions{
-				To:        []string{"BRL", "EUR", "GBP"},
-				Limit:     10,
-				SortOrder: "desc",
-			},
-			wantParams: map[string]string{"to": "BRL,EUR,GBP", "limit": "10", "sort_order": "desc"},
-		},
-		{
-			name: "all options set",
-			options: &AssetRateListOptions{
-				To:        []string{"BRL", "EUR"},
-				Limit:     25,
-				StartDate: "2024-01-01",
-				EndDate:   "2024-12-31",
-				SortOrder: "asc",
-				Cursor:    "cursor123",
-			},
-			wantParams: map[string]string{
-				"to":         "BRL,EUR",
-				"limit":      "25",
-				"start_date": "2024-01-01",
-				"end_date":   "2024-12-31",
-				"sort_order": "asc",
-				"cursor":     "cursor123",
-			},
-		},
-		{
-			name: "with date range only",
-			options: &AssetRateListOptions{
-				Limit:     10,
-				StartDate: "2024-06-01",
-				EndDate:   "2024-06-30",
-			},
-			wantParams: map[string]string{"limit": "10", "start_date": "2024-06-01", "end_date": "2024-06-30"},
-		},
-		{
-			name: "with cursor only",
-			options: &AssetRateListOptions{
-				Limit:  10,
-				Cursor: "xyz789",
-			},
-			wantParams: map[string]string{"limit": "10", "cursor": "xyz789"},
-		},
-		{
-			name: "zero limit not included",
-			options: &AssetRateListOptions{
-				Limit: 0,
-			},
-			wantParams: map[string]string{},
-		},
-		{
-			name: "empty to array not included",
-			options: &AssetRateListOptions{
-				To:    []string{},
-				Limit: 10,
-			},
-			wantParams: map[string]string{"limit": "10"},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			params := tt.options.ToQueryParams()
-
-			assert.Len(t, params, len(tt.wantParams))
-
-			for key, expectedValue := range tt.wantParams {
-				assert.Equal(t, expectedValue, params[key], "mismatch for key %s", key)
-			}
-		})
-	}
-}
-
-func TestAssetRateListOptionsToQueryParamsEmptyOptions(t *testing.T) {
-	options := &AssetRateListOptions{}
-	params := options.ToQueryParams()
-
-	assert.Empty(t, params)
-}
-
-func TestCreateAssetRateInputValidateEdgeCases(t *testing.T) {
-	tests := []struct {
-		name    string
-		input   *CreateAssetRateInput
-		wantErr bool
-	}{
-		{
-			name: "rate at boundary (1)",
-			input: &CreateAssetRateInput{
-				From: "USD",
-				To:   "BRL",
-				Rate: 1,
-			},
-			wantErr: false,
-		},
-		{
-			name: "scale at zero",
-			input: &CreateAssetRateInput{
-				From:  "USD",
-				To:    "BRL",
-				Rate:  100,
-				Scale: 0,
-			},
-			wantErr: false,
-		},
-		{
-			name: "very large scale",
-			input: &CreateAssetRateInput{
-				From:  "USD",
-				To:    "BRL",
-				Rate:  100,
-				Scale: 18,
-			},
-			wantErr: false,
-		},
-		{
-			name: "three character asset codes",
-			input: &CreateAssetRateInput{
-				From: "USD",
-				To:   "EUR",
-				Rate: 92,
-			},
-			wantErr: false,
-		},
-		{
-			name: "lowercase asset codes",
-			input: &CreateAssetRateInput{
-				From: "usd",
-				To:   "eur",
-				Rate: 92,
-			},
-			wantErr: false,
-		},
-		{
-			name: "mixed case asset codes",
-			input: &CreateAssetRateInput{
-				From: "Usd",
-				To:   "EuR",
-				Rate: 92,
-			},
-			wantErr: false,
-		},
-		{
-			name: "numeric asset codes",
-			input: &CreateAssetRateInput{
-				From: "840",
-				To:   "978",
-				Rate: 92,
-			},
-			wantErr: false,
-		},
-		{
-			name: "special characters in asset code",
-			input: &CreateAssetRateInput{
-				From: "USD-TEST",
-				To:   "BRL_TEST",
-				Rate: 100,
-			},
-			wantErr: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := tt.input.Validate()
-
-			if tt.wantErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
-		})
-	}
-}
-
-func TestAssetRateListOptionsToQueryParamsWithBuilder(t *testing.T) {
-	options := NewAssetRateListOptions().
-		WithTo("BRL", "EUR").
-		WithLimit(50).
-		WithDateRange("2024-01-01", "2024-06-30").
-		WithSortOrder("asc").
-		WithCursor("page2")
-
-	params := options.ToQueryParams()
-
-	assert.Equal(t, "BRL,EUR", params["to"])
-	assert.Equal(t, "50", params["limit"])
-	assert.Equal(t, "2024-01-01", params["start_date"])
-	assert.Equal(t, "2024-06-30", params["end_date"])
-	assert.Equal(t, "asc", params["sort_order"])
-	assert.Equal(t, "page2", params["cursor"])
-}
-
-func TestCreateAssetRateInputImmutability(t *testing.T) {
-	input := NewCreateAssetRateInput("USD", "BRL", 525)
-
-	input.WithScale(2)
-
-	assert.Equal(t, 2, input.Scale)
-
-	input.WithScale(4)
-
-	assert.Equal(t, 4, input.Scale)
-}
-
-func TestAssetRateListOptionsReplacement(t *testing.T) {
-	options := NewAssetRateListOptions().
-		WithTo("BRL").
-		WithTo("EUR", "GBP")
-
-	assert.Equal(t, []string{"EUR", "GBP"}, options.To)
-	assert.NotContains(t, options.To, "BRL")
 }

@@ -12,60 +12,58 @@ import (
 	"sync"
 	"time"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v2"
-	midazmodels "github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/concurrent"
-	pkgerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/performance"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation"
+	"github.com/LerianStudio/midaz-sdk-golang/v3"
+	midazmodels "github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/concurrent"
+	pkgerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/performance"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation"
 	"github.com/google/uuid"
 )
-
-// Initialize defaults for transaction volume testing
-func init() {
-	// Set default values if not already set
-	if concurrentCustomerToMerchantTxs == 0 {
-		concurrentCustomerToMerchantTxs = 20 // Default number of concurrent C2M transactions to run
-	}
-
-	if concurrentMerchantToCustomerTxs == 0 {
-		concurrentMerchantToCustomerTxs = 20 // Default number of concurrent M2C transactions to run
-	}
-}
 
 // ExecuteConcurrentTransactions performs concurrent transactions between accounts to test TPS
 //
 // Parameters:
 //   - ctx: The context for the operation, which can be used for cancellation
-//   - entity: The initialized Midaz SDK entity client
+//   - midazClient: The initialized Midaz SDK client
 //   - orgID: The ID of the organization
 //   - ledgerID: The ID of the ledger
 //   - customerAccount: The customer account model
 //   - merchantAccount: The merchant account model
+//   - c2mCount: Number of customer-to-merchant transactions to execute (0 → default).
+//   - m2cCount: Number of merchant-to-customer transactions to execute (0 → default).
 //
 // Returns:
 //   - error: Any error encountered during the operation
-func ExecuteConcurrentTransactions(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *midazmodels.Account) error {
+func ExecuteConcurrentTransactions(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string, customerAccount, merchantAccount *midazmodels.Account, c2mCount, m2cCount int) error {
 	// Create a span for observability
 	ctx, span := observability.StartSpan(ctx, "ExecuteConcurrentTransactions")
 	defer span.End()
+
+	if c2mCount <= 0 {
+		c2mCount = defaultConcurrentCustomerToMerchantTxs
+	}
+
+	if m2cCount <= 0 {
+		m2cCount = defaultConcurrentMerchantToCustomerTxs
+	}
 
 	fmt.Println("\n Executing concurrent transactions for TPS testing...")
 	if err := validateConcurrentTransactionAccounts(ctx, customerAccount, merchantAccount); err != nil {
 		return err
 	}
 
-	addConcurrentTransactionAttributes(ctx, orgID, ledgerID, customerAccount, merchantAccount)
+	addConcurrentTransactionAttributes(ctx, orgID, ledgerID, customerAccount, merchantAccount, c2mCount, m2cCount)
 
-	if err := runConcurrentTransactionBatch(ctx, "customer to merchant", "CustomerToMerchantTransactions", concurrentCustomerToMerchantTxs, "c2m", "c2m_transactions_failed", func(batchCtx context.Context) error {
-		return ExecuteCustomerToMerchantConcurrent(batchCtx, midazClient, orgID, ledgerID, customerAccount, merchantAccount, concurrentCustomerToMerchantTxs)
+	if err := runConcurrentTransactionBatch(ctx, "customer to merchant", "CustomerToMerchantTransactions", c2mCount, "c2m", "c2m_transactions_failed", func(batchCtx context.Context) error {
+		return ExecuteCustomerToMerchantConcurrent(batchCtx, midazClient, orgID, ledgerID, customerAccount, merchantAccount, c2mCount)
 	}); err != nil {
 		return fmt.Errorf("failed to execute concurrent transactions: %w", err)
 	}
 
-	if err := runConcurrentTransactionBatch(ctx, "merchant to customer", "MerchantToCustomerTransactions", concurrentMerchantToCustomerTxs, "m2c", "m2c_transactions_failed", func(batchCtx context.Context) error {
-		return ExecuteMerchantToCustomerConcurrent(batchCtx, midazClient, orgID, ledgerID, customerAccount, merchantAccount, concurrentMerchantToCustomerTxs)
+	if err := runConcurrentTransactionBatch(ctx, "merchant to customer", "MerchantToCustomerTransactions", m2cCount, "m2c", "m2c_transactions_failed", func(batchCtx context.Context) error {
+		return ExecuteMerchantToCustomerConcurrent(batchCtx, midazClient, orgID, ledgerID, customerAccount, merchantAccount, m2cCount)
 	}); err != nil {
 		return fmt.Errorf("failed to execute concurrent transactions: %w", err)
 	}
@@ -90,13 +88,13 @@ func validateConcurrentTransactionAccounts(ctx context.Context, customerAccount,
 	return nil
 }
 
-func addConcurrentTransactionAttributes(ctx context.Context, orgID, ledgerID string, customerAccount, merchantAccount *midazmodels.Account) {
+func addConcurrentTransactionAttributes(ctx context.Context, orgID, ledgerID string, customerAccount, merchantAccount *midazmodels.Account, c2mCount, m2cCount int) {
 	observability.AddAttribute(ctx, "organization_id", orgID)
 	observability.AddAttribute(ctx, "ledger_id", ledgerID)
 	observability.AddAttribute(ctx, "customer_account_id", customerAccount.ID)
 	observability.AddAttribute(ctx, "merchant_account_id", merchantAccount.ID)
-	observability.AddAttribute(ctx, "c2m_tx_count", concurrentCustomerToMerchantTxs)
-	observability.AddAttribute(ctx, "m2c_tx_count", concurrentMerchantToCustomerTxs)
+	observability.AddAttribute(ctx, "c2m_tx_count", c2mCount)
+	observability.AddAttribute(ctx, "m2c_tx_count", m2cCount)
 }
 
 func runConcurrentTransactionBatch(ctx context.Context, label, spanName string, count int, metricPrefix, errorEvent string, execute func(context.Context) error) error {
@@ -221,7 +219,7 @@ func handleTransactionError(ctx context.Context, err error, index int, operation
 
 // ExecuteCustomerToMerchantConcurrent executes concurrent transactions from customer to merchant
 // using the SDK's concurrency helpers
-func ExecuteCustomerToMerchantConcurrent(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *midazmodels.Account, count int) error {
+func ExecuteCustomerToMerchantConcurrent(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string, customerAccount, merchantAccount *midazmodels.Account, count int) error {
 	ctx, span := observability.StartSpan(ctx, "ExecuteCustomerToMerchantConcurrent")
 	defer span.End()
 	if customerAccount == nil || merchantAccount == nil {
@@ -259,13 +257,12 @@ func ExecuteCustomerToMerchantConcurrent(ctx context.Context, midazClient *clien
 
 func applyC2MPerformanceOptions() {
 	perfOptions := performance.Options{
-		BatchSize:       50,
-		UseJSONIterator: true,
+		BatchSize: 50,
 	}
 	performance.ApplyGlobalPerformanceOptions(perfOptions)
 }
 
-func createC2MTransactionProcessor(midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *midazmodels.Account, rateLimiter *concurrent.RateLimiter) func(context.Context, int) (string, error) {
+func createC2MTransactionProcessor(midazClient *midaz.Client, orgID, ledgerID string, customerAccount, merchantAccount *midazmodels.Account, rateLimiter *concurrent.RateLimiter) func(context.Context, int) (string, error) {
 	return func(ctx context.Context, index int) (string, error) {
 		txCtx, txSpan := observability.StartSpan(ctx, "ProcessCustomerToMerchantTransaction")
 		defer txSpan.End()
@@ -281,7 +278,7 @@ func createC2MTransactionProcessor(midazClient *client.Client, orgID, ledgerID s
 		transferInput := buildC2MTransactionInput(index, customerAccount, merchantAccount, idempotencyKey)
 
 		startTime := time.Now()
-		tx, err := midazClient.Entity.Transactions.CreateTransaction(txCtx, orgID, ledgerID, transferInput)
+		tx, err := midazClient.Transactions.CreateTransaction(txCtx, orgID, ledgerID, transferInput)
 		duration := time.Since(startTime)
 
 		observability.RecordSpanMetric(txCtx, "transaction_duration_ms", float64(duration.Milliseconds()))
@@ -370,7 +367,7 @@ func recordC2MMetrics(ctx context.Context, duration time.Duration, successCount,
 //
 // Returns:
 //   - error: Any error encountered during the operation
-func ExecuteMerchantToCustomerConcurrent(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *midazmodels.Account, count int) error {
+func ExecuteMerchantToCustomerConcurrent(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string, customerAccount, merchantAccount *midazmodels.Account, count int) error {
 	ctx, span := observability.StartSpan(ctx, "ExecuteMerchantToCustomerConcurrent")
 	defer span.End()
 	if customerAccount == nil || merchantAccount == nil {
@@ -461,12 +458,11 @@ func applyM2CPerformanceOptions() {
 		BatchSize:           100,
 		EnableHTTPPooling:   true,
 		MaxIdleConnsPerHost: 10,
-		UseJSONIterator:     true,
 	}
 	performance.ApplyBatchingOptions(perfOptions)
 }
 
-func createM2CBatchProcessor(midazClient *client.Client, orgID, ledgerID string) func(context.Context, []*midazmodels.CreateTransactionInput) ([]*midazmodels.Transaction, error) {
+func createM2CBatchProcessor(midazClient *midaz.Client, orgID, ledgerID string) func(context.Context, []*midazmodels.CreateTransactionInput) ([]*midazmodels.Transaction, error) {
 	return func(ctx context.Context, batch []*midazmodels.CreateTransactionInput) ([]*midazmodels.Transaction, error) {
 		batchCtx, batchSpan := observability.StartSpan(ctx, "ProcessTransactionBatch")
 		defer batchSpan.End()
@@ -499,7 +495,7 @@ func createM2CBatchProcessor(midazClient *client.Client, orgID, ledgerID string)
 	}
 }
 
-func createM2CSingleTransactionProcessor(midazClient *client.Client, orgID, ledgerID string, results *[]*midazmodels.Transaction, resultsMutex *sync.Mutex) func(context.Context, *midazmodels.CreateTransactionInput) error {
+func createM2CSingleTransactionProcessor(midazClient *midaz.Client, orgID, ledgerID string, results *[]*midazmodels.Transaction, resultsMutex *sync.Mutex) func(context.Context, *midazmodels.CreateTransactionInput) error {
 	return func(ctx context.Context, input *midazmodels.CreateTransactionInput) error {
 		txCtx, txSpan := observability.StartSpan(ctx, "ProcessSingleTransaction")
 		defer txSpan.End()
@@ -507,7 +503,7 @@ func createM2CSingleTransactionProcessor(midazClient *client.Client, orgID, ledg
 		index := extractTransactionIndex(txCtx, input)
 		txStartTime := time.Now()
 
-		tx, err := midazClient.Entity.Transactions.CreateTransaction(txCtx, orgID, ledgerID, input)
+		tx, err := midazClient.Transactions.CreateTransaction(txCtx, orgID, ledgerID, input)
 		txDuration := time.Since(txStartTime)
 		observability.RecordSpanMetric(txCtx, "transaction_duration_ms", float64(txDuration.Milliseconds()))
 

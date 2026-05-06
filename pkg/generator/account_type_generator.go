@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry"
 )
 
 type accountTypeGenerator struct {
@@ -22,7 +22,7 @@ func NewAccountTypeGenerator(e *entities.Entity, obs observability.Provider) Acc
 }
 
 // Generate creates a new account type with the specified name, key, and metadata.
-func (g *accountTypeGenerator) Generate(ctx context.Context, orgID, ledgerID string, name, key string, metadata map[string]any) (*models.AccountType, error) {
+func (g *accountTypeGenerator) Generate(ctx context.Context, organizationID, ledgerID string, name, key string, metadata map[string]any) (*models.AccountType, error) {
 	if g.e == nil || g.e.AccountTypes == nil {
 		return nil, errors.New("entity account types service not initialized")
 	}
@@ -34,7 +34,7 @@ func (g *accountTypeGenerator) Generate(ctx context.Context, orgID, ledgerID str
 	err := observability.WithSpan(ctx, g.obs, "GenerateAccountType", func(ctx context.Context) error {
 		return executeWithCircuitBreaker(ctx, func() error {
 			return retry.DoWithContext(ctx, func() error {
-				at, err := g.e.AccountTypes.CreateAccountType(ctx, orgID, ledgerID, input)
+				at, err := g.e.AccountTypes.CreateAccountType(ctx, organizationID, ledgerID, input)
 				if err != nil {
 					return err
 				}
@@ -54,7 +54,7 @@ func (g *accountTypeGenerator) Generate(ctx context.Context, orgID, ledgerID str
 
 // GenerateDefaults creates a default set of commonly used account types.
 // Returns partial results along with any accumulated errors.
-func (g *accountTypeGenerator) GenerateDefaults(ctx context.Context, orgID, ledgerID string) ([]*models.AccountType, error) {
+func (g *accountTypeGenerator) GenerateDefaults(ctx context.Context, organizationID, ledgerID string) ([]*models.AccountType, error) {
 	defs := []struct {
 		name string
 		key  string
@@ -74,7 +74,7 @@ func (g *accountTypeGenerator) GenerateDefaults(ctx context.Context, orgID, ledg
 	var errs []error
 
 	for _, d := range defs {
-		at, err := g.Generate(ctx, orgID, ledgerID, d.name, d.key, d.meta)
+		at, err := g.Generate(ctx, organizationID, ledgerID, d.name, d.key, d.meta)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("failed to create account type %s: %w", d.key, err))
 			continue

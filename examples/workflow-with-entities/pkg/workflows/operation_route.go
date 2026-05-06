@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v2"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/google/uuid"
 )
 
@@ -26,7 +26,7 @@ import (
 //
 // Note: The accountType parameter was removed as it was unused. The function signature
 // retains API compatibility by using a blank identifier for any callers that still pass it.
-func CreateOperationRoutes(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, _ *models.AccountType) (sourceRoute *models.OperationRoute, destRoute *models.OperationRoute, err error) {
+func CreateOperationRoutes(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string, _ *models.AccountType) (sourceRoute *models.OperationRoute, destRoute *models.OperationRoute, err error) {
 	fmt.Println("\n\n🛤️  STEP 4.6: OPERATION ROUTE CREATION")
 	fmt.Println(strings.Repeat("=", 50))
 
@@ -43,7 +43,7 @@ func CreateOperationRoutes(ctx context.Context, midazClient *client.Client, orgI
 		"customField1": "value1",
 	})
 
-	sourceOperationRoute, err := midazClient.Entity.OperationRoutes.CreateOperationRoute(
+	sourceOperationRoute, err := midazClient.OperationRoutes.CreateOperationRoute(
 		ctx, orgID, ledgerID, sourceInput,
 	)
 	if err != nil {
@@ -73,7 +73,7 @@ func CreateOperationRoutes(ctx context.Context, midazClient *client.Client, orgI
 		"destination", // destination operation type (funds entering destination)
 	).WithAccountTypes([]string{"liability", "revenue"})
 
-	destinationOperationRoute, err := midazClient.Entity.OperationRoutes.CreateOperationRoute(
+	destinationOperationRoute, err := midazClient.OperationRoutes.CreateOperationRoute(
 		ctx, orgID, ledgerID, destinationInput,
 	)
 	if err != nil {
@@ -107,11 +107,11 @@ func CreateOperationRoutes(ctx context.Context, midazClient *client.Client, orgI
 // Returns:
 //   - *models.OperationRoute: The retrieved operation route
 //   - error: Any error encountered during the operation
-func GetOperationRoute(ctx context.Context, midazClient *client.Client, orgID, ledgerID, operationRouteID string) (*models.OperationRoute, error) {
+func GetOperationRoute(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID, operationRouteID string) (*models.OperationRoute, error) {
 	fmt.Println("\n🔍 Getting Operation Route by ID...")
 	fmt.Printf("   Retrieving operation route: %q\n", operationRouteID)
 
-	operationRoute, err := midazClient.Entity.OperationRoutes.GetOperationRoute(ctx, orgID, ledgerID, operationRouteID)
+	operationRoute, err := midazClient.OperationRoutes.GetOperationRoute(ctx, orgID, ledgerID, operationRouteID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get operation route: %w", err)
 	}
@@ -138,15 +138,14 @@ func GetOperationRoute(ctx context.Context, midazClient *client.Client, orgID, l
 // Returns:
 //   - *models.ListResponse[models.OperationRoute]: The list of operation routes
 //   - error: Any error encountered during the operation
-func ListOperationRoutes(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) (*models.ListResponse[models.OperationRoute], error) {
+func ListOperationRoutes(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string) (*models.ListResponse[models.OperationRoute], error) {
 	fmt.Println("\n📋 Listing Operation Routes...")
 
-	listOpts := &models.ListOptions{
-		Limit: 10,
-		Page:  1,
+	listOpts := models.OperationRoutesListOpts{
+		CursorListOpts: models.CursorListOpts{Limit: 10},
 	}
 
-	routesList, err := midazClient.Entity.OperationRoutes.ListOperationRoutes(ctx, orgID, ledgerID, listOpts)
+	routesList, err := midazClient.OperationRoutes.ListOperationRoutes(ctx, orgID, ledgerID, listOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list operation routes: %w", err)
 	}
@@ -177,7 +176,7 @@ func ListOperationRoutes(ctx context.Context, midazClient *client.Client, orgID,
 // Returns:
 //   - *models.OperationRoute: The updated operation route
 //   - error: Any error encountered during the operation
-func UpdateOperationRoute(ctx context.Context, midazClient *client.Client, orgID, ledgerID, operationRouteID, title, description string, accountTypes []string) (*models.OperationRoute, error) {
+func UpdateOperationRoute(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID, operationRouteID, title, description string, accountTypes []string) (*models.OperationRoute, error) {
 	fmt.Println("\n✏️  Updating Operation Route...")
 	fmt.Printf("   Updating operation route: %q\n", operationRouteID)
 
@@ -190,7 +189,7 @@ func UpdateOperationRoute(ctx context.Context, midazClient *client.Client, orgID
 			"version":    "2.0",
 		})
 
-	updatedRoute, err := midazClient.Entity.OperationRoutes.UpdateOperationRoute(ctx, orgID, ledgerID, operationRouteID, updateInput)
+	updatedRoute, err := midazClient.OperationRoutes.UpdateOperationRoute(ctx, orgID, ledgerID, operationRouteID, updateInput)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update operation route: %w", err)
 	}
@@ -216,11 +215,11 @@ func UpdateOperationRoute(ctx context.Context, midazClient *client.Client, orgID
 //
 // Returns:
 //   - error: Any error encountered during the operation
-func DeleteOperationRoute(ctx context.Context, midazClient *client.Client, orgID, ledgerID, operationRouteID string) error {
+func DeleteOperationRoute(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID, operationRouteID string) error {
 	fmt.Println("\n🗑️  Deleting Operation Route...")
 	fmt.Printf("   Deleting operation route: %q\n", operationRouteID)
 
-	err := midazClient.Entity.OperationRoutes.DeleteOperationRoute(ctx, orgID, ledgerID, operationRouteID)
+	err := midazClient.OperationRoutes.DeleteOperationRoute(ctx, orgID, ledgerID, operationRouteID)
 	if err != nil {
 		return fmt.Errorf("failed to delete operation route: %w", err)
 	}
@@ -230,7 +229,7 @@ func DeleteOperationRoute(ctx context.Context, midazClient *client.Client, orgID
 	// Verify deletion
 	fmt.Println("   🔍 Verifying deletion...")
 
-	_, verifyErr := midazClient.Entity.OperationRoutes.GetOperationRoute(ctx, orgID, ledgerID, operationRouteID)
+	_, verifyErr := midazClient.OperationRoutes.GetOperationRoute(ctx, orgID, ledgerID, operationRouteID)
 	if verifyErr != nil {
 		// Expected: getting the operation route should fail after deletion
 		// We only consider this success if it's a 404 or similar "not found" error

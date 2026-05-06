@@ -1,13 +1,13 @@
 package models
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
 	"unicode/utf8"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation/core"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation/core"
 	"github.com/shopspring/decimal"
 )
 
@@ -17,7 +17,7 @@ import (
 // descriptions named like an account constant" a routine confusion.
 const maxOperationDescriptionLength = 256
 
-// Note: Status type is defined in common.go as Status = mmodel.Status
+// Status is defined in common.go.
 
 // Amount structure for marshaling/unmarshalling JSON.
 //
@@ -210,138 +210,27 @@ type UpdateOperationInput struct {
 // Validate validates the UpdateOperationInput fields.
 func (input *UpdateOperationInput) Validate() error {
 	if input == nil {
-		return errors.New("input is required")
+		return errors.New("input cannot be nil")
 	}
 
 	if input.Description == "" && len(input.Metadata) == 0 {
 		return errors.New("empty update payload not allowed")
 	}
 
+	var errs validation.FieldErrors
+
 	if utf8.RuneCountInString(input.Description) > maxOperationDescriptionLength {
-		return fmt.Errorf("description must be at most %d characters", maxOperationDescriptionLength)
+		errs.Append("description", fmt.Sprintf("must be at most %d characters", maxOperationDescriptionLength))
 	}
 
 	if len(input.Metadata) > 0 {
 		if err := core.ValidateMetadata(input.Metadata); err != nil {
-			return fmt.Errorf("invalid metadata: %w", err)
+			errs.Append("metadata", "invalid: "+err.Error())
 		}
 	}
 
-	return nil
+	return errs.OrNil()
 }
-
-// Operations represents a paginated list of operations.
-//
-// swagger:model Operations
-// @Description Operations represents a paginated response containing a list of operations with pagination metadata.
-type Operations struct {
-	// Array of operation records returned in this page
-	Items []Operation `json:"items"`
-
-	// Pagination information
-	Pagination struct {
-		Limit      int     `json:"limit"`
-		NextCursor *string `json:"next_cursor,omitempty"`
-		PrevCursor *string `json:"prev_cursor,omitempty"`
-	} `json:"pagination"`
-} // @name Operations
-
-// MarshalJSON ensures zero-value operation lists encode items as an empty array.
-func (o Operations) MarshalJSON() ([]byte, error) {
-	type alias Operations
-
-	out := alias(o)
-	if out.Items == nil {
-		out.Items = []Operation{}
-	}
-
-	return json.Marshal(out)
-}
-
-// OperationResponse represents a success response containing a single operation.
-//
-// swagger:response OperationResponse
-// @Description Successful response containing a single operation entity.
-type OperationResponse struct {
-	// in: body
-	Body Operation
-}
-
-// OperationsResponse represents a success response containing a paginated list of operations.
-//
-// swagger:response OperationsResponse
-// @Description Successful response containing a paginated list of operations.
-type OperationsResponse struct {
-	// in: body
-	Body Operations
-}
-
-// OperationLog is a struct designed to represent the operation data that should be stored in the audit log
-//
-// @Description Immutable log entry for audit purposes representing a snapshot of operation state at a specific point in time.
-type OperationLog struct {
-	// Unique identifier for the operation
-	// example: 00000000-0000-0000-0000-000000000000
-	// format: uuid
-	ID string `json:"id" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
-
-	// Parent transaction identifier
-	// example: 00000000-0000-0000-0000-000000000000
-	// format: uuid
-	TransactionID string `json:"transactionId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
-
-	// Type of operation (e.g., creditCard, transfer, payment)
-	// example: creditCard
-	// maxLength: 50
-	Type string `json:"type" example:"creditCard" maxLength:"50"`
-
-	// Asset code for the operation
-	// example: BRL
-	// minLength: 2
-	// maxLength: 10
-	AssetCode string `json:"assetCode" example:"BRL" minLength:"2" maxLength:"10"`
-
-	// Chart of accounts code for accounting purposes
-	// example: 1000
-	// maxLength: 20
-	ChartOfAccounts string `json:"chartOfAccounts" example:"1000" maxLength:"20"`
-
-	// Operation amount information
-	Amount Amount `json:"amount"`
-
-	// Balance before the operation
-	Balance OperationBalance `json:"balance"`
-
-	// Balance after the operation
-	BalanceAfter OperationBalance `json:"balanceAfter"`
-
-	// Operation status information
-	Status Status `json:"status"`
-
-	// Account identifier associated with this operation
-	// example: 00000000-0000-0000-0000-000000000000
-	// format: uuid
-	AccountID string `json:"accountId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
-
-	// Human-readable alias for the account
-	// example: @person1
-	// maxLength: 256
-	AccountAlias string `json:"accountAlias" example:"@person1" maxLength:"256"`
-
-	// Balance identifier affected by this operation
-	// example: 00000000-0000-0000-0000-000000000000
-	// format: uuid
-	BalanceID string `json:"balanceId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
-
-	// Timestamp when the operation log was created
-	// example: 2021-01-01T00:00:00Z
-	// format: date-time
-	CreatedAt time.Time `json:"createdAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
-
-	// Additional custom attributes for audit tracking
-	// example: {"audit_user": "system", "source": "api"}
-	Metadata map[string]any `json:"metadata"`
-} // @name OperationLog
 
 // OperationAmount represents the amount structure in operation responses
 // This is SDK-specific and used for backward compatibility
@@ -396,8 +285,9 @@ type Destination struct {
 // This structure contains all the fields needed to create a new operation
 // as part of a transaction.
 type CreateOperationInput struct {
-	// Type indicates whether this is a debit or credit operation
-	// Must be either "debit" or "credit"
+	// Type indicates whether this is a debit or credit operation.
+	// Must be either "DEBIT" or "CREDIT" (canonical uppercase per the
+	// Midaz API contract; see OperationTypeDebit / OperationTypeCredit).
 	Type string `json:"type"`
 
 	// AccountID is the identifier of the account to be affected
@@ -433,36 +323,125 @@ type CreateOperationInput struct {
 //   - error: An error if validation fails, nil otherwise
 func (input *CreateOperationInput) Validate() error {
 	if input == nil {
-		return errors.New("input is required")
+		return errors.New("input cannot be nil")
 	}
 
-	// Validate required fields
-	if input.Type == "" {
-		return errors.New("type is required")
-	}
+	var errs validation.FieldErrors
 
-	// Validate type is a valid operation type
-	if input.Type != string(OperationTypeDebit) && input.Type != string(OperationTypeCredit) {
-		return fmt.Errorf("type must be either %s or %s, got %s", OperationTypeDebit, OperationTypeCredit, input.Type)
+	switch {
+	case input.Type == "":
+		errs.Append("type", "is required")
+	case input.Type != string(OperationTypeDebit) && input.Type != string(OperationTypeCredit):
+		errs.Append("type", fmt.Sprintf("must be either %s or %s, got %s", OperationTypeDebit, OperationTypeCredit, input.Type))
 	}
 
 	if input.AccountID == "" {
-		return errors.New("accountId is required")
+		errs.Append("accountId", "is required")
 	}
 
-	// Validate amount
 	if input.Amount == nil {
-		return errors.New("amount is required")
+		errs.Append("amount", "is required")
+	} else if err := validatePositiveDecimalString(input.Amount, "amount"); err != nil {
+		errs.Append("amount", "invalid: "+err.Error())
 	}
 
-	if err := validatePositiveDecimalString(input.Amount, "amount"); err != nil {
-		return fmt.Errorf("invalid amount: %w", err)
-	}
-
-	// Validate asset code if provided
 	if input.AssetCode == "" {
-		return errors.New("assetCode is required")
+		errs.Append("assetCode", "is required")
 	}
 
-	return nil
+	return errs.OrNil()
+}
+
+// NewCreateOperationInput creates a new CreateOperationInput with the required fields.
+// Use the With* methods to set optional fields fluently.
+//
+// Parameters:
+//   - operationType: One of OperationTypeDebit ("DEBIT") or OperationTypeCredit ("CREDIT").
+//   - accountID:     The unique identifier of the account to be affected.
+//   - amount:        The exact decimal value of the operation. Use *decimal.Decimal,
+//     models.Amount, or a pre-formatted decimal string.
+//   - assetCode:     The currency or asset code (e.g. "USD", "EUR", "BTC").
+//
+// Returns:
+//   - A pointer to the newly created CreateOperationInput.
+//
+// Example:
+//
+//	input := models.NewCreateOperationInput(
+//	    string(models.OperationTypeDebit),
+//	    "00000000-0000-0000-0000-000000000000",
+//	    "150.00",
+//	    "USD",
+//	).WithRoute("payment-route").WithAccountAlias("@customer.john")
+func NewCreateOperationInput(operationType, accountID string, amount any, assetCode string) *CreateOperationInput {
+	return &CreateOperationInput{
+		Type:      operationType,
+		AccountID: accountID,
+		Amount:    amount,
+		AssetCode: assetCode,
+	}
+}
+
+// WithAccountAlias sets the optional human-readable alias for the account.
+// Returns the modified input for chaining.
+func (input *CreateOperationInput) WithAccountAlias(alias string) *CreateOperationInput {
+	if input == nil {
+		return nil
+	}
+
+	input.AccountAlias = &alias
+
+	return input
+}
+
+// WithRoute sets the optional operation-route identifier.
+// Returns the modified input for chaining.
+func (input *CreateOperationInput) WithRoute(route string) *CreateOperationInput {
+	if input == nil {
+		return nil
+	}
+
+	input.Route = route
+
+	return input
+}
+
+// NewUpdateOperationInput creates a new empty UpdateOperationInput.
+// Use the With* methods to set optional fields fluently.
+//
+// Returns:
+//   - A pointer to the newly created UpdateOperationInput.
+//
+// Example:
+//
+//	input := models.NewUpdateOperationInput().
+//	    WithDescription("refund for invoice 12345").
+//	    WithMetadata(map[string]any{"reason": "customer requested"})
+func NewUpdateOperationInput() *UpdateOperationInput {
+	return &UpdateOperationInput{}
+}
+
+// WithDescription sets the human-readable description on the update payload.
+// Returns the modified input for chaining.
+func (input *UpdateOperationInput) WithDescription(description string) *UpdateOperationInput {
+	if input == nil {
+		return nil
+	}
+
+	input.Description = description
+
+	return input
+}
+
+// WithMetadata sets the operation metadata on the update payload. The map is
+// deep-copied so subsequent caller mutations do not leak into the input.
+// Returns the modified input for chaining.
+func (input *UpdateOperationInput) WithMetadata(metadata map[string]any) *UpdateOperationInput {
+	if input == nil {
+		return nil
+	}
+
+	input.Metadata = cloneAnyMap(metadata)
+
+	return input
 }

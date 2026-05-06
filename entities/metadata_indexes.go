@@ -1,12 +1,14 @@
 package entities
 
+//go:generate mockgen -source=metadata_indexes.go -destination=mocks/mock_metadata_indexes.go -package=mocks MetadataIndexesService
+
 import (
 	"context"
 	"fmt"
 	"net/http"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
 )
 
 // MetadataIndexesService defines the service for Ledger metadata-index endpoints.
@@ -20,22 +22,12 @@ type MetadataIndexesService interface {
 }
 
 type metadataIndexesEntity struct {
-	httpClient *HTTPClient
-	baseURLs   map[string]string
+	serviceEntity
 }
 
-func (e *metadataIndexesEntity) setDefaultTenantID(tenantID string) {
-	e.httpClient.SetTenantID(tenantID)
-}
-
-// NewMetadataIndexesEntity creates a new MetadataIndexesService instance.
-func NewMetadataIndexesEntity(client *http.Client, authToken string, baseURLs map[string]string) MetadataIndexesService {
-	httpClient := NewHTTPClient(client, authToken, nil)
-
-	return &metadataIndexesEntity{
-		httpClient: httpClient,
-		baseURLs:   baseURLs,
-	}
+// newMetadataIndexesEntity creates a new MetadataIndexesService instance.
+func newMetadataIndexesEntity(client *http.Client, authToken string, baseURLs map[string]string) MetadataIndexesService {
+	return &metadataIndexesEntity{serviceEntity: newServiceEntity(client, authToken, baseURLs)}
 }
 
 func (e *metadataIndexesEntity) buildBaseURL() string {
@@ -46,7 +38,7 @@ func (e *metadataIndexesEntity) buildBaseURL() string {
 func (e *metadataIndexesEntity) ListMetadataIndexes(ctx context.Context, entityName string) ([]models.MetadataIndex, error) {
 	const operation = "ListMetadataIndexes"
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, e.buildBaseURL(), nil)
+	req, err := newRequestWithContext(ctx, http.MethodGet, e.buildBaseURL(), nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -121,7 +113,7 @@ func (e *metadataIndexesEntity) DeleteMetadataIndex(ctx context.Context, entityN
 
 	endpoint := fmt.Sprintf("%s/entities/%s/key/%s", e.buildBaseURL(), pathSegment(entityName), pathSegment(metadataKey))
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, endpoint, nil)
+	req, err := newRequestWithContext(ctx, http.MethodDelete, endpoint, nil)
 	if err != nil {
 		return errors.NewInternalError(operation, err)
 	}

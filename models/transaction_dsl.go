@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation/core"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation/core"
 	"github.com/shopspring/decimal"
 )
 
@@ -198,138 +198,123 @@ type Rate struct {
 }
 
 // Validate checks that the DSLSend meets all validation requirements.
+// Field-level violations are accumulated so callers see every problem
+// in a single error.
 func (send *DSLSend) Validate() error {
 	if send == nil {
 		return errors.New("send is required")
 	}
 
-	// Validate required fields
-	if send.Asset == "" {
-		return errors.New("asset is required")
-	}
+	var errs validation.FieldErrors
 
-	// Validate asset code
-	if err := core.ValidateAssetCode(send.Asset); err != nil {
-		return err
+	if send.Asset == "" {
+		errs.Append("asset", "is required")
+	} else if err := core.ValidateAssetCode(send.Asset); err != nil {
+		errs.Append("asset", err.Error())
 	}
 
 	if err := validatePositiveDecimalString(send.Value, "value"); err != nil {
-		return err
+		errs.Append("value", err.Error())
 	}
 
-	// Validate source
-	if err := send.validateSource(); err != nil {
-		return err
-	}
+	send.appendSourceErrors(&errs)
+	send.appendDistributeErrors(&errs)
 
-	// Validate distribute
-	return send.validateDistribute()
+	return errs.OrNil()
 }
 
-// validateSource validates the source part of a DSLSend
-func (send *DSLSend) validateSource() error {
+// appendSourceErrors accumulates source.from violations onto errs.
+func (send *DSLSend) appendSourceErrors(errs *validation.FieldErrors) {
 	if send.Source == nil || len(send.Source.From) == 0 {
-		return errors.New("source.from must contain at least one entry")
+		errs.Append("source.from", "must contain at least one entry")
+		return
 	}
 
 	for i, from := range send.Source.From {
 		if from.Account == "" {
-			return fmt.Errorf("source.from[%d].account is required", i)
+			errs.Append(fmt.Sprintf("source.from[%d].account", i), "is required")
+			continue
 		}
 
-		if err := send.validateExternalAccount(from.Account, i, "source.from"); err != nil {
-			return err
-		}
+		send.appendExternalAccountError(errs, from.Account, i, "source.from")
 	}
-
-	return nil
 }
 
-// validateDistribute validates the distribute part of a DSLSend
-func (send *DSLSend) validateDistribute() error {
+// appendDistributeErrors accumulates distribute.to violations onto errs.
+func (send *DSLSend) appendDistributeErrors(errs *validation.FieldErrors) {
 	if send.Distribute == nil || len(send.Distribute.To) == 0 {
-		return errors.New("distribute.to must contain at least one entry")
+		errs.Append("distribute.to", "must contain at least one entry")
+		return
 	}
 
 	for i, to := range send.Distribute.To {
 		if to.Account == "" {
-			return fmt.Errorf("distribute.to[%d].account is required", i)
+			errs.Append(fmt.Sprintf("distribute.to[%d].account", i), "is required")
+			continue
 		}
 
-		if err := send.validateExternalAccount(to.Account, i, "distribute.to"); err != nil {
-			return err
-		}
+		send.appendExternalAccountError(errs, to.Account, i, "distribute.to")
 	}
-
-	return nil
 }
 
-// validateExternalAccount validates an external account reference
-func (send *DSLSend) validateExternalAccount(account string, index int, location string) error {
+// appendExternalAccountError validates an external account reference
+// and accumulates any violation onto errs.
+func (send *DSLSend) appendExternalAccountError(errs *validation.FieldErrors, account string, index int, location string) {
 	if account == "" || account[0] != '@' {
-		return nil
+		return
 	}
 
-	// For external accounts, check if they match the expected format
 	if !core.ExternalAccountPattern.MatchString(account) {
-		return fmt.Errorf("invalid external account format in %s[%d]: %s", location, index, account)
+		errs.Append(fmt.Sprintf("%s[%d]", location, index), fmt.Sprintf("invalid external account format: %s", account))
+		return
 	}
 
-	// Check if the asset code in the external account matches the transaction asset
 	matches := core.ExternalAccountPattern.FindStringSubmatch(account)
 	if len(matches) > 1 && matches[1] != send.Asset {
-		return fmt.Errorf("asset code mismatch in %s[%d]: transaction uses %s but external account uses %s",
-			location, index, send.Asset, matches[1])
+		errs.Append(fmt.Sprintf("%s[%d]", location, index),
+			fmt.Sprintf("asset code mismatch: transaction uses %s but external account uses %s", send.Asset, matches[1]))
 	}
-
-	return nil
 }
 
 // Validate checks if the TransactionDSLInput meets the validation requirements.
-// It returns an error if any of the validation checks fail.
+// All field-level violations are accumulated and returned together.
 func (input *TransactionDSLInput) Validate() error {
 	if input == nil {
 		return errors.New("transaction DSL input is required")
 	}
 
-	if strings.TrimSpace(input.ChartOfAccountsGroupName) == "" {
-		return errors.New("chartOfAccountsGroupName is required")
+	var errs validation.FieldErrors
+
+	switch {
+	case strings.TrimSpace(input.ChartOfAccountsGroupName) == "":
+		errs.Append("chartOfAccountsGroupName", "is required")
+	case len(input.ChartOfAccountsGroupName) > 256:
+		errs.Append("chartOfAccountsGroupName", "must be at most 256 characters")
 	}
 
-	// Validate send
 	if input.Send == nil {
-		return errors.New("send is required")
-	}
-
-	// Validate send operation
-	if err := input.Send.Validate(); err != nil {
-		return fmt.Errorf("invalid send operation: %w", err)
-	}
-
-	// Validate string length constraints
-	if len(input.ChartOfAccountsGroupName) > 256 {
-		return errors.New("chartOfAccountsGroupName must be at most 256 characters")
+		errs.Append("send", "is required")
+	} else if err := input.Send.Validate(); err != nil {
+		errs.Append("send", "invalid send operation: "+err.Error())
 	}
 
 	if len(input.Description) > 256 {
-		return errors.New("description must be at most 256 characters")
+		errs.Append("description", "must be at most 256 characters")
 	}
 
-	// Validate transaction code
 	if input.Code != "" {
 		if err := core.ValidateTransactionCode(input.Code); err != nil {
-			return err
+			errs.Append("code", err.Error())
 		}
 	}
 
-	// Validate metadata if present
 	if input.Metadata != nil {
 		if err := core.ValidateMetadata(input.Metadata); err != nil {
-			return fmt.Errorf("invalid metadata: %w", err)
+			errs.Append("metadata", "invalid: "+err.Error())
 		}
 	}
 
-	return nil
+	return errs.OrNil()
 }
 
 // ToTransactionMap converts a TransactionDSLInput to a map that can be used for API requests.

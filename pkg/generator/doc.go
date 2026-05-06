@@ -1,0 +1,48 @@
+// Package generator builds realistic Midaz resource graphs (organizations,
+// ledgers, assets, accounts, balances, portfolios, segments, routes,
+// transactions) for demos, integration tests, and load testing.
+//
+// The package is the engine behind examples/mass-demo-generator. It
+// composes data templates from
+// [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/data] with concrete
+// SDK calls, applies bounded concurrency, and emits structured progress
+// reports.
+//
+// # Public surface
+//
+//   - Per-resource generators: [OrgGenerator], [LedgerGenerator],
+//     [AssetGenerator], [AccountGenerator], [PortfolioGenerator],
+//     [SegmentGenerator], [TransactionGenerator], etc. Each takes a
+//     parent resource ID and produces N child resources.
+//   - [Config] — top-level knobs: counts per resource, locale, retry
+//     policy, observability provider.
+//   - [Circuit] — circuit-breaker primitive shared across generators
+//     to fail fast when the backend signals unhealthiness.
+//   - Functional options ([Option] family) for assembling a
+//     generator pipeline.
+//
+// # Quickstart
+//
+//	g := generator.NewOrgGenerator(c, generator.Config{
+//	    Locale:        "br",
+//	    Concurrency:   8,
+//	})
+//	orgs, err := g.GenerateMany(ctx, 100)
+//
+// # When to use
+//
+//   - Seeding a fresh Midaz install with believable organizations,
+//     accounts, and transaction history for QA / demos.
+//   - Generating load-test scenarios with realistic transaction shapes.
+//
+// # When NOT to use
+//
+// Production code. Generators are NOT idempotent across runs — calling
+// GenerateMany twice produces two distinct resource sets.
+//
+// # See also
+//
+//   - examples/mass-demo-generator — runnable end-to-end consumer
+//   - [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/data] — catalogs
+//   - docs/v3-dx-plan.md — design rationale
+package generator

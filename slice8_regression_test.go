@@ -1,11 +1,11 @@
-package client
+package midaz
 
 import (
 	"context"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/config"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
@@ -30,6 +30,7 @@ func TestSlice8ClientHelpers(t *testing.T) {
 	t.Run("WithConfig clones caller-owned config", func(t *testing.T) {
 		cfg := config.DefaultConfig()
 		cfg.ServiceURLs[config.ServiceOnboarding] = "https://original.example.com/v1"
+		cfg.Anonymous = true // satisfies v3 auth-required gate
 
 		c, err := New(WithConfig(cfg))
 		require.NoError(t, err)

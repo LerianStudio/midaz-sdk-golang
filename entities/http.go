@@ -8,22 +8,22 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"html"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/performance"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/security"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/version"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/performance"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/security"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/version"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -46,13 +46,11 @@ const (
 	internalAutoIdempotencyHeader   = "X-Midaz-Auto-Idempotency"
 )
 
-// getUserAgent retrieves the user agent string from environment variable or uses default
-func getUserAgent() string {
-	// Check for environment variable
-	if userAgent := os.Getenv("MIDAZ_USER_AGENT"); userAgent != "" {
-		return userAgent
-	}
-	// Fall back to centralized version
+// defaultUserAgent returns the SDK's centralized user-agent string.
+// The configured value flows in via (*HTTPClient).SetUserAgent (driven
+// from pkg/config.Config.UserAgent, which itself can be populated from
+// the MIDAZ_USER_AGENT env var when the caller opts in via FromEnvironment).
+func defaultUserAgent() string {
 	return version.UserAgent()
 }
 
@@ -71,7 +69,6 @@ type HTTPClient struct {
 	userAgent         string
 	tenantID          string
 	debug             bool
-	debugWriter       io.Writer             // optional sink for debug logs (default: os.Stderr)
 	retryOptions      *retry.Options        // Retry options for the client
 	jsonPool          *performance.JSONPool // Pool for JSON encoding/decoding
 	metrics           *observability.MetricsCollector
@@ -80,6 +77,14 @@ type HTTPClient struct {
 	customRetryPolicy func(*http.Response, error) bool
 	tokenProvider     func(context.Context) (string, error)
 	tokenInvalidator  func()
+	// logger is the canonical *slog.Logger for retry/slow-call/internal
+	// warnings. Always non-nil after midaz.New() wires the parent client's
+	// logger via SetLogger. Every entity service shares the same *HTTPClient,
+	// so SetLogger calls take effect on every service's next request.
+	logger *slog.Logger
+	// slowCallThreshold is the duration above which a successful call
+	// emits a Warn-level structured log. Zero disables the warning.
+	slowCallThreshold time.Duration
 	// tokenRefreshGroup serializes concurrent 401-driven token refreshes per
 	// cache key. A burst of in-flight requests that all hit a 401 at the
 	// same time funnel through one underlying call to tokenProvider, which
@@ -93,7 +98,6 @@ type httpClientConfigSnapshot struct {
 	userAgent         string
 	tenantID          string
 	debug             bool
-	debugWriter       io.Writer
 	retryOptions      *retry.Options
 	metrics           *observability.MetricsCollector
 	observability     observability.Provider
@@ -101,21 +105,26 @@ type httpClientConfigSnapshot struct {
 	customRetryPolicy func(*http.Response, error) bool
 	tokenProvider     func(context.Context) (string, error)
 	tokenInvalidator  func()
+	logger            *slog.Logger
+	slowCallThreshold time.Duration
 }
 
-// NewHTTPClient creates a new HTTP client with the provided configuration.
-// The debug flag is set to false by default and can be overridden using the WithDebug option.
+// NewHTTPClient creates a new HTTP client with safe v3 defaults.
+//
+// v3 invariant (Track 3): no environment variables are read here. Configuration
+// flows in exclusively through pkg/config.Config and the SetDebug / SetUserAgent /
+// SetEnableIdempotency / WithRetryOptions setters (plus (*Entity).SetObservability
+// for observability). Callers who want env-driven configuration must opt in via
+// config.NewConfig(config.FromEnvironment()).
+//
+// Defaults: debug=false, userAgent=version.UserAgent(), enableIdempotency=true,
+// retryOptions=retry.DefaultOptions().
 //
 // Parameters:
-//   - client: The HTTP client to use for requests.
+//   - client: The underlying *http.Client. If nil, the SDK's package-level default is used.
 //   - authToken: The authentication token for API authorization.
 //   - provider: The observability provider for tracing, metrics, and logging (can be nil).
 func NewHTTPClient(client *http.Client, authToken string, provider observability.Provider) *HTTPClient {
-	debug := os.Getenv(EnvMidazDebug) == BoolTrue
-	retryOptions := initRetryOptionsFromEnv(provider)
-	metrics := initMetricsCollector(provider)
-
-	// Use the default client if none is provided
 	if client == nil {
 		client = defaultHTTPClient()
 	}
@@ -123,13 +132,13 @@ func NewHTTPClient(client *http.Client, authToken string, provider observability
 	return &HTTPClient{
 		client:            client,
 		authToken:         authToken,
-		userAgent:         getUserAgent(),
-		debug:             debug,
-		retryOptions:      retryOptions,
+		userAgent:         defaultUserAgent(),
+		debug:             false,
+		retryOptions:      retry.DefaultOptions(),
 		jsonPool:          performance.NewJSONPool(),
-		metrics:           metrics,
+		metrics:           initMetricsCollector(provider),
 		observability:     provider,
-		enableIdempotency: os.Getenv("MIDAZ_IDEMPOTENCY") != "false",
+		enableIdempotency: true,
 	}
 }
 
@@ -151,35 +160,13 @@ var defaultHTTPClient = sync.OnceValue(func() *http.Client {
 			Proxy:                 http.ProxyFromEnvironment,
 			MaxIdleConns:          100,
 			MaxIdleConnsPerHost:   10,
+			MaxConnsPerHost:       100,
 			IdleConnTimeout:       90 * time.Second,
 			TLSHandshakeTimeout:   10 * time.Second,
 			ExpectContinueTimeout: time.Second,
 		},
 	}
 })
-
-// initRetryOptionsFromEnv initializes retry options from environment variables.
-func initRetryOptionsFromEnv(provider observability.Provider) *retry.Options {
-	retryOptions := retry.DefaultOptions()
-
-	// Check for retry configuration in environment variables
-	if maxRetries := os.Getenv("MIDAZ_MAX_RETRIES"); maxRetries != "" {
-		if val, err := strconv.Atoi(maxRetries); err == nil && val >= 0 {
-			if err := retry.WithMaxRetries(val)(retryOptions); err != nil {
-				logRetryError(provider, "Failed to set max retries: %v", err)
-			}
-		}
-	}
-
-	// Check if retries are disabled
-	if retryEnv := os.Getenv("MIDAZ_ENABLE_RETRIES"); retryEnv == "false" {
-		if err := retry.WithMaxRetries(0)(retryOptions); err != nil {
-			logRetryError(provider, "Failed to disable retries: %v", err)
-		}
-	}
-
-	return retryOptions
-}
 
 // initMetricsCollector initializes the metrics collector if observability is enabled.
 func initMetricsCollector(provider observability.Provider) *observability.MetricsCollector {
@@ -193,13 +180,6 @@ func initMetricsCollector(provider observability.Provider) *observability.Metric
 	}
 
 	return metrics
-}
-
-// logRetryError logs a retry configuration error if observability is enabled.
-func logRetryError(provider observability.Provider, format string, args ...any) {
-	if provider != nil && provider.IsEnabled() {
-		provider.Logger().Errorf(format, args...)
-	}
 }
 
 // WithRetryOptions sets custom retry options for the HTTP client.
@@ -231,32 +211,53 @@ func (c *HTTPClient) WithRetryOptions(options ...retry.Option) *HTTPClient {
 	return c
 }
 
-// WithRetryOption applies a retry option to the HTTP client.
-func (c *HTTPClient) WithRetryOption(option retry.Option) *HTTPClient {
+// SetLogger installs the *slog.Logger used for retry/slow-call/internal
+// warnings. Passing nil reverts to a discard handler. Because every entity
+// service shares the same *HTTPClient, calling SetLogger here updates the
+// logger seen by all 16 services on their next request.
+func (c *HTTPClient) SetLogger(logger *slog.Logger) {
 	if c == nil {
-		return nil
-	}
-
-	if option == nil {
-		c.debugLog("Error applying retry option: retry option cannot be nil")
-		return c
+		return
 	}
 
 	c.mu.Lock()
+	defer c.mu.Unlock()
 
-	if c.retryOptions == nil {
-		c.retryOptions = retry.DefaultOptions()
+	c.logger = logger
+}
+
+// Logger returns the configured *slog.Logger or a discard logger if none was
+// installed. Always non-nil so callers can write log lines unconditionally.
+func (c *HTTPClient) Logger() *slog.Logger {
+	if c == nil {
+		return slog.New(slog.DiscardHandler)
 	}
 
-	if err := option(c.retryOptions); err != nil {
-		c.mu.Unlock()
-		c.debugLog("Error applying retry option: %v", err)
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 
-		return c
+	if c.logger == nil {
+		return slog.New(slog.DiscardHandler)
 	}
-	c.mu.Unlock()
 
-	return c
+	return c.logger
+}
+
+// SetSlowCallThreshold installs the duration above which a successful call
+// emits a Warn-level log line. Zero or negative values disable the warning.
+func (c *HTTPClient) SetSlowCallThreshold(threshold time.Duration) {
+	if c == nil {
+		return
+	}
+
+	if threshold < 0 {
+		threshold = 0
+	}
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.slowCallThreshold = threshold
 }
 
 // SetEnableIdempotency enables or disables automatic idempotency header
@@ -265,11 +266,11 @@ func (c *HTTPClient) WithRetryOption(option retry.Option) *HTTPClient {
 // When enabled (the default unless MIDAZ_IDEMPOTENCY=false), every unsafe
 // request (POST/PUT/PATCH/DELETE) gets an automatic UUIDv4 idempotency key
 // in the X-Idempotency header — UNLESS the caller already supplied one via
-// WithIdempotencyKey, in which case the explicit key wins.
+// [sdkctx.WithIdempotencyKey], in which case the explicit key wins.
 //
 // To opt OUT for a single call without disabling client-level idempotency
-// entirely, attach the request context with WithoutAutoIdempotency. The
-// ordering rule is: explicit caller key > suppression > auto-generation.
+// entirely, attach the request context with [sdkctx.WithoutAutoIdempotency].
+// The ordering rule is: explicit caller key > suppression > auto-generation.
 func (c *HTTPClient) SetEnableIdempotency(enabled bool) {
 	if c == nil {
 		return
@@ -305,14 +306,6 @@ func (c *HTTPClient) setAuthTokenProvider(provider func(context.Context) (string
 	c.tokenInvalidator = invalidator
 }
 
-func (c *HTTPClient) applyConfigurationFrom(source *HTTPClient) {
-	if source == nil {
-		return
-	}
-
-	c.applyConfigurationSnapshot(source.cloneConfiguration())
-}
-
 func (c *HTTPClient) cloneConfiguration() httpClientConfigSnapshot {
 	if c == nil {
 		return httpClientConfigSnapshot{}
@@ -326,7 +319,6 @@ func (c *HTTPClient) cloneConfiguration() httpClientConfigSnapshot {
 		userAgent:         c.userAgent,
 		tenantID:          c.tenantID,
 		debug:             c.debug,
-		debugWriter:       c.debugWriter,
 		retryOptions:      cloneRetryOptions(c.retryOptions),
 		metrics:           c.metrics,
 		observability:     c.observability,
@@ -334,6 +326,8 @@ func (c *HTTPClient) cloneConfiguration() httpClientConfigSnapshot {
 		customRetryPolicy: c.customRetryPolicy,
 		tokenProvider:     c.tokenProvider,
 		tokenInvalidator:  c.tokenInvalidator,
+		logger:            c.logger,
+		slowCallThreshold: c.slowCallThreshold,
 	}
 }
 
@@ -349,7 +343,6 @@ func (c *HTTPClient) applyConfigurationSnapshot(snapshot httpClientConfigSnapsho
 	c.userAgent = snapshot.userAgent
 	c.tenantID = snapshot.tenantID
 	c.debug = snapshot.debug
-	c.debugWriter = snapshot.debugWriter
 	c.retryOptions = cloneRetryOptions(snapshot.retryOptions)
 	c.metrics = snapshot.metrics
 	c.observability = snapshot.observability
@@ -357,77 +350,15 @@ func (c *HTTPClient) applyConfigurationSnapshot(snapshot httpClientConfigSnapsho
 	c.customRetryPolicy = snapshot.customRetryPolicy
 	c.tokenProvider = snapshot.tokenProvider
 	c.tokenInvalidator = snapshot.tokenInvalidator
+	c.logger = snapshot.logger
+	c.slowCallThreshold = snapshot.slowCallThreshold
 }
 
-// WithUserAgent sets a custom user agent string for the HTTP client.
-func (c *HTTPClient) WithUserAgent(userAgent string) *HTTPClient {
-	if c == nil {
-		return nil
-	}
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	c.userAgent = userAgent
-
-	return c
-}
-
-// WithDebug enables or disables debug mode for the HTTP client.
-func (c *HTTPClient) WithDebug(debug bool) *HTTPClient {
-	if c == nil {
-		return nil
-	}
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	c.debug = debug
-
-	return c
-}
-
-// WithDebugWriter sets an alternate sink for debug-mode log output. By
-// default debug logs go to os.Stderr; tests use this option to capture
-// the output into a *bytes.Buffer instead of mutating the global
-// os.Stderr (which races against parallel tests).
-func (c *HTTPClient) WithDebugWriter(w io.Writer) *HTTPClient {
-	if c == nil {
-		return nil
-	}
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	c.debugWriter = w
-
-	return c
-}
-
-// SetTenantID sets the default tenant ID for all requests made by this HTTP client.
-// When a request is made, the tenant ID from the request context takes precedence
-// over this client-level default. If neither is set, no X-Tenant-ID header is sent.
-// This header is best-effort compatibility metadata and is not the sole tenant
-// authority for the reference Midaz path.
+// SetDebug enables or disables debug-mode logging for the HTTP client.
 //
-// SetTenantID is safe for concurrent use; it acquires the client's write lock.
-// All other field-mutating helpers in this file (setObservabilityLocked,
-// setDebugLocked, setUserAgentLocked, setMetricsLocked, setTenantIDLocked)
-// follow the same convention so that constructors and Option callbacks
-// cannot bypass the mutex.
-func (c *HTTPClient) SetTenantID(tenantID string) {
-	if c == nil {
-		return
-	}
-
-	c.setTenantIDLocked(strings.TrimSpace(tenantID))
-}
-
-// setDebugLocked sets the debug flag under the write lock. Internal callers
-// (constructors that observe MIDAZ_DEBUG, Option setters) must use this
-// helper instead of writing c.debug directly so that race detector runs
-// stay clean.
-func (c *HTTPClient) setDebugLocked(debug bool) {
+// Acquires the HTTPClient write lock so the field flip is race-detector
+// clean even when called concurrently with in-flight requests.
+func (c *HTTPClient) SetDebug(debug bool) {
 	if c == nil {
 		return
 	}
@@ -438,8 +369,12 @@ func (c *HTTPClient) setDebugLocked(debug bool) {
 	c.debug = debug
 }
 
-// setUserAgentLocked sets the user agent under the write lock.
-func (c *HTTPClient) setUserAgentLocked(userAgent string) {
+// SetUserAgent sets the User-Agent header value sent on every outbound
+// request issued by this HTTPClient.
+//
+// Acquires the HTTPClient write lock; safe to call concurrently with
+// in-flight requests.
+func (c *HTTPClient) SetUserAgent(userAgent string) {
 	if c == nil {
 		return
 	}
@@ -479,10 +414,10 @@ func (c *HTTPClient) setTenantIDLocked(tenantID string) {
 }
 
 // setAuthTokenLocked sets the auth token under the write lock. Used by
-// Entity.SetAuthToken (plugin-auth refresh path) and the in-request 401
-// refresh path. The auth token is read on every request to populate the
-// Authorization header, so concurrent mutation absolutely must go through
-// the same lock the readers use.
+// the access-manager token-refresh path (refreshAuthToken) and the initial
+// token seeding inside NewEntityWithConfig. The auth token is read on every
+// request to populate the Authorization header, so concurrent mutation
+// absolutely must go through the same lock the readers use.
 func (c *HTTPClient) setAuthTokenLocked(token string) {
 	if c == nil {
 		return
@@ -508,6 +443,24 @@ func (c *HTTPClient) GetTenantID() string {
 
 // injectContextHeaders adds context-based headers (idempotency key, tenant ID) to the provided
 // headers map. If headers is nil and there are headers to inject, a new map is created and returned.
+//
+// Idempotency key precedence (first non-empty source wins):
+//  1. Caller-supplied input field — service methods that accept an
+//     IdempotencyKey on their input struct (e.g., CreateTransactionInput)
+//     write it directly into headers along with the
+//     [internalCallerIdempotencyHeader] marker. That marker tells this
+//     function the caller has spoken; we MUST NOT overwrite the value here.
+//  2. ctx-supplied via [sdkctx.WithIdempotencyKey] — request-scoped override,
+//     used when the input struct doesn't carry the field or the caller wants
+//     to propagate a key across a chain of calls.
+//  3. Auto-generated UUID — applied later in [ensureIdempotencyHeader] when
+//     client-level idempotency is enabled and neither (1) nor (2) supplied a
+//     key.
+//
+// For a ledger SDK, getting this ordering wrong is the difference between
+// proper dedup and double-bookkeeping under retries — the input-level key
+// is the caller's most explicit assertion of "this transaction has key X"
+// and must not be silently replaced.
 func (c *HTTPClient) injectContextHeaders(ctx context.Context, method string, headers map[string]string) map[string]string {
 	if ctx == nil {
 		ctx = context.Background()
@@ -521,13 +474,19 @@ func (c *HTTPClient) injectContextHeaders(ctx context.Context, method string, he
 			headers = map[string]string{}
 		}
 
-		headers["X-Idempotency"] = key
-		headers[internalCallerIdempotencyHeader] = BoolTrue
+		// Caller-supplied input.IdempotencyKey wins over ctx-supplied key.
+		// Detected via the internal marker that input-level call sites set
+		// alongside the header.
+		callerSupplied := headers[internalCallerIdempotencyHeader] == BoolTrue && strings.TrimSpace(headers["X-Idempotency"]) != ""
+		if !callerSupplied {
+			headers["X-Idempotency"] = key
+			headers[internalCallerIdempotencyHeader] = BoolTrue
+		}
 	}
 
 	// Inject tenant ID header from context or client-level default.
 	// Context value takes precedence over the client-level default.
-	if tid := TenantIDFromContext(ctx); tid != "" {
+	if tid := sdkctx.TenantIDFromContext(ctx); tid != "" {
 		if headers == nil {
 			headers = map[string]string{}
 		}
@@ -738,6 +697,8 @@ func (c *HTTPClient) doCountRequest(ctx context.Context, method, requestURL stri
 
 	req, err := http.NewRequestWithContext(ctx, method, requestURL, nil)
 	if err != nil {
+		c.recordSDKFailure(ctx, method, requestURL, 0, err)
+
 		return 0, fmt.Errorf("failed to create request: %w", err)
 	}
 
@@ -1069,7 +1030,7 @@ func (c *HTTPClient) setupRequestHeaders(req *http.Request, headers map[string]s
 //
 // Retries are enabled for unsafe methods (POST/PUT/PATCH/DELETE) when an
 // idempotency key is present — either explicitly supplied by the caller
-// via WithIdempotencyKey OR auto-generated by ensureIdempotencyHeader when
+// via [sdkctx.WithIdempotencyKey] OR auto-generated by ensureIdempotencyHeader when
 // client-level idempotency is enabled. The previous implementation only
 // honored the caller-supplied form, which silently disabled retries for
 // every auto-keyed unsafe request — exactly the workloads where retries
@@ -1102,6 +1063,62 @@ func (c *HTTPClient) executeRequestWithRetry(ctx context.Context, req *http.Requ
 	}
 
 	retryCtx := retry.WithOptionsContext(ctx, effectiveRetryOptions)
+
+	// Install the per-attempt observability hook on the retry context.
+	// The hook emits a structured slog line and records a metric for
+	// every retry attempt — the pieces that used to be a // TODO.
+	logger := snapshot.logger
+	if logger == nil {
+		logger = slog.New(slog.DiscardHandler)
+	}
+
+	metrics := snapshot.metrics
+
+	hook := func(hookCtx context.Context, attempt int, cause error, delay time.Duration) {
+		urlPath := normalizeTelemetryURLForLog(requestURL)
+
+		causeMsg := ""
+		statusCode := 0
+		var statusErr interface{ StatusCode() int }
+		if cause != nil {
+			causeMsg = sdkerrors.RedactSensitiveString(cause.Error())
+			if errors.As(cause, &statusErr) {
+				statusCode = statusErr.StatusCode()
+			}
+		}
+
+		attrs := []slog.Attr{
+			slog.String("sdk.name", sdkLoggerName),
+			slog.String("sdk.component", "retry"),
+			slog.String("operation", method),
+			slog.String("http.method", method),
+			slog.String("url.path", urlPath),
+			slog.Int("attempt", attempt),
+			slog.Int("max_attempts", effectiveRetryOptions.MaxRetries),
+			slog.Int64("delay_ms", delay.Milliseconds()),
+			slog.String("cause", causeMsg),
+		}
+
+		if statusCode > 0 {
+			attrs = append(attrs, slog.Int("http.status_code", statusCode))
+		}
+
+		level := slog.LevelDebug
+		if attempt >= effectiveRetryOptions.MaxRetries {
+			// Final attempt before exhaustion → warn level so it shows up
+			// in production log filters that suppress debug.
+			level = slog.LevelWarn
+		}
+
+		logger.LogAttrs(hookCtx, level, "retrying request", attrs...)
+
+		if metrics != nil {
+			metrics.RecordRetry(hookCtx, method, "http", attempt)
+		}
+	}
+
+	retryCtx = retry.WithAttemptHook(retryCtx, hook)
+
 	execution := &retryExecution{}
 
 	err := retry.DoWithContext(retryCtx, func() error {
@@ -1109,6 +1126,57 @@ func (c *HTTPClient) executeRequestWithRetry(ctx context.Context, req *http.Requ
 	})
 
 	return execution.resp, execution.responseBody, err
+}
+
+// sdkLoggerName is the value emitted under the sdk.name structured log
+// field. Constant so callers can rely on a stable string.
+const sdkLoggerName = "midaz-go-sdk"
+
+// normalizeTelemetryURLForLog strips dynamic IDs from a request URL so
+// structured log lines have stable cardinality (good for log search and
+// metric labels). Falls back to the raw URL on parse error.
+func normalizeTelemetryURLForLog(rawURL string) string {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return rawURL
+	}
+
+	// Replace path segments that look like UUIDs / numeric IDs with
+	// placeholders. This matches the entity-id pattern used elsewhere
+	// in the SDK's observability tooling.
+	parts := strings.Split(parsed.Path, "/")
+	for i, p := range parts {
+		if isLikelyID(p) {
+			parts[i] = ":id"
+		}
+	}
+
+	parsed.Path = strings.Join(parts, "/")
+	parsed.RawQuery = "" // never include query strings in log fields
+
+	return parsed.String()
+}
+
+// isLikelyID returns true if the segment looks like an entity identifier
+// (UUID-shaped or all digits).
+func isLikelyID(segment string) bool {
+	if segment == "" {
+		return false
+	}
+
+	// UUID-shaped (36 chars with 4 hyphens)
+	if len(segment) == 36 && strings.Count(segment, "-") == 4 {
+		return true
+	}
+
+	// All digits
+	for _, r := range segment {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+
+	return len(segment) > 0
 }
 
 // isInternalRetryableError matches the SDK's internal "always retryable"
@@ -1286,10 +1354,26 @@ func resetRequestBody(req *http.Request) error {
 	return nil
 }
 
+// handleRequestExecutionError converts a transport-layer client.Do
+// failure into a typed SDK error. Audit 8.1 (CRITICAL): before this
+// path landed, network failures (DNS, conn-refused, TLS handshake)
+// arrived at callers as bare *net.OpError shapes, so IsNetworkError(err)
+// returned false on real network errors.
+//
+// Now: every transport failure passes through ClassifyTransportError,
+// which produces a *errors.Error with the right Category (Network for
+// DNS/conn-refused, Timeout for deadline-exceeded, Cancellation for
+// context.Canceled, Internal as a final fallback). The wrapped err is
+// preserved as Error.Err so errors.Unwrap walks the full causal chain.
+//
+// The operation string is derived from method + requestURL so the
+// transport layer can produce a non-empty Operation even before
+// service-method call sites thread their own context through (deferred
+// to 8F per the kickoff scope).
 func (c *HTTPClient) handleRequestExecutionError(method, requestURL string, err error) error {
 	c.debugLogRequestError(method, requestURL, err)
 
-	requestErr := fmt.Errorf("HTTP request failed: %w", err)
+	requestErr := sdkerrors.ClassifyTransportError(transportOperation(method, requestURL), err)
 
 	snapshot := c.cloneConfiguration()
 	if snapshot.customRetryPolicy != nil {
@@ -1301,6 +1385,24 @@ func (c *HTTPClient) handleRequestExecutionError(method, requestURL string, err 
 	}
 
 	return requestErr
+}
+
+// transportOperation produces a synthetic Operation string from the
+// HTTP method. The transport layer doesn't know the service-method
+// name (e.g. "accounts.Create") that called it, so we surface
+// "http GET" / "http POST" so the typed Operation field is non-empty
+// without leaking the request URL (which may carry tenant identifiers
+// or path-borne IDs).
+//
+// Service-method-aware operations — the threading from the entity
+// layer's call sites — is deferred to 8F. _ is reserved for that
+// future expansion.
+func transportOperation(method, _ string) string {
+	if method == "" {
+		return "http"
+	}
+
+	return "http " + method
 }
 
 func (c *HTTPClient) handleRetryAttemptResponse(resp *http.Response, responseBody []byte, method, requestURL string) error {
@@ -1342,12 +1444,25 @@ func (e retryableHTTPError) StatusCode() int {
 	return e.statusCode
 }
 
+// retryableCustomPolicyError is the internal sentinel that signals
+// "the user-supplied custom retry policy or post-401 token refresh
+// said this is retryable." It is NOT a public-facing error shape.
+//
+// Audit 8.3 (HIGH): the v2 implementation prefixed every Error()
+// rendering with "custom retryable: " — internal wrapper noise that
+// leaked into user-facing error strings. The prefix is gone in v3.
+// The wrapper still implements Unwrap so the underlying typed error
+// reaches errors.Is/As walks correctly.
 type retryableCustomPolicyError struct {
 	err error
 }
 
 func (e retryableCustomPolicyError) Error() string {
-	return "custom retryable: " + e.err.Error()
+	if e.err == nil {
+		return ""
+	}
+
+	return e.err.Error()
 }
 
 func (e retryableCustomPolicyError) Unwrap() error {
@@ -1395,6 +1510,52 @@ func (c *HTTPClient) recordRequestMetrics(ctx context.Context, method, requestUR
 	if snapshot.metrics != nil && resp != nil {
 		snapshot.metrics.RecordRequest(ctx, method, normalizeTelemetryURL(requestURL), resp.StatusCode, elapsed)
 	}
+
+	c.maybeLogSlowCall(ctx, snapshot, method, requestURL, resp, elapsed)
+}
+
+// maybeLogSlowCall emits a Warn-level structured log line when the call
+// duration exceeds the configured WithSlowCallThreshold. Zero (default) or
+// negative thresholds disable the warning. The line uses the same field
+// schema as retry logs for consistent dashboards.
+//
+// Receiver is unused (intentionally a method for symmetry with the rest of
+// the recordRequest* family) — silenced via _ to satisfy revive.
+func (*HTTPClient) maybeLogSlowCall(ctx context.Context, snapshot httpClientConfigSnapshot, method, requestURL string, resp *http.Response, elapsed time.Duration) {
+	threshold := snapshot.slowCallThreshold
+	if threshold <= 0 || elapsed < threshold {
+		return
+	}
+
+	logger := snapshot.logger
+	if logger == nil {
+		// No logger means nowhere to emit. Threshold without a logger
+		// is a harmless no-op (covered by the WithSlowCallThreshold
+		// godoc note).
+		return
+	}
+
+	statusCode := 0
+	if resp != nil {
+		statusCode = resp.StatusCode
+	}
+
+	requestID := ""
+	if resp != nil {
+		requestID = resp.Header.Get("X-Request-ID")
+	}
+
+	logger.LogAttrs(ctx, slog.LevelWarn, "slow API call",
+		slog.String("sdk.name", sdkLoggerName),
+		slog.String("sdk.component", "http"),
+		slog.String("operation", method),
+		slog.String("http.method", method),
+		slog.String("url.path", normalizeTelemetryURLForLog(requestURL)),
+		slog.Int("http.status_code", statusCode),
+		slog.Int64("duration_ms", elapsed.Milliseconds()),
+		slog.Int64("threshold_ms", threshold.Milliseconds()),
+		slog.String("request_id", requestID),
+	)
 }
 
 func (c *HTTPClient) recordRequestFailure(ctx context.Context, method, requestURL string, resp *http.Response, elapsed time.Duration, err error) {
@@ -1528,9 +1689,9 @@ func isUnsafeMethod(method string) bool {
 // ensureIdempotencyHeader injects an auto-generated X-Idempotency key when
 // client-level idempotency is enabled and the caller hasn't already
 // supplied one. The per-call suppression escape hatch
-// (WithoutAutoIdempotency) is honored here — when the context carries the
-// suppression flag we leave the headers unchanged so the request goes out
-// without an idempotency key.
+// ([sdkctx.WithoutAutoIdempotency]) is honored here — when the context
+// carries the suppression flag we leave the headers unchanged so the
+// request goes out without an idempotency key.
 //
 // Ordering: explicit caller key > context-level suppression > auto-gen.
 func (c *HTTPClient) ensureIdempotencyHeader(ctx context.Context, method string, headers map[string]string) map[string]string {
@@ -1733,12 +1894,26 @@ func sanitizeLogArgs(args []any) []any {
 	return sanitized
 }
 
-// debugLog logs a debug message if debug mode is enabled.
-// Uses observability logger when available, otherwise falls back to stderr.
-// All string arguments are sanitized to prevent log injection attacks.
+// debugLog routes a debug-level message through the configured *slog.Logger
+// when SetDebug(true) was called (typically driven from
+// midaz.WithDebug / pkg/config.WithDebug). v3 contract: there is exactly
+// one log path. The MIDAZ_DEBUG-bypass that wrote raw text to stderr in
+// v2 is gone.
+//
+// All string arguments are sanitized to prevent log injection attacks; the
+// pre-formatted message is wrapped as a single 'message' attribute so the
+// underlying handler can structure it appropriately (JSON keeps the literal
+// message; text handlers emit it as the msg field).
 func (c *HTTPClient) debugLog(format string, args ...any) {
 	snapshot := c.cloneConfiguration()
 	if !snapshot.debug {
+		return
+	}
+
+	logger := snapshot.logger
+	if logger == nil {
+		// HTTPClient created outside of midaz.New (e.g., test or
+		// access-manager bootstrap). v3 silent default.
 		return
 	}
 
@@ -1748,27 +1923,12 @@ func (c *HTTPClient) debugLog(format string, args ...any) {
 	sanitizedArgs := sanitizeLogArgs(args)
 	message := fmt.Sprintf(format, sanitizedArgs...)
 
-	// Use observability logger if available
-	if snapshot.observability != nil && snapshot.observability.IsEnabled() && snapshot.observability.Logger() != nil {
-		// Log injection mitigated: all arguments are sanitized via strconv.Quote in sanitizeLogArgs()
-		// which escapes all control characters including \n, \r, \t, and non-printable chars.
-		snapshot.observability.Logger().Debug(message) // lgtm[go/log-injection]
-		return
-	}
-
-	// Fall back to a writer (default os.Stderr; tests can redirect via
-	// WithDebugWriter). Ensure output is HTML-escaped to satisfy XSS
-	// taint analysis in gosec.
-	safeMessage := html.EscapeString(message)
-
-	writer := snapshot.debugWriter
-	if writer == nil {
-		writer = os.Stderr
-	}
-
-	// Log injection mitigated: message is pre-sanitized via strconv.Quote
-	// Error is intentionally ignored as debug logging should not affect program flow
-	_, _ = fmt.Fprintln(writer, "[Midaz SDK Debug] "+safeMessage) //#nosec G705 -- stderr is not an XSS sink; lgtm[go/log-injection]
+	// Log injection mitigated: all arguments are sanitized via strconv.Quote in sanitizeLogArgs()
+	// which escapes all control characters including \n, \r, \t, and non-printable chars.
+	logger.Debug(message,
+		slog.String("sdk.name", sdkLoggerName),
+		slog.String("sdk.component", "http"),
+	)
 }
 
 // parseErrorResponse parses an error response from the API and converts it to an SDK error.
@@ -1865,84 +2025,4 @@ func normalizeAPIErrorFields(fields any) []string {
 	default:
 		return nil
 	}
-}
-
-// AddURLParams adds query parameters to a URL.
-func AddURLParams(baseURL string, params map[string]string) string {
-	if len(params) == 0 {
-		return baseURL
-	}
-
-	// Parse the existing URL
-	u, err := url.Parse(baseURL)
-	if err != nil {
-		// If we can't parse the URL, just return it as-is
-		return baseURL
-	}
-
-	// Get existing query values
-	q := u.Query()
-
-	// Add new parameters
-	for key, value := range params {
-		q.Set(key, value)
-	}
-
-	// Update the URL with the new query string
-	u.RawQuery = q.Encode()
-
-	return u.String()
-}
-
-// NewRequest creates a new HTTP request with the given method, URL, and body.
-// It uses context.Background for backward compatibility. Use NewRequestWithContext
-// when cancellation, deadlines, or request-scoped values are required.
-func (c *HTTPClient) NewRequest(method, requestURL string, body any) (*http.Request, error) {
-	return c.NewRequestWithContext(context.Background(), method, requestURL, body)
-}
-
-// NewRequestWithContext creates a new HTTP request with the given context, method, URL, and body.
-func (c *HTTPClient) NewRequestWithContext(ctx context.Context, method, requestURL string, body any) (*http.Request, error) {
-	if c == nil {
-		return nil, errors.New("HTTP client cannot be nil")
-	}
-
-	if ctx == nil {
-		return nil, errors.New("request context cannot be nil")
-	}
-
-	var bodyReader io.Reader
-
-	if body != nil {
-		// Serialize the request body to JSON
-		bodyBytes, err := c.jsonPool.Marshal(body)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal request body: %w", err)
-		}
-
-		bodyReader = bytes.NewReader(bodyBytes)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, method, requestURL, bodyReader)
-	if err != nil {
-		return nil, err
-	}
-
-	// Add standard headers
-	req.Header.Set("Accept", "application/json")
-
-	snapshot := c.cloneConfiguration()
-	req.Header.Set("User-Agent", snapshot.userAgent)
-
-	// Add content type if there's a body
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
-
-	// Add authorization if there's a token
-	if snapshot.authToken != "" {
-		req.Header.Set("Authorization", formatAuthorizationHeader(snapshot.authToken))
-	}
-
-	return req, nil
 }

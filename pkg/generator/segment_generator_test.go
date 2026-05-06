@@ -3,10 +3,11 @@ package generator
 import (
 	"context"
 	"errors"
+	"iter"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -27,8 +28,16 @@ func (*mockSegmentsService) GetSegment(_ context.Context, _, _, _ string) (*mode
 	return nil, errors.New("mock: GetSegment not implemented")
 }
 
-func (*mockSegmentsService) ListSegments(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.Segment], error) {
+func (*mockSegmentsService) ListSegments(_ context.Context, _, _ string, _ models.SegmentsListOpts) (*models.ListResponse[models.Segment], error) {
 	return nil, errors.New("mock: ListSegments not implemented")
+}
+
+func (*mockSegmentsService) ListSegmentsAll(_ context.Context, _, _ string, _ models.SegmentsListOpts) iter.Seq2[models.Segment, error] {
+	return func(_ func(models.Segment, error) bool) {}
+}
+
+func (*mockSegmentsService) ListSegmentsPages(_ context.Context, _, _ string, _ models.SegmentsListOpts) iter.Seq2[*models.ListResponse[models.Segment], error] {
+	return func(_ func(*models.ListResponse[models.Segment], error) bool) {}
 }
 
 func (*mockSegmentsService) UpdateSegment(_ context.Context, _, _, _ string, _ *models.UpdateSegmentInput) (*models.Segment, error) {

@@ -5,100 +5,20 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// TestTenantIDContextHelpers verifies that WithTenantID and TenantIDFromContext
-// correctly store and retrieve tenant IDs in request contexts.
-func TestTenantIDContextHelpers(t *testing.T) {
-	tests := []struct {
-		name     string
-		tenantID string
-		expectID string
-	}{
-		{
-			name:     "empty string is a no-op, no tenant stored",
-			tenantID: "",
-			expectID: "",
-		},
-		{
-			name:     "valid tenant ID is stored and retrievable",
-			tenantID: "tenant-abc",
-			expectID: "tenant-abc",
-		},
-		{
-			name:     "UUID-style tenant ID",
-			tenantID: "550e8400-e29b-41d4-a716-446655440000",
-			expectID: "550e8400-e29b-41d4-a716-446655440000",
-		},
-		{
-			name:     "whitespace-only tenant ID is trimmed to empty (no-op)",
-			tenantID: "   ",
-			expectID: "",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
-			newCtx := WithTenantID(ctx, tc.tenantID)
-
-			got := TenantIDFromContext(newCtx)
-			assert.Equal(t, tc.expectID, got)
-		})
-	}
-}
-
-// TestTenantIDEmptyStringReturnsOriginalContext verifies that passing an empty
-// tenant ID to WithTenantID returns the exact same context (pointer equality).
-func TestTenantIDEmptyStringReturnsOriginalContext(t *testing.T) {
-	type ctxKey struct{}
-
-	// Use a custom context so we can verify identity via a value marker
-	parent := context.WithValue(context.Background(), ctxKey{}, "marker")
-	result := WithTenantID(parent, "")
-
-	// Pointer identity: WithTenantID must return the exact same context for empty input
-	assert.Same(t, parent, result, "WithTenantID should return the original context for empty input")
-
-	// If the context is unchanged, our marker value must still be directly accessible
-	// AND no tenant key should have been added
-	assert.Equal(t, "marker", result.Value(ctxKey{}), "context should be unchanged")
-	assert.Empty(t, TenantIDFromContext(result), "no tenant ID should be stored")
-}
-
-// TestTenantIDWhitespaceOnlyReturnsOriginalContext verifies that passing a
-// whitespace-only tenant ID returns the exact same context (pointer equality).
-func TestTenantIDWhitespaceOnlyReturnsOriginalContext(t *testing.T) {
-	type ctxKey struct{}
-
-	parent := context.WithValue(context.Background(), ctxKey{}, "marker")
-	result := WithTenantID(parent, "   ")
-
-	assert.Same(t, parent, result, "WithTenantID should return the original context for whitespace-only input")
-	assert.Equal(t, "marker", result.Value(ctxKey{}), "context should be unchanged")
-	assert.Empty(t, TenantIDFromContext(result), "no tenant ID should be stored")
-}
-
-// TestTenantIDFromContext_BackgroundContext verifies that extracting a tenant ID
-// from a plain background context (with no tenant set) returns empty string.
-func TestTenantIDFromContext_BackgroundContext(t *testing.T) {
-	got := TenantIDFromContext(context.Background())
-	assert.Empty(t, got, "expected empty string from a plain background context")
-}
-
-// TestTenantIDContextOverwrite verifies that setting a new tenant ID on a context
-// that already has one replaces the previous value.
-func TestTenantIDContextOverwrite(t *testing.T) {
-	ctx := context.Background()
-	ctx = WithTenantID(ctx, "first-tenant")
-	assert.Equal(t, "first-tenant", TenantIDFromContext(ctx))
-
-	ctx = WithTenantID(ctx, "second-tenant")
-	assert.Equal(t, "second-tenant", TenantIDFromContext(ctx))
-}
+// Note: standalone tests of the context helpers (storage, retrieval, pointer
+// identity for empty/whitespace inputs, overwrite semantics) live in
+// pkg/sdkctx/sdkctx_test.go since v3 — that package owns the canonical
+// helpers. This file focuses exclusively on integration: the X-Tenant-ID
+// HTTP header injection that takes the sdkctx-stored value and propagates
+// it into the request line.
 
 // requestRunner abstracts doRequest and doRawRequest so tenant header tests
 // can exercise both code paths through a single table-driven matrix.
@@ -122,8 +42,8 @@ func TestTenantIDHeaderMatrix(t *testing.T) {
 
 	cases := []struct {
 		name           string
-		ctxTenant      string // tenant set via WithTenantID on context; empty = no context tenant
-		clientTenant   string // tenant set via SetTenantID on client; empty = no client default
+		ctxTenant      string // tenant set via sdkctx.WithRequestTenantID on context; empty = no context tenant
+		clientTenant   string // tenant set via setTenantIDLocked on client; empty = no client default
 		expectedHeader string // expected X-Tenant-ID value; empty = header absent
 	}{
 		{
@@ -167,12 +87,12 @@ func TestTenantIDHeaderMatrix(t *testing.T) {
 				c := NewHTTPClient(hc, "", nil)
 
 				if tc.clientTenant != "" {
-					c.SetTenantID(tc.clientTenant)
+					c.setTenantIDLocked(tc.clientTenant)
 				}
 
 				ctx := context.Background()
 				if tc.ctxTenant != "" {
-					ctx = WithTenantID(ctx, tc.ctxTenant)
+					ctx = sdkctx.WithRequestTenantID(ctx, tc.ctxTenant)
 				}
 
 				var out map[string]any
@@ -208,7 +128,7 @@ func TestTenantIDWithExistingHeaders(t *testing.T) {
 	hc := srv.Client()
 	c := NewHTTPClient(hc, "", nil)
 
-	ctx := WithTenantID(context.Background(), "tenant-with-headers")
+	ctx := sdkctx.WithRequestTenantID(context.Background(), "tenant-with-headers")
 
 	headers := map[string]string{
 		"X-Custom": "custom-value",
@@ -238,7 +158,7 @@ func TestTenantIDWithRequestBody(t *testing.T) {
 	hc := srv.Client()
 	c := NewHTTPClient(hc, "", nil)
 
-	ctx := WithTenantID(context.Background(), "tenant-with-body")
+	ctx := sdkctx.WithRequestTenantID(context.Background(), "tenant-with-body")
 
 	body := map[string]string{"name": "test"}
 
@@ -250,92 +170,51 @@ func TestTenantIDWithRequestBody(t *testing.T) {
 	assert.Equal(t, "tenant-with-body", receivedHeader)
 }
 
-// TestSetTenantID verifies the SetTenantID method on the HTTPClient directly.
-func TestSetTenantID(t *testing.T) {
+// TestSetTenantIDLocked verifies the unexported setTenantIDLocked method.
+// Public SetTenantID was removed in v3 — service-entity propagators and
+// NewEntityWithConfig (when seeding from Config.GetTenantID) now call the
+// internal method directly.
+func TestSetTenantIDLocked(t *testing.T) {
 	c := NewHTTPClient(nil, "", nil)
 
 	// Initially empty
 	assert.Empty(t, c.tenantID)
 
 	// Set a value
-	c.SetTenantID("my-tenant")
+	c.setTenantIDLocked("my-tenant")
 	assert.Equal(t, "my-tenant", c.tenantID)
 
 	// Overwrite with a new value
-	c.SetTenantID("new-tenant")
+	c.setTenantIDLocked("new-tenant")
 	assert.Equal(t, "new-tenant", c.tenantID)
 
 	// Set to empty clears it
-	c.SetTenantID("")
+	c.setTenantIDLocked("")
 	assert.Empty(t, c.tenantID)
 }
 
-// TestWithDefaultTenantIDOption verifies the entities.WithDefaultTenantID option
-// correctly configures the HTTPClient's tenant ID field.
-func TestWithDefaultTenantIDOption(t *testing.T) {
-	tests := []struct {
-		name     string
-		tenantID string
-		expectID string
-	}{
-		{
-			name:     "sets tenant ID on entity",
-			tenantID: "option-tenant",
-			expectID: "option-tenant",
-		},
-		{
-			name:     "empty tenant ID is a no-op",
-			tenantID: "",
-			expectID: "",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			entity := &Entity{
-				httpClient: NewHTTPClient(nil, "", nil),
-			}
-
-			opt := WithDefaultTenantID(tc.tenantID)
-			err := opt(entity)
-			require.NoError(t, err)
-
-			assert.Equal(t, tc.expectID, entity.httpClient.tenantID)
-		})
-	}
-}
-
-// TestTenantIDPropagationThroughServiceEntity verifies that a tenant ID set at the
-// Entity level via WithDefaultTenantID is propagated to service entities and arrives
-// as an X-Tenant-ID header when a service method makes an HTTP request.
-// This is the end-to-end test for the initServices -> propagateTenantID flow.
+// TestTenantIDPropagationThroughServiceEntity verifies that a tenant ID set at
+// the Entity level (via the v3 Config.GetTenantID seeding path, modeled here
+// by newTestEntityWithTenant) is observed when a service method makes an HTTP
+// request. Since every service shares the parent Entity's *HTTPClient, the
+// tenant ID stored on that client is automatically what every service reads.
 func TestTenantIDPropagationThroughServiceEntity(t *testing.T) {
 	var receivedHeader string
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		receivedHeader = r.Header.Get(HeaderTenantID)
 		w.Header().Set("Content-Type", "application/json")
-		// Return a valid JSON response that ListOrganizations can unmarshal
 		_, _ = w.Write([]byte(`{"items":[]}`))
 	}))
 	defer srv.Close()
 
-	// Create an Entity using the test server URL and a default tenant ID.
-	// New() sets both "onboarding" and "transaction" base URLs to the same value.
-	entity, err := New(srv.URL, WithDefaultTenantID("e2e-tenant"))
-	require.NoError(t, err)
+	entity := newTestEntityWithTenant(t, srv.Client(), map[string]string{
+		"onboarding":  srv.URL,
+		"transaction": srv.URL,
+		"crm":         srv.URL,
+	}, "e2e-tenant")
 
-	// Replace the underlying http.Client with the test server's client so that
-	// TLS certificates are accepted for the httptest server.
-	entity.httpClient.client = srv.Client()
-
-	// Reinitialize services so they pick up the test server's HTTP client.
-	// We must also re-propagate the tenant ID since initServices creates fresh HTTPClients.
-	entity.initServices()
-
-	// Call a service method — this exercises the full path:
-	// Entity.Organizations -> organizationsEntity.HTTPClient -> doRequest -> header injection
-	_, err = entity.Organizations.ListOrganizations(context.Background(), nil)
+	_, err := entity.Organizations.ListOrganizations(context.Background(), models.OrganizationsListOpts{})
 	require.NoError(t, err)
 
 	assert.Equal(t, "e2e-tenant", receivedHeader,
@@ -343,8 +222,9 @@ func TestTenantIDPropagationThroughServiceEntity(t *testing.T) {
 }
 
 // TestTenantIDPropagationThroughServiceEntityWithUnexportedField verifies tenant ID
-// propagation through a service entity that uses an unexported httpClient field
-// (e.g., accountsEntity), covering the other code path in propagateTenantID.
+// is visible through a service entity (e.g., accountsEntity) that embeds the
+// shared *HTTPClient — there's only one HTTPClient instance, so the tenant ID
+// set on the parent Entity is the same one every service reads.
 func TestTenantIDPropagationThroughServiceEntityWithUnexportedField(t *testing.T) {
 	var receivedHeader string
 
@@ -355,14 +235,13 @@ func TestTenantIDPropagationThroughServiceEntityWithUnexportedField(t *testing.T
 	}))
 	defer srv.Close()
 
-	entity, err := New(srv.URL, WithDefaultTenantID("e2e-tenant-accounts"))
-	require.NoError(t, err)
+	entity := newTestEntityWithTenant(t, srv.Client(), map[string]string{
+		"onboarding":  srv.URL,
+		"transaction": srv.URL,
+		"crm":         srv.URL,
+	}, "e2e-tenant-accounts")
 
-	entity.httpClient.client = srv.Client()
-	entity.initServices()
-
-	// Call a service method on Accounts (uses unexported httpClient field)
-	_, err = entity.Accounts.ListAccounts(context.Background(), "org-1", "ledger-1", nil)
+	_, err := entity.Accounts.ListAccounts(context.Background(), "org-1", "ledger-1", models.AccountsListOpts{})
 	require.NoError(t, err)
 
 	assert.Equal(t, "e2e-tenant-accounts", receivedHeader,
@@ -390,43 +269,6 @@ func TestSetHTTPClientPreservesTenantID(t *testing.T) {
 		"SetHTTPClient should preserve the tenant ID")
 }
 
-// TestWithHTTPClientOptionPreservesTenantID verifies that the WithHTTPClient option
-// preserves the previously configured tenant ID when replacing the HTTP client,
-// and that the tenant ID is propagated end-to-end through actual service requests.
-func TestWithHTTPClientOptionPreservesTenantID(t *testing.T) {
-	var receivedHeader string
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		receivedHeader = r.Header.Get(HeaderTenantID)
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"items":[]}`))
-	}))
-	defer srv.Close()
-
-	entity, err := New(srv.URL, WithDefaultTenantID("option-preserved-tenant"))
-	require.NoError(t, err)
-
-	// Verify root HTTPClient has the tenant
-	assert.Equal(t, "option-preserved-tenant", entity.httpClient.tenantID,
-		"root HTTPClient should have the tenant ID")
-
-	// Replace the HTTP client via option
-	opt := WithHTTPClient(srv.Client())
-	err = opt(entity)
-	require.NoError(t, err)
-
-	// Verify root field survived
-	assert.Equal(t, "option-preserved-tenant", entity.httpClient.tenantID,
-		"WithHTTPClient option should preserve the tenant ID")
-
-	// End-to-end: verify the tenant header reaches the server
-	_, err = entity.Organizations.ListOrganizations(context.Background(), nil)
-	require.NoError(t, err)
-
-	assert.Equal(t, "option-preserved-tenant", receivedHeader,
-		"tenant ID should propagate to service entities after WithHTTPClient")
-}
-
 // TestTenantIDPropagationAfterSetHTTPClient verifies the full round-trip: setting a
 // tenant ID, replacing the HTTP client via SetHTTPClient, and confirming the tenant ID
 // reaches the server through a service entity call.
@@ -440,13 +282,15 @@ func TestTenantIDPropagationAfterSetHTTPClient(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	entity, err := New(srv.URL, WithDefaultTenantID("surviving-tenant"))
-	require.NoError(t, err)
+	entity := newTestEntityWithTenant(t, &http.Client{Timeout: 30 * time.Second}, map[string]string{
+		"onboarding":  srv.URL,
+		"transaction": srv.URL,
+		"crm":         srv.URL,
+	}, "surviving-tenant")
 
-	// Replace the HTTP client — tenant ID should survive
 	entity.SetHTTPClient(srv.Client())
 
-	_, err = entity.Organizations.ListOrganizations(context.Background(), nil)
+	_, err := entity.Organizations.ListOrganizations(context.Background(), models.OrganizationsListOpts{})
 	require.NoError(t, err)
 
 	assert.Equal(t, "surviving-tenant", receivedHeader,

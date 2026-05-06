@@ -1,4 +1,4 @@
-package entities // import "github.com/LerianStudio/midaz-sdk-golang/v2/entities"
+package entities // import "github.com/LerianStudio/midaz-sdk-golang/v3/entities"
 
 Package entities provides direct access to Midaz API services.
 
@@ -9,50 +9,55 @@ transactions, and other Midaz platform resources.
 Package entities provides high-level encapsulation for Midaz API interaction.
 It provides domain-specific entities like accounts, assets, organizations, etc.
 
+Package entities — internal context bridges.
+
+This file contains UNEXPORTED helpers that delegate to pkg/sdkctx for reading
+values that the canonical sdkctx package writes via its public helpers. They
+exist because entities/http.go is the consumer of these values during request
+preparation, and we want a single in-package indirection point so that swapping
+the underlying context-key implementation is a one-file change.
+
+External callers should always use pkg/sdkctx directly:
+
+    ctx = sdkctx.WithIdempotencyKey(ctx, key)
+    ctx = sdkctx.WithRequestTenantID(ctx, tenantID)
+    ctx = sdkctx.WithoutAutoIdempotency(ctx)
+
+There is intentionally no public re-export of these readers — entities has no
+reason to surface context values to user code; sdkctx is that surface.
+
+Package entities provides shared service-entity construction helpers.
+
+Track 7F (audit 7.8) — every entity service implementation has the same two
+fields (httpClient + baseURLs) and the same constructor body. The helpers in
+this file consolidate that body to one site so the entities stay focused on
+per-service business logic.
+
 const ServiceOnboarding = "onboarding" ...
+const HeaderTenantID = "X-Tenant-ID" ...
 const BoolTrue = "true"
-const EnvMidazDebug = "MIDAZ_DEBUG"
 func AddURLParams(baseURL string, params map[string]string) string
+func Collect[T any](seq iter.Seq2[T, error], maxItems int) ([]T, error)
+func CollectAll[T any](seq iter.Seq2[T, error]) ([]T, error)
 func GetWrappedHTTPClient(client *http.Client, _ string) *http.Client
-func WithIdempotencyKey(ctx context.Context, key string) context.Context
 type AccountTypesService interface{ ... }
-    func NewAccountTypesEntity(client *http.Client, authToken string, baseURLs map[string]string) AccountTypesService
 type AccountsService interface{ ... }
-    func NewAccountsEntity(client *http.Client, authToken string, baseURLs map[string]string) AccountsService
+type AliasesService interface{ ... }
 type AssetRatesService interface{ ... }
-    func NewAssetRatesEntity(client *http.Client, authToken string, baseURLs map[string]string) AssetRatesService
 type AssetsService interface{ ... }
-    func NewAssetsEntity(client *http.Client, authToken string, baseURLs map[string]string) AssetsService
 type BalancesService interface{ ... }
-    func NewBalancesEntity(client *http.Client, authToken string, baseURLs map[string]string) BalancesService
 type Config interface{ ... }
 type Entity struct{ ... }
-    func New(baseURL string, options ...Option) (*Entity, error)
-    func NewEntity(client *http.Client, authToken string, baseURLs map[string]string, ...) (*Entity, error)
-    func NewEntityWithConfig(config Config, options ...Option) (*Entity, error)
-    func NewWithServiceURLs(serviceURLs map[string]string, options ...Option) (*Entity, error)
+    func NewEntityWithConfig(config Config) (*Entity, error)
 type HTTPClient struct{ ... }
     func NewHTTPClient(client *http.Client, authToken string, provider observability.Provider) *HTTPClient
+type HoldersService interface{ ... }
 type LedgersService interface{ ... }
-    func NewLedgersEntity(client *http.Client, authToken string, baseURLs map[string]string) LedgersService
+type MetadataIndexesService interface{ ... }
 type OperationRoutesService interface{ ... }
-    func NewOperationRoutesEntity(client *http.Client, authToken string, baseURLs map[string]string) OperationRoutesService
 type OperationsService interface{ ... }
-    func NewOperationsEntity(client *http.Client, authToken string, baseURLs map[string]string) OperationsService
-type Option func(*Entity) error
-    func WithContext(ctx context.Context) Option
-    func WithDebug(debug bool) Option
-    func WithHTTPClient(client *http.Client) Option
-    func WithObservability(provider observability.Provider) Option
-    func WithPluginAuth(pluginAuth auth.AccessManager) Option
-    func WithUserAgent(userAgent string) Option
 type OrganizationsService interface{ ... }
-    func NewOrganizationsEntity(client *http.Client, authToken string, baseURLs map[string]string) OrganizationsService
 type PortfoliosService interface{ ... }
-    func NewPortfoliosEntity(client *http.Client, authToken string, baseURLs map[string]string) PortfoliosService
 type SegmentsService interface{ ... }
-    func NewSegmentsEntity(client *http.Client, authToken string, baseURLs map[string]string) SegmentsService
 type TransactionRoutesService interface{ ... }
-    func NewTransactionRoutesEntity(client *http.Client, authToken string, baseURLs map[string]string) TransactionRoutesService
 type TransactionsService interface{ ... }
-    func NewTransactionsEntity(client *http.Client, authToken string, baseURLs map[string]string) TransactionsService

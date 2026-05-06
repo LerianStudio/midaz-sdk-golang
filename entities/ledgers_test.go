@@ -8,14 +8,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/entities/mocks"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/golang/mock/gomock"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/entities/mocks"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 )
 
-// \1 performs an operation
 func TestListLedgers(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -56,11 +55,11 @@ func TestListLedgers(t *testing.T) {
 
 	// Setup expectations for default options
 	mockService.EXPECT().
-		ListLedgers(gomock.Any(), orgID, gomock.Nil()).
+		ListLedgers(gomock.Any(), orgID, gomock.Any()).
 		Return(ledgersList, nil)
 
 	// Test listing ledgers with default options
-	result, err := mockService.ListLedgers(ctx, orgID, nil)
+	result, err := mockService.ListLedgers(ctx, orgID, models.LedgersListOpts{})
 	require.NoError(t, err)
 	assert.Equal(t, 2, result.Pagination.Total)
 	assert.Len(t, result.Items, 2)
@@ -70,12 +69,7 @@ func TestListLedgers(t *testing.T) {
 	assert.Equal(t, orgID, result.Items[0].OrganizationID)
 
 	// Test with options
-	opts := &models.ListOptions{
-		Limit:          5,
-		Offset:         0,
-		OrderBy:        "created_at",
-		OrderDirection: "desc",
-	}
+	opts := models.LedgersListOpts{PageListOpts: models.PageListOpts{Limit: 5, Page: 1, SortDirection: models.SortDescending}}
 
 	mockService.EXPECT().
 		ListLedgers(gomock.Any(), orgID, opts).
@@ -90,7 +84,7 @@ func TestListLedgers(t *testing.T) {
 		ListLedgers(gomock.Any(), "", gomock.Any()).
 		Return(nil, errors.New("organization ID is required"))
 
-	_, err = mockService.ListLedgers(ctx, "", nil)
+	_, err = mockService.ListLedgers(ctx, "", models.LedgersListOpts{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization ID is required")
 }
@@ -121,7 +115,7 @@ func TestLedgersEntity_Settings_RequestConstruction(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := NewLedgersEntity(server.Client(), "token", map[string]string{"onboarding": server.URL})
+	service := newLedgersEntity(server.Client(), map[string]string{"onboarding": server.URL})
 	settings, err := service.GetLedgerSettings(context.Background(), "org/1", "ledger/1")
 	require.NoError(t, err)
 	assert.True(t, settings.Accounting.ValidateAccountType)
@@ -132,7 +126,7 @@ func TestLedgersEntity_Settings_RequestConstruction(t *testing.T) {
 }
 
 func TestLedgersEntity_Settings_Validation(t *testing.T) {
-	service := NewLedgersEntity(http.DefaultClient, "token", map[string]string{"onboarding": "https://api.example.com"})
+	service := newLedgersEntity(http.DefaultClient, map[string]string{"onboarding": "https://api.example.com"})
 
 	tests := []struct {
 		name string
@@ -178,7 +172,6 @@ func TestLedgersEntity_Settings_Validation(t *testing.T) {
 	}
 }
 
-// \1 performs an operation
 func TestGetLedger(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -242,7 +235,6 @@ func TestGetLedger(t *testing.T) {
 	assert.Contains(t, err.Error(), "not found")
 }
 
-// \1 performs an operation
 func TestCreateLedger(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -340,7 +332,6 @@ func TestCreateLedger(t *testing.T) {
 	assert.Contains(t, err.Error(), "metadata exceeds maximum nesting depth")
 }
 
-// \1 performs an operation
 func TestUpdateLedger(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -458,7 +449,6 @@ func TestUpdateLedger(t *testing.T) {
 	assert.Contains(t, err.Error(), "not found")
 }
 
-// \1 performs an operation
 func TestDeleteLedger(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

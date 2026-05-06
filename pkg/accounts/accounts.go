@@ -13,7 +13,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/format"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/format"
 )
 
 // Account represents a simplified account structure for utility functions.
@@ -297,6 +297,10 @@ type Balance struct {
 //	log.Printf("Account %s has available balance: %s",
 //		summary.AccountAlias, summary.AvailableStr) // Prints: Account savings has available balance: 100.00
 func GetAccountBalanceSummary(account *Account, balance *Balance) (AccountBalanceSummary, error) {
+	if balance == nil {
+		return AccountBalanceSummary{}, errors.New("balance cannot be nil")
+	}
+
 	summary := AccountBalanceSummary{
 		Scale: int(balance.Scale),
 	}

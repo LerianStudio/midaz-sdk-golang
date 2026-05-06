@@ -4,9 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/performance"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/performance"
 	"github.com/stretchr/testify/require"
 )
 
@@ -93,7 +92,7 @@ func createTestObject() *models.Organization {
 		Status: models.Status{
 			Code: "ACTIVE",
 		},
-		Address: mmodel.Address{
+		Address: models.Address{
 			Line1:   "123 Main St",
 			City:    "San Francisco",
 			State:   "CA",

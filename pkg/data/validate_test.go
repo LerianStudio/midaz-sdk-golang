@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -399,7 +399,6 @@ func TestValidateTransactionPattern(t *testing.T) {
 			ChartOfAccountsGroupName: "payment",
 			Description:              "Test payment",
 			DSLTemplate:              "send [USD 100] (source = @a)",
-			RequiresCommit:           false,
 			IdempotencyKey:           "idem-123",
 			ExternalID:               "ext-456",
 			Metadata:                 map[string]any{"pattern": "test"},

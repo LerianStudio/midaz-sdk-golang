@@ -9,7 +9,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation/core"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation/core"
 )
 
 const (
@@ -36,11 +37,12 @@ type CreateHolderInput struct {
 
 // UpdateHolderInput is the payload for updating a CRM holder.
 //
-// An empty update payload — no setters AND no NullFields — returns a
-// marshal error from MarshalJSON. Sending an empty PATCH would be a
-// no-op round trip; we surface the mistake at marshal time so callers
-// fix it instead of paying for a useless network request. To explicitly
-// null out a field use WithNullFields.
+// An empty update payload (no setters AND no NullFields) is rejected by
+// Validate() with an "empty update payload not allowed" error. An empty
+// PATCH would be a no-op round trip; the source of truth lives in
+// Validate(). MarshalJSON itself does not enforce the rule — it trusts
+// that the entity layer called Validate() first. To explicitly null out
+// a field, use WithNullFields.
 type UpdateHolderInput struct {
 	ExternalID    *string        `json:"externalId,omitempty"`
 	Name          *string        `json:"name,omitempty"`
@@ -221,32 +223,33 @@ func holderStringPtr(value string) *string {
 // Validate validates the CreateHolderInput fields.
 func (input *CreateHolderInput) Validate() error {
 	if input == nil {
-		return errors.New("input is required")
+		return errors.New("input cannot be nil")
 	}
 
-	if input.Type == nil || *input.Type == "" {
-		return errors.New("type is required")
-	}
+	var errs validation.FieldErrors
 
-	if !isValidHolderType(*input.Type) {
-		return errors.New("type must be NATURAL_PERSON or LEGAL_PERSON")
+	switch {
+	case input.Type == nil || *input.Type == "":
+		errs.Append("type", "is required")
+	case !isValidHolderType(*input.Type):
+		errs.Append("type", "must be NATURAL_PERSON or LEGAL_PERSON")
 	}
 
 	if strings.TrimSpace(input.Name) == "" {
-		return errors.New("name is required")
+		errs.Append("name", "is required")
 	}
 
 	if strings.TrimSpace(input.Document) == "" {
-		return errors.New("document is required")
+		errs.Append("document", "is required")
 	}
 
 	if len(input.Metadata) > 0 {
 		if err := core.ValidateMetadata(input.Metadata); err != nil {
-			return fmt.Errorf("invalid metadata: %w", err)
+			errs.Append("metadata", "invalid: "+err.Error())
 		}
 	}
 
-	return nil
+	return errs.OrNil()
 }
 
 // WithNullFields marks fields that should be sent as explicit JSON null in PATCH requests.
@@ -261,7 +264,11 @@ func (input *UpdateHolderInput) WithNullFields(fields ...string) *UpdateHolderIn
 }
 
 // MarshalJSON emits only set fields plus fields explicitly marked for null removal.
-func (input UpdateHolderInput) MarshalJSON() ([]byte, error) {
+func (input *UpdateHolderInput) MarshalJSON() ([]byte, error) {
+	if input == nil {
+		return []byte("null"), nil
+	}
+
 	if err := input.validateNullFieldConflicts(); err != nil {
 		return nil, err
 	}
@@ -304,10 +311,12 @@ func (input UpdateHolderInput) MarshalJSON() ([]byte, error) {
 		payload[field] = nil
 	}
 
-	if len(payload) == 0 {
-		return nil, errors.New("empty update payload not allowed")
-	}
-
+	// NOTE: empty-payload rejection lives in Validate(), not here. MarshalJSON
+	// trusts that the entity layer called Validate() first; reaching this
+	// function with len(payload) == 0 indicates the entity skipped Validate(),
+	// which is itself a bug. We intentionally let an empty `{}` go through
+	// rather than emit a duplicate error message that fragments the source
+	// of truth across two functions.
 	return json.Marshal(payload)
 }
 
@@ -388,24 +397,30 @@ func validateCRMNullFields(fields []string, allowed map[string]bool) error {
 // Validate validates the UpdateHolderInput fields.
 func (input *UpdateHolderInput) Validate() error {
 	if input == nil {
-		return errors.New("input is required")
+		return errors.New("input cannot be nil")
 	}
 
 	if !input.hasChanges() {
 		return errors.New("empty update payload not allowed")
 	}
 
+	var errs validation.FieldErrors
+
 	if len(input.Metadata) > 0 {
 		if err := core.ValidateMetadata(input.Metadata); err != nil {
-			return fmt.Errorf("invalid metadata: %w", err)
+			errs.Append("metadata", "invalid: "+err.Error())
 		}
 	}
 
 	if err := validateCRMNullFields(input.NullFields, validHolderNullFields); err != nil {
-		return err
+		errs.Append("nullFields", err.Error())
 	}
 
-	return input.validateNullFieldConflicts()
+	if err := input.validateNullFieldConflicts(); err != nil {
+		errs.Append("nullFields", err.Error())
+	}
+
+	return errs.OrNil()
 }
 
 // Holder represents a CRM holder.

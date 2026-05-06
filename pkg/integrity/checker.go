@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
 	"github.com/shopspring/decimal"
 )
 
@@ -48,13 +48,22 @@ func NewChecker(e *entities.Entity) *Checker { return &Checker{e: e} }
 
 // WithObservability sets the observability provider for logging and tracing.
 func (c *Checker) WithObservability(obs observability.Provider) *Checker {
+	if c == nil {
+		return nil
+	}
+
 	c.obs = obs
+
 	return c
 }
 
 // WithAccountLookupDelay sets an optional delay inserted before each account lookup.
 // Useful to rate-limit calls when processing very large ledgers.
 func (c *Checker) WithAccountLookupDelay(d time.Duration) *Checker {
+	if c == nil {
+		return nil
+	}
+
 	// Clamp to a sensible range [0, maxAccountLookupDelay]
 	if d < 0 {
 		d = 0
@@ -70,7 +79,11 @@ func (c *Checker) WithAccountLookupDelay(d time.Duration) *Checker {
 }
 
 // GenerateLedgerReport aggregates balances and performs lightweight double-entry checks.
-func (c *Checker) GenerateLedgerReport(ctx context.Context, orgID, ledgerID string) (*Report, error) {
+func (c *Checker) GenerateLedgerReport(ctx context.Context, organizationID, ledgerID string) (*Report, error) {
+	if c == nil {
+		return nil, errors.New("checker is nil")
+	}
+
 	if c.e == nil || c.e.Balances == nil || c.e.Accounts == nil {
 		return nil, errors.New("entities not initialized for integrity checks")
 	}
@@ -83,7 +96,7 @@ func (c *Checker) GenerateLedgerReport(ctx context.Context, orgID, ledgerID stri
 	var report *Report
 
 	err := observability.WithSpan(ctx, c.obs, "GenerateLedgerReport", func(ctx context.Context) error {
-		if err := c.processBalances(ctx, orgID, ledgerID, totals, accountAliasCache); err != nil {
+		if err := c.processBalances(ctx, organizationID, ledgerID, totals, accountAliasCache); err != nil {
 			c.logError("Failed to process balances for ledger %q: %v", ledgerID, err)
 			return err
 		}
@@ -102,37 +115,28 @@ func (c *Checker) GenerateLedgerReport(ctx context.Context, orgID, ledgerID stri
 }
 
 // processBalances processes all balances with pagination
-func (c *Checker) processBalances(ctx context.Context, orgID, ledgerID string, totals map[string]*BalanceTotals, accountAliasCache map[string]string) error {
-	opts := models.NewListOptions().WithLimit(100)
+func (c *Checker) processBalances(ctx context.Context, organizationID, ledgerID string, totals map[string]*BalanceTotals, accountAliasCache map[string]string) error {
+	opts := models.BalancesListOpts{PageListOpts: models.PageListOpts{Limit: 100}}
 
-	for {
-		resp, err := c.e.Balances.ListBalances(ctx, orgID, ledgerID, opts)
+	for b, err := range c.e.Balances.ListBalancesAll(ctx, organizationID, ledgerID, opts) {
 		if err != nil {
 			return err
 		}
 
-		for _, b := range resp.Items {
-			if err := c.processBalance(ctx, orgID, ledgerID, b, totals, accountAliasCache); err != nil {
-				return err
-			}
+		if err := c.processBalance(ctx, organizationID, ledgerID, b, totals, accountAliasCache); err != nil {
+			return err
 		}
-
-		if resp.Pagination.NextCursor == "" {
-			break
-		}
-
-		opts = models.NewListOptions().WithCursor(resp.Pagination.NextCursor).WithLimit(100)
 	}
 
 	return nil
 }
 
 // processBalance processes a single balance entry
-func (c *Checker) processBalance(ctx context.Context, orgID, ledgerID string, b models.Balance, totals map[string]*BalanceTotals, accountAliasCache map[string]string) error {
+func (c *Checker) processBalance(ctx context.Context, organizationID, ledgerID string, b models.Balance, totals map[string]*BalanceTotals, accountAliasCache map[string]string) error {
 	t := c.getOrCreateBalanceTotals(totals, b.AssetCode)
 	c.updateBalanceTotals(t, b)
 
-	alias, err := c.getAccountAlias(ctx, orgID, ledgerID, b.AccountID, accountAliasCache)
+	alias, err := c.getAccountAlias(ctx, organizationID, ledgerID, b.AccountID, accountAliasCache)
 	if err != nil {
 		return err
 	}
@@ -162,12 +166,12 @@ func (*Checker) updateBalanceTotals(t *BalanceTotals, b models.Balance) {
 }
 
 // getAccountAlias gets the account alias with caching and optional throttling
-func (c *Checker) getAccountAlias(ctx context.Context, orgID, ledgerID, accountID string, accountAliasCache map[string]string) (string, error) {
+func (c *Checker) getAccountAlias(ctx context.Context, organizationID, ledgerID, accountID string, accountAliasCache map[string]string) (string, error) {
 	if alias, ok := accountAliasCache[accountID]; ok {
 		return alias, nil
 	}
 
-	alias, err := c.fetchAccountAlias(ctx, orgID, ledgerID, accountID)
+	alias, err := c.fetchAccountAlias(ctx, organizationID, ledgerID, accountID)
 	if err != nil {
 		return "", err
 	}
@@ -178,12 +182,12 @@ func (c *Checker) getAccountAlias(ctx context.Context, orgID, ledgerID, accountI
 }
 
 // fetchAccountAlias fetches the account alias from the API with throttling.
-func (c *Checker) fetchAccountAlias(ctx context.Context, orgID, ledgerID, accountID string) (string, error) {
+func (c *Checker) fetchAccountAlias(ctx context.Context, organizationID, ledgerID, accountID string) (string, error) {
 	if err := c.waitForThrottling(ctx); err != nil {
 		return "", err
 	}
 
-	acc, err := c.e.Accounts.GetAccount(ctx, orgID, ledgerID, accountID)
+	acc, err := c.e.Accounts.GetAccount(ctx, organizationID, ledgerID, accountID)
 	if err != nil {
 		return "", fmt.Errorf("failed to get account %s: %w", accountID, err)
 	}
@@ -274,6 +278,10 @@ func formatLogMessage(format string, args ...any) string {
 
 // ToSummaryMap renders a compact map suitable for report embedding (JSON-friendly).
 func (r *Report) ToSummaryMap() map[string]map[string]any {
+	if r == nil {
+		return map[string]map[string]any{}
+	}
+
 	out := map[string]map[string]any{}
 	for asset, t := range r.TotalsByAsset {
 		out[asset] = map[string]any{

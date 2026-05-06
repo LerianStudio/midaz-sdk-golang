@@ -4,15 +4,15 @@ import (
 	"context"
 	"errors"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry"
 )
 
 // PortfolioGenerator creates portfolios within a ledger.
 type PortfolioGenerator interface {
-	Generate(ctx context.Context, orgID, ledgerID, name, entityID string, metadata map[string]any) (*models.Portfolio, error)
+	Generate(ctx context.Context, organizationID, ledgerID, name, entityID string, metadata map[string]any) (*models.Portfolio, error)
 }
 
 type portfolioGenerator struct {
@@ -26,7 +26,7 @@ func NewPortfolioGenerator(e *entities.Entity, obs observability.Provider) Portf
 }
 
 // Generate creates a single portfolio with the specified parameters.
-func (g *portfolioGenerator) Generate(ctx context.Context, orgID, ledgerID, name, entityID string, metadata map[string]any) (*models.Portfolio, error) {
+func (g *portfolioGenerator) Generate(ctx context.Context, organizationID, ledgerID, name, entityID string, metadata map[string]any) (*models.Portfolio, error) {
 	ctx = normalizeContext(ctx)
 
 	if g.e == nil || g.e.Portfolios == nil {
@@ -42,7 +42,7 @@ func (g *portfolioGenerator) Generate(ctx context.Context, orgID, ledgerID, name
 	err := observability.WithSpan(ctx, g.obs, "GeneratePortfolio", func(ctx context.Context) error {
 		return executeWithCircuitBreaker(ctx, func() error {
 			return retry.DoWithContext(ctx, func() error {
-				p, err := g.e.Portfolios.CreatePortfolio(ctx, orgID, ledgerID, input)
+				p, err := g.e.Portfolios.CreatePortfolio(ctx, organizationID, ledgerID, input)
 				if err != nil {
 					return err
 				}

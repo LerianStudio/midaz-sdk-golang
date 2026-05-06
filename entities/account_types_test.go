@@ -6,21 +6,21 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestNewAccountTypesEntity(t *testing.T) {
+func Test_newAccountTypesEntity(t *testing.T) {
 	client := &http.Client{Timeout: 30 * time.Second}
 	authToken := "test-token"
 	baseURLs := map[string]string{"onboarding": "https://api.midaz.io"}
 
-	entity := NewAccountTypesEntity(client, authToken, baseURLs)
+	entity := newAccountTypesEntity(client, authToken, baseURLs)
 
 	assert.NotNil(t, entity)
-	assert.IsType(t, &accountTypesEntity{}, entity)
+	assert.IsType(t, &accountTypesEntity{serviceEntity: serviceEntity{}}, entity)
 
 	accountTypesEntity := entity.(*accountTypesEntity)
 	assert.Equal(t, baseURLs, accountTypesEntity.baseURLs)
@@ -29,7 +29,7 @@ func TestNewAccountTypesEntity(t *testing.T) {
 
 func TestAccountTypesEntity_buildURL(t *testing.T) {
 	baseURLs := map[string]string{"onboarding": "https://api.midaz.io"}
-	entity := &accountTypesEntity{baseURLs: baseURLs}
+	entity := &accountTypesEntity{serviceEntity: serviceEntity{baseURLs: baseURLs}}
 
 	tests := []struct {
 		name           string
@@ -63,7 +63,7 @@ func TestAccountTypesEntity_buildURL(t *testing.T) {
 }
 
 func TestAccountTypesEntity_ListAccountTypes_ValidationErrors(t *testing.T) {
-	entity := &accountTypesEntity{}
+	entity := &accountTypesEntity{serviceEntity: serviceEntity{}}
 
 	ctx := context.Background()
 
@@ -89,7 +89,7 @@ func TestAccountTypesEntity_ListAccountTypes_ValidationErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := entity.ListAccountTypes(ctx, tt.organizationID, tt.ledgerID, nil)
+			_, err := entity.ListAccountTypes(ctx, tt.organizationID, tt.ledgerID, models.AccountTypesListOpts{})
 
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.expectedError)
@@ -102,7 +102,7 @@ func TestAccountTypesEntity_ListAccountTypes_ValidationErrors(t *testing.T) {
 }
 
 func TestAccountTypesEntity_GetAccountType_ValidationErrors(t *testing.T) {
-	entity := &accountTypesEntity{}
+	entity := &accountTypesEntity{serviceEntity: serviceEntity{}}
 
 	ctx := context.Background()
 
@@ -150,7 +150,7 @@ func TestAccountTypesEntity_GetAccountType_ValidationErrors(t *testing.T) {
 }
 
 func TestAccountTypesEntity_CreateAccountType_ValidationErrors(t *testing.T) {
-	entity := &accountTypesEntity{}
+	entity := &accountTypesEntity{serviceEntity: serviceEntity{}}
 
 	ctx := context.Background()
 
@@ -209,7 +209,7 @@ func TestAccountTypesEntity_CreateAccountType_ValidationErrors(t *testing.T) {
 }
 
 func TestAccountTypesEntity_UpdateAccountType_ValidationErrors(t *testing.T) {
-	entity := &accountTypesEntity{}
+	entity := &accountTypesEntity{serviceEntity: serviceEntity{}}
 
 	ctx := context.Background()
 
@@ -266,7 +266,7 @@ func TestAccountTypesEntity_UpdateAccountType_ValidationErrors(t *testing.T) {
 }
 
 func TestAccountTypesEntity_DeleteAccountType_ValidationErrors(t *testing.T) {
-	entity := &accountTypesEntity{}
+	entity := &accountTypesEntity{serviceEntity: serviceEntity{}}
 
 	ctx := context.Background()
 

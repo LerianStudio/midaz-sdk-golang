@@ -3,10 +3,11 @@ package generator
 import (
 	"context"
 	"errors"
+	"iter"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -27,8 +28,16 @@ func (*mockPortfoliosService) GetPortfolio(_ context.Context, _, _, _ string) (*
 	return nil, errors.New("mock: GetPortfolio not implemented")
 }
 
-func (*mockPortfoliosService) ListPortfolios(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.Portfolio], error) {
+func (*mockPortfoliosService) ListPortfolios(_ context.Context, _, _ string, _ models.PortfoliosListOpts) (*models.ListResponse[models.Portfolio], error) {
 	return nil, errors.New("mock: ListPortfolios not implemented")
+}
+
+func (*mockPortfoliosService) ListPortfoliosAll(_ context.Context, _, _ string, _ models.PortfoliosListOpts) iter.Seq2[models.Portfolio, error] {
+	return func(_ func(models.Portfolio, error) bool) {}
+}
+
+func (*mockPortfoliosService) ListPortfoliosPages(_ context.Context, _, _ string, _ models.PortfoliosListOpts) iter.Seq2[*models.ListResponse[models.Portfolio], error] {
+	return func(_ func(*models.ListResponse[models.Portfolio], error) bool) {}
 }
 
 func (*mockPortfoliosService) UpdatePortfolio(_ context.Context, _, _, _ string, _ *models.UpdatePortfolioInput) (*models.Portfolio, error) {

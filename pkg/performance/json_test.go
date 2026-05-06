@@ -67,6 +67,34 @@ func TestJSONPoolMarshalUnmarshal(t *testing.T) {
 	}
 }
 
+func TestJSONPoolUnmarshalPreservesNumbersAsJSONNumber(t *testing.T) {
+	pool := NewJSONPool()
+
+	var result map[string]any
+	err := pool.Unmarshal([]byte(`{"amount":1234567890.123456789,"count":42}`), &result)
+	if err != nil {
+		t.Fatalf("Unmarshal failed: %v", err)
+	}
+
+	amount, ok := result["amount"].(json.Number)
+	if !ok {
+		t.Fatalf("amount type = %T, want json.Number", result["amount"])
+	}
+
+	if amount.String() != "1234567890.123456789" {
+		t.Fatalf("amount = %q, want original numeric lexeme", amount.String())
+	}
+
+	count, ok := result["count"].(json.Number)
+	if !ok {
+		t.Fatalf("count type = %T, want json.Number", result["count"])
+	}
+
+	if count.String() != "42" {
+		t.Fatalf("count = %q, want original numeric lexeme", count.String())
+	}
+}
+
 func TestJSONPoolNilAndZeroValueSafe(t *testing.T) {
 	testData := generateTestData()
 

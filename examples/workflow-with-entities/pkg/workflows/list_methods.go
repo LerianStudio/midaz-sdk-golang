@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v2"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	pkgerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v3"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	pkgerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
 )
 
 // testListMethods tests various List methods of the Midaz SDK
@@ -25,7 +25,7 @@ func init() {
 	TestListMethods = testListMethods
 }
 
-func testListMethods(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) error {
+func testListMethods(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string) error {
 	fmt.Println("\n\n📋 STEP 12: TESTING LIST METHODS WITH PAGINATION AND ERROR HANDLING")
 	fmt.Println(strings.Repeat("=", 50))
 
@@ -55,16 +55,17 @@ func testListMethods(ctx context.Context, midazClient *client.Client, orgID, led
 }
 
 // testListOrganizations tests the ListOrganizations method with pagination
-func testListOrganizations(ctx context.Context, midazClient *client.Client) error {
+func testListOrganizations(ctx context.Context, midazClient *midaz.Client) error {
 	fmt.Println("\n🔍 Testing ListOrganizations with pagination...")
 
-	// Create pagination options with the fluent API
-	orgOptions := models.NewListOptions().
-		WithLimit(5).
-		WithOrderBy("legalName").
-		WithOrderDirection(models.SortAscending)
+	orgOptions := models.OrganizationsListOpts{
+		PageListOpts: models.PageListOpts{
+			Limit:         5,
+			SortDirection: models.SortAscending,
+		},
+	}
 
-	orgsResponse, err := midazClient.Entity.Organizations.ListOrganizations(ctx, orgOptions)
+	orgsResponse, err := midazClient.Organizations.ListOrganizations(ctx, orgOptions)
 	if err != nil {
 		return handleOrganizationError(err)
 	}
@@ -89,28 +90,56 @@ func handleOrganizationError(err error) error {
 
 // printOrganizationsResults prints the organization results
 func printOrganizationsResults(orgsResponse *models.ListResponse[models.Organization]) {
-	fmt.Printf("✅ Found %d organizations (page %d of %d)\n",
-		len(orgsResponse.Items),
-		orgsResponse.Pagination.CurrentPage(),
-		orgsResponse.Pagination.TotalPages())
+	page, totalPages := pageStats(orgsResponse.Pagination)
+	if totalPages > 0 {
+		fmt.Printf("✅ Found %d organizations (page %d of %d)\n",
+			len(orgsResponse.Items), page, totalPages)
+	} else {
+		fmt.Printf("✅ Found %d organizations (page %d)\n",
+			len(orgsResponse.Items), page)
+	}
 
 	for i, org := range orgsResponse.Items {
 		fmt.Printf("   %d. %s (ID: %s)\n", i+1, org.LegalName, org.ID)
 	}
 
-	if orgsResponse.Pagination.HasNextPage() {
+	if orgsResponse.Pagination.HasMore() {
 		fmt.Println("   (More organizations available on next page)")
 	}
 }
 
+// pageStats computes the current 1-based page number and the total
+// page count from a Pagination shape. Returns totalPages == 0 when the
+// server did not report Total (cursor-paginated endpoints typically
+// omit it). Callers should check the return value before formatting
+// "page N of M" strings.
+//
+// Replaces the deleted Pagination.CurrentPage() and Pagination.TotalPages()
+// methods, which silently returned misleading values when Total was zero.
+func pageStats(p models.Pagination) (page, totalPages int) {
+	page = 1
+	if p.Page > 0 {
+		page = p.Page
+	} else if p.Limit > 0 {
+		page = (p.Offset / p.Limit) + 1
+	}
+
+	if p.TotalKnown() && p.Limit > 0 {
+		totalPages = (p.Total + p.Limit - 1) / p.Limit
+	}
+
+	return page, totalPages
+}
+
 // testListLedgers tests the ListLedgers method with filtering
-func testListLedgers(ctx context.Context, midazClient *client.Client, orgID string) error {
+func testListLedgers(ctx context.Context, midazClient *midaz.Client, orgID string) error {
 	fmt.Println("\n🔍 Testing ListLedgers with filtering...")
 
-	ledgerOptions := models.NewListOptions().
-		WithFilter("status", models.StatusActive)
+	ledgerOptions := models.LedgersListOpts{
+		Filters: models.LedgersFilters{Status: models.StatusActive},
+	}
 
-	ledgersResponse, err := midazClient.Entity.Ledgers.ListLedgers(ctx, orgID, ledgerOptions)
+	ledgersResponse, err := midazClient.Ledgers.ListLedgers(ctx, orgID, ledgerOptions)
 	if err != nil {
 		return fmt.Errorf("ledger listing failed: %s", pkgerrors.FormatErrorDetails(err))
 	}
@@ -124,26 +153,29 @@ func testListLedgers(ctx context.Context, midazClient *client.Client, orgID stri
 	return nil
 }
 
-// testListAccountsWithPagination tests the ListAccounts method with pagination and multi-page iteration
-func testListAccountsWithPagination(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) error {
+// testListAccountsWithPagination tests the ListAccounts method using v3 typed
+// AccountsListOpts and demonstrates iter.Seq2 transparent pagination via
+// ListAccountsPages.
+func testListAccountsWithPagination(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string) error {
 	fmt.Println("\n🔍 Testing ListAccounts with pagination and filtering...")
 
-	accountOptions := models.NewListOptions().
-		WithLimit(3).
-		WithOrderBy("createdAt").
-		WithOrderDirection(models.SortDescending).
-		WithFilter("type", "CUSTOMER")
+	accountOptions := models.AccountsListOpts{
+		PageListOpts: models.PageListOpts{
+			Limit:         3,
+			SortDirection: models.SortDescending,
+		},
+		Filters: models.AccountsFilters{Type: "CUSTOMER"},
+	}
 
-	accountsResponse, err := midazClient.Entity.Accounts.ListAccounts(ctx, orgID, ledgerID, accountOptions)
+	accountsResponse, err := midazClient.Accounts.ListAccounts(ctx, orgID, ledgerID, accountOptions)
 	if err != nil {
 		return handleAccountError(err)
 	}
 
 	printAccountsResults(accountsResponse)
 
-	// Demonstrate multi-page iteration if available
-	if accountsResponse.Pagination.HasNextPage() {
-		return demonstrateAccountPagination(ctx, midazClient, orgID, ledgerID, accountsResponse)
+	if accountsResponse.Pagination.HasMore() {
+		return demonstrateAccountPagination(ctx, midazClient, orgID, ledgerID, accountOptions)
 	}
 
 	return nil
@@ -163,10 +195,14 @@ func handleAccountError(err error) error {
 
 // printAccountsResults prints the accounts results
 func printAccountsResults(accountsResponse *models.ListResponse[models.Account]) {
-	fmt.Printf("✅ Found %d customer accounts (page %d of %d)\n",
-		len(accountsResponse.Items),
-		accountsResponse.Pagination.CurrentPage(),
-		accountsResponse.Pagination.TotalPages())
+	page, totalPages := pageStats(accountsResponse.Pagination)
+	if totalPages > 0 {
+		fmt.Printf("✅ Found %d customer accounts (page %d of %d)\n",
+			len(accountsResponse.Items), page, totalPages)
+	} else {
+		fmt.Printf("✅ Found %d customer accounts (page %d)\n",
+			len(accountsResponse.Items), page)
+	}
 
 	for i, account := range accountsResponse.Items {
 		fmt.Printf("   %d. %s (ID: %s, Type: %s)\n", i+1, account.Name, account.ID, account.Type)
@@ -174,31 +210,27 @@ func printAccountsResults(accountsResponse *models.ListResponse[models.Account])
 }
 
 // demonstrateAccountPagination demonstrates multi-page iteration through accounts
-func demonstrateAccountPagination(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, initialResponse *models.ListResponse[models.Account]) error {
+// via v3 ListAccountsPages iter.Seq2. Limits to 3 pages for demo purposes.
+func demonstrateAccountPagination(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string, opts models.AccountsListOpts) error {
 	fmt.Println("\n📚 Demonstrating multi-page iteration through accounts...")
 
-	currentPage := initialResponse
-	pageCount := 1
-
-	// Continue fetching pages while there are more (limit to 3 pages for demo)
-	for currentPage.Pagination.HasNextPage() && pageCount < 3 {
-		nextOptions := currentPage.Pagination.NextPageOptions()
-
-		var err error
-
-		currentPage, err = midazClient.Entity.Accounts.ListAccounts(ctx, orgID, ledgerID, nextOptions)
+	pageCount := 0
+	for currentPage, err := range midazClient.Accounts.ListAccountsPages(ctx, orgID, ledgerID, opts) {
 		if err != nil {
 			return fmt.Errorf("failed to fetch page %d: %w", pageCount+1, err)
 		}
 
 		pageCount++
 
-		fmt.Printf("\n📄 Page %d (offset %d):\n",
-			currentPage.Pagination.CurrentPage(),
-			currentPage.Pagination.Offset)
+		page, _ := pageStats(currentPage.Pagination)
+		fmt.Printf("\n📄 Page %d:\n", page)
 
 		for i, account := range currentPage.Items {
 			fmt.Printf("   %d. %s (ID: %s, Type: %s)\n", i+1, account.Name, account.ID, account.Type)
+		}
+
+		if pageCount >= 3 {
+			break
 		}
 	}
 
@@ -208,10 +240,10 @@ func demonstrateAccountPagination(ctx context.Context, midazClient *client.Clien
 }
 
 // testListPortfolios tests the ListPortfolios method
-func testListPortfolios(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) error {
+func testListPortfolios(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string) error {
 	fmt.Println("\n🔍 Testing ListPortfolios...")
 
-	portfoliosResponse, err := midazClient.Entity.Portfolios.ListPortfolios(ctx, orgID, ledgerID, models.NewListOptions())
+	portfoliosResponse, err := midazClient.Portfolios.ListPortfolios(ctx, orgID, ledgerID, models.PortfoliosListOpts{})
 	if err != nil {
 		return fmt.Errorf("failed to list portfolios: %w", err)
 	}
@@ -226,13 +258,17 @@ func testListPortfolios(ctx context.Context, midazClient *client.Client, orgID, 
 }
 
 // testListSegments tests the ListSegments method with date range filtering
-func testListSegments(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) error {
+func testListSegments(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string) error {
 	fmt.Println("\n🔍 Testing ListSegments with date range filtering...")
 
-	segmentOptions := models.NewListOptions().
-		WithDateRange("2023-01-01", "2100-12-31") // Wide range to ensure results
+	segmentOptions := models.SegmentsListOpts{
+		PageListOpts: models.PageListOpts{
+			StartDate: "2023-01-01",
+			EndDate:   "2100-12-31",
+		},
+	}
 
-	segmentsResponse, err := midazClient.Entity.Segments.ListSegments(ctx, orgID, ledgerID, segmentOptions)
+	segmentsResponse, err := midazClient.Segments.ListSegments(ctx, orgID, ledgerID, segmentOptions)
 	if err != nil {
 		return fmt.Errorf("failed to list segments: %w", err)
 	}

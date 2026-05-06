@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v2"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/google/uuid"
 )
 
@@ -23,7 +23,7 @@ import (
 //   - *models.TransactionRoute: The payment transaction route model
 //   - *models.TransactionRoute: The refund transaction route model
 //   - error: Any error encountered during the operation
-func CreateTransactionRoutes(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) (paymentRoute *models.TransactionRoute, refundRoute *models.TransactionRoute, err error) {
+func CreateTransactionRoutes(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string) (paymentRoute *models.TransactionRoute, refundRoute *models.TransactionRoute, err error) {
 	var sourceOperationRoute, destinationOperationRoute *models.OperationRoute
 	return CreateTransactionRoutesWithOperationRoutes(ctx, midazClient, orgID, ledgerID, sourceOperationRoute, destinationOperationRoute)
 }
@@ -42,7 +42,7 @@ func CreateTransactionRoutes(ctx context.Context, midazClient *client.Client, or
 //   - *models.TransactionRoute: The payment transaction route model
 //   - *models.TransactionRoute: The refund transaction route model
 //   - error: Any error encountered during the operation
-func CreateTransactionRoutesWithOperationRoutes(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, sourceOperationRoute, destinationOperationRoute *models.OperationRoute) (paymentRoute *models.TransactionRoute, refundRoute *models.TransactionRoute, err error) {
+func CreateTransactionRoutesWithOperationRoutes(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string, sourceOperationRoute, destinationOperationRoute *models.OperationRoute) (paymentRoute *models.TransactionRoute, refundRoute *models.TransactionRoute, err error) {
 	fmt.Println("\n\n🗺️  STEP 4.5: TRANSACTION ROUTE CREATION")
 	fmt.Println(strings.Repeat("=", 50))
 
@@ -63,7 +63,7 @@ func CreateTransactionRoutesWithOperationRoutes(ctx context.Context, midazClient
 	// Create payment transaction route
 	fmt.Println("Creating payment transaction route...")
 
-	paymentTransactionRoute, err := midazClient.Entity.TransactionRoutes.CreateTransactionRoute(
+	paymentTransactionRoute, err := midazClient.TransactionRoutes.CreateTransactionRoute(
 		ctx, orgID, ledgerID,
 		models.NewCreateTransactionRouteInput(
 			"Payment Transaction Route",
@@ -90,7 +90,7 @@ func CreateTransactionRoutesWithOperationRoutes(ctx context.Context, midazClient
 	// Create refund transaction route
 	fmt.Println("Creating refund transaction route...")
 
-	refundTransactionRoute, err := midazClient.Entity.TransactionRoutes.CreateTransactionRoute(
+	refundTransactionRoute, err := midazClient.TransactionRoutes.CreateTransactionRoute(
 		ctx, orgID, ledgerID,
 		models.NewCreateTransactionRouteInput(
 			"Refund Transaction Route",

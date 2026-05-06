@@ -1,15 +1,17 @@
 package entities
 
+//go:generate mockgen -source=portfolios.go -destination=mocks/mock_portfolios.go -package=mocks PortfoliosService
+
 import (
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"iter"
 	"net/http"
-	"os"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
 )
 
 // PortfoliosService defines the interface for portfolio-related operations.
@@ -20,7 +22,11 @@ type PortfoliosService interface {
 	// The organizationID and ledgerID parameters specify which organization and ledger to query.
 	// The opts parameter can be used to specify pagination, sorting, and filtering options.
 	// Returns a ListResponse containing the portfolios and pagination information, or an error if the operation fails.
-	ListPortfolios(ctx context.Context, organizationID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Portfolio], error)
+	ListPortfolios(ctx context.Context, organizationID, ledgerID string, opts models.PortfoliosListOpts) (*models.ListResponse[models.Portfolio], error)
+
+	ListPortfoliosAll(ctx context.Context, organizationID, ledgerID string, opts models.PortfoliosListOpts) iter.Seq2[models.Portfolio, error]
+
+	ListPortfoliosPages(ctx context.Context, organizationID, ledgerID string, opts models.PortfoliosListOpts) iter.Seq2[*models.ListResponse[models.Portfolio], error]
 
 	// GetPortfolio retrieves a specific portfolio by its ID.
 	// The organizationID and ledgerID parameters specify which organization and ledger the portfolio belongs to.
@@ -135,33 +141,17 @@ type PortfoliosService interface {
 // portfoliosEntity implements the PortfoliosService interface.
 // It provides methods for creating, retrieving, updating, and deleting portfolios.
 type portfoliosEntity struct {
-	httpClient *HTTPClient
-	baseURLs   map[string]string
+	serviceEntity
 }
 
-func (e *portfoliosEntity) setDefaultTenantID(tenantID string) {
-	e.httpClient.SetTenantID(tenantID)
-}
-
-// NewPortfoliosEntity creates a new portfolios entity.
+// newPortfoliosEntity creates a new portfolios entity.
 // It initializes the HTTP client and base URLs for API requests.
-func NewPortfoliosEntity(client *http.Client, authToken string, baseURLs map[string]string) PortfoliosService {
-	// Create a new HTTP client with the shared implementation
-	httpClient := NewHTTPClient(client, authToken, nil)
-
-	// Check if we're using the debug flag from the environment
-	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
-		httpClient.setDebugLocked(true)
-	}
-
-	return &portfoliosEntity{
-		httpClient: httpClient,
-		baseURLs:   prepareServiceBaseURLs(baseURLs),
-	}
+func newPortfoliosEntity(client *http.Client, authToken string, baseURLs map[string]string) PortfoliosService {
+	return &portfoliosEntity{serviceEntity: newServiceEntity(client, authToken, baseURLs)}
 }
 
 // ListPortfolios lists portfolios for a ledger with optional filters.
-func (e *portfoliosEntity) ListPortfolios(ctx context.Context, organizationID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Portfolio], error) {
+func (e *portfoliosEntity) ListPortfolios(ctx context.Context, organizationID, ledgerID string, opts models.PortfoliosListOpts) (*models.ListResponse[models.Portfolio], error) {
 	const operation = "ListPortfolios"
 
 	if organizationID == "" {
@@ -172,6 +162,10 @@ func (e *portfoliosEntity) ListPortfolios(ctx context.Context, organizationID, l
 		return nil, errors.NewMissingParameterError(operation, "ledgerID")
 	}
 
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+
 	url := e.buildURL(organizationID, ledgerID, "")
 
 	req, err := newRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -179,11 +173,9 @@ func (e *portfoliosEntity) ListPortfolios(ctx context.Context, organizationID, l
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	// Add query parameters if provided
-	if opts != nil {
+	if params := opts.ToQueryParams(); len(params) > 0 {
 		q := req.URL.Query()
-
-		for key, value := range opts.ToQueryParams() {
+		for key, value := range params {
 			q.Add(key, value)
 		}
 
@@ -196,6 +188,46 @@ func (e *portfoliosEntity) ListPortfolios(ctx context.Context, organizationID, l
 	}
 
 	return &response, nil
+}
+
+// ListPortfoliosAll yields every portfolio matching the request, transparently advancing pagination.
+func (e *portfoliosEntity) ListPortfoliosAll(ctx context.Context, organizationID, ledgerID string, opts models.PortfoliosListOpts) iter.Seq2[models.Portfolio, error] {
+	return flattenPages(e.ListPortfoliosPages(ctx, organizationID, ledgerID, opts))
+}
+
+// ListPortfoliosPages yields one full *ListResponse[Portfolio] per page.
+func (e *portfoliosEntity) ListPortfoliosPages(ctx context.Context, organizationID, ledgerID string, opts models.PortfoliosListOpts) iter.Seq2[*models.ListResponse[models.Portfolio], error] {
+	ctx = requestContext(ctx)
+
+	return func(yield func(*models.ListResponse[models.Portfolio], error) bool) {
+		current := opts
+		if current.Page <= 0 {
+			current.Page = 1
+		}
+
+		for {
+			if ctx.Err() != nil {
+				yield(nil, ctx.Err())
+				return
+			}
+
+			page, err := e.ListPortfolios(ctx, organizationID, ledgerID, current)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			if !yield(page, nil) {
+				return
+			}
+
+			if !page.Pagination.HasMore() {
+				return
+			}
+
+			current.Page++
+		}
+	}
 }
 
 // GetPortfolio gets a portfolio by ID.

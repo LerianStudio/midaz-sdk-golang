@@ -19,10 +19,6 @@ func TestDefaultOptions(t *testing.T) {
 	if opts.MaxIdleConnsPerHost != 10 {
 		t.Errorf("Expected MaxIdleConnsPerHost=10, got %d", opts.MaxIdleConnsPerHost)
 	}
-
-	if !opts.UseJSONIterator {
-		t.Error("Expected UseJSONIterator=true")
-	}
 }
 
 //nolint:revive // cognitive-complexity: comprehensive options test with many sub-tests
@@ -122,32 +118,11 @@ func TestNewOptions(t *testing.T) {
 		}
 	})
 
-	t.Run("WithJSONIterator", func(t *testing.T) {
-		opts, err := NewOptions(WithJSONIterator(false))
-		if err != nil {
-			t.Fatalf("NewOptions returned error: %v", err)
-		}
-
-		if opts.UseJSONIterator {
-			t.Error("Expected UseJSONIterator=false")
-		}
-
-		opts, err = NewOptions(WithJSONIterator(true))
-		if err != nil {
-			t.Fatalf("NewOptions returned error: %v", err)
-		}
-
-		if !opts.UseJSONIterator {
-			t.Error("Expected UseJSONIterator=true")
-		}
-	})
-
 	t.Run("MultipleOptions", func(t *testing.T) {
 		opts, err := NewOptions(
 			WithBatchSize(200),
 			WithHTTPPooling(false),
 			WithMaxIdleConnsPerHost(25),
-			WithJSONIterator(false),
 		)
 		if err != nil {
 			t.Fatalf("NewOptions returned error: %v", err)
@@ -163,10 +138,6 @@ func TestNewOptions(t *testing.T) {
 
 		if opts.MaxIdleConnsPerHost != 25 {
 			t.Errorf("Expected MaxIdleConnsPerHost=25, got %d", opts.MaxIdleConnsPerHost)
-		}
-
-		if opts.UseJSONIterator {
-			t.Error("Expected UseJSONIterator=false")
 		}
 	})
 }
@@ -191,7 +162,6 @@ func TestGlobalOptionsConcurrentAccess(_ *testing.T) {
 					BatchSize:           worker + j + 1,
 					EnableHTTPPooling:   j%2 == 0,
 					MaxIdleConnsPerHost: worker + 1,
-					UseJSONIterator:     j%2 != 0,
 				})
 
 				_ = GetGlobalOptions()
@@ -214,7 +184,6 @@ func TestApplyGlobalPerformanceOptions(t *testing.T) {
 			BatchSize:           100,
 			EnableHTTPPooling:   false,
 			MaxIdleConnsPerHost: 20,
-			UseJSONIterator:     false,
 		}
 
 		ApplyGlobalPerformanceOptions(opts)
@@ -231,10 +200,6 @@ func TestApplyGlobalPerformanceOptions(t *testing.T) {
 		if result.MaxIdleConnsPerHost != 20 {
 			t.Errorf("Expected MaxIdleConnsPerHost=20, got %d", result.MaxIdleConnsPerHost)
 		}
-
-		if result.UseJSONIterator {
-			t.Error("Expected UseJSONIterator=false")
-		}
 	})
 
 	t.Run("ApplyPartialOptions", func(t *testing.T) {
@@ -243,7 +208,6 @@ func TestApplyGlobalPerformanceOptions(t *testing.T) {
 			BatchSize:           50,
 			EnableHTTPPooling:   true,
 			MaxIdleConnsPerHost: 10,
-			UseJSONIterator:     true,
 		})
 
 		// Apply partial options (BatchSize=0 should not change)
@@ -458,7 +422,6 @@ func TestOptionsStruct(t *testing.T) {
 		BatchSize:           100,
 		EnableHTTPPooling:   true,
 		MaxIdleConnsPerHost: 20,
-		UseJSONIterator:     true,
 	}
 
 	if opts.BatchSize != 100 {
@@ -471,10 +434,6 @@ func TestOptionsStruct(t *testing.T) {
 
 	if opts.MaxIdleConnsPerHost != 20 {
 		t.Errorf("Expected MaxIdleConnsPerHost=20, got %d", opts.MaxIdleConnsPerHost)
-	}
-
-	if !opts.UseJSONIterator {
-		t.Error("Expected UseJSONIterator=true")
 	}
 }
 

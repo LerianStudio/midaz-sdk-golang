@@ -185,7 +185,13 @@ func startWorkers[T, R any](
 	}
 }
 
-// runWorker processes items from the item channel
+// runWorker processes items from the item channel.
+//
+// Rate limiting uses a single ticker per worker, created once and stopped on
+// exit. Earlier revisions called time.Tick() per item, which leaks the
+// underlying runtime.Ticker for the lifetime of the process — see
+// https://pkg.go.dev/time#Tick. With N items × M workers and WithRateLimit
+// configured, that path leaked N×M tickers per WorkerPool invocation.
 func runWorker[T, R any](
 	ctx context.Context,
 	wg *sync.WaitGroup,
@@ -196,32 +202,36 @@ func runWorker[T, R any](
 ) {
 	defer wg.Done()
 
+	var tickC <-chan time.Time
+
+	if options.rateLimit > 0 {
+		interval := time.Second / time.Duration(options.rateLimit)
+		if interval <= 0 {
+			interval = time.Nanosecond
+		}
+
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+
+		tickC = ticker.C
+	}
+
 	for item := range itemCh {
 		if ctx.Err() != nil {
 			continue
 		}
 
-		if shouldApplyRateLimit(ctx, options.rateLimit) {
-			return
+		if tickC != nil {
+			select {
+			case <-tickC:
+				// Token acquired, proceed with the item.
+			case <-ctx.Done():
+				return
+			}
 		}
 
 		result := processWorkItem(ctx, item, workFn)
 		resultCh <- result
-	}
-}
-
-// shouldApplyRateLimit applies rate limiting if configured
-func shouldApplyRateLimit(ctx context.Context, rateLimit int) bool {
-	if rateLimit <= 0 {
-		return false
-	}
-
-	limiter := time.Tick(time.Second / time.Duration(rateLimit))
-	select {
-	case <-limiter:
-		return false // Rate limit applied, continue processing
-	case <-ctx.Done():
-		return true // Context canceled, stop processing
 	}
 }
 
@@ -661,15 +671,4 @@ func (r *RateLimiter) Stop() {
 	close(r.stopCh)
 	r.ticker.Stop()
 	r.wg.Wait()
-}
-
-// WithWaitGroup creates a worker pool that utilizes an external wait group
-// in addition to the internal one. This is useful when you want to wait
-// for all worker pools to complete from outside.
-func WithWaitGroup(_ *sync.WaitGroup) PoolOption {
-	return func(_ *poolOptions) {
-		// This is implemented in the WorkerPool function
-		// through closure capture of the provided WaitGroup
-		// This option is just a placeholder for design consistency
-	}
 }

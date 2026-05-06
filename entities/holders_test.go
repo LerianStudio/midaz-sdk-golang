@@ -7,7 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -34,7 +35,7 @@ func TestHoldersEntity_CreateHolder_RequestConstruction(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := NewHoldersEntity(server.Client(), "token", map[string]string{"crm": server.URL}).(*holdersEntity)
+	service := newHoldersEntity(server.Client(), map[string]string{"crm": server.URL}).(*holdersEntity)
 	holderType := "NATURAL_PERSON"
 	holder, err := service.CreateHolder(context.Background(), crmOrgID, &models.CreateHolderInput{Type: &holderType, Name: "Jane Doe", Document: "12345678900"})
 
@@ -68,7 +69,7 @@ func TestHoldersEntity_UpdateHolder_OmitsNilFields(t *testing.T) {
 	defer server.Close()
 
 	name := "Jane Updated"
-	service := NewHoldersEntity(server.Client(), "token", map[string]string{"crm": server.URL}).(*holdersEntity)
+	service := newHoldersEntity(server.Client(), map[string]string{"crm": server.URL}).(*holdersEntity)
 	holder, err := service.UpdateHolder(context.Background(), crmOrgID, crmHolderID, &models.UpdateHolderInput{Name: &name})
 
 	require.NoError(t, err)
@@ -77,7 +78,7 @@ func TestHoldersEntity_UpdateHolder_OmitsNilFields(t *testing.T) {
 }
 
 func TestHoldersEntity_ValidationErrors(t *testing.T) {
-	service := NewHoldersEntity(http.DefaultClient, "token", map[string]string{"crm": "https://crm.example.com/v1"}).(*holdersEntity)
+	service := newHoldersEntity(http.DefaultClient, map[string]string{"crm": "https://crm.example.com/v1"}).(*holdersEntity)
 
 	_, err := service.CreateHolder(context.Background(), crmOrgID, &models.CreateHolderInput{Name: "Jane", Document: "123"})
 	require.Error(t, err)
@@ -85,11 +86,12 @@ func TestHoldersEntity_ValidationErrors(t *testing.T) {
 
 	_, err = service.UpdateHolder(context.Background(), crmOrgID, crmHolderID, &models.UpdateHolderInput{Metadata: map[string]any{"": "bad"}})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid metadata")
+	// 8C: format is "metadata invalid: <inner>" via FieldErrors accumulator.
+	assert.Contains(t, err.Error(), "metadata invalid")
 }
 
 func TestHoldersEntity_URLFlagsAndEscaping(t *testing.T) {
-	entity := &holdersEntity{baseURLs: map[string]string{"crm": "https://crm.example.com/v1"}}
+	entity := &holdersEntity{serviceEntity: serviceEntity{baseURLs: map[string]string{"crm": "https://crm.example.com/v1"}}}
 
 	assert.Equal(t, "https://crm.example.com/v1/holders/a%2Fb", entity.buildURL("a/b"))
 }
@@ -119,17 +121,21 @@ func TestHoldersEntity_ListGetDelete_RequestConstruction(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := NewHoldersEntity(server.Client(), "token", map[string]string{"crm": server.URL}).(*holdersEntity)
-	list, err := service.ListHolders(context.Background(), crmOrgID, models.NewListOptions().WithExternalID("external-123"))
+	service := newHoldersEntity(server.Client(), map[string]string{"crm": server.URL}).(*holdersEntity)
+	list, err := service.ListHolders(context.Background(), crmOrgID, models.HoldersListOpts{
+		Filters: models.HoldersFilters{ExternalID: "external-123"},
+	})
 	require.NoError(t, err)
 	require.Len(t, list.Items, 1)
 	assert.Equal(t, 10, list.Pagination.Limit)
 	assert.Equal(t, 1, list.Pagination.Page)
 	assert.Equal(t, 1, list.Pagination.ItemCount)
 
-	holder, err := service.GetHolder(context.Background(), crmOrgID, crmHolderID, true)
+	getCtx := sdkctx.WithIncludeDeleted(context.Background(), true)
+	holder, err := service.GetHolder(getCtx, crmOrgID, crmHolderID)
 	require.NoError(t, err)
 	assert.Equal(t, "Jane Doe", *holder.Name)
 
-	require.NoError(t, service.DeleteHolder(context.Background(), crmOrgID, crmHolderID, true))
+	deleteCtx := sdkctx.WithHardDelete(context.Background(), true)
+	require.NoError(t, service.DeleteHolder(deleteCtx, crmOrgID, crmHolderID))
 }

@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -307,8 +308,8 @@ func TestCreateTransactionInput_ToLibTransaction(t *testing.T) {
 			AssetCode: "USD",
 			Amount:    "50",
 			Operations: []CreateOperationInput{
-				{Type: "debit", AccountID: "source", Amount: Amount{Value: &value}, AssetCode: "USD"},
-				{Type: "credit", AccountID: "dest", Amount: &Amount{Value: &value}, AssetCode: "USD"},
+				{Type: string(OperationTypeDebit), AccountID: "source", Amount: Amount{Value: &value}, AssetCode: "USD"},
+				{Type: string(OperationTypeCredit), AccountID: "dest", Amount: &Amount{Value: &value}, AssetCode: "USD"},
 			},
 		}
 
@@ -1658,6 +1659,59 @@ func TestTransactionDSLInput_Validate(t *testing.T) {
 	}
 }
 
+// TestTransactionDSLInput_Validate_AccumulatesAllFieldErrors mirrors
+// the Track 8C accumulation contract used across the rest of the
+// models. When multiple fields are invalid, Validate must surface ALL
+// of them in a single call rather than short-circuiting on the first.
+func TestTransactionDSLInput_Validate_AccumulatesAllFieldErrors(t *testing.T) {
+	input := &TransactionDSLInput{
+		// chartOfAccountsGroupName missing — required
+		Description: strings.Repeat("a", 257), // too long
+		Code:        "invalid code with spaces!",
+		Metadata:    map[string]any{"": "empty key"},
+		// Send missing — required
+	}
+
+	err := input.Validate()
+	require.Error(t, err)
+
+	msg := err.Error()
+	assert.Contains(t, msg, "chartOfAccountsGroupName is required", "in: %q", msg)
+	assert.Contains(t, msg, "send is required", "in: %q", msg)
+	assert.Contains(t, msg, "description must be at most 256 characters", "in: %q", msg)
+	assert.Contains(t, msg, "invalid transaction code format", "in: %q", msg)
+	assert.Contains(t, msg, "metadata keys cannot be empty", "in: %q", msg)
+
+	var fe *validation.FieldErrors
+	require.ErrorAs(t, err, &fe)
+	assert.GreaterOrEqual(t, fe.Len(), 5, "expected >=5 field errors, got %d: %s", fe.Len(), msg)
+}
+
+// TestDSLSend_Validate_AccumulatesAllFieldErrors locks in that the
+// Send sub-validator collects every problem instead of returning on
+// the first one.
+func TestDSLSend_Validate_AccumulatesAllFieldErrors(t *testing.T) {
+	send := &DSLSend{
+		Asset:      "",  // required
+		Value:      0,   // must be positive
+		Source:     nil, // source.from missing
+		Distribute: nil, // distribute.to missing
+	}
+
+	err := send.Validate()
+	require.Error(t, err)
+
+	msg := err.Error()
+	assert.Contains(t, msg, "asset is required", "in: %q", msg)
+	assert.Contains(t, msg, "value must be greater than zero", "in: %q", msg)
+	assert.Contains(t, msg, "source.from must contain at least one entry", "in: %q", msg)
+	assert.Contains(t, msg, "distribute.to must contain at least one entry", "in: %q", msg)
+
+	var fe *validation.FieldErrors
+	require.ErrorAs(t, err, &fe)
+	assert.GreaterOrEqual(t, fe.Len(), 4, "expected >=4 field errors, got %d: %s", fe.Len(), msg)
+}
+
 func TestTransactionDSLInput_RenderDSL(t *testing.T) {
 	validSend := &DSLSend{
 		Asset: "USD",
@@ -2223,8 +2277,8 @@ func TestTransaction_ToTransactionMap(t *testing.T) {
 			Amount:      "100",
 			Metadata:    map[string]any{"ref": "123"},
 			Operations: []Operation{
-				{AccountID: "acc-1", AccountAlias: "alias-1", Type: "debit", Amount: Amount{Value: &val50}, AssetCode: "USD"},
-				{AccountID: "acc-2", AccountAlias: "alias-2", Type: "credit", Amount: Amount{Value: &val50}, AssetCode: "USD"},
+				{AccountID: "acc-1", AccountAlias: "alias-1", Type: string(OperationTypeDebit), Amount: Amount{Value: &val50}, AssetCode: "USD"},
+				{AccountID: "acc-2", AccountAlias: "alias-2", Type: string(OperationTypeCredit), Amount: Amount{Value: &val50}, AssetCode: "USD"},
 			},
 		}
 
@@ -2253,6 +2307,75 @@ func TestTransaction_ToTransactionMap(t *testing.T) {
 		assert.Len(t, toList, 1)
 		assert.Equal(t, "alias-2", toList[0]["accountAlias"])
 		assert.NotContains(t, toList[0], "account")
+	})
+
+	// Regression guard for the C1 third-rail bug: ToTransactionMap previously
+	// compared op.Type against lowercase "debit" while the Midaz API returns
+	// canonical uppercase "DEBIT"/"CREDIT" (per OperationType constants and
+	// Operation.Validate). Under the bug, every real DEBIT silently fell into
+	// the credit branch — inverting double-entry direction on every transaction.
+	//
+	// This test explicitly asserts:
+	//   - canonical uppercase "DEBIT" routes to source.from
+	//   - canonical uppercase "CREDIT" routes to distribute.to
+	//   - mixed casing is tolerated (defense in depth via strings.EqualFold)
+	t.Run("routes operations by canonical uppercase type", func(t *testing.T) {
+		val := newDecimal("100")
+		tx := &Transaction{
+			AssetCode: "USD",
+			Amount:    "100",
+			Operations: []Operation{
+				{AccountID: "src", AccountAlias: "src-alias", Type: string(OperationTypeDebit), Amount: Amount{Value: &val}, AssetCode: "USD"},
+				{AccountID: "dst", AccountAlias: "dst-alias", Type: string(OperationTypeCredit), Amount: Amount{Value: &val}, AssetCode: "USD"},
+			},
+		}
+
+		result := tx.ToTransactionMap()
+
+		send, ok := result["send"].(map[string]any)
+		require.True(t, ok, "send map must be present")
+
+		source, ok := send["source"].(map[string]any)
+		require.True(t, ok, "source map must be present (DEBIT must produce source.from)")
+		fromEntries, ok := source["from"].([]map[string]any)
+		require.True(t, ok, "source.from must be present")
+		require.Len(t, fromEntries, 1, "DEBIT op must land in source.from")
+		assert.Equal(t, "src-alias", fromEntries[0]["accountAlias"], "the DEBIT op routed to from")
+
+		distribute, ok := send["distribute"].(map[string]any)
+		require.True(t, ok, "distribute map must be present (CREDIT must produce distribute.to)")
+		toEntries, ok := distribute["to"].([]map[string]any)
+		require.True(t, ok, "distribute.to must be present")
+		require.Len(t, toEntries, 1, "CREDIT op must land in distribute.to")
+		assert.Equal(t, "dst-alias", toEntries[0]["accountAlias"], "the CREDIT op should land in to-entries")
+	})
+
+	t.Run("tolerates mixed-case operation types", func(t *testing.T) {
+		val := newDecimal("10")
+		tx := &Transaction{
+			AssetCode: "USD",
+			Amount:    "10",
+			Operations: []Operation{
+				{AccountID: "src", AccountAlias: "src-alias", Type: "Debit", Amount: Amount{Value: &val}, AssetCode: "USD"},
+				{AccountID: "dst", AccountAlias: "dst-alias", Type: "credit", Amount: Amount{Value: &val}, AssetCode: "USD"},
+			},
+		}
+
+		result := tx.ToTransactionMap()
+
+		send, ok := result["send"].(map[string]any)
+		require.True(t, ok)
+		source, ok := send["source"].(map[string]any)
+		require.True(t, ok)
+		fromEntries, ok := source["from"].([]map[string]any)
+		require.True(t, ok)
+		require.Len(t, fromEntries, 1, "mixed-case 'Debit' must still route to source.from")
+
+		distribute, ok := send["distribute"].(map[string]any)
+		require.True(t, ok)
+		toEntries, ok := distribute["to"].([]map[string]any)
+		require.True(t, ok)
+		require.Len(t, toEntries, 1, "lowercase 'credit' must still route to distribute.to")
 	})
 }
 
@@ -2527,7 +2650,8 @@ func TestCreateTransactionInput_SendValidation(t *testing.T) {
 				},
 			},
 			wantErr: true,
-			errMsg:  "invalid send",
+			// 8C: format is "send invalid: <inner>" via accumulator.
+			errMsg: "send invalid",
 		},
 	}
 

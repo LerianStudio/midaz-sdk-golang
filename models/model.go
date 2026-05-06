@@ -1,48 +1,43 @@
-// Package models defines the data models used by the Midaz SDK.
+// Package models defines the SDK-owned data models for the Midaz API.
 //
-// This package provides models that either:
-// 1. Directly align with backend types from pkg/mmodel where possible
-// 2. Implement SDK-specific types only where necessary
+// Every type in this package is hand-written and self-contained. JSON
+// tags align with the wire shape Midaz expects, so structs marshal
+// directly to/from request and response payloads with no adapter or
+// conversion layer between the SDK and the backend.
 //
-// The goal is to maintain a simple, direct approach without unnecessary abstraction layers
-// while ensuring the SDK interfaces cleanly with the backend API.
+// Key model types:
 //
-// Key Model Types:
-//
-// Account: Represents an account in the Midaz system, which is a fundamental
-// entity for tracking assets and balances. Accounts belong to organizations
+// Account: an account in the Midaz system — the fundamental entity
+// for tracking assets and balances. Accounts belong to organizations
 // and ledgers.
 //
-// Asset: Represents a type of value that can be tracked and transferred within
-// the Midaz system, such as currencies, securities, or other financial instruments.
+// Asset: a unit of value that can be tracked and transferred — fiat
+// currency, security, or other financial instrument.
 //
-// Balance: Represents the current state of an account's holdings for a specific
+// Balance: the current state of an account's holdings for a specific
 // asset, including total, available, and on-hold amounts.
 //
-// Ledger: Represents a collection of accounts and transactions within an organization,
-// providing a complete record of financial activities.
+// Ledger: a collection of accounts and transactions within an
+// organization, providing the complete record of financial activity.
 //
-// Organization: Represents a business entity that owns ledgers, accounts, and other
-// resources within the Midaz system.
+// Organization: a business entity that owns ledgers, accounts, and
+// other resources within the Midaz system.
 //
-// Portfolio: Represents a collection of accounts that belong to a specific entity
+// Portfolio: a collection of accounts belonging to a specific entity
 // within an organization and ledger, used for grouping and management.
 //
-// Segment: Represents a categorization unit for more granular organization of
+// Segment: a categorization unit for more granular organization of
 // accounts or other entities within a ledger.
 //
-// Transaction: Represents a financial event that affects one or more accounts
+// Transaction: a financial event that affects one or more accounts
 // through a series of operations (debits and credits).
 //
-// Operation: Represents an individual accounting entry within a transaction,
+// Operation: an individual accounting entry within a transaction —
 // typically a debit or credit to a specific account.
 //
-// Queue: Represents a transaction queue for temporarily storing transaction data
-// before processing, allowing for batched or asynchronous handling.
-//
-// Each model type includes constructors, conversion methods between SDK and backend
-// models, and utility methods for setting optional fields. Input structures for
-// creating and updating resources are also provided.
+// Each type ships with constructors, fluent With* builders for optional
+// fields, and dedicated Create*Input / Update*Input shapes for the
+// request side of each resource.
 package models
 
 // Note: This file serves as documentation for the model package architecture.

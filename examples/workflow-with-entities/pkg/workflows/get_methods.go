@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v2"
+	"github.com/LerianStudio/midaz-sdk-golang/v3"
 )
 
 // TestGetMethods tests various Get methods of the Midaz SDK
@@ -24,14 +24,14 @@ func init() {
 	TestGetMethods = testGetMethods
 }
 
-func testGetMethods(ctx context.Context, midazClient *client.Client, orgID, ledgerID, accountID, portfolioID string) error {
+func testGetMethods(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID, accountID, portfolioID string) error {
 	fmt.Println("\n\n🔍 STEP 11: TESTING GET METHODS")
 	fmt.Println(strings.Repeat("=", 50))
 
 	// Test GetOrganization
 	fmt.Println("\nTesting GetOrganization...")
 
-	org, err := midazClient.Entity.Organizations.GetOrganization(ctx, orgID)
+	org, err := midazClient.Organizations.GetOrganization(ctx, orgID)
 	if err != nil {
 		return fmt.Errorf("failed to get organization: %w", err)
 	}
@@ -41,7 +41,7 @@ func testGetMethods(ctx context.Context, midazClient *client.Client, orgID, ledg
 	// Test GetLedger
 	fmt.Println("\nTesting GetLedger...")
 
-	ledger, err := midazClient.Entity.Ledgers.GetLedger(ctx, orgID, ledgerID)
+	ledger, err := midazClient.Ledgers.GetLedger(ctx, orgID, ledgerID)
 	if err != nil {
 		return fmt.Errorf("failed to get ledger: %w", err)
 	}
@@ -51,7 +51,7 @@ func testGetMethods(ctx context.Context, midazClient *client.Client, orgID, ledg
 	// Test GetAccount
 	fmt.Println("\nTesting GetAccount...")
 
-	account, err := midazClient.Entity.Accounts.GetAccount(ctx, orgID, ledgerID, accountID)
+	account, err := midazClient.Accounts.GetAccount(ctx, orgID, ledgerID, accountID)
 	if err != nil {
 		return fmt.Errorf("failed to get account: %w", err)
 	}
@@ -61,7 +61,7 @@ func testGetMethods(ctx context.Context, midazClient *client.Client, orgID, ledg
 	// Test GetPortfolio
 	fmt.Println("\nTesting GetPortfolio...")
 
-	portfolio, err := midazClient.Entity.Portfolios.GetPortfolio(ctx, orgID, ledgerID, portfolioID)
+	portfolio, err := midazClient.Portfolios.GetPortfolio(ctx, orgID, ledgerID, portfolioID)
 	if err != nil {
 		return fmt.Errorf("failed to get portfolio: %w", err)
 	}

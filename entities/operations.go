@@ -1,102 +1,74 @@
 package entities
 
+//go:generate mockgen -source=operations.go -destination=mocks/mock_operations.go -package=mocks OperationsService
+
 import (
 	"bytes"
 	"context"
 	"encoding/json"
-	stderrors "errors"
+	"iter"
 	"net/http"
-	"os"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
 )
 
 // OperationsService defines the interface for operation-related operations.
 // It provides methods to list, retrieve, and update operations
 // associated with accounts and transactions.
 type OperationsService interface {
-	// ListOperations retrieves a cursor-paginated list of operations for a specific account.
+	// ListOperations retrieves one cursor-paginated page of operations for a specific account.
 	//
 	// Operations represent the individual accounting entries (debits and credits) that make up
-	// transactions in the ledger. This method allows you to retrieve all operations for a
-	// specific account, with optional filtering and cursor pagination controls.
+	// transactions in the ledger. This endpoint uses cursor-based pagination; advance pages by
+	// reading page.Pagination.NextCursor and assigning it to opts.Cursor. The
+	// OperationsListOpts struct has no Page or Offset field by construction — the v2 footgun
+	// where setting WithPage on a cursor endpoint silently dropped the value (audit 5.5) is
+	// structurally impossible in v3.
 	//
 	// Parameters:
-	//   - ctx: Context for the request, which can be used for cancellation and timeout.
-	//   - orgID: The ID of the organization that owns the ledger. Must be a valid organization ID.
-	//   - ledgerID: The ID of the ledger containing the account. Must be a valid ledger ID.
-	//   - accountID: The ID of the account to retrieve operations for. Must be a valid account ID.
-	//   - opts: Optional cursor pagination and filtering options. ListOptions.Cursor and
-	//     ListOptions.Limit are serialized by cursorListQueryParams; Page and Offset are
-	//     ignored for this cursor-only endpoint and are not sent on the wire.
+	//   - ctx: Context for the request, used for cancellation and timeout.
+	//   - organizationID: The ID of the organization that owns the ledger.
+	//   - ledgerID: The ID of the ledger containing the account.
+	//   - accountID: The ID of the account to retrieve operations for.
+	//   - opts: Typed cursor list options. Limit caps the page size; Filters narrow results.
 	//
 	// Returns:
-	//   - *models.ListResponse[models.Operation]: A cursor-paginated list of operations.
-	//     Use response pagination cursor fields, not Total/TotalPages, for traversal.
-	//   - error: An error if the operation fails. Possible errors include:
-	//     - Authentication failure (invalid auth token)
-	//     - Authorization failure (insufficient permissions)
-	//     - Resource not found (invalid organization, ledger, or account ID)
-	//     - Network or server errors
+	//   - *models.ListResponse[models.Operation]: One page of operations. Use Pagination.NextCursor
+	//     for traversal — Total may be unknown on cursor endpoints.
+	//   - error: A typed *errors.Error. Validation errors return category validation BEFORE
+	//     any HTTP request is sent.
 	//
-	// Example - Basic usage:
+	// Example - One-page fetch with filtering:
 	//
-	//	// List operations with default cursor pagination
-	//	operations, err := operationsService.ListOperations(
-	//	    context.Background(),
-	//	    "org-123",
-	//	    "ledger-456",
-	//	    "account-789",
-	//	    nil, // Use default cursor pagination
-	//	)
-	//
-	//	if err != nil {
-	//	    log.Fatalf("Failed to list operations: %v", err)
-	//	}
-
-	//
-	//	// Process the operations
-	//	fmt.Printf("Retrieved %d operations; next cursor: %s\n",
-	//	    len(operations.Items), operations.Pagination.NextCursor)
-	//
-	//	for _, op := range operations.Items {
-	//	    fmt.Printf("Operation: %s, Type: %s, Amount: %d %s\n",
-	//	        op.ID, op.Type, op.Amount, op.AssetCode)
-	//	}
-
-	//
-	// Example - With pagination and filtering:
-	//
-	//	// Create cursor pagination options with filtering
-	//	opts := &models.ListOptions{
-	//	    Limit: 10,
-	//	    Cursor: "next-cursor-from-previous-response",
-	//	    Filters: map[string]string{
-	//	        "type": "debit", // Only show debit operations
-	//	        "assetCode": "USD", // Only show USD operations
+	//	opts := models.OperationsListOpts{
+	//	    CursorListOpts: models.CursorListOpts{
+	//	        Limit:         10,
+	//	        SortDirection: models.SortDesc,
 	//	    },
-	//	    OrderDirection: "desc",
+	//	    Filters: models.OperationsFilters{Type: "DEBIT", AssetCode: "USD"},
 	//	}
-
-	//
-	//	// List operations with pagination and filtering
-	//	operations, err := operationsService.ListOperations(
-	//	    context.Background(),
-	//	    "org-123",
-	//	    "ledger-456",
-	//	    "account-789",
-	//	    opts,
-	//	)
-	//
-	//	if err != nil {
-	//	    log.Fatalf("Failed to list operations: %v", err)
+	//	page, err := c.Entity.Operations.ListOperations(ctx, "org-123", "ledger-456", "account-789", opts)
+	//	if err != nil { return err }
+	//	for _, op := range page.Items {
+	//	    fmt.Printf("op %s: %s %d %s\n", op.ID, op.Type, op.Amount, op.AssetCode)
 	//	}
-
 	//
-	//	// Process the operations
-	//	fmt.Printf("Retrieved %d debit operations in USD\n", len(operations.Items))
-	ListOperations(ctx context.Context, orgID, ledgerID, accountID string, opts *models.ListOptions) (*models.ListResponse[models.Operation], error)
+	// For multi-page traversal, prefer ListOperationsAll (auto cursor advance, range-loop friendly).
+	ListOperations(ctx context.Context, organizationID, ledgerID, accountID string, opts models.OperationsListOpts) (*models.ListResponse[models.Operation], error)
+
+	// ListOperationsAll returns an iter.Seq2 that yields each Operation across every page
+	// until the cursor is exhausted or the context is cancelled. Idiomatic v3 iteration:
+	//
+	//	for op, err := range c.Entity.Operations.ListOperationsAll(ctx, organizationID, ledgerID, accountID, opts) {
+	//	    if err != nil { return err }
+	//	    process(op)
+	//	}
+	ListOperationsAll(ctx context.Context, organizationID, ledgerID, accountID string, opts models.OperationsListOpts) iter.Seq2[models.Operation, error]
+
+	// ListOperationsPages returns an iter.Seq2 that yields each *ListResponse page. Use this
+	// when you need page-level metadata (Pagination, ItemCount) rather than flattened items.
+	ListOperationsPages(ctx context.Context, organizationID, ledgerID, accountID string, opts models.OperationsListOpts) iter.Seq2[*models.ListResponse[models.Operation], error]
 
 	// GetOperation retrieves a specific operation by its ID.
 	//
@@ -105,7 +77,7 @@ type OperationsService interface {
 	//
 	// Parameters:
 	//   - ctx: Context for the request, which can be used for cancellation and timeout.
-	//   - orgID: The ID of the organization that owns the ledger. Must be a valid organization ID.
+	//   - organizationID: The ID of the organization that owns the ledger. Must be a valid organization ID.
 	//   - ledgerID: The ID of the ledger containing the account. Must be a valid ledger ID.
 	//   - accountID: The ID of the account the operation belongs to. Must be a valid account ID.
 	//   - operationID: The unique identifier of the operation to retrieve. Must be a valid operation ID.
@@ -159,90 +131,35 @@ type OperationsService interface {
 	//	    fmt.Println("This is a credit operation (funds entering the account)")
 	//	}
 
-	GetOperation(ctx context.Context, orgID, ledgerID, accountID, operationID string, transactionID ...string) (*models.Operation, error)
+	GetOperation(ctx context.Context, organizationID, ledgerID, accountID, operationID string) (*models.Operation, error)
 
 	// UpdateTransactionOperation updates an existing operation by transaction scope.
-	// The orgID, ledgerID, and transactionID parameters specify which organization, ledger,
+	// The organizationID, ledgerID, and transactionID parameters specify which organization, ledger,
 	// and transaction the operation belongs to.
 	// The operationID parameter is the unique identifier of the operation to update.
-	// The input parameter contains the operation details to update.
+	// The input parameter contains the operation details to update; it must be non-nil
+	// and at least one mutable field must be set.
 	// Returns the updated operation, or an error if the operation fails.
-	UpdateTransactionOperation(ctx context.Context, orgID, ledgerID, transactionID, operationID string, input any) (*models.Operation, error)
-
-	// UpdateOperation is retained for source compatibility with the former account-scoped
-	// signature. Midaz now updates operations through the transaction-scoped endpoint.
-	// Deprecated: use UpdateTransactionOperation with a transactionID.
-	UpdateOperation(ctx context.Context, orgID, ledgerID, accountID, operationID string, input any) (*models.Operation, error)
+	UpdateTransactionOperation(ctx context.Context, organizationID, ledgerID, transactionID, operationID string, input *models.UpdateOperationInput) (*models.Operation, error)
 }
 
 // operationsEntity implements the OperationsService interface.
 // It handles the communication with the Midaz API for operation-related operations.
 type operationsEntity struct {
-	httpClient *HTTPClient
-	baseURLs   map[string]string
+	serviceEntity
 }
 
-func (e *operationsEntity) setDefaultTenantID(tenantID string) {
-	e.httpClient.SetTenantID(tenantID)
-}
-
-// NewOperationsEntity creates a new operations entity.
-//
-// Parameters:
-//   - client: The HTTP client used for API requests. Can be configured with custom timeouts
-//     and transport options. If nil, a default client will be used.
-//   - authToken: The authentication token for API authorization. Must be a valid JWT token
-//     issued by the Midaz authentication service.
-//   - baseURLs: Map of service names to base URLs. Must include an "onboarding" key with
-//     the URL of the onboarding service (e.g., "https://api.midaz.io/v1").
-//
-// Returns:
-//   - OperationsService: An implementation of the OperationsService interface that provides
-//     methods for retrieving, updating, and managing transaction operations.
-//
-// Example:
-//
-//	// Create an operations entity with default HTTP client
-//	operationsEntity := entities.NewOperationsEntity(
-//	    &http.Client{Timeout: 30 * time.Second},
-//	    "your-auth-token",
-//	    map[string]string{"onboarding": "https://api.midaz.io/v1"},
-//	)
-//
-//	// Use the entity to retrieve operations for an account
-//	operations, err := operationsEntity.ListOperations(
-//	    context.Background(),
-//	    "org-123",
-//	    "ledger-456",
-//	    "account-789",
-//	    nil, // No pagination options
-//	)
-//
-//	if err != nil {
-//	    log.Fatalf("Failed to retrieve operations: %v", err)
-//	}
-//
-//	fmt.Printf("Retrieved %d operations\n", len(operations.Items))
-func NewOperationsEntity(client *http.Client, authToken string, baseURLs map[string]string) OperationsService {
-	// Create a new HTTP client with the shared implementation
-	httpClient := NewHTTPClient(client, authToken, nil)
-
-	// Check if we're using the debug flag from the environment
-	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
-		httpClient.setDebugLocked(true)
-	}
-
-	return &operationsEntity{
-		httpClient: httpClient,
-		baseURLs:   prepareServiceBaseURLs(baseURLs),
-	}
+// newOperationsEntity wires the OperationsService backed by the shared HTTP transport.
+// Internal: invoked by Entity.initServices; callers should reach the service via Client.Operations.
+func newOperationsEntity(client *http.Client, authToken string, baseURLs map[string]string) OperationsService {
+	return &operationsEntity{serviceEntity: newServiceEntity(client, authToken, baseURLs)}
 }
 
 // ListOperations lists operations for an account with optional filters.
-func (e *operationsEntity) ListOperations(ctx context.Context, orgID, ledgerID, accountID string, opts *models.ListOptions) (*models.ListResponse[models.Operation], error) {
+func (e *operationsEntity) ListOperations(ctx context.Context, organizationID, ledgerID, accountID string, opts models.OperationsListOpts) (*models.ListResponse[models.Operation], error) {
 	const operation = "ListOperations"
 
-	if orgID == "" {
+	if organizationID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
 	}
 
@@ -254,18 +171,20 @@ func (e *operationsEntity) ListOperations(ctx context.Context, orgID, ledgerID, 
 		return nil, errors.NewMissingParameterError(operation, "accountID")
 	}
 
-	url := e.buildURL(orgID, ledgerID, accountID, "")
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+
+	url := e.buildURL(organizationID, ledgerID, accountID, "")
 
 	req, err := newRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	// Add query parameters if provided
-	if opts != nil {
+	if params := opts.ToQueryParams(); len(params) > 0 {
 		q := req.URL.Query()
-
-		for key, value := range cursorListQueryParams(opts) {
+		for key, value := range params {
 			q.Add(key, value)
 		}
 
@@ -283,6 +202,46 @@ func (e *operationsEntity) ListOperations(ctx context.Context, orgID, ledgerID, 
 	return &response, nil
 }
 
+// ListOperationsAll yields every operation matching the request,
+// transparently advancing pagination via the server-issued NextCursor.
+func (e *operationsEntity) ListOperationsAll(ctx context.Context, organizationID, ledgerID, accountID string, opts models.OperationsListOpts) iter.Seq2[models.Operation, error] {
+	return flattenPages(e.ListOperationsPages(ctx, organizationID, ledgerID, accountID, opts))
+}
+
+// ListOperationsPages yields one full *ListResponse[Operation] per page,
+// transparently advancing pagination via the server-issued NextCursor.
+func (e *operationsEntity) ListOperationsPages(ctx context.Context, organizationID, ledgerID, accountID string, opts models.OperationsListOpts) iter.Seq2[*models.ListResponse[models.Operation], error] {
+	ctx = requestContext(ctx)
+
+	return func(yield func(*models.ListResponse[models.Operation], error) bool) {
+		current := opts
+
+		for {
+			if ctx.Err() != nil {
+				yield(nil, ctx.Err())
+				return
+			}
+
+			page, err := e.ListOperations(ctx, organizationID, ledgerID, accountID, current)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			if !yield(page, nil) {
+				return
+			}
+
+			next := page.Pagination.NextCursor
+			if next == "" {
+				return
+			}
+
+			current.Cursor = next
+		}
+	}
+}
+
 // GetOperation retrieves an operation by its ID.
 //
 // Operations represent the individual accounting entries (debits and credits) that make up
@@ -290,7 +249,7 @@ func (e *operationsEntity) ListOperations(ctx context.Context, orgID, ledgerID, 
 //
 // Parameters:
 //   - ctx: Context for the request, which can be used for cancellation and timeout.
-//   - orgID: The ID of the organization that owns the ledger. Must be a valid organization ID.
+//   - organizationID: The ID of the organization that owns the ledger. Must be a valid organization ID.
 //   - ledgerID: The ID of the ledger containing the account. Must be a valid ledger ID.
 //   - accountID: The ID of the account the operation belongs to. Must be a valid account ID.
 //   - operationID: The unique identifier of the operation to retrieve. Must be a valid operation ID.
@@ -342,10 +301,10 @@ func (e *operationsEntity) ListOperations(ctx context.Context, orgID, ledgerID, 
 //	} else if operation.Type == models.OperationTypeCredit {
 //	    fmt.Println("This is a credit operation (funds entering the account)")
 //	}
-func (e *operationsEntity) GetOperation(ctx context.Context, orgID, ledgerID, accountID, operationID string, _ ...string) (*models.Operation, error) {
+func (e *operationsEntity) GetOperation(ctx context.Context, organizationID, ledgerID, accountID, operationID string) (*models.Operation, error) {
 	const operation = "GetOperation"
 
-	if orgID == "" {
+	if organizationID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
 	}
 
@@ -362,7 +321,7 @@ func (e *operationsEntity) GetOperation(ctx context.Context, orgID, ledgerID, ac
 	}
 
 	// Always use the account-based endpoint for GET operations
-	url := e.buildURL(orgID, ledgerID, accountID, operationID)
+	url := e.buildURL(organizationID, ledgerID, accountID, operationID)
 
 	req, err := newRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -380,30 +339,11 @@ func (e *operationsEntity) GetOperation(ctx context.Context, orgID, ledgerID, ac
 	return &operationModel, nil
 }
 
-// UpdateOperation is the deprecated account-scoped update method. It fails
-// LOUDLY without performing any network call.
-//
-// The previous behavior — silently issuing a GET to discover transactionID
-// and then re-routing the PATCH to the transaction-scoped endpoint —
-// hid a contract change behind two RPCs and made consumers believe the
-// account-scoped path still worked. We now refuse the call up front so
-// the deprecation surface is immediate and unambiguous.
-//
-// Deprecated: use UpdateTransactionOperation(ctx, orgID, ledgerID,
-// transactionID, operationID, input).
-func (*operationsEntity) UpdateOperation(_ context.Context, _, _, _, _ string, _ any) (*models.Operation, error) {
-	return nil, errors.NewValidationError(
-		"UpdateOperation",
-		"the account-scoped operation update path has been removed",
-		stderrors.New("use UpdateTransactionOperation(ctx, orgID, ledgerID, transactionID, operationID, input) — the SDK no longer auto-resolves transactionID via a hidden GET"),
-	)
-}
-
 // UpdateTransactionOperation updates an operation.
-func (e *operationsEntity) UpdateTransactionOperation(ctx context.Context, orgID, ledgerID, transactionID, operationID string, input any) (*models.Operation, error) {
+func (e *operationsEntity) UpdateTransactionOperation(ctx context.Context, organizationID, ledgerID, transactionID, operationID string, input *models.UpdateOperationInput) (*models.Operation, error) {
 	const operation = "UpdateTransactionOperation"
 
-	if orgID == "" {
+	if organizationID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
 	}
 
@@ -419,11 +359,15 @@ func (e *operationsEntity) UpdateTransactionOperation(ctx context.Context, orgID
 		return nil, errors.NewMissingParameterError(operation, "operationID")
 	}
 
-	if err := validateUpdatePayload(operation, input, "*models.UpdateOperationInput"); err != nil {
-		return nil, err
+	if input == nil {
+		return nil, errors.NewMissingParameterError(operation, "input")
 	}
 
-	url := buildLedgerScopedURL(e.baseURLs["transaction"], orgID, ledgerID, "transactions", transactionID, "operations", operationID)
+	if err := input.Validate(); err != nil {
+		return nil, errors.NewValidationError(operation, "update validation failed", err)
+	}
+
+	url := buildLedgerScopedURL(e.baseURLs["transaction"], organizationID, ledgerID, "transactions", transactionID, "operations", operationID)
 
 	body, err := json.Marshal(input)
 	if err != nil {
@@ -438,24 +382,24 @@ func (e *operationsEntity) UpdateTransactionOperation(ctx context.Context, orgID
 	var operationModel models.Operation
 	if err := e.httpClient.sendRequest(req, &operationModel); err != nil {
 		// HTTPClient.DoRequest already returns proper error types
-		e.httpClient.emitBusinessError(ctx, businessEventOperationUpdated, map[string]any{"operation": operation, "organizationId": orgID, "ledgerId": ledgerID, "transactionId": transactionID, "operationId": operationID}, err)
+		e.httpClient.emitBusinessError(ctx, businessEventOperationUpdated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "transactionId": transactionID, "operationId": operationID}, err)
 
 		return nil, err
 	}
 
 	normalizeOperation(&operationModel)
-	e.httpClient.emitBusinessEvent(ctx, businessEventOperationUpdated, map[string]any{"operation": operation, "organizationId": orgID, "ledgerId": ledgerID, "transactionId": transactionID, "operationId": operationModel.ID, "status": operationModel.Status.Code})
+	e.httpClient.emitBusinessEvent(ctx, businessEventOperationUpdated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "transactionId": transactionID, "operationId": operationModel.ID, "status": operationModel.Status.Code})
 
 	return &operationModel, nil
 }
 
 // buildURL builds the URL for operations API calls using the account-based endpoint.
-func (e *operationsEntity) buildURL(orgID, ledgerID, accountID, operationID string) string {
+func (e *operationsEntity) buildURL(organizationID, ledgerID, accountID, operationID string) string {
 	if operationID == "" {
-		return buildLedgerScopedURL(e.baseURLs["transaction"], orgID, ledgerID, "accounts", accountID, "operations")
+		return buildLedgerScopedURL(e.baseURLs["transaction"], organizationID, ledgerID, "accounts", accountID, "operations")
 	}
 
-	return buildLedgerScopedURL(e.baseURLs["transaction"], orgID, ledgerID, "accounts", accountID, "operations", operationID)
+	return buildLedgerScopedURL(e.baseURLs["transaction"], organizationID, ledgerID, "accounts", accountID, "operations", operationID)
 }
 
 func normalizeOperationListResponse(response *models.ListResponse[models.Operation]) {

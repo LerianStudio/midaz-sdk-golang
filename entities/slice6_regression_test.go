@@ -6,7 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -38,15 +39,15 @@ func TestSlice6CRMConstructorsCopyTrimAndListNilContext(t *testing.T) {
 	defer server.Close()
 
 	baseURLs := map[string]string{"crm": server.URL + "/"}
-	holders := NewHoldersEntity(server.Client(), "token", baseURLs).(*holdersEntity)
-	aliases := NewAliasesEntity(server.Client(), "token", baseURLs).(*aliasesEntity)
+	holders := newHoldersEntity(server.Client(), baseURLs).(*holdersEntity)
+	aliases := newAliasesEntity(server.Client(), baseURLs).(*aliasesEntity)
 	baseURLs["crm"] = "https://mutated.example.com/v1"
 
-	holdersList, err := holders.ListHolders(nilContext(), "  "+crmOrgID+"  ", nil)
+	holdersList, err := holders.ListHolders(nilContext(), "  "+crmOrgID+"  ", models.HoldersListOpts{})
 	require.NoError(t, err)
 	require.NotNil(t, holdersList.Items)
 
-	aliasesList, err := aliases.ListAliases(nilContext(), crmOrgID, nil)
+	aliasesList, err := aliases.ListAliases(nilContext(), crmOrgID, models.AliasesListOpts{})
 	require.NoError(t, err)
 	require.NotNil(t, aliasesList.Items)
 }
@@ -61,16 +62,18 @@ func TestSlice6CRMRejectsInvalidScopedIdentifiersBeforeTransport(t *testing.T) {
 	}))
 	defer server.Close()
 
-	holders := NewHoldersEntity(server.Client(), "token", map[string]string{"crm": server.URL}).(*holdersEntity)
-	aliases := NewAliasesEntity(server.Client(), "token", map[string]string{"crm": server.URL}).(*aliasesEntity)
+	holders := newHoldersEntity(server.Client(), map[string]string{"crm": server.URL}).(*holdersEntity)
+	aliases := newAliasesEntity(server.Client(), map[string]string{"crm": server.URL}).(*aliasesEntity)
 
-	_, err := holders.ListHolders(context.Background(), "   ", nil)
+	_, err := holders.ListHolders(context.Background(), "   ", models.HoldersListOpts{})
 	require.ErrorContains(t, err, "organizationID")
 
-	_, err = holders.GetHolder(context.Background(), crmOrgID, "holder-123", false)
+	_, err = holders.GetHolder(context.Background(), crmOrgID, "holder-123")
 	require.ErrorContains(t, err, "holderID must be a valid UUID")
 
-	_, err = aliases.ListAliases(context.Background(), crmOrgID, models.NewListOptions().WithHolderID("holder-123"))
+	_, err = aliases.ListAliases(context.Background(), crmOrgID, models.AliasesListOpts{
+		Filters: models.AliasesFilters{HolderID: "holder-123"},
+	})
 	require.ErrorContains(t, err, "holder_id must be a valid UUID")
 
 	err = aliases.DeleteRelatedParty(context.Background(), crmOrgID, crmHolderID, crmAliasID, "party-123")
@@ -90,10 +93,10 @@ func TestSlice6CRMHeadersPreserveOrganizationAndTenantBoundary(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := NewHoldersEntity(server.Client(), "token", map[string]string{"crm": server.URL}).(*holdersEntity)
+	service := newHoldersEntity(server.Client(), map[string]string{"crm": server.URL}).(*holdersEntity)
 	service.setDefaultTenantID("tenant-default")
 
-	ctx := WithIdempotencyKey(WithTenantID(context.Background(), "tenant-context"), "crm-idem")
+	ctx := sdkctx.WithIdempotencyKey(sdkctx.WithRequestTenantID(context.Background(), "tenant-context"), "crm-idem")
 	holderType := models.HolderTypeNaturalPerson
 
 	holder, err := service.CreateHolder(ctx, " "+crmOrgID+" ", &models.CreateHolderInput{
@@ -124,7 +127,7 @@ func TestSlice6CRMResultMethodsReturnErrorOnNullResponse(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := NewHoldersEntity(server.Client(), "token", map[string]string{"crm": server.URL}).(*holdersEntity)
-	_, err := service.GetHolder(context.Background(), crmOrgID, crmHolderID, false)
+	service := newHoldersEntity(server.Client(), map[string]string{"crm": server.URL}).(*holdersEntity)
+	_, err := service.GetHolder(context.Background(), crmOrgID, crmHolderID)
 	require.ErrorContains(t, err, "null response body")
 }

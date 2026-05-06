@@ -1,0 +1,43 @@
+// Package auth provides authentication helpers for the Midaz Go SDK.
+//
+// The package centers on the Lerian Access Manager — a credential
+// broker that exchanges client_id/client_secret pairs for short-lived
+// access tokens. The SDK manages token lifecycle (acquire, cache,
+// refresh on expiry) so consumer code only sees authenticated
+// requests.
+//
+// # Public surface
+//
+//   - [AccessManager] — credential bag (Address, ClientID, ClientSecret).
+//     Re-exported from the root midaz package as midaz.AccessManager
+//     so a typical setup needs only one import.
+//   - Token-cache plumbing is internal; consumer code never touches it.
+//
+// # Quickstart
+//
+//	import "github.com/LerianStudio/midaz-sdk-golang/v3"
+//
+//	c, err := midaz.New(
+//	    midaz.WithEnvironment(midaz.EnvironmentProduction),
+//	    midaz.WithAccessManager(midaz.AccessManager{
+//	        Address:      "https://auth.midaz.io",
+//	        ClientID:     os.Getenv("MIDAZ_CLIENT_ID"),
+//	        ClientSecret: os.Getenv("MIDAZ_CLIENT_SECRET"),
+//	    }),
+//	)
+//
+// # When to use this package directly
+//
+// Almost never. The root midaz package re-exports [AccessManager]
+// and the [github.com/LerianStudio/midaz-sdk-golang/v3.WithAccessManager]
+// option. Reach into pkg/auth only when you need to manipulate the
+// auth surface in tests or build a custom transport that wraps the
+// SDK's HTTP client.
+//
+// # See also
+//
+//   - [github.com/LerianStudio/midaz-sdk-golang/v3.WithAccessManager]
+//   - [github.com/LerianStudio/midaz-sdk-golang/v3.WithAnonymous]
+//   - docs/auth.md — authentication setup and migration walkthrough
+//   - examples/02-auth — runnable Access Manager demo
+package auth

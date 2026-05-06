@@ -1,6 +1,6 @@
 # Error handling in the Midaz Go SDK
 
-The SDK uses structured errors from `github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors`. Most SDK failures are represented as `*errors.Error`, which preserves SDK category/code, raw Midaz envelope fields, operation/resource context, HTTP status, request ID, and the wrapped underlying error.
+The SDK uses structured errors from `github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors`. Most SDK failures are represented as `*errors.Error`, which preserves SDK category/code, raw Midaz envelope fields, operation/resource context, HTTP status, request ID, and the wrapped underlying error.
 
 ## Core error type
 
@@ -82,9 +82,9 @@ Common constructors include `NewValidationError`, `NewInvalidInputError`, `NewNo
 Prefer SDK helper functions when branching on operational behavior:
 
 ```go
-import sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+import sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
 
-account, err := c.Entity.Accounts.GetAccount(ctx, orgID, ledgerID, accountID)
+account, err := c.Accounts.GetAccount(ctx, orgID, ledgerID, accountID)
 if err != nil {
     switch {
     case sdkerrors.IsNotFoundError(err):
@@ -105,9 +105,9 @@ Common checkers include:
 - `IsNotFoundError(err)`
 - `IsAuthenticationError(err)`
 - `IsAuthorizationError(err)`
-- `IsPermissionError(err)`
-- `IsConflictError(err)`
-- `IsAlreadyExistsError(err)`
+- `IsAuthError(err)` — matches both authentication (401) and authorization (403)
+- `IsConfigurationError(err)` — SDK setup or client-construction errors
+- `IsConflictError(err)` — covers 409 conflicts including "already exists" responses
 - `IsIdempotencyError(err)`
 - `IsRateLimitError(err)`
 - `IsTimeoutError(err)`
@@ -117,6 +117,7 @@ Common checkers include:
 - `IsInsufficientBalanceError(err)`
 - `IsAccountEligibilityError(err)`
 - `IsAssetMismatchError(err)`
+- `IsUnprocessableError(err)`
 
 ## Reading error details
 
@@ -148,7 +149,7 @@ import (
     stderrors "errors"
     "log"
 
-    sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+    sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
 )
 
 var sdkErr *sdkerrors.Error
@@ -171,7 +172,7 @@ import (
     stderrors "errors"
     "log"
 
-    sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+    sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
 )
 
 var sdkErr *sdkerrors.Error
@@ -191,7 +192,7 @@ if stderrors.As(err, &sdkErr) {
 Model validation can return regular errors or `pkg/validation.FieldErrors` depending on the validator used. Field-level errors live in the validation package, not `pkg/errors`:
 
 ```go
-import "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation"
+import "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation"
 
 if fieldErrors, ok := err.(*validation.FieldErrors); ok {
     for _, fieldErr := range fieldErrors.GetFieldErrors() {
@@ -202,7 +203,7 @@ if fieldErrors, ok := err.(*validation.FieldErrors); ok {
 
 ## Retry behavior
 
-Retry policies live in `github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry`, not `pkg/errors`.
+Retry policies live in `github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry`, not `pkg/errors`.
 
 The SDK HTTP layer retries transient failures by default. Retryable HTTP status codes are:
 
@@ -224,25 +225,41 @@ Root-client retry defaults are:
 Unsafe HTTP methods are retried only when an idempotency key is present. Attach one with:
 
 ```go
-ctx = entities.WithIdempotencyKey(ctx, "request-unique-key")
+ctx = sdkctx.WithIdempotencyKey(ctx, "request-unique-key")
 ```
 
-Configure client retries with:
+Configure client retries with `pkg/retry` options:
 
 ```go
-c, err := client.New(
-    client.WithRetries(3, 100*time.Millisecond, 10*time.Second),
-    client.UseAllAPIs(),
+import "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry"
+
+c, err := midaz.New(
+    midaz.WithAnonymous(),
+    midaz.WithRetryOptions(
+        retry.WithMaxRetries(3),
+        retry.WithInitialDelay(100*time.Millisecond),
+        retry.WithMaxDelay(10*time.Second),
+    ),
 )
 ```
 
 Or disable them:
 
 ```go
-c, err := client.New(
-    client.DisableRetries(),
-    client.UseAllAPIs(),
+c, err := midaz.New(
+    midaz.WithoutRetries(),
+    midaz.WithAnonymous(),
 )
+```
+
+Use `Error.Retryable()` as the canonical retry-policy source on `*errors.Error`:
+
+```go
+var sdkErr *sdkerrors.Error
+if errors.As(err, &sdkErr) && sdkErr.Retryable() {
+    // The SDK already classifies the error as retryable; apply your
+    // application-level retry strategy here.
+}
 ```
 
 `config.FromEnvironment()` currently reads `MIDAZ_MAX_RETRIES`. It does not read `MIDAZ_RETRY_WAIT_MIN` or `MIDAZ_RETRY_WAIT_MAX`.

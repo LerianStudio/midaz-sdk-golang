@@ -60,7 +60,14 @@ type ErrorDetails struct {
 	OriginalError error
 }
 
-// GetErrorDetails extracts detailed information from an error
+// GetErrorDetails extracts detailed information from an error.
+//
+// Audit M11: every caller-derived string is routed through the
+// redactor before being surfaced. Title, Fields, and Details — not
+// just Message — can carry credentials or PII when the API echoes
+// caller-supplied content. The redaction here is defense in depth: the
+// constructors already store pre-redacted Message/Title, but some
+// transport paths populate the *Error directly.
 func GetErrorDetails(err error) ErrorDetails {
 	if isNilError(err) {
 		return ErrorDetails{}
@@ -89,20 +96,15 @@ func populateStructuredErrorDetails(err error, details *ErrorDetails) {
 	}
 
 	details.APICode = sdkErr.APICode
-	details.Title = sdkErr.Title
+	details.Title = redactSensitive(sdkErr.Title)
 	details.EntityType = sdkErr.EntityType
 
 	if sdkErr.Fields != nil {
-		details.Fields = append([]string(nil), sdkErr.Fields...)
+		details.Fields = RedactSensitiveStringSlice(sdkErr.Fields)
 	}
 
 	if sdkErr.Details != nil {
-		clonedDetails := make(map[string]any, len(sdkErr.Details))
-		for key, value := range sdkErr.Details {
-			clonedDetails[key] = value
-		}
-
-		details.Details = clonedDetails
+		details.Details = RedactSensitiveDetails(sdkErr.Details)
 	}
 
 	details.RequestID = sdkErr.RequestID
@@ -112,11 +114,6 @@ func extractErrorCode(err error) string {
 	var sdkErr *Error
 	if errors.As(err, &sdkErr) && sdkErr != nil {
 		return string(sdkErr.Code)
-	}
-
-	var midazErr *MidazError
-	if errors.As(err, &midazErr) && midazErr != nil {
-		return string(midazErr.Code)
 	}
 
 	// Try to extract error code using errors.As

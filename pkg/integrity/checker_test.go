@@ -3,12 +3,13 @@ package integrity
 import (
 	"context"
 	"errors"
+	"iter"
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -103,17 +104,17 @@ func (l *mockLogger) WithSpan(_ trace.Span) observability.Logger           { ret
 
 // testBalancesService implements entities.BalancesService for testing
 type testBalancesService struct {
-	listBalancesFn               func(ctx context.Context, orgID, ledgerID string, _ *models.ListOptions) (*models.ListResponse[models.Balance], error)
-	listAccountBalancesFn        func(ctx context.Context, orgID, ledgerID, accountID string, _ *models.ListOptions) (*models.ListResponse[models.Balance], error)
+	listBalancesFn               func(ctx context.Context, orgID, ledgerID string, _ models.BalancesListOpts) (*models.ListResponse[models.Balance], error)
+	listAccountBalancesFn        func(ctx context.Context, orgID, ledgerID, accountID string, _ models.BalancesListOpts) (*models.ListResponse[models.Balance], error)
 	getBalanceFn                 func(ctx context.Context, orgID, ledgerID, balanceID string) (*models.Balance, error)
 	updateBalanceFn              func(ctx context.Context, orgID, ledgerID, balanceID string, input *models.UpdateBalanceInput) (*models.Balance, error)
 	deleteBalanceFn              func(ctx context.Context, orgID, ledgerID, balanceID string) error
 	createBalanceFn              func(ctx context.Context, orgID, ledgerID, accountID string, input *models.CreateBalanceInput) (*models.Balance, error)
-	listBalancesByAccountAliasFn func(ctx context.Context, orgID, ledgerID, alias string, _ *models.ListOptions) (*models.ListResponse[models.Balance], error)
-	listBalancesByExternalCodeFn func(ctx context.Context, orgID, ledgerID, code string, _ *models.ListOptions) (*models.ListResponse[models.Balance], error)
+	listBalancesByAccountAliasFn func(ctx context.Context, orgID, ledgerID, alias string, _ models.BalancesListOpts) (*models.ListResponse[models.Balance], error)
+	listBalancesByExternalCodeFn func(ctx context.Context, orgID, ledgerID, code string, _ models.BalancesListOpts) (*models.ListResponse[models.Balance], error)
 }
 
-func (s *testBalancesService) ListBalances(ctx context.Context, orgID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error) {
+func (s *testBalancesService) ListBalances(ctx context.Context, orgID, ledgerID string, opts models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
 	if s.listBalancesFn != nil {
 		return s.listBalancesFn(ctx, orgID, ledgerID, opts)
 	}
@@ -121,7 +122,7 @@ func (s *testBalancesService) ListBalances(ctx context.Context, orgID, ledgerID 
 	return nil, errors.New("mock: ListBalances not implemented")
 }
 
-func (s *testBalancesService) ListAccountBalances(ctx context.Context, orgID, ledgerID, accountID string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error) {
+func (s *testBalancesService) ListAccountBalances(ctx context.Context, orgID, ledgerID, accountID string, opts models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
 	if s.listAccountBalancesFn != nil {
 		return s.listAccountBalancesFn(ctx, orgID, ledgerID, accountID, opts)
 	}
@@ -165,7 +166,7 @@ func (s *testBalancesService) CreateBalance(ctx context.Context, orgID, ledgerID
 	return nil, errors.New("mock: CreateBalance not implemented")
 }
 
-func (s *testBalancesService) ListBalancesByAccountAlias(ctx context.Context, orgID, ledgerID, alias string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error) {
+func (s *testBalancesService) ListBalancesByAccountAlias(ctx context.Context, orgID, ledgerID, alias string, opts models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
 	if s.listBalancesByAccountAliasFn != nil {
 		return s.listBalancesByAccountAliasFn(ctx, orgID, ledgerID, alias, opts)
 	}
@@ -173,7 +174,7 @@ func (s *testBalancesService) ListBalancesByAccountAlias(ctx context.Context, or
 	return nil, errors.New("mock: ListBalancesByAccountAlias not implemented")
 }
 
-func (s *testBalancesService) ListBalancesByExternalCode(ctx context.Context, orgID, ledgerID, code string, opts *models.ListOptions) (*models.ListResponse[models.Balance], error) {
+func (s *testBalancesService) ListBalancesByExternalCode(ctx context.Context, orgID, ledgerID, code string, opts models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
 	if s.listBalancesByExternalCodeFn != nil {
 		return s.listBalancesByExternalCodeFn(ctx, orgID, ledgerID, code, opts)
 	}
@@ -187,7 +188,7 @@ func (*testBalancesService) GetAccountBalancesHistory(context.Context, string, s
 
 // testAccountsService implements entities.AccountsService for testing
 type testAccountsService struct {
-	listAccountsFn              func(ctx context.Context, orgID, ledgerID string, _ *models.ListOptions) (*models.ListResponse[models.Account], error)
+	listAccountsFn              func(ctx context.Context, orgID, ledgerID string, _ models.AccountsListOpts) (*models.ListResponse[models.Account], error)
 	getAccountFn                func(ctx context.Context, orgID, ledgerID, id string) (*models.Account, error)
 	getAccountByAliasFn         func(ctx context.Context, orgID, ledgerID, alias string) (*models.Account, error)
 	createAccountFn             func(ctx context.Context, orgID, ledgerID string, input *models.CreateAccountInput) (*models.Account, error)
@@ -200,7 +201,7 @@ type testAccountsService struct {
 	getAccountByAliasPathFn     func(ctx context.Context, orgID, ledgerID, alias string) (*models.Account, error)
 }
 
-func (s *testAccountsService) ListAccounts(ctx context.Context, orgID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Account], error) {
+func (s *testAccountsService) ListAccounts(ctx context.Context, orgID, ledgerID string, opts models.AccountsListOpts) (*models.ListResponse[models.Account], error) {
 	if s.listAccountsFn != nil {
 		return s.listAccountsFn(ctx, orgID, ledgerID, opts)
 	}
@@ -480,7 +481,7 @@ func TestGenerateLedgerReport_NilAccountsService(t *testing.T) {
 
 func TestGenerateLedgerReport_EmptyLedger(t *testing.T) {
 	mockBalances := &testBalancesService{
-		listBalancesFn: func(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.Balance], error) {
+		listBalancesFn: func(_ context.Context, _, _ string, _ models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
 			return &models.ListResponse[models.Balance]{
 				Items:      []models.Balance{},
 				Pagination: models.Pagination{NextCursor: ""},
@@ -506,7 +507,7 @@ func TestGenerateLedgerReport_SingleBalance(t *testing.T) {
 	balance := createTestBalance("account-1", "USD", 1000, 100)
 
 	mockBalances := &testBalancesService{
-		listBalancesFn: func(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.Balance], error) {
+		listBalancesFn: func(_ context.Context, _, _ string, _ models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
 			return &models.ListResponse[models.Balance]{
 				Items:      []models.Balance{balance},
 				Pagination: models.Pagination{NextCursor: ""},
@@ -549,7 +550,7 @@ func TestGenerateLedgerReport_MultipleBalancesSameAsset(t *testing.T) {
 	}
 
 	mockBalances := &testBalancesService{
-		listBalancesFn: func(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.Balance], error) {
+		listBalancesFn: func(_ context.Context, _, _ string, _ models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
 			return &models.ListResponse[models.Balance]{
 				Items:      balances,
 				Pagination: models.Pagination{NextCursor: ""},
@@ -595,7 +596,7 @@ func TestGenerateLedgerReport_MultipleAssets(t *testing.T) {
 	}
 
 	mockBalances := &testBalancesService{
-		listBalancesFn: func(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.Balance], error) {
+		listBalancesFn: func(_ context.Context, _, _ string, _ models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
 			return &models.ListResponse[models.Balance]{
 				Items:      balances,
 				Pagination: models.Pagination{NextCursor: ""},
@@ -630,7 +631,7 @@ func TestGenerateLedgerReport_ExternalAccount(t *testing.T) {
 	}
 
 	mockBalances := &testBalancesService{
-		listBalancesFn: func(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.Balance], error) {
+		listBalancesFn: func(_ context.Context, _, _ string, _ models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
 			return &models.ListResponse[models.Balance]{
 				Items:      balances,
 				Pagination: models.Pagination{NextCursor: ""},
@@ -676,7 +677,7 @@ func TestGenerateLedgerReport_OverdrawnAccount(t *testing.T) {
 	}
 
 	mockBalances := &testBalancesService{
-		listBalancesFn: func(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.Balance], error) {
+		listBalancesFn: func(_ context.Context, _, _ string, _ models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
 			return &models.ListResponse[models.Balance]{
 				Items:      balances,
 				Pagination: models.Pagination{NextCursor: ""},
@@ -720,7 +721,7 @@ func TestGenerateLedgerReport_AccountWithNoAlias(t *testing.T) {
 	}
 
 	mockBalances := &testBalancesService{
-		listBalancesFn: func(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.Balance], error) {
+		listBalancesFn: func(_ context.Context, _, _ string, _ models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
 			return &models.ListResponse[models.Balance]{
 				Items:      balances,
 				Pagination: models.Pagination{NextCursor: ""},
@@ -754,7 +755,7 @@ func TestGenerateLedgerReport_AccountWithEmptyAlias(t *testing.T) {
 	}
 
 	mockBalances := &testBalancesService{
-		listBalancesFn: func(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.Balance], error) {
+		listBalancesFn: func(_ context.Context, _, _ string, _ models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
 			return &models.ListResponse[models.Balance]{
 				Items:      balances,
 				Pagination: models.Pagination{NextCursor: ""},
@@ -789,7 +790,7 @@ func TestGenerateLedgerReport_AccountWithEmptyAlias(t *testing.T) {
 func TestGenerateLedgerReport_Pagination(t *testing.T) {
 	callCount := 0
 	mockBalances := &testBalancesService{
-		listBalancesFn: func(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.Balance], error) {
+		listBalancesFn: func(_ context.Context, _, _ string, _ models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
 			callCount++
 			if callCount == 1 {
 				return &models.ListResponse[models.Balance]{
@@ -835,7 +836,7 @@ func TestGenerateLedgerReport_Pagination(t *testing.T) {
 
 func TestGenerateLedgerReport_ListBalancesError(t *testing.T) {
 	mockBalances := &testBalancesService{
-		listBalancesFn: func(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.Balance], error) {
+		listBalancesFn: func(_ context.Context, _, _ string, _ models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
 			return nil, errNetworkError
 		},
 	}
@@ -855,7 +856,7 @@ func TestGenerateLedgerReport_ListBalancesError(t *testing.T) {
 
 func TestGenerateLedgerReport_GetAccountError(t *testing.T) {
 	mockBalances := &testBalancesService{
-		listBalancesFn: func(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.Balance], error) {
+		listBalancesFn: func(_ context.Context, _, _ string, _ models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
 			return &models.ListResponse[models.Balance]{
 				Items:      []models.Balance{createTestBalance("account-1", "USD", 1000, 100)},
 				Pagination: models.Pagination{NextCursor: ""},
@@ -890,7 +891,7 @@ func TestGenerateLedgerReport_GetAccountError(t *testing.T) {
 
 func TestGenerateLedgerReport_ContextCancellation(t *testing.T) {
 	mockBalances := &testBalancesService{
-		listBalancesFn: func(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.Balance], error) {
+		listBalancesFn: func(_ context.Context, _, _ string, _ models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
 			return &models.ListResponse[models.Balance]{
 				Items:      []models.Balance{createTestBalance("account-1", "USD", 1000, 100)},
 				Pagination: models.Pagination{NextCursor: ""},
@@ -918,7 +919,7 @@ func TestGenerateLedgerReport_ContextCancellation(t *testing.T) {
 
 func TestGenerateLedgerReport_ContextTimeout(t *testing.T) {
 	mockBalances := &testBalancesService{
-		listBalancesFn: func(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.Balance], error) {
+		listBalancesFn: func(_ context.Context, _, _ string, _ models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
 			return &models.ListResponse[models.Balance]{
 				Items:      []models.Balance{createTestBalance("account-1", "USD", 1000, 100)},
 				Pagination: models.Pagination{NextCursor: ""},
@@ -956,7 +957,7 @@ func TestGenerateLedgerReport_AccountCaching(t *testing.T) {
 	}
 
 	mockBalances := &testBalancesService{
-		listBalancesFn: func(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.Balance], error) {
+		listBalancesFn: func(_ context.Context, _, _ string, _ models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
 			return &models.ListResponse[models.Balance]{
 				Items:      balances,
 				Pagination: models.Pagination{NextCursor: ""},
@@ -1650,7 +1651,7 @@ func TestGenerateLedgerReport_LargeNumberOfBalances(t *testing.T) {
 	}
 
 	mockBalances := &testBalancesService{
-		listBalancesFn: func(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.Balance], error) {
+		listBalancesFn: func(_ context.Context, _, _ string, _ models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
 			return &models.ListResponse[models.Balance]{
 				Items:      balances,
 				Pagination: models.Pagination{NextCursor: ""},
@@ -1687,7 +1688,7 @@ func TestGenerateLedgerReport_VerySmallDecimalBalances(t *testing.T) {
 	}
 
 	mockBalances := &testBalancesService{
-		listBalancesFn: func(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.Balance], error) {
+		listBalancesFn: func(_ context.Context, _, _ string, _ models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
 			return &models.ListResponse[models.Balance]{
 				Items:      []models.Balance{balance},
 				Pagination: models.Pagination{NextCursor: ""},
@@ -1726,7 +1727,7 @@ func TestGenerateLedgerReport_VeryLargeDecimalBalances(t *testing.T) {
 	}
 
 	mockBalances := &testBalancesService{
-		listBalancesFn: func(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.Balance], error) {
+		listBalancesFn: func(_ context.Context, _, _ string, _ models.BalancesListOpts) (*models.ListResponse[models.Balance], error) {
 			return &models.ListResponse[models.Balance]{
 				Items:      []models.Balance{balance},
 				Pagination: models.Pagination{NextCursor: ""},
@@ -1751,4 +1752,132 @@ func TestGenerateLedgerReport_VeryLargeDecimalBalances(t *testing.T) {
 
 	pointsTotals := report.TotalsByAsset["POINTS"]
 	assert.True(t, pointsTotals.TotalAvailable.Equal(largeValue))
+}
+
+func (s *testBalancesService) ListBalancesAll(ctx context.Context, orgID, ledgerID string, opts models.BalancesListOpts) iter.Seq2[models.Balance, error] {
+	return func(yield func(models.Balance, error) bool) {
+		current := opts
+		if current.Page <= 0 {
+			current.Page = 1
+		}
+
+		for {
+			resp, err := s.ListBalances(ctx, orgID, ledgerID, current)
+			if err != nil {
+				yield(models.Balance{}, err)
+				return
+			}
+
+			for _, b := range resp.Items {
+				if !yield(b, nil) {
+					return
+				}
+			}
+
+			if !resp.Pagination.HasMore() {
+				return
+			}
+
+			current.Page++
+		}
+	}
+}
+
+func (s *testBalancesService) ListBalancesPages(ctx context.Context, orgID, ledgerID string, opts models.BalancesListOpts) iter.Seq2[*models.ListResponse[models.Balance], error] {
+	return func(yield func(*models.ListResponse[models.Balance], error) bool) {
+		resp, err := s.ListBalances(ctx, orgID, ledgerID, opts)
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+
+		yield(resp, nil)
+	}
+}
+
+func (s *testBalancesService) ListAccountBalancesAll(ctx context.Context, orgID, ledgerID, accountID string, opts models.BalancesListOpts) iter.Seq2[models.Balance, error] {
+	return func(yield func(models.Balance, error) bool) {
+		resp, err := s.ListAccountBalances(ctx, orgID, ledgerID, accountID, opts)
+		if err != nil {
+			yield(models.Balance{}, err)
+			return
+		}
+		for _, b := range resp.Items {
+			if !yield(b, nil) {
+				return
+			}
+		}
+	}
+}
+
+func (*testBalancesService) ListAccountBalancesPages(_ context.Context, _, _, _ string, _ models.BalancesListOpts) iter.Seq2[*models.ListResponse[models.Balance], error] {
+	return func(_ func(*models.ListResponse[models.Balance], error) bool) {}
+}
+
+func (*testBalancesService) ListBalancesByAccountAliasAll(_ context.Context, _, _, _ string, _ models.BalancesListOpts) iter.Seq2[models.Balance, error] {
+	return func(_ func(models.Balance, error) bool) {}
+}
+
+func (*testBalancesService) ListBalancesByAccountAliasPages(_ context.Context, _, _, _ string, _ models.BalancesListOpts) iter.Seq2[*models.ListResponse[models.Balance], error] {
+	return func(_ func(*models.ListResponse[models.Balance], error) bool) {}
+}
+
+func (*testBalancesService) ListBalancesByExternalCodeAll(_ context.Context, _, _, _ string, _ models.BalancesListOpts) iter.Seq2[models.Balance, error] {
+	return func(_ func(models.Balance, error) bool) {}
+}
+
+func (*testBalancesService) ListBalancesByExternalCodePages(_ context.Context, _, _, _ string, _ models.BalancesListOpts) iter.Seq2[*models.ListResponse[models.Balance], error] {
+	return func(_ func(*models.ListResponse[models.Balance], error) bool) {}
+}
+
+func (*testAccountsService) ListAccountsAll(_ context.Context, _, _ string, _ models.AccountsListOpts) iter.Seq2[models.Account, error] {
+	return func(_ func(models.Account, error) bool) {}
+}
+
+func (*testAccountsService) ListAccountsPages(_ context.Context, _, _ string, _ models.AccountsListOpts) iter.Seq2[*models.ListResponse[models.Account], error] {
+	return func(_ func(*models.ListResponse[models.Account], error) bool) {}
+}
+
+// TestChecker_WithObservability_NilReceiver_DoesNotPanic verifies that the
+// builder methods on Checker accept a nil receiver without panicking. This is
+// defensive against accidental misuse, e.g. chaining onto a NewChecker call
+// that returned nil under future refactors.
+func TestChecker_WithObservability_NilReceiver_DoesNotPanic(t *testing.T) {
+	var c *Checker
+
+	t.Run("WithObservability", func(t *testing.T) {
+		require.NotPanics(t, func() {
+			result := c.WithObservability(newMockObservabilityProvider(true))
+			assert.Nil(t, result)
+		})
+	})
+
+	t.Run("WithAccountLookupDelay", func(t *testing.T) {
+		require.NotPanics(t, func() {
+			result := c.WithAccountLookupDelay(time.Second)
+			assert.Nil(t, result)
+		})
+	})
+
+	t.Run("GenerateLedgerReport", func(t *testing.T) {
+		require.NotPanics(t, func() {
+			report, err := c.GenerateLedgerReport(context.Background(), "org", "ledger")
+			require.Error(t, err)
+			assert.Nil(t, report)
+			assert.Contains(t, err.Error(), "checker is nil")
+		})
+	})
+}
+
+// TestReport_ToSummaryMap_NilReceiver_ReturnsEmpty verifies that calling
+// ToSummaryMap on a nil *Report returns an empty (non-nil) map rather than
+// panicking on r.TotalsByAsset deref.
+func TestReport_ToSummaryMap_NilReceiver_ReturnsEmpty(t *testing.T) {
+	var r *Report
+
+	require.NotPanics(t, func() {
+		out := r.ToSummaryMap()
+		assert.NotNil(t, out)
+		assert.Empty(t, out)
+	})
 }

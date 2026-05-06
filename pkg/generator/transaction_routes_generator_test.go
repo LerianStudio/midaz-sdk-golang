@@ -3,10 +3,11 @@ package generator
 import (
 	"context"
 	"errors"
+	"iter"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,8 +29,16 @@ func (*mockTransactionRoutesService) GetTransactionRoute(_ context.Context, _, _
 	return nil, errors.New("mock: GetTransactionRoute not implemented")
 }
 
-func (*mockTransactionRoutesService) ListTransactionRoutes(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.TransactionRoute], error) {
+func (*mockTransactionRoutesService) ListTransactionRoutes(_ context.Context, _, _ string, _ models.TransactionRoutesListOpts) (*models.ListResponse[models.TransactionRoute], error) {
 	return nil, errors.New("mock: ListTransactionRoutes not implemented")
+}
+
+func (*mockTransactionRoutesService) ListTransactionRoutesAll(_ context.Context, _, _ string, _ models.TransactionRoutesListOpts) iter.Seq2[models.TransactionRoute, error] {
+	return func(_ func(models.TransactionRoute, error) bool) {}
+}
+
+func (*mockTransactionRoutesService) ListTransactionRoutesPages(_ context.Context, _, _ string, _ models.TransactionRoutesListOpts) iter.Seq2[*models.ListResponse[models.TransactionRoute], error] {
+	return func(_ func(*models.ListResponse[models.TransactionRoute], error) bool) {}
 }
 
 func (*mockTransactionRoutesService) UpdateTransactionRoute(_ context.Context, _, _, _ string, _ *models.UpdateTransactionRouteInput) (*models.TransactionRoute, error) {

@@ -1,25 +1,37 @@
 package entities
 
+//go:generate mockgen -source=organizations.go -destination=mocks/mock_organizations.go -package=mocks OrganizationsService
+
 import (
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"iter"
 	"net/http"
-	"os"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
 )
 
 // OrganizationsService defines the interface for organization-related operations.
 // It provides methods to create, read, update, and delete organizations
 // in the Midaz platform.
+//
+// See also:
+//   - [github.com/LerianStudio/midaz-sdk-golang/v3.Client.Organizations] — the production wiring.
+//   - [github.com/LerianStudio/midaz-sdk-golang/v3/entities/mocks.NewMockOrganizationsService] — generated mock for unit tests.
+//   - [github.com/LerianStudio/midaz-sdk-golang/v3/models.OrganizationsListOpts] — typed list-opts.
+//   - examples/01-hello-world — minimal-viable demo (lists organizations).
 type OrganizationsService interface {
-	// ListOrganizations retrieves a paginated list of organizations with optional filters.
-	// The opts parameter can be used to specify pagination, sorting, and filtering options.
-	// Returns a ListResponse containing the organizations and pagination information, or an error if the operation fails.
-	ListOrganizations(ctx context.Context, opts *models.ListOptions) (*models.ListResponse[models.Organization], error)
+	// ListOrganizations retrieves one page of organizations.
+	ListOrganizations(ctx context.Context, opts models.OrganizationsListOpts) (*models.ListResponse[models.Organization], error)
+
+	// ListOrganizationsAll yields every organization, transparently advancing pagination.
+	ListOrganizationsAll(ctx context.Context, opts models.OrganizationsListOpts) iter.Seq2[models.Organization, error]
+
+	// ListOrganizationsPages yields one full *ListResponse[Organization] per page.
+	ListOrganizationsPages(ctx context.Context, opts models.OrganizationsListOpts) iter.Seq2[*models.ListResponse[models.Organization], error]
 
 	// GetOrganization retrieves a specific organization by its ID.
 	// The id parameter is the unique identifier of the organization to retrieve.
@@ -135,66 +147,22 @@ type OrganizationsService interface {
 // organizationsEntity implements the OrganizationsService interface.
 // It handles the communication with the Midaz API for organization-related operations.
 type organizationsEntity struct {
-	httpClient *HTTPClient
-	baseURLs   map[string]string
+	serviceEntity
 }
 
-func (e *organizationsEntity) setDefaultTenantID(tenantID string) {
-	e.httpClient.SetTenantID(tenantID)
+// newOrganizationsEntity wires the OrganizationsService backed by the shared HTTP transport.
+// Internal: invoked by Entity.initServices; callers should reach the service via Client.Organizations.
+func newOrganizationsEntity(client *http.Client, authToken string, baseURLs map[string]string) OrganizationsService {
+	return &organizationsEntity{serviceEntity: newServiceEntity(client, authToken, baseURLs)}
 }
 
-// NewOrganizationsEntity creates a new organizations entity.
-//
-// Parameters:
-//   - httpClient: The HTTP client used for API requests. Can be configured with custom timeouts
-//     and transport options. If nil, a default client will be used.
-//   - authToken: The authentication token for API authorization. Must be a valid JWT token
-//     issued by the Midaz authentication service.
-//   - baseURLs: Map of service names to base URLs. Must include an "onboarding" key with
-//     the URL of the onboarding service (e.g., "https://api.midaz.io/v1").
-//
-// Returns:
-//   - OrganizationsService: An implementation of the OrganizationsService interface that provides
-//     methods for creating, retrieving, updating, and managing organizations.
-//
-// Example:
-//
-//	// Create an organizations entity with default HTTP client
-//	organizationsEntity := entities.NewOrganizationsEntity(
-//	    &http.Client{Timeout: 30 * time.Second},
-//	    "your-auth-token",
-//	    map[string]string{"onboarding": "https://api.midaz.io/v1"},
-//	)
-//
-//	// Use the entity to retrieve organizations
-//	organizations, err := organizationsEntity.ListOrganizations(
-//	    context.Background(),
-//	    nil, // No pagination options
-//	)
-//
-//	if err != nil {
-//	    log.Fatalf("Failed to retrieve organizations: %v", err)
-//	}
-//
-//	fmt.Printf("Retrieved %d organizations\n", len(organizations.Items))
-func NewOrganizationsEntity(client *http.Client, authToken string, baseURLs map[string]string) OrganizationsService {
-	// Create a new HTTP client with the shared implementation
-	httpClient := NewHTTPClient(client, authToken, nil)
-
-	// Check if we're using the debug flag from the environment
-	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
-		httpClient.setDebugLocked(true)
-	}
-
-	return &organizationsEntity{
-		httpClient: httpClient,
-		baseURLs:   prepareServiceBaseURLs(baseURLs),
-	}
-}
-
-// ListOrganizations lists organizations with optional filters.
-func (e *organizationsEntity) ListOrganizations(ctx context.Context, opts *models.ListOptions) (*models.ListResponse[models.Organization], error) {
+// ListOrganizations lists one page of organizations.
+func (e *organizationsEntity) ListOrganizations(ctx context.Context, opts models.OrganizationsListOpts) (*models.ListResponse[models.Organization], error) {
 	const operation = "ListOrganizations"
+
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
 
 	url := e.buildURL("")
 
@@ -203,11 +171,9 @@ func (e *organizationsEntity) ListOrganizations(ctx context.Context, opts *model
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	// Add query parameters if provided
-	if opts != nil {
+	if params := opts.ToQueryParams(); len(params) > 0 {
 		q := req.URL.Query()
-
-		for key, value := range opts.ToQueryParams() {
+		for key, value := range params {
 			q.Add(key, value)
 		}
 
@@ -220,6 +186,46 @@ func (e *organizationsEntity) ListOrganizations(ctx context.Context, opts *model
 	}
 
 	return &response, nil
+}
+
+// ListOrganizationsAll yields every organization, transparently advancing pagination.
+func (e *organizationsEntity) ListOrganizationsAll(ctx context.Context, opts models.OrganizationsListOpts) iter.Seq2[models.Organization, error] {
+	return flattenPages(e.ListOrganizationsPages(ctx, opts))
+}
+
+// ListOrganizationsPages yields one full *ListResponse[Organization] per page.
+func (e *organizationsEntity) ListOrganizationsPages(ctx context.Context, opts models.OrganizationsListOpts) iter.Seq2[*models.ListResponse[models.Organization], error] {
+	ctx = requestContext(ctx)
+
+	return func(yield func(*models.ListResponse[models.Organization], error) bool) {
+		current := opts
+		if current.Page <= 0 {
+			current.Page = 1
+		}
+
+		for {
+			if ctx.Err() != nil {
+				yield(nil, ctx.Err())
+				return
+			}
+
+			page, err := e.ListOrganizations(ctx, current)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			if !yield(page, nil) {
+				return
+			}
+
+			if !page.Pagination.HasMore() {
+				return
+			}
+
+			current.Page++
+		}
+	}
 }
 
 // GetOrganization gets an organization by ID.

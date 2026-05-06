@@ -1,4 +1,4 @@
-package config // import "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/config"
+package config // import "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
 
 Package config provides configuration management for the Midaz SDK.
 
@@ -9,6 +9,7 @@ retries - Feature flags and behavior controls
 It uses the functional options pattern for flexible, type-safe configuration.
 
 const DefaultTimeout = 60 ...
+func NewDefaultHTTPClient(timeout time.Duration) *http.Client
 type Config struct{ ... }
     func DefaultConfig() *Config
     func NewConfig(options ...Option) (*Config, error)
@@ -18,16 +19,16 @@ type Environment string
 type Option func(*Config) error
     func FromEnvironment() Option
     func WithAccessManager(accessManager auth.AccessManager) Option
+    func WithAnonymous() Option
     func WithBaseURL(baseURL string) Option
-    func WithDebug(enable bool) Option
+    func WithCRMURL(crmURL string) Option
+    func WithDebug(enabled bool) Option
     func WithEnvironment(env Environment) Option
     func WithHTTPClient(client *http.Client) Option
-    func WithIdempotency(enable bool) Option
+    func WithIdempotency(enabled bool) Option
     func WithMaxRetries(maxRetries int) Option
     func WithObservabilityProvider(provider observability.Provider) Option
     func WithOnboardingURL(onboardingURL string) Option
-    func WithRetries(enable bool) Option
-    func WithRetryConfig(maxRetries int, minWait, maxWait time.Duration) Option
     func WithRetryWaitMax(waitTime time.Duration) Option
     func WithRetryWaitMin(waitTime time.Duration) Option
     func WithTimeout(timeout time.Duration) Option

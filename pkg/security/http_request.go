@@ -1,4 +1,3 @@
-// Package security provides security-focused validation helpers used by the SDK.
 package security
 
 import (

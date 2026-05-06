@@ -12,38 +12,39 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 
-	auth "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/access-manager"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/version"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/auth"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/version"
 )
 
-// Helper function to disable auth check for tests
-func disableAuthCheck(t *testing.T) func() {
+// disableAuthCheck is a test-only helper that returns an Option which sets
+// the internal skipAuthCheck flag. v3 contract: validateConfig consults the
+// field, never the env directly. The legacy env-driven path still works via
+// FromEnvironment() (verified by TestFromEnvironment_AllVariables and the
+// MIDAZ_SKIP_AUTH_CHECK case below).
+func disableAuthCheck(t *testing.T) Option {
 	t.Helper()
 
-	_ = os.Setenv("MIDAZ_SKIP_AUTH_CHECK", "true")
-
-	return func() {
-		_ = os.Unsetenv("MIDAZ_SKIP_AUTH_CHECK")
+	return func(c *Config) error {
+		c.skipAuthCheck = true
+		return nil
 	}
 }
 
-// Helper function to save and restore environment variables
-func saveEnv(keys []string) (restore func()) {
-	origEnv := make(map[string]string)
-	for _, key := range keys {
-		origEnv[key] = os.Getenv(key)
-	}
+func unsetEnv(t *testing.T, key string) {
+	t.Helper()
 
-	return func() {
-		for key, value := range origEnv {
-			if value == "" {
-				_ = os.Unsetenv(key)
-			} else {
-				_ = os.Setenv(key, value)
-			}
+	value, ok := os.LookupEnv(key)
+	require.NoError(t, os.Unsetenv(key))
+
+	t.Cleanup(func() {
+		if ok {
+			require.NoError(t, os.Setenv(key, value))
+			return
 		}
-	}
+
+		require.NoError(t, os.Unsetenv(key))
+	})
 }
 
 func TestDefaultConstants(t *testing.T) {
@@ -61,7 +62,6 @@ func TestDefaultConstants(t *testing.T) {
 		{"DefaultMinRetryWait", DefaultMinRetryWait, 1 * time.Second},
 		{"DefaultRetryWaitMax", DefaultRetryWaitMax, 30 * time.Second},
 		{"DefaultEnableIdempotency", DefaultEnableIdempotency, true},
-		{"DefaultEnableRetries", DefaultEnableRetries, true},
 	}
 
 	for _, tc := range tests {
@@ -86,10 +86,7 @@ func TestWithCRMURL(t *testing.T) {
 }
 
 func TestConfigureURLsReadsCRMURL(t *testing.T) {
-	restore := saveEnv([]string{"MIDAZ_CRM_URL"})
-	defer restore()
-
-	require.NoError(t, os.Setenv("MIDAZ_CRM_URL", "https://crm.example.com/v1"))
+	t.Setenv("MIDAZ_CRM_URL", "https://crm.example.com/v1")
 
 	cfg := DefaultConfig()
 	require.NoError(t, configureURLs(cfg))
@@ -104,7 +101,7 @@ func TestEnvironmentConstants(t *testing.T) {
 }
 
 func TestNewConfig_Defaults(t *testing.T) {
-	config, err := NewConfig(WithAccessManager(auth.AccessManager{Enabled: false}))
+	config, err := NewConfig(WithAnonymous())
 	require.NoError(t, err)
 
 	assert.Equal(t, EnvironmentLocal, config.Environment)
@@ -113,7 +110,8 @@ func TestNewConfig_Defaults(t *testing.T) {
 	assert.Equal(t, DefaultMaxRetries, config.MaxRetries)
 	assert.Equal(t, DefaultMinRetryWait, config.RetryWaitMin)
 	assert.Equal(t, DefaultRetryWaitMax, config.RetryWaitMax)
-	assert.True(t, config.EnableRetries)
+	// In v3, retries are off iff MaxRetries == 0; default is DefaultMaxRetries (3).
+	assert.Positive(t, config.MaxRetries)
 	assert.True(t, config.EnableIdempotency)
 	assert.False(t, config.Debug)
 	assert.NotNil(t, config.HTTPClient)
@@ -132,8 +130,11 @@ func TestNewConfig_WithAllOptions(t *testing.T) {
 		WithHTTPClient(customClient),
 		WithTimeout(90*time.Second),
 		WithUserAgent("test-agent/1.0"),
-		WithRetryConfig(5, 2*time.Second, 60*time.Second),
-		WithRetries(false),
+		// v3: WithRetryConfig was deleted; chain the 3 individual knobs.
+		// v3: WithRetries(bool) was deleted; retries are off iff MaxRetries == 0.
+		WithMaxRetries(5),
+		WithRetryWaitMin(2*time.Second),
+		WithRetryWaitMax(60*time.Second),
 		WithDebug(true),
 		WithIdempotency(false),
 		WithObservabilityProvider(mockProvider),
@@ -155,7 +156,6 @@ func TestNewConfig_WithAllOptions(t *testing.T) {
 	assert.Equal(t, 5, config.MaxRetries)
 	assert.Equal(t, 2*time.Second, config.RetryWaitMin)
 	assert.Equal(t, 60*time.Second, config.RetryWaitMax)
-	assert.False(t, config.EnableRetries)
 	assert.True(t, config.Debug)
 	assert.False(t, config.EnableIdempotency)
 	assert.Equal(t, mockProvider, config.ObservabilityProvider)
@@ -187,7 +187,7 @@ func TestWithEnvironment_AllEnvironments(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			config, err := NewConfig(
 				WithEnvironment(tc.env),
-				WithAccessManager(auth.AccessManager{Enabled: false}),
+				WithAnonymous(),
 			)
 			require.NoError(t, err)
 			assert.Equal(t, tc.env, config.Environment)
@@ -230,7 +230,7 @@ func TestWithEnvironment_WithBaseURL(t *testing.T) {
 			config, err := NewConfig(
 				WithEnvironment(tc.env),
 				WithBaseURL("https://api.custom.io"),
-				WithAccessManager(auth.AccessManager{Enabled: false}),
+				WithAnonymous(),
 			)
 			require.NoError(t, err)
 			assert.Equal(t, tc.env, config.Environment)
@@ -255,7 +255,7 @@ func TestWithOnboardingURL_Valid(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			config, err := NewConfig(
 				WithOnboardingURL(tc.url),
-				WithAccessManager(auth.AccessManager{Enabled: false}),
+				WithAnonymous(),
 			)
 			require.NoError(t, err)
 			assert.Equal(t, tc.url, config.ServiceURLs[ServiceOnboarding])
@@ -279,7 +279,7 @@ func TestWithOnboardingURL_Invalid(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := NewConfig(
 				WithOnboardingURL(tc.url),
-				WithAccessManager(auth.AccessManager{Enabled: false}),
+				WithAnonymous(),
 			)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tc.expectedErr)
@@ -301,7 +301,7 @@ func TestWithTransactionURL_Valid(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			config, err := NewConfig(
 				WithTransactionURL(tc.url),
-				WithAccessManager(auth.AccessManager{Enabled: false}),
+				WithAnonymous(),
 			)
 			require.NoError(t, err)
 			assert.Equal(t, tc.url, config.ServiceURLs[ServiceTransaction])
@@ -324,7 +324,7 @@ func TestWithTransactionURL_Invalid(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := NewConfig(
 				WithTransactionURL(tc.url),
-				WithAccessManager(auth.AccessManager{Enabled: false}),
+				WithAnonymous(),
 			)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tc.expectedErr)
@@ -336,7 +336,7 @@ func TestWithBaseURL_LocalEnvironment(t *testing.T) {
 	config, err := NewConfig(
 		WithEnvironment(EnvironmentLocal),
 		WithBaseURL("https://custom.example.com"),
-		WithAccessManager(auth.AccessManager{Enabled: false}),
+		WithAnonymous(),
 	)
 	require.NoError(t, err)
 
@@ -376,7 +376,7 @@ func TestWithBaseURL_NonLocalEnvironment(t *testing.T) {
 			config, err := NewConfig(
 				WithEnvironment(tc.env),
 				WithBaseURL(tc.baseURL),
-				WithAccessManager(auth.AccessManager{Enabled: false}),
+				WithAnonymous(),
 			)
 			require.NoError(t, err)
 			assert.Equal(t, tc.expected[ServiceOnboarding], config.ServiceURLs[ServiceOnboarding])
@@ -389,7 +389,7 @@ func TestWithBaseURL_TrailingSlash(t *testing.T) {
 	config, err := NewConfig(
 		WithEnvironment(EnvironmentProduction),
 		WithBaseURL("https://api.example.com/"),
-		WithAccessManager(auth.AccessManager{Enabled: false}),
+		WithAnonymous(),
 	)
 	require.NoError(t, err)
 	assert.Equal(t, "https://api.example.com/v1", config.ServiceURLs[ServiceOnboarding])
@@ -398,7 +398,7 @@ func TestWithBaseURL_TrailingSlash(t *testing.T) {
 func TestWithBaseURL_Invalid(t *testing.T) {
 	_, err := NewConfig(
 		WithBaseURL("invalid-url"),
-		WithAccessManager(auth.AccessManager{Enabled: false}),
+		WithAnonymous(),
 	)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid base URL")
@@ -408,7 +408,7 @@ func TestWithHTTPClient_Valid(t *testing.T) {
 	customClient := &http.Client{Timeout: 120 * time.Second}
 	config, err := NewConfig(
 		WithHTTPClient(customClient),
-		WithAccessManager(auth.AccessManager{Enabled: false}),
+		WithAnonymous(),
 	)
 	require.NoError(t, err)
 	assert.Equal(t, customClient, config.HTTPClient)
@@ -417,7 +417,7 @@ func TestWithHTTPClient_Valid(t *testing.T) {
 func TestWithHTTPClient_Nil(t *testing.T) {
 	_, err := NewConfig(
 		WithHTTPClient(nil),
-		WithAccessManager(auth.AccessManager{Enabled: false}),
+		WithAnonymous(),
 	)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "HTTP client cannot be nil")
@@ -438,7 +438,7 @@ func TestWithTimeout_Valid(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			config, err := NewConfig(
 				WithTimeout(tc.timeout),
-				WithAccessManager(auth.AccessManager{Enabled: false}),
+				WithAnonymous(),
 			)
 			require.NoError(t, err)
 			assert.Equal(t, tc.timeout, config.Timeout)
@@ -459,7 +459,7 @@ func TestWithTimeout_Invalid(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := NewConfig(
 				WithTimeout(tc.timeout),
-				WithAccessManager(auth.AccessManager{Enabled: false}),
+				WithAnonymous(),
 			)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "timeout must be greater than 0")
@@ -470,7 +470,7 @@ func TestWithTimeout_Invalid(t *testing.T) {
 func TestWithUserAgent_Valid(t *testing.T) {
 	config, err := NewConfig(
 		WithUserAgent("custom-agent/2.0"),
-		WithAccessManager(auth.AccessManager{Enabled: false}),
+		WithAnonymous(),
 	)
 	require.NoError(t, err)
 	assert.Equal(t, "custom-agent/2.0", config.UserAgent)
@@ -479,64 +479,16 @@ func TestWithUserAgent_Valid(t *testing.T) {
 func TestWithUserAgent_Empty(t *testing.T) {
 	_, err := NewConfig(
 		WithUserAgent(""),
-		WithAccessManager(auth.AccessManager{Enabled: false}),
+		WithAnonymous(),
 	)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "user agent cannot be empty")
 }
 
-func TestWithRetryConfig_Valid(t *testing.T) {
-	tests := []struct {
-		name       string
-		maxRetries int
-		minWait    time.Duration
-		maxWait    time.Duration
-	}{
-		{"standard config", 3, 1 * time.Second, 30 * time.Second},
-		{"zero retries", 0, 1 * time.Second, 5 * time.Second},
-		{"equal min max", 5, 10 * time.Second, 10 * time.Second},
-		{"large values", 100, 1 * time.Millisecond, 10 * time.Minute},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			config, err := NewConfig(
-				WithRetryConfig(tc.maxRetries, tc.minWait, tc.maxWait),
-				WithAccessManager(auth.AccessManager{Enabled: false}),
-			)
-			require.NoError(t, err)
-			assert.Equal(t, tc.maxRetries, config.MaxRetries)
-			assert.Equal(t, tc.minWait, config.RetryWaitMin)
-			assert.Equal(t, tc.maxWait, config.RetryWaitMax)
-		})
-	}
-}
-
-func TestWithRetryConfig_Invalid(t *testing.T) {
-	tests := []struct {
-		name        string
-		maxRetries  int
-		minWait     time.Duration
-		maxWait     time.Duration
-		expectedErr string
-	}{
-		{"negative retries", -1, 1 * time.Second, 30 * time.Second, "max retries cannot be negative"},
-		{"zero minWait", 3, 0, 30 * time.Second, "minimum wait time must be greater than 0"},
-		{"negative minWait", 3, -1 * time.Second, 30 * time.Second, "minimum wait time must be greater than 0"},
-		{"maxWait less than minWait", 3, 30 * time.Second, 1 * time.Second, "maximum wait time must be greater than or equal"},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			_, err := NewConfig(
-				WithRetryConfig(tc.maxRetries, tc.minWait, tc.maxWait),
-				WithAccessManager(auth.AccessManager{Enabled: false}),
-			)
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), tc.expectedErr)
-		})
-	}
-}
+// TestWithRetryConfig_Valid / _Invalid were deleted in v3 alongside the
+// WithRetryConfig macro. Their coverage is preserved by TestWithMaxRetries_*,
+// TestWithRetryWaitMin_*, and TestWithRetryWaitMax_* which exercise each
+// single-concern Option independently.
 
 func TestWithMaxRetries_Valid(t *testing.T) {
 	tests := []struct {
@@ -553,7 +505,7 @@ func TestWithMaxRetries_Valid(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			config, err := NewConfig(
 				WithMaxRetries(tc.maxRetries),
-				WithAccessManager(auth.AccessManager{Enabled: false}),
+				WithAnonymous(),
 			)
 			require.NoError(t, err)
 			assert.Equal(t, tc.maxRetries, config.MaxRetries)
@@ -564,7 +516,7 @@ func TestWithMaxRetries_Valid(t *testing.T) {
 func TestWithMaxRetries_Invalid(t *testing.T) {
 	_, err := NewConfig(
 		WithMaxRetries(-1),
-		WithAccessManager(auth.AccessManager{Enabled: false}),
+		WithAnonymous(),
 	)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "max retries cannot be negative")
@@ -573,7 +525,7 @@ func TestWithMaxRetries_Invalid(t *testing.T) {
 func TestWithRetryWaitMin_Valid(t *testing.T) {
 	config, err := NewConfig(
 		WithRetryWaitMin(5*time.Second),
-		WithAccessManager(auth.AccessManager{Enabled: false}),
+		WithAnonymous(),
 	)
 	require.NoError(t, err)
 	assert.Equal(t, 5*time.Second, config.RetryWaitMin)
@@ -592,7 +544,7 @@ func TestWithRetryWaitMin_Invalid(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := NewConfig(
 				WithRetryWaitMin(tc.minWait),
-				WithAccessManager(auth.AccessManager{Enabled: false}),
+				WithAnonymous(),
 			)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "minimum wait time must be greater than 0")
@@ -603,7 +555,7 @@ func TestWithRetryWaitMin_Invalid(t *testing.T) {
 func TestWithRetryWaitMax_Valid(t *testing.T) {
 	config, err := NewConfig(
 		WithRetryWaitMax(60*time.Second),
-		WithAccessManager(auth.AccessManager{Enabled: false}),
+		WithAnonymous(),
 	)
 	require.NoError(t, err)
 	assert.Equal(t, 60*time.Second, config.RetryWaitMax)
@@ -625,7 +577,7 @@ func TestWithRetryWaitMax_Invalid(t *testing.T) {
 			_, err := NewConfig(
 				WithRetryWaitMin(tc.minWait),
 				WithRetryWaitMax(tc.maxWait),
-				WithAccessManager(auth.AccessManager{Enabled: false}),
+				WithAnonymous(),
 			)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tc.expectedErr)
@@ -637,32 +589,16 @@ func TestWithRetryWaitMax_LessThanMin(t *testing.T) {
 	_, err := NewConfig(
 		WithRetryWaitMin(30*time.Second),
 		WithRetryWaitMax(10*time.Second),
-		WithAccessManager(auth.AccessManager{Enabled: false}),
+		WithAnonymous(),
 	)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "maximum wait time must be greater than or equal to minimum wait time")
 }
 
-func TestWithRetries_Toggle(t *testing.T) {
-	tests := []struct {
-		name    string
-		enabled bool
-	}{
-		{"enabled", true},
-		{"disabled", false},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			config, err := NewConfig(
-				WithRetries(tc.enabled),
-				WithAccessManager(auth.AccessManager{Enabled: false}),
-			)
-			require.NoError(t, err)
-			assert.Equal(t, tc.enabled, config.EnableRetries)
-		})
-	}
-}
+// TestWithRetries_Toggle was deleted in v3 alongside the WithRetries(bool)
+// Option and the EnableRetries field. The semantic equivalent — "retries are
+// off when MaxRetries == 0" — is exercised by TestWithMaxRetries_Valid which
+// includes a 0-value test case.
 
 func TestWithDebug_Toggle(t *testing.T) {
 	tests := []struct {
@@ -677,7 +613,7 @@ func TestWithDebug_Toggle(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			config, err := NewConfig(
 				WithDebug(tc.enabled),
-				WithAccessManager(auth.AccessManager{Enabled: false}),
+				WithAnonymous(),
 			)
 			require.NoError(t, err)
 			assert.Equal(t, tc.enabled, config.Debug)
@@ -698,7 +634,7 @@ func TestWithIdempotency_Toggle(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			config, err := NewConfig(
 				WithIdempotency(tc.enabled),
-				WithAccessManager(auth.AccessManager{Enabled: false}),
+				WithAnonymous(),
 			)
 			require.NoError(t, err)
 			assert.Equal(t, tc.enabled, config.EnableIdempotency)
@@ -710,7 +646,7 @@ func TestWithObservabilityProvider(t *testing.T) {
 	provider := &mockObservabilityProvider{}
 	config, err := NewConfig(
 		WithObservabilityProvider(provider),
-		WithAccessManager(auth.AccessManager{Enabled: false}),
+		WithAnonymous(),
 	)
 	require.NoError(t, err)
 	assert.Equal(t, provider, config.ObservabilityProvider)
@@ -719,7 +655,7 @@ func TestWithObservabilityProvider(t *testing.T) {
 func TestWithObservabilityProvider_Nil(t *testing.T) {
 	config, err := NewConfig(
 		WithObservabilityProvider(nil),
-		WithAccessManager(auth.AccessManager{Enabled: false}),
+		WithAnonymous(),
 	)
 	require.NoError(t, err)
 	assert.Nil(t, config.ObservabilityProvider)
@@ -733,10 +669,7 @@ func TestWithAccessManager(t *testing.T) {
 		ClientSecret: "secret-456",
 	}
 
-	cleanup := disableAuthCheck(t)
-	defer cleanup()
-
-	config, err := NewConfig(WithAccessManager(accessManager))
+	config, err := NewConfig(disableAuthCheck(t), WithAccessManager(accessManager))
 	require.NoError(t, err)
 
 	assert.True(t, config.AccessManager.Enabled)
@@ -755,10 +688,7 @@ func TestValidateConfig_MissingAuthAddress(t *testing.T) {
 }
 
 func TestValidateConfig_AuthCheckSkipped(t *testing.T) {
-	cleanup := disableAuthCheck(t)
-	defer cleanup()
-
-	config, err := NewConfig(WithAccessManager(auth.AccessManager{
+	config, err := NewConfig(disableAuthCheck(t), WithAccessManager(auth.AccessManager{
 		Enabled: true,
 		Address: "",
 	}))
@@ -767,37 +697,18 @@ func TestValidateConfig_AuthCheckSkipped(t *testing.T) {
 }
 
 func TestFromEnvironment_AllVariables(t *testing.T) {
-	envVars := []string{
-		"MIDAZ_ENVIRONMENT",
-		"PLUGIN_AUTH_ENABLED",
-		"PLUGIN_AUTH_ADDRESS",
-		"MIDAZ_CLIENT_ID",
-		"MIDAZ_CLIENT_SECRET",
-		"MIDAZ_USER_AGENT",
-		"MIDAZ_BASE_URL",
-		"MIDAZ_ONBOARDING_URL",
-		"MIDAZ_TRANSACTION_URL",
-		"MIDAZ_TIMEOUT",
-		"MIDAZ_DEBUG",
-		"MIDAZ_MAX_RETRIES",
-		"MIDAZ_IDEMPOTENCY",
-	}
-
-	restore := saveEnv(envVars)
-	defer restore()
-
-	_ = os.Setenv("MIDAZ_ENVIRONMENT", "development")
-	_ = os.Setenv("PLUGIN_AUTH_ENABLED", "true")
-	_ = os.Setenv("PLUGIN_AUTH_ADDRESS", "http://auth.example.com")
-	_ = os.Setenv("MIDAZ_CLIENT_ID", "env-client-id")
-	_ = os.Setenv("MIDAZ_CLIENT_SECRET", "env-client-secret")
-	_ = os.Setenv("MIDAZ_USER_AGENT", "env-agent/1.0")
-	_ = os.Setenv("MIDAZ_ONBOARDING_URL", "https://env.example.com/onboarding")
-	_ = os.Setenv("MIDAZ_TRANSACTION_URL", "https://env.example.com/transaction")
-	_ = os.Setenv("MIDAZ_TIMEOUT", "45")
-	_ = os.Setenv("MIDAZ_DEBUG", "true")
-	_ = os.Setenv("MIDAZ_MAX_RETRIES", "7")
-	_ = os.Setenv("MIDAZ_IDEMPOTENCY", "false")
+	t.Setenv("MIDAZ_ENVIRONMENT", "development")
+	t.Setenv("PLUGIN_AUTH_ENABLED", "true")
+	t.Setenv("PLUGIN_AUTH_ADDRESS", "http://auth.example.com")
+	t.Setenv("MIDAZ_CLIENT_ID", "env-client-id")
+	t.Setenv("MIDAZ_CLIENT_SECRET", "env-client-secret")
+	t.Setenv("MIDAZ_USER_AGENT", "env-agent/1.0")
+	t.Setenv("MIDAZ_ONBOARDING_URL", "https://env.example.com/onboarding")
+	t.Setenv("MIDAZ_TRANSACTION_URL", "https://env.example.com/transaction")
+	t.Setenv("MIDAZ_TIMEOUT", "45")
+	t.Setenv("MIDAZ_DEBUG", "true")
+	t.Setenv("MIDAZ_MAX_RETRIES", "7")
+	t.Setenv("MIDAZ_IDEMPOTENCY", "false")
 
 	config, err := NewConfig(FromEnvironment())
 	require.NoError(t, err)
@@ -833,17 +744,14 @@ func TestFromEnvironment_PartialVariables(t *testing.T) {
 		"MIDAZ_IDEMPOTENCY",
 	}
 
-	restore := saveEnv(envVars)
-	defer restore()
-
 	for _, key := range envVars {
-		_ = os.Unsetenv(key)
+		unsetEnv(t, key)
 	}
 
-	_ = os.Setenv("MIDAZ_DEBUG", "true")
-	_ = os.Setenv("MIDAZ_TIMEOUT", "90")
+	t.Setenv("MIDAZ_DEBUG", "true")
+	t.Setenv("MIDAZ_TIMEOUT", "90")
 
-	config, err := NewConfig(FromEnvironment())
+	config, err := NewConfig(FromEnvironment(), WithAnonymous())
 	require.NoError(t, err)
 
 	assert.Equal(t, EnvironmentLocal, config.Environment)
@@ -854,10 +762,7 @@ func TestFromEnvironment_PartialVariables(t *testing.T) {
 }
 
 func TestFromEnvironment_InvalidEnvironment(t *testing.T) {
-	restore := saveEnv([]string{"MIDAZ_ENVIRONMENT"})
-	defer restore()
-
-	_ = os.Setenv("MIDAZ_ENVIRONMENT", "invalid-env")
+	t.Setenv("MIDAZ_ENVIRONMENT", "invalid-env")
 
 	_, err := NewConfig(FromEnvironment())
 	require.Error(t, err)
@@ -865,10 +770,7 @@ func TestFromEnvironment_InvalidEnvironment(t *testing.T) {
 }
 
 func TestFromEnvironment_InvalidTimeout(t *testing.T) {
-	restore := saveEnv([]string{"MIDAZ_TIMEOUT"})
-	defer restore()
-
-	_ = os.Setenv("MIDAZ_TIMEOUT", "not-a-number")
+	t.Setenv("MIDAZ_TIMEOUT", "not-a-number")
 
 	_, err := NewConfig(FromEnvironment())
 	require.Error(t, err)
@@ -876,10 +778,7 @@ func TestFromEnvironment_InvalidTimeout(t *testing.T) {
 }
 
 func TestFromEnvironment_InvalidMaxRetries(t *testing.T) {
-	restore := saveEnv([]string{"MIDAZ_MAX_RETRIES"})
-	defer restore()
-
-	_ = os.Setenv("MIDAZ_MAX_RETRIES", "abc")
+	t.Setenv("MIDAZ_MAX_RETRIES", "abc")
 
 	_, err := NewConfig(FromEnvironment())
 	require.Error(t, err)
@@ -887,10 +786,7 @@ func TestFromEnvironment_InvalidMaxRetries(t *testing.T) {
 }
 
 func TestFromEnvironment_InvalidOnboardingURL(t *testing.T) {
-	restore := saveEnv([]string{"MIDAZ_ONBOARDING_URL"})
-	defer restore()
-
-	_ = os.Setenv("MIDAZ_ONBOARDING_URL", "not-a-valid-url")
+	t.Setenv("MIDAZ_ONBOARDING_URL", "not-a-valid-url")
 
 	_, err := NewConfig(FromEnvironment())
 	require.Error(t, err)
@@ -898,10 +794,7 @@ func TestFromEnvironment_InvalidOnboardingURL(t *testing.T) {
 }
 
 func TestFromEnvironment_InvalidTransactionURL(t *testing.T) {
-	restore := saveEnv([]string{"MIDAZ_TRANSACTION_URL"})
-	defer restore()
-
-	_ = os.Setenv("MIDAZ_TRANSACTION_URL", "invalid")
+	t.Setenv("MIDAZ_TRANSACTION_URL", "invalid")
 
 	_, err := NewConfig(FromEnvironment())
 	require.Error(t, err)
@@ -909,10 +802,7 @@ func TestFromEnvironment_InvalidTransactionURL(t *testing.T) {
 }
 
 func TestFromEnvironment_InvalidBaseURL(t *testing.T) {
-	restore := saveEnv([]string{"MIDAZ_BASE_URL"})
-	defer restore()
-
-	_ = os.Setenv("MIDAZ_BASE_URL", "://malformed")
+	t.Setenv("MIDAZ_BASE_URL", "://malformed")
 
 	_, err := NewConfig(FromEnvironment())
 	require.Error(t, err)
@@ -920,17 +810,12 @@ func TestFromEnvironment_InvalidBaseURL(t *testing.T) {
 }
 
 func TestFromEnvironment_BaseURLOverriddenBySpecific(t *testing.T) {
-	envVars := []string{"MIDAZ_BASE_URL", "MIDAZ_ONBOARDING_URL", "MIDAZ_TRANSACTION_URL"}
-
-	restore := saveEnv(envVars)
-	defer restore()
-
 	// Clear transaction URL to test that base URL is used as fallback
-	_ = os.Unsetenv("MIDAZ_TRANSACTION_URL")
-	_ = os.Setenv("MIDAZ_BASE_URL", "https://base.example.com")
-	_ = os.Setenv("MIDAZ_ONBOARDING_URL", "https://specific.example.com/onboarding")
+	unsetEnv(t, "MIDAZ_TRANSACTION_URL")
+	t.Setenv("MIDAZ_BASE_URL", "https://base.example.com")
+	t.Setenv("MIDAZ_ONBOARDING_URL", "https://specific.example.com/onboarding")
 
-	config, err := NewConfig(FromEnvironment())
+	config, err := NewConfig(FromEnvironment(), WithAnonymous())
 	require.NoError(t, err)
 
 	assert.Equal(t, "https://specific.example.com/onboarding", config.ServiceURLs[ServiceOnboarding])
@@ -938,17 +823,17 @@ func TestFromEnvironment_BaseURLOverriddenBySpecific(t *testing.T) {
 }
 
 func TestFromEnvironment_PluginAuthDisabled(t *testing.T) {
-	envVars := []string{"PLUGIN_AUTH_ENABLED", "PLUGIN_AUTH_ADDRESS", "MIDAZ_CLIENT_ID", "MIDAZ_CLIENT_SECRET"}
+	t.Setenv("PLUGIN_AUTH_ENABLED", "false")
+	t.Setenv("PLUGIN_AUTH_ADDRESS", "http://auth.example.com")
+	t.Setenv("MIDAZ_CLIENT_ID", "client-id")
+	t.Setenv("MIDAZ_CLIENT_SECRET", "client-secret")
 
-	restore := saveEnv(envVars)
-	defer restore()
-
-	_ = os.Setenv("PLUGIN_AUTH_ENABLED", "false")
-	_ = os.Setenv("PLUGIN_AUTH_ADDRESS", "http://auth.example.com")
-	_ = os.Setenv("MIDAZ_CLIENT_ID", "client-id")
-	_ = os.Setenv("MIDAZ_CLIENT_SECRET", "client-secret")
-
-	config, err := NewConfig(FromEnvironment())
+	// PLUGIN_AUTH_ENABLED=false leaves the AccessManager fields populated
+	// but Enabled=false, which counts as no active auth source. Add
+	// WithAnonymous to satisfy the auth-required gate; WithAnonymous
+	// preserves the other AccessManager fields so we can still verify
+	// that PLUGIN_AUTH_ADDRESS was captured.
+	config, err := NewConfig(FromEnvironment(), WithAnonymous())
 	require.NoError(t, err)
 
 	assert.False(t, config.AccessManager.Enabled)
@@ -956,12 +841,9 @@ func TestFromEnvironment_PluginAuthDisabled(t *testing.T) {
 }
 
 func TestFromEnvironment_IdempotencyTrue(t *testing.T) {
-	restore := saveEnv([]string{"MIDAZ_IDEMPOTENCY"})
-	defer restore()
+	t.Setenv("MIDAZ_IDEMPOTENCY", "true")
 
-	_ = os.Setenv("MIDAZ_IDEMPOTENCY", "true")
-
-	config, err := NewConfig(FromEnvironment())
+	config, err := NewConfig(FromEnvironment(), WithAnonymous())
 	require.NoError(t, err)
 	assert.True(t, config.EnableIdempotency)
 }
@@ -976,7 +858,8 @@ func TestDefaultConfig(t *testing.T) {
 	assert.Equal(t, DefaultMaxRetries, config.MaxRetries)
 	assert.Equal(t, DefaultMinRetryWait, config.RetryWaitMin)
 	assert.Equal(t, DefaultRetryWaitMax, config.RetryWaitMax)
-	assert.True(t, config.EnableRetries)
+	// In v3, retries are off iff MaxRetries == 0; default is DefaultMaxRetries (3).
+	assert.Positive(t, config.MaxRetries)
 	assert.True(t, config.EnableIdempotency)
 	assert.NotNil(t, config.HTTPClient)
 	assert.NotNil(t, config.ServiceURLs)
@@ -995,18 +878,10 @@ func TestNewLocalConfig(t *testing.T) {
 }
 
 func TestNewLocalConfig_WithEnvVars(t *testing.T) {
-	envVars := []string{"PLUGIN_AUTH_ENABLED", "PLUGIN_AUTH_ADDRESS", "MIDAZ_CLIENT_ID", "MIDAZ_CLIENT_SECRET"}
-
-	restore := saveEnv(envVars)
-	defer restore()
-
-	cleanup := disableAuthCheck(t)
-	defer cleanup()
-
-	_ = os.Setenv("PLUGIN_AUTH_ENABLED", "true")
-	_ = os.Setenv("PLUGIN_AUTH_ADDRESS", "http://auth.local.example.com")
-	_ = os.Setenv("MIDAZ_CLIENT_ID", "local-client")
-	_ = os.Setenv("MIDAZ_CLIENT_SECRET", "local-secret")
+	t.Setenv("PLUGIN_AUTH_ENABLED", "true")
+	t.Setenv("PLUGIN_AUTH_ADDRESS", "http://auth.local.example.com")
+	t.Setenv("MIDAZ_CLIENT_ID", "local-client")
+	t.Setenv("MIDAZ_CLIENT_SECRET", "local-secret")
 
 	config, err := NewLocalConfig()
 	require.NoError(t, err)
@@ -1033,7 +908,7 @@ func TestGetBaseURLs(t *testing.T) {
 	config, err := NewConfig(
 		WithOnboardingURL("https://api.example.com/onboarding"),
 		WithTransactionURL("https://api.example.com/transaction"),
-		WithAccessManager(auth.AccessManager{Enabled: false}),
+		WithAnonymous(),
 	)
 	require.NoError(t, err)
 
@@ -1047,7 +922,7 @@ func TestGetHTTPClient(t *testing.T) {
 	customClient := &http.Client{Timeout: 120 * time.Second}
 	config, err := NewConfig(
 		WithHTTPClient(customClient),
-		WithAccessManager(auth.AccessManager{Enabled: false}),
+		WithAnonymous(),
 	)
 	require.NoError(t, err)
 
@@ -1055,7 +930,7 @@ func TestGetHTTPClient(t *testing.T) {
 }
 
 func TestGetHTTPClient_Default(t *testing.T) {
-	config, err := NewConfig(WithAccessManager(auth.AccessManager{Enabled: false}))
+	config, err := NewConfig(WithAnonymous())
 	require.NoError(t, err)
 
 	client := config.GetHTTPClient()
@@ -1064,10 +939,7 @@ func TestGetHTTPClient_Default(t *testing.T) {
 }
 
 func TestGetPluginAuth(t *testing.T) {
-	cleanup := disableAuthCheck(t)
-	defer cleanup()
-
-	config, err := NewConfig(WithAccessManager(auth.AccessManager{
+	config, err := NewConfig(disableAuthCheck(t), WithAccessManager(auth.AccessManager{
 		Enabled:      true,
 		Address:      "http://auth.example.com",
 		ClientID:     "test-client",
@@ -1084,10 +956,7 @@ func TestGetPluginAuth(t *testing.T) {
 }
 
 func TestGetPluginAuth_ReturnsCopy(t *testing.T) {
-	cleanup := disableAuthCheck(t)
-	defer cleanup()
-
-	config, err := NewConfig(WithAccessManager(auth.AccessManager{
+	config, err := NewConfig(disableAuthCheck(t), WithAccessManager(auth.AccessManager{
 		Enabled:      true,
 		Address:      "http://auth.example.com",
 		ClientID:     "original-client",
@@ -1108,7 +977,7 @@ func TestGetObservabilityProvider(t *testing.T) {
 	provider := &mockObservabilityProvider{}
 	config, err := NewConfig(
 		WithObservabilityProvider(provider),
-		WithAccessManager(auth.AccessManager{Enabled: false}),
+		WithAnonymous(),
 	)
 	require.NoError(t, err)
 
@@ -1116,7 +985,7 @@ func TestGetObservabilityProvider(t *testing.T) {
 }
 
 func TestGetObservabilityProvider_Nil(t *testing.T) {
-	config, err := NewConfig(WithAccessManager(auth.AccessManager{Enabled: false}))
+	config, err := NewConfig(WithAnonymous())
 	require.NoError(t, err)
 
 	assert.Nil(t, config.GetObservabilityProvider())
@@ -1127,7 +996,7 @@ func TestOptionOverrides(t *testing.T) {
 		WithTimeout(30*time.Second),
 		WithTimeout(60*time.Second),
 		WithTimeout(90*time.Second),
-		WithAccessManager(auth.AccessManager{Enabled: false}),
+		WithAnonymous(),
 	)
 	require.NoError(t, err)
 	assert.Equal(t, 90*time.Second, config.Timeout)
@@ -1138,7 +1007,7 @@ func TestOptionOrderMatters(t *testing.T) {
 		WithEnvironment(EnvironmentLocal),
 		WithBaseURL("https://custom.example.com"),
 		WithOnboardingURL("https://specific.example.com/onboarding"),
-		WithAccessManager(auth.AccessManager{Enabled: false}),
+		WithAnonymous(),
 	)
 	require.NoError(t, err)
 
@@ -1326,13 +1195,10 @@ func TestConfigureEnvironment_AllEnvironments(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.envValue, func(t *testing.T) {
-			restore := saveEnv([]string{"MIDAZ_ENVIRONMENT"})
-			defer restore()
-
 			if tc.envValue != "" {
-				_ = os.Setenv("MIDAZ_ENVIRONMENT", tc.envValue)
+				t.Setenv("MIDAZ_ENVIRONMENT", tc.envValue)
 			} else {
-				_ = os.Unsetenv("MIDAZ_ENVIRONMENT")
+				unsetEnv(t, "MIDAZ_ENVIRONMENT")
 			}
 
 			config := &Config{Environment: EnvironmentLocal}
@@ -1385,21 +1251,18 @@ func TestConfigureAccessManager(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			restore := saveEnv([]string{"PLUGIN_AUTH_ENABLED", "PLUGIN_AUTH_ADDRESS", "MIDAZ_CLIENT_ID", "MIDAZ_CLIENT_SECRET"})
-			defer restore()
-
 			if tc.envEnabled != "" {
-				_ = os.Setenv("PLUGIN_AUTH_ENABLED", tc.envEnabled)
+				t.Setenv("PLUGIN_AUTH_ENABLED", tc.envEnabled)
 			} else {
-				_ = os.Unsetenv("PLUGIN_AUTH_ENABLED")
+				unsetEnv(t, "PLUGIN_AUTH_ENABLED")
 			}
 
-			_ = os.Setenv("PLUGIN_AUTH_ADDRESS", tc.envAddress)
-			_ = os.Setenv("MIDAZ_CLIENT_ID", tc.envClientID)
-			_ = os.Setenv("MIDAZ_CLIENT_SECRET", tc.envSecret)
+			t.Setenv("PLUGIN_AUTH_ADDRESS", tc.envAddress)
+			t.Setenv("MIDAZ_CLIENT_ID", tc.envClientID)
+			t.Setenv("MIDAZ_CLIENT_SECRET", tc.envSecret)
 
 			config := &Config{}
-			configureAccessManager(config)
+			require.NoError(t, configureAccessManager(config))
 
 			if tc.envEnabled == "" {
 				assert.Empty(t, config.AccessManager.Address)
@@ -1426,13 +1289,10 @@ func TestConfigureUserAgent(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			restore := saveEnv([]string{"MIDAZ_USER_AGENT"})
-			defer restore()
-
 			if tc.envValue != "" {
-				_ = os.Setenv("MIDAZ_USER_AGENT", tc.envValue)
+				t.Setenv("MIDAZ_USER_AGENT", tc.envValue)
 			} else {
-				_ = os.Unsetenv("MIDAZ_USER_AGENT")
+				unsetEnv(t, "MIDAZ_USER_AGENT")
 			}
 
 			config := &Config{UserAgent: tc.initialValue}
@@ -1462,23 +1322,20 @@ func TestConfigureOptionalSettings(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			restore := saveEnv([]string{"MIDAZ_DEBUG", "MIDAZ_IDEMPOTENCY"})
-			defer restore()
-
 			if tc.debugEnv != "" {
-				_ = os.Setenv("MIDAZ_DEBUG", tc.debugEnv)
+				t.Setenv("MIDAZ_DEBUG", tc.debugEnv)
 			} else {
-				_ = os.Unsetenv("MIDAZ_DEBUG")
+				unsetEnv(t, "MIDAZ_DEBUG")
 			}
 
 			if tc.idempotencyEnv != "" {
-				_ = os.Setenv("MIDAZ_IDEMPOTENCY", tc.idempotencyEnv)
+				t.Setenv("MIDAZ_IDEMPOTENCY", tc.idempotencyEnv)
 			} else {
-				_ = os.Unsetenv("MIDAZ_IDEMPOTENCY")
+				unsetEnv(t, "MIDAZ_IDEMPOTENCY")
 			}
 
 			config := &Config{EnableIdempotency: tc.initialIdempotency}
-			configureOptionalSettings(config)
+			require.NoError(t, configureOptionalSettings(config))
 
 			assert.Equal(t, tc.expectedDebug, config.Debug)
 			assert.Equal(t, tc.expectedIdempotency, config.EnableIdempotency)
@@ -1517,7 +1374,7 @@ func TestValidateConfig_Valid(t *testing.T) {
 			ServiceTransaction: "https://api.example.com/transaction",
 			ServiceCRM:         "https://api.example.com/crm",
 		},
-		AccessManager: auth.AccessManager{Enabled: false},
+		Anonymous: true,
 	}
 
 	err := validateConfig(config)
@@ -1530,7 +1387,9 @@ func TestValidateConfig_CRMURLIsOptional(t *testing.T) {
 			ServiceOnboarding:  "https://api.example.com/onboarding",
 			ServiceTransaction: "https://api.example.com/transaction",
 		},
-		AccessManager: auth.AccessManager{Enabled: false},
+		// Anonymous=true is the v3-canonical way to assert no-auth at
+		// validation time without going through the option chain.
+		Anonymous: true,
 	}
 
 	err := validateConfig(config)
@@ -1585,75 +1444,43 @@ func TestWithTransactionURL_InitializesServiceURLsMap(t *testing.T) {
 	assert.Equal(t, "https://api.example.com/transaction", config.ServiceURLs[ServiceTransaction])
 }
 
-func TestConfigWithTenantID(t *testing.T) {
-	tests := []struct {
-		name     string
-		tenantID string
-		expected string
-	}{
-		{
-			name:     "sets tenant ID",
-			tenantID: "my-tenant-123",
-			expected: "my-tenant-123",
-		},
-		{
-			name:     "empty tenant ID is accepted",
-			tenantID: "",
-			expected: "",
-		},
-		{
-			name:     "UUID-style tenant ID",
-			tenantID: "550e8400-e29b-41d4-a716-446655440000",
-			expected: "550e8400-e29b-41d4-a716-446655440000",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			cfg, err := NewConfig(
-				WithTenantID(tc.tenantID),
-				WithAccessManager(auth.AccessManager{Enabled: false}),
-			)
-			require.NoError(t, err)
-			assert.Equal(t, tc.expected, cfg.TenantID)
-		})
-	}
-}
-
-func TestConfigTenantIDIgnoresEnv(t *testing.T) {
+// TestConfigTenantIDFromEnv asserts the v3 contract: MIDAZ_TENANT_ID is read
+// only when FromEnvironment() is in the option chain. Track 2 added this read
+// to FromEnvironment per the explicit-opt-in principle (see Track 3 close).
+func TestConfigTenantIDFromEnv(t *testing.T) {
 	tests := []struct {
 		name     string
 		envValue string
 		expected string
 	}{
 		{
-			name:     "ignores MIDAZ_TENANT_ID from environment",
+			name:     "MIDAZ_TENANT_ID populates TenantID via FromEnvironment",
 			envValue: "env-tenant-456",
-			expected: "",
+			expected: "env-tenant-456",
 		},
 		{
 			name:     "empty env var leaves TenantID unset",
 			envValue: "",
 			expected: "",
 		},
+		{
+			name:     "whitespace-only env var leaves TenantID unset",
+			envValue: "   ",
+			expected: "",
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Use t.Setenv which automatically cleans up after the test
 			if tc.envValue != "" {
 				t.Setenv("MIDAZ_TENANT_ID", tc.envValue)
 			} else {
-				// Ensure the env var is not set from a previous test
-				restore := saveEnv([]string{"MIDAZ_TENANT_ID"})
-				defer restore()
-
-				_ = os.Unsetenv("MIDAZ_TENANT_ID")
+				unsetEnv(t, "MIDAZ_TENANT_ID")
 			}
 
 			cfg, err := NewConfig(
 				FromEnvironment(),
-				WithAccessManager(auth.AccessManager{Enabled: false}),
+				WithAnonymous(),
 			)
 			require.NoError(t, err)
 			assert.Equal(t, tc.expected, cfg.TenantID)
@@ -1661,18 +1488,23 @@ func TestConfigTenantIDIgnoresEnv(t *testing.T) {
 	}
 }
 
-func TestConfigTenantIDOptionWinsOverEnv(t *testing.T) {
-	// Environment defaults are intentionally ignored; explicit options remain supported.
+// TestConfigTenantIDDirectAssignmentWinsOverEnv asserts that direct
+// post-FromEnvironment mutation of Config.TenantID wins over the env var.
+// In v3, pkg/config.WithTenantID was deleted — programmatic callers either
+// (a) use midaz.WithTenantID at the client level, or (b) mutate
+// Config.TenantID directly on a config they own. This test exercises (b).
+func TestConfigTenantIDDirectAssignmentWinsOverEnv(t *testing.T) {
 	t.Setenv("MIDAZ_TENANT_ID", "env-tenant")
 
 	cfg, err := NewConfig(
 		FromEnvironment(),
-		WithTenantID("option-tenant"),
-		WithAccessManager(auth.AccessManager{Enabled: false}),
+		WithAnonymous(),
 	)
 	require.NoError(t, err)
+	assert.Equal(t, "env-tenant", cfg.TenantID)
 
-	assert.Equal(t, "option-tenant", cfg.TenantID)
+	cfg.TenantID = "direct-tenant"
+	assert.Equal(t, "direct-tenant", cfg.TenantID)
 }
 
 func TestDefaultConfigHasEmptyTenantID(t *testing.T) {

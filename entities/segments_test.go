@@ -13,9 +13,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/performance"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/performance"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -44,7 +44,7 @@ func newMockSegmentsHTTPClientAdapter(mock *MockHTTPClient) *HTTPClient {
 	}
 }
 
-func TestNewSegmentsEntity(t *testing.T) {
+func Test_newSegmentsEntity(t *testing.T) {
 	tests := []struct {
 		name      string
 		client    *http.Client
@@ -82,7 +82,7 @@ func TestNewSegmentsEntity(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			service := NewSegmentsEntity(tt.client, tt.authToken, tt.baseURLs)
+			service := newSegmentsEntity(tt.client, tt.authToken, tt.baseURLs)
 			require.NotNil(t, service)
 
 			entity, ok := service.(*segmentsEntity)
@@ -94,9 +94,7 @@ func TestNewSegmentsEntity(t *testing.T) {
 }
 
 func TestSegmentsEntity_buildURL(t *testing.T) {
-	entity := &segmentsEntity{
-		baseURLs: map[string]string{"onboarding": "https://api.example.com"},
-	}
+	entity := &segmentsEntity{serviceEntity: serviceEntity{baseURLs: map[string]string{"onboarding": "https://api.example.com"}}}
 
 	tests := []struct {
 		name        string
@@ -137,9 +135,7 @@ func TestSegmentsEntity_buildURL(t *testing.T) {
 }
 
 func TestSegmentsEntity_buildMetricsURL(t *testing.T) {
-	entity := &segmentsEntity{
-		baseURLs: map[string]string{"onboarding": "https://api.example.com"},
-	}
+	entity := &segmentsEntity{serviceEntity: serviceEntity{baseURLs: map[string]string{"onboarding": "https://api.example.com"}}}
 
 	tests := []struct {
 		name        string
@@ -174,7 +170,7 @@ func TestSegmentsEntity_ListSegments(t *testing.T) {
 		name           string
 		orgID          string
 		ledgerID       string
-		opts           *models.ListOptions
+		opts           models.SegmentsListOpts
 		mockResponse   string
 		mockStatusCode int
 		mockError      error
@@ -186,7 +182,7 @@ func TestSegmentsEntity_ListSegments(t *testing.T) {
 			name:     "success with no options",
 			orgID:    testOrgID,
 			ledgerID: testLedgerID,
-			opts:     nil,
+			opts:     models.SegmentsListOpts{},
 			mockResponse: `{
 				"items": [
 					{"id": "seg-1", "name": "Segment 1", "organizationId": "org-123", "ledgerId": "ledger-456", "status": {"code": "ACTIVE"}},
@@ -201,9 +197,8 @@ func TestSegmentsEntity_ListSegments(t *testing.T) {
 			name:     "success with pagination options",
 			orgID:    testOrgID,
 			ledgerID: testLedgerID,
-			opts: &models.ListOptions{
-				Limit:  5,
-				Offset: 10,
+			opts: models.SegmentsListOpts{
+				PageListOpts: models.PageListOpts{Limit: 5, Page: 3},
 			},
 			mockResponse: `{
 				"items": [
@@ -218,11 +213,12 @@ func TestSegmentsEntity_ListSegments(t *testing.T) {
 			name:     "success with sorting and filtering",
 			orgID:    testOrgID,
 			ledgerID: testLedgerID,
-			opts: &models.ListOptions{
-				Limit:          10,
-				OrderBy:        "name",
-				OrderDirection: "asc",
-				Filters:        map[string]string{"status": "ACTIVE"},
+			opts: models.SegmentsListOpts{
+				PageListOpts: models.PageListOpts{
+					Limit:         10,
+					SortDirection: models.SortAscending,
+				},
+				Filters: models.SegmentsFilters{Status: "ACTIVE"},
 			},
 			mockResponse: `{
 				"items": [
@@ -314,10 +310,7 @@ func TestSegmentsEntity_ListSegments(t *testing.T) {
 				},
 			}
 
-			entity := &segmentsEntity{
-				httpClient: newMockSegmentsHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"onboarding": "https://api.example.com"},
-			}
+			entity := &segmentsEntity{serviceEntity: serviceEntity{httpClient: newMockSegmentsHTTPClientAdapter(mockClient), baseURLs: map[string]string{"onboarding": "https://api.example.com"}}}
 
 			result, err := entity.ListSegments(context.Background(), tt.orgID, tt.ledgerID, tt.opts)
 
@@ -355,17 +348,15 @@ func TestSegmentsEntity_ListSegments_QueryParams(t *testing.T) {
 		},
 	}
 
-	entity := &segmentsEntity{
-		httpClient: newMockSegmentsHTTPClientAdapter(mockClient),
-		baseURLs:   map[string]string{"onboarding": "https://api.example.com"},
-	}
+	entity := &segmentsEntity{serviceEntity: serviceEntity{httpClient: newMockSegmentsHTTPClientAdapter(mockClient), baseURLs: map[string]string{"onboarding": "https://api.example.com"}}}
 
-	opts := &models.ListOptions{
-		Limit:          20,
-		Offset:         40,
-		OrderBy:        "createdAt",
-		OrderDirection: "desc",
-		Filters:        map[string]string{"status": "ACTIVE"},
+	opts := models.SegmentsListOpts{
+		PageListOpts: models.PageListOpts{
+			Limit:         20,
+			Page:          3,
+			SortDirection: models.SortDescending,
+		},
+		Filters: models.SegmentsFilters{Status: "ACTIVE"},
 	}
 
 	_, err := entity.ListSegments(context.Background(), testOrgID, testLedgerID, opts)
@@ -512,10 +503,7 @@ func TestSegmentsEntity_GetSegment(t *testing.T) {
 				},
 			}
 
-			entity := &segmentsEntity{
-				httpClient: newMockSegmentsHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"onboarding": "https://api.example.com"},
-			}
+			entity := &segmentsEntity{serviceEntity: serviceEntity{httpClient: newMockSegmentsHTTPClientAdapter(mockClient), baseURLs: map[string]string{"onboarding": "https://api.example.com"}}}
 
 			result, err := entity.GetSegment(context.Background(), tt.orgID, tt.ledgerID, tt.segmentID)
 
@@ -712,10 +700,7 @@ func createSegmentEntityWithMock(t *testing.T, mockError error, statusCode int, 
 		},
 	}
 
-	return &segmentsEntity{
-		httpClient: newMockSegmentsHTTPClientAdapter(mockClient),
-		baseURLs:   map[string]string{"onboarding": "https://api.example.com"},
-	}
+	return &segmentsEntity{serviceEntity: serviceEntity{httpClient: newMockSegmentsHTTPClientAdapter(mockClient), baseURLs: map[string]string{"onboarding": "https://api.example.com"}}}
 }
 
 // assertSegmentResult validates the result and error from segment operations
@@ -933,10 +918,7 @@ func TestSegmentsEntity_UpdateSegment(t *testing.T) {
 				},
 			}
 
-			entity := &segmentsEntity{
-				httpClient: newMockSegmentsHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"onboarding": "https://api.example.com"},
-			}
+			entity := &segmentsEntity{serviceEntity: serviceEntity{httpClient: newMockSegmentsHTTPClientAdapter(mockClient), baseURLs: map[string]string{"onboarding": "https://api.example.com"}}}
 
 			result, err := entity.UpdateSegment(context.Background(), tt.orgID, tt.ledgerID, tt.segmentID, tt.input)
 
@@ -1087,10 +1069,7 @@ func TestSegmentsEntity_DeleteSegment(t *testing.T) {
 				},
 			}
 
-			entity := &segmentsEntity{
-				httpClient: newMockSegmentsHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"onboarding": "https://api.example.com"},
-			}
+			entity := &segmentsEntity{serviceEntity: serviceEntity{httpClient: newMockSegmentsHTTPClientAdapter(mockClient), baseURLs: map[string]string{"onboarding": "https://api.example.com"}}}
 
 			err := entity.DeleteSegment(context.Background(), tt.orgID, tt.ledgerID, tt.segmentID)
 
@@ -1197,10 +1176,7 @@ func TestSegmentsEntity_GetSegmentsMetricsCount(t *testing.T) {
 				},
 			}
 
-			entity := &segmentsEntity{
-				httpClient: newMockSegmentsHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"onboarding": "https://api.example.com"},
-			}
+			entity := &segmentsEntity{serviceEntity: serviceEntity{httpClient: newMockSegmentsHTTPClientAdapter(mockClient), baseURLs: map[string]string{"onboarding": "https://api.example.com"}}}
 
 			result, err := entity.GetSegmentsMetricsCount(context.Background(), tt.orgID, tt.ledgerID)
 
@@ -1223,17 +1199,14 @@ func TestSegmentsEntity_GetSegmentsMetricsCount(t *testing.T) {
 
 // newValidationTestEntity creates a segment entity for validation testing
 func newValidationTestEntity() *segmentsEntity {
-	return &segmentsEntity{
-		httpClient: newMockSegmentsHTTPClientAdapter(&MockHTTPClient{
-			DoFunc: func(_ *http.Request) (*http.Response, error) {
-				return &http.Response{
-					StatusCode: http.StatusOK,
-					Body:       io.NopCloser(strings.NewReader(`{}`)),
-				}, nil
-			},
-		}),
-		baseURLs: map[string]string{"onboarding": "https://api.example.com"},
-	}
+	return &segmentsEntity{serviceEntity: serviceEntity{httpClient: newMockSegmentsHTTPClientAdapter(&MockHTTPClient{
+		DoFunc: func(_ *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{}`)),
+			}, nil
+		},
+	}), baseURLs: map[string]string{"onboarding": "https://api.example.com"}}}
 }
 
 func TestSegmentsEntity_ValidationEdgeCases_ListSegments(t *testing.T) {
@@ -1253,7 +1226,7 @@ func TestSegmentsEntity_ValidationEdgeCases_ListSegments(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := entity.ListSegments(ctx, tc.orgID, tc.ledgerID, nil)
+			_, err := entity.ListSegments(ctx, tc.orgID, tc.ledgerID, models.SegmentsListOpts{})
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tc.errorContains)
 		})
@@ -1404,11 +1377,11 @@ func TestSegmentsEntity_IntegrationWithHTTPTestServer(t *testing.T) {
 		}))
 		defer server.Close()
 
-		entity := NewSegmentsEntity(server.Client(), "test-token", map[string]string{
+		entity := newSegmentsEntity(server.Client(), "test-token", map[string]string{
 			"onboarding": server.URL,
 		})
 
-		result, err := entity.ListSegments(context.Background(), "org-123", "ledger-456", nil)
+		result, err := entity.ListSegments(context.Background(), "org-123", "ledger-456", models.SegmentsListOpts{})
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.Len(t, result.Items, 2)
@@ -1434,7 +1407,7 @@ func TestSegmentsEntity_IntegrationWithHTTPTestServer(t *testing.T) {
 		}))
 		defer server.Close()
 
-		entity := NewSegmentsEntity(server.Client(), "test-token", map[string]string{
+		entity := newSegmentsEntity(server.Client(), "test-token", map[string]string{
 			"onboarding": server.URL,
 		})
 
@@ -1473,7 +1446,7 @@ func TestSegmentsEntity_IntegrationWithHTTPTestServer(t *testing.T) {
 		}))
 		defer server.Close()
 
-		entity := NewSegmentsEntity(server.Client(), "test-token", map[string]string{
+		entity := newSegmentsEntity(server.Client(), "test-token", map[string]string{
 			"onboarding": server.URL,
 		})
 
@@ -1502,7 +1475,7 @@ func TestSegmentsEntity_IntegrationWithHTTPTestServer(t *testing.T) {
 		}))
 		defer server.Close()
 
-		entity := NewSegmentsEntity(server.Client(), "test-token", map[string]string{
+		entity := newSegmentsEntity(server.Client(), "test-token", map[string]string{
 			"onboarding": server.URL,
 		})
 
@@ -1522,7 +1495,7 @@ func TestSegmentsEntity_IntegrationWithHTTPTestServer(t *testing.T) {
 		}))
 		defer server.Close()
 
-		entity := NewSegmentsEntity(server.Client(), "test-token", map[string]string{
+		entity := newSegmentsEntity(server.Client(), "test-token", map[string]string{
 			"onboarding": server.URL,
 		})
 
@@ -1549,7 +1522,7 @@ func TestSegmentsEntity_IntegrationWithHTTPTestServer(t *testing.T) {
 				}))
 				defer server.Close()
 
-				entity := NewSegmentsEntity(server.Client(), "test-token", map[string]string{
+				entity := newSegmentsEntity(server.Client(), "test-token", map[string]string{
 					"onboarding": server.URL,
 				})
 
@@ -1568,7 +1541,7 @@ func TestSegmentsEntity_ContextCancellation(t *testing.T) {
 	}))
 	defer server.Close()
 
-	entity := NewSegmentsEntity(server.Client(), "test-token", map[string]string{
+	entity := newSegmentsEntity(server.Client(), "test-token", map[string]string{
 		"onboarding": server.URL,
 	})
 
@@ -1600,14 +1573,14 @@ func TestSegmentsEntity_RequestURLConstruction(t *testing.T) {
 	}))
 	defer server.Close()
 
-	entity := NewSegmentsEntity(server.Client(), "test-token", map[string]string{
+	entity := newSegmentsEntity(server.Client(), "test-token", map[string]string{
 		"onboarding": server.URL,
 	})
 
 	ctx := context.Background()
 
 	// Test ListSegments URL
-	_, _ = entity.ListSegments(ctx, "org-abc", "ledger-xyz", nil)
+	_, _ = entity.ListSegments(ctx, "org-abc", "ledger-xyz", models.SegmentsListOpts{})
 
 	require.Len(t, capturedRequests, 1)
 	assert.Equal(t, http.MethodGet, capturedRequests[0].Method)
@@ -1615,9 +1588,8 @@ func TestSegmentsEntity_RequestURLConstruction(t *testing.T) {
 
 	// Reset and test with options
 	capturedRequests = nil
-	_, _ = entity.ListSegments(ctx, "org-123", "ledger-456", &models.ListOptions{
-		Limit:  25,
-		Offset: 50,
+	_, _ = entity.ListSegments(ctx, "org-123", "ledger-456", models.SegmentsListOpts{
+		PageListOpts: models.PageListOpts{Limit: 25, Page: 3},
 	})
 
 	require.Len(t, capturedRequests, 1)
@@ -1652,7 +1624,7 @@ func TestSegmentsEntity_ResponseParsing(t *testing.T) {
 		}))
 		defer server.Close()
 
-		entity := NewSegmentsEntity(server.Client(), "test-token", map[string]string{
+		entity := newSegmentsEntity(server.Client(), "test-token", map[string]string{
 			"onboarding": server.URL,
 		})
 
@@ -1669,7 +1641,7 @@ func TestSegmentsEntity_ResponseParsing(t *testing.T) {
 		// Verify metadata
 		require.NotNil(t, result.Metadata)
 		assert.Equal(t, "stringValue", result.Metadata["stringKey"])
-		assert.InDelta(t, float64(42), result.Metadata["numberKey"], 0.001)
+		assert.Equal(t, json.Number("42"), result.Metadata["numberKey"])
 		assert.Equal(t, true, result.Metadata["boolKey"])
 	})
 
@@ -1685,7 +1657,7 @@ func TestSegmentsEntity_ResponseParsing(t *testing.T) {
 		}))
 		defer server.Close()
 
-		entity := NewSegmentsEntity(server.Client(), "test-token", map[string]string{
+		entity := newSegmentsEntity(server.Client(), "test-token", map[string]string{
 			"onboarding": server.URL,
 		})
 
@@ -1717,11 +1689,11 @@ func TestSegmentsEntity_ResponseParsing(t *testing.T) {
 		}))
 		defer server.Close()
 
-		entity := NewSegmentsEntity(server.Client(), "test-token", map[string]string{
+		entity := newSegmentsEntity(server.Client(), "test-token", map[string]string{
 			"onboarding": server.URL,
 		})
 
-		result, err := entity.ListSegments(context.Background(), "org-123", "ledger-456", nil)
+		result, err := entity.ListSegments(context.Background(), "org-123", "ledger-456", models.SegmentsListOpts{})
 		require.NoError(t, err)
 		require.NotNil(t, result)
 
@@ -1744,7 +1716,7 @@ func TestSegmentsEntity_ConcurrentRequests(t *testing.T) {
 	}))
 	defer server.Close()
 
-	entity := NewSegmentsEntity(server.Client(), "test-token", map[string]string{
+	entity := newSegmentsEntity(server.Client(), "test-token", map[string]string{
 		"onboarding": server.URL,
 	})
 

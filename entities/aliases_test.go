@@ -7,7 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -33,7 +34,7 @@ func TestAliasesEntity_CreateAlias_RequestConstruction(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := NewAliasesEntity(server.Client(), "token", map[string]string{"crm": server.URL}).(*aliasesEntity)
+	service := newAliasesEntity(server.Client(), map[string]string{"crm": server.URL}).(*aliasesEntity)
 	alias, err := service.CreateAlias(context.Background(), crmOrgID, crmHolderID, &models.CreateAliasInput{LedgerID: "ledger-123", AccountID: "account-123"})
 
 	require.NoError(t, err)
@@ -64,7 +65,7 @@ func TestAliasesEntity_UpdateAlias_OmitsNilFields(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := NewAliasesEntity(server.Client(), "token", map[string]string{"crm": server.URL}).(*aliasesEntity)
+	service := newAliasesEntity(server.Client(), map[string]string{"crm": server.URL}).(*aliasesEntity)
 	alias, err := service.UpdateAlias(context.Background(), crmOrgID, crmHolderID, crmAliasID, &models.UpdateAliasInput{Metadata: map[string]any{"risk": "low"}})
 
 	require.NoError(t, err)
@@ -73,7 +74,7 @@ func TestAliasesEntity_UpdateAlias_OmitsNilFields(t *testing.T) {
 }
 
 func TestAliasesEntity_ValidationErrors(t *testing.T) {
-	service := NewAliasesEntity(http.DefaultClient, "token", map[string]string{"crm": "https://crm.example.com/v1"}).(*aliasesEntity)
+	service := newAliasesEntity(http.DefaultClient, map[string]string{"crm": "https://crm.example.com/v1"}).(*aliasesEntity)
 
 	_, err := service.CreateAlias(context.Background(), crmOrgID, crmHolderID, &models.CreateAliasInput{AccountID: "account-123"})
 	require.Error(t, err)
@@ -85,7 +86,7 @@ func TestAliasesEntity_ValidationErrors(t *testing.T) {
 }
 
 func TestAliasesEntity_DeleteRelatedParty_EscapesAllIDs(t *testing.T) {
-	entity := &aliasesEntity{baseURLs: map[string]string{"crm": "https://crm.example.com/v1"}}
+	entity := &aliasesEntity{serviceEntity: serviceEntity{baseURLs: map[string]string{"crm": "https://crm.example.com/v1"}}}
 	endpoint := entity.aliasURL("holder/1", "alias/2")
 
 	assert.Equal(t, "https://crm.example.com/v1/holders/holder%2F1/aliases/alias%2F2", endpoint)
@@ -118,18 +119,22 @@ func TestAliasesEntity_ListGetDelete_RequestConstruction(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := NewAliasesEntity(server.Client(), "token", map[string]string{"crm": server.URL}).(*aliasesEntity)
-	list, err := service.ListAliases(context.Background(), crmOrgID, models.NewListOptions().WithHolderID(crmHolderID))
+	service := newAliasesEntity(server.Client(), map[string]string{"crm": server.URL}).(*aliasesEntity)
+	list, err := service.ListAliases(context.Background(), crmOrgID, models.AliasesListOpts{
+		Filters: models.AliasesFilters{HolderID: crmHolderID},
+	})
 	require.NoError(t, err)
 	require.Len(t, list.Items, 1)
 	assert.Equal(t, 10, list.Pagination.Limit)
 	assert.Equal(t, 1, list.Pagination.Page)
 	assert.Equal(t, 1, list.Pagination.ItemCount)
 
-	alias, err := service.GetAlias(context.Background(), crmOrgID, crmHolderID, crmAliasID, true)
+	getCtx := sdkctx.WithIncludeDeleted(context.Background(), true)
+	alias, err := service.GetAlias(getCtx, crmOrgID, crmHolderID, crmAliasID)
 	require.NoError(t, err)
 	assert.Equal(t, "ledger-123", *alias.LedgerID)
 
-	require.NoError(t, service.DeleteAlias(context.Background(), crmOrgID, crmHolderID, crmAliasID, true))
+	deleteCtx := sdkctx.WithHardDelete(context.Background(), true)
+	require.NoError(t, service.DeleteAlias(deleteCtx, crmOrgID, crmHolderID, crmAliasID))
 	require.NoError(t, service.DeleteRelatedParty(context.Background(), crmOrgID, crmHolderID, crmAliasID, crmRelatedPartyID))
 }

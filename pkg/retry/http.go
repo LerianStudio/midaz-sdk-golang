@@ -1,5 +1,3 @@
-// Package retry provides utilities for implementing retry logic with exponential backoff,
-// including specialized support for HTTP requests.
 package retry
 
 import (
@@ -12,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/security"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/security"
 )
 
 const maxHTTPResponseBodyBytes int64 = 10 << 20
@@ -290,18 +288,6 @@ func WithHTTPHighReliability() HTTPOption {
 	}
 }
 
-// WithHTTPNoRetry returns an HTTPOption that disables retries for HTTP requests.
-//
-// Example:
-//
-//	resp, err := retry.DoHTTPRequest(ctx, client, req, retry.WithHTTPNoRetry())
-func WithHTTPNoRetry() HTTPOption {
-	return func(o *HTTPOptions) error {
-		o.MaxRetries = 0
-		return nil
-	}
-}
-
 // DoHTTPRequest performs an HTTP request with retries.
 // It handles connection errors, HTTP status codes, and reading the response body.
 //
@@ -431,8 +417,13 @@ func (r *httpRetryState) executeWithRetries(req *http.Request) (*HTTPResponse, e
 }
 
 // checkContextCancellation checks if the context is cancelled.
+//
+// The attempt parameter is kept on the signature for future structured
+// logging integration; today the per-attempt observability hook is wired
+// into doWithOptions (see retry.WithAttemptHook), and DoHTTPRequest's
+// path inherits hook semantics through the same context plumbing.
 func (r *httpRetryState) checkContextCancellation(attempt int) error {
-	_ = attempt // Parameter reserved for future retry attempt logging
+	_ = attempt
 
 	if r.ctx.Err() != nil {
 		return fmt.Errorf("operation cancelled: %w", r.ctx.Err())
@@ -667,6 +658,13 @@ func (r *httpRetryState) waitForRetry(attempt int) error {
 		BackoffFactor: r.options.BackoffFactor,
 	})
 	delay = addJitter(delay, r.options.JitterFactor)
+
+	// Invoke the per-attempt hook (if any) BEFORE the timer fires so that
+	// log lines reflect the imminent retry. r.lastErr captures the cause
+	// recorded by handleConnectionError or handleErrorResponse.
+	if hook := attemptHookFromContext(r.ctx); hook != nil {
+		hook(r.ctx, attempt+1, r.lastErr, delay)
+	}
 
 	// Use time.NewTimer instead of time.After to allow proper cleanup
 	// and avoid potential timer leaks when context is cancelled

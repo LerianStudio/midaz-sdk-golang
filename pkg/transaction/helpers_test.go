@@ -1,9 +1,11 @@
 package transaction
 
 import (
+	"context"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -23,10 +25,10 @@ func TestFormatAmount(t *testing.T) {
 			expected: "1000",
 		},
 		{
-			name:     "scale 2 whole number strips trailing zeros",
+			name:     "scale 2 whole number preserves decimal places",
 			amount:   1000,
 			scale:    2,
-			expected: "10", // fractional is 0, so it returns just whole
+			expected: "10.00", // financial wire format: always show decimals at non-zero scale
 		},
 		{
 			name:     "scale 2 with fractional part",
@@ -50,13 +52,13 @@ func TestFormatAmount(t *testing.T) {
 			name:     "zero amount with scale",
 			amount:   0,
 			scale:    2,
-			expected: "0",
+			expected: "0.00",
 		},
 		{
-			name:     "fractional zero returns integer only",
+			name:     "fractional zero preserves decimal places",
 			amount:   1000,
 			scale:    2,
-			expected: "10", // fractional is 0
+			expected: "10.00",
 		},
 		{
 			name:     "large amount with scale",
@@ -436,8 +438,8 @@ func TestIdempotencyKeyGeneration(t *testing.T) {
 func TestFormatAmountEdgeCases(t *testing.T) {
 	t.Run("negative amount with no fractional", func(t *testing.T) {
 		result := formatAmount(-1000, 2)
-		// -1000 / 100 = -10, fractional = 0, so returns just whole
-		assert.Equal(t, "-10", result)
+		// -10.00 — financial wire format always shows decimals at non-zero scale
+		assert.Equal(t, "-10.00", result)
 	})
 
 	t.Run("negative amount with fractional", func(t *testing.T) {
@@ -518,4 +520,96 @@ func TestBatchResultFields(t *testing.T) {
 	assert.Equal(t, "tx-123", result.TransactionID)
 	require.NoError(t, result.Error)
 	assert.Equal(t, 100, int(result.Duration))
+}
+
+// TestTransfer_NilEntity_ReturnsError verifies that Transfer and its sibling
+// helpers return a clean error rather than panicking when the caller passes a
+// nil *entities.Entity. Mirrors the existing CancelPendingTransaction guard.
+func TestTransfer_NilEntity_ReturnsError(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("Transfer", func(t *testing.T) {
+		require.NotPanics(t, func() {
+			tx, err := Transfer(ctx, nil, "org", "ledger", "from", "to", 100, 2, "USD", nil)
+			require.Error(t, err)
+			assert.Nil(t, tx)
+			assert.Contains(t, err.Error(), "entity is required")
+		})
+	})
+
+	t.Run("Deposit", func(t *testing.T) {
+		require.NotPanics(t, func() {
+			tx, err := Deposit(ctx, nil, "org", "ledger", "to", 100, 2, "USD", nil)
+			require.Error(t, err)
+			assert.Nil(t, tx)
+			assert.Contains(t, err.Error(), "entity is required")
+		})
+	})
+
+	t.Run("Withdrawal", func(t *testing.T) {
+		require.NotPanics(t, func() {
+			tx, err := Withdrawal(ctx, nil, "org", "ledger", "from", 100, 2, "USD", nil)
+			require.Error(t, err)
+			assert.Nil(t, tx)
+			assert.Contains(t, err.Error(), "entity is required")
+		})
+	})
+
+	t.Run("MultiAccountTransfer", func(t *testing.T) {
+		require.NotPanics(t, func() {
+			tx, err := MultiAccountTransfer(ctx, nil, "org", "ledger",
+				map[string]int64{"a": 100}, map[string]int64{"b": 100},
+				100, 2, "USD", nil)
+			require.Error(t, err)
+			assert.Nil(t, tx)
+			assert.Contains(t, err.Error(), "entity is required")
+		})
+	})
+
+	t.Run("CreateFromTemplate", func(t *testing.T) {
+		require.NotPanics(t, func() {
+			tmpl := &Template{
+				Description:       "test",
+				AssetCode:         "USD",
+				Scale:             2,
+				BuildSources:      func(int64) []models.FromToInput { return nil },
+				BuildDestinations: func(int64) []models.FromToInput { return nil },
+			}
+			tx, err := CreateFromTemplate(ctx, nil, "org", "ledger", tmpl, 100, nil, "")
+			require.Error(t, err)
+			assert.Nil(t, tx)
+			assert.Contains(t, err.Error(), "entity is required")
+		})
+	})
+
+	t.Run("CommitPendingTransaction", func(t *testing.T) {
+		require.NotPanics(t, func() {
+			tx, err := CommitPendingTransaction(ctx, nil, "org", "ledger", "tx-id")
+			require.Error(t, err)
+			assert.Nil(t, tx)
+			assert.Contains(t, err.Error(), "entity is required")
+		})
+	})
+
+	t.Run("CancelPendingTransaction", func(t *testing.T) {
+		// Pre-existing guard - covered for completeness.
+		require.NotPanics(t, func() {
+			tx, err := CancelPendingTransaction(ctx, nil, "org", "ledger", "tx-id")
+			require.Error(t, err)
+			assert.Nil(t, tx)
+			assert.Contains(t, err.Error(), "entity is required")
+		})
+	})
+}
+
+// TestTransfer_NilTransactionsService_ReturnsError verifies that an Entity with
+// a nil Transactions service returns a clean error rather than panicking.
+func TestTransfer_NilTransactionsService_ReturnsError(t *testing.T) {
+	ctx := context.Background()
+	entity := &entities.Entity{} // Transactions field is nil
+
+	tx, err := Transfer(ctx, entity, "org", "ledger", "from", "to", 100, 2, "USD", nil)
+	require.Error(t, err)
+	assert.Nil(t, tx)
+	assert.Contains(t, err.Error(), "transactions service is not initialized")
 }

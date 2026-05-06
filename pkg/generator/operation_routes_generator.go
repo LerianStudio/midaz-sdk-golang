@@ -4,11 +4,10 @@ import (
 	"context"
 	"errors"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry"
 )
 
 type operationRouteGenerator struct {
@@ -22,7 +21,7 @@ func NewOperationRouteGenerator(e *entities.Entity, obs observability.Provider) 
 }
 
 // Generate creates a single operation route from the provided input.
-func (g *operationRouteGenerator) Generate(ctx context.Context, orgID, ledgerID string, input *models.CreateOperationRouteInput) (*models.OperationRoute, error) {
+func (g *operationRouteGenerator) Generate(ctx context.Context, organizationID, ledgerID string, input *models.CreateOperationRouteInput) (*models.OperationRoute, error) {
 	ctx = normalizeContext(ctx)
 
 	if g.e == nil || g.e.OperationRoutes == nil {
@@ -43,7 +42,7 @@ func (g *operationRouteGenerator) Generate(ctx context.Context, orgID, ledgerID 
 	err := observability.WithSpan(ctx, g.obs, "GenerateOperationRoute", func(ctx context.Context) error {
 		return executeWithCircuitBreaker(ctx, func() error {
 			return retry.DoWithContext(ctx, func() error {
-				or, err := g.e.OperationRoutes.CreateOperationRoute(ctx, orgID, ledgerID, input)
+				or, err := g.e.OperationRoutes.CreateOperationRoute(ctx, organizationID, ledgerID, input)
 				if err != nil {
 					return err
 				}
@@ -66,7 +65,7 @@ func (g *operationRouteGenerator) Generate(ctx context.Context, orgID, ledgerID 
 }
 
 // GenerateDefaults creates a minimal set of operation routes for common flows.
-func (g *operationRouteGenerator) GenerateDefaults(ctx context.Context, orgID, ledgerID string) ([]*models.OperationRoute, error) {
+func (g *operationRouteGenerator) GenerateDefaults(ctx context.Context, organizationID, ledgerID string) ([]*models.OperationRoute, error) {
 	out := make([]*models.OperationRoute, 0, 5)
 
 	// Source: Customer (CHECKING)
@@ -107,7 +106,7 @@ func (g *operationRouteGenerator) GenerateDefaults(ctx context.Context, orgID, l
 		"Routes to platform fee account by alias",
 		string(models.OperationRouteInputTypeDestination),
 	).WithMetadata(map[string]any{"role": "internal", "route": "dest_platform_fee"})
-	dstPlatformFee = models.WithCreateOperationRouteAccountAlias(dstPlatformFee, "platform_fee")
+	dstPlatformFee = dstPlatformFee.WithAccountAlias("platform_fee")
 	dstPlatformFee.AccountingEntries = destinationDirectAccountingEntries("platform_fee")
 
 	// Destination: Settlement Pool (alias)
@@ -116,7 +115,7 @@ func (g *operationRouteGenerator) GenerateDefaults(ctx context.Context, orgID, l
 		"Routes to settlement pool account by alias",
 		string(models.OperationRouteInputTypeDestination),
 	).WithMetadata(map[string]any{"role": "internal", "route": "dest_settlement"})
-	dstSettlement = models.WithCreateOperationRouteAccountAlias(dstSettlement, "settlement_pool")
+	dstSettlement = dstSettlement.WithAccountAlias("settlement_pool")
 	dstSettlement.AccountingEntries = destinationDirectAccountingEntries("settlement")
 
 	// Destination: Customer (CHECKING) for refunds
@@ -129,7 +128,7 @@ func (g *operationRouteGenerator) GenerateDefaults(ctx context.Context, orgID, l
 
 	templates := []*models.CreateOperationRouteInput{srcCustomer, srcExternal, srcMerchant, dstMerchant, dstPlatformFee, dstSettlement, dstCustomer}
 	for _, tpl := range templates {
-		or, err := g.Generate(ctx, orgID, ledgerID, tpl)
+		or, err := g.Generate(ctx, organizationID, ledgerID, tpl)
 		if err != nil {
 			return nil, err
 		}
@@ -140,14 +139,14 @@ func (g *operationRouteGenerator) GenerateDefaults(ctx context.Context, orgID, l
 	return out, nil
 }
 
-func sourceDirectAccountingEntries(label string) *mmodel.AccountingEntries {
-	return &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{Debit: accountingRubric("1000", label+" debit")}}
+func sourceDirectAccountingEntries(label string) *models.AccountingEntries {
+	return &models.AccountingEntries{Direct: &models.AccountingEntry{Debit: accountingRubric("1000", label+" debit")}}
 }
 
-func destinationDirectAccountingEntries(label string) *mmodel.AccountingEntries {
-	return &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{Credit: accountingRubric("2000", label+" credit")}}
+func destinationDirectAccountingEntries(label string) *models.AccountingEntries {
+	return &models.AccountingEntries{Direct: &models.AccountingEntry{Credit: accountingRubric("2000", label+" credit")}}
 }
 
-func accountingRubric(code, description string) *mmodel.AccountingRubric {
-	return &mmodel.AccountingRubric{Code: code, Description: description}
+func accountingRubric(code, description string) *models.AccountingRubric {
+	return &models.AccountingRubric{Code: code, Description: description}
 }

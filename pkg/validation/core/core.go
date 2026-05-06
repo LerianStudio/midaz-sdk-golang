@@ -12,8 +12,6 @@ import (
 	"regexp"
 	"strings"
 	"time"
-
-	midazutils "github.com/LerianStudio/midaz/v3/pkg/utils"
 )
 
 // ValidationConfig represents options for the validation behavior
@@ -407,9 +405,7 @@ func ValidateAssetType(assetType string) error {
 		return errors.New("asset type is required")
 	}
 
-	// Use commons.ValidateType to ensure consistency with backend APIs
-	// Note: commons.ValidateType expects lowercase types, so we convert to lowercase
-	if err := midazutils.ValidateType(strings.ToLower(assetType)); err != nil {
+	if _, ok := allowedAssetTypes[strings.ToLower(assetType)]; !ok {
 		// Create a list of valid types for the error message
 		validTypes := []string{"crypto", "currency", "commodity", "others"}
 
@@ -426,8 +422,7 @@ func ValidateCurrencyCode(code string) error {
 		return errors.New("currency code cannot be empty")
 	}
 
-	// Use commons.ValidateCurrency to ensure consistency with backend APIs
-	if err := midazutils.ValidateCurrency(code); err != nil {
+	if _, ok := allowedCurrencyCodes[code]; !ok {
 		return fmt.Errorf("invalid currency code: %s", code)
 	}
 
@@ -440,8 +435,7 @@ func ValidateCountryCode(code string) error {
 		return errors.New("country code cannot be empty")
 	}
 
-	// Use commons.ValidateCountryAddress to ensure consistency with backend APIs
-	if err := midazutils.ValidateCountryAddress(code); err != nil {
+	if _, ok := allowedCountryCodes[code]; !ok {
 		return fmt.Errorf("invalid country code: %s (must be a valid ISO 3166-1 alpha-2 code)", code)
 	}
 

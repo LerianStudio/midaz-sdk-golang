@@ -62,12 +62,13 @@ func TestSlice7NilUnmarshalReceiversReturnErrors(t *testing.T) {
 	require.ErrorContains(t, list.UnmarshalJSON([]byte(`{"items":[]}`)), "receiver cannot be nil")
 }
 
-func TestSlice7ListOptionsNonAlignedOffsetDoesNotEmitPage(t *testing.T) {
-	params := NewListOptions().WithLimit(10).WithOffset(15).ToQueryParams()
-
-	assert.NotContains(t, params, QueryParamPage)
-	assert.NotContains(t, params, QueryParamOffset)
-}
+// TestSlice7ListOptionsNonAlignedOffsetDoesNotEmitPage existed in v2 to
+// pin down the silent-conversion rule (offset 15, limit 10 → unaligned →
+// drop offset, do NOT synthesize page=2). v3 deletes models.ListOptions
+// entirely; per-entity typed Opts (PageListOpts, CursorListOpts) have no
+// Offset field, so the misalignment scenario is structurally impossible.
+// The test is intentionally removed — its invariant is encoded in the
+// type system rather than enforced at runtime.
 
 func TestSlice7LedgerSettingsExplicitFalseSerializes(t *testing.T) {
 	data, err := json.Marshal(NewUpdateLedgerSettingsInput().WithValidateRoutes(false))
@@ -76,32 +77,20 @@ func TestSlice7LedgerSettingsExplicitFalseSerializes(t *testing.T) {
 	assert.JSONEq(t, `{"accounting":{"validateRoutes":false}}`, string(data))
 }
 
-func TestSlice7ErrorResponseJSONContract(t *testing.T) {
-	data := []byte(`{"code":"ERR_INVALID_INPUT","title":"Bad Request","message":"validation failed","entityType":"Account","fields":{"type":"must not be external"}}`)
+// TestSlice7ErrorResponseJSONContract historically pinned down the
+// JSON shape of the legacy models.ErrorResponse public type. v3
+// Batch 8E removed that type — the canonical SDK error shape is
+// pkg/errors.Error, populated at the transport boundary by
+// ErrorFromHTTPResponseWithDetails. The wire format compatibility
+// is now covered by entities.parseErrorResponse, exercised by
+// TestSlice3Redaction and the http error-mapping tests.
 
-	var response ErrorResponse
-	require.NoError(t, json.Unmarshal(data, &response))
-
-	assert.Equal(t, "ERR_INVALID_INPUT", response.Code)
-	assert.Equal(t, "Bad Request", response.Title)
-	assert.Equal(t, "validation failed", response.Message)
-	assert.Equal(t, "Account", response.EntityType)
-	assert.Equal(t, "must not be external", response.Fields["type"])
-}
-
-func TestSlice7LegacyListWrappersMarshalEmptyItems(t *testing.T) {
-	assetRates, err := json.Marshal(AssetRatesResponse{})
-	require.NoError(t, err)
-	assert.Contains(t, string(assetRates), `"items":[]`)
-
-	accounts, err := json.Marshal(Accounts{})
-	require.NoError(t, err)
-	assert.Contains(t, string(accounts), `"items":[]`)
-
-	operations, err := json.Marshal(Operations{})
-	require.NoError(t, err)
-	assert.Contains(t, string(operations), `"items":[]`)
-}
+// TestSlice7LegacyListWrappersMarshalEmptyItems existed in v2 to pin down
+// JSON empty-items behavior on the legacy list wrapper types. v3 Batch 5C
+// deleted AssetRatesResponse; Batch 5F deletes models.Accounts and
+// models.Operations. All list responses now ride the unified
+// ListResponse[T] generic, covered by TestListResponseZeroValueMarshalUsesEmptyItems
+// in model_test.go.
 
 // TestSlice7UpdateAliasRelatedPartiesReplaceOnRepeatedBuilderCalls pins
 // down the documented contract: repeated WithRelatedParties calls REPLACE
@@ -128,4 +117,19 @@ func TestSlice7UUIDValidatedBodyFields(t *testing.T) {
 	organization := NewCreateOrganizationInput("Org", "DOC-EXAMPLE").WithMetadata(map[string]any{"ok": true})
 	organization.ParentOrganizationID = &badID
 	require.ErrorContains(t, organization.Validate(), "parentOrganizationId must be a valid UUID")
+}
+
+// TestSlice7UpdateInputsOmitUnsetMetadata locks in the RFC 7396
+// merge-patch invariant: when a caller leaves Metadata unset, the
+// PATCH body MUST NOT emit "metadata":null. Emitting null would
+// silently wipe server-side metadata. UpdateTransactionRouteInput
+// in particular regressed this in pre-v3 by lacking both omitempty
+// and a custom MarshalJSON guard.
+func TestSlice7UpdateInputsOmitUnsetMetadata(t *testing.T) {
+	t.Run("UpdateTransactionRouteInput", func(t *testing.T) {
+		data, err := json.Marshal(&UpdateTransactionRouteInput{Title: "Settlement"})
+		require.NoError(t, err)
+		assert.NotContains(t, string(data), `"metadata"`,
+			"unset metadata must NOT be emitted on PATCH (RFC 7396 wipe risk): %s", string(data))
+	})
 }

@@ -37,8 +37,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation/core"
-	midazutils "github.com/LerianStudio/midaz/v3/pkg/utils"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation/core"
 )
 
 // Validator is a configurable validation instance that can be used to perform validations
@@ -1097,21 +1096,7 @@ func validateMetadataField(summary *Summary, input map[string]any) {
 // ValidateAssetType validates if the asset type is one of the supported types
 // in the Midaz system.
 func ValidateAssetType(assetType string) error {
-	if assetType == "" {
-		return errors.New("asset type is required")
-	}
-
-	// Use commons.ValidateType to ensure consistency with backend APIs
-	// Note: commons.ValidateType expects lowercase types, so we convert to lowercase
-	if err := midazutils.ValidateType(strings.ToLower(assetType)); err != nil {
-		// Create a list of valid types for the error message
-		validTypes := []string{"crypto", "currency", "commodity", "others"}
-
-		return fmt.Errorf("invalid asset type: %s. Valid types are: %s",
-			assetType, strings.Join(validTypes, ", "))
-	}
-
-	return nil
+	return core.ValidateAssetType(assetType)
 }
 
 // ValidateAccountType validates if the account type is one of the supported types
@@ -1122,30 +1107,12 @@ func ValidateAccountType(accountType string) error {
 
 // ValidateCurrencyCode checks if the currency code is valid according to ISO 4217.
 func ValidateCurrencyCode(code string) error {
-	if code == "" {
-		return errors.New("currency code cannot be empty")
-	}
-
-	// Use commons.ValidateCurrency to ensure consistency with backend APIs
-	if err := midazutils.ValidateCurrency(code); err != nil {
-		return fmt.Errorf("invalid currency code: %s", code)
-	}
-
-	return nil
+	return core.ValidateCurrencyCode(code)
 }
 
 // ValidateCountryCode checks if the country code is valid according to ISO 3166-1 alpha-2.
 func ValidateCountryCode(code string) error {
-	if code == "" {
-		return errors.New("country code cannot be empty")
-	}
-
-	// Use commons.ValidateCountryAddress to ensure consistency with backend APIs
-	if err := midazutils.ValidateCountryAddress(code); err != nil {
-		return fmt.Errorf("invalid country code: %s (must be a valid ISO 3166-1 alpha-2 code)", code)
-	}
-
-	return nil
+	return core.ValidateCountryCode(code)
 }
 
 // Address is a simplified address structure for validation purposes.

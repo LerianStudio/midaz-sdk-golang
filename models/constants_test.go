@@ -175,11 +175,6 @@ func TestQueryParamNames(t *testing.T) {
 			expected: "cursor",
 		},
 		{
-			name:     "QueryParamOrderBy",
-			constant: QueryParamOrderBy,
-			expected: "orderBy",
-		},
-		{
 			name:     "QueryParamOrderDirection",
 			constant: QueryParamOrderDirection,
 			expected: "sort_order",
@@ -258,7 +253,6 @@ func TestQueryParamConstantsUniqueness(t *testing.T) {
 		QueryParamOffset,
 		QueryParamPage,
 		QueryParamCursor,
-		QueryParamOrderBy,
 		QueryParamOrderDirection,
 		QueryParamStartDate,
 		QueryParamEndDate,

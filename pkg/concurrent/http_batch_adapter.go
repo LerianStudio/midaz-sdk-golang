@@ -8,8 +8,8 @@ import (
 	"io"
 	"net/http"
 
-	pkgerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
+	pkgerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry"
 )
 
 // HTTPBatchProcessorWithRetry is an HTTPBatchProcessor that uses the enhanced retry package.

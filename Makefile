@@ -92,6 +92,7 @@ help:
 	@echo "  make example                     - Run complete workflow example"
 	@echo "  make demo-data                   - Run mass demo data generator (non-interactive)"
 	@echo "  make demo-data-interactive       - Run mass demo data generator with prompts"
+	@echo "  make examples-test               - Build every example and run their test suites"
 	@echo ""
 	@echo "Documentation Commands:"
 	@echo "  make godoc                       - Start a godoc server for interactive documentation"
@@ -129,7 +130,7 @@ set-env:
 # SDK Quality Check Targets
 #-------------------------------------------------------
 
-.PHONY: check-references check-api-compatibility verify-sdk hooks
+.PHONY: check-references check-mmodel-references check-api-compatibility check-config-parity verify-sdk hooks
 
 # Check that no lib-commons references appear in public packages
 check-references:
@@ -137,14 +138,32 @@ check-references:
 	@! grep -r "lib-commons" --include="*.go" ./models ./entities | grep -v "//.*lib-commons" || (echo "$(RED)❌ Found lib-commons references in public API!$(NC)" && exit 1)
 	@echo "$(GREEN)✅ No lib-commons references found in public API$(NC)"
 
+# Track 7E: enforce no mmodel references in public API.
+check-mmodel-references:
+	@echo "$(YELLOW)Checking for mmodel references in public API...$(NC)"
+	@bad=$$(grep -r "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/mmodel" --include="*.go" ./models ./entities | grep -v '^[[:space:]]*//' || true); \
+		if [ -n "$$bad" ]; then \
+			echo "$(RED)❌ Found unexpected mmodel references in public API:$(NC)"; \
+			echo "$$bad"; \
+			exit 1; \
+		fi
+	@echo "$(GREEN)✅ No unexpected mmodel references in public API$(NC)"
+
 # Verify that our refactoring doesn't break API compatibility
 check-api-compatibility:
 	@echo "$(YELLOW)Checking API compatibility...$(NC)"
 	@go build ./models ./entities ./pkg/...
 	@echo "$(GREEN)✅ API builds successfully$(NC)"
 
+# Track 6 lint rule: enforce midaz.With* / pkg/config.With* two-layer parity.
+# Fails the build when a pkg/config Option lacks a midaz wrapper (with the
+# documented retry-knob exception list). See scripts/check-config-parity.sh.
+check-config-parity:
+	@echo "$(YELLOW)Checking midaz / pkg/config two-layer Option parity...$(NC)"
+	@./scripts/check-config-parity.sh
+
 # Verify our implementation
-verify-sdk: check-references check-api-compatibility
+verify-sdk: check-references check-mmodel-references check-api-compatibility check-config-parity examples-test
 	@echo "$(GREEN)✅ All SDK quality checks passed!$(NC)"
 
 # Install git hooks
@@ -247,6 +266,20 @@ demo-data:
 demo-data-interactive:
 	@$(MAKE) demo-data DEMO_NON_INTERACTIVE=0
 
+.PHONY: examples-test
+
+# examples-test builds every example program under examples/ and runs
+# the test suite for examples that ship one (notably 09-testing-with-mocks).
+# It is the compile-time guarantee that every example tracks the public SDK
+# surface — refactors that break a documented call shape break the build here.
+examples-test:
+	$(call print_header,"Building all examples")
+	@go build ./examples/... 2>&1
+	@echo "$(GREEN)[ok]$(NC) All examples build cleanly$(GREEN) ✔️$(NC)"
+	$(call print_header,"Running example tests")
+	@go test ./examples/... 2>&1
+	@echo "$(GREEN)[ok]$(NC) Example tests passed$(GREEN) ✔️$(NC)"
+
 #-------------------------------------------------------
 # Documentation Commands
 #-------------------------------------------------------
@@ -267,10 +300,11 @@ PACKAGES := \
 	$(MODULE) \
 	$(MODULE)/entities \
 	$(MODULE)/models \
+	$(MODULE)/pkg/auth \
 	$(MODULE)/pkg/config \
 	$(MODULE)/pkg/concurrent \
 	$(MODULE)/pkg/observability \
-	$(MODULE)/pkg/pagination \
+	$(MODULE)/pkg/sdkctx \
 	$(MODULE)/pkg/validation \
 	$(MODULE)/pkg/validation/core \
 	$(MODULE)/pkg/errors \

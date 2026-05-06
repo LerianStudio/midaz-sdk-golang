@@ -1,22 +1,25 @@
 package entities
 
+//go:generate mockgen -source=transactions.go -destination=mocks/mock_transactions.go -package=mocks TransactionsService
+
 import (
 	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"iter"
 	"mime/multipart"
 	"net/http"
-	"os"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
 
 	"github.com/shopspring/decimal"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
 )
 
 // TransactionsService defines the interface for transaction-related operations.
@@ -24,123 +27,150 @@ import (
 // within a ledger and organization. The implementation handles all the complexity
 // of converting between SDK models and backend data formats, allowing SDK users
 // to work with a clean, self-contained API.
+//
+// See also:
+//   - [github.com/LerianStudio/midaz-sdk-golang/v3.Client.Transactions] — the production wiring.
+//   - [github.com/LerianStudio/midaz-sdk-golang/v3/entities/mocks.NewMockTransactionsService] — generated mock for unit tests.
+//   - [github.com/LerianStudio/midaz-sdk-golang/v3/models.TransactionsListOpts] — typed cursor list-opts.
+//   - [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx.WithIdempotencyKey] — make creation safe under retries.
+//   - examples/04-listing-cursor — cursor-based pagination demo.
+//   - examples/06-idempotency — idempotency mode reference.
 type TransactionsService interface {
 	// CreateTransaction creates a new transaction using the standard format.
-	// The orgID and ledgerID parameters specify which organization and ledger to create the transaction in.
+	//
+	// This is the CANONICAL transaction-creation entry point. All other
+	// Create* methods on this interface (CreateTransactionWithDSL,
+	// CreateInflowTransaction, CreateOutflowTransaction,
+	// CreateAnnotationTransaction) are convenience wrappers around
+	// CreateTransaction for specific shapes; reach for them only when the
+	// shape they target is exactly what you need (audit 7.16 — Track 7F).
+	//
+	// The organizationID and ledgerID parameters specify which organization and ledger to create the transaction in.
 	// The input parameter contains the transaction details such as entries, metadata, and external ID.
 	// Returns the created transaction, or an error if the operation fails.
-	CreateTransaction(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionInput) (*models.Transaction, error)
+	CreateTransaction(ctx context.Context, organizationID, ledgerID string, input *models.CreateTransactionInput) (*models.Transaction, error)
 
-	// CreateTransactionWithDSL creates a new transaction using the DSL format.
-	// The orgID and ledgerID parameters specify which organization and ledger to create the transaction in.
-	// The input parameter contains the transaction DSL script and optional metadata.
-	// Returns the created transaction, or an error if the operation fails.
-	CreateTransactionWithDSL(ctx context.Context, orgID, ledgerID string, input *models.TransactionDSLInput) (*models.Transaction, error)
+	// CreateTransactionWithDSL is a convenience wrapper around CreateTransaction
+	// that accepts a Midaz DSL script instead of structured input.
+	// Prefer CreateTransaction for structured construction; reach for this only
+	// when callers already hold raw DSL.
+	CreateTransactionWithDSL(ctx context.Context, organizationID, ledgerID string, input *models.TransactionDSLInput) (*models.Transaction, error)
 
-	// CreateTransactionWithDSLFile creates a new transaction using a DSL file.
-	// The orgID and ledgerID parameters specify which organization and ledger to create the transaction in.
-	// The dslContent parameter contains the raw DSL file content as bytes.
-	// Returns the created transaction, or an error if the operation fails.
-	CreateTransactionWithDSLFile(ctx context.Context, orgID, ledgerID string, dslContent []byte) (*models.Transaction, error)
+	// CreateTransactionWithDSLFile is a convenience wrapper around
+	// CreateTransactionWithDSL that accepts a DSL file's raw bytes.
+	CreateTransactionWithDSLFile(ctx context.Context, organizationID, ledgerID string, dslContent []byte) (*models.Transaction, error)
 
 	// GetTransaction retrieves a specific transaction by its ID.
-	// The orgID and ledgerID parameters specify which organization and ledger the transaction belongs to.
+	// The organizationID and ledgerID parameters specify which organization and ledger the transaction belongs to.
 	// The transactionID parameter is the unique identifier of the transaction to retrieve.
 	// Returns the transaction if found, or an error if the operation fails or the transaction doesn't exist.
-	GetTransaction(ctx context.Context, orgID, ledgerID, transactionID string) (*models.Transaction, error)
+	GetTransaction(ctx context.Context, organizationID, ledgerID, transactionID string) (*models.Transaction, error)
 
 	// ListTransactions retrieves a paginated list of transactions for a ledger with optional filters.
-	// The orgID and ledgerID parameters specify which organization and ledger to query.
+	// The organizationID and ledgerID parameters specify which organization and ledger to query.
 	// The opts parameter can be used to specify pagination, sorting, and filtering options.
 	// Returns a ListResponse containing the transactions and pagination information, or an error if the operation fails.
-	ListTransactions(ctx context.Context, orgID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Transaction], error)
+	ListTransactions(ctx context.Context, organizationID, ledgerID string, opts models.TransactionsListOpts) (*models.ListResponse[models.Transaction], error)
+
+	// ListTransactionsAll yields every transaction matching the request,
+	// transparently advancing pagination via the server-issued NextCursor.
+	ListTransactionsAll(ctx context.Context, organizationID, ledgerID string, opts models.TransactionsListOpts) iter.Seq2[models.Transaction, error]
+
+	// ListTransactionsPages yields one full *ListResponse[Transaction] per page.
+	ListTransactionsPages(ctx context.Context, organizationID, ledgerID string, opts models.TransactionsListOpts) iter.Seq2[*models.ListResponse[models.Transaction], error]
 
 	// GetTransactionsMetricsCount retrieves the count of transactions that match the supplied filters.
-	GetTransactionsMetricsCount(ctx context.Context, orgID, ledgerID string, opts *models.ListOptions) (*models.MetricsCount, error)
+	GetTransactionsMetricsCount(ctx context.Context, organizationID, ledgerID string, opts models.TransactionsListOpts) (*models.MetricsCount, error)
 
 	// UpdateTransaction updates an existing transaction.
-	// The orgID and ledgerID parameters specify which organization and ledger the transaction belongs to.
+	// The organizationID and ledgerID parameters specify which organization and ledger the transaction belongs to.
 	// The transactionID parameter is the unique identifier of the transaction to update.
-	// The input parameter contains the transaction details to update, which can be of various types.
+	// The input parameter contains the transaction details to update; it must be non-nil and at least
+	// one mutable field must be set (input.Validate() enforces "empty update payload not allowed").
 	// Returns the updated transaction, or an error if the operation fails.
-	UpdateTransaction(ctx context.Context, orgID, ledgerID, transactionID string, input any) (*models.Transaction, error)
+	UpdateTransaction(ctx context.Context, organizationID, ledgerID, transactionID string, input *models.UpdateTransactionInput) (*models.Transaction, error)
 
 	// RevertTransaction reverts a committed transaction.
-	// The orgID and ledgerID parameters specify which organization and ledger the transaction belongs to.
+	// The organizationID and ledgerID parameters specify which organization and ledger the transaction belongs to.
 	// The transactionID parameter is the unique identifier of the transaction to revert.
 	// Returns the reverted transaction, or an error if the operation fails.
-	RevertTransaction(ctx context.Context, orgID, ledgerID, transactionID string) (*models.Transaction, error)
+	//
+	// Idempotency contract: the SDK auto-attaches an X-Idempotency header to
+	// the underlying POST when client-level idempotency is enabled (the
+	// default). The server is expected to honor X-Idempotency on this
+	// endpoint to dedupe network retries — without server-side honoring, a
+	// transient retry could produce two reversal transactions
+	// (double-entry catastrophe). If the deployed server-side contract
+	// differs, callers SHOULD disable auto-retry for this code path
+	// (e.g., via retry.WithMaxRetries(0)) or suppress idempotency via
+	// [sdkctx.WithoutAutoIdempotency] only when retries are explicitly
+	// non-fatal.
+	RevertTransaction(ctx context.Context, organizationID, ledgerID, transactionID string) (*models.Transaction, error)
 
 	// CommitTransaction commits a pending transaction.
-	// The orgID and ledgerID parameters specify which organization and ledger the transaction belongs to.
+	// The organizationID and ledgerID parameters specify which organization and ledger the transaction belongs to.
 	// The transactionID parameter is the unique identifier of the transaction to commit.
 	// Returns the committed transaction, or an error if the operation fails.
-	CommitTransaction(ctx context.Context, orgID, ledgerID, transactionID string) (*models.Transaction, error)
+	//
+	// Idempotency contract: same as [TransactionsService.RevertTransaction] —
+	// the server is expected to honor X-Idempotency on this endpoint to
+	// dedupe network retries. If the deployed server-side contract differs,
+	// callers SHOULD disable auto-retry for this code path
+	// (e.g., via retry.WithMaxRetries(0)) to avoid duplicate commits.
+	CommitTransaction(ctx context.Context, organizationID, ledgerID, transactionID string) (*models.Transaction, error)
 
 	// CancelTransaction cancels a pending transaction.
-	// The orgID and ledgerID parameters specify which organization and ledger the transaction belongs to.
+	// The organizationID and ledgerID parameters specify which organization and ledger the transaction belongs to.
 	// The transactionID parameter is the unique identifier of the transaction to cancel.
 	// Returns an error if the operation fails.
-	CancelTransaction(ctx context.Context, orgID, ledgerID, transactionID string) error
+	//
+	// Idempotency contract: same as [TransactionsService.RevertTransaction] —
+	// the server is expected to honor X-Idempotency on this endpoint to
+	// dedupe network retries. If the deployed server-side contract differs,
+	// callers SHOULD disable auto-retry for this code path
+	// (e.g., via retry.WithMaxRetries(0)) to avoid duplicate cancellations.
+	CancelTransaction(ctx context.Context, organizationID, ledgerID, transactionID string) error
 
 	// CancelTransactionWithResponse cancels a pending transaction and returns the cancelled transaction.
-	CancelTransactionWithResponse(ctx context.Context, orgID, ledgerID, transactionID string) (*models.Transaction, error)
+	CancelTransactionWithResponse(ctx context.Context, organizationID, ledgerID, transactionID string) (*models.Transaction, error)
 
-	// CreateInflowTransaction creates an inflow transaction (funds entering the system).
-	// Inflow transactions have no source - they represent deposits or funding operations.
-	// The orgID and ledgerID parameters specify which organization and ledger to create the transaction in.
-	// Returns the created transaction, or an error if the operation fails.
-	CreateInflowTransaction(ctx context.Context, orgID, ledgerID string, input *models.CreateInflowInput) (*models.Transaction, error)
+	// CreateInflowTransaction is a convenience wrapper around CreateTransaction
+	// for transactions with no source (deposits or funding).
+	// Prefer CreateTransaction for general use; this exists for callers who
+	// already hold a CreateInflowInput and benefit from the dedicated shape.
+	CreateInflowTransaction(ctx context.Context, organizationID, ledgerID string, input *models.CreateInflowInput) (*models.Transaction, error)
 
-	// CreateOutflowTransaction creates an outflow transaction (funds leaving the system).
-	// Outflow transactions have no destination - they represent withdrawals or payout operations.
-	// The orgID and ledgerID parameters specify which organization and ledger to create the transaction in.
-	// Returns the created transaction, or an error if the operation fails.
-	CreateOutflowTransaction(ctx context.Context, orgID, ledgerID string, input *models.CreateOutflowInput) (*models.Transaction, error)
+	// CreateOutflowTransaction is a convenience wrapper around CreateTransaction
+	// for transactions with no destination (withdrawals or payouts).
+	CreateOutflowTransaction(ctx context.Context, organizationID, ledgerID string, input *models.CreateOutflowInput) (*models.Transaction, error)
 
-	// CreateAnnotationTransaction creates an annotation transaction (no balance changes).
-	// Annotation transactions are used for adding metadata/notes to the ledger without affecting balances.
-	// The orgID and ledgerID parameters specify which organization and ledger to create the transaction in.
-	// Returns the created transaction, or an error if the operation fails.
-	CreateAnnotationTransaction(ctx context.Context, orgID, ledgerID string, input *models.CreateAnnotationInput) (*models.Transaction, error)
+	// CreateAnnotationTransaction is a convenience wrapper around CreateTransaction
+	// for annotation transactions (metadata-only, no balance changes).
+	CreateAnnotationTransaction(ctx context.Context, organizationID, ledgerID string, input *models.CreateAnnotationInput) (*models.Transaction, error)
 }
 
 // transactionsEntity implements the TransactionsService interface.
 // It handles the communication with the Midaz API for transaction-related operations.
 type transactionsEntity struct {
-	httpClient *HTTPClient
-	baseURLs   map[string]string
+	serviceEntity
 }
 
-func (e *transactionsEntity) setDefaultTenantID(tenantID string) {
-	e.httpClient.SetTenantID(tenantID)
-}
-
-// NewTransactionsEntity creates a new transactions entity.
+// newTransactionsEntity creates a new transactions entity for tests. The
+// auth token is fixed to "token" because every test caller passes the same
+// value; production code never reaches this constructor (it goes through
+// Entity.initServices, which uses the shared *HTTPClient).
 //
 // Parameters:
 //   - client: The HTTP client used for API requests. Can be configured with custom timeouts
 //     and transport options. If nil, a default client will be used.
-//   - authToken: The authentication token for API authorization. Must be a valid JWT token
-//     issued by the Midaz authentication service.
 //   - baseURLs: Map of service names to base URLs. Must include a "transaction" key with
 //     the URL of the transaction service (e.g., "https://api.midaz.io/v1").
 //
 // Returns:
 //   - TransactionsService: An implementation of the TransactionsService interface that provides
 //     methods for creating, retrieving, and managing transactions.
-func NewTransactionsEntity(client *http.Client, authToken string, baseURLs map[string]string) TransactionsService {
-	httpClient := NewHTTPClient(client, authToken, nil)
-
-	// Check if we're using the debug flag from the environment
-	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
-		httpClient.setDebugLocked(true)
-	}
-
-	return &transactionsEntity{
-		httpClient: httpClient,
-		baseURLs:   prepareServiceBaseURLs(baseURLs),
-	}
+func newTransactionsEntity(client *http.Client, baseURLs map[string]string) TransactionsService {
+	return &transactionsEntity{serviceEntity: newServiceEntity(client, "token", baseURLs)}
 }
 
 // CreateTransaction creates a new transaction using the standard format.
@@ -151,7 +181,7 @@ func NewTransactionsEntity(client *http.Client, authToken string, baseURLs map[s
 //
 // Parameters:
 //   - ctx: Context for the request, which can be used for cancellation and timeout.
-//   - orgID: The ID of the organization that owns the ledger. Must be a valid organization ID.
+//   - organizationID: The ID of the organization that owns the ledger. Must be a valid organization ID.
 //   - ledgerID: The ID of the ledger where the transaction will be created. Must be a valid ledger ID.
 //   - input: The transaction details, including entries, description, metadata, and other properties.
 //     The input must contain at least one entry, and the transaction must be balanced
@@ -166,36 +196,36 @@ func NewTransactionsEntity(client *http.Client, authToken string, baseURLs map[s
 //   - Authorization failure (insufficient permissions)
 //   - Resource not found (invalid organization or ledger ID)
 //   - Network or server errors
-func (e *transactionsEntity) CreateTransaction(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionInput) (*models.Transaction, error) {
+func (e *transactionsEntity) CreateTransaction(ctx context.Context, organizationID, ledgerID string, input *models.CreateTransactionInput) (*models.Transaction, error) {
 	const operation = "CreateTransaction"
 
 	// Validate input parameters
-	if err := e.validateCreateTransactionInput(operation, orgID, ledgerID, input); err != nil {
+	if err := e.validateCreateTransactionInput(operation, organizationID, ledgerID, input); err != nil {
 		return nil, err
 	}
 
 	// Send request to API
-	responseMap, err := e.sendCreateTransactionRequest(ctx, orgID, ledgerID, input)
+	responseMap, err := e.sendCreateTransactionRequest(ctx, organizationID, ledgerID, input)
 	if err != nil {
-		e.httpClient.emitBusinessError(ctx, businessEventTransactionCreated, map[string]any{"operation": operation, "organizationId": orgID, "ledgerId": ledgerID}, err)
+		e.httpClient.emitBusinessError(ctx, businessEventTransactionCreated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID}, err)
 
 		return nil, err
 	}
 
 	// Convert response to transaction model
 	transaction := e.parseTransactionResponse(responseMap)
-	e.httpClient.emitBusinessEvent(ctx, businessEventTransactionCreated, map[string]any{"operation": operation, "organizationId": orgID, "ledgerId": ledgerID, "transactionId": transaction.ID, "status": transaction.Status.Code})
+	e.httpClient.emitBusinessEvent(ctx, businessEventTransactionCreated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "transactionId": transaction.ID, "status": transaction.Status.Code})
 
 	return transaction, nil
 }
 
 // validateCreateTransactionInput validates all input parameters for CreateTransaction
-func (*transactionsEntity) validateCreateTransactionInput(operation, orgID, ledgerID string, input *models.CreateTransactionInput) error {
+func (*transactionsEntity) validateCreateTransactionInput(operation, organizationID, ledgerID string, input *models.CreateTransactionInput) error {
 	if input == nil {
 		return sdkerrors.NewMissingParameterError(operation, "input")
 	}
 
-	if orgID == "" {
+	if organizationID == "" {
 		return sdkerrors.NewMissingParameterError(operation, "organization ID")
 	}
 
@@ -211,7 +241,7 @@ func (*transactionsEntity) validateCreateTransactionInput(operation, orgID, ledg
 }
 
 // sendCreateTransactionRequest sends the transaction creation request
-func (e *transactionsEntity) sendCreateTransactionRequest(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionInput) (map[string]any, error) {
+func (e *transactionsEntity) sendCreateTransactionRequest(ctx context.Context, organizationID, ledgerID string, input *models.CreateTransactionInput) (map[string]any, error) {
 	txMap := input.ToLibTransaction()
 
 	var responseMap map[string]any
@@ -222,7 +252,7 @@ func (e *transactionsEntity) sendCreateTransactionRequest(ctx context.Context, o
 		headers[internalCallerIdempotencyHeader] = BoolTrue
 	}
 
-	if err := e.httpClient.doRequest(ctx, http.MethodPost, e.buildURL(orgID, ledgerID, "/json"), headers, txMap, &responseMap); err != nil {
+	if err := e.httpClient.doRequest(ctx, http.MethodPost, e.buildURL(organizationID, ledgerID, "/json"), headers, txMap, &responseMap); err != nil {
 		return nil, err
 	}
 
@@ -489,7 +519,11 @@ func decimalPtrFromAny(value any) *decimal.Decimal {
 		parsed := decimal.NewFromInt(v)
 		return &parsed
 	case float64:
-		parsed := decimal.NewFromFloat(v)
+		parsed, err := decimal.NewFromString(strconv.FormatFloat(v, 'f', -1, 64))
+		if err != nil {
+			return nil
+		}
+
 		return &parsed
 	default:
 		return nil
@@ -513,7 +547,7 @@ func boolFromAny(value any) (result bool, ok bool) {
 //
 // Parameters:
 //   - ctx: Context for the request, which can be used for cancellation and timeout.
-//   - orgID: The ID of the organization that owns the ledger. Must be a valid organization ID.
+//   - organizationID: The ID of the organization that owns the ledger. Must be a valid organization ID.
 //   - ledgerID: The ID of the ledger where the transaction will be created. Must be a valid ledger ID.
 //   - input: The transaction DSL input, including the DSL script and optional metadata.
 //     The DSL script must follow the Midaz transaction DSL syntax and must define a balanced
@@ -528,7 +562,7 @@ func boolFromAny(value any) (result bool, ok bool) {
 //   - Authorization failure (insufficient permissions)
 //   - Resource not found (invalid organization or ledger ID)
 //   - Network or server errors
-func (e *transactionsEntity) CreateTransactionWithDSL(ctx context.Context, orgID, ledgerID string, input *models.TransactionDSLInput) (*models.Transaction, error) {
+func (e *transactionsEntity) CreateTransactionWithDSL(ctx context.Context, organizationID, ledgerID string, input *models.TransactionDSLInput) (*models.Transaction, error) {
 	// Operation name for error context
 	const operation = "CreateTransactionWithDSL"
 
@@ -537,7 +571,7 @@ func (e *transactionsEntity) CreateTransactionWithDSL(ctx context.Context, orgID
 	}
 
 	// Validate required parameters
-	if orgID == "" {
+	if organizationID == "" {
 		return nil, sdkerrors.NewMissingParameterError(operation, "organization ID")
 	}
 
@@ -551,7 +585,7 @@ func (e *transactionsEntity) CreateTransactionWithDSL(ctx context.Context, orgID
 		return nil, sdkerrors.NewValidationError(operation, "failed to render DSL input", err)
 	}
 
-	transaction, err := e.CreateTransactionWithDSLFile(ctx, orgID, ledgerID, dslContent)
+	transaction, err := e.CreateTransactionWithDSLFile(ctx, organizationID, ledgerID, dslContent)
 	if err != nil {
 		return nil, err
 	}
@@ -560,8 +594,8 @@ func (e *transactionsEntity) CreateTransactionWithDSL(ctx context.Context, orgID
 }
 
 // CreateTransactionWithDSLFile creates a new transaction using a DSL file.
-func (e *transactionsEntity) CreateTransactionWithDSLFile(ctx context.Context, orgID, ledgerID string, dslContent []byte) (*models.Transaction, error) {
-	if orgID == "" {
+func (e *transactionsEntity) CreateTransactionWithDSLFile(ctx context.Context, organizationID, ledgerID string, dslContent []byte) (*models.Transaction, error) {
+	if organizationID == "" {
 		return nil, errors.New("organization ID cannot be empty")
 	}
 
@@ -580,7 +614,7 @@ func (e *transactionsEntity) CreateTransactionWithDSLFile(ctx context.Context, o
 	}
 
 	// Use DSL endpoint with raw body payload
-	endpointURL := e.buildURL(orgID, ledgerID, "/dsl")
+	endpointURL := e.buildURL(organizationID, ledgerID, "/dsl")
 
 	var body bytes.Buffer
 
@@ -603,13 +637,13 @@ func (e *transactionsEntity) CreateTransactionWithDSLFile(ctx context.Context, o
 
 	var responseMap map[string]any
 	if err := e.httpClient.doRawRequest(ctx, http.MethodPost, endpointURL, headers, body.Bytes(), &responseMap); err != nil {
-		e.httpClient.emitBusinessError(ctx, businessEventTransactionCreated, map[string]any{"operation": "CreateTransactionWithDSLFile", "organizationId": orgID, "ledgerId": ledgerID}, err)
+		e.httpClient.emitBusinessError(ctx, businessEventTransactionCreated, map[string]any{"operation": "CreateTransactionWithDSLFile", "organizationId": organizationID, "ledgerId": ledgerID}, err)
 
 		return nil, err
 	}
 
 	transaction := e.parseTransactionResponse(responseMap)
-	e.httpClient.emitBusinessEvent(ctx, businessEventTransactionCreated, map[string]any{"operation": "CreateTransactionWithDSLFile", "organizationId": orgID, "ledgerId": ledgerID, "transactionId": transaction.ID, "status": transaction.Status.Code})
+	e.httpClient.emitBusinessEvent(ctx, businessEventTransactionCreated, map[string]any{"operation": "CreateTransactionWithDSLFile", "organizationId": organizationID, "ledgerId": ledgerID, "transactionId": transaction.ID, "status": transaction.Status.Code})
 
 	return transaction, nil
 }
@@ -634,7 +668,7 @@ func validateDSLContent(dslContent []byte) error {
 //
 // Parameters:
 //   - ctx: Context for the request, which can be used for cancellation and timeout.
-//   - orgID: The ID of the organization that owns the ledger. Must be a valid organization ID.
+//   - organizationID: The ID of the organization that owns the ledger. Must be a valid organization ID.
 //   - ledgerID: The ID of the ledger where the transaction exists. Must be a valid ledger ID.
 //   - transactionID: The unique identifier of the transaction to retrieve. Must be a valid
 //     transaction ID previously returned from a transaction creation method.
@@ -647,12 +681,12 @@ func validateDSLContent(dslContent []byte) error {
 //   - Authorization failure (insufficient permissions)
 //   - Resource not found (invalid organization, ledger, or transaction ID)
 //   - Network or server errors
-func (e *transactionsEntity) GetTransaction(ctx context.Context, orgID, ledgerID, transactionID string) (*models.Transaction, error) {
+func (e *transactionsEntity) GetTransaction(ctx context.Context, organizationID, ledgerID, transactionID string) (*models.Transaction, error) {
 	// Operation name for error context
 	const operation = "GetTransaction"
 
 	// Validate required parameters
-	if orgID == "" {
+	if organizationID == "" {
 		return nil, sdkerrors.NewMissingParameterError(operation, "organization ID")
 	}
 
@@ -667,7 +701,7 @@ func (e *transactionsEntity) GetTransaction(ctx context.Context, orgID, ledgerID
 	}
 
 	// Build the URL for the transaction
-	endpointURL := e.buildTransactionURL(orgID, ledgerID, transactionID)
+	endpointURL := e.buildTransactionURL(organizationID, ledgerID, transactionID)
 
 	req, err := newRequestWithContext(ctx, http.MethodGet, endpointURL, nil)
 	if err != nil {
@@ -691,7 +725,7 @@ func (e *transactionsEntity) GetTransaction(ctx context.Context, orgID, ledgerID
 //
 // Parameters:
 //   - ctx: Context for the request, which can be used for cancellation and timeout.
-//   - orgID: The ID of the organization that owns the ledger. Must be a valid organization ID.
+//   - organizationID: The ID of the organization that owns the ledger. Must be a valid organization ID.
 //   - ledgerID: The ID of the ledger to query. Must be a valid ledger ID.
 //   - opts: Optional parameters for pagination, sorting, and filtering. Can be nil for default behavior.
 //     Supported options include:
@@ -711,33 +745,31 @@ func (e *transactionsEntity) GetTransaction(ctx context.Context, orgID, ledgerID
 //   - Resource not found (invalid organization or ledger ID)
 //   - Invalid parameters (negative page number, etc.)
 //   - Network or server errors
-func (e *transactionsEntity) ListTransactions(ctx context.Context, orgID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Transaction], error) {
-	// Operation name for error context
+func (e *transactionsEntity) ListTransactions(ctx context.Context, organizationID, ledgerID string, opts models.TransactionsListOpts) (*models.ListResponse[models.Transaction], error) {
 	const operation = "ListTransactions"
 
-	// Validate required parameters
-	if orgID == "" {
+	if organizationID == "" {
 		return nil, sdkerrors.NewMissingParameterError(operation, "organization ID")
 	}
 
-	// Validate required parameters
 	if ledgerID == "" {
 		return nil, sdkerrors.NewMissingParameterError(operation, "ledger ID")
 	}
 
-	// Build the URL for the transactions
-	endpointURL := e.buildURL(orgID, ledgerID, "")
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+
+	endpointURL := e.buildURL(organizationID, ledgerID, "")
 
 	req, err := newRequestWithContext(ctx, http.MethodGet, endpointURL, nil)
 	if err != nil {
 		return nil, sdkerrors.NewInternalError(operation, fmt.Errorf("failed to create request: %w", err))
 	}
 
-	// Add query parameters if options are provided
-	if opts != nil {
+	if params := opts.ToQueryParams(); len(params) > 0 {
 		q := req.URL.Query()
-
-		for key, value := range transactionListQueryParams(opts) {
+		for key, value := range params {
 			q.Add(key, value)
 		}
 
@@ -754,15 +786,51 @@ func (e *transactionsEntity) ListTransactions(ctx context.Context, orgID, ledger
 	return &response, nil
 }
 
-func transactionListQueryParams(opts *models.ListOptions) map[string]string {
-	return cursorListQueryParams(opts)
+// ListTransactionsAll yields every transaction matching the request,
+// transparently advancing pagination via the server-issued NextCursor.
+func (e *transactionsEntity) ListTransactionsAll(ctx context.Context, organizationID, ledgerID string, opts models.TransactionsListOpts) iter.Seq2[models.Transaction, error] {
+	return flattenPages(e.ListTransactionsPages(ctx, organizationID, ledgerID, opts))
+}
+
+// ListTransactionsPages yields one full *ListResponse[Transaction] per page,
+// transparently advancing pagination via the server-issued NextCursor.
+func (e *transactionsEntity) ListTransactionsPages(ctx context.Context, organizationID, ledgerID string, opts models.TransactionsListOpts) iter.Seq2[*models.ListResponse[models.Transaction], error] {
+	ctx = requestContext(ctx)
+
+	return func(yield func(*models.ListResponse[models.Transaction], error) bool) {
+		current := opts
+
+		for {
+			if ctx.Err() != nil {
+				yield(nil, ctx.Err())
+				return
+			}
+
+			page, err := e.ListTransactions(ctx, organizationID, ledgerID, current)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			if !yield(page, nil) {
+				return
+			}
+
+			next := page.Pagination.NextCursor
+			if next == "" {
+				return
+			}
+
+			current.Cursor = next
+		}
+	}
 }
 
 // GetTransactionsMetricsCount retrieves the count of transactions that match the supplied filters.
-func (e *transactionsEntity) GetTransactionsMetricsCount(ctx context.Context, orgID, ledgerID string, opts *models.ListOptions) (*models.MetricsCount, error) {
+func (e *transactionsEntity) GetTransactionsMetricsCount(ctx context.Context, organizationID, ledgerID string, opts models.TransactionsListOpts) (*models.MetricsCount, error) {
 	const operation = "GetTransactionsMetricsCount"
 
-	if orgID == "" {
+	if organizationID == "" {
 		return nil, sdkerrors.NewMissingParameterError(operation, "organization ID")
 	}
 
@@ -770,16 +838,20 @@ func (e *transactionsEntity) GetTransactionsMetricsCount(ctx context.Context, or
 		return nil, sdkerrors.NewMissingParameterError(operation, "ledger ID")
 	}
 
-	endpointURL := e.buildMetricsURL(orgID, ledgerID)
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+
+	endpointURL := e.buildMetricsURL(organizationID, ledgerID)
 
 	req, err := newRequestWithContext(ctx, http.MethodHead, endpointURL, nil)
 	if err != nil {
 		return nil, sdkerrors.NewInternalError(operation, fmt.Errorf("failed to create request: %w", err))
 	}
 
-	if opts != nil {
+	if params := transactionMetricsCountQueryParams(opts); len(params) > 0 {
 		q := req.URL.Query()
-		for key, value := range transactionMetricsCountQueryParams(opts) {
+		for key, value := range params {
 			q.Add(key, value)
 		}
 
@@ -794,18 +866,13 @@ func (e *transactionsEntity) GetTransactionsMetricsCount(ctx context.Context, or
 	return &models.MetricsCount{TransactionsCount: count}, nil
 }
 
-func transactionMetricsCountQueryParams(opts *models.ListOptions) map[string]string {
+// transactionMetricsCountQueryParams renders ONLY the filter keys the
+// HEAD /metrics/count endpoint honors: status, route, start_date,
+// end_date. The full TransactionsListOpts.ToQueryParams shape is too
+// broad for this endpoint (cursor/limit/sort don't apply to a HEAD
+// count).
+func transactionMetricsCountQueryParams(opts models.TransactionsListOpts) map[string]string {
 	params := map[string]string{}
-	if opts == nil {
-		return params
-	}
-
-	allowed := map[string]struct{}{
-		"route":      {},
-		"status":     {},
-		"start_date": {},
-		"end_date":   {},
-	}
 
 	if opts.StartDate != "" {
 		params["start_date"] = opts.StartDate
@@ -815,28 +882,24 @@ func transactionMetricsCountQueryParams(opts *models.ListOptions) map[string]str
 		params["end_date"] = opts.EndDate
 	}
 
-	for key, value := range opts.Filters {
-		if _, ok := allowed[key]; ok && value != "" {
-			params[key] = value
-		}
+	if opts.Filters.Status != "" {
+		params["status"] = opts.Filters.Status
 	}
 
-	for key, value := range opts.AdditionalParams {
-		if _, ok := allowed[key]; ok && value != "" {
-			params[key] = value
-		}
+	if opts.Filters.Route != "" {
+		params["route"] = opts.Filters.Route
 	}
 
 	return params
 }
 
 // UpdateTransaction updates an existing transaction.
-func (e *transactionsEntity) UpdateTransaction(ctx context.Context, orgID, ledgerID, transactionID string, input any) (*models.Transaction, error) {
+func (e *transactionsEntity) UpdateTransaction(ctx context.Context, organizationID, ledgerID, transactionID string, input *models.UpdateTransactionInput) (*models.Transaction, error) {
 	// Operation name for error context
 	const operation = "UpdateTransaction"
 
 	// Validate required parameters
-	if orgID == "" {
+	if organizationID == "" {
 		return nil, sdkerrors.NewMissingParameterError(operation, "organization ID")
 	}
 
@@ -848,12 +911,16 @@ func (e *transactionsEntity) UpdateTransaction(ctx context.Context, orgID, ledge
 		return nil, sdkerrors.NewMissingParameterError(operation, "transaction ID")
 	}
 
-	if err := validateUpdatePayload(operation, input, "*models.UpdateTransactionInput"); err != nil {
-		return nil, err
+	if input == nil {
+		return nil, sdkerrors.NewMissingParameterError(operation, "input")
+	}
+
+	if err := input.Validate(); err != nil {
+		return nil, sdkerrors.NewValidationError(operation, "update validation failed", err)
 	}
 
 	// Build the URL for the transaction
-	endpointURL := e.buildTransactionURL(orgID, ledgerID, transactionID)
+	endpointURL := e.buildTransactionURL(organizationID, ledgerID, transactionID)
 
 	body, err := json.Marshal(input)
 	if err != nil {
@@ -867,22 +934,22 @@ func (e *transactionsEntity) UpdateTransaction(ctx context.Context, orgID, ledge
 
 	var transaction models.Transaction
 	if err := e.httpClient.sendRequest(req, &transaction); err != nil {
-		e.httpClient.emitBusinessError(ctx, businessEventTransactionUpdated, map[string]any{"operation": operation, "organizationId": orgID, "ledgerId": ledgerID, "transactionId": transactionID}, err)
+		e.httpClient.emitBusinessError(ctx, businessEventTransactionUpdated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "transactionId": transactionID}, err)
 
 		return nil, err
 	}
 
 	e.normalizeTransaction(&transaction)
-	e.httpClient.emitBusinessEvent(ctx, businessEventTransactionUpdated, map[string]any{"operation": operation, "organizationId": orgID, "ledgerId": ledgerID, "transactionId": transaction.ID, "status": transaction.Status.Code})
+	e.httpClient.emitBusinessEvent(ctx, businessEventTransactionUpdated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "transactionId": transaction.ID, "status": transaction.Status.Code})
 
 	return &transaction, nil
 }
 
 // RevertTransaction reverts a committed transaction.
-func (e *transactionsEntity) RevertTransaction(ctx context.Context, orgID, ledgerID, transactionID string) (*models.Transaction, error) {
+func (e *transactionsEntity) RevertTransaction(ctx context.Context, organizationID, ledgerID, transactionID string) (*models.Transaction, error) {
 	const operation = "RevertTransaction"
 
-	if orgID == "" {
+	if organizationID == "" {
 		return nil, sdkerrors.NewMissingParameterError(operation, "organization ID")
 	}
 
@@ -894,7 +961,7 @@ func (e *transactionsEntity) RevertTransaction(ctx context.Context, orgID, ledge
 		return nil, sdkerrors.NewMissingParameterError(operation, "transaction ID")
 	}
 
-	endpointURL := e.buildTransactionURL(orgID, ledgerID, transactionID, "revert")
+	endpointURL := e.buildTransactionURL(organizationID, ledgerID, transactionID, "revert")
 
 	req, err := newRequestWithContext(ctx, http.MethodPost, endpointURL, nil)
 	if err != nil {
@@ -903,22 +970,22 @@ func (e *transactionsEntity) RevertTransaction(ctx context.Context, orgID, ledge
 
 	var transaction models.Transaction
 	if err := e.httpClient.sendRequest(req, &transaction); err != nil {
-		e.httpClient.emitBusinessError(ctx, businessEventTransactionReverted, map[string]any{"operation": operation, "organizationId": orgID, "ledgerId": ledgerID, "transactionId": transactionID}, err)
+		e.httpClient.emitBusinessError(ctx, businessEventTransactionReverted, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "transactionId": transactionID}, err)
 
 		return nil, err
 	}
 
 	e.normalizeTransaction(&transaction)
-	e.httpClient.emitBusinessEvent(ctx, businessEventTransactionReverted, map[string]any{"operation": operation, "organizationId": orgID, "ledgerId": ledgerID, "transactionId": transaction.ID, "status": transaction.Status.Code})
+	e.httpClient.emitBusinessEvent(ctx, businessEventTransactionReverted, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "transactionId": transaction.ID, "status": transaction.Status.Code})
 
 	return &transaction, nil
 }
 
 // CommitTransaction commits a pending transaction.
-func (e *transactionsEntity) CommitTransaction(ctx context.Context, orgID, ledgerID, transactionID string) (*models.Transaction, error) {
+func (e *transactionsEntity) CommitTransaction(ctx context.Context, organizationID, ledgerID, transactionID string) (*models.Transaction, error) {
 	const operation = "CommitTransaction"
 
-	if orgID == "" {
+	if organizationID == "" {
 		return nil, sdkerrors.NewMissingParameterError(operation, "organization ID")
 	}
 
@@ -930,7 +997,7 @@ func (e *transactionsEntity) CommitTransaction(ctx context.Context, orgID, ledge
 		return nil, sdkerrors.NewMissingParameterError(operation, "transaction ID")
 	}
 
-	endpointURL := e.buildTransactionURL(orgID, ledgerID, transactionID, "commit")
+	endpointURL := e.buildTransactionURL(organizationID, ledgerID, transactionID, "commit")
 
 	req, err := newRequestWithContext(ctx, http.MethodPost, endpointURL, nil)
 	if err != nil {
@@ -939,29 +1006,29 @@ func (e *transactionsEntity) CommitTransaction(ctx context.Context, orgID, ledge
 
 	var transaction models.Transaction
 	if err := e.httpClient.sendRequest(req, &transaction); err != nil {
-		e.httpClient.emitBusinessError(ctx, businessEventTransactionCommitted, map[string]any{"operation": operation, "organizationId": orgID, "ledgerId": ledgerID, "transactionId": transactionID}, err)
+		e.httpClient.emitBusinessError(ctx, businessEventTransactionCommitted, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "transactionId": transactionID}, err)
 
 		return nil, err
 	}
 
 	e.normalizeTransaction(&transaction)
-	e.httpClient.emitBusinessEvent(ctx, businessEventTransactionCommitted, map[string]any{"operation": operation, "organizationId": orgID, "ledgerId": ledgerID, "transactionId": transaction.ID, "status": transaction.Status.Code})
+	e.httpClient.emitBusinessEvent(ctx, businessEventTransactionCommitted, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "transactionId": transaction.ID, "status": transaction.Status.Code})
 
 	return &transaction, nil
 }
 
 // CancelTransaction cancels a pending transaction.
-func (e *transactionsEntity) CancelTransaction(ctx context.Context, orgID, ledgerID, transactionID string) error {
-	_, err := e.CancelTransactionWithResponse(ctx, orgID, ledgerID, transactionID)
+func (e *transactionsEntity) CancelTransaction(ctx context.Context, organizationID, ledgerID, transactionID string) error {
+	_, err := e.CancelTransactionWithResponse(ctx, organizationID, ledgerID, transactionID)
 
 	return err
 }
 
 // CancelTransactionWithResponse cancels a pending transaction and returns the cancelled transaction.
-func (e *transactionsEntity) CancelTransactionWithResponse(ctx context.Context, orgID, ledgerID, transactionID string) (*models.Transaction, error) {
+func (e *transactionsEntity) CancelTransactionWithResponse(ctx context.Context, organizationID, ledgerID, transactionID string) (*models.Transaction, error) {
 	const operation = "CancelTransaction"
 
-	if orgID == "" {
+	if organizationID == "" {
 		return nil, sdkerrors.NewMissingParameterError(operation, "organization ID")
 	}
 
@@ -973,7 +1040,7 @@ func (e *transactionsEntity) CancelTransactionWithResponse(ctx context.Context, 
 		return nil, sdkerrors.NewMissingParameterError(operation, "transaction ID")
 	}
 
-	endpointURL := e.buildTransactionURL(orgID, ledgerID, transactionID, "cancel")
+	endpointURL := e.buildTransactionURL(organizationID, ledgerID, transactionID, "cancel")
 
 	req, err := newRequestWithContext(ctx, http.MethodPost, endpointURL, nil)
 	if err != nil {
@@ -993,7 +1060,7 @@ func (e *transactionsEntity) CancelTransactionWithResponse(ctx context.Context, 
 			e.normalizeTransaction(tx)
 			e.httpClient.emitBusinessEvent(ctx, businessEventTransactionCancelled, map[string]any{
 				"operation":      operation,
-				"organizationId": orgID,
+				"organizationId": organizationID,
 				"ledgerId":       ledgerID,
 				"transactionId":  transactionID,
 				"status":         tx.Status.Code,
@@ -1002,22 +1069,22 @@ func (e *transactionsEntity) CancelTransactionWithResponse(ctx context.Context, 
 			return tx, nil
 		}
 
-		e.httpClient.emitBusinessError(ctx, businessEventTransactionCancelled, map[string]any{"operation": operation, "organizationId": orgID, "ledgerId": ledgerID, "transactionId": transactionID}, err)
+		e.httpClient.emitBusinessError(ctx, businessEventTransactionCancelled, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "transactionId": transactionID}, err)
 
 		return nil, err
 	}
 
 	e.normalizeTransaction(&transaction)
-	e.httpClient.emitBusinessEvent(ctx, businessEventTransactionCancelled, map[string]any{"operation": operation, "organizationId": orgID, "ledgerId": ledgerID, "transactionId": transaction.ID, "status": transaction.Status.Code})
+	e.httpClient.emitBusinessEvent(ctx, businessEventTransactionCancelled, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "transactionId": transaction.ID, "status": transaction.Status.Code})
 
 	return &transaction, nil
 }
 
 // CreateInflowTransaction creates an inflow transaction (funds entering the system).
-func (e *transactionsEntity) CreateInflowTransaction(ctx context.Context, orgID, ledgerID string, input *models.CreateInflowInput) (*models.Transaction, error) {
+func (e *transactionsEntity) CreateInflowTransaction(ctx context.Context, organizationID, ledgerID string, input *models.CreateInflowInput) (*models.Transaction, error) {
 	const operation = "CreateInflowTransaction"
 
-	if orgID == "" {
+	if organizationID == "" {
 		return nil, sdkerrors.NewMissingParameterError(operation, "organization ID")
 	}
 
@@ -1033,7 +1100,7 @@ func (e *transactionsEntity) CreateInflowTransaction(ctx context.Context, orgID,
 		return nil, sdkerrors.NewValidationError(operation, "invalid input", err)
 	}
 
-	endpointURL := e.buildURL(orgID, ledgerID, "/inflow")
+	endpointURL := e.buildURL(organizationID, ledgerID, "/inflow")
 
 	body, err := json.Marshal(input.ToMap())
 	if err != nil {
@@ -1056,10 +1123,10 @@ func (e *transactionsEntity) CreateInflowTransaction(ctx context.Context, orgID,
 }
 
 // CreateOutflowTransaction creates an outflow transaction (funds leaving the system).
-func (e *transactionsEntity) CreateOutflowTransaction(ctx context.Context, orgID, ledgerID string, input *models.CreateOutflowInput) (*models.Transaction, error) {
+func (e *transactionsEntity) CreateOutflowTransaction(ctx context.Context, organizationID, ledgerID string, input *models.CreateOutflowInput) (*models.Transaction, error) {
 	const operation = "CreateOutflowTransaction"
 
-	if orgID == "" {
+	if organizationID == "" {
 		return nil, sdkerrors.NewMissingParameterError(operation, "organization ID")
 	}
 
@@ -1075,7 +1142,7 @@ func (e *transactionsEntity) CreateOutflowTransaction(ctx context.Context, orgID
 		return nil, sdkerrors.NewValidationError(operation, "invalid input", err)
 	}
 
-	endpointURL := e.buildURL(orgID, ledgerID, "/outflow")
+	endpointURL := e.buildURL(organizationID, ledgerID, "/outflow")
 
 	body, err := json.Marshal(input.ToMap())
 	if err != nil {
@@ -1098,10 +1165,10 @@ func (e *transactionsEntity) CreateOutflowTransaction(ctx context.Context, orgID
 }
 
 // CreateAnnotationTransaction creates an annotation transaction (no balance changes).
-func (e *transactionsEntity) CreateAnnotationTransaction(ctx context.Context, orgID, ledgerID string, input *models.CreateAnnotationInput) (*models.Transaction, error) {
+func (e *transactionsEntity) CreateAnnotationTransaction(ctx context.Context, organizationID, ledgerID string, input *models.CreateAnnotationInput) (*models.Transaction, error) {
 	const operation = "CreateAnnotationTransaction"
 
-	if orgID == "" {
+	if organizationID == "" {
 		return nil, sdkerrors.NewMissingParameterError(operation, "organization ID")
 	}
 
@@ -1117,7 +1184,7 @@ func (e *transactionsEntity) CreateAnnotationTransaction(ctx context.Context, or
 		return nil, sdkerrors.NewValidationError(operation, "invalid input", err)
 	}
 
-	endpointURL := e.buildURL(orgID, ledgerID, "/annotation")
+	endpointURL := e.buildURL(organizationID, ledgerID, "/annotation")
 
 	body, err := json.Marshal(input.ToLibTransaction())
 	if err != nil {
@@ -1140,19 +1207,19 @@ func (e *transactionsEntity) CreateAnnotationTransaction(ctx context.Context, or
 }
 
 // buildURL builds the URL for transactions API calls with the specified suffix.
-func (e *transactionsEntity) buildURL(orgID, ledgerID, suffix string) string {
+func (e *transactionsEntity) buildURL(organizationID, ledgerID, suffix string) string {
 	parts := []string{"transactions"}
 	if suffix != "" {
 		parts = append(parts, strings.Split(strings.TrimPrefix(suffix, "/"), "/")...)
 	}
 
-	return buildLedgerScopedURL(e.baseURLs["transaction"], orgID, ledgerID, parts...)
+	return buildLedgerScopedURL(e.baseURLs["transaction"], organizationID, ledgerID, parts...)
 }
 
-func (e *transactionsEntity) buildTransactionURL(orgID, ledgerID, transactionID string, parts ...string) string {
+func (e *transactionsEntity) buildTransactionURL(organizationID, ledgerID, transactionID string, parts ...string) string {
 	segments := []string{
 		"organizations",
-		pathSegment(orgID),
+		pathSegment(organizationID),
 		"ledgers",
 		pathSegment(ledgerID),
 		"transactions",
@@ -1175,8 +1242,8 @@ func (e *transactionsEntity) buildTransactionURL(orgID, ledgerID, transactionID 
 	return fmt.Sprintf("%s/%s", strings.TrimRight(e.baseURLs["transaction"], "/"), strings.Join(segments, "/"))
 }
 
-func (e *transactionsEntity) buildMetricsURL(orgID, ledgerID string) string {
-	return buildLedgerScopedURL(e.baseURLs["transaction"], orgID, ledgerID, "transactions", "metrics", "count")
+func (e *transactionsEntity) buildMetricsURL(organizationID, ledgerID string) string {
+	return buildLedgerScopedURL(e.baseURLs["transaction"], organizationID, ledgerID, "transactions", "metrics", "count")
 }
 
 // getString safely extracts a string value from a map

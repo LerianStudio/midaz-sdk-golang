@@ -134,7 +134,7 @@ func TestNewClient(t *testing.T) {
 
 	// Test with custom timeout
 	customClient, err := NewClient(
-		WithTimeout(30 * time.Second),
+		WithHTTPTimeout(30 * time.Second),
 	)
 	if err != nil {
 		t.Fatalf("NewClient() with timeout returned an error: %v", err)
@@ -169,7 +169,7 @@ func TestNewClient(t *testing.T) {
 
 	// Test with invalid options
 	_, err = NewClient(
-		WithTimeout(-1 * time.Second),
+		WithHTTPTimeout(-1 * time.Second),
 	)
 	if err == nil {
 		t.Fatalf("Expected NewClient with negative timeout to return an error, got nil")
@@ -585,8 +585,8 @@ func (*customRoundTripper) RoundTrip(_ *http.Request) (*http.Response, error) {
 }
 
 func TestHTTPClientOptions(t *testing.T) {
-	t.Run("WithTimeoutValid", func(t *testing.T) {
-		client, err := NewClient(WithTimeout(45 * time.Second))
+	t.Run("WithHTTPTimeoutValid", func(t *testing.T) {
+		client, err := NewClient(WithHTTPTimeout(45 * time.Second))
 		if err != nil {
 			t.Fatalf("NewClient returned error: %v", err)
 		}
@@ -596,8 +596,8 @@ func TestHTTPClientOptions(t *testing.T) {
 		}
 	})
 
-	t.Run("WithTimeoutZero", func(t *testing.T) {
-		client, err := NewClient(WithTimeout(0))
+	t.Run("WithHTTPTimeoutZero", func(t *testing.T) {
+		client, err := NewClient(WithHTTPTimeout(0))
 		if err != nil {
 			t.Fatalf("NewClient returned error: %v", err)
 		}
@@ -629,7 +629,7 @@ func TestNewClient_AllOptions(t *testing.T) {
 	}
 
 	client, err := NewClient(
-		WithTimeout(90*time.Second),
+		WithHTTPTimeout(90*time.Second),
 		WithTransport(transport),
 	)
 	if err != nil {

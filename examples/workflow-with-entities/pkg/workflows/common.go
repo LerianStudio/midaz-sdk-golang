@@ -1,7 +1,7 @@
 package workflows
 
-// Global variables for concurrent transaction counts
-var (
-	concurrentCustomerToMerchantTxs int
-	concurrentMerchantToCustomerTxs int
+// Default concurrent transaction counts used when callers pass 0.
+const (
+	defaultConcurrentCustomerToMerchantTxs = 20
+	defaultConcurrentMerchantToCustomerTxs = 20
 )

@@ -5,7 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -62,14 +61,6 @@ func TestBalanceSettingsAndInputsContracts(t *testing.T) {
 	createJSON, err := json.Marshal(create)
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"key":"available","allowSending":true,"allowReceiving":false,"direction":"credit","settings":{"balanceScope":"transactional","allowOverdraft":false,"overdraftLimitEnabled":false}}`, string(createJSON))
-
-	accountsJSON, err := json.Marshal(Accounts{})
-	require.NoError(t, err)
-	assert.Contains(t, string(accountsJSON), `"items":[]`)
-
-	listJSON, err := json.Marshal(ListAccountResponse{})
-	require.NoError(t, err)
-	assert.Contains(t, string(listJSON), `"items":[]`)
 }
 
 func TestMetadataIndexContracts(t *testing.T) {
@@ -99,41 +90,6 @@ func TestMetadataIndexContracts(t *testing.T) {
 	}
 
 	assert.False(t, IsValidMetadataIndexEntity("holder"))
-}
-
-func TestQueueConversionCopiesRawMessages(t *testing.T) {
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
-	auditID := uuid.New()
-	accountID := uuid.New()
-	queueDataID := uuid.New()
-	raw := json.RawMessage(`{"kind":"pending"}`)
-
-	queue := (&Queue{OrganizationID: organizationID, LedgerID: ledgerID, AuditID: auditID, AccountID: accountID}).AddQueueData(queueDataID, raw)
-	require.NotNil(t, queue)
-
-	raw[2] = 'X'
-
-	assert.JSONEq(t, `{"kind":"pending"}`, string(queue.QueueData[0].Value))
-	assert.Nil(t, (*Queue)(nil).AddQueueData(queueDataID, raw))
-
-	backend := queue.ToMmodelQueue()
-	backend.QueueData[0].Value[2] = 'Y'
-	assert.JSONEq(t, `{"kind":"pending"}`, string(queue.QueueData[0].Value))
-
-	converted := FromMmodelQueue(mmodel.Queue{
-		OrganizationID: organizationID,
-		LedgerID:       ledgerID,
-		AuditID:        auditID,
-		AccountID:      accountID,
-		QueueData: []mmodel.QueueData{{
-			ID:    queueDataID,
-			Value: json.RawMessage(`{"from":"backend"}`),
-		}},
-	})
-	assert.Equal(t, organizationID, converted.OrganizationID)
-	assert.JSONEq(t, `{"from":"backend"}`, string(converted.QueueData[0].Value))
-	assert.Empty(t, (*Queue)(nil).ToMmodelQueue().QueueData)
 }
 
 func TestRouteAndAccountTypeInputContracts(t *testing.T) {
@@ -182,12 +138,15 @@ func TestRouteAndAccountTypeInputContracts(t *testing.T) {
 	require.Error(t, NewCreateTransactionRouteInput("Funding", "Funding route", nil).Validate())
 	assert.Nil(t, (*CreateTransactionRouteInput)(nil).WithMetadata(map[string]any{"x": "y"}))
 
-	updateTxRoute := WithUpdateTransactionRouteMetadata(WithUpdateTransactionRouteDescription(WithUpdateTransactionRouteTitle(NewUpdateTransactionRouteInput(), "Funding Updated"), "desc"), map[string]any{"v": 1})
+	updateTxRoute := NewUpdateTransactionRouteInput().
+		WithTitle("Funding Updated").
+		WithDescription("desc").
+		WithMetadata(map[string]any{"v": 1})
 	require.NoError(t, updateTxRoute.Validate())
 	require.Error(t, NewUpdateTransactionRouteInput().Validate())
-	assert.Nil(t, WithUpdateTransactionRouteTitle(nil, "x"))
-	assert.Nil(t, WithUpdateTransactionRouteDescription(nil, "x"))
-	assert.Nil(t, WithUpdateTransactionRouteMetadata(nil, map[string]any{"x": "y"}))
+	assert.Nil(t, (*UpdateTransactionRouteInput)(nil).WithTitle("x"))
+	assert.Nil(t, (*UpdateTransactionRouteInput)(nil).WithDescription("x"))
+	assert.Nil(t, (*UpdateTransactionRouteInput)(nil).WithMetadata(map[string]any{"x": "y"}))
 }
 
 func TestCoreResourceInputValidationAndMarshalContracts(t *testing.T) {
@@ -224,7 +183,9 @@ func TestCoreResourceInputValidationAndMarshalContracts(t *testing.T) {
 
 	org := NewCreateOrganizationInput("Acme", "123456789").WithDoingBusinessAs("Acme Pay").WithStatus(NewStatus(StatusActive)).WithAddress(Address{Line1: "Avenida Paulista", City: "Sao Paulo", State: "SP", ZipCode: "01310-100", Country: "BR"}).WithMetadata(map[string]any{"industry": "fintech"})
 	require.NoError(t, org.Validate())
-	assert.NotNil(t, org.ToMmodelCreateOrganizationInput())
+	// ToMmodelCreateOrganizationInput / ToMmodelUpdateOrganizationInput were
+	// retired in Track 7E (CreateOrganizationInput/UpdateOrganizationInput
+	// are now SDK-owned with identical wire-format JSON tags).
 	orgJSON, err := json.Marshal(org)
 	require.NoError(t, err)
 	assert.Contains(t, string(orgJSON), `"legalName":"Acme"`)
@@ -233,7 +194,6 @@ func TestCoreResourceInputValidationAndMarshalContracts(t *testing.T) {
 
 	orgUpdate := (&UpdateOrganizationInput{}).WithLegalName("Acme Updated").WithDoingBusinessAs("Acme Bank").WithAddress(Address{Line1: "Rua A", City: "Rio", State: "RJ", ZipCode: "20000-000", Country: "BR"}).WithStatus(NewStatus(StatusInactive)).WithMetadata(map[string]any{"industry": "banking"})
 	require.NoError(t, orgUpdate.Validate())
-	assert.NotNil(t, orgUpdate.ToMmodelUpdateOrganizationInput())
 	orgUpdateJSON, err := json.Marshal(orgUpdate)
 	require.NoError(t, err)
 	assert.Contains(t, string(orgUpdateJSON), `"legalName":"Acme Updated"`)

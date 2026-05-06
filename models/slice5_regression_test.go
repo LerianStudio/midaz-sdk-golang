@@ -28,7 +28,7 @@ func TestSlice5RouteAndAssetRateValidators_NilSafe(t *testing.T) {
 	require.Nil(t, createOperationRoute.WithMetadata(map[string]any{"k": "v"}))
 	require.Nil(t, updateOperationRoute.WithTitle("title"))
 	require.Nil(t, createTransactionRoute.WithMetadata(map[string]any{"k": "v"}))
-	require.Nil(t, WithUpdateTransactionRouteMetadata(updateTransactionRoute, map[string]any{"k": "v"}))
+	require.Nil(t, updateTransactionRoute.WithMetadata(map[string]any{"k": "v"}))
 	require.Nil(t, createAssetRate.WithScale(2))
 }
 
@@ -74,7 +74,7 @@ func TestSlice5UpdateOperationRouteInput_AccountingEntriesRawNullIsChange(t *tes
 	assert.JSONEq(t, `{"accountingEntries":null}`, string(data))
 }
 
-func TestSlice5AssetRateValidationAndQueryJoin(t *testing.T) {
+func TestSlice5AssetRateValidation(t *testing.T) {
 	input := NewCreateAssetRateInput("USD", "BRL", 525).WithExternalID("not-a-uuid")
 	require.ErrorContains(t, input.Validate(), "externalID")
 
@@ -82,10 +82,12 @@ func TestSlice5AssetRateValidationAndQueryJoin(t *testing.T) {
 		WithExternalID(uuid.NewString()).
 		WithMetadata(map[string]any{"provider": "central-bank"})
 	require.NoError(t, valid.Validate())
-
-	params := NewAssetRateListOptions().WithTo("BRL", "EUR", "USD").ToQueryParams()
-	assert.Equal(t, "BRL,EUR,USD", params["to"])
 }
+
+// Note: the v2 AssetRateListOptions query-join coverage that was here
+// has moved to TestAssetRatesListOpts_ToQueryParams in
+// entities/asset_rates_test.go alongside the typed AssetRatesListOpts
+// shape that replaced it (Track 5 Batch 5C).
 
 func TestSlice5AnnotationRequiresSend(t *testing.T) {
 	require.ErrorContains(t, NewCreateAnnotationInput("note").Validate(), "send is required")
