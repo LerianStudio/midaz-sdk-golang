@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v3"
+	"github.com/LerianStudio/midaz-sdk-golang/v3"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	pkgerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
 )
@@ -25,7 +25,7 @@ func init() {
 	TestListMethods = testListMethods
 }
 
-func testListMethods(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) error {
+func testListMethods(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string) error {
 	fmt.Println("\n\n📋 STEP 12: TESTING LIST METHODS WITH PAGINATION AND ERROR HANDLING")
 	fmt.Println(strings.Repeat("=", 50))
 
@@ -55,7 +55,7 @@ func testListMethods(ctx context.Context, midazClient *client.Client, orgID, led
 }
 
 // testListOrganizations tests the ListOrganizations method with pagination
-func testListOrganizations(ctx context.Context, midazClient *client.Client) error {
+func testListOrganizations(ctx context.Context, midazClient *midaz.Client) error {
 	fmt.Println("\n🔍 Testing ListOrganizations with pagination...")
 
 	orgOptions := models.OrganizationsListOpts{
@@ -133,7 +133,7 @@ func pageStats(p models.Pagination) (page, totalPages int) {
 }
 
 // testListLedgers tests the ListLedgers method with filtering
-func testListLedgers(ctx context.Context, midazClient *client.Client, orgID string) error {
+func testListLedgers(ctx context.Context, midazClient *midaz.Client, orgID string) error {
 	fmt.Println("\n🔍 Testing ListLedgers with filtering...")
 
 	ledgerOptions := models.LedgersListOpts{
@@ -157,7 +157,7 @@ func testListLedgers(ctx context.Context, midazClient *client.Client, orgID stri
 // testListAccountsWithPagination tests the ListAccounts method using v3 typed
 // AccountsListOpts and demonstrates iter.Seq2 transparent pagination via
 // ListAccountsPages.
-func testListAccountsWithPagination(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) error {
+func testListAccountsWithPagination(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string) error {
 	fmt.Println("\n🔍 Testing ListAccounts with pagination and filtering...")
 
 	accountOptions := models.AccountsListOpts{
@@ -213,7 +213,7 @@ func printAccountsResults(accountsResponse *models.ListResponse[models.Account])
 
 // demonstrateAccountPagination demonstrates multi-page iteration through accounts
 // via v3 ListAccountsPages iter.Seq2. Limits to 3 pages for demo purposes.
-func demonstrateAccountPagination(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, opts models.AccountsListOpts) error {
+func demonstrateAccountPagination(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string, opts models.AccountsListOpts) error {
 	fmt.Println("\n📚 Demonstrating multi-page iteration through accounts...")
 
 	pageCount := 0
@@ -242,7 +242,7 @@ func demonstrateAccountPagination(ctx context.Context, midazClient *client.Clien
 }
 
 // testListPortfolios tests the ListPortfolios method
-func testListPortfolios(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) error {
+func testListPortfolios(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string) error {
 	fmt.Println("\n🔍 Testing ListPortfolios...")
 
 	portfoliosResponse, err := midazClient.Portfolios.ListPortfolios(ctx, orgID, ledgerID, models.PortfoliosListOpts{})
@@ -260,7 +260,7 @@ func testListPortfolios(ctx context.Context, midazClient *client.Client, orgID, 
 }
 
 // testListSegments tests the ListSegments method with date range filtering
-func testListSegments(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) error {
+func testListSegments(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string) error {
 	fmt.Println("\n🔍 Testing ListSegments with date range filtering...")
 
 	segmentOptions := models.SegmentsListOpts{

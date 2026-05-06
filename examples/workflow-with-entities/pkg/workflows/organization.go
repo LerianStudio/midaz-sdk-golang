@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v3"
+	"github.com/LerianStudio/midaz-sdk-golang/v3"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 )
 
@@ -20,7 +20,7 @@ import (
 // Returns:
 //   - string: The ID of the created organization
 //   - error: Any error encountered during the operation
-func CreateOrganization(ctx context.Context, midazClient *client.Client) (string, error) {
+func CreateOrganization(ctx context.Context, midazClient *midaz.Client) (string, error) {
 	fmt.Println("\n\n🏢 STEP 1: ORGANIZATION CREATION")
 	fmt.Println(strings.Repeat("=", 50))
 
@@ -66,7 +66,7 @@ func CreateOrganization(ctx context.Context, midazClient *client.Client) (string
 //
 // Returns:
 //   - error: Any error encountered during the operation
-func UpdateOrganization(ctx context.Context, midazClient *client.Client, orgID string) error {
+func UpdateOrganization(ctx context.Context, midazClient *midaz.Client, orgID string) error {
 	fmt.Println("\n\n🔄 STEP 9: ORGANIZATION UPDATE")
 	fmt.Println(strings.Repeat("=", 50))
 
@@ -117,7 +117,7 @@ func UpdateOrganization(ctx context.Context, midazClient *client.Client, orgID s
 //
 // Returns:
 //   - error: Any error encountered during the operation
-func RetrieveOrganization(ctx context.Context, midazClient *client.Client, orgID string) error {
+func RetrieveOrganization(ctx context.Context, midazClient *midaz.Client, orgID string) error {
 	fmt.Println("\n\n🔍 STEP 10: ORGANIZATION RETRIEVAL")
 	fmt.Println(strings.Repeat("=", 50))
 

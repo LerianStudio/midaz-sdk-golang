@@ -16,7 +16,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v3"
+	"github.com/LerianStudio/midaz-sdk-golang/v3"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/concurrent"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
@@ -27,8 +27,8 @@ func main() {
 	fmt.Println("===========================")
 
 	// Create a client for use in examples
-	c, err := client.New(
-		client.WithEnvironment(config.EnvironmentLocal),
+	c, err := midaz.New(
+		midaz.WithEnvironment(config.EnvironmentLocal),
 	)
 	if err != nil {
 		log.Fatalf("Failed to create client: %v", err)
@@ -48,7 +48,7 @@ func main() {
 }
 
 // workerPoolExample demonstrates using a worker pool to process items in parallel.
-func workerPoolExample(_ *client.Client) {
+func workerPoolExample(_ *midaz.Client) {
 	fmt.Println("\nExample 1: Worker Pool for Parallel Processing")
 	fmt.Println("-------------------------------------------")
 
@@ -136,7 +136,7 @@ func workerPoolExample(_ *client.Client) {
 }
 
 // batchProcessingExample demonstrates processing items in batches.
-func batchProcessingExample(_ *client.Client) {
+func batchProcessingExample(_ *midaz.Client) {
 	fmt.Println("\nExample 2: Batch Processing")
 	fmt.Println("-------------------------")
 
@@ -198,7 +198,7 @@ func batchProcessingExample(_ *client.Client) {
 }
 
 // forEachExample demonstrates using forEach for simple parallel operations.
-func forEachExample(_ *client.Client) {
+func forEachExample(_ *midaz.Client) {
 	fmt.Println("\nExample 3: ForEach for Simple Operations")
 	fmt.Println("--------------------------------------")
 
@@ -267,7 +267,7 @@ func forEachExample(_ *client.Client) {
 }
 
 // rateLimitingExample demonstrates using a rate limiter to control API call frequency.
-func rateLimitingExample(_ *client.Client) {
+func rateLimitingExample(_ *midaz.Client) {
 	fmt.Println("\nExample 4: Rate Limiting")
 	fmt.Println("---------------------")
 

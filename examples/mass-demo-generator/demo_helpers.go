@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v3"
+	"github.com/LerianStudio/midaz-sdk-golang/v3"
 	conc "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/concurrent"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
 	gen "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/generator"
@@ -356,7 +356,7 @@ func printDefaultsSummary(cfg demoConfig) {
 }
 
 // setupSDKAndContext configures the SDK client and context
-func setupSDKAndContext(userConfig demoConfig, obsProvider observability.Provider) (context.Context, *client.Client, gen.GeneratorConfig, func(), error) {
+func setupSDKAndContext(userConfig demoConfig, obsProvider observability.Provider) (context.Context, *midaz.Client, gen.GeneratorConfig, func(), error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(userConfig.timeoutSecVal)*time.Second)
 	ctx = gen.WithOrgLocale(ctx, strings.ToLower(userConfig.orgLocaleVal))
 
@@ -430,10 +430,10 @@ func applyRetryToConfig(cfg *config.Config, r *retry.Options) {
 	cfg.RetryWaitMax = r.MaxDelay
 }
 
-func createSDKClient(cfg *config.Config, obsProvider observability.Provider) (*client.Client, error) {
-	c, err := client.New(
-		client.WithConfig(cfg),
-		client.WithObservabilityProvider(obsProvider),
+func createSDKClient(cfg *config.Config, obsProvider observability.Provider) (*midaz.Client, error) {
+	c, err := midaz.New(
+		midaz.WithConfig(cfg),
+		midaz.WithObservabilityProvider(obsProvider),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create SDK client: %w", err)
@@ -492,7 +492,7 @@ func printBootstrapInfo(cfg *config.Config, gcfg gen.GeneratorConfig) {
 	}
 }
 
-func shutdownClient(c *client.Client) {
+func shutdownClient(c *midaz.Client) {
 	sdCtx, sdCancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer sdCancel()
 

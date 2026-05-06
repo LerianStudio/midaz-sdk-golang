@@ -15,7 +15,7 @@ import (
 	"log"
 	"time"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v3"
+	"github.com/LerianStudio/midaz-sdk-golang/v3"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
@@ -26,8 +26,8 @@ func main() {
 	fmt.Println("===========================")
 
 	// Create a client with a default auth token for examples
-	c, err := client.New(
-		client.WithEnvironment(config.EnvironmentLocal),
+	c, err := midaz.New(
+		midaz.WithEnvironment(config.EnvironmentLocal),
 	)
 	if err != nil {
 		log.Fatalf("Failed to create client: %v", err)
@@ -50,7 +50,7 @@ func main() {
 }
 
 // timeoutExample demonstrates how to set a timeout on API operations.
-func timeoutExample(c *client.Client) {
+func timeoutExample(c *midaz.Client) {
 	fmt.Println("\nExample 1: Using a timeout context")
 	fmt.Println("----------------------------------")
 
@@ -75,7 +75,7 @@ func timeoutExample(c *client.Client) {
 }
 
 // cancellationExample demonstrates how to manually cancel operations.
-func cancellationExample(c *client.Client) {
+func cancellationExample(c *midaz.Client) {
 	fmt.Println("\nExample 2: Manually cancelling operations")
 	fmt.Println("----------------------------------------")
 
@@ -100,7 +100,7 @@ func cancellationExample(c *client.Client) {
 }
 
 // operationGroupExample demonstrates using WithContext for multiple operations.
-func operationGroupExample(c *client.Client) {
+func operationGroupExample(c *midaz.Client) {
 	_ = c // Example parameter for demonstration purposes
 
 	fmt.Println("\nExample 3: Using context for operation groups")
@@ -111,9 +111,9 @@ func operationGroupExample(c *client.Client) {
 	defer cancel()
 
 	// Create a new client with the timeout context
-	timeoutClient, err := client.New(
-		client.WithEnvironment(config.EnvironmentLocal),
-		client.WithContext(ctx), // Set the context on the client
+	timeoutClient, err := midaz.New(
+		midaz.WithEnvironment(config.EnvironmentLocal),
+		midaz.WithContext(ctx), // Set the context on the client
 	)
 	if err != nil {
 		fmt.Printf("Failed to create client with context: %q\n", err.Error())
@@ -147,7 +147,7 @@ func operationGroupExample(c *client.Client) {
 }
 
 // resourceCleanupExample demonstrates proper resource cleanup on cancellation.
-func resourceCleanupExample(c *client.Client) {
+func resourceCleanupExample(c *midaz.Client) {
 	fmt.Println("\nExample 4: Proper resource cleanup")
 	fmt.Println("----------------------------------")
 
@@ -184,7 +184,7 @@ func resourceCleanupExample(c *client.Client) {
 }
 
 // realWorldCancellationExample demonstrates a real-world API call with cancellation.
-func realWorldCancellationExample(c *client.Client) {
+func realWorldCancellationExample(c *midaz.Client) {
 	fmt.Println("\nExample 5: Real-world API call cancellation")
 	fmt.Println("------------------------------------------")
 

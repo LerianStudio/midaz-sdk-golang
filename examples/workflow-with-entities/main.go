@@ -65,7 +65,7 @@ import (
 	"strings"
 	"time"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v3"
+	"github.com/LerianStudio/midaz-sdk-golang/v3"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/examples/workflow-with-entities/pkg/workflows"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
@@ -165,11 +165,11 @@ func printConnectionInfo(cfg *config.Config) {
 	fmt.Printf("   - Debug mode: %t\n", cfg.Debug)
 }
 
-func createSDKClient(cfg *config.Config) (*client.Client, error) {
-	fmt.Println("\nInitializing SDK client...")
+func createSDKClient(cfg *config.Config) (*midaz.Client, error) {
+	fmt.Println("\nInitializing SDK midaz...")
 
-	c, err := client.New(
-		client.WithConfig(cfg),
+	c, err := midaz.New(
+		midaz.WithConfig(cfg),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create client: %w", err)
@@ -197,7 +197,7 @@ func loadConcurrencySettings() (customerToMerchantTxs int, merchantToCustomerTxs
 	return customerToMerchantTxs, merchantToCustomerTxs
 }
 
-func executeWorkflow(ctx context.Context, c *client.Client, customerToMerchant, merchantToCustomer int) error {
+func executeWorkflow(ctx context.Context, c *midaz.Client, customerToMerchant, merchantToCustomer int) error {
 	fmt.Println("\nStarting complete workflow...")
 
 	if err := workflows.RunCompleteWorkflow(ctx, c.Entity, customerToMerchant, merchantToCustomer); err != nil {

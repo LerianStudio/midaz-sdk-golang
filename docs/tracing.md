@@ -256,8 +256,8 @@ go test ./entities -v -run 'TestHTTPClientTracingIntegration|TestHTTPClientDistr
 
 ## Examples
 
-- [`examples/tracing-example/`](../examples/tracing-example/) - Client-side tracing workflow.
-- [`examples/tracing-server-example/`](../examples/tracing-server-example/) - Server-side trace extraction and middleware-style propagation.
+- [`examples/tracing/`](../examples/tracing/) - Client-side tracing workflow.
+- [`examples/tracing-server/`](../examples/tracing-server/) - Server-side trace extraction and middleware-style propagation.
 
 ## Best practices
 

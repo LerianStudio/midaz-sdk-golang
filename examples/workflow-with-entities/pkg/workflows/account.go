@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v3"
+	"github.com/LerianStudio/midaz-sdk-golang/v3"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 )
 
@@ -26,7 +26,7 @@ import (
 //   - error: Any error encountered during the operation
 //
 //nolint:funlen // Demo function - length acceptable for example code showing complete account creation workflow
-func CreateAccounts(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) (customerAccount *models.Account, merchantAccount *models.Account, dummyOneAccount *models.Account, dummyTwoAccount *models.Account, err error) {
+func CreateAccounts(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string) (customerAccount *models.Account, merchantAccount *models.Account, dummyOneAccount *models.Account, dummyTwoAccount *models.Account, err error) {
 	fmt.Println("\n\n📂 STEP 4: ACCOUNT CREATION")
 	fmt.Println(strings.Repeat("=", 50))
 
@@ -152,7 +152,7 @@ func CreateAccounts(ctx context.Context, midazClient *client.Client, orgID, ledg
 //   - error: Any error encountered during the operation
 //
 //nolint:funlen // Demo function - length acceptable for example code showing complete account creation with types
-func CreateAccountsWithType(ctx context.Context, midazClient *client.Client, orgID, ledgerID, accountTypeID string) (customerAccount *models.Account, merchantAccount *models.Account, dummyOneAccount *models.Account, dummyTwoAccount *models.Account, err error) {
+func CreateAccountsWithType(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID, accountTypeID string) (customerAccount *models.Account, merchantAccount *models.Account, dummyOneAccount *models.Account, dummyTwoAccount *models.Account, err error) {
 	fmt.Println("\n\n📂 STEP 5: ACCOUNT CREATION WITH ACCOUNT TYPE")
 	fmt.Println(strings.Repeat("=", 50))
 

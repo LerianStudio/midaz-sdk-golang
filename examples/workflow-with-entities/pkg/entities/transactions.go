@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v3"
+	"github.com/LerianStudio/midaz-sdk-golang/v3"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/transaction"
@@ -196,7 +196,7 @@ func requireTransactionEntity(entity *entities.Entity) error {
 //   - error: Any error encountered during the operation
 func ExecuteTransferWithHelper(
 	ctx context.Context,
-	midazClient *client.Client,
+	midazClient *midaz.Client,
 	orgID, ledgerID string,
 	sourceAccountID, destAccountID string,
 	amount string,
@@ -260,7 +260,7 @@ func ExecuteTransferWithHelper(
 //   - error: Any error encountered during the operation
 func ExecuteDepositWithHelper(
 	ctx context.Context,
-	midazClient *client.Client,
+	midazClient *midaz.Client,
 	orgID, ledgerID string,
 	accountID string,
 	amount string,
@@ -323,7 +323,7 @@ func ExecuteDepositWithHelper(
 //   - error: Any error encountered during the operation
 func ExecuteWithdrawalWithHelper(
 	ctx context.Context,
-	midazClient *client.Client,
+	midazClient *midaz.Client,
 	orgID, ledgerID string,
 	accountID string,
 	amount string,
@@ -387,7 +387,7 @@ func ExecuteWithdrawalWithHelper(
 //   - error: Any error encountered during the operation
 func ExecuteMultiAccountTransferWithHelper(
 	ctx context.Context,
-	midazClient *client.Client,
+	midazClient *midaz.Client,
 	orgID, ledgerID string,
 	sourceAccounts map[string]string,
 	destAccounts map[string]string,
@@ -464,7 +464,7 @@ func ExecuteMultiAccountTransferWithHelper(
 /*
 func ExecuteBatchTransactionsWithHelper(
 	ctx context.Context,
-	midazClient *client.Client,
+	midazClient *midaz.Client,
 	orgID, ledgerID string,
 	inputs []*models.CreateTransactionInput,
 ) ([]transaction.BatchResult, *transaction.BatchSummary, error) {

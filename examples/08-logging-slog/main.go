@@ -8,7 +8,7 @@
 //
 // Run with:
 //
-//	go run ./examples/logging-slog
+//	go run ./examples/08-logging-slog
 //
 // Set MIDAZ_DEMO_VERBOSE=1 to see DEBUG output as well as INFO.
 package main

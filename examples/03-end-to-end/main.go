@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v3"
+	"github.com/LerianStudio/midaz-sdk-golang/v3"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
@@ -20,7 +20,7 @@ import (
 func main() {
 	// Create an observability provider with our new functional options
 	observabilityProvider, err := observability.New(context.Background(),
-		observability.WithServiceName("clean-transaction-example"),
+		observability.WithServiceName("end-to-end-example"),
 		observability.WithEnvironment("development"),
 		observability.WithComponentEnabled(true, true, true), // Enable tracing, metrics, and logging
 	)
@@ -29,9 +29,9 @@ func main() {
 	}
 
 	// Setup SDK client with the observability provider using the standardized options pattern
-	c, err := client.New(
-		client.WithEnvironment(config.EnvironmentLocal),
-		client.WithObservabilityProvider(observabilityProvider),
+	c, err := midaz.New(
+		midaz.WithEnvironment(config.EnvironmentLocal),
+		midaz.WithObservabilityProvider(observabilityProvider),
 	)
 	if err != nil {
 		log.Fatalf("Failed to create client: %v", err)

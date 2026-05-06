@@ -204,18 +204,38 @@ See [pagination](./pagination.md) for details on `page`, `limit`, cursor behavio
 
 Runnable examples live in `examples/`:
 
-- `access-manager-example/` - Access Manager authentication configuration.
-- `clean-transaction/` - Simple transaction flow.
-- `concurrency-example/` - Concurrent SDK usage.
-- `concurrency-example/balance-fetch/` - Concurrent balance fetching.
-- `configuration-examples/` - Client and config setup patterns.
-- `context-example/` - Context timeout and cancellation usage.
+**Start here**
+
+- `01-hello-world/` - Minimal init + first API call (≤30 lines). *(added in 9B)*
+- `02-auth/` - Access Manager authentication configuration.
+
+**Common workflows**
+
+- `03-end-to-end/` - Org → ledger → account → transaction.
+- `04-listing-cursor/` - Paginate transactions with `iter.Seq2`.
+- `05-listing-pages/` - Paginate accounts with page metadata. *(added in 9B)*
+
+**Behavior & resilience**
+
+- `06-idempotency/` - Auto, manual, and per-call opt-out. *(added in 9B)*
+- `07-retries/` - Default policy, custom policy, disabled.
+- `08-logging-slog/` - `*slog.Logger` integration.
+
+**Testing & observability**
+
+- `09-testing-with-mocks/` - `go.uber.org/mock` for unit tests. *(added in 9C)*
+- `10-observability-otel/` - OpenTelemetry tracing + metrics + logs.
+
+**Reference / advanced**
+
+- `concurrency/` - Concurrent SDK usage.
+- `concurrency/balance-fetch/` - Concurrent balance fetching.
+- `configuration/` - Client and config setup patterns.
+- `context/` - Context timeout and cancellation usage.
+- `tracing/` - Client-side tracing propagation.
+- `tracing-server/` - Server-side tracing propagation.
+- `pkg-validation-demo/` - Input-validation patterns from `pkg/validation` (does not use the client).
 - `mass-demo-generator/` - End-to-end demo data generation.
-- `observability-demo/` - Observability setup.
-- `retry-example/` - Retry behavior.
-- `tracing-example/` - Client-side tracing propagation.
-- `tracing-server-example/` - Server-side tracing propagation.
-- `validation-example/` - Input validation patterns.
 - `workflow-with-entities/` - Complete entity workflow.
 
 Most examples can be run with:

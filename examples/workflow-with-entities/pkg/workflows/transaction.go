@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v3"
+	"github.com/LerianStudio/midaz-sdk-golang/v3"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/concurrent"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/format"
@@ -17,7 +17,7 @@ import (
 )
 
 // ExecuteTransactions executes various transactions between accounts
-func ExecuteTransactions(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account) error {
+func ExecuteTransactions(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account) error {
 	ctx, span := observability.StartSpan(ctx, "ExecuteTransactions")
 	defer span.End()
 	if err := requireTransactionsClient(midazClient); err != nil {
@@ -103,7 +103,7 @@ func transactionRouteID(route *models.TransactionRoute) string {
 	return route.ID.String()
 }
 
-func requireTransactionsClient(midazClient *client.Client) error {
+func requireTransactionsClient(midazClient *midaz.Client) error {
 	if midazClient == nil || midazClient.Entity == nil || midazClient.Transactions == nil {
 		return errors.New("initialized client with transactions service is required")
 	}
@@ -112,7 +112,7 @@ func requireTransactionsClient(midazClient *client.Client) error {
 }
 
 // executeInitialDeposit performs initial deposit from external account
-func executeInitialDeposit(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount *models.Account, externalAccountID string) error {
+func executeInitialDeposit(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string, customerAccount *models.Account, externalAccountID string) error {
 	if err := requireTransactionsClient(midazClient); err != nil {
 		return err
 	}
@@ -174,7 +174,7 @@ func executeInitialDeposit(ctx context.Context, midazClient *client.Client, orgI
 }
 
 // executeTransfer performs transfer between two accounts
-func executeTransfer(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account) error {
+func executeTransfer(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account) error {
 	if err := requireTransactionsClient(midazClient); err != nil {
 		return err
 	}
@@ -236,31 +236,31 @@ func executeTransfer(ctx context.Context, midazClient *client.Client, orgID, led
 }
 
 // ExecuteMultipleDeposits - simplified placeholder
-func ExecuteMultipleDeposits(_ context.Context, _ *client.Client, _, _ string, _, _ *models.Account, _ string) error {
+func ExecuteMultipleDeposits(_ context.Context, _ *midaz.Client, _, _ string, _, _ *models.Account, _ string) error {
 	fmt.Println("\n📥 Multiple deposits (simplified)")
 	return nil
 }
 
 // ExecuteSingleTransfer - simplified placeholder
-func ExecuteSingleTransfer(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account) error {
+func ExecuteSingleTransfer(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account) error {
 	fmt.Println("\n🔄 Single transfer (simplified)")
 	return executeTransfer(ctx, midazClient, orgID, ledgerID, customerAccount, merchantAccount)
 }
 
 // ExecuteMultipleTransfers - simplified placeholder
-func ExecuteMultipleTransfers(_ context.Context, _ *client.Client, _, _ string, _, _ *models.Account) error {
+func ExecuteMultipleTransfers(_ context.Context, _ *midaz.Client, _, _ string, _, _ *models.Account) error {
 	fmt.Println("\n🔄 Multiple transfers (simplified)")
 	return nil
 }
 
 // ExecuteWithdrawals - simplified placeholder
-func ExecuteWithdrawals(_ context.Context, _ *client.Client, _, _ string, _, _ *models.Account, _ string) error {
+func ExecuteWithdrawals(_ context.Context, _ *midaz.Client, _, _ string, _, _ *models.Account, _ string) error {
 	fmt.Println("\n💱 Withdrawals (simplified)")
 	return nil
 }
 
 // ExecuteTransactionsWithRoutes executes transactions using routes
-func ExecuteTransactionsWithRoutes(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, sourceOperationRoute, destinationOperationRoute *models.OperationRoute, paymentTransactionRoute, _ *models.TransactionRoute) error {
+func ExecuteTransactionsWithRoutes(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, sourceOperationRoute, destinationOperationRoute *models.OperationRoute, paymentTransactionRoute, _ *models.TransactionRoute) error {
 	fmt.Println("\n🔀 Executing transactions with routes")
 	if err := requireTransactionsClient(midazClient); err != nil {
 		return err
@@ -303,7 +303,7 @@ func ExecuteTransactionsWithRoutes(ctx context.Context, midazClient *client.Clie
 }
 
 // executeInitialDepositWithRoutes performs initial deposit using transaction and operation routes
-func executeInitialDepositWithRoutes(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount *models.Account, externalAccountID string, sourceOperationRoute, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute) error {
+func executeInitialDepositWithRoutes(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string, customerAccount *models.Account, externalAccountID string, sourceOperationRoute, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute) error {
 	if err := requireTransactionsClient(midazClient); err != nil {
 		return err
 	}
@@ -384,7 +384,7 @@ func executeInitialDepositWithRoutes(ctx context.Context, midazClient *client.Cl
 }
 
 // executeTransferWithRoutes performs transfer using transaction and operation routes
-func executeTransferWithRoutes(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, sourceOperationRoute, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute) error {
+func executeTransferWithRoutes(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, sourceOperationRoute, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute) error {
 	if err := requireTransactionsClient(midazClient); err != nil {
 		return err
 	}
@@ -507,7 +507,7 @@ func CreateTransferInput(description string, amount float64, fromAccountID, toAc
 }
 
 // executeParallelTransactionsWithRoutes demonstrates parallel transaction processing with routes
-func executeParallelTransactionsWithRoutes(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, sourceOperationRoute, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute) error {
+func executeParallelTransactionsWithRoutes(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, sourceOperationRoute, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute) error {
 	ctx, span := observability.StartSpan(ctx, "executeParallelTransactionsWithRoutes")
 	defer span.End()
 
@@ -542,7 +542,7 @@ func executeParallelTransactionsWithRoutes(ctx context.Context, midazClient *cli
 	return firstError
 }
 
-func createParallelTransactionProcessor(midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute, amounts []float64) func(context.Context, int) (*models.Transaction, error) {
+func createParallelTransactionProcessor(midazClient *midaz.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute, amounts []float64) func(context.Context, int) (*models.Transaction, error) {
 	clientErr := requireTransactionsClient(midazClient)
 	customerAccountID, customerErr := accountIdentifier(customerAccount)
 	merchantAccountID, merchantErr := accountIdentifier(merchantAccount)
@@ -693,7 +693,7 @@ func printRouteInfo(transactionRoute *models.TransactionRoute, sourceOperationRo
 }
 
 // executeHighTPSTransactions demonstrates various TPS optimization techniques
-func executeHighTPSTransactions(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, sourceOperationRoute, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute) error {
+func executeHighTPSTransactions(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, sourceOperationRoute, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute) error {
 	ctx, span := observability.StartSpan(ctx, "executeHighTPSTransactions")
 	defer span.End()
 
@@ -727,7 +727,7 @@ func executeHighTPSTransactions(ctx context.Context, midazClient *client.Client,
 }
 
 // demonstrateHighWorkerCount shows increased TPS with more workers
-func demonstrateHighWorkerCount(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, _ /* sourceOperationRoute */, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute) error {
+func demonstrateHighWorkerCount(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, _ /* sourceOperationRoute */, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute) error {
 	if err := requireTransactionsClient(midazClient); err != nil {
 		return err
 	}
@@ -806,7 +806,7 @@ func demonstrateHighWorkerCount(ctx context.Context, midazClient *client.Client,
 
 // demonstrateConnectionPooling shows HTTP connection pool optimization
 // demonstrateConnectionPooling demonstrates optimized connection pooling
-func demonstrateConnectionPooling(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, _ /* sourceOperationRoute */, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute) error {
+func demonstrateConnectionPooling(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, _ /* sourceOperationRoute */, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute) error {
 	if err := requireTransactionsClient(midazClient); err != nil {
 		return err
 	}
@@ -887,7 +887,7 @@ func demonstrateConnectionPooling(ctx context.Context, midazClient *client.Clien
 
 // demonstrateBatchProcessing shows optimal batch processing
 // demonstrateBatchProcessing demonstrates batch processing optimization
-func demonstrateBatchProcessing(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, _ /* sourceOperationRoute */, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute) error {
+func demonstrateBatchProcessing(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, _ /* sourceOperationRoute */, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute) error {
 	if err := requireTransactionsClient(midazClient); err != nil {
 		return err
 	}
@@ -967,7 +967,7 @@ func demonstrateBatchProcessing(ctx context.Context, midazClient *client.Client,
 
 // demonstrateCombinedOptimizations shows all optimizations combined for maximum TPS
 // demonstrateCombinedOptimizations demonstrates all performance optimizations combined
-func demonstrateCombinedOptimizations(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, _ /* sourceOperationRoute */, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute) error {
+func demonstrateCombinedOptimizations(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, _ /* sourceOperationRoute */, destinationOperationRoute *models.OperationRoute, transactionRoute *models.TransactionRoute) error {
 	if err := requireTransactionsClient(midazClient); err != nil {
 		return err
 	}

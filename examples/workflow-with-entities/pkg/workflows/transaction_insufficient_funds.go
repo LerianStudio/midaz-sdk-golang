@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v3"
+	"github.com/LerianStudio/midaz-sdk-golang/v3"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/conversion"
 	pkgerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
@@ -35,7 +35,7 @@ type insufficientFundsTest struct {
 //   - customerAccount: The customer account model
 //   - merchantAccount: The merchant account model
 //   - externalAccountID: The external account ID
-func ExecuteInsufficientFundsTransactions(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, externalAccountID string) {
+func ExecuteInsufficientFundsTransactions(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, externalAccountID string) {
 	ctx, span := observability.StartSpan(ctx, "ExecuteInsufficientFundsTransactions")
 	defer span.End()
 
@@ -105,7 +105,7 @@ func buildInsufficientFundsTests(customerAccount, merchantAccount *models.Accoun
 	}
 }
 
-func runInsufficientFundsTest(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, test insufficientFundsTest, testIndex int) {
+func runInsufficientFundsTest(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string, test insufficientFundsTest, testIndex int) {
 	testCtx, testSpan := observability.StartSpan(ctx, "InsufficientFundsTest")
 	defer testSpan.End()
 

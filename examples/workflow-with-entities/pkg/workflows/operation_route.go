@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v3"
+	"github.com/LerianStudio/midaz-sdk-golang/v3"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/google/uuid"
 )
@@ -26,7 +26,7 @@ import (
 //
 // Note: The accountType parameter was removed as it was unused. The function signature
 // retains API compatibility by using a blank identifier for any callers that still pass it.
-func CreateOperationRoutes(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, _ *models.AccountType) (sourceRoute *models.OperationRoute, destRoute *models.OperationRoute, err error) {
+func CreateOperationRoutes(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string, _ *models.AccountType) (sourceRoute *models.OperationRoute, destRoute *models.OperationRoute, err error) {
 	fmt.Println("\n\n🛤️  STEP 4.6: OPERATION ROUTE CREATION")
 	fmt.Println(strings.Repeat("=", 50))
 
@@ -107,7 +107,7 @@ func CreateOperationRoutes(ctx context.Context, midazClient *client.Client, orgI
 // Returns:
 //   - *models.OperationRoute: The retrieved operation route
 //   - error: Any error encountered during the operation
-func GetOperationRoute(ctx context.Context, midazClient *client.Client, orgID, ledgerID, operationRouteID string) (*models.OperationRoute, error) {
+func GetOperationRoute(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID, operationRouteID string) (*models.OperationRoute, error) {
 	fmt.Println("\n🔍 Getting Operation Route by ID...")
 	fmt.Printf("   Retrieving operation route: %q\n", operationRouteID)
 
@@ -138,7 +138,7 @@ func GetOperationRoute(ctx context.Context, midazClient *client.Client, orgID, l
 // Returns:
 //   - *models.ListResponse[models.OperationRoute]: The list of operation routes
 //   - error: Any error encountered during the operation
-func ListOperationRoutes(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) (*models.ListResponse[models.OperationRoute], error) {
+func ListOperationRoutes(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string) (*models.ListResponse[models.OperationRoute], error) {
 	fmt.Println("\n📋 Listing Operation Routes...")
 
 	listOpts := models.OperationRoutesListOpts{
@@ -176,7 +176,7 @@ func ListOperationRoutes(ctx context.Context, midazClient *client.Client, orgID,
 // Returns:
 //   - *models.OperationRoute: The updated operation route
 //   - error: Any error encountered during the operation
-func UpdateOperationRoute(ctx context.Context, midazClient *client.Client, orgID, ledgerID, operationRouteID, title, description string, accountTypes []string) (*models.OperationRoute, error) {
+func UpdateOperationRoute(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID, operationRouteID, title, description string, accountTypes []string) (*models.OperationRoute, error) {
 	fmt.Println("\n✏️  Updating Operation Route...")
 	fmt.Printf("   Updating operation route: %q\n", operationRouteID)
 
@@ -215,7 +215,7 @@ func UpdateOperationRoute(ctx context.Context, midazClient *client.Client, orgID
 //
 // Returns:
 //   - error: Any error encountered during the operation
-func DeleteOperationRoute(ctx context.Context, midazClient *client.Client, orgID, ledgerID, operationRouteID string) error {
+func DeleteOperationRoute(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID, operationRouteID string) error {
 	fmt.Println("\n🗑️  Deleting Operation Route...")
 	fmt.Printf("   Deleting operation route: %q\n", operationRouteID)
 

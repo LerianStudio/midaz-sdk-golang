@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v3"
+	"github.com/LerianStudio/midaz-sdk-golang/v3"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 )
 
@@ -21,7 +21,7 @@ import (
 // Returns:
 //   - string: The ID of the created ledger
 //   - error: Any error encountered during the operation
-func CreateLedger(ctx context.Context, midazClient *client.Client, orgID string) (string, error) {
+func CreateLedger(ctx context.Context, midazClient *midaz.Client, orgID string) (string, error) {
 	fmt.Println("\n\n📒 STEP 2: LEDGER CREATION")
 	fmt.Println(strings.Repeat("=", 50))
 

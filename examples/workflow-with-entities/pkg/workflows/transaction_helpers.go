@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v3"
+	"github.com/LerianStudio/midaz-sdk-golang/v3"
 	ourEntities "github.com/LerianStudio/midaz-sdk-golang/v3/examples/workflow-with-entities/pkg/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
@@ -26,7 +26,7 @@ import (
 //
 // Returns:
 //   - error: Any error encountered during the operation
-func DemonstrateTransactionHelpers(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount, dummyOneAccount, dummyTwoAccount *models.Account) error {
+func DemonstrateTransactionHelpers(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string, customerAccount, merchantAccount, dummyOneAccount, dummyTwoAccount *models.Account) error {
 	ctx, span := observability.StartSpan(ctx, "DemonstrateTransactionHelpers")
 	defer span.End()
 	if customerAccount == nil || merchantAccount == nil || dummyOneAccount == nil || dummyTwoAccount == nil {
@@ -63,7 +63,7 @@ func DemonstrateTransactionHelpers(ctx context.Context, midazClient *client.Clie
 	return nil
 }
 
-func demonstrateTransferHelper(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account) error {
+func demonstrateTransferHelper(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account) error {
 	fmt.Println("\n🔄 Demonstrating transfer using helpers...")
 
 	transferCtx, transferSpan := observability.StartSpan(ctx, "TransferWithHelper")
@@ -80,7 +80,7 @@ func demonstrateTransferHelper(ctx context.Context, midazClient *client.Client, 
 	return nil
 }
 
-func demonstrateDepositHelper(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount *models.Account) error {
+func demonstrateDepositHelper(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string, customerAccount *models.Account) error {
 	fmt.Println("\n📥 Demonstrating deposit using helpers...")
 
 	depositCtx, depositSpan := observability.StartSpan(ctx, "DepositWithHelper")
@@ -97,7 +97,7 @@ func demonstrateDepositHelper(ctx context.Context, midazClient *client.Client, o
 	return nil
 }
 
-func demonstrateWithdrawalHelper(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount *models.Account) {
+func demonstrateWithdrawalHelper(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string, customerAccount *models.Account) {
 	fmt.Println("\n📤 Demonstrating withdrawal using helpers...")
 
 	withdrawalCtx, withdrawalSpan := observability.StartSpan(ctx, "WithdrawalWithHelper")
@@ -117,7 +117,7 @@ func demonstrateWithdrawalHelper(ctx context.Context, midazClient *client.Client
 	printTransactionSuccess("Withdrawal", withdrawalTx)
 }
 
-func demonstrateMultiAccountTransfer(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount, dummyOneAccount, dummyTwoAccount *models.Account) error {
+func demonstrateMultiAccountTransfer(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string, customerAccount, merchantAccount, dummyOneAccount, dummyTwoAccount *models.Account) error {
 	fmt.Println("\n🔄 Demonstrating multi-account transfer...")
 
 	multiCtx, multiSpan := observability.StartSpan(ctx, "MultiAccountTransferWithHelper")

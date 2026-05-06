@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"time"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v3"
+	"github.com/LerianStudio/midaz-sdk-golang/v3"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
 	"go.opentelemetry.io/otel/attribute"
@@ -50,9 +50,9 @@ func main() {
 		}
 	}()
 
-	midazClient, err := client.New(
-		client.WithBaseURL("https://api.midaz.com"),
-		client.WithObservabilityProvider(provider),
+	midazClient, err := midaz.New(
+		midaz.WithBaseURL("https://api.midaz.com"),
+		midaz.WithObservabilityProvider(provider),
 	)
 	if err != nil {
 		log.Fatalf("Failed to create Midaz client: %v", err)
@@ -72,7 +72,7 @@ func main() {
 }
 
 // createOrganizationWithTracing demonstrates creating an organization with tracing
-func createOrganizationWithTracing(midazClient *client.Client, provider observability.Provider) error {
+func createOrganizationWithTracing(midazClient *midaz.Client, provider observability.Provider) error {
 	// Start a root span for this operation
 	tracer := provider.Tracer()
 	ctx, span := tracer.Start(context.Background(), "create_organization_workflow")
@@ -138,7 +138,7 @@ func createOrganizationWithTracing(midazClient *client.Client, provider observab
 
 // workflowContext holds shared state for the complex workflow
 type workflowContext struct {
-	midazClient *client.Client
+	midazClient *midaz.Client
 	provider    observability.Provider
 	tracer      trace.Tracer
 	logger      observability.Logger
@@ -265,7 +265,7 @@ func (wc *workflowContext) createPortfolioStep(ctx context.Context) (*models.Por
 }
 
 // performComplexWorkflowWithTracing demonstrates a complex workflow with multiple API calls and nested spans
-func performComplexWorkflowWithTracing(midazClient *client.Client, provider observability.Provider) error {
+func performComplexWorkflowWithTracing(midazClient *midaz.Client, provider observability.Provider) error {
 	tracer := provider.Tracer()
 	logger := provider.Logger()
 

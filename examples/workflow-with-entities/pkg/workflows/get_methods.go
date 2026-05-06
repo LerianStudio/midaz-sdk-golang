@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v3"
+	"github.com/LerianStudio/midaz-sdk-golang/v3"
 )
 
 // TestGetMethods tests various Get methods of the Midaz SDK
@@ -24,7 +24,7 @@ func init() {
 	TestGetMethods = testGetMethods
 }
 
-func testGetMethods(ctx context.Context, midazClient *client.Client, orgID, ledgerID, accountID, portfolioID string) error {
+func testGetMethods(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID, accountID, portfolioID string) error {
 	fmt.Println("\n\n🔍 STEP 11: TESTING GET METHODS")
 	fmt.Println(strings.Repeat("=", 50))
 

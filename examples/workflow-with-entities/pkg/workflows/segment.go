@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v3"
+	"github.com/LerianStudio/midaz-sdk-golang/v3"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 )
 
@@ -19,7 +19,7 @@ import (
 //
 // Returns:
 //   - error: Any error encountered during the operation
-func CreateSegments(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) error {
+func CreateSegments(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string) error {
 	fmt.Println("\n\n🔍 STEP 7: SEGMENT CREATION")
 	fmt.Println(strings.Repeat("=", 50))
 

@@ -20,7 +20,7 @@ import (
 	"os"
 	"time"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v3"
+	"github.com/LerianStudio/midaz-sdk-golang/v3"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
 )
 
@@ -60,7 +60,7 @@ func basicConfiguration() error {
 	fmt.Println("-----------------------------")
 
 	// Create a client with minimal configuration
-	c, err := client.New()
+	c, err := midaz.New()
 	if err != nil {
 		return fmt.Errorf("failed to create client: %w", err)
 	}
@@ -88,24 +88,24 @@ func environmentBasedConfiguration() error {
 	fmt.Println("----------------------------------------")
 
 	// Local development environment
-	localClient, err := client.New(
-		client.WithEnvironment(config.EnvironmentLocal),
+	localClient, err := midaz.New(
+		midaz.WithEnvironment(config.EnvironmentLocal),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create local client: %w", err)
 	}
 
 	// Staging/Development environment
-	stagingClient, err := client.New(
-		client.WithEnvironment(config.EnvironmentDevelopment),
+	stagingClient, err := midaz.New(
+		midaz.WithEnvironment(config.EnvironmentDevelopment),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create staging client: %w", err)
 	}
 
 	// Production environment
-	productionClient, err := client.New(
-		client.WithEnvironment(config.EnvironmentProduction),
+	productionClient, err := midaz.New(
+		midaz.WithEnvironment(config.EnvironmentProduction),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create production client: %w", err)
@@ -159,8 +159,8 @@ func configurationFromEnvironment() error {
 	}
 
 	// Create a client with the environment-backed config.
-	c, err := client.New(
-		client.WithConfig(cfg),
+	c, err := midaz.New(
+		midaz.WithConfig(cfg),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create client: %w", err)
@@ -218,9 +218,9 @@ func advancedHTTPConfiguration() error {
 	}
 
 	// Create a client with the custom HTTP client
-	c, err := client.New(
-		client.WithHTTPClient(customClient),
-		client.WithTimeout(45*time.Second), // Can be redundant if set on HTTPClient
+	c, err := midaz.New(
+		midaz.WithHTTPClient(customClient),
+		midaz.WithTimeout(45*time.Second), // Can be redundant if set on HTTPClient
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create client: %w", err)
@@ -267,8 +267,8 @@ func comprehensiveConfiguration() error {
 	}
 
 	// Use the config in the client
-	c, err := client.New(
-		client.WithConfig(cfg),
+	c, err := midaz.New(
+		midaz.WithConfig(cfg),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create client: %w", err)

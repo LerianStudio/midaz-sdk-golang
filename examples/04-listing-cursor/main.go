@@ -30,7 +30,7 @@ import (
 	"os"
 	"time"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v3"
+	"github.com/LerianStudio/midaz-sdk-golang/v3"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
 )
@@ -45,7 +45,7 @@ func main() {
 		log.Fatalf("config: %v", err)
 	}
 
-	c, err := client.New(client.WithConfig(cfg))
+	c, err := midaz.New(midaz.WithConfig(cfg))
 	if err != nil {
 		log.Fatalf("client: %v", err)
 	}
@@ -76,7 +76,7 @@ func main() {
 // manualCursorLoop demonstrates the wire-level cursor advance pattern.
 // Useful when you need to inspect Pagination metadata between pages or
 // implement custom per-page behavior (logging, rate limiting, batching).
-func manualCursorLoop(ctx context.Context, c *client.Client, orgID, ledgerID string) error {
+func manualCursorLoop(ctx context.Context, c *midaz.Client, orgID, ledgerID string) error {
 	fmt.Println("\n[1] Manual cursor loop — explicit page advance")
 
 	opts := models.TransactionsListOpts{
@@ -107,7 +107,7 @@ func manualCursorLoop(ctx context.Context, c *client.Client, orgID, ledgerID str
 // pageIterator demonstrates ListTransactionsPages — the iter.Seq2 over
 // *ListResponse pages. The cursor advance is fully automated; you keep
 // page-level metadata access.
-func pageIterator(ctx context.Context, c *client.Client, orgID, ledgerID string) error {
+func pageIterator(ctx context.Context, c *midaz.Client, orgID, ledgerID string) error {
 	fmt.Println("\n[2] ListTransactionsPages — page-level iter.Seq2")
 
 	opts := models.TransactionsListOpts{
@@ -132,7 +132,7 @@ func pageIterator(ctx context.Context, c *client.Client, orgID, ledgerID string)
 // pattern. Cursor advance and item flattening are handled internally; the
 // caller writes a normal range loop. This is the form that should be used
 // in 90%+ of cases.
-func flatItemIterator(ctx context.Context, c *client.Client, orgID, ledgerID, accountID string) error {
+func flatItemIterator(ctx context.Context, c *midaz.Client, orgID, ledgerID, accountID string) error {
 	fmt.Println("\n[3] ListOperationsAll — flat item iter.Seq2")
 
 	opts := models.OperationsListOpts{
@@ -161,7 +161,7 @@ func flatItemIterator(ctx context.Context, c *client.Client, orgID, ledgerID, ac
 // earlyTermination shows that range-over-func honors break — the cursor
 // loop stops cleanly when the caller is done. No leaked goroutines, no
 // dangling HTTP connections.
-func earlyTermination(ctx context.Context, c *client.Client, orgID, ledgerID string) error {
+func earlyTermination(ctx context.Context, c *midaz.Client, orgID, ledgerID string) error {
 	fmt.Println("\n[4] Early termination — break stops cursor advance")
 
 	opts := models.TransactionsListOpts{

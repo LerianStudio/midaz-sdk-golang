@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v3"
+	"github.com/LerianStudio/midaz-sdk-golang/v3"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	pkgerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
@@ -25,7 +25,7 @@ import (
 // PrevPageOptions methods (Track 5 Batch 5B). Customers iterating
 // page-by-page in v3 use ListAccountsPages or call ListAccounts
 // repeatedly with opts.Page++.
-func ListAccounts(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) error {
+func ListAccounts(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string) error {
 	fmt.Println("\n\n📋 STEP 8: ACCOUNT LISTING")
 	fmt.Println(strings.Repeat("=", 50))
 
@@ -41,7 +41,7 @@ func ListAccounts(ctx context.Context, midazClient *client.Client, orgID, ledger
 }
 
 // demonstrateBasicListing shows ListAccounts on a single page.
-func demonstrateBasicListing(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) error {
+func demonstrateBasicListing(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string) error {
 	fmt.Println("Listing first page of accounts...")
 
 	opts := models.AccountsListOpts{
@@ -72,7 +72,7 @@ func demonstrateBasicListing(ctx context.Context, midazClient *client.Client, or
 }
 
 // demonstrateAllAccountsIteration shows ListAccountsAll iter.Seq2.
-func demonstrateAllAccountsIteration(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) error {
+func demonstrateAllAccountsIteration(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string) error {
 	fmt.Println("\nDemonstrating ListAccountsAll (iter.Seq2 transparent pagination)...")
 
 	listCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -101,7 +101,7 @@ func demonstrateAllAccountsIteration(ctx context.Context, midazClient *client.Cl
 }
 
 // demonstrateContextCancellation shows graceful cancellation handling.
-func demonstrateContextCancellation(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) error {
+func demonstrateContextCancellation(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string) error {
 	fmt.Println("\nDemonstrating context cancellation...")
 
 	cancelCtx, cancel := context.WithCancel(ctx)

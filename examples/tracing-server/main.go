@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v3"
+	"github.com/LerianStudio/midaz-sdk-golang/v3"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
 	"go.opentelemetry.io/otel/attribute"
@@ -66,9 +66,9 @@ func main() {
 		}
 	}()
 
-	midazClient, err := client.New(
-		client.WithBaseURL("https://api.midaz.com"),
-		client.WithObservabilityProvider(provider),
+	midazClient, err := midaz.New(
+		midaz.WithBaseURL("https://api.midaz.com"),
+		midaz.WithObservabilityProvider(provider),
 	)
 	if err != nil {
 		log.Fatalf("Failed to create Midaz client: %v", err)
@@ -106,7 +106,7 @@ func main() {
 // Server represents our HTTP server with tracing capabilities
 type Server struct {
 	provider    observability.Provider
-	midazClient *client.Client
+	midazClient *midaz.Client
 }
 
 func requestScheme(r *http.Request) string {

@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v3"
+	"github.com/LerianStudio/midaz-sdk-golang/v3"
 	sdkentities "github.com/LerianStudio/midaz-sdk-golang/v3/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
@@ -114,7 +114,7 @@ type workflowAccounts struct {
 	dummyTwoAccount *models.Account
 }
 
-// initializeMidazClient initializes and configures the Midaz client.
+// initializeMidazClient initializes and configures the Midaz midaz.
 //
 // In v3 the auth flow is consolidated: config.FromEnvironment() reads the
 // PLUGIN_AUTH_* + MIDAZ_CLIENT_ID + MIDAZ_CLIENT_SECRET env vars on its own,
@@ -124,7 +124,7 @@ type workflowAccounts struct {
 // directly. When the env opts out (or the vars aren't set), we fall back
 // to WithAnonymous so the example keeps running locally without spinning
 // up an Access Manager.
-func initializeMidazClient() (*client.Client, error) {
+func initializeMidazClient() (*midaz.Client, error) {
 	options := []config.Option{config.FromEnvironment()}
 	if os.Getenv("PLUGIN_AUTH_ENABLED") != "true" {
 		options = append(options, config.WithAnonymous())
@@ -135,12 +135,12 @@ func initializeMidazClient() (*client.Client, error) {
 		return nil, fmt.Errorf("failed to create config: %w", err)
 	}
 
-	midazClient, err := client.New(
-		client.WithConfig(cfg),
+	midazClient, err := midaz.New(
+		midaz.WithConfig(cfg),
 		// v3: WithObservability(t,m,l bool) was deleted. Compose explicitly
 		// through WithObservabilityOptions for uniformity with every other
 		// observability.Option.
-		client.WithObservabilityOptions(
+		midaz.WithObservabilityOptions(
 			observability.WithComponentEnabled(true, true, true),
 		),
 	)
@@ -152,7 +152,7 @@ func initializeMidazClient() (*client.Client, error) {
 }
 
 // executeCoreSetup executes the core setup phase of the workflow
-func executeCoreSetup(ctx context.Context, midazClient *client.Client) (orgID string, ledgerID string, accountType *models.AccountType, err error) {
+func executeCoreSetup(ctx context.Context, midazClient *midaz.Client) (orgID string, ledgerID string, accountType *models.AccountType, err error) {
 	// Step 1: Create an organization
 	orgID, err = CreateOrganization(ctx, midazClient)
 	if err != nil {
@@ -185,7 +185,7 @@ func executeCoreSetup(ctx context.Context, midazClient *client.Client) (orgID st
 }
 
 // handleAccountTypeOperations handles all account type related operations
-func handleAccountTypeOperations(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) (*models.AccountType, error) {
+func handleAccountTypeOperations(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string) (*models.AccountType, error) {
 	// Step 4.1: Create account type
 	accountType, err := CreateAccountType(ctx, midazClient, orgID, ledgerID)
 	if err != nil {
@@ -211,7 +211,7 @@ func handleAccountTypeOperations(ctx context.Context, midazClient *client.Client
 }
 
 // executeRoutesSetup executes the routes setup phase of the workflow
-func executeRoutesSetup(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, accountType *models.AccountType) (sourceOpRoute *models.OperationRoute, destOpRoute *models.OperationRoute, paymentTxRoute *models.TransactionRoute, refundTxRoute *models.TransactionRoute) {
+func executeRoutesSetup(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string, accountType *models.AccountType) (sourceOpRoute *models.OperationRoute, destOpRoute *models.OperationRoute, paymentTxRoute *models.TransactionRoute, refundTxRoute *models.TransactionRoute) {
 	// Step 4.5: Create operation routes
 	sourceOperationRoute, destinationOperationRoute := handleOperationRoutes(ctx, midazClient, orgID, ledgerID, accountType)
 
@@ -222,7 +222,7 @@ func executeRoutesSetup(ctx context.Context, midazClient *client.Client, orgID, 
 }
 
 // handleOperationRoutes handles the operation routes creation and CRUD demonstration
-func handleOperationRoutes(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, accountType *models.AccountType) (sourceRoute *models.OperationRoute, destRoute *models.OperationRoute) {
+func handleOperationRoutes(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string, accountType *models.AccountType) (sourceRoute *models.OperationRoute, destRoute *models.OperationRoute) {
 	fmt.Printf("🔍 Testing operation routes API availability...\n")
 
 	sourceOperationRoute, destinationOperationRoute, err := CreateOperationRoutes(ctx, midazClient, orgID, ledgerID, accountType)
@@ -245,7 +245,7 @@ func handleOperationRoutes(ctx context.Context, midazClient *client.Client, orgI
 }
 
 // handleTransactionRoutes handles the transaction routes creation
-func handleTransactionRoutes(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, sourceOperationRoute, destinationOperationRoute *models.OperationRoute) (paymentRoute *models.TransactionRoute, refundRoute *models.TransactionRoute) {
+func handleTransactionRoutes(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string, sourceOperationRoute, destinationOperationRoute *models.OperationRoute) (paymentRoute *models.TransactionRoute, refundRoute *models.TransactionRoute) {
 	fmt.Printf("🔍 Testing transaction routes API availability...\n")
 
 	paymentTransactionRoute, refundTransactionRoute, err := CreateTransactionRoutesWithOperationRoutes(ctx, midazClient, orgID, ledgerID, sourceOperationRoute, destinationOperationRoute)
@@ -260,7 +260,7 @@ func handleTransactionRoutes(ctx context.Context, midazClient *client.Client, or
 }
 
 // executeAccountsAndTransactions executes the accounts and transactions phase of the workflow
-func executeAccountsAndTransactions(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, accountType *models.AccountType, sourceOperationRoute, destinationOperationRoute *models.OperationRoute, paymentTransactionRoute, refundTransactionRoute *models.TransactionRoute) (*workflowAccounts, error) {
+func executeAccountsAndTransactions(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string, accountType *models.AccountType, sourceOperationRoute, destinationOperationRoute *models.OperationRoute, paymentTransactionRoute, refundTransactionRoute *models.TransactionRoute) (*workflowAccounts, error) {
 	// Step 5: Create accounts
 	customerAccount, merchantAccount, dummyOneAccount, dummyTwoAccount, err := CreateAccountsWithType(ctx, midazClient, orgID, ledgerID, accountType.ID.String())
 	if err != nil {
@@ -288,7 +288,7 @@ func executeAccountsAndTransactions(ctx context.Context, midazClient *client.Cli
 }
 
 // executeAdditionalResources executes the additional resources phase of the workflow
-func executeAdditionalResources(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) (string, error) {
+func executeAdditionalResources(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string) (string, error) {
 	// Step 7: Create a portfolio
 	portfolioID, err := CreatePortfolio(ctx, midazClient, orgID, ledgerID)
 	if err != nil {
@@ -314,7 +314,7 @@ func executeAdditionalResources(ctx context.Context, midazClient *client.Client,
 }
 
 // executeTestingFlow runs verification operations for the workflow
-func executeTestingFlow(ctx context.Context, midazClient *client.Client, orgID, ledgerID, customerAccountID, portfolioID string) error {
+func executeTestingFlow(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID, customerAccountID, portfolioID string) error {
 	// Step 11: Test Get methods
 	if err := TestGetMethods(ctx, midazClient, orgID, ledgerID, customerAccountID, portfolioID); err != nil {
 		return err
@@ -330,7 +330,7 @@ func executeTestingFlow(ctx context.Context, midazClient *client.Client, orgID, 
 }
 
 // demonstrateOperationRouteCRUD demonstrates all CRUD operations for Operation Routes
-func demonstrateOperationRouteCRUD(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, _ /* accountType */ *models.AccountType, sourceRoute, destinationRoute *models.OperationRoute) error {
+func demonstrateOperationRouteCRUD(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string, _ /* accountType */ *models.AccountType, sourceRoute, destinationRoute *models.OperationRoute) error {
 	fmt.Println("\n\n🛤️  OPERATION ROUTE CRUD DEMONSTRATION")
 	fmt.Println(strings.Repeat("=", 50))
 
@@ -409,7 +409,7 @@ func demonstrateOperationRouteCRUD(ctx context.Context, midazClient *client.Clie
 // Function declarations to satisfy the compiler
 // These are placeholder functions that will be implemented in separate files
 var (
-	TestGetMethods    func(ctx context.Context, midazClient *client.Client, orgID, ledgerID, accountID string, portfolioID string) error
-	TestListMethods   func(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) error
-	TestDeleteMethods func(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) error
+	TestGetMethods    func(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID, accountID string, portfolioID string) error
+	TestListMethods   func(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string) error
+	TestDeleteMethods func(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string) error
 )

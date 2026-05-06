@@ -326,15 +326,16 @@ make godoc
 
 ## Examples
 
-- [Configuration examples](examples/configuration-examples/main.go)
-- [Context example](examples/context-example/main.go)
-- [Concurrency example](examples/concurrency-example/main.go)
-- [Retry example](examples/retry-example/main.go)
-- [Observability demo](examples/observability-demo/observability-demo.go)
-- [Tracing example](examples/tracing-example/main.go)
-- [Tracing server example](examples/tracing-server-example/main.go)
-- [Complete workflow](examples/workflow-with-entities/main.go)
-- [Mass demo generator](examples/mass-demo-generator)
+See [`examples/`](examples/) for the full numbered list. Highlights:
+
+- [`02-auth/`](examples/02-auth/main.go) — Access Manager authentication.
+- [`03-end-to-end/`](examples/03-end-to-end/main.go) — Org → ledger → account → transaction.
+- [`04-listing-cursor/`](examples/04-listing-cursor/main.go) — Cursor pagination with `iter.Seq2`.
+- [`07-retries/`](examples/07-retries/main.go) — Retry policies.
+- [`08-logging-slog/`](examples/08-logging-slog/main.go) — `*slog.Logger` integration.
+- [`10-observability-otel/`](examples/10-observability-otel/observability_demo.go) — OpenTelemetry.
+- [`workflow-with-entities/`](examples/workflow-with-entities/main.go) — Complete entity workflow.
+- [`mass-demo-generator/`](examples/mass-demo-generator) — End-to-end demo data generation.
 
 Run the mass demo generator:
 

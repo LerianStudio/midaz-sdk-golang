@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"time"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v3"
+	"github.com/LerianStudio/midaz-sdk-golang/v3"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/concurrent"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
@@ -41,9 +41,9 @@ func main() {
 	batchUpdateBalances(ctx, accountBalances)
 }
 
-func setupAndFetchAccounts() (*client.Client, []string, context.Context, context.CancelFunc, error) {
-	c, err := client.New(
-		client.WithEnvironment(config.EnvironmentLocal),
+func setupAndFetchAccounts() (*midaz.Client, []string, context.Context, context.CancelFunc, error) {
+	c, err := midaz.New(
+		midaz.WithEnvironment(config.EnvironmentLocal),
 	)
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("failed to create client: %w", err)

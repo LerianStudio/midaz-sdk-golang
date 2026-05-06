@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v3"
+	"github.com/LerianStudio/midaz-sdk-golang/v3"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 )
 
@@ -23,7 +23,7 @@ func init() {
 	TestDeleteMethods = testDeleteMethods
 }
 
-func testDeleteMethods(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) error {
+func testDeleteMethods(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string) error {
 	fmt.Println("\n\nSTEP 13: TESTING DELETE METHODS")
 	fmt.Println(strings.Repeat("=", 50))
 
@@ -48,7 +48,7 @@ func testDeleteMethods(ctx context.Context, midazClient *client.Client, orgID, l
 	return nil
 }
 
-func deleteAllSegments(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) error {
+func deleteAllSegments(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string) error {
 	fmt.Println("\nDeleting all segments...")
 
 	segmentsResponse, err := midazClient.Segments.ListSegments(ctx, orgID, ledgerID, models.SegmentsListOpts{})
@@ -69,7 +69,7 @@ func deleteAllSegments(ctx context.Context, midazClient *client.Client, orgID, l
 	return nil
 }
 
-func deleteAllPortfolios(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) error {
+func deleteAllPortfolios(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string) error {
 	fmt.Println("\nDeleting all portfolios...")
 
 	portfoliosResponse, err := midazClient.Portfolios.ListPortfolios(ctx, orgID, ledgerID, models.PortfoliosListOpts{})
@@ -90,7 +90,7 @@ func deleteAllPortfolios(ctx context.Context, midazClient *client.Client, orgID,
 	return nil
 }
 
-func deleteAllAccounts(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) error {
+func deleteAllAccounts(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string) error {
 	fmt.Println("\nDeleting all accounts...")
 
 	accountsResponse, err := midazClient.Accounts.ListAccounts(ctx, orgID, ledgerID, models.AccountsListOpts{})
@@ -116,7 +116,7 @@ func deleteAllAccounts(ctx context.Context, midazClient *client.Client, orgID, l
 	return nil
 }
 
-func deleteLedgerAndOrg(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) error {
+func deleteLedgerAndOrg(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string) error {
 	fmt.Println("\nDeleting ledger...")
 
 	if err := midazClient.Ledgers.DeleteLedger(ctx, orgID, ledgerID); err != nil {

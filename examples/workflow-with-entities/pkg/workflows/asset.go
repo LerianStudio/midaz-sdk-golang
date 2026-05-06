@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v3"
+	"github.com/LerianStudio/midaz-sdk-golang/v3"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
 )
@@ -20,7 +20,7 @@ import (
 //
 // Returns:
 //   - error: Any error encountered during the operation
-func CreateAsset(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) error {
+func CreateAsset(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string) error {
 	fmt.Println("\n\n🏦 STEP 3: ASSET CREATION")
 	fmt.Println(strings.Repeat("=", 50))
 
