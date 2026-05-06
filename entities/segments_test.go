@@ -1643,7 +1643,7 @@ func TestSegmentsEntity_ResponseParsing(t *testing.T) {
 		// Verify metadata
 		require.NotNil(t, result.Metadata)
 		assert.Equal(t, "stringValue", result.Metadata["stringKey"])
-		assert.InDelta(t, float64(42), result.Metadata["numberKey"], 0.001)
+		assert.Equal(t, json.Number("42"), result.Metadata["numberKey"])
 		assert.Equal(t, true, result.Metadata["boolKey"])
 	})
 

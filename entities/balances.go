@@ -669,6 +669,8 @@ func (e *balancesEntity) ListBalancesAll(ctx context.Context, organizationID, le
 
 // ListBalancesPages yields one full *ListResponse[Balance] per page.
 func (e *balancesEntity) ListBalancesPages(ctx context.Context, organizationID, ledgerID string, opts models.BalancesListOpts) iter.Seq2[*models.ListResponse[models.Balance], error] {
+	ctx = requestContext(ctx)
+
 	return func(yield func(*models.ListResponse[models.Balance], error) bool) {
 		current := opts
 		if current.Page <= 0 {
@@ -707,6 +709,8 @@ func (e *balancesEntity) ListAccountBalancesAll(ctx context.Context, organizatio
 
 // ListAccountBalancesPages yields one full *ListResponse[Balance] per page for an account.
 func (e *balancesEntity) ListAccountBalancesPages(ctx context.Context, organizationID, ledgerID, accountID string, opts models.BalancesListOpts) iter.Seq2[*models.ListResponse[models.Balance], error] {
+	ctx = requestContext(ctx)
+
 	return func(yield func(*models.ListResponse[models.Balance], error) bool) {
 		current := opts
 		if current.Page <= 0 {
@@ -745,6 +749,8 @@ func (e *balancesEntity) ListBalancesByAccountAliasAll(ctx context.Context, orga
 
 // ListBalancesByAccountAliasPages yields one full *ListResponse[Balance] per page for an alias.
 func (e *balancesEntity) ListBalancesByAccountAliasPages(ctx context.Context, organizationID, ledgerID, alias string, opts models.BalancesListOpts) iter.Seq2[*models.ListResponse[models.Balance], error] {
+	ctx = requestContext(ctx)
+
 	return func(yield func(*models.ListResponse[models.Balance], error) bool) {
 		current := opts
 		if current.Page <= 0 {
@@ -783,6 +789,8 @@ func (e *balancesEntity) ListBalancesByExternalCodeAll(ctx context.Context, orga
 
 // ListBalancesByExternalCodePages yields one full *ListResponse[Balance] per page for an external code.
 func (e *balancesEntity) ListBalancesByExternalCodePages(ctx context.Context, organizationID, ledgerID, code string, opts models.BalancesListOpts) iter.Seq2[*models.ListResponse[models.Balance], error] {
+	ctx = requestContext(ctx)
+
 	return func(yield func(*models.ListResponse[models.Balance], error) bool) {
 		current := opts
 		if current.Page <= 0 {

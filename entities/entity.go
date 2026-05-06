@@ -408,7 +408,7 @@ func (e *Entity) SetObservability(provider observability.Provider) error {
 		return errors.New("entity HTTP client cannot be nil")
 	}
 
-	if provider == nil {
+	if provider == nil || reflectutil.IsTypedNil(provider) {
 		return nil
 	}
 
@@ -425,6 +425,7 @@ func (e *Entity) SetObservability(provider observability.Provider) error {
 
 	e.httpClient.setObservabilityLocked(provider, metrics)
 	e.observability = provider
+	e.propagateHTTPClientConfiguration()
 
 	return nil
 }

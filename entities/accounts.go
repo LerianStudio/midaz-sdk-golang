@@ -245,6 +245,8 @@ func (e *accountsEntity) ListAccountsAll(ctx context.Context, organizationID, le
 
 // ListAccountsPages yields one full *ListResponse[Account] per page.
 func (e *accountsEntity) ListAccountsPages(ctx context.Context, organizationID, ledgerID string, opts models.AccountsListOpts) iter.Seq2[*models.ListResponse[models.Account], error] {
+	ctx = requestContext(ctx)
+
 	return func(yield func(*models.ListResponse[models.Account], error) bool) {
 		current := opts
 		if current.Page <= 0 {

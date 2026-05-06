@@ -207,6 +207,8 @@ func (e *operationsEntity) ListOperationsAll(ctx context.Context, organizationID
 // ListOperationsPages yields one full *ListResponse[Operation] per page,
 // transparently advancing pagination via the server-issued NextCursor.
 func (e *operationsEntity) ListOperationsPages(ctx context.Context, organizationID, ledgerID, accountID string, opts models.OperationsListOpts) iter.Seq2[*models.ListResponse[models.Operation], error] {
+	ctx = requestContext(ctx)
+
 	return func(yield func(*models.ListResponse[models.Operation], error) bool) {
 		current := opts
 

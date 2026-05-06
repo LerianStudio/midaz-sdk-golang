@@ -191,6 +191,8 @@ func (e *ledgersEntity) ListLedgersAll(ctx context.Context, organizationID strin
 
 // ListLedgersPages yields one full *ListResponse[Ledger] per page.
 func (e *ledgersEntity) ListLedgersPages(ctx context.Context, organizationID string, opts models.LedgersListOpts) iter.Seq2[*models.ListResponse[models.Ledger], error] {
+	ctx = requestContext(ctx)
+
 	return func(yield func(*models.ListResponse[models.Ledger], error) bool) {
 		current := opts
 		if current.Page <= 0 {

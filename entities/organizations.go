@@ -195,6 +195,8 @@ func (e *organizationsEntity) ListOrganizationsAll(ctx context.Context, opts mod
 
 // ListOrganizationsPages yields one full *ListResponse[Organization] per page.
 func (e *organizationsEntity) ListOrganizationsPages(ctx context.Context, opts models.OrganizationsListOpts) iter.Seq2[*models.ListResponse[models.Organization], error] {
+	ctx = requestContext(ctx)
+
 	return func(yield func(*models.ListResponse[models.Organization], error) bool) {
 		current := opts
 		if current.Page <= 0 {

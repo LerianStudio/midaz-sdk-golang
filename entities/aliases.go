@@ -95,6 +95,8 @@ func (e *aliasesEntity) ListAliasesAll(ctx context.Context, organizationID strin
 
 // ListAliasesPages yields one full *ListResponse[Alias] per page.
 func (e *aliasesEntity) ListAliasesPages(ctx context.Context, organizationID string, opts models.AliasesListOpts) iter.Seq2[*models.ListResponse[models.Alias], error] {
+	ctx = requestContext(ctx)
+
 	return func(yield func(*models.ListResponse[models.Alias], error) bool) {
 		current := opts
 		if current.Page <= 0 {

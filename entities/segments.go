@@ -185,6 +185,8 @@ func (e *segmentsEntity) ListSegmentsAll(ctx context.Context, organizationID, le
 
 // ListSegmentsPages yields one full *ListResponse[Segment] per page.
 func (e *segmentsEntity) ListSegmentsPages(ctx context.Context, organizationID, ledgerID string, opts models.SegmentsListOpts) iter.Seq2[*models.ListResponse[models.Segment], error] {
+	ctx = requestContext(ctx)
+
 	return func(yield func(*models.ListResponse[models.Segment], error) bool) {
 		current := opts
 		if current.Page <= 0 {

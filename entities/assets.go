@@ -192,6 +192,8 @@ func (e *assetsEntity) ListAssetsAll(ctx context.Context, organizationID, ledger
 
 // ListAssetsPages yields one full *ListResponse[Asset] per page.
 func (e *assetsEntity) ListAssetsPages(ctx context.Context, organizationID, ledgerID string, opts models.AssetsListOpts) iter.Seq2[*models.ListResponse[models.Asset], error] {
+	ctx = requestContext(ctx)
+
 	return func(yield func(*models.ListResponse[models.Asset], error) bool) {
 		current := opts
 		if current.Page <= 0 {

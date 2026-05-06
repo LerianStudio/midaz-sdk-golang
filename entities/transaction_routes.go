@@ -193,6 +193,8 @@ func (e *transactionRoutesEntity) ListTransactionRoutesAll(ctx context.Context, 
 // ListTransactionRoutesPages yields one full *ListResponse[TransactionRoute] per page,
 // transparently advancing pagination via the server-issued NextCursor.
 func (e *transactionRoutesEntity) ListTransactionRoutesPages(ctx context.Context, organizationID, ledgerID string, opts models.TransactionRoutesListOpts) iter.Seq2[*models.ListResponse[models.TransactionRoute], error] {
+	ctx = requestContext(ctx)
+
 	return func(yield func(*models.ListResponse[models.TransactionRoute], error) bool) {
 		current := opts
 

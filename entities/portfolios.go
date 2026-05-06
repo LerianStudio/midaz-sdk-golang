@@ -197,6 +197,8 @@ func (e *portfoliosEntity) ListPortfoliosAll(ctx context.Context, organizationID
 
 // ListPortfoliosPages yields one full *ListResponse[Portfolio] per page.
 func (e *portfoliosEntity) ListPortfoliosPages(ctx context.Context, organizationID, ledgerID string, opts models.PortfoliosListOpts) iter.Seq2[*models.ListResponse[models.Portfolio], error] {
+	ctx = requestContext(ctx)
+
 	return func(yield func(*models.ListResponse[models.Portfolio], error) bool) {
 		current := opts
 		if current.Page <= 0 {

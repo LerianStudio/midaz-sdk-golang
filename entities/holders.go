@@ -87,6 +87,8 @@ func (e *holdersEntity) ListHoldersAll(ctx context.Context, organizationID strin
 
 // ListHoldersPages yields one full *ListResponse[Holder] per page.
 func (e *holdersEntity) ListHoldersPages(ctx context.Context, organizationID string, opts models.HoldersListOpts) iter.Seq2[*models.ListResponse[models.Holder], error] {
+	ctx = requestContext(ctx)
+
 	return func(yield func(*models.ListResponse[models.Holder], error) bool) {
 		current := opts
 		if current.Page <= 0 {

@@ -11,6 +11,7 @@ import (
 	"iter"
 	"mime/multipart"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -494,7 +495,11 @@ func decimalPtrFromAny(value any) *decimal.Decimal {
 		parsed := decimal.NewFromInt(v)
 		return &parsed
 	case float64:
-		parsed := decimal.NewFromFloat(v)
+		parsed, err := decimal.NewFromString(strconv.FormatFloat(v, 'f', -1, 64))
+		if err != nil {
+			return nil
+		}
+
 		return &parsed
 	default:
 		return nil
@@ -766,6 +771,8 @@ func (e *transactionsEntity) ListTransactionsAll(ctx context.Context, organizati
 // ListTransactionsPages yields one full *ListResponse[Transaction] per page,
 // transparently advancing pagination via the server-issued NextCursor.
 func (e *transactionsEntity) ListTransactionsPages(ctx context.Context, organizationID, ledgerID string, opts models.TransactionsListOpts) iter.Seq2[*models.ListResponse[models.Transaction], error] {
+	ctx = requestContext(ctx)
+
 	return func(yield func(*models.ListResponse[models.Transaction], error) bool) {
 		current := opts
 

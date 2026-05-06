@@ -2,7 +2,11 @@ package entities
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -106,6 +110,126 @@ func TestListPortfolios(t *testing.T) {
 	_, err = mockService.ListPortfolios(ctx, orgID, "", models.PortfoliosListOpts{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ledger ID is required")
+}
+
+func TestPortfoliosEntity_ListPortfolios_HTTPServer(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodGet, r.Method)
+		assert.Equal(t, "/organizations/org-123/ledgers/ledger-456/portfolios", r.URL.Path)
+
+		query := r.URL.Query()
+		assert.Equal(t, "25", query.Get("limit"))
+		assert.Equal(t, "2", query.Get("page"))
+		assert.Equal(t, "desc", query.Get("sort_order"))
+		assert.Equal(t, "2026-01-01", query.Get("start_date"))
+		assert.Equal(t, "2026-01-31", query.Get("end_date"))
+		assert.Equal(t, "Treasury", query.Get("name"))
+		assert.Equal(t, "entity-789", query.Get("entity_id"))
+		assert.Equal(t, "ACTIVE", query.Get("status"))
+		assert.Equal(t, "true", query.Get("include_deleted"))
+		assert.Empty(t, query.Get("orderBy"), "OrderBy is retained on opts but not emitted by page query params")
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		if err := json.NewEncoder(w).Encode(models.ListResponse[models.Portfolio]{
+			Items: []models.Portfolio{
+				{
+					ID:             "portfolio-123",
+					Name:           "Treasury",
+					EntityID:       "entity-789",
+					OrganizationID: "org-123",
+					LedgerID:       "ledger-456",
+					Status:         models.Status{Code: "ACTIVE"},
+				},
+			},
+			Pagination: models.Pagination{Total: 1, Limit: 25, Page: 2},
+		}); err != nil {
+			t.Errorf("encode response: %v", err)
+		}
+	}))
+	defer server.Close()
+
+	entity := newPortfoliosEntity(server.Client(), "test-token", map[string]string{"onboarding": server.URL})
+	opts := models.PortfoliosListOpts{
+		PageListOpts: models.PageListOpts{
+			Limit:         25,
+			Page:          2,
+			OrderBy:       "createdAt",
+			SortDirection: models.SortDescending,
+			StartDate:     "2026-01-01",
+			EndDate:       "2026-01-31",
+		},
+		Filters: models.PortfoliosFilters{
+			Name:           "Treasury",
+			EntityID:       "entity-789",
+			Status:         "ACTIVE",
+			IncludeDeleted: true,
+		},
+	}
+
+	result, err := entity.ListPortfolios(context.Background(), "org-123", "ledger-456", opts)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Len(t, result.Items, 1)
+	assert.Equal(t, "portfolio-123", result.Items[0].ID)
+	assert.Equal(t, "Treasury", result.Items[0].Name)
+	assert.Equal(t, "ACTIVE", result.Items[0].Status.Code)
+	assert.Equal(t, 1, result.Pagination.Total)
+	assert.Equal(t, 25, result.Pagination.Limit)
+}
+
+func TestPortfoliosEntity_ListPortfolios_ValidationBeforeRequest(t *testing.T) {
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests.Add(1)
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	entity := newPortfoliosEntity(server.Client(), "test-token", map[string]string{"onboarding": server.URL})
+
+	_, err := entity.ListPortfolios(context.Background(), "", "ledger-456", models.PortfoliosListOpts{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "organizationID")
+
+	_, err = entity.ListPortfolios(context.Background(), "org-123", "", models.PortfoliosListOpts{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "ledgerID")
+
+	assert.Equal(t, int32(0), requests.Load(), "validation errors must return before sending HTTP requests")
+}
+
+func TestPortfoliosEntity_ListPortfoliosPages_NilContext(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodGet, r.Method)
+		assert.Equal(t, "/organizations/org-123/ledgers/ledger-456/portfolios", r.URL.Path)
+		assert.Equal(t, "1", r.URL.Query().Get("page"))
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		if err := json.NewEncoder(w).Encode(models.ListResponse[models.Portfolio]{
+			Items: []models.Portfolio{
+				{ID: "portfolio-123", Name: "Treasury", Status: models.Status{Code: "ACTIVE"}},
+			},
+			Pagination: models.Pagination{Total: 1, Limit: 10, Page: 1},
+		}); err != nil {
+			t.Errorf("encode response: %v", err)
+		}
+	}))
+	defer server.Close()
+
+	entity := newPortfoliosEntity(server.Client(), "test-token", map[string]string{"onboarding": server.URL})
+
+	var pages []*models.ListResponse[models.Portfolio]
+	var nilCtx context.Context
+	for page, err := range entity.ListPortfoliosPages(nilCtx, "org-123", "ledger-456", models.PortfoliosListOpts{PageListOpts: models.PageListOpts{Limit: 10}}) {
+		require.NoError(t, err)
+		pages = append(pages, page)
+	}
+
+	require.Len(t, pages, 1)
+	require.Len(t, pages[0].Items, 1)
+	assert.Equal(t, "portfolio-123", pages[0].Items[0].ID)
 }
 
 // \1 performs an operation
