@@ -38,14 +38,13 @@ func ExampleCreateOrganizationInput_Validate_multipleErrors() {
 
 // ExampleOrganizationsListOpts demonstrates the typed pagination opts
 // for a page-based endpoint. The embedded PageListOpts struct carries
-// Limit, Page, OrderBy, and SortDirection — wrong-shape cursor opts
-// don't compile here.
+// Limit, Page, and SortDirection — wrong-shape cursor opts don't
+// compile here.
 func ExampleOrganizationsListOpts() {
 	opts := models.OrganizationsListOpts{
 		PageListOpts: models.PageListOpts{
 			Limit:         50,
 			Page:          1,
-			OrderBy:       "createdAt",
 			SortDirection: models.SortDescending,
 		},
 	}

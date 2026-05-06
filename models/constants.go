@@ -127,10 +127,6 @@ const (
 	// QueryParamCursor is the query parameter name for cursor
 	QueryParamCursor = "cursor"
 
-	// QueryParamOrderBy is the legacy query parameter name for the field to order by.
-	// Deprecated: current Midaz list endpoints do not expose a generic order-by query parameter.
-	QueryParamOrderBy = "orderBy"
-
 	// QueryParamOrderDirection is the query parameter name for sort direction.
 	QueryParamOrderDirection = "sort_order"
 

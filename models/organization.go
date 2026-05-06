@@ -110,7 +110,7 @@ type UpdateOrganizationInput struct {
 	DoingBusinessAs      *string        `json:"doingBusinessAs" example:"Lerian Group" maxLength:"256"`
 	Address              Address        `json:"address"`
 	Status               Status         `json:"status"`
-	Metadata             map[string]any `json:"metadata"`
+	Metadata             map[string]any `json:"metadata,omitempty"`
 }
 
 // Validate validates the UpdateOrganizationInput fields.

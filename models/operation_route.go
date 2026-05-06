@@ -72,7 +72,7 @@ type CreateOperationRouteInput struct {
 // Validate validates the CreateOperationRouteInput fields.
 func (input *CreateOperationRouteInput) Validate() error {
 	if input == nil {
-		return errors.New("input is required")
+		return errors.New("input cannot be nil")
 	}
 
 	var errs validation.FieldErrors
@@ -115,14 +115,14 @@ type UpdateOperationRouteInput struct {
 	Code                 string             `json:"code,omitempty" example:"EXT-001"`
 	AccountingEntries    *AccountingEntries `json:"accountingEntries,omitempty"`
 	AccountingEntriesRaw json.RawMessage    `json:"-"`
-	Metadata             map[string]any     `json:"metadata"`
+	Metadata             map[string]any     `json:"metadata,omitempty"`
 	Account              *AccountRule       `json:"account,omitempty"`
 }
 
 // Validate validates the UpdateOperationRouteInput fields.
 func (input *UpdateOperationRouteInput) Validate() error {
 	if input == nil {
-		return errors.New("input is required")
+		return errors.New("input cannot be nil")
 	}
 
 	if !input.hasChanges() {

@@ -101,7 +101,7 @@ func (input *UpdateLedgerSettingsInput) hasChanges() bool {
 // so the SDK refuses to send one.
 func (input *UpdateLedgerSettingsInput) Validate() error {
 	if input == nil {
-		return errors.New("input is required")
+		return errors.New("input cannot be nil")
 	}
 
 	if !input.hasChanges() {
@@ -123,7 +123,7 @@ type CreateLedgerInput struct {
 type UpdateLedgerInput struct {
 	Name     string         `json:"name" example:"Treasury Operations Global" maxLength:"256"`
 	Status   Status         `json:"status"`
-	Metadata map[string]any `json:"metadata"`
+	Metadata map[string]any `json:"metadata,omitempty"`
 }
 
 // NewCreateLedgerInput creates a new CreateLedgerInput with required fields.

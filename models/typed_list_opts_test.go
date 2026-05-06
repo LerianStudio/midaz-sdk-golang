@@ -19,7 +19,6 @@ func TestAccountsListOpts_ToQueryParams_TypedFilters(t *testing.T) {
 				PageListOpts: PageListOpts{
 					Limit:         50,
 					Page:          3,
-					OrderBy:       "createdAt",
 					SortDirection: SortAscending,
 					StartDate:     "2026-01-01",
 					EndDate:       "2026-01-31",
@@ -113,21 +112,18 @@ func TestPortfoliosListOpts_ToQueryParams_TypedFilters(t *testing.T) {
 	}
 }
 
-func TestPageListOpts_OrderByRetainedButNotEmitted(t *testing.T) {
+func TestPageQueryParams_EmitsOnlyServerSupportedKeys(t *testing.T) {
 	opts := PageListOpts{
 		Limit:         10,
 		Page:          2,
-		OrderBy:       "createdAt",
 		SortDirection: SortDescending,
 	}
 
 	params := PageQueryParams(opts)
 
-	assert.Equal(t, "createdAt", opts.OrderBy)
 	assert.Equal(t, map[string]string{
 		"limit":      "10",
 		"page":       "2",
 		"sort_order": "desc",
 	}, params)
-	assert.NotContains(t, params, QueryParamOrderBy)
 }

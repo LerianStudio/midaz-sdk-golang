@@ -36,7 +36,7 @@ var metadataKeyPattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]*$`)
 // Validate validates the CreateMetadataIndexInput fields.
 func (input *CreateMetadataIndexInput) Validate() error {
 	if input == nil {
-		return errors.New("input is required")
+		return errors.New("input cannot be nil")
 	}
 
 	var errs validation.FieldErrors

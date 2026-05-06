@@ -40,7 +40,7 @@ type UpdatePortfolioInput struct {
 	EntityID string         `json:"entityId" example:"00000000-0000-0000-0000-000000000000"`
 	Name     string         `json:"name" example:"My Portfolio Updated"`
 	Status   Status         `json:"status"`
-	Metadata map[string]any `json:"metadata"`
+	Metadata map[string]any `json:"metadata,omitempty"`
 }
 
 // NewCreatePortfolioInput creates a new CreatePortfolioInput with required fields.

@@ -17,7 +17,7 @@ import (
 // descriptions named like an account constant" a routine confusion.
 const maxOperationDescriptionLength = 256
 
-// Note: Status type is defined in common.go as Status = mmodel.Status
+// Status is defined in common.go.
 
 // Amount structure for marshaling/unmarshalling JSON.
 //
@@ -210,7 +210,7 @@ type UpdateOperationInput struct {
 // Validate validates the UpdateOperationInput fields.
 func (input *UpdateOperationInput) Validate() error {
 	if input == nil {
-		return errors.New("input is required")
+		return errors.New("input cannot be nil")
 	}
 
 	if input.Description == "" && len(input.Metadata) == 0 {
@@ -398,7 +398,7 @@ type CreateOperationInput struct {
 //   - error: An error if validation fails, nil otherwise
 func (input *CreateOperationInput) Validate() error {
 	if input == nil {
-		return errors.New("input is required")
+		return errors.New("input cannot be nil")
 	}
 
 	var errs validation.FieldErrors

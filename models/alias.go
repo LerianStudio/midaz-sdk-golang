@@ -167,7 +167,7 @@ func (input *UpdateAliasInput) WithRelatedParties(relatedParties []*RelatedParty
 // Validate validates the CreateAliasInput fields.
 func (input *CreateAliasInput) Validate() error {
 	if input == nil {
-		return errors.New("input is required")
+		return errors.New("input cannot be nil")
 	}
 
 	var errs validation.FieldErrors
@@ -325,7 +325,7 @@ func cloneRelatedParties(parties []*RelatedParty) []*RelatedParty {
 // Validate validates the UpdateAliasInput fields.
 func (input *UpdateAliasInput) Validate() error {
 	if input == nil {
-		return errors.New("input is required")
+		return errors.New("input cannot be nil")
 	}
 
 	if !input.hasChanges() {

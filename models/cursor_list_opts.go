@@ -30,9 +30,9 @@ import (
 // page opts have Page, and the type system rejects mixing them.
 //
 // PageListOpts and CursorListOpts intentionally share NO fields by
-// composition. They share OrderBy, SortDirection, StartDate, EndDate
-// only because every list endpoint accepts those — but they don't
-// inherit from a common base.
+// composition. They share SortDirection, StartDate, EndDate only
+// because every list endpoint accepts those — but they don't inherit
+// from a common base.
 type CursorListOpts struct {
 	// Limit is the maximum number of items per page. Zero falls
 	// back to the server default. Values above MaxLimit cause

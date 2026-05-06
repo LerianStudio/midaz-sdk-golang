@@ -38,7 +38,7 @@ type CreateSegmentInput struct {
 type UpdateSegmentInput struct {
 	Name     string         `json:"name" example:"My Segment Updated"`
 	Status   Status         `json:"status"`
-	Metadata map[string]any `json:"metadata"`
+	Metadata map[string]any `json:"metadata,omitempty"`
 }
 
 // NewCreateSegmentInput creates a new CreateSegmentInput with required fields.

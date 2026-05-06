@@ -22,11 +22,11 @@ import (
 // # When to use the embedded base
 //
 // Every page-based list endpoint accepts the same pagination shape
-// (Limit + Page), the same sort shape (OrderBy + SortDirection), and
-// the same date-range shape (StartDate + EndDate). Pulling these into
-// a shared base eliminates boilerplate across 11 entities while
-// preserving the per-entity Filters typing that prevents WithStatus
-// from compiling on an endpoint that doesn't honor status.
+// (Limit + Page), the same sort shape (SortDirection), and the same
+// date-range shape (StartDate + EndDate). Pulling these into a shared
+// base eliminates boilerplate across 11 entities while preserving the
+// per-entity Filters typing that prevents WithStatus from compiling
+// on an endpoint that doesn't honor status.
 //
 // Cursor-based endpoints (transactions, operations) DO NOT use
 // PageListOpts — they use their own typed shape with Cursor instead
@@ -42,15 +42,11 @@ type PageListOpts struct {
 	// pagination supported by every page-based endpoint.
 	Page int
 
-	// OrderBy is the field name to sort by. Empty string means
-	// "server default sort". The endpoint determines which fields
-	// are valid; passing an unsupported field is rejected by the
-	// server, not the SDK, so check API docs for valid values.
-	OrderBy string
-
-	// SortDirection orders results by the OrderBy field. Empty
-	// string means "server default direction". Validate rejects
-	// any value other than "", asc, or desc.
+	// SortDirection orders results by the server's default sort
+	// field. Empty string means "server default direction".
+	// Validate rejects any value other than "", asc, or desc.
+	// Midaz list endpoints do not expose a generic order-by
+	// query parameter — sort field selection lives server-side.
 	SortDirection SortDirection
 
 	// StartDate filters results created on or after this date in

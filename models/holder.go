@@ -222,7 +222,7 @@ func holderStringPtr(value string) *string {
 // Validate validates the CreateHolderInput fields.
 func (input *CreateHolderInput) Validate() error {
 	if input == nil {
-		return errors.New("input is required")
+		return errors.New("input cannot be nil")
 	}
 
 	var errs validation.FieldErrors
@@ -392,7 +392,7 @@ func validateCRMNullFields(fields []string, allowed map[string]bool) error {
 // Validate validates the UpdateHolderInput fields.
 func (input *UpdateHolderInput) Validate() error {
 	if input == nil {
-		return errors.New("input is required")
+		return errors.New("input cannot be nil")
 	}
 
 	if !input.hasChanges() {

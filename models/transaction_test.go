@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1656,6 +1657,59 @@ func TestTransactionDSLInput_Validate(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestTransactionDSLInput_Validate_AccumulatesAllFieldErrors mirrors
+// the Track 8C accumulation contract used across the rest of the
+// models. When multiple fields are invalid, Validate must surface ALL
+// of them in a single call rather than short-circuiting on the first.
+func TestTransactionDSLInput_Validate_AccumulatesAllFieldErrors(t *testing.T) {
+	input := &TransactionDSLInput{
+		// chartOfAccountsGroupName missing — required
+		Description: strings.Repeat("a", 257), // too long
+		Code:        "invalid code with spaces!",
+		Metadata:    map[string]any{"": "empty key"},
+		// Send missing — required
+	}
+
+	err := input.Validate()
+	require.Error(t, err)
+
+	msg := err.Error()
+	assert.Contains(t, msg, "chartOfAccountsGroupName is required", "in: %q", msg)
+	assert.Contains(t, msg, "send is required", "in: %q", msg)
+	assert.Contains(t, msg, "description must be at most 256 characters", "in: %q", msg)
+	assert.Contains(t, msg, "invalid transaction code format", "in: %q", msg)
+	assert.Contains(t, msg, "metadata keys cannot be empty", "in: %q", msg)
+
+	var fe *validation.FieldErrors
+	require.ErrorAs(t, err, &fe)
+	assert.GreaterOrEqual(t, fe.Len(), 5, "expected >=5 field errors, got %d: %s", fe.Len(), msg)
+}
+
+// TestDSLSend_Validate_AccumulatesAllFieldErrors locks in that the
+// Send sub-validator collects every problem instead of returning on
+// the first one.
+func TestDSLSend_Validate_AccumulatesAllFieldErrors(t *testing.T) {
+	send := &DSLSend{
+		Asset:      "",  // required
+		Value:      0,   // must be positive
+		Source:     nil, // source.from missing
+		Distribute: nil, // distribute.to missing
+	}
+
+	err := send.Validate()
+	require.Error(t, err)
+
+	msg := err.Error()
+	assert.Contains(t, msg, "asset is required", "in: %q", msg)
+	assert.Contains(t, msg, "value must be greater than zero", "in: %q", msg)
+	assert.Contains(t, msg, "source.from must contain at least one entry", "in: %q", msg)
+	assert.Contains(t, msg, "distribute.to must contain at least one entry", "in: %q", msg)
+
+	var fe *validation.FieldErrors
+	require.ErrorAs(t, err, &fe)
+	assert.GreaterOrEqual(t, fe.Len(), 4, "expected >=4 field errors, got %d: %s", fe.Len(), msg)
 }
 
 func TestTransactionDSLInput_RenderDSL(t *testing.T) {

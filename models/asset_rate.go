@@ -10,6 +10,7 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation/core"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 )
 
 const (
@@ -40,11 +41,15 @@ type AssetRate struct {
 	// To is the target asset code (e.g., "BRL")
 	To string `json:"to"`
 
-	// Rate is the conversion rate value
-	Rate float64 `json:"rate"`
+	// Rate is the conversion rate value. The wire encoding is the int+scale
+	// fixed-point shape used by CreateAssetRateInput (e.g. {rate:525, scale:2}
+	// represents 5.25). *decimal.Decimal preserves full precision for both
+	// large fixed-point integers and legacy float-shaped responses.
+	Rate *decimal.Decimal `json:"rate"`
 
-	// Scale is the decimal places for the rate
-	Scale *float64 `json:"scale"`
+	// Scale is the decimal places for the rate. Mirrors CreateAssetRateInput.Scale
+	// (int) — the previous *float64 was a type mismatch with the create payload.
+	Scale *int `json:"scale"`
 
 	// Source is the source of rate information (e.g., "Central Bank")
 	Source *string `json:"source"`
@@ -166,7 +171,7 @@ func (input *CreateAssetRateInput) WithMetadata(metadata map[string]any) *Create
 // violations are accumulated and surfaced together.
 func (input *CreateAssetRateInput) Validate() error {
 	if input == nil {
-		return errors.New("input is required")
+		return errors.New("input cannot be nil")
 	}
 
 	var errs validation.FieldErrors

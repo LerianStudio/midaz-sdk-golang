@@ -1,17 +1,21 @@
 package models
 
 import (
+	"bytes"
+	"encoding/json"
 	"testing"
 	"time"
 
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestAssetRateStruct(t *testing.T) {
-	scale := 4.0
+	scale := 4
 	source := "Central Bank"
 	now := time.Now()
+	rateValue := decimal.RequireFromString("5.25")
 
 	rate := AssetRate{
 		ID:             "rate-123",
@@ -20,7 +24,7 @@ func TestAssetRateStruct(t *testing.T) {
 		ExternalID:     "ext-001",
 		From:           "USD",
 		To:             "BRL",
-		Rate:           5.25,
+		Rate:           &rateValue,
 		Scale:          &scale,
 		Source:         &source,
 		TTL:            3600,
@@ -37,9 +41,10 @@ func TestAssetRateStruct(t *testing.T) {
 	assert.Equal(t, "ext-001", rate.ExternalID)
 	assert.Equal(t, "USD", rate.From)
 	assert.Equal(t, "BRL", rate.To)
-	assert.InDelta(t, 5.25, rate.Rate, 0.001)
+	require.NotNil(t, rate.Rate)
+	assert.Equal(t, "5.25", rate.Rate.String())
 	assert.NotNil(t, rate.Scale)
-	assert.InDelta(t, 4.0, *rate.Scale, 0.001)
+	assert.Equal(t, 4, *rate.Scale)
 	assert.NotNil(t, rate.Source)
 	assert.Equal(t, "Central Bank", *rate.Source)
 	assert.Equal(t, 3600, rate.TTL)
@@ -53,16 +58,54 @@ func TestAssetRateStructWithNilOptionalFields(t *testing.T) {
 		ID:   "rate-123",
 		From: "USD",
 		To:   "EUR",
-		Rate: 0.92,
 	}
 
 	assert.Equal(t, "rate-123", rate.ID)
 	assert.Equal(t, "USD", rate.From)
 	assert.Equal(t, "EUR", rate.To)
-	assert.InDelta(t, 0.92, rate.Rate, 0.001)
+	assert.Nil(t, rate.Rate)
 	assert.Nil(t, rate.Scale)
 	assert.Nil(t, rate.Source)
 	assert.Nil(t, rate.Metadata)
+}
+
+// TestAssetRate_LargeIntRoundTrip verifies that wire payloads carrying a
+// large fixed-point integer (the create-path shape: int + scale) decode
+// without precision loss. Float64 cannot represent integers above 2^53 –
+// 1 exactly; declaring Rate as *decimal.Decimal preserves the full value.
+func TestAssetRate_LargeIntRoundTrip(t *testing.T) {
+	const largeInt = "1234567890123456789"
+
+	wire := []byte(`{"id":"rate-large","from":"USD","to":"BRL","rate":` + largeInt + `,"scale":4}`)
+
+	dec := json.NewDecoder(bytes.NewReader(wire))
+	dec.UseNumber() // Mirrors the SDK's HTTP client decode path.
+
+	var rate AssetRate
+	require.NoError(t, dec.Decode(&rate))
+
+	require.NotNil(t, rate.Rate)
+	assert.Equal(t, largeInt, rate.Rate.String(), "wire integer must survive decode without precision loss")
+	require.NotNil(t, rate.Scale)
+	assert.Equal(t, 4, *rate.Scale)
+}
+
+// TestAssetRate_LegacyFloatBackwardCompat verifies that response payloads
+// emitting "rate": 5.25 (legacy float-shaped) still decode correctly into
+// the typed *decimal.Decimal field.
+func TestAssetRate_LegacyFloatBackwardCompat(t *testing.T) {
+	wire := []byte(`{"id":"rate-legacy","from":"USD","to":"BRL","rate":5.25,"scale":2}`)
+
+	dec := json.NewDecoder(bytes.NewReader(wire))
+	dec.UseNumber()
+
+	var rate AssetRate
+	require.NoError(t, dec.Decode(&rate))
+
+	require.NotNil(t, rate.Rate)
+	assert.Equal(t, "5.25", rate.Rate.String())
+	require.NotNil(t, rate.Scale)
+	assert.Equal(t, 2, *rate.Scale)
 }
 
 func TestNewCreateAssetRateInput(t *testing.T) {

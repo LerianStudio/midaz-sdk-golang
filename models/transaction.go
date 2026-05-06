@@ -404,7 +404,7 @@ var transactionDateFormats = []string{
 // It returns an error if any of the validation checks fail.
 func (input *CreateTransactionInput) Validate() error {
 	if input == nil {
-		return errors.New("input is required")
+		return errors.New("input cannot be nil")
 	}
 
 	input.ensureSendFromLegacyOperations()
@@ -1134,7 +1134,7 @@ type UpdateTransactionInput struct {
 //   - error: An error if the input is invalid, nil otherwise
 func (input *UpdateTransactionInput) Validate() error {
 	if input == nil {
-		return errors.New("input is required")
+		return errors.New("input cannot be nil")
 	}
 
 	if !input.hasChanges() {
@@ -1365,7 +1365,7 @@ func (input *CreateInflowInput) WithTransactionDate(transactionDate string) *Cre
 // Validate checks that the CreateInflowInput meets all validation requirements.
 func (input *CreateInflowInput) Validate() error {
 	if input == nil {
-		return errors.New("input is required")
+		return errors.New("input cannot be nil")
 	}
 
 	if input.Send == nil {
@@ -1554,7 +1554,7 @@ func (input *CreateOutflowInput) WithTransactionDate(transactionDate string) *Cr
 // Validate checks that the CreateOutflowInput meets all validation requirements.
 func (input *CreateOutflowInput) Validate() error {
 	if input == nil {
-		return errors.New("input is required")
+		return errors.New("input cannot be nil")
 	}
 
 	if input.Send == nil {
@@ -1638,7 +1638,7 @@ func NewCreateAnnotationInput(description string, send ...*SendInput) *CreateAnn
 // Validate checks that the CreateAnnotationInput meets all validation requirements.
 func (input *CreateAnnotationInput) Validate() error {
 	if input == nil {
-		return errors.New("input is required")
+		return errors.New("input cannot be nil")
 	}
 
 	var errs validation.FieldErrors

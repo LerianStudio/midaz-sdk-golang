@@ -48,7 +48,7 @@ type CreateAssetInput struct {
 type UpdateAssetInput struct {
 	Name     string         `json:"name" example:"Bitcoin"`
 	Status   Status         `json:"status"`
-	Metadata map[string]any `json:"metadata"`
+	Metadata map[string]any `json:"metadata,omitempty"`
 }
 
 // NewCreateAssetInput creates a new CreateAssetInput.

@@ -118,3 +118,18 @@ func TestSlice7UUIDValidatedBodyFields(t *testing.T) {
 	organization.ParentOrganizationID = &badID
 	require.ErrorContains(t, organization.Validate(), "parentOrganizationId must be a valid UUID")
 }
+
+// TestSlice7UpdateInputsOmitUnsetMetadata locks in the RFC 7396
+// merge-patch invariant: when a caller leaves Metadata unset, the
+// PATCH body MUST NOT emit "metadata":null. Emitting null would
+// silently wipe server-side metadata. UpdateTransactionRouteInput
+// in particular regressed this in pre-v3 by lacking both omitempty
+// and a custom MarshalJSON guard.
+func TestSlice7UpdateInputsOmitUnsetMetadata(t *testing.T) {
+	t.Run("UpdateTransactionRouteInput", func(t *testing.T) {
+		data, err := json.Marshal(&UpdateTransactionRouteInput{Title: "Settlement"})
+		require.NoError(t, err)
+		assert.NotContains(t, string(data), `"metadata"`,
+			"unset metadata must NOT be emitted on PATCH (RFC 7396 wipe risk): %s", string(data))
+	})
+}

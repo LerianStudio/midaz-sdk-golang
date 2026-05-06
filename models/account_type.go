@@ -87,7 +87,7 @@ type CreateAccountTypeInput struct {
 type UpdateAccountTypeInput struct {
 	Name        string         `json:"name,omitempty" example:"Current Assets"`
 	Description string         `json:"description,omitempty" example:"Assets that are expected to be converted to cash within one year"`
-	Metadata    map[string]any `json:"metadata"`
+	Metadata    map[string]any `json:"metadata,omitempty"`
 }
 
 // Validate validates the CreateAccountTypeInput fields.

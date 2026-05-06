@@ -39,7 +39,7 @@ type CreateTransactionRouteInput struct {
 // Validate validates the CreateTransactionRouteInput fields.
 func (input *CreateTransactionRouteInput) Validate() error {
 	if input == nil {
-		return errors.New("input is required")
+		return errors.New("input cannot be nil")
 	}
 
 	// parseErr from constructor takes precedence — caller passed
@@ -72,17 +72,22 @@ func (input *CreateTransactionRouteInput) Validate() error {
 }
 
 // UpdateTransactionRouteInput is the SDK-native transaction-route patch payload.
+//
+// All fields use omitempty so a zero-valued PATCH never sends accidental
+// nullify directives. RFC 7396 merge-patch treats explicit null as "remove",
+// so emitting metadata: null when the caller never set it would silently
+// wipe server-side metadata.
 type UpdateTransactionRouteInput struct {
 	Title           string         `json:"title,omitempty" example:"Charge Settlement"`
 	Description     string         `json:"description,omitempty" example:"Settlement route for service charges"`
-	Metadata        map[string]any `json:"metadata"`
+	Metadata        map[string]any `json:"metadata,omitempty"`
 	OperationRoutes *[]uuid.UUID   `json:"operationRoutes,omitempty" format:"uuid"`
 }
 
 // Validate validates the UpdateTransactionRouteInput fields.
 func (input *UpdateTransactionRouteInput) Validate() error {
 	if input == nil {
-		return errors.New("input is required")
+		return errors.New("input cannot be nil")
 	}
 
 	if !input.hasChanges() {
