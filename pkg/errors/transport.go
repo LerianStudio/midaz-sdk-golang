@@ -8,6 +8,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"net"
+	"net/url"
 	"strings"
 	"syscall"
 )
@@ -44,6 +45,11 @@ import (
 //
 // Returns nil if err is nil. Returns err unchanged if it's already an
 // *Error (idempotent — safe to apply at every boundary).
+//
+// Audit M14: errors that wrap a stdlib *url.Error have their URL
+// userinfo (user[:password]) stripped before classification so a
+// transport-layer log line cannot leak credentials baked into the
+// request URL.
 func ClassifyTransportError(operation string, err error) error {
 	if err == nil {
 		return nil
@@ -55,6 +61,8 @@ func ClassifyTransportError(operation string, err error) error {
 	if errors.As(err, &alreadyTyped) && alreadyTyped != nil {
 		return err
 	}
+
+	err = stripURLUserinfo(err)
 
 	switch {
 	case errors.Is(err, context.Canceled):
@@ -72,6 +80,29 @@ func ClassifyTransportError(operation string, err error) error {
 	default:
 		return NewInternalError(operation, err)
 	}
+}
+
+// stripURLUserinfo replaces the URL inside a wrapped *url.Error with
+// a userinfo-free copy. The stdlib helpfully masks the password to
+// "xxxxx" but leaves the username intact — both halves are sensitive
+// for our purposes, so we drop the whole userinfo segment.
+//
+// Returns the original error unchanged when there's no *url.Error in
+// the chain (most cases).
+func stripURLUserinfo(err error) error {
+	var urlErr *url.Error
+	if !errors.As(err, &urlErr) || urlErr == nil {
+		return err
+	}
+
+	cleaned := redactURLUserinfo(urlErr.URL)
+	if cleaned == urlErr.URL {
+		return err
+	}
+
+	urlErr.URL = cleaned
+
+	return err
 }
 
 // isTimeoutError reports whether err carries a timeout signal — either

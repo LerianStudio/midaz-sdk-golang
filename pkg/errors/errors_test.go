@@ -506,11 +506,21 @@ func TestError_Error(t *testing.T) {
 }
 
 func TestError_Unwrap(t *testing.T) {
+	// Audit C5: Unwrap returns a redacting wrapper, not the raw inner
+	// error, so loggers walking the chain via errors.Unwrap can't leak
+	// credentials. errors.Is still walks through to the original.
 	underlyingErr := errors.New("underlying error")
 	err := sdkerrors.NewValidationError("Test", "invalid input", underlyingErr)
 
 	unwrapped := err.Unwrap()
-	assert.Equal(t, underlyingErr, unwrapped)
+	require.Error(t, unwrapped)
+
+	// Chain semantics preserved: errors.Is walks through.
+	require.ErrorIs(t, err, underlyingErr)
+
+	// Rendered string is redacted-equivalent (here the underlying
+	// error has no credentials, so it's identity).
+	assert.Equal(t, "underlying error", unwrapped.Error())
 }
 
 func TestGetStatusCode(t *testing.T) {
@@ -1205,59 +1215,68 @@ func TestError_GetterMethods(t *testing.T) {
 // Additional Check Functions Tests
 // --------------------------------
 
-func TestCheckFunctions_NilErrors(t *testing.T) {
-	assert.False(t, sdkerrors.CheckValidationError(nil))
-	assert.False(t, sdkerrors.CheckNotFoundError(nil))
-	assert.False(t, sdkerrors.CheckAuthenticationError(nil))
-	assert.False(t, sdkerrors.CheckAuthorizationError(nil))
-	assert.False(t, sdkerrors.CheckConflictError(nil))
-	assert.False(t, sdkerrors.CheckRateLimitError(nil))
-	assert.False(t, sdkerrors.CheckTimeoutError(nil))
-	assert.False(t, sdkerrors.CheckCancellationError(nil))
-	assert.False(t, sdkerrors.CheckNetworkError(nil))
-	assert.False(t, sdkerrors.CheckInternalError(nil))
-	assert.False(t, sdkerrors.CheckInsufficientBalanceError(nil))
-	assert.False(t, sdkerrors.CheckIdempotencyError(nil))
-	assert.False(t, sdkerrors.CheckAccountEligibilityError(nil))
-	assert.False(t, sdkerrors.CheckAssetMismatchError(nil))
+// TestIsFunctions_NilErrors covers the nil-safe contract: every Is*
+// predicate must return false for a nil input.
+func TestIsFunctions_NilErrors(t *testing.T) {
+	assert.False(t, sdkerrors.IsValidationError(nil))
+	assert.False(t, sdkerrors.IsNotFoundError(nil))
+	assert.False(t, sdkerrors.IsAuthenticationError(nil))
+	assert.False(t, sdkerrors.IsAuthorizationError(nil))
+	assert.False(t, sdkerrors.IsConflictError(nil))
+	assert.False(t, sdkerrors.IsRateLimitError(nil))
+	assert.False(t, sdkerrors.IsTimeoutError(nil))
+	assert.False(t, sdkerrors.IsCancellationError(nil))
+	assert.False(t, sdkerrors.IsNetworkError(nil))
+	assert.False(t, sdkerrors.IsInternalError(nil))
+	assert.False(t, sdkerrors.IsInsufficientBalanceError(nil))
+	assert.False(t, sdkerrors.IsIdempotencyError(nil))
+	assert.False(t, sdkerrors.IsAccountEligibilityError(nil))
+	assert.False(t, sdkerrors.IsAssetMismatchError(nil))
 }
 
-func TestCheckCancellationError(t *testing.T) {
-	t.Run("with context.Canceled", func(t *testing.T) {
+// TestCancellationAndTimeoutDisjoint covers M18: IsTimeoutError and
+// IsCancellationError must classify context.DeadlineExceeded and
+// context.Canceled into one bucket each, never both.
+func TestCancellationAndTimeoutDisjoint(t *testing.T) {
+	t.Run("context.Canceled is cancellation only", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
-		assert.True(t, sdkerrors.CheckCancellationError(ctx.Err()))
+
+		assert.True(t, sdkerrors.IsCancellationError(ctx.Err()))
+		assert.False(t, sdkerrors.IsTimeoutError(ctx.Err()))
 	})
 
-	t.Run("with context.DeadlineExceeded", func(t *testing.T) {
+	t.Run("context.DeadlineExceeded is timeout only", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 0)
 		defer cancel()
 
 		<-ctx.Done()
-		assert.True(t, sdkerrors.CheckCancellationError(ctx.Err()))
+
+		assert.True(t, sdkerrors.IsTimeoutError(ctx.Err()))
+		assert.False(t, sdkerrors.IsCancellationError(ctx.Err()))
 	})
 
-	t.Run("with NewCancellationError", func(t *testing.T) {
+	t.Run("NewCancellationError matches IsCancellationError", func(t *testing.T) {
 		err := sdkerrors.NewCancellationError("Test", nil)
-		assert.True(t, sdkerrors.CheckCancellationError(err))
+		assert.True(t, sdkerrors.IsCancellationError(err))
 	})
 }
 
-func TestCheckNetworkError(t *testing.T) {
+func TestIsNetworkError(t *testing.T) {
 	t.Run("with NewNetworkError", func(t *testing.T) {
 		err := sdkerrors.NewNetworkError("Test", errors.New("connection refused"))
-		assert.True(t, sdkerrors.CheckNetworkError(err))
+		assert.True(t, sdkerrors.IsNetworkError(err))
 	})
 
 	t.Run("with non-network error", func(t *testing.T) {
 		err := errors.New("some error")
-		assert.False(t, sdkerrors.CheckNetworkError(err))
+		assert.False(t, sdkerrors.IsNetworkError(err))
 	})
 }
 
-func TestCheckIdempotencyError(t *testing.T) {
+func TestIsIdempotencyError(t *testing.T) {
 	t.Run("with ErrIdempotency", func(t *testing.T) {
-		assert.True(t, sdkerrors.CheckIdempotencyError(sdkerrors.ErrIdempotency))
+		assert.True(t, sdkerrors.IsIdempotencyError(sdkerrors.ErrIdempotency))
 	})
 
 	t.Run("with Error type with idempotency code", func(t *testing.T) {
@@ -1265,41 +1284,41 @@ func TestCheckIdempotencyError(t *testing.T) {
 			Category: sdkerrors.CategoryConflict,
 			Code:     sdkerrors.CodeIdempotency,
 		}
-		assert.True(t, sdkerrors.CheckIdempotencyError(err))
+		assert.True(t, sdkerrors.IsIdempotencyError(err))
 	})
 }
 
-func TestCheckAccountEligibilityError(t *testing.T) {
+func TestIsAccountEligibilityError(t *testing.T) {
 	t.Run("with ErrAccountEligibility", func(t *testing.T) {
-		assert.True(t, sdkerrors.CheckAccountEligibilityError(sdkerrors.ErrAccountEligibility))
+		assert.True(t, sdkerrors.IsAccountEligibilityError(sdkerrors.ErrAccountEligibility))
 	})
 
 	t.Run("with NewAccountEligibilityError", func(t *testing.T) {
 		err := sdkerrors.NewAccountEligibilityError("Test", "acc123", nil)
-		assert.True(t, sdkerrors.CheckAccountEligibilityError(err))
+		assert.True(t, sdkerrors.IsAccountEligibilityError(err))
 	})
 }
 
-func TestCheckAssetMismatchError(t *testing.T) {
+func TestIsAssetMismatchError(t *testing.T) {
 	t.Run("with ErrAssetMismatch", func(t *testing.T) {
-		assert.True(t, sdkerrors.CheckAssetMismatchError(sdkerrors.ErrAssetMismatch))
+		assert.True(t, sdkerrors.IsAssetMismatchError(sdkerrors.ErrAssetMismatch))
 	})
 
 	t.Run("with NewAssetMismatchError", func(t *testing.T) {
 		err := sdkerrors.NewAssetMismatchError("Test", "USD", "EUR", nil)
-		assert.True(t, sdkerrors.CheckAssetMismatchError(err))
+		assert.True(t, sdkerrors.IsAssetMismatchError(err))
 	})
 }
 
-func TestCheckInsufficientBalanceError(t *testing.T) {
+func TestIsInsufficientBalanceError(t *testing.T) {
 	t.Run("with unknown error message returns false", func(t *testing.T) {
 		err := errors.New("unknown error")
-		assert.False(t, sdkerrors.CheckInsufficientBalanceError(err))
+		assert.False(t, sdkerrors.IsInsufficientBalanceError(err))
 	})
 
 	t.Run("with NewInsufficientBalanceError", func(t *testing.T) {
 		err := sdkerrors.NewInsufficientBalanceError("Test", "acc123", nil)
-		assert.True(t, sdkerrors.CheckInsufficientBalanceError(err))
+		assert.True(t, sdkerrors.IsInsufficientBalanceError(err))
 	})
 }
 
@@ -1352,11 +1371,15 @@ func TestErrorFromHTTPResponse_AllCodes(t *testing.T) {
 		{http.StatusUnauthorized, sdkerrors.CategoryAuthentication, sdkerrors.CodeAuthentication},
 		{http.StatusForbidden, sdkerrors.CategoryAuthorization, sdkerrors.CodePermission},
 		{http.StatusNotFound, sdkerrors.CategoryNotFound, sdkerrors.CodeNotFound},
+		{http.StatusRequestTimeout, sdkerrors.CategoryTimeout, sdkerrors.CodeTimeout},
 		{http.StatusConflict, sdkerrors.CategoryConflict, sdkerrors.CodeAlreadyExists},
-		{http.StatusTooManyRequests, sdkerrors.CategoryLimitExceeded, sdkerrors.CodeRateLimit},
-		{http.StatusGatewayTimeout, sdkerrors.CategoryTimeout, sdkerrors.CodeTimeout},
 		{http.StatusUnprocessableEntity, sdkerrors.CategoryUnprocessable, sdkerrors.CodeUnprocessable},
-		{http.StatusServiceUnavailable, sdkerrors.CategoryNetwork, sdkerrors.CodeInternal},
+		{http.StatusTooEarly, sdkerrors.CategoryLimitExceeded, sdkerrors.CodeRateLimit},
+		{http.StatusTooManyRequests, sdkerrors.CategoryLimitExceeded, sdkerrors.CodeRateLimit},
+		// Audit M13: 503 now uses CodeServiceUnavailable, not the
+		// generic CodeInternal — the v2 mapping had drift.
+		{http.StatusServiceUnavailable, sdkerrors.CategoryNetwork, sdkerrors.CodeServiceUnavailable},
+		{http.StatusGatewayTimeout, sdkerrors.CategoryTimeout, sdkerrors.CodeTimeout},
 		{http.StatusInternalServerError, sdkerrors.CategoryInternal, sdkerrors.CodeInternal},
 		{999, sdkerrors.CategoryInternal, sdkerrors.CodeInternal}, // Unknown status code
 	}
@@ -1482,9 +1505,11 @@ func TestErrorChain(t *testing.T) {
 		// Outer error should be internal
 		assert.Equal(t, sdkerrors.CategoryInternal, outerErr.Category)
 
-		// Inner error should be accessible via Unwrap
-		unwrapped := outerErr.Unwrap()
-		assert.Equal(t, innerErr, unwrapped)
+		// Audit C5: Unwrap() returns a redacting wrapper, not the raw
+		// inner *Error. The chain still walks via errors.As/Is.
+		var fromUnwrap *sdkerrors.Error
+		require.ErrorAs(t, outerErr.Unwrap(), &fromUnwrap)
+		assert.Same(t, innerErr, fromUnwrap)
 
 		// errors.Is should work
 		require.ErrorIs(t, outerErr, sdkerrors.ErrInternal)

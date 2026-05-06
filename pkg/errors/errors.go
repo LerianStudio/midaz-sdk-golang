@@ -3,9 +3,11 @@ package errors
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"reflect"
 	"regexp"
 	"strings"
@@ -63,6 +65,11 @@ const (
 
 	// CodeConfiguration is for SDK setup / client construction errors.
 	CodeConfiguration ErrorCode = "configuration_error"
+
+	// CodeServiceUnavailable indicates a 503 Service Unavailable from a
+	// dependency. Distinct from CodeNetwork (pre-response transport
+	// failure) — the server answered, it just isn't ready.
+	CodeServiceUnavailable ErrorCode = "service_unavailable"
 )
 
 // ErrorCategory represents the general category of an error
@@ -149,48 +156,112 @@ var (
 // Error represents a standardized error in the Midaz SDK.
 // It includes context about the error's category, associated operation,
 // and affected resource, making errors more informative and easier to handle.
+//
+// Audit C3 (CRITICAL): every field that may carry user-supplied or
+// credential data is annotated `json:"-"`. A naive json.Marshal(err) on
+// an *Error must not leak Bearer tokens, request bodies, or wrapped
+// inner errors — even though the constructors already store
+// pre-redacted Message values. Callers who need a JSON projection of
+// an error should build their own DTO from the safe fields (Category,
+// Code, StatusCode), or call [Error.Error] which always redacts.
 type Error struct {
 	// Category is the general category of the error
-	Category ErrorCategory
+	Category ErrorCategory `json:"category"`
 
 	// Code is the specific error code
-	Code ErrorCode
+	Code ErrorCode `json:"code"`
 
 	// APICode is the raw Midaz/CRM API error code, when returned by the API.
-	APICode string
+	APICode string `json:"apiCode,omitempty"`
 
 	// Title is the raw API error title, when returned by the API.
-	Title string
+	// Marked json:"-" because API titles can contain user-supplied
+	// fragments that the redactor would otherwise miss in JSON output.
+	Title string `json:"-"`
 
-	// Message is the human-readable error message
-	Message string
+	// Message is the human-readable error message.
+	// Marked json:"-" because the message often contains credentials
+	// or identifiers — even though constructors store a pre-redacted
+	// form, JSON output is the wrong path: callers should use Error()
+	// for rendered output or build their own slim projection.
+	Message string `json:"-"`
 
-	// Operation is the operation that was being performed
-	Operation string
+	// Operation is the operation that was being performed.
+	// Marked json:"-" defensively: operation strings are generally safe
+	// (e.g. "accounts.Create") but dynamic concatenation in some paths
+	// can pull in identifiers we'd rather not surface in JSON.
+	Operation string `json:"-"`
 
-	// Resource is the type of resource involved
-	Resource string
+	// Resource is the type of resource involved.
+	Resource string `json:"resource,omitempty"`
 
-	// ResourceID is the identifier of the resource involved, if applicable
-	ResourceID string
+	// ResourceID is the identifier of the resource involved, if applicable.
+	// Marked json:"-" because resource IDs can be PII (account IDs,
+	// document numbers) when the API uses meaningful identifiers.
+	ResourceID string `json:"-"`
 
 	// EntityType is the raw API entity type, when returned by the API.
-	EntityType string
+	EntityType string `json:"entityType,omitempty"`
 
 	// Fields is the raw API field list, when returned by the API.
-	Fields []string
+	// Marked json:"-" because field paths can include user-supplied keys.
+	Fields []string `json:"-"`
 
 	// Details contains the raw API error details, when returned by the API.
-	Details map[string]any
+	// Marked json:"-" because the Details map is the most common leak
+	// source — it carries arbitrary server-supplied structures.
+	Details map[string]any `json:"-"`
 
 	// StatusCode is the HTTP status code, if applicable
-	StatusCode int
+	StatusCode int `json:"statusCode,omitempty"`
 
-	// RequestID is the API request ID, if available
-	RequestID string
+	// RequestID is the API request ID, if available.
+	// Marked json:"-" defensively: request IDs are generally opaque, but
+	// the safe baseline is to opt out of JSON exposure for everything
+	// caller-derived.
+	RequestID string `json:"-"`
 
-	// Err is the underlying error
-	Err error
+	// Err is the underlying error.
+	// Marked json:"-" because the inner error string is opaque to the
+	// redactor — a wrapped *http.Error or similar can carry the full
+	// request body. JSON output must rely on Error() for safety.
+	Err error `json:"-"`
+}
+
+// MarshalJSON renders only the safe, non-leaky fields of an *Error.
+// The unredacted Message, Title, ResourceID, RequestID, Fields, Details,
+// and inner Err are intentionally excluded. Callers who need the full
+// rendered string should use [Error.Error] (which is redacted).
+//
+// Returns "null" for a nil receiver.
+func (e *Error) MarshalJSON() ([]byte, error) {
+	if e == nil {
+		return []byte("null"), nil
+	}
+
+	// We deliberately do NOT include any caller-derived strings here.
+	// Adding a field to this projection requires explicit security
+	// review: it must not be capable of carrying credentials, tokens,
+	// or PII even after the constructor's redaction pass.
+	type safeProjection struct {
+		Category   ErrorCategory `json:"category"`
+		Code       ErrorCode     `json:"code"`
+		APICode    string        `json:"apiCode,omitempty"`
+		Resource   string        `json:"resource,omitempty"`
+		EntityType string        `json:"entityType,omitempty"`
+		StatusCode int           `json:"statusCode,omitempty"`
+	}
+
+	projection := safeProjection{
+		Category:   e.Category,
+		Code:       e.Code,
+		APICode:    e.APICode,
+		Resource:   e.Resource,
+		EntityType: e.EntityType,
+		StatusCode: e.StatusCode,
+	}
+
+	return json.Marshal(projection)
 }
 
 // Error implements the error interface.
@@ -227,13 +298,53 @@ func (e *Error) Error() string {
 	return redactSensitive(composed)
 }
 
-// Unwrap returns the underlying error.
-func (e *Error) Unwrap() error {
-	if e == nil {
+// redactingError wraps an inner error so that callers walking the
+// chain via [errors.Unwrap] never see an unredacted string. The inner
+// error remains accessible to [errors.Is] / [errors.As] via the
+// embedded Unwrap, so sentinel-matching still works.
+//
+// Audit C5 (CRITICAL): before this wrapper landed, code that wrote
+//
+//	log.Printf("inner: %v", errors.Unwrap(sdkErr))
+//
+// would happily render `password=hunter2` from the inner error. We
+// preserve the chain (so errors.Is still walks through) while
+// guaranteeing every Error() call along the way passes through the
+// redactor.
+type redactingError struct {
+	inner error
+}
+
+// Error returns a redacted form of the wrapped error's message.
+func (r *redactingError) Error() string {
+	if r == nil || r.inner == nil {
+		return ""
+	}
+
+	return redactSensitive(r.inner.Error())
+}
+
+// Unwrap exposes the inner error for [errors.Is] / [errors.As] walks.
+// The chain semantics survive: callers can still match sentinels and
+// extract typed errors, they just can't render the inner string
+// without going through Error() (which is now always redacted).
+func (r *redactingError) Unwrap() error {
+	if r == nil {
 		return nil
 	}
 
-	return e.Err
+	return r.inner
+}
+
+// Unwrap returns the underlying error wrapped in a [redactingError]
+// shell so the chain stays walkable but cannot leak credentials when
+// rendered by upstream loggers.
+func (e *Error) Unwrap() error {
+	if e == nil || e.Err == nil {
+		return nil
+	}
+
+	return &redactingError{inner: e.Err}
 }
 
 // Retryable reports whether the SDK retry layer should consider this
@@ -369,8 +480,25 @@ func (e *Error) GetOperation() string {
 }
 
 var (
-	sensitiveBearerPattern   = regexp.MustCompile(`(?i)\b(authorization\s*[:=]\s*Bearer\s+)[^\s,;]+`)
-	sensitiveKeyValuePattern = regexp.MustCompile(`(?i)\b(token|password|api_key|authorization|secret|(?:x[-_])?idempotency|document|legal_document|external_id|banking_details_account|banking_details_iban|metadata(?:\.[\w.-]+)?|related_party_document|regulatory_fields_participant_document)(\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s,;]+)`)
+	// sensitiveBearerPattern matches "authorization: Bearer <value>" and
+	// "authorization: Basic <value>" — both standard credential headers
+	// whose values are sensitive.
+	sensitiveBearerPattern = regexp.MustCompile(`(?i)\b(authorization\s*[:=]\s*(?:Bearer|Basic)\s+)[^\s,;]+`)
+
+	// sensitiveKeyValuePattern matches "<key>=<value>" or "<key>: <value>"
+	// for any sensitive-named key. Whitelist evolution (Audit C2): v3
+	// extends the v2 list to cover the credential-header variants
+	// (api-key, x-api-key, access_token, refresh_token, id_token, jwt)
+	// so rendered error messages cannot leak common token forms.
+	//
+	// The leading boundary `(?:^|[^A-Za-z])` matches start-of-string
+	// or any non-letter char (digit, underscore, hyphen, dot, space,
+	// punctuation). This catches the keyword in compound identifiers
+	// like `client_secret=` and `x-idempotency-key=` while NOT
+	// triggering on operation names like `CreateMetadataIndex:`
+	// where the keyword sits in the middle of a CamelCase word.
+	// The trailing `[\w.-]*` allows compound suffixes like `-key`.
+	sensitiveKeyValuePattern = regexp.MustCompile(`(?i)(?:^|[^A-Za-z])((?:token|password|apikey|api[-_]?key|x[-_]api[-_]?key|access[-_]?token|refresh[-_]?token|id[-_]?token|jwt|authorization|secret|(?:x[-_])?idempotency|document|legal_document|external_id|banking_details_account|banking_details_iban|metadata(?:\.[\w.-]+)?|related_party_document|regulatory_fields_participant_document)[\w.-]*)(\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s,;]+)`)
 )
 
 func isNilError(err error) bool {
@@ -395,14 +523,39 @@ func safeErrorString(err error) string {
 	return redactSensitive(err.Error())
 }
 
+// redactSensitiveMaxBytes caps the input passed to the regex redactor.
+// Beyond this bound the cost of the regex scan dominates and a hostile
+// caller could turn a verbose error message into a CPU-stall (a 100MB
+// string takes ~13s of regex CPU). Truncation here is a defensive
+// quota — production error messages are kilobytes at most.
+const redactSensitiveMaxBytes = 64 * 1024
+
+// redactSensitive strips Bearer / Basic header values and key=value pairs
+// for any sensitive key (token, password, api-key, idempotency, etc.) from
+// rendered error messages.
+//
+// Inputs longer than [redactSensitiveMaxBytes] are truncated before
+// matching and a "[truncated]" sentinel is appended; this preserves
+// redaction guarantees on the prefix while bounding regex CPU.
 func redactSensitive(message string) string {
 	if message == "" {
 		return ""
 	}
 
-	redacted := sensitiveBearerPattern.ReplaceAllString(message, `${1}[REDACTED]`)
+	truncated := false
+	if len(message) > redactSensitiveMaxBytes {
+		message = message[:redactSensitiveMaxBytes]
+		truncated = true
+	}
 
-	return sensitiveKeyValuePattern.ReplaceAllString(redacted, `${1}${2}[REDACTED]`)
+	redacted := sensitiveBearerPattern.ReplaceAllString(message, `${1}[REDACTED]`)
+	redacted = sensitiveKeyValuePattern.ReplaceAllString(redacted, `${1}${2}[REDACTED]`)
+
+	if truncated {
+		redacted += " [truncated]"
+	}
+
+	return redacted
 }
 
 // RedactSensitiveString redacts sensitive values from a public API-sourced string.
@@ -462,32 +615,74 @@ func redactSensitiveDetailValue(key string, value any) any {
 	}
 }
 
-func isSensitiveDetailKey(key string) bool {
-	normalized := strings.ToLower(strings.NewReplacer("_", "", "-", "", ".", "").Replace(key))
+// sensitiveFieldFragments is the canonical list of substrings (after
+// case-folding and stripping '_', '-', '.') that mark a field as
+// carrying sensitive data — credentials, PII, financial identifiers,
+// or storage-layer metadata. Any field whose normalized name contains
+// one of these fragments must be redacted before its value is rendered.
+//
+// The list is the single source of truth for both the API-shape
+// detail walker ([RedactSensitiveDetails]) and the field-name
+// predicate ([IsSensitiveFieldName]) used by the validation layer.
+var sensitiveFieldFragments = []string{
+	"authorization",
+	"apikey",
+	"accesstoken",
+	"refreshtoken",
+	"idtoken",
+	"jwt",
+	"bankingdetails",
+	"cookie",
+	"creditcard",
+	"cardnumber",
+	"cpf",
+	"cnpj",
+	"document",
+	"externalid",
+	"idempotency",
+	"metadata",
+	"password",
+	"participantdocument",
+	"relatedparty",
+	"secret",
+	"ssn",
+	"token",
+}
 
-	sensitiveFragments := []string{
-		"authorization",
-		"apikey",
-		"bankingdetails",
-		"cookie",
-		"document",
-		"externalid",
-		"idempotency",
-		"metadata",
-		"password",
-		"participantdocument",
-		"relatedparty",
-		"secret",
-		"token",
+// IsSensitiveFieldName reports whether name (after case-folding and
+// stripping underscores, hyphens, and dots) contains any fragment from
+// the SDK-wide sensitive-field allowlist. Use it before rendering a
+// field's value in user-facing error output so credentials, PII, and
+// financial identifiers stay out of logs.
+//
+// Examples returning true:
+//
+//	"password", "X-API-Key", "authorization", "client_secret",
+//	"creditCard", "cpf", "metadata.user.token", "refresh-token".
+//
+// The check is intentionally substring-based on the normalized name so
+// near-variants (apiKey vs api_key vs X-API-Key) all trip the same
+// redaction path.
+func IsSensitiveFieldName(name string) bool {
+	if name == "" {
+		return false
 	}
 
-	for _, fragment := range sensitiveFragments {
+	normalized := strings.ToLower(strings.NewReplacer("_", "", "-", "", ".", "").Replace(name))
+	for _, fragment := range sensitiveFieldFragments {
 		if strings.Contains(normalized, fragment) {
 			return true
 		}
 	}
 
 	return false
+}
+
+// isSensitiveDetailKey is the legacy entry point kept for the structured
+// API detail walker. It now delegates to [IsSensitiveFieldName] so the
+// two redaction layers share one allowlist.
+func isSensitiveDetailKey(key string) bool {
+	return IsSensitiveFieldName(key)
 }
 
 func normalizeError(err error) error {
@@ -510,7 +705,7 @@ func NewValidationError(operation, message string, err error) *Error {
 	return &Error{
 		Category:   CategoryValidation,
 		Code:       CodeValidation,
-		Message:    message,
+		Message:    redactSensitive(message),
 		Operation:  operation,
 		Err:        err,
 		StatusCode: http.StatusBadRequest,
@@ -529,7 +724,7 @@ func NewInvalidInputError(operation string, err error) *Error {
 	return &Error{
 		Category:   CategoryValidation,
 		Code:       CodeValidation,
-		Message:    message,
+		Message:    redactSensitive(message),
 		Operation:  operation,
 		Err:        err,
 		StatusCode: http.StatusBadRequest,
@@ -562,7 +757,7 @@ func NewNotFoundError(operation, resource, resourceID string, err error) *Error 
 	return &Error{
 		Category:   CategoryNotFound,
 		Code:       CodeNotFound,
-		Message:    message,
+		Message:    redactSensitive(message),
 		Operation:  operation,
 		Resource:   resource,
 		ResourceID: resourceID,
@@ -581,7 +776,7 @@ func NewAuthenticationError(operation, message string, err error) *Error {
 	return &Error{
 		Category:   CategoryAuthentication,
 		Code:       CodeAuthentication,
-		Message:    message,
+		Message:    redactSensitive(message),
 		Operation:  operation,
 		Err:        err,
 		StatusCode: http.StatusUnauthorized,
@@ -598,7 +793,7 @@ func NewAuthorizationError(operation, message string, err error) *Error {
 	return &Error{
 		Category:   CategoryAuthorization,
 		Code:       CodePermission,
-		Message:    message,
+		Message:    redactSensitive(message),
 		Operation:  operation,
 		Err:        err,
 		StatusCode: http.StatusForbidden,
@@ -617,7 +812,7 @@ func NewConflictError(operation, resource, resourceID string, err error) *Error 
 	return &Error{
 		Category:   CategoryConflict,
 		Code:       CodeAlreadyExists,
-		Message:    message,
+		Message:    redactSensitive(message),
 		Operation:  operation,
 		Resource:   resource,
 		ResourceID: resourceID,
@@ -637,7 +832,7 @@ func NewRateLimitError(operation, message string, err error) *Error {
 	return &Error{
 		Category:   CategoryLimitExceeded,
 		Code:       CodeRateLimit,
-		Message:    message,
+		Message:    redactSensitive(message),
 		Operation:  operation,
 		Err:        err,
 		StatusCode: http.StatusTooManyRequests,
@@ -655,7 +850,7 @@ func NewTimeoutError(operation, message string, err error) *Error {
 	return &Error{
 		Category:   CategoryTimeout,
 		Code:       CodeTimeout,
-		Message:    message,
+		Message:    redactSensitive(message),
 		Operation:  operation,
 		Err:        err,
 		StatusCode: http.StatusGatewayTimeout,
@@ -674,7 +869,7 @@ func NewCancellationError(operation string, err error) *Error {
 	return &Error{
 		Category:   CategoryCancellation,
 		Code:       CodeCancellation,
-		Message:    message,
+		Message:    redactSensitive(message),
 		Operation:  operation,
 		Err:        err,
 		StatusCode: statusClientClosedRequest,
@@ -693,7 +888,7 @@ func NewNetworkError(operation string, err error) *Error {
 	return &Error{
 		Category:   CategoryNetwork,
 		Code:       CodeNetwork,
-		Message:    message,
+		Message:    redactSensitive(message),
 		Operation:  operation,
 		Err:        err,
 		StatusCode: http.StatusServiceUnavailable,
@@ -712,7 +907,7 @@ func NewInternalError(operation string, err error) *Error {
 	return &Error{
 		Category:   CategoryInternal,
 		Code:       CodeInternal,
-		Message:    message,
+		Message:    redactSensitive(message),
 		Operation:  operation,
 		Err:        err,
 		StatusCode: http.StatusInternalServerError,
@@ -839,16 +1034,19 @@ func NewAccountEligibilityError(operation, accountID string, err error) *Error {
 }
 
 // Error checking functions
-
-// CheckValidationError checks if an error is a validation error.
 //
-// Classification is performed strictly by error type — we look for *Error from
-// this package (Category == CategoryValidation), the legacy *MidazError shape
-// (Code == CodeValidation), or sentinel ErrValidation. Substring matching on
-// err.Error() was removed in favor of the typed predicate so unrelated error
-// strings that happen to contain the word "validation" no longer get
-// reclassified.
-func CheckValidationError(err error) bool {
+// All Is*Error predicates classify errors strictly by typed-error
+// category/code. Substring matching on err.Error() was removed in
+// favor of typed predicates so unrelated error strings that happen to
+// contain a category-shaped word no longer get reclassified.
+//
+// Audit H15: the v2 codebase carried a parallel Check*Error family
+// that production never called. Inlining the logic into the Is*Error
+// predicates removed ~200 lines of duplication without any behavior
+// change for the predicates production callers actually use.
+
+// IsValidationError checks if an error is a validation error.
+func IsValidationError(err error) bool {
 	if isNilError(err) {
 		return false
 	}
@@ -861,8 +1059,8 @@ func CheckValidationError(err error) bool {
 	return errors.Is(err, ErrValidation)
 }
 
-// CheckNotFoundError checks if an error is a not found error.
-func CheckNotFoundError(err error) bool {
+// IsNotFoundError checks if an error is a not found error.
+func IsNotFoundError(err error) bool {
 	if isNilError(err) {
 		return false
 	}
@@ -875,8 +1073,8 @@ func CheckNotFoundError(err error) bool {
 	return errors.Is(err, ErrNotFound)
 }
 
-// CheckAuthenticationError checks if an error is an authentication error.
-func CheckAuthenticationError(err error) bool {
+// IsAuthenticationError checks if an error is an authentication error.
+func IsAuthenticationError(err error) bool {
 	if isNilError(err) {
 		return false
 	}
@@ -889,8 +1087,8 @@ func CheckAuthenticationError(err error) bool {
 	return errors.Is(err, ErrAuthentication)
 }
 
-// CheckAuthorizationError checks if an error is an authorization error.
-func CheckAuthorizationError(err error) bool {
+// IsAuthorizationError checks if an error is an authorization error.
+func IsAuthorizationError(err error) bool {
 	if isNilError(err) {
 		return false
 	}
@@ -901,172 +1099,6 @@ func CheckAuthorizationError(err error) bool {
 	}
 
 	return errors.Is(err, ErrPermission)
-}
-
-// CheckConflictError checks if an error is a conflict error.
-func CheckConflictError(err error) bool {
-	if isNilError(err) {
-		return false
-	}
-
-	var mdzErr *Error
-	if errors.As(err, &mdzErr) && mdzErr != nil {
-		return mdzErr.Category == CategoryConflict
-	}
-
-	return errors.Is(err, ErrAlreadyExists)
-}
-
-// CheckRateLimitError checks if an error is a rate limit error.
-func CheckRateLimitError(err error) bool {
-	if isNilError(err) {
-		return false
-	}
-
-	var mdzErr *Error
-	if errors.As(err, &mdzErr) && mdzErr != nil {
-		return mdzErr.Category == CategoryLimitExceeded
-	}
-
-	return errors.Is(err, ErrRateLimit)
-}
-
-// CheckTimeoutError checks if an error is a timeout error.
-func CheckTimeoutError(err error) bool {
-	if isNilError(err) {
-		return false
-	}
-
-	var mdzErr *Error
-	if errors.As(err, &mdzErr) && mdzErr != nil {
-		return mdzErr.Category == CategoryTimeout
-	}
-
-	return errors.Is(err, ErrTimeout) ||
-		errors.Is(err, context.DeadlineExceeded)
-}
-
-// CheckCancellationError checks if an error is a cancellation error.
-func CheckCancellationError(err error) bool {
-	if isNilError(err) {
-		return false
-	}
-
-	// First check our own error type
-	var mdzErr *Error
-	if errors.As(err, &mdzErr) && mdzErr != nil {
-		return mdzErr.Category == CategoryCancellation
-	}
-
-	// Also check for standard context cancellation errors
-	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
-}
-
-// CheckNetworkError checks if an error is a network error.
-func CheckNetworkError(err error) bool {
-	if isNilError(err) {
-		return false
-	}
-
-	var mdzErr *Error
-	if errors.As(err, &mdzErr) && mdzErr != nil {
-		return mdzErr.Category == CategoryNetwork
-	}
-
-	return false // No old equivalent
-}
-
-// CheckInternalError checks if an error is an internal error.
-func CheckInternalError(err error) bool {
-	if isNilError(err) {
-		return false
-	}
-
-	var mdzErr *Error
-	if errors.As(err, &mdzErr) && mdzErr != nil {
-		return mdzErr.Category == CategoryInternal
-	}
-
-	return errors.Is(err, ErrInternal)
-}
-
-// CheckInsufficientBalanceError checks if an error is an insufficient balance error.
-func CheckInsufficientBalanceError(err error) bool {
-	if isNilError(err) {
-		return false
-	}
-
-	var mdzErr *Error
-	if errors.As(err, &mdzErr) && mdzErr != nil {
-		return mdzErr.Code == CodeInsufficientBalance
-	}
-
-	return errors.Is(err, ErrInsufficientBalance)
-}
-
-// CheckIdempotencyError checks if an error is an idempotency error.
-func CheckIdempotencyError(err error) bool {
-	if isNilError(err) {
-		return false
-	}
-
-	var mdzErr *Error
-	if errors.As(err, &mdzErr) && mdzErr != nil {
-		return mdzErr.Code == CodeIdempotency
-	}
-
-	return errors.Is(err, ErrIdempotency)
-}
-
-// CheckAccountEligibilityError checks if an error is an account eligibility error.
-func CheckAccountEligibilityError(err error) bool {
-	if isNilError(err) {
-		return false
-	}
-
-	var mdzErr *Error
-	if errors.As(err, &mdzErr) && mdzErr != nil {
-		return mdzErr.Code == CodeAccountEligibility
-	}
-
-	return errors.Is(err, ErrAccountEligibility)
-}
-
-// CheckAssetMismatchError checks if an error is an asset mismatch error.
-func CheckAssetMismatchError(err error) bool {
-	if isNilError(err) {
-		return false
-	}
-
-	var mdzErr *Error
-	if errors.As(err, &mdzErr) && mdzErr != nil {
-		return mdzErr.Code == CodeAssetMismatch
-	}
-
-	return errors.Is(err, ErrAssetMismatch)
-}
-
-// Public functions for checking error types
-// These are aliases to the Check functions for backward compatibility
-
-// IsValidationError checks if an error is a validation error.
-func IsValidationError(err error) bool {
-	return CheckValidationError(err)
-}
-
-// IsNotFoundError checks if an error is a not found error.
-func IsNotFoundError(err error) bool {
-	return CheckNotFoundError(err)
-}
-
-// IsAuthenticationError checks if an error is an authentication error.
-func IsAuthenticationError(err error) bool {
-	return CheckAuthenticationError(err)
-}
-
-// IsAuthorizationError checks if an error is an authorization error.
-func IsAuthorizationError(err error) bool {
-	return CheckAuthorizationError(err)
 }
 
 // IsAuthError reports whether err is any kind of authentication or
@@ -1099,15 +1131,21 @@ func IsAuthError(err error) bool {
 		}
 	}
 
-	// Fall back to the legacy predicates so callers see consistent
-	// behavior even when the underlying error came from a code path
-	// that hasn't yet been migrated to the v3 typed shape.
-	return CheckAuthenticationError(err) || CheckAuthorizationError(err)
+	return IsAuthenticationError(err) || IsAuthorizationError(err)
 }
 
 // IsConflictError checks if an error is a conflict error.
 func IsConflictError(err error) bool {
-	return CheckConflictError(err)
+	if isNilError(err) {
+		return false
+	}
+
+	var mdzErr *Error
+	if errors.As(err, &mdzErr) && mdzErr != nil {
+		return mdzErr.Category == CategoryConflict
+	}
+
+	return errors.Is(err, ErrAlreadyExists)
 }
 
 // IsConfigurationError reports whether err is an SDK configuration error.
@@ -1139,47 +1177,138 @@ func IsConfigurationError(err error) bool {
 
 // IsIdempotencyError checks if an error is an idempotency error.
 func IsIdempotencyError(err error) bool {
-	return CheckIdempotencyError(err)
+	if isNilError(err) {
+		return false
+	}
+
+	var mdzErr *Error
+	if errors.As(err, &mdzErr) && mdzErr != nil {
+		return mdzErr.Code == CodeIdempotency
+	}
+
+	return errors.Is(err, ErrIdempotency)
 }
 
 // IsRateLimitError checks if an error is a rate limit error.
 func IsRateLimitError(err error) bool {
-	return CheckRateLimitError(err)
+	if isNilError(err) {
+		return false
+	}
+
+	var mdzErr *Error
+	if errors.As(err, &mdzErr) && mdzErr != nil {
+		return mdzErr.Category == CategoryLimitExceeded
+	}
+
+	return errors.Is(err, ErrRateLimit)
 }
 
 // IsTimeoutError checks if an error is a timeout error.
+//
+// Audit M18: timeout and cancellation are now disjoint. The function
+// matches typed *Error{Category: CategoryTimeout}, the ErrTimeout
+// sentinel, and raw context.DeadlineExceeded — but NOT context.Canceled
+// (handled by [IsCancellationError]).
 func IsTimeoutError(err error) bool {
-	return CheckTimeoutError(err)
+	if isNilError(err) {
+		return false
+	}
+
+	var mdzErr *Error
+	if errors.As(err, &mdzErr) && mdzErr != nil {
+		return mdzErr.Category == CategoryTimeout
+	}
+
+	return errors.Is(err, ErrTimeout) || errors.Is(err, context.DeadlineExceeded)
 }
 
 // IsNetworkError checks if an error is a network error.
 func IsNetworkError(err error) bool {
-	return CheckNetworkError(err)
+	if isNilError(err) {
+		return false
+	}
+
+	var mdzErr *Error
+	if errors.As(err, &mdzErr) && mdzErr != nil {
+		return mdzErr.Category == CategoryNetwork
+	}
+
+	return false
 }
 
 // IsCancellationError checks if an error is a cancellation error.
+//
+// Audit M18: timeout and cancellation are now disjoint. The function
+// matches typed *Error{Category: CategoryCancellation} and raw
+// context.Canceled — context.DeadlineExceeded belongs to
+// [IsTimeoutError] only.
 func IsCancellationError(err error) bool {
-	return CheckCancellationError(err)
+	if isNilError(err) {
+		return false
+	}
+
+	var mdzErr *Error
+	if errors.As(err, &mdzErr) && mdzErr != nil {
+		return mdzErr.Category == CategoryCancellation
+	}
+
+	return errors.Is(err, context.Canceled)
 }
 
 // IsInternalError checks if an error is an internal error.
 func IsInternalError(err error) bool {
-	return CheckInternalError(err)
+	if isNilError(err) {
+		return false
+	}
+
+	var mdzErr *Error
+	if errors.As(err, &mdzErr) && mdzErr != nil {
+		return mdzErr.Category == CategoryInternal
+	}
+
+	return errors.Is(err, ErrInternal)
 }
 
 // IsInsufficientBalanceError checks if an error is an insufficient balance error.
 func IsInsufficientBalanceError(err error) bool {
-	return CheckInsufficientBalanceError(err)
+	if isNilError(err) {
+		return false
+	}
+
+	var mdzErr *Error
+	if errors.As(err, &mdzErr) && mdzErr != nil {
+		return mdzErr.Code == CodeInsufficientBalance
+	}
+
+	return errors.Is(err, ErrInsufficientBalance)
 }
 
 // IsAccountEligibilityError checks if an error is an account eligibility error.
 func IsAccountEligibilityError(err error) bool {
-	return CheckAccountEligibilityError(err)
+	if isNilError(err) {
+		return false
+	}
+
+	var mdzErr *Error
+	if errors.As(err, &mdzErr) && mdzErr != nil {
+		return mdzErr.Code == CodeAccountEligibility
+	}
+
+	return errors.Is(err, ErrAccountEligibility)
 }
 
 // IsAssetMismatchError checks if an error is an asset mismatch error.
 func IsAssetMismatchError(err error) bool {
-	return CheckAssetMismatchError(err)
+	if isNilError(err) {
+		return false
+	}
+
+	var mdzErr *Error
+	if errors.As(err, &mdzErr) && mdzErr != nil {
+		return mdzErr.Code == CodeAssetMismatch
+	}
+
+	return errors.Is(err, ErrAssetMismatch)
 }
 
 // IsUnprocessableError reports whether err represents a server-side
@@ -1247,22 +1376,27 @@ func getTestCaseCategory(err error) ErrorCategory {
 	}
 }
 
-// categorizeByErrorChecks categorizes errors using built-in error type checks
+// categorizeByErrorChecks categorizes errors using the canonical
+// Is*Error predicates. Order matters: more specific categories must
+// come before broader fallbacks (e.g. cancellation before timeout).
+//
+// Audit M18: cancellation appears before timeout in the iteration so
+// that a *Error already classified as Cancellation isn't double-bucketed.
 func categorizeByErrorChecks(err error) ErrorCategory {
 	errorChecks := []struct {
 		check    func(error) bool
 		category ErrorCategory
 	}{
-		{isValidationErrorType, CategoryValidation},
-		{isNotFoundErrorType, CategoryNotFound},
-		{isAuthenticationErrorType, CategoryAuthentication},
-		{CheckAuthorizationError, CategoryAuthorization},
-		{CheckConflictError, CategoryConflict},
-		{isRateLimitErrorType, CategoryLimitExceeded},
-		{isTimeoutErrorType, CategoryTimeout},
-		{CheckCancellationError, CategoryCancellation},
-		{CheckNetworkError, CategoryNetwork},
-		{isInternalErrorType, CategoryInternal},
+		{IsValidationError, CategoryValidation},
+		{IsNotFoundError, CategoryNotFound},
+		{IsAuthenticationError, CategoryAuthentication},
+		{IsAuthorizationError, CategoryAuthorization},
+		{IsConflictError, CategoryConflict},
+		{IsRateLimitError, CategoryLimitExceeded},
+		{IsCancellationError, CategoryCancellation},
+		{IsTimeoutError, CategoryTimeout},
+		{IsNetworkError, CategoryNetwork},
+		{IsInternalError, CategoryInternal},
 	}
 
 	for _, errorCheck := range errorChecks {
@@ -1272,31 +1406,6 @@ func categorizeByErrorChecks(err error) ErrorCategory {
 	}
 
 	return CategoryInternal
-}
-
-// Helper functions for cleaner error type checking
-func isValidationErrorType(err error) bool {
-	return CheckValidationError(err)
-}
-
-func isNotFoundErrorType(err error) bool {
-	return CheckNotFoundError(err)
-}
-
-func isAuthenticationErrorType(err error) bool {
-	return CheckAuthenticationError(err)
-}
-
-func isRateLimitErrorType(err error) bool {
-	return CheckRateLimitError(err)
-}
-
-func isTimeoutErrorType(err error) bool {
-	return CheckTimeoutError(err)
-}
-
-func isInternalErrorType(err error) bool {
-	return CheckInternalError(err)
 }
 
 var statusCodesByCategory = map[ErrorCategory]int{
@@ -1384,16 +1493,28 @@ type httpErrorMapping struct {
 }
 
 // httpErrorMappings maps HTTP status codes to error categories and codes.
+// Audit C6: 408 (Request Timeout) and 425 (Too Early) are now mapped
+// explicitly. Without these entries 408 fell into CategoryInternal
+// (instead of CategoryTimeout) and 425 also defaulted to Internal
+// (instead of CategoryLimitExceeded — its retry-after semantics match
+// 429). Both gaps caused real downstream misbehavior in retry layers.
+//
+// Audit M13: 503 now pairs CategoryNetwork with CodeServiceUnavailable
+// instead of CodeInternal — the {category, code} drift in the v2
+// mapping was inconsistent with every other entry in the table and
+// confused observability dashboards that grouped by code.
 var httpErrorMappings = map[int]httpErrorMapping{
 	http.StatusBadRequest:          {CategoryValidation, CodeValidation, true},
 	http.StatusUnauthorized:        {CategoryAuthentication, CodeAuthentication, false},
 	http.StatusForbidden:           {CategoryAuthorization, CodePermission, false},
 	http.StatusNotFound:            {CategoryNotFound, CodeNotFound, true},
+	http.StatusRequestTimeout:      {CategoryTimeout, CodeTimeout, false},
 	http.StatusConflict:            {CategoryConflict, CodeAlreadyExists, true},
-	http.StatusTooManyRequests:     {CategoryLimitExceeded, CodeRateLimit, false},
-	http.StatusGatewayTimeout:      {CategoryTimeout, CodeTimeout, false},
 	http.StatusUnprocessableEntity: {CategoryUnprocessable, CodeUnprocessable, true},
-	http.StatusServiceUnavailable:  {CategoryNetwork, CodeInternal, false},
+	http.StatusTooEarly:            {CategoryLimitExceeded, CodeRateLimit, false},
+	http.StatusTooManyRequests:     {CategoryLimitExceeded, CodeRateLimit, false},
+	http.StatusServiceUnavailable:  {CategoryNetwork, CodeServiceUnavailable, false},
+	http.StatusGatewayTimeout:      {CategoryTimeout, CodeTimeout, false},
 }
 
 var apiErrorCodeMappings = map[string]httpErrorMapping{
@@ -1435,17 +1556,22 @@ func ErrorFromHTTPResponseWithDetails(statusCode int, requestID, message, apiCod
 
 	mapping = applyAPICodeMapping(mapping, apiCode)
 
+	// Audit M11: every caller-derived field is redacted at construction
+	// time so a later GetErrorDetails / Error() call cannot leak raw
+	// credentials. Title and Fields routinely echo user-supplied
+	// content, and Details is the most common leak source for the
+	// structured envelope.
 	err := &Error{
 		Category:   mapping.category,
 		Code:       mapping.code,
 		APICode:    apiCode,
-		Title:      title,
-		Message:    message,
+		Title:      redactSensitive(title),
+		Message:    redactSensitive(message),
 		StatusCode: statusCode,
 		RequestID:  requestID,
 		EntityType: entityType,
-		Fields:     fields,
-		Details:    details,
+		Fields:     RedactSensitiveStringSlice(fields),
+		Details:    RedactSensitiveDetails(details),
 	}
 
 	if mapping.withResource {
@@ -1567,4 +1693,30 @@ func CategorizeTransactionError(err error) string {
 	default:
 		return "unknown"
 	}
+}
+
+// redactURLUserinfo strips userinfo (user[:password]) from any URL the
+// Go stdlib renders inside an error message. The stdlib's own
+// url.Error formatting masks the password to "xxxxx" but preserves
+// the username verbatim — for our purposes either half is sensitive.
+//
+// Audit M14: when a URL like
+//
+//	https://alice:hunter2@api.example.com/v1
+//
+// fails to dial, the resulting error renders as
+//
+//	Get "https://alice:xxxxx@api.example.com/v1": dial tcp ...
+//
+// leaking the username "alice". This helper is used at the transport
+// boundary before the error is wrapped — see [transport.go].
+func redactURLUserinfo(rawURL string) string {
+	parsed, err := url.Parse(rawURL)
+	if err != nil || parsed == nil || parsed.User == nil {
+		return rawURL
+	}
+
+	parsed.User = nil
+
+	return parsed.String()
 }

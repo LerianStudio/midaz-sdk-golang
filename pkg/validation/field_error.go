@@ -10,28 +10,50 @@ import (
 
 // FieldError represents a validation error for a specific field
 // with rich context and suggestions for fixing the problem.
+//
+// Audit C4 (CRITICAL): every caller-derived field is annotated
+// `json:"-"` so a naive json.Marshal cannot leak credentials or PII.
+// The renderer in [FieldError.Error] always passes the composed string
+// through [sdkerrors.RedactSensitiveString] as defense in depth, and
+// [FieldError.safeValue] consults [sdkerrors.IsSensitiveFieldName]
+// before exposing a value.
 type FieldError struct {
 	// Field is the path to the field that has a validation error
 	// For nested fields, use dot notation (e.g., "metadata.user.address")
-	Field string
+	Field string `json:"field,omitempty"`
 
-	// Value is the invalid value that caused the error
-	Value any
+	// Value is the invalid value that caused the error.
+	// Marked json:"-" because the value is the most common leak source —
+	// passwords, tokens, document numbers, and IBANs all show up here
+	// when a field-level validation fails.
+	Value any `json:"-"`
 
-	// Message is a human-readable description of the error
-	Message string
+	// Message is a human-readable description of the error.
+	// Marked json:"-" because dynamic messages can echo the offending
+	// value; consumers should rely on Error() (always redacted) for
+	// rendered output.
+	Message string `json:"-"`
 
 	// Code is an error code for programmatic error handling
-	Code string
+	Code string `json:"code,omitempty"`
 
 	// Constraint is the specific constraint that was violated (e.g., "required", "min", "max")
-	Constraint string
+	Constraint string `json:"constraint,omitempty"`
 
-	// Suggestions are potential ways to fix the error
-	Suggestions []string
+	// Suggestions are potential ways to fix the error.
+	// Marked json:"-" because suggestion strings often quote the
+	// offending value back to the caller.
+	Suggestions []string `json:"-"`
 }
 
-// Error implements the error interface for FieldError
+// Error implements the error interface for FieldError.
+//
+// Audit C7 (CRITICAL): the composed string is always passed through
+// [sdkerrors.RedactSensitiveString] before return, so the rendered
+// error cannot leak credentials even if the caller stuffs them into
+// the Message or Suggestions slice. The per-field [safeValue] redactor
+// strips the Value first; the package-level redactor here is defense
+// in depth on the rendered string.
 func (fe *FieldError) Error() string {
 	if fe == nil {
 		return "<nil field error>"
@@ -66,11 +88,35 @@ func (fe *FieldError) Error() string {
 		}
 	}
 
-	return builder.String()
+	return sdkerrors.RedactSensitiveString(builder.String())
 }
 
+// safeValueMaxBytes caps the rendered value before it lands in the
+// composed error string. The cap is 128 bytes; anything longer is
+// truncated with an ellipsis. The redactor runs BEFORE truncation so
+// that a token sitting in the truncated suffix cannot bleed through.
+const safeValueMaxBytes = 128
+
+// safeValue renders fe.Value for inclusion in the error string with
+// three layers of protection:
+//
+//  1. If the field name matches the SDK-wide sensitive allowlist
+//     ([sdkerrors.IsSensitiveFieldName]) — password, apiKey,
+//     authorization, document, cpf, X-API-Key, etc. — return a fixed
+//     "<redacted>" placeholder without ever touching the value.
+//  2. For maps/slices/arrays, return only the type name; the contents
+//     could be anything.
+//  3. Otherwise, run the value through [sdkerrors.RedactSensitiveString]
+//     before truncating to [safeValueMaxBytes]. Redaction-then-truncate
+//     order matters: truncating first could amputate a sensitive
+//     substring mid-redaction and leak the prefix.
+//
+// Audit C4: the v2 implementation only redacted when the field name
+// contained the substring "metadata". That left password, apiKey,
+// document, cpf, creditCard, and Authorization fields rendering their
+// raw values. The shared predicate now covers all of them.
 func (fe *FieldError) safeValue() string {
-	if strings.Contains(strings.ToLower(fe.Field), "metadata") {
+	if sdkerrors.IsSensitiveFieldName(fe.Field) {
 		return "<redacted>"
 	}
 
@@ -82,9 +128,9 @@ func (fe *FieldError) safeValue() string {
 		}
 	}
 
-	value := fmt.Sprint(fe.Value)
-	if len(value) > 128 {
-		return value[:128] + "..."
+	value := sdkerrors.RedactSensitiveString(fmt.Sprint(fe.Value))
+	if len(value) > safeValueMaxBytes {
+		return value[:safeValueMaxBytes] + "..."
 	}
 
 	return value
@@ -175,6 +221,12 @@ func (fe *FieldErrors) HasErrors() bool {
 // Suggestions) defer to the per-field [FieldError.Error] renderer
 // rather than the flat shape, since the structured form is more useful
 // when those fields are populated.
+//
+// Audit C7: the composed string is always passed through
+// [sdkerrors.RedactSensitiveString] before return so a credential in a
+// field's Message cannot leak even if the per-field renderer's
+// safeguards are bypassed (e.g., callers who construct *FieldError
+// directly without going through [BuildFieldError]).
 func (fe *FieldErrors) Error() string {
 	if !fe.HasErrors() {
 		return ""
@@ -213,7 +265,7 @@ func (fe *FieldErrors) Error() string {
 		_, _ = builder.WriteString(err.Error())
 	}
 
-	return builder.String()
+	return sdkerrors.RedactSensitiveString(builder.String())
 }
 
 // GetFieldErrors returns all field errors in the collection
@@ -268,9 +320,14 @@ func WrapError(field string, value any, err error) *FieldError {
 // earlier ones for the same field.
 type FieldOption func(*FieldError)
 
-// Value attaches the offending value to a FieldError. Sensitive fields
-// (any path containing the substring "metadata") have their value
-// redacted automatically when rendered.
+// Value attaches the offending value to a FieldError. Values for
+// sensitive field names — passwords, API keys, authorization headers,
+// document numbers, credit cards, idempotency keys, and any other
+// field matching [sdkerrors.IsSensitiveFieldName] — are redacted
+// automatically when the error is rendered. Map/slice/array values
+// are also collapsed to a "<type redacted>" placeholder. The rendered
+// string then passes through [sdkerrors.RedactSensitiveString] as
+// defense in depth.
 func Value(value any) FieldOption {
 	return func(fe *FieldError) { fe.Value = value }
 }
@@ -390,14 +447,22 @@ func (fe *FieldErrors) Len() int {
 }
 
 // Is reports whether this FieldErrors collection should be treated as
-// the same kind of error as target. It returns true when target is
-// [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors.ErrValidation],
-// enabling the canonical pattern:
+// the same kind of error as target. It returns true when target is the
+// broad [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors.ErrValidation]
+// sentinel, enabling the canonical pattern:
 //
 //	if errors.Is(err, sdkerrors.ErrValidation) { ... }
 //
 // to match both server-side validation errors (returned as *Error with
 // CategoryValidation) and client-side accumulators alike.
+//
+// Audit M12: narrow Code-bearing sentinels (ErrAssetMismatch,
+// ErrAccountEligibility, etc.) no longer over-match. The previous
+// implementation matched any target with CategoryValidation, so
+// `errors.Is(fe, ErrAssetMismatch)` returned true for any
+// *FieldErrors. The check now requires either:
+//   - target with no Code (broad sentinel like ErrValidation), or
+//   - target whose Code matches some field error's Code.
 //
 // Callers who want to walk individual field problems should use
 // [errors.As] to extract the *FieldErrors:
@@ -418,5 +483,23 @@ func (fe *FieldErrors) Is(target error) bool {
 		return false
 	}
 
-	return t.Category == sdkerrors.CategoryValidation
+	if t.Category != sdkerrors.CategoryValidation {
+		return false
+	}
+
+	// Broad sentinel (no Code or matches the generic validation
+	// sentinel pointer): any non-empty FieldErrors counts.
+	if t.Code == "" || t.Code == sdkerrors.CodeValidation {
+		return true
+	}
+
+	// Narrow sentinel (e.g. ErrAssetMismatch, ErrAccountEligibility):
+	// only match when at least one field error carries the same Code.
+	for _, item := range fe.Errors {
+		if item != nil && item.Code == string(t.Code) {
+			return true
+		}
+	}
+
+	return false
 }
