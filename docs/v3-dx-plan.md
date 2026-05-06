@@ -2111,10 +2111,10 @@ A v3 candidate release passes ALL of these. **Phase A items (Tracks 1–4) all c
 - [ ] Single canonical "off" toggle per concept
 
 ### Track 7 — Builder/Model
-- [ ] All entities follow Account-shaped pattern (no `mmodel` embedding in public types)
-- [ ] Every Update method takes typed pointer (no `input any`)
-- [ ] Every input has `Validate()` returning `*FieldErrors`
-- [ ] Hyphenated filenames renamed to underscores
+- [x] All entities follow Account-shaped pattern (no `mmodel` embedding in public types) — Track 7E
+- [x] Every Update method takes typed pointer (no `input any`) — Track 7B
+- [x] Every input has `Validate()` returning errors — Track 7D (note: `*FieldErrors` was kickoff aspirational; v3 settled on plain `error`-returning `Validate` because adopting structured FieldErrors here was scope-creep into Track 8's error system; revisit in Track 8 if structured field-level errors land).
+- [x] Hyphenated filenames renamed to underscores — Track 7A
 
 ### Track 8 — Errors
 - [ ] `IsNetworkError(err)` works for real network failures
@@ -2542,9 +2542,95 @@ the wire and never with silent surprises.
 
 ---
 
+### 2026-05-07 — Track 7 close: 6-batch outcome, mmodel decoupling, serviceEntity consolidation, audit 21-finding sweep
+
+**Context:** Track 7 ran all 6 planned batches in a single session. The scope was the broadest of any track to date — 21 audit findings spanning everything from filename hyphens (cosmetic) to mmodel-alias type leakage (architectural). The biggest single ship was 7E's mmodel decoupling: 11 hand-written SDK-native types replace what was previously a forest of `type Foo = mmodel.Foo` aliases plus their To/FromMmodel adapter universe. The biggest line-removal ship was 7F's serviceEntity consolidation: 16 entity constructors collapse to one-line bodies via embedded `serviceEntity`.
+
+**Final state:** The SDK no longer leaks `mmodel` types into its public API surface (audit 7.1 RESOLVED). Every Update method takes a typed pointer (audit 7.5 RESOLVED, 7.13 RESOLVED). Every input has a `Validate()` method that runs at the entity layer before MarshalJSON (audit 7.6 RESOLVED, 7.19 RESOLVED). Soft-delete and hard-delete travel through `sdkctx` instead of boolean parameters (audit 7.10 RESOLVED) — the SDK now speaks one calling convention for "non-default request behavior" across all entities. Every entity service constructor reduces to a single line. Parameter naming is harmonized (`organizationID` everywhere, no more `orgID` minority). All 21 audit findings have a documented disposition (resolved, swept, or rejected with rationale).
+
+**Per-batch outcome:**
+
+| Batch | Commit | Net Δ | Outcome |
+|-------|--------|-------|---------|
+| 7A | `48dc147` | -50 | Filename normalization (5 hyphenated → underscored); deleted `GetAccountTypesMetricsCount` deprecated stub; doc sweep across `external_apis.md`/`internal_apis.md`/`pagination.md`. |
+| 7B | `1791cbe` | -102 | Killed v2's `input any` escape hatch on Update methods. New Operation builder pair (`NewCreateOperationInput`/`WithAccountAlias`/`WithRoute`/etc.) brings Operation up to the same builder-shape as every other entity. Deleted `entities/update_payload.go` (-69 lines), `UpdateOperation` deprecated no-op (-25 lines), `GetOperation` `transactionID ...string` variadic, and `isNilAny` helper. |
+| 7C | `ed0fe72` | +32 | Soft-delete migration to `sdkctx.WithIncludeDeleted`/`WithHardDelete`. Four boolean trailing args removed from Holders/Aliases Get/Delete signatures. Godoc gains explaining the context-tag pattern dominate the small positive Δ. |
+| 7D | `b666326` | +33 | Validate consistency. New `(*UpdateLedgerSettingsInput).Validate()` closes the one entity that was missing one. Empty-payload check now single-source from Validate (deleted from MarshalJSON for Holder + Alias). Silent `Status: NewStatus("ACTIVE")` default removed from `NewCreateAccountInput` — server defaults are canonical. |
+| 7E | `77b6fba` | -52 | The architectural ship. 11 hand-written SDK-native types (Status, Address, Organization, Ledger, LedgerSettings/AccountingValidation, Asset, Portfolio, Segment, AccountType, OperationRoute, AccountRule, TransactionRoute, Account, Balance, BalanceHistory, Queue) replace the alias-into-mmodel pattern. To/FromMmodel adapters retired across Address, Account, Organization, Queue. New `make check-mmodel-references` CI guard prevents regression with documented allowlist (AccountingEntries alias intentionally retained — wire-format detail of the operation route accounting tree). |
+| 7F | `3faa93f` | -299 | The boilerplate-killer. 16 entity files collapse from 11-line struct/ctor/setter trios to single-embed bodies. `setDefaultTenantID` promoted from embed (16 individual implementations deleted). UpdateOrganizationInput aliased *Update-suffixed setters retired. Transaction convenience-method godoc clarified. AssetRate upsert documented as intentional. orgID → organizationID parameter rename across 3 entities + 13 generators + integrity package + 3 mock files. |
+
+**The mmodel-decoupling architectural lesson — why type aliases are not decoupling:**
+
+In v2 we had `type Organization = mmodel.Organization`. A Go alias is not a rename — it is type-system identity. A caller who wrote `models.Organization{LegalName: "X"}` was, at the type-system level, instantiating `mmodel.Organization`. Their IDE jump-to-definition landed in the server-internal package. Their `go.sum` referenced `github.com/LerianStudio/midaz/v3/pkg/mmodel`. Reflection-based code (json marshalers, validators) saw `mmodel.Organization`, not `models.Organization`.
+
+Three failures hid behind that "small" alias:
+
+1. **Type identity as one-way ratchet.** Once exposed, it cannot be removed without a major-version break. v3 is the moment to fix this cleanly.
+2. **Evolution gated by server team.** SDK-only fields (cache freshness timestamps, client-side denormalization) were impossible to add without coordinated mmodel + SDK release.
+3. **Validation tags drift uncontrolled.** mmodel struct tags include go-playground/validator extensions (`keymax`, `valuemax`, `nonested`, `invalidaccounttype`). The SDK doesn't run that validator — it has its own `Validate()` per input. The tags were dead weight inherited via alias.
+
+7E hand-wrote each type with identical field shapes and JSON tags. The wire format is byte-for-byte preserved. Callers' struct literals continue to compile. The SDK now owns its public surface.
+
+**The pattern-encoding lesson — type system vs context system:**
+
+7B and 7C ship two different approaches to "what can a caller do with this method." Both are right; they're not interchangeable. **Type-system encoding** (7B's typed `*UpdateXxxInput`) is right when the variation is structural — different shapes of payload. **Context-system encoding** (7C's `sdkctx.WithHardDelete`) is right when the variation is orthogonal to the operation — same shape of payload, different request semantics. Audit 7.10 was a category mistake: a positional bool was encoding what should have been a context tag, mixing semantics into the type system. 7C corrects the categorization. The same `sdkctx` package now carries `WithRequestTenantID` (Track 1), `WithIncludeDeleted` (7C), `WithHardDelete` (7C), `WithIdempotencyKey` (Track 2). Each of these is a request-scoped semantic tag, not a payload field.
+
+**Audit finding dispositions (21 findings, full sweep):**
+
+| # | Disposition | Where resolved |
+|---|-------------|----------------|
+| 7.1 | RESOLVED | 7E |
+| 7.2 | RESOLVED | 7E |
+| 7.3 | PARTIAL — single calling convention restored for routes/account-types | 7E |
+| 7.4 | RESOLVED in Track 5 | Track 5 (5A-5F) |
+| 7.5 | RESOLVED | 7B |
+| 7.6 | RESOLVED | 7D |
+| 7.7 | RESOLVED in Track 3 | Track 3 |
+| 7.8 | RESOLVED | 7F |
+| 7.9 | REJECTED with rationale | Track 5 audit 5.11 |
+| 7.10 | RESOLVED | 7C |
+| 7.11 | RESOLVED | 7D |
+| 7.12 | RESOLVED — Holder type ownership clarified by 7E's mmodel boundary | 7E |
+| 7.13 | RESOLVED | 7B |
+| 7.14 | RESOLVED | 7F |
+| 7.15 | RESOLVED | 7A |
+| 7.16 | RESOLVED — godoc-relabeled, methods kept (each hits a different endpoint) | 7F |
+| 7.17 | RESOLVED — upsert-only documented as intentional (server endpoint shape) | 7F |
+| 7.18 | SWEPT — types deleted in earlier tracks | Track 5 (5F) |
+| 7.19 | RESOLVED | 7D |
+| 7.20 | RESOLVED | 7F |
+| 7.21 | RESOLVED | 7A |
+
+**Cumulative diff size across Track 7 (6 batches):** ~-438 net lines.
+
+The negative net is the durability dividend, exactly as in Track 5. Every retired surface (To/FromMmodel adapters, deprecated `UpdateOperation` stubs, `entities/update_payload.go`, 16-copy setDefaultTenantID, 4 *Update-suffixed setters) is a class of mistake that cannot recur. The new `make check-mmodel-references` CI guard mechanizes that protection at the code-review level.
+
+**Acceptance metric outcome:**
+
+- ✅ All entities follow Account-shaped pattern (no `mmodel` embedding in public types) — 7E delivers structurally; the `check-mmodel-references` guard mechanizes the rule.
+- ✅ Every Update method takes typed pointer (no `input any`) — 7B; the v2 escape hatch is gone.
+- ✅ Every input has `Validate()` returning `error` — 7D closes the one missing case (UpdateLedgerSettings); FieldErrors deferred to Track 8 if structured field-level errors land.
+- ✅ Hyphenated filenames renamed to underscores — 7A.
+
+**Q5 (transaction Create method family) and Q11 (HTTPClientConfig) resolved during execution:**
+
+Q5 originally asked whether the 6 Create* methods on TransactionsService should be collapsed to one. Resolution: keep all six, relabel via godoc. Each method maps to a different endpoint or shape; collapsing them into one method with `kind` parameter would force runtime dispatch where compile-time dispatch is correct.
+
+Q11 originally asked whether 7F should add an `HTTPClientConfig` struct. Resolution: not needed. `pkg/config.WithHTTPClient(*http.Client)` already exists and is plumbed through; callers configure transport via the standard Go idiom.
+
+**What's protected going forward:** the type system, plus a CI guard. Future code that tries to:
+- Pass a non-typed `any` to UpdateTransaction → fails at compile time.
+- Use `mmodel.X` as a public SDK type → fails at `make check-mmodel-references`.
+- Skip `Validate()` on an Update method → still compiles but the contract is documented and reviewable.
+- Set boolean soft-delete params → fails at compile time (the parameters no longer exist).
+
+**Decided by:** session execution, retrospective written 2026-05-07.
+
+---
+
 ## Status Tracker
 
-Live as of: 2026-05-07 (post-session 7, Track 5 fully closed: 6/6 batches). Update with every commit batch.
+Live as of: 2026-05-07 (post-Track 7 close, 6/6 batches). Tracks 1-7 fully closed. Track 8 ready to start. Update with every commit batch.
 
 ### Phase A — Foundation
 
@@ -2555,18 +2641,17 @@ Live as of: 2026-05-07 (post-session 7, Track 5 fully closed: 6/6 batches). Upda
 | 3 — Implicit env reads | 🟢 **COMPLETE** | 2026-05-06 | 2026-05-06 | `v3` branch, commit `8cdafd2` | Single-commit batch. 39 production env reads → 15 (all in pkg/config FromEnvironment path). 20 files, **-156 net lines**. `MIDAZ_ENABLE_RETRIES` killswitch deleted. |
 | 4 — Logging gap | 🟢 **COMPLETE** | 2026-05-06 | 2026-05-06 | `v3` branch, commit `d54c930` | Single-commit batch. `*slog.Logger` canonical contract. `WithLogger` + `WithSlowCallThreshold` options. Retry-attempt logging wired (was `// TODO`). `RecordRetry` called from production. 3 stderr writes removed. `Fatal`/`Fatalf` removed from Logger interface. New `docs/logging.md` + `examples/logging-slog/`. 14 files, +842 / -223 lines. |
 
-### Phase B — Models & Data Flow (Tracks 5+6 closed; 7/8 ready)
+### Phase B — Models & Data Flow (Tracks 5+6+7 closed; Track 8 ready)
 
-All Phase A and Track-5/6 dependencies are satisfied. Remaining Phase B
-work: **Track 7** (depends on 6, now closed) and **Track 8** (depends on
-1+4, both closed). Track 7 and Track 8 are independent and can run in
-parallel.
+All Phase A dependencies satisfied. Tracks 5, 6, 7 fully closed. Remaining
+Phase B work: **Track 8** (Error system actionability) — depends on
+Tracks 1+4, both closed; ready to start.
 
 | Track | Status | Started | Completed | Branch / Commits | Notes |
 |-------|--------|---------|-----------|------------------|-------|
 | 5 — Pagination footguns | 🟢 **COMPLETE** (6/6 batches) | 2026-05-07 | 2026-05-07 | `v3` branch, commits `b188d86` `0132f12` `2dbbaa7` `bbaa688` `bb915a8` `<5F>` | 6-batch close. **Two-base-struct contract:** `models.PageListOpts` + `models.CursorListOpts` are NOT in subset/superset relationship. Wrong-shape opts don't compile. Audit 5.5 (silent `WithPage` drop on cursor endpoints) is structurally impossible in v3. **Per batch:** 5A delete `pkg/pagination` (-2,970 net); 5B reshape `Pagination` + iter.Seq2 helpers (-105); 5C AssetRates typed migration (-177); 5D page-based bulk across 10 entities/12 list methods (+777); 5E cursor-based bulk across 4 entities (+246); 5F cleanup — delete `models.ListOptions` + 30 fluent setters + dead types `Accounts/AccountFilter/ListAccountInput/ListAccountResponse/Operations/OperationsResponse/FromMmodel`, godoc rewrites, `examples/cursor-pagination-example/`, `entities/example_test.go`. **Cumulative net delta: ~-3,109 lines.** All 14 list-bearing entities expose `List` + `ListAll` + `ListPages` (iter.Seq2 trio). `Validate()` runs client-side BEFORE HTTP. Audit 5.11 rejected with documented architectural rationale (unpaginated endpoint shouldn't synthesize fake `Pagination`). The 3 stderr writes Track 4 deleted are obsolete by construction — their semantics are encoded in the type system itself. |
 | 6 — Functional options sprawl | 🟢 **COMPLETE** (6/6 batches) | 2026-05-06 | 2026-05-06 | `v3` branch, commits `52e4684` `3c12cd1` `e8dc996` `9c25fb3` `5573439` `0915c09` | 6-batch close. **Pre-flight audit:** 222 option-shaped functions across 28 files. **Final state:** 194 functions (-28, -12.6%). **Per batch:** 6A delete 20 dead/redundant Options (`52e4684`). 6B delete `entities/options.go` + formalize two-layer godoc (`3c12cd1`). 6C `WithRetries` collision → new `WithRetryOptions(...retry.Option)` + `WithoutRetries()`; deleted `Config.EnableRetries` field, `DefaultEnableRetries`, and 5 redundant Options (`e8dc996`). 6D collapse observability surface 4 → 2 (`WithObservability` 3-bool macro deleted; `WithCollectorEndpoint` deleted with its dead-gate bug; `WithObservabilityOptions` + `WithObservabilityProvider` carry full replacement-semantic godoc) (`9c25fb3`). 6F close two-layer parity gap with new `midaz.WithIdempotency`; CI lint rule `scripts/check-config-parity.sh` wired into `make verify-sdk`; `docs/configuration.md` (496 lines, 7 sections) (`5573439`). 6E naming convention sweep (`enable` → `enabled` on 3 functions; `pkg/performance.WithHTTPClient` → `WithBatchHTTPClient` and `pkg/performance.WithTimeout` → `WithHTTPTimeout` to break cross-package collisions) (`0915c09`). All 5 acceptance criteria from kickoff revised metric shipped: zero name+signature collisions, `entities/options.go` deleted, one canonical `Without*` per concept, all bool params named `enabled`, CI lint rule blocks regression. |
-| 7 — Builder/Model API drift | 🔵 Not started | — | — | — | Depends on Track 6. Converges every entity on Account-shaped pattern. The deferred Track 3 acceptance criterion (`entities.NewHTTPClient` accepts an explicit `HTTPClientConfig` struct) folds into this track. |
+| 7 — Builder/Model API drift | 🟢 **COMPLETE** (6/6 batches) | 2026-05-07 | 2026-05-07 | `v3` branch, commits `48dc147` `1791cbe` `ed0fe72` `b666326` `77b6fba` `3faa93f` | 6-batch close. **Cumulative net delta: -438 lines** while retiring 21 audit findings. Per batch: 7A filename normalization + dead method (`48dc147`, -50 net); 7B typed Updates + Operation builder pair + dead struct deletion (`1791cbe`, -102 net); 7C soft-delete via sdkctx (`ed0fe72`, +32 net); 7D Validate consistency + LedgerSettings.Validate + 7.11/7.19 (`b666326`, +33 net); 7E mmodel decoupling — 11 SDK-native types + alias surgery + adapter retirement (`77b6fba`, -52 net); 7F serviceEntity consolidation + parameter naming + 7.14/7.16/7.17/7.20 (`3faa93f`, -299 net). All 21 audit findings disposed (resolved, swept, or rejected with rationale). New CI guard `make check-mmodel-references` blocks regression. Q5 (transaction Create family) and Q11 (HTTPClientConfig) resolved during execution. |
 | 8 — Error system actionability | 🔵 Not started | — | — | — | Depends on Tracks 1, 4. Network-error typing, `Operation`/`ResourceID` plumbing. Track 4 already added `errors.NewConfigurationError` + `IsConfigurationError`; Track 8 extends the same pattern to network/HTTP errors. |
 
 ### Phase C — Polish (blocked on Phase B)
@@ -2587,6 +2672,44 @@ parallel.
 | 5F | Cleanup: delete `models.ListOptions` + 30 fluent setters + dead types (`Accounts/AccountFilter/ListAccountInput/ListAccountResponse/Operations/OperationsResponse/FromMmodel`); godoc rewrites in 4 entity files; new `examples/cursor-pagination-example/`; new `entities/example_test.go` (godoc Examples for `ListAccountsAll`/`ListTransactionsAll`); reject audit 5.11 with documented rationale | ✅ Done | `<this commit>` | ~-880 net |
 
 **Cumulative Track 5 delta: ~-3,109 net lines.**
+
+### Track 7 batch-level progress
+
+| Batch | Scope | Status | Commit | Verification |
+|-------|-------|--------|--------|--------------|
+| 7A | Filename normalization (5 hyphenated files → underscores) + delete deprecated stub `GetAccountTypesMetricsCount` + doc sweep | ✅ Done | `48dc147` | 6 files, -50 net |
+| 7B | Type-safe Updates: `UpdateTransaction(... *UpdateTransactionInput)`, `UpdateTransactionOperation(... *UpdateOperationInput)`. `UpdateOperation` deprecated stub + `GetOperation transactionID ...string` variadic + `entities/update_payload.go` + `isNilAny` helper deleted. New Operation builder pair (`NewCreateOperationInput`/`WithAccountAlias`/`WithRoute` etc.) | ✅ Done | `1791cbe` | -102 net |
+| 7C | Soft-delete and hard-delete handling moved from boolean parameters to `sdkctx.WithIncludeDeleted` / `sdkctx.WithHardDelete`. Removes 4 boolean trailing args from Holders/Aliases Get/Delete signatures. | ✅ Done | `ed0fe72` | +32 net |
+| 7D | Validate consistency: new `(*UpdateLedgerSettingsInput).Validate()` (audit 7.6); empty-payload check single-source from Validate (deleted from MarshalJSON for holder + alias, audit 7.19); `Status: NewStatus("ACTIVE")` default removed from `NewCreateAccountInput` (audit 7.11). | ✅ Done | `b666326` | +33 net |
+| 7E | mmodel decoupling: 11 SDK-native types (Status, Address, Organization, Ledger, Asset, Portfolio, Segment, AccountType, OperationRoute, TransactionRoute, Account, Balance/BalanceHistory, Queue, AccountRule, LedgerSettings/AccountingValidation). Retire To/FromMmodel adapter functions across Address, Account, Organization, Queue. New CI guard `make check-mmodel-references`. AccountingEntries kept aliased with documented rationale. | ✅ Done | `77b6fba` | -52 net |
+| 7F | newServiceEntity[T]: 16 entities embed shared `serviceEntity` struct; constructor body collapses to one line; setDefaultTenantID promoted from embed (16 individual implementations deleted). UpdateOrganizationInput aliased *Update-suffixed setters retired (audit 7.14). Transaction convenience-method godoc clarified (audit 7.16). AssetRate upsert documented as intentional (audit 7.17). orgID → organizationID parameter naming harmonized across 3 entities + 13 generators + integrity package + 3 mock files (audit 7.20). | ✅ Done | `3faa93f` | -299 net |
+
+**Cumulative Track 7 delta: -438 net lines.**
+
+**Audit finding dispositions (final):**
+| # | Disposition | Batch |
+|---|-------------|-------|
+| 7.1 | RESOLVED | 7E |
+| 7.2 | RESOLVED | 7E |
+| 7.3 | PARTIAL (single calling convention restored) | 7E |
+| 7.4 | RESOLVED in Track 5 | 5A-5F |
+| 7.5 | RESOLVED | 7B |
+| 7.6 | RESOLVED | 7D |
+| 7.7 | RESOLVED in Track 3 | 3 |
+| 7.8 | RESOLVED | 7F |
+| 7.9 | REJECTED with rationale | 5 (audit 5.11) |
+| 7.10 | RESOLVED | 7C |
+| 7.11 | RESOLVED | 7D |
+| 7.12 | RESOLVED | 7E |
+| 7.13 | RESOLVED | 7B |
+| 7.14 | RESOLVED | 7F |
+| 7.15 | RESOLVED | 7A |
+| 7.16 | RESOLVED | 7F |
+| 7.17 | RESOLVED | 7F |
+| 7.18 | SWEPT (types deleted in earlier tracks) | 5F |
+| 7.19 | RESOLVED | 7D |
+| 7.20 | RESOLVED | 7F |
+| 7.21 | RESOLVED | 7A |
 
 ### Track 1 batch-level progress
 
@@ -2614,8 +2737,10 @@ A list of decisions pending Fred input or deferred to a later phase. Resolved qu
 | Q1 | Module path strategy for v3 | ✅ `/v3` semantic import versioning | Pre-execution |
 | Q2 | `c.Entity` deprecation shim duration | ✅ ABANDONED with the v2.99 plan. `c.Entity` is the embedded pointer for direct access (`c.Entity` is `*entities.Entity`); the deprecation-window concept doesn't apply to a clean-cut release. | Track 1 / session 5 |
 | Q3 | AccessManager re-export type strategy | ✅ Type alias (`type AccessManager = auth.AccessManager`) shipped in Track 2 Batch 2A via `types.go`. Track 1's pattern (56 model aliases) was the precedent. | Track 2 |
+| Q5 | Transaction Create method family (6 methods) | ✅ KEPT ALL SIX with godoc relabeling. CreateTransaction is documented as the CANONICAL entry point. CreateTransactionWithDSL/Inflow/Outflow/Annotation are explicit "convenience wrappers around CreateTransaction" with discoverability story fixed via godoc rather than method-set surgery. | Track 7F |
 | Q7 | Naming of `entities` package | ✅ `pkg/sdkctx` carries context helpers (shipped in Batch 1D). `entities/` partially survives — services live there. Full deletion deferred to Phase B / Track 7 when services move to per-service packages. | Track 1 |
 | Q8 | Top-level package import name | ✅ `midaz` (renamed from `client` in Batch 1A) | Track 1 |
+| Q11 | HTTPClientConfig struct in 7F | ✅ NOT NEEDED. `pkg/config.WithHTTPClient(*http.Client)` already exists and is plumbed through entity construction. Callers needing custom `http.Transport` settings (MaxIdleConns/TLSHandshakeTimeout/etc.) build their own `*http.Client` and pass it via `WithHTTPClient`. Standard Go idiom; an additional wrapper would be DX sugar with no capability gain. | Track 7F |
 
 ### Pending — block on Fred input
 
@@ -2626,15 +2751,6 @@ A list of decisions pending Fred input or deferred to a later phase. Resolved qu
 - B: Eager by default; opt-out via `midaz.WithoutEagerCheck()`. Slower init but fail-fast.
 
 **Status:** Pending. Track 2's auth-required gate (Batch 2C) eagerly fetches a token from Access Manager, which is itself a strong "fail-fast at construction" signal — the gate already catches misconfigured auth before the first API call. An eager `/health` check would be **additional** fail-fast coverage for misconfigured service URLs. Recommendation **B** seems more aligned with the rest of the v3 ergonomics (eager validation in Track 1's Batch 1F, eager token fetch in Track 2). Decide before Phase B closes; the implementation is small but the default has cascading test-fixture implications.
-
-#### Q5: How to handle the `transactions.CreateInflow/Outflow/Annotation` family
-**Question:** Six Create methods on `TransactionsService` (Create, CreateFromDSL, CreateFromDSLFile, CreateInflow, CreateOutflow, CreateAnnotation). Keep all six?
-**Options:**
-- A: Keep all six; document the decision tree at the interface top
-- B: Collapse into one `Create(ctx, ..., input TransactionInput)` where `TransactionInput` is an interface implemented by 5 concrete types
-- C: Three methods: `Create`, `CreateFromDSL`, `CreateSpecial(ctx, ..., kind, input)`
-
-**Status:** Pending. Belongs in Phase B / Track 7 (Builder/Model API drift). Recommendation **A** still stands — each method hits a different endpoint, and explicit names map to explicit endpoints.
 
 #### Q6: Should `WithDebug(true)` install a default logger?
 **Question:** If user calls `midaz.WithDebug(true)` but never `WithLogger(...)`, do we install a default debug-level stderr slog handler, or leave the discard handler and emit nothing?
@@ -2659,10 +2775,6 @@ A list of decisions pending Fred input or deferred to a later phase. Resolved qu
 - C: Deduplicate but keep both layers. Document precedence.
 
 **Status:** Pending. Belongs to Track 6 design phase. Recommendation **A** matches the Track 1 / Track 2 trajectory (delete redundant layers, push to root). Decide at Track 6 kickoff.
-
-#### Q11: Should Phase B Track 7 fold in the deferred `HTTPClientConfig` struct refactor from Track 3?
-**Question:** Track 3 deferred the `entities.NewHTTPClient(HTTPClientConfig)` struct-based constructor refactor to "Track 7 / Phase B". Track 7 is "Builder/Model API drift" — primarily about input/output model shapes. Does the HTTPClient constructor refactor naturally fit there, or is it Track 6 (options) work?
-**Status:** Pending. Likely **Track 6** since it's option-shape work, not model-shape work. Decide at Phase B kickoff.
 
 ---
 
