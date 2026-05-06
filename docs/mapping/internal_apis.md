@@ -150,7 +150,7 @@ Supported count paths use `HEAD` and read `X-Total-Count`:
 | Accounts | `GetAccountsMetricsCount` | `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/metrics/count` |
 | Transactions | `GetTransactionsMetricsCount` | `/organizations/{organizationID}/ledgers/{ledgerID}/transactions/metrics/count` |
 
-`doCountRequest` returns an internal SDK error when `X-Total-Count` is missing, blank, non-integer, negative, or overflowing. `GetAccountTypesMetricsCount` is a deprecated compatibility-only method. It validates IDs and returns a validation error because Midaz Ledger does not expose account type count metrics.
+`doCountRequest` returns an internal SDK error when `X-Total-Count` is missing, blank, non-integer, negative, or overflowing. AccountTypesService does not expose a metrics-count method because the Midaz Ledger API does not provide that endpoint for account types.
 
 ## Model compatibility layer
 

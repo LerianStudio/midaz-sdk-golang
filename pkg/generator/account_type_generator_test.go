@@ -49,10 +49,6 @@ func (*mockAccountTypesService) DeleteAccountType(_ context.Context, _, _, _ str
 	return nil
 }
 
-func (*mockAccountTypesService) GetAccountTypesMetricsCount(_ context.Context, _, _ string) (*models.MetricsCount, error) {
-	return nil, errors.New("mock: GetAccountTypesMetricsCount not implemented")
-}
-
 func TestNewAccountTypeGenerator(t *testing.T) {
 	t.Run("Create with nil entity", func(t *testing.T) {
 		gen := NewAccountTypeGenerator(nil, nil)

@@ -170,7 +170,7 @@ Supported count helpers issue `HEAD` requests to Midaz `metrics/count` endpoints
 | Accounts | `GetAccountsMetricsCount(ctx, organizationID, ledgerID)` | `AccountsCount` |
 | Transactions | `GetTransactionsMetricsCount(ctx, organizationID, ledgerID, opts)` | `TransactionsCount` |
 
-If Midaz omits `X-Total-Count` or returns a blank, non-integer, negative, or overflowing value, the SDK returns an internal SDK error for the count request. `GetAccountTypesMetricsCount` exists only as a deprecated compatibility method and returns a validation error because the Midaz Ledger API does not expose account type count metrics.
+If Midaz omits `X-Total-Count` or returns a blank, non-integer, negative, or overflowing value, the SDK returns an internal SDK error for the count request. The Midaz Ledger API does not expose account type count metrics, so AccountTypesService omits this method entirely.
 
 ## Best practices
 

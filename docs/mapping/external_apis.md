@@ -192,10 +192,6 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v3/entities`. Consumers usually ac
 - `UpdateAccountType(ctx, organizationID, ledgerID, id, input)`
 - `DeleteAccountType(ctx, organizationID, ledgerID, id)`
 
-Compatibility-only method:
-
-- `GetAccountTypesMetricsCount(ctx, organizationID, ledgerID)` - Deprecated and unsupported. The method remains for source compatibility, but the Midaz Ledger API does not expose account type count metrics and the SDK returns a validation error.
-
 ### AssetsService
 
 - `ListAssets(ctx, organizationID, ledgerID, opts)`

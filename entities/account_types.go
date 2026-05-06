@@ -97,13 +97,6 @@ type AccountTypesService interface {
 	// Note that account types that are in use by existing accounts cannot be deleted.
 	// Returns an error if the operation fails.
 	DeleteAccountType(ctx context.Context, organizationID, ledgerID, id string) error
-
-	// GetAccountTypesMetricsCount no longer retrieves account type count metrics.
-	// The organizationID and ledgerID parameters specify which organization and ledger to get metrics for.
-	// It does not return a *models.MetricsCount because the endpoint is not exposed.
-	// Deprecated: Midaz Ledger does not expose account type count metrics; this method
-	// always returns an error and will be removed in the next major version.
-	GetAccountTypesMetricsCount(ctx context.Context, organizationID, ledgerID string) (*models.MetricsCount, error)
 }
 
 // accountTypesEntity implements the AccountTypesService interface.
@@ -359,21 +352,4 @@ func (e *accountTypesEntity) DeleteAccountType(ctx context.Context, organization
 	}
 
 	return e.httpClient.sendRequest(req, nil)
-}
-
-// GetAccountTypesMetricsCount retrieves the count metrics for account types in a ledger.
-// Deprecated: Midaz Ledger does not expose account type count metrics; this method
-// always returns an error and will be removed in the next major version.
-func (*accountTypesEntity) GetAccountTypesMetricsCount(_ context.Context, organizationID, ledgerID string) (*models.MetricsCount, error) {
-	const operation = "GetAccountTypesMetricsCount"
-
-	if organizationID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
-	}
-
-	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledgerID")
-	}
-
-	return nil, errors.NewValidationError(operation, "account type count metrics are not exposed by the Midaz Ledger API", nil)
 }
