@@ -428,32 +428,6 @@ func isEmptyPagination(p Pagination) bool {
 	return p.Limit == 0 && p.Page == 0 && p.Offset == 0 && p.Total == 0 && p.NextCursor == "" && p.PrevCursor == ""
 }
 
-// ErrorResponse represents an error response from the API.
-// This structure is used to parse and represent error responses
-// returned by the Midaz API.
-type ErrorResponse struct {
-	// Error is the error message
-	Error string `json:"error,omitempty"`
-
-	// Code is the error code for programmatic handling
-	Code string `json:"code,omitempty"`
-
-	// Title is the short human-readable API error title.
-	Title string `json:"title,omitempty"`
-
-	// Message is the detailed Midaz API error message.
-	Message string `json:"message,omitempty"`
-
-	// EntityType identifies the resource type associated with the error.
-	EntityType string `json:"entityType,omitempty"`
-
-	// Fields contains field-level validation errors returned by Midaz.
-	Fields map[string]string `json:"fields,omitempty"`
-
-	// Details contains additional information about the error
-	Details map[string]any `json:"details,omitempty"`
-}
-
 // ObjectWithMetadata is an object that has metadata.
 // This interface is implemented by resources that support
 // attaching arbitrary metadata.

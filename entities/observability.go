@@ -267,8 +267,8 @@ func cloneBusinessFields(fields map[string]any) map[string]any {
 // observability level. Classification proceeds in three layers, from most-
 // trustworthy to least:
 //
-//  1. Typed *sdkerrors.Error / *sdkerrors.MidazError — the SDK already knows
-//     the precise category and HTTP status of these.
+//  1. Typed *sdkerrors.Error — the SDK already knows the precise category
+//     and HTTP status of these.
 //  2. Anything that exposes a status code via a small structural interface
 //     (StatusCode() int / HTTPStatus() int).
 //  3. A small set of substring fallbacks for opaque transport errors that
@@ -301,13 +301,6 @@ func classifyTypedBusinessError(err error) string {
 		}
 
 		if class := classifyByCategory(sdkErr.Category, sdkErr.Code); class != "" {
-			return class
-		}
-	}
-
-	var legacy *sdkerrors.MidazError
-	if errors.As(err, &legacy) && legacy != nil {
-		if class := classifyByCategory("", legacy.Code); class != "" {
 			return class
 		}
 	}
@@ -367,8 +360,14 @@ func classifyByStatusCode(code int) string {
 }
 
 // classifyByCategory translates a typed SDK category/code pair into a
-// business-error label. Category wins; we fall back to Code only when the
-// category is empty (e.g. legacy *MidazError, which carries only a code).
+// business-error label. Category wins; we fall back to Code only when
+// the category is empty.
+//
+// CategoryAuth (the v3 collapsed auth category) splits into
+// unauthorized vs forbidden via the Code (CodeAuthentication = 401,
+// CodePermission = 403). The legacy CategoryAuthentication and
+// CategoryAuthorization are still matched for back-compat with code
+// paths that haven't migrated.
 func classifyByCategory(category sdkerrors.ErrorCategory, code sdkerrors.ErrorCode) string {
 	switch category {
 	case sdkerrors.CategoryValidation, sdkerrors.CategoryUnprocessable:
@@ -377,6 +376,13 @@ func classifyByCategory(category sdkerrors.ErrorCategory, code sdkerrors.ErrorCo
 		return businessErrorClassUnauthorized
 	case sdkerrors.CategoryAuthorization:
 		return businessErrorClassForbidden
+	case sdkerrors.CategoryAuth:
+		// v3: discriminate via Code (401 vs 403).
+		if code == sdkerrors.CodePermission {
+			return businessErrorClassForbidden
+		}
+
+		return businessErrorClassUnauthorized
 	case sdkerrors.CategoryNotFound:
 		return businessErrorClassNotFound
 	}

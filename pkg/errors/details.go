@@ -114,11 +114,6 @@ func extractErrorCode(err error) string {
 		return string(sdkErr.Code)
 	}
 
-	var midazErr *MidazError
-	if errors.As(err, &midazErr) && midazErr != nil {
-		return string(midazErr.Code)
-	}
-
 	// Try to extract error code using errors.As
 	var (
 		ce  codeError

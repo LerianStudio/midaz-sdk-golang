@@ -77,18 +77,13 @@ func TestSlice7LedgerSettingsExplicitFalseSerializes(t *testing.T) {
 	assert.JSONEq(t, `{"accounting":{"validateRoutes":false}}`, string(data))
 }
 
-func TestSlice7ErrorResponseJSONContract(t *testing.T) {
-	data := []byte(`{"code":"ERR_INVALID_INPUT","title":"Bad Request","message":"validation failed","entityType":"Account","fields":{"type":"must not be external"}}`)
-
-	var response ErrorResponse
-	require.NoError(t, json.Unmarshal(data, &response))
-
-	assert.Equal(t, "ERR_INVALID_INPUT", response.Code)
-	assert.Equal(t, "Bad Request", response.Title)
-	assert.Equal(t, "validation failed", response.Message)
-	assert.Equal(t, "Account", response.EntityType)
-	assert.Equal(t, "must not be external", response.Fields["type"])
-}
+// TestSlice7ErrorResponseJSONContract historically pinned down the
+// JSON shape of the legacy models.ErrorResponse public type. v3
+// Batch 8E removed that type — the canonical SDK error shape is
+// pkg/errors.Error, populated at the transport boundary by
+// ErrorFromHTTPResponseWithDetails. The wire format compatibility
+// is now covered by entities.parseErrorResponse, exercised by
+// TestSlice3Redaction and the http error-mapping tests.
 
 // TestSlice7LegacyListWrappersMarshalEmptyItems existed in v2 to pin down
 // JSON empty-items behavior on the legacy list wrapper types. v3 Batch 5C

@@ -23,7 +23,7 @@ func TestSlice3Redaction_RedactsPIIAndFinancialFields(t *testing.T) {
 		sdkerrors.FormatErrorForDisplay(raw),
 		sdkerrors.FormatErrorDetails(raw),
 		sdkerrors.FormatOperationError(raw, "CreateHolder"),
-		sdkerrors.FormatTransactionError(raw, "CreateHolder"),
+		sdkerrors.FormatUnifiedTransactionError(raw, "CreateHolder"),
 	}
 
 	for _, output := range outputs {
@@ -69,12 +69,6 @@ func TestSlice3Constructors_WithTypedNilError_DoNotPanic(t *testing.T) {
 			})
 		})
 	}
-
-	require.NotPanics(t, func() {
-		got := sdkerrors.NewMidazError(sdkerrors.CodeValidation, err)
-		require.NotNil(t, got)
-		assert.NoError(t, got.Err)
-	})
 }
 
 func TestSlice3GetErrorDetails_ExposesStructuredAPIEnvelope(t *testing.T) {

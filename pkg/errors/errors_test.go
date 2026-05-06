@@ -13,57 +13,7 @@ import (
 )
 
 // --------------------------------
-// Legacy MidazError Tests
-// --------------------------------
-
-func TestMidazError(t *testing.T) {
-	t.Run("Error method with underlying error", func(t *testing.T) {
-		underlyingErr := errors.New("underlying error")
-		midazErr := &sdkerrors.MidazError{
-			Code:    sdkerrors.CodeValidation,
-			Message: "validation failed",
-			Err:     underlyingErr,
-		}
-
-		expected := "validation_error: validation failed: underlying error"
-		assert.Equal(t, expected, midazErr.Error())
-	})
-
-	t.Run("Error method without underlying error", func(t *testing.T) {
-		midazErr := &sdkerrors.MidazError{
-			Code:    sdkerrors.CodeNotFound,
-			Message: "resource not found",
-		}
-
-		expected := "not_found: resource not found"
-		assert.Equal(t, expected, midazErr.Error())
-	})
-
-	t.Run("Unwrap method", func(t *testing.T) {
-		underlyingErr := errors.New("underlying error")
-		midazErr := &sdkerrors.MidazError{
-			Code:    sdkerrors.CodeValidation,
-			Message: "validation failed",
-			Err:     underlyingErr,
-		}
-
-		assert.Equal(t, underlyingErr, midazErr.Unwrap())
-	})
-}
-
-func TestNewMidazError(t *testing.T) {
-	t.Run("Creates error with correct properties", func(t *testing.T) {
-		underlyingErr := errors.New("test error")
-		midazErr := sdkerrors.NewMidazError(sdkerrors.CodeValidation, underlyingErr)
-
-		assert.Equal(t, sdkerrors.CodeValidation, midazErr.Code)
-		assert.Equal(t, "test error", midazErr.Message)
-		assert.Equal(t, underlyingErr, midazErr.Err)
-	})
-}
-
-// --------------------------------
-// Legacy Error Checking Functions
+// Error Checking Functions
 // --------------------------------
 
 func TestErrorCheckingFunctions(t *testing.T) {
@@ -120,9 +70,9 @@ func TestErrorCheckingFunctions(t *testing.T) {
 			expectedResult: true,
 		},
 		{
-			name:           "IsPermissionError with ErrPermission",
+			name:           "IsAuthorizationError with ErrPermission",
 			err:            sdkerrors.ErrPermission,
-			checkFunc:      sdkerrors.IsPermissionError,
+			checkFunc:      sdkerrors.IsAuthorizationError,
 			expectedResult: true,
 		},
 		{
@@ -217,11 +167,6 @@ func TestIsValidationErrorWithNewErrors(t *testing.T) {
 			err:      fmt.Errorf("wrapper: %w", sdkerrors.NewValidationError("Test", "invalid input", nil)),
 			expected: true,
 		},
-		{
-			name:     "legacy error",
-			err:      sdkerrors.NewMidazError(sdkerrors.CodeValidation, errors.New("invalid input")),
-			expected: true,
-		},
 	}
 
 	for _, tt := range tests {
@@ -262,11 +207,6 @@ func TestGetErrorCategory(t *testing.T) {
 			name:     "wrapped error",
 			err:      fmt.Errorf("wrapper: %w", sdkerrors.NewNotFoundError("Test", "account", "acc123", nil)),
 			expected: sdkerrors.CategoryNotFound,
-		},
-		{
-			name:     "legacy error",
-			err:      sdkerrors.NewMidazError(sdkerrors.CodeValidation, errors.New("invalid input")),
-			expected: sdkerrors.CategoryValidation,
 		},
 		{
 			name:     "generic error",
@@ -404,7 +344,7 @@ func TestErrorDetailsAndFormatting_Regressions(t *testing.T) {
 			sdkerrors.FormatErrorForDisplay(raw),
 			sdkerrors.FormatErrorDetails(raw),
 			sdkerrors.FormatOperationError(raw, "CreateTransaction"),
-			sdkerrors.FormatTransactionError(raw, "CreateTransaction"),
+			sdkerrors.FormatUnifiedTransactionError(raw, "CreateTransaction"),
 		}
 
 		for _, output := range outputs {
@@ -449,16 +389,6 @@ func TestErrorNilReceiverSafety_Regressions(t *testing.T) {
 		})
 	})
 
-	t.Run("MidazError methods tolerate nil receiver", func(t *testing.T) {
-		var err *sdkerrors.MidazError
-
-		assert.NotPanics(t, func() {
-			assert.Empty(t, err.Error())
-			assert.NoError(t, err.Unwrap())
-			assert.False(t, err.Is(&sdkerrors.MidazError{Code: sdkerrors.CodeValidation}))
-		})
-	})
-
 	t.Run("errors.Is tolerates typed nil Error and typed nil target", func(t *testing.T) {
 		var typedNilErr error = (*sdkerrors.Error)(nil)
 
@@ -467,17 +397,6 @@ func TestErrorNilReceiverSafety_Regressions(t *testing.T) {
 		assert.NotPanics(t, func() {
 			assert.NotErrorIs(t, typedNilErr, sdkerrors.ErrValidation)
 			assert.False(t, sdkerrors.ErrValidation.Is(typedNilTarget))
-		})
-	})
-
-	t.Run("errors.Is tolerates typed nil MidazError and typed nil target", func(t *testing.T) {
-		var typedNilErr error = (*sdkerrors.MidazError)(nil)
-
-		var typedNilTarget *sdkerrors.MidazError
-
-		assert.NotPanics(t, func() {
-			assert.NotErrorIs(t, typedNilErr, &sdkerrors.MidazError{Code: sdkerrors.CodeValidation})
-			assert.False(t, (&sdkerrors.MidazError{Code: sdkerrors.CodeValidation}).Is(typedNilTarget))
 		})
 	})
 }
@@ -616,11 +535,6 @@ func TestGetStatusCode(t *testing.T) {
 			expected: http.StatusNotFound,
 		},
 		{
-			name:     "legacy error",
-			err:      sdkerrors.NewMidazError(sdkerrors.CodeValidation, errors.New("invalid input")),
-			expected: http.StatusBadRequest,
-		},
-		{
 			name:     "generic error",
 			err:      errors.New("something went wrong"),
 			expected: http.StatusInternalServerError,
@@ -664,7 +578,7 @@ func TestGetStatusCode(t *testing.T) {
 // Error Formatting Tests
 // --------------------------------
 
-func TestFormatTransactionError(t *testing.T) {
+func TestFormatUnifiedTransactionError_Comprehensive(t *testing.T) {
 	testCases := []struct {
 		name           string
 		err            error
@@ -753,7 +667,7 @@ func TestFormatTransactionError(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := sdkerrors.FormatTransactionError(tc.err, tc.operationType)
+			result := sdkerrors.FormatUnifiedTransactionError(tc.err, tc.operationType)
 			assert.Equal(t, tc.expectedResult, result)
 		})
 	}
@@ -1247,54 +1161,6 @@ func TestError_Is(t *testing.T) {
 }
 
 // --------------------------------
-// MidazError.Is Method Tests
-// --------------------------------
-
-func TestMidazError_Is(t *testing.T) {
-	t.Run("same code matches", func(t *testing.T) {
-		err1 := &sdkerrors.MidazError{
-			Code:    sdkerrors.CodeValidation,
-			Message: "error 1",
-		}
-		err2 := &sdkerrors.MidazError{
-			Code:    sdkerrors.CodeValidation,
-			Message: "error 2",
-		}
-
-		assert.True(t, err1.Is(err2))
-	})
-
-	t.Run("different code does not match", func(t *testing.T) {
-		err1 := &sdkerrors.MidazError{
-			Code:    sdkerrors.CodeValidation,
-			Message: "error 1",
-		}
-		err2 := &sdkerrors.MidazError{
-			Code:    sdkerrors.CodeNotFound,
-			Message: "error 2",
-		}
-
-		assert.False(t, err1.Is(err2))
-	})
-
-	t.Run("non-MidazError type returns false", func(t *testing.T) {
-		err1 := &sdkerrors.MidazError{
-			Code: sdkerrors.CodeValidation,
-		}
-		err2 := errors.New("standard error")
-
-		assert.False(t, err1.Is(err2))
-	})
-
-	t.Run("using errors.Is with MidazError", func(t *testing.T) {
-		err := sdkerrors.NewMidazError(sdkerrors.CodeValidation, errors.New("test"))
-
-		target := &sdkerrors.MidazError{Code: sdkerrors.CodeValidation}
-		require.ErrorIs(t, err, target)
-	})
-}
-
-// --------------------------------
 // Error Getter Methods Tests
 // --------------------------------
 
@@ -1461,8 +1327,6 @@ func TestAliasFunctions(t *testing.T) {
 	assert.True(t, sdkerrors.IsAuthenticationError(authErr))
 	assert.True(t, sdkerrors.IsAuthorizationError(authzErr))
 	assert.True(t, sdkerrors.IsConflictError(conflictErr))
-	assert.True(t, sdkerrors.IsPermissionError(authzErr))
-	assert.True(t, sdkerrors.IsAlreadyExistsError(conflictErr))
 	assert.True(t, sdkerrors.IsIdempotencyError(sdkerrors.ErrIdempotency))
 	assert.True(t, sdkerrors.IsRateLimitError(rateLimitErr))
 	assert.True(t, sdkerrors.IsTimeoutError(timeoutErr))
@@ -1472,71 +1336,6 @@ func TestAliasFunctions(t *testing.T) {
 	assert.True(t, sdkerrors.IsInsufficientBalanceError(insufficientBalanceErr))
 	assert.True(t, sdkerrors.IsAccountEligibilityError(accountEligibilityErr))
 	assert.True(t, sdkerrors.IsAssetMismatchError(assetMismatchErr))
-}
-
-// --------------------------------
-// ValueOfOriginalType Tests
-// --------------------------------
-
-func TestValueOfOriginalType(t *testing.T) {
-	t.Run("with MidazError", func(t *testing.T) {
-		original := &sdkerrors.MidazError{Code: sdkerrors.CodeValidation}
-		result := sdkerrors.ValueOfOriginalType(original, sdkerrors.CodeNotFound)
-
-		var midazErr *sdkerrors.MidazError
-
-		ok := errors.As(result, &midazErr)
-		assert.True(t, ok)
-		assert.Equal(t, sdkerrors.CodeNotFound, midazErr.Code)
-	})
-
-	t.Run("with non-MidazError returns original", func(t *testing.T) {
-		original := errors.New("standard error")
-		result := sdkerrors.ValueOfOriginalType(original, sdkerrors.CodeNotFound)
-
-		assert.Equal(t, original, result)
-	})
-
-	t.Run("with MidazError and non-ErrorCode value returns original", func(t *testing.T) {
-		original := &sdkerrors.MidazError{Code: sdkerrors.CodeValidation}
-		result := sdkerrors.ValueOfOriginalType(original, "not an error code")
-
-		assert.Equal(t, original, result)
-	})
-}
-
-// --------------------------------
-// MidazError Edge Cases
-// --------------------------------
-
-func TestMidazError_EdgeCases(t *testing.T) {
-	t.Run("Error method with empty code", func(t *testing.T) {
-		err := &sdkerrors.MidazError{
-			Code:    "",
-			Message: "some message",
-		}
-		assert.Equal(t, ": some message", err.Error())
-	})
-
-	t.Run("Error method with only code", func(t *testing.T) {
-		err := &sdkerrors.MidazError{
-			Code: sdkerrors.CodeValidation,
-		}
-		assert.Equal(t, "validation_error", err.Error())
-	})
-
-	t.Run("Unwrap returns nil when no underlying error", func(t *testing.T) {
-		err := &sdkerrors.MidazError{Code: sdkerrors.CodeValidation}
-		require.NoError(t, err.Unwrap())
-	})
-}
-
-func TestNewMidazError_NilError(t *testing.T) {
-	err := sdkerrors.NewMidazError(sdkerrors.CodeValidation, nil)
-
-	assert.Equal(t, sdkerrors.CodeValidation, err.Code)
-	assert.Empty(t, err.Message)
-	require.NoError(t, err.Err)
 }
 
 // --------------------------------
@@ -1605,10 +1404,10 @@ func TestFormatErrorForDisplay_AllCategories(t *testing.T) {
 }
 
 // --------------------------------
-// FormatTransactionError Additional Tests
+// FormatUnifiedTransactionError Additional Tests
 // --------------------------------
 
-func TestFormatTransactionError_WithNewErrors(t *testing.T) {
+func TestFormatUnifiedTransactionError_WithNewErrors(t *testing.T) {
 	tests := []struct {
 		name     string
 		err      error
@@ -1649,7 +1448,7 @@ func TestFormatTransactionError_WithNewErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := sdkerrors.FormatTransactionError(tt.err, tt.opType)
+			result := sdkerrors.FormatUnifiedTransactionError(tt.err, tt.opType)
 			assert.Contains(t, result, tt.contains)
 			assert.Contains(t, result, tt.opType+" failed")
 		})
@@ -1668,15 +1467,6 @@ func TestErrorsAs(t *testing.T) {
 		var mdzErr *sdkerrors.Error
 		require.ErrorAs(t, wrapped, &mdzErr)
 		assert.Equal(t, sdkerrors.CategoryValidation, mdzErr.Category)
-	})
-
-	t.Run("MidazError type", func(t *testing.T) {
-		err := sdkerrors.NewMidazError(sdkerrors.CodeValidation, errors.New("test"))
-		wrapped := fmt.Errorf("wrapped: %w", err)
-
-		var mdzErr *sdkerrors.MidazError
-		require.ErrorAs(t, wrapped, &mdzErr)
-		assert.Equal(t, sdkerrors.CodeValidation, mdzErr.Code)
 	})
 }
 

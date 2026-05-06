@@ -794,96 +794,6 @@ func NewAccountEligibilityError(operation, accountID string, err error) *Error {
 	}
 }
 
-// MidazError is a simplified error type for backward compatibility in tests
-type MidazError struct {
-	Code    ErrorCode
-	Message string
-	Err     error
-}
-
-// Error implements the error interface for MidazError
-func (e *MidazError) Error() string {
-	if e == nil {
-		return ""
-	}
-
-	result := string(e.Code)
-	if e.Message != "" {
-		result += ": " + redactSensitive(e.Message)
-	}
-
-	if !isNilError(e.Err) {
-		result += ": " + safeErrorString(e.Err)
-	}
-
-	return redactSensitive(result)
-}
-
-// Unwrap returns the underlying error
-func (e *MidazError) Unwrap() error {
-	if e == nil {
-		return nil
-	}
-
-	return e.Err
-}
-
-// Is checks if the target error is of the same type as this error.
-// This enables compatibility with errors.Is for MidazError.
-func (e *MidazError) Is(target error) bool {
-	if e == nil || isNilError(target) {
-		return false
-	}
-
-	t, ok := target.(*MidazError)
-	if !ok || t == nil {
-		return false
-	}
-
-	return e.Code == t.Code
-}
-
-// NewMidazError creates a new MidazError for legacy callers.
-//
-// Deprecated: use Error and the typed constructors in this package instead.
-func NewMidazError(code ErrorCode, err error) *MidazError {
-	err = normalizeError(err)
-
-	message := ""
-	if err != nil {
-		message = safeErrorString(err)
-	}
-
-	return &MidazError{
-		Code:    code,
-		Message: message,
-		Err:     err,
-	}
-}
-
-// ValueOfOriginalType creates a value of the same type as the original error.
-//
-// Deprecated: this helper exists for compatibility with legacy MidazError tests.
-func ValueOfOriginalType(err error, value any) error {
-	var errCase0 *MidazError
-	if errors.As(err, &errCase0) && errCase0 != nil {
-		if code, ok := value.(ErrorCode); ok {
-			return &MidazError{Code: code, Message: "Test error for " + string(code)}
-		}
-	}
-
-	return err
-}
-
-func legacyMidazTarget(err error, code ErrorCode) error {
-	var mdzErr *MidazError
-	if errors.As(err, &mdzErr) && mdzErr != nil {
-		return &MidazError{Code: code}
-	}
-
-	return nil
-}
-
 // Error checking functions
 
 // CheckValidationError checks if an error is a validation error.
@@ -904,11 +814,7 @@ func CheckValidationError(err error) bool {
 		return mdzErr.Category == CategoryValidation
 	}
 
-	legacyTarget := legacyMidazTarget(err, CodeValidation)
-
-	// Backward compatibility: sentinel + typed legacy error.
-	return errors.Is(err, ErrValidation) ||
-		(legacyTarget != nil && errors.Is(err, legacyTarget))
+	return errors.Is(err, ErrValidation)
 }
 
 // CheckNotFoundError checks if an error is a not found error.
@@ -922,11 +828,7 @@ func CheckNotFoundError(err error) bool {
 		return mdzErr.Category == CategoryNotFound
 	}
 
-	legacyTarget := legacyMidazTarget(err, CodeNotFound)
-
-	// Backward compatibility checks
-	return errors.Is(err, ErrNotFound) ||
-		(legacyTarget != nil && errors.Is(err, legacyTarget))
+	return errors.Is(err, ErrNotFound)
 }
 
 // CheckAuthenticationError checks if an error is an authentication error.
@@ -940,11 +842,7 @@ func CheckAuthenticationError(err error) bool {
 		return mdzErr.Category == CategoryAuthentication
 	}
 
-	legacyTarget := legacyMidazTarget(err, CodeAuthentication)
-
-	// Backward compatibility checks
-	return errors.Is(err, ErrAuthentication) ||
-		(legacyTarget != nil && errors.Is(err, legacyTarget))
+	return errors.Is(err, ErrAuthentication)
 }
 
 // CheckAuthorizationError checks if an error is an authorization error.
@@ -958,11 +856,7 @@ func CheckAuthorizationError(err error) bool {
 		return mdzErr.Category == CategoryAuthorization
 	}
 
-	legacyTarget := legacyMidazTarget(err, CodePermission)
-
-	// Backward compatibility checks
-	return errors.Is(err, ErrPermission) ||
-		(legacyTarget != nil && errors.Is(err, legacyTarget))
+	return errors.Is(err, ErrPermission)
 }
 
 // CheckConflictError checks if an error is a conflict error.
@@ -976,11 +870,7 @@ func CheckConflictError(err error) bool {
 		return mdzErr.Category == CategoryConflict
 	}
 
-	legacyTarget := legacyMidazTarget(err, CodeAlreadyExists)
-
-	// Backward compatibility checks
-	return errors.Is(err, ErrAlreadyExists) ||
-		(legacyTarget != nil && errors.Is(err, legacyTarget))
+	return errors.Is(err, ErrAlreadyExists)
 }
 
 // CheckRateLimitError checks if an error is a rate limit error.
@@ -994,11 +884,7 @@ func CheckRateLimitError(err error) bool {
 		return mdzErr.Category == CategoryLimitExceeded
 	}
 
-	legacyTarget := legacyMidazTarget(err, CodeRateLimit)
-
-	// Backward compatibility checks
-	return errors.Is(err, ErrRateLimit) ||
-		(legacyTarget != nil && errors.Is(err, legacyTarget))
+	return errors.Is(err, ErrRateLimit)
 }
 
 // CheckTimeoutError checks if an error is a timeout error.
@@ -1012,12 +898,8 @@ func CheckTimeoutError(err error) bool {
 		return mdzErr.Category == CategoryTimeout
 	}
 
-	legacyTarget := legacyMidazTarget(err, CodeTimeout)
-
-	// Backward compatibility checks
 	return errors.Is(err, ErrTimeout) ||
-		errors.Is(err, context.DeadlineExceeded) ||
-		(legacyTarget != nil && errors.Is(err, legacyTarget))
+		errors.Is(err, context.DeadlineExceeded)
 }
 
 // CheckCancellationError checks if an error is a cancellation error.
@@ -1061,11 +943,7 @@ func CheckInternalError(err error) bool {
 		return mdzErr.Category == CategoryInternal
 	}
 
-	legacyTarget := legacyMidazTarget(err, CodeInternal)
-
-	// Backward compatibility checks
-	return errors.Is(err, ErrInternal) ||
-		(legacyTarget != nil && errors.Is(err, legacyTarget))
+	return errors.Is(err, ErrInternal)
 }
 
 // CheckInsufficientBalanceError checks if an error is an insufficient balance error.
@@ -1079,11 +957,7 @@ func CheckInsufficientBalanceError(err error) bool {
 		return mdzErr.Code == CodeInsufficientBalance
 	}
 
-	legacyTarget := legacyMidazTarget(err, CodeInsufficientBalance)
-
-	// Backward compatibility checks
-	return errors.Is(err, ErrInsufficientBalance) ||
-		(legacyTarget != nil && errors.Is(err, legacyTarget))
+	return errors.Is(err, ErrInsufficientBalance)
 }
 
 // CheckIdempotencyError checks if an error is an idempotency error.
@@ -1217,16 +1091,6 @@ func IsConfigurationError(err error) bool {
 	}
 
 	return errors.Is(err, ErrConfiguration)
-}
-
-// IsPermissionError checks if an error is a permission error.
-func IsPermissionError(err error) bool {
-	return CheckAuthorizationError(err)
-}
-
-// IsAlreadyExistsError checks if an error is an already exists error.
-func IsAlreadyExistsError(err error) bool {
-	return CheckConflictError(err)
 }
 
 // IsIdempotencyError checks if an error is an idempotency error.
@@ -1548,15 +1412,6 @@ func ErrorFromHTTPResponseWithDetails(statusCode int, requestID, message, apiCod
 	return err
 }
 
-// FormatTransactionError produces a standardized error message
-func FormatTransactionError(err error, operationType string) string {
-	if isNilError(err) {
-		return ""
-	}
-
-	return FormatUnifiedTransactionError(err, operationType)
-}
-
 // FormatUnifiedTransactionError produces a standardized error message for transactions
 func FormatUnifiedTransactionError(err error, operationType string) string {
 	if isNilError(err) {
@@ -1612,9 +1467,9 @@ func formatGenericError(err error, operationType string) string {
 		{IsAccountEligibilityError, "Account not eligible"},
 		{IsAssetMismatchError, "Asset type mismatch"},
 		{IsAuthenticationError, "Authentication error"},
-		{IsPermissionError, "Permission denied"},
+		{IsAuthorizationError, "Permission denied"},
 		{IsNotFoundError, "Resource not found"},
-		{IsAlreadyExistsError, "Resource already exists"},
+		{IsConflictError, "Resource already exists"},
 		{IsIdempotencyError, "Idempotency issue"},
 		{IsRateLimitError, "Rate limit exceeded"},
 		{IsTimeoutError, "Operation timed out"},
