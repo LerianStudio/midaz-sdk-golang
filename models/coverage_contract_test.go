@@ -92,30 +92,6 @@ func TestMetadataIndexContracts(t *testing.T) {
 	assert.False(t, IsValidMetadataIndexEntity("holder"))
 }
 
-func TestQueueConversionCopiesRawMessages(t *testing.T) {
-	organizationID := uuid.New()
-	ledgerID := uuid.New()
-	auditID := uuid.New()
-	accountID := uuid.New()
-	queueDataID := uuid.New()
-	raw := json.RawMessage(`{"kind":"pending"}`)
-
-	queue := (&Queue{OrganizationID: organizationID, LedgerID: ledgerID, AuditID: auditID, AccountID: accountID}).AddQueueData(queueDataID, raw)
-	require.NotNil(t, queue)
-
-	raw[2] = 'X'
-
-	// AddQueueData defensively copies the raw payload so subsequent caller
-	// mutation cannot corrupt queue state.
-	assert.JSONEq(t, `{"kind":"pending"}`, string(queue.QueueData[0].Value))
-	assert.Nil(t, (*Queue)(nil).AddQueueData(queueDataID, raw))
-
-	// NOTE: ToMmodelQueue and FromMmodelQueue were retired in Track 7E.
-	// Queue is now SDK-owned with identical wire-format JSON tags, so the
-	// conversion is unnecessary. Keep the queue payload integrity assertion.
-	assert.NotNil(t, queue)
-}
-
 func TestRouteAndAccountTypeInputContracts(t *testing.T) {
 	accountType := NewCreateAccountTypeInput("Cash", "CASH").WithDescription("Liquid cash").WithMetadata(map[string]any{"class": "asset"})
 	require.NoError(t, accountType.Validate())

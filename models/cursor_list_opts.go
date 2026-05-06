@@ -86,7 +86,7 @@ func ValidateCursorListOpts(operation string, o CursorListOpts) error {
 			fmt.Errorf("got %q", o.SortDirection))
 	}
 
-	return nil
+	return validateDateRange(operation, o.StartDate, o.EndDate)
 }
 
 // CursorQueryParams renders the shared cursor/sort/date-range fields

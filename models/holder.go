@@ -37,11 +37,12 @@ type CreateHolderInput struct {
 
 // UpdateHolderInput is the payload for updating a CRM holder.
 //
-// An empty update payload — no setters AND no NullFields — returns a
-// marshal error from MarshalJSON. Sending an empty PATCH would be a
-// no-op round trip; we surface the mistake at marshal time so callers
-// fix it instead of paying for a useless network request. To explicitly
-// null out a field use WithNullFields.
+// An empty update payload (no setters AND no NullFields) is rejected by
+// Validate() with an "empty update payload not allowed" error. An empty
+// PATCH would be a no-op round trip; the source of truth lives in
+// Validate(). MarshalJSON itself does not enforce the rule — it trusts
+// that the entity layer called Validate() first. To explicitly null out
+// a field, use WithNullFields.
 type UpdateHolderInput struct {
 	ExternalID    *string        `json:"externalId,omitempty"`
 	Name          *string        `json:"name,omitempty"`
@@ -263,7 +264,11 @@ func (input *UpdateHolderInput) WithNullFields(fields ...string) *UpdateHolderIn
 }
 
 // MarshalJSON emits only set fields plus fields explicitly marked for null removal.
-func (input UpdateHolderInput) MarshalJSON() ([]byte, error) {
+func (input *UpdateHolderInput) MarshalJSON() ([]byte, error) {
+	if input == nil {
+		return []byte("null"), nil
+	}
+
 	if err := input.validateNullFieldConflicts(); err != nil {
 		return nil, err
 	}

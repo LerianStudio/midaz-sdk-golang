@@ -210,7 +210,11 @@ func (input *UpdateAliasInput) WithNullFields(fields ...string) *UpdateAliasInpu
 }
 
 // MarshalJSON emits only set fields plus fields explicitly marked for null removal.
-func (input UpdateAliasInput) MarshalJSON() ([]byte, error) {
+func (input *UpdateAliasInput) MarshalJSON() ([]byte, error) {
+	if input == nil {
+		return []byte("null"), nil
+	}
+
 	if err := input.validateNullFieldConflicts(); err != nil {
 		return nil, err
 	}

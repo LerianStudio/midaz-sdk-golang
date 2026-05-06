@@ -1061,8 +1061,11 @@ func (t *Transaction) ToTransactionMap() map[string]any {
 			},
 		}
 
-		// Add to appropriate list based on operation type
-		if op.Type == "debit" {
+		// Add to appropriate list based on operation type.
+		// The Midaz API returns operation types in uppercase ("DEBIT"/"CREDIT");
+		// EqualFold defends against any casing drift. A direction inversion here
+		// would silently mis-route every debit, so we compare case-insensitively.
+		if strings.EqualFold(op.Type, string(OperationTypeDebit)) {
 			fromEntries = append(fromEntries, entry)
 		} else {
 			toEntries = append(toEntries, entry)

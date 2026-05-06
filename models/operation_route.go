@@ -164,7 +164,11 @@ func (input *UpdateOperationRouteInput) hasChanges() bool {
 }
 
 // MarshalJSON emits only fields explicitly set on the SDK PATCH input.
-func (input UpdateOperationRouteInput) MarshalJSON() ([]byte, error) {
+func (input *UpdateOperationRouteInput) MarshalJSON() ([]byte, error) {
+	if input == nil {
+		return []byte("null"), nil
+	}
+
 	fields := map[string]any{}
 	addStringField(fields, "title", input.Title)
 	addStringField(fields, "description", input.Description)

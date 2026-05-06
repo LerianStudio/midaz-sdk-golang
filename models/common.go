@@ -3,7 +3,6 @@ package models
 import (
 	"encoding/json"
 	"errors"
-	"time"
 )
 
 // Status represents the status of an entity in the Midaz system.
@@ -63,7 +62,7 @@ func addStringField(fields map[string]any, name, value string) {
 
 func addStringPtrField(fields map[string]any, name string, value *string) {
 	if value != nil {
-		fields[name] = value
+		fields[name] = *value
 	}
 }
 
@@ -317,20 +316,6 @@ func cloneAnyMap(values map[string]any) map[string]any {
 // Metadata is a map of key-value pairs that can be attached to resources.
 // It allows for storing arbitrary data with resources in a flexible way.
 type Metadata map[string]any
-
-// Timestamps represents common timestamp fields for resources.
-// This structure is embedded in many models to provide standard
-// creation, update, and deletion timestamps.
-type Timestamps struct {
-	// CreatedAt is the timestamp when the resource was created
-	CreatedAt time.Time `json:"createdAt"`
-
-	// UpdatedAt is the timestamp when the resource was last updated
-	UpdatedAt time.Time `json:"updatedAt"`
-
-	// DeletedAt is the timestamp when the resource was deleted (if applicable)
-	DeletedAt *time.Time `json:"deletedAt,omitempty"`
-}
 
 // BaseResponse represents the common fields in all API responses.
 // This structure is embedded in response models to provide standard

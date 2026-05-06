@@ -405,7 +405,11 @@ func (input *UpdateAccountInput) Validate() error {
 }
 
 // MarshalJSON emits only fields explicitly set on the SDK PATCH input.
-func (input UpdateAccountInput) MarshalJSON() ([]byte, error) {
+func (input *UpdateAccountInput) MarshalJSON() ([]byte, error) {
+	if input == nil {
+		return []byte("null"), nil
+	}
+
 	fields := map[string]any{}
 	addStringField(fields, "name", input.Name)
 

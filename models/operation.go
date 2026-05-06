@@ -232,82 +232,6 @@ func (input *UpdateOperationInput) Validate() error {
 	return errs.OrNil()
 }
 
-// OperationResponse represents a success response containing a single operation.
-//
-// swagger:response OperationResponse
-// @Description Successful response containing a single operation entity.
-type OperationResponse struct {
-	// in: body
-	Body Operation
-}
-
-// OperationLog is a struct designed to represent the operation data that should be stored in the audit log
-//
-// @Description Immutable log entry for audit purposes representing a snapshot of operation state at a specific point in time.
-type OperationLog struct {
-	// Unique identifier for the operation
-	// example: 00000000-0000-0000-0000-000000000000
-	// format: uuid
-	ID string `json:"id" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
-
-	// Parent transaction identifier
-	// example: 00000000-0000-0000-0000-000000000000
-	// format: uuid
-	TransactionID string `json:"transactionId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
-
-	// Type of operation (e.g., creditCard, transfer, payment)
-	// example: creditCard
-	// maxLength: 50
-	Type string `json:"type" example:"creditCard" maxLength:"50"`
-
-	// Asset code for the operation
-	// example: BRL
-	// minLength: 2
-	// maxLength: 10
-	AssetCode string `json:"assetCode" example:"BRL" minLength:"2" maxLength:"10"`
-
-	// Chart of accounts code for accounting purposes
-	// example: 1000
-	// maxLength: 20
-	ChartOfAccounts string `json:"chartOfAccounts" example:"1000" maxLength:"20"`
-
-	// Operation amount information
-	Amount Amount `json:"amount"`
-
-	// Balance before the operation
-	Balance OperationBalance `json:"balance"`
-
-	// Balance after the operation
-	BalanceAfter OperationBalance `json:"balanceAfter"`
-
-	// Operation status information
-	Status Status `json:"status"`
-
-	// Account identifier associated with this operation
-	// example: 00000000-0000-0000-0000-000000000000
-	// format: uuid
-	AccountID string `json:"accountId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
-
-	// Human-readable alias for the account
-	// example: @person1
-	// maxLength: 256
-	AccountAlias string `json:"accountAlias" example:"@person1" maxLength:"256"`
-
-	// Balance identifier affected by this operation
-	// example: 00000000-0000-0000-0000-000000000000
-	// format: uuid
-	BalanceID string `json:"balanceId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
-
-	// Timestamp when the operation log was created
-	// example: 2021-01-01T00:00:00Z
-	// format: date-time
-	CreatedAt time.Time `json:"createdAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
-
-	// Additional custom attributes for audit tracking
-	// example: {"audit_user": "system", "source": "api"}
-	Metadata map[string]any `json:"metadata"`
-} // @name OperationLog
-
 // OperationAmount represents the amount structure in operation responses
 // This is SDK-specific and used for backward compatibility
 type OperationAmount struct {
@@ -361,8 +285,9 @@ type Destination struct {
 // This structure contains all the fields needed to create a new operation
 // as part of a transaction.
 type CreateOperationInput struct {
-	// Type indicates whether this is a debit or credit operation
-	// Must be either "debit" or "credit"
+	// Type indicates whether this is a debit or credit operation.
+	// Must be either "DEBIT" or "CREDIT" (canonical uppercase per the
+	// Midaz API contract; see OperationTypeDebit / OperationTypeCredit).
 	Type string `json:"type"`
 
 	// AccountID is the identifier of the account to be affected

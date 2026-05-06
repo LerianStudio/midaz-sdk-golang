@@ -685,9 +685,9 @@ func TestUpdateAccountInputWithMetadata(t *testing.T) {
 	assert.Equal(t, metadata, input.Metadata)
 }
 
-func TestUpdateAccountInputMarshalJSONValueOmitsUnsetFields(t *testing.T) {
+func TestUpdateAccountInputMarshalJSONOmitsUnsetFields(t *testing.T) {
 	blocked := false
-	input := UpdateAccountInput{Name: "Updated Account", Blocked: &blocked}
+	input := &UpdateAccountInput{Name: "Updated Account", Blocked: &blocked}
 
 	data, err := json.Marshal(input)
 

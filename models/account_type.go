@@ -80,10 +80,15 @@ type CreateAccountTypeInput struct {
 
 // UpdateAccountTypeInput is the SDK-native account-type patch payload.
 //
-// An empty update payload — no setters and no null-fields — returns a
-// marshal error from MarshalJSON. This is intentional: an empty PATCH
-// would be a no-op round trip. Use the dedicated builder helpers to
-// either set a value or explicitly null out a field.
+// An empty update payload (no fields set) is rejected by Validate() with
+// an "empty update payload not allowed" error. This is intentional: an
+// empty PATCH would be a no-op round trip. Use the builder helpers to
+// set at least one field before validating.
+//
+// MarshalJSON itself does not enforce the empty-payload rule — it trusts
+// that the entity layer called Validate() first. Reaching MarshalJSON
+// with no changes results in an empty `{}` rather than a duplicate error
+// to keep the source of truth in Validate().
 type UpdateAccountTypeInput struct {
 	Name        string         `json:"name,omitempty" example:"Current Assets"`
 	Description string         `json:"description,omitempty" example:"Assets that are expected to be converted to cash within one year"`

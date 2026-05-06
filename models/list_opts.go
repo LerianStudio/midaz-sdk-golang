@@ -6,9 +6,55 @@ package models
 import (
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
 )
+
+// dateRangeFormat is the wire format for StartDate/EndDate filters across
+// every list endpoint that accepts a date range.
+const dateRangeFormat = "2006-01-02"
+
+// validateDateRange enforces the SDK-side preconditions on the optional
+// StartDate / EndDate pair: each must parse as YYYY-MM-DD when present,
+// and StartDate must not be after EndDate when both are present. Empty
+// strings mean "no bound" and are skipped.
+//
+// Pulled out of ValidatePageListOpts and ValidateCursorListOpts so the
+// rule is enforced identically across page and cursor opts.
+func validateDateRange(operation, startDate, endDate string) error {
+	var (
+		start time.Time
+		end   time.Time
+		err   error
+	)
+
+	if startDate != "" {
+		start, err = time.Parse(dateRangeFormat, startDate)
+		if err != nil {
+			return errors.NewValidationError(operation,
+				"start date must be YYYY-MM-DD",
+				fmt.Errorf("got %q", startDate))
+		}
+	}
+
+	if endDate != "" {
+		end, err = time.Parse(dateRangeFormat, endDate)
+		if err != nil {
+			return errors.NewValidationError(operation,
+				"end date must be YYYY-MM-DD",
+				fmt.Errorf("got %q", endDate))
+		}
+	}
+
+	if startDate != "" && endDate != "" && start.After(end) {
+		return errors.NewValidationError(operation,
+			"start date must be on or before end date",
+			fmt.Errorf("got start=%q end=%q", startDate, endDate))
+	}
+
+	return nil
+}
 
 // PageListOpts is the shared base struct for page-based list endpoints.
 // Per-entity ListOpts (e.g. AccountsListOpts, PortfoliosListOpts) embed
@@ -92,7 +138,7 @@ func ValidatePageListOpts(operation string, o PageListOpts) error {
 			fmt.Errorf("got %q", o.SortDirection))
 	}
 
-	return nil
+	return validateDateRange(operation, o.StartDate, o.EndDate)
 }
 
 // PageQueryParams renders the shared pagination/sort/date-range fields
