@@ -112,7 +112,7 @@ func TestGetTokenFromAccessManager_CachesTokenUntilRefreshWindow(t *testing.T) {
 	require.Equal(t, int32(1), calls.Load())
 }
 
-func TestGetTokenFromAccessManager_PreservesCallerDeadlineForSingleflightRequest(t *testing.T) {
+func TestGetTokenFromAccessManager_BoundsLongCallerDeadlineForSingleflightRequest(t *testing.T) {
 	deadline := time.Now().Add(time.Hour)
 	ctx, cancel := context.WithDeadline(context.Background(), deadline)
 	defer cancel()
@@ -132,7 +132,8 @@ func TestGetTokenFromAccessManager_PreservesCallerDeadlineForSingleflightRequest
 	require.NoError(t, err)
 	require.Equal(t, "token", token)
 	require.True(t, hasDeadline)
-	require.WithinDuration(t, deadline, gotDeadline, time.Second)
+	require.WithinDuration(t, time.Now().Add(accessManagerTokenRequestTimeout), gotDeadline, time.Second)
+	require.True(t, gotDeadline.Before(deadline))
 }
 
 type accessManagerRoundTripFunc func(*http.Request) (*http.Response, error)

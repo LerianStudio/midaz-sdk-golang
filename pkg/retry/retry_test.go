@@ -4,10 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"strings"
 	"testing"
+	"testing/quick"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func nilContext() context.Context {
@@ -327,6 +331,69 @@ func TestCalculateBackoff(t *testing.T) {
 	}
 }
 
+func TestProperty_CalculateBackoff_DeterministicBounds(t *testing.T) {
+	tests := []struct {
+		name    string
+		options *Options
+	}{
+		{
+			name: "doubling backoff capped at max",
+			options: &Options{
+				InitialDelay:  100 * time.Millisecond,
+				MaxDelay:      750 * time.Millisecond,
+				BackoffFactor: 2,
+			},
+		},
+		{
+			name: "linear backoff remains at initial delay",
+			options: &Options{
+				InitialDelay:  250 * time.Millisecond,
+				MaxDelay:      time.Second,
+				BackoffFactor: 1,
+			},
+		},
+		{
+			name: "fractional backoff is monotonic and capped",
+			options: &Options{
+				InitialDelay:  80 * time.Millisecond,
+				MaxDelay:      500 * time.Millisecond,
+				BackoffFactor: 1.5,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			checkBackoffBoundsProperty(t, tt.options)
+		})
+	}
+}
+
+func checkBackoffBoundsProperty(t *testing.T, options *Options) {
+	t.Helper()
+
+	property := func(maxAttempt uint8) bool {
+		return backoffSequenceWithinBounds(int(maxAttempt%20)+1, options)
+	}
+
+	config := &quick.Config{MaxCount: 64, Rand: rand.New(rand.NewSource(1))}
+	require.NoError(t, quick.Check(property, config), "backoff bounds property failed")
+}
+
+func backoffSequenceWithinBounds(attempts int, options *Options) bool {
+	previous := time.Duration(0)
+
+	for attempt := range attempts {
+		got := calculateBackoff(attempt, options)
+		if got < options.InitialDelay || got > options.MaxDelay || got < previous {
+			return false
+		}
+		previous = got
+	}
+
+	return true
+}
+
 // TestIsRetryableError tests the error matching logic
 func TestIsRetryableError(t *testing.T) {
 	// Use explicit options rather than defaults to avoid test failures if defaults change
@@ -336,7 +403,7 @@ func TestIsRetryableError(t *testing.T) {
 		MaxDelay:           10 * time.Second,
 		BackoffFactor:      2.0,
 		RetryableErrors:    []string{"connection reset", "connection refused", "timeout"},
-		RetryableHTTPCodes: []int{http.StatusServiceUnavailable, http.StatusTooManyRequests},
+		RetryableHTTPCodes: []int{http.StatusServiceUnavailable, http.StatusTooManyRequests, http.StatusTooEarly},
 	}
 
 	// Test nil error

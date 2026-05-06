@@ -683,6 +683,9 @@ func configureAccessManager(c *Config) {
 		c.AccessManager.ClientID = os.Getenv("MIDAZ_CLIENT_ID")
 		c.AccessManager.ClientSecret = os.Getenv("MIDAZ_CLIENT_SECRET")
 		c.AccessManager.Enabled = enable == boolTrue
+		if c.AccessManager.Enabled {
+			c.Anonymous = false
+		}
 	}
 }
 
@@ -974,9 +977,22 @@ func validateConfig(config *Config) error {
 		return errors.New("no auth source configured; use WithAccessManager or WithAnonymous")
 	}
 
-	// When plugin auth is enabled, we require the plugin auth address.
-	if config.AccessManager.Enabled && config.AccessManager.Address == "" && !config.skipAuthCheck {
-		return errors.New("plugin auth address is required")
+	if config.AccessManager.Enabled && config.Anonymous && !config.skipAuthCheck {
+		return errors.New("exactly one auth source must be configured: Access Manager or Anonymous")
+	}
+
+	if config.AccessManager.Enabled && !config.skipAuthCheck {
+		if strings.TrimSpace(config.AccessManager.Address) == "" {
+			return errors.New("plugin auth address is required")
+		}
+
+		if strings.TrimSpace(config.AccessManager.ClientID) == "" {
+			return errors.New("plugin auth client id is required")
+		}
+
+		if strings.TrimSpace(config.AccessManager.ClientSecret) == "" {
+			return errors.New("plugin auth client secret is required")
+		}
 	}
 
 	return nil
@@ -1095,6 +1111,7 @@ func NewDefaultHTTPClient(timeout time.Duration) *http.Client {
 			Proxy:                 http.ProxyFromEnvironment,
 			MaxIdleConns:          100,
 			MaxIdleConnsPerHost:   10,
+			MaxConnsPerHost:       100,
 			IdleConnTimeout:       90 * time.Second,
 			TLSHandshakeTimeout:   10 * time.Second,
 			ExpectContinueTimeout: time.Second,

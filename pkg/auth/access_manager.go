@@ -24,6 +24,7 @@ const (
 	accessManagerOAuthLoginPath       = "/v1/login/oauth/access_token"
 	maxAccessManagerResponseBodyBytes = int64(1 << 20)
 	accessManagerRefreshSkew          = 30 * time.Second
+	accessManagerTokenRequestTimeout  = 30 * time.Second
 
 	// accessManagerCacheCapacity bounds the in-process token cache. The cache
 	// is keyed by (endpoint, clientID, secretHash) so the upper bound is the
@@ -268,12 +269,8 @@ func GetTokenFromAccessManager(ctx context.Context, accessMgr AccessManager, htt
 			return token, nil
 		}
 
-		tokenCtx := context.WithoutCancel(ctx)
-		if deadline, ok := ctx.Deadline(); ok {
-			var cancel context.CancelFunc
-			tokenCtx, cancel = context.WithDeadline(tokenCtx, deadline)
-			defer cancel()
-		}
+		tokenCtx, cancel := boundedAccessManagerTokenContext(ctx)
+		defer cancel()
 
 		tokenResp, err := requestAccessManagerToken(tokenCtx, accessMgr, httpClient)
 		if err != nil {
@@ -300,6 +297,17 @@ func GetTokenFromAccessManager(ctx context.Context, accessMgr AccessManager, htt
 
 		return token, nil
 	}
+}
+
+func boundedAccessManagerTokenContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	base := context.WithoutCancel(ctx)
+	hardDeadline := time.Now().Add(accessManagerTokenRequestTimeout)
+
+	if deadline, ok := ctx.Deadline(); ok && deadline.Before(hardDeadline) {
+		return context.WithDeadline(base, deadline)
+	}
+
+	return context.WithDeadline(base, hardDeadline)
 }
 
 func validateAccessManagerTokenRequest(accessMgr AccessManager, httpClient *http.Client) error {

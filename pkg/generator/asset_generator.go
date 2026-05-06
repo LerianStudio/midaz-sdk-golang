@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"strconv"
 	"strings"
+
+	"github.com/shopspring/decimal"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
@@ -92,31 +93,65 @@ func (g *assetGenerator) GenerateWithRates(ctx context.Context, ledgerID, baseAs
 
 // UpdateRates creates or updates asset rates using the organization ID stored in context via WithOrgID.
 func (g *assetGenerator) UpdateRates(ctx context.Context, ledgerID string, rates map[string]float64) error {
-	return g.updateRatesFrom(ctx, ledgerID, "USD", rates)
+	decimalRates := make(map[string]decimal.Decimal, len(rates))
+	for asset, rate := range rates {
+		parsed, err := decimal.NewFromString(strconv.FormatFloat(rate, 'f', -1, 64))
+		if err != nil {
+			return fmt.Errorf("invalid asset rate for %s: %w", asset, err)
+		}
+
+		decimalRates[asset] = parsed
+	}
+
+	return g.updateRatesDecimalFrom(ctx, ledgerID, "USD", decimalRates)
 }
 
-func defaultAssetRatesFrom(baseAsset string) (map[string]float64, error) {
-	usdRates := map[string]float64{"USD": 1, "EUR": 0.92, "BRL": 5.25}
+// UpdateRatesDecimal creates or updates asset rates using exact decimal arithmetic.
+func (g *assetGenerator) UpdateRatesDecimal(ctx context.Context, ledgerID string, rates map[string]decimal.Decimal) error {
+	return g.updateRatesDecimalFrom(ctx, ledgerID, "USD", rates)
+}
+
+func defaultAssetRatesFrom(baseAsset string) (map[string]decimal.Decimal, error) {
+	usdRates, err := defaultUSDRates()
+	if err != nil {
+		return nil, err
+	}
 
 	baseRate, ok := usdRates[baseAsset]
 	if !ok {
 		return nil, fmt.Errorf("unsupported base asset %q", baseAsset)
 	}
 
-	rates := make(map[string]float64, len(usdRates)-1)
+	rates := make(map[string]decimal.Decimal, len(usdRates)-1)
 	for asset, usdRate := range usdRates {
 		if asset == baseAsset {
 			continue
 		}
 
-		rates[asset] = usdRate / baseRate
+		rates[asset] = usdRate.Div(baseRate)
 	}
 
 	return rates, nil
 }
 
-func scaledAssetRate(rate float64) (rateValue int, scale int, err error) {
-	text := strconv.FormatFloat(rate, 'f', -1, 64)
+func defaultUSDRates() (map[string]decimal.Decimal, error) {
+	rawRates := map[string]string{"USD": "1", "EUR": "0.92", "BRL": "5.25"}
+	rates := make(map[string]decimal.Decimal, len(rawRates))
+
+	for asset, raw := range rawRates {
+		rate, err := decimal.NewFromString(raw)
+		if err != nil {
+			return nil, fmt.Errorf("invalid default asset rate for %s: %w", asset, err)
+		}
+
+		rates[asset] = rate
+	}
+
+	return rates, nil
+}
+
+func scaledAssetRate(rate decimal.Decimal) (rateValue int, scale int, err error) {
+	text := rate.String()
 
 	if dot := strings.IndexByte(text, '.'); dot >= 0 {
 		scale = len(text) - dot - 1
@@ -126,17 +161,21 @@ func scaledAssetRate(rate float64) (rateValue int, scale int, err error) {
 		scale = generatedAssetRateMaxScale
 	}
 
-	scaled := math.Round(rate * math.Pow10(scale))
+	scaled := rate.Mul(decimal.New(1, int32(scale))).Round(0)
 
 	maxInt := int(^uint(0) >> 1)
-	if scaled > float64(maxInt) {
-		return 0, 0, fmt.Errorf("asset rate %v exceeds integer range at scale %d", rate, scale)
+	if !scaled.IsInteger() || scaled.GreaterThan(decimal.NewFromInt(int64(maxInt))) {
+		return 0, 0, fmt.Errorf("asset rate %s exceeds integer range at scale %d", rate.String(), scale)
 	}
 
-	return int(scaled), scale, nil
+	return int(scaled.IntPart()), scale, nil
 }
 
-func (g *assetGenerator) updateRatesFrom(ctx context.Context, ledgerID, fromAsset string, rates map[string]float64) error {
+func (g *assetGenerator) updateRatesFrom(ctx context.Context, ledgerID, fromAsset string, rates map[string]decimal.Decimal) error {
+	return g.updateRatesDecimalFrom(ctx, ledgerID, fromAsset, rates)
+}
+
+func (g *assetGenerator) updateRatesDecimalFrom(ctx context.Context, ledgerID, fromAsset string, rates map[string]decimal.Decimal) error {
 	ctx = normalizeContext(ctx)
 
 	if g.e == nil || g.e.AssetRates == nil {
@@ -151,7 +190,7 @@ func (g *assetGenerator) updateRatesFrom(ctx context.Context, ledgerID, fromAsse
 	var errs []error
 
 	for toAsset, rate := range rates {
-		if toAsset == "" || math.IsNaN(rate) || math.IsInf(rate, 0) || rate <= 0 {
+		if toAsset == "" || !rate.IsPositive() {
 			errs = append(errs, fmt.Errorf("invalid asset rate for %s", toAsset))
 			continue
 		}

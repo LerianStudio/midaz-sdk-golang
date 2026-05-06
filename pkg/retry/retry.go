@@ -143,6 +143,7 @@ var DefaultRetryableErrors = []string{
 // DefaultRetryableHTTPCodes is a list of HTTP status codes that should trigger a retry
 var DefaultRetryableHTTPCodes = []int{
 	http.StatusRequestTimeout,      // 408
+	http.StatusTooEarly,            // 425
 	http.StatusTooManyRequests,     // 429
 	http.StatusInternalServerError, // 500
 	http.StatusBadGateway,          // 502

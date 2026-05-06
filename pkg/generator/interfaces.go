@@ -3,6 +3,8 @@ package generator
 import (
 	"context"
 
+	"github.com/shopspring/decimal"
+
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/data"
 )
@@ -25,6 +27,7 @@ type AssetGenerator interface {
 	Generate(ctx context.Context, ledgerID string, template data.AssetTemplate) (*models.Asset, error)
 	GenerateWithRates(ctx context.Context, ledgerID string, baseAsset string) error
 	UpdateRates(ctx context.Context, ledgerID string, rates map[string]float64) error
+	UpdateRatesDecimal(ctx context.Context, ledgerID string, rates map[string]decimal.Decimal) error
 }
 
 // TransactionGenerator creates transactions based on DSL patterns.

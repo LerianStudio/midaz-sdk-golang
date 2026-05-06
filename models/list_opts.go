@@ -120,10 +120,6 @@ func PageQueryParams(o PageListOpts) map[string]string {
 		params[QueryParamPage] = strconv.Itoa(o.Page)
 	}
 
-	if o.OrderBy != "" {
-		params[QueryParamOrderBy] = o.OrderBy
-	}
-
 	if o.SortDirection != "" {
 		params[QueryParamOrderDirection] = string(o.SortDirection)
 	}
