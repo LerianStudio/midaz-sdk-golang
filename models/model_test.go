@@ -3,8 +3,6 @@ package models
 import (
 	"encoding/json"
 	"testing"
-
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
 func TestNewStatus(t *testing.T) {
@@ -146,81 +144,10 @@ func TestAddressWithLine2(t *testing.T) {
 	}
 }
 
-func TestAddressToMmodelAddress(t *testing.T) {
-	line2 := "Apt 4B"
-	addr := Address{
-		Line1:   "123 Main St",
-		Line2:   &line2,
-		ZipCode: "12345",
-		City:    "New York",
-		State:   "NY",
-		Country: "US",
-	}
-
-	mAddr := addr.ToMmodelAddress()
-
-	if mAddr.Line1 != addr.Line1 {
-		t.Errorf("Expected Line1 to be %s, got %s", addr.Line1, mAddr.Line1)
-	}
-
-	if mAddr.Line2 == nil || *mAddr.Line2 != *addr.Line2 {
-		t.Errorf("Expected Line2 to be %v, got %v", addr.Line2, mAddr.Line2)
-	}
-
-	if mAddr.ZipCode != addr.ZipCode {
-		t.Errorf("Expected ZipCode to be %s, got %s", addr.ZipCode, mAddr.ZipCode)
-	}
-
-	if mAddr.City != addr.City {
-		t.Errorf("Expected City to be %s, got %s", addr.City, mAddr.City)
-	}
-
-	if mAddr.State != addr.State {
-		t.Errorf("Expected State to be %s, got %s", addr.State, mAddr.State)
-	}
-
-	if mAddr.Country != addr.Country {
-		t.Errorf("Expected Country to be %s, got %s", addr.Country, mAddr.Country)
-	}
-}
-
-func TestFromMmodelAddress(t *testing.T) {
-	line2 := "Apt 4B"
-	mAddr := mmodel.Address{
-		Line1:   "123 Main St",
-		Line2:   &line2,
-		ZipCode: "12345",
-		City:    "New York",
-		State:   "NY",
-		Country: "US",
-	}
-
-	addr := FromMmodelAddress(mAddr)
-
-	if addr.Line1 != mAddr.Line1 {
-		t.Errorf("Expected Line1 to be %s, got %s", mAddr.Line1, addr.Line1)
-	}
-
-	if addr.Line2 == nil || *addr.Line2 != *mAddr.Line2 {
-		t.Errorf("Expected Line2 to be %v, got %v", mAddr.Line2, addr.Line2)
-	}
-
-	if addr.ZipCode != mAddr.ZipCode {
-		t.Errorf("Expected ZipCode to be %s, got %s", mAddr.ZipCode, addr.ZipCode)
-	}
-
-	if addr.City != mAddr.City {
-		t.Errorf("Expected City to be %s, got %s", mAddr.City, addr.City)
-	}
-
-	if addr.State != mAddr.State {
-		t.Errorf("Expected State to be %s, got %s", mAddr.State, addr.State)
-	}
-
-	if addr.Country != mAddr.Country {
-		t.Errorf("Expected Country to be %s, got %s", mAddr.Country, addr.Country)
-	}
-}
+// NOTE: TestAddressToMmodelAddress and TestFromMmodelAddress were removed
+// in Track 7E. The mmodel.Address conversion adapters were retired because
+// SDK Address now ships with identical wire-format JSON tags; no
+// conversion is necessary.
 
 func TestPaginationHasMethods(t *testing.T) {
 	tests := []struct {

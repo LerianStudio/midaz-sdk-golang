@@ -6,18 +6,36 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation/core"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
 const maxLedgerNameLength = 256
 
-// Ledger is an alias for mmodel.Ledger to maintain compatibility while using midaz entities.
-type Ledger = mmodel.Ledger
+// Ledger is the SDK-native ledger response type (Track 7E — audit 7.1).
+type Ledger struct {
+	ID             string          `json:"id" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	Name           string          `json:"name" example:"Treasury Operations" maxLength:"256"`
+	OrganizationID string          `json:"organizationId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	Status         Status          `json:"status"`
+	CreatedAt      time.Time       `json:"createdAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+	UpdatedAt      time.Time       `json:"updatedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+	DeletedAt      *time.Time      `json:"deletedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+	Metadata       map[string]any  `json:"metadata,omitempty"`
+	Settings       *LedgerSettings `json:"settings,omitempty"`
+}
 
-// LedgerSettings is an alias for the Midaz ledger settings payload.
-type LedgerSettings = mmodel.LedgerSettings
+// LedgerSettings is the SDK-native ledger settings response type.
+type LedgerSettings struct {
+	Accounting AccountingValidation `json:"accounting"`
+}
+
+// AccountingValidation is the accounting-related validation settings struct.
+type AccountingValidation struct {
+	ValidateAccountType bool `json:"validateAccountType"`
+	ValidateRoutes      bool `json:"validateRoutes"`
+}
 
 // UpdateLedgerSettingsAccountingInput is the partial accounting settings payload.
 type UpdateLedgerSettingsAccountingInput struct {
@@ -92,22 +110,25 @@ func (input *UpdateLedgerSettingsInput) Validate() error {
 	return nil
 }
 
-// CreateLedgerInput wraps mmodel.CreateLedgerInput to maintain compatibility while using midaz entities.
+// CreateLedgerInput is the SDK-native ledger creation payload.
 type CreateLedgerInput struct {
-	mmodel.CreateLedgerInput
+	Name     string          `json:"name" maxLength:"256"`
+	Status   Status          `json:"status"`
+	Metadata map[string]any  `json:"metadata"`
+	Settings *LedgerSettings `json:"settings,omitempty"`
 }
 
-// UpdateLedgerInput wraps mmodel.UpdateLedgerInput to maintain compatibility while using midaz entities.
+// UpdateLedgerInput is the SDK-native ledger patch payload.
 type UpdateLedgerInput struct {
-	mmodel.UpdateLedgerInput
+	Name     string         `json:"name" example:"Treasury Operations Global" maxLength:"256"`
+	Status   Status         `json:"status"`
+	Metadata map[string]any `json:"metadata"`
 }
 
 // NewCreateLedgerInput creates a new CreateLedgerInput with required fields.
 func NewCreateLedgerInput(name string) *CreateLedgerInput {
 	return &CreateLedgerInput{
-		CreateLedgerInput: mmodel.CreateLedgerInput{
-			Name: name,
-		},
+		Name: name,
 	}
 }
 
@@ -177,9 +198,7 @@ func (input *CreateLedgerInput) MarshalJSON() ([]byte, error) {
 
 // NewUpdateLedgerInput creates a new UpdateLedgerInput.
 func NewUpdateLedgerInput() *UpdateLedgerInput {
-	return &UpdateLedgerInput{
-		UpdateLedgerInput: mmodel.UpdateLedgerInput{},
-	}
+	return &UpdateLedgerInput{}
 }
 
 // WithName sets the name for UpdateLedgerInput.

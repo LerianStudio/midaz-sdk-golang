@@ -5,17 +5,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation/core"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
 const maxAccountFieldLength = 256
 
-// Account represents an account in the Midaz Ledger.
-// This is now an alias to mmodel.Account to avoid duplication while maintaining
-// SDK-specific documentation and examples.
+// Account is the SDK-native account response type (Track 7E — audit 7.1).
 //
 // Account types are deployment-defined Midaz account categories such as
 // deposit, savings, loans, marketplace, and creditCard.
@@ -25,30 +23,30 @@ const maxAccountFieldLength = 256
 //   - INACTIVE: The account is temporarily not in use but can be reactivated
 //   - CLOSED: The account is permanently closed and cannot be used in new transactions
 //   - PENDING: The account is awaiting approval or activation
-//
-// Example Usage:
-//
-//	// Create a new customer asset account using the builder pattern
-//	customerAccount := models.NewCreateAccountInput(
-//	    "John Doe",
-//	    "USD",
-//	    "deposit",
-//	).WithAlias("customer:john.doe").
-//	  WithMetadata(map[string]any{
-//	    "customer_id": "cust-123",
-//	    "email": "john.doe@example.com",
-//	    "account_manager": "manager-456",
-//	  })
-//
-// Portfolio and Segment Organization:
-// Accounts can be organized into portfolios and segments for better categorization
-// and reporting. Portfolios represent high-level groupings (e.g., "Investments"),
-// while segments provide finer-grained classification within portfolios
-// (e.g., "US Equities", "International Bonds").
-type Account = mmodel.Account
+type Account struct {
+	ID              string         `json:"id" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	Name            string         `json:"name" example:"Corporate Checking Account" maxLength:"256"`
+	ParentAccountID *string        `json:"parentAccountId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	EntityID        *string        `json:"entityId" example:"EXT-ACC-12345" maxLength:"256"`
+	AssetCode       string         `json:"assetCode" example:"USD" maxLength:"100"`
+	OrganizationID  string         `json:"organizationId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	LedgerID        string         `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	PortfolioID     *string        `json:"portfolioId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	SegmentID       *string        `json:"segmentId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	Status          Status         `json:"status"`
+	Alias           *string        `json:"alias" example:"@treasury_checking" maxLength:"100"`
+	Type            string         `json:"type" example:"deposit"`
+	Blocked         *bool          `json:"blocked"`
+	CreatedAt       time.Time      `json:"createdAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+	UpdatedAt       time.Time      `json:"updatedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+	DeletedAt       *time.Time     `json:"deletedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+	Metadata        map[string]any `json:"metadata,omitempty"`
+	NullFields      []string       `json:"-"`
+}
 
 // AccountHelpers provides utility functions for working with Account entities.
-// These helper functions provide SDK-specific conveniences while using mmodel.Account directly.
+// These helper functions provide SDK-specific conveniences for working with
+// the SDK-native Account struct.
 
 // GetAccountAlias safely returns the account alias or empty string if nil.
 // This function prevents nil pointer exceptions when accessing the alias.
@@ -353,23 +351,9 @@ func (input *CreateAccountInput) WithBlocked(blocked bool) *CreateAccountInput {
 	return input
 }
 
-// ToMmodel converts the SDK CreateAccountInput to mmodel.CreateAccountInput.
-// This method is used internally to convert between SDK and backend models.
-func (input CreateAccountInput) ToMmodel() mmodel.CreateAccountInput {
-	return mmodel.CreateAccountInput{
-		Name:            input.Name,
-		ParentAccountID: input.ParentAccountID,
-		EntityID:        input.EntityID,
-		Blocked:         input.Blocked,
-		AssetCode:       input.AssetCode,
-		PortfolioID:     input.PortfolioID,
-		SegmentID:       input.SegmentID,
-		Status:          input.Status,
-		Alias:           input.Alias,
-		Type:            input.Type,
-		Metadata:        input.Metadata,
-	}
-}
+// NOTE: ToMmodel was retired in Track 7E. CreateAccountInput is now SDK-owned
+// with identical JSON tags to the wire format, so the bridge function is
+// unnecessary. Internal callers should pass the SDK type directly.
 
 // UpdateAccountInput is the input for updating an account.
 // This structure contains the fields that can be modified when updating an existing account.
@@ -646,16 +630,4 @@ func (input *UpdateAccountInput) WithBlocked(blocked bool) *UpdateAccountInput {
 	return input
 }
 
-// ToMmodel converts the SDK UpdateAccountInput to mmodel.UpdateAccountInput.
-// This method is used internally to convert between SDK and backend models.
-func (input UpdateAccountInput) ToMmodel() mmodel.UpdateAccountInput {
-	return mmodel.UpdateAccountInput{
-		Name:        input.Name,
-		SegmentID:   input.SegmentID,
-		PortfolioID: input.PortfolioID,
-		Status:      input.Status,
-		Metadata:    input.Metadata,
-		EntityID:    input.EntityID,
-		Blocked:     input.Blocked,
-	}
-}
+// NOTE: ToMmodel was retired in Track 7E. See the CreateAccountInput note above.

@@ -3,7 +3,6 @@ package models
 import (
 	"encoding/json"
 
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 )
 
@@ -59,57 +58,6 @@ func (q *Queue) AddQueueData(id uuid.UUID, value json.RawMessage) *Queue {
 	return q
 }
 
-// FromMmodelQueue converts an mmodel Queue to an SDK Queue.
-// This function is used internally to convert between backend and SDK models.
-//
-// Parameters:
-//   - queue: The mmodel.Queue to convert
-//
-// Returns:
-//   - A models.Queue instance with the same values
-func FromMmodelQueue(queue mmodel.Queue) Queue {
-	result := Queue{
-		OrganizationID: queue.OrganizationID,
-		LedgerID:       queue.LedgerID,
-		AuditID:        queue.AuditID,
-		AccountID:      queue.AccountID,
-		QueueData:      make([]QueueData, 0, len(queue.QueueData)),
-	}
-
-	for _, data := range queue.QueueData {
-		result.QueueData = append(result.QueueData, QueueData{
-			ID:    data.ID,
-			Value: append(json.RawMessage(nil), data.Value...),
-		})
-	}
-
-	return result
-}
-
-// ToMmodelQueue converts an SDK Queue to an mmodel Queue.
-// This method is used internally to convert between SDK and backend models.
-//
-// Returns:
-//   - An mmodel.Queue instance with the same values
-func (q *Queue) ToMmodelQueue() mmodel.Queue {
-	if q == nil {
-		return mmodel.Queue{}
-	}
-
-	result := mmodel.Queue{
-		OrganizationID: q.OrganizationID,
-		LedgerID:       q.LedgerID,
-		AuditID:        q.AuditID,
-		AccountID:      q.AccountID,
-		QueueData:      make([]mmodel.QueueData, 0, len(q.QueueData)),
-	}
-
-	for _, data := range q.QueueData {
-		result.QueueData = append(result.QueueData, mmodel.QueueData{
-			ID:    data.ID,
-			Value: append(json.RawMessage(nil), data.Value...),
-		})
-	}
-
-	return result
-}
+// NOTE: FromMmodelQueue and ToMmodelQueue were retired in Track 7E. Queue
+// is fully SDK-owned with field shapes and JSON tags identical to the wire
+// format; the conversion adapters were no-ops.

@@ -5,9 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation/core"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/google/uuid"
 )
 
 const (
@@ -54,23 +55,38 @@ const (
 //	    },
 //	}
 //
-// AccountType is an alias for mmodel.AccountType to maintain compatibility while using midaz entities.
-type AccountType = mmodel.AccountType
-
-// CreateAccountTypeInput wraps mmodel.CreateAccountTypeInput to maintain compatibility while using midaz entities.
-type CreateAccountTypeInput struct {
-	mmodel.CreateAccountTypeInput
+// AccountType is the SDK-native account type response (Track 7E — audit 7.1).
+type AccountType struct {
+	ID             uuid.UUID      `json:"id,omitempty" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a"`
+	OrganizationID uuid.UUID      `json:"organizationId,omitempty" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a"`
+	LedgerID       uuid.UUID      `json:"ledgerId,omitempty" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a"`
+	Name           string         `json:"name,omitempty" example:"Current Assets"`
+	Description    string         `json:"description,omitempty" example:"Assets that are expected to be converted to cash within one year"`
+	KeyValue       string         `json:"keyValue,omitempty" example:"current_assets"`
+	CreatedAt      time.Time      `json:"createdAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+	UpdatedAt      time.Time      `json:"updatedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+	DeletedAt      *time.Time     `json:"deletedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+	Metadata       map[string]any `json:"metadata,omitempty"`
 }
 
-// UpdateAccountTypeInput wraps mmodel.UpdateAccountTypeInput to maintain
-// compatibility while using midaz entities.
+// CreateAccountTypeInput is the SDK-native account-type creation payload.
+type CreateAccountTypeInput struct {
+	Name        string         `json:"name" example:"Current Assets"`
+	Description string         `json:"description,omitempty" example:"Assets that are expected to be converted to cash within one year"`
+	KeyValue    string         `json:"keyValue" example:"current_assets"`
+	Metadata    map[string]any `json:"metadata"`
+}
+
+// UpdateAccountTypeInput is the SDK-native account-type patch payload.
 //
 // An empty update payload — no setters and no null-fields — returns a
 // marshal error from MarshalJSON. This is intentional: an empty PATCH
 // would be a no-op round trip. Use the dedicated builder helpers to
 // either set a value or explicitly null out a field.
 type UpdateAccountTypeInput struct {
-	mmodel.UpdateAccountTypeInput
+	Name        string         `json:"name,omitempty" example:"Current Assets"`
+	Description string         `json:"description,omitempty" example:"Assets that are expected to be converted to cash within one year"`
+	Metadata    map[string]any `json:"metadata"`
 }
 
 // Validate validates the CreateAccountTypeInput fields.
@@ -173,10 +189,8 @@ func (input *UpdateAccountTypeInput) Validate() error {
 //   - A pointer to the newly created CreateAccountTypeInput
 func NewCreateAccountTypeInput(name, keyValue string) *CreateAccountTypeInput {
 	return &CreateAccountTypeInput{
-		CreateAccountTypeInput: mmodel.CreateAccountTypeInput{
-			Name:     name,
-			KeyValue: keyValue,
-		},
+		Name:     name,
+		KeyValue: keyValue,
 	}
 }
 
@@ -209,9 +223,7 @@ func (input *CreateAccountTypeInput) WithMetadata(metadata map[string]any) *Crea
 // Returns:
 //   - A pointer to the newly created UpdateAccountTypeInput
 func NewUpdateAccountTypeInput() *UpdateAccountTypeInput {
-	return &UpdateAccountTypeInput{
-		UpdateAccountTypeInput: mmodel.UpdateAccountTypeInput{},
-	}
+	return &UpdateAccountTypeInput{}
 }
 
 // WithName sets the name for UpdateAccountTypeInput.

@@ -483,45 +483,9 @@ func TestCreateAccountInputWithMetadata(t *testing.T) {
 	}
 }
 
-// TestCreateAccountInputToMmodel tests the ToMmodel conversion method
-func TestCreateAccountInputToMmodel(t *testing.T) {
-	alias := "test_alias"
-	parentID := "550e8400-e29b-41d4-a716-446655440010"
-	entityID := "entity-456"
-	portfolioID := "550e8400-e29b-41d4-a716-446655440011"
-	segmentID := "550e8400-e29b-41d4-a716-446655440012"
-	blocked := true
-
-	input := CreateAccountInput{
-		Name:            "Test Account",
-		ParentAccountID: &parentID,
-		EntityID:        &entityID,
-		Blocked:         &blocked,
-		AssetCode:       "USD",
-		PortfolioID:     &portfolioID,
-		SegmentID:       &segmentID,
-		Status:          NewStatus("ACTIVE"),
-		Alias:           &alias,
-		Type:            "deposit",
-		Metadata: map[string]any{
-			"key": "value",
-		},
-	}
-
-	result := input.ToMmodel()
-
-	assert.Equal(t, input.Name, result.Name)
-	assert.Equal(t, input.ParentAccountID, result.ParentAccountID)
-	assert.Equal(t, input.EntityID, result.EntityID)
-	assert.Equal(t, input.Blocked, result.Blocked)
-	assert.Equal(t, input.AssetCode, result.AssetCode)
-	assert.Equal(t, input.PortfolioID, result.PortfolioID)
-	assert.Equal(t, input.SegmentID, result.SegmentID)
-	assert.Equal(t, input.Status.Code, result.Status.Code)
-	assert.Equal(t, input.Alias, result.Alias)
-	assert.Equal(t, input.Type, result.Type)
-	assert.Equal(t, input.Metadata, result.Metadata)
-}
+// NOTE: TestCreateAccountInputToMmodel was removed in Track 7E because the
+// ToMmodel adapter was retired (CreateAccountInput is now SDK-owned with
+// identical wire-format JSON tags, so no conversion is needed).
 
 // TestCreateAccountInputBuilderChaining tests chaining multiple builder methods
 func TestCreateAccountInputBuilderChaining(t *testing.T) {
@@ -737,35 +701,8 @@ func TestUpdateAccountInputMarshalJSONNilPointer(t *testing.T) {
 	assert.Equal(t, "null", string(data))
 }
 
-// TestUpdateAccountInputToMmodel tests the ToMmodel conversion method
-func TestUpdateAccountInputToMmodel(t *testing.T) {
-	segmentID := "segment-123"
-	portfolioID := "portfolio-456"
-	entityID := "entity-789"
-	blocked := true
-
-	input := UpdateAccountInput{
-		Name:        "Updated Account",
-		SegmentID:   &segmentID,
-		PortfolioID: &portfolioID,
-		EntityID:    &entityID,
-		Blocked:     &blocked,
-		Status:      NewStatus("ACTIVE"),
-		Metadata: map[string]any{
-			"key": "value",
-		},
-	}
-
-	result := input.ToMmodel()
-
-	assert.Equal(t, input.Name, result.Name)
-	assert.Equal(t, input.SegmentID, result.SegmentID)
-	assert.Equal(t, input.PortfolioID, result.PortfolioID)
-	assert.Equal(t, input.EntityID, result.EntityID)
-	assert.Equal(t, input.Blocked, result.Blocked)
-	assert.Equal(t, input.Status.Code, result.Status.Code)
-	assert.Equal(t, input.Metadata, result.Metadata)
-}
+// NOTE: TestUpdateAccountInputToMmodel was removed in Track 7E (see
+// TestCreateAccountInputToMmodel rationale).
 
 // TestUpdateAccountInputBuilderChaining tests chaining multiple builder methods
 func TestUpdateAccountInputBuilderChaining(t *testing.T) {

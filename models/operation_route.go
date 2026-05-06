@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation/core"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/google/uuid"
 )
 
 const (
@@ -17,12 +19,45 @@ const (
 	maxRouteCodeLength        = 100
 )
 
-// OperationRoute is an alias for mmodel.OperationRoute to maintain compatibility while using midaz entities.
-type OperationRoute = mmodel.OperationRoute
+// AccountingEntries is the structured accounting payload alias.
+//
+// NOTE: We keep AccountingEntries as an alias to mmodel.AccountingEntries
+// because the deeper accounting tree (AccountingEntries → AccountingEntry →
+// AccountingRubric) is a wire-format concern with strict server-side
+// scenario validation. Hand-mirroring it adds ~150 lines without changing
+// the public API shape callers see. The Track 7E decoupling specifically
+// targets the 8 entity families flagged in audit 7.1; the accounting tree
+// is a transport detail referenced from inside two of those families
+// (OperationRoute/UpdateOperationRouteInput) but is not itself flagged.
+type AccountingEntries = mmodel.AccountingEntries
 
-// CreateOperationRouteInput wraps mmodel.CreateOperationRouteInput to maintain compatibility while using midaz entities.
+// OperationRoute is the SDK-native operation route response type (Track 7E — audit 7.1).
+type OperationRoute struct {
+	ID                   uuid.UUID          `json:"id,omitempty" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a"`
+	OrganizationID       uuid.UUID          `json:"organizationId,omitempty" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a"`
+	LedgerID             uuid.UUID          `json:"ledgerId,omitempty" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a"`
+	Title                string             `json:"title,omitempty" example:"Cashin from service charge"`
+	Description          string             `json:"description,omitempty" example:"This operation route handles cash-in transactions from service charge collections"`
+	Code                 string             `json:"code,omitempty" example:"EXT-001"`
+	OperationType        string             `json:"operationType,omitempty" example:"source" enums:"source,destination,bidirectional"`
+	AccountingEntries    *AccountingEntries `json:"accountingEntries,omitempty"`
+	AccountingEntriesRaw json.RawMessage    `json:"-"`
+	Metadata             map[string]any     `json:"metadata,omitempty"`
+	Account              *AccountRule       `json:"account,omitempty"`
+	CreatedAt            time.Time          `json:"createdAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+	UpdatedAt            time.Time          `json:"updatedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+	DeletedAt            *time.Time         `json:"deletedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+}
+
+// CreateOperationRouteInput is the SDK-native operation route creation payload.
 type CreateOperationRouteInput struct {
-	mmodel.CreateOperationRouteInput
+	Title             string             `json:"title,omitempty" example:"Cashin from service charge"`
+	Description       string             `json:"description,omitempty" example:"This operation route handles cash-in transactions from service charge collections"`
+	Code              string             `json:"code,omitempty" example:"EXT-001"`
+	OperationType     string             `json:"operationType,omitempty" example:"source" enum:"source,destination,bidirectional"`
+	AccountingEntries *AccountingEntries `json:"accountingEntries,omitempty"`
+	Metadata          map[string]any     `json:"metadata"`
+	Account           *AccountRule       `json:"account,omitempty"`
 }
 
 // Validate validates the CreateOperationRouteInput fields.
@@ -44,7 +79,7 @@ func (input *CreateOperationRouteInput) Validate() error {
 		return err
 	}
 
-	if err := validateRouteText(input.Code, maxRouteCodeLength, "code"); err != nil { //nolint:staticcheck // Code is deprecated but still accepted on compatibility DTOs and must be bounded.
+	if err := validateRouteText(input.Code, maxRouteCodeLength, "code"); err != nil {
 		return err
 	}
 
@@ -65,14 +100,19 @@ func (input *CreateOperationRouteInput) Validate() error {
 	return nil
 }
 
-// UpdateOperationRouteInput wraps mmodel.UpdateOperationRouteInput to maintain
-// compatibility while using midaz entities.
+// UpdateOperationRouteInput is the SDK-native operation route patch payload.
 //
 // An empty update payload returns a validation error because it would be a
 // no-op PATCH. AccountingEntriesRaw preserves explicit null JSON for callers
 // that need RFC 7396 merge-patch removal semantics.
 type UpdateOperationRouteInput struct {
-	mmodel.UpdateOperationRouteInput
+	Title                string             `json:"title,omitempty" example:"Cashin from service charge"`
+	Description          string             `json:"description,omitempty" example:"This operation route handles cash-in transactions from service charge collections"`
+	Code                 string             `json:"code,omitempty" example:"EXT-001"`
+	AccountingEntries    *AccountingEntries `json:"accountingEntries,omitempty"`
+	AccountingEntriesRaw json.RawMessage    `json:"-"`
+	Metadata             map[string]any     `json:"metadata"`
+	Account              *AccountRule       `json:"account,omitempty"`
 }
 
 // Validate validates the UpdateOperationRouteInput fields.
@@ -97,7 +137,7 @@ func (input *UpdateOperationRouteInput) Validate() error {
 		return err
 	}
 
-	if err := validateRouteText(input.Code, maxRouteCodeLength, "code"); err != nil { //nolint:staticcheck // Code is deprecated but still accepted on compatibility DTOs and must be bounded.
+	if err := validateRouteText(input.Code, maxRouteCodeLength, "code"); err != nil {
 		return err
 	}
 
@@ -117,7 +157,7 @@ func (input *UpdateOperationRouteInput) hasChanges() bool {
 
 	return strings.TrimSpace(input.Title) != "" ||
 		input.Description != "" ||
-		input.Code != "" || //nolint:staticcheck // Deprecated field remains part of compatibility DTO change detection.
+		input.Code != "" ||
 		input.Metadata != nil ||
 		input.Account != nil ||
 		input.AccountingEntries != nil ||
@@ -129,7 +169,7 @@ func (input UpdateOperationRouteInput) MarshalJSON() ([]byte, error) {
 	fields := map[string]any{}
 	addStringField(fields, "title", input.Title)
 	addStringField(fields, "description", input.Description)
-	addStringField(fields, "code", input.Code) //nolint:staticcheck // Deprecated field remains part of compatibility DTO serialization.
+	addStringField(fields, "code", input.Code)
 
 	if len(input.AccountingEntriesRaw) > 0 {
 		fields["accountingEntries"] = input.AccountingEntriesRaw
@@ -260,8 +300,11 @@ func (input *UpdateOperationRouteInput) WithMetadata(metadata map[string]any) *U
 	return input
 }
 
-// AccountRule is an alias for mmodel.AccountRule to maintain compatibility while using midaz entities.
-type AccountRule = mmodel.AccountRule
+// AccountRule is the SDK-native account-rule type for operation routes.
+type AccountRule struct {
+	RuleType string `json:"ruleType,omitempty" example:"alias" enum:"alias,account_type"`
+	ValidIf  any    `json:"validIf,omitempty"`
+}
 
 // OperationRouteType represents the type of operation route for backward compatibility
 type OperationRouteType string
@@ -306,11 +349,9 @@ const (
 //   - A pointer to the newly created CreateOperationRouteInput
 func NewCreateOperationRouteInput(title, description, operationType string) *CreateOperationRouteInput {
 	return &CreateOperationRouteInput{
-		CreateOperationRouteInput: mmodel.CreateOperationRouteInput{
-			Title:         title,
-			Description:   description,
-			OperationType: operationType,
-		},
+		Title:         title,
+		Description:   description,
+		OperationType: operationType,
 	}
 }
 

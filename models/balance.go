@@ -4,16 +4,52 @@ package models
 import (
 	"errors"
 	"fmt"
+	"time"
 
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/shopspring/decimal"
 )
 
-// Balance is an alias for mmodel.Balance to maintain compatibility while using midaz entities.
-type Balance = mmodel.Balance
+// Balance is the SDK-native balance response type (Track 7E — audit 7.1).
+type Balance struct {
+	ID             string          `json:"id" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	OrganizationID string          `json:"organizationId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	LedgerID       string          `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	AccountID      string          `json:"accountId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	Alias          string          `json:"alias" example:"@person1" maxLength:"256"`
+	Key            string          `json:"key" example:"asset-freeze" maxLength:"100"`
+	AssetCode      string          `json:"assetCode" example:"USD" minLength:"2" maxLength:"10"`
+	Available      decimal.Decimal `json:"available" example:"1500" minimum:"0"`
+	OnHold         decimal.Decimal `json:"onHold" example:"500" minimum:"0"`
+	Version        int64           `json:"version" example:"1" minimum:"1"`
+	AccountType    string          `json:"accountType" example:"creditCard" maxLength:"50"`
+	AllowSending   bool            `json:"allowSending" example:"true"`
+	AllowReceiving bool            `json:"allowReceiving" example:"true"`
+	CreatedAt      time.Time       `json:"createdAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+	UpdatedAt      time.Time       `json:"updatedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+	DeletedAt      *time.Time      `json:"deletedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+	Metadata       map[string]any  `json:"metadata,omitempty"`
+}
 
-// BalanceHistory is an alias for mmodel.BalanceHistory.
-type BalanceHistory = mmodel.BalanceHistory
+// BalanceHistory is the SDK-native balance history response type.
+type BalanceHistory struct {
+	ID             string          `json:"id" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	OrganizationID string          `json:"organizationId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	LedgerID       string          `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	AccountID      string          `json:"accountId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	Alias          string          `json:"alias" example:"@person1" maxLength:"256"`
+	Key            string          `json:"key" example:"asset-freeze" maxLength:"100"`
+	AssetCode      string          `json:"assetCode" example:"USD" minLength:"2" maxLength:"10"`
+	Available      decimal.Decimal `json:"available" example:"1500" minimum:"0"`
+	OnHold         decimal.Decimal `json:"onHold" example:"500" minimum:"0"`
+	Version        int64           `json:"version" example:"1" minimum:"1"`
+	AccountType    string          `json:"accountType" example:"creditCard" maxLength:"50"`
+	AllowSending   bool            `json:"allowSending" example:"true"`
+	AllowReceiving bool            `json:"allowReceiving" example:"true"`
+	CreatedAt      time.Time       `json:"createdAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+	UpdatedAt      time.Time       `json:"updatedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+	DeletedAt      *time.Time      `json:"deletedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+	Metadata       map[string]any  `json:"metadata,omitempty"`
+}
 
 const (
 	// BalanceScopeTransactional identifies a balance that participates in transactions.

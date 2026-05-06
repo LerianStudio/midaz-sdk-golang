@@ -5,21 +5,39 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 	"unicode/utf8"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation/core"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
 const maxOrganizationFieldLength = 256
 
-// Organization is an alias for mmodel.Organization to maintain compatibility while using midaz entities.
-type Organization = mmodel.Organization
+// Organization is the SDK-native organization response (Track 7E — audit 7.1).
+type Organization struct {
+	ID                   string         `json:"id" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	ParentOrganizationID *string        `json:"parentOrganizationId" format:"uuid"`
+	LegalName            string         `json:"legalName" example:"Lerian Financial Services Ltd." maxLength:"256"`
+	DoingBusinessAs      *string        `json:"doingBusinessAs" example:"Lerian FS" maxLength:"256"`
+	LegalDocument        string         `json:"legalDocument" example:"123456789012345" maxLength:"256"`
+	Address              Address        `json:"address"`
+	Status               Status         `json:"status"`
+	CreatedAt            time.Time      `json:"createdAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+	UpdatedAt            time.Time      `json:"updatedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+	DeletedAt            *time.Time     `json:"deletedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+	Metadata             map[string]any `json:"metadata,omitempty"`
+}
 
-// CreateOrganizationInput wraps mmodel.CreateOrganizationInput to maintain compatibility while using midaz entities.
+// CreateOrganizationInput is the SDK-native organization creation payload.
 type CreateOrganizationInput struct {
-	mmodel.CreateOrganizationInput
+	LegalName            string         `json:"legalName" example:"Lerian Financial Services Ltd." maxLength:"256"`
+	ParentOrganizationID *string        `json:"parentOrganizationId" format:"uuid"`
+	DoingBusinessAs      *string        `json:"doingBusinessAs" example:"Lerian FS" maxLength:"256"`
+	LegalDocument        string         `json:"legalDocument" example:"123456789012345" maxLength:"256"`
+	Address              Address        `json:"address"`
+	Status               Status         `json:"status"`
+	Metadata             map[string]any `json:"metadata"`
 }
 
 // Validate validates the CreateOrganizationInput fields.
@@ -63,15 +81,6 @@ func (input *CreateOrganizationInput) Validate() error {
 	return nil
 }
 
-// ToMmodelCreateOrganizationInput converts the SDK CreateOrganizationInput to mmodel CreateOrganizationInput.
-func (input *CreateOrganizationInput) ToMmodelCreateOrganizationInput() *mmodel.CreateOrganizationInput {
-	if input == nil {
-		return nil
-	}
-
-	return &input.CreateOrganizationInput
-}
-
 // MarshalJSON omits optional create fields when callers leave them unset.
 func (input *CreateOrganizationInput) MarshalJSON() ([]byte, error) {
 	if input == nil {
@@ -85,7 +94,7 @@ func (input *CreateOrganizationInput) MarshalJSON() ([]byte, error) {
 	addStringPtrField(fields, "doingBusinessAs", input.DoingBusinessAs)
 
 	if !input.Address.IsEmpty() {
-		fields["address"] = Address(input.Address)
+		fields["address"] = input.Address
 	}
 
 	addStatusField(fields, input.Status)
@@ -94,9 +103,14 @@ func (input *CreateOrganizationInput) MarshalJSON() ([]byte, error) {
 	return json.Marshal(fields)
 }
 
-// UpdateOrganizationInput wraps mmodel.UpdateOrganizationInput to maintain compatibility while using midaz entities.
+// UpdateOrganizationInput is the SDK-native organization patch payload.
 type UpdateOrganizationInput struct {
-	mmodel.UpdateOrganizationInput
+	LegalName            string         `json:"legalName" example:"Lerian Financial Group Ltd." maxLength:"256"`
+	ParentOrganizationID *string        `json:"parentOrganizationId" format:"uuid"`
+	DoingBusinessAs      *string        `json:"doingBusinessAs" example:"Lerian Group" maxLength:"256"`
+	Address              Address        `json:"address"`
+	Status               Status         `json:"status"`
+	Metadata             map[string]any `json:"metadata"`
 }
 
 // Validate validates the UpdateOrganizationInput fields.
@@ -165,15 +179,6 @@ func (input *UpdateOrganizationInput) hasChanges() bool {
 		input.Metadata != nil
 }
 
-// ToMmodelUpdateOrganizationInput converts the SDK UpdateOrganizationInput to mmodel UpdateOrganizationInput.
-func (input *UpdateOrganizationInput) ToMmodelUpdateOrganizationInput() *mmodel.UpdateOrganizationInput {
-	if input == nil {
-		return nil
-	}
-
-	return &input.UpdateOrganizationInput
-}
-
 // MarshalJSON emits only fields explicitly set on the SDK PATCH input.
 func (input *UpdateOrganizationInput) MarshalJSON() ([]byte, error) {
 	if input == nil {
@@ -186,7 +191,7 @@ func (input *UpdateOrganizationInput) MarshalJSON() ([]byte, error) {
 	addStringPtrField(fields, "doingBusinessAs", input.DoingBusinessAs)
 
 	if !input.Address.IsEmpty() {
-		fields["address"] = Address(input.Address)
+		fields["address"] = input.Address
 	}
 
 	addStatusField(fields, input.Status)
@@ -198,10 +203,8 @@ func (input *UpdateOrganizationInput) MarshalJSON() ([]byte, error) {
 // NewCreateOrganizationInput creates a new CreateOrganizationInput with required fields.
 func NewCreateOrganizationInput(legalName, legalDocument string) *CreateOrganizationInput {
 	return &CreateOrganizationInput{
-		CreateOrganizationInput: mmodel.CreateOrganizationInput{
-			LegalName:     legalName,
-			LegalDocument: legalDocument,
-		},
+		LegalName:     legalName,
+		LegalDocument: legalDocument,
 	}
 }
 
@@ -244,7 +247,7 @@ func (input *CreateOrganizationInput) WithAddress(address Address) *CreateOrgani
 		return nil
 	}
 
-	input.Address = mmodel.Address(address)
+	input.Address = address
 
 	return input
 }
@@ -262,9 +265,7 @@ func (input *CreateOrganizationInput) WithMetadata(metadata map[string]any) *Cre
 
 // NewUpdateOrganizationInput creates a new UpdateOrganizationInput.
 func NewUpdateOrganizationInput() *UpdateOrganizationInput {
-	return &UpdateOrganizationInput{
-		UpdateOrganizationInput: mmodel.UpdateOrganizationInput{},
-	}
+	return &UpdateOrganizationInput{}
 }
 
 // WithLegalName sets the legal name for update.
@@ -326,7 +327,7 @@ func (input *UpdateOrganizationInput) WithAddressUpdate(address Address) *Update
 		return nil
 	}
 
-	input.Address = mmodel.Address(address)
+	input.Address = address
 
 	return input
 }

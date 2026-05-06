@@ -4,15 +4,26 @@ import (
 	"encoding/json"
 	"errors"
 	"time"
-
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
 // Status represents the status of an entity in the Midaz system.
-// This is now an alias to mmodel.Status to avoid duplication while maintaining
-// SDK-specific documentation and examples.
-// Status is used across various models to indicate the current state of resources.
-type Status = mmodel.Status
+//
+// Status is hand-written and SDK-owned (audit 7.1, 7.2 — Track 7E).
+// The fields and JSON tags MUST stay aligned with the Midaz wire format
+// (mmodel.Status today). The SDK gains the freedom to evolve its public
+// surface independently of mmodel without forcing a server-package
+// import on every caller of the SDK.
+//
+// Wire format alignment:
+//
+//	{"code": "ACTIVE", "description": "Active status"}
+type Status struct {
+	// Code is the canonical status code (e.g. "ACTIVE", "INACTIVE", "PENDING").
+	Code string `json:"code" validate:"max=100" example:"ACTIVE" maxLength:"100" enum:"ACTIVE,INACTIVE,PENDING,SUSPENDED,DELETED"`
+
+	// Description is an optional human-readable description of the status.
+	Description *string `json:"description" validate:"omitempty,max=256" example:"Active status" maxLength:"256"`
+}
 
 // NewStatus creates a new Status with the given code.
 // This is a convenience constructor for creating Status objects.
@@ -29,7 +40,9 @@ func NewStatus(code string) Status {
 }
 
 // StatusHelpers provides utility functions for working with Status.
-// Since Status is now an alias to mmodel.Status, we provide helper functions instead of methods.
+// Since Status is hand-written and SDK-owned (Track 7E), we provide helper
+// functions instead of methods that would require a separate Status receiver
+// type.
 
 // WithStatusDescription creates a new Status with a description.
 func WithStatusDescription(status Status, description string) Status {
@@ -97,6 +110,20 @@ type Address struct {
 	Description *string `json:"description,omitempty"`
 }
 
+// IsEmpty reports whether all fields of the address are empty.
+//
+// Used by Organization marshal/validate to decide whether to emit the
+// `address` JSON key. Mirrors mmodel.Address.IsEmpty semantics.
+func (a Address) IsEmpty() bool {
+	return a.Line1 == "" &&
+		a.Line2 == nil &&
+		a.ZipCode == "" &&
+		a.City == "" &&
+		a.State == "" &&
+		a.Country == "" &&
+		a.Description == nil
+}
+
 // NewAddress creates a new Address with the given parameters.
 // This is a convenience constructor for creating Address objects with required fields.
 //
@@ -132,42 +159,11 @@ func (a Address) WithLine2(line2 string) Address {
 	return a
 }
 
-// ToMmodelAddress converts an SDK Address to an mmodel Address (internal use only).
-// This method is used for internal SDK operations when interfacing with the backend.
-//
-// Returns:
-//   - An mmodel.Address instance with the same values as this Address
-func (a Address) ToMmodelAddress() mmodel.Address {
-	return mmodel.Address{
-		Line1:       a.Line1,
-		Line2:       a.Line2,
-		ZipCode:     a.ZipCode,
-		City:        a.City,
-		State:       a.State,
-		Country:     a.Country,
-		Description: a.Description,
-	}
-}
-
-// FromMmodelAddress converts an mmodel Address to an SDK Address (internal use only).
-// This function is used for internal SDK operations when processing responses from the backend.
-//
-// Parameters:
-//   - modelAddress: The mmodel.Address to convert
-//
-// Returns:
-//   - A models.Address instance with the same values as the input mmodel.Address
-func FromMmodelAddress(modelAddress mmodel.Address) Address {
-	return Address{
-		Line1:       modelAddress.Line1,
-		Line2:       modelAddress.Line2,
-		ZipCode:     modelAddress.ZipCode,
-		City:        modelAddress.City,
-		State:       modelAddress.State,
-		Country:     modelAddress.Country,
-		Description: modelAddress.Description,
-	}
-}
+// NOTE: ToMmodelAddress / FromMmodelAddress were retired in Track 7E.
+// Address is now SDK-owned with the same JSON tags as mmodel.Address, so
+// the wire format is identical and the conversions are unnecessary.
+// Internal callers that historically reached for these adapters should
+// pass / receive models.Address directly.
 
 // Pagination represents pagination information for list operations.
 // This structure is used in list responses to provide context about the pagination state

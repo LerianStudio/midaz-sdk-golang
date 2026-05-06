@@ -88,7 +88,7 @@ func UpdateOrganization(ctx context.Context, midazClient *client.Client, orgID s
 		models.NewUpdateOrganizationInput().
 			WithLegalName(org.LegalName).
 			WithDoingBusinessAsUpdate(dbaValue).
-			WithAddressUpdate(models.Address(org.Address)).
+			WithAddressUpdate(org.Address).
 			WithStatusUpdate(org.Status).
 			WithUpdateMetadata(map[string]any{
 				"industry":      "Technology",

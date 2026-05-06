@@ -129,13 +129,26 @@ set-env:
 # SDK Quality Check Targets
 #-------------------------------------------------------
 
-.PHONY: check-references check-api-compatibility check-config-parity verify-sdk hooks
+.PHONY: check-references check-mmodel-references check-api-compatibility check-config-parity verify-sdk hooks
 
 # Check that no lib-commons references appear in public packages
 check-references:
 	@echo "$(YELLOW)Checking for lib-commons references in public API...$(NC)"
 	@! grep -r "lib-commons" --include="*.go" ./models ./entities | grep -v "//.*lib-commons" || (echo "$(RED)❌ Found lib-commons references in public API!$(NC)" && exit 1)
 	@echo "$(GREEN)✅ No lib-commons references found in public API$(NC)"
+
+# Track 7E: enforce no mmodel references in public API except the one
+# documented exception (AccountingEntries alias in operation_route.go,
+# which intentionally remains aliased — see file comment).
+check-mmodel-references:
+	@echo "$(YELLOW)Checking for mmodel references in public API...$(NC)"
+	@bad=$$(grep -r "midaz/v3/pkg/mmodel" --include="*.go" ./models ./entities | grep -v "//" | grep -v "operation_route.go" || true); \
+		if [ -n "$$bad" ]; then \
+			echo "$(RED)❌ Found unexpected mmodel references in public API:$(NC)"; \
+			echo "$$bad"; \
+			exit 1; \
+		fi
+	@echo "$(GREEN)✅ No unexpected mmodel references in public API$(NC)"
 
 # Verify that our refactoring doesn't break API compatibility
 check-api-compatibility:
@@ -151,7 +164,7 @@ check-config-parity:
 	@./scripts/check-config-parity.sh
 
 # Verify our implementation
-verify-sdk: check-references check-api-compatibility check-config-parity
+verify-sdk: check-references check-mmodel-references check-api-compatibility check-config-parity
 	@echo "$(GREEN)✅ All SDK quality checks passed!$(NC)"
 
 # Install git hooks

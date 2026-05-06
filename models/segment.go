@@ -6,32 +6,44 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation/core"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
 const maxSegmentNameLength = 256
 
-// Segment is an alias for mmodel.Segment to maintain compatibility while using midaz entities.
-type Segment = mmodel.Segment
-
-// CreateSegmentInput wraps mmodel.CreateSegmentInput to maintain compatibility while using midaz entities.
-type CreateSegmentInput struct {
-	mmodel.CreateSegmentInput
+// Segment is the SDK-native segment response type (Track 7E — audit 7.1).
+type Segment struct {
+	ID             string         `json:"id" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	Name           string         `json:"name" example:"My Segment" maxLength:"256"`
+	LedgerID       string         `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	OrganizationID string         `json:"organizationId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	Status         Status         `json:"status"`
+	CreatedAt      time.Time      `json:"createdAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+	UpdatedAt      time.Time      `json:"updatedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+	DeletedAt      *time.Time     `json:"deletedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+	Metadata       map[string]any `json:"metadata,omitempty"`
 }
 
-// UpdateSegmentInput wraps mmodel.UpdateSegmentInput to maintain compatibility while using midaz entities.
+// CreateSegmentInput is the SDK-native segment creation payload.
+type CreateSegmentInput struct {
+	Name     string         `json:"name" example:"My Segment"`
+	Status   Status         `json:"status"`
+	Metadata map[string]any `json:"metadata"`
+}
+
+// UpdateSegmentInput is the SDK-native segment patch payload.
 type UpdateSegmentInput struct {
-	mmodel.UpdateSegmentInput
+	Name     string         `json:"name" example:"My Segment Updated"`
+	Status   Status         `json:"status"`
+	Metadata map[string]any `json:"metadata"`
 }
 
 // NewCreateSegmentInput creates a new CreateSegmentInput with required fields.
 func NewCreateSegmentInput(name string) *CreateSegmentInput {
 	return &CreateSegmentInput{
-		CreateSegmentInput: mmodel.CreateSegmentInput{
-			Name: name,
-		},
+		Name: name,
 	}
 }
 
@@ -97,9 +109,7 @@ func (input *CreateSegmentInput) MarshalJSON() ([]byte, error) {
 
 // NewUpdateSegmentInput creates a new UpdateSegmentInput.
 func NewUpdateSegmentInput() *UpdateSegmentInput {
-	return &UpdateSegmentInput{
-		UpdateSegmentInput: mmodel.UpdateSegmentInput{},
-	}
+	return &UpdateSegmentInput{}
 }
 
 // WithName sets the name for UpdateSegmentInput.

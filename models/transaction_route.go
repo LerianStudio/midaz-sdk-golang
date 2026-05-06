@@ -3,18 +3,35 @@ package models
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation/core"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 )
 
-// TransactionRoute is an alias for mmodel.TransactionRoute to maintain compatibility while using midaz entities.
-type TransactionRoute = mmodel.TransactionRoute
+// TransactionRoute is the SDK-native transaction route response (Track 7E — audit 7.1).
+type TransactionRoute struct {
+	ID              uuid.UUID        `json:"id,omitempty" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a"`
+	OrganizationID  uuid.UUID        `json:"organizationId,omitempty" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a"`
+	LedgerID        uuid.UUID        `json:"ledgerId,omitempty" example:"01965ed9-7fa4-75b2-8872-fc9e8509ab0a"`
+	Title           string           `json:"title,omitempty" example:"Charge Settlement"`
+	Description     string           `json:"description,omitempty" example:"Settlement route for service charges"`
+	Metadata        map[string]any   `json:"metadata,omitempty"`
+	OperationRoutes []OperationRoute `json:"operationRoutes,omitempty"`
+	CreatedAt       time.Time        `json:"createdAt" example:"2025-01-01T00:00:00Z"`
+	UpdatedAt       time.Time        `json:"updatedAt" example:"2025-01-01T00:00:00Z"`
+	DeletedAt       *time.Time       `json:"deletedAt" example:"2025-01-01T00:00:00Z"`
+}
 
-// CreateTransactionRouteInput wraps mmodel.CreateTransactionRouteInput to maintain compatibility while using midaz entities.
+// CreateTransactionRouteInput is the SDK-native transaction-route creation payload.
 type CreateTransactionRouteInput struct {
-	mmodel.CreateTransactionRouteInput
+	Title           string         `json:"title,omitempty" example:"Charge Settlement"`
+	Description     string         `json:"description,omitempty" example:"Settlement route for service charges"`
+	Metadata        map[string]any `json:"metadata"`
+	OperationRoutes []uuid.UUID    `json:"operationRoutes,omitempty" format:"uuid"`
+
+	// parseErr stashes any UUID-parse failure from NewCreateTransactionRouteInput
+	// so it can surface from Validate(). Unexported, deliberately tag-free.
 	parseErr error
 }
 
@@ -53,9 +70,12 @@ func (input *CreateTransactionRouteInput) Validate() error {
 	return nil
 }
 
-// UpdateTransactionRouteInput wraps mmodel.UpdateTransactionRouteInput to maintain compatibility while using midaz entities.
+// UpdateTransactionRouteInput is the SDK-native transaction-route patch payload.
 type UpdateTransactionRouteInput struct {
-	mmodel.UpdateTransactionRouteInput
+	Title           string         `json:"title,omitempty" example:"Charge Settlement"`
+	Description     string         `json:"description,omitempty" example:"Settlement route for service charges"`
+	Metadata        map[string]any `json:"metadata"`
+	OperationRoutes *[]uuid.UUID   `json:"operationRoutes,omitempty" format:"uuid"`
 }
 
 // Validate validates the UpdateTransactionRouteInput fields.
@@ -120,12 +140,10 @@ func NewCreateTransactionRouteInput(title, description string, operationRoutes [
 	}
 
 	return &CreateTransactionRouteInput{
-		CreateTransactionRouteInput: mmodel.CreateTransactionRouteInput{
-			Title:           title,
-			Description:     description,
-			OperationRoutes: uuidRoutes,
-		},
-		parseErr: parseErr,
+		Title:           title,
+		Description:     description,
+		OperationRoutes: uuidRoutes,
+		parseErr:        parseErr,
 	}
 }
 

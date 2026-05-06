@@ -6,9 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation/core"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
 const (
@@ -16,17 +16,38 @@ const (
 	maxAssetCodeLength = 100
 )
 
-// Asset is an alias for mmodel.Asset to maintain compatibility while using midaz entities.
-type Asset = mmodel.Asset
-
-// CreateAssetInput wraps mmodel.CreateAssetInput to maintain compatibility while using midaz entities.
-type CreateAssetInput struct {
-	mmodel.CreateAssetInput
+// Asset is the SDK-native asset response type (Track 7E — audit 7.1).
+//
+// Wire format alignment with mmodel.Asset is preserved via JSON tags;
+// the SDK no longer aliases into the server-internal mmodel package.
+type Asset struct {
+	ID             string         `json:"id" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	Name           string         `json:"name" example:"US Dollar" maxLength:"256"`
+	Type           string         `json:"type" example:"currency"`
+	Code           string         `json:"code" example:"USD" maxLength:"100"`
+	Status         Status         `json:"status"`
+	LedgerID       string         `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	OrganizationID string         `json:"organizationId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	CreatedAt      time.Time      `json:"createdAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+	UpdatedAt      time.Time      `json:"updatedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+	DeletedAt      *time.Time     `json:"deletedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+	Metadata       map[string]any `json:"metadata,omitempty"`
 }
 
-// UpdateAssetInput wraps mmodel.UpdateAssetInput to maintain compatibility while using midaz entities.
+// CreateAssetInput is the SDK-native asset creation payload.
+type CreateAssetInput struct {
+	Name     string         `json:"name" example:"US Dollar"`
+	Type     string         `json:"type" example:"currency"`
+	Code     string         `json:"code" example:"USD"`
+	Status   Status         `json:"status"`
+	Metadata map[string]any `json:"metadata"`
+}
+
+// UpdateAssetInput is the SDK-native asset patch payload.
 type UpdateAssetInput struct {
-	mmodel.UpdateAssetInput
+	Name     string         `json:"name" example:"Bitcoin"`
+	Status   Status         `json:"status"`
+	Metadata map[string]any `json:"metadata"`
 }
 
 // NewCreateAssetInput creates a new CreateAssetInput.
@@ -34,10 +55,8 @@ type UpdateAssetInput struct {
 // is provided at construction time.
 func NewCreateAssetInput(name, code string) *CreateAssetInput {
 	return &CreateAssetInput{
-		CreateAssetInput: mmodel.CreateAssetInput{
-			Name: name,
-			Code: code,
-		},
+		Name: name,
+		Code: code,
 	}
 }
 
@@ -134,9 +153,7 @@ func (input *CreateAssetInput) MarshalJSON() ([]byte, error) {
 
 // NewUpdateAssetInput creates a new UpdateAssetInput.
 func NewUpdateAssetInput() *UpdateAssetInput {
-	return &UpdateAssetInput{
-		UpdateAssetInput: mmodel.UpdateAssetInput{},
-	}
+	return &UpdateAssetInput{}
 }
 
 // WithName sets the name for UpdateAssetInput.
