@@ -8,6 +8,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation/core"
 	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
@@ -66,38 +67,33 @@ func (input *CreateOperationRouteInput) Validate() error {
 		return errors.New("input is required")
 	}
 
+	var errs validation.FieldErrors
+
 	title := strings.TrimSpace(input.Title)
 	if title == "" {
-		return errors.New("title is required")
+		errs.Append("title", "is required")
+	} else {
+		appendRouteTextLength(&errs, title, maxRouteTitleLength, "title")
 	}
 
-	if err := validateRouteText(title, maxRouteTitleLength, "title"); err != nil {
-		return err
-	}
+	appendRouteTextLength(&errs, input.Description, maxRouteDescriptionLength, "description")
+	appendRouteTextLength(&errs, input.Code, maxRouteCodeLength, "code")
 
-	if err := validateRouteText(input.Description, maxRouteDescriptionLength, "description"); err != nil {
-		return err
-	}
-
-	if err := validateRouteText(input.Code, maxRouteCodeLength, "code"); err != nil {
-		return err
-	}
-
-	if input.OperationType == "" {
-		return errors.New("operationType is required")
-	}
-	// Validate operation type
-	if input.OperationType != "source" && input.OperationType != "destination" && input.OperationType != "bidirectional" {
-		return errors.New("operationType must be 'source', 'destination', or 'bidirectional'")
+	switch input.OperationType {
+	case "":
+		errs.Append("operationType", "is required")
+	case "source", "destination", "bidirectional":
+	default:
+		errs.Append("operationType", "must be 'source', 'destination', or 'bidirectional'")
 	}
 
 	if input.Metadata != nil {
 		if err := core.ValidateMetadata(input.Metadata); err != nil {
-			return fmt.Errorf("invalid metadata: %w", err)
+			errs.Append("metadata", "invalid: "+err.Error())
 		}
 	}
 
-	return nil
+	return errs.OrNil()
 }
 
 // UpdateOperationRouteInput is the SDK-native operation route patch payload.
@@ -121,33 +117,28 @@ func (input *UpdateOperationRouteInput) Validate() error {
 		return errors.New("input is required")
 	}
 
-	if input.Title != "" && strings.TrimSpace(input.Title) == "" {
-		return errors.New("title is required")
-	}
-
 	if !input.hasChanges() {
 		return errors.New("empty update payload not allowed")
 	}
 
-	if err := validateRouteText(strings.TrimSpace(input.Title), maxRouteTitleLength, "title"); err != nil {
-		return err
+	var errs validation.FieldErrors
+
+	if input.Title != "" && strings.TrimSpace(input.Title) == "" {
+		errs.Append("title", "is required")
+	} else {
+		appendRouteTextLength(&errs, strings.TrimSpace(input.Title), maxRouteTitleLength, "title")
 	}
 
-	if err := validateRouteText(input.Description, maxRouteDescriptionLength, "description"); err != nil {
-		return err
-	}
-
-	if err := validateRouteText(input.Code, maxRouteCodeLength, "code"); err != nil {
-		return err
-	}
+	appendRouteTextLength(&errs, input.Description, maxRouteDescriptionLength, "description")
+	appendRouteTextLength(&errs, input.Code, maxRouteCodeLength, "code")
 
 	if input.Metadata != nil {
 		if err := core.ValidateMetadata(input.Metadata); err != nil {
-			return fmt.Errorf("invalid metadata: %w", err)
+			errs.Append("metadata", "invalid: "+err.Error())
 		}
 	}
 
-	return nil
+	return errs.OrNil()
 }
 
 func (input *UpdateOperationRouteInput) hasChanges() bool {
@@ -186,12 +177,12 @@ func (input UpdateOperationRouteInput) MarshalJSON() ([]byte, error) {
 	return json.Marshal(fields)
 }
 
-func validateRouteText(value string, maxLength int, field string) error {
+// appendRouteTextLength records a length-bound violation onto errs when
+// value's rune count exceeds maxLength. No-op for empty values.
+func appendRouteTextLength(errs *validation.FieldErrors, value string, maxLength int, field string) {
 	if utf8.RuneCountInString(value) > maxLength {
-		return fmt.Errorf("%s must be at most %d characters", field, maxLength)
+		errs.Append(field, fmt.Sprintf("must be at most %d characters", maxLength))
 	}
-
-	return nil
 }
 
 // WithAccountAlias sets the account rule to use alias-based selection (method on struct).

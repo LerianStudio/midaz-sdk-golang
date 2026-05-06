@@ -585,7 +585,10 @@ func TestUpdateAccountInputValidate(t *testing.T) {
 				},
 			},
 			expectError: true,
-			errContains: "invalid metadata",
+			// 8C: format is "metadata invalid: <inner>" via the
+			// FieldErrors accumulator. The "metadata" field name
+			// and the "invalid:" prefix are both present.
+			errContains: "metadata invalid",
 		},
 	}
 

@@ -86,7 +86,8 @@ func TestHoldersEntity_ValidationErrors(t *testing.T) {
 
 	_, err = service.UpdateHolder(context.Background(), crmOrgID, crmHolderID, &models.UpdateHolderInput{Metadata: map[string]any{"": "bad"}})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid metadata")
+	// 8C: format is "metadata invalid: <inner>" via FieldErrors accumulator.
+	assert.Contains(t, err.Error(), "metadata invalid")
 }
 
 func TestHoldersEntity_URLFlagsAndEscaping(t *testing.T) {

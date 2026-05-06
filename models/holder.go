@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation/core"
 )
 
@@ -224,29 +225,30 @@ func (input *CreateHolderInput) Validate() error {
 		return errors.New("input is required")
 	}
 
-	if input.Type == nil || *input.Type == "" {
-		return errors.New("type is required")
-	}
+	var errs validation.FieldErrors
 
-	if !isValidHolderType(*input.Type) {
-		return errors.New("type must be NATURAL_PERSON or LEGAL_PERSON")
+	switch {
+	case input.Type == nil || *input.Type == "":
+		errs.Append("type", "is required")
+	case !isValidHolderType(*input.Type):
+		errs.Append("type", "must be NATURAL_PERSON or LEGAL_PERSON")
 	}
 
 	if strings.TrimSpace(input.Name) == "" {
-		return errors.New("name is required")
+		errs.Append("name", "is required")
 	}
 
 	if strings.TrimSpace(input.Document) == "" {
-		return errors.New("document is required")
+		errs.Append("document", "is required")
 	}
 
 	if len(input.Metadata) > 0 {
 		if err := core.ValidateMetadata(input.Metadata); err != nil {
-			return fmt.Errorf("invalid metadata: %w", err)
+			errs.Append("metadata", "invalid: "+err.Error())
 		}
 	}
 
-	return nil
+	return errs.OrNil()
 }
 
 // WithNullFields marks fields that should be sent as explicit JSON null in PATCH requests.
@@ -397,17 +399,23 @@ func (input *UpdateHolderInput) Validate() error {
 		return errors.New("empty update payload not allowed")
 	}
 
+	var errs validation.FieldErrors
+
 	if len(input.Metadata) > 0 {
 		if err := core.ValidateMetadata(input.Metadata); err != nil {
-			return fmt.Errorf("invalid metadata: %w", err)
+			errs.Append("metadata", "invalid: "+err.Error())
 		}
 	}
 
 	if err := validateCRMNullFields(input.NullFields, validHolderNullFields); err != nil {
-		return err
+		errs.Append("nullFields", err.Error())
 	}
 
-	return input.validateNullFieldConflicts()
+	if err := input.validateNullFieldConflicts(); err != nil {
+		errs.Append("nullFields", err.Error())
+	}
+
+	return errs.OrNil()
 }
 
 // Holder represents a CRM holder.

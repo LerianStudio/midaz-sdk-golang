@@ -4,8 +4,10 @@ package models
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation"
 	"github.com/shopspring/decimal"
 )
 
@@ -77,34 +79,33 @@ func (s *BalanceSettings) Validate() error {
 		return nil
 	}
 
+	var errs validation.FieldErrors
+
 	switch s.BalanceScope {
 	case "", BalanceScopeTransactional, BalanceScopeInternal:
 	default:
-		return fmt.Errorf("balanceScope must be %q or %q", BalanceScopeTransactional, BalanceScopeInternal)
+		errs.Append("balanceScope", fmt.Sprintf("must be %q or %q", BalanceScopeTransactional, BalanceScopeInternal))
 	}
 
 	if s.OverdraftLimitEnabled && !s.AllowOverdraft {
-		return errors.New("allowOverdraft must be true when overdraftLimitEnabled is true")
+		errs.Append("allowOverdraft", "must be true when overdraftLimitEnabled is true")
 	}
 
-	if !s.OverdraftLimitEnabled {
+	switch {
+	case !s.OverdraftLimitEnabled:
 		if s.OverdraftLimit != nil {
-			return errors.New("overdraftLimit must be omitted when overdraftLimitEnabled is false")
+			errs.Append("overdraftLimit", "must be omitted when overdraftLimitEnabled is false")
 		}
-
-		return nil
+	case s.OverdraftLimit == nil || *s.OverdraftLimit == "":
+		errs.Append("overdraftLimit", "is required when overdraftLimitEnabled is true")
+	default:
+		limit, err := decimal.NewFromString(*s.OverdraftLimit)
+		if err != nil || !limit.IsPositive() {
+			errs.Append("overdraftLimit", "must be a positive decimal")
+		}
 	}
 
-	if s.OverdraftLimit == nil || *s.OverdraftLimit == "" {
-		return errors.New("overdraftLimit is required when overdraftLimitEnabled is true")
-	}
-
-	limit, err := decimal.NewFromString(*s.OverdraftLimit)
-	if err != nil || !limit.IsPositive() {
-		return errors.New("overdraftLimit must be a positive decimal")
-	}
-
-	return nil
+	return errs.OrNil()
 }
 
 // UpdateBalanceInput is the input for updating a balance.
@@ -279,13 +280,21 @@ func (input *CreateBalanceInput) Validate() error {
 		return errors.New("input cannot be nil")
 	}
 
+	var errs validation.FieldErrors
+
 	if input.Key == "" {
-		return errors.New("key is required")
+		errs.Append("key", "is required")
 	}
 
 	if input.Settings != nil {
-		return input.Settings.Validate()
+		if err := input.Settings.Validate(); err != nil {
+			// Settings.Validate already returns a FieldErrors with
+			// the per-field messages. Surface its rendered form
+			// under the "settings" namespace so callers see the
+			// hierarchical context.
+			errs.Append("settings", strings.TrimPrefix(err.Error(), "validation failed: "))
+		}
 	}
 
-	return nil
+	return errs.OrNil()
 }

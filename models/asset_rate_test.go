@@ -469,7 +469,11 @@ func TestCreateAssetRateInputValidate(t *testing.T) {
 
 			if tt.wantErr {
 				require.Error(t, err)
-				assert.Equal(t, tt.errMsg, err.Error())
+				// 8C: Validate accumulates field errors. Substring
+				// match instead of full equality so multi-field
+				// cases ("both from and to empty") that surface
+				// MORE diagnostics still pass the contract.
+				assert.Contains(t, err.Error(), tt.errMsg)
 			} else {
 				require.NoError(t, err)
 			}

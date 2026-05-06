@@ -2,6 +2,7 @@ package validation
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
@@ -286,24 +287,44 @@ func TestFieldErrors_Error(t *testing.T) {
 		assert.Empty(t, fe.Error())
 	})
 
-	t.Run("Returns formatted string for single error", func(t *testing.T) {
+	t.Run("Returns flat string for single error with rich context", func(t *testing.T) {
+		// Add() populates Value, so the per-field rich-renderer is used.
 		fe := NewFieldErrors()
 		fe.Add("email", "bad@", "invalid email")
 
 		errStr := fe.Error()
-		assert.Contains(t, errStr, "Validation failed with 1 field errors")
+		assert.True(t, strings.HasPrefix(errStr, "validation failed: "),
+			"expected flat prefix, got: %q", errStr)
 		assert.Contains(t, errStr, "email")
+		assert.Contains(t, errStr, "invalid email")
 	})
 
-	t.Run("Returns formatted string for multiple errors", func(t *testing.T) {
+	t.Run("Returns flat semicolon-joined string for multiple errors", func(t *testing.T) {
 		fe := NewFieldErrors()
 		fe.Add("email", "bad@", "invalid email")
 		fe.Add("name", "", "name required")
 
 		errStr := fe.Error()
-		assert.Contains(t, errStr, "Validation failed with 2 field errors")
-		assert.Contains(t, errStr, "1.")
-		assert.Contains(t, errStr, "2.")
+		assert.True(t, strings.HasPrefix(errStr, "validation failed: "),
+			"expected flat prefix, got: %q", errStr)
+		// Both field errors appear, separated by '; '.
+		assert.Contains(t, errStr, "email")
+		assert.Contains(t, errStr, "name")
+		assert.Contains(t, errStr, "; ")
+	})
+
+	t.Run("Append-only entries render as '<field> <message>'", func(t *testing.T) {
+		// Append() does NOT populate Value/Code/Constraint/Suggestions,
+		// so the flat renderer fires. This is the path the model
+		// Validate() methods use, and it's what preserves the
+		// '<field> <message>' substring contract for tests like
+		// strings.Contains(err.Error(), "name is required").
+		var fe FieldErrors
+		fe.Append("name", "is required")
+		fe.Append("code", "is required")
+
+		errStr := fe.Error()
+		assert.Equal(t, "validation failed: name is required; code is required", errStr)
 	})
 }
 

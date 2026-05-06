@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation/core"
 )
 
@@ -75,22 +76,22 @@ func (input *CreateSegmentInput) Validate() error {
 		return errors.New("input cannot be nil")
 	}
 
+	var errs validation.FieldErrors
+
 	name := strings.TrimSpace(input.Name)
 	if name == "" {
-		return errors.New("name is required")
-	}
-
-	if len(name) > maxSegmentNameLength {
-		return fmt.Errorf("name must be at most %d characters", maxSegmentNameLength)
+		errs.Append("name", "is required")
+	} else if len(name) > maxSegmentNameLength {
+		errs.Append("name", fmt.Sprintf("must be at most %d characters", maxSegmentNameLength))
 	}
 
 	if input.Metadata != nil {
 		if err := core.ValidateMetadata(input.Metadata); err != nil {
-			return fmt.Errorf("invalid metadata: %w", err)
+			errs.Append("metadata", "invalid: "+err.Error())
 		}
 	}
 
-	return nil
+	return errs.OrNil()
 }
 
 // MarshalJSON omits optional create fields when callers leave them unset.
@@ -151,25 +152,29 @@ func (input *UpdateSegmentInput) Validate() error {
 		return errors.New("input cannot be nil")
 	}
 
-	if input.Name != "" && strings.TrimSpace(input.Name) == "" {
-		return errors.New("name must not be blank")
-	}
-
 	if !input.hasChanges() {
 		return errors.New("empty update payload not allowed")
 	}
 
-	if len(strings.TrimSpace(input.Name)) > maxSegmentNameLength {
-		return fmt.Errorf("name must be at most %d characters", maxSegmentNameLength)
+	var errs validation.FieldErrors
+
+	if input.Name != "" {
+		trimmed := strings.TrimSpace(input.Name)
+		switch {
+		case trimmed == "":
+			errs.Append("name", "must not be blank")
+		case len(trimmed) > maxSegmentNameLength:
+			errs.Append("name", fmt.Sprintf("must be at most %d characters", maxSegmentNameLength))
+		}
 	}
 
 	if input.Metadata != nil {
 		if err := core.ValidateMetadata(input.Metadata); err != nil {
-			return fmt.Errorf("invalid metadata: %w", err)
+			errs.Append("metadata", "invalid: "+err.Error())
 		}
 	}
 
-	return nil
+	return errs.OrNil()
 }
 
 func (input *UpdateSegmentInput) hasChanges() bool {

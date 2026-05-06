@@ -46,39 +46,33 @@ func (input *CreateOrganizationInput) Validate() error {
 		return errors.New("input cannot be nil")
 	}
 
+	var errs validation.FieldErrors
+
 	if input.LegalName == "" {
-		return errors.New("legalName is required")
+		errs.Append("legalName", "is required")
+	} else {
+		appendOrganizationStringLength(&errs, "legalName", input.LegalName)
 	}
 
 	if input.LegalDocument == "" {
-		return errors.New("legalDocument is required")
-	}
-
-	if err := validateOrganizationStringLength("legalName", input.LegalName); err != nil {
-		return err
-	}
-
-	if err := validateOrganizationStringLength("legalDocument", input.LegalDocument); err != nil {
-		return err
+		errs.Append("legalDocument", "is required")
+	} else {
+		appendOrganizationStringLength(&errs, "legalDocument", input.LegalDocument)
 	}
 
 	if input.DoingBusinessAs != nil {
-		if err := validateOrganizationStringLength("doingBusinessAs", *input.DoingBusinessAs); err != nil {
-			return err
-		}
+		appendOrganizationStringLength(&errs, "doingBusinessAs", *input.DoingBusinessAs)
 	}
 
-	if err := validateOptionalOrganizationUUID("parentOrganizationId", input.ParentOrganizationID); err != nil {
-		return err
-	}
+	appendOrganizationOptionalUUID(&errs, "parentOrganizationId", input.ParentOrganizationID)
 
 	if input.Metadata != nil {
 		if err := core.ValidateMetadata(input.Metadata); err != nil {
-			return fmt.Errorf("invalid metadata: %w", err)
+			errs.Append("metadata", "invalid: "+err.Error())
 		}
 	}
 
-	return nil
+	return errs.OrNil()
 }
 
 // MarshalJSON omits optional create fields when callers leave them unset.
@@ -114,56 +108,58 @@ type UpdateOrganizationInput struct {
 }
 
 // Validate validates the UpdateOrganizationInput fields.
+//
+// Empty-payload check short-circuits — when nothing is being updated
+// the request is rejected before per-field analysis. Otherwise all
+// field-level violations are accumulated and surfaced together.
 func (input *UpdateOrganizationInput) Validate() error {
 	if input == nil {
 		return errors.New("input cannot be nil")
-	}
-
-	if input.Metadata != nil {
-		if err := core.ValidateMetadata(input.Metadata); err != nil {
-			return fmt.Errorf("invalid metadata: %w", err)
-		}
-	}
-
-	if err := validateOrganizationStringLength("legalName", input.LegalName); err != nil {
-		return err
-	}
-
-	if input.DoingBusinessAs != nil {
-		if err := validateOrganizationStringLength("doingBusinessAs", *input.DoingBusinessAs); err != nil {
-			return err
-		}
-	}
-
-	if err := validateOptionalOrganizationUUID("parentOrganizationId", input.ParentOrganizationID); err != nil {
-		return err
 	}
 
 	if !input.hasChanges() {
 		return errors.New("empty update payload not allowed")
 	}
 
-	return nil
-}
+	var errs validation.FieldErrors
 
-func validateOrganizationStringLength(field, value string) error {
-	if value != "" && utf8.RuneCountInString(value) > maxOrganizationFieldLength {
-		return fmt.Errorf("%s must be at most %d characters", field, maxOrganizationFieldLength)
+	appendOrganizationStringLength(&errs, "legalName", input.LegalName)
+
+	if input.DoingBusinessAs != nil {
+		appendOrganizationStringLength(&errs, "doingBusinessAs", *input.DoingBusinessAs)
 	}
 
-	return nil
+	appendOrganizationOptionalUUID(&errs, "parentOrganizationId", input.ParentOrganizationID)
+
+	if input.Metadata != nil {
+		if err := core.ValidateMetadata(input.Metadata); err != nil {
+			errs.Append("metadata", "invalid: "+err.Error())
+		}
+	}
+
+	return errs.OrNil()
 }
 
-func validateOptionalOrganizationUUID(field string, value *string) error {
+// appendOrganizationStringLength records a length-bound violation onto
+// errs when value exceeds maxOrganizationFieldLength. No-op for empty
+// values (handled by required-field checks at the call site).
+func appendOrganizationStringLength(errs *validation.FieldErrors, field, value string) {
+	if value != "" && utf8.RuneCountInString(value) > maxOrganizationFieldLength {
+		errs.Append(field, fmt.Sprintf("must be at most %d characters", maxOrganizationFieldLength))
+	}
+}
+
+// appendOrganizationOptionalUUID records a UUID-format violation onto
+// errs when a pointer is non-nil and non-empty but holds an invalid
+// value. Both nil pointers and empty strings are no-ops here.
+func appendOrganizationOptionalUUID(errs *validation.FieldErrors, field string, value *string) {
 	if value == nil || *value == "" {
-		return nil
+		return
 	}
 
 	if !validation.IsValidUUID(*value) {
-		return fmt.Errorf("%s must be a valid UUID", field)
+		errs.Append(field, "must be a valid UUID")
 	}
-
-	return nil
 }
 
 func (input *UpdateOrganizationInput) hasChanges() bool {

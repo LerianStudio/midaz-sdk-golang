@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation/core"
 )
 
@@ -89,25 +90,25 @@ func (input *CreatePortfolioInput) Validate() error {
 		return errors.New("input cannot be nil")
 	}
 
-	if input.Name == "" {
-		return errors.New("name is required")
-	}
+	var errs validation.FieldErrors
 
-	if len(input.Name) > maxPortfolioFieldLength {
-		return fmt.Errorf("name must be at most %d characters", maxPortfolioFieldLength)
+	if input.Name == "" {
+		errs.Append("name", "is required")
+	} else if len(input.Name) > maxPortfolioFieldLength {
+		errs.Append("name", fmt.Sprintf("must be at most %d characters", maxPortfolioFieldLength))
 	}
 
 	if len(input.EntityID) > maxPortfolioFieldLength {
-		return fmt.Errorf("entityId must be at most %d characters", maxPortfolioFieldLength)
+		errs.Append("entityId", fmt.Sprintf("must be at most %d characters", maxPortfolioFieldLength))
 	}
 
 	if input.Metadata != nil {
 		if err := core.ValidateMetadata(input.Metadata); err != nil {
-			return fmt.Errorf("invalid metadata: %w", err)
+			errs.Append("metadata", "invalid: "+err.Error())
 		}
 	}
 
-	return nil
+	return errs.OrNil()
 }
 
 // MarshalJSON omits optional create fields when callers leave them unset.
@@ -184,21 +185,23 @@ func (input *UpdatePortfolioInput) Validate() error {
 		return errors.New("empty update payload not allowed")
 	}
 
+	var errs validation.FieldErrors
+
 	if len(input.Name) > maxPortfolioFieldLength {
-		return fmt.Errorf("name must be at most %d characters", maxPortfolioFieldLength)
+		errs.Append("name", fmt.Sprintf("must be at most %d characters", maxPortfolioFieldLength))
 	}
 
 	if len(input.EntityID) > maxPortfolioFieldLength {
-		return fmt.Errorf("entityId must be at most %d characters", maxPortfolioFieldLength)
+		errs.Append("entityId", fmt.Sprintf("must be at most %d characters", maxPortfolioFieldLength))
 	}
 
 	if input.Metadata != nil {
 		if err := core.ValidateMetadata(input.Metadata); err != nil {
-			return fmt.Errorf("invalid metadata: %w", err)
+			errs.Append("metadata", "invalid: "+err.Error())
 		}
 	}
 
-	return nil
+	return errs.OrNil()
 }
 
 func (input *UpdatePortfolioInput) hasChanges() bool {

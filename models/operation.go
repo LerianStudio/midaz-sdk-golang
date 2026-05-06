@@ -6,6 +6,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation/core"
 	"github.com/shopspring/decimal"
 )
@@ -216,17 +217,19 @@ func (input *UpdateOperationInput) Validate() error {
 		return errors.New("empty update payload not allowed")
 	}
 
+	var errs validation.FieldErrors
+
 	if utf8.RuneCountInString(input.Description) > maxOperationDescriptionLength {
-		return fmt.Errorf("description must be at most %d characters", maxOperationDescriptionLength)
+		errs.Append("description", fmt.Sprintf("must be at most %d characters", maxOperationDescriptionLength))
 	}
 
 	if len(input.Metadata) > 0 {
 		if err := core.ValidateMetadata(input.Metadata); err != nil {
-			return fmt.Errorf("invalid metadata: %w", err)
+			errs.Append("metadata", "invalid: "+err.Error())
 		}
 	}
 
-	return nil
+	return errs.OrNil()
 }
 
 // OperationResponse represents a success response containing a single operation.
@@ -398,35 +401,30 @@ func (input *CreateOperationInput) Validate() error {
 		return errors.New("input is required")
 	}
 
-	// Validate required fields
-	if input.Type == "" {
-		return errors.New("type is required")
-	}
+	var errs validation.FieldErrors
 
-	// Validate type is a valid operation type
-	if input.Type != string(OperationTypeDebit) && input.Type != string(OperationTypeCredit) {
-		return fmt.Errorf("type must be either %s or %s, got %s", OperationTypeDebit, OperationTypeCredit, input.Type)
+	switch {
+	case input.Type == "":
+		errs.Append("type", "is required")
+	case input.Type != string(OperationTypeDebit) && input.Type != string(OperationTypeCredit):
+		errs.Append("type", fmt.Sprintf("must be either %s or %s, got %s", OperationTypeDebit, OperationTypeCredit, input.Type))
 	}
 
 	if input.AccountID == "" {
-		return errors.New("accountId is required")
+		errs.Append("accountId", "is required")
 	}
 
-	// Validate amount
 	if input.Amount == nil {
-		return errors.New("amount is required")
+		errs.Append("amount", "is required")
+	} else if err := validatePositiveDecimalString(input.Amount, "amount"); err != nil {
+		errs.Append("amount", "invalid: "+err.Error())
 	}
 
-	if err := validatePositiveDecimalString(input.Amount, "amount"); err != nil {
-		return fmt.Errorf("invalid amount: %w", err)
-	}
-
-	// Validate asset code if provided
 	if input.AssetCode == "" {
-		return errors.New("assetCode is required")
+		errs.Append("assetCode", "is required")
 	}
 
-	return nil
+	return errs.OrNil()
 }
 
 // NewCreateOperationInput creates a new CreateOperationInput with the required fields.

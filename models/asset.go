@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation/core"
 )
 
@@ -104,35 +105,33 @@ func (input *CreateAssetInput) Validate() error {
 		return errors.New("input cannot be nil")
 	}
 
+	var errs validation.FieldErrors
+
 	name := strings.TrimSpace(input.Name)
 	if name == "" {
-		return errors.New("name is required")
-	}
-
-	if len(name) > maxAssetNameLength {
-		return fmt.Errorf("name must be at most %d characters", maxAssetNameLength)
+		errs.Append("name", "is required")
+	} else if len(name) > maxAssetNameLength {
+		errs.Append("name", fmt.Sprintf("must be at most %d characters", maxAssetNameLength))
 	}
 
 	code := strings.TrimSpace(input.Code)
 	if code == "" {
-		return errors.New("code is required")
-	}
-
-	if len(code) > maxAssetCodeLength {
-		return fmt.Errorf("code must be at most %d characters", maxAssetCodeLength)
+		errs.Append("code", "is required")
+	} else if len(code) > maxAssetCodeLength {
+		errs.Append("code", fmt.Sprintf("must be at most %d characters", maxAssetCodeLength))
 	}
 
 	if strings.TrimSpace(input.Type) == "" {
-		return errors.New("type is required")
+		errs.Append("type", "is required")
 	}
 
 	if input.Metadata != nil {
 		if err := core.ValidateMetadata(input.Metadata); err != nil {
-			return fmt.Errorf("invalid metadata: %w", err)
+			errs.Append("metadata", "invalid: "+err.Error())
 		}
 	}
 
-	return nil
+	return errs.OrNil()
 }
 
 // MarshalJSON omits optional create fields when callers leave them unset.
@@ -195,25 +194,29 @@ func (input *UpdateAssetInput) Validate() error {
 		return errors.New("input cannot be nil")
 	}
 
-	if input.Name != "" && strings.TrimSpace(input.Name) == "" {
-		return errors.New("name must not be blank")
-	}
-
 	if !input.hasChanges() {
 		return errors.New("empty update payload not allowed")
 	}
 
-	if len(strings.TrimSpace(input.Name)) > maxAssetNameLength {
-		return fmt.Errorf("name must be at most %d characters", maxAssetNameLength)
+	var errs validation.FieldErrors
+
+	if input.Name != "" {
+		trimmed := strings.TrimSpace(input.Name)
+		switch {
+		case trimmed == "":
+			errs.Append("name", "must not be blank")
+		case len(trimmed) > maxAssetNameLength:
+			errs.Append("name", fmt.Sprintf("must be at most %d characters", maxAssetNameLength))
+		}
 	}
 
 	if input.Metadata != nil {
 		if err := core.ValidateMetadata(input.Metadata); err != nil {
-			return fmt.Errorf("invalid metadata: %w", err)
+			errs.Append("metadata", "invalid: "+err.Error())
 		}
 	}
 
-	return nil
+	return errs.OrNil()
 }
 
 func (input *UpdateAssetInput) hasChanges() bool {

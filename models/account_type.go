@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation/core"
 	"github.com/google/uuid"
 )
@@ -95,25 +96,25 @@ func (input *CreateAccountTypeInput) Validate() error {
 		return errors.New("input cannot be nil")
 	}
 
+	var errs validation.FieldErrors
+
 	if input.Name == "" {
-		return errors.New("name is required")
+		errs.Append("name", "is required")
 	}
 
 	if input.KeyValue == "" {
-		return errors.New("keyValue is required")
+		errs.Append("keyValue", "is required")
 	}
 
-	if err := validateAccountTypeLengths(input.Name, input.Description, input.KeyValue, true); err != nil {
-		return err
-	}
+	appendAccountTypeLengths(&errs, input.Name, input.Description, input.KeyValue, true)
 
 	if input.Metadata != nil {
 		if err := core.ValidateMetadata(input.Metadata); err != nil {
-			return fmt.Errorf("invalid metadata: %w", err)
+			errs.Append("metadata", "invalid: "+err.Error())
 		}
 	}
 
-	return nil
+	return errs.OrNil()
 }
 
 func (input *UpdateAccountTypeInput) hasChanges() bool {
@@ -124,20 +125,21 @@ func (input *UpdateAccountTypeInput) hasChanges() bool {
 	return input.Name != "" || input.Description != "" || input.Metadata != nil
 }
 
-func validateAccountTypeLengths(name, description, keyValue string, validateKey bool) error {
+// appendAccountTypeLengths records all length-bound violations onto errs.
+// validateKey gates the keyValue check (false on Update where keyValue
+// is immutable and not part of the patch payload).
+func appendAccountTypeLengths(errs *validation.FieldErrors, name, description, keyValue string, validateKey bool) {
 	if len(name) > maxAccountTypeNameLength {
-		return fmt.Errorf("name must be at most %d characters", maxAccountTypeNameLength)
+		errs.Append("name", fmt.Sprintf("must be at most %d characters", maxAccountTypeNameLength))
 	}
 
 	if len(description) > maxAccountTypeDescriptionLength {
-		return fmt.Errorf("description must be at most %d characters", maxAccountTypeDescriptionLength)
+		errs.Append("description", fmt.Sprintf("must be at most %d characters", maxAccountTypeDescriptionLength))
 	}
 
 	if validateKey && len(keyValue) > maxAccountTypeKeyValueLength {
-		return fmt.Errorf("keyValue must be at most %d characters", maxAccountTypeKeyValueLength)
+		errs.Append("keyValue", fmt.Sprintf("must be at most %d characters", maxAccountTypeKeyValueLength))
 	}
-
-	return nil
 }
 
 // MarshalJSON omits optional create fields when callers leave them unset.
@@ -165,17 +167,17 @@ func (input *UpdateAccountTypeInput) Validate() error {
 		return errors.New("empty update payload not allowed")
 	}
 
-	if err := validateAccountTypeLengths(input.Name, input.Description, "", false); err != nil {
-		return err
-	}
+	var errs validation.FieldErrors
+
+	appendAccountTypeLengths(&errs, input.Name, input.Description, "", false)
 
 	if input.Metadata != nil {
 		if err := core.ValidateMetadata(input.Metadata); err != nil {
-			return fmt.Errorf("invalid metadata: %w", err)
+			errs.Append("metadata", "invalid: "+err.Error())
 		}
 	}
 
-	return nil
+	return errs.OrNil()
 }
 
 // NewCreateAccountTypeInput creates a new CreateAccountTypeInput with required fields.

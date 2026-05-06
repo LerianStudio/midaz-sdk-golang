@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation/core"
 )
 
@@ -169,19 +170,32 @@ func (input *CreateAliasInput) Validate() error {
 		return errors.New("input is required")
 	}
 
+	var errs validation.FieldErrors
+
 	if strings.TrimSpace(input.LedgerID) == "" {
-		return errors.New("ledgerId is required")
+		errs.Append("ledgerId", "is required")
 	}
 
 	if strings.TrimSpace(input.AccountID) == "" {
-		return errors.New("accountId is required")
+		errs.Append("accountId", "is required")
 	}
 
 	if err := validateAliasMetadata(input.Metadata); err != nil {
-		return err
+		// validateAliasMetadata returns "invalid metadata: <inner>".
+		// Strip the prefix to keep the field render clean.
+		msg := strings.TrimPrefix(err.Error(), "invalid metadata: ")
+		errs.Append("metadata", "invalid: "+msg)
 	}
 
-	return validateRelatedParties(input.RelatedParties)
+	if err := validateRelatedParties(input.RelatedParties); err != nil {
+		// validateRelatedParties already includes the field path
+		// (e.g. "relatedParties[0].document is required") so we
+		// surface it as a single field-level entry under
+		// "relatedParties" without re-prefixing.
+		errs.Append("relatedParties", err.Error())
+	}
+
+	return errs.OrNil()
 }
 
 // WithNullFields marks fields that should be sent as explicit JSON null in PATCH requests.
@@ -318,19 +332,26 @@ func (input *UpdateAliasInput) Validate() error {
 		return errors.New("empty update payload not allowed")
 	}
 
+	var errs validation.FieldErrors
+
 	if err := validateAliasMetadata(input.Metadata); err != nil {
-		return err
+		msg := strings.TrimPrefix(err.Error(), "invalid metadata: ")
+		errs.Append("metadata", "invalid: "+msg)
 	}
 
 	if err := validateRelatedParties(input.RelatedParties); err != nil {
-		return err
+		errs.Append("relatedParties", err.Error())
 	}
 
 	if err := validateCRMNullFields(input.NullFields, validAliasNullFields); err != nil {
-		return err
+		errs.Append("nullFields", err.Error())
 	}
 
-	return input.validateNullFieldConflicts()
+	if err := input.validateNullFieldConflicts(); err != nil {
+		errs.Append("nullFields", err.Error())
+	}
+
+	return errs.OrNil()
 }
 
 func validateAliasMetadata(metadata map[string]any) error {

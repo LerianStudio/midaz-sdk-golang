@@ -130,67 +130,45 @@ type CreateAccountInput struct {
 //     custom (non-ISO-4217) codes are accepted because the backend owns
 //     the canonical asset registry.
 //   - Type is required.
-//
-//nolint:gocyclo,cyclop
 func (input *CreateAccountInput) Validate() error {
 	if input == nil {
 		return errors.New("input cannot be nil")
 	}
 
-	if err := validateAccountStringLength("name", input.Name); err != nil {
-		return err
-	}
+	var errs validation.FieldErrors
+
+	appendStringLength(&errs, "name", input.Name)
 
 	if input.EntityID != nil {
-		if err := validateAccountStringLength("entityId", *input.EntityID); err != nil {
-			return err
-		}
+		appendStringLength(&errs, "entityId", *input.EntityID)
 	}
 
-	if err := validateOptionalUUIDPtr("parentAccountId", input.ParentAccountID); err != nil {
-		return err
-	}
-
-	if err := validateOptionalUUIDPtr("portfolioId", input.PortfolioID); err != nil {
-		return err
-	}
-
-	if err := validateOptionalUUIDPtr("segmentId", input.SegmentID); err != nil {
-		return err
-	}
+	appendOptionalUUID(&errs, "parentAccountId", input.ParentAccountID)
+	appendOptionalUUID(&errs, "portfolioId", input.PortfolioID)
+	appendOptionalUUID(&errs, "segmentId", input.SegmentID)
 
 	if input.AssetCode == "" {
-		return errors.New("asset code is required")
+		errs.Append("assetCode", "asset code is required")
 	}
+	// Note: ISO-4217 currency-code validation is intentionally not
+	// enforced client-side. Callers may use custom asset codes which
+	// the server validates against the configured asset universe.
 
-	// Validate asset code using the core validation package
-	if err := core.ValidateCurrencyCode(input.AssetCode); err != nil { //nolint:revive,staticcheck // Intentionally empty to allow custom asset codes
-		// If not a valid currency, it might be a custom asset code
-		// which should be validated by the backend
-	}
+	appendAccountTypeContract(&errs, input.Type)
 
-	if input.Type == "" {
-		return errors.New("account type is required")
-	}
-
-	if err := validateAccountTypeContract(input.Type); err != nil {
-		return err
-	}
-
-	// Validate alias if provided using the core validation package
 	if input.Alias != nil && *input.Alias != "" {
 		if err := core.ValidateAccountAlias(*input.Alias); err != nil {
-			return err
+			errs.Append("alias", err.Error())
 		}
 	}
 
 	if input.Metadata != nil {
 		if err := core.ValidateMetadata(input.Metadata); err != nil {
-			return fmt.Errorf("invalid metadata: %w", err)
+			errs.Append("metadata", "invalid: "+err.Error())
 		}
 	}
 
-	return nil
+	return errs.OrNil()
 }
 
 // NewCreateAccountInput creates a new CreateAccountInput with required fields.
@@ -385,46 +363,39 @@ type UpdateAccountInput struct {
 }
 
 // Validate checks if the UpdateAccountInput meets the validation requirements.
-// It returns an error if any of the validation checks fail.
+// All field-level violations are accumulated and surfaced together.
+// The empty-payload check (no changes set) is the only gate that
+// short-circuits — when nothing is being updated the request is
+// rejected before per-field analysis.
 func (input *UpdateAccountInput) Validate() error {
 	if input == nil {
 		return errors.New("input cannot be nil")
-	}
-
-	if err := validateAccountStringLength("name", input.Name); err != nil {
-		return err
-	}
-
-	if input.EntityID != nil {
-		if err := validateAccountStringLength("entityId", *input.EntityID); err != nil {
-			return err
-		}
-	}
-
-	if err := validateOptionalUUIDPtr("portfolioId", input.PortfolioID); err != nil {
-		return err
-	}
-
-	if err := validateOptionalUUIDPtr("segmentId", input.SegmentID); err != nil {
-		return err
 	}
 
 	if !input.hasChanges() {
 		return errors.New("empty update payload not allowed")
 	}
 
-	// Validate status if provided
-	// Status is an enum type, so we don't need additional validation here
-	// The API will validate if the status is valid
+	var errs validation.FieldErrors
 
-	// Validate metadata if provided
+	appendStringLength(&errs, "name", input.Name)
+
+	if input.EntityID != nil {
+		appendStringLength(&errs, "entityId", *input.EntityID)
+	}
+
+	appendOptionalUUID(&errs, "portfolioId", input.PortfolioID)
+	appendOptionalUUID(&errs, "segmentId", input.SegmentID)
+
+	// Status is an enum type validated by the server.
+
 	if input.Metadata != nil {
 		if err := core.ValidateMetadata(input.Metadata); err != nil {
-			return fmt.Errorf("invalid metadata: %w", err)
+			errs.Append("metadata", "invalid: "+err.Error())
 		}
 	}
 
-	return nil
+	return errs.OrNil()
 }
 
 // MarshalJSON emits only fields explicitly set on the SDK PATCH input.
@@ -454,44 +425,44 @@ func (input UpdateAccountInput) MarshalJSON() ([]byte, error) {
 	return json.Marshal(fields)
 }
 
-func validateAccountStringLength(field, value string) error {
+// appendStringLength records a length-bound violation onto errs when
+// value exceeds maxAccountFieldLength. No-op for empty values (those are
+// handled by required-field checks at the call site).
+func appendStringLength(errs *validation.FieldErrors, field, value string) {
 	if value != "" && len(value) > maxAccountFieldLength {
-		return fmt.Errorf("%s must be at most %d characters", field, maxAccountFieldLength)
+		errs.Append(field, fmt.Sprintf("must be at most %d characters", maxAccountFieldLength))
 	}
-
-	return nil
 }
 
-func validateOptionalUUIDPtr(field string, value *string) error {
+// appendOptionalUUID records a UUID-format violation onto errs when a
+// pointer is non-nil but holds an invalid value. No-op for nil pointers.
+func appendOptionalUUID(errs *validation.FieldErrors, field string, value *string) {
 	if value == nil {
-		return nil
+		return
 	}
 
-	if *value == "" {
-		return fmt.Errorf("%s must be a valid UUID", field)
+	if *value == "" || !validation.IsValidUUID(*value) {
+		errs.Append(field, "must be a valid UUID")
 	}
-
-	if !validation.IsValidUUID(*value) {
-		return fmt.Errorf("%s must be a valid UUID", field)
-	}
-
-	return nil
 }
 
-func validateAccountTypeContract(accountType string) error {
+// appendAccountTypeContract records the account-type-specific contract
+// violations onto errs. Required, length-bounded, and the "external"
+// type is forbidden client-side because that name is reserved for
+// system-managed accounts (see audit 7E).
+func appendAccountTypeContract(errs *validation.FieldErrors, accountType string) {
 	if accountType == "" {
-		return errors.New("account type is required")
+		errs.Append("type", "account type is required")
+		return
 	}
 
 	if len(accountType) > maxAccountFieldLength {
-		return fmt.Errorf("type must be at most %d characters", maxAccountFieldLength)
+		errs.Append("type", fmt.Sprintf("must be at most %d characters", maxAccountFieldLength))
 	}
 
 	if accountType == "external" {
-		return errors.New("type cannot be external")
+		errs.Append("type", "cannot be external")
 	}
-
-	return nil
 }
 
 func (input *UpdateAccountInput) hasChanges() bool {

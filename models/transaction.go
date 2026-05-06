@@ -409,60 +409,58 @@ func (input *CreateTransactionInput) Validate() error {
 
 	input.ensureSendFromLegacyOperations()
 
-	if err := validateTransactionCreateCommon(input.Description, input.Code, input.Metadata, input.Route, input.RouteID, input.TransactionDate, input.Pending); err != nil {
-		return err
-	}
+	var errs validation.FieldErrors
+
+	appendTransactionCreateCommon(&errs, input.Description, input.Code, input.Metadata,
+		input.Route, input.RouteID, input.TransactionDate, input.Pending)
 
 	if input.Send == nil {
-		return errors.New("send is required")
+		errs.Append("send", "is required")
+	} else if err := input.Send.Validate(); err != nil {
+		errs.Append("send", "invalid: "+err.Error())
 	}
 
-	if err := input.Send.Validate(); err != nil {
-		return fmt.Errorf("invalid send: %w", err)
-	}
-
-	return nil
+	return errs.OrNil()
 }
 
-func validateTransactionCreateCommon(description, code string, metadata map[string]any, route, routeID, transactionDate string, pending bool) error {
+// appendTransactionCreateCommon collects the field-level validation
+// problems shared by every transaction-create flow (Create, Inflow,
+// Outflow, Annotation). Each helper-discovered violation lands on errs
+// under its proper field name; nothing short-circuits.
+func appendTransactionCreateCommon(errs *validation.FieldErrors, description, code string, metadata map[string]any, route, routeID, transactionDate string, pending bool) {
 	if len(description) > 256 {
-		return errors.New("description must be at most 256 characters")
+		errs.Append("description", "must be at most 256 characters")
 	}
 
 	if len(code) > 100 {
-		return errors.New("code must be at most 100 characters")
+		errs.Append("code", "must be at most 100 characters")
 	}
 
 	if route != "" && len(route) > 250 {
-		return errors.New("route must be at most 250 characters")
+		errs.Append("route", "must be at most 250 characters")
 	}
 
 	if routeID != "" && !validation.IsValidUUID(routeID) {
-		return errors.New("routeId must be a valid UUID")
+		errs.Append("routeId", "must be a valid UUID")
 	}
 
 	if transactionDate != "" {
 		parsedDate, err := parseTransactionDate(transactionDate)
-		if err != nil {
-			return err
-		}
-
-		if parsedDate.After(time.Now()) {
-			return errors.New("transactionDate cannot be in the future")
-		}
-
-		if pending {
-			return errors.New("pending transactions cannot have a custom transactionDate")
+		switch {
+		case err != nil:
+			errs.Append("transactionDate", err.Error())
+		case parsedDate.After(time.Now()):
+			errs.Append("transactionDate", "cannot be in the future")
+		case pending:
+			errs.Append("transactionDate", "pending transactions cannot have a custom transactionDate")
 		}
 	}
 
 	if len(metadata) > 0 {
 		if err := core.ValidateMetadata(metadata); err != nil {
-			return fmt.Errorf("invalid metadata: %w", err)
+			errs.Append("metadata", "invalid: "+err.Error())
 		}
 	}
-
-	return nil
 }
 
 func parseTransactionDate(value string) (time.Time, error) {
@@ -622,132 +620,131 @@ func (input *CreateTransactionInput) WithOperations(operations []CreateOperation
 }
 
 // Validate checks that the SendInput meets all validation requirements.
-// It returns an error if any of the validation checks fail.
+// It returns an error if any of the validation checks fail. Field-level
+// violations are accumulated.
 func (input *SendInput) Validate() error {
 	if input == nil {
 		return errors.New("send is required")
 	}
 
-	// Validate asset code
+	var errs validation.FieldErrors
+
 	if input.Asset == "" {
-		return errors.New("asset is required")
+		errs.Append("asset", "is required")
 	}
 
-	// Validate value
 	if err := validatePositiveDecimalString(input.Value, "value"); err != nil {
-		return err
+		errs.Append("value", err.Error())
 	}
 
-	// Validate source
 	if input.Source == nil {
-		return errors.New("source is required")
+		errs.Append("source", "is required")
+	} else if err := input.Source.Validate(); err != nil {
+		errs.Append("source", "invalid: "+err.Error())
 	}
 
-	if err := input.Source.Validate(); err != nil {
-		return fmt.Errorf("invalid source: %w", err)
-	}
-
-	// Validate distribute
 	if input.Distribute == nil {
-		return errors.New("distribute is required")
+		errs.Append("distribute", "is required")
+	} else if err := input.Distribute.Validate(); err != nil {
+		errs.Append("distribute", "invalid: "+err.Error())
 	}
 
-	if err := input.Distribute.Validate(); err != nil {
-		return fmt.Errorf("invalid distribute: %w", err)
-	}
-
-	return nil
+	return errs.OrNil()
 }
 
 // Validate checks that the SourceInput meets all validation requirements.
-// It returns an error if any of the validation checks fail.
+// All per-entry violations are accumulated.
 func (input *SourceInput) Validate() error {
 	if input == nil {
 		return errors.New("source is required")
 	}
 
-	// Validate from
 	if len(input.From) == 0 {
 		return errors.New("from is required")
 	}
 
-	// Validate each from
+	var errs validation.FieldErrors
+
 	for i, from := range input.From {
 		if err := from.Validate(); err != nil {
-			return fmt.Errorf("invalid from at index %d: %w", i, err)
+			errs.Append(fmt.Sprintf("from[%d]", i), "invalid: "+err.Error())
 		}
 	}
 
-	return nil
+	return errs.OrNil()
 }
 
 // Validate checks that the DistributeInput meets all validation requirements.
-// It returns an error if any of the validation checks fail.
+// All per-entry violations are accumulated.
 func (input *DistributeInput) Validate() error {
 	if input == nil {
 		return errors.New("distribute is required")
 	}
 
-	// Validate to
 	if len(input.To) == 0 {
 		return errors.New("to is required")
 	}
 
-	// Validate each to
+	var errs validation.FieldErrors
+
 	for i, to := range input.To {
 		if err := to.Validate(); err != nil {
-			return fmt.Errorf("invalid to at index %d: %w", i, err)
+			errs.Append(fmt.Sprintf("to[%d]", i), "invalid: "+err.Error())
 		}
 	}
 
-	return nil
+	return errs.OrNil()
 }
 
 // Validate checks that the FromToInput meets all validation requirements.
-// It returns an error if any of the validation checks fail.
+// Field-level violations are accumulated.
 func (input *FromToInput) Validate() error {
 	if input == nil {
 		return errors.New("from/to entry is required")
 	}
 
-	// Validate account
+	var errs validation.FieldErrors
+
 	if input.Account == "" && input.AccountAlias == "" {
-		return errors.New("account is required")
+		errs.Append("account", "is required")
 	}
 
-	// Validate amount
 	if err := input.Amount.Validate(); err != nil {
-		return fmt.Errorf("invalid amount: %w", err)
+		errs.Append("amount", "invalid: "+err.Error())
 	}
 
 	if input.RouteID != nil && strings.TrimSpace(*input.RouteID) != "" {
 		if !validation.IsValidUUID(*input.RouteID) {
-			return errors.New("routeId must be a valid UUID")
+			errs.Append("routeId", "must be a valid UUID")
 		}
 	}
 
 	if len(input.Metadata) > 0 {
 		if err := core.ValidateMetadata(input.Metadata); err != nil {
-			return fmt.Errorf("invalid metadata: %w", err)
+			errs.Append("metadata", "invalid: "+err.Error())
 		}
 	}
 
-	return nil
+	return errs.OrNil()
 }
 
 // Validate checks that the AmountInput meets all validation requirements.
-// It returns an error if any of the validation checks fail.
 func (input *AmountInput) Validate() error {
 	if input == nil {
 		return errors.New("amount is required")
 	}
 
-	// Validate asset
+	var errs validation.FieldErrors
+
 	if input.Asset == "" {
-		return errors.New("asset is required")
+		errs.Append("asset", "is required")
 	}
 
-	return validatePositiveDecimalString(input.Value, "value")
+	if err := validatePositiveDecimalString(input.Value, "value"); err != nil {
+		errs.Append("value", err.Error())
+	}
+
+	return errs.OrNil()
 }
 
 // ToLibTransaction converts a CreateTransactionInput into the loosely-typed
@@ -1144,19 +1141,19 @@ func (input *UpdateTransactionInput) Validate() error {
 		return errors.New("empty update payload not allowed")
 	}
 
-	// Validate description length if provided
+	var errs validation.FieldErrors
+
 	if input.Description != "" && len(input.Description) > 256 {
-		return errors.New("description must not exceed 256 characters")
+		errs.Append("description", "must not exceed 256 characters")
 	}
 
-	// Validate metadata if provided
 	if input.Metadata != nil {
 		if err := core.ValidateMetadata(input.Metadata); err != nil {
-			return fmt.Errorf("invalid metadata: %w", err)
+			errs.Append("metadata", "invalid: "+err.Error())
 		}
 	}
 
-	return nil
+	return errs.OrNil()
 }
 
 // hasChanges reports whether the update payload contains any actionable
@@ -1375,27 +1372,29 @@ func (input *CreateInflowInput) Validate() error {
 		return errors.New("send is required")
 	}
 
-	if err := validateTransactionCreateCommon(input.Description, input.Code, input.Metadata, input.Route, input.RouteID, input.TransactionDate, false); err != nil {
-		return err
-	}
+	var errs validation.FieldErrors
+
+	appendTransactionCreateCommon(&errs, input.Description, input.Code, input.Metadata,
+		input.Route, input.RouteID, input.TransactionDate, false)
 
 	if input.Send.Asset == "" {
-		return errors.New("asset is required")
+		errs.Append("asset", "is required")
 	}
 
 	if err := validatePositiveDecimalString(input.Send.Value, "value"); err != nil {
-		return err
+		errs.Append("value", err.Error())
 	}
 
-	if input.Send.Distribute == nil || len(input.Send.Distribute.To) == 0 {
-		return errors.New("distribute.to is required")
+	switch {
+	case input.Send.Distribute == nil || len(input.Send.Distribute.To) == 0:
+		errs.Append("distribute.to", "is required")
+	default:
+		if err := input.Send.Distribute.Validate(); err != nil {
+			errs.Append("distribute", "invalid: "+err.Error())
+		}
 	}
 
-	if err := input.Send.Distribute.Validate(); err != nil {
-		return fmt.Errorf("invalid distribute: %w", err)
-	}
-
-	return nil
+	return errs.OrNil()
 }
 
 // ToMap converts a CreateInflowInput to a map for API requests.
@@ -1562,27 +1561,29 @@ func (input *CreateOutflowInput) Validate() error {
 		return errors.New("send is required")
 	}
 
-	if err := validateTransactionCreateCommon(input.Description, input.Code, input.Metadata, input.Route, input.RouteID, input.TransactionDate, input.Pending); err != nil {
-		return err
-	}
+	var errs validation.FieldErrors
+
+	appendTransactionCreateCommon(&errs, input.Description, input.Code, input.Metadata,
+		input.Route, input.RouteID, input.TransactionDate, input.Pending)
 
 	if input.Send.Asset == "" {
-		return errors.New("asset is required")
+		errs.Append("asset", "is required")
 	}
 
 	if err := validatePositiveDecimalString(input.Send.Value, "value"); err != nil {
-		return err
+		errs.Append("value", err.Error())
 	}
 
-	if input.Send.Source == nil || len(input.Send.Source.From) == 0 {
-		return errors.New("source.from is required")
+	switch {
+	case input.Send.Source == nil || len(input.Send.Source.From) == 0:
+		errs.Append("source.from", "is required")
+	default:
+		if err := input.Send.Source.Validate(); err != nil {
+			errs.Append("source", "invalid: "+err.Error())
+		}
 	}
 
-	if err := input.Send.Source.Validate(); err != nil {
-		return fmt.Errorf("invalid source: %w", err)
-	}
-
-	return nil
+	return errs.OrNil()
 }
 
 // ToMap converts a CreateOutflowInput to a map for API requests.
@@ -1640,21 +1641,18 @@ func (input *CreateAnnotationInput) Validate() error {
 		return errors.New("input is required")
 	}
 
-	if err := validateTransactionCreateCommon(input.Description, input.Code, input.Metadata, input.Route, input.RouteID, input.TransactionDate, input.Pending); err != nil {
-		return err
-	}
+	var errs validation.FieldErrors
+
+	appendTransactionCreateCommon(&errs, input.Description, input.Code, input.Metadata,
+		input.Route, input.RouteID, input.TransactionDate, input.Pending)
 
 	if input.Send == nil {
-		return errors.New("send is required")
+		errs.Append("send", "is required")
+	} else if err := input.Send.Validate(); err != nil {
+		errs.Append("send", "invalid: "+err.Error())
 	}
 
-	if input.Send != nil {
-		if err := input.Send.Validate(); err != nil {
-			return fmt.Errorf("invalid send: %w", err)
-		}
-	}
-
-	return nil
+	return errs.OrNil()
 }
 
 // ToLibTransaction converts a CreateAnnotationInput to the backend transaction payload.

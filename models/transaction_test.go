@@ -2527,7 +2527,8 @@ func TestCreateTransactionInput_SendValidation(t *testing.T) {
 				},
 			},
 			wantErr: true,
-			errMsg:  "invalid send",
+			// 8C: format is "send invalid: <inner>" via accumulator.
+			errMsg: "send invalid",
 		},
 	}
 

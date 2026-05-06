@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation/core"
 	"github.com/google/uuid"
 )
@@ -161,79 +162,69 @@ func (input *CreateAssetRateInput) WithMetadata(metadata map[string]any) *Create
 	return input
 }
 
-// Validate validates the CreateAssetRateInput fields.
+// Validate validates the CreateAssetRateInput fields. All field-level
+// violations are accumulated and surfaced together.
 func (input *CreateAssetRateInput) Validate() error {
 	if input == nil {
 		return errors.New("input is required")
 	}
 
-	if err := input.validateAssetCodes(); err != nil {
-		return err
-	}
+	var errs validation.FieldErrors
 
-	if err := input.validateRateFields(); err != nil {
-		return err
-	}
+	input.appendAssetCodeErrors(&errs)
+	input.appendRateFieldErrors(&errs)
+	input.appendOptionalFieldErrors(&errs)
 
-	return input.validateOptionalFields()
+	return errs.OrNil()
 }
 
-func (input *CreateAssetRateInput) validateAssetCodes() error {
-	if input.From == "" {
-		return errors.New("from asset code is required")
+func (input *CreateAssetRateInput) appendAssetCodeErrors(errs *validation.FieldErrors) {
+	switch {
+	case input.From == "":
+		errs.Append("from", "asset code is required")
+	case len(input.From) > maxAssetRateCodeLength:
+		errs.Append("from", fmt.Sprintf("asset code must be at most %d characters", maxAssetRateCodeLength))
 	}
 
-	if len(input.From) > maxAssetRateCodeLength {
-		return fmt.Errorf("from asset code must be at most %d characters", maxAssetRateCodeLength)
+	switch {
+	case input.To == "":
+		errs.Append("to", "asset code is required")
+	case len(input.To) > maxAssetRateCodeLength:
+		errs.Append("to", fmt.Sprintf("asset code must be at most %d characters", maxAssetRateCodeLength))
 	}
-
-	if input.To == "" {
-		return errors.New("to asset code is required")
-	}
-
-	if len(input.To) > maxAssetRateCodeLength {
-		return fmt.Errorf("to asset code must be at most %d characters", maxAssetRateCodeLength)
-	}
-
-	return nil
 }
 
-func (input *CreateAssetRateInput) validateRateFields() error {
+func (input *CreateAssetRateInput) appendRateFieldErrors(errs *validation.FieldErrors) {
 	if input.Rate <= 0 {
-		return errors.New("rate must be greater than zero")
+		errs.Append("rate", "must be greater than zero")
 	}
 
-	if input.Scale < 0 {
-		return errors.New("scale must be non-negative")
+	switch {
+	case input.Scale < 0:
+		errs.Append("scale", "must be non-negative")
+	case input.Scale > maxAssetRateScale:
+		errs.Append("scale", fmt.Sprintf("must be at most %d", maxAssetRateScale))
 	}
-
-	if input.Scale > maxAssetRateScale {
-		return fmt.Errorf("scale must be at most %d", maxAssetRateScale)
-	}
-
-	return nil
 }
 
-func (input *CreateAssetRateInput) validateOptionalFields() error {
+func (input *CreateAssetRateInput) appendOptionalFieldErrors(errs *validation.FieldErrors) {
 	if input.Source != nil && len(*input.Source) > maxAssetRateSourceLength {
-		return fmt.Errorf("source must be at most %d characters", maxAssetRateSourceLength)
+		errs.Append("source", fmt.Sprintf("must be at most %d characters", maxAssetRateSourceLength))
 	}
 
 	if input.TTL != nil && *input.TTL < 0 {
-		return errors.New("ttl must be non-negative")
+		errs.Append("ttl", "must be non-negative")
 	}
 
 	if input.ExternalID != nil && strings.TrimSpace(*input.ExternalID) != "" {
 		if _, err := uuid.Parse(*input.ExternalID); err != nil {
-			return fmt.Errorf("externalID must be a valid UUID: %w", err)
+			errs.Append("externalID", "must be a valid UUID: "+err.Error())
 		}
 	}
 
 	if input.Metadata != nil {
 		if err := core.ValidateMetadata(input.Metadata); err != nil {
-			return fmt.Errorf("invalid metadata: %w", err)
+			errs.Append("metadata", "invalid: "+err.Error())
 		}
 	}
-
-	return nil
 }

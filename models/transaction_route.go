@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation/core"
 	"github.com/google/uuid"
 )
@@ -41,33 +42,33 @@ func (input *CreateTransactionRouteInput) Validate() error {
 		return errors.New("input is required")
 	}
 
-	if input.Title == "" {
-		return errors.New("title is required")
-	}
-
-	if err := validateRouteText(input.Title, maxRouteTitleLength, "title"); err != nil {
-		return err
-	}
-
-	if err := validateRouteText(input.Description, maxRouteDescriptionLength, "description"); err != nil {
-		return err
-	}
-
+	// parseErr from constructor takes precedence — caller passed
+	// malformed UUIDs and the rest of validation is moot.
 	if input.parseErr != nil {
 		return input.parseErr
 	}
 
+	var errs validation.FieldErrors
+
+	if input.Title == "" {
+		errs.Append("title", "is required")
+	} else {
+		appendRouteTextLength(&errs, input.Title, maxRouteTitleLength, "title")
+	}
+
+	appendRouteTextLength(&errs, input.Description, maxRouteDescriptionLength, "description")
+
 	if len(input.OperationRoutes) == 0 {
-		return errors.New("operationRoutes is required")
+		errs.Append("operationRoutes", "is required")
 	}
 
 	if input.Metadata != nil {
 		if err := core.ValidateMetadata(input.Metadata); err != nil {
-			return fmt.Errorf("invalid metadata: %w", err)
+			errs.Append("metadata", "invalid: "+err.Error())
 		}
 	}
 
-	return nil
+	return errs.OrNil()
 }
 
 // UpdateTransactionRouteInput is the SDK-native transaction-route patch payload.
@@ -88,21 +89,18 @@ func (input *UpdateTransactionRouteInput) Validate() error {
 		return errors.New("empty update payload not allowed")
 	}
 
-	if err := validateRouteText(input.Title, maxRouteTitleLength, "title"); err != nil {
-		return err
-	}
+	var errs validation.FieldErrors
 
-	if err := validateRouteText(input.Description, maxRouteDescriptionLength, "description"); err != nil {
-		return err
-	}
+	appendRouteTextLength(&errs, input.Title, maxRouteTitleLength, "title")
+	appendRouteTextLength(&errs, input.Description, maxRouteDescriptionLength, "description")
 
 	if input.Metadata != nil {
 		if err := core.ValidateMetadata(input.Metadata); err != nil {
-			return fmt.Errorf("invalid metadata: %w", err)
+			errs.Append("metadata", "invalid: "+err.Error())
 		}
 	}
 
-	return nil
+	return errs.OrNil()
 }
 
 func (input *UpdateTransactionRouteInput) hasChanges() bool {

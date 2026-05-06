@@ -917,13 +917,14 @@ func TestTransactionInputValidation(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "send is required")
 
-		// Test invalid send
+		// Test invalid send. 8C: format is "send invalid: <inner>" via
+		// the FieldErrors accumulator.
 		input = &models.CreateTransactionInput{
 			Send: &models.SendInput{Asset: "USD"},
 		}
 		err = input.Validate()
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid send")
+		assert.Contains(t, err.Error(), "send invalid")
 	})
 
 	t.Run("UpdateTransactionInput validation", func(t *testing.T) {

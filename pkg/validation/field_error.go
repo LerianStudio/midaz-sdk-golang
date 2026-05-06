@@ -152,7 +152,20 @@ func (fe *FieldErrors) HasErrors() bool {
 	return len(fe.Errors) > 0
 }
 
-// Error implements the error interface for FieldErrors
+// Error implements the error interface for FieldErrors.
+//
+// The render format is a single-line, semicolon-joined sequence:
+//
+//	validation failed: <field> <message>; <field> <message>; ...
+//
+// This shape preserves the "<field> <message>" substring contract that
+// callers and tests rely on (e.g., strings.Contains(err.Error(),
+// "name is required")) while keeping the output compact and log-friendly.
+//
+// Field errors that include richer context (Value, Code, Constraint,
+// Suggestions) defer to the per-field [FieldError.Error] renderer
+// rather than the flat shape, since the structured form is more useful
+// when those fields are populated.
 func (fe *FieldErrors) Error() string {
 	if !fe.HasErrors() {
 		return ""
@@ -160,14 +173,35 @@ func (fe *FieldErrors) Error() string {
 
 	var builder strings.Builder
 
-	_, _ = fmt.Fprintf(&builder, "Validation failed with %d field errors:\n", len(fe.Errors))
+	_, _ = builder.WriteString("validation failed: ")
 
-	for i, err := range fe.Errors {
+	first := true
+
+	for _, err := range fe.Errors {
 		if err == nil {
 			continue
 		}
 
-		_, _ = fmt.Fprintf(&builder, "%d. %s\n", i+1, err.Error())
+		if !first {
+			_, _ = builder.WriteString("; ")
+		}
+
+		first = false
+
+		// If the field error carries only the basic Field + Message,
+		// render the flat form. Anything richer falls through to the
+		// per-field renderer, which surfaces value/constraint/suggestions.
+		if err.Value == nil && err.Code == "" && err.Constraint == "" && len(err.Suggestions) == 0 {
+			if err.Field != "" {
+				_, _ = fmt.Fprintf(&builder, "%s %s", err.Field, err.Message)
+			} else {
+				_, _ = builder.WriteString(err.Message)
+			}
+
+			continue
+		}
+
+		_, _ = builder.WriteString(err.Error())
 	}
 
 	return builder.String()
