@@ -10,7 +10,6 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation/core"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/google/uuid"
 )
 
@@ -20,17 +19,26 @@ const (
 	maxRouteCodeLength        = 100
 )
 
-// AccountingEntries is the structured accounting payload alias.
-//
-// NOTE: We keep AccountingEntries as an alias to mmodel.AccountingEntries
-// because the deeper accounting tree (AccountingEntries → AccountingEntry →
-// AccountingRubric) is a wire-format concern with strict server-side
-// scenario validation. Hand-mirroring it adds ~150 lines without changing
-// the public API shape callers see. The Track 7E decoupling specifically
-// targets the 8 entity families flagged in audit 7.1; the accounting tree
-// is a transport detail referenced from inside two of those families
-// (OperationRoute/UpdateOperationRouteInput) but is not itself flagged.
-type AccountingEntries = mmodel.AccountingEntries
+// AccountingRubric represents an accounting rubric with a code and description.
+type AccountingRubric struct {
+	Code        string `json:"code" validate:"required,max=50" example:"1001"`
+	Description string `json:"description" validate:"required,max=250" example:"Cash"`
+}
+
+// AccountingEntry represents a single accounting entry with debit and credit rubrics.
+type AccountingEntry struct {
+	Debit  *AccountingRubric `json:"debit,omitempty" validate:"omitempty"`
+	Credit *AccountingRubric `json:"credit,omitempty" validate:"omitempty"`
+}
+
+// AccountingEntries groups accounting entries by transaction action type.
+type AccountingEntries struct {
+	Direct *AccountingEntry `json:"direct,omitempty"`
+	Hold   *AccountingEntry `json:"hold,omitempty"`
+	Commit *AccountingEntry `json:"commit,omitempty"`
+	Cancel *AccountingEntry `json:"cancel,omitempty"`
+	Revert *AccountingEntry `json:"revert,omitempty"`
+}
 
 // OperationRoute is the SDK-native operation route response type (Track 7E — audit 7.1).
 type OperationRoute struct {

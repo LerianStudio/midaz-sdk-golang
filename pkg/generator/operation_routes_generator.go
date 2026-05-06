@@ -8,7 +8,6 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 )
 
 type operationRouteGenerator struct {
@@ -140,14 +139,14 @@ func (g *operationRouteGenerator) GenerateDefaults(ctx context.Context, organiza
 	return out, nil
 }
 
-func sourceDirectAccountingEntries(label string) *mmodel.AccountingEntries {
-	return &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{Debit: accountingRubric("1000", label+" debit")}}
+func sourceDirectAccountingEntries(label string) *models.AccountingEntries {
+	return &models.AccountingEntries{Direct: &models.AccountingEntry{Debit: accountingRubric("1000", label+" debit")}}
 }
 
-func destinationDirectAccountingEntries(label string) *mmodel.AccountingEntries {
-	return &mmodel.AccountingEntries{Direct: &mmodel.AccountingEntry{Credit: accountingRubric("2000", label+" credit")}}
+func destinationDirectAccountingEntries(label string) *models.AccountingEntries {
+	return &models.AccountingEntries{Direct: &models.AccountingEntry{Credit: accountingRubric("2000", label+" credit")}}
 }
 
-func accountingRubric(code, description string) *mmodel.AccountingRubric {
-	return &mmodel.AccountingRubric{Code: code, Description: description}
+func accountingRubric(code, description string) *models.AccountingRubric {
+	return &models.AccountingRubric{Code: code, Description: description}
 }

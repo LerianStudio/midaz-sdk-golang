@@ -138,12 +138,10 @@ check-references:
 	@! grep -r "lib-commons" --include="*.go" ./models ./entities | grep -v "//.*lib-commons" || (echo "$(RED)❌ Found lib-commons references in public API!$(NC)" && exit 1)
 	@echo "$(GREEN)✅ No lib-commons references found in public API$(NC)"
 
-# Track 7E: enforce no mmodel references in public API except the one
-# documented exception (AccountingEntries alias in operation_route.go,
-# which intentionally remains aliased — see file comment).
+# Track 7E: enforce no mmodel references in public API.
 check-mmodel-references:
 	@echo "$(YELLOW)Checking for mmodel references in public API...$(NC)"
-	@bad=$$(grep -r "midaz/v3/pkg/mmodel" --include="*.go" ./models ./entities | grep -v "//" | grep -v "operation_route.go" || true); \
+	@bad=$$(grep -r "midaz/v3/pkg/mmodel" --include="*.go" ./models ./entities | grep -v "//" || true); \
 		if [ -n "$$bad" ]; then \
 			echo "$(RED)❌ Found unexpected mmodel references in public API:$(NC)"; \
 			echo "$$bad"; \
@@ -305,7 +303,6 @@ PACKAGES := \
 	$(MODULE)/pkg/config \
 	$(MODULE)/pkg/concurrent \
 	$(MODULE)/pkg/observability \
-	$(MODULE)/pkg/pagination \
 	$(MODULE)/pkg/validation \
 	$(MODULE)/pkg/validation/core \
 	$(MODULE)/pkg/errors \
