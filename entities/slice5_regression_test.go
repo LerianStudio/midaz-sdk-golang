@@ -20,7 +20,7 @@ func TestSlice5DirectConstructors_CopyTransactionBaseURLs(t *testing.T) {
 	baseURLs := map[string]string{"transaction": "https://transaction.example.com/"}
 
 	services := []any{
-		newTransactionsEntity(nil, "token", baseURLs),
+		newTransactionsEntity(nil, baseURLs),
 		newOperationsEntity(nil, "token", baseURLs),
 		newOperationRoutesEntity(nil, "token", baseURLs),
 		newTransactionRoutesEntity(nil, "token", baseURLs),
@@ -112,7 +112,7 @@ func TestSlice5TransactionsCount_WhitelistsContractFilters(t *testing.T) {
 	}))
 	defer server.Close()
 
-	svc := newTransactionsEntity(server.Client(), "token", map[string]string{"transaction": server.URL})
+	svc := newTransactionsEntity(server.Client(), map[string]string{"transaction": server.URL})
 	// v3: cursor/limit/sort don't apply to HEAD /metrics/count.
 	// transactionMetricsCountQueryParams emits ONLY status, route, dates.
 	count, err := svc.GetTransactionsMetricsCount(context.Background(), "org", "ledger", models.TransactionsListOpts{
@@ -151,7 +151,7 @@ func TestSlice5TransactionIdempotencyKey_AllowsRetry(t *testing.T) {
 	}))
 	defer server.Close()
 
-	svc := newTransactionsEntity(server.Client(), "token", map[string]string{"transaction": server.URL}).(*transactionsEntity)
+	svc := newTransactionsEntity(server.Client(), map[string]string{"transaction": server.URL}).(*transactionsEntity)
 	svc.httpClient.WithRetryOptions(retry.WithMaxRetries(1), retry.WithInitialDelay(time.Millisecond), retry.WithMaxDelay(time.Millisecond))
 
 	input := models.NewCreateTransactionInput("USD", "10").WithSend(&models.SendInput{Asset: "USD", Value: "10", Source: &models.SourceInput{From: []models.FromToInput{{AccountAlias: "@a", Amount: models.AmountInput{Asset: "USD", Value: "10"}}}}, Distribute: &models.DistributeInput{To: []models.FromToInput{{AccountAlias: "@b", Amount: models.AmountInput{Asset: "USD", Value: "10"}}}}})
@@ -171,7 +171,7 @@ func TestSlice5DSLFileValidation_RejectsBeforeNetwork(t *testing.T) {
 	}))
 	defer server.Close()
 
-	svc := newTransactionsEntity(server.Client(), "token", map[string]string{"transaction": server.URL})
+	svc := newTransactionsEntity(server.Client(), map[string]string{"transaction": server.URL})
 
 	_, err := svc.CreateTransactionWithDSLFile(context.Background(), "org", "ledger", []byte{0xff, 0xfe})
 	require.Error(t, err)

@@ -39,8 +39,8 @@ func TestSlice6CRMConstructorsCopyTrimAndListNilContext(t *testing.T) {
 	defer server.Close()
 
 	baseURLs := map[string]string{"crm": server.URL + "/"}
-	holders := newHoldersEntity(server.Client(), "token", baseURLs).(*holdersEntity)
-	aliases := newAliasesEntity(server.Client(), "token", baseURLs).(*aliasesEntity)
+	holders := newHoldersEntity(server.Client(), baseURLs).(*holdersEntity)
+	aliases := newAliasesEntity(server.Client(), baseURLs).(*aliasesEntity)
 	baseURLs["crm"] = "https://mutated.example.com/v1"
 
 	holdersList, err := holders.ListHolders(nilContext(), "  "+crmOrgID+"  ", models.HoldersListOpts{})
@@ -62,8 +62,8 @@ func TestSlice6CRMRejectsInvalidScopedIdentifiersBeforeTransport(t *testing.T) {
 	}))
 	defer server.Close()
 
-	holders := newHoldersEntity(server.Client(), "token", map[string]string{"crm": server.URL}).(*holdersEntity)
-	aliases := newAliasesEntity(server.Client(), "token", map[string]string{"crm": server.URL}).(*aliasesEntity)
+	holders := newHoldersEntity(server.Client(), map[string]string{"crm": server.URL}).(*holdersEntity)
+	aliases := newAliasesEntity(server.Client(), map[string]string{"crm": server.URL}).(*aliasesEntity)
 
 	_, err := holders.ListHolders(context.Background(), "   ", models.HoldersListOpts{})
 	require.ErrorContains(t, err, "organizationID")
@@ -93,7 +93,7 @@ func TestSlice6CRMHeadersPreserveOrganizationAndTenantBoundary(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := newHoldersEntity(server.Client(), "token", map[string]string{"crm": server.URL}).(*holdersEntity)
+	service := newHoldersEntity(server.Client(), map[string]string{"crm": server.URL}).(*holdersEntity)
 	service.setDefaultTenantID("tenant-default")
 
 	ctx := sdkctx.WithIdempotencyKey(sdkctx.WithRequestTenantID(context.Background(), "tenant-context"), "crm-idem")
@@ -127,7 +127,7 @@ func TestSlice6CRMResultMethodsReturnErrorOnNullResponse(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := newHoldersEntity(server.Client(), "token", map[string]string{"crm": server.URL}).(*holdersEntity)
+	service := newHoldersEntity(server.Client(), map[string]string{"crm": server.URL}).(*holdersEntity)
 	_, err := service.GetHolder(context.Background(), crmOrgID, crmHolderID)
 	require.ErrorContains(t, err, "null response body")
 }

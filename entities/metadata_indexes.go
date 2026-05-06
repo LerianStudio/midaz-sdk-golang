@@ -1,5 +1,7 @@
 package entities
 
+//go:generate mockgen -source=metadata_indexes.go -destination=mocks/mock_metadata_indexes.go -package=mocks MetadataIndexesService
+
 import (
 	"context"
 	"fmt"

@@ -79,8 +79,8 @@ type HTTPClient struct {
 	tokenInvalidator  func()
 	// logger is the canonical *slog.Logger for retry/slow-call/internal
 	// warnings. Always non-nil after midaz.New() wires the parent client's
-	// logger via SetLogger. Per-service HTTP clients inherit it through
-	// applyConfigurationFrom.
+	// logger via SetLogger. Every entity service shares the same *HTTPClient,
+	// so SetLogger calls take effect on every service's next request.
 	logger *slog.Logger
 	// slowCallThreshold is the duration above which a successful call
 	// emits a Warn-level structured log. Zero disables the warning.
@@ -212,8 +212,9 @@ func (c *HTTPClient) WithRetryOptions(options ...retry.Option) *HTTPClient {
 }
 
 // SetLogger installs the *slog.Logger used for retry/slow-call/internal
-// warnings. Passing nil reverts to a discard handler. The logger is shared
-// with all per-service HTTP clients via propagateHTTPClientConfiguration.
+// warnings. Passing nil reverts to a discard handler. Because every entity
+// service shares the same *HTTPClient, calling SetLogger here updates the
+// logger seen by all 16 services on their next request.
 func (c *HTTPClient) SetLogger(logger *slog.Logger) {
 	if c == nil {
 		return
@@ -303,14 +304,6 @@ func (c *HTTPClient) setAuthTokenProvider(provider func(context.Context) (string
 
 	c.tokenProvider = provider
 	c.tokenInvalidator = invalidator
-}
-
-func (c *HTTPClient) applyConfigurationFrom(source *HTTPClient) {
-	if source == nil {
-		return
-	}
-
-	c.applyConfigurationSnapshot(source.cloneConfiguration())
 }
 
 func (c *HTTPClient) cloneConfiguration() httpClientConfigSnapshot {

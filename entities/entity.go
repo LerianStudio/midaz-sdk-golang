@@ -156,6 +156,23 @@ func NewEntityWithConfig(config Config) (*Entity, error) {
 }
 
 // initServices initializes the service interfaces for the entity.
+//
+// All 16 service entities share the SAME parent [*HTTPClient] — passed via
+// [newSharedServiceEntity]. That single instance owns the auth-token cache,
+// the singleflight token-refresh group, the customRetryPolicy, the
+// observability surface, and the userAgent/debug/idempotency knobs. Sharing
+// the client matters in three places:
+//
+//   - Token refresh on 401: when one service refreshes via [HTTPClient.refreshAuthToken]
+//     the new token is visible to every other service immediately because
+//     they read from the same authToken field under c.mu.
+//   - Singleflight dedup: a 401 burst hitting multiple services collapses
+//     onto one underlying tokenProvider call, since [HTTPClient.tokenRefreshGroup]
+//     is one [singleflight.Group] not 16.
+//   - Set* propagation: [Entity.GetEntityHTTPClient] returns the same client
+//     that every service uses, so SetDebug / SetUserAgent / SetLogger and
+//     friends take effect on the next request from any service — no
+//     "post-construction propagate" step required.
 func (e *Entity) initServices() {
 	if e == nil || e.httpClient == nil {
 		return
@@ -169,53 +186,31 @@ func (e *Entity) initServices() {
 		e.baseURLs = map[string]string{}
 	}
 
-	// Create the service interfaces
-	e.Transactions = newTransactionsEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
-	e.Accounts = newAccountsEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
-	e.AccountTypes = newAccountTypesEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
-	e.Assets = newAssetsEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
-	e.AssetRates = newAssetRatesEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
-	e.Balances = newBalancesEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
-	e.Holders = newHoldersEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
-	e.Aliases = newAliasesEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
-	e.Ledgers = newLedgersEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
-	e.MetadataIndexes = newMetadataIndexesEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
-	e.Operations = newOperationsEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
-	e.OperationRoutes = newOperationRoutesEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
-	e.Organizations = newOrganizationsEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
-	e.Portfolios = newPortfoliosEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
-	e.Segments = newSegmentsEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
-	e.TransactionRoutes = newTransactionRoutesEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
-
-	// Each newXxxEntity constructor creates a fresh HTTPClient around the shared
-	// transport. Copy the parent entity configuration across after construction.
-	e.propagateHTTPClientConfiguration()
-}
-
-// httpClientConfigurator is satisfied by every service entity via the
-// entityHTTPClient method promoted from the embedded *serviceEntity. It lets
-// propagateHTTPClientConfiguration iterate without knowing concrete types.
-type httpClientConfigurator interface {
-	entityHTTPClient() *HTTPClient
-}
-
-// propagateHTTPClientConfiguration copies the entity-level HTTPClient state
-// (tenant ID, auth token, observability, etc.) into every service entity's
-// own HTTPClient via applyConfigurationFrom — which clones the full
-// httpClientConfigSnapshot under lock, so tenantID rides along automatically.
-func (e *Entity) propagateHTTPClientConfiguration() {
-	services := []any{
-		e.Accounts, e.AccountTypes, e.Assets, e.AssetRates,
-		e.Aliases, e.Balances, e.Holders, e.Ledgers, e.MetadataIndexes, e.Operations, e.OperationRoutes,
-		e.Organizations, e.Portfolios, e.Segments,
-		e.Transactions, e.TransactionRoutes,
+	// Build the shared base once per service. The *HTTPClient is a pointer,
+	// so all 16 services see the same mutable state (auth token, refresh
+	// group, customRetryPolicy, etc.); baseURLs is cloned per service via
+	// prepareServiceBaseURLs so per-service mutation cannot bleed across
+	// services.
+	shared := func() serviceEntity {
+		return newSharedServiceEntity(e.httpClient, e.baseURLs)
 	}
 
-	for _, svc := range services {
-		if configurator, ok := svc.(httpClientConfigurator); ok {
-			configurator.entityHTTPClient().applyConfigurationFrom(e.httpClient)
-		}
-	}
+	e.Transactions = &transactionsEntity{serviceEntity: shared()}
+	e.Accounts = &accountsEntity{serviceEntity: shared()}
+	e.AccountTypes = &accountTypesEntity{serviceEntity: shared()}
+	e.Assets = &assetsEntity{serviceEntity: shared()}
+	e.AssetRates = &assetRatesEntity{serviceEntity: shared()}
+	e.Balances = &balancesEntity{serviceEntity: shared()}
+	e.Holders = &holdersEntity{serviceEntity: shared()}
+	e.Aliases = &aliasesEntity{serviceEntity: shared()}
+	e.Ledgers = &ledgersEntity{serviceEntity: shared()}
+	e.MetadataIndexes = &metadataIndexesEntity{serviceEntity: shared()}
+	e.Operations = &operationsEntity{serviceEntity: shared()}
+	e.OperationRoutes = &operationRoutesEntity{serviceEntity: shared()}
+	e.Organizations = &organizationsEntity{serviceEntity: shared()}
+	e.Portfolios = &portfoliosEntity{serviceEntity: shared()}
+	e.Segments = &segmentsEntity{serviceEntity: shared()}
+	e.TransactionRoutes = &transactionRoutesEntity{serviceEntity: shared()}
 }
 
 // InitServices initializes the service interfaces for the entity.
@@ -226,6 +221,23 @@ func (e *Entity) InitServices() {
 	}
 
 	e.initServices()
+}
+
+// RefreshHTTPConfiguration is a no-op kept for source compatibility.
+//
+// In v3 every service entity shares the parent Entity's *HTTPClient, so
+// SetDebug / SetUserAgent / SetLogger / SetSlowCallThreshold / WithRetryOptions
+// / SetCustomRetryPolicy / SetEnableIdempotency made on
+// [Entity.GetEntityHTTPClient] take effect on the next request from any
+// service immediately. There is no per-service snapshot to refresh.
+//
+// Deprecated: this method has no observable effect since the per-service
+// HTTPClient consolidation. Calls can be removed without behavior change.
+func (e *Entity) RefreshHTTPConfiguration() {
+	// No-op: per-service HTTPClient state was eliminated. The parent
+	// HTTPClient IS the per-service HTTPClient — Set* mutations propagate
+	// naturally because there is exactly one instance.
+	_ = e
 }
 
 // GetEntityHTTPClient returns the custom HTTP client used by the entity.
@@ -337,7 +349,6 @@ func (e *Entity) SetObservability(provider observability.Provider) error {
 
 	e.httpClient.setObservabilityLocked(provider, metrics)
 	e.observability = provider
-	e.propagateHTTPClientConfiguration()
 
 	return nil
 }

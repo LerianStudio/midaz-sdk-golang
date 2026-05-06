@@ -195,9 +195,9 @@ func TestSetTenantIDLocked(t *testing.T) {
 
 // TestTenantIDPropagationThroughServiceEntity verifies that a tenant ID set at
 // the Entity level (via the v3 Config.GetTenantID seeding path, modeled here
-// by newTestEntityWithTenant) is propagated to service entities and arrives
-// as an X-Tenant-ID header when a service method makes an HTTP request. This
-// is the end-to-end test for the initServices -> propagateHTTPClientConfiguration flow.
+// by newTestEntityWithTenant) is observed when a service method makes an HTTP
+// request. Since every service shares the parent Entity's *HTTPClient, the
+// tenant ID stored on that client is automatically what every service reads.
 func TestTenantIDPropagationThroughServiceEntity(t *testing.T) {
 	var receivedHeader string
 
@@ -222,8 +222,9 @@ func TestTenantIDPropagationThroughServiceEntity(t *testing.T) {
 }
 
 // TestTenantIDPropagationThroughServiceEntityWithUnexportedField verifies tenant ID
-// propagation through a service entity that uses an unexported httpClient field
-// (e.g., accountsEntity), covering tenant ID propagation via applyConfigurationFrom.
+// is visible through a service entity (e.g., accountsEntity) that embeds the
+// shared *HTTPClient — there's only one HTTPClient instance, so the tenant ID
+// set on the parent Entity is the same one every service reads.
 func TestTenantIDPropagationThroughServiceEntityWithUnexportedField(t *testing.T) {
 	var receivedHeader string
 

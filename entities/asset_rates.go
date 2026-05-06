@@ -1,5 +1,7 @@
 package entities
 
+//go:generate mockgen -source=asset_rates.go -destination=mocks/mock_asset_rates.go -package=mocks AssetRatesService
+
 import (
 	"bytes"
 	"context"
@@ -97,8 +99,8 @@ type AssetRatesService interface {
 	//	resp, err := client.AssetRates.ListAssetRatesByAssetCode(
 	//	    ctx, "org-123", "ledger-456", "USD",
 	//	    models.AssetRatesListOpts{
-	//	        Limit:   50,
-	//	        Filters: models.AssetRatesFilters{To: []string{"BRL", "EUR"}},
+	//	        CursorListOpts: models.CursorListOpts{Limit: 50},
+	//	        Filters:        models.AssetRatesFilters{To: []string{"BRL", "EUR"}},
 	//	    },
 	//	)
 	ListAssetRatesByAssetCode(ctx context.Context, organizationID, ledgerID, assetCode string, opts models.AssetRatesListOpts) (*models.ListResponse[models.AssetRate], error)
@@ -117,7 +119,7 @@ type AssetRatesService interface {
 	//
 	//	for rate, err := range client.AssetRates.ListAssetRatesByAssetCodeAll(
 	//	    ctx, "org-123", "ledger-456", "USD",
-	//	    models.AssetRatesListOpts{Limit: 100},
+	//	    models.AssetRatesListOpts{CursorListOpts: models.CursorListOpts{Limit: 100}},
 	//	) {
 	//	    if err != nil {
 	//	        return fmt.Errorf("asset rates iteration failed: %w", err)

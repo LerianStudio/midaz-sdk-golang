@@ -1,5 +1,7 @@
 package entities
 
+//go:generate mockgen -source=aliases.go -destination=mocks/mock_aliases.go -package=mocks AliasesService
+
 import (
 	"context"
 	"fmt"
@@ -43,9 +45,12 @@ type aliasesEntity struct {
 	serviceEntity
 }
 
-// newAliasesEntity creates a new AliasesService instance.
-func newAliasesEntity(client *http.Client, authToken string, baseURLs map[string]string) AliasesService {
-	return &aliasesEntity{serviceEntity: newServiceEntity(client, authToken, baseURLs)}
+// newAliasesEntity creates a new AliasesService instance for tests.
+// The auth token is fixed to "token" because every test caller passes the
+// same value; production code never reaches this constructor (it goes
+// through Entity.initServices, which uses the shared *HTTPClient).
+func newAliasesEntity(client *http.Client, baseURLs map[string]string) AliasesService {
+	return &aliasesEntity{serviceEntity: newServiceEntity(client, "token", baseURLs)}
 }
 
 // ListAliases retrieves aliases for an organization.

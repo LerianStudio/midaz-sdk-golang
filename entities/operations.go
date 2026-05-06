@@ -46,7 +46,7 @@ type OperationsService interface {
 	//	        Limit:         10,
 	//	        SortDirection: models.SortDesc,
 	//	    },
-	//	    Filters: models.OperationsFilters{Type: "debit", AssetCode: "USD"},
+	//	    Filters: models.OperationsFilters{Type: "DEBIT", AssetCode: "USD"},
 	//	}
 	//	page, err := c.Entity.Operations.ListOperations(ctx, "org-123", "ledger-456", "account-789", opts)
 	//	if err != nil { return err }
@@ -169,6 +169,10 @@ func (e *operationsEntity) ListOperations(ctx context.Context, organizationID, l
 
 	if accountID == "" {
 		return nil, errors.NewMissingParameterError(operation, "accountID")
+	}
+
+	if err := opts.Validate(); err != nil {
+		return nil, err
 	}
 
 	url := e.buildURL(organizationID, ledgerID, accountID, "")

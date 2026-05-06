@@ -156,6 +156,10 @@ func (e *transactionRoutesEntity) ListTransactionRoutes(ctx context.Context, org
 		return nil, errors.NewMissingParameterError(operation, "ledgerID")
 	}
 
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+
 	url := e.buildURL(organizationID, ledgerID, "")
 
 	req, err := newRequestWithContext(ctx, http.MethodGet, url, nil)

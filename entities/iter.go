@@ -15,7 +15,7 @@ import (
 // # Why this helper exists
 //
 // Go 1.26 made iter.Seq2 the stdlib idiom for paginated streams. The
-// SDK exposes ListAll(...) iter.Seq2[T, error] on every entity for
+// SDK exposes ListXxxAll(...) iter.Seq2[T, error] on every entity for
 // item-level iteration; Collect provides a one-line bridge for callers
 // who need a slice and a known cap.
 //
@@ -47,7 +47,7 @@ import (
 // # Example
 //
 //	accounts, err := entities.Collect(
-//	    client.Accounts.ListAll(ctx, orgID, ledgerID, opts),
+//	    client.Accounts.ListAccountsAll(ctx, orgID, ledgerID, opts),
 //	    1000,
 //	)
 //	if err != nil {
@@ -99,7 +99,7 @@ func Collect[T any](seq iter.Seq2[T, error], maxItems int) ([]T, error) {
 // # Example
 //
 //	assetTypes, err := entities.CollectAll(
-//	    client.AccountTypes.ListAll(ctx, orgID, ledgerID, opts),
+//	    client.AccountTypes.ListAccountTypesAll(ctx, orgID, ledgerID, opts),
 //	)
 //	if err != nil {
 //	    return fmt.Errorf("failed to collect asset types: %w", err)
@@ -119,7 +119,7 @@ func CollectAll[T any](seq iter.Seq2[T, error]) ([]T, error) {
 }
 
 // flattenPages adapts an iter.Seq2 of *ListResponse[T] pages into an
-// iter.Seq2 of T items. Used internally by per-entity ListAll
+// iter.Seq2 of T items. Used internally by per-entity ListXxxAll
 // methods to share the page-to-item flattening loop instead of
 // re-implementing it 12 times.
 //

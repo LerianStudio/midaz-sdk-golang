@@ -49,7 +49,7 @@ func TestLedgersEntity_HTTPContracts(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := newLedgersEntity(server.Client(), "token", map[string]string{"onboarding": server.URL})
+	service := newLedgersEntity(server.Client(), map[string]string{"onboarding": server.URL})
 	ctx := context.Background()
 
 	list, err := service.ListLedgers(ctx, "org/1", models.LedgersListOpts{
@@ -312,7 +312,7 @@ func TestTransactionsEntity_JSONDSLAndLifecycleContracts(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := newTransactionsEntity(server.Client(), "token", map[string]string{"transaction": server.URL})
+	service := newTransactionsEntity(server.Client(), map[string]string{"transaction": server.URL})
 	ctx := context.Background()
 
 	jsonInput := models.NewCreateTransactionInput("USD", "10.00").WithDescription("wire transfer").WithSend(&models.SendInput{
@@ -374,7 +374,7 @@ func TestEntityValidationDoesNotHitServer(t *testing.T) {
 	defer server.Close()
 
 	ctx := context.Background()
-	ledgers := newLedgersEntity(server.Client(), "token", map[string]string{"onboarding": server.URL})
+	ledgers := newLedgersEntity(server.Client(), map[string]string{"onboarding": server.URL})
 	_, err := ledgers.GetLedger(ctx, "", "ledger-1")
 	require.Error(t, err)
 	err = ledgers.DeleteLedger(ctx, "org-1", "")
@@ -386,7 +386,7 @@ func TestEntityValidationDoesNotHitServer(t *testing.T) {
 	_, err = accounts.GetExternalAccount(ctx, "org-1", "ledger-1", "")
 	require.Error(t, err)
 
-	transactions := newTransactionsEntity(server.Client(), "token", map[string]string{"transaction": server.URL})
+	transactions := newTransactionsEntity(server.Client(), map[string]string{"transaction": server.URL})
 	_, err = transactions.GetTransaction(ctx, "org-1", "ledger-1", "")
 	require.Error(t, err)
 	_, err = transactions.CreateTransactionWithDSL(ctx, "", "ledger-1", &models.TransactionDSLInput{})

@@ -1,5 +1,7 @@
 package entities
 
+//go:generate mockgen -source=holders.go -destination=mocks/mock_holders.go -package=mocks HoldersService
+
 import (
 	"context"
 	"fmt"
@@ -40,9 +42,12 @@ type holdersEntity struct {
 	serviceEntity
 }
 
-// newHoldersEntity creates a new HoldersService instance.
-func newHoldersEntity(client *http.Client, authToken string, baseURLs map[string]string) HoldersService {
-	return &holdersEntity{serviceEntity: newServiceEntity(client, authToken, baseURLs)}
+// newHoldersEntity creates a new HoldersService instance for tests.
+// The auth token is fixed to "token" because every test caller passes the
+// same value; production code never reaches this constructor (it goes
+// through Entity.initServices, which uses the shared *HTTPClient).
+func newHoldersEntity(client *http.Client, baseURLs map[string]string) HoldersService {
+	return &holdersEntity{serviceEntity: newServiceEntity(client, "token", baseURLs)}
 }
 
 // ListHolders retrieves holders for an organization.

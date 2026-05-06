@@ -626,13 +626,15 @@ func TestAssetRatesEntity_ListAssetRatesByAssetCode(t *testing.T) {
 			ledgerID:  "ledger-456",
 			assetCode: "USD",
 			opts: models.AssetRatesListOpts{
-				Limit:         5,
-				Cursor:        "cursor-abc",
-				SortDirection: models.SortDescending,
+				CursorListOpts: models.CursorListOpts{
+					Limit:         5,
+					Cursor:        "cursor-abc",
+					SortDirection: models.SortDescending,
+					StartDate:     "2024-01-01",
+					EndDate:       "2024-12-31",
+				},
 				Filters: models.AssetRatesFilters{
-					To:        []string{"BRL", "EUR"},
-					StartDate: "2024-01-01",
-					EndDate:   "2024-12-31",
+					To: []string{"BRL", "EUR"},
 				},
 			},
 			mockResponse: `{
@@ -670,7 +672,7 @@ func TestAssetRatesEntity_ListAssetRatesByAssetCode(t *testing.T) {
 			orgID:     "org-123",
 			ledgerID:  "ledger-456",
 			assetCode: "USD",
-			opts:      models.AssetRatesListOpts{Cursor: "next-page-cursor"},
+			opts:      models.AssetRatesListOpts{CursorListOpts: models.CursorListOpts{Cursor: "next-page-cursor"}},
 			mockResponse: `{
 				"items": [
 					{
@@ -994,8 +996,8 @@ func TestAssetRatesEntity_IntegrationWithHTTPTestServer(t *testing.T) {
 		)
 
 		opts := models.AssetRatesListOpts{
-			Limit:   10,
-			Filters: models.AssetRatesFilters{To: []string{"BRL", "EUR"}},
+			CursorListOpts: models.CursorListOpts{Limit: 10},
+			Filters:        models.AssetRatesFilters{To: []string{"BRL", "EUR"}},
 		}
 		result, err := entity.ListAssetRatesByAssetCode(context.Background(), "org-123", "ledger-456", "USD", opts)
 
@@ -1219,16 +1221,18 @@ func TestAssetRatesListOpts_Validate(t *testing.T) {
 	}{
 		{name: "zero value valid", opts: models.AssetRatesListOpts{}},
 		{name: "valid populated", opts: models.AssetRatesListOpts{
-			Limit:         50,
-			Cursor:        "abc",
-			SortDirection: models.SortAscending,
-			Filters:       models.AssetRatesFilters{To: []string{"BRL"}},
+			CursorListOpts: models.CursorListOpts{
+				Limit:         50,
+				Cursor:        "abc",
+				SortDirection: models.SortAscending,
+			},
+			Filters: models.AssetRatesFilters{To: []string{"BRL"}},
 		}},
-		{name: "valid at max limit", opts: models.AssetRatesListOpts{Limit: models.MaxLimit}},
-		{name: "negative limit", opts: models.AssetRatesListOpts{Limit: -1}, wantErr: "limit must be non-negative"},
-		{name: "limit over max", opts: models.AssetRatesListOpts{Limit: models.MaxLimit + 1}, wantErr: "limit exceeds maximum"},
-		{name: "limit way over max", opts: models.AssetRatesListOpts{Limit: 5000}, wantErr: "limit exceeds maximum"},
-		{name: "invalid sort direction", opts: models.AssetRatesListOpts{SortDirection: "weird"}, wantErr: "sort direction must be empty"},
+		{name: "valid at max limit", opts: models.AssetRatesListOpts{CursorListOpts: models.CursorListOpts{Limit: models.MaxLimit}}},
+		{name: "negative limit", opts: models.AssetRatesListOpts{CursorListOpts: models.CursorListOpts{Limit: -1}}, wantErr: "limit must be non-negative"},
+		{name: "limit over max", opts: models.AssetRatesListOpts{CursorListOpts: models.CursorListOpts{Limit: models.MaxLimit + 1}}, wantErr: "limit exceeds maximum"},
+		{name: "limit way over max", opts: models.AssetRatesListOpts{CursorListOpts: models.CursorListOpts{Limit: 5000}}, wantErr: "limit exceeds maximum"},
+		{name: "invalid sort direction", opts: models.AssetRatesListOpts{CursorListOpts: models.CursorListOpts{SortDirection: "weird"}}, wantErr: "sort direction must be empty"},
 	}
 
 	for _, tt := range tests {
@@ -1254,19 +1258,21 @@ func TestAssetRatesListOpts_ToQueryParams(t *testing.T) {
 		{name: "zero value emits no params", opts: models.AssetRatesListOpts{}, want: map[string]string{}},
 		{
 			name: "limit + cursor",
-			opts: models.AssetRatesListOpts{Limit: 25, Cursor: "next-token"},
+			opts: models.AssetRatesListOpts{CursorListOpts: models.CursorListOpts{Limit: 25, Cursor: "next-token"}},
 			want: map[string]string{"limit": "25", "cursor": "next-token"},
 		},
 		{
 			name: "all fields populated",
 			opts: models.AssetRatesListOpts{
-				Limit:         50,
-				Cursor:        "abc",
-				SortDirection: models.SortDescending,
+				CursorListOpts: models.CursorListOpts{
+					Limit:         50,
+					Cursor:        "abc",
+					SortDirection: models.SortDescending,
+					StartDate:     "2024-01-01",
+					EndDate:       "2024-12-31",
+				},
 				Filters: models.AssetRatesFilters{
-					To:        []string{"BRL", "EUR", "USD"},
-					StartDate: "2024-01-01",
-					EndDate:   "2024-12-31",
+					To: []string{"BRL", "EUR", "USD"},
 				},
 			},
 			want: map[string]string{
@@ -1344,7 +1350,7 @@ func TestListAssetRatesByAssetCodePages_TraversesCursors(t *testing.T) {
 
 	for page, err := range entity.ListAssetRatesByAssetCodePages(
 		context.Background(), "org-1", "ledger-1", "USD",
-		models.AssetRatesListOpts{Limit: 1},
+		models.AssetRatesListOpts{CursorListOpts: models.CursorListOpts{Limit: 1}},
 	) {
 		require.NoError(t, err)
 		require.NotNil(t, page)
@@ -1384,7 +1390,7 @@ func TestListAssetRatesByAssetCodeAll_ItemLevelIteration(t *testing.T) {
 
 	rates, err := CollectAll(entity.ListAssetRatesByAssetCodeAll(
 		context.Background(), "org-1", "ledger-1", "USD",
-		models.AssetRatesListOpts{Limit: 2},
+		models.AssetRatesListOpts{CursorListOpts: models.CursorListOpts{Limit: 2}},
 	))
 	require.NoError(t, err)
 	require.Len(t, rates, 3)
@@ -1424,7 +1430,7 @@ func TestListAssetRatesByAssetCodeAll_BoundedByCollect(t *testing.T) {
 	// even draining the rest of page 1, and never request page 2.
 	rates, err := Collect(entity.ListAssetRatesByAssetCodeAll(
 		context.Background(), "org-1", "ledger-1", "USD",
-		models.AssetRatesListOpts{Limit: 2},
+		models.AssetRatesListOpts{CursorListOpts: models.CursorListOpts{Limit: 2}},
 	), 2)
 	require.NoError(t, err)
 	require.Len(t, rates, 2)
@@ -1443,7 +1449,7 @@ func TestListAssetRatesByAssetCode_ValidatesOptsBeforeRequest(t *testing.T) {
 
 	_, err := entity.ListAssetRatesByAssetCode(
 		context.Background(), "org-1", "ledger-1", "USD",
-		models.AssetRatesListOpts{Limit: 5000}, // exceeds MaxLimit
+		models.AssetRatesListOpts{CursorListOpts: models.CursorListOpts{Limit: 5000}}, // exceeds MaxLimit
 	)
 
 	require.Error(t, err)
@@ -1484,7 +1490,7 @@ func TestAssetRatesEntity_ListAssetRatesByAssetCodePages_NilContext(t *testing.T
 	require.NotPanics(t, func() {
 		for _, err := range entity.ListAssetRatesByAssetCodePages(
 			nilCtx, "org-123", "ledger-456", "USD",
-			models.AssetRatesListOpts{Limit: 10},
+			models.AssetRatesListOpts{CursorListOpts: models.CursorListOpts{Limit: 10}},
 		) {
 			require.NoError(t, err)
 		}

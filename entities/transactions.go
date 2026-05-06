@@ -155,21 +155,22 @@ type transactionsEntity struct {
 	serviceEntity
 }
 
-// newTransactionsEntity creates a new transactions entity.
+// newTransactionsEntity creates a new transactions entity for tests. The
+// auth token is fixed to "token" because every test caller passes the same
+// value; production code never reaches this constructor (it goes through
+// Entity.initServices, which uses the shared *HTTPClient).
 //
 // Parameters:
 //   - client: The HTTP client used for API requests. Can be configured with custom timeouts
 //     and transport options. If nil, a default client will be used.
-//   - authToken: The authentication token for API authorization. Must be a valid JWT token
-//     issued by the Midaz authentication service.
 //   - baseURLs: Map of service names to base URLs. Must include a "transaction" key with
 //     the URL of the transaction service (e.g., "https://api.midaz.io/v1").
 //
 // Returns:
 //   - TransactionsService: An implementation of the TransactionsService interface that provides
 //     methods for creating, retrieving, and managing transactions.
-func newTransactionsEntity(client *http.Client, authToken string, baseURLs map[string]string) TransactionsService {
-	return &transactionsEntity{serviceEntity: newServiceEntity(client, authToken, baseURLs)}
+func newTransactionsEntity(client *http.Client, baseURLs map[string]string) TransactionsService {
+	return &transactionsEntity{serviceEntity: newServiceEntity(client, "token", baseURLs)}
 }
 
 // CreateTransaction creates a new transaction using the standard format.

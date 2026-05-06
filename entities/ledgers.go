@@ -139,10 +139,13 @@ type ledgersEntity struct {
 	serviceEntity
 }
 
-// newLedgersEntity wires the LedgersService backed by the shared HTTP transport.
-// Internal: invoked by Entity.initServices; callers should reach the service via Client.Ledgers.
-func newLedgersEntity(client *http.Client, authToken string, baseURLs map[string]string) LedgersService {
-	return &ledgersEntity{serviceEntity: newServiceEntity(client, authToken, baseURLs)}
+// newLedgersEntity wires the LedgersService backed by the shared HTTP
+// transport. Internal: invoked by Entity.initServices in production
+// (through newSharedServiceEntity, not this helper); this constructor is
+// the test-only path. The auth token is fixed to "token" because every
+// test caller passes the same value.
+func newLedgersEntity(client *http.Client, baseURLs map[string]string) LedgersService {
+	return &ledgersEntity{serviceEntity: newServiceEntity(client, "token", baseURLs)}
 }
 
 // ListLedgers lists all ledgers for an organization with optional filters.
