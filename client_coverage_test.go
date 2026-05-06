@@ -65,12 +65,12 @@ func TestClientOptionsAccessorsAndConstructors(t *testing.T) {
 	// macro short-circuited via its closure bool — that asymmetry is now
 	// gone in favor of uniform construction.
 	assert.NotNil(t, c.GetMetricsCollector())
-	assert.NotNil(t, c.NewAccount())
-	assert.NotNil(t, c.NewLedger())
-	assert.NotNil(t, c.NewOrganization())
-	assert.NotNil(t, c.NewTransaction())
-	assert.NotNil(t, c.NewOperation())
-	assert.NotNil(t, c.NewAsset())
+	// v3: the six factory-trap methods (NewAccount/NewLedger/NewOrganization/
+	// NewTransaction/NewOperation/NewAsset on *Client) were deleted —
+	// they returned bare zero-value structs without engaging the API and had
+	// zero production callers. Use the models package directly when you need
+	// a zero-value request shape:
+	//   in := &models.CreateAccountInput{...}
 	assert.Equal(t, Version, c.GetVersion())
 
 	called := false

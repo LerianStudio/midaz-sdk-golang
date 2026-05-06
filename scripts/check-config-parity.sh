@@ -54,27 +54,33 @@ is_allowed() {
 
 # Extract function names from `func With<Name>(...)` declarations.
 # Match only top-level declarations (no leading whitespace).
+# Accepts one or more files; -h suppresses grep's filename prefix in
+# multi-file mode so the sed below works uniformly.
 extract_with_names() {
-    local file="$1"
-    grep -E '^func With[A-Z][A-Za-z0-9]*\(' "$file" \
+    grep -hE '^func With[A-Z][A-Za-z0-9]*\(' "$@" \
         | sed -E 's/^func (With[A-Za-z0-9]+)\(.*/\1/' \
         | sort -u
 }
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-MIDAZ_FILE="$REPO_ROOT/midaz.go"
+# Track 6 split: midaz.go was sliced into midaz.go (Client + lifecycle)
+# and midaz_options.go (all With* options). The parity check must scan
+# both. If we add more midaz_*.go files later, list them here.
+MIDAZ_FILES=("$REPO_ROOT/midaz.go" "$REPO_ROOT/midaz_options.go")
 CONFIG_FILE="$REPO_ROOT/pkg/config/config.go"
 
-if [[ ! -f "$MIDAZ_FILE" ]]; then
-    echo "❌ check-config-parity: cannot find $MIDAZ_FILE" >&2
-    exit 2
-fi
+for f in "${MIDAZ_FILES[@]}"; do
+    if [[ ! -f "$f" ]]; then
+        echo "❌ check-config-parity: cannot find $f" >&2
+        exit 2
+    fi
+done
 if [[ ! -f "$CONFIG_FILE" ]]; then
     echo "❌ check-config-parity: cannot find $CONFIG_FILE" >&2
     exit 2
 fi
 
-MIDAZ_OPTS="$(extract_with_names "$MIDAZ_FILE")"
+MIDAZ_OPTS="$(extract_with_names "${MIDAZ_FILES[@]}")"
 CONFIG_OPTS="$(extract_with_names "$CONFIG_FILE")"
 
 VIOLATIONS=()

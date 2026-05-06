@@ -80,14 +80,12 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/internal/reflectutil"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
@@ -107,10 +105,19 @@ const Version = "3.0.0-beta.1"
 // instance, but the shorter form is the canonical idiom. The embedded Entity
 // pointer remains accessible as c.Entity for back-compat during the v2 → v3
 // migration window.
+//
+// Client wraps a small subset of Entity methods (SetObservability,
+// GetObservabilityProvider) so the Client view of state never drifts from the
+// Entity view — the Entity is the single source of truth post-construction.
 type Client struct {
 	// Configuration
 	config *config.Config
 	ctx    context.Context
+
+	// configMutated tracks whether any config-mutating option has run.
+	// WithConfig errors loudly if invoked after another option has already
+	// mutated c.config — see WithConfig godoc for the rationale.
+	configMutated bool
 
 	// Embedded Entity. Promoted fields expose every service directly on Client:
 	//   c.Accounts, c.Transactions, c.Ledgers, c.Organizations, etc.
@@ -126,10 +133,15 @@ type Client struct {
 	// an empty value to override the config/env default.
 	tenantIDSet bool
 
-	// Observability provider
-	observability     observability.Provider
-	metrics           *observability.MetricsCollector
-	customRetryPolicy func(*http.Response, error) bool
+	// pendingObservability is the observability provider accumulated by
+	// option-chain calls (WithObservabilityOptions, WithObservabilityProvider,
+	// or the disabled default installed by New). It is the staging buffer
+	// used during construction. Post-construction, the embedded *Entity is the
+	// single source of truth — GetObservabilityProvider reads from it, and
+	// SetObservability delegates writes to it.
+	pendingObservability observability.Provider
+	metrics              *observability.MetricsCollector
+	customRetryPolicy    func(*http.Response, error) bool
 
 	// retryOpts is the user-supplied retry.Option chain accumulated by
 	// WithRetryOptions calls. Threaded onto the entity HTTPClient AFTER the
@@ -155,11 +167,13 @@ type Client struct {
 	slowCallThreshold time.Duration
 }
 
+// Option is a functional option for configuring the client.
+type Option func(*Client) error
+
 // New creates a new Midaz client with the provided options.
 //
 // New validates configuration eagerly. If any required field is missing or any
-// option fails, it returns a typed configuration error
-// (see [pkg/errors.IsConfigurationError]) so callers can distinguish setup
+// option fails, it returns a typed error so callers can distinguish setup
 // mistakes from runtime API failures. The "naked SDK" footgun where
 // c.Entity could be nil after construction is gone in v3 — every service is
 // initialized and ready to use upon successful return.
@@ -183,9 +197,13 @@ type Client struct {
 // Returns:
 //   - *Client: A fully-initialized client. All service fields (c.Accounts,
 //     c.Transactions, etc.) are non-nil and ready for API calls.
-//   - error: A *errors.Error with Category=CategoryConfiguration when New
-//     cannot construct a usable client. Use errors.Is(err, errors.ErrConfiguration)
-//     or errors.IsConfigurationError(err) to check.
+//   - error: A *errors.Error with a category appropriate to the failure
+//     class. Configuration mistakes (missing fields, invalid URLs) carry
+//     Category=CategoryConfiguration. A transient Access Manager token-fetch
+//     failure during construction carries Category=CategoryAuthentication
+//     so callers using [pkg/errors.IsConfigurationError] to gate retries
+//     don't mis-classify a temporary OAuth blip as a permanent setup
+//     mistake; use [pkg/errors.IsAuthError] to detect this case.
 //
 // See also:
 //   - [WithAccessManager], [WithAnonymous] — required auth source.
@@ -211,7 +229,7 @@ func New(options ...Option) (*Client, error) {
 		return nil, sdkerrors.NewConfigurationError(operation, "failed to initialize observability provider", err)
 	}
 
-	c.observability = obsProvider
+	c.pendingObservability = obsProvider
 
 	// Create default configuration
 	c.config = config.DefaultConfig()
@@ -253,6 +271,17 @@ func New(options ...Option) (*Client, error) {
 	// Always initialize the Entity surface. The "naked SDK" footgun
 	// (c.Entity == nil after New) is gone in v3.
 	if err := c.setupEntity(); err != nil {
+		// Classify by error shape: a transient Access Manager token-fetch
+		// failure is an Authentication error (callers should retry, not
+		// re-validate config); everything else is Configuration.
+		if isAccessManagerTokenFetchError(err) {
+			return nil, sdkerrors.NewAuthenticationError(
+				operation,
+				"failed to obtain Access Manager token during client construction",
+				err,
+			)
+		}
+
 		return nil, sdkerrors.NewConfigurationError(operation, "failed to initialize entity API", err)
 	}
 
@@ -284,8 +313,21 @@ func resolveLogger(explicit *slog.Logger, explicitSet bool, debugFromConfig bool
 	return slog.New(slog.DiscardHandler)
 }
 
-// Option is a functional option for configuring the client.
-type Option func(*Client) error
+// isAccessManagerTokenFetchError reports whether err originates from the
+// Access Manager token fetch performed inside entities.NewEntityWithConfig.
+// The match is intentionally string-based on the wrapping message defined in
+// entities/entity.go ("failed to get token from plugin auth service: %w")
+// because the auth package returns plain stdlib errors. Keep this substring
+// in sync with that wrap site; if the wrap message changes, this classifier
+// silently stops matching and Access Manager outages start showing as
+// Configuration errors again.
+func isAccessManagerTokenFetchError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	return strings.Contains(err.Error(), "token from plugin auth service")
+}
 
 // setupEntity creates the Entity API interface.
 func (c *Client) setupEntity() error {
@@ -301,7 +343,7 @@ func (c *Client) setupEntity() error {
 		return errors.New("missing transaction URL in config")
 	}
 
-	if err := config.WithObservabilityProvider(c.observability)(c.config); err != nil {
+	if err := config.WithObservabilityProvider(c.pendingObservability)(c.config); err != nil {
 		return fmt.Errorf("failed to configure observability provider: %w", err)
 	}
 
@@ -313,16 +355,15 @@ func (c *Client) setupEntity() error {
 		c.config.TenantID = c.tenantID
 	}
 
-	// Construct the Entity from the resolved Config. Post-construction tuning
-	// (observability, debug, user-agent, idempotency, retries, logger,
-	// slow-call threshold, custom retry policy) flows through dedicated
-	// setters below — Batch 6B retired the entities.Option indirection.
+	// Construct the Entity from the resolved Config. NewEntityWithConfig
+	// runs initServices() internally during construction, seeding every
+	// per-service HTTPClient with the entity-level snapshot.
 	entity, err := entities.NewEntityWithConfig(c.config)
 	if err != nil {
 		return err
 	}
 
-	if err := entity.SetObservability(c.observability); err != nil {
+	if err := entity.SetObservability(c.pendingObservability); err != nil {
 		return fmt.Errorf("failed to install observability provider: %w", err)
 	}
 
@@ -349,687 +390,18 @@ func (c *Client) setupEntity() error {
 		httpClient.SetCustomRetryPolicy(c.customRetryPolicy)
 	}
 
-	// Push the resolved logger and slow-call threshold into the entity
-	// HTTP client BEFORE InitServices, so per-service HTTP clients
-	// inherit the values via the snapshot/applyConfigurationFrom path.
+	// Push the resolved logger and slow-call threshold into the entity-level
+	// HTTPClient. With the v3 per-service HTTPClient consolidation, every
+	// service shares this same *HTTPClient instance — there's no per-service
+	// snapshot to refresh, so the mutation propagates immediately to every
+	// service's next request. The v2-era double-init pattern
+	// (NewEntityWithConfig → setters → InitServices) is gone.
 	httpClient.SetLogger(c.logger)
 	httpClient.SetSlowCallThreshold(c.slowCallThreshold)
-
-	entity.InitServices()
 
 	c.Entity = entity
 
 	return nil
-}
-
-// WithBaseURL sets the base URL for API requests.
-// Two-layer surface: this is the user-facing wrapper. It delegates to
-// [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config.WithBaseURL], which most
-// callers should not invoke directly. Prefer this option when constructing the
-// client via [New].
-//
-// Parameters:
-//   - baseURL: The base URL for API requests (e.g. "https://api.midaz.io").
-//
-// Returns:
-//   - Option: A function that sets the base URL on the Client
-//
-// See also:
-//   - [WithEnvironment] — preferred for production stacks.
-//   - [WithOnboardingURL], [WithTransactionURL], [WithCRMURL] — per-service overrides.
-func WithBaseURL(baseURL string) Option {
-	return func(c *Client) error {
-		// Validate URL
-		_, err := url.Parse(baseURL)
-		if err != nil {
-			return fmt.Errorf("invalid base URL: %w", err)
-		}
-
-		// Apply to config
-		return config.WithBaseURL(baseURL)(c.config)
-	}
-}
-
-// WithTimeout sets the request timeout for API requests.
-// Two-layer surface: this is the user-facing wrapper. It delegates to
-// [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config.WithTimeout], which most
-// callers should not invoke directly. Prefer this option when constructing the
-// client via [New].
-//
-// Parameters:
-//   - timeout: The timeout duration for requests.
-//
-// Returns:
-//   - Option: A function that sets the timeout on the Client
-func WithTimeout(timeout time.Duration) Option {
-	return func(c *Client) error {
-		// Apply to config
-		return config.WithTimeout(timeout)(c.config)
-	}
-}
-
-// WithUserAgent sets the user agent for API requests.
-// Two-layer surface: this is the user-facing wrapper. It delegates to
-// [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config.WithUserAgent], which most
-// callers should not invoke directly. Prefer this option when constructing the
-// client via [New].
-func WithUserAgent(userAgent string) Option {
-	return func(c *Client) error {
-		return config.WithUserAgent(userAgent)(c.config)
-	}
-}
-
-// WithRetryOptions threads pkg/retry tuning knobs onto the entity HTTPClient
-// after construction. Use this to override the defaults seeded from
-// [pkg/config.WithMaxRetries] / [pkg/config.WithRetryWaitMin] /
-// [pkg/config.WithRetryWaitMax], or to set knobs that have no Config
-// counterpart (BackoffFactor, JitterFactor, RetryableErrors, RetryableHTTPCodes).
-//
-// Semantics: override-on-conflict. Config-derived knobs (MaxRetries,
-// InitialDelay=RetryWaitMin, MaxDelay=RetryWaitMax) are applied first during
-// [setupEntity]; any retry.Option passed here runs afterward and the last
-// write wins. Equivalently, the chain is:
-//
-//	retry.WithMaxRetries(c.config.MaxRetries),     // from Config
-//	retry.WithInitialDelay(c.config.RetryWaitMin), // from Config
-//	retry.WithMaxDelay(c.config.RetryWaitMax),     // from Config
-//	opts...,                                       // user-supplied here
-//
-// [WithoutRetries] is implemented as a sugar that prepends
-// retry.WithMaxRetries(0); pass WithRetryOptions(retry.WithMaxRetries(N))
-// after WithoutRetries to re-enable.
-//
-// Example:
-//
-//	client, _ := midaz.New(
-//	    midaz.WithEnvironment(midaz.EnvironmentLocal),
-//	    midaz.WithRetryOptions(
-//	        retry.WithMaxRetries(5),
-//	        retry.WithJitterFactor(0.4),
-//	        retry.WithRetryableHTTPCodes([]int{408, 429, 500, 502, 503, 504}),
-//	    ),
-//	)
-//
-// Or use a preset:
-//
-//	midaz.WithRetryOptions(retry.WithHighReliability())
-//
-// Returns:
-//   - Option: A function that appends the retry options to the Client's pending chain
-//
-// See also:
-//   - [WithCustomRetryPolicy] — replace the policy with an arbitrary predicate.
-//   - [WithoutRetries] — disable retries for this client.
-//   - [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry] — option catalog.
-//   - examples/07-retries — runnable demo.
-func WithRetryOptions(opts ...retry.Option) Option {
-	return func(c *Client) error {
-		c.retryOpts = append(c.retryOpts, opts...)
-		return nil
-	}
-}
-
-// WithCustomRetryPolicy sets a custom retry policy for the client.
-// This allows for more fine-grained control over when to retry requests.
-//
-// Parameters:
-//   - shouldRetry: A function that decides whether to retry a request based on response and error
-//
-// Returns:
-//   - Option: A function that sets the retry policy on the Client
-//
-// See also:
-//   - [WithRetryOptions] — tune the default policy without replacing it.
-//   - [WithoutRetries] — disable retries entirely.
-//   - examples/07-retries — runnable demo.
-func WithCustomRetryPolicy(shouldRetry func(*http.Response, error) bool) Option {
-	return func(c *Client) error {
-		c.customRetryPolicy = shouldRetry
-
-		if c.Entity != nil {
-			httpClient := c.GetEntityHTTPClient()
-			if httpClient != nil {
-				httpClient.SetCustomRetryPolicy(shouldRetry)
-			}
-		}
-
-		return nil
-	}
-}
-
-// WithoutRetries is the canonical off-switch for the retry mechanism.
-// It pins MaxRetries to 0 on the Config; downstream HTTP calls execute
-// exactly once with no automatic retry on transient failures.
-//
-// Soft-disable semantics: WithoutRetries simply sets MaxRetries=0. A
-// subsequent [WithRetryOptions](retry.WithMaxRetries(N)) in the same
-// option chain will re-enable retries with N attempts. Last write wins.
-// Use this when you want a default-off posture that test code or callers
-// can still override.
-//
-// Use cases:
-//   - Tests that must never retry (combine with no override).
-//   - Callers that handle their own retry logic at a higher layer.
-//
-// Returns:
-//   - Option: A function that disables retries on the Client
-//
-// See also:
-//   - [WithRetryOptions], [WithCustomRetryPolicy] — alternatives.
-//   - examples/07-retries — runnable demo.
-func WithoutRetries() Option {
-	return func(c *Client) error {
-		return config.WithMaxRetries(0)(c.config)
-	}
-}
-
-// WithObservabilityOptions builds a fresh observability provider from the
-// supplied [observability.Option] chain and installs it on the Client. This
-// is the canonical entry point for configuring tracing/metrics/logging via
-// the OTel-aligned pkg/observability surface.
-//
-// Replacement semantics: WithObservabilityOptions REPLACES any provider
-// previously installed on this Client — including the default disabled
-// provider that [New] installs at construction time (see [New] godoc).
-// Subsequent WithObservabilityOptions calls likewise replace. There is no
-// composition or merge step; the last call wins. To start from a known set
-// of defaults, include [observability.WithDevelopmentDefaults] or
-// [observability.WithProductionDefaults] as the first item in the chain.
-//
-// If the resulting provider IsEnabled, a [observability.MetricsCollector] is
-// constructed and made available via [Client.GetMetricsCollector]. The
-// Client's context is also updated so [observability.WithProvider] is
-// reachable on every per-request context derived from [Client.GetContext].
-//
-// Use this when you need full control over the provider construction:
-// custom service name, custom collector endpoint, sample rate, attributes,
-// propagators, log level, log output, or component toggles.
-//
-// Example — full-tracing dev setup with custom collector:
-//
-//	client, _ := midaz.New(
-//	    midaz.WithObservabilityOptions(
-//	        observability.WithServiceName("my-service"),
-//	        observability.WithCollectorEndpoint("localhost:4317"),
-//	        observability.WithComponentEnabled(true, true, true),
-//	        observability.WithFullTracingSampling(),
-//	    ),
-//	)
-//
-// Example — install a known set of dev defaults then tweak one knob:
-//
-//	midaz.WithObservabilityOptions(
-//	    observability.WithDevelopmentDefaults(),
-//	    observability.WithServiceName("my-service"),
-//	)
-//
-// For sharing a pre-built provider across multiple clients, prefer
-// [WithObservabilityProvider] which skips the construction step.
-//
-// Parameters:
-//   - options: The [observability.Option] chain used to build the provider
-//
-// Returns:
-//   - Option: A function that installs the new provider on the Client
-//
-// See also:
-//   - [WithObservabilityProvider] — pass a pre-built provider.
-//   - [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability] — option catalog.
-//   - examples/10-observability-otel — runnable demo.
-func WithObservabilityOptions(options ...observability.Option) Option {
-	return func(c *Client) error {
-		// Build the provider from the supplied chain. Any previously
-		// installed provider (default-disabled from New, or a prior
-		// WithObservabilityOptions / WithObservabilityProvider call) is
-		// replaced wholesale — see godoc for replacement semantics.
-		provider, err := observability.New(c.ctx, options...)
-		if err != nil {
-			return err
-		}
-
-		c.observability = provider
-
-		if provider.IsEnabled() {
-			c.metrics, err = observability.NewMetricsCollector(provider)
-			if err != nil {
-				return err
-			}
-		}
-
-		c.ctx = observability.WithProvider(c.ctx, provider)
-
-		return nil
-	}
-}
-
-// WithObservabilityProvider installs a pre-built [observability.Provider]
-// on the Client. Use this when you want to share an observability provider
-// across multiple Midaz clients (e.g. one provider, many tenant-scoped
-// clients) or when the provider was constructed elsewhere in your
-// application's bootstrap.
-//
-// Two-layer surface: this is the user-facing wrapper. It delegates to
-// [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config.WithObservabilityProvider],
-// which most callers should not invoke directly. Prefer this option when
-// constructing the client via [New].
-//
-// Replacement semantics: WithObservabilityProvider REPLACES any provider
-// previously installed on this Client — including the default disabled
-// provider that [New] installs at construction time. See [New] godoc.
-//
-// Nil handling: a typed-nil [observability.Provider] (e.g. (*Provider)(nil))
-// returns an error; a literal nil interface is treated as a no-op and the
-// existing provider is preserved.
-//
-// Parameters:
-//   - provider: The pre-built observability provider to install
-//
-// Returns:
-//   - Option: A function that installs the provider on the Client
-//
-// See also:
-//   - [WithObservabilityOptions] — build a provider inline.
-//   - [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability.Provider]
-//   - examples/10-observability-otel — runnable demo.
-func WithObservabilityProvider(provider observability.Provider) Option {
-	return func(c *Client) error {
-		if provider == nil {
-			return nil
-		}
-
-		if reflectutil.IsTypedNil(provider) {
-			return errors.New("observability provider cannot be nil")
-		}
-
-		// Replace any previously installed provider (default-disabled or
-		// otherwise). See godoc for replacement semantics.
-		c.observability = provider
-
-		if provider.IsEnabled() {
-			var err error
-
-			c.metrics, err = observability.NewMetricsCollector(provider)
-			if err != nil {
-				return err
-			}
-		}
-
-		c.ctx = observability.WithProvider(c.ctx, provider)
-
-		return nil
-	}
-}
-
-// WithEnvironment sets the environment for the client.
-// Two-layer surface: this is the user-facing wrapper. It delegates to
-// [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config.WithEnvironment], which most
-// callers should not invoke directly. Prefer this option when constructing the
-// client via [New].
-//
-// This is used for configuration options that vary by environment.
-//
-// Parameters:
-//   - env: The environment to use
-//
-// Returns:
-//   - Option: A function that sets the environment on the Client
-//
-// See also:
-//   - [EnvironmentLocal], [EnvironmentDevelopment], [EnvironmentProduction] — the three values.
-//   - [WithBaseURL] — for self-hosted stacks not covered by the standard environments.
-func WithEnvironment(env config.Environment) Option {
-	return func(c *Client) error {
-		// Apply to config
-		return config.WithEnvironment(env)(c.config)
-	}
-}
-
-// WithContext sets the client base context used by client-level helpers and
-// observability setup. Entity service methods still use the context passed to
-// each service call.
-//
-// Parameters:
-//   - ctx: The context to use
-//
-// Returns:
-//   - Option: A function that sets the context on the Client
-func WithContext(ctx context.Context) Option {
-	return func(c *Client) error {
-		if ctx == nil {
-			return errors.New("context cannot be nil")
-		}
-
-		c.ctx = ctx
-
-		return nil
-	}
-}
-
-// WithConfig sets a custom configuration for the client.
-// This allows for using a pre-configured Config object instead of individual options.
-//
-// Parameters:
-//   - cfg: The configuration to use
-//
-// Returns:
-//   - Option: A function that sets the configuration on the Client
-func WithConfig(cfg *config.Config) Option {
-	return func(c *Client) error {
-		if cfg == nil {
-			return errors.New("config cannot be nil")
-		}
-
-		c.config = cfg.Clone()
-		if provider := c.config.GetObservabilityProvider(); provider != nil && !reflectutil.IsTypedNil(provider) {
-			c.observability = provider
-			c.ctx = observability.WithProvider(c.ctx, provider)
-			if provider.IsEnabled() {
-				metrics, err := observability.NewMetricsCollector(provider)
-				if err != nil {
-					return err
-				}
-
-				c.metrics = metrics
-			}
-		}
-
-		return nil
-	}
-}
-
-// WithHTTPClient sets a custom HTTP client for the Client.
-// Two-layer surface: this is the user-facing wrapper. It delegates to
-// [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config.WithHTTPClient], which most
-// callers should not invoke directly. Prefer this option when constructing the
-// client via [New].
-//
-// This allows for advanced customization of HTTP client behavior.
-//
-// Parameters:
-//   - client: The HTTP client to use
-//
-// Returns:
-//   - Option: A function that sets the HTTP client on the Client
-func WithHTTPClient(client *http.Client) Option {
-	return func(c *Client) error {
-		return config.WithHTTPClient(client)(c.config)
-	}
-}
-
-// WithOnboardingURL sets the URL for the Onboarding API.
-// Two-layer surface: this is the user-facing wrapper. It delegates to
-// [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config.WithOnboardingURL], which most
-// callers should not invoke directly. Prefer this option when constructing the
-// client via [New].
-//
-// This overrides any URL derived from the Environment setting.
-//
-// Parameters:
-//   - onboardingURL: The URL for the Onboarding API
-//
-// Returns:
-//   - Option: A function that sets the Onboarding URL on the Client
-func WithOnboardingURL(onboardingURL string) Option {
-	return func(c *Client) error {
-		return config.WithOnboardingURL(onboardingURL)(c.config)
-	}
-}
-
-// WithTransactionURL sets the URL for the Transaction API.
-// Two-layer surface: this is the user-facing wrapper. It delegates to
-// [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config.WithTransactionURL], which most
-// callers should not invoke directly. Prefer this option when constructing the
-// client via [New].
-//
-// This overrides any URL derived from the Environment setting.
-//
-// Parameters:
-//   - transactionURL: The URL for the Transaction API
-//
-// Returns:
-//   - Option: A function that sets the Transaction URL on the Client
-func WithTransactionURL(transactionURL string) Option {
-	return func(c *Client) error {
-		return config.WithTransactionURL(transactionURL)(c.config)
-	}
-}
-
-// WithCRMURL sets the URL for the CRM API.
-// Two-layer surface: this is the user-facing wrapper. It delegates to
-// [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config.WithCRMURL], which most
-// callers should not invoke directly. Prefer this option when constructing the
-// client via [New].
-//
-// This overrides any URL derived from the Environment setting.
-func WithCRMURL(crmURL string) Option {
-	return func(c *Client) error {
-		return config.WithCRMURL(crmURL)(c.config)
-	}
-}
-
-// WithDebug enables or disables debug mode.
-// Two-layer surface: this is the user-facing wrapper. It delegates to
-// [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config.WithDebug], which most
-// callers should not invoke directly. Prefer this option when constructing the
-// client via [New].
-//
-// In debug mode, the SDK logs detailed information about requests and responses.
-//
-// Parameters:
-//   - enabled: Whether to enable debug mode
-//
-// Returns:
-//   - Option: A function that sets the debug flag on the Client
-func WithDebug(enabled bool) Option {
-	return func(c *Client) error {
-		return config.WithDebug(enabled)(c.config)
-	}
-}
-
-// WithIdempotency enables or disables automatic idempotency-key generation
-// for unsafe HTTP methods (POST, PUT, PATCH, DELETE). When enabled, the SDK
-// attaches an X-Idempotency header derived from a UUID to each unsafe
-// request unless [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx.WithIdempotencyKey] was used to set an explicit
-// key on the per-request context.
-//
-// Two-layer surface: this is the user-facing wrapper. It delegates to
-// [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config.WithIdempotency],
-// which most callers should not invoke directly. Prefer this option when
-// constructing the client via [New].
-//
-// Default: enabled (Config.EnableIdempotency = DefaultEnableIdempotency = true).
-// Disable when you have an upstream gateway that handles idempotency, or
-// when running tests that assert exact request bodies.
-//
-// Parameters:
-//   - enabled: Whether to enable automatic idempotency-key generation
-//
-// Returns:
-//   - Option: A function that sets the idempotency flag on the Client
-//
-// See also:
-//   - [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx.WithIdempotencyKey] — caller-supplied key for one request.
-//   - [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx.WithoutAutoIdempotency] — per-call suppression.
-//   - examples/06-idempotency — runnable demo.
-func WithIdempotency(enabled bool) Option {
-	return func(c *Client) error {
-		return config.WithIdempotency(enabled)(c.config)
-	}
-}
-
-// WithTenantID sets the default tenant ID for all API requests made through this client.
-// The tenant ID is sent as the X-Tenant-ID header on every request.
-// Per-request overrides via sdkctx.WithRequestTenantID(ctx, tenantID) take precedence
-// over this client-level default. This is an optional compatibility signal for
-// deployments that honor the header, not a replacement for tenant resolution from
-// authenticated claims.
-//
-// Parameters:
-//   - tenantID: The tenant identifier to use
-//
-// Returns:
-//   - Option: A function that sets the tenant ID on the Client
-//
-// See also:
-//   - [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx.WithRequestTenantID] — per-request override.
-//   - docs/multi-tenancy.md — full multi-tenant routing contract.
-func WithTenantID(tenantID string) Option {
-	return func(c *Client) error {
-		c.tenantID = strings.TrimSpace(tenantID)
-		c.tenantIDSet = true
-
-		return nil
-	}
-}
-
-// WithAccessManager configures plugin-based authentication via the Lerian
-// Access Manager service. The supplied AccessManager must have Address,
-// ClientID, and ClientSecret populated; the Enabled field is auto-set to
-// true (the act of calling this option is the opt-in).
-//
-// Example:
-//
-//	c, err := midaz.New(
-//	    midaz.WithEnvironment(midaz.EnvironmentProduction),
-//	    midaz.WithAccessManager(midaz.AccessManager{
-//	        Address:      "https://auth.midaz.io",
-//	        ClientID:     "abc",
-//	        ClientSecret: os.Getenv("MIDAZ_CLIENT_SECRET"),
-//	    }),
-//	)
-//
-// WithAccessManager and [WithAnonymous] are mutually exclusive — applying
-// Two-layer surface: this is the user-facing wrapper. It delegates to
-// [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config.WithAccessManager], which most
-// callers should not invoke directly. Prefer this option when constructing the
-// client via [New].
-//
-// one clears the other. v3 requires exactly one auth source at construction
-// time; without either, midaz.New() returns a configuration error.
-//
-// See docs/auth.md for the full setup walkthrough.
-//
-// Parameters:
-//   - am: AccessManager configuration. Address, ClientID, ClientSecret are
-//     all required; Enabled is auto-populated.
-//
-// Returns:
-//   - Option: a function that wires AccessManager onto the underlying Config.
-//
-// See also:
-//   - [WithAnonymous] — opt out of authentication (local stacks only).
-//   - [AccessManager] — the credential bag.
-//   - docs/auth.md — authentication setup walkthrough.
-//   - examples/02-auth — runnable demo.
-func WithAccessManager(am AccessManager) Option {
-	return func(c *Client) error {
-		return config.WithAccessManager(am)(c.config)
-	}
-}
-
-// WithAnonymous explicitly opts the client out of authentication. This is
-// the only sanctioned way to construct a client without credentials in v3 —
-// without WithAnonymous AND without [WithAccessManager], midaz.New()
-// returns a typed configuration error of the form
-//
-//	"no auth source configured; use WithAccessManager or WithAnonymous"
-//
-// Use cases: local development against an unsecured midaz stack, integration
-// tests against testcontainers, or read-only inspection where the operator
-// has confirmed the target endpoints don't require auth.
-//
-// WithAnonymous and [WithAccessManager] are mutually exclusive — applying
-// Two-layer surface: this is the user-facing wrapper. It delegates to
-// [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config.WithAnonymous], which most
-// callers should not invoke directly. Prefer this option when constructing the
-// client via [New].
-//
-// one clears the other.
-//
-// Returns:
-//   - Option: a function that flags the underlying Config as deliberately
-//     auth-less so validation accepts it.
-//
-// See also:
-//   - [WithAccessManager] — production-shape OAuth via Lerian Access Manager.
-//   - docs/auth.md — when to use anonymous vs authenticated.
-func WithAnonymous() Option {
-	return func(c *Client) error {
-		return config.WithAnonymous()(c.config)
-	}
-}
-
-// WithLogger sets the canonical *slog.Logger for the client. Once configured,
-// the SDK emits structured log lines for retry attempts, slow calls, and
-// internal warnings through this logger.
-//
-// The SDK is silent by default (discard handler). Pass WithLogger to opt in.
-// When both WithLogger and Config.Debug=true (typically via FromEnvironment)
-// are present, WithLogger always wins — the MIDAZ_DEBUG bypass that existed
-// in v2 is gone in v3.
-//
-// Integrations (paired with WithAnonymous for brevity in these snippets;
-// production setups would supply WithAccessManager):
-//
-//	// stdlib slog with JSON to stdout
-//	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-//	c, _ := midaz.New(midaz.WithLogger(logger), midaz.WithAnonymous())
-//
-//	// charmbracelet/log
-//	import charm "github.com/charmbracelet/log"
-//	clog := charm.NewWithOptions(os.Stderr, charm.Options{Level: charm.DebugLevel})
-//	c, _ := midaz.New(midaz.WithLogger(slog.New(clog)), midaz.WithAnonymous())
-//
-//	// zap via slog adapter (Go 1.22+)
-//	import "go.uber.org/zap/exp/zapslog"
-//	zl, _ := zap.NewProduction()
-//	c, _ := midaz.New(
-//	    midaz.WithLogger(slog.New(zapslog.NewHandler(zl.Core(), nil))),
-//	    midaz.WithAnonymous(),
-//	)
-//
-// Passing nil clears any previously-configured logger and reverts to the
-// silent discard default.
-//
-// Returns:
-//   - Option: A function that sets the logger on a Client.
-//
-// See also:
-//   - [WithSlowCallThreshold] — emit a warn-level record for slow calls.
-//   - docs/logging.md — logging contract and adapter recipes (zap, zerolog, logrus).
-//   - examples/08-logging-slog — runnable demo.
-func WithLogger(logger *slog.Logger) Option {
-	return func(c *Client) error {
-		c.logger = logger
-		c.loggerSet = true
-
-		return nil
-	}
-}
-
-// WithSlowCallThreshold configures the duration above which a successful API
-// call triggers a Warn-level structured log line on the configured logger.
-// The line includes operation, http.method, url.path, http.status_code,
-// duration_ms, and request_id when available.
-//
-// Zero (default) disables slow-call warnings.
-//
-// Negative values are coerced to zero (disabled). Setting a positive
-// threshold without WithLogger is harmless — the warning lands on the
-// discard handler.
-//
-// Returns:
-//   - Option: A function that sets the slow-call threshold on a Client.
-func WithSlowCallThreshold(threshold time.Duration) Option {
-	return func(c *Client) error {
-		if threshold < 0 {
-			threshold = 0
-		}
-
-		c.slowCallThreshold = threshold
-
-		return nil
-	}
 }
 
 // Shutdown gracefully shuts down the client, releasing any resources.
@@ -1045,9 +417,11 @@ func (c *Client) Shutdown(ctx context.Context) error {
 		return nil
 	}
 
-	// Shutdown observability provider
-	if c.observability != nil {
-		if err := c.observability.Shutdown(ctx); err != nil {
+	// Read observability via the canonical Entity-backed accessor so the
+	// Client/Entity views never disagree. After New() succeeds this is the
+	// same provider that's installed on every per-service HTTPClient.
+	if provider := c.GetObservabilityProvider(); provider != nil {
+		if err := provider.Shutdown(ctx); err != nil {
 			return fmt.Errorf("error shutting down observability provider: %w", err)
 		}
 	}
@@ -1073,11 +447,12 @@ func (c *Client) Trace(name string, fn func(context.Context) error) error {
 		return errors.New("client cannot be nil")
 	}
 
-	if c.observability == nil || !c.observability.IsEnabled() {
+	provider := c.GetObservabilityProvider()
+	if provider == nil || !provider.IsEnabled() {
 		return fn(c.ctx)
 	}
 
-	return observability.WithSpan(c.ctx, c.observability, name, fn)
+	return observability.WithSpan(c.ctx, provider, name, fn)
 }
 
 // Logger returns the canonical *slog.Logger for this client. The return value
@@ -1086,6 +461,25 @@ func (c *Client) Trace(name string, fn func(context.Context) error) error {
 //
 // Use this to emit application-side log lines that should follow the same
 // handler as SDK-internal lines, or to inspect the configured logger in tests.
+//
+// # Two logger surfaces
+//
+// The SDK has two distinct logger surfaces and they are not the same handler:
+//
+//   - Client.Logger() — this method. Returns *slog.Logger. The Go-stdlib
+//     idiom. Used by the SDK for retry diagnostics and other internal lines
+//     that are not span-correlated. Configured via WithLogger, WithLoggerStream,
+//     or implicitly by Config.Debug. Has its own handler chain.
+//   - Provider.Logger() — accessed via c.GetObservabilityProvider().Logger().
+//     Returns the bespoke observability.Logger interface. OTel-correlated:
+//     attaches trace_id/span_id when used inside a span via WithSpan(span).
+//     Configured by WithObservabilityOptions / WithObservabilityProvider.
+//
+// The two surfaces are intentionally disjoint: slog is the standard-library
+// idiom users already configure for their applications; observability.Logger
+// predates slog and serves the OTel-correlated path. Most users want
+// Client.Logger() for application code; reach for Provider.Logger() only when
+// you need span-aware logging within an SDK call.
 //
 // In v3 the return type changed from observability.Logger to *slog.Logger.
 // Code that needs the bespoke observability.Logger interface should reach
@@ -1112,10 +506,97 @@ func (c *Client) Logger() *slog.Logger {
 // [observability.Provider.IsEnabled] to distinguish the default-disabled
 // provider from a user-installed enabled one.
 //
+// The provider is read from the embedded *Entity, the single source of truth
+// post-construction. Calling [Client.SetObservability] updates both the
+// Client's view and the Entity's view atomically; the v2 drift footgun where
+// Client and Entity diverged after a promoted SetObservability call is gone.
+//
 // Returns:
 //   - Provider: The observability provider (never nil after [New])
 func (c *Client) GetObservabilityProvider() observability.Provider {
-	return c.observability
+	if c == nil {
+		return nil
+	}
+
+	if c.Entity != nil {
+		return c.Entity.GetObservabilityProvider()
+	}
+
+	// Pre-Entity (e.g. from inside an Option, before setupEntity has run):
+	// fall back to the staging buffer. Post-New() reads always go through
+	// the Entity branch above.
+	return c.pendingObservability
+}
+
+// SetObservability installs an observability provider on this Client and
+// propagates the change to the embedded Entity (and every per-service
+// HTTPClient). Use this when you need to swap the observability provider
+// after [New] has already returned — for example, when a deferred
+// configuration loader resolves an OTel exporter that wasn't available at
+// construction time.
+//
+// SetObservability replaces the metrics collector if the new provider reports
+// IsEnabled() == true. A nil provider is a no-op.
+//
+// In v3 this is the canonical post-construction observability mutator. It
+// supersedes the v2 pattern where the promoted *Entity.SetObservability was
+// the only entry point but Client kept its own duplicate observability field —
+// callers occasionally hit the drift footgun where Client.GetObservabilityProvider
+// returned the stale Client copy. That field is gone; Entity is the single
+// source of truth and this method delegates to it.
+//
+// Parameters:
+//   - provider: The observability provider to install. Nil is a no-op.
+//
+// Returns:
+//   - error: Non-nil only if the metrics collector fails to construct.
+func (c *Client) SetObservability(provider observability.Provider) error {
+	if c == nil {
+		return errors.New("client cannot be nil")
+	}
+
+	if provider == nil || reflectutil.IsTypedNil(provider) {
+		return nil
+	}
+
+	// Pre-Entity (called from within an Option before setupEntity ran):
+	// stage on the client buffer; setupEntity will install it on the Entity.
+	if c.Entity == nil {
+		c.pendingObservability = provider
+
+		if provider.IsEnabled() {
+			collector, err := observability.NewMetricsCollector(provider)
+			if err != nil {
+				return err
+			}
+
+			c.metrics = collector
+		}
+
+		c.ctx = observability.WithProvider(c.ctx, provider)
+
+		return nil
+	}
+
+	// Post-Entity: delegate to Entity (which updates HTTPClient state under
+	// lock and re-propagates to every per-service HTTPClient). Then refresh
+	// the Client-level metrics collector so GetMetricsCollector keeps in sync.
+	if err := c.Entity.SetObservability(provider); err != nil {
+		return err
+	}
+
+	if provider.IsEnabled() {
+		collector, err := observability.NewMetricsCollector(provider)
+		if err != nil {
+			return err
+		}
+
+		c.metrics = collector
+	}
+
+	c.ctx = observability.WithProvider(c.ctx, provider)
+
+	return nil
 }
 
 // GetMetricsCollector returns the metrics collector.
@@ -1162,36 +643,6 @@ func (c *Client) GetConfiguration() *config.Config {
 //   - *config.Config: The client configuration
 func (c *Client) GetConfig() *config.Config {
 	return c.GetConfiguration()
-}
-
-// NewAccount constructs a basic account.
-func (*Client) NewAccount() *models.Account {
-	return &models.Account{}
-}
-
-// NewLedger constructs a basic ledger.
-func (*Client) NewLedger() *models.Ledger {
-	return &models.Ledger{}
-}
-
-// NewOrganization constructs a basic organization.
-func (*Client) NewOrganization() *models.Organization {
-	return &models.Organization{}
-}
-
-// NewTransaction constructs a basic transaction.
-func (*Client) NewTransaction() *models.Transaction {
-	return &models.Transaction{}
-}
-
-// NewOperation constructs a basic operation.
-func (*Client) NewOperation() *models.Operation {
-	return &models.Operation{}
-}
-
-// NewAsset constructs a basic asset.
-func (*Client) NewAsset() *models.Asset {
-	return &models.Asset{}
 }
 
 // GetVersion returns the current version of the SDK.
