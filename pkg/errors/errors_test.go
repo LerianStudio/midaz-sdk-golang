@@ -1987,6 +1987,43 @@ func TestIsUnprocessableError(t *testing.T) {
 	}
 }
 
+// TestError_Retryable verifies the canonical SDK-wide retry policy is
+// derived from Category. Audit 8.F: Error.Retryable() is the single
+// source of truth for retry policies.
+func TestError_Retryable(t *testing.T) {
+	tests := []struct {
+		category sdkerrors.ErrorCategory
+		want     bool
+	}{
+		{sdkerrors.CategoryNetwork, true},
+		{sdkerrors.CategoryTimeout, true},
+		{sdkerrors.CategoryLimitExceeded, true},
+		{sdkerrors.CategoryInternal, true},
+		{sdkerrors.CategoryValidation, false},
+		{sdkerrors.CategoryNotFound, false},
+		{sdkerrors.CategoryConflict, false},
+		{sdkerrors.CategoryAuth, false},
+		{sdkerrors.CategoryAuthentication, false},
+		{sdkerrors.CategoryAuthorization, false},
+		{sdkerrors.CategoryUnprocessable, false},
+		{sdkerrors.CategoryConfiguration, false},
+		{sdkerrors.CategoryCancellation, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(string(tt.category), func(t *testing.T) {
+			err := &sdkerrors.Error{Category: tt.category}
+			assert.Equal(t, tt.want, err.Retryable(),
+				"%s.Retryable() mismatch", tt.category)
+		})
+	}
+
+	t.Run("nil receiver", func(t *testing.T) {
+		var err *sdkerrors.Error
+		assert.False(t, err.Retryable())
+	})
+}
+
 // TestIsConfigurationError_CategoryMatch verifies the predicate matches by
 // category, not just by sentinel pointer identity. A constructed *Error with
 // CategoryConfiguration but a different Code or Message must still match.

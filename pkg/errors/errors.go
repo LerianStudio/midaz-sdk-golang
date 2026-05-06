@@ -194,32 +194,37 @@ type Error struct {
 }
 
 // Error implements the error interface.
+//
+// Audit 8.10 (LOW): the v2 implementation called redactSensitive
+// twice per Error() call — once on the message and once on the final
+// composed string. That was both wasteful (regex rescans) and
+// stylistically off (double-redacting an already-redacted substring
+// is a no-op signal that the layering wasn't thought through). v3
+// composes the full string once and redacts once at the end.
 func (e *Error) Error() string {
 	if e == nil {
 		return ""
 	}
 
-	base := redactSensitive(e.Message)
-
-	// Add context based on available information
 	var errorContext string
 
-	if e.Resource != "" {
-		if e.ResourceID != "" {
-			errorContext = fmt.Sprintf("%s error for %s %s", e.Category, e.Resource, e.ResourceID)
-		} else {
-			errorContext = fmt.Sprintf("%s error for %s", e.Category, e.Resource)
-		}
-	} else {
+	switch {
+	case e.Resource != "" && e.ResourceID != "":
+		errorContext = fmt.Sprintf("%s error for %s %s", e.Category, e.Resource, e.ResourceID)
+	case e.Resource != "":
+		errorContext = fmt.Sprintf("%s error for %s", e.Category, e.Resource)
+	default:
 		errorContext = fmt.Sprintf("%s error", string(e.Category))
 	}
 
-	// Handle operation-specific context
+	var composed string
 	if e.Operation != "" {
-		return redactSensitive(fmt.Sprintf("%s during %s: %s", errorContext, e.Operation, base))
+		composed = fmt.Sprintf("%s during %s: %s", errorContext, e.Operation, e.Message)
+	} else {
+		composed = fmt.Sprintf("%s: %s", errorContext, e.Message)
 	}
 
-	return redactSensitive(fmt.Sprintf("%s: %s", errorContext, base))
+	return redactSensitive(composed)
 }
 
 // Unwrap returns the underlying error.
@@ -229,6 +234,46 @@ func (e *Error) Unwrap() error {
 	}
 
 	return e.Err
+}
+
+// Retryable reports whether the SDK retry layer should consider this
+// error a candidate for automatic retry. The decision is derived
+// from [Error.Category] (and, for HTTP-mapped errors, from
+// [Error.StatusCode]) and represents the canonical SDK-wide policy.
+//
+// Retryable categories:
+//   - CategoryNetwork    — DNS, conn-refused, broken pipe.
+//   - CategoryTimeout    — request deadline exceeded.
+//   - CategoryRateLimit  /  CategoryLimitExceeded — server is throttling.
+//   - CategoryInternal   — 5xx server errors, transient.
+//
+// Non-retryable categories:
+//   - CategoryValidation     — caller's payload is wrong.
+//   - CategoryNotFound       — caller's reference is wrong.
+//   - CategoryConflict       — caller's idempotency or
+//     already-exists conflict.
+//   - CategoryAuth, Authentication, Authorization — credentials
+//     issue; the auth refresh path is
+//     orthogonal and handles 401 specially.
+//   - CategoryUnprocessable  — domain rule violation.
+//   - CategoryConfiguration  — SDK misconfiguration; fatal.
+//   - CategoryCancellation   — caller cancelled.
+//
+// Retryable returns false for a nil receiver.
+func (e *Error) Retryable() bool {
+	if e == nil {
+		return false
+	}
+
+	switch e.Category {
+	case CategoryNetwork,
+		CategoryTimeout,
+		CategoryLimitExceeded,
+		CategoryInternal:
+		return true
+	}
+
+	return false
 }
 
 // Is checks if the target error is of the same type as this error.
