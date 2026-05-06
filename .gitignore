@@ -89,3 +89,23 @@ examples/mass-demo-generator/mass-demo-*.json
 examples/mass-demo-generator/mass-demo-*.html
 examples/workflow-with-entities/workflow-with-entities
 .repos/
+
+# Stray binaries from `go build ./examples/<name>` at repo root
+# (Go drops the binary in $PWD by default; these match the example dir names).
+/01-hello-world
+/02-auth
+/03-end-to-end
+/04-listing-cursor
+/05-listing-pages
+/06-idempotency
+/07-retries
+/08-logging-slog
+/09-testing-with-mocks
+/10-observability-otel
+/concurrency
+/configuration
+/context
+/observability_demo
+/pkg-validation-demo
+/tracing
+/tracing-server
