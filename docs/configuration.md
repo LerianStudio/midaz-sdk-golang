@@ -267,14 +267,17 @@ environment.
 | `MIDAZ_MAX_RETRIES` | int | `3` | Maximum retry attempts; `0` disables retries |
 | `MIDAZ_IDEMPOTENCY` | bool | `true` | Toggle automatic `X-Idempotency` header generation |
 | `MIDAZ_TENANT_ID` | string | (empty) | Default `X-Tenant-ID` header for every request |
-| `MIDAZ_SKIP_AUTH_CHECK` | bool | `false` | Skip eager auth-token fetch at construction time (advanced) |
+| `MIDAZ_SKIP_AUTH_CHECK` | bool | `false` | **Test plumbing only.** Disables the construction-time check that fails when `PLUGIN_AUTH_ENABLED=true` is set without a complete Access Manager configuration. Bypassing the check hides misconfigurations until runtime, where they surface as 401 cascades. Never set this in production deployments. |
 | `PLUGIN_AUTH_ENABLED` | bool | `false` | Enable plugin-based OAuth authentication |
 | `PLUGIN_AUTH_ADDRESS` | URL | — | Auth plugin endpoint (required when `PLUGIN_AUTH_ENABLED=true`) |
 | `MIDAZ_CLIENT_ID` | string | — | OAuth M2M client ID (required when `PLUGIN_AUTH_ENABLED=true`) |
 | `MIDAZ_CLIENT_SECRET` | string | — | OAuth M2M client secret (required when `PLUGIN_AUTH_ENABLED=true`) |
 
-> Boolean parsing accepts `true`/`false`, `1`/`0`, `yes`/`no`, `on`/`off`
-> (case-insensitive). Any other value is treated as `false`.
+> Boolean parsing uses Go's [`strconv.ParseBool`](https://pkg.go.dev/strconv#ParseBool)
+> and accepts only its canonical forms: `1`, `t`, `T`, `TRUE`, `true`, `True`,
+> `0`, `f`, `F`, `FALSE`, `false`, and `False`. Any other value (including
+> `yes`/`no`/`on`/`off`) returns a configuration error rather than silently
+> defaulting — a typo no longer flips a flag the wrong way.
 
 > `MIDAZ_DEBUG=true` has a secondary effect: when no `WithLogger` was
 > passed, it upgrades the default-discard logger to a stderr text handler

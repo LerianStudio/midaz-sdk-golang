@@ -48,7 +48,7 @@ All variables below are read by `config.FromEnvironment()`. Standard library rea
 | `PLUGIN_AUTH_ADDRESS` | Access Manager base address. | empty |
 | `MIDAZ_CLIENT_ID` | Access Manager client ID. | empty |
 | `MIDAZ_CLIENT_SECRET` | Access Manager client secret. | empty |
-| `MIDAZ_SKIP_AUTH_CHECK` | **Test plumbing only.** Bypasses the "plugin auth address required" validation when set to `true`. Programmatic configuration cannot set this. | `false` |
+| `MIDAZ_SKIP_AUTH_CHECK` | **Test plumbing only — never set in production.** Bypasses the construction-time gate that catches Access Manager misconfigurations (`PLUGIN_AUTH_ENABLED=true` without `PLUGIN_AUTH_ADDRESS`, `MIDAZ_CLIENT_ID`, or `MIDAZ_CLIENT_SECRET`) before the first request. Skipping it pushes those failures to runtime as 401 cascades. Programmatic configuration cannot set this. | `false` |
 
 `MIDAZ_AUTH_TOKEN` is **not** a configuration environment variable. `config.FromEnvironment()` does not read it, and v3 deliberately exposes no `WithAuthToken` option. The two sanctioned auth paths are `midaz.WithAccessManager(...)` (OAuth via the Lerian Access Manager service) and `midaz.WithAnonymous()` (explicit auth-less mode for local development and tests). Static-token deployments configure their access manager to mint tokens.
 
@@ -154,7 +154,7 @@ if err != nil {
 c, err := midaz.New(midaz.WithConfig(cfg))
 ```
 
-The SDK does not read retry wait environment variables. Configure retry timing in code with `midaz.WithRetries(...)`.
+The SDK does not read retry wait environment variables. Configure retry timing in code with `midaz.WithRetryOptions(retry.WithInitialDelay(...), retry.WithMaxDelay(...))`.
 
 ## Idempotency behavior
 

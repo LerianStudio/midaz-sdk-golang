@@ -145,7 +145,7 @@ The HTTP retry engine has its own default options in `pkg/retry`:
 | Backoff factor | `2.0` |
 | Jitter factor | `0.25` |
 
-When you configure the root client with `midaz.WithRetries(max, min, maxBackoff)`, `setupEntity()` applies those values to the entity HTTP client.
+When you configure the root client with `midaz.WithRetryOptions(retry.Option...)`, `setupEntity()` applies the resolved options to the entity HTTP client. Config-derived seeds (`MaxRetries`, `RetryWaitMin`, `RetryWaitMax`) run first; user-supplied options run afterward and the last write wins.
 
 ## Environment variables
 
@@ -217,7 +217,9 @@ if err != nil {
     return err
 }
 
-orgs, err := c.Entity.Organizations.ListOrganizations(ctx, models.NewListOptions().WithLimit(20))
+orgs, err := c.Organizations.ListOrganizations(ctx, models.OrganizationsListOpts{
+    PageListOpts: models.PageListOpts{Limit: 20},
+})
 ```
 
 The current entity surface has 16 services:
@@ -282,7 +284,7 @@ sequenceDiagram
     Client->>Entity: setupEntity()
     Entity->>Service: initServices()
 
-    App->>Service: c.Entity.Accounts.GetAccount(ctx, orgID, ledgerID, accountID)
+    App->>Service: c.Accounts.GetAccount(ctx, orgID, ledgerID, accountID)
     Service->>Service: validate required parameters
     Service->>Service: build resource URL
     Service->>HTTP: doRequest(ctx, method, url, headers, body, result)
@@ -324,7 +326,7 @@ import (
 )
 
 c, err := midaz.New(
-    midaz.WithEnvironment(midaz.EnvProduction),
+    midaz.WithEnvironment(midaz.EnvironmentProduction),
     midaz.WithAccessManager(midaz.AccessManager{
         Address:      "https://access-manager.example.com",
         ClientID:     "midaz-client",
@@ -406,7 +408,7 @@ Use the helper checkers for common branches:
 ```go
 import sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
 
-account, err := c.Entity.Accounts.GetAccount(ctx, orgID, ledgerID, accountID)
+account, err := c.Accounts.GetAccount(ctx, orgID, ledgerID, accountID)
 if err != nil {
     switch {
     case sdkerrors.IsNotFoundError(err):
@@ -464,12 +466,18 @@ Default retryable network error text includes:
 - `rate limit`
 - `service unavailable`
 
-Configure retries at the client level:
+Configure retries at the client level via `pkg/retry` options:
 
 ```go
+import "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry"
+
 c, err := midaz.New(
-    midaz.WithRetries(3, 100*time.Millisecond, 10*time.Second),
     midaz.WithAnonymous(),
+    midaz.WithRetryOptions(
+        retry.WithMaxRetries(3),
+        retry.WithInitialDelay(100*time.Millisecond),
+        retry.WithMaxDelay(10*time.Second),
+    ),
 )
 ```
 
@@ -477,7 +485,7 @@ Disable retries:
 
 ```go
 c, err := midaz.New(
-    midaz.DisableRetries(),
+    midaz.WithoutRetries(),
     midaz.WithAnonymous(),
 )
 ```
@@ -517,7 +525,7 @@ You can attach an idempotency key to any request context:
 ```go
 ctx := sdkctx.WithIdempotencyKey(context.Background(), "payment-2026-04-27-0001")
 
-tx, err := c.Entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
+tx, err := c.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
 ```
 
 For transaction creation, `models.CreateTransactionInput` also has an idempotency field used by the transaction service:
@@ -542,7 +550,7 @@ input := models.NewCreateTransactionInput("USD", "100.00").
 
 input.IdempotencyKey = "payment-2026-04-27-0001"
 
-tx, err := c.Entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
+tx, err := c.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
 ```
 
 Automatic idempotency applies to unsafe entity HTTP requests. The HTTP layer auto-generates `X-Idempotency` when:
@@ -622,41 +630,51 @@ Common model responsibilities include:
 - request input types such as `CreateOrganizationInput`, `CreateAccountInput`, and `CreateTransactionInput`
 - fluent builders such as `models.NewCreateOrganizationInput(...)`
 - response types such as `Organization`, `Ledger`, `Account`, `Transaction`, `Holder`, and `Alias`
-- list options and list responses
-- pagination metadata helpers
+- per-endpoint typed list-opts (`AccountsListOpts`, `TransactionsListOpts`, ...) and `models.ListResponse[T]`
+- pagination metadata helpers (`HasMore`, `HasPrev`, `TotalKnown`)
 - CRM holder and alias models
 - transaction DSL and send-based transaction inputs
 - validation methods on selected input types
-- conversion helpers between SDK models and Midaz backend model shapes
+
+In v3, every public model type is SDK-native (Track 7E retired the v2 `mmodel` embedding). JSON tags align with the Midaz wire format byte-for-byte, but the type identity is owned by `models/`.
 
 Validation happens primarily in model `Validate()` methods and service-level required parameter checks. The SDK does not provide a runtime system for custom validation rule registration.
 
 ## Pagination
 
-List methods use `models.ListOptions` and `models.ListResponse[T]`.
+v3 uses typed list-opts per endpoint. Page-based and cursor-based endpoints have separate opts types — wrong-shape opts don't compile. Every list method ships in a trio: `List` (one page), `ListXxxAll` (every item across pages, as `iter.Seq2`), and `ListXxxPages` (every page envelope, as `iter.Seq2`).
 
 ```go
-options := models.NewListOptions().
-    WithLimit(50).
-    WithPage(1).
-    WithFilter("status", "ACTIVE")
+opts := models.AccountsListOpts{
+    PageListOpts: models.PageListOpts{Limit: 50, Page: 1},
+    Filters:      models.AccountsFilters{Status: "ACTIVE"},
+}
 
-accounts, err := c.Entity.Accounts.ListAccounts(ctx, orgID, ledgerID, options)
+// Single page:
+page, err := c.Accounts.ListAccounts(ctx, orgID, ledgerID, opts)
 if err != nil {
     return err
 }
 
-for _, account := range accounts.Items {
+for _, account := range page.Items {
     fmt.Println(account.ID)
 }
 
-if accounts.Pagination.HasNextPage() {
-    nextOptions := accounts.Pagination.NextPageOptions()
-    _ = nextOptions
+if page.Pagination.HasMore() {
+    // For page-based: increment opts.Page; for cursor-based: copy
+    // page.Pagination.NextCursor into opts.Cursor.
+}
+
+// All items across every page (iter.Seq2):
+for account, err := range c.Accounts.ListAccountsAll(ctx, orgID, ledgerID, opts) {
+    if err != nil {
+        return err
+    }
+    fmt.Println(account.ID)
 }
 ```
 
-Cursor support is endpoint-specific. `WithCursor(...)` sets the cursor query parameter, and transaction listing has explicit cursor-aware behavior.
+Cursor-based endpoints (Transactions, Operations, OperationRoutes, TransactionRoutes, AssetRates) use `models.CursorListOpts` instead of `PageListOpts`. The type system prevents mixing them. See [docs/pagination.md](./pagination.md) for the full contract.
 
 ## CRM support
 
@@ -671,21 +689,23 @@ CRM requests use the `crm` service URL and send the organization context through
 X-Organization-Id: <organizationID>
 ```
 
-If a default tenant ID is configured, the shared HTTP client may also send `X-Tenant-ID`. That header does not replace the CRM `organizationID`; holder and alias methods still require `organizationID` and send it as `X-Organization-Id`. Per-request `entities.WithTenantID(ctx, id)` overrides only the default tenant header.
+If a default tenant ID is configured, the shared HTTP client may also send `X-Tenant-ID`. That header does not replace the CRM `organizationID`; holder and alias methods still require `organizationID` and send it as `X-Organization-Id`. Per-request `sdkctx.WithRequestTenantID(ctx, id)` overrides only the default tenant header.
 
 Example:
 
 ```go
-holders, err := c.Entity.Holders.ListHolders(
+holders, err := c.Holders.ListHolders(
     ctx,
     orgID,
-    models.NewListOptions().WithLimit(20),
+    models.HoldersListOpts{
+        PageListOpts: models.PageListOpts{Limit: 20},
+    },
 )
 if err != nil {
     return err
 }
 
-alias, err := c.Entity.Aliases.CreateAlias(
+alias, err := c.Aliases.CreateAlias(
     ctx,
     orgID,
     holderID,
@@ -810,13 +830,13 @@ Use these supported extension points:
 | --- | --- |
 | Custom service URLs | `midaz.WithBaseURL`, `midaz.WithOnboardingURL`, `midaz.WithTransactionURL`, `midaz.WithCRMURL`, or config equivalents. |
 | Custom HTTP behavior | `midaz.WithHTTPClient(...)` or `config.WithHTTPClient(...)`. |
-| Retry tuning | `midaz.WithRetries(...)`, `midaz.DisableRetries()`, or `midaz.WithCustomRetryPolicy(...)`. |
-| Access Manager authentication | `config.WithAccessManager(...)` or `config.FromEnvironment()`. |
-| Observability | `midaz.WithObservabilityProvider(...)`, `midaz.WithObservabilityOptions(...)`, or `midaz.WithCollectorEndpoint(...)`. |
-| Tenant compatibility header | `midaz.WithTenantID(...)`, `config.WithTenantID(...)`, or `sdkctx.WithRequestTenantID(ctx, ...)`. |
-| Per-request idempotency | `sdkctx.WithIdempotencyKey(ctx, ...)` or transaction input idempotency. |
-| Pagination | `models.NewListOptions()` and `models.ListResponse[T]` pagination helpers. |
-| Error branching | `pkg/errors` helper checkers and `errors.As`. |
+| Retry tuning | `midaz.WithRetryOptions(retry.Option...)`, `midaz.WithoutRetries()`, or `midaz.WithCustomRetryPolicy(...)`. |
+| Access Manager authentication | `midaz.WithAccessManager(...)`, `config.WithAccessManager(...)`, or `config.FromEnvironment()`. |
+| Observability | `midaz.WithObservabilityProvider(...)` or `midaz.WithObservabilityOptions(...)`. |
+| Tenant compatibility header | `midaz.WithTenantID(...)` or `sdkctx.WithRequestTenantID(ctx, ...)`. |
+| Per-request idempotency | `sdkctx.WithIdempotencyKey(ctx, ...)`, `sdkctx.WithoutAutoIdempotency(ctx)`, or transaction input idempotency. |
+| Pagination | Per-endpoint typed list-opts (`AccountsListOpts`, `TransactionsListOpts`, ...) embedding `PageListOpts` or `CursorListOpts`. |
+| Error branching | `pkg/errors` helper checkers (`IsNotFoundError`, `IsValidationError`, `IsAuthError`, ...) and `errors.As`. |
 
 ## Next steps
 

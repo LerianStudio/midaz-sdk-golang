@@ -59,19 +59,20 @@ orgInput := models.NewCreateOrganizationInput("Example Organization", "123456789
         "size":     "startup",
     })
 
-org, err := c.Entity.Organizations.CreateOrganization(ctx, orgInput)
+org, err := c.Organizations.CreateOrganization(ctx, orgInput)
 if err != nil {
     return err
 }
 
-org, err = c.Entity.Organizations.GetOrganization(ctx, org.ID)
+org, err = c.Organizations.GetOrganization(ctx, org.ID)
 if err != nil {
     return err
 }
 
-orgs, err := c.Entity.Organizations.ListOrganizations(ctx,
-    models.NewListOptions().WithLimit(20).WithFilter("status", "ACTIVE"),
-)
+orgs, err := c.Organizations.ListOrganizations(ctx, models.OrganizationsListOpts{
+    PageListOpts: models.PageListOpts{Limit: 20},
+    Filters:      models.OrganizationsFilters{Status: "ACTIVE"},
+})
 ```
 
 ## Account and asset management
@@ -83,7 +84,7 @@ assetInput := models.NewCreateAssetInputWithType("US Dollar", "USD", "currency")
         "country": "US",
     })
 
-asset, err := c.Entity.Assets.CreateAsset(ctx, orgID, ledgerID, assetInput)
+asset, err := c.Assets.CreateAsset(ctx, orgID, ledgerID, assetInput)
 if err != nil {
     return err
 }
@@ -95,18 +96,18 @@ accountInput := models.NewCreateAccountInput("Customer Checking Account", asset.
         "tier":        "premium",
     })
 
-account, err := c.Entity.Accounts.CreateAccount(ctx, orgID, ledgerID, accountInput)
+account, err := c.Accounts.CreateAccount(ctx, orgID, ledgerID, accountInput)
 if err != nil {
     return err
 }
 
-balance, err := c.Entity.Accounts.GetBalance(ctx, orgID, ledgerID, account.ID)
+balance, err := c.Accounts.GetBalance(ctx, orgID, ledgerID, account.ID)
 ```
 
 Use `BalancesService` when you need balance records by balance ID, all balances for an account, history, alias lookup, or external-code lookup:
 
 ```go
-balances, err := c.Entity.Balances.ListAccountBalances(ctx, orgID, ledgerID, account.ID, nil)
+balances, err := c.Balances.ListAccountBalances(ctx, orgID, ledgerID, account.ID, models.BalancesListOpts{})
 ```
 
 ## Transaction processing
@@ -142,13 +143,13 @@ txInput := models.NewCreateTransactionInput("USD", "100.00").
 	})
 txInput.IdempotencyKey = "payment-2026-05-03-0001"
 
-tx, err := c.Entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, txInput)
+tx, err := c.Transactions.CreateTransaction(ctx, orgID, ledgerID, txInput)
 ```
 
 For DSL-style structured transactions, use `TransactionDSLInput`:
 
 ```go
-tx, err := c.Entity.Transactions.CreateTransactionWithDSL(ctx, orgID, ledgerID, &models.TransactionDSLInput{
+tx, err := c.Transactions.CreateTransactionWithDSL(ctx, orgID, ledgerID, &models.TransactionDSLInput{
     ChartOfAccountsGroupName: "FUNDING",
     Description: "Split payment transaction",
     Send: &models.DSLSend{
@@ -174,31 +175,57 @@ For raw DSL file content, use `CreateTransactionWithDSLFile(ctx, orgID, ledgerID
 
 ## Using pagination
 
+v3 ships every list method in a trio: `List` (one page), `ListXxxAll` (every item across pages), and `ListXxxPages` (every page envelope). Use `iter.Seq2` for auto-paging — the SDK advances cursors and pages internally:
+
 ```go
-options := models.NewListOptions().
-    WithLimit(25).
-    WithOrderDirection(models.SortDescending).
-    WithFilter("status", "ACTIVE")
+opts := models.AccountsListOpts{
+    PageListOpts: models.PageListOpts{
+        Limit:         25,
+        SortDirection: models.SortDescending,
+    },
+    Filters: models.AccountsFilters{Status: "ACTIVE"},
+}
 
-for {
-    page, err := c.Entity.Accounts.ListAccounts(ctx, orgID, ledgerID, options)
+for account, err := range c.Accounts.ListAccountsAll(ctx, orgID, ledgerID, opts) {
     if err != nil {
-        return err
+        return fmt.Errorf("list accounts: %w", err)
     }
-
-    for _, account := range page.Items {
-        process(account)
-    }
-
-    if !page.Pagination.HasNextPage() {
-        break
-    }
-
-    options = page.Pagination.NextPageOptions()
+    process(account)
 }
 ```
 
-See [pagination](./pagination.md) for details on `page`, `limit`, cursor behavior, and sort serialization.
+When you need page-level metadata (cursor, total, page number) — for checkpointing, batching, or stopping mid-collection — use the `Pages` variant:
+
+```go
+for page, err := range c.Accounts.ListAccountsPages(ctx, orgID, ledgerID, opts) {
+    if err != nil {
+        return err
+    }
+    log.Printf("page=%d items=%d next_cursor=%q",
+        page.Pagination.Page, len(page.Items), page.Pagination.NextCursor)
+    for _, account := range page.Items {
+        process(account)
+    }
+}
+```
+
+For one-page-at-a-time control (UI pagination, manual replay), call `List` directly and inspect `page.Pagination.HasMore()`:
+
+```go
+page, err := c.Accounts.ListAccounts(ctx, orgID, ledgerID, opts)
+if err != nil {
+    return err
+}
+for _, account := range page.Items {
+    process(account)
+}
+if page.Pagination.HasMore() {
+    // For page-based: increment opts.Page; for cursor-based: copy
+    // page.Pagination.NextCursor into opts.Cursor.
+}
+```
+
+See [pagination](./pagination.md) for the full contract: page-based vs cursor-based endpoints, the `*All` / `*Pages` / `List` decision tree, and the typed-opts compile-time guarantees.
 
 ## Example applications
 

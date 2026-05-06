@@ -4,11 +4,16 @@ This directory contains hand-written guides and generated package documentation 
 
 ## Start here
 
+- [Migration: v2 → v3](./migration-v2-to-v3.md) - Side-by-side guide covering every breaking change. Read this first if upgrading.
+- [Authentication](./auth.md) - Access Manager OAuth and anonymous mode.
+- [Configuration](./configuration.md) - Four configuration surfaces, precedence rules, every option.
 - [Environment variables](./environment.md) - Runtime configuration and `.env` usage.
 - [Error handling](./errors.md) - SDK error categories, helpers, and retry boundaries.
-- [Architecture](./comprehensive-architecture.md) - SDK structure and implementation overview. (Older [architecture.md](./architecture.md) is retained as historical context only.)
+- [Architecture](./comprehensive-architecture.md) - SDK structure and implementation overview. (Older [architecture.md](./architecture.md) is retained as historical v2 context only.)
 - [Examples](./examples.md) - Runnable examples and common workflows.
 - [Pagination](./pagination.md) - List options, page metadata, and cursor behavior.
+- [Multi-tenancy](./multi-tenancy.md) - Tenant resolution, header vs claims, propagation patterns.
+- [Logging](./logging.md) - `*slog.Logger` integration recipes for stdlib slog, zap, zerolog, charmbracelet/log.
 - [Tracing](./tracing.md) - OpenTelemetry setup and trace propagation.
 
 ## API mapping

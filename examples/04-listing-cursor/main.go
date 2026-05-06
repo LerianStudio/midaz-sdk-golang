@@ -145,7 +145,7 @@ func flatItemIterator(ctx context.Context, c *midaz.Client, orgID, ledgerID, acc
 
 	opts := models.OperationsListOpts{
 		CursorListOpts: models.CursorListOpts{Limit: 100},
-		Filters:        models.OperationsFilters{Type: "debit"},
+		Filters:        models.OperationsFilters{Type: "DEBIT"},
 	}
 
 	count := 0

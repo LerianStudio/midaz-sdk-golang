@@ -84,7 +84,7 @@ Prefer SDK helper functions when branching on operational behavior:
 ```go
 import sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
 
-account, err := c.Entity.Accounts.GetAccount(ctx, orgID, ledgerID, accountID)
+account, err := c.Accounts.GetAccount(ctx, orgID, ledgerID, accountID)
 if err != nil {
     switch {
     case sdkerrors.IsNotFoundError(err):
@@ -105,9 +105,9 @@ Common checkers include:
 - `IsNotFoundError(err)`
 - `IsAuthenticationError(err)`
 - `IsAuthorizationError(err)`
-- `IsPermissionError(err)`
-- `IsConflictError(err)`
-- `IsAlreadyExistsError(err)`
+- `IsAuthError(err)` — matches both authentication (401) and authorization (403)
+- `IsConfigurationError(err)` — SDK setup or client-construction errors
+- `IsConflictError(err)` — covers 409 conflicts including "already exists" responses
 - `IsIdempotencyError(err)`
 - `IsRateLimitError(err)`
 - `IsTimeoutError(err)`
@@ -117,6 +117,7 @@ Common checkers include:
 - `IsInsufficientBalanceError(err)`
 - `IsAccountEligibilityError(err)`
 - `IsAssetMismatchError(err)`
+- `IsUnprocessableError(err)`
 
 ## Reading error details
 
@@ -227,12 +228,18 @@ Unsafe HTTP methods are retried only when an idempotency key is present. Attach 
 ctx = sdkctx.WithIdempotencyKey(ctx, "request-unique-key")
 ```
 
-Configure client retries with:
+Configure client retries with `pkg/retry` options:
 
 ```go
+import "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry"
+
 c, err := midaz.New(
-    midaz.WithRetries(3, 100*time.Millisecond, 10*time.Second),
     midaz.WithAnonymous(),
+    midaz.WithRetryOptions(
+        retry.WithMaxRetries(3),
+        retry.WithInitialDelay(100*time.Millisecond),
+        retry.WithMaxDelay(10*time.Second),
+    ),
 )
 ```
 
@@ -240,9 +247,19 @@ Or disable them:
 
 ```go
 c, err := midaz.New(
-    midaz.DisableRetries(),
+    midaz.WithoutRetries(),
     midaz.WithAnonymous(),
 )
+```
+
+Use `Error.Retryable()` as the canonical retry-policy source on `*errors.Error`:
+
+```go
+var sdkErr *sdkerrors.Error
+if errors.As(err, &sdkErr) && sdkErr.Retryable() {
+    // The SDK already classifies the error as retryable; apply your
+    // application-level retry strategy here.
+}
 ```
 
 `config.FromEnvironment()` currently reads `MIDAZ_MAX_RETRIES`. It does not read `MIDAZ_RETRY_WAIT_MIN` or `MIDAZ_RETRY_WAIT_MAX`.

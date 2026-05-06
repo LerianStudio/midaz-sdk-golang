@@ -25,7 +25,7 @@ import (
 
 func main() {
     c, err := midaz.New(
-        midaz.WithEnvironment(midaz.EnvProduction),
+        midaz.WithEnvironment(midaz.EnvironmentProduction),
         midaz.WithAccessManager(midaz.AccessManager{
             Address:      "https://auth.midaz.io",
             ClientID:     os.Getenv("MIDAZ_CLIENT_ID"),
@@ -75,7 +75,7 @@ import (
 
 func main() {
     c, err := midaz.New(
-        midaz.WithEnvironment(midaz.EnvLocal),
+        midaz.WithEnvironment(midaz.EnvironmentLocal),
         midaz.WithBaseURL("http://localhost:3000"),
         midaz.WithAnonymous(),
     )
@@ -100,7 +100,7 @@ configuration error during midaz.New: invalid configuration: no auth source conf
 Detect with the standard helpers:
 
 ```go
-c, err := midaz.New(midaz.WithEnvironment(midaz.EnvLocal))
+c, err := midaz.New(midaz.WithEnvironment(midaz.EnvironmentLocal))
 if err != nil {
     var sdkErr *errors.Error
     if errors.As(err, &sdkErr) && sdkErr.Category == errors.CategoryConfiguration {
@@ -118,7 +118,7 @@ if errors.Is(err, errors.ErrConfiguration) { ... }
 
 ### Bypassing the gate (test plumbing only)
 
-Setting `MIDAZ_SKIP_AUTH_CHECK=true` in the environment AND loading the config via `config.FromEnvironment()` bypasses the gate. This exists for tests that exercise partial-config code paths and is never the right answer for production code.
+Setting `MIDAZ_SKIP_AUTH_CHECK=true` in the environment AND loading the config via `config.FromEnvironment()` bypasses the gate. This exists for tests that exercise partial-config code paths and is never the right answer for production code — it disables the construction-time check that catches misconfigurations (Access Manager enabled without an address or credentials) before any request goes out, and quietly defers those failures to runtime as 401 cascades.
 
 ## Mutual exclusion
 

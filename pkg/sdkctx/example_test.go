@@ -31,7 +31,7 @@ func ExampleWithoutAutoIdempotency() {
 }
 
 // ExampleWithRequestTenantID shows per-request tenant override. The
-// SDK propagates the tenant ID via the X-Midaz-Tenant header on this
+// SDK propagates the tenant ID via the X-Tenant-ID header on this
 // request only — useful for multi-tenant services that route requests
 // based on something more dynamic than the client-level default.
 func ExampleWithRequestTenantID() {
