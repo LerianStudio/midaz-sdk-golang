@@ -6,7 +6,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/baggage"
 	"go.opentelemetry.io/otel/trace"
-	"go.opentelemetry.io/otel/trace/noop"
 )
 
 // ContextKey is the type for context keys
@@ -37,20 +36,6 @@ func GetProvider(ctx context.Context) Provider {
 	}
 
 	return nil
-}
-
-// WithSpanAttributes returns a new context with attributes added to the current span
-func WithSpanAttributes(ctx context.Context, attrs ...attribute.KeyValue) context.Context {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	span := trace.SpanFromContext(ctx)
-	if span.IsRecording() {
-		span.SetAttributes(attrs...)
-	}
-
-	return ctx
 }
 
 // AddSpanAttributes adds attributes to the current span
@@ -122,20 +107,6 @@ func GetBaggageItem(ctx context.Context, key string) string {
 	return ""
 }
 
-// Start starts a new span from a context
-func Start(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	provider := GetProvider(ctx)
-	if provider != nil && provider.IsEnabled() {
-		return provider.Tracer().Start(ctx, name, opts...)
-	}
-
-	return noop.NewTracerProvider().Tracer("").Start(ctx, name, opts...)
-}
-
 // Log returns a logger from the context
 func Log(ctx context.Context) Logger {
 	if ctx == nil {
@@ -151,14 +122,12 @@ func Log(ctx context.Context) Logger {
 	return NewNoopLogger()
 }
 
-// TraceID returns the trace ID from the context, if available
+// TraceID returns the trace ID from the current span context, if available.
+// Returns the empty string when no span is active or the span context is
+// invalid.
 func TraceID(ctx context.Context) string {
 	if ctx == nil {
 		return ""
-	}
-
-	if traceID, ok := ctx.Value(traceIDContextKey{}).(string); ok {
-		return traceID
 	}
 
 	spanCtx := trace.SpanContextFromContext(ctx)

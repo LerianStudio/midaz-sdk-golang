@@ -9,6 +9,7 @@
 package config
 
 import (
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"net"
@@ -77,12 +78,6 @@ const (
 	DefaultEnableIdempotency = true
 )
 
-// Boolean string values for environment variable comparison.
-const (
-	// boolTrue represents the string value "true" for boolean environment variables.
-	boolTrue = "true"
-)
-
 // Config holds the configuration for the Midaz SDK.
 // It centralizes all settings needed to interact with the Midaz API.
 type Config struct {
@@ -139,11 +134,19 @@ type Config struct {
 	crmURLSet         bool
 	httpClientOwned   bool
 
-	// skipAuthCheck bypasses the "plugin auth address required" validation when
-	// AccessManager.Enabled is true. Populated only by FromEnvironment when
-	// MIDAZ_SKIP_AUTH_CHECK=true is set; never read from env directly elsewhere.
-	// This is a test plumbing escape hatch — programmatic configuration should
-	// never set it.
+	// skipAuthCheck bypasses the "plugin auth address required" validation
+	// when AccessManager.Enabled is true. Populated only by FromEnvironment
+	// when MIDAZ_SKIP_AUTH_CHECK=true is set; never read from env directly
+	// elsewhere.
+	//
+	// SECURITY: this disables a deliberate construction-time gate that
+	// catches misconfigured auth (Enabled without Address, ClientID, or
+	// ClientSecret) before the first request goes out. Setting it true
+	// hides those misconfigurations until runtime, where they surface as
+	// 401 cascades. This is a test-plumbing escape hatch only —
+	// programmatic configuration should never set it, and production
+	// deployments should never set MIDAZ_SKIP_AUTH_CHECK in the
+	// environment.
 	skipAuthCheck bool
 
 	// Anonymous is the explicit acknowledgment that the client is being
@@ -612,21 +615,28 @@ func WithAnonymous() Option {
 // This allows for configuration without code changes.
 //
 // Environment variables:
-// - MIDAZ_ENVIRONMENT: The environment to use (local, development, production)
-// - PLUGIN_AUTH_ENABLED: Enable access manager authentication (true/false)
-// - PLUGIN_AUTH_ADDRESS: The address of the access manager service
-// - MIDAZ_CLIENT_ID: The client ID for authentication
-// - MIDAZ_CLIENT_SECRET: The client secret for authentication
-// - MIDAZ_USER_AGENT: The user agent string to use for HTTP requests
-// - MIDAZ_ONBOARDING_URL: The URL for the Onboarding API
-// - MIDAZ_TRANSACTION_URL: The URL for the Transaction API
-// - MIDAZ_CRM_URL: The URL for the CRM API
-// - MIDAZ_BASE_URL: The base URL for all services
-// - MIDAZ_TIMEOUT: The timeout in seconds for HTTP requests
-// - MIDAZ_DEBUG: Enable debug mode (true/false)
-// - MIDAZ_MAX_RETRIES: Maximum number of retries
-// - MIDAZ_IDEMPOTENCY: Enable idempotency (true/false)
-// - MIDAZ_TENANT_ID: Default tenant ID applied to every request unless overridden by per-request context
+//   - MIDAZ_ENVIRONMENT: The environment to use (local, development, production)
+//   - PLUGIN_AUTH_ENABLED: Enable access manager authentication (parsed via [strconv.ParseBool])
+//   - PLUGIN_AUTH_ADDRESS: The address of the access manager service
+//   - MIDAZ_CLIENT_ID: The client ID for authentication
+//   - MIDAZ_CLIENT_SECRET: The client secret for authentication
+//   - MIDAZ_USER_AGENT: The user agent string to use for HTTP requests
+//   - MIDAZ_ONBOARDING_URL: The URL for the Onboarding API
+//   - MIDAZ_TRANSACTION_URL: The URL for the Transaction API
+//   - MIDAZ_CRM_URL: The URL for the CRM API
+//   - MIDAZ_BASE_URL: The base URL for all services
+//   - MIDAZ_TIMEOUT: The timeout in seconds for HTTP requests
+//   - MIDAZ_DEBUG: Enable debug mode (parsed via [strconv.ParseBool])
+//   - MIDAZ_MAX_RETRIES: Maximum number of retries
+//   - MIDAZ_IDEMPOTENCY: Enable idempotency (parsed via [strconv.ParseBool])
+//   - MIDAZ_TENANT_ID: Default tenant ID applied to every request unless overridden by per-request context
+//
+// Boolean variables accept the canonical [strconv.ParseBool] forms only:
+// "1", "t", "T", "TRUE", "true", "True", "0", "f", "F", "FALSE", "false",
+// and "False". Any other value (including "yes", "no", "on", "off") returns
+// an error rather than silently defaulting — the previous behavior treated
+// every non-"true" value as false, which silently flipped MIDAZ_IDEMPOTENCY=yes
+// off when callers expected it on.
 //
 // Returns:
 //   - Option: A function that sets configuration from environment variables
@@ -640,7 +650,10 @@ func FromEnvironment() Option {
 			return err
 		}
 
-		configureAccessManager(c)
+		if err := configureAccessManager(c); err != nil {
+			return err
+		}
+
 		configureUserAgent(c)
 
 		if err := configureURLs(c); err != nil {
@@ -651,9 +664,7 @@ func FromEnvironment() Option {
 			return err
 		}
 
-		configureOptionalSettings(c)
-
-		return nil
+		return configureOptionalSettings(c)
 	}
 }
 
@@ -676,17 +687,43 @@ func configureEnvironment(c *Config) error {
 	}
 }
 
-// configureAccessManager sets up access manager configuration from environment
-func configureAccessManager(c *Config) {
-	if enable := os.Getenv("PLUGIN_AUTH_ENABLED"); enable != "" {
-		c.AccessManager.Address = os.Getenv("PLUGIN_AUTH_ADDRESS")
-		c.AccessManager.ClientID = os.Getenv("MIDAZ_CLIENT_ID")
-		c.AccessManager.ClientSecret = os.Getenv("MIDAZ_CLIENT_SECRET")
-		c.AccessManager.Enabled = enable == boolTrue
-		if c.AccessManager.Enabled {
-			c.Anonymous = false
-		}
+// configureAccessManager sets up access manager configuration from environment.
+//
+// Programmatic AccessManager fields populated before FromEnvironment runs are
+// preserved when the corresponding env var is empty. The previous behavior
+// unconditionally overwrote Address/ClientID/ClientSecret with os.Getenv's
+// empty-string return whenever PLUGIN_AUTH_ENABLED was set, which silently
+// wiped credentials configured via WithAccessManager when callers chained
+// FromEnvironment afterwards (e.g. NewLocalConfig).
+func configureAccessManager(c *Config) error {
+	enable := os.Getenv("PLUGIN_AUTH_ENABLED")
+	if enable == "" {
+		return nil
 	}
+
+	enabled, err := strconv.ParseBool(strings.TrimSpace(enable))
+	if err != nil {
+		return fmt.Errorf("invalid PLUGIN_AUTH_ENABLED value %q: %w", enable, err)
+	}
+
+	if address := os.Getenv("PLUGIN_AUTH_ADDRESS"); address != "" {
+		c.AccessManager.Address = address
+	}
+
+	if clientID := os.Getenv("MIDAZ_CLIENT_ID"); clientID != "" {
+		c.AccessManager.ClientID = clientID
+	}
+
+	if clientSecret := os.Getenv("MIDAZ_CLIENT_SECRET"); clientSecret != "" {
+		c.AccessManager.ClientSecret = clientSecret
+	}
+
+	c.AccessManager.Enabled = enabled
+	if enabled {
+		c.Anonymous = false
+	}
+
+	return nil
 }
 
 // configureUserAgent sets user agent from environment if available
@@ -770,14 +807,30 @@ func configureRetries(c *Config) error {
 	return WithMaxRetries(maxRetries)(c)
 }
 
-// configureOptionalSettings sets optional boolean settings from environment
-func configureOptionalSettings(c *Config) {
-	if debug := os.Getenv("MIDAZ_DEBUG"); debug == boolTrue {
-		c.Debug = true
+// configureOptionalSettings sets optional boolean settings from environment.
+//
+// Boolean env vars are parsed strictly via [strconv.ParseBool] so callers get
+// a clear error for typos like MIDAZ_IDEMPOTENCY=yes. The previous behavior
+// silently treated every non-"true" value as false, which is the worst kind
+// of silent default — the user reads the doc, types a reasonable value, and
+// the SDK quietly does the opposite.
+func configureOptionalSettings(c *Config) error {
+	if debug := os.Getenv("MIDAZ_DEBUG"); debug != "" {
+		parsed, err := strconv.ParseBool(strings.TrimSpace(debug))
+		if err != nil {
+			return fmt.Errorf("invalid MIDAZ_DEBUG value %q: %w", debug, err)
+		}
+
+		c.Debug = parsed
 	}
 
 	if idempotency := os.Getenv("MIDAZ_IDEMPOTENCY"); idempotency != "" {
-		c.EnableIdempotency = idempotency == boolTrue
+		parsed, err := strconv.ParseBool(strings.TrimSpace(idempotency))
+		if err != nil {
+			return fmt.Errorf("invalid MIDAZ_IDEMPOTENCY value %q: %w", idempotency, err)
+		}
+
+		c.EnableIdempotency = parsed
 	}
 
 	if tenantID := strings.TrimSpace(os.Getenv("MIDAZ_TENANT_ID")); tenantID != "" {
@@ -786,10 +839,17 @@ func configureOptionalSettings(c *Config) {
 
 	// MIDAZ_SKIP_AUTH_CHECK is a test-plumbing escape hatch read only via
 	// FromEnvironment so validateConfig can consult c.skipAuthCheck instead
-	// of reading the environment directly.
-	if skip := os.Getenv("MIDAZ_SKIP_AUTH_CHECK"); skip == boolTrue {
-		c.skipAuthCheck = true
+	// of reading the environment directly. Same strict parsing rule applies.
+	if skip := os.Getenv("MIDAZ_SKIP_AUTH_CHECK"); skip != "" {
+		parsed, err := strconv.ParseBool(strings.TrimSpace(skip))
+		if err != nil {
+			return fmt.Errorf("invalid MIDAZ_SKIP_AUTH_CHECK value %q: %w", skip, err)
+		}
+
+		c.skipAuthCheck = parsed
 	}
+
+	return nil
 }
 
 // parseEnvInt parses an integer from an environment variable.
@@ -955,9 +1015,25 @@ func (c *Config) Validate() error {
 	return validateConfig(c)
 }
 
-// validateConfig ensures that the Config has all required fields.
+// validateConfig ensures that the Config has all required fields by
+// dispatching to topical helpers. Each helper owns one concern (service
+// URLs, retry knobs, auth sources) so this entry point stays a thin
+// sequential gate.
 func validateConfig(config *Config) error {
-	// Check that we have URLs for required services
+	if err := validateServiceURLs(config); err != nil {
+		return err
+	}
+
+	if err := validateRetrySettings(config); err != nil {
+		return err
+	}
+
+	return validateAuthSettings(config)
+}
+
+// validateServiceURLs enforces that the two services every Midaz client
+// must be able to reach (onboarding + transaction) have URLs configured.
+func validateServiceURLs(config *Config) error {
 	if _, ok := config.ServiceURLs[ServiceOnboarding]; !ok {
 		return errors.New("onboarding URL is required")
 	}
@@ -966,13 +1042,33 @@ func validateConfig(config *Config) error {
 		return errors.New("transaction URL is required")
 	}
 
-	// Auth-required gate: refuse to build a client that has no auth source
-	// and no explicit Anonymous opt-out. This closes v2's silent-localhost
-	// footgun where construction succeeded with no credentials and every
-	// real request returned 401.
-	//
-	// The skipAuthCheck escape hatch (set only by FromEnvironment when
-	// MIDAZ_SKIP_AUTH_CHECK=true is in the env) bypasses the gate for tests.
+	return nil
+}
+
+// validateRetrySettings enforces the min ≤ max invariant on the retry
+// wait pair. WithRetryWaitMin/WithRetryWaitMax already catch inversions at
+// option-application time, but a caller that mutates the fields directly
+// on a Config they own (e.g. via DefaultConfig) can still land in min > max.
+// Refuse construction here rather than producing a config the retry layer
+// would have to handle defensively.
+func validateRetrySettings(config *Config) error {
+	if config.RetryWaitMin > 0 && config.RetryWaitMax > 0 && config.RetryWaitMin > config.RetryWaitMax {
+		return errors.New("minimum wait time must be less than or equal to maximum wait time")
+	}
+
+	return nil
+}
+
+// validateAuthSettings enforces the auth-source contract: exactly one of
+// AccessManager or Anonymous must be configured, and when AccessManager is
+// the chosen source its required fields (address, client id, client secret)
+// must all be present.
+//
+// The skipAuthCheck escape hatch (set only by FromEnvironment when
+// MIDAZ_SKIP_AUTH_CHECK=true is in the env) bypasses the gate for tests.
+// This closes v2's silent-localhost footgun where construction succeeded
+// with no credentials and every real request returned 401.
+func validateAuthSettings(config *Config) error {
 	if !config.AccessManager.Enabled && !config.Anonymous && !config.skipAuthCheck {
 		return errors.New("no auth source configured; use WithAccessManager or WithAnonymous")
 	}
@@ -981,18 +1077,20 @@ func validateConfig(config *Config) error {
 		return errors.New("exactly one auth source must be configured: Access Manager or Anonymous")
 	}
 
-	if config.AccessManager.Enabled && !config.skipAuthCheck {
-		if strings.TrimSpace(config.AccessManager.Address) == "" {
-			return errors.New("plugin auth address is required")
-		}
+	if !config.AccessManager.Enabled || config.skipAuthCheck {
+		return nil
+	}
 
-		if strings.TrimSpace(config.AccessManager.ClientID) == "" {
-			return errors.New("plugin auth client id is required")
-		}
+	if strings.TrimSpace(config.AccessManager.Address) == "" {
+		return errors.New("plugin auth address is required")
+	}
 
-		if strings.TrimSpace(config.AccessManager.ClientSecret) == "" {
-			return errors.New("plugin auth client secret is required")
-		}
+	if strings.TrimSpace(config.AccessManager.ClientID) == "" {
+		return errors.New("plugin auth client id is required")
+	}
+
+	if strings.TrimSpace(config.AccessManager.ClientSecret) == "" {
+		return errors.New("plugin auth client secret is required")
 	}
 
 	return nil
@@ -1100,7 +1198,14 @@ func parseURL(rawURL string) error {
 	return nil
 }
 
-// NewDefaultHTTPClient returns an SDK-owned HTTP client with a conservative pooled transport.
+// NewDefaultHTTPClient returns an SDK-owned HTTP client with a conservative
+// pooled transport.
+//
+// The transport pins TLS to a minimum of TLS 1.2 ([tls.VersionTLS12]). Go's
+// runtime default already lands here (Go 1.18+ enforces TLS 1.2 client-side),
+// but pinning it explicitly insulates the SDK from any future runtime change
+// that would lower the floor — and makes the floor visible to anyone reading
+// the code instead of buried in the standard library defaults.
 func NewDefaultHTTPClient(timeout time.Duration) *http.Client {
 	return &http.Client{
 		Timeout: timeout,
@@ -1115,6 +1220,9 @@ func NewDefaultHTTPClient(timeout time.Duration) *http.Client {
 			IdleConnTimeout:       90 * time.Second,
 			TLSHandshakeTimeout:   10 * time.Second,
 			ExpectContinueTimeout: time.Second,
+			TLSClientConfig: &tls.Config{
+				MinVersion: tls.VersionTLS12,
+			},
 		},
 	}
 }
@@ -1256,6 +1364,11 @@ func WithMaxRetries(maxRetries int) Option {
 
 // WithRetryWaitMin sets the minimum wait time between retries.
 //
+// The Option rejects values that would invert the retry-wait pair:
+// applying WithRetryWaitMin with a value greater than the current
+// RetryWaitMax returns an error rather than silently producing a
+// nonsensical (min > max) configuration.
+//
 // Parameters:
 //   - waitTime: The minimum wait time between retries
 //
@@ -1269,6 +1382,10 @@ func WithRetryWaitMin(waitTime time.Duration) Option {
 
 		if waitTime <= 0 {
 			return errors.New("minimum wait time must be greater than 0")
+		}
+
+		if c.RetryWaitMax > 0 && waitTime > c.RetryWaitMax {
+			return errors.New("minimum wait time must be less than or equal to maximum wait time")
 		}
 
 		c.RetryWaitMin = waitTime

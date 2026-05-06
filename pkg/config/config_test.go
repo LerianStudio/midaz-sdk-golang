@@ -1262,7 +1262,7 @@ func TestConfigureAccessManager(t *testing.T) {
 			t.Setenv("MIDAZ_CLIENT_SECRET", tc.envSecret)
 
 			config := &Config{}
-			configureAccessManager(config)
+			require.NoError(t, configureAccessManager(config))
 
 			if tc.envEnabled == "" {
 				assert.Empty(t, config.AccessManager.Address)
@@ -1335,7 +1335,7 @@ func TestConfigureOptionalSettings(t *testing.T) {
 			}
 
 			config := &Config{EnableIdempotency: tc.initialIdempotency}
-			configureOptionalSettings(config)
+			require.NoError(t, configureOptionalSettings(config))
 
 			assert.Equal(t, tc.expectedDebug, config.Debug)
 			assert.Equal(t, tc.expectedIdempotency, config.EnableIdempotency)

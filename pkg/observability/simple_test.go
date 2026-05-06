@@ -86,7 +86,6 @@ func TestObservabilityWithAllOptions(t *testing.T) {
 		// Configure service information
 		WithServiceName("test-service"),
 		WithServiceVersion("1.0.0"),
-		WithSDKVersion("1.0.0"),
 		WithEnvironment("test"),
 
 		// Configure component enablement

@@ -177,27 +177,10 @@ func (c *boundedTokenCache) loadValid(key string, now time.Time) (cachedToken, b
 	return entry.value, true
 }
 
-// Reset removes every entry. Test helper exposed via ClearAccessManagerCache.
-func (c *boundedTokenCache) Reset() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	c.entries = make(map[string]*list.Element, c.capacity)
-	c.order = list.New()
-}
-
 var (
 	accessManagerTokenCache   = newBoundedTokenCache(accessManagerCacheCapacity)
 	accessManagerSingleFlight singleflight.Group
 )
-
-// ClearAccessManagerCache wipes the in-process token cache. Tests use it to
-// reset state between scenarios; production callers may call it after
-// rotating credentials so the next request re-issues the token-exchange
-// request instead of serving the stale cached entry.
-func ClearAccessManagerCache() {
-	accessManagerTokenCache.Reset()
-}
 
 // AccessManager represents the configuration for plugin-based authentication.
 //

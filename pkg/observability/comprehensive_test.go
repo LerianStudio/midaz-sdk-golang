@@ -94,42 +94,6 @@ func TestWithServiceVersionValidation(t *testing.T) {
 	}
 }
 
-func TestWithSDKVersionValidation(t *testing.T) {
-	tests := []struct {
-		name        string
-		sdkVersion  string
-		wantErr     bool
-		errContains string
-	}{
-		{
-			name:       "valid SDK version",
-			sdkVersion: "2.0.0",
-			wantErr:    false,
-		},
-		{
-			name:        "empty SDK version",
-			sdkVersion:  "",
-			wantErr:     true,
-			errContains: "SDK version cannot be empty",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			config := DefaultConfig()
-
-			err := WithSDKVersion(tt.sdkVersion)(config)
-			if tt.wantErr {
-				require.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errContains)
-			} else {
-				require.NoError(t, err)
-				assert.Equal(t, tt.sdkVersion, config.SDKVersion)
-			}
-		})
-	}
-}
-
 func TestWithEnvironmentValidation(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -739,13 +703,6 @@ func TestWithProviderAndGetProvider(t *testing.T) {
 	assert.Equal(t, provider, retrieved)
 }
 
-func TestWithSpanAttributesNoRecording(t *testing.T) {
-	// Use a context without a recording span
-	ctx := context.Background()
-	resultCtx := WithSpanAttributes(ctx, attribute.String("key", "value"))
-	assert.NotNil(t, resultCtx)
-}
-
 func TestAddSpanAttributesNoRecording(_ *testing.T) {
 	// Use a context without a recording span
 	ctx := context.Background()
@@ -789,32 +746,6 @@ func TestGetBaggageItemNotFound(t *testing.T) {
 	ctx := context.Background()
 	value := GetBaggageItem(ctx, "nonexistent")
 	assert.Empty(t, value)
-}
-
-func TestStartWithProvider(t *testing.T) {
-	provider, err := New(context.Background(),
-		WithComponentEnabled(true, false, false),
-		WithRegisterGlobally(false),
-	)
-	require.NoError(t, err)
-
-	defer func() { _ = provider.Shutdown(context.Background()) }()
-
-	ctx := WithProvider(context.Background(), provider)
-	newCtx, span := Start(ctx, "test-span")
-
-	assert.NotNil(t, span)
-	assert.NotNil(t, newCtx)
-	span.End()
-}
-
-func TestStartWithoutProvider(t *testing.T) {
-	ctx := context.Background()
-	newCtx, span := Start(ctx, "test-span")
-
-	assert.NotNil(t, span)
-	assert.NotNil(t, newCtx)
-	span.End()
 }
 
 func TestLogWithProvider(t *testing.T) {
@@ -1007,13 +938,6 @@ func TestRecordSpanMetricNoSpan(_ *testing.T) {
 	ctx := context.Background()
 	// Should not panic
 	RecordSpanMetric(ctx, "test.metric", 1.0)
-}
-
-func TestWithTraceID(t *testing.T) {
-	ctx := context.Background()
-	newCtx := WithTraceID(ctx, "test-trace-id")
-	// Currently returns the same context
-	assert.NotNil(t, newCtx)
 }
 
 // =============================================================================
@@ -1580,45 +1504,6 @@ func TestTLSCipherSuiteString(t *testing.T) {
 }
 
 // =============================================================================
-// NewWithConfig Tests
-// =============================================================================
-
-func TestNewWithConfigAllFields(t *testing.T) {
-	var buf bytes.Buffer
-
-	config := &Config{
-		ServiceName:       "test-service",
-		ServiceVersion:    "1.0.0",
-		SDKVersion:        "2.0.0",
-		Environment:       "test",
-		CollectorEndpoint: "", // Empty to avoid connection attempts
-		LogLevel:          DebugLevel,
-		LogOutput:         &buf,
-		TraceSampleRate:   0.5,
-		EnabledComponents: EnabledComponents{
-			Tracing: true,
-			Metrics: true,
-			Logging: true,
-		},
-		Attributes: []attribute.KeyValue{
-			attribute.String("custom", "attr"),
-		},
-		Propagators: []propagation.TextMapPropagator{
-			propagation.TraceContext{},
-		},
-		PropagationHeaders: []string{"traceparent"},
-		RegisterGlobally:   false,
-	}
-
-	provider, err := NewWithConfig(context.Background(), config)
-	require.NoError(t, err)
-
-	defer func() { _ = provider.Shutdown(context.Background()) }()
-
-	assert.True(t, provider.IsEnabled())
-}
-
-// =============================================================================
 // DefaultConfig Tests
 // =============================================================================
 
@@ -1746,14 +1631,14 @@ func TestFullObservabilityWorkflow(t *testing.T) {
 	// Store provider in context
 	ctx := WithProvider(context.Background(), provider)
 
-	// Create span using context
-	ctx, span := Start(ctx, "parent-operation")
+	// Create span using the provider tracer
+	ctx, span := provider.Tracer().Start(ctx, "parent-operation")
 
 	// Add attributes
 	AddSpanAttributes(ctx, attribute.String("operation", "test"))
 
 	// Create child span
-	childCtx, childSpan := Start(ctx, "child-operation")
+	childCtx, childSpan := provider.Tracer().Start(ctx, "child-operation")
 	AddSpanEvent(childCtx, "processing-started", attribute.Int("batch", 1))
 
 	// Simulate error
@@ -2214,25 +2099,6 @@ func TestHTTPMiddlewareWithNilResponse(t *testing.T) {
 	ctx := context.Background()
 	req, _ := http.NewRequest(http.MethodGet, "http://example.com/test", nil)
 	m.recordRequestMetrics(ctx, req, nil, errors.New("connection refused"), 100*time.Millisecond)
-}
-
-func TestStartWithDisabledProvider(t *testing.T) {
-	provider, err := New(context.Background(),
-		WithRegisterGlobally(false),
-	)
-	require.NoError(t, err)
-
-	// Shutdown to disable
-	err = provider.Shutdown(context.Background())
-	require.NoError(t, err)
-
-	ctx := WithProvider(context.Background(), provider)
-
-	// Start should return noop span
-	newCtx, span := Start(ctx, "test-span")
-	assert.NotNil(t, span)
-	assert.NotNil(t, newCtx)
-	span.End()
 }
 
 func TestLogWithDisabledProvider(t *testing.T) {

@@ -15,13 +15,20 @@ const (
 	// bounded under pathological input. The original (untruncated) string
 	// is still returned to the caller — only the scanning cost is capped.
 	//
-	// The cap is a trade-off: anything past the window ships unredacted.
-	// 64 KiB covers typical HTTP error bodies (4xx/5xx JSON responses
-	// rarely exceed a few KiB) and the larger upstream payloads we have
-	// seen in practice, while keeping a single ReplaceAllString pass well
-	// under a millisecond on commodity hardware. Callers that intentionally
-	// pass larger blobs through here should redact at the source instead
-	// of relying on this best-effort post-hoc scrub.
+	// SAFETY TRADE-OFF — READ BEFORE PASSING LARGE PAYLOADS:
+	// Anything past byte 65,536 ships unredacted. The bytes [0, 65536) are
+	// scanned and rewritten; bytes [65536, len) are concatenated back to the
+	// output verbatim. A bearer token that lives at byte 70,000 of a 200 KB
+	// response body will appear in logs in the clear. This is acceptable for
+	// the SDK's own use (HTTP error messages, span attributes — all well
+	// under the cap) but is NOT a credential firewall for arbitrary payloads.
+	//
+	// 64 KiB covers typical HTTP error bodies (4xx/5xx JSON responses rarely
+	// exceed a few KiB) and the larger upstream payloads we have seen in
+	// practice, while keeping a single ReplaceAllString pass well under a
+	// millisecond on commodity hardware. Callers that intentionally pass
+	// larger blobs through here should redact at the source instead of
+	// relying on this best-effort post-hoc scrub.
 	sanitizeMaxScanBytes = 64 * 1024
 )
 

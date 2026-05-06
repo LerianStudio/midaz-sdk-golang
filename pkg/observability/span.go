@@ -18,8 +18,6 @@ var (
 	defaultProviderOnce sync.Once
 )
 
-type traceIDContextKey struct{}
-
 // StartSpan starts a new span with the given name
 func StartSpan(ctx context.Context, name string) (context.Context, trace.Span) {
 	if ctx == nil {
@@ -131,17 +129,4 @@ func RecordSpanMetric(ctx context.Context, name string, value float64) {
 
 	// Use RecordMetric from the provider
 	RecordMetric(ctx, defaultProvider, name, value)
-}
-
-// WithTraceID adds a trace ID to the context for correlation
-func WithTraceID(ctx context.Context, traceID string) context.Context {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	if traceID == "" {
-		return ctx
-	}
-
-	return context.WithValue(ctx, traceIDContextKey{}, traceID)
 }

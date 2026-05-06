@@ -30,7 +30,6 @@ func TestNewWithOptions(t *testing.T) {
 	provider, err = New(context.Background(),
 		WithServiceName("test-service"),
 		WithServiceVersion("1.0.0"),
-		WithSDKVersion("2.0.0"),
 		WithEnvironment("test"),
 		WithComponentEnabled(true, false, true),
 	)
@@ -66,52 +65,6 @@ func TestNewWithOptions(t *testing.T) {
 	_, err = New(context.Background(), WithTraceSampleRate(2.0))
 	if err == nil {
 		t.Fatal("Expected error with invalid trace sample rate")
-	}
-
-	// Test shutdown
-	err = provider.Shutdown(context.Background())
-	if err != nil {
-		t.Fatalf("Failed to shutdown provider: %v", err)
-	}
-
-	if provider.IsEnabled() {
-		t.Fatal("Provider should be disabled after shutdown")
-	}
-}
-
-func TestNewWithConfig(t *testing.T) {
-	// Test backward compatibility
-
-	// Test with nil config
-	provider, err := NewWithConfig(context.Background(), nil)
-	if err != nil {
-		t.Fatalf("Failed to create provider with nil config: %v", err)
-	}
-
-	if !provider.IsEnabled() {
-		t.Fatal("Provider should be enabled by default")
-	}
-
-	// Test with custom config
-	config := &Config{
-		ServiceName:    "test-service",
-		ServiceVersion: "1.0.0",
-		SDKVersion:     "2.0.0",
-		Environment:    "test",
-		EnabledComponents: EnabledComponents{
-			Tracing: true,
-			Metrics: false,
-			Logging: true,
-		},
-	}
-
-	provider, err = NewWithConfig(context.Background(), config)
-	if err != nil {
-		t.Fatalf("Failed to create provider with custom config: %v", err)
-	}
-
-	if !provider.IsEnabled() {
-		t.Fatal("Provider should be enabled")
 	}
 
 	// Test shutdown
@@ -336,10 +289,10 @@ func TestContextFunctions(t *testing.T) {
 		t.Error("GetProvider did not return the expected provider")
 	}
 
-	// Test WithSpanAttributes and AddSpanAttributes
+	// Test AddSpanAttributes
 	// Disable span validation for now as it's environment-dependent
 	ctx, span := provider.Tracer().Start(ctx, "test-span")
-	ctx = WithSpanAttributes(ctx, attribute.String("key1", "value1"))
+	AddSpanAttributes(ctx, attribute.String("key1", "value1"))
 	AddSpanAttributes(ctx, attribute.Int("key2", 123))
 
 	// Test AddSpanEvent
