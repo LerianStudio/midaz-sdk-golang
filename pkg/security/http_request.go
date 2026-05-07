@@ -1,4 +1,3 @@
-// Package security provides security-focused validation helpers used by the SDK.
 package security
 
 import (
@@ -8,6 +7,8 @@ import (
 	"net/netip"
 	"strings"
 )
+
+const maxIPv4Octet = 255
 
 // ValidateOutboundRequest validates the minimal security requirements for outbound HTTP requests.
 // It ensures requests are absolute and use an allowed HTTP scheme.
@@ -144,7 +145,7 @@ func isCanonicalOctet(part string) bool {
 		}
 
 		n = n*10 + int(r-'0')
-		if n > 255 {
+		if n > maxIPv4Octet {
 			return false
 		}
 	}

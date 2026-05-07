@@ -5,17 +5,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation/core"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation/core"
 )
 
 const maxAccountFieldLength = 256
 
-// Account represents an account in the Midaz Ledger.
-// This is now an alias to mmodel.Account to avoid duplication while maintaining
-// SDK-specific documentation and examples.
+// Account is the SDK-native account response type (Track 7E — audit 7.1).
 //
 // Account types are deployment-defined Midaz account categories such as
 // deposit, savings, loans, marketplace, and creditCard.
@@ -25,30 +23,30 @@ const maxAccountFieldLength = 256
 //   - INACTIVE: The account is temporarily not in use but can be reactivated
 //   - CLOSED: The account is permanently closed and cannot be used in new transactions
 //   - PENDING: The account is awaiting approval or activation
-//
-// Example Usage:
-//
-//	// Create a new customer asset account using the builder pattern
-//	customerAccount := models.NewCreateAccountInput(
-//	    "John Doe",
-//	    "USD",
-//	    "deposit",
-//	).WithAlias("customer:john.doe").
-//	  WithMetadata(map[string]any{
-//	    "customer_id": "cust-123",
-//	    "email": "john.doe@example.com",
-//	    "account_manager": "manager-456",
-//	  })
-//
-// Portfolio and Segment Organization:
-// Accounts can be organized into portfolios and segments for better categorization
-// and reporting. Portfolios represent high-level groupings (e.g., "Investments"),
-// while segments provide finer-grained classification within portfolios
-// (e.g., "US Equities", "International Bonds").
-type Account = mmodel.Account
+type Account struct {
+	ID              string         `json:"id" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	Name            string         `json:"name" example:"Corporate Checking Account" maxLength:"256"`
+	ParentAccountID *string        `json:"parentAccountId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	EntityID        *string        `json:"entityId" example:"EXT-ACC-12345" maxLength:"256"`
+	AssetCode       string         `json:"assetCode" example:"USD" maxLength:"100"`
+	OrganizationID  string         `json:"organizationId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	LedgerID        string         `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	PortfolioID     *string        `json:"portfolioId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	SegmentID       *string        `json:"segmentId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	Status          Status         `json:"status"`
+	Alias           *string        `json:"alias" example:"@treasury_checking" maxLength:"100"`
+	Type            string         `json:"type" example:"deposit"`
+	Blocked         *bool          `json:"blocked"`
+	CreatedAt       time.Time      `json:"createdAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+	UpdatedAt       time.Time      `json:"updatedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+	DeletedAt       *time.Time     `json:"deletedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+	Metadata        map[string]any `json:"metadata,omitempty"`
+	NullFields      []string       `json:"-"`
+}
 
 // AccountHelpers provides utility functions for working with Account entities.
-// These helper functions provide SDK-specific conveniences while using mmodel.Account directly.
+// These helper functions provide SDK-specific conveniences for working with
+// the SDK-native Account struct.
 
 // GetAccountAlias safely returns the account alias or empty string if nil.
 // This function prevents nil pointer exceptions when accessing the alias.
@@ -76,6 +74,12 @@ func GetAccountIdentifier(account Account) string {
 
 // CreateAccountInput is the input for creating an account.
 // This structure contains all the fields that can be specified when creating a new account.
+//
+// See also:
+//   - [CreateAccountInput.Validate] — multi-field validation accumulator.
+//   - [UpdateAccountInput] — partial-update shape.
+//   - [github.com/LerianStudio/midaz-sdk-golang/v3/entities.AccountsService.CreateAccount]
+//   - [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx.WithIdempotencyKey] — make creation safe under retries.
 type CreateAccountInput struct {
 	// Name is the human-readable name of the account.
 	// Max length: 256 characters. Optional in the Midaz API.
@@ -132,67 +136,45 @@ type CreateAccountInput struct {
 //     custom (non-ISO-4217) codes are accepted because the backend owns
 //     the canonical asset registry.
 //   - Type is required.
-//
-//nolint:gocyclo,cyclop
 func (input *CreateAccountInput) Validate() error {
 	if input == nil {
 		return errors.New("input cannot be nil")
 	}
 
-	if err := validateAccountStringLength("name", input.Name); err != nil {
-		return err
-	}
+	var errs validation.FieldErrors
+
+	appendStringLength(&errs, "name", input.Name)
 
 	if input.EntityID != nil {
-		if err := validateAccountStringLength("entityId", *input.EntityID); err != nil {
-			return err
-		}
+		appendStringLength(&errs, "entityId", *input.EntityID)
 	}
 
-	if err := validateOptionalUUIDPtr("parentAccountId", input.ParentAccountID); err != nil {
-		return err
-	}
-
-	if err := validateOptionalUUIDPtr("portfolioId", input.PortfolioID); err != nil {
-		return err
-	}
-
-	if err := validateOptionalUUIDPtr("segmentId", input.SegmentID); err != nil {
-		return err
-	}
+	appendOptionalUUID(&errs, "parentAccountId", input.ParentAccountID)
+	appendOptionalUUID(&errs, "portfolioId", input.PortfolioID)
+	appendOptionalUUID(&errs, "segmentId", input.SegmentID)
 
 	if input.AssetCode == "" {
-		return errors.New("asset code is required")
+		errs.Append("assetCode", "asset code is required")
 	}
+	// Note: ISO-4217 currency-code validation is intentionally not
+	// enforced client-side. Callers may use custom asset codes which
+	// the server validates against the configured asset universe.
 
-	// Validate asset code using the core validation package
-	if err := core.ValidateCurrencyCode(input.AssetCode); err != nil { //nolint:revive,staticcheck // Intentionally empty to allow custom asset codes
-		// If not a valid currency, it might be a custom asset code
-		// which should be validated by the backend
-	}
+	appendAccountTypeContract(&errs, input.Type)
 
-	if input.Type == "" {
-		return errors.New("account type is required")
-	}
-
-	if err := validateAccountTypeContract(input.Type); err != nil {
-		return err
-	}
-
-	// Validate alias if provided using the core validation package
 	if input.Alias != nil && *input.Alias != "" {
 		if err := core.ValidateAccountAlias(*input.Alias); err != nil {
-			return err
+			errs.Append("alias", err.Error())
 		}
 	}
 
 	if input.Metadata != nil {
 		if err := core.ValidateMetadata(input.Metadata); err != nil {
-			return fmt.Errorf("invalid metadata: %w", err)
+			errs.Append("metadata", "invalid: "+err.Error())
 		}
 	}
 
-	return nil
+	return errs.OrNil()
 }
 
 // NewCreateAccountInput creates a new CreateAccountInput with required fields.
@@ -204,13 +186,15 @@ func (input *CreateAccountInput) Validate() error {
 //   - accountType: Type of the account (e.g., "deposit", "savings")
 //
 // Returns:
-//   - A pointer to the newly created CreateAccountInput with default active status
+//   - A pointer to the newly created CreateAccountInput. Status is left
+//     zero so the server applies its canonical default (ACTIVE today, but
+//     the SDK does not encode that policy locally — see audit 7.11). Set
+//     it explicitly with WithStatus when you need a non-default value.
 func NewCreateAccountInput(name, assetCode, accountType string) *CreateAccountInput {
 	return &CreateAccountInput{
 		Name:      name,
 		AssetCode: assetCode,
 		Type:      accountType,
-		Status:    NewStatus("ACTIVE"), // Default status
 	}
 }
 
@@ -351,23 +335,9 @@ func (input *CreateAccountInput) WithBlocked(blocked bool) *CreateAccountInput {
 	return input
 }
 
-// ToMmodel converts the SDK CreateAccountInput to mmodel.CreateAccountInput.
-// This method is used internally to convert between SDK and backend models.
-func (input CreateAccountInput) ToMmodel() mmodel.CreateAccountInput {
-	return mmodel.CreateAccountInput{
-		Name:            input.Name,
-		ParentAccountID: input.ParentAccountID,
-		EntityID:        input.EntityID,
-		Blocked:         input.Blocked,
-		AssetCode:       input.AssetCode,
-		PortfolioID:     input.PortfolioID,
-		SegmentID:       input.SegmentID,
-		Status:          input.Status,
-		Alias:           input.Alias,
-		Type:            input.Type,
-		Metadata:        input.Metadata,
-	}
-}
+// NOTE: ToMmodel was retired in Track 7E. CreateAccountInput is now SDK-owned
+// with identical JSON tags to the wire format, so the bridge function is
+// unnecessary. Internal callers should pass the SDK type directly.
 
 // UpdateAccountInput is the input for updating an account.
 // This structure contains the fields that can be modified when updating an existing account.
@@ -399,50 +369,47 @@ type UpdateAccountInput struct {
 }
 
 // Validate checks if the UpdateAccountInput meets the validation requirements.
-// It returns an error if any of the validation checks fail.
+// All field-level violations are accumulated and surfaced together.
+// The empty-payload check (no changes set) is the only gate that
+// short-circuits — when nothing is being updated the request is
+// rejected before per-field analysis.
 func (input *UpdateAccountInput) Validate() error {
 	if input == nil {
 		return errors.New("input cannot be nil")
-	}
-
-	if err := validateAccountStringLength("name", input.Name); err != nil {
-		return err
-	}
-
-	if input.EntityID != nil {
-		if err := validateAccountStringLength("entityId", *input.EntityID); err != nil {
-			return err
-		}
-	}
-
-	if err := validateOptionalUUIDPtr("portfolioId", input.PortfolioID); err != nil {
-		return err
-	}
-
-	if err := validateOptionalUUIDPtr("segmentId", input.SegmentID); err != nil {
-		return err
 	}
 
 	if !input.hasChanges() {
 		return errors.New("empty update payload not allowed")
 	}
 
-	// Validate status if provided
-	// Status is an enum type, so we don't need additional validation here
-	// The API will validate if the status is valid
+	var errs validation.FieldErrors
 
-	// Validate metadata if provided
+	appendStringLength(&errs, "name", input.Name)
+
+	if input.EntityID != nil {
+		appendStringLength(&errs, "entityId", *input.EntityID)
+	}
+
+	appendOptionalUUID(&errs, "portfolioId", input.PortfolioID)
+	appendOptionalUUID(&errs, "segmentId", input.SegmentID)
+
+	// Status is an enum type validated by the server.
+
 	if input.Metadata != nil {
 		if err := core.ValidateMetadata(input.Metadata); err != nil {
-			return fmt.Errorf("invalid metadata: %w", err)
+			errs.Append("metadata", "invalid: "+err.Error())
 		}
 	}
 
-	return nil
+	return errs.OrNil()
 }
 
 // MarshalJSON emits only fields explicitly set on the SDK PATCH input.
-func (input UpdateAccountInput) MarshalJSON() ([]byte, error) {
+func (input *UpdateAccountInput) MarshalJSON() ([]byte, error) {
+	if input == nil {
+		return []byte("null"), nil
+	}
+
 	fields := map[string]any{}
 	addStringField(fields, "name", input.Name)
 
@@ -468,44 +435,44 @@ func (input UpdateAccountInput) MarshalJSON() ([]byte, error) {
 	return json.Marshal(fields)
 }
 
-func validateAccountStringLength(field, value string) error {
+// appendStringLength records a length-bound violation onto errs when
+// value exceeds maxAccountFieldLength. No-op for empty values (those are
+// handled by required-field checks at the call site).
+func appendStringLength(errs *validation.FieldErrors, field, value string) {
 	if value != "" && len(value) > maxAccountFieldLength {
-		return fmt.Errorf("%s must be at most %d characters", field, maxAccountFieldLength)
+		errs.Append(field, fmt.Sprintf("must be at most %d characters", maxAccountFieldLength))
 	}
-
-	return nil
 }
 
-func validateOptionalUUIDPtr(field string, value *string) error {
+// appendOptionalUUID records a UUID-format violation onto errs when a
+// pointer is non-nil but holds an invalid value. No-op for nil pointers.
+func appendOptionalUUID(errs *validation.FieldErrors, field string, value *string) {
 	if value == nil {
-		return nil
+		return
 	}
 
-	if *value == "" {
-		return fmt.Errorf("%s must be a valid UUID", field)
+	if *value == "" || !validation.IsValidUUID(*value) {
+		errs.Append(field, "must be a valid UUID")
 	}
-
-	if !validation.IsValidUUID(*value) {
-		return fmt.Errorf("%s must be a valid UUID", field)
-	}
-
-	return nil
 }
 
-func validateAccountTypeContract(accountType string) error {
+// appendAccountTypeContract records the account-type-specific contract
+// violations onto errs. Required, length-bounded, and the "external"
+// type is forbidden client-side because that name is reserved for
+// system-managed accounts (see audit 7E).
+func appendAccountTypeContract(errs *validation.FieldErrors, accountType string) {
 	if accountType == "" {
-		return errors.New("account type is required")
+		errs.Append("type", "account type is required")
+		return
 	}
 
 	if len(accountType) > maxAccountFieldLength {
-		return fmt.Errorf("type must be at most %d characters", maxAccountFieldLength)
+		errs.Append("type", fmt.Sprintf("must be at most %d characters", maxAccountFieldLength))
 	}
 
 	if accountType == "external" {
-		return errors.New("type cannot be external")
+		errs.Append("type", "cannot be external")
 	}
-
-	return nil
 }
 
 func (input *UpdateAccountInput) hasChanges() bool {
@@ -644,106 +611,4 @@ func (input *UpdateAccountInput) WithBlocked(blocked bool) *UpdateAccountInput {
 	return input
 }
 
-// ToMmodel converts the SDK UpdateAccountInput to mmodel.UpdateAccountInput.
-// This method is used internally to convert between SDK and backend models.
-func (input UpdateAccountInput) ToMmodel() mmodel.UpdateAccountInput {
-	return mmodel.UpdateAccountInput{
-		Name:        input.Name,
-		SegmentID:   input.SegmentID,
-		PortfolioID: input.PortfolioID,
-		Status:      input.Status,
-		Metadata:    input.Metadata,
-		EntityID:    input.EntityID,
-		Blocked:     input.Blocked,
-	}
-}
-
-// Accounts represents a list of accounts.
-// This structure is used for paginated responses when listing accounts.
-type Accounts struct {
-	// Items is the collection of accounts in the current page
-	Items []Account `json:"items"`
-
-	// Page is the current page number
-	Page int `json:"page"`
-
-	// Limit is the maximum number of items per page
-	Limit int `json:"limit"`
-}
-
-// FromMmodel converts mmodel.Accounts to SDK Accounts.
-// Since Account is now an alias to mmodel.Account, no conversion is needed for items.
-func FromMmodel(accounts mmodel.Accounts) Accounts {
-	return Accounts{
-		Items: accounts.Items, // Direct assignment since Account = mmodel.Account
-		Page:  accounts.Page,
-		Limit: accounts.Limit,
-	}
-}
-
-// AccountFilter for filtering accounts in listings.
-// This structure defines the criteria for filtering accounts when listing them.
-type AccountFilter struct {
-	// Status is a list of status codes to filter by
-	Status []string `json:"status,omitempty"`
-}
-
-// ListAccountInput for configuring account listing requests.
-// This structure defines the parameters for listing accounts.
-type ListAccountInput struct {
-	// Page is the page number to retrieve
-	Page int `json:"page,omitempty"`
-
-	// PerPage is the number of items per page
-	PerPage int `json:"perPage,omitempty"`
-
-	// Filter contains the filtering criteria
-	Filter AccountFilter `json:"filter,omitempty"`
-}
-
-// Validate checks if the ListAccountInput meets the validation requirements.
-// It returns an error if any of the validation checks fail.
-//
-// Returns:
-//   - error: An error if the input is invalid, nil otherwise
-func (input *ListAccountInput) Validate() error {
-	if input == nil {
-		return errors.New("input cannot be nil")
-	}
-
-	// Validate page number if provided
-	if input.Page < 0 {
-		return errors.New("page number cannot be negative")
-	}
-
-	// Validate per page count if provided
-	if input.PerPage < 0 {
-		return errors.New("perPage cannot be negative")
-	}
-
-	// Validate maximum per page to prevent excessive resource usage
-	if input.PerPage > 100 {
-		return errors.New("perPage cannot exceed 100")
-	}
-
-	return nil
-}
-
-// ListAccountResponse for account listing responses.
-// This structure represents the response from a list accounts request.
-type ListAccountResponse struct {
-	// Items is the collection of accounts in the current page
-	Items []Account `json:"items"`
-
-	// Total is the total number of accounts matching the criteria
-	Total int `json:"total"`
-
-	// CurrentPage is the current page number
-	CurrentPage int `json:"currentPage"`
-
-	// PageSize is the number of items per page
-	PageSize int `json:"pageSize"`
-
-	// TotalPages is the total number of pages
-	TotalPages int `json:"totalPages"`
-}
+// NOTE: ToMmodel was retired in Track 7E. See the CreateAccountInput note above.

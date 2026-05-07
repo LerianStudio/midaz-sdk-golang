@@ -70,7 +70,7 @@ The SDK does not currently provide custom trace propagation header support beyon
 
 ## Client example
 
-Client examples should import the root module as `client` and enable Entity API access with `client.UseEntityAPI()` or `client.UseAllAPIs()`.
+Client examples should import the root module as `midaz` and pass an explicit auth posture during construction.
 
 ```go
 package main
@@ -79,9 +79,9 @@ import (
     "context"
     "log"
 
-    client "github.com/LerianStudio/midaz-sdk-golang/v2"
-    "github.com/LerianStudio/midaz-sdk-golang/v2/models"
-    "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
+    "github.com/LerianStudio/midaz-sdk-golang/v3"
+    "github.com/LerianStudio/midaz-sdk-golang/v3/models"
+    "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
     "go.opentelemetry.io/otel/attribute"
     "go.opentelemetry.io/otel/codes"
 )
@@ -102,10 +102,10 @@ func main() {
     }
     defer provider.Shutdown(ctx)
 
-    c, err := client.New(
-        client.WithBaseURL("https://api.midaz.io"),
-        client.WithObservabilityProvider(provider),
-        client.UseEntityAPI(),
+    c, err := midaz.New(
+        midaz.WithBaseURL("https://api.midaz.io"),
+        midaz.WithObservabilityProvider(provider),
+        midaz.WithAnonymous(),
     )
     if err != nil {
         log.Fatal(err)
@@ -176,7 +176,7 @@ func tracingMiddleware(provider observability.Provider, next http.Handler) http.
 ### Propagate context into downstream SDK calls
 
 ```go
-func createOrganizationHandler(c *client.Client) http.HandlerFunc {
+func createOrganizationHandler(c *midaz.Client) http.HandlerFunc {
     return func(w http.ResponseWriter, r *http.Request) {
         input := models.NewCreateOrganizationInput(
             "Example Corporation",
@@ -229,6 +229,6 @@ make ci
 
 - Existing clients continue to work without tracing changes.
 - If observability is disabled, the SDK uses no-op tracing behavior.
-- Entity API access still requires `client.UseEntityAPI()` or `client.UseAllAPIs()`.
+- Entity services are initialized by `midaz.New(...)` when configuration validates.
 - Authentication remains configured through SDK configuration and Access Manager paths, not through a tracing-specific client option.
 - The SDK exports OTLP through the OpenTelemetry provider configuration. Route Jaeger, Zipkin, or vendor backends through an OpenTelemetry Collector.

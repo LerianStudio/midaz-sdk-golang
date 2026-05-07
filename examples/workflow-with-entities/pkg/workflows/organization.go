@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v2"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 )
 
 // CreateOrganization creates a new organization and returns its ID
@@ -20,7 +20,7 @@ import (
 // Returns:
 //   - string: The ID of the created organization
 //   - error: Any error encountered during the operation
-func CreateOrganization(ctx context.Context, midazClient *client.Client) (string, error) {
+func CreateOrganization(ctx context.Context, midazClient *midaz.Client) (string, error) {
 	fmt.Println("\n\n🏢 STEP 1: ORGANIZATION CREATION")
 	fmt.Println(strings.Repeat("=", 50))
 
@@ -28,7 +28,7 @@ func CreateOrganization(ctx context.Context, midazClient *client.Client) (string
 
 	// Get plugin auth configuration from environment variables
 
-	organization, err := midazClient.Entity.Organizations.CreateOrganization(ctx,
+	organization, err := midazClient.Organizations.CreateOrganization(ctx,
 		models.NewCreateOrganizationInput("Example Corp", "123456789").
 			WithDoingBusinessAs("Example Corp DBA").
 			WithAddress(models.Address{
@@ -66,14 +66,14 @@ func CreateOrganization(ctx context.Context, midazClient *client.Client) (string
 //
 // Returns:
 //   - error: Any error encountered during the operation
-func UpdateOrganization(ctx context.Context, midazClient *client.Client, orgID string) error {
+func UpdateOrganization(ctx context.Context, midazClient *midaz.Client, orgID string) error {
 	fmt.Println("\n\n🔄 STEP 9: ORGANIZATION UPDATE")
 	fmt.Println(strings.Repeat("=", 50))
 
 	fmt.Println("\nUpdating organization...")
 
 	// Get the organization first
-	org, err := midazClient.Entity.Organizations.GetOrganization(ctx, orgID)
+	org, err := midazClient.Organizations.GetOrganization(ctx, orgID)
 	if err != nil {
 		return fmt.Errorf("failed to get organization: %w", err)
 	}
@@ -84,13 +84,13 @@ func UpdateOrganization(ctx context.Context, midazClient *client.Client, orgID s
 		dbaValue = *org.DoingBusinessAs
 	}
 
-	updatedOrg, err := midazClient.Entity.Organizations.UpdateOrganization(ctx, orgID,
+	updatedOrg, err := midazClient.Organizations.UpdateOrganization(ctx, orgID,
 		models.NewUpdateOrganizationInput().
 			WithLegalName(org.LegalName).
-			WithDoingBusinessAsUpdate(dbaValue).
-			WithAddressUpdate(models.Address(org.Address)).
-			WithStatusUpdate(org.Status).
-			WithUpdateMetadata(map[string]any{
+			WithDoingBusinessAs(dbaValue).
+			WithAddress(org.Address).
+			WithStatus(org.Status).
+			WithMetadata(map[string]any{
 				"industry":      "Technology",
 				"size":          "Medium", // Changed from "Small" to "Medium"
 				"lastUpdatedAt": time.Now().Format(time.RFC3339),
@@ -117,13 +117,13 @@ func UpdateOrganization(ctx context.Context, midazClient *client.Client, orgID s
 //
 // Returns:
 //   - error: Any error encountered during the operation
-func RetrieveOrganization(ctx context.Context, midazClient *client.Client, orgID string) error {
+func RetrieveOrganization(ctx context.Context, midazClient *midaz.Client, orgID string) error {
 	fmt.Println("\n\n🔍 STEP 10: ORGANIZATION RETRIEVAL")
 	fmt.Println(strings.Repeat("=", 50))
 
 	fmt.Println("\nRetrieving organization...")
 
-	org, err := midazClient.Entity.Organizations.GetOrganization(ctx, orgID)
+	org, err := midazClient.Organizations.GetOrganization(ctx, orgID)
 	if err != nil {
 		return fmt.Errorf("failed to get organization: %w", err)
 	}

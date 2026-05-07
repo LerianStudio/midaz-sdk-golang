@@ -1,181 +1,176 @@
 # Pagination in the Midaz Go SDK
 
-The SDK uses `models.ListOptions` for list request parameters and `models.ListResponse[T]` for paginated results. Entity list methods are accessed through `c.Entity`, for example `c.Entity.Accounts.ListAccounts(...)`.
+v3 uses typed list-opts per endpoint and ships every list method in a trio:
+`List` (one page), `ListAll` (every item across pages, as `iter.Seq2`), and
+`ListPages` (every page envelope, as `iter.Seq2`). Cursor-based and
+page-based endpoints have separate opts types — wrong-shape opts don't
+compile.
 
-## List options
+## The list-method trio
 
-Create options with defaults:
+Every list method in `entities` ships in three flavors. Using `Accounts`
+as the worked example:
 
-```go
-options := models.NewListOptions().
-    WithLimit(25).
-    WithPage(1).
-    WithOrderDirection(models.SortDescending).
-    WithFilter("status", "ACTIVE")
-```
+| Method | Returns | Use when |
+| --- | --- | --- |
+| `ListAccounts` | `*models.ListResponse[Account]` (one page) | You want exactly one page and decide when to advance. |
+| `ListAccountsAll` | `iter.Seq2[Account, error]` | You want to consume every item linearly; the SDK handles paging. |
+| `ListAccountsPages` | `iter.Seq2[*ListResponse[Account], error]` | You need page-level metadata (cursor, total, page number) for checkpointing or stopping mid-page. |
 
-Available common helpers:
+The same trio shape applies to every list endpoint: `ListLedgers` /
+`ListLedgersAll` / `ListLedgersPages`, `ListTransactions` /
+`ListTransactionsAll` / `ListTransactionsPages`, and so on.
 
-| Helper | Behavior |
-| --- | --- |
-| `WithLimit(int)` | Sets maximum items per page, capped by `models.MaxLimit` (`100`) |
-| `WithOffset(int)` | Compatibility input for older callers. Current Midaz list endpoints do not expose an `offset` wire parameter; use `WithPage` or `WithCursor` for new code. |
-| `WithPage(int)` | Sets page number |
-| `WithCursor(string)` | Sets cursor for cursor-aware endpoints |
-| `WithOrderBy(string)` | Stored for compatibility; common serialization does not send it |
-| `WithOrderDirection(models.SortDirection)` | Sends sort direction as `sort_order` |
-| `WithFilter(string, string)` | Adds one filter query parameter |
-| `WithFilters(map[string]string)` | Replaces the filter map |
-| `WithDateRange(string, string)` | Adds `start_date` and `end_date` filters |
-| `WithAdditionalParam(string, string)` | Adds an endpoint-specific query parameter |
+## Page-based vs cursor-based endpoints
 
-CRM helper filters are also available on `ListOptions`:
+Midaz exposes two pagination shapes. Each entity's typed opts struct
+embeds the right base, so the type system picks the correct shape for
+you:
 
-- `WithIncludeDeleted(bool)`
-- `WithHolderID(string)`
-- `WithExternalID(string)`
-- `WithDocument(string)`
-- `WithAccountID(string)`
-- `WithLedgerID(string)`
-- `WithParticipantDocument(string)`
-- `WithRelatedPartyDocument(string)`
-- `WithBankingDetailsBranch(string)`
-- `WithBankingDetailsAccount(string)`
-- `WithBankingDetailsIBAN(string)`
-- `WithRelatedPartyRole(string)`
-
-## Constants
-
-```go
-models.DefaultLimit
-models.MaxLimit
-models.DefaultOffset
-models.DefaultPage
-models.SortAscending
-models.SortDescending
-```
-
-`models.DefaultLimit` is `10`, and `models.MaxLimit` is `100`. The generic `pkg/pagination` paginator uses the same cap through `MaxPaginationLimit`, so SDK entity list methods and paginator helpers enforce the same maximum limit.
-
-## Ledger and CRM pagination semantics
-
-Midaz services do not use one universal pagination shape. Choose options based on the service you call:
-
-| API family | Methods | Wire pagination | Notes |
+| Shape | Endpoints | Opts base | Wire parameters |
 | --- | --- | --- | --- |
-| Ledger page-based lists | Organizations, Ledgers, Assets, Portfolios, Segments, Accounts, Account Types, and balances | `page`, `limit`, filters, and `sort_order` | Use `WithPage` and `WithLimit`. Do not rely on `offset` as a Midaz wire parameter. |
-| Ledger cursor-aware lists | Transactions, Operations, Operation Routes, Transaction Routes, and Asset Rates | `cursor`, `limit`, filters, and `sort_order` | These endpoints do not accept `page` or `offset`; the SDK emits cursor-style query parameters only. Asset rates also support `to`, `start_date`, and `end_date`. |
-| CRM page-based lists | Holders and Aliases | `page`, `limit`, CRM filters, and `sort_order` | CRM filters include `include_deleted`, `holder_id`, `external_id`, `document`, `account_id`, `ledger_id`, `banking_details_branch`, `banking_details_account`, `banking_details_iban`, `regulatory_fields_participant_document`, `related_party_document`, and `related_party_role`. |
+| Page-based | Organizations, Ledgers, Assets, Portfolios, Segments, Accounts, Account Types, Balances, Holders, Aliases | `models.PageListOpts` | `page`, `limit`, filters, `sort_order`, `start_date`, `end_date` |
+| Cursor-based | Transactions, Operations, Operation Routes, Transaction Routes, Asset Rates | `models.CursorListOpts` | `cursor`, `limit`, filters, `sort_order` |
 
-## Paginated responses
+## Iterator-based pagination (Go 1.23+ `iter.Seq2`)
 
-List methods return `*models.ListResponse[T]`:
+The `*All` and `*Pages` methods return `iter.Seq2[T, error]`, ranged
+directly with `for ... range`. The first range variable is the value;
+the second is a per-iteration error. Stop with `break`; the SDK aborts
+in-flight paging.
+
+### Iterating items with `*All`
+
+`*All` is the right call when you consume items linearly and don't need
+page metadata:
 
 ```go
-accounts, err := c.Entity.Accounts.ListAccounts(ctx, orgID, ledgerID, options)
+opts := models.AccountsListOpts{
+    PageListOpts: models.PageListOpts{Limit: 100},
+    Filters:      models.AccountsFilters{Status: "ACTIVE"},
+}
+
+for account, err := range c.Accounts.ListAccountsAll(ctx, orgID, ledgerID, opts) {
+    if err != nil {
+        return fmt.Errorf("list accounts: %w", err)
+    }
+
+    process(account)
+}
+```
+
+`Limit` controls the per-request page size, not the total number of
+items returned. `*All` keeps fetching pages until the server reports no
+more.
+
+### Iterating pages with `*Pages`
+
+`*Pages` is the right call when you need cursor/total metadata, want to
+checkpoint between pages, or stop mid-iteration on a per-page condition:
+
+```go
+opts := models.AccountsListOpts{
+    PageListOpts: models.PageListOpts{Limit: 100},
+}
+
+for page, err := range c.Accounts.ListAccountsPages(ctx, orgID, ledgerID, opts) {
+    if err != nil {
+        return fmt.Errorf("list accounts pages: %w", err)
+    }
+
+    log.Printf("page=%d items=%d total=%d",
+        page.Pagination.Page, len(page.Items), page.Pagination.Total)
+
+    if shouldStop(page) {
+        break
+    }
+}
+```
+
+Each yielded `*ListResponse[T]` carries the full envelope — `Items`
+plus `Pagination` (with `Page`, `Limit`, `Total`, `NextCursor`,
+`PrevCursor`, and `HasMore()` for the canonical "more pages?" signal).
+
+### Cursor-based example
+
+Cursor endpoints use the same iterator shape with `CursorListOpts`:
+
+```go
+opts := models.TransactionsListOpts{
+    CursorListOpts: models.CursorListOpts{Limit: 50},
+}
+
+for tx, err := range c.Transactions.ListTransactionsAll(ctx, orgID, ledgerID, opts) {
+    if err != nil {
+        return fmt.Errorf("list transactions: %w", err)
+    }
+
+    process(tx)
+}
+```
+
+See [`examples/04-listing-cursor/`](../examples/04-listing-cursor/) and
+[`examples/05-listing-pages/`](../examples/05-listing-pages/) for runnable demos.
+
+## Single-page calls with `List`
+
+Use `List` when you control the page advance yourself — for example,
+when paginating through a UI or when each page maps to a separate
+job/checkpoint. `List` returns one `*ListResponse[T]`:
+
+```go
+opts := models.AccountsListOpts{
+    PageListOpts: models.PageListOpts{Limit: 25, Page: 1},
+}
+
+page, err := c.Accounts.ListAccounts(ctx, orgID, ledgerID, opts)
 if err != nil {
     return err
 }
 
-for _, account := range accounts.Items {
-    fmt.Println(account.ID)
+for _, account := range page.Items {
+    process(account)
 }
 
-fmt.Printf(
-    "page=%d total_pages=%d has_next=%t",
-    accounts.Pagination.CurrentPage(),
-    accounts.Pagination.TotalPages(),
-    accounts.Pagination.HasNextPage(),
-)
-```
-
-`ListResponse` unmarshalling supports both current top-level pagination fields and legacy nested `pagination` responses.
-
-`TotalPages()` is meaningful only when the API returns `total`. Current Midaz list responses commonly omit `total`, so `TotalPages()` falls back to `1`. For traversal, use `HasNextPage()`, `NextPageOptions()`, and cursor metadata instead of assuming a total page count exists.
-
-## Navigating pages
-
-Use pagination helpers to avoid manually rebuilding options:
-
-```go
-options := models.NewListOptions().WithLimit(50)
-
-for {
-    page, err := c.Entity.Accounts.ListAccounts(ctx, orgID, ledgerID, options)
-    if err != nil {
-        return err
-    }
-
-    for _, account := range page.Items {
-        process(account)
-    }
-
-    if !page.Pagination.HasNextPage() {
-        break
-    }
-
-    options = page.Pagination.NextPageOptions()
+if page.Pagination.HasMore() {
+    // Fetch the next page yourself by incrementing Page (page-based) or
+    // copying NextCursor into the next opts (cursor-based).
 }
 ```
 
-Navigation helpers:
+`Pagination.HasMore()` is the canonical "more pages?" signal. It uses
+`NextCursor` for cursor endpoints, the `Total + Limit + Page`
+arithmetic when `Total` is reported, and a `Limit == ItemCount`
+heuristic otherwise.
 
-- `HasMorePages()`
-- `HasPrevPage()`
-- `HasNextPage()`
-- `NextPageOptions()`
-- `PrevPageOptions()`
-- `CurrentPage()`
-- `TotalPages()`
+## Choosing between `*All`, `*Pages`, and `List`
 
-Use `TotalPages()` for display only after you confirm the API response includes `total`. Use `HasNextPage()` or `NextCursor` to decide whether to fetch another page.
+- `*All` — default for batch processing. Cleanest code; no manual paging.
+- `*Pages` — when you need per-page metadata (cursor checkpointing,
+  total-count display, mid-iteration termination based on page state).
+- `List` — when paging is driven externally (UI controls, distributed
+  workers, manual replay).
 
-## Cursor behavior
-
-Cursor support is endpoint-specific. `ListOptions.WithCursor(...)` sets the `cursor` query parameter. Transaction listing has explicit cursor behavior: when a cursor is set, the SDK removes `page` and sends the cursor-based request.
-
-```go
-options := models.NewListOptions().
-    WithLimit(100).
-    WithCursor(nextCursor)
-
-transactions, err := c.Entity.Transactions.ListTransactions(ctx, orgID, ledgerID, options)
-```
-
-## Filtering and sorting
-
-Filters are sent as query parameters:
+## Constants
 
 ```go
-options := models.NewListOptions().
-    WithLimit(20).
-    WithFilter("status", "ACTIVE").
-    WithFilter("assetCode", "USD").
-    WithDateRange("2026-01-01", "2026-12-31")
+models.DefaultLimit  // 10
+models.MaxLimit      // 100
+models.SortAscending
+models.SortDescending
 ```
 
-`WithOrderDirection` is sent as `sort_order`. `WithOrderBy` is retained on the options struct for compatibility, but common query serialization does not currently send it.
-
-## Count methods
-
-Supported count helpers issue `HEAD` requests to Midaz `metrics/count` endpoints. Midaz returns the count in the `X-Total-Count` response header, and the SDK converts that header into `models.MetricsCount`.
-
-| Service | Method | Count field |
-| --- | --- | --- |
-| Organizations | `GetOrganizationsMetricsCount(ctx)` | `OrganizationsCount` |
-| Ledgers | `GetLedgersMetricsCount(ctx, organizationID)` | `LedgersCount` |
-| Assets | `GetAssetsMetricsCount(ctx, organizationID, ledgerID)` | `AssetsCount` |
-| Portfolios | `GetPortfoliosMetricsCount(ctx, organizationID, ledgerID)` | `PortfoliosCount` |
-| Segments | `GetSegmentsMetricsCount(ctx, organizationID, ledgerID)` | `SegmentsCount` |
-| Accounts | `GetAccountsMetricsCount(ctx, organizationID, ledgerID)` | `AccountsCount` |
-| Transactions | `GetTransactionsMetricsCount(ctx, organizationID, ledgerID, opts)` | `TransactionsCount` |
-
-If Midaz omits `X-Total-Count` or returns a blank, non-integer, negative, or overflowing value, the SDK returns an internal SDK error for the count request. `GetAccountTypesMetricsCount` exists only as a deprecated compatibility method and returns a validation error because the Midaz Ledger API does not expose account type count metrics.
+`Limit > MaxLimit` causes the entity-level `Validate()` to return a
+typed validation error before the request leaves the SDK.
 
 ## Best practices
 
-- Always set a bounded `Limit` for list calls.
-- Prefer `NewListOptions()` instead of constructing `ListOptions` manually.
-- Use `NextPageOptions()` and `PrevPageOptions()` when following response metadata.
-- Treat `WithOffset` as compatibility input only. Current Midaz requests use `page`, `limit`, and `cursor` where supported; there is no supported `offset` wire contract.
-- Use cursor pagination only for endpoints that document or return cursor metadata.
+- Set a bounded `Limit` on every list call. Prefer larger pages
+  (50–100) for `*All` to reduce round trips.
+- Prefer `*All` for batch processing; reach for `*Pages` only when you
+  need page metadata.
+- Stop iterators with `break` — the SDK aborts in-flight paging cleanly.
+- For checkpointable jobs, snapshot `Pagination.NextCursor` (cursor
+  endpoints) or `Pagination.Page` (page endpoints) inside `*Pages` and
+  resume by seeding the next opts with the saved cursor/page.
+- Use `Pagination.HasMore()` instead of comparing item counts manually.

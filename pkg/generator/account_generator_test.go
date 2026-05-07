@@ -3,13 +3,14 @@ package generator
 import (
 	"context"
 	"errors"
+	"iter"
 	"strconv"
 	"sync/atomic"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/data"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -30,8 +31,16 @@ func (*mockAccountsService) GetAccount(_ context.Context, _, _, _ string) (*mode
 	return nil, errors.New("mock: GetAccount not implemented")
 }
 
-func (*mockAccountsService) ListAccounts(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.Account], error) {
+func (*mockAccountsService) ListAccounts(_ context.Context, _, _ string, _ models.AccountsListOpts) (*models.ListResponse[models.Account], error) {
 	return nil, errors.New("mock: ListAccounts not implemented")
+}
+
+func (*mockAccountsService) ListAccountsAll(_ context.Context, _, _ string, _ models.AccountsListOpts) iter.Seq2[models.Account, error] {
+	return func(_ func(models.Account, error) bool) {}
+}
+
+func (*mockAccountsService) ListAccountsPages(_ context.Context, _, _ string, _ models.AccountsListOpts) iter.Seq2[*models.ListResponse[models.Account], error] {
+	return func(_ func(*models.ListResponse[models.Account], error) bool) {}
 }
 
 func (*mockAccountsService) UpdateAccount(_ context.Context, _, _, _ string, _ *models.UpdateAccountInput) (*models.Account, error) {

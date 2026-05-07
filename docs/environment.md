@@ -2,77 +2,72 @@
 
 This guide explains which environment variables the Midaz Go SDK reads and how they affect client behavior.
 
-The SDK reads environment variables only from the current process environment. It does **not** load `.env` files by itself. If you keep configuration in a `.env` file, load it before creating the SDK config.
+## v3 contract: explicit over implicit
 
-```go
-_ = godotenv.Load()
+**The SDK reads environment variables only when the caller opts in via `config.FromEnvironment()`.** Every read happens inside `pkg/config/config.go`. No entity constructor, HTTP client builder, or service helper reads `os.Getenv` directly. Setting `MIDAZ_DEBUG=true` in your shell does **nothing** to a client constructed without `FromEnvironment()`.
 
-cfg, err := config.NewConfig(config.FromEnvironment())
-if err != nil {
-    return err
-}
-
-c, err := client.New(
-    client.WithConfig(cfg),
-    client.UseEntityAPI(),
-)
-if err != nil {
-    return err
-}
-
-_ = c
-```
-
-## Supported environment variables
-
-| Variable | Purpose | Default |
-| --- | --- | --- |
-| `MIDAZ_ENVIRONMENT` | Stores the environment label. Valid values: `local`, `development`, `production`. | `local` |
-| `MIDAZ_BASE_URL` | Base URL used to derive Ledger and CRM service URLs. | Local defaults |
-| `MIDAZ_ONBOARDING_URL` | Explicit Onboarding service URL. | Local Ledger URL |
-| `MIDAZ_TRANSACTION_URL` | Explicit Transaction service URL. | Local Ledger URL |
-| `MIDAZ_CRM_URL` | Explicit CRM service URL. | Local CRM URL |
-| `MIDAZ_TIMEOUT` | HTTP timeout in seconds. | `60` |
-| `MIDAZ_USER_AGENT` | User agent header value. | SDK version user agent |
-| `MIDAZ_DEBUG` | Enables debug logging when set to `true`. | `false` |
-| `MIDAZ_MAX_RETRIES` | Maximum retry attempts. | `3` |
-| `MIDAZ_IDEMPOTENCY` | Enables or disables SDK idempotency support. | `true` |
-| `PLUGIN_AUTH_ENABLED` | Enables Access Manager authentication when set to `true`. | `false` |
-| `PLUGIN_AUTH_ADDRESS` | Access Manager base address. | Empty |
-| `MIDAZ_CLIENT_ID` | Access Manager client ID. | Empty |
-| `MIDAZ_CLIENT_SECRET` | Access Manager client secret. | Empty |
-| `MIDAZ_SKIP_AUTH_CHECK` | Testing-only bypass for missing Access Manager address validation. | `false` |
-
-`MIDAZ_AUTH_TOKEN` is not a configuration environment variable. `config.FromEnvironment()` does not read it.
-
-## Loading `.env` files
-
-The SDK calls `os.Getenv`. It does not parse `.env` files automatically.
-
-If you want to use `.env`, load it in your application before you call `config.FromEnvironment()`.
+The SDK does **not** load `.env` files automatically. If you keep configuration in a `.env` file, load it before building the config.
 
 ```go
 import (
     "github.com/joho/godotenv"
 
-    client "github.com/LerianStudio/midaz-sdk-golang/v2"
-    "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/config"
+    midaz "github.com/LerianStudio/midaz-sdk-golang/v3"
+    "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
 )
 
-func newClient() (*client.Client, error) {
-    _ = godotenv.Load()
+func newClient() (*midaz.Client, error) {
+    _ = godotenv.Load() // optional: populate os environment from .env
 
     cfg, err := config.NewConfig(config.FromEnvironment())
     if err != nil {
         return nil, err
     }
 
-    return client.New(
-        client.WithConfig(cfg),
-        client.UseEntityAPI(),
-    )
+    return midaz.New(midaz.WithConfig(cfg))
 }
 ```
+
+## Supported environment variables
+
+All variables below are read by `config.FromEnvironment()`. Standard library reads (`HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`) are honored by Go's `net/http` transport regardless of SDK configuration.
+
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `MIDAZ_ENVIRONMENT` | Environment label. Valid values: `local`, `development`, `production`. | unset |
+| `MIDAZ_BASE_URL` | Base URL used to derive Onboarding, Transaction, and CRM service URLs. | env-derived |
+| `MIDAZ_ONBOARDING_URL` | Explicit Onboarding service URL. | derived from `MIDAZ_BASE_URL` |
+| `MIDAZ_TRANSACTION_URL` | Explicit Transaction service URL. | derived from `MIDAZ_BASE_URL` |
+| `MIDAZ_CRM_URL` | Explicit CRM service URL. | derived from `MIDAZ_BASE_URL` |
+| `MIDAZ_TIMEOUT` | HTTP timeout in seconds. | `60` |
+| `MIDAZ_USER_AGENT` | User agent header value. | SDK version user agent |
+| `MIDAZ_DEBUG` | Enables debug logging when set to `true`. | `false` |
+| `MIDAZ_MAX_RETRIES` | Maximum retry attempts. Set to `0` to disable retries entirely. | `3` |
+| `MIDAZ_IDEMPOTENCY` | Enables (`true`) or disables (`false`) auto idempotency support. | `true` |
+| `PLUGIN_AUTH_ENABLED` | Enables Access Manager authentication when set to `true`. | `false` |
+| `PLUGIN_AUTH_ADDRESS` | Access Manager base address. | empty |
+| `MIDAZ_CLIENT_ID` | Access Manager client ID. | empty |
+| `MIDAZ_CLIENT_SECRET` | Access Manager client secret. | empty |
+| `MIDAZ_SKIP_AUTH_CHECK` | **Test plumbing only — never set in production.** Bypasses the construction-time gate that catches Access Manager misconfigurations (`PLUGIN_AUTH_ENABLED=true` without `PLUGIN_AUTH_ADDRESS`, `MIDAZ_CLIENT_ID`, or `MIDAZ_CLIENT_SECRET`) before the first request. Skipping it pushes those failures to runtime as 401 cascades. Programmatic configuration cannot set this. | `false` |
+
+`MIDAZ_AUTH_TOKEN` is **not** a configuration environment variable. `config.FromEnvironment()` does not read it, and v3 deliberately exposes no `WithAuthToken` option. The two sanctioned auth paths are `midaz.WithAccessManager(...)` (OAuth via the Lerian Access Manager service) and `midaz.WithAnonymous()` (explicit auth-less mode for local development and tests). Static-token deployments configure their access manager to mint tokens.
+
+## Removed in v3
+
+The following v2 environment variables have been deleted:
+
+| Variable | Why | Migration |
+| --- | --- | --- |
+| `MIDAZ_ENABLE_RETRIES` | Undocumented hidden killswitch that duplicated `MIDAZ_MAX_RETRIES`. | Set `MIDAZ_MAX_RETRIES=0` to disable retries. |
+
+The following implicit environment reads have been removed from entity constructors and HTTP client builders. They were never documented and now cannot bypass the explicit configuration path:
+
+- `MIDAZ_DEBUG` (was read 14 times across `entities/*.go` plus `entities/http.go`)
+- `MIDAZ_USER_AGENT` (was read in `entities/http.go`)
+- `MIDAZ_IDEMPOTENCY` (was read in `entities/http.go`)
+- `MIDAZ_MAX_RETRIES` (was read in `entities/http.go`)
+
+These variables are still honored — but only when the caller opts in via `config.FromEnvironment()`.
 
 ## Authentication
 
@@ -85,7 +80,7 @@ MIDAZ_CLIENT_ID=your-client-id
 MIDAZ_CLIENT_SECRET=your-client-secret
 ```
 
-When `PLUGIN_AUTH_ENABLED=true`, the entity client requests a token from:
+When `PLUGIN_AUTH_ENABLED=true`, the SDK requests a token from:
 
 ```text
 {PLUGIN_AUTH_ADDRESS}/v1/login/oauth/access_token
@@ -93,14 +88,14 @@ When `PLUGIN_AUTH_ENABLED=true`, the entity client requests a token from:
 
 The request sends a client credentials payload using `MIDAZ_CLIENT_ID` and `MIDAZ_CLIENT_SECRET`. The returned `accessToken` becomes the `Authorization: Bearer ...` header for Midaz API requests.
 
-If `PLUGIN_AUTH_ENABLED=true` and `PLUGIN_AUTH_ADDRESS` is empty, config validation fails unless `MIDAZ_SKIP_AUTH_CHECK=true` is set for tests.
+If `PLUGIN_AUTH_ENABLED=true` and `PLUGIN_AUTH_ADDRESS` is empty, config validation fails. Tests can set `MIDAZ_SKIP_AUTH_CHECK=true` to bypass this check, but only when configuration goes through `config.FromEnvironment()`.
 
 ## Service URLs and precedence
 
 `config.FromEnvironment()` applies URL variables in this order:
 
 1. `MIDAZ_BASE_URL`
-2. Service-specific overrides: `MIDAZ_ONBOARDING_URL`, `MIDAZ_TRANSACTION_URL`, and `MIDAZ_CRM_URL`
+2. Service-specific overrides: `MIDAZ_ONBOARDING_URL`, `MIDAZ_TRANSACTION_URL`, `MIDAZ_CRM_URL`
 3. Existing config defaults for any service you do not override
 
 Service-specific URLs override `MIDAZ_BASE_URL` for their service.
@@ -134,8 +129,6 @@ CRM:         http://localhost:4003/v1
 
 ## HTTP behavior
 
-Set `MIDAZ_TIMEOUT` as an integer number of seconds.
-
 ```env
 MIDAZ_TIMEOUT=30
 MIDAZ_USER_AGENT=MyService/1.0
@@ -146,20 +139,11 @@ MIDAZ_DEBUG=true
 
 ## Retry behavior
 
-The SDK supports retry configuration from both config and the entity HTTP layer.
-
 ```env
 MIDAZ_MAX_RETRIES=5
 ```
 
-`MIDAZ_MAX_RETRIES` is read by:
-
-- `config.FromEnvironment()`
-- `entities.NewHTTPClient()`
-
-For the normal client path, use `config.FromEnvironment()` and `client.WithConfig(cfg)`. The client applies `cfg.MaxRetries` to the entity HTTP client during setup.
-
-To disable retries at the client level, use `client.DisableRetries()`.
+`MIDAZ_MAX_RETRIES` flows through `config.FromEnvironment()` into the SDK's retry options. To disable retries entirely, set `MIDAZ_MAX_RETRIES=0`.
 
 ```go
 cfg, err := config.NewConfig(config.FromEnvironment())
@@ -167,24 +151,18 @@ if err != nil {
     return err
 }
 
-c, err := client.New(
-    client.WithConfig(cfg),
-    client.DisableRetries(),
-    client.UseEntityAPI(),
-)
+c, err := midaz.New(midaz.WithConfig(cfg))
 ```
 
-The SDK does not read retry wait environment variables. Configure retry timing in code with `client.WithRetries(...)` or config retry options.
+The SDK does not read retry wait environment variables. Configure retry timing in code with `midaz.WithRetryOptions(retry.WithInitialDelay(...), retry.WithMaxDelay(...))`.
 
 ## Idempotency behavior
-
-`MIDAZ_IDEMPOTENCY` controls whether the SDK may add idempotency headers.
 
 ```env
 MIDAZ_IDEMPOTENCY=true
 ```
 
-Idempotency support is enabled by default. Set it to `false` to disable SDK-generated idempotency behavior.
+Idempotency is enabled by default. Set it to `false` to disable SDK-generated idempotency behavior.
 
 Automatic key generation applies to unsafe entity HTTP requests. The entity HTTP client generates an `X-Idempotency` UUID only when all of these are true:
 
@@ -194,15 +172,15 @@ Automatic key generation applies to unsafe entity HTTP requests. The entity HTTP
 
 The SDK removes internal idempotency marker headers before sending the request.
 
-Transaction creation opts in automatically. If you set `CreateTransactionInput.IdempotencyKey`, the SDK uses your key. Otherwise, it generates one when idempotency is enabled.
-
 You can also provide an explicit key through context:
 
 ```go
-ctx := entities.WithIdempotencyKey(context.Background(), "transaction-2026-04-27-001")
+import "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
+
+ctx := sdkctx.WithIdempotencyKey(context.Background(), "transaction-2026-04-27-001")
 ```
 
-Unsafe requests retry only when the idempotency key was supplied by the caller through `CreateTransactionInput.IdempotencyKey` or `entities.WithIdempotencyKey`. SDK-generated keys provide server-side deduplication, but they do not enable unsafe retries by themselves.
+Unsafe requests retry only when the idempotency key was supplied by the caller through `CreateTransactionInput.IdempotencyKey` or `sdkctx.WithIdempotencyKey`. SDK-generated keys provide server-side deduplication, but they do not enable unsafe retries by themselves.
 
 ## Observability
 
@@ -220,16 +198,21 @@ if err != nil {
     return err
 }
 
-c, err := client.New(
-    client.WithObservabilityProvider(provider),
-    client.UseEntityAPI(),
+c, err := midaz.New(
+    midaz.WithObservabilityProvider(provider),
+    midaz.WithConfig(cfg),
 )
-if err != nil {
-    return err
-}
-
-_ = c
 ```
+
+## Standard library proxy variables
+
+Go's `net/http` package honors the following at the transport level. The SDK does not read them itself, but they affect outbound traffic:
+
+- `HTTP_PROXY` / `http_proxy`
+- `HTTPS_PROXY` / `https_proxy`
+- `NO_PROXY` / `no_proxy`
+
+These are stdlib conventions and are unaffected by the v3 explicit-config principle.
 
 ## Example environment
 
@@ -254,7 +237,7 @@ MIDAZ_TIMEOUT=30
 MIDAZ_USER_AGENT=MyService/1.0
 MIDAZ_DEBUG=false
 
-# Retries
+# Retries (set to 0 to disable)
 MIDAZ_MAX_RETRIES=3
 
 # Idempotency

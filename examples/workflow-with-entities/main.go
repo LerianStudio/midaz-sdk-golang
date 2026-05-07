@@ -28,7 +28,6 @@
 // The example uses the SDK's config package to load configuration from environment variables.
 // You can set these variables in a .env file:
 //
-//	MIDAZ_AUTH_TOKEN=example-auth-token
 //	MIDAZ_ENVIRONMENT=local  # Can be local, development, or production
 //	MIDAZ_ONBOARDING_URL=http://localhost:3002/v1 # Optional override
 //	MIDAZ_TRANSACTION_URL=http://localhost:3002/v1 # Optional override
@@ -57,19 +56,17 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v2"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/examples/workflow-with-entities/pkg/workflows"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/config"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v3"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/examples/workflow-with-entities/pkg/workflows"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry"
 	"github.com/joho/godotenv"
 )
 
@@ -87,10 +84,6 @@ import (
 // which makes it easier to configure the example without modifying the code.
 func main() {
 	loadEnvFile()
-
-	if err := validateEnvironment(); err != nil {
-		log.Fatalf("Environment validation failed: %v", err)
-	}
 
 	shutdownObservability := setupObservability()
 	defer shutdownObservability()
@@ -140,6 +133,7 @@ func createConfiguration() (*config.Config, error) {
 	options := []config.Option{
 		config.FromEnvironment(),
 		config.WithEnvironment(config.EnvironmentLocal),
+		config.WithAnonymous(),
 	}
 
 	cfg, err := config.NewConfig(options...)
@@ -165,12 +159,11 @@ func printConnectionInfo(cfg *config.Config) {
 	fmt.Printf("   - Debug mode: %t\n", cfg.Debug)
 }
 
-func createSDKClient(cfg *config.Config) (*client.Client, error) {
-	fmt.Println("\nInitializing SDK client...")
+func createSDKClient(cfg *config.Config) (*midaz.Client, error) {
+	fmt.Println("\nInitializing SDK midaz...")
 
-	c, err := client.New(
-		client.WithConfig(cfg),
-		client.UseAllAPIs(),
+	c, err := midaz.New(
+		midaz.WithConfig(cfg),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create client: %w", err)
@@ -198,7 +191,7 @@ func loadConcurrencySettings() (customerToMerchantTxs int, merchantToCustomerTxs
 	return customerToMerchantTxs, merchantToCustomerTxs
 }
 
-func executeWorkflow(ctx context.Context, c *client.Client, customerToMerchant, merchantToCustomer int) error {
+func executeWorkflow(ctx context.Context, c *midaz.Client, customerToMerchant, merchantToCustomer int) error {
 	fmt.Println("\nStarting complete workflow...")
 
 	if err := workflows.RunCompleteWorkflow(ctx, c.Entity, customerToMerchant, merchantToCustomer); err != nil {
@@ -230,33 +223,6 @@ func getEnvInt(envVar string, defaultValue int) (int, error) {
 	}
 
 	return intValue, nil
-}
-
-// validateEnvironment validates required environment variables
-func validateEnvironment() error {
-	requiredVars := []string{
-		"MIDAZ_AUTH_TOKEN",
-	}
-
-	var missingVars []string
-
-	for _, varName := range requiredVars {
-		if os.Getenv(varName) == "" {
-			missingVars = append(missingVars, varName)
-		}
-	}
-
-	if len(missingVars) > 0 {
-		return fmt.Errorf("missing required environment variables: %q", strings.Join(missingVars, ","))
-	}
-
-	// Use validation package to validate auth token format
-	token := os.Getenv("MIDAZ_AUTH_TOKEN")
-	if !isValidAuthToken(token) {
-		return errors.New("invalid auth token format")
-	}
-
-	return nil
 }
 
 // setupObservability initializes the observability module
@@ -315,10 +281,4 @@ func setupRetryOptions() *retry.Options {
 	}
 
 	return options
-}
-
-// isValidAuthToken is a simple validation function for auth tokens
-func isValidAuthToken(token string) bool {
-	// Simple validation - token should be non-empty
-	return token != ""
 }

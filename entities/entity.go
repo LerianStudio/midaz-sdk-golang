@@ -11,12 +11,11 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/internal/reflectutil"
-	auth "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/access-manager"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/security"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/internal/reflectutil"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/auth"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/security"
 )
 
 // Config is an interface for accessing configuration values.
@@ -65,129 +64,34 @@ type Entity struct {
 	TransactionRoutes TransactionRoutesService
 }
 
-// NewEntity creates a new Entity instance with the provided client configuration.
-// This constructor initializes an Entity that provides access to all entity types
-// in the Midaz SDK.
-//
-// Parameters:
-//   - client: The HTTP client to use for API requests. Can be configured with custom timeouts
-//     and transport options. If nil, a default client will be used.
-//   - authToken: The authentication token for API authorization. Must be a valid JWT token
-//     issued by the Midaz authentication service.
-//   - baseURLs: Map of service names to base URLs. Must include an "onboarding" key with
-//     the URL of the onboarding service (e.g., "https://api.midaz.io/v1").
-//   - options: Optional configuration options for customizing the entity behavior.
-//     These are applied in order after the entity is created.
-//
-// Returns:
-//   - *Entity: A pointer to the newly created Entity, ready to interact with the Midaz API.
-//     The Entity provides access to all service interfaces (Accounts, Assets, Ledgers, etc.).
-//   - error: An error if the client initialization fails, such as when required parameters
-//     are missing or when options cannot be applied.
-//
-// Example - Basic usage:
-//
-//	// Create a new entity with default settings
-//	entity, err := entities.NewEntity(
-//	    &http.Client{Timeout: 30 * time.Second},
-//	    "your-auth-token",
-//	    map[string]string{"onboarding": "https://api.midaz.io/v1"},
-//	)
-//
-//	if err != nil {
-//	    log.Fatalf("Failed to create entity: %v", err)
-//	}
-//
-//	// Use the entity to access different services
-//	organization, err := entity.Organizations.GetOrganization(
-//	    context.Background(),
-//	    "org-123",
-//	)
-//
-//	if err != nil {
-//	    log.Fatalf("Failed to retrieve organization: %v", err)
-//	}
-//
-//	fmt.Printf("Organization: %s\n", organization.LegalName)
-//
-// Example - With custom options:
-//
-//	// Create a new entity with debug logging enabled
-//	entity, err := entities.NewEntity(
-//	    &http.Client{Timeout: 30 * time.Second},
-//	    "your-auth-token",
-//	    map[string]string{"onboarding": "https://api.midaz.io/v1"},
-//	    entities.WithDebug(true),
-//	)
-//
-//	if err != nil {
-//	    log.Fatalf("Failed to create entity: %v", err)
-//	}
-//
-//	// Create a ledger using the entity
-//	ledger, err := entity.Ledgers.CreateLedger(
-//	    context.Background(),
-//	    "org-123",
-//	    models.NewCreateLedgerInput("Main Ledger"),
-//	)
-//
-//	if err != nil {
-//	    log.Fatalf("Failed to create ledger: %v", err)
-//	}
-//
-//	fmt.Printf("Ledger created: %s\n", ledger.ID)
-func NewEntity(client *http.Client, authToken string, baseURLs map[string]string, observabilityProvider observability.Provider, options ...Option) (*Entity, error) {
-	// Create a new entity with the provided configuration
-	httpClient := NewHTTPClient(client, authToken, observabilityProvider)
-
-	normalizedBaseURLs, err := normalizeBaseURLs(baseURLs)
-	if err != nil {
-		return nil, err
-	}
-
-	if strings.TrimSpace(normalizedBaseURLs["transaction"]) == "" {
-		normalizedBaseURLs["transaction"] = normalizedBaseURLs["onboarding"]
-	}
-
-	if strings.TrimSpace(normalizedBaseURLs["crm"]) == "" {
-		normalizedBaseURLs["crm"] = normalizedBaseURLs["onboarding"]
-	}
-
-	entity := &Entity{
-		httpClient:    httpClient,
-		baseURLs:      normalizedBaseURLs,
-		observability: observabilityProvider,
-	}
-
-	// Apply the provided options
-	for _, option := range options {
-		if option == nil {
-			return nil, errors.New("option cannot be nil")
-		}
-
-		if err := option(entity); err != nil {
-			return nil, err
-		}
-	}
-
-	// Initialize service interfaces
-	entity.initServices()
-
-	return entity, nil
-}
-
 // NewEntityWithConfig creates a new Entity using a Config object.
 // This is a convenience constructor that integrates with the config package.
 //
 // Parameters:
-//   - config: A configuration object from the config package. Must have AuthToken
-//     and service URLs properly configured.
-//   - options: Optional configuration options for customizing the entity behavior.
+//   - config: A configuration object from the config package. Must have
+//     auth (Access Manager) and service URLs properly configured.
 //
 // Returns:
 //   - *Entity: A pointer to the newly created Entity.
 //   - error: An error if initialization fails.
-func NewEntityWithConfig(config Config, options ...Option) (*Entity, error) {
+//
+// Post-construction tuning is exposed via dedicated setters:
+//   - (*Entity).SetHTTPClient — replace the underlying *http.Client
+//   - (*Entity).SetObservability — install / replace the observability provider
+//   - (*HTTPClient).SetDebug — flip the debug-log flag
+//   - (*HTTPClient).SetUserAgent — override the User-Agent header
+//   - (*HTTPClient).SetLogger / SetSlowCallThreshold — observability tuning
+func NewEntityWithConfig(config Config) (*Entity, error) {
+	return NewEntityWithConfigContext(context.Background(), config)
+}
+
+// NewEntityWithConfigContext creates a new Entity using config and uses ctx for
+// construction-time I/O such as the initial Access Manager token exchange.
+func NewEntityWithConfigContext(ctx context.Context, config Config) (*Entity, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	if config == nil || reflectutil.IsTypedNil(config) {
 		return nil, errors.New("config cannot be nil")
 	}
@@ -203,9 +107,9 @@ func NewEntityWithConfig(config Config, options ...Option) (*Entity, error) {
 			return auth.GetTokenFromAccessManager(ctx, pluginAuth, config.GetHTTPClient())
 		}
 
-		token, err := provider(context.Background())
+		token, err := provider(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get token from plugin auth service: %w", err)
+			return nil, fmt.Errorf("failed to get token from plugin auth service: %w", auth.WrapAccessManagerTokenFetchError(err))
 		}
 		// Use the token from the plugin auth service
 		authToken = token
@@ -241,17 +145,6 @@ func NewEntityWithConfig(config Config, options ...Option) (*Entity, error) {
 		)
 	}
 
-	// Apply any additional options
-	for _, option := range options {
-		if option == nil {
-			return nil, errors.New("option cannot be nil")
-		}
-
-		if err := option(entity); err != nil {
-			return nil, err
-		}
-	}
-
 	// Initialize service interfaces
 	entity.initServices()
 
@@ -259,6 +152,23 @@ func NewEntityWithConfig(config Config, options ...Option) (*Entity, error) {
 }
 
 // initServices initializes the service interfaces for the entity.
+//
+// All 16 service entities share the SAME parent [*HTTPClient] — passed via
+// [newSharedServiceEntity]. That single instance owns the auth-token cache,
+// the singleflight token-refresh group, the customRetryPolicy, the
+// observability surface, and the userAgent/debug/idempotency knobs. Sharing
+// the client matters in three places:
+//
+//   - Token refresh on 401: when one service refreshes via [HTTPClient.refreshAuthToken]
+//     the new token is visible to every other service immediately because
+//     they read from the same authToken field under c.mu.
+//   - Singleflight dedup: a 401 burst hitting multiple services collapses
+//     onto one underlying tokenProvider call, since [HTTPClient.tokenRefreshGroup]
+//     is one [singleflight.Group] not 16.
+//   - Set* propagation: [Entity.GetEntityHTTPClient] returns the same client
+//     that every service uses, so SetDebug / SetUserAgent / SetLogger and
+//     friends take effect on the next request from any service — no
+//     "post-construction propagate" step required.
 func (e *Entity) initServices() {
 	if e == nil || e.httpClient == nil {
 		return
@@ -272,141 +182,31 @@ func (e *Entity) initServices() {
 		e.baseURLs = map[string]string{}
 	}
 
-	// Create the service interfaces
-	e.Transactions = NewTransactionsEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
-	e.Accounts = NewAccountsEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
-	e.AccountTypes = NewAccountTypesEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
-	e.Assets = NewAssetsEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
-	e.AssetRates = NewAssetRatesEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
-	e.Balances = NewBalancesEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
-	e.Holders = NewHoldersEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
-	e.Aliases = NewAliasesEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
-	e.Ledgers = NewLedgersEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
-	e.MetadataIndexes = NewMetadataIndexesEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
-	e.Operations = NewOperationsEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
-	e.OperationRoutes = NewOperationRoutesEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
-	e.Organizations = NewOrganizationsEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
-	e.Portfolios = NewPortfoliosEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
-	e.Segments = NewSegmentsEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
-	e.TransactionRoutes = NewTransactionRoutesEntity(e.httpClient.client, e.httpClient.authToken, e.baseURLs)
-
-	// Each NewXxxEntity constructor creates a fresh HTTPClient around the shared
-	// transport. Copy the parent entity configuration across after construction.
-	e.propagateHTTPClientConfiguration()
-}
-
-// tenantSetter is implemented by service entities that can receive a tenant ID.
-// This decouples propagateTenantID from knowing every concrete service type.
-type tenantSetter interface {
-	setDefaultTenantID(tenantID string)
-}
-
-type httpClientConfigurator interface {
-	entityHTTPClient() *HTTPClient
-}
-
-// propagateTenantID copies the entity-level tenant ID to all service entity HTTP clients.
-// It iterates over service fields and calls the tenantSetter interface rather than
-// hard-coding each concrete type, so adding new services cannot silently break propagation.
-func (e *Entity) propagateTenantID() {
-	tid := e.httpClient.GetTenantID()
-	if tid == "" {
-		return
+	// Build the shared base once per service. The *HTTPClient is a pointer,
+	// so all 16 services see the same mutable state (auth token, refresh
+	// group, customRetryPolicy, etc.); baseURLs is cloned per service via
+	// prepareServiceBaseURLs so per-service mutation cannot bleed across
+	// services.
+	shared := func() serviceEntity {
+		return newSharedServiceEntity(e.httpClient, e.baseURLs)
 	}
 
-	services := []any{
-		e.Accounts, e.AccountTypes, e.Assets, e.AssetRates,
-		e.Aliases, e.Balances, e.Holders, e.Ledgers, e.MetadataIndexes, e.Operations, e.OperationRoutes,
-		e.Organizations, e.Portfolios, e.Segments,
-		e.Transactions, e.TransactionRoutes,
-	}
-
-	for _, svc := range services {
-		if ts, ok := svc.(tenantSetter); ok {
-			ts.setDefaultTenantID(tid)
-		}
-	}
-}
-
-func (e *Entity) propagateHTTPClientConfiguration() {
-	e.propagateTenantID()
-
-	services := []any{
-		e.Accounts, e.AccountTypes, e.Assets, e.AssetRates,
-		e.Aliases, e.Balances, e.Holders, e.Ledgers, e.MetadataIndexes, e.Operations, e.OperationRoutes,
-		e.Organizations, e.Portfolios, e.Segments,
-		e.Transactions, e.TransactionRoutes,
-	}
-
-	for _, svc := range services {
-		if configurator, ok := svc.(httpClientConfigurator); ok {
-			configurator.entityHTTPClient().applyConfigurationFrom(e.httpClient)
-		}
-	}
-}
-
-func (e *accountsEntity) entityHTTPClient() *HTTPClient {
-	return e.httpClient
-}
-
-func (e *accountTypesEntity) entityHTTPClient() *HTTPClient {
-	return e.httpClient
-}
-
-func (e *assetsEntity) entityHTTPClient() *HTTPClient {
-	return e.httpClient
-}
-
-func (e *assetRatesEntity) entityHTTPClient() *HTTPClient {
-	return e.httpClient
-}
-
-func (e *balancesEntity) entityHTTPClient() *HTTPClient {
-	return e.httpClient
-}
-
-func (e *holdersEntity) entityHTTPClient() *HTTPClient {
-	return e.httpClient
-}
-
-func (e *aliasesEntity) entityHTTPClient() *HTTPClient {
-	return e.httpClient
-}
-
-func (e *ledgersEntity) entityHTTPClient() *HTTPClient {
-	return e.httpClient
-}
-
-func (e *metadataIndexesEntity) entityHTTPClient() *HTTPClient {
-	return e.httpClient
-}
-
-func (e *operationsEntity) entityHTTPClient() *HTTPClient {
-	return e.httpClient
-}
-
-func (e *operationRoutesEntity) entityHTTPClient() *HTTPClient {
-	return e.httpClient
-}
-
-func (e *organizationsEntity) entityHTTPClient() *HTTPClient {
-	return e.httpClient
-}
-
-func (e *portfoliosEntity) entityHTTPClient() *HTTPClient {
-	return e.httpClient
-}
-
-func (e *segmentsEntity) entityHTTPClient() *HTTPClient {
-	return e.httpClient
-}
-
-func (e *transactionsEntity) entityHTTPClient() *HTTPClient {
-	return e.httpClient
-}
-
-func (e *transactionRoutesEntity) entityHTTPClient() *HTTPClient {
-	return e.httpClient
+	e.Transactions = &transactionsEntity{serviceEntity: shared()}
+	e.Accounts = &accountsEntity{serviceEntity: shared()}
+	e.AccountTypes = &accountTypesEntity{serviceEntity: shared()}
+	e.Assets = &assetsEntity{serviceEntity: shared()}
+	e.AssetRates = &assetRatesEntity{serviceEntity: shared()}
+	e.Balances = &balancesEntity{serviceEntity: shared()}
+	e.Holders = &holdersEntity{serviceEntity: shared()}
+	e.Aliases = &aliasesEntity{serviceEntity: shared()}
+	e.Ledgers = &ledgersEntity{serviceEntity: shared()}
+	e.MetadataIndexes = &metadataIndexesEntity{serviceEntity: shared()}
+	e.Operations = &operationsEntity{serviceEntity: shared()}
+	e.OperationRoutes = &operationRoutesEntity{serviceEntity: shared()}
+	e.Organizations = &organizationsEntity{serviceEntity: shared()}
+	e.Portfolios = &portfoliosEntity{serviceEntity: shared()}
+	e.Segments = &segmentsEntity{serviceEntity: shared()}
+	e.TransactionRoutes = &transactionRoutesEntity{serviceEntity: shared()}
 }
 
 // InitServices initializes the service interfaces for the entity.
@@ -417,6 +217,23 @@ func (e *Entity) InitServices() {
 	}
 
 	e.initServices()
+}
+
+// RefreshHTTPConfiguration is a no-op kept for source compatibility.
+//
+// In v3 every service entity shares the parent Entity's *HTTPClient, so
+// SetDebug / SetUserAgent / SetLogger / SetSlowCallThreshold / WithRetryOptions
+// / SetCustomRetryPolicy / SetEnableIdempotency made on
+// [Entity.GetEntityHTTPClient] take effect on the next request from any
+// service immediately. There is no per-service snapshot to refresh.
+//
+// Deprecated: this method has no observable effect since the per-service
+// HTTPClient consolidation. Calls can be removed without behavior change.
+func (e *Entity) RefreshHTTPConfiguration() {
+	// No-op: per-service HTTPClient state was eliminated. The parent
+	// HTTPClient IS the per-service HTTPClient — Set* mutations propagate
+	// naturally because there is exactly one instance.
+	_ = e
 }
 
 // GetEntityHTTPClient returns the custom HTTP client used by the entity.
@@ -489,149 +306,51 @@ func (e *Entity) SetHTTPClient(client *http.Client) {
 	e.initServices()
 }
 
-// SetAuthToken sets the authentication token for the entity.
-// This is required for the plugin auth interface.
+// SetObservability installs an observability provider on the entity and its
+// underlying HTTPClient.
+//
+// When the provider reports IsEnabled() == true, a fresh
+// observability.MetricsCollector is constructed (see observability.NewMetricsCollector)
+// and attached atomically alongside the provider, so observers never see
+// a new provider with the previous metrics collector or vice versa.
+//
+// A nil provider is a no-op.
+//
+// Returns an error only if the metrics collector fails to initialize.
 //
 // Parameters:
-//   - token: The authentication token to use for API requests.
-//
-// SetAuthToken is safe for concurrent callers; the underlying field write
-// is performed through the HTTPClient's locked setter so it does not race
-// with concurrent in-flight requests reading the token.
-func (e *Entity) SetAuthToken(token string) {
-	if e == nil || e.httpClient == nil {
-		return
-	}
-
-	if token != "" {
-		e.httpClient.setAuthTokenLocked(token)
-		e.propagateHTTPClientConfiguration()
-	}
-}
-
-// New creates a new Entity with the provided base URL and options.
-// This is a simplified version of NewEntity that takes a single base URL and
-// applies default values for other settings.
-//
-// Parameters:
-//   - baseURL: The base URL for all API requests.
-//   - options: Optional configuration options for the entity.
+//   - provider: The observability.Provider to install.
 //
 // Returns:
-//   - *Entity: A pointer to the newly created Entity.
-//   - error: An error if initialization fails.
-func New(baseURL string, options ...Option) (*Entity, error) {
-	if baseURL == "" {
-		return nil, errors.New("base URL cannot be empty")
+//   - error: Non-nil only if MetricsCollector construction fails.
+func (e *Entity) SetObservability(provider observability.Provider) error {
+	if e == nil {
+		return errors.New("entity cannot be nil")
 	}
 
-	normalizedURL, err := normalizeServiceURL(baseURL)
-	if err != nil {
-		return nil, err
+	if e.httpClient == nil {
+		return errors.New("entity HTTP client cannot be nil")
 	}
 
-	// Create a map with both service URLs pointing to the same base URL
-	baseURLs := map[string]string{
-		"onboarding":  normalizedURL,
-		"transaction": normalizedURL,
-		"crm":         normalizedURL,
+	if provider == nil || reflectutil.IsTypedNil(provider) {
+		return errors.New("observability provider cannot be nil")
 	}
 
-	// Create a default HTTP client
-	client := &http.Client{
-		Timeout: 30 * time.Second,
-	}
+	var metrics *observability.MetricsCollector
 
-	// Create a new HTTP client
-	httpClient := NewHTTPClient(client, "", nil)
-
-	// Create a new entity with the provided base URL
-	entity := &Entity{
-		httpClient: httpClient,
-		baseURLs:   baseURLs,
-	}
-
-	// Apply any options
-	for _, option := range options {
-		if option == nil {
-			return nil, errors.New("option cannot be nil")
+	if provider.IsEnabled() {
+		collector, err := observability.NewMetricsCollector(provider)
+		if err != nil {
+			return err
 		}
 
-		if err := option(entity); err != nil {
-			return nil, err
-		}
+		metrics = collector
 	}
 
-	// Initialize service interfaces
-	entity.initServices()
+	e.httpClient.setObservabilityLocked(provider, metrics)
+	e.observability = provider
 
-	return entity, nil
-}
-
-// NewWithServiceURLs creates a new Entity with separate URLs for each service.
-// This is the preferred method when different services have different URLs.
-//
-// Parameters:
-//   - serviceURLs: Map of service names to base URLs. Must include both "onboarding"
-//     and "transaction" keys with the respective service URLs.
-//   - options: Optional configuration options for the entity.
-//
-// Returns:
-//   - *Entity: A pointer to the newly created Entity.
-//   - error: An error if initialization fails.
-func NewWithServiceURLs(serviceURLs map[string]string, options ...Option) (*Entity, error) {
-	// Validate required service URLs
-	if serviceURLs == nil {
-		return nil, errors.New("service URLs map cannot be nil")
-	}
-
-	if _, ok := serviceURLs["onboarding"]; !ok {
-		return nil, errors.New("missing onboarding URL in service URLs map")
-	}
-
-	if _, ok := serviceURLs["transaction"]; !ok {
-		return nil, errors.New("missing transaction URL in service URLs map")
-	}
-
-	if strings.TrimSpace(serviceURLs["crm"]) == "" {
-		serviceURLs = maps.Clone(serviceURLs)
-		serviceURLs["crm"] = serviceURLs["onboarding"]
-	}
-
-	normalizedBaseURLs, err := normalizeBaseURLs(serviceURLs)
-	if err != nil {
-		return nil, err
-	}
-
-	// Create a default HTTP client
-	client := &http.Client{
-		Timeout: 30 * time.Second,
-	}
-
-	// Create a new HTTP client
-	httpClient := NewHTTPClient(client, "", nil)
-
-	// Create a new entity with the provided service URLs
-	entity := &Entity{
-		httpClient: httpClient,
-		baseURLs:   normalizedBaseURLs,
-	}
-
-	// Apply any options
-	for _, option := range options {
-		if option == nil {
-			return nil, errors.New("option cannot be nil")
-		}
-
-		if err := option(entity); err != nil {
-			return nil, err
-		}
-	}
-
-	// Initialize service interfaces
-	entity.initServices()
-
-	return entity, nil
+	return nil
 }
 
 func normalizeBaseURLs(baseURLs map[string]string) (map[string]string, error) {

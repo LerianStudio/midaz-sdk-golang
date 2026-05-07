@@ -1,17 +1,17 @@
-package performance // import "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/performance"
+package performance // import "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/performance"
 
 Package performance provides utilities for optimizing the performance of the
 Midaz SDK.
 
 This package implements various performance optimizations including: - JSON
-encoder/decoder pooling to reduce memory allocations - Connection pooling for
-efficient HTTP requests - Request batching for bulk operations
+buffer pooling to reduce memory allocations - Connection pooling for efficient
+HTTP requests - Request batching for bulk operations
 
 JSON Performance Use Cases:
 
  1. High-Frequency API Operations: When your application makes frequent API
-    calls with JSON payloads, using the JSONPool can significantly reduce memory
-    allocations and garbage collection pressure:
+    calls with JSON payloads, using the JSONPool can reduce buffer allocations
+    and garbage collection pressure:
 
     ```go // Create a dedicated pool for a high-traffic service pool :=
     performance.NewJSONPool()
@@ -21,7 +21,7 @@ JSON Performance Use Cases:
     pool.Unmarshal(response, &result) // Process result... } ```
 
  2. Large JSON Document Processing: When working with large JSON documents
-    (e.g., bulk data exports/imports), pooled encoders/decoders reduce memory
+    (e.g., bulk data exports/imports), pooled buffers reduce memory
     fragmentation:
 
     ```go // Export large data set as JSON with minimal memory overhead data
@@ -30,13 +30,16 @@ JSON Performance Use Cases:
     ```
 
  3. JSON Streaming in Web Services: For web servers handling many concurrent
-    JSON requests, encoder pooling reduces GC pause times, improving response
-    time consistency:
+    JSON requests, buffer pooling reduces some GC pressure. Only buffers are
+    pooled — encoders and decoders are constructed on every call (the standard
+    library's json.Encoder/json.Decoder cannot be safely rebound to a new
+    writer/reader). ReleaseEncoder/ReleaseDecoder are retained for backward
+    compatibility but perform no resource release; calling them is harmless and
+    no longer required:
 
     ```go // In an HTTP handler function func handleAPIRequest(w
-    http.ResponseWriter, r *http.Request) { // Get a pooled encoder
-    that writes to the response enc := performance.NewEncoder(w) defer
-    performance.ReleaseEncoder(enc)
+    http.ResponseWriter, r *http.Request) { // Construct a per-request encoder
+    that writes to the response enc := performance.NewEncoder(w)
 
     // Process and encode the result directly to the response result :=
     processRequest(r) enc.Encode(result) } ```
@@ -46,8 +49,7 @@ Midaz SDK.
 
 This package implements various performance optimizations, including:
 - Configurable batch processing for efficiently handling bulk operations - HTTP
-connection pooling to reduce connection overhead - JSON processing optimizations
-to minimize serialization costs
+connection pooling to reduce connection overhead
 
 Use Cases:
 
@@ -98,6 +100,7 @@ func ReleaseEncoder(enc *json.Encoder)
 func Unmarshal(data []byte, v any) error
 type BatchOption func(*BatchOptions) error
     func WithBatchTimeout(timeout time.Duration) BatchOption
+    func WithBatchWorkers(workers int) BatchOption
     func WithContinueOnError(continueOnError bool) BatchOption
     func WithHighThroughputBatching() BatchOption
     func WithMaxBatchSize(size int) BatchOption
@@ -113,10 +116,10 @@ type BatchProcessor struct{ ... }
     func NewBatchProcessorWithDefaults(client *http.Client, baseURL string, options *BatchOptions) *BatchProcessor
 type BatchProcessorOption func(*BatchProcessor) error
     func WithBaseURL(url string) BatchProcessorOption
+    func WithBatchHTTPClient(client *http.Client) BatchProcessorOption
     func WithBatchOptions(options *BatchOptions) BatchProcessorOption
     func WithDefaultHeader(key, value string) BatchProcessorOption
     func WithDefaultHeaders(headers map[string]string) BatchProcessorOption
-    func WithHTTPClient(client *http.Client) BatchProcessorOption
     func WithJSONPool(pool *JSONPool) BatchProcessorOption
 type BatchRequest struct{ ... }
 type BatchResponse struct{ ... }
@@ -125,7 +128,7 @@ type BatchResult struct{ ... }
     func ConvertResult(httpResult *concurrent.HTTPBatchResult) *BatchResult
     func ExecuteBatchWithAdapter(ctx context.Context, processor *BatchProcessor, requests []BatchRequest) (*BatchResult, error)
 type HTTPClientOption func(*http.Client) error
-    func WithTimeout(d time.Duration) HTTPClientOption
+    func WithHTTPTimeout(d time.Duration) HTTPClientOption
     func WithTransport(transport http.RoundTripper) HTTPClientOption
 type HTTPClientOptions struct{ ... }
     func DefaultHTTPClientOptions() HTTPClientOptions
@@ -134,7 +137,6 @@ type JSONPool struct{ ... }
 type Option func(*Options) error
     func WithBatchSize(size int) Option
     func WithHTTPPooling(enabled bool) Option
-    func WithJSONIterator(enabled bool) Option
     func WithMaxIdleConnsPerHost(maxIdle int) Option
 type Options struct{ ... }
     func DefaultOptions() Options
@@ -148,6 +150,7 @@ type TransportOption func(*TransportConfig) error
     func WithDisableCompression(disable bool) TransportOption
     func WithDisableKeepAlives(disable bool) TransportOption
     func WithExpectContinueTimeout(d time.Duration) TransportOption
+    func WithForceAttemptHTTP2(enabled bool) TransportOption
     func WithHighThroughput() TransportOption
     func WithIdleConnTimeout(d time.Duration) TransportOption
     func WithKeepAlive(d time.Duration) TransportOption

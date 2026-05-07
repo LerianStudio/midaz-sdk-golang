@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation/core"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation/core"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -1466,6 +1466,23 @@ func TestValidateCountryCode(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestValidateTransactionDSL_UsesExactDecimalAmount(t *testing.T) {
+	input := &models.TransactionDSLInput{
+		Send: &models.DSLSend{
+			Asset: "USD",
+			Value: "9007199254740993.01",
+			Source: &models.DSLSource{From: []models.DSLFromTo{{
+				Account: "@source",
+			}}},
+			Distribute: &models.DSLDistribute{To: []models.DSLFromTo{{
+				Account: "@dest",
+			}}},
+		},
+	}
+
+	require.NoError(t, validation.ValidateTransactionDSL(input))
 }
 
 func TestValidateAddress(t *testing.T) {

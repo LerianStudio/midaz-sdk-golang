@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/data"
 )
 
 // AccountNode represents a hierarchical account template tree.
@@ -28,7 +28,7 @@ func NewAccountHierarchyGenerator(accGen AccountGenerator) *AccountHierarchyGene
 // receive ParentAccountID automatically. Returns all created accounts in pre-order.
 func (h *AccountHierarchyGenerator) GenerateTree(
 	ctx context.Context,
-	orgID, ledgerID, assetCode string,
+	organizationID, ledgerID, assetCode string,
 	nodes []AccountNode,
 ) ([]*models.Account, error) {
 	if h.accGen == nil {
@@ -38,7 +38,7 @@ func (h *AccountHierarchyGenerator) GenerateTree(
 	var out []*models.Account
 
 	for _, n := range nodes {
-		created, err := h.createNode(ctx, orgID, ledgerID, assetCode, nil, n)
+		created, err := h.createNode(ctx, organizationID, ledgerID, assetCode, nil, n)
 		if err != nil {
 			return nil, err
 		}
@@ -51,7 +51,7 @@ func (h *AccountHierarchyGenerator) GenerateTree(
 
 func (h *AccountHierarchyGenerator) createNode(
 	ctx context.Context,
-	orgID, ledgerID, assetCode string,
+	organizationID, ledgerID, assetCode string,
 	parentID *string,
 	node AccountNode,
 ) ([]*models.Account, error) {
@@ -61,7 +61,7 @@ func (h *AccountHierarchyGenerator) createNode(
 		t.ParentAccountID = parentID
 	}
 
-	acc, err := h.accGen.Generate(ctx, orgID, ledgerID, assetCode, t)
+	acc, err := h.accGen.Generate(ctx, organizationID, ledgerID, assetCode, t)
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +69,7 @@ func (h *AccountHierarchyGenerator) createNode(
 	created := []*models.Account{acc}
 	// Recurse
 	for _, child := range node.Children {
-		c, err := h.createNode(ctx, orgID, ledgerID, assetCode, &acc.ID, child)
+		c, err := h.createNode(ctx, organizationID, ledgerID, assetCode, &acc.ID, child)
 		if err != nil {
 			return nil, err
 		}

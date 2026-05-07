@@ -1,15 +1,17 @@
 package entities
 
+//go:generate mockgen -source=account_types.go -destination=mocks/mock_account_types.go -package=mocks AccountTypesService
+
 import (
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"iter"
 	"net/http"
-	"os"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
 )
 
 // AccountTypesService defines the interface for account type-related operations.
@@ -19,7 +21,11 @@ type AccountTypesService interface {
 	// The organizationID and ledgerID parameters specify which organization and ledger to query.
 	// The opts parameter can be used to specify pagination, sorting, and filtering options.
 	// Returns a ListResponse containing the account types and pagination information, or an error if the operation fails.
-	ListAccountTypes(ctx context.Context, organizationID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.AccountType], error)
+	ListAccountTypes(ctx context.Context, organizationID, ledgerID string, opts models.AccountTypesListOpts) (*models.ListResponse[models.AccountType], error)
+
+	ListAccountTypesAll(ctx context.Context, organizationID, ledgerID string, opts models.AccountTypesListOpts) iter.Seq2[models.AccountType, error]
+
+	ListAccountTypesPages(ctx context.Context, organizationID, ledgerID string, opts models.AccountTypesListOpts) iter.Seq2[*models.ListResponse[models.AccountType], error]
 
 	// GetAccountType retrieves a specific account type by its ID.
 	// The organizationID and ledgerID parameters specify which organization and ledger the account type belongs to.
@@ -93,78 +99,18 @@ type AccountTypesService interface {
 	// Note that account types that are in use by existing accounts cannot be deleted.
 	// Returns an error if the operation fails.
 	DeleteAccountType(ctx context.Context, organizationID, ledgerID, id string) error
-
-	// GetAccountTypesMetricsCount no longer retrieves account type count metrics.
-	// The organizationID and ledgerID parameters specify which organization and ledger to get metrics for.
-	// It does not return a *models.MetricsCount because the endpoint is not exposed.
-	// Deprecated: Midaz Ledger does not expose account type count metrics; this method
-	// always returns an error and will be removed in the next major version.
-	GetAccountTypesMetricsCount(ctx context.Context, organizationID, ledgerID string) (*models.MetricsCount, error)
 }
 
 // accountTypesEntity implements the AccountTypesService interface.
 // It handles the communication with the Midaz API for account type-related operations.
 type accountTypesEntity struct {
-	httpClient *HTTPClient
-	baseURLs   map[string]string
+	serviceEntity
 }
 
-func (e *accountTypesEntity) setDefaultTenantID(tenantID string) {
-	e.httpClient.SetTenantID(tenantID)
-}
-
-// NewAccountTypesEntity creates a new account types entity.
-//
-// Parameters:
-//   - client: The HTTP client used for API requests. Can be configured with custom timeouts
-//     and transport options. If nil, a default client will be used.
-//   - authToken: The authentication token for API authorization. Must be a valid JWT token
-//     issued by the Midaz authentication service.
-//   - baseURLs: Map of service names to base URLs. Must include an "onboarding" key with
-//     the URL of the onboarding service (e.g., "https://api.midaz.io/v1").
-//
-// Returns:
-//   - AccountTypesService: An implementation of the AccountTypesService interface that provides
-//     methods for creating, retrieving, updating, and managing account types.
-//
-// Example:
-//
-//	// Create an account types entity with default HTTP client
-//	accountTypesEntity := entities.NewAccountTypesEntity(
-//	    &http.Client{Timeout: 30 * time.Second},
-//	    "your-auth-token",
-//	    map[string]string{"onboarding": "https://api.midaz.io/v1"},
-//	)
-//
-//	// Use the entity to create an account type
-//	accountType, err := accountTypesEntity.CreateAccountType(
-//	    context.Background(),
-//	    "org-123",
-//	    "ledger-456",
-//	    &models.CreateAccountTypeInput{
-//	        Name: "Cash Account",
-//	        KeyValue: "CASH",
-//	    },
-//	)
-//
-//	if err != nil {
-//	    log.Fatalf("Failed to create account type: %v", err)
-//	}
-//
-//	fmt.Printf("Account type created: %s\n", accountType.ID)
-func NewAccountTypesEntity(client *http.Client, authToken string, baseURLs map[string]string) AccountTypesService {
-	// Create a new HTTP client with the shared implementation
-	httpClient := NewHTTPClient(client, authToken, nil)
-
-	// Check if we're using the debug flag from the environment
-	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
-		httpClient.setDebugLocked(true)
-	}
-
-	return &accountTypesEntity{
-		httpClient: httpClient,
-		baseURLs:   prepareServiceBaseURLs(baseURLs),
-	}
+// newAccountTypesEntity wires the AccountTypesService backed by the shared HTTP transport.
+// Internal: invoked by Entity.initServices; callers should reach the service via Client.AccountTypes.
+func newAccountTypesEntity(client *http.Client, authToken string, baseURLs map[string]string) AccountTypesService {
+	return &accountTypesEntity{serviceEntity: newServiceEntity(client, authToken, baseURLs)}
 }
 
 // buildURL constructs the URL for account type operations.
@@ -179,7 +125,7 @@ func (e *accountTypesEntity) buildURL(organizationID, ledgerID, accountTypeID st
 }
 
 // ListAccountTypes lists account types for a ledger with optional filters.
-func (e *accountTypesEntity) ListAccountTypes(ctx context.Context, organizationID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.AccountType], error) {
+func (e *accountTypesEntity) ListAccountTypes(ctx context.Context, organizationID, ledgerID string, opts models.AccountTypesListOpts) (*models.ListResponse[models.AccountType], error) {
 	const operation = "ListAccountTypes"
 
 	if organizationID == "" {
@@ -190,6 +136,10 @@ func (e *accountTypesEntity) ListAccountTypes(ctx context.Context, organizationI
 		return nil, errors.NewMissingParameterError(operation, "ledgerID")
 	}
 
+	if err := opts.Validate(); err != nil {
+		return nil, errors.NewValidationError(operation, "list options validation failed", err)
+	}
+
 	url := e.buildURL(organizationID, ledgerID, "")
 
 	req, err := newRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -197,11 +147,9 @@ func (e *accountTypesEntity) ListAccountTypes(ctx context.Context, organizationI
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	// Add query parameters if provided
-	if opts != nil {
+	if params := opts.ToQueryParams(); len(params) > 0 {
 		q := req.URL.Query()
-
-		for key, value := range opts.ToQueryParams() {
+		for key, value := range params {
 			q.Add(key, value)
 		}
 
@@ -214,6 +162,46 @@ func (e *accountTypesEntity) ListAccountTypes(ctx context.Context, organizationI
 	}
 
 	return &response, nil
+}
+
+// ListAccountTypesAll yields every account type matching the request, transparently advancing pagination.
+func (e *accountTypesEntity) ListAccountTypesAll(ctx context.Context, organizationID, ledgerID string, opts models.AccountTypesListOpts) iter.Seq2[models.AccountType, error] {
+	return flattenPages(e.ListAccountTypesPages(ctx, organizationID, ledgerID, opts))
+}
+
+// ListAccountTypesPages yields one full *ListResponse[AccountType] per page.
+func (e *accountTypesEntity) ListAccountTypesPages(ctx context.Context, organizationID, ledgerID string, opts models.AccountTypesListOpts) iter.Seq2[*models.ListResponse[models.AccountType], error] {
+	ctx = requestContext(ctx)
+
+	return func(yield func(*models.ListResponse[models.AccountType], error) bool) {
+		current := opts
+		if current.Page == 0 {
+			current.Page = 1
+		}
+
+		for {
+			if ctx.Err() != nil {
+				yield(nil, ctx.Err())
+				return
+			}
+
+			page, err := e.ListAccountTypes(ctx, organizationID, ledgerID, current)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			if !yield(page, nil) {
+				return
+			}
+
+			if !page.Pagination.HasMore() {
+				return
+			}
+
+			current.Page++
+		}
+	}
 }
 
 // GetAccountType gets an account type by ID.
@@ -357,21 +345,4 @@ func (e *accountTypesEntity) DeleteAccountType(ctx context.Context, organization
 	}
 
 	return e.httpClient.sendRequest(req, nil)
-}
-
-// GetAccountTypesMetricsCount retrieves the count metrics for account types in a ledger.
-// Deprecated: Midaz Ledger does not expose account type count metrics; this method
-// always returns an error and will be removed in the next major version.
-func (*accountTypesEntity) GetAccountTypesMetricsCount(_ context.Context, organizationID, ledgerID string) (*models.MetricsCount, error) {
-	const operation = "GetAccountTypesMetricsCount"
-
-	if organizationID == "" {
-		return nil, errors.NewMissingParameterError(operation, "organizationID")
-	}
-
-	if ledgerID == "" {
-		return nil, errors.NewMissingParameterError(operation, "ledgerID")
-	}
-
-	return nil, errors.NewValidationError(operation, "account type count metrics are not exposed by the Midaz Ledger API", nil)
 }

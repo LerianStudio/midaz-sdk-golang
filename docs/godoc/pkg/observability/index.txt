@@ -1,30 +1,98 @@
-package observability // import "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
+package observability // import "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
 
-Package observability provides utilities for adding observability capabilities
-to the Midaz SDK, including metrics, logging, and distributed tracing.
+Package observability wires the Midaz Go SDK into OpenTelemetry — distributed
+tracing, metrics, and logs with a single Provider.
+
+The provider is the unit of lifecycle: build one at process boot, hand it to
+github.com/LerianStudio/midaz-sdk-golang/v3.WithObservabilityProvider, shut it
+down on exit. Every SDK call emits spans + metrics that nest correctly under
+whatever parent span the caller has open.
+
+# Quickstart
+
+    provider, err := observability.New(ctx,
+        observability.WithServiceName("payments-api"),
+        observability.WithEnvironment("production"),
+        observability.WithComponentEnabled(true, true, true), // tracing, metrics, logs
+    )
+    if err != nil { return err }
+    defer provider.Shutdown(ctx)
+
+    c, err := midaz.New(
+        midaz.WithEnvironment(midaz.EnvironmentProduction),
+        midaz.WithAccessManager(am),
+        midaz.WithObservabilityProvider(provider),
+    )
+
+# Public surface
+
+  - Provider — the lifecycle handle. Hands out Provider.Tracer, Provider.Meter,
+    Provider.Logger.
+  - New — constructor. Functional options select OTLP exporter, resource
+    attributes, sampling, and component toggles.
+  - WithSpan — convenience wrapper that opens a span around a callback, records
+    errors as span attributes on failure, and ends the span on return.
+  - NewHTTPMiddleware — client-side transport middleware that wraps a
+    net/http.RoundTripper to propagate W3C trace context onto outbound requests
+    and record per-call spans/metrics.
+
+# Two-layer surface
+
+observability options have a parallel surface on the root midaz package:
+github.com/LerianStudio/midaz-sdk-golang/v3.WithObservabilityOptions
+(build a provider inline) and
+github.com/LerianStudio/midaz-sdk-golang/v3.WithObservabilityProvider (use a
+pre-built provider). Most consumers want the latter.
+
+# Logging surfaces
+
+The SDK exposes two distinct logger surfaces, configured independently and
+backed by different handler chains:
+
+  - github.com/LerianStudio/midaz-sdk-golang/v3.Client.Logger returns a
+    *slog.Logger — the Go-stdlib idiom. Used by the SDK for retry traces
+    and other internal lines that are not span-correlated. Configured via
+    midaz.WithLogger / midaz.WithLoggerStream / Config.Debug.
+  - Provider.Logger returns the bespoke Logger — OTel-correlated.
+    Call Logger.WithSpan to attach trace_id and span_id to every log line.
+    Used inside SDK call paths that already hold a live span.
+
+They are not the same handler. The slog surface predates this package and covers
+application-side use cases; this package's Logger predates slog.go and covers
+OTel correlation. Use slog for application code, Provider.Logger when you need
+span-aware logging from inside an SDK callback.
+
+# See also
+
+  - github.com/LerianStudio/midaz-sdk-golang/v3.WithObservabilityProvider
+  - github.com/LerianStudio/midaz-sdk-golang/v3.WithObservabilityOptions
+  - docs/tracing.md — full tracing contract
+  - examples/10-observability-otel — runnable end-to-end demo
+  - examples/tracing — client-side tracing reference
+  - examples/tracing-server — server-side trace context extraction
 
 const KeySDKVersion = "midaz.sdk.version" ...
+var ErrNilHTTPResponse = errors.New("observability: nil http response")
 func AddAttribute(ctx context.Context, key string, value any)
 func AddEvent(ctx context.Context, name string, attrs map[string]string)
 func AddSpanAttributes(ctx context.Context, attrs ...attribute.KeyValue)
 func AddSpanEvent(ctx context.Context, name string, attrs ...attribute.KeyValue)
 func ExtractContext(ctx context.Context, headers map[string]string) context.Context
+func ExtractHTTPContext(ctx context.Context, headers http.Header) context.Context
 func GetBaggageItem(ctx context.Context, key string) string
 func InjectContext(ctx context.Context, headers map[string]string)
+func InjectHTTPContext(ctx context.Context, headers http.Header)
 func NewHTTPMiddleware(provider Provider, opts ...HTTPOption) func(http.RoundTripper) http.RoundTripper
 func RecordDuration(ctx context.Context, provider Provider, name string, start time.Time, ...)
 func RecordError(ctx context.Context, err error, eventName string, attrs ...map[string]string)
 func RecordMetric(ctx context.Context, provider Provider, name string, value float64, ...)
 func RecordSpanMetric(ctx context.Context, name string, value float64)
 func SpanID(ctx context.Context) string
-func Start(ctx context.Context, name string, opts ...trace.SpanStartOption) (context.Context, trace.Span)
 func StartSpan(ctx context.Context, name string) (context.Context, trace.Span)
 func TraceID(ctx context.Context) string
 func WithBaggageItem(ctx context.Context, key, value string) (context.Context, error)
 func WithProvider(ctx context.Context, provider Provider) context.Context
 func WithSpan(ctx context.Context, provider Provider, name string, ...) error
-func WithSpanAttributes(ctx context.Context, attrs ...attribute.KeyValue) context.Context
-func WithTraceID(ctx context.Context, _ string) context.Context
 type Config struct{ ... }
     func DefaultConfig() *Config
 type ContextKey string
@@ -63,12 +131,10 @@ type Option func(*Config) error
     func WithPropagationHeaders(headers ...string) Option
     func WithPropagators(propagators ...propagation.TextMapPropagator) Option
     func WithRegisterGlobally(register bool) Option
-    func WithSDKVersion(ver string) Option
     func WithServiceName(name string) Option
     func WithServiceVersion(ver string) Option
     func WithTraceSampleRate(rate float64) Option
 type Provider interface{ ... }
     func GetProvider(ctx context.Context) Provider
     func New(ctx context.Context, opts ...Option) (Provider, error)
-    func NewWithConfig(ctx context.Context, config *Config) (Provider, error)
 type Timer struct{ ... }

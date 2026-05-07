@@ -4,10 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"strings"
 	"testing"
+	"testing/quick"
 	"time"
+
+	"github.com/stretchr/testify/require"
+
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
 )
 
 func nilContext() context.Context {
@@ -327,6 +333,69 @@ func TestCalculateBackoff(t *testing.T) {
 	}
 }
 
+func TestProperty_CalculateBackoff_DeterministicBounds(t *testing.T) {
+	tests := []struct {
+		name    string
+		options *Options
+	}{
+		{
+			name: "doubling backoff capped at max",
+			options: &Options{
+				InitialDelay:  100 * time.Millisecond,
+				MaxDelay:      750 * time.Millisecond,
+				BackoffFactor: 2,
+			},
+		},
+		{
+			name: "linear backoff remains at initial delay",
+			options: &Options{
+				InitialDelay:  250 * time.Millisecond,
+				MaxDelay:      time.Second,
+				BackoffFactor: 1,
+			},
+		},
+		{
+			name: "fractional backoff is monotonic and capped",
+			options: &Options{
+				InitialDelay:  80 * time.Millisecond,
+				MaxDelay:      500 * time.Millisecond,
+				BackoffFactor: 1.5,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			checkBackoffBoundsProperty(t, tt.options)
+		})
+	}
+}
+
+func checkBackoffBoundsProperty(t *testing.T, options *Options) {
+	t.Helper()
+
+	property := func(maxAttempt uint8) bool {
+		return backoffSequenceWithinBounds(int(maxAttempt%20)+1, options)
+	}
+
+	config := &quick.Config{MaxCount: 64, Rand: rand.New(rand.NewSource(1))}
+	require.NoError(t, quick.Check(property, config), "backoff bounds property failed")
+}
+
+func backoffSequenceWithinBounds(attempts int, options *Options) bool {
+	previous := time.Duration(0)
+
+	for attempt := range attempts {
+		got := calculateBackoff(attempt, options)
+		if got < options.InitialDelay || got > options.MaxDelay || got < previous {
+			return false
+		}
+		previous = got
+	}
+
+	return true
+}
+
 // TestIsRetryableError tests the error matching logic
 func TestIsRetryableError(t *testing.T) {
 	// Use explicit options rather than defaults to avoid test failures if defaults change
@@ -336,7 +405,7 @@ func TestIsRetryableError(t *testing.T) {
 		MaxDelay:           10 * time.Second,
 		BackoffFactor:      2.0,
 		RetryableErrors:    []string{"connection reset", "connection refused", "timeout"},
-		RetryableHTTPCodes: []int{http.StatusServiceUnavailable, http.StatusTooManyRequests},
+		RetryableHTTPCodes: []int{http.StatusServiceUnavailable, http.StatusTooManyRequests, http.StatusTooEarly},
 	}
 
 	// Test nil error
@@ -502,8 +571,12 @@ func TestOptionHelpers(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:   "WithNoRetry",
-			option: WithNoRetry(),
+			// In v3, WithNoRetry was deleted. Use WithMaxRetries(0) directly —
+			// the canonical "no retries" expression. This test ensures the
+			// equivalent semantic is still reachable through the surviving
+			// surface.
+			name:   "WithMaxRetries(0)",
+			option: WithMaxRetries(0),
 			check: func(o *Options) bool {
 				return o.MaxRetries == 0
 			},
@@ -672,8 +745,10 @@ func TestHTTPOptionHelpers(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:   "WithHTTPNoRetry",
-			option: WithHTTPNoRetry(),
+			// In v3, WithHTTPNoRetry was deleted. Use WithHTTPMaxRetries(0)
+			// directly — the canonical "no retries" expression for HTTP.
+			name:   "WithHTTPMaxRetries(0)",
+			option: WithHTTPMaxRetries(0),
 			check: func(o *HTTPOptions) bool {
 				return o.MaxRetries == 0
 			},
@@ -709,4 +784,91 @@ func (e mockHTTPError) Error() string {
 
 func (e mockHTTPError) StatusCode() int {
 	return e.statusCode
+}
+
+// TestIsRetryableError_TypedRetryable_OverridesSubstringMatch verifies that
+// the typed Retryable() taxonomy wins over the substring scan. An auth error
+// whose Message contains "timeout" must NOT be retryable, even though the
+// default RetryableErrors list contains "timeout".
+//
+// Regression: previously the substring scan ran first and would misclassify
+// a 401 with body "Token expired due to timeout, please re-authenticate" as
+// retryable, wasting retry budget and (for non-idempotent POSTs) risking
+// double-bookkeeping.
+func TestIsRetryableError_TypedRetryable_OverridesSubstringMatch(t *testing.T) {
+	authErr := &sdkerrors.Error{
+		Category: sdkerrors.CategoryAuth,
+		Code:     sdkerrors.CodeAuthentication,
+		Message:  "Token expired due to timeout, please re-authenticate",
+	}
+
+	// Sanity: the substring scan WOULD have matched ("timeout" is a default token).
+	require.Contains(t, strings.ToLower(authErr.Error()), "timeout",
+		"precondition: error message must contain the substring that previously caused the bug")
+
+	// The typed taxonomy must override the substring match.
+	if IsRetryableError(authErr, DefaultOptions()) {
+		t.Fatalf("auth error with 'timeout' in message must NOT be retryable; "+
+			"typed Retryable() should override DefaultRetryableErrors substring scan; got err=%v", authErr)
+	}
+}
+
+// TestIsRetryableError_TypedRetryable_NetworkCategory verifies that a typed
+// network error is recognised as retryable through the structural Retryable()
+// interface even when its message contains no recognised substring tokens.
+func TestIsRetryableError_TypedRetryable_NetworkCategory(t *testing.T) {
+	netErr := &sdkerrors.Error{
+		Category: sdkerrors.CategoryNetwork,
+		Code:     sdkerrors.CodeNetwork,
+		Message:  "no recognised tokens here",
+	}
+
+	if !IsRetryableError(netErr, DefaultOptions()) {
+		t.Fatalf("typed network error must be retryable via Error.Retryable(); got err=%v", netErr)
+	}
+}
+
+// TestIsRetryableError_TypedRetryable_ValidationNotRetryable verifies the
+// non-retryable side of the taxonomy: validation errors must not retry, even
+// when their message contains "timeout"-like tokens.
+func TestIsRetryableError_TypedRetryable_ValidationNotRetryable(t *testing.T) {
+	valErr := &sdkerrors.Error{
+		Category: sdkerrors.CategoryValidation,
+		Code:     sdkerrors.CodeValidation,
+		Message:  "field 'deadline' must be a positive timeout duration",
+	}
+
+	if IsRetryableError(valErr, DefaultOptions()) {
+		t.Fatalf("typed validation error must NOT be retryable, even when message contains 'timeout'; got err=%v", valErr)
+	}
+}
+
+// TestIsRetryableError_StructuralStatusCode_UnwrapsViaErrorsAs verifies that
+// the structural StatusCode() interface assertion now uses errors.As, so a
+// retryable HTTP error wrapped via fmt.Errorf("...%w", ...) is still detected.
+//
+// Regression: a bare type assertion (err.(interface{StatusCode() int})) would
+// fail to see through %w wrapping.
+func TestIsRetryableError_StructuralStatusCode_UnwrapsViaErrorsAs(t *testing.T) {
+	options := &Options{
+		MaxRetries:         3,
+		InitialDelay:       1 * time.Millisecond,
+		MaxDelay:           5 * time.Millisecond,
+		BackoffFactor:      2.0,
+		RetryableErrors:    []string{}, // disable substring scan for this test
+		RetryableHTTPCodes: []int{http.StatusServiceUnavailable},
+	}
+
+	httpErr := mockHTTPError{statusCode: http.StatusServiceUnavailable}
+	wrapped := fmt.Errorf("transport call failed: %w", httpErr)
+
+	if !IsRetryableError(wrapped, options) {
+		t.Fatalf("wrapped HTTP error with retryable status code must be detected via errors.As; got err=%v", wrapped)
+	}
+
+	// Negative: non-retryable status code wrapped the same way must not retry.
+	nonRetryable := fmt.Errorf("transport call failed: %w", mockHTTPError{statusCode: http.StatusBadRequest})
+	if IsRetryableError(nonRetryable, options) {
+		t.Fatalf("wrapped HTTP error with 400 must NOT be retryable; got err=%v", nonRetryable)
+	}
 }

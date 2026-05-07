@@ -13,13 +13,13 @@ import (
 	"strings"
 	"time"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v2"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
-	gen "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/generator"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/integrity"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
-	txpkg "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/transaction"
+	"github.com/LerianStudio/midaz-sdk-golang/v3"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/data"
+	gen "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/generator"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/integrity"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
+	txpkg "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/transaction"
 	"github.com/joho/godotenv"
 )
 
@@ -348,7 +348,7 @@ func loadTemplates() ([]data.OrgTemplate, []data.AssetTemplate, []data.AccountTe
 }
 
 //nolint:gocognit,gocyclo,cyclop,revive,funlen // Demo workflow function - complexity acceptable for example code showing complete flow
-func runGenerationWorkflow(ctx context.Context, c *client.Client, obsProvider observability.Provider, gcfg gen.GeneratorConfig, userConfig demoConfig, orgTemplates []data.OrgTemplate, assetTemplates []data.AssetTemplate, accountTemplates []data.AccountTemplate) error {
+func runGenerationWorkflow(ctx context.Context, c *midaz.Client, obsProvider observability.Provider, gcfg gen.GeneratorConfig, userConfig demoConfig, orgTemplates []data.OrgTemplate, assetTemplates []data.AssetTemplate, accountTemplates []data.AccountTemplate) error {
 	fmt.Println("\n🚀 Running generation workflow (org + ledger + assets + accounts + transactions)...")
 
 	state := newWorkflowState(userConfig, gcfg)
@@ -516,7 +516,7 @@ func applyOrganizationLocale(template *data.OrgTemplate, locale string, _ int) {
 }
 
 //nolint:funlen // Demo function - length acceptable for example code showing complete resource creation
-func createAccountResources(ctx context.Context, c *client.Client, obsProvider observability.Provider, state *workflowState, org *models.Organization, ledger *models.Ledger, accountTemplates []data.AccountTemplate) (accounts []*models.Account, portfolio *models.Portfolio, segNA *models.Segment, segEU *models.Segment, routes demoRouteContext, err error) {
+func createAccountResources(ctx context.Context, c *midaz.Client, obsProvider observability.Provider, state *workflowState, org *models.Organization, ledger *models.Ledger, accountTemplates []data.AccountTemplate) (accounts []*models.Account, portfolio *models.Portfolio, segNA *models.Segment, segEU *models.Segment, routes demoRouteContext, err error) {
 	atGen := gen.NewAccountTypeGenerator(c.Entity, obsProvider)
 	if _, err := atGen.GenerateDefaults(ctx, org.ID, ledger.ID); err != nil {
 		return nil, nil, nil, nil, demoRouteContext{}, fmt.Errorf("account type generation failed: %w", err)
@@ -671,7 +671,7 @@ func cloneAccountTemplate(base data.AccountTemplate) data.AccountTemplate {
 	return clone
 }
 
-func createAccountHierarchy(ctx context.Context, c *client.Client, obsProvider observability.Provider, state *workflowState, org *models.Organization, ledger *models.Ledger, portfolio *models.Portfolio, segNA *models.Segment, segEU *models.Segment) ([]*models.Account, error) {
+func createAccountHierarchy(ctx context.Context, c *midaz.Client, obsProvider observability.Provider, state *workflowState, org *models.Organization, ledger *models.Ledger, portfolio *models.Portfolio, segNA *models.Segment, segEU *models.Segment) ([]*models.Account, error) {
 	accGen := gen.NewAccountGenerator(c.Entity, obsProvider)
 	hGen := gen.NewAccountHierarchyGenerator(accGen)
 
@@ -718,7 +718,7 @@ func createAccountHierarchy(ctx context.Context, c *client.Client, obsProvider o
 	return createdTree, nil
 }
 
-func runAccountTransactions(ctx context.Context, c *client.Client, state *workflowState, org *models.Organization, ledger *models.Ledger, assetScales map[string]int, accounts []*models.Account, routes demoRouteContext) ([]txpkg.BatchResult, error) {
+func runAccountTransactions(ctx context.Context, c *midaz.Client, state *workflowState, org *models.Organization, ledger *models.Ledger, assetScales map[string]int, accounts []*models.Account, routes demoRouteContext) ([]txpkg.BatchResult, error) {
 	if len(accounts) == 0 {
 		fmt.Println("No accounts available for transaction demo; skipping batch run")
 		return nil, nil
@@ -727,7 +727,7 @@ func runAccountTransactions(ctx context.Context, c *client.Client, state *workfl
 	return processAccountTransactions(ctx, c, state, org, ledger, assetScales, accounts, routes)
 }
 
-func processAccountTransactions(ctx context.Context, c *client.Client, state *workflowState, org *models.Organization, ledger *models.Ledger, assetScales map[string]int, accounts []*models.Account, routes demoRouteContext) ([]txpkg.BatchResult, error) {
+func processAccountTransactions(ctx context.Context, c *midaz.Client, state *workflowState, org *models.Organization, ledger *models.Ledger, assetScales map[string]int, accounts []*models.Account, routes demoRouteContext) ([]txpkg.BatchResult, error) {
 	scale := assetScales[state.demoConfig.assetCodeVal]
 	if scale == 0 {
 		scale = 2
@@ -864,7 +864,7 @@ func shortID(id string) string {
 	return id[:8]
 }
 
-func generateFinalReport(ctx context.Context, c *client.Client, state *workflowState, org *models.Organization, ledger *models.Ledger, results []txpkg.BatchResult, accounts []*models.Account) {
+func generateFinalReport(ctx context.Context, c *midaz.Client, state *workflowState, org *models.Organization, ledger *models.Ledger, results []txpkg.BatchResult, accounts []*models.Account) {
 	summary := txpkg.GetBatchSummary(results)
 	state.reportEntities.Counts.Transactions = summary.SuccessCount
 
@@ -906,7 +906,7 @@ func buildReportDataSummary(state *workflowState, accounts []*models.Account, su
 	return reportDataSummary
 }
 
-func fetchAccountBalances(ctx context.Context, c *client.Client, state *workflowState, orgID, ledgerID string, accounts []*models.Account, reportDataSummary *txpkg.ReportDataSummary) {
+func fetchAccountBalances(ctx context.Context, c *midaz.Client, state *workflowState, orgID, ledgerID string, accounts []*models.Account, reportDataSummary *txpkg.ReportDataSummary) {
 	balancesFetched := 0
 
 	for _, account := range accounts {
@@ -923,7 +923,7 @@ func fetchAccountBalances(ctx context.Context, c *client.Client, state *workflow
 			alias = account.ID
 		}
 
-		bal, err := c.Entity.Accounts.GetBalance(ctx, orgID, ledgerID, account.ID)
+		bal, err := c.Accounts.GetBalance(ctx, orgID, ledgerID, account.ID)
 		if err != nil || bal == nil {
 			continue
 		}
@@ -938,7 +938,7 @@ func fetchAccountBalances(ctx context.Context, c *client.Client, state *workflow
 	}
 }
 
-func createGenerationReport(ctx context.Context, c *client.Client, results []txpkg.BatchResult, state *workflowState, orgID, ledgerID string, reportDataSummary *txpkg.ReportDataSummary) *txpkg.GenerationReport {
+func createGenerationReport(ctx context.Context, c *midaz.Client, results []txpkg.BatchResult, state *workflowState, orgID, ledgerID string, reportDataSummary *txpkg.ReportDataSummary) *txpkg.GenerationReport {
 	report := txpkg.NewGenerationReport(results, "mass-demo-generator", map[string]any{
 		"org":    orgID,
 		"ledger": ledgerID,

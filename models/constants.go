@@ -14,7 +14,7 @@ package models
 //	// Check if a transaction is pending and needs to be committed
 //	if transaction.Status == models.TransactionStatusPending {
 //	    // Commit the transaction
-//	    committedTx, err := c.Entity.Transactions.CommitTransaction(
+//	    committedTx, err := c.Transactions.CommitTransaction(
 //	        context.Background(),
 //	        "org-123",
 //	        "ledger-456",
@@ -126,10 +126,6 @@ const (
 
 	// QueryParamCursor is the query parameter name for cursor
 	QueryParamCursor = "cursor"
-
-	// QueryParamOrderBy is the legacy query parameter name for the field to order by.
-	// Deprecated: current Midaz list endpoints do not expose a generic order-by query parameter.
-	QueryParamOrderBy = "orderBy"
 
 	// QueryParamOrderDirection is the query parameter name for sort direction.
 	QueryParamOrderDirection = "sort_order"

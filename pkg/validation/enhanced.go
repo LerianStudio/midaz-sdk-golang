@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation/core"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation/core"
 )
 
 // EnhancedValidateAssetCode checks if an asset code is valid and returns field-level errors
@@ -180,7 +180,7 @@ func validateMetadataKey(errors *FieldErrors, key string) bool {
 		return false
 	}
 
-	if len(key) > 100 {
+	if len(key) > maxMetadataKeyLength {
 		errors.Add(fmt.Sprintf("metadata.%s", key), key,
 			fmt.Sprintf("Metadata key exceeds maximum length of 100 characters (length: %d)", len(key))).
 			WithConstraint("maxLength").
@@ -262,7 +262,7 @@ func EnhancedValidateAddress(address *Address, fieldPrefix string) *FieldErrors 
 		errors.Add(fmt.Sprintf("%s.line1", fieldPrefix), address.Line1, "Address line 1 is required").
 			WithConstraint("required").
 			WithSuggestions(GetCommonSuggestions("address.line1", address.Line1, Required)...)
-	} else if len(address.Line1) > 256 {
+	} else if len(address.Line1) > maxEnhancedAddressLine {
 		errors.Add(fmt.Sprintf("%s.line1", fieldPrefix), address.Line1,
 			fmt.Sprintf("Address line 1 exceeds maximum length of 256 characters (length: %d)", len(address.Line1))).
 			WithConstraint("maxLength").
@@ -270,7 +270,7 @@ func EnhancedValidateAddress(address *Address, fieldPrefix string) *FieldErrors 
 	}
 
 	// Validate optional line 2
-	if address.Line2 != nil && len(*address.Line2) > 256 {
+	if address.Line2 != nil && len(*address.Line2) > maxEnhancedAddressLine {
 		errors.Add(fmt.Sprintf("%s.line2", fieldPrefix), *address.Line2,
 			fmt.Sprintf("Address line 2 exceeds maximum length of 256 characters (length: %d)", len(*address.Line2))).
 			WithConstraint("maxLength").
@@ -282,7 +282,7 @@ func EnhancedValidateAddress(address *Address, fieldPrefix string) *FieldErrors 
 		errors.Add(fmt.Sprintf("%s.zipCode", fieldPrefix), address.ZipCode, "Zip code is required").
 			WithConstraint("required").
 			WithSuggestions(GetCommonSuggestions("address.zipCode", address.ZipCode, Required)...)
-	} else if len(address.ZipCode) > 20 {
+	} else if len(address.ZipCode) > maxAddressZipCodeLength {
 		errors.Add(fmt.Sprintf("%s.zipCode", fieldPrefix), address.ZipCode,
 			fmt.Sprintf("Zip code exceeds maximum length of 20 characters (length: %d)", len(address.ZipCode))).
 			WithConstraint("maxLength").
@@ -294,7 +294,7 @@ func EnhancedValidateAddress(address *Address, fieldPrefix string) *FieldErrors 
 		errors.Add(fmt.Sprintf("%s.city", fieldPrefix), address.City, "City is required").
 			WithConstraint("required").
 			WithSuggestions(GetCommonSuggestions("address.city", address.City, Required)...)
-	} else if len(address.City) > 100 {
+	} else if len(address.City) > maxAddressCityLength {
 		errors.Add(fmt.Sprintf("%s.city", fieldPrefix), address.City,
 			fmt.Sprintf("City exceeds maximum length of 100 characters (length: %d)", len(address.City))).
 			WithConstraint("maxLength").
@@ -306,7 +306,7 @@ func EnhancedValidateAddress(address *Address, fieldPrefix string) *FieldErrors 
 		errors.Add(fmt.Sprintf("%s.state", fieldPrefix), address.State, "State is required").
 			WithConstraint("required").
 			WithSuggestions(GetCommonSuggestions("address.state", address.State, Required)...)
-	} else if len(address.State) > 100 {
+	} else if len(address.State) > maxAddressStateLength {
 		errors.Add(fmt.Sprintf("%s.state", fieldPrefix), address.State,
 			fmt.Sprintf("State exceeds maximum length of 100 characters (length: %d)", len(address.State))).
 			WithConstraint("maxLength").
@@ -980,9 +980,9 @@ func EnhancedValidateTransactionDSL(input TransactionDSLValidator) *FieldErrors 
 			WithSuggestions(GetCommonSuggestions("asset", asset, Format)...)
 	}
 
-	// Validate amount
+	// Validate amount without converting exact decimal strings to float64.
 	value := input.GetValue()
-	if value <= 0 {
+	if !isPositiveDecimalString(value) {
 		errors.Add("value", value, "Transaction amount must be greater than zero").
 			WithConstraint("min").
 			WithSuggestions(GetCommonSuggestions("amount", value, Range)...)

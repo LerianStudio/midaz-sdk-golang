@@ -3,14 +3,16 @@ package generator
 import (
 	"context"
 	"errors"
+	"iter"
 	"strconv"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/data"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -42,15 +44,23 @@ func (*mockTransactionsService) GetTransaction(_ context.Context, _, _, _ string
 	return nil, errors.New("mock: GetTransaction not implemented")
 }
 
-func (*mockTransactionsService) ListTransactions(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.Transaction], error) {
+func (*mockTransactionsService) ListTransactions(_ context.Context, _, _ string, _ models.TransactionsListOpts) (*models.ListResponse[models.Transaction], error) {
 	return nil, errors.New("mock: ListTransactions not implemented")
 }
 
-func (*mockTransactionsService) GetTransactionsMetricsCount(_ context.Context, _, _ string, _ *models.ListOptions) (*models.MetricsCount, error) {
+func (*mockTransactionsService) ListTransactionsAll(_ context.Context, _, _ string, _ models.TransactionsListOpts) iter.Seq2[models.Transaction, error] {
+	return func(_ func(models.Transaction, error) bool) {}
+}
+
+func (*mockTransactionsService) ListTransactionsPages(_ context.Context, _, _ string, _ models.TransactionsListOpts) iter.Seq2[*models.ListResponse[models.Transaction], error] {
+	return func(_ func(*models.ListResponse[models.Transaction], error) bool) {}
+}
+
+func (*mockTransactionsService) GetTransactionsMetricsCount(_ context.Context, _, _ string, _ models.TransactionsListOpts) (*models.MetricsCount, error) {
 	return nil, errors.New("mock: GetTransactionsMetricsCount not implemented")
 }
 
-func (*mockTransactionsService) UpdateTransaction(_ context.Context, _, _, _ string, _ any) (*models.Transaction, error) {
+func (*mockTransactionsService) UpdateTransaction(_ context.Context, _, _, _ string, _ *models.UpdateTransactionInput) (*models.Transaction, error) {
 	return nil, errors.New("mock: UpdateTransaction not implemented")
 }
 
@@ -259,7 +269,9 @@ func TestTransactionGenerator_GenerateWithDSL_WithIdempotencyKey(t *testing.T) {
 
 	_, err := gen.GenerateWithDSL(context.Background(), "org-123", "ledger-123", pattern)
 	require.NoError(t, err)
-	assert.NotNil(t, capturedCtx)
+	require.NotNil(t, capturedCtx)
+	assert.Equal(t, "unique-key-456", sdkctx.IdempotencyKeyFromContext(capturedCtx),
+		"idempotency key from pattern must be propagated into request context")
 }
 
 func TestTransactionGenerator_GenerateBatch_EmptyPatterns(t *testing.T) {
@@ -412,7 +424,6 @@ func TestTransactionPattern_Fields(t *testing.T) {
 			ChartOfAccountsGroupName: "payments",
 			Description:              "Customer payment",
 			DSLTemplate:              "send 100 USD from @customer to @merchant",
-			RequiresCommit:           true,
 			IdempotencyKey:           "idem-123",
 			ExternalID:               "ext-456",
 			Metadata: map[string]any{
@@ -423,7 +434,6 @@ func TestTransactionPattern_Fields(t *testing.T) {
 		assert.Equal(t, "payments", pattern.ChartOfAccountsGroupName)
 		assert.Equal(t, "Customer payment", pattern.Description)
 		assert.NotEmpty(t, pattern.DSLTemplate)
-		assert.True(t, pattern.RequiresCommit)
 		assert.Equal(t, "idem-123", pattern.IdempotencyKey)
 		assert.Equal(t, "ext-456", pattern.ExternalID)
 		assert.NotNil(t, pattern.Metadata)
@@ -439,7 +449,6 @@ func TestTransactionPattern_Fields(t *testing.T) {
 		assert.Equal(t, "test", pattern.ChartOfAccountsGroupName)
 		assert.NotEmpty(t, pattern.DSLTemplate)
 		assert.Equal(t, "key", pattern.IdempotencyKey)
-		assert.False(t, pattern.RequiresCommit)
 		assert.Nil(t, pattern.Metadata)
 	})
 }

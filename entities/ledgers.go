@@ -1,26 +1,38 @@
 package entities
 
+//go:generate mockgen -source=ledgers.go -destination=mocks/mock_ledgers.go -package=mocks LedgersService
+
 import (
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"iter"
 	"net/http"
-	"os"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
 )
 
 // LedgersService defines the interface for ledger-related operations.
 // It provides methods to create, read, update, and delete ledgers
 // within an organization.
+//
+// See also:
+//   - [github.com/LerianStudio/midaz-sdk-golang/v3.Client.Ledgers] — the production wiring.
+//   - [github.com/LerianStudio/midaz-sdk-golang/v3/entities/mocks.NewMockLedgersService] — generated mock for unit tests.
+//   - [github.com/LerianStudio/midaz-sdk-golang/v3/models.LedgersListOpts] — typed list-opts.
+//   - examples/03-end-to-end — org → ledger → account → transaction walk.
 type LedgersService interface {
 	// ListLedgers retrieves a paginated list of ledgers for an organization with optional filters.
 	// The organizationID parameter specifies which organization to query.
 	// The opts parameter can be used to specify pagination, sorting, and filtering options.
 	// Returns a ListResponse containing the ledgers and pagination information, or an error if the operation fails.
-	ListLedgers(ctx context.Context, organizationID string, opts *models.ListOptions) (*models.ListResponse[models.Ledger], error)
+	ListLedgers(ctx context.Context, organizationID string, opts models.LedgersListOpts) (*models.ListResponse[models.Ledger], error)
+
+	ListLedgersAll(ctx context.Context, organizationID string, opts models.LedgersListOpts) iter.Seq2[models.Ledger, error]
+
+	ListLedgersPages(ctx context.Context, organizationID string, opts models.LedgersListOpts) iter.Seq2[*models.ListResponse[models.Ledger], error]
 
 	// GetLedger retrieves a specific ledger by its ID.
 	// The organizationID parameter specifies which organization the ledger belongs to.
@@ -124,81 +136,30 @@ type LedgersService interface {
 // ledgersEntity implements the LedgersService interface.
 // It handles the communication with the Midaz API for ledger-related operations.
 type ledgersEntity struct {
-	httpClient *HTTPClient
-	baseURLs   map[string]string
+	serviceEntity
 }
 
-func (e *ledgersEntity) setDefaultTenantID(tenantID string) {
-	e.httpClient.SetTenantID(tenantID)
-}
-
-// NewLedgersEntity creates a new ledgers entity.
-//
-// Parameters:
-//   - httpClient: The HTTP client used for API requests. Can be configured with custom timeouts
-//     and transport options. If nil, a default client will be used.
-//   - authToken: The authentication token for API authorization. Must be a valid JWT token
-//     issued by the Midaz authentication service.
-//   - baseURLs: Map of service names to base URLs. Must include an "onboarding" key with
-//     the URL of the onboarding service (e.g., "https://api.midaz.io/v1").
-//
-// Returns:
-//   - LedgersService: An implementation of the LedgersService interface that provides
-//     methods for creating, retrieving, updating, and managing ledgers.
-//
-// Example:
-//
-//	// Create a ledgers entity with default HTTP client
-//	ledgersEntity := entities.NewLedgersEntity(
-//	    &http.Client{Timeout: 30 * time.Second},
-//	    "your-auth-token",
-//	    map[string]string{"onboarding": "https://api.midaz.io/v1"},
-//	)
-//
-//	// Use the entity to create a new ledger
-//	ledger, err := ledgersEntity.CreateLedger(
-//	    context.Background(),
-//	    "org-123",
-//	    models.NewCreateLedgerInput("Main Ledger").
-//	        WithMetadata(map[string]any{
-//	            "department": "Finance",
-//	            "fiscalYear": 2025,
-//	        }),
-//	)
-//
-//	if err != nil {
-//	    log.Fatalf("Failed to create ledger: %v", err)
-//	}
-//
-//	fmt.Printf("Ledger created: %s\n", ledger.ID)
-func NewLedgersEntity(client *http.Client, authToken string, baseURLs map[string]string) LedgersService {
-	// Create a new HTTP client with the shared implementation
-	httpClient := NewHTTPClient(client, authToken, nil)
-
-	// Check if we're using the debug flag from the environment
-	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
-		httpClient.setDebugLocked(true)
-	}
-
-	return &ledgersEntity{
-		httpClient: httpClient,
-		baseURLs:   prepareServiceBaseURLs(baseURLs),
-	}
+// newLedgersEntity wires the LedgersService backed by the shared HTTP
+// transport. Internal: invoked by Entity.initServices in production
+// (through newSharedServiceEntity, not this helper); this constructor is
+// the test-only path. The auth token is injected by the caller.
+func newLedgersEntity(client *http.Client, authToken string, baseURLs map[string]string) LedgersService {
+	return &ledgersEntity{serviceEntity: newServiceEntity(client, authToken, baseURLs)}
 }
 
 // ListLedgers lists all ledgers for an organization with optional filters.
 // The organizationID parameter specifies which organization to query.
 // The opts parameter can be used to specify pagination, sorting, and filtering options.
 // Returns a ListResponse containing the ledgers and pagination information, or an error if the operation fails.
-func (e *ledgersEntity) ListLedgers(
-	ctx context.Context,
-	organizationID string,
-	opts *models.ListOptions,
-) (*models.ListResponse[models.Ledger], error) {
+func (e *ledgersEntity) ListLedgers(ctx context.Context, organizationID string, opts models.LedgersListOpts) (*models.ListResponse[models.Ledger], error) {
 	const operation = "ListLedgers"
 
 	if organizationID == "" {
 		return nil, errors.NewMissingParameterError(operation, "organizationID")
+	}
+
+	if err := opts.Validate(); err != nil {
+		return nil, errors.NewValidationError(operation, "list options validation failed", err)
 	}
 
 	url := e.buildURL(organizationID, "")
@@ -208,11 +169,9 @@ func (e *ledgersEntity) ListLedgers(
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	// Add query parameters if provided
-	if opts != nil {
+	if params := opts.ToQueryParams(); len(params) > 0 {
 		q := req.URL.Query()
-
-		for key, value := range opts.ToQueryParams() {
+		for key, value := range params {
 			q.Add(key, value)
 		}
 
@@ -225,6 +184,46 @@ func (e *ledgersEntity) ListLedgers(
 	}
 
 	return &response, nil
+}
+
+// ListLedgersAll yields every ledger matching the request, transparently advancing pagination.
+func (e *ledgersEntity) ListLedgersAll(ctx context.Context, organizationID string, opts models.LedgersListOpts) iter.Seq2[models.Ledger, error] {
+	return flattenPages(e.ListLedgersPages(ctx, organizationID, opts))
+}
+
+// ListLedgersPages yields one full *ListResponse[Ledger] per page.
+func (e *ledgersEntity) ListLedgersPages(ctx context.Context, organizationID string, opts models.LedgersListOpts) iter.Seq2[*models.ListResponse[models.Ledger], error] {
+	ctx = requestContext(ctx)
+
+	return func(yield func(*models.ListResponse[models.Ledger], error) bool) {
+		current := opts
+		if current.Page == 0 {
+			current.Page = 1
+		}
+
+		for {
+			if ctx.Err() != nil {
+				yield(nil, ctx.Err())
+				return
+			}
+
+			page, err := e.ListLedgers(ctx, organizationID, current)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			if !yield(page, nil) {
+				return
+			}
+
+			if !page.Pagination.HasMore() {
+				return
+			}
+
+			current.Page++
+		}
+	}
 }
 
 // GetLedger gets a ledger by ID.
@@ -294,12 +293,12 @@ func (e *ledgersEntity) CreateLedger(
 
 	var ledger models.Ledger
 	if err := e.httpClient.sendRequest(req, &ledger); err != nil {
-		e.httpClient.emitBusinessError(ctx, businessEventLedgerCreated, map[string]any{"operation": operation, "organizationId": organizationID}, err)
+		e.httpClient.emitBusinessError(ctx, businessEventLedgerCreated, map[string]any{businessFieldOperation: operation, businessFieldOrganizationID: organizationID}, err)
 
 		return nil, err
 	}
 
-	e.httpClient.emitBusinessEvent(ctx, businessEventLedgerCreated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledger.ID, "status": ledger.Status.Code})
+	e.httpClient.emitBusinessEvent(ctx, businessEventLedgerCreated, map[string]any{businessFieldOperation: operation, businessFieldOrganizationID: organizationID, businessFieldLedgerID: ledger.ID, businessFieldStatus: ledger.Status.Code})
 
 	return &ledger, nil
 }
@@ -346,12 +345,12 @@ func (e *ledgersEntity) UpdateLedger(
 
 	var ledger models.Ledger
 	if err := e.httpClient.sendRequest(req, &ledger); err != nil {
-		e.httpClient.emitBusinessError(ctx, businessEventLedgerUpdated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": id}, err)
+		e.httpClient.emitBusinessError(ctx, businessEventLedgerUpdated, map[string]any{businessFieldOperation: operation, businessFieldOrganizationID: organizationID, businessFieldLedgerID: id}, err)
 
 		return nil, err
 	}
 
-	e.httpClient.emitBusinessEvent(ctx, businessEventLedgerUpdated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledger.ID, "status": ledger.Status.Code})
+	e.httpClient.emitBusinessEvent(ctx, businessEventLedgerUpdated, map[string]any{businessFieldOperation: operation, businessFieldOrganizationID: organizationID, businessFieldLedgerID: ledger.ID, businessFieldStatus: ledger.Status.Code})
 
 	return &ledger, nil
 }
@@ -397,6 +396,10 @@ func (e *ledgersEntity) UpdateLedgerSettings(ctx context.Context, organizationID
 
 	if input == nil {
 		return nil, errors.NewMissingParameterError(operation, "input")
+	}
+
+	if err := input.Validate(); err != nil {
+		return nil, errors.NewValidationError(operation, "ledger settings validation failed", err)
 	}
 
 	url := e.buildSettingsURL(organizationID, id)
@@ -445,12 +448,12 @@ func (e *ledgersEntity) DeleteLedger(
 	}
 
 	if err := e.httpClient.sendRequest(req, nil); err != nil {
-		e.httpClient.emitBusinessError(ctx, businessEventLedgerDeleted, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": id}, err)
+		e.httpClient.emitBusinessError(ctx, businessEventLedgerDeleted, map[string]any{businessFieldOperation: operation, businessFieldOrganizationID: organizationID, businessFieldLedgerID: id}, err)
 
 		return err
 	}
 
-	e.httpClient.emitBusinessEvent(ctx, businessEventLedgerDeleted, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": id})
+	e.httpClient.emitBusinessEvent(ctx, businessEventLedgerDeleted, map[string]any{businessFieldOperation: operation, businessFieldOrganizationID: organizationID, businessFieldLedgerID: id})
 
 	return nil
 }

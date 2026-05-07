@@ -12,7 +12,7 @@ import (
 type nilAccountDSL struct{}
 
 func (nilAccountDSL) GetAsset() string                           { return "USD" }
-func (nilAccountDSL) GetValue() float64                          { return 1 }
+func (nilAccountDSL) GetValue() string                           { return "1" }
 func (nilAccountDSL) GetSourceAccounts() []AccountReference      { return []AccountReference{nil} }
 func (nilAccountDSL) GetDestinationAccounts() []AccountReference { return []AccountReference{nil} }
 func (nilAccountDSL) GetMetadata() map[string]any                { return nil }

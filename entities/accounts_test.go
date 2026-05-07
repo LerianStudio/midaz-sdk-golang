@@ -9,14 +9,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/entities/mocks"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/performance"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
-	"github.com/golang/mock/gomock"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/entities/mocks"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/performance"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 )
 
 func TestListAccounts(t *testing.T) {
@@ -70,7 +70,7 @@ func TestListAccounts(t *testing.T) {
 		Return(accountsList, nil)
 
 	// Test with default options
-	result, err := mockService.ListAccounts(ctx, orgID, ledgerID, nil)
+	result, err := mockService.ListAccounts(ctx, orgID, ledgerID, models.AccountsListOpts{})
 	require.NoError(t, err)
 	assert.Equal(t, 2, result.Pagination.Total)
 	assert.Len(t, result.Items, 2)
@@ -85,7 +85,7 @@ func TestListAccounts(t *testing.T) {
 		ListAccounts(gomock.Any(), "", ledgerID, gomock.Any()).
 		Return(nil, errors.New("organization ID is required"))
 
-	_, err = mockService.ListAccounts(ctx, "", ledgerID, nil)
+	_, err = mockService.ListAccounts(ctx, "", ledgerID, models.AccountsListOpts{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "organization ID is required")
 
@@ -94,7 +94,7 @@ func TestListAccounts(t *testing.T) {
 		ListAccounts(gomock.Any(), orgID, "", gomock.Any()).
 		Return(nil, errors.New("ledger ID is required"))
 
-	_, err = mockService.ListAccounts(ctx, orgID, "", nil)
+	_, err = mockService.ListAccounts(ctx, orgID, "", models.AccountsListOpts{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "ledger ID is required")
 }
@@ -616,7 +616,7 @@ func (t *mockTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	return t.mock.DoFunc(req)
 }
 
-func TestNewAccountsEntity(t *testing.T) {
+func Test_newAccountsEntity(t *testing.T) {
 	tests := []struct {
 		name      string
 		client    *http.Client
@@ -639,7 +639,7 @@ func TestNewAccountsEntity(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			service := NewAccountsEntity(tt.client, tt.authToken, tt.baseURLs)
+			service := newAccountsEntity(tt.client, tt.authToken, tt.baseURLs)
 			assert.NotNil(t, service)
 
 			// Type assertion to check internal fields
@@ -656,7 +656,7 @@ func TestAccountsEntity_ListAccounts(t *testing.T) {
 		name           string
 		orgID          string
 		ledgerID       string
-		opts           *models.ListOptions
+		opts           models.AccountsListOpts
 		mockResponse   string
 		mockStatusCode int
 		mockError      error
@@ -667,7 +667,7 @@ func TestAccountsEntity_ListAccounts(t *testing.T) {
 			name:     "Success with no options",
 			orgID:    "org-123",
 			ledgerID: "ledger-123",
-			opts:     nil,
+			opts:     models.AccountsListOpts{},
 			mockResponse: `{
 				"items": [
 					{
@@ -702,12 +702,13 @@ func TestAccountsEntity_ListAccounts(t *testing.T) {
 			name:     "Success with options",
 			orgID:    "org-123",
 			ledgerID: "ledger-123",
-			opts: &models.ListOptions{
-				Limit:          5,
-				Offset:         10,
-				OrderBy:        "name",
-				OrderDirection: "asc",
-				Filters:        map[string]string{"type": "ASSET"},
+			opts: models.AccountsListOpts{
+				PageListOpts: models.PageListOpts{
+					Limit:         5,
+					Page:          2,
+					SortDirection: models.SortAscending,
+				},
+				Filters: models.AccountsFilters{Type: "ASSET"},
 			},
 			mockResponse: `{
 				"items": [
@@ -779,10 +780,7 @@ func TestAccountsEntity_ListAccounts(t *testing.T) {
 				},
 			}
 
-			entity := &accountsEntity{
-				httpClient: newHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"onboarding": "https://api.example.com"},
-			}
+			entity := &accountsEntity{serviceEntity: serviceEntity{httpClient: newHTTPClientAdapter(mockClient), baseURLs: map[string]string{"onboarding": "https://api.example.com"}}}
 
 			result, err := entity.ListAccounts(context.Background(), tt.orgID, tt.ledgerID, tt.opts)
 
@@ -886,10 +884,7 @@ func TestAccountsEntity_GetAccount(t *testing.T) {
 				},
 			}
 
-			entity := &accountsEntity{
-				httpClient: newHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"onboarding": "https://api.example.com"},
-			}
+			entity := &accountsEntity{serviceEntity: serviceEntity{httpClient: newHTTPClientAdapter(mockClient), baseURLs: map[string]string{"onboarding": "https://api.example.com"}}}
 
 			result, err := entity.GetAccount(context.Background(), tt.orgID, tt.ledgerID, tt.accountID)
 
@@ -999,10 +994,7 @@ func TestAccountsEntity_GetAccountByAlias(t *testing.T) {
 				},
 			}
 
-			entity := &accountsEntity{
-				httpClient: newHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"onboarding": "https://api.example.com"},
-			}
+			entity := &accountsEntity{serviceEntity: serviceEntity{httpClient: newHTTPClientAdapter(mockClient), baseURLs: map[string]string{"onboarding": "https://api.example.com"}}}
 
 			result, err := entity.GetAccountByAlias(context.Background(), tt.orgID, tt.ledgerID, tt.alias)
 
@@ -1131,10 +1123,7 @@ func TestAccountsEntity_CreateAccount(t *testing.T) {
 				},
 			}
 
-			entity := &accountsEntity{
-				httpClient: newHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"onboarding": "https://api.example.com"},
-			}
+			entity := &accountsEntity{serviceEntity: serviceEntity{httpClient: newHTTPClientAdapter(mockClient), baseURLs: map[string]string{"onboarding": "https://api.example.com"}}}
 
 			result, err := entity.CreateAccount(context.Background(), tt.orgID, tt.ledgerID, tt.input)
 
@@ -1268,10 +1257,7 @@ func TestAccountsEntity_UpdateAccount(t *testing.T) {
 				},
 			}
 
-			entity := &accountsEntity{
-				httpClient: newHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"onboarding": "https://api.example.com"},
-			}
+			entity := &accountsEntity{serviceEntity: serviceEntity{httpClient: newHTTPClientAdapter(mockClient), baseURLs: map[string]string{"onboarding": "https://api.example.com"}}}
 
 			result, err := entity.UpdateAccount(context.Background(), tt.orgID, tt.ledgerID, tt.accountID, tt.input)
 
@@ -1352,10 +1338,7 @@ func TestAccountsEntity_DeleteAccount(t *testing.T) {
 				},
 			}
 
-			entity := &accountsEntity{
-				httpClient: newHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"onboarding": "https://api.example.com"},
-			}
+			entity := &accountsEntity{serviceEntity: serviceEntity{httpClient: newHTTPClientAdapter(mockClient), baseURLs: map[string]string{"onboarding": "https://api.example.com"}}}
 
 			err := entity.DeleteAccount(context.Background(), tt.orgID, tt.ledgerID, tt.accountID)
 

@@ -4,16 +4,18 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	auth "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/access-manager"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/auth"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
 	"github.com/stretchr/testify/require"
 )
 
@@ -37,25 +39,14 @@ func requireHandlerNoError(t *testing.T, errs <-chan error) {
 	}
 }
 
-func TestEntityConstructors_WithNilOption_ReturnError(t *testing.T) {
-	_, err := New("http://localhost:3002", nil)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "option cannot be nil")
-
-	_, err = NewWithServiceURLs(map[string]string{"onboarding": "http://localhost:3002", "transaction": "http://localhost:3002", "crm": "http://localhost:4003"}, nil)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "option cannot be nil")
-}
+// Note: nil-option handling for the public midaz.New() entry point is exercised
+// by validation_contract_test.go in the root package; the entities-level helper
+// constructors used to live here but were removed in v3 (Batch 1E).
 
 func TestEntityContextHelpers_WithNilContext_AreSafe(t *testing.T) {
-	ctx := WithIdempotencyKey(nilContext(), "idem-1")
+	ctx := sdkctx.WithIdempotencyKey(nilContext(), "idem-1")
 	require.NotNil(t, ctx)
 	require.Equal(t, "idem-1", getIdempotencyKeyFromContext(ctx))
-
-	ctx = WithTenantID(nilContext(), "tenant-1")
-	require.NotNil(t, ctx)
-	require.Equal(t, "tenant-1", TenantIDFromContext(ctx))
-	require.Empty(t, TenantIDFromContext(nilContext()))
 }
 
 func TestNewEntityWithConfig_WithTypedNilConfig_ReturnsError(t *testing.T) {
@@ -74,61 +65,58 @@ func TestZeroValueEntityExportedMethods_AreSafe(t *testing.T) {
 	require.Nil(t, e.GetHTTPClient())
 	require.Nil(t, e.GetObservabilityProvider())
 	require.NotPanics(t, func() { e.SetHTTPClient(&http.Client{Timeout: time.Second}) })
-	require.NotPanics(t, func() { e.SetAuthToken("token") })
 }
 
-func TestSlice2NewWithServiceURLs_DefaultsMissingCRMURLToOnboarding(t *testing.T) {
-	entity, err := NewWithServiceURLs(map[string]string{
-		"onboarding":  "https://api.example.com/onboarding",
-		"transaction": "https://api.example.com/transaction",
-	})
-	require.NoError(t, err)
-	require.Equal(t, "https://api.example.com/onboarding/v1", entity.baseURLs["crm"])
-}
+// Default-CRM-to-onboarding behavior is covered in entity_test.go via
+// TestNormalizeBaseURLs_DefaultsMissingCRMURLToOnboarding (Batch 1E refactor).
 
 func TestEntityURLs_NormalizeV1AndRejectUnsafeDirectURLs(t *testing.T) {
-	entity, err := NewWithServiceURLs(map[string]string{
+	normalized, err := normalizeBaseURLs(map[string]string{
 		"onboarding":  "http://localhost:3002///",
 		"transaction": "http://localhost:3002/api",
 		"crm":         "http://localhost:4003",
 	})
 	require.NoError(t, err)
-	require.Equal(t, "http://localhost:3002/v1", entity.baseURLs["onboarding"])
-	require.Equal(t, "http://localhost:3002/api/v1", entity.baseURLs["transaction"])
-	require.Equal(t, "http://localhost:4003/v1", entity.baseURLs["crm"])
+	require.Equal(t, "http://localhost:3002/v1", normalized["onboarding"])
+	require.Equal(t, "http://localhost:3002/api/v1", normalized["transaction"])
+	require.Equal(t, "http://localhost:4003/v1", normalized["crm"])
 
-	_, err = New("https://user:pass@example.com")
+	_, err = normalizeServiceURL("https://user:pass@example.com")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "user information")
 
-	_, err = New("http://api.example.com")
+	_, err = normalizeServiceURL("http://api.example.com")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "insecure HTTP")
 }
 
 func TestEntitySetHTTPClient_PreservesProtocolConfiguration(t *testing.T) {
-	entity, err := New("http://localhost:3002", WithDebug(true), WithUserAgent("slice2-agent"), WithDefaultTenantID("tenant-1"))
-	require.NoError(t, err)
+	entity := newTestEntity(t, &http.Client{Timeout: 30 * time.Second}, "", map[string]string{
+		"onboarding":  "http://localhost:3002",
+		"transaction": "http://localhost:3002",
+		"crm":         "http://localhost:3002",
+	}, nil)
+	entity.GetEntityHTTPClient().SetDebug(true)
+	entity.GetEntityHTTPClient().SetUserAgent("slice2-agent")
 	entity.GetEntityHTTPClient().SetEnableIdempotency(false)
 	entity.GetEntityHTTPClient().SetCustomRetryPolicy(func(*http.Response, error) bool { return true })
-	entity.GetEntityHTTPClient().WithRetryOptions(retry.WithMaxRetries(7))
+	require.NoError(t, entity.GetEntityHTTPClient().WithRetryOptions(retry.WithMaxRetries(7)))
 
 	entity.SetHTTPClient(&http.Client{Timeout: 2 * time.Second})
 
 	hc := entity.GetEntityHTTPClient()
 	require.Equal(t, "slice2-agent", hc.userAgent)
-	require.Equal(t, "tenant-1", hc.GetTenantID())
 	require.True(t, hc.debug)
 	require.False(t, hc.enableIdempotency)
 	require.NotNil(t, hc.customRetryPolicy)
 	require.Equal(t, 7, hc.retryOptions.MaxRetries)
 }
 
-// TestHTTPClient_DebugErrorPathRedactsURL captures debug output via the
-// public WithDebugWriter option instead of swapping os.Stderr globally.
-// Mutating os.Stderr races against any parallel test that also touches
-// it, so the bytes.Buffer + WithDebugWriter pattern is the correct
-// goroutine-safe shape.
+// TestHTTPClient_DebugErrorPathRedactsURL captures debug output via a
+// *slog.Logger that writes to a bytes.Buffer. v3 contract: debug output
+// flows through the configured *slog.Logger; the v2 WithDebugWriter
+// stderr-bypass is gone. Constructing a per-test slog handler avoids
+// racing against os.Stderr (which any parallel test could also touch).
 func TestHTTPClient_DebugErrorPathRedactsURL(t *testing.T) {
 	writeErrs := make(chan error, 1)
 
@@ -141,10 +129,11 @@ func TestHTTPClient_DebugErrorPathRedactsURL(t *testing.T) {
 	defer srv.Close()
 
 	var debugBuf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&debugBuf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
-	c := NewHTTPClient(srv.Client(), "", nil).
-		WithDebug(true).
-		WithDebugWriter(&debugBuf)
+	c := NewHTTPClient(srv.Client(), "", nil)
+	c.SetDebug(true)
+	c.SetLogger(logger)
 
 	var out map[string]any
 
@@ -229,7 +218,7 @@ func TestHTTPClient_CustomRetryPolicyCanForceRetryForNonDefaultStatus(t *testing
 	defer srv.Close()
 
 	c := NewHTTPClient(srv.Client(), "", nil)
-	c.WithRetryOptions(retry.WithMaxRetries(1), retry.WithInitialDelay(time.Millisecond), retry.WithMaxDelay(time.Millisecond))
+	require.NoError(t, c.WithRetryOptions(retry.WithMaxRetries(1), retry.WithInitialDelay(time.Millisecond), retry.WithMaxDelay(time.Millisecond)))
 	c.SetCustomRetryPolicy(func(resp *http.Response, _ error) bool {
 		return resp != nil && resp.StatusCode == http.StatusUnprocessableEntity
 	})

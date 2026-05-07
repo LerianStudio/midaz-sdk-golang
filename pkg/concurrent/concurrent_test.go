@@ -3,6 +3,7 @@ package concurrent
 import (
 	"context"
 	"errors"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -1096,21 +1097,6 @@ func TestPoolOptions(t *testing.T) {
 		}
 	})
 
-	// Test WithWaitGroup option (placeholder option)
-	t.Run("WithWaitGroup", func(t *testing.T) {
-		var wg sync.WaitGroup
-
-		opt := WithWaitGroup(&wg)
-
-		opts := defaultPoolOptions()
-		opt(opts)
-
-		// The option is a placeholder, so it shouldn't change anything
-		if opts.workers != 5 {
-			t.Errorf("Expected workers to remain 5, got %d", opts.workers)
-		}
-	})
-
 	// Test combining multiple options
 	t.Run("CombinedOptions", func(t *testing.T) {
 		items := []int{1, 2, 3, 4, 5}
@@ -1262,4 +1248,73 @@ func TestResultStruct(t *testing.T) {
 			t.Errorf("Expected Error %v, got %v", expectedErr, result.Error)
 		}
 	})
+}
+
+// TestRateLimitedWorkerPool_DoesNotLeakTickersPerItem ensures a single ticker
+// is created per worker, not per item. Regression test for the v3 review
+// CRITICAL #2 finding: time.Tick() inside a per-item loop leaks the underlying
+// runtime.Ticker once per call.
+//
+// We use runtime.NumGoroutine() as a proxy: each leaked time.Tick spawns a
+// runtime ticker goroutine that lives until the process dies. With the bug,
+// processing N items grows goroutine count by O(N). With the fix, it grows by
+// O(workers) and returns to baseline after the pool exits.
+func TestRateLimitedWorkerPool_DoesNotLeakTickersPerItem(t *testing.T) {
+	const (
+		itemCount = 1000
+		workers   = 4
+		// Use a high rate so the test runs quickly; correctness of the leak
+		// behaviour is independent of the rate value.
+		rateLimit = 100000
+	)
+
+	items := make([]int, itemCount)
+	for i := range items {
+		items[i] = i
+	}
+
+	// Settle baseline.
+	runtime.GC()
+	time.Sleep(50 * time.Millisecond)
+
+	baseline := runtime.NumGoroutine()
+
+	results := WorkerPool(
+		context.Background(),
+		items,
+		func(_ context.Context, item int) (int, error) {
+			return item * 2, nil
+		},
+		WithWorkers(workers),
+		WithRateLimit(rateLimit),
+		WithUnorderedResults(),
+	)
+
+	if len(results) != itemCount {
+		t.Fatalf("Expected %d results, got %d", itemCount, len(results))
+	}
+
+	// Allow goroutines spawned by the pool to wind down. Runtime tickers
+	// would NOT wind down — they are reachable through internal scheduler
+	// state for the lifetime of the process.
+	for i := 0; i < 10; i++ {
+		runtime.GC()
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	after := runtime.NumGoroutine()
+
+	// Allow some slack for noise from the scheduler / GC. The bug grew
+	// goroutines by O(itemCount * workers) = 4000 — anything in that range
+	// would dwarf this threshold.
+	const allowedGrowth = 50
+
+	growth := after - baseline
+	if growth > allowedGrowth {
+		t.Fatalf(
+			"goroutine count grew by %d after WorkerPool with %d items × %d workers under WithRateLimit; "+
+				"expected ≤ %d. Likely a per-item time.Tick leak (baseline=%d, after=%d).",
+			growth, itemCount, workers, allowedGrowth, baseline, after,
+		)
+	}
 }

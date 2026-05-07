@@ -37,8 +37,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation/core"
-	midazutils "github.com/LerianStudio/midaz/v3/pkg/utils"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation/core"
+	"github.com/shopspring/decimal"
 )
 
 // Validator is a configurable validation instance that can be used to perform validations
@@ -95,7 +95,7 @@ var chartOfAccountsGroupNamePattern = regexp.MustCompile(`^[a-zA-Z0-9 _-]+$`)
 // TransactionDSLValidator defines an interface for transaction DSL validation
 type TransactionDSLValidator interface {
 	GetAsset() string
-	GetValue() float64
+	GetValue() string
 	GetSourceAccounts() []AccountReference
 	GetDestinationAccounts() []AccountReference
 	GetMetadata() map[string]any
@@ -123,8 +123,8 @@ func ValidateTransactionDSL(input TransactionDSLValidator) error {
 		return fmt.Errorf("invalid asset code format: %s (must be 3-4 uppercase letters)", asset)
 	}
 
-	// Validate amount
-	if !isFinitePositive(input.GetValue()) {
+	// Validate amount without converting exact decimal strings to float64.
+	if !isPositiveDecimalString(input.GetValue()) {
 		return errors.New("transaction amount must be greater than zero")
 	}
 
@@ -249,6 +249,11 @@ func isFinitePositive(value float64) bool {
 	return !math.IsNaN(value) && !math.IsInf(value, 0) && value > 0
 }
 
+func isPositiveDecimalString(value string) bool {
+	parsed, err := decimal.NewFromString(strings.TrimSpace(value))
+	return err == nil && parsed.IsPositive()
+}
+
 // GetExternalAccountReference creates a properly formatted external account reference
 // for the given asset code
 func GetExternalAccountReference(assetCode string) string {
@@ -348,7 +353,7 @@ func (*Validator) validateMetadataKey(key string) error {
 		return errors.New("metadata key cannot be empty")
 	}
 
-	if len(key) > 100 {
+	if len(key) > maxMetadataKeyLength {
 		return fmt.Errorf("metadata key '%s' exceeds maximum length of 100 characters", key)
 	}
 
@@ -632,7 +637,7 @@ func validateChartOfAccountsGroupName(name string) error {
 		return errors.New("chart of accounts group name cannot be empty")
 	}
 
-	if len(name) > 100 {
+	if len(name) > maxChartGroupNameLength {
 		return fmt.Errorf("chart of accounts group name '%s' exceeds maximum length of 100 characters", name)
 	}
 
@@ -1097,21 +1102,7 @@ func validateMetadataField(summary *Summary, input map[string]any) {
 // ValidateAssetType validates if the asset type is one of the supported types
 // in the Midaz system.
 func ValidateAssetType(assetType string) error {
-	if assetType == "" {
-		return errors.New("asset type is required")
-	}
-
-	// Use commons.ValidateType to ensure consistency with backend APIs
-	// Note: commons.ValidateType expects lowercase types, so we convert to lowercase
-	if err := midazutils.ValidateType(strings.ToLower(assetType)); err != nil {
-		// Create a list of valid types for the error message
-		validTypes := []string{"crypto", "currency", "commodity", "others"}
-
-		return fmt.Errorf("invalid asset type: %s. Valid types are: %s",
-			assetType, strings.Join(validTypes, ", "))
-	}
-
-	return nil
+	return core.ValidateAssetType(assetType)
 }
 
 // ValidateAccountType validates if the account type is one of the supported types
@@ -1122,30 +1113,12 @@ func ValidateAccountType(accountType string) error {
 
 // ValidateCurrencyCode checks if the currency code is valid according to ISO 4217.
 func ValidateCurrencyCode(code string) error {
-	if code == "" {
-		return errors.New("currency code cannot be empty")
-	}
-
-	// Use commons.ValidateCurrency to ensure consistency with backend APIs
-	if err := midazutils.ValidateCurrency(code); err != nil {
-		return fmt.Errorf("invalid currency code: %s", code)
-	}
-
-	return nil
+	return core.ValidateCurrencyCode(code)
 }
 
 // ValidateCountryCode checks if the country code is valid according to ISO 3166-1 alpha-2.
 func ValidateCountryCode(code string) error {
-	if code == "" {
-		return errors.New("country code cannot be empty")
-	}
-
-	// Use commons.ValidateCountryAddress to ensure consistency with backend APIs
-	if err := midazutils.ValidateCountryAddress(code); err != nil {
-		return fmt.Errorf("invalid country code: %s (must be a valid ISO 3166-1 alpha-2 code)", code)
-	}
-
-	return nil
+	return core.ValidateCountryCode(code)
 }
 
 // Address is a simplified address structure for validation purposes.

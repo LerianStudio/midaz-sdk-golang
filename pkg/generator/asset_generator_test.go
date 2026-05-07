@@ -3,11 +3,12 @@ package generator
 import (
 	"context"
 	"errors"
+	"iter"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/data"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -28,8 +29,16 @@ func (*mockAssetsService) GetAsset(_ context.Context, _, _, _ string) (*models.A
 	return nil, errors.New("mock: GetAsset not implemented")
 }
 
-func (*mockAssetsService) ListAssets(_ context.Context, _, _ string, _ *models.ListOptions) (*models.ListResponse[models.Asset], error) {
+func (*mockAssetsService) ListAssets(_ context.Context, _, _ string, _ models.AssetsListOpts) (*models.ListResponse[models.Asset], error) {
 	return nil, errors.New("mock: ListAssets not implemented")
+}
+
+func (*mockAssetsService) ListAssetsAll(_ context.Context, _, _ string, _ models.AssetsListOpts) iter.Seq2[models.Asset, error] {
+	return func(_ func(models.Asset, error) bool) {}
+}
+
+func (*mockAssetsService) ListAssetsPages(_ context.Context, _, _ string, _ models.AssetsListOpts) iter.Seq2[*models.ListResponse[models.Asset], error] {
+	return func(_ func(*models.ListResponse[models.Asset], error) bool) {}
 }
 
 func (*mockAssetsService) UpdateAsset(_ context.Context, _, _, _ string, _ *models.UpdateAssetInput) (*models.Asset, error) {
@@ -183,81 +192,6 @@ func TestAssetGenerator_UpdateRates_MissingService(t *testing.T) {
 	assert.Contains(t, err.Error(), "asset rates service not initialized")
 }
 
-func TestMergeMetadata(t *testing.T) {
-	tests := []struct {
-		name     string
-		a        map[string]any
-		b        map[string]any
-		expected map[string]any
-	}{
-		{
-			name:     "Both nil",
-			a:        nil,
-			b:        nil,
-			expected: nil,
-		},
-		{
-			name: "First nil",
-			a:    nil,
-			b:    map[string]any{"key": "value"},
-			expected: map[string]any{
-				"key": "value",
-			},
-		},
-		{
-			name: "Second nil",
-			a:    map[string]any{"key": "value"},
-			b:    nil,
-			expected: map[string]any{
-				"key": "value",
-			},
-		},
-		{
-			name: "Both have values",
-			a:    map[string]any{"key1": "value1"},
-			b:    map[string]any{"key2": "value2"},
-			expected: map[string]any{
-				"key1": "value1",
-				"key2": "value2",
-			},
-		},
-		{
-			name: "Overlapping keys - b wins",
-			a:    map[string]any{"key": "value_a"},
-			b:    map[string]any{"key": "value_b"},
-			expected: map[string]any{
-				"key": "value_b",
-			},
-		},
-		{
-			name:     "Empty maps",
-			a:        map[string]any{},
-			b:        map[string]any{},
-			expected: map[string]any{},
-		},
-		{
-			name: "Complex values",
-			a:    map[string]any{"nested": map[string]any{"inner": "value"}},
-			b:    map[string]any{"number": 42},
-			expected: map[string]any{
-				"nested": map[string]any{"inner": "value"},
-				"number": 42,
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := mergeMetadata(tt.a, tt.b)
-			if tt.expected == nil {
-				assert.Nil(t, result)
-			} else {
-				assert.Equal(t, tt.expected, result)
-			}
-		})
-	}
-}
-
 func TestAssetTemplate_Fields(t *testing.T) {
 	t.Run("Currency asset", func(t *testing.T) {
 		template := data.AssetTemplate{
@@ -381,7 +315,7 @@ func TestAssetGenerator_Generate_WithCircuitBreaker(t *testing.T) {
 	assert.Equal(t, "asset-cb", result.ID)
 }
 
-func TestAssetGenerator_Generate_MetadataWithScale(t *testing.T) {
+func TestAssetGenerator_Generate_MetadataPassthrough(t *testing.T) {
 	var capturedMetadata map[string]any
 
 	mockSvc := &mockAssetsService{
@@ -410,7 +344,10 @@ func TestAssetGenerator_Generate_MetadataWithScale(t *testing.T) {
 	_, err := gen.Generate(ctx, "ledger-123", template)
 	require.NoError(t, err)
 
+	// Metadata is passed through verbatim. Scale lives on the asset struct's
+	// top-level field and is not mirrored into metadata.
 	assert.NotNil(t, capturedMetadata)
 	assert.Equal(t, "Japan", capturedMetadata["country"])
-	assert.Equal(t, 0, capturedMetadata["scale"])
+	_, hasScale := capturedMetadata["scale"]
+	assert.False(t, hasScale, "scale must not be injected into metadata")
 }

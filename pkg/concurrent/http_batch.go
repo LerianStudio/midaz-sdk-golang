@@ -11,8 +11,8 @@ import (
 	"net/http"
 	"time"
 
-	pkgerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/security"
+	pkgerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/security"
 )
 
 // HTTPBatchRequest represents a single request in a batch.
@@ -357,6 +357,10 @@ func (b *HTTPBatchProcessor) SetDefaultHeaders(headers map[string]string) {
 
 // ExecuteBatch executes a batch of requests and returns the results.
 func (b *HTTPBatchProcessor) ExecuteBatch(ctx context.Context, requests []HTTPBatchRequest) (*HTTPBatchResult, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	if len(requests) == 0 {
 		return &HTTPBatchResult{Responses: []HTTPBatchResponse{}}, nil
 	}
@@ -402,7 +406,7 @@ func (e *batchExecutor) execute(requests []HTTPBatchRequest) (*HTTPBatchResult, 
 		return nil, err
 	}
 
-	if statusCode >= 400 {
+	if statusCode >= http.StatusBadRequest {
 		return nil, e.handleErrorResponse(respBody, statusCode)
 	}
 
@@ -490,11 +494,11 @@ func shouldRetryConnectionError(retryCount, maxRetries int, ctxErr error) bool {
 
 // shouldRetryStatus determines if an HTTP status code should trigger a retry.
 func shouldRetryStatus(statusCode, retryCount, maxRetries int) bool {
-	if statusCode < 400 {
+	if statusCode < http.StatusBadRequest {
 		return false // Success
 	}
 
-	if statusCode < 500 {
+	if statusCode < http.StatusInternalServerError {
 		return false // Client error, don't retry
 	}
 
@@ -518,7 +522,7 @@ func (*batchExecutor) handleErrorResponse(respBody []byte, statusCode int) error
 	}
 
 	if err := json.Unmarshal(respBody, &errResp); err == nil && errResp.Error != "" {
-		return pkgerrors.NewInternalError("HTTPBatchRequest", fmt.Errorf("batch request failed: %s", errResp.Error))
+		return pkgerrors.NewInternalError("HTTPBatchRequest", fmt.Errorf("batch request failed: %s", pkgerrors.RedactSensitiveString(errResp.Error)))
 	}
 
 	return pkgerrors.NewInternalError("HTTPBatchRequest", fmt.Errorf("batch request failed with status %d", statusCode))
@@ -628,7 +632,7 @@ func (b *HTTPBatchProcessor) parseResponseBody(resp *HTTPBatchResponse, requestI
 		return pkgerrors.NewInternalError("ParseHTTPBatchResponse", fmt.Errorf("request %s failed: %s", requestID, resp.Error))
 	}
 
-	if resp.StatusCode >= 400 {
+	if resp.StatusCode >= http.StatusBadRequest {
 		return pkgerrors.NewInternalError("ParseHTTPBatchResponse", fmt.Errorf("request %s failed with status %d", requestID, resp.StatusCode))
 	}
 
@@ -645,6 +649,10 @@ func (b *HTTPBatchProcessor) parseResponseBody(resp *HTTPBatchResponse, requestI
 
 // ExecuteBatchWithPoolOptions executes a batch of requests with custom worker pool options.
 func (b *HTTPBatchProcessor) ExecuteBatchWithPoolOptions(ctx context.Context, requests []HTTPBatchRequest, opts ...PoolOption) (*HTTPBatchResult, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	if len(requests) == 0 {
 		return &HTTPBatchResult{
 			Responses: []HTTPBatchResponse{},

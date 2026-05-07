@@ -4,11 +4,16 @@ This directory contains hand-written guides and generated package documentation 
 
 ## Start here
 
+- [Migration: v2 → v3](./migration-v2-to-v3.md) - Side-by-side guide covering every breaking change. Read this first if upgrading.
+- [Authentication](./auth.md) - Access Manager OAuth and anonymous mode.
+- [Configuration](./configuration.md) - Four configuration surfaces, precedence rules, every option.
 - [Environment variables](./environment.md) - Runtime configuration and `.env` usage.
 - [Error handling](./errors.md) - SDK error categories, helpers, and retry boundaries.
-- [Architecture](./architecture.md) - SDK structure and implementation overview.
+- [Architecture](./comprehensive-architecture.md) - SDK structure and implementation overview. (Older [architecture.md](./architecture.md) is retained as historical v2 context only.)
 - [Examples](./examples.md) - Runnable examples and common workflows.
 - [Pagination](./pagination.md) - List options, page metadata, and cursor behavior.
+- [Multi-tenancy](./multi-tenancy.md) - Tenant resolution, header vs claims, propagation patterns.
+- [Logging](./logging.md) - `*slog.Logger` integration recipes for stdlib slog, zap, zerolog, charmbracelet/log.
 - [Tracing](./tracing.md) - OpenTelemetry setup and trace propagation.
 
 ## API mapping
@@ -30,40 +35,40 @@ Run an interactive Go documentation server with:
 make godoc
 ```
 
-Then open http://localhost:6060/pkg/github.com/LerianStudio/midaz-sdk-golang/v2/.
+Then open http://localhost:6060/pkg/github.com/LerianStudio/midaz-sdk-golang/v3/.
 
 Generated docs currently include:
 
 - [Root package](./godoc/index.txt)
 - [Entities package](./godoc/entities/index.txt)
 - [Models package](./godoc/models/index.txt)
+- [Auth package](./godoc/pkg/auth/index.txt)
 - [Config package](./godoc/pkg/config/index.txt)
 - [Errors package](./godoc/pkg/errors/index.txt)
 - [Observability package](./godoc/pkg/observability/index.txt)
+- [SDK context package](./godoc/pkg/sdkctx/index.txt)
 - [Validation package](./godoc/pkg/validation/index.txt)
 - [Concurrent package](./godoc/pkg/concurrent/index.txt)
 - [Retry package](./godoc/pkg/retry/index.txt)
 - [Performance package](./godoc/pkg/performance/index.txt)
-- [Pagination package](./godoc/pkg/pagination/index.txt)
 - [Format package](./godoc/pkg/format/index.txt)
 
 ## Package structure
 
-- `github.com/LerianStudio/midaz-sdk-golang/v2` - Root package. Exposes `Client`, `New`, and client functional options.
+- `github.com/LerianStudio/midaz-sdk-golang/v3` - Root package. Exposes `Client`, `New`, and client functional options.
 - `entities` - Entity service interfaces and HTTP implementations for Ledger and CRM API resources.
 - `models` - Public SDK request/response types, fluent builders, aliases, pagination helpers, and common constants.
-- `pkg/access-manager` - Plugin-based authentication using Access Manager credentials.
+- `pkg/auth` - Plugin-based authentication using Access Manager credentials.
 - `pkg/config` - Environment-aware configuration and service URL resolution.
 - `pkg/errors` - Structured SDK error type, categories, codes, constructors, and checking helpers.
 - `pkg/observability` - OpenTelemetry tracing, metrics, logging, propagation, and middleware helpers.
 - `pkg/retry` - Retry policies, backoff, jitter, and HTTP retry helpers.
-- `pkg/pagination` - Generic paginator utilities separate from `models.ListOptions`.
 - `pkg/concurrent` - Worker pool, batch, and rate-limit helpers.
 - `pkg/security`, `pkg/validation`, `pkg/format`, `pkg/transaction`, `pkg/version` - Supporting utility packages.
 
 ## Entity services
 
-The root client exposes entity services through `c.Entity` when created with `client.UseAllAPIs()` or `client.UseEntityAPI()`:
+The root client initializes entity services when `midaz.New(...)` succeeds. You can access services directly from the client, such as `c.Accounts`, or through the compatibility `c.Entity` field:
 
 - `Accounts`
 - `AccountTypes`
@@ -92,12 +97,12 @@ if err != nil {
     return err
 }
 
-c, err := client.New(
-    client.WithConfig(cfg),
-    client.UseAllAPIs(),
+c, err := midaz.New(
+    midaz.WithConfig(cfg),
+    midaz.WithAnonymous(),
 )
 ```
 
 See [Environment variables](./environment.md) for the full list of supported variables.
 
-Unsafe transaction create calls receive an auto-generated `X-Idempotency` header by default. Use `entities.WithIdempotencyKey` or input-level idempotency keys when a caller-chosen stable key is required, or when auto-idempotency has been disabled for a client or request.
+Unsafe transaction create calls receive an auto-generated `X-Idempotency` header by default. Use `sdkctx.WithIdempotencyKey` or input-level idempotency keys when a caller-chosen stable key is required, or when auto-idempotency has been disabled for a client or request.

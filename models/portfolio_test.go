@@ -555,18 +555,23 @@ func TestUpdatePortfolioInput_EmbeddedMmodelFields(t *testing.T) {
 	assert.Equal(t, metadata, input.Metadata)
 }
 
+// TestCreatePortfolioInput_ValidationOrder verifies that name-required
+// is surfaced regardless of EntityID's value. With Track 8C's
+// accumulator the output is the flat "validation failed: name is required"
+// shape; the test asserts substring presence rather than equality
+// because additional fields may eventually accumulate alongside.
 func TestCreatePortfolioInput_ValidationOrder(t *testing.T) {
 	input := NewCreatePortfolioInput("", "")
 	err := input.Validate()
 
 	require.Error(t, err)
-	assert.Equal(t, "name is required", err.Error())
+	assert.Contains(t, err.Error(), "name is required")
 
 	input2 := NewCreatePortfolioInput("entity-123", "")
 	err2 := input2.Validate()
 
 	require.Error(t, err2)
-	assert.Equal(t, "name is required", err2.Error())
+	assert.Contains(t, err2.Error(), "name is required")
 
 	input3 := NewCreatePortfolioInput("", "Valid Name")
 	require.NoError(t, input3.Validate())
@@ -657,7 +662,7 @@ func TestPortfolioInput_EmptyStringVsNil(t *testing.T) {
 		input := NewCreatePortfolioInput("entity-123", "")
 		err := input.Validate()
 		require.Error(t, err)
-		assert.Equal(t, "name is required", err.Error())
+		assert.Contains(t, err.Error(), "name is required")
 	})
 
 	t.Run("empty string entityID is omitted-compatible", func(t *testing.T) {

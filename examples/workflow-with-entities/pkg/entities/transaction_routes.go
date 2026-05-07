@@ -7,8 +7,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 )
 
 // CreateTransactionRoute creates a new transaction route within a ledger.
@@ -94,7 +94,7 @@ func ListTransactionRoutes(
 	service entities.TransactionRoutesService,
 ) ([]*models.TransactionRoute, error) {
 	// List transaction routes
-	response, err := service.ListTransactionRoutes(ctx, orgID, ledgerID, nil)
+	response, err := service.ListTransactionRoutes(ctx, orgID, ledgerID, models.TransactionRoutesListOpts{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list transaction routes: %w", err)
 	}

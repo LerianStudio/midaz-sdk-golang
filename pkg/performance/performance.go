@@ -3,7 +3,6 @@
 // This package implements various performance optimizations, including:
 // - Configurable batch processing for efficiently handling bulk operations
 // - HTTP connection pooling to reduce connection overhead
-// - JSON processing optimizations to minimize serialization costs
 //
 // Use Cases:
 //
@@ -68,11 +67,6 @@ type Options struct {
 	// Higher values reduce connection setup time for high QPS applications.
 	// Lower values reduce memory usage for infrequent API calls.
 	MaxIdleConnsPerHost int
-
-	// UseJSONIterator enables the use of jsoniter for faster JSON parsing.
-	// Set to true for applications with high JSON parsing overhead.
-	// May slightly increase binary size due to additional dependency.
-	UseJSONIterator bool
 }
 
 // Option defines a function that configures performance options
@@ -119,24 +113,11 @@ func WithMaxIdleConnsPerHost(maxIdle int) Option {
 	}
 }
 
-// WithJSONIterator enables or disables the use of jsoniter for JSON parsing.
-//
-// Deprecated: this option is retained for API compatibility only. The SDK uses
-// the standard library JSON implementation; enabling this flag does not switch
-// to jsoniter.
-func WithJSONIterator(enabled bool) Option {
-	return func(o *Options) error {
-		o.UseJSONIterator = enabled
-		return nil
-	}
-}
-
 // Default options
 var defaultOptions = Options{
 	BatchSize:           50,
 	EnableHTTPPooling:   true,
 	MaxIdleConnsPerHost: 10,
-	UseJSONIterator:     true,
 }
 
 // globalOptions holds the global performance options. Reads use the
@@ -198,7 +179,6 @@ func ApplyGlobalPerformanceOptions(options Options) {
 		current.MaxIdleConnsPerHost = options.MaxIdleConnsPerHost
 	}
 
-	current.UseJSONIterator = options.UseJSONIterator
 	globalOptions.Store(current)
 }
 

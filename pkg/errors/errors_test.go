@@ -7,63 +7,13 @@ import (
 	"net/http"
 	"testing"
 
-	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // --------------------------------
-// Legacy MidazError Tests
-// --------------------------------
-
-func TestMidazError(t *testing.T) {
-	t.Run("Error method with underlying error", func(t *testing.T) {
-		underlyingErr := errors.New("underlying error")
-		midazErr := &sdkerrors.MidazError{
-			Code:    sdkerrors.CodeValidation,
-			Message: "validation failed",
-			Err:     underlyingErr,
-		}
-
-		expected := "validation_error: validation failed: underlying error"
-		assert.Equal(t, expected, midazErr.Error())
-	})
-
-	t.Run("Error method without underlying error", func(t *testing.T) {
-		midazErr := &sdkerrors.MidazError{
-			Code:    sdkerrors.CodeNotFound,
-			Message: "resource not found",
-		}
-
-		expected := "not_found: resource not found"
-		assert.Equal(t, expected, midazErr.Error())
-	})
-
-	t.Run("Unwrap method", func(t *testing.T) {
-		underlyingErr := errors.New("underlying error")
-		midazErr := &sdkerrors.MidazError{
-			Code:    sdkerrors.CodeValidation,
-			Message: "validation failed",
-			Err:     underlyingErr,
-		}
-
-		assert.Equal(t, underlyingErr, midazErr.Unwrap())
-	})
-}
-
-func TestNewMidazError(t *testing.T) {
-	t.Run("Creates error with correct properties", func(t *testing.T) {
-		underlyingErr := errors.New("test error")
-		midazErr := sdkerrors.NewMidazError(sdkerrors.CodeValidation, underlyingErr)
-
-		assert.Equal(t, sdkerrors.CodeValidation, midazErr.Code)
-		assert.Equal(t, "test error", midazErr.Message)
-		assert.Equal(t, underlyingErr, midazErr.Err)
-	})
-}
-
-// --------------------------------
-// Legacy Error Checking Functions
+// Error Checking Functions
 // --------------------------------
 
 func TestErrorCheckingFunctions(t *testing.T) {
@@ -120,9 +70,9 @@ func TestErrorCheckingFunctions(t *testing.T) {
 			expectedResult: true,
 		},
 		{
-			name:           "IsPermissionError with ErrPermission",
+			name:           "IsAuthorizationError with ErrPermission",
 			err:            sdkerrors.ErrPermission,
-			checkFunc:      sdkerrors.IsPermissionError,
+			checkFunc:      sdkerrors.IsAuthorizationError,
 			expectedResult: true,
 		},
 		{
@@ -217,11 +167,6 @@ func TestIsValidationErrorWithNewErrors(t *testing.T) {
 			err:      fmt.Errorf("wrapper: %w", sdkerrors.NewValidationError("Test", "invalid input", nil)),
 			expected: true,
 		},
-		{
-			name:     "legacy error",
-			err:      sdkerrors.NewMidazError(sdkerrors.CodeValidation, errors.New("invalid input")),
-			expected: true,
-		},
 	}
 
 	for _, tt := range tests {
@@ -262,11 +207,6 @@ func TestGetErrorCategory(t *testing.T) {
 			name:     "wrapped error",
 			err:      fmt.Errorf("wrapper: %w", sdkerrors.NewNotFoundError("Test", "account", "acc123", nil)),
 			expected: sdkerrors.CategoryNotFound,
-		},
-		{
-			name:     "legacy error",
-			err:      sdkerrors.NewMidazError(sdkerrors.CodeValidation, errors.New("invalid input")),
-			expected: sdkerrors.CategoryValidation,
 		},
 		{
 			name:     "generic error",
@@ -404,7 +344,7 @@ func TestErrorDetailsAndFormatting_Regressions(t *testing.T) {
 			sdkerrors.FormatErrorForDisplay(raw),
 			sdkerrors.FormatErrorDetails(raw),
 			sdkerrors.FormatOperationError(raw, "CreateTransaction"),
-			sdkerrors.FormatTransactionError(raw, "CreateTransaction"),
+			sdkerrors.FormatUnifiedTransactionError(raw, "CreateTransaction"),
 		}
 
 		for _, output := range outputs {
@@ -449,16 +389,6 @@ func TestErrorNilReceiverSafety_Regressions(t *testing.T) {
 		})
 	})
 
-	t.Run("MidazError methods tolerate nil receiver", func(t *testing.T) {
-		var err *sdkerrors.MidazError
-
-		assert.NotPanics(t, func() {
-			assert.Empty(t, err.Error())
-			assert.NoError(t, err.Unwrap())
-			assert.False(t, err.Is(&sdkerrors.MidazError{Code: sdkerrors.CodeValidation}))
-		})
-	})
-
 	t.Run("errors.Is tolerates typed nil Error and typed nil target", func(t *testing.T) {
 		var typedNilErr error = (*sdkerrors.Error)(nil)
 
@@ -467,17 +397,6 @@ func TestErrorNilReceiverSafety_Regressions(t *testing.T) {
 		assert.NotPanics(t, func() {
 			assert.NotErrorIs(t, typedNilErr, sdkerrors.ErrValidation)
 			assert.False(t, sdkerrors.ErrValidation.Is(typedNilTarget))
-		})
-	})
-
-	t.Run("errors.Is tolerates typed nil MidazError and typed nil target", func(t *testing.T) {
-		var typedNilErr error = (*sdkerrors.MidazError)(nil)
-
-		var typedNilTarget *sdkerrors.MidazError
-
-		assert.NotPanics(t, func() {
-			assert.NotErrorIs(t, typedNilErr, &sdkerrors.MidazError{Code: sdkerrors.CodeValidation})
-			assert.False(t, (&sdkerrors.MidazError{Code: sdkerrors.CodeValidation}).Is(typedNilTarget))
 		})
 	})
 }
@@ -587,11 +506,21 @@ func TestError_Error(t *testing.T) {
 }
 
 func TestError_Unwrap(t *testing.T) {
+	// Audit C5: Unwrap returns a redacting wrapper, not the raw inner
+	// error, so loggers walking the chain via errors.Unwrap can't leak
+	// credentials. errors.Is still walks through to the original.
 	underlyingErr := errors.New("underlying error")
 	err := sdkerrors.NewValidationError("Test", "invalid input", underlyingErr)
 
 	unwrapped := err.Unwrap()
-	assert.Equal(t, underlyingErr, unwrapped)
+	require.Error(t, unwrapped)
+
+	// Chain semantics preserved: errors.Is walks through.
+	require.ErrorIs(t, err, underlyingErr)
+
+	// Rendered string is redacted-equivalent (here the underlying
+	// error has no credentials, so it's identity).
+	assert.Equal(t, "underlying error", unwrapped.Error())
 }
 
 func TestGetStatusCode(t *testing.T) {
@@ -614,11 +543,6 @@ func TestGetStatusCode(t *testing.T) {
 			name:     "not found error",
 			err:      sdkerrors.NewNotFoundError("Test", "account", "acc123", nil),
 			expected: http.StatusNotFound,
-		},
-		{
-			name:     "legacy error",
-			err:      sdkerrors.NewMidazError(sdkerrors.CodeValidation, errors.New("invalid input")),
-			expected: http.StatusBadRequest,
 		},
 		{
 			name:     "generic error",
@@ -664,7 +588,7 @@ func TestGetStatusCode(t *testing.T) {
 // Error Formatting Tests
 // --------------------------------
 
-func TestFormatTransactionError(t *testing.T) {
+func TestFormatUnifiedTransactionError_Comprehensive(t *testing.T) {
 	testCases := []struct {
 		name           string
 		err            error
@@ -753,7 +677,7 @@ func TestFormatTransactionError(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := sdkerrors.FormatTransactionError(tc.err, tc.operationType)
+			result := sdkerrors.FormatUnifiedTransactionError(tc.err, tc.operationType)
 			assert.Equal(t, tc.expectedResult, result)
 		})
 	}
@@ -1247,54 +1171,6 @@ func TestError_Is(t *testing.T) {
 }
 
 // --------------------------------
-// MidazError.Is Method Tests
-// --------------------------------
-
-func TestMidazError_Is(t *testing.T) {
-	t.Run("same code matches", func(t *testing.T) {
-		err1 := &sdkerrors.MidazError{
-			Code:    sdkerrors.CodeValidation,
-			Message: "error 1",
-		}
-		err2 := &sdkerrors.MidazError{
-			Code:    sdkerrors.CodeValidation,
-			Message: "error 2",
-		}
-
-		assert.True(t, err1.Is(err2))
-	})
-
-	t.Run("different code does not match", func(t *testing.T) {
-		err1 := &sdkerrors.MidazError{
-			Code:    sdkerrors.CodeValidation,
-			Message: "error 1",
-		}
-		err2 := &sdkerrors.MidazError{
-			Code:    sdkerrors.CodeNotFound,
-			Message: "error 2",
-		}
-
-		assert.False(t, err1.Is(err2))
-	})
-
-	t.Run("non-MidazError type returns false", func(t *testing.T) {
-		err1 := &sdkerrors.MidazError{
-			Code: sdkerrors.CodeValidation,
-		}
-		err2 := errors.New("standard error")
-
-		assert.False(t, err1.Is(err2))
-	})
-
-	t.Run("using errors.Is with MidazError", func(t *testing.T) {
-		err := sdkerrors.NewMidazError(sdkerrors.CodeValidation, errors.New("test"))
-
-		target := &sdkerrors.MidazError{Code: sdkerrors.CodeValidation}
-		require.ErrorIs(t, err, target)
-	})
-}
-
-// --------------------------------
 // Error Getter Methods Tests
 // --------------------------------
 
@@ -1339,59 +1215,68 @@ func TestError_GetterMethods(t *testing.T) {
 // Additional Check Functions Tests
 // --------------------------------
 
-func TestCheckFunctions_NilErrors(t *testing.T) {
-	assert.False(t, sdkerrors.CheckValidationError(nil))
-	assert.False(t, sdkerrors.CheckNotFoundError(nil))
-	assert.False(t, sdkerrors.CheckAuthenticationError(nil))
-	assert.False(t, sdkerrors.CheckAuthorizationError(nil))
-	assert.False(t, sdkerrors.CheckConflictError(nil))
-	assert.False(t, sdkerrors.CheckRateLimitError(nil))
-	assert.False(t, sdkerrors.CheckTimeoutError(nil))
-	assert.False(t, sdkerrors.CheckCancellationError(nil))
-	assert.False(t, sdkerrors.CheckNetworkError(nil))
-	assert.False(t, sdkerrors.CheckInternalError(nil))
-	assert.False(t, sdkerrors.CheckInsufficientBalanceError(nil))
-	assert.False(t, sdkerrors.CheckIdempotencyError(nil))
-	assert.False(t, sdkerrors.CheckAccountEligibilityError(nil))
-	assert.False(t, sdkerrors.CheckAssetMismatchError(nil))
+// TestIsFunctions_NilErrors covers the nil-safe contract: every Is*
+// predicate must return false for a nil input.
+func TestIsFunctions_NilErrors(t *testing.T) {
+	assert.False(t, sdkerrors.IsValidationError(nil))
+	assert.False(t, sdkerrors.IsNotFoundError(nil))
+	assert.False(t, sdkerrors.IsAuthenticationError(nil))
+	assert.False(t, sdkerrors.IsAuthorizationError(nil))
+	assert.False(t, sdkerrors.IsConflictError(nil))
+	assert.False(t, sdkerrors.IsRateLimitError(nil))
+	assert.False(t, sdkerrors.IsTimeoutError(nil))
+	assert.False(t, sdkerrors.IsCancellationError(nil))
+	assert.False(t, sdkerrors.IsNetworkError(nil))
+	assert.False(t, sdkerrors.IsInternalError(nil))
+	assert.False(t, sdkerrors.IsInsufficientBalanceError(nil))
+	assert.False(t, sdkerrors.IsIdempotencyError(nil))
+	assert.False(t, sdkerrors.IsAccountEligibilityError(nil))
+	assert.False(t, sdkerrors.IsAssetMismatchError(nil))
 }
 
-func TestCheckCancellationError(t *testing.T) {
-	t.Run("with context.Canceled", func(t *testing.T) {
+// TestCancellationAndTimeoutDisjoint covers M18: IsTimeoutError and
+// IsCancellationError must classify context.DeadlineExceeded and
+// context.Canceled into one bucket each, never both.
+func TestCancellationAndTimeoutDisjoint(t *testing.T) {
+	t.Run("context.Canceled is cancellation only", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
-		assert.True(t, sdkerrors.CheckCancellationError(ctx.Err()))
+
+		assert.True(t, sdkerrors.IsCancellationError(ctx.Err()))
+		assert.False(t, sdkerrors.IsTimeoutError(ctx.Err()))
 	})
 
-	t.Run("with context.DeadlineExceeded", func(t *testing.T) {
+	t.Run("context.DeadlineExceeded is timeout only", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 0)
 		defer cancel()
 
 		<-ctx.Done()
-		assert.True(t, sdkerrors.CheckCancellationError(ctx.Err()))
+
+		assert.True(t, sdkerrors.IsTimeoutError(ctx.Err()))
+		assert.False(t, sdkerrors.IsCancellationError(ctx.Err()))
 	})
 
-	t.Run("with NewCancellationError", func(t *testing.T) {
+	t.Run("NewCancellationError matches IsCancellationError", func(t *testing.T) {
 		err := sdkerrors.NewCancellationError("Test", nil)
-		assert.True(t, sdkerrors.CheckCancellationError(err))
+		assert.True(t, sdkerrors.IsCancellationError(err))
 	})
 }
 
-func TestCheckNetworkError(t *testing.T) {
+func TestIsNetworkError(t *testing.T) {
 	t.Run("with NewNetworkError", func(t *testing.T) {
 		err := sdkerrors.NewNetworkError("Test", errors.New("connection refused"))
-		assert.True(t, sdkerrors.CheckNetworkError(err))
+		assert.True(t, sdkerrors.IsNetworkError(err))
 	})
 
 	t.Run("with non-network error", func(t *testing.T) {
 		err := errors.New("some error")
-		assert.False(t, sdkerrors.CheckNetworkError(err))
+		assert.False(t, sdkerrors.IsNetworkError(err))
 	})
 }
 
-func TestCheckIdempotencyError(t *testing.T) {
+func TestIsIdempotencyError(t *testing.T) {
 	t.Run("with ErrIdempotency", func(t *testing.T) {
-		assert.True(t, sdkerrors.CheckIdempotencyError(sdkerrors.ErrIdempotency))
+		assert.True(t, sdkerrors.IsIdempotencyError(sdkerrors.ErrIdempotency))
 	})
 
 	t.Run("with Error type with idempotency code", func(t *testing.T) {
@@ -1399,41 +1284,41 @@ func TestCheckIdempotencyError(t *testing.T) {
 			Category: sdkerrors.CategoryConflict,
 			Code:     sdkerrors.CodeIdempotency,
 		}
-		assert.True(t, sdkerrors.CheckIdempotencyError(err))
+		assert.True(t, sdkerrors.IsIdempotencyError(err))
 	})
 }
 
-func TestCheckAccountEligibilityError(t *testing.T) {
+func TestIsAccountEligibilityError(t *testing.T) {
 	t.Run("with ErrAccountEligibility", func(t *testing.T) {
-		assert.True(t, sdkerrors.CheckAccountEligibilityError(sdkerrors.ErrAccountEligibility))
+		assert.True(t, sdkerrors.IsAccountEligibilityError(sdkerrors.ErrAccountEligibility))
 	})
 
 	t.Run("with NewAccountEligibilityError", func(t *testing.T) {
 		err := sdkerrors.NewAccountEligibilityError("Test", "acc123", nil)
-		assert.True(t, sdkerrors.CheckAccountEligibilityError(err))
+		assert.True(t, sdkerrors.IsAccountEligibilityError(err))
 	})
 }
 
-func TestCheckAssetMismatchError(t *testing.T) {
+func TestIsAssetMismatchError(t *testing.T) {
 	t.Run("with ErrAssetMismatch", func(t *testing.T) {
-		assert.True(t, sdkerrors.CheckAssetMismatchError(sdkerrors.ErrAssetMismatch))
+		assert.True(t, sdkerrors.IsAssetMismatchError(sdkerrors.ErrAssetMismatch))
 	})
 
 	t.Run("with NewAssetMismatchError", func(t *testing.T) {
 		err := sdkerrors.NewAssetMismatchError("Test", "USD", "EUR", nil)
-		assert.True(t, sdkerrors.CheckAssetMismatchError(err))
+		assert.True(t, sdkerrors.IsAssetMismatchError(err))
 	})
 }
 
-func TestCheckInsufficientBalanceError(t *testing.T) {
+func TestIsInsufficientBalanceError(t *testing.T) {
 	t.Run("with unknown error message returns false", func(t *testing.T) {
 		err := errors.New("unknown error")
-		assert.False(t, sdkerrors.CheckInsufficientBalanceError(err))
+		assert.False(t, sdkerrors.IsInsufficientBalanceError(err))
 	})
 
 	t.Run("with NewInsufficientBalanceError", func(t *testing.T) {
 		err := sdkerrors.NewInsufficientBalanceError("Test", "acc123", nil)
-		assert.True(t, sdkerrors.CheckInsufficientBalanceError(err))
+		assert.True(t, sdkerrors.IsInsufficientBalanceError(err))
 	})
 }
 
@@ -1461,8 +1346,6 @@ func TestAliasFunctions(t *testing.T) {
 	assert.True(t, sdkerrors.IsAuthenticationError(authErr))
 	assert.True(t, sdkerrors.IsAuthorizationError(authzErr))
 	assert.True(t, sdkerrors.IsConflictError(conflictErr))
-	assert.True(t, sdkerrors.IsPermissionError(authzErr))
-	assert.True(t, sdkerrors.IsAlreadyExistsError(conflictErr))
 	assert.True(t, sdkerrors.IsIdempotencyError(sdkerrors.ErrIdempotency))
 	assert.True(t, sdkerrors.IsRateLimitError(rateLimitErr))
 	assert.True(t, sdkerrors.IsTimeoutError(timeoutErr))
@@ -1472,71 +1355,6 @@ func TestAliasFunctions(t *testing.T) {
 	assert.True(t, sdkerrors.IsInsufficientBalanceError(insufficientBalanceErr))
 	assert.True(t, sdkerrors.IsAccountEligibilityError(accountEligibilityErr))
 	assert.True(t, sdkerrors.IsAssetMismatchError(assetMismatchErr))
-}
-
-// --------------------------------
-// ValueOfOriginalType Tests
-// --------------------------------
-
-func TestValueOfOriginalType(t *testing.T) {
-	t.Run("with MidazError", func(t *testing.T) {
-		original := &sdkerrors.MidazError{Code: sdkerrors.CodeValidation}
-		result := sdkerrors.ValueOfOriginalType(original, sdkerrors.CodeNotFound)
-
-		var midazErr *sdkerrors.MidazError
-
-		ok := errors.As(result, &midazErr)
-		assert.True(t, ok)
-		assert.Equal(t, sdkerrors.CodeNotFound, midazErr.Code)
-	})
-
-	t.Run("with non-MidazError returns original", func(t *testing.T) {
-		original := errors.New("standard error")
-		result := sdkerrors.ValueOfOriginalType(original, sdkerrors.CodeNotFound)
-
-		assert.Equal(t, original, result)
-	})
-
-	t.Run("with MidazError and non-ErrorCode value returns original", func(t *testing.T) {
-		original := &sdkerrors.MidazError{Code: sdkerrors.CodeValidation}
-		result := sdkerrors.ValueOfOriginalType(original, "not an error code")
-
-		assert.Equal(t, original, result)
-	})
-}
-
-// --------------------------------
-// MidazError Edge Cases
-// --------------------------------
-
-func TestMidazError_EdgeCases(t *testing.T) {
-	t.Run("Error method with empty code", func(t *testing.T) {
-		err := &sdkerrors.MidazError{
-			Code:    "",
-			Message: "some message",
-		}
-		assert.Equal(t, ": some message", err.Error())
-	})
-
-	t.Run("Error method with only code", func(t *testing.T) {
-		err := &sdkerrors.MidazError{
-			Code: sdkerrors.CodeValidation,
-		}
-		assert.Equal(t, "validation_error", err.Error())
-	})
-
-	t.Run("Unwrap returns nil when no underlying error", func(t *testing.T) {
-		err := &sdkerrors.MidazError{Code: sdkerrors.CodeValidation}
-		require.NoError(t, err.Unwrap())
-	})
-}
-
-func TestNewMidazError_NilError(t *testing.T) {
-	err := sdkerrors.NewMidazError(sdkerrors.CodeValidation, nil)
-
-	assert.Equal(t, sdkerrors.CodeValidation, err.Code)
-	assert.Empty(t, err.Message)
-	require.NoError(t, err.Err)
 }
 
 // --------------------------------
@@ -1553,11 +1371,15 @@ func TestErrorFromHTTPResponse_AllCodes(t *testing.T) {
 		{http.StatusUnauthorized, sdkerrors.CategoryAuthentication, sdkerrors.CodeAuthentication},
 		{http.StatusForbidden, sdkerrors.CategoryAuthorization, sdkerrors.CodePermission},
 		{http.StatusNotFound, sdkerrors.CategoryNotFound, sdkerrors.CodeNotFound},
+		{http.StatusRequestTimeout, sdkerrors.CategoryTimeout, sdkerrors.CodeTimeout},
 		{http.StatusConflict, sdkerrors.CategoryConflict, sdkerrors.CodeAlreadyExists},
-		{http.StatusTooManyRequests, sdkerrors.CategoryLimitExceeded, sdkerrors.CodeRateLimit},
-		{http.StatusGatewayTimeout, sdkerrors.CategoryTimeout, sdkerrors.CodeTimeout},
 		{http.StatusUnprocessableEntity, sdkerrors.CategoryUnprocessable, sdkerrors.CodeUnprocessable},
-		{http.StatusServiceUnavailable, sdkerrors.CategoryNetwork, sdkerrors.CodeInternal},
+		{http.StatusTooEarly, sdkerrors.CategoryLimitExceeded, sdkerrors.CodeRateLimit},
+		{http.StatusTooManyRequests, sdkerrors.CategoryLimitExceeded, sdkerrors.CodeRateLimit},
+		// Audit M13: 503 now uses CodeServiceUnavailable, not the
+		// generic CodeInternal — the v2 mapping had drift.
+		{http.StatusServiceUnavailable, sdkerrors.CategoryNetwork, sdkerrors.CodeServiceUnavailable},
+		{http.StatusGatewayTimeout, sdkerrors.CategoryTimeout, sdkerrors.CodeTimeout},
 		{http.StatusInternalServerError, sdkerrors.CategoryInternal, sdkerrors.CodeInternal},
 		{999, sdkerrors.CategoryInternal, sdkerrors.CodeInternal}, // Unknown status code
 	}
@@ -1605,10 +1427,10 @@ func TestFormatErrorForDisplay_AllCategories(t *testing.T) {
 }
 
 // --------------------------------
-// FormatTransactionError Additional Tests
+// FormatUnifiedTransactionError Additional Tests
 // --------------------------------
 
-func TestFormatTransactionError_WithNewErrors(t *testing.T) {
+func TestFormatUnifiedTransactionError_WithNewErrors(t *testing.T) {
 	tests := []struct {
 		name     string
 		err      error
@@ -1649,7 +1471,7 @@ func TestFormatTransactionError_WithNewErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := sdkerrors.FormatTransactionError(tt.err, tt.opType)
+			result := sdkerrors.FormatUnifiedTransactionError(tt.err, tt.opType)
 			assert.Contains(t, result, tt.contains)
 			assert.Contains(t, result, tt.opType+" failed")
 		})
@@ -1669,15 +1491,6 @@ func TestErrorsAs(t *testing.T) {
 		require.ErrorAs(t, wrapped, &mdzErr)
 		assert.Equal(t, sdkerrors.CategoryValidation, mdzErr.Category)
 	})
-
-	t.Run("MidazError type", func(t *testing.T) {
-		err := sdkerrors.NewMidazError(sdkerrors.CodeValidation, errors.New("test"))
-		wrapped := fmt.Errorf("wrapped: %w", err)
-
-		var mdzErr *sdkerrors.MidazError
-		require.ErrorAs(t, wrapped, &mdzErr)
-		assert.Equal(t, sdkerrors.CodeValidation, mdzErr.Code)
-	})
 }
 
 // --------------------------------
@@ -1692,9 +1505,11 @@ func TestErrorChain(t *testing.T) {
 		// Outer error should be internal
 		assert.Equal(t, sdkerrors.CategoryInternal, outerErr.Category)
 
-		// Inner error should be accessible via Unwrap
-		unwrapped := outerErr.Unwrap()
-		assert.Equal(t, innerErr, unwrapped)
+		// Audit C5: Unwrap() returns a redacting wrapper, not the raw
+		// inner *Error. The chain still walks via errors.As/Is.
+		var fromUnwrap *sdkerrors.Error
+		require.ErrorAs(t, outerErr.Unwrap(), &fromUnwrap)
+		assert.Same(t, innerErr, fromUnwrap)
 
 		// errors.Is should work
 		require.ErrorIs(t, outerErr, sdkerrors.ErrInternal)
@@ -2118,4 +1933,136 @@ func TestSentinelErrors(t *testing.T) {
 	assert.Equal(t, sdkerrors.CategoryTimeout, sdkerrors.ErrTimeout.Category)
 	assert.Equal(t, sdkerrors.CategoryCancellation, sdkerrors.ErrCancellation.Category)
 	assert.Equal(t, sdkerrors.CategoryInternal, sdkerrors.ErrInternal.Category)
+	assert.Equal(t, sdkerrors.CategoryAuth, sdkerrors.ErrAuth.Category)
+	assert.Equal(t, sdkerrors.CategoryConfiguration, sdkerrors.ErrConfiguration.Category)
+}
+
+// TestErrAuthBridge verifies that errors.Is(err, ErrAuth) matches all three
+// auth categories: CategoryAuth, CategoryAuthentication, CategoryAuthorization.
+// This bridge lets v3 callers write a single `IsAuth` check without caring
+// whether the underlying error came from a 401 or 403 path.
+func TestErrAuthBridge(t *testing.T) {
+	tests := []struct {
+		name    string
+		err     *sdkerrors.Error
+		matches bool
+	}{
+		{"explicit auth category", &sdkerrors.Error{Category: sdkerrors.CategoryAuth, Code: sdkerrors.CodeAuthentication}, true},
+		{"legacy authentication", &sdkerrors.Error{Category: sdkerrors.CategoryAuthentication, Code: sdkerrors.CodeAuthentication}, true},
+		{"legacy authorization", &sdkerrors.Error{Category: sdkerrors.CategoryAuthorization, Code: sdkerrors.CodePermission}, true},
+		{"validation does not match", &sdkerrors.Error{Category: sdkerrors.CategoryValidation, Code: sdkerrors.CodeValidation}, false},
+		{"not_found does not match", &sdkerrors.Error{Category: sdkerrors.CategoryNotFound, Code: sdkerrors.CodeNotFound}, false},
+		{"conflict does not match", &sdkerrors.Error{Category: sdkerrors.CategoryConflict, Code: sdkerrors.CodeAlreadyExists}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.matches, errors.Is(tt.err, sdkerrors.ErrAuth),
+				"errors.Is(%v, ErrAuth) mismatch", tt.err)
+		})
+	}
+}
+
+// TestIsAuthError verifies the predicate matches both auth subcategories
+// and is nil-safe.
+func TestIsAuthError(t *testing.T) {
+	tests := []struct {
+		name    string
+		err     error
+		matches bool
+	}{
+		{"nil", nil, false},
+		{"plain error", errors.New("boom"), false},
+		{"authentication error", sdkerrors.NewAuthenticationError("op", "bad token", nil), true},
+		{"authorization error", sdkerrors.NewAuthorizationError("op", "forbidden", nil), true},
+		{"validation error", sdkerrors.NewValidationError("op", "bad input", nil), false},
+		{"sentinel ErrAuthentication", sdkerrors.ErrAuthentication, true},
+		{"sentinel ErrPermission", sdkerrors.ErrPermission, true},
+		{"sentinel ErrAuth", sdkerrors.ErrAuth, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.matches, sdkerrors.IsAuthError(tt.err))
+		})
+	}
+}
+
+// TestIsUnprocessableError verifies the predicate matches CategoryUnprocessable
+// (broad — covers insufficient balance, account eligibility, asset mismatch,
+// and generic unprocessable).
+func TestIsUnprocessableError(t *testing.T) {
+	tests := []struct {
+		name    string
+		err     error
+		matches bool
+	}{
+		{"nil", nil, false},
+		{"plain error", errors.New("boom"), false},
+		{"insufficient balance", sdkerrors.NewInsufficientBalanceError("transactions.Create", "acc_1", nil), true},
+		{"generic unprocessable", sdkerrors.NewUnprocessableError("op", "ledger", nil), true},
+		{"validation does not match", sdkerrors.NewValidationError("op", "bad", nil), false},
+		{"sentinel ErrUnprocessable", sdkerrors.ErrUnprocessable, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.matches, sdkerrors.IsUnprocessableError(tt.err))
+		})
+	}
+}
+
+// TestError_Retryable verifies the canonical SDK-wide retry policy is
+// derived from Category. Audit 8.F: Error.Retryable() is the single
+// source of truth for retry policies.
+func TestError_Retryable(t *testing.T) {
+	tests := []struct {
+		category sdkerrors.ErrorCategory
+		want     bool
+	}{
+		{sdkerrors.CategoryNetwork, true},
+		{sdkerrors.CategoryTimeout, true},
+		{sdkerrors.CategoryLimitExceeded, true},
+		{sdkerrors.CategoryInternal, true},
+		{sdkerrors.CategoryValidation, false},
+		{sdkerrors.CategoryNotFound, false},
+		{sdkerrors.CategoryConflict, false},
+		{sdkerrors.CategoryAuth, false},
+		{sdkerrors.CategoryAuthentication, false},
+		{sdkerrors.CategoryAuthorization, false},
+		{sdkerrors.CategoryUnprocessable, false},
+		{sdkerrors.CategoryConfiguration, false},
+		{sdkerrors.CategoryCancellation, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(string(tt.category), func(t *testing.T) {
+			err := &sdkerrors.Error{Category: tt.category}
+			assert.Equal(t, tt.want, err.Retryable(),
+				"%s.Retryable() mismatch", tt.category)
+		})
+	}
+
+	t.Run("nil receiver", func(t *testing.T) {
+		var err *sdkerrors.Error
+		assert.False(t, err.Retryable())
+	})
+}
+
+// TestIsConfigurationError_CategoryMatch verifies the predicate matches by
+// category, not just by sentinel pointer identity. A constructed *Error with
+// CategoryConfiguration but a different Code or Message must still match.
+func TestIsConfigurationError_CategoryMatch(t *testing.T) {
+	custom := sdkerrors.NewConfigurationError(
+		"midaz.New",
+		"baseURL must be a valid http(s) URL",
+		errors.New("invalid scheme"),
+	)
+	assert.True(t, sdkerrors.IsConfigurationError(custom),
+		"IsConfigurationError must match by category, not just sentinel identity")
+
+	plain := errors.New("boom")
+	assert.False(t, sdkerrors.IsConfigurationError(plain))
+
+	assert.False(t, sdkerrors.IsConfigurationError(nil))
 }

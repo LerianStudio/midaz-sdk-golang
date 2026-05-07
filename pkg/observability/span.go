@@ -18,8 +18,6 @@ var (
 	defaultProviderOnce sync.Once
 )
 
-type traceIDContextKey struct{}
-
 // StartSpan starts a new span with the given name
 func StartSpan(ctx context.Context, name string) (context.Context, trace.Span) {
 	if ctx == nil {
@@ -42,7 +40,7 @@ func StartSpan(ctx context.Context, name string) (context.Context, trace.Span) {
 		return defaultProvider.Tracer().Start(ctx, name)
 	}
 
-	return noop.NewTracerProvider().Tracer("github.com/LerianStudio/midaz-sdk-golang/v2").Start(ctx, name)
+	return noop.NewTracerProvider().Tracer("github.com/LerianStudio/midaz-sdk-golang/v3").Start(ctx, name)
 }
 
 // AddAttribute adds an attribute to the current span in the context
@@ -57,7 +55,7 @@ func AddAttribute(ctx context.Context, key string, value any) {
 
 	switch v := value.(type) {
 	case string:
-		attr = attribute.String(key, v)
+		attr = attribute.String(key, sanitizeSensitiveString(v))
 	case int:
 		attr = attribute.Int(key, v)
 	case int64:
@@ -68,7 +66,7 @@ func AddAttribute(ctx context.Context, key string, value any) {
 		attr = attribute.Bool(key, v)
 	default:
 		// For other types, convert to string
-		attr = attribute.String(key, fmt.Sprintf("%v", v))
+		attr = attribute.String(key, sanitizeSensitiveString(fmt.Sprintf("%v", v)))
 	}
 
 	span.SetAttributes(attr)
@@ -131,17 +129,4 @@ func RecordSpanMetric(ctx context.Context, name string, value float64) {
 
 	// Use RecordMetric from the provider
 	RecordMetric(ctx, defaultProvider, name, value)
-}
-
-// WithTraceID adds a trace ID to the context for correlation
-func WithTraceID(ctx context.Context, traceID string) context.Context {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	if traceID == "" {
-		return ctx
-	}
-
-	return context.WithValue(ctx, traceIDContextKey{}, traceID)
 }

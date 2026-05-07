@@ -11,16 +11,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/performance"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/performance"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// TestNewBalancesEntity tests the constructor for balances entity
-func TestNewBalancesEntity(t *testing.T) {
+// Test_newBalancesEntity tests the constructor for balances entity
+func Test_newBalancesEntity(t *testing.T) {
 	tests := []struct {
 		name      string
 		client    *http.Client
@@ -58,7 +58,7 @@ func TestNewBalancesEntity(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			service := NewBalancesEntity(tt.client, tt.authToken, tt.baseURLs)
+			service := newBalancesEntity(tt.client, tt.authToken, tt.baseURLs)
 			require.NotNil(t, service)
 
 			entity, ok := service.(*balancesEntity)
@@ -71,9 +71,7 @@ func TestNewBalancesEntity(t *testing.T) {
 
 // TestBalancesEntity_buildURL tests the URL building helper
 func TestBalancesEntity_buildURL(t *testing.T) {
-	entity := &balancesEntity{
-		baseURLs: map[string]string{"transaction": "https://api.example.com/v1"},
-	}
+	entity := &balancesEntity{serviceEntity: serviceEntity{baseURLs: map[string]string{"transaction": "https://api.example.com/v1"}}}
 
 	tests := []struct {
 		name      string
@@ -115,9 +113,7 @@ func TestBalancesEntity_buildURL(t *testing.T) {
 
 // TestBalancesEntity_buildAccountURL tests the account URL builder
 func TestBalancesEntity_buildAccountURL(t *testing.T) {
-	entity := &balancesEntity{
-		baseURLs: map[string]string{"transaction": "https://api.example.com/v1"},
-	}
+	entity := &balancesEntity{serviceEntity: serviceEntity{baseURLs: map[string]string{"transaction": "https://api.example.com/v1"}}}
 
 	tests := []struct {
 		name      string
@@ -152,9 +148,7 @@ func TestBalancesEntity_buildAccountURL(t *testing.T) {
 
 // TestBalancesEntity_buildAccountAliasURL tests the account alias URL builder
 func TestBalancesEntity_buildAccountAliasURL(t *testing.T) {
-	entity := &balancesEntity{
-		baseURLs: map[string]string{"transaction": "https://api.example.com/v1"},
-	}
+	entity := &balancesEntity{serviceEntity: serviceEntity{baseURLs: map[string]string{"transaction": "https://api.example.com/v1"}}}
 
 	tests := []struct {
 		name     string
@@ -189,9 +183,7 @@ func TestBalancesEntity_buildAccountAliasURL(t *testing.T) {
 
 // TestBalancesEntity_buildExternalCodeURL tests the external code URL builder
 func TestBalancesEntity_buildExternalCodeURL(t *testing.T) {
-	entity := &balancesEntity{
-		baseURLs: map[string]string{"transaction": "https://api.example.com/v1"},
-	}
+	entity := &balancesEntity{serviceEntity: serviceEntity{baseURLs: map[string]string{"transaction": "https://api.example.com/v1"}}}
 
 	tests := []struct {
 		name     string
@@ -247,7 +239,7 @@ func TestBalancesEntity_ListBalances(t *testing.T) {
 		name           string
 		orgID          string
 		ledgerID       string
-		opts           *models.ListOptions
+		opts           models.BalancesListOpts
 		mockResponse   string
 		mockStatusCode int
 		mockError      error
@@ -259,7 +251,7 @@ func TestBalancesEntity_ListBalances(t *testing.T) {
 			name:     "Success with no options",
 			orgID:    "org-123",
 			ledgerID: "ledger-456",
-			opts:     nil,
+			opts:     models.BalancesListOpts{},
 			mockResponse: `{
 				"items": [
 					{
@@ -304,10 +296,7 @@ func TestBalancesEntity_ListBalances(t *testing.T) {
 			name:     "Success with pagination options",
 			orgID:    "org-123",
 			ledgerID: "ledger-456",
-			opts: &models.ListOptions{
-				Limit:  5,
-				Offset: 10,
-			},
+			opts:     models.BalancesListOpts{PageListOpts: models.PageListOpts{Limit: 5, Page: 3}},
 			mockResponse: `{
 				"items": [
 					{
@@ -411,10 +400,7 @@ func TestBalancesEntity_ListBalances(t *testing.T) {
 				},
 			}
 
-			entity := &balancesEntity{
-				httpClient: newBalancesHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"transaction": "https://api.example.com/v1"},
-			}
+			entity := &balancesEntity{serviceEntity: serviceEntity{httpClient: newBalancesHTTPClientAdapter(mockClient), baseURLs: map[string]string{"transaction": "https://api.example.com/v1"}}}
 
 			result, err := entity.ListBalances(context.Background(), tt.orgID, tt.ledgerID, tt.opts)
 
@@ -441,7 +427,7 @@ func TestBalancesEntity_ListAccountBalances(t *testing.T) {
 		orgID          string
 		ledgerID       string
 		accountID      string
-		opts           *models.ListOptions
+		opts           models.BalancesListOpts
 		mockResponse   string
 		mockStatusCode int
 		mockError      error
@@ -453,7 +439,7 @@ func TestBalancesEntity_ListAccountBalances(t *testing.T) {
 			orgID:     "org-123",
 			ledgerID:  "ledger-456",
 			accountID: "acc-789",
-			opts:      nil,
+			opts:      models.BalancesListOpts{},
 			mockResponse: `{
 				"items": [
 					{
@@ -491,10 +477,7 @@ func TestBalancesEntity_ListAccountBalances(t *testing.T) {
 			orgID:     "org-123",
 			ledgerID:  "ledger-456",
 			accountID: "acc-789",
-			opts: &models.ListOptions{
-				Limit:  5,
-				Offset: 0,
-			},
+			opts:      models.BalancesListOpts{PageListOpts: models.PageListOpts{Limit: 5, Page: 1}},
 			mockResponse: `{
 				"items": [
 					{
@@ -577,10 +560,7 @@ func TestBalancesEntity_ListAccountBalances(t *testing.T) {
 				},
 			}
 
-			entity := &balancesEntity{
-				httpClient: newBalancesHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"transaction": "https://api.example.com/v1"},
-			}
+			entity := &balancesEntity{serviceEntity: serviceEntity{httpClient: newBalancesHTTPClientAdapter(mockClient), baseURLs: map[string]string{"transaction": "https://api.example.com/v1"}}}
 
 			result, err := entity.ListAccountBalances(context.Background(), tt.orgID, tt.ledgerID, tt.accountID, tt.opts)
 
@@ -702,10 +682,7 @@ func TestBalancesEntity_GetBalance(t *testing.T) {
 				},
 			}
 
-			entity := &balancesEntity{
-				httpClient: newBalancesHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"transaction": "https://api.example.com/v1"},
-			}
+			entity := &balancesEntity{serviceEntity: serviceEntity{httpClient: newBalancesHTTPClientAdapter(mockClient), baseURLs: map[string]string{"transaction": "https://api.example.com/v1"}}}
 
 			result, err := entity.GetBalance(context.Background(), tt.orgID, tt.ledgerID, tt.balanceID)
 
@@ -874,10 +851,7 @@ func TestBalancesEntity_CreateBalance(t *testing.T) {
 				},
 			}
 
-			entity := &balancesEntity{
-				httpClient: newBalancesHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"transaction": "https://api.example.com/v1"},
-			}
+			entity := &balancesEntity{serviceEntity: serviceEntity{httpClient: newBalancesHTTPClientAdapter(mockClient), baseURLs: map[string]string{"transaction": "https://api.example.com/v1"}}}
 
 			result, err := entity.CreateBalance(context.Background(), tt.orgID, tt.ledgerID, tt.accountID, tt.input)
 
@@ -1026,10 +1000,7 @@ func TestBalancesEntity_UpdateBalance(t *testing.T) {
 				},
 			}
 
-			entity := &balancesEntity{
-				httpClient: newBalancesHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"transaction": "https://api.example.com/v1"},
-			}
+			entity := &balancesEntity{serviceEntity: serviceEntity{httpClient: newBalancesHTTPClientAdapter(mockClient), baseURLs: map[string]string{"transaction": "https://api.example.com/v1"}}}
 
 			result, err := entity.UpdateBalance(context.Background(), tt.orgID, tt.ledgerID, tt.balanceID, tt.input)
 
@@ -1071,7 +1042,7 @@ func TestBalancesEntity_History_RequestConstruction(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := NewBalancesEntity(server.Client(), "token", map[string]string{"transaction": server.URL})
+	service := newBalancesEntity(server.Client(), "token", map[string]string{"transaction": server.URL})
 	history, err := service.GetBalanceHistory(context.Background(), "org/1", "ledger/1", "balance/1", "2026-01-02 03:04:05")
 	require.NoError(t, err)
 	require.NotNil(t, history)
@@ -1188,10 +1159,7 @@ func TestBalancesEntity_DeleteBalance(t *testing.T) {
 				},
 			}
 
-			entity := &balancesEntity{
-				httpClient: newBalancesHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"transaction": "https://api.example.com/v1"},
-			}
+			entity := &balancesEntity{serviceEntity: serviceEntity{httpClient: newBalancesHTTPClientAdapter(mockClient), baseURLs: map[string]string{"transaction": "https://api.example.com/v1"}}}
 
 			err := entity.DeleteBalance(context.Background(), tt.orgID, tt.ledgerID, tt.balanceID)
 
@@ -1216,7 +1184,7 @@ func TestBalancesEntity_ListBalancesByAccountAlias(t *testing.T) {
 		orgID          string
 		ledgerID       string
 		alias          string
-		opts           *models.ListOptions
+		opts           models.BalancesListOpts
 		mockResponse   string
 		mockStatusCode int
 		mockError      error
@@ -1229,7 +1197,7 @@ func TestBalancesEntity_ListBalancesByAccountAlias(t *testing.T) {
 			orgID:    "org-123",
 			ledgerID: "ledger-456",
 			alias:    "@person1",
-			opts:     nil,
+			opts:     models.BalancesListOpts{},
 			mockResponse: `{
 				"items": [
 					{
@@ -1262,10 +1230,7 @@ func TestBalancesEntity_ListBalancesByAccountAlias(t *testing.T) {
 			orgID:    "org-123",
 			ledgerID: "ledger-456",
 			alias:    "my-account",
-			opts: &models.ListOptions{
-				Limit:  5,
-				Offset: 0,
-			},
+			opts:     models.BalancesListOpts{PageListOpts: models.PageListOpts{Limit: 5, Page: 1}},
 			mockResponse: `{
 				"items": [
 					{
@@ -1364,10 +1329,7 @@ func TestBalancesEntity_ListBalancesByAccountAlias(t *testing.T) {
 				},
 			}
 
-			entity := &balancesEntity{
-				httpClient: newBalancesHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"transaction": "https://api.example.com/v1"},
-			}
+			entity := &balancesEntity{serviceEntity: serviceEntity{httpClient: newBalancesHTTPClientAdapter(mockClient), baseURLs: map[string]string{"transaction": "https://api.example.com/v1"}}}
 
 			result, err := entity.ListBalancesByAccountAlias(context.Background(), tt.orgID, tt.ledgerID, tt.alias, tt.opts)
 
@@ -1394,7 +1356,7 @@ func TestBalancesEntity_ListBalancesByExternalCode(t *testing.T) {
 		orgID          string
 		ledgerID       string
 		code           string
-		opts           *models.ListOptions
+		opts           models.BalancesListOpts
 		mockResponse   string
 		mockStatusCode int
 		mockError      error
@@ -1407,7 +1369,7 @@ func TestBalancesEntity_ListBalancesByExternalCode(t *testing.T) {
 			orgID:    "org-123",
 			ledgerID: "ledger-456",
 			code:     "EXT-001",
-			opts:     nil,
+			opts:     models.BalancesListOpts{},
 			mockResponse: `{
 				"items": [
 					{
@@ -1439,10 +1401,7 @@ func TestBalancesEntity_ListBalancesByExternalCode(t *testing.T) {
 			orgID:    "org-123",
 			ledgerID: "ledger-456",
 			code:     "customer123456",
-			opts: &models.ListOptions{
-				Limit:  10,
-				Offset: 0,
-			},
+			opts:     models.BalancesListOpts{PageListOpts: models.PageListOpts{Limit: 10, Page: 1}},
 			mockResponse: `{
 				"items": [
 					{
@@ -1549,10 +1508,7 @@ func TestBalancesEntity_ListBalancesByExternalCode(t *testing.T) {
 				},
 			}
 
-			entity := &balancesEntity{
-				httpClient: newBalancesHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"transaction": "https://api.example.com/v1"},
-			}
+			entity := &balancesEntity{serviceEntity: serviceEntity{httpClient: newBalancesHTTPClientAdapter(mockClient), baseURLs: map[string]string{"transaction": "https://api.example.com/v1"}}}
 
 			result, err := entity.ListBalancesByExternalCode(context.Background(), tt.orgID, tt.ledgerID, tt.code, tt.opts)
 
@@ -1604,11 +1560,11 @@ func TestBalancesEntity_HTTPServerIntegration(t *testing.T) {
 		}))
 		defer server.Close()
 
-		entity := NewBalancesEntity(server.Client(), "test-token", map[string]string{
+		entity := newBalancesEntity(server.Client(), "test-token", map[string]string{
 			"transaction": server.URL,
 		})
 
-		result, err := entity.ListBalances(context.Background(), "org-123", "ledger-456", nil)
+		result, err := entity.ListBalances(context.Background(), "org-123", "ledger-456", models.BalancesListOpts{})
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.Len(t, result.Items, 1)
@@ -1638,7 +1594,7 @@ func TestBalancesEntity_HTTPServerIntegration(t *testing.T) {
 		}))
 		defer server.Close()
 
-		entity := NewBalancesEntity(server.Client(), "test-token", map[string]string{
+		entity := newBalancesEntity(server.Client(), "test-token", map[string]string{
 			"transaction": server.URL,
 		})
 
@@ -1679,7 +1635,7 @@ func TestBalancesEntity_HTTPServerIntegration(t *testing.T) {
 		}))
 		defer server.Close()
 
-		entity := NewBalancesEntity(server.Client(), "test-token", map[string]string{
+		entity := newBalancesEntity(server.Client(), "test-token", map[string]string{
 			"transaction": server.URL,
 		})
 
@@ -1713,7 +1669,7 @@ func TestBalancesEntity_HTTPServerIntegration(t *testing.T) {
 		}))
 		defer server.Close()
 
-		entity := NewBalancesEntity(server.Client(), "test-token", map[string]string{
+		entity := newBalancesEntity(server.Client(), "test-token", map[string]string{
 			"transaction": server.URL,
 		})
 
@@ -1734,7 +1690,7 @@ func TestBalancesEntity_HTTPServerIntegration(t *testing.T) {
 		}))
 		defer server.Close()
 
-		entity := NewBalancesEntity(server.Client(), "test-token", map[string]string{
+		entity := newBalancesEntity(server.Client(), "test-token", map[string]string{
 			"transaction": server.URL,
 		})
 
@@ -1773,11 +1729,11 @@ func TestBalancesEntity_HTTPServerIntegration(t *testing.T) {
 		}))
 		defer server.Close()
 
-		entity := NewBalancesEntity(server.Client(), "test-token", map[string]string{
+		entity := newBalancesEntity(server.Client(), "test-token", map[string]string{
 			"transaction": server.URL,
 		})
 
-		result, err := entity.ListBalancesByAccountAlias(context.Background(), "org-123", "ledger-456", "@person1", nil)
+		result, err := entity.ListBalancesByAccountAlias(context.Background(), "org-123", "ledger-456", "@person1", models.BalancesListOpts{})
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.Len(t, result.Items, 1)
@@ -1814,11 +1770,11 @@ func TestBalancesEntity_HTTPServerIntegration(t *testing.T) {
 		}))
 		defer server.Close()
 
-		entity := NewBalancesEntity(server.Client(), "test-token", map[string]string{
+		entity := newBalancesEntity(server.Client(), "test-token", map[string]string{
 			"transaction": server.URL,
 		})
 
-		result, err := entity.ListBalancesByExternalCode(context.Background(), "org-123", "ledger-456", "EXT-001", nil)
+		result, err := entity.ListBalancesByExternalCode(context.Background(), "org-123", "ledger-456", "EXT-001", models.BalancesListOpts{})
 		require.NoError(t, err)
 		require.NotNil(t, result)
 		assert.Len(t, result.Items, 1)
@@ -1880,7 +1836,7 @@ func TestBalancesEntity_ErrorHandling(t *testing.T) {
 			}))
 			defer server.Close()
 
-			entity := NewBalancesEntity(server.Client(), "test-token", map[string]string{
+			entity := newBalancesEntity(server.Client(), "test-token", map[string]string{
 				"transaction": server.URL,
 			})
 
@@ -1898,14 +1854,14 @@ func TestBalancesEntity_ContextCancellation(t *testing.T) {
 	}))
 	defer server.Close()
 
-	entity := NewBalancesEntity(server.Client(), "test-token", map[string]string{
+	entity := newBalancesEntity(server.Client(), "test-token", map[string]string{
 		"transaction": server.URL,
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, err := entity.ListBalances(ctx, "org-123", "ledger-456", nil)
+	_, err := entity.ListBalances(ctx, "org-123", "ledger-456", models.BalancesListOpts{})
 	require.Error(t, err)
 }
 
@@ -1917,7 +1873,7 @@ func TestBalancesEntity_ContextTimeout(t *testing.T) {
 	}))
 	defer server.Close()
 
-	entity := NewBalancesEntity(server.Client(), "test-token", map[string]string{
+	entity := newBalancesEntity(server.Client(), "test-token", map[string]string{
 		"transaction": server.URL,
 	})
 
@@ -1944,16 +1900,11 @@ func TestBalancesEntity_QueryParameterEncoding(t *testing.T) {
 	}))
 	defer server.Close()
 
-	entity := NewBalancesEntity(server.Client(), "test-token", map[string]string{
+	entity := newBalancesEntity(server.Client(), "test-token", map[string]string{
 		"transaction": server.URL,
 	})
 
-	opts := &models.ListOptions{
-		Limit:          25,
-		Offset:         50,
-		OrderBy:        "createdAt",
-		OrderDirection: "desc",
-	}
+	opts := models.BalancesListOpts{PageListOpts: models.PageListOpts{Limit: 25, Page: 3, SortDirection: models.SortDescending}}
 
 	_, err := entity.ListBalances(context.Background(), "org-123", "ledger-456", opts)
 	require.NoError(t, err)
@@ -1992,7 +1943,7 @@ func TestBalancesEntity_JSONResponseParsing(t *testing.T) {
 		}))
 		defer server.Close()
 
-		entity := NewBalancesEntity(server.Client(), "test-token", map[string]string{
+		entity := newBalancesEntity(server.Client(), "test-token", map[string]string{
 			"transaction": server.URL,
 		})
 
@@ -2034,7 +1985,7 @@ func TestBalancesEntity_JSONResponseParsing(t *testing.T) {
 		}))
 		defer server.Close()
 
-		entity := NewBalancesEntity(server.Client(), "test-token", map[string]string{
+		entity := newBalancesEntity(server.Client(), "test-token", map[string]string{
 			"transaction": server.URL,
 		})
 
@@ -2065,20 +2016,19 @@ func TestBalancesEntity_ListOptionsFilters(t *testing.T) {
 	}))
 	defer server.Close()
 
-	entity := NewBalancesEntity(server.Client(), "test-token", map[string]string{
+	entity := newBalancesEntity(server.Client(), "test-token", map[string]string{
 		"transaction": server.URL,
 	})
 
 	t.Run("With filters", func(t *testing.T) {
-		opts := &models.ListOptions{
-			Limit:   10,
-			Offset:  0,
-			Filters: map[string]string{"assetCode": "USD"},
+		opts := models.BalancesListOpts{
+			PageListOpts: models.PageListOpts{Limit: 10},
+			Filters:      models.BalancesFilters{AssetCode: "USD"},
 		}
 
 		_, err := entity.ListBalances(context.Background(), "org-123", "ledger-456", opts)
 		require.NoError(t, err)
-		assert.Contains(t, capturedQuery, "assetCode=USD")
+		assert.Contains(t, capturedQuery, "asset_code=USD")
 	})
 }
 
@@ -2152,4 +2102,158 @@ func TestUpdateBalanceInput_Validation(t *testing.T) {
 			}
 		})
 	}
+}
+
+// twoPageBalancesMock returns a MockHTTPClient that serves two pages of
+// balances. Page 1 reports Total=2/Limit=1 (HasMore true via Total/Limit
+// math); page 2 reports Total=2/Page=2/Limit=1 (HasMore false). The shared
+// pagesRequested slice records every requested ?page= value so callers can
+// assert page advancement and early termination.
+func twoPageBalancesMock() (*MockHTTPClient, *[]string) {
+	pagesRequested := []string{}
+	mock := &MockHTTPClient{
+		DoFunc: func(req *http.Request) (*http.Response, error) {
+			page := req.URL.Query().Get("page")
+			pagesRequested = append(pagesRequested, page)
+
+			body := `{
+				"items": [{"id":"bal-` + page + `","assetCode":"USD","available":"100","onHold":"0","version":1}],
+				"pagination": {"total": 2, "limit": 1, "page": ` + page + `}
+			}`
+
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(body)),
+			}, nil
+		},
+	}
+
+	return mock, &pagesRequested
+}
+
+// TestBalancesEntity_ListBalancesPages_DefaultsAndAdvances covers the three
+// happy-path invariants of the iter.Seq2 helpers: opts.Page==0 is normalized
+// to 1, subsequent pages are fetched until HasMore==false, and every page is
+// yielded.
+func TestBalancesEntity_ListBalancesPages_DefaultsAndAdvances(t *testing.T) {
+	mock, pagesRequested := twoPageBalancesMock()
+
+	entity := &balancesEntity{serviceEntity: serviceEntity{
+		httpClient: newBalancesHTTPClientAdapter(mock),
+		baseURLs:   map[string]string{"transaction": "https://api.example.com/v1"},
+	}}
+
+	opts := models.BalancesListOpts{PageListOpts: models.PageListOpts{Limit: 1}}
+
+	pages := 0
+
+	for page, err := range entity.ListBalancesPages(context.Background(), "org", "ledger", opts) {
+		require.NoError(t, err)
+		require.NotNil(t, page)
+		pages++
+	}
+
+	assert.Equal(t, 2, pages, "expected two yielded pages")
+	assert.Equal(t, []string{"1", "2"}, *pagesRequested,
+		"first request must default Page to 1, second must advance to 2")
+}
+
+// TestBalancesEntity_ListBalancesAll_FlattenAcrossPages verifies that
+// ListBalancesAll yields every Balance across the page boundary.
+func TestBalancesEntity_ListBalancesAll_FlattenAcrossPages(t *testing.T) {
+	mock, _ := twoPageBalancesMock()
+
+	entity := &balancesEntity{serviceEntity: serviceEntity{
+		httpClient: newBalancesHTTPClientAdapter(mock),
+		baseURLs:   map[string]string{"transaction": "https://api.example.com/v1"},
+	}}
+
+	opts := models.BalancesListOpts{PageListOpts: models.PageListOpts{Limit: 1}}
+
+	items := 0
+	for bal, err := range entity.ListBalancesAll(context.Background(), "org", "ledger", opts) {
+		require.NoError(t, err)
+		require.NotEmpty(t, bal.ID)
+		items++
+	}
+
+	assert.Equal(t, 2, items, "expected one item per page across two pages")
+}
+
+// TestBalancesEntity_ListBalancesPages_EarlyTermination verifies that
+// breaking out of the range loop after the first page stops further HTTP
+// requests — the iterator must respect a false yield return.
+func TestBalancesEntity_ListBalancesPages_EarlyTermination(t *testing.T) {
+	mock, pagesRequested := twoPageBalancesMock()
+
+	entity := &balancesEntity{serviceEntity: serviceEntity{
+		httpClient: newBalancesHTTPClientAdapter(mock),
+		baseURLs:   map[string]string{"transaction": "https://api.example.com/v1"},
+	}}
+
+	opts := models.BalancesListOpts{PageListOpts: models.PageListOpts{Limit: 1}}
+
+	for page, err := range entity.ListBalancesPages(context.Background(), "org", "ledger", opts) {
+		require.NoError(t, err)
+		require.NotNil(t, page)
+		break // early termination after the first page
+	}
+
+	assert.Equal(t, []string{"1"}, *pagesRequested,
+		"early break must stop the iterator before requesting page 2")
+}
+
+// TestBalancesEntity_ListBalancesPages_ContextCancellation verifies that a
+// cancelled context yields ctx.Err() instead of issuing further requests
+// AND that the iterator short-circuits before the first HTTP call. The
+// pagesRequested spy from twoPageBalancesMock records every wire request,
+// so an empty slice proves the transport was never touched.
+func TestBalancesEntity_ListBalancesPages_ContextCancellation(t *testing.T) {
+	mock, pagesRequested := twoPageBalancesMock()
+
+	entity := &balancesEntity{serviceEntity: serviceEntity{
+		httpClient: newBalancesHTTPClientAdapter(mock),
+		baseURLs:   map[string]string{"transaction": "https://api.example.com/v1"},
+	}}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // cancel before the first iteration
+
+	opts := models.BalancesListOpts{PageListOpts: models.PageListOpts{Limit: 1}}
+
+	var observed error
+
+	for _, err := range entity.ListBalancesPages(ctx, "org", "ledger", opts) {
+		observed = err
+		break
+	}
+
+	require.ErrorIs(t, observed, context.Canceled)
+	assert.Empty(t, *pagesRequested,
+		"a cancelled context must short-circuit before the first HTTP request")
+}
+
+// TestBalancesEntity_ListBalancesByAccountAliasPages_AdvancesPages exercises
+// the alias variant to confirm the pagination loop behaves identically to
+// the ledger-scoped helper.
+func TestBalancesEntity_ListBalancesByAccountAliasPages_AdvancesPages(t *testing.T) {
+	mock, pagesRequested := twoPageBalancesMock()
+
+	entity := &balancesEntity{serviceEntity: serviceEntity{
+		httpClient: newBalancesHTTPClientAdapter(mock),
+		baseURLs:   map[string]string{"transaction": "https://api.example.com/v1"},
+	}}
+
+	opts := models.BalancesListOpts{PageListOpts: models.PageListOpts{Limit: 1}}
+
+	pages := 0
+
+	for page, err := range entity.ListBalancesByAccountAliasPages(context.Background(), "org", "ledger", "@alias", opts) {
+		require.NoError(t, err)
+		require.NotNil(t, page)
+		pages++
+	}
+
+	assert.Equal(t, 2, pages, "alias helper must traverse both pages")
+	assert.Equal(t, []string{"1", "2"}, *pagesRequested)
 }

@@ -50,6 +50,8 @@ linters:
     - misspell        # Spelling mistakes
     - dupword         # Duplicate words
     - unconvert       # Unnecessary conversions
+    - goconst         # Repeated strings/constants
+    - mnd             # Magic number detection
     - usestdlibvars   # Use stdlib variables (http.MethodGet, etc.)
     - dogsled         # Too many blank identifiers
     - nakedret        # Naked returns
@@ -115,6 +117,17 @@ linters:
       comparison: true
 
     # -----------------------------------------
+    # Code Style Settings
+    # -----------------------------------------
+    goconst:
+      min-len: 3
+      min-occurrences: 10
+      ignore-tests: true
+    mnd:
+      checks:
+        - condition
+
+    # -----------------------------------------
     # Security Settings
     # -----------------------------------------
     gosec:
@@ -154,9 +167,13 @@ linters:
         - pattern: '^ioutil\.'
           msg: "ioutil is deprecated - use io and os packages instead"
 
-        # Forbid log package (use structured logging)
-        - pattern: '^log\.(Print|Fatal|Panic).*$'
-          msg: "Use structured logging via pkg/observability instead of log package"
+        # Forbid log package (use structured logging via log/slog or
+        # pkg/observability). The broad `^log\.` pattern catches every
+        # stdlib log call (Print/Fatal/Panic, plus New/SetOutput/Default/
+        # Writer/etc.) without affecting log/slog calls, which are
+        # written `slog.X(...)` and never `log.X(...)`.
+        - pattern: '^log\.'
+          msg: "Use log/slog or pkg/observability instead of the stdlib log package"
 
         # Forbid http.Get/Post without context
         - pattern: '^http\.(Get|Post|Head)$'
@@ -169,6 +186,12 @@ linters:
     # -----------------------------------------
     # Dependency Guard
     # -----------------------------------------
+    # v3 contract: log/slog (stdlib structured logging) is the canonical
+    # logging surface — see docs/logging.md and Track 4 of the v3 DX plan.
+    # The v1 stdlib `log` package is no longer denied here because depguard
+    # matches deny entries by prefix; banning `log` would also ban `log/slog`.
+    # If v1 log usage creeps in, code review and the slog-everywhere idiom
+    # will catch it.
     depguard:
       rules:
         main:
@@ -177,8 +200,6 @@ linters:
               desc: "Deprecated: Use io and os packages instead (Go 1.16+)"
             - pkg: github.com/pkg/errors
               desc: "Use standard errors package with fmt.Errorf and %w"
-            - pkg: log
-              desc: "Use structured logging via pkg/observability"
 
     # -----------------------------------------
     # Go Vet
@@ -346,27 +367,35 @@ linters:
           - maintidx
           - dupl
           - forbidigo
+          - goconst
+          - mnd
           - noctx
         path: _test\.go
 
       # Allow complexity in generator
       - linters:
           - funlen
+          - goconst
           - gocognit
           - gocyclo
+          - mnd
           - maintidx
         path: pkg/generator/
 
       # Allow complexity in data package
       - linters:
           - funlen
+          - goconst
           - gocognit
+          - mnd
         path: pkg/data/
 
       # Allow fmt.Print and log in examples
       - linters:
           - forbidigo
           - depguard
+          - goconst
+          - mnd
         path: examples/
 
       # Allow fmt.Print in main packages (CLI tools)

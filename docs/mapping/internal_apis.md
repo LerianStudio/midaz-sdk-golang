@@ -6,29 +6,28 @@ This map is for SDK maintainers. It describes the implementation structure behin
 
 The current SDK is organized around a root client and an entity layer:
 
-1. `client.Client` owns configuration, observability, lifecycle, and optional API surface initialization.
+1. `midaz.Client` owns configuration, observability, lifecycle, and service initialization.
 2. `pkg/config.Config` resolves service URLs, Access Manager settings, retry/debug options, HTTP client, and observability provider.
 3. `entities.Entity` exposes the service interfaces used by consumers.
 4. Private entity implementations such as `accountsEntity`, `transactionsEntity`, and `holdersEntity` translate service methods into HTTP requests.
-5. `entities.HTTPClient` handles request construction, authentication headers, tenant/idempotency headers, tracing propagation, retry behavior, debug logging, and response/error conversion.
+5. `entities.HTTPClient` handles request construction, authentication headers, idempotency headers, tracing propagation, retry behavior, debug logging, and response/error conversion.
 6. `models` contains public request/response structures, Midaz model aliases, list options, pagination metadata, and builder helpers.
 
 The SDK does not currently use the older `apiClient`, `httpClient`, or per-resource `organizationClient` style architecture.
 
 ## Root client internals
 
-`client.Client` includes:
+`midaz.Client` includes:
 
-- `Entity *entities.Entity` - Set only when `UseAllAPIs`, `UseEntityAPI`, or `UseEntity` is provided.
+- `Entity *entities.Entity` - Initialized by `midaz.New(...)` when configuration validates; promoted service fields are also available directly on the client.
 - `config *config.Config` - Resolved SDK configuration.
 - `observability observability.Provider` - Optional tracing, metrics, and logging provider.
 - `customRetryPolicy func(*http.Response, error) bool` - Optional retry predicate propagated to the entity HTTP client.
 - `ctx context.Context` - Client base context used by client-level helpers and observability setup.
-- Default tenant fields used while applying client options.
 
-HTTP client ownership lives in `pkg/config.Config` and `entities.HTTPClient`, not directly on `client.Client`.
+HTTP client ownership lives in `pkg/config.Config` and `entities.HTTPClient`, not directly on `midaz.Client`.
 
-Entity initialization is gated by the `useEntity` flag. Docs and examples that access `c.Entity` must create the client with `client.UseAllAPIs()` or `client.UseEntityAPI()`.
+Entity initialization happens inside `midaz.New(...)` with an explicit auth posture such as `midaz.WithAccessManager(...)` or `midaz.WithAnonymous()`.
 
 ## Configuration flow
 
@@ -40,9 +39,9 @@ if err != nil {
     return err
 }
 
-c, err := client.New(
-    client.WithConfig(cfg),
-    client.UseAllAPIs(),
+c, err := midaz.New(
+    midaz.WithConfig(cfg),
+    midaz.WithAnonymous(),
 )
 ```
 
@@ -103,15 +102,14 @@ Each service has a public interface and a private implementation type. Method na
 - `HoldersService` implemented by `holdersEntity`
 - `AliasesService` implemented by `aliasesEntity`
 
-CRM requests set `X-Organization-Id` and use paths under `/holders` and `/aliases`. A configured `X-Tenant-ID` can also be sent by the shared HTTP client, but CRM holder/alias scoping still comes from the required `organizationID` method argument.
+CRM requests set `X-Organization-Id` and use paths under `/holders` and `/aliases`. Tenant scope comes from Access Manager/JWT claims; the shared HTTP client does not add `X-Tenant-ID`.
 
 ## Transport pattern
 
 The shared `entities.HTTPClient` is responsible for the transport cross-cutting concerns:
 
 - Adds authorization after Access Manager resolves a token.
-- Adds default tenant ID when configured.
-- Adds idempotency keys from `entities.WithIdempotencyKey(ctx, key)`.
+- Adds idempotency keys from `sdkctx.WithIdempotencyKey(ctx, key)`.
 - Injects OpenTelemetry trace context and baggage into outbound HTTP headers when observability is enabled.
 - Applies retry behavior for retryable responses and transient network failures.
 - Avoids retrying unsafe methods unless `X-Idempotency` is present.
@@ -150,7 +148,7 @@ Supported count paths use `HEAD` and read `X-Total-Count`:
 | Accounts | `GetAccountsMetricsCount` | `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/metrics/count` |
 | Transactions | `GetTransactionsMetricsCount` | `/organizations/{organizationID}/ledgers/{ledgerID}/transactions/metrics/count` |
 
-`doCountRequest` returns an internal SDK error when `X-Total-Count` is missing, blank, non-integer, negative, or overflowing. `GetAccountTypesMetricsCount` is a deprecated compatibility-only method. It validates IDs and returns a validation error because Midaz Ledger does not expose account type count metrics.
+`doCountRequest` returns an internal SDK error when `X-Total-Count` is missing, blank, non-integer, negative, or overflowing. AccountTypesService does not expose a metrics-count method because the Midaz Ledger API does not provide that endpoint for account types.
 
 ## Model compatibility layer
 
@@ -174,16 +172,16 @@ Common builders:
 - `models.NewUpdatePortfolioInput()`
 - `models.NewCreateSegmentInput(name)`
 - `models.NewUpdateSegmentInput()`
-- `models.NewCreateTransactionInput(assetCode, amount)` - Must include `send.source` and `send.distribute` before sending, either through `WithSend(...)` or legacy operation adaptation. Unsafe transaction create requests receive an auto-generated `X-Idempotency` header by default; set `IdempotencyKey` or use `entities.WithIdempotencyKey` when the caller needs a stable key or has disabled auto-idempotency.
+- `models.NewCreateTransactionInput(assetCode, amount)` - Must include `send.source` and `send.distribute` before sending, either through `WithSend(...)` or legacy operation adaptation. Unsafe transaction create requests receive an auto-generated `X-Idempotency` header by default; set `IdempotencyKey` or use `sdkctx.WithIdempotencyKey` when the caller needs a stable key or has disabled auto-idempotency.
 - `models.NewCreateInflowInput(assetCode, value, distribute)` - Requires a non-empty `distribute.to` payload.
 - `models.NewCreateOutflowInput(assetCode, value, source)` - Requires a non-empty `source.from` payload.
-- `models.NewCreateAnnotationInput(description, send...)` - `send` is required before sending; the variadic constructor argument exists for compatibility.
+- `models.NewCreateAnnotationInput(description, send...)` - `send` is optional. Omit it for metadata-only annotation transactions, or pass it for backend deployments that still require a send payload.
 - `models.NewCreateOperationRouteInput(title, description, operationType)`
 - `models.NewUpdateOperationRouteInput()`
 - `models.NewCreateTransactionRouteInput(title, description, operationRouteIDs)`
 - `models.NewUpdateTransactionRouteInput()`
 - `models.NewCreateAssetRateInput(from, to, rate)` with `WithScale`, `WithSource`, `WithTTL`, `WithExternalID`, and `WithMetadata`.
-- `models.NewAssetRateListOptions()`
+- `models.AssetRatesListOpts` with `Limit`, `Cursor`, `SortOrder`, `To`, `StartDate`, `EndDate`, and `ToQueryParams`.
 - `models.NewCreateHolderInput(holderType, name, document)` with `WithExternalID`, `WithAddresses`, `WithContact`, `WithNaturalPerson`, `WithLegalPerson`, and `WithMetadata`.
 - `models.NewUpdateHolderInput()` with field setters and `WithNullFields` / `WithNullField` for explicit JSON null removals. Empty holder updates are rejected by the SDK.
 - `models.NewCreateAliasInput(ledgerID, accountID)` with `WithMetadata`, `WithBankingDetails`, `WithRegulatoryFields`, and `WithRelatedParties`.
@@ -191,34 +189,16 @@ Common builders:
 
 ## List options and pagination internals
 
-`models.ListOptions` fields:
-
-```go
-type ListOptions struct {
-    Limit            int
-    Offset           int
-    Filters          map[string]string
-    OrderBy          string
-    OrderDirection   string
-    Page             int
-    Cursor           string
-    StartDate        string
-    EndDate          string
-    AdditionalParams map[string]string
-}
-```
+v3 deleted the old `models.ListOptions` mega-struct. List methods now accept endpoint-specific option structs embedding either `models.PageListOpts` or `models.CursorListOpts`; wrong-shape pagination does not compile.
 
 Query serialization rules:
 
-- `limit` is always emitted and entity list requests are capped by `models.MaxLimit` (`100`).
-- `Offset` is retained as compatibility input for older callers. Current Midaz endpoints should be documented and exercised through `page`, `limit`, and `cursor` where supported; do not describe `offset` as a supported Midaz wire parameter.
-- `Page` is emitted as `page` when set and is the preferred page-based control.
-- `Cursor` is emitted as `cursor` when set.
-- `Filters` are emitted as query parameters by key.
-- `OrderBy` is retained but not emitted by common serialization.
-- `OrderDirection` is emitted as `sort_order`.
-- `StartDate`, `EndDate`, and `AdditionalParams` are emitted when set.
-- Transactions remove `page` when cursor pagination is used.
+- `Limit` serializes as `limit` and entity list requests are capped by `models.MaxLimit` (`100`).
+- Page-based opts serialize `Page` as `page`.
+- Cursor-based opts serialize `Cursor` as `cursor` and never emit `page`.
+- Entity-specific filter structs serialize only fields valid for that endpoint.
+- `SortDirection` / asset-rate `SortOrder` serialize as `sort_order`.
+- Date ranges serialize as `start_date` and `end_date` where supported.
 
 `models.ListResponse[T]` contains `Items []T` and `Pagination models.Pagination`. JSON unmarshalling supports both current top-level pagination fields and legacy nested `pagination` payloads.
 

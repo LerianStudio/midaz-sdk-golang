@@ -4,6 +4,8 @@ import (
 	"errors"
 	"regexp"
 	"time"
+
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation"
 )
 
 // MetadataIndex represents a custom metadata index.
@@ -34,22 +36,21 @@ var metadataKeyPattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]*$`)
 // Validate validates the CreateMetadataIndexInput fields.
 func (input *CreateMetadataIndexInput) Validate() error {
 	if input == nil {
-		return errors.New("input is required")
+		return errors.New("input cannot be nil")
 	}
 
-	if input.MetadataKey == "" {
-		return errors.New("metadataKey is required")
+	var errs validation.FieldErrors
+
+	switch {
+	case input.MetadataKey == "":
+		errs.Append("metadataKey", "is required")
+	case len(input.MetadataKey) > 100:
+		errs.Append("metadataKey", "must be at most 100 characters")
+	case !metadataKeyPattern.MatchString(input.MetadataKey):
+		errs.Append("metadataKey", "must start with a letter and contain only letters, numbers, or underscores")
 	}
 
-	if len(input.MetadataKey) > 100 {
-		return errors.New("metadataKey must be at most 100 characters")
-	}
-
-	if !metadataKeyPattern.MatchString(input.MetadataKey) {
-		return errors.New("metadataKey must start with a letter and contain only letters, numbers, or underscores")
-	}
-
-	return nil
+	return errs.OrNil()
 }
 
 // NewCreateMetadataIndexInput creates a new CreateMetadataIndexInput.

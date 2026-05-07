@@ -7,7 +7,7 @@ package version
 const (
 	// Version is the current version of the SDK.
 	// This is automatically updated during the release process.
-	Version = "1.1.0-beta.2"
+	Version = "3.0.0-beta.1"
 
 	// SDKName is the name identifier for the SDK.
 	SDKName = "midaz-go-sdk"

@@ -1,50 +1,63 @@
 package entities
 
+//go:generate mockgen -source=holders.go -destination=mocks/mock_holders.go -package=mocks HoldersService
+
 import (
 	"context"
 	"fmt"
+	"iter"
 	"net/http"
-	"os"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
 )
 
 // HoldersService defines CRM holder operations.
 type HoldersService interface {
 	// ListHolders retrieves holders for an organization.
-	ListHolders(ctx context.Context, organizationID string, opts *models.ListOptions) (*models.ListResponse[models.Holder], error)
+	ListHolders(ctx context.Context, organizationID string, opts models.HoldersListOpts) (*models.ListResponse[models.Holder], error)
+
+	// ListHoldersAll yields every holder matching the request, transparently
+	// advancing pagination. Use [Collect] or [CollectAll] to drain into a
+	// slice, or range over the iterator directly to stream items.
+	ListHoldersAll(ctx context.Context, organizationID string, opts models.HoldersListOpts) iter.Seq2[models.Holder, error]
+
+	// ListHoldersPages yields one full *ListResponse[Holder] per page,
+	// exposing the per-page envelope (Pagination, Total, NextCursor) for
+	// callers that need cursor checkpoints or mid-iteration breaks.
+	ListHoldersPages(ctx context.Context, organizationID string, opts models.HoldersListOpts) iter.Seq2[*models.ListResponse[models.Holder], error]
 	// CreateHolder creates a holder.
 	CreateHolder(ctx context.Context, organizationID string, input *models.CreateHolderInput) (*models.Holder, error)
 	// GetHolder retrieves a holder by ID.
-	GetHolder(ctx context.Context, organizationID, holderID string, includeDeleted bool) (*models.Holder, error)
+	//
+	// To include soft-deleted holders in the response, tag the context with
+	// [sdkctx.WithIncludeDeleted](ctx, true) before calling.
+	GetHolder(ctx context.Context, organizationID, holderID string) (*models.Holder, error)
 	// UpdateHolder updates a holder by ID.
 	UpdateHolder(ctx context.Context, organizationID, holderID string, input *models.UpdateHolderInput) (*models.Holder, error)
 	// DeleteHolder deletes a holder by ID.
-	DeleteHolder(ctx context.Context, organizationID, holderID string, hardDelete bool) error
+	//
+	// By default the operation performs a soft delete (the record is marked deleted
+	// but preserved). To perform a hard delete (permanent removal), tag the context
+	// with [sdkctx.WithHardDelete](ctx, true) before calling.
+	DeleteHolder(ctx context.Context, organizationID, holderID string) error
 }
 
 type holdersEntity struct {
-	httpClient *HTTPClient
-	baseURLs   map[string]string
+	serviceEntity
 }
 
-func (e *holdersEntity) setDefaultTenantID(tenantID string) {
-	e.httpClient.SetTenantID(tenantID)
-}
-
-// NewHoldersEntity creates a new HoldersService instance.
-func NewHoldersEntity(client *http.Client, authToken string, baseURLs map[string]string) HoldersService {
-	httpClient := NewHTTPClient(client, authToken, nil)
-	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
-		httpClient.setDebugLocked(true)
-	}
-
-	return &holdersEntity{httpClient: httpClient, baseURLs: prepareServiceBaseURLs(baseURLs)}
+// newHoldersEntity creates a new HoldersService instance for tests.
+// The auth token is injected by the caller; production code never reaches
+// this constructor (it goes through Entity.initServices, which uses the
+// shared *HTTPClient).
+func newHoldersEntity(client *http.Client, authToken string, baseURLs map[string]string) HoldersService {
+	return &holdersEntity{serviceEntity: newServiceEntity(client, authToken, baseURLs)}
 }
 
 // ListHolders retrieves holders for an organization.
-func (e *holdersEntity) ListHolders(ctx context.Context, organizationID string, opts *models.ListOptions) (*models.ListResponse[models.Holder], error) {
+func (e *holdersEntity) ListHolders(ctx context.Context, organizationID string, opts models.HoldersListOpts) (*models.ListResponse[models.Holder], error) {
 	const operation = "ListHolders"
 
 	organizationID, err := validateCRMOrganizationID(operation, organizationID)
@@ -52,14 +65,18 @@ func (e *holdersEntity) ListHolders(ctx context.Context, organizationID string, 
 		return nil, err
 	}
 
+	if err := opts.Validate(); err != nil {
+		return nil, errors.NewValidationError(operation, "invalid holder list options", err)
+	}
+
 	req, err := newRequestWithContext(ctx, http.MethodGet, e.buildURL(""), nil)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	if opts != nil {
+	if params := opts.ToQueryParams(); len(params) > 0 {
 		q := req.URL.Query()
-		for key, value := range opts.ToQueryParams() {
+		for key, value := range params {
 			q.Add(key, value)
 		}
 
@@ -72,6 +89,46 @@ func (e *holdersEntity) ListHolders(ctx context.Context, organizationID string, 
 	}
 
 	return &response, nil
+}
+
+// ListHoldersAll yields every holder matching the request, transparently advancing pagination.
+func (e *holdersEntity) ListHoldersAll(ctx context.Context, organizationID string, opts models.HoldersListOpts) iter.Seq2[models.Holder, error] {
+	return flattenPages(e.ListHoldersPages(ctx, organizationID, opts))
+}
+
+// ListHoldersPages yields one full *ListResponse[Holder] per page.
+func (e *holdersEntity) ListHoldersPages(ctx context.Context, organizationID string, opts models.HoldersListOpts) iter.Seq2[*models.ListResponse[models.Holder], error] {
+	ctx = requestContext(ctx)
+
+	return func(yield func(*models.ListResponse[models.Holder], error) bool) {
+		current := opts
+		if current.Page == 0 {
+			current.Page = 1
+		}
+
+		for {
+			if ctx.Err() != nil {
+				yield(nil, ctx.Err())
+				return
+			}
+
+			page, err := e.ListHolders(ctx, organizationID, current)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			if !yield(page, nil) {
+				return
+			}
+
+			if !page.Pagination.HasMore() {
+				return
+			}
+
+			current.Page++
+		}
+	}
 }
 
 // CreateHolder creates a holder.
@@ -100,7 +157,9 @@ func (e *holdersEntity) CreateHolder(ctx context.Context, organizationID string,
 }
 
 // GetHolder retrieves a holder by ID.
-func (e *holdersEntity) GetHolder(ctx context.Context, organizationID, holderID string, includeDeleted bool) (*models.Holder, error) {
+//
+// Use [sdkctx.WithIncludeDeleted](ctx, true) to include soft-deleted holders.
+func (e *holdersEntity) GetHolder(ctx context.Context, organizationID, holderID string) (*models.Holder, error) {
 	const operation = "GetHolder"
 
 	organizationID, err := validateCRMOrganizationID(operation, organizationID)
@@ -114,7 +173,7 @@ func (e *holdersEntity) GetHolder(ctx context.Context, organizationID, holderID 
 	}
 
 	endpoint := e.buildURL(holderID)
-	if includeDeleted {
+	if sdkctx.IncludeDeletedFromContext(ctx) {
 		endpoint += "?include_deleted=true"
 	}
 
@@ -159,7 +218,10 @@ func (e *holdersEntity) UpdateHolder(ctx context.Context, organizationID, holder
 }
 
 // DeleteHolder deletes a holder by ID.
-func (e *holdersEntity) DeleteHolder(ctx context.Context, organizationID, holderID string, hardDelete bool) error {
+//
+// The default is a soft delete (record preserved, marked deleted). Use
+// [sdkctx.WithHardDelete](ctx, true) to perform a hard delete (permanent).
+func (e *holdersEntity) DeleteHolder(ctx context.Context, organizationID, holderID string) error {
 	const operation = "DeleteHolder"
 
 	organizationID, err := validateCRMOrganizationID(operation, organizationID)
@@ -173,7 +235,7 @@ func (e *holdersEntity) DeleteHolder(ctx context.Context, organizationID, holder
 	}
 
 	endpoint := e.buildURL(holderID)
-	if hardDelete {
+	if sdkctx.HardDeleteFromContext(ctx) {
 		endpoint += "?hard_delete=true"
 	}
 

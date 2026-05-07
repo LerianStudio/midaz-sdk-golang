@@ -12,8 +12,17 @@ import (
 	"regexp"
 	"strings"
 	"time"
+)
 
-	midazutils "github.com/LerianStudio/midaz/v3/pkg/utils"
+const (
+	defaultMaxMetadataSize      = 4096
+	defaultMaxStringLength      = 2000
+	defaultMaxAddressLineLength = 256
+	defaultMaxZipCodeLength     = 20
+	defaultMaxCityLength        = 100
+	defaultMaxStateLength       = 100
+	maxLegacyAddressLineLength  = 100
+	maxMetadataKeyLength        = 100
 )
 
 // ValidationConfig represents options for the validation behavior
@@ -46,12 +55,12 @@ type ValidationOption func(*ValidationConfig) error
 // DefaultValidationConfig returns a config with default values
 func DefaultValidationConfig() *ValidationConfig {
 	return &ValidationConfig{
-		MaxMetadataSize:      4096,
-		MaxStringLength:      2000,
-		MaxAddressLineLength: 256,
-		MaxZipCodeLength:     20,
-		MaxCityLength:        100,
-		MaxStateLength:       100,
+		MaxMetadataSize:      defaultMaxMetadataSize,
+		MaxStringLength:      defaultMaxStringLength,
+		MaxAddressLineLength: defaultMaxAddressLineLength,
+		MaxZipCodeLength:     defaultMaxZipCodeLength,
+		MaxCityLength:        defaultMaxCityLength,
+		MaxStateLength:       defaultMaxStateLength,
 		StrictMode:           false,
 	}
 }
@@ -166,13 +175,16 @@ var ExternalAccountPattern = regexp.MustCompile(`^@external/([A-Z]{3,4})$`)
 // AccountAliasPattern is the regex pattern for account aliases.
 //
 // Midaz aliases support letters, digits, underscores, hyphens, dots, colons,
-// and an optional leading "@". The 50-character cap matches the historic
-// strict shape; the previous 100-character cap was too permissive and routinely
-// let test fixtures through that the backend would later reject.
+// and an optional leading "@". The 50-character cap is the *total* string
+// length and matches the error message in [ValidateAccountAlias]: a leading
+// "@" counts toward the cap, so "@" + 49 chars is the longest valid prefixed
+// form, and 50 chars is the longest valid bare form. The previous
+// 100-character cap was too permissive and routinely let test fixtures
+// through that the backend would later reject.
 //
 // Example aliases that match: "@treasury_checking", "@user.balance:USD",
 // "savings-account-2024", "@alice".
-var AccountAliasPattern = regexp.MustCompile(`^@?[a-zA-Z0-9_.:-]{1,50}$`)
+var AccountAliasPattern = regexp.MustCompile(`^(?:@[a-zA-Z0-9_.:-]{1,49}|[a-zA-Z0-9_.:-]{1,50})$`)
 
 // AssetCodePattern is the regex pattern for asset codes (e.g. "USD", "BRL",
 // "USDT"). The 3-4 uppercase-letter bound matches ISO 4217 currency codes
@@ -268,7 +280,7 @@ func ValidateMetadata(metadata map[string]any) error {
 			return errors.New("metadata keys cannot be empty")
 		}
 
-		if len(key) > 100 {
+		if len(key) > maxMetadataKeyLength {
 			return fmt.Errorf("metadata key '%s' must be at most 100 characters", key)
 		}
 
@@ -299,7 +311,7 @@ func validateMetadataValue(key string, value any) error {
 		return err
 	}
 
-	if len(fmt.Sprint(value)) > 2000 {
+	if len(fmt.Sprint(value)) > defaultMaxStringLength {
 		return fmt.Errorf("metadata value for key '%s' must be at most 2000 characters", key)
 	}
 
@@ -407,9 +419,7 @@ func ValidateAssetType(assetType string) error {
 		return errors.New("asset type is required")
 	}
 
-	// Use commons.ValidateType to ensure consistency with backend APIs
-	// Note: commons.ValidateType expects lowercase types, so we convert to lowercase
-	if err := midazutils.ValidateType(strings.ToLower(assetType)); err != nil {
+	if _, ok := allowedAssetTypes[strings.ToLower(assetType)]; !ok {
 		// Create a list of valid types for the error message
 		validTypes := []string{"crypto", "currency", "commodity", "others"}
 
@@ -426,8 +436,7 @@ func ValidateCurrencyCode(code string) error {
 		return errors.New("currency code cannot be empty")
 	}
 
-	// Use commons.ValidateCurrency to ensure consistency with backend APIs
-	if err := midazutils.ValidateCurrency(code); err != nil {
+	if _, ok := allowedCurrencyCodes[code]; !ok {
 		return fmt.Errorf("invalid currency code: %s", code)
 	}
 
@@ -440,8 +449,7 @@ func ValidateCountryCode(code string) error {
 		return errors.New("country code cannot be empty")
 	}
 
-	// Use commons.ValidateCountryAddress to ensure consistency with backend APIs
-	if err := midazutils.ValidateCountryAddress(code); err != nil {
+	if _, ok := allowedCountryCodes[code]; !ok {
 		return fmt.Errorf("invalid country code: %s (must be a valid ISO 3166-1 alpha-2 code)", code)
 	}
 
@@ -468,11 +476,11 @@ func ValidateAddress(address *Address) error {
 		return errors.New("address line 1 is required")
 	}
 
-	if len(address.Line1) > 100 {
+	if len(address.Line1) > maxLegacyAddressLineLength {
 		return errors.New("address line 1 must be at most 100 characters")
 	}
 
-	if address.Line2 != nil && len(*address.Line2) > 100 {
+	if address.Line2 != nil && len(*address.Line2) > maxLegacyAddressLineLength {
 		return errors.New("address line 2 must be at most 100 characters")
 	}
 
@@ -480,7 +488,7 @@ func ValidateAddress(address *Address) error {
 		return errors.New("zip code is required")
 	}
 
-	if len(address.ZipCode) > 20 {
+	if len(address.ZipCode) > defaultMaxZipCodeLength {
 		return errors.New("zip code must be at most 20 characters")
 	}
 
@@ -488,7 +496,7 @@ func ValidateAddress(address *Address) error {
 		return errors.New("city is required")
 	}
 
-	if len(address.City) > 100 {
+	if len(address.City) > defaultMaxCityLength {
 		return errors.New("city must be at most 100 characters")
 	}
 
@@ -496,7 +504,7 @@ func ValidateAddress(address *Address) error {
 		return errors.New("state is required")
 	}
 
-	if len(address.State) > 100 {
+	if len(address.State) > defaultMaxStateLength {
 		return errors.New("state must be at most 100 characters")
 	}
 

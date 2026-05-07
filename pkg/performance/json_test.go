@@ -67,6 +67,34 @@ func TestJSONPoolMarshalUnmarshal(t *testing.T) {
 	}
 }
 
+func TestJSONPoolUnmarshalPreservesNumbersAsJSONNumber(t *testing.T) {
+	pool := NewJSONPool()
+
+	var result map[string]any
+	err := pool.Unmarshal([]byte(`{"amount":1234567890.123456789,"count":42}`), &result)
+	if err != nil {
+		t.Fatalf("Unmarshal failed: %v", err)
+	}
+
+	amount, ok := result["amount"].(json.Number)
+	if !ok {
+		t.Fatalf("amount type = %T, want json.Number", result["amount"])
+	}
+
+	if amount.String() != "1234567890.123456789" {
+		t.Fatalf("amount = %q, want original numeric lexeme", amount.String())
+	}
+
+	count, ok := result["count"].(json.Number)
+	if !ok {
+		t.Fatalf("count type = %T, want json.Number", result["count"])
+	}
+
+	if count.String() != "42" {
+		t.Fatalf("count = %q, want original numeric lexeme", count.String())
+	}
+}
+
 func TestJSONPoolNilAndZeroValueSafe(t *testing.T) {
 	testData := generateTestData()
 
@@ -214,7 +242,7 @@ func BenchmarkMarshal(b *testing.B) {
 	b.Run("Standard", func(b *testing.B) {
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_, err := json.Marshal(testData)
 			if err != nil {
 				b.Fatal(err)
@@ -227,7 +255,7 @@ func BenchmarkMarshal(b *testing.B) {
 
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_, err := pool.Marshal(testData)
 			if err != nil {
 				b.Fatal(err)
@@ -247,7 +275,7 @@ func BenchmarkUnmarshal(b *testing.B) {
 	b.Run("Standard", func(b *testing.B) {
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			var result testStruct
 
 			err := json.Unmarshal(data, &result)
@@ -262,7 +290,7 @@ func BenchmarkUnmarshal(b *testing.B) {
 
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			var result testStruct
 
 			err := pool.Unmarshal(data, &result)
@@ -279,7 +307,7 @@ func BenchmarkEncoder(b *testing.B) {
 	b.Run("Standard", func(b *testing.B) {
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			buf := &bytes.Buffer{}
 			enc := json.NewEncoder(buf)
 
@@ -295,7 +323,7 @@ func BenchmarkEncoder(b *testing.B) {
 
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			buf := &bytes.Buffer{}
 			enc := pool.NewEncoder(buf)
 
@@ -322,7 +350,7 @@ func BenchmarkDecoder(b *testing.B) {
 	b.Run("Standard", func(b *testing.B) {
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			var result testStruct
 
 			dec := json.NewDecoder(bytes.NewReader(data))
@@ -339,7 +367,7 @@ func BenchmarkDecoder(b *testing.B) {
 
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			var result testStruct
 
 			dec := pool.NewDecoder(bytes.NewReader(data))

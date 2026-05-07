@@ -1,4 +1,4 @@
-package core // import "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation/core"
+package core // import "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation/core"
 
 Package core provides fundamental validation utilities for the Midaz SDK.
 
@@ -6,7 +6,7 @@ This package contains primitive validation functions that don't depend on any
 model structures, making it usable by both the models package and the validation
 package without creating circular dependencies.
 
-var AccountAliasPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,50}$`)
+var AccountAliasPattern = regexp.MustCompile(`^(?:@[a-zA-Z0-9_.:-]{1,49}|[a-zA-Z0-9_.:-]{1,50})$`)
 var AssetCodePattern = regexp.MustCompile(`^[A-Z]{3,4}$`)
 var ExternalAccountPattern = regexp.MustCompile(`^@external/([A-Z]{3,4})$`)
 var TransactionCodePattern = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,100}$`)

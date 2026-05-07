@@ -1,16 +1,18 @@
 package entities
 
+//go:generate mockgen -source=assets.go -destination=mocks/mock_assets.go -package=mocks AssetsService
+
 import (
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"iter"
 	"net/http"
-	"os"
 	"strings"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
 )
 
 // AssetsService defines the interface for asset-related operations.
@@ -20,7 +22,18 @@ type AssetsService interface {
 	// The organizationID and ledgerID parameters specify which organization and ledger to query.
 	// The opts parameter can be used to specify pagination, sorting, and filtering options.
 	// Returns a ListResponse containing the assets and pagination information, or an error if the operation fails.
-	ListAssets(ctx context.Context, organizationID, ledgerID string, opts *models.ListOptions) (*models.ListResponse[models.Asset], error)
+	ListAssets(ctx context.Context, organizationID, ledgerID string, opts models.AssetsListOpts) (*models.ListResponse[models.Asset], error)
+
+	// ListAssetsAll yields every asset matching the request, transparently
+	// advancing pagination. Use [Collect] or [CollectAll] to drain into a
+	// slice, or range over the iterator directly to stream items.
+	ListAssetsAll(ctx context.Context, organizationID, ledgerID string, opts models.AssetsListOpts) iter.Seq2[models.Asset, error]
+
+	// ListAssetsPages yields one full *ListResponse[Asset] per page, exposing
+	// the per-page envelope (Pagination with Offset/Limit, Total) for callers
+	// that need page-metadata continuation, total-count display, or
+	// mid-iteration breaks.
+	ListAssetsPages(ctx context.Context, organizationID, ledgerID string, opts models.AssetsListOpts) iter.Seq2[*models.ListResponse[models.Asset], error]
 
 	// GetAsset retrieves a specific asset by its ID.
 	// The organizationID and ledgerID parameters specify which organization and ledger the asset belongs to.
@@ -126,78 +139,20 @@ type AssetsService interface {
 // assetsEntity implements the AssetsService interface.
 // It handles the communication with the Midaz API for asset-related operations.
 type assetsEntity struct {
-	httpClient *HTTPClient
-	baseURLs   map[string]string
+	serviceEntity
 }
 
-func (e *assetsEntity) setDefaultTenantID(tenantID string) {
-	e.httpClient.SetTenantID(tenantID)
-}
-
-// NewAssetsEntity creates a new assets entity.
-//
-// Parameters:
-//   - httpClient: The HTTP client used for API requests. Can be configured with custom timeouts
-//     and transport options. If nil, a default client will be used.
-//   - authToken: The authentication token for API authorization. Must be a valid JWT token
-//     issued by the Midaz authentication service.
-//   - baseURLs: Map of service names to base URLs. Must include an "onboarding" key with
-//     the URL of the onboarding service (e.g., "https://api.midaz.io/v1").
-//
-// Returns:
-//   - AssetsService: An implementation of the AssetsService interface that provides
-//     methods for creating, retrieving, updating, and managing assets.
-//
-// Example:
-//
-//	// Create an assets entity with default HTTP client
-//	assetsEntity := entities.NewAssetsEntity(
-//	    &http.Client{Timeout: 30 * time.Second},
-//	    "your-auth-token",
-//	    map[string]string{"onboarding": "https://api.midaz.io/v1"},
-//	)
-//
-//	// Use the entity to create an asset
-//	asset, err := assetsEntity.CreateAsset(
-//	    context.Background(),
-//	    "org-123",
-//	    "ledger-456",
-//	    &models.CreateAssetInput{
-//	        Name: "US Dollar",
-//	        Code: "USD",
-//	        Type: "currency",
-//	    },
-//	)
-//
-//	if err != nil {
-//	    log.Fatalf("Failed to create asset: %v", err)
-//	}
-//
-//	fmt.Printf("Asset created: %s\n", asset.ID)
-func NewAssetsEntity(client *http.Client, authToken string, baseURLs map[string]string) AssetsService {
-	// Create a new HTTP client with the shared implementation
-	httpClient := NewHTTPClient(client, authToken, nil)
-
-	// Check if we're using the debug flag from the environment
-	if debugEnv := os.Getenv(EnvMidazDebug); debugEnv == BoolTrue {
-		httpClient.setDebugLocked(true)
-	}
-
-	return &assetsEntity{
-		httpClient: httpClient,
-		baseURLs:   prepareServiceBaseURLs(baseURLs),
-	}
+// newAssetsEntity wires the AssetsService backed by the shared HTTP transport.
+// Internal: invoked by Entity.initServices; callers should reach the service via Client.Assets.
+func newAssetsEntity(client *http.Client, authToken string, baseURLs map[string]string) AssetsService {
+	return &assetsEntity{serviceEntity: newServiceEntity(client, authToken, baseURLs)}
 }
 
 // ListAssets lists assets for a ledger with optional filters.
 // The organizationID and ledgerID parameters specify which organization and ledger to query.
 // The opts parameter can be used to specify pagination, sorting, and filtering options.
 // Returns a ListResponse containing the assets and pagination information, or an error if the operation fails.
-func (e *assetsEntity) ListAssets(
-	ctx context.Context,
-	organizationID, ledgerID string,
-	opts *models.ListOptions,
-) (*models.ListResponse[models.Asset], error) {
+func (e *assetsEntity) ListAssets(ctx context.Context, organizationID, ledgerID string, opts models.AssetsListOpts) (*models.ListResponse[models.Asset], error) {
 	const operation = "ListAssets"
 
 	if organizationID == "" {
@@ -208,6 +163,10 @@ func (e *assetsEntity) ListAssets(
 		return nil, errors.NewMissingParameterError(operation, "ledgerID")
 	}
 
+	if err := opts.Validate(); err != nil {
+		return nil, errors.NewValidationError(operation, "list options validation failed", err)
+	}
+
 	url := e.buildURL(organizationID, ledgerID, "")
 
 	req, err := newRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -215,11 +174,9 @@ func (e *assetsEntity) ListAssets(
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	// Add query parameters if provided
-	if opts != nil {
+	if params := opts.ToQueryParams(); len(params) > 0 {
 		q := req.URL.Query()
-
-		for key, value := range opts.ToQueryParams() {
+		for key, value := range params {
 			q.Add(key, value)
 		}
 
@@ -233,6 +190,46 @@ func (e *assetsEntity) ListAssets(
 	}
 
 	return &response, nil
+}
+
+// ListAssetsAll yields every asset matching the request, transparently advancing pagination.
+func (e *assetsEntity) ListAssetsAll(ctx context.Context, organizationID, ledgerID string, opts models.AssetsListOpts) iter.Seq2[models.Asset, error] {
+	return flattenPages(e.ListAssetsPages(ctx, organizationID, ledgerID, opts))
+}
+
+// ListAssetsPages yields one full *ListResponse[Asset] per page.
+func (e *assetsEntity) ListAssetsPages(ctx context.Context, organizationID, ledgerID string, opts models.AssetsListOpts) iter.Seq2[*models.ListResponse[models.Asset], error] {
+	ctx = requestContext(ctx)
+
+	return func(yield func(*models.ListResponse[models.Asset], error) bool) {
+		current := opts
+		if current.Page == 0 {
+			current.Page = 1
+		}
+
+		for {
+			if ctx.Err() != nil {
+				yield(nil, ctx.Err())
+				return
+			}
+
+			page, err := e.ListAssets(ctx, organizationID, ledgerID, current)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			if !yield(page, nil) {
+				return
+			}
+
+			if !page.Pagination.HasMore() {
+				return
+			}
+
+			current.Page++
+		}
+	}
 }
 
 // GetAsset gets an asset by ID.
@@ -312,12 +309,12 @@ func (e *assetsEntity) CreateAsset(
 	var asset models.Asset
 	if err := e.httpClient.sendRequest(req, &asset); err != nil {
 		// HTTPClient.DoRequest already returns proper error types
-		e.httpClient.emitBusinessError(ctx, businessEventAssetCreated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID}, err)
+		e.httpClient.emitBusinessError(ctx, businessEventAssetCreated, map[string]any{businessFieldOperation: operation, businessFieldOrganizationID: organizationID, businessFieldLedgerID: ledgerID}, err)
 
 		return nil, err
 	}
 
-	e.httpClient.emitBusinessEvent(ctx, businessEventAssetCreated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "assetId": asset.ID, "status": asset.Status.Code})
+	e.httpClient.emitBusinessEvent(ctx, businessEventAssetCreated, map[string]any{businessFieldOperation: operation, businessFieldOrganizationID: organizationID, businessFieldLedgerID: ledgerID, businessFieldAssetID: asset.ID, businessFieldStatus: asset.Status.Code})
 
 	return &asset, nil
 }
@@ -368,12 +365,12 @@ func (e *assetsEntity) UpdateAsset(
 
 	var asset models.Asset
 	if err := e.httpClient.sendRequest(req, &asset); err != nil {
-		e.httpClient.emitBusinessError(ctx, businessEventAssetUpdated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "assetId": id}, err)
+		e.httpClient.emitBusinessError(ctx, businessEventAssetUpdated, map[string]any{businessFieldOperation: operation, businessFieldOrganizationID: organizationID, businessFieldLedgerID: ledgerID, businessFieldAssetID: id}, err)
 
 		return nil, err
 	}
 
-	e.httpClient.emitBusinessEvent(ctx, businessEventAssetUpdated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "assetId": asset.ID, "status": asset.Status.Code})
+	e.httpClient.emitBusinessEvent(ctx, businessEventAssetUpdated, map[string]any{businessFieldOperation: operation, businessFieldOrganizationID: organizationID, businessFieldLedgerID: ledgerID, businessFieldAssetID: asset.ID, businessFieldStatus: asset.Status.Code})
 
 	return &asset, nil
 }
@@ -409,12 +406,12 @@ func (e *assetsEntity) DeleteAsset(
 
 	if err := e.httpClient.sendRequest(req, nil); err != nil {
 		// HTTPClient.DoRequest already returns proper error types
-		e.httpClient.emitBusinessError(ctx, businessEventAssetDeleted, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "assetId": id}, err)
+		e.httpClient.emitBusinessError(ctx, businessEventAssetDeleted, map[string]any{businessFieldOperation: operation, businessFieldOrganizationID: organizationID, businessFieldLedgerID: ledgerID, businessFieldAssetID: id}, err)
 
 		return err
 	}
 
-	e.httpClient.emitBusinessEvent(ctx, businessEventAssetDeleted, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "assetId": id})
+	e.httpClient.emitBusinessEvent(ctx, businessEventAssetDeleted, map[string]any{businessFieldOperation: operation, businessFieldOrganizationID: organizationID, businessFieldLedgerID: ledgerID, businessFieldAssetID: id})
 
 	return nil
 }

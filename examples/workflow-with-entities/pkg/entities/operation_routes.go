@@ -7,8 +7,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 )
 
 // CreateOperationRoute creates a new operation route within a ledger.
@@ -87,7 +87,7 @@ func ListOperationRoutes(
 	service entities.OperationRoutesService,
 ) ([]*models.OperationRoute, error) {
 	// List operation routes
-	response, err := service.ListOperationRoutes(ctx, orgID, ledgerID, nil)
+	response, err := service.ListOperationRoutes(ctx, orgID, ledgerID, models.OperationRoutesListOpts{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list operation routes: %w", err)
 	}

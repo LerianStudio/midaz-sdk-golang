@@ -197,6 +197,7 @@ func (*JSONPool) getDecoder(r io.Reader) *json.Decoder {
 	// The standard json.Decoder doesn't support resetting the reader,
 	// so we need to create a new one each time
 	dec := json.NewDecoder(r)
+	dec.UseNumber()
 	return dec
 }
 

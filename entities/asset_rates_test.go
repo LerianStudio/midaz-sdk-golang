@@ -10,12 +10,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestNewAssetRatesEntity(t *testing.T) {
+func Test_newAssetRatesEntity(t *testing.T) {
 	tests := []struct {
 		name      string
 		client    *http.Client
@@ -53,7 +53,7 @@ func TestNewAssetRatesEntity(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			service := NewAssetRatesEntity(tt.client, tt.authToken, tt.baseURLs)
+			service := newAssetRatesEntity(tt.client, tt.authToken, tt.baseURLs)
 			assert.NotNil(t, service)
 
 			entity, ok := service.(*assetRatesEntity)
@@ -64,58 +64,55 @@ func TestNewAssetRatesEntity(t *testing.T) {
 	}
 }
 
-func TestNewAssetRatesEntity_DebugMode(t *testing.T) {
-	t.Run("with MIDAZ_DEBUG=true", func(t *testing.T) {
+// Test_newAssetRatesEntity_DebugMode verifies the v3 contract: env vars do NOT
+// flow into entity constructors directly. Setting MIDAZ_DEBUG=true in the shell
+// must NOT make a freshly constructed asset-rates entity start in debug mode.
+// Debug propagates only through pkg/config.Config (populated by FromEnvironment
+// when the caller opts in) and the WithDebug option.
+func Test_newAssetRatesEntity_DebugMode(t *testing.T) {
+	t.Run("MIDAZ_DEBUG=true does NOT flip debug on the constructed service (v3 contract)", func(t *testing.T) {
 		t.Setenv("MIDAZ_DEBUG", "true")
 
-		service := NewAssetRatesEntity(
+		service := newAssetRatesEntity(
 			&http.Client{},
 			"test-token",
 			map[string]string{"transaction": "https://api.example.com"},
 		)
-		assert.NotNil(t, service)
-
 		entity, ok := service.(*assetRatesEntity)
 		assert.True(t, ok)
-		assert.NotNil(t, entity.httpClient)
-		assert.True(t, entity.httpClient.debug)
+		assert.False(t, entity.httpClient.debug,
+			"v3 invariant: env vars must not bypass the explicit configuration path")
 	})
 
-	t.Run("with MIDAZ_DEBUG=false", func(t *testing.T) {
-		t.Setenv("MIDAZ_DEBUG", "false")
-
-		service := NewAssetRatesEntity(
+	t.Run("default (no env, no option) is debug=false", func(t *testing.T) {
+		service := newAssetRatesEntity(
 			&http.Client{},
 			"test-token",
 			map[string]string{"transaction": "https://api.example.com"},
 		)
-		assert.NotNil(t, service)
-
 		entity, ok := service.(*assetRatesEntity)
 		assert.True(t, ok)
-		assert.NotNil(t, entity.httpClient)
 		assert.False(t, entity.httpClient.debug)
 	})
 
-	t.Run("without MIDAZ_DEBUG env var", func(t *testing.T) {
-		service := NewAssetRatesEntity(
-			&http.Client{},
-			"test-token",
-			map[string]string{"transaction": "https://api.example.com"},
-		)
-		assert.NotNil(t, service)
-
-		entity, ok := service.(*assetRatesEntity)
-		assert.True(t, ok)
-		assert.NotNil(t, entity.httpClient)
-		assert.False(t, entity.httpClient.debug)
+	t.Run("SetDebug(true) flips debug on (v3 path)", func(t *testing.T) {
+		// Build a parent entity, flip debug on the root HTTPClient, then
+		// re-init services so the per-service entities pick up the new
+		// snapshot. This mirrors the production path where midaz.New()
+		// invokes httpClient.SetDebug(...) BEFORE entity.InitServices().
+		ent := newTestEntity(t, &http.Client{}, "test-token",
+			map[string]string{"onboarding": "https://api.example.com", "transaction": "https://api.example.com"},
+			nil)
+		ent.GetEntityHTTPClient().SetDebug(true)
+		ent.InitServices()
+		ar := ent.AssetRates.(*assetRatesEntity)
+		assert.True(t, ar.httpClient.debug,
+			"SetDebug(true) on parent must propagate to per-service HTTP clients after InitServices")
 	})
 }
 
 func TestAssetRatesEntity_buildURL(t *testing.T) {
-	entity := &assetRatesEntity{
-		baseURLs: map[string]string{"transaction": "https://api.example.com"},
-	}
+	entity := &assetRatesEntity{serviceEntity: serviceEntity{baseURLs: map[string]string{"transaction": "https://api.example.com"}}}
 
 	tests := []struct {
 		name           string
@@ -156,9 +153,7 @@ func TestAssetRatesEntity_buildURL(t *testing.T) {
 }
 
 func TestAssetRatesEntity_buildFromAssetURL(t *testing.T) {
-	entity := &assetRatesEntity{
-		baseURLs: map[string]string{"transaction": "https://api.example.com"},
-	}
+	entity := &assetRatesEntity{serviceEntity: serviceEntity{baseURLs: map[string]string{"transaction": "https://api.example.com"}}}
 
 	tests := []struct {
 		name           string
@@ -394,10 +389,7 @@ func TestAssetRatesEntity_CreateOrUpdateAssetRate(t *testing.T) {
 				},
 			}
 
-			entity := &assetRatesEntity{
-				httpClient: newHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"transaction": "https://api.example.com"},
-			}
+			entity := &assetRatesEntity{serviceEntity: serviceEntity{httpClient: newHTTPClientAdapter(mockClient), baseURLs: map[string]string{"transaction": "https://api.example.com"}}}
 
 			result, err := entity.CreateOrUpdateAssetRate(context.Background(), tt.orgID, tt.ledgerID, tt.input)
 
@@ -555,10 +547,7 @@ func TestAssetRatesEntity_GetAssetRate(t *testing.T) {
 				},
 			}
 
-			entity := &assetRatesEntity{
-				httpClient: newHTTPClientAdapter(mockClient),
-				baseURLs:   map[string]string{"transaction": "https://api.example.com"},
-			}
+			entity := &assetRatesEntity{serviceEntity: serviceEntity{httpClient: newHTTPClientAdapter(mockClient), baseURLs: map[string]string{"transaction": "https://api.example.com"}}}
 
 			result, err := entity.GetAssetRate(context.Background(), tt.orgID, tt.ledgerID, tt.externalID)
 
@@ -588,7 +577,7 @@ func TestAssetRatesEntity_ListAssetRatesByAssetCode(t *testing.T) {
 		orgID          string
 		ledgerID       string
 		assetCode      string
-		opts           *models.AssetRateListOptions
+		opts           models.AssetRatesListOpts
 		mockResponse   string
 		mockStatusCode int
 		mockError      error
@@ -602,7 +591,7 @@ func TestAssetRatesEntity_ListAssetRatesByAssetCode(t *testing.T) {
 			orgID:     "org-123",
 			ledgerID:  "ledger-456",
 			assetCode: "USD",
-			opts:      nil,
+			opts:      models.AssetRatesListOpts{},
 			mockResponse: `{
 				"items": [
 					{
@@ -636,12 +625,18 @@ func TestAssetRatesEntity_ListAssetRatesByAssetCode(t *testing.T) {
 			orgID:     "org-123",
 			ledgerID:  "ledger-456",
 			assetCode: "USD",
-			opts: models.NewAssetRateListOptions().
-				WithTo("BRL", "EUR").
-				WithLimit(5).
-				WithDateRange("2024-01-01", "2024-12-31").
-				WithSortOrder("desc").
-				WithCursor("cursor-abc"),
+			opts: models.AssetRatesListOpts{
+				CursorListOpts: models.CursorListOpts{
+					Limit:         5,
+					Cursor:        "cursor-abc",
+					SortDirection: models.SortDescending,
+					StartDate:     "2024-01-01",
+					EndDate:       "2024-12-31",
+				},
+				Filters: models.AssetRatesFilters{
+					To: []string{"BRL", "EUR"},
+				},
+			},
 			mockResponse: `{
 				"items": [
 					{
@@ -677,7 +672,7 @@ func TestAssetRatesEntity_ListAssetRatesByAssetCode(t *testing.T) {
 			orgID:     "org-123",
 			ledgerID:  "ledger-456",
 			assetCode: "USD",
-			opts:      models.NewAssetRateListOptions().WithCursor("next-page-cursor"),
+			opts:      models.AssetRatesListOpts{CursorListOpts: models.CursorListOpts{Cursor: "next-page-cursor"}},
 			mockResponse: `{
 				"items": [
 					{
@@ -702,7 +697,7 @@ func TestAssetRatesEntity_ListAssetRatesByAssetCode(t *testing.T) {
 			orgID:         "",
 			ledgerID:      "ledger-456",
 			assetCode:     "USD",
-			opts:          nil,
+			opts:          models.AssetRatesListOpts{},
 			expectedError: true,
 			errorContains: "organizationID",
 		},
@@ -711,7 +706,7 @@ func TestAssetRatesEntity_ListAssetRatesByAssetCode(t *testing.T) {
 			orgID:         "org-123",
 			ledgerID:      "",
 			assetCode:     "USD",
-			opts:          nil,
+			opts:          models.AssetRatesListOpts{},
 			expectedError: true,
 			errorContains: "ledgerID",
 		},
@@ -720,7 +715,7 @@ func TestAssetRatesEntity_ListAssetRatesByAssetCode(t *testing.T) {
 			orgID:         "org-123",
 			ledgerID:      "ledger-456",
 			assetCode:     "",
-			opts:          nil,
+			opts:          models.AssetRatesListOpts{},
 			expectedError: true,
 			errorContains: "assetCode",
 		},
@@ -729,7 +724,7 @@ func TestAssetRatesEntity_ListAssetRatesByAssetCode(t *testing.T) {
 			orgID:          "org-123",
 			ledgerID:       "ledger-456",
 			assetCode:      "INVALID",
-			opts:           nil,
+			opts:           models.AssetRatesListOpts{},
 			mockStatusCode: http.StatusBadRequest,
 			mockResponse:   `{"error": "Invalid asset code"}`,
 			expectedError:  true,
@@ -739,7 +734,7 @@ func TestAssetRatesEntity_ListAssetRatesByAssetCode(t *testing.T) {
 			orgID:          "org-123",
 			ledgerID:       "ledger-456",
 			assetCode:      "USD",
-			opts:           nil,
+			opts:           models.AssetRatesListOpts{},
 			mockStatusCode: http.StatusUnauthorized,
 			mockResponse:   `{"error": "Invalid or expired token"}`,
 			expectedError:  true,
@@ -749,7 +744,7 @@ func TestAssetRatesEntity_ListAssetRatesByAssetCode(t *testing.T) {
 			orgID:          "org-123",
 			ledgerID:       "ledger-456",
 			assetCode:      "USD",
-			opts:           nil,
+			opts:           models.AssetRatesListOpts{},
 			mockStatusCode: http.StatusForbidden,
 			mockResponse:   `{"error": "Access denied"}`,
 			expectedError:  true,
@@ -759,7 +754,7 @@ func TestAssetRatesEntity_ListAssetRatesByAssetCode(t *testing.T) {
 			orgID:          "org-123",
 			ledgerID:       "not-found-ledger",
 			assetCode:      "USD",
-			opts:           nil,
+			opts:           models.AssetRatesListOpts{},
 			mockStatusCode: http.StatusNotFound,
 			mockResponse:   `{"error": "Ledger not found"}`,
 			expectedError:  true,
@@ -769,7 +764,7 @@ func TestAssetRatesEntity_ListAssetRatesByAssetCode(t *testing.T) {
 			orgID:          "org-123",
 			ledgerID:       "ledger-456",
 			assetCode:      "USD",
-			opts:           nil,
+			opts:           models.AssetRatesListOpts{},
 			mockStatusCode: http.StatusInternalServerError,
 			mockResponse:   `{"error": "Internal server error"}`,
 			expectedError:  true,
@@ -779,7 +774,7 @@ func TestAssetRatesEntity_ListAssetRatesByAssetCode(t *testing.T) {
 			orgID:         "org-123",
 			ledgerID:      "ledger-456",
 			assetCode:     "USD",
-			opts:          nil,
+			opts:          models.AssetRatesListOpts{},
 			mockError:     errors.New("connection refused"),
 			expectedError: true,
 		},
@@ -788,7 +783,7 @@ func TestAssetRatesEntity_ListAssetRatesByAssetCode(t *testing.T) {
 			orgID:     "org-123",
 			ledgerID:  "ledger-456",
 			assetCode: "XYZ",
-			opts:      nil,
+			opts:      models.AssetRatesListOpts{},
 			mockResponse: `{
 				"items": [],
 				"limit": 10
@@ -811,7 +806,7 @@ func runListAssetRatesByAssetCodeTest(t *testing.T, tt struct {
 	orgID          string
 	ledgerID       string
 	assetCode      string
-	opts           *models.AssetRateListOptions
+	opts           models.AssetRatesListOpts
 	mockResponse   string
 	mockStatusCode int
 	mockError      error
@@ -824,10 +819,7 @@ func runListAssetRatesByAssetCodeTest(t *testing.T, tt struct {
 	t.Helper()
 
 	mockClient := createListAssetRatesMockClient(t, tt.mockError, tt.mockStatusCode, tt.mockResponse, tt.checkRequest)
-	entity := &assetRatesEntity{
-		httpClient: newHTTPClientAdapter(mockClient),
-		baseURLs:   map[string]string{"transaction": "https://api.example.com"},
-	}
+	entity := &assetRatesEntity{serviceEntity: serviceEntity{httpClient: newHTTPClientAdapter(mockClient), baseURLs: map[string]string{"transaction": "https://api.example.com"}}}
 
 	result, err := entity.ListAssetRatesByAssetCode(context.Background(), tt.orgID, tt.ledgerID, tt.assetCode, tt.opts)
 
@@ -864,7 +856,7 @@ func createListAssetRatesMockClient(t *testing.T, mockError error, mockStatusCod
 }
 
 // assertListAssetRatesResult asserts the expected result of listing asset rates.
-func assertListAssetRatesResult(t *testing.T, expectedError bool, errorContains string, expectedItems int, result *models.AssetRatesResponse, err error) {
+func assertListAssetRatesResult(t *testing.T, expectedError bool, errorContains string, expectedItems int, result *models.ListResponse[models.AssetRate], err error) {
 	t.Helper()
 
 	if expectedError {
@@ -905,7 +897,7 @@ func TestAssetRatesEntity_IntegrationWithHTTPTestServer(t *testing.T) {
 		}))
 		defer server.Close()
 
-		entity := NewAssetRatesEntity(
+		entity := newAssetRatesEntity(
 			server.Client(),
 			"test-token",
 			map[string]string{"transaction": server.URL},
@@ -942,7 +934,7 @@ func TestAssetRatesEntity_IntegrationWithHTTPTestServer(t *testing.T) {
 		}))
 		defer server.Close()
 
-		entity := NewAssetRatesEntity(
+		entity := newAssetRatesEntity(
 			server.Client(),
 			"test-token",
 			map[string]string{"transaction": server.URL},
@@ -997,13 +989,16 @@ func TestAssetRatesEntity_IntegrationWithHTTPTestServer(t *testing.T) {
 		}))
 		defer server.Close()
 
-		entity := NewAssetRatesEntity(
+		entity := newAssetRatesEntity(
 			server.Client(),
 			"test-token",
 			map[string]string{"transaction": server.URL},
 		)
 
-		opts := models.NewAssetRateListOptions().WithTo("BRL", "EUR").WithLimit(10)
+		opts := models.AssetRatesListOpts{
+			CursorListOpts: models.CursorListOpts{Limit: 10},
+			Filters:        models.AssetRatesFilters{To: []string{"BRL", "EUR"}},
+		}
 		result, err := entity.ListAssetRatesByAssetCode(context.Background(), "org-123", "ledger-456", "USD", opts)
 
 		require.NoError(t, err)
@@ -1022,7 +1017,7 @@ func TestAssetRatesEntity_ContextCancellation(t *testing.T) {
 		}))
 		defer server.Close()
 
-		entity := NewAssetRatesEntity(
+		entity := newAssetRatesEntity(
 			server.Client(),
 			"test-token",
 			map[string]string{"transaction": server.URL},
@@ -1044,7 +1039,7 @@ func TestAssetRatesEntity_ContextCancellation(t *testing.T) {
 		}))
 		defer server.Close()
 
-		entity := NewAssetRatesEntity(
+		entity := newAssetRatesEntity(
 			server.Client(),
 			"test-token",
 			map[string]string{"transaction": server.URL},
@@ -1065,7 +1060,7 @@ func TestAssetRatesEntity_ContextCancellation(t *testing.T) {
 		}))
 		defer server.Close()
 
-		entity := NewAssetRatesEntity(
+		entity := newAssetRatesEntity(
 			server.Client(),
 			"test-token",
 			map[string]string{"transaction": server.URL},
@@ -1074,24 +1069,21 @@ func TestAssetRatesEntity_ContextCancellation(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
-		_, err := entity.ListAssetRatesByAssetCode(ctx, "org-123", "ledger-456", "USD", nil)
+		_, err := entity.ListAssetRatesByAssetCode(ctx, "org-123", "ledger-456", "USD", models.AssetRatesListOpts{})
 
 		require.Error(t, err)
 	})
 }
 
 func TestAssetRatesEntity_ValidationEdgeCases(t *testing.T) {
-	entity := &assetRatesEntity{
-		httpClient: newHTTPClientAdapter(&MockHTTPClient{
-			DoFunc: func(_ *http.Request) (*http.Response, error) {
-				return &http.Response{
-					StatusCode: http.StatusOK,
-					Body:       io.NopCloser(strings.NewReader(`{}`)),
-				}, nil
-			},
-		}),
-		baseURLs: map[string]string{"transaction": "https://api.example.com"},
-	}
+	entity := &assetRatesEntity{serviceEntity: serviceEntity{httpClient: newHTTPClientAdapter(&MockHTTPClient{
+		DoFunc: func(_ *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{}`)),
+			}, nil
+		},
+	}), baseURLs: map[string]string{"transaction": "https://api.example.com"}}}
 
 	t.Run("CreateOrUpdateAssetRate with whitespace-only organization ID", func(t *testing.T) {
 		input := models.NewCreateAssetRateInput("USD", "BRL", 500)
@@ -1107,7 +1099,7 @@ func TestAssetRatesEntity_ValidationEdgeCases(t *testing.T) {
 	})
 
 	t.Run("ListAssetRatesByAssetCode with whitespace-only asset code", func(t *testing.T) {
-		_, err := entity.ListAssetRatesByAssetCode(context.Background(), "org-123", "ledger-456", "   ", nil)
+		_, err := entity.ListAssetRatesByAssetCode(context.Background(), "org-123", "ledger-456", "   ", models.AssetRatesListOpts{})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "assetCode")
 	})
@@ -1145,10 +1137,7 @@ func TestAssetRatesEntity_ResponseParsing(t *testing.T) {
 			},
 		}
 
-		entity := &assetRatesEntity{
-			httpClient: newHTTPClientAdapter(mockClient),
-			baseURLs:   map[string]string{"transaction": "https://api.example.com"},
-		}
+		entity := &assetRatesEntity{serviceEntity: serviceEntity{httpClient: newHTTPClientAdapter(mockClient), baseURLs: map[string]string{"transaction": "https://api.example.com"}}}
 
 		input := models.NewCreateAssetRateInput("USD", "BRL", 525).WithScale(2)
 		result, err := entity.CreateOrUpdateAssetRate(context.Background(), "org-123", "ledger-456", input)
@@ -1160,9 +1149,10 @@ func TestAssetRatesEntity_ResponseParsing(t *testing.T) {
 		assert.Equal(t, "ext-full", result.ExternalID)
 		assert.Equal(t, "USD", result.From)
 		assert.Equal(t, "BRL", result.To)
-		assert.InDelta(t, 5.25, result.Rate, 0.001)
-		assert.NotNil(t, result.Scale)
-		assert.InDelta(t, float64(2), *result.Scale, 0.001)
+		require.NotNil(t, result.Rate)
+		assert.Equal(t, "5.25", result.Rate.String())
+		require.NotNil(t, result.Scale)
+		assert.Equal(t, 2, *result.Scale)
 		assert.NotNil(t, result.Source)
 		assert.Equal(t, "Central Bank", *result.Source)
 		assert.Equal(t, 3600, result.TTL)
@@ -1188,19 +1178,16 @@ func TestAssetRatesEntity_ResponseParsing(t *testing.T) {
 			},
 		}
 
-		entity := &assetRatesEntity{
-			httpClient: newHTTPClientAdapter(mockClient),
-			baseURLs:   map[string]string{"transaction": "https://api.example.com"},
-		}
+		entity := &assetRatesEntity{serviceEntity: serviceEntity{httpClient: newHTTPClientAdapter(mockClient), baseURLs: map[string]string{"transaction": "https://api.example.com"}}}
 
-		result, err := entity.ListAssetRatesByAssetCode(context.Background(), "org-123", "ledger-456", "USD", nil)
+		result, err := entity.ListAssetRatesByAssetCode(context.Background(), "org-123", "ledger-456", "USD", models.AssetRatesListOpts{})
 
 		require.NoError(t, err)
-		assert.Equal(t, 10, result.Limit)
-		assert.NotNil(t, result.NextCursor)
-		assert.Equal(t, "cursor-next-123", *result.NextCursor)
-		assert.NotNil(t, result.PrevCursor)
-		assert.Equal(t, "cursor-prev-456", *result.PrevCursor)
+		assert.Equal(t, 10, result.Pagination.Limit)
+		assert.Equal(t, "cursor-next-123", result.Pagination.NextCursor)
+		assert.Equal(t, "cursor-prev-456", result.Pagination.PrevCursor)
+		assert.True(t, result.Pagination.HasMore())
+		assert.True(t, result.Pagination.HasPrev())
 	})
 
 	t.Run("malformed JSON response", func(t *testing.T) {
@@ -1213,14 +1200,321 @@ func TestAssetRatesEntity_ResponseParsing(t *testing.T) {
 			},
 		}
 
-		entity := &assetRatesEntity{
-			httpClient: newHTTPClientAdapter(mockClient),
-			baseURLs:   map[string]string{"transaction": "https://api.example.com"},
-		}
+		entity := &assetRatesEntity{serviceEntity: serviceEntity{httpClient: newHTTPClientAdapter(mockClient), baseURLs: map[string]string{"transaction": "https://api.example.com"}}}
 
 		input := models.NewCreateAssetRateInput("USD", "BRL", 500)
 		_, err := entity.CreateOrUpdateAssetRate(context.Background(), "org-123", "ledger-456", input)
 
 		require.Error(t, err)
+	})
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// v3 typed-options tests (Track 5 Batch 5C)
+// ─────────────────────────────────────────────────────────────────────
+
+func TestAssetRatesListOpts_Validate(t *testing.T) {
+	tests := []struct {
+		name    string
+		opts    models.AssetRatesListOpts
+		wantErr string
+	}{
+		{name: "zero value valid", opts: models.AssetRatesListOpts{}},
+		{name: "valid populated", opts: models.AssetRatesListOpts{
+			CursorListOpts: models.CursorListOpts{
+				Limit:         50,
+				Cursor:        "abc",
+				SortDirection: models.SortAscending,
+			},
+			Filters: models.AssetRatesFilters{To: []string{"BRL"}},
+		}},
+		{name: "valid at max limit", opts: models.AssetRatesListOpts{CursorListOpts: models.CursorListOpts{Limit: models.MaxLimit}}},
+		{name: "negative limit", opts: models.AssetRatesListOpts{CursorListOpts: models.CursorListOpts{Limit: -1}}, wantErr: "limit must be non-negative"},
+		{name: "limit over max", opts: models.AssetRatesListOpts{CursorListOpts: models.CursorListOpts{Limit: models.MaxLimit + 1}}, wantErr: "limit exceeds maximum"},
+		{name: "limit way over max", opts: models.AssetRatesListOpts{CursorListOpts: models.CursorListOpts{Limit: 5000}}, wantErr: "limit exceeds maximum"},
+		{name: "invalid sort direction", opts: models.AssetRatesListOpts{CursorListOpts: models.CursorListOpts{SortDirection: "weird"}}, wantErr: "sort direction must be empty"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.opts.Validate()
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantErr)
+		})
+	}
+}
+
+func TestAssetRatesListOpts_ToQueryParams(t *testing.T) {
+	tests := []struct {
+		name string
+		opts models.AssetRatesListOpts
+		want map[string]string
+	}{
+		{name: "zero value emits no params", opts: models.AssetRatesListOpts{}, want: map[string]string{}},
+		{
+			name: "limit + cursor",
+			opts: models.AssetRatesListOpts{CursorListOpts: models.CursorListOpts{Limit: 25, Cursor: "next-token"}},
+			want: map[string]string{"limit": "25", "cursor": "next-token"},
+		},
+		{
+			name: "all fields populated",
+			opts: models.AssetRatesListOpts{
+				CursorListOpts: models.CursorListOpts{
+					Limit:         50,
+					Cursor:        "abc",
+					SortDirection: models.SortDescending,
+					StartDate:     "2024-01-01",
+					EndDate:       "2024-12-31",
+				},
+				Filters: models.AssetRatesFilters{
+					To: []string{"BRL", "EUR", "USD"},
+				},
+			},
+			want: map[string]string{
+				"limit":      "50",
+				"cursor":     "abc",
+				"sort_order": "desc",
+				"to":         "BRL,EUR,USD",
+				"start_date": "2024-01-01",
+				"end_date":   "2024-12-31",
+			},
+		},
+		{
+			name: "filters only",
+			opts: models.AssetRatesListOpts{Filters: models.AssetRatesFilters{To: []string{"BRL"}}},
+			want: map[string]string{"to": "BRL"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.opts.ToQueryParams()
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// pagedMockHandler returns an http.HandlerFunc that serves cursor-paginated
+// asset-rate pages. Each request must carry the expected ?cursor= value for
+// its index — wantCursors[0] is asserted on the first call, wantCursors[1]
+// on the second, and so on. Mismatches fail the test, which proves the
+// iterator is actually forwarding next_cursor between pages instead of
+// silently re-fetching page 1. hits is incremented on every call so the
+// caller can assert exact request counts (e.g., bounded Collect must NOT
+// request page 2).
+func pagedMockHandler(t *testing.T, pages [][]byte, wantCursors []string, hits *int) http.HandlerFunc {
+	t.Helper()
+
+	var idx int
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		if hits != nil {
+			*hits++
+		}
+
+		if idx < len(wantCursors) {
+			// assert (not require) — require's t.FailNow inside the
+			// HTTP-handler goroutine is undefined behavior per testify.
+			assert.Equal(t, wantCursors[idx], r.URL.Query().Get("cursor"),
+				"unexpected cursor on request #%d", idx+1)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+
+		if idx >= len(pages) {
+			_, _ = w.Write([]byte(`{"items":[],"pagination":{"limit":10}}`))
+			return
+		}
+
+		_, _ = w.Write(pages[idx])
+		idx++
+	}
+}
+
+func TestListAssetRatesByAssetCodePages_TraversesCursors(t *testing.T) {
+	pages := [][]byte{
+		[]byte(`{
+			"items": [{"id":"r1","from":"USD","to":"BRL","rate":5.00}],
+			"pagination": {"limit": 1, "next_cursor": "cursor-2"}
+		}`),
+		[]byte(`{
+			"items": [{"id":"r2","from":"USD","to":"EUR","rate":0.92}],
+			"pagination": {"limit": 1, "next_cursor": "cursor-3"}
+		}`),
+		[]byte(`{
+			"items": [{"id":"r3","from":"USD","to":"GBP","rate":0.79}],
+			"pagination": {"limit": 1}
+		}`),
+	}
+
+	hits := 0
+	server := httptest.NewServer(pagedMockHandler(t, pages, []string{"", "cursor-2", "cursor-3"}, &hits))
+	defer server.Close()
+
+	entity := newAssetRatesEntity(
+		server.Client(),
+		"test-token",
+		map[string]string{"transaction": server.URL},
+	)
+
+	var pageCount, itemCount int
+
+	for page, err := range entity.ListAssetRatesByAssetCodePages(
+		context.Background(), "org-1", "ledger-1", "USD",
+		models.AssetRatesListOpts{CursorListOpts: models.CursorListOpts{Limit: 1}},
+	) {
+		require.NoError(t, err)
+		require.NotNil(t, page)
+		pageCount++
+		itemCount += len(page.Items)
+	}
+
+	assert.Equal(t, 3, pageCount, "expected three pages traversed")
+	assert.Equal(t, 3, itemCount, "expected three items collected across pages")
+	assert.Equal(t, 3, hits, "expected exactly three HTTP requests (one per page)")
+}
+
+func TestListAssetRatesByAssetCodeAll_ItemLevelIteration(t *testing.T) {
+	pages := [][]byte{
+		[]byte(`{
+			"items": [
+				{"id":"r1","from":"USD","to":"BRL","rate":5.00},
+				{"id":"r2","from":"USD","to":"EUR","rate":0.92}
+			],
+			"pagination": {"limit": 2, "next_cursor": "page-2"}
+		}`),
+		[]byte(`{
+			"items": [
+				{"id":"r3","from":"USD","to":"GBP","rate":0.79}
+			],
+			"pagination": {"limit": 2}
+		}`),
+	}
+
+	hits := 0
+	server := httptest.NewServer(pagedMockHandler(t, pages, []string{"", "page-2"}, &hits))
+	defer server.Close()
+
+	entity := newAssetRatesEntity(
+		server.Client(),
+		"test-token",
+		map[string]string{"transaction": server.URL},
+	)
+
+	rates, err := CollectAll(entity.ListAssetRatesByAssetCodeAll(
+		context.Background(), "org-1", "ledger-1", "USD",
+		models.AssetRatesListOpts{CursorListOpts: models.CursorListOpts{Limit: 2}},
+	))
+	require.NoError(t, err)
+	require.Len(t, rates, 3)
+	assert.Equal(t, 2, hits, "expected exactly two HTTP requests (page-2 cursor must propagate)")
+
+	assert.Equal(t, "r1", rates[0].ID)
+	assert.Equal(t, "r2", rates[1].ID)
+	assert.Equal(t, "r3", rates[2].ID)
+}
+
+func TestListAssetRatesByAssetCodeAll_BoundedByCollect(t *testing.T) {
+	pages := [][]byte{
+		[]byte(`{
+			"items": [
+				{"id":"r1","from":"USD","to":"BRL","rate":5.00},
+				{"id":"r2","from":"USD","to":"EUR","rate":0.92}
+			],
+			"pagination": {"limit": 2, "next_cursor": "more"}
+		}`),
+		[]byte(`{
+			"items": [
+				{"id":"r3","from":"USD","to":"GBP","rate":0.79}
+			],
+			"pagination": {"limit": 2, "next_cursor": "again"}
+		}`),
+	}
+
+	hits := 0
+	server := httptest.NewServer(pagedMockHandler(t, pages, []string{""}, &hits))
+	defer server.Close()
+
+	entity := newAssetRatesEntity(
+		server.Client(),
+		"test-token",
+		map[string]string{"transaction": server.URL},
+	)
+
+	// Collect with cap=2 — should stop after the second item, before
+	// even draining the rest of page 1, and never request page 2.
+	rates, err := Collect(entity.ListAssetRatesByAssetCodeAll(
+		context.Background(), "org-1", "ledger-1", "USD",
+		models.AssetRatesListOpts{CursorListOpts: models.CursorListOpts{Limit: 2}},
+	), 2)
+	require.NoError(t, err)
+	require.Len(t, rates, 2)
+	assert.Equal(t, 1, hits, "bounded Collect must stop before requesting page 2")
+}
+
+func TestListAssetRatesByAssetCode_ValidatesOptsBeforeRequest(t *testing.T) {
+	called := false
+	mockClient := &MockHTTPClient{
+		DoFunc: func(_ *http.Request) (*http.Response, error) {
+			called = true
+			return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(`{}`))}, nil
+		},
+	}
+
+	entity := &assetRatesEntity{serviceEntity: serviceEntity{httpClient: newHTTPClientAdapter(mockClient), baseURLs: map[string]string{"transaction": "https://api.example.com"}}}
+
+	_, err := entity.ListAssetRatesByAssetCode(
+		context.Background(), "org-1", "ledger-1", "USD",
+		models.AssetRatesListOpts{CursorListOpts: models.CursorListOpts{Limit: 5000}}, // exceeds MaxLimit
+	)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "limit exceeds maximum")
+	assert.False(t, called, "request should not have been issued when validation fails")
+}
+
+// TestAssetRatesEntity_ListAssetRatesByAssetCodePages_NilContext is the
+// regression for the Track 10C nil-context fix omission — without
+// requestContext(ctx) at the top of the iterator, calling Pages with a
+// nil context panicked on the first ctx.Err() inside the closure.
+//
+// Mirrors TestPortfoliosEntity_ListPortfoliosPages_NilContext in spirit:
+// the contract under test is "iterator must accept a nil context without
+// panicking". We use a MockHTTPClient that returns a single empty page so
+// the iterator drains cleanly — what matters is the absence of a panic
+// on the first iteration's ctx.Err() check.
+func TestAssetRatesEntity_ListAssetRatesByAssetCodePages_NilContext(t *testing.T) {
+	mockClient := &MockHTTPClient{
+		DoFunc: func(_ *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body: io.NopCloser(strings.NewReader(
+					`{"items":[],"pagination":{"limit":10}}`,
+				)),
+				Header: make(http.Header),
+			}, nil
+		},
+	}
+
+	entity := &assetRatesEntity{serviceEntity: serviceEntity{
+		httpClient: newHTTPClientAdapter(mockClient),
+		baseURLs:   map[string]string{"transaction": "https://api.example.com"},
+	}}
+
+	var nilCtx context.Context
+
+	require.NotPanics(t, func() {
+		for _, err := range entity.ListAssetRatesByAssetCodePages(
+			nilCtx, "org-123", "ledger-456", "USD",
+			models.AssetRatesListOpts{CursorListOpts: models.CursorListOpts{Limit: 10}},
+		) {
+			require.NoError(t, err)
+		}
 	})
 }

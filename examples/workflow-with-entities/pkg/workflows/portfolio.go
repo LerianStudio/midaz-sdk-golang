@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v2"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 )
 
 // CreatePortfolio creates a portfolio
@@ -21,13 +21,13 @@ import (
 // Returns:
 //   - string: The ID of the created portfolio
 //   - error: Any error encountered during the operation
-func CreatePortfolio(ctx context.Context, midazClient *client.Client, orgID, ledgerID string) (string, error) {
+func CreatePortfolio(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string) (string, error) {
 	fmt.Println("\n\n📁 STEP 6: PORTFOLIO CREATION")
 	fmt.Println(strings.Repeat("=", 50))
 
 	fmt.Println("\nCreating portfolio...")
 
-	portfolio, err := midazClient.Entity.Portfolios.CreatePortfolio(
+	portfolio, err := midazClient.Portfolios.CreatePortfolio(
 		ctx, orgID, ledgerID,
 		models.NewCreatePortfolioInput(ledgerID, "Main Portfolio"),
 	)

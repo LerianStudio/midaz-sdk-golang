@@ -3,6 +3,7 @@ package models
 import (
 	"testing"
 
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -316,6 +317,33 @@ func TestCreateAssetInput_Validate(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestCreateAssetInput_Validate_AccumulatesAllFieldErrors is the 8C
+// regression test: when multiple fields are invalid, Validate must
+// surface ALL of them in a single call rather than only the first.
+// This is the multi-field UX improvement that audit 8.4 calls out.
+func TestCreateAssetInput_Validate_AccumulatesAllFieldErrors(t *testing.T) {
+	// All three required fields missing.
+	input := &CreateAssetInput{Name: "", Code: "", Type: ""}
+
+	err := input.Validate()
+	require.Error(t, err)
+
+	msg := err.Error()
+	// All three problems must be surfaced together.
+	assert.Contains(t, msg, "name is required",
+		"expected name error in: %q", msg)
+	assert.Contains(t, msg, "code is required",
+		"expected code error in: %q", msg)
+	assert.Contains(t, msg, "type is required",
+		"expected type error in: %q", msg)
+
+	// errors.As must extract the FieldErrors for programmatic walking.
+	var fe *validation.FieldErrors
+	require.ErrorAs(t, err, &fe)
+	assert.Equal(t, 3, fe.Len(),
+		"expected 3 field errors, got %d: %s", fe.Len(), msg)
 }
 
 func TestCreateAssetInput_MethodChaining(t *testing.T) {

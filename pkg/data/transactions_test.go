@@ -36,7 +36,6 @@ func TestPaymentPattern(t *testing.T) {
 
 		assert.Equal(t, "payment", p.ChartOfAccountsGroupName)
 		assert.Equal(t, "Customer payment to merchant with platform fee", p.Description)
-		assert.False(t, p.RequiresCommit)
 		assert.Equal(t, "idem-123", p.IdempotencyKey)
 		assert.Equal(t, "ext-456", p.ExternalID)
 		assert.Equal(t, "payment", p.Metadata["pattern"])
@@ -75,7 +74,6 @@ func TestRefundPattern(t *testing.T) {
 
 		assert.Equal(t, "refund", p.ChartOfAccountsGroupName)
 		assert.Equal(t, "Merchant refund to customer", p.Description)
-		assert.False(t, p.RequiresCommit)
 		assert.Equal(t, "idem-refund-123", p.IdempotencyKey)
 		assert.Equal(t, "ext-refund-456", p.ExternalID)
 		assert.Equal(t, "refund", p.Metadata["pattern"])
@@ -103,7 +101,6 @@ func TestTransferPattern(t *testing.T) {
 
 		assert.Equal(t, "transfer", p.ChartOfAccountsGroupName)
 		assert.Equal(t, "Internal transfer", p.Description)
-		assert.False(t, p.RequiresCommit)
 		assert.Equal(t, "idem-transfer", p.IdempotencyKey)
 		assert.Equal(t, "ext-transfer", p.ExternalID)
 		assert.Equal(t, "transfer", p.Metadata["pattern"])
@@ -160,7 +157,6 @@ func TestFeeCollectionPattern(t *testing.T) {
 
 		assert.Equal(t, "fee_collection", p.ChartOfAccountsGroupName)
 		assert.Equal(t, "Payment with platform fee percentage", p.Description)
-		assert.False(t, p.RequiresCommit)
 		assert.Equal(t, "idem-fee", p.IdempotencyKey)
 		assert.Equal(t, "ext-fee", p.ExternalID)
 		assert.Equal(t, "fee_collection", p.Metadata["pattern"])
@@ -204,7 +200,6 @@ func TestCurrencyExchangePattern(t *testing.T) {
 
 		assert.Equal(t, "fx", p.ChartOfAccountsGroupName)
 		assert.Equal(t, "Customer FX exchange", p.Description)
-		assert.False(t, p.RequiresCommit)
 		assert.Equal(t, "idem-fx", p.IdempotencyKey)
 		assert.Equal(t, "ext-fx", p.ExternalID)
 		assert.Equal(t, "fx", p.Metadata["pattern"])
@@ -344,7 +339,6 @@ func TestBatchSettlementPattern(t *testing.T) {
 
 		assert.Equal(t, "batch_settlement", p.ChartOfAccountsGroupName)
 		assert.Equal(t, "Batch settlement to multiple parties", p.Description)
-		assert.False(t, p.RequiresCommit)
 		assert.Equal(t, "idem-batch", p.IdempotencyKey)
 		assert.Equal(t, "ext-batch", p.ExternalID)
 		assert.Equal(t, "batch_settlement", p.Metadata["pattern"])
@@ -409,7 +403,6 @@ func TestSubscriptionPattern(t *testing.T) {
 
 		assert.Equal(t, "subscription", p.ChartOfAccountsGroupName)
 		assert.Equal(t, "Recurring subscription payment", p.Description)
-		assert.False(t, p.RequiresCommit)
 		assert.Equal(t, "idem-sub", p.IdempotencyKey)
 		assert.Equal(t, "ext-sub", p.ExternalID)
 		assert.Equal(t, "subscription", p.Metadata["pattern"])
@@ -441,7 +434,6 @@ func TestSplitPaymentPattern(t *testing.T) {
 
 		assert.Equal(t, "split_payment", p.ChartOfAccountsGroupName)
 		assert.Equal(t, "Customer payment split among multiple recipients", p.Description)
-		assert.False(t, p.RequiresCommit)
 		assert.Equal(t, "idem-split", p.IdempotencyKey)
 		assert.Equal(t, "ext-split", p.ExternalID)
 		assert.Equal(t, "split_payment", p.Metadata["pattern"])
@@ -528,7 +520,6 @@ func TestTransactionPatternStructFromTransactions(t *testing.T) {
 		ChartOfAccountsGroupName: "test_group",
 		Description:              "Test description",
 		DSLTemplate:              "send [USD 100] (source = @a)",
-		RequiresCommit:           true,
 		IdempotencyKey:           "test-idem-key",
 		ExternalID:               "test-ext-id",
 		Metadata:                 map[string]any{"key": "value"},
@@ -537,7 +528,6 @@ func TestTransactionPatternStructFromTransactions(t *testing.T) {
 	assert.Equal(t, "test_group", p.ChartOfAccountsGroupName)
 	assert.Equal(t, "Test description", p.Description)
 	assert.Equal(t, "send [USD 100] (source = @a)", p.DSLTemplate)
-	assert.True(t, p.RequiresCommit)
 	assert.Equal(t, "test-idem-key", p.IdempotencyKey)
 	assert.Equal(t, "test-ext-id", p.ExternalID)
 	assert.Equal(t, "value", p.Metadata["key"])

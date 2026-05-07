@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,11 +20,11 @@ func TestSlice5DirectConstructors_CopyTransactionBaseURLs(t *testing.T) {
 	baseURLs := map[string]string{"transaction": "https://transaction.example.com/"}
 
 	services := []any{
-		NewTransactionsEntity(nil, "token", baseURLs),
-		NewOperationsEntity(nil, "token", baseURLs),
-		NewOperationRoutesEntity(nil, "token", baseURLs),
-		NewTransactionRoutesEntity(nil, "token", baseURLs),
-		NewAssetRatesEntity(nil, "token", baseURLs),
+		newTransactionsEntity(nil, baseURLs),
+		newOperationsEntity(nil, "token", baseURLs),
+		newOperationRoutesEntity(nil, "token", baseURLs),
+		newTransactionRoutesEntity(nil, "token", baseURLs),
+		newAssetRatesEntity(nil, "token", baseURLs),
 	}
 
 	baseURLs["transaction"] = "https://evil.example.com"
@@ -53,7 +53,7 @@ func TestSlice5RouteServices_HTTPContracts(t *testing.T) {
 		{
 			name: "operation route create",
 			call: func(baseURL string) error {
-				svc := NewOperationRoutesEntity(nil, "token", map[string]string{"transaction": baseURL})
+				svc := newOperationRoutesEntity(nil, "token", map[string]string{"transaction": baseURL})
 				_, err := svc.CreateOperationRoute(nilContext, "org/1", "ledger/1", models.NewCreateOperationRouteInput("Source", "desc", "source"))
 
 				return err
@@ -62,10 +62,14 @@ func TestSlice5RouteServices_HTTPContracts(t *testing.T) {
 			wantPath:   "/organizations/org%2F1/ledgers/ledger%2F1/operation-routes",
 		},
 		{
-			name: "transaction route list omits page",
+			name: "transaction route list (cursor-only)",
 			call: func(baseURL string) error {
-				svc := NewTransactionRoutesEntity(nil, "token", map[string]string{"transaction": baseURL})
-				_, err := svc.ListTransactionRoutes(nilContext, "org/1", "ledger/1", models.NewListOptions().WithPage(3).WithCursor("next"))
+				svc := newTransactionRoutesEntity(nil, "token", map[string]string{"transaction": baseURL})
+				// v3 TransactionRoutesListOpts has NO Page field —
+				// compile-time prevention of the v2 silent-drop footgun.
+				_, err := svc.ListTransactionRoutes(nilContext, "org/1", "ledger/1", models.TransactionRoutesListOpts{
+					CursorListOpts: models.CursorListOpts{Cursor: "next"},
+				})
 
 				return err
 			},
@@ -108,8 +112,13 @@ func TestSlice5TransactionsCount_WhitelistsContractFilters(t *testing.T) {
 	}))
 	defer server.Close()
 
-	svc := NewTransactionsEntity(server.Client(), "token", map[string]string{"transaction": server.URL})
-	count, err := svc.GetTransactionsMetricsCount(context.Background(), "org", "ledger", models.NewListOptions().WithPage(3).WithLimit(50).WithCursor("abc").WithAdditionalParam("route", "cashin").WithAdditionalParam("status", "APPROVED"))
+	svc := newTransactionsEntity(server.Client(), map[string]string{"transaction": server.URL})
+	// v3: cursor/limit/sort don't apply to HEAD /metrics/count.
+	// transactionMetricsCountQueryParams emits ONLY status, route, dates.
+	count, err := svc.GetTransactionsMetricsCount(context.Background(), "org", "ledger", models.TransactionsListOpts{
+		CursorListOpts: models.CursorListOpts{Limit: 50, Cursor: "abc"},
+		Filters:        models.TransactionsFilters{Route: "cashin", Status: "APPROVED"},
+	})
 	require.NoError(t, err)
 	assert.Equal(t, 42, count.TransactionsCount)
 	assert.Equal(t, http.MethodHead, seen.Method)
@@ -142,8 +151,8 @@ func TestSlice5TransactionIdempotencyKey_AllowsRetry(t *testing.T) {
 	}))
 	defer server.Close()
 
-	svc := NewTransactionsEntity(server.Client(), "token", map[string]string{"transaction": server.URL}).(*transactionsEntity)
-	svc.httpClient.WithRetryOptions(retry.WithMaxRetries(1), retry.WithInitialDelay(time.Millisecond), retry.WithMaxDelay(time.Millisecond))
+	svc := newTransactionsEntity(server.Client(), map[string]string{"transaction": server.URL}).(*transactionsEntity)
+	require.NoError(t, svc.httpClient.WithRetryOptions(retry.WithMaxRetries(1), retry.WithInitialDelay(time.Millisecond), retry.WithMaxDelay(time.Millisecond)))
 
 	input := models.NewCreateTransactionInput("USD", "10").WithSend(&models.SendInput{Asset: "USD", Value: "10", Source: &models.SourceInput{From: []models.FromToInput{{AccountAlias: "@a", Amount: models.AmountInput{Asset: "USD", Value: "10"}}}}, Distribute: &models.DistributeInput{To: []models.FromToInput{{AccountAlias: "@b", Amount: models.AmountInput{Asset: "USD", Value: "10"}}}}})
 	input.IdempotencyKey = "caller-key"
@@ -162,7 +171,7 @@ func TestSlice5DSLFileValidation_RejectsBeforeNetwork(t *testing.T) {
 	}))
 	defer server.Close()
 
-	svc := NewTransactionsEntity(server.Client(), "token", map[string]string{"transaction": server.URL})
+	svc := newTransactionsEntity(server.Client(), map[string]string{"transaction": server.URL})
 
 	_, err := svc.CreateTransactionWithDSLFile(context.Background(), "org", "ledger", []byte{0xff, 0xfe})
 	require.Error(t, err)
@@ -174,7 +183,7 @@ func TestSlice5DSLFileValidation_RejectsBeforeNetwork(t *testing.T) {
 }
 
 func TestSlice5AssetRateExternalIDRequiresUUID(t *testing.T) {
-	svc := NewAssetRatesEntity(nil, "token", map[string]string{"transaction": "https://api.example.com"})
+	svc := newAssetRatesEntity(nil, "token", map[string]string{"transaction": "https://api.example.com"})
 
 	_, err := svc.CreateOrUpdateAssetRate(context.Background(), "org", "ledger", models.NewCreateAssetRateInput("USD", "BRL", 525).WithExternalID("not-a-uuid"))
 	require.Error(t, err)
@@ -187,7 +196,7 @@ func TestSlice5AssetRateExternalIDRequiresUUID(t *testing.T) {
 func TestSlice5UpdatePayloadRejectsTypedNil(t *testing.T) {
 	var update *models.UpdateOperationInput
 
-	svc := NewOperationsEntity(nil, "token", map[string]string{"transaction": "https://api.example.com"})
+	svc := newOperationsEntity(nil, "token", map[string]string{"transaction": "https://api.example.com"})
 
 	_, err := svc.UpdateTransactionOperation(context.Background(), "org", "ledger", "tx", "op", update)
 	require.Error(t, err)

@@ -1,4 +1,4 @@
-package client
+package midaz
 
 import (
 	"context"
@@ -8,16 +8,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/config"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
 	"github.com/stretchr/testify/require"
 )
 
 func TestClientNew_WithNilOption_ReturnsError(t *testing.T) {
 	_, err := New(nil)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "option cannot be nil")
+	require.True(t, sdkerrors.IsConfigurationError(err),
+		"nil option should yield a typed ErrConfiguration")
+	require.Contains(t, err.Error(), "index 0",
+		"error should identify which option index was nil")
 }
 
 func TestClientTrace_WithNilCallback_ReturnsError(t *testing.T) {
@@ -33,11 +36,10 @@ func TestClientWithTimeout_PropagatesToOwnedEntityHTTPClient(t *testing.T) {
 	c, err := New(
 		WithConfig(createTestConfig(t)),
 		WithTimeout(7*time.Second),
-		UseEntityAPI(),
 	)
 	require.NoError(t, err)
 	require.NotNil(t, c.Entity)
-	require.Equal(t, 7*time.Second, c.Entity.GetHTTPClient().Timeout)
+	require.Equal(t, 7*time.Second, c.GetHTTPClient().Timeout)
 }
 
 func TestClientWithTimeout_DoesNotMutateUserOwnedCustomHTTPClient(t *testing.T) {
@@ -46,22 +48,20 @@ func TestClientWithTimeout_DoesNotMutateUserOwnedCustomHTTPClient(t *testing.T) 
 		WithConfig(createTestConfig(t)),
 		WithHTTPClient(custom),
 		WithTimeout(8*time.Second),
-		UseEntityAPI(),
 	)
 	require.NoError(t, err)
 	require.NotNil(t, c.Entity)
-	require.Same(t, custom, c.Entity.GetHTTPClient())
+	require.Same(t, custom, c.GetHTTPClient())
 	require.Equal(t, 55*time.Second, custom.Timeout)
 }
 
 func TestClientEntityOptions_PropagateToServiceHTTPClients(t *testing.T) {
-	var seenUserAgent, seenTenantID, seenIdempotency string
+	var seenUserAgent, seenIdempotency string
 
 	writeErrs := make(chan error, 1)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		seenUserAgent = r.Header.Get("User-Agent")
-		seenTenantID = r.Header.Get(entities.HeaderTenantID)
 		seenIdempotency = r.Header.Get("X-Idempotency")
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
@@ -74,21 +74,18 @@ func TestClientEntityOptions_PropagateToServiceHTTPClients(t *testing.T) {
 		WithConfig(createTestConfig(t)),
 		WithBaseURL(srv.URL),
 		WithUserAgent("slice2-agent/1.0"),
-		WithTenantID("tenant-root"),
-		UseEntityAPI(),
 	)
 	require.NoError(t, err)
 
-	_, err = c.Entity.Organizations.CreateOrganization(context.Background(), models.NewCreateOrganizationInput("Acme", "123"))
+	_, err = c.Organizations.CreateOrganization(context.Background(), models.NewCreateOrganizationInput("Acme", "123"))
 	require.NoError(t, err)
 	require.NoError(t, <-writeErrs)
 	require.Equal(t, "slice2-agent/1.0", seenUserAgent)
-	require.Equal(t, "tenant-root", seenTenantID)
 	require.NotEmpty(t, seenIdempotency)
 }
 
 func TestClientNew_WithEnvironmentRecomputesDefaultServiceURLs(t *testing.T) {
-	c, err := New(WithEnvironment(config.EnvironmentProduction))
+	c, err := New(WithEnvironment(config.EnvironmentProduction), WithAnonymous())
 	require.NoError(t, err)
 
 	urls := c.GetConfig().ServiceURLs
@@ -103,6 +100,7 @@ func TestClientNew_WithEnvironmentDoesNotOverrideExplicitURLs(t *testing.T) {
 		WithTransactionURL("https://transaction.example.com/v1"),
 		WithCRMURL("https://crm.example.com/v1"),
 		WithEnvironment(config.EnvironmentProduction),
+		WithAnonymous(),
 	)
 	require.NoError(t, err)
 

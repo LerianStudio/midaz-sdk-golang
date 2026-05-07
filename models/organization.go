@@ -5,21 +5,45 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 	"unicode/utf8"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation/core"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation/core"
 )
 
 const maxOrganizationFieldLength = 256
 
-// Organization is an alias for mmodel.Organization to maintain compatibility while using midaz entities.
-type Organization = mmodel.Organization
+// Organization is the SDK-native organization response (Track 7E — audit 7.1).
+type Organization struct {
+	ID                   string         `json:"id" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	ParentOrganizationID *string        `json:"parentOrganizationId" format:"uuid"`
+	LegalName            string         `json:"legalName" example:"Lerian Financial Services Ltd." maxLength:"256"`
+	DoingBusinessAs      *string        `json:"doingBusinessAs" example:"Lerian FS" maxLength:"256"`
+	LegalDocument        string         `json:"legalDocument" example:"123456789012345" maxLength:"256"`
+	Address              Address        `json:"address"`
+	Status               Status         `json:"status"`
+	CreatedAt            time.Time      `json:"createdAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+	UpdatedAt            time.Time      `json:"updatedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+	DeletedAt            *time.Time     `json:"deletedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+	Metadata             map[string]any `json:"metadata,omitempty"`
+}
 
-// CreateOrganizationInput wraps mmodel.CreateOrganizationInput to maintain compatibility while using midaz entities.
+// CreateOrganizationInput is the SDK-native organization creation payload.
+//
+// See also:
+//   - [CreateOrganizationInput.Validate] — multi-field validation accumulator.
+//   - [UpdateOrganizationInput] — partial-update shape.
+//   - [github.com/LerianStudio/midaz-sdk-golang/v3/entities.OrganizationsService.CreateOrganization]
+//   - [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx.WithIdempotencyKey] — make creation safe under retries.
 type CreateOrganizationInput struct {
-	mmodel.CreateOrganizationInput
+	LegalName            string         `json:"legalName" example:"Lerian Financial Services Ltd." maxLength:"256"`
+	ParentOrganizationID *string        `json:"parentOrganizationId" format:"uuid"`
+	DoingBusinessAs      *string        `json:"doingBusinessAs" example:"Lerian FS" maxLength:"256"`
+	LegalDocument        string         `json:"legalDocument" example:"123456789012345" maxLength:"256"`
+	Address              Address        `json:"address"`
+	Status               Status         `json:"status"`
+	Metadata             map[string]any `json:"metadata"`
 }
 
 // Validate validates the CreateOrganizationInput fields.
@@ -28,48 +52,33 @@ func (input *CreateOrganizationInput) Validate() error {
 		return errors.New("input cannot be nil")
 	}
 
+	var errs validation.FieldErrors
+
 	if input.LegalName == "" {
-		return errors.New("legalName is required")
+		errs.Append("legalName", "is required")
+	} else {
+		appendOrganizationStringLength(&errs, "legalName", input.LegalName)
 	}
 
 	if input.LegalDocument == "" {
-		return errors.New("legalDocument is required")
-	}
-
-	if err := validateOrganizationStringLength("legalName", input.LegalName); err != nil {
-		return err
-	}
-
-	if err := validateOrganizationStringLength("legalDocument", input.LegalDocument); err != nil {
-		return err
+		errs.Append("legalDocument", "is required")
+	} else {
+		appendOrganizationStringLength(&errs, "legalDocument", input.LegalDocument)
 	}
 
 	if input.DoingBusinessAs != nil {
-		if err := validateOrganizationStringLength("doingBusinessAs", *input.DoingBusinessAs); err != nil {
-			return err
-		}
+		appendOrganizationStringLength(&errs, "doingBusinessAs", *input.DoingBusinessAs)
 	}
 
-	if err := validateOptionalOrganizationUUID("parentOrganizationId", input.ParentOrganizationID); err != nil {
-		return err
-	}
+	appendOrganizationOptionalUUID(&errs, "parentOrganizationId", input.ParentOrganizationID)
 
 	if input.Metadata != nil {
 		if err := core.ValidateMetadata(input.Metadata); err != nil {
-			return fmt.Errorf("invalid metadata: %w", err)
+			errs.Append("metadata", "invalid: "+err.Error())
 		}
 	}
 
-	return nil
-}
-
-// ToMmodelCreateOrganizationInput converts the SDK CreateOrganizationInput to mmodel CreateOrganizationInput.
-func (input *CreateOrganizationInput) ToMmodelCreateOrganizationInput() *mmodel.CreateOrganizationInput {
-	if input == nil {
-		return nil
-	}
-
-	return &input.CreateOrganizationInput
+	return errs.OrNil()
 }
 
 // MarshalJSON omits optional create fields when callers leave them unset.
@@ -85,7 +94,7 @@ func (input *CreateOrganizationInput) MarshalJSON() ([]byte, error) {
 	addStringPtrField(fields, "doingBusinessAs", input.DoingBusinessAs)
 
 	if !input.Address.IsEmpty() {
-		fields["address"] = Address(input.Address)
+		fields["address"] = input.Address
 	}
 
 	addStatusField(fields, input.Status)
@@ -94,62 +103,69 @@ func (input *CreateOrganizationInput) MarshalJSON() ([]byte, error) {
 	return json.Marshal(fields)
 }
 
-// UpdateOrganizationInput wraps mmodel.UpdateOrganizationInput to maintain compatibility while using midaz entities.
+// UpdateOrganizationInput is the SDK-native organization patch payload.
 type UpdateOrganizationInput struct {
-	mmodel.UpdateOrganizationInput
+	LegalName            string         `json:"legalName" example:"Lerian Financial Group Ltd." maxLength:"256"`
+	ParentOrganizationID *string        `json:"parentOrganizationId" format:"uuid"`
+	DoingBusinessAs      *string        `json:"doingBusinessAs" example:"Lerian Group" maxLength:"256"`
+	Address              Address        `json:"address"`
+	Status               Status         `json:"status"`
+	Metadata             map[string]any `json:"metadata,omitempty"`
 }
 
 // Validate validates the UpdateOrganizationInput fields.
+//
+// Empty-payload check short-circuits — when nothing is being updated
+// the request is rejected before per-field analysis. Otherwise all
+// field-level violations are accumulated and surfaced together.
 func (input *UpdateOrganizationInput) Validate() error {
 	if input == nil {
 		return errors.New("input cannot be nil")
-	}
-
-	if input.Metadata != nil {
-		if err := core.ValidateMetadata(input.Metadata); err != nil {
-			return fmt.Errorf("invalid metadata: %w", err)
-		}
-	}
-
-	if err := validateOrganizationStringLength("legalName", input.LegalName); err != nil {
-		return err
-	}
-
-	if input.DoingBusinessAs != nil {
-		if err := validateOrganizationStringLength("doingBusinessAs", *input.DoingBusinessAs); err != nil {
-			return err
-		}
-	}
-
-	if err := validateOptionalOrganizationUUID("parentOrganizationId", input.ParentOrganizationID); err != nil {
-		return err
 	}
 
 	if !input.hasChanges() {
 		return errors.New("empty update payload not allowed")
 	}
 
-	return nil
-}
+	var errs validation.FieldErrors
 
-func validateOrganizationStringLength(field, value string) error {
-	if value != "" && utf8.RuneCountInString(value) > maxOrganizationFieldLength {
-		return fmt.Errorf("%s must be at most %d characters", field, maxOrganizationFieldLength)
+	appendOrganizationStringLength(&errs, "legalName", input.LegalName)
+
+	if input.DoingBusinessAs != nil {
+		appendOrganizationStringLength(&errs, "doingBusinessAs", *input.DoingBusinessAs)
 	}
 
-	return nil
+	appendOrganizationOptionalUUID(&errs, "parentOrganizationId", input.ParentOrganizationID)
+
+	if input.Metadata != nil {
+		if err := core.ValidateMetadata(input.Metadata); err != nil {
+			errs.Append("metadata", "invalid: "+err.Error())
+		}
+	}
+
+	return errs.OrNil()
 }
 
-func validateOptionalOrganizationUUID(field string, value *string) error {
+// appendOrganizationStringLength records a length-bound violation onto
+// errs when value exceeds maxOrganizationFieldLength. No-op for empty
+// values (handled by required-field checks at the call site).
+func appendOrganizationStringLength(errs *validation.FieldErrors, field, value string) {
+	if value != "" && utf8.RuneCountInString(value) > maxOrganizationFieldLength {
+		errs.Append(field, fmt.Sprintf("must be at most %d characters", maxOrganizationFieldLength))
+	}
+}
+
+// appendOrganizationOptionalUUID records a UUID-format violation onto
+// errs when a pointer is non-nil and non-empty but holds an invalid
+// value. Both nil pointers and empty strings are no-ops here.
+func appendOrganizationOptionalUUID(errs *validation.FieldErrors, field string, value *string) {
 	if value == nil || *value == "" {
-		return nil
+		return
 	}
 
 	if !validation.IsValidUUID(*value) {
-		return fmt.Errorf("%s must be a valid UUID", field)
+		errs.Append(field, "must be a valid UUID")
 	}
-
-	return nil
 }
 
 func (input *UpdateOrganizationInput) hasChanges() bool {
@@ -165,15 +181,6 @@ func (input *UpdateOrganizationInput) hasChanges() bool {
 		input.Metadata != nil
 }
 
-// ToMmodelUpdateOrganizationInput converts the SDK UpdateOrganizationInput to mmodel UpdateOrganizationInput.
-func (input *UpdateOrganizationInput) ToMmodelUpdateOrganizationInput() *mmodel.UpdateOrganizationInput {
-	if input == nil {
-		return nil
-	}
-
-	return &input.UpdateOrganizationInput
-}
-
 // MarshalJSON emits only fields explicitly set on the SDK PATCH input.
 func (input *UpdateOrganizationInput) MarshalJSON() ([]byte, error) {
 	if input == nil {
@@ -186,7 +193,7 @@ func (input *UpdateOrganizationInput) MarshalJSON() ([]byte, error) {
 	addStringPtrField(fields, "doingBusinessAs", input.DoingBusinessAs)
 
 	if !input.Address.IsEmpty() {
-		fields["address"] = Address(input.Address)
+		fields["address"] = input.Address
 	}
 
 	addStatusField(fields, input.Status)
@@ -198,10 +205,8 @@ func (input *UpdateOrganizationInput) MarshalJSON() ([]byte, error) {
 // NewCreateOrganizationInput creates a new CreateOrganizationInput with required fields.
 func NewCreateOrganizationInput(legalName, legalDocument string) *CreateOrganizationInput {
 	return &CreateOrganizationInput{
-		CreateOrganizationInput: mmodel.CreateOrganizationInput{
-			LegalName:     legalName,
-			LegalDocument: legalDocument,
-		},
+		LegalName:     legalName,
+		LegalDocument: legalDocument,
 	}
 }
 
@@ -244,7 +249,7 @@ func (input *CreateOrganizationInput) WithAddress(address Address) *CreateOrgani
 		return nil
 	}
 
-	input.Address = mmodel.Address(address)
+	input.Address = address
 
 	return input
 }
@@ -262,9 +267,7 @@ func (input *CreateOrganizationInput) WithMetadata(metadata map[string]any) *Cre
 
 // NewUpdateOrganizationInput creates a new UpdateOrganizationInput.
 func NewUpdateOrganizationInput() *UpdateOrganizationInput {
-	return &UpdateOrganizationInput{
-		UpdateOrganizationInput: mmodel.UpdateOrganizationInput{},
-	}
+	return &UpdateOrganizationInput{}
 }
 
 // WithLegalName sets the legal name for update.
@@ -278,8 +281,14 @@ func (input *UpdateOrganizationInput) WithLegalName(legalName string) *UpdateOrg
 	return input
 }
 
-// WithUpdateMetadata sets the metadata for update.
-func (input *UpdateOrganizationInput) WithUpdateMetadata(metadata map[string]any) *UpdateOrganizationInput {
+// WithMetadata sets the metadata for update.
+//
+// Track 7F (audit 7.14) — the v2 *Update-suffixed siblings
+// (WithUpdateMetadata, WithDoingBusinessAsUpdate, WithAddressUpdate,
+// WithStatusUpdate) have been retired. They duplicated the canonical
+// non-suffixed setters with no semantic difference. Callers using the
+// suffixed names should switch to the canonical setters below.
+func (input *UpdateOrganizationInput) WithMetadata(metadata map[string]any) *UpdateOrganizationInput {
 	if input == nil {
 		return nil
 	}
@@ -289,28 +298,8 @@ func (input *UpdateOrganizationInput) WithUpdateMetadata(metadata map[string]any
 	return input
 }
 
-// WithMetadata sets the metadata for update.
-func (input *UpdateOrganizationInput) WithMetadata(metadata map[string]any) *UpdateOrganizationInput {
-	return input.WithUpdateMetadata(metadata)
-}
-
 // WithDoingBusinessAs sets the doing business as name for update.
 func (input *UpdateOrganizationInput) WithDoingBusinessAs(dba string) *UpdateOrganizationInput {
-	return input.WithDoingBusinessAsUpdate(dba)
-}
-
-// WithAddress sets the organization address for update.
-func (input *UpdateOrganizationInput) WithAddress(address Address) *UpdateOrganizationInput {
-	return input.WithAddressUpdate(address)
-}
-
-// WithStatus sets the organization status for update.
-func (input *UpdateOrganizationInput) WithStatus(status Status) *UpdateOrganizationInput {
-	return input.WithStatusUpdate(status)
-}
-
-// WithDoingBusinessAsUpdate sets the doing business as name for update.
-func (input *UpdateOrganizationInput) WithDoingBusinessAsUpdate(dba string) *UpdateOrganizationInput {
 	if input == nil {
 		return nil
 	}
@@ -320,19 +309,19 @@ func (input *UpdateOrganizationInput) WithDoingBusinessAsUpdate(dba string) *Upd
 	return input
 }
 
-// WithAddressUpdate sets the organization address for update.
-func (input *UpdateOrganizationInput) WithAddressUpdate(address Address) *UpdateOrganizationInput {
+// WithAddress sets the organization address for update.
+func (input *UpdateOrganizationInput) WithAddress(address Address) *UpdateOrganizationInput {
 	if input == nil {
 		return nil
 	}
 
-	input.Address = mmodel.Address(address)
+	input.Address = address
 
 	return input
 }
 
-// WithStatusUpdate sets the organization status for update.
-func (input *UpdateOrganizationInput) WithStatusUpdate(status Status) *UpdateOrganizationInput {
+// WithStatus sets the organization status for update.
+func (input *UpdateOrganizationInput) WithStatus(status Status) *UpdateOrganizationInput {
 	if input == nil {
 		return nil
 	}

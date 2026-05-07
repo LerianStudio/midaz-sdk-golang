@@ -10,13 +10,25 @@ import (
 	"sync"
 	"time"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v2"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v3"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
+)
+
+const (
+	defaultBatchConcurrency = 10
+	defaultBatchSize        = 100
+	defaultBatchRetryCount  = 3
+	defaultBatchRetryDelay  = 100 * time.Millisecond
+	maxBatchConcurrency     = 100
+	maxTransactionBatchSize = 10_000
+	maxBackoffAttempt       = 31
+	maxBackoffShift         = 30
+	percentageMultiplier    = 100
 )
 
 // BatchResult represents the result of a transaction in a batch operation
@@ -62,10 +74,10 @@ type BatchOptions struct {
 // DefaultBatchOptions returns the default batch processing options
 func DefaultBatchOptions() *BatchOptions {
 	return &BatchOptions{
-		Concurrency:          10,
-		BatchSize:            100,
-		RetryCount:           3,
-		RetryDelay:           100 * time.Millisecond,
+		Concurrency:          defaultBatchConcurrency,
+		BatchSize:            defaultBatchSize,
+		RetryCount:           defaultBatchRetryCount,
+		RetryDelay:           defaultBatchRetryDelay,
 		IdempotencyKeyPrefix: "batch",
 		StopOnError:          false,
 		AllowPartialSuccess:  false,
@@ -91,7 +103,7 @@ func DefaultBatchOptions() *BatchOptions {
 // regardless of the order in which transactions are processed.
 func BatchTransactions(
 	ctx context.Context,
-	midazClient *client.Client,
+	midazClient *midaz.Client,
 	orgID, ledgerID string,
 	inputs []*models.CreateTransactionInput,
 	options *BatchOptions,
@@ -100,7 +112,7 @@ func BatchTransactions(
 		ctx = context.Background()
 	}
 
-	if midazClient == nil || midazClient.Entity == nil || midazClient.Entity.Transactions == nil {
+	if midazClient == nil || midazClient.Entity == nil || midazClient.Transactions == nil {
 		return nil, stdErrors.New("transaction service is not initialized")
 	}
 
@@ -144,16 +156,16 @@ func normalizeOptions(options *BatchOptions) *BatchOptions {
 		options.Concurrency = 1
 	}
 
-	if options.Concurrency > 100 {
-		options.Concurrency = 100
+	if options.Concurrency > maxBatchConcurrency {
+		options.Concurrency = maxBatchConcurrency
 	}
 
 	if options.BatchSize < 1 {
 		options.BatchSize = DefaultBatchOptions().BatchSize
 	}
 
-	if options.BatchSize > 10_000 {
-		options.BatchSize = 10_000
+	if options.BatchSize > maxTransactionBatchSize {
+		options.BatchSize = maxTransactionBatchSize
 	}
 
 	if options.RetryCount < 0 {
@@ -174,7 +186,7 @@ func normalizeOptions(options *BatchOptions) *BatchOptions {
 // batchProcessor handles the batch transaction processing logic.
 type batchProcessor struct {
 	ctx      context.Context
-	client   *client.Client
+	client   *midaz.Client
 	orgID    string
 	ledgerID string
 	inputs   []*models.CreateTransactionInput
@@ -336,8 +348,8 @@ func (bp *batchProcessor) executeWithRetries(input *models.CreateTransactionInpu
 		}
 
 		// Inject idempotency key into context so HTTP layer can add header
-		ctx := entities.WithIdempotencyKey(bp.ctx, input.IdempotencyKey)
-		tx, err = bp.client.Entity.Transactions.CreateTransaction(ctx, bp.orgID, bp.ledgerID, input)
+		ctx := sdkctx.WithIdempotencyKey(bp.ctx, input.IdempotencyKey)
+		tx, err = bp.client.Transactions.CreateTransaction(ctx, bp.orgID, bp.ledgerID, input)
 
 		if err == nil || !isRetryableError(err) {
 			break
@@ -367,8 +379,8 @@ func (*batchProcessor) calculateBackoffFactor(attempt int) uint {
 	}
 
 	// Safely convert attempt to backoff factor with overflow protection
-	if attempt > 31 {
-		return 30 // Cap to prevent overflow
+	if attempt > maxBackoffAttempt {
+		return maxBackoffShift // Cap to prevent overflow
 	}
 
 	// Safe conversion: attempt is guaranteed to be >= 1 and <= 31 here
@@ -588,7 +600,7 @@ func GetBatchSummary(results []BatchResult) BatchSummary {
 
 	var successRate float64
 	if total > 0 {
-		successRate = float64(successCount) / float64(total) * 100
+		successRate = float64(successCount) / float64(total) * percentageMultiplier
 	}
 
 	var avgDuration time.Duration

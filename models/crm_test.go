@@ -24,12 +24,12 @@ func TestUpdateHolderInput_JSONExplicitNullFields(t *testing.T) {
 }
 
 func TestUpdateHolderInput_RejectsEmptyPayload(t *testing.T) {
+	// Validate() is the single source of truth for empty-payload rejection;
+	// MarshalJSON deliberately does not duplicate this check (audit 7.19).
+	// The entity layer is responsible for invoking Validate before marshal.
 	input := NewUpdateHolderInput()
 
 	require.ErrorContains(t, input.Validate(), "empty update payload not allowed")
-
-	_, err := json.Marshal(input)
-	require.ErrorContains(t, err, "empty update payload not allowed")
 }
 
 func TestUpdateAliasInput_JSONOmitEmpty(t *testing.T) {
@@ -47,12 +47,10 @@ func TestUpdateAliasInput_JSONExplicitNullFields(t *testing.T) {
 }
 
 func TestUpdateAliasInput_RejectsEmptyPayload(t *testing.T) {
+	// See TestUpdateHolderInput_RejectsEmptyPayload for rationale.
 	input := NewUpdateAliasInput()
 
 	require.ErrorContains(t, input.Validate(), "empty update payload not allowed")
-
-	_, err := json.Marshal(input)
-	require.ErrorContains(t, err, "empty update payload not allowed")
 }
 
 func TestCRMUpdateInputs_ValidateNullFields(t *testing.T) {

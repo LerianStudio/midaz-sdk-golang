@@ -1,4 +1,4 @@
-package models // import "github.com/LerianStudio/midaz-sdk-golang/v2/models"
+package models // import "github.com/LerianStudio/midaz-sdk-golang/v3/models"
 
 Package models defines the data models used by the Midaz SDK.
 
@@ -12,52 +12,45 @@ Package models defines the data models used by the Midaz SDK.
 
 Package models defines the data models used by the Midaz SDK.
 
-Package models defines the data models used by the Midaz SDK.
+Package models defines the SDK-owned data models for the Midaz API.
 
-This package provides models that either: 1. Directly align with backend types
-from pkg/mmodel where possible 2. Implement SDK-specific types only where
-necessary
+Every type in this package is hand-written and self-contained. JSON tags align
+with the wire shape Midaz expects, so structs marshal directly to/from request
+and response payloads with no adapter or conversion layer between the SDK and
+the backend.
 
-The goal is to maintain a simple, direct approach without unnecessary
-abstraction layers while ensuring the SDK interfaces cleanly with the backend
-API.
+Key model types:
 
-Key Model Types:
+Account: an account in the Midaz system — the fundamental entity for tracking
+assets and balances. Accounts belong to organizations and ledgers.
 
-Account: Represents an account in the Midaz system, which is a fundamental
-entity for tracking assets and balances. Accounts belong to organizations and
-ledgers.
+Asset: a unit of value that can be tracked and transferred — fiat currency,
+security, or other financial instrument.
 
-Asset: Represents a type of value that can be tracked and transferred within the
-Midaz system, such as currencies, securities, or other financial instruments.
+Balance: the current state of an account's holdings for a specific asset,
+including total, available, and on-hold amounts.
 
-Balance: Represents the current state of an account's holdings for a specific
-asset, including total, available, and on-hold amounts.
+Ledger: a collection of accounts and transactions within an organization,
+providing the complete record of financial activity.
 
-Ledger: Represents a collection of accounts and transactions within an
-organization, providing a complete record of financial activities.
+Organization: a business entity that owns ledgers, accounts, and other resources
+within the Midaz system.
 
-Organization: Represents a business entity that owns ledgers, accounts,
-and other resources within the Midaz system.
+Portfolio: a collection of accounts belonging to a specific entity within an
+organization and ledger, used for grouping and management.
 
-Portfolio: Represents a collection of accounts that belong to a specific entity
-within an organization and ledger, used for grouping and management.
+Segment: a categorization unit for more granular organization of accounts or
+other entities within a ledger.
 
-Segment: Represents a categorization unit for more granular organization of
-accounts or other entities within a ledger.
+Transaction: a financial event that affects one or more accounts through a
+series of operations (debits and credits).
 
-Transaction: Represents a financial event that affects one or more accounts
-through a series of operations (debits and credits).
+Operation: an individual accounting entry within a transaction — typically a
+debit or credit to a specific account.
 
-Operation: Represents an individual accounting entry within a transaction,
-typically a debit or credit to a specific account.
-
-Queue: Represents a transaction queue for temporarily storing transaction data
-before processing, allowing for batched or asynchronous handling.
-
-Each model type includes constructors, conversion methods between SDK and
-backend models, and utility methods for setting optional fields. Input
-structures for creating and updating resources are also provided.
+Each type ships with constructors, fluent With* builders for optional fields,
+and dedicated Create*Input / Update*Input shapes for the request side of each
+resource.
 
 Package models defines the data models used by the Midaz SDK.
 
@@ -65,55 +58,85 @@ Package models defines the data models used by the Midaz SDK.
 
 Package models defines the data models used by the Midaz SDK.
 
+const BalanceScopeTransactional = "transactional" ...
 const TransactionStatusPending = "pending" ...
 const StatusActive = "ACTIVE" ...
 const DefaultLimit = 10 ...
 const QueryParamLimit = "limit" ...
+const HolderTypeNaturalPerson = "NATURAL_PERSON" ...
+const RelatedPartyRoleLegalRepresentative = "LEGAL_REPRESENTATIVE"
+const RelatedPartyRolePrimaryHolder = "PRIMARY_HOLDER"
+const RelatedPartyRoleResponsibleParty = "RESPONSIBLE_PARTY"
+func CursorQueryParams(o CursorListOpts) map[string]string
+func DecimalStringFromAny(value any) string
 func GetAccountAlias(account Account) string
 func GetAccountIdentifier(account Account) string
 func IsStatusEmpty(status Status) bool
-type Account = mmodel.Account
-type AccountFilter struct{ ... }
-type AccountRule = mmodel.AccountRule
-type AccountType = mmodel.AccountType
-type Accounts struct{ ... }
-    func FromMmodel(accounts mmodel.Accounts) Accounts
+func IsValidMetadataIndexEntity(entityName string) bool
+func PageQueryParams(o PageListOpts) map[string]string
+func ValidateCursorListOpts(operation string, o CursorListOpts) error
+func ValidatePageListOpts(operation string, o PageListOpts) error
+type Account struct{ ... }
+type AccountRule struct{ ... }
+type AccountType struct{ ... }
+type AccountTypesFilters struct{ ... }
+type AccountTypesListOpts struct{ ... }
+type AccountingEntries struct{ ... }
+type AccountingEntry struct{ ... }
+type AccountingRubric struct{ ... }
+type AccountingValidation struct{ ... }
+type AccountsFilters struct{ ... }
+type AccountsListOpts struct{ ... }
 type Address struct{ ... }
-    func FromMmodelAddress(modelAddress mmodel.Address) Address
     func NewAddress(line1, zipCode, city, state, country string) Address
+type Addresses struct{ ... }
+type Alias struct{ ... }
+type AliasesFilters struct{ ... }
+type AliasesListOpts struct{ ... }
 type Amount struct{ ... }
 type AmountInput struct{ ... }
-type Asset = mmodel.Asset
+type Asset struct{ ... }
 type AssetRate struct{ ... }
-type AssetRateListOptions struct{ ... }
-    func NewAssetRateListOptions() *AssetRateListOptions
-type AssetRatesResponse struct{ ... }
-type Balance = mmodel.Balance
+type AssetRatesFilters struct{ ... }
+type AssetRatesListOpts struct{ ... }
+type AssetsFilters struct{ ... }
+type AssetsListOpts struct{ ... }
+type Balance struct{ ... }
+type BalanceHistory struct{ ... }
+type BalanceSettings struct{ ... }
+    func NewDefaultBalanceSettings() *BalanceSettings
+type BalancesFilters struct{ ... }
+type BalancesListOpts struct{ ... }
+type BankingDetails struct{ ... }
 type BaseResponse struct{ ... }
+type Contact struct{ ... }
 type CreateAccountInput struct{ ... }
     func NewCreateAccountInput(name, assetCode, accountType string) *CreateAccountInput
 type CreateAccountTypeInput struct{ ... }
     func NewCreateAccountTypeInput(name, keyValue string) *CreateAccountTypeInput
-    func WithCreateAccountTypeDescription(input *CreateAccountTypeInput, description string) *CreateAccountTypeInput
-    func WithCreateAccountTypeMetadata(input *CreateAccountTypeInput, metadata map[string]any) *CreateAccountTypeInput
+type CreateAliasInput struct{ ... }
+    func NewCreateAliasInput(ledgerID, accountID string) *CreateAliasInput
 type CreateAnnotationInput struct{ ... }
     func NewCreateAnnotationInput(description string, send ...*SendInput) *CreateAnnotationInput
 type CreateAssetInput struct{ ... }
     func NewCreateAssetInput(name, code string) *CreateAssetInput
+    func NewCreateAssetInputWithType(name, code, assetType string) *CreateAssetInput
 type CreateAssetRateInput struct{ ... }
     func NewCreateAssetRateInput(from, to string, rate int) *CreateAssetRateInput
 type CreateBalanceInput struct{ ... }
     func NewCreateBalanceInput(key string) *CreateBalanceInput
+type CreateHolderInput struct{ ... }
+    func NewCreateHolderInput(holderType, name, document string) *CreateHolderInput
 type CreateInflowInput struct{ ... }
     func NewCreateInflowInput(asset string, value any, distribute *DistributeInput) *CreateInflowInput
 type CreateLedgerInput struct{ ... }
     func NewCreateLedgerInput(name string) *CreateLedgerInput
+type CreateMetadataIndexInput struct{ ... }
+    func NewCreateMetadataIndexInput(metadataKey string) *CreateMetadataIndexInput
 type CreateOperationInput struct{ ... }
+    func NewCreateOperationInput(operationType, accountID string, amount any, assetCode string) *CreateOperationInput
 type CreateOperationRouteInput struct{ ... }
     func NewCreateOperationRouteInput(title, description, operationType string) *CreateOperationRouteInput
-    func WithCreateOperationRouteAccountAlias(input *CreateOperationRouteInput, alias string) *CreateOperationRouteInput
-    func WithCreateOperationRouteAccountType(input *CreateOperationRouteInput, accountTypes []string) *CreateOperationRouteInput
-    func WithCreateOperationRouteMetadata(input *CreateOperationRouteInput, metadata map[string]any) *CreateOperationRouteInput
 type CreateOrganizationInput struct{ ... }
     func NewCreateOrganizationInput(legalName, legalDocument string) *CreateOrganizationInput
 type CreateOutflowInput struct{ ... }
@@ -126,7 +149,7 @@ type CreateTransactionInput struct{ ... }
     func NewCreateTransactionInput(assetCode string, amount any) *CreateTransactionInput
 type CreateTransactionRouteInput struct{ ... }
     func NewCreateTransactionRouteInput(title, description string, operationRoutes []string) *CreateTransactionRouteInput
-    func WithTransactionRouteMetadata(input *CreateTransactionRouteInput, metadata map[string]any) *CreateTransactionRouteInput
+type CursorListOpts struct{ ... }
 type DSLAccountRef struct{ ... }
 type DSLAmount struct{ ... }
 type DSLDistribute struct{ ... }
@@ -135,39 +158,51 @@ type DSLSend struct{ ... }
 type DSLSource struct{ ... }
 type Destination struct{ ... }
 type DistributeInput struct{ ... }
-type ErrorResponse struct{ ... }
 type FromToInput struct{ ... }
-type Ledger = mmodel.Ledger
-type ListAccountInput struct{ ... }
-type ListAccountResponse struct{ ... }
-type ListOptions struct{ ... }
-    func NewListOptions() *ListOptions
+type Holder struct{ ... }
+type HoldersFilters struct{ ... }
+type HoldersListOpts struct{ ... }
+type IndexStats struct{ ... }
+type Ledger struct{ ... }
+type LedgerSettings struct{ ... }
+type LedgersFilters struct{ ... }
+type LedgersListOpts struct{ ... }
+type LegalPerson struct{ ... }
 type ListResponse[T any] struct{ ... }
 type Metadata map[string]any
+type MetadataIndex struct{ ... }
 type MetricsCount struct{ ... }
+type NaturalPerson struct{ ... }
 type ObjectWithMetadata struct{ ... }
 type Operation struct{ ... }
 type OperationAmount struct{ ... }
 type OperationBalance struct{ ... }
-type OperationLog struct{ ... }
-type OperationResponse struct{ ... }
-type OperationRoute = mmodel.OperationRoute
+type OperationRoute struct{ ... }
 type OperationRouteInputType string
     const OperationRouteInputTypeSource OperationRouteInputType = "source" ...
 type OperationRouteType string
     const OperationRouteTypeDebit OperationRouteType = "debit" ...
+type OperationRoutesFilters struct{ ... }
+type OperationRoutesListOpts struct{ ... }
 type OperationType string
     const OperationTypeDebit OperationType = "DEBIT" ...
-type Operations struct{ ... }
-type OperationsResponse struct{ ... }
-type Organization = mmodel.Organization
+type OperationsFilters struct{ ... }
+type OperationsListOpts struct{ ... }
+type Organization struct{ ... }
+type OrganizationsFilters struct{ ... }
+type OrganizationsListOpts struct{ ... }
+type PageListOpts struct{ ... }
 type Pagination struct{ ... }
-type Portfolio = mmodel.Portfolio
-type Queue struct{ ... }
-    func FromMmodelQueue(queue mmodel.Queue) Queue
-type QueueData struct{ ... }
+type Portfolio struct{ ... }
+type PortfoliosFilters struct{ ... }
+type PortfoliosListOpts struct{ ... }
 type Rate struct{ ... }
-type Segment = mmodel.Segment
+type RegulatoryFields struct{ ... }
+type RelatedParty struct{ ... }
+type Representative struct{ ... }
+type Segment struct{ ... }
+type SegmentsFilters struct{ ... }
+type SegmentsListOpts struct{ ... }
 type SendInflowInput struct{ ... }
 type SendInput struct{ ... }
 type SendOutflowInput struct{ ... }
@@ -176,35 +211,38 @@ type SortDirection string
     const SortAscending SortDirection = "asc" ...
 type Source struct{ ... }
 type SourceInput struct{ ... }
-type Status = mmodel.Status
+type Status struct{ ... }
     func NewStatus(code string) Status
     func WithStatusDescription(status Status, description string) Status
-type Timestamps struct{ ... }
 type Transaction struct{ ... }
 type TransactionDSLInput struct{ ... }
     func FromTransactionMap(data map[string]any) *TransactionDSLInput
-type TransactionRoute = mmodel.TransactionRoute
+type TransactionRoute struct{ ... }
+type TransactionRoutesFilters struct{ ... }
+type TransactionRoutesListOpts struct{ ... }
+type TransactionsFilters struct{ ... }
+type TransactionsListOpts struct{ ... }
 type UpdateAccountInput struct{ ... }
     func NewUpdateAccountInput() *UpdateAccountInput
 type UpdateAccountTypeInput struct{ ... }
     func NewUpdateAccountTypeInput() *UpdateAccountTypeInput
-    func WithUpdateAccountTypeDescription(input *UpdateAccountTypeInput, description string) *UpdateAccountTypeInput
-    func WithUpdateAccountTypeMetadata(input *UpdateAccountTypeInput, metadata map[string]any) *UpdateAccountTypeInput
-    func WithUpdateAccountTypeName(input *UpdateAccountTypeInput, name string) *UpdateAccountTypeInput
+type UpdateAliasInput struct{ ... }
+    func NewUpdateAliasInput() *UpdateAliasInput
 type UpdateAssetInput struct{ ... }
     func NewUpdateAssetInput() *UpdateAssetInput
 type UpdateBalanceInput struct{ ... }
     func NewUpdateBalanceInput() *UpdateBalanceInput
+type UpdateHolderInput struct{ ... }
+    func NewUpdateHolderInput() *UpdateHolderInput
 type UpdateLedgerInput struct{ ... }
     func NewUpdateLedgerInput() *UpdateLedgerInput
+type UpdateLedgerSettingsAccountingInput struct{ ... }
+type UpdateLedgerSettingsInput struct{ ... }
+    func NewUpdateLedgerSettingsInput() *UpdateLedgerSettingsInput
 type UpdateOperationInput struct{ ... }
+    func NewUpdateOperationInput() *UpdateOperationInput
 type UpdateOperationRouteInput struct{ ... }
     func NewUpdateOperationRouteInput() *UpdateOperationRouteInput
-    func WithUpdateOperationRouteAccountAlias(input *UpdateOperationRouteInput, alias string) *UpdateOperationRouteInput
-    func WithUpdateOperationRouteAccountType(input *UpdateOperationRouteInput, accountTypes []string) *UpdateOperationRouteInput
-    func WithUpdateOperationRouteDescription(input *UpdateOperationRouteInput, description string) *UpdateOperationRouteInput
-    func WithUpdateOperationRouteMetadata(input *UpdateOperationRouteInput, metadata map[string]any) *UpdateOperationRouteInput
-    func WithUpdateOperationRouteTitle(input *UpdateOperationRouteInput, title string) *UpdateOperationRouteInput
 type UpdateOrganizationInput struct{ ... }
     func NewUpdateOrganizationInput() *UpdateOrganizationInput
 type UpdatePortfolioInput struct{ ... }
@@ -215,6 +253,3 @@ type UpdateTransactionInput struct{ ... }
     func NewUpdateTransactionInput() *UpdateTransactionInput
 type UpdateTransactionRouteInput struct{ ... }
     func NewUpdateTransactionRouteInput() *UpdateTransactionRouteInput
-    func WithUpdateTransactionRouteDescription(input *UpdateTransactionRouteInput, description string) *UpdateTransactionRouteInput
-    func WithUpdateTransactionRouteMetadata(input *UpdateTransactionRouteInput, metadata map[string]any) *UpdateTransactionRouteInput
-    func WithUpdateTransactionRouteTitle(input *UpdateTransactionRouteInput, title string) *UpdateTransactionRouteInput

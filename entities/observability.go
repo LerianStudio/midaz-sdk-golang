@@ -5,11 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net/http"
 	"reflect"
 	"strings"
 
-	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -55,26 +56,38 @@ const (
 	businessEventOperationUpdated     = "midaz.operation.updated"
 )
 
+const (
+	businessFieldOperation      = "operation"
+	businessFieldOrganizationID = "organizationId"
+	businessFieldLedgerID       = "ledgerId"
+	businessFieldAssetID        = "assetId"
+	businessFieldAccountID      = "accountId"
+	businessFieldTransactionID  = "transactionId"
+	businessFieldOperationID    = "operationId"
+	businessFieldStatus         = "status"
+	businessFieldErrorClass     = "errorClass"
+)
+
 var safeBusinessFields = map[string]struct{}{
-	"event":              {},
-	"operation":          {},
-	"organizationId":     {},
-	"ledgerId":           {},
-	"assetId":            {},
-	"accountId":          {},
-	"transactionId":      {},
-	"operationId":        {},
-	"portfolioId":        {},
-	"segmentId":          {},
-	"balanceId":          {},
-	"holderId":           {},
-	"aliasId":            {},
-	"routeId":            {},
-	"transactionRouteId": {},
-	"operationRouteId":   {},
-	"status":             {},
-	"errorClass":         {},
-	"httpStatus":         {},
+	"event":                     {},
+	businessFieldOperation:      {},
+	businessFieldOrganizationID: {},
+	businessFieldLedgerID:       {},
+	businessFieldAssetID:        {},
+	businessFieldAccountID:      {},
+	businessFieldTransactionID:  {},
+	businessFieldOperationID:    {},
+	"portfolioId":               {},
+	"segmentId":                 {},
+	"balanceId":                 {},
+	"holderId":                  {},
+	"aliasId":                   {},
+	"routeId":                   {},
+	"transactionRouteId":        {},
+	"operationRouteId":          {},
+	businessFieldStatus:         {},
+	businessFieldErrorClass:     {},
+	"httpStatus":                {},
 }
 
 var businessErrorLevels = map[string]observability.LogLevel{
@@ -96,10 +109,10 @@ func (c *HTTPClient) emitBusinessEvent(ctx context.Context, event string, fields
 func (c *HTTPClient) emitBusinessError(ctx context.Context, event string, fields map[string]any, err error) {
 	if err != nil {
 		fields = cloneBusinessFields(fields)
-		fields["errorClass"] = classifyBusinessError(err)
+		fields[businessFieldErrorClass] = classifyBusinessError(err)
 	}
 
-	c.emitBusiness(ctx, businessLogLevelForError(fields["errorClass"]), event, fields)
+	c.emitBusiness(ctx, businessLogLevelForError(fields[businessFieldErrorClass]), event, fields)
 }
 
 func (c *HTTPClient) emitBusiness(ctx context.Context, level observability.LogLevel, event string, fields map[string]any) {
@@ -267,8 +280,8 @@ func cloneBusinessFields(fields map[string]any) map[string]any {
 // observability level. Classification proceeds in three layers, from most-
 // trustworthy to least:
 //
-//  1. Typed *sdkerrors.Error / *sdkerrors.MidazError — the SDK already knows
-//     the precise category and HTTP status of these.
+//  1. Typed *sdkerrors.Error — the SDK already knows the precise category
+//     and HTTP status of these.
 //  2. Anything that exposes a status code via a small structural interface
 //     (StatusCode() int / HTTPStatus() int).
 //  3. A small set of substring fallbacks for opaque transport errors that
@@ -301,13 +314,6 @@ func classifyTypedBusinessError(err error) string {
 		}
 
 		if class := classifyByCategory(sdkErr.Category, sdkErr.Code); class != "" {
-			return class
-		}
-	}
-
-	var legacy *sdkerrors.MidazError
-	if errors.As(err, &legacy) && legacy != nil {
-		if class := classifyByCategory("", legacy.Code); class != "" {
 			return class
 		}
 	}
@@ -353,13 +359,13 @@ func classifyBusinessErrorText(text string) string {
 // so callers can fall through to other classifiers.
 func classifyByStatusCode(code int) string {
 	switch code {
-	case 401:
+	case http.StatusUnauthorized:
 		return businessErrorClassUnauthorized
-	case 403:
+	case http.StatusForbidden:
 		return businessErrorClassForbidden
-	case 404:
+	case http.StatusNotFound:
 		return businessErrorClassNotFound
-	case 400, 422:
+	case http.StatusBadRequest, http.StatusUnprocessableEntity:
 		return businessErrorClassValidation
 	default:
 		return ""
@@ -367,8 +373,14 @@ func classifyByStatusCode(code int) string {
 }
 
 // classifyByCategory translates a typed SDK category/code pair into a
-// business-error label. Category wins; we fall back to Code only when the
-// category is empty (e.g. legacy *MidazError, which carries only a code).
+// business-error label. Category wins; we fall back to Code only when
+// the category is empty.
+//
+// CategoryAuth (the v3 collapsed auth category) splits into
+// unauthorized vs forbidden via the Code (CodeAuthentication = 401,
+// CodePermission = 403). The legacy CategoryAuthentication and
+// CategoryAuthorization are still matched for back-compat with code
+// paths that haven't migrated.
 func classifyByCategory(category sdkerrors.ErrorCategory, code sdkerrors.ErrorCode) string {
 	switch category {
 	case sdkerrors.CategoryValidation, sdkerrors.CategoryUnprocessable:
@@ -377,6 +389,13 @@ func classifyByCategory(category sdkerrors.ErrorCategory, code sdkerrors.ErrorCo
 		return businessErrorClassUnauthorized
 	case sdkerrors.CategoryAuthorization:
 		return businessErrorClassForbidden
+	case sdkerrors.CategoryAuth:
+		// v3: discriminate via Code (401 vs 403).
+		if code == sdkerrors.CodePermission {
+			return businessErrorClassForbidden
+		}
+
+		return businessErrorClassUnauthorized
 	case sdkerrors.CategoryNotFound:
 		return businessErrorClassNotFound
 	}

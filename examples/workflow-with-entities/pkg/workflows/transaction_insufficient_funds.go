@@ -8,12 +8,12 @@ import (
 	"strings"
 	"time"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v2"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/conversion"
-	pkgerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation"
+	"github.com/LerianStudio/midaz-sdk-golang/v3"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/conversion"
+	pkgerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation"
 )
 
 // insufficientFundsTest defines a test case for insufficient funds scenarios
@@ -35,7 +35,7 @@ type insufficientFundsTest struct {
 //   - customerAccount: The customer account model
 //   - merchantAccount: The merchant account model
 //   - externalAccountID: The external account ID
-func ExecuteInsufficientFundsTransactions(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, externalAccountID string) {
+func ExecuteInsufficientFundsTransactions(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string, customerAccount, merchantAccount *models.Account, externalAccountID string) {
 	ctx, span := observability.StartSpan(ctx, "ExecuteInsufficientFundsTransactions")
 	defer span.End()
 
@@ -61,6 +61,14 @@ func ExecuteInsufficientFundsTransactions(ctx context.Context, midazClient *clie
 }
 
 func validateInsufficientFundsAccounts(ctx context.Context, customerAccount, merchantAccount *models.Account) bool {
+	if customerAccount == nil || merchantAccount == nil {
+		err := errors.New("customer and merchant accounts are required")
+		observability.RecordError(ctx, err, "missing_accounts")
+		fmt.Printf("❌ Error: %s\n", err.Error())
+
+		return false
+	}
+
 	if !validation.IsValidUUID(customerAccount.ID) || !validation.IsValidUUID(merchantAccount.ID) {
 		err := errors.New("invalid account IDs")
 		observability.RecordError(ctx, err, "invalid_account_ids")
@@ -105,7 +113,7 @@ func buildInsufficientFundsTests(customerAccount, merchantAccount *models.Accoun
 	}
 }
 
-func runInsufficientFundsTest(ctx context.Context, midazClient *client.Client, orgID, ledgerID string, test insufficientFundsTest, testIndex int) {
+func runInsufficientFundsTest(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string, test insufficientFundsTest, testIndex int) {
 	testCtx, testSpan := observability.StartSpan(ctx, "InsufficientFundsTest")
 	defer testSpan.End()
 
@@ -121,7 +129,7 @@ func runInsufficientFundsTest(ctx context.Context, midazClient *client.Client, o
 	}
 
 	startTime := time.Now()
-	_, err = midazClient.Entity.Transactions.CreateTransaction(testCtx, orgID, ledgerID, transferInput)
+	_, err = midazClient.Transactions.CreateTransaction(testCtx, orgID, ledgerID, transferInput)
 	duration := time.Since(startTime)
 
 	observability.RecordSpanMetric(testCtx, "test_duration_ms", float64(duration.Milliseconds()))

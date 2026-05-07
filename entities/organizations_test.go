@@ -5,11 +5,11 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/entities/mocks"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/golang/mock/gomock"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/entities/mocks"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 )
 
 // \1 performs an operation
@@ -50,11 +50,11 @@ func TestListOrganizations(t *testing.T) {
 
 	// Setup expectations for default options
 	mockService.EXPECT().
-		ListOrganizations(gomock.Any(), gomock.Nil()).
+		ListOrganizations(gomock.Any(), gomock.Any()).
 		Return(orgsList, nil)
 
 	// Test listing organizations with default options
-	result, err := mockService.ListOrganizations(ctx, nil)
+	result, err := mockService.ListOrganizations(ctx, models.OrganizationsListOpts{})
 	require.NoError(t, err)
 	assert.Equal(t, 2, result.Pagination.Total)
 	assert.Len(t, result.Items, 2)
@@ -64,11 +64,12 @@ func TestListOrganizations(t *testing.T) {
 	assert.Equal(t, "Test Org 2", result.Items[1].LegalName)
 
 	// Test with options
-	opts := &models.ListOptions{
-		Page:           2,
-		Limit:          5,
-		OrderBy:        "created_at",
-		OrderDirection: "desc",
+	opts := models.OrganizationsListOpts{
+		PageListOpts: models.PageListOpts{
+			Page:          2,
+			Limit:         5,
+			SortDirection: models.SortDescending,
+		},
 	}
 
 	mockService.EXPECT().
@@ -203,8 +204,8 @@ func TestUpdateOrganization(t *testing.T) {
 	// Create test input
 	input := models.NewUpdateOrganizationInput().
 		WithLegalName("Updated Org").
-		WithStatusUpdate(models.NewStatus("INACTIVE")).
-		WithUpdateMetadata(map[string]any{
+		WithStatus(models.NewStatus("INACTIVE")).
+		WithMetadata(map[string]any{
 			"key": "updated",
 		})
 

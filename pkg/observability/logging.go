@@ -26,7 +26,10 @@ const (
 	WarnLevel
 	// ErrorLevel is for errors that may still allow the application to continue
 	ErrorLevel
-	// FatalLevel is for severe errors that will likely cause the application to terminate
+	// FatalLevel is reserved for compatibility with downstream tooling that
+	// classifies log severity. The Logger interface no longer exposes
+	// Fatal/Fatalf methods (removed in v3 Track 4); library code must not
+	// terminate the host process.
 	FatalLevel
 )
 
@@ -76,10 +79,6 @@ type Logger interface {
 	Error(args ...any)
 	// Errorf logs a formatted message at error level
 	Errorf(format string, args ...any)
-	// Fatal logs a message at fatal level
-	Fatal(args ...any)
-	// Fatalf logs a formatted message at fatal level
-	Fatalf(format string, args ...any)
 	// With returns a logger with added structured fields
 	With(fields map[string]any) Logger
 	// WithContext returns a logger with context information (trace ID, etc.)
@@ -87,6 +86,10 @@ type Logger interface {
 	// WithSpan returns a logger with span information (span ID, trace ID, etc.)
 	WithSpan(span trace.Span) Logger
 }
+
+// Note: Fatal and Fatalf were intentionally removed from the Logger interface
+// in v3 (Track 4). Library code must not call os.Exit on behalf of the host
+// application. Surface fatal conditions as returned errors instead.
 
 // LoggerImpl is the standard implementation of the Logger interface.
 //
@@ -97,12 +100,11 @@ type Logger interface {
 // LoggerImpl was constructed via a struct literal (without NewLogger) and the
 // mu field was left zero.
 type LoggerImpl struct {
-	mu       *sync.Mutex
-	muInit   sync.Once
-	level    LogLevel
-	output   io.Writer
-	fields   map[string]any
-	exitFunc func(int) // Injectable exit function for testing. If nil, Fatal just logs without exiting.
+	mu     *sync.Mutex
+	muInit sync.Once
+	level  LogLevel
+	output io.Writer
+	fields map[string]any
 }
 
 // NewLogger creates a new logger with the specified level and output
@@ -121,25 +123,13 @@ func NewLogger(level LogLevel, output io.Writer, resource *sdkresource.Resource)
 	}
 
 	logger := &LoggerImpl{
-		level:    level,
-		output:   output,
-		fields:   fields,
-		exitFunc: nil, // Library code should not call os.Exit; callers can set this if needed
+		level:  level,
+		output: output,
+		fields: fields,
 	}
 	logger.ensureMutex()
 
 	return logger
-}
-
-// SetExitFunc sets a custom exit function for applications that need Fatal to terminate.
-// By default, Fatal only logs without exiting (safe for library use).
-// Applications can set this to os.Exit if they want Fatal to terminate the process.
-func (l *LoggerImpl) SetExitFunc(exitFunc func(int)) {
-	l.ensureMutex()
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	l.exitFunc = exitFunc
 }
 
 // log logs a message at the specified level
@@ -207,14 +197,10 @@ func (l *LoggerImpl) log(level LogLevel, msg string) {
 		fmt.Fprintf(os.Stderr, "Failed to write log entry: %v\n", err)
 	}
 
-	exitFunc := l.exitFunc
 	l.mu.Unlock()
-
-	// If fatal and exit function is set, call it to terminate
-	// Library code defaults to nil exitFunc, so Fatal just logs without terminating
-	if level == FatalLevel && exitFunc != nil {
-		exitFunc(1)
-	}
+	// v3 Track 4: removed the FatalLevel-driven os.Exit call. Library code
+	// must not terminate the host process; surface fatal conditions as
+	// errors and let the host decide.
 }
 
 // ensureMutex lazily initializes the logger's mutex exactly once. The check-
@@ -269,15 +255,9 @@ func (l *LoggerImpl) Errorf(format string, args ...any) {
 	l.log(ErrorLevel, fmt.Sprintf(format, args...))
 }
 
-// Fatal logs a message at fatal level
-func (l *LoggerImpl) Fatal(args ...any) {
-	l.log(FatalLevel, fmt.Sprint(args...))
-}
-
-// Fatalf logs a formatted message at fatal level
-func (l *LoggerImpl) Fatalf(format string, args ...any) {
-	l.log(FatalLevel, fmt.Sprintf(format, args...))
-}
+// Fatal/Fatalf were removed in v3 (Track 4). Library code must not call
+// os.Exit on behalf of the host. Surface fatal conditions via returned
+// errors and let the host decide whether to terminate.
 
 // With returns a logger with added structured fields.
 //
@@ -300,11 +280,10 @@ func (l *LoggerImpl) With(fields map[string]any) Logger {
 	}
 
 	derived := &LoggerImpl{
-		mu:       &sync.Mutex{},
-		level:    l.level,
-		output:   l.output,
-		fields:   newFields,
-		exitFunc: l.exitFunc,
+		mu:     &sync.Mutex{},
+		level:  l.level,
+		output: l.output,
+		fields: newFields,
 	}
 
 	return derived
@@ -340,13 +319,8 @@ func (l *LoggerImpl) WithSpan(span trace.Span) Logger {
 	return l.WithContext(span.SpanContext())
 }
 
-// NoopLogger is a no-op implementation of the Logger interface.
-//
-// IMPORTANT: Unlike LoggerImpl, the Fatal and Fatalf methods on NoopLogger
-// do NOT terminate the program. They are no-ops like all other methods.
-// This is intentional for testing scenarios where you want to suppress
-// all logging output including fatal logs. If you need fatal logs to
-// actually terminate the program, use LoggerImpl instead.
+// NoopLogger is a no-op implementation of the Logger interface, useful for
+// testing scenarios where logging output should be suppressed entirely.
 type NoopLogger struct{}
 
 // NewNoopLogger creates a new no-op logger
@@ -377,12 +351,6 @@ func (*NoopLogger) Error(_ ...any) {}
 
 // Errorf is a no-op
 func (*NoopLogger) Errorf(_ string, _ ...any) {}
-
-// Fatal is a no-op
-func (*NoopLogger) Fatal(_ ...any) {}
-
-// Fatalf is a no-op
-func (*NoopLogger) Fatalf(_ string, _ ...any) {}
 
 // With returns the same no-op logger
 func (l *NoopLogger) With(_ map[string]any) Logger {

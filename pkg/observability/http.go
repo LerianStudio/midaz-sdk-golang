@@ -168,7 +168,12 @@ func WithSecurityDefaults() HTTPOption {
 	}
 }
 
-// NewHTTPMiddleware creates a new HTTP middleware for tracing and metrics
+// NewHTTPMiddleware returns a client-side transport middleware: a
+// function that wraps an [http.RoundTripper] with W3C trace-context
+// propagation, per-request span creation, and metric recording. It is
+// intended for outbound HTTP traffic (the SDK's own client and any
+// caller-supplied transport), not as an [http.Handler] for serving
+// inbound requests.
 func NewHTTPMiddleware(provider Provider, opts ...HTTPOption) func(http.RoundTripper) http.RoundTripper {
 	if provider == nil {
 		// Return a no-op middleware
@@ -367,7 +372,7 @@ func (m *httpMiddleware) addResponseHeaders(span trace.Span, resp *http.Response
 
 // setResponseStatus sets the span status based on HTTP response code
 func (*httpMiddleware) setResponseStatus(span trace.Span, statusCode int) {
-	if statusCode >= 400 {
+	if statusCode >= http.StatusBadRequest {
 		span.SetStatus(codes.Error, fmt.Sprintf("HTTP status code: %d", statusCode))
 		span.SetAttributes(semconv.ErrorTypeKey.String(strconv.Itoa(statusCode)))
 	} else {

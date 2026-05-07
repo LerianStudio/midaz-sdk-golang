@@ -1,10 +1,8 @@
 package performance
 
 import (
-	"fmt"
 	"net"
 	"net/http"
-	"os"
 	"time"
 )
 
@@ -59,13 +57,12 @@ func OptimizeClient(client *http.Client, options *HTTPClientOptions) *http.Clien
 		WithDisableKeepAlives(opts.DisableKeepAlives),
 	)
 	if err != nil {
-		// OptimizeHTTPClient previously failed silently here, which made
-		// "I configured pooling but my requests still feel slow" reports
-		// impossible to debug. Surface the error to stderr so it shows up
-		// in the consumer's logs while preserving the no-fail return
-		// contract (we still hand back the original client).
-		fmt.Fprintf(os.Stderr, "[Midaz SDK Performance] OptimizeHTTPClient failed: %v\n", err)
-
+		// OptimizeHTTPClient is best-effort: if the option chain fails,
+		// we silently hand back the unoptimized client. v3 contract:
+		// the SDK does not write to stderr unconditionally. Callers
+		// who want visibility into the optimization step should invoke
+		// the lower-level WithDialer/WithTransport options directly so
+		// errors surface through their normal return path.
 		return client
 	}
 

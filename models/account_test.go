@@ -5,7 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -58,7 +57,9 @@ func TestNewCreateAccountInput(t *testing.T) {
 			assert.Equal(t, tt.accountName, input.Name)
 			assert.Equal(t, tt.assetCode, input.AssetCode)
 			assert.Equal(t, tt.accountType, input.Type)
-			assert.Equal(t, "ACTIVE", input.Status.Code)
+			// Status is left zero so the server applies its canonical default
+			// (audit 7.11). Callers opt in via WithStatus(NewStatus("ACTIVE")).
+			assert.Empty(t, input.Status.Code)
 			assert.Nil(t, input.ParentAccountID)
 			assert.Nil(t, input.EntityID)
 			assert.Nil(t, input.Blocked)
@@ -482,45 +483,9 @@ func TestCreateAccountInputWithMetadata(t *testing.T) {
 	}
 }
 
-// TestCreateAccountInputToMmodel tests the ToMmodel conversion method
-func TestCreateAccountInputToMmodel(t *testing.T) {
-	alias := "test_alias"
-	parentID := "550e8400-e29b-41d4-a716-446655440010"
-	entityID := "entity-456"
-	portfolioID := "550e8400-e29b-41d4-a716-446655440011"
-	segmentID := "550e8400-e29b-41d4-a716-446655440012"
-	blocked := true
-
-	input := CreateAccountInput{
-		Name:            "Test Account",
-		ParentAccountID: &parentID,
-		EntityID:        &entityID,
-		Blocked:         &blocked,
-		AssetCode:       "USD",
-		PortfolioID:     &portfolioID,
-		SegmentID:       &segmentID,
-		Status:          NewStatus("ACTIVE"),
-		Alias:           &alias,
-		Type:            "deposit",
-		Metadata: map[string]any{
-			"key": "value",
-		},
-	}
-
-	result := input.ToMmodel()
-
-	assert.Equal(t, input.Name, result.Name)
-	assert.Equal(t, input.ParentAccountID, result.ParentAccountID)
-	assert.Equal(t, input.EntityID, result.EntityID)
-	assert.Equal(t, input.Blocked, result.Blocked)
-	assert.Equal(t, input.AssetCode, result.AssetCode)
-	assert.Equal(t, input.PortfolioID, result.PortfolioID)
-	assert.Equal(t, input.SegmentID, result.SegmentID)
-	assert.Equal(t, input.Status.Code, result.Status.Code)
-	assert.Equal(t, input.Alias, result.Alias)
-	assert.Equal(t, input.Type, result.Type)
-	assert.Equal(t, input.Metadata, result.Metadata)
-}
+// NOTE: TestCreateAccountInputToMmodel was removed in Track 7E because the
+// ToMmodel adapter was retired (CreateAccountInput is now SDK-owned with
+// identical wire-format JSON tags, so no conversion is needed).
 
 // TestCreateAccountInputBuilderChaining tests chaining multiple builder methods
 func TestCreateAccountInputBuilderChaining(t *testing.T) {
@@ -620,7 +585,10 @@ func TestUpdateAccountInputValidate(t *testing.T) {
 				},
 			},
 			expectError: true,
-			errContains: "invalid metadata",
+			// 8C: format is "metadata invalid: <inner>" via the
+			// FieldErrors accumulator. The "metadata" field name
+			// and the "invalid:" prefix are both present.
+			errContains: "metadata invalid",
 		},
 	}
 
@@ -717,9 +685,9 @@ func TestUpdateAccountInputWithMetadata(t *testing.T) {
 	assert.Equal(t, metadata, input.Metadata)
 }
 
-func TestUpdateAccountInputMarshalJSONValueOmitsUnsetFields(t *testing.T) {
+func TestUpdateAccountInputMarshalJSONOmitsUnsetFields(t *testing.T) {
 	blocked := false
-	input := UpdateAccountInput{Name: "Updated Account", Blocked: &blocked}
+	input := &UpdateAccountInput{Name: "Updated Account", Blocked: &blocked}
 
 	data, err := json.Marshal(input)
 
@@ -736,35 +704,8 @@ func TestUpdateAccountInputMarshalJSONNilPointer(t *testing.T) {
 	assert.Equal(t, "null", string(data))
 }
 
-// TestUpdateAccountInputToMmodel tests the ToMmodel conversion method
-func TestUpdateAccountInputToMmodel(t *testing.T) {
-	segmentID := "segment-123"
-	portfolioID := "portfolio-456"
-	entityID := "entity-789"
-	blocked := true
-
-	input := UpdateAccountInput{
-		Name:        "Updated Account",
-		SegmentID:   &segmentID,
-		PortfolioID: &portfolioID,
-		EntityID:    &entityID,
-		Blocked:     &blocked,
-		Status:      NewStatus("ACTIVE"),
-		Metadata: map[string]any{
-			"key": "value",
-		},
-	}
-
-	result := input.ToMmodel()
-
-	assert.Equal(t, input.Name, result.Name)
-	assert.Equal(t, input.SegmentID, result.SegmentID)
-	assert.Equal(t, input.PortfolioID, result.PortfolioID)
-	assert.Equal(t, input.EntityID, result.EntityID)
-	assert.Equal(t, input.Blocked, result.Blocked)
-	assert.Equal(t, input.Status.Code, result.Status.Code)
-	assert.Equal(t, input.Metadata, result.Metadata)
-}
+// NOTE: TestUpdateAccountInputToMmodel was removed in Track 7E (see
+// TestCreateAccountInputToMmodel rationale).
 
 // TestUpdateAccountInputBuilderChaining tests chaining multiple builder methods
 func TestUpdateAccountInputBuilderChaining(t *testing.T) {
@@ -788,129 +729,6 @@ func TestUpdateAccountInputBuilderChaining(t *testing.T) {
 	assert.True(t, *input.Blocked)
 	assert.Equal(t, "CLOSED", input.Status.Code)
 	assert.Equal(t, "update", input.Metadata["chain"])
-}
-
-// TestListAccountInputValidate tests the Validate method for ListAccountInput
-func TestListAccountInputValidate(t *testing.T) {
-	tests := []struct {
-		name        string
-		input       *ListAccountInput
-		expectError bool
-		errContains string
-	}{
-		{
-			name:        "empty input is valid",
-			input:       &ListAccountInput{},
-			expectError: false,
-		},
-		{
-			name: "valid page and perPage",
-			input: &ListAccountInput{
-				Page:    1,
-				PerPage: 10,
-			},
-			expectError: false,
-		},
-		{
-			name: "negative page",
-			input: &ListAccountInput{
-				Page: -1,
-			},
-			expectError: true,
-			errContains: "page number cannot be negative",
-		},
-		{
-			name: "negative perPage",
-			input: &ListAccountInput{
-				PerPage: -1,
-			},
-			expectError: true,
-			errContains: "perPage cannot be negative",
-		},
-		{
-			name: "perPage exceeds max",
-			input: &ListAccountInput{
-				PerPage: 101,
-			},
-			expectError: true,
-			errContains: "perPage cannot exceed 100",
-		},
-		{
-			name: "perPage at max",
-			input: &ListAccountInput{
-				PerPage: 100,
-			},
-			expectError: false,
-		},
-		{
-			name: "valid filter",
-			input: &ListAccountInput{
-				Filter: AccountFilter{
-					Status: []string{"ACTIVE", "PENDING"},
-				},
-			},
-			expectError: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := tt.input.Validate()
-
-			if tt.expectError {
-				require.Error(t, err)
-
-				if tt.errContains != "" {
-					assert.Contains(t, err.Error(), tt.errContains)
-				}
-			} else {
-				require.NoError(t, err)
-			}
-		})
-	}
-}
-
-// TestAccountsFromMmodel tests the FromMmodel conversion function
-func TestAccountsFromMmodel(t *testing.T) {
-	mmodelAccounts := mmodel.Accounts{
-		Items: []mmodel.Account{
-			{
-				ID:   "acc-1",
-				Name: "Account 1",
-			},
-			{
-				ID:   "acc-2",
-				Name: "Account 2",
-			},
-		},
-		Page:  1,
-		Limit: 10,
-	}
-
-	result := FromMmodel(mmodelAccounts)
-
-	assert.Len(t, result.Items, 2)
-	assert.Equal(t, "acc-1", result.Items[0].ID)
-	assert.Equal(t, "Account 1", result.Items[0].Name)
-	assert.Equal(t, "acc-2", result.Items[1].ID)
-	assert.Equal(t, "Account 2", result.Items[1].Name)
-	assert.Equal(t, 1, result.Page)
-	assert.Equal(t, 10, result.Limit)
-}
-
-// TestAccountsFromMmodelEmpty tests FromMmodel with empty accounts
-func TestAccountsFromMmodelEmpty(t *testing.T) {
-	mmodelAccounts := mmodel.Accounts{
-		Items: []mmodel.Account{},
-		Page:  1,
-		Limit: 10,
-	}
-
-	result := FromMmodel(mmodelAccounts)
-
-	assert.Empty(t, result.Items)
-	assert.Equal(t, 1, result.Page)
-	assert.Equal(t, 10, result.Limit)
 }
 
 // TestGetAccountAlias tests the GetAccountAlias helper function
@@ -993,60 +811,6 @@ func TestGetAccountIdentifier(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
-}
-
-// TestAccountFilterStructure tests the AccountFilter structure
-func TestAccountFilterStructure(t *testing.T) {
-	filter := AccountFilter{
-		Status: []string{"ACTIVE", "PENDING", "BLOCKED"},
-	}
-
-	assert.Len(t, filter.Status, 3)
-	assert.Contains(t, filter.Status, "ACTIVE")
-	assert.Contains(t, filter.Status, "PENDING")
-	assert.Contains(t, filter.Status, "BLOCKED")
-}
-
-// TestAccountFilterEmpty tests an empty AccountFilter
-func TestAccountFilterEmpty(t *testing.T) {
-	filter := AccountFilter{}
-
-	assert.Nil(t, filter.Status)
-}
-
-// TestListAccountResponseStructure tests the ListAccountResponse structure
-func TestListAccountResponseStructure(t *testing.T) {
-	response := ListAccountResponse{
-		Items: []Account{
-			{ID: "acc-1", Name: "Account 1"},
-			{ID: "acc-2", Name: "Account 2"},
-		},
-		Total:       100,
-		CurrentPage: 1,
-		PageSize:    10,
-		TotalPages:  10,
-	}
-
-	assert.Len(t, response.Items, 2)
-	assert.Equal(t, 100, response.Total)
-	assert.Equal(t, 1, response.CurrentPage)
-	assert.Equal(t, 10, response.PageSize)
-	assert.Equal(t, 10, response.TotalPages)
-}
-
-// TestAccountsStructure tests the Accounts structure
-func TestAccountsStructure(t *testing.T) {
-	accounts := Accounts{
-		Items: []Account{
-			{ID: "acc-1", Name: "Account 1"},
-		},
-		Page:  2,
-		Limit: 25,
-	}
-
-	assert.Len(t, accounts.Items, 1)
-	assert.Equal(t, 2, accounts.Page)
-	assert.Equal(t, 25, accounts.Limit)
 }
 
 // TestStatusCodesForAccount tests various status codes used for accounts

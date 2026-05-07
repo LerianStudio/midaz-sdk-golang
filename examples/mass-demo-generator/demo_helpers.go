@@ -13,12 +13,12 @@ import (
 	"sync"
 	"time"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v2"
-	conc "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/concurrent"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/config"
-	gen "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/generator"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v3"
+	conc "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/concurrent"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
+	gen "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/generator"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry"
 	"gopkg.in/yaml.v3"
 )
 
@@ -356,7 +356,7 @@ func printDefaultsSummary(cfg demoConfig) {
 }
 
 // setupSDKAndContext configures the SDK client and context
-func setupSDKAndContext(userConfig demoConfig, obsProvider observability.Provider) (context.Context, *client.Client, gen.GeneratorConfig, func(), error) {
+func setupSDKAndContext(userConfig demoConfig, obsProvider observability.Provider) (context.Context, *midaz.Client, gen.GeneratorConfig, func(), error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(userConfig.timeoutSecVal)*time.Second)
 	ctx = gen.WithOrgLocale(ctx, strings.ToLower(userConfig.orgLocaleVal))
 
@@ -386,11 +386,20 @@ func setupSDKAndContext(userConfig demoConfig, obsProvider observability.Provide
 }
 
 func createSDKConfig() (*config.Config, error) {
-	cfg, err := config.NewConfig(
+	opts := []config.Option{
 		config.FromEnvironment(),
 		config.WithEnvironment(config.EnvironmentLocal),
 		config.WithIdempotency(true),
-	)
+	}
+
+	// v3 requires exactly one auth source. When PLUGIN_AUTH_ENABLED is unset,
+	// FromEnvironment doesn't install one — add an explicit Anonymous opt-out
+	// so the demo runs against a local stack with auth disabled.
+	if os.Getenv("PLUGIN_AUTH_ENABLED") != "true" {
+		opts = append(opts, config.WithAnonymous())
+	}
+
+	cfg, err := config.NewConfig(opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create SDK config: %w", err)
 	}
@@ -430,11 +439,10 @@ func applyRetryToConfig(cfg *config.Config, r *retry.Options) {
 	cfg.RetryWaitMax = r.MaxDelay
 }
 
-func createSDKClient(cfg *config.Config, obsProvider observability.Provider) (*client.Client, error) {
-	c, err := client.New(
-		client.WithConfig(cfg),
-		client.WithObservabilityProvider(obsProvider),
-		client.UseAllAPIs(),
+func createSDKClient(cfg *config.Config, obsProvider observability.Provider) (*midaz.Client, error) {
+	c, err := midaz.New(
+		midaz.WithConfig(cfg),
+		midaz.WithObservabilityProvider(obsProvider),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create SDK client: %w", err)
@@ -487,13 +495,9 @@ func printBootstrapInfo(cfg *config.Config, gcfg gen.GeneratorConfig) {
 		gcfg.ConcurrencyLevel,
 		gcfg.BatchSize,
 	)
-
-	if os.Getenv("MIDAZ_AUTH_TOKEN") == "" {
-		fmt.Println("Warning: MIDAZ_AUTH_TOKEN is not set. Local dev server allows any token.")
-	}
 }
 
-func shutdownClient(c *client.Client) {
+func shutdownClient(c *midaz.Client) {
 	sdCtx, sdCancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer sdCancel()
 

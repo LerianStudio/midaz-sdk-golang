@@ -3,20 +3,21 @@ package generator
 import (
 	"context"
 	"errors"
+	"iter"
 	"strconv"
 	"sync/atomic"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/data"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type mockLedgersService struct {
 	createFunc func(ctx context.Context, orgID string, input *models.CreateLedgerInput) (*models.Ledger, error)
-	listFunc   func(ctx context.Context, orgID string, opts *models.ListOptions) (*models.ListResponse[models.Ledger], error)
+	listFunc   func(ctx context.Context, orgID string, opts models.LedgersListOpts) (*models.ListResponse[models.Ledger], error)
 }
 
 func (m *mockLedgersService) CreateLedger(ctx context.Context, orgID string, input *models.CreateLedgerInput) (*models.Ledger, error) {
@@ -31,12 +32,20 @@ func (*mockLedgersService) GetLedger(_ context.Context, _, _ string) (*models.Le
 	return nil, errors.New("mock: GetLedger not implemented")
 }
 
-func (m *mockLedgersService) ListLedgers(ctx context.Context, orgID string, opts *models.ListOptions) (*models.ListResponse[models.Ledger], error) {
+func (m *mockLedgersService) ListLedgers(ctx context.Context, orgID string, opts models.LedgersListOpts) (*models.ListResponse[models.Ledger], error) {
 	if m.listFunc != nil {
 		return m.listFunc(ctx, orgID, opts)
 	}
 
 	return &models.ListResponse[models.Ledger]{Items: []models.Ledger{}}, nil
+}
+
+func (*mockLedgersService) ListLedgersAll(_ context.Context, _ string, _ models.LedgersListOpts) iter.Seq2[models.Ledger, error] {
+	return func(_ func(models.Ledger, error) bool) {}
+}
+
+func (*mockLedgersService) ListLedgersPages(_ context.Context, _ string, _ models.LedgersListOpts) iter.Seq2[*models.ListResponse[models.Ledger], error] {
+	return func(_ func(*models.ListResponse[models.Ledger], error) bool) {}
 }
 
 func (*mockLedgersService) UpdateLedger(_ context.Context, _, _ string, _ *models.UpdateLedgerInput) (*models.Ledger, error) {
@@ -250,14 +259,14 @@ func TestLedgerGenerator_GenerateForOrg_PartialError(t *testing.T) {
 func TestLedgerGenerator_ListWithPagination_NoDefaultOrg(t *testing.T) {
 	gen := NewLedgerGenerator(nil, nil, "")
 
-	_, err := gen.ListWithPagination(context.Background(), nil)
+	_, err := gen.ListWithPagination(context.Background(), models.LedgersListOpts{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "default organization id not configured")
 }
 
 func TestLedgerGenerator_ListWithPagination_Success(t *testing.T) {
 	mockSvc := &mockLedgersService{
-		listFunc: func(_ context.Context, _ string, _ *models.ListOptions) (*models.ListResponse[models.Ledger], error) {
+		listFunc: func(_ context.Context, _ string, _ models.LedgersListOpts) (*models.ListResponse[models.Ledger], error) {
 			return &models.ListResponse[models.Ledger]{
 				Items: []models.Ledger{
 					{ID: "ledger-1", Name: "Ledger 1"},
@@ -273,14 +282,14 @@ func TestLedgerGenerator_ListWithPagination_Success(t *testing.T) {
 
 	gen := NewLedgerGenerator(e, nil, "default-org")
 
-	result, err := gen.ListWithPagination(context.Background(), nil)
+	result, err := gen.ListWithPagination(context.Background(), models.LedgersListOpts{})
 	require.NoError(t, err)
 	assert.Len(t, result.Items, 2)
 }
 
 func TestLedgerGenerator_ListWithPagination_Error(t *testing.T) {
 	mockSvc := &mockLedgersService{
-		listFunc: func(_ context.Context, _ string, _ *models.ListOptions) (*models.ListResponse[models.Ledger], error) {
+		listFunc: func(_ context.Context, _ string, _ models.LedgersListOpts) (*models.ListResponse[models.Ledger], error) {
 			return nil, errors.New("list failed")
 		},
 	}
@@ -291,17 +300,17 @@ func TestLedgerGenerator_ListWithPagination_Error(t *testing.T) {
 
 	gen := NewLedgerGenerator(e, nil, "default-org")
 
-	result, err := gen.ListWithPagination(context.Background(), nil)
+	result, err := gen.ListWithPagination(context.Background(), models.LedgersListOpts{})
 	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "list failed")
 }
 
 func TestLedgerGenerator_ListWithPagination_WithOptions(t *testing.T) {
-	var receivedOpts *models.ListOptions
+	var receivedOpts models.LedgersListOpts
 
 	mockSvc := &mockLedgersService{
-		listFunc: func(_ context.Context, _ string, opts *models.ListOptions) (*models.ListResponse[models.Ledger], error) {
+		listFunc: func(_ context.Context, _ string, opts models.LedgersListOpts) (*models.ListResponse[models.Ledger], error) {
 			receivedOpts = opts
 
 			return &models.ListResponse[models.Ledger]{
@@ -316,13 +325,10 @@ func TestLedgerGenerator_ListWithPagination_WithOptions(t *testing.T) {
 
 	gen := NewLedgerGenerator(e, nil, "default-org")
 
-	opts := &models.ListOptions{
-		Limit: 10,
-	}
+	opts := models.LedgersListOpts{PageListOpts: models.PageListOpts{Limit: 10}}
 
 	_, err := gen.ListWithPagination(context.Background(), opts)
 	require.NoError(t, err)
-	assert.NotNil(t, receivedOpts)
 	assert.Equal(t, 10, receivedOpts.Limit)
 }
 

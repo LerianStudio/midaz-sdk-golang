@@ -1,0 +1,40 @@
+package sdkctx // import "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
+
+Package sdkctx provides per-request context helpers for the Midaz Go SDK.
+
+These helpers attach metadata to a context.Context that the SDK reads at
+request-construction time. They are the per-call counterparts to client-level
+configuration set via midaz.With*.
+
+# Available helpers
+
+  - WithIdempotencyKey / IdempotencyKeyFromContext — explicit idempotency key
+    for unsafe HTTP requests (POST/PUT/PATCH/DELETE). Takes precedence over
+    auto-generated keys.
+  - WithoutAutoIdempotency / AutoIdempotencySuppressed — suppress
+    auto-idempotency for a single call when client-level idempotency is on.
+  - WithIncludeDeleted / IncludeDeletedFromContext — include soft-deleted
+    resources in Get/List operations.
+  - WithHardDelete / HardDeleteFromContext — perform a hard delete instead of
+    the default soft delete.
+
+# Design rationale
+
+Per-request context helpers complement (but do not replace) client-level
+configuration. The precedence order for each concern is documented per helper.
+As a general rule: per-request context > client option > env var.
+
+In v2, these helpers lived in the entities package. v3 moved them here
+as part of the convergence pass and the entities.With* shims (the
+four per-request context helpers + the post-construction Options like
+entities.WithDebug/WithUserAgent/WithObservability) have been deleted.
+pkg/sdkctx is the only sanctioned place for per-request context plumbing in v3.
+
+func AutoIdempotencySuppressed(ctx context.Context) bool
+func HardDeleteFromContext(ctx context.Context) bool
+func IdempotencyKeyFromContext(ctx context.Context) string
+func IncludeDeletedFromContext(ctx context.Context) bool
+func WithHardDelete(ctx context.Context, hard bool) context.Context
+func WithIdempotencyKey(ctx context.Context, key string) context.Context
+func WithIncludeDeleted(ctx context.Context, include bool) context.Context
+func WithoutAutoIdempotency(ctx context.Context) context.Context

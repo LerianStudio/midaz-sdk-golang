@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/concurrent"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/data"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/retry"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/stats"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/concurrent"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/data"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/stats"
 )
 
 type accountGenerator struct {
@@ -33,10 +33,10 @@ func NewAccountGenerator(e *entities.Entity, obs observability.Provider) Account
 }
 
 // Generate creates a single account from the provided template.
-func (g *accountGenerator) Generate(ctx context.Context, orgID, ledgerID, assetCode string, t data.AccountTemplate) (*models.Account, error) {
+func (g *accountGenerator) Generate(ctx context.Context, organizationID, ledgerID, assetCode string, t data.AccountTemplate) (*models.Account, error) {
 	ctx = normalizeContext(ctx)
 
-	if err := g.validateInputs(orgID, ledgerID, assetCode); err != nil {
+	if err := g.validateInputs(organizationID, ledgerID, assetCode); err != nil {
 		return nil, err
 	}
 
@@ -44,16 +44,16 @@ func (g *accountGenerator) Generate(ctx context.Context, orgID, ledgerID, assetC
 	g.applyTemplateFields(in, t)
 	g.setupAccountTypeMetadata(in, t)
 
-	return g.createAccount(ctx, orgID, ledgerID, in)
+	return g.createAccount(ctx, organizationID, ledgerID, in)
 }
 
 // validateInputs validates the required inputs for account generation
-func (g *accountGenerator) validateInputs(orgID, ledgerID, assetCode string) error {
+func (g *accountGenerator) validateInputs(organizationID, ledgerID, assetCode string) error {
 	if g.e == nil || g.e.Accounts == nil {
 		return errors.New("entity accounts service not initialized")
 	}
 
-	if orgID == "" || ledgerID == "" {
+	if organizationID == "" || ledgerID == "" {
 		return errors.New("organization and ledger IDs are required")
 	}
 
@@ -137,13 +137,13 @@ func (*accountGenerator) applyInferredAccountTypeKey(in *models.CreateAccountInp
 }
 
 // createAccount creates the account with observability and error handling
-func (g *accountGenerator) createAccount(ctx context.Context, orgID, ledgerID string, in *models.CreateAccountInput) (*models.Account, error) {
+func (g *accountGenerator) createAccount(ctx context.Context, organizationID, ledgerID string, in *models.CreateAccountInput) (*models.Account, error) {
 	var out *models.Account
 
 	err := observability.WithSpan(ctx, g.obs, "GenerateAccount", func(ctx context.Context) error {
 		return executeWithCircuitBreaker(ctx, func() error {
 			return retry.DoWithContext(ctx, func() error {
-				acc, err := g.e.Accounts.CreateAccount(ctx, orgID, ledgerID, in)
+				acc, err := g.e.Accounts.CreateAccount(ctx, organizationID, ledgerID, in)
 				if err != nil {
 					return err
 				}
@@ -166,7 +166,7 @@ func (g *accountGenerator) createAccount(ctx context.Context, orgID, ledgerID st
 }
 
 // GenerateBatch creates multiple accounts concurrently from the provided templates.
-func (g *accountGenerator) GenerateBatch(ctx context.Context, orgID, ledgerID, assetCode string, templates []data.AccountTemplate) ([]*models.Account, error) {
+func (g *accountGenerator) GenerateBatch(ctx context.Context, organizationID, ledgerID, assetCode string, templates []data.AccountTemplate) ([]*models.Account, error) {
 	ctx = normalizeContext(ctx)
 
 	if len(templates) == 0 {
@@ -188,7 +188,7 @@ func (g *accountGenerator) GenerateBatch(ctx context.Context, orgID, ledgerID, a
 	workers := getWorkers(ctx)
 	buf := workers * 2
 	results := concurrent.WorkerPool(ctx, items, func(ctx context.Context, idx int) (*models.Account, error) {
-		acc, err := g.Generate(ctx, orgID, ledgerID, assetCode, templates[idx])
+		acc, err := g.Generate(ctx, organizationID, ledgerID, assetCode, templates[idx])
 		if err == nil {
 			counter.RecordSuccess()
 		}

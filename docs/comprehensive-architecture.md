@@ -2,7 +2,7 @@
 
 This document explains how the current Midaz Go SDK is organized, how requests move through the SDK, and which extension points are available. It focuses on the implemented codebase, not planned architecture.
 
-The SDK is an idiomatic Go client for Midaz Ledger and CRM APIs. The root module is `github.com/LerianStudio/midaz-sdk-golang/v2`, and the root package name is `client` in `client.go`.
+The SDK is an idiomatic Go client for Midaz Ledger and CRM APIs. The root module is `github.com/LerianStudio/midaz-sdk-golang/v3`, and the root package name is `midaz` in `midaz.go`.
 
 ## Architecture at a glance
 
@@ -10,7 +10,7 @@ The SDK uses a layered request path:
 
 ```text
 Application code
-  -> client.Client
+  -> midaz.Client
   -> config.Config
   -> entities.Entity
   -> private entity implementations
@@ -20,7 +20,7 @@ Application code
 
 ```mermaid
 flowchart LR
-    App[Application code] --> Client[client.Client]
+    App[Application code] --> Client[midaz.Client]
     Client --> Config[config.Config]
     Client --> Entity[entities.Entity]
 
@@ -39,7 +39,7 @@ flowchart LR
 
 The major layers are:
 
-- **Root client layer**: Owns top-level configuration, context, observability, retry settings, tenant defaults, and enabled API groups.
+- **Root client layer**: Owns top-level configuration, context, observability, retry settings, tenant defaults, and service initialization.
 - **Config layer**: Resolves URLs, HTTP client settings, retry settings, Access Manager settings, idempotency, and environment-based options.
 - **Entity layer**: Exposes the 16 service interfaces through `c.Entity`.
 - **Private entity implementations**: Build resource-specific URLs, validate required inputs, call the HTTP layer, and map responses into SDK models.
@@ -51,7 +51,7 @@ The major layers are:
 
 ```text
 .
-├── client.go
+├── midaz.go
 ├── entities/
 ├── models/
 ├── pkg/
@@ -65,15 +65,14 @@ The major layers are:
 
 | Path | Purpose |
 | --- | --- |
-| `client.go` | Root SDK entry point. Defines package `client`, `Client`, `New`, client options, API enabling, observability access, shutdown, and small model constructors. |
+| `midaz.go` | Root SDK entry point. Defines package `midaz`, `Client`, `New`, client options, service initialization, observability access, shutdown, and small model constructors. |
 | `entities/` | Entity service interfaces, private HTTP-backed implementations, entity factory, request context helpers, URL builders, and transport helpers. |
 | `models/` | Public SDK types, request inputs, fluent builders, list responses, pagination options, CRM models, transaction models, and Midaz model aliases. |
 | `pkg/config/` | SDK configuration, service URL resolution, environment reading, HTTP client setup, Access Manager config, retry defaults, and idempotency flags. |
-| `pkg/access-manager/` | Access Manager client-credentials token request support. |
+| `pkg/auth/` | Access Manager client-credentials token request support. |
 | `pkg/errors/` | Structured SDK error type, categories, codes, constructors, and helper checkers. |
 | `pkg/observability/` | OpenTelemetry provider abstraction, tracing, metrics, logging, context propagation, and HTTP helpers. |
 | `pkg/retry/` | Retry options, retry engine, HTTP retry helpers, exponential backoff, jitter, and retryable status/error matching. |
-| `pkg/pagination/` | Generic pagination helpers separate from `models.ListOptions`. |
 | `pkg/security/` | Outbound request validation and related safety checks. |
 | `pkg/validation/` | Validation helpers and field-level validation structures. |
 | `pkg/concurrent/` | Worker pool, batching, and rate-limit utilities. |
@@ -86,7 +85,7 @@ The module currently declares Go `1.26.0` in `go.mod`.
 
 ## Client lifecycle
 
-You create a client with `client.New(...)`. The constructor starts with default settings, applies options in order, then initializes enabled API groups.
+You create a client with `midaz.New(...)`. The constructor starts with default settings, applies options in order, validates configuration, and initializes services.
 
 ```go
 cfg, err := config.NewConfig(config.FromEnvironment())
@@ -94,9 +93,9 @@ if err != nil {
     return err
 }
 
-c, err := client.New(
-    client.WithConfig(cfg),
-    client.UseAllAPIs(),
+c, err := midaz.New(
+    midaz.WithConfig(cfg),
+    midaz.WithAnonymous(),
 )
 if err != nil {
     return err
@@ -104,13 +103,13 @@ if err != nil {
 defer c.Shutdown(context.Background())
 ```
 
-`client.UseAllAPIs()` and `client.UseEntityAPI()` currently enable the same entity API surface. If you do not pass one of these options, `c.Entity` remains unset.
+`midaz.New(...)` initializes entity services when configuration validates. Pass `midaz.WithAccessManager(...)` for production-shaped OAuth or `midaz.WithAnonymous()` for auth-less local stacks.
 
 The initialization path is:
 
-1. `client.New` creates a `Client` with default background context, disabled default observability provider, and `config.DefaultConfig()`.
+1. `midaz.New` creates a `Client` with default background context, disabled default observability provider, and `config.DefaultConfig()`.
 2. Client options update the `Client` and its config.
-3. If entity APIs are enabled, `setupEntity()` reads service URLs, attaches observability, propagates debug/user-agent/tenant settings, creates the entity layer, and configures retry and idempotency behavior.
+3. `setupEntity()` reads service URLs, attaches observability, propagates debug/user-agent/tenant settings, creates the entity layer, and configures retry and idempotency behavior.
 4. `entities.NewEntityWithConfig(...)` reads Access Manager settings, fetches an Access Manager token if enabled, creates an `entities.HTTPClient`, stores service URLs, applies entity options, and initializes services.
 5. `entities.Entity.initServices()` creates all private service implementations and propagates the parent HTTP client configuration into each service-specific HTTP client.
 
@@ -146,7 +145,7 @@ The HTTP retry engine has its own default options in `pkg/retry`:
 | Backoff factor | `2.0` |
 | Jitter factor | `0.25` |
 
-When you configure the root client with `client.WithRetries(max, min, maxBackoff)`, `setupEntity()` applies those values to the entity HTTP client.
+When you configure the root client with `midaz.WithRetryOptions(retry.Option...)`, `setupEntity()` applies the resolved options to the entity HTTP client. Config-derived seeds (`MaxRetries`, `RetryWaitMin`, `RetryWaitMax`) run first; user-supplied options run afterward and the last write wins.
 
 ## Environment variables
 
@@ -199,7 +198,7 @@ For local defaults:
 
 For development and production defaults, CRM falls back to the Ledger base URL unless you provide `MIDAZ_CRM_URL` or `config.WithCRMURL(...)`.
 
-`client.WithBaseURL(...)` derives service URLs from a shared base:
+`midaz.WithBaseURL(...)` derives service URLs from a shared base:
 
 - Ledger services use port `3002` for localhost without an explicit port.
 - CRM uses port `4003` for localhost without an explicit port.
@@ -207,18 +206,20 @@ For development and production defaults, CRM falls back to the Ledger base URL u
 
 ## Entity services
 
-The root client exposes entity services through `c.Entity` after you enable the entity API.
+The root client exposes entity services after `midaz.New(...)` validates configuration and initializes the entity layer.
 
 ```go
-c, err := client.New(
-    client.WithBaseURL("http://localhost"),
-    client.UseAllAPIs(),
+c, err := midaz.New(
+    midaz.WithBaseURL("http://localhost"),
+    midaz.WithAnonymous(),
 )
 if err != nil {
     return err
 }
 
-orgs, err := c.Entity.Organizations.ListOrganizations(ctx, models.NewListOptions().WithLimit(20))
+orgs, err := c.Organizations.ListOrganizations(ctx, models.OrganizationsListOpts{
+    PageListOpts: models.PageListOpts{Limit: 20},
+})
 ```
 
 The current entity surface has 16 services:
@@ -273,17 +274,17 @@ A normal SDK request follows this path:
 ```mermaid
 sequenceDiagram
     participant App as Application
-    participant Client as client.Client
+    participant Client as midaz.Client
     participant Entity as entities.Entity
     participant Service as private service implementation
     participant HTTP as entities.HTTPClient
     participant API as Midaz API
 
-    App->>Client: client.New(options...)
+    App->>Client: midaz.New(options...)
     Client->>Entity: setupEntity()
     Entity->>Service: initServices()
 
-    App->>Service: c.Entity.Accounts.GetAccount(ctx, orgID, ledgerID, accountID)
+    App->>Service: c.Accounts.GetAccount(ctx, orgID, ledgerID, accountID)
     Service->>Service: validate required parameters
     Service->>Service: build resource URL
     Service->>HTTP: doRequest(ctx, method, url, headers, body, result)
@@ -308,23 +309,24 @@ The HTTP layer adds these standard headers:
 | `User-Agent` | Uses config user agent or version default. |
 | `Authorization: Bearer <token>` | Added only when an Access Manager token is available or an entity has an auth token. |
 | `X-Idempotency` | Added from context or transaction input when present. Some transaction requests can request automatic generation. |
-| `X-Tenant-ID` | Added from request context or client/config default tenant ID when present. |
 | `X-Organization-Id` | Added by CRM holder and alias requests. |
 
-The tenant header is compatibility metadata. The reference Midaz path treats authenticated claims as the primary tenant source of truth.
+Tenant scope is derived from Access Manager/JWT claims. The SDK does not expose tenant configuration and does not send `X-Tenant-ID`.
 
 ## Access Manager authentication
 
-Access Manager support lives in `pkg/access-manager`.
+Access Manager support lives in `pkg/auth`.
 
-The SDK supports client-credentials token fetching through:
+The SDK supports client-credentials token fetching through `midaz.WithAccessManager`:
 
 ```go
-import auth "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/access-manager"
+import (
+    "github.com/LerianStudio/midaz-sdk-golang/v3"
+)
 
-cfg, err := config.NewConfig(
-    config.WithAccessManager(auth.AccessManager{
-        Enabled:      true,
+c, err := midaz.New(
+    midaz.WithEnvironment(midaz.EnvironmentProduction),
+    midaz.WithAccessManager(midaz.AccessManager{
         Address:      "https://access-manager.example.com",
         ClientID:     "midaz-client",
         ClientSecret: "secret",
@@ -333,12 +335,9 @@ cfg, err := config.NewConfig(
 if err != nil {
     return err
 }
-
-c, err := client.New(
-    client.WithConfig(cfg),
-    client.UseAllAPIs(),
-)
 ```
+
+`Enabled` is auto-set by `WithAccessManager`; calling the option is the opt-in. See [`docs/auth.md`](./auth.md) for the full auth surface, including environment-driven configuration via `config.FromEnvironment()`.
 
 When Access Manager is enabled, `entities.NewEntityWithConfig(...)` calls:
 
@@ -374,7 +373,7 @@ Important boundaries:
 
 ## Errors
 
-Most SDK operational errors use `*errors.Error` from `github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors`.
+Most SDK operational errors use `*errors.Error` from `github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors`.
 
 The actual error shape is:
 
@@ -406,9 +405,9 @@ type Error struct {
 Use the helper checkers for common branches:
 
 ```go
-import sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v2/pkg/errors"
+import sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
 
-account, err := c.Entity.Accounts.GetAccount(ctx, orgID, ledgerID, accountID)
+account, err := c.Accounts.GetAccount(ctx, orgID, ledgerID, accountID)
 if err != nil {
     switch {
     case sdkerrors.IsNotFoundError(err):
@@ -466,36 +465,42 @@ Default retryable network error text includes:
 - `rate limit`
 - `service unavailable`
 
-Configure retries at the client level:
+Configure retries at the client level via `pkg/retry` options:
 
 ```go
-c, err := client.New(
-    client.WithRetries(3, 100*time.Millisecond, 10*time.Second),
-    client.UseAllAPIs(),
+import "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry"
+
+c, err := midaz.New(
+    midaz.WithAnonymous(),
+    midaz.WithRetryOptions(
+        retry.WithMaxRetries(3),
+        retry.WithInitialDelay(100*time.Millisecond),
+        retry.WithMaxDelay(10*time.Second),
+    ),
 )
 ```
 
 Disable retries:
 
 ```go
-c, err := client.New(
-    client.DisableRetries(),
-    client.UseAllAPIs(),
+c, err := midaz.New(
+    midaz.WithoutRetries(),
+    midaz.WithAnonymous(),
 )
 ```
 
 You can also provide a custom retry predicate:
 
 ```go
-c, err := client.New(
-    client.WithCustomRetryPolicy(func(resp *http.Response, err error) bool {
+c, err := midaz.New(
+    midaz.WithCustomRetryPolicy(func(resp *http.Response, err error) bool {
         if resp != nil && resp.StatusCode == http.StatusConflict {
             return false
         }
 
         return err != nil
     }),
-    client.UseAllAPIs(),
+    midaz.WithAnonymous(),
 )
 ```
 
@@ -517,9 +522,9 @@ If an unsafe request has no `X-Idempotency` header, the HTTP layer sets the effe
 You can attach an idempotency key to any request context:
 
 ```go
-ctx := entities.WithIdempotencyKey(context.Background(), "payment-2026-04-27-0001")
+ctx := sdkctx.WithIdempotencyKey(context.Background(), "payment-2026-04-27-0001")
 
-tx, err := c.Entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
+tx, err := c.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
 ```
 
 For transaction creation, `models.CreateTransactionInput` also has an idempotency field used by the transaction service:
@@ -544,7 +549,7 @@ input := models.NewCreateTransactionInput("USD", "100.00").
 
 input.IdempotencyKey = "payment-2026-04-27-0001"
 
-tx, err := c.Entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
+tx, err := c.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
 ```
 
 Automatic idempotency applies to unsafe entity HTTP requests. The HTTP layer auto-generates `X-Idempotency` when:
@@ -586,9 +591,9 @@ if err != nil {
 }
 defer provider.Shutdown(context.Background())
 
-c, err := client.New(
-    client.WithObservabilityProvider(provider),
-    client.UseAllAPIs(),
+c, err := midaz.New(
+    midaz.WithObservabilityProvider(provider),
+    midaz.WithAnonymous(),
 )
 ```
 
@@ -624,41 +629,51 @@ Common model responsibilities include:
 - request input types such as `CreateOrganizationInput`, `CreateAccountInput`, and `CreateTransactionInput`
 - fluent builders such as `models.NewCreateOrganizationInput(...)`
 - response types such as `Organization`, `Ledger`, `Account`, `Transaction`, `Holder`, and `Alias`
-- list options and list responses
-- pagination metadata helpers
+- per-endpoint typed list-opts (`AccountsListOpts`, `TransactionsListOpts`, ...) and `models.ListResponse[T]`
+- pagination metadata helpers (`HasMore`, `HasPrev`, `TotalKnown`)
 - CRM holder and alias models
 - transaction DSL and send-based transaction inputs
 - validation methods on selected input types
-- conversion helpers between SDK models and Midaz backend model shapes
+
+In v3, every public model type is SDK-native (Track 7E retired the v2 `mmodel` embedding). JSON tags align with the Midaz wire format byte-for-byte, but the type identity is owned by `models/`.
 
 Validation happens primarily in model `Validate()` methods and service-level required parameter checks. The SDK does not provide a runtime system for custom validation rule registration.
 
 ## Pagination
 
-List methods use `models.ListOptions` and `models.ListResponse[T]`.
+v3 uses typed list-opts per endpoint. Page-based and cursor-based endpoints have separate opts types — wrong-shape opts don't compile. Every list method ships in a trio: `List` (one page), `ListXxxAll` (every item across pages, as `iter.Seq2`), and `ListXxxPages` (every page envelope, as `iter.Seq2`).
 
 ```go
-options := models.NewListOptions().
-    WithLimit(50).
-    WithPage(1).
-    WithFilter("status", "ACTIVE")
+opts := models.AccountsListOpts{
+    PageListOpts: models.PageListOpts{Limit: 50, Page: 1},
+    Filters:      models.AccountsFilters{Status: "ACTIVE"},
+}
 
-accounts, err := c.Entity.Accounts.ListAccounts(ctx, orgID, ledgerID, options)
+// Single page:
+page, err := c.Accounts.ListAccounts(ctx, orgID, ledgerID, opts)
 if err != nil {
     return err
 }
 
-for _, account := range accounts.Items {
+for _, account := range page.Items {
     fmt.Println(account.ID)
 }
 
-if accounts.Pagination.HasNextPage() {
-    nextOptions := accounts.Pagination.NextPageOptions()
-    _ = nextOptions
+if page.Pagination.HasMore() {
+    // For page-based: increment opts.Page; for cursor-based: copy
+    // page.Pagination.NextCursor into opts.Cursor.
+}
+
+// All items across every page (iter.Seq2):
+for account, err := range c.Accounts.ListAccountsAll(ctx, orgID, ledgerID, opts) {
+    if err != nil {
+        return err
+    }
+    fmt.Println(account.ID)
 }
 ```
 
-Cursor support is endpoint-specific. `WithCursor(...)` sets the cursor query parameter, and transaction listing has explicit cursor-aware behavior.
+Cursor-based endpoints (Transactions, Operations, OperationRoutes, TransactionRoutes, AssetRates) use `models.CursorListOpts` instead of `PageListOpts`. The type system prevents mixing them. See [docs/pagination.md](./pagination.md) for the full contract.
 
 ## CRM support
 
@@ -673,21 +688,23 @@ CRM requests use the `crm` service URL and send the organization context through
 X-Organization-Id: <organizationID>
 ```
 
-If a default tenant ID is configured, the shared HTTP client may also send `X-Tenant-ID`. That header does not replace the CRM `organizationID`; holder and alias methods still require `organizationID` and send it as `X-Organization-Id`. Per-request `entities.WithTenantID(ctx, id)` overrides only the default tenant header.
+Holder and alias methods still require `organizationID` and send it as `X-Organization-Id`. Tenant scope comes from Access Manager/JWT claims, not from request headers.
 
 Example:
 
 ```go
-holders, err := c.Entity.Holders.ListHolders(
+holders, err := c.Holders.ListHolders(
     ctx,
     orgID,
-    models.NewListOptions().WithLimit(20),
+    models.HoldersListOpts{
+        PageListOpts: models.PageListOpts{Limit: 20},
+    },
 )
 if err != nil {
     return err
 }
 
-alias, err := c.Entity.Aliases.CreateAlias(
+alias, err := c.Aliases.CreateAlias(
     ctx,
     orgID,
     holderID,
@@ -701,7 +718,7 @@ alias, err := c.Entity.Aliases.CreateAlias(
 )
 ```
 
-If no CRM URL is configured, the entity layer falls back to the onboarding URL. For local development, prefer setting `MIDAZ_CRM_URL=http://localhost:4003/v1` or using `client.WithCRMURL(...)`.
+If no CRM URL is configured, the entity layer falls back to the onboarding URL. For local development, prefer setting `MIDAZ_CRM_URL=http://localhost:4003/v1` or using `midaz.WithCRMURL(...)`.
 
 ## Security boundaries
 
@@ -712,7 +729,6 @@ The SDK also redacts sensitive values in debug logging, including:
 - `Authorization`
 - cookies
 - `X-Idempotency`
-- `X-Tenant-ID`
 
 Debug mode logs request and response metadata. Request and response bodies are redacted by length rather than printed directly.
 
@@ -810,15 +826,14 @@ Use these supported extension points:
 
 | Need | Extension point |
 | --- | --- |
-| Custom service URLs | `client.WithBaseURL`, `client.WithOnboardingURL`, `client.WithTransactionURL`, `client.WithCRMURL`, or config equivalents. |
-| Custom HTTP behavior | `client.WithHTTPClient(...)` or `config.WithHTTPClient(...)`. |
-| Retry tuning | `client.WithRetries(...)`, `client.DisableRetries()`, or `client.WithCustomRetryPolicy(...)`. |
-| Access Manager authentication | `config.WithAccessManager(...)` or `config.FromEnvironment()`. |
-| Observability | `client.WithObservabilityProvider(...)`, `client.WithObservabilityOptions(...)`, or `client.WithCollectorEndpoint(...)`. |
-| Tenant compatibility header | `client.WithTenantID(...)`, `config.WithTenantID(...)`, or `entities.WithTenantID(ctx, ...)`. |
-| Per-request idempotency | `entities.WithIdempotencyKey(ctx, ...)` or transaction input idempotency. |
-| Pagination | `models.NewListOptions()` and `models.ListResponse[T]` pagination helpers. |
-| Error branching | `pkg/errors` helper checkers and `errors.As`. |
+| Custom service URLs | `midaz.WithBaseURL`, `midaz.WithOnboardingURL`, `midaz.WithTransactionURL`, `midaz.WithCRMURL`, or config equivalents. |
+| Custom HTTP behavior | `midaz.WithHTTPClient(...)` or `config.WithHTTPClient(...)`. |
+| Retry tuning | `midaz.WithRetryOptions(retry.Option...)`, `midaz.WithoutRetries()`, or `midaz.WithCustomRetryPolicy(...)`. |
+| Access Manager authentication | `midaz.WithAccessManager(...)`, `config.WithAccessManager(...)`, or `config.FromEnvironment()`. |
+| Observability | `midaz.WithObservabilityProvider(...)` or `midaz.WithObservabilityOptions(...)`. |
+| Per-request idempotency | `sdkctx.WithIdempotencyKey(ctx, ...)`, `sdkctx.WithoutAutoIdempotency(ctx)`, or transaction input idempotency. |
+| Pagination | Per-endpoint typed list-opts (`AccountsListOpts`, `TransactionsListOpts`, ...) embedding `PageListOpts` or `CursorListOpts`. |
+| Error branching | `pkg/errors` helper checkers (`IsNotFoundError`, `IsValidationError`, `IsAuthError`, ...) and `errors.As`. |
 
 ## Next steps
 

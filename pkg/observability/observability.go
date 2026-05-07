@@ -1,5 +1,3 @@
-// Package observability provides utilities for adding observability capabilities
-// to the Midaz SDK, including metrics, logging, and distributed tracing.
 package observability
 
 import (
@@ -12,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/version"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/version"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -68,14 +66,32 @@ const (
 
 // Provider is the interface for observability providers.
 // It allows for consistent access to tracing, metrics, and logging capabilities.
+//
+// # Non-nil contract
+//
+// The Tracer, Meter, and Logger accessors MUST return non-nil values for any
+// implementation that may be installed via
+// [github.com/LerianStudio/midaz-sdk-golang/v3.WithObservabilityProvider].
+// Use the OTel no-op providers (e.g. [go.opentelemetry.io/otel/trace/noop])
+// or [NewNoopLogger] for disabled-component configurations. The in-tree
+// [MidazProvider] follows this contract.
+//
+// SDK call sites use these accessors directly (e.g. provider.Tracer().Start)
+// without nil-checking the returned values — codifying the invariant in the
+// interface keeps consumers free of defensive guards.
 type Provider interface {
-	// Tracer returns a tracer for creating spans
+	// Tracer returns a tracer for creating spans. Implementations MUST return
+	// a non-nil Tracer; use a no-op tracer (e.g. noop.NewTracerProvider().Tracer(""))
+	// when tracing is disabled.
 	Tracer() trace.Tracer
 
-	// Meter returns a meter for creating metrics
+	// Meter returns a meter for creating metrics. Implementations MUST return
+	// a non-nil Meter; use a no-op meter (e.g. metricnoop.NewMeterProvider().Meter(""))
+	// when metrics are disabled.
 	Meter() metric.Meter
 
-	// Logger returns a logger
+	// Logger returns a logger. Implementations MUST return a non-nil Logger;
+	// use [NewNoopLogger] when logging is disabled.
 	Logger() Logger
 
 	// Shutdown gracefully shuts down the provider
@@ -171,19 +187,6 @@ func WithServiceVersion(ver string) Option {
 	}
 }
 
-// WithSDKVersion sets the SDK version for observability
-func WithSDKVersion(ver string) Option {
-	return func(c *Config) error {
-		if ver == "" {
-			return errors.New("SDK version cannot be empty")
-		}
-
-		c.SDKVersion = ver
-
-		return nil
-	}
-}
-
 // WithEnvironment sets the environment for observability (e.g., "production", "staging", "development")
 func WithEnvironment(env string) Option {
 	return func(c *Config) error {
@@ -223,7 +226,12 @@ func WithLogLevel(level LogLevel) Option {
 	}
 }
 
-// WithLogOutput sets the writer for logs
+// WithLogOutput sets the writer for logs.
+//
+// Primary use: redirecting log output in tests so callers can capture and
+// assert log content. Production code typically wires logging through the
+// observability provider's resource configuration; this option exists for
+// the inversion-of-output scenario.
 func WithLogOutput(output io.Writer) Option {
 	return func(c *Config) error {
 		if output == nil {
@@ -455,71 +463,6 @@ func New(ctx context.Context, opts ...Option) (Provider, error) {
 	return provider, nil
 }
 
-// NewWithConfig creates a new observability provider with the given configuration
-// This is provided for backward compatibility with existing code
-func NewWithConfig(ctx context.Context, config *Config) (Provider, error) {
-	if config == nil {
-		return New(ctx)
-	}
-
-	// Convert the config to options
-	var opts []Option
-
-	if config.ServiceName != "" {
-		opts = append(opts, WithServiceName(config.ServiceName))
-	}
-
-	if config.ServiceVersion != "" {
-		opts = append(opts, WithServiceVersion(config.ServiceVersion))
-	}
-
-	if config.SDKVersion != "" {
-		opts = append(opts, WithSDKVersion(config.SDKVersion))
-	}
-
-	if config.Environment != "" {
-		opts = append(opts, WithEnvironment(config.Environment))
-	}
-
-	if config.CollectorEndpoint != "" {
-		opts = append(opts, WithCollectorEndpoint(config.CollectorEndpoint))
-	}
-
-	if config.LogOutput != nil {
-		opts = append(opts, WithLogOutput(config.LogOutput))
-	}
-
-	// Always set log level, as it has a valid zero value
-	opts = append(opts, WithLogLevel(config.LogLevel))
-
-	// Always set trace sample rate
-	opts = append(opts, WithTraceSampleRate(config.TraceSampleRate))
-
-	// Always set components
-	opts = append(opts, WithComponentEnabled(
-		config.EnabledComponents.Tracing,
-		config.EnabledComponents.Metrics,
-		config.EnabledComponents.Logging,
-	))
-
-	if len(config.Attributes) > 0 {
-		opts = append(opts, WithAttributes(config.Attributes...))
-	}
-
-	if len(config.Propagators) > 0 {
-		opts = append(opts, WithPropagators(config.Propagators...))
-	}
-
-	if len(config.PropagationHeaders) > 0 {
-		opts = append(opts, WithPropagationHeaders(config.PropagationHeaders...))
-	}
-
-	// Always set RegisterGlobally
-	opts = append(opts, WithRegisterGlobally(config.RegisterGlobally))
-
-	return New(ctx, opts...)
-}
-
 // createResource creates an OpenTelemetry resource with service information
 func (p *MidazProvider) createResource() *sdkresource.Resource {
 	attributes := make([]attribute.KeyValue, 0, 5+len(p.config.Attributes))
@@ -580,7 +523,7 @@ func (p *MidazProvider) initTracing(ctx context.Context, res *sdkresource.Resour
 	}
 
 	// Create a tracer for this library
-	p.tracer = p.tracerProvider.Tracer("github.com/LerianStudio/midaz-sdk-golang/v2")
+	p.tracer = p.tracerProvider.Tracer("github.com/LerianStudio/midaz-sdk-golang/v3")
 
 	// Add shutdown function
 	p.shutdownFunctions = append(p.shutdownFunctions, func(ctx context.Context) error {
@@ -619,7 +562,7 @@ func (p *MidazProvider) initMetrics(ctx context.Context, res *sdkresource.Resour
 	}
 
 	// Create a meter for this library
-	p.meter = p.meterProvider.Meter("github.com/LerianStudio/midaz-sdk-golang/v2")
+	p.meter = p.meterProvider.Meter("github.com/LerianStudio/midaz-sdk-golang/v3")
 
 	// Add shutdown function
 	p.shutdownFunctions = append(p.shutdownFunctions, func(ctx context.Context) error {
@@ -678,7 +621,18 @@ func (p *MidazProvider) Meter() metric.Meter {
 	return p.meter
 }
 
-// Logger returns a logger
+// Logger returns the OTel-correlated logger associated with this provider.
+//
+// The return value is always non-nil — when logging is disabled or the
+// provider is shut down, [NewNoopLogger] is returned. This honours the
+// non-nil contract on [Provider.Logger].
+//
+// This logger is distinct from
+// [github.com/LerianStudio/midaz-sdk-golang/v3.Client.Logger]: that method
+// returns the canonical *slog.Logger used for retry/internal lines, while
+// this method returns the bespoke observability.Logger that integrates with
+// the provider's tracing pipeline (call WithSpan(span) to inject trace_id /
+// span_id). See the package overview in doc.go for the two-surface design.
 func (p *MidazProvider) Logger() Logger {
 	if p == nil || p.config == nil || !p.isEnabled() || !p.config.EnabledComponents.Logging || p.logger == nil {
 		// Return a no-op logger if logging is disabled

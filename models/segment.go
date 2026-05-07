@@ -6,32 +6,45 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation/core"
-	"github.com/LerianStudio/midaz/v3/pkg/mmodel"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation/core"
 )
 
 const maxSegmentNameLength = 256
 
-// Segment is an alias for mmodel.Segment to maintain compatibility while using midaz entities.
-type Segment = mmodel.Segment
-
-// CreateSegmentInput wraps mmodel.CreateSegmentInput to maintain compatibility while using midaz entities.
-type CreateSegmentInput struct {
-	mmodel.CreateSegmentInput
+// Segment is the SDK-native segment response type (Track 7E — audit 7.1).
+type Segment struct {
+	ID             string         `json:"id" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	Name           string         `json:"name" example:"My Segment" maxLength:"256"`
+	LedgerID       string         `json:"ledgerId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	OrganizationID string         `json:"organizationId" example:"00000000-0000-0000-0000-000000000000" format:"uuid"`
+	Status         Status         `json:"status"`
+	CreatedAt      time.Time      `json:"createdAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+	UpdatedAt      time.Time      `json:"updatedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+	DeletedAt      *time.Time     `json:"deletedAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
+	Metadata       map[string]any `json:"metadata,omitempty"`
 }
 
-// UpdateSegmentInput wraps mmodel.UpdateSegmentInput to maintain compatibility while using midaz entities.
+// CreateSegmentInput is the SDK-native segment creation payload.
+type CreateSegmentInput struct {
+	Name     string         `json:"name" example:"My Segment"`
+	Status   Status         `json:"status"`
+	Metadata map[string]any `json:"metadata"`
+}
+
+// UpdateSegmentInput is the SDK-native segment patch payload.
 type UpdateSegmentInput struct {
-	mmodel.UpdateSegmentInput
+	Name     string         `json:"name" example:"My Segment Updated"`
+	Status   Status         `json:"status"`
+	Metadata map[string]any `json:"metadata,omitempty"`
 }
 
 // NewCreateSegmentInput creates a new CreateSegmentInput with required fields.
 func NewCreateSegmentInput(name string) *CreateSegmentInput {
 	return &CreateSegmentInput{
-		CreateSegmentInput: mmodel.CreateSegmentInput{
-			Name: name,
-		},
+		Name: name,
 	}
 }
 
@@ -63,22 +76,22 @@ func (input *CreateSegmentInput) Validate() error {
 		return errors.New("input cannot be nil")
 	}
 
+	var errs validation.FieldErrors
+
 	name := strings.TrimSpace(input.Name)
 	if name == "" {
-		return errors.New("name is required")
-	}
-
-	if len(name) > maxSegmentNameLength {
-		return fmt.Errorf("name must be at most %d characters", maxSegmentNameLength)
+		errs.Append("name", "is required")
+	} else if len(name) > maxSegmentNameLength {
+		errs.Append("name", fmt.Sprintf("must be at most %d characters", maxSegmentNameLength))
 	}
 
 	if input.Metadata != nil {
 		if err := core.ValidateMetadata(input.Metadata); err != nil {
-			return fmt.Errorf("invalid metadata: %w", err)
+			errs.Append("metadata", "invalid: "+err.Error())
 		}
 	}
 
-	return nil
+	return errs.OrNil()
 }
 
 // MarshalJSON omits optional create fields when callers leave them unset.
@@ -97,9 +110,7 @@ func (input *CreateSegmentInput) MarshalJSON() ([]byte, error) {
 
 // NewUpdateSegmentInput creates a new UpdateSegmentInput.
 func NewUpdateSegmentInput() *UpdateSegmentInput {
-	return &UpdateSegmentInput{
-		UpdateSegmentInput: mmodel.UpdateSegmentInput{},
-	}
+	return &UpdateSegmentInput{}
 }
 
 // WithName sets the name for UpdateSegmentInput.
@@ -141,25 +152,29 @@ func (input *UpdateSegmentInput) Validate() error {
 		return errors.New("input cannot be nil")
 	}
 
-	if input.Name != "" && strings.TrimSpace(input.Name) == "" {
-		return errors.New("name must not be blank")
-	}
-
 	if !input.hasChanges() {
 		return errors.New("empty update payload not allowed")
 	}
 
-	if len(strings.TrimSpace(input.Name)) > maxSegmentNameLength {
-		return fmt.Errorf("name must be at most %d characters", maxSegmentNameLength)
+	var errs validation.FieldErrors
+
+	if input.Name != "" {
+		trimmed := strings.TrimSpace(input.Name)
+		switch {
+		case trimmed == "":
+			errs.Append("name", "must not be blank")
+		case len(trimmed) > maxSegmentNameLength:
+			errs.Append("name", fmt.Sprintf("must be at most %d characters", maxSegmentNameLength))
+		}
 	}
 
 	if input.Metadata != nil {
 		if err := core.ValidateMetadata(input.Metadata); err != nil {
-			return fmt.Errorf("invalid metadata: %w", err)
+			errs.Append("metadata", "invalid: "+err.Error())
 		}
 	}
 
-	return nil
+	return errs.OrNil()
 }
 
 func (input *UpdateSegmentInput) hasChanges() bool {

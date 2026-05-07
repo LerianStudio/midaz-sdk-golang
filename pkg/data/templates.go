@@ -1,7 +1,7 @@
 package data
 
 import (
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 )
 
 // OrgTemplate models an organization blueprint with metadata constraints in mind.
@@ -52,7 +52,6 @@ type TransactionPattern struct {
 	ChartOfAccountsGroupName string
 	Description              string
 	DSLTemplate              string // DSL script template
-	RequiresCommit           bool   // For pending transactions
 	IdempotencyKey           string // UUID for dedup
 	ExternalID               string // External reference
 	Metadata                 map[string]any

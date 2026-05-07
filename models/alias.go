@@ -9,7 +9,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation/core"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation/core"
 )
 
 // RelatedPartyRolePrimaryHolder identifies the primary holder related-party role.
@@ -166,22 +167,35 @@ func (input *UpdateAliasInput) WithRelatedParties(relatedParties []*RelatedParty
 // Validate validates the CreateAliasInput fields.
 func (input *CreateAliasInput) Validate() error {
 	if input == nil {
-		return errors.New("input is required")
+		return errors.New("input cannot be nil")
 	}
 
+	var errs validation.FieldErrors
+
 	if strings.TrimSpace(input.LedgerID) == "" {
-		return errors.New("ledgerId is required")
+		errs.Append("ledgerId", "is required")
 	}
 
 	if strings.TrimSpace(input.AccountID) == "" {
-		return errors.New("accountId is required")
+		errs.Append("accountId", "is required")
 	}
 
 	if err := validateAliasMetadata(input.Metadata); err != nil {
-		return err
+		// validateAliasMetadata returns "invalid metadata: <inner>".
+		// Strip the prefix to keep the field render clean.
+		msg := strings.TrimPrefix(err.Error(), "invalid metadata: ")
+		errs.Append("metadata", "invalid: "+msg)
 	}
 
-	return validateRelatedParties(input.RelatedParties)
+	if err := validateRelatedParties(input.RelatedParties); err != nil {
+		// validateRelatedParties already includes the field path
+		// (e.g. "relatedParties[0].document is required") so we
+		// surface it as a single field-level entry under
+		// "relatedParties" without re-prefixing.
+		errs.Append("relatedParties", err.Error())
+	}
+
+	return errs.OrNil()
 }
 
 // WithNullFields marks fields that should be sent as explicit JSON null in PATCH requests.
@@ -196,7 +210,11 @@ func (input *UpdateAliasInput) WithNullFields(fields ...string) *UpdateAliasInpu
 }
 
 // MarshalJSON emits only set fields plus fields explicitly marked for null removal.
-func (input UpdateAliasInput) MarshalJSON() ([]byte, error) {
+func (input *UpdateAliasInput) MarshalJSON() ([]byte, error) {
+	if input == nil {
+		return []byte("null"), nil
+	}
+
 	if err := input.validateNullFieldConflicts(); err != nil {
 		return nil, err
 	}
@@ -227,10 +245,8 @@ func (input UpdateAliasInput) MarshalJSON() ([]byte, error) {
 		payload[field] = nil
 	}
 
-	if len(payload) == 0 {
-		return nil, errors.New("empty update payload not allowed")
-	}
-
+	// NOTE: empty-payload rejection lives in Validate(), not here. See
+	// UpdateHolderInput.MarshalJSON for the architectural rationale.
 	return json.Marshal(payload)
 }
 
@@ -313,26 +329,33 @@ func cloneRelatedParties(parties []*RelatedParty) []*RelatedParty {
 // Validate validates the UpdateAliasInput fields.
 func (input *UpdateAliasInput) Validate() error {
 	if input == nil {
-		return errors.New("input is required")
+		return errors.New("input cannot be nil")
 	}
 
 	if !input.hasChanges() {
 		return errors.New("empty update payload not allowed")
 	}
 
+	var errs validation.FieldErrors
+
 	if err := validateAliasMetadata(input.Metadata); err != nil {
-		return err
+		msg := strings.TrimPrefix(err.Error(), "invalid metadata: ")
+		errs.Append("metadata", "invalid: "+msg)
 	}
 
 	if err := validateRelatedParties(input.RelatedParties); err != nil {
-		return err
+		errs.Append("relatedParties", err.Error())
 	}
 
 	if err := validateCRMNullFields(input.NullFields, validAliasNullFields); err != nil {
-		return err
+		errs.Append("nullFields", err.Error())
 	}
 
-	return input.validateNullFieldConflicts()
+	if err := input.validateNullFieldConflicts(); err != nil {
+		errs.Append("nullFields", err.Error())
+	}
+
+	return errs.OrNil()
 }
 
 func validateAliasMetadata(metadata map[string]any) error {

@@ -7,8 +7,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v2/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v3"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -58,7 +59,7 @@ func TestTransactionHelpers_CreateCanonicalSendPayloads(t *testing.T) {
 			wantSource: "@external/card-usd",
 			wantDest:   "customer",
 			wantAsset:  "USD",
-			wantAmount: "50",
+			wantAmount: "50.00",
 			wantDesc:   "card funding",
 			wantIdem:   "idem-deposit",
 		},
@@ -84,7 +85,9 @@ func TestTransactionHelpers_CreateCanonicalSendPayloads(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				assert.Equal(t, http.MethodPost, r.Method)
 				assert.Equal(t, "/v1/organizations/org-1/ledgers/ledger-1/transactions/json", r.URL.EscapedPath())
-				assert.Equal(t, "Bearer token", r.Header.Get("Authorization"))
+				// No Authorization header expected: tests run with WithAnonymous.
+				assert.Empty(t, r.Header.Get("Authorization"),
+					"WithAnonymous mode must not emit an Authorization header")
 				assert.Equal(t, tt.wantIdem, r.Header.Get("X-Idempotency"))
 
 				body := decodeJSONBody(t, r)
@@ -180,7 +183,7 @@ func TestTransactionHelpers_MultiTransferTemplateAndLifecycle(t *testing.T) {
 	require.Len(t, requests, 2)
 
 	multiSend := requireMap(t, requests[0]["send"])
-	assert.Equal(t, "10", multiSend["value"])
+	assert.Equal(t, "10.00", multiSend["value"])
 	assert.Len(t, requireMapSlice(t, requireMap(t, multiSend["source"])["from"]), 2)
 	assert.Len(t, requireMapSlice(t, requireMap(t, multiSend["distribute"])["to"]), 2)
 
@@ -245,15 +248,19 @@ func TestTransactionHelpers_ErrorPaths(t *testing.T) {
 func newTransactionHelperEntity(t *testing.T, server *httptest.Server) *entities.Entity {
 	t.Helper()
 
-	entity, err := entities.NewEntity(
-		server.Client(),
-		"token",
-		map[string]string{"onboarding": server.URL, "transaction": server.URL},
-		nil,
+	// Tests against an httptest server use WithAnonymous since the test
+	// server does not enforce auth. v3 deliberately exposes no
+	// WithAuthToken option — the only sanctioned auth path is
+	// WithAccessManager (OAuth via Lerian's Access Manager).
+	c, err := midaz.New(
+		midaz.WithHTTPClient(server.Client()),
+		midaz.WithOnboardingURL(server.URL),
+		midaz.WithTransactionURL(server.URL),
+		midaz.WithAnonymous(),
 	)
 	require.NoError(t, err)
 
-	return entity
+	return c.Entity
 }
 
 func decodeJSONBody(t *testing.T, r *http.Request) map[string]any {

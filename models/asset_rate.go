@@ -2,14 +2,15 @@
 package models
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v2/pkg/validation/core"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation/core"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 )
 
 const (
@@ -40,11 +41,15 @@ type AssetRate struct {
 	// To is the target asset code (e.g., "BRL")
 	To string `json:"to"`
 
-	// Rate is the conversion rate value
-	Rate float64 `json:"rate"`
+	// Rate is the conversion rate value. The wire encoding is the int+scale
+	// fixed-point shape used by CreateAssetRateInput (e.g. {rate:525, scale:2}
+	// represents 5.25). *decimal.Decimal preserves full precision for both
+	// large fixed-point integers and legacy float-shaped responses.
+	Rate *decimal.Decimal `json:"rate"`
 
-	// Scale is the decimal places for the rate
-	Scale *float64 `json:"scale"`
+	// Scale is the decimal places for the rate. Mirrors CreateAssetRateInput.Scale
+	// (int) — the previous *float64 was a type mismatch with the create payload.
+	Scale *int `json:"scale"`
 
 	// Source is the source of rate information (e.g., "Central Bank")
 	Source *string `json:"source"`
@@ -162,239 +167,69 @@ func (input *CreateAssetRateInput) WithMetadata(metadata map[string]any) *Create
 	return input
 }
 
-// Validate validates the CreateAssetRateInput fields.
+// Validate validates the CreateAssetRateInput fields. All field-level
+// violations are accumulated and surfaced together.
 func (input *CreateAssetRateInput) Validate() error {
 	if input == nil {
-		return errors.New("input is required")
+		return errors.New("input cannot be nil")
 	}
 
-	if err := input.validateAssetCodes(); err != nil {
-		return err
-	}
+	var errs validation.FieldErrors
 
-	if err := input.validateRateFields(); err != nil {
-		return err
-	}
+	input.appendAssetCodeErrors(&errs)
+	input.appendRateFieldErrors(&errs)
+	input.appendOptionalFieldErrors(&errs)
 
-	return input.validateOptionalFields()
+	return errs.OrNil()
 }
 
-func (input *CreateAssetRateInput) validateAssetCodes() error {
-	if input.From == "" {
-		return errors.New("from asset code is required")
+func (input *CreateAssetRateInput) appendAssetCodeErrors(errs *validation.FieldErrors) {
+	switch {
+	case input.From == "":
+		errs.Append("from", "asset code is required")
+	case len(input.From) > maxAssetRateCodeLength:
+		errs.Append("from", fmt.Sprintf("asset code must be at most %d characters", maxAssetRateCodeLength))
 	}
 
-	if len(input.From) > maxAssetRateCodeLength {
-		return fmt.Errorf("from asset code must be at most %d characters", maxAssetRateCodeLength)
+	switch {
+	case input.To == "":
+		errs.Append("to", "asset code is required")
+	case len(input.To) > maxAssetRateCodeLength:
+		errs.Append("to", fmt.Sprintf("asset code must be at most %d characters", maxAssetRateCodeLength))
 	}
-
-	if input.To == "" {
-		return errors.New("to asset code is required")
-	}
-
-	if len(input.To) > maxAssetRateCodeLength {
-		return fmt.Errorf("to asset code must be at most %d characters", maxAssetRateCodeLength)
-	}
-
-	return nil
 }
 
-func (input *CreateAssetRateInput) validateRateFields() error {
+func (input *CreateAssetRateInput) appendRateFieldErrors(errs *validation.FieldErrors) {
 	if input.Rate <= 0 {
-		return errors.New("rate must be greater than zero")
+		errs.Append("rate", "must be greater than zero")
 	}
 
-	if input.Scale < 0 {
-		return errors.New("scale must be non-negative")
+	switch {
+	case input.Scale < 0:
+		errs.Append("scale", "must be non-negative")
+	case input.Scale > maxAssetRateScale:
+		errs.Append("scale", fmt.Sprintf("must be at most %d", maxAssetRateScale))
 	}
-
-	if input.Scale > maxAssetRateScale {
-		return fmt.Errorf("scale must be at most %d", maxAssetRateScale)
-	}
-
-	return nil
 }
 
-func (input *CreateAssetRateInput) validateOptionalFields() error {
+func (input *CreateAssetRateInput) appendOptionalFieldErrors(errs *validation.FieldErrors) {
 	if input.Source != nil && len(*input.Source) > maxAssetRateSourceLength {
-		return fmt.Errorf("source must be at most %d characters", maxAssetRateSourceLength)
+		errs.Append("source", fmt.Sprintf("must be at most %d characters", maxAssetRateSourceLength))
 	}
 
 	if input.TTL != nil && *input.TTL < 0 {
-		return errors.New("ttl must be non-negative")
+		errs.Append("ttl", "must be non-negative")
 	}
 
 	if input.ExternalID != nil && strings.TrimSpace(*input.ExternalID) != "" {
 		if _, err := uuid.Parse(*input.ExternalID); err != nil {
-			return fmt.Errorf("externalID must be a valid UUID: %w", err)
+			errs.Append("externalID", "must be a valid UUID: "+err.Error())
 		}
 	}
 
 	if input.Metadata != nil {
 		if err := core.ValidateMetadata(input.Metadata); err != nil {
-			return fmt.Errorf("invalid metadata: %w", err)
+			errs.Append("metadata", "invalid: "+err.Error())
 		}
 	}
-
-	return nil
-}
-
-// AssetRatesResponse represents a paginated list of asset rates.
-type AssetRatesResponse struct {
-	// Items is the collection of asset rates
-	Items []AssetRate `json:"items"`
-
-	// Limit is the maximum number of items per page
-	Limit int `json:"limit"`
-
-	// NextCursor is the cursor for the next page
-	NextCursor *string `json:"next_cursor,omitempty"`
-
-	// PrevCursor is the cursor for the previous page
-	PrevCursor *string `json:"prev_cursor,omitempty"`
-}
-
-// MarshalJSON ensures zero-value asset-rate lists encode items as an empty array.
-func (r AssetRatesResponse) MarshalJSON() ([]byte, error) {
-	type alias AssetRatesResponse
-
-	out := alias(r)
-	if out.Items == nil {
-		out.Items = []AssetRate{}
-	}
-
-	return json.Marshal(out)
-}
-
-// AssetRateListOptions represents options for listing asset rates by asset code.
-type AssetRateListOptions struct {
-	// To filters by target asset codes (comma-separated, e.g., "BRL,USD,SGD")
-	To []string
-
-	// Limit is the maximum number of items to return
-	Limit int
-
-	// StartDate filters rates created on or after this date (format: YYYY-MM-DD)
-	StartDate string
-
-	// EndDate filters rates created on or before this date (format: YYYY-MM-DD)
-	EndDate string
-
-	// SortOrder specifies the sort order ("asc" or "desc")
-	SortOrder string
-
-	// Cursor is the pagination cursor
-	Cursor string
-}
-
-// NewAssetRateListOptions creates a new AssetRateListOptions with default values.
-func NewAssetRateListOptions() *AssetRateListOptions {
-	return &AssetRateListOptions{
-		Limit:     DefaultLimit,
-		SortOrder: DefaultSortDirection,
-	}
-}
-
-// WithTo sets the target asset codes filter.
-func (o *AssetRateListOptions) WithTo(to ...string) *AssetRateListOptions {
-	if o == nil {
-		return nil
-	}
-
-	o.To = make([]string, len(to))
-	copy(o.To, to)
-
-	return o
-}
-
-// WithLimit sets the maximum number of items to return.
-func (o *AssetRateListOptions) WithLimit(limit int) *AssetRateListOptions {
-	if o == nil {
-		return nil
-	}
-
-	if limit <= 0 {
-		o.Limit = DefaultLimit
-	} else if limit > MaxLimit {
-		o.Limit = MaxLimit
-	} else {
-		o.Limit = limit
-	}
-
-	return o
-}
-
-// WithDateRange sets the date range filter.
-func (o *AssetRateListOptions) WithDateRange(startDate, endDate string) *AssetRateListOptions {
-	if o == nil {
-		return nil
-	}
-
-	o.StartDate = startDate
-	o.EndDate = endDate
-
-	return o
-}
-
-// WithSortOrder sets the sort order.
-func (o *AssetRateListOptions) WithSortOrder(sortOrder string) *AssetRateListOptions {
-	if o == nil {
-		return nil
-	}
-
-	if sortOrder == string(SortAscending) || sortOrder == string(SortDescending) || sortOrder == "" {
-		o.SortOrder = sortOrder
-	}
-
-	return o
-}
-
-// WithCursor sets the pagination cursor.
-func (o *AssetRateListOptions) WithCursor(cursor string) *AssetRateListOptions {
-	if o == nil {
-		return nil
-	}
-
-	o.Cursor = cursor
-
-	return o
-}
-
-// ToQueryParams converts AssetRateListOptions to query parameters.
-func (o *AssetRateListOptions) ToQueryParams() map[string]string {
-	params := make(map[string]string)
-	if o == nil {
-		return params
-	}
-
-	if len(o.To) > 0 {
-		params["to"] = strings.Join(o.To, ",")
-	}
-
-	limit := o.Limit
-	if limit > MaxLimit {
-		limit = MaxLimit
-	}
-
-	if limit > 0 {
-		params["limit"] = fmt.Sprintf("%d", limit)
-	}
-
-	if o.StartDate != "" {
-		params["start_date"] = o.StartDate
-	}
-
-	if o.EndDate != "" {
-		params["end_date"] = o.EndDate
-	}
-
-	if o.SortOrder == string(SortAscending) || o.SortOrder == string(SortDescending) {
-		params["sort_order"] = o.SortOrder
-	}
-
-	if o.Cursor != "" {
-		params["cursor"] = o.Cursor
-	}
-
-	return params
 }
