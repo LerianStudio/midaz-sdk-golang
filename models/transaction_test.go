@@ -180,6 +180,42 @@ func TestCreateTransactionInput_Validate(t *testing.T) {
 	}
 }
 
+func TestCreateTransactionInput_ValidateBalancedFixedAmounts(t *testing.T) {
+	t.Run("rejects unbalanced source and distribute totals", func(t *testing.T) {
+		input := NewCreateTransactionInput("USD", "100.00").WithSend(&SendInput{
+			Asset: "USD",
+			Value: "100.00",
+			Source: &SourceInput{From: []FromToInput{{
+				Account: "source-account",
+				Amount:  AmountInput{Asset: "USD", Value: "100.00"},
+			}}},
+			Distribute: &DistributeInput{To: []FromToInput{{
+				Account: "dest-account",
+				Amount:  AmountInput{Asset: "USD", Value: "90.00"},
+			}}},
+		})
+
+		require.ErrorContains(t, input.Validate(), "source and distribute totals must match")
+	})
+
+	t.Run("rejects send value that differs from balanced entries", func(t *testing.T) {
+		input := NewCreateTransactionInput("USD", "100.00").WithSend(&SendInput{
+			Asset: "USD",
+			Value: "100.00",
+			Source: &SourceInput{From: []FromToInput{{
+				Account: "source-account",
+				Amount:  AmountInput{Asset: "USD", Value: "90.00"},
+			}}},
+			Distribute: &DistributeInput{To: []FromToInput{{
+				Account: "dest-account",
+				Amount:  AmountInput{Asset: "USD", Value: "90.00"},
+			}}},
+		})
+
+		require.ErrorContains(t, input.Validate(), "value must equal source and distribute totals")
+	})
+}
+
 func TestCreateTransactionInput_WithMethods(t *testing.T) {
 	t.Run("WithDescription", func(t *testing.T) {
 		input := NewCreateTransactionInput("USD", 100)
@@ -1479,12 +1515,11 @@ func TestCreateAnnotationInput_Validate(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "send is required",
+			name: "send is optional for metadata-only annotations",
 			input: &CreateAnnotationInput{
 				Description: "Annotation-only note",
 			},
-			wantErr: true,
-			errMsg:  "send is required",
+			wantErr: false,
 		},
 	}
 
@@ -1773,21 +1808,21 @@ func TestTransactionDSLInput_GetMethods(t *testing.T) {
 
 	t.Run("GetValue with nil Send", func(t *testing.T) {
 		input := &TransactionDSLInput{}
-		assert.InDelta(t, float64(0), input.GetValue(), 0.001)
+		assert.Empty(t, input.GetValue())
 	})
 
 	t.Run("GetValue with valid Send", func(t *testing.T) {
 		input := &TransactionDSLInput{
 			Send: &DSLSend{Value: 100.50},
 		}
-		assert.InDelta(t, 100.50, input.GetValue(), 0.001)
+		assert.Equal(t, "100.5", input.GetValue())
 	})
 
 	t.Run("GetValue with zero value", func(t *testing.T) {
 		input := &TransactionDSLInput{
 			Send: &DSLSend{Value: 0},
 		}
-		assert.InDelta(t, float64(0), input.GetValue(), 0.001)
+		assert.Equal(t, "0", input.GetValue())
 	})
 
 	t.Run("GetSourceAccounts with nil Send", func(t *testing.T) {
@@ -2136,7 +2171,7 @@ func TestTransactionDSLInput_NilReceiverHelpers(t *testing.T) {
 	var input *TransactionDSLInput
 
 	assert.Empty(t, input.GetAsset())
-	assert.Zero(t, input.GetValue())
+	assert.Empty(t, input.GetValue())
 	assert.Empty(t, input.GetSourceAccounts())
 	assert.Empty(t, input.GetDestinationAccounts())
 	assert.Nil(t, input.GetMetadata())

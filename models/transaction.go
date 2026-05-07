@@ -392,6 +392,11 @@ type AmountInput struct {
 	Value any `json:"value"`
 }
 
+const (
+	maxTransactionDescriptionLength = 256
+	maxTransactionCodeLength        = 100
+)
+
 // transactionDateFormats require explicit timezone information to avoid local-date ambiguity.
 var transactionDateFormats = []string{
 	time.RFC3339Nano,
@@ -428,11 +433,11 @@ func (input *CreateTransactionInput) Validate() error {
 // Outflow, Annotation). Each helper-discovered violation lands on errs
 // under its proper field name; nothing short-circuits.
 func appendTransactionCreateCommon(errs *validation.FieldErrors, description, code string, metadata map[string]any, route, routeID, transactionDate string, pending bool) {
-	if len(description) > 256 {
+	if len(description) > maxTransactionDescriptionLength {
 		errs.Append("description", "must be at most 256 characters")
 	}
 
-	if len(code) > 100 {
+	if len(code) > maxTransactionCodeLength {
 		errs.Append("code", "must be at most 100 characters")
 	}
 
@@ -649,7 +654,96 @@ func (input *SendInput) Validate() error {
 		errs.Append("distribute", "invalid: "+err.Error())
 	}
 
+	appendSendBalanceErrors(&errs, input)
+
 	return errs.OrNil()
+}
+
+func appendSendBalanceErrors(errs *validation.FieldErrors, input *SendInput) {
+	balances, ok := fixedSendBalance(input)
+	if errs == nil || !ok {
+		return
+	}
+
+	if balances.sourceAsset != "" && balances.sourceAsset != balances.asset {
+		errs.Append("source", "amount assets must match send asset")
+	}
+
+	if balances.distributeAsset != "" && balances.distributeAsset != balances.asset {
+		errs.Append("distribute", "amount assets must match send asset")
+	}
+
+	if !balances.sourceTotal.Equal(balances.distributeTotal) {
+		errs.Append("send", "source and distribute totals must match")
+	}
+
+	if !balances.sourceTotal.Equal(balances.sendValue) || !balances.distributeTotal.Equal(balances.sendValue) {
+		errs.Append("send", "value must equal source and distribute totals")
+	}
+}
+
+type sendBalanceTotals struct {
+	asset           string
+	sendValue       decimal.Decimal
+	sourceTotal     decimal.Decimal
+	distributeTotal decimal.Decimal
+	sourceAsset     string
+	distributeAsset string
+}
+
+func fixedSendBalance(input *SendInput) (sendBalanceTotals, bool) {
+	if input == nil || input.Source == nil || input.Distribute == nil {
+		return sendBalanceTotals{}, false
+	}
+
+	asset := strings.TrimSpace(input.Asset)
+	if asset == "" {
+		return sendBalanceTotals{}, false
+	}
+
+	sendValue, err := decimal.NewFromString(strings.TrimSpace(decimalStringFromAny(input.Value)))
+	if err != nil {
+		return sendBalanceTotals{}, false
+	}
+
+	sourceTotal, sourceOK, sourceAsset := sumFixedAmountEntries(input.Source.From, asset)
+	distributeTotal, distributeOK, distributeAsset := sumFixedAmountEntries(input.Distribute.To, asset)
+	if !sourceOK || !distributeOK {
+		return sendBalanceTotals{}, false
+	}
+
+	return sendBalanceTotals{
+		asset:           asset,
+		sendValue:       sendValue,
+		sourceTotal:     sourceTotal,
+		distributeTotal: distributeTotal,
+		sourceAsset:     sourceAsset,
+		distributeAsset: distributeAsset,
+	}, true
+}
+
+func sumFixedAmountEntries(entries []FromToInput, expectedAsset string) (decimal.Decimal, bool, string) {
+	total := decimal.Zero
+
+	for _, entry := range entries {
+		if entry.Share != nil || strings.TrimSpace(entry.Remaining) != "" || entry.Rate != nil {
+			return decimal.Zero, false, ""
+		}
+
+		asset := strings.TrimSpace(entry.Amount.Asset)
+		if asset != "" && asset != expectedAsset {
+			return decimal.Zero, true, asset
+		}
+
+		amount, err := decimal.NewFromString(strings.TrimSpace(decimalStringFromAny(entry.Amount.Value)))
+		if err != nil {
+			return decimal.Zero, false, ""
+		}
+
+		total = total.Add(amount)
+	}
+
+	return total, true, ""
 }
 
 // Validate checks that the SourceInput meets all validation requirements.
@@ -1649,10 +1743,10 @@ func (input *CreateAnnotationInput) Validate() error {
 	appendTransactionCreateCommon(&errs, input.Description, input.Code, input.Metadata,
 		input.Route, input.RouteID, input.TransactionDate, input.Pending)
 
-	if input.Send == nil {
-		errs.Append("send", "is required")
-	} else if err := input.Send.Validate(); err != nil {
-		errs.Append("send", "invalid: "+err.Error())
+	if input.Send != nil {
+		if err := input.Send.Validate(); err != nil {
+			errs.Append("send", "invalid: "+err.Error())
+		}
 	}
 
 	return errs.OrNil()

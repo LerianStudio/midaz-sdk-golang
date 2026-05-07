@@ -132,20 +132,13 @@ func (input *TransactionDSLInput) GetAsset() string {
 	return input.Send.Asset
 }
 
-// GetValue returns the amount value for the transaction
-func (input *TransactionDSLInput) GetValue() float64 {
+// GetValue returns the exact decimal amount text for the transaction.
+func (input *TransactionDSLInput) GetValue() string {
 	if input == nil || input.Send == nil {
-		return 0
+		return ""
 	}
 
-	value, err := decimal.NewFromString(decimalStringFromAny(input.Send.Value))
-	if err != nil {
-		return 0
-	}
-
-	floatValue, _ := value.Float64()
-
-	return floatValue
+	return decimalStringFromAny(input.Send.Value)
 }
 
 // GetSourceAccounts returns the source accounts for the transaction
@@ -298,7 +291,7 @@ func (input *TransactionDSLInput) Validate() error {
 		errs.Append("send", "invalid send operation: "+err.Error())
 	}
 
-	if len(input.Description) > 256 {
+	if len(input.Description) > maxTransactionDescriptionLength {
 		errs.Append("description", "must be at most 256 characters")
 	}
 

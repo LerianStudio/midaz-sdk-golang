@@ -304,7 +304,7 @@ func TestEnhancedValidateAddress(t *testing.T) {
 // Mock implementation of TransactionDSLValidator for testing
 type mockTransactionDSLValidator struct {
 	asset               string
-	value               float64
+	value               string
 	sourceAccounts      []AccountReference
 	destinationAccounts []AccountReference
 	metadata            map[string]any
@@ -314,7 +314,7 @@ func (m *mockTransactionDSLValidator) GetAsset() string {
 	return m.asset
 }
 
-func (m *mockTransactionDSLValidator) GetValue() float64 {
+func (m *mockTransactionDSLValidator) GetValue() string {
 	return m.value
 }
 
@@ -342,7 +342,7 @@ func (m mockAccountReference) GetAccount() string {
 func TestEnhancedValidateTransactionDSL(t *testing.T) {
 	validInput := &mockTransactionDSLValidator{
 		asset: "USD",
-		value: 100.0,
+		value: "100.0",
 		sourceAccounts: []AccountReference{
 			mockAccountReference{account: "account1"},
 		},
@@ -365,7 +365,7 @@ func TestEnhancedValidateTransactionDSL(t *testing.T) {
 			"Invalid asset code",
 			&mockTransactionDSLValidator{
 				asset:               "us", // lowercase
-				value:               100.0,
+				value:               "100.0",
 				sourceAccounts:      []AccountReference{mockAccountReference{account: "account1"}},
 				destinationAccounts: []AccountReference{mockAccountReference{account: "account2"}},
 			},
@@ -375,7 +375,7 @@ func TestEnhancedValidateTransactionDSL(t *testing.T) {
 			"Invalid amount",
 			&mockTransactionDSLValidator{
 				asset:               "USD",
-				value:               0.0, // Zero amount
+				value:               "0.0", // Zero amount
 				sourceAccounts:      []AccountReference{mockAccountReference{account: "account1"}},
 				destinationAccounts: []AccountReference{mockAccountReference{account: "account2"}},
 			},
@@ -385,7 +385,7 @@ func TestEnhancedValidateTransactionDSL(t *testing.T) {
 			"No source accounts",
 			&mockTransactionDSLValidator{
 				asset:               "USD",
-				value:               100.0,
+				value:               "100.0",
 				sourceAccounts:      []AccountReference{},
 				destinationAccounts: []AccountReference{mockAccountReference{account: "account2"}},
 			},
@@ -395,7 +395,7 @@ func TestEnhancedValidateTransactionDSL(t *testing.T) {
 			"No destination accounts",
 			&mockTransactionDSLValidator{
 				asset:               "USD",
-				value:               100.0,
+				value:               "100.0",
 				sourceAccounts:      []AccountReference{mockAccountReference{account: "account1"}},
 				destinationAccounts: []AccountReference{},
 			},
@@ -405,7 +405,7 @@ func TestEnhancedValidateTransactionDSL(t *testing.T) {
 			"External account with mismatched asset",
 			&mockTransactionDSLValidator{
 				asset:               "USD",
-				value:               100.0,
+				value:               "100.0",
 				sourceAccounts:      []AccountReference{mockAccountReference{account: "@external/EUR"}},
 				destinationAccounts: []AccountReference{mockAccountReference{account: "account2"}},
 			},
