@@ -49,11 +49,11 @@ type holdersEntity struct {
 }
 
 // newHoldersEntity creates a new HoldersService instance for tests.
-// The auth token is fixed to "token" because every test caller passes the
-// same value; production code never reaches this constructor (it goes
-// through Entity.initServices, which uses the shared *HTTPClient).
-func newHoldersEntity(client *http.Client, baseURLs map[string]string) HoldersService {
-	return &holdersEntity{serviceEntity: newServiceEntity(client, "token", baseURLs)}
+// The auth token is injected by the caller; production code never reaches
+// this constructor (it goes through Entity.initServices, which uses the
+// shared *HTTPClient).
+func newHoldersEntity(client *http.Client, authToken string, baseURLs map[string]string) HoldersService {
+	return &holdersEntity{serviceEntity: newServiceEntity(client, authToken, baseURLs)}
 }
 
 // ListHolders retrieves holders for an organization.
@@ -66,7 +66,7 @@ func (e *holdersEntity) ListHolders(ctx context.Context, organizationID string, 
 	}
 
 	if err := opts.Validate(); err != nil {
-		return nil, err
+		return nil, errors.NewValidationError(operation, "invalid holder list options", err)
 	}
 
 	req, err := newRequestWithContext(ctx, http.MethodGet, e.buildURL(""), nil)

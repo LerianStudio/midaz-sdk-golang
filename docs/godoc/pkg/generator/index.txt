@@ -11,22 +11,20 @@ reports.
 
 # Public surface
 
-  - Per-resource generators: [OrgGenerator], LedgerGenerator,
+  - Per-resource generators: [OrganizationGenerator], LedgerGenerator,
     AssetGenerator, AccountGenerator, PortfolioGenerator, SegmentGenerator,
     TransactionGenerator, etc. Each takes a parent resource ID and produces N
     child resources.
-  - [Config] — top-level knobs: counts per resource, locale, retry policy,
+  - [GeneratorConfig] — top-level knobs: counts per resource, locale, retry policy,
     observability provider.
-  - [Circuit] — circuit-breaker primitive shared across generators to fail fast
-    when the backend signals unhealthiness.
+  - [WithCircuitBreaker] — context helper that injects a shared circuit-breaker
+    primitive used across generators to fail fast when the backend signals
+    unhealthiness.
   - Functional options ([Option] family) for assembling a generator pipeline.
 
 # Quickstart
 
-    g := generator.NewOrgGenerator(c, generator.Config{
-        Locale:        "br",
-        Concurrency:   8,
-    })
+    g := generator.NewOrganizationGenerator(e, obs)
     orgs, err := g.GenerateMany(ctx, 100)
 
 # When to use

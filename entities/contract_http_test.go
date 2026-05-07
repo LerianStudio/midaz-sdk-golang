@@ -49,7 +49,7 @@ func TestLedgersEntity_HTTPContracts(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := newLedgersEntity(server.Client(), map[string]string{"onboarding": server.URL})
+	service := newLedgersEntity(server.Client(), "token", map[string]string{"onboarding": server.URL})
 	ctx := context.Background()
 
 	list, err := service.ListLedgers(ctx, "org/1", models.LedgersListOpts{
@@ -374,7 +374,7 @@ func TestEntityValidationDoesNotHitServer(t *testing.T) {
 	defer server.Close()
 
 	ctx := context.Background()
-	ledgers := newLedgersEntity(server.Client(), map[string]string{"onboarding": server.URL})
+	ledgers := newLedgersEntity(server.Client(), "token", map[string]string{"onboarding": server.URL})
 	_, err := ledgers.GetLedger(ctx, "", "ledger-1")
 	require.Error(t, err)
 	err = ledgers.DeleteLedger(ctx, "org-1", "")

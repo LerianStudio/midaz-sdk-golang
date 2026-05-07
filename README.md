@@ -33,8 +33,11 @@ v3 is the result of a 9-track DX overhaul. Highlights:
 - **Structured errors**: every error is a `*pkg/errors.Error` with
   `Category`, `Code`, `Operation`, `Resource`, and a canonical
   `Retryable()` method. Real network/timeout/auth/validation classification.
-- **Canonical logging**: `*slog.Logger` is the only surface. The SDK is
-  silent by default (`slog.DiscardHandler`); opt in with `WithLogger`.
+- **Canonical logging**: `*slog.Logger` is the canonical client/application
+  logger surface. The SDK is silent by default (`slog.DiscardHandler`); opt
+  in with `WithLogger`. A separate `Provider.Logger` (OTel-correlated) is
+  also exposed by `pkg/observability` for span-aware logging from inside
+  SDK callbacks.
 - **OpenTelemetry first-class**: spans + metrics + logs through one
   `observability.Provider` wired by `WithObservabilityProvider`.
 - **Idempotency by default**: auto-generated `X-Idempotency` per unsafe

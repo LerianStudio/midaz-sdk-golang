@@ -223,7 +223,7 @@ func TestHoldersEntity_ListHoldersPages_AdvancesAndStops(t *testing.T) {
 	server := httptest.NewServer(handler)
 	defer server.Close()
 
-	entity := newHoldersEntity(server.Client(), map[string]string{"crm": server.URL})
+	entity := newHoldersEntity(server.Client(), "token", map[string]string{"crm": server.URL})
 	opts := models.HoldersListOpts{PageListOpts: models.PageListOpts{Limit: 2}}
 
 	var pages []*models.ListResponse[models.Holder]
@@ -248,7 +248,7 @@ func TestLedgersEntity_ListLedgersPages_AdvancesAndStops(t *testing.T) {
 	server := httptest.NewServer(handler)
 	defer server.Close()
 
-	entity := newLedgersEntity(server.Client(), map[string]string{"onboarding": server.URL})
+	entity := newLedgersEntity(server.Client(), "token", map[string]string{"onboarding": server.URL})
 	opts := models.LedgersListOpts{PageListOpts: models.PageListOpts{Limit: 2}}
 
 	var pages []*models.ListResponse[models.Ledger]
@@ -802,7 +802,7 @@ func TestListXxxAll_DelegatesToPages(t *testing.T) {
 		runListAllSubtest(t,
 			models.ListResponse[models.Holder]{Items: []models.Holder{{}}},
 			func(s *httptest.Server) iter.Seq2[models.Holder, error] {
-				e := newHoldersEntity(s.Client(), map[string]string{"crm": s.URL})
+				e := newHoldersEntity(s.Client(), "token", map[string]string{"crm": s.URL})
 				return e.ListHoldersAll(context.Background(), "org", models.HoldersListOpts{})
 			},
 			func(got []models.Holder) { assert.Len(t, got, 1) },
@@ -813,7 +813,7 @@ func TestListXxxAll_DelegatesToPages(t *testing.T) {
 		runListAllSubtest(t,
 			models.ListResponse[models.Ledger]{Items: []models.Ledger{{ID: "l-1", Name: "Main"}}},
 			func(s *httptest.Server) iter.Seq2[models.Ledger, error] {
-				e := newLedgersEntity(s.Client(), map[string]string{"onboarding": s.URL})
+				e := newLedgersEntity(s.Client(), "token", map[string]string{"onboarding": s.URL})
 				return e.ListLedgersAll(context.Background(), "org", models.LedgersListOpts{})
 			},
 			func(got []models.Ledger) {

@@ -30,8 +30,9 @@ type AssetsService interface {
 	ListAssetsAll(ctx context.Context, organizationID, ledgerID string, opts models.AssetsListOpts) iter.Seq2[models.Asset, error]
 
 	// ListAssetsPages yields one full *ListResponse[Asset] per page, exposing
-	// the per-page envelope (Pagination, Total, NextCursor) for callers that
-	// need cursor checkpoints, total-count display, or mid-iteration breaks.
+	// the per-page envelope (Pagination with Offset/Limit, Total) for callers
+	// that need page-metadata continuation, total-count display, or
+	// mid-iteration breaks.
 	ListAssetsPages(ctx context.Context, organizationID, ledgerID string, opts models.AssetsListOpts) iter.Seq2[*models.ListResponse[models.Asset], error]
 
 	// GetAsset retrieves a specific asset by its ID.
@@ -163,7 +164,7 @@ func (e *assetsEntity) ListAssets(ctx context.Context, organizationID, ledgerID 
 	}
 
 	if err := opts.Validate(); err != nil {
-		return nil, err
+		return nil, errors.NewValidationError(operation, "list options validation failed", err)
 	}
 
 	url := e.buildURL(organizationID, ledgerID, "")

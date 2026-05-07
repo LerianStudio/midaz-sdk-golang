@@ -333,7 +333,7 @@ func (e *Entity) SetObservability(provider observability.Provider) error {
 	}
 
 	if provider == nil || reflectutil.IsTypedNil(provider) {
-		return nil
+		return errors.New("observability provider cannot be nil")
 	}
 
 	var metrics *observability.MetricsCollector

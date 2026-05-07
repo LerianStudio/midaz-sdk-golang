@@ -90,7 +90,7 @@ func TestPageListOpts_OverLimit_ValidatesBeforeRequest(t *testing.T) {
 		{
 			name: "ListHolders",
 			run: func(_ *testing.T, baseURL string) error {
-				e := newHoldersEntity(http.DefaultClient, map[string]string{"crm": baseURL})
+				e := newHoldersEntity(http.DefaultClient, "token", map[string]string{"crm": baseURL})
 				_, err := e.ListHolders(context.Background(), "org",
 					models.HoldersListOpts{PageListOpts: models.PageListOpts{Limit: models.MaxLimit + 1}})
 				return err
@@ -99,7 +99,7 @@ func TestPageListOpts_OverLimit_ValidatesBeforeRequest(t *testing.T) {
 		{
 			name: "ListLedgers",
 			run: func(_ *testing.T, baseURL string) error {
-				e := newLedgersEntity(http.DefaultClient, map[string]string{"onboarding": baseURL})
+				e := newLedgersEntity(http.DefaultClient, "token", map[string]string{"onboarding": baseURL})
 				_, err := e.ListLedgers(context.Background(), "org",
 					models.LedgersListOpts{PageListOpts: models.PageListOpts{Limit: models.MaxLimit + 1}})
 				return err

@@ -39,7 +39,7 @@ func TestSlice6CRMConstructorsCopyTrimAndListNilContext(t *testing.T) {
 	defer server.Close()
 
 	baseURLs := map[string]string{"crm": server.URL + "/"}
-	holders := newHoldersEntity(server.Client(), baseURLs).(*holdersEntity)
+	holders := newHoldersEntity(server.Client(), "token", baseURLs).(*holdersEntity)
 	aliases := newAliasesEntity(server.Client(), baseURLs).(*aliasesEntity)
 	baseURLs["crm"] = "https://mutated.example.com/v1"
 
@@ -62,7 +62,7 @@ func TestSlice6CRMRejectsInvalidScopedIdentifiersBeforeTransport(t *testing.T) {
 	}))
 	defer server.Close()
 
-	holders := newHoldersEntity(server.Client(), map[string]string{"crm": server.URL}).(*holdersEntity)
+	holders := newHoldersEntity(server.Client(), "token", map[string]string{"crm": server.URL}).(*holdersEntity)
 	aliases := newAliasesEntity(server.Client(), map[string]string{"crm": server.URL}).(*aliasesEntity)
 
 	_, err := holders.ListHolders(context.Background(), "   ", models.HoldersListOpts{})
@@ -92,7 +92,7 @@ func TestSlice6CRMHeadersPreserveOrganizationAndIdempotency(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := newHoldersEntity(server.Client(), map[string]string{"crm": server.URL}).(*holdersEntity)
+	service := newHoldersEntity(server.Client(), "token", map[string]string{"crm": server.URL}).(*holdersEntity)
 
 	ctx := sdkctx.WithIdempotencyKey(context.Background(), "crm-idem")
 	holderType := models.HolderTypeNaturalPerson
@@ -125,7 +125,7 @@ func TestSlice6CRMResultMethodsReturnErrorOnNullResponse(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := newHoldersEntity(server.Client(), map[string]string{"crm": server.URL}).(*holdersEntity)
+	service := newHoldersEntity(server.Client(), "token", map[string]string{"crm": server.URL}).(*holdersEntity)
 	_, err := service.GetHolder(context.Background(), crmOrgID, crmHolderID)
 	require.ErrorContains(t, err, "null response body")
 }

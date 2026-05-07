@@ -454,10 +454,11 @@ func (*HTTPClient) injectContextHeaders(ctx context.Context, method string, head
 			headers = map[string]string{}
 		}
 
-		// Caller-supplied input.IdempotencyKey wins over ctx-supplied key.
-		// Detected via the internal marker that input-level call sites set
-		// alongside the header.
-		callerSupplied := headers[internalCallerIdempotencyHeader] == boolTrue && strings.TrimSpace(headers["X-Idempotency"]) != ""
+		// Caller-supplied X-Idempotency wins over ctx-supplied key. Any
+		// non-empty header value is treated as caller-supplied — the
+		// internal marker is no longer required, so callers that set the
+		// header directly via the headers map are honored too.
+		callerSupplied := strings.TrimSpace(headers["X-Idempotency"]) != ""
 		if !callerSupplied {
 			headers["X-Idempotency"] = key
 			headers[internalCallerIdempotencyHeader] = boolTrue
@@ -1002,9 +1003,8 @@ func (c *HTTPClient) setupRequestHeaders(req *http.Request, headers map[string]s
 func (c *HTTPClient) executeRequestWithRetry(ctx context.Context, req *http.Request, method, requestURL string) (*http.Response, []byte, error) {
 	snapshot := c.cloneConfiguration()
 
-	callerProvidedIdempotency := req.Header.Get(internalCallerIdempotencyHeader) == boolTrue
 	autoIdempotency := req.Header.Get(internalAutoIdempotencyHeader) == boolTrue
-	hasIdempotencyKey := callerProvidedIdempotency || autoIdempotency
+	hasIdempotencyKey := strings.TrimSpace(req.Header.Get("X-Idempotency")) != "" || autoIdempotency
 
 	// Strip the internal markers BEFORE the request goes on the wire — the
 	// server must never see these synthetic headers.

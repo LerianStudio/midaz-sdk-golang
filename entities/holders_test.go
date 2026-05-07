@@ -14,11 +14,13 @@ import (
 )
 
 func TestHoldersEntity_CreateHolder_RequestConstruction(t *testing.T) {
+	const authToken = "token-holders-vary-001"
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, http.MethodPost, r.Method)
 		assert.Equal(t, "/holders", r.URL.Path)
 		assert.Equal(t, crmOrgID, r.Header.Get("X-Organization-Id"))
-		assert.Equal(t, "Bearer token", r.Header.Get("Authorization"))
+		assert.Equal(t, "Bearer "+authToken, r.Header.Get("Authorization"))
 
 		var body models.CreateHolderInput
 		if !assert.NoError(t, json.NewDecoder(r.Body).Decode(&body)) {
@@ -35,7 +37,7 @@ func TestHoldersEntity_CreateHolder_RequestConstruction(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := newHoldersEntity(server.Client(), map[string]string{"crm": server.URL}).(*holdersEntity)
+	service := newHoldersEntity(server.Client(), authToken, map[string]string{"crm": server.URL}).(*holdersEntity)
 	holderType := "NATURAL_PERSON"
 	holder, err := service.CreateHolder(context.Background(), crmOrgID, &models.CreateHolderInput{Type: &holderType, Name: "Jane Doe", Document: "12345678900"})
 
@@ -69,7 +71,7 @@ func TestHoldersEntity_UpdateHolder_OmitsNilFields(t *testing.T) {
 	defer server.Close()
 
 	name := "Jane Updated"
-	service := newHoldersEntity(server.Client(), map[string]string{"crm": server.URL}).(*holdersEntity)
+	service := newHoldersEntity(server.Client(), "token", map[string]string{"crm": server.URL}).(*holdersEntity)
 	holder, err := service.UpdateHolder(context.Background(), crmOrgID, crmHolderID, &models.UpdateHolderInput{Name: &name})
 
 	require.NoError(t, err)
@@ -78,7 +80,7 @@ func TestHoldersEntity_UpdateHolder_OmitsNilFields(t *testing.T) {
 }
 
 func TestHoldersEntity_ValidationErrors(t *testing.T) {
-	service := newHoldersEntity(http.DefaultClient, map[string]string{"crm": "https://crm.example.com/v1"}).(*holdersEntity)
+	service := newHoldersEntity(http.DefaultClient, "token", map[string]string{"crm": "https://crm.example.com/v1"}).(*holdersEntity)
 
 	_, err := service.CreateHolder(context.Background(), crmOrgID, &models.CreateHolderInput{Name: "Jane", Document: "123"})
 	require.Error(t, err)
@@ -121,7 +123,7 @@ func TestHoldersEntity_ListGetDelete_RequestConstruction(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := newHoldersEntity(server.Client(), map[string]string{"crm": server.URL}).(*holdersEntity)
+	service := newHoldersEntity(server.Client(), "token", map[string]string{"crm": server.URL}).(*holdersEntity)
 	list, err := service.ListHolders(context.Background(), crmOrgID, models.HoldersListOpts{
 		Filters: models.HoldersFilters{ExternalID: "external-123"},
 	})

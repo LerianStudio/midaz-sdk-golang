@@ -90,8 +90,12 @@ func TestListLedgers(t *testing.T) {
 }
 
 func TestLedgersEntity_Settings_RequestConstruction(t *testing.T) {
+	const authToken = "token-ledgers-vary-001"
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
+
+		assert.Equal(t, "Bearer "+authToken, r.Header.Get("Authorization"))
 
 		switch r.Method {
 		case http.MethodGet:
@@ -115,7 +119,7 @@ func TestLedgersEntity_Settings_RequestConstruction(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := newLedgersEntity(server.Client(), map[string]string{"onboarding": server.URL})
+	service := newLedgersEntity(server.Client(), authToken, map[string]string{"onboarding": server.URL})
 	settings, err := service.GetLedgerSettings(context.Background(), "org/1", "ledger/1")
 	require.NoError(t, err)
 	assert.True(t, settings.Accounting.ValidateAccountType)
@@ -126,7 +130,7 @@ func TestLedgersEntity_Settings_RequestConstruction(t *testing.T) {
 }
 
 func TestLedgersEntity_Settings_Validation(t *testing.T) {
-	service := newLedgersEntity(http.DefaultClient, map[string]string{"onboarding": "https://api.example.com"})
+	service := newLedgersEntity(http.DefaultClient, "token", map[string]string{"onboarding": "https://api.example.com"})
 
 	tests := []struct {
 		name string
