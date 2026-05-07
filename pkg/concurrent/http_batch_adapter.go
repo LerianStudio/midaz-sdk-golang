@@ -320,7 +320,7 @@ func (b *HTTPBatchProcessorWithRetry) parseResponseBody(resp *HTTPBatchResponse,
 		return pkgerrors.NewInternalError("ParseHTTPBatchResponse", fmt.Errorf("request %s failed: %s", requestID, resp.Error))
 	}
 
-	if resp.StatusCode >= 400 {
+	if resp.StatusCode >= http.StatusBadRequest {
 		return pkgerrors.NewInternalError("ParseHTTPBatchResponse", fmt.Errorf("request %s failed with status %d", requestID, resp.StatusCode))
 	}
 

@@ -64,6 +64,10 @@ func Collect[T any](seq iter.Seq2[T, error], maxItems int) ([]T, error) {
 		return nil, nil
 	}
 
+	if seq == nil {
+		return []T{}, nil
+	}
+
 	out := make([]T, 0, minCap(maxItems, 64))
 
 	for item, err := range seq {
@@ -105,6 +109,10 @@ func Collect[T any](seq iter.Seq2[T, error], maxItems int) ([]T, error) {
 //	    return fmt.Errorf("failed to collect asset types: %w", err)
 //	}
 func CollectAll[T any](seq iter.Seq2[T, error]) ([]T, error) {
+	if seq == nil {
+		return []T{}, nil
+	}
+
 	var out []T
 
 	for item, err := range seq {

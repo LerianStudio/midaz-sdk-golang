@@ -12,16 +12,8 @@ const (
 	// regex passes are O(n) but with non-trivial constants; an unbounded
 	// scan turns multi-megabyte response bodies into a denial-of-service
 	// vector for log redaction. Truncating the scan window keeps redaction
-	// bounded under pathological input. The original (untruncated) string
-	// is still returned to the caller — only the scanning cost is capped.
-	//
-	// SAFETY TRADE-OFF — READ BEFORE PASSING LARGE PAYLOADS:
-	// Anything past byte 65,536 ships unredacted. The bytes [0, 65536) are
-	// scanned and rewritten; bytes [65536, len) are concatenated back to the
-	// output verbatim. A bearer token that lives at byte 70,000 of a 200 KB
-	// response body will appear in logs in the clear. This is acceptable for
-	// the SDK's own use (HTTP error messages, span attributes — all well
-	// under the cap) but is NOT a credential firewall for arbitrary payloads.
+	// bounded under pathological input; the unscanned tail is never returned
+	// verbatim.
 	//
 	// 64 KiB covers typical HTTP error bodies (4xx/5xx JSON responses rarely
 	// exceed a few KiB) and the larger upstream payloads we have seen in
@@ -46,10 +38,8 @@ var (
 //   - no '=' AND no ':' AND no case-insensitive "bearer" → return as-is.
 //
 // Slow path: scan up to sanitizeMaxScanBytes for the assignment + bearer
-// patterns. If we redacted within the scan window we return the redacted
-// prefix concatenated with the untouched tail; otherwise we return value
-// unchanged. This avoids quadratic regex behavior on multi-megabyte
-// response bodies that callers occasionally pass through here.
+// patterns. Inputs beyond the scan window return the redacted prefix plus a
+// truncation sentinel so secrets cannot leak from the unscanned tail.
 func sanitizeSensitiveString(value string) string {
 	if value == "" {
 		return ""
@@ -60,20 +50,20 @@ func sanitizeSensitiveString(value string) string {
 	}
 
 	scan := value
-	tail := ""
+	truncated := false
 	if len(scan) > sanitizeMaxScanBytes {
 		scan = value[:sanitizeMaxScanBytes]
-		tail = value[sanitizeMaxScanBytes:]
+		truncated = true
 	}
 
 	sanitized := sensitiveAssignmentPattern.ReplaceAllString(scan, `${1}${2}`+redactedValue)
 	sanitized = bearerTokenPattern.ReplaceAllString(sanitized, `${1}`+redactedValue)
 
-	if tail == "" {
+	if !truncated {
 		return sanitized
 	}
 
-	return sanitized + tail
+	return sanitized + " [truncated]"
 }
 
 // mayContainSensitiveToken returns true when the string is plausibly carrying

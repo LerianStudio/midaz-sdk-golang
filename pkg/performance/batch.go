@@ -598,36 +598,8 @@ func (b *BatchProcessor) setRequestHeaders(req *http.Request) {
 	}
 }
 
-func (b *BatchProcessor) validateBatchHeaders(requests []BatchRequest) error {
-	defaultTenantID := headerValue(b.defaultHeadersSnapshot(), "X-Tenant-ID")
-	for i, req := range requests {
-		tenantID := headerValue(req.Headers, "X-Tenant-ID")
-		if tenantID != "" && defaultTenantID != "" && tenantID != defaultTenantID {
-			return pkgerrors.NewValidationError("BatchRequest", fmt.Sprintf("conflicting X-Tenant-ID for request %d", i), nil)
-		}
-
-		organizationID := headerValue(req.Headers, "X-Organization-Id")
-		if tenantID != "" && organizationID != "" && tenantID != organizationID {
-			return pkgerrors.NewValidationError("BatchRequest", fmt.Sprintf("conflicting X-Tenant-ID and X-Organization-Id for request %d", i), nil)
-		}
-	}
-
+func (*BatchProcessor) validateBatchHeaders(_ []BatchRequest) error {
 	return nil
-}
-
-func headerValue(headers map[string]string, key string) string {
-	if len(headers) == 0 {
-		return ""
-	}
-
-	canonicalKey := http.CanonicalHeaderKey(key)
-	for k, v := range headers {
-		if http.CanonicalHeaderKey(k) == canonicalKey {
-			return v
-		}
-	}
-
-	return ""
 }
 
 // executeWithRetry executes the request with retry logic.
@@ -691,7 +663,7 @@ func (b *BatchProcessor) waitForRetry(ctx context.Context) error {
 
 // processBatchResponse processes the HTTP response and creates BatchResult
 func (b *BatchProcessor) processBatchResponse(resp *http.Response) (*BatchResult, error) {
-	if resp.StatusCode >= 400 {
+	if resp.StatusCode >= http.StatusBadRequest {
 		return nil, b.handleErrorResponse(resp)
 	}
 
@@ -884,7 +856,7 @@ func (b *BatchProcessor) parseBatchResponseItem(resp *BatchResponse, requestID s
 		return pkgerrors.NewInternalError("ParseBatchResponse", fmt.Errorf("request %s failed: %s", requestID, resp.Error))
 	}
 
-	if resp.StatusCode >= 400 {
+	if resp.StatusCode >= http.StatusBadRequest {
 		return pkgerrors.NewInternalError("ParseBatchResponse", fmt.Errorf("request %s failed with status %d", requestID, resp.StatusCode))
 	}
 

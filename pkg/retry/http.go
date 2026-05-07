@@ -566,7 +566,7 @@ func (r *httpRetryState) handleResponse(httpResp *HTTPResponse, attempt int) (*H
 		return httpResp, false, err
 	}
 
-	if statusCode < 400 {
+	if statusCode < http.StatusBadRequest {
 		return httpResp, false, nil // Success
 	}
 

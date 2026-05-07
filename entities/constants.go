@@ -8,12 +8,6 @@ package entities
 // re-define them here. Internal entity code reaches them through the
 // baseURLs map keyed by the same strings.
 const (
-	// HeaderTenantID is the HTTP header name used to propagate the tenant identifier.
-	// This is an optional compatibility header for deployments or gateways that honor
-	// explicit tenant headers. In the reference Midaz path, authenticated claims remain
-	// the primary tenant source of truth.
-	HeaderTenantID = "X-Tenant-ID"
-
 	// HeaderTotalCount is the HTTP header name used by count endpoints.
 	HeaderTotalCount = "X-Total-Count"
 )

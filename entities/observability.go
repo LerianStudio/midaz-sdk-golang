@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net/http"
 	"reflect"
 	"strings"
 
@@ -55,26 +56,38 @@ const (
 	businessEventOperationUpdated     = "midaz.operation.updated"
 )
 
+const (
+	businessFieldOperation      = "operation"
+	businessFieldOrganizationID = "organizationId"
+	businessFieldLedgerID       = "ledgerId"
+	businessFieldAssetID        = "assetId"
+	businessFieldAccountID      = "accountId"
+	businessFieldTransactionID  = "transactionId"
+	businessFieldOperationID    = "operationId"
+	businessFieldStatus         = "status"
+	businessFieldErrorClass     = "errorClass"
+)
+
 var safeBusinessFields = map[string]struct{}{
-	"event":              {},
-	"operation":          {},
-	"organizationId":     {},
-	"ledgerId":           {},
-	"assetId":            {},
-	"accountId":          {},
-	"transactionId":      {},
-	"operationId":        {},
-	"portfolioId":        {},
-	"segmentId":          {},
-	"balanceId":          {},
-	"holderId":           {},
-	"aliasId":            {},
-	"routeId":            {},
-	"transactionRouteId": {},
-	"operationRouteId":   {},
-	"status":             {},
-	"errorClass":         {},
-	"httpStatus":         {},
+	"event":                     {},
+	businessFieldOperation:      {},
+	businessFieldOrganizationID: {},
+	businessFieldLedgerID:       {},
+	businessFieldAssetID:        {},
+	businessFieldAccountID:      {},
+	businessFieldTransactionID:  {},
+	businessFieldOperationID:    {},
+	"portfolioId":               {},
+	"segmentId":                 {},
+	"balanceId":                 {},
+	"holderId":                  {},
+	"aliasId":                   {},
+	"routeId":                   {},
+	"transactionRouteId":        {},
+	"operationRouteId":          {},
+	businessFieldStatus:         {},
+	businessFieldErrorClass:     {},
+	"httpStatus":                {},
 }
 
 var businessErrorLevels = map[string]observability.LogLevel{
@@ -96,10 +109,10 @@ func (c *HTTPClient) emitBusinessEvent(ctx context.Context, event string, fields
 func (c *HTTPClient) emitBusinessError(ctx context.Context, event string, fields map[string]any, err error) {
 	if err != nil {
 		fields = cloneBusinessFields(fields)
-		fields["errorClass"] = classifyBusinessError(err)
+		fields[businessFieldErrorClass] = classifyBusinessError(err)
 	}
 
-	c.emitBusiness(ctx, businessLogLevelForError(fields["errorClass"]), event, fields)
+	c.emitBusiness(ctx, businessLogLevelForError(fields[businessFieldErrorClass]), event, fields)
 }
 
 func (c *HTTPClient) emitBusiness(ctx context.Context, level observability.LogLevel, event string, fields map[string]any) {
@@ -346,13 +359,13 @@ func classifyBusinessErrorText(text string) string {
 // so callers can fall through to other classifiers.
 func classifyByStatusCode(code int) string {
 	switch code {
-	case 401:
+	case http.StatusUnauthorized:
 		return businessErrorClassUnauthorized
-	case 403:
+	case http.StatusForbidden:
 		return businessErrorClassForbidden
-	case 404:
+	case http.StatusNotFound:
 		return businessErrorClassNotFound
-	case 400, 422:
+	case http.StatusBadRequest, http.StatusUnprocessableEntity:
 		return businessErrorClassValidation
 	default:
 		return ""

@@ -2,6 +2,7 @@ package observability
 
 import (
 	"context"
+	"net/http"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -133,7 +134,7 @@ func (m *MetricsCollector) RecordRequest(ctx context.Context, operation, resourc
 	m.requestDuration.Record(ctx, float64(duration.Milliseconds()), metric.WithAttributes(allAttrs...))
 
 	// Record success or error
-	if statusCode >= 400 {
+	if statusCode >= http.StatusBadRequest {
 		// Error
 		m.errorCounter.Add(ctx, 1, metric.WithAttributes(allAttrs...))
 	} else {

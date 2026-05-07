@@ -207,14 +207,14 @@ func (e *transactionsEntity) CreateTransaction(ctx context.Context, organization
 	// Send request to API
 	responseMap, err := e.sendCreateTransactionRequest(ctx, organizationID, ledgerID, input)
 	if err != nil {
-		e.httpClient.emitBusinessError(ctx, businessEventTransactionCreated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID}, err)
+		e.httpClient.emitBusinessError(ctx, businessEventTransactionCreated, map[string]any{businessFieldOperation: operation, businessFieldOrganizationID: organizationID, businessFieldLedgerID: ledgerID}, err)
 
 		return nil, err
 	}
 
 	// Convert response to transaction model
 	transaction := e.parseTransactionResponse(responseMap)
-	e.httpClient.emitBusinessEvent(ctx, businessEventTransactionCreated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "transactionId": transaction.ID, "status": transaction.Status.Code})
+	e.httpClient.emitBusinessEvent(ctx, businessEventTransactionCreated, map[string]any{businessFieldOperation: operation, businessFieldOrganizationID: organizationID, businessFieldLedgerID: ledgerID, businessFieldTransactionID: transaction.ID, businessFieldStatus: transaction.Status.Code})
 
 	return transaction, nil
 }
@@ -637,13 +637,13 @@ func (e *transactionsEntity) CreateTransactionWithDSLFile(ctx context.Context, o
 
 	var responseMap map[string]any
 	if err := e.httpClient.doRawRequest(ctx, http.MethodPost, endpointURL, headers, body.Bytes(), &responseMap); err != nil {
-		e.httpClient.emitBusinessError(ctx, businessEventTransactionCreated, map[string]any{"operation": "CreateTransactionWithDSLFile", "organizationId": organizationID, "ledgerId": ledgerID}, err)
+		e.httpClient.emitBusinessError(ctx, businessEventTransactionCreated, map[string]any{businessFieldOperation: "CreateTransactionWithDSLFile", businessFieldOrganizationID: organizationID, businessFieldLedgerID: ledgerID}, err)
 
 		return nil, err
 	}
 
 	transaction := e.parseTransactionResponse(responseMap)
-	e.httpClient.emitBusinessEvent(ctx, businessEventTransactionCreated, map[string]any{"operation": "CreateTransactionWithDSLFile", "organizationId": organizationID, "ledgerId": ledgerID, "transactionId": transaction.ID, "status": transaction.Status.Code})
+	e.httpClient.emitBusinessEvent(ctx, businessEventTransactionCreated, map[string]any{businessFieldOperation: "CreateTransactionWithDSLFile", businessFieldOrganizationID: organizationID, businessFieldLedgerID: ledgerID, businessFieldTransactionID: transaction.ID, businessFieldStatus: transaction.Status.Code})
 
 	return transaction, nil
 }
@@ -934,13 +934,13 @@ func (e *transactionsEntity) UpdateTransaction(ctx context.Context, organization
 
 	var transaction models.Transaction
 	if err := e.httpClient.sendRequest(req, &transaction); err != nil {
-		e.httpClient.emitBusinessError(ctx, businessEventTransactionUpdated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "transactionId": transactionID}, err)
+		e.httpClient.emitBusinessError(ctx, businessEventTransactionUpdated, map[string]any{businessFieldOperation: operation, businessFieldOrganizationID: organizationID, businessFieldLedgerID: ledgerID, businessFieldTransactionID: transactionID}, err)
 
 		return nil, err
 	}
 
 	e.normalizeTransaction(&transaction)
-	e.httpClient.emitBusinessEvent(ctx, businessEventTransactionUpdated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "transactionId": transaction.ID, "status": transaction.Status.Code})
+	e.httpClient.emitBusinessEvent(ctx, businessEventTransactionUpdated, map[string]any{businessFieldOperation: operation, businessFieldOrganizationID: organizationID, businessFieldLedgerID: ledgerID, businessFieldTransactionID: transaction.ID, businessFieldStatus: transaction.Status.Code})
 
 	return &transaction, nil
 }

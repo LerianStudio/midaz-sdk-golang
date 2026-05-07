@@ -242,7 +242,7 @@ func BenchmarkMarshal(b *testing.B) {
 	b.Run("Standard", func(b *testing.B) {
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_, err := json.Marshal(testData)
 			if err != nil {
 				b.Fatal(err)
@@ -255,7 +255,7 @@ func BenchmarkMarshal(b *testing.B) {
 
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			_, err := pool.Marshal(testData)
 			if err != nil {
 				b.Fatal(err)
@@ -275,7 +275,7 @@ func BenchmarkUnmarshal(b *testing.B) {
 	b.Run("Standard", func(b *testing.B) {
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			var result testStruct
 
 			err := json.Unmarshal(data, &result)
@@ -290,7 +290,7 @@ func BenchmarkUnmarshal(b *testing.B) {
 
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			var result testStruct
 
 			err := pool.Unmarshal(data, &result)
@@ -307,7 +307,7 @@ func BenchmarkEncoder(b *testing.B) {
 	b.Run("Standard", func(b *testing.B) {
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			buf := &bytes.Buffer{}
 			enc := json.NewEncoder(buf)
 
@@ -323,7 +323,7 @@ func BenchmarkEncoder(b *testing.B) {
 
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			buf := &bytes.Buffer{}
 			enc := pool.NewEncoder(buf)
 
@@ -350,7 +350,7 @@ func BenchmarkDecoder(b *testing.B) {
 	b.Run("Standard", func(b *testing.B) {
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			var result testStruct
 
 			dec := json.NewDecoder(bytes.NewReader(data))
@@ -367,7 +367,7 @@ func BenchmarkDecoder(b *testing.B) {
 
 		b.ReportAllocs()
 
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			var result testStruct
 
 			dec := pool.NewDecoder(bytes.NewReader(data))

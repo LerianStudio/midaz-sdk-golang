@@ -63,6 +63,8 @@ import (
 	"time"
 )
 
+const midpointProbability = 0.5
+
 var (
 	errNilContext = errors.New("retry context is nil")
 	errNilFunc    = errors.New("retry function is nil")
@@ -751,7 +753,7 @@ func addJitter(delay time.Duration, factor float64) time.Duration {
 
 	// Randomly add or subtract jitter
 
-	if getSecureRandomFloat64() > 0.5 {
+	if getSecureRandomFloat64() > midpointProbability {
 		return delay + jitter
 	}
 
@@ -765,7 +767,7 @@ func getSecureRandomFloat64() float64 {
 	_, err := rand.Read(buf[:])
 	if err != nil {
 		// If crypto/rand fails, return a safe default
-		return 0.5
+		return midpointProbability
 	}
 
 	// Convert bytes to uint64, then to float64 between 0 and 1

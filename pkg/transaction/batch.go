@@ -19,6 +19,18 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
+const (
+	defaultBatchConcurrency = 10
+	defaultBatchSize        = 100
+	defaultBatchRetryCount  = 3
+	defaultBatchRetryDelay  = 100 * time.Millisecond
+	maxBatchConcurrency     = 100
+	maxTransactionBatchSize = 10_000
+	maxBackoffAttempt       = 31
+	maxBackoffShift         = 30
+	percentageMultiplier    = 100
+)
+
 // BatchResult represents the result of a transaction in a batch operation
 type BatchResult struct {
 	// Index is the position of this transaction in the batch
@@ -62,10 +74,10 @@ type BatchOptions struct {
 // DefaultBatchOptions returns the default batch processing options
 func DefaultBatchOptions() *BatchOptions {
 	return &BatchOptions{
-		Concurrency:          10,
-		BatchSize:            100,
-		RetryCount:           3,
-		RetryDelay:           100 * time.Millisecond,
+		Concurrency:          defaultBatchConcurrency,
+		BatchSize:            defaultBatchSize,
+		RetryCount:           defaultBatchRetryCount,
+		RetryDelay:           defaultBatchRetryDelay,
 		IdempotencyKeyPrefix: "batch",
 		StopOnError:          false,
 		AllowPartialSuccess:  false,
@@ -144,16 +156,16 @@ func normalizeOptions(options *BatchOptions) *BatchOptions {
 		options.Concurrency = 1
 	}
 
-	if options.Concurrency > 100 {
-		options.Concurrency = 100
+	if options.Concurrency > maxBatchConcurrency {
+		options.Concurrency = maxBatchConcurrency
 	}
 
 	if options.BatchSize < 1 {
 		options.BatchSize = DefaultBatchOptions().BatchSize
 	}
 
-	if options.BatchSize > 10_000 {
-		options.BatchSize = 10_000
+	if options.BatchSize > maxTransactionBatchSize {
+		options.BatchSize = maxTransactionBatchSize
 	}
 
 	if options.RetryCount < 0 {
@@ -367,8 +379,8 @@ func (*batchProcessor) calculateBackoffFactor(attempt int) uint {
 	}
 
 	// Safely convert attempt to backoff factor with overflow protection
-	if attempt > 31 {
-		return 30 // Cap to prevent overflow
+	if attempt > maxBackoffAttempt {
+		return maxBackoffShift // Cap to prevent overflow
 	}
 
 	// Safe conversion: attempt is guaranteed to be >= 1 and <= 31 here
@@ -588,7 +600,7 @@ func GetBatchSummary(results []BatchResult) BatchSummary {
 
 	var successRate float64
 	if total > 0 {
-		successRate = float64(successCount) / float64(total) * 100
+		successRate = float64(successCount) / float64(total) * percentageMultiplier
 	}
 
 	var avgDuration time.Duration

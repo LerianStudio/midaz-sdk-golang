@@ -367,7 +367,7 @@ func (m *httpMiddleware) addResponseHeaders(span trace.Span, resp *http.Response
 
 // setResponseStatus sets the span status based on HTTP response code
 func (*httpMiddleware) setResponseStatus(span trace.Span, statusCode int) {
-	if statusCode >= 400 {
+	if statusCode >= http.StatusBadRequest {
 		span.SetStatus(codes.Error, fmt.Sprintf("HTTP status code: %d", statusCode))
 		span.SetAttributes(semconv.ErrorTypeKey.String(strconv.Itoa(statusCode)))
 	} else {

@@ -294,12 +294,12 @@ func (e *ledgersEntity) CreateLedger(
 
 	var ledger models.Ledger
 	if err := e.httpClient.sendRequest(req, &ledger); err != nil {
-		e.httpClient.emitBusinessError(ctx, businessEventLedgerCreated, map[string]any{"operation": operation, "organizationId": organizationID}, err)
+		e.httpClient.emitBusinessError(ctx, businessEventLedgerCreated, map[string]any{businessFieldOperation: operation, businessFieldOrganizationID: organizationID}, err)
 
 		return nil, err
 	}
 
-	e.httpClient.emitBusinessEvent(ctx, businessEventLedgerCreated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledger.ID, "status": ledger.Status.Code})
+	e.httpClient.emitBusinessEvent(ctx, businessEventLedgerCreated, map[string]any{businessFieldOperation: operation, businessFieldOrganizationID: organizationID, businessFieldLedgerID: ledger.ID, businessFieldStatus: ledger.Status.Code})
 
 	return &ledger, nil
 }
@@ -346,12 +346,12 @@ func (e *ledgersEntity) UpdateLedger(
 
 	var ledger models.Ledger
 	if err := e.httpClient.sendRequest(req, &ledger); err != nil {
-		e.httpClient.emitBusinessError(ctx, businessEventLedgerUpdated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": id}, err)
+		e.httpClient.emitBusinessError(ctx, businessEventLedgerUpdated, map[string]any{businessFieldOperation: operation, businessFieldOrganizationID: organizationID, businessFieldLedgerID: id}, err)
 
 		return nil, err
 	}
 
-	e.httpClient.emitBusinessEvent(ctx, businessEventLedgerUpdated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledger.ID, "status": ledger.Status.Code})
+	e.httpClient.emitBusinessEvent(ctx, businessEventLedgerUpdated, map[string]any{businessFieldOperation: operation, businessFieldOrganizationID: organizationID, businessFieldLedgerID: ledger.ID, businessFieldStatus: ledger.Status.Code})
 
 	return &ledger, nil
 }
@@ -449,12 +449,12 @@ func (e *ledgersEntity) DeleteLedger(
 	}
 
 	if err := e.httpClient.sendRequest(req, nil); err != nil {
-		e.httpClient.emitBusinessError(ctx, businessEventLedgerDeleted, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": id}, err)
+		e.httpClient.emitBusinessError(ctx, businessEventLedgerDeleted, map[string]any{businessFieldOperation: operation, businessFieldOrganizationID: organizationID, businessFieldLedgerID: id}, err)
 
 		return err
 	}
 
-	e.httpClient.emitBusinessEvent(ctx, businessEventLedgerDeleted, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": id})
+	e.httpClient.emitBusinessEvent(ctx, businessEventLedgerDeleted, map[string]any{businessFieldOperation: operation, businessFieldOrganizationID: organizationID, businessFieldLedgerID: id})
 
 	return nil
 }

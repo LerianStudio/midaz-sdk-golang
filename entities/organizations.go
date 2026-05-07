@@ -285,12 +285,12 @@ func (e *organizationsEntity) CreateOrganization(ctx context.Context, input *mod
 
 	var organization models.Organization
 	if err := e.httpClient.sendRequest(req, &organization); err != nil {
-		e.httpClient.emitBusinessError(ctx, businessEventOrganizationCreated, map[string]any{"operation": operation}, err)
+		e.httpClient.emitBusinessError(ctx, businessEventOrganizationCreated, map[string]any{businessFieldOperation: operation}, err)
 
 		return nil, err
 	}
 
-	e.httpClient.emitBusinessEvent(ctx, businessEventOrganizationCreated, map[string]any{"operation": operation, "organizationId": organization.ID, "status": organization.Status.Code})
+	e.httpClient.emitBusinessEvent(ctx, businessEventOrganizationCreated, map[string]any{businessFieldOperation: operation, businessFieldOrganizationID: organization.ID, businessFieldStatus: organization.Status.Code})
 
 	return &organization, nil
 }
@@ -326,12 +326,12 @@ func (e *organizationsEntity) UpdateOrganization(ctx context.Context, id string,
 
 	var organization models.Organization
 	if err := e.httpClient.sendRequest(req, &organization); err != nil {
-		e.httpClient.emitBusinessError(ctx, businessEventOrganizationUpdated, map[string]any{"operation": operation, "organizationId": id}, err)
+		e.httpClient.emitBusinessError(ctx, businessEventOrganizationUpdated, map[string]any{businessFieldOperation: operation, businessFieldOrganizationID: id}, err)
 
 		return nil, err
 	}
 
-	e.httpClient.emitBusinessEvent(ctx, businessEventOrganizationUpdated, map[string]any{"operation": operation, "organizationId": organization.ID, "status": organization.Status.Code})
+	e.httpClient.emitBusinessEvent(ctx, businessEventOrganizationUpdated, map[string]any{businessFieldOperation: operation, businessFieldOrganizationID: organization.ID, businessFieldStatus: organization.Status.Code})
 
 	return &organization, nil
 }
@@ -352,12 +352,12 @@ func (e *organizationsEntity) DeleteOrganization(ctx context.Context, id string)
 	}
 
 	if err := e.httpClient.sendRequest(req, nil); err != nil {
-		e.httpClient.emitBusinessError(ctx, businessEventOrganizationDeleted, map[string]any{"operation": operation, "organizationId": id}, err)
+		e.httpClient.emitBusinessError(ctx, businessEventOrganizationDeleted, map[string]any{businessFieldOperation: operation, businessFieldOrganizationID: id}, err)
 
 		return err
 	}
 
-	e.httpClient.emitBusinessEvent(ctx, businessEventOrganizationDeleted, map[string]any{"operation": operation, "organizationId": id})
+	e.httpClient.emitBusinessEvent(ctx, businessEventOrganizationDeleted, map[string]any{businessFieldOperation: operation, businessFieldOrganizationID: id})
 
 	return nil
 }

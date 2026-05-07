@@ -9,6 +9,18 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation/core"
 )
 
+const (
+	minAuthTokenLength       = 8
+	maxMetadataPayloadBytes  = 4096
+	maxMetadataKeyLength     = 100
+	maxEnhancedAddressLine   = 256
+	maxAddressZipCodeLength  = 20
+	maxAddressCityLength     = 100
+	maxAddressStateLength    = 100
+	maxChartGroupNameLength  = 100
+	approxPrimitiveJSONBytes = 8
+)
+
 var uuidPattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 
 // IsValidUUID checks if a string is a valid UUID.
@@ -55,7 +67,7 @@ func IsValidAuthToken(token string) bool {
 	}
 
 	// Check minimum length
-	if len(token) < 8 {
+	if len(token) < minAuthTokenLength {
 		return false
 	}
 
@@ -90,7 +102,7 @@ func validateMetadataSize(metadata map[string]any) error {
 		case string:
 			totalSize += len(v)
 		case bool, int, int32, int64, float32, float64:
-			totalSize += 8 // Approximate size for these types
+			totalSize += approxPrimitiveJSONBytes // Approximate size for these types
 		case []any:
 			if err := core.ValidateMetadata(map[string]any{key: v}); err != nil {
 				return err
@@ -105,7 +117,7 @@ func validateMetadataSize(metadata map[string]any) error {
 		}
 	}
 
-	if totalSize > 4096 {
+	if totalSize > maxMetadataPayloadBytes {
 		return ErrMetadataSizeExceeded
 	}
 

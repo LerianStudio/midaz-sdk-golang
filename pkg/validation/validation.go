@@ -38,6 +38,7 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation/core"
+	"github.com/shopspring/decimal"
 )
 
 // Validator is a configurable validation instance that can be used to perform validations
@@ -94,7 +95,7 @@ var chartOfAccountsGroupNamePattern = regexp.MustCompile(`^[a-zA-Z0-9 _-]+$`)
 // TransactionDSLValidator defines an interface for transaction DSL validation
 type TransactionDSLValidator interface {
 	GetAsset() string
-	GetValue() float64
+	GetValue() string
 	GetSourceAccounts() []AccountReference
 	GetDestinationAccounts() []AccountReference
 	GetMetadata() map[string]any
@@ -122,8 +123,8 @@ func ValidateTransactionDSL(input TransactionDSLValidator) error {
 		return fmt.Errorf("invalid asset code format: %s (must be 3-4 uppercase letters)", asset)
 	}
 
-	// Validate amount
-	if !isFinitePositive(input.GetValue()) {
+	// Validate amount without converting exact decimal strings to float64.
+	if !isPositiveDecimalString(input.GetValue()) {
 		return errors.New("transaction amount must be greater than zero")
 	}
 
@@ -248,6 +249,11 @@ func isFinitePositive(value float64) bool {
 	return !math.IsNaN(value) && !math.IsInf(value, 0) && value > 0
 }
 
+func isPositiveDecimalString(value string) bool {
+	parsed, err := decimal.NewFromString(strings.TrimSpace(value))
+	return err == nil && parsed.IsPositive()
+}
+
 // GetExternalAccountReference creates a properly formatted external account reference
 // for the given asset code
 func GetExternalAccountReference(assetCode string) string {
@@ -347,7 +353,7 @@ func (*Validator) validateMetadataKey(key string) error {
 		return errors.New("metadata key cannot be empty")
 	}
 
-	if len(key) > 100 {
+	if len(key) > maxMetadataKeyLength {
 		return fmt.Errorf("metadata key '%s' exceeds maximum length of 100 characters", key)
 	}
 
@@ -631,7 +637,7 @@ func validateChartOfAccountsGroupName(name string) error {
 		return errors.New("chart of accounts group name cannot be empty")
 	}
 
-	if len(name) > 100 {
+	if len(name) > maxChartGroupNameLength {
 		return fmt.Errorf("chart of accounts group name '%s' exceeds maximum length of 100 characters", name)
 	}
 

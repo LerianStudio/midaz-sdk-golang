@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // pair is a single (item, error) tick of a synthetic iter.Seq2.
@@ -118,6 +120,18 @@ func TestCollect(t *testing.T) {
 			assertCollectResult(t, got, err, tt.want, tt.wantErr)
 		})
 	}
+}
+
+func TestCollectNilSequence(t *testing.T) {
+	t.Parallel()
+
+	items, err := Collect[int](nil, 10)
+	require.NoError(t, err)
+	assert.Empty(t, items)
+
+	allItems, err := CollectAll[int](nil)
+	require.NoError(t, err)
+	assert.Empty(t, allItems)
 }
 
 func TestCollectAll(t *testing.T) {

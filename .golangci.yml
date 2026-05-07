@@ -50,6 +50,8 @@ linters:
     - misspell        # Spelling mistakes
     - dupword         # Duplicate words
     - unconvert       # Unnecessary conversions
+    - goconst         # Repeated strings/constants
+    - mnd             # Magic number detection
     - usestdlibvars   # Use stdlib variables (http.MethodGet, etc.)
     - dogsled         # Too many blank identifiers
     - nakedret        # Naked returns
@@ -113,6 +115,17 @@ linters:
       errorf-multi: true
       asserts: true
       comparison: true
+
+    # -----------------------------------------
+    # Code Style Settings
+    # -----------------------------------------
+    goconst:
+      min-len: 3
+      min-occurrences: 10
+      ignore-tests: true
+    mnd:
+      checks:
+        - condition
 
     # -----------------------------------------
     # Security Settings
@@ -350,27 +363,35 @@ linters:
           - maintidx
           - dupl
           - forbidigo
+          - goconst
+          - mnd
           - noctx
         path: _test\.go
 
       # Allow complexity in generator
       - linters:
           - funlen
+          - goconst
           - gocognit
           - gocyclo
+          - mnd
           - maintidx
         path: pkg/generator/
 
       # Allow complexity in data package
       - linters:
           - funlen
+          - goconst
           - gocognit
+          - mnd
         path: pkg/data/
 
       # Allow fmt.Print and log in examples
       - linters:
           - forbidigo
           - depguard
+          - goconst
+          - mnd
         path: examples/
 
       # Allow fmt.Print in main packages (CLI tools)

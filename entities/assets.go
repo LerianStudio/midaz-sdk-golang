@@ -302,12 +302,12 @@ func (e *assetsEntity) CreateAsset(
 	var asset models.Asset
 	if err := e.httpClient.sendRequest(req, &asset); err != nil {
 		// HTTPClient.DoRequest already returns proper error types
-		e.httpClient.emitBusinessError(ctx, businessEventAssetCreated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID}, err)
+		e.httpClient.emitBusinessError(ctx, businessEventAssetCreated, map[string]any{businessFieldOperation: operation, businessFieldOrganizationID: organizationID, businessFieldLedgerID: ledgerID}, err)
 
 		return nil, err
 	}
 
-	e.httpClient.emitBusinessEvent(ctx, businessEventAssetCreated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "assetId": asset.ID, "status": asset.Status.Code})
+	e.httpClient.emitBusinessEvent(ctx, businessEventAssetCreated, map[string]any{businessFieldOperation: operation, businessFieldOrganizationID: organizationID, businessFieldLedgerID: ledgerID, businessFieldAssetID: asset.ID, businessFieldStatus: asset.Status.Code})
 
 	return &asset, nil
 }
@@ -358,12 +358,12 @@ func (e *assetsEntity) UpdateAsset(
 
 	var asset models.Asset
 	if err := e.httpClient.sendRequest(req, &asset); err != nil {
-		e.httpClient.emitBusinessError(ctx, businessEventAssetUpdated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "assetId": id}, err)
+		e.httpClient.emitBusinessError(ctx, businessEventAssetUpdated, map[string]any{businessFieldOperation: operation, businessFieldOrganizationID: organizationID, businessFieldLedgerID: ledgerID, businessFieldAssetID: id}, err)
 
 		return nil, err
 	}
 
-	e.httpClient.emitBusinessEvent(ctx, businessEventAssetUpdated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "assetId": asset.ID, "status": asset.Status.Code})
+	e.httpClient.emitBusinessEvent(ctx, businessEventAssetUpdated, map[string]any{businessFieldOperation: operation, businessFieldOrganizationID: organizationID, businessFieldLedgerID: ledgerID, businessFieldAssetID: asset.ID, businessFieldStatus: asset.Status.Code})
 
 	return &asset, nil
 }
@@ -399,12 +399,12 @@ func (e *assetsEntity) DeleteAsset(
 
 	if err := e.httpClient.sendRequest(req, nil); err != nil {
 		// HTTPClient.DoRequest already returns proper error types
-		e.httpClient.emitBusinessError(ctx, businessEventAssetDeleted, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "assetId": id}, err)
+		e.httpClient.emitBusinessError(ctx, businessEventAssetDeleted, map[string]any{businessFieldOperation: operation, businessFieldOrganizationID: organizationID, businessFieldLedgerID: ledgerID, businessFieldAssetID: id}, err)
 
 		return err
 	}
 
-	e.httpClient.emitBusinessEvent(ctx, businessEventAssetDeleted, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "assetId": id})
+	e.httpClient.emitBusinessEvent(ctx, businessEventAssetDeleted, map[string]any{businessFieldOperation: operation, businessFieldOrganizationID: organizationID, businessFieldLedgerID: ledgerID, businessFieldAssetID: id})
 
 	return nil
 }

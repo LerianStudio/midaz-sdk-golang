@@ -35,6 +35,27 @@ const (
 	accessManagerCacheCapacity = 256
 )
 
+// ErrAccessManagerTokenFetch marks failures that occur while obtaining an
+// Access Manager token. Callers should use errors.Is rather than matching
+// rendered error text, because lower-level network messages vary by platform.
+var ErrAccessManagerTokenFetch = errors.New("access manager token fetch failed")
+
+// WrapAccessManagerTokenFetchError preserves the concrete token-fetch cause
+// while adding a stable sentinel for classification.
+func WrapAccessManagerTokenFetchError(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	return fmt.Errorf("%w: %w", ErrAccessManagerTokenFetch, err)
+}
+
+// IsAccessManagerTokenFetchError reports whether err is an Access Manager
+// token-fetch failure.
+func IsAccessManagerTokenFetchError(err error) bool {
+	return errors.Is(err, ErrAccessManagerTokenFetch)
+}
+
 type cachedToken struct {
 	token     string
 	expiresAt time.Time
@@ -283,14 +304,17 @@ func GetTokenFromAccessManager(ctx context.Context, accessMgr AccessManager, htt
 }
 
 func boundedAccessManagerTokenContext(ctx context.Context) (context.Context, context.CancelFunc) {
-	base := context.WithoutCancel(ctx)
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	hardDeadline := time.Now().Add(accessManagerTokenRequestTimeout)
 
 	if deadline, ok := ctx.Deadline(); ok && deadline.Before(hardDeadline) {
-		return context.WithDeadline(base, deadline)
+		return context.WithDeadline(ctx, deadline)
 	}
 
-	return context.WithDeadline(base, hardDeadline)
+	return context.WithDeadline(ctx, hardDeadline)
 }
 
 func validateAccessManagerTokenRequest(accessMgr AccessManager, httpClient *http.Client) error {

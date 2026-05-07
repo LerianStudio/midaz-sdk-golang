@@ -14,6 +14,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
@@ -448,24 +450,25 @@ func TestBatchProcessor_LargeBatchPanicReturnsError(t *testing.T) {
 	}
 }
 
-func TestBatchProcessor_RejectsConflictingTenantHeader(t *testing.T) {
-	processor := NewBatchProcessorWithDefaults(http.DefaultClient, "https://api.example.com", nil)
-	processor.SetDefaultHeader("X-Tenant-ID", "tenant-a")
+func TestBatchProcessor_AllowsOrganizationHeaders(t *testing.T) {
+	processor := NewBatchProcessorWithDefaults(&http.Client{
+		Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     make(http.Header),
+				Body:       io.NopCloser(bytes.NewReader([]byte(`[{"statusCode":200,"id":"req_0"}]`))),
+			}, nil
+		}),
+	}, "https://api.example.com", nil)
 
 	_, err := processor.ExecuteBatch(context.Background(), []BatchRequest{{
 		Method: http.MethodGet,
-		Path:   "/conflict",
+		Path:   "/organizations/org-a/ledgers",
 		Headers: map[string]string{
-			"X-Tenant-ID": "tenant-b",
+			"X-Organization-Id": "org-a",
 		},
 	}})
-	if err == nil {
-		t.Fatal("Expected conflicting tenant header to be rejected")
-	}
-
-	if !strings.Contains(err.Error(), "conflicting X-Tenant-ID") {
-		t.Fatalf("Expected conflicting tenant header error, got %v", err)
-	}
+	require.NoError(t, err)
 }
 
 func TestBatchProcessor_NilInputsAreSafe(t *testing.T) {

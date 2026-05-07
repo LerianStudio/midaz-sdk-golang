@@ -374,12 +374,12 @@ func (e *accountsEntity) CreateAccount(ctx context.Context, organizationID, ledg
 
 	var account models.Account
 	if err := e.httpClient.sendRequest(req, &account); err != nil {
-		e.httpClient.emitBusinessError(ctx, businessEventAccountCreated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID}, err)
+		e.httpClient.emitBusinessError(ctx, businessEventAccountCreated, map[string]any{businessFieldOperation: operation, businessFieldOrganizationID: organizationID, businessFieldLedgerID: ledgerID}, err)
 
 		return nil, err
 	}
 
-	e.httpClient.emitBusinessEvent(ctx, businessEventAccountCreated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "accountId": account.ID, "status": account.Status.Code})
+	e.httpClient.emitBusinessEvent(ctx, businessEventAccountCreated, map[string]any{businessFieldOperation: operation, businessFieldOrganizationID: organizationID, businessFieldLedgerID: ledgerID, businessFieldAccountID: account.ID, businessFieldStatus: account.Status.Code})
 
 	return &account, nil
 }
@@ -422,12 +422,12 @@ func (e *accountsEntity) UpdateAccount(ctx context.Context, organizationID, ledg
 
 	var account models.Account
 	if err := e.httpClient.sendRequest(req, &account); err != nil {
-		e.httpClient.emitBusinessError(ctx, businessEventAccountUpdated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "accountId": id}, err)
+		e.httpClient.emitBusinessError(ctx, businessEventAccountUpdated, map[string]any{businessFieldOperation: operation, businessFieldOrganizationID: organizationID, businessFieldLedgerID: ledgerID, businessFieldAccountID: id}, err)
 
 		return nil, err
 	}
 
-	e.httpClient.emitBusinessEvent(ctx, businessEventAccountUpdated, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "accountId": account.ID, "status": account.Status.Code})
+	e.httpClient.emitBusinessEvent(ctx, businessEventAccountUpdated, map[string]any{businessFieldOperation: operation, businessFieldOrganizationID: organizationID, businessFieldLedgerID: ledgerID, businessFieldAccountID: account.ID, businessFieldStatus: account.Status.Code})
 
 	return &account, nil
 }
@@ -456,12 +456,12 @@ func (e *accountsEntity) DeleteAccount(ctx context.Context, organizationID, ledg
 	}
 
 	if err := e.httpClient.sendRequest(req, nil); err != nil {
-		e.httpClient.emitBusinessError(ctx, businessEventAccountDeleted, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "accountId": id}, err)
+		e.httpClient.emitBusinessError(ctx, businessEventAccountDeleted, map[string]any{businessFieldOperation: operation, businessFieldOrganizationID: organizationID, businessFieldLedgerID: ledgerID, businessFieldAccountID: id}, err)
 
 		return err
 	}
 
-	e.httpClient.emitBusinessEvent(ctx, businessEventAccountDeleted, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "accountId": id})
+	e.httpClient.emitBusinessEvent(ctx, businessEventAccountDeleted, map[string]any{businessFieldOperation: operation, businessFieldOrganizationID: organizationID, businessFieldLedgerID: ledgerID, businessFieldAccountID: id})
 
 	return nil
 }
