@@ -10,6 +10,7 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -90,6 +91,24 @@ func TestClientOptionsAccessorsAndConstructors(t *testing.T) {
 	assert.NotEqual(t, "https://mutated.example.com", c.GetConfig().ServiceURLs[config.ServiceOnboarding])
 
 	require.NoError(t, c.Shutdown(context.Background()))
+}
+
+func TestWithRetryOptionsRejectsInvalidOptions(t *testing.T) {
+	err := validateRetryOptions(retry.WithMaxRetries(-1))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "retry option at index 0 failed")
+
+	err = validateRetryOptions(nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "retry option at index 0 cannot be nil")
+
+	_, err = New(WithConfig(createTestConfig(t)), WithRetryOptions(retry.WithMaxRetries(-1)))
+	require.Error(t, err)
+	assert.True(t, sdkerrors.IsConfigurationError(err))
+
+	_, err = New(WithConfig(createTestConfig(t)), WithRetryOptions(nil))
+	require.Error(t, err)
+	assert.True(t, sdkerrors.IsConfigurationError(err))
 }
 
 func TestClientOptionErrorsAndNilReceivers(t *testing.T) {

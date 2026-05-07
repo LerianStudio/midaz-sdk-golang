@@ -1468,6 +1468,23 @@ func TestValidateCountryCode(t *testing.T) {
 	}
 }
 
+func TestValidateTransactionDSL_UsesExactDecimalAmount(t *testing.T) {
+	input := &models.TransactionDSLInput{
+		Send: &models.DSLSend{
+			Asset: "USD",
+			Value: "9007199254740993.01",
+			Source: &models.DSLSource{From: []models.DSLFromTo{{
+				Account: "@source",
+			}}},
+			Distribute: &models.DSLDistribute{To: []models.DSLFromTo{{
+				Account: "@dest",
+			}}},
+		},
+	}
+
+	require.NoError(t, validation.ValidateTransactionDSL(input))
+}
+
 func TestValidateAddress(t *testing.T) {
 	line2 := "Apt 4B"
 	longLine := string(make([]byte, 257))
