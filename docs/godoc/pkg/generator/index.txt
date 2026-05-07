@@ -11,22 +11,23 @@ reports.
 
 # Public surface
 
-  - Per-resource generators: [OrganizationGenerator], [LedgerGenerator],
-    [AssetGenerator], [AccountGenerator], [PortfolioGenerator],
-    [SegmentGenerator], [TransactionGenerator], etc. Each is constructed
-    with an *entities.Entity and an observability.Provider, then produces
-    resources from data templates.
-  - [GeneratorConfig] — top-level knobs: counts per resource, locale, retry
-    policy, observability provider. Use [DefaultConfig] for sane defaults.
-  - Context-scoped knobs threaded through [WithWorkers], [WithCircuitBreaker],
-    and [WithOrgLocale]. The circuit-breaker primitive lives in
-    pkg/concurrent and is plumbed via context, not exported from this
-    package directly.
+  - Per-resource generators: [OrgGenerator], LedgerGenerator,
+    AssetGenerator, AccountGenerator, PortfolioGenerator, SegmentGenerator,
+    TransactionGenerator, etc. Each takes a parent resource ID and produces N
+    child resources.
+  - [Config] — top-level knobs: counts per resource, locale, retry policy,
+    observability provider.
+  - [Circuit] — circuit-breaker primitive shared across generators to fail fast
+    when the backend signals unhealthiness.
+  - Functional options ([Option] family) for assembling a generator pipeline.
 
 # Quickstart
 
-    g := generator.NewOrganizationGenerator(c.Entity, obs)
-    orgs, err := g.GenerateBatch(ctx, 100)
+    g := generator.NewOrgGenerator(c, generator.Config{
+        Locale:        "br",
+        Concurrency:   8,
+    })
+    orgs, err := g.GenerateMany(ctx, 100)
 
 # When to use
 

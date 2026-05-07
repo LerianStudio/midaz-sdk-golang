@@ -107,7 +107,7 @@ shape is `c.<Service>.<Method>`:
 orgs, err := c.Organizations.ListOrganizations(ctx, opts)
 ledger, err := c.Ledgers.CreateLedger(ctx, orgID, input)
 account, err := c.Accounts.GetAccount(ctx, orgID, ledgerID, accountID)
-balance, err := c.Balances.GetBalance(ctx, orgID, ledgerID, accountID)
+balance, err := c.Balances.GetBalance(ctx, orgID, ledgerID, balanceID)
 tx, err := c.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
 ```
 

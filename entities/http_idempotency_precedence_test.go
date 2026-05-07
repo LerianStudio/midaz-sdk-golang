@@ -43,7 +43,7 @@ func TestIdempotencyPrecedence_InputKeyBeatsCtxKey(t *testing.T) {
 	// internal marker that flags this as a caller-supplied (input field) value.
 	headers := map[string]string{
 		"X-Idempotency":                 "input-key",
-		internalCallerIdempotencyHeader: BoolTrue,
+		internalCallerIdempotencyHeader: boolTrue,
 	}
 
 	var out map[string]any

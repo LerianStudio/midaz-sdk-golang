@@ -61,7 +61,7 @@ import (
 // iterator. Pass [math.MaxInt] (or [CollectAll]) when no cap is desired.
 func Collect[T any](seq iter.Seq2[T, error], maxItems int) ([]T, error) {
 	if maxItems <= 0 {
-		return nil, nil
+		return []T{}, nil
 	}
 
 	if seq == nil {

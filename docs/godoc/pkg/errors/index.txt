@@ -37,7 +37,7 @@ one [Code]:
     │                    │ idempotency_error             │              │
     │ auth               │ authentication_error          │ refresh+yes  │
     │                    │ permission_error              │ no           │
-    │ rate_limit         │ rate_limit_exceeded           │ yes (backoff)│
+    │ limit_exceeded     │ rate_limit_exceeded           │ yes (backoff)│
     │ timeout            │ timeout                       │ yes          │
     │ cancellation       │ cancelled                     │ no           │
     │ network            │ network_error                 │ yes          │
@@ -78,8 +78,8 @@ Three idioms cover every use case:
 
     var fe *validation.FieldErrors
     if errors.As(err, &fe) {
-        for _, item := range fe.Errors() {
-            log.Printf("field=%s message=%s", item.Path, item.Message)
+        for _, item := range fe.Errs() {
+            log.Printf("field=%s message=%s", item.Field, item.Message)
         }
     }
 
@@ -145,20 +145,6 @@ arbitrary log lines.
 
 var ErrValidation = &Error{ ... } ...
 func CategorizeTransactionError(err error) string
-func CheckAccountEligibilityError(err error) bool
-func CheckAssetMismatchError(err error) bool
-func CheckAuthenticationError(err error) bool
-func CheckAuthorizationError(err error) bool
-func CheckCancellationError(err error) bool
-func CheckConflictError(err error) bool
-func CheckIdempotencyError(err error) bool
-func CheckInsufficientBalanceError(err error) bool
-func CheckInternalError(err error) bool
-func CheckNetworkError(err error) bool
-func CheckNotFoundError(err error) bool
-func CheckRateLimitError(err error) bool
-func CheckTimeoutError(err error) bool
-func CheckValidationError(err error) bool
 func ClassifyTransportError(operation string, err error) error
 func ErrorFromHTTPResponse(statusCode int, requestID, message, apiCode, entityType, resourceID string) error
 func ErrorFromHTTPResponseWithDetails(statusCode int, ...) error
@@ -182,6 +168,7 @@ func IsInternalError(err error) bool
 func IsNetworkError(err error) bool
 func IsNotFoundError(err error) bool
 func IsRateLimitError(err error) bool
+func IsSensitiveFieldName(name string) bool
 func IsTimeoutError(err error) bool
 func IsUnprocessableError(err error) bool
 func IsValidationError(err error) bool

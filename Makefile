@@ -270,10 +270,10 @@ demo-data-interactive:
 # surface — refactors that break a documented call shape break the build here.
 examples-test:
 	$(call print_header,"Building all examples")
-	@go build ./examples/... 2>&1
+	@$(GOBUILD) ./examples/... 2>&1
 	@echo "$(GREEN)[ok]$(NC) All examples build cleanly$(GREEN) ✔️$(NC)"
 	$(call print_header,"Running example tests")
-	@go test ./examples/... 2>&1
+	@$(GOTEST) ./examples/... 2>&1
 	@echo "$(GREEN)[ok]$(NC) Example tests passed$(GREEN) ✔️$(NC)"
 
 #-------------------------------------------------------

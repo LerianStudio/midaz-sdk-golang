@@ -15,6 +15,6 @@ const (
 // Common boolean string literal used in HTTP header values for internal
 // idempotency negotiation (X-Midaz-Caller-Idempotency, X-Midaz-Auto-Idempotency).
 const (
-	// BoolTrue represents the string value "true".
-	BoolTrue = "true"
+	// boolTrue represents the string value "true".
+	boolTrue = "true"
 )

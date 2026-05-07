@@ -30,9 +30,9 @@ for the full walkthrough.
 
 # Multi-tenancy
 
-Set a default tenant via WithTenantID; override per-request via
-github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx.WithRequestTenantID.
-See docs/multi-tenancy.md.
+Tenant scope is derived from Access Manager/JWT claims. The SDK does not expose
+or send X-Tenant-ID. Use separate Access Manager credentials or token context
+when calls must run under a different tenant scope. See docs/multi-tenancy.md.
 
 # Logging and observability
 
@@ -130,7 +130,6 @@ type Option func(*Client) error
     func WithOnboardingURL(onboardingURL string) Option
     func WithRetryOptions(opts ...retry.Option) Option
     func WithSlowCallThreshold(threshold time.Duration) Option
-    func WithTenantID(tenantID string) Option
     func WithTimeout(timeout time.Duration) Option
     func WithTransactionURL(transactionURL string) Option
     func WithUserAgent(userAgent string) Option

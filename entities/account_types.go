@@ -137,7 +137,7 @@ func (e *accountTypesEntity) ListAccountTypes(ctx context.Context, organizationI
 	}
 
 	if err := opts.Validate(); err != nil {
-		return nil, err
+		return nil, errors.NewValidationError(operation, "list options validation failed", err)
 	}
 
 	url := e.buildURL(organizationID, ledgerID, "")
@@ -164,7 +164,7 @@ func (e *accountTypesEntity) ListAccountTypes(ctx context.Context, organizationI
 	return &response, nil
 }
 
-// ListAccountTypesAll yields every accounttype matching the request, transparently advancing pagination.
+// ListAccountTypesAll yields every account type matching the request, transparently advancing pagination.
 func (e *accountTypesEntity) ListAccountTypesAll(ctx context.Context, organizationID, ledgerID string, opts models.AccountTypesListOpts) iter.Seq2[models.AccountType, error] {
 	return flattenPages(e.ListAccountTypesPages(ctx, organizationID, ledgerID, opts))
 }

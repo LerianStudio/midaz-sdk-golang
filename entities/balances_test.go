@@ -2204,9 +2204,12 @@ func TestBalancesEntity_ListBalancesPages_EarlyTermination(t *testing.T) {
 }
 
 // TestBalancesEntity_ListBalancesPages_ContextCancellation verifies that a
-// cancelled context yields ctx.Err() instead of issuing further requests.
+// cancelled context yields ctx.Err() instead of issuing further requests
+// AND that the iterator short-circuits before the first HTTP call. The
+// pagesRequested spy from twoPageBalancesMock records every wire request,
+// so an empty slice proves the transport was never touched.
 func TestBalancesEntity_ListBalancesPages_ContextCancellation(t *testing.T) {
-	mock, _ := twoPageBalancesMock()
+	mock, pagesRequested := twoPageBalancesMock()
 
 	entity := &balancesEntity{serviceEntity: serviceEntity{
 		httpClient: newBalancesHTTPClientAdapter(mock),
@@ -2225,8 +2228,9 @@ func TestBalancesEntity_ListBalancesPages_ContextCancellation(t *testing.T) {
 		break
 	}
 
-	require.Error(t, observed)
-	assert.ErrorIs(t, observed, context.Canceled)
+	require.ErrorIs(t, observed, context.Canceled)
+	assert.Empty(t, *pagesRequested,
+		"a cancelled context must short-circuit before the first HTTP request")
 }
 
 // TestBalancesEntity_ListBalancesByAccountAliasPages_AdvancesPages exercises

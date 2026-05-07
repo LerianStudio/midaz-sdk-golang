@@ -97,6 +97,7 @@ func ReleaseEncoder(enc *json.Encoder)
 func Unmarshal(data []byte, v any) error
 type BatchOption func(*BatchOptions) error
     func WithBatchTimeout(timeout time.Duration) BatchOption
+    func WithBatchWorkers(workers int) BatchOption
     func WithContinueOnError(continueOnError bool) BatchOption
     func WithHighThroughputBatching() BatchOption
     func WithMaxBatchSize(size int) BatchOption

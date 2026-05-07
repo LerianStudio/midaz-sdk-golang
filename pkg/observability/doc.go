@@ -31,9 +31,9 @@
 //   - [WithSpan] — convenience wrapper that opens a span around a
 //     callback, records errors as span attributes on failure, and
 //     ends the span on return.
-//   - [NewHTTPMiddleware] — server-side middleware that extracts W3C
-//     trace context from inbound requests and binds it to the handler
-//     context.
+//   - [NewHTTPMiddleware] — client-side transport middleware that wraps
+//     an [net/http.RoundTripper] to propagate W3C trace context onto
+//     outbound requests and record per-call spans/metrics.
 //
 // # Two-layer surface
 //

@@ -259,7 +259,7 @@ func (e *assetRatesEntity) ListAssetRatesByAssetCode(
 	}
 
 	if err := opts.Validate(); err != nil {
-		return nil, err
+		return nil, errors.NewValidationError(operation, "list options validation failed", err)
 	}
 
 	url := e.buildFromAssetURL(organizationID, ledgerID, assetCode)

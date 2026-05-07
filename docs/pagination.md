@@ -78,8 +78,8 @@ for page, err := range c.Accounts.ListAccountsPages(ctx, orgID, ledgerID, opts) 
         return fmt.Errorf("list accounts pages: %w", err)
     }
 
-    log.Printf("page=%d items=%d next_cursor=%q",
-        page.Pagination.Page, len(page.Items), page.Pagination.NextCursor)
+    log.Printf("page=%d items=%d total=%d",
+        page.Pagination.Page, len(page.Items), page.Pagination.Total)
 
     if shouldStop(page) {
         break

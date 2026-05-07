@@ -1,4 +1,6 @@
-// Package entities — internal context bridges.
+package entities
+
+// Internal context bridges.
 //
 // This file contains UNEXPORTED helpers that delegate to pkg/sdkctx for
 // reading values that the canonical sdkctx package writes via its public
@@ -15,7 +17,6 @@
 // There is intentionally no public re-export of these readers — entities
 // has no reason to surface context values to user code; sdkctx is that
 // surface.
-package entities
 
 import (
 	"context"

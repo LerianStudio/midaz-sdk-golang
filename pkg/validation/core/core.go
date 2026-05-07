@@ -175,13 +175,16 @@ var ExternalAccountPattern = regexp.MustCompile(`^@external/([A-Z]{3,4})$`)
 // AccountAliasPattern is the regex pattern for account aliases.
 //
 // Midaz aliases support letters, digits, underscores, hyphens, dots, colons,
-// and an optional leading "@". The 50-character cap matches the historic
-// strict shape; the previous 100-character cap was too permissive and routinely
-// let test fixtures through that the backend would later reject.
+// and an optional leading "@". The 50-character cap is the *total* string
+// length and matches the error message in [ValidateAccountAlias]: a leading
+// "@" counts toward the cap, so "@" + 49 chars is the longest valid prefixed
+// form, and 50 chars is the longest valid bare form. The previous
+// 100-character cap was too permissive and routinely let test fixtures
+// through that the backend would later reject.
 //
 // Example aliases that match: "@treasury_checking", "@user.balance:USD",
 // "savings-account-2024", "@alice".
-var AccountAliasPattern = regexp.MustCompile(`^@?[a-zA-Z0-9_.:-]{1,50}$`)
+var AccountAliasPattern = regexp.MustCompile(`^(?:@[a-zA-Z0-9_.:-]{1,49}|[a-zA-Z0-9_.:-]{1,50})$`)
 
 // AssetCodePattern is the regex pattern for asset codes (e.g. "USD", "BRL",
 // "USDT"). The 3-4 uppercase-letter bound matches ISO 4217 currency codes

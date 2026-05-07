@@ -1300,14 +1300,30 @@ func TestAssetRatesListOpts_ToQueryParams(t *testing.T) {
 }
 
 // pagedMockHandler returns an http.HandlerFunc that serves cursor-paginated
-// asset-rate pages. Each call advances the cursor; the final page omits
-// next_cursor to terminate the iteration.
-func pagedMockHandler(t *testing.T, pages [][]byte) http.HandlerFunc {
+// asset-rate pages. Each request must carry the expected ?cursor= value for
+// its index — wantCursors[0] is asserted on the first call, wantCursors[1]
+// on the second, and so on. Mismatches fail the test, which proves the
+// iterator is actually forwarding next_cursor between pages instead of
+// silently re-fetching page 1. hits is incremented on every call so the
+// caller can assert exact request counts (e.g., bounded Collect must NOT
+// request page 2).
+func pagedMockHandler(t *testing.T, pages [][]byte, wantCursors []string, hits *int) http.HandlerFunc {
 	t.Helper()
 
 	var idx int
 
-	return func(w http.ResponseWriter, _ *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if hits != nil {
+			*hits++
+		}
+
+		if idx < len(wantCursors) {
+			// assert (not require) — require's t.FailNow inside the
+			// HTTP-handler goroutine is undefined behavior per testify.
+			assert.Equal(t, wantCursors[idx], r.URL.Query().Get("cursor"),
+				"unexpected cursor on request #%d", idx+1)
+		}
+
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 
@@ -1337,7 +1353,8 @@ func TestListAssetRatesByAssetCodePages_TraversesCursors(t *testing.T) {
 		}`),
 	}
 
-	server := httptest.NewServer(pagedMockHandler(t, pages))
+	hits := 0
+	server := httptest.NewServer(pagedMockHandler(t, pages, []string{"", "cursor-2", "cursor-3"}, &hits))
 	defer server.Close()
 
 	entity := newAssetRatesEntity(
@@ -1360,6 +1377,7 @@ func TestListAssetRatesByAssetCodePages_TraversesCursors(t *testing.T) {
 
 	assert.Equal(t, 3, pageCount, "expected three pages traversed")
 	assert.Equal(t, 3, itemCount, "expected three items collected across pages")
+	assert.Equal(t, 3, hits, "expected exactly three HTTP requests (one per page)")
 }
 
 func TestListAssetRatesByAssetCodeAll_ItemLevelIteration(t *testing.T) {
@@ -1379,7 +1397,8 @@ func TestListAssetRatesByAssetCodeAll_ItemLevelIteration(t *testing.T) {
 		}`),
 	}
 
-	server := httptest.NewServer(pagedMockHandler(t, pages))
+	hits := 0
+	server := httptest.NewServer(pagedMockHandler(t, pages, []string{"", "page-2"}, &hits))
 	defer server.Close()
 
 	entity := newAssetRatesEntity(
@@ -1394,6 +1413,7 @@ func TestListAssetRatesByAssetCodeAll_ItemLevelIteration(t *testing.T) {
 	))
 	require.NoError(t, err)
 	require.Len(t, rates, 3)
+	assert.Equal(t, 2, hits, "expected exactly two HTTP requests (page-2 cursor must propagate)")
 
 	assert.Equal(t, "r1", rates[0].ID)
 	assert.Equal(t, "r2", rates[1].ID)
@@ -1417,7 +1437,8 @@ func TestListAssetRatesByAssetCodeAll_BoundedByCollect(t *testing.T) {
 		}`),
 	}
 
-	server := httptest.NewServer(pagedMockHandler(t, pages))
+	hits := 0
+	server := httptest.NewServer(pagedMockHandler(t, pages, []string{""}, &hits))
 	defer server.Close()
 
 	entity := newAssetRatesEntity(
@@ -1434,6 +1455,7 @@ func TestListAssetRatesByAssetCodeAll_BoundedByCollect(t *testing.T) {
 	), 2)
 	require.NoError(t, err)
 	require.Len(t, rates, 2)
+	assert.Equal(t, 1, hits, "bounded Collect must stop before requesting page 2")
 }
 
 func TestListAssetRatesByAssetCode_ValidatesOptsBeforeRequest(t *testing.T) {

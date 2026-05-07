@@ -18,8 +18,14 @@ type HoldersService interface {
 	// ListHolders retrieves holders for an organization.
 	ListHolders(ctx context.Context, organizationID string, opts models.HoldersListOpts) (*models.ListResponse[models.Holder], error)
 
+	// ListHoldersAll yields every holder matching the request, transparently
+	// advancing pagination. Use [Collect] or [CollectAll] to drain into a
+	// slice, or range over the iterator directly to stream items.
 	ListHoldersAll(ctx context.Context, organizationID string, opts models.HoldersListOpts) iter.Seq2[models.Holder, error]
 
+	// ListHoldersPages yields one full *ListResponse[Holder] per page,
+	// exposing the per-page envelope (Pagination, Total, NextCursor) for
+	// callers that need cursor checkpoints or mid-iteration breaks.
 	ListHoldersPages(ctx context.Context, organizationID string, opts models.HoldersListOpts) iter.Seq2[*models.ListResponse[models.Holder], error]
 	// CreateHolder creates a holder.
 	CreateHolder(ctx context.Context, organizationID string, input *models.CreateHolderInput) (*models.Holder, error)

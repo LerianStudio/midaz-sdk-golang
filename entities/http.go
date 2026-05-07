@@ -181,13 +181,26 @@ func initMetricsCollector(provider observability.Provider) *observability.Metric
 }
 
 // WithRetryOptions sets custom retry options for the HTTP client.
+//
+// Each provided option is applied on top of the *currently configured*
+// policy (cloned under the mutex), so callers can tune one knob —
+// e.g. WithMaxRetries — without losing prior settings loaded from
+// config or set by earlier calls. If no policy has been configured
+// yet, retry.DefaultOptions() is used as the base.
 func (c *HTTPClient) WithRetryOptions(options ...retry.Option) error {
 	if c == nil {
 		return errors.New("HTTP client cannot be nil")
 	}
 
-	// Create a new options struct with defaults
-	retryOpts := retry.DefaultOptions()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// Start from the current policy so client-level overrides do not
+	// discard retry settings already loaded from config.
+	retryOpts := cloneRetryOptions(c.retryOptions)
+	if retryOpts == nil {
+		retryOpts = retry.DefaultOptions()
+	}
 
 	// Apply all options
 	for i, opt := range options {
@@ -200,9 +213,7 @@ func (c *HTTPClient) WithRetryOptions(options ...retry.Option) error {
 		}
 	}
 
-	c.mu.Lock()
 	c.retryOptions = retryOpts
-	c.mu.Unlock()
 
 	return nil
 }
@@ -446,10 +457,10 @@ func (*HTTPClient) injectContextHeaders(ctx context.Context, method string, head
 		// Caller-supplied input.IdempotencyKey wins over ctx-supplied key.
 		// Detected via the internal marker that input-level call sites set
 		// alongside the header.
-		callerSupplied := headers[internalCallerIdempotencyHeader] == BoolTrue && strings.TrimSpace(headers["X-Idempotency"]) != ""
+		callerSupplied := headers[internalCallerIdempotencyHeader] == boolTrue && strings.TrimSpace(headers["X-Idempotency"]) != ""
 		if !callerSupplied {
 			headers["X-Idempotency"] = key
-			headers[internalCallerIdempotencyHeader] = BoolTrue
+			headers[internalCallerIdempotencyHeader] = boolTrue
 		}
 	}
 
@@ -991,8 +1002,8 @@ func (c *HTTPClient) setupRequestHeaders(req *http.Request, headers map[string]s
 func (c *HTTPClient) executeRequestWithRetry(ctx context.Context, req *http.Request, method, requestURL string) (*http.Response, []byte, error) {
 	snapshot := c.cloneConfiguration()
 
-	callerProvidedIdempotency := req.Header.Get(internalCallerIdempotencyHeader) == BoolTrue
-	autoIdempotency := req.Header.Get(internalAutoIdempotencyHeader) == BoolTrue
+	callerProvidedIdempotency := req.Header.Get(internalCallerIdempotencyHeader) == boolTrue
+	autoIdempotency := req.Header.Get(internalAutoIdempotencyHeader) == boolTrue
 	hasIdempotencyKey := callerProvidedIdempotency || autoIdempotency
 
 	// Strip the internal markers BEFORE the request goes on the wire — the
@@ -1094,12 +1105,13 @@ func normalizeTelemetryURLForLog(rawURL string) string {
 		return rawURL
 	}
 
-	// Replace path segments that look like UUIDs / numeric IDs with
-	// placeholders. This matches the entity-id pattern used elsewhere
-	// in the SDK's observability tooling.
+	// Replace path segments that look like identifiers with placeholders.
+	// Reuses the same detection as normalizeTelemetryURL so structured logs
+	// share the cardinality envelope of traces and metrics — otherwise long
+	// mixed-format IDs (account/transaction codes) would leak as raw values.
 	parts := strings.Split(parsed.Path, "/")
 	for i, p := range parts {
-		if isLikelyID(p) {
+		if isLikelyTelemetryIdentifier(p) {
 			parts[i] = ":id"
 		}
 	}
@@ -1108,28 +1120,6 @@ func normalizeTelemetryURLForLog(rawURL string) string {
 	parsed.RawQuery = "" // never include query strings in log fields
 
 	return parsed.String()
-}
-
-// isLikelyID returns true if the segment looks like an entity identifier
-// (UUID-shaped or all digits).
-func isLikelyID(segment string) bool {
-	if segment == "" {
-		return false
-	}
-
-	// UUID-shaped (36 chars with 4 hyphens)
-	if len(segment) == 36 && strings.Count(segment, "-") == 4 {
-		return true
-	}
-
-	// All digits
-	for _, r := range segment {
-		if r < '0' || r > '9' {
-			return false
-		}
-	}
-
-	return len(segment) > 0
 }
 
 // isInternalRetryableError matches the SDK's internal "always retryable"
@@ -1668,7 +1658,7 @@ func (c *HTTPClient) ensureIdempotencyHeader(ctx context.Context, method string,
 	}
 
 	headers["X-Idempotency"] = uuid.NewString()
-	headers[internalAutoIdempotencyHeader] = BoolTrue
+	headers[internalAutoIdempotencyHeader] = boolTrue
 
 	return headers
 }
@@ -1837,9 +1827,18 @@ func isLikelyTelemetryIdentifier(segment string) bool {
 func sanitizeLogArgs(args []any) []any {
 	sanitized := make([]any, len(args))
 	for i, arg := range args {
-		if s, ok := arg.(string); ok {
-			sanitized[i] = sanitizeLogInput(s)
-		} else {
+		switch v := arg.(type) {
+		case string:
+			sanitized[i] = sanitizeLogInput(v)
+		case error:
+			// Errors can carry attacker-controlled bytes (server-supplied
+			// messages, parsed payloads). Coerce through Error() and
+			// sanitize so newline-bearing messages cannot survive into
+			// the structured log line.
+			sanitized[i] = sanitizeLogInput(v.Error())
+		case fmt.Stringer:
+			sanitized[i] = sanitizeLogInput(v.String())
+		default:
 			sanitized[i] = arg
 		}
 	}

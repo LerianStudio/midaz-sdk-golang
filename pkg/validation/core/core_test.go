@@ -1268,6 +1268,9 @@ func TestRegexPatterns(t *testing.T) {
 			"a",
 			// Exactly 50 characters — the upper bound is inclusive.
 			"a2345678901234567890123456789012345678901234567890",
+			// "@" + 49 chars = 50 total; the prefixed form must respect the
+			// same total-length cap as the bare form.
+			"@" + strings.Repeat("a", 49),
 		}
 		for _, tc := range validCases {
 			assert.True(t, core.AccountAliasPattern.MatchString(tc), "Expected %s to match", tc)
@@ -1281,6 +1284,8 @@ func TestRegexPatterns(t *testing.T) {
 			strings.Repeat("a", 51),
 			// 100 chars — far past the bound.
 			strings.Repeat("a", 100),
+			// "@" + 50 chars = 51 total; one past the inclusive bound.
+			"@" + strings.Repeat("a", 50),
 		}
 		for _, tc := range invalidCases {
 			assert.False(t, core.AccountAliasPattern.MatchString(tc), "Expected %s to not match", tc)

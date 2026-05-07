@@ -160,7 +160,7 @@ func (e *ledgersEntity) ListLedgers(ctx context.Context, organizationID string, 
 	}
 
 	if err := opts.Validate(); err != nil {
-		return nil, err
+		return nil, errors.NewValidationError(operation, "list options validation failed", err)
 	}
 
 	url := e.buildURL(organizationID, "")

@@ -167,9 +167,13 @@ linters:
         - pattern: '^ioutil\.'
           msg: "ioutil is deprecated - use io and os packages instead"
 
-        # Forbid log package (use structured logging)
-        - pattern: '^log\.(Print|Fatal|Panic).*$'
-          msg: "Use structured logging via pkg/observability instead of log package"
+        # Forbid log package (use structured logging via log/slog or
+        # pkg/observability). The broad `^log\.` pattern catches every
+        # stdlib log call (Print/Fatal/Panic, plus New/SetOutput/Default/
+        # Writer/etc.) without affecting log/slog calls, which are
+        # written `slog.X(...)` and never `log.X(...)`.
+        - pattern: '^log\.'
+          msg: "Use log/slog or pkg/observability instead of the stdlib log package"
 
         # Forbid http.Get/Post without context
         - pattern: '^http\.(Get|Post|Head)$'

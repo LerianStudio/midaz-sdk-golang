@@ -97,13 +97,22 @@ Without either `WithAccessManager` or `WithAnonymous`, `midaz.New` returns a typ
 configuration error during midaz.New: invalid configuration: no auth source configured; use WithAccessManager or WithAnonymous
 ```
 
-Detect with the standard helpers:
+Detect with the standard helpers. The SDK's `pkg/errors` does not re-export
+`As`/`Is`, so the example imports the stdlib `errors` package alongside the
+SDK alias:
 
 ```go
+import (
+    "errors"
+
+    "github.com/LerianStudio/midaz-sdk-golang/v3"
+    sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
+)
+
 c, err := midaz.New(midaz.WithEnvironment(midaz.EnvironmentLocal))
 if err != nil {
-    var sdkErr *errors.Error
-    if errors.As(err, &sdkErr) && sdkErr.Category == errors.CategoryConfiguration {
+    var sdkErr *sdkerrors.Error
+    if errors.As(err, &sdkErr) && sdkErr.Category == sdkerrors.CategoryConfiguration {
         // Setup mistake — fix the call site.
     }
     return err
@@ -113,7 +122,7 @@ if err != nil {
 Or check by sentinel:
 
 ```go
-if errors.Is(err, errors.ErrConfiguration) { ... }
+if errors.Is(err, sdkerrors.ErrConfiguration) { ... }
 ```
 
 ### Bypassing the gate (test plumbing only)

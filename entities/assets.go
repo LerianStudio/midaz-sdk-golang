@@ -24,8 +24,14 @@ type AssetsService interface {
 	// Returns a ListResponse containing the assets and pagination information, or an error if the operation fails.
 	ListAssets(ctx context.Context, organizationID, ledgerID string, opts models.AssetsListOpts) (*models.ListResponse[models.Asset], error)
 
+	// ListAssetsAll yields every asset matching the request, transparently
+	// advancing pagination. Use [Collect] or [CollectAll] to drain into a
+	// slice, or range over the iterator directly to stream items.
 	ListAssetsAll(ctx context.Context, organizationID, ledgerID string, opts models.AssetsListOpts) iter.Seq2[models.Asset, error]
 
+	// ListAssetsPages yields one full *ListResponse[Asset] per page, exposing
+	// the per-page envelope (Pagination, Total, NextCursor) for callers that
+	// need cursor checkpoints, total-count display, or mid-iteration breaks.
 	ListAssetsPages(ctx context.Context, organizationID, ledgerID string, opts models.AssetsListOpts) iter.Seq2[*models.ListResponse[models.Asset], error]
 
 	// GetAsset retrieves a specific asset by its ID.

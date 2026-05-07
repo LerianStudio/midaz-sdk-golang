@@ -324,7 +324,11 @@ func (e *Entity) SetHTTPClient(client *http.Client) {
 // Returns:
 //   - error: Non-nil only if MetricsCollector construction fails.
 func (e *Entity) SetObservability(provider observability.Provider) error {
-	if e == nil || e.httpClient == nil {
+	if e == nil {
+		return errors.New("entity cannot be nil")
+	}
+
+	if e.httpClient == nil {
 		return errors.New("entity HTTP client cannot be nil")
 	}
 
