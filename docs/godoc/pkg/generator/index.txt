@@ -11,19 +11,20 @@ reports.
 
 # Public surface
 
-  - Per-resource generators: [OrganizationGenerator], LedgerGenerator,
+  - Per-resource generators: OrganizationGenerator, LedgerGenerator,
     AssetGenerator, AccountGenerator, PortfolioGenerator, SegmentGenerator,
     TransactionGenerator, etc. Each takes a parent resource ID and produces N
     child resources.
-  - [GeneratorConfig] — top-level knobs: counts per resource, locale, retry policy,
-    observability provider.
-  - [WithCircuitBreaker] — context helper that injects a shared circuit-breaker
-    primitive used across generators to fail fast when the backend signals
-    unhealthiness.
-  - Functional options ([Option] family) for assembling a generator pipeline.
+  - GeneratorConfig — top-level knobs: counts per resource, locale, retry
+    policy, observability provider.
+  - Context helpers — WithCircuitBreaker, WithLedgerID, WithOrgID,
+    WithOrgLocale, WithWorkers inject shared state across generator calls
+    (circuit-breaker primitive, default IDs, locale, worker pool size).
 
 # Quickstart
 
+    // e is an *entities.Entity, obs is an observability.Provider —
+    // typically obtained from a configured midaz.Client.
     g := generator.NewOrganizationGenerator(e, obs)
     orgs, err := g.GenerateMany(ctx, 100)
 

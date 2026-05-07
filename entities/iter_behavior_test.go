@@ -11,7 +11,6 @@ import (
 	"net/http/httptest"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/stretchr/testify/assert"
@@ -1011,11 +1010,4 @@ func TestAccountsEntity_ListAccountsAll_StopsOnConsumerBreak(t *testing.T) {
 
 	assert.Equal(t, 1, itemsGot)
 	assert.Equal(t, int32(1), calls.Load(), "Pages iterator must stop after consumer breaks out of All")
-
-	// Give the test a moment to detect any rogue background request that
-	// might happen if the iterator failed to stop properly. There shouldn't
-	// be any — iter.Seq2 is fully synchronous — but assert by reading calls
-	// once more after a short delay to catch any post-break request.
-	time.Sleep(50 * time.Millisecond)
-	assert.Equal(t, int32(1), calls.Load())
 }

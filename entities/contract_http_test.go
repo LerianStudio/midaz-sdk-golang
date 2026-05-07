@@ -18,6 +18,7 @@ import (
 func TestLedgersEntity_HTTPContracts(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "Bearer token", r.Header.Get("Authorization"))
+		assert.Empty(t, r.Header.Get("X-Tenant-ID"))
 
 		switch {
 		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/organizations/org%2F1/ledgers":
@@ -79,6 +80,9 @@ func TestLedgersEntity_HTTPContracts(t *testing.T) {
 
 func TestOrganizationsAndPortfoliosEntity_HTTPContracts(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "Bearer token", r.Header.Get("Authorization"))
+		assert.Empty(t, r.Header.Get("X-Tenant-ID"))
+
 		switch {
 		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/organizations/org%2F1":
 			writeEntityJSON(t, w, map[string]any{"id": "org/1", "legalName": "Acme"})
@@ -155,6 +159,9 @@ func TestRoutesEntity_HTTPContracts(t *testing.T) {
 	operationRouteID := "41eb8891-f5d7-4bf5-9543-8d8f8e3a3e8c"
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "Bearer token", r.Header.Get("Authorization"))
+		assert.Empty(t, r.Header.Get("X-Tenant-ID"))
+
 		switch {
 		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/organizations/org%2F1/ledgers/ledger%2F1/operation-routes":
 			assert.Equal(t, "5", r.URL.Query().Get("limit"))
@@ -226,6 +233,9 @@ func TestRoutesEntity_HTTPContracts(t *testing.T) {
 
 func TestAccountsEntity_SpecialEndpointContracts(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "Bearer token", r.Header.Get("Authorization"))
+		assert.Empty(t, r.Header.Get("X-Tenant-ID"))
+
 		switch {
 		case r.Method == http.MethodGet && r.URL.EscapedPath() == "/organizations/org%2F1/ledgers/ledger%2F1/accounts/account%2F1/balances":
 			assert.Equal(t, "2", r.URL.Query().Get("limit"))
@@ -274,6 +284,9 @@ func TestAccountsEntity_SpecialEndpointContracts(t *testing.T) {
 
 func TestTransactionsEntity_JSONDSLAndLifecycleContracts(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "Bearer token", r.Header.Get("Authorization"))
+		assert.Empty(t, r.Header.Get("X-Tenant-ID"))
+
 		switch {
 		case r.Method == http.MethodPost && r.URL.EscapedPath() == "/organizations/org%2F1/ledgers/ledger%2F1/transactions/json":
 			assert.Equal(t, "caller-idem", r.Header.Get("X-Idempotency"))

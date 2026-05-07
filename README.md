@@ -54,8 +54,9 @@ Historical planning artifact — see [`docs/v3-dx-plan.md`](docs/v3-dx-plan.md) 
 go get github.com/LerianStudio/midaz-sdk-golang/v3
 ```
 
-Requires Go 1.26+ (the `iter.Seq2` and `log/slog` features are stdlib in
-v3).
+Requires Go 1.26+ — the toolchain pinned in `go.mod`. The SDK uses
+`iter.Seq2` (Go 1.23+) and `log/slog` (Go 1.21+) in its public API; the
+1.26 floor matches the rest of the Lerian Go stack.
 
 ## Quick start
 

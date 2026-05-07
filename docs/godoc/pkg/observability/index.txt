@@ -32,7 +32,7 @@ whatever parent span the caller has open.
     attributes, sampling, and component toggles.
   - WithSpan — convenience wrapper that opens a span around a callback, records
     errors as span attributes on failure, and ends the span on return.
-  - NewHTTPMiddleware — client-side transport middleware that wraps an
+  - NewHTTPMiddleware — client-side transport middleware that wraps a
     net/http.RoundTripper to propagate W3C trace context onto outbound requests
     and record per-call spans/metrics.
 
@@ -52,7 +52,7 @@ backed by different handler chains:
   - github.com/LerianStudio/midaz-sdk-golang/v3.Client.Logger returns a
     *slog.Logger — the Go-stdlib idiom. Used by the SDK for retry traces
     and other internal lines that are not span-correlated. Configured via
-    midaz.WithLogger and Config.Debug.
+    midaz.WithLogger / midaz.WithLoggerStream / Config.Debug.
   - Provider.Logger returns the bespoke Logger — OTel-correlated.
     Call Logger.WithSpan to attach trace_id and span_id to every log line.
     Used inside SDK call paths that already hold a live span.

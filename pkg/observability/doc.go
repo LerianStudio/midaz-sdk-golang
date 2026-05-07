@@ -32,7 +32,7 @@
 //     callback, records errors as span attributes on failure, and
 //     ends the span on return.
 //   - [NewHTTPMiddleware] — client-side transport middleware that wraps
-//     an [net/http.RoundTripper] to propagate W3C trace context onto
+//     a [net/http.RoundTripper] to propagate W3C trace context onto
 //     outbound requests and record per-call spans/metrics.
 //
 // # Two-layer surface
