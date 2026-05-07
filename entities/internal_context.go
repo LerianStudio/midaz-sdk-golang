@@ -10,7 +10,6 @@
 // External callers should always use pkg/sdkctx directly:
 //
 //	ctx = sdkctx.WithIdempotencyKey(ctx, key)
-//	ctx = sdkctx.WithRequestTenantID(ctx, tenantID)
 //	ctx = sdkctx.WithoutAutoIdempotency(ctx)
 //
 // There is intentionally no public re-export of these readers — entities

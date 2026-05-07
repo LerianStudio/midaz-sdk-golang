@@ -81,10 +81,9 @@ func TestSlice6CRMRejectsInvalidScopedIdentifiersBeforeTransport(t *testing.T) {
 	assert.False(t, called)
 }
 
-func TestSlice6CRMHeadersPreserveOrganizationAndTenantBoundary(t *testing.T) {
+func TestSlice6CRMHeadersPreserveOrganizationAndIdempotency(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, crmOrgID, r.Header.Get("X-Organization-Id"))
-		assert.Equal(t, "tenant-context", r.Header.Get("X-Tenant-ID"))
 		assert.Equal(t, "crm-idem", r.Header.Get("X-Idempotency"))
 		w.Header().Set("Content-Type", "application/json")
 
@@ -94,9 +93,8 @@ func TestSlice6CRMHeadersPreserveOrganizationAndTenantBoundary(t *testing.T) {
 	defer server.Close()
 
 	service := newHoldersEntity(server.Client(), map[string]string{"crm": server.URL}).(*holdersEntity)
-	service.setDefaultTenantID("tenant-default")
 
-	ctx := sdkctx.WithIdempotencyKey(sdkctx.WithRequestTenantID(context.Background(), "tenant-context"), "crm-idem")
+	ctx := sdkctx.WithIdempotencyKey(context.Background(), "crm-idem")
 	holderType := models.HolderTypeNaturalPerson
 
 	holder, err := service.CreateHolder(ctx, " "+crmOrgID+" ", &models.CreateHolderInput{

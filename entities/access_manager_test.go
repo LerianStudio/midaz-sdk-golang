@@ -36,10 +36,6 @@ func (m *mockPluginAuthConfig) GetPluginAuth() auth.AccessManager {
 	return m.pluginAuth
 }
 
-func (*mockPluginAuthConfig) GetTenantID() string {
-	return ""
-}
-
 // entityPluginAuthTestCase holds test data for entity plugin auth tests.
 type entityPluginAuthTestCase struct {
 	name           string
@@ -134,7 +130,9 @@ func writePluginAuthMockResponse(w http.ResponseWriter, tt *entityPluginAuthTest
 	}
 
 	if tt.mockStatusCode == http.StatusUnauthorized {
-		_, _ = w.Write([]byte(`{"code":"AUT-1004","message":"The provided 'clientId' or 'clientSecret' is incorrect.","title":"Invalid Client"}`))
+		if _, err := w.Write([]byte(`{"code":"AUT-1004","message":"The provided 'clientId' or 'clientSecret' is incorrect.","title":"Invalid Client"}`)); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 	}
 }
 

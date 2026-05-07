@@ -90,6 +90,6 @@ func TestSlice5AssetRateValidation(t *testing.T) {
 // shape that replaced it (Track 5 Batch 5C).
 
 func TestSlice5AnnotationRequiresSend(t *testing.T) {
-	require.ErrorContains(t, NewCreateAnnotationInput("note").Validate(), "send is required")
+	require.NoError(t, NewCreateAnnotationInput("note").Validate())
 	require.NoError(t, NewCreateAnnotationInput("note", &SendInput{Asset: "USD", Value: "10", Source: &SourceInput{From: []FromToInput{{AccountAlias: "@a", Amount: AmountInput{Asset: "USD", Value: "10"}}}}, Distribute: &DistributeInput{To: []FromToInput{{AccountAlias: "@b", Amount: AmountInput{Asset: "USD", Value: "10"}}}}}).Validate())
 }

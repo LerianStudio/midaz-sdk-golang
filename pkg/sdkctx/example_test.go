@@ -30,17 +30,6 @@ func ExampleWithoutAutoIdempotency() {
 	// Output: true
 }
 
-// ExampleWithRequestTenantID shows per-request tenant override. The
-// SDK propagates the tenant ID via the X-Tenant-ID header on this
-// request only — useful for multi-tenant services that route requests
-// based on something more dynamic than the client-level default.
-func ExampleWithRequestTenantID() {
-	ctx := sdkctx.WithRequestTenantID(context.Background(), "tenant-abc")
-
-	fmt.Println(sdkctx.TenantIDFromContext(ctx))
-	// Output: tenant-abc
-}
-
 // ExampleWithIncludeDeleted shows how to opt into seeing soft-deleted
 // resources for a single request. Use for admin / audit code paths;
 // production traffic should leave this off.

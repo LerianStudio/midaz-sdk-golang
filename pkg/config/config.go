@@ -119,15 +119,6 @@ type Config struct {
 	// EnableIdempotency enables automatic generation of idempotency keys.
 	EnableIdempotency bool
 
-	// TenantID is the default tenant identifier sent as X-Tenant-ID on every request.
-	// In v3, this field is set via [github.com/LerianStudio/midaz-sdk-golang/v3.WithTenantID]
-	// (the client-level option) or by FromEnvironment when MIDAZ_TENANT_ID is set, or
-	// by direct assignment on a Config the caller owns.
-	// Per-request overrides via sdkctx.WithRequestTenantID(ctx, id) take precedence.
-	// This is an optional compatibility header and may be ignored by deployments that
-	// derive tenant scope from authenticated claims.
-	TenantID string
-
 	baseURLSet        bool
 	onboardingURLSet  bool
 	transactionURLSet bool
@@ -629,7 +620,6 @@ func WithAnonymous() Option {
 //   - MIDAZ_DEBUG: Enable debug mode (parsed via [strconv.ParseBool])
 //   - MIDAZ_MAX_RETRIES: Maximum number of retries
 //   - MIDAZ_IDEMPOTENCY: Enable idempotency (parsed via [strconv.ParseBool])
-//   - MIDAZ_TENANT_ID: Default tenant ID applied to every request unless overridden by per-request context
 //
 // Boolean variables accept the canonical [strconv.ParseBool] forms only:
 // "1", "t", "T", "TRUE", "true", "True", "0", "f", "F", "FALSE", "false",
@@ -831,10 +821,6 @@ func configureOptionalSettings(c *Config) error {
 		}
 
 		c.EnableIdempotency = parsed
-	}
-
-	if tenantID := strings.TrimSpace(os.Getenv("MIDAZ_TENANT_ID")); tenantID != "" {
-		c.TenantID = tenantID
 	}
 
 	// MIDAZ_SKIP_AUTH_CHECK is a test-plumbing escape hatch read only via
@@ -1125,14 +1111,6 @@ func (c *Config) GetPluginAuth() auth.AccessManager {
 // GetObservabilityProvider returns the observability provider.
 func (c *Config) GetObservabilityProvider() observability.Provider {
 	return c.ObservabilityProvider
-}
-
-// GetTenantID returns the default tenant ID configured for this Config.
-// Used by [github.com/LerianStudio/midaz-sdk-golang/v3/entities.NewEntityWithConfig]
-// to seed the entity HTTP client without forcing the midaz package to thread
-// the tenant value through the entities.Option chain.
-func (c *Config) GetTenantID() string {
-	return c.TenantID
 }
 
 // Clone returns an independent copy of the configuration.

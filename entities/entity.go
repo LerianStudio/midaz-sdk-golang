@@ -32,12 +32,6 @@ type Config interface {
 
 	// GetPluginAuth returns the plugin authentication configuration.
 	GetPluginAuth() auth.AccessManager
-
-	// GetTenantID returns the default tenant ID applied to every request
-	// made by entity HTTP clients. Per-request overrides via
-	// [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx.WithRequestTenantID]
-	// take precedence. An empty value disables the X-Tenant-ID header.
-	GetTenantID() string
 }
 
 // Entity provides a centralized access point to all entity types in the Midaz SDK.
@@ -88,6 +82,16 @@ type Entity struct {
 //   - (*HTTPClient).SetUserAgent — override the User-Agent header
 //   - (*HTTPClient).SetLogger / SetSlowCallThreshold — observability tuning
 func NewEntityWithConfig(config Config) (*Entity, error) {
+	return NewEntityWithConfigContext(context.Background(), config)
+}
+
+// NewEntityWithConfigContext creates a new Entity using config and uses ctx for
+// construction-time I/O such as the initial Access Manager token exchange.
+func NewEntityWithConfigContext(ctx context.Context, config Config) (*Entity, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	if config == nil || reflectutil.IsTypedNil(config) {
 		return nil, errors.New("config cannot be nil")
 	}
@@ -103,9 +107,9 @@ func NewEntityWithConfig(config Config) (*Entity, error) {
 			return auth.GetTokenFromAccessManager(ctx, pluginAuth, config.GetHTTPClient())
 		}
 
-		token, err := provider(context.Background())
+		token, err := provider(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get token from plugin auth service: %w", err)
+			return nil, fmt.Errorf("failed to get token from plugin auth service: %w", auth.WrapAccessManagerTokenFetchError(err))
 		}
 		// Use the token from the plugin auth service
 		authToken = token
@@ -132,14 +136,6 @@ func NewEntityWithConfig(config Config) (*Entity, error) {
 		baseURLs:      normalizedBaseURLs,
 		observability: config.GetObservabilityProvider(),
 	}
-	// Seed the default tenant ID from Config so the midaz package's
-	// client-level WithTenantID option propagates straight through to the
-	// HTTP client. Per-request sdkctx.WithRequestTenantID overrides still
-	// win at request time.
-	if tid := strings.TrimSpace(config.GetTenantID()); tid != "" {
-		entity.httpClient.setTenantIDLocked(tid)
-	}
-
 	if pluginAuth.Enabled {
 		entity.httpClient.setAuthTokenProvider(
 			func(ctx context.Context) (string, error) {

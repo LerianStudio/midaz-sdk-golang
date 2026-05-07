@@ -39,30 +39,6 @@ func newTestEntity(t *testing.T, client *http.Client, authToken string, baseURLs
 	return entity
 }
 
-// newTestEntityWithTenant is a test helper that constructs a fully-wired
-// *Entity with a default tenant ID seeded into the HTTPClient before
-// initServices runs (matching the production NewEntityWithConfig flow that
-// seeds from Config.GetTenantID()). Use this anywhere a test previously
-// passed entities.WithDefaultTenantID as an option — that exported option
-// was deleted in v3 because tenant propagation now flows from Config.
-func newTestEntityWithTenant(t *testing.T, client *http.Client, baseURLs map[string]string, tenantID string) *Entity {
-	t.Helper()
-
-	normalizedBaseURLs, err := normalizeBaseURLs(baseURLs)
-	require.NoError(t, err)
-
-	hc := NewHTTPClient(client, "", nil)
-	hc.setTenantIDLocked(tenantID)
-
-	entity := &Entity{
-		httpClient: hc,
-		baseURLs:   normalizedBaseURLs,
-	}
-	entity.initServices()
-
-	return entity
-}
-
 func TestNormalizeBaseURLs_DefaultsMissingCRMURLToOnboarding(t *testing.T) {
 	t.Setenv("MIDAZ_CRM_URL", "")
 

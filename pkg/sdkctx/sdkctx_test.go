@@ -49,36 +49,6 @@ func TestWithoutAutoIdempotency(t *testing.T) {
 	}
 }
 
-func TestWithRequestTenantID(t *testing.T) {
-	tests := []struct {
-		name     string
-		ctx      context.Context //nolint:containedctx // table-driven test
-		tenantID string
-		want     string
-	}{
-		{name: "non-empty tenant", ctx: context.Background(), tenantID: "acme", want: "acme"},
-		{name: "trims whitespace", ctx: context.Background(), tenantID: "  acme  ", want: "acme"},
-		{name: "empty tenant no-op", ctx: context.Background(), tenantID: "", want: ""},
-		{name: "whitespace-only no-op", ctx: context.Background(), tenantID: "   ", want: ""},
-		{name: "nil ctx promoted", ctx: nil, tenantID: "acme", want: "acme"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := sdkctx.TenantIDFromContext(sdkctx.WithRequestTenantID(tt.ctx, tt.tenantID))
-			if got != tt.want {
-				t.Errorf("TenantIDFromContext = %q, want %q", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestTenantIDFromContext_NilCtx(t *testing.T) {
-	//nolint:staticcheck // intentional nil-context for nil-safety verification
-	if got := sdkctx.TenantIDFromContext(nil); got != "" {
-		t.Errorf("expected empty string from nil ctx, got %q", got)
-	}
-}
-
 func TestWithIncludeDeleted(t *testing.T) {
 	ctx := context.Background()
 	if sdkctx.IncludeDeletedFromContext(ctx) {
@@ -128,19 +98,15 @@ func TestExplicitKeyTakesPrecedenceOverSuppression(t *testing.T) {
 }
 
 func TestContextHelpersIndependent(t *testing.T) {
-	// Verify all five context channels coexist without interference.
+	// Verify all context channels coexist without interference.
 	ctx := context.Background()
 	ctx = sdkctx.WithIdempotencyKey(ctx, "k1")
-	ctx = sdkctx.WithRequestTenantID(ctx, "t1")
 	ctx = sdkctx.WithoutAutoIdempotency(ctx)
 	ctx = sdkctx.WithIncludeDeleted(ctx, true)
 	ctx = sdkctx.WithHardDelete(ctx, true)
 
 	if got := sdkctx.IdempotencyKeyFromContext(ctx); got != "k1" {
 		t.Errorf("idempotency key: got %q, want %q", got, "k1")
-	}
-	if got := sdkctx.TenantIDFromContext(ctx); got != "t1" {
-		t.Errorf("tenant ID: got %q, want %q", got, "t1")
 	}
 	if !sdkctx.AutoIdempotencySuppressed(ctx) {
 		t.Error("auto-idempotency suppression not propagated")

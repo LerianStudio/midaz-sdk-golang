@@ -145,7 +145,7 @@ func TestSlice4UnsafeRetriesRequireCallerIdempotencyKey(t *testing.T) {
 	defer server.Close()
 
 	client := NewHTTPClient(server.Client(), "", nil)
-	client.WithRetryOptions(retry.WithMaxRetries(1), retry.WithInitialDelay(time.Millisecond), retry.WithMaxDelay(time.Millisecond))
+	require.NoError(t, client.WithRetryOptions(retry.WithMaxRetries(1), retry.WithInitialDelay(time.Millisecond), retry.WithMaxDelay(time.Millisecond)))
 
 	var out map[string]any
 

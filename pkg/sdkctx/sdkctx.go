@@ -11,8 +11,6 @@
 //     over auto-generated keys.
 //   - [WithoutAutoIdempotency] / [AutoIdempotencySuppressed] — suppress
 //     auto-idempotency for a single call when client-level idempotency is on.
-//   - [WithRequestTenantID] / [TenantIDFromContext] — override the client-level
-//     default tenant ID for a single call.
 //   - [WithIncludeDeleted] / [IncludeDeletedFromContext] — include soft-deleted
 //     resources in Get/List operations.
 //   - [WithHardDelete] / [HardDeleteFromContext] — perform a hard delete instead
@@ -32,10 +30,7 @@
 // in v3.
 package sdkctx
 
-import (
-	"context"
-	"strings"
-)
+import "context"
 
 // ----- Idempotency key -----
 
@@ -121,51 +116,6 @@ func AutoIdempotencySuppressed(ctx context.Context) bool {
 	v, ok := ctx.Value(suppressAutoIdempotencyType{}).(bool)
 
 	return ok && v
-}
-
-// ----- Request tenant ID -----
-
-type tenantIDType struct{}
-
-// WithRequestTenantID attaches a tenant ID to the request context, overriding
-// the client-level default for this single call. The HTTP client emits it
-// as the X-Tenant-ID header for deployments that honor explicit tenant
-// headers. In the reference Midaz path, authenticated claims remain the
-// primary tenant source of truth.
-//
-// An empty (or whitespace-only) tenantID is a no-op. The context is
-// returned unchanged and no header will be set from context.
-//
-// Precedence: per-request context > client-level WithTenantID > env var.
-//
-// See also [TenantIDFromContext], midaz.WithTenantID for the client-level default.
-func WithRequestTenantID(ctx context.Context, tenantID string) context.Context {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	tenantID = strings.TrimSpace(tenantID)
-	if tenantID == "" {
-		return ctx
-	}
-
-	return context.WithValue(ctx, tenantIDType{}, tenantID)
-}
-
-// TenantIDFromContext returns the tenant ID previously stored via
-// [WithRequestTenantID], or empty string if none was set.
-func TenantIDFromContext(ctx context.Context) string {
-	if ctx == nil {
-		return ""
-	}
-
-	if v := ctx.Value(tenantIDType{}); v != nil {
-		if s, ok := v.(string); ok {
-			return s
-		}
-	}
-
-	return ""
 }
 
 // ----- Include deleted -----

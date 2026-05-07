@@ -152,7 +152,7 @@ func TestSlice5TransactionIdempotencyKey_AllowsRetry(t *testing.T) {
 	defer server.Close()
 
 	svc := newTransactionsEntity(server.Client(), map[string]string{"transaction": server.URL}).(*transactionsEntity)
-	svc.httpClient.WithRetryOptions(retry.WithMaxRetries(1), retry.WithInitialDelay(time.Millisecond), retry.WithMaxDelay(time.Millisecond))
+	require.NoError(t, svc.httpClient.WithRetryOptions(retry.WithMaxRetries(1), retry.WithInitialDelay(time.Millisecond), retry.WithMaxDelay(time.Millisecond)))
 
 	input := models.NewCreateTransactionInput("USD", "10").WithSend(&models.SendInput{Asset: "USD", Value: "10", Source: &models.SourceInput{From: []models.FromToInput{{AccountAlias: "@a", Amount: models.AmountInput{Asset: "USD", Value: "10"}}}}, Distribute: &models.DistributeInput{To: []models.FromToInput{{AccountAlias: "@b", Amount: models.AmountInput{Asset: "USD", Value: "10"}}}}})
 	input.IdempotencyKey = "caller-key"

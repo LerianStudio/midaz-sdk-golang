@@ -214,11 +214,11 @@ func TestUnsafeMethodRetriesOnlyWithIdempotency(t *testing.T) {
 			defer srv.Close()
 
 			c := NewHTTPClient(srv.Client(), "", nil)
-			c.WithRetryOptions(
+			require.NoError(t, c.WithRetryOptions(
 				retry.WithMaxRetries(1),
 				retry.WithInitialDelay(time.Millisecond),
 				retry.WithMaxDelay(time.Millisecond),
-			)
+			))
 
 			var out map[string]any
 

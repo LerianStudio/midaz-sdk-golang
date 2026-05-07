@@ -7,19 +7,26 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"syscall"
 	"testing"
-	"time"
 
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+type transportErrorRoundTripper struct {
+	err error
+}
+
+func (r transportErrorRoundTripper) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, r.err
+}
+
 // TestHTTPClient_TransportError_TypedNetwork is the 8D regression
 // test. It exercises the audit's CRITICAL acceptance criterion:
 //
-//	IsNetworkError(err) returns true for real DNS / conn-refused /
-//	TLS failures (validated by integration tests against localhost:0).
+//	IsNetworkError(err) returns true for deterministic transport failures.
 //
 // Before 8D: the SDK transport returned a bare fmt.Errorf-wrapped
 // *net.OpError. IsNetworkError(err) returned false because the
@@ -31,23 +38,14 @@ import (
 // *errors.Error with the proper Category. IsNetworkError(err) now
 // returns true.
 func TestHTTPClient_TransportError_TypedNetwork(t *testing.T) {
-	if testing.Short() {
-		t.Skip("requires live localhost dial")
-	}
-
-	// Port 1 is reserved and almost never bound. The dial will fail
-	// with conn-refused or timeout depending on platform / firewall.
-	httpClient := &http.Client{Timeout: 500 * time.Millisecond}
+	httpClient := &http.Client{Transport: transportErrorRoundTripper{err: syscall.ECONNREFUSED}}
 	c := NewHTTPClient(httpClient, "test-token", nil)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
 	var result map[string]any
-	err := c.doRequest(ctx, http.MethodGet, "http://127.0.0.1:1/healthz",
+	err := c.doRequest(context.Background(), http.MethodGet, "https://api.example.test/healthz",
 		map[string]string{}, nil, &result)
 
-	require.Error(t, err, "dial to 127.0.0.1:1 must fail")
+	require.Error(t, err, "synthetic transport failure must fail")
 
 	// The error must be classifiable. Either the network category
 	// (conn-refused) or the timeout category (deadline) is acceptable —
@@ -71,11 +69,7 @@ func TestHTTPClient_TransportError_TypedNetwork(t *testing.T) {
 // with a custom retry policy so the retryableCustomPolicyError path
 // is exercised, then asserts the final rendered string is clean.
 func TestHTTPClient_TransportError_NoCustomRetryablePrefix(t *testing.T) {
-	if testing.Short() {
-		t.Skip("requires live localhost dial")
-	}
-
-	httpClient := &http.Client{Timeout: 500 * time.Millisecond}
+	httpClient := &http.Client{Transport: transportErrorRoundTripper{err: syscall.ECONNREFUSED}}
 	c := NewHTTPClient(httpClient, "test-token", nil)
 
 	// Force the custom retry policy path by configuring one that
@@ -83,11 +77,8 @@ func TestHTTPClient_TransportError_NoCustomRetryablePrefix(t *testing.T) {
 	// will fire; we verify its rendered string is clean.
 	c.SetCustomRetryPolicy(func(_ *http.Response, _ error) bool { return true })
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
 	var result map[string]any
-	err := c.doRequest(ctx, http.MethodGet, "http://127.0.0.1:1/healthz",
+	err := c.doRequest(context.Background(), http.MethodGet, "https://api.example.test/healthz",
 		map[string]string{}, nil, &result)
 
 	require.Error(t, err)

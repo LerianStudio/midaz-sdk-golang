@@ -28,8 +28,9 @@
 //
 // # Multi-tenancy
 //
-// Set a default tenant via [WithTenantID]; override per-request via
-// [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx.WithRequestTenantID].
+// Tenant scope is derived from Access Manager/JWT claims. The SDK does not
+// expose or send X-Tenant-ID. Use separate Access Manager credentials or token
+// context when calls must run under a different tenant scope.
 // See docs/multi-tenancy.md.
 //
 // # Logging and observability
@@ -81,11 +82,11 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/internal/reflectutil"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/auth"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
@@ -123,15 +124,6 @@ type Client struct {
 	//   c.Accounts, c.Transactions, c.Ledgers, c.Organizations, etc.
 	// The embedded pointer is also accessible as c.Entity for back-compat.
 	*entities.Entity
-
-	// tenantID is the default tenant identifier sent as X-Tenant-ID on every request.
-	// Per-request overrides via sdkctx.WithRequestTenantID(ctx, id) take precedence.
-	// This remains an optional compatibility header; authenticated claims are the
-	// primary tenant source of truth in the reference Midaz path.
-	tenantID string
-	// tenantIDSet tracks whether WithTenantID was explicitly called, allowing
-	// an empty value to override the config/env default.
-	tenantIDSet bool
 
 	// pendingObservability is the observability provider accumulated by
 	// option-chain calls (WithObservabilityOptions, WithObservabilityProvider,
@@ -314,19 +306,9 @@ func resolveLogger(explicit *slog.Logger, explicitSet bool, debugFromConfig bool
 }
 
 // isAccessManagerTokenFetchError reports whether err originates from the
-// Access Manager token fetch performed inside entities.NewEntityWithConfig.
-// The match is intentionally string-based on the wrapping message defined in
-// entities/entity.go ("failed to get token from plugin auth service: %w")
-// because the auth package returns plain stdlib errors. Keep this substring
-// in sync with that wrap site; if the wrap message changes, this classifier
-// silently stops matching and Access Manager outages start showing as
-// Configuration errors again.
+// Access Manager token fetch performed during entity construction.
 func isAccessManagerTokenFetchError(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	return strings.Contains(err.Error(), "token from plugin auth service")
+	return auth.IsAccessManagerTokenFetchError(err)
 }
 
 // setupEntity creates the Entity API interface.
@@ -347,18 +329,10 @@ func (c *Client) setupEntity() error {
 		return fmt.Errorf("failed to configure observability provider: %w", err)
 	}
 
-	// Reconcile the tenant ID before constructing the Entity. The client-level
-	// override (set via WithTenantID) wins over the config/env default; we
-	// mutate the config copy so entities.NewEntityWithConfig sees one
-	// consistent source of truth via Config.GetTenantID().
-	if c.tenantIDSet {
-		c.config.TenantID = c.tenantID
-	}
-
 	// Construct the Entity from the resolved Config. NewEntityWithConfig
 	// runs initServices() internally during construction, seeding every
 	// per-service HTTPClient with the entity-level snapshot.
-	entity, err := entities.NewEntityWithConfig(c.config)
+	entity, err := entities.NewEntityWithConfigContext(c.ctx, c.config)
 	if err != nil {
 		return err
 	}
@@ -384,7 +358,9 @@ func (c *Client) setupEntity() error {
 		},
 		c.retryOpts...,
 	)
-	httpClient.WithRetryOptions(retryChain...)
+	if err := httpClient.WithRetryOptions(retryChain...); err != nil {
+		return fmt.Errorf("failed to configure retry options: %w", err)
+	}
 
 	if c.customRetryPolicy != nil {
 		httpClient.SetCustomRetryPolicy(c.customRetryPolicy)

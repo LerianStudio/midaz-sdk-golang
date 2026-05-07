@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v3/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
@@ -57,13 +56,12 @@ func TestClientWithTimeout_DoesNotMutateUserOwnedCustomHTTPClient(t *testing.T) 
 }
 
 func TestClientEntityOptions_PropagateToServiceHTTPClients(t *testing.T) {
-	var seenUserAgent, seenTenantID, seenIdempotency string
+	var seenUserAgent, seenIdempotency string
 
 	writeErrs := make(chan error, 1)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		seenUserAgent = r.Header.Get("User-Agent")
-		seenTenantID = r.Header.Get(entities.HeaderTenantID)
 		seenIdempotency = r.Header.Get("X-Idempotency")
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
@@ -76,7 +74,6 @@ func TestClientEntityOptions_PropagateToServiceHTTPClients(t *testing.T) {
 		WithConfig(createTestConfig(t)),
 		WithBaseURL(srv.URL),
 		WithUserAgent("slice2-agent/1.0"),
-		WithTenantID("tenant-root"),
 	)
 	require.NoError(t, err)
 
@@ -84,7 +81,6 @@ func TestClientEntityOptions_PropagateToServiceHTTPClients(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, <-writeErrs)
 	require.Equal(t, "slice2-agent/1.0", seenUserAgent)
-	require.Equal(t, "tenant-root", seenTenantID)
 	require.NotEmpty(t, seenIdempotency)
 }
 

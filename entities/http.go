@@ -21,7 +21,6 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/performance"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/security"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/version"
 	"github.com/google/uuid"
@@ -39,6 +38,7 @@ var (
 const (
 	maxHTTPResponseBodyBytes = int64(10 << 20)
 	maxHTTPRequestBodyBytes  = int64(10 << 20)
+	quotedStringMinLength    = 2
 )
 
 const (
@@ -67,7 +67,6 @@ type HTTPClient struct {
 	client            *http.Client
 	authToken         string
 	userAgent         string
-	tenantID          string
 	debug             bool
 	retryOptions      *retry.Options        // Retry options for the client
 	jsonPool          *performance.JSONPool // Pool for JSON encoding/decoding
@@ -96,7 +95,6 @@ type HTTPClient struct {
 type httpClientConfigSnapshot struct {
 	authToken         string
 	userAgent         string
-	tenantID          string
 	debug             bool
 	retryOptions      *retry.Options
 	metrics           *observability.MetricsCollector
@@ -183,24 +181,22 @@ func initMetricsCollector(provider observability.Provider) *observability.Metric
 }
 
 // WithRetryOptions sets custom retry options for the HTTP client.
-func (c *HTTPClient) WithRetryOptions(options ...retry.Option) *HTTPClient {
+func (c *HTTPClient) WithRetryOptions(options ...retry.Option) error {
 	if c == nil {
-		return nil
+		return errors.New("HTTP client cannot be nil")
 	}
 
 	// Create a new options struct with defaults
 	retryOpts := retry.DefaultOptions()
 
 	// Apply all options
-	for _, opt := range options {
+	for i, opt := range options {
 		if opt == nil {
-			c.debugLog("Error applying retry option: retry option cannot be nil")
-			continue
+			return fmt.Errorf("retry option at index %d cannot be nil", i)
 		}
 
-		// Apply the option and log errors, but continue
 		if err := opt(retryOpts); err != nil {
-			c.debugLog("Error applying retry option: %v", err)
+			return fmt.Errorf("retry option at index %d failed: %w", i, err)
 		}
 	}
 
@@ -208,7 +204,7 @@ func (c *HTTPClient) WithRetryOptions(options ...retry.Option) *HTTPClient {
 	c.retryOptions = retryOpts
 	c.mu.Unlock()
 
-	return c
+	return nil
 }
 
 // SetLogger installs the *slog.Logger used for retry/slow-call/internal
@@ -317,7 +313,6 @@ func (c *HTTPClient) cloneConfiguration() httpClientConfigSnapshot {
 	return httpClientConfigSnapshot{
 		authToken:         c.authToken,
 		userAgent:         c.userAgent,
-		tenantID:          c.tenantID,
 		debug:             c.debug,
 		retryOptions:      cloneRetryOptions(c.retryOptions),
 		metrics:           c.metrics,
@@ -341,7 +336,6 @@ func (c *HTTPClient) applyConfigurationSnapshot(snapshot httpClientConfigSnapsho
 
 	c.authToken = snapshot.authToken
 	c.userAgent = snapshot.userAgent
-	c.tenantID = snapshot.tenantID
 	c.debug = snapshot.debug
 	c.retryOptions = cloneRetryOptions(snapshot.retryOptions)
 	c.metrics = snapshot.metrics
@@ -401,18 +395,6 @@ func (c *HTTPClient) setObservabilityLocked(provider observability.Provider, met
 	c.metrics = metrics
 }
 
-// setTenantIDLocked sets the tenant ID under the write lock.
-func (c *HTTPClient) setTenantIDLocked(tenantID string) {
-	if c == nil {
-		return
-	}
-
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	c.tenantID = tenantID
-}
-
 // setAuthTokenLocked sets the auth token under the write lock. Used by
 // the access-manager token-refresh path (refreshAuthToken) and the initial
 // token seeding inside NewEntityWithConfig. The auth token is read on every
@@ -429,19 +411,7 @@ func (c *HTTPClient) setAuthTokenLocked(token string) {
 	c.authToken = token
 }
 
-// GetTenantID returns the current default tenant ID configured on this HTTP client.
-func (c *HTTPClient) GetTenantID() string {
-	if c == nil {
-		return ""
-	}
-
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	return c.tenantID
-}
-
-// injectContextHeaders adds context-based headers (idempotency key, tenant ID) to the provided
+// injectContextHeaders adds context-based headers (idempotency key) to the provided
 // headers map. If headers is nil and there are headers to inject, a new map is created and returned.
 //
 // Idempotency key precedence (first non-empty source wins):
@@ -461,12 +431,11 @@ func (c *HTTPClient) GetTenantID() string {
 // proper dedup and double-bookkeeping under retries — the input-level key
 // is the caller's most explicit assertion of "this transaction has key X"
 // and must not be silently replaced.
-func (c *HTTPClient) injectContextHeaders(ctx context.Context, method string, headers map[string]string) map[string]string {
+func (*HTTPClient) injectContextHeaders(ctx context.Context, method string, headers map[string]string) map[string]string {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
-	snapshot := c.cloneConfiguration()
 	// Inject idempotency header from context only for unsafe methods. Safe GET/HEAD
 	// list/count requests are not idempotency participants and must not leak keys.
 	if key := getIdempotencyKeyFromContext(ctx); isUnsafeMethod(method) && key != "" {
@@ -482,22 +451,6 @@ func (c *HTTPClient) injectContextHeaders(ctx context.Context, method string, he
 			headers["X-Idempotency"] = key
 			headers[internalCallerIdempotencyHeader] = BoolTrue
 		}
-	}
-
-	// Inject tenant ID header from context or client-level default.
-	// Context value takes precedence over the client-level default.
-	if tid := sdkctx.TenantIDFromContext(ctx); tid != "" {
-		if headers == nil {
-			headers = map[string]string{}
-		}
-
-		headers[HeaderTenantID] = tid
-	} else if snapshot.tenantID != "" {
-		if headers == nil {
-			headers = map[string]string{}
-		}
-
-		headers[HeaderTenantID] = snapshot.tenantID
 	}
 
 	return headers
@@ -1406,7 +1359,7 @@ func transportOperation(method, _ string) string {
 }
 
 func (c *HTTPClient) handleRetryAttemptResponse(resp *http.Response, responseBody []byte, method, requestURL string) error {
-	if resp.StatusCode < 400 {
+	if resp.StatusCode < http.StatusBadRequest {
 		return nil
 	}
 
@@ -1764,7 +1717,7 @@ func sanitizeLogInput(input string) string {
 	// This is a standard library function recognized by security scanners
 	quoted := strconv.Quote(input)
 	// Remove the surrounding quotes added by Quote
-	if len(quoted) >= 2 {
+	if len(quoted) >= quotedStringMinLength {
 		return quoted[1 : len(quoted)-1]
 	}
 
@@ -1775,7 +1728,7 @@ func redactHeaders(headers http.Header) map[string][]string {
 	redacted := make(map[string][]string, len(headers))
 	for key, values := range headers {
 		switch strings.ToLower(key) {
-		case "authorization", "cookie", "set-cookie", "x-idempotency", strings.ToLower(HeaderTenantID):
+		case "authorization", "cookie", "set-cookie", "x-idempotency":
 			redacted[key] = []string{"[REDACTED]"}
 		default:
 			copied := make([]string, len(values))

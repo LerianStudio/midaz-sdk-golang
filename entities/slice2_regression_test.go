@@ -25,7 +25,6 @@ func (*typedNilConfig) GetHTTPClient() *http.Client                      { retur
 func (*typedNilConfig) GetBaseURLs() map[string]string                   { return nil }
 func (*typedNilConfig) GetObservabilityProvider() observability.Provider { return nil }
 func (*typedNilConfig) GetPluginAuth() auth.AccessManager                { return auth.AccessManager{} }
-func (*typedNilConfig) GetTenantID() string                              { return "" }
 
 func nilContext() context.Context { return nil }
 
@@ -48,11 +47,6 @@ func TestEntityContextHelpers_WithNilContext_AreSafe(t *testing.T) {
 	ctx := sdkctx.WithIdempotencyKey(nilContext(), "idem-1")
 	require.NotNil(t, ctx)
 	require.Equal(t, "idem-1", getIdempotencyKeyFromContext(ctx))
-
-	ctx = sdkctx.WithRequestTenantID(nilContext(), "tenant-1")
-	require.NotNil(t, ctx)
-	require.Equal(t, "tenant-1", sdkctx.TenantIDFromContext(ctx))
-	require.Empty(t, sdkctx.TenantIDFromContext(nilContext()))
 }
 
 func TestNewEntityWithConfig_WithTypedNilConfig_ReturnsError(t *testing.T) {
@@ -104,19 +98,14 @@ func TestEntitySetHTTPClient_PreservesProtocolConfiguration(t *testing.T) {
 	}, nil)
 	entity.GetEntityHTTPClient().SetDebug(true)
 	entity.GetEntityHTTPClient().SetUserAgent("slice2-agent")
-	// Seed the tenant directly via the unexported setter (the v3-canonical path
-	// via Config.GetTenantID is exercised in http_tenant_test.go); here we
-	// only need a non-empty value to verify SetHTTPClient preserves it.
-	entity.httpClient.setTenantIDLocked("tenant-1")
 	entity.GetEntityHTTPClient().SetEnableIdempotency(false)
 	entity.GetEntityHTTPClient().SetCustomRetryPolicy(func(*http.Response, error) bool { return true })
-	entity.GetEntityHTTPClient().WithRetryOptions(retry.WithMaxRetries(7))
+	require.NoError(t, entity.GetEntityHTTPClient().WithRetryOptions(retry.WithMaxRetries(7)))
 
 	entity.SetHTTPClient(&http.Client{Timeout: 2 * time.Second})
 
 	hc := entity.GetEntityHTTPClient()
 	require.Equal(t, "slice2-agent", hc.userAgent)
-	require.Equal(t, "tenant-1", hc.GetTenantID())
 	require.True(t, hc.debug)
 	require.False(t, hc.enableIdempotency)
 	require.NotNil(t, hc.customRetryPolicy)
@@ -229,7 +218,7 @@ func TestHTTPClient_CustomRetryPolicyCanForceRetryForNonDefaultStatus(t *testing
 	defer srv.Close()
 
 	c := NewHTTPClient(srv.Client(), "", nil)
-	c.WithRetryOptions(retry.WithMaxRetries(1), retry.WithInitialDelay(time.Millisecond), retry.WithMaxDelay(time.Millisecond))
+	require.NoError(t, c.WithRetryOptions(retry.WithMaxRetries(1), retry.WithInitialDelay(time.Millisecond), retry.WithMaxDelay(time.Millisecond)))
 	c.SetCustomRetryPolicy(func(resp *http.Response, _ error) bool {
 		return resp != nil && resp.StatusCode == http.StatusUnprocessableEntity
 	})

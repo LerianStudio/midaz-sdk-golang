@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/internal/reflectutil"
@@ -128,9 +127,28 @@ func WithUserAgent(userAgent string) Option {
 //   - examples/07-retries — runnable demo.
 func WithRetryOptions(opts ...retry.Option) Option {
 	return func(c *Client) error {
+		if err := validateRetryOptions(opts...); err != nil {
+			return err
+		}
+
 		c.retryOpts = append(c.retryOpts, opts...)
 		return nil
 	}
+}
+
+func validateRetryOptions(opts ...retry.Option) error {
+	retryOpts := retry.DefaultOptions()
+	for i, opt := range opts {
+		if opt == nil {
+			return fmt.Errorf("retry option at index %d cannot be nil", i)
+		}
+
+		if err := opt(retryOpts); err != nil {
+			return fmt.Errorf("retry option at index %d failed: %w", i, err)
+		}
+	}
+
+	return nil
 }
 
 // WithCustomRetryPolicy sets a custom retry policy for the client.
@@ -549,31 +567,6 @@ func WithIdempotency(enabled bool) Option {
 	return func(c *Client) error {
 		c.markConfigMutated()
 		return config.WithIdempotency(enabled)(c.config)
-	}
-}
-
-// WithTenantID sets the default tenant ID for all API requests made through this client.
-// The tenant ID is sent as the X-Tenant-ID header on every request.
-// Per-request overrides via sdkctx.WithRequestTenantID(ctx, tenantID) take precedence
-// over this client-level default. This is an optional compatibility signal for
-// deployments that honor the header, not a replacement for tenant resolution from
-// authenticated claims.
-//
-// Parameters:
-//   - tenantID: The tenant identifier to use
-//
-// Returns:
-//   - Option: A function that sets the tenant ID on the Client
-//
-// See also:
-//   - [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx.WithRequestTenantID] — per-request override.
-//   - docs/multi-tenancy.md — full multi-tenant routing contract.
-func WithTenantID(tenantID string) Option {
-	return func(c *Client) error {
-		c.tenantID = strings.TrimSpace(tenantID)
-		c.tenantIDSet = true
-
-		return nil
 	}
 }
 

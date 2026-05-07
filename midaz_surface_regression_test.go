@@ -3,10 +3,13 @@ package midaz
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net/http"
 	"net/http/httptest"
-	"strings"
+	"reflect"
 	"testing"
 
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/auth"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
@@ -112,16 +115,10 @@ func TestWithConfig_FirstInChain_StillWorks(t *testing.T) {
 // the classifier emits an Authentication error so IsAuthError(err) returns
 // true and the caller knows to retry.
 func TestNewAccessManagerTokenFetchError_IsClassifiedAsAuth(t *testing.T) {
-	// Stand up a server that always returns 500 to the token endpoint, so
-	// the Access Manager fetch fails deterministically.
-	srv := httptest.NewUnstartedServer(nil)
-	srv.StartTLS()
-	defer srv.Close()
-
 	// We can't easily hit the auth fetch path without exercising the real
 	// Access Manager request, so we test the classifier helper directly. The
 	// integration path is exercised by entities/access_manager_test.go.
-	wrappedErr := errors.New("failed to get token from plugin auth service: dial tcp: connection refused")
+	wrappedErr := fmt.Errorf("failed to get token from plugin auth service: %w", auth.WrapAccessManagerTokenFetchError(errors.New("dial tcp: connection refused")))
 	assert.True(t, isAccessManagerTokenFetchError(wrappedErr),
 		"helper must match the entities-package wrap message")
 	assert.False(t, isAccessManagerTokenFetchError(errors.New("missing onboarding URL in config")),
@@ -145,10 +142,12 @@ func TestFactoryTrapMethodsRemoved_AtCompileTime(t *testing.T) {
 	c, err := New(WithConfig(createTestConfig(t)))
 	require.NoError(t, err)
 
-	// The presence of *Client + the absence of c.NewAccount() at compile
-	// time is the actual contract; this test just keeps it documented.
-	clientType := strings.TrimSpace("*midaz.Client")
-	require.NotEmpty(t, clientType)
+	clientType := reflect.TypeOf(c)
+	for _, methodName := range []string{"NewAccount", "NewLedger", "NewOrganization", "NewTransaction", "NewOperation", "NewAsset"} {
+		_, ok := clientType.MethodByName(methodName)
+		assert.False(t, ok, "%s must stay removed from *Client", methodName)
+	}
+
 	require.NotNil(t, c.Accounts, "service surface must remain — only the trap factories are gone")
 }
 
@@ -192,33 +191,27 @@ func TestServiceHandles_PersistAcrossPostConstructionMutations(t *testing.T) {
 
 // TestClientNew_AccessManagerWithBadAddress_DoesNotMisclassifyAsConfiguration
 // is the M4 integration check. With Access Manager enabled but pointing to an
-// unreachable host, the construction failure should be Authentication, not
-// Configuration. (We can't dial here without polluting the test from a real
-// server, so we verify the classifier triggers via its substring contract.)
+// deterministic failing Access Manager endpoint, the construction failure
+// should be Authentication, not Configuration.
 func TestClientNew_AccessManagerWithBadAddress_DoesNotMisclassifyAsConfiguration(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
 	cfg, err := config.NewConfig(
 		config.WithEnvironment(config.EnvironmentLocal),
 		config.WithAccessManager(AccessManager{
-			Address:      "https://127.0.0.1:1", // unroutable port — guaranteed to fail
+			Address:      srv.URL,
 			ClientID:     "id",
 			ClientSecret: "secret",
 		}),
 	)
 	require.NoError(t, err)
 
-	t.Setenv("MIDAZ_SKIP_AUTH_CHECK", "true")
-
 	_, err = New(WithConfig(cfg))
 	require.Error(t, err)
 
-	// Either classification is acceptable here as long as it's not silently
-	// wrong: if the connection failure surfaced as Authentication, the M4
-	// classifier worked; if it surfaced as Configuration, the auth path was
-	// short-circuited before our wrap. We assert the error is *typed* (so
-	// IsAuthError or IsConfigurationError fires) — the smoke test for the
-	// classifier wiring itself is in
-	// TestNewAccessManagerTokenFetchError_IsClassifiedAsAuth.
-	assert.True(t,
-		sdkerrors.IsAuthError(err) || sdkerrors.IsConfigurationError(err),
-		"construction failure must be a typed sdkerror, got %v", err)
+	assert.True(t, sdkerrors.IsAuthError(err),
+		"Access Manager token-fetch failures must be authentication errors, got %v", err)
 }

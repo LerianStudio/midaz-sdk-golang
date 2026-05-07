@@ -16,7 +16,7 @@ import (
 // balances, holders, ledgers, metadata_indexes, operations, operation_routes,
 // organizations, portfolios, segments, transactions, transaction_routes)
 // share the same two fields. Embedding `serviceEntity` removes per-file
-// duplication and gives every entity setDefaultTenantID for free.
+// duplication.
 //
 // In production every Entity hands the SAME [*HTTPClient] pointer to all 16
 // services (see [Entity.initServices]). Sharing the client at this level is
@@ -32,17 +32,6 @@ import (
 type serviceEntity struct {
 	httpClient *HTTPClient
 	baseURLs   map[string]string
-}
-
-// setDefaultTenantID propagates a default tenant ID into the embedded
-// HTTPClient. Promoted automatically to every embedding entity, eliminating
-// per-service boilerplate.
-func (e *serviceEntity) setDefaultTenantID(tenantID string) {
-	if e == nil || e.httpClient == nil {
-		return
-	}
-
-	e.httpClient.setTenantIDLocked(tenantID)
 }
 
 // entityHTTPClient returns the embedded *HTTPClient. Promoted automatically
