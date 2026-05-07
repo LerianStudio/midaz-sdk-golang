@@ -263,17 +263,16 @@ and [`examples/10-observability-otel/`](examples/10-observability-otel/).
 ### Multi-tenancy
 
 ```go
-// Client-level default tenant:
 c, err := midaz.New(
     midaz.WithEnvironment(midaz.EnvironmentProduction),
     midaz.WithAccessManager(am),
-    midaz.WithTenantID("tenant-prod-1"),
 )
-
-// Per-request override:
-import "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
-ctx = sdkctx.WithRequestTenantID(ctx, "tenant-other")
 ```
+
+Tenant scope is derived from the Access Manager/JWT claims used to obtain the
+token. The SDK does not expose tenant configuration and does not send
+`X-Tenant-ID`; use separate Access Manager credentials/token context when tenant
+scope differs.
 
 See [`docs/multi-tenancy.md`](docs/multi-tenancy.md).
 
@@ -309,7 +308,6 @@ chain — there is no implicit env-var loading:
   `MIDAZ_TRANSACTION_URL`, `MIDAZ_CRM_URL`
 - Auth: `PLUGIN_AUTH_ENABLED`, `PLUGIN_AUTH_ADDRESS`, `MIDAZ_CLIENT_ID`,
   `MIDAZ_CLIENT_SECRET`
-- Tenant: `MIDAZ_TENANT_ID`
 - Behavior: `MIDAZ_TIMEOUT`, `MIDAZ_USER_AGENT`, `MIDAZ_DEBUG`,
   `MIDAZ_MAX_RETRIES`, `MIDAZ_IDEMPOTENCY`
 

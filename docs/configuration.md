@@ -69,7 +69,6 @@ The full list (v3):
 | `WithoutRetries` | Disable the retry mechanism (`MaxRetries=0`) |
 | `WithRetryOptions` | Thread `retry.Option` chain onto entity HTTPClient |
 | `WithSlowCallThreshold` | Warn-level log when request exceeds duration |
-| `WithTenantID` | Set default `X-Tenant-ID` header value |
 | `WithTimeout` | HTTP request timeout |
 | `WithTransactionURL` | Override Transaction service URL |
 | `WithUserAgent` | Override `User-Agent` header |
@@ -154,11 +153,9 @@ precedence over client-level configuration.**
 ```go
 import "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
 
-ctx := sdkctx.WithRequestTenantID(context.Background(), "tenant-xyz")
-ctx = sdkctx.WithIdempotencyKey(ctx, "user-action-42-2026-05-06")
+ctx := sdkctx.WithIdempotencyKey(context.Background(), "user-action-42-2026-05-06")
 
-// This single call uses tenant "tenant-xyz" + the explicit key,
-// regardless of client.GetConfig().TenantID or the auto-generated UUID.
+// This single call uses the explicit key instead of an auto-generated UUID.
 err := client.Transactions.CreateTransaction(ctx, input)
 ```
 
@@ -166,7 +163,6 @@ The full list:
 
 | Function | Scope |
 |---|---|
-| `sdkctx.WithRequestTenantID(ctx, id)` | Override the `X-Tenant-ID` header for this request |
 | `sdkctx.WithIdempotencyKey(ctx, key)` | Set an explicit `X-Idempotency` header (overrides auto-generation) |
 | `sdkctx.WithoutAutoIdempotency(ctx)` | Skip auto-generation of `X-Idempotency` for this request |
 | `sdkctx.WithIncludeDeleted(ctx, true)` | Include soft-deleted resources in list responses |
@@ -190,24 +186,10 @@ conflict in this order (highest to lowest priority):
 
 ### 2.1 Concrete examples
 
-**Tenant ID resolution:**
-
-```go
-// Default: empty (no X-Tenant-ID header sent)
-// Env:     MIDAZ_TENANT_ID=tenant-default
-// Option:  midaz.WithTenantID("tenant-app")
-// Request: sdkctx.WithRequestTenantID(ctx, "tenant-special")
-
-cfg, _ := config.NewConfig(config.FromEnvironment())  // reads MIDAZ_TENANT_ID
-client, _ := midaz.New(
-    midaz.WithConfig(cfg),
-    midaz.WithTenantID("tenant-app"),  // overrides env
-)
-
-ctx := context.Background()  // → X-Tenant-ID: tenant-app
-ctx2 := sdkctx.WithRequestTenantID(ctx, "tenant-special")
-                                        // → X-Tenant-ID: tenant-special
-```
+**Tenant resolution:** tenant scope is derived from Access Manager/JWT claims.
+The SDK does not expose tenant configuration and does not send `X-Tenant-ID`.
+Use separate Access Manager credentials/token context when a workload needs a
+different tenant scope.
 
 **Retry behavior:**
 
@@ -266,7 +248,6 @@ environment.
 | `MIDAZ_DEBUG` | bool | `false` | Enable verbose request/response logging (also upgrades the default logger to stderr) |
 | `MIDAZ_MAX_RETRIES` | int | `3` | Maximum retry attempts; `0` disables retries |
 | `MIDAZ_IDEMPOTENCY` | bool | `true` | Toggle automatic `X-Idempotency` header generation |
-| `MIDAZ_TENANT_ID` | string | (empty) | Default `X-Tenant-ID` header for every request |
 | `MIDAZ_SKIP_AUTH_CHECK` | bool | `false` | **Test plumbing only.** Disables the construction-time check that fails when `PLUGIN_AUTH_ENABLED=true` is set without a complete Access Manager configuration. Bypassing the check hides misconfigurations until runtime, where they surface as 401 cascades. Never set this in production deployments. |
 | `PLUGIN_AUTH_ENABLED` | bool | `false` | Enable plugin-based OAuth authentication |
 | `PLUGIN_AUTH_ADDRESS` | URL | — | Auth plugin endpoint (required when `PLUGIN_AUTH_ENABLED=true`) |
@@ -314,28 +295,7 @@ Many SDK calls accept a `context.Context` as their first parameter. The
 through that context, taking precedence over any client-level
 configuration.
 
-### 4.1 Tenant ID per request
-
-The `X-Tenant-ID` header is the SDK's compatibility signal for
-deployments that route by tenant header (modern Midaz deployments derive
-tenant scope from authenticated claims, but the header is still respected
-for backwards-compatible setups).
-
-```go
-// Client default: tenant-default
-client, _ := midaz.New(
-    midaz.WithTenantID("tenant-default"),
-)
-
-// All calls send X-Tenant-ID: tenant-default
-client.Organizations.GetOrganization(ctx, orgID)
-
-// Override for one specific call:
-specialCtx := sdkctx.WithRequestTenantID(ctx, "tenant-vip")
-client.Organizations.GetOrganization(specialCtx, orgID)  // X-Tenant-ID: tenant-vip
-```
-
-### 4.2 Idempotency keys
+### 4.1 Idempotency keys
 
 By default, the SDK generates a UUID-based `X-Idempotency` header for
 every unsafe HTTP method (POST/PUT/PATCH/DELETE). You can override the
@@ -352,7 +312,7 @@ ctx := sdkctx.WithoutAutoIdempotency(context.Background())
 client.Transactions.CreateTransaction(ctx, input)
 ```
 
-### 4.3 Soft-delete vs hard-delete
+### 4.2 Soft-delete vs hard-delete
 
 ```go
 // Include soft-deleted records in a list response:
@@ -425,17 +385,17 @@ client, _ := midaz.New(
 ```go
 import "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
 
-// Build once, share across N tenant-scoped clients:
+// Build once, share across multiple clients:
 provider, _ := observability.New(ctx,
     observability.WithServiceName("payments-service"),
     observability.WithCollectorEndpoint("otel-collector:4317"),
     observability.WithComponentEnabled(true, true, true),
 )
 
-for _, tenantID := range tenantIDs {
+for _, am := range accessManagers {
     client, _ := midaz.New(
+        midaz.WithAccessManager(am),
         midaz.WithObservabilityProvider(provider),  // share, don't rebuild
-        midaz.WithTenantID(tenantID),
     )
     handle(client)
 }
@@ -473,8 +433,7 @@ client, _ := midaz.New(
 ## 6. Where to look next
 
 - **`docs/auth.md`** — Plugin-based OAuth M2M authentication.
-- **`docs/multi-tenancy.md`** — Tenant resolution, header vs claims, header
-  propagation patterns.
+- **`docs/multi-tenancy.md`** — Tenant scope via Access Manager/JWT claims.
 - **`docs/errors.md`** — `*errors.Error`, error categories,
   `IsConfigurationError`, retry classification.
 - **`docs/tracing.md`** — Configuring observability for distributed tracing.

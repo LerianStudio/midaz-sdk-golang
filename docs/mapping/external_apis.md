@@ -25,7 +25,6 @@ This map documents the recommended public SDK surface that consumers should use.
 - `midaz.WithDebug(bool)` - Enables or disables debug logging.
 - `midaz.WithLogger(*slog.Logger)` - Install a structured logger. Default is silent (`slog.DiscardHandler`).
 - `midaz.WithSlowCallThreshold(time.Duration)` - Emit a Warn-level log line when a successful API call exceeds the threshold.
-- `midaz.WithTenantID(string)` - Sets a default tenant ID sent as `X-Tenant-ID` on every request.
 - `midaz.WithContext(context.Context)` - Sets the client base context.
 - `midaz.WithIdempotency(bool)` - Toggle automatic `X-Idempotency` header generation for unsafe methods. Default: enabled.
 - `midaz.WithObservabilityOptions(...observability.Option)` - Build a fresh observability provider from the supplied option chain. Replacement semantics — replaces any previously installed provider.
@@ -45,12 +44,6 @@ This map documents the recommended public SDK surface that consumers should use.
 - `Client.GetContext() context.Context` - Returns the client base context.
 - `Client.GetConfiguration() *config.Config` - Returns the current configuration.
 - `Client.GetConfig() *config.Config` - Compatibility alias for `GetConfiguration`.
-- `Client.NewAccount() *models.Account` - Constructs an empty account model.
-- `Client.NewLedger() *models.Ledger` - Constructs an empty ledger model.
-- `Client.NewOrganization() *models.Organization` - Constructs an empty organization model.
-- `Client.NewTransaction() *models.Transaction` - Constructs an empty transaction model.
-- `Client.NewOperation() *models.Operation` - Constructs an empty operation model.
-- `Client.NewAsset() *models.Asset` - Constructs an empty asset model.
 
 `GetConfiguration` and `GetConfig` return a defensive copy. The copy still contains configured Access Manager credentials; do not log or serialize it without redaction.
 
@@ -108,7 +101,6 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config`.
 - `MIDAZ_DEBUG`
 - `MIDAZ_MAX_RETRIES`
 - `MIDAZ_IDEMPOTENCY`
-- `MIDAZ_TENANT_ID` (v3)
 - `MIDAZ_SKIP_AUTH_CHECK` (test plumbing)
 - `PLUGIN_AUTH_ENABLED`
 - `PLUGIN_AUTH_ADDRESS`
@@ -294,7 +286,7 @@ These methods call Midaz `metrics/count` endpoints with `HEAD` and read the inte
 
 ### CRM services
 
-CRM services use the CRM base URL and set the organization through the `X-Organization-Id` header. If `X-Tenant-ID` is configured on the shared HTTP client or request context, it may also be sent, but it does not replace the required `organizationID` argument.
+CRM services use the CRM base URL and set the organization through the `X-Organization-Id` header. Tenant scope is derived from Access Manager/JWT claims; the SDK does not expose or send `X-Tenant-ID`.
 
 #### HoldersService
 
@@ -385,13 +377,13 @@ Each per-entity opts struct exposes:
 - `models.NewCreateTransactionInput(assetCode, amount)` - Must include `send.source` and `send.distribute` before sending, either through `WithSend(...)` or legacy operation adaptation. Set `IdempotencyKey` or use `sdkctx.WithIdempotencyKey` for retry-safe unsafe requests.
 - `models.NewCreateInflowInput(assetCode, value, distribute)` - Requires a non-empty `distribute.to` payload.
 - `models.NewCreateOutflowInput(assetCode, value, source)` - Requires a non-empty `source.from` payload.
-- `models.NewCreateAnnotationInput(description, send...)` - `send` is required before sending; the variadic constructor argument exists for compatibility.
+- `models.NewCreateAnnotationInput(description, send...)` - `send` is optional. Omit it for metadata-only annotation transactions, or pass it for backend deployments that still require a send payload.
 - `models.NewCreateOperationRouteInput(title, description, operationType)`
 - `models.NewUpdateOperationRouteInput()`
 - `models.NewCreateTransactionRouteInput(title, description, operationRouteIDs)`
 - `models.NewUpdateTransactionRouteInput()`
 - `models.NewCreateAssetRateInput(from, to, rate)` with `WithScale`, `WithSource`, `WithTTL`, `WithExternalID`, and `WithMetadata`.
-- `models.NewAssetRateListOptions()`
+- `models.AssetRatesListOpts` with `Limit`, `Cursor`, `SortOrder`, `To`, `StartDate`, `EndDate`, and `ToQueryParams`.
 - `models.NewCreateHolderInput(holderType, name, document)` with `WithExternalID`, `WithAddresses`, `WithContact`, `WithNaturalPerson`, `WithLegalPerson`, and `WithMetadata`.
 - `models.NewUpdateHolderInput()` with field setters and `WithNullFields` / `WithNullField` for explicit JSON null removals. Empty holder updates are rejected by the SDK.
 - `models.NewCreateAliasInput(ledgerID, accountID)` with `WithMetadata`, `WithBankingDetails`, `WithRegulatoryFields`, and `WithRelatedParties`.

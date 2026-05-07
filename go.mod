@@ -40,5 +40,6 @@ require (
 	google.golang.org/protobuf v1.36.11 // indirect
 )
 
-// TODO: document why this version is excluded
+// Exclude the older auto-instrumentation SDK release because the OTel v1.43
+// dependency set resolves cleanly through go.opentelemetry.io/auto/sdk v1.2.1.
 exclude go.opentelemetry.io/auto/sdk v1.1.0

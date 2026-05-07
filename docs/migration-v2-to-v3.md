@@ -540,10 +540,10 @@ c, err := midaz.New(
 
 | v2 | v3 |
 | --- | --- |
-| `client.WithTenantID(string)` | `midaz.WithTenantID(string)` (unchanged) |
-| `entities.WithDefaultTenantID(...)` | Deleted. Use `midaz.WithTenantID`. |
-| `config.WithTenantID(...)` | Deleted. Use `midaz.WithTenantID` or set `MIDAZ_TENANT_ID` and load via `config.FromEnvironment`. |
-| `entities.WithTenantID(ctx, id)` (per-request) | `sdkctx.WithRequestTenantID(ctx, id)` — renamed for clarity. |
+| `client.WithTenantID(string)` | Deleted. Tenant scope is derived from Access Manager/JWT claims. |
+| `entities.WithDefaultTenantID(...)` | Deleted. Use tenant-scoped Access Manager credentials/token context. |
+| `config.WithTenantID(...)` / `MIDAZ_TENANT_ID` | Deleted. The SDK does not expose tenant-header configuration. |
+| `entities.WithTenantID(ctx, id)` (per-request) | Deleted. The SDK does not send `X-Tenant-ID`. |
 
 ### Idempotency
 

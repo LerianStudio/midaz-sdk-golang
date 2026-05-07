@@ -7,7 +7,7 @@ The Midaz Go SDK has exactly two authentication paths in v3, and a client cannot
 | Path | When to use |
 | --- | --- |
 | [`midaz.WithAccessManager`](#access-manager-oauth-via-the-lerian-access-manager) | Production. Tokens are minted by the Lerian Access Manager service from your `clientId`/`clientSecret`. |
-| [`midaz.WithAnonymous`](#anonymous-mode-localdev-and-tests) | Local dev against an unsecured stack, integration tests, or read-only inspection where the operator has confirmed the target endpoints don't require auth. |
+| [`midaz.WithAnonymous`](#anonymous-mode-localdev-and-tests) | Explicit opt-out for an unsecured target stack, integration tests, or read-only inspection where the operator has confirmed the target endpoints don't require auth. |
 
 There is intentionally no static-token (`WithAuthToken`) option. Static-token deployments configure their Access Manager to mint tokens.
 
@@ -64,7 +64,7 @@ When `PLUGIN_AUTH_ENABLED=true` is in the environment, the resulting config has 
 
 ## Anonymous mode (local-dev and tests)
 
-`WithAnonymous()` is the explicit auth-less path. Use it when the target stack does not enforce authentication:
+`WithAnonymous()` is the explicit auth-less path. Use it only when the target stack does not enforce authentication:
 
 ```go
 import (
@@ -87,7 +87,7 @@ func main() {
 }
 ```
 
-The SDK emits no `Authorization` header in this mode. The HTTP client otherwise behaves identically — retries, idempotency, slow-call logging, observability all work.
+The SDK emits no `Authorization` header in this mode. This is an explicit caller opt-out, not an environment gate: the SDK allows it even when the configured URLs point at production, because self-hosted or proxy-fronted deployments may intentionally provide their own authentication layer outside the SDK. The HTTP client otherwise behaves identically — retries, idempotency, slow-call logging, observability all work.
 
 ## Auth-required gate
 

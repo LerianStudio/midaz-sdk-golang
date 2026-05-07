@@ -309,10 +309,9 @@ The HTTP layer adds these standard headers:
 | `User-Agent` | Uses config user agent or version default. |
 | `Authorization: Bearer <token>` | Added only when an Access Manager token is available or an entity has an auth token. |
 | `X-Idempotency` | Added from context or transaction input when present. Some transaction requests can request automatic generation. |
-| `X-Tenant-ID` | Added from request context or client/config default tenant ID when present. |
 | `X-Organization-Id` | Added by CRM holder and alias requests. |
 
-The tenant header is compatibility metadata. The reference Midaz path treats authenticated claims as the primary tenant source of truth.
+Tenant scope is derived from Access Manager/JWT claims. The SDK does not expose tenant configuration and does not send `X-Tenant-ID`.
 
 ## Access Manager authentication
 
@@ -689,7 +688,7 @@ CRM requests use the `crm` service URL and send the organization context through
 X-Organization-Id: <organizationID>
 ```
 
-If a default tenant ID is configured, the shared HTTP client may also send `X-Tenant-ID`. That header does not replace the CRM `organizationID`; holder and alias methods still require `organizationID` and send it as `X-Organization-Id`. Per-request `sdkctx.WithRequestTenantID(ctx, id)` overrides only the default tenant header.
+Holder and alias methods still require `organizationID` and send it as `X-Organization-Id`. Tenant scope comes from Access Manager/JWT claims, not from request headers.
 
 Example:
 
@@ -730,7 +729,6 @@ The SDK also redacts sensitive values in debug logging, including:
 - `Authorization`
 - cookies
 - `X-Idempotency`
-- `X-Tenant-ID`
 
 Debug mode logs request and response metadata. Request and response bodies are redacted by length rather than printed directly.
 
@@ -833,7 +831,6 @@ Use these supported extension points:
 | Retry tuning | `midaz.WithRetryOptions(retry.Option...)`, `midaz.WithoutRetries()`, or `midaz.WithCustomRetryPolicy(...)`. |
 | Access Manager authentication | `midaz.WithAccessManager(...)`, `config.WithAccessManager(...)`, or `config.FromEnvironment()`. |
 | Observability | `midaz.WithObservabilityProvider(...)` or `midaz.WithObservabilityOptions(...)`. |
-| Tenant compatibility header | `midaz.WithTenantID(...)` or `sdkctx.WithRequestTenantID(ctx, ...)`. |
 | Per-request idempotency | `sdkctx.WithIdempotencyKey(ctx, ...)`, `sdkctx.WithoutAutoIdempotency(ctx)`, or transaction input idempotency. |
 | Pagination | Per-endpoint typed list-opts (`AccountsListOpts`, `TransactionsListOpts`, ...) embedding `PageListOpts` or `CursorListOpts`. |
 | Error branching | `pkg/errors` helper checkers (`IsNotFoundError`, `IsValidationError`, `IsAuthError`, ...) and `errors.As`. |

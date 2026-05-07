@@ -9,7 +9,6 @@ deadlines, cancellation, and request-scoped values.
 - `context.WithCancel` for graceful cancellation across goroutines
 - The `pkg/sdkctx` helpers for SDK-specific context values:
   - `WithIdempotencyKey` / `WithoutAutoIdempotency`
-  - `WithRequestTenantID` (per-request tenant override)
   - `WithIncludeDeleted` (soft-delete visibility)
 
 ## When to use this pattern
@@ -31,4 +30,4 @@ Requires a local Midaz stack with auth disabled.
 
 - [`pkg/sdkctx`](../../pkg/sdkctx/) — request-scoped context helpers
 - [`06-idempotency/`](../06-idempotency/) — idempotency through context
-- [`docs/multi-tenancy.md`](../../docs/multi-tenancy.md) — tenant routing through context
+- [`docs/multi-tenancy.md`](../../docs/multi-tenancy.md) — tenant scope through Access Manager/JWT claims
