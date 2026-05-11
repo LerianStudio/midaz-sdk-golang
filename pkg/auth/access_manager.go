@@ -16,7 +16,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/security"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -396,11 +395,36 @@ func newAccessManagerTokenRequest(ctx context.Context, address string, payloadBy
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
 
-	if err := security.ValidateOutboundRequest(req); err != nil {
+	if err := validateAccessManagerOutboundRequest(req); err != nil {
 		return nil, fmt.Errorf("invalid plugin auth request URL: %w", err)
 	}
 
 	return req, nil
+}
+
+func validateAccessManagerOutboundRequest(req *http.Request) error {
+	if req == nil {
+		return errors.New("http request cannot be nil")
+	}
+
+	if req.URL == nil {
+		return errors.New("http request URL cannot be nil")
+	}
+
+	if req.URL.Hostname() == "" {
+		return errors.New("http request URL must include host")
+	}
+
+	if req.URL.User != nil {
+		return errors.New("URL must not include user information")
+	}
+
+	scheme := strings.ToLower(req.URL.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return fmt.Errorf("unsupported URL scheme: %s", req.URL.Scheme)
+	}
+
+	return nil
 }
 
 func readAccessManagerTokenResponse(resp *http.Response) (TokenResponse, error) {

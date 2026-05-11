@@ -136,6 +136,33 @@ func TestGetTokenFromAccessManager_BoundsLongCallerDeadlineForSingleflightReques
 	require.True(t, gotDeadline.Before(deadline))
 }
 
+func TestGetTokenFromAccessManager_AllowsInternalHTTPAccessManagerWithCallerClient(t *testing.T) {
+	var called atomic.Bool
+	var seenPath string
+
+	client := &http.Client{Transport: accessManagerRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		called.Store(true)
+		seenPath = req.URL.Path
+
+		return accessManagerTokenResponse(req), nil
+	})}
+
+	mgr := AccessManager{
+		Enabled:      true,
+		Address:      "http://plugin-access-manager-auth.midaz-plugins.svc.cluster.local:4000",
+		ClientID:     "internal-client",
+		ClientSecret: "internal-secret",
+	}
+	InvalidateAccessManagerToken(mgr)
+
+	token, err := GetTokenFromAccessManager(context.Background(), mgr, client)
+
+	require.NoError(t, err)
+	require.True(t, called.Load(), "caller-provided HTTP client must govern internal access-manager transport policy")
+	require.Equal(t, "/v1/login/oauth/access_token", seenPath)
+	require.Equal(t, "token", token)
+}
+
 type accessManagerRoundTripFunc func(*http.Request) (*http.Response, error)
 
 func (fn accessManagerRoundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {

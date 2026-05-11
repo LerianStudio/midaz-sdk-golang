@@ -274,3 +274,65 @@ func TestHTTPClient_AccessManagerTokenInvalidatedAndRefetchedOnceOnUnauthorized(
 	requireHandlerNoError(t, writeErrs)
 	require.Equal(t, int32(2), calls.Load())
 }
+
+// TestHTTPClient_AuthRefreshIndependentOfMaxRetries pins the architectural
+// guarantee that 401 → token-refresh → one-shot re-execution is independent
+// of the generic transient-failure retry mechanism.
+//
+// Background: callers (e.g. plugin-br-bank-transfer) wire their own
+// adapter-level retry layer and configure the SDK with WithoutRetries()
+// (MaxRetries=0). Before this guarantee was enforced, the SDK coupled
+// auth-refresh-on-401 to the generic retry loop: when MaxRetries=0 the loop
+// fetched a new token, mutated the request header, then returned the
+// pre-refresh 401 to the caller without ever re-executing the request.
+//
+// The desired behaviour: MaxRetries governs only transient-failure retries.
+// One-shot auth-refresh-retry fires whenever a tokenProvider is wired and
+// refresh succeeds, regardless of MaxRetries. The existing refreshedAuth
+// flag guarantees no infinite loop.
+func TestHTTPClient_AuthRefreshRetryIndependentOfMaxRetries(t *testing.T) {
+	var calls atomic.Int32
+
+	authHeaders := make(chan string, 8)
+	writeErrs := make(chan error, 8)
+
+	c := NewHTTPClient(http.DefaultClient, "expired", nil)
+	c.setAuthTokenProvider(func(context.Context) (string, error) { return "fresh", nil }, func() {})
+
+	// Pin MaxRetries to 0 — the documented effect of midaz.WithoutRetries().
+	// The one-shot auth-refresh must still recover the 401.
+	require.NoError(t, c.WithRetryOptions(retry.WithMaxRetries(0)))
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		call := calls.Add(1)
+
+		authHeaders <- r.Header.Get("Authorization")
+
+		if call == 1 {
+			w.WriteHeader(http.StatusUnauthorized)
+
+			_, err := w.Write([]byte(`{"message":"unauthorized"}`))
+			writeErrs <- err
+
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+
+		writeErrs <- json.NewEncoder(w).Encode(models.Organization{ID: "org-1"})
+	}))
+	defer srv.Close()
+
+	c.client = srv.Client()
+
+	var out models.Organization
+
+	err := c.doRequest(context.Background(), http.MethodGet, srv.URL, nil, nil, &out)
+	require.NoError(t, err)
+	require.Equal(t, "org-1", out.ID)
+	require.Equal(t, "Bearer expired", <-authHeaders)
+	require.Equal(t, "Bearer fresh", <-authHeaders)
+	requireHandlerNoError(t, writeErrs)
+	requireHandlerNoError(t, writeErrs)
+	require.Equal(t, int32(2), calls.Load())
+}

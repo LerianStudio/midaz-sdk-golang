@@ -1142,12 +1142,44 @@ func isInternalRetryableError(err error) bool {
 }
 
 type retryExecution struct {
-	resp          *http.Response
-	responseBody  []byte
+	resp         *http.Response
+	responseBody []byte
+	// refreshedAuth latches true once a 401 has triggered a successful token
+	// refresh for this request. It prevents a second refresh attempt within
+	// the same request even across the inline auth-refresh loop.
 	refreshedAuth bool
+	// justRefreshedAuth is the per-iteration signal from performSingleAttempt
+	// to executeRetryAttempt: "I just refreshed the token, loop once more
+	// with the fresh credentials." It is reset between iterations.
+	justRefreshedAuth bool
 }
 
 func (c *HTTPClient) executeRetryAttempt(req *http.Request, method, requestURL string, execution *retryExecution) error {
+	// Inner loop runs at most twice: the original attempt, plus one
+	// re-execution if a 401 triggers a successful token refresh.
+	//
+	// Auth-refresh-retry is request-scoped, not retry-loop-scoped. It must
+	// fire whenever a tokenProvider is wired and refresh succeeds, even when
+	// the caller has disabled the generic retry loop via WithoutRetries
+	// (MaxRetries=0). The execution.refreshedAuth flag bounds this to a
+	// single re-execution — a second 401 cannot re-enter this branch.
+	for {
+		err := c.performSingleAttempt(req, method, requestURL, execution)
+		if !execution.justRefreshedAuth {
+			return err
+		}
+
+		execution.justRefreshedAuth = false
+	}
+}
+
+// performSingleAttempt runs one HTTP round trip and post-processes the
+// response. If a 401 fires AND a tokenProvider is wired AND refresh
+// succeeds, it sets execution.justRefreshedAuth so executeRetryAttempt
+// knows to loop once more with the fresh token. The execution.refreshedAuth
+// flag prevents a second refresh from being attempted within the same
+// request.
+func (c *HTTPClient) performSingleAttempt(req *http.Request, method, requestURL string, execution *retryExecution) error {
 	if err := resetRequestBody(req); err != nil {
 		return err
 	}
@@ -1188,8 +1220,12 @@ func (c *HTTPClient) executeRetryAttempt(req *http.Request, method, requestURL s
 		if refreshed {
 			req.Header.Set("Authorization", formatAuthorizationHeader(token))
 			execution.refreshedAuth = true
+			execution.justRefreshedAuth = true
 
-			return retryableCustomPolicyError{err: errors.New("access manager token refreshed after unauthorized response")}
+			// Returned error is consumed inside executeRetryAttempt's loop
+			// when justRefreshedAuth is set, so it never reaches the outer
+			// retry layer. It exists only to keep the signature uniform.
+			return errors.New("access manager token refreshed after unauthorized response")
 		}
 	}
 
