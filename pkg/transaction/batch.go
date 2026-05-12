@@ -317,8 +317,8 @@ func (bp *batchProcessor) processTransaction(index int) error {
 		return result.Error
 	}
 
-	bp.ensureIdempotencyKey(input, index)
-	tx, err := bp.executeWithRetries(input)
+	idempotencyKey := bp.ensureIdempotencyKey(input, index)
+	tx, err := bp.executeWithRetries(input, idempotencyKey)
 
 	result := bp.createResult(index, tx, err, time.Since(startTime))
 	bp.results[index] = result
@@ -328,14 +328,16 @@ func (bp *batchProcessor) processTransaction(index int) error {
 }
 
 // ensureIdempotencyKey ensures the transaction has an idempotency key.
-func (bp *batchProcessor) ensureIdempotencyKey(input *models.CreateTransactionInput, index int) {
-	if input.IdempotencyKey == "" {
-		input.IdempotencyKey = fmt.Sprintf("%s-%s-%d", bp.options.IdempotencyKeyPrefix, uuid.New().String(), index)
+func (bp *batchProcessor) ensureIdempotencyKey(input *models.CreateTransactionInput, index int) string {
+	if input.IdempotencyKey != "" {
+		return input.IdempotencyKey
 	}
+
+	return fmt.Sprintf("%s-%s-%d", bp.options.IdempotencyKeyPrefix, uuid.New().String(), index)
 }
 
 // executeWithRetries executes a transaction with retry logic.
-func (bp *batchProcessor) executeWithRetries(input *models.CreateTransactionInput) (*models.Transaction, error) {
+func (bp *batchProcessor) executeWithRetries(input *models.CreateTransactionInput, idempotencyKey string) (*models.Transaction, error) {
 	var tx *models.Transaction
 
 	var err error
@@ -348,7 +350,7 @@ func (bp *batchProcessor) executeWithRetries(input *models.CreateTransactionInpu
 		}
 
 		// Inject idempotency key into context so HTTP layer can add header
-		ctx := sdkctx.WithIdempotencyKey(bp.ctx, input.IdempotencyKey)
+		ctx := sdkctx.WithIdempotencyKey(bp.ctx, idempotencyKey)
 		tx, err = bp.client.Transactions.CreateTransaction(ctx, bp.orgID, bp.ledgerID, input)
 
 		if err == nil || !isRetryableError(err) {

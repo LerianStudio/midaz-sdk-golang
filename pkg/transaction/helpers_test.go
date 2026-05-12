@@ -109,7 +109,7 @@ func TestDefaultTransferOptions(t *testing.T) {
 	assert.NotNil(t, opts.Metadata)
 	assert.Equal(t, "go-sdk-transaction-helper", opts.Metadata["source"])
 	assert.False(t, opts.Pending)
-	assert.NotEmpty(t, opts.IdempotencyKey)
+	assert.Empty(t, opts.IdempotencyKey)
 	assert.Empty(t, opts.ExternalID)
 	assert.Empty(t, opts.ChartOfAccountsGroupName)
 }
@@ -124,7 +124,7 @@ func TestDefaultDepositOptions(t *testing.T) {
 	assert.Equal(t, "go-sdk-transaction-helper", opts.Metadata["source"])
 	assert.Equal(t, "deposit", opts.Metadata["type"])
 	assert.False(t, opts.Pending)
-	assert.NotEmpty(t, opts.IdempotencyKey)
+	assert.Empty(t, opts.IdempotencyKey)
 	assert.Empty(t, opts.ExternalAccountID)
 }
 
@@ -138,7 +138,7 @@ func TestDefaultWithdrawalOptions(t *testing.T) {
 	assert.Equal(t, "go-sdk-transaction-helper", opts.Metadata["source"])
 	assert.Equal(t, "withdrawal", opts.Metadata["type"])
 	assert.False(t, opts.Pending)
-	assert.NotEmpty(t, opts.IdempotencyKey)
+	assert.Empty(t, opts.IdempotencyKey)
 	assert.Empty(t, opts.ExternalAccountID)
 }
 
@@ -152,7 +152,7 @@ func TestDefaultMultiTransferOptions(t *testing.T) {
 	assert.Equal(t, "go-sdk-transaction-helper", opts.Metadata["source"])
 	assert.Equal(t, "multi-transfer", opts.Metadata["type"])
 	assert.False(t, opts.Pending)
-	assert.NotEmpty(t, opts.IdempotencyKey)
+	assert.Empty(t, opts.IdempotencyKey)
 }
 
 // TestTransactionStatus tests the transaction status helper functions
@@ -407,31 +407,13 @@ func TestTemplateFields(t *testing.T) {
 	assert.Equal(t, "dest-account", dests[0].Account)
 }
 
-// TestIdempotencyKeyGeneration tests that idempotency keys are unique
-func TestIdempotencyKeyGeneration(t *testing.T) {
-	t.Run("DefaultTransferOptions generates unique keys", func(t *testing.T) {
-		opts1 := DefaultTransferOptions()
-		opts2 := DefaultTransferOptions()
-		assert.NotEqual(t, opts1.IdempotencyKey, opts2.IdempotencyKey)
-	})
-
-	t.Run("DefaultDepositOptions generates unique keys", func(t *testing.T) {
-		opts1 := DefaultDepositOptions()
-		opts2 := DefaultDepositOptions()
-		assert.NotEqual(t, opts1.IdempotencyKey, opts2.IdempotencyKey)
-	})
-
-	t.Run("DefaultWithdrawalOptions generates unique keys", func(t *testing.T) {
-		opts1 := DefaultWithdrawalOptions()
-		opts2 := DefaultWithdrawalOptions()
-		assert.NotEqual(t, opts1.IdempotencyKey, opts2.IdempotencyKey)
-	})
-
-	t.Run("DefaultMultiTransferOptions generates unique keys", func(t *testing.T) {
-		opts1 := DefaultMultiTransferOptions()
-		opts2 := DefaultMultiTransferOptions()
-		assert.NotEqual(t, opts1.IdempotencyKey, opts2.IdempotencyKey)
-	})
+// TestDefaultOptionsDoNotPinIdempotencyKeys verifies defaults do not bake a
+// one-shot idempotency key into reusable options structs.
+func TestDefaultOptionsDoNotPinIdempotencyKeys(t *testing.T) {
+	assert.Empty(t, DefaultTransferOptions().IdempotencyKey)
+	assert.Empty(t, DefaultDepositOptions().IdempotencyKey)
+	assert.Empty(t, DefaultWithdrawalOptions().IdempotencyKey)
+	assert.Empty(t, DefaultMultiTransferOptions().IdempotencyKey)
 }
 
 // TestFormatAmountEdgeCases tests edge cases for formatAmount

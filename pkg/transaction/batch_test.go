@@ -721,11 +721,12 @@ func TestBatchProcessorEnsureIdempotencyKey(t *testing.T) {
 			IdempotencyKey: "",
 		}
 
-		bp.ensureIdempotencyKey(input, 5)
+		key := bp.ensureIdempotencyKey(input, 5)
 
-		assert.NotEmpty(t, input.IdempotencyKey)
-		assert.Contains(t, input.IdempotencyKey, "test-prefix")
-		assert.Contains(t, input.IdempotencyKey, "-5")
+		assert.NotEmpty(t, key)
+		assert.Contains(t, key, "test-prefix")
+		assert.Contains(t, key, "-5")
+		assert.Empty(t, input.IdempotencyKey)
 	})
 
 	t.Run("preserves existing idempotency key", func(t *testing.T) {
@@ -737,8 +738,9 @@ func TestBatchProcessorEnsureIdempotencyKey(t *testing.T) {
 			IdempotencyKey: "existing-key",
 		}
 
-		bp.ensureIdempotencyKey(input, 5)
+		key := bp.ensureIdempotencyKey(input, 5)
 
+		assert.Equal(t, "existing-key", key)
 		assert.Equal(t, "existing-key", input.IdempotencyKey)
 	})
 }

@@ -127,6 +127,81 @@ func TestTransactionHelpers_CreateCanonicalSendPayloads(t *testing.T) {
 	}
 }
 
+func TestTransactionHelpers_ReusedDefaultOptionsGenerateFreshIdempotencyKeys(t *testing.T) {
+	tests := []struct {
+		name string
+		run  func(context.Context, *entities.Entity) error
+	}{
+		{
+			name: "transfer",
+			run: func(ctx context.Context, entity *entities.Entity) error {
+				opts := DefaultTransferOptions()
+				if _, err := Transfer(ctx, entity, "org-1", "ledger-1", "cash", "settlement", 100, 2, "USD", opts); err != nil {
+					return err
+				}
+
+				_, err := Transfer(ctx, entity, "org-1", "ledger-1", "cash", "settlement", 100, 2, "USD", opts)
+				return err
+			},
+		},
+		{
+			name: "deposit",
+			run: func(ctx context.Context, entity *entities.Entity) error {
+				opts := DefaultDepositOptions()
+				if _, err := Deposit(ctx, entity, "org-1", "ledger-1", "customer", 100, 2, "USD", opts); err != nil {
+					return err
+				}
+
+				_, err := Deposit(ctx, entity, "org-1", "ledger-1", "customer", 100, 2, "USD", opts)
+				return err
+			},
+		},
+		{
+			name: "withdrawal",
+			run: func(ctx context.Context, entity *entities.Entity) error {
+				opts := DefaultWithdrawalOptions()
+				if _, err := Withdrawal(ctx, entity, "org-1", "ledger-1", "customer", 100, 2, "USD", opts); err != nil {
+					return err
+				}
+
+				_, err := Withdrawal(ctx, entity, "org-1", "ledger-1", "customer", 100, 2, "USD", opts)
+				return err
+			},
+		},
+		{
+			name: "multi-transfer",
+			run: func(ctx context.Context, entity *entities.Entity) error {
+				opts := DefaultMultiTransferOptions()
+				if _, err := MultiAccountTransfer(ctx, entity, "org-1", "ledger-1", map[string]int64{"cash": 100}, map[string]int64{"settlement": 100}, 100, 2, "USD", opts); err != nil {
+					return err
+				}
+
+				_, err := MultiAccountTransfer(ctx, entity, "org-1", "ledger-1", map[string]int64{"cash": 100}, map[string]int64{"settlement": 100}, 100, 2, "USD", opts)
+				return err
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			keys := make([]string, 0, 2)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				keys = append(keys, r.Header.Get("X-Idempotency"))
+				writeJSON(t, w, map[string]any{"id": "tx-1", "status": map[string]any{"code": "PENDING"}})
+			}))
+			defer server.Close()
+
+			entity := newTransactionHelperEntity(t, server)
+			require.NoError(t, tt.run(context.Background(), entity))
+
+			require.Len(t, keys, 2)
+			assert.NotEmpty(t, keys[0])
+			assert.NotEmpty(t, keys[1])
+			assert.NotEqual(t, keys[0], keys[1])
+		})
+	}
+}
+
 func TestTransactionHelpers_MultiTransferTemplateAndLifecycle(t *testing.T) {
 	requests := make([]map[string]any, 0, 2)
 

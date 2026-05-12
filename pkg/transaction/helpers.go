@@ -75,10 +75,9 @@ type TransferOptions struct {
 // DefaultTransferOptions returns the default options for transfer transactions
 func DefaultTransferOptions() *TransferOptions {
 	return &TransferOptions{
-		Description:    "Transfer between accounts",
-		Metadata:       map[string]any{"source": "go-sdk-transaction-helper"},
-		Pending:        false,
-		IdempotencyKey: uuid.New().String(),
+		Description: "Transfer between accounts",
+		Metadata:    map[string]any{"source": "go-sdk-transaction-helper"},
+		Pending:     false,
 	}
 }
 
@@ -199,7 +198,6 @@ func DefaultDepositOptions() *DepositOptions {
 		Description:       "Deposit from external source",
 		Metadata:          map[string]any{"source": "go-sdk-transaction-helper", "type": "deposit"},
 		Pending:           false,
-		IdempotencyKey:    uuid.New().String(),
 		ExternalAccountID: "", // Will be auto-generated based on asset code
 	}
 }
@@ -327,7 +325,6 @@ func DefaultWithdrawalOptions() *WithdrawalOptions {
 		Description:       "Withdrawal to external destination",
 		Metadata:          map[string]any{"source": "go-sdk-transaction-helper", "type": "withdrawal"},
 		Pending:           false,
-		IdempotencyKey:    uuid.New().String(),
 		ExternalAccountID: "", // Will be auto-generated based on asset code
 	}
 }
@@ -450,10 +447,9 @@ type MultiTransferOptions struct {
 // DefaultMultiTransferOptions returns the default options for multi-leg transfers
 func DefaultMultiTransferOptions() *MultiTransferOptions {
 	return &MultiTransferOptions{
-		Description:    "Multi-account transfer",
-		Metadata:       map[string]any{"source": "go-sdk-transaction-helper", "type": "multi-transfer"},
-		Pending:        false,
-		IdempotencyKey: uuid.New().String(),
+		Description: "Multi-account transfer",
+		Metadata:    map[string]any{"source": "go-sdk-transaction-helper", "type": "multi-transfer"},
+		Pending:     false,
 	}
 }
 
