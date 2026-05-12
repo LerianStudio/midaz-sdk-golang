@@ -17,7 +17,9 @@ archives:
       - README.md
       - CHANGELOG.md
       - examples/**/*
-      - client.go
+      - midaz.go
+      - midaz_options.go
+      - types.go
       - entities/**/*.go
       - models/**/*.go
       - pkg/**/*.go
