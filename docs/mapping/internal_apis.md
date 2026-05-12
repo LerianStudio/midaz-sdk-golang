@@ -57,6 +57,7 @@ c, err := midaz.New(
 - `MIDAZ_DEBUG`
 - `MIDAZ_MAX_RETRIES`
 - `MIDAZ_IDEMPOTENCY`
+- `MIDAZ_ERROR_EXPOSE_BODY`
 - `PLUGIN_AUTH_ENABLED`
 - `PLUGIN_AUTH_ADDRESS`
 - `MIDAZ_CLIENT_ID`
@@ -114,6 +115,7 @@ The shared `entities.HTTPClient` is responsible for the transport cross-cutting 
 - Applies retry behavior for retryable responses and transient network failures.
 - Avoids retrying unsafe methods unless `X-Idempotency` is present.
 - Converts HTTP failures into `pkg/errors` structured errors.
+- Attaches raw, unredacted, truncated upstream 4xx/5xx response bodies to structured errors when error body exposure is enabled.
 - Emits debug logs when `MIDAZ_DEBUG=true` or debug options are enabled.
 
 ## Request path construction
@@ -181,7 +183,7 @@ Common builders:
 - `models.NewCreateTransactionRouteInput(title, description, operationRouteIDs)`
 - `models.NewUpdateTransactionRouteInput()`
 - `models.NewCreateAssetRateInput(from, to, rate)` with `WithScale`, `WithSource`, `WithTTL`, `WithExternalID`, and `WithMetadata`.
-- `models.AssetRatesListOpts` with `Limit`, `Cursor`, `SortOrder`, `To`, `StartDate`, `EndDate`, and `ToQueryParams`.
+- `models.AssetRatesListOpts` with embedded `CursorListOpts{Limit, Cursor, SortDirection, StartDate, EndDate}`, `Filters.To`, and `ToQueryParams`.
 - `models.NewCreateHolderInput(holderType, name, document)` with `WithExternalID`, `WithAddresses`, `WithContact`, `WithNaturalPerson`, `WithLegalPerson`, and `WithMetadata`.
 - `models.NewUpdateHolderInput()` with field setters and `WithNullFields` / `WithNullField` for explicit JSON null removals. Empty holder updates are rejected by the SDK.
 - `models.NewCreateAliasInput(ledgerID, accountID)` with `WithMetadata`, `WithBankingDetails`, `WithRegulatoryFields`, and `WithRelatedParties`.
@@ -197,7 +199,7 @@ Query serialization rules:
 - Page-based opts serialize `Page` as `page`.
 - Cursor-based opts serialize `Cursor` as `cursor` and never emit `page`.
 - Entity-specific filter structs serialize only fields valid for that endpoint.
-- `SortDirection` / asset-rate `SortOrder` serialize as `sort_order`.
+- `SortDirection` serializes as `sort_order`.
 - Date ranges serialize as `start_date` and `end_date` where supported.
 
 `models.ListResponse[T]` contains `Items []T` and `Pagination models.Pagination`. JSON unmarshalling supports both current top-level pagination fields and legacy nested `pagination` payloads.

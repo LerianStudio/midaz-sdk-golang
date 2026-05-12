@@ -27,9 +27,11 @@ This map documents the recommended public SDK surface that consumers should use.
 - `midaz.WithSlowCallThreshold(time.Duration)` - Emit a Warn-level log line when a successful API call exceeds the threshold.
 - `midaz.WithContext(context.Context)` - Sets the client base context.
 - `midaz.WithIdempotency(bool)` - Toggle automatic `X-Idempotency` header generation for unsafe methods. Default: enabled.
+- `midaz.WithErrorBodyExposure(bool)` - Toggle raw upstream 4xx/5xx response body exposure on SDK errors. Default: enabled; body is not redacted and is only truncated.
 - `midaz.WithObservabilityOptions(...observability.Option)` - Build a fresh observability provider from the supplied option chain. Replacement semantics — replaces any previously installed provider.
 - `midaz.WithObservabilityProvider(observability.Provider)` - Install a pre-built observability provider. Replacement semantics.
 - `midaz.WithAccessManager(midaz.AccessManager)` - Configure Access Manager OAuth authentication. Mutually exclusive with `WithAnonymous`.
+- `midaz.WithAllowInsecureAccessManagerHTTP(bool)` - Explicitly allow non-loopback `http://` Access Manager URLs for trusted in-cluster networks. Default is strict HTTPS-or-loopback only.
 - `midaz.WithAnonymous()` - Explicitly opt out of authentication for local development and tests. Mutually exclusive with `WithAccessManager`.
 
 ### Client fields and methods
@@ -78,6 +80,7 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config`.
 - `config.WithTransactionURL(string) config.Option`
 - `config.WithCRMURL(string) config.Option`
 - `config.WithAccessManager(auth.AccessManager) config.Option`
+- `config.WithAllowInsecureAccessManagerHTTP(bool) config.Option`
 - `config.WithHTTPClient(*http.Client) config.Option`
 - `config.WithTimeout(time.Duration) config.Option`
 - `config.WithUserAgent(string) config.Option`
@@ -86,6 +89,7 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config`.
 - `config.WithRetryWaitMax(time.Duration) config.Option`
 - `config.WithDebug(bool) config.Option`
 - `config.WithIdempotency(bool) config.Option`
+- `config.WithErrorBodyExposure(bool) config.Option`
 - `config.WithObservabilityProvider(observability.Provider) config.Option`
 - `config.WithAnonymous() config.Option` - Explicit auth-less mode; required for non-AccessManager construction.
 
@@ -101,9 +105,11 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config`.
 - `MIDAZ_DEBUG`
 - `MIDAZ_MAX_RETRIES`
 - `MIDAZ_IDEMPOTENCY`
+- `MIDAZ_ERROR_EXPOSE_BODY`
 - `MIDAZ_SKIP_AUTH_CHECK` (test plumbing)
 - `PLUGIN_AUTH_ENABLED`
 - `PLUGIN_AUTH_ADDRESS`
+- `MIDAZ_ACCESS_MANAGER_ALLOW_INSECURE_HTTP`
 - `MIDAZ_CLIENT_ID`
 - `MIDAZ_CLIENT_SECRET`
 
@@ -111,7 +117,7 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config`.
 
 Use `github.com/LerianStudio/midaz-sdk-golang/v3/pkg/auth` (no alias needed; package name is `auth`).
 
-- `auth.AccessManager` - Plugin authentication configuration with `Enabled`, `Address`, `ClientID`, and `ClientSecret`. Re-exported as `midaz.AccessManager` so a typical setup needs only the root import.
+- `auth.AccessManager` - Plugin authentication configuration with `Enabled`, `Address`, `ClientID`, `ClientSecret`, and `AllowInsecureHTTP`. Re-exported as `midaz.AccessManager` so a typical setup needs only the root import.
 - `config.WithAccessManager(auth.AccessManager)` / `midaz.WithAccessManager(midaz.AccessManager)` - Configure plugin auth. The Enabled field is auto-set to true; callers populate Address/ClientID/ClientSecret only.
 - `midaz.WithAnonymous()` / `config.WithAnonymous()` - Explicit auth-less mode for local development and tests.
 
@@ -197,7 +203,7 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v3/entities`. Consumers usually ac
 - `GetAssetRate(ctx, organizationID, ledgerID, externalID)`
 - `ListAssetRatesByAssetCode(ctx, organizationID, ledgerID, assetCode, opts)`
 
-`AssetRateListOptions` supports `WithTo`, `WithLimit`, `WithDateRange`, `WithSortOrder`, `WithCursor`, and `ToQueryParams`, serializing to `to`, `limit`, `start_date`, `end_date`, `sort_order`, and `cursor`.
+`models.AssetRatesListOpts` embeds `models.CursorListOpts` for `Limit`, `Cursor`, `SortDirection`, `StartDate`, and `EndDate`, plus `models.AssetRatesFilters{To: []string{...}}`. It serializes to `to`, `limit`, `start_date`, `end_date`, `sort_order`, and `cursor`.
 
 ### BalancesService
 
@@ -292,17 +298,17 @@ CRM services use the CRM base URL and set the organization through the `X-Organi
 
 - `ListHolders(ctx, organizationID, opts)`
 - `CreateHolder(ctx, organizationID, input)`
-- `GetHolder(ctx, organizationID, holderID, includeDeleted)`
+- `GetHolder(ctx, organizationID, holderID)` - Use `sdkctx.WithIncludeDeleted(ctx, true)` to include soft-deleted holders.
 - `UpdateHolder(ctx, organizationID, holderID, input)`
-- `DeleteHolder(ctx, organizationID, holderID, hardDelete)`
+- `DeleteHolder(ctx, organizationID, holderID)` - Use `sdkctx.WithHardDelete(ctx, true)` for irreversible hard delete.
 
 #### AliasesService
 
 - `ListAliases(ctx, organizationID, opts)`
 - `CreateAlias(ctx, organizationID, holderID, input)`
-- `GetAlias(ctx, organizationID, holderID, aliasID, includeDeleted)`
+- `GetAlias(ctx, organizationID, holderID, aliasID)` - Use `sdkctx.WithIncludeDeleted(ctx, true)` to include soft-deleted aliases.
 - `UpdateAlias(ctx, organizationID, holderID, aliasID, input)`
-- `DeleteAlias(ctx, organizationID, holderID, aliasID, hardDelete)`
+- `DeleteAlias(ctx, organizationID, holderID, aliasID)` - Use `sdkctx.WithHardDelete(ctx, true)` for irreversible hard delete.
 - `DeleteRelatedParty(ctx, organizationID, holderID, aliasID, relatedPartyID)`
 
 ## Models package
@@ -383,7 +389,7 @@ Each per-entity opts struct exposes:
 - `models.NewCreateTransactionRouteInput(title, description, operationRouteIDs)`
 - `models.NewUpdateTransactionRouteInput()`
 - `models.NewCreateAssetRateInput(from, to, rate)` with `WithScale`, `WithSource`, `WithTTL`, `WithExternalID`, and `WithMetadata`.
-- `models.AssetRatesListOpts` with `Limit`, `Cursor`, `SortOrder`, `To`, `StartDate`, `EndDate`, and `ToQueryParams`.
+- `models.AssetRatesListOpts` with embedded `CursorListOpts{Limit, Cursor, SortDirection, StartDate, EndDate}`, `Filters.To`, and `ToQueryParams`.
 - `models.NewCreateHolderInput(holderType, name, document)` with `WithExternalID`, `WithAddresses`, `WithContact`, `WithNaturalPerson`, `WithLegalPerson`, and `WithMetadata`.
 - `models.NewUpdateHolderInput()` with field setters and `WithNullFields` / `WithNullField` for explicit JSON null removals. Empty holder updates are rejected by the SDK.
 - `models.NewCreateAliasInput(ledgerID, accountID)` with `WithMetadata`, `WithBankingDetails`, `WithRegulatoryFields`, and `WithRelatedParties`.
@@ -396,9 +402,9 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors`.
 - Core type: `*errors.Error`.
 - Sentinel errors: `ErrValidation`, `ErrAuthentication`, `ErrPermission`, `ErrNotFound`, `ErrAlreadyExists`, `ErrIdempotency`, `ErrRateLimit`, `ErrTimeout`, `ErrCancellation`, `ErrInternal`, `ErrUnprocessable`, `ErrInsufficientBalance`, `ErrAccountEligibility`, `ErrAssetMismatch`.
 - Checkers: `IsValidationError`, `IsNotFoundError`, `IsAuthenticationError`, `IsAuthorizationError`, `IsAuthError`, `IsConfigurationError`, `IsConflictError`, `IsRateLimitError`, `IsTimeoutError`, `IsNetworkError`, `IsCancellationError`, `IsInternalError`, `IsInsufficientBalanceError`, `IsAccountEligibilityError`, `IsAssetMismatchError`, `IsIdempotencyError`, `IsUnprocessableError`. (v3 — `IsPermissionError` and `IsAlreadyExistsError` were retired; use `IsAuthorizationError` and `IsConflictError` respectively.)
-- Accessors: `GetErrorCategory`, `GetStatusCode`, `GetErrorCode`, `GetErrorDetails`, `GetTransactionErrorContext`.
+- Accessors: `GetErrorCategory`, `GetStatusCode`, `GetErrorCode`, `GetErrorDetails`, `GetTransactionErrorContext`, `(*Error).GetUpstreamBody`, `(*Error).IsUpstreamBodyTruncated`, `(*Error).GetUpstreamBodyOriginalBytes`.
 - Constructors: `NewValidationError`, `NewInvalidInputError`, `NewNotFoundError`, `NewAuthenticationError`, `NewAuthorizationError`, `NewConflictError`, `NewRateLimitError`, `NewTimeoutError`, `NewInternalError`, `NewUnprocessableError`.
-- Midaz wire errors may include `code`, `title`, `message`, `entityType`, and `fields`; CRM errors may include `err`. The SDK preserves expanded envelope data on `Error.APICode`, `Error.Title`, `Error.EntityType`, `Error.Fields`, and `Error.Details` when available.
+- Midaz wire errors may include `code`, `title`, `message`, `entityType`, and `fields`; CRM errors may include `err`. The SDK preserves expanded envelope data on `Error.APICode`, `Error.Title`, `Error.EntityType`, `Error.Fields`, and `Error.Details` when available. Received upstream 4xx/5xx responses also attach raw, unredacted, truncated body text on `Error.UpstreamBody` by default.
 
 ## Observability package
 

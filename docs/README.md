@@ -8,7 +8,7 @@ This directory contains hand-written guides and generated package documentation 
 - [Authentication](./auth.md) - Access Manager OAuth and anonymous mode.
 - [Configuration](./configuration.md) - Four configuration surfaces, precedence rules, every option.
 - [Environment variables](./environment.md) - Runtime configuration and `.env` usage.
-- [Error handling](./errors.md) - SDK error categories, helpers, and retry boundaries.
+- [Error handling](./errors.md) - SDK error categories, helpers, upstream bodies, and retry boundaries.
 - [Architecture](./comprehensive-architecture.md) - SDK structure and implementation overview. (Older [architecture.md](./architecture.md) is retained as historical v2 context only.)
 - [Examples](./examples.md) - Runnable examples and common workflows.
 - [Pagination](./pagination.md) - List options, page metadata, and cursor behavior.

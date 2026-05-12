@@ -558,7 +558,7 @@ Automatic idempotency applies to unsafe entity HTTP requests. The HTTP layer aut
 2. the method is unsafe,
 3. no idempotency key is already present.
 
-The HTTP layer removes internal idempotency marker headers before the request is sent. Unsafe retries still require a caller-provided key; SDK-generated keys provide server-side deduplication but do not enable unsafe retries by themselves.
+The HTTP layer sends only the public `X-Idempotency` header. Unsafe retries require `X-Idempotency`; caller-supplied and SDK-generated keys both satisfy this retry gate.
 
 ## Observability
 
