@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -165,4 +166,61 @@ func TestGetTokenFromPluginAuth(t *testing.T) {
 			}
 		})
 	}
+}
+
+type typedNilAccessManagerCause struct{}
+
+func (*typedNilAccessManagerCause) Error() string { return "typed nil should not render" }
+
+func TestAccessManagerTokenRequestErrorErrorRedactsAndHandlesTypedNilCause(t *testing.T) {
+	t.Run("redacts sensitive inner error values", func(t *testing.T) {
+		err := &AccessManagerTokenRequestError{
+			Operation:       accessManagerTokenRequestOperation,
+			Phase:           accessManagerTokenFetchPhase,
+			EndpointScheme:  "https",
+			EndpointHost:    "auth.example.com",
+			EndpointPath:    accessManagerOAuthLoginPath,
+			HTTPRequestSent: true,
+			StatusCodeValue: http.StatusInternalServerError,
+			Err:             errors.New("access_token=secret-token client_secret=super-secret password=hunter2"),
+		}
+
+		rendered := err.Error()
+		assert.Contains(t, rendered, "statusCode=500")
+		assert.NotContains(t, rendered, "secret-token")
+		assert.NotContains(t, rendered, "super-secret")
+		assert.NotContains(t, rendered, "hunter2")
+		assert.Contains(t, rendered, "[REDACTED]")
+	})
+
+	t.Run("typed nil inner error does not panic or render", func(t *testing.T) {
+		var typedNil *typedNilAccessManagerCause
+		err := &AccessManagerTokenRequestError{
+			Operation: accessManagerTokenRequestOperation,
+			Phase:     accessManagerTokenFetchPhase,
+			Err:       typedNil,
+		}
+
+		require.NotPanics(t, func() { _ = err.Error() })
+		assert.NotContains(t, err.Error(), "typed nil should not render")
+	})
+
+	t.Run("Unwrap exposes the inner cause for errors.Is and errors.As", func(t *testing.T) {
+		sentinel := errors.New("sentinel cause")
+		err := &AccessManagerTokenRequestError{
+			Operation: accessManagerTokenRequestOperation,
+			Phase:     accessManagerTokenFetchPhase,
+			Err:       sentinel,
+		}
+
+		assert.Same(t, sentinel, errors.Unwrap(err),
+			"Unwrap must return the exact inner sentinel pointer")
+		assert.ErrorIs(t, err, sentinel,
+			"errors.Is must walk through Unwrap to match the sentinel")
+	})
+
+	t.Run("Unwrap on nil receiver is safe and returns nil", func(t *testing.T) {
+		var err *AccessManagerTokenRequestError
+		assert.NoError(t, err.Unwrap())
+	})
 }

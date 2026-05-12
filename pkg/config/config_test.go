@@ -140,7 +140,7 @@ func TestNewConfig_WithAllOptions(t *testing.T) {
 		WithObservabilityProvider(mockProvider),
 		WithAccessManager(auth.AccessManager{
 			Enabled:      false,
-			Address:      "http://auth.example.com",
+			Address:      "https://auth.example.com",
 			ClientID:     "test-client",
 			ClientSecret: "test-secret",
 		}),
@@ -159,7 +159,7 @@ func TestNewConfig_WithAllOptions(t *testing.T) {
 	assert.True(t, config.Debug)
 	assert.False(t, config.EnableIdempotency)
 	assert.Equal(t, mockProvider, config.ObservabilityProvider)
-	assert.Equal(t, "http://auth.example.com", config.AccessManager.Address)
+	assert.Equal(t, "https://auth.example.com", config.AccessManager.Address)
 	assert.Equal(t, "test-client", config.AccessManager.ClientID)
 	assert.Equal(t, "test-secret", config.AccessManager.ClientSecret)
 }
@@ -664,7 +664,7 @@ func TestWithObservabilityProvider_Nil(t *testing.T) {
 func TestWithAccessManager(t *testing.T) {
 	accessManager := auth.AccessManager{
 		Enabled:      true,
-		Address:      "http://auth.example.com",
+		Address:      "https://auth.example.com",
 		ClientID:     "client-123",
 		ClientSecret: "secret-456",
 	}
@@ -673,7 +673,7 @@ func TestWithAccessManager(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.True(t, config.AccessManager.Enabled)
-	assert.Equal(t, "http://auth.example.com", config.AccessManager.Address)
+	assert.Equal(t, "https://auth.example.com", config.AccessManager.Address)
 	assert.Equal(t, "client-123", config.AccessManager.ClientID)
 	assert.Equal(t, "secret-456", config.AccessManager.ClientSecret)
 }
@@ -685,6 +685,25 @@ func TestValidateConfig_MissingAuthAddress(t *testing.T) {
 	}))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "plugin auth address is required")
+}
+
+func TestValidateConfig_AccessManagerAddressValidatedBeforeTokenFetch(t *testing.T) {
+	_, err := NewConfig(WithAccessManager(auth.AccessManager{
+		Enabled:      true,
+		Address:      "http://auth.internal.example.com",
+		ClientID:     "client-id",
+		ClientSecret: "super-secret-value",
+	}))
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid plugin auth address")
+	assert.Contains(t, err.Error(), "operation=access_manager.token_request")
+	assert.Contains(t, err.Error(), "phase=token_fetch")
+	assert.Contains(t, err.Error(), "endpoint=http://auth.internal.example.com/v1/login/oauth/access_token")
+	assert.Contains(t, err.Error(), "httpRequestSent=false")
+	assert.Contains(t, err.Error(), "localValidationFailed=true")
+	assert.Contains(t, err.Error(), "validationReason=insecure_scheme")
+	assert.NotContains(t, err.Error(), "super-secret-value")
 }
 
 func TestValidateConfig_AuthCheckSkipped(t *testing.T) {
@@ -699,7 +718,7 @@ func TestValidateConfig_AuthCheckSkipped(t *testing.T) {
 func TestFromEnvironment_AllVariables(t *testing.T) {
 	t.Setenv("MIDAZ_ENVIRONMENT", "development")
 	t.Setenv("PLUGIN_AUTH_ENABLED", "true")
-	t.Setenv("PLUGIN_AUTH_ADDRESS", "http://auth.example.com")
+	t.Setenv("PLUGIN_AUTH_ADDRESS", "https://auth.example.com")
 	t.Setenv("MIDAZ_CLIENT_ID", "env-client-id")
 	t.Setenv("MIDAZ_CLIENT_SECRET", "env-client-secret")
 	t.Setenv("MIDAZ_USER_AGENT", "env-agent/1.0")
@@ -715,7 +734,7 @@ func TestFromEnvironment_AllVariables(t *testing.T) {
 
 	assert.Equal(t, EnvironmentDevelopment, config.Environment)
 	assert.True(t, config.AccessManager.Enabled)
-	assert.Equal(t, "http://auth.example.com", config.AccessManager.Address)
+	assert.Equal(t, "https://auth.example.com", config.AccessManager.Address)
 	assert.Equal(t, "env-client-id", config.AccessManager.ClientID)
 	assert.Equal(t, "env-client-secret", config.AccessManager.ClientSecret)
 	assert.Equal(t, "env-agent/1.0", config.UserAgent)
@@ -824,7 +843,7 @@ func TestFromEnvironment_BaseURLOverriddenBySpecific(t *testing.T) {
 
 func TestFromEnvironment_PluginAuthDisabled(t *testing.T) {
 	t.Setenv("PLUGIN_AUTH_ENABLED", "false")
-	t.Setenv("PLUGIN_AUTH_ADDRESS", "http://auth.example.com")
+	t.Setenv("PLUGIN_AUTH_ADDRESS", "https://auth.example.com")
 	t.Setenv("MIDAZ_CLIENT_ID", "client-id")
 	t.Setenv("MIDAZ_CLIENT_SECRET", "client-secret")
 
@@ -837,7 +856,7 @@ func TestFromEnvironment_PluginAuthDisabled(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.False(t, config.AccessManager.Enabled)
-	assert.Equal(t, "http://auth.example.com", config.AccessManager.Address)
+	assert.Equal(t, "https://auth.example.com", config.AccessManager.Address)
 }
 
 func TestFromEnvironment_IdempotencyTrue(t *testing.T) {
@@ -879,7 +898,7 @@ func TestNewLocalConfig(t *testing.T) {
 
 func TestNewLocalConfig_WithEnvVars(t *testing.T) {
 	t.Setenv("PLUGIN_AUTH_ENABLED", "true")
-	t.Setenv("PLUGIN_AUTH_ADDRESS", "http://auth.local.example.com")
+	t.Setenv("PLUGIN_AUTH_ADDRESS", "https://auth.local.example.com")
 	t.Setenv("MIDAZ_CLIENT_ID", "local-client")
 	t.Setenv("MIDAZ_CLIENT_SECRET", "local-secret")
 
@@ -887,7 +906,7 @@ func TestNewLocalConfig_WithEnvVars(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.True(t, config.AccessManager.Enabled)
-	assert.Equal(t, "http://auth.local.example.com", config.AccessManager.Address)
+	assert.Equal(t, "https://auth.local.example.com", config.AccessManager.Address)
 	assert.Equal(t, "local-client", config.AccessManager.ClientID)
 	assert.Equal(t, "local-secret", config.AccessManager.ClientSecret)
 }
@@ -941,7 +960,7 @@ func TestGetHTTPClient_Default(t *testing.T) {
 func TestGetPluginAuth(t *testing.T) {
 	config, err := NewConfig(disableAuthCheck(t), WithAccessManager(auth.AccessManager{
 		Enabled:      true,
-		Address:      "http://auth.example.com",
+		Address:      "https://auth.example.com",
 		ClientID:     "test-client",
 		ClientSecret: "test-secret",
 	}))
@@ -950,7 +969,7 @@ func TestGetPluginAuth(t *testing.T) {
 	pluginAuth := config.GetPluginAuth()
 
 	assert.True(t, pluginAuth.Enabled)
-	assert.Equal(t, "http://auth.example.com", pluginAuth.Address)
+	assert.Equal(t, "https://auth.example.com", pluginAuth.Address)
 	assert.Equal(t, "test-client", pluginAuth.ClientID)
 	assert.Equal(t, "test-secret", pluginAuth.ClientSecret)
 }
@@ -958,7 +977,7 @@ func TestGetPluginAuth(t *testing.T) {
 func TestGetPluginAuth_ReturnsCopy(t *testing.T) {
 	config, err := NewConfig(disableAuthCheck(t), WithAccessManager(auth.AccessManager{
 		Enabled:      true,
-		Address:      "http://auth.example.com",
+		Address:      "https://auth.example.com",
 		ClientID:     "original-client",
 		ClientSecret: "original-secret",
 	}))
@@ -1226,7 +1245,7 @@ func TestConfigureAccessManager(t *testing.T) {
 		{
 			name:           "all values set enabled",
 			envEnabled:     "true",
-			envAddress:     "http://auth.example.com",
+			envAddress:     "https://auth.example.com",
 			envClientID:    "client-123",
 			envSecret:      "secret-456",
 			expectedEnable: true,
@@ -1234,7 +1253,7 @@ func TestConfigureAccessManager(t *testing.T) {
 		{
 			name:           "disabled",
 			envEnabled:     "false",
-			envAddress:     "http://auth.example.com",
+			envAddress:     "https://auth.example.com",
 			envClientID:    "client-123",
 			envSecret:      "secret-456",
 			expectedEnable: false,
@@ -1242,7 +1261,7 @@ func TestConfigureAccessManager(t *testing.T) {
 		{
 			name:           "empty enabled",
 			envEnabled:     "",
-			envAddress:     "http://auth.example.com",
+			envAddress:     "https://auth.example.com",
 			envClientID:    "client-123",
 			envSecret:      "secret-456",
 			expectedEnable: false,

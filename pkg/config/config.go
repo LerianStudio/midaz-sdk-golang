@@ -602,6 +602,45 @@ func WithAnonymous() Option {
 	}
 }
 
+// WithAllowInsecureAccessManagerHTTP opts the client into accepting plain
+// http:// Access Manager URLs even for non-loopback hosts. The default is
+// strict (HTTPS or loopback only) because the credentials posted to the
+// Access Manager token endpoint are the equivalent of long-lived passwords
+// and must not cross a plaintext link.
+//
+// The flag exists for the canonical in-cluster Kubernetes pattern where the
+// Access Manager is reached via a ClusterIP Service DNS name
+// (e.g. http://plugin-access-manager-auth.midaz-plugins.svc.cluster.local:4000)
+// and the transport security is provided by the service mesh or trusted
+// network segment.
+//
+// SECURITY: this disables a deliberate transport-security gate. Production
+// deployments must leave this off. Setting it true causes a Warn-level log
+// line at client construction so the override is auditable.
+//
+// Two-layer surface: this is the internal/test-layer Option that operates
+// on [Config]. The user-facing wrapper at
+// [github.com/LerianStudio/midaz-sdk-golang/v3.WithAllowInsecureAccessManagerHTTP]
+// is what most callers should use; it composes with
+// [github.com/LerianStudio/midaz-sdk-golang/v3.New] directly.
+//
+// Parameters:
+//   - allow: Whether to permit plain http:// for non-loopback hosts.
+//
+// Returns:
+//   - Option: A function that wires the flag onto AccessManager.
+func WithAllowInsecureAccessManagerHTTP(allow bool) Option {
+	return func(c *Config) error {
+		if c == nil {
+			return errors.New("config cannot be nil")
+		}
+
+		c.AccessManager.AllowInsecureHTTP = allow
+
+		return nil
+	}
+}
+
 // FromEnvironment loads configuration from environment variables.
 // This allows for configuration without code changes.
 //
@@ -620,6 +659,10 @@ func WithAnonymous() Option {
 //   - MIDAZ_DEBUG: Enable debug mode (parsed via [strconv.ParseBool])
 //   - MIDAZ_MAX_RETRIES: Maximum number of retries
 //   - MIDAZ_IDEMPOTENCY: Enable idempotency (parsed via [strconv.ParseBool])
+//   - MIDAZ_ACCESS_MANAGER_ALLOW_INSECURE_HTTP: Permit plain http:// Access
+//     Manager URLs for non-loopback hosts (parsed via [strconv.ParseBool]).
+//     Production deployments must leave this unset or false; the flag
+//     exists for the in-cluster Kubernetes Service pattern.
 //
 // Boolean variables accept the canonical [strconv.ParseBool] forms only:
 // "1", "t", "T", "TRUE", "true", "True", "0", "f", "F", "FALSE", "false",
@@ -711,6 +754,15 @@ func configureAccessManager(c *Config) error {
 	c.AccessManager.Enabled = enabled
 	if enabled {
 		c.Anonymous = false
+	}
+
+	if insecure := os.Getenv("MIDAZ_ACCESS_MANAGER_ALLOW_INSECURE_HTTP"); insecure != "" {
+		parsed, err := strconv.ParseBool(strings.TrimSpace(insecure))
+		if err != nil {
+			return fmt.Errorf("invalid MIDAZ_ACCESS_MANAGER_ALLOW_INSECURE_HTTP value %q: %w", insecure, err)
+		}
+
+		c.AccessManager.AllowInsecureHTTP = parsed
 	}
 
 	return nil
@@ -997,6 +1049,9 @@ func applyDefaultServiceURLs(config *Config, serviceURLs defaultServiceURLs) {
 //     auth-less mode). Construction without either fails.
 //   - If AccessManager.Enabled, AccessManager.Address must be set
 //     (unless MIDAZ_SKIP_AUTH_CHECK=true is in the env via FromEnvironment).
+//   - AccessManager.Address must use https:// (or a loopback host with
+//     http://). [WithAllowInsecureAccessManagerHTTP] opts into accepting
+//     plain http:// for non-loopback hosts (in-cluster k8s service DNS).
 func (c *Config) Validate() error {
 	return validateConfig(c)
 }
@@ -1069,6 +1124,16 @@ func validateAuthSettings(config *Config) error {
 
 	if strings.TrimSpace(config.AccessManager.Address) == "" {
 		return errors.New("plugin auth address is required")
+	}
+	// Strict scheme enforcement: plain http:// is rejected for non-loopback
+	// hosts unless [WithAllowInsecureAccessManagerHTTP] opted in. The flag
+	// exists for in-cluster Kubernetes service DNS; production deployments
+	// must keep it off.
+	if err := auth.ValidateAccessManagerAddressWithInsecure(
+		config.AccessManager.Address,
+		config.AccessManager.AllowInsecureHTTP,
+	); err != nil {
+		return fmt.Errorf("invalid plugin auth address: %w", err)
 	}
 
 	if strings.TrimSpace(config.AccessManager.ClientID) == "" {

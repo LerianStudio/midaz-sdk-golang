@@ -12,18 +12,23 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
 
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/security"
 	"golang.org/x/sync/singleflight"
 )
 
 const (
-	accessManagerOAuthLoginPath       = "/v1/login/oauth/access_token"
-	maxAccessManagerResponseBodyBytes = int64(1 << 20)
-	accessManagerRefreshSkew          = 30 * time.Second
-	accessManagerTokenRequestTimeout  = 30 * time.Second
+	accessManagerOAuthLoginPath        = "/v1/login/oauth/access_token"
+	accessManagerTokenRequestOperation = "access_manager.token_request"
+	accessManagerTokenFetchPhase       = "token_fetch"
+	maxAccessManagerResponseBodyBytes  = int64(1 << 20)
+	accessManagerRefreshSkew           = 30 * time.Second
+	accessManagerTokenRequestTimeout   = 30 * time.Second
 
 	// accessManagerCacheCapacity bounds the in-process token cache. The cache
 	// is keyed by (endpoint, clientID, secretHash) so the upper bound is the
@@ -32,6 +37,26 @@ const (
 	// while still preventing the unbounded growth that the previous
 	// sync.Map exposed.
 	accessManagerCacheCapacity = 256
+)
+
+// Exported validation-reason constants for
+// [AccessManagerTokenRequestError.ValidationReason]. Tests and callers
+// that need to branch on the reason can compare against these instead of
+// duplicating the string literals.
+const (
+	ValidationReasonAuthDisabled        = "auth_disabled"
+	ValidationReasonMissingAddress      = "missing_address"
+	ValidationReasonMissingClientID     = "missing_client_id"
+	ValidationReasonMissingClientSecret = "missing_client_secret"
+	ValidationReasonNilHTTPClient       = "nil_http_client"
+	ValidationReasonMalformedEndpoint   = "malformed_endpoint"
+	ValidationReasonMissingScheme       = "missing_scheme"
+	ValidationReasonInvalidScheme       = "invalid_scheme"
+	ValidationReasonInsecureScheme      = "insecure_scheme"
+	ValidationReasonMissingHost         = "missing_host"
+	ValidationReasonUserinfoNotAllowed  = "userinfo_not_allowed"
+	ValidationReasonInvalidRequest      = "invalid_request"
+	ValidationReasonValidationFailed    = "validation_failed"
 )
 
 // ErrAccessManagerTokenFetch marks failures that occur while obtaining an
@@ -89,30 +114,6 @@ func newBoundedTokenCache(capacity int) *boundedTokenCache {
 		entries:  make(map[string]*list.Element, capacity),
 		order:    list.New(),
 	}
-}
-
-// Load returns the cached value for key and whether it was present. Touching
-// an entry promotes it to the front of the LRU.
-func (c *boundedTokenCache) Load(key string) (cachedToken, bool) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	element, ok := c.entries[key]
-	if !ok {
-		return cachedToken{}, false
-	}
-
-	c.order.MoveToFront(element)
-
-	entry, ok := element.Value.(*cacheEntry)
-	if !ok {
-		c.order.Remove(element)
-		delete(c.entries, key)
-
-		return cachedToken{}, false
-	}
-
-	return entry.value, true
 }
 
 // Store inserts or replaces an entry, evicting the least-recently-used entry
@@ -212,11 +213,21 @@ var (
 //
 // The Enabled field is auto-populated by WithAccessManager — callers do not
 // set it themselves. Address, ClientID, and ClientSecret are all required.
+//
+// AllowInsecureHTTP opts INTO accepting plain http:// Access Manager URLs
+// for non-loopback hosts. The default is strict (HTTPS or loopback only),
+// which catches misconfiguration before credentials cross a plaintext link.
+// Production deployments must leave this false; the flag exists for the
+// in-cluster Kubernetes Service pattern
+// (e.g. http://plugin-access-manager-auth.svc.cluster.local) where the
+// transport is already protected by a service mesh or trusted network
+// segment.
 type AccessManager struct {
-	Enabled      bool
-	Address      string
-	ClientID     string
-	ClientSecret string // #nosec G117 -- configuration field required by public SDK and OAuth client-credentials flow
+	Enabled           bool
+	Address           string
+	ClientID          string
+	ClientSecret      string // #nosec G117 -- configuration field required by public SDK and OAuth client-credentials flow
+	AllowInsecureHTTP bool
 }
 
 // TokenResponse represents the response from the plugin auth service
@@ -226,6 +237,151 @@ type TokenResponse struct {
 	TokenType    string `json:"tokenType"`
 	RefreshToken string `json:"refreshToken"` // #nosec G117 -- response contract from external OAuth provider
 	ExpiresAt    string `json:"expiresAt,omitempty"`
+}
+
+// AccessManagerTokenRequestError carries diagnostic-safe context about the
+// Access Manager token request. It intentionally excludes client credentials,
+// bearer tokens, request bodies, and response bodies.
+type AccessManagerTokenRequestError struct {
+	Operation             string
+	Phase                 string
+	EndpointScheme        string
+	EndpointHost          string
+	EndpointPath          string
+	LocalValidationFailed bool
+	HTTPRequestSent       bool
+	ValidationReason      string
+	StatusCodeValue       int
+	Err                   error
+}
+
+func (e *AccessManagerTokenRequestError) Error() string {
+	if e == nil {
+		return ""
+	}
+
+	parts := []string{
+		"access manager token request failed",
+		"operation=" + e.Operation,
+		"phase=" + e.Phase,
+	}
+
+	if e.EndpointScheme != "" || e.EndpointHost != "" || e.EndpointPath != "" {
+		parts = append(parts, fmt.Sprintf("endpoint=%s://%s%s", e.EndpointScheme, e.EndpointHost, e.EndpointPath))
+	}
+
+	parts = append(parts,
+		fmt.Sprintf("httpRequestSent=%t", e.HTTPRequestSent),
+		fmt.Sprintf("localValidationFailed=%t", e.LocalValidationFailed),
+	)
+
+	if e.ValidationReason != "" {
+		parts = append(parts, "validationReason="+e.ValidationReason)
+	}
+
+	if e.StatusCodeValue > 0 {
+		parts = append(parts, fmt.Sprintf("statusCode=%d", e.StatusCodeValue))
+	}
+
+	if !isNilAccessManagerError(e.Err) {
+		parts = append(parts, sdkerrors.RedactSensitiveString(e.Err.Error()))
+	}
+
+	return strings.Join(parts, "; ")
+}
+
+func (e *AccessManagerTokenRequestError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+
+	return e.Err
+}
+
+// StatusCode returns the upstream HTTP status code, when one was received.
+func (e *AccessManagerTokenRequestError) StatusCode() int {
+	if e == nil {
+		return 0
+	}
+
+	return e.StatusCodeValue
+}
+
+func isNilAccessManagerError(err error) bool {
+	if err == nil {
+		return true
+	}
+
+	value := reflect.ValueOf(err)
+	switch value.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return value.IsNil()
+	default:
+		return false
+	}
+}
+
+// AccessManagerPhase returns the diagnostic-safe Access Manager request phase.
+func (e *AccessManagerTokenRequestError) AccessManagerPhase() string {
+	if e == nil {
+		return ""
+	}
+
+	return e.Phase
+}
+
+// AccessManagerEndpointScheme returns the redacted endpoint scheme.
+func (e *AccessManagerTokenRequestError) AccessManagerEndpointScheme() string {
+	if e == nil {
+		return ""
+	}
+
+	return e.EndpointScheme
+}
+
+// AccessManagerEndpointHost returns the redacted endpoint host.
+func (e *AccessManagerTokenRequestError) AccessManagerEndpointHost() string {
+	if e == nil {
+		return ""
+	}
+
+	return e.EndpointHost
+}
+
+// AccessManagerEndpointPath returns the redacted endpoint path.
+func (e *AccessManagerTokenRequestError) AccessManagerEndpointPath() string {
+	if e == nil {
+		return ""
+	}
+
+	return e.EndpointPath
+}
+
+// AccessManagerLocalValidationFailed reports whether local request validation failed.
+func (e *AccessManagerTokenRequestError) AccessManagerLocalValidationFailed() bool {
+	if e == nil {
+		return false
+	}
+
+	return e.LocalValidationFailed
+}
+
+// AccessManagerHTTPRequestSent reports whether the token request was sent upstream.
+func (e *AccessManagerTokenRequestError) AccessManagerHTTPRequestSent() bool {
+	if e == nil {
+		return false
+	}
+
+	return e.HTTPRequestSent
+}
+
+// AccessManagerValidationReason returns the local validation failure reason, when present.
+func (e *AccessManagerTokenRequestError) AccessManagerValidationReason() string {
+	if e == nil {
+		return ""
+	}
+
+	return e.ValidationReason
 }
 
 // GetTokenFromAccessManager retrieves an authentication token from the plugin auth service
@@ -302,6 +458,30 @@ func GetTokenFromAccessManager(ctx context.Context, accessMgr AccessManager, htt
 	}
 }
 
+// ValidateAccessManagerAddress validates the Access Manager base address using
+// the same local outbound-request rules that protect token fetches. The
+// returned error is diagnostic-safe: it carries scheme/host/path and validation
+// reason, but never credentials, tokens, request bodies, response bodies, query
+// strings, or Authorization data.
+//
+// Strict mode (the default): plain http:// is accepted only for loopback
+// addresses (127.0.0.0/8, ::1, localhost). Use
+// [ValidateAccessManagerAddressWithInsecure] to opt into accepting plain
+// http:// for any host (e.g. in-cluster Kubernetes service DNS).
+func ValidateAccessManagerAddress(address string) error {
+	return ValidateAccessManagerAddressWithInsecure(address, false)
+}
+
+// ValidateAccessManagerAddressWithInsecure mirrors
+// [ValidateAccessManagerAddress] but lets the caller opt into plain http://
+// URLs even for non-loopback hosts. Production deployments must pass
+// allowInsecureHTTP=false. The escape hatch exists for in-cluster service
+// DNS where the transport is already protected by the service mesh.
+func ValidateAccessManagerAddressWithInsecure(address string, allowInsecureHTTP bool) error {
+	_, err := validatedAccessManagerEndpointURL(address, allowInsecureHTTP)
+	return err
+}
+
 func boundedAccessManagerTokenContext(ctx context.Context) (context.Context, context.CancelFunc) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -318,26 +498,36 @@ func boundedAccessManagerTokenContext(ctx context.Context) (context.Context, con
 
 func validateAccessManagerTokenRequest(accessMgr AccessManager, httpClient *http.Client) error {
 	if !accessMgr.Enabled {
-		return errors.New("plugin authentication is not enabled")
+		return newAccessManagerTokenRequestErrorFromURL(nil, false, true, ValidationReasonAuthDisabled, 0,
+			errors.New("plugin authentication is not enabled"))
 	}
 
 	if strings.TrimSpace(accessMgr.Address) == "" {
-		return errors.New("plugin auth address is required when plugin auth is enabled")
+		return newAccessManagerTokenRequestErrorFromURL(nil, false, true, ValidationReasonMissingAddress, 0,
+			errors.New("plugin auth address is required when plugin auth is enabled"))
 	}
 
 	if strings.TrimSpace(accessMgr.ClientID) == "" {
-		return errors.New("plugin auth client id is required when plugin auth is enabled")
+		return newAccessManagerTokenRequestErrorFromURL(nil, false, true, ValidationReasonMissingClientID, 0,
+			errors.New("plugin auth client id is required when plugin auth is enabled"))
 	}
 
 	if strings.TrimSpace(accessMgr.ClientSecret) == "" {
-		return errors.New("plugin auth client secret is required when plugin auth is enabled")
+		return newAccessManagerTokenRequestErrorFromURL(nil, false, true, ValidationReasonMissingClientSecret, 0,
+			errors.New("plugin auth client secret is required when plugin auth is enabled"))
 	}
 
 	if httpClient == nil {
-		return errors.New("HTTP client cannot be nil")
+		endpoint, endpointErr := accessManagerEndpointURLWithoutValidation(accessMgr.Address)
+		if endpointErr != nil {
+			endpoint = nil
+		}
+
+		return newAccessManagerTokenRequestErrorFromURL(endpoint, false, true, ValidationReasonNilHTTPClient, 0,
+			errors.New("HTTP client cannot be nil"))
 	}
 
-	return nil
+	return ValidateAccessManagerAddressWithInsecure(accessMgr.Address, accessMgr.AllowInsecureHTTP)
 }
 
 func requestAccessManagerToken(ctx context.Context, accessMgr AccessManager, httpClient *http.Client) (TokenResponse, error) {
@@ -354,7 +544,7 @@ func requestAccessManagerToken(ctx context.Context, accessMgr AccessManager, htt
 		return TokenResponse{}, fmt.Errorf("failed to marshal auth payload: %w", err)
 	}
 
-	req, err := newAccessManagerTokenRequest(ctx, accessMgr.Address, payloadBytes)
+	req, err := newAccessManagerTokenRequest(ctx, accessMgr.Address, payloadBytes, accessMgr.AllowInsecureHTTP)
 	if err != nil {
 		return TokenResponse{}, err
 	}
@@ -362,21 +552,22 @@ func requestAccessManagerToken(ctx context.Context, accessMgr AccessManager, htt
 	// Make the request
 	resp, err := httpClient.Do(req) // #nosec G704 -- request URL validated via security.ValidateOutboundRequest
 	if err != nil {
-		return TokenResponse{}, fmt.Errorf("failed to connect to plugin auth service: %w", err)
+		return TokenResponse{}, newAccessManagerTokenRequestError(req, true, false, "", 0,
+			fmt.Errorf("failed to connect to plugin auth service: %w", err))
 	}
 	defer resp.Body.Close()
 
 	tokenResp, err := readAccessManagerTokenResponse(resp)
 	if err != nil {
-		return TokenResponse{}, err
+		return TokenResponse{}, newAccessManagerTokenRequestError(req, true, false, "", resp.StatusCode, err)
 	}
 
 	return tokenResp, nil
 }
 
-func newAccessManagerTokenRequest(ctx context.Context, address string, payloadBytes []byte) (*http.Request, error) {
+func newAccessManagerTokenRequest(ctx context.Context, address string, payloadBytes []byte, allowInsecureHTTP bool) (*http.Request, error) {
 	// Create a request to the plugin auth service with the payload
-	tokenURL, err := accessManagerEndpoint(address)
+	tokenURL, err := accessManagerEndpoint(address, allowInsecureHTTP)
 	if err != nil {
 		return nil, err
 	}
@@ -395,36 +586,101 @@ func newAccessManagerTokenRequest(ctx context.Context, address string, payloadBy
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
 
-	if err := validateAccessManagerOutboundRequest(req); err != nil {
-		return nil, fmt.Errorf("invalid plugin auth request URL: %w", err)
+	if reason, err := validateAccessManagerOutboundRequest(req, allowInsecureHTTP); err != nil {
+		return nil, newAccessManagerTokenRequestError(req, false, true, reason, 0,
+			fmt.Errorf("invalid plugin auth request URL: %w", err))
 	}
 
 	return req, nil
 }
 
-func validateAccessManagerOutboundRequest(req *http.Request) error {
-	if req == nil {
-		return errors.New("http request cannot be nil")
+// validateAccessManagerOutboundRequest runs the SDK-wide outbound URL
+// guard against an Access Manager request. When allowInsecureHTTP is true,
+// plain http:// is permitted even for non-loopback hosts — used for the
+// in-cluster Kubernetes Service pattern. Strict mode (the default) still
+// rejects everything that fails security.ValidateOutboundRequest.
+func validateAccessManagerOutboundRequest(req *http.Request, allowInsecureHTTP bool) (string, error) {
+	if allowInsecureHTTP && req != nil && req.URL != nil && strings.EqualFold(req.URL.Scheme, "http") {
+		// Bypass the security guard's HTTPS enforcement, but still reject
+		// userinfo and missing-host shapes — those are independent of the
+		// transport-security check.
+		if req.URL.User != nil {
+			return ValidationReasonUserinfoNotAllowed, errors.New("URL must not include user information")
+		}
+		if req.URL.Hostname() == "" {
+			return ValidationReasonMissingHost, errors.New("URL must include host")
+		}
+
+		return "", nil
 	}
 
-	if req.URL == nil {
-		return errors.New("http request URL cannot be nil")
+	if err := security.ValidateOutboundRequest(req); err != nil {
+		return classifyAccessManagerValidationReason(req, err), err
 	}
 
-	if req.URL.Hostname() == "" {
-		return errors.New("http request URL must include host")
+	return "", nil
+}
+
+func classifyAccessManagerValidationReason(req *http.Request, err error) string {
+	if err == nil {
+		return ""
+	}
+
+	if req == nil || req.URL == nil {
+		return ValidationReasonInvalidRequest
 	}
 
 	if req.URL.User != nil {
-		return errors.New("URL must not include user information")
+		return ValidationReasonUserinfoNotAllowed
+	}
+
+	if req.URL.Hostname() == "" {
+		return ValidationReasonMissingHost
 	}
 
 	scheme := strings.ToLower(req.URL.Scheme)
-	if scheme != "http" && scheme != "https" {
-		return fmt.Errorf("unsupported URL scheme: %s", req.URL.Scheme)
+	if scheme == "http" {
+		return ValidationReasonInsecureScheme
+	}
+	if scheme == "" {
+		return ValidationReasonMissingScheme
+	}
+	// At this point scheme is non-empty and not "http". The only valid
+	// non-http alternative is "https"; anything else is an invalid scheme.
+	if scheme != "https" {
+		return ValidationReasonInvalidScheme
 	}
 
-	return nil
+	return ValidationReasonValidationFailed
+}
+
+func newAccessManagerTokenRequestError(req *http.Request, sent, localValidation bool, validationReason string, statusCode int, err error) error {
+	var endpoint *url.URL
+	if req != nil {
+		endpoint = req.URL
+	}
+
+	return newAccessManagerTokenRequestErrorFromURL(endpoint, sent, localValidation, validationReason, statusCode, err)
+}
+
+func newAccessManagerTokenRequestErrorFromURL(endpoint *url.URL, sent, localValidation bool, validationReason string, statusCode int, err error) error {
+	wrapped := &AccessManagerTokenRequestError{
+		Operation:             accessManagerTokenRequestOperation,
+		Phase:                 accessManagerTokenFetchPhase,
+		LocalValidationFailed: localValidation,
+		HTTPRequestSent:       sent,
+		ValidationReason:      validationReason,
+		StatusCodeValue:       statusCode,
+		Err:                   err,
+	}
+
+	if endpoint != nil {
+		wrapped.EndpointScheme = strings.ToLower(endpoint.Scheme)
+		wrapped.EndpointHost = endpoint.Host
+		wrapped.EndpointPath = endpoint.EscapedPath()
+	}
+
+	return wrapped
 }
 
 func readAccessManagerTokenResponse(resp *http.Response) (TokenResponse, error) {
@@ -471,25 +727,57 @@ func InvalidateAccessManagerToken(accessMgr AccessManager) {
 	accessManagerTokenCache.Delete(cacheKey)
 }
 
-func accessManagerEndpoint(address string) (string, error) {
+func accessManagerEndpoint(address string, allowInsecureHTTP bool) (string, error) {
+	endpoint, err := validatedAccessManagerEndpointURL(address, allowInsecureHTTP)
+	if err != nil {
+		return "", err
+	}
+
+	return endpoint.String(), nil
+}
+
+func validatedAccessManagerEndpointURL(address string, allowInsecureHTTP bool) (*url.URL, error) {
+	endpoint, err := accessManagerEndpointURLWithoutValidation(address)
+	if err != nil {
+		return nil, newAccessManagerTokenRequestErrorFromURL(nil, false, true, ValidationReasonMalformedEndpoint, 0,
+			errors.New("invalid plugin auth address"))
+	}
+
+	if endpoint.Scheme == "" {
+		return nil, newAccessManagerTokenRequestErrorFromURL(endpoint, false, true, ValidationReasonMissingScheme, 0,
+			errors.New("plugin auth address must include scheme"))
+	}
+
+	if endpoint.Host == "" {
+		return nil, newAccessManagerTokenRequestErrorFromURL(endpoint, false, true, ValidationReasonMissingHost, 0,
+			errors.New("plugin auth address must include host"))
+	}
+
+	if endpoint.User != nil {
+		return nil, newAccessManagerTokenRequestErrorFromURL(endpoint, false, true, ValidationReasonUserinfoNotAllowed, 0,
+			errors.New("plugin auth address must not include user information"))
+	}
+
+	req := &http.Request{URL: endpoint}
+	if reason, err := validateAccessManagerOutboundRequest(req, allowInsecureHTTP); err != nil {
+		return nil, newAccessManagerTokenRequestErrorFromURL(endpoint, false, true, reason, 0,
+			fmt.Errorf("invalid plugin auth request URL: %w", err))
+	}
+
+	return endpoint, nil
+}
+
+func accessManagerEndpointURLWithoutValidation(address string) (*url.URL, error) {
 	baseURL, err := url.Parse(strings.TrimSpace(address))
 	if err != nil {
-		return "", fmt.Errorf("invalid plugin auth address: %w", err)
-	}
-
-	if baseURL.Scheme == "" || baseURL.Host == "" {
-		return "", errors.New("plugin auth address must include scheme and host")
-	}
-
-	if baseURL.User != nil {
-		return "", errors.New("plugin auth address must not include user information")
+		return nil, err
 	}
 
 	baseURL.Path = strings.TrimRight(baseURL.Path, "/") + accessManagerOAuthLoginPath
 	baseURL.RawQuery = ""
 	baseURL.Fragment = ""
 
-	return baseURL.String(), nil
+	return baseURL, nil
 }
 
 // accessManagerCacheKey derives a stable cache identifier from the access
@@ -501,7 +789,7 @@ func accessManagerEndpoint(address string) (string, error) {
 // cache map's keys (which can survive longer than the value if a single
 // allocation is replayed elsewhere).
 func accessManagerCacheKey(accessMgr AccessManager) (string, error) {
-	endpoint, err := accessManagerEndpoint(accessMgr.Address)
+	endpoint, err := accessManagerEndpoint(accessMgr.Address, accessMgr.AllowInsecureHTTP)
 	if err != nil {
 		return "", err
 	}

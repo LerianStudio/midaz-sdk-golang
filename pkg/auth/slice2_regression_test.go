@@ -17,14 +17,24 @@ import (
 
 func TestGetTokenFromAccessManager_ValidatesEnabledCredentialsAndClient(t *testing.T) {
 	tests := []struct {
-		name      string
-		mgr       AccessManager
-		client    *http.Client
-		wantError string
+		name       string
+		mgr        AccessManager
+		client     *http.Client
+		wantError  string
+		wantReason string
+		wantScheme string
+		wantHost   string
 	}{
-		{name: "missing client id", mgr: AccessManager{Enabled: true, Address: "http://localhost:4000", ClientSecret: "secret"}, client: http.DefaultClient, wantError: "client id is required"},
-		{name: "missing client secret", mgr: AccessManager{Enabled: true, Address: "http://localhost:4000", ClientID: "client"}, client: http.DefaultClient, wantError: "client secret is required"},
-		{name: "nil http client", mgr: AccessManager{Enabled: true, Address: "http://localhost:4000", ClientID: "client", ClientSecret: "secret"}, client: nil, wantError: "HTTP client cannot be nil"},
+		{name: "disabled auth", mgr: AccessManager{Enabled: false}, client: http.DefaultClient, wantError: "plugin authentication is not enabled", wantReason: "auth_disabled"},
+		{name: "missing address", mgr: AccessManager{Enabled: true, ClientID: "client", ClientSecret: "secret"}, client: http.DefaultClient, wantError: "plugin auth address is required", wantReason: "missing_address"},
+		{name: "missing client id", mgr: AccessManager{Enabled: true, Address: "http://localhost:4000", ClientSecret: "secret"}, client: http.DefaultClient, wantError: "client id is required", wantReason: "missing_client_id"},
+		{name: "missing client secret", mgr: AccessManager{Enabled: true, Address: "http://localhost:4000", ClientID: "client"}, client: http.DefaultClient, wantError: "client secret is required", wantReason: "missing_client_secret"},
+		{name: "nil http client", mgr: AccessManager{Enabled: true, Address: "http://localhost:4000", ClientID: "client", ClientSecret: "secret"}, client: nil, wantError: "HTTP client cannot be nil", wantReason: "nil_http_client", wantScheme: "http", wantHost: "localhost:4000"},
+		{name: "malformed endpoint", mgr: AccessManager{Enabled: true, Address: "https://auth.example.com/%zz", ClientID: "client", ClientSecret: "secret"}, client: http.DefaultClient, wantError: "invalid plugin auth address", wantReason: "malformed_endpoint"},
+		{name: "missing scheme", mgr: AccessManager{Enabled: true, Address: "auth.example.com", ClientID: "client", ClientSecret: "secret"}, client: http.DefaultClient, wantError: "must include scheme", wantReason: "missing_scheme"},
+		{name: "missing host", mgr: AccessManager{Enabled: true, Address: "https:///auth", ClientID: "client", ClientSecret: "secret"}, client: http.DefaultClient, wantError: "must include host", wantReason: "missing_host", wantScheme: "https"},
+		{name: "userinfo", mgr: AccessManager{Enabled: true, Address: "https://user:pass@auth.example.com", ClientID: "client", ClientSecret: "secret"}, client: http.DefaultClient, wantError: "must not include user information", wantReason: "userinfo_not_allowed", wantScheme: "https", wantHost: "auth.example.com"},
+		{name: "invalid scheme", mgr: AccessManager{Enabled: true, Address: "ftp://auth.example.com", ClientID: "client", ClientSecret: "secret"}, client: http.DefaultClient, wantError: "unsupported URL scheme", wantReason: "invalid_scheme", wantScheme: "ftp", wantHost: "auth.example.com"},
 	}
 
 	for _, tt := range tests {
@@ -32,6 +42,19 @@ func TestGetTokenFromAccessManager_ValidatesEnabledCredentialsAndClient(t *testi
 			_, err := GetTokenFromAccessManager(context.Background(), tt.mgr, tt.client)
 			require.Error(t, err)
 			require.Contains(t, err.Error(), tt.wantError)
+
+			var tokenErr *AccessManagerTokenRequestError
+			require.ErrorAs(t, err, &tokenErr)
+			require.Equal(t, accessManagerTokenRequestOperation, tokenErr.Operation)
+			require.Equal(t, accessManagerTokenFetchPhase, tokenErr.Phase)
+			require.True(t, tokenErr.LocalValidationFailed)
+			require.False(t, tokenErr.HTTPRequestSent)
+			require.Equal(t, tt.wantReason, tokenErr.ValidationReason)
+			require.Equal(t, tt.wantScheme, tokenErr.EndpointScheme)
+			require.Equal(t, tt.wantHost, tokenErr.EndpointHost)
+			require.NotContains(t, err.Error(), "super-secret-value")
+			require.NotContains(t, err.Error(), "user:pass")
+			require.NotContains(t, err.Error(), "Authorization")
 		})
 	}
 }
@@ -136,13 +159,11 @@ func TestGetTokenFromAccessManager_BoundsLongCallerDeadlineForSingleflightReques
 	require.True(t, gotDeadline.Before(deadline))
 }
 
-func TestGetTokenFromAccessManager_AllowsInternalHTTPAccessManagerWithCallerClient(t *testing.T) {
+func TestGetTokenFromAccessManager_RejectsInternalHTTPAccessManagerBeforeOutbound(t *testing.T) {
 	var called atomic.Bool
-	var seenPath string
 
 	client := &http.Client{Transport: accessManagerRoundTripFunc(func(req *http.Request) (*http.Response, error) {
 		called.Store(true)
-		seenPath = req.URL.Path
 
 		return accessManagerTokenResponse(req), nil
 	})}
@@ -157,8 +178,54 @@ func TestGetTokenFromAccessManager_AllowsInternalHTTPAccessManagerWithCallerClie
 
 	token, err := GetTokenFromAccessManager(context.Background(), mgr, client)
 
+	require.Error(t, err)
+	require.Empty(t, token)
+	require.False(t, called.Load(), "local URL validation must fail before the caller HTTP client is invoked")
+
+	var tokenErr *AccessManagerTokenRequestError
+	require.ErrorAs(t, err, &tokenErr)
+	require.Equal(t, "access_manager.token_request", tokenErr.Operation)
+	require.Equal(t, "token_fetch", tokenErr.Phase)
+	require.Equal(t, "http", tokenErr.EndpointScheme)
+	require.Equal(t, "plugin-access-manager-auth.midaz-plugins.svc.cluster.local:4000", tokenErr.EndpointHost)
+	require.Equal(t, "/v1/login/oauth/access_token", tokenErr.EndpointPath)
+	require.True(t, tokenErr.LocalValidationFailed)
+	require.False(t, tokenErr.HTTPRequestSent)
+	require.Equal(t, "insecure_scheme", tokenErr.ValidationReason)
+	require.Zero(t, tokenErr.StatusCode())
+
+	rendered := err.Error()
+	require.Contains(t, rendered, "endpoint=http://plugin-access-manager-auth.midaz-plugins.svc.cluster.local:4000/v1/login/oauth/access_token")
+	require.Contains(t, rendered, "httpRequestSent=false")
+	require.Contains(t, rendered, "localValidationFailed=true")
+	require.Contains(t, rendered, "validationReason=insecure_scheme")
+	require.NotContains(t, rendered, "internal-secret")
+	require.NotContains(t, rendered, "Bearer")
+}
+
+func TestGetTokenFromAccessManager_AllowsHTTPSAccessManagerWithCallerClient(t *testing.T) {
+	var called atomic.Bool
+	var seenPath string
+
+	client := &http.Client{Transport: accessManagerRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+		called.Store(true)
+		seenPath = req.URL.Path
+
+		return accessManagerTokenResponse(req), nil
+	})}
+
+	mgr := AccessManager{
+		Enabled:      true,
+		Address:      "https://auth.stg.lerian.io",
+		ClientID:     "internal-client",
+		ClientSecret: "internal-secret",
+	}
+	InvalidateAccessManagerToken(mgr)
+
+	token, err := GetTokenFromAccessManager(context.Background(), mgr, client)
+
 	require.NoError(t, err)
-	require.True(t, called.Load(), "caller-provided HTTP client must govern internal access-manager transport policy")
+	require.True(t, called.Load())
 	require.Equal(t, "/v1/login/oauth/access_token", seenPath)
 	require.Equal(t, "token", token)
 }

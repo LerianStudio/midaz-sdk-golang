@@ -207,7 +207,7 @@ func TestFromEnvironment_PluginAuthEnabledStrictParseBool(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Setenv("PLUGIN_AUTH_ENABLED", tc.envValue)
-			t.Setenv("PLUGIN_AUTH_ADDRESS", "http://auth.example.com")
+			t.Setenv("PLUGIN_AUTH_ADDRESS", "https://auth.example.com")
 			t.Setenv("MIDAZ_CLIENT_ID", "id")
 			t.Setenv("MIDAZ_CLIENT_SECRET", "secret")
 
@@ -282,7 +282,7 @@ func TestFromEnvironment_PreservesProgrammaticAccessManagerWhenEnvEmpty(t *testi
 
 	cfg, err := NewConfig(
 		WithAccessManager(auth.AccessManager{
-			Address:      "http://programmatic.example.com",
+			Address:      "https://programmatic.example.com",
 			ClientID:     "programmatic-id",
 			ClientSecret: "programmatic-secret",
 		}),
@@ -293,7 +293,7 @@ func TestFromEnvironment_PreservesProgrammaticAccessManagerWhenEnvEmpty(t *testi
 
 	assert.False(t, cfg.AccessManager.Enabled,
 		"WithAnonymous (last-applied) must clear Enabled")
-	assert.Equal(t, "http://programmatic.example.com", cfg.AccessManager.Address,
+	assert.Equal(t, "https://programmatic.example.com", cfg.AccessManager.Address,
 		"programmatic Address must survive empty PLUGIN_AUTH_ADDRESS")
 	assert.Equal(t, "programmatic-id", cfg.AccessManager.ClientID,
 		"programmatic ClientID must survive empty MIDAZ_CLIENT_ID")
@@ -307,13 +307,13 @@ func TestFromEnvironment_PreservesProgrammaticAccessManagerWhenEnvEmpty(t *testi
 // of "env over code" for FromEnvironment-applied config).
 func TestFromEnvironment_OverwritesProgrammaticAccessManagerOnExplicitEnv(t *testing.T) {
 	t.Setenv("PLUGIN_AUTH_ENABLED", "true")
-	t.Setenv("PLUGIN_AUTH_ADDRESS", "http://env.example.com")
+	t.Setenv("PLUGIN_AUTH_ADDRESS", "https://env.example.com")
 	t.Setenv("MIDAZ_CLIENT_ID", "env-id")
 	t.Setenv("MIDAZ_CLIENT_SECRET", "env-secret")
 
 	cfg, err := NewConfig(
 		WithAccessManager(auth.AccessManager{
-			Address:      "http://programmatic.example.com",
+			Address:      "https://programmatic.example.com",
 			ClientID:     "programmatic-id",
 			ClientSecret: "programmatic-secret",
 		}),
@@ -322,7 +322,7 @@ func TestFromEnvironment_OverwritesProgrammaticAccessManagerOnExplicitEnv(t *tes
 	require.NoError(t, err)
 
 	assert.True(t, cfg.AccessManager.Enabled)
-	assert.Equal(t, "http://env.example.com", cfg.AccessManager.Address)
+	assert.Equal(t, "https://env.example.com", cfg.AccessManager.Address)
 	assert.Equal(t, "env-id", cfg.AccessManager.ClientID)
 	assert.Equal(t, "env-secret", cfg.AccessManager.ClientSecret)
 }
