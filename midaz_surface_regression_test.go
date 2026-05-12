@@ -190,9 +190,9 @@ func TestServiceHandles_PersistAcrossPostConstructionMutations(t *testing.T) {
 }
 
 // TestClientNew_AccessManagerWithBadAddress_DoesNotMisclassifyAsConfiguration
-// is the M4 integration check. With Access Manager enabled but pointing to an
-// deterministic failing Access Manager endpoint, the construction failure
-// should be Authentication, not Configuration.
+// is the M4 integration check. With Access Manager enabled but receiving a real
+// upstream HTTP response, construction must preserve the upstream status instead
+// of collapsing the failure into a configuration or synthetic auth error.
 func TestClientNew_AccessManagerWithBadAddress_DoesNotMisclassifyAsConfiguration(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -212,6 +212,12 @@ func TestClientNew_AccessManagerWithBadAddress_DoesNotMisclassifyAsConfiguration
 	_, err = New(WithConfig(cfg))
 	require.Error(t, err)
 
-	assert.True(t, sdkerrors.IsAuthError(err),
-		"Access Manager token-fetch failures must be authentication errors, got %v", err)
+	assert.False(t, sdkerrors.IsConfigurationError(err),
+		"Access Manager upstream HTTP failures must not be configuration errors, got %v", err)
+	assert.False(t, sdkerrors.IsAuthError(err),
+		"Access Manager 5xx failures must not be authentication errors, got %v", err)
+	actual, ok := sdkerrors.ActualHTTPStatus(err)
+	require.True(t, ok)
+	assert.Equal(t, http.StatusInternalServerError, actual)
+	assert.Equal(t, http.StatusInternalServerError, sdkerrors.SuggestedHTTPStatus(err))
 }

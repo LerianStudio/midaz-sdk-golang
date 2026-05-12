@@ -650,6 +650,48 @@ func WithAnonymous() Option {
 	}
 }
 
+// WithAllowInsecureAccessManagerHTTP opts the client into accepting plain
+// http:// Access Manager URLs even for non-loopback hosts. The default is
+// strict (HTTPS or loopback only); flipping this true bypasses transport
+// security on the credential-bearing token-exchange request.
+//
+// Two-layer surface: this is the user-facing wrapper. It delegates to
+// [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config.WithAllowInsecureAccessManagerHTTP],
+// which most callers should not invoke directly.
+//
+// SECURITY: this disables a deliberate construction-time security gate.
+// Production deployments must leave this off (the default). The flag
+// exists for the canonical in-cluster Kubernetes pattern where the Access
+// Manager is reached via a Service DNS name such as
+// http://plugin-access-manager-auth.midaz-plugins.svc.cluster.local:4000,
+// where the transport is already protected by a service mesh or trusted
+// network segment.
+//
+// When this option is set to true, midaz.New emits a Warn-level log line
+// at construction so the override is auditable in deployment logs:
+//
+//	"Access Manager configured with insecure HTTP. Only valid for trusted
+//	 in-cluster networks. Production deployments must use HTTPS."
+//
+// Equivalent env var: MIDAZ_ACCESS_MANAGER_ALLOW_INSECURE_HTTP=true (consumed
+// via [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config.FromEnvironment]).
+//
+// Parameters:
+//   - allow: Whether to permit plain http:// for non-loopback Access
+//     Manager URLs.
+//
+// Returns:
+//   - Option: A function that wires the flag onto the underlying Config.
+//
+// See also:
+//   - [WithAccessManager] — the auth source this flag relaxes scheme rules for.
+func WithAllowInsecureAccessManagerHTTP(allow bool) Option {
+	return func(c *Client) error {
+		c.markConfigMutated()
+		return config.WithAllowInsecureAccessManagerHTTP(allow)(c.config)
+	}
+}
+
 // WithLogger sets the canonical *slog.Logger for the client. Once configured,
 // the SDK emits structured log lines for retry attempts, slow calls, and
 // internal warnings through this logger.

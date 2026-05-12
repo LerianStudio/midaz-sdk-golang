@@ -1,9 +1,14 @@
 package midaz
 
 import (
+	"bytes"
 	stderrors "errors"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/auth"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
 	"github.com/stretchr/testify/assert"
@@ -165,6 +170,131 @@ func TestNewWithAnonymousSucceeds(t *testing.T) {
 		"WithAnonymous must flip the Anonymous flag on the underlying Config")
 	require.False(t, c.GetConfig().AccessManager.Enabled,
 		"Anonymous mode must leave AccessManager disabled")
+}
+
+func TestNewClassifiesLocalAccessManagerBootstrapFailureAsConfiguration(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.AccessManager = auth.AccessManager{
+		Enabled:      true,
+		Address:      "https://auth.example.com",
+		ClientID:     "client-id",
+		ClientSecret: "super-secret-value",
+	}
+	cfg.HTTPClient = nil
+
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logs, nil))
+
+	_, err := New(WithConfig(cfg), WithLogger(logger))
+	require.Error(t, err)
+	require.True(t, sdkerrors.IsConfigurationError(err), "local bootstrap validation failures are configuration errors")
+	require.False(t, sdkerrors.IsAuthenticationError(err), "local bootstrap validation failures must not be authentication errors")
+
+	rendered := err.Error()
+	assert.Contains(t, rendered, "operation=access_manager.token_request")
+	assert.Contains(t, rendered, "phase=token_fetch")
+	assert.Contains(t, rendered, "httpRequestSent=false")
+	assert.Contains(t, rendered, "localValidationFailed=true")
+	assert.Contains(t, rendered, "validationReason=nil_http_client")
+	assert.NotContains(t, rendered, "super-secret-value")
+
+	logLine := logs.String()
+	assert.Contains(t, logLine, `"sdk.name":"midaz-go-sdk"`)
+	assert.Contains(t, logLine, `"sdk.component":"bootstrap"`)
+	assert.Contains(t, logLine, `"operation":"midaz.New"`)
+	assert.Contains(t, logLine, `"failure.phase":"token_fetch"`)
+	assert.Contains(t, logLine, `"auth.scheme":"https"`)
+	assert.Contains(t, logLine, `"auth.host":"auth.example.com"`)
+	assert.Contains(t, logLine, `"auth.path":"/v1/login/oauth/access_token"`)
+	assert.Contains(t, logLine, `"httpRequestSent":false`)
+	assert.Contains(t, logLine, `"localValidationFailed":true`)
+	assert.Contains(t, logLine, `"validationReason":"nil_http_client"`)
+	assert.NotContains(t, logLine, "super-secret-value")
+	assert.NotContains(t, logLine, "Authorization")
+}
+
+func TestNewPreservesAccessManagerBootstrapUpstreamHTTPStatus(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		code          int
+		check         func(error) bool
+		mustNotMatch  []func(error) bool
+		wantCategory  sdkerrors.ErrorCategory
+		wantErrorCode sdkerrors.ErrorCode
+	}{
+		{
+			name:          "401 authentication",
+			code:          http.StatusUnauthorized,
+			check:         sdkerrors.IsAuthenticationError,
+			mustNotMatch:  []func(error) bool{sdkerrors.IsAuthorizationError},
+			wantCategory:  sdkerrors.CategoryAuthentication,
+			wantErrorCode: sdkerrors.CodeAuthentication,
+		},
+		{
+			name:          "403 authorization",
+			code:          http.StatusForbidden,
+			check:         sdkerrors.IsAuthorizationError,
+			mustNotMatch:  []func(error) bool{sdkerrors.IsAuthenticationError},
+			wantCategory:  sdkerrors.CategoryAuthorization,
+			wantErrorCode: sdkerrors.CodePermission,
+		},
+		{
+			name:          "429 rate limit",
+			code:          http.StatusTooManyRequests,
+			check:         sdkerrors.IsRateLimitError,
+			mustNotMatch:  []func(error) bool{sdkerrors.IsAuthenticationError, sdkerrors.IsAuthorizationError, sdkerrors.IsAuthError},
+			wantCategory:  sdkerrors.CategoryLimitExceeded,
+			wantErrorCode: sdkerrors.CodeRateLimit,
+		},
+		{
+			name:          "500 internal",
+			code:          http.StatusInternalServerError,
+			check:         sdkerrors.IsInternalError,
+			mustNotMatch:  []func(error) bool{sdkerrors.IsAuthenticationError, sdkerrors.IsAuthorizationError, sdkerrors.IsAuthError},
+			wantCategory:  sdkerrors.CategoryInternal,
+			wantErrorCode: sdkerrors.CodeInternal,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tc.code)
+				_, _ = w.Write([]byte(`{"error":"upstream failed","access_token":"secret-token-value"}`))
+			}))
+			defer server.Close()
+
+			_, err := New(
+				WithAccessManager(AccessManager{
+					Address:      server.URL,
+					ClientID:     "client-id-" + tc.name,
+					ClientSecret: "super-secret-value",
+				}),
+				WithHTTPClient(server.Client()),
+			)
+
+			require.Error(t, err)
+			require.True(t, tc.check(err), "unexpected category for %d: %v", tc.code, err)
+			for _, mustNotMatch := range tc.mustNotMatch {
+				assert.False(t, mustNotMatch(err), "unexpected auth-like classification for %d: %v", tc.code, err)
+			}
+
+			actual, ok := sdkerrors.ActualHTTPStatus(err)
+			require.True(t, ok)
+			assert.Equal(t, tc.code, actual)
+			assert.Equal(t, tc.code, sdkerrors.SuggestedHTTPStatus(err))
+			assert.True(t, sdkerrors.HTTPRequestSent(err))
+			assert.True(t, sdkerrors.HTTPResponseReceived(err))
+
+			var sdkErr *sdkerrors.Error
+			require.ErrorAs(t, err, &sdkErr)
+			assert.Equal(t, tc.wantCategory, sdkErr.Category)
+			assert.Equal(t, tc.wantErrorCode, sdkErr.Code)
+			assert.Equal(t, tc.code, sdkErr.GetStatusCode())
+			assert.Equal(t, sdkerrors.ErrorSourceHTTPResponse, sdkErr.GetSource())
+			assert.Equal(t, sdkerrors.StatusCodeSourceUpstream, sdkErr.GetStatusCodeSource())
+			assert.NotContains(t, err.Error(), "super-secret-value")
+			assert.NotContains(t, err.Error(), "secret-token-value")
+		})
+	}
 }
 
 // TestWithAccessManagerAutoEnables verifies the v3 ergonomic decision: callers

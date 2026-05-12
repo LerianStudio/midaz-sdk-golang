@@ -187,15 +187,30 @@ type Option func(*Client) error
 // win over both defaults.
 //
 // Returns:
+//
 //   - *Client: A fully-initialized client. All service fields (c.Accounts,
 //     c.Transactions, etc.) are non-nil and ready for API calls.
+//
 //   - error: A *errors.Error with a category appropriate to the failure
-//     class. Configuration mistakes (missing fields, invalid URLs) carry
-//     Category=CategoryConfiguration. A transient Access Manager token-fetch
-//     failure during construction carries Category=CategoryAuthentication
-//     so callers using [pkg/errors.IsConfigurationError] to gate retries
-//     don't mis-classify a temporary OAuth blip as a permanent setup
-//     mistake; use [pkg/errors.IsAuthError] to detect this case.
+//     class. The classification space is:
+//
+//   - Local validation failures (missing fields, invalid URLs, conflicting
+//     options) → Category=CategoryConfiguration. Detect with
+//     [pkg/errors.IsConfigurationError].
+//
+//   - Upstream Access Manager HTTP responses → preserve the actual status
+//     code: 401 → [pkg/errors.IsAuthenticationError],
+//     403 → [pkg/errors.IsAuthorizationError],
+//     429 → [pkg/errors.IsRateLimitError],
+//     5xx → [pkg/errors.IsInternalError].
+//
+//   - Pre-response network failures (DNS, conn-refused, TLS handshake) →
+//     Category=CategoryNetwork. Detect with [pkg/errors.IsNetworkError].
+//
+// [pkg/errors.IsAuthError] only matches the 401/403 upstream branches; it
+// is NOT a general bootstrap-failure predicate. Use
+// [pkg/errors.IsBootstrapError] (introduced in this release) to detect
+// the union of all bootstrap-failure categories in one call.
 //
 // See also:
 //   - [WithAccessManager], [WithAnonymous] — required auth source.
@@ -260,21 +275,24 @@ func New(options ...Option) (*Client, error) {
 	// otherwise the SDK is silent (discard handler).
 	c.logger = resolveLogger(c.logger, c.loggerSet, c.config.Debug)
 
+	// Audit-trail the insecure-HTTP escape hatch at construction time so
+	// the override is visible in deployment logs. The flag is a deliberate
+	// security gate disable; emitting a Warn line makes it impossible to
+	// flip it on without it showing up in centralised logging.
+	if c.config.AccessManager.Enabled && c.config.AccessManager.AllowInsecureHTTP {
+		c.logger.Warn(
+			"Access Manager configured with insecure HTTP. Only valid for trusted in-cluster networks. Production deployments must use HTTPS.",
+			slog.String("sdk.name", "midaz-go-sdk"),
+			slog.String("sdk.component", "bootstrap"),
+			slog.String("operation", operation),
+		)
+	}
+
 	// Always initialize the Entity surface. The "naked SDK" footgun
 	// (c.Entity == nil after New) is gone in v3.
 	if err := c.setupEntity(); err != nil {
-		// Classify by error shape: a transient Access Manager token-fetch
-		// failure is an Authentication error (callers should retry, not
-		// re-validate config); everything else is Configuration.
-		if isAccessManagerTokenFetchError(err) {
-			return nil, sdkerrors.NewAuthenticationError(
-				operation,
-				"failed to obtain Access Manager token during client construction",
-				err,
-			)
-		}
-
-		return nil, sdkerrors.NewConfigurationError(operation, "failed to initialize entity API", err)
+		c.logBootstrapSetupFailure(err)
+		return nil, classifyBootstrapSetupError(operation, err)
 	}
 
 	return c, nil
@@ -309,6 +327,90 @@ func resolveLogger(explicit *slog.Logger, explicitSet bool, debugFromConfig bool
 // Access Manager token fetch performed during entity construction.
 func isAccessManagerTokenFetchError(err error) bool {
 	return auth.IsAccessManagerTokenFetchError(err)
+}
+
+func isLocalAccessManagerBootstrapFailure(err error) bool {
+	var tokenErr *auth.AccessManagerTokenRequestError
+	if !errors.As(err, &tokenErr) {
+		return false
+	}
+
+	return tokenErr.AccessManagerLocalValidationFailed() || !tokenErr.AccessManagerHTTPRequestSent()
+}
+
+func classifyBootstrapSetupError(operation string, err error) *sdkerrors.Error {
+	// Classify by error shape: local Access Manager request validation is
+	// configuration, while an upstream Access Manager HTTP response keeps its
+	// original HTTP status/source diagnostics. This prevents bootstrap-time
+	// 429/5xx responses from being collapsed into synthetic SDK 401s.
+	if isLocalAccessManagerBootstrapFailure(err) {
+		return sdkerrors.NewConfigurationError(operation, fmt.Sprintf("invalid Access Manager bootstrap request: %v", err), err)
+	}
+
+	if upstreamErr := newAccessManagerUpstreamBootstrapError(operation, err); upstreamErr != nil {
+		return upstreamErr
+	}
+
+	if isAccessManagerTokenFetchError(err) {
+		return sdkerrors.NewNetworkError(
+			operation,
+			fmt.Errorf("failed to obtain Access Manager token during client construction: %w", err),
+		)
+	}
+
+	return sdkerrors.NewConfigurationError(operation, "failed to initialize entity API", err)
+}
+
+func newAccessManagerUpstreamBootstrapError(operation string, err error) *sdkerrors.Error {
+	var tokenErr *auth.AccessManagerTokenRequestError
+	if !errors.As(err, &tokenErr) {
+		return nil
+	}
+
+	if !tokenErr.AccessManagerHTTPRequestSent() || tokenErr.StatusCode() <= 0 {
+		return nil
+	}
+
+	return sdkerrors.NewUpstreamHTTPError(
+		operation,
+		"Access Manager token request failed during client construction",
+		tokenErr.StatusCode(),
+		err,
+	)
+}
+
+func (c *Client) logBootstrapSetupFailure(err error) {
+	logger := c.Logger()
+
+	attrs := []any{
+		"sdk.name", "midaz-go-sdk",
+		"sdk.component", "bootstrap",
+		"operation", "midaz.New",
+	}
+
+	var tokenErr *auth.AccessManagerTokenRequestError
+	if errors.As(err, &tokenErr) {
+		attrs = append(attrs,
+			"failure.phase", tokenErr.AccessManagerPhase(),
+			"auth.scheme", tokenErr.AccessManagerEndpointScheme(),
+			"auth.host", tokenErr.AccessManagerEndpointHost(),
+			"auth.path", tokenErr.AccessManagerEndpointPath(),
+			"httpRequestSent", tokenErr.AccessManagerHTTPRequestSent(),
+			"localValidationFailed", tokenErr.AccessManagerLocalValidationFailed(),
+		)
+
+		if reason := tokenErr.AccessManagerValidationReason(); reason != "" {
+			attrs = append(attrs, "validationReason", reason)
+		}
+	} else {
+		attrs = append(attrs,
+			"failure.phase", "entity_setup",
+			"httpRequestSent", false,
+			"localValidationFailed", false,
+		)
+	}
+
+	logger.Error("midaz bootstrap setupEntity failed", attrs...)
 }
 
 // setupEntity creates the Entity API interface.
