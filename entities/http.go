@@ -13,7 +13,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -51,6 +50,21 @@ const (
 	maxHTTPResponseBodyBytes = int64(10 << 20)
 	maxHTTPRequestBodyBytes  = int64(10 << 20)
 	quotedStringMinLength    = 2
+
+	// maxExposed4xxBodyBytes is the upper bound on 4xx response bodies
+	// attached to SDK errors when WithErrorBodyExposure is enabled. 4xx
+	// payloads are typically caller-facing validation envelopes that
+	// callers need to inspect to fix their request; the generous cap
+	// matches the previous unconditional limit.
+	maxExposed4xxBodyBytes = 64 * 1024
+
+	// maxExposed5xxBodyBytes is a tighter cap on 5xx response bodies.
+	// 5xx payloads historically leak server-side diagnostics (stack
+	// traces, SQL fragments, connection strings) that the redactor
+	// catches only by string-pattern match. Capping the exposure window
+	// at 4 KiB is defense in depth: even a missed redaction surfaces a
+	// bounded slice of the diagnostic.
+	maxExposed5xxBodyBytes = 4 * 1024
 )
 
 const idempotencyHeader = "X-Idempotency"
@@ -1082,6 +1096,14 @@ func (c *HTTPClient) setupRequestHeaders(req *http.Request, headers map[string]s
 func (c *HTTPClient) executeRequestWithRetry(ctx context.Context, req *http.Request, method, requestURL string) (*http.Response, []byte, int, error) {
 	snapshot := c.cloneConfiguration()
 
+	// *http.Request.Header.Get is case-insensitive via header
+	// canonicalization (textproto.CanonicalMIMEHeaderKey), so
+	// "x-idempotency", "X-IDEMPOTENCY", and "X-Idempotency" all resolve
+	// to the same slot. This is the IETF-intended behaviour for HTTP
+	// headers and is distinct from the map[string]string paths elsewhere
+	// in this file (e.g. ensureIdempotencyHeader → headerValueCaseInsensitive)
+	// which operate on a raw map without canonicalization and therefore
+	// MUST use the explicit case-insensitive helper.
 	hasIdempotencyKey := strings.TrimSpace(req.Header.Get(idempotencyHeader)) != ""
 
 	effectiveRetryOptions := cloneRetryOptions(snapshot.retryOptions)
@@ -1148,7 +1170,11 @@ func withRetryAttemptDiagnostics(ctx context.Context, snapshot httpClientConfigS
 			slog.String("cause", causeMsg),
 		)
 
-		if errors.As(cause, &statusErr) && statusErr.StatusCode() > 0 {
+		// Guard against typed-nil status implementations: errors.As can
+		// hand us a wrapper whose interface value is (T, nil), which
+		// passes `!= nil` but panics on StatusCode() call. Mirrors the
+		// matchesRetryableHTTPStatus check in pkg/retry/retry.go.
+		if errors.As(cause, &statusErr) && !isNilInterfaceValue(statusErr) && statusErr.StatusCode() > 0 {
 			attrs = append(attrs, slog.Int("http.status_code", statusErr.StatusCode()))
 		}
 		if requestID := requestIDFromError(cause); requestID != "" {
@@ -1637,7 +1663,7 @@ func (c *HTTPClient) handleErrorResponse(_ context.Context, statusCode int, resp
 
 	apiErr := c.parseErrorResponse(statusCode, responseBody, requestID)
 	if c.exposeErrorBody.Load() {
-		apiErr = sdkerrors.AttachUpstreamBody(apiErr, responseBody, responseBodyTruncated)
+		apiErr = sdkerrors.AttachUpstreamBodyWithLimit(apiErr, responseBody, responseBodyTruncated, exposedBodyByteCap(statusCode))
 	}
 	attachHTTPResponseMetadata(apiErr, method, requestURL, requestID, statusCode)
 
@@ -1654,6 +1680,28 @@ func (c *HTTPClient) handleErrorResponse(_ context.Context, statusCode int, resp
 	}
 
 	return apiErr
+}
+
+// httpStatusClassDivisor folds an HTTP status code into its hundreds
+// class (e.g. 503/100 == 5). Named so the constant doesn't show up as
+// a magic number to mnd, and the intent is clear at call sites.
+const (
+	httpStatusClassDivisor = 100
+	httpServerErrorClass   = 5
+)
+
+// exposedBodyByteCap returns the byte cap to apply to an attached
+// upstream body based on the HTTP status code class. 5xx bodies get a
+// tighter cap because they more often carry server-side diagnostic
+// content (stack traces, SQL strings) the regex redactor can miss.
+// 4xx bodies keep the generous cap so caller-facing validation
+// envelopes remain inspectable.
+func exposedBodyByteCap(statusCode int) int {
+	if statusCode/httpStatusClassDivisor == httpServerErrorClass {
+		return maxExposed5xxBodyBytes
+	}
+
+	return maxExposed4xxBodyBytes
 }
 
 // debugLogRequestError logs request failures in debug mode
@@ -1955,18 +2003,12 @@ func safeLogError(err error) string {
 	return sanitizeLogInput(sdkerrors.RedactSensitiveString(err.Error()))
 }
 
+// isNilInterfaceValue forwards to [sdkerrors.IsNilInterfaceValue] so the
+// typed-nil semantics live in exactly one place. The local thin
+// forwarder is kept (rather than inlining the call) so existing call
+// sites read uniformly across the package.
 func isNilInterfaceValue(value any) bool {
-	if value == nil {
-		return true
-	}
-
-	reflected := reflect.ValueOf(value)
-	switch reflected.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return reflected.IsNil()
-	default:
-		return false
-	}
+	return sdkerrors.IsNilInterfaceValue(value)
 }
 
 func errorCategory(err error) string {

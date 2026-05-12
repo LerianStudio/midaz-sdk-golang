@@ -39,10 +39,14 @@ const (
 // pattern (`[^\s&;,]+`) silently passed over `password="hunter2"` in
 // observability logs while pkg/errors caught it.
 //
-// The trailing `\b(?:\.[\w.-]+)?` allows compound suffixes like
-// `metadata.user.email=…` to be redacted as a single value.
+// The trailing `(?:\.[\w.-]+)?` on the keyword group allows compound
+// suffixes like `metadata.user.email=…` to be redacted as a single
+// match. The PII identifier list (document, legal_document, external_id,
+// banking_details_*, related_party_document, regulatory_fields_*) is
+// kept in lockstep with pkg/errors.sensitiveKeyValuePattern so the same
+// payload renders identically through both redaction layers.
 var (
-	sensitiveAssignmentPattern = regexp.MustCompile(`(?i)(["']?)(access[_.-]?token|api[_.-]?key|apikey|auth[_.-]?token|client[_.-]?secret|id[_.-]?token|password|secret|token|refresh[_.-]?token|x[_.-]?api[_.-]?key|x-idempotency|idempotency-key)(["']?)(\s*[=:]\s*)("[^"]*"|'[^']*'|[^\s&;,}]+)`)
+	sensitiveAssignmentPattern = regexp.MustCompile(`(?i)(["']?)(access[_.-]?token|api[_.-]?key|apikey|auth[_.-]?token|client[_.-]?secret|id[_.-]?token|password|secret|token|refresh[_.-]?token|x[_.-]?api[_.-]?key|x-idempotency|idempotency-key|document|legal_document|external_id|banking_details_account|banking_details_iban|metadata|related_party_document|regulatory_fields_participant_document)(?:\.[\w.-]+)?(["']?)(\s*[=:]\s*)("[^"]*"|'[^']*'|[^\s&;,}]+)`)
 	authTokenPattern           = regexp.MustCompile(`(?i)((?:bearer|basic)\s+)[A-Za-z0-9._\-+/=]+`)
 )
 
@@ -496,6 +500,13 @@ func isSensitiveLogFieldKey(key string) bool {
 	return sdkerrors.IsSensitiveFieldName(strings.TrimSpace(key))
 }
 
+// authSchemePrefixScanLimit caps the byte-level case-insensitive scan
+// inside [mayContainSensitiveToken] when neither '=' nor ':' is present.
+// Bearer/Basic prefixes that appear after this offset are still caught
+// by the regex pass on whatever slow path eventually invokes the
+// authTokenPattern; the preflight is a fast reject, not a guarantee.
+const authSchemePrefixScanLimit = 64
+
 // mayContainSensitiveToken returns true when the string is plausibly carrying
 // a credential payload. Both regex patterns require either an '=' / ':'
 // assignment separator or a literal auth scheme prefix; if none of those
@@ -511,11 +522,53 @@ func mayContainSensitiveToken(value string) bool {
 		return true
 	}
 
-	// Case-insensitive search for auth schemes without allocating a lower-cased
-	// copy of the whole string. EqualFold over a sliding window would be
-	// slower than ToLower for typical sizes, so we accept one allocation
-	// here — sanitizeSensitiveString is itself a slow path triggered only
-	// when one of the byte markers is missing.
-	lowerValue := strings.ToLower(value)
-	return strings.Contains(lowerValue, "bearer") || strings.Contains(lowerValue, "basic")
+	// Byte-level case-insensitive scan for "bearer " / "basic " prefixes —
+	// bounded to the first authSchemePrefixScanLimit bytes. Allocating a
+	// full lower-cased copy of a multi-kilobyte log line just to find a
+	// 6-byte literal showed up as wasted work under pprof on retry-heavy
+	// workloads. Tokens buried deeper than the scan window still fall
+	// through to the regex pass via the '=' / ':' fast-paths above
+	// (auth-scheme strings without either delimiter are rare).
+	end := len(value)
+	if end > authSchemePrefixScanLimit {
+		end = authSchemePrefixScanLimit
+	}
+
+	return containsFoldByte(value[:end], "bearer") || containsFoldByte(value[:end], "basic")
+}
+
+// containsFoldByte reports whether haystack contains needle using a
+// byte-level ASCII case-insensitive comparison. needle must be ASCII
+// lowercase; haystack is scanned without allocation. For the credential
+// markers ("bearer", "basic") this is sufficient — neither scheme name
+// contains non-ASCII characters.
+func containsFoldByte(haystack, needle string) bool {
+	if len(needle) == 0 || len(haystack) < len(needle) {
+		return false
+	}
+
+	for i := 0; i+len(needle) <= len(haystack); i++ {
+		match := true
+
+		for j := 0; j < len(needle); j++ {
+			h := haystack[i+j]
+			// Lowercase ASCII letter via OR-0x20. Safe because needle is
+			// guaranteed lowercase: digits and symbols compare exactly,
+			// uppercase letters fold to lowercase, lowercase passes through.
+			if h >= 'A' && h <= 'Z' {
+				h |= 0x20
+			}
+
+			if h != needle[j] {
+				match = false
+				break
+			}
+		}
+
+		if match {
+			return true
+		}
+	}
+
+	return false
 }

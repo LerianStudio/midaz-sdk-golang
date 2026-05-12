@@ -148,6 +148,13 @@ func TestHTTPClient_DebugErrorPathRedactsURL(t *testing.T) {
 }
 
 func TestHTTPClient_ResponseBodyLimit(t *testing.T) {
+	// 5xx bodies are now capped at the tighter maxExposed5xxBodyBytes
+	// (4 KiB) rather than the legacy unconditional 64 KiB. Rationale
+	// lives next to the constant in entities/http.go: 5xx payloads
+	// historically carry server diagnostics (stack traces, SQL) that
+	// the regex redactor can miss, so the smaller exposure window is
+	// defense in depth. 4xx bodies (validation envelopes the caller
+	// must inspect) keep the 64 KiB cap — see the sibling test below.
 	writeErrs := make(chan error, 1)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -171,7 +178,38 @@ func TestHTTPClient_ResponseBodyLimit(t *testing.T) {
 	require.ErrorAs(t, err, &sdkErr)
 	require.Equal(t, http.StatusInternalServerError, sdkErr.StatusCode)
 	require.True(t, sdkErr.IsUpstreamBodyTruncated())
-	require.Len(t, sdkErr.GetUpstreamBody(), 64*1024)
+	require.Len(t, sdkErr.GetUpstreamBody(), maxExposed5xxBodyBytes)
+	require.Contains(t, err.Error(), "upstream body (truncated")
+}
+
+// TestHTTPClient_ResponseBodyLimit_4xxKeepsGenerousCap pins the 4xx side
+// of the differentiated exposure caps: validation envelopes need to be
+// inspectable, so they keep the 64 KiB ceiling.
+func TestHTTPClient_ResponseBodyLimit_4xxKeepsGenerousCap(t *testing.T) {
+	writeErrs := make(chan error, 1)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+
+		_, err := w.Write(bytes.Repeat([]byte("x"), int(maxHTTPResponseBodyBytes+1)))
+		writeErrs <- err
+	}))
+	defer srv.Close()
+
+	c := NewHTTPClient(srv.Client(), "", nil)
+	require.NoError(t, c.WithRetryOptions(retry.WithMaxRetries(0)))
+
+	var out map[string]any
+
+	err := c.doRequest(context.Background(), http.MethodGet, srv.URL, nil, nil, &out)
+	require.Error(t, err)
+	requireHandlerNoError(t, writeErrs)
+
+	var sdkErr *sdkerrors.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode)
+	require.True(t, sdkErr.IsUpstreamBodyTruncated())
+	require.Len(t, sdkErr.GetUpstreamBody(), maxExposed4xxBodyBytes)
 	require.Contains(t, err.Error(), "upstream body (truncated")
 }
 

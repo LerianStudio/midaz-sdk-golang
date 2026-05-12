@@ -133,7 +133,16 @@ func (e nonRetryableError) Error() string {
 	return e.err.Error()
 }
 
+// Unwrap returns the wrapped error, or nil when the wrapped value is a
+// typed nil. The symmetry with [nonRetryableError.Error] matters:
+// without this guard, callers walking the chain via [errors.Unwrap]
+// would receive an interface that compares != nil while wrapping a
+// nil pointer, defeating the very check at every consumer site.
 func (e nonRetryableError) Unwrap() error {
+	if isNilInterfaceValue(e.err) {
+		return nil
+	}
+
 	return e.err
 }
 
@@ -598,10 +607,13 @@ func doWithOptions(ctx context.Context, fn func() error, options *Options) error
 	// Return the last error wrapped behind the ErrRetriesExhausted
 	// sentinel so callers can match via errors.Is(err, ErrRetriesExhausted)
 	// without scraping the rendered string.
-	if isNilInterfaceValue(err) {
-		return nil
-	}
-
+	//
+	// We do NOT short-circuit on isNilInterfaceValue(err) here: the
+	// success branch above (line ~556) already returns nil whenever fn
+	// produces a (possibly typed-) nil. By the time control reaches
+	// this fmt.Errorf the loop has either exhausted attempts on a
+	// non-nil error or broken out via the "non-retryable" return — both
+	// guarantee err is non-nil and renderable.
 	return fmt.Errorf("%w: operation failed after %d retries: %w", ErrRetriesExhausted, options.MaxRetries, err)
 }
 
@@ -702,6 +714,13 @@ func matchesRetryableHTTPStatus(err error, codes []int) bool {
 	return false
 }
 
+// isNilInterfaceValue is the typed-nil-aware nil check used throughout
+// pkg/retry. It is a deliberate duplicate of
+// [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors.IsNilInterfaceValue];
+// pkg/retry does not currently import pkg/errors (only the tests do)
+// and we keep that decoupling on the runtime side. The two
+// implementations must stay in lockstep — if you change the semantics
+// in one, update the other.
 func isNilInterfaceValue(value any) bool {
 	if value == nil {
 		return true

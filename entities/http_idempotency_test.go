@@ -64,15 +64,22 @@ func TestRedactDebugURLStripsEntireQueryString(t *testing.T) {
 	assert.Nil(t, redactedURL.User)
 }
 
+// TestNormalizeTelemetryURLRedactsUnparseableInput pins the unparseable-
+// input fallback contract: when url.Parse rejects the input (here, the
+// invalid %zz escape forces the failure path), the normalizer must
+// strip the entire query string and fragment, never echoing
+// sensitive-keyed query values to telemetry. The remaining string is
+// exactly the scheme + host + path with no userinfo, no query, and no
+// fragment.
 func TestNormalizeTelemetryURLRedactsUnparseableInput(t *testing.T) {
 	redacted := normalizeTelemetryURL("https://api.example.com/%zz?accessToken=raw-token&clientSecret=raw-secret#frag")
 
-	assert.NotContains(t, redacted, "raw-token")
-	assert.NotContains(t, redacted, "raw-secret")
-	assert.NotContains(t, redacted, "accessToken")
-	assert.NotContains(t, redacted, "clientSecret")
-	assert.NotContains(t, redacted, "frag")
-	assert.Contains(t, redacted, "https://api.example.com/%zz")
+	// Contract: entire query and fragment are stripped on unparseable input.
+	// Direct equality is the strongest possible assertion against this
+	// contract — substring checks would tolerate future regressions
+	// that re-introduce part of the query string under a sanitized
+	// guise.
+	assert.Equal(t, "https://api.example.com/%zz", redacted)
 }
 
 func TestDefaultHTTPClientRejectsAuthenticatedCrossOriginRedirect(t *testing.T) {

@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"reflect"
 	"regexp"
 	"strings"
 )
@@ -263,7 +262,34 @@ type Error struct {
 	// UpstreamBody is the raw upstream 4xx/5xx response body attached to SDK
 	// HTTP response errors when error body exposure is enabled. It is not
 	// redacted by design; it is only truncated.
+	//
+	// SECURITY WARNING — direct access vs. rendered output:
+	//
+	//   - Direct access via [Error.GetUpstreamBody] returns the RAW
+	//     unredacted bytes. Callers logging this field directly bypass
+	//     the redactor and may surface credentials embedded in upstream
+	//     payloads.
+	//
+	//   - The [Error.Error] method renders the body through the
+	//     [redactSensitive] pipeline before composing the final string.
+	//     Consumers logging err.Error() (the canonical path) are safe.
+	//
+	// If you need to forward the body to external systems, prefer
+	// [Error.Error] or apply [RedactSensitiveString] to GetUpstreamBody()
+	// yourself before emitting.
 	UpstreamBody string `json:"-"`
+
+	// upstreamBodyRedacted is the pre-redacted form of UpstreamBody,
+	// computed once at [AttachUpstreamBody] time so [Error.Error] does
+	// not re-run the regex pass on every render. Pre-redaction matters
+	// because Error() is called multiple times per terminal failure
+	// (slog formatting, retry hook, terminal log) and the redactor
+	// scans up to redactSensitiveMaxBytes on each invocation.
+	//
+	// Unexported and json:"-": this field is an internal cache, not part
+	// of the public surface. Reset via the AttachUpstreamBody*
+	// constructors only.
+	upstreamBodyRedacted string
 
 	// UpstreamBodyTruncated reports whether UpstreamBody is a truncated prefix
 	// of the upstream response body captured by the SDK.
@@ -400,27 +426,58 @@ func (e *Error) Error() string {
 	return appendUpstreamBody(redactSensitive(composed), e)
 }
 
+// maxExposedUpstreamBodyBytes is the default upstream-body cap used by
+// [AttachUpstreamBody]. 64 KiB covers virtually every API error payload
+// the SDK has observed in production.
 const maxExposedUpstreamBodyBytes = 64 * 1024
 
-// AttachUpstreamBody stores the raw upstream response body on a SDK error. It
-// intentionally does not redact the body; it only truncates the exposed value.
+// AttachUpstreamBody stores the raw upstream response body on a SDK error
+// using the default 64 KiB cap. The body is intentionally NOT redacted on
+// storage — [GetUpstreamBody] returns the raw bytes — but [Error.Error]
+// renders a pre-redacted projection so the canonical logging path is
+// safe.
+//
+// For status-class-aware caps (e.g. tighter limits on 5xx bodies that
+// can carry stack traces), use [AttachUpstreamBodyWithLimit].
 func AttachUpstreamBody(err error, body []byte, truncated bool) error {
+	return AttachUpstreamBodyWithLimit(err, body, truncated, maxExposedUpstreamBodyBytes)
+}
+
+// AttachUpstreamBodyWithLimit stores the upstream response body on a SDK
+// error using the supplied byte cap. Callers can pin a tighter cap for
+// status classes that historically carry sensitive diagnostic content
+// (stack traces, SQL strings) — see [maxExposed4xxBodyBytes] /
+// [maxExposed5xxBodyBytes] in entities/http.go.
+//
+// A non-positive maxBytes falls back to the default [maxExposedUpstreamBodyBytes].
+//
+// Side effect: this is also the moment we pre-compute the redacted
+// rendering used by [Error.Error]. Running the regex pass once at
+// attach time avoids re-scanning up to 64 KiB on every log render.
+func AttachUpstreamBodyWithLimit(err error, body []byte, truncated bool, maxBytes int) error {
 	var sdkErr *Error
 	if !errors.As(err, &sdkErr) || sdkErr == nil {
 		return err
 	}
 
+	if maxBytes <= 0 {
+		maxBytes = maxExposedUpstreamBodyBytes
+	}
+
 	sdkErr.UpstreamBodyOriginalBytes = len(body)
 	sdkErr.UpstreamBodyTruncated = truncated
 
-	if len(body) > maxExposedUpstreamBodyBytes {
-		sdkErr.UpstreamBody = string(body[:maxExposedUpstreamBodyBytes])
+	if len(body) > maxBytes {
+		sdkErr.UpstreamBody = string(body[:maxBytes])
 		sdkErr.UpstreamBodyTruncated = true
-
-		return err
+	} else {
+		sdkErr.UpstreamBody = string(body)
 	}
 
-	sdkErr.UpstreamBody = string(body)
+	// Pre-redact once: subsequent Error() calls (which can fire 3+ times
+	// per terminal failure across slog, retry hooks, and terminal logs)
+	// reuse this cached projection instead of rerunning the regex pass.
+	sdkErr.upstreamBodyRedacted = redactSensitive(sdkErr.UpstreamBody)
 
 	return err
 }
@@ -430,7 +487,15 @@ func appendUpstreamBody(rendered string, e *Error) string {
 		return rendered
 	}
 
-	renderedBody := redactSensitive(e.UpstreamBody)
+	// Prefer the cached pre-redacted projection populated by
+	// AttachUpstreamBody*. Fall back to an on-demand redact only when
+	// the Error was constructed by hand (or via a code path that didn't
+	// route through the attach helpers) — that path is a slow degraded
+	// mode, not the hot path.
+	renderedBody := e.upstreamBodyRedacted
+	if renderedBody == "" {
+		renderedBody = redactSensitive(e.UpstreamBody)
+	}
 
 	if e.UpstreamBodyTruncated {
 		return fmt.Sprintf(
@@ -723,18 +788,13 @@ var (
 	sensitiveKeyValuePattern = regexp.MustCompile(`(?i)(^|[^A-Za-z])(["']?)((?:token|password|apikey|api[-_]?key|x[-_]api[-_]?key|access[-_]?token|refresh[-_]?token|id[-_]?token|client[-_]?secret|jwt|authorization|secret|(?:x[-_])?idempotency|document|legal_document|external_id|banking_details_account|banking_details_iban|metadata(?:\.[\w.-]+)?|related_party_document|regulatory_fields_participant_document)[\w.-]*)(["']?)(\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s,;}]+)`)
 )
 
+// isNilError is the package-internal sibling of [IsNilInterfaceValue]
+// specialised to the error interface. It exists for readability at call
+// sites where we want the type to scream "error" rather than "any".
+// Delegating keeps the typed-nil semantics in exactly one place — see
+// [IsNilInterfaceValue] for the full rationale.
 func isNilError(err error) bool {
-	if err == nil {
-		return true
-	}
-
-	value := reflect.ValueOf(err)
-	switch value.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return value.IsNil()
-	default:
-		return false
-	}
+	return IsNilInterfaceValue(err)
 }
 
 func safeErrorString(err error) string {
@@ -2020,25 +2080,38 @@ func ErrorFromHTTPResponse(statusCode int, requestID, message, apiCode, entityTy
 // ErrorFromHTTPResponseWithDetails creates an appropriate error based on the HTTP response
 // and preserves raw structured API envelope metadata when available.
 //
-// # Two-tier contract: raw typed fields vs. redacted rendered Message
+// # Two-tier contract: raw typed identifiers vs. redacted everything else
 //
-// The returned *Error follows a two-tier rendering rule:
+// The returned *Error follows an asymmetric rendering rule. The two
+// halves are NOT symmetric — earlier doc versions claimed they were
+// and that was wrong:
 //
-//   - Typed fields ([Error.ResourceID], [Error.RequestID], [Error.Title],
-//     [Error.Fields]) preserve the values supplied by the caller in their
-//     raw form. Callers consuming the typed shape via [errors.As] see the
-//     unmodified data — useful for programmatic dispatch where the IDs
-//     are needed verbatim.
+//   - Raw at construction time:
 //
-//   - The rendered [Error.Message] is built from those same inputs but
-//     passes through [redactMessage] (Bearer/Basic header scrub + the
-//     sensitive `key=value` allowlist + the per-resource ID strip-out).
-//     [Error.Error] additionally redacts the composed context string.
+//   - [Error.ResourceID] — preserved verbatim from the caller.
 //
-// Together: code paths that read typed fields get unredacted data; code
-// paths that render the error (logs, telemetry, user-facing surfaces)
-// see only the redacted projection. Never mix the two — do NOT log
-// e.ResourceID directly; rely on err.Error() instead.
+//   - [Error.RequestID]  — preserved verbatim from the caller.
+//
+//   - Pre-redacted at construction time (the regex pipeline runs once
+//     here, not on every render):
+//
+//   - [Error.Title]   — passed through redactSensitive.
+//
+//   - [Error.Fields]  — each element passed through RedactSensitiveStringSlice.
+//
+//   - [Error.Details] — passed through RedactSensitiveDetails.
+//
+//   - [Error.Message] — built from message + resourceID and passed
+//     through redactMessage (Bearer/Basic scrub + the sensitive
+//     `key=value` allowlist + the per-resource ID strip-out).
+//
+//   - On render: [Error.Error] applies an additional redactSensitive
+//     pass over the composed context string for defense in depth.
+//
+// Programmatic dispatchers that need the raw caller-supplied resource
+// identifier can read e.ResourceID / e.RequestID directly. Anything
+// else read off a typed *Error is already the redacted projection — do
+// not assume Title/Fields/Details still contain unredacted input.
 func ErrorFromHTTPResponseWithDetails(statusCode int, requestID, message, apiCode, entityType, resourceID, title string, fields []string, details map[string]any) error {
 	mapping, ok := httpErrorMappings[statusCode]
 	if !ok {

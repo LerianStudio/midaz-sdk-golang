@@ -14,6 +14,7 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/auth"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/security"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/version"
 )
 
@@ -1599,8 +1600,12 @@ func TestWithHTTPClientBlocksCrossOriginBeforeExplicitRedirectPolicy(t *testing.
 	require.NoError(t, err)
 
 	err = config.HTTPClient.CheckRedirect(next, []*http.Request{previous})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "authenticated redirect")
+	// Match the typed sentinel rather than substring-scraping the
+	// rendered string. If the rendered text ever changes (e.g. for
+	// localisation), errors.Is still resolves the contract.
+	// require.ErrorIs implies require.Error, so a separate Error check
+	// is redundant here.
+	require.ErrorIs(t, err, security.ErrAuthenticatedRedirect)
 	assert.False(t, called, "SDK guard must reject before caller redirect policy runs")
 }
 

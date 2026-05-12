@@ -14,6 +14,14 @@ const (
 	maxRedirects = 10
 )
 
+// ErrAuthenticatedRedirect is the sentinel returned by [ValidateRedirect]
+// (and the wrapper in [EnsureRedirectPolicy]) when a cross-origin
+// redirect is refused because the previous request carried
+// credential-bearing headers or a replayable body. Callers that need to
+// distinguish this rejection from a generic redirect failure should
+// match via [errors.Is] rather than scraping the rendered string.
+var ErrAuthenticatedRedirect = errors.New("refusing authenticated redirect to a different origin")
+
 // ValidateOutboundRequest validates the minimal security requirements for outbound HTTP requests.
 // It ensures requests are absolute and use an allowed HTTP scheme.
 func ValidateOutboundRequest(req *http.Request) error {
@@ -64,7 +72,7 @@ func ValidateRedirectWithInsecureHTTP(req *http.Request, via []*http.Request, al
 	}
 
 	if len(via) >= maxRedirects {
-		return errors.New("stopped after 10 redirects")
+		return fmt.Errorf("stopped after %d redirects", maxRedirects)
 	}
 
 	if len(via) == 0 {
@@ -73,14 +81,34 @@ func ValidateRedirectWithInsecureHTTP(req *http.Request, via []*http.Request, al
 
 	previous := via[len(via)-1]
 	if isSensitiveCrossOriginRedirect(previous, req) {
-		return errors.New("refusing authenticated redirect to a different origin")
+		return ErrAuthenticatedRedirect
 	}
 
 	return nil
 }
 
-// EnsureRedirectPolicy returns a shallow client copy that enforces the SDK
-// redirect policy before any caller-provided redirect policy.
+// EnsureRedirectPolicy returns a SHALLOW client copy whose CheckRedirect
+// enforces the SDK redirect policy before delegating to any
+// caller-supplied policy.
+//
+// Shallow-copy semantics — important:
+//
+//   - The returned *http.Client is a NEW value: mutating its CheckRedirect
+//     does not affect the input client and vice versa.
+//
+//   - The underlying [http.Client.Transport], [http.Client.Jar], and
+//     [http.Client.Timeout] are SHARED via field assignment. Changes to
+//     the input client's Transport (e.g. setting TLSClientConfig) AFTER
+//     EnsureRedirectPolicy returns will silently flow through to every
+//     request made via the returned wrapper. Callers should finalize
+//     their HTTP-client configuration BEFORE passing it to
+//     WithHTTPClient (which calls EnsureRedirectPolicy internally).
+//
+//   - Concurrency: the shared Transport is safe for concurrent use per
+//     the net/http contract. The CheckRedirect closure captures the
+//     caller's original CheckRedirect by value at wrap time; later
+//     reassignments to the input client's CheckRedirect are NOT
+//     observed by the wrapper.
 func EnsureRedirectPolicy(client *http.Client) *http.Client {
 	if client == nil {
 		return client
@@ -110,6 +138,21 @@ func isSensitiveCrossOriginRedirect(previous, next *http.Request) bool {
 	return hasSensitiveRedirectHeaders(previous) || requestMayReplaySensitiveBody(previous)
 }
 
+// requestMayReplaySensitiveBody reports whether following a redirect on
+// this request could leak the previous request's body to the new
+// destination.
+//
+// Any non-safe HTTP method (anything other than GET / HEAD) is flagged
+// REGARDLESS of whether the request body is empty. POST without a body
+// is still a state-mutating call: the server treats the redirect target
+// as the new mutation site, which is exactly the credential-replay
+// shape we want the cross-origin guard to refuse. Fail-closed here
+// avoids a subtle gap where "POST /logout" with an empty body would
+// otherwise be allowed to replay to a foreign origin.
+//
+// For safe methods we additionally check req.Body / req.GetBody so a
+// GET with a buffered body (rare but valid) is also caught — net/http
+// replays such bodies on follow-up requests.
 func requestMayReplaySensitiveBody(req *http.Request) bool {
 	if req == nil {
 		return false
@@ -137,6 +180,24 @@ func hasSensitiveRedirectHeaders(req *http.Request) bool {
 	return false
 }
 
+// sameOrigin compares two URLs using strict equality on scheme + host.
+//
+// "Strict" is intentional and fail-closed. We do NOT normalize either side
+// before comparing because:
+//
+//   - Trailing-dot hostnames ("example.com.") are valid FQDN forms but DNS
+//     resolvers may treat them as a distinct identity from the bare form.
+//     Treating them as cross-origin is the safe baseline — a redirect that
+//     introduces or removes the trailing dot is suspicious in the
+//     credential-replay threat model this guard exists to defeat.
+//
+//   - Explicit-default-port forms ("example.com:443" for HTTPS, ":80" for
+//     HTTP) also compare unequal to the bare host. Same reasoning: a
+//     redirect that flips the port representation is a signal worth
+//     refusing, even if the resolved network endpoint is identical.
+//
+// Callers that legitimately need to canonicalize hosts before the SDK runs
+// this guard should do so in their HTTP transport, not here.
 func sameOrigin(previous, next *url.URL) bool {
 	if previous == nil || next == nil {
 		return false
@@ -145,13 +206,51 @@ func sameOrigin(previous, next *url.URL) bool {
 	return strings.EqualFold(previous.Scheme, next.Scheme) && strings.EqualFold(previous.Host, next.Host)
 }
 
+// headerNameNormalizer strips the separator characters used in HTTP header
+// name conventions ("X-Api-Key", "x_api_key", "x.api.key") so the
+// case-insensitive substring scan in [isSensitiveHeaderName] does not
+// have to enumerate every separator variant. Hoisted to package scope so
+// the Replacer (and its internal trie) is built once at init time — the
+// previous per-call construction showed up under pprof on header-redact
+// hot paths.
+var headerNameNormalizer = strings.NewReplacer("-", "", "_", "", ".", "")
+
+// sensitiveHeaderMarkers is the list of normalized header-name fragments
+// whose presence flags a header as carrying credential or session-bearing
+// material. The list is intentionally tight: tenant- and
+// organization-identifier headers are routing data, not credentials, and
+// were deliberately removed so cross-tenant requests aren't blocked from
+// following same-origin redirects that happen to echo those identifiers.
+//
+// Markers must survive the [headerNameNormalizer] transform (no '-',
+// '_', or '.'). When adding new markers, write them in the
+// already-normalized form.
+var sensitiveHeaderMarkers = []string{
+	"authorization",
+	"cookie",
+	"token",
+	"secret",
+	"password",
+	"apikey",
+	"idempotency",
+	// D2: defense-in-depth on credential/PII headers commonly emitted by
+	// API gateways and identity-provider integrations.
+	"signature",
+	"session",
+	"accountnumber",
+	"customeremail",
+	"pii",
+	"wwwauthenticate",
+	"proxyauthenticate",
+}
+
 func isSensitiveHeaderName(name string) bool {
-	normalized := strings.NewReplacer("-", "", "_", "", ".", "").Replace(strings.ToLower(strings.TrimSpace(name)))
+	normalized := headerNameNormalizer.Replace(strings.ToLower(strings.TrimSpace(name)))
 	if normalized == "" {
 		return false
 	}
 
-	for _, marker := range []string{"authorization", "cookie", "token", "secret", "password", "apikey", "idempotency", "tenant", "organization"} {
+	for _, marker := range sensitiveHeaderMarkers {
 		if strings.Contains(normalized, marker) {
 			return true
 		}

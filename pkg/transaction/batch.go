@@ -5,8 +5,11 @@ package transaction
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/binary"
 	stdErrors "errors"
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -24,6 +27,8 @@ const (
 	defaultBatchSize        = 100
 	defaultBatchRetryCount  = 3
 	defaultBatchRetryDelay  = 100 * time.Millisecond
+	defaultBatchMaxDelay    = 30 * time.Second
+	defaultBatchJitter      = 0.2
 	maxBatchConcurrency     = 100
 	maxTransactionBatchSize = 10_000
 	maxBackoffAttempt       = 31
@@ -51,12 +56,30 @@ type BatchOptions struct {
 	// BatchSize is the number of transactions to send in a single batch
 	// Default is 100 if not specified
 	BatchSize int
-	// RetryCount is the number of times to retry failed transactions
-	// Default is 3 if not specified
+	// RetryCount is the number of times to retry failed transactions.
+	// Default is 3 if not specified.
+	//
+	// Layering note: this retry count is in ADDITION to the underlying
+	// HTTP client's retry budget (entities/http.go). The effective max
+	// attempts per transaction is (1+RetryCount) * (1+http.MaxRetries).
+	// For workloads that should NOT amplify retries, call
+	// (*midaz.Client).WithoutRetries() before entering the batch path,
+	// or set RetryCount=0 here and let the HTTP layer own the retry
+	// budget.
 	RetryCount int
-	// RetryDelay is the base delay between retries using exponential backoff
-	// Default is 100ms if not specified
+	// RetryDelay is the base delay between retries using exponential backoff.
+	// Default is 100ms if not specified.
 	RetryDelay time.Duration
+	// MaxDelay caps the backoff delay between retries. Without a cap
+	// the exponential growth (1 << attempt * RetryDelay) reaches
+	// hours/days at attempt 30. Default is 30 seconds.
+	MaxDelay time.Duration
+	// JitterFactor is the proportion of jitter to apply to the
+	// computed backoff delay, in [0.0, 1.0]. 0 disables jitter
+	// entirely. Default is 0.2 (±20%). Jitter prevents the
+	// thundering-herd pattern where every retried transaction fires at
+	// the same wall-clock offset.
+	JitterFactor float64
 	// OnProgress is a callback function that receives progress updates
 	// Called after each transaction is processed
 	OnProgress func(completed, total int, result BatchResult)
@@ -78,6 +101,8 @@ func DefaultBatchOptions() *BatchOptions {
 		BatchSize:            defaultBatchSize,
 		RetryCount:           defaultBatchRetryCount,
 		RetryDelay:           defaultBatchRetryDelay,
+		MaxDelay:             defaultBatchMaxDelay,
+		JitterFactor:         defaultBatchJitter,
 		IdempotencyKeyPrefix: "batch",
 		StopOnError:          false,
 		AllowPartialSuccess:  false,
@@ -174,6 +199,17 @@ func normalizeOptions(options *BatchOptions) *BatchOptions {
 
 	if options.RetryDelay <= 0 {
 		options.RetryDelay = DefaultBatchOptions().RetryDelay
+	}
+
+	if options.MaxDelay <= 0 {
+		options.MaxDelay = DefaultBatchOptions().MaxDelay
+	}
+
+	// Clamp the jitter factor to a sane window. Values outside [0, 1]
+	// fall back to the default rather than silently producing negative
+	// or amplified delays.
+	if options.JitterFactor < 0 || options.JitterFactor > 1 {
+		options.JitterFactor = DefaultBatchOptions().JitterFactor
 	}
 
 	if options.IdempotencyKeyPrefix == "" {
@@ -361,17 +397,81 @@ func (bp *batchProcessor) executeWithRetries(input *models.CreateTransactionInpu
 	return tx, err
 }
 
-// waitForRetry implements exponential backoff for retries.
+// waitForRetry implements exponential backoff for retries with jitter
+// and a hard cap. Capping is non-negotiable: the previous unbounded
+// form reached ~31 hours of wait at attempt 30 because Go's `1<<30`
+// shift overflowed reasoning. Jitter is applied AFTER the cap so the
+// jitter window never exceeds the configured MaxDelay either.
+//
+// time.NewTimer (with defer Stop) replaces the older time.After
+// pattern: time.After leaks the underlying timer until the duration
+// elapses, which matters when ctx.Done fires first on a retry-storm
+// shutdown.
 func (bp *batchProcessor) waitForRetry(attempt int) error {
-	backoffFactor := bp.calculateBackoffFactor(attempt)
-	backoffDuration := time.Duration(1<<backoffFactor) * bp.options.RetryDelay
+	backoffDuration := bp.computeBackoffWithJitter(attempt)
+
+	timer := time.NewTimer(backoffDuration)
+	defer timer.Stop()
 
 	select {
 	case <-bp.ctx.Done():
 		return bp.ctx.Err()
-	case <-time.After(backoffDuration):
+	case <-timer.C:
 		return nil
 	}
+}
+
+// computeBackoffWithJitter is the deterministic part of waitForRetry,
+// split out so the math stays unit-testable independent of the timer.
+func (bp *batchProcessor) computeBackoffWithJitter(attempt int) time.Duration {
+	backoffFactor := bp.calculateBackoffFactor(attempt)
+	backoffDuration := time.Duration(1<<backoffFactor) * bp.options.RetryDelay
+
+	// Cap BEFORE jitter so the jitter window is anchored against a
+	// bounded base. Capping after jitter would let a large jitter
+	// percentage push the effective delay past MaxDelay.
+	if bp.options.MaxDelay > 0 && backoffDuration > bp.options.MaxDelay {
+		backoffDuration = bp.options.MaxDelay
+	}
+
+	if bp.options.JitterFactor > 0 {
+		// Symmetric jitter in ±JitterFactor proportion of the base.
+		// Use crypto/rand to match the policy of pkg/retry; gosec
+		// G404 rejects math/rand even for non-security scheduling
+		// jitter, and the per-attempt allocation cost is negligible
+		// against the millisecond-scale retry timing.
+		jitter := secureJitterFraction() // [-1, 1)
+		offset := time.Duration(float64(backoffDuration) * bp.options.JitterFactor * jitter)
+		backoffDuration += offset
+	}
+
+	if backoffDuration < 0 {
+		// Jitter could subtract more than the base on tiny initial
+		// delays; clamp to zero so the timer fires immediately rather
+		// than panicking in time.NewTimer.
+		backoffDuration = 0
+	}
+
+	return backoffDuration
+}
+
+// secureJitterFraction returns a value in [-1.0, 1.0) using crypto/rand.
+// On crypto/rand failure (effectively impossible outside a broken OS)
+// it returns 0 — i.e. "no jitter this round" — which is still a safe
+// retry interval. Mirrors the policy used by pkg/retry's
+// getSecureRandomFloat64 helper but locally inlined to avoid widening
+// pkg/transaction's import surface.
+func secureJitterFraction() float64 {
+	var buf [8]byte
+	if _, err := rand.Read(buf[:]); err != nil {
+		return 0
+	}
+
+	// Convert to a float in [0, 1), then to [-1, 1).
+	u := binary.BigEndian.Uint64(buf[:])
+	f := float64(u) / float64(math.MaxUint64)
+
+	return f*2 - 1
 }
 
 // calculateBackoffFactor calculates the backoff factor for exponential backoff.

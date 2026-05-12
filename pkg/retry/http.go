@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"math"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/security"
@@ -210,12 +212,16 @@ func WithHTTPRetryAllServerErrors(retry bool) HTTPOption {
 // WithHTTPRetryOn4xx returns an HTTPOption that sets the list of 4xx status codes
 // that should trigger a retry.
 //
+// The supplied slice is defensively copied so subsequent caller-side
+// mutations cannot reach across into stored options (mirroring the
+// pattern at WithHTTPRetryableHTTPCodes and inside cloneHTTPOptions).
+//
 // Example:
 //
 //	resp, err := retry.DoHTTPRequest(ctx, client, req, retry.WithHTTPRetryOn4xx([]int{429}))
 func WithHTTPRetryOn4xx(codes []int) HTTPOption {
 	return func(o *HTTPOptions) error {
-		o.RetryOn4xx = codes
+		o.RetryOn4xx = cloneInts(codes)
 		return nil
 	}
 }
@@ -394,7 +400,7 @@ type httpRetryState struct {
 // executeWithRetries performs the main retry loop.
 func (r *httpRetryState) executeWithRetries(req *http.Request) (*HTTPResponse, error) {
 	for attempt := 0; attempt <= r.options.MaxRetries; attempt++ {
-		if err := r.checkContextCancellation(attempt); err != nil {
+		if err := r.checkContextCancellation(); err != nil {
 			return r.createErrorResponse(attempt, err), err
 		}
 
@@ -417,14 +423,7 @@ func (r *httpRetryState) executeWithRetries(req *http.Request) (*HTTPResponse, e
 }
 
 // checkContextCancellation checks if the context is cancelled.
-//
-// The attempt parameter is kept on the signature for future structured
-// logging integration; today the per-attempt observability hook is wired
-// into doWithOptions (see retry.WithAttemptHook), and DoHTTPRequest's
-// path inherits hook semantics through the same context plumbing.
-func (r *httpRetryState) checkContextCancellation(attempt int) error {
-	_ = attempt
-
+func (r *httpRetryState) checkContextCancellation() error {
 	if r.ctx.Err() != nil {
 		return fmt.Errorf("operation cancelled: %w", r.ctx.Err())
 	}
@@ -855,8 +854,56 @@ func isRequestMethodRetryable(req *http.Request) bool {
 	}
 }
 
+// hasIdempotencyHeader reports whether the request carries a stable
+// idempotency key under the SDK's canonical "X-Idempotency" header. A
+// non-empty value is the trigger that lets the retry layer replay an
+// unsafe method (POST/PUT/PATCH/DELETE).
+//
+// The function ALSO sniffs for the legacy "Idempotency-Key" header
+// (IETF draft form) and emits a one-shot debug log when it sees that
+// header without the canonical companion. We do NOT silently honor
+// the legacy header — retry eligibility stays gated on
+// "X-Idempotency" — but the warning lets callers notice the mismatch
+// before it manifests as missing retries in production.
+//
+// Callers should set the SDK header explicitly via
+// [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx.WithIdempotencyKey]
+// or by writing "X-Idempotency" directly on the *http.Request.
 func hasIdempotencyHeader(req *http.Request) bool {
-	return strings.TrimSpace(req.Header.Get("X-Idempotency")) != ""
+	hasCanonical := strings.TrimSpace(req.Header.Get("X-Idempotency")) != ""
+	if hasCanonical {
+		return true
+	}
+
+	if strings.TrimSpace(req.Header.Get("Idempotency-Key")) != "" {
+		warnLegacyIdempotencyKey()
+	}
+
+	return false
+}
+
+var legacyIdempotencyKeyWarningOnce sync.Once
+
+// warnLegacyIdempotencyKey emits a single debug-level log line the
+// first time the SDK observes a request that carries the legacy
+// "Idempotency-Key" header but not the canonical "X-Idempotency".
+// One-shot to keep retry-heavy workloads from flooding the log.
+//
+// We route through [slog.Default] rather than the SDK's structured
+// logger because pkg/retry intentionally avoids depending on the
+// observability layer (per the package's "no observability imports"
+// invariant). Callers that have installed a slog handler will see the
+// warning; default callers will see it on stderr at debug level (i.e.
+// silent until the global level is lowered).
+func warnLegacyIdempotencyKey() {
+	legacyIdempotencyKeyWarningOnce.Do(func() {
+		slog.Default().Debug(
+			"retry: request carries Idempotency-Key but not X-Idempotency; retries disabled for unsafe method",
+			slog.String("sdk.name", "midaz-go-sdk"),
+			slog.String("sdk.component", "retry"),
+			slog.String("hint", "use sdkctx.WithIdempotencyKey() or set X-Idempotency directly"),
+		)
+	})
 }
 
 func isRequestBodyReplayable(req *http.Request) bool {

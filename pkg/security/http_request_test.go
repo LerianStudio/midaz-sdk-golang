@@ -156,73 +156,180 @@ func TestValidateOutboundRequest(t *testing.T) {
 }
 
 func TestValidateRedirect(t *testing.T) {
-	t.Run("limits redirect chain length", func(t *testing.T) {
-		const contractMaxRedirects = 10
+	// Table-driven consolidation of the redirect-policy cases. Each row
+	// describes the previous request's shape (method, URL, headers,
+	// optional body or replay factory), the next request's shape, the
+	// optional opt-in for insecure HTTP, and the expected error
+	// substring ("" means "must succeed"). The chain-length case is
+	// captured via a dedicated builder because it needs to inflate the
+	// via slice past maxRedirects.
 
-		req := newRedirectRequest(t, http.MethodGet, "https://api.example.com/v1/accounts", nil)
-		via := make([]*http.Request, contractMaxRedirects)
-		for i := range via {
-			via[i] = newRedirectRequest(t, http.MethodGet, "https://api.example.com/v1/accounts", nil)
-		}
+	tests := []validateRedirectCase{
+		{
+			name:            "limits redirect chain length",
+			previousMethod:  http.MethodGet,
+			previousURL:     "https://api.example.com/v1/accounts",
+			nextMethod:      http.MethodGet,
+			nextURL:         "https://api.example.com/v1/accounts",
+			viaInflateTo:    maxRedirects,
+			wantErrContains: "stopped after 10 redirects",
+		},
+		{
+			name:            "rejects cross-origin unsafe method without body",
+			previousMethod:  http.MethodPost,
+			previousURL:     "https://auth.example.com/v1/login/oauth/access_token",
+			nextMethod:      http.MethodPost,
+			nextURL:         "https://evil.example.net/v1/login/oauth/access_token",
+			wantErrContains: "authenticated redirect",
+		},
+		{
+			name:            "rejects cross-origin safe method with body",
+			previousMethod:  http.MethodGet,
+			previousURL:     "https://auth.example.com/v1/login/oauth/access_token",
+			previousBody:    strings.NewReader(`{"clientSecret":"raw"}`),
+			nextMethod:      http.MethodGet,
+			nextURL:         "https://evil.example.net/v1/login/oauth/access_token",
+			wantErrContains: "authenticated redirect",
+		},
+		{
+			name:           "rejects cross-origin safe method with replay factory",
+			previousMethod: http.MethodGet,
+			previousURL:    "https://auth.example.com/v1/login/oauth/access_token",
+			previousGetBody: func() (io.ReadCloser, error) {
+				return io.NopCloser(strings.NewReader(`{"clientSecret":"raw"}`)), nil
+			},
+			nextMethod:      http.MethodGet,
+			nextURL:         "https://evil.example.net/v1/login/oauth/access_token",
+			wantErrContains: "authenticated redirect",
+		},
+		{
+			// Regression: tenant- and organization-identifier headers are
+			// routing data, not credentials. A safe-method (GET)
+			// cross-origin redirect that carries X-Tenant-ID /
+			// X-Organization-ID and no other sensitive header must NOT
+			// be blocked.
+			name:           "allows cross-origin routing header on safe GET",
+			previousMethod: http.MethodGet,
+			previousURL:    "https://api.example.com/v1/accounts",
+			previousHeaders: map[string]string{
+				"X-Tenant-ID":       "tenant-1",
+				"X-Organization-ID": "org-7",
+			},
+			nextMethod: http.MethodGet,
+			nextURL:    "https://other.example.net/v1/accounts",
+		},
+		{
+			// Defense in depth: tenant header alone is fine, but
+			// Authorization in the same request still blocks the
+			// cross-origin redirect.
+			name:           "rejects cross-origin tenant header when paired with credential",
+			previousMethod: http.MethodGet,
+			previousURL:    "https://api.example.com/v1/accounts",
+			previousHeaders: map[string]string{
+				"X-Tenant-ID":   "tenant-1",
+				"Authorization": "Bearer raw-token",
+			},
+			nextMethod:      http.MethodGet,
+			nextURL:         "https://evil.example.net/v1/accounts",
+			wantErrContains: "authenticated redirect",
+		},
+		{
+			name:           "allows same-origin unsafe redirect",
+			previousMethod: http.MethodPost,
+			previousURL:    "https://auth.example.com/v1/login/oauth/access_token",
+			previousBody:   strings.NewReader(`{"clientSecret":"raw"}`),
+			nextMethod:     http.MethodPost,
+			nextURL:        "https://auth.example.com/v1/login/oauth/access_token",
+		},
+		{
+			name:              "allows opted-in insecure same-origin redirect",
+			previousMethod:    http.MethodPost,
+			previousURL:       "http://plugin-access-manager-auth.midaz-plugins.svc.cluster.local:4000/v1/login/oauth/access_token",
+			previousBody:      strings.NewReader(`{"clientSecret":"raw"}`),
+			nextMethod:        http.MethodPost,
+			nextURL:           "http://plugin-access-manager-auth.midaz-plugins.svc.cluster.local:4000/v1/login/oauth/access_token",
+			allowInsecureHTTP: true,
+		},
+	}
 
-		err := ValidateRedirect(req, via)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "stopped after 10 redirects")
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			runValidateRedirectCase(t, tt)
+		})
+	}
+}
 
-	t.Run("rejects cross-origin unsafe method without body", func(t *testing.T) {
-		previous := newRedirectRequest(t, http.MethodPost, "https://auth.example.com/v1/login/oauth/access_token", nil)
-		next := newRedirectRequest(t, http.MethodPost, "https://evil.example.net/v1/login/oauth/access_token", nil)
+// validateRedirectCase is the shape used by [runValidateRedirectCase]
+// and the test table in [TestValidateRedirect]. The struct lives at
+// package scope so the test-driver helper can take it by value and
+// keep cognitive complexity down inside the loop body.
+type validateRedirectCase struct {
+	name              string
+	previousMethod    string
+	previousURL       string
+	previousHeaders   map[string]string
+	previousBody      io.Reader
+	previousGetBody   func() (io.ReadCloser, error)
+	nextMethod        string
+	nextURL           string
+	viaInflateTo      int  // >0 → inflate via slice to that length to trip the cap
+	allowInsecureHTTP bool // true → ValidateRedirectWithInsecureHTTP
+	wantErrContains   string
+}
 
-		err := ValidateRedirect(next, []*http.Request{previous})
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "authenticated redirect")
-	})
+// runValidateRedirectCase executes a single redirect-policy test case.
+// Extracted from the loop body to keep
+// [TestValidateRedirect]'s cognitive complexity under the project's
+// revive threshold. Each branch here is straightforward setup; the
+// genuine policy assertions are at the bottom.
+func runValidateRedirectCase(t *testing.T, tt validateRedirectCase) {
+	t.Helper()
 
-	t.Run("rejects cross-origin safe method with body", func(t *testing.T) {
-		previous := newRedirectRequest(t, http.MethodGet, "https://auth.example.com/v1/login/oauth/access_token", strings.NewReader(`{"clientSecret":"raw"}`))
-		next := newRedirectRequest(t, http.MethodGet, "https://evil.example.net/v1/login/oauth/access_token", nil)
+	previous := newRedirectRequest(t, tt.previousMethod, tt.previousURL, tt.previousBody)
+	for k, v := range tt.previousHeaders {
+		previous.Header.Set(k, v)
+	}
 
-		err := ValidateRedirect(next, []*http.Request{previous})
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "authenticated redirect")
-	})
+	if tt.previousGetBody != nil {
+		previous.GetBody = tt.previousGetBody
+	}
 
-	t.Run("rejects cross-origin safe method with replay factory", func(t *testing.T) {
-		previous := newRedirectRequest(t, http.MethodGet, "https://auth.example.com/v1/login/oauth/access_token", nil)
-		previous.GetBody = func() (io.ReadCloser, error) {
-			return io.NopCloser(strings.NewReader(`{"clientSecret":"raw"}`)), nil
-		}
-		next := newRedirectRequest(t, http.MethodGet, "https://evil.example.net/v1/login/oauth/access_token", nil)
+	next := newRedirectRequest(t, tt.nextMethod, tt.nextURL, nil)
 
-		err := ValidateRedirect(next, []*http.Request{previous})
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "authenticated redirect")
-	})
+	via := buildRedirectVia(t, tt, previous)
 
-	t.Run("rejects cross-origin tenant header", func(t *testing.T) {
-		previous := newRedirectRequest(t, http.MethodGet, "https://api.example.com/v1/accounts", nil)
-		previous.Header.Set("X-Tenant-ID", "tenant-1")
-		next := newRedirectRequest(t, http.MethodGet, "https://evil.example.net/v1/accounts", nil)
+	var err error
+	if tt.allowInsecureHTTP {
+		err = ValidateRedirectWithInsecureHTTP(next, via, true)
+	} else {
+		err = ValidateRedirect(next, via)
+	}
 
-		err := ValidateRedirect(next, []*http.Request{previous})
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "authenticated redirect")
-	})
+	if tt.wantErrContains == "" {
+		require.NoError(t, err)
+		return
+	}
 
-	t.Run("allows same-origin unsafe redirect", func(t *testing.T) {
-		previous := newRedirectRequest(t, http.MethodPost, "https://auth.example.com/v1/login/oauth/access_token", strings.NewReader(`{"clientSecret":"raw"}`))
-		next := newRedirectRequest(t, http.MethodPost, "https://auth.example.com/v1/login/oauth/access_token", nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), tt.wantErrContains)
+}
 
-		require.NoError(t, ValidateRedirect(next, []*http.Request{previous}))
-	})
+// buildRedirectVia returns the [previous] request inside a slice, OR
+// inflates the slice to viaInflateTo length when the case is
+// exercising the redirect-chain cap.
+func buildRedirectVia(t *testing.T, tt validateRedirectCase, previous *http.Request) []*http.Request {
+	t.Helper()
 
-	t.Run("allows opted-in insecure same-origin redirect", func(t *testing.T) {
-		previous := newRedirectRequest(t, http.MethodPost, "http://plugin-access-manager-auth.midaz-plugins.svc.cluster.local:4000/v1/login/oauth/access_token", strings.NewReader(`{"clientSecret":"raw"}`))
-		next := newRedirectRequest(t, http.MethodPost, "http://plugin-access-manager-auth.midaz-plugins.svc.cluster.local:4000/v1/login/oauth/access_token", nil)
+	if tt.viaInflateTo <= 0 {
+		return []*http.Request{previous}
+	}
 
-		require.NoError(t, ValidateRedirectWithInsecureHTTP(next, []*http.Request{previous}, true))
-	})
+	via := make([]*http.Request, tt.viaInflateTo)
+	for i := range via {
+		via[i] = newRedirectRequest(t, tt.previousMethod, tt.previousURL, nil)
+	}
+
+	return via
 }
 
 func newRedirectRequest(t *testing.T, method, rawURL string, body io.Reader) *http.Request {
@@ -232,6 +339,78 @@ func newRedirectRequest(t *testing.T, method, rawURL string, body io.Reader) *ht
 	require.NoError(t, err)
 
 	return req
+}
+
+// TestSameOrigin_FailClosedHostFormVariants pins the documented "strict,
+// fail-closed" behaviour of sameOrigin: trailing-dot and
+// explicit-default-port host variants compare unequal to the bare form.
+// If we ever loosen this, the credential-replay threat model docs in
+// sameOrigin's godoc must be updated in lockstep.
+func TestSameOrigin_FailClosedHostFormVariants(t *testing.T) {
+	t.Run("trailing-dot host counts as cross-origin", func(t *testing.T) {
+		previous := newRedirectRequest(t, http.MethodGet, "https://example.com/v1/accounts", nil)
+		previous.Header.Set("Authorization", "Bearer raw-token")
+		next := newRedirectRequest(t, http.MethodGet, "https://example.com./v1/accounts", nil)
+
+		err := ValidateRedirect(next, []*http.Request{previous})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "authenticated redirect")
+	})
+
+	t.Run("explicit default HTTPS port counts as cross-origin", func(t *testing.T) {
+		previous := newRedirectRequest(t, http.MethodGet, "https://example.com/v1/accounts", nil)
+		previous.Header.Set("Authorization", "Bearer raw-token")
+		next := newRedirectRequest(t, http.MethodGet, "https://example.com:443/v1/accounts", nil)
+
+		err := ValidateRedirect(next, []*http.Request{previous})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "authenticated redirect")
+	})
+}
+
+// TestEnsureRedirectPolicy_SDKGuardRunsBeforeCallerCheckRedirect verifies
+// that the SDK redirect guard is invoked unconditionally on every
+// redirect — even when the caller installed a permissive CheckRedirect
+// that would otherwise allow the cross-origin replay.
+func TestEnsureRedirectPolicy_SDKGuardRunsBeforeCallerCheckRedirect(t *testing.T) {
+	t.Run("SDK guard rejects cross-origin even when caller would allow", func(t *testing.T) {
+		var callerInvoked bool
+		caller := &http.Client{
+			CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+				callerInvoked = true
+				return nil // would happily follow
+			},
+		}
+
+		wrapped := EnsureRedirectPolicy(caller)
+
+		previous := newRedirectRequest(t, http.MethodGet, "https://api.example.com/v1/accounts", nil)
+		previous.Header.Set("Authorization", "Bearer raw-token")
+		next := newRedirectRequest(t, http.MethodGet, "https://evil.example.net/v1/accounts", nil)
+
+		err := wrapped.CheckRedirect(next, []*http.Request{previous})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "authenticated redirect")
+		assert.False(t, callerInvoked, "caller CheckRedirect must NOT run when SDK guard rejects")
+	})
+
+	t.Run("caller CheckRedirect runs on same-origin redirects", func(t *testing.T) {
+		var callerInvoked bool
+		caller := &http.Client{
+			CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+				callerInvoked = true
+				return nil
+			},
+		}
+
+		wrapped := EnsureRedirectPolicy(caller)
+
+		previous := newRedirectRequest(t, http.MethodGet, "https://api.example.com/v1/accounts", nil)
+		next := newRedirectRequest(t, http.MethodGet, "https://api.example.com/v2/accounts", nil)
+
+		require.NoError(t, wrapped.CheckRedirect(next, []*http.Request{previous}))
+		assert.True(t, callerInvoked, "same-origin redirect must reach caller CheckRedirect")
+	})
 }
 
 func TestIsLocalhost(t *testing.T) {

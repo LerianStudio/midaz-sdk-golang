@@ -416,6 +416,31 @@ func TestDefaultOptionsDoNotPinIdempotencyKeys(t *testing.T) {
 	assert.Empty(t, DefaultMultiTransferOptions().IdempotencyKey)
 }
 
+// TestDefaultTransferOptionsReturnsIndependentInstances pins the
+// no-shared-state contract on the Default*Options helpers: two
+// successive calls must yield structs whose nested maps are NOT the
+// same underlying allocation. Sharing the Metadata map (or any
+// embedded map / slice) would let a caller mutating one returned
+// options struct silently corrupt the next caller's defaults.
+//
+// This is the kind of regression that compiles, passes unit tests in
+// isolation, and only blows up in production once two parallel
+// transfer flows happen to mutate metadata at the same instant.
+func TestDefaultTransferOptionsReturnsIndependentInstances(t *testing.T) {
+	first := DefaultTransferOptions()
+	second := DefaultTransferOptions()
+
+	require.NotNil(t, first)
+	require.NotNil(t, second)
+	require.NotNil(t, first.Metadata)
+	require.NotNil(t, second.Metadata)
+
+	first.Metadata["mutated"] = "by-caller-one"
+
+	_, present := second.Metadata["mutated"]
+	assert.False(t, present, "second DefaultTransferOptions() must not see mutations to the first")
+}
+
 // TestFormatAmountEdgeCases tests edge cases for formatAmount
 func TestFormatAmountEdgeCases(t *testing.T) {
 	t.Run("negative amount with no fractional", func(t *testing.T) {

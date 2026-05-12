@@ -558,7 +558,7 @@ func (e *batchExecutor) parseSuccessResponse(respBody []byte) (*HTTPBatchResult,
 // hasIndividualErrors checks if any individual requests in the batch failed.
 func (*batchExecutor) hasIndividualErrors(responses []HTTPBatchResponse) bool {
 	for _, resp := range responses {
-		if resp.StatusCode >= 400 || resp.Error != "" {
+		if resp.StatusCode >= http.StatusBadRequest || resp.Error != "" {
 			return true
 		}
 	}

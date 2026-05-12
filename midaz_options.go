@@ -420,7 +420,7 @@ func WithConfig(cfg *config.Config) Option {
 		}
 
 		if c.configMutated {
-			return errors.New("WithConfig must come before any other config-mutating option (WithBaseURL, WithUserAgent, WithEnvironment, WithDebug, WithIdempotency, WithErrorBodyExposure, WithoutRetries, etc.) — placing it later silently voids those mutations")
+			return errors.New("WithConfig must come before any other config-mutating option (WithBaseURL, WithUserAgent, WithEnvironment, WithDebug, WithIdempotency, WithErrorBodyExposure, WithoutRetries, and other config-mutating options …) — placing it later silently voids those mutations")
 		}
 
 		c.config = cfg.Clone()

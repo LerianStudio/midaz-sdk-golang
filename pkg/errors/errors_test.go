@@ -346,6 +346,42 @@ func TestAttachUpstreamBody_TruncatesExposedBody(t *testing.T) {
 	assert.Contains(t, err.Error(), "upstream body (truncated")
 }
 
+// TestAttachUpstreamBody_NonSDKErrorReturnsOriginalUnchanged pins the
+// contract that AttachUpstreamBody is a no-op for errors that are not
+// (or do not wrap) an *Error. The original error must be returned
+// verbatim — callers rely on this to safely funnel arbitrary errors
+// through the attach pipeline.
+func TestAttachUpstreamBody_NonSDKErrorReturnsOriginalUnchanged(t *testing.T) {
+	original := errors.New("plain non-SDK error")
+	out := sdkerrors.AttachUpstreamBody(original, []byte("ignored"), false)
+
+	assert.Same(t, original, out, "non-SDK errors must pass through unchanged")
+}
+
+// TestAttachUpstreamBody_NilErrReturnsNil pins the nil-input contract:
+// a nil input error stays nil and does not panic.
+func TestAttachUpstreamBody_NilErrReturnsNil(t *testing.T) {
+	assert.NoError(t, sdkerrors.AttachUpstreamBody(nil, []byte("ignored"), false))
+}
+
+// TestAttachUpstreamBodyWithLimit_AppliesTighterStatusClassCap exercises
+// the differentiated-cap path used by entities/http.handleErrorResponse
+// for 5xx responses. A 70 KiB body must be truncated to the 4 KiB cap,
+// the truncated flag must be set, and the rendered Error() string must
+// reflect both byte counts.
+func TestAttachUpstreamBodyWithLimit_AppliesTighterStatusClassCap(t *testing.T) {
+	body := []byte(strings.Repeat("y", 70*1024))
+	err := sdkerrors.ErrorFromHTTPResponse(http.StatusInternalServerError, "req-tight", "boom", "", "", "")
+	err = sdkerrors.AttachUpstreamBodyWithLimit(err, body, false, 4*1024)
+
+	var sdkErr *sdkerrors.Error
+	require.ErrorAs(t, err, &sdkErr)
+	assert.True(t, sdkErr.IsUpstreamBodyTruncated())
+	assert.Len(t, sdkErr.GetUpstreamBody(), 4*1024)
+	assert.Equal(t, len(body), sdkErr.GetUpstreamBodyOriginalBytes())
+	assert.Contains(t, err.Error(), "upstream body (truncated to 4096 of 71680 bytes)")
+}
+
 func TestErrorFromHTTPResponse_Regressions(t *testing.T) {
 	t.Run("preserves raw API code separately from SDK mapped code", func(t *testing.T) {
 		err := sdkerrors.ErrorFromHTTPResponse(http.StatusConflict, "req-raw", "duplicate idempotency key", "0084", "transaction", "tx-123")

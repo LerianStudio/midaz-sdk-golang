@@ -11,6 +11,7 @@ import (
 	"testing/quick"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
@@ -145,6 +146,26 @@ func TestAsNonRetryable_TypedNilReturnsNil(t *testing.T) {
 	var typedNil *typedNilRetryClassifierError
 
 	require.NoError(t, AsNonRetryable(typedNil))
+}
+
+// TestNonRetryableError_TypedNilErrReturnsEmptyString pins the Error()
+// guard on nonRetryableError: a typed-nil inner must render as the
+// empty string instead of panicking on the inner pointer dereference.
+func TestNonRetryableError_TypedNilErrReturnsEmptyString(t *testing.T) {
+	var typedNil *typedNilRetryClassifierError
+	wrapper := nonRetryableError{err: typedNil}
+
+	assert.Empty(t, wrapper.Error())
+}
+
+// TestNonRetryableError_UnwrapWithTypedNilReturnsNil pins the symmetric
+// guard on Unwrap(): callers walking the chain must see a comparable
+// nil, not an interface that carries a typed-nil pointer.
+func TestNonRetryableError_UnwrapWithTypedNilReturnsNil(t *testing.T) {
+	var typedNil *typedNilRetryClassifierError
+	wrapper := nonRetryableError{err: typedNil}
+
+	require.NoError(t, wrapper.Unwrap())
 }
 
 // TestDo_ContextCancellation tests handling of context cancellation

@@ -246,7 +246,7 @@ func (b *HTTPBatchProcessorWithRetry) parseAndProcessResponse(httpResp *retry.HT
 // hasResponseErrors checks if any responses have errors
 func (*HTTPBatchProcessorWithRetry) hasResponseErrors(responses []HTTPBatchResponse) bool {
 	for _, resp := range responses {
-		if resp.StatusCode >= 400 || resp.Error != "" {
+		if resp.StatusCode >= http.StatusBadRequest || resp.Error != "" {
 			return true
 		}
 	}

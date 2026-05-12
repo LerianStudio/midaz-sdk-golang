@@ -531,6 +531,19 @@ func validateAccessManagerTokenRequest(accessMgr AccessManager, httpClient *http
 }
 
 func requestAccessManagerToken(ctx context.Context, accessMgr AccessManager, httpClient *http.Client) (TokenResponse, error) {
+	// Defensive: validateAccessManagerTokenRequest is the canonical
+	// gate on this argument shape, but requestAccessManagerToken is
+	// reachable from in-package code paths that bypass that gate
+	// (refresh loops, test harnesses). Returning a clean error here
+	// turns "future caller forgot to validate" from a nil-deref panic
+	// into a recoverable failure with the same diagnostic envelope as
+	// the validator emits.
+	if httpClient == nil {
+		return TokenResponse{}, newAccessManagerTokenRequestErrorFromURL(
+			nil, false, true, ValidationReasonNilHTTPClient, 0,
+			errors.New("HTTP client cannot be nil"))
+	}
+
 	// Create the request payload
 	payload := map[string]string{
 		"grantType":    "client_credentials",
@@ -588,16 +601,25 @@ func accessManagerHTTPClient(client *http.Client, allowInsecureHTTP bool) *http.
 	return &clientCopy
 }
 
+// drainAndCloseAccessManagerResponseBody drains the response body so the
+// connection can be returned to the keep-alive pool, then closes it.
+// Drain and close errors are intentionally discarded: pkg/auth does not
+// have access to the SDK debug logger, the response body has already
+// been consumed for the token decode by the time we get here, and a
+// failure on either step is non-actionable in this credential-flow
+// codepath (the auth call has already succeeded or failed by status
+// code). entities/http.go has a richer variant that surfaces these
+// errors through the debug log — wire that in only if pkg/auth gains
+// a similar logger handle.
 func drainAndCloseAccessManagerResponseBody(resp *http.Response) {
 	if resp == nil || resp.Body == nil {
 		return
 	}
 
-	_, drainErr := io.Copy(io.Discard, io.LimitReader(resp.Body, maxAccessManagerResponseBodyBytes))
-	closeErr := resp.Body.Close()
-	if drainErr != nil || closeErr != nil {
-		return
-	}
+	// Drain and close errors are intentionally discarded via blank
+	// assignment; see godoc above for rationale.
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, maxAccessManagerResponseBodyBytes))
+	_ = resp.Body.Close()
 }
 
 func newAccessManagerTokenRequest(ctx context.Context, address string, payloadBytes []byte, allowInsecureHTTP bool) (*http.Request, error) {

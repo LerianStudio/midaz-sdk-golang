@@ -184,9 +184,15 @@ func TestTransactionHelpers_ReusedDefaultOptionsGenerateFreshIdempotencyKeys(t *
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			keys := make([]string, 0, 2)
+			// Buffered channel of size 2 instead of a shared slice +
+			// raw append: the httptest handler runs on a goroutine
+			// owned by the *http.Server, so the slice append from the
+			// handler raced with the test's read below under
+			// `go test -race`. Mirrors the pattern used in
+			// entities/http_idempotency_precedence_test.go (seenCh).
+			seenCh := make(chan string, 2)
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				keys = append(keys, r.Header.Get("X-Idempotency"))
+				seenCh <- r.Header.Get("X-Idempotency")
 				writeJSON(t, w, map[string]any{"id": "tx-1", "status": map[string]any{"code": "PENDING"}})
 			}))
 			defer server.Close()
@@ -194,10 +200,11 @@ func TestTransactionHelpers_ReusedDefaultOptionsGenerateFreshIdempotencyKeys(t *
 			entity := newTransactionHelperEntity(t, server)
 			require.NoError(t, tt.run(context.Background(), entity))
 
-			require.Len(t, keys, 2)
-			assert.NotEmpty(t, keys[0])
-			assert.NotEmpty(t, keys[1])
-			assert.NotEqual(t, keys[0], keys[1])
+			first := <-seenCh
+			second := <-seenCh
+			assert.NotEmpty(t, first)
+			assert.NotEmpty(t, second)
+			assert.NotEqual(t, first, second)
 		})
 	}
 }
