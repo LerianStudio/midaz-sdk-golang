@@ -570,7 +570,8 @@ func assertGetAssetRateOutcome(t *testing.T, tt struct {
 	mockError      error
 	expectedError  bool
 	errorContains  string
-}, result *models.AssetRate, err error) {
+}, result *models.AssetRate, err error,
+) {
 	t.Helper()
 
 	if tt.expectedError {

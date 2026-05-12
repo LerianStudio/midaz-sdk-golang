@@ -177,6 +177,40 @@ func TestFromEnvironment_IdempotencyStrictParseBool(t *testing.T) {
 	}
 }
 
+func TestFromEnvironment_ErrorExposeBodyStrictParseBool(t *testing.T) {
+	tests := []struct {
+		name       string
+		envValue   string
+		wantExpose bool
+		wantErr    bool
+	}{
+		{name: "true", envValue: "true", wantExpose: true},
+		{name: "false", envValue: "false", wantExpose: false},
+		{name: "1", envValue: "1", wantExpose: true},
+		{name: "0", envValue: "0", wantExpose: false},
+		{name: "yes rejected", envValue: "yes", wantErr: true},
+		{name: "no rejected", envValue: "no", wantErr: true},
+		{name: "garbage rejected", envValue: "maybe", wantErr: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("MIDAZ_ERROR_EXPOSE_BODY", tc.envValue)
+
+			cfg, err := NewConfig(FromEnvironment(), WithAnonymous())
+
+			if tc.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "invalid MIDAZ_ERROR_EXPOSE_BODY")
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantExpose, cfg.ExposeErrorBody)
+		})
+	}
+}
+
 // TestFromEnvironment_PluginAuthEnabledStrictParseBool covers the
 // remaining boolean env var on the auth path. PLUGIN_AUTH_ENABLED=yes
 // previously silently disabled auth (treated as not-"true" → false),
@@ -228,6 +262,52 @@ func TestFromEnvironment_PluginAuthEnabledStrictParseBool(t *testing.T) {
 			assert.Equal(t, tc.wantEnabled, cfg.AccessManager.Enabled)
 		})
 	}
+}
+
+func TestFromEnvironment_AccessManagerAllowInsecureHTTPStrictParseBool(t *testing.T) {
+	t.Run("true applies without PLUGIN_AUTH_ENABLED", func(t *testing.T) {
+		unsetEnv(t, "PLUGIN_AUTH_ENABLED")
+		t.Setenv("MIDAZ_ACCESS_MANAGER_ALLOW_INSECURE_HTTP", "true")
+
+		cfg, err := NewConfig(
+			WithAccessManager(auth.AccessManager{
+				Address:      "http://auth.internal.example.com",
+				ClientID:     "client-id",
+				ClientSecret: "client-secret",
+			}),
+			FromEnvironment(),
+		)
+		require.NoError(t, err)
+
+		assert.True(t, cfg.AccessManager.AllowInsecureHTTP)
+	})
+
+	t.Run("false overrides programmatic true without PLUGIN_AUTH_ENABLED", func(t *testing.T) {
+		unsetEnv(t, "PLUGIN_AUTH_ENABLED")
+		t.Setenv("MIDAZ_ACCESS_MANAGER_ALLOW_INSECURE_HTTP", "false")
+
+		cfg, err := NewConfig(
+			WithAccessManager(auth.AccessManager{
+				Address:           "https://auth.example.com",
+				ClientID:          "client-id",
+				ClientSecret:      "client-secret",
+				AllowInsecureHTTP: true,
+			}),
+			FromEnvironment(),
+		)
+		require.NoError(t, err)
+
+		assert.False(t, cfg.AccessManager.AllowInsecureHTTP)
+	})
+
+	t.Run("invalid value rejected without PLUGIN_AUTH_ENABLED", func(t *testing.T) {
+		unsetEnv(t, "PLUGIN_AUTH_ENABLED")
+		t.Setenv("MIDAZ_ACCESS_MANAGER_ALLOW_INSECURE_HTTP", "yes")
+
+		_, err := NewConfig(FromEnvironment(), WithAnonymous())
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid MIDAZ_ACCESS_MANAGER_ALLOW_INSECURE_HTTP")
+	})
 }
 
 // TestFromEnvironment_SkipAuthCheckStrictParseBool covers the

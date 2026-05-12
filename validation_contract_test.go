@@ -297,6 +297,47 @@ func TestNewPreservesAccessManagerBootstrapUpstreamHTTPStatus(t *testing.T) {
 	}
 }
 
+func TestNewClassifiesAccessManagerBootstrapTransportFailureAsNetwork(t *testing.T) {
+	transportErr := stderrors.New("dial tcp: connection refused")
+	client := &http.Client{
+		Transport: accessManagerBootstrapRoundTripFunc(func(*http.Request) (*http.Response, error) {
+			return nil, transportErr
+		}),
+	}
+
+	_, err := New(
+		WithAccessManager(AccessManager{
+			Address:      "https://auth.example.com",
+			ClientID:     "network-client-id",
+			ClientSecret: "super-secret-value",
+		}),
+		WithHTTPClient(client),
+	)
+
+	require.Error(t, err)
+	assert.True(t, sdkerrors.IsNetworkError(err), "pre-response token fetch failures must classify as network errors")
+	assert.True(t, sdkerrors.IsBootstrapError(err), "network token fetch failures are still bootstrap failures")
+	assert.False(t, sdkerrors.IsAuthenticationError(err), "transport failures must not masquerade as auth failures")
+	assert.False(t, sdkerrors.IsConfigurationError(err), "transport failures must not masquerade as local configuration failures")
+	assert.True(t, sdkerrors.HTTPRequestSent(err))
+	assert.False(t, sdkerrors.HTTPResponseReceived(err))
+
+	var sdkErr *sdkerrors.Error
+	require.ErrorAs(t, err, &sdkErr)
+	assert.Equal(t, sdkerrors.CategoryNetwork, sdkErr.Category)
+	assert.Equal(t, sdkerrors.CodeNetwork, sdkErr.Code)
+	assert.Equal(t, http.StatusServiceUnavailable, sdkErr.GetStatusCode())
+	assert.Equal(t, sdkerrors.ErrorSourceTransport, sdkErr.GetSource())
+	assert.Equal(t, sdkerrors.StatusCodeSourceSynthetic, sdkErr.GetStatusCodeSource())
+	assert.NotContains(t, err.Error(), "super-secret-value")
+}
+
+type accessManagerBootstrapRoundTripFunc func(*http.Request) (*http.Response, error)
+
+func (fn accessManagerBootstrapRoundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return fn(req)
+}
+
 // TestWithAccessManagerAutoEnables verifies the v3 ergonomic decision: callers
 // don't set the Enabled field themselves — the act of calling
 // WithAccessManager IS the opt-in.

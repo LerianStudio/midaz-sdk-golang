@@ -387,7 +387,7 @@ func TestHTTPClientPropagatesExtractedIncomingTraceWithRegisterGloballyFalse(t *
 
 func TestHTTPClientSDKInstrumentationCreatesSingleClientSpan(t *testing.T) {
 	recorder := tracetest.NewSpanRecorder()
-	provider := newSlice3Provider(recorder)
+	provider := newHTTPErrorResponseProvider(recorder)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -433,7 +433,7 @@ func TestHTTPClientSDKInstrumentationCreatesSingleClientSpan(t *testing.T) {
 
 func TestHTTPClientSDKInstrumentationUsesOtherForNonStandardMethod(t *testing.T) {
 	recorder := tracetest.NewSpanRecorder()
-	provider := newSlice3Provider(recorder)
+	provider := newHTTPErrorResponseProvider(recorder)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -456,7 +456,7 @@ func TestHTTPClientSDKInstrumentationUsesOtherForNonStandardMethod(t *testing.T)
 
 func TestHTTPClientErrorSpanRedactsSensitiveValues(t *testing.T) {
 	recorder := tracetest.NewSpanRecorder()
-	provider := newSlice3Provider(recorder)
+	provider := newHTTPErrorResponseProvider(recorder)
 	httpClient := NewHTTPClient(&http.Client{Transport: failingRoundTripper{}}, "token", provider)
 
 	var result map[string]string
