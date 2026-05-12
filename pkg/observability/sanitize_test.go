@@ -168,6 +168,15 @@ func TestSanitizeSensitiveStringRedactsBasicAndBearerCredentials(t *testing.T) {
 	assert.Equal(t, "Authorization: Bearer "+redactedValue, sanitizeSensitiveString("Authorization: Bearer raw-bearer-token"))
 }
 
+func TestSanitizeSensitiveStringRedactsAuthSchemeAfterShortPrefix(t *testing.T) {
+	input := strings.Repeat("safe ", 20) + "Bearer raw-bearer-token"
+
+	sanitized := sanitizeSensitiveString(input)
+
+	assert.NotContains(t, sanitized, "raw-bearer-token")
+	assert.Contains(t, sanitized, "Bearer "+redactedValue)
+}
+
 // FuzzSensitiveAssignmentPattern feeds pathological inputs (mixed
 // quotes, embedded nulls, multibyte UTF-8, deeply nested metadata
 // paths, very long values) to the regex redactor and asserts the two

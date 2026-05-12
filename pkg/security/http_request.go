@@ -216,11 +216,10 @@ func sameOrigin(previous, next *url.URL) bool {
 var headerNameNormalizer = strings.NewReplacer("-", "", "_", "", ".", "")
 
 // sensitiveHeaderMarkers is the list of normalized header-name fragments
-// whose presence flags a header as carrying credential or session-bearing
-// material. The list is intentionally tight: tenant- and
-// organization-identifier headers are routing data, not credentials, and
-// were deliberately removed so cross-tenant requests aren't blocked from
-// following same-origin redirects that happen to echo those identifiers.
+// whose presence flags a header as carrying credential, session-bearing,
+// or tenant-context material. The list is intentionally tight: Midaz
+// organization IDs are resource identifiers, not tenant identifiers, so
+// organization headers are not included here.
 //
 // Markers must survive the [headerNameNormalizer] transform (no '-',
 // '_', or '.'). When adding new markers, write them in the
@@ -233,6 +232,7 @@ var sensitiveHeaderMarkers = []string{
 	"password",
 	"apikey",
 	"idempotency",
+	"tenant",
 	// D2: defense-in-depth on credential/PII headers commonly emitted by
 	// API gateways and identity-provider integrations.
 	"signature",

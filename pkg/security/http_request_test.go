@@ -203,20 +203,28 @@ func TestValidateRedirect(t *testing.T) {
 			wantErrContains: "authenticated redirect",
 		},
 		{
-			// Regression: tenant- and organization-identifier headers are
-			// routing data, not credentials. A safe-method (GET)
-			// cross-origin redirect that carries X-Tenant-ID /
-			// X-Organization-ID and no other sensitive header must NOT
-			// be blocked.
-			name:           "allows cross-origin routing header on safe GET",
+			// Organization IDs are Midaz resource identifiers, not tenant
+			// identifiers. A safe-method cross-origin redirect carrying only
+			// X-Organization-ID must not be treated as authenticated replay.
+			name:           "allows cross-origin organization header on safe GET",
 			previousMethod: http.MethodGet,
 			previousURL:    "https://api.example.com/v1/accounts",
 			previousHeaders: map[string]string{
-				"X-Tenant-ID":       "tenant-1",
 				"X-Organization-ID": "org-7",
 			},
 			nextMethod: http.MethodGet,
 			nextURL:    "https://other.example.net/v1/accounts",
+		},
+		{
+			name:           "rejects cross-origin tenant header on safe GET",
+			previousMethod: http.MethodGet,
+			previousURL:    "https://api.example.com/v1/accounts",
+			previousHeaders: map[string]string{
+				"X-Tenant-ID": "tenant-1",
+			},
+			nextMethod:      http.MethodGet,
+			nextURL:         "https://other.example.net/v1/accounts",
+			wantErrContains: "authenticated redirect",
 		},
 		{
 			// Defense in depth: tenant header alone is fine, but
@@ -312,6 +320,9 @@ func runValidateRedirectCase(t *testing.T, tt validateRedirectCase) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), tt.wantErrContains)
+	if strings.Contains(tt.wantErrContains, "authenticated redirect") {
+		require.ErrorIs(t, err, ErrAuthenticatedRedirect)
+	}
 }
 
 // buildRedirectVia returns the [previous] request inside a slice, OR
@@ -354,6 +365,7 @@ func TestSameOrigin_FailClosedHostFormVariants(t *testing.T) {
 
 		err := ValidateRedirect(next, []*http.Request{previous})
 		require.Error(t, err)
+		require.ErrorIs(t, err, ErrAuthenticatedRedirect)
 		assert.Contains(t, err.Error(), "authenticated redirect")
 	})
 
@@ -364,6 +376,7 @@ func TestSameOrigin_FailClosedHostFormVariants(t *testing.T) {
 
 		err := ValidateRedirect(next, []*http.Request{previous})
 		require.Error(t, err)
+		require.ErrorIs(t, err, ErrAuthenticatedRedirect)
 		assert.Contains(t, err.Error(), "authenticated redirect")
 	})
 }
@@ -390,6 +403,7 @@ func TestEnsureRedirectPolicy_SDKGuardRunsBeforeCallerCheckRedirect(t *testing.T
 
 		err := wrapped.CheckRedirect(next, []*http.Request{previous})
 		require.Error(t, err)
+		require.ErrorIs(t, err, ErrAuthenticatedRedirect)
 		assert.Contains(t, err.Error(), "authenticated redirect")
 		assert.False(t, callerInvoked, "caller CheckRedirect must NOT run when SDK guard rejects")
 	})

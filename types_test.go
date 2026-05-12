@@ -1,9 +1,10 @@
-package midaz
+package midaz_test
 
 import (
 	"reflect"
 	"testing"
 
+	midaz "github.com/LerianStudio/midaz-sdk-golang/v3"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 )
 
@@ -24,70 +25,70 @@ func TestTypeAliasesAreIdentical(t *testing.T) {
 		source any
 	}{
 		// Resource entities.
-		{"Account", Account{}, models.Account{}},
-		{"AccountType", AccountType{}, models.AccountType{}},
-		{"Alias", Alias{}, models.Alias{}},
-		{"Asset", Asset{}, models.Asset{}},
-		{"AssetRate", AssetRate{}, models.AssetRate{}},
-		{"Balance", Balance{}, models.Balance{}},
-		{"Holder", Holder{}, models.Holder{}},
-		{"Ledger", Ledger{}, models.Ledger{}},
-		{"MetadataIndex", MetadataIndex{}, models.MetadataIndex{}},
-		{"Operation", Operation{}, models.Operation{}},
-		{"OperationRoute", OperationRoute{}, models.OperationRoute{}},
-		{"Organization", Organization{}, models.Organization{}},
-		{"Portfolio", Portfolio{}, models.Portfolio{}},
-		{"Segment", Segment{}, models.Segment{}},
-		{"Transaction", Transaction{}, models.Transaction{}},
-		{"TransactionRoute", TransactionRoute{}, models.TransactionRoute{}},
+		{"Account", midaz.Account{}, models.Account{}},
+		{"AccountType", midaz.AccountType{}, models.AccountType{}},
+		{"Alias", midaz.Alias{}, models.Alias{}},
+		{"Asset", midaz.Asset{}, models.Asset{}},
+		{"AssetRate", midaz.AssetRate{}, models.AssetRate{}},
+		{"Balance", midaz.Balance{}, models.Balance{}},
+		{"Holder", midaz.Holder{}, models.Holder{}},
+		{"Ledger", midaz.Ledger{}, models.Ledger{}},
+		{"MetadataIndex", midaz.MetadataIndex{}, models.MetadataIndex{}},
+		{"Operation", midaz.Operation{}, models.Operation{}},
+		{"OperationRoute", midaz.OperationRoute{}, models.OperationRoute{}},
+		{"Organization", midaz.Organization{}, models.Organization{}},
+		{"Portfolio", midaz.Portfolio{}, models.Portfolio{}},
+		{"Segment", midaz.Segment{}, models.Segment{}},
+		{"Transaction", midaz.Transaction{}, models.Transaction{}},
+		{"TransactionRoute", midaz.TransactionRoute{}, models.TransactionRoute{}},
 
 		// Create inputs.
-		{"CreateAccountInput", CreateAccountInput{}, models.CreateAccountInput{}},
-		{"CreateAccountTypeInput", CreateAccountTypeInput{}, models.CreateAccountTypeInput{}},
-		{"CreateAliasInput", CreateAliasInput{}, models.CreateAliasInput{}},
-		{"CreateAssetInput", CreateAssetInput{}, models.CreateAssetInput{}},
-		{"CreateAssetRateInput", CreateAssetRateInput{}, models.CreateAssetRateInput{}},
-		{"CreateBalanceInput", CreateBalanceInput{}, models.CreateBalanceInput{}},
-		{"CreateHolderInput", CreateHolderInput{}, models.CreateHolderInput{}},
-		{"CreateLedgerInput", CreateLedgerInput{}, models.CreateLedgerInput{}},
-		{"CreateMetadataIndexInput", CreateMetadataIndexInput{}, models.CreateMetadataIndexInput{}},
-		{"CreateOperationInput", CreateOperationInput{}, models.CreateOperationInput{}},
-		{"CreateOperationRouteInput", CreateOperationRouteInput{}, models.CreateOperationRouteInput{}},
-		{"CreateOrganizationInput", CreateOrganizationInput{}, models.CreateOrganizationInput{}},
-		{"CreatePortfolioInput", CreatePortfolioInput{}, models.CreatePortfolioInput{}},
-		{"CreateSegmentInput", CreateSegmentInput{}, models.CreateSegmentInput{}},
-		{"CreateTransactionInput", CreateTransactionInput{}, models.CreateTransactionInput{}},
-		{"CreateTransactionRouteInput", CreateTransactionRouteInput{}, models.CreateTransactionRouteInput{}},
+		{"CreateAccountInput", midaz.CreateAccountInput{}, models.CreateAccountInput{}},
+		{"CreateAccountTypeInput", midaz.CreateAccountTypeInput{}, models.CreateAccountTypeInput{}},
+		{"CreateAliasInput", midaz.CreateAliasInput{}, models.CreateAliasInput{}},
+		{"CreateAssetInput", midaz.CreateAssetInput{}, models.CreateAssetInput{}},
+		{"CreateAssetRateInput", midaz.CreateAssetRateInput{}, models.CreateAssetRateInput{}},
+		{"CreateBalanceInput", midaz.CreateBalanceInput{}, models.CreateBalanceInput{}},
+		{"CreateHolderInput", midaz.CreateHolderInput{}, models.CreateHolderInput{}},
+		{"CreateLedgerInput", midaz.CreateLedgerInput{}, models.CreateLedgerInput{}},
+		{"CreateMetadataIndexInput", midaz.CreateMetadataIndexInput{}, models.CreateMetadataIndexInput{}},
+		{"CreateOperationInput", midaz.CreateOperationInput{}, models.CreateOperationInput{}},
+		{"CreateOperationRouteInput", midaz.CreateOperationRouteInput{}, models.CreateOperationRouteInput{}},
+		{"CreateOrganizationInput", midaz.CreateOrganizationInput{}, models.CreateOrganizationInput{}},
+		{"CreatePortfolioInput", midaz.CreatePortfolioInput{}, models.CreatePortfolioInput{}},
+		{"CreateSegmentInput", midaz.CreateSegmentInput{}, models.CreateSegmentInput{}},
+		{"CreateTransactionInput", midaz.CreateTransactionInput{}, models.CreateTransactionInput{}},
+		{"CreateTransactionRouteInput", midaz.CreateTransactionRouteInput{}, models.CreateTransactionRouteInput{}},
 
 		// Update inputs.
-		{"UpdateAccountInput", UpdateAccountInput{}, models.UpdateAccountInput{}},
-		{"UpdateAccountTypeInput", UpdateAccountTypeInput{}, models.UpdateAccountTypeInput{}},
-		{"UpdateAliasInput", UpdateAliasInput{}, models.UpdateAliasInput{}},
-		{"UpdateAssetInput", UpdateAssetInput{}, models.UpdateAssetInput{}},
-		{"UpdateBalanceInput", UpdateBalanceInput{}, models.UpdateBalanceInput{}},
-		{"UpdateHolderInput", UpdateHolderInput{}, models.UpdateHolderInput{}},
-		{"UpdateLedgerInput", UpdateLedgerInput{}, models.UpdateLedgerInput{}},
-		{"UpdateOperationInput", UpdateOperationInput{}, models.UpdateOperationInput{}},
-		{"UpdateOperationRouteInput", UpdateOperationRouteInput{}, models.UpdateOperationRouteInput{}},
-		{"UpdateOrganizationInput", UpdateOrganizationInput{}, models.UpdateOrganizationInput{}},
-		{"UpdatePortfolioInput", UpdatePortfolioInput{}, models.UpdatePortfolioInput{}},
-		{"UpdateSegmentInput", UpdateSegmentInput{}, models.UpdateSegmentInput{}},
-		{"UpdateTransactionInput", UpdateTransactionInput{}, models.UpdateTransactionInput{}},
-		{"UpdateTransactionRouteInput", UpdateTransactionRouteInput{}, models.UpdateTransactionRouteInput{}},
+		{"UpdateAccountInput", midaz.UpdateAccountInput{}, models.UpdateAccountInput{}},
+		{"UpdateAccountTypeInput", midaz.UpdateAccountTypeInput{}, models.UpdateAccountTypeInput{}},
+		{"UpdateAliasInput", midaz.UpdateAliasInput{}, models.UpdateAliasInput{}},
+		{"UpdateAssetInput", midaz.UpdateAssetInput{}, models.UpdateAssetInput{}},
+		{"UpdateBalanceInput", midaz.UpdateBalanceInput{}, models.UpdateBalanceInput{}},
+		{"UpdateHolderInput", midaz.UpdateHolderInput{}, models.UpdateHolderInput{}},
+		{"UpdateLedgerInput", midaz.UpdateLedgerInput{}, models.UpdateLedgerInput{}},
+		{"UpdateOperationInput", midaz.UpdateOperationInput{}, models.UpdateOperationInput{}},
+		{"UpdateOperationRouteInput", midaz.UpdateOperationRouteInput{}, models.UpdateOperationRouteInput{}},
+		{"UpdateOrganizationInput", midaz.UpdateOrganizationInput{}, models.UpdateOrganizationInput{}},
+		{"UpdatePortfolioInput", midaz.UpdatePortfolioInput{}, models.UpdatePortfolioInput{}},
+		{"UpdateSegmentInput", midaz.UpdateSegmentInput{}, models.UpdateSegmentInput{}},
+		{"UpdateTransactionInput", midaz.UpdateTransactionInput{}, models.UpdateTransactionInput{}},
+		{"UpdateTransactionRouteInput", midaz.UpdateTransactionRouteInput{}, models.UpdateTransactionRouteInput{}},
 
 		// Transaction sub-DTOs.
-		{"AmountInput", AmountInput{}, models.AmountInput{}},
-		{"DistributeInput", DistributeInput{}, models.DistributeInput{}},
-		{"FromToInput", FromToInput{}, models.FromToInput{}},
-		{"SendInput", SendInput{}, models.SendInput{}},
-		{"SourceInput", SourceInput{}, models.SourceInput{}},
+		{"AmountInput", midaz.AmountInput{}, models.AmountInput{}},
+		{"DistributeInput", midaz.DistributeInput{}, models.DistributeInput{}},
+		{"FromToInput", midaz.FromToInput{}, models.FromToInput{}},
+		{"SendInput", midaz.SendInput{}, models.SendInput{}},
+		{"SourceInput", midaz.SourceInput{}, models.SourceInput{}},
 
 		// Pagination & lists.
-		{"Pagination", Pagination{}, models.Pagination{}},
+		{"Pagination", midaz.Pagination{}, models.Pagination{}},
 
 		// Common.
-		{"Status", Status{}, models.Status{}},
-		{"Address", Address{}, models.Address{}},
+		{"Status", midaz.Status{}, models.Status{}},
+		{"Address", midaz.Address{}, models.Address{}},
 	}
 
 	for _, tc := range cases {
@@ -106,7 +107,7 @@ func TestTypeAliasesAreIdentical(t *testing.T) {
 // Go 1.24+ supports generic type aliases; ListResponse[T] is the only generic
 // in the alias surface today.
 func TestGenericListResponseAlias(t *testing.T) {
-	var alias ListResponse[models.Account]
+	var alias midaz.ListResponse[models.Account]
 	var source models.ListResponse[models.Account]
 
 	if reflect.TypeOf(alias) != reflect.TypeOf(source) {
@@ -127,7 +128,7 @@ func TestAliasesUsableInUserFlow(t *testing.T) {
 	// User writes a function that takes a midaz.CreateAccountInput.
 	// Behind the scenes this is models.CreateAccountInput, so we can
 	// pass it to functions that expect either form.
-	input := CreateAccountInput{
+	input := midaz.CreateAccountInput{
 		Name:      "Test Account",
 		AssetCode: "USD",
 		Type:      "deposit",
@@ -141,7 +142,7 @@ func TestAliasesUsableInUserFlow(t *testing.T) {
 
 	// And the reverse direction.
 	modelsInput := models.CreateAccountInput{Name: "From models", AssetCode: "EUR", Type: "deposit"}
-	acceptMidazInput := func(in CreateAccountInput) string { return in.Name }
+	acceptMidazInput := func(in midaz.CreateAccountInput) string { return in.Name }
 	if got := acceptMidazInput(modelsInput); got != "From models" {
 		t.Errorf("models did not pass cleanly to midaz.CreateAccountInput consumer: got %q", got)
 	}

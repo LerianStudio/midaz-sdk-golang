@@ -500,13 +500,6 @@ func isSensitiveLogFieldKey(key string) bool {
 	return sdkerrors.IsSensitiveFieldName(strings.TrimSpace(key))
 }
 
-// authSchemePrefixScanLimit caps the byte-level case-insensitive scan
-// inside [mayContainSensitiveToken] when neither '=' nor ':' is present.
-// Bearer/Basic prefixes that appear after this offset are still caught
-// by the regex pass on whatever slow path eventually invokes the
-// authTokenPattern; the preflight is a fast reject, not a guarantee.
-const authSchemePrefixScanLimit = 64
-
 // mayContainSensitiveToken returns true when the string is plausibly carrying
 // a credential payload. Both regex patterns require either an '=' / ':'
 // assignment separator or a literal auth scheme prefix; if none of those
@@ -522,16 +515,14 @@ func mayContainSensitiveToken(value string) bool {
 		return true
 	}
 
-	// Byte-level case-insensitive scan for "bearer " / "basic " prefixes —
-	// bounded to the first authSchemePrefixScanLimit bytes. Allocating a
-	// full lower-cased copy of a multi-kilobyte log line just to find a
-	// 6-byte literal showed up as wasted work under pprof on retry-heavy
-	// workloads. Tokens buried deeper than the scan window still fall
-	// through to the regex pass via the '=' / ':' fast-paths above
-	// (auth-scheme strings without either delimiter are rare).
+	// Byte-level case-insensitive scan for "bearer" / "basic" prefixes,
+	// bounded to the same window the redaction pass can actually inspect.
+	// Allocating a full lower-cased copy of a multi-kilobyte log line just
+	// to find a 6-byte literal showed up as wasted work under pprof on
+	// retry-heavy workloads.
 	end := len(value)
-	if end > authSchemePrefixScanLimit {
-		end = authSchemePrefixScanLimit
+	if end > sanitizeMaxScanBytes {
+		end = sanitizeMaxScanBytes
 	}
 
 	return containsFoldByte(value[:end], "bearer") || containsFoldByte(value[:end], "basic")

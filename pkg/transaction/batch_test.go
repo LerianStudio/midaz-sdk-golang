@@ -23,6 +23,8 @@ func TestDefaultBatchOptions(t *testing.T) {
 	assert.Equal(t, 100, opts.BatchSize)
 	assert.Equal(t, 3, opts.RetryCount)
 	assert.Equal(t, 100*time.Millisecond, opts.RetryDelay)
+	assert.Equal(t, 30*time.Second, opts.MaxDelay)
+	assert.InDelta(t, 0.2, opts.JitterFactor, 0.001)
 	assert.Equal(t, "batch", opts.IdempotencyKeyPrefix)
 	assert.False(t, opts.StopOnError)
 	assert.Nil(t, opts.OnProgress)
@@ -40,6 +42,8 @@ func TestBatchOptionsFields(t *testing.T) {
 		BatchSize:            50,
 		RetryCount:           2,
 		RetryDelay:           200 * time.Millisecond,
+		MaxDelay:             5 * time.Second,
+		JitterFactor:         0.5,
 		OnProgress:           onProgress,
 		IdempotencyKeyPrefix: "custom-prefix",
 		StopOnError:          true,
@@ -49,6 +53,8 @@ func TestBatchOptionsFields(t *testing.T) {
 	assert.Equal(t, 50, opts.BatchSize)
 	assert.Equal(t, 2, opts.RetryCount)
 	assert.Equal(t, 200*time.Millisecond, opts.RetryDelay)
+	assert.Equal(t, 5*time.Second, opts.MaxDelay)
+	assert.InDelta(t, 0.5, opts.JitterFactor, 0.001)
 	assert.NotNil(t, opts.OnProgress)
 	assert.Equal(t, "custom-prefix", opts.IdempotencyKeyPrefix)
 	assert.True(t, opts.StopOnError)
@@ -289,6 +295,9 @@ func TestNormalizeOptions(t *testing.T) {
 			Concurrency:          5,
 			BatchSize:            200,
 			RetryCount:           5,
+			RetryDelay:           250 * time.Millisecond,
+			MaxDelay:             5 * time.Second,
+			JitterFactor:         0.5,
 			IdempotencyKeyPrefix: "custom",
 			StopOnError:          true,
 		})
@@ -296,9 +305,38 @@ func TestNormalizeOptions(t *testing.T) {
 		assert.Equal(t, 5, opts.Concurrency)
 		assert.Equal(t, 200, opts.BatchSize)
 		assert.Equal(t, 5, opts.RetryCount)
+		assert.Equal(t, 250*time.Millisecond, opts.RetryDelay)
+		assert.Equal(t, 5*time.Second, opts.MaxDelay)
+		assert.InDelta(t, 0.5, opts.JitterFactor, 0.001)
 		assert.Equal(t, "custom", opts.IdempotencyKeyPrefix)
 		assert.True(t, opts.StopOnError)
 	})
+
+	t.Run("invalid retry timing falls back to defaults", func(t *testing.T) {
+		opts := normalizeOptions(&BatchOptions{
+			RetryDelay:   -1,
+			MaxDelay:     -1,
+			JitterFactor: 2,
+		})
+
+		assert.Equal(t, defaultBatchRetryDelay, opts.RetryDelay)
+		assert.Equal(t, defaultBatchMaxDelay, opts.MaxDelay)
+		assert.InDelta(t, defaultBatchJitter, opts.JitterFactor, 0.001)
+	})
+}
+
+func TestComputeBackoffWithJitterHonorsMaxDelay(t *testing.T) {
+	originalJitter := secureJitterFraction
+	t.Cleanup(func() { secureJitterFraction = originalJitter })
+	secureJitterFraction = func() float64 { return 1 }
+
+	bp := &batchProcessor{options: &BatchOptions{
+		RetryDelay:   time.Second,
+		MaxDelay:     2 * time.Second,
+		JitterFactor: 1,
+	}}
+
+	assert.Equal(t, 2*time.Second, bp.computeBackoffWithJitter(10))
 }
 
 // TestIsRetryableError tests the isRetryableError function

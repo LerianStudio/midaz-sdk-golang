@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/entities"
@@ -200,12 +201,24 @@ func TestTransactionHelpers_ReusedDefaultOptionsGenerateFreshIdempotencyKeys(t *
 			entity := newTransactionHelperEntity(t, server)
 			require.NoError(t, tt.run(context.Background(), entity))
 
-			first := <-seenCh
-			second := <-seenCh
+			first := receiveIdempotencyHeader(t, seenCh)
+			second := receiveIdempotencyHeader(t, seenCh)
 			assert.NotEmpty(t, first)
 			assert.NotEmpty(t, second)
 			assert.NotEqual(t, first, second)
 		})
+	}
+}
+
+func receiveIdempotencyHeader(t *testing.T, seenCh <-chan string) string {
+	t.Helper()
+
+	select {
+	case header := <-seenCh:
+		return header
+	case <-time.After(time.Second):
+		t.Fatal("expected two transaction helper requests with idempotency headers")
+		return ""
 	}
 }
 

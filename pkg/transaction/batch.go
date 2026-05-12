@@ -400,8 +400,8 @@ func (bp *batchProcessor) executeWithRetries(input *models.CreateTransactionInpu
 // waitForRetry implements exponential backoff for retries with jitter
 // and a hard cap. Capping is non-negotiable: the previous unbounded
 // form reached ~31 hours of wait at attempt 30 because Go's `1<<30`
-// shift overflowed reasoning. Jitter is applied AFTER the cap so the
-// jitter window never exceeds the configured MaxDelay either.
+// shift overflowed reasoning. The final delay is clamped after jitter
+// so MaxDelay remains a hard upper bound.
 //
 // time.NewTimer (with defer Stop) replaces the older time.After
 // pattern: time.After leaks the underlying timer until the duration
@@ -427,9 +427,7 @@ func (bp *batchProcessor) computeBackoffWithJitter(attempt int) time.Duration {
 	backoffFactor := bp.calculateBackoffFactor(attempt)
 	backoffDuration := time.Duration(1<<backoffFactor) * bp.options.RetryDelay
 
-	// Cap BEFORE jitter so the jitter window is anchored against a
-	// bounded base. Capping after jitter would let a large jitter
-	// percentage push the effective delay past MaxDelay.
+	// Cap before jitter so the jitter window is anchored against a bounded base.
 	if bp.options.MaxDelay > 0 && backoffDuration > bp.options.MaxDelay {
 		backoffDuration = bp.options.MaxDelay
 	}
@@ -451,9 +449,14 @@ func (bp *batchProcessor) computeBackoffWithJitter(attempt int) time.Duration {
 		// than panicking in time.NewTimer.
 		backoffDuration = 0
 	}
+	if bp.options.MaxDelay > 0 && backoffDuration > bp.options.MaxDelay {
+		backoffDuration = bp.options.MaxDelay
+	}
 
 	return backoffDuration
 }
+
+var secureJitterFraction = readSecureJitterFraction
 
 // secureJitterFraction returns a value in [-1.0, 1.0) using crypto/rand.
 // On crypto/rand failure (effectively impossible outside a broken OS)
@@ -461,7 +464,7 @@ func (bp *batchProcessor) computeBackoffWithJitter(attempt int) time.Duration {
 // retry interval. Mirrors the policy used by pkg/retry's
 // getSecureRandomFloat64 helper but locally inlined to avoid widening
 // pkg/transaction's import surface.
-func secureJitterFraction() float64 {
+func readSecureJitterFraction() float64 {
 	var buf [8]byte
 	if _, err := rand.Read(buf[:]); err != nil {
 		return 0
