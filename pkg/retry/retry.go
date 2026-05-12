@@ -59,6 +59,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"reflect"
 	"strings"
 	"time"
 )
@@ -125,6 +126,10 @@ type nonRetryableError struct {
 }
 
 func (e nonRetryableError) Error() string {
+	if isNilInterfaceValue(e.err) {
+		return ""
+	}
+
 	return e.err.Error()
 }
 
@@ -134,7 +139,7 @@ func (e nonRetryableError) Unwrap() error {
 
 // AsNonRetryable marks an error so the retry engine will stop immediately.
 func AsNonRetryable(err error) error {
-	if err == nil {
+	if err == nil || isNilInterfaceValue(err) {
 		return nil
 	}
 
@@ -548,7 +553,7 @@ func doWithOptions(ctx context.Context, fn func() error, options *Options) error
 
 		// Execute the function
 		err = fn()
-		if err == nil {
+		if err == nil || isNilInterfaceValue(err) {
 			// Success, return immediately
 			return nil
 		}
@@ -593,6 +598,10 @@ func doWithOptions(ctx context.Context, fn func() error, options *Options) error
 	// Return the last error wrapped behind the ErrRetriesExhausted
 	// sentinel so callers can match via errors.Is(err, ErrRetriesExhausted)
 	// without scraping the rendered string.
+	if isNilInterfaceValue(err) {
+		return nil
+	}
+
 	return fmt.Errorf("%w: operation failed after %d retries: %w", ErrRetriesExhausted, options.MaxRetries, err)
 }
 
@@ -625,7 +634,7 @@ func doWithOptions(ctx context.Context, fn func() error, options *Options) error
 //	    return err
 //	}
 func IsRetryableError(err error, options *Options) bool {
-	if err == nil {
+	if err == nil || isNilInterfaceValue(err) {
 		return false
 	}
 
@@ -650,18 +659,23 @@ func IsRetryableError(err error, options *Options) bool {
 		return true
 	}
 
-	// 2) Typed retryable taxonomy: any error that exposes Retryable() bool wins.
+	// 2) Explicit HTTP status policy wins before the generic typed taxonomy.
+	if matchesRetryableHTTPStatus(err, options.RetryableHTTPCodes) {
+		return true
+	}
+
+	// 3) Typed retryable taxonomy: any error that exposes Retryable() bool wins.
 	// This makes pkg/errors.Error.Retryable() the canonical SDK-wide policy
 	// while remaining decoupled (structural interface — no import cycle).
 	// It must run BEFORE the substring scan, otherwise an auth error whose
 	// message happens to contain "timeout" (e.g. "Token expired due to timeout")
 	// would be misclassified as retryable.
 	var retryable interface{ Retryable() bool }
-	if errors.As(err, &retryable) {
+	if errors.As(err, &retryable) && !isNilInterfaceValue(retryable) {
 		return retryable.Retryable()
 	}
 
-	// 3) Retryable error string matching.
+	// 4) Retryable error string matching.
 	errMsg := err.Error()
 	for _, retryableErr := range options.RetryableErrors {
 		if retryableErr != "" && errMatchesPattern(errMsg, retryableErr) {
@@ -669,18 +683,37 @@ func IsRetryableError(err error, options *Options) bool {
 		}
 	}
 
-	// 4) Retryable HTTP status codes via structural interface.
-	// Use errors.As so wrapped errors are detected through the chain.
+	return false
+}
+
+func matchesRetryableHTTPStatus(err error, codes []int) bool {
 	var statusErr interface{ StatusCode() int }
-	if errors.As(err, &statusErr) {
-		for _, code := range options.RetryableHTTPCodes {
-			if statusErr.StatusCode() == code {
-				return true
-			}
+	if !errors.As(err, &statusErr) || isNilInterfaceValue(statusErr) {
+		return false
+	}
+
+	statusCode := statusErr.StatusCode()
+	for _, code := range codes {
+		if statusCode == code {
+			return true
 		}
 	}
 
 	return false
+}
+
+func isNilInterfaceValue(value any) bool {
+	if value == nil {
+		return true
+	}
+
+	rv := reflect.ValueOf(value)
+	switch rv.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return rv.IsNil()
+	default:
+		return false
+	}
 }
 
 // errMatchesPattern checks if an error message contains a retryable pattern

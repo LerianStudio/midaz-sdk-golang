@@ -131,6 +131,22 @@ func TestDo_NonRetryableError(t *testing.T) {
 	}
 }
 
+func TestDo_TypedNilErrorTreatedAsSuccess(t *testing.T) {
+	var typedNil *typedNilRetryClassifierError
+
+	err := Do(context.Background(), func() error {
+		return typedNil
+	}, WithMaxRetries(0))
+
+	require.NoError(t, err)
+}
+
+func TestAsNonRetryable_TypedNilReturnsNil(t *testing.T) {
+	var typedNil *typedNilRetryClassifierError
+
+	require.NoError(t, AsNonRetryable(typedNil))
+}
+
 // TestDo_ContextCancellation tests handling of context cancellation
 func TestDo_ContextCancellation(t *testing.T) {
 	// Create a context that will be cancelled
@@ -778,12 +794,60 @@ type mockHTTPError struct {
 	statusCode int
 }
 
+type nonRetryableHTTPStatusError struct {
+	statusCode int
+}
+
+type typedNilRetryClassifierError struct {
+	statusCode int
+}
+
+type retryWrapperError struct {
+	inner error
+}
+
 func (e mockHTTPError) Error() string {
 	return fmt.Sprintf("HTTP error: %d", e.statusCode)
 }
 
 func (e mockHTTPError) StatusCode() int {
 	return e.statusCode
+}
+
+func (e nonRetryableHTTPStatusError) Error() string {
+	return fmt.Sprintf("HTTP error: %d", e.statusCode)
+}
+
+func (e nonRetryableHTTPStatusError) StatusCode() int {
+	return e.statusCode
+}
+
+func (nonRetryableHTTPStatusError) Retryable() bool {
+	return false
+}
+
+func (e *typedNilRetryClassifierError) Error() string {
+	if e == nil {
+		return "typed nil retry classifier"
+	}
+
+	return fmt.Sprintf("HTTP error: %d", e.statusCode)
+}
+
+func (e *typedNilRetryClassifierError) StatusCode() int {
+	return e.statusCode
+}
+
+func (e *typedNilRetryClassifierError) Retryable() bool {
+	return e.statusCode >= http.StatusInternalServerError
+}
+
+func (retryWrapperError) Error() string {
+	return "wrapped retry classifier"
+}
+
+func (e retryWrapperError) Unwrap() error {
+	return e.inner
 }
 
 // TestIsRetryableError_TypedRetryable_OverridesSubstringMatch verifies that
@@ -871,4 +935,52 @@ func TestIsRetryableError_StructuralStatusCode_UnwrapsViaErrorsAs(t *testing.T) 
 	if IsRetryableError(nonRetryable, options) {
 		t.Fatalf("wrapped HTTP error with 400 must NOT be retryable; got err=%v", nonRetryable)
 	}
+}
+
+func TestIsRetryableError_ExplicitHTTPStatusOverridesTypedNonRetryable(t *testing.T) {
+	options := &Options{
+		MaxRetries:         1,
+		InitialDelay:       time.Millisecond,
+		MaxDelay:           time.Millisecond,
+		BackoffFactor:      1,
+		RetryableErrors:    []string{},
+		RetryableHTTPCodes: []int{http.StatusConflict},
+	}
+
+	retryableConflict := nonRetryableHTTPStatusError{statusCode: http.StatusConflict}
+	if !IsRetryableError(retryableConflict, options) {
+		t.Fatalf("explicit RetryableHTTPCodes must override typed Retryable() false; got err=%v", retryableConflict)
+	}
+
+	nonRetryableUnprocessable := nonRetryableHTTPStatusError{statusCode: http.StatusUnprocessableEntity}
+	if IsRetryableError(nonRetryableUnprocessable, options) {
+		t.Fatalf("non-configured status must still honor typed Retryable() false; got err=%v", nonRetryableUnprocessable)
+	}
+}
+
+func TestIsRetryableError_TypedNilStructuralInterfacesDoNotPanic(t *testing.T) {
+	var typedNil *typedNilRetryClassifierError
+	var direct error = typedNil
+	wrapped := retryWrapperError{inner: typedNil}
+
+	options := &Options{
+		MaxRetries:         1,
+		InitialDelay:       time.Millisecond,
+		MaxDelay:           time.Millisecond,
+		BackoffFactor:      1,
+		RetryableErrors:    []string{},
+		RetryableHTTPCodes: []int{http.StatusServiceUnavailable},
+	}
+
+	require.NotPanics(t, func() {
+		if IsRetryableError(direct, options) {
+			t.Fatal("typed-nil direct error must not be retryable")
+		}
+	})
+
+	require.NotPanics(t, func() {
+		if IsRetryableError(wrapped, options) {
+			t.Fatal("wrapped typed-nil structural error must not be retryable")
+		}
+	})
 }

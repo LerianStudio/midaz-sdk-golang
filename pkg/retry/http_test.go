@@ -417,16 +417,10 @@ func TestDoHTTPRequest_RetryContextCancellationStopsActualRequestAttempt(t *test
 	started := make(chan struct{})
 	release := make(chan struct{})
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		close(started)
 		<-release
-
-		select {
-		case <-r.Context().Done():
-			return
-		default:
-			w.WriteHeader(http.StatusOK)
-		}
+		<-r.Context().Done()
 	}))
 	defer server.Close()
 
