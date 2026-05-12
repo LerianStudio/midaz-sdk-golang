@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sync"
 
 	pkgerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry"
@@ -21,7 +22,8 @@ type HTTPBatchProcessorWithRetry struct {
 	baseURL string
 
 	// defaultHeaders are headers to include in all requests
-	defaultHeaders map[string]string
+	defaultHeaders   map[string]string
+	defaultHeadersMu sync.RWMutex
 
 	// options are the batch options
 	options *HTTPBatchOptions
@@ -107,11 +109,17 @@ func (b *HTTPBatchProcessorWithRetry) SetJSONMarshaler(marshaler JSONMarshaler) 
 
 // SetDefaultHeader sets a default header for all requests.
 func (b *HTTPBatchProcessorWithRetry) SetDefaultHeader(key, value string) {
+	b.defaultHeadersMu.Lock()
+	defer b.defaultHeadersMu.Unlock()
+
 	b.defaultHeaders[key] = value
 }
 
 // SetDefaultHeaders sets multiple default headers for all requests.
 func (b *HTTPBatchProcessorWithRetry) SetDefaultHeaders(headers map[string]string) {
+	b.defaultHeadersMu.Lock()
+	defer b.defaultHeadersMu.Unlock()
+
 	for k, v := range headers {
 		b.defaultHeaders[k] = v
 	}
@@ -203,6 +211,9 @@ func (b *HTTPBatchProcessorWithRetry) createHTTPRequest(ctx context.Context, req
 // setRequestHeaders sets the appropriate headers on the HTTP request
 func (b *HTTPBatchProcessorWithRetry) setRequestHeaders(req *http.Request) {
 	req.Header.Set("Content-Type", "application/json")
+
+	b.defaultHeadersMu.RLock()
+	defer b.defaultHeadersMu.RUnlock()
 
 	for k, v := range b.defaultHeaders {
 		req.Header.Set(k, v)
