@@ -413,7 +413,7 @@ func (r *httpRetryState) executeWithRetries(req *http.Request) (*HTTPResponse, e
 		}
 	}
 
-	return r.createFinalErrorResponse(), fmt.Errorf("operation failed after %d retries", r.options.MaxRetries)
+	return r.createFinalErrorResponse(), fmt.Errorf("%w: operation failed after %d retries", ErrRetriesExhausted, r.options.MaxRetries)
 }
 
 // checkContextCancellation checks if the context is cancelled.
@@ -692,7 +692,7 @@ func (r *httpRetryState) createFinalErrorResponse() *HTTPResponse {
 	return &HTTPResponse{
 		Response: r.resp,
 		Body:     r.respBody,
-		Error:    fmt.Errorf("operation failed after %d retries, last status: %d, last error: %w", r.options.MaxRetries, r.lastStatusCode, r.lastErr),
+		Error:    fmt.Errorf("%w: operation failed after %d retries, last status: %d, last error: %w", ErrRetriesExhausted, r.options.MaxRetries, r.lastStatusCode, r.lastErr),
 		Attempt:  r.options.MaxRetries,
 	}
 }

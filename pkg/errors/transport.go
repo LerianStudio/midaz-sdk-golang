@@ -78,7 +78,7 @@ func ClassifyTransportError(operation string, err error) error {
 		return NewNetworkError(operation, err)
 
 	default:
-		return NewInternalError(operation, err)
+		return withSyntheticStatus(NewInternalError(operation, err), ErrorSourceTransport, true)
 	}
 }
 

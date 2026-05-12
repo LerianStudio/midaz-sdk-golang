@@ -69,6 +69,16 @@ var (
 	errNilContext = errors.New("retry context is nil")
 	errNilFunc    = errors.New("retry function is nil")
 	errNilOption  = errors.New("retry option is nil")
+
+	// ErrRetriesExhausted is the typed sentinel wrapped around every
+	// "retry budget exhausted" terminal error produced by this package.
+	// Callers can detect retry exhaustion via:
+	//
+	//	if errors.Is(err, retry.ErrRetriesExhausted) { /* ... */ }
+	//
+	// This replaces the brittle `strings.Contains(err.Error(), "operation
+	// failed after ...")` predicate the rest of the SDK previously used.
+	ErrRetriesExhausted = errors.New("retry: retries exhausted")
 )
 
 // Options configures the retry behavior
@@ -580,8 +590,10 @@ func doWithOptions(ctx context.Context, fn func() error, options *Options) error
 		}
 	}
 
-	// Return the last error
-	return fmt.Errorf("operation failed after %d retries: %w", options.MaxRetries, err)
+	// Return the last error wrapped behind the ErrRetriesExhausted
+	// sentinel so callers can match via errors.Is(err, ErrRetriesExhausted)
+	// without scraping the rendered string.
+	return fmt.Errorf("%w: operation failed after %d retries: %w", ErrRetriesExhausted, options.MaxRetries, err)
 }
 
 // IsRetryableError checks if an error is retryable based on the provided options

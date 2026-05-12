@@ -137,7 +137,7 @@ func TestNewNotFoundError(t *testing.T) {
 	assert.Equal(t, "GetAccount", err.Operation)
 	assert.Equal(t, "account", err.Resource)
 	assert.Equal(t, "acc123", err.ResourceID)
-	assert.Equal(t, "account not found: acc123", err.Message)
+	assert.Equal(t, "account not found", err.Message)
 	assert.Equal(t, http.StatusNotFound, err.StatusCode)
 }
 
@@ -372,6 +372,150 @@ func TestErrorDetailsAndFormatting_Regressions(t *testing.T) {
 	})
 }
 
+func TestHTTPStatusDiagnostics(t *testing.T) {
+	t.Run("upstream HTTP response exposes actual status", func(t *testing.T) {
+		err := sdkerrors.ErrorFromHTTPResponse(http.StatusTeapot, "req-1", "short and stout", "", "kettle", "ktl-123")
+
+		actual, ok := sdkerrors.ActualHTTPStatus(err)
+		require.True(t, ok)
+		assert.Equal(t, http.StatusTeapot, actual)
+		assert.Equal(t, http.StatusTeapot, sdkerrors.SuggestedHTTPStatus(err))
+		assert.True(t, sdkerrors.HTTPRequestSent(err))
+		assert.True(t, sdkerrors.HTTPResponseReceived(err))
+
+		var sdkErr *sdkerrors.Error
+		require.ErrorAs(t, err, &sdkErr)
+		assert.Equal(t, sdkerrors.ErrorSourceHTTPResponse, sdkErr.Source)
+		assert.Equal(t, sdkerrors.StatusCodeSourceUpstream, sdkErr.GetStatusCodeSource())
+	})
+
+	t.Run("SDK synthetic status is not reported as actual HTTP", func(t *testing.T) {
+		err := sdkerrors.NewConfigurationError("midaz.New", "missing client_secret=super-secret", nil)
+
+		actual, ok := sdkerrors.ActualHTTPStatus(err)
+		assert.False(t, ok)
+		assert.Zero(t, actual)
+		assert.Equal(t, http.StatusBadRequest, sdkerrors.SuggestedHTTPStatus(err))
+		assert.False(t, sdkerrors.HTTPRequestSent(err))
+		assert.False(t, sdkerrors.HTTPResponseReceived(err))
+		assert.Equal(t, sdkerrors.ErrorSourceConfiguration, err.GetSource())
+		assert.Equal(t, sdkerrors.StatusCodeSourceSynthetic, err.GetStatusCodeSource())
+		assert.NotContains(t, err.Message, "super-secret")
+	})
+
+	t.Run("transport status is synthetic after request attempt without response", func(t *testing.T) {
+		err := sdkerrors.NewNetworkError("accounts.Get", errors.New("connection refused"))
+
+		actual, ok := sdkerrors.ActualHTTPStatus(err)
+		assert.False(t, ok)
+		assert.Zero(t, actual)
+		assert.Equal(t, http.StatusServiceUnavailable, sdkerrors.SuggestedHTTPStatus(err))
+		assert.True(t, sdkerrors.HTTPRequestSent(err))
+		assert.False(t, sdkerrors.HTTPResponseReceived(err))
+		assert.Equal(t, sdkerrors.ErrorSourceTransport, err.GetSource())
+		assert.Equal(t, sdkerrors.StatusCodeSourceSynthetic, err.GetStatusCodeSource())
+	})
+
+	t.Run("nil suggested status avoids legacy HTTP 200 ambiguity", func(t *testing.T) {
+		assert.Equal(t, http.StatusOK, sdkerrors.GetStatusCode(nil))
+		assert.Zero(t, sdkerrors.SuggestedHTTPStatus(nil))
+	})
+
+	t.Run("bootstrap upstream helper preserves actual status diagnostics", func(t *testing.T) {
+		err := sdkerrors.NewUpstreamHTTPError(
+			"midaz.New",
+			"Access Manager token request failed",
+			http.StatusTooManyRequests,
+			errors.New("access_token=secret-token password=hunter2"),
+		)
+
+		actual, ok := sdkerrors.ActualHTTPStatus(err)
+		require.True(t, ok)
+		assert.Equal(t, http.StatusTooManyRequests, actual)
+		assert.Equal(t, http.StatusTooManyRequests, sdkerrors.SuggestedHTTPStatus(err))
+		assert.True(t, sdkerrors.HTTPRequestSent(err))
+		assert.True(t, sdkerrors.HTTPResponseReceived(err))
+		assert.Equal(t, sdkerrors.CategoryLimitExceeded, err.Category)
+		assert.Equal(t, sdkerrors.CodeRateLimit, err.Code)
+		assert.Equal(t, sdkerrors.ErrorSourceHTTPResponse, err.GetSource())
+		assert.Equal(t, sdkerrors.StatusCodeSourceUpstream, err.GetStatusCodeSource())
+		assert.NotContains(t, err.Error(), "secret-token")
+		assert.NotContains(t, err.Error(), "hunter2")
+	})
+}
+
+func TestConstructorRedactionAndResourceIDRendering(t *testing.T) {
+	secretID := "acc_secret_123"
+	constructors := []struct {
+		name              string
+		err               *sdkerrors.Error
+		mustNotContain    []string
+		mustContainAssets bool // asset mismatch: codes are public, must render verbatim
+	}{
+		{
+			name:           "missing parameter",
+			err:            sdkerrors.NewMissingParameterError("op", "metadata.access_token"),
+			mustNotContain: []string{secretID},
+		},
+		{
+			name:           "not found",
+			err:            sdkerrors.NewNotFoundError("op", "account", secretID, nil),
+			mustNotContain: []string{secretID},
+		},
+		{
+			name:           "conflict",
+			err:            sdkerrors.NewConflictError("op", "account", secretID, nil),
+			mustNotContain: []string{secretID},
+		},
+		{
+			name:           "unprocessable",
+			err:            sdkerrors.NewUnprocessableError("op", "transaction", errors.New("external_id=secret-ext")),
+			mustNotContain: []string{"secret-ext"},
+		},
+		{
+			name:           "insufficient balance",
+			err:            sdkerrors.NewInsufficientBalanceError("op", secretID, errors.New("document=123456789")),
+			mustNotContain: []string{secretID, "123456789"},
+		},
+		{
+			// Asset codes (USD, EUR, BRL) are PUBLIC API contract — they
+			// MUST render verbatim. The redactor still scrubs embedded
+			// key=value credential pairs, but bare asset codes pass through.
+			name:              "asset mismatch renders codes verbatim",
+			err:               sdkerrors.NewAssetMismatchError("op", "USD", "EUR", nil),
+			mustContainAssets: true,
+		},
+		{
+			name:           "asset mismatch still redacts embedded credentials",
+			err:            sdkerrors.NewAssetMismatchError("op", "USD", "EUR", errors.New("token=super-secret-value")),
+			mustNotContain: []string{"super-secret-value"},
+		},
+		{
+			name:           "account eligibility",
+			err:            sdkerrors.NewAccountEligibilityError("op", secretID, errors.New("account external_id=secret-ext")),
+			mustNotContain: []string{secretID, "secret-ext"},
+		},
+		{
+			name:           "configuration",
+			err:            sdkerrors.NewConfigurationError("op", "client_secret=super-secret", nil),
+			mustNotContain: []string{"super-secret"},
+		},
+	}
+
+	for _, tc := range constructors {
+		t.Run(tc.name, func(t *testing.T) {
+			rendered := tc.err.Error()
+			for _, fragment := range tc.mustNotContain {
+				assert.NotContains(t, rendered, fragment, "rendered error must not leak %q", fragment)
+			}
+			if tc.mustContainAssets {
+				assert.Contains(t, rendered, "USD", "asset codes must render verbatim")
+				assert.Contains(t, rendered, "EUR", "asset codes must render verbatim")
+			}
+		})
+	}
+}
+
 func TestErrorNilReceiverSafety_Regressions(t *testing.T) {
 	t.Run("Error methods tolerate nil receiver", func(t *testing.T) {
 		var err *sdkerrors.Error
@@ -420,7 +564,7 @@ func TestFormatErrorForDisplay(t *testing.T) {
 		{
 			name:     "not found error",
 			err:      sdkerrors.NewNotFoundError("Test", "account", "acc123", nil),
-			expected: "Resource not found: account not found: acc123",
+			expected: "Resource not found: account not found",
 		},
 		{
 			name:     "authentication error",
@@ -473,7 +617,7 @@ func TestError_Error(t *testing.T) {
 				Resource:   "account",
 				ResourceID: "acc123",
 			},
-			expected: "not_found error for account acc123: not found",
+			expected: "not_found error for account: not found",
 		},
 		{
 			name: "with operation",
@@ -493,7 +637,7 @@ func TestError_Error(t *testing.T) {
 				ResourceID: "acc123",
 				Operation:  "GetAccount",
 			},
-			expected: "not_found error for account acc123 during GetAccount: not found",
+			expected: "not_found error for account during GetAccount: not found",
 		},
 	}
 
@@ -854,7 +998,7 @@ func TestNewConflictError(t *testing.T) {
 		assert.Equal(t, "CreateAccount", err.Operation)
 		assert.Equal(t, "account", err.Resource)
 		assert.Equal(t, "acc123", err.ResourceID)
-		assert.Equal(t, "account already exists: acc123", err.Message)
+		assert.Equal(t, "account already exists", err.Message)
 		assert.Equal(t, http.StatusConflict, err.StatusCode)
 		assert.Equal(t, underlyingErr, err.Err)
 	})
@@ -1022,6 +1166,9 @@ func TestNewAssetMismatchError(t *testing.T) {
 	assert.Equal(t, sdkerrors.CategoryValidation, err.Category)
 	assert.Equal(t, sdkerrors.CodeAssetMismatch, err.Code)
 	assert.Equal(t, "Transfer", err.Operation)
+	// Asset codes are public API contract, not PII. They MUST render verbatim
+	// so callers can act on "expected USD, got EUR" without grepping a
+	// [REDACTED] message.
 	assert.Equal(t, "asset mismatch: expected USD, got EUR", err.Message)
 	assert.Equal(t, http.StatusBadRequest, err.StatusCode)
 	assert.Equal(t, underlyingErr, err.Err)
@@ -2000,6 +2147,8 @@ func TestIsUnprocessableError(t *testing.T) {
 		{"nil", nil, false},
 		{"plain error", errors.New("boom"), false},
 		{"insufficient balance", sdkerrors.NewInsufficientBalanceError("transactions.Create", "acc_1", nil), true},
+		{"account eligibility", sdkerrors.NewAccountEligibilityError("transactions.Create", "acc_1", nil), true},
+		{"asset mismatch", sdkerrors.NewAssetMismatchError("transactions.Create", "USD", "EUR", nil), true},
 		{"generic unprocessable", sdkerrors.NewUnprocessableError("op", "ledger", nil), true},
 		{"validation does not match", sdkerrors.NewValidationError("op", "bad", nil), false},
 		{"sentinel ErrUnprocessable", sdkerrors.ErrUnprocessable, true},

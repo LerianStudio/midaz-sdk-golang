@@ -66,9 +66,12 @@ const (
 	// CodeConfiguration is for SDK setup / client construction errors.
 	CodeConfiguration ErrorCode = "configuration_error"
 
-	// CodeServiceUnavailable indicates a 503 Service Unavailable from a
-	// dependency. Distinct from CodeNetwork (pre-response transport
-	// failure) — the server answered, it just isn't ready.
+	// CodeServiceUnavailable indicates the upstream service responded
+	// with HTTP 503. This shares [CategoryNetwork] with [CodeNetwork]
+	// because both indicate a transient transport-or-availability failure
+	// where retry is appropriate; the Code field distinguishes the
+	// pre-response transport failure (CodeNetwork) from the post-response
+	// service-unavailable signal (CodeServiceUnavailable).
 	CodeServiceUnavailable ErrorCode = "service_unavailable"
 )
 
@@ -76,6 +79,38 @@ const (
 type ErrorCategory string
 
 const statusClientClosedRequest = 499
+
+// ErrorSource identifies where an SDK error originated.
+type ErrorSource string
+
+const (
+	// ErrorSourceSDK identifies errors synthesized by SDK-side validation or helpers.
+	ErrorSourceSDK ErrorSource = "sdk"
+
+	// ErrorSourceConfiguration identifies errors caused by SDK configuration.
+	ErrorSourceConfiguration ErrorSource = "configuration"
+
+	// ErrorSourceTransport identifies pre-response transport failures.
+	ErrorSourceTransport ErrorSource = "transport"
+
+	// ErrorSourceHTTPResponse identifies errors built from an upstream HTTP response.
+	ErrorSourceHTTPResponse ErrorSource = "http_response"
+)
+
+// ErrorStatusCodeSource identifies whether Error.StatusCode came from upstream
+// HTTP or was synthesized by the SDK for caller convenience.
+type ErrorStatusCodeSource string
+
+const (
+	// StatusCodeSourceNone means no HTTP status code is available.
+	StatusCodeSourceNone ErrorStatusCodeSource = "none"
+
+	// StatusCodeSourceSynthetic means the SDK selected a suggested HTTP status.
+	StatusCodeSourceSynthetic ErrorStatusCodeSource = "synthetic"
+
+	// StatusCodeSourceUpstream means the status came from a received HTTP response.
+	StatusCodeSourceUpstream ErrorStatusCodeSource = "upstream"
+)
 
 const (
 	// CategoryValidation represents validation errors
@@ -102,7 +137,11 @@ const (
 	// CategoryCancellation represents context cancellation errors
 	CategoryCancellation ErrorCategory = "cancellation"
 
-	// CategoryNetwork represents network-related errors
+	// CategoryNetwork represents network-related errors. Used for both
+	// pre-response transport failures (DNS, conn-refused, TLS, broken
+	// pipe — paired with [CodeNetwork]) and HTTP 503 responses where the
+	// server answered but is not currently available (paired with
+	// [CodeServiceUnavailable]). Both shapes are retryable.
 	CategoryNetwork ErrorCategory = "network"
 
 	// CategoryInternal represents internal SDK or server errors
@@ -117,11 +156,19 @@ const (
 	// the SDK rather than a server-side or transport problem.
 	CategoryConfiguration ErrorCategory = "configuration"
 
-	// CategoryAuth is the canonical v3 category for any authentication or
-	// authorization failure. It replaces the v2 split between
-	// CategoryAuthentication and CategoryAuthorization. Callers that need
-	// to distinguish 401 from 403 should inspect [Error.StatusCode] or
-	// [Error.Code] (CodeAuthentication vs CodePermission).
+	// CategoryAuth is a synthetic match-any-auth shape used by [ErrAuth]
+	// and the [Error.Is] bridge so callers can write
+	//
+	//	errors.Is(err, errors.ErrAuth)
+	//
+	// to match both CategoryAuthentication (401) AND CategoryAuthorization
+	// (403) in one predicate. No constructor PRODUCES errors with
+	// Category=CategoryAuth — the live errors carry the disjoint 401/403
+	// category. The "auth" string only ever appears as the Target of an
+	// [errors.Is] check.
+	//
+	// To distinguish 401 from 403, inspect [Error.StatusCode] or
+	// [Error.Code] (CodeAuthentication vs CodePermission) after [errors.As].
 	CategoryAuth ErrorCategory = "auth"
 )
 
@@ -215,11 +262,40 @@ type Error struct {
 	// StatusCode is the HTTP status code, if applicable
 	StatusCode int `json:"statusCode,omitempty"`
 
+	// Source identifies the layer that produced the error. It is safe diagnostic
+	// metadata and does not contain request data.
+	Source ErrorSource `json:"-"`
+
+	// HTTPRequestSent reports whether the SDK attempted an HTTP request.
+	HTTPRequestSent bool `json:"-"`
+
+	// HTTPResponseReceived reports whether an upstream HTTP response was received.
+	HTTPResponseReceived bool `json:"-"`
+
+	// StatusCodeSource identifies whether StatusCode is upstream, synthetic, or absent.
+	StatusCodeSource ErrorStatusCodeSource `json:"-"`
+
 	// RequestID is the API request ID, if available.
 	// Marked json:"-" defensively: request IDs are generally opaque, but
 	// the safe baseline is to opt out of JSON exposure for everything
 	// caller-derived.
 	RequestID string `json:"-"`
+
+	// Method is the HTTP method of the request that produced this error,
+	// when the error originated from an HTTP response or transport failure.
+	// Marked json:"-" defensively (consistent with other request-derived
+	// fields) — the value is one of GET/POST/PUT/PATCH/DELETE so leak risk
+	// is low, but JSON exposure is the wrong default for v3.
+	Method string `json:"-"`
+
+	// URLHost is the redacted host:port the failing request was issued to
+	// (userinfo and query stripped). Use this in diagnostic dashboards
+	// without re-deriving from the rendered error string.
+	URLHost string `json:"-"`
+
+	// URLPath is the redacted path the failing request was issued to
+	// (query/fragment stripped, dynamic ID segments collapsed to ":id").
+	URLPath string `json:"-"`
 
 	// Err is the underlying error.
 	// Marked json:"-" because the inner error string is opaque to the
@@ -244,21 +320,29 @@ func (e *Error) MarshalJSON() ([]byte, error) {
 	// review: it must not be capable of carrying credentials, tokens,
 	// or PII even after the constructor's redaction pass.
 	type safeProjection struct {
-		Category   ErrorCategory `json:"category"`
-		Code       ErrorCode     `json:"code"`
-		APICode    string        `json:"apiCode,omitempty"`
-		Resource   string        `json:"resource,omitempty"`
-		EntityType string        `json:"entityType,omitempty"`
-		StatusCode int           `json:"statusCode,omitempty"`
+		Category             ErrorCategory         `json:"category"`
+		Code                 ErrorCode             `json:"code"`
+		APICode              string                `json:"apiCode,omitempty"`
+		Resource             string                `json:"resource,omitempty"`
+		EntityType           string                `json:"entityType,omitempty"`
+		StatusCode           int                   `json:"statusCode,omitempty"`
+		Source               ErrorSource           `json:"source,omitempty"`
+		HTTPRequestSent      bool                  `json:"httpRequestSent,omitempty"`
+		HTTPResponseReceived bool                  `json:"httpResponseReceived,omitempty"`
+		StatusCodeSource     ErrorStatusCodeSource `json:"statusCodeSource,omitempty"`
 	}
 
 	projection := safeProjection{
-		Category:   e.Category,
-		Code:       e.Code,
-		APICode:    e.APICode,
-		Resource:   e.Resource,
-		EntityType: e.EntityType,
-		StatusCode: e.StatusCode,
+		Category:             e.Category,
+		Code:                 e.Code,
+		APICode:              e.APICode,
+		Resource:             e.Resource,
+		EntityType:           e.EntityType,
+		StatusCode:           e.StatusCode,
+		Source:               e.Source,
+		HTTPRequestSent:      e.HTTPRequestSent,
+		HTTPResponseReceived: e.HTTPResponseReceived,
+		StatusCodeSource:     e.StatusCodeSource,
 	}
 
 	return json.Marshal(projection)
@@ -280,9 +364,12 @@ func (e *Error) Error() string {
 	var errorContext string
 
 	switch {
-	case e.Resource != "" && e.ResourceID != "":
-		errorContext = fmt.Sprintf("%s error for %s %s", e.Category, e.Resource, e.ResourceID)
 	case e.Resource != "":
+		// ResourceID is intentionally omitted from Error() rendering to
+		// prevent sensitive identifiers (account numbers, transaction IDs,
+		// external IDs) from leaking into log aggregators that consume
+		// err.Error() directly. Callers that need the ID should read
+		// e.ResourceID via the typed accessor [Error.GetResourceID].
 		errorContext = fmt.Sprintf("%s error for %s", e.Category, e.Resource)
 	default:
 		errorContext = fmt.Sprintf("%s error", string(e.Category))
@@ -443,6 +530,36 @@ func (e *Error) GetStatusCode() int {
 	return e.StatusCode
 }
 
+// GetSource returns the layer that produced the error, when known.
+func (e *Error) GetSource() ErrorSource {
+	if e == nil {
+		return ""
+	}
+
+	return e.Source
+}
+
+// GetStatusCodeSource returns whether the status code is upstream, synthetic, or absent.
+func (e *Error) GetStatusCodeSource() ErrorStatusCodeSource {
+	if e == nil {
+		return StatusCodeSourceNone
+	}
+
+	return e.effectiveStatusCodeSource()
+}
+
+func (e *Error) effectiveStatusCodeSource() ErrorStatusCodeSource {
+	if e == nil || e.StatusCode == 0 {
+		return StatusCodeSourceNone
+	}
+
+	if e.StatusCodeSource != "" {
+		return e.StatusCodeSource
+	}
+
+	return StatusCodeSourceSynthetic
+}
+
 // GetRequestID returns the request ID, if available.
 func (e *Error) GetRequestID() string {
 	if e == nil {
@@ -478,6 +595,14 @@ func (e *Error) GetOperation() string {
 
 	return e.Operation
 }
+
+// errSensitiveFieldNormalizer is the package-level Replacer used to fold
+// "_", "-", and "." out of field names before fragment matching. Hoisted to
+// package scope (rather than allocated per call inside IsSensitiveFieldName)
+// because IsSensitiveFieldName runs on every header redaction and every
+// API-detail walk — allocating a fresh Replacer per call shows up under
+// `pprof -alloc_objects` on retry-heavy workloads.
+var errSensitiveFieldNormalizer = strings.NewReplacer("_", "", "-", "", ".", "")
 
 var (
 	// sensitiveBearerPattern matches "authorization: Bearer <value>" and
@@ -668,7 +793,7 @@ func IsSensitiveFieldName(name string) bool {
 		return false
 	}
 
-	normalized := strings.ToLower(strings.NewReplacer("_", "", "-", "", ".", "").Replace(name))
+	normalized := strings.ToLower(errSensitiveFieldNormalizer.Replace(name))
 	for _, fragment := range sensitiveFieldFragments {
 		if strings.Contains(normalized, fragment) {
 			return true
@@ -693,6 +818,91 @@ func normalizeError(err error) error {
 	return err
 }
 
+func withDiagnostics(e *Error, source ErrorSource, requestSent, responseReceived bool, statusSource ErrorStatusCodeSource) *Error {
+	if e == nil {
+		return nil
+	}
+
+	e.Source = source
+	e.HTTPRequestSent = requestSent
+	e.HTTPResponseReceived = responseReceived
+	if e.StatusCode == 0 {
+		e.StatusCodeSource = StatusCodeSourceNone
+	} else {
+		e.StatusCodeSource = statusSource
+	}
+
+	return e
+}
+
+func withSyntheticStatus(e *Error, source ErrorSource, requestSent bool) *Error {
+	return withDiagnostics(e, source, requestSent, false, StatusCodeSourceSynthetic)
+}
+
+func redactMessage(message string, unsafeValues ...string) string {
+	message = redactSensitive(message)
+	for _, unsafeValue := range unsafeValues {
+		if unsafeValue == "" {
+			continue
+		}
+
+		message = strings.ReplaceAll(message, unsafeValue, "[REDACTED]")
+	}
+
+	return message
+}
+
+// safeFieldLabel returns name unless name itself looks like a credential
+// label (e.g. "password", "token") — in which case it is redacted so the
+// rendered error message does not echo a sensitive identifier verbatim.
+//
+// IMPORTANT: this is a LABEL policy, not a VALUE policy. Parameter names
+// like "externalID", "metadataKey", "assetCode" are part of the public API
+// contract and MUST render verbatim so callers can map error messages to
+// the SDK methods they came from. Only labels that *describe* secret data
+// (password, secret, token, …) are scrubbed.
+//
+// The fragment list is narrower than [IsSensitiveFieldName] on purpose: the
+// broad PII allowlist (document, externalid, idempotency, metadata, …) is
+// for redacting VALUES, never for redacting label strings.
+func safeFieldLabel(name string) string {
+	if isSensitiveLabelFragment(name) {
+		return "[REDACTED]"
+	}
+
+	return redactSensitive(name)
+}
+
+// sensitiveLabelFragments enumerates the substrings (after case-folding and
+// stripping '_', '-', '.') that mark a label string itself as sensitive —
+// e.g. "password" embedded in a parameter name is a strong signal that the
+// label is about credentials and should not render verbatim. Compare with
+// [sensitiveFieldFragments], which classifies field-name → value redaction.
+var sensitiveLabelFragments = []string{
+	"password",
+	"secret",
+	"token",
+	"apikey",
+	"authorization",
+	"cookie",
+	"cardnumber",
+}
+
+func isSensitiveLabelFragment(name string) bool {
+	if name == "" {
+		return false
+	}
+
+	normalized := strings.ToLower(errSensitiveFieldNormalizer.Replace(name))
+	for _, fragment := range sensitiveLabelFragments {
+		if strings.Contains(normalized, fragment) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // Standard error constructors
 
 // NewValidationError creates a validation error.
@@ -702,14 +912,14 @@ func NewValidationError(operation, message string, err error) *Error {
 		message = fmt.Sprintf("%s: %v", message, err)
 	}
 
-	return &Error{
+	return withSyntheticStatus(&Error{
 		Category:   CategoryValidation,
 		Code:       CodeValidation,
-		Message:    redactSensitive(message),
-		Operation:  operation,
+		Message:    redactMessage(message),
+		Operation:  redactSensitive(operation),
 		Err:        err,
 		StatusCode: http.StatusBadRequest,
-	}
+	}, ErrorSourceSDK, false)
 }
 
 // NewInvalidInputError creates a validation error for invalid input.
@@ -721,28 +931,29 @@ func NewInvalidInputError(operation string, err error) *Error {
 		message = fmt.Sprintf("invalid input: %v", err)
 	}
 
-	return &Error{
+	return withSyntheticStatus(&Error{
 		Category:   CategoryValidation,
 		Code:       CodeValidation,
-		Message:    redactSensitive(message),
-		Operation:  operation,
+		Message:    redactMessage(message),
+		Operation:  redactSensitive(operation),
 		Err:        err,
 		StatusCode: http.StatusBadRequest,
-	}
+	}, ErrorSourceSDK, false)
 }
 
 // NewMissingParameterError creates a validation error for a missing parameter.
 func NewMissingParameterError(operation, paramName string) *Error {
-	message := fmt.Sprintf("missing required parameter: %s", paramName)
+	safeParamName := safeFieldLabel(paramName)
+	message := fmt.Sprintf("missing required parameter: %s", safeParamName)
 
-	return &Error{
+	return withSyntheticStatus(&Error{
 		Category:   CategoryValidation,
 		Code:       CodeValidation,
 		Message:    message,
-		Operation:  operation,
+		Operation:  redactSensitive(operation),
 		Err:        errors.New(message),
 		StatusCode: http.StatusBadRequest,
-	}
+	}, ErrorSourceSDK, false)
 }
 
 // NewNotFoundError creates a not found error.
@@ -750,20 +961,17 @@ func NewNotFoundError(operation, resource, resourceID string, err error) *Error 
 	err = normalizeError(err)
 
 	message := fmt.Sprintf("%s not found", resource)
-	if resourceID != "" {
-		message = fmt.Sprintf("%s not found: %s", resource, resourceID)
-	}
 
-	return &Error{
+	return withSyntheticStatus(&Error{
 		Category:   CategoryNotFound,
 		Code:       CodeNotFound,
-		Message:    redactSensitive(message),
-		Operation:  operation,
-		Resource:   resource,
+		Message:    redactMessage(message, resourceID),
+		Operation:  redactSensitive(operation),
+		Resource:   redactSensitive(resource),
 		ResourceID: resourceID,
 		Err:        err,
 		StatusCode: http.StatusNotFound,
-	}
+	}, ErrorSourceSDK, false)
 }
 
 // NewAuthenticationError creates an authentication error.
@@ -773,14 +981,14 @@ func NewAuthenticationError(operation, message string, err error) *Error {
 		message = fmt.Sprintf("%s: %v", message, err)
 	}
 
-	return &Error{
+	return withSyntheticStatus(&Error{
 		Category:   CategoryAuthentication,
 		Code:       CodeAuthentication,
-		Message:    redactSensitive(message),
-		Operation:  operation,
+		Message:    redactMessage(message),
+		Operation:  redactSensitive(operation),
 		Err:        err,
 		StatusCode: http.StatusUnauthorized,
-	}
+	}, ErrorSourceSDK, false)
 }
 
 // NewAuthorizationError creates an authorization error.
@@ -790,14 +998,14 @@ func NewAuthorizationError(operation, message string, err error) *Error {
 		message = fmt.Sprintf("%s: %v", message, err)
 	}
 
-	return &Error{
+	return withSyntheticStatus(&Error{
 		Category:   CategoryAuthorization,
 		Code:       CodePermission,
-		Message:    redactSensitive(message),
-		Operation:  operation,
+		Message:    redactMessage(message),
+		Operation:  redactSensitive(operation),
 		Err:        err,
 		StatusCode: http.StatusForbidden,
-	}
+	}, ErrorSourceSDK, false)
 }
 
 // NewConflictError creates a conflict error.
@@ -805,20 +1013,17 @@ func NewConflictError(operation, resource, resourceID string, err error) *Error 
 	err = normalizeError(err)
 
 	message := fmt.Sprintf("%s already exists", resource)
-	if resourceID != "" {
-		message = fmt.Sprintf("%s already exists: %s", resource, resourceID)
-	}
 
-	return &Error{
+	return withSyntheticStatus(&Error{
 		Category:   CategoryConflict,
 		Code:       CodeAlreadyExists,
-		Message:    redactSensitive(message),
-		Operation:  operation,
-		Resource:   resource,
+		Message:    redactMessage(message, resourceID),
+		Operation:  redactSensitive(operation),
+		Resource:   redactSensitive(resource),
 		ResourceID: resourceID,
 		Err:        err,
 		StatusCode: http.StatusConflict,
-	}
+	}, ErrorSourceSDK, false)
 }
 
 // NewRateLimitError creates a rate limit error.
@@ -829,14 +1034,14 @@ func NewRateLimitError(operation, message string, err error) *Error {
 		message = "rate limit exceeded"
 	}
 
-	return &Error{
+	return withSyntheticStatus(&Error{
 		Category:   CategoryLimitExceeded,
 		Code:       CodeRateLimit,
-		Message:    redactSensitive(message),
-		Operation:  operation,
+		Message:    redactMessage(message),
+		Operation:  redactSensitive(operation),
 		Err:        err,
 		StatusCode: http.StatusTooManyRequests,
-	}
+	}, ErrorSourceSDK, false)
 }
 
 // NewTimeoutError creates a timeout error.
@@ -847,14 +1052,14 @@ func NewTimeoutError(operation, message string, err error) *Error {
 		message = "operation timed out"
 	}
 
-	return &Error{
+	return withSyntheticStatus(&Error{
 		Category:   CategoryTimeout,
 		Code:       CodeTimeout,
-		Message:    redactSensitive(message),
-		Operation:  operation,
+		Message:    redactMessage(message),
+		Operation:  redactSensitive(operation),
 		Err:        err,
 		StatusCode: http.StatusGatewayTimeout,
-	}
+	}, ErrorSourceTransport, true)
 }
 
 // NewCancellationError creates a cancellation error for cancelled contexts.
@@ -866,14 +1071,14 @@ func NewCancellationError(operation string, err error) *Error {
 		message = fmt.Sprintf("operation cancelled: %v", err)
 	}
 
-	return &Error{
+	return withSyntheticStatus(&Error{
 		Category:   CategoryCancellation,
 		Code:       CodeCancellation,
-		Message:    redactSensitive(message),
-		Operation:  operation,
+		Message:    redactMessage(message),
+		Operation:  redactSensitive(operation),
 		Err:        err,
 		StatusCode: statusClientClosedRequest,
-	}
+	}, ErrorSourceTransport, true)
 }
 
 // NewNetworkError creates a network error.
@@ -885,14 +1090,44 @@ func NewNetworkError(operation string, err error) *Error {
 		message = fmt.Sprintf("network error: %v", err)
 	}
 
-	return &Error{
+	return withSyntheticStatus(&Error{
 		Category:   CategoryNetwork,
 		Code:       CodeNetwork,
-		Message:    redactSensitive(message),
-		Operation:  operation,
+		Message:    redactMessage(message),
+		Operation:  redactSensitive(operation),
 		Err:        err,
 		StatusCode: http.StatusServiceUnavailable,
+	}, ErrorSourceTransport, true)
+}
+
+// NewUpstreamHTTPError creates an SDK error that preserves the HTTP status
+// returned by an upstream service. Use this when a bootstrap or helper path
+// received an HTTP response outside the normal API response parser and must
+// keep actual upstream diagnostics (status code, request/response flags, and
+// status source) instead of synthesizing an SDK-only status.
+func NewUpstreamHTTPError(operation, message string, statusCode int, err error) *Error {
+	err = normalizeError(err)
+
+	if message == "" {
+		message = "upstream HTTP request failed"
 	}
+	if err != nil {
+		message = fmt.Sprintf("%s: %v", message, err)
+	}
+
+	mapping, ok := httpErrorMappings[statusCode]
+	if !ok {
+		mapping = httpErrorMapping{category: CategoryInternal, code: CodeInternal}
+	}
+
+	return withDiagnostics(&Error{
+		Category:   mapping.category,
+		Code:       mapping.code,
+		Message:    redactMessage(message),
+		Operation:  redactSensitive(operation),
+		Err:        err,
+		StatusCode: statusCode,
+	}, ErrorSourceHTTPResponse, true, true, StatusCodeSourceUpstream)
 }
 
 // NewInternalError creates an internal error.
@@ -904,14 +1139,14 @@ func NewInternalError(operation string, err error) *Error {
 		message = fmt.Sprintf("internal error: %v", err)
 	}
 
-	return &Error{
+	return withSyntheticStatus(&Error{
 		Category:   CategoryInternal,
 		Code:       CodeInternal,
-		Message:    redactSensitive(message),
-		Operation:  operation,
+		Message:    redactMessage(message),
+		Operation:  redactSensitive(operation),
 		Err:        err,
 		StatusCode: http.StatusInternalServerError,
-	}
+	}, ErrorSourceSDK, false)
 }
 
 // NewConfigurationError creates a configuration error for SDK setup failures.
@@ -920,6 +1155,13 @@ func NewInternalError(operation string, err error) *Error {
 // invalid URLs, conflicting auth sources, validation failures at New() time.
 // These errors are returned eagerly by midaz.New() so users discover misuse
 // at construction rather than on the first API call.
+//
+// # Redaction
+//
+// The supplied message and operation are passed through [redactSensitive]
+// at construction time, so `key=value` credential pairs and Bearer/Basic
+// header values that slipped into the message are stripped before the
+// error is stored. Callers do not need to pre-sanitize.
 //
 // Example:
 //
@@ -933,8 +1175,11 @@ func NewInternalError(operation string, err error) *Error {
 //   - operation: The operation context, typically "midaz.New" or
 //     "<package>.<func>" describing the call site.
 //   - message: A human-readable, actionable message that tells the caller
-//     what to fix.
-//   - err: An optional underlying cause. May be nil.
+//     what to fix. Redacted at construction time.
+//   - err: An optional underlying cause. May be nil. The cause is also
+//     wrapped behind [redactingError] so chain-walking via
+//     [errors.Unwrap] always renders the inner string through the
+//     redactor.
 //
 // Returns:
 //   - *Error: A configuration error with Category=CategoryConfiguration and
@@ -946,14 +1191,14 @@ func NewConfigurationError(operation, message string, err error) *Error {
 		message = "configuration error"
 	}
 
-	return &Error{
+	return withSyntheticStatus(&Error{
 		Category:   CategoryConfiguration,
 		Code:       CodeConfiguration,
-		Message:    message,
-		Operation:  operation,
+		Message:    redactMessage(message),
+		Operation:  redactSensitive(operation),
 		Err:        err,
 		StatusCode: http.StatusBadRequest,
-	}
+	}, ErrorSourceConfiguration, false)
 }
 
 // NewUnprocessableError creates an unprocessable entity error.
@@ -965,15 +1210,15 @@ func NewUnprocessableError(operation, resource string, err error) *Error {
 		message = fmt.Sprintf("unprocessable %s: %v", resource, err)
 	}
 
-	return &Error{
+	return withSyntheticStatus(&Error{
 		Category:   CategoryUnprocessable,
 		Code:       CodeUnprocessable,
-		Message:    message,
-		Operation:  operation,
-		Resource:   resource,
+		Message:    redactMessage(message),
+		Operation:  redactSensitive(operation),
+		Resource:   redactSensitive(resource),
 		Err:        err,
 		StatusCode: http.StatusUnprocessableEntity,
-	}
+	}, ErrorSourceSDK, false)
 }
 
 // NewInsufficientBalanceError creates an insufficient balance error.
@@ -985,31 +1230,40 @@ func NewInsufficientBalanceError(operation, accountID string, err error) *Error 
 		message = fmt.Sprintf("insufficient balance: %v", err)
 	}
 
-	return &Error{
+	return withSyntheticStatus(&Error{
 		Category:   CategoryUnprocessable,
 		Code:       CodeInsufficientBalance,
-		Message:    message,
-		Operation:  operation,
+		Message:    redactMessage(message, accountID),
+		Operation:  redactSensitive(operation),
 		Resource:   "account",
 		ResourceID: accountID,
 		Err:        err,
 		StatusCode: http.StatusUnprocessableEntity,
-	}
+	}, ErrorSourceSDK, false)
 }
 
 // NewAssetMismatchError creates an asset mismatch error.
+//
+// Asset codes (USD, EUR, BRL, …) are part of the public API contract and
+// render verbatim in the error message — they are NOT credentials or PII.
+// redactSensitive still passes over the composed message to catch any
+// embedded credential fragment, but the bare codes are preserved so callers
+// can act on "expected USD, got EUR" without grepping a [REDACTED] message.
 func NewAssetMismatchError(operation, expected, actual string, err error) *Error {
 	err = normalizeError(err)
-	message := fmt.Sprintf("asset mismatch: expected %s, got %s", expected, actual)
+	message := "asset mismatch"
+	if expected != "" || actual != "" {
+		message = fmt.Sprintf("asset mismatch: expected %s, got %s", expected, actual)
+	}
 
-	return &Error{
+	return withSyntheticStatus(&Error{
 		Category:   CategoryValidation,
 		Code:       CodeAssetMismatch,
-		Message:    message,
-		Operation:  operation,
+		Message:    redactSensitive(message),
+		Operation:  redactSensitive(operation),
 		Err:        err,
 		StatusCode: http.StatusBadRequest,
-	}
+	}, ErrorSourceSDK, false)
 }
 
 // NewAccountEligibilityError creates an account eligibility error.
@@ -1021,16 +1275,16 @@ func NewAccountEligibilityError(operation, accountID string, err error) *Error {
 		message = fmt.Sprintf("account eligibility error: %v", err)
 	}
 
-	return &Error{
+	return withSyntheticStatus(&Error{
 		Category:   CategoryValidation,
 		Code:       CodeAccountEligibility,
-		Message:    message,
-		Operation:  operation,
+		Message:    redactMessage(message, accountID),
+		Operation:  redactSensitive(operation),
 		Resource:   "account",
 		ResourceID: accountID,
 		Err:        err,
 		StatusCode: http.StatusBadRequest,
-	}
+	}, ErrorSourceSDK, false)
 }
 
 // Error checking functions
@@ -1146,6 +1400,43 @@ func IsConflictError(err error) bool {
 	}
 
 	return errors.Is(err, ErrAlreadyExists)
+}
+
+// IsBootstrapError reports whether err is any failure originating from
+// the client-construction path (midaz.New). It is the union of every
+// category midaz.New can produce, so callers needing a single "did
+// construction fail?" predicate can replace a chain of Is*Error checks
+// with one call.
+//
+// Matches:
+//   - [IsConfigurationError]  — local validation failures (missing fields,
+//     invalid URLs, etc.).
+//   - [IsAuthError]           — upstream 401 / 403 from Access Manager.
+//   - [IsRateLimitError]      — upstream 429 from Access Manager.
+//   - [IsNetworkError]        — pre-response transport failures
+//     (DNS, conn-refused, TLS) during the bootstrap token fetch.
+//   - [IsInternalError]       — upstream 5xx from Access Manager.
+//
+// Does NOT match runtime API failures (validation, not-found, conflict,
+// timeout, cancellation, unprocessable). Use [IsConfigurationError] to
+// distinguish a deliberate setup mistake from a transient upstream blip.
+//
+// Example:
+//
+//	c, err := midaz.New(opts...)
+//	if errors.IsBootstrapError(err) {
+//	    log.Fatalf("client construction failed: %v", err)
+//	}
+func IsBootstrapError(err error) bool {
+	if isNilError(err) {
+		return false
+	}
+
+	return IsConfigurationError(err) ||
+		IsAuthError(err) ||
+		IsRateLimitError(err) ||
+		IsNetworkError(err) ||
+		IsInternalError(err)
 }
 
 // IsConfigurationError reports whether err is an SDK configuration error.
@@ -1326,7 +1617,16 @@ func IsUnprocessableError(err error) bool {
 
 	var sdkErr *Error
 	if errors.As(err, &sdkErr) && sdkErr != nil {
-		return sdkErr.Category == CategoryUnprocessable
+		if sdkErr.Category == CategoryUnprocessable {
+			return true
+		}
+
+		switch sdkErr.Code {
+		case CodeInsufficientBalance, CodeAccountEligibility, CodeAssetMismatch, CodeUnprocessable:
+			return true
+		}
+
+		return false
 	}
 
 	return errors.Is(err, ErrUnprocessable)
@@ -1420,6 +1720,7 @@ var statusCodesByCategory = map[ErrorCategory]int{
 	CategoryNetwork:        http.StatusServiceUnavailable,
 	CategoryUnprocessable:  http.StatusUnprocessableEntity,
 	CategoryConfiguration:  http.StatusBadRequest,
+	CategoryAuth:           http.StatusUnauthorized,
 }
 
 // GetStatusCode gets the HTTP status code associated with an error.
@@ -1448,7 +1749,60 @@ func GetStatusCode(err error) int {
 	return http.StatusInternalServerError
 }
 
+// ActualHTTPStatus returns the upstream HTTP response status if err was built
+// from a received HTTP response. The boolean is false for SDK/configuration/
+// transport errors whose StatusCode is only a synthetic suggestion.
+func ActualHTTPStatus(err error) (int, bool) {
+	if isNilError(err) {
+		return 0, false
+	}
+
+	var sdkErr *Error
+	if !errors.As(err, &sdkErr) || sdkErr == nil {
+		return 0, false
+	}
+
+	if sdkErr.effectiveStatusCodeSource() != StatusCodeSourceUpstream || !sdkErr.HTTPResponseReceived || sdkErr.StatusCode == 0 {
+		return 0, false
+	}
+
+	return sdkErr.StatusCode, true
+}
+
+// SuggestedHTTPStatus returns the SDK's best status-code suggestion for err.
+// Unlike GetStatusCode, nil/unknown errors return 0 instead of pretending an
+// error is HTTP 200 OK.
+func SuggestedHTTPStatus(err error) int {
+	if isNilError(err) {
+		return 0
+	}
+
+	return GetStatusCode(err)
+}
+
+// HTTPRequestSent reports whether err is known to have attempted an HTTP request.
+func HTTPRequestSent(err error) bool {
+	if isNilError(err) {
+		return false
+	}
+
+	var sdkErr *Error
+	return errors.As(err, &sdkErr) && sdkErr != nil && sdkErr.HTTPRequestSent
+}
+
+// HTTPResponseReceived reports whether err was built after receiving an HTTP response.
+func HTTPResponseReceived(err error) bool {
+	if isNilError(err) {
+		return false
+	}
+
+	var sdkErr *Error
+	return errors.As(err, &sdkErr) && sdkErr != nil && sdkErr.HTTPResponseReceived
+}
+
 // FormatErrorForDisplay formats an error for display to end users.
+//
+//nolint:gocyclo,cyclop // Category-to-user-message switch is intentionally explicit.
 func FormatErrorForDisplay(err error) string {
 	if isNilError(err) {
 		return ""
@@ -1465,6 +1819,10 @@ func FormatErrorForDisplay(err error) string {
 			return "Authentication failed. Please check your credentials."
 		case CategoryAuthorization:
 			return "You don't have permission to perform this action."
+		case CategoryAuth:
+			return "Authentication failed. Please check your credentials."
+		case CategoryConfiguration:
+			return fmt.Sprintf("SDK configuration error: %s", redactSensitive(mdzErr.Message))
 		case CategoryConflict:
 			return fmt.Sprintf("Resource conflict: %s", redactSensitive(mdzErr.Message))
 		case CategoryLimitExceeded:
@@ -1548,6 +1906,26 @@ func ErrorFromHTTPResponse(statusCode int, requestID, message, apiCode, entityTy
 
 // ErrorFromHTTPResponseWithDetails creates an appropriate error based on the HTTP response
 // and preserves raw structured API envelope metadata when available.
+//
+// # Two-tier contract: raw typed fields vs. redacted rendered Message
+//
+// The returned *Error follows a two-tier rendering rule:
+//
+//   - Typed fields ([Error.ResourceID], [Error.RequestID], [Error.Title],
+//     [Error.Fields]) preserve the values supplied by the caller in their
+//     raw form. Callers consuming the typed shape via [errors.As] see the
+//     unmodified data — useful for programmatic dispatch where the IDs
+//     are needed verbatim.
+//
+//   - The rendered [Error.Message] is built from those same inputs but
+//     passes through [redactMessage] (Bearer/Basic header scrub + the
+//     sensitive `key=value` allowlist + the per-resource ID strip-out).
+//     [Error.Error] additionally redacts the composed context string.
+//
+// Together: code paths that read typed fields get unredacted data; code
+// paths that render the error (logs, telemetry, user-facing surfaces)
+// see only the redacted projection. Never mix the two — do NOT log
+// e.ResourceID directly; rely on err.Error() instead.
 func ErrorFromHTTPResponseWithDetails(statusCode int, requestID, message, apiCode, entityType, resourceID, title string, fields []string, details map[string]any) error {
 	mapping, ok := httpErrorMappings[statusCode]
 	if !ok {
@@ -1561,18 +1939,18 @@ func ErrorFromHTTPResponseWithDetails(statusCode int, requestID, message, apiCod
 	// credentials. Title and Fields routinely echo user-supplied
 	// content, and Details is the most common leak source for the
 	// structured envelope.
-	err := &Error{
+	err := withDiagnostics(&Error{
 		Category:   mapping.category,
 		Code:       mapping.code,
 		APICode:    apiCode,
 		Title:      redactSensitive(title),
-		Message:    redactSensitive(message),
+		Message:    redactMessage(message, resourceID),
 		StatusCode: statusCode,
 		RequestID:  requestID,
 		EntityType: entityType,
 		Fields:     RedactSensitiveStringSlice(fields),
 		Details:    RedactSensitiveDetails(details),
-	}
+	}, ErrorSourceHTTPResponse, true, true, StatusCodeSourceUpstream)
 
 	if mapping.withResource {
 		err.Resource = entityType
