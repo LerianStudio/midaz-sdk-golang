@@ -163,21 +163,15 @@ func (l *LoggerImpl) log(level LogLevel, msg string) {
 		"caller":    fmt.Sprintf("%s:%d", file, line),
 	}
 
-	// Add fields, skipping reserved keys to prevent log injection. String
-	// values are sanitized; non-string values are passed through (numbers,
-	// bools, structured payloads cannot carry the credential patterns the
-	// regex engine targets, and round-tripping them through the regex
-	// would be wasteful).
+	// Add fields, skipping reserved keys to prevent log injection. Values are
+	// recursively sanitized before JSON encoding so nested maps, slices, and
+	// JSON-like structs cannot leak credentials through structured payloads.
 	for k, v := range l.fields {
 		if reservedLogFields[k] {
 			continue
 		}
 
-		if s, ok := v.(string); ok {
-			entry[k] = sanitizeSensitiveString(s)
-		} else {
-			entry[k] = v
-		}
+		entry[k] = sanitizeLogFieldValue(k, v)
 	}
 
 	// Encode as JSON
