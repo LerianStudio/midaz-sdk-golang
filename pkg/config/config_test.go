@@ -1560,17 +1560,48 @@ func TestWithHTTPClientInstallsRedirectGuardWhenMissing(t *testing.T) {
 	assert.Contains(t, err.Error(), "authenticated redirect")
 }
 
-func TestWithHTTPClientPreservesExplicitRedirectPolicy(t *testing.T) {
+func TestWithHTTPClientComposesExplicitRedirectPolicy(t *testing.T) {
+	var called bool
 	callerClient := &http.Client{
 		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+			called = true
 			return assert.AnError
 		},
 	}
 	config, err := NewConfig(WithAnonymous(), WithHTTPClient(callerClient))
 	require.NoError(t, err)
 
-	require.Same(t, callerClient, config.HTTPClient)
-	require.ErrorIs(t, config.HTTPClient.CheckRedirect(nil, nil), assert.AnError)
+	require.NotSame(t, callerClient, config.HTTPClient)
+	previous, err := http.NewRequest(http.MethodGet, "https://api.example.com/v1/accounts", nil)
+	require.NoError(t, err)
+	next, err := http.NewRequest(http.MethodGet, "https://api.example.com/v1/accounts?page=2", nil)
+	require.NoError(t, err)
+
+	require.ErrorIs(t, config.HTTPClient.CheckRedirect(next, []*http.Request{previous}), assert.AnError)
+	assert.True(t, called)
+}
+
+func TestWithHTTPClientBlocksCrossOriginBeforeExplicitRedirectPolicy(t *testing.T) {
+	var called bool
+	callerClient := &http.Client{
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+			called = true
+			return nil
+		},
+	}
+	config, err := NewConfig(WithAnonymous(), WithHTTPClient(callerClient))
+	require.NoError(t, err)
+
+	previous, err := http.NewRequest(http.MethodGet, "https://api.example.com/v1/accounts", nil)
+	require.NoError(t, err)
+	previous.Header.Set("X-API-Key", "raw-api-key")
+	next, err := http.NewRequest(http.MethodGet, "https://evil.example.net/v1/accounts", nil)
+	require.NoError(t, err)
+
+	err = config.HTTPClient.CheckRedirect(next, []*http.Request{previous})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "authenticated redirect")
+	assert.False(t, called, "SDK guard must reject before caller redirect policy runs")
 }
 
 func TestWithOnboardingURL_InitializesServiceURLsMap(t *testing.T) {

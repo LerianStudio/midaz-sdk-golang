@@ -71,8 +71,20 @@ func TestNewClient(t *testing.T) {
 		t.Errorf("Expected AccessManager.Enabled to be false, got true")
 	}
 
-	if client.config.HTTPClient != customHTTPClient {
-		t.Error("Expected HTTP client to be set to custom client")
+	if client.config.HTTPClient == customHTTPClient {
+		t.Error("Expected HTTP client to be cloned before SDK redirect policy installation")
+	}
+
+	if client.config.HTTPClient.Timeout != customHTTPClient.Timeout {
+		t.Errorf("Expected HTTP client timeout to be preserved, got %s", client.config.HTTPClient.Timeout)
+	}
+
+	if customHTTPClient.CheckRedirect != nil {
+		t.Error("Expected caller-owned HTTP client to remain unmodified")
+	}
+
+	if client.config.HTTPClient.CheckRedirect == nil {
+		t.Error("Expected SDK HTTP client clone to install redirect policy")
 	}
 
 	if client.config.Environment != config.EnvironmentDevelopment {

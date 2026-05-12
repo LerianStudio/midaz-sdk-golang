@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -164,6 +165,79 @@ func TestGetTokenFromPluginAuth(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, tt.expectedToken, token)
 			}
+		})
+	}
+}
+
+func TestGetTokenFromAccessManager_ErrorDiagnostics(t *testing.T) {
+	tests := []struct {
+		name       string
+		statusCode int
+		body       string
+	}{
+		{
+			name:       "server error",
+			statusCode: http.StatusInternalServerError,
+			body:       `{"code":"SRV-5000","message":"Internal server error","clientSecret":"leaked"}`,
+		},
+		{
+			name:       "invalid json",
+			statusCode: http.StatusOK,
+			body:       `{invalid-json`,
+		},
+		{
+			name:       "empty token",
+			statusCode: http.StatusOK,
+			body:       `{"accessToken":"","refreshToken":"raw-refresh"}`,
+		},
+		{
+			name:       "oversized body",
+			statusCode: http.StatusOK,
+			body:       strings.Repeat("a", int(maxAccessManagerResponseBodyBytes)+1),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tt.statusCode)
+				_, err := w.Write([]byte(tt.body))
+				assert.NoError(t, err)
+			}))
+			defer srv.Close()
+
+			mgr := AccessManager{
+				Enabled:      true,
+				Address:      srv.URL,
+				ClientID:     "diag-client",
+				ClientSecret: "diag-secret",
+			}
+			InvalidateAccessManagerToken(mgr)
+
+			token, err := GetTokenFromAccessManager(context.Background(), mgr, srv.Client())
+
+			require.Error(t, err)
+			assert.Empty(t, token)
+
+			var tokenErr *AccessManagerTokenRequestError
+			require.ErrorAs(t, err, &tokenErr)
+			assert.Equal(t, accessManagerTokenRequestOperation, tokenErr.Operation)
+			assert.Equal(t, accessManagerTokenFetchPhase, tokenErr.AccessManagerPhase())
+			assert.Equal(t, "http", tokenErr.AccessManagerEndpointScheme())
+			assert.Equal(t, strings.TrimPrefix(srv.URL, "http://"), tokenErr.AccessManagerEndpointHost())
+			assert.Equal(t, accessManagerOAuthLoginPath, tokenErr.AccessManagerEndpointPath())
+			assert.True(t, tokenErr.AccessManagerHTTPRequestSent())
+			assert.False(t, tokenErr.AccessManagerLocalValidationFailed())
+			assert.Empty(t, tokenErr.AccessManagerValidationReason())
+			assert.Equal(t, tt.statusCode, tokenErr.StatusCode())
+			require.Error(t, errors.Unwrap(tokenErr))
+
+			rendered := err.Error()
+			assert.NotContains(t, rendered, "diag-secret")
+			assert.NotContains(t, rendered, "raw-refresh")
+			assert.NotContains(t, rendered, "leaked")
+			assert.Contains(t, rendered, "httpRequestSent=true")
+			assert.Contains(t, rendered, "localValidationFailed=false")
 		})
 	}
 }

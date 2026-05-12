@@ -549,13 +549,15 @@ func requestAccessManagerToken(ctx context.Context, accessMgr AccessManager, htt
 		return TokenResponse{}, err
 	}
 
-	// Make the request
-	resp, err := httpClient.Do(req) // #nosec G704 -- request URL validated via security.ValidateOutboundRequest
+	// Make the request. Token requests carry client credentials in the JSON
+	// body, so the SDK redirect guard must run even when callers supplied a
+	// permissive custom CheckRedirect policy.
+	resp, err := accessManagerHTTPClient(httpClient, accessMgr.AllowInsecureHTTP).Do(req) // #nosec G704 -- request URL validated via security.ValidateOutboundRequest
 	if err != nil {
 		return TokenResponse{}, newAccessManagerTokenRequestError(req, true, false, "", 0,
 			fmt.Errorf("failed to connect to plugin auth service: %w", err))
 	}
-	defer resp.Body.Close()
+	defer drainAndCloseAccessManagerResponseBody(resp)
 
 	tokenResp, err := readAccessManagerTokenResponse(resp)
 	if err != nil {
@@ -563,6 +565,39 @@ func requestAccessManagerToken(ctx context.Context, accessMgr AccessManager, htt
 	}
 
 	return tokenResp, nil
+}
+
+func accessManagerHTTPClient(client *http.Client, allowInsecureHTTP bool) *http.Client {
+	if client == nil {
+		return nil
+	}
+
+	clientCopy := *client
+	callerRedirect := client.CheckRedirect
+	clientCopy.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if err := security.ValidateRedirectWithInsecureHTTP(req, via, allowInsecureHTTP); err != nil {
+			return err
+		}
+		if callerRedirect != nil {
+			return callerRedirect(req, via)
+		}
+
+		return nil
+	}
+
+	return &clientCopy
+}
+
+func drainAndCloseAccessManagerResponseBody(resp *http.Response) {
+	if resp == nil || resp.Body == nil {
+		return
+	}
+
+	_, drainErr := io.Copy(io.Discard, io.LimitReader(resp.Body, maxAccessManagerResponseBodyBytes))
+	closeErr := resp.Body.Close()
+	if drainErr != nil || closeErr != nil {
+		return
+	}
 }
 
 func newAccessManagerTokenRequest(ctx context.Context, address string, payloadBytes []byte, allowInsecureHTTP bool) (*http.Request, error) {

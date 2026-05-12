@@ -5,14 +5,22 @@ import (
 	"fmt"
 	"net/http"
 	"net/netip"
+	"net/url"
 	"strings"
 )
 
-const maxIPv4Octet = 255
+const (
+	maxIPv4Octet = 255
+	maxRedirects = 10
+)
 
 // ValidateOutboundRequest validates the minimal security requirements for outbound HTTP requests.
 // It ensures requests are absolute and use an allowed HTTP scheme.
 func ValidateOutboundRequest(req *http.Request) error {
+	return validateOutboundRequest(req, false)
+}
+
+func validateOutboundRequest(req *http.Request, allowInsecureHTTP bool) error {
 	if req == nil {
 		return errors.New("http request cannot be nil")
 	}
@@ -34,11 +42,122 @@ func ValidateOutboundRequest(req *http.Request) error {
 		return fmt.Errorf("unsupported URL scheme: %s", req.URL.Scheme)
 	}
 
-	if scheme == "http" && !isLocalhost(req.URL.Hostname()) {
+	if scheme == "http" && !allowInsecureHTTP && !isLocalhost(req.URL.Hostname()) {
 		return fmt.Errorf("insecure HTTP is only allowed for localhost targets: %s", req.URL.Host)
 	}
 
 	return nil
+}
+
+// ValidateRedirect validates an SDK-owned HTTP redirect target and rejects
+// cross-origin redirects when the previous request carried sensitive headers.
+func ValidateRedirect(req *http.Request, via []*http.Request) error {
+	return ValidateRedirectWithInsecureHTTP(req, via, false)
+}
+
+// ValidateRedirectWithInsecureHTTP validates a redirect target while optionally
+// allowing plain HTTP for non-local targets. This is only for explicitly
+// trusted in-cluster Access Manager flows.
+func ValidateRedirectWithInsecureHTTP(req *http.Request, via []*http.Request, allowInsecureHTTP bool) error {
+	if err := validateOutboundRequest(req, allowInsecureHTTP); err != nil {
+		return err
+	}
+
+	if len(via) >= maxRedirects {
+		return errors.New("stopped after 10 redirects")
+	}
+
+	if len(via) == 0 {
+		return nil
+	}
+
+	previous := via[len(via)-1]
+	if isSensitiveCrossOriginRedirect(previous, req) {
+		return errors.New("refusing authenticated redirect to a different origin")
+	}
+
+	return nil
+}
+
+// EnsureRedirectPolicy returns a shallow client copy that enforces the SDK
+// redirect policy before any caller-provided redirect policy.
+func EnsureRedirectPolicy(client *http.Client) *http.Client {
+	if client == nil {
+		return client
+	}
+
+	clientCopy := *client
+	callerRedirect := client.CheckRedirect
+	clientCopy.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if err := ValidateRedirect(req, via); err != nil {
+			return err
+		}
+		if callerRedirect != nil {
+			return callerRedirect(req, via)
+		}
+
+		return nil
+	}
+
+	return &clientCopy
+}
+
+func isSensitiveCrossOriginRedirect(previous, next *http.Request) bool {
+	if previous == nil || next == nil || sameOrigin(previous.URL, next.URL) {
+		return false
+	}
+
+	return hasSensitiveRedirectHeaders(previous) || requestMayReplaySensitiveBody(previous)
+}
+
+func requestMayReplaySensitiveBody(req *http.Request) bool {
+	if req == nil {
+		return false
+	}
+
+	method := strings.ToUpper(strings.TrimSpace(req.Method))
+	if method != "" && method != http.MethodGet && method != http.MethodHead {
+		return true
+	}
+
+	return req.Body != nil || req.GetBody != nil
+}
+
+func hasSensitiveRedirectHeaders(req *http.Request) bool {
+	if req == nil {
+		return false
+	}
+
+	for key := range req.Header {
+		if isSensitiveHeaderName(key) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func sameOrigin(previous, next *url.URL) bool {
+	if previous == nil || next == nil {
+		return false
+	}
+
+	return strings.EqualFold(previous.Scheme, next.Scheme) && strings.EqualFold(previous.Host, next.Host)
+}
+
+func isSensitiveHeaderName(name string) bool {
+	normalized := strings.NewReplacer("-", "", "_", "", ".", "").Replace(strings.ToLower(strings.TrimSpace(name)))
+	if normalized == "" {
+		return false
+	}
+
+	for _, marker := range []string{"authorization", "cookie", "token", "secret", "password", "apikey", "idempotency", "tenant", "organization"} {
+		if strings.Contains(normalized, marker) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func isLocalhost(hostname string) bool {

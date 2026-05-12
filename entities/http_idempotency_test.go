@@ -121,16 +121,46 @@ func TestNewHTTPClientInstallsRedirectGuardOnCallerClientWithoutPolicy(t *testin
 	assert.Contains(t, err.Error(), "authenticated redirect")
 }
 
-func TestNewHTTPClientPreservesCallerRedirectPolicy(t *testing.T) {
+func TestNewHTTPClientComposesCallerRedirectPolicy(t *testing.T) {
+	var called bool
 	callerClient := &http.Client{
 		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+			called = true
 			return assert.AnError
 		},
 	}
 	c := NewHTTPClient(callerClient, "", nil)
 
-	require.Same(t, callerClient, c.client)
-	require.ErrorIs(t, c.client.CheckRedirect(nil, nil), assert.AnError)
+	require.NotSame(t, callerClient, c.client)
+	previous, err := http.NewRequest(http.MethodGet, "https://api.example.com/v1/accounts", nil)
+	require.NoError(t, err)
+	next, err := http.NewRequest(http.MethodGet, "https://api.example.com/v1/accounts?page=2", nil)
+	require.NoError(t, err)
+
+	require.ErrorIs(t, c.client.CheckRedirect(next, []*http.Request{previous}), assert.AnError)
+	assert.True(t, called)
+}
+
+func TestNewHTTPClientBlocksCrossOriginBeforeCallerRedirectPolicy(t *testing.T) {
+	var called bool
+	callerClient := &http.Client{
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+			called = true
+			return nil
+		},
+	}
+	c := NewHTTPClient(callerClient, "", nil)
+
+	previous, err := http.NewRequest(http.MethodGet, "https://api.example.com/v1/accounts", nil)
+	require.NoError(t, err)
+	previous.Header.Set("Authorization", "Bearer raw-token")
+	next, err := http.NewRequest(http.MethodGet, "https://evil.example.net/v1/accounts", nil)
+	require.NoError(t, err)
+
+	err = c.client.CheckRedirect(next, []*http.Request{previous})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "authenticated redirect")
+	assert.False(t, called, "SDK guard must reject before caller redirect policy runs")
 }
 
 func TestAutomaticIdempotencyHeaderForUnsafeMethods(t *testing.T) {

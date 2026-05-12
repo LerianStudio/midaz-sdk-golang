@@ -1,8 +1,10 @@
 package security
 
 import (
+	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -151,6 +153,85 @@ func TestValidateOutboundRequest(t *testing.T) {
 			assert.Contains(t, err.Error(), tt.errContain)
 		})
 	}
+}
+
+func TestValidateRedirect(t *testing.T) {
+	t.Run("limits redirect chain length", func(t *testing.T) {
+		const contractMaxRedirects = 10
+
+		req := newRedirectRequest(t, http.MethodGet, "https://api.example.com/v1/accounts", nil)
+		via := make([]*http.Request, contractMaxRedirects)
+		for i := range via {
+			via[i] = newRedirectRequest(t, http.MethodGet, "https://api.example.com/v1/accounts", nil)
+		}
+
+		err := ValidateRedirect(req, via)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "stopped after 10 redirects")
+	})
+
+	t.Run("rejects cross-origin unsafe method without body", func(t *testing.T) {
+		previous := newRedirectRequest(t, http.MethodPost, "https://auth.example.com/v1/login/oauth/access_token", nil)
+		next := newRedirectRequest(t, http.MethodPost, "https://evil.example.net/v1/login/oauth/access_token", nil)
+
+		err := ValidateRedirect(next, []*http.Request{previous})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "authenticated redirect")
+	})
+
+	t.Run("rejects cross-origin safe method with body", func(t *testing.T) {
+		previous := newRedirectRequest(t, http.MethodGet, "https://auth.example.com/v1/login/oauth/access_token", strings.NewReader(`{"clientSecret":"raw"}`))
+		next := newRedirectRequest(t, http.MethodGet, "https://evil.example.net/v1/login/oauth/access_token", nil)
+
+		err := ValidateRedirect(next, []*http.Request{previous})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "authenticated redirect")
+	})
+
+	t.Run("rejects cross-origin safe method with replay factory", func(t *testing.T) {
+		previous := newRedirectRequest(t, http.MethodGet, "https://auth.example.com/v1/login/oauth/access_token", nil)
+		previous.GetBody = func() (io.ReadCloser, error) {
+			return io.NopCloser(strings.NewReader(`{"clientSecret":"raw"}`)), nil
+		}
+		next := newRedirectRequest(t, http.MethodGet, "https://evil.example.net/v1/login/oauth/access_token", nil)
+
+		err := ValidateRedirect(next, []*http.Request{previous})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "authenticated redirect")
+	})
+
+	t.Run("rejects cross-origin tenant header", func(t *testing.T) {
+		previous := newRedirectRequest(t, http.MethodGet, "https://api.example.com/v1/accounts", nil)
+		previous.Header.Set("X-Tenant-ID", "tenant-1")
+		next := newRedirectRequest(t, http.MethodGet, "https://evil.example.net/v1/accounts", nil)
+
+		err := ValidateRedirect(next, []*http.Request{previous})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "authenticated redirect")
+	})
+
+	t.Run("allows same-origin unsafe redirect", func(t *testing.T) {
+		previous := newRedirectRequest(t, http.MethodPost, "https://auth.example.com/v1/login/oauth/access_token", strings.NewReader(`{"clientSecret":"raw"}`))
+		next := newRedirectRequest(t, http.MethodPost, "https://auth.example.com/v1/login/oauth/access_token", nil)
+
+		require.NoError(t, ValidateRedirect(next, []*http.Request{previous}))
+	})
+
+	t.Run("allows opted-in insecure same-origin redirect", func(t *testing.T) {
+		previous := newRedirectRequest(t, http.MethodPost, "http://plugin-access-manager-auth.midaz-plugins.svc.cluster.local:4000/v1/login/oauth/access_token", strings.NewReader(`{"clientSecret":"raw"}`))
+		next := newRedirectRequest(t, http.MethodPost, "http://plugin-access-manager-auth.midaz-plugins.svc.cluster.local:4000/v1/login/oauth/access_token", nil)
+
+		require.NoError(t, ValidateRedirectWithInsecureHTTP(next, []*http.Request{previous}, true))
+	})
+}
+
+func newRedirectRequest(t *testing.T, method, rawURL string, body io.Reader) *http.Request {
+	t.Helper()
+
+	req, err := http.NewRequest(method, rawURL, body)
+	require.NoError(t, err)
+
+	return req
 }
 
 func TestIsLocalhost(t *testing.T) {

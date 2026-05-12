@@ -49,7 +49,10 @@ func TestClientOptionsAccessorsAndConstructors(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, c.Entity)
 
-	assert.Same(t, customHTTPClient, c.config.HTTPClient)
+	assert.NotSame(t, customHTTPClient, c.config.HTTPClient)
+	assert.Equal(t, customHTTPClient.Timeout, c.config.HTTPClient.Timeout)
+	assert.Nil(t, customHTTPClient.CheckRedirect)
+	assert.NotNil(t, c.config.HTTPClient.CheckRedirect)
 	assert.Equal(t, "midaz-test/coverage", c.config.UserAgent)
 	// In v3, retries are off iff MaxRetries == 0; here we set 2 above.
 	assert.Equal(t, 2, c.config.MaxRetries)
