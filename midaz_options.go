@@ -396,7 +396,7 @@ func WithContext(ctx context.Context) Option {
 //
 // WithConfig replaces the entire client configuration in one shot. If any
 // other config-mutating option (WithBaseURL, WithUserAgent, WithEnvironment,
-// WithDebug, WithIdempotency, WithoutRetries, …) ran before WithConfig in
+// WithDebug, WithIdempotency, WithErrorBodyExposure, WithoutRetries, …) ran before WithConfig in
 // the option chain, those mutations are silently voided by the replacement.
 // To prevent that footgun, WithConfig errors loudly when invoked after
 // another config-mutating option has already run.
@@ -420,7 +420,7 @@ func WithConfig(cfg *config.Config) Option {
 		}
 
 		if c.configMutated {
-			return errors.New("WithConfig must come before any other config-mutating option (WithBaseURL, WithUserAgent, WithEnvironment, WithDebug, WithIdempotency, WithoutRetries, etc.) — placing it later silently voids those mutations")
+			return errors.New("WithConfig must come before any other config-mutating option (WithBaseURL, WithUserAgent, WithEnvironment, WithDebug, WithIdempotency, WithErrorBodyExposure, WithoutRetries, etc.) — placing it later silently voids those mutations")
 		}
 
 		c.config = cfg.Clone()
@@ -535,6 +535,16 @@ func WithDebug(enabled bool) Option {
 	return func(c *Client) error {
 		c.markConfigMutated()
 		return config.WithDebug(enabled)(c.config)
+	}
+}
+
+// WithErrorBodyExposure enables or disables raw upstream error response body
+// exposure on SDK errors. When enabled, upstream 4xx/5xx response bodies are
+// attached without redaction and only truncated.
+func WithErrorBodyExposure(enabled bool) Option {
+	return func(c *Client) error {
+		c.markConfigMutated()
+		return config.WithErrorBodyExposure(enabled)(c.config)
 	}
 }
 

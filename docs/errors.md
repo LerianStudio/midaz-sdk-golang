@@ -17,6 +17,9 @@ type Error struct {
     EntityType string
     Fields     []string
     Details    map[string]any
+    UpstreamBody              string
+    UpstreamBodyTruncated     bool
+    UpstreamBodyOriginalBytes int
     StatusCode int
     RequestID  string
     Err        error
@@ -40,6 +43,14 @@ Midaz APIs return structured error bodies. Ledger responses commonly use these f
 CRM responses may also return an `err` field. Treat `err` as the CRM-specific error string when `message` is absent.
 
 The SDK preserves expanded envelope fields on `*errors.Error` through `APICode`, `Title`, `EntityType`, `Fields`, and `Details`. Prefer these structured fields over parsing the rendered error string.
+
+## Upstream response body exposure
+
+For received upstream HTTP errors (`4xx` and `5xx`), the SDK attaches the raw Midaz response body to the structured error by default. The body is available through `Error.UpstreamBody`, `Error.GetUpstreamBody()`, and formatted error strings such as `err.Error()`.
+
+Control this behavior with `midaz.WithErrorBodyExposure(false)`, `config.WithErrorBodyExposure(false)`, or `MIDAZ_ERROR_EXPOSE_BODY=false` when using `config.FromEnvironment()`.
+
+The SDK does not redact this upstream body by design. It only truncates it and reports truncation through `Error.UpstreamBodyTruncated` / `Error.IsUpstreamBodyTruncated()` and `Error.UpstreamBodyOriginalBytes` / `Error.GetUpstreamBodyOriginalBytes()`. `json.Marshal(*errors.Error)` remains a safe projection and does not include `UpstreamBody`.
 
 ## Error categories
 

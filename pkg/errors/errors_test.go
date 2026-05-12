@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
@@ -303,6 +304,46 @@ func TestErrorFromHTTPResponse(t *testing.T) {
 			assert.Equal(t, tt.message, mdzErr.Message)
 		})
 	}
+}
+
+func TestAttachUpstreamBody_RedactsRenderedBodyButKeepsTypedAccessorsRaw(t *testing.T) {
+	body := []byte(`{"message":"bad","client_secret":"raw-secret"}`)
+	err := sdkerrors.ErrorFromHTTPResponse(http.StatusBadRequest, "req-raw", "bad", "", "", "")
+	err = sdkerrors.AttachUpstreamBody(err, body, false)
+
+	var sdkErr *sdkerrors.Error
+	require.ErrorAs(t, err, &sdkErr)
+	assert.Equal(t, string(body), sdkErr.GetUpstreamBody())
+	assert.False(t, sdkErr.IsUpstreamBodyTruncated())
+	assert.Equal(t, len(body), sdkErr.GetUpstreamBodyOriginalBytes())
+
+	for _, output := range []string{
+		err.Error(),
+		sdkerrors.FormatErrorForDisplay(err),
+		sdkerrors.FormatErrorDetails(err),
+		sdkerrors.FormatUnifiedTransactionError(err, "CreateTransaction"),
+	} {
+		assert.NotContains(t, output, "raw-secret")
+		assert.Contains(t, output, "[REDACTED]")
+	}
+
+	details := sdkerrors.GetErrorDetails(err)
+	assert.Equal(t, string(body), details.UpstreamBody)
+	assert.False(t, details.UpstreamBodyTruncated)
+	assert.Equal(t, len(body), details.UpstreamBodyOriginalBytes)
+}
+
+func TestAttachUpstreamBody_TruncatesExposedBody(t *testing.T) {
+	body := []byte(strings.Repeat("x", 70*1024))
+	err := sdkerrors.ErrorFromHTTPResponse(http.StatusInternalServerError, "req-large", "boom", "", "", "")
+	err = sdkerrors.AttachUpstreamBody(err, body, false)
+
+	var sdkErr *sdkerrors.Error
+	require.ErrorAs(t, err, &sdkErr)
+	assert.True(t, sdkErr.IsUpstreamBodyTruncated())
+	assert.Len(t, sdkErr.GetUpstreamBody(), 64*1024)
+	assert.Equal(t, len(body), sdkErr.GetUpstreamBodyOriginalBytes())
+	assert.Contains(t, err.Error(), "upstream body (truncated")
 }
 
 func TestErrorFromHTTPResponse_Regressions(t *testing.T) {

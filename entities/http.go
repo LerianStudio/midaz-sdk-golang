@@ -53,10 +53,7 @@ const (
 	quotedStringMinLength    = 2
 )
 
-const (
-	internalCallerIdempotencyHeader = "X-Midaz-Caller-Idempotency"
-	internalAutoIdempotencyHeader   = "X-Midaz-Auto-Idempotency"
-)
+const idempotencyHeader = "X-Idempotency"
 
 // defaultUserAgent returns the SDK's centralized user-agent string.
 // The configured value flows in via (*HTTPClient).SetUserAgent (driven
@@ -78,9 +75,9 @@ type HTTPClient struct {
 	mu        sync.RWMutex
 	client    *http.Client
 	authToken string
-	// Atomic primitives for the hot-path scalar knobs. These three fields
+	// Atomic primitives for the hot-path scalar knobs. These fields
 	// are read on every request (header build, debug gating, idempotency
-	// gating) but mutated rarely (only via setters called from midaz.New
+	// gating, error-body exposure) but mutated rarely (only via setters called from midaz.New
 	// or test plumbing). Going atomic eliminates the RWMutex Lock/Unlock
 	// pair from the per-request read path — a measurable win under retry
 	// fan-out workloads. The atomic.Pointer[string] for userAgent stores a
@@ -89,6 +86,7 @@ type HTTPClient struct {
 	userAgent         atomic.Pointer[string]
 	debug             atomic.Bool
 	enableIdempotency atomic.Bool
+	exposeErrorBody   atomic.Bool
 	retryOptions      *retry.Options        // Retry options for the client
 	jsonPool          *performance.JSONPool // Pool for JSON encoding/decoding
 	metrics           *observability.MetricsCollector
@@ -125,18 +123,19 @@ type httpClientConfigSnapshot struct {
 	tokenInvalidator  func()
 	logger            *slog.Logger
 	slowCallThreshold time.Duration
+	exposeErrorBody   bool
 }
 
 // NewHTTPClient creates a new HTTP client with safe v3 defaults.
 //
 // v3 invariant (Track 3): no environment variables are read here. Configuration
 // flows in exclusively through pkg/config.Config and the SetDebug / SetUserAgent /
-// SetEnableIdempotency / WithRetryOptions setters (plus (*Entity).SetObservability
+// SetEnableIdempotency / SetExposeErrorBody / WithRetryOptions setters (plus (*Entity).SetObservability
 // for observability). Callers who want env-driven configuration must opt in via
 // config.NewConfig(config.FromEnvironment()).
 //
 // Defaults: debug=false, userAgent=version.UserAgent(), enableIdempotency=true,
-// retryOptions=retry.DefaultOptions().
+// exposeErrorBody=true, retryOptions=retry.DefaultOptions().
 //
 // Parameters:
 //   - client: The underlying *http.Client. If nil, the SDK's package-level default is used.
@@ -145,6 +144,8 @@ type httpClientConfigSnapshot struct {
 func NewHTTPClient(client *http.Client, authToken string, provider observability.Provider) *HTTPClient {
 	if client == nil {
 		client = defaultHTTPClient()
+	} else {
+		client = security.EnsureRedirectPolicy(client)
 	}
 
 	c := &HTTPClient{
@@ -159,6 +160,7 @@ func NewHTTPClient(client *http.Client, authToken string, provider observability
 	defaultUA := defaultUserAgent()
 	c.userAgent.Store(&defaultUA)
 	c.enableIdempotency.Store(true)
+	c.exposeErrorBody.Store(true)
 
 	return c
 }
@@ -173,10 +175,8 @@ func NewHTTPClient(client *http.Client, authToken string, provider observability
 // http.Client{} rather than mutating this shared instance.
 var defaultHTTPClient = sync.OnceValue(func() *http.Client {
 	return &http.Client{
-		Timeout: 30 * time.Second,
-		CheckRedirect: func(req *http.Request, _ []*http.Request) error {
-			return security.ValidateOutboundRequest(req)
-		},
+		Timeout:       30 * time.Second,
+		CheckRedirect: validateSDKRedirect,
 		Transport: &http.Transport{
 			Proxy:                 http.ProxyFromEnvironment,
 			MaxIdleConns:          100,
@@ -188,6 +188,10 @@ var defaultHTTPClient = sync.OnceValue(func() *http.Client {
 		},
 	}
 })
+
+func validateSDKRedirect(req *http.Request, via []*http.Request) error {
+	return security.ValidateRedirect(req, via)
+}
 
 // initMetricsCollector initializes the metrics collector if observability is enabled.
 func initMetricsCollector(provider observability.Provider) *observability.MetricsCollector {
@@ -312,6 +316,17 @@ func (c *HTTPClient) SetEnableIdempotency(enabled bool) {
 	c.enableIdempotency.Store(enabled)
 }
 
+// SetExposeErrorBody enables or disables attaching raw upstream 4xx/5xx
+// response bodies to SDK errors. Bodies are attached without redaction and
+// only truncated by the error package.
+func (c *HTTPClient) SetExposeErrorBody(enabled bool) {
+	if c == nil {
+		return
+	}
+
+	c.exposeErrorBody.Store(enabled)
+}
+
 // SetCustomRetryPolicy sets the predicate used to decide whether retries should continue.
 func (c *HTTPClient) SetCustomRetryPolicy(shouldRetry func(*http.Response, error) bool) {
 	if c == nil {
@@ -366,6 +381,7 @@ func (c *HTTPClient) cloneConfiguration() httpClientConfigSnapshot {
 		tokenInvalidator:  c.tokenInvalidator,
 		logger:            c.logger,
 		slowCallThreshold: c.slowCallThreshold,
+		exposeErrorBody:   c.exposeErrorBody.Load(),
 	}
 }
 
@@ -390,6 +406,7 @@ func (c *HTTPClient) applyConfigurationSnapshot(snapshot httpClientConfigSnapsho
 	// stores so concurrent readers always see a consistent value.
 	c.debug.Store(snapshot.debug)
 	c.enableIdempotency.Store(snapshot.enableIdempotency)
+	c.exposeErrorBody.Store(snapshot.exposeErrorBody)
 	ua := snapshot.userAgent
 	c.userAgent.Store(&ua)
 }
@@ -474,9 +491,8 @@ func (c *HTTPClient) setAuthTokenLocked(token string) {
 // Idempotency key precedence (first non-empty source wins):
 //  1. Caller-supplied input field — service methods that accept an
 //     IdempotencyKey on their input struct (e.g., CreateTransactionInput)
-//     write it directly into headers along with the
-//     [internalCallerIdempotencyHeader] marker. That marker tells this
-//     function the caller has spoken; we MUST NOT overwrite the value here.
+//     write it directly into X-Idempotency. That header tells this function
+//     the caller has spoken; we MUST NOT overwrite the value here.
 //  2. ctx-supplied via [sdkctx.WithIdempotencyKey] — request-scoped override,
 //     used when the input struct doesn't carry the field or the caller wants
 //     to propagate a key across a chain of calls.
@@ -504,10 +520,10 @@ func (*HTTPClient) injectContextHeaders(ctx context.Context, method string, head
 		// non-empty header value is treated as caller-supplied — the
 		// internal marker is no longer required, so callers that set the
 		// header directly via the headers map are honored too.
-		callerSupplied := strings.TrimSpace(headers["X-Idempotency"]) != ""
+		callerSupplied := headerValueCaseInsensitive(headers, idempotencyHeader) != ""
 		if !callerSupplied {
-			headers["X-Idempotency"] = key
-			headers[internalCallerIdempotencyHeader] = boolTrue
+			removeHeaderCaseInsensitive(headers, idempotencyHeader)
+			headers[idempotencyHeader] = key
 		}
 	}
 
@@ -1066,13 +1082,7 @@ func (c *HTTPClient) setupRequestHeaders(req *http.Request, headers map[string]s
 func (c *HTTPClient) executeRequestWithRetry(ctx context.Context, req *http.Request, method, requestURL string) (*http.Response, []byte, int, error) {
 	snapshot := c.cloneConfiguration()
 
-	autoIdempotency := req.Header.Get(internalAutoIdempotencyHeader) == boolTrue
-	hasIdempotencyKey := strings.TrimSpace(req.Header.Get("X-Idempotency")) != "" || autoIdempotency
-
-	// Strip the internal markers BEFORE the request goes on the wire — the
-	// server must never see these synthetic headers.
-	req.Header.Del(internalCallerIdempotencyHeader)
-	req.Header.Del(internalAutoIdempotencyHeader)
+	hasIdempotencyKey := strings.TrimSpace(req.Header.Get(idempotencyHeader)) != ""
 
 	effectiveRetryOptions := cloneRetryOptions(snapshot.retryOptions)
 	if effectiveRetryOptions == nil {
@@ -1080,10 +1090,16 @@ func (c *HTTPClient) executeRequestWithRetry(ctx context.Context, req *http.Requ
 	}
 
 	// Replace the previous "append a magic 'custom retryable' substring to
-	// RetryableErrors" workaround with a typed predicate. The predicate
-	// uses errors.As to recognise our internal sentinels — drastically
-	// less brittle than substring matching against err.Error().
-	effectiveRetryOptions.ErrorPredicate = isInternalRetryableError
+	// RetryableErrors" workaround with a typed predicate. Compose it with
+	// the caller's predicate so public retry options remain honored.
+	userRetryPredicate := effectiveRetryOptions.ErrorPredicate
+	effectiveRetryOptions.ErrorPredicate = func(err error) bool {
+		if isInternalRetryableError(err) {
+			return true
+		}
+
+		return userRetryPredicate != nil && userRetryPredicate(err)
+	}
 
 	if isUnsafeMethod(req.Method) && !hasIdempotencyKey {
 		effectiveRetryOptions.MaxRetries = 0
@@ -1091,16 +1107,28 @@ func (c *HTTPClient) executeRequestWithRetry(ctx context.Context, req *http.Requ
 
 	retryCtx := retry.WithOptionsContext(ctx, effectiveRetryOptions)
 
-	// Install the per-attempt observability hook on the retry context.
-	// The hook emits a structured slog line and records a metric for
-	// every retry attempt — the pieces that used to be a // TODO.
+	retryCtx = withRetryAttemptDiagnostics(retryCtx, snapshot, method, requestURL, effectiveRetryOptions.MaxRetries)
+
+	execution := &retryExecution{maxRetries: effectiveRetryOptions.MaxRetries}
+
+	err := retry.DoWithContext(retryCtx, func() error {
+		return c.executeRetryAttempt(req, method, requestURL, execution)
+	})
+	// Terminal logging is centralised in [doRequest] / [doRawRequest] /
+	// [doCountRequest] via [logHTTPTerminalFailure]. This function only
+	// ferries the (resp, body, max_retries, err) tuple back; the caller
+	// decides which terminal log applies based on error shape.
+
+	return execution.resp, execution.responseBody, execution.maxRetries, err
+}
+
+func withRetryAttemptDiagnostics(ctx context.Context, snapshot httpClientConfigSnapshot, method, requestURL string, maxRetries int) context.Context {
 	logger := snapshot.logger
 	if logger == nil {
 		logger = slog.New(slog.DiscardHandler)
 	}
 
 	metrics := snapshot.metrics
-
 	hook := func(hookCtx context.Context, attempt int, cause error, delay time.Duration) {
 		causeMsg := ""
 		var statusErr interface{ StatusCode() int }
@@ -1115,7 +1143,7 @@ func (c *HTTPClient) executeRequestWithRetry(ctx context.Context, req *http.Requ
 		attrs = append(attrs, safeHTTPLogAttrs(method, requestURL, nil, true)...)
 		attrs = append(attrs,
 			slog.Int("attempt", attempt),
-			slog.Int("max_retries", effectiveRetryOptions.MaxRetries),
+			slog.Int("max_retries", maxRetries),
 			slog.Int64("delay_ms", delay.Milliseconds()),
 			slog.String("cause", causeMsg),
 		)
@@ -1131,7 +1159,7 @@ func (c *HTTPClient) executeRequestWithRetry(ctx context.Context, req *http.Requ
 		}
 
 		level := slog.LevelDebug
-		if attempt >= effectiveRetryOptions.MaxRetries {
+		if attempt >= maxRetries {
 			// Final attempt before exhaustion → warn level so it shows up
 			// in production log filters that suppress debug.
 			level = slog.LevelWarn
@@ -1144,19 +1172,7 @@ func (c *HTTPClient) executeRequestWithRetry(ctx context.Context, req *http.Requ
 		}
 	}
 
-	retryCtx = retry.WithAttemptHook(retryCtx, hook)
-
-	execution := &retryExecution{maxRetries: effectiveRetryOptions.MaxRetries}
-
-	err := retry.DoWithContext(retryCtx, func() error {
-		return c.executeRetryAttempt(req, method, requestURL, execution)
-	})
-	// Terminal logging is centralised in [doRequest] / [doRawRequest] /
-	// [doCountRequest] via [logHTTPTerminalFailure]. This function only
-	// ferries the (resp, body, max_retries, err) tuple back; the caller
-	// decides which terminal log applies based on error shape.
-
-	return execution.resp, execution.responseBody, execution.maxRetries, err
+	return retry.WithAttemptHook(ctx, hook)
 }
 
 // sdkLoggerName is the value emitted under the sdk.name structured log
@@ -1182,8 +1198,9 @@ func isInternalRetryableError(err error) bool {
 }
 
 type retryExecution struct {
-	resp         *http.Response
-	responseBody []byte
+	resp                  *http.Response
+	responseBody          []byte
+	responseBodyTruncated bool
 	// maxRetries is the effective retry budget (after the unsafe-no-key
 	// coercion to 0). Stored here so [logHTTPTerminalFailure] in the
 	// caller can emit "max_retries"/"attempts" attributes without
@@ -1296,6 +1313,8 @@ func (c *HTTPClient) executeRetryAttempt(req *http.Request, method, requestURL s
 // flag prevents a second refresh from being attempted within the same
 // request.
 func (c *HTTPClient) performSingleAttempt(req *http.Request, method, requestURL string, execution *retryExecution) error {
+	execution.responseBodyTruncated = false
+
 	if err := resetRequestBody(req); err != nil {
 		return wrapHTTPPhaseError(httpPhaseRequestBuild, false, err)
 	}
@@ -1325,7 +1344,12 @@ func (c *HTTPClient) performSingleAttempt(req *http.Request, method, requestURL 
 	}
 
 	if int64(len(responseBody)) > maxHTTPResponseBodyBytes {
-		return wrapHTTPPhaseError(httpPhaseResponseRead, true, fmt.Errorf("response body exceeds %d bytes", maxHTTPResponseBodyBytes))
+		if resp.StatusCode < http.StatusBadRequest {
+			return wrapHTTPPhaseError(httpPhaseResponseRead, true, fmt.Errorf("response body exceeds %d bytes", maxHTTPResponseBodyBytes))
+		}
+
+		responseBody = responseBody[:maxHTTPResponseBodyBytes]
+		execution.responseBodyTruncated = true
 	}
 
 	execution.responseBody = responseBody
@@ -1336,7 +1360,7 @@ func (c *HTTPClient) performSingleAttempt(req *http.Request, method, requestURL 
 	if resp.StatusCode == http.StatusUnauthorized && !execution.refreshedAuth {
 		snapshot := c.cloneConfiguration()
 		if snapshot.tokenProvider == nil {
-			return c.handleRetryAttemptResponse(req.Context(), resp, responseBody, method, requestURL)
+			return c.handleRetryAttemptResponse(req.Context(), resp, responseBody, execution.responseBodyTruncated, method, requestURL)
 		}
 
 		c.logAuthRefresh(req.Context(), "started", method, requestURL, resp, nil)
@@ -1357,7 +1381,7 @@ func (c *HTTPClient) performSingleAttempt(req *http.Request, method, requestURL 
 		c.logAuthRefresh(req.Context(), "failed", method, requestURL, resp, refreshErr)
 	}
 
-	return c.handleRetryAttemptResponse(req.Context(), resp, responseBody, method, requestURL)
+	return c.handleRetryAttemptResponse(req.Context(), resp, responseBody, execution.responseBodyTruncated, method, requestURL)
 }
 
 // refreshAuthToken obtains a fresh token via the configured tokenProvider.
@@ -1421,14 +1445,21 @@ func drainAndCloseResponseBody(c *HTTPClient, resp *http.Response) {
 	// Discard whatever is left so http.Transport can reuse the keep-alive.
 	// We bound the discard with the same response cap to avoid a hostile
 	// server tying us up indefinitely.
-	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, maxHTTPResponseBodyBytes))
+	if _, err := io.Copy(io.Discard, io.LimitReader(resp.Body, maxHTTPResponseBodyBytes)); err != nil && c != nil && c.debug.Load() {
+		c.debugLog("Failed to drain response body: %v", err)
+	}
 
 	if c != nil {
 		c.closeResponseBody(resp)
 		return
 	}
 
-	_ = resp.Body.Close()
+	if err := resp.Body.Close(); err != nil {
+		// No client/logger is available on this fallback path; the response
+		// body was already drained best-effort and cleanup failure is not
+		// actionable for callers at this point.
+		return
+	}
 }
 
 func (c *HTTPClient) snapshotHTTPClient() *http.Client {
@@ -1512,7 +1543,7 @@ func transportOperation(method, _ string) string {
 	return "http " + method
 }
 
-func (c *HTTPClient) handleRetryAttemptResponse(ctx context.Context, resp *http.Response, responseBody []byte, method, requestURL string) error {
+func (c *HTTPClient) handleRetryAttemptResponse(ctx context.Context, resp *http.Response, responseBody []byte, responseBodyTruncated bool, method, requestURL string) error {
 	if ctx == nil && resp != nil && resp.Request != nil {
 		ctx = resp.Request.Context()
 	}
@@ -1526,7 +1557,7 @@ func (c *HTTPClient) handleRetryAttemptResponse(ctx context.Context, resp *http.
 
 	requestID := resp.Header.Get("X-Request-ID")
 
-	apiErr := c.handleErrorResponse(ctx, resp.StatusCode, responseBody, method, requestURL, requestID)
+	apiErr := c.handleErrorResponse(ctx, resp.StatusCode, responseBody, responseBodyTruncated, method, requestURL, requestID)
 
 	snapshot := c.cloneConfiguration()
 	if snapshot.customRetryPolicy != nil {
@@ -1598,13 +1629,16 @@ func (c *HTTPClient) closeResponseBody(resp *http.Response) {
 // The terminal logging point is [logRetryExhausted] (retry budget gone)
 // or [logHTTPPhaseFailure] (transport error). Debug-level diagnostics
 // remain available via [SetDebug](true).
-func (c *HTTPClient) handleErrorResponse(_ context.Context, statusCode int, responseBody []byte, method, requestURL, requestID string) error {
+func (c *HTTPClient) handleErrorResponse(_ context.Context, statusCode int, responseBody []byte, responseBodyTruncated bool, method, requestURL, requestID string) error {
 	// ctx is accepted for signature symmetry with the other request-shape
 	// helpers but is no longer consumed inside this function after the
 	// per-attempt response-log was dropped (THEME 4). Debug logging below
 	// uses the configured *slog.Logger directly, not ctx.
 
 	apiErr := c.parseErrorResponse(statusCode, responseBody, requestID)
+	if c.exposeErrorBody.Load() {
+		apiErr = sdkerrors.AttachUpstreamBody(apiErr, responseBody, responseBodyTruncated)
+	}
 	attachHTTPResponseMetadata(apiErr, method, requestURL, requestID, statusCode)
 
 	if c.debug.Load() {
@@ -2092,7 +2126,7 @@ func (c *HTTPClient) ensureIdempotencyHeader(ctx context.Context, method string,
 		return headers
 	}
 
-	if headers != nil && strings.TrimSpace(headers["X-Idempotency"]) != "" {
+	if headerValueCaseInsensitive(headers, idempotencyHeader) != "" {
 		// Caller-provided key wins regardless of suppression.
 		return headers
 	}
@@ -2107,10 +2141,32 @@ func (c *HTTPClient) ensureIdempotencyHeader(ctx context.Context, method string,
 		headers = map[string]string{}
 	}
 
-	headers["X-Idempotency"] = uuid.NewString()
-	headers[internalAutoIdempotencyHeader] = boolTrue
+	removeHeaderCaseInsensitive(headers, idempotencyHeader)
+	headers[idempotencyHeader] = uuid.NewString()
 
 	return headers
+}
+
+func headerValueCaseInsensitive(headers map[string]string, name string) string {
+	if headers == nil {
+		return ""
+	}
+
+	for key, value := range headers {
+		if strings.EqualFold(key, name) {
+			return strings.TrimSpace(value)
+		}
+	}
+
+	return ""
+}
+
+func removeHeaderCaseInsensitive(headers map[string]string, name string) {
+	for key := range headers {
+		if strings.EqualFold(key, name) {
+			delete(headers, key)
+		}
+	}
 }
 
 // extractRequestBody reads and returns the raw request body bytes.
@@ -2191,7 +2247,7 @@ func redactDebugBody(body []byte) string {
 func normalizeTelemetryURL(rawURL string) string {
 	parsedURL, err := url.Parse(rawURL)
 	if err != nil {
-		return rawURL
+		return redactUnparseableDebugURL(sdkerrors.RedactSensitiveString(rawURL))
 	}
 
 	parsedURL.User = nil

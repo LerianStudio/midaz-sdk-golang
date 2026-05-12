@@ -98,6 +98,18 @@ func TestRedaction_ExtendedCredentialHeaders(t *testing.T) {
 			mustNotContain: []string{"cs_supersecret_42"},
 			mustContain:    []string{"[REDACTED]"},
 		},
+		{
+			name:           "quoted JSON camelCase access token",
+			input:          `{"accessToken":"json-access-token"}`,
+			mustNotContain: []string{"json-access-token"},
+			mustContain:    []string{"[REDACTED]"},
+		},
+		{
+			name:           "camelCase client secret",
+			input:          "clientSecret: raw-client-secret",
+			mustNotContain: []string{"raw-client-secret"},
+			mustContain:    []string{"[REDACTED]"},
+		},
 	}
 
 	for _, tc := range cases {
@@ -146,6 +158,17 @@ func TestRedactionLengthCap(t *testing.T) {
 	})
 }
 
+func TestErrorUnwrapRedactingWrapperIsTerminalAndMatchable(t *testing.T) {
+	sentinel := stderrors.New("clientSecret=raw-inner-secret")
+	err := sdkerrors.NewConfigurationError("midaz.New", "invalid configuration", sentinel)
+
+	wrapped := stderrors.Unwrap(err)
+	require.Error(t, wrapped)
+	assert.NotContains(t, wrapped.Error(), "raw-inner-secret")
+	require.NoError(t, stderrors.Unwrap(wrapped), "redacting wrapper must be terminal to recursive unwrap rendering")
+	assert.ErrorIs(t, err, sentinel, "terminal redacting wrapper must still preserve errors.Is matching")
+}
+
 // TestErrorJSONMarshal_NoLeak covers Audit C3: a naive
 // json.Marshal(*Error) must not surface Bearer tokens, request bodies,
 // or any inner-error string. Only the safe whitelist (Category, Code,
@@ -153,18 +176,20 @@ func TestRedactionLengthCap(t *testing.T) {
 func TestErrorJSONMarshal_NoLeak(t *testing.T) {
 	t.Run("inner error with credentials is suppressed", func(t *testing.T) {
 		err := &sdkerrors.Error{
-			Category:   sdkerrors.CategoryNetwork,
-			Code:       sdkerrors.CodeNetwork,
-			Message:    "POST /v1/transactions: Authorization: Bearer eyJ.tok.sig",
-			Operation:  "transactions.Create",
-			Resource:   "transaction",
-			ResourceID: "tx-1234567890",
-			Title:      "Authorization: Bearer eyJ.tok.sig",
-			Fields:     []string{"password=hunter2"},
-			Details:    map[string]any{"token": "rt_abc_123"},
-			RequestID:  "req-X-API-Key=ak_live_999",
-			StatusCode: 502,
-			Err:        stderrors.New("password=hunter2 api_key=ak_live_999"),
+			Category:                  sdkerrors.CategoryNetwork,
+			Code:                      sdkerrors.CodeNetwork,
+			Message:                   "POST /v1/transactions: Authorization: Bearer eyJ.tok.sig",
+			Operation:                 "transactions.Create",
+			Resource:                  "transaction",
+			ResourceID:                "tx-1234567890",
+			Title:                     "Authorization: Bearer eyJ.tok.sig",
+			Fields:                    []string{"password=hunter2"},
+			Details:                   map[string]any{"token": "rt_abc_123"},
+			UpstreamBody:              "client_secret=raw-upstream-secret",
+			UpstreamBodyOriginalBytes: len("client_secret=raw-upstream-secret"),
+			RequestID:                 "req-X-API-Key=ak_live_999",
+			StatusCode:                502,
+			Err:                       stderrors.New("password=hunter2 api_key=ak_live_999"),
 		}
 
 		raw, marshalErr := json.Marshal(err)
@@ -179,6 +204,7 @@ func TestErrorJSONMarshal_NoLeak(t *testing.T) {
 		assert.NotContains(t, out, "rt_abc_123", "Details map must be json:\"-\"")
 		assert.NotContains(t, out, "tx-1234567890", "ResourceID must be json:\"-\"")
 		assert.NotContains(t, out, "transactions.Create", "Operation must be json:\"-\"")
+		assert.NotContains(t, out, "raw-upstream-secret", "UpstreamBody must be json:\"-\"")
 
 		// The safe projection should be intact.
 		assert.Contains(t, out, `"category":"network"`)

@@ -44,6 +44,7 @@ All variables below are read by `config.FromEnvironment()`. Standard library rea
 | `MIDAZ_DEBUG` | Enables debug logging when set to `true`. | `false` |
 | `MIDAZ_MAX_RETRIES` | Maximum retry attempts. Set to `0` to disable retries entirely. | `3` |
 | `MIDAZ_IDEMPOTENCY` | Enables (`true`) or disables (`false`) auto idempotency support. | `true` |
+| `MIDAZ_ERROR_EXPOSE_BODY` | Attaches raw upstream 4xx/5xx response bodies to SDK errors. Bodies are not redacted by the SDK; they are only truncated. | `true` |
 | `PLUGIN_AUTH_ENABLED` | Enables Access Manager authentication when set to `true`. | `false` |
 | `PLUGIN_AUTH_ADDRESS` | Access Manager base address. | empty |
 | `MIDAZ_CLIENT_ID` | Access Manager client ID. | empty |
@@ -170,7 +171,7 @@ Automatic key generation applies to unsafe entity HTTP requests. The entity HTTP
 - The HTTP method is unsafe: `POST`, `PUT`, `PATCH`, or `DELETE`.
 - The request does not already include `X-Idempotency`.
 
-The SDK removes internal idempotency marker headers before sending the request.
+The SDK sends only the public `X-Idempotency` header; it does not emit internal marker headers.
 
 You can also provide an explicit key through context:
 
@@ -180,7 +181,7 @@ import "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
 ctx := sdkctx.WithIdempotencyKey(context.Background(), "transaction-2026-04-27-001")
 ```
 
-Unsafe requests retry only when the idempotency key was supplied by the caller through `CreateTransactionInput.IdempotencyKey` or `sdkctx.WithIdempotencyKey`. SDK-generated keys provide server-side deduplication, but they do not enable unsafe retries by themselves.
+Unsafe requests retry only when `X-Idempotency` is present. Caller-supplied and SDK-generated keys both satisfy this retry gate.
 
 ## Observability
 

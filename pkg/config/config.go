@@ -76,6 +76,7 @@ const (
 
 	// Default feature flags
 	DefaultEnableIdempotency = true
+	DefaultExposeErrorBody   = true
 )
 
 // Config holds the configuration for the Midaz SDK.
@@ -118,6 +119,10 @@ type Config struct {
 
 	// EnableIdempotency enables automatic generation of idempotency keys.
 	EnableIdempotency bool
+
+	// ExposeErrorBody controls whether upstream 4xx/5xx response bodies are
+	// attached to SDK errors. The attached body is raw and only truncated.
+	ExposeErrorBody bool
 
 	baseURLSet        bool
 	onboardingURLSet  bool
@@ -373,7 +378,7 @@ func WithHTTPClient(client *http.Client) Option {
 			return errors.New("HTTP client cannot be nil")
 		}
 
-		c.HTTPClient = client
+		c.HTTPClient = security.EnsureRedirectPolicy(client)
 		c.httpClientOwned = false
 
 		return nil
@@ -465,6 +470,21 @@ func WithDebug(enabled bool) Option {
 	}
 }
 
+// WithErrorBodyExposure enables or disables raw upstream error response body
+// exposure on SDK errors. When enabled, upstream 4xx/5xx response bodies are
+// attached without redaction and only truncated.
+func WithErrorBodyExposure(enabled bool) Option {
+	return func(c *Config) error {
+		if c == nil {
+			return errors.New("config cannot be nil")
+		}
+
+		c.ExposeErrorBody = enabled
+
+		return nil
+	}
+}
+
 // WithObservabilityProvider sets the observability provider.
 // Two-layer surface: this is the internal/test-layer Option that operates on
 // [Config]. The user-facing wrapper at
@@ -533,6 +553,11 @@ func WithIdempotency(enabled bool) Option {
 // example, against an unsecured local stack — use [WithAnonymous] instead of
 // passing a zero-value AccessManager.
 //
+// WithAccessManager preserves a previously-applied
+// [WithAllowInsecureAccessManagerHTTP] opt-in. To disable that opt-in after
+// setting Access Manager credentials, apply WithAllowInsecureAccessManagerHTTP(false)
+// last.
+//
 // Parameters:
 //   - accessManager: The plugin authentication configuration. Address,
 //     ClientID, and ClientSecret are all required.
@@ -547,7 +572,9 @@ func WithAccessManager(accessManager auth.AccessManager) Option {
 
 		// Auto-enable: callers don't need to set Enabled themselves. The
 		// existence of the WithAccessManager call is the opt-in.
+		allowInsecureHTTP := accessManager.AllowInsecureHTTP || c.AccessManager.AllowInsecureHTTP
 		accessManager.Enabled = true
+		accessManager.AllowInsecureHTTP = allowInsecureHTTP
 		c.AccessManager = accessManager
 		// Anonymous and AccessManager are mutually exclusive by definition;
 		// the last-applied option wins. Clearing Anonymous here keeps the
@@ -659,6 +686,8 @@ func WithAllowInsecureAccessManagerHTTP(allow bool) Option {
 //   - MIDAZ_DEBUG: Enable debug mode (parsed via [strconv.ParseBool])
 //   - MIDAZ_MAX_RETRIES: Maximum number of retries
 //   - MIDAZ_IDEMPOTENCY: Enable idempotency (parsed via [strconv.ParseBool])
+//   - MIDAZ_ERROR_EXPOSE_BODY: Attach raw upstream 4xx/5xx response bodies
+//     to SDK errors (parsed via [strconv.ParseBool])
 //   - MIDAZ_ACCESS_MANAGER_ALLOW_INSECURE_HTTP: Permit plain http:// Access
 //     Manager URLs for non-loopback hosts (parsed via [strconv.ParseBool]).
 //     Production deployments must leave this unset or false; the flag
@@ -730,13 +759,27 @@ func configureEnvironment(c *Config) error {
 // FromEnvironment afterwards (e.g. NewLocalConfig).
 func configureAccessManager(c *Config) error {
 	enable := os.Getenv("PLUGIN_AUTH_ENABLED")
-	if enable == "" {
-		return nil
+	var enabled bool
+	if enable != "" {
+		parsed, err := strconv.ParseBool(strings.TrimSpace(enable))
+		if err != nil {
+			return fmt.Errorf("invalid PLUGIN_AUTH_ENABLED value %q: %w", enable, err)
+		}
+
+		enabled = parsed
 	}
 
-	enabled, err := strconv.ParseBool(strings.TrimSpace(enable))
-	if err != nil {
-		return fmt.Errorf("invalid PLUGIN_AUTH_ENABLED value %q: %w", enable, err)
+	if insecure := os.Getenv("MIDAZ_ACCESS_MANAGER_ALLOW_INSECURE_HTTP"); insecure != "" {
+		parsed, err := strconv.ParseBool(strings.TrimSpace(insecure))
+		if err != nil {
+			return fmt.Errorf("invalid MIDAZ_ACCESS_MANAGER_ALLOW_INSECURE_HTTP value %q: %w", insecure, err)
+		}
+
+		c.AccessManager.AllowInsecureHTTP = parsed
+	}
+
+	if enable == "" {
+		return nil
 	}
 
 	if address := os.Getenv("PLUGIN_AUTH_ADDRESS"); address != "" {
@@ -754,15 +797,6 @@ func configureAccessManager(c *Config) error {
 	c.AccessManager.Enabled = enabled
 	if enabled {
 		c.Anonymous = false
-	}
-
-	if insecure := os.Getenv("MIDAZ_ACCESS_MANAGER_ALLOW_INSECURE_HTTP"); insecure != "" {
-		parsed, err := strconv.ParseBool(strings.TrimSpace(insecure))
-		if err != nil {
-			return fmt.Errorf("invalid MIDAZ_ACCESS_MANAGER_ALLOW_INSECURE_HTTP value %q: %w", insecure, err)
-		}
-
-		c.AccessManager.AllowInsecureHTTP = parsed
 	}
 
 	return nil
@@ -875,6 +909,15 @@ func configureOptionalSettings(c *Config) error {
 		c.EnableIdempotency = parsed
 	}
 
+	if exposeBody := os.Getenv("MIDAZ_ERROR_EXPOSE_BODY"); exposeBody != "" {
+		parsed, err := strconv.ParseBool(strings.TrimSpace(exposeBody))
+		if err != nil {
+			return fmt.Errorf("invalid MIDAZ_ERROR_EXPOSE_BODY value %q: %w", exposeBody, err)
+		}
+
+		c.ExposeErrorBody = parsed
+	}
+
 	// MIDAZ_SKIP_AUTH_CHECK is a test-plumbing escape hatch read only via
 	// FromEnvironment so validateConfig can consult c.skipAuthCheck instead
 	// of reading the environment directly. Same strict parsing rule applies.
@@ -922,6 +965,7 @@ func NewConfig(options ...Option) (*Config, error) {
 		RetryWaitMin:      DefaultMinRetryWait,
 		RetryWaitMax:      DefaultRetryWaitMax,
 		EnableIdempotency: DefaultEnableIdempotency,
+		ExposeErrorBody:   DefaultExposeErrorBody,
 	}
 
 	// Apply default URLs based on environment
@@ -1129,6 +1173,10 @@ func validateAuthSettings(config *Config) error {
 	// hosts unless [WithAllowInsecureAccessManagerHTTP] opted in. The flag
 	// exists for in-cluster Kubernetes service DNS; production deployments
 	// must keep it off.
+	if config.Environment == EnvironmentProduction && config.AccessManager.AllowInsecureHTTP {
+		return errors.New("plugin auth insecure HTTP is not allowed in production")
+	}
+
 	if err := auth.ValidateAccessManagerAddressWithInsecure(
 		config.AccessManager.Address,
 		config.AccessManager.AllowInsecureHTTP,
@@ -1166,10 +1214,11 @@ func (c *Config) GetHTTPClient() *http.Client {
 func (c *Config) GetPluginAuth() auth.AccessManager {
 	// Return a copy of the plugin auth configuration
 	return auth.AccessManager{
-		Address:      c.AccessManager.Address,
-		ClientID:     c.AccessManager.ClientID,
-		ClientSecret: c.AccessManager.ClientSecret,
-		Enabled:      c.AccessManager.Enabled,
+		Address:           c.AccessManager.Address,
+		ClientID:          c.AccessManager.ClientID,
+		ClientSecret:      c.AccessManager.ClientSecret,
+		Enabled:           c.AccessManager.Enabled,
+		AllowInsecureHTTP: c.AccessManager.AllowInsecureHTTP,
 	}
 }
 
@@ -1251,10 +1300,8 @@ func parseURL(rawURL string) error {
 // the code instead of buried in the standard library defaults.
 func NewDefaultHTTPClient(timeout time.Duration) *http.Client {
 	return &http.Client{
-		Timeout: timeout,
-		CheckRedirect: func(req *http.Request, _ []*http.Request) error {
-			return security.ValidateOutboundRequest(req)
-		},
+		Timeout:       timeout,
+		CheckRedirect: security.ValidateRedirect,
 		Transport: &http.Transport{
 			Proxy:                 http.ProxyFromEnvironment,
 			MaxIdleConns:          100,
@@ -1368,6 +1415,7 @@ func DefaultConfig() *Config {
 		RetryWaitMin:      DefaultMinRetryWait,
 		RetryWaitMax:      DefaultRetryWaitMax,
 		EnableIdempotency: DefaultEnableIdempotency,
+		ExposeErrorBody:   DefaultExposeErrorBody,
 	}
 
 	// Apply default URLs based on environment.

@@ -2,6 +2,7 @@ package errors_test
 
 import (
 	stderrors "errors"
+	"net/http"
 	"testing"
 
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
@@ -29,6 +30,27 @@ func TestIsBootstrapErrorMatchesEveryBootstrapCategory(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := sdkerrors.IsBootstrapError(tc.err); got != tc.want {
 				t.Errorf("IsBootstrapError(%v) = %v, want %v", tc.err, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestIsBootstrapErrorRejectsRuntimeHTTPFailures(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+	}{
+		{"runtime 401", sdkerrors.ErrorFromHTTPResponse(http.StatusUnauthorized, "req-401", "unauthorized", "", "", "")},
+		{"runtime 429", sdkerrors.ErrorFromHTTPResponse(http.StatusTooManyRequests, "req-429", "rate limited", "", "", "")},
+		{"runtime 500", sdkerrors.ErrorFromHTTPResponse(http.StatusInternalServerError, "req-500", "internal", "", "", "")},
+		{"runtime 503", sdkerrors.ErrorFromHTTPResponse(http.StatusServiceUnavailable, "req-503", "unavailable", "", "", "")},
+		{"non-New network", sdkerrors.NewNetworkError("entities.GetAccount", stderrors.New("dial tcp"))},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if sdkerrors.IsBootstrapError(tc.err) {
+				t.Fatalf("runtime error must not be classified as bootstrap: %v", tc.err)
 			}
 		})
 	}

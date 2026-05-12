@@ -62,9 +62,10 @@
 // [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx.WithIdempotencyKey]
 // (caller-supplied key) or
 // [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx.WithoutAutoIdempotency]
-// (suppression). Disable globally via [WithIdempotency](false). Retries
-// follow the default exponential-backoff policy on 5xx + 408/425/429 +
-// transport errors; customize via [WithRetryOptions] /
+// (suppression). Disable globally via [WithIdempotency](false). Unsafe
+// requests retry only when X-Idempotency is present; caller-supplied and
+// SDK-generated keys both satisfy that gate. Retries follow the default
+// exponential-backoff policy on 5xx + 408/425/429 + transport errors; customize via [WithRetryOptions] /
 // [WithCustomRetryPolicy] / [WithoutRetries]. See examples/06-idempotency
 // and examples/07-retries.
 //
@@ -447,6 +448,7 @@ func (c *Client) setupEntity() error {
 	httpClient.SetDebug(c.config.Debug)
 	httpClient.SetUserAgent(c.config.UserAgent)
 	httpClient.SetEnableIdempotency(c.config.EnableIdempotency)
+	httpClient.SetExposeErrorBody(c.config.ExposeErrorBody)
 
 	// Retry chain construction: config seeds first, user overrides last.
 	// Override-on-conflict semantics — see [WithRetryOptions] godoc.

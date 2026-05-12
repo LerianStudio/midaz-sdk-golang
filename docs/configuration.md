@@ -60,6 +60,7 @@ The full list (v3):
 | `WithCustomRetryPolicy` | Per-response retry decision callback |
 | `WithDebug` | Enable verbose request/response logging |
 | `WithEnvironment` | Select prod / dev / sandbox / local |
+| `WithErrorBodyExposure` | Toggle raw upstream 4xx/5xx response body exposure on SDK errors |
 | `WithHTTPClient` | Replace the underlying `*http.Client` |
 | `WithIdempotency` | Toggle automatic `X-Idempotency` header |
 | `WithLogger` | Install a custom `*slog.Logger` |
@@ -248,6 +249,7 @@ environment.
 | `MIDAZ_DEBUG` | bool | `false` | Enable verbose request/response logging (also upgrades the default logger to stderr) |
 | `MIDAZ_MAX_RETRIES` | int | `3` | Maximum retry attempts; `0` disables retries |
 | `MIDAZ_IDEMPOTENCY` | bool | `true` | Toggle automatic `X-Idempotency` header generation |
+| `MIDAZ_ERROR_EXPOSE_BODY` | bool | `true` | Attach raw upstream 4xx/5xx response bodies to SDK errors. Bodies are not redacted by the SDK; they are only truncated. |
 | `MIDAZ_SKIP_AUTH_CHECK` | bool | `false` | **Test plumbing only.** Disables the construction-time check that fails when `PLUGIN_AUTH_ENABLED=true` is set without a complete Access Manager configuration. Bypassing the check hides misconfigurations until runtime, where they surface as 401 cascades. Never set this in production deployments. |
 | `PLUGIN_AUTH_ENABLED` | bool | `false` | Enable plugin-based OAuth authentication |
 | `PLUGIN_AUTH_ADDRESS` | URL | — | Auth plugin endpoint (required when `PLUGIN_AUTH_ENABLED=true`) |

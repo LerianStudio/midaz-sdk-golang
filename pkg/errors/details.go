@@ -50,6 +50,16 @@ type ErrorDetails struct {
 	// Details contains raw API error details, if available.
 	Details map[string]any
 
+	// UpstreamBody is the raw upstream 4xx/5xx response body attached to the
+	// SDK error, if available. It is not redacted by design.
+	UpstreamBody string
+
+	// UpstreamBodyTruncated reports whether UpstreamBody was truncated by the SDK.
+	UpstreamBodyTruncated bool
+
+	// UpstreamBodyOriginalBytes is the byte length observed before exposure truncation.
+	UpstreamBodyOriginalBytes int
+
 	// RequestID is the API request ID, if available.
 	RequestID string
 
@@ -106,6 +116,10 @@ func populateStructuredErrorDetails(err error, details *ErrorDetails) {
 	if sdkErr.Details != nil {
 		details.Details = RedactSensitiveDetails(sdkErr.Details)
 	}
+
+	details.UpstreamBody = sdkErr.UpstreamBody
+	details.UpstreamBodyTruncated = sdkErr.UpstreamBodyTruncated
+	details.UpstreamBodyOriginalBytes = sdkErr.UpstreamBodyOriginalBytes
 
 	details.RequestID = sdkErr.RequestID
 }

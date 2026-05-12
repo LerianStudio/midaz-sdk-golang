@@ -108,6 +108,16 @@ func TestWithConfig_FirstInChain_StillWorks(t *testing.T) {
 	assert.Equal(t, "m1-canonical-test/1.0", c.config.UserAgent)
 }
 
+func TestWithErrorBodyExposure_PropagatesToConfig(t *testing.T) {
+	c, err := New(
+		WithAnonymous(),
+		WithErrorBodyExposure(false),
+	)
+	require.NoError(t, err)
+
+	assert.False(t, c.config.ExposeErrorBody)
+}
+
 // TestNewAccessManagerTokenFetchError_IsClassifiedAsAuth is the M4 regression
 // test. v2 wrapped a transient Access Manager auth-fetch failure as a
 // Configuration error, so callers using IsConfigurationError to gate retries

@@ -64,12 +64,80 @@ func TestRedactDebugURLStripsEntireQueryString(t *testing.T) {
 	assert.Nil(t, redactedURL.User)
 }
 
+func TestNormalizeTelemetryURLRedactsUnparseableInput(t *testing.T) {
+	redacted := normalizeTelemetryURL("https://api.example.com/%zz?accessToken=raw-token&clientSecret=raw-secret#frag")
+
+	assert.NotContains(t, redacted, "raw-token")
+	assert.NotContains(t, redacted, "raw-secret")
+	assert.NotContains(t, redacted, "accessToken")
+	assert.NotContains(t, redacted, "clientSecret")
+	assert.NotContains(t, redacted, "frag")
+	assert.Contains(t, redacted, "https://api.example.com/%zz")
+}
+
+func TestDefaultHTTPClientRejectsAuthenticatedCrossOriginRedirect(t *testing.T) {
+	client := defaultHTTPClient()
+
+	previous, err := http.NewRequest(http.MethodGet, "https://api.example.com/v1/accounts", nil)
+	require.NoError(t, err)
+	previous.Header.Set("Authorization", "Bearer raw-token")
+
+	next, err := http.NewRequest(http.MethodGet, "https://evil.example.net/v1/accounts", nil)
+	require.NoError(t, err)
+
+	err = client.CheckRedirect(next, []*http.Request{previous})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "authenticated redirect")
+}
+
+func TestDefaultHTTPClientAllowsAuthenticatedSameOriginRedirect(t *testing.T) {
+	client := defaultHTTPClient()
+
+	previous, err := http.NewRequest(http.MethodGet, "https://api.example.com/v1/accounts", nil)
+	require.NoError(t, err)
+	previous.Header.Set("Authorization", "Bearer raw-token")
+
+	next, err := http.NewRequest(http.MethodGet, "https://api.example.com/v1/accounts?page=2", nil)
+	require.NoError(t, err)
+
+	require.NoError(t, client.CheckRedirect(next, []*http.Request{previous}))
+}
+
+func TestNewHTTPClientInstallsRedirectGuardOnCallerClientWithoutPolicy(t *testing.T) {
+	callerClient := &http.Client{}
+	c := NewHTTPClient(callerClient, "", nil)
+	require.NotNil(t, c.client.CheckRedirect)
+	require.Nil(t, callerClient.CheckRedirect, "caller-owned client must not be mutated in place")
+
+	previous, err := http.NewRequest(http.MethodGet, "https://api.example.com/v1/accounts", nil)
+	require.NoError(t, err)
+	previous.Header.Set("X-Idempotency", "raw-idempotency-key")
+
+	next, err := http.NewRequest(http.MethodGet, "https://evil.example.net/v1/accounts", nil)
+	require.NoError(t, err)
+
+	err = c.client.CheckRedirect(next, []*http.Request{previous})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "authenticated redirect")
+}
+
+func TestNewHTTPClientPreservesCallerRedirectPolicy(t *testing.T) {
+	callerClient := &http.Client{
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+			return assert.AnError
+		},
+	}
+	c := NewHTTPClient(callerClient, "", nil)
+
+	require.Same(t, callerClient, c.client)
+	require.ErrorIs(t, c.client.CheckRedirect(nil, nil), assert.AnError)
+}
+
 func TestAutomaticIdempotencyHeaderForUnsafeMethods(t *testing.T) {
-	var seen, autoHeader string
+	var seen string
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		seen = r.Header.Get("X-Idempotency")
-		autoHeader = r.Header.Get("X-Midaz-Auto-Idempotency")
 		w.Header().Set("Content-Type", "application/json")
 
 		_, err := w.Write([]byte(`{}`))
@@ -81,11 +149,10 @@ func TestAutomaticIdempotencyHeaderForUnsafeMethods(t *testing.T) {
 
 	var out map[string]any
 
-	err := c.doRequest(context.Background(), http.MethodPost, srv.URL, map[string]string{"X-Midaz-Auto-Idempotency": "true"}, map[string]string{"ok": "true"}, &out)
+	err := c.doRequest(context.Background(), http.MethodPost, srv.URL, nil, map[string]string{"ok": "true"}, &out)
 	require.NoError(t, err)
 
 	assert.NotEmpty(t, seen)
-	assert.Empty(t, autoHeader)
 }
 
 // TestWithoutAutoIdempotencySuppressesAutoKey verifies that the per-call
@@ -146,12 +213,12 @@ func TestUnsafeMethodRetriesOnlyWithIdempotency(t *testing.T) {
 	// useful for at-most-once delivery but useless for transient failure
 	// recovery, defeating the entire point of opting in.
 	//
-	// The two rows below assert the new behavior:
+	// The rows below assert the behavior:
 	//   1. headers=nil → ensureIdempotencyHeader auto-generates a key →
 	//      retry on 5xx is allowed → after 1 transient failure we succeed
 	//      on the 2nd attempt.
-	//   2. headers explicitly carry the internal marker → behavior matches
-	//      the implicit auto path (one retry, then success).
+	//   2. sdkctx.WithoutAutoIdempotency suppresses the key and disables
+	//      unsafe retries.
 	tests := []struct {
 		name            string
 		ctx             context.Context
@@ -163,13 +230,6 @@ func TestUnsafeMethodRetriesOnlyWithIdempotency(t *testing.T) {
 			name:            "auto idempotency enables unsafe retry",
 			ctx:             context.Background(),
 			headers:         nil,
-			expectedCalls:   2,
-			expectedSuccess: true,
-		},
-		{
-			name:            "internal auto idempotency marker enables unsafe retry",
-			ctx:             context.Background(),
-			headers:         map[string]string{"X-Midaz-Auto-Idempotency": "true"},
 			expectedCalls:   2,
 			expectedSuccess: true,
 		},

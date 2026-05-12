@@ -4,19 +4,21 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
 )
 
 // TestIdempotencyPrecedence_InputKeyBeatsCtxKey verifies the documented
 // precedence rule: when a caller supplies BOTH an input-level
-// IdempotencyKey (signaled by the internalCallerIdempotencyHeader marker
-// alongside X-Idempotency in the headers map) AND a ctx-supplied key via
-// sdkctx.WithIdempotencyKey, the input-level value wins.
+// IdempotencyKey via X-Idempotency in the headers map AND a ctx-supplied
+// key via sdkctx.WithIdempotencyKey, the input-level value wins.
 //
 // Bug guard: prior to this fix, injectContextHeaders unconditionally
 // overwrote X-Idempotency with the ctx key, silently dropping the
@@ -39,11 +41,9 @@ func TestIdempotencyPrecedence_InputKeyBeatsCtxKey(t *testing.T) {
 	ctx := sdkctx.WithIdempotencyKey(context.Background(), "ctx-key")
 
 	// Mirror the call shape used by transactionsEntity.sendCreateTransactionRequest:
-	// the input-level key is plumbed in by setting both the header AND the
-	// internal marker that flags this as a caller-supplied (input field) value.
+	// the input-level key is plumbed in by setting X-Idempotency directly.
 	headers := map[string]string{
-		"X-Idempotency":                 "input-key",
-		internalCallerIdempotencyHeader: boolTrue,
+		"X-Idempotency": "input-key",
 	}
 
 	var out map[string]any
@@ -179,4 +179,102 @@ func TestIdempotencyPrecedence_DirectHeaderWithoutMarkerPreserved(t *testing.T) 
 
 	seen := <-seenCh
 	assert.Equal(t, "direct-key", seen, "directly-set X-Idempotency header must be preserved over ctx-supplied key")
+}
+
+func TestIdempotencyPrecedence_DirectHeaderCaseInsensitivePreserved(t *testing.T) {
+	seenCh := make(chan string, 1)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seenCh <- r.Header.Get("X-Idempotency")
+		w.Header().Set("Content-Type", "application/json")
+		_, err := w.Write([]byte(`{}`))
+		assert.NoError(t, err)
+	}))
+	defer srv.Close()
+
+	c := NewHTTPClient(srv.Client(), "", nil)
+	ctx := sdkctx.WithIdempotencyKey(context.Background(), "ctx-key")
+
+	var out map[string]any
+	err := c.doRequest(
+		ctx,
+		http.MethodPost,
+		srv.URL,
+		map[string]string{"x-idempotency": "lowercase-direct-key"},
+		map[string]string{"ok": "true"},
+		&out,
+	)
+	require.NoError(t, err)
+
+	seen := <-seenCh
+	assert.Equal(t, "lowercase-direct-key", seen, "idempotency header detection must be case-insensitive")
+}
+
+func TestIdempotencyPrecedence_BlankCaseVariantDoesNotEraseContextKey(t *testing.T) {
+	seenCh := make(chan string, 1)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seenCh <- r.Header.Get("X-Idempotency")
+		w.Header().Set("Content-Type", "application/json")
+		_, err := w.Write([]byte(`{}`))
+		assert.NoError(t, err)
+	}))
+	defer srv.Close()
+
+	c := NewHTTPClient(srv.Client(), "", nil)
+	ctx := sdkctx.WithIdempotencyKey(context.Background(), "ctx-key")
+
+	var out map[string]any
+	err := c.doRequest(
+		ctx,
+		http.MethodPost,
+		srv.URL,
+		map[string]string{"x-idempotency": ""},
+		map[string]string{"ok": "true"},
+		&out,
+	)
+	require.NoError(t, err)
+
+	seen := <-seenCh
+	assert.Equal(t, "ctx-key", seen, "blank case-variant idempotency header must not overwrite the context key")
+}
+
+func TestIdempotencyPrecedence_DirectHeaderWithoutMarkerEnablesRetry(t *testing.T) {
+	var calls atomic.Int32
+
+	seen := make(chan string, 2)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seen <- r.Header.Get("X-Idempotency")
+		if calls.Add(1) == 1 {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_, err := w.Write([]byte(`{}`))
+		assert.NoError(t, err)
+	}))
+	defer srv.Close()
+
+	c := NewHTTPClient(srv.Client(), "", nil)
+	require.NoError(t, c.WithRetryOptions(
+		retry.WithMaxRetries(1),
+		retry.WithInitialDelay(time.Millisecond),
+		retry.WithMaxDelay(time.Millisecond),
+	))
+
+	var out map[string]any
+	err := c.doRequest(
+		context.Background(),
+		http.MethodPost,
+		srv.URL,
+		map[string]string{"X-Idempotency": "direct-key"},
+		map[string]string{"ok": "true"},
+		&out,
+	)
+
+	require.NoError(t, err)
+	assert.Equal(t, int32(2), calls.Load())
+	assert.Equal(t, "direct-key", <-seen)
+	assert.Equal(t, "direct-key", <-seen)
 }

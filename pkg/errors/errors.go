@@ -210,7 +210,8 @@ var (
 // inner errors — even though the constructors already store
 // pre-redacted Message values. Callers who need a JSON projection of
 // an error should build their own DTO from the safe fields (Category,
-// Code, StatusCode), or call [Error.Error] which always redacts.
+// Code, StatusCode). [Error.Error] redacts the SDK-generated prefix and any
+// rendered upstream-body segment.
 type Error struct {
 	// Category is the general category of the error
 	Category ErrorCategory `json:"category"`
@@ -258,6 +259,19 @@ type Error struct {
 	// Marked json:"-" because the Details map is the most common leak
 	// source — it carries arbitrary server-supplied structures.
 	Details map[string]any `json:"-"`
+
+	// UpstreamBody is the raw upstream 4xx/5xx response body attached to SDK
+	// HTTP response errors when error body exposure is enabled. It is not
+	// redacted by design; it is only truncated.
+	UpstreamBody string `json:"-"`
+
+	// UpstreamBodyTruncated reports whether UpstreamBody is a truncated prefix
+	// of the upstream response body captured by the SDK.
+	UpstreamBodyTruncated bool `json:"-"`
+
+	// UpstreamBodyOriginalBytes is the byte length observed before the
+	// pkg/errors exposure truncation was applied.
+	UpstreamBodyOriginalBytes int `json:"-"`
 
 	// StatusCode is the HTTP status code, if applicable
 	StatusCode int `json:"statusCode,omitempty"`
@@ -307,7 +321,8 @@ type Error struct {
 // MarshalJSON renders only the safe, non-leaky fields of an *Error.
 // The unredacted Message, Title, ResourceID, RequestID, Fields, Details,
 // and inner Err are intentionally excluded. Callers who need the full
-// rendered string should use [Error.Error] (which is redacted).
+// rendered string should use [Error.Error] (whose upstream-body segment is
+// redacted when body exposure is enabled).
 //
 // Returns "null" for a nil receiver.
 func (e *Error) MarshalJSON() ([]byte, error) {
@@ -382,22 +397,65 @@ func (e *Error) Error() string {
 		composed = fmt.Sprintf("%s: %s", errorContext, e.Message)
 	}
 
-	return redactSensitive(composed)
+	return appendUpstreamBody(redactSensitive(composed), e)
 }
 
-// redactingError wraps an inner error so that callers walking the
-// chain via [errors.Unwrap] never see an unredacted string. The inner
-// error remains accessible to [errors.Is] / [errors.As] via the
-// embedded Unwrap, so sentinel-matching still works.
+const maxExposedUpstreamBodyBytes = 64 * 1024
+
+// AttachUpstreamBody stores the raw upstream response body on a SDK error. It
+// intentionally does not redact the body; it only truncates the exposed value.
+func AttachUpstreamBody(err error, body []byte, truncated bool) error {
+	var sdkErr *Error
+	if !errors.As(err, &sdkErr) || sdkErr == nil {
+		return err
+	}
+
+	sdkErr.UpstreamBodyOriginalBytes = len(body)
+	sdkErr.UpstreamBodyTruncated = truncated
+
+	if len(body) > maxExposedUpstreamBodyBytes {
+		sdkErr.UpstreamBody = string(body[:maxExposedUpstreamBodyBytes])
+		sdkErr.UpstreamBodyTruncated = true
+
+		return err
+	}
+
+	sdkErr.UpstreamBody = string(body)
+
+	return err
+}
+
+func appendUpstreamBody(rendered string, e *Error) string {
+	if e == nil || e.UpstreamBody == "" {
+		return rendered
+	}
+
+	renderedBody := redactSensitive(e.UpstreamBody)
+
+	if e.UpstreamBodyTruncated {
+		return fmt.Sprintf(
+			"%s | upstream body (truncated to %d of %d bytes): %s",
+			rendered,
+			len(e.UpstreamBody),
+			e.UpstreamBodyOriginalBytes,
+			renderedBody,
+		)
+	}
+
+	return fmt.Sprintf("%s | upstream body: %s", rendered, renderedBody)
+}
+
+// redactingError wraps an inner error so that callers walking the chain via
+// [errors.Unwrap] never see an unredacted string. The raw inner error remains
+// matchable via explicit Is/As forwarding below, but Unwrap is terminal.
 //
 // Audit C5 (CRITICAL): before this wrapper landed, code that wrote
 //
 //	log.Printf("inner: %v", errors.Unwrap(sdkErr))
 //
 // would happily render `password=hunter2` from the inner error. We
-// preserve the chain (so errors.Is still walks through) while
-// guaranteeing every Error() call along the way passes through the
-// redactor.
+// preserve matching semantics while guaranteeing every Error() call along the
+// way passes through the redactor.
 type redactingError struct {
 	inner error
 }
@@ -411,16 +469,29 @@ func (r *redactingError) Error() string {
 	return redactSensitive(r.inner.Error())
 }
 
-// Unwrap exposes the inner error for [errors.Is] / [errors.As] walks.
-// The chain semantics survive: callers can still match sentinels and
-// extract typed errors, they just can't render the inner string
-// without going through Error() (which is now always redacted).
-func (r *redactingError) Unwrap() error {
-	if r == nil {
-		return nil
+// Unwrap is intentionally terminal so recursive unwrap/log loops cannot walk
+// past the redacting shell and render the raw inner error string. Matching and
+// typed extraction are preserved by Is and As below.
+func (*redactingError) Unwrap() error {
+	return nil
+}
+
+// Is forwards sentinel matching to the wrapped error without exposing it via Unwrap.
+func (r *redactingError) Is(target error) bool {
+	if r == nil || r.inner == nil {
+		return false
 	}
 
-	return r.inner
+	return errors.Is(r.inner, target)
+}
+
+// As forwards typed extraction to the wrapped error without exposing it via Unwrap.
+func (r *redactingError) As(target any) bool {
+	if r == nil || r.inner == nil {
+		return false
+	}
+
+	return errors.As(r.inner, target)
 }
 
 // Unwrap returns the underlying error wrapped in a [redactingError]
@@ -530,6 +601,32 @@ func (e *Error) GetStatusCode() int {
 	return e.StatusCode
 }
 
+// GetUpstreamBody returns the raw upstream response body attached to the SDK
+// error, if available.
+func (e *Error) GetUpstreamBody() string {
+	if e == nil {
+		return ""
+	}
+
+	return e.UpstreamBody
+}
+
+// IsUpstreamBodyTruncated reports whether the attached upstream body was
+// truncated by the SDK.
+func (e *Error) IsUpstreamBodyTruncated() bool {
+	return e != nil && e.UpstreamBodyTruncated
+}
+
+// GetUpstreamBodyOriginalBytes returns the byte length observed before the
+// pkg/errors exposure truncation was applied.
+func (e *Error) GetUpstreamBodyOriginalBytes() int {
+	if e == nil {
+		return 0
+	}
+
+	return e.UpstreamBodyOriginalBytes
+}
+
 // GetSource returns the layer that produced the error, when known.
 func (e *Error) GetSource() ErrorSource {
 	if e == nil {
@@ -623,7 +720,7 @@ var (
 	// triggering on operation names like `CreateMetadataIndex:`
 	// where the keyword sits in the middle of a CamelCase word.
 	// The trailing `[\w.-]*` allows compound suffixes like `-key`.
-	sensitiveKeyValuePattern = regexp.MustCompile(`(?i)(?:^|[^A-Za-z])((?:token|password|apikey|api[-_]?key|x[-_]api[-_]?key|access[-_]?token|refresh[-_]?token|id[-_]?token|jwt|authorization|secret|(?:x[-_])?idempotency|document|legal_document|external_id|banking_details_account|banking_details_iban|metadata(?:\.[\w.-]+)?|related_party_document|regulatory_fields_participant_document)[\w.-]*)(\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s,;]+)`)
+	sensitiveKeyValuePattern = regexp.MustCompile(`(?i)(^|[^A-Za-z])(["']?)((?:token|password|apikey|api[-_]?key|x[-_]api[-_]?key|access[-_]?token|refresh[-_]?token|id[-_]?token|client[-_]?secret|jwt|authorization|secret|(?:x[-_])?idempotency|document|legal_document|external_id|banking_details_account|banking_details_iban|metadata(?:\.[\w.-]+)?|related_party_document|regulatory_fields_participant_document)[\w.-]*)(["']?)(\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s,;}]+)`)
 )
 
 func isNilError(err error) bool {
@@ -643,6 +740,11 @@ func isNilError(err error) bool {
 func safeErrorString(err error) string {
 	if isNilError(err) {
 		return ""
+	}
+
+	var sdkErr *Error
+	if errors.As(err, &sdkErr) && sdkErr != nil {
+		return sdkErr.Error()
 	}
 
 	return redactSensitive(err.Error())
@@ -674,7 +776,7 @@ func redactSensitive(message string) string {
 	}
 
 	redacted := sensitiveBearerPattern.ReplaceAllString(message, `${1}[REDACTED]`)
-	redacted = sensitiveKeyValuePattern.ReplaceAllString(redacted, `${1}${2}[REDACTED]`)
+	redacted = sensitiveKeyValuePattern.ReplaceAllString(redacted, `${1}${2}${3}${4}${5}[REDACTED]`)
 
 	if truncated {
 		redacted += " [truncated]"
@@ -1432,11 +1534,22 @@ func IsBootstrapError(err error) bool {
 		return false
 	}
 
-	return IsConfigurationError(err) ||
-		IsAuthError(err) ||
-		IsRateLimitError(err) ||
-		IsNetworkError(err) ||
-		IsInternalError(err)
+	var sdkErr *Error
+	if !errors.As(err, &sdkErr) || sdkErr == nil || sdkErr.Operation != "midaz.New" {
+		return false
+	}
+
+	switch sdkErr.Category {
+	case CategoryConfiguration,
+		CategoryAuthentication,
+		CategoryAuthorization,
+		CategoryLimitExceeded,
+		CategoryNetwork,
+		CategoryInternal:
+		return true
+	default:
+		return false
+	}
 }
 
 // IsConfigurationError reports whether err is an SDK configuration error.
@@ -1812,31 +1925,31 @@ func FormatErrorForDisplay(err error) string {
 	if errors.As(err, &mdzErr) && mdzErr != nil {
 		switch mdzErr.Category {
 		case CategoryValidation:
-			return fmt.Sprintf("Invalid request: %s", redactSensitive(mdzErr.Message))
+			return appendUpstreamBody(fmt.Sprintf("Invalid request: %s", redactSensitive(mdzErr.Message)), mdzErr)
 		case CategoryNotFound:
-			return fmt.Sprintf("Resource not found: %s", redactSensitive(mdzErr.Message))
+			return appendUpstreamBody(fmt.Sprintf("Resource not found: %s", redactSensitive(mdzErr.Message)), mdzErr)
 		case CategoryAuthentication:
-			return "Authentication failed. Please check your credentials."
+			return appendUpstreamBody("Authentication failed. Please check your credentials.", mdzErr)
 		case CategoryAuthorization:
-			return "You don't have permission to perform this action."
+			return appendUpstreamBody("You don't have permission to perform this action.", mdzErr)
 		case CategoryAuth:
-			return "Authentication failed. Please check your credentials."
+			return appendUpstreamBody("Authentication failed. Please check your credentials.", mdzErr)
 		case CategoryConfiguration:
-			return fmt.Sprintf("SDK configuration error: %s", redactSensitive(mdzErr.Message))
+			return appendUpstreamBody(fmt.Sprintf("SDK configuration error: %s", redactSensitive(mdzErr.Message)), mdzErr)
 		case CategoryConflict:
-			return fmt.Sprintf("Resource conflict: %s", redactSensitive(mdzErr.Message))
+			return appendUpstreamBody(fmt.Sprintf("Resource conflict: %s", redactSensitive(mdzErr.Message)), mdzErr)
 		case CategoryLimitExceeded:
-			return "Rate limit exceeded. Please try again later."
+			return appendUpstreamBody("Rate limit exceeded. Please try again later.", mdzErr)
 		case CategoryTimeout:
-			return "The operation timed out. Please try again later."
+			return appendUpstreamBody("The operation timed out. Please try again later.", mdzErr)
 		case CategoryCancellation:
-			return "The operation was cancelled."
+			return appendUpstreamBody("The operation was cancelled.", mdzErr)
 		case CategoryNetwork:
-			return "Network error. Please check your connection and try again."
+			return appendUpstreamBody("Network error. Please check your connection and try again.", mdzErr)
 		case CategoryUnprocessable:
-			return fmt.Sprintf("Operation could not be processed: %s", redactSensitive(mdzErr.Message))
+			return appendUpstreamBody(fmt.Sprintf("Operation could not be processed: %s", redactSensitive(mdzErr.Message)), mdzErr)
 		default:
-			return "An unexpected error occurred. Please try again later."
+			return appendUpstreamBody("An unexpected error occurred. Please try again later.", mdzErr)
 		}
 	}
 
@@ -1998,10 +2111,10 @@ func formatMidazError(err error, operationType string) string {
 	}
 
 	if message, exists := codeToMessage[mdzErr.Code]; exists {
-		return fmt.Sprintf("%s failed: %s - %s", operationType, message, redactSensitive(mdzErr.Message))
+		return appendUpstreamBody(fmt.Sprintf("%s failed: %s - %s", operationType, message, redactSensitive(mdzErr.Message)), mdzErr)
 	}
 
-	return fmt.Sprintf("%s failed: %s", operationType, redactSensitive(mdzErr.Message))
+	return appendUpstreamBody(fmt.Sprintf("%s failed: %s", operationType, redactSensitive(mdzErr.Message)), mdzErr)
 }
 
 // formatGenericError formats non-structured error types

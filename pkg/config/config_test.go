@@ -62,6 +62,7 @@ func TestDefaultConstants(t *testing.T) {
 		{"DefaultMinRetryWait", DefaultMinRetryWait, 1 * time.Second},
 		{"DefaultRetryWaitMax", DefaultRetryWaitMax, 30 * time.Second},
 		{"DefaultEnableIdempotency", DefaultEnableIdempotency, true},
+		{"DefaultExposeErrorBody", DefaultExposeErrorBody, true},
 	}
 
 	for _, tc := range tests {
@@ -113,6 +114,7 @@ func TestNewConfig_Defaults(t *testing.T) {
 	// In v3, retries are off iff MaxRetries == 0; default is DefaultMaxRetries (3).
 	assert.Positive(t, config.MaxRetries)
 	assert.True(t, config.EnableIdempotency)
+	assert.True(t, config.ExposeErrorBody)
 	assert.False(t, config.Debug)
 	assert.NotNil(t, config.HTTPClient)
 	assert.Equal(t, "http://localhost:3002/v1", config.ServiceURLs[ServiceOnboarding])
@@ -137,6 +139,7 @@ func TestNewConfig_WithAllOptions(t *testing.T) {
 		WithRetryWaitMax(60*time.Second),
 		WithDebug(true),
 		WithIdempotency(false),
+		WithErrorBodyExposure(false),
 		WithObservabilityProvider(mockProvider),
 		WithAccessManager(auth.AccessManager{
 			Enabled:      false,
@@ -150,7 +153,9 @@ func TestNewConfig_WithAllOptions(t *testing.T) {
 	assert.Equal(t, EnvironmentProduction, config.Environment)
 	assert.Equal(t, "https://custom.example.com/onboarding", config.ServiceURLs[ServiceOnboarding])
 	assert.Equal(t, "https://custom.example.com/transaction", config.ServiceURLs[ServiceTransaction])
-	assert.Equal(t, customClient, config.HTTPClient)
+	assert.NotSame(t, customClient, config.HTTPClient)
+	assert.Equal(t, customClient.Timeout, config.HTTPClient.Timeout)
+	assert.NotNil(t, config.HTTPClient.CheckRedirect)
 	assert.Equal(t, 90*time.Second, config.Timeout)
 	assert.Equal(t, "test-agent/1.0", config.UserAgent)
 	assert.Equal(t, 5, config.MaxRetries)
@@ -158,6 +163,7 @@ func TestNewConfig_WithAllOptions(t *testing.T) {
 	assert.Equal(t, 60*time.Second, config.RetryWaitMax)
 	assert.True(t, config.Debug)
 	assert.False(t, config.EnableIdempotency)
+	assert.False(t, config.ExposeErrorBody)
 	assert.Equal(t, mockProvider, config.ObservabilityProvider)
 	assert.Equal(t, "https://auth.example.com", config.AccessManager.Address)
 	assert.Equal(t, "test-client", config.AccessManager.ClientID)
@@ -411,7 +417,9 @@ func TestWithHTTPClient_Valid(t *testing.T) {
 		WithAnonymous(),
 	)
 	require.NoError(t, err)
-	assert.Equal(t, customClient, config.HTTPClient)
+	assert.NotSame(t, customClient, config.HTTPClient)
+	assert.Equal(t, customClient.Timeout, config.HTTPClient.Timeout)
+	assert.NotNil(t, config.HTTPClient.CheckRedirect)
 }
 
 func TestWithHTTPClient_Nil(t *testing.T) {
@@ -642,6 +650,27 @@ func TestWithIdempotency_Toggle(t *testing.T) {
 	}
 }
 
+func TestWithErrorBodyExposure_Toggle(t *testing.T) {
+	tests := []struct {
+		name    string
+		enabled bool
+	}{
+		{"enabled", true},
+		{"disabled", false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			config, err := NewConfig(
+				WithErrorBodyExposure(tc.enabled),
+				WithAnonymous(),
+			)
+			require.NoError(t, err)
+			assert.Equal(t, tc.enabled, config.ExposeErrorBody)
+		})
+	}
+}
+
 func TestWithObservabilityProvider(t *testing.T) {
 	provider := &mockObservabilityProvider{}
 	config, err := NewConfig(
@@ -678,6 +707,38 @@ func TestWithAccessManager(t *testing.T) {
 	assert.Equal(t, "secret-456", config.AccessManager.ClientSecret)
 }
 
+func TestWithAccessManagerPreservesPriorAllowInsecureHTTP(t *testing.T) {
+	config, err := NewConfig(
+		WithAllowInsecureAccessManagerHTTP(true),
+		WithAccessManager(auth.AccessManager{
+			Address:      "http://auth.internal.example.com",
+			ClientID:     "client-123",
+			ClientSecret: "secret-456",
+		}),
+	)
+	require.NoError(t, err)
+
+	assert.True(t, config.AccessManager.Enabled)
+	assert.True(t, config.AccessManager.AllowInsecureHTTP)
+	assert.Equal(t, "http://auth.internal.example.com", config.AccessManager.Address)
+}
+
+func TestWithAllowInsecureAccessManagerHTTPFalseAppliedLastDisablesPriorOptIn(t *testing.T) {
+	_, err := NewConfig(
+		WithAllowInsecureAccessManagerHTTP(true),
+		WithAccessManager(auth.AccessManager{
+			Address:      "http://auth.internal.example.com",
+			ClientID:     "client-123",
+			ClientSecret: "secret-456",
+		}),
+		WithAllowInsecureAccessManagerHTTP(false),
+	)
+	require.Error(t, err)
+
+	assert.Contains(t, err.Error(), "invalid plugin auth address")
+	assert.Contains(t, err.Error(), "validationReason=insecure_scheme")
+}
+
 func TestValidateConfig_MissingAuthAddress(t *testing.T) {
 	_, err := NewConfig(WithAccessManager(auth.AccessManager{
 		Enabled: true,
@@ -706,6 +767,22 @@ func TestValidateConfig_AccessManagerAddressValidatedBeforeTokenFetch(t *testing
 	assert.NotContains(t, err.Error(), "super-secret-value")
 }
 
+func TestValidateConfig_RejectsInsecureAccessManagerHTTPInProduction(t *testing.T) {
+	_, err := NewConfig(
+		WithEnvironment(EnvironmentProduction),
+		WithAccessManager(auth.AccessManager{
+			Address:      "http://plugin-access-manager-auth.midaz-plugins.svc.cluster.local:4000",
+			ClientID:     "client-id",
+			ClientSecret: "super-secret-value",
+		}),
+		WithAllowInsecureAccessManagerHTTP(true),
+	)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "plugin auth insecure HTTP is not allowed in production")
+	assert.NotContains(t, err.Error(), "super-secret-value")
+}
+
 func TestValidateConfig_AuthCheckSkipped(t *testing.T) {
 	config, err := NewConfig(disableAuthCheck(t), WithAccessManager(auth.AccessManager{
 		Enabled: true,
@@ -728,6 +805,7 @@ func TestFromEnvironment_AllVariables(t *testing.T) {
 	t.Setenv("MIDAZ_DEBUG", "true")
 	t.Setenv("MIDAZ_MAX_RETRIES", "7")
 	t.Setenv("MIDAZ_IDEMPOTENCY", "false")
+	t.Setenv("MIDAZ_ERROR_EXPOSE_BODY", "false")
 
 	config, err := NewConfig(FromEnvironment())
 	require.NoError(t, err)
@@ -744,6 +822,7 @@ func TestFromEnvironment_AllVariables(t *testing.T) {
 	assert.True(t, config.Debug)
 	assert.Equal(t, 7, config.MaxRetries)
 	assert.False(t, config.EnableIdempotency)
+	assert.False(t, config.ExposeErrorBody)
 }
 
 func TestFromEnvironment_PartialVariables(t *testing.T) {
@@ -761,6 +840,7 @@ func TestFromEnvironment_PartialVariables(t *testing.T) {
 		"MIDAZ_DEBUG",
 		"MIDAZ_MAX_RETRIES",
 		"MIDAZ_IDEMPOTENCY",
+		"MIDAZ_ERROR_EXPOSE_BODY",
 	}
 
 	for _, key := range envVars {
@@ -778,6 +858,7 @@ func TestFromEnvironment_PartialVariables(t *testing.T) {
 	assert.Equal(t, 90*time.Second, config.Timeout)
 	assert.Equal(t, DefaultMaxRetries, config.MaxRetries)
 	assert.True(t, config.EnableIdempotency)
+	assert.True(t, config.ExposeErrorBody)
 }
 
 func TestFromEnvironment_InvalidEnvironment(t *testing.T) {
@@ -880,6 +961,7 @@ func TestDefaultConfig(t *testing.T) {
 	// In v3, retries are off iff MaxRetries == 0; default is DefaultMaxRetries (3).
 	assert.Positive(t, config.MaxRetries)
 	assert.True(t, config.EnableIdempotency)
+	assert.True(t, config.ExposeErrorBody)
 	assert.NotNil(t, config.HTTPClient)
 	assert.NotNil(t, config.ServiceURLs)
 	assert.Equal(t, "http://localhost:3002/v1", config.ServiceURLs[ServiceOnboarding])
@@ -945,7 +1027,10 @@ func TestGetHTTPClient(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	assert.Equal(t, customClient, config.GetHTTPClient())
+	client := config.GetHTTPClient()
+	assert.NotSame(t, customClient, client)
+	assert.Equal(t, customClient.Timeout, client.Timeout)
+	assert.NotNil(t, client.CheckRedirect)
 }
 
 func TestGetHTTPClient_Default(t *testing.T) {
@@ -959,10 +1044,11 @@ func TestGetHTTPClient_Default(t *testing.T) {
 
 func TestGetPluginAuth(t *testing.T) {
 	config, err := NewConfig(disableAuthCheck(t), WithAccessManager(auth.AccessManager{
-		Enabled:      true,
-		Address:      "https://auth.example.com",
-		ClientID:     "test-client",
-		ClientSecret: "test-secret",
+		Enabled:           true,
+		Address:           "https://auth.example.com",
+		ClientID:          "test-client",
+		ClientSecret:      "test-secret",
+		AllowInsecureHTTP: true,
 	}))
 	require.NoError(t, err)
 
@@ -972,6 +1058,7 @@ func TestGetPluginAuth(t *testing.T) {
 	assert.Equal(t, "https://auth.example.com", pluginAuth.Address)
 	assert.Equal(t, "test-client", pluginAuth.ClientID)
 	assert.Equal(t, "test-secret", pluginAuth.ClientSecret)
+	assert.True(t, pluginAuth.AllowInsecureHTTP)
 }
 
 func TestGetPluginAuth_ReturnsCopy(t *testing.T) {
@@ -1437,6 +1524,53 @@ func TestWithBaseURL_InitializesServiceURLsMap(t *testing.T) {
 	assert.NotNil(t, config.ServiceURLs)
 	assert.Equal(t, "https://api.example.com/v1", config.ServiceURLs[ServiceOnboarding])
 	assert.Equal(t, "https://api.example.com/v1", config.ServiceURLs[ServiceTransaction])
+}
+
+func TestNewDefaultHTTPClientRejectsSensitiveCrossOriginRedirect(t *testing.T) {
+	client := NewDefaultHTTPClient(time.Second)
+
+	previous, err := http.NewRequest(http.MethodGet, "https://api.example.com/v1/accounts", nil)
+	require.NoError(t, err)
+	previous.Header.Set("X-Idempotency", "raw-idempotency-key")
+
+	next, err := http.NewRequest(http.MethodGet, "https://evil.example.net/v1/accounts", nil)
+	require.NoError(t, err)
+
+	err = client.CheckRedirect(next, []*http.Request{previous})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "authenticated redirect")
+}
+
+func TestWithHTTPClientInstallsRedirectGuardWhenMissing(t *testing.T) {
+	callerClient := &http.Client{}
+	config, err := NewConfig(WithAnonymous(), WithHTTPClient(callerClient))
+	require.NoError(t, err)
+	require.NotNil(t, config.HTTPClient.CheckRedirect)
+	require.Nil(t, callerClient.CheckRedirect, "caller-owned client must not be mutated in place")
+
+	previous, err := http.NewRequest(http.MethodGet, "https://api.example.com/v1/accounts", nil)
+	require.NoError(t, err)
+	previous.Header.Set("X-API-Key", "raw-api-key")
+
+	next, err := http.NewRequest(http.MethodGet, "https://evil.example.net/v1/accounts", nil)
+	require.NoError(t, err)
+
+	err = config.HTTPClient.CheckRedirect(next, []*http.Request{previous})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "authenticated redirect")
+}
+
+func TestWithHTTPClientPreservesExplicitRedirectPolicy(t *testing.T) {
+	callerClient := &http.Client{
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+			return assert.AnError
+		},
+	}
+	config, err := NewConfig(WithAnonymous(), WithHTTPClient(callerClient))
+	require.NoError(t, err)
+
+	require.Same(t, callerClient, config.HTTPClient)
+	require.ErrorIs(t, config.HTTPClient.CheckRedirect(nil, nil), assert.AnError)
 }
 
 func TestWithOnboardingURL_InitializesServiceURLsMap(t *testing.T) {
