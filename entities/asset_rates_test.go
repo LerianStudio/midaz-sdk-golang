@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -80,7 +81,7 @@ func Test_newAssetRatesEntity_DebugMode(t *testing.T) {
 		)
 		entity, ok := service.(*assetRatesEntity)
 		assert.True(t, ok)
-		assert.False(t, entity.httpClient.debug,
+		assert.False(t, entity.httpClient.debug.Load(),
 			"v3 invariant: env vars must not bypass the explicit configuration path")
 	})
 
@@ -92,7 +93,7 @@ func Test_newAssetRatesEntity_DebugMode(t *testing.T) {
 		)
 		entity, ok := service.(*assetRatesEntity)
 		assert.True(t, ok)
-		assert.False(t, entity.httpClient.debug)
+		assert.False(t, entity.httpClient.debug.Load())
 	})
 
 	t.Run("SetDebug(true) flips debug on (v3 path)", func(t *testing.T) {
@@ -106,7 +107,7 @@ func Test_newAssetRatesEntity_DebugMode(t *testing.T) {
 		ent.GetEntityHTTPClient().SetDebug(true)
 		ent.InitServices()
 		ar := ent.AssetRates.(*assetRatesEntity)
-		assert.True(t, ar.httpClient.debug,
+		assert.True(t, ar.httpClient.debug.Load(),
 			"SetDebug(true) on parent must propagate to per-service HTTP clients after InitServices")
 	})
 }
@@ -551,24 +552,51 @@ func TestAssetRatesEntity_GetAssetRate(t *testing.T) {
 
 			result, err := entity.GetAssetRate(context.Background(), tt.orgID, tt.ledgerID, tt.externalID)
 
-			if tt.expectedError {
-				require.Error(t, err)
-
-				if tt.errorContains != "" {
-					assert.Contains(t, err.Error(), tt.errorContains)
-				}
-
-				return
-			}
-
-			require.NoError(t, err)
-			assert.NotNil(t, result)
-			assert.NotEmpty(t, result.ID)
-			assert.Equal(t, tt.externalID, result.ExternalID)
-			assert.Equal(t, "USD", result.From)
-			assert.Equal(t, "BRL", result.To)
+			assertGetAssetRateOutcome(t, tt, result, err)
 		})
 	}
+}
+
+// assertGetAssetRateOutcome centralises the per-case post-condition
+// checks for [TestAssetRatesEntity_GetAssetRate]. Hoisted to keep the
+// table loop under the cognitive-complexity gate.
+func assertGetAssetRateOutcome(t *testing.T, tt struct {
+	name           string
+	orgID          string
+	ledgerID       string
+	externalID     string
+	mockResponse   string
+	mockStatusCode int
+	mockError      error
+	expectedError  bool
+	errorContains  string
+}, result *models.AssetRate, err error) {
+	t.Helper()
+
+	if tt.expectedError {
+		require.Error(t, err)
+
+		if tt.errorContains != "" {
+			assert.Contains(t, err.Error(), tt.errorContains)
+		}
+
+		// Local-validation cases (no upstream mock activity) must
+		// produce a typed validation error so callers can branch on
+		// IsValidationError rather than scraping err.Error().
+		if tt.mockStatusCode == 0 && tt.mockError == nil {
+			assert.True(t, sdkerrors.IsValidationError(err),
+				"expected typed validation error for local-validation case, got %T: %v", err, err)
+		}
+
+		return
+	}
+
+	require.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.NotEmpty(t, result.ID)
+	assert.Equal(t, tt.externalID, result.ExternalID)
+	assert.Equal(t, "USD", result.From)
+	assert.Equal(t, "BRL", result.To)
 }
 
 func TestAssetRatesEntity_ListAssetRatesByAssetCode(t *testing.T) {
@@ -1096,6 +1124,7 @@ func TestAssetRatesEntity_ValidationEdgeCases(t *testing.T) {
 		_, err := entity.GetAssetRate(context.Background(), "org-123", "ledger-456", "   ")
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "externalID")
+		assert.True(t, sdkerrors.IsValidationError(err))
 	})
 
 	t.Run("ListAssetRatesByAssetCode with whitespace-only asset code", func(t *testing.T) {

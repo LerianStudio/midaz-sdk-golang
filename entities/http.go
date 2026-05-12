@@ -10,11 +10,14 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
@@ -33,6 +36,15 @@ import (
 var (
 	errEmptyResponseBody = errors.New("empty response body")
 	errNullResponseBody  = errors.New("null response body")
+)
+
+const (
+	httpPhaseRequestBuild    = "request_build"
+	httpPhaseRequestValidate = "request_validate"
+	httpPhaseRequestMarshal  = "request_marshal"
+	httpPhaseRequestSend     = "request_send"
+	httpPhaseResponseRead    = "response_read"
+	httpPhaseResponseDecode  = "response_decode"
 )
 
 const (
@@ -63,16 +75,24 @@ func defaultUserAgent() string {
 // - Optimized performance with connection pooling and JSON handling
 // - Observability with tracing, metrics, and logging
 type HTTPClient struct {
-	mu                sync.RWMutex
-	client            *http.Client
-	authToken         string
-	userAgent         string
-	debug             bool
+	mu        sync.RWMutex
+	client    *http.Client
+	authToken string
+	// Atomic primitives for the hot-path scalar knobs. These three fields
+	// are read on every request (header build, debug gating, idempotency
+	// gating) but mutated rarely (only via setters called from midaz.New
+	// or test plumbing). Going atomic eliminates the RWMutex Lock/Unlock
+	// pair from the per-request read path — a measurable win under retry
+	// fan-out workloads. The atomic.Pointer[string] for userAgent stores a
+	// pointer-to-string so the read path doesn't have to copy the bytes;
+	// a nil pointer means "fall back to defaultUserAgent()".
+	userAgent         atomic.Pointer[string]
+	debug             atomic.Bool
+	enableIdempotency atomic.Bool
 	retryOptions      *retry.Options        // Retry options for the client
 	jsonPool          *performance.JSONPool // Pool for JSON encoding/decoding
 	metrics           *observability.MetricsCollector
 	observability     observability.Provider
-	enableIdempotency bool
 	customRetryPolicy func(*http.Response, error) bool
 	tokenProvider     func(context.Context) (string, error)
 	tokenInvalidator  func()
@@ -127,17 +147,20 @@ func NewHTTPClient(client *http.Client, authToken string, provider observability
 		client = defaultHTTPClient()
 	}
 
-	return &HTTPClient{
-		client:            client,
-		authToken:         authToken,
-		userAgent:         defaultUserAgent(),
-		debug:             false,
-		retryOptions:      retry.DefaultOptions(),
-		jsonPool:          performance.NewJSONPool(),
-		metrics:           initMetricsCollector(provider),
-		observability:     provider,
-		enableIdempotency: true,
+	c := &HTTPClient{
+		client:        client,
+		authToken:     authToken,
+		retryOptions:  retry.DefaultOptions(),
+		jsonPool:      performance.NewJSONPool(),
+		metrics:       initMetricsCollector(provider),
+		observability: provider,
 	}
+
+	defaultUA := defaultUserAgent()
+	c.userAgent.Store(&defaultUA)
+	c.enableIdempotency.Store(true)
+
+	return c
 }
 
 // defaultHTTPClient returns the SDK's package-level default *http.Client.
@@ -278,15 +301,15 @@ func (c *HTTPClient) SetSlowCallThreshold(threshold time.Duration) {
 // To opt OUT for a single call without disabling client-level idempotency
 // entirely, attach the request context with [sdkctx.WithoutAutoIdempotency].
 // The ordering rule is: explicit caller key > suppression > auto-generation.
+//
+// Lock-free: backed by an atomic.Bool so the request path can read this
+// flag without contending with the HTTPClient mutex.
 func (c *HTTPClient) SetEnableIdempotency(enabled bool) {
 	if c == nil {
 		return
 	}
 
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	c.enableIdempotency = enabled
+	c.enableIdempotency.Store(enabled)
 }
 
 // SetCustomRetryPolicy sets the predicate used to decide whether retries should continue.
@@ -313,6 +336,15 @@ func (c *HTTPClient) setAuthTokenProvider(provider func(context.Context) (string
 	c.tokenInvalidator = invalidator
 }
 
+// cloneConfiguration captures a value-copy of the HTTPClient's read-mostly
+// state for a single request scope. The hot-path scalars (debug, userAgent,
+// enableIdempotency) come from atomic loads; the remaining pointer fields
+// are read under the HTTPClient RLock.
+//
+// retryOptions is captured BY POINTER (no per-snapshot slice clone). The
+// per-request mutation site in [executeRequestWithRetry] does its own
+// clone-then-mutate before passing the policy to the retry layer; everything
+// else only reads retryOptions, so a shared pointer is safe.
 func (c *HTTPClient) cloneConfiguration() httpClientConfigSnapshot {
 	if c == nil {
 		return httpClientConfigSnapshot{}
@@ -323,12 +355,12 @@ func (c *HTTPClient) cloneConfiguration() httpClientConfigSnapshot {
 
 	return httpClientConfigSnapshot{
 		authToken:         c.authToken,
-		userAgent:         c.userAgent,
-		debug:             c.debug,
-		retryOptions:      cloneRetryOptions(c.retryOptions),
+		userAgent:         c.loadUserAgent(),
+		debug:             c.debug.Load(),
+		retryOptions:      c.retryOptions,
 		metrics:           c.metrics,
 		observability:     c.observability,
-		enableIdempotency: c.enableIdempotency,
+		enableIdempotency: c.enableIdempotency.Load(),
 		customRetryPolicy: c.customRetryPolicy,
 		tokenProvider:     c.tokenProvider,
 		tokenInvalidator:  c.tokenInvalidator,
@@ -343,51 +375,65 @@ func (c *HTTPClient) applyConfigurationSnapshot(snapshot httpClientConfigSnapsho
 	}
 
 	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	c.authToken = snapshot.authToken
-	c.userAgent = snapshot.userAgent
-	c.debug = snapshot.debug
 	c.retryOptions = cloneRetryOptions(snapshot.retryOptions)
 	c.metrics = snapshot.metrics
 	c.observability = snapshot.observability
-	c.enableIdempotency = snapshot.enableIdempotency
 	c.customRetryPolicy = snapshot.customRetryPolicy
 	c.tokenProvider = snapshot.tokenProvider
 	c.tokenInvalidator = snapshot.tokenInvalidator
 	c.logger = snapshot.logger
 	c.slowCallThreshold = snapshot.slowCallThreshold
+	c.mu.Unlock()
+
+	// Atomic fields live outside the mutex; copy them through their typed
+	// stores so concurrent readers always see a consistent value.
+	c.debug.Store(snapshot.debug)
+	c.enableIdempotency.Store(snapshot.enableIdempotency)
+	ua := snapshot.userAgent
+	c.userAgent.Store(&ua)
 }
 
 // SetDebug enables or disables debug-mode logging for the HTTP client.
 //
-// Acquires the HTTPClient write lock so the field flip is race-detector
-// clean even when called concurrently with in-flight requests.
+// Lock-free: backed by an atomic.Bool so the request path can flip this
+// flag without contending with the HTTPClient mutex.
 func (c *HTTPClient) SetDebug(debug bool) {
 	if c == nil {
 		return
 	}
 
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	c.debug = debug
+	c.debug.Store(debug)
 }
 
 // SetUserAgent sets the User-Agent header value sent on every outbound
 // request issued by this HTTPClient.
 //
-// Acquires the HTTPClient write lock; safe to call concurrently with
-// in-flight requests.
+// Lock-free: backed by an atomic.Pointer[string]. Safe to call
+// concurrently with in-flight requests.
 func (c *HTTPClient) SetUserAgent(userAgent string) {
 	if c == nil {
 		return
 	}
 
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	// Snapshot the value into a fresh allocation so subsequent mutations
+	// by the caller cannot race with readers holding the previous pointer.
+	ua := userAgent
+	c.userAgent.Store(&ua)
+}
 
-	c.userAgent = userAgent
+// loadUserAgent returns the configured user-agent string, falling back to
+// the SDK default when none has been set.
+func (c *HTTPClient) loadUserAgent() string {
+	if c == nil {
+		return defaultUserAgent()
+	}
+
+	if ptr := c.userAgent.Load(); ptr != nil {
+		return *ptr
+	}
+
+	return defaultUserAgent()
 }
 
 // setObservabilityLocked replaces the observability provider AND the metrics
@@ -493,12 +539,13 @@ func (c *HTTPClient) doRequest(ctx context.Context, method, requestURL string, h
 	// Build HTTP request
 	req, _, err := c.buildHTTPRequest(ctx, method, requestURL, body)
 	if err != nil {
+		c.logHTTPPhaseFailure(ctx, method, requestURL, nil, err)
 		c.recordSDKFailure(ctx, method, requestURL, 0, err)
 
 		return err
 	}
 
-	// Inject context-based headers (idempotency key, tenant ID)
+	// Inject context-based headers (idempotency key)
 	headers = c.injectContextHeaders(ctx, method, headers)
 	headers = c.ensureIdempotencyHeader(ctx, method, headers)
 
@@ -509,10 +556,11 @@ func (c *HTTPClient) doRequest(ctx context.Context, method, requestURL string, h
 
 	// Execute request with retry logic and capture elapsed time
 	start := time.Now()
-	resp, responseBody, err := c.executeRequestWithRetry(ctx, req, method, requestURL)
+	resp, responseBody, maxRetries, err := c.executeRequestWithRetry(ctx, req, method, requestURL)
 	elapsed := time.Since(start)
 
 	if err != nil {
+		c.logHTTPTerminalFailure(ctx, method, requestURL, resp, err, maxRetries)
 		c.recordRequestFailure(ctx, method, requestURL, resp, elapsed, err)
 		return err
 	}
@@ -527,15 +575,18 @@ func (c *HTTPClient) doRequest(ctx context.Context, method, requestURL string, h
 
 	// Process response
 	if err := c.processResponse(result, responseBody); err != nil {
+		decodeErr := wrapHTTPPhaseError(httpPhaseResponseDecode, true, err)
+		c.logHTTPPhaseFailure(ctx, method, requestURL, resp, decodeErr)
+
 		if errors.Is(err, errEmptyResponseBody) || errors.Is(err, errNullResponseBody) {
 			c.recordRequestMetrics(ctx, method, requestURL, resp, elapsed)
 
-			return err
+			return decodeErr
 		}
 
-		c.recordSDKFailure(ctx, method, requestURL, elapsed, err)
+		c.recordRequestFailure(ctx, method, requestURL, resp, elapsed, decodeErr)
 
-		return err
+		return decodeErr
 	}
 
 	c.recordRequestMetrics(ctx, method, requestURL, resp, elapsed)
@@ -554,6 +605,7 @@ func (c *HTTPClient) doRawRequest(ctx context.Context, method, requestURL string
 
 	req, headers, err := buildRawHTTPRequest(ctx, method, requestURL, headers, body)
 	if err != nil {
+		c.logHTTPPhaseFailure(ctx, method, requestURL, nil, err)
 		c.recordSDKFailure(ctx, method, requestURL, 0, err)
 
 		return err
@@ -566,7 +618,7 @@ func (c *HTTPClient) doRawRequest(ctx context.Context, method, requestURL string
 		}
 	}
 
-	// Inject context-based headers (idempotency key, tenant ID)
+	// Inject context-based headers (idempotency key)
 	headers = c.injectContextHeaders(ctx, method, headers)
 	headers = c.ensureIdempotencyHeader(ctx, method, headers)
 
@@ -575,10 +627,11 @@ func (c *HTTPClient) doRawRequest(ctx context.Context, method, requestURL string
 	c.injectTraceContext(ctx, req)
 
 	start := time.Now()
-	resp, responseBody, err := c.executeRequestWithRetry(ctx, req, method, requestURL)
+	resp, responseBody, maxRetries, err := c.executeRequestWithRetry(ctx, req, method, requestURL)
 	elapsed := time.Since(start)
 
 	if err != nil {
+		c.logHTTPTerminalFailure(ctx, method, requestURL, resp, err, maxRetries)
 		c.recordRequestFailure(ctx, method, requestURL, resp, elapsed, err)
 		return err
 	}
@@ -592,15 +645,18 @@ func (c *HTTPClient) doRawRequest(ctx context.Context, method, requestURL string
 	c.logResponseDetails(method, requestURL, resp, responseBody)
 
 	if err := c.processResponse(result, responseBody); err != nil {
+		decodeErr := wrapHTTPPhaseError(httpPhaseResponseDecode, true, err)
+		c.logHTTPPhaseFailure(ctx, method, requestURL, resp, decodeErr)
+
 		if errors.Is(err, errEmptyResponseBody) || errors.Is(err, errNullResponseBody) {
 			c.recordRequestMetrics(ctx, method, requestURL, resp, elapsed)
 
-			return err
+			return decodeErr
 		}
 
-		c.recordSDKFailure(ctx, method, requestURL, elapsed, err)
+		c.recordRequestFailure(ctx, method, requestURL, resp, elapsed, decodeErr)
 
-		return err
+		return decodeErr
 	}
 
 	c.recordRequestMetrics(ctx, method, requestURL, resp, elapsed)
@@ -614,7 +670,7 @@ func prepareRawRequestBody(headers map[string]string, body []byte) (io.Reader, m
 	}
 
 	if int64(len(body)) > maxHTTPRequestBodyBytes {
-		return nil, nil, fmt.Errorf("request body exceeds maximum size of %d bytes", maxHTTPRequestBodyBytes)
+		return nil, nil, wrapHTTPPhaseError(httpPhaseRequestBuild, false, fmt.Errorf("request body exceeds maximum size of %d bytes", maxHTTPRequestBodyBytes))
 	}
 
 	if headers == nil {
@@ -622,7 +678,7 @@ func prepareRawRequestBody(headers map[string]string, body []byte) (io.Reader, m
 	}
 
 	if strings.TrimSpace(headers["Content-Type"]) == "" {
-		return nil, nil, errors.New("content-type header required for non-empty request body")
+		return nil, nil, wrapHTTPPhaseError(httpPhaseRequestBuild, false, errors.New("content-type header required for non-empty request body"))
 	}
 
 	return bytes.NewReader(body), headers, nil
@@ -636,17 +692,17 @@ func buildRawHTTPRequest(ctx context.Context, method, requestURL string, headers
 
 	parsedURL, err := url.Parse(requestURL)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to parse request URL: %w", err)
+		return nil, nil, wrapHTTPPhaseError(httpPhaseRequestBuild, false, fmt.Errorf("failed to parse request URL: %w", err))
 	}
 
 	validationReq := &http.Request{URL: parsedURL}
 	if err := security.ValidateOutboundRequest(validationReq); err != nil {
-		return nil, nil, err
+		return nil, nil, wrapHTTPPhaseError(httpPhaseRequestValidate, false, err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, method, parsedURL.String(), reader) // #nosec G704 -- request URL validated via security.ValidateOutboundRequest using parsed URL
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create request: %w", err)
+		return nil, nil, wrapHTTPPhaseError(httpPhaseRequestBuild, false, fmt.Errorf("failed to create request: %w", err))
 	}
 
 	return req, headers, nil
@@ -662,13 +718,19 @@ func (c *HTTPClient) doCountRequest(ctx context.Context, method, requestURL stri
 
 	req, err := http.NewRequestWithContext(ctx, method, requestURL, nil)
 	if err != nil {
-		c.recordSDKFailure(ctx, method, requestURL, 0, err)
+		buildErr := wrapHTTPPhaseError(httpPhaseRequestBuild, false, fmt.Errorf("failed to create request: %w", err))
+		c.logHTTPPhaseFailure(ctx, method, requestURL, nil, buildErr)
+		c.recordSDKFailure(ctx, method, requestURL, 0, buildErr)
 
-		return 0, fmt.Errorf("failed to create request: %w", err)
+		return 0, buildErr
 	}
 
 	if err := security.ValidateOutboundRequest(req); err != nil {
-		return 0, err
+		validateErr := wrapHTTPPhaseError(httpPhaseRequestValidate, false, err)
+		c.logHTTPPhaseFailure(ctx, method, requestURL, nil, validateErr)
+		c.recordSDKFailure(ctx, method, requestURL, 0, validateErr)
+
+		return 0, validateErr
 	}
 
 	headers = c.injectContextHeaders(ctx, method, headers)
@@ -677,10 +739,11 @@ func (c *HTTPClient) doCountRequest(ctx context.Context, method, requestURL stri
 	c.injectTraceContext(ctx, req)
 
 	start := time.Now()
-	resp, responseBody, err := c.executeRequestWithRetry(ctx, req, method, requestURL)
+	resp, responseBody, maxRetries, err := c.executeRequestWithRetry(ctx, req, method, requestURL)
 	elapsed := time.Since(start)
 
 	if err != nil {
+		c.logHTTPTerminalFailure(ctx, method, requestURL, resp, err, maxRetries)
 		c.recordRequestFailure(ctx, method, requestURL, resp, elapsed, err)
 		return 0, err
 	}
@@ -912,11 +975,11 @@ func (c *HTTPClient) buildHTTPRequest(ctx context.Context, method, requestURL st
 
 	parsedURL, err := url.Parse(requestURL)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to parse request URL: %w", err)
+		return nil, nil, wrapHTTPPhaseError(httpPhaseRequestBuild, false, fmt.Errorf("failed to parse request URL: %w", err))
 	}
 
 	if err := security.ValidateOutboundRequest(&http.Request{URL: parsedURL}); err != nil {
-		return nil, nil, fmt.Errorf("invalid request URL: %w", err)
+		return nil, nil, wrapHTTPPhaseError(httpPhaseRequestValidate, false, fmt.Errorf("invalid request URL: %w", err))
 	}
 
 	reqBody, bodyBytes, err := c.prepareRequestBody(body)
@@ -928,7 +991,7 @@ func (c *HTTPClient) buildHTTPRequest(ctx context.Context, method, requestURL st
 
 	req, err := http.NewRequestWithContext(ctx, method, validatedURL, reqBody) // #nosec G704 -- URL is parsed and validated with security.ValidateOutboundRequest
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create request: %w", err)
+		return nil, nil, wrapHTTPPhaseError(httpPhaseRequestBuild, false, fmt.Errorf("failed to create request: %w", err))
 	}
 
 	// Set GetBody for retry support - allows body to be recreated on retries
@@ -949,11 +1012,11 @@ func (c *HTTPClient) prepareRequestBody(body any) (io.Reader, []byte, error) {
 
 	bodyBytes, err := c.jsonPool.Marshal(body)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, wrapHTTPPhaseError(httpPhaseRequestMarshal, false, err)
 	}
 
 	if int64(len(bodyBytes)) > maxHTTPRequestBodyBytes {
-		return nil, nil, fmt.Errorf("request body exceeds maximum size of %d bytes", maxHTTPRequestBodyBytes)
+		return nil, nil, wrapHTTPPhaseError(httpPhaseRequestMarshal, false, fmt.Errorf("request body exceeds maximum size of %d bytes", maxHTTPRequestBodyBytes))
 	}
 
 	c.debugLogRequestBody(bodyBytes)
@@ -963,7 +1026,7 @@ func (c *HTTPClient) prepareRequestBody(body any) (io.Reader, []byte, error) {
 
 // debugLogRequestBody logs request body if debug mode is enabled
 func (c *HTTPClient) debugLogRequestBody(bodyBytes []byte) {
-	if c.cloneConfiguration().debug {
+	if c != nil && c.debug.Load() {
 		c.debugLog("Request body: %s", redactDebugBody(bodyBytes))
 	}
 }
@@ -1000,7 +1063,7 @@ func (c *HTTPClient) setupRequestHeaders(req *http.Request, headers map[string]s
 // honored the caller-supplied form, which silently disabled retries for
 // every auto-keyed unsafe request — exactly the workloads where retries
 // matter most.
-func (c *HTTPClient) executeRequestWithRetry(ctx context.Context, req *http.Request, method, requestURL string) (*http.Response, []byte, error) {
+func (c *HTTPClient) executeRequestWithRetry(ctx context.Context, req *http.Request, method, requestURL string) (*http.Response, []byte, int, error) {
 	snapshot := c.cloneConfiguration()
 
 	autoIdempotency := req.Header.Get(internalAutoIdempotencyHeader) == boolTrue
@@ -1039,32 +1102,32 @@ func (c *HTTPClient) executeRequestWithRetry(ctx context.Context, req *http.Requ
 	metrics := snapshot.metrics
 
 	hook := func(hookCtx context.Context, attempt int, cause error, delay time.Duration) {
-		urlPath := normalizeTelemetryURLForLog(requestURL)
-
 		causeMsg := ""
-		statusCode := 0
 		var statusErr interface{ StatusCode() int }
 		if cause != nil {
-			causeMsg = sdkerrors.RedactSensitiveString(cause.Error())
-			if errors.As(cause, &statusErr) {
-				statusCode = statusErr.StatusCode()
-			}
+			causeMsg = safeLogError(cause)
 		}
 
 		attrs := []slog.Attr{
 			slog.String("sdk.name", sdkLoggerName),
 			slog.String("sdk.component", "retry"),
-			slog.String("operation", method),
-			slog.String("http.method", method),
-			slog.String("url.path", urlPath),
+		}
+		attrs = append(attrs, safeHTTPLogAttrs(method, requestURL, nil, true)...)
+		attrs = append(attrs,
 			slog.Int("attempt", attempt),
-			slog.Int("max_attempts", effectiveRetryOptions.MaxRetries),
+			slog.Int("max_retries", effectiveRetryOptions.MaxRetries),
 			slog.Int64("delay_ms", delay.Milliseconds()),
 			slog.String("cause", causeMsg),
-		}
+		)
 
-		if statusCode > 0 {
-			attrs = append(attrs, slog.Int("http.status_code", statusCode))
+		if errors.As(cause, &statusErr) && statusErr.StatusCode() > 0 {
+			attrs = append(attrs, slog.Int("http.status_code", statusErr.StatusCode()))
+		}
+		if requestID := requestIDFromError(cause); requestID != "" {
+			attrs = append(attrs, slog.String("request_id", requestID))
+		}
+		if category := errorCategory(cause); category != "" {
+			attrs = append(attrs, slog.String("error.category", category))
 		}
 
 		level := slog.LevelDebug
@@ -1083,49 +1146,26 @@ func (c *HTTPClient) executeRequestWithRetry(ctx context.Context, req *http.Requ
 
 	retryCtx = retry.WithAttemptHook(retryCtx, hook)
 
-	execution := &retryExecution{}
+	execution := &retryExecution{maxRetries: effectiveRetryOptions.MaxRetries}
 
 	err := retry.DoWithContext(retryCtx, func() error {
 		return c.executeRetryAttempt(req, method, requestURL, execution)
 	})
+	// Terminal logging is centralised in [doRequest] / [doRawRequest] /
+	// [doCountRequest] via [logHTTPTerminalFailure]. This function only
+	// ferries the (resp, body, max_retries, err) tuple back; the caller
+	// decides which terminal log applies based on error shape.
 
-	return execution.resp, execution.responseBody, err
+	return execution.resp, execution.responseBody, execution.maxRetries, err
 }
 
 // sdkLoggerName is the value emitted under the sdk.name structured log
 // field. Constant so callers can rely on a stable string.
 const sdkLoggerName = "midaz-go-sdk"
 
-// normalizeTelemetryURLForLog strips dynamic IDs from a request URL so
-// structured log lines have stable cardinality (good for log search and
-// metric labels). Falls back to the raw URL on parse error.
-func normalizeTelemetryURLForLog(rawURL string) string {
-	parsed, err := url.Parse(rawURL)
-	if err != nil {
-		return rawURL
-	}
-
-	// Replace path segments that look like identifiers with placeholders.
-	// Reuses the same detection as normalizeTelemetryURL so structured logs
-	// share the cardinality envelope of traces and metrics — otherwise long
-	// mixed-format IDs (account/transaction codes) would leak as raw values.
-	parts := strings.Split(parsed.Path, "/")
-	for i, p := range parts {
-		if isLikelyTelemetryIdentifier(p) {
-			parts[i] = ":id"
-		}
-	}
-
-	parsed.Path = strings.Join(parts, "/")
-	parsed.RawQuery = "" // never include query strings in log fields
-
-	return parsed.String()
-}
-
 // isInternalRetryableError matches the SDK's internal "always retryable"
 // sentinel — currently only retryableCustomPolicyError, returned when the
-// caller-supplied custom retry policy says so or when a 401 triggered a
-// token refresh.
+// caller-supplied custom retry policy says so.
 //
 // retryableHTTPError is intentionally NOT matched here: that wrapper just
 // carries an embedded HTTP status code, and whether to retry on a given
@@ -1144,6 +1184,11 @@ func isInternalRetryableError(err error) bool {
 type retryExecution struct {
 	resp         *http.Response
 	responseBody []byte
+	// maxRetries is the effective retry budget (after the unsafe-no-key
+	// coercion to 0). Stored here so [logHTTPTerminalFailure] in the
+	// caller can emit "max_retries"/"attempts" attributes without
+	// re-deriving the value.
+	maxRetries int
 	// refreshedAuth latches true once a 401 has triggered a successful token
 	// refresh for this request. It prevents a second refresh attempt within
 	// the same request even across the inline auth-refresh loop.
@@ -1152,6 +1197,77 @@ type retryExecution struct {
 	// to executeRetryAttempt: "I just refreshed the token, loop once more
 	// with the fresh credentials." It is reset between iterations.
 	justRefreshedAuth bool
+}
+
+type httpPhaseError struct {
+	phase       string
+	requestSent bool
+	err         error
+}
+
+func wrapHTTPPhaseError(phase string, requestSent bool, err error) error {
+	if err == nil {
+		return nil
+	}
+
+	var phaseErr *httpPhaseError
+	if errors.As(err, &phaseErr) && phaseErr != nil {
+		return err
+	}
+
+	return &httpPhaseError{phase: phase, requestSent: requestSent, err: err}
+}
+
+func (e *httpPhaseError) Error() string {
+	if e == nil || e.err == nil {
+		return ""
+	}
+
+	return e.err.Error()
+}
+
+func (e *httpPhaseError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+
+	return e.err
+}
+
+func phaseFromError(err error) (phase string, requestSent bool, ok bool) {
+	var phaseErr *httpPhaseError
+	if errors.As(err, &phaseErr) && phaseErr != nil {
+		return phaseErr.phase, phaseErr.requestSent, true
+	}
+
+	return "", false, false
+}
+
+// HTTPPhase reports the SDK HTTP-phase tag carried by err, when err
+// originates from the transport layer. Returns one of:
+//
+//   - "request_build"    — failure constructing the request (URL parse,
+//     marshal, content-type guard).
+//   - "request_validate" — failure in [security.ValidateOutboundRequest].
+//   - "request_marshal"  — JSON marshalling failure.
+//   - "request_send"     — *http.Client.Do returned an error.
+//   - "response_read"    — io.ReadAll on the response body failed.
+//   - "response_decode"  — JSON unmarshal failure on a 2xx response.
+//
+// Returns "" when err is not phase-tagged (most commonly: it originates
+// from an upstream HTTP response, in which case [errors.As] for
+// *errors.Error yields the typed shape).
+//
+// The boolean second return value reports whether the request reached
+// the wire before failing (false for build/validate/marshal, true for
+// send/read/decode).
+func HTTPPhase(err error) (string, bool) {
+	phase, requestSent, ok := phaseFromError(err)
+	if !ok {
+		return "", false
+	}
+
+	return phase, requestSent
 }
 
 func (c *HTTPClient) executeRetryAttempt(req *http.Request, method, requestURL string, execution *retryExecution) error {
@@ -1181,19 +1297,18 @@ func (c *HTTPClient) executeRetryAttempt(req *http.Request, method, requestURL s
 // request.
 func (c *HTTPClient) performSingleAttempt(req *http.Request, method, requestURL string, execution *retryExecution) error {
 	if err := resetRequestBody(req); err != nil {
-		return err
+		return wrapHTTPPhaseError(httpPhaseRequestBuild, false, err)
 	}
 
 	if err := security.ValidateOutboundRequest(req); err != nil {
-		return fmt.Errorf("invalid request URL: %w", err)
+		return wrapHTTPPhaseError(httpPhaseRequestValidate, false, fmt.Errorf("invalid request URL: %w", err))
 	}
 
-	snapshot := c.cloneConfiguration()
 	client := c.snapshotHTTPClient()
 
 	resp, err := client.Do(req) // #nosec G704 -- request URL validated via security.ValidateOutboundRequest
 	if err != nil {
-		return c.handleRequestExecutionError(method, requestURL, err)
+		return wrapHTTPPhaseError(httpPhaseRequestSend, true, c.handleRequestExecutionError(method, requestURL, err))
 	}
 
 	// Drain-and-close on every code path so http.Transport can reuse the
@@ -1206,18 +1321,29 @@ func (c *HTTPClient) performSingleAttempt(req *http.Request, method, requestURL 
 
 	responseBody, err := io.ReadAll(io.LimitReader(resp.Body, maxHTTPResponseBodyBytes+1))
 	if err != nil {
-		return fmt.Errorf("failed to read response body: %w", err)
+		return wrapHTTPPhaseError(httpPhaseResponseRead, true, fmt.Errorf("failed to read response body: %w", err))
 	}
 
 	if int64(len(responseBody)) > maxHTTPResponseBodyBytes {
-		return fmt.Errorf("response body exceeds %d bytes", maxHTTPResponseBodyBytes)
+		return wrapHTTPPhaseError(httpPhaseResponseRead, true, fmt.Errorf("response body exceeds %d bytes", maxHTTPResponseBodyBytes))
 	}
 
 	execution.responseBody = responseBody
 
-	if resp.StatusCode == http.StatusUnauthorized && !execution.refreshedAuth && snapshot.tokenProvider != nil {
-		token, refreshed := c.refreshAuthToken(req.Context(), snapshot)
+	// Snapshot only when we may need tokenProvider/tokenInvalidator — the
+	// 401-and-refresh-eligible branch. Successful 2xx and most non-401
+	// failures bypass this allocation entirely.
+	if resp.StatusCode == http.StatusUnauthorized && !execution.refreshedAuth {
+		snapshot := c.cloneConfiguration()
+		if snapshot.tokenProvider == nil {
+			return c.handleRetryAttemptResponse(req.Context(), resp, responseBody, method, requestURL)
+		}
+
+		c.logAuthRefresh(req.Context(), "started", method, requestURL, resp, nil)
+
+		token, refreshed, refreshErr := c.refreshAuthToken(req.Context(), snapshot)
 		if refreshed {
+			c.logAuthRefresh(req.Context(), "succeeded", method, requestURL, resp, nil)
 			req.Header.Set("Authorization", formatAuthorizationHeader(token))
 			execution.refreshedAuth = true
 			execution.justRefreshedAuth = true
@@ -1227,9 +1353,11 @@ func (c *HTTPClient) performSingleAttempt(req *http.Request, method, requestURL 
 			// retry layer. It exists only to keep the signature uniform.
 			return errors.New("access manager token refreshed after unauthorized response")
 		}
+
+		c.logAuthRefresh(req.Context(), "failed", method, requestURL, resp, refreshErr)
 	}
 
-	return c.handleRetryAttemptResponse(resp, responseBody, method, requestURL)
+	return c.handleRetryAttemptResponse(req.Context(), resp, responseBody, method, requestURL)
 }
 
 // refreshAuthToken obtains a fresh token via the configured tokenProvider.
@@ -1238,17 +1366,17 @@ func (c *HTTPClient) performSingleAttempt(req *http.Request, method, requestURL 
 // fetched, is written through setAuthTokenLocked so other in-flight
 // requests will see it on their next header build.
 //
-// Returns the token and true on success; empty string and false when no
-// fresh token could be obtained.
-func (c *HTTPClient) refreshAuthToken(ctx context.Context, snapshot httpClientConfigSnapshot) (string, bool) {
+// Returns the token and true on success; empty string and false plus a safe
+// diagnostic error when no fresh token could be obtained.
+func (c *HTTPClient) refreshAuthToken(ctx context.Context, snapshot httpClientConfigSnapshot) (string, bool, error) {
 	if snapshot.tokenProvider == nil {
-		return "", false
+		return "", false, errors.New("token provider is not configured")
 	}
 
-	// Use a stable singleflight key so all concurrent refreshers share one
-	// underlying call. The key is intentionally derived from the auth
-	// invalidator identity and the existing token so that two clients
-	// pointing at different tenants don't collapse onto a single refresh.
+	// Use a stable singleflight key so all concurrent refreshers on this
+	// HTTPClient share one underlying call. When an invalidator is present,
+	// include its function identity so callers that intentionally install
+	// different invalidation callbacks do not collapse onto the same refresh.
 	groupKey := "tokenrefresh"
 	if snapshot.tokenInvalidator != nil {
 		groupKey = fmt.Sprintf("tokenrefresh|%p", snapshot.tokenInvalidator)
@@ -1267,17 +1395,17 @@ func (c *HTTPClient) refreshAuthToken(ctx context.Context, snapshot httpClientCo
 		return strings.TrimSpace(token), nil
 	})
 	if err != nil {
-		return "", false
+		return "", false, err
 	}
 
 	token, ok := result.(string)
 	if !ok || token == "" {
-		return "", false
+		return "", false, errors.New("token provider returned an empty token")
 	}
 
 	c.setAuthTokenLocked(token)
 
-	return token, true
+	return token, true, nil
 }
 
 // drainAndCloseResponseBody is the defense-in-depth body cleanup used by
@@ -1384,14 +1512,21 @@ func transportOperation(method, _ string) string {
 	return "http " + method
 }
 
-func (c *HTTPClient) handleRetryAttemptResponse(resp *http.Response, responseBody []byte, method, requestURL string) error {
+func (c *HTTPClient) handleRetryAttemptResponse(ctx context.Context, resp *http.Response, responseBody []byte, method, requestURL string) error {
+	if ctx == nil && resp != nil && resp.Request != nil {
+		ctx = resp.Request.Context()
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	if resp.StatusCode < http.StatusBadRequest {
 		return nil
 	}
 
 	requestID := resp.Header.Get("X-Request-ID")
 
-	apiErr := c.handleErrorResponse(resp.StatusCode, responseBody, method, requestURL, requestID)
+	apiErr := c.handleErrorResponse(ctx, resp.StatusCode, responseBody, method, requestURL, requestID)
 
 	snapshot := c.cloneConfiguration()
 	if snapshot.customRetryPolicy != nil {
@@ -1424,8 +1559,8 @@ func (e retryableHTTPError) StatusCode() int {
 }
 
 // retryableCustomPolicyError is the internal sentinel that signals
-// "the user-supplied custom retry policy or post-401 token refresh
-// said this is retryable." It is NOT a public-facing error shape.
+// "the user-supplied custom retry policy said this is retryable."
+// It is NOT a public-facing error shape.
 //
 // Audit 8.3 (HIGH): the v2 implementation prefixed every Error()
 // rendering with "custom retryable: " — internal wrapper noise that
@@ -1450,16 +1585,29 @@ func (e retryableCustomPolicyError) Unwrap() error {
 
 // closeResponseBody safely closes response body with debug logging
 func (c *HTTPClient) closeResponseBody(resp *http.Response) {
-	if closeErr := resp.Body.Close(); closeErr != nil && c.cloneConfiguration().debug {
+	if closeErr := resp.Body.Close(); closeErr != nil && c != nil && c.debug.Load() {
 		c.debugLog("Failed to close response body: %v", closeErr)
 	}
 }
 
-// handleErrorResponse processes API error responses
-func (c *HTTPClient) handleErrorResponse(statusCode int, responseBody []byte, method, requestURL, requestID string) error {
-	apiErr := c.parseErrorResponse(statusCode, responseBody, requestID)
+// handleErrorResponse processes API error responses.
+//
+// THEME 4: per-attempt response logging is intentionally DROPPED from this
+// path. handleErrorResponse runs once per retry attempt, so emitting a Warn
+// line here produced 3N+ duplicate logs for a single transient failure.
+// The terminal logging point is [logRetryExhausted] (retry budget gone)
+// or [logHTTPPhaseFailure] (transport error). Debug-level diagnostics
+// remain available via [SetDebug](true).
+func (c *HTTPClient) handleErrorResponse(_ context.Context, statusCode int, responseBody []byte, method, requestURL, requestID string) error {
+	// ctx is accepted for signature symmetry with the other request-shape
+	// helpers but is no longer consumed inside this function after the
+	// per-attempt response-log was dropped (THEME 4). Debug logging below
+	// uses the configured *slog.Logger directly, not ctx.
 
-	if c.cloneConfiguration().debug {
+	apiErr := c.parseErrorResponse(statusCode, responseBody, requestID)
+	attachHTTPResponseMetadata(apiErr, method, requestURL, requestID, statusCode)
+
+	if c.debug.Load() {
 		c.debugLog("HTTP Error response from: %s %s", method, redactDebugURL(requestURL))
 		c.debugLog("Error status: %d", statusCode)
 
@@ -1476,7 +1624,7 @@ func (c *HTTPClient) handleErrorResponse(statusCode int, responseBody []byte, me
 
 // debugLogRequestError logs request failures in debug mode
 func (c *HTTPClient) debugLogRequestError(method, requestURL string, err error) {
-	if c.cloneConfiguration().debug {
+	if c != nil && c.debug.Load() {
 		c.debugLog("HTTP request failed: %s %s - %v", method, redactDebugURL(requestURL), err)
 	}
 }
@@ -1524,12 +1672,13 @@ func (*HTTPClient) maybeLogSlowCall(ctx context.Context, snapshot httpClientConf
 		requestID = resp.Header.Get("X-Request-ID")
 	}
 
+	_, urlPath := safeURLHostPath(requestURL)
 	logger.LogAttrs(ctx, slog.LevelWarn, "slow API call",
 		slog.String("sdk.name", sdkLoggerName),
 		slog.String("sdk.component", "http"),
 		slog.String("operation", method),
 		slog.String("http.method", method),
-		slog.String("url.path", normalizeTelemetryURLForLog(requestURL)),
+		slog.String("url.path", urlPath),
 		slog.Int("http.status_code", statusCode),
 		slog.Int64("duration_ms", elapsed.Milliseconds()),
 		slog.Int64("threshold_ms", threshold.Milliseconds()),
@@ -1565,9 +1714,274 @@ func (c *HTTPClient) recordFailure(ctx context.Context, method, requestURL strin
 	}
 }
 
+func (c *HTTPClient) logHTTPPhaseFailure(ctx context.Context, method, requestURL string, resp *http.Response, err error) {
+	phase, requestSent, ok := phaseFromError(err)
+	if !ok {
+		return
+	}
+
+	attrs := safeHTTPLogAttrs(method, requestURL, resp, requestSent)
+	attrs = append(attrs,
+		slog.String("phase", phase),
+		slog.String("error", safeLogError(err)),
+	)
+	if category := errorCategory(err); category != "" {
+		attrs = append(attrs, slog.String("error.category", category))
+	}
+
+	c.logDiagnostic(ctx, slog.LevelWarn, "HTTP request phase failed", attrs...)
+}
+
+// logHTTPTerminalFailure emits ONE terminal log line for the final
+// request-level failure: a transport-phase error, a retry-exhausted
+// response, or a single-attempt non-2xx response when retries are
+// disabled. Per-attempt response logging is deliberately NOT done here —
+// see THEME 4 design note in [handleErrorResponse].
+//
+// Routing:
+//   - phase-tagged error (build/validate/marshal/send/read/decode)   → logHTTPPhaseFailure
+//   - retry budget exhausted (errors.Is ErrRetriesExhausted)         → logRetryExhausted
+//   - everything else (typed *errors.Error from a single attempt)    → emit a "HTTP response error" line
+func (c *HTTPClient) logHTTPTerminalFailure(ctx context.Context, method, requestURL string, resp *http.Response, err error, maxRetries int) {
+	if err == nil {
+		return
+	}
+
+	if _, _, ok := phaseFromError(err); ok {
+		c.logHTTPPhaseFailure(ctx, method, requestURL, resp, err)
+		return
+	}
+
+	if errors.Is(err, retry.ErrRetriesExhausted) {
+		c.logRetryExhausted(ctx, method, requestURL, resp, err, maxRetries)
+		return
+	}
+
+	// Single-attempt HTTP failure (e.g. 500 with MaxRetries=0) reaches
+	// here. Emit one Warn line with the same field schema other terminal
+	// lines use so retry-aware dashboards stay consistent.
+	var (
+		statusCode int
+		requestID  string
+	)
+
+	if resp != nil {
+		statusCode = resp.StatusCode
+		requestID = strings.TrimSpace(resp.Header.Get("X-Request-ID"))
+	} else {
+		var statusErr interface{ StatusCode() int }
+		if errors.As(err, &statusErr) {
+			statusCode = statusErr.StatusCode()
+		}
+		requestID = requestIDFromError(err)
+	}
+
+	attrs := safeHTTPLogAttrs(method, requestURL, resp, true)
+	if statusCode > 0 && resp == nil {
+		attrs = append(attrs, slog.Int("http.status_code", statusCode))
+	}
+	if requestID != "" {
+		attrs = append(attrs, slog.String("request_id", sanitizeLogInput(requestID)))
+	}
+	attrs = append(attrs, slog.String("error", safeLogError(err)))
+	if category := errorCategory(err); category != "" {
+		attrs = append(attrs, slog.String("error.category", category))
+	}
+
+	c.logDiagnostic(ctx, slog.LevelWarn, "HTTP response error", attrs...)
+}
+
+// logAuthRefresh emits a structured log line for an auth-refresh state
+// transition. Level routing: "started" and "succeeded" are routine
+// operational signals → Debug. "failed" indicates the bootstrap or
+// refresh credential is wrong, which surfaces as 401-loop cascades → Warn.
+func (c *HTTPClient) logAuthRefresh(ctx context.Context, state, method, requestURL string, resp *http.Response, err error) {
+	attrs := safeHTTPLogAttrs(method, requestURL, resp, true)
+	attrs = append(attrs, slog.String("auth_refresh.state", state))
+	if err != nil {
+		attrs = append(attrs, slog.String("error", safeLogError(err)))
+		if category := errorCategory(err); category != "" {
+			attrs = append(attrs, slog.String("error.category", category))
+		}
+	}
+
+	level := slog.LevelDebug
+	if state == "failed" {
+		level = slog.LevelWarn
+	}
+
+	c.logDiagnostic(ctx, level, "token refresh "+state, attrs...)
+}
+
+// logRetryExhausted emits the terminal "retry budget gone" log line.
+//
+// Gated on the typed [retry.ErrRetriesExhausted] sentinel (not on a
+// substring of err.Error()). The brittle "operation failed after" match
+// the v2 code used would silently break the moment the retry package
+// reworded its error string; the sentinel makes the wire intentional and
+// independently versionable.
+func (c *HTTPClient) logRetryExhausted(ctx context.Context, method, requestURL string, resp *http.Response, err error, maxRetries int) {
+	// Defensive: callers SHOULD only invoke this with err != nil, but
+	// keep a guard so future call-site mistakes don't panic on nil deref.
+	if err == nil {
+		return
+	}
+	if !errors.Is(err, retry.ErrRetriesExhausted) {
+		return
+	}
+
+	attrs := safeHTTPLogAttrs(method, requestURL, resp, true)
+	attrs = append(attrs,
+		slog.Int("attempts", maxRetries+1),
+		slog.Int("max_retries", maxRetries),
+		slog.String("error", safeLogError(err)),
+	)
+	if resp == nil {
+		var statusErr interface{ StatusCode() int }
+		if errors.As(err, &statusErr) && statusErr.StatusCode() > 0 {
+			attrs = append(attrs, slog.Int("http.status_code", statusErr.StatusCode()))
+		}
+		if requestID := requestIDFromError(err); requestID != "" {
+			attrs = append(attrs, slog.String("request_id", requestID))
+		}
+	}
+	if category := errorCategory(err); category != "" {
+		attrs = append(attrs, slog.String("error.category", category))
+	}
+
+	c.logDiagnostic(ctx, slog.LevelWarn, "retry exhausted", attrs...)
+}
+
+func (c *HTTPClient) logDiagnostic(ctx context.Context, level slog.Level, message string, attrs ...slog.Attr) {
+	logger := c.cloneConfiguration().logger
+	if logger == nil {
+		return
+	}
+
+	base := make([]slog.Attr, 0, 2+len(attrs))
+	base = append(base,
+		slog.String("sdk.name", sdkLoggerName),
+		slog.String("sdk.component", "http"),
+	)
+	base = append(base, attrs...)
+
+	logger.LogAttrs(ctx, level, message, base...)
+}
+
+func safeHTTPLogAttrs(method, requestURL string, resp *http.Response, requestSent bool) []slog.Attr {
+	attrs := []slog.Attr{
+		slog.String("operation", sanitizeLogInput(method)),
+		slog.String("http.method", sanitizeLogInput(method)),
+		slog.Bool("http.request_sent", requestSent),
+	}
+
+	if host, path := safeURLHostPath(requestURL); host != "" || path != "" {
+		if host != "" {
+			attrs = append(attrs, slog.String("url.host", host))
+		}
+		if path != "" {
+			attrs = append(attrs, slog.String("url.path", path))
+		}
+	}
+
+	if resp != nil {
+		attrs = append(attrs, slog.Int("http.status_code", resp.StatusCode))
+		if requestID := strings.TrimSpace(resp.Header.Get("X-Request-ID")); requestID != "" {
+			attrs = append(attrs, slog.String("request_id", sanitizeLogInput(requestID)))
+		}
+	}
+
+	return attrs
+}
+
+func safeURLHostPath(rawURL string) (host, path string) {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return "", ""
+	}
+
+	parsed.User = nil
+	parsed.RawQuery = ""
+	parsed.Fragment = ""
+	parsed.Path = normalizeTelemetryPath(parsed.Path)
+
+	host = parsed.Hostname()
+	if port := parsed.Port(); port != "" && host != "" {
+		host = net.JoinHostPort(host, port)
+	}
+
+	return sanitizeLogInput(host), sanitizeLogInput(parsed.EscapedPath())
+}
+
+func safeLogError(err error) string {
+	if isNilInterfaceValue(err) {
+		return ""
+	}
+
+	return sanitizeLogInput(sdkerrors.RedactSensitiveString(err.Error()))
+}
+
+func isNilInterfaceValue(value any) bool {
+	if value == nil {
+		return true
+	}
+
+	reflected := reflect.ValueOf(value)
+	switch reflected.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return reflected.IsNil()
+	default:
+		return false
+	}
+}
+
+func errorCategory(err error) string {
+	var sdkErr *sdkerrors.Error
+	if errors.As(err, &sdkErr) && sdkErr != nil {
+		return sanitizeLogInput(string(sdkErr.Category))
+	}
+
+	return ""
+}
+
+func requestIDFromError(err error) string {
+	var sdkErr *sdkerrors.Error
+	if errors.As(err, &sdkErr) && sdkErr != nil {
+		return sanitizeLogInput(sdkErr.RequestID)
+	}
+
+	return ""
+}
+
+// attachHTTPResponseMetadata stamps request-shape diagnostic fields onto
+// the typed SDK error. The values land on dedicated Method / URLHost /
+// URLPath fields rather than on the Details map — the map is processed
+// by RedactSensitiveDetails at construction time, so post-construction
+// mutations would bypass the redaction sweep. The typed fields go through
+// safeURLHostPath, which is already redaction-safe (userinfo / query /
+// fragment stripped, dynamic-ID segments collapsed).
+func attachHTTPResponseMetadata(err error, method, requestURL, requestID string, statusCode int) {
+	var sdkErr *sdkerrors.Error
+	if !errors.As(err, &sdkErr) || sdkErr == nil {
+		return
+	}
+
+	host, path := safeURLHostPath(requestURL)
+	sdkErr.Method = method
+	sdkErr.URLHost = host
+	sdkErr.URLPath = path
+	if sdkErr.RequestID == "" {
+		sdkErr.RequestID = requestID
+	}
+	if sdkErr.StatusCode == 0 {
+		sdkErr.StatusCode = statusCode
+	}
+	sdkErr.HTTPRequestSent = true
+}
+
 // logResponseDetails logs response information in debug mode
 func (c *HTTPClient) logResponseDetails(method, requestURL string, resp *http.Response, responseBody []byte) {
-	if !c.cloneConfiguration().debug {
+	if c == nil || !c.debug.Load() {
 		return
 	}
 
@@ -1674,7 +2088,7 @@ func isUnsafeMethod(method string) bool {
 //
 // Ordering: explicit caller key > context-level suppression > auto-gen.
 func (c *HTTPClient) ensureIdempotencyHeader(ctx context.Context, method string, headers map[string]string) map[string]string {
-	if !c.cloneConfiguration().enableIdempotency || !isUnsafeMethod(method) {
+	if c == nil || !c.enableIdempotency.Load() || !isUnsafeMethod(method) {
 		return headers
 	}
 
@@ -1723,7 +2137,7 @@ func (c *HTTPClient) extractRequestBody(req *http.Request) ([]byte, error) {
 		return nil, fmt.Errorf("request body exceeds maximum size of %d bytes", maxHTTPRequestBodyBytes)
 	}
 
-	if closeErr := req.Body.Close(); closeErr != nil && c.cloneConfiguration().debug {
+	if closeErr := req.Body.Close(); closeErr != nil && c.debug.Load() {
 		c.debugLog("Failed to close request body: %v", closeErr)
 	}
 
@@ -1753,14 +2167,14 @@ func sanitizeLogInput(input string) string {
 func redactHeaders(headers http.Header) map[string][]string {
 	redacted := make(map[string][]string, len(headers))
 	for key, values := range headers {
-		switch strings.ToLower(key) {
-		case "authorization", "cookie", "set-cookie", "x-idempotency":
+		if sdkerrors.IsSensitiveFieldName(key) {
 			redacted[key] = []string{"[REDACTED]"}
-		default:
-			copied := make([]string, len(values))
-			copy(copied, values)
-			redacted[key] = copied
+			continue
 		}
+
+		copied := make([]string, len(values))
+		copy(copied, values)
+		redacted[key] = copied
 	}
 
 	return redacted
@@ -1780,10 +2194,16 @@ func normalizeTelemetryURL(rawURL string) string {
 		return rawURL
 	}
 
+	parsedURL.User = nil
 	parsedURL.RawQuery = ""
 	parsedURL.Fragment = ""
+	parsedURL.Path = normalizeTelemetryPath(parsedURL.Path)
 
-	segments := strings.Split(parsedURL.Path, "/")
+	return parsedURL.String()
+}
+
+func normalizeTelemetryPath(path string) string {
+	segments := strings.Split(path, "/")
 	for i, segment := range segments {
 		if segment == "" {
 			continue
@@ -1794,42 +2214,31 @@ func normalizeTelemetryURL(rawURL string) string {
 		}
 	}
 
-	parsedURL.Path = strings.Join(segments, "/")
-
-	return parsedURL.String()
+	return strings.Join(segments, "/")
 }
 
 func redactDebugURL(rawURL string) string {
 	parsedURL, err := url.Parse(rawURL)
 	if err != nil {
-		return rawURL
+		return redactUnparseableDebugURL(rawURL)
 	}
 
-	query := parsedURL.Query()
-	for key := range query {
-		if isSensitiveQueryKey(key) {
-			query.Set(key, "[REDACTED]")
-		}
-	}
-
-	parsedURL.RawQuery = query.Encode()
+	parsedURL.User = nil
+	parsedURL.RawQuery = ""
 	parsedURL.Fragment = ""
+	parsedURL.Path = normalizeTelemetryPath(parsedURL.Path)
 
 	return parsedURL.String()
 }
 
-func isSensitiveQueryKey(key string) bool {
-	normalized := strings.ToLower(key)
-	if strings.Contains(normalized, "document") || strings.Contains(normalized, "metadata") {
-		return true
+func redactUnparseableDebugURL(rawURL string) string {
+	withoutQuery, _, _ := strings.Cut(rawURL, "?")
+	withoutFragment, _, _ := strings.Cut(withoutQuery, "#")
+	if strings.Contains(withoutFragment, "@") {
+		return "[REDACTED_URL]"
 	}
 
-	switch normalized {
-	case "banking_details_account", "banking_details_iban", "external_id":
-		return true
-	default:
-		return false
-	}
+	return sanitizeLogInput(withoutFragment)
 }
 
 func isLikelyTelemetryIdentifier(segment string) bool {
@@ -1865,21 +2274,40 @@ func sanitizeLogArgs(args []any) []any {
 	for i, arg := range args {
 		switch v := arg.(type) {
 		case string:
-			sanitized[i] = sanitizeLogInput(v)
+			sanitized[i] = sanitizeLogString(v)
 		case error:
 			// Errors can carry attacker-controlled bytes (server-supplied
 			// messages, parsed payloads). Coerce through Error() and
 			// sanitize so newline-bearing messages cannot survive into
 			// the structured log line.
-			sanitized[i] = sanitizeLogInput(v.Error())
+			if isNilInterfaceValue(v) {
+				sanitized[i] = ""
+				continue
+			}
+
+			sanitized[i] = sanitizeLogString(v.Error())
 		case fmt.Stringer:
-			sanitized[i] = sanitizeLogInput(v.String())
+			if isNilInterfaceValue(v) {
+				sanitized[i] = ""
+				continue
+			}
+
+			sanitized[i] = sanitizeLogString(v.String())
 		default:
 			sanitized[i] = arg
 		}
 	}
 
 	return sanitized
+}
+
+func sanitizeLogString(value string) string {
+	redacted := sdkerrors.RedactSensitiveString(value)
+	if parsed, err := url.Parse(value); err == nil && parsed.Scheme != "" && parsed.Host != "" {
+		redacted = redactDebugURL(value)
+	}
+
+	return sanitizeLogInput(redacted)
 }
 
 // debugLog routes a debug-level message through the configured *slog.Logger

@@ -41,24 +41,27 @@ func TestIdempotencyHeaderInjectionSkipsSafeGET(t *testing.T) {
 	assert.Empty(t, seen)
 }
 
-func TestRedactDebugURLMasksSensitiveQueryValues(t *testing.T) {
+// TestRedactDebugURLStripsEntireQueryString verifies that redactDebugURL
+// wipes the entire query string for debug logging. v3 contract: we do not
+// attempt per-key query redaction because cardinality + correctness are
+// hard to get right; stripping the whole thing is a simple, auditable
+// guarantee. Per-key redaction is a future opt-in via
+// [WithDebugIncludeQueryParams] (see TODO).
+func TestRedactDebugURLStripsEntireQueryString(t *testing.T) {
 	redacted := redactDebugURL("https://api.example.com/holders?document=12345678900&external_id=ext-1&limit=10&metadata.email=a@example.com")
 
 	require.NotEmpty(t, redacted)
+	// The exact rendered form: scheme://host/path with no query, no
+	// fragment, no userinfo. Direct equality is the strongest assertion.
+	assert.Equal(t, "https://api.example.com/holders", redacted)
+
+	// Defensive: even if someone changes the implementation, the rendered
+	// URL must parse and must NOT carry a query component.
 	redactedURL, err := url.Parse(redacted)
 	require.NoError(t, err)
-
-	query := redactedURL.Query()
-	for key, original := range map[string]string{
-		"document":       "12345678900",
-		"external_id":    "ext-1",
-		"metadata.email": "a@example.com",
-	} {
-		assert.NotEqual(t, original, query.Get(key))
-		assert.NotEqual(t, url.QueryEscape(original), query.Get(key))
-	}
-
-	assert.Equal(t, "10", query.Get("limit"))
+	assert.Empty(t, redactedURL.RawQuery)
+	assert.Empty(t, redactedURL.Fragment)
+	assert.Nil(t, redactedURL.User)
 }
 
 func TestAutomaticIdempotencyHeaderForUnsafeMethods(t *testing.T) {

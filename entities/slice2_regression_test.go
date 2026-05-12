@@ -105,9 +105,9 @@ func TestEntitySetHTTPClient_PreservesProtocolConfiguration(t *testing.T) {
 	entity.SetHTTPClient(&http.Client{Timeout: 2 * time.Second})
 
 	hc := entity.GetEntityHTTPClient()
-	require.Equal(t, "slice2-agent", hc.userAgent)
-	require.True(t, hc.debug)
-	require.False(t, hc.enableIdempotency)
+	require.Equal(t, "slice2-agent", hc.loadUserAgent())
+	require.True(t, hc.debug.Load())
+	require.False(t, hc.enableIdempotency.Load())
 	require.NotNil(t, hc.customRetryPolicy)
 	require.Equal(t, 7, hc.retryOptions.MaxRetries)
 }
@@ -142,7 +142,7 @@ func TestHTTPClient_DebugErrorPathRedactsURL(t *testing.T) {
 	requireHandlerNoError(t, writeErrs)
 
 	require.NotContains(t, debugBuf.String(), "12345678900")
-	require.Contains(t, debugBuf.String(), "%5BREDACTED%5D")
+	require.NotContains(t, debugBuf.String(), "limit=10")
 }
 
 func TestHTTPClient_ResponseBodyLimit(t *testing.T) {
@@ -336,3 +336,108 @@ func TestHTTPClient_AuthRefreshRetryIndependentOfMaxRetries(t *testing.T) {
 	requireHandlerNoError(t, writeErrs)
 	require.Equal(t, int32(2), calls.Load())
 }
+
+// TestHTTPClient_AuthRefreshRetryIndependentOfMaxRetries_UnsafePOSTNoIdempotency
+// pins the precise contract guarded by commit 400652e: an unsafe POST
+// without a caller-supplied idempotency key, with MaxRetries=0, and with
+// auto-idempotency turned OFF, still recovers ONCE from a 401 when a
+// tokenProvider is wired.
+//
+// This is the trickiest corner because executeRequestWithRetry coerces
+// effectiveRetryOptions.MaxRetries=0 for unsafe-no-key methods to prevent
+// blind retries on a non-idempotent call. The auth-refresh-retry loop
+// must remain orthogonal — driven by execution.refreshedAuth, not by the
+// retry budget.
+func TestHTTPClient_AuthRefreshRetryIndependentOfMaxRetries_UnsafePOSTNoIdempotency(t *testing.T) {
+	var calls atomic.Int32
+
+	authHeaders := make(chan string, 8)
+	writeErrs := make(chan error, 8)
+
+	c := NewHTTPClient(http.DefaultClient, "expired", nil)
+	c.setAuthTokenProvider(func(context.Context) (string, error) { return "fresh", nil }, func() {})
+	c.SetEnableIdempotency(false) // turn off auto-idempotency so X-Idempotency is absent on the POST
+
+	require.NoError(t, c.WithRetryOptions(retry.WithMaxRetries(0)))
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		call := calls.Add(1)
+
+		authHeaders <- r.Header.Get("Authorization")
+
+		// The contract: unsafe POST + no idempotency key MUST NOT have
+		// X-Idempotency on the wire (the client coerced retries off and
+		// auto-idempotency is disabled).
+		if r.Header.Get("X-Idempotency") != "" {
+			t.Errorf("unexpected X-Idempotency header on unsafe-no-key POST: %q", r.Header.Get("X-Idempotency"))
+		}
+
+		if call == 1 {
+			w.WriteHeader(http.StatusUnauthorized)
+			_, err := w.Write([]byte(`{"message":"unauthorized"}`))
+			writeErrs <- err
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		writeErrs <- json.NewEncoder(w).Encode(models.Organization{ID: "org-1"})
+	}))
+	defer srv.Close()
+
+	c.client = srv.Client()
+
+	var out models.Organization
+
+	err := c.doRequest(context.Background(), http.MethodPost, srv.URL, nil, map[string]string{"name": "Acme"}, &out)
+	require.NoError(t, err)
+	require.Equal(t, "org-1", out.ID)
+	require.Equal(t, "Bearer expired", <-authHeaders)
+	require.Equal(t, "Bearer fresh", <-authHeaders)
+	requireHandlerNoError(t, writeErrs)
+	requireHandlerNoError(t, writeErrs)
+	require.Equal(t, int32(2), calls.Load())
+}
+
+// TestHTTPClient_AuthRefreshFailedLogsWarn verifies that the auth-refresh
+// "failed" branch lands a Warn-level structured log. We wire a
+// tokenProvider that errors out and assert the log captures the failure
+// state alongside a redacted error.
+func TestHTTPClient_AuthRefreshFailedLogsWarn(t *testing.T) {
+	var logs bytes.Buffer
+	writeErrs := make(chan error, 4)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("X-Request-ID", "req-fail")
+		w.WriteHeader(http.StatusUnauthorized)
+		_, err := w.Write([]byte(`{"message":"unauthorized"}`))
+		writeErrs <- err
+	}))
+	defer srv.Close()
+
+	c := NewHTTPClient(srv.Client(), "expired", nil)
+	// Capture Warn-and-above only — the "failed" branch must emit at Warn.
+	c.SetLogger(slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelWarn})))
+	c.setAuthTokenProvider(func(context.Context) (string, error) {
+		return "", &refreshFailureError{cause: "token=secret-token-value invalid"}
+	}, nil)
+	require.NoError(t, c.WithRetryOptions(retry.WithMaxRetries(0)))
+
+	var out map[string]any
+	err := c.doRequest(context.Background(), http.MethodGet, srv.URL+"/v1/accounts", nil, nil, &out)
+	require.Error(t, err)
+
+	logText := logs.String()
+	require.Contains(t, logText, "token refresh failed")
+	require.Contains(t, logText, "auth_refresh.state=failed")
+	// Embedded credential value must be redacted in the log line.
+	require.NotContains(t, logText, "secret-token-value")
+	requireHandlerNoError(t, writeErrs)
+}
+
+// refreshFailureError is a test-only typed error used to drive the
+// tokenProvider-fail branch.
+type refreshFailureError struct {
+	cause string
+}
+
+func (e *refreshFailureError) Error() string { return "token refresh: " + e.cause }
