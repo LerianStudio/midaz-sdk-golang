@@ -40,11 +40,11 @@ This project follows the [Contributor Covenant Code of Conduct](../CODE_OF_CONDU
 
 To set up your development environment:
 
-1. Install Go (version 1.19 or higher)
+1. Install Go (version 1.26.x)
 2. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/midaz.git
-   cd midaz/sdks/go-sdk
+   git clone https://github.com/yourusername/midaz-sdk-golang.git
+   cd midaz-sdk-golang
    ```
 3. Install dependencies:
    ```bash
