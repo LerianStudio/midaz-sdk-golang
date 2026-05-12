@@ -19,7 +19,6 @@ func TestTransactionsEntity_CreateTransaction_HTTPRequest(t *testing.T) {
 		assert.Equal(t, http.MethodPost, r.Method)
 		assert.Equal(t, "/organizations/org%2F1/ledgers/ledger%2F1/transactions/json", r.URL.EscapedPath())
 		assert.Equal(t, "caller-key-123", r.Header.Get("X-Idempotency"))
-		assert.Empty(t, r.Header.Get("X-Midaz-Auto-Idempotency"))
 
 		var body map[string]any
 		if !assert.NoError(t, json.NewDecoder(r.Body).Decode(&body)) {

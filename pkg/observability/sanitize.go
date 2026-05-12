@@ -41,8 +41,10 @@ const (
 //
 // The trailing `\b(?:\.[\w.-]+)?` allows compound suffixes like
 // `metadata.user.email=…` to be redacted as a single value.
-var sensitiveAssignmentPattern = regexp.MustCompile(`(?i)(access[_.-]?token|api[_.-]?key|apikey|auth[_.-]?token|client[_.-]?secret|id[_.-]?token|password|secret|token|refresh[_.-]?token|x[_.-]?api[_.-]?key|x-idempotency|idempotency-key|x-midaz-auto-idempotency)(\s*[=:]\s*)("[^"]*"|'[^']*'|[^\s&;,]+)`)
-var authTokenPattern = regexp.MustCompile(`(?i)((?:bearer|basic)\s+)[A-Za-z0-9._\-+/=]+`)
+var (
+	sensitiveAssignmentPattern = regexp.MustCompile(`(?i)(["']?)(access[_.-]?token|api[_.-]?key|apikey|auth[_.-]?token|client[_.-]?secret|id[_.-]?token|password|secret|token|refresh[_.-]?token|x[_.-]?api[_.-]?key|x-idempotency|idempotency-key)(["']?)(\s*[=:]\s*)("[^"]*"|'[^']*'|[^\s&;,}]+)`)
+	authTokenPattern           = regexp.MustCompile(`(?i)((?:bearer|basic)\s+)[A-Za-z0-9._\-+/=]+`)
+)
 
 type sanitizeVisit struct {
 	kind reflect.Kind
@@ -76,7 +78,7 @@ func sanitizeSensitiveString(value string) string {
 		truncated = true
 	}
 
-	sanitized := sensitiveAssignmentPattern.ReplaceAllString(scan, `${1}${2}`+redactedValue)
+	sanitized := sensitiveAssignmentPattern.ReplaceAllString(scan, `${1}${2}${3}${4}`+redactedValue)
 	sanitized = authTokenPattern.ReplaceAllString(sanitized, `${1}`+redactedValue)
 
 	if !truncated {

@@ -21,6 +21,17 @@ type typedNilStringer struct {
 	value string
 }
 
+type nestedCredentialPayload struct {
+	ClientSecret string `json:"clientSecret"`
+	SafeValue    string `json:"safeValue"`
+}
+
+type credentialPayload struct {
+	AccessToken string                  `json:"accessToken"`
+	Nested      nestedCredentialPayload `json:"nested"`
+	Safe        string                  `json:"safe"`
+}
+
 func (s *typedNilStringer) String() string {
 	return s.value
 }
@@ -70,6 +81,35 @@ func TestSanitizeLogFieldValueRedactsNormalizedSensitiveKeys(t *testing.T) {
 	assert.Equal(t, redactedValue, fields["setCookie"])
 	assert.Equal(t, redactedValue, fields["metadata.accessToken"])
 	assert.Equal(t, "visible", fields["safe"])
+}
+
+func TestSanitizeSensitiveStringRedactsQuotedJSONCamelCaseSecrets(t *testing.T) {
+	sanitized := sanitizeSensitiveString(`{"accessToken":"raw-access-token","clientSecret":"raw-client-secret","safe":"visible"}`)
+
+	assert.NotContains(t, sanitized, "raw-access-token")
+	assert.NotContains(t, sanitized, "raw-client-secret")
+	assert.Contains(t, sanitized, `"accessToken":`+redactedValue)
+	assert.Contains(t, sanitized, `"clientSecret":`+redactedValue)
+	assert.Contains(t, sanitized, `"safe":"visible"`)
+}
+
+func TestSanitizeLogFieldValueRedactsStructFieldsByJSONTag(t *testing.T) {
+	sanitized := sanitizeAny(credentialPayload{
+		AccessToken: "raw-struct-access-token",
+		Nested: nestedCredentialPayload{
+			ClientSecret: "raw-struct-client-secret",
+			SafeValue:    "nested-visible",
+		},
+		Safe: "visible",
+	}, 0, make(map[sanitizeVisit]struct{}))
+
+	fields := requireMap(t, sanitized)
+	assert.Equal(t, redactedValue, fields["accessToken"])
+	assert.Equal(t, "visible", fields["safe"])
+
+	nested := requireMap(t, fields["nested"])
+	assert.Equal(t, redactedValue, nested["clientSecret"])
+	assert.Equal(t, "nested-visible", nested["safeValue"])
 }
 
 func TestSanitizeLogFieldValueRedactsNestedMetadataAccessToken(t *testing.T) {

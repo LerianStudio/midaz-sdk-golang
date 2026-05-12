@@ -249,7 +249,6 @@ func (e *transactionsEntity) sendCreateTransactionRequest(ctx context.Context, o
 	headers := map[string]string{}
 	if key := strings.TrimSpace(input.IdempotencyKey); key != "" {
 		headers["X-Idempotency"] = key
-		headers[internalCallerIdempotencyHeader] = boolTrue
 	}
 
 	if err := e.httpClient.doRequest(ctx, http.MethodPost, e.buildURL(organizationID, ledgerID, "/json"), headers, txMap, &responseMap); err != nil {

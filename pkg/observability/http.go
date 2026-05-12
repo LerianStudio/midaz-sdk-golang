@@ -42,7 +42,6 @@ var defaultIgnoredHeaders = []string{
 	"x-middleware-token",
 	"x-idempotency",
 	"idempotency-key",
-	"x-midaz-auto-idempotency",
 	"x-tenant-id",
 	"x-organization-id",
 	"baggage",
