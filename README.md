@@ -147,8 +147,8 @@ Page-based and cursor-based endpoints use separate opts types. See
 
 ### Idempotency
 
-Auto-on by default. The SDK emits `X-Idempotency: <uuid>` and
-`X-Midaz-Auto-Idempotency: true` on every unsafe request. Override per-call:
+Auto-on by default. The SDK emits `X-Idempotency: <uuid>` on every unsafe
+request. Override per-call:
 
 ```go
 import "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
@@ -222,6 +222,11 @@ Adapters for zap, zerolog, logrus all go through `slog.Handler`. See
 
 Default policy: 3 retries, exponential backoff with 25% jitter, retryable
 on transport errors + 5xx + 408 + 425 + 429. Customize:
+
+Unsafe methods (`POST`, `PUT`, `PATCH`, `DELETE`) retry only when
+`X-Idempotency` is present. The SDK auto-generates this header by default;
+`WithoutAutoIdempotency` or `WithIdempotency(false)` disables automatic unsafe
+retries unless the caller supplies `X-Idempotency` explicitly.
 
 ```go
 import "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry"
@@ -313,7 +318,7 @@ chain — there is no implicit env-var loading:
 - Auth: `PLUGIN_AUTH_ENABLED`, `PLUGIN_AUTH_ADDRESS`, `MIDAZ_CLIENT_ID`,
   `MIDAZ_CLIENT_SECRET`
 - Behavior: `MIDAZ_TIMEOUT`, `MIDAZ_USER_AGENT`, `MIDAZ_DEBUG`,
-  `MIDAZ_MAX_RETRIES`, `MIDAZ_IDEMPOTENCY`
+  `MIDAZ_MAX_RETRIES`, `MIDAZ_IDEMPOTENCY`, `MIDAZ_ERROR_EXPOSE_BODY`
 
 See [`docs/configuration.md`](docs/configuration.md) for the full matrix.
 

@@ -3,11 +3,8 @@
 // PUT, PATCH, DELETE) requests:
 //
 //  1. Auto-generated key (default): the SDK generates a UUID per request
-//     and emits it as X-Idempotency. The companion header
-//     X-Midaz-Auto-Idempotency=true tells the server "the SDK chose this
-//     key, treat it as a transient retry-safety hint, not a stable client
-//     fingerprint." This is the right default for retry safety without
-//     forcing every caller to think about idempotency.
+//     and emits it as X-Idempotency. This is the right default for retry
+//     safety without forcing every caller to think about idempotency.
 //
 //  2. Explicit caller-supplied key (recommended for at-least-once
 //     producers): pass a stable key via [sdkctx.WithIdempotencyKey]

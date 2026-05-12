@@ -11,10 +11,3 @@ const (
 	// HeaderTotalCount is the HTTP header name used by count endpoints.
 	HeaderTotalCount = "X-Total-Count"
 )
-
-// Common boolean string literal used in HTTP header values for internal
-// idempotency negotiation (X-Midaz-Caller-Idempotency, X-Midaz-Auto-Idempotency).
-const (
-	// boolTrue represents the string value "true".
-	boolTrue = "true"
-)

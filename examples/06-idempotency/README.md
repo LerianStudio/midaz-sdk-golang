@@ -7,8 +7,7 @@ requests.
 ## What this demonstrates
 
 1. **Auto-generated key (default)** — every unsafe request gets a UUID
-   in `X-Idempotency` plus a companion `X-Midaz-Auto-Idempotency=true`
-   marker. Free retry safety with no caller code.
+   in `X-Idempotency`. Free retry safety with no caller code.
 
 2. **Caller-supplied key** — `sdkctx.WithIdempotencyKey(ctx, "stable-key")`
    makes the SDK emit the caller's key. The recommended pattern for
@@ -16,7 +15,8 @@ requests.
 
 3. **Per-call opt-out** — `sdkctx.WithoutAutoIdempotency(ctx)` suppresses
    the auto-generated key. For the rare endpoint where idempotency is
-   genuinely undesired.
+   genuinely undesired. Unsafe retries are also disabled unless the caller
+   supplies `X-Idempotency` explicitly.
 
 4. **Precedence rule** — an explicit key set via `WithIdempotencyKey`
    ALWAYS wins over `WithoutAutoIdempotency`. Useful when middleware

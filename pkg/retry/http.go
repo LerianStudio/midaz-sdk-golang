@@ -856,7 +856,7 @@ func isRequestMethodRetryable(req *http.Request) bool {
 }
 
 func hasIdempotencyHeader(req *http.Request) bool {
-	return req.Header.Get("X-Idempotency") != "" || req.Header.Get("Idempotency-Key") != ""
+	return strings.TrimSpace(req.Header.Get("X-Idempotency")) != ""
 }
 
 func isRequestBodyReplayable(req *http.Request) bool {

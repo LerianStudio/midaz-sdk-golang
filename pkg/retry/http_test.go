@@ -285,6 +285,33 @@ func TestDoHTTPRequest_UnsafePOSTWithoutIdempotencyDoesNotRetry(t *testing.T) {
 	assert.Equal(t, int32(1), atomic.LoadInt32(&attempts))
 }
 
+func TestDoHTTPRequest_UnsafePOSTWithLegacyIdempotencyKeyDoesNotRetry(t *testing.T) {
+	var attempts int32
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		atomic.AddInt32(&attempts, 1)
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	req, err := http.NewRequest(http.MethodPost, server.URL, nil)
+	require.NoError(t, err)
+	req.Header.Set("Idempotency-Key", "legacy-key")
+
+	resp, err := retry.DoHTTPRequest(
+		context.Background(),
+		http.DefaultClient,
+		req,
+		retry.WithHTTPMaxRetries(3),
+		retry.WithHTTPInitialDelay(time.Millisecond),
+	)
+
+	require.Error(t, err)
+	require.NotNil(t, resp)
+	assert.Equal(t, http.StatusInternalServerError, resp.Response.StatusCode)
+	assert.Equal(t, int32(1), atomic.LoadInt32(&attempts))
+}
+
 func TestDoHTTPRequest_UnsafePOSTWithIdempotencyAndReplayableBodyRetriesIdenticalBody(t *testing.T) {
 	var (
 		attempts    int32

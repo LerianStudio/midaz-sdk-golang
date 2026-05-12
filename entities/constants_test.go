@@ -11,5 +11,4 @@ import (
 // the wire shape — header names are NOT free to evolve.
 func TestConstants(t *testing.T) {
 	assert.Equal(t, "X-Total-Count", HeaderTotalCount)
-	assert.Equal(t, "true", boolTrue)
 }
