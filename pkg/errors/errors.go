@@ -10,7 +10,11 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+
+	obsredaction "github.com/LerianStudio/lib-observability/redaction"
 )
+
+const redactedValue = "[REDACTED]"
 
 // ErrorCode represents a standardized error code for Midaz API errors.
 type ErrorCode string
@@ -758,35 +762,48 @@ func (e *Error) GetOperation() string {
 	return e.Operation
 }
 
-// errSensitiveFieldNormalizer is the package-level Replacer used to fold
-// "_", "-", and "." out of field names before fragment matching. Hoisted to
-// package scope (rather than allocated per call inside IsSensitiveFieldName)
-// because IsSensitiveFieldName runs on every header redaction and every
-// API-detail walk — allocating a fresh Replacer per call shows up under
-// `pprof -alloc_objects` on retry-heavy workloads.
-var errSensitiveFieldNormalizer = strings.NewReplacer("_", "", "-", "", ".", "")
-
 var (
 	// sensitiveBearerPattern matches "authorization: Bearer <value>" and
 	// "authorization: Basic <value>" — both standard credential headers
 	// whose values are sensitive.
-	sensitiveBearerPattern = regexp.MustCompile(`(?i)\b(authorization\s*[:=]\s*(?:Bearer|Basic)\s+)[^\s,;]+`)
+	sensitiveBearerPattern = regexp.MustCompile(`(?i)\b(authorization\s*[:=]\s*)(?:Bearer|Basic)\s+[^\s,;]+`)
 
-	// sensitiveKeyValuePattern matches "<key>=<value>" or "<key>: <value>"
-	// for any sensitive-named key. Whitelist evolution (Audit C2): v3
-	// extends the v2 list to cover the credential-header variants
-	// (api-key, x-api-key, access_token, refresh_token, id_token, jwt)
-	// so rendered error messages cannot leak common token forms.
-	//
-	// The leading boundary `(?:^|[^A-Za-z])` matches start-of-string
-	// or any non-letter char (digit, underscore, hyphen, dot, space,
-	// punctuation). This catches the keyword in compound identifiers
-	// like `client_secret=` and `x-idempotency-key=` while NOT
-	// triggering on operation names like `CreateMetadataIndex:`
-	// where the keyword sits in the middle of a CamelCase word.
-	// The trailing `[\w.-]*` allows compound suffixes like `-key`.
-	sensitiveKeyValuePattern = regexp.MustCompile(`(?i)(^|[^A-Za-z])(["']?)((?:token|password|apikey|api[-_]?key|x[-_]api[-_]?key|access[-_]?token|refresh[-_]?token|id[-_]?token|client[-_]?secret|jwt|authorization|secret|(?:x[-_])?idempotency|document|legal_document|external_id|banking_details_account|banking_details_iban|metadata(?:\.[\w.-]+)?|related_party_document|regulatory_fields_participant_document)[\w.-]*)(["']?)(\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s,;}]+)`)
+	// sensitiveKeyValuePattern parses generic "<key>=<value>" and
+	// "<key>: <value>" assignments. The match is classified by
+	// lib-observability/redaction at replacement time instead of embedding a
+	// service-local sensitive-key list in the regexp.
+	sensitiveKeyValuePattern = regexp.MustCompile(`(?i)(^|[^A-Za-z])(["']?)([A-Za-z][A-Za-z0-9_.-]*)(["']?)(\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s,;}]+)`)
 )
+
+var sensitiveFieldExtras = []string{
+	"banking_details_account",
+	"banking_details_iban",
+	"card-number",
+	"credit_card",
+	"creditcard",
+	"cnpj",
+	"cpf",
+	"document",
+	"external_id",
+	"idempotency",
+	"idempotency_key",
+	"legal_document",
+	"participant_document",
+	"related_party_document",
+	"regulatory_fields_participant_document",
+	"x_idempotency",
+}
+
+var sensitiveLabelExtras = []string{
+	"api_key",
+	"authorization",
+	"card_number",
+	"password",
+	"secret",
+	"token",
+}
+
+var sensitiveLabelNormalizer = strings.NewReplacer("_", "", "-", "", ".", "")
 
 // isNilError is the package-internal sibling of [IsNilInterfaceValue]
 // specialised to the error interface. It exists for readability at call
@@ -835,14 +852,50 @@ func redactSensitive(message string) string {
 		truncated = true
 	}
 
-	redacted := sensitiveBearerPattern.ReplaceAllString(message, `${1}[REDACTED]`)
-	redacted = sensitiveKeyValuePattern.ReplaceAllString(redacted, `${1}${2}${3}${4}${5}[REDACTED]`)
+	redacted := sensitiveBearerPattern.ReplaceAllString(message, `${1}`+redactedValue)
+	redacted = redactSensitiveAssignments(redacted)
 
 	if truncated {
 		redacted += " [truncated]"
 	}
 
 	return redacted
+}
+
+func redactSensitiveAssignments(message string) string {
+	var b strings.Builder
+	pos := 0
+
+	for pos < len(message) {
+		loc := sensitiveKeyValuePattern.FindStringSubmatchIndex(message[pos:])
+		if loc == nil {
+			b.WriteString(message[pos:])
+			break
+		}
+
+		matchStart := pos + loc[0]
+		valueStart := pos + loc[12]
+		valueEnd := pos + loc[13]
+		keyStart := pos + loc[6]
+		keyEnd := pos + loc[7]
+		if keyStart < pos || keyEnd < keyStart || valueStart < keyEnd || valueEnd < valueStart {
+			b.WriteString(message[pos : matchStart+1])
+			pos = matchStart + 1
+			continue
+		}
+
+		if !IsSensitiveFieldName(message[keyStart:keyEnd]) {
+			b.WriteString(message[pos : matchStart+1])
+			pos = matchStart + 1
+			continue
+		}
+
+		b.WriteString(message[pos:valueStart])
+		b.WriteString(redactedValue)
+		pos = valueEnd
+	}
+
+	return b.String()
 }
 
 // RedactSensitiveString redacts sensitive values from a public API-sourced string.
@@ -882,7 +935,7 @@ func RedactSensitiveDetails(details map[string]any) map[string]any {
 
 func redactSensitiveDetailValue(key string, value any) any {
 	if isSensitiveDetailKey(key) {
-		return "[REDACTED]"
+		return redactedValue
 	}
 
 	switch typed := value.(type) {
@@ -902,67 +955,20 @@ func redactSensitiveDetailValue(key string, value any) any {
 	}
 }
 
-// sensitiveFieldFragments is the canonical list of substrings (after
-// case-folding and stripping '_', '-', '.') that mark a field as
-// carrying sensitive data — credentials, PII, financial identifiers,
-// or storage-layer metadata. Any field whose normalized name contains
-// one of these fragments must be redacted before its value is rendered.
-//
-// The list is the single source of truth for both the API-shape
-// detail walker ([RedactSensitiveDetails]) and the field-name
-// predicate ([IsSensitiveFieldName]) used by the validation layer.
-var sensitiveFieldFragments = []string{
-	"authorization",
-	"apikey",
-	"accesstoken",
-	"refreshtoken",
-	"idtoken",
-	"jwt",
-	"bankingdetails",
-	"cookie",
-	"creditcard",
-	"cardnumber",
-	"cpf",
-	"cnpj",
-	"document",
-	"externalid",
-	"idempotency",
-	"metadata",
-	"password",
-	"participantdocument",
-	"relatedparty",
-	"secret",
-	"ssn",
-	"token",
-}
-
 // IsSensitiveFieldName reports whether name (after case-folding and
-// stripping underscores, hyphens, and dots) contains any fragment from
-// the SDK-wide sensitive-field allowlist. Use it before rendering a
-// field's value in user-facing error output so credentials, PII, and
-// financial identifiers stay out of logs.
+// lib-observability normalization plus SDK-specific extras) is sensitive.
+// Use it before rendering a field's value in user-facing error output so
+// credentials, PII, and financial identifiers stay out of logs.
 //
 // Examples returning true:
 //
 //	"password", "X-API-Key", "authorization", "client_secret",
 //	"creditCard", "cpf", "metadata.user.token", "refresh-token".
 //
-// The check is intentionally substring-based on the normalized name so
-// near-variants (apiKey vs api_key vs X-API-Key) all trip the same
-// redaction path.
+// The check delegates to lib-observability/redaction so camelCase,
+// word-boundary, and short-token matching stay centralized.
 func IsSensitiveFieldName(name string) bool {
-	if name == "" {
-		return false
-	}
-
-	normalized := strings.ToLower(errSensitiveFieldNormalizer.Replace(name))
-	for _, fragment := range sensitiveFieldFragments {
-		if strings.Contains(normalized, fragment) {
-			return true
-		}
-	}
-
-	return false
+	return obsredaction.IsSensitiveField(strings.TrimSpace(name), sensitiveFieldExtras...)
 }
 
 // isSensitiveDetailKey is the legacy entry point kept for the structured
@@ -1008,7 +1014,7 @@ func redactMessage(message string, unsafeValues ...string) string {
 			continue
 		}
 
-		message = strings.ReplaceAll(message, unsafeValue, "[REDACTED]")
+		message = strings.ReplaceAll(message, unsafeValue, redactedValue)
 	}
 
 	return message
@@ -1029,25 +1035,10 @@ func redactMessage(message string, unsafeValues ...string) string {
 // for redacting VALUES, never for redacting label strings.
 func safeFieldLabel(name string) string {
 	if isSensitiveLabelFragment(name) {
-		return "[REDACTED]"
+		return redactedValue
 	}
 
 	return redactSensitive(name)
-}
-
-// sensitiveLabelFragments enumerates the substrings (after case-folding and
-// stripping '_', '-', '.') that mark a label string itself as sensitive —
-// e.g. "password" embedded in a parameter name is a strong signal that the
-// label is about credentials and should not render verbatim. Compare with
-// [sensitiveFieldFragments], which classifies field-name → value redaction.
-var sensitiveLabelFragments = []string{
-	"password",
-	"secret",
-	"token",
-	"apikey",
-	"authorization",
-	"cookie",
-	"cardnumber",
 }
 
 func isSensitiveLabelFragment(name string) bool {
@@ -1055,8 +1046,9 @@ func isSensitiveLabelFragment(name string) bool {
 		return false
 	}
 
-	normalized := strings.ToLower(errSensitiveFieldNormalizer.Replace(name))
-	for _, fragment := range sensitiveLabelFragments {
+	normalized := strings.ToLower(sensitiveLabelNormalizer.Replace(name))
+	for _, fragment := range sensitiveLabelExtras {
+		fragment = strings.ToLower(sensitiveLabelNormalizer.Replace(fragment))
 		if strings.Contains(normalized, fragment) {
 			return true
 		}

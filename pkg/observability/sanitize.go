@@ -46,9 +46,26 @@ const (
 // kept in lockstep with pkg/errors.sensitiveKeyValuePattern so the same
 // payload renders identically through both redaction layers.
 var (
-	sensitiveAssignmentPattern = regexp.MustCompile(`(?i)(["']?)(access[_.-]?token|api[_.-]?key|apikey|auth[_.-]?token|client[_.-]?secret|id[_.-]?token|password|secret|token|refresh[_.-]?token|x[_.-]?api[_.-]?key|x-idempotency|idempotency-key|document|legal_document|external_id|banking_details_account|banking_details_iban|metadata|related_party_document|regulatory_fields_participant_document)(?:\.[\w.-]+)?(["']?)(\s*[=:]\s*)("[^"]*"|'[^']*'|[^\s&;,}]+)`)
+	sensitiveAssignmentPattern = regexp.MustCompile(`(?i)(["']?)([A-Za-z][A-Za-z0-9_.-]*)(["']?)(\s*[=:]\s*)("[^"]*"|'[^']*'|[^\s&;,}]+)`)
 	authTokenPattern           = regexp.MustCompile(`(?i)((?:bearer|basic)\s+)[A-Za-z0-9._\-+/=]+`)
 )
+
+var observabilitySensitiveFieldExtras = []string{
+	"access-token",
+	"auth_token",
+	"banking_details_account",
+	"banking_details_iban",
+	"document",
+	"external_id",
+	"idempotency-key",
+	"legal_document",
+	"metadata",
+	"refresh-token",
+	"related_party_document",
+	"regulatory_fields_participant_document",
+	"x-api-key",
+	"x-idempotency",
+}
 
 type sanitizeVisit struct {
 	kind reflect.Kind
@@ -82,7 +99,7 @@ func sanitizeSensitiveString(value string) string {
 		truncated = true
 	}
 
-	sanitized := sensitiveAssignmentPattern.ReplaceAllString(scan, `${1}${2}${3}${4}`+redactedValue)
+	sanitized := redactSensitiveLogAssignments(scan)
 	sanitized = authTokenPattern.ReplaceAllString(sanitized, `${1}`+redactedValue)
 
 	if !truncated {
@@ -90,6 +107,54 @@ func sanitizeSensitiveString(value string) string {
 	}
 
 	return sanitized + " [truncated]"
+}
+
+func redactSensitiveLogAssignments(value string) string {
+	var b strings.Builder
+	pos := 0
+
+	for pos < len(value) {
+		loc := sensitiveAssignmentPattern.FindStringSubmatchIndex(value[pos:])
+		if loc == nil {
+			b.WriteString(value[pos:])
+			break
+		}
+
+		matchStart := pos + loc[0]
+		keyStart := pos + loc[4]
+		keyEnd := pos + loc[5]
+		valueStart := pos + loc[10]
+		valueEnd := pos + loc[11]
+		if keyStart < pos || keyEnd < keyStart || valueStart < keyEnd || valueEnd < valueStart {
+			b.WriteString(value[pos : matchStart+1])
+			pos = matchStart + 1
+			continue
+		}
+
+		key := value[keyStart:keyEnd]
+		if strings.EqualFold(key, "authorization") && isAuthScheme(value[valueStart:valueEnd]) {
+			b.WriteString(value[pos : matchStart+1])
+			pos = matchStart + 1
+			continue
+		}
+
+		if !isSensitiveObservabilityKey(key) {
+			b.WriteString(value[pos : matchStart+1])
+			pos = matchStart + 1
+			continue
+		}
+
+		b.WriteString(value[pos:valueStart])
+		b.WriteString(redactedValue)
+		pos = valueEnd
+	}
+
+	return b.String()
+}
+
+func isAuthScheme(value string) bool {
+	value = strings.Trim(value, `"'`)
+	return strings.EqualFold(value, "bearer") || strings.EqualFold(value, "basic")
 }
 
 func sanitizeLogFieldValue(key string, value any) any {
@@ -497,7 +562,21 @@ func trackReference(value reflect.Value, seen map[sanitizeVisit]struct{}) (sanit
 // list in this package drifted from pkg/errors over time, producing
 // inconsistent redaction depending on which layer touched a value first.
 func isSensitiveLogFieldKey(key string) bool {
-	return sdkerrors.IsSensitiveFieldName(strings.TrimSpace(key))
+	return isSensitiveObservabilityKey(key)
+}
+
+func isSensitiveObservabilityKey(key string) bool {
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return false
+	}
+
+	lowerKey := strings.ToLower(key)
+	if lowerKey == "metadata" || strings.HasPrefix(lowerKey, "metadata.") {
+		return true
+	}
+
+	return sdkerrors.IsSensitiveFieldName(key)
 }
 
 // mayContainSensitiveToken returns true when the string is plausibly carrying

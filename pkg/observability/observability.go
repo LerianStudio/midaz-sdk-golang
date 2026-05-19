@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	obsconstants "github.com/LerianStudio/lib-observability/constants"
+	obsmetrics "github.com/LerianStudio/lib-observability/metrics"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/version"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -377,8 +379,8 @@ func DefaultConfig() *Config {
 			Logging: true,
 		},
 		PropagationHeaders: []string{
-			"traceparent",
-			"tracestate",
+			obsconstants.HeaderTraceparent,
+			obsconstants.MetadataTracestate,
 			"baggage",
 			"x-request-id",
 			"x-correlation-id",
@@ -397,6 +399,7 @@ type MidazProvider struct {
 	logger            Logger
 	tracer            trace.Tracer
 	meter             metric.Meter
+	metricsFactory    *obsmetrics.MetricsFactory
 	enabled           bool
 	shutdownFunctions []func(context.Context) error
 
@@ -563,6 +566,11 @@ func (p *MidazProvider) initMetrics(ctx context.Context, res *sdkresource.Resour
 
 	// Create a meter for this library
 	p.meter = p.meterProvider.Meter("github.com/LerianStudio/midaz-sdk-golang/v3")
+	factory, err := obsmetrics.NewMetricsFactory(p.meter, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create metrics factory: %w", err)
+	}
+	p.metricsFactory = factory
 
 	// Add shutdown function
 	p.shutdownFunctions = append(p.shutdownFunctions, func(ctx context.Context) error {
@@ -748,22 +756,27 @@ func RecordMetric(ctx context.Context, provider Provider, name string, value flo
 		ctx = context.Background()
 	}
 
-	meter := provider.Meter()
-	if meter == nil {
-		return
-	}
-
-	counter, err := meter.Float64Counter(name)
+	factory, err := metricsFactoryForProvider(provider)
 	if err != nil {
-		logger := provider.Logger()
-		if logger != nil {
-			logger.Errorf("Failed to create counter for metric %s: %v", name, err)
-		}
-
+		logProviderMetricError(provider, "Failed to create metrics factory for metric %s: %v", name, err)
 		return
 	}
 
-	counter.Add(ctx, value, metric.WithAttributes(filterMetricAttributes(attrs)...))
+	counterValue, err := metricCounterValue(value)
+	if err != nil {
+		logProviderMetricError(provider, "Failed to record counter metric %s: %v", name, err)
+		return
+	}
+
+	counter, err := factory.Counter(obsmetrics.Metric{Name: name, Unit: "1"})
+	if err != nil {
+		logProviderMetricError(provider, "Failed to create counter for metric %s: %v", name, err)
+		return
+	}
+
+	if err := counter.WithAttributes(filterMetricAttributes(attrs)...).Add(ctx, counterValue); err != nil {
+		logProviderMetricError(provider, "Failed to record counter metric %s: %v", name, err)
+	}
 }
 
 // RecordDuration records a duration metric using the provided meter
@@ -779,22 +792,44 @@ func RecordDuration(ctx context.Context, provider Provider, name string, start t
 
 	duration := time.Since(start).Milliseconds()
 
+	factory, err := metricsFactoryForProvider(provider)
+	if err != nil {
+		logProviderMetricError(provider, "Failed to create metrics factory for duration metric %s: %v", name, err)
+		return
+	}
+
+	histogram, err := factory.Histogram(obsmetrics.Metric{Name: name, Unit: "ms"})
+	if err != nil {
+		logProviderMetricError(provider, "Failed to create histogram for metric %s: %v", name, err)
+		return
+	}
+
+	if err := histogram.WithAttributes(filterMetricAttributes(attrs)...).Record(ctx, duration); err != nil {
+		logProviderMetricError(provider, "Failed to record histogram metric %s: %v", name, err)
+	}
+}
+
+func metricsFactoryForProvider(provider Provider) (*obsmetrics.MetricsFactory, error) {
+	if midazProvider, ok := provider.(*MidazProvider); ok && midazProvider != nil && midazProvider.metricsFactory != nil {
+		return midazProvider.metricsFactory, nil
+	}
+
 	meter := provider.Meter()
 	if meter == nil {
+		return nil, obsmetrics.ErrNilMeter
+	}
+
+	return obsmetrics.NewMetricsFactory(meter, nil)
+}
+
+func logProviderMetricError(provider Provider, format string, args ...any) {
+	if provider == nil {
 		return
 	}
 
-	histogram, err := meter.Int64Histogram(name)
-	if err != nil {
-		logger := provider.Logger()
-		if logger != nil {
-			logger.Errorf("Failed to create histogram for metric %s: %v", name, err)
-		}
-
-		return
+	if logger := provider.Logger(); logger != nil {
+		logger.Errorf(format, args...)
 	}
-
-	histogram.Record(ctx, duration, metric.WithAttributes(filterMetricAttributes(attrs)...))
 }
 
 // ExtractContext extracts context from HTTP headers for distributed tracing

@@ -3,6 +3,7 @@ module github.com/LerianStudio/midaz-sdk-golang/v3
 go 1.26.0
 
 require (
+	github.com/LerianStudio/lib-observability v1.0.0
 	github.com/brianvoe/gofakeit/v7 v7.14.1
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
@@ -36,7 +37,7 @@ require (
 	golang.org/x/text v0.36.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260420184626-e10c466a9529 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260420184626-e10c466a9529 // indirect
-	google.golang.org/grpc v1.80.0 // indirect
+	google.golang.org/grpc v1.81.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
 

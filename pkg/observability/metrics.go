@@ -2,11 +2,13 @@ package observability
 
 import (
 	"context"
+	"fmt"
+	"math"
 	"net/http"
 	"time"
 
+	obsmetrics "github.com/LerianStudio/lib-observability/metrics"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/metric"
 )
 
 // MetricsCollector provides convenient methods for recording common metrics
@@ -15,15 +17,25 @@ type MetricsCollector struct {
 	provider Provider
 
 	// Counters
-	requestCounter metric.Float64Counter
-	errorCounter   metric.Float64Counter
-	successCounter metric.Float64Counter
-	retryCounter   metric.Float64Counter
+	requestCounter *obsmetrics.CounterBuilder
+	errorCounter   *obsmetrics.CounterBuilder
+	successCounter *obsmetrics.CounterBuilder
+	retryCounter   *obsmetrics.CounterBuilder
 
 	// Histograms
-	requestDuration     metric.Float64Histogram
-	requestBatchSize    metric.Int64Histogram
-	requestBatchLatency metric.Int64Histogram
+	requestDuration     *obsmetrics.HistogramBuilder
+	requestBatchSize    *obsmetrics.HistogramBuilder
+	requestBatchLatency *obsmetrics.HistogramBuilder
+}
+
+type collectorInstruments struct {
+	requestCounter      *obsmetrics.CounterBuilder
+	errorCounter        *obsmetrics.CounterBuilder
+	successCounter      *obsmetrics.CounterBuilder
+	retryCounter        *obsmetrics.CounterBuilder
+	requestDuration     *obsmetrics.HistogramBuilder
+	requestBatchSize    *obsmetrics.HistogramBuilder
+	requestBatchLatency *obsmetrics.HistogramBuilder
 }
 
 // NewMetricsCollector creates a new MetricsCollector for recording SDK metrics
@@ -38,74 +50,67 @@ func NewMetricsCollector(provider Provider) (*MetricsCollector, error) {
 		return &MetricsCollector{provider: provider}, nil
 	}
 
-	requestCounter, err := meter.Float64Counter(
-		MetricRequestTotal,
-		metric.WithDescription("Total number of API requests made"),
-	)
+	factory, err := obsmetrics.NewMetricsFactory(meter, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	errorCounter, err := meter.Float64Counter(
-		MetricRequestErrorTotal,
-		metric.WithDescription("Total number of API request errors"),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	successCounter, err := meter.Float64Counter(
-		MetricRequestSuccess,
-		metric.WithDescription("Total number of successful API requests"),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	retryCounter, err := meter.Float64Counter(
-		MetricRequestRetryTotal,
-		metric.WithDescription("Total number of API request retries"),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	requestDuration, err := meter.Float64Histogram(
-		MetricRequestDuration,
-		metric.WithDescription("Duration of API requests in milliseconds"),
-		metric.WithUnit("ms"),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	requestBatchSize, err := meter.Int64Histogram(
-		MetricRequestBatchSize,
-		metric.WithDescription("Size of API request batches"),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	requestBatchLatency, err := meter.Int64Histogram(
-		MetricRequestBatchLatency,
-		metric.WithDescription("Latency of API request batches in milliseconds"),
-		metric.WithUnit("ms"),
-	)
+	instruments, err := newCollectorInstruments(factory)
 	if err != nil {
 		return nil, err
 	}
 
 	return &MetricsCollector{
 		provider:            provider,
-		requestCounter:      requestCounter,
-		errorCounter:        errorCounter,
-		successCounter:      successCounter,
-		retryCounter:        retryCounter,
-		requestDuration:     requestDuration,
-		requestBatchSize:    requestBatchSize,
-		requestBatchLatency: requestBatchLatency,
+		requestCounter:      instruments.requestCounter,
+		errorCounter:        instruments.errorCounter,
+		successCounter:      instruments.successCounter,
+		retryCounter:        instruments.retryCounter,
+		requestDuration:     instruments.requestDuration,
+		requestBatchSize:    instruments.requestBatchSize,
+		requestBatchLatency: instruments.requestBatchLatency,
 	}, nil
+}
+
+func newCollectorInstruments(factory *obsmetrics.MetricsFactory) (collectorInstruments, error) {
+	requestCounter, err := newCounter(factory, MetricRequestTotal, "Total number of API requests made")
+	if err != nil {
+		return collectorInstruments{}, err
+	}
+	errorCounter, err := newCounter(factory, MetricRequestErrorTotal, "Total number of API request errors")
+	if err != nil {
+		return collectorInstruments{}, err
+	}
+	successCounter, err := newCounter(factory, MetricRequestSuccess, "Total number of successful API requests")
+	if err != nil {
+		return collectorInstruments{}, err
+	}
+	retryCounter, err := newCounter(factory, MetricRequestRetryTotal, "Total number of API request retries")
+	if err != nil {
+		return collectorInstruments{}, err
+	}
+	requestDuration, err := newHistogram(factory, MetricRequestDuration, "Duration of API requests in milliseconds", "ms")
+	if err != nil {
+		return collectorInstruments{}, err
+	}
+	requestBatchSize, err := newHistogram(factory, MetricRequestBatchSize, "Size of API request batches", "1")
+	if err != nil {
+		return collectorInstruments{}, err
+	}
+	requestBatchLatency, err := newHistogram(factory, MetricRequestBatchLatency, "Latency of API request batches in milliseconds", "ms")
+	if err != nil {
+		return collectorInstruments{}, err
+	}
+
+	return collectorInstruments{requestCounter, errorCounter, successCounter, retryCounter, requestDuration, requestBatchSize, requestBatchLatency}, nil
+}
+
+func newCounter(factory *obsmetrics.MetricsFactory, name, description string) (*obsmetrics.CounterBuilder, error) {
+	return factory.Counter(obsmetrics.Metric{Name: name, Description: description, Unit: "1"})
+}
+
+func newHistogram(factory *obsmetrics.MetricsFactory, name, description, unit string) (*obsmetrics.HistogramBuilder, error) {
+	return factory.Histogram(obsmetrics.Metric{Name: name, Description: description, Unit: unit})
 }
 
 // RecordRequest records a request with its result and duration
@@ -128,18 +133,26 @@ func (m *MetricsCollector) RecordRequest(ctx context.Context, operation, resourc
 	allAttrs := append(baseAttrs, attrs...)
 
 	// Record request
-	m.requestCounter.Add(ctx, 1, metric.WithAttributes(allAttrs...))
+	if err := m.requestCounter.WithAttributes(allAttrs...).AddOne(ctx); err != nil {
+		m.logMetricError("record request counter", err)
+	}
 
 	// Record duration in milliseconds
-	m.requestDuration.Record(ctx, float64(duration.Milliseconds()), metric.WithAttributes(allAttrs...))
+	if err := m.requestDuration.WithAttributes(allAttrs...).Record(ctx, duration.Milliseconds()); err != nil {
+		m.logMetricError("record request duration", err)
+	}
 
 	// Record success or error
 	if statusCode >= http.StatusBadRequest {
 		// Error
-		m.errorCounter.Add(ctx, 1, metric.WithAttributes(allAttrs...))
+		if err := m.errorCounter.WithAttributes(allAttrs...).AddOne(ctx); err != nil {
+			m.logMetricError("record request error counter", err)
+		}
 	} else {
 		// Success
-		m.successCounter.Add(ctx, 1, metric.WithAttributes(allAttrs...))
+		if err := m.successCounter.WithAttributes(allAttrs...).AddOne(ctx); err != nil {
+			m.logMetricError("record request success counter", err)
+		}
 	}
 }
 
@@ -162,10 +175,14 @@ func (m *MetricsCollector) RecordBatchRequest(ctx context.Context, operation, re
 	allAttrs := append(baseAttrs, attrs...)
 
 	// Record batch size
-	m.requestBatchSize.Record(ctx, int64(batchSize), metric.WithAttributes(allAttrs...))
+	if err := m.requestBatchSize.WithAttributes(allAttrs...).Record(ctx, int64(batchSize)); err != nil {
+		m.logMetricError("record request batch size", err)
+	}
 
 	// Record batch latency in milliseconds
-	m.requestBatchLatency.Record(ctx, duration.Milliseconds(), metric.WithAttributes(allAttrs...))
+	if err := m.requestBatchLatency.WithAttributes(allAttrs...).Record(ctx, duration.Milliseconds()); err != nil {
+		m.logMetricError("record request batch latency", err)
+	}
 }
 
 // RecordRetry records a retry attempt
@@ -188,7 +205,36 @@ func (m *MetricsCollector) RecordRetry(ctx context.Context, operation, resourceT
 	allAttrs := append(baseAttrs, attrs...)
 
 	// Record retry
-	m.retryCounter.Add(ctx, 1, metric.WithAttributes(allAttrs...))
+	if err := m.retryCounter.WithAttributes(allAttrs...).AddOne(ctx); err != nil {
+		m.logMetricError("record retry counter", err)
+	}
+}
+
+func (m *MetricsCollector) logMetricError(operation string, err error) {
+	if err == nil || m == nil || m.provider == nil {
+		return
+	}
+
+	if logger := m.provider.Logger(); logger != nil {
+		logger.Errorf("%s: %v", operation, err)
+	}
+}
+
+func metricCounterValue(value float64) (int64, error) {
+	if math.IsNaN(value) || math.IsInf(value, 0) {
+		return 0, fmt.Errorf("metric counter value must be finite: %v", value)
+	}
+	if value < 0 {
+		return 0, fmt.Errorf("metric counter value must be non-negative: %v", value)
+	}
+	if value != math.Trunc(value) {
+		return 0, fmt.Errorf("metric counter value must be an integer: %v", value)
+	}
+	if value > math.MaxInt64 {
+		return 0, fmt.Errorf("metric counter value exceeds int64 range: %v", value)
+	}
+
+	return int64(value), nil
 }
 
 // Timer provides a convenient way to record the duration of an operation

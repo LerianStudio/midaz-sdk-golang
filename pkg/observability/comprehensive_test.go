@@ -1032,11 +1032,11 @@ func TestLoggerReservedFieldsProtection(t *testing.T) {
 
 	// Try to overwrite reserved fields
 	fieldsLogger := logger.With(map[string]any{
-		"timestamp": "malicious-timestamp",
-		"level":     "malicious-level",
-		"message":   "malicious-message",
-		"caller":    "malicious-caller",
-		"safe_key":  "safe_value",
+		"timestamp":  "malicious-timestamp",
+		"level":      "malicious-level",
+		"message":    "malicious-message",
+		"caller":     "malicious-caller",
+		"safe_field": "safe_value",
 	})
 
 	fieldsLogger.Info("test message")
@@ -1048,7 +1048,7 @@ func TestLoggerReservedFieldsProtection(t *testing.T) {
 	assert.NotContains(t, output, "malicious-message")
 	assert.NotContains(t, output, "malicious-caller")
 	// Safe field should be present
-	assert.Contains(t, output, "safe_key")
+	assert.Contains(t, output, "safe_field")
 	assert.Contains(t, output, "safe_value")
 }
 

@@ -28,7 +28,7 @@ func TestFieldError_Error(t *testing.T) {
 			},
 			wantParts: []string{
 				"Invalid field 'email'",
-				"'invalid'",
+				"[REDACTED]",
 				"invalid email format",
 				"constraint: format",
 				"Suggestions:",

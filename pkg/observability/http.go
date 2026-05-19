@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	obsredaction "github.com/LerianStudio/lib-observability/redaction"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	semconv "go.opentelemetry.io/otel/semconv/v1.34.0"
@@ -47,21 +48,7 @@ var defaultIgnoredHeaders = []string{
 	"baggage",
 }
 
-var defaultMaskedParams = []string{
-	"access_token",
-	"api_key",
-	"apikey",
-	"auth_token",
-	"key",
-	"password",
-	"secret",
-	"token",
-	"access-token",
-	"jwt",
-	"refresh_token",
-	"refresh-token",
-	"document",
-}
+var defaultMaskedParams = append(obsredaction.DefaultSensitiveFields(), observabilitySensitiveFieldExtras...)
 
 // ErrNilHTTPResponse is returned by helpers in this package when they are
 // asked to record a span/metric for an *http.Response that is nil. Callers
@@ -661,7 +648,7 @@ func (m *httpMiddleware) sanitizeURL(rawURL *url.URL) string {
 		if m.isMaskedParam(key) {
 			maskedValues := make([]string, len(values))
 			for i := range maskedValues {
-				maskedValues[i] = "[REDACTED]"
+				maskedValues[i] = redactedValue
 			}
 
 			query[key] = maskedValues
@@ -674,14 +661,7 @@ func (m *httpMiddleware) sanitizeURL(rawURL *url.URL) string {
 }
 
 func (m *httpMiddleware) isMaskedParam(param string) bool {
-	lowerParam := strings.ToLower(param)
-	for _, masked := range m.maskedParams {
-		if lowerParam == strings.ToLower(masked) {
-			return true
-		}
-	}
-
-	return false
+	return obsredaction.IsSensitiveField(param, m.maskedParams...)
 }
 
 // roundTripperFunc adapts a function to the RoundTripper interface
