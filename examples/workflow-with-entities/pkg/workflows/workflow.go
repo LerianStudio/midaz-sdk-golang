@@ -48,7 +48,10 @@ func RunCompleteWorkflow(ctx context.Context, _ *sdkentities.Entity, _ /* custom
 	}
 
 	// Execute routes setup phase
-	sourceOperationRoute, destinationOperationRoute, paymentTransactionRoute, refundTransactionRoute := executeRoutesSetup(ctx, midazClient, orgID, ledgerID, accountType)
+	sourceOperationRoute, destinationOperationRoute, paymentTransactionRoute, refundTransactionRoute, err := executeRoutesSetup(ctx, midazClient, orgID, ledgerID, accountType)
+	if err != nil {
+		return err
+	}
 
 	// Execute accounts and transactions phase
 	accounts, err := executeAccountsAndTransactions(ctx, midazClient, orgID, ledgerID, accountType, sourceOperationRoute, destinationOperationRoute, paymentTransactionRoute, refundTransactionRoute)
@@ -213,14 +216,17 @@ func handleAccountTypeOperations(ctx context.Context, midazClient *midaz.Client,
 }
 
 // executeRoutesSetup executes the routes setup phase of the workflow
-func executeRoutesSetup(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string, accountType *models.AccountType) (sourceOpRoute *models.OperationRoute, destOpRoute *models.OperationRoute, paymentTxRoute *models.TransactionRoute, refundTxRoute *models.TransactionRoute) {
+func executeRoutesSetup(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string, accountType *models.AccountType) (sourceOpRoute *models.OperationRoute, destOpRoute *models.OperationRoute, paymentTxRoute *models.TransactionRoute, refundTxRoute *models.TransactionRoute, err error) {
 	// Step 4.5: Create operation routes
 	sourceOperationRoute, destinationOperationRoute := handleOperationRoutes(ctx, midazClient, orgID, ledgerID, accountType)
 
 	// Step 4.6: Create transaction routes
-	paymentTransactionRoute, refundTransactionRoute := handleTransactionRoutes(ctx, midazClient, orgID, ledgerID, sourceOperationRoute, destinationOperationRoute)
+	paymentTransactionRoute, refundTransactionRoute, err := handleTransactionRoutes(ctx, midazClient, orgID, ledgerID, sourceOperationRoute, destinationOperationRoute)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
 
-	return sourceOperationRoute, destinationOperationRoute, paymentTransactionRoute, refundTransactionRoute
+	return sourceOperationRoute, destinationOperationRoute, paymentTransactionRoute, refundTransactionRoute, nil
 }
 
 // handleOperationRoutes handles the operation routes creation and CRUD demonstration
@@ -247,18 +253,26 @@ func handleOperationRoutes(ctx context.Context, midazClient *midaz.Client, orgID
 }
 
 // handleTransactionRoutes handles the transaction routes creation
-func handleTransactionRoutes(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string, sourceOperationRoute, destinationOperationRoute *models.OperationRoute) (paymentRoute *models.TransactionRoute, refundRoute *models.TransactionRoute) {
+func handleTransactionRoutes(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string, sourceOperationRoute, destinationOperationRoute *models.OperationRoute) (paymentRoute *models.TransactionRoute, refundRoute *models.TransactionRoute, err error) {
 	fmt.Printf("🔍 Testing transaction routes API availability...\n")
 
 	paymentTransactionRoute, refundTransactionRoute, err := CreateTransactionRoutesWithOperationRoutes(ctx, midazClient, orgID, ledgerID, sourceOperationRoute, destinationOperationRoute)
 	if err != nil {
 		fmt.Printf("⚠️  Transaction routes API not available on server: %s\n", strconv.Quote(err.Error())) // lgtm[go/log-injection]
 		fmt.Printf("   Note: SDK has full transaction routes implementation, but server endpoint not ready\n")
-		// Create mock routes for demonstration
+		if !allowMockTransactionRoutes() {
+			return nil, nil, fmt.Errorf("transaction routes API not available: %w; set MIDAZ_DEMO_ALLOW_MOCK_TRANSACTION_ROUTES=true to use generated demo-only mock routes", err)
+		}
+
+		fmt.Printf("   Note: MIDAZ_DEMO_ALLOW_MOCK_TRANSACTION_ROUTES=true; using demo-only mock routes\n")
 		paymentTransactionRoute, refundTransactionRoute = CreateMockTransactionRoutes(orgID, ledgerID)
 	}
 
-	return paymentTransactionRoute, refundTransactionRoute
+	return paymentTransactionRoute, refundTransactionRoute, nil
+}
+
+func allowMockTransactionRoutes() bool {
+	return strings.EqualFold(os.Getenv("MIDAZ_DEMO_ALLOW_MOCK_TRANSACTION_ROUTES"), "true")
 }
 
 // executeAccountsAndTransactions executes the accounts and transactions phase of the workflow

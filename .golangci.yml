@@ -132,11 +132,13 @@ linters:
     # -----------------------------------------
     gosec:
       excludes:
-        - G104  # Unhandled errors (covered by errcheck)
-        - G304  # File path from variable (needed for SDK)
+        # Unhandled errors are enforced by errcheck with check-blank enabled.
+        - G104
 
       config:
         global:
+          # Keep PR-time lint on gosec's standard rule set. Deeper audit mode
+          # runs via the scheduled GoSec audit workflow command.
           audit: false
 
     # -----------------------------------------

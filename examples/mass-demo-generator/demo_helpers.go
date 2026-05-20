@@ -392,10 +392,14 @@ func createSDKConfig() (*config.Config, error) {
 		config.WithIdempotency(true),
 	}
 
-	// v3 requires exactly one auth source. When PLUGIN_AUTH_ENABLED is unset,
-	// FromEnvironment doesn't install one — add an explicit Anonymous opt-out
-	// so the demo runs against a local stack with auth disabled.
+	// v3 requires exactly one auth source. When PLUGIN_AUTH_ENABLED is unset or
+	// false, require an explicit demo-only anonymous mode instead of silently
+	// removing auth from a production-shaped run.
 	if os.Getenv("PLUGIN_AUTH_ENABLED") != "true" {
+		if os.Getenv("DEMO_AUTH_MODE") != "anonymous-local" {
+			return nil, errors.New("auth is disabled; set DEMO_AUTH_MODE=anonymous-local only for an unsecured local Midaz stack, or configure Access Manager with PLUGIN_AUTH_ENABLED=true")
+		}
+
 		opts = append(opts, config.WithAnonymous())
 	}
 

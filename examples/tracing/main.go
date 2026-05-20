@@ -25,7 +25,7 @@ func main() {
 		observability.WithEnvironment("development"),
 		observability.WithComponentEnabled(true, true, true),  // Enable tracing, metrics, and logging
 		observability.WithCollectorEndpoint("localhost:4317"), // Optional: OTLP gRPC collector host:port
-		observability.WithHighTracingSampling(),               // High sampling for development
+		observability.WithCollectorInsecure(true),             // Plaintext local collector only
 		observability.WithPropagationHeaders("traceparent", "tracestate", "baggage", "x-request-id"),
 	)
 	if err != nil {

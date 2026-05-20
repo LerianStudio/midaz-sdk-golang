@@ -11,12 +11,16 @@ archives:
       {{- if eq .Arch "amd64" }}x86_64
       {{- else if eq .Arch "386" }}i386
       {{- else }}{{ .Arch }}{{ end }}
-    format: zip
+    formats:
+      - zip
     files:
       - LICENSE.md
       - README.md
       - CHANGELOG.md
-      - examples/**/*
+      # Keep the examples archive surface source-only. This intentionally
+      # excludes example .env files, generated demo outputs, and binaries.
+      - examples/**/*.go
+      - examples/**/*.md
       - midaz.go
       - midaz_options.go
       - types.go
@@ -31,7 +35,7 @@ checksum:
   name_template: "checksums.txt"
 
 snapshot:
-  name_template: "{{ incpatch .Version }}-next"
+  version_template: "{{ incpatch .Version }}-next"
 
 changelog:
   sort: asc

@@ -92,3 +92,22 @@ func TestSelectDemoRoutesRequiresDefaultRoutes(t *testing.T) {
 	require.Contains(t, err.Error(), "operation route Destination: Customer (CHECKING)")
 	require.Contains(t, err.Error(), "transaction route External Funding Flow")
 }
+
+func TestCreateSDKConfigRequiresExplicitAnonymousModeWhenAuthDisabled(t *testing.T) {
+	t.Setenv("PLUGIN_AUTH_ENABLED", "false")
+
+	_, err := createSDKConfig()
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "DEMO_AUTH_MODE=anonymous-local")
+}
+
+func TestCreateSDKConfigAllowsExplicitAnonymousLocalMode(t *testing.T) {
+	t.Setenv("PLUGIN_AUTH_ENABLED", "false")
+	t.Setenv("DEMO_AUTH_MODE", "anonymous-local")
+
+	cfg, err := createSDKConfig()
+
+	require.NoError(t, err)
+	require.True(t, cfg.Anonymous)
+}

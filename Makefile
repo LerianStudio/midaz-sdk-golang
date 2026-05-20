@@ -49,7 +49,9 @@ MODULE := $(shell $(GO) list -m)
 
 # Environment variables
 ENV_FILE := $(PROJECT_ROOT)/.env
-ENV_EXAMPLE_FILE := $(PROJECT_ROOT)/.env.example
+ENV_TEMPLATE ?= .env.local.example
+COVERAGE_THRESHOLD ?= 80.0
+DEMO_AUTH_MODE ?= anonymous-local
 
 # Load environment variables if .env exists
 ifneq (,$(wildcard .env))
@@ -74,7 +76,8 @@ help:
 	@echo "Core Commands:"
 	@echo "  make help                        - Display this help message"
 	@echo "  make ci                          - Run the SDK CI pipeline locally"
-	@echo "  make set-env                     - Create .env file from .env.example if it doesn't exist"
+	@echo "  make set-env                     - Create .env from ENV_TEMPLATE (default: .env.local.example)"
+	@echo "  make set-env FORCE=1             - Backup and overwrite an existing .env"
 	@echo "  make test                        - Run all tests"
 	@echo "  make test-fast                   - Run tests with -short flag"
 	@echo "  make clean                       - Clean build artifacts"
@@ -87,6 +90,7 @@ help:
 	@echo "  make verify-sdk                  - Run SDK quality checks"
 	@echo "  make hooks                       - Install git hooks"
 	@echo "  make gosec                       - Run security checks with gosec"
+	@echo "  make gosec-audit                 - Run deeper scheduled gosec audit checks"
 	@echo ""
 	@echo "Example Commands:"
 	@echo "  make example                     - Run complete workflow example"
@@ -108,23 +112,25 @@ help:
 
 set-env:
 	$(call print_header,"Setting up environment")
-	@if [ ! -f "$(ENV_FILE)" ] && [ -f "$(ENV_EXAMPLE_FILE)" ]; then \
-		echo "$(YELLOW)No .env file found. Creating from .env.example...$(NC)"; \
-		cp $(ENV_EXAMPLE_FILE) $(ENV_FILE); \
-		echo "$(GREEN)[ok]$(NC) Created .env file from .env.example$(GREEN) ✔️$(NC)"; \
-	elif [ ! -f "$(ENV_FILE)" ] && [ ! -f "$(ENV_EXAMPLE_FILE)" ]; then \
-		echo "$(RED)[error]$(NC) Neither .env nor .env.example files found$(RED) ❌$(NC)"; \
+	@template="$(ENV_TEMPLATE)"; \
+	case "$$template" in /*) template_path="$$template" ;; *) template_path="$(PROJECT_ROOT)/$$template" ;; esac; \
+	if [ ! -f "$$template_path" ]; then \
+		echo "$(RED)[error]$(NC) Environment template not found: $$template_path$(RED) ❌$(NC)"; \
+		echo "Available templates: .env.local.example, .env.production.example"; \
 		exit 1; \
-	elif [ -f "$(ENV_FILE)" ]; then \
-		read -t 10 -p "$(YELLOW).env file already exists. Overwrite with .env.example? [Y/n] (auto-yes in 10s)$(NC) " answer || answer="Y"; \
-		answer=$${answer:-Y}; \
-		if [[ $$answer =~ ^[Yy] ]]; then \
-			cp $(ENV_EXAMPLE_FILE) $(ENV_FILE); \
-			echo "$(GREEN)[ok]$(NC) Overwrote .env file with .env.example$(GREEN) ✔️$(NC)"; \
-		else \
-			echo "$(YELLOW)[skipped]$(NC) Kept existing .env file$(YELLOW) ⚠️$(NC)"; \
-		fi; \
-	fi
+	fi; \
+	if [ -f "$(ENV_FILE)" ] && [ "$(FORCE)" != "1" ]; then \
+		echo "$(YELLOW)[skipped]$(NC) .env already exists. Re-run with FORCE=1 to overwrite after backup.$(YELLOW) ⚠️$(NC)"; \
+		echo "Example: make set-env ENV_TEMPLATE=$$template FORCE=1"; \
+		exit 0; \
+	fi; \
+	if [ -f "$(ENV_FILE)" ]; then \
+		backup="$(ENV_FILE).backup.$$(date +%Y%m%d%H%M%S)"; \
+		cp "$(ENV_FILE)" "$$backup"; \
+		echo "$(YELLOW)[backup]$(NC) Existing .env backed up to $$backup"; \
+	fi; \
+	cp "$$template_path" "$(ENV_FILE)"; \
+	echo "$(GREEN)[ok]$(NC) Created .env from $$template$(GREEN) ✔️$(NC)"
 
 #-------------------------------------------------------
 # SDK Quality Check Targets
@@ -184,7 +190,13 @@ test-fast:
 
 coverage:
 	$(call print_header,"Generating test coverage")
-	@$(GOTEST) -coverprofile=$(ARTIFACTS_DIR)/coverage.out $$(go list ./... | grep -v -E '(examples|mocks|/version$$)')
+	@$(GOTEST) -coverprofile=$(ARTIFACTS_DIR)/coverage.out $$(go list ./... | grep -v -E '(examples|mocks)')
+	@coverage=$$($(GOTOOL) cover -func=$(ARTIFACTS_DIR)/coverage.out | awk '/^total:/ {print $$3}' | tr -d '%'); \
+		echo "Total coverage: $${coverage}% (threshold: $(COVERAGE_THRESHOLD)%)"; \
+		awk -v coverage="$$coverage" -v threshold="$(COVERAGE_THRESHOLD)" 'BEGIN { exit !(coverage + 0 >= threshold + 0) }' || { \
+			echo "$(RED)[error]$(NC) Coverage $${coverage}% is below threshold $(COVERAGE_THRESHOLD)%$(RED) ❌$(NC)"; \
+			exit 1; \
+		}
 	@$(GOTOOL) cover -html=$(ARTIFACTS_DIR)/coverage.out -o $(ARTIFACTS_DIR)/coverage.html
 	@echo "Coverage report generated at $(ARTIFACTS_DIR)/coverage.html"
 	@echo "$(GREEN)[ok]$(NC) Coverage report generated successfully"
@@ -193,7 +205,7 @@ coverage:
 # Code Quality Commands
 #-------------------------------------------------------
 
-.PHONY: lint fmt tidy gosec
+.PHONY: lint fmt tidy gosec gosec-audit
 
 lint:
 	$(call print_header,"Running linters")
@@ -225,6 +237,12 @@ gosec:
 	@$(GOSEC) -quiet ./...
 	@echo "$(GREEN)[ok]$(NC) Security checks completed successfully$(GREEN) ✔️$(NC)"
 
+gosec-audit:
+	$(call print_header,"Running security audit checks")
+	@echo "$(CYAN)Running gosec audit scanner ($(GOSEC_VERSION))...$(NC)"
+	@$(GOSEC) -quiet -enable-audit -exclude=G104 ./...
+	@echo "$(GREEN)[ok]$(NC) Security audit checks completed successfully$(GREEN) ✔️$(NC)"
+
 #-------------------------------------------------------
 # Clean Commands
 #-------------------------------------------------------
@@ -247,8 +265,17 @@ clean:
 example:
 	$(call print_header,"Running Complete Workflow Example")
 	$(call print_header,"Make sure the Midaz Stack is running --default is localhost")
-	@cp $(ENV_FILE) examples/workflow-with-entities/.env
-	@cd examples/workflow-with-entities && go run main.go
+	@if [ ! -f "$(ENV_FILE)" ]; then \
+		echo "$(RED)[error]$(NC) Missing $(ENV_FILE). Run 'make set-env' or export the required MIDAZ_* variables.$(RED) ❌$(NC)"; \
+		exit 1; \
+	fi; \
+	while IFS='=' read -r key value; do \
+		case "$$key" in ''|'#'*) continue ;; esac; \
+		case "$$key" in *[!A-Za-z0-9_]*|[0-9]*) continue ;; esac; \
+		value=$${value%\"}; value=$${value#\"}; \
+		export "$$key=$$value"; \
+	done < "$(ENV_FILE)"; \
+	cd examples/workflow-with-entities && go run main.go
 
 .PHONY: demo-data demo-data-interactive
 
@@ -257,7 +284,7 @@ DEMO_NON_INTERACTIVE ?= 1
 demo-data:
 	$(call print_header,Running Mass Demo Data Generator)
 	$(call print_header,Ensure Midaz Ledger is on localhost:3002/v1 and CRM is on localhost:4003/v1 or set MIDAZ_* URLs)
-	@DEMO_NON_INTERACTIVE=$(DEMO_NON_INTERACTIVE) go run ./examples/mass-demo-generator
+	@DEMO_AUTH_MODE=$(DEMO_AUTH_MODE) DEMO_NON_INTERACTIVE=$(DEMO_NON_INTERACTIVE) go run ./examples/mass-demo-generator
 
 demo-data-interactive:
 	@$(MAKE) demo-data DEMO_NON_INTERACTIVE=0

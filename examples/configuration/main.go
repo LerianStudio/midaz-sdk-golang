@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/auth"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
 )
 
@@ -100,22 +101,25 @@ func environmentBasedConfiguration() error {
 		return fmt.Errorf("failed to create local client: %w", err)
 	}
 
-	// Staging/Development environment
-	stagingClient, err := midaz.New(
-		midaz.WithEnvironment(config.EnvironmentDevelopment),
-		midaz.WithAnonymous(),
+	// Staging/Development configuration. Access Manager placeholders show the
+	// production-shaped auth posture without requiring a live token endpoint for
+	// this runnable example.
+	stagingConfig, err := config.NewConfig(
+		config.WithEnvironment(config.EnvironmentDevelopment),
+		config.WithAccessManager(auth.AccessManager{Address: "https://auth.dev.midaz.io", ClientID: "<client-id>", ClientSecret: "<client-secret>"}),
 	)
 	if err != nil {
-		return fmt.Errorf("failed to create staging client: %w", err)
+		return fmt.Errorf("failed to create staging config: %w", err)
 	}
 
-	// Production environment
-	productionClient, err := midaz.New(
-		midaz.WithEnvironment(config.EnvironmentProduction),
-		midaz.WithAnonymous(),
+	// Production configuration uses Access Manager. Do not use WithAnonymous for
+	// production unless an external gateway owns auth and the risk is explicit.
+	productionConfig, err := config.NewConfig(
+		config.WithEnvironment(config.EnvironmentProduction),
+		config.WithAccessManager(auth.AccessManager{Address: "https://auth.midaz.io", ClientID: "<client-id>", ClientSecret: "<client-secret>"}),
 	)
 	if err != nil {
-		return fmt.Errorf("failed to create production client: %w", err)
+		return fmt.Errorf("failed to create production config: %w", err)
 	}
 
 	// Display the different URLs for each environment
@@ -124,12 +128,12 @@ func environmentBasedConfiguration() error {
 	fmt.Printf("  Transaction: %s\n", localClient.GetConfig().ServiceURLs[config.ServiceTransaction])
 
 	fmt.Println("Staging Environment URLs:")
-	fmt.Printf("  Onboarding: %s\n", stagingClient.GetConfig().ServiceURLs[config.ServiceOnboarding])
-	fmt.Printf("  Transaction: %s\n", stagingClient.GetConfig().ServiceURLs[config.ServiceTransaction])
+	fmt.Printf("  Onboarding: %s\n", stagingConfig.ServiceURLs[config.ServiceOnboarding])
+	fmt.Printf("  Transaction: %s\n", stagingConfig.ServiceURLs[config.ServiceTransaction])
 
 	fmt.Println("Production Environment URLs:")
-	fmt.Printf("  Onboarding: %s\n", productionClient.GetConfig().ServiceURLs[config.ServiceOnboarding])
-	fmt.Printf("  Transaction: %s\n", productionClient.GetConfig().ServiceURLs[config.ServiceTransaction])
+	fmt.Printf("  Onboarding: %s\n", productionConfig.ServiceURLs[config.ServiceOnboarding])
+	fmt.Printf("  Transaction: %s\n", productionConfig.ServiceURLs[config.ServiceTransaction])
 	fmt.Println()
 
 	return nil
@@ -191,22 +195,16 @@ func configurationFromEnvironment() error {
 		return fmt.Errorf("failed to load environment config: %w", err)
 	}
 
-	// Create a client with the environment-backed config.
-	c, err := midaz.New(
-		midaz.WithConfig(cfg),
-	)
-	if err != nil {
-		return fmt.Errorf("failed to create client: %w", err)
-	}
-
-	// Display the configuration loaded from environment variables
-	pluginAuth := c.GetConfig().GetPluginAuth()
+	// Display the configuration loaded from environment variables. We do not
+	// construct a client here because midaz.New eagerly fetches an Access Manager
+	// token, and this example uses placeholder local credentials.
+	pluginAuth := cfg.GetPluginAuth()
 	fmt.Printf("Plugin Auth Enabled (from env): %t\n", pluginAuth.Enabled)
 	fmt.Printf("Plugin Auth Address (from env): %s\n", pluginAuth.Address)
-	fmt.Printf("Environment (from env): %s\n", c.GetConfig().Environment)
-	fmt.Printf("Debug Mode (from env): %t\n", c.GetConfig().Debug)
-	fmt.Printf("Onboarding URL: %s\n", c.GetConfig().ServiceURLs[config.ServiceOnboarding])
-	fmt.Printf("Transaction URL: %s\n", c.GetConfig().ServiceURLs[config.ServiceTransaction])
+	fmt.Printf("Environment (from env): %s\n", cfg.Environment)
+	fmt.Printf("Debug Mode (from env): %t\n", cfg.Debug)
+	fmt.Printf("Onboarding URL: %s\n", cfg.ServiceURLs[config.ServiceOnboarding])
+	fmt.Printf("Transaction URL: %s\n", cfg.ServiceURLs[config.ServiceTransaction])
 	fmt.Println()
 
 	return nil
@@ -268,6 +266,7 @@ func comprehensiveConfiguration() error {
 	// Create a configuration with extensive options
 	cfg, err := config.NewConfig(
 		config.WithEnvironment(config.EnvironmentProduction),
+		config.WithAccessManager(auth.AccessManager{Address: "https://auth.midaz.io", ClientID: "<client-id>", ClientSecret: "<client-secret>"}),
 		config.WithUserAgent("MyApp/1.0"),
 		config.WithTimeout(45*time.Second),
 		// Retry knobs are now individual single-concern Options. Chain them
@@ -275,36 +274,26 @@ func comprehensiveConfiguration() error {
 		config.WithMaxRetries(3),
 		config.WithRetryWaitMin(500*time.Millisecond),
 		config.WithRetryWaitMax(5*time.Second),
-		config.WithDebug(true),
 		config.WithIdempotency(true),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create config: %w", err)
 	}
 
-	// Use the config in the client. WithAnonymous opts out of auth at the
-	// client layer; for production you would replace it with WithAccessManager.
-	c, err := midaz.New(
-		midaz.WithConfig(cfg),
-		midaz.WithAnonymous(),
-	)
-	if err != nil {
-		return fmt.Errorf("failed to create client: %w", err)
-	}
-
-	// Display the comprehensive configuration settings
-	fmt.Printf("Plugin Auth Enabled: %t\n", c.GetConfig().GetPluginAuth().Enabled)
-	fmt.Printf("Environment: %s\n", c.GetConfig().Environment)
-	fmt.Printf("User Agent: %s\n", c.GetConfig().UserAgent)
-	fmt.Printf("Timeout: %s\n", c.GetConfig().Timeout)
-	fmt.Printf("Max Retries: %d\n", c.GetConfig().MaxRetries)
-	fmt.Printf("Retry Wait Min: %s\n", c.GetConfig().RetryWaitMin)
-	fmt.Printf("Retry Wait Max: %s\n", c.GetConfig().RetryWaitMax)
-	fmt.Printf("Enable Retries: %t\n", c.GetConfig().MaxRetries > 0)
-	fmt.Printf("Debug Mode: %t\n", c.GetConfig().Debug)
-	fmt.Printf("Enable Idempotency: %t\n", c.GetConfig().EnableIdempotency)
-	fmt.Printf("Onboarding URL: %s\n", c.GetConfig().ServiceURLs[config.ServiceOnboarding])
-	fmt.Printf("Transaction URL: %s\n", c.GetConfig().ServiceURLs[config.ServiceTransaction])
+	// Display the comprehensive configuration settings without contacting the
+	// placeholder Access Manager endpoint.
+	fmt.Printf("Plugin Auth Enabled: %t\n", cfg.GetPluginAuth().Enabled)
+	fmt.Printf("Environment: %s\n", cfg.Environment)
+	fmt.Printf("User Agent: %s\n", cfg.UserAgent)
+	fmt.Printf("Timeout: %s\n", cfg.Timeout)
+	fmt.Printf("Max Retries: %d\n", cfg.MaxRetries)
+	fmt.Printf("Retry Wait Min: %s\n", cfg.RetryWaitMin)
+	fmt.Printf("Retry Wait Max: %s\n", cfg.RetryWaitMax)
+	fmt.Printf("Enable Retries: %t\n", cfg.MaxRetries > 0)
+	fmt.Printf("Debug Mode: %t\n", cfg.Debug)
+	fmt.Printf("Enable Idempotency: %t\n", cfg.EnableIdempotency)
+	fmt.Printf("Onboarding URL: %s\n", cfg.ServiceURLs[config.ServiceOnboarding])
+	fmt.Printf("Transaction URL: %s\n", cfg.ServiceURLs[config.ServiceTransaction])
 	fmt.Println()
 
 	return nil

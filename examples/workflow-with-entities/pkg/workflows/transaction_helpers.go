@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3"
@@ -53,8 +54,10 @@ func DemonstrateTransactionHelpers(ctx context.Context, midazClient *midaz.Clien
 		return err
 	}
 
-	if err := demonstrateBatchTransactions(ctx, customerAccount, merchantAccount); err != nil {
-		return err
+	if strings.EqualFold(os.Getenv("WORKFLOW_SHOW_BATCH_PREVIEW"), "true") {
+		if err := demonstrateBatchTransactions(ctx, customerAccount, merchantAccount); err != nil {
+			return err
+		}
 	}
 
 	observability.AddEvent(ctx, "TransactionHelpersDemonstrated", nil)
@@ -156,7 +159,7 @@ func demonstrateBatchTransactions(ctx context.Context, customerAccount, merchant
 
 	fmt.Printf("\n\n📋 Batch transactions prepared (not executed - batch feature not yet implemented)\n")
 	fmt.Printf("   Total Transactions: %d\n", len(batchInputs))
-	fmt.Printf("   This feature will be implemented in future versions\n")
+	fmt.Printf("   Set WORKFLOW_SHOW_BATCH_PREVIEW=true only when you want to inspect prepared demo inputs\n")
 
 	return nil
 }

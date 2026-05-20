@@ -23,6 +23,19 @@ PACKAGES_WITHOUT_TESTS=()
 # Array to store failing packages/tests
 FAILED_PACKAGES=()
 
+is_test_exempt_package() {
+    local pkg="$1"
+
+    # Generated mocks are compile-time support code and are validated through
+    # the packages that consume them. Examples are excluded from PACKAGES above
+    # and covered by `make examples-test`.
+    [[ "$pkg" == *"/mocks"* ]] && return 0
+    [[ "$pkg" == *"/mock"* ]] && return 0
+    [[ "$pkg" == *"/generated"* ]] && return 0
+
+    return 1
+}
+
 # Run tests for each package individually
 for pkg in $PACKAGES; do
     echo -e "Testing package: ${BOLD}$pkg${NC}"
@@ -32,8 +45,8 @@ for pkg in $PACKAGES; do
     if go list -f '{{.TestGoFiles}}{{.XTestGoFiles}}' $pkg | grep -q "\[\]\[\]"; then
         echo -e "${BOLD}No test files found${NC}\n"
         
-        # Skip mock packages when reporting
-        if ! [[ "$pkg" == *"/mocks"* ]]; then
+        # Skip only explicit support-code exemptions when reporting.
+        if ! is_test_exempt_package "$pkg"; then
             PACKAGES_WITHOUT_TESTS+=("$pkg")
         fi
         continue
@@ -67,13 +80,14 @@ done
 
 # Print summary of packages without tests
 if [ ${#PACKAGES_WITHOUT_TESTS[@]} -gt 0 ]; then
-    echo -e "\n${YELLOW}${BOLD}Summary of Packages Without Tests (excluding mocks and examples):${NC}"
-    echo -e "${YELLOW}----------------------------------------${NC}"
+    OVERALL_SUCCESS=false
+    echo -e "\n${RED}${BOLD}Summary of Non-Exempt Packages Without Tests:${NC}"
+    echo -e "${RED}----------------------------------------${NC}"
     for pkg in "${PACKAGES_WITHOUT_TESTS[@]}"; do
-        echo -e "${YELLOW}• $pkg${NC}"
+        echo -e "${RED}• $pkg${NC}"
     done
-    echo -e "${YELLOW}----------------------------------------${NC}"
-    echo -e "${YELLOW}Total: ${#PACKAGES_WITHOUT_TESTS[@]} package(s) without tests${NC}\n"
+    echo -e "${RED}----------------------------------------${NC}"
+    echo -e "${RED}Total: ${#PACKAGES_WITHOUT_TESTS[@]} non-exempt package(s) without tests${NC}\n"
 fi
 
 # Print summary of failing tests
