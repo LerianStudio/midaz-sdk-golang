@@ -175,7 +175,7 @@ For raw DSL file content, use `CreateTransactionWithDSLFile(ctx, orgID, ledgerID
 
 ## Using pagination
 
-v3 ships every list method in a trio: `List` (one page), `ListXxxAll` (every item across pages), and `ListXxxPages` (every page envelope). Use `iter.Seq2` for auto-paging — the SDK advances cursors and pages internally:
+v3 ships every paginated entity list method in a trio: `List` (one page), `ListXxxAll` (every item across pages), and `ListXxxPages` (every page envelope). `MetadataIndexes.ListMetadataIndexes` is intentionally non-paginated. Use `iter.Seq2` for auto-paging — the SDK advances cursors and pages internally:
 
 ```go
 opts := models.AccountsListOpts{
@@ -233,24 +233,24 @@ Runnable examples live in `examples/`:
 
 **Start here**
 
-- `01-hello-world/` - Minimal init + first API call (≤30 lines). *(added in 9B)*
+- `01-hello-world/` - Minimal init + first API call (≤30 lines).
 - `02-auth/` - Access Manager authentication configuration.
 
 **Common workflows**
 
 - `03-end-to-end/` - Org → ledger → account → transaction.
 - `04-listing-cursor/` - Paginate transactions with `iter.Seq2`.
-- `05-listing-pages/` - Paginate accounts with page metadata. *(added in 9B)*
+- `05-listing-pages/` - Paginate accounts with page metadata.
 
 **Behavior & resilience**
 
-- `06-idempotency/` - Auto, manual, and per-call opt-out. *(added in 9B)*
+- `06-idempotency/` - Auto, manual, and per-call opt-out.
 - `07-retries/` - Default policy, custom policy, disabled.
 - `08-logging-slog/` - `*slog.Logger` integration.
 
 **Testing & observability**
 
-- `09-testing-with-mocks/` - `go.uber.org/mock` for unit tests. *(added in 9C)*
+- `09-testing-with-mocks/` - `go.uber.org/mock` for unit tests.
 - `10-observability-otel/` - OpenTelemetry tracing + metrics + logs.
 
 **Reference / advanced**
@@ -282,14 +282,14 @@ Interactive mode:
 
 ```bash
 cd examples/mass-demo-generator
-go run .
+DEMO_AUTH_MODE=anonymous-local go run .
 ```
 
 Non-interactive mode:
 
 ```bash
 cd examples/mass-demo-generator
-DEMO_NON_INTERACTIVE=1 go run . \
+DEMO_NON_INTERACTIVE=1 DEMO_AUTH_MODE=anonymous-local go run . \
   --orgs=3 \
   --ledgers=2 \
   --accounts=50 \
@@ -330,6 +330,7 @@ The generator also reads non-interactive defaults from `examples/mass-demo-gener
 - `DEMO_ASSET_CODE` - Asset code used by the batch demo.
 - `DEMO_CHART_GROUP` - Chart of accounts group for transaction creation.
 - `DEMO_LOCALE` - Organization locale (`us` or `br`).
+- `DEMO_AUTH_MODE=anonymous-local` - Explicitly allow anonymous auth for an unsecured local Midaz stack when `PLUGIN_AUTH_ENABLED` is not `true`.
 
 Configuration precedence is explicit CLI flag, then `DEMO_*` environment variable, then `default.yaml`, then hardcoded fallback.
 
@@ -360,7 +361,7 @@ rm -f examples/mass-demo-generator/mass-demo-report.* examples/mass-demo-generat
 Small demo dataset:
 
 ```bash
-DEMO_NON_INTERACTIVE=1 go run . \
+DEMO_NON_INTERACTIVE=1 DEMO_AUTH_MODE=anonymous-local go run . \
   --orgs=1 \
   --ledgers=1 \
   --accounts=10 \
@@ -371,7 +372,7 @@ DEMO_NON_INTERACTIVE=1 go run . \
 Larger performance dataset:
 
 ```bash
-DEMO_NON_INTERACTIVE=1 go run . \
+DEMO_NON_INTERACTIVE=1 DEMO_AUTH_MODE=anonymous-local go run . \
 	--timeout=1800 \
   --orgs=10 \
   --ledgers=3 \
@@ -384,13 +385,13 @@ DEMO_NON_INTERACTIVE=1 go run . \
 Brazilian organization demo:
 
 ```bash
-DEMO_NON_INTERACTIVE=1 go run . --org-locale=br
+DEMO_NON_INTERACTIVE=1 DEMO_AUTH_MODE=anonymous-local go run . --org-locale=br
 ```
 
 CI-friendly bounded run:
 
 ```bash
-DEMO_NON_INTERACTIVE=1 go run . \
+DEMO_NON_INTERACTIVE=1 DEMO_AUTH_MODE=anonymous-local go run . \
   --timeout=120 \
   --orgs=1 \
   --ledgers=1 \

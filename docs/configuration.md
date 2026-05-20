@@ -39,10 +39,17 @@ concerns like the logger or per-request retry overrides).
 ```go
 client, err := midaz.New(
     midaz.WithEnvironment(midaz.EnvironmentProduction),
+    midaz.WithAccessManager(midaz.AccessManager{
+        Address:      os.Getenv("PLUGIN_AUTH_ADDRESS"),
+        ClientID:     os.Getenv("MIDAZ_CLIENT_ID"),
+        ClientSecret: os.Getenv("MIDAZ_CLIENT_SECRET"),
+    }),
     midaz.WithTimeout(45*time.Second),
     midaz.WithUserAgent("my-app/2.0"),
-    midaz.WithDebug(true),
 )
+if err != nil {
+    return err
+}
 ```
 
 **You should reach for this surface 95% of the time.**
@@ -52,6 +59,7 @@ The full list (v3):
 | Option | Concern |
 |---|---|
 | `WithAccessManager` | Plugin-based authentication (OAuth M2M) |
+| `WithAllowInsecureAccessManagerHTTP` | Permit non-loopback `http://` Access Manager URLs for trusted in-cluster networks |
 | `WithAnonymous` | Disable authentication (testing/local) |
 | `WithBaseURL` | Override service base URL |
 | `WithConfig` | Use a pre-built `*config.Config` (advanced) |
@@ -59,7 +67,7 @@ The full list (v3):
 | `WithCRMURL` | Override CRM service URL |
 | `WithCustomRetryPolicy` | Per-response retry decision callback |
 | `WithDebug` | Enable verbose request/response logging |
-| `WithEnvironment` | Select prod / dev / sandbox / local |
+| `WithEnvironment` | Select production / development / local |
 | `WithErrorBodyExposure` | Toggle raw upstream 4xx/5xx response body exposure on SDK errors |
 | `WithHTTPClient` | Replace the underlying `*http.Client` |
 | `WithIdempotency` | Toggle automatic `X-Idempotency` header |
@@ -92,30 +100,37 @@ layer:
 
 ```go
 // Pattern (1): build cfg separately
-cfg, _ := config.NewConfig(
+cfg, err := config.NewConfig(
     config.WithEnvironment(config.EnvironmentProduction),
+    config.WithAccessManager(auth.AccessManager{
+        Address:      os.Getenv("PLUGIN_AUTH_ADDRESS"),
+        ClientID:     os.Getenv("MIDAZ_CLIENT_ID"),
+        ClientSecret: os.Getenv("MIDAZ_CLIENT_SECRET"),
+    }),
     config.WithUserAgent("worker-pool/1.0"),
     config.WithMaxRetries(5),         // valid Config-only knob
     config.WithRetryWaitMin(200*time.Millisecond),
     config.WithRetryWaitMax(10*time.Second),
 )
-client, _ := midaz.New(midaz.WithConfig(cfg))
+if err != nil { return err }
+client, err := midaz.New(midaz.WithConfig(cfg))
+if err != nil { return err }
 ```
 
 **Two-layer parity is enforced by CI.** The script at
 `scripts/check-config-parity.sh` runs in `make verify-sdk` (and therefore
 `make ci`) and fails the build if any `pkg/config.With*` Option is added
 without a matching `midaz.With*` wrapper, except for the three retry
-knobs in the documented allow-list. See Track 6 in `docs/v3-dx-plan.md`
-for context.
+knobs in the documented allow-list.
 
 ### 1.3 `Config` struct — the state
 
 The actual configuration lives on `*config.Config`. After construction you
-can read fields via `client.GetConfig()` (returns the live pointer; do not
-mutate) or `client.GetConfiguration()` (returns a deep clone safe to
-mutate). Direct struct mutation post-construction is supported but
-unrecommended — prefer the post-construction setters listed in section 1.4.
+can read fields via `client.GetConfig()` or `client.GetConfiguration()`.
+Both methods return an independent clone, not the live client configuration.
+Mutating the returned value does not change the running client. Direct struct
+mutation post-construction is not a runtime-tuning mechanism — prefer the
+post-construction setters listed in section 1.4.
 
 ```go
 fmt.Printf("environment: %s\n", client.GetConfig().Environment)
@@ -157,7 +172,7 @@ import "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
 ctx := sdkctx.WithIdempotencyKey(context.Background(), "user-action-42-2026-05-06")
 
 // This single call uses the explicit key instead of an auto-generated UUID.
-err := client.Transactions.CreateTransaction(ctx, input)
+_, err := client.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
 ```
 
 The full list:
@@ -166,6 +181,7 @@ The full list:
 |---|---|
 | `sdkctx.WithIdempotencyKey(ctx, key)` | Set an explicit `X-Idempotency` header (overrides auto-generation) |
 | `sdkctx.WithoutAutoIdempotency(ctx)` | Skip auto-generation of `X-Idempotency` for this request |
+| `sdkctx.WithoutHTTPRetries(ctx)` | Suppress the SDK HTTP retry loop for this request |
 | `sdkctx.WithIncludeDeleted(ctx, true)` | Include soft-deleted resources in list responses |
 | `sdkctx.WithHardDelete(ctx, true)` | Use hard-delete instead of soft-delete |
 
@@ -239,7 +255,7 @@ environment.
 
 | Variable | Type | Default | Behavior |
 |---|---|---|---|
-| `MIDAZ_ENVIRONMENT` | enum | `local` | One of `production`, `development`, `sandbox`, `local` |
+| `MIDAZ_ENVIRONMENT` | enum | `local` | One of `production`, `development`, `local` |
 | `MIDAZ_BASE_URL` | URL | (env-derived) | Override the unified base URL for all services |
 | `MIDAZ_ONBOARDING_URL` | URL | (env-derived) | Override only the Onboarding service URL |
 | `MIDAZ_TRANSACTION_URL` | URL | (env-derived) | Override only the Transaction service URL |
@@ -249,12 +265,12 @@ environment.
 | `MIDAZ_DEBUG` | bool | `false` | Enable verbose request/response logging (also upgrades the default logger to stderr) |
 | `MIDAZ_MAX_RETRIES` | int | `3` | Maximum retry attempts; `0` disables retries |
 | `MIDAZ_IDEMPOTENCY` | bool | `true` | Toggle automatic `X-Idempotency` header generation |
-| `MIDAZ_ERROR_EXPOSE_BODY` | bool | `true` | Attach raw upstream 4xx/5xx response bodies to SDK errors. Bodies are not redacted by the SDK; they are only truncated. |
-| `MIDAZ_SKIP_AUTH_CHECK` | bool | `false` | **Test plumbing only.** Disables the construction-time check that fails when `PLUGIN_AUTH_ENABLED=true` is set without a complete Access Manager configuration. Bypassing the check hides misconfigurations until runtime, where they surface as 401 cascades. Never set this in production deployments. |
+| `MIDAZ_ERROR_EXPOSE_BODY` | bool | `false` | Attach raw upstream 4xx/5xx response bodies to SDK errors. Bodies are not redacted by the SDK; enable only for tightly controlled diagnostics and never as a production default. |
 | `PLUGIN_AUTH_ENABLED` | bool | `false` | Enable plugin-based OAuth authentication |
 | `PLUGIN_AUTH_ADDRESS` | URL | — | Auth plugin endpoint (required when `PLUGIN_AUTH_ENABLED=true`) |
 | `MIDAZ_CLIENT_ID` | string | — | OAuth M2M client ID (required when `PLUGIN_AUTH_ENABLED=true`) |
 | `MIDAZ_CLIENT_SECRET` | string | — | OAuth M2M client secret (required when `PLUGIN_AUTH_ENABLED=true`) |
+| `MIDAZ_ACCESS_MANAGER_ALLOW_INSECURE_HTTP` | bool | `false` | Permit non-loopback `http://` Access Manager URLs for trusted in-cluster networks. Not allowed with `MIDAZ_ENVIRONMENT=production`. |
 
 > Boolean parsing uses Go's [`strconv.ParseBool`](https://pkg.go.dev/strconv#ParseBool)
 > and accepts only its canonical forms: `1`, `t`, `T`, `TRUE`, `true`, `True`,
@@ -307,23 +323,33 @@ auto-generated key for a specific call:
 // Use an explicit key (e.g. derived from a user-action ID):
 ctx := sdkctx.WithIdempotencyKey(context.Background(),
     fmt.Sprintf("user-%d-action-%s", userID, actionUUID))
-client.Transactions.CreateTransaction(ctx, input)
+_, err := client.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
 
 // Skip auto-generation entirely (caller does NOT want the header):
 ctx := sdkctx.WithoutAutoIdempotency(context.Background())
-client.Transactions.CreateTransaction(ctx, input)
+_, err = client.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
 ```
 
-### 4.2 Soft-delete vs hard-delete
+### 4.2 Retry suppression
+
+Use `WithoutHTTPRetries` when a higher-level operation already owns the retry
+budget and you need to avoid retry amplification:
+
+```go
+ctx := sdkctx.WithoutHTTPRetries(context.Background())
+_, err := client.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
+```
+
+### 4.3 Soft-delete vs hard-delete
 
 ```go
 // Include soft-deleted records in a list response:
 ctx := sdkctx.WithIncludeDeleted(context.Background(), true)
-list, _ := client.Accounts.ListAccounts(ctx, opts)
+list, _ := client.Accounts.ListAccounts(ctx, orgID, ledgerID, opts)
 
 // Hard-delete instead of soft-delete (irreversible; admin only):
 ctx := sdkctx.WithHardDelete(context.Background(), true)
-err := client.Accounts.DeleteAccount(ctx, accountID)
+err := client.Accounts.DeleteAccount(ctx, orgID, ledgerID, accountID)
 ```
 
 ---
@@ -350,10 +376,11 @@ func newClient() (*midaz.Client, error) {
 ### 5.2 Anonymous client (local/dev, no auth)
 
 ```go
-client, _ := midaz.New(
+client, err := midaz.New(
     midaz.WithEnvironment(midaz.EnvironmentLocal),
     midaz.WithAnonymous(),
 )
+if err != nil { return err }
 ```
 
 ### 5.3 Aggressive retries with custom error classification
@@ -361,16 +388,22 @@ client, _ := midaz.New(
 ```go
 import "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry"
 
-client, _ := midaz.New(
+client, err := midaz.New(
     midaz.WithEnvironment(midaz.EnvironmentProduction),
+    midaz.WithAccessManager(midaz.AccessManager{
+        Address:      os.Getenv("PLUGIN_AUTH_ADDRESS"),
+        ClientID:     os.Getenv("MIDAZ_CLIENT_ID"),
+        ClientSecret: os.Getenv("MIDAZ_CLIENT_SECRET"),
+    }),
     midaz.WithRetryOptions(
         retry.WithMaxRetries(5),
         retry.WithInitialDelay(200*time.Millisecond),
         retry.WithMaxDelay(10*time.Second),
         retry.WithJitterFactor(0.4),
-        retry.WithRetryableHTTPCodes([]int{408, 429, 500, 502, 503, 504}),
+        retry.WithRetryableHTTPCodes([]int{408, 425, 429, 500, 502, 503, 504}),
     ),
 )
+if err != nil { return err }
 ```
 
 ### 5.4 No retries (test posture)
@@ -378,6 +411,7 @@ client, _ := midaz.New(
 ```go
 client, _ := midaz.New(
     midaz.WithEnvironment(midaz.EnvironmentLocal),
+    midaz.WithAnonymous(),
     midaz.WithoutRetries(),
 )
 ```
@@ -396,6 +430,7 @@ provider, _ := observability.New(ctx,
 
 for _, am := range accessManagers {
     client, _ := midaz.New(
+        midaz.WithEnvironment(midaz.EnvironmentProduction),
         midaz.WithAccessManager(am),
         midaz.WithObservabilityProvider(provider),  // share, don't rebuild
     )
@@ -416,6 +451,7 @@ logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 }))
 
 client, _ := midaz.New(
+    midaz.WithAnonymous(),
     midaz.WithLogger(logger),
 )
 ```
@@ -424,6 +460,7 @@ client, _ := midaz.New(
 
 ```go
 client, _ := midaz.New(
+    midaz.WithAnonymous(),
     midaz.WithIdempotency(false),
 )
 // Now the SDK never generates X-Idempotency. The caller can still set
@@ -438,7 +475,7 @@ client, _ := midaz.New(
 - **`docs/multi-tenancy.md`** — Tenant scope via Access Manager/JWT claims.
 - **`docs/errors.md`** — `*errors.Error`, error categories,
   `IsConfigurationError`, retry classification.
-- **`docs/tracing.md`** — Configuring observability for distributed tracing.
+- **`docs/examples.md`** — Observability and tracing examples.
 - **godoc** — Every Option carries detailed godoc. Run `make godoc` to
   serve at `http://localhost:6060`.
 

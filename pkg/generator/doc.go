@@ -43,5 +43,5 @@
 //
 //   - examples/mass-demo-generator — runnable end-to-end consumer
 //   - [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/data] — catalogs
-//   - docs/v3-dx-plan.md — design rationale
+//   - docs/examples.md — example and generator usage guidance
 package generator

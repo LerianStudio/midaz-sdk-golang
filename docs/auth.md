@@ -7,7 +7,8 @@ The Midaz Go SDK has exactly two authentication paths in v3, and a client cannot
 | Path | When to use |
 | --- | --- |
 | [`midaz.WithAccessManager`](#access-manager-oauth-via-the-lerian-access-manager) | Production. Tokens are minted by the Lerian Access Manager service from your `clientId`/`clientSecret`. |
-| [`midaz.WithAnonymous`](#anonymous-mode-localdev-and-tests) | Explicit opt-out for an unsecured target stack, integration tests, or read-only inspection where the operator has confirmed the target endpoints don't require auth. |
+| `midaz.WithAllowInsecureAccessManagerHTTP` | Trusted in-cluster networks only. Permits non-loopback `http://` Access Manager URLs when HTTPS terminates outside the SDK path. |
+| [`midaz.WithAnonymous`](#anonymous-mode-localdev-and-tests) | Explicit caller-owned unsafe mode for an unsecured target stack, integration tests, or read-only inspection where the operator has confirmed the target endpoints don't require auth. Not recommended for production. |
 
 There is intentionally no static-token (`WithAuthToken`) option. Static-token deployments configure their Access Manager to mint tokens.
 
@@ -44,12 +45,23 @@ func main() {
 
 1. `midaz.New` validates the supplied `AccessManager`. `Address`, `ClientID`, and `ClientSecret` are all required.
 2. `Enabled` is auto-set to `true` — you do not touch the field. The act of calling `WithAccessManager` is the opt-in.
-3. `entities.NewEntityWithConfig` eagerly fetches an initial token from `Address` so misconfigurations surface as construction errors, not as 401s on the first request.
-4. The token is cached in-process and refreshed by the SDK on 401 responses.
+3. The SDK requires an explicit Midaz target when Access Manager is enabled. Set `WithEnvironment`, `WithBaseURL`, or a service-specific URL option so credentials are not paired with default local URLs by accident.
+4. `entities.NewEntityWithConfig` eagerly fetches an initial token from `Address` so misconfigurations surface as construction errors, not as 401s on the first request.
+5. The token is cached in-process and refreshed by the SDK on 401 responses.
+
+### Access Manager URL security
+
+Access Manager receives your `clientId` and `clientSecret`, so the SDK rejects plaintext remote token endpoints by default.
+
+- Use `https://` for production and remote environments.
+- Use plain `http://` only for loopback hosts such as `localhost` or `127.0.0.1`.
+- Use `midaz.WithAllowInsecureAccessManagerHTTP(true)` or `MIDAZ_ACCESS_MANAGER_ALLOW_INSECURE_HTTP=true` only for trusted in-cluster service names, such as a Kubernetes Service protected by a service mesh or private network segment.
+
+The insecure HTTP opt-in is rejected when the SDK environment is `production`. When you enable it for a non-production in-cluster target, `midaz.New` emits a warning so the override is visible in logs.
 
 ### Loading credentials from the environment
 
-`config.FromEnvironment()` reads `PLUGIN_AUTH_ENABLED`, `PLUGIN_AUTH_ADDRESS`, `MIDAZ_CLIENT_ID`, and `MIDAZ_CLIENT_SECRET`. Pass `WithConfig(config.NewConfig(config.FromEnvironment(), ...))` to opt in:
+`config.FromEnvironment()` reads `PLUGIN_AUTH_ENABLED`, `PLUGIN_AUTH_ADDRESS`, `MIDAZ_CLIENT_ID`, `MIDAZ_CLIENT_SECRET`, and `MIDAZ_ACCESS_MANAGER_ALLOW_INSECURE_HTTP`. Pass `WithConfig(config.NewConfig(config.FromEnvironment(), ...))` to opt in:
 
 ```go
 cfg, err := config.NewConfig(config.FromEnvironment())
@@ -60,7 +72,7 @@ if err != nil {
 c, err := midaz.New(midaz.WithConfig(cfg))
 ```
 
-When `PLUGIN_AUTH_ENABLED=true` is in the environment, the resulting config has `AccessManager.Enabled=true`, satisfies the auth-required gate, and behaves exactly as if `WithAccessManager` were called programmatically.
+When `PLUGIN_AUTH_ENABLED=true` is in the environment, the resulting config has `AccessManager.Enabled=true` and behaves exactly as if `WithAccessManager` were called programmatically. Validation still requires `PLUGIN_AUTH_ADDRESS`, `MIDAZ_CLIENT_ID`, `MIDAZ_CLIENT_SECRET`, and an explicit target through `MIDAZ_ENVIRONMENT`, `MIDAZ_BASE_URL`, or a service-specific URL.
 
 ## Anonymous mode (local-dev and tests)
 
@@ -87,7 +99,15 @@ func main() {
 }
 ```
 
-The SDK emits no `Authorization` header in this mode. This is an explicit caller opt-out, not an environment gate: the SDK allows it even when the configured URLs point at production, because self-hosted or proxy-fronted deployments may intentionally provide their own authentication layer outside the SDK. The HTTP client otherwise behaves identically — retries, idempotency, slow-call logging, observability all work.
+The SDK emits no `Authorization` header in this mode. Treat this as a caller-owned unsafe mode: if you point it at non-local or production URLs, you are asserting that authentication is enforced outside the SDK (for example by a trusted private gateway) and accepting the operational risk. Do not use it as a shortcut for missing credentials. Production applications should use Access Manager.
+
+The HTTP client otherwise behaves identically — retries, idempotency, slow-call logging, and observability all work.
+
+## Retry and idempotency boundaries
+
+The SDK sends only `X-Idempotency`; it does not send `Idempotency-Key`. The Midaz server contract currently accepts `X-Idempotency`.
+
+Automatic retries for unsafe requests require `X-Idempotency`, but transaction action endpoints have additional server-contract boundaries: commit and cancel do not honor `X-Idempotency`, and revert is not cleanly endpoint-idempotent. The SDK suppresses automatic retries for those actions rather than implying duplicate-safe behavior.
 
 ## Auth-required gate
 
@@ -125,10 +145,6 @@ Or check by sentinel:
 if errors.Is(err, sdkerrors.ErrConfiguration) { ... }
 ```
 
-### Bypassing the gate (test plumbing only)
-
-Setting `MIDAZ_SKIP_AUTH_CHECK=true` in the environment AND loading the config via `config.FromEnvironment()` bypasses the gate. This exists for tests that exercise partial-config code paths and is never the right answer for production code — it disables the construction-time check that catches misconfigurations (Access Manager enabled without an address or credentials) before any request goes out, and quietly defers those failures to runtime as 401 cascades.
-
 ## Mutual exclusion
 
 `WithAccessManager` and `WithAnonymous` are mutually exclusive. The last-applied option wins:
@@ -158,5 +174,3 @@ midaz.New(
 | `entities.WithPluginAuth(...)` | `midaz.WithAccessManager(...)` |
 | `pkg/access-manager` import | `pkg/auth` (directory matches package name) |
 | Construction with no auth source | Add `midaz.WithAnonymous()` for tests, or `midaz.WithAccessManager(...)` for production. |
-
-See [docs/v3-dx-plan.md](v3-dx-plan.md) for the full design rationale.

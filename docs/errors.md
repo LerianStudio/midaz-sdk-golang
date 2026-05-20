@@ -21,12 +21,21 @@ type Error struct {
     UpstreamBodyTruncated     bool
     UpstreamBodyOriginalBytes int
     StatusCode int
+    Source     errors.ErrorSource
+    HTTPRequestSent      bool
+    HTTPResponseReceived bool
+    StatusCodeSource     errors.ErrorStatusCodeSource
     RequestID  string
+    Method     string
+    URLHost    string
+    URLPath    string
     Err        error
 }
 ```
 
 `*errors.Error` implements `error`, `Unwrap`, and `Is`, so it works with the standard library `errors.Is` and `errors.As` helpers.
+
+The diagnostic fields identify where the error came from and how much HTTP state is known. `Source` is one of `sdk`, `configuration`, `transport`, or `http_response`. `StatusCodeSource` is `none`, `synthetic`, or `upstream`. `HTTPRequestSent` and `HTTPResponseReceived` distinguish local validation failures, pre-response transport failures, and upstream HTTP responses without parsing the error string.
 
 ## Midaz wire error envelope
 
@@ -46,11 +55,13 @@ The SDK preserves expanded envelope fields on `*errors.Error` through `APICode`,
 
 ## Upstream response body exposure
 
-For received upstream HTTP errors (`4xx` and `5xx`), the SDK attaches the raw Midaz response body to the structured error by default. The body is available through `Error.UpstreamBody`, `Error.GetUpstreamBody()`, and formatted error strings such as `err.Error()`.
+For received upstream HTTP errors (`4xx` and `5xx`), the SDK does not attach the raw Midaz response body by default. Enable this only for controlled diagnostics. When enabled, the raw body is available through `Error.UpstreamBody`, `Error.GetUpstreamBody()`, and `GetErrorDetails(err).UpstreamBody`.
 
-Control this behavior with `midaz.WithErrorBodyExposure(false)`, `config.WithErrorBodyExposure(false)`, or `MIDAZ_ERROR_EXPOSE_BODY=false` when using `config.FromEnvironment()`.
+Control this behavior with `midaz.WithErrorBodyExposure(true)`, `config.WithErrorBodyExposure(true)`, or `MIDAZ_ERROR_EXPOSE_BODY=true` when using `config.FromEnvironment()`.
 
-The SDK does not redact this upstream body by design. It only truncates it and reports truncation through `Error.UpstreamBodyTruncated` / `Error.IsUpstreamBodyTruncated()` and `Error.UpstreamBodyOriginalBytes` / `Error.GetUpstreamBodyOriginalBytes()`. `json.Marshal(*errors.Error)` remains a safe projection and does not include `UpstreamBody`.
+Direct upstream body access is intentionally raw and unredacted. Treat it as diagnostic material that may contain server stack traces, echoed input, or credentials. `Error.Error()` renders a redacted projection of the attached body for the canonical logging path. `json.Marshal(*errors.Error)` remains a safe projection and does not include `UpstreamBody`.
+
+The SDK truncates the attached body and reports truncation through `Error.UpstreamBodyTruncated` / `Error.IsUpstreamBodyTruncated()` and `Error.UpstreamBodyOriginalBytes` / `Error.GetUpstreamBodyOriginalBytes()`.
 
 ## Error categories
 
@@ -64,6 +75,8 @@ The SDK does not redact this upstream body by design. It only truncates it and r
 | `limit_exceeded` | Rate limit or quota exceeded |
 | `timeout` | Operation timed out |
 | `cancellation` | Context or caller cancelled the operation |
+| `configuration` | SDK setup or client-construction failure |
+| `network` | Pre-response transport failure such as DNS, TLS, or connection errors |
 | `internal` | SDK or backend internal failure |
 | `unprocessable` | Domain-specific failure such as insufficient balance |
 
@@ -73,7 +86,9 @@ The package exposes sentinel values for stable matching:
 
 - `errors.ErrValidation`
 - `errors.ErrAuthentication`
+- `errors.ErrAuth` — matches both authentication and authorization failures
 - `errors.ErrPermission`
+- `errors.ErrConfiguration`
 - `errors.ErrNotFound`
 - `errors.ErrAlreadyExists`
 - `errors.ErrIdempotency`
@@ -86,7 +101,7 @@ The package exposes sentinel values for stable matching:
 - `errors.ErrAccountEligibility`
 - `errors.ErrAssetMismatch`
 
-Common constructors include `NewValidationError`, `NewInvalidInputError`, `NewNotFoundError`, `NewAuthenticationError`, `NewAuthorizationError`, `NewConflictError`, `NewRateLimitError`, `NewTimeoutError`, `NewInternalError`, and `NewUnprocessableError`.
+Common constructors include `NewValidationError`, `NewInvalidInputError`, `NewNotFoundError`, `NewAuthenticationError`, `NewAuthorizationError`, `NewConfigurationError`, `NewConflictError`, `NewRateLimitError`, `NewTimeoutError`, `NewInternalError`, and `NewUnprocessableError`.
 
 ## Checking errors
 
@@ -118,6 +133,7 @@ Common checkers include:
 - `IsAuthorizationError(err)`
 - `IsAuthError(err)` — matches both authentication (401) and authorization (403)
 - `IsConfigurationError(err)` — SDK setup or client-construction errors
+- `IsBootstrapError(err)` — any supported `midaz.New(...)` bootstrap failure category
 - `IsConflictError(err)` — covers 409 conflicts including "already exists" responses
 - `IsIdempotencyError(err)`
 - `IsRateLimitError(err)`
@@ -151,7 +167,7 @@ if err != nil {
 }
 ```
 
-`GetErrorDetails` also includes structured API details when the original error is an SDK `*errors.Error`: `APICode`, `Title`, `EntityType`, `Fields`, `Details`, and `RequestID`.
+`GetErrorDetails` also includes structured API details when the original error is an SDK `*errors.Error`: `APICode`, `Title`, `EntityType`, `Fields`, `Details`, `UpstreamBody`, `UpstreamBodyTruncated`, `UpstreamBodyOriginalBytes`, and `RequestID`. `Fields`, `Details`, and `Title` are redacted in this projection. `UpstreamBody` remains raw.
 
 For HTTP errors produced from a Midaz response, inspect the concrete SDK error when you need the raw API code:
 
@@ -219,6 +235,7 @@ Retry policies live in `github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry`, 
 The SDK HTTP layer retries transient failures by default. Retryable HTTP status codes are:
 
 - `408 Request Timeout`
+- `425 Too Early`
 - `429 Too Many Requests`
 - `500 Internal Server Error`
 - `502 Bad Gateway`

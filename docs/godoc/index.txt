@@ -38,13 +38,15 @@ when calls must run under a different tenant scope. See docs/multi-tenancy.md.
 
 Inject a *slog.Logger via WithLogger. Wire OpenTelemetry via
 WithObservabilityProvider or WithObservabilityOptions. The SDK is silent by
-default (slog.DiscardHandler). See docs/logging.md and docs/tracing.md.
+default (slog.DiscardHandler). See docs/logging.md and the observability
+examples.
 
 # Pagination
 
-Every List* method returns one page. ListAll yields iter.Seq2[T, error] for
-full-collection iteration; ListPages yields page envelopes with metadata.
-Page-based and cursor-based endpoints are distinguished at the type system —
+Every paginated entity List* method returns one page. ListAll yields
+iter.Seq2[T, error] for full-collection iteration; ListPages yields page
+envelopes with metadata. MetadataIndexes is intentionally non-paginated.
+Page-based and cursor-based endpoints are distinguished at the type system:
 wrong-shape opts don't compile. See docs/pagination.md.
 
 # Errors
@@ -63,16 +65,17 @@ X-Idempotency header per unsafe request. Override per-call via
 github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx.WithIdempotencyKey
 (caller-supplied key) or
 github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx.WithoutAutoIdempotency
-(suppression). Disable globally via WithIdempotency(false). Retries follow the
-default exponential-backoff policy on 5xx + 408/425/429 + transport errors;
-customize via WithRetryOptions / WithCustomRetryPolicy / WithoutRetries.
-See examples/06-idempotency and examples/07-retries.
+(suppression). Disable globally via WithIdempotency(false). Unsafe requests
+retry only when X-Idempotency is present; caller-supplied and SDK-generated
+keys both satisfy that gate. Retries follow the default exponential-backoff
+policy on 5xx + 408/425/429 + transport errors; customize via WithRetryOptions
+/ WithCustomRetryPolicy / WithoutRetries. See examples/06-idempotency and
+examples/07-retries.
 
 # Examples
 
 See examples/ for runnable demos. Start with examples/01-hello-world for the
 minimum-viable shape; examples/03-end-to-end walks the full resource hierarchy.
-See docs/v3-dx-plan.md for the v3 design rationale.
 
 const EnvironmentLocal = config.EnvironmentLocal ...
 const Version = "3.0.0-beta.1"
@@ -114,6 +117,7 @@ type Operation = models.Operation
 type OperationRoute = models.OperationRoute
 type Option func(*Client) error
     func WithAccessManager(am AccessManager) Option
+    func WithAllowInsecureAccessManagerHTTP(allow bool) Option
     func WithAnonymous() Option
     func WithBaseURL(baseURL string) Option
     func WithCRMURL(crmURL string) Option
@@ -122,6 +126,7 @@ type Option func(*Client) error
     func WithCustomRetryPolicy(shouldRetry func(*http.Response, error) bool) Option
     func WithDebug(enabled bool) Option
     func WithEnvironment(env config.Environment) Option
+    func WithErrorBodyExposure(enabled bool) Option
     func WithHTTPClient(client *http.Client) Option
     func WithIdempotency(enabled bool) Option
     func WithLogger(logger *slog.Logger) Option

@@ -87,6 +87,7 @@ Real-World Use Cases:
     request) }, retry.WithMaxRetries(3), retry.WithJitterFactor(0.3)) // Add
     0-30% random variation to delays ```
 
+var ErrRetriesExhausted ...
 var DefaultRetryableErrors = []string{ ... }
 var DefaultRetryableHTTPCodes = []int{ ... }
 func AsNonRetryable(err error) error
@@ -102,6 +103,7 @@ type HTTPOption func(*HTTPOptions) error
     func WithHTTPHighReliability() HTTPOption
     func WithHTTPInitialDelay(delay time.Duration) HTTPOption
     func WithHTTPJitterFactor(factor float64) HTTPOption
+    func WithHTTPLogger(logger *slog.Logger) HTTPOption
     func WithHTTPMaxDelay(delay time.Duration) HTTPOption
     func WithHTTPMaxRetries(maxRetries int) HTTPOption
     func WithHTTPPreRetryHook(hook func(ctx context.Context, req *http.Request, resp *HTTPResponse) error) HTTPOption

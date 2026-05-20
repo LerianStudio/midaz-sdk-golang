@@ -13,6 +13,8 @@ configuration set via midaz.With*.
     auto-generated keys.
   - WithoutAutoIdempotency / AutoIdempotencySuppressed — suppress
     auto-idempotency for a single call when client-level idempotency is on.
+  - WithoutHTTPRetries / HTTPRetriesSuppressed — suppress the SDK HTTP retry
+    loop for one call when a higher-level retry owner already exists.
   - WithIncludeDeleted / IncludeDeletedFromContext — include soft-deleted
     resources in Get/List operations.
   - WithHardDelete / HardDeleteFromContext — perform a hard delete instead of
@@ -31,6 +33,7 @@ entities.WithDebug/WithUserAgent/WithObservability) have been deleted.
 pkg/sdkctx is the only sanctioned place for per-request context plumbing in v3.
 
 func AutoIdempotencySuppressed(ctx context.Context) bool
+func HTTPRetriesSuppressed(ctx context.Context) bool
 func HardDeleteFromContext(ctx context.Context) bool
 func IdempotencyKeyFromContext(ctx context.Context) string
 func IncludeDeletedFromContext(ctx context.Context) bool
@@ -38,3 +41,4 @@ func WithHardDelete(ctx context.Context, hard bool) context.Context
 func WithIdempotencyKey(ctx context.Context, key string) context.Context
 func WithIncludeDeleted(ctx context.Context, include bool) context.Context
 func WithoutAutoIdempotency(ctx context.Context) context.Context
+func WithoutHTTPRetries(ctx context.Context) context.Context

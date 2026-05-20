@@ -39,7 +39,7 @@ flowchart LR
 
 The major layers are:
 
-- **Root client layer**: Owns top-level configuration, context, observability, retry settings, tenant defaults, and service initialization.
+- **Root client layer**: Owns top-level configuration, context, observability, retry settings, and service initialization.
 - **Config layer**: Resolves URLs, HTTP client settings, retry settings, Access Manager settings, idempotency, and environment-based options.
 - **Entity layer**: Exposes the 16 service interfaces through `c.Entity`.
 - **Private entity implementations**: Build resource-specific URLs, validate required inputs, call the HTTP layer, and map responses into SDK models.
@@ -109,9 +109,9 @@ The initialization path is:
 
 1. `midaz.New` creates a `Client` with default background context, disabled default observability provider, and `config.DefaultConfig()`.
 2. Client options update the `Client` and its config.
-3. `setupEntity()` reads service URLs, attaches observability, propagates debug/user-agent/tenant settings, creates the entity layer, and configures retry and idempotency behavior.
-4. `entities.NewEntityWithConfig(...)` reads Access Manager settings, fetches an Access Manager token if enabled, creates an `entities.HTTPClient`, stores service URLs, applies entity options, and initializes services.
-5. `entities.Entity.initServices()` creates all private service implementations and propagates the parent HTTP client configuration into each service-specific HTTP client.
+3. `setupEntity()` reads service URLs, attaches observability, creates the entity layer, and configures debug, user-agent, retry, idempotency, error-body exposure, logging, and slow-call behavior on the shared entity HTTP client.
+4. `entities.NewEntityWithConfig(...)` delegates to `entities.NewEntityWithConfigContext(context.Background(), config)`. `NewEntityWithConfigContext(...)` uses the supplied context for construction-time I/O, including the initial Access Manager token exchange.
+5. `entities.Entity.initServices()` creates all private service implementations with one shared `*entities.HTTPClient`. Every service sees the same auth-token cache, token-refresh singleflight group, retry policy, observability provider, logger, debug flag, user agent, and idempotency settings.
 
 ## Configuration
 
@@ -178,6 +178,8 @@ Supported environment variables read by `config.FromEnvironment()` are:
 | `MIDAZ_DEBUG` | Enables debug mode when set to `true`. |
 | `MIDAZ_MAX_RETRIES` | Sets maximum retry attempts. |
 | `MIDAZ_IDEMPOTENCY` | Enables or disables automatic idempotency behavior when set. |
+| `MIDAZ_ERROR_EXPOSE_BODY` | Enables raw upstream error-body attachment when set to `true`. |
+| `MIDAZ_ACCESS_MANAGER_ALLOW_INSECURE_HTTP` | Allows plain `http://` Access Manager URLs for non-loopback hosts outside production when explicitly set to `true`. |
 
 The current config reader does not read `MIDAZ_RETRY_WAIT_MIN`, `MIDAZ_RETRY_WAIT_MAX`, `MIDAZ_OTEL_ENDPOINT`, or `MIDAZ_LOG_LEVEL`. Configure retry timing and observability programmatically when you need those settings.
 
@@ -245,6 +247,8 @@ The current entity surface has 16 services:
 
 Each public service field is an interface. Each concrete implementation is private to the `entities` package, such as `accountsEntity`, `transactionsEntity`, `holdersEntity`, and `aliasesEntity`.
 
+All service implementations share the same parent `*entities.HTTPClient`. The service-specific structs hold cloned base URL maps, but auth token state, reactive 401 refresh, retry settings, idempotency settings, logger, debug flag, user agent, and observability all live on the shared HTTP client.
+
 ## Conceptual resource hierarchy
 
 The SDK does not define a database schema. The following hierarchy is conceptual and describes how SDK methods scope requests.
@@ -308,7 +312,7 @@ The HTTP layer adds these standard headers:
 | `Content-Type: application/json` | Added when the request has a body and no custom content type is set. |
 | `User-Agent` | Uses config user agent or version default. |
 | `Authorization: Bearer <token>` | Added only when an Access Manager token is available or an entity has an auth token. |
-| `X-Idempotency` | Added from context or transaction input when present. Some transaction requests can request automatic generation. |
+| `X-Idempotency` | Added for unsafe methods from an explicit input/header value, from context, or from automatic UUID generation when enabled. |
 | `X-Organization-Id` | Added by CRM holder and alias requests. |
 
 Tenant scope is derived from Access Manager/JWT claims. The SDK does not expose tenant configuration and does not send `X-Tenant-ID`.
@@ -339,11 +343,13 @@ if err != nil {
 
 `Enabled` is auto-set by `WithAccessManager`; calling the option is the opt-in. See [`docs/auth.md`](./auth.md) for the full auth surface, including environment-driven configuration via `config.FromEnvironment()`.
 
-When Access Manager is enabled, `entities.NewEntityWithConfig(...)` calls:
+When Access Manager is enabled, entity construction fetches the initial token through:
 
 ```go
-auth.GetTokenFromAccessManager(context.Background(), pluginAuth, config.GetHTTPClient())
+auth.GetTokenFromAccessManager(ctx, pluginAuth, config.GetHTTPClient())
 ```
+
+`entities.NewEntityWithConfig(...)` supplies `context.Background()` to that path. `entities.NewEntityWithConfigContext(ctx, ...)` uses the caller-supplied context, and the root client setup path calls the context-aware constructor with the client context.
 
 The token request is a `POST` to:
 
@@ -366,10 +372,12 @@ The SDK uses the returned `accessToken` as a bearer token on entity HTTP request
 Important boundaries:
 
 - The SDK fetches the token during entity setup.
-- The SDK does not refresh tokens automatically.
-- The SDK does not use the `refreshToken` field from the Access Manager response.
+- The SDK caches the `accessToken`.
+- The SDK does not proactively refresh tokens in the background.
+- After a 401 response, the SDK reactively refetches a client-credentials token from Access Manager once before retrying the failed request.
+- The SDK does not use the `refreshToken` field from the Access Manager response; refresh/refetch is based on the client-credentials token endpoint.
 - The SDK does not sign individual requests.
-- The SDK does not claim to derive tenant scope from tokens. It only sends optional tenant headers when configured.
+- Tenant routing is server-side through Access Manager/JWT bearer-token claims. The SDK does not expose tenant configuration and does not send `X-Tenant-ID`.
 
 ## Errors
 
@@ -390,8 +398,18 @@ type Error struct {
     EntityType string
     Fields     []string
     Details    map[string]any
+    UpstreamBody              string
+    UpstreamBodyTruncated     bool
+    UpstreamBodyOriginalBytes int
     StatusCode int
+    Source     ErrorSource
+    HTTPRequestSent      bool
+    HTTPResponseReceived bool
+    StatusCodeSource     ErrorStatusCodeSource
     RequestID  string
+    Method     string
+    URLHost    string
+    URLPath    string
     Err        error
 }
 ```
@@ -422,7 +440,7 @@ if err != nil {
 }
 ```
 
-Use `errors.As` from the standard library when you need fields such as operation, resource, API code, status code, request ID, or structured API details:
+Use `errors.As` from the standard library when you need fields such as operation, resource, API code, status code, request ID, diagnostics, URL host/path, raw upstream body, or structured API details:
 
 ```go
 var sdkErr *sdkerrors.Error
@@ -449,6 +467,7 @@ The default retryable HTTP status codes are:
 | Status | Meaning |
 | --- | --- |
 | `408` | Request timeout |
+| `425` | Too early |
 | `429` | Too many requests |
 | `500` | Internal server error |
 | `502` | Bad gateway |
@@ -552,11 +571,18 @@ input.IdempotencyKey = "payment-2026-04-27-0001"
 tx, err := c.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
 ```
 
-Automatic idempotency applies to unsafe entity HTTP requests. The HTTP layer auto-generates `X-Idempotency` when:
+Idempotency key precedence is first non-empty source wins:
+
+1. explicit input/header value, such as `CreateTransactionInput.IdempotencyKey`,
+2. context value from `sdkctx.WithIdempotencyKey(ctx, ...)`,
+3. automatic UUID generation by the HTTP layer.
+
+Automatic idempotency applies to unsafe entity HTTP requests. The HTTP layer auto-generates a UUIDv4 `X-Idempotency` value when:
 
 1. idempotency is enabled,
 2. the method is unsafe,
-3. no idempotency key is already present.
+3. no idempotency key is already present,
+4. the request context has not opted out with `sdkctx.WithoutAutoIdempotency(ctx)`.
 
 The HTTP layer sends only the public `X-Idempotency` header. Unsafe retries require `X-Idempotency`; caller-supplied and SDK-generated keys both satisfy this retry gate.
 
@@ -582,9 +608,10 @@ The root client creates a disabled provider by default. You can enable or inject
 provider, err := observability.New(context.Background(),
     observability.WithServiceName("payments-api"),
     observability.WithServiceVersion("1.0.0"),
-    observability.WithEnvironment("production"),
+    observability.WithEnvironment("development"),
     observability.WithComponentEnabled(true, true, true),
     observability.WithCollectorEndpoint("localhost:4317"),
+    observability.WithCollectorInsecure(true), // plaintext local collector only
 )
 if err != nil {
     return err
@@ -604,7 +631,7 @@ localhost:4317
 otel-collector:4317
 ```
 
-Do not include `http://` or `https://` in the OTLP gRPC endpoint value.
+Do not include `http://` or `https://` in the OTLP gRPC endpoint value. Collector transport uses TLS by default; set `observability.WithCollectorInsecure(true)` only for local/development plaintext collectors.
 
 When the corresponding observability components are enabled, outbound entity requests can:
 
@@ -641,7 +668,7 @@ Validation happens primarily in model `Validate()` methods and service-level req
 
 ## Pagination
 
-v3 uses typed list-opts per endpoint. Page-based and cursor-based endpoints have separate opts types — wrong-shape opts don't compile. Every list method ships in a trio: `List` (one page), `ListXxxAll` (every item across pages, as `iter.Seq2`), and `ListXxxPages` (every page envelope, as `iter.Seq2`).
+v3 uses typed list-opts per endpoint. Page-based and cursor-based endpoints have separate opts types, so wrong-shape opts do not compile. Every paginated entity list method ships in a trio: `List` (one page), `ListXxxAll` (every item across pages, as `iter.Seq2`), and `ListXxxPages` (every page envelope, as `iter.Seq2`). `MetadataIndexes.ListMetadataIndexes` is intentionally non-paginated and returns `[]models.MetadataIndex`.
 
 ```go
 opts := models.AccountsListOpts{
@@ -737,7 +764,7 @@ Debug mode logs request and response metadata. Request and response bodies are r
 The current codebase does not implement these features:
 
 - automatic `.env` loading inside the SDK
-- automatic token refresh
+- proactive or background token refresh; the SDK does perform one reactive Access Manager client-credentials refetch after a 401 response
 - request signing
 - custom validation rule registration
 - response streaming APIs
@@ -841,6 +868,6 @@ Use these supported extension points:
 - Use `docs/environment.md` for environment variable details.
 - Use `docs/errors.md` for error handling patterns.
 - Use `docs/pagination.md` for list and cursor behavior.
-- Use `docs/tracing.md` for OpenTelemetry examples.
+- Use `docs/logging.md` and the observability examples for OpenTelemetry integration patterns.
 - Use `docs/mapping/external_apis.md` for the public SDK surface.
 - Use generated Go docs from `make docs` or `make godoc` when you need package-level API details.

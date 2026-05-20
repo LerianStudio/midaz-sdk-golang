@@ -41,7 +41,7 @@ func main() {
     if err != nil { return }
     defer c.Shutdown(context.Background())
 
-    // ...c.Accounts.Get(...) etc. Retry attempts emit DEBUG/WARN lines
+    // ...c.Accounts.GetAccount(...) etc. Retry attempts emit DEBUG/WARN lines
     // through `logger`. Calls slower than 2s emit a WARN line.
 }
 ```
@@ -50,17 +50,24 @@ func main() {
 
 | Event | Level | Component | Notes |
 |-------|-------|-----------|-------|
-| Retry attempt (intermediate) | DEBUG | `retry` | `cause`, `delay_ms`, `attempt`, `max_attempts` |
+| Retry attempt (intermediate) | DEBUG | `retry` | `cause`, `delay_ms`, `attempt`, `max_retries` |
 | Retry attempt (final before exhaustion) | WARN | `retry` | Same fields, but at WARN so it surfaces in production filters |
+| Retry exhausted | WARN | `http` | `attempts`, `max_retries`, `error`, `http.status_code`, `request_id` when available |
 | Slow API call | WARN | `http` | `duration_ms`, `threshold_ms`, `http.status_code`, `request_id` |
+| HTTP request phase failed | WARN | `http` | Build, validation, marshal, send, read, or decode failures with `phase` and `error.category` when available |
+| HTTP response error | WARN | `http` | Terminal non-2xx response when it is not a retry-exhausted error |
+| Token refresh started or succeeded | DEBUG | `http` | Reactive Access Manager token refetch after a 401 response |
+| Token refresh failed | WARN | `http` | Failed reactive Access Manager token refetch |
+| Access Manager insecure HTTP opt-in | WARN | `bootstrap` | Emitted at construction when insecure Access Manager HTTP is explicitly allowed |
 | Debug-mode request/response (when `WithDebug(true)`) | DEBUG | `http` | Sanitized URL + body |
 
-All log lines include:
+SDK diagnostic log lines include:
 
 - `sdk.name = "midaz-go-sdk"`
-- `sdk.component` — emitting subsystem (`retry`, `http`)
+- `sdk.component` — emitting subsystem (`retry`, `http`, or `bootstrap`)
 - `operation` — HTTP method or service operation
-- `http.method` / `url.path` — request shape (path is normalized; IDs replaced with `:id`)
+
+Request-related log lines also include `http.method` and a normalized `url.path` where the SDK can derive a request URL.
 
 ## Integrations
 
@@ -185,9 +192,9 @@ SDK's verbose request/response logs through your logger at debug level).
 
 ## Trace correlation
 
-When an OpenTelemetry-instrumented context flows into an SDK call, log
-lines include `trace_id` and `span_id` automatically — the same context
-that drives the OTel span. Combine with `LogAttrs` for ad-hoc enrichment:
+The SDK's `*slog.Logger` surface does not add `trace_id` and `span_id` by itself. Add those fields by using a slog handler that enriches records from the context, or attach them manually with `observability.TraceID(ctx)` and `observability.SpanID(ctx)`. The separate `observability.Provider.Logger()` surface can also attach span IDs through `Logger.WithSpan(span)`.
+
+For manual enrichment:
 
 ```go
 import "log/slog"
@@ -213,6 +220,6 @@ c.Logger().LogAttrs(ctx, slog.LevelInfo, "processing request",
 - 3 unconditional `fmt.Fprintf(os.Stderr, ...)` calls were removed:
   pagination misuse warnings (relocated to Track 5's typed `ListOpts`),
   HTTP optimizer best-effort errors (now silent fallback), and an
-  unaligned-offset warning (relocated to `ListOptions.Validate()`).
-
-See `docs/v3-dx-plan.md` Track 4 for the full architectural rationale.
+  unaligned-offset warning (relocated to typed list opts validation through
+  `ValidatePageListOpts`, `ValidateCursorListOpts`, and each entity's
+  `XxxListOpts.Validate()`).

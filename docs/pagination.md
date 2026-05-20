@@ -1,14 +1,14 @@
 # Pagination in the Midaz Go SDK
 
-v3 uses typed list-opts per endpoint and ships every list method in a trio:
+v3 uses typed list-opts per endpoint and ships paginated entity list methods in a trio:
 `List` (one page), `ListAll` (every item across pages, as `iter.Seq2`), and
 `ListPages` (every page envelope, as `iter.Seq2`). Cursor-based and
 page-based endpoints have separate opts types — wrong-shape opts don't
-compile.
+compile. Metadata index listing is not paginated and does not use this trio.
 
 ## The list-method trio
 
-Every list method in `entities` ships in three flavors. Using `Accounts`
+Paginated entity list methods in `entities` ship in three flavors. Using `Accounts`
 as the worked example:
 
 | Method | Returns | Use when |
@@ -17,9 +17,9 @@ as the worked example:
 | `ListAccountsAll` | `iter.Seq2[Account, error]` | You want to consume every item linearly; the SDK handles paging. |
 | `ListAccountsPages` | `iter.Seq2[*ListResponse[Account], error]` | You need page-level metadata (cursor, total, page number) for checkpointing or stopping mid-page. |
 
-The same trio shape applies to every list endpoint: `ListLedgers` /
+The same trio shape applies to paginated entity list endpoints such as `ListLedgers` /
 `ListLedgersAll` / `ListLedgersPages`, `ListTransactions` /
-`ListTransactionsAll` / `ListTransactionsPages`, and so on.
+`ListTransactionsAll` / `ListTransactionsPages`, and so on. `MetadataIndexes.ListMetadataIndexes` returns a slice and accepts only an optional entity-name filter, so it has no `All` or `Pages` variant.
 
 ## Page-based vs cursor-based endpoints
 
@@ -30,7 +30,13 @@ you:
 | Shape | Endpoints | Opts base | Wire parameters |
 | --- | --- | --- | --- |
 | Page-based | Organizations, Ledgers, Assets, Portfolios, Segments, Accounts, Account Types, Balances, Holders, Aliases | `models.PageListOpts` | `page`, `limit`, filters, `sort_order`, `start_date`, `end_date` |
-| Cursor-based | Transactions, Operations, Operation Routes, Transaction Routes, Asset Rates | `models.CursorListOpts` | `cursor`, `limit`, filters, `sort_order` |
+| Cursor-based | Transactions, Operations, Operation Routes, Transaction Routes, Asset Rates | `models.CursorListOpts` | `cursor`, `limit`, filters, `sort_order`, `start_date`, `end_date` |
+
+Paginated entity list methods currently cover:
+
+- Page-based: Organizations, Ledgers, Assets, Portfolios, Segments, Accounts, Account Types, Balances, Holders, and Aliases.
+- Cursor-based: Transactions, Operations, Operation Routes, Transaction Routes, and Asset Rates.
+- Excluded: Metadata Indexes. `ListMetadataIndexes` is not a paginated endpoint.
 
 ## Iterator-based pagination (Go 1.23+ `iter.Seq2`)
 
@@ -111,6 +117,22 @@ for tx, err := range c.Transactions.ListTransactionsAll(ctx, orgID, ledgerID, op
 
 See [`examples/04-listing-cursor/`](../examples/04-listing-cursor/) and
 [`examples/05-listing-pages/`](../examples/05-listing-pages/) for runnable demos.
+
+## Collecting iterator results into slices
+
+Use `entities.Collect` or `entities.CollectAll` when you need a slice instead of streaming a `for ... range` loop:
+
+```go
+accounts, err := entities.Collect(
+    c.Accounts.ListAccountsAll(ctx, orgID, ledgerID, opts),
+    1000,
+)
+if err != nil {
+    return fmt.Errorf("collect accounts: %w", err)
+}
+```
+
+`Collect` stops after `maxItems` items and returns partial results with the first error. `CollectAll` drains the full iterator with no memory cap, so use it only when the result set is known to be small.
 
 ## Single-page calls with `List`
 

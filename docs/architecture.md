@@ -1,14 +1,17 @@
 # Midaz Go SDK Architecture
 
-> **Out of date for v3.** This document predates the v3 rewrite and still
+> **Historical only — do not use this as current architecture guidance.** This document predates the v3 rewrite and still
 > references `mmodel.X` types and `FromMmodelX`/`ToMmodelX` conversion
 > methods that were removed when the SDK fully decoupled from the
 > `midaz/v3` backend module (Track 10). v3 types are SDK-native with
 > wire-compatible JSON tags; there is no separate backend model layer.
+> Several sections below describe removed conversion packages, old layering
+> assumptions, and future plans that may no longer apply.
 >
 > For the current architecture, see
 > [`docs/comprehensive-architecture.md`](./comprehensive-architecture.md).
-> This file is retained as historical context only.
+> This file is retained as historical context only and should not drive new
+> implementation or documentation changes.
 
 This document outlines the architecture of the Midaz Go SDK, focusing on abstraction layers and type conversion patterns.
 

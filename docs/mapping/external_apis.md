@@ -27,7 +27,7 @@ This map documents the recommended public SDK surface that consumers should use.
 - `midaz.WithSlowCallThreshold(time.Duration)` - Emit a Warn-level log line when a successful API call exceeds the threshold.
 - `midaz.WithContext(context.Context)` - Sets the client base context.
 - `midaz.WithIdempotency(bool)` - Toggle automatic `X-Idempotency` header generation for unsafe methods. Default: enabled.
-- `midaz.WithErrorBodyExposure(bool)` - Toggle raw upstream 4xx/5xx response body exposure on SDK errors. Default: enabled; body is not redacted and is only truncated.
+- `midaz.WithErrorBodyExposure(bool)` - Toggle raw upstream 4xx/5xx response body exposure on SDK errors. Default: disabled; when enabled, body is not redacted and is only truncated.
 - `midaz.WithObservabilityOptions(...observability.Option)` - Build a fresh observability provider from the supplied option chain. Replacement semantics — replaces any previously installed provider.
 - `midaz.WithObservabilityProvider(observability.Provider)` - Install a pre-built observability provider. Replacement semantics.
 - `midaz.WithAccessManager(midaz.AccessManager)` - Configure Access Manager OAuth authentication. Mutually exclusive with `WithAnonymous`.
@@ -106,7 +106,6 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config`.
 - `MIDAZ_MAX_RETRIES`
 - `MIDAZ_IDEMPOTENCY`
 - `MIDAZ_ERROR_EXPOSE_BODY`
-- `MIDAZ_SKIP_AUTH_CHECK` (test plumbing)
 - `PLUGIN_AUTH_ENABLED`
 - `PLUGIN_AUTH_ADDRESS`
 - `MIDAZ_ACCESS_MANAGER_ALLOW_INSECURE_HTTP`
@@ -125,30 +124,32 @@ v3 contract: `midaz.New()` requires exactly one of `WithAccessManager` or `WithA
 
 ## Entity package
 
-Use `github.com/LerianStudio/midaz-sdk-golang/v3/entities`. Consumers usually access services through `c.Entity`.
+Use `github.com/LerianStudio/midaz-sdk-golang/v3/entities`. Consumers should prefer promoted client services such as `c.Accounts`, `c.Transactions`, and `c.Organizations`; `c.Entity.Accounts` remains available as the embedded back-compat access path.
 
 ### Entity access point
 
-- `Entity.Accounts`
-- `Entity.AccountTypes`
-- `Entity.Assets`
-- `Entity.AssetRates`
-- `Entity.Balances`
-- `Entity.Holders`
-- `Entity.Aliases`
-- `Entity.Ledgers`
-- `Entity.MetadataIndexes`
-- `Entity.Operations`
-- `Entity.OperationRoutes`
-- `Entity.Organizations`
-- `Entity.Portfolios`
-- `Entity.Segments`
-- `Entity.Transactions`
-- `Entity.TransactionRoutes`
+- `Client.Accounts` (`Client.Entity.Accounts` compatibility path)
+- `Client.AccountTypes` (`Client.Entity.AccountTypes` compatibility path)
+- `Client.Assets` (`Client.Entity.Assets` compatibility path)
+- `Client.AssetRates` (`Client.Entity.AssetRates` compatibility path)
+- `Client.Balances` (`Client.Entity.Balances` compatibility path)
+- `Client.Holders` (`Client.Entity.Holders` compatibility path)
+- `Client.Aliases` (`Client.Entity.Aliases` compatibility path)
+- `Client.Ledgers` (`Client.Entity.Ledgers` compatibility path)
+- `Client.MetadataIndexes` (`Client.Entity.MetadataIndexes` compatibility path)
+- `Client.Operations` (`Client.Entity.Operations` compatibility path)
+- `Client.OperationRoutes` (`Client.Entity.OperationRoutes` compatibility path)
+- `Client.Organizations` (`Client.Entity.Organizations` compatibility path)
+- `Client.Portfolios` (`Client.Entity.Portfolios` compatibility path)
+- `Client.Segments` (`Client.Entity.Segments` compatibility path)
+- `Client.Transactions` (`Client.Entity.Transactions` compatibility path)
+- `Client.TransactionRoutes` (`Client.Entity.TransactionRoutes` compatibility path)
 
 ### OrganizationsService
 
 - `ListOrganizations(ctx, opts)`
+- `ListOrganizationsAll(ctx, opts)`
+- `ListOrganizationsPages(ctx, opts)`
 - `GetOrganization(ctx, id)`
 - `CreateOrganization(ctx, input)`
 - `UpdateOrganization(ctx, id, input)`
@@ -158,6 +159,8 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v3/entities`. Consumers usually ac
 ### LedgersService
 
 - `ListLedgers(ctx, organizationID, opts)`
+- `ListLedgersAll(ctx, organizationID, opts)`
+- `ListLedgersPages(ctx, organizationID, opts)`
 - `GetLedger(ctx, organizationID, id)`
 - `CreateLedger(ctx, organizationID, input)`
 - `UpdateLedger(ctx, organizationID, id, input)`
@@ -169,6 +172,8 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v3/entities`. Consumers usually ac
 ### AccountsService
 
 - `ListAccounts(ctx, organizationID, ledgerID, opts)`
+- `ListAccountsAll(ctx, organizationID, ledgerID, opts)`
+- `ListAccountsPages(ctx, organizationID, ledgerID, opts)`
 - `GetAccount(ctx, organizationID, ledgerID, id)`
 - `GetAccountByAlias(ctx, organizationID, ledgerID, alias)`
 - `CreateAccount(ctx, organizationID, ledgerID, input)`
@@ -183,6 +188,8 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v3/entities`. Consumers usually ac
 ### AccountTypesService
 
 - `ListAccountTypes(ctx, organizationID, ledgerID, opts)`
+- `ListAccountTypesAll(ctx, organizationID, ledgerID, opts)`
+- `ListAccountTypesPages(ctx, organizationID, ledgerID, opts)`
 - `GetAccountType(ctx, organizationID, ledgerID, id)`
 - `CreateAccountType(ctx, organizationID, ledgerID, input)`
 - `UpdateAccountType(ctx, organizationID, ledgerID, id, input)`
@@ -191,6 +198,8 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v3/entities`. Consumers usually ac
 ### AssetsService
 
 - `ListAssets(ctx, organizationID, ledgerID, opts)`
+- `ListAssetsAll(ctx, organizationID, ledgerID, opts)`
+- `ListAssetsPages(ctx, organizationID, ledgerID, opts)`
 - `GetAsset(ctx, organizationID, ledgerID, id)`
 - `CreateAsset(ctx, organizationID, ledgerID, input)`
 - `UpdateAsset(ctx, organizationID, ledgerID, id, input)`
@@ -202,25 +211,37 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v3/entities`. Consumers usually ac
 - `CreateOrUpdateAssetRate(ctx, organizationID, ledgerID, input)`
 - `GetAssetRate(ctx, organizationID, ledgerID, externalID)`
 - `ListAssetRatesByAssetCode(ctx, organizationID, ledgerID, assetCode, opts)`
+- `ListAssetRatesByAssetCodeAll(ctx, organizationID, ledgerID, assetCode, opts)`
+- `ListAssetRatesByAssetCodePages(ctx, organizationID, ledgerID, assetCode, opts)`
 
 `models.AssetRatesListOpts` embeds `models.CursorListOpts` for `Limit`, `Cursor`, `SortDirection`, `StartDate`, and `EndDate`, plus `models.AssetRatesFilters{To: []string{...}}`. It serializes to `to`, `limit`, `start_date`, `end_date`, `sort_order`, and `cursor`.
 
 ### BalancesService
 
 - `ListBalances(ctx, orgID, ledgerID, opts)`
+- `ListBalancesAll(ctx, orgID, ledgerID, opts)`
+- `ListBalancesPages(ctx, orgID, ledgerID, opts)`
 - `ListAccountBalances(ctx, orgID, ledgerID, accountID, opts)`
+- `ListAccountBalancesAll(ctx, orgID, ledgerID, accountID, opts)`
+- `ListAccountBalancesPages(ctx, orgID, ledgerID, accountID, opts)`
 - `GetBalance(ctx, orgID, ledgerID, balanceID)`
 - `GetBalanceHistory(ctx, orgID, ledgerID, balanceID, date)`
 - `UpdateBalance(ctx, orgID, ledgerID, balanceID, input)`
 - `DeleteBalance(ctx, orgID, ledgerID, balanceID)`
 - `CreateBalance(ctx, orgID, ledgerID, accountID, input)`
 - `ListBalancesByAccountAlias(ctx, orgID, ledgerID, alias, opts)`
+- `ListBalancesByAccountAliasAll(ctx, orgID, ledgerID, alias, opts)`
+- `ListBalancesByAccountAliasPages(ctx, orgID, ledgerID, alias, opts)`
 - `ListBalancesByExternalCode(ctx, orgID, ledgerID, code, opts)`
+- `ListBalancesByExternalCodeAll(ctx, orgID, ledgerID, code, opts)`
+- `ListBalancesByExternalCodePages(ctx, orgID, ledgerID, code, opts)`
 - `GetAccountBalancesHistory(ctx, orgID, ledgerID, accountID, date)`
 
 ### PortfoliosService
 
 - `ListPortfolios(ctx, organizationID, ledgerID, opts)`
+- `ListPortfoliosAll(ctx, organizationID, ledgerID, opts)`
+- `ListPortfoliosPages(ctx, organizationID, ledgerID, opts)`
 - `GetPortfolio(ctx, organizationID, ledgerID, id)`
 - `CreatePortfolio(ctx, organizationID, ledgerID, input)`
 - `UpdatePortfolio(ctx, organizationID, ledgerID, id, input)`
@@ -230,6 +251,8 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v3/entities`. Consumers usually ac
 ### SegmentsService
 
 - `ListSegments(ctx, organizationID, ledgerID, opts)`
+- `ListSegmentsAll(ctx, organizationID, ledgerID, opts)`
+- `ListSegmentsPages(ctx, organizationID, ledgerID, opts)`
 - `GetSegment(ctx, organizationID, ledgerID, id)`
 - `CreateSegment(ctx, organizationID, ledgerID, input)`
 - `UpdateSegment(ctx, organizationID, ledgerID, id, input)`
@@ -239,13 +262,16 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v3/entities`. Consumers usually ac
 ### OperationsService
 
 - `ListOperations(ctx, orgID, ledgerID, accountID, opts)`
+- `ListOperationsAll(ctx, orgID, ledgerID, accountID, opts)`
+- `ListOperationsPages(ctx, orgID, ledgerID, accountID, opts)`
 - `GetOperation(ctx, orgID, ledgerID, accountID, operationID)`
 - `UpdateTransactionOperation(ctx, orgID, ledgerID, transactionID, operationID, input)`
-- `UpdateOperation(ctx, orgID, ledgerID, accountID, operationID, input)` - Deprecated compatibility shim. It reads the account-scoped operation, extracts `transactionID`, and delegates to `UpdateTransactionOperation`; use `UpdateTransactionOperation` directly when possible.
 
 ### OperationRoutesService
 
 - `ListOperationRoutes(ctx, organizationID, ledgerID, opts)`
+- `ListOperationRoutesAll(ctx, organizationID, ledgerID, opts)`
+- `ListOperationRoutesPages(ctx, organizationID, ledgerID, opts)`
 - `GetOperationRoute(ctx, organizationID, ledgerID, operationRouteID)`
 - `CreateOperationRoute(ctx, organizationID, ledgerID, input)`
 - `UpdateOperationRoute(ctx, organizationID, ledgerID, operationRouteID, input)`
@@ -254,6 +280,8 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v3/entities`. Consumers usually ac
 ### TransactionRoutesService
 
 - `ListTransactionRoutes(ctx, organizationID, ledgerID, opts)`
+- `ListTransactionRoutesAll(ctx, organizationID, ledgerID, opts)`
+- `ListTransactionRoutesPages(ctx, organizationID, ledgerID, opts)`
 - `GetTransactionRoute(ctx, organizationID, ledgerID, transactionRouteID)`
 - `CreateTransactionRoute(ctx, organizationID, ledgerID, input)`
 - `UpdateTransactionRoute(ctx, organizationID, ledgerID, transactionRouteID, input)`
@@ -266,6 +294,8 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v3/entities`. Consumers usually ac
 - `CreateTransactionWithDSLFile(ctx, orgID, ledgerID, dslContent)`
 - `GetTransaction(ctx, orgID, ledgerID, transactionID)`
 - `ListTransactions(ctx, orgID, ledgerID, opts)`
+- `ListTransactionsAll(ctx, orgID, ledgerID, opts)`
+- `ListTransactionsPages(ctx, orgID, ledgerID, opts)`
 - `GetTransactionsMetricsCount(ctx, orgID, ledgerID, opts)`
 - `UpdateTransaction(ctx, orgID, ledgerID, transactionID, input)`
 - `RevertTransaction(ctx, orgID, ledgerID, transactionID)`
@@ -290,6 +320,8 @@ These methods call Midaz `metrics/count` endpoints with `HEAD` and read the inte
 - `CreateMetadataIndex(ctx, entityName, input)`
 - `DeleteMetadataIndex(ctx, entityName, metadataKey)`
 
+`ListMetadataIndexes` returns a non-paginated `[]models.MetadataIndex` slice. There are no `ListMetadataIndexesAll` or `ListMetadataIndexesPages` helpers because the service does not use the SDK `ListResponse` pagination envelope.
+
 ### CRM services
 
 CRM services use the CRM base URL and set the organization through the `X-Organization-Id` header. Tenant scope is derived from Access Manager/JWT claims; the SDK does not expose or send `X-Tenant-ID`.
@@ -297,6 +329,8 @@ CRM services use the CRM base URL and set the organization through the `X-Organi
 #### HoldersService
 
 - `ListHolders(ctx, organizationID, opts)`
+- `ListHoldersAll(ctx, organizationID, opts)`
+- `ListHoldersPages(ctx, organizationID, opts)`
 - `CreateHolder(ctx, organizationID, input)`
 - `GetHolder(ctx, organizationID, holderID)` - Use `sdkctx.WithIncludeDeleted(ctx, true)` to include soft-deleted holders.
 - `UpdateHolder(ctx, organizationID, holderID, input)`
@@ -305,6 +339,8 @@ CRM services use the CRM base URL and set the organization through the `X-Organi
 #### AliasesService
 
 - `ListAliases(ctx, organizationID, opts)`
+- `ListAliasesAll(ctx, organizationID, opts)`
+- `ListAliasesPages(ctx, organizationID, opts)`
 - `CreateAlias(ctx, organizationID, holderID, input)`
 - `GetAlias(ctx, organizationID, holderID, aliasID)` - Use `sdkctx.WithIncludeDeleted(ctx, true)` to include soft-deleted aliases.
 - `UpdateAlias(ctx, organizationID, holderID, aliasID, input)`
@@ -317,7 +353,7 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v3/models`.
 
 ### List and pagination
 
-v3 uses typed list-opts per endpoint. Page-based and cursor-based endpoints have separate base structs — wrong-shape opts don't compile. The v2 `models.ListOptions` mega-struct, `NewListOptions`, all `With*` setters, and the `HasNextPage` / `NextPageOptions` / `CurrentPage` / `TotalPages` methods are deleted. See [docs/migration-v2-to-v3.md](../migration-v2-to-v3.md) for the migration walkthrough and [docs/pagination.md](../pagination.md) for the full contract.
+v3 uses typed list-opts per endpoint. Page-based and cursor-based endpoints have separate base structs, so wrong-shape opts do not compile. The v2 `models.ListOptions` mega-struct, `NewListOptions`, all `With*` setters, and the `HasNextPage` / `NextPageOptions` / `CurrentPage` / `TotalPages` methods are deleted. See [docs/pagination.md](../pagination.md) for the full contract.
 
 #### Base structs
 
@@ -351,7 +387,7 @@ Each per-entity opts struct exposes:
 
 #### Pagination metadata
 
-- `models.Pagination` - Embedded in every `*ListResponse[T]`. Fields: `Limit`, `Page`, `Offset`, `Total`, `PrevCursor`, `NextCursor`.
+- `models.Pagination` - Embedded in every `*ListResponse[T]`. Fields: `Limit`, `Page`, `Offset`, `Total`, `PrevCursor`, `NextCursor`, and decoded-only `ItemCount`.
 - `(*models.Pagination).HasMore() bool` - Canonical "more pages?" signal. Uses `NextCursor` for cursor endpoints, `Total + Limit + Page` arithmetic when total is reported, and a `Limit == ItemCount` heuristic otherwise. Nil-receiver-safe.
 - `(*models.Pagination).HasPrev() bool` - True when a prior page exists. Nil-receiver-safe.
 - `(*models.Pagination).TotalKnown() bool` - Reports whether the server populated `Total`. Replaces the v2 `TotalPages()` method, which silently returned `1` when total was unknown.
@@ -373,6 +409,7 @@ Each per-entity opts struct exposes:
 - `models.NewUpdateAccountInput()`
 - `models.NewCreateAccountTypeInput(name, keyValue)`
 - `models.NewUpdateAccountTypeInput()`
+- `models.NewCreateBalanceInput(key)` with `WithAllowSending`, `WithAllowReceiving`, `WithDirection`, and `WithSettings`.
 - `models.NewCreateAssetInputWithType(name, code, assetType)` - Preferred asset builder because Midaz requires `type`.
 - `models.NewCreateAssetInput(name, code)` - Deprecated compatibility builder; callers must still set type with `WithType` before sending.
 - `models.NewUpdateAssetInput()`
@@ -388,6 +425,7 @@ Each per-entity opts struct exposes:
 - `models.NewUpdateOperationRouteInput()`
 - `models.NewCreateTransactionRouteInput(title, description, operationRouteIDs)`
 - `models.NewUpdateTransactionRouteInput()`
+- `models.NewCreateMetadataIndexInput(metadataKey)` with `WithUnique` and `WithSparse`.
 - `models.NewCreateAssetRateInput(from, to, rate)` with `WithScale`, `WithSource`, `WithTTL`, `WithExternalID`, and `WithMetadata`.
 - `models.AssetRatesListOpts` with embedded `CursorListOpts{Limit, Cursor, SortDirection, StartDate, EndDate}`, `Filters.To`, and `ToQueryParams`.
 - `models.NewCreateHolderInput(holderType, name, document)` with `WithExternalID`, `WithAddresses`, `WithContact`, `WithNaturalPerson`, `WithLegalPerson`, and `WithMetadata`.
@@ -400,11 +438,11 @@ Each per-entity opts struct exposes:
 Use `github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors`.
 
 - Core type: `*errors.Error`.
-- Sentinel errors: `ErrValidation`, `ErrAuthentication`, `ErrPermission`, `ErrNotFound`, `ErrAlreadyExists`, `ErrIdempotency`, `ErrRateLimit`, `ErrTimeout`, `ErrCancellation`, `ErrInternal`, `ErrUnprocessable`, `ErrInsufficientBalance`, `ErrAccountEligibility`, `ErrAssetMismatch`.
-- Checkers: `IsValidationError`, `IsNotFoundError`, `IsAuthenticationError`, `IsAuthorizationError`, `IsAuthError`, `IsConfigurationError`, `IsConflictError`, `IsRateLimitError`, `IsTimeoutError`, `IsNetworkError`, `IsCancellationError`, `IsInternalError`, `IsInsufficientBalanceError`, `IsAccountEligibilityError`, `IsAssetMismatchError`, `IsIdempotencyError`, `IsUnprocessableError`. (v3 — `IsPermissionError` and `IsAlreadyExistsError` were retired; use `IsAuthorizationError` and `IsConflictError` respectively.)
+- Sentinel errors: `ErrValidation`, `ErrAuthentication`, `ErrPermission`, `ErrAuth`, `ErrNotFound`, `ErrAlreadyExists`, `ErrIdempotency`, `ErrRateLimit`, `ErrTimeout`, `ErrCancellation`, `ErrInternal`, `ErrUnprocessable`, `ErrConfiguration`, `ErrInsufficientBalance`, `ErrAccountEligibility`, `ErrAssetMismatch`.
+- Checkers: `IsValidationError`, `IsNotFoundError`, `IsAuthenticationError`, `IsAuthorizationError`, `IsAuthError`, `IsConfigurationError`, `IsBootstrapError`, `IsConflictError`, `IsRateLimitError`, `IsTimeoutError`, `IsNetworkError`, `IsCancellationError`, `IsInternalError`, `IsInsufficientBalanceError`, `IsAccountEligibilityError`, `IsAssetMismatchError`, `IsIdempotencyError`, `IsUnprocessableError`. (v3 — `IsPermissionError` and `IsAlreadyExistsError` were retired; use `IsAuthorizationError` and `IsConflictError` respectively.)
 - Accessors: `GetErrorCategory`, `GetStatusCode`, `GetErrorCode`, `GetErrorDetails`, `GetTransactionErrorContext`, `(*Error).GetUpstreamBody`, `(*Error).IsUpstreamBodyTruncated`, `(*Error).GetUpstreamBodyOriginalBytes`.
-- Constructors: `NewValidationError`, `NewInvalidInputError`, `NewNotFoundError`, `NewAuthenticationError`, `NewAuthorizationError`, `NewConflictError`, `NewRateLimitError`, `NewTimeoutError`, `NewInternalError`, `NewUnprocessableError`.
-- Midaz wire errors may include `code`, `title`, `message`, `entityType`, and `fields`; CRM errors may include `err`. The SDK preserves expanded envelope data on `Error.APICode`, `Error.Title`, `Error.EntityType`, `Error.Fields`, and `Error.Details` when available. Received upstream 4xx/5xx responses also attach raw, unredacted, truncated body text on `Error.UpstreamBody` by default.
+- Constructors: `NewValidationError`, `NewInvalidInputError`, `NewMissingParameterError`, `NewNotFoundError`, `NewAuthenticationError`, `NewAuthorizationError`, `NewConflictError`, `NewRateLimitError`, `NewTimeoutError`, `NewCancellationError`, `NewNetworkError`, `NewUpstreamHTTPError`, `NewInternalError`, `NewConfigurationError`, `NewUnprocessableError`, `NewInsufficientBalanceError`, `NewAssetMismatchError`, `NewAccountEligibilityError`.
+- Midaz wire errors may include `code`, `title`, `message`, `entityType`, and `fields`; CRM errors may include `err`. The SDK preserves expanded envelope data on `Error.APICode`, `Error.Title`, `Error.EntityType`, `Error.Fields`, and `Error.Details` when available. Received upstream 4xx/5xx responses attach raw, unredacted, truncated body text on `Error.UpstreamBody` only when error body exposure is explicitly enabled.
 
 ## Observability package
 
@@ -417,9 +455,9 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability`.
 - `observability.WithCollectorEndpoint(string)` - OTLP gRPC endpoint in `host:port` form.
 - `observability.WithSDKVersion(string)`
 - `observability.WithLogLevel(observability.LogLevel)`
-- `observability.WithTraceSampleRate(float64)`
+- `observability.WithTraceSampleRate(float64)` - deprecated source-compatible option; sampling is currently owned by lib-observability.
 - `observability.WithComponentEnabled(tracing, metrics, logging bool)`
-- `observability.WithAttributes(...attribute.KeyValue)`
+- `observability.WithAttributes(...attribute.KeyValue)` - deprecated for exported telemetry resources; currently applies to the SDK logger resource.
 - `observability.WithPropagationHeaders(...string)`
 - `observability.WithRegisterGlobally(bool)`
 - `observability.WithProvider(context.Context, observability.Provider)`

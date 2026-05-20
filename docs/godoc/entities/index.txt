@@ -19,6 +19,7 @@ focused on per-service business logic.
 const HeaderTotalCount = "X-Total-Count"
 func Collect[T any](seq iter.Seq2[T, error], maxItems int) ([]T, error)
 func CollectAll[T any](seq iter.Seq2[T, error]) ([]T, error)
+func HTTPPhase(err error) (string, bool)
 type AccountTypesService interface{ ... }
 type AccountsService interface{ ... }
 type AliasesService interface{ ... }

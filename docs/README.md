@@ -4,7 +4,6 @@ This directory contains hand-written guides and generated package documentation 
 
 ## Start here
 
-- [Migration: v2 → v3](./migration-v2-to-v3.md) - Side-by-side guide covering every breaking change. Read this first if upgrading.
 - [Authentication](./auth.md) - Access Manager OAuth and anonymous mode.
 - [Configuration](./configuration.md) - Four configuration surfaces, precedence rules, every option.
 - [Environment variables](./environment.md) - Runtime configuration and `.env` usage.
@@ -14,7 +13,6 @@ This directory contains hand-written guides and generated package documentation 
 - [Pagination](./pagination.md) - List options, page metadata, and cursor behavior.
 - [Multi-tenancy](./multi-tenancy.md) - Tenant resolution, header vs claims, propagation patterns.
 - [Logging](./logging.md) - `*slog.Logger` integration recipes for stdlib slog, zap, zerolog, charmbracelet/log.
-- [Tracing](./tracing.md) - OpenTelemetry setup and trace propagation.
 
 ## API mapping
 
@@ -51,6 +49,7 @@ Generated docs currently include:
 - [Concurrent package](./godoc/pkg/concurrent/index.txt)
 - [Retry package](./godoc/pkg/retry/index.txt)
 - [Performance package](./godoc/pkg/performance/index.txt)
+- [Generator package](./godoc/pkg/generator/index.txt)
 - [Format package](./godoc/pkg/format/index.txt)
 
 ## Package structure
@@ -64,6 +63,8 @@ Generated docs currently include:
 - `pkg/observability` - OpenTelemetry tracing, metrics, logging, propagation, and middleware helpers.
 - `pkg/retry` - Retry policies, backoff, jitter, and HTTP retry helpers.
 - `pkg/concurrent` - Worker pool, batch, and rate-limit helpers.
+- `pkg/performance` - Batch sizing, HTTP pooling, JSON reuse, and client optimization helpers.
+- `pkg/generator` - Demo-data generation primitives used by `examples/mass-demo-generator`.
 - `pkg/security`, `pkg/validation`, `pkg/format`, `pkg/transaction`, `pkg/version` - Supporting utility packages.
 
 ## Entity services
@@ -105,4 +106,4 @@ c, err := midaz.New(
 
 See [Environment variables](./environment.md) for the full list of supported variables.
 
-Unsafe transaction create calls receive an auto-generated `X-Idempotency` header by default. Use `sdkctx.WithIdempotencyKey` or input-level idempotency keys when a caller-chosen stable key is required, or when auto-idempotency has been disabled for a client or request.
+Unsafe SDK requests (`POST`, `PUT`, `PATCH`, `DELETE`) receive an auto-generated `X-Idempotency` header by default. Use `sdkctx.WithIdempotencyKey` or input-level idempotency keys when a caller-chosen stable key is required, or when auto-idempotency has been disabled for a client or request.

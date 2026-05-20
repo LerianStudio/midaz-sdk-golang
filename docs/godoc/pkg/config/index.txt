@@ -19,11 +19,13 @@ type Environment string
 type Option func(*Config) error
     func FromEnvironment() Option
     func WithAccessManager(accessManager auth.AccessManager) Option
+    func WithAllowInsecureAccessManagerHTTP(allow bool) Option
     func WithAnonymous() Option
     func WithBaseURL(baseURL string) Option
     func WithCRMURL(crmURL string) Option
     func WithDebug(enabled bool) Option
     func WithEnvironment(env Environment) Option
+    func WithErrorBodyExposure(enabled bool) Option
     func WithHTTPClient(client *http.Client) Option
     func WithIdempotency(enabled bool) Option
     func WithMaxRetries(maxRetries int) Option

@@ -128,13 +128,14 @@ Important path groups:
 - Ledgers: `/organizations/{organizationID}/ledgers`, `/organizations/{organizationID}/ledgers/{ledgerID}`
 - Ledger settings: `/organizations/{organizationID}/ledgers/{ledgerID}/settings` with `GET` and `PATCH` for `accounting.validateAccountType` and `accounting.validateRoutes`.
 - Accounts: `/organizations/{organizationID}/ledgers/{ledgerID}/accounts`, `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/{accountID}`, `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/alias/{alias}`, `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/external/{assetCode}`
-- Account balances: `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/{accountID}/balances`, `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/alias/{alias}/balances`, `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/external/{assetCode}/balances`, `/balances/{balanceID}`, balance history endpoints
+- Balances: `/organizations/{organizationID}/ledgers/{ledgerID}/balances`, `/organizations/{organizationID}/ledgers/{ledgerID}/balances/{balanceID}`, `/organizations/{organizationID}/ledgers/{ledgerID}/balances/{balanceID}/history?date={date}`
+- Account balances: `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/{accountID}/balances`, `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/{accountID}/balances/history?date={date}`, `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/alias/{alias}/balances`, `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/external/{assetCode}/balances`
 - Assets: `/organizations/{organizationID}/ledgers/{ledgerID}/assets`
 - Asset rates: `/organizations/{organizationID}/ledgers/{ledgerID}/asset-rates`, `/organizations/{organizationID}/ledgers/{ledgerID}/asset-rates/{externalID}`, and `/organizations/{organizationID}/ledgers/{ledgerID}/asset-rates/from/{assetCode}` using cursor filters (`to`, `limit`, `start_date`, `end_date`, `sort_order`, `cursor`).
 - Transactions: `/organizations/{organizationID}/ledgers/{ledgerID}/transactions`, `/organizations/{organizationID}/ledgers/{ledgerID}/transactions/json`, `/organizations/{organizationID}/ledgers/{ledgerID}/transactions/dsl`, `/organizations/{organizationID}/ledgers/{ledgerID}/transactions/{transactionID}`, `/organizations/{organizationID}/ledgers/{ledgerID}/transactions/{transactionID}/commit`, `/organizations/{organizationID}/ledgers/{ledgerID}/transactions/{transactionID}/cancel`, `/organizations/{organizationID}/ledgers/{ledgerID}/transactions/{transactionID}/revert`, `/organizations/{organizationID}/ledgers/{ledgerID}/transactions/inflow`, `/organizations/{organizationID}/ledgers/{ledgerID}/transactions/outflow`, `/organizations/{organizationID}/ledgers/{ledgerID}/transactions/annotation`
 - Operations: account-scoped reads use `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/{accountID}/operations` and `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/{accountID}/operations/{operationID}`. Updates are transaction-scoped through `PATCH /organizations/{organizationID}/ledgers/{ledgerID}/transactions/{transactionID}/operations/{operationID}`.
 - Routes: operation route endpoints use `/organizations/{organizationID}/ledgers/{ledgerID}/operation-routes`; transaction route endpoints use `/organizations/{organizationID}/ledgers/{ledgerID}/transaction-routes`.
-- Metadata indexes: `/settings/metadata-indexes`
+- Metadata indexes: list uses `/settings/metadata-indexes` with optional `entity_name`; create uses `/settings/metadata-indexes/entities/{entityName}`; delete uses `/settings/metadata-indexes/entities/{entityName}/key/{metadataKey}`. The list endpoint returns a raw `[]MetadataIndex` slice, not a paginated `ListResponse`.
 - CRM holders: `/holders`, `/holders/{holderID}`
 - CRM aliases: `/aliases`, `/holders/{holderID}/aliases`, `/holders/{holderID}/aliases/{aliasID}`, `/holders/{holderID}/aliases/{aliasID}/related-parties/{relatedPartyID}`
 
@@ -167,6 +168,7 @@ Common builders:
 - `models.NewUpdateAccountInput()`
 - `models.NewCreateAccountTypeInput(name, keyValue)`
 - `models.NewUpdateAccountTypeInput()`
+- `models.NewCreateBalanceInput(key)` with `WithAllowSending`, `WithAllowReceiving`, `WithDirection`, and `WithSettings`.
 - `models.NewCreateAssetInputWithType(name, code, assetType)`
 - `models.NewCreateAssetInput(name, code)` - Deprecated compatibility builder; callers must set type with `WithType` before sending.
 - `models.NewUpdateAssetInput()`
@@ -174,7 +176,7 @@ Common builders:
 - `models.NewUpdatePortfolioInput()`
 - `models.NewCreateSegmentInput(name)`
 - `models.NewUpdateSegmentInput()`
-- `models.NewCreateTransactionInput(assetCode, amount)` - Must include `send.source` and `send.distribute` before sending, either through `WithSend(...)` or legacy operation adaptation. Unsafe transaction create requests receive an auto-generated `X-Idempotency` header by default; set `IdempotencyKey` or use `sdkctx.WithIdempotencyKey` when the caller needs a stable key or has disabled auto-idempotency.
+- `models.NewCreateTransactionInput(assetCode, amount)` - Must include `send.source` and `send.distribute` before sending, either through `WithSend(...)` or legacy operation adaptation. Unsafe SDK requests receive an auto-generated `X-Idempotency` header by default; set `IdempotencyKey` or use `sdkctx.WithIdempotencyKey` when the caller needs a stable key or has disabled auto-idempotency.
 - `models.NewCreateInflowInput(assetCode, value, distribute)` - Requires a non-empty `distribute.to` payload.
 - `models.NewCreateOutflowInput(assetCode, value, source)` - Requires a non-empty `source.from` payload.
 - `models.NewCreateAnnotationInput(description, send...)` - `send` is optional. Omit it for metadata-only annotation transactions, or pass it for backend deployments that still require a send payload.
@@ -182,6 +184,7 @@ Common builders:
 - `models.NewUpdateOperationRouteInput()`
 - `models.NewCreateTransactionRouteInput(title, description, operationRouteIDs)`
 - `models.NewUpdateTransactionRouteInput()`
+- `models.NewCreateMetadataIndexInput(metadataKey)` with `WithUnique` and `WithSparse`.
 - `models.NewCreateAssetRateInput(from, to, rate)` with `WithScale`, `WithSource`, `WithTTL`, `WithExternalID`, and `WithMetadata`.
 - `models.AssetRatesListOpts` with embedded `CursorListOpts{Limit, Cursor, SortDirection, StartDate, EndDate}`, `Filters.To`, and `ToQueryParams`.
 - `models.NewCreateHolderInput(holderType, name, document)` with `WithExternalID`, `WithAddresses`, `WithContact`, `WithNaturalPerson`, `WithLegalPerson`, and `WithMetadata`.
@@ -202,16 +205,18 @@ Query serialization rules:
 - `SortDirection` serializes as `sort_order`.
 - Date ranges serialize as `start_date` and `end_date` where supported.
 
-`models.ListResponse[T]` contains `Items []T` and `Pagination models.Pagination`. JSON unmarshalling supports both current top-level pagination fields and legacy nested `pagination` payloads.
+`models.ListResponse[T]` contains `Items []T` and `Pagination models.Pagination`. JSON unmarshalling supports both current top-level pagination fields and legacy nested `pagination` payloads. After unmarshalling, `Pagination.ItemCount` is set from the decoded item count so traversal heuristics can detect full pages even when the server omits `total`.
 
-`Pagination.TotalPages()` depends on `Pagination.Total`. Current Midaz responses commonly omit `total`, so traversal logic should use `HasNextPage`, `NextPageOptions`, and cursor metadata instead of assuming total pages are available.
+`models.Pagination` exposes `HasMore()`, `HasPrev()`, and `TotalKnown()` as the canonical traversal helpers. `HasMore()` prefers `NextCursor` for cursor endpoints, falls back to `Total` arithmetic when a total is present, and finally uses a full-page heuristic (`ItemCount >= Limit`) for page endpoints that omit totals. Callers that need a page count must compute it only when `TotalKnown()` is true and `Limit > 0`.
+
+Internal iterator methods advance by copying typed opts and setting either `Page++` for page-based endpoints or `Cursor = page.Pagination.NextCursor` for cursor-based endpoints.
 
 Pagination behavior differs by API family:
 
 | API family | Internal behavior |
 | --- | --- |
 | Ledger page-based resources | Common serialization sends `page`, `limit`, filters, and `sort_order`. |
-| Ledger cursor-aware resources | Transactions use cursor-aware handling and remove page-style parameters when `Cursor` is set. |
+| Ledger cursor-based resources | Transactions, operations, operation routes, transaction routes, and asset rates advance with `Pagination.NextCursor`; typed opts never emit page-style parameters. |
 | CRM holders and aliases | CRM services use page-based list calls plus CRM-specific filters stored in `AdditionalParams`. |
 
 ## Error model internals
@@ -220,20 +225,30 @@ The core SDK error type is `*errors.Error` in `pkg/errors`:
 
 ```go
 type Error struct {
-    Category   ErrorCategory
-    Code       ErrorCode
-    APICode    string
-    Title      string
-    Message    string
-    Operation  string
-    Resource   string
-    ResourceID string
-    EntityType string
-    Fields     []string
-    Details    map[string]any
-    StatusCode int
-    RequestID  string
-    Err        error
+    Category                  ErrorCategory
+    Code                      ErrorCode
+    APICode                   string
+    Title                     string
+    Message                   string
+    Operation                 string
+    Resource                  string
+    ResourceID                string
+    EntityType                string
+    Fields                    []string
+    Details                   map[string]any
+    UpstreamBody              string
+    UpstreamBodyTruncated     bool
+    UpstreamBodyOriginalBytes int
+    StatusCode                int
+    Source                    ErrorSource
+    HTTPRequestSent           bool
+    HTTPResponseReceived      bool
+    StatusCodeSource          ErrorStatusCodeSource
+    RequestID                 string
+    Method                    string
+    URLHost                   string
+    URLPath                   string
+    Err                       error
 }
 ```
 
@@ -244,6 +259,7 @@ Standard sentinel errors include:
 - `ErrValidation`
 - `ErrAuthentication`
 - `ErrPermission`
+- `ErrAuth`
 - `ErrNotFound`
 - `ErrAlreadyExists`
 - `ErrIdempotency`
@@ -252,6 +268,7 @@ Standard sentinel errors include:
 - `ErrCancellation`
 - `ErrInternal`
 - `ErrUnprocessable`
+- `ErrConfiguration`
 - `ErrInsufficientBalance`
 - `ErrAccountEligibility`
 - `ErrAssetMismatch`
@@ -270,7 +287,7 @@ The SDK observability package wraps OpenTelemetry and exposes a `Provider` inter
 
 Entity HTTP requests inject propagation headers through `observability.InjectContext`. Server-side code can extract incoming context with `observability.ExtractContext` or use the HTTP middleware helpers.
 
-Collector endpoints are passed to the OTLP gRPC exporter as `host:port` values, for example `localhost:4317`.
+Collector endpoints are passed to the OTLP gRPC exporter as `host:port` values, for example `localhost:4317`. TLS is the default; local plaintext collectors require `observability.WithCollectorInsecure(true)` in development/local environments.
 
 ## Retry internals
 
@@ -283,7 +300,7 @@ Root-client retry defaults come from `pkg/config` and are applied to entity HTTP
 - Maximum delay: 30s
 - Backoff factor: 2.0
 - Jitter factor: 0.25
-- Retryable status codes: 408, 429, 500, 502, 503, 504
+- Retryable status codes: 408, 425, 429, 500, 502, 503, 504
 
 Unsafe requests are retried only when an idempotency key is present.
 

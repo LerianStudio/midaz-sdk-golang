@@ -41,10 +41,14 @@ custom transport that wraps the SDK's HTTP client.
   - docs/auth.md — authentication setup and migration walkthrough
   - examples/02-auth — runnable Access Manager demo
 
+const ValidationReasonAuthDisabled = "auth_disabled" ...
 var ErrAccessManagerTokenFetch = errors.New("access manager token fetch failed")
 func GetTokenFromAccessManager(ctx context.Context, accessMgr AccessManager, httpClient *http.Client) (string, error)
 func InvalidateAccessManagerToken(accessMgr AccessManager)
 func IsAccessManagerTokenFetchError(err error) bool
+func ValidateAccessManagerAddress(address string) error
+func ValidateAccessManagerAddressWithInsecure(address string, allowInsecureHTTP bool) error
 func WrapAccessManagerTokenFetchError(err error) error
 type AccessManager struct{ ... }
+type AccessManagerTokenRequestError struct{ ... }
 type TokenResponse struct{ ... }

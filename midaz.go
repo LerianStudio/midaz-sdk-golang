@@ -37,15 +37,16 @@
 //
 // Inject a *slog.Logger via [WithLogger]. Wire OpenTelemetry via
 // [WithObservabilityProvider] or [WithObservabilityOptions]. The SDK is
-// silent by default (slog.DiscardHandler). See docs/logging.md and
-// docs/tracing.md.
+// silent by default (slog.DiscardHandler). See docs/logging.md and the
+// observability examples.
 //
 // # Pagination
 //
-// Every List* method returns one page. ListAll yields iter.Seq2[T, error]
-// for full-collection iteration; ListPages yields page envelopes with
-// metadata. Page-based and cursor-based endpoints are distinguished at
-// the type system — wrong-shape opts don't compile. See docs/pagination.md.
+// Every paginated entity List* method returns one page. ListAll yields
+// iter.Seq2[T, error] for full-collection iteration; ListPages yields page
+// envelopes with metadata. MetadataIndexes is intentionally non-paginated.
+// Page-based and cursor-based endpoints are distinguished at the type system:
+// wrong-shape opts don't compile. See docs/pagination.md.
 //
 // # Errors
 //
@@ -73,7 +74,7 @@
 //
 // See examples/ for runnable demos. Start with examples/01-hello-world
 // for the minimum-viable shape; examples/03-end-to-end walks the full
-// resource hierarchy. See docs/v3-dx-plan.md for the v3 design rationale.
+// resource hierarchy.
 package midaz
 
 import (
@@ -548,8 +549,8 @@ func (c *Client) Trace(name string, fn func(context.Context) error) error {
 //
 //   - Client.Logger() — this method. Returns *slog.Logger. The Go-stdlib
 //     idiom. Used by the SDK for retry diagnostics and other internal lines
-//     that are not span-correlated. Configured via WithLogger, WithLoggerStream,
-//     or implicitly by Config.Debug. Has its own handler chain.
+//     that are not span-correlated. Configured via WithLogger or implicitly by
+//     Config.Debug. Has its own handler chain.
 //   - Provider.Logger() — accessed via c.GetObservabilityProvider().Logger().
 //     Returns the bespoke observability.Logger interface. OTel-correlated:
 //     attaches trace_id/span_id when used inside a span via WithSpan(span).

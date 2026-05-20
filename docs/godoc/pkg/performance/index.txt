@@ -30,16 +30,13 @@ JSON Performance Use Cases:
     ```
 
  3. JSON Streaming in Web Services: For web servers handling many concurrent
-    JSON requests, buffer pooling reduces some GC pressure. Only buffers are
-    pooled — encoders and decoders are constructed on every call (the standard
-    library's json.Encoder/json.Decoder cannot be safely rebound to a new
-    writer/reader). ReleaseEncoder/ReleaseDecoder are retained for backward
-    compatibility but perform no resource release; calling them is harmless and
-    no longer required:
+    JSON requests, buffer pooling reduces some GC pressure. Encoders and
+    decoders are created per use:
 
     ```go // In an HTTP handler function func handleAPIRequest(w
-    http.ResponseWriter, r *http.Request) { // Construct a per-request encoder
-    that writes to the response enc := performance.NewEncoder(w)
+    http.ResponseWriter, r *http.Request) { // Get a pooled encoder
+    that writes to the response enc := performance.NewEncoder(w) defer
+    performance.ReleaseEncoder(enc)
 
     // Process and encode the result directly to the response result :=
     processRequest(r) enc.Encode(result) } ```

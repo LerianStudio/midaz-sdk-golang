@@ -44,13 +44,12 @@ All variables below are read by `config.FromEnvironment()`. Standard library rea
 | `MIDAZ_DEBUG` | Enables debug logging when set to `true`. | `false` |
 | `MIDAZ_MAX_RETRIES` | Maximum retry attempts. Set to `0` to disable retries entirely. | `3` |
 | `MIDAZ_IDEMPOTENCY` | Enables (`true`) or disables (`false`) auto idempotency support. | `true` |
-| `MIDAZ_ERROR_EXPOSE_BODY` | Attaches raw upstream 4xx/5xx response bodies to SDK errors. Bodies are not redacted by the SDK; they are only truncated. | `true` |
+| `MIDAZ_ERROR_EXPOSE_BODY` | Attaches raw upstream 4xx/5xx response bodies to SDK errors. Bodies are not redacted by the SDK; enable only for controlled diagnostics. | `false` |
 | `PLUGIN_AUTH_ENABLED` | Enables Access Manager authentication when set to `true`. | `false` |
 | `PLUGIN_AUTH_ADDRESS` | Access Manager base address. | empty |
 | `MIDAZ_CLIENT_ID` | Access Manager client ID. | empty |
 | `MIDAZ_CLIENT_SECRET` | Access Manager client secret. | empty |
-| `MIDAZ_SKIP_AUTH_CHECK` | **Test plumbing only — never set in production.** Bypasses the construction-time gate that catches Access Manager misconfigurations (`PLUGIN_AUTH_ENABLED=true` without `PLUGIN_AUTH_ADDRESS`, `MIDAZ_CLIENT_ID`, or `MIDAZ_CLIENT_SECRET`) before the first request. Skipping it pushes those failures to runtime as 401 cascades. Programmatic configuration cannot set this. | `false` |
-
+| `MIDAZ_ACCESS_MANAGER_ALLOW_INSECURE_HTTP` | Allows non-loopback `http://` Access Manager URLs for trusted in-cluster networks. Not allowed with `MIDAZ_ENVIRONMENT=production`. | `false` |
 `MIDAZ_AUTH_TOKEN` is **not** a configuration environment variable. `config.FromEnvironment()` does not read it, and v3 deliberately exposes no `WithAuthToken` option. The two sanctioned auth paths are `midaz.WithAccessManager(...)` (OAuth via the Lerian Access Manager service) and `midaz.WithAnonymous()` (explicit auth-less mode for local development and tests). Static-token deployments configure their access manager to mint tokens.
 
 ## Removed in v3
@@ -89,7 +88,9 @@ When `PLUGIN_AUTH_ENABLED=true`, the SDK requests a token from:
 
 The request sends a client credentials payload using `MIDAZ_CLIENT_ID` and `MIDAZ_CLIENT_SECRET`. The returned `accessToken` becomes the `Authorization: Bearer ...` header for Midaz API requests.
 
-If `PLUGIN_AUTH_ENABLED=true` and `PLUGIN_AUTH_ADDRESS` is empty, config validation fails. Tests can set `MIDAZ_SKIP_AUTH_CHECK=true` to bypass this check, but only when configuration goes through `config.FromEnvironment()`.
+When `PLUGIN_AUTH_ENABLED=true`, config validation also requires `MIDAZ_CLIENT_ID`, `MIDAZ_CLIENT_SECRET`, and an explicit target. Set `MIDAZ_ENVIRONMENT`, `MIDAZ_BASE_URL`, or at least one service-specific URL so the SDK does not silently pair Access Manager credentials with default local service URLs.
+
+Access Manager URLs are strict by default. Use `https://` for remote targets. Plain `http://` is accepted only for loopback hosts such as `localhost` and `127.0.0.1`. If you run Access Manager behind a trusted in-cluster Kubernetes Service or service mesh, set `MIDAZ_ACCESS_MANAGER_ALLOW_INSECURE_HTTP=true` to permit a non-loopback `http://` address. This escape hatch is rejected in production.
 
 ## Service URLs and precedence
 
@@ -136,7 +137,7 @@ MIDAZ_USER_AGENT=MyService/1.0
 MIDAZ_DEBUG=true
 ```
 
-`MIDAZ_DEBUG=true` enables verbose request and response logging. Any value other than `true` leaves debug logging disabled.
+`MIDAZ_DEBUG` uses Go's strict `strconv.ParseBool` forms. Values such as `true`, `false`, `1`, and `0` are valid. Values such as `yes`, `no`, `on`, and `off` return a configuration error instead of silently defaulting.
 
 ## Retry behavior
 
@@ -163,7 +164,7 @@ The SDK does not read retry wait environment variables. Configure retry timing i
 MIDAZ_IDEMPOTENCY=true
 ```
 
-Idempotency is enabled by default. Set it to `false` to disable SDK-generated idempotency behavior.
+Idempotency is enabled by default for ordinary unsafe SDK requests. Set it to `false` to disable SDK-generated idempotency behavior. Transaction and HTTP batch retries are stricter: when their retry count is greater than zero, callers must supply stable per-transaction or per-item idempotency keys so replayed batch attempts are deterministic.
 
 Automatic key generation applies to unsafe entity HTTP requests. The entity HTTP client generates an `X-Idempotency` UUID only when all of these are true:
 
@@ -232,6 +233,8 @@ PLUGIN_AUTH_ENABLED=true
 PLUGIN_AUTH_ADDRESS=http://localhost:4000
 MIDAZ_CLIENT_ID=your-client-id
 MIDAZ_CLIENT_SECRET=your-client-secret
+# Optional: only for trusted non-loopback http:// Access Manager URLs
+MIDAZ_ACCESS_MANAGER_ALLOW_INSECURE_HTTP=false
 
 # HTTP behavior
 MIDAZ_TIMEOUT=30

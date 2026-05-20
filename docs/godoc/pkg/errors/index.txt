@@ -144,6 +144,9 @@ arbitrary log lines.
 (Package documentation lives in doc.go.)
 
 var ErrValidation = &Error{ ... } ...
+func ActualHTTPStatus(err error) (int, bool)
+func AttachUpstreamBody(err error, body []byte, truncated bool) error
+func AttachUpstreamBodyWithLimit(err error, body []byte, truncated bool, maxBytes int) error
 func CategorizeTransactionError(err error) string
 func ClassifyTransportError(operation string, err error) error
 func ErrorFromHTTPResponse(statusCode int, requestID, message, apiCode, entityType, resourceID string) error
@@ -154,11 +157,14 @@ func FormatOperationError(err error, operation string) string
 func FormatUnifiedTransactionError(err error, operationType string) string
 func GetErrorStatusCode(err error) int
 func GetStatusCode(err error) int
+func HTTPRequestSent(err error) bool
+func HTTPResponseReceived(err error) bool
 func IsAccountEligibilityError(err error) bool
 func IsAssetMismatchError(err error) bool
 func IsAuthError(err error) bool
 func IsAuthenticationError(err error) bool
 func IsAuthorizationError(err error) bool
+func IsBootstrapError(err error) bool
 func IsCancellationError(err error) bool
 func IsConfigurationError(err error) bool
 func IsConflictError(err error) bool
@@ -166,6 +172,7 @@ func IsIdempotencyError(err error) bool
 func IsInsufficientBalanceError(err error) bool
 func IsInternalError(err error) bool
 func IsNetworkError(err error) bool
+func IsNilInterfaceValue(value any) bool
 func IsNotFoundError(err error) bool
 func IsRateLimitError(err error) bool
 func IsSensitiveFieldName(name string) bool
@@ -175,6 +182,7 @@ func IsValidationError(err error) bool
 func RedactSensitiveDetails(details map[string]any) map[string]any
 func RedactSensitiveString(message string) string
 func RedactSensitiveStringSlice(values []string) []string
+func SuggestedHTTPStatus(err error) int
 type Error struct{ ... }
     func NewAccountEligibilityError(operation, accountID string, err error) *Error
     func NewAssetMismatchError(operation, expected, actual string, err error) *Error
@@ -192,6 +200,7 @@ type Error struct{ ... }
     func NewRateLimitError(operation, message string, err error) *Error
     func NewTimeoutError(operation, message string, err error) *Error
     func NewUnprocessableError(operation, resource string, err error) *Error
+    func NewUpstreamHTTPError(operation, message string, statusCode int, err error) *Error
     func NewValidationError(operation, message string, err error) *Error
 type ErrorCategory string
     const CategoryValidation ErrorCategory = "validation" ...
@@ -200,3 +209,7 @@ type ErrorCode string
     const CodeValidation ErrorCode = "validation_error" ...
 type ErrorDetails struct{ ... }
     func GetErrorDetails(err error) ErrorDetails
+type ErrorSource string
+    const ErrorSourceSDK ErrorSource = "sdk" ...
+type ErrorStatusCodeSource string
+    const StatusCodeSourceNone ErrorStatusCodeSource = "none" ...
