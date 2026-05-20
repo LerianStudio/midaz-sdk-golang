@@ -4,7 +4,7 @@ go 1.26.0
 
 require (
 	github.com/LerianStudio/lib-observability v1.0.0
-	github.com/brianvoe/gofakeit/v7 v7.14.1
+	github.com/brianvoe/gofakeit/v7 v7.15.0
 	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
 	github.com/shopspring/decimal v1.4.0
