@@ -70,6 +70,10 @@ type HTTPOptions struct {
 	// errors where no response was received.
 	PreRetryHook func(ctx context.Context, req *http.Request, resp *HTTPResponse) error
 
+	// Logger receives retry diagnostics. When nil, diagnostics are silent instead
+	// of falling back to global slog state.
+	Logger *slog.Logger
+
 	// JitterFactor is the amount of jitter to add to the delay (0.0-1.0)
 	JitterFactor float64
 }
@@ -251,6 +255,14 @@ func WithHTTPRetryOn4xx(codes []int) HTTPOption {
 func WithHTTPPreRetryHook(hook func(ctx context.Context, req *http.Request, resp *HTTPResponse) error) HTTPOption {
 	return func(o *HTTPOptions) error {
 		o.PreRetryHook = hook
+		return nil
+	}
+}
+
+// WithHTTPLogger returns an HTTPOption that sets the logger used for retry diagnostics.
+func WithHTTPLogger(logger *slog.Logger) HTTPOption {
+	return func(o *HTTPOptions) error {
+		o.Logger = logger
 		return nil
 	}
 }
@@ -637,7 +649,7 @@ func (r *httpRetryState) canRetryRequest(req *http.Request, httpResp *HTTPRespon
 		return true
 	}
 
-	if !isRequestMethodRetryable(req) || !isRequestBodyReplayable(req) {
+	if !isRequestMethodRetryable(req, r.options.Logger) || !isRequestBodyReplayable(req) {
 		return false
 	}
 
@@ -841,14 +853,14 @@ func cloneHTTPOptions(options *HTTPOptions) *HTTPOptions {
 	return &cloned
 }
 
-func isRequestMethodRetryable(req *http.Request) bool {
+func isRequestMethodRetryable(req *http.Request, logger *slog.Logger) bool {
 	if req == nil {
 		return false
 	}
 
 	switch strings.ToUpper(req.Method) {
 	case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
-		return hasIdempotencyHeader(req)
+		return hasIdempotencyHeader(req, logger)
 	default:
 		return true
 	}
@@ -869,14 +881,14 @@ func isRequestMethodRetryable(req *http.Request) bool {
 // Callers should set the SDK header explicitly via
 // [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx.WithIdempotencyKey]
 // or by writing "X-Idempotency" directly on the *http.Request.
-func hasIdempotencyHeader(req *http.Request) bool {
+func hasIdempotencyHeader(req *http.Request, logger *slog.Logger) bool {
 	hasCanonical := strings.TrimSpace(req.Header.Get("X-Idempotency")) != ""
 	if hasCanonical {
 		return true
 	}
 
 	if strings.TrimSpace(req.Header.Get("Idempotency-Key")) != "" {
-		warnLegacyIdempotencyKey()
+		warnLegacyIdempotencyKey(logger)
 	}
 
 	return false
@@ -888,16 +900,13 @@ var legacyIdempotencyKeyWarningOnce sync.Once
 // first time the SDK observes a request that carries the legacy
 // "Idempotency-Key" header but not the canonical "X-Idempotency".
 // One-shot to keep retry-heavy workloads from flooding the log.
-//
-// We route through [slog.Default] rather than the SDK's structured
-// logger because pkg/retry intentionally avoids depending on the
-// observability layer (per the package's "no observability imports"
-// invariant). Callers that have installed a slog handler will see the
-// warning; default callers will see it on stderr at debug level (i.e.
-// silent until the global level is lowered).
-func warnLegacyIdempotencyKey() {
+func warnLegacyIdempotencyKey(logger *slog.Logger) {
+	if logger == nil {
+		return
+	}
+
 	legacyIdempotencyKeyWarningOnce.Do(func() {
-		slog.Default().Debug(
+		logger.Debug(
 			"retry: request carries Idempotency-Key but not X-Idempotency; retries disabled for unsafe method",
 			slog.String("sdk.name", "midaz-go-sdk"),
 			slog.String("sdk.component", "retry"),

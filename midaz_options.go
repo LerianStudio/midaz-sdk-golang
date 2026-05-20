@@ -109,7 +109,7 @@ func WithUserAgent(userAgent string) Option {
 //	    midaz.WithRetryOptions(
 //	        retry.WithMaxRetries(5),
 //	        retry.WithJitterFactor(0.4),
-//	        retry.WithRetryableHTTPCodes([]int{408, 429, 500, 502, 503, 504}),
+//	        retry.WithRetryableHTTPCodes([]int{408, 425, 429, 500, 502, 503, 504}),
 //	    ),
 //	)
 //
