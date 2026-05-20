@@ -11,20 +11,19 @@ import (
 	"time"
 
 	obsconstants "github.com/LerianStudio/lib-observability/constants"
+	obslog "github.com/LerianStudio/lib-observability/log"
 	obsmetrics "github.com/LerianStudio/lib-observability/metrics"
+	obstracing "github.com/LerianStudio/lib-observability/tracing"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/version"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	otellog "go.opentelemetry.io/otel/log"
+	otellogglobal "go.opentelemetry.io/otel/log/global"
 	"go.opentelemetry.io/otel/metric"
 	metricnoop "go.opentelemetry.io/otel/metric/noop"
 	"go.opentelemetry.io/otel/propagation"
-	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	sdkresource "go.opentelemetry.io/otel/sdk/resource"
-	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.34.0"
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
@@ -124,19 +123,26 @@ type Config struct {
 	// CollectorEndpoint is the endpoint for the OpenTelemetry collector
 	CollectorEndpoint string
 
+	// CollectorInsecure opts out of TLS for OTLP gRPC exporters. Default false.
+	CollectorInsecure bool
+
 	// LogLevel is the minimum log level to record
 	LogLevel LogLevel
 
 	// LogOutput is where to write logs (defaults to os.Stderr)
 	LogOutput io.Writer
 
-	// TraceSampleRate is the sampling rate for traces (0.0 to 1.0)
+	// TraceSampleRate is retained for source compatibility. Trace sampling is
+	// currently owned by lib-observability's telemetry lifecycle and this value
+	// is not applied by the SDK provider.
 	TraceSampleRate float64
 
 	// EnabledComponents controls which observability components are enabled
 	EnabledComponents EnabledComponents
 
-	// Attributes are additional attributes to add to all telemetry
+	// Attributes are additional attributes attached to the SDK logger resource.
+	// The lib-observability telemetry lifecycle currently owns exported
+	// trace/metric resource attributes.
 	Attributes []attribute.KeyValue
 
 	// Propagators for context propagation
@@ -215,6 +221,16 @@ func WithCollectorEndpoint(endpoint string) Option {
 	}
 }
 
+// WithCollectorInsecure opts OTLP gRPC exporters into plaintext transport.
+// The default is false, so collector connections use TLS unless callers
+// explicitly opt out for local or trusted in-cluster deployments.
+func WithCollectorInsecure(insecure bool) Option {
+	return func(c *Config) error {
+		c.CollectorInsecure = insecure
+		return nil
+	}
+}
+
 // WithLogLevel sets the minimum log level to record
 func WithLogLevel(level LogLevel) Option {
 	return func(c *Config) error {
@@ -246,7 +262,12 @@ func WithLogOutput(output io.Writer) Option {
 	}
 }
 
-// WithTraceSampleRate sets the sampling rate for traces (0.0 to 1.0)
+// WithTraceSampleRate stores the requested trace sampling rate for source compatibility.
+//
+// Compatibility note: lib-observability v1.0.0 owns the tracer provider
+// lifecycle and does not expose sampler configuration through TelemetryConfig.
+// The option is validated and retained on Config, but it does not change
+// exported sampling.
 func WithTraceSampleRate(rate float64) Option {
 	return func(c *Config) error {
 		if rate < 0.0 || rate > 1.0 {
@@ -270,7 +291,11 @@ func WithComponentEnabled(tracing, metrics, logging bool) Option {
 	}
 }
 
-// WithAttributes adds additional attributes to all telemetry
+// WithAttributes adds additional attributes to the SDK logger resource.
+//
+// Compatibility note: exported trace/metric resource attributes are currently
+// owned by lib-observability's telemetry lifecycle. These attributes remain
+// available to the SDK logger resource for source compatibility.
 func WithAttributes(attrs ...attribute.KeyValue) Option {
 	return func(c *Config) error {
 		c.Attributes = append(c.Attributes, attrs...)
@@ -318,18 +343,23 @@ func WithRegisterGlobally(register bool) Option {
 	}
 }
 
-// WithHighTracingSampling sets a high trace sampling rate (0.5) for development environments
+// WithHighTracingSampling stores the legacy high sampling request.
+//
+// Compatibility note: sampling is currently owned by lib-observability; see
+// [WithTraceSampleRate].
 func WithHighTracingSampling() Option {
 	return WithTraceSampleRate(0.5)
 }
 
-// WithFullTracingSampling sets a full trace sampling rate (1.0) for testing environments
+// WithFullTracingSampling stores the legacy full sampling request.
+//
+// Compatibility note: sampling is currently owned by lib-observability; see
+// [WithTraceSampleRate].
 func WithFullTracingSampling() Option {
 	return WithTraceSampleRate(1.0)
 }
 
 // WithDevelopmentDefaults sets reasonable defaults for development environments
-// - High trace sampling rate (0.5)
 // - Debug log level
 // - Development environment
 func WithDevelopmentDefaults() Option {
@@ -347,7 +377,6 @@ func WithDevelopmentDefaults() Option {
 }
 
 // WithProductionDefaults sets reasonable defaults for production environments
-// - Low trace sampling rate (0.1)
 // - Info log level
 // - Production environment
 func WithProductionDefaults() Option {
@@ -392,16 +421,14 @@ func DefaultConfig() *Config {
 // MidazProvider is the main implementation of the Provider interface
 // It provides access to OpenTelemetry tracing, metrics, and logging
 type MidazProvider struct {
-	lifecycleMu       sync.RWMutex
-	config            *Config
-	tracerProvider    *sdktrace.TracerProvider
-	meterProvider     *sdkmetric.MeterProvider
-	logger            Logger
-	tracer            trace.Tracer
-	meter             metric.Meter
-	metricsFactory    *obsmetrics.MetricsFactory
-	enabled           bool
-	shutdownFunctions []func(context.Context) error
+	lifecycleMu    sync.RWMutex
+	config         *Config
+	telemetry      *obstracing.Telemetry
+	logger         Logger
+	tracer         trace.Tracer
+	meter          metric.Meter
+	metricsFactory *obsmetrics.MetricsFactory
+	enabled        bool
 
 	// propagationHeadersOnce + propagationHeadersAllow cache the lowercased
 	// allow-set used by filterPropagationHeaders / filterPropagationMap.
@@ -415,7 +442,7 @@ type MidazProvider struct {
 }
 
 // New creates a new observability provider with the given options
-func New(ctx context.Context, opts ...Option) (Provider, error) {
+func New(_ context.Context, opts ...Option) (Provider, error) {
 	// Start with default configuration
 	config := DefaultConfig()
 
@@ -431,43 +458,42 @@ func New(ctx context.Context, opts ...Option) (Provider, error) {
 	}
 
 	provider := &MidazProvider{
-		config:            config,
-		shutdownFunctions: []func(context.Context) error{},
-		enabled:           true,
+		config:  config,
+		enabled: true,
 	}
 
 	// Create a resource with service information
-	res := provider.createResource()
-
-	// Initialize tracing if enabled
-	if config.EnabledComponents.Tracing {
-		if err := provider.initTracing(ctx, res); err != nil {
-			return nil, fmt.Errorf("failed to initialize tracing: %w", err)
-		}
-	}
-
-	// Initialize metrics if enabled
-	if config.EnabledComponents.Metrics {
-		if err := provider.initMetrics(ctx, res); err != nil {
-			return nil, fmt.Errorf("failed to initialize metrics: %w", err)
-		}
+	res, err := provider.createResource()
+	if err != nil {
+		return nil, err
 	}
 
 	// Initialize logging if enabled
 	if config.EnabledComponents.Logging {
-		if err := provider.initLogging(res); err != nil {
-			return nil, fmt.Errorf("failed to initialize logging: %w", err)
+		provider.initLogging(res)
+	}
+
+	// Initialize OTel lifecycle through lib-observability when tracing or
+	// metrics are enabled. Logging keeps the SDK's public Logger facade, while
+	// lib-observability owns exporter/provider setup and shutdown.
+	if config.EnabledComponents.Tracing || config.EnabledComponents.Metrics {
+		if err := provider.initTelemetry(); err != nil {
+			return nil, fmt.Errorf("failed to initialize telemetry: %w", err)
 		}
 	}
 
-	// Set up context propagation
-	provider.setupPropagation()
+	// When no collector endpoint is configured, lib-observability is not
+	// initialized. Keep the legacy global propagator behavior only for that
+	// no-telemetry path; otherwise ApplyGlobals owns global propagation.
+	if provider.telemetry == nil {
+		provider.setupPropagation()
+	}
 
 	return provider, nil
 }
 
-// createResource creates an OpenTelemetry resource with service information
-func (p *MidazProvider) createResource() *sdkresource.Resource {
+// createResource creates an OpenTelemetry resource with service information.
+func (p *MidazProvider) createResource() (*sdkresource.Resource, error) {
 	attributes := make([]attribute.KeyValue, 0, 5+len(p.config.Attributes))
 	attributes = append(attributes,
 		semconv.ServiceNameKey.String(p.config.ServiceName),
@@ -480,113 +506,115 @@ func (p *MidazProvider) createResource() *sdkresource.Resource {
 	// Add custom attributes
 	attributes = append(attributes, p.config.Attributes...)
 
-	// Create and return the resource without merging defaults to avoid schema URL conflicts
-	// between different OpenTelemetry versions pulled by transitive deps during tests.
-	// If needed, default attributes can be reintroduced by constructing a resource with
-	// a consistent schema across both sources.
-	return sdkresource.NewWithAttributes(
-		semconv.SchemaURL,
+	defaultResource := sdkresource.Default()
+	custom := sdkresource.NewWithAttributes(
+		defaultResource.SchemaURL(),
 		attributes...,
 	)
-}
 
-// initTracing initializes OpenTelemetry tracing
-func (p *MidazProvider) initTracing(ctx context.Context, res *sdkresource.Resource) error {
-	var exporter *otlptrace.Exporter
-
-	var err error
-
-	// Set up exporter
-	if p.config.CollectorEndpoint != "" {
-		// Use OTLP exporter with gRPC if collector endpoint is provided
-		exporter, err = otlptracegrpc.New(
-			ctx,
-			otlptracegrpc.WithEndpoint(p.config.CollectorEndpoint),
-			otlptracegrpc.WithInsecure(),
-		)
-	} else {
-		// Use stdout exporter (for development) if no collector endpoint is specified
-		exporter = otlptracegrpc.NewUnstarted()
-	}
-
+	res, err := sdkresource.Merge(defaultResource, custom)
 	if err != nil {
-		return fmt.Errorf("failed to create trace exporter: %w", err)
+		return nil, fmt.Errorf("failed to merge OpenTelemetry default resource: %w", err)
 	}
 
-	// Configure and create the trace provider
-	p.tracerProvider = sdktrace.NewTracerProvider(
-		sdktrace.WithBatcher(exporter),
-		sdktrace.WithResource(res),
-		sdktrace.WithSampler(sdktrace.TraceIDRatioBased(p.config.TraceSampleRate)),
-	)
-
-	// Set the global trace provider only if RegisterGlobally is true
-	if p.config.RegisterGlobally {
-		otel.SetTracerProvider(p.tracerProvider)
-	}
-
-	// Create a tracer for this library
-	p.tracer = p.tracerProvider.Tracer("github.com/LerianStudio/midaz-sdk-golang/v3")
-
-	// Add shutdown function
-	p.shutdownFunctions = append(p.shutdownFunctions, func(ctx context.Context) error {
-		return p.tracerProvider.Shutdown(ctx)
-	})
-
-	return nil
+	return res, nil
 }
 
-// initMetrics initializes OpenTelemetry metrics
-func (p *MidazProvider) initMetrics(ctx context.Context, res *sdkresource.Resource) error {
-	// No default metrics exporter; skip metrics if no endpoint is provided
-	if p.config.CollectorEndpoint == "" {
+// initTelemetry initializes OpenTelemetry through lib-observability so exporter
+// security policy, redacting span processors, provider globals, metrics factory,
+// and shutdown lifecycle stay centralized in the shared library.
+func (p *MidazProvider) initTelemetry() error {
+	if p == nil || p.config == nil {
 		return nil
 	}
 
-	// Use OTLP exporter with gRPC if collector endpoint is provided
-	exporter, err := otlpmetricgrpc.New(
-		ctx,
-		otlpmetricgrpc.WithEndpoint(p.config.CollectorEndpoint),
-		otlpmetricgrpc.WithInsecure(),
-	)
-	if err != nil {
-		return fmt.Errorf("failed to create metric exporter: %w", err)
+	var globals telemetryGlobals
+	if !p.config.RegisterGlobally {
+		globals = captureTelemetryGlobals()
 	}
 
-	// Configure and create the meter provider
-	p.meterProvider = sdkmetric.NewMeterProvider(
-		sdkmetric.WithResource(res),
-		sdkmetric.WithReader(sdkmetric.NewPeriodicReader(exporter)),
-	)
-
-	// Set the global meter provider only if RegisterGlobally is true
-	if p.config.RegisterGlobally {
-		otel.SetMeterProvider(p.meterProvider)
-	}
-
-	// Create a meter for this library
-	p.meter = p.meterProvider.Meter("github.com/LerianStudio/midaz-sdk-golang/v3")
-	factory, err := obsmetrics.NewMetricsFactory(p.meter, nil)
-	if err != nil {
-		return fmt.Errorf("failed to create metrics factory: %w", err)
-	}
-	p.metricsFactory = factory
-
-	// Add shutdown function
-	p.shutdownFunctions = append(p.shutdownFunctions, func(ctx context.Context) error {
-		return p.meterProvider.Shutdown(ctx)
+	telemetry, err := obstracing.NewTelemetry(obstracing.TelemetryConfig{
+		LibraryName:               "github.com/LerianStudio/midaz-sdk-golang/v3",
+		ServiceName:               p.config.ServiceName,
+		ServiceVersion:            p.config.ServiceVersion,
+		DeploymentEnv:             p.config.Environment,
+		CollectorExporterEndpoint: p.config.CollectorEndpoint,
+		EnableTelemetry:           true,
+		InsecureExporter:          p.config.CollectorInsecure,
+		Logger:                    obslog.NewNop(), //nolint:forbidigo // lib-observability/tracing requires a lib-observability logger.
+		Propagator:                p.textMapPropagatorFromConfig(),
+		Redactor:                  obstracing.NewDefaultRedactor(),
 	})
+	if err != nil && (!errors.Is(err, obstracing.ErrEmptyEndpoint) || telemetry == nil) {
+		return err
+	}
+	if !p.config.RegisterGlobally {
+		restoreTelemetryGlobals(globals)
+	}
+
+	if p.config.RegisterGlobally {
+		if err := telemetry.ApplyGlobals(); err != nil {
+			return err
+		}
+	}
+
+	p.telemetry = telemetry
+	p.metricsFactory = telemetry.MetricsFactory
+
+	if p.config.EnabledComponents.Tracing {
+		tracer, err := telemetry.Tracer("github.com/LerianStudio/midaz-sdk-golang/v3")
+		if err != nil {
+			return err
+		}
+		p.tracer = tracer
+	}
+
+	if p.config.EnabledComponents.Metrics {
+		meter, err := telemetry.Meter("github.com/LerianStudio/midaz-sdk-golang/v3")
+		if err != nil {
+			return err
+		}
+		p.meter = meter
+	}
 
 	return nil
 }
 
-// initLogging initializes structured logging
-//
-//nolint:unparam // Error return kept for future error handling
-func (p *MidazProvider) initLogging(res *sdkresource.Resource) error {
+type telemetryGlobals struct {
+	tracerProvider trace.TracerProvider
+	meterProvider  metric.MeterProvider
+	loggerProvider otellog.LoggerProvider //nolint:forbidigo // Required to snapshot/restore the OTel log global provider.
+	propagator     propagation.TextMapPropagator
+}
+
+func captureTelemetryGlobals() telemetryGlobals {
+	return telemetryGlobals{
+		tracerProvider: otel.GetTracerProvider(),
+		meterProvider:  otel.GetMeterProvider(),
+		loggerProvider: otellogglobal.GetLoggerProvider(),
+		propagator:     otel.GetTextMapPropagator(),
+	}
+}
+
+func restoreTelemetryGlobals(globals telemetryGlobals) {
+	if globals.tracerProvider != nil {
+		otel.SetTracerProvider(globals.tracerProvider)
+	}
+	if globals.meterProvider != nil {
+		otel.SetMeterProvider(globals.meterProvider)
+	}
+	if globals.loggerProvider != nil {
+		otellogglobal.SetLoggerProvider(globals.loggerProvider)
+	}
+	if globals.propagator != nil {
+		otel.SetTextMapPropagator(globals.propagator)
+	}
+}
+
+// initLogging initializes structured logging.
+func (p *MidazProvider) initLogging(res *sdkresource.Resource) {
 	// Create logger
 	p.logger = NewLogger(p.config.LogLevel, p.config.LogOutput, res)
-	return nil
 }
 
 // setupPropagation configures context propagation for distributed tracing
@@ -663,20 +691,11 @@ func (p *MidazProvider) Shutdown(ctx context.Context) error {
 	}
 
 	p.enabled = false
-	shutdownFunctions := append([]func(context.Context) error(nil), p.shutdownFunctions...)
+	telemetry := p.telemetry
 	p.lifecycleMu.Unlock()
 
-	// Call all shutdown functions
-	var shutdownErrs []error
-
-	for _, shutdownFn := range shutdownFunctions {
-		if err := shutdownFn(ctx); err != nil {
-			shutdownErrs = append(shutdownErrs, err)
-		}
-	}
-
-	if len(shutdownErrs) > 0 {
-		return fmt.Errorf("errors during shutdown: %v", shutdownErrs)
+	if telemetry != nil {
+		return telemetry.ShutdownTelemetryWithContext(ctx)
 	}
 
 	return nil
@@ -692,6 +711,14 @@ func (p *MidazProvider) IsEnabled() bool {
 func (p *MidazProvider) TextMapPropagator() propagation.TextMapPropagator {
 	if p == nil || p.config == nil || !p.isEnabled() || !p.config.EnabledComponents.Tracing {
 		return propagation.NewCompositeTextMapPropagator()
+	}
+
+	return p.textMapPropagatorFromConfig()
+}
+
+func (p *MidazProvider) textMapPropagatorFromConfig() propagation.TextMapPropagator {
+	if p == nil || p.config == nil {
+		return defaultTextMapPropagator()
 	}
 
 	if len(p.config.Propagators) > 0 {

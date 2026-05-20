@@ -51,7 +51,7 @@
 //   - [github.com/LerianStudio/midaz-sdk-golang/v3.Client.Logger] returns a
 //     *slog.Logger — the Go-stdlib idiom. Used by the SDK for retry traces
 //     and other internal lines that are not span-correlated. Configured via
-//     midaz.WithLogger / midaz.WithLoggerStream / Config.Debug.
+//     midaz.WithLogger / Config.Debug.
 //   - [Provider.Logger] returns the bespoke [Logger] — OTel-correlated.
 //     Call [Logger.WithSpan] to attach trace_id and span_id to every log
 //     line. Used inside SDK call paths that already hold a live span.
@@ -65,7 +65,7 @@
 //
 //   - [github.com/LerianStudio/midaz-sdk-golang/v3.WithObservabilityProvider]
 //   - [github.com/LerianStudio/midaz-sdk-golang/v3.WithObservabilityOptions]
-//   - docs/tracing.md — full tracing contract
+//   - docs/logging.md — logging and trace/span ID guidance
 //   - examples/10-observability-otel — runnable end-to-end demo
 //   - examples/tracing — client-side tracing reference
 //   - examples/tracing-server — server-side trace context extraction
