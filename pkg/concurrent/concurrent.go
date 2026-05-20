@@ -76,11 +76,18 @@ package concurrent
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
+
+	obslog "github.com/LerianStudio/lib-observability/log"
+	obsruntime "github.com/LerianStudio/lib-observability/runtime"
 )
 
-var errWorkerPoolItemNotProcessed = errors.New("worker pool item was not processed")
+var (
+	errWorkerPoolItemNotProcessed = errors.New("worker pool item was not processed")
+	runtimeNopLogger              = obslog.NewNop() //nolint:forbidigo // lib-observability/runtime requires a lib-observability logger.
+)
 
 // WorkFunc is a generic worker function that processes an item and returns a result and error.
 type WorkFunc[T, R any] func(ctx context.Context, item T) (R, error)
@@ -181,7 +188,9 @@ func startWorkers[T, R any](
 	for i := 0; i < options.workers; i++ {
 		wg.Add(1)
 
-		go runWorker(ctx, wg, itemCh, resultCh, workFn, options)
+		obsruntime.SafeGoWithContextAndComponent(ctx, runtimeNopLogger, "midaz-sdk", "concurrent.worker", obsruntime.KeepRunning, func(context.Context) {
+			runWorker(ctx, wg, itemCh, resultCh, workFn, options)
+		})
 	}
 }
 
@@ -236,12 +245,25 @@ func runWorker[T, R any](
 }
 
 // processWorkItem executes the work function for a single item
-func processWorkItem[T, R any](ctx context.Context, item indexedItem[T], workFn WorkFunc[T, R]) Result[T, R] {
-	result, err := workFn(ctx, item.value)
+func processWorkItem[T, R any](ctx context.Context, item indexedItem[T], workFn WorkFunc[T, R]) (result Result[T, R]) {
+	var zero R
+	defer func() {
+		if panicValue := recover(); panicValue != nil {
+			obsruntime.HandlePanicValue(ctx, runtimeNopLogger, panicValue, "midaz-sdk", "concurrent.work_item")
+			result = Result[T, R]{
+				Item:  item.value,
+				Value: zero,
+				Error: fmt.Errorf("worker panic at index %d: %v", item.index, panicValue),
+				Index: item.index,
+			}
+		}
+	}()
+
+	value, err := workFn(ctx, item.value)
 
 	return Result[T, R]{
 		Item:  item.value,
-		Value: result,
+		Value: value,
 		Error: err,
 		Index: item.index,
 	}
@@ -255,7 +277,7 @@ func startItemSender[T, R any](
 	itemCh chan<- indexedItem[T],
 	resultCh chan Result[T, R],
 ) {
-	go func() {
+	obsruntime.SafeGoWithContextAndComponent(ctx, runtimeNopLogger, "midaz-sdk", "concurrent.item_sender", obsruntime.KeepRunning, func(context.Context) {
 		defer func() {
 			close(itemCh)
 			wg.Wait()
@@ -263,7 +285,7 @@ func startItemSender[T, R any](
 		}()
 
 		sendItemsToWorkers(ctx, items, itemCh)
-	}()
+	})
 }
 
 // sendItemsToWorkers sends items to the item channel with context cancellation
@@ -511,6 +533,8 @@ func Batch[T, R any](
 					Index: br.Index*batchSize + i,
 				})
 			}
+		} else if len(br.Value) != len(br.Item) {
+			results = appendCardinalityMismatchResults(results, br, batchSize)
 		} else if len(br.Value) > 0 {
 			// If there are results, map them back to the original items
 			for i, val := range br.Value {
@@ -523,6 +547,19 @@ func Batch[T, R any](
 				}
 			}
 		}
+	}
+
+	return results
+}
+
+func appendCardinalityMismatchResults[T, R any](results []Result[T, R], br Result[[]T, []R], batchSize int) []Result[T, R] {
+	err := fmt.Errorf("batch cardinality mismatch: workFn returned %d outputs for %d inputs", len(br.Value), len(br.Item))
+	for i, item := range br.Item {
+		results = append(results, Result[T, R]{
+			Item:  item,
+			Error: err,
+			Index: br.Index*batchSize + i,
+		})
 	}
 
 	return results
@@ -613,7 +650,7 @@ func NewRateLimiter(opsPerSecond int, maxBurst int) *RateLimiter {
 	// Start the token generator
 	rl.wg.Add(1)
 
-	go func() {
+	obsruntime.SafeGo(runtimeNopLogger, "concurrent.rate_limiter", obsruntime.KeepRunning, func() {
 		defer rl.wg.Done()
 
 		for {
@@ -629,7 +666,7 @@ func NewRateLimiter(opsPerSecond int, maxBurst int) *RateLimiter {
 				return
 			}
 		}
-	}()
+	})
 
 	return rl
 }

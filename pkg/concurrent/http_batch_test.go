@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -14,6 +16,158 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestHTTPBatchProcessorWithRetry_UnsafeInnerRequestWithoutPerItemIdempotencyKeyFailsBeforeSend(t *testing.T) {
+	tests := []struct {
+		name       string
+		requests   []concurrent.HTTPBatchRequest
+		retryCount int
+		wantErr    bool
+		wantCalls  int32
+	}{
+		{
+			name: "unsafe missing per item idempotency key with retry enabled fails before send",
+			requests: []concurrent.HTTPBatchRequest{{
+				Method: http.MethodPost,
+				Path:   "/transactions",
+				ID:     "unsafe-missing-key",
+			}},
+			retryCount: 1,
+			wantErr:    true,
+			wantCalls:  0,
+		},
+		{
+			name: "safe only batch with retry enabled is sent",
+			requests: []concurrent.HTTPBatchRequest{{
+				Method: http.MethodGet,
+				Path:   "/transactions",
+				ID:     "safe",
+			}},
+			retryCount: 1,
+			wantErr:    false,
+			wantCalls:  1,
+		},
+		{
+			name: "unsafe missing per item idempotency key with retry disabled is sent",
+			requests: []concurrent.HTTPBatchRequest{{
+				Method: http.MethodDelete,
+				Path:   "/transactions/tx-1",
+				ID:     "unsafe-retry-disabled",
+			}},
+			retryCount: 0,
+			wantErr:    false,
+			wantCalls:  1,
+		},
+		{
+			name: "unsafe with per item idempotency key and retry enabled is sent",
+			requests: []concurrent.HTTPBatchRequest{{
+				Method:  http.MethodPatch,
+				Path:    "/transactions/tx-1",
+				ID:      "unsafe-with-key",
+				Headers: map[string]string{"X-Idempotency": "item-key"},
+			}},
+			retryCount: 1,
+			wantErr:    false,
+			wantCalls:  1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var calls atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				calls.Add(1)
+				w.Header().Set("Content-Type", "application/json")
+				assert.NoError(t, json.NewEncoder(w).Encode([]concurrent.HTTPBatchResponse{{ID: tt.requests[0].ID, StatusCode: http.StatusOK}}))
+			}))
+			defer server.Close()
+
+			processor, err := concurrent.NewHTTPBatchProcessorWithRetry(server.Client(), server.URL, concurrent.WithBatchRetryCount(tt.retryCount), concurrent.WithBatchRetryBackoff(time.Millisecond))
+			require.NoError(t, err)
+			processor.SetDefaultHeader("X-Idempotency", "processor-default-is-not-per-item")
+
+			_, err = processor.ExecuteBatch(context.Background(), tt.requests)
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "X-Idempotency")
+			} else {
+				require.NoError(t, err)
+			}
+
+			assert.Equal(t, tt.wantCalls, calls.Load())
+		})
+	}
+}
+
+func TestHTTPBatchProcessorWithRetry_NilContextUsesBackground(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		assert.NoError(t, json.NewEncoder(w).Encode([]concurrent.HTTPBatchResponse{{ID: "safe", StatusCode: http.StatusOK}}))
+	}))
+	defer server.Close()
+
+	processor, err := concurrent.NewHTTPBatchProcessorWithRetry(server.Client(), server.URL, concurrent.WithBatchRetryCount(0))
+	require.NoError(t, err)
+
+	//nolint:staticcheck // This regression test intentionally verifies nil context handling.
+	result, err := processor.ExecuteBatch(nil, []concurrent.HTTPBatchRequest{{Method: http.MethodGet, Path: "/accounts", ID: "safe"}})
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Len(t, result.Responses, 1)
+}
+
+func TestHTTPBatchProcessor_DuplicatePerItemIdempotencyKeysFailBeforeSend(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		t.Fatal("duplicate per-item idempotency keys should fail before send")
+	}))
+	defer server.Close()
+
+	processor := concurrent.NewHTTPBatchProcessor(server.Client(), server.URL, concurrent.WithBatchRetryCount(1))
+	_, err := processor.ExecuteBatch(context.Background(), []concurrent.HTTPBatchRequest{
+		{Method: http.MethodPost, Path: "/transactions", ID: "a", Headers: map[string]string{"X-Idempotency": "same-key"}},
+		{Method: http.MethodPost, Path: "/transactions", ID: "b", Headers: map[string]string{"X-Idempotency": "same-key"}},
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "reuses X-Idempotency")
+}
+
+func TestHTTPBatchProcessor_ReplaysRequestBodyAcrossRetries(t *testing.T) {
+	var calls atomic.Int32
+	var retryBody string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		assert.NoError(t, err)
+
+		if calls.Add(1) == 1 {
+			w.WriteHeader(http.StatusInternalServerError)
+			_, err = w.Write([]byte(`{"error":"temporary"}`))
+			assert.NoError(t, err)
+
+			return
+		}
+
+		retryBody = string(body)
+		w.Header().Set("Content-Type", "application/json")
+		assert.NoError(t, json.NewEncoder(w).Encode([]concurrent.HTTPBatchResponse{{ID: "create", StatusCode: http.StatusOK}}))
+	}))
+	defer server.Close()
+
+	processor := concurrent.NewHTTPBatchProcessor(server.Client(), server.URL, concurrent.WithBatchRetryCount(1), concurrent.WithBatchRetryBackoff(time.Millisecond))
+	result, err := processor.ExecuteBatch(context.Background(), []concurrent.HTTPBatchRequest{{
+		Method:  http.MethodPost,
+		Path:    "/transactions",
+		ID:      "create",
+		Headers: map[string]string{"X-Idempotency": "item-key"},
+		Body:    map[string]string{"description": "replay me"},
+	}})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, int32(2), calls.Load())
+	assert.Contains(t, retryBody, "replay me", "retry body should replay original batch payload")
+}
 
 func TestHTTPBatchProcessor_ExecuteBatch(t *testing.T) {
 	// Create a test server

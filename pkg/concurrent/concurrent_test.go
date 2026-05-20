@@ -4,11 +4,62 @@ import (
 	"context"
 	"errors"
 	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 )
+
+func TestBatch_CardinalityMismatchReturnsPerItemErrors(t *testing.T) {
+	tests := []struct {
+		name        string
+		items       []int
+		batchSize   int
+		workOutputs []int
+	}{
+		{
+			name:        "short successful output emits one result per input",
+			items:       []int{1, 2, 3},
+			batchSize:   3,
+			workOutputs: []int{10, 20},
+		},
+		{
+			name:        "empty successful output emits one result per input",
+			items:       []int{1, 2},
+			batchSize:   2,
+			workOutputs: []int{},
+		},
+		{
+			name:        "long successful output emits one result per input",
+			items:       []int{1, 2},
+			batchSize:   2,
+			workOutputs: []int{10, 20, 30},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			results := Batch(context.Background(), tt.items, tt.batchSize, func(context.Context, []int) ([]int, error) {
+				return tt.workOutputs, nil
+			})
+
+			if len(results) != len(tt.items) {
+				t.Fatalf("expected result count to equal input count %d, got %d", len(tt.items), len(results))
+			}
+
+			for i, result := range results {
+				if result.Item != tt.items[i] {
+					t.Fatalf("result %d item = %d, want %d", i, result.Item, tt.items[i])
+				}
+
+				if result.Error == nil || !strings.Contains(result.Error.Error(), "cardinality") {
+					t.Fatalf("result %d error = %v, want cardinality error", i, result.Error)
+				}
+			}
+		})
+	}
+}
 
 //nolint:revive // cognitive-complexity: comprehensive test with many sub-tests
 func TestWorkerPool(t *testing.T) {

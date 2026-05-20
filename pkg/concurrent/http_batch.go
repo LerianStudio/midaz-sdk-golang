@@ -4,15 +4,19 @@ package concurrent
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
 	pkgerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/security"
 )
 
@@ -24,7 +28,9 @@ type HTTPBatchRequest struct {
 	// Path is the relative path for the request, without the base URL
 	Path string `json:"path"`
 
-	// Headers are optional HTTP headers for this request
+	// Headers are optional HTTP headers for this request. When retries are
+	// enabled, unsafe methods (POST/PUT/PATCH/DELETE) must include a unique
+	// per-item X-Idempotency header so replayed batch attempts are safe.
 	Headers map[string]string `json:"headers,omitempty"`
 
 	// Body is the request body (for POST, PUT, PATCH)
@@ -95,6 +101,34 @@ func DefaultHTTPBatchOptions() *HTTPBatchOptions {
 		ContinueOnError: false,
 		Workers:         5,
 	}
+}
+
+func httpRetryOptionsFromBatchOptions(options *HTTPBatchOptions) (*retry.HTTPOptions, error) {
+	if options == nil {
+		options = DefaultHTTPBatchOptions()
+	}
+
+	retryOptions := retry.DefaultHTTPOptions()
+	if err := retry.WithHTTPMaxRetries(options.RetryCount)(retryOptions); err != nil {
+		return nil, fmt.Errorf("failed to set max retries: %w", err)
+	}
+	if err := retry.WithHTTPInitialDelay(options.RetryBackoff)(retryOptions); err != nil {
+		return nil, fmt.Errorf("failed to set initial delay: %w", err)
+	}
+	if err := retry.WithHTTPMaxDelay(options.RetryBackoff * 10)(retryOptions); err != nil {
+		return nil, fmt.Errorf("failed to set max delay: %w", err)
+	}
+	if err := retry.WithHTTPBackoffFactor(2.0)(retryOptions); err != nil {
+		return nil, fmt.Errorf("failed to set backoff factor: %w", err)
+	}
+	if err := retry.WithHTTPRetryAllServerErrors(true)(retryOptions); err != nil {
+		return nil, fmt.Errorf("failed to set retry all server errors: %w", err)
+	}
+	if err := retry.WithHTTPRetryOn4xx([]int{http.StatusTooManyRequests})(retryOptions); err != nil {
+		return nil, fmt.Errorf("failed to set retry on 4xx: %w", err)
+	}
+
+	return retryOptions, nil
 }
 
 // WithBatchTimeout returns an option that sets the timeout for batch operations.
@@ -330,6 +364,7 @@ func NewHTTPBatchProcessor(client *http.Client, baseURL string, opts ...HTTPBatc
 			Timeout: options.Timeout,
 		}
 	}
+	client = security.EnsureRedirectPolicy(client)
 
 	return &HTTPBatchProcessor{
 		httpClient:     client,
@@ -398,11 +433,14 @@ type batchExecutor struct {
 
 // execute runs the batch execution logic.
 func (e *batchExecutor) execute(requests []HTTPBatchRequest) (*HTTPBatchResult, error) {
+	e.ensureRequestIDs(requests)
+	if err := validateBatchRetryIdempotency(e.processor.options.RetryCount, requests); err != nil {
+		return nil, err
+	}
+
 	if len(requests) > e.processor.options.MaxBatchSize {
 		return e.processor.executeBatches(e.ctx, requests)
 	}
-
-	e.ensureRequestIDs(requests)
 
 	req, err := e.createHTTPRequest(requests)
 	if err != nil {
@@ -423,6 +461,10 @@ func (e *batchExecutor) execute(requests []HTTPBatchRequest) (*HTTPBatchResult, 
 
 // ensureRequestIDs ensures each request has a unique ID.
 func (*batchExecutor) ensureRequestIDs(requests []HTTPBatchRequest) {
+	ensureBatchRequestIDs(requests)
+}
+
+func ensureBatchRequestIDs(requests []HTTPBatchRequest) {
 	for i := range requests {
 		if requests[i].ID == "" {
 			requests[i].ID = fmt.Sprintf("req_%d", i)
@@ -441,10 +483,69 @@ func (e *batchExecutor) createHTTPRequest(requests []HTTPBatchRequest) (*http.Re
 	if err != nil {
 		return nil, pkgerrors.NewInternalError("HTTPBatchRequest", err)
 	}
+	req.GetBody = func() (io.ReadCloser, error) {
+		return io.NopCloser(bytes.NewReader(reqBody)), nil
+	}
 
 	e.setRequestHeaders(req)
+	setBatchRequestIdempotencyHeader(req, reqBody, e.processor.options.RetryCount)
 
 	return req, nil
+}
+
+func validateBatchRetryIdempotency(retryCount int, requests []HTTPBatchRequest) error {
+	if retryCount <= 0 {
+		return nil
+	}
+
+	seen := make(map[string]string, len(requests))
+
+	for _, request := range requests {
+		if !isBatchUnsafeMethod(request.Method) {
+			continue
+		}
+
+		key := batchHeaderValueCaseInsensitive(request.Headers, "X-Idempotency")
+		if key == "" {
+			return pkgerrors.NewValidationError("HTTPBatchRequest", fmt.Sprintf("unsafe batch item %s requires per-item X-Idempotency when retries are enabled", request.ID), nil)
+		}
+
+		if previousID, ok := seen[key]; ok {
+			return pkgerrors.NewValidationError("HTTPBatchRequest", fmt.Sprintf("unsafe batch item %s reuses X-Idempotency already used by %s", request.ID, previousID), nil)
+		}
+
+		seen[key] = request.ID
+	}
+
+	return nil
+}
+
+func setBatchRequestIdempotencyHeader(req *http.Request, body []byte, retryCount int) {
+	if req == nil || retryCount <= 0 || strings.TrimSpace(req.Header.Get("X-Idempotency")) != "" {
+		return
+	}
+
+	sum := sha256.Sum256(body)
+	req.Header.Set("X-Idempotency", "batch-"+hex.EncodeToString(sum[:16]))
+}
+
+func isBatchUnsafeMethod(method string) bool {
+	switch strings.ToUpper(strings.TrimSpace(method)) {
+	case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
+		return true
+	default:
+		return false
+	}
+}
+
+func batchHeaderValueCaseInsensitive(headers map[string]string, name string) string {
+	for key, value := range headers {
+		if strings.EqualFold(key, name) {
+			return strings.TrimSpace(value)
+		}
+	}
+
+	return ""
 }
 
 // setRequestHeaders sets the required headers for the batch request.
@@ -461,69 +562,22 @@ func (e *batchExecutor) setRequestHeaders(req *http.Request) {
 
 // executeWithRetries executes the HTTP request with retry logic.
 func (e *batchExecutor) executeWithRetries(req *http.Request) ([]byte, int, error) {
-	if err := security.ValidateOutboundRequest(req); err != nil {
-		return nil, 0, pkgerrors.NewValidationError("HTTPBatchRequest", "invalid request URL", err)
+	retryOptions, err := httpRetryOptionsFromBatchOptions(e.processor.options)
+	if err != nil {
+		return nil, 0, err
 	}
 
-	for retryCount := 0; retryCount <= e.processor.options.RetryCount; retryCount++ {
-		resp, err := e.processor.httpClient.Do(req) // #nosec G704 -- request URL validated via security.ValidateOutboundRequest
-		if err != nil {
-			if shouldRetryConnectionError(retryCount, e.processor.options.RetryCount, e.ctx.Err()) {
-				if waitErr := e.waitForRetry(); waitErr != nil {
-					return nil, 0, waitErr
-				}
-
-				continue
-			}
-
-			return nil, 0, pkgerrors.NewNetworkError("HTTPBatchRequest", err)
-		}
-
-		respBody, readErr := io.ReadAll(resp.Body)
-		_ = resp.Body.Close() // #nosec G104 - best effort close after read; error doesn't affect already-read data
-
-		if readErr != nil {
-			return nil, 0, pkgerrors.NewInternalError("HTTPBatchRequest", readErr)
-		}
-
-		if !shouldRetryStatus(resp.StatusCode, retryCount, e.processor.options.RetryCount) {
-			return respBody, resp.StatusCode, nil
-		}
-
-		if waitErr := e.waitForRetry(); waitErr != nil {
-			return nil, 0, waitErr
-		}
+	retryCtx := retry.WithHTTPOptionsContext(e.ctx, retryOptions)
+	httpResp, err := retry.DoHTTPRequestWithContext(retryCtx, e.processor.httpClient, req)
+	if httpResp != nil && httpResp.Response != nil {
+		return httpResp.Body, httpResp.Response.StatusCode, nil
 	}
 
-	return nil, 0, pkgerrors.NewInternalError("HTTPBatchRequest", errors.New("max retries exceeded"))
-}
-
-// shouldRetryConnectionError determines if a connection error should trigger a retry.
-func shouldRetryConnectionError(retryCount, maxRetries int, ctxErr error) bool {
-	return retryCount < maxRetries && ctxErr == nil
-}
-
-// shouldRetryStatus determines if an HTTP status code should trigger a retry.
-func shouldRetryStatus(statusCode, retryCount, maxRetries int) bool {
-	if statusCode < http.StatusBadRequest {
-		return false // Success
+	if err != nil {
+		return nil, 0, pkgerrors.NewNetworkError("HTTPBatchRequest", err)
 	}
 
-	if statusCode < http.StatusInternalServerError {
-		return false // Client error, don't retry
-	}
-
-	return retryCount < maxRetries // Server error, retry if possible
-}
-
-// waitForRetry waits for the retry backoff duration.
-func (e *batchExecutor) waitForRetry() error {
-	select {
-	case <-e.ctx.Done():
-		return pkgerrors.NewCancellationError("HTTPBatchRequest", e.ctx.Err())
-	case <-time.After(e.processor.options.RetryBackoff):
-		return nil
-	}
+	return nil, 0, pkgerrors.NewInternalError("HTTPBatchRequest", errors.New("batch request returned no response"))
 }
 
 // handleErrorResponse handles error responses from the batch API.
@@ -678,6 +732,11 @@ func (b *HTTPBatchProcessor) ExecuteBatchWithPoolOptions(ctx context.Context, re
 	}
 
 	defer cancel()
+
+	ensureBatchRequestIDs(requests)
+	if err := validateBatchRetryIdempotency(b.options.RetryCount, requests); err != nil {
+		return nil, err
+	}
 
 	// Create batches
 	var batches [][]HTTPBatchRequest

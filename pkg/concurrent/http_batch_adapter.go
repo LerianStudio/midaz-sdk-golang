@@ -11,6 +11,7 @@ import (
 
 	pkgerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/security"
 )
 
 // HTTPBatchProcessorWithRetry is an HTTPBatchProcessor that uses the enhanced retry package.
@@ -64,32 +65,12 @@ func NewHTTPBatchProcessorWithRetry(client *http.Client, baseURL string, opts ..
 	if client == nil {
 		client = &http.Client{}
 	}
+	client = security.EnsureRedirectPolicy(client)
 
 	// Convert batch options to retry options
-	retryOptions := retry.DefaultHTTPOptions()
-	// Apply retry options from batch options
-	if err := retry.WithHTTPMaxRetries(options.RetryCount)(retryOptions); err != nil {
-		return nil, fmt.Errorf("failed to set max retries: %w", err)
-	}
-
-	if err := retry.WithHTTPInitialDelay(options.RetryBackoff)(retryOptions); err != nil {
-		return nil, fmt.Errorf("failed to set initial delay: %w", err)
-	}
-
-	if err := retry.WithHTTPMaxDelay(options.RetryBackoff * 10)(retryOptions); err != nil { // Scale up max delay
-		return nil, fmt.Errorf("failed to set max delay: %w", err)
-	}
-
-	if err := retry.WithHTTPBackoffFactor(2.0)(retryOptions); err != nil {
-		return nil, fmt.Errorf("failed to set backoff factor: %w", err)
-	}
-
-	if err := retry.WithHTTPRetryAllServerErrors(true)(retryOptions); err != nil {
-		return nil, fmt.Errorf("failed to set retry all server errors: %w", err)
-	}
-
-	if err := retry.WithHTTPRetryOn4xx([]int{429})(retryOptions); err != nil { // Too Many Requests
-		return nil, fmt.Errorf("failed to set retry on 4xx: %w", err)
+	retryOptions, err := httpRetryOptionsFromBatchOptions(options)
+	if err != nil {
+		return nil, err
 	}
 
 	return &HTTPBatchProcessorWithRetry{
@@ -127,6 +108,10 @@ func (b *HTTPBatchProcessorWithRetry) SetDefaultHeaders(headers map[string]strin
 
 // ExecuteBatch executes a batch of requests and returns the results.
 func (b *HTTPBatchProcessorWithRetry) ExecuteBatch(ctx context.Context, requests []HTTPBatchRequest) (*HTTPBatchResult, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	// Handle empty request case
 	if len(requests) == 0 {
 		return &HTTPBatchResult{Responses: []HTTPBatchResponse{}}, nil
@@ -144,6 +129,11 @@ func (b *HTTPBatchProcessorWithRetry) ExecuteBatch(ctx context.Context, requests
 
 	defer cancel()
 
+	b.ensureRequestIDs(requests)
+	if err := validateBatchRetryIdempotency(b.options.RetryCount, requests); err != nil {
+		return nil, err
+	}
+
 	if len(requests) > b.options.MaxBatchSize {
 		return b.executeBatches(execCtx, requests)
 	}
@@ -156,6 +146,9 @@ func (b *HTTPBatchProcessorWithRetry) ExecuteBatch(ctx context.Context, requests
 func (b *HTTPBatchProcessorWithRetry) executeSingleBatch(ctx context.Context, requests []HTTPBatchRequest) (*HTTPBatchResult, error) {
 	// Ensure each request has an ID
 	b.ensureRequestIDs(requests)
+	if err := validateBatchRetryIdempotency(b.options.RetryCount, requests); err != nil {
+		return nil, err
+	}
 
 	// Create and configure the HTTP request
 	req, err := b.createHTTPRequest(ctx, requests)
@@ -175,11 +168,7 @@ func (b *HTTPBatchProcessorWithRetry) executeSingleBatch(ctx context.Context, re
 
 // ensureRequestIDs ensures each request has an ID
 func (*HTTPBatchProcessorWithRetry) ensureRequestIDs(requests []HTTPBatchRequest) {
-	for i := range requests {
-		if requests[i].ID == "" {
-			requests[i].ID = fmt.Sprintf("req_%d", i)
-		}
-	}
+	ensureBatchRequestIDs(requests)
 }
 
 // createHTTPRequest creates and configures the HTTP request
@@ -204,6 +193,7 @@ func (b *HTTPBatchProcessorWithRetry) createHTTPRequest(ctx context.Context, req
 
 	// Add headers
 	b.setRequestHeaders(req)
+	setBatchRequestIdempotencyHeader(req, reqBody, b.options.RetryCount)
 
 	return req, nil
 }
