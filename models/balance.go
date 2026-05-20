@@ -117,8 +117,9 @@ type UpdateBalanceInput struct {
 	// AllowReceiving controls whether this balance can receive incoming transactions.
 	AllowReceiving *bool `json:"allowReceiving,omitempty"`
 
-	// Metadata is retained for backward compatibility, but is not part of the
-	// current Midaz UpdateBalance contract.
+	// Metadata is retained for backward compatibility only. It is not part of the
+	// current Midaz UpdateBalance contract, is never serialized, and validation
+	// rejects any attempt to set it.
 	Metadata map[string]any `json:"-"`
 
 	// Settings controls overdraft and balance scope behavior.
@@ -182,7 +183,8 @@ func (input *UpdateBalanceInput) WithAllowReceiving(allow bool) *UpdateBalanceIn
 }
 
 // WithMetadata sets legacy metadata data on UpdateBalanceInput.
-// Deprecated: metadata is not sent to the Midaz UpdateBalance endpoint.
+// Deprecated: metadata is unsupported by the current Midaz UpdateBalance
+// endpoint. The value is not sent and Validate rejects inputs that set it.
 func (input *UpdateBalanceInput) WithMetadata(metadata map[string]any) *UpdateBalanceInput {
 	if input == nil {
 		return nil

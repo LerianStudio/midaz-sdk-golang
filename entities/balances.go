@@ -104,11 +104,14 @@ type BalancesService interface {
 	GetBalance(ctx context.Context, organizationID, ledgerID, balanceID string) (*models.Balance, error)
 
 	// GetBalanceHistory retrieves the historical state of a balance at a specific point in time.
+	// The date parameter must be RFC3339/RFC3339Nano with an explicit timezone
+	// offset, for example "2026-01-02T03:04:05Z" or "2026-01-02T03:04:05-03:00".
 	GetBalanceHistory(ctx context.Context, organizationID, ledgerID, balanceID, date string) (*models.BalanceHistory, error)
 
 	// UpdateBalance updates an existing balance.
 	// The organizationID, ledgerID, and balanceID parameters specify which organization, ledger, and balance to update.
-	// The input parameter contains the balance details to update, such as amount or metadata.
+	// The input parameter contains the balance details to update. Metadata updates are deprecated
+	// and rejected by validation because the current Midaz UpdateBalance contract does not accept metadata.
 	// Returns the updated balance, or an error if the operation fails.
 	UpdateBalance(ctx context.Context, organizationID, ledgerID, balanceID string, input *models.UpdateBalanceInput) (*models.Balance, error)
 
@@ -142,6 +145,7 @@ type BalancesService interface {
 	ListBalancesByExternalCodePages(ctx context.Context, organizationID, ledgerID, code string, opts models.BalancesListOpts) iter.Seq2[*models.ListResponse[models.Balance], error]
 
 	// GetAccountBalancesHistory retrieves the historical state of all balances for an account at a specific point in time.
+	// The date parameter must be RFC3339/RFC3339Nano with an explicit timezone offset.
 	GetAccountBalancesHistory(ctx context.Context, organizationID, ledgerID, accountID, date string) ([]models.BalanceHistory, error)
 }
 
@@ -650,9 +654,8 @@ func (e *balancesEntity) buildAccountHistoryURL(organizationID, ledgerID, accoun
 
 func validateBalanceHistoryDate(date string) error {
 	layouts := []string{
+		time.RFC3339Nano,
 		time.RFC3339,
-		"2006-01-02 15:04:05",
-		time.DateOnly,
 	}
 
 	for _, layout := range layouts {
@@ -661,7 +664,7 @@ func validateBalanceHistoryDate(date string) error {
 		}
 	}
 
-	return stderrors.New("date must use YYYY-MM-DD, YYYY-MM-DD HH:MM:SS, or RFC3339")
+	return stderrors.New("date must use RFC3339 or RFC3339Nano with an explicit timezone")
 }
 
 // ─────────────────────────────────────────────────────────────────────
