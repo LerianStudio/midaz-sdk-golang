@@ -20,6 +20,7 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
 )
 
 // TransactionsService defines the interface for transaction-related operations.
@@ -95,16 +96,10 @@ type TransactionsService interface {
 	// The transactionID parameter is the unique identifier of the transaction to revert.
 	// Returns the reverted transaction, or an error if the operation fails.
 	//
-	// Idempotency contract: the SDK auto-attaches an X-Idempotency header to
-	// the underlying POST when client-level idempotency is enabled (the
-	// default). The server is expected to honor X-Idempotency on this
-	// endpoint to dedupe network retries — without server-side honoring, a
-	// transient retry could produce two reversal transactions
-	// (double-entry catastrophe). If the deployed server-side contract
-	// differs, callers SHOULD disable auto-retry for this code path
-	// (e.g., via retry.WithMaxRetries(0)) or suppress idempotency via
-	// [sdkctx.WithoutAutoIdempotency] only when retries are explicitly
-	// non-fatal.
+	// Idempotency contract: auto-generated idempotency is suppressed for this
+	// action because Midaz does not expose a clean endpoint-level idempotency
+	// contract here. Retries are allowed only when the caller provides an
+	// explicit key through [sdkctx.WithIdempotencyKey].
 	RevertTransaction(ctx context.Context, organizationID, ledgerID, transactionID string) (*models.Transaction, error)
 
 	// CommitTransaction commits a pending transaction.
@@ -112,11 +107,7 @@ type TransactionsService interface {
 	// The transactionID parameter is the unique identifier of the transaction to commit.
 	// Returns the committed transaction, or an error if the operation fails.
 	//
-	// Idempotency contract: same as [TransactionsService.RevertTransaction] —
-	// the server is expected to honor X-Idempotency on this endpoint to
-	// dedupe network retries. If the deployed server-side contract differs,
-	// callers SHOULD disable auto-retry for this code path
-	// (e.g., via retry.WithMaxRetries(0)) to avoid duplicate commits.
+	// Idempotency contract: same as [TransactionsService.RevertTransaction].
 	CommitTransaction(ctx context.Context, organizationID, ledgerID, transactionID string) (*models.Transaction, error)
 
 	// CancelTransaction cancels a pending transaction.
@@ -124,11 +115,7 @@ type TransactionsService interface {
 	// The transactionID parameter is the unique identifier of the transaction to cancel.
 	// Returns an error if the operation fails.
 	//
-	// Idempotency contract: same as [TransactionsService.RevertTransaction] —
-	// the server is expected to honor X-Idempotency on this endpoint to
-	// dedupe network retries. If the deployed server-side contract differs,
-	// callers SHOULD disable auto-retry for this code path
-	// (e.g., via retry.WithMaxRetries(0)) to avoid duplicate cancellations.
+	// Idempotency contract: same as [TransactionsService.RevertTransaction].
 	CancelTransaction(ctx context.Context, organizationID, ledgerID, transactionID string) error
 
 	// CancelTransactionWithResponse cancels a pending transaction and returns the cancelled transaction.
@@ -961,6 +948,7 @@ func (e *transactionsEntity) RevertTransaction(ctx context.Context, organization
 	}
 
 	endpointURL := e.buildTransactionURL(organizationID, ledgerID, transactionID, "revert")
+	ctx = transactionActionContext(ctx)
 
 	req, err := newRequestWithContext(ctx, http.MethodPost, endpointURL, nil)
 	if err != nil {
@@ -997,6 +985,7 @@ func (e *transactionsEntity) CommitTransaction(ctx context.Context, organization
 	}
 
 	endpointURL := e.buildTransactionURL(organizationID, ledgerID, transactionID, "commit")
+	ctx = transactionActionContext(ctx)
 
 	req, err := newRequestWithContext(ctx, http.MethodPost, endpointURL, nil)
 	if err != nil {
@@ -1040,6 +1029,7 @@ func (e *transactionsEntity) CancelTransactionWithResponse(ctx context.Context, 
 	}
 
 	endpointURL := e.buildTransactionURL(organizationID, ledgerID, transactionID, "cancel")
+	ctx = transactionActionContext(ctx)
 
 	req, err := newRequestWithContext(ctx, http.MethodPost, endpointURL, nil)
 	if err != nil {
@@ -1077,6 +1067,14 @@ func (e *transactionsEntity) CancelTransactionWithResponse(ctx context.Context, 
 	e.httpClient.emitBusinessEvent(ctx, businessEventTransactionCancelled, map[string]any{"operation": operation, "organizationId": organizationID, "ledgerId": ledgerID, "transactionId": transaction.ID, "status": transaction.Status.Code})
 
 	return &transaction, nil
+}
+
+func transactionActionContext(ctx context.Context) context.Context {
+	if sdkctx.IdempotencyKeyFromContext(ctx) != "" {
+		return ctx
+	}
+
+	return sdkctx.WithoutAutoIdempotency(ctx)
 }
 
 // CreateInflowTransaction creates an inflow transaction (funds entering the system).

@@ -11,6 +11,7 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -162,6 +163,110 @@ func TestTransactionContractIdempotencyKey_AllowsRetry(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "tx-1", tx.ID)
 	assert.Equal(t, int32(2), calls.Load())
+}
+
+func TestTransactionActionMethods_AutoIdempotencyDoesNotMakeActionsRetryable(t *testing.T) {
+	tests := []struct {
+		name string
+		call func(*transactionsEntity) error
+	}{
+		{
+			name: "commit",
+			call: func(svc *transactionsEntity) error {
+				_, err := svc.CommitTransaction(context.Background(), "org", "ledger", "tx-1")
+				return err
+			},
+		},
+		{
+			name: "revert",
+			call: func(svc *transactionsEntity) error {
+				_, err := svc.RevertTransaction(context.Background(), "org", "ledger", "tx-1")
+				return err
+			},
+		},
+		{
+			name: "cancel",
+			call: func(svc *transactionsEntity) error {
+				_, err := svc.CancelTransactionWithResponse(context.Background(), "org", "ledger", "tx-1")
+				return err
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var calls atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls.Add(1)
+				assert.Empty(t, r.Header.Get("X-Idempotency"))
+				w.WriteHeader(http.StatusInternalServerError)
+				_, err := w.Write([]byte(`{"error":"temporary"}`))
+				assert.NoError(t, err)
+			}))
+			defer server.Close()
+
+			svc := newTransactionsEntity(server.Client(), map[string]string{"transaction": server.URL}).(*transactionsEntity)
+			require.NoError(t, svc.httpClient.WithRetryOptions(retry.WithMaxRetries(1), retry.WithInitialDelay(time.Millisecond), retry.WithMaxDelay(time.Millisecond)))
+
+			err := tt.call(svc)
+			require.Error(t, err)
+			assert.Equal(t, int32(1), calls.Load())
+		})
+	}
+}
+
+func TestTransactionActionMethods_ExplicitIdempotencyKeyAllowsRetry(t *testing.T) {
+	tests := []struct {
+		name string
+		call func(context.Context, *transactionsEntity) (*models.Transaction, error)
+	}{
+		{
+			name: "commit",
+			call: func(ctx context.Context, svc *transactionsEntity) (*models.Transaction, error) {
+				return svc.CommitTransaction(ctx, "org", "ledger", "tx-1")
+			},
+		},
+		{
+			name: "revert",
+			call: func(ctx context.Context, svc *transactionsEntity) (*models.Transaction, error) {
+				return svc.RevertTransaction(ctx, "org", "ledger", "tx-1")
+			},
+		},
+		{
+			name: "cancel",
+			call: func(ctx context.Context, svc *transactionsEntity) (*models.Transaction, error) {
+				return svc.CancelTransactionWithResponse(ctx, "org", "ledger", "tx-1")
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var calls atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, "explicit-action-key", r.Header.Get("X-Idempotency"))
+				if calls.Add(1) == 1 {
+					w.WriteHeader(http.StatusInternalServerError)
+					_, err := w.Write([]byte(`{"error":"temporary"}`))
+					assert.NoError(t, err)
+					return
+				}
+
+				w.Header().Set("Content-Type", "application/json")
+				_, err := w.Write([]byte(`{"id":"tx-1","status":{"code":"APPROVED"}}`))
+				assert.NoError(t, err)
+			}))
+			defer server.Close()
+
+			svc := newTransactionsEntity(server.Client(), map[string]string{"transaction": server.URL}).(*transactionsEntity)
+			require.NoError(t, svc.httpClient.WithRetryOptions(retry.WithMaxRetries(1), retry.WithInitialDelay(time.Millisecond), retry.WithMaxDelay(time.Millisecond)))
+
+			tx, err := tt.call(sdkctx.WithIdempotencyKey(context.Background(), "explicit-action-key"), svc)
+			require.NoError(t, err)
+			require.NotNil(t, tx)
+			assert.Equal(t, int32(2), calls.Load())
+		})
+	}
 }
 
 func TestTransactionContractDSLFileValidation_RejectsBeforeNetwork(t *testing.T) {
