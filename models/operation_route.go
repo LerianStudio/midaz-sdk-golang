@@ -312,13 +312,15 @@ type AccountRule struct {
 // OperationRouteType represents the type of operation route for backward compatibility
 type OperationRouteType string
 
-// OperationRouteType constants define operation route types.
+// OperationRouteType constants define response/compatibility operation route types.
 const (
-	// OperationRouteTypeDebit represents a legacy response value.
-	// Deprecated: debit is not accepted when creating or updating operation routes.
+	// OperationRouteTypeDebit represents a legacy response value kept only so older
+	// consumers can still decode/compare historical data.
+	// Deprecated: debit is compatibility-only and is not accepted for create/update inputs.
 	OperationRouteTypeDebit OperationRouteType = "debit"
-	// OperationRouteTypeCredit represents a legacy response value.
-	// Deprecated: credit is not accepted when creating or updating operation routes.
+	// OperationRouteTypeCredit represents a legacy response value kept only so older
+	// consumers can still decode/compare historical data.
+	// Deprecated: credit is compatibility-only and is not accepted for create/update inputs.
 	OperationRouteTypeCredit OperationRouteType = "credit"
 	// OperationRouteTypeSource represents source operation type
 	OperationRouteTypeSource OperationRouteType = "source"
