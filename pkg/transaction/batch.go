@@ -10,17 +10,21 @@ import (
 	stdErrors "errors"
 	"fmt"
 	"math"
+	"strings"
 	"sync"
 	"time"
 
+	obslog "github.com/LerianStudio/lib-observability/log"
+	obsruntime "github.com/LerianStudio/lib-observability/runtime"
 	"github.com/LerianStudio/midaz-sdk-golang/v3"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
-	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 )
+
+var runtimeNopLogger = obslog.NewNop() //nolint:forbidigo // lib-observability/runtime requires a lib-observability logger.
 
 const (
 	defaultBatchConcurrency = 10
@@ -83,8 +87,11 @@ type BatchOptions struct {
 	// OnProgress is a callback function that receives progress updates
 	// Called after each transaction is processed
 	OnProgress func(completed, total int, result BatchResult)
-	// IdempotencyKeyPrefix is a prefix to add to generated idempotency keys
-	// Default is "batch" if not specified
+	// IdempotencyKeyPrefix is retained for source compatibility.
+	//
+	// Deprecated: transaction batch retries no longer generate idempotency keys.
+	// Set CreateTransactionInput.IdempotencyKey explicitly for every transaction
+	// when RetryCount > 0.
 	IdempotencyKeyPrefix string
 	// StopOnError determines if the batch processing should stop on the first error
 	// Default is false (continue processing even if some transactions fail)
@@ -123,9 +130,10 @@ func DefaultBatchOptions() *BatchOptions {
 //   - A slice of BatchResult containing the result of each transaction
 //   - An error if the batch operation couldn't be started
 //
-// The function ensures idempotency by generating unique keys for each transaction
-// if they don't already have one. Results are returned in the same order as inputs,
-// regardless of the order in which transactions are processed.
+// When RetryCount > 0, every transaction input must include a stable
+// IdempotencyKey supplied by the caller. Missing keys are accepted only when
+// RetryCount is 0. Results are returned in the same order as inputs, regardless
+// of the order in which transactions are processed.
 func BatchTransactions(
 	ctx context.Context,
 	midazClient *midaz.Client,
@@ -147,6 +155,13 @@ func BatchTransactions(
 
 	options = normalizeOptions(options)
 	results := make([]BatchResult, len(inputs))
+	if invalidIndex, err := validateUniqueTransactionIdempotencyKeys(inputs, options); err != nil {
+		if invalidIndex >= 0 && invalidIndex < len(results) {
+			results[invalidIndex] = BatchResult{Index: invalidIndex, Error: err}
+		}
+
+		return results, err
+	}
 	start := time.Now()
 
 	recordBatchStartedEvent(ctx, orgID, ledgerID, len(inputs))
@@ -166,6 +181,32 @@ func BatchTransactions(
 	recordBatchCompletedEvent(ctx, orgID, ledgerID, results, err, time.Since(start))
 
 	return results, err
+}
+
+func validateUniqueTransactionIdempotencyKeys(inputs []*models.CreateTransactionInput, options *BatchOptions) (int, error) {
+	if options == nil || options.RetryCount <= 0 {
+		return -1, nil
+	}
+
+	seen := make(map[string]int, len(inputs))
+	for i, input := range inputs {
+		if input == nil {
+			return i, fmt.Errorf("transaction input at index %d is nil", i)
+		}
+
+		key := strings.TrimSpace(input.IdempotencyKey)
+		if key == "" {
+			return i, fmt.Errorf("transaction input at index %d requires idempotency key when retries are enabled", i)
+		}
+
+		if previousIndex, ok := seen[key]; ok {
+			return i, fmt.Errorf("transaction input at index %d reuses idempotency key from index %d", i, previousIndex)
+		}
+
+		seen[key] = i
+	}
+
+	return -1, nil
 }
 
 // normalizeOptions ensures options are valid.
@@ -324,9 +365,11 @@ func (bp *batchProcessor) startTransactionWorker(index int, wg *sync.WaitGroup, 
 
 	wg.Add(1)
 
-	go func(idx int) {
+	obsruntime.SafeGoWithContextAndComponent(bp.ctx, runtimeNopLogger, "midaz-sdk", "transaction.batch.worker", obsruntime.KeepRunning, func(context.Context) {
+		idx := index
 		defer wg.Done()
 		defer func() { <-semaphore }()
+		defer bp.recoverTransactionWorkerPanic(idx, errChan)()
 
 		err := bp.processTransaction(idx)
 		if err != nil && bp.options.StopOnError {
@@ -335,9 +378,31 @@ func (bp *batchProcessor) startTransactionWorker(index int, wg *sync.WaitGroup, 
 			default:
 			}
 		}
-	}(index)
+	})
 
 	return nil
+}
+
+func (bp *batchProcessor) recoverTransactionWorkerPanic(index int, errChan chan error) func() {
+	return func() {
+		panicValue := recover()
+		if panicValue == nil {
+			return
+		}
+
+		obsruntime.HandlePanicValue(bp.ctx, runtimeNopLogger, panicValue, "midaz-sdk", "transaction.batch.worker")
+		err := fmt.Errorf("transaction batch worker panic at index %d: %v", index, panicValue)
+		result := bp.createResult(index, nil, err, 0)
+		bp.results[index] = result
+		bp.callProgressCallback(result)
+
+		if bp.options.StopOnError {
+			select {
+			case errChan <- err:
+			default:
+			}
+		}
+	}
 }
 
 // processTransaction processes a single transaction with retries.
@@ -352,8 +417,15 @@ func (bp *batchProcessor) processTransaction(index int) error {
 
 		return result.Error
 	}
+	if bp.options.RetryCount > 0 && strings.TrimSpace(input.IdempotencyKey) == "" {
+		result := bp.createResult(index, nil, fmt.Errorf("transaction input at index %d requires idempotency key when retries are enabled", index), time.Since(startTime))
+		bp.results[index] = result
+		bp.callProgressCallback(result)
 
-	idempotencyKey := bp.ensureIdempotencyKey(input, index)
+		return result.Error
+	}
+
+	idempotencyKey := bp.ensureIdempotencyKey(input)
 	tx, err := bp.executeWithRetries(input, idempotencyKey)
 
 	result := bp.createResult(index, tx, err, time.Since(startTime))
@@ -364,12 +436,12 @@ func (bp *batchProcessor) processTransaction(index int) error {
 }
 
 // ensureIdempotencyKey ensures the transaction has an idempotency key.
-func (bp *batchProcessor) ensureIdempotencyKey(input *models.CreateTransactionInput, index int) string {
-	if input.IdempotencyKey != "" {
-		return input.IdempotencyKey
+func (*batchProcessor) ensureIdempotencyKey(input *models.CreateTransactionInput) string {
+	if key := strings.TrimSpace(input.IdempotencyKey); key != "" {
+		return key
 	}
 
-	return fmt.Sprintf("%s-%s-%d", bp.options.IdempotencyKeyPrefix, uuid.New().String(), index)
+	return ""
 }
 
 // executeWithRetries executes a transaction with retry logic.
@@ -385,8 +457,16 @@ func (bp *batchProcessor) executeWithRetries(input *models.CreateTransactionInpu
 			}
 		}
 
-		// Inject idempotency key into context so HTTP layer can add header
-		ctx := sdkctx.WithIdempotencyKey(bp.ctx, idempotencyKey)
+		ctx := sdkctx.WithoutHTTPRetries(bp.ctx)
+		if idempotencyKey != "" {
+			// Inject idempotency key into context so HTTP layer can add header.
+			ctx = sdkctx.WithIdempotencyKey(ctx, idempotencyKey)
+		} else {
+			// Missing keys are allowed only when batch retries are disabled.
+			// Suppress lower-layer auto-idempotency so the HTTP client also
+			// treats the unsafe request as non-retryable.
+			ctx = sdkctx.WithoutAutoIdempotency(ctx)
+		}
 		tx, err = bp.client.Transactions.CreateTransaction(ctx, bp.orgID, bp.ledgerID, input)
 
 		if err == nil || !isRetryableError(err) {

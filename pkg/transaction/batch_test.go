@@ -2,17 +2,251 @@ package transaction
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/LerianStudio/midaz-sdk-golang/v3"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v3/entities/mocks"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
 	pkgerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	"go.uber.org/mock/gomock"
 )
+
+func TestBatchTransactions_IdempotencyKeyRequiredWhenRetriesEnabled(t *testing.T) {
+	tests := []struct {
+		name       string
+		retryCount int
+		wantErr    bool
+		wantCalls  int32
+	}{
+		{
+			name:       "missing key fails before send when retries enabled",
+			retryCount: 1,
+			wantErr:    true,
+			wantCalls:  0,
+		},
+		{
+			name:       "missing key is allowed when retries disabled",
+			retryCount: 0,
+			wantErr:    false,
+			wantCalls:  1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var calls atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls.Add(1)
+				assert.Empty(t, r.Header.Get("X-Idempotency"))
+				w.Header().Set("Content-Type", "application/json")
+				assert.NoError(t, json.NewEncoder(w).Encode(map[string]any{"id": "tx-1", "status": map[string]any{"code": "APPROVED"}}))
+			}))
+			defer server.Close()
+
+			client, err := midaz.New(
+				midaz.WithHTTPClient(server.Client()),
+				midaz.WithOnboardingURL(server.URL),
+				midaz.WithTransactionURL(server.URL),
+				midaz.WithAnonymous(),
+				midaz.WithoutRetries(),
+			)
+			require.NoError(t, err)
+
+			results, err := BatchTransactions(context.Background(), client, "org", "ledger", []*models.CreateTransactionInput{validBatchTransactionInput("")}, &BatchOptions{
+				Concurrency: 1,
+				BatchSize:   1,
+				RetryCount:  tt.retryCount,
+				RetryDelay:  time.Millisecond,
+				MaxDelay:    time.Millisecond,
+			})
+
+			require.Len(t, results, 1)
+			if tt.wantErr {
+				require.Error(t, err)
+				require.Error(t, results[0].Error)
+				assert.Contains(t, results[0].Error.Error(), "idempotency")
+			} else {
+				require.NoError(t, err)
+				require.NoError(t, results[0].Error)
+				assert.Equal(t, "tx-1", results[0].TransactionID)
+			}
+
+			assert.Equal(t, tt.wantCalls, calls.Load())
+		})
+	}
+}
+
+func TestBatchTransactions_RetryUsesCallerIdempotencyKeyAndBatchOwnsRetryBudget(t *testing.T) {
+	var calls atomic.Int32
+	var keys []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		keys = append(keys, r.Header.Get("X-Idempotency"))
+		if calls.Add(1) == 1 {
+			w.WriteHeader(http.StatusInternalServerError)
+			assert.NoError(t, json.NewEncoder(w).Encode(map[string]any{"code": "temporary"}))
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		assert.NoError(t, json.NewEncoder(w).Encode(map[string]any{"id": "tx-1", "status": map[string]any{"code": "APPROVED"}}))
+	}))
+	defer server.Close()
+
+	client, err := midaz.New(
+		midaz.WithHTTPClient(server.Client()),
+		midaz.WithOnboardingURL(server.URL),
+		midaz.WithTransactionURL(server.URL),
+		midaz.WithAnonymous(),
+	)
+	require.NoError(t, err)
+
+	results, err := BatchTransactions(context.Background(), client, "org", "ledger", []*models.CreateTransactionInput{validBatchTransactionInput("caller-key")}, &BatchOptions{
+		Concurrency: 1,
+		BatchSize:   1,
+		RetryCount:  1,
+		RetryDelay:  time.Millisecond,
+		MaxDelay:    time.Millisecond,
+	})
+
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	require.NoError(t, results[0].Error)
+	assert.Equal(t, "tx-1", results[0].TransactionID)
+	assert.Equal(t, int32(2), calls.Load())
+	assert.Equal(t, []string{"caller-key", "caller-key"}, keys)
+}
+
+func TestBatchTransactions_SuppressesHTTPRetriesInsideBatchRetryBudget(t *testing.T) {
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls.Add(1)
+		w.WriteHeader(http.StatusInternalServerError)
+		assert.NoError(t, json.NewEncoder(w).Encode(map[string]any{"code": "temporary"}))
+	}))
+	defer server.Close()
+
+	client, err := midaz.New(
+		midaz.WithHTTPClient(server.Client()),
+		midaz.WithOnboardingURL(server.URL),
+		midaz.WithTransactionURL(server.URL),
+		midaz.WithAnonymous(),
+	)
+	require.NoError(t, err)
+
+	results, err := BatchTransactions(context.Background(), client, "org", "ledger", []*models.CreateTransactionInput{validBatchTransactionInput("caller-key")}, &BatchOptions{
+		Concurrency: 1,
+		BatchSize:   1,
+		RetryCount:  1,
+		RetryDelay:  time.Millisecond,
+		MaxDelay:    time.Millisecond,
+	})
+
+	require.Error(t, err)
+	require.Len(t, results, 1)
+	require.Error(t, results[0].Error)
+	assert.Equal(t, int32(2), calls.Load(), "batch retry count should own the retry budget without nested HTTP retries")
+}
+
+func TestBatchTransactions_DuplicateIdempotencyKeysFailBeforeSend(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		t.Fatal("duplicate idempotency keys should fail before sending HTTP requests")
+	}))
+	defer server.Close()
+
+	client, err := midaz.New(
+		midaz.WithHTTPClient(server.Client()),
+		midaz.WithOnboardingURL(server.URL),
+		midaz.WithTransactionURL(server.URL),
+		midaz.WithAnonymous(),
+	)
+	require.NoError(t, err)
+
+	results, err := BatchTransactions(context.Background(), client, "org", "ledger", []*models.CreateTransactionInput{
+		validBatchTransactionInput("duplicate-key"),
+		validBatchTransactionInput("duplicate-key"),
+	}, &BatchOptions{RetryCount: 1})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "reuses idempotency key")
+	assert.Len(t, results, 2)
+}
+
+func TestBatchTransactions_MissingIdempotencyKeyFailsBeforeAnySend(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		t.Fatal("missing idempotency key in any retried transaction should fail before sending HTTP requests")
+	}))
+	defer server.Close()
+
+	client, err := midaz.New(
+		midaz.WithHTTPClient(server.Client()),
+		midaz.WithOnboardingURL(server.URL),
+		midaz.WithTransactionURL(server.URL),
+		midaz.WithAnonymous(),
+	)
+	require.NoError(t, err)
+
+	results, err := BatchTransactions(context.Background(), client, "org", "ledger", []*models.CreateTransactionInput{
+		validBatchTransactionInput("valid-key"),
+		validBatchTransactionInput(""),
+	}, &BatchOptions{Concurrency: 2, RetryCount: 1})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "requires idempotency key")
+	assert.Len(t, results, 2)
+}
+
+func TestBatchTransactions_WorkerPanicReturnsResultError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	txService := mocks.NewMockTransactionsService(ctrl)
+	txService.EXPECT().
+		CreateTransaction(gomock.Any(), "org", "ledger", gomock.Any()).
+		DoAndReturn(func(context.Context, string, string, *models.CreateTransactionInput) (*models.Transaction, error) {
+			panic("boom")
+		}).
+		AnyTimes()
+
+	client := &midaz.Client{Entity: &entities.Entity{Transactions: txService}}
+
+	results, err := BatchTransactions(context.Background(), client, "org", "ledger", []*models.CreateTransactionInput{
+		validBatchTransactionInput("panic-key"),
+	}, &BatchOptions{Concurrency: 1, RetryCount: 1, StopOnError: true})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "transaction batch worker panic")
+	require.Len(t, results, 1)
+	require.Error(t, results[0].Error)
+	assert.Equal(t, 0, results[0].Index)
+	assert.Contains(t, results[0].Error.Error(), "boom")
+}
+
+func validBatchTransactionInput(idempotencyKey string) *models.CreateTransactionInput {
+	input := models.NewCreateTransactionInput("USD", "10").WithSend(&models.SendInput{
+		Asset: "USD",
+		Value: "10",
+		Source: &models.SourceInput{From: []models.FromToInput{{
+			AccountAlias: "@source",
+			Amount:       models.AmountInput{Asset: "USD", Value: "10"},
+		}}},
+		Distribute: &models.DistributeInput{To: []models.FromToInput{{
+			AccountAlias: "@dest",
+			Amount:       models.AmountInput{Asset: "USD", Value: "10"},
+		}}},
+	})
+	input.IdempotencyKey = idempotencyKey
+
+	return input
+}
 
 // TestDefaultBatchOptions tests the default batch options
 func TestDefaultBatchOptions(t *testing.T) {
@@ -578,11 +812,8 @@ func TestBatchProcessorWaitForRetry(t *testing.T) {
 	})
 
 	t.Run("returns context error on timeout", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
+		ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
 		defer cancel()
-
-		// Give it a moment for the timeout to trigger
-		time.Sleep(1 * time.Millisecond)
 
 		bp := &batchProcessor{
 			ctx: ctx,
@@ -750,20 +981,18 @@ func TestBatchProcessorCheckFinalErrors(t *testing.T) {
 
 // TestBatchProcessorEnsureIdempotencyKey tests the ensureIdempotencyKey method
 func TestBatchProcessorEnsureIdempotencyKey(t *testing.T) {
-	t.Run("sets idempotency key when empty", func(t *testing.T) {
+	t.Run("does not generate idempotency key when empty", func(t *testing.T) {
 		bp := &batchProcessor{
-			options: &BatchOptions{IdempotencyKeyPrefix: "test-prefix"},
+			options: &BatchOptions{IdempotencyKeyPrefix: "test-prefix", RetryCount: 1},
 		}
 
 		input := &models.CreateTransactionInput{
 			IdempotencyKey: "",
 		}
 
-		key := bp.ensureIdempotencyKey(input, 5)
+		key := bp.ensureIdempotencyKey(input)
 
-		assert.NotEmpty(t, key)
-		assert.Contains(t, key, "test-prefix")
-		assert.Contains(t, key, "-5")
+		assert.Empty(t, key)
 		assert.Empty(t, input.IdempotencyKey)
 	})
 
@@ -776,7 +1005,7 @@ func TestBatchProcessorEnsureIdempotencyKey(t *testing.T) {
 			IdempotencyKey: "existing-key",
 		}
 
-		key := bp.ensureIdempotencyKey(input, 5)
+		key := bp.ensureIdempotencyKey(input)
 
 		assert.Equal(t, "existing-key", key)
 		assert.Equal(t, "existing-key", input.IdempotencyKey)
