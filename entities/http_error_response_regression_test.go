@@ -248,6 +248,7 @@ func TestHTTPClient_ErrorResponse_RequestIDPropagates(t *testing.T) {
 	defer srv.Close()
 
 	client := NewHTTPClient(srv.Client(), "", nil)
+	client.SetExposeErrorBody(true)
 	require.NoError(t, client.WithRetryOptions(retry.WithMaxRetries(0)))
 
 	var out map[string]any
@@ -274,6 +275,7 @@ func TestHTTPClient_ErrorResponse_ExposesRawTypedBodyAndRedactsRenderedBody(t *t
 	defer srv.Close()
 
 	client := NewHTTPClient(srv.Client(), "", nil)
+	client.SetExposeErrorBody(true)
 	require.NoError(t, client.WithRetryOptions(retry.WithMaxRetries(0)))
 
 	var out map[string]any
@@ -333,6 +335,7 @@ func TestHTTPClient_ErrorResponse_NonJSONIncludesRawBody(t *testing.T) {
 	defer srv.Close()
 
 	client := NewHTTPClient(srv.Client(), "", nil)
+	client.SetExposeErrorBody(true)
 	require.NoError(t, client.WithRetryOptions(retry.WithMaxRetries(0)))
 
 	var out map[string]any
@@ -369,6 +372,7 @@ func TestHTTPClient_ErrorResponse_TruncationFlagResetsAcrossRetries(t *testing.T
 	defer srv.Close()
 
 	client := NewHTTPClient(srv.Client(), "", nil)
+	client.SetExposeErrorBody(true)
 	require.NoError(t, client.WithRetryOptions(
 		retry.WithMaxRetries(1),
 		retry.WithInitialDelay(1),
@@ -410,6 +414,7 @@ func TestHTTPClient_ErrorResponse_EmptyNullAndMalformedBodiesReturnStructuredErr
 			defer srv.Close()
 
 			client := NewHTTPClient(srv.Client(), "", nil)
+			client.SetExposeErrorBody(true)
 
 			var out map[string]any
 

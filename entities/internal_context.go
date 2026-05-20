@@ -36,3 +36,10 @@ func getIdempotencyKeyFromContext(ctx context.Context) string {
 func autoIdempotencySuppressed(ctx context.Context) bool {
 	return sdkctx.AutoIdempotencySuppressed(ctx)
 }
+
+// httpRetriesSuppressed returns true when the context was tagged via
+// sdkctx.WithoutHTTPRetries, signalling that the HTTPClient must perform a
+// single attempt even if client-level retries are enabled.
+func httpRetriesSuppressed(ctx context.Context) bool {
+	return sdkctx.HTTPRetriesSuppressed(ctx)
+}

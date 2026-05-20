@@ -49,6 +49,27 @@ func TestWithoutAutoIdempotency(t *testing.T) {
 	}
 }
 
+func TestHTTPRetrySuppressionContextHelpers(t *testing.T) {
+	//nolint:staticcheck // intentional nil-context for nil-safety verification
+	if sdkctx.HTTPRetriesSuppressed(nil) {
+		t.Fatal("nil context must not suppress HTTP retries")
+	}
+
+	ctx := context.Background()
+	if sdkctx.HTTPRetriesSuppressed(ctx) {
+		t.Fatal("default context must not suppress HTTP retries")
+	}
+
+	//nolint:staticcheck // intentional nil-context for nil-safety verification
+	ctx = sdkctx.WithoutHTTPRetries(nil)
+	if ctx == nil {
+		t.Fatal("WithoutHTTPRetries(nil) must return a usable context")
+	}
+	if !sdkctx.HTTPRetriesSuppressed(ctx) {
+		t.Fatal("WithoutHTTPRetries must tag the context")
+	}
+}
+
 func TestWithIncludeDeleted(t *testing.T) {
 	ctx := context.Background()
 	if sdkctx.IncludeDeletedFromContext(ctx) {

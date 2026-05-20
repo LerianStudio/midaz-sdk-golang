@@ -11,6 +11,8 @@
 //     over auto-generated keys.
 //   - [WithoutAutoIdempotency] / [AutoIdempotencySuppressed] — suppress
 //     auto-idempotency for a single call when client-level idempotency is on.
+//   - [WithoutHTTPRetries] / [HTTPRetriesSuppressed] — suppress the SDK HTTP
+//     retry loop for one call when a higher-level retry owner already exists.
 //   - [WithIncludeDeleted] / [IncludeDeletedFromContext] — include soft-deleted
 //     resources in Get/List operations.
 //   - [WithHardDelete] / [HardDeleteFromContext] — perform a hard delete instead
@@ -114,6 +116,37 @@ func AutoIdempotencySuppressed(ctx context.Context) bool {
 	}
 
 	v, ok := ctx.Value(suppressAutoIdempotencyType{}).(bool)
+
+	return ok && v
+}
+
+// ----- HTTP retry suppression -----
+
+type suppressHTTPRetriesType struct{}
+
+// WithoutHTTPRetries tags the context so the entity HTTP client performs only
+// one attempt for the next request, even when client-level retries are enabled.
+//
+// Use this when a higher-level operation owns the retry budget and needs to
+// avoid multiplicative retry amplification. The request may still carry an
+// explicit idempotency key; this helper only suppresses the transport retry
+// loop.
+func WithoutHTTPRetries(ctx context.Context) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	return context.WithValue(ctx, suppressHTTPRetriesType{}, true)
+}
+
+// HTTPRetriesSuppressed reports whether [WithoutHTTPRetries] was applied to
+// the context.
+func HTTPRetriesSuppressed(ctx context.Context) bool {
+	if ctx == nil {
+		return false
+	}
+
+	v, ok := ctx.Value(suppressHTTPRetriesType{}).(bool)
 
 	return ok && v
 }

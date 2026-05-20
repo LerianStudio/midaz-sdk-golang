@@ -166,6 +166,7 @@ func TestHTTPClient_ResponseBodyLimit(t *testing.T) {
 	defer srv.Close()
 
 	c := NewHTTPClient(srv.Client(), "", nil)
+	c.SetExposeErrorBody(true)
 	require.NoError(t, c.WithRetryOptions(retry.WithMaxRetries(0)))
 
 	var out map[string]any
@@ -197,6 +198,7 @@ func TestHTTPClient_ResponseBodyLimit_4xxKeepsGenerousCap(t *testing.T) {
 	defer srv.Close()
 
 	c := NewHTTPClient(srv.Client(), "", nil)
+	c.SetExposeErrorBody(true)
 	require.NoError(t, c.WithRetryOptions(retry.WithMaxRetries(0)))
 
 	var out map[string]any
