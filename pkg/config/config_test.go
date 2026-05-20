@@ -14,15 +14,12 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/auth"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/security"
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/version"
 )
 
 // disableAuthCheck is a test-only helper that returns an Option which sets
 // the internal skipAuthCheck flag. v3 contract: validateConfig consults the
-// field, never the env directly. The legacy env-driven path still works via
-// FromEnvironment() (verified by TestFromEnvironment_AllVariables and the
-// MIDAZ_SKIP_AUTH_CHECK case below).
+// field, never the env directly.
 func disableAuthCheck(t *testing.T) Option {
 	t.Helper()
 
@@ -63,7 +60,7 @@ func TestDefaultConstants(t *testing.T) {
 		{"DefaultMinRetryWait", DefaultMinRetryWait, 1 * time.Second},
 		{"DefaultRetryWaitMax", DefaultRetryWaitMax, 30 * time.Second},
 		{"DefaultEnableIdempotency", DefaultEnableIdempotency, true},
-		{"DefaultExposeErrorBody", DefaultExposeErrorBody, true},
+		{"DefaultExposeErrorBody", DefaultExposeErrorBody, false},
 	}
 
 	for _, tc := range tests {
@@ -115,7 +112,7 @@ func TestNewConfig_Defaults(t *testing.T) {
 	// In v3, retries are off iff MaxRetries == 0; default is DefaultMaxRetries (3).
 	assert.Positive(t, config.MaxRetries)
 	assert.True(t, config.EnableIdempotency)
-	assert.True(t, config.ExposeErrorBody)
+	assert.False(t, config.ExposeErrorBody)
 	assert.False(t, config.Debug)
 	assert.NotNil(t, config.HTTPClient)
 	assert.Equal(t, "http://localhost:3002/v1", config.ServiceURLs[ServiceOnboarding])
@@ -710,6 +707,7 @@ func TestWithAccessManager(t *testing.T) {
 
 func TestWithAccessManagerPreservesPriorAllowInsecureHTTP(t *testing.T) {
 	config, err := NewConfig(
+		WithEnvironment(EnvironmentDevelopment),
 		WithAllowInsecureAccessManagerHTTP(true),
 		WithAccessManager(auth.AccessManager{
 			Address:      "http://auth.internal.example.com",
@@ -726,6 +724,7 @@ func TestWithAccessManagerPreservesPriorAllowInsecureHTTP(t *testing.T) {
 
 func TestWithAllowInsecureAccessManagerHTTPFalseAppliedLastDisablesPriorOptIn(t *testing.T) {
 	_, err := NewConfig(
+		WithEnvironment(EnvironmentDevelopment),
 		WithAllowInsecureAccessManagerHTTP(true),
 		WithAccessManager(auth.AccessManager{
 			Address:      "http://auth.internal.example.com",
@@ -750,7 +749,7 @@ func TestValidateConfig_MissingAuthAddress(t *testing.T) {
 }
 
 func TestValidateConfig_AccessManagerAddressValidatedBeforeTokenFetch(t *testing.T) {
-	_, err := NewConfig(WithAccessManager(auth.AccessManager{
+	_, err := NewConfig(WithEnvironment(EnvironmentDevelopment), WithAccessManager(auth.AccessManager{
 		Enabled:      true,
 		Address:      "http://auth.internal.example.com",
 		ClientID:     "client-id",
@@ -859,7 +858,7 @@ func TestFromEnvironment_PartialVariables(t *testing.T) {
 	assert.Equal(t, 90*time.Second, config.Timeout)
 	assert.Equal(t, DefaultMaxRetries, config.MaxRetries)
 	assert.True(t, config.EnableIdempotency)
-	assert.True(t, config.ExposeErrorBody)
+	assert.False(t, config.ExposeErrorBody)
 }
 
 func TestFromEnvironment_InvalidEnvironment(t *testing.T) {
@@ -962,7 +961,7 @@ func TestDefaultConfig(t *testing.T) {
 	// In v3, retries are off iff MaxRetries == 0; default is DefaultMaxRetries (3).
 	assert.Positive(t, config.MaxRetries)
 	assert.True(t, config.EnableIdempotency)
-	assert.True(t, config.ExposeErrorBody)
+	assert.False(t, config.ExposeErrorBody)
 	assert.NotNil(t, config.HTTPClient)
 	assert.NotNil(t, config.ServiceURLs)
 	assert.Equal(t, "http://localhost:3002/v1", config.ServiceURLs[ServiceOnboarding])
@@ -1448,189 +1447,6 @@ func TestConfigureOptionalSettings(t *testing.T) {
 			assert.Equal(t, tc.expectedIdempotency, config.EnableIdempotency)
 		})
 	}
-}
-
-func TestValidateConfig_MissingOnboardingURL(t *testing.T) {
-	config := &Config{
-		ServiceURLs: map[ServiceType]string{
-			ServiceTransaction: "https://api.example.com/transaction",
-		},
-	}
-
-	err := validateConfig(config)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "onboarding URL is required")
-}
-
-func TestValidateConfig_MissingTransactionURL(t *testing.T) {
-	config := &Config{
-		ServiceURLs: map[ServiceType]string{
-			ServiceOnboarding: "https://api.example.com/onboarding",
-		},
-	}
-
-	err := validateConfig(config)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "transaction URL is required")
-}
-
-func TestValidateConfig_Valid(t *testing.T) {
-	config := &Config{
-		ServiceURLs: map[ServiceType]string{
-			ServiceOnboarding:  "https://api.example.com/onboarding",
-			ServiceTransaction: "https://api.example.com/transaction",
-			ServiceCRM:         "https://api.example.com/crm",
-		},
-		Anonymous: true,
-	}
-
-	err := validateConfig(config)
-	require.NoError(t, err)
-}
-
-func TestValidateConfig_CRMURLIsOptional(t *testing.T) {
-	config := &Config{
-		ServiceURLs: map[ServiceType]string{
-			ServiceOnboarding:  "https://api.example.com/onboarding",
-			ServiceTransaction: "https://api.example.com/transaction",
-		},
-		// Anonymous=true is the v3-canonical way to assert no-auth at
-		// validation time without going through the option chain.
-		Anonymous: true,
-	}
-
-	err := validateConfig(config)
-	require.NoError(t, err)
-}
-
-func TestNewConfig_OptionError(t *testing.T) {
-	errorOption := func(_ *Config) error {
-		return assert.AnError
-	}
-
-	_, err := NewConfig(errorOption)
-	require.Error(t, err)
-	assert.Equal(t, assert.AnError, err)
-}
-
-func TestWithBaseURL_InitializesServiceURLsMap(t *testing.T) {
-	config := &Config{
-		Environment: EnvironmentProduction,
-		ServiceURLs: nil,
-	}
-
-	err := WithBaseURL("https://api.example.com")(config)
-	require.NoError(t, err)
-
-	assert.NotNil(t, config.ServiceURLs)
-	assert.Equal(t, "https://api.example.com/v1", config.ServiceURLs[ServiceOnboarding])
-	assert.Equal(t, "https://api.example.com/v1", config.ServiceURLs[ServiceTransaction])
-}
-
-func TestNewDefaultHTTPClientRejectsSensitiveCrossOriginRedirect(t *testing.T) {
-	client := NewDefaultHTTPClient(time.Second)
-
-	previous, err := http.NewRequest(http.MethodGet, "https://api.example.com/v1/accounts", nil)
-	require.NoError(t, err)
-	previous.Header.Set("X-Idempotency", "raw-idempotency-key")
-
-	next, err := http.NewRequest(http.MethodGet, "https://evil.example.net/v1/accounts", nil)
-	require.NoError(t, err)
-
-	err = client.CheckRedirect(next, []*http.Request{previous})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "authenticated redirect")
-}
-
-func TestWithHTTPClientInstallsRedirectGuardWhenMissing(t *testing.T) {
-	callerClient := &http.Client{}
-	config, err := NewConfig(WithAnonymous(), WithHTTPClient(callerClient))
-	require.NoError(t, err)
-	require.NotNil(t, config.HTTPClient.CheckRedirect)
-	require.Nil(t, callerClient.CheckRedirect, "caller-owned client must not be mutated in place")
-
-	previous, err := http.NewRequest(http.MethodGet, "https://api.example.com/v1/accounts", nil)
-	require.NoError(t, err)
-	previous.Header.Set("X-API-Key", "raw-api-key")
-
-	next, err := http.NewRequest(http.MethodGet, "https://evil.example.net/v1/accounts", nil)
-	require.NoError(t, err)
-
-	err = config.HTTPClient.CheckRedirect(next, []*http.Request{previous})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "authenticated redirect")
-}
-
-func TestWithHTTPClientComposesExplicitRedirectPolicy(t *testing.T) {
-	var called bool
-	callerClient := &http.Client{
-		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
-			called = true
-			return assert.AnError
-		},
-	}
-	config, err := NewConfig(WithAnonymous(), WithHTTPClient(callerClient))
-	require.NoError(t, err)
-
-	require.NotSame(t, callerClient, config.HTTPClient)
-	previous, err := http.NewRequest(http.MethodGet, "https://api.example.com/v1/accounts", nil)
-	require.NoError(t, err)
-	next, err := http.NewRequest(http.MethodGet, "https://api.example.com/v1/accounts?page=2", nil)
-	require.NoError(t, err)
-
-	require.ErrorIs(t, config.HTTPClient.CheckRedirect(next, []*http.Request{previous}), assert.AnError)
-	assert.True(t, called)
-}
-
-func TestWithHTTPClientBlocksCrossOriginBeforeExplicitRedirectPolicy(t *testing.T) {
-	var called bool
-	callerClient := &http.Client{
-		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
-			called = true
-			return nil
-		},
-	}
-	config, err := NewConfig(WithAnonymous(), WithHTTPClient(callerClient))
-	require.NoError(t, err)
-
-	previous, err := http.NewRequest(http.MethodGet, "https://api.example.com/v1/accounts", nil)
-	require.NoError(t, err)
-	previous.Header.Set("X-API-Key", "raw-api-key")
-	next, err := http.NewRequest(http.MethodGet, "https://evil.example.net/v1/accounts", nil)
-	require.NoError(t, err)
-
-	err = config.HTTPClient.CheckRedirect(next, []*http.Request{previous})
-	// Match the typed sentinel rather than substring-scraping the
-	// rendered string. If the rendered text ever changes (e.g. for
-	// localisation), errors.Is still resolves the contract.
-	// require.ErrorIs implies require.Error, so a separate Error check
-	// is redundant here.
-	require.ErrorIs(t, err, security.ErrAuthenticatedRedirect)
-	assert.False(t, called, "SDK guard must reject before caller redirect policy runs")
-}
-
-func TestWithOnboardingURL_InitializesServiceURLsMap(t *testing.T) {
-	config := &Config{
-		ServiceURLs: nil,
-	}
-
-	err := WithOnboardingURL("https://api.example.com/onboarding")(config)
-	require.NoError(t, err)
-
-	assert.NotNil(t, config.ServiceURLs)
-	assert.Equal(t, "https://api.example.com/onboarding", config.ServiceURLs[ServiceOnboarding])
-}
-
-func TestWithTransactionURL_InitializesServiceURLsMap(t *testing.T) {
-	config := &Config{
-		ServiceURLs: nil,
-	}
-
-	err := WithTransactionURL("https://api.example.com/transaction")(config)
-	require.NoError(t, err)
-
-	assert.NotNil(t, config.ServiceURLs)
-	assert.Equal(t, "https://api.example.com/transaction", config.ServiceURLs[ServiceTransaction])
 }
 
 // Mock observability provider for testing

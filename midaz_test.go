@@ -28,8 +28,6 @@ import (
 func createTestConfig(t *testing.T) *config.Config {
 	t.Helper()
 
-	t.Setenv("MIDAZ_SKIP_AUTH_CHECK", "true")
-
 	cfg, err := config.NewConfig(
 		config.WithAnonymous(),
 		config.WithEnvironment(config.EnvironmentLocal),
@@ -733,7 +731,7 @@ func TestNewClassifiesLocalAccessManagerBootstrapFailureAsConfiguration(t *testi
 	var logs bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&logs, nil))
 
-	_, err := New(WithConfig(cfg), WithLogger(logger))
+	_, err := New(WithConfig(cfg), WithEnvironment(config.EnvironmentLocal), WithLogger(logger))
 	require.Error(t, err)
 	require.True(t, sdkerrors.IsConfigurationError(err), "local bootstrap validation failures are configuration errors")
 	require.False(t, sdkerrors.IsAuthenticationError(err), "local bootstrap validation failures must not be authentication errors")
@@ -811,6 +809,7 @@ func TestNewPreservesAccessManagerBootstrapUpstreamHTTPStatus(t *testing.T) {
 			defer server.Close()
 
 			_, err := New(
+				WithEnvironment(config.EnvironmentLocal),
 				WithAccessManager(AccessManager{
 					Address:      server.URL,
 					ClientID:     "client-id-" + tc.name,
@@ -854,6 +853,7 @@ func TestNewClassifiesAccessManagerBootstrapTransportFailureAsNetwork(t *testing
 	}
 
 	_, err := New(
+		WithEnvironment(config.EnvironmentLocal),
 		WithAccessManager(AccessManager{
 			Address:      "https://auth.example.com",
 			ClientID:     "network-client-id",

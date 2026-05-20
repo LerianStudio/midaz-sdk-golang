@@ -244,6 +244,7 @@ func TestFromEnvironment_PluginAuthEnabledStrictParseBool(t *testing.T) {
 			t.Setenv("PLUGIN_AUTH_ADDRESS", "https://auth.example.com")
 			t.Setenv("MIDAZ_CLIENT_ID", "id")
 			t.Setenv("MIDAZ_CLIENT_SECRET", "secret")
+			t.Setenv("MIDAZ_ENVIRONMENT", "development")
 
 			options := []Option{FromEnvironment()}
 			if tc.useAnonymous {
@@ -270,6 +271,7 @@ func TestFromEnvironment_AccessManagerAllowInsecureHTTPStrictParseBool(t *testin
 		t.Setenv("MIDAZ_ACCESS_MANAGER_ALLOW_INSECURE_HTTP", "true")
 
 		cfg, err := NewConfig(
+			WithEnvironment(EnvironmentDevelopment),
 			WithAccessManager(auth.AccessManager{
 				Address:      "http://auth.internal.example.com",
 				ClientID:     "client-id",
@@ -287,6 +289,7 @@ func TestFromEnvironment_AccessManagerAllowInsecureHTTPStrictParseBool(t *testin
 		t.Setenv("MIDAZ_ACCESS_MANAGER_ALLOW_INSECURE_HTTP", "false")
 
 		cfg, err := NewConfig(
+			WithEnvironment(EnvironmentDevelopment),
 			WithAccessManager(auth.AccessManager{
 				Address:           "https://auth.example.com",
 				ClientID:          "client-id",
@@ -310,30 +313,12 @@ func TestFromEnvironment_AccessManagerAllowInsecureHTTPStrictParseBool(t *testin
 	})
 }
 
-// TestFromEnvironment_SkipAuthCheckStrictParseBool covers the
-// test-plumbing escape hatch. Even though it's only meant for tests,
-// it must obey the same strict-parse rule so a typo doesn't silently
-// disable the construction-time gate.
-func TestFromEnvironment_SkipAuthCheckStrictParseBool(t *testing.T) {
-	t.Run("yes rejected", func(t *testing.T) {
-		t.Setenv("MIDAZ_SKIP_AUTH_CHECK", "yes")
+func TestFromEnvironment_RejectsSkipAuthCheck(t *testing.T) {
+	t.Setenv("MIDAZ_SKIP_AUTH_CHECK", "true")
 
-		_, err := NewConfig(FromEnvironment(), WithAnonymous())
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid MIDAZ_SKIP_AUTH_CHECK")
-	})
-
-	t.Run("true accepted", func(t *testing.T) {
-		t.Setenv("MIDAZ_SKIP_AUTH_CHECK", "true")
-		t.Setenv("PLUGIN_AUTH_ENABLED", "true")
-		t.Setenv("PLUGIN_AUTH_ADDRESS", "")
-		// Address is empty → without skipAuthCheck, validateConfig would fail.
-		// The successful build proves the env-driven escape hatch worked.
-
-		cfg, err := NewConfig(FromEnvironment())
-		require.NoError(t, err)
-		assert.True(t, cfg.AccessManager.Enabled)
-	})
+	_, err := NewConfig(FromEnvironment(), WithAnonymous())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "MIDAZ_SKIP_AUTH_CHECK is not supported")
 }
 
 // ----- M7: programmatic AccessManager preservation -----
@@ -361,6 +346,7 @@ func TestFromEnvironment_PreservesProgrammaticAccessManagerWhenEnvEmpty(t *testi
 	unsetEnv(t, "MIDAZ_CLIENT_SECRET")
 
 	cfg, err := NewConfig(
+		WithEnvironment(EnvironmentDevelopment),
 		WithAccessManager(auth.AccessManager{
 			Address:      "https://programmatic.example.com",
 			ClientID:     "programmatic-id",
@@ -390,6 +376,7 @@ func TestFromEnvironment_OverwritesProgrammaticAccessManagerOnExplicitEnv(t *tes
 	t.Setenv("PLUGIN_AUTH_ADDRESS", "https://env.example.com")
 	t.Setenv("MIDAZ_CLIENT_ID", "env-id")
 	t.Setenv("MIDAZ_CLIENT_SECRET", "env-secret")
+	t.Setenv("MIDAZ_ENVIRONMENT", "development")
 
 	cfg, err := NewConfig(
 		WithAccessManager(auth.AccessManager{
