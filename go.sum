@@ -1,5 +1,5 @@
-github.com/LerianStudio/lib-observability v1.0.0 h1:Ty9rlU8OJZoAmQ9lXYaXcDIBSiZOn6Aq1ofNzhwHq88=
-github.com/LerianStudio/lib-observability v1.0.0/go.mod h1:kGZvqUqgFVTv5TkqqVqAtJ9GHEr0WMK2MfnjoQAyrp4=
+github.com/LerianStudio/lib-observability v1.0.1 h1:Nz5U+dzhkTEu+86rQBXAkxB09OQE7/mxFZbZgZPFejo=
+github.com/LerianStudio/lib-observability v1.0.1/go.mod h1:kGZvqUqgFVTv5TkqqVqAtJ9GHEr0WMK2MfnjoQAyrp4=
 github.com/andybalholm/brotli v1.2.0 h1:ukwgCxwYrmACq68yiUqwIWnGY0cTPox/M94sVwToPjQ=
 github.com/andybalholm/brotli v1.2.0/go.mod h1:rzTDkvFWvIrjDXZHkuS16NPggd91W3kUSvPlQ1pLaKY=
 github.com/brianvoe/gofakeit/v7 v7.14.1 h1:a7fe3fonbj0cW3wgl5VwIKfZtiH9C3cLnwcIXWT7sow=
