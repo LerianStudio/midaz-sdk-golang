@@ -1052,11 +1052,11 @@ func validateConfig(config *Config) error {
 // The onboarding and transaction internal routes both resolve to LedgerURL,
 // so both map entries must be populated for the entity layer to function.
 func validateServiceURLs(config *Config) error {
-	if url, ok := config.ServiceURLs[ServiceOnboarding]; !ok || strings.TrimSpace(url) == "" {
+	if onboardingURL, ok := config.ServiceURLs[ServiceOnboarding]; !ok || strings.TrimSpace(onboardingURL) == "" {
 		return errors.New("ledger URL is required")
 	}
 
-	if url, ok := config.ServiceURLs[ServiceTransaction]; !ok || strings.TrimSpace(url) == "" {
+	if transactionURL, ok := config.ServiceURLs[ServiceTransaction]; !ok || strings.TrimSpace(transactionURL) == "" {
 		return errors.New("ledger URL is required")
 	}
 
