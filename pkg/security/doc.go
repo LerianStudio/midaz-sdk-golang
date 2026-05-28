@@ -52,6 +52,7 @@
 // # See also
 //
 //   - [github.com/LerianStudio/midaz-sdk-golang/v3.WithBaseURL]
+//   - [github.com/LerianStudio/midaz-sdk-golang/v3.WithLedgerURL]
 //   - [github.com/LerianStudio/midaz-sdk-golang/v3.WithAccessManager]
 //   - [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors] —
 //     errors returned when validation rejects a request
