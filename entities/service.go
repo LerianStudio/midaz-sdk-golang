@@ -1,9 +1,3 @@
-// Package entities provides shared service-entity construction helpers.
-//
-// Every entity service implementation embeds [serviceEntity], which carries
-// the two fields (httpClient + baseURLs) shared across the 16 service
-// implementations. This consolidates per-service boilerplate into one site
-// so the entity files stay focused on per-service business logic.
 package entities
 
 import (

@@ -405,6 +405,11 @@ linters:
           - forbidigo
         path: cmd/
 
+      # Allow errcheck for fluent API in enhanced validation
+      - linters:
+          - errcheck
+        path: pkg/validation/enhanced\.go
+
       # Existing exclusions
       - linters:
           - errcheck
