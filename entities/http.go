@@ -1,5 +1,3 @@
-// Package entities provides high-level encapsulation for Midaz API interaction.
-// It provides domain-specific entities like accounts, assets, organizations, etc.
 package entities
 
 import (
@@ -68,8 +66,8 @@ const idempotencyHeader = "X-Idempotency"
 
 // defaultUserAgent returns the SDK's centralized user-agent string.
 // The configured value flows in via (*HTTPClient).SetUserAgent (driven
-// from pkg/config.Config.UserAgent, which itself can be populated from
-// the MIDAZ_USER_AGENT env var when the caller opts in via FromEnvironment).
+// from pkg/config.Config.UserAgent, which callers may override
+// programmatically via [WithUserAgent]).
 func defaultUserAgent() string {
 	return version.UserAgent()
 }

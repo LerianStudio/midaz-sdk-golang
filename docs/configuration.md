@@ -71,15 +71,14 @@ The full list (v3):
 | `WithErrorBodyExposure` | Toggle raw upstream 4xx/5xx response body exposure on SDK errors |
 | `WithHTTPClient` | Replace the underlying `*http.Client` |
 | `WithIdempotency` | Toggle automatic `X-Idempotency` header |
+| `WithLedgerURL` | Override Ledger service URL (onboarding + transactions) |
 | `WithLogger` | Install a custom `*slog.Logger` |
 | `WithObservabilityOptions` | Build OTel provider from `observability.Option` chain |
 | `WithObservabilityProvider` | Install a pre-built `observability.Provider` |
-| `WithOnboardingURL` | Override Onboarding service URL |
 | `WithoutRetries` | Disable the retry mechanism (`MaxRetries=0`) |
 | `WithRetryOptions` | Thread `retry.Option` chain onto entity HTTPClient |
 | `WithSlowCallThreshold` | Warn-level log when request exceeds duration |
 | `WithTimeout` | HTTP request timeout |
-| `WithTransactionURL` | Override Transaction service URL |
 | `WithUserAgent` | Override `User-Agent` header |
 
 ### 1.2 `pkg/config.With*` — the internal/test layer
@@ -257,10 +256,8 @@ environment.
 |---|---|---|---|
 | `MIDAZ_ENVIRONMENT` | enum | `local` | One of `production`, `development`, `local` |
 | `MIDAZ_BASE_URL` | URL | (env-derived) | Override the unified base URL for all services |
-| `MIDAZ_ONBOARDING_URL` | URL | (env-derived) | Override only the Onboarding service URL |
-| `MIDAZ_TRANSACTION_URL` | URL | (env-derived) | Override only the Transaction service URL |
+| `MIDAZ_LEDGER_URL` | URL | (env-derived) | Override the Ledger service URL (onboarding + transactions). Wins over `MIDAZ_BASE_URL` |
 | `MIDAZ_CRM_URL` | URL | (env-derived) | Override only the CRM service URL |
-| `MIDAZ_USER_AGENT` | string | `midaz-go-sdk/v<version>` | Override the `User-Agent` header |
 | `MIDAZ_TIMEOUT` | duration | `60s` | HTTP request timeout |
 | `MIDAZ_DEBUG` | bool | `false` | Enable verbose request/response logging (also upgrades the default logger to stderr) |
 | `MIDAZ_MAX_RETRIES` | int | `3` | Maximum retry attempts; `0` disables retries |
@@ -299,7 +296,7 @@ You can also layer client-level options on top of the env-loaded Config:
 cfg, _ := config.NewConfig(config.FromEnvironment())  // base from env
 client, _ := midaz.New(
     midaz.WithConfig(cfg),
-    midaz.WithUserAgent("my-app/1.0"),  // overrides MIDAZ_USER_AGENT
+    midaz.WithUserAgent("my-app/1.0"),  // override the default versioned User-Agent
     midaz.WithDebug(true),              // overrides MIDAZ_DEBUG
 )
 ```

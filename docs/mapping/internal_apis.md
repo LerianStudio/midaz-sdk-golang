@@ -49,10 +49,8 @@ c, err := midaz.New(
 
 - `MIDAZ_ENVIRONMENT`
 - `MIDAZ_BASE_URL`
-- `MIDAZ_ONBOARDING_URL`
-- `MIDAZ_TRANSACTION_URL`
+- `MIDAZ_LEDGER_URL`
 - `MIDAZ_CRM_URL`
-- `MIDAZ_USER_AGENT`
 - `MIDAZ_TIMEOUT`
 - `MIDAZ_DEBUG`
 - `MIDAZ_MAX_RETRIES`
@@ -75,7 +73,7 @@ The entity layer receives a service URL map. The current service keys are:
 - `transaction`
 - `crm`
 
-Ledger resources are split between onboarding and transaction URL aliases for compatibility. CRM resources use the CRM URL and pass organization context via `X-Organization-Id`.
+The `onboarding` and `transaction` keys are internal path-dispatch labels for Ledger API resources. Both keys are populated from the single public knob (`WithLedgerURL` / `MIDAZ_LEDGER_URL`) — the dual keys exist for per-service routing inside the entity layer, not as separate user-facing endpoints. CRM resources use the CRM URL and pass organization context via `X-Organization-Id`.
 
 ## Entity service implementations
 

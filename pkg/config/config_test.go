@@ -125,8 +125,7 @@ func TestNewConfig_WithAllOptions(t *testing.T) {
 
 	config, err := NewConfig(
 		WithEnvironment(EnvironmentProduction),
-		WithOnboardingURL("https://custom.example.com/onboarding"),
-		WithTransactionURL("https://custom.example.com/transaction"),
+		WithLedgerURL("https://custom.example.com/v1"),
 		WithHTTPClient(customClient),
 		WithTimeout(90*time.Second),
 		WithUserAgent("test-agent/1.0"),
@@ -149,8 +148,8 @@ func TestNewConfig_WithAllOptions(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, EnvironmentProduction, config.Environment)
-	assert.Equal(t, "https://custom.example.com/onboarding", config.ServiceURLs[ServiceOnboarding])
-	assert.Equal(t, "https://custom.example.com/transaction", config.ServiceURLs[ServiceTransaction])
+	assert.Equal(t, "https://custom.example.com/v1", config.ServiceURLs[ServiceOnboarding])
+	assert.Equal(t, "https://custom.example.com/v1", config.ServiceURLs[ServiceTransaction])
 	assert.NotSame(t, customClient, config.HTTPClient)
 	assert.Equal(t, customClient.Timeout, config.HTTPClient.Timeout)
 	assert.NotNil(t, config.HTTPClient.CheckRedirect)
@@ -204,28 +203,24 @@ func TestWithEnvironment_AllEnvironments(t *testing.T) {
 
 func TestWithEnvironment_WithBaseURL(t *testing.T) {
 	tests := []struct {
-		name                   string
-		env                    Environment
-		expectedOnboardingURL  string
-		expectedTransactionURL string
+		name              string
+		env               Environment
+		expectedLedgerURL string
 	}{
 		{
-			name:                   "development with base URL",
-			env:                    EnvironmentDevelopment,
-			expectedOnboardingURL:  "https://api.custom.io/v1",
-			expectedTransactionURL: "https://api.custom.io/v1",
+			name:              "development with base URL",
+			env:               EnvironmentDevelopment,
+			expectedLedgerURL: "https://api.custom.io/v1",
 		},
 		{
-			name:                   "production with base URL",
-			env:                    EnvironmentProduction,
-			expectedOnboardingURL:  "https://api.custom.io/v1",
-			expectedTransactionURL: "https://api.custom.io/v1",
+			name:              "production with base URL",
+			env:               EnvironmentProduction,
+			expectedLedgerURL: "https://api.custom.io/v1",
 		},
 		{
-			name:                   "local with base URL",
-			env:                    EnvironmentLocal,
-			expectedOnboardingURL:  "https://api.custom.io/v1",
-			expectedTransactionURL: "https://api.custom.io/v1",
+			name:              "local with base URL",
+			env:               EnvironmentLocal,
+			expectedLedgerURL: "https://api.custom.io/v1",
 		},
 	}
 
@@ -238,96 +233,52 @@ func TestWithEnvironment_WithBaseURL(t *testing.T) {
 			)
 			require.NoError(t, err)
 			assert.Equal(t, tc.env, config.Environment)
-			assert.Equal(t, tc.expectedOnboardingURL, config.ServiceURLs[ServiceOnboarding])
-			assert.Equal(t, tc.expectedTransactionURL, config.ServiceURLs[ServiceTransaction])
+			assert.Equal(t, tc.expectedLedgerURL, config.ServiceURLs[ServiceOnboarding])
+			assert.Equal(t, tc.expectedLedgerURL, config.ServiceURLs[ServiceTransaction])
 		})
 	}
 }
 
-func TestWithOnboardingURL_Valid(t *testing.T) {
+func TestWithLedgerURL_Valid(t *testing.T) {
 	tests := []struct {
 		name string
 		url  string
 	}{
-		{"https URL", "https://api.example.com/onboarding"},
+		{"https URL", "https://api.example.com/v1"},
 		{"http localhost", "http://localhost:3000"},
 		{"http 127.0.0.1", "http://127.0.0.1:3000"},
-		{"with path", "https://api.example.com/v1/onboarding"},
+		{"with path", "https://api.example.com/v1/ledger"},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			config, err := NewConfig(
-				WithOnboardingURL(tc.url),
+				WithLedgerURL(tc.url),
 				WithAnonymous(),
 			)
 			require.NoError(t, err)
 			assert.Equal(t, tc.url, config.ServiceURLs[ServiceOnboarding])
-		})
-	}
-}
-
-func TestWithOnboardingURL_Invalid(t *testing.T) {
-	tests := []struct {
-		name        string
-		url         string
-		expectedErr string
-	}{
-		{"empty URL", "", "invalid onboarding URL"},
-		{"no scheme", "api.example.com", "invalid onboarding URL"},
-		{"no host", "https://", "invalid onboarding URL"},
-		{"malformed", "://invalid", "invalid onboarding URL"},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			_, err := NewConfig(
-				WithOnboardingURL(tc.url),
-				WithAnonymous(),
-			)
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), tc.expectedErr)
-		})
-	}
-}
-
-func TestWithTransactionURL_Valid(t *testing.T) {
-	tests := []struct {
-		name string
-		url  string
-	}{
-		{"https URL", "https://api.example.com/transaction"},
-		{"http localhost", "http://localhost:3001"},
-		{"with path", "https://api.example.com/v1/transaction"},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			config, err := NewConfig(
-				WithTransactionURL(tc.url),
-				WithAnonymous(),
-			)
-			require.NoError(t, err)
 			assert.Equal(t, tc.url, config.ServiceURLs[ServiceTransaction])
 		})
 	}
 }
 
-func TestWithTransactionURL_Invalid(t *testing.T) {
+func TestWithLedgerURL_Invalid(t *testing.T) {
 	tests := []struct {
 		name        string
 		url         string
 		expectedErr string
 	}{
-		{"empty URL", "", "invalid transaction URL"},
-		{"no scheme", "api.example.com/tx", "invalid transaction URL"},
-		{"no host", "https://", "invalid transaction URL"},
+		{"empty URL", "", "invalid ledger URL"},
+		{"no scheme", "api.example.com", "invalid ledger URL"},
+		{"no host", "https://", "invalid ledger URL"},
+		{"malformed", "://invalid", "invalid ledger URL"},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := NewConfig(
-				WithTransactionURL(tc.url),
+				WithLedgerURL(tc.url),
 				WithAnonymous(),
 			)
 			require.Error(t, err)
@@ -798,9 +749,7 @@ func TestFromEnvironment_AllVariables(t *testing.T) {
 	t.Setenv("PLUGIN_AUTH_ADDRESS", "https://auth.example.com")
 	t.Setenv("MIDAZ_CLIENT_ID", "env-client-id")
 	t.Setenv("MIDAZ_CLIENT_SECRET", "env-client-secret")
-	t.Setenv("MIDAZ_USER_AGENT", "env-agent/1.0")
-	t.Setenv("MIDAZ_ONBOARDING_URL", "https://env.example.com/onboarding")
-	t.Setenv("MIDAZ_TRANSACTION_URL", "https://env.example.com/transaction")
+	t.Setenv("MIDAZ_LEDGER_URL", "https://env.example.com/v1")
 	t.Setenv("MIDAZ_TIMEOUT", "45")
 	t.Setenv("MIDAZ_DEBUG", "true")
 	t.Setenv("MIDAZ_MAX_RETRIES", "7")
@@ -815,9 +764,8 @@ func TestFromEnvironment_AllVariables(t *testing.T) {
 	assert.Equal(t, "https://auth.example.com", config.AccessManager.Address)
 	assert.Equal(t, "env-client-id", config.AccessManager.ClientID)
 	assert.Equal(t, "env-client-secret", config.AccessManager.ClientSecret)
-	assert.Equal(t, "env-agent/1.0", config.UserAgent)
-	assert.Equal(t, "https://env.example.com/onboarding", config.ServiceURLs[ServiceOnboarding])
-	assert.Equal(t, "https://env.example.com/transaction", config.ServiceURLs[ServiceTransaction])
+	assert.Equal(t, "https://env.example.com/v1", config.ServiceURLs[ServiceOnboarding])
+	assert.Equal(t, "https://env.example.com/v1", config.ServiceURLs[ServiceTransaction])
 	assert.Equal(t, 45*time.Second, config.Timeout)
 	assert.True(t, config.Debug)
 	assert.Equal(t, 7, config.MaxRetries)
@@ -832,10 +780,8 @@ func TestFromEnvironment_PartialVariables(t *testing.T) {
 		"PLUGIN_AUTH_ADDRESS",
 		"MIDAZ_CLIENT_ID",
 		"MIDAZ_CLIENT_SECRET",
-		"MIDAZ_USER_AGENT",
 		"MIDAZ_BASE_URL",
-		"MIDAZ_ONBOARDING_URL",
-		"MIDAZ_TRANSACTION_URL",
+		"MIDAZ_LEDGER_URL",
 		"MIDAZ_TIMEOUT",
 		"MIDAZ_DEBUG",
 		"MIDAZ_MAX_RETRIES",
@@ -885,20 +831,12 @@ func TestFromEnvironment_InvalidMaxRetries(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid max retries")
 }
 
-func TestFromEnvironment_InvalidOnboardingURL(t *testing.T) {
-	t.Setenv("MIDAZ_ONBOARDING_URL", "not-a-valid-url")
+func TestFromEnvironment_InvalidLedgerURL(t *testing.T) {
+	t.Setenv("MIDAZ_LEDGER_URL", "not-a-valid-url")
 
 	_, err := NewConfig(FromEnvironment())
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid onboarding URL")
-}
-
-func TestFromEnvironment_InvalidTransactionURL(t *testing.T) {
-	t.Setenv("MIDAZ_TRANSACTION_URL", "invalid")
-
-	_, err := NewConfig(FromEnvironment())
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid transaction URL")
+	assert.Contains(t, err.Error(), "invalid ledger URL")
 }
 
 func TestFromEnvironment_InvalidBaseURL(t *testing.T) {
@@ -910,16 +848,16 @@ func TestFromEnvironment_InvalidBaseURL(t *testing.T) {
 }
 
 func TestFromEnvironment_BaseURLOverriddenBySpecific(t *testing.T) {
-	// Clear transaction URL to test that base URL is used as fallback
-	unsetEnv(t, "MIDAZ_TRANSACTION_URL")
+	// MIDAZ_LEDGER_URL overrides the base-URL-derived ledger plane for both
+	// onboarding and transaction routes.
 	t.Setenv("MIDAZ_BASE_URL", "https://base.example.com")
-	t.Setenv("MIDAZ_ONBOARDING_URL", "https://specific.example.com/onboarding")
+	t.Setenv("MIDAZ_LEDGER_URL", "https://specific.example.com/v1")
 
 	config, err := NewConfig(FromEnvironment(), WithAnonymous())
 	require.NoError(t, err)
 
-	assert.Equal(t, "https://specific.example.com/onboarding", config.ServiceURLs[ServiceOnboarding])
-	assert.Equal(t, "https://base.example.com/v1", config.ServiceURLs[ServiceTransaction])
+	assert.Equal(t, "https://specific.example.com/v1", config.ServiceURLs[ServiceOnboarding])
+	assert.Equal(t, "https://specific.example.com/v1", config.ServiceURLs[ServiceTransaction])
 }
 
 func TestFromEnvironment_PluginAuthDisabled(t *testing.T) {
@@ -1007,16 +945,15 @@ func TestNewLocalConfig_WithOptions(t *testing.T) {
 
 func TestGetBaseURLs(t *testing.T) {
 	config, err := NewConfig(
-		WithOnboardingURL("https://api.example.com/onboarding"),
-		WithTransactionURL("https://api.example.com/transaction"),
+		WithLedgerURL("https://api.example.com/v1"),
 		WithAnonymous(),
 	)
 	require.NoError(t, err)
 
 	baseURLs := config.GetBaseURLs()
 
-	assert.Equal(t, "https://api.example.com/onboarding", baseURLs["onboarding"])
-	assert.Equal(t, "https://api.example.com/transaction", baseURLs["transaction"])
+	assert.Equal(t, "https://api.example.com/v1", baseURLs["onboarding"])
+	assert.Equal(t, "https://api.example.com/v1", baseURLs["transaction"])
 }
 
 func TestGetHTTPClient(t *testing.T) {
@@ -1112,13 +1049,15 @@ func TestOptionOrderMatters(t *testing.T) {
 	config, err := NewConfig(
 		WithEnvironment(EnvironmentLocal),
 		WithBaseURL("https://custom.example.com"),
-		WithOnboardingURL("https://specific.example.com/onboarding"),
+		WithLedgerURL("https://specific.example.com/v1"),
 		WithAnonymous(),
 	)
 	require.NoError(t, err)
 
-	assert.Equal(t, "https://specific.example.com/onboarding", config.ServiceURLs[ServiceOnboarding])
-	assert.Equal(t, "https://custom.example.com/v1", config.ServiceURLs[ServiceTransaction])
+	// WithLedgerURL applied after WithBaseURL wins for both onboarding and
+	// transaction routes.
+	assert.Equal(t, "https://specific.example.com/v1", config.ServiceURLs[ServiceOnboarding])
+	assert.Equal(t, "https://specific.example.com/v1", config.ServiceURLs[ServiceTransaction])
 }
 
 func TestIsLocalhost(t *testing.T) {
@@ -1248,24 +1187,20 @@ func TestSetDefaultServiceURLs_UnknownEnvironment(t *testing.T) {
 
 func TestSetDefaultServiceURLs_AllEnvironments(t *testing.T) {
 	tests := []struct {
-		env                    Environment
-		expectedOnboardingURL  string
-		expectedTransactionURL string
+		env               Environment
+		expectedLedgerURL string
 	}{
 		{
-			env:                    EnvironmentLocal,
-			expectedOnboardingURL:  "http://localhost:3002/v1",
-			expectedTransactionURL: "http://localhost:3002/v1",
+			env:               EnvironmentLocal,
+			expectedLedgerURL: "http://localhost:3002/v1",
 		},
 		{
-			env:                    EnvironmentDevelopment,
-			expectedOnboardingURL:  "https://api.dev.midaz.io/v1",
-			expectedTransactionURL: "https://api.dev.midaz.io/v1",
+			env:               EnvironmentDevelopment,
+			expectedLedgerURL: "https://api.dev.midaz.io/v1",
 		},
 		{
-			env:                    EnvironmentProduction,
-			expectedOnboardingURL:  "https://api.midaz.io/v1",
-			expectedTransactionURL: "https://api.midaz.io/v1",
+			env:               EnvironmentProduction,
+			expectedLedgerURL: "https://api.midaz.io/v1",
 		},
 	}
 
@@ -1278,8 +1213,8 @@ func TestSetDefaultServiceURLs_AllEnvironments(t *testing.T) {
 
 			err := setDefaultServiceURLs(config)
 			require.NoError(t, err)
-			assert.Equal(t, tc.expectedOnboardingURL, config.ServiceURLs[ServiceOnboarding])
-			assert.Equal(t, tc.expectedTransactionURL, config.ServiceURLs[ServiceTransaction])
+			assert.Equal(t, tc.expectedLedgerURL, config.ServiceURLs[ServiceOnboarding])
+			assert.Equal(t, tc.expectedLedgerURL, config.ServiceURLs[ServiceTransaction])
 		})
 	}
 }
@@ -1378,32 +1313,6 @@ func TestConfigureAccessManager(t *testing.T) {
 				assert.Equal(t, tc.envClientID, config.AccessManager.ClientID)
 				assert.Equal(t, tc.envSecret, config.AccessManager.ClientSecret)
 			}
-		})
-	}
-}
-
-func TestConfigureUserAgent(t *testing.T) {
-	tests := []struct {
-		name          string
-		envValue      string
-		initialValue  string
-		expectedValue string
-	}{
-		{"set from env", "custom-agent/1.0", "default-agent", "custom-agent/1.0"},
-		{"empty env keeps initial", "", "default-agent", "default-agent"},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			if tc.envValue != "" {
-				t.Setenv("MIDAZ_USER_AGENT", tc.envValue)
-			} else {
-				unsetEnv(t, "MIDAZ_USER_AGENT")
-			}
-
-			config := &Config{UserAgent: tc.initialValue}
-			configureUserAgent(config)
-			assert.Equal(t, tc.expectedValue, config.UserAgent)
 		})
 	}
 }

@@ -104,8 +104,7 @@ func TestClientNew_WithEnvironmentRecomputesDefaultServiceURLs(t *testing.T) {
 
 func TestClientNew_WithEnvironmentDoesNotOverrideExplicitURLs(t *testing.T) {
 	c, err := New(
-		WithOnboardingURL("https://onboarding.example.com/v1"),
-		WithTransactionURL("https://transaction.example.com/v1"),
+		WithLedgerURL("https://ledger.example.com/v1"),
 		WithCRMURL("https://crm.example.com/v1"),
 		WithEnvironment(config.EnvironmentProduction),
 		WithAnonymous(),
@@ -113,8 +112,8 @@ func TestClientNew_WithEnvironmentDoesNotOverrideExplicitURLs(t *testing.T) {
 	require.NoError(t, err)
 
 	urls := c.GetConfig().ServiceURLs
-	require.Equal(t, "https://onboarding.example.com/v1", urls[config.ServiceOnboarding])
-	require.Equal(t, "https://transaction.example.com/v1", urls[config.ServiceTransaction])
+	require.Equal(t, "https://ledger.example.com/v1", urls[config.ServiceOnboarding])
+	require.Equal(t, "https://ledger.example.com/v1", urls[config.ServiceTransaction])
 	require.Equal(t, "https://crm.example.com/v1", urls[config.ServiceCRM])
 }
 

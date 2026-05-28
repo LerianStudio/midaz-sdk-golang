@@ -35,12 +35,10 @@ All variables below are read by `config.FromEnvironment()`. Standard library rea
 | Variable | Purpose | Default |
 | --- | --- | --- |
 | `MIDAZ_ENVIRONMENT` | Environment label. Valid values: `local`, `development`, `production`. | unset |
-| `MIDAZ_BASE_URL` | Base URL used to derive Onboarding, Transaction, and CRM service URLs. | env-derived |
-| `MIDAZ_ONBOARDING_URL` | Explicit Onboarding service URL. | derived from `MIDAZ_BASE_URL` |
-| `MIDAZ_TRANSACTION_URL` | Explicit Transaction service URL. | derived from `MIDAZ_BASE_URL` |
+| `MIDAZ_BASE_URL` | Base URL used to derive Ledger and CRM service URLs. | env-derived |
+| `MIDAZ_LEDGER_URL` | Explicit Ledger service URL (onboarding + transactions). | derived from `MIDAZ_BASE_URL` |
 | `MIDAZ_CRM_URL` | Explicit CRM service URL. | derived from `MIDAZ_BASE_URL` |
 | `MIDAZ_TIMEOUT` | HTTP timeout in seconds. | `60` |
-| `MIDAZ_USER_AGENT` | User agent header value. | SDK version user agent |
 | `MIDAZ_DEBUG` | Enables debug logging when set to `true`. | `false` |
 | `MIDAZ_MAX_RETRIES` | Maximum retry attempts. Set to `0` to disable retries entirely. | `3` |
 | `MIDAZ_IDEMPOTENCY` | Enables (`true`) or disables (`false`) auto idempotency support. | `true` |
@@ -63,11 +61,10 @@ The following v2 environment variables have been deleted:
 The following implicit environment reads have been removed from entity constructors and HTTP client builders. They were never documented and now cannot bypass the explicit configuration path:
 
 - `MIDAZ_DEBUG` (was read 14 times across `entities/*.go` plus `entities/http.go`)
-- `MIDAZ_USER_AGENT` (was read in `entities/http.go`)
 - `MIDAZ_IDEMPOTENCY` (was read in `entities/http.go`)
 - `MIDAZ_MAX_RETRIES` (was read in `entities/http.go`)
 
-These variables are still honored — but only when the caller opts in via `config.FromEnvironment()`.
+These variables are still honored — but only when the caller opts in via `config.FromEnvironment()`. The previously supported `MIDAZ_USER_AGENT` env var was deleted entirely; the SDK now emits `midaz-go-sdk/<version>` as the default `User-Agent` and exposes only the programmatic `midaz.WithUserAgent` option for overrides.
 
 ## Authentication
 
@@ -97,20 +94,19 @@ Access Manager URLs are strict by default. Use `https://` for remote targets. Pl
 `config.FromEnvironment()` applies URL variables in this order:
 
 1. `MIDAZ_BASE_URL`
-2. Service-specific overrides: `MIDAZ_ONBOARDING_URL`, `MIDAZ_TRANSACTION_URL`, `MIDAZ_CRM_URL`
+2. Service-specific overrides: `MIDAZ_LEDGER_URL`, `MIDAZ_CRM_URL`
 3. Existing config defaults for any service you do not override
 
 Service-specific URLs override `MIDAZ_BASE_URL` for their service.
 
 ```env
 MIDAZ_BASE_URL=https://midaz.example.com
-MIDAZ_ONBOARDING_URL=https://onboarding.example.com/v1
+MIDAZ_LEDGER_URL=https://ledger.example.com/v1
 ```
 
 With this configuration:
 
-- Onboarding uses `https://onboarding.example.com/v1`
-- Transaction uses `https://midaz.example.com/v1`
+- Ledger (onboarding + transactions) uses `https://ledger.example.com/v1`
 - CRM uses `https://midaz.example.com/v1`
 
 `MIDAZ_BASE_URL` derives service URLs and appends `/v1` when needed. For localhost without a port, the SDK uses port `3002` for Ledger services and port `4003` for CRM.
@@ -133,9 +129,10 @@ CRM:         http://localhost:4003/v1
 
 ```env
 MIDAZ_TIMEOUT=30
-MIDAZ_USER_AGENT=MyService/1.0
 MIDAZ_DEBUG=true
 ```
+
+The SDK no longer reads a `MIDAZ_USER_AGENT` env var. The default `User-Agent` is `midaz-go-sdk/<version>`; override programmatically with `midaz.WithUserAgent("my-app/1.0")` when needed.
 
 `MIDAZ_DEBUG` uses Go's strict `strconv.ParseBool` forms. Values such as `true`, `false`, `1`, and `0` are valid. Values such as `yes`, `no`, `on`, and `off` return a configuration error instead of silently defaulting.
 
@@ -224,8 +221,7 @@ MIDAZ_ENVIRONMENT=local
 
 # Service URLs
 MIDAZ_BASE_URL=http://localhost
-MIDAZ_ONBOARDING_URL=http://localhost:3002/v1
-MIDAZ_TRANSACTION_URL=http://localhost:3002/v1
+MIDAZ_LEDGER_URL=http://localhost:3002/v1
 MIDAZ_CRM_URL=http://localhost:4003/v1
 
 # Access Manager authentication
@@ -238,7 +234,6 @@ MIDAZ_ACCESS_MANAGER_ALLOW_INSECURE_HTTP=false
 
 # HTTP behavior
 MIDAZ_TIMEOUT=30
-MIDAZ_USER_AGENT=MyService/1.0
 MIDAZ_DEBUG=false
 
 # Retries (set to 0 to disable)

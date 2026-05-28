@@ -31,13 +31,8 @@ func TestAccessManagerRequiresExplicitTarget(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("explicit onboarding URL counts", func(t *testing.T) {
-		_, err := NewConfig(WithOnboardingURL("https://api.example.com/onboarding"), WithAccessManager(accessManager))
-		require.NoError(t, err)
-	})
-
-	t.Run("explicit transaction URL counts", func(t *testing.T) {
-		_, err := NewConfig(WithTransactionURL("https://api.example.com/transaction"), WithAccessManager(accessManager))
+	t.Run("explicit ledger URL counts", func(t *testing.T) {
+		_, err := NewConfig(WithLedgerURL("https://api.example.com/v1"), WithAccessManager(accessManager))
 		require.NoError(t, err)
 	})
 

@@ -349,8 +349,7 @@ func newTransactionHelperEntity(t *testing.T, server *httptest.Server) *entities
 	// WithAccessManager (OAuth via Lerian's Access Manager).
 	c, err := midaz.New(
 		midaz.WithHTTPClient(server.Client()),
-		midaz.WithOnboardingURL(server.URL),
-		midaz.WithTransactionURL(server.URL),
+		midaz.WithLedgerURL(server.URL),
 		midaz.WithAnonymous(),
 	)
 	require.NoError(t, err)

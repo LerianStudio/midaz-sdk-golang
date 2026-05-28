@@ -32,10 +32,14 @@ type ServiceType string
 
 // Service types constants define the available Midaz services.
 const (
-	// ServiceOnboarding represents the Onboarding service.
+	// ServiceOnboarding is the internal routing label for the onboarding subset
+	// of Ledger endpoints. It shares its base URL with [ServiceTransaction];
+	// both are populated from [WithLedgerURL].
 	ServiceOnboarding ServiceType = "onboarding"
 
-	// ServiceTransaction represents the Transaction service.
+	// ServiceTransaction is the internal routing label for the transaction
+	// subset of Ledger endpoints. See [ServiceOnboarding] for the
+	// shared-base-URL note.
 	ServiceTransaction ServiceType = "transaction"
 
 	// ServiceCRM represents the CRM service.
@@ -124,12 +128,11 @@ type Config struct {
 	// attached to SDK errors. The attached body is raw and only truncated.
 	ExposeErrorBody bool
 
-	baseURLSet        bool
-	onboardingURLSet  bool
-	transactionURLSet bool
-	crmURLSet         bool
-	environmentSet    bool
-	httpClientOwned   bool
+	baseURLSet      bool
+	ledgerURLSet    bool
+	crmURLSet       bool
+	environmentSet  bool
+	httpClientOwned bool
 
 	// skipAuthCheck bypasses auth validation for package-internal tests only.
 	// It is deliberately not populated from environment variables.
@@ -181,75 +184,42 @@ func WithEnvironment(env Environment) Option {
 	}
 }
 
-// WithOnboardingURL sets the base URL for the Onboarding API.
+// WithLedgerURL sets the base URL for the Ledger API. The Ledger service
+// serves both onboarding and transaction endpoints under the same plane, so
+// a single URL is the canonical configuration shape.
+//
 // Two-layer surface: this is the internal/test-layer Option that operates on
 // [Config]. The user-facing wrapper at
-// [github.com/LerianStudio/midaz-sdk-golang/v3.WithOnboardingURL] is what most callers
+// [github.com/LerianStudio/midaz-sdk-golang/v3.WithLedgerURL] is what most callers
 // should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v3.New]
 // directly.
 //
 // This overrides any URL derived from the Environment setting.
 //
 // Parameters:
-//   - url: The base URL for the Onboarding API
+//   - ledgerURL: The base URL for the Ledger API
 //
 // Returns:
-//   - Option: A function that sets the Onboarding URL on a Config
+//   - Option: A function that sets the Ledger URL on a Config
 //   - May return an error if the URL is invalid
-func WithOnboardingURL(onboardingURL string) Option {
+func WithLedgerURL(ledgerURL string) Option {
 	return func(c *Config) error {
 		if c == nil {
 			return errors.New("config cannot be nil")
 		}
 
-		// Validate URL
-		if err := parseURL(onboardingURL); err != nil {
-			return fmt.Errorf("invalid onboarding URL: %w", err)
+		if err := parseURL(ledgerURL); err != nil {
+			return fmt.Errorf("invalid ledger URL: %w", err)
 		}
 
 		if c.ServiceURLs == nil {
 			c.ServiceURLs = make(map[ServiceType]string)
 		}
 
-		c.ServiceURLs[ServiceOnboarding] = strings.TrimRight(onboardingURL, "/")
-		c.onboardingURLSet = true
-
-		return nil
-	}
-}
-
-// WithTransactionURL sets the base URL for the Transaction API.
-// Two-layer surface: this is the internal/test-layer Option that operates on
-// [Config]. The user-facing wrapper at
-// [github.com/LerianStudio/midaz-sdk-golang/v3.WithTransactionURL] is what most callers
-// should use; it composes with [github.com/LerianStudio/midaz-sdk-golang/v3.New]
-// directly.
-//
-// This overrides any URL derived from the Environment setting.
-//
-// Parameters:
-//   - url: The base URL for the Transaction API
-//
-// Returns:
-//   - Option: A function that sets the Transaction URL on a Config
-//   - May return an error if the URL is invalid
-func WithTransactionURL(transactionURL string) Option {
-	return func(c *Config) error {
-		if c == nil {
-			return errors.New("config cannot be nil")
-		}
-
-		// Validate URL
-		if err := parseURL(transactionURL); err != nil {
-			return fmt.Errorf("invalid transaction URL: %w", err)
-		}
-
-		if c.ServiceURLs == nil {
-			c.ServiceURLs = make(map[ServiceType]string)
-		}
-
-		c.ServiceURLs[ServiceTransaction] = strings.TrimRight(transactionURL, "/")
-		c.transactionURLSet = true
+		trimmed := strings.TrimRight(ledgerURL, "/")
+		c.ServiceURLs[ServiceOnboarding] = trimmed
+		c.ServiceURLs[ServiceTransaction] = trimmed
+		c.ledgerURLSet = true
 
 		return nil
 	}
@@ -327,11 +297,8 @@ func WithBaseURL(baseURL string) Option {
 			return fmt.Errorf("invalid crm base URL: %w", err)
 		}
 
-		if !c.onboardingURLSet {
+		if !c.ledgerURLSet {
 			c.ServiceURLs[ServiceOnboarding] = ledgerURL
-		}
-
-		if !c.transactionURLSet {
 			c.ServiceURLs[ServiceTransaction] = ledgerURL
 		}
 
@@ -668,9 +635,7 @@ func WithAllowInsecureAccessManagerHTTP(allow bool) Option {
 //   - PLUGIN_AUTH_ADDRESS: The address of the access manager service
 //   - MIDAZ_CLIENT_ID: The client ID for authentication
 //   - MIDAZ_CLIENT_SECRET: The client secret for authentication
-//   - MIDAZ_USER_AGENT: The user agent string to use for HTTP requests
-//   - MIDAZ_ONBOARDING_URL: The URL for the Onboarding API
-//   - MIDAZ_TRANSACTION_URL: The URL for the Transaction API
+//   - MIDAZ_LEDGER_URL: The URL for the Ledger API (serves both onboarding and transaction endpoints)
 //   - MIDAZ_CRM_URL: The URL for the CRM API
 //   - MIDAZ_BASE_URL: The base URL for all services
 //   - MIDAZ_TIMEOUT: The timeout in seconds for HTTP requests
@@ -706,8 +671,6 @@ func FromEnvironment() Option {
 		if err := configureAccessManager(c); err != nil {
 			return err
 		}
-
-		configureUserAgent(c)
 
 		if err := configureURLs(c); err != nil {
 			return err
@@ -793,13 +756,6 @@ func configureAccessManager(c *Config) error {
 	return nil
 }
 
-// configureUserAgent sets user agent from environment if available
-func configureUserAgent(c *Config) {
-	if userAgent := os.Getenv("MIDAZ_USER_AGENT"); userAgent != "" {
-		c.UserAgent = userAgent
-	}
-}
-
 // configureURLs sets up URL configuration from environment variables
 func configureURLs(c *Config) error {
 	// URLs take precedence in this order: specific URL > base URL > environment default
@@ -814,14 +770,8 @@ func configureURLs(c *Config) error {
 
 // configureSpecificURLs sets specific service URLs that override base URL
 func configureSpecificURLs(c *Config) error {
-	if onboardingURL := os.Getenv("MIDAZ_ONBOARDING_URL"); onboardingURL != "" {
-		if err := WithOnboardingURL(onboardingURL)(c); err != nil {
-			return err
-		}
-	}
-
-	if transactionURL := os.Getenv("MIDAZ_TRANSACTION_URL"); transactionURL != "" {
-		if err := WithTransactionURL(transactionURL)(c); err != nil {
+	if ledgerURL := os.Getenv("MIDAZ_LEDGER_URL"); ledgerURL != "" {
+		if err := WithLedgerURL(ledgerURL)(c); err != nil {
 			return err
 		}
 	}
@@ -1043,11 +993,8 @@ func defaultLedgerBackedServiceURLs(baseURL string) (defaultServiceURLs, error) 
 }
 
 func applyDefaultServiceURLs(config *Config, serviceURLs defaultServiceURLs) {
-	if !config.onboardingURLSet {
+	if !config.ledgerURLSet {
 		config.ServiceURLs[ServiceOnboarding] = serviceURLs.ledgerURL
-	}
-
-	if !config.transactionURLSet {
 		config.ServiceURLs[ServiceTransaction] = serviceURLs.ledgerURL
 	}
 
@@ -1069,8 +1016,9 @@ func applyDefaultServiceURLs(config *Config, serviceURLs defaultServiceURLs) {
 // v3 Track 8).
 //
 // Validation rules:
-//   - ServiceURLs[ServiceOnboarding] must be set.
-//   - ServiceURLs[ServiceTransaction] must be set.
+//   - ServiceURLs[ServiceOnboarding] and ServiceURLs[ServiceTransaction] must
+//     both be set — these are populated from LedgerURL (the single user-facing
+//     knob) and used internally to route onboarding vs transaction endpoints.
 //   - Exactly one auth source must be configured: either WithAccessManager
 //     (enables AccessManager and requires Address) or WithAnonymous (explicit
 //     auth-less mode). Construction without either fails.
@@ -1100,15 +1048,16 @@ func validateConfig(config *Config) error {
 	return validateAuthSettings(config)
 }
 
-// validateServiceURLs enforces that the two services every Midaz client
-// must be able to reach (onboarding + transaction) have URLs configured.
+// validateServiceURLs enforces that the Ledger service URL is configured.
+// The onboarding and transaction internal routes both resolve to LedgerURL,
+// so both map entries must be populated for the entity layer to function.
 func validateServiceURLs(config *Config) error {
 	if _, ok := config.ServiceURLs[ServiceOnboarding]; !ok {
-		return errors.New("onboarding URL is required")
+		return errors.New("ledger URL is required")
 	}
 
 	if _, ok := config.ServiceURLs[ServiceTransaction]; !ok {
-		return errors.New("transaction URL is required")
+		return errors.New("ledger URL is required")
 	}
 
 	return nil
@@ -1191,7 +1140,7 @@ func (c *Config) hasExplicitTarget() bool {
 		return false
 	}
 
-	return c.environmentSet || c.baseURLSet || c.onboardingURLSet || c.transactionURLSet || c.crmURLSet
+	return c.environmentSet || c.baseURLSet || c.ledgerURLSet || c.crmURLSet
 }
 
 // GetBaseURLs converts ServiceURLs to the map format expected by the entity layer.

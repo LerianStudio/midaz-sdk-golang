@@ -51,7 +51,7 @@ func TestNormalizeBaseURLs_DefaultsMissingCRMURLToOnboarding(t *testing.T) {
 	require.Equal(t, "https://api.example.com/onboarding/v1", normalized["crm"])
 }
 
-func TestNormalizeBaseURLs_RequiresOnboardingURL(t *testing.T) {
+func TestNormalizeBaseURLs_RequiresOnboardingKey(t *testing.T) {
 	t.Setenv("MIDAZ_CRM_URL", "https://api.example.com/crm")
 
 	baseURLs, err := normalizeBaseURLs(map[string]string{

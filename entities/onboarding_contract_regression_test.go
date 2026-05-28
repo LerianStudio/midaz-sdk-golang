@@ -96,7 +96,7 @@ func TestOnboardingContractEntities_UseContractMethodsPathsAndBodies(t *testing.
 	}
 }
 
-func TestOnboardingContractAccountBalanceHelpers_UseTransactionURLAndLimitTwo(t *testing.T) {
+func TestOnboardingContractAccountBalanceHelpers_UseTransactionRouteAndLimitTwo(t *testing.T) {
 	var nilContext context.Context
 
 	onboarding := httptest.NewServer(http.NotFoundHandler())

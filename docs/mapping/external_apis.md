@@ -12,8 +12,7 @@ This map documents the recommended public SDK surface that consumers should use.
 
 - `midaz.WithConfig(*config.Config)` - Uses a pre-built SDK configuration.
 - `midaz.WithBaseURL(string)` - Sets a shared base URL and derives Ledger/CRM service URLs.
-- `midaz.WithOnboardingURL(string)` - Sets the onboarding alias URL.
-- `midaz.WithTransactionURL(string)` - Sets the transaction alias URL.
+- `midaz.WithLedgerURL(string)` - Sets the Ledger service URL (onboarding + transactions).
 - `midaz.WithCRMURL(string)` - Sets the CRM service URL.
 - `midaz.WithEnvironment(config.Environment)` - Uses a named environment preset.
 - `midaz.WithHTTPClient(*http.Client)` - Supplies a custom HTTP client.
@@ -76,8 +75,7 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config`.
 - `config.FromEnvironment() config.Option`
 - `config.WithEnvironment(config.Environment) config.Option`
 - `config.WithBaseURL(string) config.Option`
-- `config.WithOnboardingURL(string) config.Option`
-- `config.WithTransactionURL(string) config.Option`
+- `config.WithLedgerURL(string) config.Option`
 - `config.WithCRMURL(string) config.Option`
 - `config.WithAccessManager(auth.AccessManager) config.Option`
 - `config.WithAllowInsecureAccessManagerHTTP(bool) config.Option`
@@ -97,10 +95,8 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config`.
 
 - `MIDAZ_ENVIRONMENT`
 - `MIDAZ_BASE_URL`
-- `MIDAZ_ONBOARDING_URL`
-- `MIDAZ_TRANSACTION_URL`
+- `MIDAZ_LEDGER_URL`
 - `MIDAZ_CRM_URL`
-- `MIDAZ_USER_AGENT`
 - `MIDAZ_TIMEOUT`
 - `MIDAZ_DEBUG`
 - `MIDAZ_MAX_RETRIES`
