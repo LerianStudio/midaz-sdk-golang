@@ -29,8 +29,7 @@
 // You can set these variables in a .env file:
 //
 //	MIDAZ_ENVIRONMENT=local  # Can be local, development, or production
-//	MIDAZ_ONBOARDING_URL=http://localhost:3002/v1 # Optional override
-//	MIDAZ_TRANSACTION_URL=http://localhost:3002/v1 # Optional override
+//	MIDAZ_LEDGER_URL=http://localhost:3002/v1 # Optional override
 //	MIDAZ_DEBUG=true # Optional, enables detailed API logging
 //
 // # Workflow Steps
@@ -153,8 +152,7 @@ func createConfiguration() (*config.Config, error) {
 
 func printConnectionInfo(cfg *config.Config) {
 	fmt.Printf("Connecting to Midaz APIs:\n")
-	fmt.Printf("   - Onboarding API: %s\n", cfg.ServiceURLs[config.ServiceOnboarding])
-	fmt.Printf("   - Transaction API: %s\n", cfg.ServiceURLs[config.ServiceTransaction])
+	fmt.Printf("   - Ledger API: %s\n", cfg.ServiceURLs[config.ServiceOnboarding])
 	fmt.Printf("   - Environment: %s\n", cfg.Environment)
 	fmt.Printf("   - Debug mode: %t\n", cfg.Debug)
 }

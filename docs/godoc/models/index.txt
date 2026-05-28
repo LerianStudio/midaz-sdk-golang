@@ -1,17 +1,5 @@
 package models // import "github.com/LerianStudio/midaz-sdk-golang/v3/models"
 
-Package models defines the data models used by the Midaz SDK.
-
-Package models defines the data models used by the Midaz SDK.
-
-Package models defines the data models used by the Midaz SDK.
-
-Package models defines the data models used by the Midaz SDK.
-
-Package models defines the data models used by the Midaz SDK.
-
-Package models defines the data models used by the Midaz SDK.
-
 Package models defines the SDK-owned data models for the Midaz API.
 
 Every type in this package is hand-written and self-contained. JSON tags align
@@ -51,12 +39,6 @@ debit or credit to a specific account.
 Each type ships with constructors, fluent With* builders for optional fields,
 and dedicated Create*Input / Update*Input shapes for the request side of each
 resource.
-
-Package models defines the data models used by the Midaz SDK.
-
-Package models defines the data models used by the Midaz SDK.
-
-Package models defines the data models used by the Midaz SDK.
 
 const BalanceScopeTransactional = "transactional" ...
 const TransactionStatusPending = "pending" ...

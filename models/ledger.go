@@ -1,4 +1,3 @@
-// Package models defines the data models used by the Midaz SDK.
 package models
 
 import (

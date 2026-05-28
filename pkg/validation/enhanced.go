@@ -1,8 +1,3 @@
-// where the final return value is intentionally discarded. The error is already
-// added to the FieldErrors collection via Add(), and the chained methods modify
-// the same pointer in-place. Discarding the return value is safe and intentional.
-//
-//nolint:errcheck // This file uses fluent API pattern (Add().WithConstraint().WithSuggestions())
 package validation
 
 import (

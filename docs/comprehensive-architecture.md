@@ -169,10 +169,8 @@ Supported environment variables read by `config.FromEnvironment()` are:
 | `PLUGIN_AUTH_ADDRESS` | Sets the Access Manager base address. |
 | `MIDAZ_CLIENT_ID` | Sets the Access Manager client ID. |
 | `MIDAZ_CLIENT_SECRET` | Sets the Access Manager client secret. |
-| `MIDAZ_USER_AGENT` | Overrides the user-agent string. |
 | `MIDAZ_BASE_URL` | Sets a shared base URL. The SDK derives Ledger and CRM service URLs from it. |
-| `MIDAZ_ONBOARDING_URL` | Overrides the onboarding service URL. |
-| `MIDAZ_TRANSACTION_URL` | Overrides the transaction service URL. |
+| `MIDAZ_LEDGER_URL` | Overrides the Ledger service URL (onboarding + transactions). |
 | `MIDAZ_CRM_URL` | Overrides the CRM service URL. |
 | `MIDAZ_TIMEOUT` | Sets HTTP timeout in seconds. |
 | `MIDAZ_DEBUG` | Enables debug mode when set to `true`. |
@@ -853,7 +851,7 @@ Use these supported extension points:
 
 | Need | Extension point |
 | --- | --- |
-| Custom service URLs | `midaz.WithBaseURL`, `midaz.WithOnboardingURL`, `midaz.WithTransactionURL`, `midaz.WithCRMURL`, or config equivalents. |
+| Custom service URLs | `midaz.WithBaseURL`, `midaz.WithLedgerURL`, `midaz.WithCRMURL`, or config equivalents. |
 | Custom HTTP behavior | `midaz.WithHTTPClient(...)` or `config.WithHTTPClient(...)`. |
 | Retry tuning | `midaz.WithRetryOptions(retry.Option...)`, `midaz.WithoutRetries()`, or `midaz.WithCustomRetryPolicy(...)`. |
 | Access Manager authentication | `midaz.WithAccessManager(...)`, `config.WithAccessManager(...)`, or `config.FromEnvironment()`. |

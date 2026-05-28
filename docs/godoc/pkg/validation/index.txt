@@ -1,9 +1,5 @@
 package validation // import "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation"
 
-where the final return value is intentionally discarded. The error is already
-added to the FieldErrors collection via Add(), and the chained methods modify
-the same pointer in-place. Discarding the return value is safe and intentional.
-
 Package validation provides validation utilities for the Midaz SDK.
 
 This package contains functions for validating various aspects of Midaz data:

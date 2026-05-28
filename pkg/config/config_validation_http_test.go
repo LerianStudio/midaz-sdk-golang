@@ -10,35 +10,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestValidateConfig_MissingOnboardingURL(t *testing.T) {
+func TestValidateConfig_MissingLedgerURL(t *testing.T) {
 	config := &Config{
-		ServiceURLs: map[ServiceType]string{
-			ServiceTransaction: "https://api.example.com/transaction",
-		},
+		ServiceURLs: map[ServiceType]string{},
 	}
 
 	err := validateConfig(config)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "onboarding URL is required")
-}
-
-func TestValidateConfig_MissingTransactionURL(t *testing.T) {
-	config := &Config{
-		ServiceURLs: map[ServiceType]string{
-			ServiceOnboarding: "https://api.example.com/onboarding",
-		},
-	}
-
-	err := validateConfig(config)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "transaction URL is required")
+	assert.Contains(t, err.Error(), "ledger URL is required")
 }
 
 func TestValidateConfig_Valid(t *testing.T) {
 	config := &Config{
 		ServiceURLs: map[ServiceType]string{
-			ServiceOnboarding:  "https://api.example.com/onboarding",
-			ServiceTransaction: "https://api.example.com/transaction",
+			ServiceOnboarding:  "https://api.example.com/v1",
+			ServiceTransaction: "https://api.example.com/v1",
 			ServiceCRM:         "https://api.example.com/crm",
 		},
 		Anonymous: true,
@@ -51,8 +37,8 @@ func TestValidateConfig_Valid(t *testing.T) {
 func TestValidateConfig_CRMURLIsOptional(t *testing.T) {
 	config := &Config{
 		ServiceURLs: map[ServiceType]string{
-			ServiceOnboarding:  "https://api.example.com/onboarding",
-			ServiceTransaction: "https://api.example.com/transaction",
+			ServiceOnboarding:  "https://api.example.com/v1",
+			ServiceTransaction: "https://api.example.com/v1",
 		},
 		// Anonymous=true is the v3-canonical way to assert no-auth at
 		// validation time without going through the option chain.
@@ -164,26 +150,15 @@ func TestWithHTTPClientBlocksCrossOriginBeforeExplicitRedirectPolicy(t *testing.
 	assert.False(t, called, "SDK guard must reject before caller redirect policy runs")
 }
 
-func TestWithOnboardingURL_InitializesServiceURLsMap(t *testing.T) {
+func TestWithLedgerURL_InitializesServiceURLsMap(t *testing.T) {
 	config := &Config{
 		ServiceURLs: nil,
 	}
 
-	err := WithOnboardingURL("https://api.example.com/onboarding")(config)
+	err := WithLedgerURL("https://api.example.com/v1")(config)
 	require.NoError(t, err)
 
 	assert.NotNil(t, config.ServiceURLs)
-	assert.Equal(t, "https://api.example.com/onboarding", config.ServiceURLs[ServiceOnboarding])
-}
-
-func TestWithTransactionURL_InitializesServiceURLsMap(t *testing.T) {
-	config := &Config{
-		ServiceURLs: nil,
-	}
-
-	err := WithTransactionURL("https://api.example.com/transaction")(config)
-	require.NoError(t, err)
-
-	assert.NotNil(t, config.ServiceURLs)
-	assert.Equal(t, "https://api.example.com/transaction", config.ServiceURLs[ServiceTransaction])
+	assert.Equal(t, "https://api.example.com/v1", config.ServiceURLs[ServiceOnboarding])
+	assert.Equal(t, "https://api.example.com/v1", config.ServiceURLs[ServiceTransaction])
 }

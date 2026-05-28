@@ -36,7 +36,7 @@ func (c *Client) markConfigMutated() {
 //
 // See also:
 //   - [WithEnvironment] — preferred for production stacks.
-//   - [WithOnboardingURL], [WithTransactionURL], [WithCRMURL] — per-service overrides.
+//   - [WithLedgerURL], [WithCRMURL] — per-service overrides.
 func WithBaseURL(baseURL string) Option {
 	return func(c *Client) error {
 		// Validate URL
@@ -464,43 +464,25 @@ func WithHTTPClient(client *http.Client) Option {
 	}
 }
 
-// WithOnboardingURL sets the URL for the Onboarding API.
+// WithLedgerURL sets the URL for the Ledger API. The Ledger service serves
+// both onboarding and transaction endpoints under the same plane.
+//
 // Two-layer surface: this is the user-facing wrapper. It delegates to
-// [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config.WithOnboardingURL], which most
+// [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config.WithLedgerURL], which most
 // callers should not invoke directly. Prefer this option when constructing the
 // client via [New].
 //
 // This overrides any URL derived from the Environment setting.
 //
 // Parameters:
-//   - onboardingURL: The URL for the Onboarding API
+//   - ledgerURL: The URL for the Ledger API
 //
 // Returns:
-//   - Option: A function that sets the Onboarding URL on the Client
-func WithOnboardingURL(onboardingURL string) Option {
+//   - Option: A function that sets the Ledger URL on the Client
+func WithLedgerURL(ledgerURL string) Option {
 	return func(c *Client) error {
 		c.markConfigMutated()
-		return config.WithOnboardingURL(onboardingURL)(c.config)
-	}
-}
-
-// WithTransactionURL sets the URL for the Transaction API.
-// Two-layer surface: this is the user-facing wrapper. It delegates to
-// [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config.WithTransactionURL], which most
-// callers should not invoke directly. Prefer this option when constructing the
-// client via [New].
-//
-// This overrides any URL derived from the Environment setting.
-//
-// Parameters:
-//   - transactionURL: The URL for the Transaction API
-//
-// Returns:
-//   - Option: A function that sets the Transaction URL on the Client
-func WithTransactionURL(transactionURL string) Option {
-	return func(c *Client) error {
-		c.markConfigMutated()
-		return config.WithTransactionURL(transactionURL)(c.config)
+		return config.WithLedgerURL(ledgerURL)(c.config)
 	}
 }
 

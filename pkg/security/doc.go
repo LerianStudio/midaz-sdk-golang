@@ -30,10 +30,10 @@
 // blanket private-IP block here would break legitimate topologies.
 //
 // Callers that accept SDK target URLs from untrusted input (BaseURL,
-// OnboardingURL, TransactionURL, CRMURL, AccessManager.Address) are
-// responsible for validating those URLs against their own allowlist
-// before handing them to the SDK if SSRF against internal services
-// is in scope for their threat model.
+// LedgerURL, CRMURL, AccessManager.Address) are responsible for
+// validating those URLs against their own allowlist before handing
+// them to the SDK if SSRF against internal services is in scope for
+// their threat model.
 //
 // # Public surface
 //
@@ -52,6 +52,7 @@
 // # See also
 //
 //   - [github.com/LerianStudio/midaz-sdk-golang/v3.WithBaseURL]
+//   - [github.com/LerianStudio/midaz-sdk-golang/v3.WithLedgerURL]
 //   - [github.com/LerianStudio/midaz-sdk-golang/v3.WithAccessManager]
 //   - [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors] —
 //     errors returned when validation rejects a request

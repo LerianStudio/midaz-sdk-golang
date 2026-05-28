@@ -67,8 +67,7 @@ func TestNewClient(t *testing.T) {
 	client, err = New(
 		WithConfig(testCfg),
 		WithHTTPClient(customHTTPClient),
-		WithOnboardingURL("https://test.example.com/onboarding"),
-		WithTransactionURL("https://test.example.com/transaction"),
+		WithLedgerURL("https://test.example.com/v1"),
 		WithCRMURL("https://test.example.com/crm"),
 		WithTimeout(30*time.Second),
 		WithDebug(true),
@@ -664,6 +663,15 @@ func TestPublicConfigValidate(t *testing.T) {
 		cfg := createTestConfig(t)
 		delete(cfg.ServiceURLs, config.ServiceTransaction)
 		require.Error(t, cfg.Validate())
+	})
+
+	t.Run("missing ledger URL surfaces as ledger URL error", func(t *testing.T) {
+		cfg := createTestConfig(t)
+		delete(cfg.ServiceURLs, config.ServiceOnboarding)
+		delete(cfg.ServiceURLs, config.ServiceTransaction)
+		err := cfg.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "ledger URL is required")
 	})
 }
 

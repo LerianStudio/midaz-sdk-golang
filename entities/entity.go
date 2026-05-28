@@ -1,6 +1,17 @@
-// Package entities provides access to the Midaz API resources and operations.
-// It implements service interfaces for interacting with accounts, assets, ledgers,
-// transactions, and other Midaz platform resources.
+// Package entities provides the service interfaces for interacting with the
+// Midaz API resources — organizations, ledgers, accounts, assets, balances,
+// portfolios, segments, transactions, and CRM resources.
+//
+// The package entry point is [Entity], constructed via [NewEntityWithConfig]
+// (or [NewEntityWithConfigContext] for explicit context propagation). Each
+// service is exposed as an interface on Entity (for example Entity.Accounts,
+// Entity.Transactions), letting callers depend on the interface and mock it
+// in tests.
+//
+// All HTTP traffic flows through a shared [HTTPClient] that handles auth
+// injection, retries, idempotency keys, and observability hooks. Service
+// implementations share a small embedded helper (serviceEntity) so that
+// per-service files stay focused on per-service business logic.
 package entities
 
 import (
