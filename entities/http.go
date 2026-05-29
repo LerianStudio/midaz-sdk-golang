@@ -96,6 +96,13 @@ type HTTPClient struct {
 	debug             atomic.Bool
 	enableIdempotency atomic.Bool
 	exposeErrorBody   atomic.Bool
+	// allowInsecureHTTP gates the runtime [security.ValidateOutboundRequest]
+	// check against plain http:// non-loopback targets. Default false
+	// (strict). Set via [SetAllowInsecureHTTP], typically threaded from
+	// [pkg/config.Config.AllowInsecureHTTP] at entity construction.
+	// Atomic so the request path reads it without contending with the
+	// HTTPClient mutex.
+	allowInsecureHTTP atomic.Bool
 	retryOptions      *retry.Options        // Retry options for the client
 	jsonPool          *performance.JSONPool // Pool for JSON encoding/decoding
 	metrics           *observability.MetricsCollector
@@ -334,6 +341,36 @@ func (c *HTTPClient) SetExposeErrorBody(enabled bool) {
 	}
 
 	c.exposeErrorBody.Store(enabled)
+}
+
+// SetAllowInsecureHTTP gates the runtime outbound-URL guard against plain
+// http:// non-loopback targets. Default false (strict). Wired from
+// [pkg/config.Config.AllowInsecureHTTP] by [NewEntityWithConfigContext];
+// callers building entities by hand can flip the flag here.
+//
+// SECURITY: leave this off in production over the public internet. The
+// flag exists for in-cluster Kubernetes Service DNS and dev/test
+// deployments behind a controlled network boundary.
+//
+// Lock-free: backed by an atomic.Bool so the request path reads it
+// without contending with the HTTPClient mutex.
+func (c *HTTPClient) SetAllowInsecureHTTP(allow bool) {
+	if c == nil {
+		return
+	}
+
+	c.allowInsecureHTTP.Store(allow)
+}
+
+// AllowInsecureHTTP reports whether the data-plane insecure-HTTP opt-in
+// is active. Exposed for diagnostic readers and for the retry layer
+// snapshot helpers.
+func (c *HTTPClient) AllowInsecureHTTP() bool {
+	if c == nil {
+		return false
+	}
+
+	return c.allowInsecureHTTP.Load()
 }
 
 // SetCustomRetryPolicy sets the predicate used to decide whether retries should continue.
@@ -628,7 +665,7 @@ func (c *HTTPClient) doRawRequest(ctx context.Context, method, requestURL string
 	ctx, endSpan := c.setupObservabilityContext(ctx, method, requestURL)
 	defer endSpan()
 
-	req, headers, err := buildRawHTTPRequest(ctx, method, requestURL, headers, body)
+	req, headers, err := buildRawHTTPRequest(ctx, method, requestURL, headers, body, c.allowInsecureHTTP.Load())
 	if err != nil {
 		c.logHTTPPhaseFailure(ctx, method, requestURL, nil, err)
 		c.recordSDKFailure(ctx, method, requestURL, 0, err)
@@ -709,7 +746,7 @@ func prepareRawRequestBody(headers map[string]string, body []byte) (io.Reader, m
 	return bytes.NewReader(body), headers, nil
 }
 
-func buildRawHTTPRequest(ctx context.Context, method, requestURL string, headers map[string]string, body []byte) (*http.Request, map[string]string, error) {
+func buildRawHTTPRequest(ctx context.Context, method, requestURL string, headers map[string]string, body []byte, allowInsecureHTTP bool) (*http.Request, map[string]string, error) {
 	reader, headers, err := prepareRawRequestBody(headers, body)
 	if err != nil {
 		return nil, nil, err
@@ -721,7 +758,7 @@ func buildRawHTTPRequest(ctx context.Context, method, requestURL string, headers
 	}
 
 	validationReq := &http.Request{URL: parsedURL}
-	if err := security.ValidateOutboundRequest(validationReq); err != nil {
+	if err := security.ValidateOutboundRequestWithInsecureHTTP(validationReq, allowInsecureHTTP); err != nil {
 		return nil, nil, wrapHTTPPhaseError(httpPhaseRequestValidate, false, err)
 	}
 
@@ -750,7 +787,7 @@ func (c *HTTPClient) doCountRequest(ctx context.Context, method, requestURL stri
 		return 0, buildErr
 	}
 
-	if err := security.ValidateOutboundRequest(req); err != nil {
+	if err := security.ValidateOutboundRequestWithInsecureHTTP(req, c.allowInsecureHTTP.Load()); err != nil {
 		validateErr := wrapHTTPPhaseError(httpPhaseRequestValidate, false, err)
 		c.logHTTPPhaseFailure(ctx, method, requestURL, nil, validateErr)
 		c.recordSDKFailure(ctx, method, requestURL, 0, validateErr)
@@ -1003,7 +1040,7 @@ func (c *HTTPClient) buildHTTPRequest(ctx context.Context, method, requestURL st
 		return nil, nil, wrapHTTPPhaseError(httpPhaseRequestBuild, false, fmt.Errorf("failed to parse request URL: %w", err))
 	}
 
-	if err := security.ValidateOutboundRequest(&http.Request{URL: parsedURL}); err != nil {
+	if err := security.ValidateOutboundRequestWithInsecureHTTP(&http.Request{URL: parsedURL}, c.allowInsecureHTTP.Load()); err != nil {
 		return nil, nil, wrapHTTPPhaseError(httpPhaseRequestValidate, false, fmt.Errorf("invalid request URL: %w", err))
 	}
 

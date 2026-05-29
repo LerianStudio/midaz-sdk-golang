@@ -1131,6 +1131,243 @@ func TestParseURL_Invalid(t *testing.T) {
 	}
 }
 
+// TestParseURLWithInsecureHTTP exercises the per-call insecure-HTTP
+// opt-in. The strict default path is covered by TestParseURL_Valid /
+// TestParseURL_Invalid; this matrix asserts:
+//
+//   - allow=true relaxes ONLY the http-non-localhost guard.
+//   - scheme allowlist, userinfo rejection, and missing-scheme/host
+//     rejection are NOT relaxed by the flag.
+//   - allow=false explicitly still rejects.
+//   - HTTPS URLs are unaffected.
+func TestParseURLWithInsecureHTTP(t *testing.T) {
+	tests := []struct {
+		name              string
+		url               string
+		allowInsecureHTTP bool
+		errContain        string
+	}{
+		{
+			name:              "AllowHTTPClusterLocalServiceDNS",
+			url:               "http://midaz-ledger.midaz-mt.svc.cluster.local:3000",
+			allowInsecureHTTP: true,
+			errContain:        "",
+		},
+		{
+			name:              "AllowHTTPPrivateRFC1918",
+			url:               "http://10.0.0.5:3000",
+			allowInsecureHTTP: true,
+			errContain:        "",
+		},
+		{
+			name:              "AllowHTTPLocalhostRegression",
+			url:               "http://localhost:3000",
+			allowInsecureHTTP: true,
+			errContain:        "",
+		},
+		{
+			name:              "AllowHTTPPublicHostInsideClusterMesh",
+			url:               "http://api.internal.example.com",
+			allowInsecureHTTP: true,
+			errContain:        "",
+		},
+		{
+			name:              "RejectFTPSchemeEvenWithAllow",
+			url:               "ftp://midaz-ledger.midaz-mt.svc.cluster.local:3000",
+			allowInsecureHTTP: true,
+			errContain:        "URL scheme must be http or https",
+		},
+		{
+			name:              "RejectUserinfoEvenWithAllow",
+			url:               "http://attacker@midaz-ledger.midaz-mt.svc.cluster.local:3000",
+			allowInsecureHTTP: true,
+			errContain:        "URL must not include user information",
+		},
+		{
+			name:              "RejectMissingHostEvenWithAllow",
+			url:               "http://",
+			allowInsecureHTTP: true,
+			errContain:        "URL must include scheme and host",
+		},
+		{
+			name:              "AllowFalseStillRejectsHTTPNonLocalhost",
+			url:               "http://midaz-ledger.midaz-mt.svc.cluster.local:3000",
+			allowInsecureHTTP: false,
+			errContain:        "insecure HTTP is only allowed for localhost targets",
+		},
+		{
+			name:              "AllowHTTPSPublicWithoutFlag",
+			url:               "https://api.example.com",
+			allowInsecureHTTP: false,
+			errContain:        "",
+		},
+		{
+			name:              "AllowHTTPSPublicWithFlag",
+			url:               "https://api.example.com",
+			allowInsecureHTTP: true,
+			errContain:        "",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := parseURLWithInsecureHTTP(tc.url, tc.allowInsecureHTTP)
+
+			if tc.errContain == "" {
+				require.NoError(t, err)
+
+				return
+			}
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.errContain)
+		})
+	}
+}
+
+// TestWithAllowInsecureHTTP_LedgerURL asserts the user-facing wiring at
+// the config layer: applying WithAllowInsecureHTTP(true) BEFORE
+// WithLedgerURL permits an http://*.svc.cluster.local target that
+// would otherwise be rejected by parseURL at option-application time.
+// This reproduces the plugin-br-bank-transfer MT-staging failure that
+// drove the hotfix.
+func TestWithAllowInsecureHTTP_LedgerURL(t *testing.T) {
+	const clusterURL = "http://midaz-ledger.midaz-mt.svc.cluster.local:3000"
+
+	t.Run("OptInAcceptsClusterLocalHTTP", func(t *testing.T) {
+		cfg, err := NewConfig(
+			disableAuthCheck(t),
+			WithEnvironment(EnvironmentDevelopment),
+			WithAllowInsecureHTTP(true),
+			WithLedgerURL(clusterURL),
+		)
+		require.NoError(t, err)
+		assert.True(t, cfg.AllowInsecureHTTP)
+		assert.True(t, cfg.GetAllowInsecureHTTP())
+		assert.Equal(t, clusterURL, cfg.ServiceURLs[ServiceOnboarding])
+		assert.Equal(t, clusterURL, cfg.ServiceURLs[ServiceTransaction])
+	})
+
+	t.Run("DefaultRejectsClusterLocalHTTP", func(t *testing.T) {
+		_, err := NewConfig(
+			disableAuthCheck(t),
+			WithEnvironment(EnvironmentDevelopment),
+			WithLedgerURL(clusterURL),
+		)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "insecure HTTP is only allowed for localhost targets")
+	})
+
+	t.Run("ExplicitFalseRejectsClusterLocalHTTP", func(t *testing.T) {
+		_, err := NewConfig(
+			disableAuthCheck(t),
+			WithEnvironment(EnvironmentDevelopment),
+			WithAllowInsecureHTTP(false),
+			WithLedgerURL(clusterURL),
+		)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "insecure HTTP is only allowed for localhost targets")
+	})
+
+	t.Run("OptInAfterURLDoesNotRetroactivelyAllow", func(t *testing.T) {
+		// Documents the ordering rule from WithAllowInsecureHTTP's
+		// godoc. The URL setter validates against c.AllowInsecureHTTP
+		// at the moment it runs, so flipping the flag afterwards
+		// cannot rescue a URL that was already rejected.
+		_, err := NewConfig(
+			disableAuthCheck(t),
+			WithEnvironment(EnvironmentDevelopment),
+			WithLedgerURL(clusterURL),
+			WithAllowInsecureHTTP(true),
+		)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "insecure HTTP is only allowed for localhost targets")
+	})
+}
+
+// TestWithAllowInsecureHTTP_CRMURL mirrors the LedgerURL coverage on
+// the CRM URL path so both setters are pinned.
+func TestWithAllowInsecureHTTP_CRMURL(t *testing.T) {
+	const crmURL = "http://midaz-crm.midaz-mt.svc.cluster.local:4003"
+
+	cfg, err := NewConfig(
+		disableAuthCheck(t),
+		WithEnvironment(EnvironmentDevelopment),
+		WithAllowInsecureHTTP(true),
+		WithLedgerURL("http://midaz-ledger.midaz-mt.svc.cluster.local:3000"),
+		WithCRMURL(crmURL),
+	)
+	require.NoError(t, err)
+	assert.True(t, cfg.AllowInsecureHTTP)
+	assert.Equal(t, crmURL, cfg.ServiceURLs[ServiceCRM])
+}
+
+// TestWithAllowInsecureHTTP_BaseURL covers WithBaseURL, which fans out
+// to all ServiceURLs via buildLedgerServiceURL / buildCRMServiceURL —
+// each of those internally parses the same base URL.
+func TestWithAllowInsecureHTTP_BaseURL(t *testing.T) {
+	const baseURL = "http://midaz-api.midaz-mt.svc.cluster.local:3000"
+
+	cfg, err := NewConfig(
+		disableAuthCheck(t),
+		WithEnvironment(EnvironmentDevelopment),
+		WithAllowInsecureHTTP(true),
+		WithBaseURL(baseURL),
+	)
+	require.NoError(t, err)
+	assert.True(t, cfg.AllowInsecureHTTP)
+	assert.NotEmpty(t, cfg.ServiceURLs[ServiceOnboarding])
+	assert.NotEmpty(t, cfg.ServiceURLs[ServiceCRM])
+}
+
+// TestValidateConfig_RejectsInsecureHTTPInProduction mirrors the
+// existing Access Manager production gate. The data-plane flag is also
+// forbidden in production so the in-cluster carve-out cannot be flipped
+// on by accident for a public deployment.
+func TestValidateConfig_RejectsInsecureHTTPInProduction(t *testing.T) {
+	_, err := NewConfig(
+		disableAuthCheck(t),
+		WithEnvironment(EnvironmentProduction),
+		WithAllowInsecureHTTP(true),
+		// Use HTTPS here so the URL setter itself accepts the value;
+		// the validation gate fires later in validateConfig.
+		WithLedgerURL("https://api.midaz.io"),
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "insecure HTTP is not allowed in production")
+}
+
+// TestFromEnvironment_AllowInsecureHTTP pins the env-loading path: the
+// MIDAZ_ALLOW_INSECURE_HTTP var must be read BEFORE the URL env vars so
+// in-cluster http:// targets are accepted automatically.
+func TestFromEnvironment_AllowInsecureHTTP(t *testing.T) {
+	t.Run("EnabledAcceptsClusterLocalLedger", func(t *testing.T) {
+		t.Setenv("MIDAZ_ALLOW_INSECURE_HTTP", "true")
+		t.Setenv("MIDAZ_LEDGER_URL", "http://midaz-ledger.midaz-mt.svc.cluster.local:3000")
+
+		cfg, err := NewConfig(disableAuthCheck(t), FromEnvironment())
+		require.NoError(t, err)
+		assert.True(t, cfg.AllowInsecureHTTP)
+		assert.Equal(t, "http://midaz-ledger.midaz-mt.svc.cluster.local:3000", cfg.ServiceURLs[ServiceOnboarding])
+	})
+
+	t.Run("UnsetKeepsDefaultStrict", func(t *testing.T) {
+		t.Setenv("MIDAZ_LEDGER_URL", "http://midaz-ledger.midaz-mt.svc.cluster.local:3000")
+
+		_, err := NewConfig(disableAuthCheck(t), FromEnvironment())
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "insecure HTTP is only allowed for localhost targets")
+	})
+
+	t.Run("InvalidBoolValueIsRejected", func(t *testing.T) {
+		t.Setenv("MIDAZ_ALLOW_INSECURE_HTTP", "yes")
+
+		_, err := NewConfig(disableAuthCheck(t), FromEnvironment())
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid MIDAZ_ALLOW_INSECURE_HTTP")
+	})
+}
+
 func TestParseEnvInt_Valid(t *testing.T) {
 	tests := []struct {
 		input    string

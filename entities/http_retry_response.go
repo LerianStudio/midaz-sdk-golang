@@ -164,7 +164,7 @@ func (c *HTTPClient) performSingleAttempt(req *http.Request, method, requestURL 
 		return wrapHTTPPhaseError(httpPhaseRequestBuild, false, err)
 	}
 
-	if err := security.ValidateOutboundRequest(req); err != nil {
+	if err := security.ValidateOutboundRequestWithInsecureHTTP(req, c.allowInsecureHTTP.Load()); err != nil {
 		return wrapHTTPPhaseError(httpPhaseRequestValidate, false, fmt.Errorf("invalid request URL: %w", err))
 	}
 
@@ -319,7 +319,45 @@ func (c *HTTPClient) snapshotHTTPClient() *http.Client {
 		return defaultHTTPClient()
 	}
 
+	// When the data-plane insecure-HTTP opt-in is active, the redirect
+	// policy installed at construction (strict ValidateRedirect) would
+	// reject the very kind of http://*.svc.cluster.local target the
+	// caller asked us to accept. Wrap the client with the permissive
+	// ValidateRedirectWithInsecureHTTP variant on a shallow copy so
+	// the caller-supplied transport, jar, and timeout are preserved.
+	if c.allowInsecureHTTP.Load() {
+		return dataPlaneInsecureHTTPClient(c.client)
+	}
+
 	return c.client
+}
+
+// dataPlaneInsecureHTTPClient returns a shallow client copy whose
+// CheckRedirect delegates to [security.ValidateRedirectWithInsecureHTTP]
+// before any caller-supplied policy. Mirrors the pattern used by
+// [pkg/auth.accessManagerHTTPClient] for the auth plane. The wrapper is
+// produced per request snapshot, but the underlying Transport / Jar /
+// Timeout are shared via field assignment so the per-request cost is a
+// single struct copy plus one closure allocation.
+func dataPlaneInsecureHTTPClient(client *http.Client) *http.Client {
+	if client == nil {
+		return nil
+	}
+
+	clientCopy := *client
+	callerRedirect := client.CheckRedirect
+	clientCopy.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		if err := security.ValidateRedirectWithInsecureHTTP(req, via, true); err != nil {
+			return err
+		}
+		if callerRedirect != nil {
+			return callerRedirect(req, via)
+		}
+
+		return nil
+	}
+
+	return &clientCopy
 }
 
 func resetRequestBody(req *http.Request) error {

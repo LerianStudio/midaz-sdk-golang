@@ -77,17 +77,17 @@ func TestEntityURLs_NormalizeV1AndRejectUnsafeDirectURLs(t *testing.T) {
 		"onboarding":  "http://localhost:3002///",
 		"transaction": "http://localhost:3002/api",
 		"crm":         "http://localhost:4003",
-	})
+	}, false)
 	require.NoError(t, err)
 	require.Equal(t, "http://localhost:3002/v1", normalized["onboarding"])
 	require.Equal(t, "http://localhost:3002/api/v1", normalized["transaction"])
 	require.Equal(t, "http://localhost:4003/v1", normalized["crm"])
 
-	_, err = normalizeServiceURL("https://user:pass@example.com")
+	_, err = normalizeServiceURL("https://user:pass@example.com", false)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "user information")
 
-	_, err = normalizeServiceURL("http://api.example.com")
+	_, err = normalizeServiceURL("http://api.example.com", false)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "insecure HTTP")
 }
