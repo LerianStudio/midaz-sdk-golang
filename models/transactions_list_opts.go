@@ -3,6 +3,12 @@
 
 package models
 
+import (
+	"fmt"
+
+	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation/core"
+)
+
 // TransactionsListOpts is the typed options struct for ListTransactions and
 // the ListTransactionsAll / ListTransactionsPages iterators.
 //
@@ -47,11 +53,49 @@ type TransactionsFilters struct {
 	// Route narrows by transaction route name (e.g. "cashin", "cashout").
 	// Honored on both List and the metrics-count endpoint.
 	Route string
+
+	// MetadataKey and MetadataValue filter transactions by a single metadata
+	// field, rendered on the wire as `metadata.<MetadataKey>=<MetadataValue>`.
+	// The ledger honors ONE metadata predicate per request (it does not
+	// AND-combine multiple metadata keys), so this is a single pair by design.
+	// Both must be set together; MetadataKey must obey the storage-layer key
+	// rules (non-empty, <=100 chars, no '.' and no leading '$').
+	//
+	// PERFORMANCE: transaction metadata keys are NOT indexed by default on the
+	// ledger (only entity_id is). For a hot correlation key such as
+	// "transferId", have an operator create the index via the Midaz admin
+	// CreateIndex API to avoid a Mongo collection scan at scale.
+	MetadataKey   string
+	MetadataValue string
 }
 
 // Validate enforces SDK-side preconditions on TransactionsListOpts.
 func (o TransactionsListOpts) Validate() error {
-	return ValidateCursorListOpts("TransactionsListOpts.Validate", o.CursorListOpts)
+	if err := ValidateCursorListOpts("TransactionsListOpts.Validate", o.CursorListOpts); err != nil {
+		return err
+	}
+
+	return validateMetadataFilter(o.Filters.MetadataKey, o.Filters.MetadataValue)
+}
+
+// validateMetadataFilter enforces that the metadata list-filter is either
+// fully unset or a complete key/value pair, and that the key obeys the
+// storage-layer metadata rules (reused from core.ValidateMetadata: non-empty,
+// <=100 chars, no '.' and no leading '$', value within type/length bounds).
+func validateMetadataFilter(key, value string) error {
+	if key == "" && value == "" {
+		return nil
+	}
+
+	if key == "" || value == "" {
+		return fmt.Errorf("TransactionsListOpts.Validate: metadata filter requires both MetadataKey and MetadataValue")
+	}
+
+	if err := core.ValidateMetadata(map[string]any{key: value}); err != nil {
+		return fmt.Errorf("TransactionsListOpts.Validate: invalid metadata filter: %w", err)
+	}
+
+	return nil
 }
 
 // ToQueryParams renders an TransactionsListOpts into the wire query map.
@@ -83,6 +127,10 @@ func (o TransactionsListOpts) ToQueryParams() map[string]string {
 
 	if o.Filters.Route != "" {
 		params["route"] = o.Filters.Route
+	}
+
+	if o.Filters.MetadataKey != "" && o.Filters.MetadataValue != "" {
+		params["metadata."+o.Filters.MetadataKey] = o.Filters.MetadataValue
 	}
 
 	return params
