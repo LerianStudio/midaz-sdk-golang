@@ -28,6 +28,28 @@ func ValidateOutboundRequest(req *http.Request) error {
 	return validateOutboundRequest(req, false)
 }
 
+// ValidateOutboundRequestWithInsecureHTTP validates the minimal security
+// requirements for outbound HTTP requests while optionally permitting
+// plain http:// for non-loopback hosts. The scheme allowlist
+// (http/https), userinfo rejection, missing-host rejection, and
+// nil-request guard are always enforced; allowInsecureHTTP gates only
+// the "http:// only for localhost" rule.
+//
+// SECURITY: this lifts a deliberate transport-security gate. Callers
+// must reach the target over an inherently secure channel that http://
+// cannot represent — typically a Kubernetes cluster-internal service
+// reached via the service mesh, or a dev/test deployment behind a
+// controlled network boundary. Never enable for traffic crossing the
+// public internet.
+//
+// Wired into the SDK by the Config-layer [pkg/config.WithAllowInsecureHTTP]
+// (data plane) and [pkg/config.WithAllowInsecureAccessManagerHTTP] (auth
+// plane); callers building their own HTTP path on top of pkg/security can
+// use this directly.
+func ValidateOutboundRequestWithInsecureHTTP(req *http.Request, allowInsecureHTTP bool) error {
+	return validateOutboundRequest(req, allowInsecureHTTP)
+}
+
 func validateOutboundRequest(req *http.Request, allowInsecureHTTP bool) error {
 	if req == nil {
 		return errors.New("http request cannot be nil")

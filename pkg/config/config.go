@@ -146,6 +146,24 @@ type Config struct {
 	// midaz-onboarding/midaz-transaction stack, or for tests. v3 rejects
 	// construction with no auth source AND no Anonymous=true via validateConfig.
 	Anonymous bool
+
+	// AllowInsecureHTTP opts the configured Ledger and CRM service URLs out
+	// of the SDK's "http:// only for localhost" gate. Default is false
+	// (strict). Set this BEFORE applying [WithLedgerURL], [WithCRMURL], or
+	// [WithBaseURL] — those option setters validate their input via
+	// [parseURL], which honors the flag value at the time it runs.
+	//
+	// Intended for Kubernetes cluster-internal services reached over the
+	// cluster mesh (e.g. http://midaz-ledger.midaz-mt.svc.cluster.local:3000)
+	// where TLS is terminated by the service mesh, and for development or
+	// test deployments behind a controlled network boundary. Production
+	// deployments over the public internet must leave this off.
+	//
+	// This flag is independent of [auth.AccessManager.AllowInsecureHTTP],
+	// which gates the Access Manager (auth) URL. The two are decoupled so a
+	// client may run HTTPS against the Access Manager while reaching the
+	// Ledger over an in-cluster HTTP service, or vice versa.
+	AllowInsecureHTTP bool
 }
 
 // Option is a function that configures a Config.
@@ -208,7 +226,7 @@ func WithLedgerURL(ledgerURL string) Option {
 			return errors.New("config cannot be nil")
 		}
 
-		if err := parseURL(ledgerURL); err != nil {
+		if err := parseURLWithInsecureHTTP(ledgerURL, c.AllowInsecureHTTP); err != nil {
 			return fmt.Errorf("invalid ledger URL: %w", err)
 		}
 
@@ -237,7 +255,7 @@ func WithCRMURL(crmURL string) Option {
 			return errors.New("config cannot be nil")
 		}
 
-		if err := parseURL(crmURL); err != nil {
+		if err := parseURLWithInsecureHTTP(crmURL, c.AllowInsecureHTTP); err != nil {
 			return fmt.Errorf("invalid crm URL: %w", err)
 		}
 
@@ -275,7 +293,7 @@ func WithBaseURL(baseURL string) Option {
 		}
 
 		// Validate the base URL
-		if err := parseURL(baseURL); err != nil {
+		if err := parseURLWithInsecureHTTP(baseURL, c.AllowInsecureHTTP); err != nil {
 			return fmt.Errorf("invalid base URL: %w", err)
 		}
 
@@ -626,6 +644,65 @@ func WithAllowInsecureAccessManagerHTTP(allow bool) Option {
 	}
 }
 
+// WithAllowInsecureHTTP opts the configured Ledger and CRM service URLs
+// out of the SDK's "http:// only for localhost" gate. DEFAULT IS FALSE
+// (strict).
+//
+// The canonical use case is a Kubernetes cluster-internal service reached
+// via cluster DNS (e.g. http://midaz-ledger.midaz-mt.svc.cluster.local:3000)
+// where TLS is terminated by the service mesh, so the link from this SDK
+// to the upstream is plaintext but inside a trusted network boundary.
+// A secondary use case is dev/test deployments behind a controlled LAN
+// where issuing a TLS certificate would be operationally heavy.
+//
+// SECURITY: this disables a deliberate transport-security gate. Production
+// deployments over the public internet must leave this off. The flag
+// lifts only the http-non-localhost guard — the scheme allowlist
+// (http/https), userinfo rejection, and missing-host rejection remain
+// active.
+//
+// ORDERING NOTE: this option mutates a flag read by [WithLedgerURL],
+// [WithCRMURL], and [WithBaseURL] at the moment those options run.
+// Apply WithAllowInsecureHTTP BEFORE the URL setters in your option
+// chain:
+//
+//	cfg, err := config.NewConfig(
+//	    config.WithAllowInsecureHTTP(true),
+//	    config.WithLedgerURL("http://midaz-ledger.midaz-mt.svc.cluster.local:3000"),
+//	    config.WithAccessManager(am),
+//	)
+//
+// When the URLs come from [FromEnvironment], the helper loads
+// MIDAZ_ALLOW_INSECURE_HTTP before processing MIDAZ_LEDGER_URL /
+// MIDAZ_CRM_URL / MIDAZ_BASE_URL so the ordering is automatic.
+//
+// This flag is independent of [WithAllowInsecureAccessManagerHTTP], which
+// gates the Access Manager (auth) endpoint. Set both when both the
+// Access Manager and the Ledger live behind the cluster mesh.
+//
+// Two-layer surface: this is the internal/test-layer Option that operates
+// on [Config]. The user-facing wrapper at
+// [github.com/LerianStudio/midaz-sdk-golang/v3.WithAllowInsecureHTTP]
+// is what most callers should use; it composes with
+// [github.com/LerianStudio/midaz-sdk-golang/v3.New] directly.
+//
+// Parameters:
+//   - allow: Whether to permit plain http:// for non-loopback Ledger/CRM hosts.
+//
+// Returns:
+//   - Option: A function that wires the flag onto a Config.
+func WithAllowInsecureHTTP(allow bool) Option {
+	return func(c *Config) error {
+		if c == nil {
+			return errors.New("config cannot be nil")
+		}
+
+		c.AllowInsecureHTTP = allow
+
+		return nil
+	}
+}
+
 // FromEnvironment loads configuration from environment variables.
 // This allows for configuration without code changes.
 //
@@ -648,6 +725,14 @@ func WithAllowInsecureAccessManagerHTTP(allow bool) Option {
 //     Manager URLs for non-loopback hosts (parsed via [strconv.ParseBool]).
 //     Production deployments must leave this unset or false; the flag
 //     exists for the in-cluster Kubernetes Service pattern.
+//   - MIDAZ_ALLOW_INSECURE_HTTP: Permit plain http:// Ledger/CRM service
+//     URLs for non-loopback hosts (parsed via [strconv.ParseBool]). Loaded
+//     before the URL env vars so MIDAZ_LEDGER_URL / MIDAZ_CRM_URL /
+//     MIDAZ_BASE_URL pointing at cluster-internal services are accepted.
+//     Production deployments over the public internet must leave this
+//     unset or false; the flag exists for the in-cluster Kubernetes
+//     Service pattern and for dev/test deployments behind a controlled
+//     network boundary.
 //
 // Boolean variables accept the canonical [strconv.ParseBool] forms only:
 // "1", "t", "T", "TRUE", "true", "True", "0", "f", "F", "FALSE", "false",
@@ -669,6 +754,13 @@ func FromEnvironment() Option {
 		}
 
 		if err := configureAccessManager(c); err != nil {
+			return err
+		}
+
+		// configureInsecureHTTP MUST run before configureURLs so the
+		// in-cluster cluster.local Ledger/CRM URLs that drove the flag's
+		// existence in the first place are accepted by parseURL.
+		if err := configureInsecureHTTP(c); err != nil {
 			return err
 		}
 
@@ -752,6 +844,25 @@ func configureAccessManager(c *Config) error {
 	if enabled {
 		c.Anonymous = false
 	}
+
+	return nil
+}
+
+// configureInsecureHTTP loads MIDAZ_ALLOW_INSECURE_HTTP and applies it to
+// the Config before any URL setter runs. Unset env var leaves the
+// programmatically-configured value (typically false) untouched.
+func configureInsecureHTTP(c *Config) error {
+	raw := os.Getenv("MIDAZ_ALLOW_INSECURE_HTTP")
+	if raw == "" {
+		return nil
+	}
+
+	parsed, err := strconv.ParseBool(strings.TrimSpace(raw))
+	if err != nil {
+		return fmt.Errorf("invalid MIDAZ_ALLOW_INSECURE_HTTP value %q: %w", raw, err)
+	}
+
+	c.AllowInsecureHTTP = parsed
 
 	return nil
 }
@@ -1051,6 +1162,9 @@ func validateConfig(config *Config) error {
 // validateServiceURLs enforces that the Ledger service URL is configured.
 // The onboarding and transaction internal routes both resolve to LedgerURL,
 // so both map entries must be populated for the entity layer to function.
+// It also refuses the AllowInsecureHTTP opt-in in the production
+// environment, mirroring the Access Manager equivalent — the flag is for
+// in-cluster or controlled-network deployments, never the public internet.
 func validateServiceURLs(config *Config) error {
 	if onboardingURL, ok := config.ServiceURLs[ServiceOnboarding]; !ok || strings.TrimSpace(onboardingURL) == "" {
 		return errors.New("ledger URL is required")
@@ -1058,6 +1172,10 @@ func validateServiceURLs(config *Config) error {
 
 	if transactionURL, ok := config.ServiceURLs[ServiceTransaction]; !ok || strings.TrimSpace(transactionURL) == "" {
 		return errors.New("ledger URL is required")
+	}
+
+	if config.Environment == EnvironmentProduction && config.AllowInsecureHTTP {
+		return errors.New("insecure HTTP is not allowed in production")
 	}
 
 	return nil
@@ -1175,6 +1293,18 @@ func (c *Config) GetObservabilityProvider() observability.Provider {
 	return c.ObservabilityProvider
 }
 
+// GetAllowInsecureHTTP returns the data-plane (Ledger / CRM) insecure HTTP
+// opt-in flag. The entities layer reads this to gate the runtime
+// [security.ValidateOutboundRequest] check the same way the config-time
+// [parseURL] gate is relaxed.
+func (c *Config) GetAllowInsecureHTTP() bool {
+	if c == nil {
+		return false
+	}
+
+	return c.AllowInsecureHTTP
+}
+
 // Clone returns an independent copy of the configuration.
 //
 // The clone is safe to mutate without affecting the receiver. In particular,
@@ -1210,9 +1340,21 @@ func (c *Config) Clone() *Config {
 	return &cloned
 }
 
-// parseURL validates that a URL is properly formatted.
-// It also warns (via stderr) if using HTTP instead of HTTPS for non-localhost URLs.
+// parseURL validates that a URL is properly formatted using the SDK's
+// default strict mode (HTTP permitted only for localhost targets). The
+// scheme and userinfo checks are always enforced. To allow plain HTTP for
+// a non-localhost target (typically an in-cluster Kubernetes Service),
+// use [parseURLWithInsecureHTTP] with allowInsecureHTTP=true.
 func parseURL(rawURL string) error {
+	return parseURLWithInsecureHTTP(rawURL, false)
+}
+
+// parseURLWithInsecureHTTP validates that a URL is properly formatted.
+//
+// Scheme allowlist (http/https), missing-scheme/host rejection, and the
+// userinfo block are always enforced. The "http:// only for localhost"
+// gate is the single rule honored by allowInsecureHTTP=true.
+func parseURLWithInsecureHTTP(rawURL string, allowInsecureHTTP bool) error {
 	parsedURL, err := url.Parse(rawURL)
 	if err != nil {
 		return err
@@ -1231,7 +1373,7 @@ func parseURL(rawURL string) error {
 		return errors.New("URL must not include user information")
 	}
 
-	if parsedURL.Scheme == "http" && !isLocalhost(parsedURL.Host) {
+	if parsedURL.Scheme == "http" && !allowInsecureHTTP && !isLocalhost(parsedURL.Host) {
 		return fmt.Errorf("insecure HTTP is only allowed for localhost targets: %s", parsedURL.Host)
 	}
 

@@ -684,6 +684,62 @@ func WithAllowInsecureAccessManagerHTTP(allow bool) Option {
 	}
 }
 
+// WithAllowInsecureHTTP opts the configured Ledger and CRM service URLs
+// out of the SDK's "http:// only for localhost" gate. DEFAULT IS FALSE
+// (strict). Set this for the canonical Kubernetes cluster-internal
+// pattern where the SDK reaches midaz-ledger / midaz-crm via Service DNS
+// (e.g. http://midaz-ledger.midaz-mt.svc.cluster.local:3000) over a
+// service-mesh-protected network. Also valid for dev/test deployments
+// behind a controlled network boundary.
+//
+// Two-layer surface: this is the user-facing wrapper. It delegates to
+// [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config.WithAllowInsecureHTTP],
+// which most callers should not invoke directly.
+//
+// SECURITY: this disables a deliberate transport-security gate. Production
+// deployments over the public internet must leave this off. The flag
+// lifts only the http-non-localhost rule — the scheme allowlist
+// (http/https), userinfo rejection, and missing-host rejection remain
+// active at both config-time (parseURL) and request-time
+// ([pkg/security.ValidateOutboundRequestWithInsecureHTTP]).
+//
+// ORDERING NOTE: this option mutates a flag read by [WithLedgerURL],
+// [WithCRMURL], and [WithBaseURL] when those options run. Apply
+// WithAllowInsecureHTTP BEFORE the URL setters in your option chain:
+//
+//	client, err := midaz.New(
+//	    midaz.WithAllowInsecureHTTP(true),
+//	    midaz.WithLedgerURL("http://midaz-ledger.midaz-mt.svc.cluster.local:3000"),
+//	    midaz.WithAccessManager(am),
+//	)
+//
+// Env-loaded callers (MIDAZ_LEDGER_URL / MIDAZ_CRM_URL / MIDAZ_BASE_URL via
+// FromEnvironment) get the right ordering automatically — FromEnvironment
+// loads MIDAZ_ALLOW_INSECURE_HTTP before processing URLs.
+//
+// Equivalent env var: MIDAZ_ALLOW_INSECURE_HTTP=true (consumed via
+// [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config.FromEnvironment]).
+//
+// This flag is independent of [WithAllowInsecureAccessManagerHTTP], which
+// gates the Access Manager (auth) URL. Set both when both the Access
+// Manager and the Ledger live behind the cluster mesh.
+//
+// Parameters:
+//   - allow: Whether to permit plain http:// for non-loopback Ledger/CRM hosts.
+//
+// Returns:
+//   - Option: A function that wires the flag onto the underlying Config.
+//
+// See also:
+//   - [WithLedgerURL], [WithCRMURL], [WithBaseURL] — URL setters this flag relaxes.
+//   - [WithAllowInsecureAccessManagerHTTP] — the auth-plane equivalent.
+func WithAllowInsecureHTTP(allow bool) Option {
+	return func(c *Client) error {
+		c.markConfigMutated()
+		return config.WithAllowInsecureHTTP(allow)(c.config)
+	}
+}
+
 // WithLogger sets the canonical *slog.Logger for the client. Once configured,
 // the SDK emits structured log lines for retry attempts, slow calls, and
 // internal warnings through this logger.

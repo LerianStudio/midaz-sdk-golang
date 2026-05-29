@@ -26,7 +26,7 @@ func TestMainFunction(_ *testing.T) {
 func newTestEntity(t *testing.T, client *http.Client, authToken string, baseURLs map[string]string, provider observability.Provider) *Entity {
 	t.Helper()
 
-	normalizedBaseURLs, err := normalizeBaseURLs(baseURLs)
+	normalizedBaseURLs, err := normalizeBaseURLs(baseURLs, false)
 	require.NoError(t, err)
 
 	entity := &Entity{
@@ -45,7 +45,7 @@ func TestNormalizeBaseURLs_DefaultsMissingCRMURLToOnboarding(t *testing.T) {
 	normalized, err := normalizeBaseURLs(map[string]string{
 		"onboarding":  "https://api.example.com/onboarding",
 		"transaction": "https://api.example.com/transaction",
-	})
+	}, false)
 
 	require.NoError(t, err)
 	require.Equal(t, "https://api.example.com/onboarding/v1", normalized["crm"])
@@ -56,7 +56,7 @@ func TestNormalizeBaseURLs_RequiresOnboardingKey(t *testing.T) {
 
 	baseURLs, err := normalizeBaseURLs(map[string]string{
 		"transaction": "https://api.example.com/transaction",
-	})
+	}, false)
 
 	require.Error(t, err)
 	require.Nil(t, baseURLs)

@@ -60,6 +60,7 @@ The full list (v3):
 |---|---|
 | `WithAccessManager` | Plugin-based authentication (OAuth M2M) |
 | `WithAllowInsecureAccessManagerHTTP` | Permit non-loopback `http://` Access Manager URLs for trusted in-cluster networks |
+| `WithAllowInsecureHTTP` | Permit non-loopback `http://` Ledger / CRM URLs for trusted in-cluster networks (e.g. `*.svc.cluster.local`); apply BEFORE the URL setters |
 | `WithAnonymous` | Disable authentication (testing/local) |
 | `WithBaseURL` | Override service base URL |
 | `WithConfig` | Use a pre-built `*config.Config` (advanced) |
@@ -268,6 +269,7 @@ environment.
 | `MIDAZ_CLIENT_ID` | string | — | OAuth M2M client ID (required when `PLUGIN_AUTH_ENABLED=true`) |
 | `MIDAZ_CLIENT_SECRET` | string | — | OAuth M2M client secret (required when `PLUGIN_AUTH_ENABLED=true`) |
 | `MIDAZ_ACCESS_MANAGER_ALLOW_INSECURE_HTTP` | bool | `false` | Permit non-loopback `http://` Access Manager URLs for trusted in-cluster networks. Not allowed with `MIDAZ_ENVIRONMENT=production`. |
+| `MIDAZ_ALLOW_INSECURE_HTTP` | bool | `false` | Permit non-loopback `http://` Ledger / CRM service URLs (`MIDAZ_LEDGER_URL` / `MIDAZ_CRM_URL` / `MIDAZ_BASE_URL`). Intended for Kubernetes cluster-internal services (e.g. `http://midaz-ledger.<ns>.svc.cluster.local:3000`) reached over the cluster mesh and dev/test deployments behind a controlled network boundary. Loaded before the URL env vars so ordering is automatic. Not allowed with `MIDAZ_ENVIRONMENT=production`. Independent of `MIDAZ_ACCESS_MANAGER_ALLOW_INSECURE_HTTP` (auth-plane). |
 
 > Boolean parsing uses Go's [`strconv.ParseBool`](https://pkg.go.dev/strconv#ParseBool)
 > and accepts only its canonical forms: `1`, `t`, `T`, `TRUE`, `true`, `True`,

@@ -333,6 +333,7 @@ templates are [`.env.example`](.env.example) (alias of
 | `MIDAZ_CLIENT_ID` | string | OAuth client ID |
 | `MIDAZ_CLIENT_SECRET` | string | OAuth client secret |
 | `MIDAZ_ACCESS_MANAGER_ALLOW_INSECURE_HTTP` | bool | Permit plain HTTP to the Access Manager. Local development only |
+| `MIDAZ_ALLOW_INSECURE_HTTP` | bool | Permit plain HTTP to the Ledger / CRM service URLs for non-loopback hosts. Intended for Kubernetes cluster-internal services (`*.svc.cluster.local`) reached over the cluster mesh and dev/test deployments behind a controlled network boundary. Leave false for public-internet deployments; rejected at validation time when `MIDAZ_ENVIRONMENT=production` |
 
 The `User-Agent` header is fixed by the SDK to `midaz-go-sdk/<version>`;
 override programmatically with `midaz.WithUserAgent` if needed. See

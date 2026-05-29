@@ -155,6 +155,127 @@ func TestValidateOutboundRequest(t *testing.T) {
 	}
 }
 
+// TestValidateOutboundRequestWithInsecureHTTP exercises the runtime
+// outbound-URL guard with the opt-in flag toggled. The strict default
+// path is covered by TestValidateOutboundRequest; this table focuses on:
+//
+//   - allow=true relaxes ONLY the http-non-localhost guard.
+//   - allow=true does NOT relax scheme allowlist, userinfo rejection,
+//     missing-host rejection.
+//   - allow=false explicitly (not just default) still rejects.
+//   - HTTPS targets remain unaffected by the flag.
+func TestValidateOutboundRequestWithInsecureHTTP(t *testing.T) {
+	tests := []struct {
+		name              string
+		req               *http.Request
+		allowInsecureHTTP bool
+		errContain        string
+	}{
+		{
+			name: "AllowHTTPClusterLocalServiceDNS",
+			req: &http.Request{
+				URL: &url.URL{Scheme: "http", Host: "midaz-ledger.midaz-mt.svc.cluster.local:3000"},
+			},
+			allowInsecureHTTP: true,
+			errContain:        "",
+		},
+		{
+			name: "AllowHTTPPrivateRFC1918",
+			req: &http.Request{
+				URL: &url.URL{Scheme: "http", Host: "10.0.0.5:3000"},
+			},
+			allowInsecureHTTP: true,
+			errContain:        "",
+		},
+		{
+			name: "AllowHTTPLocalhostRegression",
+			req: &http.Request{
+				URL: &url.URL{Scheme: "http", Host: "localhost:8080"},
+			},
+			allowInsecureHTTP: true,
+			errContain:        "",
+		},
+		{
+			name: "AllowHTTPPublicHostInsideClusterMesh",
+			req: &http.Request{
+				URL: &url.URL{Scheme: "http", Host: "midaz-ledger.example.com:3000"},
+			},
+			allowInsecureHTTP: true,
+			errContain:        "",
+		},
+		{
+			name: "RejectFTPSchemeEvenWithAllow",
+			req: &http.Request{
+				URL: &url.URL{Scheme: "ftp", Host: "midaz-ledger.midaz-mt.svc.cluster.local:3000"},
+			},
+			allowInsecureHTTP: true,
+			errContain:        "unsupported URL scheme",
+		},
+		{
+			name: "RejectUserinfoEvenWithAllow",
+			req: &http.Request{
+				URL: &url.URL{Scheme: "http", User: url.User("attacker"), Host: "midaz-ledger.midaz-mt.svc.cluster.local:3000"},
+			},
+			allowInsecureHTTP: true,
+			errContain:        "URL must not include user information",
+		},
+		{
+			name: "RejectMissingHostEvenWithAllow",
+			req: &http.Request{
+				URL: &url.URL{Scheme: "http"},
+			},
+			allowInsecureHTTP: true,
+			errContain:        "http request URL must include host",
+		},
+		{
+			name: "RejectNilRequestEvenWithAllow",
+			req:  nil,
+			// allow=true is irrelevant when the request itself is nil.
+			allowInsecureHTTP: true,
+			errContain:        "http request cannot be nil",
+		},
+		{
+			name: "AllowFalseStillRejectsHTTPNonLocalhost",
+			req: &http.Request{
+				URL: &url.URL{Scheme: "http", Host: "midaz-ledger.midaz-mt.svc.cluster.local:3000"},
+			},
+			allowInsecureHTTP: false,
+			errContain:        "insecure HTTP is only allowed for localhost targets",
+		},
+		{
+			name: "AllowHTTPSPublicWithoutFlag",
+			req: &http.Request{
+				URL: &url.URL{Scheme: "https", Host: "api.example.com"},
+			},
+			allowInsecureHTTP: false,
+			errContain:        "",
+		},
+		{
+			name: "AllowHTTPSPublicWithFlag",
+			req: &http.Request{
+				URL: &url.URL{Scheme: "https", Host: "api.example.com"},
+			},
+			allowInsecureHTTP: true,
+			errContain:        "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateOutboundRequestWithInsecureHTTP(tt.req, tt.allowInsecureHTTP)
+
+			if tt.errContain == "" {
+				require.NoError(t, err)
+
+				return
+			}
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.errContain)
+		})
+	}
+}
+
 func TestValidateRedirect(t *testing.T) {
 	// Table-driven consolidation of the redirect-policy cases. Each row
 	// describes the previous request's shape (method, URL, headers,

@@ -5,6 +5,17 @@ All notable changes to the Midaz Go SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### ✨ Added
+- **`WithAllowInsecureHTTP` config option**: opt-in that permits plain `http://` Ledger and CRM service URLs for non-loopback hosts, both at config build time (`parseURL` / `WithLedgerURL` / `WithCRMURL` / `WithBaseURL`) and at every outbound request (`security.ValidateOutboundRequestWithInsecureHTTP`). DEFAULT IS FALSE — strict behavior is preserved for every existing caller. Intended for Kubernetes cluster-internal services reached over the cluster mesh (e.g. `http://midaz-ledger.midaz-mt.svc.cluster.local:3000`) and dev/test deployments behind a controlled network boundary. Independent from `WithAllowInsecureAccessManagerHTTP` (auth plane). Equivalent env var: `MIDAZ_ALLOW_INSECURE_HTTP=true` (loaded before URL env vars by `FromEnvironment` so ordering is automatic). Production environment rejects the flag at `Validate()` time. Public companion helpers: `pkg/config.WithAllowInsecureHTTP`, `pkg/config.Config.AllowInsecureHTTP`, `pkg/config.Config.GetAllowInsecureHTTP`, `pkg/security.ValidateOutboundRequestWithInsecureHTTP`, `entities.HTTPClient.SetAllowInsecureHTTP` / `AllowInsecureHTTP`. The redirect policy installed by the data-plane HTTPClient is automatically swapped to the permissive `ValidateRedirectWithInsecureHTTP` variant when the flag is on.
+
+### 🐛 Bug Fixes
+- **Config build fails for cluster-internal `http://*.svc.cluster.local` Ledger/CRM URLs**: downstream plugins running in Kubernetes multi-tenant staging (e.g. `plugin-br-bank-transfer`) configured `MIDAZ_LEDGER_URL=http://midaz-ledger.midaz-mt.svc.cluster.local:3000` and hit `build midaz sdk config: invalid transaction URL: insecure HTTP is only allowed for localhost targets`. The new `WithAllowInsecureHTTP` opt-in (and matching `MIDAZ_ALLOW_INSECURE_HTTP` env var) unblocks this canonical in-cluster pattern without weakening the SDK default.
+
+### ⚠️ Known Limitations
+- `pkg/retry.DoHTTPRequest` and `pkg/performance.BatchProcessor` retain strict outbound-URL validation regardless of `WithAllowInsecureHTTP`. Direct users of those public packages who reach an in-cluster `http://` target should call `security.ValidateOutboundRequestWithInsecureHTTP` from their own pre-flight or keep using HTTPS / loopback. A follow-up will thread the flag through these public retry / batch surfaces.
+
 import "github.com/LerianStudio/midaz-sdk-golang/v2"
 
 [Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v2.1.0-beta.5...v2.1.0-beta.6)
