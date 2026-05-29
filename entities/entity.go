@@ -1,6 +1,17 @@
-// Package entities provides access to the Midaz API resources and operations.
-// It implements service interfaces for interacting with accounts, assets, ledgers,
-// transactions, and other Midaz platform resources.
+// Package entities provides the service interfaces for interacting with the
+// Midaz API resources — organizations, ledgers, accounts, assets, balances,
+// portfolios, segments, transactions, and CRM resources.
+//
+// The package entry point is [Entity], constructed via [NewEntityWithConfig]
+// (or [NewEntityWithConfigContext] for explicit context propagation). Each
+// service is exposed as an interface on Entity (for example Entity.Accounts,
+// Entity.Transactions), letting callers depend on the interface and mock it
+// in tests.
+//
+// All HTTP traffic flows through a shared [HTTPClient] that handles auth
+// injection, retries, idempotency keys, and observability hooks. Service
+// implementations share a small embedded helper (serviceEntity) so that
+// per-service files stay focused on per-service business logic.
 package entities
 
 import (
@@ -32,6 +43,27 @@ type Config interface {
 
 	// GetPluginAuth returns the plugin authentication configuration.
 	GetPluginAuth() auth.AccessManager
+}
+
+// insecureHTTPConfig is an OPTIONAL extension of [Config] that exposes
+// the data-plane insecure-HTTP opt-in. The entities layer uses a type
+// assertion against this interface so adding the method to [Config] does
+// not silently break callers that supply their own Config implementation
+// (e.g. test fixtures). When the assertion fails, the SDK defaults to
+// strict mode (no insecure HTTP), which matches the v3 default behavior.
+type insecureHTTPConfig interface {
+	GetAllowInsecureHTTP() bool
+}
+
+// configAllowsInsecureHTTP reads the optional insecure-HTTP flag from a
+// Config implementation. Returns false for nil or for implementations
+// that do not satisfy [insecureHTTPConfig], preserving the strict default.
+func configAllowsInsecureHTTP(config Config) bool {
+	if ext, ok := config.(insecureHTTPConfig); ok {
+		return ext.GetAllowInsecureHTTP()
+	}
+
+	return false
 }
 
 // Entity provides a centralized access point to all entity types in the Midaz SDK.
@@ -116,9 +148,11 @@ func NewEntityWithConfigContext(ctx context.Context, config Config) (*Entity, er
 	}
 
 	// Create a new entity with the provided configuration
+	allowInsecureHTTP := configAllowsInsecureHTTP(config)
 	httpClient := NewHTTPClient(config.GetHTTPClient(), authToken, config.GetObservabilityProvider())
+	httpClient.SetAllowInsecureHTTP(allowInsecureHTTP)
 
-	normalizedBaseURLs, err := normalizeBaseURLs(config.GetBaseURLs())
+	normalizedBaseURLs, err := normalizeBaseURLs(config.GetBaseURLs(), allowInsecureHTTP)
 	if err != nil {
 		return nil, err
 	}
@@ -353,7 +387,7 @@ func (e *Entity) SetObservability(provider observability.Provider) error {
 	return nil
 }
 
-func normalizeBaseURLs(baseURLs map[string]string) (map[string]string, error) {
+func normalizeBaseURLs(baseURLs map[string]string, allowInsecureHTTP bool) (map[string]string, error) {
 	normalized := maps.Clone(baseURLs)
 	if normalized == nil {
 		return nil, errors.New("service URLs map cannot be nil")
@@ -373,7 +407,7 @@ func normalizeBaseURLs(baseURLs map[string]string) (map[string]string, error) {
 	}
 
 	for service, serviceURL := range normalized {
-		normalizedURL, err := normalizeServiceURL(serviceURL)
+		normalizedURL, err := normalizeServiceURL(serviceURL, allowInsecureHTTP)
 		if err != nil {
 			return nil, fmt.Errorf("invalid %s URL: %w", service, err)
 		}
@@ -384,7 +418,7 @@ func normalizeBaseURLs(baseURLs map[string]string) (map[string]string, error) {
 	return normalized, nil
 }
 
-func normalizeServiceURL(rawURL string) (string, error) {
+func normalizeServiceURL(rawURL string, allowInsecureHTTP bool) (string, error) {
 	parsedURL, err := url.Parse(strings.TrimRight(strings.TrimSpace(rawURL), "/"))
 	if err != nil {
 		return "", err
@@ -402,7 +436,7 @@ func normalizeServiceURL(rawURL string) (string, error) {
 		return "", errors.New("URL must not include query parameters or fragments")
 	}
 
-	if err := security.ValidateOutboundRequest(&http.Request{URL: parsedURL}); err != nil {
+	if err := security.ValidateOutboundRequestWithInsecureHTTP(&http.Request{URL: parsedURL}, allowInsecureHTTP); err != nil {
 		return "", err
 	}
 

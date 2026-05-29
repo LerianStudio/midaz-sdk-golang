@@ -310,17 +310,35 @@ file has a `//go:generate mockgen` directive). See [`examples/09-testing-with-mo
 
 ## Environment variables
 
-The SDK reads these only when `config.FromEnvironment()` is in the option
-chain — there is no implicit env-var loading:
+The SDK reads env vars only when `config.FromEnvironment()` is in the
+option chain — there is no implicit env-var loading. The authoritative
+templates are [`.env.example`](.env.example) (alias of
+[`.env.local.example`](.env.local.example)) and
+[`.env.production.example`](.env.production.example). Copy one with
+`make set-env` and edit in place.
 
-- Service URLs: `MIDAZ_ENVIRONMENT`, `MIDAZ_BASE_URL`, `MIDAZ_ONBOARDING_URL`,
-  `MIDAZ_TRANSACTION_URL`, `MIDAZ_CRM_URL`
-- Auth: `PLUGIN_AUTH_ENABLED`, `PLUGIN_AUTH_ADDRESS`, `MIDAZ_CLIENT_ID`,
-  `MIDAZ_CLIENT_SECRET`
-- Behavior: `MIDAZ_TIMEOUT`, `MIDAZ_USER_AGENT`, `MIDAZ_DEBUG`,
-  `MIDAZ_MAX_RETRIES`, `MIDAZ_IDEMPOTENCY`, `MIDAZ_ERROR_EXPOSE_BODY`
+| Variable | Type | Effect |
+|---|---|---|
+| `MIDAZ_ENVIRONMENT` | `local\|development\|production` | Selects per-environment URL defaults |
+| `MIDAZ_BASE_URL` | URL | Host base; the SDK appends `/v1` for service routes |
+| `MIDAZ_LEDGER_URL` | URL | Specific override for the Ledger plane (onboarding + transactions). Wins over `MIDAZ_BASE_URL` |
+| `MIDAZ_CRM_URL` | URL | Specific override for the CRM service |
+| `MIDAZ_TIMEOUT` | int (seconds) | HTTP client timeout |
+| `MIDAZ_MAX_RETRIES` | int | Maximum retry attempts |
+| `MIDAZ_DEBUG` | bool | Verbose SDK logging |
+| `MIDAZ_IDEMPOTENCY` | bool | Toggle auto-generated `X-Idempotency` headers |
+| `MIDAZ_ERROR_EXPOSE_BODY` | bool | Include the raw response body inside `*pkg/errors.Error` |
+| `PLUGIN_AUTH_ENABLED` | bool | **Sentinel** — must be set for the four Access Manager vars below to take effect |
+| `PLUGIN_AUTH_ADDRESS` | URL | Access Manager endpoint |
+| `MIDAZ_CLIENT_ID` | string | OAuth client ID |
+| `MIDAZ_CLIENT_SECRET` | string | OAuth client secret |
+| `MIDAZ_ACCESS_MANAGER_ALLOW_INSECURE_HTTP` | bool | Permit plain HTTP to the Access Manager. Local development only |
+| `MIDAZ_ALLOW_INSECURE_HTTP` | bool | Permit plain HTTP to the Ledger / CRM service URLs for non-loopback hosts. Intended for Kubernetes cluster-internal services (`*.svc.cluster.local`) reached over the cluster mesh and dev/test deployments behind a controlled network boundary. Leave false for public-internet deployments; rejected at validation time when `MIDAZ_ENVIRONMENT=production` |
 
-See [`docs/configuration.md`](docs/configuration.md) for the full matrix.
+The `User-Agent` header is fixed by the SDK to `midaz-go-sdk/<version>`;
+override programmatically with `midaz.WithUserAgent` if needed. See
+[`docs/configuration.md`](docs/configuration.md) for the full matrix and
+precedence rules.
 
 ## Documentation
 

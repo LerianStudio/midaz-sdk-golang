@@ -60,11 +60,12 @@
 
 ## Security and configuration tips
 
-- Never commit secrets. Configure local runs via `.env` copied from `.env.example`.
-- Service URL variables: `MIDAZ_BASE_URL`, `MIDAZ_ONBOARDING_URL`, `MIDAZ_TRANSACTION_URL`, `MIDAZ_CRM_URL`.
-- Access Manager variables: `PLUGIN_AUTH_ENABLED`, `PLUGIN_AUTH_ADDRESS`, `MIDAZ_CLIENT_ID`, `MIDAZ_CLIENT_SECRET`.
-- Other common variables: `MIDAZ_ENVIRONMENT`, `MIDAZ_USER_AGENT`, `MIDAZ_TIMEOUT`, `MIDAZ_DEBUG`, `MIDAZ_MAX_RETRIES`, `MIDAZ_IDEMPOTENCY`.
-- Environment loading is explicit: use `config.NewConfig(config.FromEnvironment())`.
+- Never commit secrets. Configure local runs via `.env` copied from `.env.example` (alias of `.env.local.example`); use `.env.production.example` as the production template.
+- The three `.env*.example` files are the authoritative list of SDK-read env vars. Keep them in sync with `pkg/config/config.go:FromEnvironment` whenever you change the config surface.
+- Service URL variables: `MIDAZ_BASE_URL`, `MIDAZ_LEDGER_URL`, `MIDAZ_CRM_URL`.
+- Access Manager variables: `PLUGIN_AUTH_ENABLED`, `PLUGIN_AUTH_ADDRESS`, `MIDAZ_CLIENT_ID`, `MIDAZ_CLIENT_SECRET`, `MIDAZ_ACCESS_MANAGER_ALLOW_INSECURE_HTTP`.
+- Behavior variables: `MIDAZ_ENVIRONMENT`, `MIDAZ_TIMEOUT`, `MIDAZ_DEBUG`, `MIDAZ_MAX_RETRIES`, `MIDAZ_IDEMPOTENCY`, `MIDAZ_ERROR_EXPOSE_BODY`.
+- Environment loading is explicit: use `config.NewConfig(config.FromEnvironment())`. The SDK does not auto-read env vars otherwise.
 - Ensure idempotent unsafe requests by setting `X-Idempotency` via `sdkctx.WithIdempotencyKey(ctx, key)` when a stable caller-supplied key is required. The SDK auto-generates one for unsafe methods by default.
 
 ## Agent-specific instructions

@@ -1,4 +1,3 @@
-// Package entities provides direct access to Midaz API services.
 package entities
 
 // Header names used in HTTP requests.

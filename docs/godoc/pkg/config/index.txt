@@ -28,13 +28,12 @@ type Option func(*Config) error
     func WithErrorBodyExposure(enabled bool) Option
     func WithHTTPClient(client *http.Client) Option
     func WithIdempotency(enabled bool) Option
+    func WithLedgerURL(ledgerURL string) Option
     func WithMaxRetries(maxRetries int) Option
     func WithObservabilityProvider(provider observability.Provider) Option
-    func WithOnboardingURL(onboardingURL string) Option
     func WithRetryWaitMax(waitTime time.Duration) Option
     func WithRetryWaitMin(waitTime time.Duration) Option
     func WithTimeout(timeout time.Duration) Option
-    func WithTransactionURL(transactionURL string) Option
     func WithUserAgent(userAgent string) Option
 type ServiceType string
     const ServiceOnboarding ServiceType = "onboarding" ...

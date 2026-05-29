@@ -56,8 +56,7 @@ func TestBatchTransactions_IdempotencyKeyRequiredWhenRetriesEnabled(t *testing.T
 
 			client, err := midaz.New(
 				midaz.WithHTTPClient(server.Client()),
-				midaz.WithOnboardingURL(server.URL),
-				midaz.WithTransactionURL(server.URL),
+				midaz.WithLedgerURL(server.URL),
 				midaz.WithAnonymous(),
 				midaz.WithoutRetries(),
 			)
@@ -105,8 +104,7 @@ func TestBatchTransactions_RetryUsesCallerIdempotencyKeyAndBatchOwnsRetryBudget(
 
 	client, err := midaz.New(
 		midaz.WithHTTPClient(server.Client()),
-		midaz.WithOnboardingURL(server.URL),
-		midaz.WithTransactionURL(server.URL),
+		midaz.WithLedgerURL(server.URL),
 		midaz.WithAnonymous(),
 	)
 	require.NoError(t, err)
@@ -138,8 +136,7 @@ func TestBatchTransactions_SuppressesHTTPRetriesInsideBatchRetryBudget(t *testin
 
 	client, err := midaz.New(
 		midaz.WithHTTPClient(server.Client()),
-		midaz.WithOnboardingURL(server.URL),
-		midaz.WithTransactionURL(server.URL),
+		midaz.WithLedgerURL(server.URL),
 		midaz.WithAnonymous(),
 	)
 	require.NoError(t, err)
@@ -166,8 +163,7 @@ func TestBatchTransactions_DuplicateIdempotencyKeysFailBeforeSend(t *testing.T) 
 
 	client, err := midaz.New(
 		midaz.WithHTTPClient(server.Client()),
-		midaz.WithOnboardingURL(server.URL),
-		midaz.WithTransactionURL(server.URL),
+		midaz.WithLedgerURL(server.URL),
 		midaz.WithAnonymous(),
 	)
 	require.NoError(t, err)
@@ -190,8 +186,7 @@ func TestBatchTransactions_MissingIdempotencyKeyFailsBeforeAnySend(t *testing.T)
 
 	client, err := midaz.New(
 		midaz.WithHTTPClient(server.Client()),
-		midaz.WithOnboardingURL(server.URL),
-		midaz.WithTransactionURL(server.URL),
+		midaz.WithLedgerURL(server.URL),
 		midaz.WithAnonymous(),
 	)
 	require.NoError(t, err)
