@@ -304,6 +304,8 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v3/entities`. Consumers should pre
 
 `CreateTransactionWithDSLFile` sends `POST /transactions/dsl` as multipart form data with field name `transaction`, filename `transaction.dsl`, and UTF-8 DSL content. The SDK rejects empty, invalid UTF-8, and over-limit DSL payloads before network I/O.
 
+`ListTransactions` (and the `*All` / `*Pages` iterators) can filter by a single metadata field via `TransactionsListOpts.Filters.MetadataKey` + `MetadataValue`, rendered on the wire as `metadata.<key>=<value>`. This is the supported way to correlate a ledger transaction back to a caller's business id (e.g. a `transferId` stamped into transaction metadata at create time) — useful for lost-response recovery where the Midaz transaction id was never received. Only one metadata predicate is honored per request (not AND-combinable). Metadata keys are not indexed by default; for a hot correlation key, create the index via `MetadataIndexesService.CreateMetadataIndex(ctx, "transaction", input)` to avoid a backend collection scan at scale.
+
 ### Count method behavior
 
 The supported count methods are `GetOrganizationsMetricsCount`, `GetLedgersMetricsCount`, `GetAssetsMetricsCount`, `GetPortfoliosMetricsCount`, `GetSegmentsMetricsCount`, `GetAccountsMetricsCount`, and `GetTransactionsMetricsCount`.
