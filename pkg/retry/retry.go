@@ -716,7 +716,7 @@ func matchesRetryableHTTPStatus(err error, codes []int) bool {
 
 // isNilInterfaceValue is the typed-nil-aware nil check used throughout
 // pkg/retry. It is a deliberate duplicate of
-// [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors.IsNilInterfaceValue];
+// [github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors.IsNilInterfaceValue];
 // pkg/retry does not currently import pkg/errors (only the tests do)
 // and we keep that decoupling on the runtime side. The two
 // implementations must stay in lockstep — if you change the semantics

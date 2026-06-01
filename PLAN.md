@@ -6,7 +6,7 @@
 > transaction's status back, because the SDK's published status constants do not
 > match what the Midaz server actually emits. This plan fixes the root causes in
 > the SDK so downstream consumers stop hand-rolling raw-string workarounds.
-> SDK checkout at authoring time: module `github.com/LerianStudio/midaz-sdk-golang/v3`, `v4.0.0-2-gbcf6656`.
+> SDK checkout at authoring time: module `github.com/LerianStudio/midaz-sdk-golang/v4`, `v4.0.0-2-gbcf6656`.
 
 ## Ground truth (verified against `../midaz`, server module `github.com/LerianStudio/midaz/v3`)
 

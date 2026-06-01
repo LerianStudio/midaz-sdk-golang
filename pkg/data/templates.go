@@ -1,7 +1,7 @@
 package data
 
 import (
-	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
 )
 
 // OrgTemplate models an organization blueprint with metadata constraints in mind.

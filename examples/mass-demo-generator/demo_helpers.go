@@ -13,12 +13,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v3"
-	conc "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/concurrent"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
-	gen "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/generator"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v4"
+	conc "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/concurrent"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config"
+	gen "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/generator"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/retry"
 	"gopkg.in/yaml.v3"
 )
 

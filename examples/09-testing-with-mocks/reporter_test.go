@@ -6,8 +6,8 @@ import (
 	"iter"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v3/entities/mocks"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/entities/mocks"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
 	"go.uber.org/mock/gomock"
 )
 

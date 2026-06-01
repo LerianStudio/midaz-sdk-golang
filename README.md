@@ -51,7 +51,7 @@ Historical planning artifact — see [`docs/v3-dx-plan.md`](docs/v3-dx-plan.md) 
 ## Installation
 
 ```bash
-go get github.com/LerianStudio/midaz-sdk-golang/v3
+go get github.com/LerianStudio/midaz-sdk-golang/v4
 ```
 
 Requires Go 1.26+ — the toolchain pinned in `go.mod`. The SDK uses
@@ -70,8 +70,8 @@ import (
     "fmt"
     "log"
 
-    midaz "github.com/LerianStudio/midaz-sdk-golang/v3"
-    "github.com/LerianStudio/midaz-sdk-golang/v3/models"
+    midaz "github.com/LerianStudio/midaz-sdk-golang/v4"
+    "github.com/LerianStudio/midaz-sdk-golang/v4/models"
 )
 
 func main() {
@@ -151,7 +151,7 @@ Auto-on by default. The SDK emits `X-Idempotency: <uuid>` on every unsafe
 request. Override per-call:
 
 ```go
-import "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
+import "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/sdkctx"
 
 // Stable key for at-least-once producers (saga steps, outbox rows, UI submissions):
 ctx := sdkctx.WithIdempotencyKey(ctx, "tx-2026-05-06-001")
@@ -169,7 +169,7 @@ Every error is a `*pkg/errors.Error`. Use the typed predicates or
 `errors.As` for structured field access:
 
 ```go
-import sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
+import sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
 
 acc, err := c.Accounts.GetAccount(ctx, orgID, ledgerID, accountID)
 if err != nil {
@@ -229,7 +229,7 @@ Unsafe methods (`POST`, `PUT`, `PATCH`, `DELETE`) retry only when
 retries unless the caller supplies `X-Idempotency` explicitly.
 
 ```go
-import "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry"
+import "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/retry"
 
 c, err := midaz.New(
     midaz.WithEnvironment(midaz.EnvironmentLocal),
@@ -247,7 +247,7 @@ predicates. Disable with `WithoutRetries()`. See [`examples/07-retries/`](exampl
 ### Observability (OpenTelemetry)
 
 ```go
-import "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
+import "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/observability"
 
 provider, err := observability.New(ctx,
     observability.WithServiceName("payments-api"),
@@ -291,7 +291,7 @@ Every service has a generated mock under `entities/mocks/`:
 
 ```go
 import (
-    "github.com/LerianStudio/midaz-sdk-golang/v3/entities/mocks"
+    "github.com/LerianStudio/midaz-sdk-golang/v4/entities/mocks"
     "go.uber.org/mock/gomock"
 )
 
@@ -351,7 +351,7 @@ precedence rules.
 - [`docs/errors.md`](docs/errors.md) — error categories, codes, retry boundaries
 - [`docs/examples.md`](docs/examples.md) — runnable example index
 - [`docs/v3-dx-plan.md`](docs/v3-dx-plan.md) — historical v3 planning artifact (file:line refs may be stale)
-- [`pkg.go.dev/github.com/LerianStudio/midaz-sdk-golang/v3`](https://pkg.go.dev/github.com/LerianStudio/midaz-sdk-golang/v3) — generated API reference
+- [`pkg.go.dev/github.com/LerianStudio/midaz-sdk-golang/v4`](https://pkg.go.dev/github.com/LerianStudio/midaz-sdk-golang/v4) — generated API reference
 
 Generate docs locally:
 

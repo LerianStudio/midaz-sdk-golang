@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/sdkctx"
 )
 
 func TestWithIdempotencyKey(t *testing.T) {

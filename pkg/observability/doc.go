@@ -2,7 +2,7 @@
 // distributed tracing, metrics, and logs with a single [Provider].
 //
 // The provider is the unit of lifecycle: build one at process boot,
-// hand it to [github.com/LerianStudio/midaz-sdk-golang/v3.WithObservabilityProvider],
+// hand it to [github.com/LerianStudio/midaz-sdk-golang/v4.WithObservabilityProvider],
 // shut it down on exit. Every SDK call emits spans + metrics that nest
 // correctly under whatever parent span the caller has open.
 //
@@ -38,9 +38,9 @@
 // # Two-layer surface
 //
 // observability options have a parallel surface on the root midaz
-// package: [github.com/LerianStudio/midaz-sdk-golang/v3.WithObservabilityOptions]
+// package: [github.com/LerianStudio/midaz-sdk-golang/v4.WithObservabilityOptions]
 // (build a provider inline) and
-// [github.com/LerianStudio/midaz-sdk-golang/v3.WithObservabilityProvider]
+// [github.com/LerianStudio/midaz-sdk-golang/v4.WithObservabilityProvider]
 // (use a pre-built provider). Most consumers want the latter.
 //
 // # Logging surfaces
@@ -48,7 +48,7 @@
 // The SDK exposes two distinct logger surfaces, configured independently and
 // backed by different handler chains:
 //
-//   - [github.com/LerianStudio/midaz-sdk-golang/v3.Client.Logger] returns a
+//   - [github.com/LerianStudio/midaz-sdk-golang/v4.Client.Logger] returns a
 //     *slog.Logger — the Go-stdlib idiom. Used by the SDK for retry traces
 //     and other internal lines that are not span-correlated. Configured via
 //     midaz.WithLogger / Config.Debug.
@@ -63,8 +63,8 @@
 //
 // # See also
 //
-//   - [github.com/LerianStudio/midaz-sdk-golang/v3.WithObservabilityProvider]
-//   - [github.com/LerianStudio/midaz-sdk-golang/v3.WithObservabilityOptions]
+//   - [github.com/LerianStudio/midaz-sdk-golang/v4.WithObservabilityProvider]
+//   - [github.com/LerianStudio/midaz-sdk-golang/v4.WithObservabilityOptions]
 //   - docs/logging.md — logging and trace/span ID guidance
 //   - examples/10-observability-otel — runnable end-to-end demo
 //   - examples/tracing — client-side tracing reference

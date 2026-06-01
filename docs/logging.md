@@ -25,7 +25,7 @@ import (
     "os"
     "time"
 
-    midaz "github.com/LerianStudio/midaz-sdk-golang/v3"
+    midaz "github.com/LerianStudio/midaz-sdk-golang/v4"
 )
 
 func main() {

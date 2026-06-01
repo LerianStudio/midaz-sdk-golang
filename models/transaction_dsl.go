@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation/core"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/validation"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/validation/core"
 	"github.com/shopspring/decimal"
 )
 

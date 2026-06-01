@@ -18,9 +18,9 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
-	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/sdkctx"
 )
 
 // TransactionsService defines the interface for transaction-related operations.
@@ -30,10 +30,10 @@ import (
 // to work with a clean, self-contained API.
 //
 // See also:
-//   - [github.com/LerianStudio/midaz-sdk-golang/v3.Client.Transactions] — the production wiring.
-//   - [github.com/LerianStudio/midaz-sdk-golang/v3/entities/mocks.NewMockTransactionsService] — generated mock for unit tests.
-//   - [github.com/LerianStudio/midaz-sdk-golang/v3/models.TransactionsListOpts] — typed cursor list-opts.
-//   - [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx.WithIdempotencyKey] — make creation safe under retries.
+//   - [github.com/LerianStudio/midaz-sdk-golang/v4.Client.Transactions] — the production wiring.
+//   - [github.com/LerianStudio/midaz-sdk-golang/v4/entities/mocks.NewMockTransactionsService] — generated mock for unit tests.
+//   - [github.com/LerianStudio/midaz-sdk-golang/v4/models.TransactionsListOpts] — typed cursor list-opts.
+//   - [github.com/LerianStudio/midaz-sdk-golang/v4/pkg/sdkctx.WithIdempotencyKey] — make creation safe under retries.
 //   - examples/04-listing-cursor — cursor-based pagination demo.
 //   - examples/06-idempotency — idempotency mode reference.
 type TransactionsService interface {

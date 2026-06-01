@@ -10,8 +10,8 @@ import (
 	"iter"
 	"net/http"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
 )
 
 // SegmentsService defines the interface for segment-related operations.

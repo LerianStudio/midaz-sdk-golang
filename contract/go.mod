@@ -1,11 +1,11 @@
 // Nested module: isolates the Midaz server dependency (and its transitive
 // graph) from the SDK's published go.mod. See drift_test.go for rationale.
-module github.com/LerianStudio/midaz-sdk-golang/v3/contract
+module github.com/LerianStudio/midaz-sdk-golang/v4/contract
 
 go 1.26.3
 
 require (
-	github.com/LerianStudio/midaz-sdk-golang/v3 v3.0.0
+	github.com/LerianStudio/midaz-sdk-golang/v4 v4.0.0
 	github.com/LerianStudio/midaz/v3 v3.7.5
 	github.com/stretchr/testify v1.11.1
 )
@@ -19,4 +19,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/LerianStudio/midaz-sdk-golang/v3 => ../
+replace github.com/LerianStudio/midaz-sdk-golang/v4 => ../

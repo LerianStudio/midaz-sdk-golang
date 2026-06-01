@@ -1,6 +1,6 @@
 # Error handling in the Midaz Go SDK
 
-The SDK uses structured errors from `github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors`. Most SDK failures are represented as `*errors.Error`, which preserves SDK category/code, raw Midaz envelope fields, operation/resource context, HTTP status, request ID, and the wrapped underlying error.
+The SDK uses structured errors from `github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors`. Most SDK failures are represented as `*errors.Error`, which preserves SDK category/code, raw Midaz envelope fields, operation/resource context, HTTP status, request ID, and the wrapped underlying error.
 
 ## Core error type
 
@@ -108,7 +108,7 @@ Common constructors include `NewValidationError`, `NewInvalidInputError`, `NewNo
 Prefer SDK helper functions when branching on operational behavior:
 
 ```go
-import sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
+import sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
 
 account, err := c.Accounts.GetAccount(ctx, orgID, ledgerID, accountID)
 if err != nil {
@@ -176,7 +176,7 @@ import (
     stderrors "errors"
     "log"
 
-    sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
+    sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
 )
 
 var sdkErr *sdkerrors.Error
@@ -199,7 +199,7 @@ import (
     stderrors "errors"
     "log"
 
-    sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
+    sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
 )
 
 var sdkErr *sdkerrors.Error
@@ -219,7 +219,7 @@ if stderrors.As(err, &sdkErr) {
 Model validation can return regular errors or `pkg/validation.FieldErrors` depending on the validator used. Field-level errors live in the validation package, not `pkg/errors`:
 
 ```go
-import "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation"
+import "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/validation"
 
 if fieldErrors, ok := err.(*validation.FieldErrors); ok {
     for _, fieldErr := range fieldErrors.GetFieldErrors() {
@@ -230,7 +230,7 @@ if fieldErrors, ok := err.(*validation.FieldErrors); ok {
 
 ## Retry behavior
 
-Retry policies live in `github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry`, not `pkg/errors`.
+Retry policies live in `github.com/LerianStudio/midaz-sdk-golang/v4/pkg/retry`, not `pkg/errors`.
 
 The SDK HTTP layer retries transient failures by default. Retryable HTTP status codes are:
 
@@ -259,7 +259,7 @@ ctx = sdkctx.WithIdempotencyKey(ctx, "request-unique-key")
 Configure client retries with `pkg/retry` options:
 
 ```go
-import "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry"
+import "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/retry"
 
 c, err := midaz.New(
     midaz.WithAnonymous(),

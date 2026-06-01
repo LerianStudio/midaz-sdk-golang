@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/retry"
 )
 
 // ExampleWithMaxRetries shows the simplest customization: cap the
