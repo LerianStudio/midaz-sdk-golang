@@ -91,34 +91,61 @@ type TransactionsService interface {
 	// Returns the updated transaction, or an error if the operation fails.
 	UpdateTransaction(ctx context.Context, organizationID, ledgerID, transactionID string, input *models.UpdateTransactionInput) (*models.Transaction, error)
 
-	// RevertTransaction reverts a committed transaction.
+	// RevertTransaction reverts an APPROVED transaction.
 	// The organizationID and ledgerID parameters specify which organization and ledger the transaction belongs to.
 	// The transactionID parameter is the unique identifier of the transaction to revert.
-	// Returns the reverted transaction, or an error if the operation fails.
+	// Returns the new child reversal transaction, or an error if the operation fails.
 	//
-	// Idempotency contract: auto-generated idempotency is suppressed for this
+	// Precondition: the target must be APPROVED (server-enforced; the SDK does
+	// no client-side status check). A revert does NOT mutate the original
+	// transaction — its status stays APPROVED. Instead the server creates a new
+	// child reversal transaction (CREATED → APPROVED) whose ParentTransactionID
+	// points back at the original. The returned *models.Transaction is that
+	// child, not the original.
+	//
+	// Idempotency: revert is idempotent server-side via the parent-transaction
+	// guard. A re-attempt on an already-reverted transaction is rejected with
+	// API code 0087 (already reverted) or 0088 (target is itself a revert) —
+	// detect this with [errors.IsRevertAlreadyExistsError]. This is the canonical
+	// "already done" proof; reading the original's status will not show it,
+	// because the original never changes. A status-precondition failure (e.g.
+	// the target is not APPROVED) surfaces as 0099 — see
+	// [errors.IsStatusPreconditionError].
+	//
+	// Idempotency-key contract: auto-generated idempotency is suppressed for this
 	// action because Midaz does not expose a clean endpoint-level idempotency
 	// contract here. Retries are allowed only when the caller provides an
 	// explicit key through [sdkctx.WithIdempotencyKey].
 	RevertTransaction(ctx context.Context, organizationID, ledgerID, transactionID string) (*models.Transaction, error)
 
-	// CommitTransaction commits a pending transaction.
+	// CommitTransaction commits a PENDING transaction, transitioning it to APPROVED.
 	// The organizationID and ledgerID parameters specify which organization and ledger the transaction belongs to.
 	// The transactionID parameter is the unique identifier of the transaction to commit.
-	// Returns the committed transaction, or an error if the operation fails.
+	// Returns the committed (APPROVED) transaction, or an error if the operation fails.
 	//
-	// Idempotency contract: same as [TransactionsService.RevertTransaction].
+	// Precondition: the target must be PENDING (server-enforced). A commit on a
+	// non-PENDING transaction is rejected with API code 0099 — see
+	// [errors.IsStatusPreconditionError].
+	//
+	// Idempotency-key contract: same as [TransactionsService.RevertTransaction].
 	CommitTransaction(ctx context.Context, organizationID, ledgerID, transactionID string) (*models.Transaction, error)
 
-	// CancelTransaction cancels a pending transaction.
+	// CancelTransaction cancels a PENDING transaction, transitioning it to CANCELED.
 	// The organizationID and ledgerID parameters specify which organization and ledger the transaction belongs to.
 	// The transactionID parameter is the unique identifier of the transaction to cancel.
 	// Returns an error if the operation fails.
 	//
-	// Idempotency contract: same as [TransactionsService.RevertTransaction].
+	// Precondition: the target must be PENDING (server-enforced). Cancel applies
+	// only before commit; an APPROVED transaction is reversed via
+	// RevertTransaction, not cancelled. A cancel on a non-PENDING transaction is
+	// rejected with API code 0099 — see [errors.IsStatusPreconditionError].
+	//
+	// Idempotency-key contract: same as [TransactionsService.RevertTransaction].
 	CancelTransaction(ctx context.Context, organizationID, ledgerID, transactionID string) error
 
-	// CancelTransactionWithResponse cancels a pending transaction and returns the cancelled transaction.
+	// CancelTransactionWithResponse cancels a PENDING transaction (→ CANCELED)
+	// and returns the cancelled transaction. Preconditions and idempotency are
+	// identical to [TransactionsService.CancelTransaction].
 	CancelTransactionWithResponse(ctx context.Context, organizationID, ledgerID, transactionID string) (*models.Transaction, error)
 
 	// CreateInflowTransaction is a convenience wrapper around CreateTransaction

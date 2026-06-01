@@ -188,7 +188,7 @@ func TestGetCommonSuggestions(t *testing.T) {
 			field:        "transaction_status",
 			value:        "invalid",
 			suggType:     Enumeration,
-			wantContains: []string{"PENDING", "COMPLETED", "FAILED"},
+			wantContains: []string{"PENDING", "APPROVED", "CANCELED"},
 			wantMinLen:   2,
 		},
 		{

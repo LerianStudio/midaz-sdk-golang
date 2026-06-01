@@ -1,66 +1,79 @@
 package models
 
-// Transaction status constants define the possible states of a transaction in the Midaz system.
-// These constants are used throughout the SDK to represent transaction statuses in a consistent way.
+// TransactionStatusCode is the canonical Midaz ledger transaction status.
+// Values mirror github.com/LerianStudio/midaz/v3/pkg/constant (server source of
+// truth); the server's filter handler documents this exact 5-value set
+// (Enums(CREATED, APPROVED, PENDING, CANCELED, NOTED)). There is no REJECTED,
+// COMPLETED, or FAILED status anywhere in the server contract.
 //
-// Transaction Lifecycle:
-// 1. A transaction is created with status "pending" if it requires explicit commitment
-// 2. When committed, the transaction transitions to "completed"
-// 3. If issues occur, the transaction may transition to "failed"
-// 4. A pending transaction can be cancelled, transitioning to "cancelled"
+// This is a distinct concept from the account/resource Status* constants below
+// (ACTIVE/INACTIVE/PENDING/CLOSED). Note the *Pending near-collision: a
+// transaction can be PENDING (awaiting commit), and an account can be PENDING
+// (awaiting activation) — they are unrelated state machines.
 //
-// Usage Examples:
+// Transaction lifecycle (server: transaction_state_handlers.go):
+//   - create(pending:true)  → PENDING  (operations not yet applied to balances)
+//   - create(pending:false) → APPROVED (operations applied immediately)
+//   - annotation create     → NOTED    (metadata-only, no balance impact)
+//   - commit  requires PENDING → APPROVED
+//   - cancel  requires PENDING → CANCELED
+//   - revert  requires APPROVED → creates a NEW child reversal transaction
+//     (CREATED → APPROVED); the original transaction's status is NEVER mutated.
+//     A re-attempt is rejected by the parent-transaction guard (see
+//     errors.IsRevertAlreadyExistsError).
 //
-//	// Check if a transaction is pending and needs to be committed
-//	if transaction.Status == models.TransactionStatusPending {
-//	    // Commit the transaction
-//	    committedTx, err := c.Transactions.CommitTransaction(
-//	        context.Background(),
-//	        "org-123",
-//	        "ledger-456",
-//	        transaction.ID,
-//	    )
+// Status.Code on the wire is a plain string for JSON compatibility; compare
+// against these constants via the string conversion:
+//
+//	if tx.Status.Code == string(models.TransactionStatusApproved) {
+//	    fmt.Println("transaction applied to balances")
 //	}
 //
-//	// Handle different transaction statuses
-//	switch transaction.Status {
-//	case models.TransactionStatusCompleted:
-//	    fmt.Println("Transaction completed successfully")
-//	case models.TransactionStatusPending:
-//	    fmt.Println("Transaction is pending commitment")
-//	case models.TransactionStatusFailed:
-//	    fmt.Println("Transaction failed; inspect the returned SDK error for details")
-//	case models.TransactionStatusCancelled:
-//	    fmt.Println("Transaction was cancelled")
+//	switch tx.Status.Code {
+//	case string(models.TransactionStatusPending):
+//	    // awaiting commit or cancel
+//	case string(models.TransactionStatusApproved):
+//	    // applied to balances
+//	case string(models.TransactionStatusCanceled):
+//	    // terminal: cancelled before commit
+//	case string(models.TransactionStatusNoted):
+//	    // metadata-only annotation
 //	}
+type TransactionStatusCode string
+
 const (
-	// TransactionStatusPending represents a transaction that is not yet completed
-	// Pending transactions have been created but require explicit commitment
-	// before their operations are applied to account balances. This status
-	// is useful for implementing approval workflows or two-phase commits.
-	TransactionStatusPending = "pending"
+	// TransactionStatusCreated is the initial status of a child reversal
+	// transaction before it is approved. Not observed for ordinary
+	// create/commit flows.
+	TransactionStatusCreated TransactionStatusCode = "CREATED"
 
-	// TransactionStatusCompleted represents a successfully completed transaction
-	// Completed transactions have been fully processed and their operations
-	// have been applied to the relevant account balances. This is the final
-	// state for successful transactions.
-	TransactionStatusCompleted = "completed"
+	// TransactionStatusPending is a transaction created with pending:true.
+	// Its operations are not yet applied to balances; it awaits an explicit
+	// commit (→ APPROVED) or cancel (→ CANCELED).
+	TransactionStatusPending TransactionStatusCode = "PENDING"
 
-	// TransactionStatusFailed represents a transaction that failed to process
-	// Failed transactions encountered an error during processing and were
-	// not applied to account balances. Inspect the SDK error returned by the
-	// failing operation for details.
-	TransactionStatusFailed = "failed"
+	// TransactionStatusApproved is a transaction whose operations have been
+	// applied to account balances. This is the terminal success state for
+	// both immediate (pending:false) and committed transactions.
+	TransactionStatusApproved TransactionStatusCode = "APPROVED"
 
-	// TransactionStatusCancelled represents a transaction that was cancelled
-	// Cancelled transactions were explicitly cancelled before being committed.
-	// Only pending transactions can be cancelled; completed transactions cannot
-	// be reversed through cancellation.
-	TransactionStatusCancelled = "cancelled"
+	// TransactionStatusCanceled is a transaction that was cancelled before
+	// commit. Only PENDING transactions can be cancelled; APPROVED
+	// transactions are reversed via a child reversal transaction, not cancelled.
+	TransactionStatusCanceled TransactionStatusCode = "CANCELED"
+
+	// TransactionStatusNoted is an annotation transaction: metadata-only,
+	// with no impact on account balances.
+	TransactionStatusNoted TransactionStatusCode = "NOTED"
 )
 
 // Account status constants define the possible states of an account in the Midaz system.
 // These constants are used throughout the SDK to represent account statuses in a consistent way.
+//
+// This resource status set is distinct from the transaction TransactionStatusCode
+// set above. The shared "PENDING" spelling is coincidental: an account PENDING
+// means "awaiting activation/approval", whereas a transaction PENDING means
+// "awaiting commit". Do not compare across the two vocabularies.
 const (
 	// StatusActive represents an active resource that can be used normally
 	// Active accounts can participate in transactions as both source and destination.

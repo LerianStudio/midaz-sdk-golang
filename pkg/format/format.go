@@ -622,7 +622,7 @@ func getTimeUnit(shortUnit, longUnit string, useShort bool) string {
 //	    Amount: 10000,
 //	    Scale: 2,
 //	    AssetCode: "USD",
-//	    Status: models.Status{Code: "COMPLETED"},
+//	    Status: models.Status{Code: "APPROVED"},
 //	    Operations: []models.Operation{
 //	        {
 //	            Type: "DEBIT",
@@ -638,7 +638,7 @@ func getTimeUnit(shortUnit, longUnit string, useShort bool) string {
 //	}
 //	summary := format.Transaction(tx)
 //	fmt.Println(summary)
-//	// Result: "Transfer: 100.00 USD from savings to checking (Completed)"
+//	// Result: "Transfer: 100.00 USD from savings to checking (Approved)"
 func Transaction(tx *models.Transaction) string {
 	// TransactionWithOptions with no options always succeeds
 	result, _ := TransactionWithOptions(tx) //nolint:errcheck // default options never fail

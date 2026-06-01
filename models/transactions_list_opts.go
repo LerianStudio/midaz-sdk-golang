@@ -1,9 +1,10 @@
 // Copyright 2025 Lerian Studio
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: Elastic-2.0
 
 package models
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation/core"
@@ -38,7 +39,9 @@ type TransactionsFilters struct {
 	// AssetCode narrows by asset code (e.g. "USD").
 	AssetCode string
 
-	// Status narrows by transaction status (e.g. "COMPLETED").
+	// Status narrows by transaction status (e.g. "APPROVED").
+	// Valid values mirror TransactionStatusCode:
+	// CREATED, PENDING, APPROVED, CANCELED, NOTED.
 	Status string
 
 	// Reference narrows by external transaction reference.
@@ -88,7 +91,7 @@ func validateMetadataFilter(key, value string) error {
 	}
 
 	if key == "" || value == "" {
-		return fmt.Errorf("TransactionsListOpts.Validate: metadata filter requires both MetadataKey and MetadataValue")
+		return errors.New("TransactionsListOpts.Validate: metadata filter requires both MetadataKey and MetadataValue")
 	}
 
 	if err := core.ValidateMetadata(map[string]any{key: value}); err != nil {

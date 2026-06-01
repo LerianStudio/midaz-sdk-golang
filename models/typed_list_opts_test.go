@@ -670,7 +670,7 @@ func TestTypedListOpts_ToQueryParams_FilterEncoding(t *testing.T) {
 			CursorListOpts: CursorListOpts{Limit: 50},
 			Filters: TransactionsFilters{
 				AssetCode:          "EUR",
-				Status:             "COMPLETED",
+				Status:             "APPROVED",
 				Reference:          "ref-9",
 				DestinationAccount: "dst",
 				SourceAccount:      "src",
@@ -682,7 +682,7 @@ func TestTypedListOpts_ToQueryParams_FilterEncoding(t *testing.T) {
 		require.NoError(t, opts.Validate())
 		params := opts.ToQueryParams()
 		assert.Equal(t, "EUR", params["asset_code"])
-		assert.Equal(t, "COMPLETED", params["status"])
+		assert.Equal(t, "APPROVED", params["status"])
 		assert.Equal(t, "ref-9", params["reference"])
 		assert.Equal(t, "dst", params["destination_account"])
 		assert.Equal(t, "src", params["source_account"])
@@ -758,7 +758,7 @@ func TestTransactionsListOpts_MetadataFilter(t *testing.T) {
 		keyOnly := TransactionsListOpts{Filters: TransactionsFilters{MetadataKey: "transferId"}}
 		_, hasKey := keyOnly.ToQueryParams()["metadata.transferId"]
 		assert.False(t, hasKey, "key without value must not emit a param")
-		assert.Error(t, keyOnly.Validate(), "key without value must fail validation")
+		require.Error(t, keyOnly.Validate(), "key without value must fail validation")
 
 		valOnly := TransactionsListOpts{Filters: TransactionsFilters{MetadataValue: "abc-123"}}
 		assert.NotContains(t, valOnly.ToQueryParams(), "metadata.", "value without key must not emit a param")
@@ -767,7 +767,7 @@ func TestTransactionsListOpts_MetadataFilter(t *testing.T) {
 
 	t.Run("reserved key chars rejected", func(t *testing.T) {
 		dotted := TransactionsListOpts{Filters: TransactionsFilters{MetadataKey: "a.b", MetadataValue: "x"}}
-		assert.Error(t, dotted.Validate(), "metadata key with '.' must be rejected (storage-layer reserved)")
+		require.Error(t, dotted.Validate(), "metadata key with '.' must be rejected (storage-layer reserved)")
 
 		dollar := TransactionsListOpts{Filters: TransactionsFilters{MetadataKey: "$set", MetadataValue: "x"}}
 		assert.Error(t, dollar.Validate(), "metadata key starting with '$' must be rejected")
