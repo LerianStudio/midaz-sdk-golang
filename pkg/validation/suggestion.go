@@ -259,7 +259,7 @@ func getEnumerationSuggestions(field string, value any) []string {
 	// Transaction status suggestions
 	if match(fieldLower, "transaction.*status|tx.*status|status") {
 		return []string{
-			"Valid transaction statuses are: 'PENDING', 'COMPLETED', 'FAILED', 'CANCELED'",
+			"Valid transaction statuses are: 'CREATED', 'PENDING', 'APPROVED', 'CANCELED', 'NOTED'",
 			fmt.Sprintf("The value '%v' is not a valid transaction status", value),
 			"Transaction statuses must be uppercase",
 		}

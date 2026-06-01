@@ -233,7 +233,7 @@ func TestTransactionHelpers_MultiTransferTemplateAndLifecycle(t *testing.T) {
 			writeJSON(t, w, map[string]any{"id": "tx-created", "status": map[string]any{"code": "PENDING"}})
 		case "/v1/organizations/org-1/ledgers/ledger-1/transactions/tx-created/commit":
 			assert.Equal(t, http.MethodPost, r.Method)
-			writeJSON(t, w, map[string]any{"id": "tx-created", "status": map[string]any{"code": "COMPLETED"}})
+			writeJSON(t, w, map[string]any{"id": "tx-created", "status": map[string]any{"code": "APPROVED"}})
 		case "/v1/organizations/org-1/ledgers/ledger-1/transactions/tx-created/cancel":
 			assert.Equal(t, http.MethodPost, r.Method)
 			writeJSON(t, w, map[string]any{"id": "tx-created", "status": map[string]any{"code": "CANCELED"}})
@@ -291,7 +291,7 @@ func TestTransactionHelpers_MultiTransferTemplateAndLifecycle(t *testing.T) {
 
 	committed, err := CommitPendingTransaction(context.Background(), entity, "org-1", "ledger-1", "tx-created")
 	require.NoError(t, err)
-	assert.Equal(t, "COMPLETED", committed.Status.Code)
+	assert.Equal(t, "APPROVED", committed.Status.Code)
 
 	canceled, err := CancelPendingTransaction(context.Background(), entity, "org-1", "ledger-1", "tx-created")
 	require.NoError(t, err)

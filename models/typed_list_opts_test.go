@@ -670,7 +670,7 @@ func TestTypedListOpts_ToQueryParams_FilterEncoding(t *testing.T) {
 			CursorListOpts: CursorListOpts{Limit: 50},
 			Filters: TransactionsFilters{
 				AssetCode:          "EUR",
-				Status:             "COMPLETED",
+				Status:             "APPROVED",
 				Reference:          "ref-9",
 				DestinationAccount: "dst",
 				SourceAccount:      "src",
@@ -682,7 +682,7 @@ func TestTypedListOpts_ToQueryParams_FilterEncoding(t *testing.T) {
 		require.NoError(t, opts.Validate())
 		params := opts.ToQueryParams()
 		assert.Equal(t, "EUR", params["asset_code"])
-		assert.Equal(t, "COMPLETED", params["status"])
+		assert.Equal(t, "APPROVED", params["status"])
 		assert.Equal(t, "ref-9", params["reference"])
 		assert.Equal(t, "dst", params["destination_account"])
 		assert.Equal(t, "src", params["source_account"])

@@ -711,46 +711,52 @@ func CreateFromTemplate(
 	return transaction, nil
 }
 
-// IsTransactionSuccessful checks if a transaction was successfully completed
+// IsTransactionSuccessful reports whether a transaction's operations have been
+// applied to account balances. Per the Midaz server contract, that terminal
+// success state is APPROVED (the result of an immediate create or a commit) —
+// there is no COMPLETED status.
 //
 // Parameters:
 //   - tx: The transaction to check
 //
 // Returns:
-//   - true if the transaction is completed successfully, false otherwise
+//   - true if the transaction status is APPROVED, false otherwise
 func IsTransactionSuccessful(tx *models.Transaction) bool {
 	if tx == nil {
 		return false
 	}
 
-	// Check if the status is "COMPLETED"
-	return tx.Status.Code == "COMPLETED"
+	return tx.Status.Code == string(models.TransactionStatusApproved)
 }
 
-// GetTransactionStatus returns a clean status string for a transaction
+// GetTransactionStatus returns a clean, human-readable status string for a
+// transaction, mapping the server's canonical 5-value vocabulary
+// (CREATED/PENDING/APPROVED/CANCELED/NOTED) to title-case display strings.
+// Any unrecognized status is returned verbatim.
 //
 // Parameters:
 //   - tx: The transaction to check
 //
 // Returns:
-//   - A clean status string (e.g., "Completed", "Failed", "Pending")
+//   - A clean status string (e.g., "Approved", "Pending", "Canceled")
 func GetTransactionStatus(tx *models.Transaction) string {
 	if tx == nil {
 		return "Unknown"
 	}
 
-	status := tx.Status.Code
-	switch status {
-	case "COMPLETED":
-		return "Completed"
-	case "FAILED":
-		return "Failed"
-	case "PENDING":
+	switch tx.Status.Code {
+	case string(models.TransactionStatusCreated):
+		return "Created"
+	case string(models.TransactionStatusPending):
 		return "Pending"
-	case "CANCELED":
+	case string(models.TransactionStatusApproved):
+		return "Approved"
+	case string(models.TransactionStatusCanceled):
 		return "Canceled"
+	case string(models.TransactionStatusNoted):
+		return "Noted"
 	default:
-		return status
+		return tx.Status.Code
 	}
 }
 

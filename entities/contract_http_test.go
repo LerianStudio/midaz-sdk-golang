@@ -316,7 +316,7 @@ func TestTransactionsEntity_JSONDSLAndLifecycleContracts(t *testing.T) {
 		case r.Method == http.MethodPost && r.URL.EscapedPath() == "/organizations/org%2F1/ledgers/ledger%2F1/transactions/tx%2F1/revert":
 			writeEntityJSON(t, w, entityTransactionResponse("tx/1", "REVERTED"))
 		case r.Method == http.MethodPost && r.URL.EscapedPath() == "/organizations/org%2F1/ledgers/ledger%2F1/transactions/tx%2F1/commit":
-			writeEntityJSON(t, w, entityTransactionResponse("tx/1", "COMPLETED"))
+			writeEntityJSON(t, w, entityTransactionResponse("tx/1", "APPROVED"))
 		case r.Method == http.MethodPost && r.URL.EscapedPath() == "/organizations/org%2F1/ledgers/ledger%2F1/transactions/tx%2F1/cancel":
 			writeEntityJSON(t, w, entityTransactionResponse("tx/1", "CANCELED"))
 		default:
@@ -371,7 +371,7 @@ func TestTransactionsEntity_JSONDSLAndLifecycleContracts(t *testing.T) {
 
 	tx, err = service.CommitTransaction(ctx, "org/1", "ledger/1", "tx/1")
 	require.NoError(t, err)
-	assert.Equal(t, "COMPLETED", tx.Status.Code)
+	assert.Equal(t, "APPROVED", tx.Status.Code)
 
 	tx, err = service.CancelTransactionWithResponse(ctx, "org/1", "ledger/1", "tx/1")
 	require.NoError(t, err)

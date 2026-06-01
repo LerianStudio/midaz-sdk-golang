@@ -7,35 +7,40 @@ import (
 func TestTransactionStatusConstants(t *testing.T) {
 	tests := []struct {
 		name     string
-		constant string
+		constant TransactionStatusCode
 		expected string
 	}{
 		{
+			name:     "TransactionStatusCreated",
+			constant: TransactionStatusCreated,
+			expected: "CREATED",
+		},
+		{
 			name:     "TransactionStatusPending",
 			constant: TransactionStatusPending,
-			expected: "pending",
+			expected: "PENDING",
 		},
 		{
-			name:     "TransactionStatusCompleted",
-			constant: TransactionStatusCompleted,
-			expected: "completed",
+			name:     "TransactionStatusApproved",
+			constant: TransactionStatusApproved,
+			expected: "APPROVED",
 		},
 		{
-			name:     "TransactionStatusFailed",
-			constant: TransactionStatusFailed,
-			expected: "failed",
+			name:     "TransactionStatusCanceled",
+			constant: TransactionStatusCanceled,
+			expected: "CANCELED",
 		},
 		{
-			name:     "TransactionStatusCancelled",
-			constant: TransactionStatusCancelled,
-			expected: "cancelled",
+			name:     "TransactionStatusNoted",
+			constant: TransactionStatusNoted,
+			expected: "NOTED",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.constant != tt.expected {
-				t.Errorf("Expected %s to be %s, got %s", tt.name, tt.expected, tt.constant)
+			if string(tt.constant) != tt.expected {
+				t.Errorf("Expected %s to be %s, got %s", tt.name, tt.expected, string(tt.constant))
 			}
 		})
 	}
@@ -225,14 +230,15 @@ func TestStatusConstantsUniqueness(t *testing.T) {
 
 func TestTransactionStatusConstantsUniqueness(t *testing.T) {
 	// Ensure that all transaction status constants are unique
-	statuses := []string{
+	statuses := []TransactionStatusCode{
+		TransactionStatusCreated,
 		TransactionStatusPending,
-		TransactionStatusCompleted,
-		TransactionStatusFailed,
-		TransactionStatusCancelled,
+		TransactionStatusApproved,
+		TransactionStatusCanceled,
+		TransactionStatusNoted,
 	}
 
-	seen := make(map[string]bool)
+	seen := make(map[TransactionStatusCode]bool)
 	for _, status := range statuses {
 		if seen[status] {
 			t.Errorf("Duplicate transaction status constant found: %s", status)

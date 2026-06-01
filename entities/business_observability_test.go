@@ -58,7 +58,7 @@ func TestBusinessObservability_AccountAndTransactionLifecycle(t *testing.T) {
 			writeBusinessJSON(t, w, map[string]any{"id": "tx-1", "status": map[string]any{"code": "PENDING"}})
 		case "/v1/organizations/org-1/ledgers/ledger-1/transactions/tx-1/commit":
 			assert.Equal(t, http.MethodPost, r.Method)
-			writeBusinessJSON(t, w, map[string]any{"id": "tx-1", "status": map[string]any{"code": "COMPLETED"}})
+			writeBusinessJSON(t, w, map[string]any{"id": "tx-1", "status": map[string]any{"code": "APPROVED"}})
 		case "/v1/organizations/org-1/ledgers/ledger-1/transactions/tx-1/cancel":
 			assert.Equal(t, http.MethodPost, r.Method)
 			writeBusinessJSON(t, w, map[string]any{"id": "tx-1", "status": map[string]any{"code": "CANCELED"}})
@@ -97,7 +97,7 @@ func TestBusinessObservability_AccountAndTransactionLifecycle(t *testing.T) {
 
 	committed, err := entity.Transactions.CommitTransaction(ctx, "org-1", "ledger-1", "tx-1")
 	require.NoError(t, err)
-	assert.Equal(t, "COMPLETED", committed.Status.Code)
+	assert.Equal(t, "APPROVED", committed.Status.Code)
 
 	cancelled, err := entity.Transactions.CancelTransactionWithResponse(ctx, "org-1", "ledger-1", "tx-1")
 	require.NoError(t, err)

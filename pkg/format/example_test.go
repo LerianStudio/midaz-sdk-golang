@@ -79,7 +79,7 @@ func ExampleTransaction() {
 	transfer := &models.Transaction{
 		Amount:    "100.00",
 		AssetCode: "USD",
-		Status:    models.Status{Code: "COMPLETED"},
+		Status:    models.Status{Code: "APPROVED"},
 		Operations: []models.Operation{
 			{Type: "DEBIT", AccountAlias: "savings"},
 			{Type: "CREDIT", AccountAlias: "checking"},
@@ -90,7 +90,7 @@ func ExampleTransaction() {
 	deposit := &models.Transaction{
 		Amount:    "50.00",
 		AssetCode: "USD",
-		Status:    models.Status{Code: "COMPLETED"},
+		Status:    models.Status{Code: "APPROVED"},
 		Operations: []models.Operation{
 			{Type: "DEBIT", AccountAlias: "@external/USD"},
 			{Type: "CREDIT", AccountAlias: "wallet"},
@@ -98,8 +98,8 @@ func ExampleTransaction() {
 	}
 	fmt.Println(format.Transaction(deposit))
 	// Output:
-	// Transfer: 100.00 USD from savings to checking (Completed)
-	// Deposit: 50.00 USD to wallet (Completed)
+	// Transfer: 100.00 USD from savings to checking (Approved)
+	// Deposit: 50.00 USD to wallet (Approved)
 }
 
 // ExampleParseISO handles the three ISO timestamp shapes the Midaz API may

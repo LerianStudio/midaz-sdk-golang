@@ -24,11 +24,16 @@ const maxDecimalInputLength = 128
 // the movement of assets between accounts. Each transaction consists of one or more
 // operations (debits and credits) that must balance (sum to zero) for each asset type.
 //
-// Transactions can be in different states as indicated by their Status field:
-//   - PENDING: The transaction is created but not yet committed
-//   - COMPLETED: The transaction is committed and has affected account balances
-//   - FAILED: The transaction processing failed
-//   - CANCELED: The transaction was canceled before being committed
+// Transactions can be in different states as indicated by their Status field.
+// The canonical status set (see TransactionStatusCode) is:
+//   - CREATED: Initial status of a child reversal transaction before approval
+//   - PENDING: Created with pending:true; awaits commit or cancel, balances untouched
+//   - APPROVED: Operations applied to balances (immediate create or commit) — terminal success
+//   - CANCELED: A PENDING transaction cancelled before commit
+//   - NOTED: An annotation transaction (metadata-only, no balance impact)
+//
+// A revert does not mutate the original (which stays APPROVED); it creates a new
+// child reversal transaction. There is no COMPLETED, FAILED, or REJECTED status.
 //
 // Example usage:
 //
@@ -73,8 +78,9 @@ type Transaction struct {
 	// RouteID is the UUID of the transaction route.
 	RouteID string `json:"routeId,omitempty"`
 
-	// Status indicates the current processing status of the transaction
-	// See the Status enum for possible values (PENDING, COMPLETED, FAILED, CANCELED)
+	// Status indicates the current processing status of the transaction.
+	// See TransactionStatusCode for the canonical values
+	// (CREATED, PENDING, APPROVED, CANCELED, NOTED).
 	Status Status `json:"status"`
 
 	// ChartOfAccountsGroupName specifies the chart of accounts group to use
