@@ -4,6 +4,7 @@
 package models
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation/core"
@@ -90,7 +91,7 @@ func validateMetadataFilter(key, value string) error {
 	}
 
 	if key == "" || value == "" {
-		return fmt.Errorf("TransactionsListOpts.Validate: metadata filter requires both MetadataKey and MetadataValue")
+		return errors.New("TransactionsListOpts.Validate: metadata filter requires both MetadataKey and MetadataValue")
 	}
 
 	if err := core.ValidateMetadata(map[string]any{key: value}); err != nil {
