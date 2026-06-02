@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v3"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/concurrent"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/format"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/performance"
+	"github.com/LerianStudio/midaz-sdk-golang/v4"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/concurrent"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/format"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/performance"
 	"github.com/shopspring/decimal"
 )
 

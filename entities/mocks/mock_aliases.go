@@ -14,7 +14,7 @@ import (
 	iter "iter"
 	reflect "reflect"
 
-	models "github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	models "github.com/LerianStudio/midaz-sdk-golang/v4/models"
 	gomock "go.uber.org/mock/gomock"
 )
 

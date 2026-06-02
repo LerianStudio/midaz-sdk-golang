@@ -1,6 +1,6 @@
 # Midaz Go SDK public API map
 
-This map documents the recommended public SDK surface that consumers should use. It is not a replacement for generated Go docs. The root module is `github.com/LerianStudio/midaz-sdk-golang/v3`; the Go package name is `midaz`.
+This map documents the recommended public SDK surface that consumers should use. It is not a replacement for generated Go docs. The root module is `github.com/LerianStudio/midaz-sdk-golang/v4`; the Go package name is `midaz`.
 
 ## Root package
 
@@ -50,7 +50,7 @@ This map documents the recommended public SDK surface that consumers should use.
 
 ## Validation package
 
-Use `github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation` for optional client-side validation helpers.
+Use `github.com/LerianStudio/midaz-sdk-golang/v4/pkg/validation` for optional client-side validation helpers.
 
 - `validation.NewValidator(options ...core.ValidationOption) (*validation.Validator, error)`
 - `validation.DefaultValidator() *validation.Validator`
@@ -65,7 +65,7 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation` for optional cl
 
 ## Configuration package
 
-Use `github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config`.
+Use `github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config`.
 
 ### Constructors and options
 
@@ -110,7 +110,7 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config`.
 
 ## Access Manager package
 
-Use `github.com/LerianStudio/midaz-sdk-golang/v3/pkg/auth` (no alias needed; package name is `auth`).
+Use `github.com/LerianStudio/midaz-sdk-golang/v4/pkg/auth` (no alias needed; package name is `auth`).
 
 - `auth.AccessManager` - Plugin authentication configuration with `Enabled`, `Address`, `ClientID`, `ClientSecret`, and `AllowInsecureHTTP`. Re-exported as `midaz.AccessManager` so a typical setup needs only the root import.
 - `config.WithAccessManager(auth.AccessManager)` / `midaz.WithAccessManager(midaz.AccessManager)` - Configure plugin auth. The Enabled field is auto-set to true; callers populate Address/ClientID/ClientSecret only.
@@ -120,7 +120,7 @@ v3 contract: `midaz.New()` requires exactly one of `WithAccessManager` or `WithA
 
 ## Entity package
 
-Use `github.com/LerianStudio/midaz-sdk-golang/v3/entities`. Consumers should prefer promoted client services such as `c.Accounts`, `c.Transactions`, and `c.Organizations`; `c.Entity.Accounts` remains available as the embedded back-compat access path.
+Use `github.com/LerianStudio/midaz-sdk-golang/v4/entities`. Consumers should prefer promoted client services such as `c.Accounts`, `c.Transactions`, and `c.Organizations`; `c.Entity.Accounts` remains available as the embedded back-compat access path.
 
 ### Entity access point
 
@@ -304,6 +304,8 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v3/entities`. Consumers should pre
 
 `CreateTransactionWithDSLFile` sends `POST /transactions/dsl` as multipart form data with field name `transaction`, filename `transaction.dsl`, and UTF-8 DSL content. The SDK rejects empty, invalid UTF-8, and over-limit DSL payloads before network I/O.
 
+`ListTransactions` (and the `*All` / `*Pages` iterators) can filter by a single metadata field via `TransactionsListOpts.Filters.MetadataKey` + `MetadataValue`, rendered on the wire as `metadata.<key>=<value>`. This is the supported way to correlate a ledger transaction back to a caller's business id (e.g. a `transferId` stamped into transaction metadata at create time) — useful for lost-response recovery where the Midaz transaction id was never received. Only one metadata predicate is honored per request (not AND-combinable). Metadata keys are not indexed by default; for a hot correlation key, create the index via `MetadataIndexesService.CreateMetadataIndex(ctx, "transaction", input)` to avoid a backend collection scan at scale.
+
 ### Count method behavior
 
 The supported count methods are `GetOrganizationsMetricsCount`, `GetLedgersMetricsCount`, `GetAssetsMetricsCount`, `GetPortfoliosMetricsCount`, `GetSegmentsMetricsCount`, `GetAccountsMetricsCount`, and `GetTransactionsMetricsCount`.
@@ -345,7 +347,7 @@ CRM services use the CRM base URL and set the organization through the `X-Organi
 
 ## Models package
 
-Use `github.com/LerianStudio/midaz-sdk-golang/v3/models`.
+Use `github.com/LerianStudio/midaz-sdk-golang/v4/models`.
 
 ### List and pagination
 
@@ -431,7 +433,7 @@ Each per-entity opts struct exposes:
 
 ## Errors package
 
-Use `github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors`.
+Use `github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors`.
 
 - Core type: `*errors.Error`.
 - Sentinel errors: `ErrValidation`, `ErrAuthentication`, `ErrPermission`, `ErrAuth`, `ErrNotFound`, `ErrAlreadyExists`, `ErrIdempotency`, `ErrRateLimit`, `ErrTimeout`, `ErrCancellation`, `ErrInternal`, `ErrUnprocessable`, `ErrConfiguration`, `ErrInsufficientBalance`, `ErrAccountEligibility`, `ErrAssetMismatch`.
@@ -442,7 +444,7 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors`.
 
 ## Observability package
 
-Use `github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability`.
+Use `github.com/LerianStudio/midaz-sdk-golang/v4/pkg/observability`.
 
 - `observability.New(ctx, opts...)`
 - `observability.WithServiceName(string)`
@@ -468,7 +470,7 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability`.
 
 ## Retry package
 
-Use `github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry`.
+Use `github.com/LerianStudio/midaz-sdk-golang/v4/pkg/retry`.
 
 - `retry.Do(ctx, fn, opts...)`
 - `retry.DoWithContext(ctx, fn)`
@@ -484,7 +486,7 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry`.
 
 ## Generator package
 
-Use `github.com/LerianStudio/midaz-sdk-golang/v3/pkg/generator` for demo-data workflows and example tooling.
+Use `github.com/LerianStudio/midaz-sdk-golang/v4/pkg/generator` for demo-data workflows and example tooling.
 
 - `generator.DefaultConfig() generator.GeneratorConfig`
 - `(*generator.GeneratorConfig).WithOverrides(generator.GeneratorConfig)` - Additive merge helper. Numeric zero values and empty slices do not override; boolean fields are additive and cannot disable an already-enabled value.

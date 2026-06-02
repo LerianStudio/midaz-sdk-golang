@@ -7,8 +7,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v3/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
 )
 
 // CreateTransactionRoute creates a new transaction route within a ledger.

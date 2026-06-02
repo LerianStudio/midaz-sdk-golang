@@ -27,6 +27,6 @@
 // # See also
 //
 //   - examples/mass-demo-generator — primary consumer
-//   - [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/generator] —
+//   - [github.com/LerianStudio/midaz-sdk-golang/v4/pkg/generator] —
 //     higher-level generator that composes catalogs from this package
 package data

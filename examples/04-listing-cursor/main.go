@@ -30,9 +30,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v3"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
+	"github.com/LerianStudio/midaz-sdk-golang/v4"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config"
 )
 
 func main() {
@@ -89,7 +89,7 @@ func manualCursorLoop(ctx context.Context, c *midaz.Client, orgID, ledgerID stri
 
 	opts := models.TransactionsListOpts{
 		CursorListOpts: models.CursorListOpts{Limit: 50},
-		Filters:        models.TransactionsFilters{Status: "APPROVED"},
+		Filters:        models.TransactionsFilters{Status: string(models.TransactionStatusApproved)},
 	}
 
 	pageNum := 0
@@ -181,8 +181,11 @@ func earlyTermination(ctx context.Context, c *midaz.Client, orgID, ledgerID stri
 			return fmt.Errorf("tx iter: %w", err)
 		}
 
-		if tx.Status.Code == "REJECTED" {
-			fmt.Printf("  found first rejected tx %s, stopping\n", tx.ID)
+		// Stop at the first terminal cancelled transaction. CANCELED is a real
+		// server status (a PENDING transaction cancelled before commit); the
+		// server never emits REJECTED.
+		if tx.Status.Code == string(models.TransactionStatusCanceled) {
+			fmt.Printf("  found first canceled tx %s, stopping\n", tx.ID)
 			break
 		}
 	}

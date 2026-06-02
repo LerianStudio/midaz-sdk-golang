@@ -3,7 +3,7 @@ package models
 import (
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/validation"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/validation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

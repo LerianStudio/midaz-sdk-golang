@@ -348,8 +348,8 @@ type HTTPClientOption func(*http.Client) error
 // WithHTTPTimeout sets the timeout for the HTTP client.
 //
 // In v2/early-v3 this was named WithTimeout, which collided in autocomplete
-// with [github.com/LerianStudio/midaz-sdk-golang/v3.WithTimeout] and
-// [github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config.WithTimeout]
+// with [github.com/LerianStudio/midaz-sdk-golang/v4.WithTimeout] and
+// [github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config.WithTimeout]
 // despite returning a different Option type ([HTTPClientOption], not
 // [Option]). Track 6 Batch 6E renamed it to break the collision.
 func WithHTTPTimeout(d time.Duration) HTTPClientOption {

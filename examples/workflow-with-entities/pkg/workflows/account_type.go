@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v3"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v4"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
 )
 
 // CreateAccountType creates a new account type in the specified organization and ledger

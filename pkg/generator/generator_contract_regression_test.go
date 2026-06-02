@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v3/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
-	conc "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/concurrent"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
+	conc "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/concurrent"
 	"github.com/stretchr/testify/require"
 )
 

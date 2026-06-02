@@ -15,8 +15,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v3/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
 )
 
 // AccountReporter computes summary statistics across a ledger's

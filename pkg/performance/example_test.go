@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/performance"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/performance"
 )
 
 // ExampleGetOptimalBatchSize captures a surprising behavior: this helper does

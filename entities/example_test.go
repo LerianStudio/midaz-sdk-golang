@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v3"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
+	client "github.com/LerianStudio/midaz-sdk-golang/v4"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config"
 )
 
 // Anchor identifiers that satisfy go vet's example-naming requirement

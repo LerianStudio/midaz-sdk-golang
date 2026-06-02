@@ -1,12 +1,12 @@
 // Copyright 2025 Lerian Studio
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: Elastic-2.0
 
 package entities
 
 import (
 	"iter"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
 )
 
 // Collect drains up to maxItems items from a paginated iter.Seq2[T, error]

@@ -23,10 +23,10 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v3/internal/reflectutil"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/auth"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/security"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/internal/reflectutil"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/auth"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/security"
 )
 
 // Config is an interface for accessing configuration values.

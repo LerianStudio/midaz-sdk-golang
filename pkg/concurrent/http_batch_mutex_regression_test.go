@@ -1,5 +1,5 @@
 // Copyright 2025 Lerian Studio
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: Elastic-2.0
 
 package concurrent_test
 
@@ -13,7 +13,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/concurrent"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/concurrent"
 	"github.com/stretchr/testify/require"
 )
 

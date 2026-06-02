@@ -4,11 +4,11 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
-	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
 )
 
-// ExampleCreateOrganizationInput_Validate demonstrates the v3
+// ExampleCreateOrganizationInput_Validate demonstrates the v4
 // validation contract: every input has a Validate() method that
 // accumulates field errors. Returns nil when the input is valid.
 func ExampleCreateOrganizationInput_Validate() {

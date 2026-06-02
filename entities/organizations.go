@@ -10,8 +10,8 @@ import (
 	"iter"
 	"net/http"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
 )
 
 // OrganizationsService defines the interface for organization-related operations.
@@ -19,9 +19,9 @@ import (
 // in the Midaz platform.
 //
 // See also:
-//   - [github.com/LerianStudio/midaz-sdk-golang/v3.Client.Organizations] — the production wiring.
-//   - [github.com/LerianStudio/midaz-sdk-golang/v3/entities/mocks.NewMockOrganizationsService] — generated mock for unit tests.
-//   - [github.com/LerianStudio/midaz-sdk-golang/v3/models.OrganizationsListOpts] — typed list-opts.
+//   - [github.com/LerianStudio/midaz-sdk-golang/v4.Client.Organizations] — the production wiring.
+//   - [github.com/LerianStudio/midaz-sdk-golang/v4/entities/mocks.NewMockOrganizationsService] — generated mock for unit tests.
+//   - [github.com/LerianStudio/midaz-sdk-golang/v4/models.OrganizationsListOpts] — typed list-opts.
 //   - examples/01-hello-world — minimal-viable demo (lists organizations).
 type OrganizationsService interface {
 	// ListOrganizations retrieves one page of organizations.

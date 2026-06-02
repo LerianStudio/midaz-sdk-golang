@@ -1,4 +1,4 @@
-package sdkctx // import "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
+package sdkctx // import "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/sdkctx"
 
 Package sdkctx provides per-request context helpers for the Midaz Go SDK.
 

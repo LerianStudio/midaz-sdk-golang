@@ -21,7 +21,7 @@ import (
     "log"
     "os"
 
-    "github.com/LerianStudio/midaz-sdk-golang/v3"
+    "github.com/LerianStudio/midaz-sdk-golang/v4"
 )
 
 func main() {
@@ -82,7 +82,7 @@ When `PLUGIN_AUTH_ENABLED=true` is in the environment, the resulting config has 
 import (
     "log"
 
-    "github.com/LerianStudio/midaz-sdk-golang/v3"
+    "github.com/LerianStudio/midaz-sdk-golang/v4"
 )
 
 func main() {
@@ -125,8 +125,8 @@ SDK alias:
 import (
     "errors"
 
-    "github.com/LerianStudio/midaz-sdk-golang/v3"
-    sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
+    "github.com/LerianStudio/midaz-sdk-golang/v4"
+    sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
 )
 
 c, err := midaz.New(midaz.WithEnvironment(midaz.EnvironmentLocal))

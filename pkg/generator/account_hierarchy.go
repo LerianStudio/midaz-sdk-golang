@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/data"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/data"
 )
 
 // AccountNode represents a hierarchical account template tree.

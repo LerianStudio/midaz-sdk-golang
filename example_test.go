@@ -3,11 +3,11 @@ package midaz_test
 import (
 	"fmt"
 
-	midaz "github.com/LerianStudio/midaz-sdk-golang/v3"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
+	midaz "github.com/LerianStudio/midaz-sdk-golang/v4"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config"
 )
 
-// ExampleNew demonstrates the simplest valid v3 client construction:
+// ExampleNew demonstrates the simplest valid v4 client construction:
 // pinned environment + anonymous auth. Suitable for local Midaz stacks
 // where authentication is disabled.
 func ExampleNew() {
@@ -23,7 +23,7 @@ func ExampleNew() {
 	// Output: true
 }
 
-// ExampleNew_missingAuth demonstrates the v3 'must have exactly one
+// ExampleNew_missingAuth demonstrates the v4 'must have exactly one
 // auth source' invariant. Calling New without WithAccessManager AND
 // without WithAnonymous returns a typed configuration error rather than
 // silently constructing a misconfigured client.

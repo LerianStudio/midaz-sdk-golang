@@ -1,11 +1,11 @@
 // Package midaz re-exports the most commonly used types from the models package
 // so that user code can stay on a single import path:
 //
-//	import "github.com/LerianStudio/midaz-sdk-golang/v3"
+//	import "github.com/LerianStudio/midaz-sdk-golang/v4"
 //
 // Without the aliases below, every typical user file would also need:
 //
-//	import "github.com/LerianStudio/midaz-sdk-golang/v3/models"
+//	import "github.com/LerianStudio/midaz-sdk-golang/v4/models"
 //
 // All aliases use Go's `type X = Y` form, which preserves type identity. That
 // means `midaz.Account` and `models.Account` are interchangeable — the same
@@ -21,9 +21,9 @@
 package midaz
 
 import (
-	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/auth"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/auth"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config"
 )
 
 // The aliases below are intentionally undocumented per-line: each alias just

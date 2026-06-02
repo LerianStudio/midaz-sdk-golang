@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"testing"
 
-	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
 )
 
 func TestIsBootstrapErrorMatchesEveryBootstrapCategory(t *testing.T) {

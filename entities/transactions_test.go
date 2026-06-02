@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v3/entities/mocks"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/entities/mocks"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
@@ -56,7 +56,7 @@ func createTestTransaction(id, orgID, ledgerID, assetCode, amount, statusCode st
 func createTestTransactionList(orgID, ledgerID string) *models.ListResponse[models.Transaction] {
 	return &models.ListResponse[models.Transaction]{
 		Items: []models.Transaction{
-			*createTestTransaction("tx-001", orgID, ledgerID, "USD", "100.00", "COMPLETED"),
+			*createTestTransaction("tx-001", orgID, ledgerID, "USD", "100.00", "APPROVED"),
 			*createTestTransaction("tx-002", orgID, ledgerID, "EUR", "200.00", "PENDING"),
 		},
 		Pagination: models.Pagination{
@@ -128,12 +128,12 @@ func TestListTransactions(t *testing.T) {
 	assert.Len(t, result.Items, 2)
 	assert.Equal(t, "tx-001", result.Items[0].ID)
 	assert.Equal(t, "USD", result.Items[0].AssetCode)
-	assert.Equal(t, "COMPLETED", result.Items[0].Status.Code)
+	assert.Equal(t, "APPROVED", result.Items[0].Status.Code)
 
 	// Test with pagination options
 	paginatedList := &models.ListResponse[models.Transaction]{
 		Items: []models.Transaction{
-			*createTestTransaction("tx-003", orgID, ledgerID, "GBP", "300.00", "COMPLETED"),
+			*createTestTransaction("tx-003", orgID, ledgerID, "GBP", "300.00", "APPROVED"),
 		},
 		Pagination: models.Pagination{
 			Total:  11,
@@ -207,7 +207,7 @@ func TestGetTransaction(t *testing.T) {
 	ledgerID := "ledger-456"
 	transactionID := "tx-789"
 
-	tx := createTestTransaction(transactionID, orgID, ledgerID, "USD", "100.00", "COMPLETED")
+	tx := createTestTransaction(transactionID, orgID, ledgerID, "USD", "100.00", "APPROVED")
 
 	// Test successful get
 	mockService.EXPECT().
@@ -219,7 +219,7 @@ func TestGetTransaction(t *testing.T) {
 	assert.Equal(t, transactionID, result.ID)
 	assert.Equal(t, "USD", result.AssetCode)
 	assert.Equal(t, "100.00", result.Amount)
-	assert.Equal(t, "COMPLETED", result.Status.Code)
+	assert.Equal(t, "APPROVED", result.Status.Code)
 
 	// Test empty organization ID
 	mockService.EXPECT().
@@ -271,7 +271,7 @@ func TestCreateTransaction(t *testing.T) {
 	ledgerID := "ledger-456"
 	input := createTestTransactionInput()
 
-	tx := createTestTransaction("tx-new-001", orgID, ledgerID, "USD", "100", "COMPLETED")
+	tx := createTestTransaction("tx-new-001", orgID, ledgerID, "USD", "100", "APPROVED")
 
 	// Test successful create
 	mockService.EXPECT().
@@ -333,7 +333,7 @@ func TestCreateTransactionWithDSL(t *testing.T) {
 	ledgerID := "ledger-456"
 	input := createTestDSLInput()
 
-	tx := createTestTransaction("tx-dsl-001", orgID, ledgerID, "USD", "100", "COMPLETED")
+	tx := createTestTransaction("tx-dsl-001", orgID, ledgerID, "USD", "100", "APPROVED")
 
 	// Test successful create
 	mockService.EXPECT().
@@ -385,7 +385,7 @@ func TestCreateTransactionWithDSLFile(t *testing.T) {
 	ledgerID := "ledger-456"
 	dslContent := []byte("send { asset: USD, value: 100 } distribute { to: [dest-account] }")
 
-	tx := createTestTransaction("tx-dsl-file-001", orgID, ledgerID, "USD", "100", "COMPLETED")
+	tx := createTestTransaction("tx-dsl-file-001", orgID, ledgerID, "USD", "100", "APPROVED")
 
 	// Test successful create
 	mockService.EXPECT().
@@ -441,7 +441,7 @@ func TestUpdateTransaction(t *testing.T) {
 		Metadata:    map[string]any{"updated": true},
 	}
 
-	tx := createTestTransaction(transactionID, orgID, ledgerID, "USD", "100", "COMPLETED")
+	tx := createTestTransaction(transactionID, orgID, ledgerID, "USD", "100", "APPROVED")
 	tx.Description = "Updated description"
 	tx.Metadata = map[string]any{"updated": true}
 
@@ -514,7 +514,7 @@ func TestCommitTransaction(t *testing.T) {
 	ledgerID := "ledger-456"
 	transactionID := "tx-789"
 
-	tx := createTestTransaction(transactionID, orgID, ledgerID, "USD", "100", "COMPLETED")
+	tx := createTestTransaction(transactionID, orgID, ledgerID, "USD", "100", "APPROVED")
 	tx.Pending = false
 
 	// Test successful commit
@@ -525,7 +525,7 @@ func TestCommitTransaction(t *testing.T) {
 	result, err := mockService.CommitTransaction(ctx, orgID, ledgerID, transactionID)
 	require.NoError(t, err)
 	assert.Equal(t, transactionID, result.ID)
-	assert.Equal(t, "COMPLETED", result.Status.Code)
+	assert.Equal(t, "APPROVED", result.Status.Code)
 	assert.False(t, result.Pending)
 
 	// Test empty organization ID
@@ -662,7 +662,7 @@ func TestRevertTransaction(t *testing.T) {
 	ledgerID := "ledger-456"
 	transactionID := "tx-789"
 
-	revertTx := createTestTransaction("tx-revert-001", orgID, ledgerID, "USD", "100", "COMPLETED")
+	revertTx := createTestTransaction("tx-revert-001", orgID, ledgerID, "USD", "100", "APPROVED")
 	revertTx.Description = "Revert of tx-789"
 
 	// Test successful revert
@@ -739,7 +739,7 @@ func TestCreateInflowTransaction(t *testing.T) {
 		},
 	}).WithDescription("Deposit")
 
-	tx := createTestTransaction("tx-inflow-001", orgID, ledgerID, "USD", "100", "COMPLETED")
+	tx := createTestTransaction("tx-inflow-001", orgID, ledgerID, "USD", "100", "APPROVED")
 	tx.Description = "Deposit"
 
 	// Test successful create
@@ -798,7 +798,7 @@ func TestCreateOutflowTransaction(t *testing.T) {
 		},
 	}).WithDescription("Withdrawal")
 
-	tx := createTestTransaction("tx-outflow-001", orgID, ledgerID, "USD", "100", "COMPLETED")
+	tx := createTestTransaction("tx-outflow-001", orgID, ledgerID, "USD", "100", "APPROVED")
 	tx.Description = "Withdrawal"
 
 	// Test successful create
@@ -855,7 +855,7 @@ func TestCreateAnnotationTransaction(t *testing.T) {
 		WithCode("ANN-001").
 		WithMetadata(map[string]any{"type": "note"})
 
-	tx := createTestTransaction("tx-annotation-001", orgID, ledgerID, "", "0", "COMPLETED")
+	tx := createTestTransaction("tx-annotation-001", orgID, ledgerID, "", "0", "APPROVED")
 	tx.Description = "Annotation note"
 	tx.Metadata = map[string]any{"type": "note"}
 

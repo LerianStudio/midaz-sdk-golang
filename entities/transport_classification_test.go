@@ -1,5 +1,5 @@
 // Copyright 2025 Lerian Studio
-// SPDX-License-Identifier: Apache-2.0
+// SPDX-License-Identifier: Elastic-2.0
 
 package entities
 
@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"testing"
 
-	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v3/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -169,11 +169,18 @@ func TestTransactionStatus(t *testing.T) {
 				expected: false,
 			},
 			{
-				name: "COMPLETED status returns true",
+				name: "APPROVED status returns true",
 				tx: &models.Transaction{
-					Status: models.Status{Code: "COMPLETED"},
+					Status: models.Status{Code: "APPROVED"},
 				},
 				expected: true,
+			},
+			{
+				name: "CREATED status returns false",
+				tx: &models.Transaction{
+					Status: models.Status{Code: "CREATED"},
+				},
+				expected: false,
 			},
 			{
 				name: "PENDING status returns false",
@@ -183,16 +190,16 @@ func TestTransactionStatus(t *testing.T) {
 				expected: false,
 			},
 			{
-				name: "FAILED status returns false",
+				name: "CANCELED status returns false",
 				tx: &models.Transaction{
-					Status: models.Status{Code: "FAILED"},
+					Status: models.Status{Code: "CANCELED"},
 				},
 				expected: false,
 			},
 			{
-				name: "CANCELED status returns false",
+				name: "NOTED status returns false",
 				tx: &models.Transaction{
-					Status: models.Status{Code: "CANCELED"},
+					Status: models.Status{Code: "NOTED"},
 				},
 				expected: false,
 			},
@@ -232,11 +239,18 @@ func TestTransactionStatus(t *testing.T) {
 				expected: "Unknown",
 			},
 			{
-				name: "COMPLETED status returns Completed",
+				name: "CREATED status returns Created",
 				tx: &models.Transaction{
-					Status: models.Status{Code: "COMPLETED"},
+					Status: models.Status{Code: "CREATED"},
 				},
-				expected: "Completed",
+				expected: "Created",
+			},
+			{
+				name: "APPROVED status returns Approved",
+				tx: &models.Transaction{
+					Status: models.Status{Code: "APPROVED"},
+				},
+				expected: "Approved",
 			},
 			{
 				name: "PENDING status returns Pending",
@@ -246,18 +260,18 @@ func TestTransactionStatus(t *testing.T) {
 				expected: "Pending",
 			},
 			{
-				name: "FAILED status returns Failed",
-				tx: &models.Transaction{
-					Status: models.Status{Code: "FAILED"},
-				},
-				expected: "Failed",
-			},
-			{
 				name: "CANCELED status returns Canceled",
 				tx: &models.Transaction{
 					Status: models.Status{Code: "CANCELED"},
 				},
 				expected: "Canceled",
+			},
+			{
+				name: "NOTED status returns Noted",
+				tx: &models.Transaction{
+					Status: models.Status{Code: "NOTED"},
+				},
+				expected: "Noted",
 			},
 			{
 				name: "unknown status returns as-is",
@@ -473,10 +487,11 @@ func TestTransactionWithVariousStatuses(t *testing.T) {
 		successful bool
 		display    string
 	}{
-		{"COMPLETED", true, "Completed"},
+		{"APPROVED", true, "Approved"},
+		{"CREATED", false, "Created"},
 		{"PENDING", false, "Pending"},
-		{"FAILED", false, "Failed"},
 		{"CANCELED", false, "Canceled"},
+		{"NOTED", false, "Noted"},
 		{"IN_PROGRESS", false, "IN_PROGRESS"},
 		{"REVERSED", false, "REVERSED"},
 	}

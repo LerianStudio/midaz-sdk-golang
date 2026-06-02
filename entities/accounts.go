@@ -10,8 +10,8 @@ import (
 	"iter"
 	"net/http"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
 )
 
 // AccountsService defines the interface for account-related operations.
@@ -19,9 +19,9 @@ import (
 // as well as manage account balances.
 //
 // See also:
-//   - [github.com/LerianStudio/midaz-sdk-golang/v3.Client.Accounts] — the production wiring.
-//   - [github.com/LerianStudio/midaz-sdk-golang/v3/entities/mocks.NewMockAccountsService] — generated mock for unit tests.
-//   - [github.com/LerianStudio/midaz-sdk-golang/v3/models.AccountsListOpts] — typed list-opts.
+//   - [github.com/LerianStudio/midaz-sdk-golang/v4.Client.Accounts] — the production wiring.
+//   - [github.com/LerianStudio/midaz-sdk-golang/v4/entities/mocks.NewMockAccountsService] — generated mock for unit tests.
+//   - [github.com/LerianStudio/midaz-sdk-golang/v4/models.AccountsListOpts] — typed list-opts.
 //   - examples/05-listing-pages — page-based pagination across accounts.
 //   - examples/09-testing-with-mocks — unit-testing pattern.
 type AccountsService interface {

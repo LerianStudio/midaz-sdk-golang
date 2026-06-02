@@ -32,17 +32,17 @@
 // # Two-layer surface
 //
 // The SDK's client-construction options expose this package via:
-//   - [github.com/LerianStudio/midaz-sdk-golang/v3.WithRetryOptions] —
+//   - [github.com/LerianStudio/midaz-sdk-golang/v4.WithRetryOptions] —
 //     forward retry.Option values into the SDK's HTTP retry policy.
-//   - [github.com/LerianStudio/midaz-sdk-golang/v3.WithCustomRetryPolicy] —
+//   - [github.com/LerianStudio/midaz-sdk-golang/v4.WithCustomRetryPolicy] —
 //     replace the policy with an arbitrary predicate.
-//   - [github.com/LerianStudio/midaz-sdk-golang/v3.WithoutRetries] —
+//   - [github.com/LerianStudio/midaz-sdk-golang/v4.WithoutRetries] —
 //     disable retries entirely.
 //
 // # See also
 //
-//   - [github.com/LerianStudio/midaz-sdk-golang/v3.WithRetryOptions]
-//   - [github.com/LerianStudio/midaz-sdk-golang/v3.WithCustomRetryPolicy]
-//   - [github.com/LerianStudio/midaz-sdk-golang/v3.WithoutRetries]
+//   - [github.com/LerianStudio/midaz-sdk-golang/v4.WithRetryOptions]
+//   - [github.com/LerianStudio/midaz-sdk-golang/v4.WithCustomRetryPolicy]
+//   - [github.com/LerianStudio/midaz-sdk-golang/v4.WithoutRetries]
 //   - examples/07-retries — runnable demo
 package retry

@@ -167,7 +167,7 @@ sub-context derived from them). **Per-request overrides ALWAYS take
 precedence over client-level configuration.**
 
 ```go
-import "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
+import "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/sdkctx"
 
 ctx := sdkctx.WithIdempotencyKey(context.Background(), "user-action-42-2026-05-06")
 
@@ -359,8 +359,8 @@ err := client.Accounts.DeleteAccount(ctx, orgID, ledgerID, accountID)
 
 ```go
 import (
-    "github.com/LerianStudio/midaz-sdk-golang/v3"
-    "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
+    "github.com/LerianStudio/midaz-sdk-golang/v4"
+    "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config"
 )
 
 func newClient() (*midaz.Client, error) {
@@ -385,7 +385,7 @@ if err != nil { return err }
 ### 5.3 Aggressive retries with custom error classification
 
 ```go
-import "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry"
+import "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/retry"
 
 client, err := midaz.New(
     midaz.WithEnvironment(midaz.EnvironmentProduction),
@@ -418,7 +418,7 @@ client, _ := midaz.New(
 ### 5.5 Shared observability provider across multiple clients
 
 ```go
-import "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
+import "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/observability"
 
 // Build once, share across multiple clients:
 provider, _ := observability.New(ctx,

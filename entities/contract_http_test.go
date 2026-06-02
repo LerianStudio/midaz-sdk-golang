@@ -10,7 +10,7 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -316,7 +316,7 @@ func TestTransactionsEntity_JSONDSLAndLifecycleContracts(t *testing.T) {
 		case r.Method == http.MethodPost && r.URL.EscapedPath() == "/organizations/org%2F1/ledgers/ledger%2F1/transactions/tx%2F1/revert":
 			writeEntityJSON(t, w, entityTransactionResponse("tx/1", "REVERTED"))
 		case r.Method == http.MethodPost && r.URL.EscapedPath() == "/organizations/org%2F1/ledgers/ledger%2F1/transactions/tx%2F1/commit":
-			writeEntityJSON(t, w, entityTransactionResponse("tx/1", "COMPLETED"))
+			writeEntityJSON(t, w, entityTransactionResponse("tx/1", "APPROVED"))
 		case r.Method == http.MethodPost && r.URL.EscapedPath() == "/organizations/org%2F1/ledgers/ledger%2F1/transactions/tx%2F1/cancel":
 			writeEntityJSON(t, w, entityTransactionResponse("tx/1", "CANCELED"))
 		default:
@@ -371,7 +371,7 @@ func TestTransactionsEntity_JSONDSLAndLifecycleContracts(t *testing.T) {
 
 	tx, err = service.CommitTransaction(ctx, "org/1", "ledger/1", "tx/1")
 	require.NoError(t, err)
-	assert.Equal(t, "COMPLETED", tx.Status.Code)
+	assert.Equal(t, "APPROVED", tx.Status.Code)
 
 	tx, err = service.CancelTransactionWithResponse(ctx, "org/1", "ledger/1", "tx/1")
 	require.NoError(t, err)

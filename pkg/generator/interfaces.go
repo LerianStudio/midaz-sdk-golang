@@ -5,8 +5,8 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/data"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/data"
 )
 
 // OrganizationGenerator creates organizations from templates or batches.

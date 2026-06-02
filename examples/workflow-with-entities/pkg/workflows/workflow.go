@@ -7,11 +7,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v3"
-	sdkentities "github.com/LerianStudio/midaz-sdk-golang/v3/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/config"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v4"
+	sdkentities "github.com/LerianStudio/midaz-sdk-golang/v4/entities"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/observability"
 	"github.com/google/uuid"
 )
 

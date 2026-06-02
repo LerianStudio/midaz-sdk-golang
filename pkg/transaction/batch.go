@@ -16,11 +16,11 @@ import (
 
 	obslog "github.com/LerianStudio/lib-observability/log"
 	obsruntime "github.com/LerianStudio/lib-observability/runtime"
-	"github.com/LerianStudio/midaz-sdk-golang/v3"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/observability"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/sdkctx"
+	"github.com/LerianStudio/midaz-sdk-golang/v4"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/sdkctx"
 	"go.opentelemetry.io/otel/attribute"
 )
 
@@ -712,6 +712,14 @@ func recordBatchCompletedEvent(ctx context.Context, orgID, ledgerID string, resu
 	observability.RecordDuration(ctx, provider, "midaz.transaction.batch.duration", time.Now().Add(-duration), metricAttrs...)
 }
 
+// batchTelemetryStatus derives an internal batch-orchestration outcome label
+// for telemetry — the OpenTelemetry metric attribute midaz.batch.status and the
+// span-event attribute midaz.business.batch.status are both fed by this value.
+// These values (cancelled/completed/partial/failed) describe the batch run as a
+// whole and are deliberately distinct from the server's per-transaction status
+// vocabulary (TransactionStatusCode: CREATED/PENDING/APPROVED/CANCELED/NOTED).
+// Do not conflate them: "partial" has no server-status analog, and these labels
+// never touch transaction Status.Code.
 func batchTelemetryStatus(ctx context.Context, summary BatchSummary, err error) string {
 	if ctx != nil && ctx.Err() != nil {
 		return "cancelled"

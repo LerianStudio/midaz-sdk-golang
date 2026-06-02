@@ -15,9 +15,9 @@ import (
 	"sync"
 	"time"
 
-	pkgerrors "github.com/LerianStudio/midaz-sdk-golang/v3/pkg/errors"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/retry"
-	"github.com/LerianStudio/midaz-sdk-golang/v3/pkg/security"
+	pkgerrors "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/security"
 )
 
 // HTTPBatchRequest represents a single request in a batch.

@@ -670,21 +670,24 @@ func TestTypedListOpts_ToQueryParams_FilterEncoding(t *testing.T) {
 			CursorListOpts: CursorListOpts{Limit: 50},
 			Filters: TransactionsFilters{
 				AssetCode:          "EUR",
-				Status:             "COMPLETED",
+				Status:             "APPROVED",
 				Reference:          "ref-9",
 				DestinationAccount: "dst",
 				SourceAccount:      "src",
 				Route:              "cashout",
+				MetadataKey:        "transferId",
+				MetadataValue:      "f403e2d7-1b09-52d7-b58e-5d955442f812",
 			},
 		}
 		require.NoError(t, opts.Validate())
 		params := opts.ToQueryParams()
 		assert.Equal(t, "EUR", params["asset_code"])
-		assert.Equal(t, "COMPLETED", params["status"])
+		assert.Equal(t, "APPROVED", params["status"])
 		assert.Equal(t, "ref-9", params["reference"])
 		assert.Equal(t, "dst", params["destination_account"])
 		assert.Equal(t, "src", params["source_account"])
 		assert.Equal(t, "cashout", params["route"])
+		assert.Equal(t, "f403e2d7-1b09-52d7-b58e-5d955442f812", params["metadata.transferId"])
 	})
 
 	t.Run("TransactionRoutesListOpts filters", func(t *testing.T) {
@@ -737,4 +740,42 @@ func TestUpdateInputMarshalJSON_NilPointersReturnNull(t *testing.T) {
 
 	// UpdateAccountInput nil pointer is already covered by
 	// TestUpdateAccountInputMarshalJSONNilPointer in account_test.go.
+}
+
+// TestTransactionsListOpts_MetadataFilter pins the metadata list-filter
+// contract: the SDK exposes a SINGLE metadata key/value pair (the server
+// honors one metadata.* predicate, not AND-combinable), rendered as the
+// query param metadata.<key>=<value>. Both sides must be set together, and
+// the key must obey the storage-layer key rules (no '.', no '$' prefix).
+func TestTransactionsListOpts_MetadataFilter(t *testing.T) {
+	t.Run("both set emits metadata.<key>", func(t *testing.T) {
+		opts := TransactionsListOpts{Filters: TransactionsFilters{MetadataKey: "transferId", MetadataValue: "abc-123"}}
+		require.NoError(t, opts.Validate())
+		assert.Equal(t, "abc-123", opts.ToQueryParams()["metadata.transferId"])
+	})
+
+	t.Run("half-set is omitted and rejected", func(t *testing.T) {
+		keyOnly := TransactionsListOpts{Filters: TransactionsFilters{MetadataKey: "transferId"}}
+		_, hasKey := keyOnly.ToQueryParams()["metadata.transferId"]
+		assert.False(t, hasKey, "key without value must not emit a param")
+		require.Error(t, keyOnly.Validate(), "key without value must fail validation")
+
+		valOnly := TransactionsListOpts{Filters: TransactionsFilters{MetadataValue: "abc-123"}}
+		assert.NotContains(t, valOnly.ToQueryParams(), "metadata.", "value without key must not emit a param")
+		assert.Error(t, valOnly.Validate(), "value without key must fail validation")
+	})
+
+	t.Run("reserved key chars rejected", func(t *testing.T) {
+		dotted := TransactionsListOpts{Filters: TransactionsFilters{MetadataKey: "a.b", MetadataValue: "x"}}
+		require.Error(t, dotted.Validate(), "metadata key with '.' must be rejected (storage-layer reserved)")
+
+		dollar := TransactionsListOpts{Filters: TransactionsFilters{MetadataKey: "$set", MetadataValue: "x"}}
+		assert.Error(t, dollar.Validate(), "metadata key starting with '$' must be rejected")
+	})
+
+	t.Run("unset is valid and emits nothing", func(t *testing.T) {
+		opts := TransactionsListOpts{}
+		require.NoError(t, opts.Validate())
+		assert.NotContains(t, opts.ToQueryParams(), "metadata.transferId")
+	})
 }
