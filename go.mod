@@ -1,6 +1,6 @@
 module github.com/LerianStudio/midaz-sdk-golang/v4
 
-go 1.26.0
+go 1.26.3
 
 require (
 	github.com/LerianStudio/lib-observability v1.0.1
