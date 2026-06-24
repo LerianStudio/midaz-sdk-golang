@@ -1,0 +1,20 @@
+{
+  "_comment": "Commit do midaz contra o qual esta SDK foi validada. Drift relevante = mudanca nos tracked_paths entre o commit pinado e o HEAD do midaz na branch correspondente. tracked_paths inclui os specs OpenAPI E os arquivos Go que carregam vocabulario nao expresso no spec (enums de status sao strings livres no OpenAPI, validadas em codigo Go). Verifique com scripts/check-midaz-drift.sh. Atualize o commit ao revalidar a SDK contra um midaz mais novo.",
+  "repo": "github.com/LerianStudio/midaz",
+  "tracked_paths": [
+    "components/ledger/api/openapi.yaml",
+    "components/crm/api/openapi.yaml",
+    "pkg/constant/transaction.go",
+    "pkg/mmodel/status.go"
+  ],
+  "branches": {
+    "main": {
+      "commit": "168e8d565e22d6cd380de7b3b2a405b7c94c7eff",
+      "pinned_at": "2026-06-24"
+    },
+    "develop": {
+      "commit": "bb4ef4092f934da31f3ef006bb2e42d18e8f537d",
+      "pinned_at": "2026-06-24"
+    }
+  }
+}

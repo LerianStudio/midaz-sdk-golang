@@ -1,0 +1,83 @@
+name: midaz-drift
+
+# Nightly check: does the SDK's pinned midaz baseline still match midaz HEAD?
+# "Drift" = changes in the tracked contract paths (OpenAPI specs + Go vocabulary
+# files), not raw commit count. Engine is scripts/check-midaz-drift.sh; this
+# workflow only schedules it and reports. See midaz-baseline.json.
+
+on:
+  schedule:
+    - cron: "0 3 * * *" # 00:00 America/Sao_Paulo (UTC-3)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write # open/update the drift report issue
+    concurrency:
+      # serialize per branch: a manual dispatch must not race a scheduled run
+      group: midaz-drift-${{ matrix.branch }}
+      cancel-in-progress: false
+    strategy:
+      fail-fast: false
+      matrix:
+        branch: [main, develop]
+    steps:
+      - name: Checkout SDK (${{ matrix.branch }})
+        uses: actions/checkout@v6.0.2
+        with:
+          ref: ${{ matrix.branch }}
+          persist-credentials: false
+
+      - name: Checkout midaz upstream (${{ matrix.branch }})
+        uses: actions/checkout@v6.0.2
+        with:
+          repository: LerianStudio/midaz
+          ref: ${{ matrix.branch }}
+          path: .midaz-upstream
+          fetch-depth: 0 # full history: pinned commit may be far behind HEAD
+          persist-credentials: false
+
+      - name: Check contract drift
+        id: check
+        run: |
+          set +e
+          MIDAZ_REPO="$GITHUB_WORKSPACE/.midaz-upstream" \
+            bash scripts/check-midaz-drift.sh "${{ matrix.branch }}" 2>&1 | tee drift-report.txt
+          echo "code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish report to job summary
+        if: always()
+        run: |
+          {
+            echo "## midaz drift — ${{ matrix.branch }}"
+            echo '```'
+            cat drift-report.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Open or update drift issue
+        if: steps.check.outputs.code == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="⚠️ midaz contract drift on ${{ matrix.branch }}"
+          body="$(cat drift-report.txt)"
+          existing="$(gh issue list --state open --search "in:title $title" --limit 100 --json number,title \
+            | jq -r --arg t "$title" '.[] | select(.title==$t) | .number' | head -1)"
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh issue create --title "$title" --body "$body"
+          fi
+
+      - name: Fail job on drift or environment error
+        if: steps.check.outputs.code != '0'
+        run: |
+          echo "drift check exit code: ${{ steps.check.outputs.code }} (1=drift, 2=env error)"
+          exit 1
