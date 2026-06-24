@@ -1,9 +1,19 @@
-# Changelog
+# Midaz-sdk-golang Changelog
 
-All notable changes to the Midaz Go SDK will be documented in this file.
+## [4.1.0](https://github.com/LerianStudio/midaz-sdk-golang/releases/tag/v4.1.0)
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+- **Features:**
+  - Added functionality to track midaz contract drift via a pinned baseline and nightly check.
+
+- **Fixes:**
+  - Exposed `AccountingEntries.overdraft` and `Balance.direction` in models.
+  - Hardened midaz-drift workflow following CodeRabbit review.
+
+Contributors: @fredcamaral,
+
+[Compare changes](https://github.com/LerianStudio/midaz-sdk-golang/compare/v4.0.1...v4.1.0)
+
+---
 
 ## [Unreleased]
 
@@ -581,3 +591,4 @@ import "github.com/LerianStudio/midaz-sdk-golang/v2"
 - Concurrency utilities and pagination support
 - Retry mechanisms and observability integration
 - Comprehensive documentation and examples
+
