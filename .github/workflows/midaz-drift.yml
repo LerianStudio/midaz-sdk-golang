@@ -12,11 +12,17 @@ on:
 
 permissions:
   contents: read
-  issues: write
 
 jobs:
   drift:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write # open/update the drift report issue
+    concurrency:
+      # serialize per branch: a manual dispatch must not race a scheduled run
+      group: midaz-drift-${{ matrix.branch }}
+      cancel-in-progress: false
     strategy:
       fail-fast: false
       matrix:
@@ -26,6 +32,7 @@ jobs:
         uses: actions/checkout@v6.0.2
         with:
           ref: ${{ matrix.branch }}
+          persist-credentials: false
 
       - name: Checkout midaz upstream (${{ matrix.branch }})
         uses: actions/checkout@v6.0.2
@@ -34,6 +41,7 @@ jobs:
           ref: ${{ matrix.branch }}
           path: .midaz-upstream
           fetch-depth: 0 # full history: pinned commit may be far behind HEAD
+          persist-credentials: false
 
       - name: Check contract drift
         id: check
@@ -60,7 +68,7 @@ jobs:
         run: |
           title="⚠️ midaz contract drift on ${{ matrix.branch }}"
           body="$(cat drift-report.txt)"
-          existing="$(gh issue list --state open --json number,title \
+          existing="$(gh issue list --state open --search "in:title $title" --limit 100 --json number,title \
             | jq -r --arg t "$title" '.[] | select(.title==$t) | .number' | head -1)"
           if [ -n "$existing" ]; then
             gh issue comment "$existing" --body "$body"
