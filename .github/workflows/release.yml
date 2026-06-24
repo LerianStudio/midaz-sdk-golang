@@ -94,9 +94,8 @@ jobs:
     needs: post-release-steps
     if: github.ref_name == 'main'
     permissions:
-      contents: write
-      pull-requests: write
-      id-token: write
+      contents: write # commit the generated CHANGELOG.md
+      pull-requests: write # open the changelog PR
     uses: LerianStudio/github-actions-shared-workflows/.github/workflows/gptchangelog.yml@v1.27.5
     with:
       runner_type: ubuntu-latest
