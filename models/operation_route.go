@@ -33,11 +33,12 @@ type AccountingEntry struct {
 
 // AccountingEntries groups accounting entries by transaction action type.
 type AccountingEntries struct {
-	Direct *AccountingEntry `json:"direct,omitempty"`
-	Hold   *AccountingEntry `json:"hold,omitempty"`
-	Commit *AccountingEntry `json:"commit,omitempty"`
-	Cancel *AccountingEntry `json:"cancel,omitempty"`
-	Revert *AccountingEntry `json:"revert,omitempty"`
+	Direct    *AccountingEntry `json:"direct,omitempty"`
+	Hold      *AccountingEntry `json:"hold,omitempty"`
+	Commit    *AccountingEntry `json:"commit,omitempty"`
+	Cancel    *AccountingEntry `json:"cancel,omitempty"`
+	Revert    *AccountingEntry `json:"revert,omitempty"`
+	Overdraft *AccountingEntry `json:"overdraft,omitempty"`
 }
 
 // OperationRoute is the SDK-native operation route response type (Track 7E — audit 7.1).

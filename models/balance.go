@@ -23,6 +23,7 @@ type Balance struct {
 	OnHold         decimal.Decimal `json:"onHold" example:"500" minimum:"0"`
 	Version        int64           `json:"version" example:"1" minimum:"1"`
 	AccountType    string          `json:"accountType" example:"creditCard" maxLength:"50"`
+	Direction      string          `json:"direction,omitempty" example:"credit"`
 	AllowSending   bool            `json:"allowSending" example:"true"`
 	AllowReceiving bool            `json:"allowReceiving" example:"true"`
 	CreatedAt      time.Time       `json:"createdAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
@@ -44,6 +45,7 @@ type BalanceHistory struct {
 	OnHold         decimal.Decimal `json:"onHold" example:"500" minimum:"0"`
 	Version        int64           `json:"version" example:"1" minimum:"1"`
 	AccountType    string          `json:"accountType" example:"creditCard" maxLength:"50"`
+	Direction      string          `json:"direction,omitempty" example:"credit"`
 	AllowSending   bool            `json:"allowSending" example:"true"`
 	AllowReceiving bool            `json:"allowReceiving" example:"true"`
 	CreatedAt      time.Time       `json:"createdAt" example:"2021-01-01T00:00:00Z" format:"date-time"`
