@@ -30,11 +30,17 @@ git -C "$midaz_repo" cat-file -e "${pinned}^{commit}" 2>/dev/null \
   || { echo "error: pinned commit $pinned not in local midaz (shallow clone?). Run: git -C '$midaz_repo' fetch --unshallow" >&2; exit 2; }
 
 head="$(git -C "$midaz_repo" rev-parse "origin/$branch")"
+git -C "$midaz_repo" merge-base --is-ancestor "$pinned" "$head" \
+  || { echo "error: pinned commit $pinned is not an ancestor of origin/$branch (history rewrite?); a diff would be misleading" >&2; exit 2; }
 ahead="$(git -C "$midaz_repo" rev-list --count "${pinned}..${head}")"
 echo "midaz origin/$branch is at ${head:0:9} (${ahead} commit(s) ahead of pin)"
 
-# git diff exits non-zero under set -e when there ARE changes; capture without tripping it.
-stat="$(git -C "$midaz_repo" diff --stat "${pinned}..${head}" -- "${specs[@]}" || true)"
+# git diff --stat exits 0 with or without changes; a non-zero exit is a real
+# error (bad rev, missing object) that must NOT be swallowed into a false "no drift".
+if ! stat="$(git -C "$midaz_repo" diff --stat "${pinned}..${head}" -- "${specs[@]}")"; then
+  echo "error: git diff failed while comparing tracked paths" >&2
+  exit 2
+fi
 if [[ -z "$stat" ]]; then
   echo "✅ no contract drift: tracked specs unchanged since pin"
   exit 0
