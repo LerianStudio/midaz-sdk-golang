@@ -14,6 +14,7 @@ import (
 
 	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
+	"github.com/shopspring/decimal"
 )
 
 const (
@@ -261,6 +262,10 @@ func TestAccountsFacade_ListBalances(t *testing.T) {
 	if len(first.Items) != 1 || first.Items[0].ID != "b1" {
 		t.Fatalf("ListBalances page 1 = %+v", first.Items)
 	}
+	// Money-path decode: the available amount must round-trip to a decimal.
+	if !first.Items[0].Available.Equal(decimal.NewFromInt(10)) {
+		t.Fatalf("ListBalances page 1 available = %s, want 10", first.Items[0].Available)
+	}
 
 	all, err := CollectAll(facade.ListBalancesAll(context.Background(), accountsOrgID, accountsLedgerID, accountsAcctID, models.CursorListOpts{Limit: 1}))
 	if err != nil {
@@ -268,6 +273,10 @@ func TestAccountsFacade_ListBalances(t *testing.T) {
 	}
 	if len(all) != 2 || all[0].ID != "b1" || all[1].ID != "b2" {
 		t.Fatalf("ListBalancesAll = %+v", all)
+	}
+	// Chained page's amount must decode too.
+	if !all[0].Available.Equal(decimal.NewFromInt(10)) || !all[1].Available.Equal(decimal.NewFromInt(20)) {
+		t.Fatalf("ListBalancesAll available = [%s %s], want [10 20]", all[0].Available, all[1].Available)
 	}
 	// The cursor must advance from empty -> next_cursor, not Page++.
 	if len(cursors) != 3 || cursors[0] != "" || cursors[1] != "" || cursors[2] != "cur-2" {
@@ -326,6 +335,88 @@ func TestAccountsFacade_ListOperations(t *testing.T) {
 	}
 }
 
+// TestAccountsFacade_ListBalancesAll_CursorTerminatesOnFullPage is the
+// money-path infinite-loop guard for the cursor-paginated balances sub-list.
+// The terminal page comes back FULL (ItemCount==Limit) and carries a page
+// field but NO next_cursor. HasMore()'s page-based heuristic (branch 4) then
+// returns true, yet NextCursor is "" — so a HasMore()-gated loop would set
+// current.Cursor = "" and refetch page 1 forever. A cursor loop must stop on
+// an empty next_cursor, not on HasMore(). The kill-switch bounds the RED
+// failure so it fails fast instead of hanging.
+func TestAccountsFacade_ListBalancesAll_CursorTerminatesOnFullPage(t *testing.T) {
+	var requests int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		if requests > 5 {
+			t.Fatalf("infinite loop: cursor sub-list did not terminate (request #%d, cursor=%q)", requests, r.URL.Query().Get("cursor"))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Query().Get("cursor") == "cur-2" {
+			// Terminal page: FULL (2 items == limit 2), carries a page field,
+			// NO next_cursor. This is the HasMore() branch-4 trap.
+			_, _ = w.Write([]byte(`{"items":[{"id":"b3","accountId":"` + accountsAcctID + `","assetCode":"USD","available":"30"},{"id":"b4","accountId":"` + accountsAcctID + `","assetCode":"USD","available":"40"}],"limit":2,"page":1}`))
+		} else {
+			_, _ = w.Write([]byte(`{"items":[{"id":"b1","accountId":"` + accountsAcctID + `","assetCode":"USD","available":"10"},{"id":"b2","accountId":"` + accountsAcctID + `","assetCode":"USD","available":"20"}],"limit":2,"page":1,"next_cursor":"cur-2"}`))
+		}
+	}))
+	defer srv.Close()
+
+	facade := newTestAccountsFacade(t, srv)
+
+	all, err := CollectAll(facade.ListBalancesAll(context.Background(), accountsOrgID, accountsLedgerID, accountsAcctID, models.CursorListOpts{Limit: 2}))
+	if err != nil {
+		t.Fatalf("ListBalancesAll: %v", err)
+	}
+	if requests != 2 {
+		t.Fatalf("requests = %d, want 2 (page 1 + terminal page)", requests)
+	}
+	if len(all) != 4 {
+		t.Fatalf("ListBalancesAll = %d items, want 4", len(all))
+	}
+	if all[0].ID != "b1" || all[3].ID != "b4" {
+		t.Fatalf("ListBalancesAll IDs = %v", []string{all[0].ID, all[1].ID, all[2].ID, all[3].ID})
+	}
+}
+
+// TestAccountsFacade_ListOperationsAll_CursorTerminatesOnFullPage is the same
+// money-path infinite-loop guard for the cursor-paginated operations sub-list.
+func TestAccountsFacade_ListOperationsAll_CursorTerminatesOnFullPage(t *testing.T) {
+	var requests int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		if requests > 5 {
+			t.Fatalf("infinite loop: cursor sub-list did not terminate (request #%d, cursor=%q)", requests, r.URL.Query().Get("cursor"))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Query().Get("cursor") == "op-2" {
+			// Terminal page: FULL (2 items == limit 2), carries a page field,
+			// NO next_cursor.
+			_, _ = w.Write([]byte(`{"items":[{"id":"o3","type":"CREDIT"},{"id":"o4","type":"DEBIT"}],"limit":2,"page":1}`))
+		} else {
+			_, _ = w.Write([]byte(`{"items":[{"id":"o1","type":"DEBIT"},{"id":"o2","type":"CREDIT"}],"limit":2,"page":1,"next_cursor":"op-2"}`))
+		}
+	}))
+	defer srv.Close()
+
+	facade := newTestAccountsFacade(t, srv)
+
+	opts := models.AccountOperationsListOpts{CursorListOpts: models.CursorListOpts{Limit: 2}}
+
+	all, err := CollectAll(facade.ListOperationsAll(context.Background(), accountsOrgID, accountsLedgerID, accountsAcctID, opts))
+	if err != nil {
+		t.Fatalf("ListOperationsAll: %v", err)
+	}
+	if requests != 2 {
+		t.Fatalf("requests = %d, want 2 (page 1 + terminal page)", requests)
+	}
+	if len(all) != 4 {
+		t.Fatalf("ListOperationsAll = %d items, want 4", len(all))
+	}
+	if all[0].ID != "o1" || all[3].ID != "o4" {
+		t.Fatalf("ListOperationsAll IDs = %v", []string{all[0].ID, all[1].ID, all[2].ID, all[3].ID})
+	}
+}
+
 // TestAccountsFacade_BalancesAtTimestamp decodes the non-paginated slice
 // response and threads the date query param.
 func TestAccountsFacade_BalancesAtTimestamp(t *testing.T) {
@@ -349,6 +440,10 @@ func TestAccountsFacade_BalancesAtTimestamp(t *testing.T) {
 	}
 	if len(got) != 1 || got[0].ID != "44444444-4444-4444-4444-444444444444" {
 		t.Fatalf("BalancesAtTimestamp = %+v", got)
+	}
+	// Money-path decode: the point-in-time available amount must round-trip.
+	if !got[0].Available.Equal(decimal.NewFromInt(5)) {
+		t.Fatalf("BalancesAtTimestamp available = %s, want 5", got[0].Available)
 	}
 }
 

@@ -237,7 +237,12 @@ func (f *accountsFacade) ListBalancesPages(ctx context.Context, orgID, ledgerID,
 				return
 			}
 
-			if !page.Pagination.HasMore() {
+			// Cursor-pure stop: this endpoint paginates by next_cursor, so the
+			// only sound terminal signal is an empty cursor. HasMore()'s
+			// page-based heuristic (branch 4) can return true on a full
+			// terminal page that carries a page field but no cursor, which
+			// would set current.Cursor = "" and refetch page 1 forever.
+			if page.Pagination.NextCursor == "" {
 				return
 			}
 
@@ -300,7 +305,10 @@ func (f *accountsFacade) ListOperationsPages(ctx context.Context, orgID, ledgerI
 				return
 			}
 
-			if !page.Pagination.HasMore() {
+			// Cursor-pure stop: see ListBalancesPages. HasMore()'s page-based
+			// heuristic would loop forever on a full terminal page with no
+			// next_cursor.
+			if page.Pagination.NextCursor == "" {
 				return
 			}
 
