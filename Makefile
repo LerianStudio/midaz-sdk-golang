@@ -165,7 +165,7 @@ check-config-parity:
 	@./scripts/check-config-parity.sh
 
 # Verify our implementation
-verify-sdk: check-references check-mmodel-references check-api-compatibility check-config-parity examples-test
+verify-sdk: check-references check-mmodel-references check-api-compatibility check-config-parity check-codegen-drift examples-test
 	@echo "$(GREEN)✅ All SDK quality checks passed!$(NC)"
 
 # Install git hooks
@@ -267,13 +267,20 @@ clean:
 # Codegen Commands
 #-------------------------------------------------------
 
-.PHONY: generate
+.PHONY: generate check-codegen-drift
 
 generate:
 	$(call print_header,"Regenerating OpenAPI clients")
 	@./scripts/generate-clients.sh
 	@$(GO) mod tidy
 	@echo "$(GREEN)[ok]$(NC) OpenAPI clients regenerated successfully$(GREEN) ✔️$(NC)"
+
+# Determinism gate: regenerate the clients and fail if the committed output
+# drifts from the source specs. The analogue of the docs-pipeline drift gate.
+# See scripts/check-codegen-drift.sh.
+check-codegen-drift:
+	$(call print_header,"Checking OpenAPI codegen drift")
+	@./scripts/check-codegen-drift.sh
 
 #-------------------------------------------------------
 # Example Commands
