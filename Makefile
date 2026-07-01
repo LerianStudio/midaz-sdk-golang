@@ -264,6 +264,18 @@ clean:
 	@echo "$(GREEN)[ok]$(NC) Artifacts cleaned successfully$(GREEN) ✔️$(NC)"
 
 #-------------------------------------------------------
+# Codegen Commands
+#-------------------------------------------------------
+
+.PHONY: generate
+
+generate:
+	$(call print_header,"Regenerating OpenAPI clients")
+	@./scripts/generate-clients.sh
+	@$(GO) mod tidy
+	@echo "$(GREEN)[ok]$(NC) OpenAPI clients regenerated successfully$(GREEN) ✔️$(NC)"
+
+#-------------------------------------------------------
 # Example Commands
 #-------------------------------------------------------
 
