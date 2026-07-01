@@ -129,7 +129,7 @@ func TestErrorDecoder(t *testing.T) {
 			wantRetryable: true,
 		},
 		{
-			name:       "prefixed idempotency code 0084 maps to CodeIdempotency, conflict stays retryable",
+			name:       "prefixed idempotency code 0084 maps to CodeIdempotency, conflict stays non-retryable",
 			httpStatus: http.StatusConflict,
 			body: `{
 				"code":"LEDGER-0084",
