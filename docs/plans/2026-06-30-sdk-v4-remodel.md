@@ -204,6 +204,30 @@ Decisões travadas com o Fred: (1) breaking in-place no `/v4`, sem shim; (2) hí
 
 **Done when:** O trinaldo `List/Pages/All` funciona sobre os três estilos de paginação.
 
+> **1.4.2 fechado como no-op (2026-07-01):** a premissa da task ficou obsoleta — o trinaldo `List/Pages/All` + o split page/cursor + o encadeamento por-endpoint (`Page++` vs `NextCursor`) **já existem e passam** (`TestTransactionsEntity_ListTransactions_UsesCursorPagination`, List de Portfolios/Segments). O adaptador de offset interno é YAGNI: nenhuma entidade `packages`/`billing` existe ainda (Phase 3). Contrarian lens de paginação confirmou: sem defeito. Sem mudança de produção.
+
+---
+
+### Epic 1.R: Remediação do gate de fechamento da Phase 1 (2026-07-01)
+
+**Goal:** zerar os 9 findings do wave de fechamento (`wxcd3fcvo`, PASS) antes de propagar a fachada-exemplar Organizations para os ~10 recursos da Phase 3. Motivação: o exemplar é copiado N vezes — corrigir o template é O(1); corrigir N cópias depois é O(n).
+**Scope:** `.env.local.example`, `.env.production.example`, `pkg/errors/`, `entities/organizations_facade.go`, `entities/auth_roundtripper.go` (+ testes).
+**Dependencies:** Epics 1.3+1.4 (landed, commits `810d90d`..`655a636`).
+**Status:** Doing
+
+Findings a corrigir (severidade do harness → decisão do supervisor):
+1. **[Med → fix]** `MIDAZ_ALLOW_INSECURE_HTTP` (data-plane) lido por `FromEnvironment:930` mas ausente de `.env.local.example`/`.env.production.example` — viola o invariante CLAUDE.md (3 `.env*.example` = lista autoritativa em sincronia). Adicionar `=false` com comentário distinguindo do `MIDAZ_ACCESS_MANAGER_ALLOW_INSECURE_HTTP` (access-manager-plane).
+2. **[Med → fix, money-path]** Fachada descarta `X-Request-ID` do servidor no erro (`organizations_facade.go:56` passa `""`). Propagar `resp.HTTPResponse.Header.Get("X-Request-ID")` → preserva correlação server↔client em falhas 503/409-idempotência. Teste: `Error.RequestID` populado no path de erro.
+3. **[Med → fix]** `IncludeDeleted` silenciosamente inerte na fachada: o modelo expõe `OrganizationsFilters.IncludeDeleted` mas `listOrganizationsParams` não o propaga e o param gerado não tem `include_deleted`. Injetar via `genledger.RequestEditorFn` (`include_deleted=true`, igual ao legado `ledgers_list_opts.go:58`). **Flag:** spec OAS do ledger omite `include_deleted` de ListOrganizations — gap server-side a fechar depois (regen nativo).
+4. **[Med → fix, money-path]** `errUnrewindableBody` fallback (`auth_roundtripper.go:106`) sem teste — guarda o invariante de replay pós-401. Teste: `Body != nil, GetBody == nil` + 401 → 401 original aflora, sem replay/panic.
+5. **[Low → fix, money-path]** Código idempotência `0084` inalcançável no formato prefixado real (`LEDGER-0084`): exact-match falha, cai no suffix map novo que não lista `0084`. Adicionar `0084` → `CodeIdempotency` ao suffix map (`errors.go:~2044`). Pré-existente (`1c60073`), dobrado aqui porque o wave criou o fix site.
+6. **[Med → fix]** `listOrganizationsParams` branches de filtro sem teste (68.8%): table-test SortDirection/StartDate/EndDate/LegalName/Status → campo gerado certo.
+7. **[Low → fix]** Precedência decoder (envelope Status vs transport status) sem teste: caso onde discordam → envelope Status vence categoria/retryabilidade.
+8. **[Low → fix]** `injectAuth` erro-do-provider + `Planes()` nil-safe sem cobertura (0%).
+9. **[Low → fix]** Comentário singleflight enganoso (`auth_roundtripper.go:43`): o group é por-roundtripper, não cross-plane; o colapso real é em `GetTokenFromAccessManager`.
+
+**Done when:** os 9 corrigidos com TDD onde há mudança de comportamento; `go build`/`go vet`/`make test` verdes; invariantes money-path intactos (X-Idempotency estável no replay, códigos/status/retryabilidade preservados); arquivos gerados intocados.
+
 ---
 
 ## Phase 2 — Ledger core (money path)
