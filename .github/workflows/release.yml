@@ -96,7 +96,7 @@ jobs:
     permissions:
       contents: write # commit the generated CHANGELOG.md
       pull-requests: write # open the changelog PR
-    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/gptchangelog.yml@v1.27.5
+    uses: LerianStudio/github-actions-shared-workflows/.github/workflows/gptchangelog.yml@v1.41.0
     with:
       runner_type: ubuntu-latest
       stable_releases_only: true
