@@ -248,6 +248,87 @@ func TestLedgersFacade_WriteReplaySafe(t *testing.T) {
 	}
 }
 
+// TestLedgersFacade_Settings exercises the tri-block ledger settings surface
+// end-to-end. GetSettings must expose all three blocks (accounting including
+// requireHolder, overrides, tracer); UpdateSettings must send all three blocks
+// on the PATCH body and normalize the response into the public model.
+func TestLedgersFacade_Settings(t *testing.T) {
+	const id = "33333333-3333-3333-3333-333333333333"
+	path := "/v1/organizations/" + ledgersOrgID + "/ledgers/" + id + "/settings"
+
+	full := `{"accounting":{"requireHolder":true,"validateAccountType":true,"validateRoutes":false},` +
+		`"overrides":{"allowFeeSkip":true,"allowHolderSkip":false,"allowTracerSkip":true},` +
+		`"tracer":{"failPosture":"strict","mode":"sync","timeoutMs":1500}}`
+
+	t.Run("get", func(t *testing.T) {
+		var m, p string
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			m, p = r.Method, r.URL.Path
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(full))
+		}))
+		defer srv.Close()
+
+		s, err := newTestLedgersFacade(t, srv).GetSettings(context.Background(), ledgersOrgID, id)
+		if err != nil {
+			t.Fatalf("GetSettings: %v", err)
+		}
+		if m != http.MethodGet || p != path {
+			t.Fatalf("get req = %s %s, want GET %s", m, p, path)
+		}
+		if !s.Accounting.RequireHolder || !s.Accounting.ValidateAccountType || s.Accounting.ValidateRoutes {
+			t.Fatalf("accounting block = %+v, want requireHolder+validateAccountType, not validateRoutes", s.Accounting)
+		}
+		if !s.Overrides.AllowFeeSkip || s.Overrides.AllowHolderSkip || !s.Overrides.AllowTracerSkip {
+			t.Fatalf("overrides block = %+v, want fee+tracer skip, not holder skip", s.Overrides)
+		}
+		if s.Tracer.FailPosture != "strict" || s.Tracer.Mode != "sync" || s.Tracer.TimeoutMs != 1500 {
+			t.Fatalf("tracer block = %+v, want strict/sync/1500", s.Tracer)
+		}
+	})
+
+	t.Run("update", func(t *testing.T) {
+		var m, p, ct, body string
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			m, p, ct = r.Method, r.URL.Path, r.Header.Get("Content-Type")
+			b, _ := io.ReadAll(r.Body)
+			body = string(b)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(full))
+		}))
+		defer srv.Close()
+
+		input := models.NewUpdateLedgerSettingsInput().
+			WithRequireHolder(true).
+			WithValidateAccountType(true).
+			WithAllowFeeSkip(true).
+			WithAllowTracerSkip(true).
+			WithTracerMode("sync").
+			WithTracerFailPosture("strict").
+			WithTracerTimeoutMs(1500)
+
+		s, err := newTestLedgersFacade(t, srv).UpdateSettings(context.Background(), ledgersOrgID, id, input)
+		if err != nil {
+			t.Fatalf("UpdateSettings: %v", err)
+		}
+		if m != http.MethodPatch || p != path || ct != "application/json" {
+			t.Fatalf("update req = %s %s (%s), want PATCH %s json", m, p, ct, path)
+		}
+		if !strings.Contains(body, `"accounting"`) {
+			t.Fatalf("body = %q, want accounting block", body)
+		}
+		if !strings.Contains(body, `"overrides"`) {
+			t.Fatalf("body = %q, want overrides block", body)
+		}
+		if !strings.Contains(body, `"tracer"`) {
+			t.Fatalf("body = %q, want tracer block", body)
+		}
+		if s.Tracer.Mode != "sync" || !s.Overrides.AllowFeeSkip {
+			t.Fatalf("UpdateSettings returned %+v", s)
+		}
+	})
+}
+
 func newTestLedgersFacade(t *testing.T, srv *httptest.Server) *ledgersFacade {
 	t.Helper()
 	return &ledgersFacade{ledger: newTestLedgerClient(t, srv)}

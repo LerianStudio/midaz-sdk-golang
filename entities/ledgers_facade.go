@@ -167,6 +167,40 @@ func (f *ledgersFacade) Delete(ctx context.Context, orgID, id string) error {
 	return nil
 }
 
+// GetSettings retrieves the tri-block settings for a ledger (accounting,
+// overrides, tracer), normalized into the public model.
+func (f *ledgersFacade) GetSettings(ctx context.Context, orgID, id string) (*models.LedgerSettings, error) {
+	const operation = "Ledgers.GetSettings"
+
+	resp, err := f.ledger.GetLedgerSettingsWithResponse(ctx, orgID, id)
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	return decodeOne[models.LedgerSettings](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+}
+
+// UpdateSettings patches the tri-block settings for a ledger. Same write-facade
+// pattern as Update: the partial patch marshals only the blocks a setter
+// touched, sent via a rewindable body so the auth round tripper can replay
+// after a 401.
+func (f *ledgersFacade) UpdateSettings(ctx context.Context, orgID, id string, input *models.UpdateLedgerSettingsInput) (*models.LedgerSettings, error) {
+	const operation = "Ledgers.UpdateSettings"
+
+	if err := input.Validate(); err != nil {
+		return nil, err
+	}
+
+	return writeJSON[models.LedgerSettings](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
+		resp, err := f.ledger.UpdateLedgerSettingsWithBodyWithResponse(ctx, orgID, id, "application/json", body)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		return resp.HTTPResponse, resp.Body, nil
+	})
+}
+
 // listLedgersParams renders the typed opts into the generated params. Name and
 // Status map to generated slots; IncludeDeleted has no slot and is injected via
 // a request editor (see listLedgersReqEditors).
