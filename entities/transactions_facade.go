@@ -4,12 +4,14 @@
 package entities
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"net/http"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v4/internal/genledger"
 	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
 )
 
 // transactionsFacade is the money-write crown jewel (Epic 2.2): a hand-written
@@ -140,6 +142,81 @@ func (f *transactionsFacade) CreateAnnotation(ctx context.Context, orgID, ledger
 
 		return resp.HTTPResponse, resp.Body, nil
 	})
+}
+
+// Commit finalizes a PENDING transaction (PENDING → APPROVED) via
+// POST .../transactions/{id}/commit. Success is HTTP 201. The action carries no
+// body and is not auto-idempotent: it stamps X-Idempotency only when the caller
+// supplied a key (input struct has none, so via sdkctx.WithIdempotencyKey) —
+// parity with the legacy transactionActionContext.
+func (f *transactionsFacade) Commit(ctx context.Context, orgID, ledgerID, transactionID string) (*models.Transaction, error) {
+	const operation = "Transactions.Commit"
+
+	resp, err := f.ledger.CommitTransactionWithResponse(ctx, orgID, ledgerID, transactionID, actionIdempotencyEditors(ctx)...)
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	return decodeOne[models.Transaction](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+}
+
+// Revert reverses a committed transaction via POST .../transactions/{id}/revert.
+// It returns the CHILD (reversal) transaction — a new record whose
+// ParentTransactionID points at the original — and never mutates the original.
+// Success is HTTP 201; same non-auto-idempotent action semantics as Commit.
+func (f *transactionsFacade) Revert(ctx context.Context, orgID, ledgerID, transactionID string) (*models.Transaction, error) {
+	const operation = "Transactions.Revert"
+
+	resp, err := f.ledger.RevertTransactionWithResponse(ctx, orgID, ledgerID, transactionID, actionIdempotencyEditors(ctx)...)
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	return decodeOne[models.Transaction](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+}
+
+// Cancel aborts a PENDING transaction (PENDING → CANCELED) via
+// POST .../transactions/{id}/cancel. Success is HTTP 201. The cancel endpoint
+// sometimes returns an empty (or "null") body; in that case we synthesize a
+// CANCELED transaction rather than failing the decode, so callers always get a
+// status-bearing value — parity with the legacy CancelTransactionWithResponse.
+func (f *transactionsFacade) Cancel(ctx context.Context, orgID, ledgerID, transactionID string) (*models.Transaction, error) {
+	const operation = "Transactions.Cancel"
+
+	resp, err := f.ledger.CancelTransactionWithResponse(ctx, orgID, ledgerID, transactionID, actionIdempotencyEditors(ctx)...)
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	if !isSuccess(resp.StatusCode()) {
+		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
+	}
+
+	if isEmptyBody(resp.Body) {
+		return &models.Transaction{ID: transactionID, Status: models.Status{Code: string(models.TransactionStatusCanceled)}}, nil
+	}
+
+	return decodeOne[models.Transaction](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+}
+
+// isEmptyBody reports whether a success body carries no transaction — an empty
+// body or the JSON literal "null" (the cancel endpoint emits either).
+func isEmptyBody(body []byte) bool {
+	trimmed := bytes.TrimSpace(body)
+	return len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null"))
+}
+
+// actionIdempotencyEditors returns the request editors for a lifecycle action.
+// Actions are not auto-idempotent (autoGen=false): a key rides only when the
+// caller supplied one via sdkctx.WithIdempotencyKey. Returns nil (no editor,
+// no header) otherwise, so the common path stays header-free.
+func actionIdempotencyEditors(ctx context.Context) []genledger.RequestEditorFn {
+	key, _ := resolveIdempotency(ctx, "", false)
+	if key == "" {
+		return nil
+	}
+
+	return []genledger.RequestEditorFn{setHeader(idempotencyHeader, key)}
 }
 
 // applyIdempotency stamps the resolved key/TTL onto a generated create's params

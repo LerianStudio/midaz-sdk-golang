@@ -291,3 +291,152 @@ func TestTransactionsFacade_CreateValidation(t *testing.T) {
 		t.Fatal("expected validation error for empty input")
 	}
 }
+
+// TestTransactionsFacade_Lifecycle exercises commit/cancel/revert: correct
+// method (POST) + path (.../{id}/{action}), success on 201, and the decoded
+// transaction returned to the caller.
+func TestTransactionsFacade_Lifecycle(t *testing.T) {
+	tests := []struct {
+		name   string
+		action string
+		call   func(f *transactionsFacade, ctx context.Context) (*models.Transaction, error)
+	}{
+		{
+			name:   "commit",
+			action: "/commit",
+			call: func(f *transactionsFacade, ctx context.Context) (*models.Transaction, error) {
+				return f.Commit(ctx, txOrgID, txLedgerID, txID)
+			},
+		},
+		{
+			name:   "cancel",
+			action: "/cancel",
+			call: func(f *transactionsFacade, ctx context.Context) (*models.Transaction, error) {
+				return f.Cancel(ctx, txOrgID, txLedgerID, txID)
+			},
+		},
+		{
+			name:   "revert",
+			action: "/revert",
+			call: func(f *transactionsFacade, ctx context.Context) (*models.Transaction, error) {
+				return f.Revert(ctx, txOrgID, txLedgerID, txID)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var gotMethod, gotPath, gotIdem string
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				gotMethod, gotPath = r.Method, r.URL.Path
+				gotIdem = r.Header.Get("X-Idempotency")
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusCreated) // lifecycle actions succeed with 201
+				_, _ = w.Write([]byte(txResponseBody()))
+			}))
+			defer srv.Close()
+
+			tx, err := tt.call(newTestTransactionsFacade(t, srv), context.Background())
+			if err != nil {
+				t.Fatalf("%s: %v", tt.name, err)
+			}
+
+			if gotMethod != http.MethodPost || gotPath != txBase()+"/"+txID+tt.action {
+				t.Fatalf("req = %s %s, want POST %s", gotMethod, gotPath, txBase()+"/"+txID+tt.action)
+			}
+			// autoGen=false: no key unless the caller supplies one.
+			if gotIdem != "" {
+				t.Fatalf("X-Idempotency = %q, want empty (actions are not auto-idempotent)", gotIdem)
+			}
+			if tx.ID != txID {
+				t.Fatalf("tx.ID = %q, want %q", tx.ID, txID)
+			}
+		})
+	}
+}
+
+// TestTransactionsFacade_RevertReturnsChild proves revert returns the child
+// (reversal) transaction with ParentTransactionID pointing at the original,
+// without mutating the original.
+func TestTransactionsFacade_RevertReturnsChild(t *testing.T) {
+	const childID = "44444444-4444-4444-4444-444444444444"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"id":"` + childID + `","parentTransactionId":"` + txID + `","status":{"code":"APPROVED"}}`))
+	}))
+	defer srv.Close()
+
+	tx, err := newTestTransactionsFacade(t, srv).Revert(context.Background(), txOrgID, txLedgerID, txID)
+	if err != nil {
+		t.Fatalf("Revert: %v", err)
+	}
+	if tx.ID != childID {
+		t.Fatalf("tx.ID = %q, want child %q", tx.ID, childID)
+	}
+	if tx.ParentTransactionID != txID {
+		t.Fatalf("tx.ParentTransactionID = %q, want original %q", tx.ParentTransactionID, txID)
+	}
+}
+
+// TestTransactionsFacade_CancelEmptyBody proves cancel synthesizes a CANCELED
+// transaction when the 201 carries an empty (or "null") body, rather than
+// failing the decode.
+func TestTransactionsFacade_CancelEmptyBody(t *testing.T) {
+	for _, body := range []string{"", "null"} {
+		t.Run("body="+body, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusCreated)
+				_, _ = w.Write([]byte(body))
+			}))
+			defer srv.Close()
+
+			tx, err := newTestTransactionsFacade(t, srv).Cancel(context.Background(), txOrgID, txLedgerID, txID)
+			if err != nil {
+				t.Fatalf("Cancel: %v", err)
+			}
+			if tx.ID != txID {
+				t.Fatalf("tx.ID = %q, want %q", tx.ID, txID)
+			}
+			if tx.Status.Code != string(models.TransactionStatusCanceled) {
+				t.Fatalf("tx.Status.Code = %q, want %q", tx.Status.Code, models.TransactionStatusCanceled)
+			}
+		})
+	}
+}
+
+// TestTransactionsFacade_LifecycleIdempotencyKey proves a caller-supplied ctx
+// key reaches the wire as X-Idempotency on an action (autoGen=false path).
+func TestTransactionsFacade_LifecycleIdempotencyKey(t *testing.T) {
+	const key = "commit-once-abc"
+	var gotIdem string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotIdem = r.Header.Get("X-Idempotency")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(txResponseBody()))
+	}))
+	defer srv.Close()
+
+	ctx := sdkctx.WithIdempotencyKey(context.Background(), key)
+	if _, err := newTestTransactionsFacade(t, srv).Commit(ctx, txOrgID, txLedgerID, txID); err != nil {
+		t.Fatalf("Commit: %v", err)
+	}
+	if gotIdem != key {
+		t.Fatalf("X-Idempotency = %q, want ctx key %q", gotIdem, key)
+	}
+}
+
+// TestTransactionsFacade_LifecycleError maps a non-2xx into the unified error.
+func TestTransactionsFacade_LifecycleError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/problem+json")
+		w.WriteHeader(http.StatusConflict)
+		_, _ = w.Write([]byte(`{"code":"LEDGER-0088","title":"Transaction not pending","status":409}`))
+	}))
+	defer srv.Close()
+
+	if _, err := newTestTransactionsFacade(t, srv).Commit(context.Background(), txOrgID, txLedgerID, txID); err == nil {
+		t.Fatal("expected error on 409 commit")
+	}
+}
