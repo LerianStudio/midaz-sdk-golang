@@ -5,8 +5,10 @@ package entities
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v4/internal/genledger"
@@ -285,6 +287,214 @@ func TestOrganizationsFacade_IncludeDeleted(t *testing.T) {
 				t.Fatalf("limit query = %q, want 5 (editor must preserve existing params)", gotLimit)
 			}
 		})
+	}
+}
+
+// TestOrganizationsFacade_CRUD is the Task 2.1.0 write-exemplar milestone:
+// Create/Get/Update/Delete round-trip end-to-end over the generated client,
+// each normalizing into the public model (or *errors.Error) without leaking
+// generated types. Create/Update send the JSON body via the write-facade
+// pattern (WithBody + a rewindable reader) so the auth round tripper can replay
+// the request after a 401 refresh.
+func TestOrganizationsFacade_CRUD(t *testing.T) {
+	const orgID = "11111111-1111-1111-1111-111111111111"
+
+	t.Run("create", func(t *testing.T) {
+		var gotMethod, gotPath, gotContentType, gotBody string
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			gotMethod, gotPath, gotContentType = r.Method, r.URL.Path, r.Header.Get("Content-Type")
+			b, _ := io.ReadAll(r.Body)
+			gotBody = string(b)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"id":"` + orgID + `","legalName":"Acme","legalDocument":"doc-1"}`))
+		}))
+		defer srv.Close()
+
+		facade := newTestOrganizationsFacade(t, srv)
+
+		org, err := facade.Create(context.Background(), &models.CreateOrganizationInput{
+			LegalName:     "Acme",
+			LegalDocument: "doc-1",
+		})
+		if err != nil {
+			t.Fatalf("Create: %v", err)
+		}
+
+		if gotMethod != http.MethodPost {
+			t.Fatalf("method = %q, want POST", gotMethod)
+		}
+		if gotPath != "/v1/organizations" {
+			t.Fatalf("path = %q, want /v1/organizations", gotPath)
+		}
+		if gotContentType != "application/json" {
+			t.Fatalf("content-type = %q, want application/json", gotContentType)
+		}
+		if !strings.Contains(gotBody, `"legalName":"Acme"`) || !strings.Contains(gotBody, `"legalDocument":"doc-1"`) {
+			t.Fatalf("request body = %q, want the marshaled CreateOrganizationInput", gotBody)
+		}
+		if org.ID != orgID || org.LegalName != "Acme" {
+			t.Fatalf("Create returned %+v, want Acme/%s", org, orgID)
+		}
+	})
+
+	t.Run("get", func(t *testing.T) {
+		var gotMethod, gotPath string
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			gotMethod, gotPath = r.Method, r.URL.Path
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"id":"` + orgID + `","legalName":"Acme","legalDocument":"doc-1"}`))
+		}))
+		defer srv.Close()
+
+		facade := newTestOrganizationsFacade(t, srv)
+
+		org, err := facade.Get(context.Background(), orgID)
+		if err != nil {
+			t.Fatalf("Get: %v", err)
+		}
+
+		if gotMethod != http.MethodGet {
+			t.Fatalf("method = %q, want GET", gotMethod)
+		}
+		if gotPath != "/v1/organizations/"+orgID {
+			t.Fatalf("path = %q, want /v1/organizations/%s", gotPath, orgID)
+		}
+		if org.ID != orgID || org.LegalName != "Acme" {
+			t.Fatalf("Get returned %+v, want Acme/%s", org, orgID)
+		}
+	})
+
+	t.Run("update", func(t *testing.T) {
+		var gotMethod, gotPath, gotBody string
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			gotMethod, gotPath = r.Method, r.URL.Path
+			b, _ := io.ReadAll(r.Body)
+			gotBody = string(b)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"id":"` + orgID + `","legalName":"Acme Renamed","legalDocument":"doc-1"}`))
+		}))
+		defer srv.Close()
+
+		facade := newTestOrganizationsFacade(t, srv)
+
+		org, err := facade.Update(context.Background(), orgID, &models.UpdateOrganizationInput{
+			LegalName: "Acme Renamed",
+		})
+		if err != nil {
+			t.Fatalf("Update: %v", err)
+		}
+
+		if gotMethod != http.MethodPatch {
+			t.Fatalf("method = %q, want PATCH", gotMethod)
+		}
+		if gotPath != "/v1/organizations/"+orgID {
+			t.Fatalf("path = %q, want /v1/organizations/%s", gotPath, orgID)
+		}
+		if !strings.Contains(gotBody, `"legalName":"Acme Renamed"`) {
+			t.Fatalf("request body = %q, want the marshaled UpdateOrganizationInput", gotBody)
+		}
+		if org.LegalName != "Acme Renamed" {
+			t.Fatalf("Update returned %+v, want LegalName Acme Renamed", org)
+		}
+	})
+
+	t.Run("delete", func(t *testing.T) {
+		var gotMethod, gotPath string
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			gotMethod, gotPath = r.Method, r.URL.Path
+			w.WriteHeader(http.StatusNoContent)
+		}))
+		defer srv.Close()
+
+		facade := newTestOrganizationsFacade(t, srv)
+
+		if err := facade.Delete(context.Background(), orgID); err != nil {
+			t.Fatalf("Delete: %v", err)
+		}
+
+		if gotMethod != http.MethodDelete {
+			t.Fatalf("method = %q, want DELETE", gotMethod)
+		}
+		if gotPath != "/v1/organizations/"+orgID {
+			t.Fatalf("path = %q, want /v1/organizations/%s", gotPath, orgID)
+		}
+	})
+
+	t.Run("error decodes", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/problem+json")
+			w.Header().Set("X-Request-ID", "req-crud-err")
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			_, _ = w.Write([]byte(`{"code":"LEDGER-0009","title":"Invalid","detail":"bad input","status":422}`))
+		}))
+		defer srv.Close()
+
+		facade := newTestOrganizationsFacade(t, srv)
+
+		_, err := facade.Create(context.Background(), &models.CreateOrganizationInput{
+			LegalName:     "Acme",
+			LegalDocument: "doc-1",
+		})
+		if err == nil {
+			t.Fatalf("Create against a 422 must return an error")
+		}
+
+		sdkErr, ok := err.(*sdkerrors.Error)
+		if !ok {
+			t.Fatalf("error type = %T, want *errors.Error (generated types must not leak)", err)
+		}
+		if sdkErr.APICode != "LEDGER-0009" {
+			t.Fatalf("APICode = %q, want LEDGER-0009", sdkErr.APICode)
+		}
+		if sdkErr.RequestID != "req-crud-err" {
+			t.Fatalf("RequestID = %q, want req-crud-err", sdkErr.RequestID)
+		}
+	})
+}
+
+// TestOrganizationsFacade_WriteReplaySafe is the money-path guard for the
+// write-facade pattern: after the server rejects the first attempt with a 401,
+// the auth round tripper must be able to rewind and replay the JSON body. A
+// non-rewindable body (e.g. a bare struct passed to the typed WithResponse
+// path) would make GetBody nil and the replay would go out empty — this test
+// asserts the replayed request carries the full body.
+func TestOrganizationsFacade_WriteReplaySafe(t *testing.T) {
+	var attempts int
+	var replayedBody string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts++
+		if attempts == 1 {
+			w.Header().Set("Content-Type", "application/problem+json")
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte(`{"code":"LEDGER-0001","title":"Unauthorized","status":401}`))
+			return
+		}
+		b, _ := io.ReadAll(r.Body)
+		replayedBody = string(b)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"id":"11111111-1111-1111-1111-111111111111","legalName":"Acme","legalDocument":"doc-1"}`))
+	}))
+	defer srv.Close()
+
+	facade := newTestOrganizationsFacade(t, srv)
+
+	_, err := facade.Create(context.Background(), &models.CreateOrganizationInput{
+		LegalName:     "Acme",
+		LegalDocument: "doc-1",
+	})
+	if err != nil {
+		t.Fatalf("Create with one 401 refresh: %v", err)
+	}
+
+	if attempts < 2 {
+		t.Fatalf("attempts = %d, want >= 2 (401 must trigger a replay)", attempts)
+	}
+	if !strings.Contains(replayedBody, `"legalName":"Acme"`) {
+		t.Fatalf("replayed body = %q, want the full JSON (non-rewindable body dropped it)", replayedBody)
 	}
 }
 
