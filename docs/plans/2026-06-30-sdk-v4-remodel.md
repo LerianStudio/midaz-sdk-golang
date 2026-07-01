@@ -9,317 +9,120 @@
 > This document is the living source of truth — task elaboration for later
 > phases is written back into it during execution.
 
-**Goal:** Remodelar completamente o `midaz-sdk-golang` (`/v4`, in-place breaking) para atender a superfície consolidada do servidor Midaz — dois planos REST (Ledger + Tracer) — via um núcleo gerado da OpenAPI mais uma fachada ergonômica escrita à mão.
+**Goal:** Remodelar o `midaz-sdk-golang` (`/v4`, breaking in-place) para a superfície consolidada do servidor Midaz — dois planos REST (Ledger + Tracer) — via um núcleo gerado da OpenAPI mais uma fachada ergonômica escrita à mão.
 
-**Architecture:** Camadas de baixo pra cima: infra reaproveitada transport-agnostic (`sdkctx`, `observability`, `retry`, `validation`, circuit breaker) → núcleo gerado por `oapi-codegen` (tipos + client de baixo nível, um pacote por plano) → adaptadores finos (3 envelopes de erro → 1 `pkg/errors`; 3 estilos de paginação → 1 trinaldo tipado; HEAD count → `int`; async → poll de balance) → fachada à mão (Client de dois planos com Bearer compartilhado, options, builders fluentes, DSL de transação, helpers de settle). O núcleo regenera quando a spec muda, matando o drift na origem; a fachada carrega o valor ergonômico do SDK.
+**Architecture:** De baixo pra cima: infra transport-agnostic reaproveitada (`sdkctx`, `observability`, `retry`, `validation`) → núcleo gerado por `oapi-codegen` (tipos + `ClientWithResponses` de baixo nível, um pacote por plano) → adaptadores finos (1 envelope de erro RFC 9457; 1 trinaldo de paginação tipado `List/Pages/All`) → fachada à mão (`entities/*_facade.go`) sobre um Client de dois planos com Bearer compartilhado + X-API-Key opcional no tracer. O núcleo regenera quando a spec muda (drift-gated), matando o drift na origem; a fachada carrega o valor ergonômico e mantém os tipos gerados fora da superfície pública.
 
-**Tech Stack:** Go 1.26; `oapi-codegen` (pinado, output commitado); `lib-observability` (OTel); `lib-auth/v2` (token do Access Manager, client-side); `iter.Seq2` para paginação; `testify` + `gomock` para testes.
+**Tech Stack:** Go 1.26; `oapi-codegen` (pinado via `go.mod` tool directive, output commitado); `lib-observability` (OTel); `lib-auth/v2` (token do Access Manager, client-side); `iter.Seq2` para paginação; `testify` + `gomock` + `httptest` para testes.
 
 ## Phase Overview
 
 | Phase | Milestone | Epics | Status |
 |-------|-----------|-------|--------|
-| 1 | Specs upstream corretas + núcleo gerado compilando + Client de 2 planos lista `organizations` end-to-end com erro/paginação normalizados | ~~1.1~~ ~~1.2~~ ~~1.3~~ ~~1.4~~ ~~1.R~~ ✅ | **Complete** (2026-07-01 — 2 waves + remediação; ver Epic 1.R) |
-| 2 | Caminho do dinheiro completo: onboarding CRUD + ciclo de vida de transação (json/inflow/outflow/annotation + commit/cancel/revert) + balances/operations/routes/asset-rates + counts via HEAD | 2.1, 2.2, 2.3 | Epic-level |
-| 3 | Domínios novos do ledger: holders/instruments/composition, fees (packages/estimates), billing, encryption, protection | 3.1, 3.2, 3.3 | Epic-level |
-| 4 | Plano Tracer completo: rules (CEL), limits, reservations, validations, audit-events; auth Bearer compartilhado + X-API-Key opcional | 4.1, 4.2, 4.3 | Epic-level |
-| 5 | Ergonomia (builders, DSL, `WaitForSettlement`) + docs/exemplos/mapping + testes de contrato regenerados; `make ci` verde | 5.1, 5.2, 5.3 | Epic-level |
+| 1 | Núcleo gerado compila; Client de 2 planos lista `organizations` end-to-end com erro (RFC 9457) e paginação normalizados | 1.1, 1.2, 1.3, 1.4, 1.R | **Complete** |
+| 2 | Money path completo: onboarding CRUD + ciclo de transação (json/inflow/outflow/annotation + commit/cancel/revert) + balances/operations/routes/asset-rates + counts | 2.1, 2.2, 2.3 | **Detailed** (2.1 Done; 2.2 é a próxima onda) |
+| 3 | Domínios novos do ledger: holders/instruments/composition, fees (packages/estimates), billing, encryption/protection | 3.1, 3.2, 3.3 | Epic-level |
+| 4 | Plano Tracer completo: rules (CEL), limits, reservations, validations, audit-events | 4.1, 4.2, 4.3 | Epic-level |
+| 5 | Ergonomia (builders, DSL, `WaitForSettlement`) + cutover do accessor/deleção do legado + docs/exemplos/mapping; `make ci` verde | 5.1, 5.2, 5.3 | Epic-level |
 | 6 | *(opcional / decisão de produto)* Consumidor de streaming Kafka/CloudEvents | 6.1 | Epic-level |
 
 ---
 
-## Context recap (fonte da verdade)
+## Contratos travados (fonte da verdade — money-path)
 
-Análise detalhada em `scratchpad/01-server-api-surface.md` (inventário REST completo), `02-monorepo-capabilities.md`, `03-current-sdk-architecture.md`, `04-grpc-streaming-surface.md`. Worktree da branch de consolidação: `scratchpad/midaz-consolidation`.
+Invariantes que atravessam fases. Alterar qualquer um destes é decisão de arquitetura, não de execução.
 
-Decisões travadas com o Fred: (1) breaking in-place no `/v4`, sem shim; (2) híbrido gerado+fachada; (3) normalizar erros e paginação; (4) os dois planos agora. gRPC e streaming são server-internos → SDK **REST-only**.
+1. **Decisões do Fred (base):** (a) breaking in-place no `/v4`, sem shim; (b) híbrido gerado+fachada; (c) normalizar erro e paginação; (d) os dois planos agora. gRPC/streaming são server-internos → SDK **REST-only**.
+2. **Envelope de erro único (RFC 9457):** os dois planos emitem um `Error{Code, Detail, Errors, Instance, Status, Title, Type}` byte-idêntico (`internal/genledger` ≡ `internal/gentracer`), com `ErrorDetail{Location, Message, Value}`. `Code` é `<SERVICE>-NNNN` (prefixado). Decoder = `pkg/errors.DecodeProblemJSON(status, body, requestID)`; retryabilidade keia no `Status` com override por sufixo de `Code` (`0177`/`0178`). `LEDGER-0084` → `CodeIdempotency` (409, não-retryável, `CategoryConflict`) via suffix map. **A superfície pública de erro é sempre `*errors.Error` — tipos gerados nunca vazam.**
+3. **Write-facade pattern (money-path, Phases 2–4):** os bodies de write no gerado são `openapi_types.File` (Plano A migrou writes como corpo opaco). Escrever via `Create{X}WithBodyWithResponse(ctx, ids, params, "application/json", body, authEditors...)` com `body = bytes.NewReader(json.Marshal(models.{X}Input))`. **O body TEM que ser `bytes.NewReader`/`bytes.NewBuffer`** — só tipos concretos fazem `http.NewRequest` popular `GetBody`, o hook que o auth RoundTripper usa pra rebobinar e reexecutar após 401. Body não-rebobinável → replay recusado → write perdido silenciosamente. Helpers package-level firmados no exemplar: `writeJSON[T]`, `decodeOne[T]`, `isSuccess` (2xx), `statusOf`, `requestIDOf`, `setQueryParam`, `strPtr`, `flattenPages` (`entities/organizations_facade.go`). **Sucesso de write onboarding = HTTP 200, não 201** (o gerado só popula `JSON200` em status==200).
+4. **Auth 401→refresh→replay-once (`entities/auth_roundtripper.go`):** o RoundTripper injeta Bearer/X-API-Key, no 401 invalida+refaz o token (singleflight) e reexecuta o request idêntico UMA vez via `req.Clone()` + `GetBody`. `X-Idempotency`/`X-TTL` do caller sobrevivem byte-a-byte ao replay (só `Authorization` é reescrito). Body não-rebobinável → `errUnrewindableBody` → aflora o 401 original sem replay.
+5. **Idempotência = `X-Idempotency` + `X-TTL`, NUNCA `X-Idempotency-Key`.** O runtime `lib-commons/v5` usa `X-Idempotency`. `X-Idempotency-Key` é um mito de doc-comment (Plano A Fase 3 pegou como CRITICAL). Terceiro rail.
+6. **Filtros sem slot no gerado NÃO são dropados:** injetar via `setQueryParam` req-editor (re-lê/Set/re-Encode preservando os params já codificados). Gap de spec server-side conhecido: a OAS do ledger omite `include_deleted`/`holder_id` de várias list-ops → follow-up no midaz (regen gera o campo nativo e o editor manual sai).
+7. **Coexistência (até Phase 5):** as fachadas são construídas + e2e-testadas mas NÃO plugadas em `client.X` (que segue no legado). Cutover do accessor + deleção do legado = passo atômico único na Phase 5. Reversível.
+8. **Arquivos gerados (`internal/gen*`) são intocáveis à mão.** Só mudam via `make generate` (drift-gated). Contratos entre fachada e gerado: `ClientWithResponses`, `{OpID}WithResponse(...)`/`{OpID}WithBodyWithResponse(...)`, `Pagination{Limit, NextCursor, PrevCursor, Page, ...}`, `RequestEditorFn`.
+
+Exploração-fonte (efêmera, no scratchpad da sessão): `01-server-api-surface.md` (inventário REST ledger+tracer), `02-monorepo-capabilities.md`, `03-current-sdk-architecture.md`, `04-grpc-streaming-surface.md` (veredicto REST-only).
 
 ---
 
-## Phase 1 — Foundation
+## Phase 1 — Foundation ✅ Complete
 
-**Milestone:** `go build ./...` verde; `Client` constrói contra os planos Ledger (Bearer) e Tracer (Bearer compartilhado, X-API-Key opcional); pacotes gerados existem para os dois planos; adaptadores de erro (3→1) e paginação (3→1) unit-testados; um round-trip real (`ListOrganizations`) funciona com erro/paginação normalizados.
+**Milestone entregue:** `go build ./...` verde nos 2 planos; `Client` constrói contra Ledger (Bearer) e Tracer (Bearer compartilhado, X-API-Key opcional); pacotes gerados existem e regeneram determinísticos; decoder de erro RFC 9457 (3→1) e trinaldo de paginação unit-testados; `ListOrganizations` faz round-trip real com erro/paginação normalizados. Commits `cbcf559`..`4e546fd` (2 waves + remediação). Todos os invariantes acima verificados empiricamente no gate do supervisor.
 
-### Epic 1.1: Correção de specs upstream no midaz — ✅ SUPERSEDED por Plano A (2026-07-01)
+### Epic 1.1: Specs upstream pristine + paridade — Done (superseded por Plano A)
 
-> **SUPERSEDED.** Este épico foi escrito em 2026-06-30 assumindo specs swaggo por-corrigir. **Plano A (Migração Huma) já entregou tudo:** Task 1.1.1 (tracer Bearer+ApiKey por-op) = Plano A Fase 2; Task 1.1.3 (unificar os 3 envelopes → 1 canônico) = Plano A Fases 1+4, envelope único **`Error` RFC 9457** byte-idêntico entre planos, travado por gate (`tests/openapi/error_schema_parity_test.go` + `error_schema_singleton_check` no `make ci`) + juiz LLM PASS. As specs agora são **dumps Huma OAS 3.1 nativos** (`components/{ledger,tracer}/api/openapi.huma.yaml` + joined `postman/specs/midaz.openapi.{json,yaml}`), NÃO os `openapi.yaml` swaggo (deletados). Paths citados abaixo (`openapi.yaml:3836`, `ErrorResponse`, `pkg.HTTPError`, geração swaggo) NÃO existem mais. **Épico reduz a verify-only:** confirmar que os specs Plano A são codegen-ready (feito no spike — ver Epic 1.2). Task 1.1.2 (docs streaming/fees do midaz) fica como follow-up opcional no repo midaz, fora do caminho do SDK.
+**O que ficou:** este épico assumia specs swaggo por-corrigir. **Plano A (migração Huma) entregou tudo antes:** tracer com Bearer+ApiKey por-op (Plano A Fase 2); os três envelopes de erro convergidos num `Error` RFC 9457 canônico byte-idêntico entre planos, travado por gate (`tests/openapi/error_schema_parity_test.go` + `error_schema_singleton_check` no `make ci`) + juiz LLM PASS (Plano A Fases 1+4). As specs de codegen são dumps Huma OAS 3.1 nativos (`api/{ledger,tracer}.openapi.yaml`), não os `openapi.yaml` swaggo (deletados). Épico reduziu-se a verify-only: confirmar que os specs Plano A são codegen-ready (feito no spike de 1.2).
 
-**Goal:** As specs OpenAPI do ledger e do tracer são **pristine e em paridade entre si** — auth real refletido (Bearer + ApiKey), **envelope de erro unificado num único shape canônico entre os dois apps** (códigos e status preservados), convenções consistentes — e viram fonte confiável de codegen.
-**Scope:** Repo `midaz`, branch `feat/monorepo-consolidation`; handlers HTTP do tracer + geração de swagger; **tipos de erro dos dois apps** (`Error`, `pkg.HTTPError`, `ErrorResponse`) e seus mapeamentos código/status; docs (`llms.txt`, `STRUCTURE.md`, `SCOPING.md`).
-**Dependencies:** none
-**Done when:** `components/tracer/api/openapi.yaml` declara `BearerAuth` **e** `ApiKeyAuth` e cada operação referencia ambos (exceto `/validations` quando forçada a API-key); **os três envelopes de erro (ledger `Error`, `pkg.HTTPError`, tracer `ErrorResponse`) convergem para um único shape canônico, com TODOS os códigos e status preservados** (money-path é terceiro rail — muda-se shape, nunca semântica); docs de streaming dizem Kafka/CloudEvents; docs de fees batem com os códigos numéricos; specs regeneradas sem erro. Done quando uma LLM Opus atue como juiz e declare ambas as specs 'pristine' em qualidade **e em paridade entre si** (assumindo o que o swaggo consegue nos entregar).
-**Target:** midaz
-**Status:** Done (superseded por Plano A — Fases 1/2/4; specs Huma OAS 3.1 pristine + envelope `Error` unificado + gate PASS + juiz LLM PASS)
+**Deviation p/ Phase 3:** docs de streaming/fees do midaz (RabbitMQ→Kafka/CloudEvents; `FEE-xxxx`→códigos numéricos) ficam como follow-up opcional no repo midaz, fora do caminho do SDK.
 
-#### Task 1.1.1: Declarar Bearer + ApiKey nas specs do tracer
+### Epic 1.2: Pipeline de codegen — Done
 
-- [ ] Done
+**O que landou** (`b93e560`, `862977c`, `72144a4`, `612e331`, `9cc7f8b`): `oapi-codegen` gera `internal/genledger/` + `internal/gentracer/` a partir de `api/{ledger,tracer}.openapi.yaml`; output commitado; `make generate` reproduz byte-a-byte; gerador pinado via `go.mod` tool directive; drift gate (`scripts/check-codegen-drift.sh` em `verify-sdk`) exige `git diff` zero nos `.gen.go`.
 
-**Context:** O middleware real do tracer (`components/tracer/internal/adapters/http/in/middleware/auth_guard.go`) é `Plugin Auth (Bearer JWT lib-auth/v2) > API Key` — `Protect()` usa `authClient.Authorize` quando `PluginAuthEnabled`, senão cai em `apiKeyAuth`. Mas as anotações swagger dos handlers (`rule_handler.go`, `limit_handler.go`, `audit_event_handler.go`, `transaction_validation_handler.go`, reservations) só têm `//	@Security		ApiKeyAuth`, e `components/tracer/api/openapi.yaml:3836` só define o scheme `ApiKeyAuth`. Gerar o SDK dessa spec produziria um client cego pro Bearer — por isso esta correção é pré-requisito do codegen.
+**Deviations travadas (código real ≠ vision de 2026-06-30):**
+- **Downgrade tool = TRÊS transforms** (`internal/cmd/specdowngrade`): (a) `type:[X,"null"]`→`type:X`+`nullable:true`; (b) strip de `format` bogus; (c) `contentEncoding:base64`→`format:byte` (senão `estimateFeeCalculation` 200 vinha `*string` base64 cru em vez de `*[]byte`).
+- **UM pacote por plano**, não split types⊥client: as 5 colisões `*Response` resolvidas com `response-type-suffix=Resp`.
+- **`ClientWithResponses` (typed)** é a superfície que a fachada consome; auth via `WithRequestEditorFn`/RoundTripper.
 
-**Implementation vision:** Adicionar o scheme `BearerAuth` (apiKey em header `Authorization`, mesmo shape do ledger) ao doc de geração swagger do tracer. Anotar cada handler com ambos os schemes (`@Security BearerAuth` + `@Security ApiKeyAuth`), representando "aceita qualquer um". A rota `/v1/validations` mantém ApiKey-only quando `APIKeyOnlyValidation`/`forceAPIKeyAuth` — anotar essa como só `ApiKeyAuth`. **Não alterar comportamento de runtime**; é correção de documentação/spec apenas. Regenerar `openapi.yaml` + `swagger.json`/`swagger.yaml` + `postman/specs/tracer/*` e `postman/specs/midaz.openapi.*`.
+### Epic 1.3: Config de 2 planos + construção do Client — Done
 
-**Files:**
-- Modify: `components/tracer/internal/adapters/http/in/rule_handler.go`, `limit_handler.go`, `audit_event_handler.go`, `transaction_validation_handler.go`, e demais handlers com `@Security ApiKeyAuth`
-- Modify: doc/config de geração swagger do tracer (`components/tracer/internal/adapters/http/in/swagger.go` e o `@securityDefinitions` do doc raiz)
-- Regenerate: `components/tracer/api/openapi.yaml`, `swagger.json`, `swagger.yaml`, `postman/specs/tracer/*`, `postman/specs/midaz.openapi.*`
+**O que landou** (`810d90d` config, `4a56305` clients+RoundTripper): `pkg/config` modela dois planos explícitos (`LedgerURL`, `TracerURL`), `MIDAZ_CRM_URL` removido, `WithTracerAPIKey` opcional; `midaz.New` constrói dois `*ClientWithResponses` com Bearer compartilhado; o 401→refresh→replay-once migrou do wrapper `HTTPClient` legado para o `authRefreshRoundTripper` (invariante money-path #4 acima). Validação eager preservada.
 
-**Verification:** `grep -c BearerAuth components/tracer/api/openapi.yaml` > 0 e cada op (fora `/validations`) referencia os dois schemes; `make` de geração de swagger do tracer roda sem erro.
+### Epic 1.4: Normalização de erro e paginação — Done
 
-**Done when:** A spec do tracer declara `BearerAuth` + `ApiKeyAuth` e as ops referenciam ambos conforme a regra acima.
+**O que landou** (`7b6c6da`): decoder do envelope RFC 9457 único → `*errors.Error` com retryabilidade por `Status` + override por sufixo de `Code`; `ErrorDetail[]`→field-errors; X-Request-ID threaded. Tabela de testes cobre 503 vs 422, sufixos `0177`/`0178`, `0084` idempotência, precedência envelope-status vs transport-status, body vazio/não-json.
 
-#### Task 1.1.2: Corrigir docs de streaming e fees
+**Deviation:** Task 1.4.2 (normalizador de paginação) fechou como **no-op** — o trinaldo `List/Pages/All` + split page/cursor + encadeamento por-endpoint (`Page++` vs `NextCursor`) já existiam e passavam; o adaptador de offset interno é YAGNI (nenhuma entidade `packages`/`billing` existe até Phase 3). Contrarian de paginação confirmou: sem defeito.
 
-- [ ] Done
+### Epic 1.P1 + 1.R: Exemplar Organizations + remediação do gate — Done
 
-**Context:** Divergências doc-vs-realidade confirmadas pelos e2e: `llms.txt`/`STRUCTURE.md` dizem RabbitMQ para streaming, mas a superfície nova é Kafka/CloudEvents (franz-go, `pkg/streaming/events`) — RabbitMQ só carrega o path legacy de async. `SCOPING.md` diz erros de fee `FEE-xxxx`, mas o código usa códigos numéricos (0188/0205/0208/0233).
+**Exemplar** (`655a636`): `organizations_facade.go` — `List/Pages/All` page-based sobre `genledger.ClientWithResponses`, tipos gerados fora da superfície pública. É o template que a Phase 2 copia (estendido a CRUD em 2.1.0).
 
-**Implementation vision:** Atualizar `llms.txt`, `llms-full.txt`, `STRUCTURE.md` para descrever streaming como Kafka/CloudEvents 1.0 (binary mode), reservando RabbitMQ ao path async legacy. Alinhar `SCOPING.md` aos códigos numéricos, cruzando com `pkg/constant/errors.go`. Sem mudança de código de runtime.
-
-**Files:**
-- Modify: `llms.txt`, `llms-full.txt`, `STRUCTURE.md`, `SCOPING.md`
-- Read (cross-check): `pkg/constant/errors.go`, `pkg/streaming/events/`
-
-**Verification:** `grep -in rabbitmq llms.txt STRUCTURE.md` não retorna referência à superfície de streaming nova; códigos de fee em `SCOPING.md` batem com `pkg/constant/errors.go`.
-
-**Done when:** Docs de streaming e fees refletem a realidade do código.
-
-#### Task 1.1.3: Unificar o envelope de erro entre ledger e tracer *(IMPORTANTÍSSIMO — money path)*
-
-- [ ] Done
-
-**Context:** O servidor consolidado emite **três** envelopes de erro: ledger `Error{code,title,message,entityType,fields}` (mais rico, o mais usado); ledger encryption/protection `pkg.HTTPError{code,title,message,entityType,err}` (adiciona `err` objeto); tracer `ErrorResponse{code,message,title}` (triple plano, subset). Sem RFC 9457. Como a branch de consolidação é **pré-release** (sem consumidor externo travado), este é o momento barato de convergir para um envelope único — e isso é pré-requisito de paridade das specs (o ponto que o Fred marcou como IMPORTANTÍSSIMO). Terceiro rail: money path — muda-se o **shape**, nunca códigos ou semântica.
-
-**Implementation vision:** Convergir para um shape canônico único nos dois apps. **Proposta de trabalho:** `Error{code, title, message, entityType, fields}` (o shape do ledger) como canônico; `ErrorResponse` do tracer ganha `entityType` + `fields` (opcionais) e passa a bater campo-a-campo; `pkg.HTTPError` dropa `err` (ou mapeia seu conteúdo para `fields`). **Preservar TODOS os códigos e mapeamentos de status** — diff de códigos de erro deve ser vazio; é renomeação/uniformização de envelope, não de taxonomia. O shape canônico final é decisão a **confirmar com o Fred no checkpoint** antes de tocar o código de erro do money-path (o LLM-juiz + review do workflow também o escrutinam). Regenerar as specs dos dois apps a partir dos tipos unificados.
-
-**Files:**
-- Modify: tipos de erro dos dois apps no repo `midaz` (localizar via `pkg/` e `components/{ledger,tracer}/...`), handlers que os emitem
-- Regenerate: `components/{ledger,tracer}/api/openapi.yaml` + swagger + postman specs
-
-**Verification:** LLM-juiz (Opus) declara os dois envelopes em paridade; `grep` confirma um único shape nas duas specs; **diff dos códigos de erro entre antes/depois é vazio** (nenhum código adicionado/removido/renomeado).
-
-**Done when:** Ledger e tracer emitem e declaram um envelope de erro idêntico em shape, com toda a taxonomia de códigos/status preservada.
-
-### Epic 1.2: Pipeline de codegen — ✅ DONE (2026-07-01)
-
-> **DONE.** Landed em 4 commits assinados na branch `feat/midaz-monorepo-consolidation`: `b93e560` (downgrade tool), `862977c` (codegen dos 2 planos), `72144a4` (drift gate), `612e331` (fix base64→byte, follow-up de gate do supervisor). Gate do supervisor (ring:dispatching-workflows) PASS empírico: `go build ./...`+`go vet` verdes nos 2 planos, `make generate` reproduz o output commitado byte-a-byte, determinístico run-to-run, 0 colisões de tipo, specs de input intocadas desde `cbcf559`, sem scope creep em `entities/`/`pkg/config`/`pkg/errors`. **Desvios do vision de 2026-06-30 (rolling-wave — código real ≠ plano):** ver notas abaixo.
-
-**Goal:** `oapi-codegen` gera tipos + client de baixo nível, um pacote por plano, com output commitado e reprodutível via `make`.
-**Scope:** `internal/genledger/`, `internal/gentracer/` (gerados), `internal/cmd/specdowngrade/` (tool), `scripts/generate-clients.sh` + `scripts/check-codegen-drift.sh`, `Makefile`, `go.mod` (tool directive).
-**Dependencies:** Epic 1.1 (specs confiáveis) — satisfeito por Plano A.
-**Done when:** `make generate` regenera `internal/genledger/` e `internal/gentracer/` a partir de `api/{ledger,tracer}.openapi.yaml`; `go build ./...` compila o output; a versão do gerador está pinada; a drift gate (`make check-codegen-drift`, em `verify-sdk`) prova que o output commitado reproduz das specs.
-**Target:** midaz-sdk-golang
-**Status:** Done
-
-**Desvios do vision original (o que realmente landou):**
-1. **Downgrade tool = TRÊS transforms, não dois.** Além de (a) `type:[X,"null"]`→`type:X`+`nullable:true` e (b) strip de `format` bogus, o gate do supervisor adicionou (c) `contentEncoding: base64` (string) → `format: byte`, senão o `estimateFeeCalculation` 200 vinha como `*string` base64 cru em vez de `*[]byte` auto-decodado (footgun num endpoint de fee). Keys 3.1 restantes (`examples` plural, `contentMediaType`) ficam como passthrough tolerado (kin-openapi ignora; não afeta o Go gerado) — documentado no doc-comment do tool.
-2. **UM pacote por plano, NÃO o split types⊥client.** As 5 colisões `*Response` foram resolvidas com a flag `response-type-suffix=Resp` (wrappers do client viram `{OpID}Resp`), mantendo `genledger`/`gentracer` num pacote só cada. Mais limpo que o split de 2 pacotes previsto.
-3. **`ClientWithResponses` (typed) é a superfície que a fachada vai consumir** (não o `Client` de baixo nível cru). Auth injetada via `WithRequestEditorFn` (ver Epic 1.3.2).
-4. **Drift gate (`scripts/check-codegen-drift.sh` + target `check-codegen-drift` em `verify-sdk`)** — análogo SDK-side da check-docs do Plano A: regenera e exige `git diff` zero nos 2 `.gen.go`, provada 3 formas (clean→0, output stale→1, tree pré-sujo→2). `make generate` roda `scripts/generate-clients.sh` (downgrade→oapi-codegen por plano), gerador pinado via `go.mod` tool directive, dep `github.com/oapi-codegen/runtime` v1.4.2.
-
-*(Tasks 1.2.1–1.2.3 fechadas nos commits acima; um `smoke_test.go` em `internal/genledger` assere o client + `ListOrganizations` + o split de colisão. Findings Low remanescentes — drift gate hardcoda os 2 paths `.gen.go`; tool directive marcado `// indirect` — anotados como follow-ups não-bloqueantes.)*
-
-### Epic 1.3: Config de 2 planos + construção do Client
-
-**Goal:** O `Client` constrói contra os planos Ledger e Tracer com um token Bearer compartilhado e X-API-Key opcional pro tracer.
-**Scope:** `pkg/config/`, `midaz.go`, `midaz_options.go`, `entities/entity.go`, `.env*.example`.
-**Dependencies:** Epic 1.2 (pacotes gerados a consumir)
-**Done when:** `midaz.New(...)` constrói um Client de dois planos; token do Access Manager compartilhado; refresh via singleflight; `MIDAZ_CRM_URL` removido, `MIDAZ_TRACER_URL` + X-API-Key opcional adicionados; validação eager preservada.
-**Target:** midaz-sdk-golang
-**Status:** Pending
-
-#### Task 1.3.1: Reescrever pkg/config para dois planos
-
-- [ ] Done
-
-**Context:** `pkg/config` hoje modela **três** URLs num par de planos: `WithLedgerURL` (`config.go:238`) seta `onboarding`+`transaction` juntos; `crm` default cai na URL do ledger; `/v1` é hardcoded em `entity.go:443`. `MIDAZ_BASE_URL` fan-out pra ambos. Auth é escolha obrigatória (exatamente um de `WithAccessManager`/`WithAnonymous`, `config.go:1206`). O servidor consolidado tem só dois hosts: ledger `:3002` e tracer `:4020`, ambos `/v1`, e removeu os headers de escopo.
-
-**Implementation vision:** Substituir o mapa `ServiceURLs` de 3 chaves por dois campos explícitos: `LedgerURL` e `TracerURL`. Env vars: `MIDAZ_LEDGER_URL`, `MIDAZ_TRACER_URL`; **remover** `MIDAZ_CRM_URL` e o fan-out de `MIDAZ_BASE_URL` (ou redefinir `MIDAZ_BASE_URL` como default de ambos os planos, decisão a documentar). Adicionar `WithTracerAPIKey(string)` como option opcional — quando ausente, o tracer usa o mesmo Bearer do ledger; quando presente, envia `X-API-Key`. Manter `/v1` como prefixo por plano, mas configurável. Manter validação eager (`config.Validate()`). Atualizar os três `.env*.example` e `FromEnvironment` em sincronia (regra do CLAUDE.md do projeto).
-
-**Files:**
-- Modify: `pkg/config/config.go` (modelo de URLs, options, `FromEnvironment`), `.env.example`, `.env.local.example`, `.env.production.example`
-- Modify: `midaz_options.go` (novas `With*`), `types.go` (constantes de Environment se afetadas)
-
-**Verification:** `go test ./pkg/config/... -run TestFromEnvironment -v` cobrindo os dois planos + X-API-Key opcional; `go build ./...` verde.
-
-**Done when:** Config expõe LedgerURL + TracerURL + WithTracerAPIKey; `MIDAZ_CRM_URL` sumiu; `.env*.example` e `FromEnvironment` batem.
-
-#### Task 1.3.2: Construir o Client de dois planos sobre os pacotes gerados
-
-- [ ] Done
-
-**Context:** `midaz.New` (`midaz.go:224`) hoje semeia OTel + `DefaultConfig`, aplica options, faz `config.Validate()` eager (`midaz.go:270`), e `setupEntity()` busca o token do Access Manager sincronamente na construção (`entity.go:139`). Os 16 serviços dividem um `*HTTPClient` (`service.go:44`) com cache de token + `singleflight` + retry; o 401 dispara refresh via `singleflight.Group tokenRefreshGroup` (`http.go:126`) e replay-once (`http_retry_response.go:205`, `refreshedAuth` latch). **Superfície gerada real (Epic 1.2 landed):** cada plano expõe `genledger.NewClientWithResponses(server string, opts ...ClientOption)` / `gentracer.NewClientWithResponses(...)` → `*ClientWithResponses` com métodos typed `{OpID}WithResponse(ctx, params, reqEditors...)`. Options do gerador: `WithHTTPClient(HttpRequestDoer)` e `WithRequestEditorFn(RequestEditorFn)` onde `RequestEditorFn func(ctx, *http.Request) error`.
-
-**Implementation vision:** Manter o padrão de options em duas camadas e a validação eager. Construir dois `*ClientWithResponses` (um por plano) sobre `internal/genledger` e `internal/gentracer`. **Auth via `RequestEditorFn` compartilhada:** um editor que puxa o token do provider único (`pkg/auth`, Access Manager atual) e injeta `Authorization: Bearer <tok>`; o client do tracer usa um editor alternativo que injeta `X-API-Key` quando `WithTracerAPIKey` foi dado, senão cai no mesmo Bearer. **401→refresh→replay-once:** a lógica hoje mora no wrapper `entities/HTTPClient` (acima do `http.Client`); como o gerado só aceita um `HttpRequestDoer` via `WithHTTPClient`, migrar essa lógica (incluindo o `singleflight` de refresh e o latch `refreshedAuth`) para um `http.RoundTripper` que embrulha o `http.Transport` pooled, e passar `WithHTTPClient(&http.Client{Transport: authRefreshRoundTripper})`. Assim o gerado só emite requests; o RoundTripper concentra Bearer/X-API-Key + refresh + replay. Reusar `pkg/observability`, `pkg/retry`, `pkg/sdkctx` como estão (o retry de transporte pode compor no mesmo RoundTripper ou num wrapper externo — decidir na execução). O `Client` expõe dois grupos (`Ledger.*`, `Tracer.*`) ou promoção plana — decidir conforme a ergonomia da fachada.
-
-**Files:**
-- Modify: `midaz.go`, `entities/entity.go`, `entities/service.go`, `entities/http.go`, `entities/http_retry_response.go`
-- Create: um `http.RoundTripper` de auth+refresh (provável `entities/auth_roundtripper.go`) que substitui o 401-handling do wrapper `HTTPClient`
-- Modify: `pkg/auth/access_manager.go` (endpoint de token permanece; provider passa a servir os dois planos via a RequestEditorFn/RoundTripper)
-
-**Verification:** Teste de construção: `midaz.New(WithLedgerURL, WithTracerURL, WithAccessManager)` produz um Client com `*ClientWithResponses` dos dois planos; um teste de 401→refresh→replay contra um `httptest.Server` passa (o RoundTripper reautentica e reexecuta uma vez); um teste confirma `X-API-Key` no tracer quando `WithTracerAPIKey` é dado e Bearer caso contrário.
-
-**Done when:** Client constrói os dois `*ClientWithResponses` com token Bearer compartilhado (X-API-Key opcional no tracer) e o refresh-once no 401 preservado via RoundTripper.
-
-### Epic 1.4: Normalização de erro e paginação
-
-**Goal:** O envelope de erro único RFC 9457 do servidor (unificado por Plano A) mapeia limpo pra `pkg/errors`; os estilos de paginação do servidor (page-request/cursor-response + offset) colapsam no trinaldo tipado `List/Pages/All`.
-**Scope:** `pkg/errors/`, `models/list_opts.go`, `models/cursor_list_opts.go`, `entities/iter.go`, novo adaptador de decodificação.
-**Dependencies:** Epic 1.2 (tipos gerados: `genledger.Error`/`gentracer.Error` + `Pagination`)
-**Done when:** Um decodificador mapeia o `Error` RFC 9457 gerado (idêntico nos 2 planos) para `*errors.Error` com `Retryable()`/`Is*` corretos (ex.: 503→retryable, 422→não); o trinaldo `List/Pages/All` funciona sobre a paginação page-request/cursor-response e sobre offset; unit tests table-driven cobrem cada caso.
-**Target:** midaz-sdk-golang
-**Status:** Pending
-
-#### Task 1.4.1: Decodificador de erro unificado (envelope RFC 9457 único)
-
-- [ ] Done
-
-**Context:** `pkg/errors` já tem `Error{Category, Code, StatusCode, ...}` com oráculo `Retryable()` e predicados `Is*`, e um adaptador status→categoria isolado. **Premissa mudou (Plano A):** o servidor NÃO emite mais três envelopes divergentes. Os dois planos agora emitem **um** envelope RFC 9457 idêntico — o tipo gerado `Error{Code, Detail, Errors, Instance, Status, Title, Type}` (`internal/genledger/ledger.gen.go:261` ≡ `internal/gentracer/tracer.gen.go:60`, byte-idêntico), com `ErrorDetail{Location, Message, Value}` para erros de campo. `Code` agora é `<SERVICE>-NNNN` (com prefixo de serviço). Os `pkg.HTTPError` e `ErrorResponse` sumiram — a sniffagem por presença de campo virou desnecessária.
-
-**Implementation vision:** O decodificador vira um mapa de **um shape só** → `*errors.Error`: `Code`→código, `Detail`→mensagem, `Title`→title, `Status`→StatusCode, `Errors []ErrorDetail`→o field-errors do SDK (`Location`+`Message`+`Value` por campo). Retryabilidade keya primeiro no `Status` (503→retryable, 5xx idem; 422/4xx→não), com override por `Code` para os casos que o status não captura (o antigo `0178`/503 unavailable→retryable, `0177`/422 denial→não — agora sob o `Code` prefixado; casar por sufixo numérico p/ ser robusto ao prefixo). Manter o adaptador status→categoria existente como base. **Não vazar tipos gerados** pra fora do SDK — a superfície pública continua `*errors.Error`; o decoder aceita o `Error` gerado (ou os bytes crus do `application/problem+json`) e devolve `*errors.Error`. Tolerância defensiva a campos ausentes (todos os campos do envelope são ponteiros/opcionais).
-
-**Files:**
-- Create: `entities/error_decoder.go` (ou dentro de `pkg/errors`)
-- Modify: `pkg/errors/` (mapa de retryabilidade por status + códigos prefixados)
-- Test: `entities/error_decoder_test.go`
-
-**Verification:** `go test ./pkg/errors/... ./entities/... -run TestErrorDecoder -v` — table-driven cobrindo o envelope RFC 9457 (com e sem `Errors[]`), retryabilidade por `Status` (503 vs 422) e o override por `Code` (sufixos `0177`/`0178`).
-
-**Done when:** O envelope RFC 9457 único decodifica para `*errors.Error` com retryabilidade correta por status e por código, e os `ErrorDetail` viram field-errors.
-
-#### Task 1.4.2: Normalizador de paginação (trinaldo)
-
-- [ ] Done
-
-**Context:** O SDK hoje distingue page-based (`PageListOpts{Limit,Page}`, `models/list_opts.go:80`) de cursor-based (`CursorListOpts{Limit,Cursor}`, `models/cursor_list_opts.go:36`) no nível de tipo, e expõe `List/Pages/All` com `iter.Seq2` (`flattenPages`, `entities/iter.go:136`). **Superfície gerada real (Epic 1.2):** os params de list são query strings — ex. `ListOrganizationsParams{Limit *string, Page *string, SortOrder *string}` (`ledger.gen.go:756`, note `*string`, não `*int`); a resposta carrega `Pagination{Limit, NextCursor *string, PrevCursor *string, ...}` (`ledger.gen.go:621`). Confirma o híbrido previsto: **request page+limit, response cursor**. `packages`/`billing-packages` usam offset; tracer é cursor uniforme.
-
-**Implementation vision:** Manter o split tipado page/cursor na superfície pública (não compila se usar a forma errada), mas o adaptador escolhe a forma real **por endpoint** conforme a spec — não por convenção global. Como os params gerados são `*string`, o adaptador serializa `Limit`/`Page`/`Cursor` (int→string) na borda e lê `NextCursor`/`PrevCursor` da `Pagination` da resposta pra encadear as páginas. Adicionar um terceiro caso interno para offset (`packages`/`billing`), exposto ao usuário ainda via o trinaldo (a mecânica de offset fica escondida). Preservar `List` (uma página), `Pages` (`iter.Seq2[*ListResponse[T]]`), `All` (`iter.Seq2[T]`), `Collect`/`CollectAll`.
-
-**Files:**
-- Modify: `models/list_opts.go`, `models/cursor_list_opts.go`, `entities/iter.go`
-- Create: adaptador de offset (interno)
-- Test: `entities/iter_test.go` (estender)
-
-**Verification:** `go test ./models/... ./entities/... -run 'TestList|TestIter|TestPagination' -v` — cobre page, cursor e offset alimentando o mesmo trinaldo.
-
-**Done when:** O trinaldo `List/Pages/All` funciona sobre os três estilos de paginação.
-
-> **1.4.2 fechado como no-op (2026-07-01):** a premissa da task ficou obsoleta — o trinaldo `List/Pages/All` + o split page/cursor + o encadeamento por-endpoint (`Page++` vs `NextCursor`) **já existem e passam** (`TestTransactionsEntity_ListTransactions_UsesCursorPagination`, List de Portfolios/Segments). O adaptador de offset interno é YAGNI: nenhuma entidade `packages`/`billing` existe ainda (Phase 3). Contrarian lens de paginação confirmou: sem defeito. Sem mudança de produção.
-
----
-
-### Epic 1.R: Remediação do gate de fechamento da Phase 1 (2026-07-01)
-
-**Goal:** zerar os 9 findings do wave de fechamento (`wxcd3fcvo`, PASS) antes de propagar a fachada-exemplar Organizations para os ~10 recursos da Phase 3. Motivação: o exemplar é copiado N vezes — corrigir o template é O(1); corrigir N cópias depois é O(n).
-**Scope:** `.env.local.example`, `.env.production.example`, `pkg/errors/`, `entities/organizations_facade.go`, `entities/auth_roundtripper.go` (+ testes).
-**Dependencies:** Epics 1.3+1.4 (landed, commits `810d90d`..`655a636`).
-**Status:** Done (2026-07-01) — 9 findings corrigidos em `6bd5024`,`3d71601`,`9877c11`,`391a6a6` (wave `wqnkudtdr`, PASS: 3 reviewers + 2 contrarian lenses, `defectFound:false`) + `f587e6d` (rename do 1 Low sobrevivente). Build/vet/test verdes fresh; gerados intocados.
-
-> **Deviations que afetam Phases posteriores:**
-> - **FIX 3 (padrão a replicar na Phase 3):** filtros que o param gerado não carrega (ex. `include_deleted`) são injetados via `genledger.RequestEditorFn` (helper `setQueryParam` re-lê/Set/re-Encode preservando params; `listOrganizationsReqEditors` retorna `nil` no caminho comum = overhead zero). As ~10 fachadas copiadas do exemplar devem seguir esse padrão, não dropar silenciosamente.
-> - **Gap de spec server-side (follow-up, fora do SDK):** a OAS do ledger omite `include_deleted` de várias list-ops (confirmado em ListOrganizations). Fechar no midaz depois → regen gera o campo nativo e o editor manual sai.
-> - **FIX 5 (classificação idempotência):** `apiCodeSuffixMappings` (`errors.go:~2058`) agora resolve `LEDGER-0084`→`CodeIdempotency` (409 não-retryable, `CategoryConflict`). O exact-match preexistente em `apiErrorCodeMappings` nunca casava o formato prefixado — o suffix map é o path real.
-
-Findings a corrigir (severidade do harness → decisão do supervisor):
-1. **[Med → fix]** `MIDAZ_ALLOW_INSECURE_HTTP` (data-plane) lido por `FromEnvironment:930` mas ausente de `.env.local.example`/`.env.production.example` — viola o invariante CLAUDE.md (3 `.env*.example` = lista autoritativa em sincronia). Adicionar `=false` com comentário distinguindo do `MIDAZ_ACCESS_MANAGER_ALLOW_INSECURE_HTTP` (access-manager-plane).
-2. **[Med → fix, money-path]** Fachada descarta `X-Request-ID` do servidor no erro (`organizations_facade.go:56` passa `""`). Propagar `resp.HTTPResponse.Header.Get("X-Request-ID")` → preserva correlação server↔client em falhas 503/409-idempotência. Teste: `Error.RequestID` populado no path de erro.
-3. **[Med → fix]** `IncludeDeleted` silenciosamente inerte na fachada: o modelo expõe `OrganizationsFilters.IncludeDeleted` mas `listOrganizationsParams` não o propaga e o param gerado não tem `include_deleted`. Injetar via `genledger.RequestEditorFn` (`include_deleted=true`, igual ao legado `ledgers_list_opts.go:58`). **Flag:** spec OAS do ledger omite `include_deleted` de ListOrganizations — gap server-side a fechar depois (regen nativo).
-4. **[Med → fix, money-path]** `errUnrewindableBody` fallback (`auth_roundtripper.go:106`) sem teste — guarda o invariante de replay pós-401. Teste: `Body != nil, GetBody == nil` + 401 → 401 original aflora, sem replay/panic.
-5. **[Low → fix, money-path]** Código idempotência `0084` inalcançável no formato prefixado real (`LEDGER-0084`): exact-match falha, cai no suffix map novo que não lista `0084`. Adicionar `0084` → `CodeIdempotency` ao suffix map (`errors.go:~2044`). Pré-existente (`1c60073`), dobrado aqui porque o wave criou o fix site.
-6. **[Med → fix]** `listOrganizationsParams` branches de filtro sem teste (68.8%): table-test SortDirection/StartDate/EndDate/LegalName/Status → campo gerado certo.
-7. **[Low → fix]** Precedência decoder (envelope Status vs transport status) sem teste: caso onde discordam → envelope Status vence categoria/retryabilidade.
-8. **[Low → fix]** `injectAuth` erro-do-provider + `Planes()` nil-safe sem cobertura (0%).
-9. **[Low → fix]** Comentário singleflight enganoso (`auth_roundtripper.go:43`): o group é por-roundtripper, não cross-plane; o colapso real é em `GetTokenFromAccessManager`.
-
-**Done when:** os 9 corrigidos com TDD onde há mudança de comportamento; `go build`/`go vet`/`make test` verdes; invariantes money-path intactos (X-Idempotency estável no replay, códigos/status/retryabilidade preservados); arquivos gerados intocados.
+**Remediação** (`6bd5024`, `3d71601`, `9877c11`, `391a6a6`, `f587e6d` — wave `wqnkudtdr` PASS: 3 reviewers + 2 contrarian lenses): zerou os 9 findings do wave de fechamento (`wxcd3fcvo`) ANTES de propagar o exemplar aos ~10 recursos (corrigir o template é O(1); corrigir N cópias é O(n)). Fixes que viraram padrão nas fases seguintes: X-Request-ID no path de erro (money-path correlação); `IncludeDeleted`/filtros sem slot via `setQueryParam` req-editor (invariante #6); `LEDGER-0084`→`CodeIdempotency` via suffix map (invariante #2); teste do fallback `errUnrewindableBody` (invariante #4).
 
 ---
 
 ## Phase 2 — Ledger core (money path)
 
-**Milestone:** Onboarding CRUD completo e o ciclo de vida de transação end-to-end funcionam contra o ledger, com counts via HEAD e skips gated por settings.
+**Milestone:** Onboarding CRUD completo e o ciclo de vida de transação end-to-end funcionam contra o ledger, com counts e skips gated por settings.
 
-### Epic 2.1: Recursos de onboarding
+### Epic 2.1: Recursos de onboarding — ✅ Done
 
-**Goal:** ledgers (+settings tri-bloco), accounts (+alias, sub-lists balances/operations), assets, portfolios, segments, account-types, metadata-indexes funcionam via fachada (CRUD read+write), e2e-testados. Organizations já existe (exemplar) e é estendido a CRUD completo como write-exemplar.
-**Scope:** `entities/*_facade.go` (novos), `models/` (extensões pontuais), fachada sobre `internal/genledger`.
+**Goal:** organizations (write-exemplar), ledgers (+settings tri-bloco), accounts (+alias, sub-lists balances/operations cursor), assets, portfolios, segments, account-types, metadata-indexes funcionam via fachada (CRUD read+write), e2e-testados.
+**Scope:** `entities/*_facade.go` (novos), extensões pontuais em `models/`, fachada sobre `internal/genledger`.
 **Dependencies:** Phase 1
 **Target:** midaz-sdk-golang
-**Status:** Detailed (elaborado 2026-07-01 vs. recon `a5bcf9fac`)
+**Status:** Done (2026-07-01 — wave `w00eosgql`, 6 commits `efb7702`..`ecb1b4b`; review 4 + contrarian 4; 1 High + 2 Medium remediados na wave `wo6cx0mvh`).
 
-> **DECISÕES DE WAVE (supervisor, 2026-07-01):**
-> - **Write-facade pattern (money-path, vale Phases 2-4):** os bodies de write no gerado são `openapi_types.File` (Plano A migrou writes como corpo opaco `RawBody`). NÃO usar o `...WithResponse(body File)` typed. Usar `Create{X}WithBodyWithResponse(ctx, ids, params, "application/json", bytes.NewReader(jsonBytes), authEditors...)` com `jsonBytes = json.Marshal(models.{X}Input)`. **O body TEM que ser `bytes.NewReader`** (só tipos concretos fazem `http.NewRequest` popular `GetBody` = hook de replay pós-401; body não-rebobinável → replay recusado). Servidor espera `application/json` (content-key) e lê bytes crus.
-> - **Coexistência (não wire ainda):** as fachadas são construídas + e2e-testadas mas NÃO plugadas em `client.X` (que segue no legado). Cutover do accessor + deleção do legado = passo atômico depois (Phase 5/cutover). Igual ao que a Phase 1 deixou pra Organizations. Reversível; override lane aberto.
-> - **YAGNI Count:** nenhum `Count{X}Resp` tipa `X-Total-Count` (só `Body []byte`+`HTTPResponse`). O exemplar não expõe count; `Pagination.HasMore()` já cobre "tem mais". **Count cortado da wave** salvo pedido do Fred.
-> - **Reads:** copiam o exemplar (`...WithResponse` → `json.Unmarshal` em `models.ListResponse[T]`; `List/Pages/All`; filtros sem slot no gen via `setQueryParam` req-editor). Erro via `DecodeProblemJSON(status, body, requestIDOf(resp.HTTPResponse))`.
+**Done when (Epic):** os 8 recursos têm fachada CRUD read+write e2e-testada contra httptest; sub-lists de account encadeiam por cursor; settings expõe tri-bloco; writes replay-safe; nenhum filtro dropado silenciosamente; gerados intocados; build/vet/test verdes. ✔️
 
-**Padrão-base (copiar de `entities/organizations_facade.go`):** `type {x}Facade struct{ ledger *genledger.ClientWithResponses }`; `List/Pages/All` page-based; helpers package-level reusados (`flattenPages` iter.go:136, `strPtr`, `setQueryParam`, `requestIDOf`). Teste e2e RED→GREEN contra `httptest.Server` (paginação encadeia + erro RFC 9457 decoda). Cada task = 1 commit atômico assinado.
+**O que landou (fachadas em `entities/`):** `organizations` (CRUD, write-exemplar + helpers package-level), `ledgers` (+ `GetSettings`/`UpdateSettings` tri-bloco), `assets`, `portfolios`, `segments`, `account_types`, `accounts` (+ `GetByAlias` path + sub-lists cursor `ListBalances`/`ListOperations` + `BalancesAtTimestamp` slice), `metadata_indexes` (global, não-paginado).
 
-#### Task 2.1.0: Estender Organizations a CRUD completo (write-exemplar)
-- [ ] Done
-**Context:** `organizations_facade.go` só faz List/Pages/All. Precisa de Create/Get/Update/Delete pra virar o exemplar de WRITE que os outros copiam. Models `Create/UpdateOrganizationInput` já existem em `models/`.
-**Implementation vision:** adicionar `Create/Get/Update/Delete` usando o write-facade pattern acima (WithBody+bytes.NewReader) pros writes e `GetOrganizationByIDWithResponse` typed pro Get. Erro/decode idênticos ao List. Extrair helper de write se reduzir repetição (`postJSON`/`marshalBody`) — mas só se reduzir, não especular.
-**Files:** Modify `entities/organizations_facade.go`; Test `entities/organizations_facade_test.go`.
-**Verification:** `go test ./entities/ -run TestOrganizationsFacade -count=1` — create/get/update/delete + erro passam.
-**Done when:** Organizations tem CRUD completo via fachada, write replay-safe (bytes.NewReader), e2e-testado.
-
-#### Task 2.1.a: Fachadas trivais page-based — ledgers, assets, portfolios, segments
-- [ ] Done
-**Context:** models + List opts + Filters + Inputs JÁ existem (`ledgers_list_opts.go`, `assets_list_opts.go`, etc.). Ops geradas page-based puras. Cópia direta do exemplar 2.1.0.
-**Implementation vision:** 1 arquivo `entities/{ledgers,assets,portfolios,segments}_facade.go` por recurso, CRUD completo. **Assets:** os filtros `Code/Type/Status` de `AssetsFilters` NÃO têm slot em `ListAssetsParams` (só Metadata/Limit/Page/dates/SortOrder) → injetar via `setQueryParam` req-editors (padrão `include_deleted`). Ledgers/Portfolios/Segments: filtros mapeiam a params gerados (Name/Status/EntityId).
-**Files:** Create 4 `entities/*_facade.go` + tests.
-**Verification:** `go test ./entities/ -run 'TestLedgersFacade|TestAssetsFacade|TestPortfoliosFacade|TestSegmentsFacade' -count=1`.
-**Done when:** CRUD + paginação dos 4 passam e2e; filtros de asset chegam via query.
-
-#### Task 2.1.b: Fachada account-types
-- [ ] Done
-**Context:** model `AccountType` usa IDs `uuid.UUID` (não string). `ListAccountTypesParams` tem Page E Cursor (outlier). SEM Count op.
-**Implementation vision:** CRUD via exemplar; mapear params com atenção ao uuid (serializar `.String()`). Manter page-based (usar Page, ignorar Cursor salvo necessidade). appName do legado era `routing` mas isso é auth server-side — a fachada só fala HTTP, sem impacto.
-**Files:** Create `entities/account_types_facade.go` + test.
-**Verification:** `go test ./entities/ -run TestAccountTypesFacade -count=1`.
-**Done when:** CRUD + list de account-types passam e2e.
-
-#### Task 2.1.c: Fachada accounts (money-path-adjacent) — alias + sub-lists cursor
-- [ ] Done
-**Context:** money-path-adjacent (accounts/balances). List page-based (trivial). MAS: **lookup por alias é PATH** (`GetAccountByAliasWithResponse(ctx, org, ledger, alias)`); **2 sub-lists são CURSOR-only** (`GetAllBalancesByAccountIDWithResponse` params `{Limit,dates,SortOrder,Cursor}`, `GetAllOperationsByAccountWithResponse` idem+filtros) — divergem do `Pages` page-based do exemplar.
-**Implementation vision:** CRUD + `GetByAlias` (path param direto). Para as sub-lists, variante **cursor** do trinaldo: `Pages` avança lendo `Pagination.NextCursor` (não `Page++`), passando `Cursor` no próximo request; `List/All` idem. Alinhar `models.BalancesListOpts` (hoje embeda `PageListOpts`) ao estilo cursor do gen (usar `CursorListOpts` como operations já faz, ou traduzir). Balances retorno pode ser `Balance` compact vs `BalanceHistory` (`GetAccountBalancesAtTimestamp` → `*[]BalanceHistory` slice, sem paginação).
-**Files:** Create `entities/accounts_facade.go` + test; talvez Modify `models/balances_list_opts.go` (alinhar cursor).
-**Verification:** `go test ./entities/ -run TestAccountsFacade -count=1` — CRUD + alias + sub-list balances (cursor-chain) + sub-list operations passam.
-**Done when:** accounts CRUD + alias + as 2 sub-lists cursor encadeiam e2e; nenhum drop silencioso de filtro.
-
-#### Task 2.1.d: Fachada metadata-indexes (recurso global, sem paginação)
-- [ ] Done
-**Context:** recurso GLOBAL (sem org/ledger no path); `entityName` é path segment. `GetAllMetadataIndexesWithResponse` → `*[]MetadataIndex` (slice puro, SEM Pagination). Legado usa base URL `transaction`. Sem Update; só List/Create/Delete.
-**Implementation vision:** NÃO replica o trinaldo. `List(ctx, entityName) ([]models.MetadataIndex, error)` (decode slice direto), `Create` (WithBody), `Delete`. Sem List/Pages/All.
-**Files:** Create `entities/metadata_indexes_facade.go` + test.
-**Verification:** `go test ./entities/ -run TestMetadataIndexesFacade -count=1`.
-**Done when:** List(slice)/Create/Delete de metadata-indexes passam e2e.
-
-#### Task 2.1.e: Ledger settings tri-bloco (extensão de model + GET/UPDATE)
-- [ ] Done
-**Context:** gen `LedgerSettings` (ledger.gen.go:492) = `Accounting`(RequireHolder,ValidateAccountType,ValidateRoutes) + `Overrides`(AllowFeeSkip,AllowHolderSkip,AllowTracerSkip) + `Tracer`(FailPosture,Mode,TimeoutMs). Model público `models.LedgerSettings` (ledger.go:30) só tem `Accounting` (e falta `RequireHolder`). GET viável (`GetLedgerSettingsWithResponse` → `JSON200 *LedgerSettings`); UPDATE via WithBody (agora destravado).
-**Implementation vision:** estender `models.LedgerSettings` com `Overrides` + `Tracer` (+ `RequireHolder` no Accounting), campos espelhando o gen (não-pointer/required). `Get`/`Update` na fachada de ledgers (ou `ledger_settings_facade.go`). Update usa write-facade pattern.
-**Files:** Modify `models/ledger.go`; Modify/Create fachada de settings + test.
-**Verification:** `go test ./entities/ ./models/ -run 'LedgerSettings' -count=1`.
-**Done when:** GET expõe os 3 blocos; UPDATE envia os 3 blocos e passa e2e.
-
-**Done when (Epic):** os 7 recursos têm fachada CRUD read+write e2e-testada contra httptest; sub-lists de account encadeiam por cursor; settings expõe tri-bloco; writes replay-safe; nenhum filtro dropado silenciosamente; gerados intocados; build/vet/test verdes.
+**Deviations (informam Phases 3–4):**
+- **[High, corrigido `wo6cx0mvh`] Cursor stop-condition:** `ListBalancesPages`/`ListOperationsPages` paravam em `!HasMore()`; o ramo heurístico page-based de `HasMore()` (`models/common.go:262`) dispara `true` numa página cursor terminal cheia que carrega campo `page`, com `NextCursor==""` → loop infinito re-fetchando página 1 (leitura money-path-adjacent). **Fix:** loops cursor param em `NextCursor == ""` direto. **Lição p/ Phase 3–4:** loop cursor NUNCA usa `HasMore()` como parada; só loop page-based (que avança `Page++` e é auto-corretivo).
+- **[Medium×2, corrigido] Decode de valor monetário não-asserido:** testes de balances/`BalancesAtTimestamp` afirmavam só o `ID`, nunca o `available` (`decimal.Decimal`). Todo teste de leitura money-path DEVE asserir o valor decimal, não só a presença.
+- **Filtros sem slot (invariante #6) — mapa real por recurso:** Assets `code/type/status` (todos via editor); Segments `name/status/include_deleted` (via editor); Portfolios `name/include_deleted` (via editor), `entity_id/status` (slot nativo); Ledgers `include_deleted` (via editor), `name/status` (slot); AccountTypes `key_value` (slot!), `name/include_deleted` (via editor); Accounts `holder_id/include_deleted` (via editor), 12 outros (slot). O vision de 2.1.a errou ("filtros mapeiam a params gerados") — verificar sempre contra o struct gerado, não contra a convenção.
+- **Accounts — `models.BalancesListOpts` NÃO foi mutado:** é owned pelo path legado (`entities/balances.go`, `pkg/integrity/checker.go`). O sub-list de balances toma `models.CursorListOpts` direto (é o shape exato do param gerado); operations ganhou `models.AccountOperationsListOpts` novo (type/direction/route_id/route_code — reusar `OperationsListOpts` dropava filtros).
+- **Ledger settings tri-bloco:** `models.LedgerSettings` estendido aditivamente (Accounting.RequireHolder + blocos Overrides + Tracer). O path legado agora é silenciosamente capaz de round-tripar os blocos novos (campos required default-zero no decode; input só ganhou pointers opcionais) — deixado intocado (coexistência).
+- **metadata-indexes:** `entityName` é QUERY param no List (`entity_name`), PATH segment no Create/Delete. Vive no plano **Ledger** (não transaction como o legado sugeria).
+- **Generated-parse footgun:** `Parse*Resp` de ops com resposta typed (ex. `GetAccountBalancesAtTimestampResp`) faz UNMARSHAL EAGER que valida `openapi_types.UUID` mesmo em HTTP 200 — fixtures de teste dessas ops PRECISAM de UUIDs reais; só as sub-lists `*Pagination`-wrapped (Items untyped) toleram ids sintéticos curtos.
+- **YAGNI Count:** nenhum `Count{X}Resp` tipa `X-Total-Count`; `Pagination.HasMore()` cobre "tem mais". Count cortado da wave (revisitar em 2.3 se um endpoint exigir contagem explícita).
 
 ### Epic 2.2: Ciclo de vida de transação + balances + operations
 
-**Goal:** Os quatro paths de create (`/json`,`/inflow`,`/outflow`,`/annotation`), `commit`/`cancel`/`revert`, balances (split compact `Balance` vs `BalanceHistory`) e operations funcionam; skips (`TransactionSkip{fees,tracer}`) honrados só quando `settings.overrides` habilita, com 422 `0490` claro caso contrário.
-**Scope:** `entities/transactions*.go`, `models/transaction*.go`, balances/operations.
-**Dependencies:** Epic 2.1
-**Done when:** Criar/commitar/cancelar/reverter passa; a resposta expõe fee legs + `amount` inflado/líquido; `feesSkipped`/`tracerSkipped` refletidos; `/dsl` mantido só como atalho para `/json`.
+**Goal:** Os quatro paths de create (`/json`, `/inflow`, `/outflow`, `/annotation`), `commit`/`cancel`/`revert`, balances (split `Balance` compact vs `BalanceHistory`) e operations funcionam; skips (`TransactionSkip{fees,tracer}`) honrados só quando `settings.overrides` habilita, com 422 `0490` claro caso contrário.
+**Scope:** `entities/transactions*.go` + fachada nova, `models/transaction*.go`, balances/operations sobre `internal/genledger`.
+**Dependencies:** Epic 2.1 (write-facade pattern, cursor-stop lição, settings tri-bloco).
+**Done when:** criar/commitar/cancelar/reverter passa e2e; a resposta expõe fee legs + `amount` inflado/líquido; `feesSkipped`/`tracerSkipped` refletidos; `/dsl` mantido só como atalho para `/json`; writes replay-safe (X-Idempotency estável); nenhum filtro dropado.
 **Target:** midaz-sdk-golang
-**Status:** Pending
+**Status:** Pending *(próxima onda a detalhar — money-write crown jewel, escrutínio máximo, isolada. Elaborar contra o código real das fachadas 2.1 + ops de transação geradas antes de lançar.)*
 
-### Epic 2.3: Routes, asset-rates, counts e metadata-indexes
+### Epic 2.3: Routes, asset-rates, counts
 
-**Goal:** Operation-routes, transaction-routes, asset-rates (create via `PUT .../asset-rates` com `from`/`to` no body), counts via HEAD e metadata-indexes funcionam.
+**Goal:** Operation-routes, transaction-routes, asset-rates (create via `PUT .../asset-rates` com `from`/`to` no body) e counts via HEAD funcionam.
 **Scope:** `entities/`, `models/` dos recursos acima.
 **Dependencies:** Epic 2.1
-**Done when:** CRUD passa; asset-rates create manda códigos no body; counts parseiam `X-Total-Count`; metadata-indexes lida com array não-paginado.
+**Done when:** CRUD passa; asset-rates create manda códigos no body; counts parseiam `X-Total-Count` (revisita o YAGNI Count de 2.1 se necessário).
 **Target:** midaz-sdk-golang
 **Status:** Pending
 
@@ -327,14 +130,14 @@ Findings a corrigir (severidade do harness → decisão do supervisor):
 
 ## Phase 3 — Ledger new domains (CRM + fees + billing + crypto)
 
-**Milestone:** Holders/instruments/composition, fees (packages/estimates), billing e encryption/protection funcionam via a fachada.
+**Milestone:** Holders/instruments/composition, fees (packages/estimates), billing e encryption/protection funcionam via a fachada. Todos os recursos copiam o write-facade pattern + `setQueryParam` de filtros + a lição cursor-stop da Phase 2.
 
 ### Epic 3.1: Holders, Instruments, Composition
 
-**Goal:** Holders (re-homed no ledger, path-based), instruments (+related-parties), e composition (holder+account+instrument numa chamada, com envelope não-atômico `{account,instrument,instrumentError}`) funcionam.
-**Scope:** `entities/`, `models/` (holders/instruments/composition), idempotência via `X-Idempotency`/`X-TTL` (**NUNCA** `X-Idempotency-Key` — texto anterior era o mesmo mito da doc-comment CRM que Plano A Fase 3 wave 4 pegou como CRITICAL; runtime `lib-commons/v5` = `X-Idempotency`).
+**Goal:** Holders (re-homed no ledger, path-based), instruments (+related-parties), e composition (holder+account+instrument numa chamada, envelope não-atômico `{account,instrument,instrumentError}`) funcionam.
+**Scope:** `entities/`, `models/` (holders/instruments/composition); idempotência via `X-Idempotency`/`X-TTL` (invariante #5 — **NUNCA** `X-Idempotency-Key`).
 **Dependencies:** Phase 2
-**Done when:** CRUD de holders/instruments passa; composition expõe `instrumentError` sem engolir (sem rollback do lado do servidor); CRM enforcement (422 `0491` requireHolder) tipado.
+**Done when:** CRUD de holders/instruments passa; composition expõe `instrumentError` sem engolir (sem rollback server-side); CRM enforcement (422 `0491` requireHolder) tipado.
 **Target:** midaz-sdk-golang
 **Status:** Pending
 
@@ -343,15 +146,15 @@ Findings a corrigir (severidade do harness → decisão do supervisor):
 **Goal:** Packages (definições de fee, offset-paginated), estimates (dry-run), billing-packages e billing-calculate funcionam.
 **Scope:** `entities/`, `models/` de fees e billing.
 **Dependencies:** Phase 2
-**Done when:** CRUD de packages passa (offset pagination via trinaldo); `/estimates` retorna cálculo dry-run; billing-calculate retorna results+summary; códigos numéricos de fee tipados.
+**Done when:** CRUD de packages passa (offset pagination via trinaldo — aqui o adaptador de offset adiado em 1.4.2 pode finalmente ser necessário); `/estimates` retorna cálculo dry-run; billing-calculate retorna results+summary; códigos numéricos de fee tipados.
 **Target:** midaz-sdk-golang
 **Status:** Pending
 
 ### Epic 3.3: Encryption + Protection
 
-**Goal:** Encryption (`/provision`, `/status`) e protection (`/audit`) funcionam, incluindo a decodificação do envelope `pkg.HTTPError`.
+**Goal:** Encryption (`/provision`, `/status`) e protection (`/audit`) funcionam.
 **Scope:** `entities/`, `models/` de encryption/protection.
-**Dependencies:** Phase 2, Epic 1.4 (decodificador cobre `pkg.HTTPError`)
+**Dependencies:** Phase 2, Epic 1.4 (decoder — nota: `pkg.HTTPError` foi unificado no `Error` RFC 9457 por Plano A, então não há envelope especial a tratar aqui).
 **Done when:** Provision/status/audit passam; 404 = legacy mode tratado.
 **Target:** midaz-sdk-golang
 **Status:** Pending
@@ -366,7 +169,7 @@ Findings a corrigir (severidade do harness → decisão do supervisor):
 
 **Goal:** O plano tracer autentica (Bearer compartilhado ou X-API-Key), e rules (CEL, lifecycle DRAFT→ACTIVE→INACTIVE) e limits (+usage) funcionam.
 **Scope:** fachada sobre `internal/gentracer`, `entities/`, `models/` de rules/limits.
-**Dependencies:** Phase 1, Epic 1.1 (spec do tracer com Bearer)
+**Dependencies:** Phase 1 (Client do tracer já constrói)
 **Done when:** CRUD + activate/deactivate/draft de rules e limits passa; `422` de custo de CEL e `limit/usage` tratados.
 **Target:** midaz-sdk-golang
 **Status:** Pending
@@ -391,11 +194,20 @@ Findings a corrigir (severidade do harness → decisão do supervisor):
 
 ---
 
-## Phase 5 — Ergonomics, docs, contract tests
+## Phase 5 — Ergonomia, cutover, docs, contract tests
 
-**Milestone:** Helpers ergonômicos completos, docs/exemplos atualizados, testes de contrato regenerados; `make ci` verde.
+**Milestone:** Helpers ergonômicos completos; **cutover do accessor + deleção do legado** (fim da coexistência, invariante #7); docs/exemplos/mapping atualizados; testes de contrato regenerados; `make ci` verde.
 
-### Epic 5.1: Helpers ergonômicos
+### Epic 5.1: Cutover do accessor + deleção do legado
+
+**Goal:** As fachadas `entities/*_facade.go` (Phases 2–4) são plugadas em `client.X`; os serviços legados (`entities/*.go` sem `_facade`) e seu `*HTTPClient`/retry são deletados num passo atômico. Fim da coexistência.
+**Scope:** `entities/entity.go`, `entities/plane_clients.go`, remoção do path legado, `midaz.go`.
+**Dependencies:** Phases 2–4 (todas as fachadas existem e passam e2e)
+**Done when:** `client.X` roteia pras fachadas; nenhum serviço legado sobra; `examples/` e consumidores migram numa passada; build/test verdes.
+**Target:** midaz-sdk-golang
+**Status:** Pending
+
+### Epic 5.2: Helpers ergonômicos
 
 **Goal:** Builders fluentes (com `FieldErrors`), DSL de transação e `WaitForSettlement` (poll de balance, não de status) funcionam.
 **Scope:** `models/transaction_dsl.go`, builders, novo helper de settle em `pkg/transaction` ou `entities/`.
@@ -404,29 +216,18 @@ Findings a corrigir (severidade do harness → decisão do supervisor):
 **Target:** midaz-sdk-golang
 **Status:** Pending
 
-### Epic 5.2: Docs, exemplos, mapping
+### Epic 5.3: Docs, exemplos, mapping, contract tests
 
-**Goal:** `README.md`, `docs/README.md`, `docs/mapping/`, `docs/examples.md` e o `mass-demo-generator` refletem a superfície nova.
-**Scope:** `docs/`, `examples/`, `README.md`.
-**Dependencies:** Phases 2–4
-**Done when:** Exemplos rodam contra o stack novo; mapping público/interno atualizado; `make demo-data` funciona.
-**Target:** midaz-sdk-golang
-**Status:** Pending
-
-### Epic 5.3: Testes de contrato + cobertura
-
-**Goal:** Os `*_contract_regression_test.go` são regenerados/validados contra as specs corrigidas; cobertura ≥80% na lógica crítica nova.
-**Scope:** testes em `entities/`, `models/`.
-**Dependencies:** Phases 2–4
-**Done when:** `make ci` verde; testes de contrato batem com as specs versionadas.
+**Goal:** `README.md`, `docs/README.md`, `docs/mapping/`, `docs/examples.md` e o `mass-demo-generator` refletem a superfície nova; os `*_contract_regression_test.go` são regenerados/validados; cobertura ≥80% na lógica crítica nova; `make ci` verde.
+**Scope:** `docs/`, `examples/`, `README.md`, testes de contrato.
+**Dependencies:** Phases 2–4 + Epic 5.1
+**Done when:** exemplos rodam contra o stack novo; mapping atualizado; `make demo-data` funciona; `make ci` verde; testes de contrato batem com as specs versionadas.
 **Target:** midaz-sdk-golang
 **Status:** Pending
 
 ---
 
 ## Phase 6 — Streaming consumer *(opcional / decisão de produto)*
-
-**Milestone:** Consumidor tipado de eventos Kafka/CloudEvents, se Lerian decidir expor consumo ao usuário do SDK.
 
 ### Epic 6.1: Consumidor Kafka/CloudEvents
 
@@ -441,18 +242,8 @@ Findings a corrigir (severidade do harness → decisão do supervisor):
 
 ## Self-review
 
-- **Spec coverage:** Ledger 107 ops cobertas por Phases 2–3 (onboarding 2.1, txn/balances/ops 2.2, routes/rates/counts/metadata 2.3, holders/instruments/composition 3.1, fees/billing 3.2, encryption/protection 3.3). Tracer 31 ops por Phase 4 (rules/limits 4.1, reservations/validations 4.2, audit 4.3). Fundação: Epic 1.1 (Plano A ✅) + codegen 1.2 (✅) + config/auth 1.3 + erro/paginação 1.4. Streaming por Phase 6. Sem gap conhecido.
-- **Vagueness scan:** Tasks da Phase 1 nomeiam o envelope RFC 9457 (`Error`/`ErrorDetail`), códigos (sufixos `0177`/`0178`/`0490`/`0147`), tipos gerados reais (`ClientWithResponses`, `Pagination`, `RequestEditorFn`), paths e comandos concretos. Sem "appropriate"/"TBD" na onda detalhada.
-- **Contract consistency:** `pkg/errors.Error` é a superfície pública de erro em 1.4.1 e reusada em 3.3; o único envelope upstream é o RFC 9457 `Error` gerado (idêntico nos 2 planos), consumido só pelo decoder de 1.4.1; o trinaldo `List/Pages/All` definido em 1.4.2 é reusado por todas as lists; `LedgerURL`/`TracerURL`/`WithTracerAPIKey` definidos em 1.3.1 e consumidos em 1.3.2 (via RequestEditorFn/RoundTripper) e Phase 4.
-- **Phase boundaries:** Cada fase termina em software compilável e testável (Phase 1 lista orgs end-to-end; Phase 2 fecha o money path; etc.).
-- **Verification plausibility:** Comandos apontam paths reais do SDK (`pkg/config`, `pkg/errors`, `entities/`, `models/`) e do midaz (`components/tracer/...`).
-
----
-
-## Apêndice — relatórios de exploração (efêmeros, no scratchpad da sessão)
-
-- `01-server-api-surface.md` — inventário REST completo (ledger + tracer) + delta.
-- `02-monorepo-capabilities.md` — componentes e capacidades novas.
-- `03-current-sdk-architecture.md` — arquitetura atual (keep/coupled/missing) com anchors file:line.
-- `04-grpc-streaming-surface.md` — veredicto REST-only.
-- Worktree da branch: `scratchpad/midaz-consolidation`.
+- **Spec coverage:** Ledger ~107 ops por Phases 2–3 (onboarding 2.1 ✅, txn/balances/ops 2.2, routes/rates/counts 2.3, holders/instruments/composition 3.1, fees/billing 3.2, encryption/protection 3.3). Tracer 31 ops por Phase 4 (rules/limits 4.1, reservations/validations 4.2, audit 4.3). Fundação Phase 1 ✅. Cutover/docs Phase 5. Streaming opcional Phase 6. Sem gap conhecido.
+- **Vagueness scan:** a onda detalhada é a Phase 2; Epic 2.1 está fechado com deviations concretas; 2.2/2.3 seguem epic-level (serão detalhadas contra o código real quando forem a onda corrente — rolling wave). Sem "appropriate"/"TBD" na onda detalhada.
+- **Contract consistency:** os 8 invariantes travados acima são a fonte única; toda fase referencia-os em vez de redefinir. `*errors.Error` / `DecodeProblemJSON` (erro), trinaldo `List/Pages/All` (paginação), write-facade + `bytes.NewReader` (write), `authRefreshRoundTripper` (replay), `setQueryParam` (filtros sem slot) — todos definidos na Phase 1 e reusados adiante.
+- **Phase boundaries:** cada fase termina em software compilável e testável (Phase 1 lista orgs; Phase 2 fecha o money path; Phase 5 corta o legado e roda `make ci`).
+- **Verification plausibility:** comandos apontam paths reais (`entities/`, `models/`, `pkg/errors`, `pkg/config`, `internal/gen*`).
