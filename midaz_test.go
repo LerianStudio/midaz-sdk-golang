@@ -68,7 +68,7 @@ func TestNewClient(t *testing.T) {
 		WithConfig(testCfg),
 		WithHTTPClient(customHTTPClient),
 		WithLedgerURL("https://test.example.com/v1"),
-		WithCRMURL("https://test.example.com/crm"),
+		WithTracerURL("https://test.example.com/tracer/v1"),
 		WithTimeout(30*time.Second),
 		WithDebug(true),
 		WithEnvironment(config.EnvironmentDevelopment),
@@ -106,8 +106,8 @@ func TestNewClient(t *testing.T) {
 		t.Error("Expected debug to be true")
 	}
 
-	if got := client.config.ServiceURLs[config.ServiceCRM]; got != "https://test.example.com/crm" {
-		t.Errorf("Expected CRM URL to be applied, got %q", got)
+	if got := client.config.ServiceURLs[config.ServiceTracer]; got != "https://test.example.com/tracer/v1" {
+		t.Errorf("Expected Tracer URL to be applied, got %q", got)
 	}
 
 	require.NotNil(t, client.Entity)

@@ -25,7 +25,7 @@ func TestValidateConfig_Valid(t *testing.T) {
 		ServiceURLs: map[ServiceType]string{
 			ServiceOnboarding:  "https://api.example.com/v1",
 			ServiceTransaction: "https://api.example.com/v1",
-			ServiceCRM:         "https://api.example.com/crm",
+			ServiceTracer:      "https://tracer.example.com/v1",
 		},
 		Anonymous: true,
 	}
@@ -34,7 +34,7 @@ func TestValidateConfig_Valid(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestValidateConfig_CRMURLIsOptional(t *testing.T) {
+func TestValidateConfig_TracerURLIsOptional(t *testing.T) {
 	config := &Config{
 		ServiceURLs: map[ServiceType]string{
 			ServiceOnboarding:  "https://api.example.com/v1",

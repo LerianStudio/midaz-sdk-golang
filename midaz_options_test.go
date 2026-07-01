@@ -99,13 +99,13 @@ func TestClientNew_WithEnvironmentRecomputesDefaultServiceURLs(t *testing.T) {
 	urls := c.GetConfig().ServiceURLs
 	require.Equal(t, "https://api.midaz.io/v1", urls[config.ServiceOnboarding])
 	require.Equal(t, "https://api.midaz.io/v1", urls[config.ServiceTransaction])
-	require.Equal(t, "https://api.midaz.io/v1", urls[config.ServiceCRM])
+	require.Equal(t, "https://api.midaz.io/v1", urls[config.ServiceTracer])
 }
 
 func TestClientNew_WithEnvironmentDoesNotOverrideExplicitURLs(t *testing.T) {
 	c, err := New(
 		WithLedgerURL("https://ledger.example.com/v1"),
-		WithCRMURL("https://crm.example.com/v1"),
+		WithTracerURL("https://tracer.example.com/v1"),
 		WithEnvironment(config.EnvironmentProduction),
 		WithAnonymous(),
 	)
@@ -114,7 +114,7 @@ func TestClientNew_WithEnvironmentDoesNotOverrideExplicitURLs(t *testing.T) {
 	urls := c.GetConfig().ServiceURLs
 	require.Equal(t, "https://ledger.example.com/v1", urls[config.ServiceOnboarding])
 	require.Equal(t, "https://ledger.example.com/v1", urls[config.ServiceTransaction])
-	require.Equal(t, "https://crm.example.com/v1", urls[config.ServiceCRM])
+	require.Equal(t, "https://tracer.example.com/v1", urls[config.ServiceTracer])
 }
 
 // --- from client_config_provider_regression_test.go ---
