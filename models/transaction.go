@@ -138,6 +138,18 @@ type Transaction struct {
 	// Description is a human-readable description of the transaction
 	// This should provide context about the purpose or nature of the transaction
 	Description string `json:"description,omitempty"`
+
+	// FeesSkipped reports whether fee calculation was skipped for this
+	// transaction (the server applies it based on ledger settings). The server
+	// always emits this flag; the SDK surfaces it so callers can tell whether a
+	// fee package was bypassed.
+	FeesSkipped bool `json:"feesSkipped,omitempty"`
+
+	// TracerSkipped reports whether tracer-plane validation (limits, rules,
+	// reservations) was skipped for this transaction. Emitted by the server and
+	// surfaced here so callers can tell an unvalidated transaction from a
+	// validated one.
+	TracerSkipped bool `json:"tracerSkipped,omitempty"`
 }
 
 func validatePositiveDecimalString(value any, field string) error {
