@@ -2,6 +2,7 @@ package entities
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -9,6 +10,21 @@ import (
 	"sync/atomic"
 	"testing"
 )
+
+// countingRoundTripper is a controllable base transport for the auth-layer
+// tests: it records how many times it was invoked and returns a canned
+// response so a test can prove whether the replay/injection paths hit the
+// wire at all.
+type countingRoundTripper struct {
+	calls    int32
+	response func(*http.Request) *http.Response
+}
+
+func (c *countingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	atomic.AddInt32(&c.calls, 1)
+
+	return c.response(req), nil
+}
 
 // TestAuthRefreshRoundTripper_BearerInjection verifies the Bearer branch: when
 // no API key is configured, the round tripper injects the provider's token as
@@ -181,5 +197,72 @@ func TestAuthRefreshRoundTripper_RefreshOnlyOnceOnPersistent401(t *testing.T) {
 	}
 	if got := atomic.LoadInt32(&refreshes); got != 1 {
 		t.Fatalf("refreshes = %d, want exactly 1", got)
+	}
+}
+
+// TestAuthRefreshRoundTripper_UnrewindableBodyNoReplay is the money-path guard
+// for the unrewindable-body fallback: a request with a non-nil Body but no
+// GetBody cannot be safely replayed (a replay would carry an empty body). On a
+// 401, the round tripper must surface the ORIGINAL 401 verbatim — no second
+// RoundTrip, no panic, no body mutation.
+func TestAuthRefreshRoundTripper_UnrewindableBodyNoReplay(t *testing.T) {
+	orig := &http.Response{StatusCode: http.StatusUnauthorized, Body: io.NopCloser(strings.NewReader("first-401"))}
+	base := &countingRoundTripper{response: func(*http.Request) *http.Response { return orig }}
+
+	rt := newAuthRefreshRoundTripper(base, authRoundTripperConfig{
+		tokenProvider: func(context.Context) (string, error) { return "fresh-token", nil },
+	})
+
+	// Body != nil, GetBody == nil → unrewindable. http.NewRequest sets GetBody
+	// for strings.Reader, so build the request by hand and null it out.
+	req, _ := http.NewRequest(http.MethodPost, "http://example.invalid/v1/x", strings.NewReader(`{"amount":100}`))
+	req.GetBody = nil
+
+	resp, err := rt.RoundTrip(req)
+	if err != nil {
+		t.Fatalf("RoundTrip: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp != orig {
+		t.Fatalf("response = %p, want the original 401 %p (unrewindable body must not be replayed)", resp, orig)
+	}
+	if got := atomic.LoadInt32(&base.calls); got != 1 {
+		t.Fatalf("base RoundTrip calls = %d, want 1 (no replay of an unrewindable body)", got)
+	}
+}
+
+// TestAuthRefreshRoundTripper_TokenProviderErrorNoRequest verifies the auth
+// error path: when the token provider fails, RoundTrip returns that error and
+// never touches the wire (base RoundTripper is not called).
+func TestAuthRefreshRoundTripper_TokenProviderErrorNoRequest(t *testing.T) {
+	wantErr := errors.New("access manager unreachable")
+	base := &countingRoundTripper{response: func(*http.Request) *http.Response {
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(""))}
+	}}
+
+	rt := newAuthRefreshRoundTripper(base, authRoundTripperConfig{
+		tokenProvider: func(context.Context) (string, error) { return "", wantErr },
+	})
+
+	req, _ := http.NewRequest(http.MethodGet, "http://example.invalid/v1/x", nil)
+	resp, err := rt.RoundTrip(req)
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("err = %v, want %v (token provider error must surface)", err, wantErr)
+	}
+	if resp != nil {
+		t.Fatalf("resp = %v, want nil when auth injection fails", resp)
+	}
+	if got := atomic.LoadInt32(&base.calls); got != 0 {
+		t.Fatalf("base RoundTrip calls = %d, want 0 (no request sent on auth failure)", got)
+	}
+}
+
+// TestEntity_Planes_NilSafe pins the nil-receiver contract on the Planes
+// accessor: a nil *Entity returns nil rather than panicking.
+func TestEntity_Planes_NilSafe(t *testing.T) {
+	var e *Entity
+	if got := e.Planes(); got != nil {
+		t.Fatalf("(*Entity)(nil).Planes() = %v, want nil", got)
 	}
 }

@@ -40,9 +40,12 @@ type authRoundTripperConfig struct {
 //   - Auth injection: Bearer token from the shared provider, OR X-API-Key when
 //     the plane was configured with one.
 //   - 401 → refresh → replay-once: on an Unauthorized response it invalidates
-//     the cached token, fetches a fresh one via singleflight (so a 401 burst
-//     across planes collapses onto one exchange), and replays the SAME request
-//     exactly once with the fresh credential.
+//     the cached token, fetches a fresh one, and replays the SAME request
+//     exactly once with the fresh credential. The per-roundtripper singleflight
+//     (refreshGroup) collapses a concurrent 401 burst on THIS plane's requests
+//     onto one refresh call; the cross-plane collapse (ledger + tracer sharing
+//     one exchange) happens a layer below in GetTokenFromAccessManager, which is
+//     itself cached + singleflighted.
 //   - Money-path invariant: the replay reuses the identical *http.Request (body
 //     re-read via GetBody), so caller-supplied X-Idempotency / X-TTL headers
 //     survive the replay byte-for-byte. Reauthenticating never mutates the
