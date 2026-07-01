@@ -241,14 +241,69 @@ Findings a corrigir (severidade do harness → decisão do supervisor):
 
 ### Epic 2.1: Recursos de onboarding
 
-**Goal:** Organizations, ledgers (+settings tri-bloco `accounting`/`overrides`/`tracer`), accounts (+lookup por alias, sub-lists de balances/operations), assets, portfolios, segments, account-types e metadata-indexes funcionam via a fachada.
-**Scope:** `entities/`, `models/` (recursos de onboarding), fachada sobre `internal/genledger`.
+**Goal:** ledgers (+settings tri-bloco), accounts (+alias, sub-lists balances/operations), assets, portfolios, segments, account-types, metadata-indexes funcionam via fachada (CRUD read+write), e2e-testados. Organizations já existe (exemplar) e é estendido a CRUD completo como write-exemplar.
+**Scope:** `entities/*_facade.go` (novos), `models/` (extensões pontuais), fachada sobre `internal/genledger`.
 **Dependencies:** Phase 1
-**Done when:** CRUD de cada recurso passa contra um server httptest/mock alimentado pela spec; counts usam HEAD → `X-Total-Count`; ledger settings PATCH tolera o enforcement de chave (0147/0148).
 **Target:** midaz-sdk-golang
-**Status:** Pending
+**Status:** Detailed (elaborado 2026-07-01 vs. recon `a5bcf9fac`)
 
-*(Tasks elaboradas por ring:executing-plans quando a Phase 1 pousar.)*
+> **DECISÕES DE WAVE (supervisor, 2026-07-01):**
+> - **Write-facade pattern (money-path, vale Phases 2-4):** os bodies de write no gerado são `openapi_types.File` (Plano A migrou writes como corpo opaco `RawBody`). NÃO usar o `...WithResponse(body File)` typed. Usar `Create{X}WithBodyWithResponse(ctx, ids, params, "application/json", bytes.NewReader(jsonBytes), authEditors...)` com `jsonBytes = json.Marshal(models.{X}Input)`. **O body TEM que ser `bytes.NewReader`** (só tipos concretos fazem `http.NewRequest` popular `GetBody` = hook de replay pós-401; body não-rebobinável → replay recusado). Servidor espera `application/json` (content-key) e lê bytes crus.
+> - **Coexistência (não wire ainda):** as fachadas são construídas + e2e-testadas mas NÃO plugadas em `client.X` (que segue no legado). Cutover do accessor + deleção do legado = passo atômico depois (Phase 5/cutover). Igual ao que a Phase 1 deixou pra Organizations. Reversível; override lane aberto.
+> - **YAGNI Count:** nenhum `Count{X}Resp` tipa `X-Total-Count` (só `Body []byte`+`HTTPResponse`). O exemplar não expõe count; `Pagination.HasMore()` já cobre "tem mais". **Count cortado da wave** salvo pedido do Fred.
+> - **Reads:** copiam o exemplar (`...WithResponse` → `json.Unmarshal` em `models.ListResponse[T]`; `List/Pages/All`; filtros sem slot no gen via `setQueryParam` req-editor). Erro via `DecodeProblemJSON(status, body, requestIDOf(resp.HTTPResponse))`.
+
+**Padrão-base (copiar de `entities/organizations_facade.go`):** `type {x}Facade struct{ ledger *genledger.ClientWithResponses }`; `List/Pages/All` page-based; helpers package-level reusados (`flattenPages` iter.go:136, `strPtr`, `setQueryParam`, `requestIDOf`). Teste e2e RED→GREEN contra `httptest.Server` (paginação encadeia + erro RFC 9457 decoda). Cada task = 1 commit atômico assinado.
+
+#### Task 2.1.0: Estender Organizations a CRUD completo (write-exemplar)
+- [ ] Done
+**Context:** `organizations_facade.go` só faz List/Pages/All. Precisa de Create/Get/Update/Delete pra virar o exemplar de WRITE que os outros copiam. Models `Create/UpdateOrganizationInput` já existem em `models/`.
+**Implementation vision:** adicionar `Create/Get/Update/Delete` usando o write-facade pattern acima (WithBody+bytes.NewReader) pros writes e `GetOrganizationByIDWithResponse` typed pro Get. Erro/decode idênticos ao List. Extrair helper de write se reduzir repetição (`postJSON`/`marshalBody`) — mas só se reduzir, não especular.
+**Files:** Modify `entities/organizations_facade.go`; Test `entities/organizations_facade_test.go`.
+**Verification:** `go test ./entities/ -run TestOrganizationsFacade -count=1` — create/get/update/delete + erro passam.
+**Done when:** Organizations tem CRUD completo via fachada, write replay-safe (bytes.NewReader), e2e-testado.
+
+#### Task 2.1.a: Fachadas trivais page-based — ledgers, assets, portfolios, segments
+- [ ] Done
+**Context:** models + List opts + Filters + Inputs JÁ existem (`ledgers_list_opts.go`, `assets_list_opts.go`, etc.). Ops geradas page-based puras. Cópia direta do exemplar 2.1.0.
+**Implementation vision:** 1 arquivo `entities/{ledgers,assets,portfolios,segments}_facade.go` por recurso, CRUD completo. **Assets:** os filtros `Code/Type/Status` de `AssetsFilters` NÃO têm slot em `ListAssetsParams` (só Metadata/Limit/Page/dates/SortOrder) → injetar via `setQueryParam` req-editors (padrão `include_deleted`). Ledgers/Portfolios/Segments: filtros mapeiam a params gerados (Name/Status/EntityId).
+**Files:** Create 4 `entities/*_facade.go` + tests.
+**Verification:** `go test ./entities/ -run 'TestLedgersFacade|TestAssetsFacade|TestPortfoliosFacade|TestSegmentsFacade' -count=1`.
+**Done when:** CRUD + paginação dos 4 passam e2e; filtros de asset chegam via query.
+
+#### Task 2.1.b: Fachada account-types
+- [ ] Done
+**Context:** model `AccountType` usa IDs `uuid.UUID` (não string). `ListAccountTypesParams` tem Page E Cursor (outlier). SEM Count op.
+**Implementation vision:** CRUD via exemplar; mapear params com atenção ao uuid (serializar `.String()`). Manter page-based (usar Page, ignorar Cursor salvo necessidade). appName do legado era `routing` mas isso é auth server-side — a fachada só fala HTTP, sem impacto.
+**Files:** Create `entities/account_types_facade.go` + test.
+**Verification:** `go test ./entities/ -run TestAccountTypesFacade -count=1`.
+**Done when:** CRUD + list de account-types passam e2e.
+
+#### Task 2.1.c: Fachada accounts (money-path-adjacent) — alias + sub-lists cursor
+- [ ] Done
+**Context:** money-path-adjacent (accounts/balances). List page-based (trivial). MAS: **lookup por alias é PATH** (`GetAccountByAliasWithResponse(ctx, org, ledger, alias)`); **2 sub-lists são CURSOR-only** (`GetAllBalancesByAccountIDWithResponse` params `{Limit,dates,SortOrder,Cursor}`, `GetAllOperationsByAccountWithResponse` idem+filtros) — divergem do `Pages` page-based do exemplar.
+**Implementation vision:** CRUD + `GetByAlias` (path param direto). Para as sub-lists, variante **cursor** do trinaldo: `Pages` avança lendo `Pagination.NextCursor` (não `Page++`), passando `Cursor` no próximo request; `List/All` idem. Alinhar `models.BalancesListOpts` (hoje embeda `PageListOpts`) ao estilo cursor do gen (usar `CursorListOpts` como operations já faz, ou traduzir). Balances retorno pode ser `Balance` compact vs `BalanceHistory` (`GetAccountBalancesAtTimestamp` → `*[]BalanceHistory` slice, sem paginação).
+**Files:** Create `entities/accounts_facade.go` + test; talvez Modify `models/balances_list_opts.go` (alinhar cursor).
+**Verification:** `go test ./entities/ -run TestAccountsFacade -count=1` — CRUD + alias + sub-list balances (cursor-chain) + sub-list operations passam.
+**Done when:** accounts CRUD + alias + as 2 sub-lists cursor encadeiam e2e; nenhum drop silencioso de filtro.
+
+#### Task 2.1.d: Fachada metadata-indexes (recurso global, sem paginação)
+- [ ] Done
+**Context:** recurso GLOBAL (sem org/ledger no path); `entityName` é path segment. `GetAllMetadataIndexesWithResponse` → `*[]MetadataIndex` (slice puro, SEM Pagination). Legado usa base URL `transaction`. Sem Update; só List/Create/Delete.
+**Implementation vision:** NÃO replica o trinaldo. `List(ctx, entityName) ([]models.MetadataIndex, error)` (decode slice direto), `Create` (WithBody), `Delete`. Sem List/Pages/All.
+**Files:** Create `entities/metadata_indexes_facade.go` + test.
+**Verification:** `go test ./entities/ -run TestMetadataIndexesFacade -count=1`.
+**Done when:** List(slice)/Create/Delete de metadata-indexes passam e2e.
+
+#### Task 2.1.e: Ledger settings tri-bloco (extensão de model + GET/UPDATE)
+- [ ] Done
+**Context:** gen `LedgerSettings` (ledger.gen.go:492) = `Accounting`(RequireHolder,ValidateAccountType,ValidateRoutes) + `Overrides`(AllowFeeSkip,AllowHolderSkip,AllowTracerSkip) + `Tracer`(FailPosture,Mode,TimeoutMs). Model público `models.LedgerSettings` (ledger.go:30) só tem `Accounting` (e falta `RequireHolder`). GET viável (`GetLedgerSettingsWithResponse` → `JSON200 *LedgerSettings`); UPDATE via WithBody (agora destravado).
+**Implementation vision:** estender `models.LedgerSettings` com `Overrides` + `Tracer` (+ `RequireHolder` no Accounting), campos espelhando o gen (não-pointer/required). `Get`/`Update` na fachada de ledgers (ou `ledger_settings_facade.go`). Update usa write-facade pattern.
+**Files:** Modify `models/ledger.go`; Modify/Create fachada de settings + test.
+**Verification:** `go test ./entities/ ./models/ -run 'LedgerSettings' -count=1`.
+**Done when:** GET expõe os 3 blocos; UPDATE envia os 3 blocos e passa e2e.
+
+**Done when (Epic):** os 7 recursos têm fachada CRUD read+write e2e-testada contra httptest; sub-lists de account encadeiam por cursor; settings expõe tri-bloco; writes replay-safe; nenhum filtro dropado silenciosamente; gerados intocados; build/vet/test verdes.
 
 ### Epic 2.2: Ciclo de vida de transação + balances + operations
 
