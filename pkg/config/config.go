@@ -1393,6 +1393,17 @@ func (c *Config) GetAllowInsecureHTTP() bool {
 	return c.AllowInsecureHTTP
 }
 
+// GetTracerAPIKey returns the optional X-API-Key for the Tracer plane. Empty
+// means the Tracer shares the Ledger's Access Manager Bearer token. The
+// entities layer reads this to wire the Tracer plane's auth transport.
+func (c *Config) GetTracerAPIKey() string {
+	if c == nil {
+		return ""
+	}
+
+	return c.TracerAPIKey
+}
+
 // Clone returns an independent copy of the configuration.
 //
 // The clone is safe to mutate without affecting the receiver. In particular,

@@ -960,3 +960,21 @@ func TestAccessManagerAndAnonymousMutualExclusion(t *testing.T) {
 		assert.True(t, cfg.AccessManager.Enabled)
 	})
 }
+
+// TestNewClientWiresTwoPlaneClients is the Task 1.3.2 construction guard:
+// midaz.New produces a Client whose embedded Entity carries both generated
+// plane clients (Ledger + Tracer), promoted via Planes().
+func TestNewClientWiresTwoPlaneClients(t *testing.T) {
+	c, err := New(
+		WithEnvironment(config.EnvironmentLocal),
+		WithAnonymous(),
+		WithLedgerURL("http://localhost:3002/v1"),
+		WithTracerURL("http://localhost:4020/v1"),
+	)
+	require.NoError(t, err)
+
+	planes := c.Planes()
+	require.NotNil(t, planes, "Planes() must be non-nil after New")
+	assert.NotNil(t, planes.Ledger, "ledger plane client must be wired")
+	assert.NotNil(t, planes.Tracer, "tracer plane client must be wired")
+}

@@ -66,6 +66,26 @@ func configAllowsInsecureHTTP(config Config) bool {
 	return false
 }
 
+// tracerAPIKeyConfig is an OPTIONAL extension of [Config] exposing the Tracer
+// plane's X-API-Key. Read via a type assertion (same pattern as
+// [insecureHTTPConfig]) so test-fixture Config implementations that predate
+// the two-plane remodel keep compiling; a missing method means "no API key",
+// i.e. the Tracer shares the Ledger Bearer.
+type tracerAPIKeyConfig interface {
+	GetTracerAPIKey() string
+}
+
+// configTracerAPIKey reads the optional Tracer X-API-Key from a Config
+// implementation. Empty for nil or for implementations that do not satisfy
+// [tracerAPIKeyConfig].
+func configTracerAPIKey(config Config) string {
+	if ext, ok := config.(tracerAPIKeyConfig); ok {
+		return ext.GetTracerAPIKey()
+	}
+
+	return ""
+}
+
 // Entity provides a centralized access point to all entity types in the Midaz SDK.
 // It acts as a factory for creating specific entity interfaces for different resource types
 // and operations.
@@ -73,6 +93,13 @@ type Entity struct {
 	// HTTP client configuration
 	httpClient *HTTPClient
 	baseURLs   map[string]string
+
+	// planes holds the two generated, typed plane clients (Ledger + Tracer).
+	// They are the low-level surface the hand-written facade migrates onto in
+	// Phases 2-4; during the transition the legacy per-service *HTTPClient
+	// above still serves the 16 services. Nil only when construction never
+	// reached the plane-client build step.
+	planes *PlaneClients
 
 	// Observability provider for tracing, metrics, and logging
 	observability observability.Provider
@@ -165,6 +192,10 @@ func NewEntityWithConfigContext(ctx context.Context, config Config) (*Entity, er
 		normalizedBaseURLs["crm"] = normalizedBaseURLs["onboarding"]
 	}
 
+	if strings.TrimSpace(normalizedBaseURLs["tracer"]) == "" {
+		normalizedBaseURLs["tracer"] = normalizedBaseURLs["onboarding"]
+	}
+
 	entity := &Entity{
 		httpClient:    httpClient,
 		baseURLs:      normalizedBaseURLs,
@@ -178,6 +209,13 @@ func NewEntityWithConfigContext(ctx context.Context, config Config) (*Entity, er
 			func() { auth.InvalidateAccessManagerToken(pluginAuth) },
 		)
 	}
+
+	planes, err := buildPlaneClients(config, pluginAuth, normalizedBaseURLs)
+	if err != nil {
+		return nil, err
+	}
+
+	entity.planes = planes
 
 	// Initialize service interfaces
 	entity.initServices()
