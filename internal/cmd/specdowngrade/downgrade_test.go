@@ -47,6 +47,18 @@ func TestDowngrade(t *testing.T) {
 			mustNotHave: []string{`"null"`},
 		},
 		{
+			name:        "contentEncoding base64 on string becomes format byte",
+			in:          "openapi: 3.1.0\nx:\n  contentEncoding: base64\n  type: string\n",
+			mustContain: []string{"format: byte", "type: string"},
+			mustNotHave: []string{"contentEncoding"},
+		},
+		{
+			name:        "contentEncoding is only bridged on string types",
+			in:          "openapi: 3.1.0\nx:\n  contentEncoding: base64\n  type: object\n",
+			mustContain: []string{"contentEncoding: base64"},
+			mustNotHave: []string{"format: byte"},
+		},
+		{
 			name:        "openapi version flipped to 3.0.3",
 			in:          "openapi: 3.1.0\nx: 1\n",
 			mustContain: []string{"openapi: 3.0.3"},

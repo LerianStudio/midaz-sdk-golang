@@ -2,15 +2,21 @@
 // equivalent 3.0.3 spec that oapi-codegen v2 can consume.
 //
 // oapi-codegen v2 does not support OAS 3.1 (it chokes on 3.1 nullable
-// type-arrays). Exactly two transforms bridge the gap for the Midaz specs:
+// type-arrays). Three transforms bridge the gap for the Midaz specs:
 //
 //	(a) nullable type-arrays: `type: [X, "null"]` -> `type: X` + `nullable: true`.
 //	(b) meaningless format: strip `format` where the resolved type is a scalar
 //	    not in {string, number, integer}.
+//	(c) base64 bodies: `contentEncoding: base64` on a string -> `format: byte`,
+//	    the 3.0.3 idiom, so oapi-codegen emits `[]byte` (which encoding/json
+//	    base64-decodes) rather than a raw, undecoded base64 string.
 //
-// It also sets `openapi: 3.0.3`. The output is deterministic: the YAML node
-// tree is walked in place, preserving key order, so it is committed and
-// drift-checked in CI.
+// It also sets `openapi: 3.0.3`. Other 3.1-only annotation keys that oapi-codegen
+// (via kin-openapi) tolerates and that do not affect the generated Go —
+// `examples` (plural arrays) and `contentMediaType` — are intentionally left as
+// passthrough; converting them would change nothing downstream. The output is
+// deterministic: the YAML node tree is walked in place, preserving key order, so
+// it is committed and drift-checked in CI.
 //
 // Usage: specdowngrade <input-3.1.yaml> <output-3.0.3.yaml>
 package main
@@ -71,6 +77,7 @@ func walk(n *yaml.Node) {
 	case yaml.MappingNode:
 		resolvedType := collapseNullableType(n)
 		stripMeaninglessFormat(n, resolvedType)
+		bridgeBase64Encoding(n, resolvedType)
 		// Recurse into values (Content is [key, value, key, value, ...]).
 		for i := 1; i < len(n.Content); i += 2 {
 			walk(n.Content[i])
@@ -142,6 +149,23 @@ func stripMeaninglessFormat(m *yaml.Node, resolvedType string) {
 	m.Content = out
 }
 
+// bridgeBase64Encoding rewrites the 3.1 `contentEncoding: base64` annotation on
+// a string schema into the 3.0.3 idiom `format: byte`, then drops the now-
+// redundant contentEncoding key. This makes oapi-codegen emit `[]byte` (which
+// encoding/json base64-decodes) instead of a raw base64 string. Scoped to
+// string types so it never touches non-schema or non-string mappings.
+func bridgeBase64Encoding(m *yaml.Node, resolvedType string) {
+	if resolvedType != "string" {
+		return
+	}
+	enc := mapGet(m, "contentEncoding")
+	if enc == nil || enc.Kind != yaml.ScalarNode || enc.Value != "base64" {
+		return
+	}
+	mapSetString(m, "format", "byte")
+	mapDelete(m, "contentEncoding")
+}
+
 // mapGet returns the value node for key in a mapping node, or nil.
 func mapGet(m *yaml.Node, key string) *yaml.Node {
 	for i := 0; i+1 < len(m.Content); i += 2 {
@@ -169,6 +193,34 @@ func mapSetBool(m *yaml.Node, key string, val bool) {
 		&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: key},
 		&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!bool", Value: valStr},
 	)
+}
+
+// mapSetString sets key to a string value, updating in place if present.
+func mapSetString(m *yaml.Node, key, val string) {
+	if v := mapGet(m, key); v != nil {
+		v.Kind = yaml.ScalarNode
+		v.Tag = "!!str"
+		v.Value = val
+		v.Style = 0
+		v.Content = nil
+		return
+	}
+	m.Content = append(m.Content,
+		&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: key},
+		&yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: val},
+	)
+}
+
+// mapDelete removes key (and its value) from a mapping node if present.
+func mapDelete(m *yaml.Node, key string) {
+	out := make([]*yaml.Node, 0, len(m.Content))
+	for i := 0; i+1 < len(m.Content); i += 2 {
+		if m.Content[i].Value == key {
+			continue
+		}
+		out = append(out, m.Content[i], m.Content[i+1])
+	}
+	m.Content = out
 }
 
 func main() {

@@ -12970,7 +12970,7 @@ func (r GetProvisioningStatusResp) StatusCode() int {
 type EstimateFeeCalculationResp struct {
 	Body                          []byte
 	HTTPResponse                  *http.Response
-	JSON200                       *string
+	JSON200                       *[]byte
 	ApplicationproblemJSONDefault *Error
 }
 
@@ -17025,7 +17025,7 @@ func ParseEstimateFeeCalculationResp(rsp *http.Response) (*EstimateFeeCalculatio
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest string
+		var dest []byte
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
