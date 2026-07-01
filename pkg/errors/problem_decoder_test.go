@@ -112,6 +112,41 @@ func TestErrorDecoder(t *testing.T) {
 			wantRetryable: false,
 		},
 		{
+			name: "envelope status wins over divergent transport status for category and retryability",
+			// Transport observed 200 (a lie / proxy rewrite); the envelope
+			// declares 503. Category and retryability must derive from the
+			// envelope's 503 (CategoryNetwork, retryable), not the transport 200.
+			httpStatus: http.StatusOK,
+			body: `{
+				"code":"LEDGER-9999",
+				"title":"Service Unavailable",
+				"detail":"upstream is down",
+				"status":503
+			}`,
+			wantCategory:  CategoryNetwork,
+			wantAPICode:   "LEDGER-9999",
+			wantStatus:    503,
+			wantRetryable: true,
+		},
+		{
+			name:       "prefixed idempotency code 0084 maps to CodeIdempotency, conflict stays retryable",
+			httpStatus: http.StatusConflict,
+			body: `{
+				"code":"LEDGER-0084",
+				"title":"Idempotency conflict",
+				"detail":"duplicate request",
+				"status":409
+			}`,
+			wantCategory:  CategoryConflict,
+			wantAPICode:   "LEDGER-0084",
+			wantStatus:    409,
+			wantRetryable: false,
+			checkDetails: func(t *testing.T, e *Error) {
+				t.Helper()
+				assert.Equal(t, CodeIdempotency, e.Code, "prefixed 0084 must classify as idempotency")
+			},
+		},
+		{
 			name:          "empty body falls back to http status",
 			httpStatus:    http.StatusServiceUnavailable,
 			body:          ``,

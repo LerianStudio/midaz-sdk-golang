@@ -2055,9 +2055,14 @@ var apiErrorCodeMappings = map[string]httpErrorMapping{
 //     when the status is a non-retryable 4xx.
 //   - 0177: domain denial → non-retryable (CategoryUnprocessable), even
 //     when the status is a retryable 5xx.
+//   - 0084: idempotency conflict → non-retryable (CategoryConflict) and
+//     classified as CodeIdempotency. On the wire the code arrives prefixed
+//     ("LEDGER-0084"), so the exact-match apiErrorCodeMappings["0084"] never
+//     fires; the suffix lookup is the only path that catches the prefixed form.
 var apiCodeSuffixMappings = map[string]httpErrorMapping{
 	"0178": {CategoryNetwork, CodeServiceUnavailable, false},
 	"0177": {CategoryUnprocessable, CodeUnprocessable, false},
+	"0084": {CategoryConflict, CodeIdempotency, false},
 }
 
 // apiCodeSuffixLen is the fixed width of the NNNN suffix in an
