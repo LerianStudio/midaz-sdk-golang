@@ -277,7 +277,7 @@ Findings a corrigir (severidade do harness → decisão do supervisor):
 ### Epic 3.1: Holders, Instruments, Composition
 
 **Goal:** Holders (re-homed no ledger, path-based), instruments (+related-parties), e composition (holder+account+instrument numa chamada, com envelope não-atômico `{account,instrument,instrumentError}`) funcionam.
-**Scope:** `entities/`, `models/` (holders/instruments/composition), idempotência via `X-Idempotency-Key`.
+**Scope:** `entities/`, `models/` (holders/instruments/composition), idempotência via `X-Idempotency`/`X-TTL` (**NUNCA** `X-Idempotency-Key` — texto anterior era o mesmo mito da doc-comment CRM que Plano A Fase 3 wave 4 pegou como CRITICAL; runtime `lib-commons/v5` = `X-Idempotency`).
 **Dependencies:** Phase 2
 **Done when:** CRUD de holders/instruments passa; composition expõe `instrumentError` sem engolir (sem rollback do lado do servidor); CRM enforcement (422 `0491` requireHolder) tipado.
 **Target:** midaz-sdk-golang
