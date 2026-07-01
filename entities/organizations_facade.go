@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"iter"
+	"net/http"
 	"strconv"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v4/internal/genledger"
@@ -45,7 +46,9 @@ func (f *organizationsFacade) List(ctx context.Context, opts models.Organization
 		return nil, err
 	}
 
-	resp, err := f.ledger.ListOrganizationsWithResponse(ctx, listOrganizationsParams(opts))
+	reqEditors := listOrganizationsReqEditors(opts)
+
+	resp, err := f.ledger.ListOrganizationsWithResponse(ctx, listOrganizationsParams(opts), reqEditors...)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -53,7 +56,9 @@ func (f *organizationsFacade) List(ctx context.Context, opts models.Organization
 	if resp.StatusCode() != 200 {
 		// DecodeProblemJSON maps the unified RFC 9457 envelope both planes emit
 		// into *errors.Error with retryability keyed on status + code suffix.
-		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, "")
+		// The server's X-Request-ID is threaded through so a client-side
+		// failure correlates with the server-side log/trace.
+		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
 	}
 
 	var page models.ListResponse[models.Organization]
@@ -139,6 +144,45 @@ func listOrganizationsParams(opts models.OrganizationsListOpts) *genledger.ListO
 	}
 
 	return params
+}
+
+// listOrganizationsReqEditors builds the request editors that carry query
+// params the generated ListOrganizationsParams cannot express. Today that is
+// only include_deleted: the ledger OAS spec omits it from ListOrganizations
+// (a server-side gap), so the SDK injects the legacy include_deleted=true
+// query param through an editor rather than dropping the filter silently.
+// Returns nil when no editor is needed so the common path adds zero overhead.
+func listOrganizationsReqEditors(opts models.OrganizationsListOpts) []genledger.RequestEditorFn {
+	if !opts.Filters.IncludeDeleted {
+		return nil
+	}
+
+	return []genledger.RequestEditorFn{setQueryParam("include_deleted", "true")}
+}
+
+// setQueryParam returns a RequestEditorFn that sets one query parameter on the
+// outbound request without disturbing the params the generated client already
+// encoded (it re-reads, sets, and re-encodes the existing query).
+func setQueryParam(key, value string) genledger.RequestEditorFn {
+	return func(_ context.Context, req *http.Request) error {
+		q := req.URL.Query()
+		q.Set(key, value)
+		req.URL.RawQuery = q.Encode()
+
+		return nil
+	}
+}
+
+// requestIDOf extracts the server's X-Request-ID from the response for
+// server↔client failure correlation. Nil-safe: returns "" when the response is
+// absent (it never is on this path — we return early on transport error before
+// reaching here — but the guard is free on a money-path helper).
+func requestIDOf(resp *http.Response) string {
+	if resp == nil {
+		return ""
+	}
+
+	return resp.Header.Get("X-Request-ID")
 }
 
 func strPtr(s string) *string { return &s }
