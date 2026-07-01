@@ -19,7 +19,7 @@
 
 | Phase | Milestone | Epics | Status |
 |-------|-----------|-------|--------|
-| 1 | Specs upstream corretas + núcleo gerado compilando + Client de 2 planos lista `organizations` end-to-end com erro/paginação normalizados | ~~1.1~~ (Plano A), ~~1.2~~ ✅, 1.3, 1.4 | Detailed (1.1 superseded por Plano A; 1.2 ✅ done — codegen dos 2 planos landed; 1.3/1.4 re-ancorados vs. código gerado) |
+| 1 | Specs upstream corretas + núcleo gerado compilando + Client de 2 planos lista `organizations` end-to-end com erro/paginação normalizados | ~~1.1~~ ~~1.2~~ ~~1.3~~ ~~1.4~~ ~~1.R~~ ✅ | **Complete** (2026-07-01 — 2 waves + remediação; ver Epic 1.R) |
 | 2 | Caminho do dinheiro completo: onboarding CRUD + ciclo de vida de transação (json/inflow/outflow/annotation + commit/cancel/revert) + balances/operations/routes/asset-rates + counts via HEAD | 2.1, 2.2, 2.3 | Epic-level |
 | 3 | Domínios novos do ledger: holders/instruments/composition, fees (packages/estimates), billing, encryption, protection | 3.1, 3.2, 3.3 | Epic-level |
 | 4 | Plano Tracer completo: rules (CEL), limits, reservations, validations, audit-events; auth Bearer compartilhado + X-API-Key opcional | 4.1, 4.2, 4.3 | Epic-level |
@@ -213,7 +213,12 @@ Decisões travadas com o Fred: (1) breaking in-place no `/v4`, sem shim; (2) hí
 **Goal:** zerar os 9 findings do wave de fechamento (`wxcd3fcvo`, PASS) antes de propagar a fachada-exemplar Organizations para os ~10 recursos da Phase 3. Motivação: o exemplar é copiado N vezes — corrigir o template é O(1); corrigir N cópias depois é O(n).
 **Scope:** `.env.local.example`, `.env.production.example`, `pkg/errors/`, `entities/organizations_facade.go`, `entities/auth_roundtripper.go` (+ testes).
 **Dependencies:** Epics 1.3+1.4 (landed, commits `810d90d`..`655a636`).
-**Status:** Doing
+**Status:** Done (2026-07-01) — 9 findings corrigidos em `6bd5024`,`3d71601`,`9877c11`,`391a6a6` (wave `wqnkudtdr`, PASS: 3 reviewers + 2 contrarian lenses, `defectFound:false`) + `f587e6d` (rename do 1 Low sobrevivente). Build/vet/test verdes fresh; gerados intocados.
+
+> **Deviations que afetam Phases posteriores:**
+> - **FIX 3 (padrão a replicar na Phase 3):** filtros que o param gerado não carrega (ex. `include_deleted`) são injetados via `genledger.RequestEditorFn` (helper `setQueryParam` re-lê/Set/re-Encode preservando params; `listOrganizationsReqEditors` retorna `nil` no caminho comum = overhead zero). As ~10 fachadas copiadas do exemplar devem seguir esse padrão, não dropar silenciosamente.
+> - **Gap de spec server-side (follow-up, fora do SDK):** a OAS do ledger omite `include_deleted` de várias list-ops (confirmado em ListOrganizations). Fechar no midaz depois → regen gera o campo nativo e o editor manual sai.
+> - **FIX 5 (classificação idempotência):** `apiCodeSuffixMappings` (`errors.go:~2058`) agora resolve `LEDGER-0084`→`CodeIdempotency` (409 não-retryable, `CategoryConflict`). O exact-match preexistente em `apiErrorCodeMappings` nunca casava o formato prefixado — o suffix map é o path real.
 
 Findings a corrigir (severidade do harness → decisão do supervisor):
 1. **[Med → fix]** `MIDAZ_ALLOW_INSECURE_HTTP` (data-plane) lido por `FromEnvironment:930` mas ausente de `.env.local.example`/`.env.production.example` — viola o invariante CLAUDE.md (3 `.env*.example` = lista autoritativa em sincronia). Adicionar `=false` com comentário distinguindo do `MIDAZ_ACCESS_MANAGER_ALLOW_INSECURE_HTTP` (access-manager-plane).
