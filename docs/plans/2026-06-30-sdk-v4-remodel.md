@@ -20,7 +20,7 @@
 | Phase | Milestone | Epics | Status |
 |-------|-----------|-------|--------|
 | 1 | Núcleo gerado compila; Client de 2 planos lista `organizations` end-to-end com erro (RFC 9457) e paginação normalizados | 1.1, 1.2, 1.3, 1.4, 1.R | **Complete** |
-| 2 | Money path completo: onboarding CRUD + ciclo de transação (json/inflow/outflow/annotation + commit/cancel/revert) + balances/operations/routes/asset-rates + counts | 2.1, 2.2, 2.R, 2.3 | **Detailed** (2.1, 2.2 Done; 2.R lint-hardening = onda corrente; 2.3 pending) |
+| 2 | Money path completo: onboarding CRUD + ciclo de transação (json/inflow/outflow/annotation + commit/cancel/revert) + balances/operations/routes/asset-rates + counts | 2.1, 2.2, 2.R, 2.3 | **Detailed** (2.1, 2.2, 2.R Done; 2.3 = onda corrente) |
 | 3 | Domínios novos do ledger: holders/instruments/composition, fees (packages/estimates), billing, encryption/protection | 3.1, 3.2, 3.3 | Epic-level |
 | 4 | Plano Tracer completo: rules (CEL), limits, reservations, validations, audit-events | 4.1, 4.2, 4.3 | Epic-level |
 | 5 | Ergonomia (builders, DSL, `WaitForSettlement`) + cutover do accessor/deleção do legado + docs/exemplos/mapping; `make ci` verde | 5.1, 5.2, 5.3 | Epic-level |
@@ -177,7 +177,7 @@ Exploração-fonte (efêmera, no scratchpad da sessão): `01-server-api-surface.
 **Scope:** `entities/*_facade_test.go` (helpers de teste), `entities/transactions_facade.go`/`organizations_facade.go` (nolint bodyclose), style em `entities/*_facade*.go`, `internal/genledger/smoke_test.go`, `internal/cmd/specdowngrade/`.
 **Dependencies:** Epic 2.2 (não mexer em money-path em voo).
 **Target:** midaz-sdk-golang
-**Status:** Detailed
+**Status:** ✅ Done (2026-07-01 — wave `wr0d1vw13`, 6 commits `3f4d5ad`..`57c8de4`; review logic/test/security + contrarian no-behavior-change/no-over-suppression, ambos `defectFound:false` provados; 1 Low fechado `7d44962` (pin de assinatura do `NewClient` restaurado com nolint). `golangci-lint run ./...` = 0 issues verificado por mim; untouchables intocados; zero mudança de comportamento money-path).
 
 > **Descoberta de processo (supervisor, 2026-07-01):** as waves 2.1/2.2 gatearam em `go build/vet/test` mas NÃO em `golangci-lint`. `go test` não vê função package-level não-usada (U1000) nem bodyclose. `.golangci.yml` tem `new:false` → o `make ci` terminal (Phase 5) tem ZERO tolerância. Debt acumulou invisível — mesma classe de falso-verde do defeito success-gate, um nível acima. **Correção: da wave 2.3 em diante o GREEN da harness inclui `golangci-lint run` nos pacotes tocados; a wave só retorna lint-clean.**
 
