@@ -26,6 +26,7 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v4/internal/reflectutil"
 	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/auth"
 	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/retry"
 	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/security"
 )
 
@@ -84,6 +85,38 @@ func configTracerAPIKey(config Config) string {
 	}
 
 	return ""
+}
+
+// planeRetryConfig is an OPTIONAL extension of [Config] carrying the effective
+// retry policy for the plane money-path, resolved ONCE by the caller
+// (midaz.Client) so the plane retry round tripper and the legacy *HTTPClient
+// agree on the effective values. It exists because the caller's retry option
+// chain and custom policy live on the midaz.Client — assembled AFTER Entity
+// construction — and are not reachable through the base [Config] methods. Read
+// via a type assertion (same pattern as [tracerAPIKeyConfig]); a Config that
+// does not satisfy it falls back to retry.DefaultOptions() + nil policy.
+type planeRetryConfig interface {
+	GetPlaneRetryOptions() *retry.Options
+	GetPlaneCustomRetryPolicy() func(*http.Response, error) bool
+}
+
+// configPlaneRetry reads the optional plane retry policy from a Config
+// implementation. Returns retry.DefaultOptions() + nil policy for nil or for
+// implementations that do not satisfy [planeRetryConfig], or when the exposed
+// options are nil.
+func configPlaneRetry(config Config) (retry.Options, func(*http.Response, error) bool) {
+	ext, ok := config.(planeRetryConfig)
+	if !ok {
+		return *retry.DefaultOptions(), nil
+	}
+
+	opts := ext.GetPlaneRetryOptions()
+	if opts == nil {
+		return *retry.DefaultOptions(), nil
+	}
+
+	//nolint:bodyclose // returns a retry-policy func (which has *http.Response in its signature), not an HTTP response.
+	return *opts, ext.GetPlaneCustomRetryPolicy()
 }
 
 // Entity provides a centralized access point to all entity types in the Midaz SDK.

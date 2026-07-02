@@ -433,10 +433,43 @@ func (c *Client) setupEntity() error {
 		return fmt.Errorf("failed to configure observability provider: %w", err)
 	}
 
+	// Retry chain construction: config seeds first, user overrides last.
+	// Override-on-conflict semantics — see [WithRetryOptions] godoc.
+	// MaxRetries == 0 (set via [WithoutRetries] or pkg/config.WithMaxRetries(0))
+	// flows through naturally; no separate enable flag is consulted.
+	//
+	// Built BEFORE Entity construction and resolved ONCE so the plane retry
+	// round tripper and the legacy *HTTPClient derive from the same seed. The
+	// plane clients are built inside NewEntityWithConfigContext — before the
+	// legacy WithRetryOptions/SetCustomRetryPolicy calls below — so the
+	// resolved policy must be threaded through construction, otherwise plane
+	// money-writes would silently ignore WithRetryOptions/WithCustomRetryPolicy.
+	retryChain := append(
+		[]retry.Option{
+			retry.WithMaxRetries(c.config.MaxRetries),
+			retry.WithInitialDelay(c.config.RetryWaitMin),
+			retry.WithMaxDelay(c.config.RetryWaitMax),
+		},
+		c.retryOpts...,
+	)
+
+	resolvedRetry, err := resolveRetryOptions(retryChain)
+	if err != nil {
+		return fmt.Errorf("failed to resolve retry options: %w", err)
+	}
+
 	// Construct the Entity from the resolved Config. NewEntityWithConfig
 	// runs initServices() internally during construction, seeding every
-	// per-service HTTPClient with the entity-level snapshot.
-	entity, err := entities.NewEntityWithConfigContext(c.ctx, c.config)
+	// per-service HTTPClient with the entity-level snapshot. The config is
+	// wrapped so the plane-client builder can read the resolved retry policy
+	// (see [entities.planeRetryConfig]).
+	entityConfig := planeRetryConfigWrapper{
+		Config:            c.config,
+		planeRetryOptions: resolvedRetry,
+		planeCustomRetry:  c.customRetryPolicy,
+	}
+
+	entity, err := entities.NewEntityWithConfigContext(c.ctx, entityConfig)
 	if err != nil {
 		return err
 	}
@@ -451,18 +484,8 @@ func (c *Client) setupEntity() error {
 	httpClient.SetEnableIdempotency(c.config.EnableIdempotency)
 	httpClient.SetExposeErrorBody(c.config.ExposeErrorBody)
 
-	// Retry chain construction: config seeds first, user overrides last.
-	// Override-on-conflict semantics — see [WithRetryOptions] godoc.
-	// MaxRetries == 0 (set via [WithoutRetries] or pkg/config.WithMaxRetries(0))
-	// flows through naturally; no separate enable flag is consulted.
-	retryChain := append(
-		[]retry.Option{
-			retry.WithMaxRetries(c.config.MaxRetries),
-			retry.WithInitialDelay(c.config.RetryWaitMin),
-			retry.WithMaxDelay(c.config.RetryWaitMax),
-		},
-		c.retryOpts...,
-	)
+	// Legacy per-service *HTTPClient path (unchanged): the SAME retryChain
+	// feeds WithRetryOptions so the two paths resolve from one seed.
 	if err := httpClient.WithRetryOptions(retryChain...); err != nil {
 		return fmt.Errorf("failed to configure retry options: %w", err)
 	}
@@ -483,6 +506,52 @@ func (c *Client) setupEntity() error {
 	c.Entity = entity
 
 	return nil
+}
+
+// resolveRetryOptions folds an option chain onto retry.DefaultOptions() using
+// the same apply mechanism as retry.Do and HTTPClient.WithRetryOptions, so the
+// plane retry round tripper and the legacy *HTTPClient resolve identical
+// effective options from one seed. It is the single conversion point from
+// []retry.Option to a concrete retry.Options for plane-client construction.
+func resolveRetryOptions(opts []retry.Option) (*retry.Options, error) {
+	resolved := retry.DefaultOptions()
+
+	for i, opt := range opts {
+		if opt == nil {
+			return nil, fmt.Errorf("retry option at index %d cannot be nil", i)
+		}
+
+		if err := opt(resolved); err != nil {
+			return nil, fmt.Errorf("retry option at index %d failed: %w", i, err)
+		}
+	}
+
+	return resolved, nil
+}
+
+// planeRetryConfigWrapper adapts *config.Config into an entities.Config that
+// ALSO exposes the effective plane retry policy (entities.planeRetryConfig).
+// The embedded *config.Config promotes every base and optional Config method
+// (GetHTTPClient, GetBaseURLs, GetObservabilityProvider, GetPluginAuth,
+// GetTracerAPIKey, GetAllowInsecureHTTP); this wrapper adds only the resolved
+// retry policy, which lives on the midaz.Client rather than on config.Config.
+type planeRetryConfigWrapper struct {
+	*config.Config
+
+	planeRetryOptions *retry.Options
+	planeCustomRetry  func(*http.Response, error) bool
+}
+
+// GetPlaneRetryOptions returns the effective plane retry policy resolved at
+// construction. Never nil in practice (setupEntity always resolves it).
+func (w planeRetryConfigWrapper) GetPlaneRetryOptions() *retry.Options {
+	return w.planeRetryOptions
+}
+
+// GetPlaneCustomRetryPolicy returns the caller-supplied plane custom retry
+// policy, or nil when none was configured.
+func (w planeRetryConfigWrapper) GetPlaneCustomRetryPolicy() func(*http.Response, error) bool {
+	return w.planeCustomRetry
 }
 
 // Shutdown gracefully shuts down the client, releasing any resources.

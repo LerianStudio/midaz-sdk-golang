@@ -132,12 +132,17 @@ func buildPlaneClients(config Config, pluginAuth auth.AccessManager, normalizedB
 		authCfg.tokenInvalidator = func() { auth.InvalidateAccessManagerToken(pluginAuth) }
 	}
 
+	//nolint:bodyclose // configPlaneRetry returns a retry-policy func (with *http.Response in its signature), not an HTTP response.
+	retryOptions, customRetryPolicy := configPlaneRetry(config)
+
 	return newPlaneClients(planeClientsConfig{
-		ledgerURL:    normalizedBaseURLs["onboarding"],
-		tracerURL:    normalizedBaseURLs["tracer"],
-		auth:         authCfg,
-		tracerAPIKey: configTracerAPIKey(config),
-		httpClient:   config.GetHTTPClient(),
+		ledgerURL:         normalizedBaseURLs["onboarding"],
+		tracerURL:         normalizedBaseURLs["tracer"],
+		auth:              authCfg,
+		tracerAPIKey:      configTracerAPIKey(config),
+		httpClient:        config.GetHTTPClient(),
+		retryOptions:      retryOptions,
+		customRetryPolicy: customRetryPolicy,
 	})
 }
 
