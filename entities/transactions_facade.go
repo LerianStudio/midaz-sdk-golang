@@ -222,6 +222,53 @@ func actionIdempotencyEditors(ctx context.Context) []genledger.RequestEditorFn {
 	return []genledger.RequestEditorFn{setHeader(idempotencyHeader, key)}
 }
 
+// UpdateTransaction patches a transaction's mutable fields (metadata +
+// description) via PATCH .../transactions/{id}. Same write-facade pattern as the
+// creates — a rewindable *bytes.Reader body so the auth round tripper can replay
+// after a 401 — but the wire body is the whole input object (json.Marshal),
+// sent as plain application/json (parity with the legacy PATCH; NOT merge-patch).
+// input.Validate rejects an empty payload before any request leaves the process.
+// Success is HTTP 200. No idempotency: a patch is not a balance mutation, and
+// the legacy path carried none.
+func (f *transactionsFacade) UpdateTransaction(ctx context.Context, orgID, ledgerID, transactionID string, input *models.UpdateTransactionInput) (*models.Transaction, error) {
+	const operation = "Transactions.UpdateTransaction"
+
+	if err := input.Validate(); err != nil {
+		return nil, err
+	}
+
+	return writeJSON[models.Transaction](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
+		resp, err := f.ledger.UpdateTransactionWithBodyWithResponse(ctx, orgID, ledgerID, transactionID, jsonContentType, body)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		return resp.HTTPResponse, resp.Body, nil
+	})
+}
+
+// UpdateOperation patches an operation's mutable fields (metadata + description)
+// via PATCH .../transactions/{txID}/operations/{opID}. Same write-facade pattern
+// as UpdateTransaction, but the 200 body decodes into models.Operation (this
+// endpoint returns the operation, not the parent transaction). input.Validate
+// rejects an empty payload before any request leaves the process.
+func (f *transactionsFacade) UpdateOperation(ctx context.Context, orgID, ledgerID, transactionID, operationID string, input *models.UpdateOperationInput) (*models.Operation, error) {
+	const operation = "Transactions.UpdateOperation"
+
+	if err := input.Validate(); err != nil {
+		return nil, err
+	}
+
+	return writeJSON[models.Operation](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
+		resp, err := f.ledger.UpdateOperationWithBodyWithResponse(ctx, orgID, ledgerID, transactionID, operationID, jsonContentType, body)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		return resp.HTTPResponse, resp.Body, nil
+	})
+}
+
 // Get retrieves one transaction by ID under an org+ledger. Like the onboarding
 // reads, it decodes the raw response body into models.Transaction (never the
 // generated genledger.Transaction, whose openapi_types.UUID would eager-validate

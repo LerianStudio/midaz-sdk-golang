@@ -443,6 +443,141 @@ func TestTransactionsFacade_LifecycleError(t *testing.T) {
 	}
 }
 
+// TestTransactionsFacade_UpdateTransaction proves an update sends PATCH to
+// .../transactions/{id} with a plain application/json body carrying the WHOLE
+// input object (metadata + description) — parity with the legacy PATCH, NOT a
+// merge-patch content type — and decodes the 200 response into the public model.
+func TestTransactionsFacade_UpdateTransaction(t *testing.T) {
+	var (
+		gotMethod, gotPath, gotCT string
+		gotBody                   []byte
+	)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod, gotPath, gotCT = r.Method, r.URL.Path, r.Header.Get("Content-Type")
+		gotBody, _ = io.ReadAll(r.Body)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(txResponseBody()))
+	}))
+	defer srv.Close()
+
+	input := models.NewUpdateTransactionInput().
+		WithDescription("adjusted").
+		WithMetadata(map[string]any{"reviewed": "yes"})
+
+	tx, err := newTestTransactionsFacade(t, srv).UpdateTransaction(context.Background(), txOrgID, txLedgerID, txID, input)
+	if err != nil {
+		t.Fatalf("UpdateTransaction: %v", err)
+	}
+
+	if gotMethod != http.MethodPatch || gotPath != txBase()+"/"+txID {
+		t.Fatalf("req = %s %s, want PATCH %s", gotMethod, gotPath, txBase()+"/"+txID)
+	}
+	if gotCT != jsonContentType {
+		t.Fatalf("Content-Type = %q, want %q (parity: plain JSON, not merge-patch)", gotCT, jsonContentType)
+	}
+
+	var wire map[string]any
+	if err := json.Unmarshal(gotBody, &wire); err != nil {
+		t.Fatalf("body not JSON object: %v (%s)", err, gotBody)
+	}
+	if wire["description"] != "adjusted" {
+		t.Fatalf("body.description = %v, want %q: %s", wire["description"], "adjusted", gotBody)
+	}
+	if _, ok := wire["metadata"].(map[string]any); !ok {
+		t.Fatalf("body.metadata missing/not object: %s", gotBody)
+	}
+	if tx.ID != txID {
+		t.Fatalf("tx.ID = %q, want %q", tx.ID, txID)
+	}
+}
+
+// TestTransactionsFacade_UpdateTransactionEmptyRejected proves an empty update
+// payload is rejected before any request leaves the process (parity: legacy
+// requires a non-empty change set).
+func TestTransactionsFacade_UpdateTransactionEmptyRejected(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		t.Error("server must not be hit on empty update payload")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	if _, err := newTestTransactionsFacade(t, srv).UpdateTransaction(context.Background(), txOrgID, txLedgerID, txID, models.NewUpdateTransactionInput()); err == nil {
+		t.Fatal("expected validation error for empty update payload")
+	}
+}
+
+// TestTransactionsFacade_UpdateTransactionError maps a non-2xx into the unified
+// error rather than decoding a transaction.
+func TestTransactionsFacade_UpdateTransactionError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/problem+json")
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"code":"LEDGER-0007","title":"Transaction not found","status":404}`))
+	}))
+	defer srv.Close()
+
+	input := models.NewUpdateTransactionInput().WithDescription("x")
+	if _, err := newTestTransactionsFacade(t, srv).UpdateTransaction(context.Background(), txOrgID, txLedgerID, txID, input); err == nil {
+		t.Fatal("expected error on 404 update")
+	}
+}
+
+// TestTransactionsFacade_UpdateOperation proves an operation update sends PATCH
+// to .../transactions/{txID}/operations/{opID} and decodes the 200 response into
+// models.Operation (NOT models.Transaction) — the endpoint returns an operation.
+func TestTransactionsFacade_UpdateOperation(t *testing.T) {
+	const opID = "77777777-7777-7777-7777-777777777777"
+	var gotMethod, gotPath, gotCT string
+	opBody := `{"id":"` + opID + `","transactionId":"` + txID + `","type":"DEBIT","description":"adjusted","assetCode":"USD"}`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod, gotPath, gotCT = r.Method, r.URL.Path, r.Header.Get("Content-Type")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(opBody))
+	}))
+	defer srv.Close()
+
+	input := models.NewUpdateOperationInput().WithDescription("adjusted")
+
+	op, err := newTestTransactionsFacade(t, srv).UpdateOperation(context.Background(), txOrgID, txLedgerID, txID, opID, input)
+	if err != nil {
+		t.Fatalf("UpdateOperation: %v", err)
+	}
+
+	wantPath := txBase() + "/" + txID + "/operations/" + opID
+	if gotMethod != http.MethodPatch || gotPath != wantPath {
+		t.Fatalf("req = %s %s, want PATCH %s", gotMethod, gotPath, wantPath)
+	}
+	if gotCT != jsonContentType {
+		t.Fatalf("Content-Type = %q, want %q", gotCT, jsonContentType)
+	}
+	if op.ID != opID {
+		t.Fatalf("op.ID = %q, want %q", op.ID, opID)
+	}
+	if op.TransactionID != txID {
+		t.Fatalf("op.TransactionID = %q, want %q", op.TransactionID, txID)
+	}
+	if op.Type != "DEBIT" {
+		t.Fatalf("op.Type = %q, want DEBIT", op.Type)
+	}
+}
+
+// TestTransactionsFacade_UpdateOperationEmptyRejected proves an empty operation
+// update payload is rejected before any request leaves the process.
+func TestTransactionsFacade_UpdateOperationEmptyRejected(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		t.Error("server must not be hit on empty operation update payload")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	const opID = "77777777-7777-7777-7777-777777777777"
+	if _, err := newTestTransactionsFacade(t, srv).UpdateOperation(context.Background(), txOrgID, txLedgerID, txID, opID, models.NewUpdateOperationInput()); err == nil {
+		t.Fatal("expected validation error for empty operation update payload")
+	}
+}
+
 // TestTransactionsFacade_Get decodes a single transaction from raw bytes into
 // the public model (never the generated UUID-eager type) and returns it.
 func TestTransactionsFacade_Get(t *testing.T) {
