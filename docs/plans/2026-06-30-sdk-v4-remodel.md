@@ -623,7 +623,7 @@ Exploração-fonte (efêmera, no scratchpad da sessão): `01-server-api-surface.
 
 #### Task 5.2.1: Retry RoundTripper (crown jewel money-path)
 
-- [ ] Done
+- [x] Done — commit `f8765dd` (RT) + fix `f1cea8c` (substitutive parity) + `df361af` (composition tests). Gate 5-reviewer + contrarian: rail no-double-charge INTACTO e agora COBERTO.
 
 **Context:** O path plane não tem retry (`auth_roundtripper.go` só faz auth+replay-401). O engine `pkg/retry` (`DoWithContext`, `retry.go:537`) + os códigos/backoff/jitter existem e são reusáveis. `retryableHTTPError{statusCode}` (`http_retry_response.go:454`) é o wrapper que o engine casa. O gate unsafe-sem-key + `HTTPRetriesSuppressed` vive em `http.go:1139,1158`.
 **Implementation vision:** Novo `entities/retry_roundtripper.go`: `retryRoundTripper{base http.RoundTripper; opts retry.Options; customPolicy func(*http.Response,error)bool}` implementando `RoundTrip`. Por tentativa: `req.Clone(ctx)` + `body,_ := req.GetBody(); attemptReq.Body = body`; chama `base.RoundTrip`; em status retryável → retorna `retryableHTTPError{resp.StatusCode}` pro `retry.DoWithContext`, senão erro plano; custom policy consultada como em `handleRetryAttemptResponse`. **Gate:** se `isUnsafeMethod(req.Method) && req.Header.Get("X-Idempotency")==""` → opts com MaxRetries=0; idem se `sdkctx.HTTPRetriesSuppressed(ctx)`. Inserir em `plane_clients.go:65/69` envolvendo os RTs de auth.
@@ -633,13 +633,19 @@ Exploração-fonte (efêmera, no scratchpad da sessão): `01-server-api-surface.
 
 #### Task 5.2.2: Threadar a política de retry na construção dos plane clients
 
-- [ ] Done
+- [x] Done — commit `1d4bab8`. Ordering hazard confirmado real pelo RED (`attempts=4` sem threading vs 6 com); resolvido-uma-vez via `resolveRetryOptions` + `planeRetryConfigWrapper`, legado intocado.
 
 **Context:** HAZARD — a `retry.Options` efetiva é montada em `midaz.go:458-472` DEPOIS de `buildPlaneClients` (`entity.go:232`). O retryRT precisa da política no momento da construção.
 **Implementation vision:** Resolver a `retry.Options` efetiva (base `DefaultOptions` + seed de config + `retryOpts` do usuário) + `customRetryPolicy` ANTES/DURANTE a construção do Entity; threadar via `planeClientsConfig`/`buildPlaneClients` (`plane_clients.go:29-115`) até o `retryRoundTripper`. Reordenar o plumbing em `midaz.go` (a política deixa de ser aplicada só no legado pós-construção). NÃO quebrar o path legado (que segue usando `httpClient.WithRetryOptions`).
 **Files:** Modify `entities/plane_clients.go`, `entities/entity.go`, `midaz.go`.
 **Verification:** teste provando que `WithRetryOptions(retry.WithMaxRetries(5))` + `WithCustomRetryPolicy` chegam ao retryRT do plane (não só config-default); legado inalterado.
 **Done when:** política tunada pelo usuário chega aos money-writes do plane; sem regressão do legado; build/test verdes.
+
+> **WAVE 1 (5.2.1+5.2.2) FECHADA — gate + fix wave (2026-07-02).** 5 commits: `f8765dd` (RT), `1d4bab8` (threading), `f1cea8c` (fix F1 substitutivo), `df361af` (fix F2 testes de composição), `8163614` (fix F3/F4/F5). Gate = 5 reviewers (logic/nil/test/sec/contrarian) → ISSUES → fix wave → re-gate PASS sob `-race`. Trilho no-double-charge INTACTO (dois backstops: gate keyless + idempotência estampada uma vez; `req.Clone` preserva a key). **APRENDIZADOS DURÁVEIS (aplicar em toda a Fase 5):**
+> - **Custom retry policy é SUBSTITUTIVO no legado** (`http_retry_response.go:396-450`): policy presente → set default de status IGNORADO; policy=false SUPRIME (inclusive em transport error, o move defensivo "não sei se o write chegou"); nunca consultada em 2xx. A 1ª implementação do RT era ADITIVA → sobrescrevia intenção do usuário no money-path. Qualquer nova camada de retry TEM que espelhar o substitutivo. Espelho do footgun de date-format: trap de paridade-com-legado.
+> - **Trap de test-harness:** `planeTestRetryOptions` põe `MaxRetries=0` → engine de retry desligado em TODO teste de facade → regressões retry×facade ficam invisíveis. Usar o helper `retryEnabledOptions(n)` (adicionado) para cobertura de retry; NÃO flipar o default global.
+> - **Limitação de camada documentada:** o RT roda ABAIXO do parse de erro da facade → em `>=400` a policy recebe um erro status-only (`retryableHTTPError{statusCode}`), não o `*pkg/errors.Error` parseado que o legado passa. Aceito e documentado no godoc de `WithCustomRetryPolicy`.
+> - Residuais note-only: seed plane/legado concordam "por acidente do wiring atual" (divergiriam se `c.retryOptions` fosse mutado off-default antes do `WithRetryOptions`); truncamento silencioso de error-body >10MB vs +1 sentinel do legado (comentário ponytail).
 
 #### Task 5.2.3: Gate MIDAZ_IDEMPOTENCY no path facade
 
