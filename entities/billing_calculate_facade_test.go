@@ -122,6 +122,33 @@ func TestBillingCalculateFacade_Empty(t *testing.T) {
 	}
 }
 
+// TestBillingCalculateFacade_EmptyTypeOmitted proves the both-types calculation
+// path is reached correctly: with Type="" the marshaled body must OMIT the "type"
+// key (json:"type,omitempty"), so the server calculates both volume and
+// maintenance packages instead of an empty-string type filter matching nothing.
+func TestBillingCalculateFacade_EmptyTypeOmitted(t *testing.T) {
+	var body string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		body = string(b)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"results":null,"summary":{"totalResults":0,"totalVolume":0,"totalMaintenance":0,"totalNetAmount":"0"}}`))
+	}))
+	defer srv.Close()
+
+	_, err := newTestBillingCalculateFacade(t, srv).CalculateBilling(context.Background(), billingCalcOrgID,
+		&models.BillingCalculateInput{LedgerID: billingCalcLedgerID, Period: "2026-01"})
+	if err != nil {
+		t.Fatalf("CalculateBilling: %v", err)
+	}
+	if !strings.Contains(body, `"ledgerId":"`+billingCalcLedgerID+`"`) || !strings.Contains(body, `"period":"2026-01"`) {
+		t.Fatalf("body = %q, want ledgerId + period", body)
+	}
+	if strings.Contains(body, `"type"`) {
+		t.Fatalf("body = %q, empty Type must omit the type key (both-types calculation)", body)
+	}
+}
+
 // TestBillingCalculateFacade_ErrorDecodes asserts a non-2xx maps to *errors.Error
 // with RFC 9457 fields + request-ID correlation.
 func TestBillingCalculateFacade_ErrorDecodes(t *testing.T) {

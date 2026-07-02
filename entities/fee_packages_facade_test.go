@@ -123,7 +123,7 @@ func TestFeePackagesFacade_CRUD(t *testing.T) {
 
 		enable := true
 		input := models.NewCreatePackageInput("Std", feePackagesLedgerID, "100.00", "1000.00", map[string]models.Fee{
-			"admin": {CreditAccount: "@fees", FeeLabel: "Admin", ReferenceAmount: "originalAmount"},
+			"admin": validFee(),
 		}).WithEnable(enable)
 
 		pkg, err := newTestFeePackagesFacade(t, srv).Create(context.Background(), feePackagesOrgID, input)
@@ -289,7 +289,7 @@ func TestFeePackagesFacade_WriteReplaySafe(t *testing.T) {
 	defer srv.Close()
 
 	input := models.NewCreatePackageInput("Std", feePackagesLedgerID, "100.00", "1000.00", map[string]models.Fee{
-		"admin": {CreditAccount: "@fees", FeeLabel: "Admin", ReferenceAmount: "originalAmount"},
+		"admin": validFee(),
 	}).WithEnable(true)
 
 	_, err := newTestFeePackagesFacade(t, srv).Create(context.Background(), feePackagesOrgID, input)
@@ -323,6 +323,49 @@ func TestFeePackagesFacade_Validation(t *testing.T) {
 	_, err = facade.Update(context.Background(), feePackagesOrgID, "id", models.NewUpdatePackageInput())
 	if err == nil {
 		t.Fatal("Update with empty payload must fail validation")
+	}
+}
+
+// TestFeePackagesFacade_UpdateMinAmountStringRail is the money-string rail on the
+// UPDATE write path: a precise minimum-amount set via WithMinAmount must ride the
+// PATCH body as the exact JSON string, no float hop, no reformat.
+// 0.333333333333333333 is unrepresentable in float64 and would visibly drift.
+func TestFeePackagesFacade_UpdateMinAmountStringRail(t *testing.T) {
+	const precise = "0.333333333333333333"
+	const id = "33333333-3333-3333-3333-333333333333"
+
+	var body string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		body = string(b)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"` + id + `","feeGroupLabel":"Std","minimumAmount":"` + precise + `"}`))
+	}))
+	defer srv.Close()
+
+	_, err := newTestFeePackagesFacade(t, srv).Update(context.Background(), feePackagesOrgID, id, models.NewUpdatePackageInput().WithMinAmount(precise))
+	if err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+	if !strings.Contains(body, `"minimumAmount":"`+precise+`"`) {
+		t.Fatalf("PATCH body = %q, want exact minimumAmount string %q (no float hop)", body, precise)
+	}
+}
+
+// validFee returns an inner Fee that satisfies CreatePackageInput.Validate's dive
+// (server package.go tags: feeLabel/calculationModel/referenceAmount/creditAccount
+// required, isDeductibleFrom non-nil, calculation type/value present).
+func validFee() models.Fee {
+	deductible := false
+	return models.Fee{
+		CreditAccount:    "@fees",
+		FeeLabel:         "Admin",
+		ReferenceAmount:  "originalAmount",
+		IsDeductibleFrom: &deductible,
+		CalculationModel: models.FeeCalculationModel{
+			ApplicationRule: "flatFee",
+			Calculations:    []models.Calculation{{Type: "flat", Value: "10.00"}},
+		},
 	}
 }
 

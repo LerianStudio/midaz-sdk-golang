@@ -6,6 +6,7 @@ package models
 import (
 	"encoding/json"
 	"errors"
+	"strconv"
 	"strings"
 	"time"
 
@@ -41,7 +42,7 @@ type Fee struct {
 	CalculationModel FeeCalculationModel `json:"calculationModel"`
 	CreditAccount    string              `json:"creditAccount"`
 	FeeLabel         string              `json:"feeLabel"`
-	IsDeductibleFrom *bool               `json:"isDeductibleFrom,omitempty"`
+	IsDeductibleFrom *bool               `json:"isDeductibleFrom"`
 	Priority         *int64              `json:"priority,omitempty"`
 	ReferenceAmount  string              `json:"referenceAmount"`
 	RouteFrom        *string             `json:"routeFrom,omitempty"`
@@ -70,7 +71,7 @@ type Calculation struct {
 type CreatePackageInput struct {
 	FeeGroupLabel    string         `json:"feeGroupLabel"`
 	Description      *string        `json:"description,omitempty"`
-	SegmentID        *string        `json:"segmentId,omitempty"`
+	SegmentID        *string        `json:"segmentId"`
 	LedgerID         string         `json:"ledgerId"`
 	TransactionRoute *string        `json:"transactionRoute,omitempty"`
 	MinAmount        string         `json:"minimumAmount"`
@@ -182,7 +183,82 @@ func (input *CreatePackageInput) Validate() error {
 		errs.Append("enable", "is required")
 	}
 
+	// The server create-package handler runs go-playground ValidateStruct on the
+	// bound body, and Fee carries validate:"...,dive" (create_package_input.go +
+	// feeshared/model/package.go): each inner Fee's struct tags are enforced at the
+	// wire, so an incomplete inner fee is an HTTP 400. Mirror that gate here so a
+	// caller gets client-side signal instead of a round-trip rejection. This is a
+	// PATCH-partial exemption: UpdatePackageInput deliberately does not dive.
+	for key, fee := range input.Fee {
+		validateFee(&errs, key, fee)
+	}
+
 	return errs.OrNil()
+}
+
+// validateFee mirrors the server-side struct-tag constraints on a single inner
+// Fee (feeshared/model/package.go: Fee + CalculationModel + Calculation) that the
+// create-package handler enforces via dive. Keys are namespaced as
+// fees[<key>].<field> so the caller can locate the offending fee.
+func validateFee(errs *validation.FieldErrors, key string, fee Fee) {
+	prefix := "fees[" + key + "]"
+
+	if strings.TrimSpace(fee.FeeLabel) == "" {
+		errs.Append(prefix+".feeLabel", "is required")
+	}
+
+	// SDK models CalculationModel as a value (not a *pointer like the server), so
+	// the server's "required non-nil pointer" maps to a non-zero model here: an
+	// empty applicationRule with no calculations is the SDK equivalent of a missing
+	// model and is what a nil server pointer would reject.
+	if fee.CalculationModel.ApplicationRule == "" && len(fee.CalculationModel.Calculations) == 0 {
+		errs.Append(prefix+".calculationModel", "is required")
+	} else {
+		validateCalculationModel(errs, prefix, fee.CalculationModel)
+	}
+
+	switch fee.ReferenceAmount {
+	case "originalAmount", "afterFeesAmount":
+	default:
+		errs.Append(prefix+".referenceAmount", "must be one of: originalAmount, afterFeesAmount")
+	}
+
+	if fee.IsDeductibleFrom == nil {
+		errs.Append(prefix+".isDeductibleFrom", "is required")
+	}
+
+	if strings.TrimSpace(fee.CreditAccount) == "" {
+		errs.Append(prefix+".creditAccount", "is required")
+	}
+
+	if fee.Priority != nil && *fee.Priority < 0 {
+		errs.Append(prefix+".priority", "must be greater than or equal to 0")
+	}
+}
+
+// validateCalculationModel mirrors the server CalculationModel + Calculation tags:
+// applicationRule is a oneof, each calculation type is a oneof, and each value is
+// required.
+func validateCalculationModel(errs *validation.FieldErrors, prefix string, model FeeCalculationModel) {
+	switch model.ApplicationRule {
+	case "maxBetweenTypes", "flatFee", "percentual":
+	default:
+		errs.Append(prefix+".calculationModel.applicationRule", "must be one of: maxBetweenTypes, flatFee, percentual")
+	}
+
+	for i, calc := range model.Calculations {
+		calcPrefix := prefix + ".calculationModel.calculations[" + strconv.Itoa(i) + "]"
+
+		switch calc.Type {
+		case "percentage", "flat":
+		default:
+			errs.Append(calcPrefix+".type", "must be one of: percentage, flat")
+		}
+
+		if strings.TrimSpace(calc.Value) == "" {
+			errs.Append(calcPrefix+".value", "is required")
+		}
+	}
 }
 
 // UpdatePackageInput is the PATCH payload for a fee package. MarshalJSON emits

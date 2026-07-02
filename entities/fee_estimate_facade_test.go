@@ -141,6 +141,36 @@ func TestFeeEstimateFacade_NoRules(t *testing.T) {
 	}
 }
 
+// TestFeeEstimateFacade_AppliedNilSend is the pointer nil-safety guard: a 2xx
+// whose feesApplied is populated but transaction.send is null must decode without
+// panicking (FeeAdjustedTransaction.Send is a *pointer) and return the result with
+// a nil Send.
+func TestFeeEstimateFacade_AppliedNilSend(t *testing.T) {
+	resp := `{"message":"Successfully estimated fee.","feesApplied":{` +
+		`"ledgerId":"` + feeEstimateLedgerID + `",` +
+		`"transaction":{"description":"estimate","send":null}}}`
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(resp))
+	}))
+	defer srv.Close()
+
+	out, err := newTestFeeEstimateFacade(t, srv).EstimateFee(context.Background(), feeEstimateOrgID, feeEstimateInput())
+	if err != nil {
+		t.Fatalf("EstimateFee with null send must NOT error: %v", err)
+	}
+	if out.FeesApplied == nil {
+		t.Fatalf("FeesApplied nil, want populated result")
+	}
+	if out.FeesApplied.LedgerID != feeEstimateLedgerID {
+		t.Fatalf("LedgerID = %q", out.FeesApplied.LedgerID)
+	}
+	if out.FeesApplied.Transaction.Send != nil {
+		t.Fatalf("Send = %+v, want nil (null send decoded to nil pointer)", out.FeesApplied.Transaction.Send)
+	}
+}
+
 // TestFeeEstimateFacade_ErrorDecodes asserts a non-2xx maps to *errors.Error
 // with RFC 9457 fields + request-ID correlation.
 func TestFeeEstimateFacade_ErrorDecodes(t *testing.T) {
