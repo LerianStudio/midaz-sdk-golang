@@ -21,7 +21,7 @@
 |-------|-----------|-------|--------|
 | 1 | Núcleo gerado compila; Client de 2 planos lista `organizations` end-to-end com erro (RFC 9457) e paginação normalizados | 1.1, 1.2, 1.3, 1.4, 1.R | **Complete** |
 | 2 | Money path completo: onboarding CRUD + ciclo de transação (json/inflow/outflow/annotation + commit/cancel/revert) + balances/operations/routes/asset-rates + counts | 2.1, 2.2, 2.R, 2.3 | **Complete** (2.1, 2.2, 2.R, 2.3 todos Done) |
-| 3 | Domínios novos do ledger: holders/instruments/composition, fees (packages/estimates), billing, encryption/protection | 3.1, 3.2, 3.3 | Detailed (3.1 Done; 3.2 Done; 3.3 Detailed = onda corrente) |
+| 3 | Domínios novos do ledger: holders/instruments/composition, fees (packages/estimates), billing, encryption/protection | 3.1, 3.2, 3.3 | **Complete** (3.1, 3.2, 3.3 todos Done) |
 | 4 | Plano Tracer completo: rules (CEL), limits, reservations, validations, audit-events | 4.1, 4.2, 4.3 | Epic-level |
 | 5 | Ergonomia (builders, DSL, `WaitForSettlement`) + cutover do accessor/deleção do legado + docs/exemplos/mapping; `make ci` verde | 5.1, 5.2, 5.3 | Epic-level |
 | 6 | *(opcional / decisão de produto)* Consumidor de streaming Kafka/CloudEvents | 6.1 | Epic-level |
@@ -405,7 +405,7 @@ Exploração-fonte (efêmera, no scratchpad da sessão): `01-server-api-surface.
 **Dependencies:** Phase 2 (write-facade + cursor-stop). `pkg.HTTPError` (3º envelope audit/encryption) já foi unificado no `Error` RFC 9457 por Plano A — SEM envelope especial a tratar.
 **Done when:** provision retorna `ProvisionEncryptionResponse` (success-gate 2xx aceita o **201** do server); status retorna `{provisioned, status}` (não-provisionado = **200 com `provisioned:false`**, nunca erro); audit lista eventos com paginação CURSOR (`NextCursor==""` = parada); **404 nas 3 ops = legacy mode (feature de envelope desabilitada) mapeado limpo p/ `*errors.Error{status:404}`, NUNCA valor fabricado nem internal-error**; gerados+untouchables intocados; `golangci-lint`=0; build/vet/test verdes; não wired (cutover 5.1).
 **Target:** midaz-sdk-golang
-**Status:** Detailed (elaborado 2026-07-01 vs recon SDK+server `aa3d7616`, 3 alegações load-bearing re-derivadas por mim contra a fonte)
+**Status:** ✅ Done (2026-07-01 — wave `wd2cxjgov` (9 agentes, ~636k tokens), 2 commits `e7e3699`(encryption provision+status)/`0a85281`(protection audit cursor list) + fix `5c7de68`(4 lacunas de teste Low, test-only). Wave retornou **PASS** (0 blocking, 0 refuted — os 3 invariantes sobreviveram ao contrarian adversarial). Gate do supervisor PASS: build/vet/`golangci-lint`=0/test verdes, 3 commits assinados+trailer, coexistência (`git diff 30736e2..HEAD -- entity.go/plane_clients.go/common.go/internal/` = vazio), sem wiring. **3 invariantes re-derivados por mim contra a fonte:** (1) provision roteia `writeJSON→readRawResponse(ProvisionEncryptionWithBody)→isSuccess(2xx)` (`encryption_facade.go:57`), aceita 201; (2) audit para em `NextCursor==""` (`audit_facade.go:98`), avança `Cursor=NextCursor`, nunca `HasMore()`; (3) as 3 ops mapeiam 404 (e todo non-2xx) via `DecodeProblemJSON→*errors.Error`, ZERO `Provisioned:false` fabricado — docstring da fachada documenta a distinção 404(feature-off)-vs-200(não-provisionado). Fix agent fechou 4 Low test-only: audit malformed-2xx-body→internal, Pages erro mid-stream→propaga+para, `Validate` nil-receiver, Provision validation short-circuit (0 HTTP calls) + non-404 status (409→`*errors.Error{409}`).)
 
 **DECISÕES DE WAVE (Epic 3.3):**
 - **Provision = success-gate RAW obrigatório (trap 201-vs-200 CONFIRMADO):** `ParseProvisionEncryptionResp` (`ledger.gen.go:16948`) só popula `JSON200` em `StatusCode==200`; o server retorna **201** (`http.Created` no core `encryption.go:45` + `StatusCreated` no shell `encryption_handler_huma.go:79`). Um corpo 201 com `"status":"provisioned"` (string) cairia no default→`Unmarshal` no `Error{status *int64}`→falha de tipo→write confirmado vira erro espúrio. **Fachada roteia RAW `ProvisionEncryptionWithBody`+`readRawResponse`+`isSuccess(2xx)`** (mesma disciplina de composition/transactions). Params = `&genledger.ProvisionEncryptionParams{}` vazio (Authorization é injetado pelo auth RoundTripper, como toda fachada).
@@ -417,7 +417,7 @@ Exploração-fonte (efêmera, no scratchpad da sessão): `01-server-api-surface.
 
 #### Task 3.3.1: Encryption — models + facade (provision + status)
 
-- [ ] Done
+- [x] Done
 
 **Context:** ABSENT (net-new, sem fachada legada). Gerado (`internal/genledger/ledger.gen.go`): `ProvisionEncryptionWithBody` (`:2339`, raw, body OPACO `openapi_types.File` `:825`, params `ProvisionEncryptionParams{Authorization *string}` `:827`), `GetProvisioningStatusWithResponse` (`:15393`, read, params `GetProvisioningStatusParams{Authorization *string}` `:833`). Response schemas a espelhar: `ProvisionEncryptionResponse` (`:643`, campos `AeadPrimaryKeyId int32`/`KekPath`/`OrganizationId`/`PrfPrimaryKeyId int32`/`Status`, tags snake_case), `ProvisioningStatusResponse` (`:652`, `OrganizationId`/`Provisioned bool`/`Status *string omitempty`). Server DTOs (ground-truth): req `mmodel.ProvisionEncryptionInput` (`pkg/mmodel/encryption.go:10`, `Actor`+`Reason` ambos `validate:"required"`); resp `mmodel.ProvisionEncryptionResponse` (`encryption.go:31`, key IDs `uint32`). ⚠️ codegen-twins: `ProvisionEncryptionResponse` (schema) vs `ProvisionEncryptionResp` (wrapper do client) coexistem (`smoke_test.go:24`) — pegar o schema.
 
@@ -429,7 +429,7 @@ Exploração-fonte (efêmera, no scratchpad da sessão): `01-server-api-surface.
 
 #### Task 3.3.2: Protection audit — models + facade (cursor list)
 
-- [ ] Done
+- [x] Done
 
 **Context:** ABSENT (net-new). Gerado: `GetAuditEventsWithResponse` (`:16529`, read/list), params `GetAuditEventsParams` (`:1478`, todos `*string` form: `Limit`/`Cursor`/`SortOrder`/`Action`/`Actor`/`Outcome`/`StartDate`/`EndDate` + `Authorization` header). Resp wrapper `GetAuditEventsResp.JSON200 = *AuditEventsEnvelope` (`:179`: `Items *[]AuditEventResponse`/`Limit int64`/`NextCursor *string omitempty`/`OrganizationId`/`PrevCursor *string omitempty` — CURSOR). Item `AuditEventResponse` (`:166`): `Action`/`Actor`/`FromStatus`/`Id`/`Outcome`/`Reason`/`RequestId`/`Timestamp`/`ToStatus`, todos `string`. Server core: `audit.go` (`getAuditEvents:92`, defaults `limit=20`/`sort_order=desc` `:129-135`, `outcome` enum restrito `{success,failure,already_exists}` `:65`, cursor inválido→400 `:209`, timestamp RFC3339 UTC `:278`).
 
