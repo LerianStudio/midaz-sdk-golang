@@ -71,6 +71,33 @@ func TestAuditFacade_ListDecodes(t *testing.T) {
 	}
 }
 
+// TestAuditFacade_ListMalformed2xxBody covers the malformed-2xx-body branch:
+// the server returns 200 but the body cannot unmarshal into
+// ListResponse[AuditEvent] (items is a string, not an array). The facade must
+// surface a non-nil *errors.Error (internal), NOT a silent empty page and NOT a
+// panic.
+func TestAuditFacade_ListMalformed2xxBody(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"items":"not-an-array"}`))
+	}))
+	defer srv.Close()
+
+	got, err := newTestAuditFacade(t, srv).ListAuditEvents(context.Background(), auditOrgID, models.AuditEventsListOpts{})
+	if got != nil {
+		t.Fatalf("got = %+v, want nil on malformed 2xx body", got)
+	}
+
+	var sdkErr *sdkerrors.Error
+	if !errors.As(err, &sdkErr) {
+		t.Fatalf("error type = %T, want *errors.Error", err)
+	}
+	if sdkErr.Category != sdkerrors.CategoryInternal {
+		t.Fatalf("Category = %q, want internal for a malformed 2xx body", sdkErr.Category)
+	}
+}
+
 // TestAuditFacade_CursorStopOnFullTerminalPage is THE KEY RED (case b). The
 // terminal page is FULL (ItemCount == Limit) but carries NO next_cursor. A
 // HasMore()-driven loop would treat a full page as "probably more" and re-fetch
@@ -119,6 +146,57 @@ func TestAuditFacade_CursorStopOnFullTerminalPage(t *testing.T) {
 	}
 	if len(seenCursors) != 2 || seenCursors[0] != "" || seenCursors[1] != "c2" {
 		t.Fatalf("cursor chain = %v, want ['' 'c2'] and exactly 2 requests", seenCursors)
+	}
+}
+
+// TestAuditFacade_PagesMidStreamHTTPError covers the mid-stream HTTP-error
+// branch of ListAuditEventsPages: page 1 is a full page with next_cursor="c2",
+// page 2 returns 500 with an RFC-9457 body. The iterator must yield the first
+// page successfully, then yield (nil, *errors.Error{500}) on the second pull,
+// and STOP (no third request).
+func TestAuditFacade_PagesMidStreamHTTPError(t *testing.T) {
+	var seenCursors []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cursor := r.URL.Query().Get("cursor")
+		seenCursors = append(seenCursors, cursor)
+		w.Header().Set("Content-Type", "application/json")
+		if cursor == "c2" {
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte(`{"type":"about:blank","title":"Internal Server Error","status":500,"detail":"boom"}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"items":[{"id":"a"}],"limit":1,"next_cursor":"c2"}`))
+	}))
+	defer srv.Close()
+
+	type yielded struct {
+		page *models.ListResponse[models.AuditEvent]
+		err  error
+	}
+	var got []yielded
+	for page, err := range newTestAuditFacade(t, srv).ListAuditEventsPages(context.Background(), auditOrgID, models.AuditEventsListOpts{}) {
+		got = append(got, yielded{page, err})
+	}
+
+	if len(got) != 2 {
+		t.Fatalf("iterator yielded %d times, want 2 (page then error)", len(got))
+	}
+	if got[0].err != nil || got[0].page == nil || len(got[0].page.Items) != 1 || got[0].page.Items[0].ID != "a" {
+		t.Fatalf("first yield = %+v, want the first page with no error", got[0])
+	}
+	if got[1].page != nil {
+		t.Fatalf("second yield page = %+v, want nil on error", got[1].page)
+	}
+
+	var sdkErr *sdkerrors.Error
+	if !errors.As(got[1].err, &sdkErr) {
+		t.Fatalf("second yield error type = %T, want *errors.Error", got[1].err)
+	}
+	if sdkErr.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("StatusCode = %d, want 500", sdkErr.StatusCode)
+	}
+	if len(seenCursors) != 2 || seenCursors[0] != "" || seenCursors[1] != "c2" {
+		t.Fatalf("cursor chain = %v, want ['' 'c2'] and exactly 2 requests (must stop after error)", seenCursors)
 	}
 }
 

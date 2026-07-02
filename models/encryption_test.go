@@ -28,6 +28,15 @@ func fieldKeys(t *testing.T, err error) map[string]bool {
 	return keys
 }
 
+// TestProvisionEncryptionInput_Validate_NilReceiver covers the nil-receiver
+// guard: a nil *ProvisionEncryptionInput returns a non-nil error and does not
+// panic.
+func TestProvisionEncryptionInput_Validate_NilReceiver(t *testing.T) {
+	if err := (*ProvisionEncryptionInput)(nil).Validate(); err == nil {
+		t.Fatal("Validate() on nil receiver = nil, want a non-nil error")
+	}
+}
+
 // TestProvisionEncryptionInput_Validate covers case (e): Validate rejects an
 // empty Actor and an empty Reason, and the FieldErrors carry the exact per-field
 // keys.

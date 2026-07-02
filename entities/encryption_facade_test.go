@@ -184,6 +184,57 @@ func TestEncryptionFacade_Provision_LegacyMode404(t *testing.T) {
 	}
 }
 
+// TestEncryptionFacade_Provision_ValidationShortCircuit covers gap 4(a): an
+// invalid input (empty Actor/Reason) returns the validation error BEFORE any
+// HTTP call. The handler increments a counter that must stay 0.
+func TestEncryptionFacade_Provision_ValidationShortCircuit(t *testing.T) {
+	var hits int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits++
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	got, err := newTestEncryptionFacade(t, srv).Provision(context.Background(), encryptionOrgID,
+		models.NewProvisionEncryptionInput("", ""))
+	if got != nil {
+		t.Fatalf("got = %+v, want nil on validation failure", got)
+	}
+	if err == nil {
+		t.Fatal("Provision(invalid input) = nil error, want a validation error")
+	}
+	if hits != 0 {
+		t.Fatalf("server hits = %d, want 0 (validation must short-circuit before any HTTP call)", hits)
+	}
+}
+
+// TestEncryptionFacade_Provision_NonNotFoundStatus covers gap 4(b): a non-404
+// error status (409 Conflict with an RFC-9457 body) maps through the general
+// non-2xx path to *errors.Error carrying that status — exercising the mapping
+// beyond the 404 case.
+func TestEncryptionFacade_Provision_NonNotFoundStatus(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusConflict)
+		_, _ = w.Write([]byte(`{"type":"about:blank","title":"Conflict","status":409,"detail":"already provisioned"}`))
+	}))
+	defer srv.Close()
+
+	got, err := newTestEncryptionFacade(t, srv).Provision(context.Background(), encryptionOrgID,
+		models.NewProvisionEncryptionInput("svc", "rotate"))
+	if got != nil {
+		t.Fatalf("got = %+v, want nil on 409", got)
+	}
+
+	var sdkErr *sdkerrors.Error
+	if !errors.As(err, &sdkErr) {
+		t.Fatalf("error type = %T, want *errors.Error", err)
+	}
+	if sdkErr.StatusCode != http.StatusConflict {
+		t.Fatalf("StatusCode = %d, want 409", sdkErr.StatusCode)
+	}
+}
+
 func newTestEncryptionFacade(t *testing.T, srv *httptest.Server) *encryptionFacade {
 	t.Helper()
 	return newEncryptionFacade(newTestLedgerClient(t, srv))
