@@ -715,7 +715,7 @@ Exploração-fonte (efêmera, no scratchpad da sessão): `01-server-api-surface.
 
 #### Task 5.3.1: Pré-swap não-breaking — retrofit idempotência gated + 2-arg ctors nos 13 write-facades ledger
 
-- [ ] Done
+- [x] Done — commits `ade8d0e` (12 facades: +enableIdempotency, 2-arg ctor, stamp em todo write, Holders `Pages`/`All` rename), `11d01e6` (transactions: 2-arg ctor, 4 creates gateados na flag), `ba34cf4` (fix: UpdateTransaction/UpdateOperation estampam gated). Gate = logic-reviewer + contrarian → ISSUES (1 MEDIUM: tx updates dropavam a ctx-key e o comentário "legacy carried none" era FALSO — legado PATCH auto-gerava + honrava ctx-key via `ensureIdempotencyHeader`/`injectContextHeaders`) → fix → re-gate PASS. Non-breaking confirmado (`entity.go`/`plane_clients.go` diff vazio nos 3 commits). **Lição durável:** comentário de código não é fonte — o contrarian confiou no comentário e deu upheld; o logic-reviewer desconfiou e o supervisor resolveu lendo o legado. 33 writes estampam gated; explicit/ctx key sempre vence.
 
 **Context:** Os 13 facades ledger a swappar usam ctor 1-arg (`newTransactionsFacade:74`, `newOrganizationsFacade:33`, etc.) e 12 deles (todos menos transactions) NÃO estampam idempotência (Q6: writes editor-free). São usados HOJE só pelos próprios testes (não wired em `client.X` — os 13 accessors seguem legado). Os 5.1 net-new já mostram o padrão 2-arg + stamping (`billing_packages_facade.go:136`, `newBillingPackagesFacade:49`). `idempotencyEditors(ctx, autoGen) []genledger.RequestEditorFn` (`idempotency.go:81`) já existe. Holders usa `ListPages`/`ListAll` (inconsistente com `Pages`/`All`).
 
