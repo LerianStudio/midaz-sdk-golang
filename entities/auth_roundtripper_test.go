@@ -246,6 +246,7 @@ func TestAuthRefreshRoundTripper_TokenProviderErrorNoRequest(t *testing.T) {
 	})
 
 	req, _ := http.NewRequest(http.MethodGet, "http://example.invalid/v1/x", nil)
+	//nolint:bodyclose // token-provider failure makes RoundTrip return (nil, err); resp is asserted nil below, so there is no body to close.
 	resp, err := rt.RoundTrip(req)
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("err = %v, want %v (token provider error must surface)", err, wantErr)

@@ -162,6 +162,7 @@ func (f *transactionsFacade) CreateAnnotation(ctx context.Context, orgID, ledger
 func (f *transactionsFacade) Commit(ctx context.Context, orgID, ledgerID, transactionID string) (*models.Transaction, error) {
 	const operation = "Transactions.Commit"
 
+	//nolint:bodyclose // readRawResponse (transactions_facade.go:58) closes resp.Body via defer before returning.
 	resp, body, err := readRawResponse(f.ledger.CommitTransaction(ctx, orgID, ledgerID, transactionID, actionIdempotencyEditors(ctx)...))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
@@ -177,6 +178,7 @@ func (f *transactionsFacade) Commit(ctx context.Context, orgID, ledgerID, transa
 func (f *transactionsFacade) Revert(ctx context.Context, orgID, ledgerID, transactionID string) (*models.Transaction, error) {
 	const operation = "Transactions.Revert"
 
+	//nolint:bodyclose // readRawResponse (transactions_facade.go:58) closes resp.Body via defer before returning.
 	resp, body, err := readRawResponse(f.ledger.RevertTransaction(ctx, orgID, ledgerID, transactionID, actionIdempotencyEditors(ctx)...))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
@@ -193,6 +195,7 @@ func (f *transactionsFacade) Revert(ctx context.Context, orgID, ledgerID, transa
 func (f *transactionsFacade) Cancel(ctx context.Context, orgID, ledgerID, transactionID string) (*models.Transaction, error) {
 	const operation = "Transactions.Cancel"
 
+	//nolint:bodyclose // readRawResponse (transactions_facade.go:58) closes resp.Body via defer before returning.
 	resp, body, err := readRawResponse(f.ledger.CancelTransaction(ctx, orgID, ledgerID, transactionID, actionIdempotencyEditors(ctx)...))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
