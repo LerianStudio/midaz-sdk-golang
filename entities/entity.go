@@ -121,6 +121,25 @@ type Entity struct {
 	Segments          SegmentsService
 	Transactions      TransactionsService
 	TransactionRoutes TransactionRoutesService
+
+	// Plane-native facades (Phases 3-4). Additive accessors over the typed
+	// generated plane clients; they coexist with the 16 legacy services above
+	// until the Phase 5 cutover repoints those too. Reached fluently via
+	// client.X.Method (promoted through the embedded *Entity). Nil when the
+	// Entity was built without plane clients.
+	Rules               *rulesFacade
+	Limits              *limitsFacade
+	Validations         *validationsFacade
+	Reservations        *reservationsFacade
+	AuditEvents         *auditEventsFacade
+	ProtectionAudit     *auditFacade
+	Encryption          *encryptionFacade
+	Instruments         *instrumentsFacade
+	Composition         *compositionFacade
+	FeePackages         *feePackagesFacade
+	FeeEstimates        *feeEstimateFacade
+	BillingPackages     *billingPackagesFacade
+	BillingCalculations *billingCalculateFacade
 }
 
 // NewEntityWithConfig creates a new Entity using a Config object.
@@ -279,6 +298,26 @@ func (e *Entity) initServices() {
 	e.Portfolios = &portfoliosEntity{serviceEntity: shared()}
 	e.Segments = &segmentsEntity{serviceEntity: shared()}
 	e.TransactionRoutes = &transactionRoutesEntity{serviceEntity: shared()}
+
+	// Plane-native facades (additive). They need only the typed plane clients,
+	// not the legacy *HTTPClient. Guarded because some construction paths build
+	// the Entity without planes; when planes is nil these accessors stay nil and
+	// the legacy services above remain the only wired surface.
+	if e.planes != nil {
+		e.Rules = newRulesFacade(e.planes.Tracer)
+		e.Limits = newLimitsFacade(e.planes.Tracer)
+		e.Validations = newValidationsFacade(e.planes.Tracer)
+		e.Reservations = newReservationsFacade(e.planes.Tracer)
+		e.AuditEvents = newAuditEventsFacade(e.planes.Tracer)
+		e.ProtectionAudit = newAuditFacade(e.planes.Ledger)
+		e.Encryption = newEncryptionFacade(e.planes.Ledger)
+		e.Instruments = newInstrumentsFacade(e.planes.Ledger)
+		e.Composition = newCompositionFacade(e.planes.Ledger)
+		e.FeePackages = newFeePackagesFacade(e.planes.Ledger)
+		e.FeeEstimates = newFeeEstimateFacade(e.planes.Ledger)
+		e.BillingPackages = newBillingPackagesFacade(e.planes.Ledger)
+		e.BillingCalculations = newBillingCalculateFacade(e.planes.Ledger)
+	}
 }
 
 // InitServices initializes the service interfaces for the entity.
