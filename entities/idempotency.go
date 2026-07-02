@@ -79,12 +79,17 @@ func setHeader(key, value string) genledger.RequestEditorFn {
 // generated client builds the request, so it survives transport-level retries
 // (the retry round tripper clones the already-stamped request).
 func idempotencyEditors(ctx context.Context, autoGen bool) []genledger.RequestEditorFn {
-	key, _ := resolveIdempotency(ctx, "", autoGen)
+	key, ttl := resolveIdempotency(ctx, "", autoGen)
 	if key == "" {
 		return nil
 	}
 
-	return []genledger.RequestEditorFn{setHeader(idempotencyHeader, key)}
+	editors := []genledger.RequestEditorFn{setHeader(idempotencyHeader, key)}
+	if ttl != "" {
+		editors = append(editors, setHeader(ttlHeader, ttl))
+	}
+
+	return editors
 }
 
 // setHeaderTracer is the gentracer twin of setHeader. The two generated packages
@@ -112,10 +117,15 @@ func setHeaderTracer(key, value string) gentracer.RequestEditorFn {
 // nuisance, unlike a double balance mutation. (validations/reservations are
 // deliberately NOT stamped; they dedup on body identifiers.)
 func idempotencyEditorsTracer(ctx context.Context, autoGen bool) []gentracer.RequestEditorFn {
-	key, _ := resolveIdempotency(ctx, "", autoGen)
+	key, ttl := resolveIdempotency(ctx, "", autoGen)
 	if key == "" {
 		return nil
 	}
 
-	return []gentracer.RequestEditorFn{setHeaderTracer(idempotencyHeader, key)}
+	editors := []gentracer.RequestEditorFn{setHeaderTracer(idempotencyHeader, key)}
+	if ttl != "" {
+		editors = append(editors, setHeaderTracer(ttlHeader, ttl))
+	}
+
+	return editors
 }

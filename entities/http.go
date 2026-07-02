@@ -64,6 +64,11 @@ const (
 
 const idempotencyHeader = "X-Idempotency"
 
+// ttlHeader carries the idempotency-slot TTL (seconds) set via
+// sdkctx.WithIdempotencyTTL. Omitted when unset — the server applies its
+// default (300s).
+const ttlHeader = "X-TTL"
+
 // defaultUserAgent returns the SDK's centralized user-agent string.
 // The configured value flows in via (*HTTPClient).SetUserAgent (driven
 // from pkg/config.Config.UserAgent, which callers may override
