@@ -21,7 +21,7 @@
 |-------|-----------|-------|--------|
 | 1 | Núcleo gerado compila; Client de 2 planos lista `organizations` end-to-end com erro (RFC 9457) e paginação normalizados | 1.1, 1.2, 1.3, 1.4, 1.R | **Complete** |
 | 2 | Money path completo: onboarding CRUD + ciclo de transação (json/inflow/outflow/annotation + commit/cancel/revert) + balances/operations/routes/asset-rates + counts | 2.1, 2.2, 2.R, 2.3 | **Complete** (2.1, 2.2, 2.R, 2.3 todos Done) |
-| 3 | Domínios novos do ledger: holders/instruments/composition, fees (packages/estimates), billing, encryption/protection | 3.1, 3.2, 3.3 | Detailed (3.1 Done; 3.2 = próxima onda; 3.3 Epic-level) |
+| 3 | Domínios novos do ledger: holders/instruments/composition, fees (packages/estimates), billing, encryption/protection | 3.1, 3.2, 3.3 | Detailed (3.1 Done; 3.2 = onda corrente; 3.3 Epic-level) |
 | 4 | Plano Tracer completo: rules (CEL), limits, reservations, validations, audit-events | 4.1, 4.2, 4.3 | Epic-level |
 | 5 | Ergonomia (builders, DSL, `WaitForSettlement`) + cutover do accessor/deleção do legado + docs/exemplos/mapping; `make ci` verde | 5.1, 5.2, 5.3 | Epic-level |
 | 6 | *(opcional / decisão de produto)* Consumidor de streaming Kafka/CloudEvents | 6.1 | Epic-level |
@@ -334,12 +334,69 @@ Exploração-fonte (efêmera, no scratchpad da sessão): `01-server-api-surface.
 
 ### Epic 3.2: Fees (packages/estimates) + Billing
 
-**Goal:** Packages (definições de fee, offset-paginated), estimates (dry-run), billing-packages e billing-calculate funcionam.
-**Scope:** `entities/`, `models/` de fees e billing.
-**Dependencies:** Phase 2
-**Done when:** CRUD de packages passa (offset pagination via trinaldo — aqui o adaptador de offset adiado em 1.4.2 pode finalmente ser necessário); `/estimates` retorna cálculo dry-run; billing-calculate retorna results+summary; códigos numéricos de fee tipados.
+**Goal:** Fee-packages (CRUD), fee-estimate (dry-run), billing-packages (CRUD), billing-calculate (compute results+summary) funcionam via fachada nova em coexistência.
+**Scope:** `entities/` (fachadas novas), `models/` (4 domínios net-new). Todos no plano LEDGER (genledger, open-source — confirmado, NÃO plano fechado).
+**Dependencies:** Phase 2 (write-facade + PageListOpts).
+**Done when:** CRUD de fee-packages + billing-packages passa (PAGE pagination via `PageListOpts`+`HasMore()`); `/estimates` retorna dry-run (`{message, feesApplied}`, feesApplied nil = sucesso); billing-calculate retorna `{results, summary}` com valores monetários preservados (string, sem float); models reusam transaction leg + shared; wire dos inputs bate com o server; gerados+untouchables intocados; `golangci-lint`=0; build/vet/test verdes.
 **Target:** midaz-sdk-golang
-**Status:** Pending
+**Status:** Detailed (elaborado 2026-07-01 vs recon `a8ca127` SDK+server, verificado por mim)
+
+**DECISÕES DE WAVE (Epic 3.2):**
+- **Paginação = PAGE mode (NÃO offset, NÃO cursor):** `GetAllPackagesParams` (`ledger.gen.go:1452`) e `GetAllBillingPackagesParams` (`:801`) expõem `Page`+`Limit`, sem `Cursor`/`Offset`. Fachadas usam o padrão PAGE (avança `Page++`, para em `HasMore()`), reusam `models.PageListOpts` (`list_opts.go:80`). **O adaptador de offset adiado em 1.4.2 é DESNECESSÁRIO** (nunca foi construído; não precisa ser). ⚠️ NÃO usar `NextCursor==""` aqui — pararia após a página 1 (page-mode não emite cursor). É o INVERSO da regra cursor da Phase 2/3.1.
+- **Money-path = string, nunca float:** `FeeBillingCalculationResult.TotalNetAmount`/`FeeBillingCalculateSummary.TotalNetAmount` são `string` no gerado (server `decimal.Decimal`+`swaggertype:"string"`); `FeePackage.Min/MaximumAmount`, `Fee`/`FeeCalculation.Value`, `FeeBillingPackage.FeeAmount` idem `string`. Models espelham como `string` (ou `*decimal.Decimal` na leitura) — jamais float/divisão. `TransactionPayload`/tiers preservados.
+- **Success-gate:** writes (create-package/billing-package/calculate/estimate) roteiam RAW `...WithBody`+`readRawResponse`+`isSuccess(2xx)` (spec diz 200 mas server pode devolver 201 — lição composition). Sem `JSON200`-gating.
+- **Idempotência = NENHUM slot:** nenhum create/calculate tem `*Params` de idempotência (`XIdempotency` só em holder/instrument/transaction). Nada a fiar; replay-safe via corpo rebobinável.
+- **`estimate` = opaco (`EstimateFeeCalculationResp.JSON200 = *[]byte`):** SDK define o model à mão e decodifica os bytes crus. Wire = `FeeEstimateResponse{Message string, FeesApplied *FeeEstimateResult}` (server `fees_handler.go:92-94`, huma test 200 + `got["message"]`/`got["feesApplied"]`). **`FeesApplied` nil (nenhuma regra casou) = SUCESSO message-only, nunca erro Go** (mesma disciplina do `instrumentError`).
+- **Códigos numéricos de fee (0179-0233, ex. `0186`/`0221`):** existem tipados no SERVER mas dispararam via envelope RFC 9457 genérico (`code` string); SDK já carrega em `Error.APICode`. NÃO criar constantes tipadas na 3.2 (= ergonomia opcional Phase 5, junto com 0491/0490). Caminho genérico basta.
+- **Models compartilhados/transaction reusados:** fee-estimate embute `transaction.Transaction` → reusar os leg-types de transação do SDK (Send/Source/Distribute) da Phase 2 onde casarem.
+
+#### Task 3.2.1: Fee-packages — models + facade
+
+- [ ] Done
+
+**Context:** ABSENT (net-new). Gerado: `GetAllPackages` (`ledger.gen.go:3839`, resp `*FeePackage`, `GetAllPackagesParams:1452` PAGE), `CreatePackage`/`WithBody` (`:3851/:3863`, resp `CreatePackageResp.JSON200=*FeePackage`), `DeletePackage` (`:3875`), `GetPackageByID` (`:3887`), `UpdatePackage`/`WithBody` (`:3899/:3911`). Server input DTO: `feeshared/model/create_package_input.go:15` `CreatePackageInput`. Gerados de resposta a espelhar: `FeePackage`, `Fee`, `FeeCalculationModel`, `FeeCalculation` (todos `ledger.gen.go`).
+
+**Implementation vision:** Models `models/fee_package.go`: `FeePackage` (espelha o gerado — `Min/MaximumAmount string`, `Fees map[string]Fee`, `Enable *bool`, etc.), `Fee`/`FeeCalculationModel`/`Calculation` (valores `string`), `CreatePackageInput` (FLAT, bate server: `FeeGroupLabel`(req), `LedgerID`(req), `MinAmount string` wire `minimumAmount`(req), `MaxAmount string` wire `maximumAmount`(req), `Fee map[string]Fee` wire `fees`(req,min=1), `Enable *bool`(req), + Description/SegmentID/TransactionRoute/WaivedAccounts) + `Validate()` + builders, `UpdatePackageInput` (PATCH omit-unset), `PackagesListOpts` (reusa `PageListOpts` + filtros segmentId/ledgerId/transactionRoute/enable via `setQueryParam` ou slot nativo). Facade `entities/fee_packages_facade.go`: `List/ListPages/ListAll` (PAGE: `Page++`, para em `HasMore()`), `Get`, `Create`/`Update` (writeJSON→raw→isSuccess), `Delete`. Não wired.
+
+**Files:** Create `models/fee_package.go`(+_test), `entities/fee_packages_facade.go`(+_test).
+**Verification:** `go test ./models/... ./entities/... -run 'FeePackage|FeePackages.*Facade' -v` — CRUD+page pagination (multi-página avança Page, para em HasMore); amounts round-trip como string sem perda.
+**Done when:** fee-packages CRUD+page passa; money string-safe; `golangci-lint`=0; não wired.
+
+#### Task 3.2.2: Fee-estimate (dry-run) — models + facade
+
+- [ ] Done
+
+**Context:** ABSENT. Gerado: `EstimateFeeCalculation`/`WithBody` (`ledger.gen.go:2375/2387`), resp OPACA `*[]byte` (spec binary). Server: req `feeshared/model/fees.go:29` `FeeEstimate{PackageID uuid(req), LedgerID uuid(req), Transaction transaction.Transaction}`; resp `fees.go:23` `FeeEstimateResponse{Message string, FeesApplied *FeeEstimateResult}`, `fee_estimate_result.go:30` `FeeEstimateResult{LedgerID, SegmentID *uuid, Transaction FeeAdjustedTransaction}`.
+
+**Implementation vision:** Models `models/fee_estimate.go`: `FeeEstimateInput{PackageID(req), LedgerID(req), Transaction <leg de transação do SDK>}` + Validate; `FeeEstimateResponse{Message string, FeesApplied *FeeEstimateResult}`; `FeeEstimateResult{LedgerID, SegmentID *string, Transaction <fee-adjusted, espelha server FeeAdjustedTransaction: send + chartOfAccountsGroupName/description/code/pending/metadata/routeId/transactionDate>}` — reusar os leg-types de transação do SDK onde casarem. Facade `entities/fee_estimate_facade.go`: `EstimateFee(ctx, orgID, *FeeEstimateInput) (*FeeEstimateResponse, error)` via `writeJSON[models.FeeEstimateResponse]`→raw `EstimateFeeCalculationWithBody`→`isSuccess(2xx)` (decodifica os bytes crus). **`FeesApplied==nil` = sucesso (message-only), retorna (resp,nil) — NUNCA erro Go.** Não wired.
+
+**Files:** Create `models/fee_estimate.go`(+_test), `entities/fee_estimate_facade.go`(+_test).
+**Verification:** `go test ./models/... ./entities/... -run 'FeeEstimate|FeeEstimate.*Facade' -v` — (a) 2xx com feesApplied populado decodifica o transaction fee-adjusted; (b) 2xx com `feesApplied:null` + message → (resp,nil), `FeesApplied==nil`, sem erro; (c) non-2xx → `*errors.Error`.
+**Done when:** estimate dry-run passa; feesApplied-nil não vira erro; money string-safe; `golangci-lint`=0; não wired.
+
+#### Task 3.2.3: Billing-packages — models + facade
+
+- [ ] Done
+
+**Context:** ABSENT. Gerado: `GetAllBillingPackages` (`ledger.gen.go:2231`, `GetAllBillingPackagesParams:801` PAGE), `CreateBillingPackage`/`WithBody` (`:2243/:2255`, resp `CreateBillingPackageResp.JSON200=*FeeBillingPackage`), `DeleteBillingPackage` (`:2267`), `GetBillingPackageByID` (`:2279`), `UpdateBillingPackage`/`WithBody` (`:2291/:2303`). Resposta rica a espelhar: `FeeBillingPackage` (`ledger.gen.go` — nested `FeeAccountTarget`/`FeeDiscountTier`/`FeeEventFilter`/`FeePricingTier`; `FeeAmount *string`, `FreeQuota *int64`, tiers). Server create DTO: buscar em `components/ledger/pkg/feeshared/model/` (billing-package input).
+
+**Implementation vision:** Models `models/billing_package.go`: `BillingPackage` espelhando o gerado `FeeBillingPackage` + os 4 nested types (implementer lê os structs gerados + DTO server; money-fields `string`), `CreateBillingPackageInput`/`UpdateBillingPackageInput` (input hand-written, bate server; PATCH omit-unset), `BillingPackagesListOpts` (reusa PageListOpts + filtros type/ledgerId). Facade `entities/billing_packages_facade.go`: `List/ListPages/ListAll` (PAGE), `Get`, `Create`/`Update` (writeJSON→raw→isSuccess), `Delete`. Não wired.
+
+**Files:** Create `models/billing_package.go`(+_test), `entities/billing_packages_facade.go`(+_test).
+**Verification:** `go test ./models/... ./entities/... -run 'BillingPackage|BillingPackages.*Facade' -v` — CRUD+page; nested types + money string round-trip; wire dos inputs = server.
+**Done when:** billing-packages CRUD+page passa; nested/money fiéis; `golangci-lint`=0; não wired.
+
+#### Task 3.2.4: Billing-calculate — models + facade
+
+- [ ] Done
+
+**Context:** ABSENT. Gerado: `CalculateBilling`/`WithBody` (`ledger.gen.go:2315/2327`, resp `CalculateBillingResp.JSON200=*FeeBillingCalculateResponse`). Server req `feeshared/model/billing_calculation.go:114` `BillingCalculateRequest{LedgerID(req), Period(req YYYY-MM), Type(omitempty volume/maintenance)}` (OrganizationID `json:"-"` = path). Resp compound gerada: `FeeBillingCalculateResponse{Results *[]FeeBillingCalculationResult, Summary FeeBillingCalculateSummary}` — `TotalNetAmount string`, `TotalAccounts/Charged/Skipped int64`, `TransactionPayload interface{}`.
+
+**Implementation vision:** Models `models/billing_calculate.go`: `BillingCalculateInput{LedgerID(req), Period(req), Type}` + Validate (period não-vazio); `BillingCalculateResponse{Results []BillingCalculationResult, Summary BillingCalculateSummary}` espelhando o gerado — `TotalNetAmount string` (money-safe, jamais float). Facade `entities/billing_calculate_facade.go`: `CalculateBilling(ctx, orgID, *BillingCalculateInput) (*BillingCalculateResponse, error)` via `writeJSON[...]`→raw `CalculateBillingWithBody`→`isSuccess(2xx)`. Não wired.
+
+**Files:** Create `models/billing_calculate.go`(+_test), `entities/billing_calculate_facade.go`(+_test).
+**Verification:** `go test ./models/... ./entities/... -run 'BillingCalculate|BillingCalculate.*Facade' -v` — results+summary decodificam; `TotalNetAmount` round-trip string sem perda; non-2xx → `*errors.Error`.
+**Done when:** billing-calculate retorna results+summary; totais monetários preservados; `golangci-lint`=0; não wired.
 
 ### Epic 3.3: Encryption + Protection
 
