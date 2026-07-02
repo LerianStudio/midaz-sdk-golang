@@ -4,6 +4,8 @@
 package models_test
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
@@ -33,6 +35,35 @@ func validReserveInput() *models.ReserveInput {
 func TestReserveInput_ValidateRelaxed(t *testing.T) {
 	if err := validReserveInput().Validate(); err != nil {
 		t.Fatalf("minimal reserve input (no account/transactionType) must pass relaxed validation: %v", err)
+	}
+}
+
+// TestReserveInput_LongLivedMarshals proves WithLongLived(true) puts longLived on
+// the wire (the PENDING/direct TTL selector), while a bare NewReserveInput omits
+// longLived (omitempty on false) and every unset optional context
+// (account/segment/portfolio/merchant). A leaked default would silently pick the
+// wrong reservation lifetime.
+func TestReserveInput_LongLivedMarshals(t *testing.T) {
+	body, err := json.Marshal(validReserveInput().WithLongLived(true))
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(body), `"longLived":true`) {
+		t.Fatalf("body missing longLived:true: %s", body)
+	}
+
+	bare, err := json.Marshal(validReserveInput())
+	if err != nil {
+		t.Fatalf("marshal bare: %v", err)
+	}
+	s := string(bare)
+	if strings.Contains(s, "longLived") {
+		t.Fatalf("bare input leaked longLived (omitempty on false): %s", s)
+	}
+	for _, key := range []string{"account", "segment", "portfolio", "merchant"} {
+		if strings.Contains(s, key) {
+			t.Fatalf("bare input leaked unset optional %q: %s", key, s)
+		}
 	}
 }
 

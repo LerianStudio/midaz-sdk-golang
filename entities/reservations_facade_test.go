@@ -82,6 +82,32 @@ func TestReservationsFacade_Reserve201(t *testing.T) {
 	}
 }
 
+// TestReservationsFacade_ReserveDenied proves the DENY verdict wires through: a
+// 201 body with denied:true and an empty reservationIds decodes to Denied==true
+// with zero handles. Guards the `denied` json tag — a silent typo would decode a
+// REFUSED transaction as Denied==false (the ledger would believe capacity was
+// held when it was not), the core protection footgun. The happy path
+// (denied:false) is covered by Reserve201.
+func TestReservationsFacade_ReserveDenied(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"transactionId":"` + reserveTxID + `","denied":true,"reservationIds":[]}`))
+	}))
+	defer srv.Close()
+
+	resp, err := newTestReservationsFacade(t, srv).Reserve(context.Background(), validReserveInput())
+	if err != nil {
+		t.Fatalf("Reserve denied: %v", err)
+	}
+	if !resp.Denied {
+		t.Fatalf("Denied = false, want true (a refused transaction must never decode as allowed)")
+	}
+	if len(resp.ReservationIDs) != 0 {
+		t.Fatalf("ReservationIDs = %v, want empty on denial", resp.ReservationIDs)
+	}
+}
+
 // TestReservationsFacade_ByID exercises confirm and release by reservation id.
 // Both return 200 + ReservationActionResponse.
 func TestReservationsFacade_ByID(t *testing.T) {

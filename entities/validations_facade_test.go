@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 
@@ -121,6 +122,33 @@ func TestValidationsFacade_Evaluate200and201(t *testing.T) {
 	}
 }
 
+// TestValidationsFacade_EvaluateMoneyDecimal proves the verdict's
+// LimitUsageDetails money triple (limitAmount/currentUsage/attemptedAmount)
+// decodes with EXACT decimal precision on the POST /v1/validations path — each
+// value exceeds float64's exact range, so a float path would corrupt it. The
+// Get path is covered by TestValidationsFacade_MoneyDecimal; this guards the
+// Evaluate response decode.
+func TestValidationsFacade_EvaluateMoneyDecimal(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(validationResponseJSON("DENY")))
+	}))
+	defer srv.Close()
+
+	resp, err := newTestValidationsFacade(t, srv).Evaluate(context.Background(), validInput())
+	if err != nil {
+		t.Fatalf("Evaluate: %v", err)
+	}
+	if len(resp.LimitUsageDetails) != 1 {
+		t.Fatalf("LimitUsageDetails = %d, want 1", len(resp.LimitUsageDetails))
+	}
+	d := resp.LimitUsageDetails[0]
+	if d.LimitAmount.String() != limitAmountStr || d.CurrentUsage.String() != usageStr || d.AttemptedAmount.String() != attemptStr {
+		t.Fatalf("money triple lost precision: got {%s, %s, %s}", d.LimitAmount, d.CurrentUsage, d.AttemptedAmount)
+	}
+}
+
 // TestValidationsFacade_MoneyDecimal proves the Amount and the LimitUsageDetail
 // triple round-trip as exact decimals with no float loss. bigMoney exceeds
 // float64's exact range, so an accidental float path would corrupt it.
@@ -174,6 +202,64 @@ func TestValidationsFacade_ListFlatEnvelope(t *testing.T) {
 	}
 	if !item.Amount.Equal(decimal.RequireFromString(bigMoney)) {
 		t.Fatalf("list item Amount = %s, want %s", item.Amount, bigMoney)
+	}
+}
+
+// TestValidationsFacade_ListParamMapping proves every field listValidationsParams
+// maps reaches the wire under the correct query key. Guards against a copy-paste
+// mis-map (e.g. AccountID written to matched_rule_id) silently returning the wrong
+// protection records. Dates are RFC3339 (the tracer server strict-parses them so).
+func TestValidationsFacade_ListParamMapping(t *testing.T) {
+	var q url.Values
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q = r.URL.Query()
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"transactionValidations":[],"nextCursor":""}`))
+	}))
+	defer srv.Close()
+
+	opts := models.ValidationsListOpts{
+		CursorListOpts: models.CursorListOpts{
+			Limit:         25,
+			Cursor:        "cur-1",
+			SortDirection: models.SortDescending,
+			StartDate:     "2026-01-01T00:00:00Z",
+			EndDate:       "2026-01-31T23:59:59Z",
+		},
+		SortBy: "processing_time_ms",
+		Filters: models.ValidationsFilters{
+			Decision:        "DENY",
+			AccountID:       valAccountID,
+			MatchedRuleID:   valMatchedID,
+			ExceededLimitID: valLimitID,
+			SegmentID:       valSegmentID,
+			PortfolioID:     valPortfolioX,
+			TransactionType: "CARD",
+		},
+	}
+
+	if _, err := newTestValidationsFacade(t, srv).List(context.Background(), opts); err != nil {
+		t.Fatalf("List: %v", err)
+	}
+
+	for key, want := range map[string]string{
+		"limit":             "25",
+		"cursor":            "cur-1",
+		"sort_order":        "desc",
+		"sort_by":           "processing_time_ms",
+		"start_date":        "2026-01-01T00:00:00Z",
+		"end_date":          "2026-01-31T23:59:59Z",
+		"decision":          "DENY",
+		"account_id":        valAccountID,
+		"matched_rule_id":   valMatchedID,
+		"exceeded_limit_id": valLimitID,
+		"segment_id":        valSegmentID,
+		"portfolio_id":      valPortfolioX,
+		"transaction_type":  "CARD",
+	} {
+		if got := q.Get(key); got != want {
+			t.Fatalf("query %s = %q, want %q", key, got, want)
+		}
 	}
 }
 
