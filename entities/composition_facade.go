@@ -41,11 +41,14 @@ import (
 // surface stays models.* + *errors.Error; the generated types never leak.
 type compositionFacade struct {
 	ledger *genledger.ClientWithResponses
+	// enableIdempotency gates auto-generated X-Idempotency keys on writes; an
+	// explicit or context-supplied key stamps regardless.
+	enableIdempotency bool
 }
 
 // newCompositionFacade wires the facade over a ledger plane client.
-func newCompositionFacade(ledger *genledger.ClientWithResponses) *compositionFacade {
-	return &compositionFacade{ledger: ledger}
+func newCompositionFacade(ledger *genledger.ClientWithResponses, enableIdempotency bool) *compositionFacade {
+	return &compositionFacade{ledger: ledger, enableIdempotency: enableIdempotency}
 }
 
 // CreateHolderAccount opens a holder-owned account (and, when instrument fields

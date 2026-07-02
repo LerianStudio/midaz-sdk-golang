@@ -355,5 +355,5 @@ func TestLimitsFacade_ValidateBeforeWire(t *testing.T) {
 
 func newTestLimitsFacade(t *testing.T, srv *httptest.Server) *limitsFacade {
 	t.Helper()
-	return newLimitsFacade(newTestTracerClient(t, srv))
+	return newLimitsFacade(newTestTracerClient(t, srv), true)
 }

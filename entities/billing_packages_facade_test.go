@@ -322,5 +322,5 @@ func TestBillingPackagesFacade_Validation(t *testing.T) {
 
 func newTestBillingPackagesFacade(t *testing.T, srv *httptest.Server) *billingPackagesFacade {
 	t.Helper()
-	return newBillingPackagesFacade(newTestLedgerClient(t, srv))
+	return newBillingPackagesFacade(newTestLedgerClient(t, srv), true)
 }

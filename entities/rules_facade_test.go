@@ -300,7 +300,7 @@ func TestRulesFacade_ValidateBeforeWire(t *testing.T) {
 
 func newTestRulesFacade(t *testing.T, srv *httptest.Server) *rulesFacade {
 	t.Helper()
-	return newRulesFacade(newTestTracerClient(t, srv))
+	return newRulesFacade(newTestTracerClient(t, srv), true)
 }
 
 // newTestTracerClient builds a tracer plane client pointed at the test server

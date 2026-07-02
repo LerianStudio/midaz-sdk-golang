@@ -87,6 +87,25 @@ func configTracerAPIKey(config Config) string {
 	return ""
 }
 
+// enableIdempotencyConfig is an OPTIONAL extension of [Config] exposing whether
+// automatic idempotency-key generation is enabled. Read via a type assertion
+// (same pattern as [tracerAPIKeyConfig]); a Config that does not satisfy it is
+// treated as ENABLED — parity with the legacy default (DefaultEnableIdempotency
+// == true) so test fixtures and pre-gate Config implementations keep auto-gen.
+type enableIdempotencyConfig interface {
+	GetEnableIdempotency() bool
+}
+
+// configEnableIdempotency reads the optional idempotency gate from a Config
+// implementation, defaulting to true (enabled) when the method is absent.
+func configEnableIdempotency(config Config) bool {
+	if ext, ok := config.(enableIdempotencyConfig); ok {
+		return ext.GetEnableIdempotency()
+	}
+
+	return true
+}
+
 // planeRetryConfig is an OPTIONAL extension of [Config] carrying the effective
 // retry policy for the plane money-path, resolved ONCE by the caller
 // (midaz.Client) so the plane retry round tripper and the legacy *HTTPClient
@@ -136,6 +155,12 @@ type Entity struct {
 
 	// Observability provider for tracing, metrics, and logging
 	observability observability.Provider
+
+	// enableIdempotency gates auto-generated X-Idempotency keys on the wired
+	// plane write-facades (parity with the legacy SetEnableIdempotency gate).
+	// Resolved once at construction from the Config; threaded into each write
+	// facade's constructor by initServices.
+	enableIdempotency bool
 
 	// Service interfaces for different resource types
 	Accounts          AccountsService
@@ -249,9 +274,10 @@ func NewEntityWithConfigContext(ctx context.Context, config Config) (*Entity, er
 	}
 
 	entity := &Entity{
-		httpClient:    httpClient,
-		baseURLs:      normalizedBaseURLs,
-		observability: config.GetObservabilityProvider(),
+		httpClient:        httpClient,
+		baseURLs:          normalizedBaseURLs,
+		observability:     config.GetObservabilityProvider(),
+		enableIdempotency: configEnableIdempotency(config),
 	}
 	if pluginAuth.Enabled {
 		entity.httpClient.setAuthTokenProvider(
@@ -337,18 +363,18 @@ func (e *Entity) initServices() {
 	// the Entity without planes; when planes is nil these accessors stay nil and
 	// the legacy services above remain the only wired surface.
 	if e.planes != nil {
-		e.Rules = newRulesFacade(e.planes.Tracer)
-		e.Limits = newLimitsFacade(e.planes.Tracer)
+		e.Rules = newRulesFacade(e.planes.Tracer, e.enableIdempotency)
+		e.Limits = newLimitsFacade(e.planes.Tracer, e.enableIdempotency)
 		e.Validations = newValidationsFacade(e.planes.Tracer)
 		e.Reservations = newReservationsFacade(e.planes.Tracer)
 		e.AuditEvents = newAuditEventsFacade(e.planes.Tracer)
 		e.ProtectionAudit = newAuditFacade(e.planes.Ledger)
-		e.Encryption = newEncryptionFacade(e.planes.Ledger)
-		e.Instruments = newInstrumentsFacade(e.planes.Ledger)
-		e.Composition = newCompositionFacade(e.planes.Ledger)
-		e.FeePackages = newFeePackagesFacade(e.planes.Ledger)
+		e.Encryption = newEncryptionFacade(e.planes.Ledger, e.enableIdempotency)
+		e.Instruments = newInstrumentsFacade(e.planes.Ledger, e.enableIdempotency)
+		e.Composition = newCompositionFacade(e.planes.Ledger, e.enableIdempotency)
+		e.FeePackages = newFeePackagesFacade(e.planes.Ledger, e.enableIdempotency)
 		e.FeeEstimates = newFeeEstimateFacade(e.planes.Ledger)
-		e.BillingPackages = newBillingPackagesFacade(e.planes.Ledger)
+		e.BillingPackages = newBillingPackagesFacade(e.planes.Ledger, e.enableIdempotency)
 		e.BillingCalculations = newBillingCalculateFacade(e.planes.Ledger)
 	}
 }

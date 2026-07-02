@@ -237,5 +237,5 @@ func TestEncryptionFacade_Provision_NonNotFoundStatus(t *testing.T) {
 
 func newTestEncryptionFacade(t *testing.T, srv *httptest.Server) *encryptionFacade {
 	t.Helper()
-	return newEncryptionFacade(newTestLedgerClient(t, srv))
+	return newEncryptionFacade(newTestLedgerClient(t, srv), true)
 }

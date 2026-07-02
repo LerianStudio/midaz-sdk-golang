@@ -40,11 +40,14 @@ import (
 // wrapper, so a 201 is a success.
 type billingPackagesFacade struct {
 	ledger *genledger.ClientWithResponses
+	// enableIdempotency gates auto-generated X-Idempotency keys on writes; an
+	// explicit or context-supplied key stamps regardless.
+	enableIdempotency bool
 }
 
 // newBillingPackagesFacade wires the facade over a ledger plane client.
-func newBillingPackagesFacade(ledger *genledger.ClientWithResponses) *billingPackagesFacade {
-	return &billingPackagesFacade{ledger: ledger}
+func newBillingPackagesFacade(ledger *genledger.ClientWithResponses, enableIdempotency bool) *billingPackagesFacade {
+	return &billingPackagesFacade{ledger: ledger, enableIdempotency: enableIdempotency}
 }
 
 // List retrieves one page of billing packages under an organization, normalized

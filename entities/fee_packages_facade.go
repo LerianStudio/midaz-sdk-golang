@@ -35,11 +35,14 @@ import (
 // needed.
 type feePackagesFacade struct {
 	ledger *genledger.ClientWithResponses
+	// enableIdempotency gates auto-generated X-Idempotency keys on writes; an
+	// explicit or context-supplied key stamps regardless.
+	enableIdempotency bool
 }
 
 // newFeePackagesFacade wires the facade over a ledger plane client.
-func newFeePackagesFacade(ledger *genledger.ClientWithResponses) *feePackagesFacade {
-	return &feePackagesFacade{ledger: ledger}
+func newFeePackagesFacade(ledger *genledger.ClientWithResponses, enableIdempotency bool) *feePackagesFacade {
+	return &feePackagesFacade{ledger: ledger, enableIdempotency: enableIdempotency}
 }
 
 // List retrieves one page of fee packages under an organization, normalized into

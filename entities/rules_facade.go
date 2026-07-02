@@ -21,11 +21,15 @@ import (
 // It exposes only models.* + *errors.Error; the generated types never leak.
 type rulesFacade struct {
 	tracer *gentracer.ClientWithResponses
+	// enableIdempotency gates auto-generated X-Idempotency keys on writes; an
+	// explicit or context-supplied key stamps regardless. Per-instance so
+	// clients with different WithIdempotency settings stay isolated.
+	enableIdempotency bool
 }
 
 // newRulesFacade wires the facade over a tracer plane client.
-func newRulesFacade(tracer *gentracer.ClientWithResponses) *rulesFacade {
-	return &rulesFacade{tracer: tracer}
+func newRulesFacade(tracer *gentracer.ClientWithResponses, enableIdempotency bool) *rulesFacade {
+	return &rulesFacade{tracer: tracer, enableIdempotency: enableIdempotency}
 }
 
 // Create registers a new rule. The server returns 201, but the generated

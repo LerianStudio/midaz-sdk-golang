@@ -371,5 +371,5 @@ func validFee() models.Fee {
 
 func newTestFeePackagesFacade(t *testing.T, srv *httptest.Server) *feePackagesFacade {
 	t.Helper()
-	return newFeePackagesFacade(newTestLedgerClient(t, srv))
+	return newFeePackagesFacade(newTestLedgerClient(t, srv), true)
 }

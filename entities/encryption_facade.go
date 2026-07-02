@@ -28,11 +28,14 @@ import (
 // provisioned:false — that would destroy the distinction.
 type encryptionFacade struct {
 	ledger *genledger.ClientWithResponses
+	// enableIdempotency gates auto-generated X-Idempotency keys on writes; an
+	// explicit or context-supplied key stamps regardless.
+	enableIdempotency bool
 }
 
 // newEncryptionFacade wires the facade over a ledger plane client.
-func newEncryptionFacade(ledger *genledger.ClientWithResponses) *encryptionFacade {
-	return &encryptionFacade{ledger: ledger}
+func newEncryptionFacade(ledger *genledger.ClientWithResponses, enableIdempotency bool) *encryptionFacade {
+	return &encryptionFacade{ledger: ledger, enableIdempotency: enableIdempotency}
 }
 
 // Provision provisions envelope encryption for an organization.

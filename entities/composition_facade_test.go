@@ -266,5 +266,5 @@ func TestCompositionFacade_CreateHolderAccount_ReplaySafe(t *testing.T) {
 
 func newTestCompositionFacade(t *testing.T, srv *httptest.Server) *compositionFacade {
 	t.Helper()
-	return newCompositionFacade(newTestLedgerClient(t, srv))
+	return newCompositionFacade(newTestLedgerClient(t, srv), true)
 }

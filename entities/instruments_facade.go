@@ -45,11 +45,14 @@ import (
 // types never leak.
 type instrumentsFacade struct {
 	ledger *genledger.ClientWithResponses
+	// enableIdempotency gates auto-generated X-Idempotency keys on writes; an
+	// explicit or context-supplied key stamps regardless.
+	enableIdempotency bool
 }
 
 // newInstrumentsFacade wires the facade over a ledger plane client.
-func newInstrumentsFacade(ledger *genledger.ClientWithResponses) *instrumentsFacade {
-	return &instrumentsFacade{ledger: ledger}
+func newInstrumentsFacade(ledger *genledger.ClientWithResponses, enableIdempotency bool) *instrumentsFacade {
+	return &instrumentsFacade{ledger: ledger, enableIdempotency: enableIdempotency}
 }
 
 // List retrieves one cursor page of instruments for a holder. The generated list

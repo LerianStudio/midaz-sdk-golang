@@ -22,11 +22,14 @@ import (
 // shopspring/decimal end to end — never float.
 type limitsFacade struct {
 	tracer *gentracer.ClientWithResponses
+	// enableIdempotency gates auto-generated X-Idempotency keys on writes; an
+	// explicit or context-supplied key stamps regardless.
+	enableIdempotency bool
 }
 
 // newLimitsFacade wires the facade over a tracer plane client.
-func newLimitsFacade(tracer *gentracer.ClientWithResponses) *limitsFacade {
-	return &limitsFacade{tracer: tracer}
+func newLimitsFacade(tracer *gentracer.ClientWithResponses, enableIdempotency bool) *limitsFacade {
+	return &limitsFacade{tracer: tracer, enableIdempotency: enableIdempotency}
 }
 
 // Create registers a new limit. The server returns 201, but the generated

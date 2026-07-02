@@ -1404,6 +1404,18 @@ func (c *Config) GetTracerAPIKey() string {
 	return c.TracerAPIKey
 }
 
+// GetEnableIdempotency returns whether automatic idempotency-key generation is
+// enabled. The entities layer reads this to gate auto-gen on the plane
+// write-facades (parity with the legacy httpClient.SetEnableIdempotency gate);
+// it never gates an explicit or context-supplied key.
+func (c *Config) GetEnableIdempotency() bool {
+	if c == nil {
+		return false
+	}
+
+	return c.EnableIdempotency
+}
+
 // Clone returns an independent copy of the configuration.
 //
 // The clone is safe to mutate without affecting the receiver. In particular,

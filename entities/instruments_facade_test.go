@@ -487,5 +487,5 @@ func TestInstrumentsFacade_UpdateNullFieldThroughWire(t *testing.T) {
 
 func newTestInstrumentsFacade(t *testing.T, srv *httptest.Server) *instrumentsFacade {
 	t.Helper()
-	return newInstrumentsFacade(newTestLedgerClient(t, srv))
+	return newInstrumentsFacade(newTestLedgerClient(t, srv), true)
 }
