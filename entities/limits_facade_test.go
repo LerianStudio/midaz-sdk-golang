@@ -282,6 +282,49 @@ func TestLimitsFacade_Error(t *testing.T) {
 	}
 }
 
+// TestLimitsFacade_ListError maps a non-2xx problem+json from the LIST endpoint
+// into *errors.Error with the APICode and server request-ID extracted. This
+// exercises List's own DecodeProblemJSON branch — distinct from the decodeOne
+// path Get uses in TestLimitsFacade_Error.
+func TestLimitsFacade_ListError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/problem+json")
+		w.Header().Set("X-Request-ID", "req-limit-list-422")
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		_, _ = w.Write([]byte(`{"code":"TRACER-0044","title":"Invalid","status":422}`))
+	}))
+	defer srv.Close()
+
+	_, err := newTestLimitsFacade(t, srv).List(context.Background(), models.LimitsListOpts{})
+	var sdkErr *sdkerrors.Error
+	if !errors.As(err, &sdkErr) {
+		t.Fatalf("error type = %T, want *errors.Error", err)
+	}
+	if sdkErr.APICode != "TRACER-0044" || sdkErr.RequestID != "req-limit-list-422" {
+		t.Fatalf("decoded error = %+v", sdkErr)
+	}
+}
+
+// TestLimitsFacade_ListMalformedBody proves a 200 whose body is not valid JSON
+// for the flat {limits:[...]} envelope surfaces as a typed internal error
+// rather than an empty page or a panic.
+func TestLimitsFacade_ListMalformedBody(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"limits": not-valid-json`))
+	}))
+	defer srv.Close()
+
+	_, err := newTestLimitsFacade(t, srv).List(context.Background(), models.LimitsListOpts{})
+	var sdkErr *sdkerrors.Error
+	if !errors.As(err, &sdkErr) {
+		t.Fatalf("error type = %T, want *errors.Error", err)
+	}
+	if sdkErr.Code != sdkerrors.CodeInternal {
+		t.Fatalf("error code = %q, want %q (malformed body must be an internal error)", sdkErr.Code, sdkerrors.CodeInternal)
+	}
+}
+
 // TestLimitsFacade_ValidateBeforeWire proves bad input is rejected before any
 // round trip (no server contact).
 func TestLimitsFacade_ValidateBeforeWire(t *testing.T) {

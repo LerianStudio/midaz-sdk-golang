@@ -232,6 +232,49 @@ func TestRulesFacade_Error(t *testing.T) {
 	}
 }
 
+// TestRulesFacade_ListError maps a non-2xx problem+json from the LIST endpoint
+// into *errors.Error with the APICode and server request-ID extracted. This
+// exercises List's own DecodeProblemJSON branch — distinct from the decodeOne
+// path Get uses in TestRulesFacade_Error.
+func TestRulesFacade_ListError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/problem+json")
+		w.Header().Set("X-Request-ID", "req-rule-list-422")
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		_, _ = w.Write([]byte(`{"code":"TRACER-0011","title":"Invalid","status":422}`))
+	}))
+	defer srv.Close()
+
+	_, err := newTestRulesFacade(t, srv).List(context.Background(), models.RulesListOpts{})
+	var sdkErr *sdkerrors.Error
+	if !errors.As(err, &sdkErr) {
+		t.Fatalf("error type = %T, want *errors.Error", err)
+	}
+	if sdkErr.APICode != "TRACER-0011" || sdkErr.RequestID != "req-rule-list-422" {
+		t.Fatalf("decoded error = %+v", sdkErr)
+	}
+}
+
+// TestRulesFacade_ListMalformedBody proves a 200 whose body is not valid JSON
+// for the flat {rules:[...]} envelope surfaces as a typed internal error rather
+// than an empty page or a panic.
+func TestRulesFacade_ListMalformedBody(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"rules": not-valid-json`))
+	}))
+	defer srv.Close()
+
+	_, err := newTestRulesFacade(t, srv).List(context.Background(), models.RulesListOpts{})
+	var sdkErr *sdkerrors.Error
+	if !errors.As(err, &sdkErr) {
+		t.Fatalf("error type = %T, want *errors.Error", err)
+	}
+	if sdkErr.Code != sdkerrors.CodeInternal {
+		t.Fatalf("error code = %q, want %q (malformed body must be an internal error)", sdkErr.Code, sdkerrors.CodeInternal)
+	}
+}
+
 // TestRulesFacade_ValidateBeforeWire proves bad input is rejected before any
 // round trip (no server contact).
 func TestRulesFacade_ValidateBeforeWire(t *testing.T) {
