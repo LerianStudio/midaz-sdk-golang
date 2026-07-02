@@ -69,6 +69,8 @@ func TestAccountTypesFacade_ListAndPaginate(t *testing.T) {
 // TestAccountTypesFacade_CRUD round-trips Create/Get/Update/Delete over the
 // generated client on the org+ledger-scoped path. Get also asserts the
 // uuid.UUID response fields decode straight into the public model.
+//
+//nolint:revive // cognitive-complexity: four CRUD subtests, each with its own httptest server closure and assertions; the complexity is the subtest count, not branching logic. Matches the repo's per-test convention.
 func TestAccountTypesFacade_CRUD(t *testing.T) {
 	const id = "55555555-5555-5555-5555-555555555555"
 

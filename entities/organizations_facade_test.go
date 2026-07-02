@@ -297,6 +297,8 @@ func TestOrganizationsFacade_IncludeDeleted(t *testing.T) {
 // generated types. Create/Update send the JSON body via the write-facade
 // pattern (WithBody + a rewindable reader) so the auth round tripper can replay
 // the request after a 401 refresh.
+//
+//nolint:revive // cognitive-complexity: the CRUD lifecycle plus replay subtests, each with its own httptest server closure and assertions; the complexity is the subtest count, not branching logic. Matches the repo's per-test convention.
 func TestOrganizationsFacade_CRUD(t *testing.T) {
 	const orgID = "11111111-1111-1111-1111-111111111111"
 

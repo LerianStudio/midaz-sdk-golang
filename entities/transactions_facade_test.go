@@ -62,6 +62,8 @@ func sampleTransactionInput() *models.CreateTransactionInput {
 // method + path + content type, the endpoint-specific wire body, the
 // X-Idempotency header stamped from the params, and the skip flags decoded into
 // the model.
+//
+//nolint:revive // cognitive-complexity: the four create paths (json/inflow/outflow/annotation) as subtests, each with its own httptest server closure and assertions; the complexity is the subtest count, not branching logic. Matches the repo's per-test convention.
 func TestTransactionsFacade_Create(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -310,6 +312,8 @@ func txValueResponseBody(value string) string {
 // The generated status-exact parser would try to unmarshal that object into
 // Error.status (*int64) and fail, turning a confirmed write into a spurious
 // internal error. Any 2xx must decode as success.
+//
+//nolint:revive // cognitive-complexity: several off-status create subtests, each with its own httptest server closure and assertions; the complexity is the subtest count, not branching logic. Matches the repo's per-test convention.
 func TestTransactionsFacade_CreateOffStatusSucceeds(t *testing.T) {
 	for _, status := range []int{http.StatusCreated, http.StatusAccepted} {
 		t.Run("status="+strconv.Itoa(status), func(t *testing.T) {

@@ -75,6 +75,8 @@ func TestAccountsFacade_ListAndPaginate(t *testing.T) {
 
 // TestAccountsFacade_CRUD round-trips Create/Get/Update/Delete on the
 // org+ledger-scoped path.
+//
+//nolint:revive // cognitive-complexity: four CRUD subtests, each with its own httptest server closure and assertions; the complexity is the subtest count, not branching logic. Matches the repo's per-test convention.
 func TestAccountsFacade_CRUD(t *testing.T) {
 	t.Run("create", func(t *testing.T) {
 		var m, p, body string

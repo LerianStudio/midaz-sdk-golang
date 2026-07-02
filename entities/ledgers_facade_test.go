@@ -67,6 +67,8 @@ func TestLedgersFacade_ListAndPaginate(t *testing.T) {
 // TestLedgersFacade_CRUD round-trips Create/Get/Update/Delete over the generated
 // client, asserting method, org-scoped path, and body, and normalizing into the
 // public model without leaking generated types.
+//
+//nolint:revive // cognitive-complexity: four CRUD subtests, each with its own httptest server closure and assertions; the complexity is the subtest count, not branching logic. Matches the repo's per-test convention.
 func TestLedgersFacade_CRUD(t *testing.T) {
 	const id = "33333333-3333-3333-3333-333333333333"
 	base := "/v1/organizations/" + ledgersOrgID + "/ledgers"
@@ -253,6 +255,8 @@ func TestLedgersFacade_WriteReplaySafe(t *testing.T) {
 // end-to-end. GetSettings must expose all three blocks (accounting including
 // requireHolder, overrides, tracer); UpdateSettings must send all three blocks
 // on the PATCH body and normalize the response into the public model.
+//
+//nolint:revive // cognitive-complexity: multiple settings subtests, each with its own httptest server closure and assertions; the complexity is the subtest count, not branching logic. Matches the repo's per-test convention.
 func TestLedgersFacade_Settings(t *testing.T) {
 	const id = "33333333-3333-3333-3333-333333333333"
 	path := "/v1/organizations/" + ledgersOrgID + "/ledgers/" + id + "/settings"

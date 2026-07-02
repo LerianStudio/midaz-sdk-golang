@@ -353,6 +353,8 @@ func (f *accountsFacade) BalancesAtTimestamp(ctx context.Context, orgID, ledgerI
 // listAccountsParams renders the pagination/sort/date fields plus every filter
 // that has a slot in the generated ListAccountsParams. holder_id and
 // include_deleted have no slot and are carried by listAccountsReqEditors.
+//
+//nolint:gocyclo,cyclop // A flat sequence of independent, optional filter guards (one per query param); complexity is the field count, not branching logic. Any "simplification" (loop/table) would obscure the exact query-param wiring this money-path list depends on.
 func listAccountsParams(opts models.AccountsListOpts) *genledger.ListAccountsParams {
 	params := &genledger.ListAccountsParams{}
 

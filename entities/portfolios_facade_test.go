@@ -66,6 +66,8 @@ func TestPortfoliosFacade_ListAndPaginate(t *testing.T) {
 }
 
 // TestPortfoliosFacade_CRUD round-trips Create/Get/Update/Delete.
+//
+//nolint:revive // cognitive-complexity: four CRUD subtests, each with its own httptest server closure and assertions; the complexity is the subtest count, not branching logic. Matches the repo's per-test convention.
 func TestPortfoliosFacade_CRUD(t *testing.T) {
 	const id = "33333333-3333-3333-3333-333333333333"
 

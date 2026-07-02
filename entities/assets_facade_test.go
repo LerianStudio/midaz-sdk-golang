@@ -68,6 +68,8 @@ func TestAssetsFacade_ListAndPaginate(t *testing.T) {
 
 // TestAssetsFacade_CRUD round-trips Create/Get/Update/Delete over the generated
 // client on the org+ledger-scoped path.
+//
+//nolint:revive // cognitive-complexity: four CRUD subtests, each with its own httptest server closure and assertions; the complexity is the subtest count, not branching logic. Matches the repo's per-test convention.
 func TestAssetsFacade_CRUD(t *testing.T) {
 	const id = "33333333-3333-3333-3333-333333333333"
 
