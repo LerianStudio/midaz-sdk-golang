@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -70,6 +71,41 @@ func TestNewPlaneClients_ListOrganizationsRoundTrip(t *testing.T) {
 	}
 	if gotPath != "/v1/organizations" {
 		t.Fatalf("request path = %q, want /v1/organizations", gotPath)
+	}
+}
+
+// TestNewPlaneClients_ZeroDelayPreservesMaxRetries proves F4: a caller that
+// intentionally sets MaxRetries=0 but leaves the delays zero must NOT get
+// MaxRetries resurrected to the default (3) by the fallback. A persistent 503
+// on a GET must therefore be a single attempt.
+func TestNewPlaneClients_ZeroDelayPreservesMaxRetries(t *testing.T) {
+	var count int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		atomic.AddInt32(&count, 1)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_, _ = w.Write([]byte(`{"title":"unavailable"}`))
+	}))
+	defer srv.Close()
+
+	planes, err := newPlaneClients(planeClientsConfig{
+		ledgerURL: srv.URL + "/v1",
+		tracerURL: srv.URL + "/v1",
+		auth: authRoundTripperConfig{
+			tokenProvider: func(context.Context) (string, error) { return "tok-1", nil },
+		},
+		httpClient:   srv.Client(),
+		retryOptions: retry.Options{MaxRetries: 0, InitialDelay: 0}, // MaxRetries intentional, delays unset
+	})
+	if err != nil {
+		t.Fatalf("newPlaneClients: %v", err)
+	}
+
+	_, _ = planes.Tracer.ListRulesWithResponse(context.Background(), nil)
+
+	if got := atomic.LoadInt32(&count); got != 1 {
+		t.Fatalf("request count = %d, want 1 (MaxRetries=0 must be preserved, not resurrected to 3)", got)
 	}
 }
 

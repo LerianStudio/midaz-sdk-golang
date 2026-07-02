@@ -80,13 +80,30 @@ func newPlaneClients(cfg planeClientsConfig) (*PlaneClients, error) {
 	tracerRT := newAuthRefreshRoundTripper(base, tracerAuth)
 
 	// A zero/unset retry policy would make the engine reject EVERY plane
-	// request in validateOptions (InitialDelay must be positive), silently
-	// breaking all plane traffic. Degrade an unconfigured struct to the SDK's
-	// standard policy so callers that leave the field unset still get sane
-	// retries rather than a broken client.
+	// request in validateOptions (InitialDelay/MaxDelay must be positive,
+	// BackoffFactor >= 1.0), silently breaking all plane traffic. Backfill ONLY
+	// the fields that would fail validation from the SDK defaults, PRESERVING
+	// the caller's MaxRetries — so an intentional MaxRetries=0 (retries off) is
+	// never resurrected to the default. BackoffFactor is backfilled alongside
+	// the delays because it is validated too; without it a {MaxRetries:0} struct
+	// with a zero BackoffFactor would still be rejected.
 	retryOpts := cfg.retryOptions
-	if retryOpts.InitialDelay <= 0 || retryOpts.MaxDelay <= 0 {
-		retryOpts = *retry.DefaultOptions()
+	defaults := retry.DefaultOptions()
+
+	if retryOpts.InitialDelay <= 0 {
+		retryOpts.InitialDelay = defaults.InitialDelay
+	}
+
+	if retryOpts.MaxDelay <= 0 {
+		retryOpts.MaxDelay = defaults.MaxDelay
+	}
+
+	if retryOpts.MaxDelay < retryOpts.InitialDelay {
+		retryOpts.MaxDelay = retryOpts.InitialDelay
+	}
+
+	if retryOpts.BackoffFactor < 1.0 {
+		retryOpts.BackoffFactor = defaults.BackoffFactor
 	}
 
 	// Compose the chain OUTSIDE-IN: retry round tripper wraps the auth round

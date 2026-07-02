@@ -77,6 +77,13 @@ func (rt *retryRoundTripper) RoundTrip(req *http.Request) (*http.Response, error
 		return attemptErr
 	})
 	if err != nil {
+		// A context cancellation/deadline that fired during backoff must
+		// surface as the error, never be masked by a stale buffered response
+		// (parity with the legacy path, which returns the engine's ctx error).
+		if ctx.Err() != nil {
+			return nil, err
+		}
+
 		// A retryable status that exhausted the budget: return the buffered
 		// final response so the caller decodes it. Only a true transport
 		// failure (no response kept) surfaces as a bare error.
@@ -226,6 +233,13 @@ func bufferRetryableResponse(resp *http.Response) *http.Response {
 	// response (on retry) or hand the buffered bytes to a decoder (on
 	// exhaustion), where a short/corrupt body surfaces as a decode error. This
 	// mirrors the best-effort drain in drainAndCloseResponseBody.
+	//
+	// ponytail: unlike the legacy path (LimitReader max+1 + explicit overflow
+	// detection), a retryable error body over maxHTTPResponseBodyBytes is
+	// silently truncated here. A >10MB 5xx/problem-JSON is pathological; the
+	// truncation surfaces downstream as a decode error, an acceptable terminal
+	// outcome for a hostile/broken server. Add the +1 overflow sentinel only if
+	// a real backend ever emits legitimate error bodies near the cap.
 	//nolint:errcheck // best-effort drain; a short read surfaces downstream as a decode error.
 	buf, _ := io.ReadAll(io.LimitReader(resp.Body, maxHTTPResponseBodyBytes))
 	_ = resp.Body.Close()

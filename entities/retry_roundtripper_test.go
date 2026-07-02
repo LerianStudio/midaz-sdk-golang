@@ -472,6 +472,54 @@ func TestRetryRoundTripper_Bare401NotRetried(t *testing.T) {
 	}
 }
 
+// TestRetryRoundTripper_ContextDeadlineDuringBackoffSurfaces proves F3: when a
+// context deadline fires DURING backoff (after a retryable 503), RoundTrip must
+// surface the context error, not the stale buffered 503 with a nil error.
+func TestRetryRoundTripper_ContextDeadlineDuringBackoffSurfaces(t *testing.T) {
+	var count int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		atomic.AddInt32(&count, 1)
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer srv.Close()
+
+	// InitialDelay far exceeds the ctx deadline, so the deadline fires while the
+	// engine waits before attempt 2.
+	opts := retry.Options{
+		MaxRetries:         3,
+		InitialDelay:       200 * time.Millisecond,
+		MaxDelay:           400 * time.Millisecond,
+		BackoffFactor:      2.0,
+		RetryableHTTPCodes: []int{http.StatusServiceUnavailable},
+	}
+	rt := newRetryRoundTripper(http.DefaultTransport, opts, nil)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+
+	req, _ := http.NewRequest(http.MethodGet, srv.URL, nil)
+	req = req.WithContext(ctx)
+
+	resp, err := rt.RoundTrip(req)
+	if err == nil {
+		t.Fatalf("RoundTrip: want the context error, got a response")
+	}
+
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("err = %v, want context.DeadlineExceeded", err)
+	}
+
+	if resp != nil {
+		resp.Body.Close()
+		t.Fatalf("resp = %v, want nil (context error must not be masked by the buffered 503)", resp)
+	}
+
+	if got := atomic.LoadInt32(&count); got != 1 {
+		t.Fatalf("request count = %d, want 1 (deadline fired during the first backoff)", got)
+	}
+}
+
 // TestRetryRoundTripper_ContextDeadline is a guard against a context that
 // carries retry options being ignored: the retry RT installs its OWN resolved
 // options on the ctx, so a caller-set deadline must still cancel the loop.
