@@ -1,0 +1,131 @@
+// Copyright 2025 Lerian Studio
+// SPDX-License-Identifier: Elastic-2.0
+
+package models
+
+import (
+	"encoding/json"
+	"strings"
+	"testing"
+
+	"github.com/shopspring/decimal"
+)
+
+// highPrecision is a 18-fractional-digit value that a float64 cannot hold
+// exactly — the money-path canary.
+const highPrecision = "100.333333333333333333"
+
+// TestLimit_MaxAmountMoneyRoundTrip is the MONEY-PATH red. MaxAmount is a
+// shopspring/decimal.Decimal, never a float. A high-precision value must survive
+// marshal (CreateLimitInput → quoted-string wire) and unmarshal (wire → Limit)
+// with zero loss. A float64 field would silently truncate to ~15-16 digits.
+func TestLimit_MaxAmountMoneyRoundTrip(t *testing.T) {
+	want := decimal.RequireFromString(highPrecision)
+
+	// Marshal path: the create body must carry the exact quoted string.
+	in := NewCreateLimitInput("daily-cap", LimitTypeDaily, want, "USD").
+		WithScope(Scope{TransactionType: strPtrLimitTest("PIX")})
+
+	body, err := json.Marshal(in)
+	if err != nil {
+		t.Fatalf("marshal CreateLimitInput: %v", err)
+	}
+	if !strings.Contains(string(body), `"maxAmount":"`+highPrecision+`"`) {
+		t.Fatalf("create body = %s, want maxAmount quoted string %q with no loss", body, highPrecision)
+	}
+
+	// Unmarshal path: the server echo decodes back into the decimal field.
+	var lim Limit
+	if err := json.Unmarshal([]byte(`{"limitId":"x","name":"daily-cap","limitType":"DAILY",`+
+		`"maxAmount":"`+highPrecision+`","currency":"USD","status":"DRAFT",`+
+		`"createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z"}`), &lim); err != nil {
+		t.Fatalf("unmarshal Limit: %v", err)
+	}
+	if !lim.MaxAmount.Equal(want) {
+		t.Fatalf("MaxAmount = %s, want %s (decimal must not lose precision)", lim.MaxAmount, want)
+	}
+}
+
+// TestUsageSnapshot_MoneyDecimalRatioFloat proves usage money fields are decimal
+// and UtilizationPercent is a plain float ratio.
+func TestUsageSnapshot_MoneyDecimalRatioFloat(t *testing.T) {
+	var snap UsageSnapshot
+	if err := json.Unmarshal([]byte(`{"limitId":"L1","currentUsage":"`+highPrecision+`",`+
+		`"limitAmount":"200.5","utilizationPercent":50.04,"nearLimit":true}`), &snap); err != nil {
+		t.Fatalf("unmarshal UsageSnapshot: %v", err)
+	}
+	if !snap.CurrentUsage.Equal(decimal.RequireFromString(highPrecision)) {
+		t.Fatalf("CurrentUsage = %s, want %s", snap.CurrentUsage, highPrecision)
+	}
+	if !snap.LimitAmount.Equal(decimal.RequireFromString("200.5")) {
+		t.Fatalf("LimitAmount = %s, want 200.5", snap.LimitAmount)
+	}
+	if snap.UtilizationPercent != 50.04 || !snap.NearLimit {
+		t.Fatalf("snapshot = %+v", snap)
+	}
+}
+
+// TestUpdateLimitInput_OmitsImmutableFields is the immutable-field red. The
+// server rejects an update body containing limitType or currency with a 400. The
+// PATCH body MUST never carry either key regardless of which fields are set.
+func TestUpdateLimitInput_OmitsImmutableFields(t *testing.T) {
+	up := NewUpdateLimitInput().
+		WithName("renamed").
+		WithMaxAmount(decimal.RequireFromString("999.99")).
+		WithScopes([]Scope{{TransactionType: strPtrLimitTest("PIX")}})
+
+	body, err := json.Marshal(up)
+	if err != nil {
+		t.Fatalf("marshal UpdateLimitInput: %v", err)
+	}
+	s := string(body)
+	if strings.Contains(s, "limitType") {
+		t.Fatalf("update body = %s, must NOT contain limitType (immutable)", s)
+	}
+	if strings.Contains(s, "currency") {
+		t.Fatalf("update body = %s, must NOT contain currency (immutable)", s)
+	}
+	if !strings.Contains(s, `"name"`) || !strings.Contains(s, `"maxAmount"`) {
+		t.Fatalf("update body = %s, want the set fields present", s)
+	}
+}
+
+// TestUpdateLimitInput_EmptyRejected proves a no-op PATCH is rejected before the
+// wire (mirrors the server IsEmpty → ErrNothingToUpdate probe).
+func TestUpdateLimitInput_EmptyRejected(t *testing.T) {
+	if err := NewUpdateLimitInput().Validate(); err == nil {
+		t.Fatalf("empty update payload must be rejected")
+	}
+}
+
+// TestCreateLimitInput_Validate covers the closed-enum + money + currency +
+// scope-count preconditions.
+func TestCreateLimitInput_Validate(t *testing.T) {
+	good := Scope{TransactionType: strPtrLimitTest("PIX")}
+	pos := decimal.RequireFromString("100")
+
+	tests := []struct {
+		name    string
+		input   *CreateLimitInput
+		wantErr bool
+	}{
+		{"valid", NewCreateLimitInput("cap", LimitTypeDaily, pos, "USD").WithScope(good), false},
+		{"bad limit type", NewCreateLimitInput("cap", "HOURLY", pos, "USD").WithScope(good), true},
+		{"zero max amount", NewCreateLimitInput("cap", LimitTypeDaily, decimal.Zero, "USD").WithScope(good), true},
+		{"negative max amount", NewCreateLimitInput("cap", LimitTypeDaily, decimal.RequireFromString("-1"), "USD").WithScope(good), true},
+		{"two-char currency", NewCreateLimitInput("cap", LimitTypeDaily, pos, "US").WithScope(good), true},
+		{"no scopes", NewCreateLimitInput("cap", LimitTypeDaily, pos, "USD"), true},
+		{"empty name", NewCreateLimitInput("  ", LimitTypeDaily, pos, "USD").WithScope(good), true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.input.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("Validate() err = %v, wantErr = %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func strPtrLimitTest(s string) *string { return &s }
