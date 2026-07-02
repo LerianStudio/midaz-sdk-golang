@@ -33,8 +33,12 @@ import (
 type retryRoundTripper struct {
 	base http.RoundTripper
 	opts retry.Options
-	// customPolicy is additive: it can request a retry on any status,
-	// including statuses outside opts.RetryableHTTPCodes. Nil is safe.
+	// customPolicy, when non-nil, is SUBSTITUTIVE (parity with the legacy
+	// *HTTPClient path): on a >=400 response or a transport error it fully
+	// decides retryability and the default RetryableHTTPCodes set is ignored;
+	// it never sees a 2xx. Because the RT runs below the facade's error-parsing
+	// layer it receives a status-only error, not the parsed SDK error. Nil is
+	// safe (status-based retry applies).
 	customPolicy func(*http.Response, error) bool
 }
 
@@ -96,9 +100,12 @@ func (rt *retryRoundTripper) resolveOptions(req *http.Request) retry.Options {
 	// RetryableErrors/RetryableHTTPCodes slices are read-only and shared.
 	effective := rt.opts
 
-	// Compose with the internal predicate exactly as the legacy path does
-	// (entities/http.go executeRequestWithRetry). This is what makes a
-	// retryableCustomPolicyError retryable regardless of its HTTP status.
+	// Compose the internal retryableCustomPolicyError predicate with any
+	// caller-supplied predicate so a custom-policy retry signal is treated as
+	// retryable by the engine regardless of HTTP status. This mirrors the
+	// predicate wiring in entities/http.go executeRequestWithRetry; the
+	// custom-policy DECISION itself lives in attempt(), matching the legacy
+	// handleRetryAttemptResponse / handleRequestExecutionError.
 	userPredicate := effective.ErrorPredicate
 	effective.ErrorPredicate = func(err error) bool {
 		if isInternalRetryableError(err) {
@@ -145,26 +152,58 @@ func (rt *retryRoundTripper) attempt(ctx context.Context, req *http.Request, cod
 
 	resp, rtErr := rt.base.RoundTrip(attemptReq)
 	if rtErr != nil {
-		// Transport failure. Hand the raw error to the engine, which classifies
-		// it against RetryableErrors / typed Retryable(); we do not invent new
-		// retryable transport errors here.
-		return nil, rtErr
+		return nil, rt.classifyTransportError(rtErr)
 	}
 
-	// Custom policy first: additive, consulted with a nil error because the RT
-	// has not parsed the body into an SDK error yet.
-	if rt.customPolicy != nil && rt.customPolicy(resp, nil) {
-		return bufferRetryableResponse(resp), retryableCustomPolicyError{err: retryableHTTPError{statusCode: resp.StatusCode}}
+	// Success: return BEFORE consulting the custom policy, so a 2xx can never be
+	// replayed (parity with legacy handleRetryAttemptResponse, which returns nil
+	// for status < 400 before the policy is reached).
+	if resp.StatusCode < http.StatusBadRequest {
+		return resp, nil
 	}
 
-	// Status-based retry via the configured RetryableHTTPCodes.
+	// >=400. A custom policy is SUBSTITUTIVE (parity with legacy): when present
+	// it fully decides retryability and the default RetryableHTTPCodes set is
+	// IGNORED. The RT sits below the facade's error-parsing layer, so the policy
+	// receives a status-only error (StatusCode() int), not the parsed SDK error
+	// the legacy path passes.
+	if rt.customPolicy != nil {
+		statusErr := retryableHTTPError{statusCode: resp.StatusCode}
+		if rt.customPolicy(resp, statusErr) {
+			return bufferRetryableResponse(resp), retryableCustomPolicyError{err: statusErr}
+		}
+
+		// Policy declined: suppress the retry (do NOT fall through to the
+		// status set). The unbuffered response is final and returned as-is.
+		return resp, retry.AsNonRetryable(statusErr)
+	}
+
+	// No custom policy: status-based retry via the configured RetryableHTTPCodes.
 	if statusRetryable(resp.StatusCode, codes) {
 		return bufferRetryableResponse(resp), retryableHTTPError{statusCode: resp.StatusCode}
 	}
 
-	// Success or non-retryable failure: hand the untouched response back; the
-	// caller (generated client) closes its body.
+	// Non-retryable failure: hand the untouched response back; the caller
+	// (generated client) closes its body.
 	return resp, nil
+}
+
+// classifyTransportError applies the custom policy to a transport-layer failure
+// (parity with legacy handleRequestExecutionError): when a policy is present it
+// SUBSTITUTES for the engine's error classification — true retries, false
+// suppresses (AsNonRetryable), which is the "I don't know if the write landed,
+// don't replay" defensive move. Without a policy the raw error is handed to the
+// engine, which classifies it via RetryableErrors / typed Retryable().
+func (rt *retryRoundTripper) classifyTransportError(rtErr error) error {
+	if rt.customPolicy == nil {
+		return rtErr
+	}
+
+	if rt.customPolicy(nil, rtErr) {
+		return retryableCustomPolicyError{err: rtErr}
+	}
+
+	return retry.AsNonRetryable(rtErr)
 }
 
 // bufferRetryableResponse drains resp.Body into memory (returning the

@@ -154,6 +154,20 @@ func validateRetryOptions(opts ...retry.Option) error {
 // WithCustomRetryPolicy sets a custom retry policy for the client.
 // This allows for more fine-grained control over when to retry requests.
 //
+// The policy is SUBSTITUTIVE, not additive: once set, it fully decides
+// retryability on a failed response (status >= 400) or a transport error, and
+// the default retryable-status set is IGNORED. Returning false suppresses the
+// retry even for a status the default policy would retry (e.g. a 503) — the
+// intended "don't replay, I can't tell if the write landed" escape hatch. A
+// 2xx is never passed to the policy and is never retried.
+//
+// Layer note: on the two-plane path the policy runs at the transport layer,
+// BELOW the facade's error parsing. So the error argument carries only the HTTP
+// status (via a StatusCode() int method) on a >=400 response, or the raw
+// transport error — not the fully parsed *pkg/errors.Error the legacy
+// per-service path passes. Key your policy off the *http.Response (available on
+// both paths) rather than the error's concrete type.
+//
 // Parameters:
 //   - shouldRetry: A function that decides whether to retry a request based on response and error
 //

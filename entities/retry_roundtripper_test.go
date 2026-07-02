@@ -3,6 +3,7 @@ package entities
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +15,20 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/retry"
 	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/sdkctx"
 )
+
+// erroringRoundTripper is a base transport that always fails with a fixed
+// error, counting invocations. Used to exercise the transport-error branch
+// deterministically (no real sockets).
+type erroringRoundTripper struct {
+	calls int32
+	err   error
+}
+
+func (e *erroringRoundTripper) RoundTrip(*http.Request) (*http.Response, error) {
+	atomic.AddInt32(&e.calls, 1)
+
+	return nil, e.err
+}
 
 // fastRetryOpts returns the default retry policy with the backoff delays
 // squeezed down so the tests exercise the retry loop without sleeping for the
@@ -284,6 +299,101 @@ func TestRetryRoundTripper_NilCustomPolicySafe(t *testing.T) {
 
 	if resp.StatusCode != http.StatusTeapot {
 		t.Fatalf("status = %d, want 418", resp.StatusCode)
+	}
+}
+
+// TestRetryRoundTripper_CustomPolicyFalseOn5xxSuppresses proves F1 parity: a
+// custom policy is SUBSTITUTIVE. When present and it returns false on a 503,
+// the default RetryableHTTPCodes set is IGNORED — exactly 1 attempt (matches
+// legacy handleRetryAttemptResponse: policy false → retry.AsNonRetryable).
+func TestRetryRoundTripper_CustomPolicyFalseOn5xxSuppresses(t *testing.T) {
+	var count int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		atomic.AddInt32(&count, 1)
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_, _ = w.Write([]byte(`{"title":"unavailable"}`))
+	}))
+	defer srv.Close()
+
+	policy := func(*http.Response, error) bool { return false }
+
+	rt := newRetryRoundTripper(http.DefaultTransport, fastRetryOpts(), policy)
+
+	req, _ := http.NewRequest(http.MethodGet, srv.URL, nil)
+
+	resp, err := rt.RoundTrip(req)
+	if err != nil {
+		t.Fatalf("RoundTrip: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if got := atomic.LoadInt32(&count); got != 1 {
+		t.Fatalf("request count = %d, want 1 (custom policy false is SUBSTITUTIVE: default 503-retryable must be ignored)", got)
+	}
+
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503", resp.StatusCode)
+	}
+}
+
+// TestRetryRoundTripper_CustomPolicyFalseOnTransportErrorSuppresses proves F1
+// parity for the transport-error branch: a custom policy returning false on an
+// otherwise-retryable transport error (its message matches DefaultRetryableErrors)
+// suppresses the retry — exactly 1 attempt (matches legacy
+// handleRequestExecutionError: policy false → retry.AsNonRetryable). This is
+// the "I don't know if the write landed, don't replay" defensive move.
+func TestRetryRoundTripper_CustomPolicyFalseOnTransportErrorSuppresses(t *testing.T) {
+	base := &erroringRoundTripper{err: errors.New("dial tcp: connection refused")}
+	policy := func(*http.Response, error) bool { return false }
+
+	rt := newRetryRoundTripper(base, fastRetryOpts(), policy)
+
+	req, _ := http.NewRequest(http.MethodGet, "http://example.invalid", nil)
+
+	//nolint:bodyclose // transport error path: no response/body is produced.
+	_, err := rt.RoundTrip(req)
+	if err == nil {
+		t.Fatalf("RoundTrip: want the transport error surfaced")
+	}
+
+	if got := atomic.LoadInt32(&base.calls); got != 1 {
+		t.Fatalf("base calls = %d, want 1 (custom policy false must suppress the retryable transport error)", got)
+	}
+}
+
+// TestRetryRoundTripper_CustomPolicyNotConsultedOnSuccess proves F1 parity: a
+// 2xx returns BEFORE the policy is consulted, so a policy that would retry
+// everything can NEVER replay a success (matches legacy: success <400 returns
+// nil before reaching the policy).
+func TestRetryRoundTripper_CustomPolicyNotConsultedOnSuccess(t *testing.T) {
+	var count int32
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		atomic.AddInt32(&count, 1)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"ok":true}`))
+	}))
+	defer srv.Close()
+
+	policy := func(*http.Response, error) bool { return true } // would retry anything
+
+	rt := newRetryRoundTripper(http.DefaultTransport, fastRetryOpts(), policy)
+
+	req, _ := http.NewRequest(http.MethodGet, srv.URL, nil)
+
+	resp, err := rt.RoundTrip(req)
+	if err != nil {
+		t.Fatalf("RoundTrip: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if got := atomic.LoadInt32(&count); got != 1 {
+		t.Fatalf("request count = %d, want 1 (a 2xx must never be replayed by a custom policy)", got)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
 	}
 }
 
