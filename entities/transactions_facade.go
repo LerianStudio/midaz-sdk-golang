@@ -362,23 +362,47 @@ func (f *transactionsFacade) All(ctx context.Context, orgID, ledgerID string, op
 // mirrors exactly the four filters the endpoint honors, so no editor injection
 // is needed. A missing/blank/non-integer/negative header is an error, never a
 // silent zero.
+//
+// It calls the LOWER-LEVEL raw CountTransactionsByFilters (returning the raw
+// *http.Response) rather than the generated WithResponse variant on purpose: a
+// HEAD count is a headers-only reply, so an error status arrives with a JSON
+// content-type header and an EMPTY body. The generated parser gates on "json"
+// in the content type and json.Unmarshals that empty body, which errors —
+// misclassifying a real 403 as an internal error. readCount decodes the status
+// directly (DecodeProblemJSON handles the empty body), so the true status
+// surfaces.
 func (f *transactionsFacade) Count(ctx context.Context, orgID, ledgerID string, opts models.TransactionsListOpts) (int, error) {
-	const operation = "Transactions.Count"
-
 	if err := opts.Validate(); err != nil {
 		return 0, err
 	}
 
-	resp, err := f.ledger.CountTransactionsByFiltersWithResponse(ctx, orgID, ledgerID, countTransactionsParams(opts))
+	//nolint:bodyclose // readCount (transactions_facade.go) closes resp.Body via defer.
+	return readCount(f.ledger.CountTransactionsByFilters(ctx, orgID, ledgerID, countTransactionsParams(opts)))
+}
+
+// readCount maps a HEAD count response into the total. A transport error becomes
+// an internal error; a non-2xx decodes the unified RFC 9457 envelope via
+// DecodeProblemJSON (which handles the empty body a HEAD error carries, unlike
+// the generated status-exact parser); a 2xx reads the X-Total-Count header,
+// where a missing/blank/non-integer/negative value is an error, never a silent
+// zero. Shared by the transactions count and the six onboarding counts.
+func readCount(resp *http.Response, err error) (int, error) {
+	const operation = "Count"
+
 	if err != nil {
 		return 0, errors.NewInternalError(operation, err)
 	}
 
-	if !isSuccess(resp.StatusCode()) {
-		return 0, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
+	defer func() { _ = resp.Body.Close() }()
+
+	if !isSuccess(resp.StatusCode) {
+		// A read error here just yields a nil body; DecodeProblemJSON degrades a
+		// nil/empty body to a status-only error, so the true status still surfaces.
+		body, _ := io.ReadAll(resp.Body) //nolint:errcheck // see comment: nil body degrades cleanly.
+		return 0, errors.DecodeProblemJSON(resp.StatusCode, body, requestIDOf(resp))
 	}
 
-	count, err := parseTotalCountHeader(resp.HTTPResponse.Header)
+	count, err := parseTotalCountHeader(resp.Header)
 	if err != nil {
 		return 0, errors.NewInternalError(operation, err)
 	}

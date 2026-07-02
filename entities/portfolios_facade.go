@@ -164,6 +164,15 @@ func (f *portfoliosFacade) Delete(ctx context.Context, orgID, ledgerID, id strin
 	return nil
 }
 
+// Count returns the total number of portfolios under an org+ledger via
+// HEAD .../portfolios/metrics/count, reading the X-Total-Count header. It routes
+// through the raw CountPortfolios + readCount so a headers-only error reply
+// (empty body) maps to the real status rather than an internal error.
+func (f *portfoliosFacade) Count(ctx context.Context, orgID, ledgerID string) (int, error) {
+	//nolint:bodyclose // readCount (transactions_facade.go) closes resp.Body via defer.
+	return readCount(f.ledger.CountPortfolios(ctx, orgID, ledgerID))
+}
+
 // listPortfoliosParams renders the typed opts into the generated params.
 // EntityID and Status map to generated slots; Name and IncludeDeleted have no
 // slot and are injected via request editors (see listPortfoliosReqEditors).

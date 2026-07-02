@@ -350,6 +350,15 @@ func (f *accountsFacade) BalancesAtTimestamp(ctx context.Context, orgID, ledgerI
 	return out, nil
 }
 
+// Count returns the total number of accounts under an org+ledger via
+// HEAD .../accounts/metrics/count, reading the X-Total-Count header. It routes
+// through the raw CountAccounts + readCount so a headers-only error reply (empty
+// body) maps to the real status rather than an internal error.
+func (f *accountsFacade) Count(ctx context.Context, orgID, ledgerID string) (int, error) {
+	//nolint:bodyclose // readCount (transactions_facade.go) closes resp.Body via defer.
+	return readCount(f.ledger.CountAccounts(ctx, orgID, ledgerID))
+}
+
 // listAccountsParams renders the pagination/sort/date fields plus every filter
 // that has a slot in the generated ListAccountsParams. holder_id and
 // include_deleted have no slot and are carried by listAccountsReqEditors.

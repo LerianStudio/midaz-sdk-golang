@@ -254,6 +254,54 @@ func TestPortfoliosFacade_WriteReplaySafe(t *testing.T) {
 	}
 }
 
+// TestPortfoliosFacade_Count HEADs the metrics/count endpoint and reads the
+// total from X-Total-Count.
+func TestPortfoliosFacade_Count(t *testing.T) {
+	var gotMethod, gotPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod, gotPath = r.Method, r.URL.Path
+		w.Header().Set(HeaderTotalCount, "11")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	n, err := newTestPortfoliosFacade(t, srv).Count(context.Background(), portfoliosOrgID, portfoliosLedgerID)
+	if err != nil {
+		t.Fatalf("Count: %v", err)
+	}
+	if gotMethod != http.MethodHead {
+		t.Fatalf("method = %s, want HEAD", gotMethod)
+	}
+	if want := portfoliosBase() + "/metrics/count"; gotPath != want {
+		t.Fatalf("path = %q, want %q", gotPath, want)
+	}
+	if n != 11 {
+		t.Fatalf("count = %d, want 11", n)
+	}
+}
+
+// TestPortfoliosFacade_CountErrorEmptyBody proves the readCount error path maps
+// a headers-only 403 (JSON content-type, empty body) to authorization, not
+// internal.
+func TestPortfoliosFacade_CountErrorEmptyBody(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/problem+json")
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	defer srv.Close()
+
+	_, err := newTestPortfoliosFacade(t, srv).Count(context.Background(), portfoliosOrgID, portfoliosLedgerID)
+	if err == nil {
+		t.Fatal("expected error on 403 count")
+	}
+	if sdkerrors.IsInternalError(err) {
+		t.Fatalf("403 empty-body count must not map to internal error, got: %v", err)
+	}
+	if !sdkerrors.IsAuthorizationError(err) {
+		t.Fatalf("403 empty-body count must map to authorization error, got: %v", err)
+	}
+}
+
 func newTestPortfoliosFacade(t *testing.T, srv *httptest.Server) *portfoliosFacade {
 	t.Helper()
 	return newPortfoliosFacade(newTestLedgerClient(t, srv))

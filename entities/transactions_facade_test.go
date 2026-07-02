@@ -935,3 +935,31 @@ func TestTransactionsFacade_CountError(t *testing.T) {
 		t.Fatal("expected error on 403 count")
 	}
 }
+
+// TestTransactionsFacade_CountErrorEmptyBody is the harden case (Task 2.3.4): a
+// HEAD count is a headers-only response, so an error status carries a
+// Content-Type: application/problem+json header with an EMPTY body. The generated
+// ParseCountTransactionsByFiltersResp gates on "json" in the content type and
+// json.Unmarshals the (empty) body, which errors — the WithResponse path then
+// returns (nil, err) and the facade misclassifies a real 403 as an INTERNAL
+// error. Routing through the raw method + readCount decodes the status directly:
+// DecodeProblemJSON handles the empty body and the 403 surfaces as an
+// authorization error, never internal.
+func TestTransactionsFacade_CountErrorEmptyBody(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/problem+json")
+		w.WriteHeader(http.StatusForbidden) // headers-only: no body, as a real HEAD 403 sends
+	}))
+	defer srv.Close()
+
+	_, err := newTestTransactionsFacade(t, srv).Count(context.Background(), txOrgID, txLedgerID, models.TransactionsListOpts{})
+	if err == nil {
+		t.Fatal("expected error on 403 count with empty body")
+	}
+	if sdkerrors.IsInternalError(err) {
+		t.Fatalf("403 empty-body count must not map to internal error, got: %v", err)
+	}
+	if !sdkerrors.IsAuthorizationError(err) {
+		t.Fatalf("403 empty-body count must map to authorization error, got: %v", err)
+	}
+}

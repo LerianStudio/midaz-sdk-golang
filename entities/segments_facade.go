@@ -168,6 +168,15 @@ func (f *segmentsFacade) Delete(ctx context.Context, orgID, ledgerID, id string)
 	return nil
 }
 
+// Count returns the total number of segments under an org+ledger via
+// HEAD .../segments/metrics/count, reading the X-Total-Count header. It routes
+// through the raw CountSegments + readCount so a headers-only error reply (empty
+// body) maps to the real status rather than an internal error.
+func (f *segmentsFacade) Count(ctx context.Context, orgID, ledgerID string) (int, error) {
+	//nolint:bodyclose // readCount (transactions_facade.go) closes resp.Body via defer.
+	return readCount(f.ledger.CountSegments(ctx, orgID, ledgerID))
+}
+
 // listSegmentsParams renders only the pagination/sort/date fields the generated
 // ListSegmentsParams exposes. The segment filters (name/status) have no slot and
 // are carried by listSegmentsReqEditors instead.

@@ -185,6 +185,15 @@ func (f *organizationsFacade) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
+// Count returns the total number of organizations via
+// HEAD /organizations/metrics/count, reading the X-Total-Count header. It routes
+// through the raw CountOrganizations + readCount so a headers-only error reply
+// (empty body) maps to the real status rather than an internal error.
+func (f *organizationsFacade) Count(ctx context.Context) (int, error) {
+	//nolint:bodyclose // readCount (transactions_facade.go) closes resp.Body via defer.
+	return readCount(f.ledger.CountOrganizations(ctx))
+}
+
 // listOrganizationsParams renders the typed opts into the generated params,
 // serializing the int pagination fields into the *string form the generated
 // query layer expects.

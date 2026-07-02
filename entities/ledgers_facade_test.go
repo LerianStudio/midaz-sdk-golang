@@ -334,6 +334,54 @@ func TestLedgersFacade_Settings(t *testing.T) {
 	})
 }
 
+// TestLedgersFacade_Count HEADs the org-scoped metrics/count endpoint and reads
+// the total from X-Total-Count.
+func TestLedgersFacade_Count(t *testing.T) {
+	var gotMethod, gotPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod, gotPath = r.Method, r.URL.Path
+		w.Header().Set(HeaderTotalCount, "3")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	n, err := newTestLedgersFacade(t, srv).Count(context.Background(), ledgersOrgID)
+	if err != nil {
+		t.Fatalf("Count: %v", err)
+	}
+	if gotMethod != http.MethodHead {
+		t.Fatalf("method = %s, want HEAD", gotMethod)
+	}
+	if want := "/v1/organizations/" + ledgersOrgID + "/ledgers/metrics/count"; gotPath != want {
+		t.Fatalf("path = %q, want %q", gotPath, want)
+	}
+	if n != 3 {
+		t.Fatalf("count = %d, want 3", n)
+	}
+}
+
+// TestLedgersFacade_CountErrorEmptyBody proves the readCount error path maps a
+// headers-only 403 (JSON content-type, empty body) to authorization, not
+// internal.
+func TestLedgersFacade_CountErrorEmptyBody(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/problem+json")
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	defer srv.Close()
+
+	_, err := newTestLedgersFacade(t, srv).Count(context.Background(), ledgersOrgID)
+	if err == nil {
+		t.Fatal("expected error on 403 count")
+	}
+	if sdkerrors.IsInternalError(err) {
+		t.Fatalf("403 empty-body count must not map to internal error, got: %v", err)
+	}
+	if !sdkerrors.IsAuthorizationError(err) {
+		t.Fatalf("403 empty-body count must map to authorization error, got: %v", err)
+	}
+}
+
 func newTestLedgersFacade(t *testing.T, srv *httptest.Server) *ledgersFacade {
 	t.Helper()
 	return newLedgersFacade(newTestLedgerClient(t, srv))

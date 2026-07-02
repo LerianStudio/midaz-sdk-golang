@@ -201,6 +201,15 @@ func (f *ledgersFacade) UpdateSettings(ctx context.Context, orgID, id string, in
 	})
 }
 
+// Count returns the total number of ledgers under an org via
+// HEAD .../ledgers/metrics/count, reading the X-Total-Count header. It routes
+// through the raw CountLedgers + readCount so a headers-only error reply (empty
+// body) maps to the real status rather than an internal error.
+func (f *ledgersFacade) Count(ctx context.Context, orgID string) (int, error) {
+	//nolint:bodyclose // readCount (transactions_facade.go) closes resp.Body via defer.
+	return readCount(f.ledger.CountLedgers(ctx, orgID))
+}
+
 // listLedgersParams renders the typed opts into the generated params. Name and
 // Status map to generated slots; IncludeDeleted has no slot and is injected via
 // a request editor (see listLedgersReqEditors).
