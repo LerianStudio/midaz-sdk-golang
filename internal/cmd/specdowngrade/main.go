@@ -223,11 +223,21 @@ func mapDelete(m *yaml.Node, key string) {
 	m.Content = out
 }
 
+// wantArgs is the required argument count: program name plus the input and
+// output spec paths.
+const wantArgs = 3
+
 func main() {
-	if len(os.Args) != 3 {
+	if len(os.Args) != wantArgs {
 		fmt.Fprintln(os.Stderr, "usage: specdowngrade <input-3.1.yaml> <output-3.0.3.yaml>")
 		os.Exit(2)
 	}
+	// The input and output paths are fixed, repo-relative build-time inputs
+	// hardcoded in scripts/generate-clients.sh (api/<plane>.openapi.yaml -> an
+	// ephemeral mktemp dir). This is a developer/CI-only codegen tool under
+	// internal/cmd; the paths are never user- or network-supplied, so the
+	// G703 taint is a build-time constant.
+	//nolint:gosec // G703: os.Args paths are fixed build-time inputs from generate-clients.sh, not user/network controlled.
 	in, err := os.ReadFile(os.Args[1])
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "read %s: %v\n", os.Args[1], err)
@@ -238,7 +248,12 @@ func main() {
 		fmt.Fprintf(os.Stderr, "downgrade: %v\n", err)
 		os.Exit(1)
 	}
-	if err := os.WriteFile(os.Args[2], out, 0o644); err != nil {
+	// The output is an ephemeral 3.0.3 intermediate written to a mktemp dir,
+	// consumed immediately by oapi-codegen and deleted on exit (never
+	// committed). It needs no world readability, so 0600. The path, like the
+	// input, is a fixed build-time arg from generate-clients.sh (G703 taint).
+	//nolint:gosec // G703: os.Args[2] is a fixed build-time mktemp path from generate-clients.sh, not user/network controlled.
+	if err := os.WriteFile(os.Args[2], out, 0o600); err != nil {
 		fmt.Fprintf(os.Stderr, "write %s: %v\n", os.Args[2], err)
 		os.Exit(1)
 	}

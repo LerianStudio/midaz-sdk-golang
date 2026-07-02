@@ -13,14 +13,14 @@ func TestDowngrade(t *testing.T) {
 		mustNotHave []string
 	}{
 		{
-			name: "nullable string type-array becomes type+nullable",
-			in: "openapi: 3.1.0\ncomponents:\n  schemas:\n    X:\n      properties:\n        a:\n          type:\n            - string\n            - \"null\"\n",
+			name:        "nullable string type-array becomes type+nullable",
+			in:          "openapi: 3.1.0\ncomponents:\n  schemas:\n    X:\n      properties:\n        a:\n          type:\n            - string\n            - \"null\"\n",
 			mustContain: []string{"type: string", "nullable: true"},
 			mustNotHave: []string{`"null"`},
 		},
 		{
-			name: "nullable array type-array becomes type+nullable",
-			in: "openapi: 3.1.0\nx:\n  type:\n    - array\n    - \"null\"\n",
+			name:        "nullable array type-array becomes type+nullable",
+			in:          "openapi: 3.1.0\nx:\n  type:\n    - array\n    - \"null\"\n",
 			mustContain: []string{"type: array", "nullable: true"},
 			mustNotHave: []string{`"null"`},
 		},
