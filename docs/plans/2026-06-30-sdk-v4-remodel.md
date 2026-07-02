@@ -23,7 +23,7 @@
 | 2 | Money path completo: onboarding CRUD + ciclo de transação (json/inflow/outflow/annotation + commit/cancel/revert) + balances/operations/routes/asset-rates + counts | 2.1, 2.2, 2.R, 2.3 | **Complete** (2.1, 2.2, 2.R, 2.3 todos Done) |
 | 3 | Domínios novos do ledger: holders/instruments/composition, fees (packages/estimates), billing, encryption/protection | 3.1, 3.2, 3.3 | **Complete** (3.1, 3.2, 3.3 todos Done) |
 | 4 | Plano Tracer completo: rules (CEL), limits, reservations, validations, audit-events | 4.1, 4.2, 4.3 | ✅ **Complete** (4.1, 4.2, 4.3 Done) |
-| 5 | Cutover fatiado (A aditivo → paridade money-path → B swap → C delete) + ergonomia + docs; `make ci` verde | 5.1–5.6 | **5.1 ✅ Done**; 5.2 Epic-level (onda corrente); 5.3–5.6 Epic-level |
+| 5 | Cutover fatiado (A aditivo → paridade money-path → B swap → C delete) + ergonomia + docs; `make ci` verde | 5.1–5.6 | **5.1 ✅ Done**; **5.2 Detailed (onda corrente, money-path)**; 5.3–5.6 Epic-level |
 | 6 | *(opcional / decisão de produto)* Consumidor de streaming Kafka/CloudEvents | 6.1 | Epic-level |
 
 ---
@@ -605,12 +605,81 @@ Exploração-fonte (efêmera, no scratchpad da sessão): `01-server-api-surface.
 
 ### Epic 5.2: Paridade money-path no path plane (PRECEDE o swap)
 
-**Goal:** O path plane/facade ganha os comportamentos money-adjacent que o `HTTPClient` legado tinha, ANTES do swap (5.3) mudar os money-writes pra ele: (a) RoundTripper de retry (5xx/408/425/429 com backoff) sobre o transport do plane; (b) gate `MIDAZ_IDEMPOTENCY` ligado no `resolveIdempotency` (respeitar `WithIdempotency(false)`); (c) retrofit de idempotência em TODOS os writes unsafe (onboarding/routes/asset-rates, não só transaction — decisão Fred); (d) re-home do config surface (`SetDebug`/UserAgent/ExposeErrorBody/SlowCallThreshold/Logger) ou decisão explícita de drop; (e) decisão sobre observability spans.
-**Scope:** `entities/auth_roundtripper.go`/novo retry RT, `entities/idempotency.go`, `entities/plane_clients.go`, `midaz.go` (config surface), as fachadas de write (retrofit idempotência).
+**Goal:** O path plane/facade ganha os comportamentos money-adjacent que o `HTTPClient` legado tinha, ANTES do swap (5.3) mudar os money-writes pra ele: retry + gate/retrofit de idempotência. Config-surface/observability são DX (droppable-with-note, não correctness).
+**Scope:** novo `entities/retry_roundtripper.go`, `entities/plane_clients.go`, `entities/idempotency.go`, `entities/entity.go` (Config interface), `midaz.go` (ordem de plumbing), as fachadas de write (retrofit).
 **Dependencies:** Epic 5.1.
-**Done when:** um write via facade tem retry+idempotência equivalentes ao legado; `WithIdempotency(false)` respeitado; `MIDAZ_IDEMPOTENCY` honrado; testes provam retry em 503 e gate on/off; money-path revisado ISOLADO.
+**Done when:** um write via facade tem retry+idempotência equivalentes ao legado; `WithIdempotency(false)`/`MIDAZ_IDEMPOTENCY` honrados; retry preserva `X-Idempotency` byte-a-byte por tentativa e NÃO retenta unsafe-sem-key; testes provam 503→200 com key estável + gate on/off; money-path revisado ISOLADO.
 **Target:** midaz-sdk-golang
-**Status:** Pending
+**Status:** Detailed
+
+> **DECISÕES DE WAVE (Epic 5.2) — recon verificado contra `entities/http_retry_response.go`/`http.go`/`pkg/retry`/`auth_roundtripper.go`/`plane_clients.go`/`idempotency.go`/`config.go`:**
+> - **Retry RT OUTER de auth** (a decisão de design money-path): cadeia `client → retryRT → authRT → pooled transport`, inserido em `plane_clients.go:65/69` (envolve `ledgerRT`/`tracerRT`). Auth-inner mantém o refresh-401-replay encapsulado (`auth_roundtripper.go:84-119` intocado); cada tentativa re-injeta token fresco; retryRT só vê resposta pós-auth (5xx real, nunca 401 transitório). Auth-outer é REJEITADO (expiry de token no meio do loop interno não se auto-cura). Reusa o engine `pkg/retry` (`DoWithContext`, `DefaultRetryableHTTPCodes={408,425,429,500,502,503,504}`, backoff `InitialDelay*BackoffFactor^n` cap `MaxDelay` + jitter) — ~40 linhas de adaptação, não reimplementação.
+> - **Invariante no-double-charge:** a chave é estampada UMA vez ANTES da cadeia (editor/param-slot roda antes de `client.Do`). retryRT faz `req.Clone(ctx)` por tentativa (copia `X-Idempotency`/`X-TTL` byte-a-byte) + `attemptReq.Body = req.GetBody()` (todo write de facade carrega `GetBody` via `bytes.NewReader`→`http.NewRequest`). NUNCA regenera a chave na cadeia. **Gate:** retryRT zera retries pra método unsafe SEM `X-Idempotency` (anti-double-charge, replica `http.go:1158`) e honra `sdkctx.HTTPRetriesSuppressed(ctx)`.
+> - **⚠️ HAZARD DE ORDERING (5.2.2, não é formalidade):** a política de retry hoje é montada em `midaz.go:458-472` DEPOIS dos plane clients serem construídos (`entity.go:232`). Se o RT subir sem consertar a ordem, os money-writes pegam retry config-default e IGNORAM `WithRetryOptions`/`WithCustomRetryPolicy` — regressão de paridade que passa em todo happy-path e só morde quem tunou a política. Resolver o plumbing (resolver a `retry.Options` efetiva + custom policy na/antes da construção do Entity, threading pra `buildPlaneClients`) NO MESMO slice do RT.
+> - **Gate `MIDAZ_IDEMPOTENCY`:** a flag é `config.Config.EnableIdempotency` (`config.go:151`, default true), mas NÃO está na interface `entities.Config` (`entity.go:34-47`) nem alcança as fachadas. Widening: adicionar `GetEnableIdempotency() bool` à interface (padrão dos optional-interface `tracerAPIKeyConfig`/`insecureHTTPConfig`) e threadar. Gate SÓ o auto-gen; chave explícita do caller + `sdkctx.WithIdempotencyKey` SEMPRE vencem (paridade com `ensureIdempotencyHeader`).
+> - **Retrofit — LEDGER writes via editor `setHeader` (ou param-slot onde existe):** organizations/ledgers(+UpdateSettings)/accounts/assets/portfolios/segments/account_types/metadata_indexes/asset_rates(PUT upsert)/operation_routes/transaction_routes/fee_packages/billing_packages/composition(CreateHolderAccount)/encryption(Provision) + holders/instruments Update+Delete via editor; holders.Create/instruments.Create via slot `XIdempotency` (transaction já feito). **TRACER rules/limits (Create/Update/Delete):** o servidor tracer NÃO trata idempotência (0 header, 0 body-dedup, 0 middleware — verificado). DECISÃO: estampar mesmo assim (parity com o legado que estampava blanket + forward-compat), com COMENTÁRIO de que o server ignora hoje. ⚠️ nuance: como o server não deduplica, o gate do retry (que retenta por haver key) tem risco latente de double-create no 503-pós-commit — MAS rules/limits são CONFIG (não money) e o legado tinha o mesmo comportamento; aceito, documentado, sinalizar no review. **EXCLUIR (body-dedup server-side):** validations.Evaluate (`requestId`), todas as reservations (`transactionId`). **EXCLUIR (não-mutante):** billing_calculate/fee_estimate (compute-only POST), audit_events.Verify (read).
+> - **Config-surface/observability = DX, não correctness** (nada é double-entry/double-charge). Droppable-with-note em 5.2: SetDebug/ExposeErrorBody/SlowCallThreshold/Logger + spans/metrics/business-events. Re-home oportunista (operacional, não correctness): `User-Agent` + `traceparent` (`observability.InjectHTTPContext`) + retry-metrics (grátis se retryRT reusar o hook `withRetryAttemptDiagnostics`). Fica pra 5.2.6 opcional.
+> - **ESTA É MONEY-PATH (terceiro trilho) — dispatch + review full obrigatórios; NÃO hand-implementável pelo orchestrator.** TDD contra o invariante no-double-charge é o gate central.
+
+#### Task 5.2.1: Retry RoundTripper (crown jewel money-path)
+
+- [ ] Done
+
+**Context:** O path plane não tem retry (`auth_roundtripper.go` só faz auth+replay-401). O engine `pkg/retry` (`DoWithContext`, `retry.go:537`) + os códigos/backoff/jitter existem e são reusáveis. `retryableHTTPError{statusCode}` (`http_retry_response.go:454`) é o wrapper que o engine casa. O gate unsafe-sem-key + `HTTPRetriesSuppressed` vive em `http.go:1139,1158`.
+**Implementation vision:** Novo `entities/retry_roundtripper.go`: `retryRoundTripper{base http.RoundTripper; opts retry.Options; customPolicy func(*http.Response,error)bool}` implementando `RoundTrip`. Por tentativa: `req.Clone(ctx)` + `body,_ := req.GetBody(); attemptReq.Body = body`; chama `base.RoundTrip`; em status retryável → retorna `retryableHTTPError{resp.StatusCode}` pro `retry.DoWithContext`, senão erro plano; custom policy consultada como em `handleRetryAttemptResponse`. **Gate:** se `isUnsafeMethod(req.Method) && req.Header.Get("X-Idempotency")==""` → opts com MaxRetries=0; idem se `sdkctx.HTTPRetriesSuppressed(ctx)`. Inserir em `plane_clients.go:65/69` envolvendo os RTs de auth.
+**Files:** Create `entities/retry_roundtripper.go`(+`_test`); Modify `entities/plane_clients.go`.
+**Verification:** TDD — (a) **503→200 com a MESMA `X-Idempotency` em todas as tentativas** (httptest conta requests + assere header idêntico); (b) unsafe-sem-key → 0 retries (1 request só); (c) `HTTPRetriesSuppressed` → 0 retries; (d) 401 transitório é absorvido pelo authRT inner (não conta como retry do outer); (e) custom policy respeitada; (f) body rewind por tentativa (não vazio na 2ª).
+**Done when:** retry funciona no path plane com o invariante no-double-charge provado; gate unsafe-sem-key; auth-inner intacto; `golangci-lint`=0.
+
+#### Task 5.2.2: Threadar a política de retry na construção dos plane clients
+
+- [ ] Done
+
+**Context:** HAZARD — a `retry.Options` efetiva é montada em `midaz.go:458-472` DEPOIS de `buildPlaneClients` (`entity.go:232`). O retryRT precisa da política no momento da construção.
+**Implementation vision:** Resolver a `retry.Options` efetiva (base `DefaultOptions` + seed de config + `retryOpts` do usuário) + `customRetryPolicy` ANTES/DURANTE a construção do Entity; threadar via `planeClientsConfig`/`buildPlaneClients` (`plane_clients.go:29-115`) até o `retryRoundTripper`. Reordenar o plumbing em `midaz.go` (a política deixa de ser aplicada só no legado pós-construção). NÃO quebrar o path legado (que segue usando `httpClient.WithRetryOptions`).
+**Files:** Modify `entities/plane_clients.go`, `entities/entity.go`, `midaz.go`.
+**Verification:** teste provando que `WithRetryOptions(retry.WithMaxRetries(5))` + `WithCustomRetryPolicy` chegam ao retryRT do plane (não só config-default); legado inalterado.
+**Done when:** política tunada pelo usuário chega aos money-writes do plane; sem regressão do legado; build/test verdes.
+
+#### Task 5.2.3: Gate MIDAZ_IDEMPOTENCY no path facade
+
+- [ ] Done
+
+**Context:** `resolveIdempotency` (`idempotency.go:44`) sempre auto-gera, nunca consulta `EnableIdempotency` (`config.go:151`), que não está em `entities.Config` (`entity.go:34-47`).
+**Implementation vision:** Adicionar `GetEnableIdempotency() bool` à interface `entities.Config` (+ optional-interface se preciso, padrão `tracerAPIKeyConfig`); threadar a flag até as fachadas (via deps de construção). Gatear SÓ o auto-gen no `resolveIdempotency` (chave explícita + `sdkctx.WithIdempotencyKey` sempre vencem). `WithIdempotency(false)` passa a ser respeitado no path facade.
+**Files:** Modify `entities/entity.go`, `entities/idempotency.go`, fachada deps.
+**Verification:** gate on (default) auto-gera; `WithIdempotency(false)`/`MIDAZ_IDEMPOTENCY=false` → sem auto-gen; chave explícita vence o gate off.
+**Done when:** flag honrada no path facade sem quebrar a precedência explícita; build/test verdes.
+
+#### Task 5.2.4: Retrofit de idempotência — ledger writes
+
+- [ ] Done
+
+**Context:** Só `transactions_facade` estampa idempotência hoje; os demais writes ledger carregam o comentário "deferred to Epic 5.1 retrofit". Slots gerados existem só p/ holders.Create/instruments.Create (+ transaction).
+**Implementation vision:** Aplicar `setHeader(idempotencyHeader, key)` via `RequestEditorFn` (ou param-slot onde existe) em TODO write ledger da lista das DECISÕES, resolvendo a chave via `resolveIdempotency(autoGen=<create/update/delete>, gate)`. Mecânico, alto volume — uma fachada por commit, testes table-driven asserindo o header no fio.
+**Files:** Modify os `*_facade.go` ledger de write (organizations/ledgers/accounts/assets/portfolios/segments/account_types/metadata_indexes/asset_rates/operation_routes/transaction_routes/holders/instruments/composition/fee_packages/billing_packages/encryption).
+**Verification:** cada write emite `X-Idempotency` (auto-gen ou explícito) no fio; gate off suprime auto-gen; explícito vence.
+**Done when:** todo write ledger unsafe tem idempotência; `golangci-lint`=0; testes verdes.
+
+#### Task 5.2.5: Retrofit de idempotência — tracer rules/limits (com nuance documentada)
+
+- [ ] Done
+
+**Context:** rules/limits são os únicos writes tracer que devem receber idempotência (validations/reservations dedup no body; compute-only/reads excluídos). Server tracer NÃO trata idempotência hoje (verificado).
+**Implementation vision:** Estampar `X-Idempotency` via editor em rules/limits Create/Update/Delete (parity + forward-compat), com comentário explícito de que o server ignora hoje E da nuance de retry (double-create latente no 503-pós-commit; aceito pois é config, não money). Excluir explicitamente validations/reservations com o comentário de body-dedup (já presente).
+**Files:** Modify `entities/rules_facade.go`, `entities/limits_facade.go`.
+**Verification:** rules/limits writes emitem `X-Idempotency`; comentários de nuance presentes; validations/reservations permanecem sem header.
+**Done when:** retrofit tracer completo e documentado; build/test verdes.
+
+#### Task 5.2.6: (Opcional/DX) Re-home User-Agent + traceparent + retry-metrics
+
+- [ ] Done
+
+**Context:** Config-surface/observability são DX, não correctness. Só re-homear se quiser paridade operacional antes do swap.
+**Implementation vision:** UA via `setHeader` editor ou UA-RT; `traceparent` via `observability.InjectHTTPContext` num editor; retry-metrics grátis se o retryRT reusar o hook `withRetryAttemptDiagnostics`. NÃO bloqueia o swap.
+**Files:** Modify `entities/plane_clients.go`/`retry_roundtripper.go`/editores.
+**Verification:** UA presente no fio; traceparent propagado; retry-metrics emitidas.
+**Done when:** paridade operacional opcional; ou explicitamente adiado com nota.
 
 ### Epic 5.3: Slice B — swap dos accessors ledger + migração de consumers
 
