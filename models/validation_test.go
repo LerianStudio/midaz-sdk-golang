@@ -132,20 +132,26 @@ func TestValidateTransactionInput_Validate(t *testing.T) {
 	}
 }
 
-// TestValidationsListOpts_AcceptsDates is the inverse of the rules/limits
-// silent-drop red: the validations endpoint HAS native start_date/end_date slots,
-// so a well-formed date range MUST pass (dates supported here). The shared
-// limit/sort/inverted-range checks still apply.
-func TestValidationsListOpts_AcceptsDates(t *testing.T) {
+// TestValidationsListOpts_DatesMustBeRFC3339 pins the tracer contract: the
+// validations-list server strict-parses start_date/end_date as RFC3339
+// (midaz components/tracer/.../transaction_validation_handler.go:355,
+// time.Parse(time.RFC3339, ...) with a 400 on failure), NOT the ledger plane's
+// YYYY-MM-DD. So an RFC3339 range is accepted, a bare YYYY-MM-DD value is
+// rejected before the wire (the SDK's ONLY previously-accepted format the server
+// would 400), and an inverted RFC3339 range is rejected. Shared limit/sort
+// checks still apply.
+func TestValidationsListOpts_DatesMustBeRFC3339(t *testing.T) {
 	tests := []struct {
 		name    string
 		opts    ValidationsListOpts
 		wantErr bool
 	}{
 		{"empty is valid", ValidationsListOpts{}, false},
-		{"date range accepted", ValidationsListOpts{CursorListOpts: CursorListOpts{StartDate: "2026-01-01", EndDate: "2026-01-31"}}, false},
-		{"start only accepted", ValidationsListOpts{CursorListOpts: CursorListOpts{StartDate: "2026-01-01"}}, false},
-		{"inverted range rejected", ValidationsListOpts{CursorListOpts: CursorListOpts{StartDate: "2026-02-01", EndDate: "2026-01-01"}}, true},
+		{"RFC3339 range accepted", ValidationsListOpts{CursorListOpts: CursorListOpts{StartDate: "2026-01-01T00:00:00Z", EndDate: "2026-01-31T23:59:59Z"}}, false},
+		{"RFC3339 start only accepted", ValidationsListOpts{CursorListOpts: CursorListOpts{StartDate: "2026-01-01T00:00:00Z"}}, false},
+		{"YYYY-MM-DD start rejected", ValidationsListOpts{CursorListOpts: CursorListOpts{StartDate: "2026-01-01"}}, true},
+		{"YYYY-MM-DD end rejected", ValidationsListOpts{CursorListOpts: CursorListOpts{EndDate: "2026-01-31"}}, true},
+		{"inverted RFC3339 range rejected", ValidationsListOpts{CursorListOpts: CursorListOpts{StartDate: "2026-02-01T00:00:00Z", EndDate: "2026-01-01T00:00:00Z"}}, true},
 		{"limit over max rejected", ValidationsListOpts{CursorListOpts: CursorListOpts{Limit: MaxLimit + 1}}, true},
 		{"bad sort direction rejected", ValidationsListOpts{CursorListOpts: CursorListOpts{SortDirection: "weird"}}, true},
 	}

@@ -66,6 +66,21 @@ type CursorListOpts struct {
 // Exported because per-entity ListOpts in package entities call it.
 // Treat as an internal contract; not part of the user-facing API.
 func ValidateCursorListOpts(operation string, o CursorListOpts) error {
+	if err := validateCursorLimitSort(operation, o); err != nil {
+		return err
+	}
+
+	return validateDateRange(operation, o.StartDate, o.EndDate)
+}
+
+// validateCursorLimitSort enforces the limit-bounds and sort-direction checks
+// shared by every cursor-list validator, independent of the date format. The
+// date step differs per plane — validateDateRange for the ledger's YYYY-MM-DD,
+// validateDateRangeRFC3339 for the tracer's RFC3339 — and is applied by the
+// caller after this returns. Extracted so ValidateCursorListOpts and its
+// RFC3339 sibling share ONE copy of the non-date checks with identical order,
+// messages, and behavior.
+func validateCursorLimitSort(operation string, o CursorListOpts) error {
 	if o.Limit < 0 {
 		return errors.NewValidationError(operation,
 			"limit must be non-negative",
@@ -86,7 +101,27 @@ func ValidateCursorListOpts(operation string, o CursorListOpts) error {
 			fmt.Errorf("got %q", o.SortDirection))
 	}
 
-	return validateDateRange(operation, o.StartDate, o.EndDate)
+	return nil
+}
+
+// ValidateCursorListOptsRFC3339Dates is the tracer-plane sibling of
+// ValidateCursorListOpts. The tracer's cursor list endpoints (validations now,
+// audit-events next) strict-parse start_date/end_date as RFC3339 server-side
+// (midaz components/tracer/internal/adapters/http/in/transaction_validation_handler.go:355,
+// time.Parse(time.RFC3339, input.StartDate) returning a 400 on failure),
+// diverging from the ledger plane's YYYY-MM-DD. So it runs the shared limit/sort
+// checks and then enforces RFC3339 on the date range, rejecting a YYYY-MM-DD
+// value the ledger siblings would accept — catching the wrong format on the SDK
+// side instead of shipping it to a server that rejects it.
+//
+// Exported because per-entity ListOpts in package entities call it. Treat as an
+// internal contract; not part of the user-facing API.
+func ValidateCursorListOptsRFC3339Dates(operation string, o CursorListOpts) error {
+	if err := validateCursorLimitSort(operation, o); err != nil {
+		return err
+	}
+
+	return validateDateRangeRFC3339(operation, o.StartDate, o.EndDate)
 }
 
 // ValidateCursorListOptsNoDates is the sibling of ValidateCursorListOpts for

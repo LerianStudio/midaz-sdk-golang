@@ -366,8 +366,11 @@ type LimitUsageDetail struct {
 // adds SortBy, and attaches a typed Filters sub-struct.
 //
 // Unlike the rules and limits lists, this endpoint HAS native start_date/end_date
-// query slots, so date filtering IS supported — Validate uses the normal
-// ValidateCursorListOpts (not the NoDates variant).
+// query slots, so date filtering IS supported. But the tracer server strict-parses
+// those dates as RFC3339 — diverging from the ledger plane's YYYY-MM-DD — so
+// Validate uses ValidateCursorListOptsRFC3339Dates (not the plain
+// ValidateCursorListOpts, and not the NoDates variant). Callers must pass RFC3339
+// (e.g. 2026-01-01T00:00:00Z), never a bare date.
 type ValidationsListOpts struct {
 	CursorListOpts
 
@@ -393,9 +396,10 @@ type ValidationsFilters struct {
 
 // Validate enforces the shared cursor-list preconditions (limit bounds, sort
 // direction, date range). Date filtering IS supported here — the generated
-// ListValidationsParams has native start_date/end_date slots — so this defers to
-// the normal ValidateCursorListOpts. Filter values are passed through; the server
-// validates them.
+// ListValidationsParams has native start_date/end_date slots — but the tracer
+// server strict-parses those as RFC3339, so this defers to
+// ValidateCursorListOptsRFC3339Dates (diverging from the ledger plane's
+// YYYY-MM-DD). Filter values are passed through; the server validates them.
 func (o ValidationsListOpts) Validate() error {
-	return ValidateCursorListOpts("ValidationsListOpts.Validate", o.CursorListOpts)
+	return ValidateCursorListOptsRFC3339Dates("ValidationsListOpts.Validate", o.CursorListOpts)
 }
