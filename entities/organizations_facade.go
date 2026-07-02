@@ -55,7 +55,7 @@ func (f *organizationsFacade) List(ctx context.Context, opts models.Organization
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	if resp.StatusCode() != 200 {
+	if resp.StatusCode() != http.StatusOK {
 		// DecodeProblemJSON maps the unified RFC 9457 envelope both planes emit
 		// into *errors.Error with retryability keyed on status + code suffix.
 		// The server's X-Request-ID is threaded through so a client-side

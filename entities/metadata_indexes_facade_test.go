@@ -5,6 +5,7 @@ package entities
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -107,8 +108,8 @@ func TestMetadataIndexesFacade_ErrorDecodes(t *testing.T) {
 
 	_, err := newTestMetadataIndexesFacade(t, srv).Create(context.Background(), "account",
 		models.NewCreateMetadataIndexInput("customer_id"))
-	sdkErr, ok := err.(*sdkerrors.Error)
-	if !ok {
+	var sdkErr *sdkerrors.Error
+	if !errors.As(err, &sdkErr) {
 		t.Fatalf("error type = %T, want *errors.Error", err)
 	}
 	if sdkErr.APICode != "LEDGER-0009" || sdkErr.RequestID != "req-mi-422" {

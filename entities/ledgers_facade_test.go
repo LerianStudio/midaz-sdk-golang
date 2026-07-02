@@ -5,6 +5,7 @@ package entities
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -173,11 +174,11 @@ func TestLedgersFacade_ErrorDecodes(t *testing.T) {
 	defer srv.Close()
 
 	_, err := newTestLedgersFacade(t, srv).List(context.Background(), ledgersOrgID, models.LedgersListOpts{})
-	sdkErr, ok := err.(*sdkerrors.Error)
-	if !ok {
+	var sdkErr *sdkerrors.Error
+	if !errors.As(err, &sdkErr) {
 		t.Fatalf("error type = %T, want *errors.Error", err)
 	}
-	if sdkErr.APICode != "LEDGER-0178" || sdkErr.StatusCode != 503 || sdkErr.RequestID != "req-led-503" {
+	if sdkErr.APICode != "LEDGER-0178" || sdkErr.StatusCode != http.StatusServiceUnavailable || sdkErr.RequestID != "req-led-503" {
 		t.Fatalf("decoded error = %+v", sdkErr)
 	}
 }

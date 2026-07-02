@@ -5,6 +5,7 @@ package entities
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -170,8 +171,8 @@ func TestSegmentsFacade_ErrorDecodes(t *testing.T) {
 	defer srv.Close()
 
 	_, err := newTestSegmentsFacade(t, srv).Get(context.Background(), segmentsOrgID, segmentsLedgerID, "33333333-3333-3333-3333-333333333333")
-	sdkErr, ok := err.(*sdkerrors.Error)
-	if !ok {
+	var sdkErr *sdkerrors.Error
+	if !errors.As(err, &sdkErr) {
 		t.Fatalf("error type = %T, want *errors.Error", err)
 	}
 	if sdkErr.APICode != "LEDGER-0084" || sdkErr.RequestID != "req-seg-409" {

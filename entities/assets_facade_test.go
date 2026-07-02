@@ -5,6 +5,7 @@ package entities
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -176,8 +177,8 @@ func TestAssetsFacade_ErrorDecodes(t *testing.T) {
 	_, err := newTestAssetsFacade(t, srv).Create(context.Background(), assetsOrgID, assetsLedgerID, &models.CreateAssetInput{
 		Name: "US Dollar", Code: "USD", Type: "currency",
 	})
-	sdkErr, ok := err.(*sdkerrors.Error)
-	if !ok {
+	var sdkErr *sdkerrors.Error
+	if !errors.As(err, &sdkErr) {
 		t.Fatalf("error type = %T, want *errors.Error", err)
 	}
 	if sdkErr.APICode != "LEDGER-0009" || sdkErr.RequestID != "req-asset-422" {

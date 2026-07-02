@@ -5,6 +5,7 @@ package entities
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -177,8 +178,8 @@ func TestAccountTypesFacade_ErrorDecodes(t *testing.T) {
 	_, err := newTestAccountTypesFacade(t, srv).Create(context.Background(), accountTypesOrgID, accountTypesLedgerID, &models.CreateAccountTypeInput{
 		Name: "Cash", KeyValue: "CASH",
 	})
-	sdkErr, ok := err.(*sdkerrors.Error)
-	if !ok {
+	var sdkErr *sdkerrors.Error
+	if !errors.As(err, &sdkErr) {
 		t.Fatalf("error type = %T, want *errors.Error", err)
 	}
 	if sdkErr.APICode != "LEDGER-0009" || sdkErr.RequestID != "req-at-422" {

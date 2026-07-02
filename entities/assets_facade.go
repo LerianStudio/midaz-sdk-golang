@@ -51,7 +51,7 @@ func (f *assetsFacade) List(ctx context.Context, orgID, ledgerID string, opts mo
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	if resp.StatusCode() != 200 {
+	if resp.StatusCode() != http.StatusOK {
 		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
 	}
 

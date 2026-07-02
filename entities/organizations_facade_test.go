@@ -5,6 +5,7 @@ package entities
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -74,7 +75,7 @@ func TestOrganizationsFacade_ListAndPaginate(t *testing.T) {
 // RFC 9457 problem+json error body decodes into *errors.Error with the correct
 // code, status, and retryability, never leaking the generated types.
 func TestOrganizationsFacade_ErrorDecodes(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/problem+json")
 		w.WriteHeader(http.StatusServiceUnavailable)
 		_, _ = w.Write([]byte(`{"code":"LEDGER-0178","title":"Service Unavailable","detail":"upstream is down","status":503}`))
@@ -88,8 +89,8 @@ func TestOrganizationsFacade_ErrorDecodes(t *testing.T) {
 		t.Fatalf("List against a 503 must return an error")
 	}
 
-	sdkErr, ok := err.(*sdkerrors.Error)
-	if !ok {
+	var sdkErr *sdkerrors.Error
+	if !errors.As(err, &sdkErr) {
 		t.Fatalf("error type = %T, want *errors.Error (generated types must not leak)", err)
 	}
 
@@ -149,8 +150,8 @@ func TestOrganizationsFacade_ErrorPropagatesRequestID(t *testing.T) {
 				t.Fatalf("List against a %d must return an error", tc.status)
 			}
 
-			sdkErr, ok := err.(*sdkerrors.Error)
-			if !ok {
+			var sdkErr *sdkerrors.Error
+			if !errors.As(err, &sdkErr) {
 				t.Fatalf("error type = %T, want *errors.Error", err)
 			}
 
@@ -442,8 +443,8 @@ func TestOrganizationsFacade_CRUD(t *testing.T) {
 			t.Fatalf("Create against a 422 must return an error")
 		}
 
-		sdkErr, ok := err.(*sdkerrors.Error)
-		if !ok {
+		var sdkErr *sdkerrors.Error
+		if !errors.As(err, &sdkErr) {
 			t.Fatalf("error type = %T, want *errors.Error (generated types must not leak)", err)
 		}
 		if sdkErr.APICode != "LEDGER-0009" {

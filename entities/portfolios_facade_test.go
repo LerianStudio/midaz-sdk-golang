@@ -5,6 +5,7 @@ package entities
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -172,8 +173,8 @@ func TestPortfoliosFacade_ErrorDecodes(t *testing.T) {
 	defer srv.Close()
 
 	_, err := newTestPortfoliosFacade(t, srv).List(context.Background(), portfoliosOrgID, portfoliosLedgerID, models.PortfoliosListOpts{})
-	sdkErr, ok := err.(*sdkerrors.Error)
-	if !ok {
+	var sdkErr *sdkerrors.Error
+	if !errors.As(err, &sdkErr) {
 		t.Fatalf("error type = %T, want *errors.Error", err)
 	}
 	if sdkErr.APICode != "LEDGER-0178" || sdkErr.RequestID != "req-pf-503" {

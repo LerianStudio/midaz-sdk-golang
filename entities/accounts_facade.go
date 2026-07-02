@@ -53,7 +53,7 @@ func (f *accountsFacade) List(ctx context.Context, orgID, ledgerID string, opts 
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	if resp.StatusCode() != 200 {
+	if resp.StatusCode() != http.StatusOK {
 		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
 	}
 
@@ -203,7 +203,7 @@ func (f *accountsFacade) ListBalances(ctx context.Context, orgID, ledgerID, acco
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	if resp.StatusCode() != 200 {
+	if resp.StatusCode() != http.StatusOK {
 		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
 	}
 
@@ -271,7 +271,7 @@ func (f *accountsFacade) ListOperations(ctx context.Context, orgID, ledgerID, ac
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	if resp.StatusCode() != 200 {
+	if resp.StatusCode() != http.StatusOK {
 		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
 	}
 
@@ -338,7 +338,7 @@ func (f *accountsFacade) BalancesAtTimestamp(ctx context.Context, orgID, ledgerI
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	if resp.StatusCode() != 200 {
+	if resp.StatusCode() != http.StatusOK {
 		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
 	}
 

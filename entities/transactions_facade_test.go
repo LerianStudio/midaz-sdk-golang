@@ -292,7 +292,7 @@ func TestTransactionsFacade_CreateError(t *testing.T) {
 	if !errors.As(err, &sdkErr) {
 		t.Fatalf("error type = %T, want *errors.Error", err)
 	}
-	if sdkErr.APICode != "LEDGER-0490" || sdkErr.StatusCode != 422 || sdkErr.RequestID != "req-tx-422" {
+	if sdkErr.APICode != "LEDGER-0490" || sdkErr.StatusCode != http.StatusUnprocessableEntity || sdkErr.RequestID != "req-tx-422" {
 		t.Fatalf("decoded error = %+v, want APICode=LEDGER-0490 StatusCode=422 RequestID=req-tx-422", sdkErr)
 	}
 }
@@ -545,7 +545,7 @@ func TestTransactionsFacade_LifecycleError(t *testing.T) {
 	if !errors.As(err, &sdkErr) {
 		t.Fatalf("error type = %T, want *errors.Error", err)
 	}
-	if sdkErr.APICode != "LEDGER-0088" || sdkErr.StatusCode != 409 || sdkErr.RequestID != "req-commit-409" {
+	if sdkErr.APICode != "LEDGER-0088" || sdkErr.StatusCode != http.StatusConflict || sdkErr.RequestID != "req-commit-409" {
 		t.Fatalf("decoded error = %+v, want APICode=LEDGER-0088 StatusCode=409 RequestID=req-commit-409", sdkErr)
 	}
 }
@@ -636,7 +636,7 @@ func TestTransactionsFacade_UpdateTransactionError(t *testing.T) {
 	if !errors.As(err, &sdkErr) {
 		t.Fatalf("error type = %T, want *errors.Error", err)
 	}
-	if sdkErr.APICode != "LEDGER-0007" || sdkErr.StatusCode != 404 || sdkErr.RequestID != "req-upd-404" {
+	if sdkErr.APICode != "LEDGER-0007" || sdkErr.StatusCode != http.StatusNotFound || sdkErr.RequestID != "req-upd-404" {
 		t.Fatalf("decoded error = %+v, want APICode=LEDGER-0007 StatusCode=404 RequestID=req-upd-404", sdkErr)
 	}
 }
@@ -742,7 +742,7 @@ func TestTransactionsFacade_GetError(t *testing.T) {
 	if !errors.As(err, &sdkErr) {
 		t.Fatalf("error type = %T, want *errors.Error", err)
 	}
-	if sdkErr.APICode != "LEDGER-0007" || sdkErr.StatusCode != 404 || sdkErr.RequestID != "req-get-404" {
+	if sdkErr.APICode != "LEDGER-0007" || sdkErr.StatusCode != http.StatusNotFound || sdkErr.RequestID != "req-get-404" {
 		t.Fatalf("decoded error = %+v, want APICode=LEDGER-0007 StatusCode=404 RequestID=req-get-404", sdkErr)
 	}
 }
