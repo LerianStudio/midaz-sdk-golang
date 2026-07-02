@@ -5,8 +5,11 @@ package models
 
 import (
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
+
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
 )
 
 // TestRule_UnmarshalWireShape proves the server wire (ruleId identity key,
@@ -121,6 +124,49 @@ func TestUpdateRuleInput_OmitUnset(t *testing.T) {
 		if strings.Contains(got, absent) {
 			t.Fatalf("update body should omit unset field %s: %s", absent, got)
 		}
+	}
+}
+
+// TestRulesListOpts_RejectsDateFilter is the silent-drop red. The generated
+// ListRulesParams carries NO start_date/end_date slot, so a well-formed date
+// range set on RulesListOpts would pass the shared cursor validation and then
+// be SILENTLY DROPPED at param-mapping time — the server returns the FULL
+// unfiltered set. Validate MUST reject any date filter loudly with a typed
+// validation error, while the base cursor checks (limit bounds, sort
+// direction) keep behaving.
+func TestRulesListOpts_RejectsDateFilter(t *testing.T) {
+	tests := []struct {
+		name    string
+		opts    RulesListOpts
+		wantErr bool
+	}{
+		{"no dates is valid", RulesListOpts{}, false},
+		{"valid non-date opts pass", RulesListOpts{CursorListOpts: CursorListOpts{Limit: 50, SortDirection: SortAscending}}, false},
+		{"start date rejected", RulesListOpts{CursorListOpts: CursorListOpts{StartDate: "2026-01-01"}}, true},
+		{"end date rejected", RulesListOpts{CursorListOpts: CursorListOpts{EndDate: "2026-01-31"}}, true},
+		{"both dates rejected", RulesListOpts{CursorListOpts: CursorListOpts{StartDate: "2026-01-01", EndDate: "2026-01-31"}}, true},
+		{"limit over max still rejected", RulesListOpts{CursorListOpts: CursorListOpts{Limit: MaxLimit + 1}}, true},
+		{"bad sort direction still rejected", RulesListOpts{CursorListOpts: CursorListOpts{SortDirection: "weird"}}, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.opts.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("Validate() err = %v, wantErr = %v", err, tt.wantErr)
+			}
+			if !tt.wantErr {
+				return
+			}
+
+			var sdkErr *sdkerrors.Error
+			if !errors.As(err, &sdkErr) {
+				t.Fatalf("error type = %T, want *errors.Error", err)
+			}
+			if sdkErr.Code != sdkerrors.CodeValidation {
+				t.Fatalf("error code = %q, want %q", sdkErr.Code, sdkerrors.CodeValidation)
+			}
+		})
 	}
 }
 

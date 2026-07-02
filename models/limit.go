@@ -437,10 +437,12 @@ type LimitsFilters struct {
 }
 
 // Validate enforces the shared cursor-list preconditions (limit bounds, sort
-// direction, date range). Filter values are passed through — the server
-// validates them.
+// direction) and REJECTS any date filter: the generated ListLimitsParams has no
+// start_date/end_date slot, so a date would validate then silently drop,
+// returning the full unfiltered set. Filter values are passed through — the
+// server validates them.
 func (o LimitsListOpts) Validate() error {
-	return ValidateCursorListOpts("LimitsListOpts.Validate", o.CursorListOpts)
+	return ValidateCursorListOptsNoDates("LimitsListOpts.Validate", o.CursorListOpts)
 }
 
 func validateLimitName(errs *validation.FieldErrors, name string) {

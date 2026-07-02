@@ -346,10 +346,12 @@ type RulesFilters struct {
 }
 
 // Validate enforces the shared cursor-list preconditions (limit bounds, sort
-// direction, date range). Filter values are passed through — the server validates
-// them.
+// direction) and REJECTS any date filter: the generated ListRulesParams has no
+// start_date/end_date slot, so a date would validate then silently drop,
+// returning the full unfiltered set. Filter values are passed through — the
+// server validates them.
 func (o RulesListOpts) Validate() error {
-	return ValidateCursorListOpts("RulesListOpts.Validate", o.CursorListOpts)
+	return ValidateCursorListOptsNoDates("RulesListOpts.Validate", o.CursorListOpts)
 }
 
 func validateRuleName(errs *validation.FieldErrors, name string) {

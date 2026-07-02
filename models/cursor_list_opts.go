@@ -89,6 +89,29 @@ func ValidateCursorListOpts(operation string, o CursorListOpts) error {
 	return validateDateRange(operation, o.StartDate, o.EndDate)
 }
 
+// ValidateCursorListOptsNoDates is the sibling of ValidateCursorListOpts for
+// cursor endpoints whose generated params carry NO start_date/end_date slot
+// (the tracer rules and limits lists). On those endpoints a date filter is a
+// silent-wrong-result footgun: a well-formed range PASSES ValidateCursorListOpts
+// (its last step, validateDateRange, only rejects malformed/inverted ranges),
+// then gets DROPPED at param-mapping time because there is no wire slot to map
+// it to — so the server returns the FULL unfiltered set while the caller
+// believes the filter took effect. This validator fails loud instead: any
+// StartDate/EndDate is rejected up front. With no dates set it defers to
+// ValidateCursorListOpts for the shared limit/sort/(vacuous)date checks.
+//
+// Exported because per-entity ListOpts in package entities call it. Treat as
+// an internal contract; not part of the user-facing API.
+func ValidateCursorListOptsNoDates(operation string, o CursorListOpts) error {
+	if o.StartDate != "" || o.EndDate != "" {
+		return errors.NewValidationError(operation,
+			"date filtering is not supported by this endpoint",
+			fmt.Errorf("startDate=%q endDate=%q", o.StartDate, o.EndDate))
+	}
+
+	return ValidateCursorListOpts(operation, o)
+}
+
 // CursorQueryParams renders the shared cursor/sort/date-range fields
 // of CursorListOpts into the wire query parameter map. Per-entity
 // ToQueryParams methods call this first, then layer in their own
