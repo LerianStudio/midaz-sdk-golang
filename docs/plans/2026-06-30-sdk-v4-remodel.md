@@ -21,7 +21,7 @@
 |-------|-----------|-------|--------|
 | 1 | Núcleo gerado compila; Client de 2 planos lista `organizations` end-to-end com erro (RFC 9457) e paginação normalizados | 1.1, 1.2, 1.3, 1.4, 1.R | **Complete** |
 | 2 | Money path completo: onboarding CRUD + ciclo de transação (json/inflow/outflow/annotation + commit/cancel/revert) + balances/operations/routes/asset-rates + counts | 2.1, 2.2, 2.R, 2.3 | **Complete** (2.1, 2.2, 2.R, 2.3 todos Done) |
-| 3 | Domínios novos do ledger: holders/instruments/composition, fees (packages/estimates), billing, encryption/protection | 3.1, 3.2, 3.3 | Epic-level |
+| 3 | Domínios novos do ledger: holders/instruments/composition, fees (packages/estimates), billing, encryption/protection | 3.1, 3.2, 3.3 | Detailed (3.1 = onda corrente; 3.2, 3.3 Epic-level) |
 | 4 | Plano Tracer completo: rules (CEL), limits, reservations, validations, audit-events | 4.1, 4.2, 4.3 | Epic-level |
 | 5 | Ergonomia (builders, DSL, `WaitForSettlement`) + cutover do accessor/deleção do legado + docs/exemplos/mapping; `make ci` verde | 5.1, 5.2, 5.3 | Epic-level |
 | 6 | *(opcional / decisão de produto)* Consumidor de streaming Kafka/CloudEvents | 6.1 | Epic-level |
@@ -249,12 +249,88 @@ Exploração-fonte (efêmera, no scratchpad da sessão): `01-server-api-surface.
 
 ### Epic 3.1: Holders, Instruments, Composition
 
-**Goal:** Holders (re-homed no ledger, path-based), instruments (+related-parties), e composition (holder+account+instrument numa chamada, envelope não-atômico `{account,instrument,instrumentError}`) funcionam.
-**Scope:** `entities/`, `models/` (holders/instruments/composition); idempotência via `X-Idempotency`/`X-TTL` (invariante #5 — **NUNCA** `X-Idempotency-Key`).
-**Dependencies:** Phase 2
-**Done when:** CRUD de holders/instruments passa; composition expõe `instrumentError` sem engolir (sem rollback server-side); CRM enforcement (422 `0491` requireHolder) tipado.
+**Goal:** Holders (re-homed no ledger, path-based), instruments (+related-parties), e composition (account+instrument opcional numa chamada, envelope não-atômico `{account,instrument,instrumentError}`) funcionam via fachada nova em coexistência.
+**Scope:** `entities/` (fachadas novas), `models/` (instruments/composition net-new; holders reusa `models/holder.go`). Idempotência DIFERIDA p/ Epic 5.1 (creates de holder/instrument TÊM slots `X-Idempotency`/`X-TTL`, mas wiring segue o precedente 2.3 + comportamento legado sem-idempotência; replay-safe via corpo rebobinável — invariante #5: **NUNCA** `X-Idempotency-Key`).
+**Dependencies:** Phase 2 (write-facade pattern: `writeJSON`/`readRawResponse`/`isSuccess`/`decodeOne`/`setQueryParam`; cursor-stop).
+**Done when:** CRUD de holders/instruments passa e2e em coexistência (cursor para em `NextCursor==""`); composition expõe `instrumentError` como CAMPO (partial-success, sem engolir em erro Go, sem rollback server-side) e aceita 2xx (200 spec vs **201 server** — success-gate ATIVO); models reusam tipos compartilhados sem duplicar; wire dos inputs bate byte-a-byte com o server `pkg/mmodel`; gerados+`entity.go`/`plane_clients.go`/`common.go` intocados (coexistência); `golangci-lint run ./...` = 0; build/vet/test verdes.
 **Target:** midaz-sdk-golang
-**Status:** Pending
+**Status:** Detailed (elaborado 2026-07-01 vs recon SDK `a7da846` + recon server `a941a3f`, ambos verificados por mim)
+
+**DECISÕES DE WAVE (Epic 3.1):**
+- **Re-homing (NÃO wire-parity vs legado):** holders/instruments miram a superfície gerada do plano ledger (`/organizations/{org}/holders`, org-no-path). O legado `entities/holders.go` usa `{crm}/holders` (org-no-header, base URL `crm`) — é o wire v4.1.0 SUPERSEDIDO, serve só como referência de MODELO + conjunto-de-métodos, não de wire. (Diferente da Phase 2, onde as fachadas espelhavam o legado byte-a-byte.)
+- **Composition = success-gate ATIVO:** server Huma retorna **201** (`composition_handler_huma.go:92`, inclusive no partial-failure via `return resp, nil`), spec SDK declara **200** → gerado `CreateHolderAccountResp` só tem `JSON200`. Fachada roteia pelo RAW `CreateHolderAccountWithBody`+`readRawResponse`+`isSuccess(2xx)` (aceita 200 E 201), NUNCA o `...WithResponse`/`JSON200`.
+- **Composition partial-success (JOIA DE CORREÇÃO):** um 2xx com `instrumentError` populado é SUCESSO (account criada, instrument falhou, sem rollback) — `instrumentError` é CAMPO do retorno, jamais colapsado em `error` Go. Só transporte/non-2xx vira `error`. Wrapper público usa `*Account`/`*Instrument` (ponteiros) p/ preservar `null`/ausente.
+- **Idempotência DIFERIDA p/ 5.1** (holders/instruments); composition-create NÃO tem slot de idempotência (`CreateHolderAccountParams` só `Authorization`) — nada a fiar nunca; nota p/ 5.1.
+- **`0491`/422 NÃO é da Epic 3.1:** o server emite `422`/`0491` (`ErrHolderRequired`) só no **plain account-create** (`accounts_facade`, Phase 2), nunca na composition (holder sempre vem do path). O caminho RFC 9457 genérico do SDK já carrega `code=0491,status=422` sem special-casing. Removido do Done-when; constante tipada = ergonomia opcional da Phase 5 (junto com `0490`/`CRM-0006`).
+- **Models compartilhados REUSADOS:** `models/alias.go` (`BankingDetails:489`, `RegulatoryFields:26`, `RelatedParty:31`) + `models/common.go` (`Status:19`) + `models.Account`. NET-NEW só: `Instrument`, `CreateInstrumentInput`, `UpdateInstrumentInput`, `InstrumentsListOpts`/`InstrumentFilters`, `CreateHolderAccountInput`, `AccountSkip`, wrapper público `HolderAccountResponse`/`InstrumentFailure`.
+
+#### Task 3.1.1: Models de instruments + composition (net-new, reusando compartilhados)
+
+- [ ] Done
+
+**Context:** `models/` NÃO tem tipos de instrument/composition (só existem em `internal/genledger`). Já existem p/ reuso: `models/alias.go:489` `BankingDetails`, `:26` `RegulatoryFields`, `:31` `RelatedParty`, `models/common.go:19` `Status`, `models.Account`. Padrão de referência p/ input builders + `Validate()` + `MarshalJSON` omit-unset: `models/holder.go:26` (`CreateHolderInput`) e `:46` (`UpdateHolderInput`). Testes de regressão a satisfazer: `models/onboarding_models_regression_test.go` (patch omite campos não-setados; nil-safety), `models/crm_and_response_models_regression_test.go`.
+
+**Implementation vision:** Criar `models/instrument.go` + `models/composition.go`.
+- `Instrument` (response): espelha o gerado `internal/genledger` `Instrument` (`AccountId *uuid`, `BankingDetails *BankingDetails`, `CreatedAt`, `DeletedAt`, `Document *string`, `HolderId uuid`, `Id *uuid`, `LedgerId *uuid`, `Metadata`, `RegulatoryFields *RegulatoryFields`, `RelatedParties *[]RelatedParty`, `Type *string`, `UpdatedAt`) — REUSA os tipos compartilhados.
+- `CreateInstrumentInput`: subset gravável (`Type`, `Document`, `BankingDetails`, `RegulatoryFields`, `RelatedParties`, `Metadata`) + `Validate()` + builders no padrão `CreateHolderInput`.
+- `UpdateInstrumentInput`: subset PATCH + `MarshalJSON` que omite não-setados (padrão `UpdateHolderInput`).
+- `InstrumentsListOpts`/`InstrumentFilters`: espelha `models/holders_list_opts.go`.
+- `CreateHolderAccountInput` (composition, **FLAT** — bate com server `pkg/mmodel/composition.go:23-103`): `Name`, `ParentAccountID *string`, `EntityID *string`, `AssetCode string`(req), `PortfolioID *string`, `SegmentID *string`, `Status Status`, `Alias *string`, `Type string`(req), `Blocked *bool`, `Metadata`, `Skip *AccountSkip`, `BankingDetails *BankingDetails`, `RegulatoryFields *RegulatoryFields`, `RelatedParties []*RelatedParty`. `holderId` NÃO vai no body (vem do path). `Validate()`: `assetCode`+`type` obrigatórios. Instrument é gatilhado no server pela presença de QUALQUER de `bankingDetails`/`regulatoryFields`/`relatedParties` — documentar no doc-comment (não é objeto aninhado).
+- `AccountSkip{Holder bool json:"holder,omitempty"}` (net-new).
+- `HolderAccountResponse` (público): `Account *Account`, `Instrument *Instrument`, `InstrumentError *InstrumentFailure` — PONTEIROS p/ preservar `null`. `InstrumentFailure{Status string, Reason string}`.
+
+**Files:**
+- Create: `models/instrument.go`, `models/composition.go`
+- Test: `models/instrument_test.go`, `models/composition_test.go`
+
+**Verification:** `go test ./models/... -run 'Instrument|Composition|HolderAccount' -v` — Validate cobre required/inválido; MarshalJSON omite não-setados no update; `HolderAccountResponse` desserializa `{account, instrument:null, instrumentError:{...}}` preservando o ponteiro nil de `Instrument`.
+
+**Done when:** tipos net-new existem, reusam os compartilhados sem duplicar, `Validate()`/`MarshalJSON` seguem o padrão holder, regressões `models/` verdes.
+
+#### Task 3.1.2: Fachada de holders (`entities/holders_facade.go`)
+
+- [ ] Done
+
+**Context:** Legado `entities/holders.go` (LEGACY, `httpClient`, wired em `entity.go:272`) — referência de método/modelo, NÃO de wire (re-homing). Models já existem (`models/holder.go`). Gerado: `ListHolders` (`ledger.gen.go:2399`), `CreateHolder`/`WithBody` (`:2423/:2411`, params `XIdempotency`/`XTTL`), `GetHolderByID` (`:2531`), `UpdateHolder`/`WithBody` (`:2555/:2543`), `DeleteHolder` (`:2519`, `DeleteHolderParams.HardDelete`). Padrão: `entities/operation_routes_facade.go`.
+
+**Implementation vision:** `holdersFacade` sobre `genledger.ClientWithResponses`, path org-no-path. Métodos: `List`/`ListPages`/`ListAll` (cursor, para em `NextCursor==""`, nunca `HasMore()`), `Get` (append `?include_deleted=true` quando `sdkctx.IncludeDeletedFromContext(ctx)`, espelhando legado `holders.go:178`), `Create` (`writeJSON` — idempotência DIFERIDA, sem wiring `XIdempotency`; replay-safe via corpo rebobinável), `Update` (PATCH, `writeJSON`), `Delete` (`?hard_delete=true` quando `sdkctx.HardDeleteFromContext(ctx)`). Filtros de `HoldersFilters` via slot nativo de `ListHoldersParams` ou `setQueryParam`. Reusa `models.Holder`/`CreateHolderInput`/`UpdateHolderInput`/`HoldersListOpts`. NÃO wired em `entity.go`/`client.X`.
+
+**Files:**
+- Create: `entities/holders_facade.go`, `entities/holders_facade_test.go`
+
+**Verification:** `go test ./entities/... -run Holders.*Facade -v` — CRUD + cursor + include_deleted/hard_delete via query; erro non-2xx mapeia p/ `*errors.Error` via `DecodeProblemJSON`.
+
+**Done when:** CRUD+cursor de holders passa em coexistência; `golangci-lint` limpo; não wired.
+
+#### Task 3.1.3: Fachada de instruments (`entities/instruments_facade.go`)
+
+- [ ] Done
+
+**Context:** ABSENT no legado (net-new). Gerado holder-scoped: `ListInstruments` (`ledger.gen.go:2579`), `CreateInstrument`/`WithBody` (`:2447/:2435`, params `XIdempotency`/`XTTL`), `GetInstrumentByID` (`:2471`), `UpdateInstrument`/`WithBody` (`:2495/:2483`), `DeleteInstrument` (`:2459`), `DeleteRelatedParty` (`.../instruments/{id}/related-parties/{rpId}`, `:2507`), `ListAccountsByHolder` (`/organizations/{org}/holders/{id}/accounts`, `:2567`). Depende dos models da Task 3.1.1.
+
+**Implementation vision:** `instrumentsFacade`, path `/organizations/{org}/holders/{holderId}/instruments`. Métodos: `List`/`ListPages`/`ListAll` (cursor), `Get`, `Create` (`writeJSON`, idempotência diferida), `Update` (PATCH), `Delete` (hard_delete via query), `DeleteRelatedParty(ctx, org, holderID, instrumentID, relatedPartyID)`, `ListAccountsByHolder(ctx, org, holderID, opts)` (retorna `models.ListResponse[models.Account]` cursor). Reusa os models novos + `models.Account`. NÃO wired.
+
+**Files:**
+- Create: `entities/instruments_facade.go`, `entities/instruments_facade_test.go`
+
+**Verification:** `go test ./entities/... -run Instruments.*Facade -v` — CRUD+cursor+DeleteRelatedParty+ListAccountsByHolder; cursor para em `NextCursor==""`.
+
+**Done when:** superfície completa de instruments passa em coexistência; `golangci-lint` limpo; não wired.
+
+#### Task 3.1.4: Fachada de composition (`entities/composition_facade.go`) — JOIA DE CORREÇÃO
+
+- [ ] Done
+
+**Context:** ABSENT no legado. Gerado: `CreateHolderAccount`/`WithBody` (`ledger.gen.go:3215/3203`), path `/organizations/{org}/ledgers/{ledgerId}/holders/{id}/accounts`, `CreateHolderAccountParams{Authorization}` (SEM idempotência). `CreateHolderAccountResp` só tem `JSON200` (`:14181`) MAS server retorna **201**. Server semantics (verificadas): partial-failure = account persistida + `instrumentError` populado + `instrument:null`, HTTP 201, `return resp, nil` (sem rollback). `InstrumentFailure.Status`=`"FAILED"` constante, `.Reason`=code do erro que falhou (não hard-coded).
+
+**Implementation vision:** `compositionFacade.CreateHolderAccount(ctx, orgID, ledgerID, holderID, *models.CreateHolderAccountInput) (*models.HolderAccountResponse, error)`. Rota pelo RAW `CreateHolderAccountWithBody` (retorna `*http.Response`) via `writeJSON[models.HolderAccountResponse]` → `readRawResponse` → `isSuccess(2xx)` (aceita 200 E 201). **NUNCA** o `...WithResponse`/`JSON200` (cairia no default→misclassifica 201 como erro). `input.Validate()` na fronteira. `Authorization` param = nil (auth injetada pelo editor de request do client). **CRÍTICO:** um 2xx com `InstrumentError != nil` é SUCESSO — retorna `(&resp, nil)` com o campo populado; jamais vira `error` Go. Só transporte/non-2xx → `error` via `DecodeProblemJSON`. Corpo rebobinável = replay-safe 401 (sem idempotência).
+
+**Files:**
+- Create: `entities/composition_facade.go`, `entities/composition_facade_test.go`
+
+**Verification:** `go test ./entities/... -run Composition.*Facade -v` — (a) 201 full-success decodifica `{account,instrument}`; (b) **201 partial-failure** (`{account, instrument:null, instrumentError:{status:FAILED,reason:...}}`) retorna `(resp, nil)` com `Account != nil`, `Instrument == nil`, `InstrumentError != nil` — SEM erro Go; (c) non-2xx → `*errors.Error`.
+
+**Done when:** composition aceita 200/201; partial-success expõe `instrumentError` sem engolir; account-criada nunca reportada como falha; `golangci-lint` limpo; não wired.
 
 ### Epic 3.2: Fees (packages/estimates) + Billing
 
