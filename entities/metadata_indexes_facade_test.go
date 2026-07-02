@@ -151,5 +151,5 @@ func TestMetadataIndexesFacade_WriteReplaySafe(t *testing.T) {
 
 func newTestMetadataIndexesFacade(t *testing.T, srv *httptest.Server) *metadataIndexesFacade {
 	t.Helper()
-	return &metadataIndexesFacade{ledger: newTestLedgerClient(t, srv)}
+	return newMetadataIndexesFacade(newTestLedgerClient(t, srv))
 }

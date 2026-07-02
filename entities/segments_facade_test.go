@@ -246,5 +246,5 @@ func TestSegmentsFacade_WriteReplaySafe(t *testing.T) {
 
 func newTestSegmentsFacade(t *testing.T, srv *httptest.Server) *segmentsFacade {
 	t.Helper()
-	return &segmentsFacade{ledger: newTestLedgerClient(t, srv)}
+	return newSegmentsFacade(newTestLedgerClient(t, srv))
 }

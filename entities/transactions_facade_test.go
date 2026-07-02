@@ -36,7 +36,7 @@ func txBase() string {
 
 func newTestTransactionsFacade(t *testing.T, srv *httptest.Server) *transactionsFacade {
 	t.Helper()
-	return &transactionsFacade{ledger: newTestLedgerClient(t, srv)}
+	return newTransactionsFacade(newTestLedgerClient(t, srv))
 }
 
 // txResponseBody is a 200 create response carrying the two skip flags the SDK

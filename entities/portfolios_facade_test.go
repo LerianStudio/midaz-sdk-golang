@@ -253,5 +253,5 @@ func TestPortfoliosFacade_WriteReplaySafe(t *testing.T) {
 
 func newTestPortfoliosFacade(t *testing.T, srv *httptest.Server) *portfoliosFacade {
 	t.Helper()
-	return &portfoliosFacade{ledger: newTestLedgerClient(t, srv)}
+	return newPortfoliosFacade(newTestLedgerClient(t, srv))
 }

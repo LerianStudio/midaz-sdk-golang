@@ -256,5 +256,5 @@ func TestAccountTypesFacade_WriteReplaySafe(t *testing.T) {
 
 func newTestAccountTypesFacade(t *testing.T, srv *httptest.Server) *accountTypesFacade {
 	t.Helper()
-	return &accountTypesFacade{ledger: newTestLedgerClient(t, srv)}
+	return newAccountTypesFacade(newTestLedgerClient(t, srv))
 }

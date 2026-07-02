@@ -29,7 +29,7 @@ func accountsBase() string {
 
 func newTestAccountsFacade(t *testing.T, srv *httptest.Server) *accountsFacade {
 	t.Helper()
-	return &accountsFacade{ledger: newTestLedgerClient(t, srv)}
+	return newAccountsFacade(newTestLedgerClient(t, srv))
 }
 
 // TestAccountsFacade_ListAndPaginate exercises the page-based List/All trinaldo,

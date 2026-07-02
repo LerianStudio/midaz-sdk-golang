@@ -331,7 +331,7 @@ func TestLedgersFacade_Settings(t *testing.T) {
 
 func newTestLedgersFacade(t *testing.T, srv *httptest.Server) *ledgersFacade {
 	t.Helper()
-	return &ledgersFacade{ledger: newTestLedgerClient(t, srv)}
+	return newLedgersFacade(newTestLedgerClient(t, srv))
 }
 
 // newTestLedgerClient builds a ledger plane client pointed at the test server
