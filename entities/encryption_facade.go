@@ -58,7 +58,7 @@ func (f *encryptionFacade) Provision(ctx context.Context, orgID string, input *m
 	}
 
 	return writeJSON[models.ProvisionEncryptionResponse](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		return readRawResponse(f.ledger.ProvisionEncryptionWithBody(ctx, orgID, &genledger.ProvisionEncryptionParams{}, jsonContentType, body))
+		return readRawResponse(f.ledger.ProvisionEncryptionWithBody(ctx, orgID, &genledger.ProvisionEncryptionParams{}, jsonContentType, body, idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }
 

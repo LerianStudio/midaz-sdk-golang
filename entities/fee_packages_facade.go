@@ -125,7 +125,7 @@ func (f *feePackagesFacade) Create(ctx context.Context, orgID string, input *mod
 	}
 
 	return writeJSON[models.FeePackage](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		return readRawResponse(f.ledger.CreatePackageWithBody(ctx, orgID, jsonContentType, body))
+		return readRawResponse(f.ledger.CreatePackageWithBody(ctx, orgID, jsonContentType, body, idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }
 
@@ -151,7 +151,7 @@ func (f *feePackagesFacade) Update(ctx context.Context, orgID, id string, input 
 	}
 
 	return writeJSON[models.FeePackage](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		return readRawResponse(f.ledger.UpdatePackageWithBody(ctx, orgID, id, jsonContentType, body))
+		return readRawResponse(f.ledger.UpdatePackageWithBody(ctx, orgID, id, jsonContentType, body, idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }
 
@@ -161,7 +161,7 @@ func (f *feePackagesFacade) Update(ctx context.Context, orgID, id string, input 
 func (f *feePackagesFacade) Delete(ctx context.Context, orgID, id string) error {
 	const operation = "FeePackages.Delete"
 
-	resp, err := f.ledger.DeletePackageWithResponse(ctx, orgID, id)
+	resp, err := f.ledger.DeletePackageWithResponse(ctx, orgID, id, idempotencyEditors(ctx, f.enableIdempotency)...)
 	if err != nil {
 		return errors.NewInternalError(operation, err)
 	}

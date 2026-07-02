@@ -69,3 +69,19 @@ func setHeader(key, value string) genledger.RequestEditorFn {
 		return nil
 	}
 }
+
+// idempotencyEditors builds the request-editor list that stamps X-Idempotency
+// on a wired LEDGER write. autoGen gates ONLY the auto-generated key (parity
+// with the legacy ensureIdempotencyHeader gate); an explicit or context key
+// (sdkctx.WithIdempotencyKey) still resolves and stamps when autoGen is false.
+// Returns nil (header-free) when no key resolves. The stamp is applied when the
+// generated client builds the request, so it survives transport-level retries
+// (the retry round tripper clones the already-stamped request).
+func idempotencyEditors(ctx context.Context, autoGen bool) []genledger.RequestEditorFn {
+	key, _ := resolveIdempotency(ctx, "", autoGen)
+	if key == "" {
+		return nil
+	}
+
+	return []genledger.RequestEditorFn{setHeader(idempotencyHeader, key)}
+}

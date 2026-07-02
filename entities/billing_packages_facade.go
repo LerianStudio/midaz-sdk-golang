@@ -133,7 +133,7 @@ func (f *billingPackagesFacade) Create(ctx context.Context, orgID string, input 
 	}
 
 	return writeJSON[models.BillingPackage](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		return readRawResponse(f.ledger.CreateBillingPackageWithBody(ctx, orgID, jsonContentType, body))
+		return readRawResponse(f.ledger.CreateBillingPackageWithBody(ctx, orgID, jsonContentType, body, idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }
 
@@ -159,7 +159,7 @@ func (f *billingPackagesFacade) Update(ctx context.Context, orgID, id string, in
 	}
 
 	return writeJSON[models.BillingPackage](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		return readRawResponse(f.ledger.UpdateBillingPackageWithBody(ctx, orgID, id, jsonContentType, body))
+		return readRawResponse(f.ledger.UpdateBillingPackageWithBody(ctx, orgID, id, jsonContentType, body, idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }
 
@@ -169,7 +169,7 @@ func (f *billingPackagesFacade) Update(ctx context.Context, orgID, id string, in
 func (f *billingPackagesFacade) Delete(ctx context.Context, orgID, id string) error {
 	const operation = "BillingPackages.Delete"
 
-	resp, err := f.ledger.DeleteBillingPackageWithResponse(ctx, orgID, id)
+	resp, err := f.ledger.DeleteBillingPackageWithResponse(ctx, orgID, id, idempotencyEditors(ctx, f.enableIdempotency)...)
 	if err != nil {
 		return errors.NewInternalError(operation, err)
 	}

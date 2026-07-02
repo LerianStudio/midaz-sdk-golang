@@ -146,7 +146,7 @@ func (f *instrumentsFacade) Create(ctx context.Context, orgID, holderID string, 
 	}
 
 	return writeJSON[models.Instrument](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		return readRawResponse(f.ledger.CreateInstrumentWithBody(ctx, orgID, holderID, &genledger.CreateInstrumentParams{}, jsonContentType, body))
+		return readRawResponse(f.ledger.CreateInstrumentWithBody(ctx, orgID, holderID, &genledger.CreateInstrumentParams{}, jsonContentType, body, idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }
 
@@ -178,7 +178,7 @@ func (f *instrumentsFacade) Update(ctx context.Context, orgID, holderID, id stri
 	}
 
 	return writeJSON[models.Instrument](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		return readRawResponse(f.ledger.UpdateInstrumentWithBody(ctx, orgID, holderID, id, jsonContentType, body))
+		return readRawResponse(f.ledger.UpdateInstrumentWithBody(ctx, orgID, holderID, id, jsonContentType, body, idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }
 
@@ -193,7 +193,7 @@ func (f *instrumentsFacade) Delete(ctx context.Context, orgID, holderID, id stri
 		params.HardDelete = strPtr("true")
 	}
 
-	resp, err := f.ledger.DeleteInstrumentWithResponse(ctx, orgID, holderID, id, params)
+	resp, err := f.ledger.DeleteInstrumentWithResponse(ctx, orgID, holderID, id, params, idempotencyEditors(ctx, f.enableIdempotency)...)
 	if err != nil {
 		return errors.NewInternalError(operation, err)
 	}
