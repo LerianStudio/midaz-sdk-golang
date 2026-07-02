@@ -48,11 +48,14 @@ import (
 // generated types never leak.
 type assetRatesFacade struct {
 	ledger *genledger.ClientWithResponses
+	// enableIdempotency gates auto-generated X-Idempotency keys on writes; an
+	// explicit or context-supplied key stamps regardless.
+	enableIdempotency bool
 }
 
 // newAssetRatesFacade wires the facade over a ledger plane client.
-func newAssetRatesFacade(ledger *genledger.ClientWithResponses) *assetRatesFacade {
-	return &assetRatesFacade{ledger: ledger}
+func newAssetRatesFacade(ledger *genledger.ClientWithResponses, enableIdempotency bool) *assetRatesFacade {
+	return &assetRatesFacade{ledger: ledger, enableIdempotency: enableIdempotency}
 }
 
 // CreateOrUpdateAssetRate upserts an asset rate under an org+ledger via the
@@ -68,7 +71,7 @@ func (f *assetRatesFacade) CreateOrUpdateAssetRate(ctx context.Context, orgID, l
 	}
 
 	return writeJSON[models.AssetRate](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		return readRawResponse(f.ledger.CreateOrUpdateAssetRateWithBody(ctx, orgID, ledgerID, jsonContentType, body))
+		return readRawResponse(f.ledger.CreateOrUpdateAssetRateWithBody(ctx, orgID, ledgerID, jsonContentType, body, idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }
 

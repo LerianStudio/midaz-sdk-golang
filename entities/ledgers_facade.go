@@ -26,11 +26,14 @@ import (
 // the generated client.
 type ledgersFacade struct {
 	ledger *genledger.ClientWithResponses
+	// enableIdempotency gates auto-generated X-Idempotency keys on writes; an
+	// explicit or context-supplied key stamps regardless.
+	enableIdempotency bool
 }
 
 // newLedgersFacade wires the facade over a ledger plane client.
-func newLedgersFacade(ledger *genledger.ClientWithResponses) *ledgersFacade {
-	return &ledgersFacade{ledger: ledger}
+func newLedgersFacade(ledger *genledger.ClientWithResponses, enableIdempotency bool) *ledgersFacade {
+	return &ledgersFacade{ledger: ledger, enableIdempotency: enableIdempotency}
 }
 
 // List retrieves one page of ledgers under an organization, normalized into the
@@ -109,7 +112,7 @@ func (f *ledgersFacade) Create(ctx context.Context, orgID string, input *models.
 	}
 
 	return writeJSON[models.Ledger](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.CreateLedgerWithBodyWithResponse(ctx, orgID, "application/json", body)
+		resp, err := f.ledger.CreateLedgerWithBodyWithResponse(ctx, orgID, "application/json", body, idempotencyEditors(ctx, f.enableIdempotency)...)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -141,7 +144,7 @@ func (f *ledgersFacade) Update(ctx context.Context, orgID, id string, input *mod
 	}
 
 	return writeJSON[models.Ledger](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.UpdateLedgerWithBodyWithResponse(ctx, orgID, id, "application/json", body)
+		resp, err := f.ledger.UpdateLedgerWithBodyWithResponse(ctx, orgID, id, "application/json", body, idempotencyEditors(ctx, f.enableIdempotency)...)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -155,7 +158,7 @@ func (f *ledgersFacade) Update(ctx context.Context, orgID, id string, input *mod
 func (f *ledgersFacade) Delete(ctx context.Context, orgID, id string) error {
 	const operation = "Ledgers.Delete"
 
-	resp, err := f.ledger.DeleteLedgerWithResponse(ctx, orgID, id)
+	resp, err := f.ledger.DeleteLedgerWithResponse(ctx, orgID, id, idempotencyEditors(ctx, f.enableIdempotency)...)
 	if err != nil {
 		return errors.NewInternalError(operation, err)
 	}
@@ -192,7 +195,7 @@ func (f *ledgersFacade) UpdateSettings(ctx context.Context, orgID, id string, in
 	}
 
 	return writeJSON[models.LedgerSettings](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.UpdateLedgerSettingsWithBodyWithResponse(ctx, orgID, id, "application/json", body)
+		resp, err := f.ledger.UpdateLedgerSettingsWithBodyWithResponse(ctx, orgID, id, "application/json", body, idempotencyEditors(ctx, f.enableIdempotency)...)
 		if err != nil {
 			return nil, nil, err
 		}

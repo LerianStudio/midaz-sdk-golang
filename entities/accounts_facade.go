@@ -33,11 +33,14 @@ import (
 // leak.
 type accountsFacade struct {
 	ledger *genledger.ClientWithResponses
+	// enableIdempotency gates auto-generated X-Idempotency keys on writes; an
+	// explicit or context-supplied key stamps regardless.
+	enableIdempotency bool
 }
 
 // newAccountsFacade wires the facade over a ledger plane client.
-func newAccountsFacade(ledger *genledger.ClientWithResponses) *accountsFacade {
-	return &accountsFacade{ledger: ledger}
+func newAccountsFacade(ledger *genledger.ClientWithResponses, enableIdempotency bool) *accountsFacade {
+	return &accountsFacade{ledger: ledger, enableIdempotency: enableIdempotency}
 }
 
 // List retrieves one page of accounts under an org+ledger.
@@ -116,7 +119,7 @@ func (f *accountsFacade) Create(ctx context.Context, orgID, ledgerID string, inp
 	}
 
 	return writeJSON[models.Account](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.CreateAccountWithBodyWithResponse(ctx, orgID, ledgerID, &genledger.CreateAccountParams{}, "application/json", body)
+		resp, err := f.ledger.CreateAccountWithBodyWithResponse(ctx, orgID, ledgerID, &genledger.CreateAccountParams{}, "application/json", body, idempotencyEditors(ctx, f.enableIdempotency)...)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -161,7 +164,7 @@ func (f *accountsFacade) Update(ctx context.Context, orgID, ledgerID, id string,
 	}
 
 	return writeJSON[models.Account](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.UpdateAccountWithBodyWithResponse(ctx, orgID, ledgerID, id, "application/json", body)
+		resp, err := f.ledger.UpdateAccountWithBodyWithResponse(ctx, orgID, ledgerID, id, "application/json", body, idempotencyEditors(ctx, f.enableIdempotency)...)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -176,7 +179,7 @@ func (f *accountsFacade) Update(ctx context.Context, orgID, ledgerID, id string,
 func (f *accountsFacade) Delete(ctx context.Context, orgID, ledgerID, id string) error {
 	const operation = "Accounts.Delete"
 
-	resp, err := f.ledger.DeleteAccountWithResponse(ctx, orgID, ledgerID, id, &genledger.DeleteAccountParams{})
+	resp, err := f.ledger.DeleteAccountWithResponse(ctx, orgID, ledgerID, id, &genledger.DeleteAccountParams{}, idempotencyEditors(ctx, f.enableIdempotency)...)
 	if err != nil {
 		return errors.NewInternalError(operation, err)
 	}

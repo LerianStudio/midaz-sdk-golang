@@ -304,5 +304,5 @@ func TestPortfoliosFacade_CountErrorEmptyBody(t *testing.T) {
 
 func newTestPortfoliosFacade(t *testing.T, srv *httptest.Server) *portfoliosFacade {
 	t.Helper()
-	return newPortfoliosFacade(newTestLedgerClient(t, srv))
+	return newPortfoliosFacade(newTestLedgerClient(t, srv), true)
 }

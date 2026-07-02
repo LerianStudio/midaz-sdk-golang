@@ -42,11 +42,14 @@ import (
 // types never leak.
 type holdersFacade struct {
 	ledger *genledger.ClientWithResponses
+	// enableIdempotency gates auto-generated X-Idempotency keys on writes; an
+	// explicit or context-supplied key stamps regardless.
+	enableIdempotency bool
 }
 
 // newHoldersFacade wires the facade over a ledger plane client.
-func newHoldersFacade(ledger *genledger.ClientWithResponses) *holdersFacade {
-	return &holdersFacade{ledger: ledger}
+func newHoldersFacade(ledger *genledger.ClientWithResponses, enableIdempotency bool) *holdersFacade {
+	return &holdersFacade{ledger: ledger, enableIdempotency: enableIdempotency}
 }
 
 // List retrieves one cursor page of holders under an organization.
@@ -86,9 +89,9 @@ func (f *holdersFacade) listCursor(ctx context.Context, orgID string, opts model
 	return &page, nil
 }
 
-// ListPages yields one cursor page per iteration, advancing by the response
+// Pages yields one cursor page per iteration, advancing by the response
 // next_cursor until it is empty.
-func (f *holdersFacade) ListPages(ctx context.Context, orgID string, opts models.HoldersListOpts) iter.Seq2[*models.ListResponse[models.Holder], error] {
+func (f *holdersFacade) Pages(ctx context.Context, orgID string, opts models.HoldersListOpts) iter.Seq2[*models.ListResponse[models.Holder], error] {
 	return func(yield func(*models.ListResponse[models.Holder], error) bool) {
 		cursor := ""
 
@@ -121,10 +124,10 @@ func (f *holdersFacade) ListPages(ctx context.Context, orgID string, opts models
 	}
 }
 
-// ListAll yields every holder across cursor pages, transparently advancing
+// All yields every holder across cursor pages, transparently advancing
 // pagination.
-func (f *holdersFacade) ListAll(ctx context.Context, orgID string, opts models.HoldersListOpts) iter.Seq2[models.Holder, error] {
-	return flattenPages(f.ListPages(ctx, orgID, opts))
+func (f *holdersFacade) All(ctx context.Context, orgID string, opts models.HoldersListOpts) iter.Seq2[models.Holder, error] {
+	return flattenPages(f.Pages(ctx, orgID, opts))
 }
 
 // Create registers a new holder under an organization via the write-facade
@@ -139,7 +142,7 @@ func (f *holdersFacade) Create(ctx context.Context, orgID string, input *models.
 	}
 
 	return writeJSON[models.Holder](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		return readRawResponse(f.ledger.CreateHolderWithBody(ctx, orgID, &genledger.CreateHolderParams{}, jsonContentType, body))
+		return readRawResponse(f.ledger.CreateHolderWithBody(ctx, orgID, &genledger.CreateHolderParams{}, jsonContentType, body, idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }
 
@@ -172,7 +175,7 @@ func (f *holdersFacade) Update(ctx context.Context, orgID, id string, input *mod
 	}
 
 	return writeJSON[models.Holder](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		return readRawResponse(f.ledger.UpdateHolderWithBody(ctx, orgID, id, jsonContentType, body))
+		return readRawResponse(f.ledger.UpdateHolderWithBody(ctx, orgID, id, jsonContentType, body, idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }
 
@@ -187,7 +190,7 @@ func (f *holdersFacade) Delete(ctx context.Context, orgID, id string) error {
 		params.HardDelete = strPtr("true")
 	}
 
-	resp, err := f.ledger.DeleteHolderWithResponse(ctx, orgID, id, params)
+	resp, err := f.ledger.DeleteHolderWithResponse(ctx, orgID, id, params, idempotencyEditors(ctx, f.enableIdempotency)...)
 	if err != nil {
 		return errors.NewInternalError(operation, err)
 	}

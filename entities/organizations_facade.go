@@ -27,11 +27,14 @@ import (
 // resources; this file is the reference the rest of the facade layer follows.
 type organizationsFacade struct {
 	ledger *genledger.ClientWithResponses
+	// enableIdempotency gates auto-generated X-Idempotency keys on writes; an
+	// explicit or context-supplied key stamps regardless.
+	enableIdempotency bool
 }
 
 // newOrganizationsFacade wires the facade over a ledger plane client.
-func newOrganizationsFacade(ledger *genledger.ClientWithResponses) *organizationsFacade {
-	return &organizationsFacade{ledger: ledger}
+func newOrganizationsFacade(ledger *genledger.ClientWithResponses, enableIdempotency bool) *organizationsFacade {
+	return &organizationsFacade{ledger: ledger, enableIdempotency: enableIdempotency}
 }
 
 // List retrieves one page of organizations, normalized into the public model.
@@ -126,7 +129,7 @@ func (f *organizationsFacade) Create(ctx context.Context, input *models.CreateOr
 	}
 
 	return writeJSON[models.Organization](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.CreateOrganizationWithBodyWithResponse(ctx, &genledger.CreateOrganizationParams{}, "application/json", body)
+		resp, err := f.ledger.CreateOrganizationWithBodyWithResponse(ctx, &genledger.CreateOrganizationParams{}, "application/json", body, idempotencyEditors(ctx, f.enableIdempotency)...)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -158,7 +161,7 @@ func (f *organizationsFacade) Update(ctx context.Context, id string, input *mode
 	}
 
 	return writeJSON[models.Organization](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.UpdateOrganizationWithBodyWithResponse(ctx, id, "application/json", body)
+		resp, err := f.ledger.UpdateOrganizationWithBodyWithResponse(ctx, id, "application/json", body, idempotencyEditors(ctx, f.enableIdempotency)...)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -173,7 +176,7 @@ func (f *organizationsFacade) Update(ctx context.Context, id string, input *mode
 func (f *organizationsFacade) Delete(ctx context.Context, id string) error {
 	const operation = "Organizations.Delete"
 
-	resp, err := f.ledger.DeleteOrganizationWithResponse(ctx, id)
+	resp, err := f.ledger.DeleteOrganizationWithResponse(ctx, id, idempotencyEditors(ctx, f.enableIdempotency)...)
 	if err != nil {
 		return errors.NewInternalError(operation, err)
 	}

@@ -255,5 +255,5 @@ func TestAssetRatesFacade_WriteReplaySafe(t *testing.T) {
 
 func newTestAssetRatesFacade(t *testing.T, srv *httptest.Server) *assetRatesFacade {
 	t.Helper()
-	return newAssetRatesFacade(newTestLedgerClient(t, srv))
+	return newAssetRatesFacade(newTestLedgerClient(t, srv), true)
 }

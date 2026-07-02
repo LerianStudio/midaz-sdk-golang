@@ -29,11 +29,14 @@ import (
 // editors (see listSegmentsReqEditors) rather than dropping them silently.
 type segmentsFacade struct {
 	ledger *genledger.ClientWithResponses
+	// enableIdempotency gates auto-generated X-Idempotency keys on writes; an
+	// explicit or context-supplied key stamps regardless.
+	enableIdempotency bool
 }
 
 // newSegmentsFacade wires the facade over a ledger plane client.
-func newSegmentsFacade(ledger *genledger.ClientWithResponses) *segmentsFacade {
-	return &segmentsFacade{ledger: ledger}
+func newSegmentsFacade(ledger *genledger.ClientWithResponses, enableIdempotency bool) *segmentsFacade {
+	return &segmentsFacade{ledger: ledger, enableIdempotency: enableIdempotency}
 }
 
 // List retrieves one page of segments under an org+ledger, normalized into the
@@ -111,7 +114,7 @@ func (f *segmentsFacade) Create(ctx context.Context, orgID, ledgerID string, inp
 	}
 
 	return writeJSON[models.Segment](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.CreateSegmentWithBodyWithResponse(ctx, orgID, ledgerID, "application/json", body)
+		resp, err := f.ledger.CreateSegmentWithBodyWithResponse(ctx, orgID, ledgerID, "application/json", body, idempotencyEditors(ctx, f.enableIdempotency)...)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -142,7 +145,7 @@ func (f *segmentsFacade) Update(ctx context.Context, orgID, ledgerID, id string,
 	}
 
 	return writeJSON[models.Segment](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.UpdateSegmentWithBodyWithResponse(ctx, orgID, ledgerID, id, "application/json", body)
+		resp, err := f.ledger.UpdateSegmentWithBodyWithResponse(ctx, orgID, ledgerID, id, "application/json", body, idempotencyEditors(ctx, f.enableIdempotency)...)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -156,7 +159,7 @@ func (f *segmentsFacade) Update(ctx context.Context, orgID, ledgerID, id string,
 func (f *segmentsFacade) Delete(ctx context.Context, orgID, ledgerID, id string) error {
 	const operation = "Segments.Delete"
 
-	resp, err := f.ledger.DeleteSegmentWithResponse(ctx, orgID, ledgerID, id)
+	resp, err := f.ledger.DeleteSegmentWithResponse(ctx, orgID, ledgerID, id, idempotencyEditors(ctx, f.enableIdempotency)...)
 	if err != nil {
 		return errors.NewInternalError(operation, err)
 	}

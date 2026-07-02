@@ -30,11 +30,14 @@ import (
 // (see listAssetsReqEditors).
 type assetsFacade struct {
 	ledger *genledger.ClientWithResponses
+	// enableIdempotency gates auto-generated X-Idempotency keys on writes; an
+	// explicit or context-supplied key stamps regardless.
+	enableIdempotency bool
 }
 
 // newAssetsFacade wires the facade over a ledger plane client.
-func newAssetsFacade(ledger *genledger.ClientWithResponses) *assetsFacade {
-	return &assetsFacade{ledger: ledger}
+func newAssetsFacade(ledger *genledger.ClientWithResponses, enableIdempotency bool) *assetsFacade {
+	return &assetsFacade{ledger: ledger, enableIdempotency: enableIdempotency}
 }
 
 // List retrieves one page of assets under an org+ledger, normalized into the
@@ -114,7 +117,7 @@ func (f *assetsFacade) Create(ctx context.Context, orgID, ledgerID string, input
 	}
 
 	return writeJSON[models.Asset](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.CreateAssetWithBodyWithResponse(ctx, orgID, ledgerID, &genledger.CreateAssetParams{}, "application/json", body)
+		resp, err := f.ledger.CreateAssetWithBodyWithResponse(ctx, orgID, ledgerID, &genledger.CreateAssetParams{}, "application/json", body, idempotencyEditors(ctx, f.enableIdempotency)...)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -145,7 +148,7 @@ func (f *assetsFacade) Update(ctx context.Context, orgID, ledgerID, id string, i
 	}
 
 	return writeJSON[models.Asset](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.UpdateAssetWithBodyWithResponse(ctx, orgID, ledgerID, id, "application/json", body)
+		resp, err := f.ledger.UpdateAssetWithBodyWithResponse(ctx, orgID, ledgerID, id, "application/json", body, idempotencyEditors(ctx, f.enableIdempotency)...)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -159,7 +162,7 @@ func (f *assetsFacade) Update(ctx context.Context, orgID, ledgerID, id string, i
 func (f *assetsFacade) Delete(ctx context.Context, orgID, ledgerID, id string) error {
 	const operation = "Assets.Delete"
 
-	resp, err := f.ledger.DeleteAssetWithResponse(ctx, orgID, ledgerID, id)
+	resp, err := f.ledger.DeleteAssetWithResponse(ctx, orgID, ledgerID, id, idempotencyEditors(ctx, f.enableIdempotency)...)
 	if err != nil {
 		return errors.NewInternalError(operation, err)
 	}

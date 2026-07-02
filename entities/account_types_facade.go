@@ -32,11 +32,14 @@ import (
 //     page-based (like the exemplar): it sets Page and never touches Cursor.
 type accountTypesFacade struct {
 	ledger *genledger.ClientWithResponses
+	// enableIdempotency gates auto-generated X-Idempotency keys on writes; an
+	// explicit or context-supplied key stamps regardless.
+	enableIdempotency bool
 }
 
 // newAccountTypesFacade wires the facade over a ledger plane client.
-func newAccountTypesFacade(ledger *genledger.ClientWithResponses) *accountTypesFacade {
-	return &accountTypesFacade{ledger: ledger}
+func newAccountTypesFacade(ledger *genledger.ClientWithResponses, enableIdempotency bool) *accountTypesFacade {
+	return &accountTypesFacade{ledger: ledger, enableIdempotency: enableIdempotency}
 }
 
 // List retrieves one page of account types under an org+ledger, normalized into
@@ -115,7 +118,7 @@ func (f *accountTypesFacade) Create(ctx context.Context, orgID, ledgerID string,
 	}
 
 	return writeJSON[models.AccountType](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.CreateAccountTypeWithBodyWithResponse(ctx, orgID, ledgerID, "application/json", body)
+		resp, err := f.ledger.CreateAccountTypeWithBodyWithResponse(ctx, orgID, ledgerID, "application/json", body, idempotencyEditors(ctx, f.enableIdempotency)...)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -146,7 +149,7 @@ func (f *accountTypesFacade) Update(ctx context.Context, orgID, ledgerID, id str
 	}
 
 	return writeJSON[models.AccountType](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.UpdateAccountTypeWithBodyWithResponse(ctx, orgID, ledgerID, id, "application/json", body)
+		resp, err := f.ledger.UpdateAccountTypeWithBodyWithResponse(ctx, orgID, ledgerID, id, "application/json", body, idempotencyEditors(ctx, f.enableIdempotency)...)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -160,7 +163,7 @@ func (f *accountTypesFacade) Update(ctx context.Context, orgID, ledgerID, id str
 func (f *accountTypesFacade) Delete(ctx context.Context, orgID, ledgerID, id string) error {
 	const operation = "AccountTypes.Delete"
 
-	resp, err := f.ledger.DeleteAccountTypeWithResponse(ctx, orgID, ledgerID, id)
+	resp, err := f.ledger.DeleteAccountTypeWithResponse(ctx, orgID, ledgerID, id, idempotencyEditors(ctx, f.enableIdempotency)...)
 	if err != nil {
 		return errors.NewInternalError(operation, err)
 	}

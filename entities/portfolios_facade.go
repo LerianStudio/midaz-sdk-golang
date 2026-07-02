@@ -25,11 +25,14 @@ import (
 // ledgerID through to the generated client.
 type portfoliosFacade struct {
 	ledger *genledger.ClientWithResponses
+	// enableIdempotency gates auto-generated X-Idempotency keys on writes; an
+	// explicit or context-supplied key stamps regardless.
+	enableIdempotency bool
 }
 
 // newPortfoliosFacade wires the facade over a ledger plane client.
-func newPortfoliosFacade(ledger *genledger.ClientWithResponses) *portfoliosFacade {
-	return &portfoliosFacade{ledger: ledger}
+func newPortfoliosFacade(ledger *genledger.ClientWithResponses, enableIdempotency bool) *portfoliosFacade {
+	return &portfoliosFacade{ledger: ledger, enableIdempotency: enableIdempotency}
 }
 
 // List retrieves one page of portfolios under an org+ledger, normalized into the
@@ -107,7 +110,7 @@ func (f *portfoliosFacade) Create(ctx context.Context, orgID, ledgerID string, i
 	}
 
 	return writeJSON[models.Portfolio](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.CreatePortfolioWithBodyWithResponse(ctx, orgID, ledgerID, "application/json", body)
+		resp, err := f.ledger.CreatePortfolioWithBodyWithResponse(ctx, orgID, ledgerID, "application/json", body, idempotencyEditors(ctx, f.enableIdempotency)...)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -138,7 +141,7 @@ func (f *portfoliosFacade) Update(ctx context.Context, orgID, ledgerID, id strin
 	}
 
 	return writeJSON[models.Portfolio](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.UpdatePortfolioWithBodyWithResponse(ctx, orgID, ledgerID, id, "application/json", body)
+		resp, err := f.ledger.UpdatePortfolioWithBodyWithResponse(ctx, orgID, ledgerID, id, "application/json", body, idempotencyEditors(ctx, f.enableIdempotency)...)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -152,7 +155,7 @@ func (f *portfoliosFacade) Update(ctx context.Context, orgID, ledgerID, id strin
 func (f *portfoliosFacade) Delete(ctx context.Context, orgID, ledgerID, id string) error {
 	const operation = "Portfolios.Delete"
 
-	resp, err := f.ledger.DeletePortfolioWithResponse(ctx, orgID, ledgerID, id)
+	resp, err := f.ledger.DeletePortfolioWithResponse(ctx, orgID, ledgerID, id, idempotencyEditors(ctx, f.enableIdempotency)...)
 	if err != nil {
 		return errors.NewInternalError(operation, err)
 	}

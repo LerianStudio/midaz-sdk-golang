@@ -579,5 +579,5 @@ func newTestOrganizationsFacade(t *testing.T, srv *httptest.Server) *organizatio
 		t.Fatalf("newPlaneClients: %v", err)
 	}
 
-	return newOrganizationsFacade(planes.Ledger)
+	return newOrganizationsFacade(planes.Ledger, true)
 }

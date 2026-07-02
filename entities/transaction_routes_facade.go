@@ -43,11 +43,14 @@ import (
 // types never leak.
 type transactionRoutesFacade struct {
 	ledger *genledger.ClientWithResponses
+	// enableIdempotency gates auto-generated X-Idempotency keys on writes; an
+	// explicit or context-supplied key stamps regardless.
+	enableIdempotency bool
 }
 
 // newTransactionRoutesFacade wires the facade over a ledger plane client.
-func newTransactionRoutesFacade(ledger *genledger.ClientWithResponses) *transactionRoutesFacade {
-	return &transactionRoutesFacade{ledger: ledger}
+func newTransactionRoutesFacade(ledger *genledger.ClientWithResponses, enableIdempotency bool) *transactionRoutesFacade {
+	return &transactionRoutesFacade{ledger: ledger, enableIdempotency: enableIdempotency}
 }
 
 // List retrieves one cursor page of transaction routes under an org+ledger.
@@ -128,7 +131,7 @@ func (f *transactionRoutesFacade) Create(ctx context.Context, orgID, ledgerID st
 	}
 
 	return writeJSON[models.TransactionRoute](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		return readRawResponse(f.ledger.CreateTransactionRouteWithBody(ctx, orgID, ledgerID, jsonContentType, body))
+		return readRawResponse(f.ledger.CreateTransactionRouteWithBody(ctx, orgID, ledgerID, jsonContentType, body, idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }
 
@@ -154,7 +157,7 @@ func (f *transactionRoutesFacade) Update(ctx context.Context, orgID, ledgerID, i
 	}
 
 	return writeJSON[models.TransactionRoute](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		return readRawResponse(f.ledger.UpdateTransactionRouteWithBody(ctx, orgID, ledgerID, id, jsonContentType, body))
+		return readRawResponse(f.ledger.UpdateTransactionRouteWithBody(ctx, orgID, ledgerID, id, jsonContentType, body, idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }
 
@@ -163,7 +166,7 @@ func (f *transactionRoutesFacade) Update(ctx context.Context, orgID, ledgerID, i
 func (f *transactionRoutesFacade) Delete(ctx context.Context, orgID, ledgerID, id string) error {
 	const operation = "TransactionRoutes.Delete"
 
-	resp, err := f.ledger.DeleteTransactionRouteWithResponse(ctx, orgID, ledgerID, id)
+	resp, err := f.ledger.DeleteTransactionRouteWithResponse(ctx, orgID, ledgerID, id, idempotencyEditors(ctx, f.enableIdempotency)...)
 	if err != nil {
 		return errors.NewInternalError(operation, err)
 	}

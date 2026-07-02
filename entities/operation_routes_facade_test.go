@@ -258,5 +258,5 @@ func TestOperationRoutesFacade_WriteReplaySafe(t *testing.T) {
 
 func newTestOperationRoutesFacade(t *testing.T, srv *httptest.Server) *operationRoutesFacade {
 	t.Helper()
-	return newOperationRoutesFacade(newTestLedgerClient(t, srv))
+	return newOperationRoutesFacade(newTestLedgerClient(t, srv), true)
 }

@@ -47,7 +47,7 @@ func TestHoldersFacade_ListAndPaginate(t *testing.T) {
 
 	facade := newTestHoldersFacade(t, srv)
 
-	all, err := CollectAll(facade.ListAll(context.Background(), holdersFacadeOrgID, models.HoldersListOpts{
+	all, err := CollectAll(facade.All(context.Background(), holdersFacadeOrgID, models.HoldersListOpts{
 		PageListOpts: models.PageListOpts{Limit: 1},
 	}))
 	if err != nil {
@@ -321,7 +321,7 @@ func TestHoldersFacade_ListPagesContextCanceled(t *testing.T) {
 
 	var yielded error
 	var pages int
-	for _, err := range newTestHoldersFacade(t, srv).ListPages(ctx, holdersFacadeOrgID, models.HoldersListOpts{
+	for _, err := range newTestHoldersFacade(t, srv).Pages(ctx, holdersFacadeOrgID, models.HoldersListOpts{
 		PageListOpts: models.PageListOpts{Limit: 1},
 	}) {
 		pages++
@@ -356,7 +356,7 @@ func TestHoldersFacade_ListPagesConsumerStops(t *testing.T) {
 	defer srv.Close()
 
 	var pages int
-	for page, err := range newTestHoldersFacade(t, srv).ListPages(context.Background(), holdersFacadeOrgID, models.HoldersListOpts{
+	for page, err := range newTestHoldersFacade(t, srv).Pages(context.Background(), holdersFacadeOrgID, models.HoldersListOpts{
 		PageListOpts: models.PageListOpts{Limit: 1},
 	}) {
 		if err != nil {
@@ -379,5 +379,5 @@ func TestHoldersFacade_ListPagesConsumerStops(t *testing.T) {
 
 func newTestHoldersFacade(t *testing.T, srv *httptest.Server) *holdersFacade {
 	t.Helper()
-	return newHoldersFacade(newTestLedgerClient(t, srv))
+	return newHoldersFacade(newTestLedgerClient(t, srv), true)
 }

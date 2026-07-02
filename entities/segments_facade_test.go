@@ -297,5 +297,5 @@ func TestSegmentsFacade_CountErrorEmptyBody(t *testing.T) {
 
 func newTestSegmentsFacade(t *testing.T, srv *httptest.Server) *segmentsFacade {
 	t.Helper()
-	return newSegmentsFacade(newTestLedgerClient(t, srv))
+	return newSegmentsFacade(newTestLedgerClient(t, srv), true)
 }

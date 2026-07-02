@@ -29,11 +29,14 @@ import (
 // generated layer route it correctly.
 type metadataIndexesFacade struct {
 	ledger *genledger.ClientWithResponses
+	// enableIdempotency gates auto-generated X-Idempotency keys on writes; an
+	// explicit or context-supplied key stamps regardless.
+	enableIdempotency bool
 }
 
 // newMetadataIndexesFacade wires the facade over a ledger plane client.
-func newMetadataIndexesFacade(ledger *genledger.ClientWithResponses) *metadataIndexesFacade {
-	return &metadataIndexesFacade{ledger: ledger}
+func newMetadataIndexesFacade(ledger *genledger.ClientWithResponses, enableIdempotency bool) *metadataIndexesFacade {
+	return &metadataIndexesFacade{ledger: ledger, enableIdempotency: enableIdempotency}
 }
 
 // List retrieves every metadata index for an entity, normalized into the public
@@ -75,7 +78,7 @@ func (f *metadataIndexesFacade) Create(ctx context.Context, entityName string, i
 	}
 
 	return writeJSON[models.MetadataIndex](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.CreateMetadataIndexWithBodyWithResponse(ctx, entityName, "application/json", body)
+		resp, err := f.ledger.CreateMetadataIndexWithBodyWithResponse(ctx, entityName, "application/json", body, idempotencyEditors(ctx, f.enableIdempotency)...)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -89,7 +92,7 @@ func (f *metadataIndexesFacade) Create(ctx context.Context, entityName string, i
 func (f *metadataIndexesFacade) Delete(ctx context.Context, entityName, indexKey string) error {
 	const operation = "MetadataIndexes.Delete"
 
-	resp, err := f.ledger.DeleteMetadataIndexWithResponse(ctx, entityName, indexKey)
+	resp, err := f.ledger.DeleteMetadataIndexWithResponse(ctx, entityName, indexKey, idempotencyEditors(ctx, f.enableIdempotency)...)
 	if err != nil {
 		return errors.NewInternalError(operation, err)
 	}

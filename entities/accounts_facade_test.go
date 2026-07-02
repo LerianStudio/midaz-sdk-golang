@@ -78,7 +78,7 @@ func TestAccountsFacade_CountErrorEmptyBody(t *testing.T) {
 
 func newTestAccountsFacade(t *testing.T, srv *httptest.Server) *accountsFacade {
 	t.Helper()
-	return newAccountsFacade(newTestLedgerClient(t, srv))
+	return newAccountsFacade(newTestLedgerClient(t, srv), true)
 }
 
 // TestAccountsFacade_ListAndPaginate exercises the page-based List/All trinaldo,
