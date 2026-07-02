@@ -8,6 +8,7 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v4/internal/genledger"
 	"github.com/LerianStudio/midaz-sdk-golang/v4/internal/gentracer"
 	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/auth"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/retry"
 )
 
 // PlaneClients holds the two generated, typed plane clients that back the
@@ -45,6 +46,16 @@ type planeClientsConfig struct {
 	// httpClient is the pooled underlying client whose Transport the auth round
 	// tripper wraps. Nil falls back to the SDK default pooled client.
 	httpClient *http.Client
+
+	// retryOptions is the effective retry policy for the plane money-path,
+	// resolved once by the caller (see buildPlaneClients) so the plane retry
+	// round tripper and the legacy *HTTPClient agree on the effective values.
+	// A zero/unset value degrades to retry.DefaultOptions() in newPlaneClients.
+	retryOptions retry.Options
+
+	// customRetryPolicy, when non-nil, is the caller-supplied retry predicate
+	// threaded onto the plane retry round tripper. Nil is safe.
+	customRetryPolicy func(*http.Response, error) bool
 }
 
 // newPlaneClients builds the two typed plane clients, each wired to an auth
@@ -68,9 +79,25 @@ func newPlaneClients(cfg planeClientsConfig) (*PlaneClients, error) {
 	tracerAuth.apiKey = cfg.tracerAPIKey
 	tracerRT := newAuthRefreshRoundTripper(base, tracerAuth)
 
+	// A zero/unset retry policy would make the engine reject EVERY plane
+	// request in validateOptions (InitialDelay must be positive), silently
+	// breaking all plane traffic. Degrade an unconfigured struct to the SDK's
+	// standard policy so callers that leave the field unset still get sane
+	// retries rather than a broken client.
+	retryOpts := cfg.retryOptions
+	if retryOpts.InitialDelay <= 0 || retryOpts.MaxDelay <= 0 {
+		retryOpts = *retry.DefaultOptions()
+	}
+
+	// Compose the chain OUTSIDE-IN: retry round tripper wraps the auth round
+	// tripper wraps the pooled transport. Each retry attempt gets a fresh body
+	// and identical headers; the inner auth RT still owns 401 refresh-replay.
+	retryLedgerRT := newRetryRoundTripper(ledgerRT, retryOpts, cfg.customRetryPolicy)
+	retryTracerRT := newRetryRoundTripper(tracerRT, retryOpts, cfg.customRetryPolicy)
+
 	ledger, err := genledger.NewClientWithResponses(
 		cfg.ledgerURL,
-		genledger.WithHTTPClient(&http.Client{Transport: ledgerRT}),
+		genledger.WithHTTPClient(&http.Client{Transport: retryLedgerRT}),
 	)
 	if err != nil {
 		return nil, err
@@ -78,7 +105,7 @@ func newPlaneClients(cfg planeClientsConfig) (*PlaneClients, error) {
 
 	tracer, err := gentracer.NewClientWithResponses(
 		cfg.tracerURL,
-		gentracer.WithHTTPClient(&http.Client{Transport: tracerRT}),
+		gentracer.WithHTTPClient(&http.Client{Transport: retryTracerRT}),
 	)
 	if err != nil {
 		return nil, err

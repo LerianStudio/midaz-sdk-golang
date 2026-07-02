@@ -5,9 +5,26 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v4/internal/genledger"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/retry"
 )
+
+// planeTestRetryOptions returns a VALID retry policy with retries DISABLED
+// (MaxRetries=0). Facade unit tests assert decode/paging/error-mapping logic,
+// not retry timing; the retry round tripper is exercised directly in
+// retry_roundtripper_test.go. Disabling retries in the shared plane-client test
+// harness keeps facade tests single-attempt and deterministic — the same
+// behavior they had before the plane path gained a retry layer.
+func planeTestRetryOptions() retry.Options {
+	return retry.Options{
+		MaxRetries:    0,
+		InitialDelay:  time.Millisecond,
+		MaxDelay:      time.Millisecond,
+		BackoffFactor: 2.0,
+	}
+}
 
 // TestNewPlaneClients_ListOrganizationsRoundTrip is the Phase 1 milestone: the
 // two-plane builder produces a ledger *ClientWithResponses whose typed

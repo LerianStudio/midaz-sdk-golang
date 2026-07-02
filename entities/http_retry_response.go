@@ -457,6 +457,14 @@ type retryableHTTPError struct {
 }
 
 func (e retryableHTTPError) Error() string {
+	// The legacy *HTTPClient path always embeds a parsed apiErr, but the
+	// plane retryRoundTripper sits below the facade's error-parsing layer and
+	// constructs this wrapper with only the status code. Fall back to a
+	// status-derived message so Error()/errors.Is walks never nil-panic.
+	if e.err == nil {
+		return fmt.Sprintf("http status %d", e.statusCode)
+	}
+
 	return e.err.Error()
 }
 

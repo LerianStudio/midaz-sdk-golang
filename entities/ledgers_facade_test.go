@@ -398,7 +398,8 @@ func newTestLedgerClient(t *testing.T, srv *httptest.Server) *genledger.ClientWi
 		auth: authRoundTripperConfig{
 			tokenProvider: func(context.Context) (string, error) { return "tok-1", nil },
 		},
-		httpClient: srv.Client(),
+		httpClient:   srv.Client(),
+		retryOptions: planeTestRetryOptions(),
 	})
 	if err != nil {
 		t.Fatalf("newPlaneClients: %v", err)
