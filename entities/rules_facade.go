@@ -45,7 +45,7 @@ func (f *rulesFacade) Create(ctx context.Context, input *models.CreateRuleInput)
 	}
 
 	return writeJSON[models.Rule](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		return readRawResponse(f.tracer.CreateRuleWithBody(ctx, jsonContentType, body))
+		return readRawResponse(f.tracer.CreateRuleWithBody(ctx, jsonContentType, body, idempotencyEditorsTracer(ctx, f.enableIdempotency)...))
 	})
 }
 
@@ -70,7 +70,7 @@ func (f *rulesFacade) Update(ctx context.Context, id string, input *models.Updat
 	}
 
 	return writeJSON[models.Rule](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		return readRawResponse(f.tracer.UpdateRuleWithBody(ctx, id, jsonContentType, body))
+		return readRawResponse(f.tracer.UpdateRuleWithBody(ctx, id, jsonContentType, body, idempotencyEditorsTracer(ctx, f.enableIdempotency)...))
 	})
 }
 
@@ -80,7 +80,7 @@ func (f *rulesFacade) Delete(ctx context.Context, id string) error {
 	const operation = "Rules.Delete"
 
 	//nolint:bodyclose // readRawResponse closes resp.Body via defer before returning.
-	resp, body, err := readRawResponse(f.tracer.DeleteRule(ctx, id))
+	resp, body, err := readRawResponse(f.tracer.DeleteRule(ctx, id, idempotencyEditorsTracer(ctx, f.enableIdempotency)...))
 	if err != nil {
 		return errors.NewInternalError(operation, err)
 	}

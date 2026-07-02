@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v4/internal/genledger"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/internal/gentracer"
 	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/sdkctx"
 )
 
@@ -84,4 +85,37 @@ func idempotencyEditors(ctx context.Context, autoGen bool) []genledger.RequestEd
 	}
 
 	return []genledger.RequestEditorFn{setHeader(idempotencyHeader, key)}
+}
+
+// setHeaderTracer is the gentracer twin of setHeader. The two generated packages
+// declare distinct RequestEditorFn named types over the same underlying
+// func(context.Context, *http.Request) error, so a tracer op cannot take a
+// genledger editor — hence the near-duplicate.
+func setHeaderTracer(key, value string) gentracer.RequestEditorFn {
+	return func(_ context.Context, req *http.Request) error {
+		req.Header.Set(key, value)
+
+		return nil
+	}
+}
+
+// idempotencyEditorsTracer is the gentracer twin of idempotencyEditors, same
+// gate semantics.
+//
+// Nuance (rules/limits): the tracer server does NOT honor idempotency today —
+// it neither reads X-Idempotency nor body-dedups these writes. The key is
+// stamped anyway for parity with the legacy path and forward-compat with a
+// future server-side check. The consequence of the retry gate is that a 503
+// arriving AFTER the server committed a rule/limit could latently double-create
+// on replay. This is ACCEPTED: rules and limits are CONFIG, not money — no
+// balance moves — so a rare duplicate config write is a benign, correctable
+// nuisance, unlike a double balance mutation. (validations/reservations are
+// deliberately NOT stamped; they dedup on body identifiers.)
+func idempotencyEditorsTracer(ctx context.Context, autoGen bool) []gentracer.RequestEditorFn {
+	key, _ := resolveIdempotency(ctx, "", autoGen)
+	if key == "" {
+		return nil
+	}
+
+	return []gentracer.RequestEditorFn{setHeaderTracer(idempotencyHeader, key)}
 }
