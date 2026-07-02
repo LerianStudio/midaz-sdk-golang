@@ -651,31 +651,31 @@ Exploração-fonte (efêmera, no scratchpad da sessão): `01-server-api-surface.
 
 - [ ] Done
 
-**Context:** `resolveIdempotency` (`idempotency.go:44`) sempre auto-gera, nunca consulta `EnableIdempotency` (`config.go:151`), que não está em `entities.Config` (`entity.go:34-47`).
-**Implementation vision:** Adicionar `GetEnableIdempotency() bool` à interface `entities.Config` (+ optional-interface se preciso, padrão `tracerAPIKeyConfig`); threadar a flag até as fachadas (via deps de construção). Gatear SÓ o auto-gen no `resolveIdempotency` (chave explícita + `sdkctx.WithIdempotencyKey` sempre vencem). `WithIdempotency(false)` passa a ser respeitado no path facade.
-**Files:** Modify `entities/entity.go`, `entities/idempotency.go`, fachada deps.
-**Verification:** gate on (default) auto-gera; `WithIdempotency(false)`/`MIDAZ_IDEMPOTENCY=false` → sem auto-gen; chave explícita vence o gate off.
-**Done when:** flag honrada no path facade sem quebrar a precedência explícita; build/test verdes.
+**Context:** `resolveIdempotency` (`idempotency.go:44-58`) só honra `AutoIdempotencySuppressed(ctx)` (opt-out por-call), nunca a flag client-wide `EnableIdempotency` (`config.go:151`, default true), que não está em `entities.Config` (`entity.go:35-46`). O legado gateia via `httpClient.SetEnableIdempotency` + `ensureIdempotencyHeader` (`http_retry_response.go:1029-1030`, gateia SÓ a auto-gen, não a chave explícita/ctx).
+**Implementation vision (recon-w2):** SEAM = opção (a), padrão Wave-1. (1) Add `func (c *Config) GetEnableIdempotency() bool` em `config.go` (ao lado de `GetAllowInsecureHTTP:1388`/`GetTracerAPIKey:1399`; promovido automaticamente pelo `planeRetryConfigWrapper` que embute `*config.Config` — sem mudar o wrapper). (2) Add optional-interface `enableIdempotencyConfig` + helper `configEnableIdempotency(config) bool` (default true) em `entity.go`, espelhando `tracerAPIKeyConfig`/`configTracerAPIKey` (`:70-86`). (3) Threadar o bool nos ctors dos **7 write-facades WIRED** (via choke point `entity.go:339-352`): +1 campo `enableIdempotency bool` + 1 param por facade. As fachadas chamam `resolveIdempotency(ctx, key, autoGen && f.enableIdempotency)`. Gatear SÓ o autoGen; chave explícita/`WithIdempotencyKey(ctx)` SEMPRE vencem (precedência em `idempotency.go:48-53` intocada).
+**Files:** Modify `pkg/config/config.go` (+1 getter), `entities/entity.go` (+iface +helper +choke-point), os 7 write-facades wired (+campo/+param).
+**Verification:** gate on (default) auto-gera; `WithIdempotency(false)`/`MIDAZ_IDEMPOTENCY=false` → sem auto-gen nos 7 wired; chave explícita/ctx vence o gate off; isolamento multi-client (dois `midaz.Client` com flags diferentes não interferem — por-facade, não global).
+**Done when:** flag honrada no path facade dos 7 wired sem quebrar a precedência explícita; build/test verdes.
 
 #### Task 5.2.4: Retrofit de idempotência — ledger writes
 
 - [ ] Done
 
-**Context:** Só `transactions_facade` estampa idempotência hoje; os demais writes ledger carregam o comentário "deferred to Epic 5.1 retrofit". Slots gerados existem só p/ holders.Create/instruments.Create (+ transaction).
-**Implementation vision:** Aplicar `setHeader(idempotencyHeader, key)` via `RequestEditorFn` (ou param-slot onde existe) em TODO write ledger da lista das DECISÕES, resolvendo a chave via `resolveIdempotency(autoGen=<create/update/delete>, gate)`. Mecânico, alto volume — uma fachada por commit, testes table-driven asserindo o header no fio.
-**Files:** Modify os `*_facade.go` ledger de write (organizations/ledgers/accounts/assets/portfolios/segments/account_types/metadata_indexes/asset_rates/operation_routes/transaction_routes/holders/instruments/composition/fee_packages/billing_packages/encryption).
-**Verification:** cada write emite `X-Idempotency` (auto-gen ou explícito) no fio; gate off suprime auto-gen; explícito vence.
-**Done when:** todo write ledger unsafe tem idempotência; `golangci-lint`=0; testes verdes.
+**Context (recon-w2 — ESCOPO REVISADO):** Só as **fachadas de plane WIRED** (`entity.go:339-352`) importam agora. As 13 fachadas legacy-resource (organizations…transactions) são **dead-code test-only** — em prod esses recursos seguem no path legado `*HTTPClient` que JÁ estampa+gateia via `ensureIdempotencyHeader`. Logo, sem gap de prod. **Stamping dos 13 não-wired DIFERIDO p/ Epic 5.3** (estampar-ao-wire, na forma final renomeada — evita churnar dead code que a 5.3 reformata). Decisão declarada ao Fred, override lane aberta (estampar-tudo-agora se ele preferir cutover-readiness).
+**Implementation vision:** Estampar via editor `setHeader` (NÃO slot — só 3 ops têm `XIdempotency`; editor funciona em todas, um padrão só) nos **5 write-facades ledger WIRED**: encryption(Provision), instruments(Create/Update/Delete), composition(CreateHolderAccount), fee_packages(Create/Update/Delete), billing_packages(Create/Update/Delete). Chave via `resolveIdempotency(ctx, "", autoGen && f.enableIdempotency)` (autoGen=true p/ create/update/delete). Padrão-fonte: `transactions_facade.go` `actionIdempotencyEditors` (`:181-188`) + `setHeader` (`idempotency.go:65`, retorna `genledger.RequestEditorFn`). Todas as ops geradas aceitam `reqEditors ...RequestEditorFn` (verificado). EXCLUIR: fee_estimate/billing_calculate (compute-only), audit/protection-audit (reads).
+**Files:** Modify `entities/{encryption,instruments,composition,fee_packages,billing_packages}_facade.go`.
+**Verification:** cada write dos 5 emite `X-Idempotency` (auto-gen ou explícito) no fio; gate off suprime auto-gen; explícito vence; compute-only/reads sem header.
+**Done when:** os 5 write-facades ledger wired estampam idempotência gateada; `golangci-lint`=0; testes verdes.
 
 #### Task 5.2.5: Retrofit de idempotência — tracer rules/limits (com nuance documentada)
 
 - [ ] Done
 
 **Context:** rules/limits são os únicos writes tracer que devem receber idempotência (validations/reservations dedup no body; compute-only/reads excluídos). Server tracer NÃO trata idempotência hoje (verificado).
-**Implementation vision:** Estampar `X-Idempotency` via editor em rules/limits Create/Update/Delete (parity + forward-compat), com comentário explícito de que o server ignora hoje E da nuance de retry (double-create latente no 503-pós-commit; aceito pois é config, não money). Excluir explicitamente validations/reservations com o comentário de body-dedup (já presente).
-**Files:** Modify `entities/rules_facade.go`, `entities/limits_facade.go`.
-**Verification:** rules/limits writes emitem `X-Idempotency`; comentários de nuance presentes; validations/reservations permanecem sem header.
-**Done when:** retrofit tracer completo e documentado; build/test verdes.
+**Implementation vision:** Estampar `X-Idempotency` via editor em rules/limits Create/Update/Delete (parity + forward-compat), com comentário explícito de que o server ignora hoje E da nuance de retry (double-create latente no 503-pós-commit; aceito pois é config, não money). ⚠️ **WRINKLE CROSS-PLANE (recon-w2):** `setHeader` retorna `genledger.RequestEditorFn`; rules/limits precisam de `gentracer.RequestEditorFn` (mesmo `func(ctx,*http.Request)error` subjacente, tipos nomeados distintos). Add um `setHeaderTracer` (ou editor inline `gentracer`-typed) — ~5 linhas. Ops tracer aceitam `reqEditors ...RequestEditorFn` (verificado `tracer.gen.go` rules `:941/989/965`, limits `:737/785/761`). Excluir explicitamente validations/reservations com o comentário de body-dedup (já presente em `validations_facade.go:37-38`/`reservations_facade.go:36-38`).
+**Files:** Modify `entities/rules_facade.go`, `entities/limits_facade.go`, `entities/idempotency.go` (+`setHeaderTracer`).
+**Verification:** rules/limits writes emitem `X-Idempotency`; gate off suprime auto-gen; comentários de nuance presentes; validations/reservations permanecem sem header.
+**Done when:** retrofit tracer (rules/limits) completo e documentado; build/test verdes.
 
 #### Task 5.2.6: (Opcional/DX) Re-home User-Agent + traceparent + retry-metrics
 
