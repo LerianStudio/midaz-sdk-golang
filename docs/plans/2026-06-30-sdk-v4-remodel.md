@@ -23,7 +23,7 @@
 | 2 | Money path completo: onboarding CRUD + ciclo de transação (json/inflow/outflow/annotation + commit/cancel/revert) + balances/operations/routes/asset-rates + counts | 2.1, 2.2, 2.R, 2.3 | **Complete** (2.1, 2.2, 2.R, 2.3 todos Done) |
 | 3 | Domínios novos do ledger: holders/instruments/composition, fees (packages/estimates), billing, encryption/protection | 3.1, 3.2, 3.3 | **Complete** (3.1, 3.2, 3.3 todos Done) |
 | 4 | Plano Tracer completo: rules (CEL), limits, reservations, validations, audit-events | 4.1, 4.2, 4.3 | ✅ **Complete** (4.1, 4.2, 4.3 Done) |
-| 5 | Cutover fatiado (A aditivo → paridade money-path → B swap → C delete) + ergonomia + docs; `make ci` verde | 5.1–5.6 | **5.1 Detailed (onda corrente)**; 5.2–5.6 Epic-level |
+| 5 | Cutover fatiado (A aditivo → paridade money-path → B swap → C delete) + ergonomia + docs; `make ci` verde | 5.1–5.6 | **5.1 ✅ Done**; 5.2 Epic-level (onda corrente); 5.3–5.6 Epic-level |
 | 6 | *(opcional / decisão de produto)* Consumidor de streaming Kafka/CloudEvents | 6.1 | Epic-level |
 
 ---
@@ -577,11 +577,11 @@ Exploração-fonte (efêmera, no scratchpad da sessão): `01-server-api-surface.
 **Dependencies:** Phases 2–4 (todas as fachadas existem e passam e2e).
 **Done when:** os accessors novos roteiam pras fachadas; NENHUM accessor pré-existente ou consumer muda; legado ainda compila e passa (coexistência); build/vet/`golangci-lint`=0/test verdes.
 **Target:** midaz-sdk-golang
-**Status:** Detailed
+**Status:** ✅ Done (commit `d52a20f`; Task 5.1.2 landou os 13 accessors net-new. Task 5.1.1 (extração dos helpers) DEFERIDA p/ Epic 5.4 — YAGNI: só é pré-requisito do delete. Plane-correctness garantida pelo compilador (tipos genledger≠gentracer); suíte completa + examples verdes = coexistência; smoke test `TestEntity_PlaneFacadeAccessorsWired` assere os 13 não-nil. Review dispensada — diff mecânico aditivo, verificação objetiva proporcional.)
 
 #### Task 5.1.1: Extrair os 3 helpers presos dos arquivos legados
 
-- [ ] Done
+- [ ] Done — DEFERIDA p/ Epic 5.4 (só é pré-requisito do delete; extrair agora = churn sem valor por 3 epics)
 
 **Context:** O cutover futuro (5.4) deleta `http.go`+`http_retry_response.go`, mas 3 funções ali são usadas pelo path PLANE (sobrevivente): `defaultHTTPClient` (`http.go:192`, `sync.OnceValue`, usado por `plane_clients.go:135` `transportOf`), `drainAndCloseResponseBody` (`http_retry_response.go:285`, usado por `auth_roundtripper.go:114`), `formatAuthorizationHeader` (`http_retry_response.go:991`, usado por `auth_roundtripper.go:116,142`). Deletar os arquivos sem extrair essas 3 quebraria o plane.
 
@@ -593,7 +593,7 @@ Exploração-fonte (efêmera, no scratchpad da sessão): `01-server-api-surface.
 
 #### Task 5.1.2: Adicionar os accessors net-new plugados nas fachadas
 
-- [ ] Done
+- [x] Done
 
 **Context:** `entity.go:108-123` tem 16 accessors legados; 13 fachadas net-new não têm accessor (recon §B.4). `initServices` (`:244-282`) assign os legados via `newSharedServiceEntity(e.httpClient,...)`; as fachadas tomam SÓ o plane client (`newXFacade(e.planes.Ledger/.Tracer)`). O `Entity` já constrói `e.planes` (coexistência). Este é wiring PURAMENTE ADITIVO — nenhum accessor existente muda.
 
