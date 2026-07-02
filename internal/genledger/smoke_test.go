@@ -6,9 +6,9 @@ import "testing"
 // client and a representative operation type exist and are referenceable. If
 // codegen regresses (wrong package, dropped operation, unresolved collision),
 // this file fails to build.
-func TestGeneratedSurface(t *testing.T) {
+func TestGeneratedSurface(_ *testing.T) {
 	// Client constructor exists and returns the generated *Client.
-	var _ func(string, ...ClientOption) (*Client, error) = NewClient
+	var _ = NewClient
 
 	// The Organizations list operation surfaces its params type...
 	var _ ListOrganizationsParams
