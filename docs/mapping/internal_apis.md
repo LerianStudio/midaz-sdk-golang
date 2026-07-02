@@ -8,12 +8,16 @@ The current SDK is organized around a root client and an entity layer:
 
 1. `midaz.Client` owns configuration, observability, lifecycle, and service initialization.
 2. `pkg/config.Config` resolves service URLs, Access Manager settings, retry/debug options, HTTP client, and observability provider.
-3. `entities.Entity` exposes the service interfaces used by consumers.
+3. `entities.Entity` exposes the accessors used by consumers.
 4. Private entity implementations such as `accountsEntity`, `transactionsEntity`, and `holdersEntity` translate service methods into HTTP requests.
 5. `entities.HTTPClient` handles request construction, authentication headers, idempotency headers, tracing propagation, retry behavior, debug logging, and response/error conversion.
 6. `models` contains public request/response structures, Midaz model aliases, list options, pagination metadata, and builder helpers.
 
 The SDK does not currently use the older `apiClient`, `httpClient`, or per-resource `organizationClient` style architecture.
+
+### Facade layer
+
+The 13 primary ledger-plane accessors (`Organizations`, `Ledgers`, `Accounts`, `AccountTypes`, `Assets`, `AssetRates`, `Portfolios`, `Segments`, `OperationRoutes`, `TransactionRoutes`, `MetadataIndexes`, `Transactions`, `Holders`) are concrete facade structs (`*accountsFacade`, `*organizationsFacade`, ...) exposing generic CRUD (`List`/`Get`/`Create`/`Update`/`Delete`/`All`/`Pages`/`Count`) directly over the generated ledger plane client (`internal/genledger.ClientWithResponses`), bypassing the legacy per-service `entities.HTTPClient` path entirely. `Balances`, `Operations`, and `Aliases` have no facade yet and remain interface-backed (`BalancesService`, `OperationsService`, `AliasesService`) with explicit method names, wired over the shared legacy `entities.HTTPClient`.
 
 ## Root client internals
 
@@ -77,7 +81,7 @@ The `onboarding` and `transaction` keys are internal path-dispatch labels for Le
 
 ## Entity service implementations
 
-Each service has a public interface and a private implementation type. Method names are explicit (`ListAccounts`, `CreateOrganization`, `CreateTransactionWithDSL`) rather than generic CRUD (`List`, `Create`).
+Each service has a public interface and a private implementation type, with explicit method names (`ListAccounts`, `CreateOrganization`, `CreateTransactionWithDSL`) rather than generic CRUD (`List`, `Create`). The public facade accessors described in [external_apis.md](./external_apis.md) expose generic CRUD (`List`, `Create`, ...) instead; for the 14 facade-backed resources those generic methods call the plane client directly and do not route through these interfaces/implementations.
 
 ### Ledger API services
 

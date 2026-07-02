@@ -45,7 +45,7 @@ func main() {
 
 	log.Printf("Creating organization with legal name: %q", input.LegalName)
 
-	organization, err := c.Organizations.CreateOrganization(ctx, input)
+	organization, err := c.Organizations.Create(ctx, input)
 	if err != nil {
 		handleCreationError(err, c.GetConfig().AccessManager.Address)
 	} else {

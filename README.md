@@ -84,7 +84,7 @@ func main() {
     }
     defer c.Shutdown(context.Background())
 
-    page, err := c.Organizations.ListOrganizations(context.Background(),
+    page, err := c.Organizations.List(context.Background(),
         models.OrganizationsListOpts{
             PageListOpts: models.PageListOpts{Limit: 5},
         })
@@ -108,11 +108,11 @@ Every public service is a promoted field on `*midaz.Client`. The canonical
 shape is `c.<Service>.<Method>`:
 
 ```go
-orgs, err := c.Organizations.ListOrganizations(ctx, opts)
-ledger, err := c.Ledgers.CreateLedger(ctx, orgID, input)
-account, err := c.Accounts.GetAccount(ctx, orgID, ledgerID, accountID)
+orgs, err := c.Organizations.List(ctx, opts)
+ledger, err := c.Ledgers.Create(ctx, orgID, input)
+account, err := c.Accounts.Get(ctx, orgID, ledgerID, accountID)
 balance, err := c.Balances.GetBalance(ctx, orgID, ledgerID, balanceID)
-tx, err := c.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
+tx, err := c.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
 ```
 
 The full service list: `Organizations`, `Ledgers`, `Assets`, `AssetRates`,
@@ -126,16 +126,16 @@ Every list method ships in three flavors:
 
 ```go
 // One page, you decide when to advance.
-page, err := c.Accounts.ListAccounts(ctx, orgID, ledgerID, opts)
+page, err := c.Accounts.List(ctx, orgID, ledgerID, opts)
 
 // iter.Seq2 over every item across every page (SDK handles paging).
-for acc, err := range c.Accounts.ListAccountsAll(ctx, orgID, ledgerID, opts) {
+for acc, err := range c.Accounts.All(ctx, orgID, ledgerID, opts) {
     if err != nil { return err }
     process(acc)
 }
 
 // iter.Seq2 over page envelopes (with metadata for checkpointing).
-for batch, err := range c.Accounts.ListAccountsPages(ctx, orgID, ledgerID, opts) {
+for batch, err := range c.Accounts.Pages(ctx, orgID, ledgerID, opts) {
     if err != nil { return err }
     log.Printf("page %d: %d items", batch.Pagination.Page, len(batch.Items))
 }
@@ -171,7 +171,7 @@ Every error is a `*pkg/errors.Error`. Use the typed predicates or
 ```go
 import sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
 
-acc, err := c.Accounts.GetAccount(ctx, orgID, ledgerID, accountID)
+acc, err := c.Accounts.Get(ctx, orgID, ledgerID, accountID)
 if err != nil {
     switch {
     case sdkerrors.IsNotFoundError(err):

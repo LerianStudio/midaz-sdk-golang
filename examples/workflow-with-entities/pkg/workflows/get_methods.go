@@ -31,7 +31,7 @@ func testGetMethods(ctx context.Context, midazClient *midaz.Client, orgID, ledge
 	// Test GetOrganization
 	fmt.Println("\nTesting GetOrganization...")
 
-	org, err := midazClient.Organizations.GetOrganization(ctx, orgID)
+	org, err := midazClient.Organizations.Get(ctx, orgID)
 	if err != nil {
 		return fmt.Errorf("failed to get organization: %w", err)
 	}
@@ -41,7 +41,7 @@ func testGetMethods(ctx context.Context, midazClient *midaz.Client, orgID, ledge
 	// Test GetLedger
 	fmt.Println("\nTesting GetLedger...")
 
-	ledger, err := midazClient.Ledgers.GetLedger(ctx, orgID, ledgerID)
+	ledger, err := midazClient.Ledgers.Get(ctx, orgID, ledgerID)
 	if err != nil {
 		return fmt.Errorf("failed to get ledger: %w", err)
 	}
@@ -51,7 +51,7 @@ func testGetMethods(ctx context.Context, midazClient *midaz.Client, orgID, ledge
 	// Test GetAccount
 	fmt.Println("\nTesting GetAccount...")
 
-	account, err := midazClient.Accounts.GetAccount(ctx, orgID, ledgerID, accountID)
+	account, err := midazClient.Accounts.Get(ctx, orgID, ledgerID, accountID)
 	if err != nil {
 		return fmt.Errorf("failed to get account: %w", err)
 	}
@@ -61,7 +61,7 @@ func testGetMethods(ctx context.Context, midazClient *midaz.Client, orgID, ledge
 	// Test GetPortfolio
 	fmt.Println("\nTesting GetPortfolio...")
 
-	portfolio, err := midazClient.Portfolios.GetPortfolio(ctx, orgID, ledgerID, portfolioID)
+	portfolio, err := midazClient.Portfolios.Get(ctx, orgID, ledgerID, portfolioID)
 	if err != nil {
 		return fmt.Errorf("failed to get portfolio: %w", err)
 	}

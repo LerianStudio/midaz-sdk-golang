@@ -162,23 +162,26 @@ type Entity struct {
 	// facade's constructor by initServices.
 	enableIdempotency bool
 
-	// Service interfaces for different resource types
-	Accounts          AccountsService
-	AccountTypes      AccountTypesService
-	Assets            AssetsService
-	AssetRates        AssetRatesService
+	// Ledger-plane resource accessors. Epic 5.3 swap: these 13 now route to the
+	// concrete plane facades (*xFacade) over e.planes.Ledger, not the legacy
+	// per-service interfaces. Balances/Operations/Aliases stay legacy (no facade
+	// exists yet — Epic 5.4 gap resolution).
+	Accounts          *accountsFacade
+	AccountTypes      *accountTypesFacade
+	Assets            *assetsFacade
+	AssetRates        *assetRatesFacade
 	Balances          BalancesService
-	Holders           HoldersService
+	Holders           *holdersFacade
 	Aliases           AliasesService
-	Ledgers           LedgersService
-	MetadataIndexes   MetadataIndexesService
+	Ledgers           *ledgersFacade
+	MetadataIndexes   *metadataIndexesFacade
 	Operations        OperationsService
-	OperationRoutes   OperationRoutesService
-	Organizations     OrganizationsService
-	Portfolios        PortfoliosService
-	Segments          SegmentsService
-	Transactions      TransactionsService
-	TransactionRoutes TransactionRoutesService
+	OperationRoutes   *operationRoutesFacade
+	Organizations     *organizationsFacade
+	Portfolios        *portfoliosFacade
+	Segments          *segmentsFacade
+	Transactions      *transactionsFacade
+	TransactionRoutes *transactionRoutesFacade
 
 	// Plane-native facades (Phases 3-4). Additive accessors over the typed
 	// generated plane clients; they coexist with the 16 legacy services above
@@ -341,28 +344,33 @@ func (e *Entity) initServices() {
 		return newSharedServiceEntity(e.httpClient, e.baseURLs)
 	}
 
-	e.Transactions = &transactionsEntity{serviceEntity: shared()}
-	e.Accounts = &accountsEntity{serviceEntity: shared()}
-	e.AccountTypes = &accountTypesEntity{serviceEntity: shared()}
-	e.Assets = &assetsEntity{serviceEntity: shared()}
-	e.AssetRates = &assetRatesEntity{serviceEntity: shared()}
+	// Legacy per-service surface. Epic 5.3 repointed the 13 ledger resources to
+	// facades (below); only Balances/Operations/Aliases remain legacy-wired
+	// (no facade exists yet — Epic 5.4 gap).
 	e.Balances = &balancesEntity{serviceEntity: shared()}
-	e.Holders = &holdersEntity{serviceEntity: shared()}
 	e.Aliases = &aliasesEntity{serviceEntity: shared()}
-	e.Ledgers = &ledgersEntity{serviceEntity: shared()}
-	e.MetadataIndexes = &metadataIndexesEntity{serviceEntity: shared()}
 	e.Operations = &operationsEntity{serviceEntity: shared()}
-	e.OperationRoutes = &operationRoutesEntity{serviceEntity: shared()}
-	e.Organizations = &organizationsEntity{serviceEntity: shared()}
-	e.Portfolios = &portfoliosEntity{serviceEntity: shared()}
-	e.Segments = &segmentsEntity{serviceEntity: shared()}
-	e.TransactionRoutes = &transactionRoutesEntity{serviceEntity: shared()}
 
-	// Plane-native facades (additive). They need only the typed plane clients,
-	// not the legacy *HTTPClient. Guarded because some construction paths build
-	// the Entity without planes; when planes is nil these accessors stay nil and
-	// the legacy services above remain the only wired surface.
+	// Plane-native facades. The 13 ledger resource accessors (Epic 5.3 swap)
+	// join the Phase 3-4 additive facades here — all route over the typed plane
+	// clients, not the legacy *HTTPClient. Guarded because some construction
+	// paths build the Entity without planes; when planes is nil these accessors
+	// stay nil.
 	if e.planes != nil {
+		e.Organizations = newOrganizationsFacade(e.planes.Ledger, e.enableIdempotency)
+		e.Ledgers = newLedgersFacade(e.planes.Ledger, e.enableIdempotency)
+		e.Accounts = newAccountsFacade(e.planes.Ledger, e.enableIdempotency)
+		e.Assets = newAssetsFacade(e.planes.Ledger, e.enableIdempotency)
+		e.AssetRates = newAssetRatesFacade(e.planes.Ledger, e.enableIdempotency)
+		e.Portfolios = newPortfoliosFacade(e.planes.Ledger, e.enableIdempotency)
+		e.Segments = newSegmentsFacade(e.planes.Ledger, e.enableIdempotency)
+		e.AccountTypes = newAccountTypesFacade(e.planes.Ledger, e.enableIdempotency)
+		e.MetadataIndexes = newMetadataIndexesFacade(e.planes.Ledger, e.enableIdempotency)
+		e.OperationRoutes = newOperationRoutesFacade(e.planes.Ledger, e.enableIdempotency)
+		e.TransactionRoutes = newTransactionRoutesFacade(e.planes.Ledger, e.enableIdempotency)
+		e.Holders = newHoldersFacade(e.planes.Ledger, e.enableIdempotency)
+		e.Transactions = newTransactionsFacade(e.planes.Ledger, e.enableIdempotency)
+
 		e.Rules = newRulesFacade(e.planes.Tracer, e.enableIdempotency)
 		e.Limits = newLimitsFacade(e.planes.Tracer, e.enableIdempotency)
 		e.Validations = newValidationsFacade(e.planes.Tracer)

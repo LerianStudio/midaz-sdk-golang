@@ -13,10 +13,17 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/stats"
 )
 
+// accountsAPI is the narrow slice of the accounts facade this generator needs.
+// Consumer-side interface (Epic 5.3 swap: client.Accounts is now a concrete
+// *entities.accountsFacade); tests inject a mock satisfying just this.
+type accountsAPI interface {
+	Create(ctx context.Context, orgID, ledgerID string, input *models.CreateAccountInput) (*models.Account, error)
+}
+
 type accountGenerator struct {
-	e   *entities.Entity
-	obs observability.Provider
-	mc  *observability.MetricsCollector
+	accounts accountsAPI
+	obs      observability.Provider
+	mc       *observability.MetricsCollector
 }
 
 // NewAccountGenerator creates a new AccountGenerator backed by entities API.
@@ -29,7 +36,12 @@ func NewAccountGenerator(e *entities.Entity, obs observability.Provider) Account
 		}
 	}
 
-	return &accountGenerator{e: e, obs: obs, mc: mc}
+	g := &accountGenerator{obs: obs, mc: mc}
+	if e != nil && e.Accounts != nil {
+		g.accounts = e.Accounts
+	}
+
+	return g
 }
 
 // Generate creates a single account from the provided template.
@@ -49,7 +61,7 @@ func (g *accountGenerator) Generate(ctx context.Context, organizationID, ledgerI
 
 // validateInputs validates the required inputs for account generation
 func (g *accountGenerator) validateInputs(organizationID, ledgerID, assetCode string) error {
-	if g.e == nil || g.e.Accounts == nil {
+	if g.accounts == nil {
 		return errors.New("entity accounts service not initialized")
 	}
 
@@ -143,7 +155,7 @@ func (g *accountGenerator) createAccount(ctx context.Context, organizationID, le
 	err := observability.WithSpan(ctx, g.obs, "GenerateAccount", func(ctx context.Context) error {
 		return executeWithCircuitBreaker(ctx, func() error {
 			return retry.DoWithContext(ctx, func() error {
-				acc, err := g.e.Accounts.CreateAccount(ctx, organizationID, ledgerID, in)
+				acc, err := g.accounts.Create(ctx, organizationID, ledgerID, in)
 				if err != nil {
 					return err
 				}

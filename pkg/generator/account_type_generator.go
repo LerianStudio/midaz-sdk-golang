@@ -11,19 +11,29 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/retry"
 )
 
+// accountTypesAPI is the narrow slice of the account-types facade this generator needs.
+type accountTypesAPI interface {
+	Create(ctx context.Context, orgID, ledgerID string, input *models.CreateAccountTypeInput) (*models.AccountType, error)
+}
+
 type accountTypeGenerator struct {
-	e   *entities.Entity
-	obs observability.Provider
+	accountTypes accountTypesAPI
+	obs          observability.Provider
 }
 
 // NewAccountTypeGenerator creates a new account type generator.
 func NewAccountTypeGenerator(e *entities.Entity, obs observability.Provider) AccountTypeGenerator {
-	return &accountTypeGenerator{e: e, obs: obs}
+	g := &accountTypeGenerator{obs: obs}
+	if e != nil && e.AccountTypes != nil {
+		g.accountTypes = e.AccountTypes
+	}
+
+	return g
 }
 
 // Generate creates a new account type with the specified name, key, and metadata.
 func (g *accountTypeGenerator) Generate(ctx context.Context, organizationID, ledgerID string, name, key string, metadata map[string]any) (*models.AccountType, error) {
-	if g.e == nil || g.e.AccountTypes == nil {
+	if g.accountTypes == nil {
 		return nil, errors.New("entity account types service not initialized")
 	}
 
@@ -34,7 +44,7 @@ func (g *accountTypeGenerator) Generate(ctx context.Context, organizationID, led
 	err := observability.WithSpan(ctx, g.obs, "GenerateAccountType", func(ctx context.Context) error {
 		return executeWithCircuitBreaker(ctx, func() error {
 			return retry.DoWithContext(ctx, func() error {
-				at, err := g.e.AccountTypes.CreateAccountType(ctx, organizationID, ledgerID, input)
+				at, err := g.accountTypes.Create(ctx, organizationID, ledgerID, input)
 				if err != nil {
 					return err
 				}

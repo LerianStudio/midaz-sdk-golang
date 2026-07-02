@@ -11,15 +11,12 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v4"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/entities"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/entities/mocks"
 	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
 	pkgerrors "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
-	"go.uber.org/mock/gomock"
 )
 
 func TestBatchTransactions_IdempotencyKeyRequiredWhenRetriesEnabled(t *testing.T) {
@@ -201,21 +198,28 @@ func TestBatchTransactions_MissingIdempotencyKeyFailsBeforeAnySend(t *testing.T)
 	assert.Len(t, results, 2)
 }
 
+// panicTransactions is a transactionCreator whose CreateJSON panics — used to
+// exercise the batch worker's panic-recovery path. (client.Transactions is now
+// a concrete facade, so the generated gomock can't be injected via the entity.)
+type panicTransactions struct{}
+
+func (panicTransactions) CreateJSON(context.Context, string, string, *models.CreateTransactionInput) (*models.Transaction, error) {
+	panic("boom")
+}
+
 func TestBatchTransactions_WorkerPanicReturnsResultError(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	txService := mocks.NewMockTransactionsService(ctrl)
-	txService.EXPECT().
-		CreateTransaction(gomock.Any(), "org", "ledger", gomock.Any()).
-		DoAndReturn(func(context.Context, string, string, *models.CreateTransactionInput) (*models.Transaction, error) {
-			panic("boom")
-		}).
-		AnyTimes()
+	inputs := []*models.CreateTransactionInput{validBatchTransactionInput("panic-key")}
+	bp := &batchProcessor{
+		ctx:          context.Background(),
+		transactions: panicTransactions{},
+		orgID:        "org",
+		ledgerID:     "ledger",
+		inputs:       inputs,
+		options:      normalizeOptions(&BatchOptions{Concurrency: 1, RetryCount: 1, StopOnError: true}),
+		results:      make([]BatchResult, len(inputs)),
+	}
 
-	client := &midaz.Client{Entity: &entities.Entity{Transactions: txService}}
-
-	results, err := BatchTransactions(context.Background(), client, "org", "ledger", []*models.CreateTransactionInput{
-		validBatchTransactionInput("panic-key"),
-	}, &BatchOptions{Concurrency: 1, RetryCount: 1, StopOnError: true})
+	results, err := bp.execute()
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "transaction batch worker panic")

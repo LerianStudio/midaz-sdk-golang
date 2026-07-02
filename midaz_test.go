@@ -471,7 +471,7 @@ func TestNewAccessManagerTokenFetchError_IsClassifiedAsAuth(t *testing.T) {
 // move is to use the models package directly:
 //
 //	in := &models.CreateAccountInput{...}
-//	c.Accounts.CreateAccount(ctx, ...)
+//	c.Accounts.Create(ctx, ...)
 //
 // instead of the empty trap that NewAccount used to return.
 func TestFactoryTrapMethodsRemoved_AtCompileTime(t *testing.T) {

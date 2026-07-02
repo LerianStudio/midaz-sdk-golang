@@ -166,7 +166,7 @@ func Transfer(
 	}
 
 	// Create the transaction
-	transaction, err := entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, transferInput)
+	transaction, err := entity.Transactions.CreateJSON(ctx, orgID, ledgerID, transferInput)
 	if err != nil {
 		return nil, fmt.Errorf("transfer transaction failed: %w", err)
 	}
@@ -293,7 +293,7 @@ func Deposit(
 	}
 
 	// Create the transaction
-	transaction, err := entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, depositInput)
+	transaction, err := entity.Transactions.CreateJSON(ctx, orgID, ledgerID, depositInput)
 	if err != nil {
 		return nil, fmt.Errorf("deposit transaction failed: %w", err)
 	}
@@ -420,7 +420,7 @@ func Withdrawal(
 	}
 
 	// Create the transaction
-	transaction, err := entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, withdrawalInput)
+	transaction, err := entity.Transactions.CreateJSON(ctx, orgID, ledgerID, withdrawalInput)
 	if err != nil {
 		return nil, fmt.Errorf("withdrawal transaction failed: %w", err)
 	}
@@ -511,7 +511,7 @@ func MultiAccountTransfer(
 
 	multiTransferInput := buildMultiTransferInput(opts, idempotencyKey, totalAmount, scale, assetCode, fromList, toList)
 
-	transaction, err := entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, multiTransferInput)
+	transaction, err := entity.Transactions.CreateJSON(ctx, orgID, ledgerID, multiTransferInput)
 	if err != nil {
 		return nil, fmt.Errorf("multi-account transfer failed: %w", err)
 	}
@@ -703,7 +703,7 @@ func CreateFromTemplate(
 	}
 
 	// Create the transaction
-	transaction, err := entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
+	transaction, err := entity.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
 	if err != nil {
 		return nil, fmt.Errorf("transaction from template failed: %w", err)
 	}
@@ -786,7 +786,7 @@ func CommitPendingTransaction(
 	}
 
 	// Use dedicated commit endpoint
-	committed, err := entity.Transactions.CommitTransaction(ctx, orgID, ledgerID, transactionID)
+	committed, err := entity.Transactions.Commit(ctx, orgID, ledgerID, transactionID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
@@ -819,7 +819,7 @@ func CancelPendingTransaction(
 		return nil, errors.New("transactions service is not initialized")
 	}
 
-	tx, err := entity.Transactions.CancelTransactionWithResponse(ctx, orgID, ledgerID, transactionID)
+	tx, err := entity.Transactions.Cancel(ctx, orgID, ledgerID, transactionID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to cancel transaction: %w", err)
 	}
@@ -828,7 +828,7 @@ func CancelPendingTransaction(
 		return tx, nil
 	}
 
-	fetchedTx, fetchErr := entity.Transactions.GetTransaction(ctx, orgID, ledgerID, transactionID)
+	fetchedTx, fetchErr := entity.Transactions.Get(ctx, orgID, ledgerID, transactionID)
 	if fetchErr != nil {
 		return nil, fmt.Errorf("transaction canceled but final state could not be fetched: %w", fetchErr)
 	}

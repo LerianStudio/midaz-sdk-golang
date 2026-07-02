@@ -217,7 +217,7 @@ if err != nil {
     return err
 }
 
-orgs, err := c.Organizations.ListOrganizations(ctx, models.OrganizationsListOpts{
+orgs, err := c.Organizations.List(ctx, models.OrganizationsListOpts{
     PageListOpts: models.PageListOpts{Limit: 20},
 })
 ```
@@ -286,7 +286,7 @@ sequenceDiagram
     Client->>Entity: setupEntity()
     Entity->>Service: initServices()
 
-    App->>Service: c.Accounts.GetAccount(ctx, orgID, ledgerID, accountID)
+    App->>Service: c.Accounts.Get(ctx, orgID, ledgerID, accountID)
     Service->>Service: validate required parameters
     Service->>Service: build resource URL
     Service->>HTTP: doRequest(ctx, method, url, headers, body, result)
@@ -423,7 +423,7 @@ Use the helper checkers for common branches:
 ```go
 import sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
 
-account, err := c.Accounts.GetAccount(ctx, orgID, ledgerID, accountID)
+account, err := c.Accounts.Get(ctx, orgID, ledgerID, accountID)
 if err != nil {
     switch {
     case sdkerrors.IsNotFoundError(err):
@@ -541,7 +541,7 @@ You can attach an idempotency key to any request context:
 ```go
 ctx := sdkctx.WithIdempotencyKey(context.Background(), "payment-2026-04-27-0001")
 
-tx, err := c.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
+tx, err := c.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
 ```
 
 For transaction creation, `models.CreateTransactionInput` also has an idempotency field used by the transaction service:
@@ -566,7 +566,7 @@ input := models.NewCreateTransactionInput("USD", "100.00").
 
 input.IdempotencyKey = "payment-2026-04-27-0001"
 
-tx, err := c.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
+tx, err := c.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
 ```
 
 Idempotency key precedence is first non-empty source wins:
@@ -675,7 +675,7 @@ opts := models.AccountsListOpts{
 }
 
 // Single page:
-page, err := c.Accounts.ListAccounts(ctx, orgID, ledgerID, opts)
+page, err := c.Accounts.List(ctx, orgID, ledgerID, opts)
 if err != nil {
     return err
 }
@@ -690,7 +690,7 @@ if page.Pagination.HasMore() {
 }
 
 // All items across every page (iter.Seq2):
-for account, err := range c.Accounts.ListAccountsAll(ctx, orgID, ledgerID, opts) {
+for account, err := range c.Accounts.All(ctx, orgID, ledgerID, opts) {
     if err != nil {
         return err
     }

@@ -110,7 +110,7 @@ Prefer SDK helper functions when branching on operational behavior:
 ```go
 import sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
 
-account, err := c.Accounts.GetAccount(ctx, orgID, ledgerID, accountID)
+account, err := c.Accounts.Get(ctx, orgID, ledgerID, accountID)
 if err != nil {
     switch {
     case sdkerrors.IsNotFoundError(err):

@@ -48,7 +48,7 @@ func ExampleAccountsService_ListAccountsAll() {
 	}
 
 	count := 0
-	for acct, err := range c.Accounts.ListAccountsAll(ctx, "org-123", "ledger-456", opts) {
+	for acct, err := range c.Accounts.All(ctx, "org-123", "ledger-456", opts) {
 		if err != nil {
 			fmt.Printf("iteration error: %v\n", err)
 			return
@@ -89,7 +89,7 @@ func ExampleTransactionsService_ListTransactionsAll() {
 	}
 
 	count := 0
-	for tx, err := range c.Transactions.ListTransactionsAll(ctx, "org-123", "ledger-456", opts) {
+	for tx, err := range c.Transactions.All(ctx, "org-123", "ledger-456", opts) {
 		if err != nil {
 			fmt.Printf("iteration error: %v\n", err)
 			return

@@ -15,21 +15,31 @@ type SegmentGenerator interface {
 	Generate(ctx context.Context, organizationID, ledgerID, name string, metadata map[string]any) (*models.Segment, error)
 }
 
+// segmentsAPI is the narrow slice of the segments facade this generator needs.
+type segmentsAPI interface {
+	Create(ctx context.Context, orgID, ledgerID string, input *models.CreateSegmentInput) (*models.Segment, error)
+}
+
 type segmentGenerator struct {
-	e   *entities.Entity
-	obs observability.Provider
+	segments segmentsAPI
+	obs      observability.Provider
 }
 
 // NewSegmentGenerator creates a new segment generator.
 func NewSegmentGenerator(e *entities.Entity, obs observability.Provider) SegmentGenerator {
-	return &segmentGenerator{e: e, obs: obs}
+	g := &segmentGenerator{obs: obs}
+	if e != nil && e.Segments != nil {
+		g.segments = e.Segments
+	}
+
+	return g
 }
 
 // Generate creates a single segment with the specified parameters.
 func (g *segmentGenerator) Generate(ctx context.Context, organizationID, ledgerID, name string, metadata map[string]any) (*models.Segment, error) {
 	ctx = normalizeContext(ctx)
 
-	if g.e == nil || g.e.Segments == nil {
+	if g.segments == nil {
 		return nil, errors.New("entity segments service not initialized")
 	}
 
@@ -42,7 +52,7 @@ func (g *segmentGenerator) Generate(ctx context.Context, organizationID, ledgerI
 	err := observability.WithSpan(ctx, g.obs, "GenerateSegment", func(ctx context.Context) error {
 		return executeWithCircuitBreaker(ctx, func() error {
 			return retry.DoWithContext(ctx, func() error {
-				s, err := g.e.Segments.CreateSegment(ctx, organizationID, ledgerID, input)
+				s, err := g.segments.Create(ctx, organizationID, ledgerID, input)
 				if err != nil {
 					return err
 				}

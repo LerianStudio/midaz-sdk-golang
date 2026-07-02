@@ -141,68 +141,73 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v4/entities`. Consumers should pre
 - `Client.Transactions` (`Client.Entity.Transactions` compatibility path)
 - `Client.TransactionRoutes` (`Client.Entity.TransactionRoutes` compatibility path)
 
-### OrganizationsService
+### Organizations
 
-- `ListOrganizations(ctx, opts)`
-- `ListOrganizationsAll(ctx, opts)`
-- `ListOrganizationsPages(ctx, opts)`
-- `GetOrganization(ctx, id)`
-- `CreateOrganization(ctx, input)`
-- `UpdateOrganization(ctx, id, input)`
-- `DeleteOrganization(ctx, id)`
-- `GetOrganizationsMetricsCount(ctx)`
+- `List(ctx, opts)`
+- `All(ctx, opts)`
+- `Pages(ctx, opts)`
+- `Get(ctx, id)`
+- `Create(ctx, input)`
+- `Update(ctx, id, input)`
+- `Delete(ctx, id)`
+- `Count(ctx)`
 
-### LedgersService
+### Ledgers
 
-- `ListLedgers(ctx, organizationID, opts)`
-- `ListLedgersAll(ctx, organizationID, opts)`
-- `ListLedgersPages(ctx, organizationID, opts)`
-- `GetLedger(ctx, organizationID, id)`
-- `CreateLedger(ctx, organizationID, input)`
-- `UpdateLedger(ctx, organizationID, id, input)`
-- `GetLedgerSettings(ctx, organizationID, id)` - `GET /organizations/{organizationID}/ledgers/{ledgerID}/settings`.
-- `UpdateLedgerSettings(ctx, organizationID, id, input)` - `PATCH /organizations/{organizationID}/ledgers/{ledgerID}/settings`; allowed fields are `accounting.validateAccountType` and `accounting.validateRoutes`.
-- `DeleteLedger(ctx, organizationID, id)`
-- `GetLedgersMetricsCount(ctx, organizationID)`
+- `List(ctx, organizationID, opts)`
+- `All(ctx, organizationID, opts)`
+- `Pages(ctx, organizationID, opts)`
+- `Get(ctx, organizationID, id)`
+- `Create(ctx, organizationID, input)`
+- `Update(ctx, organizationID, id, input)`
+- `GetSettings(ctx, organizationID, id)` - `GET /organizations/{organizationID}/ledgers/{ledgerID}/settings`.
+- `UpdateSettings(ctx, organizationID, id, input)` - `PATCH /organizations/{organizationID}/ledgers/{ledgerID}/settings`; allowed fields are `accounting.validateAccountType` and `accounting.validateRoutes`.
+- `Delete(ctx, organizationID, id)`
+- `Count(ctx, organizationID)`
 
-### AccountsService
+### Accounts
 
-- `ListAccounts(ctx, organizationID, ledgerID, opts)`
-- `ListAccountsAll(ctx, organizationID, ledgerID, opts)`
-- `ListAccountsPages(ctx, organizationID, ledgerID, opts)`
-- `GetAccount(ctx, organizationID, ledgerID, id)`
-- `GetAccountByAlias(ctx, organizationID, ledgerID, alias)`
-- `CreateAccount(ctx, organizationID, ledgerID, input)`
-- `UpdateAccount(ctx, organizationID, ledgerID, id, input)`
-- `DeleteAccount(ctx, organizationID, ledgerID, id)`
-- `GetBalance(ctx, organizationID, ledgerID, accountID)` - Convenience helper for accounts with exactly one balance; returns not found for zero balances and a validation error when multiple balances exist. Use `BalancesService.ListAccountBalances` for full balance lists.
-- `GetAccountsMetricsCount(ctx, organizationID, ledgerID)`
-- `GetExternalAccount(ctx, organizationID, ledgerID, assetCode)`
-- `GetExternalAccountBalance(ctx, organizationID, ledgerID, assetCode)` - Convenience helper for external accounts with exactly one balance; returns not found for zero balances and a validation error when multiple balances exist. Use `BalancesService.ListBalancesByExternalCode` for full balance lists.
-- `GetAccountByAliasPath(ctx, organizationID, ledgerID, alias)` - Deprecated compatibility alias for `GetAccountByAlias`.
+- `List(ctx, organizationID, ledgerID, opts)`
+- `All(ctx, organizationID, ledgerID, opts)`
+- `Pages(ctx, organizationID, ledgerID, opts)`
+- `Get(ctx, organizationID, ledgerID, id)`
+- `GetByAlias(ctx, organizationID, ledgerID, alias)`
+- `Create(ctx, organizationID, ledgerID, input)`
+- `Update(ctx, organizationID, ledgerID, id, input)`
+- `Delete(ctx, organizationID, ledgerID, id)`
+- `ListBalances(ctx, organizationID, ledgerID, accountID, opts)`
+- `ListBalancesAll(ctx, organizationID, ledgerID, accountID, opts)`
+- `ListBalancesPages(ctx, organizationID, ledgerID, accountID, opts)`
+- `ListOperations(ctx, organizationID, ledgerID, accountID, opts)`
+- `ListOperationsAll(ctx, organizationID, ledgerID, accountID, opts)`
+- `ListOperationsPages(ctx, organizationID, ledgerID, accountID, opts)`
+- `BalancesAtTimestamp(ctx, organizationID, ledgerID, accountID, timestamp)` - Point-in-time balance snapshot.
+- `Count(ctx, organizationID, ledgerID)`
 
-### AccountTypesService
+Account balances are listed via `Accounts.ListBalances` (and its `All` / `Pages` variants); there is no single-balance convenience getter on the `Accounts` facade. For cross-account or external-account balance queries, use the legacy `Balances` accessor (`ListAccountBalances`, `ListBalancesByExternalCode`, etc.).
 
-- `ListAccountTypes(ctx, organizationID, ledgerID, opts)`
-- `ListAccountTypesAll(ctx, organizationID, ledgerID, opts)`
-- `ListAccountTypesPages(ctx, organizationID, ledgerID, opts)`
-- `GetAccountType(ctx, organizationID, ledgerID, id)`
-- `CreateAccountType(ctx, organizationID, ledgerID, input)`
-- `UpdateAccountType(ctx, organizationID, ledgerID, id, input)`
-- `DeleteAccountType(ctx, organizationID, ledgerID, id)`
+### AccountTypes
 
-### AssetsService
+- `List(ctx, organizationID, ledgerID, opts)`
+- `All(ctx, organizationID, ledgerID, opts)`
+- `Pages(ctx, organizationID, ledgerID, opts)`
+- `Get(ctx, organizationID, ledgerID, id)`
+- `Create(ctx, organizationID, ledgerID, input)`
+- `Update(ctx, organizationID, ledgerID, id, input)`
+- `Delete(ctx, organizationID, ledgerID, id)`
 
-- `ListAssets(ctx, organizationID, ledgerID, opts)`
-- `ListAssetsAll(ctx, organizationID, ledgerID, opts)`
-- `ListAssetsPages(ctx, organizationID, ledgerID, opts)`
-- `GetAsset(ctx, organizationID, ledgerID, id)`
-- `CreateAsset(ctx, organizationID, ledgerID, input)`
-- `UpdateAsset(ctx, organizationID, ledgerID, id, input)`
-- `DeleteAsset(ctx, organizationID, ledgerID, id)`
-- `GetAssetsMetricsCount(ctx, organizationID, ledgerID)`
+### Assets
 
-### AssetRatesService
+- `List(ctx, organizationID, ledgerID, opts)`
+- `All(ctx, organizationID, ledgerID, opts)`
+- `Pages(ctx, organizationID, ledgerID, opts)`
+- `Get(ctx, organizationID, ledgerID, id)`
+- `Create(ctx, organizationID, ledgerID, input)`
+- `Update(ctx, organizationID, ledgerID, id, input)`
+- `Delete(ctx, organizationID, ledgerID, id)`
+- `Count(ctx, organizationID, ledgerID)`
+
+### AssetRates
 
 - `CreateOrUpdateAssetRate(ctx, organizationID, ledgerID, input)`
 - `GetAssetRate(ctx, organizationID, ledgerID, externalID)`
@@ -233,27 +238,27 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v4/entities`. Consumers should pre
 - `ListBalancesByExternalCodePages(ctx, orgID, ledgerID, code, opts)`
 - `GetAccountBalancesHistory(ctx, orgID, ledgerID, accountID, date)`
 
-### PortfoliosService
+### Portfolios
 
-- `ListPortfolios(ctx, organizationID, ledgerID, opts)`
-- `ListPortfoliosAll(ctx, organizationID, ledgerID, opts)`
-- `ListPortfoliosPages(ctx, organizationID, ledgerID, opts)`
-- `GetPortfolio(ctx, organizationID, ledgerID, id)`
-- `CreatePortfolio(ctx, organizationID, ledgerID, input)`
-- `UpdatePortfolio(ctx, organizationID, ledgerID, id, input)`
-- `DeletePortfolio(ctx, organizationID, ledgerID, id)`
-- `GetPortfoliosMetricsCount(ctx, organizationID, ledgerID)`
+- `List(ctx, organizationID, ledgerID, opts)`
+- `All(ctx, organizationID, ledgerID, opts)`
+- `Pages(ctx, organizationID, ledgerID, opts)`
+- `Get(ctx, organizationID, ledgerID, id)`
+- `Create(ctx, organizationID, ledgerID, input)`
+- `Update(ctx, organizationID, ledgerID, id, input)`
+- `Delete(ctx, organizationID, ledgerID, id)`
+- `Count(ctx, organizationID, ledgerID)`
 
-### SegmentsService
+### Segments
 
-- `ListSegments(ctx, organizationID, ledgerID, opts)`
-- `ListSegmentsAll(ctx, organizationID, ledgerID, opts)`
-- `ListSegmentsPages(ctx, organizationID, ledgerID, opts)`
-- `GetSegment(ctx, organizationID, ledgerID, id)`
-- `CreateSegment(ctx, organizationID, ledgerID, input)`
-- `UpdateSegment(ctx, organizationID, ledgerID, id, input)`
-- `DeleteSegment(ctx, organizationID, ledgerID, id)`
-- `GetSegmentsMetricsCount(ctx, organizationID, ledgerID)`
+- `List(ctx, organizationID, ledgerID, opts)`
+- `All(ctx, organizationID, ledgerID, opts)`
+- `Pages(ctx, organizationID, ledgerID, opts)`
+- `Get(ctx, organizationID, ledgerID, id)`
+- `Create(ctx, organizationID, ledgerID, input)`
+- `Update(ctx, organizationID, ledgerID, id, input)`
+- `Delete(ctx, organizationID, ledgerID, id)`
+- `Count(ctx, organizationID, ledgerID)`
 
 ### OperationsService
 
@@ -263,76 +268,74 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v4/entities`. Consumers should pre
 - `GetOperation(ctx, orgID, ledgerID, accountID, operationID)`
 - `UpdateTransactionOperation(ctx, orgID, ledgerID, transactionID, operationID, input)`
 
-### OperationRoutesService
+### OperationRoutes
 
-- `ListOperationRoutes(ctx, organizationID, ledgerID, opts)`
-- `ListOperationRoutesAll(ctx, organizationID, ledgerID, opts)`
-- `ListOperationRoutesPages(ctx, organizationID, ledgerID, opts)`
-- `GetOperationRoute(ctx, organizationID, ledgerID, operationRouteID)`
-- `CreateOperationRoute(ctx, organizationID, ledgerID, input)`
-- `UpdateOperationRoute(ctx, organizationID, ledgerID, operationRouteID, input)`
-- `DeleteOperationRoute(ctx, organizationID, ledgerID, operationRouteID)`
+- `List(ctx, organizationID, ledgerID, opts)`
+- `All(ctx, organizationID, ledgerID, opts)`
+- `Pages(ctx, organizationID, ledgerID, opts)`
+- `Get(ctx, organizationID, ledgerID, operationRouteID)`
+- `Create(ctx, organizationID, ledgerID, input)`
+- `Update(ctx, organizationID, ledgerID, operationRouteID, input)`
+- `Delete(ctx, organizationID, ledgerID, operationRouteID)`
 
-### TransactionRoutesService
+### TransactionRoutes
 
-- `ListTransactionRoutes(ctx, organizationID, ledgerID, opts)`
-- `ListTransactionRoutesAll(ctx, organizationID, ledgerID, opts)`
-- `ListTransactionRoutesPages(ctx, organizationID, ledgerID, opts)`
-- `GetTransactionRoute(ctx, organizationID, ledgerID, transactionRouteID)`
-- `CreateTransactionRoute(ctx, organizationID, ledgerID, input)`
-- `UpdateTransactionRoute(ctx, organizationID, ledgerID, transactionRouteID, input)`
-- `DeleteTransactionRoute(ctx, organizationID, ledgerID, transactionRouteID)`
+- `List(ctx, organizationID, ledgerID, opts)`
+- `All(ctx, organizationID, ledgerID, opts)`
+- `Pages(ctx, organizationID, ledgerID, opts)`
+- `Get(ctx, organizationID, ledgerID, transactionRouteID)`
+- `Create(ctx, organizationID, ledgerID, input)`
+- `Update(ctx, organizationID, ledgerID, transactionRouteID, input)`
+- `Delete(ctx, organizationID, ledgerID, transactionRouteID)`
 
-### TransactionsService
+### Transactions
 
-- `CreateTransaction(ctx, orgID, ledgerID, input)`
-- `CreateTransactionWithDSL(ctx, orgID, ledgerID, input)`
-- `CreateTransactionWithDSLFile(ctx, orgID, ledgerID, dslContent)`
-- `GetTransaction(ctx, orgID, ledgerID, transactionID)`
-- `ListTransactions(ctx, orgID, ledgerID, opts)`
-- `ListTransactionsAll(ctx, orgID, ledgerID, opts)`
-- `ListTransactionsPages(ctx, orgID, ledgerID, opts)`
-- `GetTransactionsMetricsCount(ctx, orgID, ledgerID, opts)`
+- `CreateJSON(ctx, orgID, ledgerID, input)`
+- `Get(ctx, orgID, ledgerID, transactionID)`
+- `List(ctx, orgID, ledgerID, opts)`
+- `All(ctx, orgID, ledgerID, opts)`
+- `Pages(ctx, orgID, ledgerID, opts)`
+- `Count(ctx, orgID, ledgerID, opts)`
 - `UpdateTransaction(ctx, orgID, ledgerID, transactionID, input)`
-- `RevertTransaction(ctx, orgID, ledgerID, transactionID)`
-- `CommitTransaction(ctx, orgID, ledgerID, transactionID)`
-- `CancelTransaction(ctx, orgID, ledgerID, transactionID)`
-- `CancelTransactionWithResponse(ctx, orgID, ledgerID, transactionID)`
-- `CreateInflowTransaction(ctx, orgID, ledgerID, input)`
-- `CreateOutflowTransaction(ctx, orgID, ledgerID, input)`
-- `CreateAnnotationTransaction(ctx, orgID, ledgerID, input)`
+- `UpdateOperation(ctx, orgID, ledgerID, transactionID, operationID, input)`
+- `Revert(ctx, orgID, ledgerID, transactionID)`
+- `Commit(ctx, orgID, ledgerID, transactionID)`
+- `Cancel(ctx, orgID, ledgerID, transactionID)`
+- `CreateInflow(ctx, orgID, ledgerID, input)`
+- `CreateOutflow(ctx, orgID, ledgerID, input)`
+- `CreateAnnotation(ctx, orgID, ledgerID, input)`
 
-`CreateTransactionWithDSLFile` sends `POST /transactions/dsl` as multipart form data with field name `transaction`, filename `transaction.dsl`, and UTF-8 DSL content. The SDK rejects empty, invalid UTF-8, and over-limit DSL payloads before network I/O.
+DSL-style structured splits (multiple sources/destinations in one transaction) are expressed through the send-based payload passed to `CreateJSON` (multiple `Distribute.To` entries); a dedicated DSL entry point (`POST /transactions/dsl`) is not currently exposed on the `Transactions` facade.
 
-`ListTransactions` (and the `*All` / `*Pages` iterators) can filter by a single metadata field via `TransactionsListOpts.Filters.MetadataKey` + `MetadataValue`, rendered on the wire as `metadata.<key>=<value>`. This is the supported way to correlate a ledger transaction back to a caller's business id (e.g. a `transferId` stamped into transaction metadata at create time) — useful for lost-response recovery where the Midaz transaction id was never received. Only one metadata predicate is honored per request (not AND-combinable). Metadata keys are not indexed by default; for a hot correlation key, create the index via `MetadataIndexesService.CreateMetadataIndex(ctx, "transaction", input)` to avoid a backend collection scan at scale.
+`List` (and the `All` / `Pages` iterators) can filter by a single metadata field via `TransactionsListOpts.Filters.MetadataKey` + `MetadataValue`, rendered on the wire as `metadata.<key>=<value>`. This is the supported way to correlate a ledger transaction back to a caller's business id (e.g. a `transferId` stamped into transaction metadata at create time) — useful for lost-response recovery where the Midaz transaction id was never received. Only one metadata predicate is honored per request (not AND-combinable). Metadata keys are not indexed by default; for a hot correlation key, create the index via `MetadataIndexes.Create(ctx, "transaction", input)` to avoid a backend collection scan at scale.
 
 ### Count method behavior
 
-The supported count methods are `GetOrganizationsMetricsCount`, `GetLedgersMetricsCount`, `GetAssetsMetricsCount`, `GetPortfoliosMetricsCount`, `GetSegmentsMetricsCount`, `GetAccountsMetricsCount`, and `GetTransactionsMetricsCount`.
+The supported count is exposed as the `Count(...)` method on the `Organizations`, `Ledgers`, `Assets`, `Portfolios`, `Segments`, `Accounts`, and `Transactions` accessors.
 
 These methods call Midaz `metrics/count` endpoints with `HEAD` and read the integer count from the `X-Total-Count` response header. If the header is missing, blank, non-integer, negative, or overflowing, the SDK returns an internal count-request error.
 
-### MetadataIndexesService
+### MetadataIndexes
 
-- `ListMetadataIndexes(ctx, entityName)`
-- `CreateMetadataIndex(ctx, entityName, input)`
-- `DeleteMetadataIndex(ctx, entityName, metadataKey)`
+- `List(ctx, entityName)`
+- `Create(ctx, entityName, input)`
+- `Delete(ctx, entityName, metadataKey)`
 
-`ListMetadataIndexes` returns a non-paginated `[]models.MetadataIndex` slice. There are no `ListMetadataIndexesAll` or `ListMetadataIndexesPages` helpers because the service does not use the SDK `ListResponse` pagination envelope.
+`List` returns a non-paginated `[]models.MetadataIndex` slice. There are no `All` or `Pages` helpers because the service does not use the SDK `ListResponse` pagination envelope.
 
 ### CRM services
 
 CRM services use the CRM base URL and set the organization through the `X-Organization-Id` header. Tenant scope is derived from Access Manager/JWT claims; the SDK does not expose or send `X-Tenant-ID`.
 
-#### HoldersService
+#### Holders
 
-- `ListHolders(ctx, organizationID, opts)`
-- `ListHoldersAll(ctx, organizationID, opts)`
-- `ListHoldersPages(ctx, organizationID, opts)`
-- `CreateHolder(ctx, organizationID, input)`
-- `GetHolder(ctx, organizationID, holderID)` - Use `sdkctx.WithIncludeDeleted(ctx, true)` to include soft-deleted holders.
-- `UpdateHolder(ctx, organizationID, holderID, input)`
-- `DeleteHolder(ctx, organizationID, holderID)` - Use `sdkctx.WithHardDelete(ctx, true)` for irreversible hard delete.
+- `List(ctx, organizationID, opts)`
+- `All(ctx, organizationID, opts)`
+- `Pages(ctx, organizationID, opts)`
+- `Create(ctx, organizationID, input)`
+- `Get(ctx, organizationID, holderID)` - Use `sdkctx.WithIncludeDeleted(ctx, true)` to include soft-deleted holders.
+- `Update(ctx, organizationID, holderID, input)`
+- `Delete(ctx, organizationID, holderID)` - Use `sdkctx.WithHardDelete(ctx, true)` for irreversible hard delete.
 
 #### AliasesService
 

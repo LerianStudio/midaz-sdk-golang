@@ -91,7 +91,7 @@ func TransferFunds(
 	input := newTransferFundsInput(sourceAccountAlias, destAccountAlias, assetCode, amountValue, description)
 
 	// Create the transaction
-	tx, err := entity.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
+	tx, err := entity.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
 	if err != nil {
 		return nil, fmt.Errorf("failed to transfer funds: %w", err)
 	}
@@ -104,7 +104,7 @@ func resolveSourceAccountAlias(ctx context.Context, entity *entities.Entity, org
 		return sourceAccountID, nil
 	}
 
-	sourceAccount, err := entity.Accounts.GetAccount(ctx, orgID, ledgerID, sourceAccountID)
+	sourceAccount, err := entity.Accounts.Get(ctx, orgID, ledgerID, sourceAccountID)
 	if err != nil {
 		return "", fmt.Errorf("failed to get source account: %w", err)
 	}
@@ -121,7 +121,7 @@ func resolveDestinationAccountAlias(ctx context.Context, entity *entities.Entity
 		return destAccountID, nil
 	}
 
-	destAccount, err := entity.Accounts.GetAccount(ctx, orgID, ledgerID, destAccountID)
+	destAccount, err := entity.Accounts.Get(ctx, orgID, ledgerID, destAccountID)
 	if err != nil {
 		return "", fmt.Errorf("failed to get destination account: %w", err)
 	}

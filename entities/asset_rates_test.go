@@ -106,7 +106,9 @@ func Test_newAssetRatesEntity_DebugMode(t *testing.T) {
 			nil)
 		ent.GetEntityHTTPClient().SetDebug(true)
 		ent.InitServices()
-		ar := ent.AssetRates.(*assetRatesEntity)
+		// AssetRates swapped to a plane facade (Epic 5.3); assert the SetDebug
+		// propagation invariant on a still-legacy service (Balances).
+		ar := ent.Balances.(*balancesEntity)
 		assert.True(t, ar.httpClient.debug.Load(),
 			"SetDebug(true) on parent must propagate to per-service HTTP clients after InitServices")
 	})

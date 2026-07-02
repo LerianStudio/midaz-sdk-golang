@@ -167,13 +167,13 @@ func BatchTransactions(
 	recordBatchStartedEvent(ctx, orgID, ledgerID, len(inputs))
 
 	processor := &batchProcessor{
-		ctx:      ctx,
-		client:   midazClient,
-		orgID:    orgID,
-		ledgerID: ledgerID,
-		inputs:   inputs,
-		options:  options,
-		results:  results,
+		ctx:          ctx,
+		transactions: midazClient.Transactions,
+		orgID:        orgID,
+		ledgerID:     ledgerID,
+		inputs:       inputs,
+		options:      options,
+		results:      results,
 	}
 
 	results, err := processor.execute()
@@ -261,14 +261,21 @@ func normalizeOptions(options *BatchOptions) *BatchOptions {
 }
 
 // batchProcessor handles the batch transaction processing logic.
+// transactionCreator is the narrow slice of the transactions accessor the
+// batch processor needs (Epic 5.3 consumer-side interface; client.Transactions
+// is now a concrete facade). Tests inject a mock satisfying just this.
+type transactionCreator interface {
+	CreateJSON(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionInput) (*models.Transaction, error)
+}
+
 type batchProcessor struct {
-	ctx      context.Context
-	client   *midaz.Client
-	orgID    string
-	ledgerID string
-	inputs   []*models.CreateTransactionInput
-	options  *BatchOptions
-	results  []BatchResult
+	ctx          context.Context
+	transactions transactionCreator
+	orgID        string
+	ledgerID     string
+	inputs       []*models.CreateTransactionInput
+	options      *BatchOptions
+	results      []BatchResult
 
 	progressMu sync.Mutex
 	completed  int
@@ -467,7 +474,7 @@ func (bp *batchProcessor) executeWithRetries(input *models.CreateTransactionInpu
 			// treats the unsafe request as non-retryable.
 			ctx = sdkctx.WithoutAutoIdempotency(ctx)
 		}
-		tx, err = bp.client.Transactions.CreateTransaction(ctx, bp.orgID, bp.ledgerID, input)
+		tx, err = bp.transactions.CreateJSON(ctx, bp.orgID, bp.ledgerID, input)
 
 		if err == nil || !isRetryableError(err) {
 			break

@@ -16,23 +16,45 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/retry"
 )
 
+// assetsAPI / assetRatesAPI are the narrow slices of the two facades this
+// generator needs (Epic 5.3 consumer-side interfaces).
+type assetsAPI interface {
+	Create(ctx context.Context, orgID, ledgerID string, input *models.CreateAssetInput) (*models.Asset, error)
+}
+
+type assetRatesAPI interface {
+	CreateOrUpdateAssetRate(ctx context.Context, orgID, ledgerID string, input *models.CreateAssetRateInput) (*models.AssetRate, error)
+}
+
 type assetGenerator struct {
-	e   *entities.Entity
-	obs observability.Provider
+	assets     assetsAPI
+	assetRates assetRatesAPI
+	obs        observability.Provider
 }
 
 const generatedAssetRateMaxScale = 18
 
 // NewAssetGenerator creates a new AssetGenerator backed by entities API.
 func NewAssetGenerator(e *entities.Entity, obs observability.Provider) AssetGenerator {
-	return &assetGenerator{e: e, obs: obs}
+	g := &assetGenerator{obs: obs}
+	if e != nil {
+		if e.Assets != nil {
+			g.assets = e.Assets
+		}
+
+		if e.AssetRates != nil {
+			g.assetRates = e.AssetRates
+		}
+	}
+
+	return g
 }
 
 // Generate creates an asset from the provided template.
 func (g *assetGenerator) Generate(ctx context.Context, ledgerID string, template data.AssetTemplate) (*models.Asset, error) {
 	ctx = normalizeContext(ctx)
 
-	if g.e == nil || g.e.Assets == nil {
+	if g.assets == nil {
 		return nil, errors.New("entity assets service not initialized")
 	}
 	// We require organizationID to create assets; since Assets API needs organizationID and ledgerID,
@@ -54,7 +76,7 @@ func (g *assetGenerator) Generate(ctx context.Context, ledgerID string, template
 	err := observability.WithSpan(ctx, g.obs, "GenerateAsset", func(ctx context.Context) error {
 		return executeWithCircuitBreaker(ctx, func() error {
 			return retry.DoWithContext(ctx, func() error {
-				asset, err := g.e.Assets.CreateAsset(ctx, organizationID, ledgerID, input)
+				asset, err := g.assets.Create(ctx, organizationID, ledgerID, input)
 				if err != nil {
 					return err
 				}
@@ -178,7 +200,7 @@ func (g *assetGenerator) updateRatesFrom(ctx context.Context, ledgerID, fromAsse
 func (g *assetGenerator) updateRatesDecimalFrom(ctx context.Context, ledgerID, fromAsset string, rates map[string]decimal.Decimal) error {
 	ctx = normalizeContext(ctx)
 
-	if g.e == nil || g.e.AssetRates == nil {
+	if g.assetRates == nil {
 		return errors.New("entity asset rates service not initialized")
 	}
 
@@ -204,7 +226,7 @@ func (g *assetGenerator) updateRatesDecimalFrom(ctx context.Context, ledgerID, f
 		input := models.NewCreateAssetRateInput(fromAsset, toAsset, scaledRate).
 			WithScale(scale).
 			WithSource("mass-demo-generator")
-		if _, err := g.e.AssetRates.CreateOrUpdateAssetRate(ctx, organizationID, ledgerID, input); err != nil {
+		if _, err := g.assetRates.CreateOrUpdateAssetRate(ctx, organizationID, ledgerID, input); err != nil {
 			errs = append(errs, err)
 		}
 	}

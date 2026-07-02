@@ -74,7 +74,7 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	_, err = c.Organizations.ListOrganizations(ctx, models.OrganizationsListOpts{})
+	_, err = c.Organizations.List(ctx, models.OrganizationsListOpts{})
 	if err != nil {
 		// Application-side error logging — same logger, same structure.
 		c.Logger().Warn("ListOrganizations failed",

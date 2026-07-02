@@ -13,7 +13,7 @@
 //	if err != nil { return err }
 //	defer c.Shutdown(ctx)
 //
-//	org, err := c.Organizations.GetOrganization(ctx, "org-id")
+//	org, err := c.Organizations.Get(ctx, "org-id")
 //
 // # Authentication
 //

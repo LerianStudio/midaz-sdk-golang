@@ -1,6 +1,7 @@
 package entities
 
 import (
+	"context"
 	"net/http"
 	"testing"
 
@@ -29,13 +30,37 @@ func newTestEntity(t *testing.T, client *http.Client, authToken string, baseURLs
 	normalizedBaseURLs, err := normalizeBaseURLs(baseURLs, false)
 	require.NoError(t, err)
 
+	tracerURL := normalizedBaseURLs["tracer"]
+	if tracerURL == "" {
+		tracerURL = normalizedBaseURLs["onboarding"]
+	}
+
+	authCfg := authRoundTripperConfig{}
+	if authToken != "" {
+		authCfg.tokenProvider = func(context.Context) (string, error) { return authToken, nil }
+	}
+
+	// Epic 5.3: the ledger accessors are now plane facades, so a test entity
+	// needs plane clients pointed at the same server. Retries stay off for
+	// deterministic single-attempt behavior.
+	planes, err := newPlaneClients(planeClientsConfig{
+		ledgerURL:    normalizedBaseURLs["onboarding"],
+		tracerURL:    tracerURL,
+		auth:         authCfg,
+		httpClient:   client,
+		retryOptions: planeTestRetryOptions(),
+	})
+	require.NoError(t, err)
+
 	entity := &Entity{
 		httpClient:    NewHTTPClient(client, authToken, provider),
 		baseURLs:      normalizedBaseURLs,
+		planes:        planes,
 		observability: provider,
 	}
 
 	entity.initServices()
+
 	return entity
 }
 

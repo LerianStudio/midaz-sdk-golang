@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
 	conc "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/concurrent"
 	"github.com/stretchr/testify/require"
@@ -25,11 +24,11 @@ func TestGeneratorContractContextHelpersNilSafe(t *testing.T) {
 func nilContext() context.Context { return nil }
 
 func TestGeneratorContractRouteGeneratorsRejectNilInputs(t *testing.T) {
-	opGen := &operationRouteGenerator{e: &entities.Entity{OperationRoutes: &mockOperationRoutesService{}}}
+	opGen := &operationRouteGenerator{operationRoutes: &mockOperationRoutesService{}}
 	_, err := opGen.Generate(context.Background(), "org", "ledger", nil)
 	require.Error(t, err)
 
-	txGen := &transactionRouteGenerator{e: &entities.Entity{TransactionRoutes: &mockTransactionRoutesService{}}}
+	txGen := &transactionRouteGenerator{transactionRoutes: &mockTransactionRoutesService{}}
 	_, err = txGen.GenerateDefaults(context.Background(), "org", "ledger", nil)
 	require.NoError(t, err)
 

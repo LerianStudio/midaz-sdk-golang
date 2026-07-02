@@ -71,7 +71,7 @@ func timeoutExample(c *midaz.Client) {
 	// Attempt to call an API with the timeout context
 	fmt.Println("Starting operation with a 100ms timeout...")
 
-	_, err := c.Organizations.GetOrganization(ctx, "org-id")
+	_, err := c.Organizations.Get(ctx, "org-id")
 
 	// Handle the timeout error
 	handleContextError(err)
@@ -96,7 +96,7 @@ func cancellationExample(c *midaz.Client) {
 	// Attempt to call an API with the context that will be cancelled
 	fmt.Println("Starting operation that will be cancelled...")
 
-	_, err := c.Organizations.GetOrganization(ctx, "org-id")
+	_, err := c.Organizations.Get(ctx, "org-id")
 
 	// Handle the cancellation error
 	handleContextError(err)
@@ -131,12 +131,12 @@ func operationGroupExample(c *midaz.Client) {
 	// Example operations (would typically be API calls)
 	fmt.Println("First operation using the timeout client")
 
-	_, err1 := timeoutClient.Organizations.GetOrganization(ctx, "org-id")
+	_, err1 := timeoutClient.Organizations.Get(ctx, "org-id")
 	handleContextError(err1)
 
 	fmt.Println("Second operation using the timeout client")
 
-	_, err2 := timeoutClient.Ledgers.GetLedger(ctx, "org-id", "ledger-id")
+	_, err2 := timeoutClient.Ledgers.Get(ctx, "org-id", "ledger-id")
 	handleContextError(err2)
 
 	// You can also override the client context for specific operations
@@ -146,7 +146,7 @@ func operationGroupExample(c *midaz.Client) {
 
 	defer customCancel()
 
-	_, err3 := timeoutClient.Organizations.GetOrganization(customCtx, "org-id")
+	_, err3 := timeoutClient.Organizations.Get(customCtx, "org-id")
 	handleContextError(err3)
 }
 
@@ -180,7 +180,7 @@ func resourceCleanupExample(c *midaz.Client) {
 	// Attempt to perform an operation
 	fmt.Println("Performing operation...")
 
-	_, err := c.Organizations.GetOrganization(ctx, "org-id")
+	_, err := c.Organizations.Get(ctx, "org-id")
 	handleContextError(err)
 
 	// Wait a bit to see the cleanup happen
@@ -207,7 +207,7 @@ func realWorldCancellationExample(c *midaz.Client) {
 
 	// Operation 1: Create an account (will likely timeout)
 	go func() {
-		account, err := c.Accounts.CreateAccount(
+		account, err := c.Accounts.Create(
 			ctx,
 			"org-id",
 			"ledger-id",
@@ -227,7 +227,7 @@ func realWorldCancellationExample(c *midaz.Client) {
 	go func() {
 		time.Sleep(100 * time.Millisecond) // Simulate some processing
 
-		account, err := c.Accounts.GetAccount(
+		account, err := c.Accounts.Get(
 			ctx,
 			"org-id",
 			"ledger-id",

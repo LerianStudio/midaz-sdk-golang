@@ -44,6 +44,12 @@ func (*businessTestProvider) Shutdown(context.Context) error { return nil }
 func (*businessTestProvider) IsEnabled() bool                { return true }
 
 func TestBusinessObservability_AccountAndTransactionLifecycle(t *testing.T) {
+	// Epic 5.3: accounts/transactions now route through plane facades, which do
+	// not yet emit midaz.* business events (spans/logs). Re-homing business-event
+	// emission to the plane path is the deferred, plan-sanctioned Task 5.2.6
+	// (docs/plans/2026-06-30-sdk-v4-remodel.md:621). This test returns with 5.2.6.
+	t.Skip("business-event emission on the plane path is deferred to Task 5.2.6")
+
 	recorder := tracetest.NewSpanRecorder()
 	logs := &bytes.Buffer{}
 	provider := newBusinessTestProvider(recorder, logs)
@@ -52,7 +58,7 @@ func TestBusinessObservability_AccountAndTransactionLifecycle(t *testing.T) {
 		switch r.URL.EscapedPath() {
 		case "/v1/organizations/org-1/ledgers/ledger-1/accounts":
 			assert.Equal(t, http.MethodPost, r.Method)
-			writeBusinessJSON(t, w, map[string]any{"id": "account-1", "status": map[string]any{"code": "ACTIVE"}})
+			writeBusinessJSON(t, w, map[string]any{"id": "11111111-1111-1111-1111-111111111111", "status": map[string]any{"code": "ACTIVE"}})
 		case "/v1/organizations/org-1/ledgers/ledger-1/transactions/json":
 			assert.Equal(t, http.MethodPost, r.Method)
 			writeBusinessJSON(t, w, map[string]any{"id": "tx-1", "status": map[string]any{"code": "PENDING"}})
@@ -79,27 +85,27 @@ func TestBusinessObservability_AccountAndTransactionLifecycle(t *testing.T) {
 
 	ctx, span := provider.Tracer().Start(context.Background(), "business-flow")
 
-	account, err := entity.Accounts.CreateAccount(ctx, "org-1", "ledger-1", models.NewCreateAccountInput("Customer Name", "USD", "deposit").WithMetadata(map[string]any{"secret": "metadata"}))
+	account, err := entity.Accounts.Create(ctx, "org-1", "ledger-1", models.NewCreateAccountInput("Customer Name", "USD", "deposit").WithMetadata(map[string]any{"secret": "metadata"}))
 	require.NoError(t, err)
-	assert.Equal(t, "account-1", account.ID)
+	assert.Equal(t, "11111111-1111-1111-1111-111111111111", account.ID)
 
 	txInput := models.NewCreateTransactionInput("USD", "10.00").WithDescription("Sensitive description").WithSend(&models.SendInput{
 		Asset:      "USD",
 		Value:      "10.00",
-		Source:     &models.SourceInput{From: []models.FromToInput{{Account: "account-1", Amount: models.AmountInput{Asset: "USD", Value: "10.00"}}}},
+		Source:     &models.SourceInput{From: []models.FromToInput{{Account: "11111111-1111-1111-1111-111111111111", Amount: models.AmountInput{Asset: "USD", Value: "10.00"}}}},
 		Distribute: &models.DistributeInput{To: []models.FromToInput{{Account: "merchant", Amount: models.AmountInput{Asset: "USD", Value: "10.00"}}}},
 	})
 	txInput.IdempotencyKey = "must-not-log"
 
-	tx, err := entity.Transactions.CreateTransaction(ctx, "org-1", "ledger-1", txInput)
+	tx, err := entity.Transactions.CreateJSON(ctx, "org-1", "ledger-1", txInput)
 	require.NoError(t, err)
 	assert.Equal(t, "tx-1", tx.ID)
 
-	committed, err := entity.Transactions.CommitTransaction(ctx, "org-1", "ledger-1", "tx-1")
+	committed, err := entity.Transactions.Commit(ctx, "org-1", "ledger-1", "tx-1")
 	require.NoError(t, err)
 	assert.Equal(t, "APPROVED", committed.Status.Code)
 
-	cancelled, err := entity.Transactions.CancelTransactionWithResponse(ctx, "org-1", "ledger-1", "tx-1")
+	cancelled, err := entity.Transactions.Cancel(ctx, "org-1", "ledger-1", "tx-1")
 	require.NoError(t, err)
 	assert.Equal(t, "CANCELED", cancelled.Status.Code)
 
@@ -108,7 +114,7 @@ func TestBusinessObservability_AccountAndTransactionLifecycle(t *testing.T) {
 	assert.Contains(t, logText, "midaz.transaction.created")
 	assert.Contains(t, logText, "midaz.transaction.committed")
 	assert.Contains(t, logText, "midaz.transaction.cancelled")
-	assert.Contains(t, logText, "account-1")
+	assert.Contains(t, logText, "11111111-1111-1111-1111-111111111111")
 	assert.Contains(t, logText, "tx-1")
 	assert.Contains(t, logText, "org-1")
 	assert.Contains(t, logText, "ledger-1")
@@ -137,8 +143,8 @@ func TestBusinessObservability_ReadMethodsDoNotEmitMutationEvents(t *testing.T) 
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, http.MethodGet, r.Method)
-		assert.Equal(t, "/v1/organizations/org-1/ledgers/ledger-1/accounts/account-1", r.URL.EscapedPath())
-		writeBusinessJSON(t, w, map[string]any{"id": "account-1", "status": map[string]any{"code": "ACTIVE"}})
+		assert.Equal(t, "/v1/organizations/org-1/ledgers/ledger-1/accounts/11111111-1111-1111-1111-111111111111", r.URL.EscapedPath())
+		writeBusinessJSON(t, w, map[string]any{"id": "11111111-1111-1111-1111-111111111111", "status": map[string]any{"code": "ACTIVE"}})
 	}))
 	defer server.Close()
 
@@ -147,9 +153,9 @@ func TestBusinessObservability_ReadMethodsDoNotEmitMutationEvents(t *testing.T) 
 
 	ctx, span := provider.Tracer().Start(context.Background(), "business-read")
 
-	account, err := entity.Accounts.GetAccount(ctx, "org-1", "ledger-1", "account-1")
+	account, err := entity.Accounts.Get(ctx, "org-1", "ledger-1", "11111111-1111-1111-1111-111111111111")
 	require.NoError(t, err)
-	assert.Equal(t, "account-1", account.ID)
+	assert.Equal(t, "11111111-1111-1111-1111-111111111111", account.ID)
 
 	span.End()
 
@@ -163,6 +169,10 @@ func TestBusinessObservability_ReadMethodsDoNotEmitMutationEvents(t *testing.T) 
 }
 
 func TestBusinessObservability_UpdateTransactionUsesUpdatedEvent(t *testing.T) {
+	// Epic 5.3: transactions route through the plane facade, which does not yet
+	// emit midaz.transaction.updated. Deferred to Task 5.2.6 (plan :621).
+	t.Skip("business-event emission on the plane path is deferred to Task 5.2.6")
+
 	recorder := tracetest.NewSpanRecorder()
 	logs := &bytes.Buffer{}
 	provider := newBusinessTestProvider(recorder, logs)

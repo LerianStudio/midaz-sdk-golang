@@ -3,7 +3,6 @@ package generator
 import (
 	"context"
 	"errors"
-	"iter"
 	"strconv"
 	"sync/atomic"
 	"testing"
@@ -15,68 +14,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// mockAccountsService satisfies the generator's narrow accountsAPI (Create only).
 type mockAccountsService struct {
 	createFunc func(ctx context.Context, orgID, ledgerID string, input *models.CreateAccountInput) (*models.Account, error)
 }
 
-func (m *mockAccountsService) CreateAccount(ctx context.Context, orgID, ledgerID string, input *models.CreateAccountInput) (*models.Account, error) {
+func (m *mockAccountsService) Create(ctx context.Context, orgID, ledgerID string, input *models.CreateAccountInput) (*models.Account, error) {
 	if m.createFunc != nil {
 		return m.createFunc(ctx, orgID, ledgerID, input)
 	}
 
 	return &models.Account{ID: "acc-123", Name: input.Name}, nil
-}
-
-func (*mockAccountsService) GetAccount(_ context.Context, _, _, _ string) (*models.Account, error) {
-	return nil, errors.New("mock: GetAccount not implemented")
-}
-
-func (*mockAccountsService) ListAccounts(_ context.Context, _, _ string, _ models.AccountsListOpts) (*models.ListResponse[models.Account], error) {
-	return nil, errors.New("mock: ListAccounts not implemented")
-}
-
-func (*mockAccountsService) ListAccountsAll(_ context.Context, _, _ string, _ models.AccountsListOpts) iter.Seq2[models.Account, error] {
-	return func(_ func(models.Account, error) bool) {}
-}
-
-func (*mockAccountsService) ListAccountsPages(_ context.Context, _, _ string, _ models.AccountsListOpts) iter.Seq2[*models.ListResponse[models.Account], error] {
-	return func(_ func(*models.ListResponse[models.Account], error) bool) {}
-}
-
-func (*mockAccountsService) UpdateAccount(_ context.Context, _, _, _ string, _ *models.UpdateAccountInput) (*models.Account, error) {
-	return nil, errors.New("mock: UpdateAccount not implemented")
-}
-
-func (*mockAccountsService) DeleteAccount(_ context.Context, _, _, _ string) error {
-	return nil
-}
-
-func (*mockAccountsService) GetAccountBalance(_ context.Context, _, _, _ string) (*models.Balance, error) {
-	return nil, errors.New("mock: GetAccountBalance not implemented")
-}
-
-func (*mockAccountsService) GetAccountByAlias(_ context.Context, _, _, _ string) (*models.Account, error) {
-	return nil, errors.New("mock: GetAccountByAlias not implemented")
-}
-
-func (*mockAccountsService) GetAccountByAliasPath(_ context.Context, _, _, _ string) (*models.Account, error) {
-	return nil, errors.New("mock: GetAccountByAliasPath not implemented")
-}
-
-func (*mockAccountsService) GetAccountsMetricsCount(_ context.Context, _, _ string) (*models.MetricsCount, error) {
-	return nil, errors.New("mock: GetAccountsMetricsCount not implemented")
-}
-
-func (*mockAccountsService) GetExternalAccount(_ context.Context, _, _, _ string) (*models.Account, error) {
-	return nil, errors.New("mock: GetExternalAccount not implemented")
-}
-
-func (*mockAccountsService) GetExternalAccountBalance(_ context.Context, _, _, _ string) (*models.Balance, error) {
-	return nil, errors.New("mock: GetExternalAccountBalance not implemented")
-}
-
-func (*mockAccountsService) GetBalance(_ context.Context, _, _, _ string) (*models.Balance, error) {
-	return nil, errors.New("mock: GetBalance not implemented")
 }
 
 func TestNewAccountGenerator(t *testing.T) {
@@ -119,10 +67,7 @@ func TestAccountGenerator_Generate_NilAccountsService(t *testing.T) {
 
 func TestAccountGenerator_Generate_EmptyOrgID(t *testing.T) {
 	mockSvc := &mockAccountsService{}
-	e := &entities.Entity{
-		Accounts: mockSvc,
-	}
-	gen := NewAccountGenerator(e, nil)
+	gen := &accountGenerator{accounts: mockSvc}
 	template := data.AccountTemplate{
 		Name: "Test Account",
 		Type: "deposit",
@@ -135,10 +80,7 @@ func TestAccountGenerator_Generate_EmptyOrgID(t *testing.T) {
 
 func TestAccountGenerator_Generate_EmptyLedgerID(t *testing.T) {
 	mockSvc := &mockAccountsService{}
-	e := &entities.Entity{
-		Accounts: mockSvc,
-	}
-	gen := NewAccountGenerator(e, nil)
+	gen := &accountGenerator{accounts: mockSvc}
 	template := data.AccountTemplate{
 		Name: "Test Account",
 		Type: "deposit",
@@ -151,10 +93,7 @@ func TestAccountGenerator_Generate_EmptyLedgerID(t *testing.T) {
 
 func TestAccountGenerator_Generate_EmptyAssetCode(t *testing.T) {
 	mockSvc := &mockAccountsService{}
-	e := &entities.Entity{
-		Accounts: mockSvc,
-	}
-	gen := NewAccountGenerator(e, nil)
+	gen := &accountGenerator{accounts: mockSvc}
 	template := data.AccountTemplate{
 		Name: "Test Account",
 		Type: "deposit",
@@ -175,11 +114,7 @@ func TestAccountGenerator_Generate_Success(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		Accounts: mockSvc,
-	}
-
-	gen := NewAccountGenerator(e, nil)
+	gen := &accountGenerator{accounts: mockSvc}
 	template := data.AccountTemplate{
 		Name:   "Checking Account",
 		Type:   "deposit",
@@ -202,11 +137,7 @@ func TestAccountGenerator_Generate_Error(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		Accounts: mockSvc,
-	}
-
-	gen := NewAccountGenerator(e, nil)
+	gen := &accountGenerator{accounts: mockSvc}
 	template := data.AccountTemplate{
 		Name: "Test Account",
 		Type: "deposit",
@@ -228,11 +159,7 @@ func TestAccountGenerator_Generate_WithAlias(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		Accounts: mockSvc,
-	}
-
-	gen := NewAccountGenerator(e, nil)
+	gen := &accountGenerator{accounts: mockSvc}
 	alias := "my-checking"
 	template := data.AccountTemplate{
 		Name:  "Checking Account",
@@ -255,11 +182,7 @@ func TestAccountGenerator_Generate_WithParentAccount(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		Accounts: mockSvc,
-	}
-
-	gen := NewAccountGenerator(e, nil)
+	gen := &accountGenerator{accounts: mockSvc}
 	parentID := "parent-acc-id"
 	template := data.AccountTemplate{
 		Name:            "Child Account",
@@ -282,11 +205,7 @@ func TestAccountGenerator_Generate_WithPortfolioAndSegment(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		Accounts: mockSvc,
-	}
-
-	gen := NewAccountGenerator(e, nil)
+	gen := &accountGenerator{accounts: mockSvc}
 	portfolioID := "portfolio-123"
 	segmentID := "segment-456"
 	entityID := "entity-789"
@@ -338,11 +257,7 @@ func TestAccountGenerator_GenerateBatch_Success(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		Accounts: mockSvc,
-	}
-
-	gen := NewAccountGenerator(e, nil)
+	gen := &accountGenerator{accounts: mockSvc}
 	ctx := WithWorkers(context.Background(), 2)
 
 	templates := []data.AccountTemplate{
@@ -373,11 +288,7 @@ func TestAccountGenerator_GenerateBatch_PartialError(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		Accounts: mockSvc,
-	}
-
-	gen := NewAccountGenerator(e, nil)
+	gen := &accountGenerator{accounts: mockSvc}
 	ctx := WithWorkers(context.Background(), 1)
 
 	templates := []data.AccountTemplate{
@@ -479,11 +390,7 @@ func TestAccountGenerator_Generate_WithAccountTypeKey(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		Accounts: mockSvc,
-	}
-
-	gen := NewAccountGenerator(e, nil)
+	gen := &accountGenerator{accounts: mockSvc}
 	accountTypeKey := AccountTypeKeyChecking
 	template := data.AccountTemplate{
 		Name:           "Checking Account",
@@ -508,11 +415,7 @@ func TestAccountGenerator_Generate_WithInvalidAccountTypeKey(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		Accounts: mockSvc,
-	}
-
-	gen := NewAccountGenerator(e, nil)
+	gen := &accountGenerator{accounts: mockSvc}
 	invalidKey := "INVALID_KEY"
 	template := data.AccountTemplate{
 		Name:           "Checking Account",
@@ -536,11 +439,7 @@ func TestAccountGenerator_Generate_InferredAccountTypeKey(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		Accounts: mockSvc,
-	}
-
-	gen := NewAccountGenerator(e, nil)
+	gen := &accountGenerator{accounts: mockSvc}
 	template := data.AccountTemplate{
 		Name: "Savings Account",
 		Type: "savings",
@@ -613,11 +512,7 @@ func TestAccountGenerator_Generate_EmptyAlias(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		Accounts: mockSvc,
-	}
-
-	gen := NewAccountGenerator(e, nil)
+	gen := &accountGenerator{accounts: mockSvc}
 	emptyAlias := ""
 	template := data.AccountTemplate{
 		Name:  "Test Account",
@@ -640,11 +535,7 @@ func TestAccountGenerator_Generate_EmptyParentAccountID(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		Accounts: mockSvc,
-	}
-
-	gen := NewAccountGenerator(e, nil)
+	gen := &accountGenerator{accounts: mockSvc}
 	emptyParentID := ""
 	template := data.AccountTemplate{
 		Name:            "Test Account",
@@ -667,11 +558,7 @@ func TestAccountGenerator_Generate_NilMetadata(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		Accounts: mockSvc,
-	}
-
-	gen := NewAccountGenerator(e, nil)
+	gen := &accountGenerator{accounts: mockSvc}
 	template := data.AccountTemplate{
 		Name:     "Test Account",
 		Type:     "deposit",

@@ -16,10 +16,18 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/stats"
 )
 
+// transactionsAPI is the narrow slice of the transactions facade the generator
+// and lifecycle need (Epic 5.3 consumer-side interface, money-path).
+type transactionsAPI interface {
+	CreateJSON(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionInput) (*models.Transaction, error)
+	Commit(ctx context.Context, orgID, ledgerID, transactionID string) (*models.Transaction, error)
+	Revert(ctx context.Context, orgID, ledgerID, transactionID string) (*models.Transaction, error)
+}
+
 type transactionGenerator struct {
-	e   *entities.Entity
-	obs observability.Provider
-	mc  *observability.MetricsCollector
+	transactions transactionsAPI
+	obs          observability.Provider
+	mc           *observability.MetricsCollector
 }
 
 // NewTransactionGenerator creates a TransactionGenerator with observability and retry integration.
@@ -32,18 +40,30 @@ func NewTransactionGenerator(e *entities.Entity, obs observability.Provider) Tra
 		}
 	}
 
-	return &transactionGenerator{e: e, obs: obs, mc: mc}
+	g := &transactionGenerator{obs: obs, mc: mc}
+	if e != nil && e.Transactions != nil {
+		g.transactions = e.Transactions
+	}
+
+	return g
 }
 
 // GenerateWithDSL creates a transaction using the DSL pattern.
 func (g *transactionGenerator) GenerateWithDSL(ctx context.Context, organizationID, ledgerID string, pattern data.TransactionPattern) (*models.Transaction, error) {
 	ctx = normalizeContext(ctx)
 
-	if g.e == nil || g.e.Transactions == nil {
+	if g.transactions == nil {
 		return nil, errors.New("entity transactions service not initialized")
 	}
 
 	if err := data.ValidateTransactionPattern(pattern); err != nil {
+		return nil, err
+	}
+
+	// The wire /dsl endpoint is gone; convert the DSL template to a structured
+	// CreateTransactionInput and post it via /json (Epic 5.3 D1).
+	input, err := dslTemplateToInput(pattern.DSLTemplate)
+	if err != nil {
 		return nil, err
 	}
 
@@ -54,11 +74,10 @@ func (g *transactionGenerator) GenerateWithDSL(ctx context.Context, organization
 		ctx = sdkctx.WithIdempotencyKey(ctx, pattern.IdempotencyKey)
 	}
 
-	err := observability.WithSpan(ctx, g.obs, "GenerateTransactionDSL", func(ctx context.Context) error {
+	err = observability.WithSpan(ctx, g.obs, "GenerateTransactionDSL", func(ctx context.Context) error {
 		return executeWithCircuitBreaker(ctx, func() error {
 			return retry.DoWithContext(ctx, func() error {
-				// Use DSL file endpoint for free-form DSL
-				tx, err := g.e.Transactions.CreateTransactionWithDSLFile(ctx, organizationID, ledgerID, []byte(pattern.DSLTemplate))
+				tx, err := g.transactions.CreateJSON(ctx, organizationID, ledgerID, input)
 				if err != nil {
 					return err
 				}

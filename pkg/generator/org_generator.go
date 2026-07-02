@@ -18,10 +18,16 @@ import (
 	fake "github.com/brianvoe/gofakeit/v7"
 )
 
+// organizationsAPI is the narrow slice of the organizations facade this
+// generator needs (Epic 5.3 consumer-side interface).
+type organizationsAPI interface {
+	Create(ctx context.Context, input *models.CreateOrganizationInput) (*models.Organization, error)
+}
+
 type orgGenerator struct {
-	e   *entities.Entity
-	obs observability.Provider
-	mc  *observability.MetricsCollector
+	orgs organizationsAPI
+	obs  observability.Provider
+	mc   *observability.MetricsCollector
 }
 
 // NewOrganizationGenerator creates a new OrganizationGenerator backed by entities API.
@@ -34,14 +40,19 @@ func NewOrganizationGenerator(e *entities.Entity, obs observability.Provider) Or
 		}
 	}
 
-	return &orgGenerator{e: e, obs: obs, mc: mc}
+	g := &orgGenerator{obs: obs, mc: mc}
+	if e != nil && e.Organizations != nil {
+		g.orgs = e.Organizations
+	}
+
+	return g
 }
 
 // Generate creates a single organization from the provided template.
 func (g *orgGenerator) Generate(ctx context.Context, template data.OrgTemplate) (*models.Organization, error) {
 	ctx = normalizeContext(ctx)
 
-	if g.e == nil || g.e.Organizations == nil {
+	if g.orgs == nil {
 		return nil, errors.New("entity organizations service not initialized")
 	}
 
@@ -58,7 +69,7 @@ func (g *orgGenerator) Generate(ctx context.Context, template data.OrgTemplate) 
 		// Respect retry + circuit breaker options from context if present
 		return executeWithCircuitBreaker(ctx, func() error {
 			return retry.DoWithContext(ctx, func() error {
-				org, err := g.e.Organizations.CreateOrganization(ctx, input)
+				org, err := g.orgs.Create(ctx, input)
 				if err != nil {
 					return err
 				}

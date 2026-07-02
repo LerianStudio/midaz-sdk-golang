@@ -172,7 +172,7 @@ import "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/sdkctx"
 ctx := sdkctx.WithIdempotencyKey(context.Background(), "user-action-42-2026-05-06")
 
 // This single call uses the explicit key instead of an auto-generated UUID.
-_, err := client.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
+_, err := client.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
 ```
 
 The full list:
@@ -322,11 +322,11 @@ auto-generated key for a specific call:
 // Use an explicit key (e.g. derived from a user-action ID):
 ctx := sdkctx.WithIdempotencyKey(context.Background(),
     fmt.Sprintf("user-%d-action-%s", userID, actionUUID))
-_, err := client.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
+_, err := client.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
 
 // Skip auto-generation entirely (caller does NOT want the header):
 ctx := sdkctx.WithoutAutoIdempotency(context.Background())
-_, err = client.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
+_, err = client.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
 ```
 
 ### 4.2 Retry suppression
@@ -336,7 +336,7 @@ budget and you need to avoid retry amplification:
 
 ```go
 ctx := sdkctx.WithoutHTTPRetries(context.Background())
-_, err := client.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
+_, err := client.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
 ```
 
 ### 4.3 Soft-delete vs hard-delete
@@ -344,11 +344,11 @@ _, err := client.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
 ```go
 // Include soft-deleted records in a list response:
 ctx := sdkctx.WithIncludeDeleted(context.Background(), true)
-list, _ := client.Accounts.ListAccounts(ctx, orgID, ledgerID, opts)
+list, _ := client.Accounts.List(ctx, orgID, ledgerID, opts)
 
 // Hard-delete instead of soft-delete (irreversible; admin only):
 ctx := sdkctx.WithHardDelete(context.Background(), true)
-err := client.Accounts.DeleteAccount(ctx, orgID, ledgerID, accountID)
+err := client.Accounts.Delete(ctx, orgID, ledgerID, accountID)
 ```
 
 ---

@@ -70,7 +70,7 @@ func main() {
 func demoOnePage(ctx context.Context, c *midaz.Client, orgID, ledgerID string) {
 	fmt.Println("--- ListAccounts (one page) ---")
 
-	page, err := c.Accounts.ListAccounts(ctx, orgID, ledgerID, models.AccountsListOpts{
+	page, err := c.Accounts.List(ctx, orgID, ledgerID, models.AccountsListOpts{
 		PageListOpts: models.PageListOpts{
 			Limit: 5,
 			Page:  1,
@@ -95,7 +95,7 @@ func demoEveryItem(ctx context.Context, c *midaz.Client, orgID, ledgerID string)
 	fmt.Println("--- ListAccountsAll (every item) ---")
 
 	count := 0
-	for acc, err := range c.Accounts.ListAccountsAll(ctx, orgID, ledgerID, models.AccountsListOpts{
+	for acc, err := range c.Accounts.All(ctx, orgID, ledgerID, models.AccountsListOpts{
 		PageListOpts: models.PageListOpts{Limit: 50},
 	}) {
 		if err != nil {
@@ -123,7 +123,7 @@ func demoEveryPage(ctx context.Context, c *midaz.Client, orgID, ledgerID string)
 	fmt.Println("--- ListAccountsPages (every page envelope) ---")
 
 	pageNum := 0
-	for batch, err := range c.Accounts.ListAccountsPages(ctx, orgID, ledgerID, models.AccountsListOpts{
+	for batch, err := range c.Accounts.Pages(ctx, orgID, ledgerID, models.AccountsListOpts{
 		PageListOpts: models.PageListOpts{Limit: 5},
 	}) {
 		if err != nil {
@@ -144,7 +144,7 @@ func demoEveryPage(ctx context.Context, c *midaz.Client, orgID, ledgerID string)
 // under. Real code reads these from configuration; this example just
 // grabs the first available pair to keep the demo self-contained.
 func resolveOrgAndLedger(ctx context.Context, c *midaz.Client) (orgID, ledgerID string, err error) {
-	orgs, err := c.Organizations.ListOrganizations(ctx, models.OrganizationsListOpts{
+	orgs, err := c.Organizations.List(ctx, models.OrganizationsListOpts{
 		PageListOpts: models.PageListOpts{Limit: 1},
 	})
 	if err != nil {
@@ -155,7 +155,7 @@ func resolveOrgAndLedger(ctx context.Context, c *midaz.Client) (orgID, ledgerID 
 	}
 	orgID = orgs.Items[0].ID
 
-	ledgers, err := c.Ledgers.ListLedgers(ctx, orgID, models.LedgersListOpts{
+	ledgers, err := c.Ledgers.List(ctx, orgID, models.LedgersListOpts{
 		PageListOpts: models.PageListOpts{Limit: 1},
 	})
 	if err != nil {

@@ -14,13 +14,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestSharedHTTPClient_AllServicesShareOneInstance verifies the central
-// invariant of the v3 Entity wiring: every service entity created by
-// initServices points at the SAME *HTTPClient as the parent Entity. Without
-// this, mid-lifetime Set* calls on the parent would not propagate, refresh
-// stampede-protection would degrade, and the documented configuration
-// contract in docs/configuration.md (client.GetEntityHTTPClient().Set*)
-// would be a lie.
+// Epic 5.3 note: the 13 ledger accessors now route to plane facades on their
+// own plane client, so they deliberately do NOT share the legacy *HTTPClient
+// and do NOT observe SetUserAgent/SetDebug (plan
+// docs/plans/2026-06-30-sdk-v4-remodel.md:571/:621 classify these as
+// droppable-with-note DX; re-homing to the plane path is the optional Task
+// 5.2.6). The shared-*HTTPClient invariant (H4/H5/H6) now applies only to the
+// still-legacy services: Balances, Operations, Aliases. These tests are
+// narrowed to that trio.
+
+// TestSharedHTTPClient_AllServicesShareOneInstance verifies the still-legacy
+// services created by initServices point at the SAME *HTTPClient as the parent
+// Entity, so mid-lifetime Set* calls propagate and refresh dedup holds.
 func TestSharedHTTPClient_AllServicesShareOneInstance(t *testing.T) {
 	entity := newTestEntity(t, &http.Client{Timeout: time.Second}, "token", map[string]string{
 		"onboarding":  "http://localhost",
@@ -31,32 +36,23 @@ func TestSharedHTTPClient_AllServicesShareOneInstance(t *testing.T) {
 	parentHTTPClient := entity.GetEntityHTTPClient()
 	require.NotNil(t, parentHTTPClient, "parent HTTPClient must not be nil")
 
-	services := []any{
-		entity.Accounts, entity.AccountTypes, entity.Aliases, entity.AssetRates,
-		entity.Assets, entity.Balances, entity.Holders, entity.Ledgers,
-		entity.MetadataIndexes, entity.Operations, entity.OperationRoutes,
-		entity.Organizations, entity.Portfolios, entity.Segments,
-		entity.Transactions, entity.TransactionRoutes,
-	}
-
-	require.Len(t, services, 16, "must verify all 16 service entities")
+	// Only the legacy trio still shares the parent *HTTPClient (the 13 ledger
+	// accessors are plane facades — Epic 5.3).
+	services := []any{entity.Balances, entity.Operations, entity.Aliases}
+	require.Len(t, services, 3, "the still-legacy service trio")
 
 	for i, svc := range services {
 		reader, ok := svc.(interface{ entityHTTPClient() *HTTPClient })
-		require.True(t, ok, "service[%d] (%T) must expose entityHTTPClient()", i, svc)
+		require.True(t, ok, "legacy service[%d] (%T) must expose entityHTTPClient()", i, svc)
 
-		serviceHTTPClient := reader.entityHTTPClient()
-		require.Same(t, parentHTTPClient, serviceHTTPClient,
-			"service[%d] (%T) must share the parent Entity's *HTTPClient pointer; otherwise H4/H5/H6 regress",
-			i, svc)
+		require.Same(t, parentHTTPClient, reader.entityHTTPClient(),
+			"legacy service[%d] (%T) must share the parent Entity's *HTTPClient pointer", i, svc)
 	}
 }
 
-// TestSharedHTTPClient_SetUserAgentMidLifetimePropagates verifies that
-// calling SetUserAgent on the *HTTPClient returned by GetEntityHTTPClient
-// actually changes the User-Agent header sent on subsequent requests from
-// every service. This is the documented contract in docs/configuration.md
-// section 1.4.
+// TestSharedHTTPClient_SetUserAgentMidLifetimePropagates verifies SetUserAgent
+// on GetEntityHTTPClient changes the User-Agent on subsequent requests from the
+// legacy services. (Plane-facade UA is deferred to Task 5.2.6.)
 func TestSharedHTTPClient_SetUserAgentMidLifetimePropagates(t *testing.T) {
 	var seenUserAgent atomic.Value
 
@@ -73,27 +69,23 @@ func TestSharedHTTPClient_SetUserAgentMidLifetimePropagates(t *testing.T) {
 		"crm":         srv.URL,
 	}, nil)
 
-	// Mid-lifetime: flip the user-agent AFTER initServices already ran. If
-	// services held independent HTTPClients this would silently no-op.
+	// Mid-lifetime: flip the user-agent AFTER initServices already ran.
 	entity.GetEntityHTTPClient().SetUserAgent("rotated-ua/1.0")
 
-	// Issue requests from two different services to prove BOTH see the new UA.
-	_, err := entity.Organizations.ListOrganizations(context.Background(), models.OrganizationsListOpts{})
+	// Two different legacy services must BOTH observe the new UA.
+	_, err := entity.Aliases.ListAliases(context.Background(), "org-1", models.AliasesListOpts{})
 	require.NoError(t, err)
 	assert.Equal(t, "rotated-ua/1.0", seenUserAgent.Load(),
-		"Organizations must observe the post-construction SetUserAgent")
+		"Aliases must observe the post-construction SetUserAgent")
 
-	_, err = entity.Accounts.ListAccounts(context.Background(), "org-1", "ledger-1", models.AccountsListOpts{})
+	_, err = entity.Operations.ListOperations(context.Background(), "org-1", "ledger-1", "acct-1", models.OperationsListOpts{})
 	require.NoError(t, err)
 	assert.Equal(t, "rotated-ua/1.0", seenUserAgent.Load(),
-		"Accounts must observe the post-construction SetUserAgent (set on the same shared *HTTPClient)")
+		"Operations must observe the post-construction SetUserAgent (same shared *HTTPClient)")
 }
 
 // TestSharedHTTPClient_SetDebugMidLifetimePropagates verifies SetDebug
-// propagates to all services. The check is indirect — debug mode flips the
-// internal `debug` field that several code paths read via cloneConfiguration.
-// We assert the pointer-shared semantics directly by reading the same field
-// through one of the service entities.
+// propagates to the legacy services via the shared *HTTPClient.
 func TestSharedHTTPClient_SetDebugMidLifetimePropagates(t *testing.T) {
 	entity := newTestEntity(t, &http.Client{Timeout: time.Second}, "token", map[string]string{
 		"onboarding":  "http://localhost",
@@ -102,29 +94,27 @@ func TestSharedHTTPClient_SetDebugMidLifetimePropagates(t *testing.T) {
 	}, nil)
 
 	parent := entity.GetEntityHTTPClient()
+	legacy := []any{entity.Balances, entity.Operations, entity.Aliases}
 
-	// Initial state: every service reads debug=false.
 	require.False(t, parent.cloneConfiguration().debug)
-	for _, svc := range []any{entity.Accounts, entity.Transactions, entity.Ledgers} {
+	for _, svc := range legacy {
 		require.False(t, svc.(interface{ entityHTTPClient() *HTTPClient }).
 			entityHTTPClient().cloneConfiguration().debug)
 	}
 
-	// Flip on the parent.
 	parent.SetDebug(true)
 
-	// Every service reads debug=true because they share the *HTTPClient.
 	require.True(t, parent.cloneConfiguration().debug)
-	for _, svc := range []any{entity.Accounts, entity.Transactions, entity.Ledgers, entity.Holders} {
+	for _, svc := range legacy {
 		require.True(t, svc.(interface{ entityHTTPClient() *HTTPClient }).
 			entityHTTPClient().cloneConfiguration().debug,
-			"service must observe the SetDebug(true) made on the parent")
+			"legacy service must observe the SetDebug(true) made on the parent")
 	}
 }
 
-// TestSharedHTTPClient_TokenRefreshVisibleAcrossServices verifies the H4 fix:
-// when one service triggers a 401-driven refresh, every other service sees
-// the new token immediately on its next request.
+// TestSharedHTTPClient_TokenRefreshVisibleAcrossServices verifies the H4 fix on
+// the legacy path: when one legacy service triggers a 401-driven refresh, the
+// next legacy service sees the new token immediately.
 func TestSharedHTTPClient_TokenRefreshVisibleAcrossServices(t *testing.T) {
 	var (
 		tokenProviderCalls atomic.Int32
@@ -143,12 +133,10 @@ func TestSharedHTTPClient_TokenRefreshVisibleAcrossServices(t *testing.T) {
 	)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		auth := r.Header.Get("Authorization")
-		op := r.URL.Path
 		seenAuthMu.Lock()
-		seenAuthByOp[op] = append(seenAuthByOp[op], auth)
+		seenAuthByOp[r.URL.Path] = append(seenAuthByOp[r.URL.Path], auth)
 		seenAuthMu.Unlock()
 
-		// Reject the FIRST request (with stale token) only. Accept everything else.
 		if auth == "Bearer stale" {
 			w.WriteHeader(http.StatusUnauthorized)
 			_, _ = w.Write([]byte(`{"error":"unauthorized"}`))
@@ -168,51 +156,38 @@ func TestSharedHTTPClient_TokenRefreshVisibleAcrossServices(t *testing.T) {
 
 	entity.GetEntityHTTPClient().setAuthTokenProvider(tokenProvider, nil)
 
-	// Service A hits 401, refreshes, retries with new token.
-	_, err := entity.Organizations.ListOrganizations(context.Background(), models.OrganizationsListOpts{})
+	// Legacy service A hits 401, refreshes, retries with the new token.
+	_, err := entity.Aliases.ListAliases(context.Background(), "org-1", models.AliasesListOpts{})
 	require.NoError(t, err)
 
-	// Service B's next request: should see token-1 IMMEDIATELY without
-	// triggering another refresh (because the refresh wrote to the shared
-	// HTTPClient's authToken field, not a per-service copy).
-	_, err = entity.Accounts.ListAccounts(context.Background(), "org-1", "ledger-1", models.AccountsListOpts{})
+	// Legacy service B reuses the refreshed token without another refresh.
+	_, err = entity.Operations.ListOperations(context.Background(), "org-1", "ledger-1", "acct-1", models.OperationsListOpts{})
 	require.NoError(t, err)
 
 	assert.Equal(t, int32(1), tokenProviderCalls.Load(),
-		"tokenProvider must fire exactly once — service B should reuse the refreshed token, not refresh again")
+		"tokenProvider must fire exactly once — service B reuses the refreshed token")
 
-	// Verify the accounts call carried the refreshed token straight away
-	// (no 401 dance for the second service).
 	seenAuthMu.Lock()
 	defer seenAuthMu.Unlock()
-	require.NotEmpty(t, seenAuthByOp)
 
-	var accountsAuth string
-	for path, auths := range seenAuthByOp {
-		if path == "" {
-			continue
-		}
-		// Find the path that corresponds to accounts (anything containing "/accounts").
+	var sawRefreshed bool
+	for _, auths := range seenAuthByOp {
 		for _, a := range auths {
 			if a == "Bearer "+formatToken(1) {
-				accountsAuth = a
+				sawRefreshed = true
 			}
 		}
 	}
-	require.Equal(t, "Bearer "+formatToken(1), accountsAuth,
-		"second service's request must carry the refreshed bearer token without an extra 401 round trip")
+	require.True(t, sawRefreshed,
+		"a second service's request must carry the refreshed bearer token without an extra 401 round trip")
 }
 
-// TestSharedHTTPClient_ConcurrentRefreshDeduplicates verifies the H5 fix:
-// concurrent 401s across multiple services collapse onto ONE underlying
-// tokenProvider call via singleflight. With per-service singleflight groups,
-// a 16-service stampede would have produced 16 calls.
+// TestSharedHTTPClient_ConcurrentRefreshDeduplicates verifies the H5 fix on the
+// legacy path: concurrent 401s collapse onto ONE tokenProvider call via the
+// shared singleflight.
 func TestSharedHTTPClient_ConcurrentRefreshDeduplicates(t *testing.T) {
 	var (
-		tokenProviderCalls atomic.Int32
-		// Block tokenProvider for 50ms so concurrent requests pile up
-		// behind the singleflight, which is exactly the case the lock
-		// protects against.
+		tokenProviderCalls   atomic.Int32
 		tokenProviderEntered = make(chan struct{}, 4)
 	)
 
@@ -242,30 +217,24 @@ func TestSharedHTTPClient_ConcurrentRefreshDeduplicates(t *testing.T) {
 
 	entity.GetEntityHTTPClient().setAuthTokenProvider(tokenProvider, nil)
 
-	// Fire 4 concurrent requests across different services. Without the
-	// shared singleflight group, each service would fire its own provider
-	// call (4 total). With the shared group, they all collapse onto 1.
+	// Fire concurrent requests across the legacy trio; the shared singleflight
+	// must collapse their 401s onto ONE provider call.
 	var wg sync.WaitGroup
-	errs := make(chan error, 4)
-	wg.Add(4)
+	errs := make(chan error, 3)
+	wg.Add(3)
 	go func() {
 		defer wg.Done()
-		_, err := entity.Organizations.ListOrganizations(context.Background(), models.OrganizationsListOpts{})
+		_, err := entity.Aliases.ListAliases(context.Background(), "org-1", models.AliasesListOpts{})
 		errs <- err
 	}()
 	go func() {
 		defer wg.Done()
-		_, err := entity.Accounts.ListAccounts(context.Background(), "org-1", "ledger-1", models.AccountsListOpts{})
+		_, err := entity.Operations.ListOperations(context.Background(), "org-1", "ledger-1", "acct-1", models.OperationsListOpts{})
 		errs <- err
 	}()
 	go func() {
 		defer wg.Done()
-		_, err := entity.Ledgers.ListLedgers(context.Background(), "org-1", models.LedgersListOpts{})
-		errs <- err
-	}()
-	go func() {
-		defer wg.Done()
-		_, err := entity.Assets.ListAssets(context.Background(), "org-1", "ledger-1", models.AssetsListOpts{})
+		_, err := entity.Balances.ListBalances(context.Background(), "org-1", "ledger-1", models.BalancesListOpts{})
 		errs <- err
 	}()
 
@@ -276,8 +245,7 @@ func TestSharedHTTPClient_ConcurrentRefreshDeduplicates(t *testing.T) {
 	}
 
 	assert.Equal(t, int32(1), tokenProviderCalls.Load(),
-		"singleflight must collapse 4 concurrent 401s onto ONE provider call; got %d (regression of H5)",
-		tokenProviderCalls.Load())
+		"singleflight must collapse concurrent 401s onto ONE provider call (regression of H5)")
 }
 
 func formatToken(seq int32) string {

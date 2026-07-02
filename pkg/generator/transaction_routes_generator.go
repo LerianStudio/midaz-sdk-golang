@@ -10,21 +10,31 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/retry"
 )
 
+// transactionRoutesAPI is the narrow slice of the transaction-routes facade this generator needs.
+type transactionRoutesAPI interface {
+	Create(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionRouteInput) (*models.TransactionRoute, error)
+}
+
 type transactionRouteGenerator struct {
-	e   *entities.Entity
-	obs observability.Provider
+	transactionRoutes transactionRoutesAPI
+	obs               observability.Provider
 }
 
 // NewTransactionRouteGenerator creates a new generator for transaction routes.
 func NewTransactionRouteGenerator(e *entities.Entity, obs observability.Provider) TransactionRouteGenerator {
-	return &transactionRouteGenerator{e: e, obs: obs}
+	g := &transactionRouteGenerator{obs: obs}
+	if e != nil && e.TransactionRoutes != nil {
+		g.transactionRoutes = e.TransactionRoutes
+	}
+
+	return g
 }
 
 // Generate creates a single transaction route from the provided input.
 func (g *transactionRouteGenerator) Generate(ctx context.Context, organizationID, ledgerID string, input *models.CreateTransactionRouteInput) (*models.TransactionRoute, error) {
 	ctx = normalizeContext(ctx)
 
-	if g.e == nil || g.e.TransactionRoutes == nil {
+	if g.transactionRoutes == nil {
 		return nil, errors.New("entity transaction routes service not initialized")
 	}
 
@@ -42,7 +52,7 @@ func (g *transactionRouteGenerator) Generate(ctx context.Context, organizationID
 	err := observability.WithSpan(ctx, g.obs, "GenerateTransactionRoute", func(ctx context.Context) error {
 		return executeWithCircuitBreaker(ctx, func() error {
 			return retry.DoWithContext(ctx, func() error {
-				tr, err := g.e.TransactionRoutes.CreateTransactionRoute(ctx, organizationID, ledgerID, input)
+				tr, err := g.transactionRoutes.Create(ctx, organizationID, ledgerID, input)
 				if err != nil {
 					return err
 				}
