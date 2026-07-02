@@ -9,6 +9,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strconv"
 	"sync/atomic"
 	"testing"
 
@@ -438,5 +440,227 @@ func TestTransactionsFacade_LifecycleError(t *testing.T) {
 
 	if _, err := newTestTransactionsFacade(t, srv).Commit(context.Background(), txOrgID, txLedgerID, txID); err == nil {
 		t.Fatal("expected error on 409 commit")
+	}
+}
+
+// TestTransactionsFacade_Get decodes a single transaction from raw bytes into
+// the public model (never the generated UUID-eager type) and returns it.
+func TestTransactionsFacade_Get(t *testing.T) {
+	var gotMethod, gotPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod, gotPath = r.Method, r.URL.Path
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(txResponseBody()))
+	}))
+	defer srv.Close()
+
+	tx, err := newTestTransactionsFacade(t, srv).Get(context.Background(), txOrgID, txLedgerID, txID)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if gotMethod != http.MethodGet || gotPath != txBase()+"/"+txID {
+		t.Fatalf("req = %s %s, want GET %s", gotMethod, gotPath, txBase()+"/"+txID)
+	}
+	if tx.ID != txID {
+		t.Fatalf("tx.ID = %q, want %q", tx.ID, txID)
+	}
+	if !tx.FeesSkipped || !tx.TracerSkipped {
+		t.Fatalf("skip flags not decoded on Get: FeesSkipped=%v TracerSkipped=%v", tx.FeesSkipped, tx.TracerSkipped)
+	}
+}
+
+// TestTransactionsFacade_GetError maps a non-2xx into the unified error.
+func TestTransactionsFacade_GetError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/problem+json")
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"code":"LEDGER-0007","title":"Transaction not found","status":404}`))
+	}))
+	defer srv.Close()
+
+	if _, err := newTestTransactionsFacade(t, srv).Get(context.Background(), txOrgID, txLedgerID, txID); err == nil {
+		t.Fatal("expected error on 404 get")
+	}
+}
+
+// txPageWithCursor is a one-item cursor page carrying next_cursor (more to
+// come). Real UUID for the item id: this decodes into models.Transaction.
+func txPageWithCursor(id, next string) string {
+	return `{"items":[{"id":"` + id + `","status":{"code":"APPROVED"}}],"next_cursor":"` + next + `"}`
+}
+
+// txTerminalFullPage is the 2.1 footgun fixture: a FULL terminal page (ItemCount
+// == limit) that ALSO carries a page field but NO next_cursor. HasMore()'s
+// branch 3 (page>0 && limit>0 && ItemCount>=limit) returns true here, so a
+// cursor loop keyed on !HasMore() would refetch forever. A cursor-pure stop
+// (next_cursor=="") terminates correctly.
+func txTerminalFullPage(id string, limit int) string {
+	return `{"items":[{"id":"` + id + `","status":{"code":"APPROVED"}}],"page":2,"limit":` +
+		strconv.Itoa(limit) + `,"next_cursor":""}`
+}
+
+// TestTransactionsFacade_ListCursorChainsAndTerminates proves the cursor
+// iterator chains >=2 pages AND terminates on a full terminal page whose only
+// terminal signal is next_cursor=="" — the exact shape that loops forever under
+// a page-based !HasMore() stop.
+func TestTransactionsFacade_ListCursorChainsAndTerminates(t *testing.T) {
+	const (
+		id1 = "55555555-5555-5555-5555-555555555555"
+		id2 = "66666666-6666-6666-6666-666666666666"
+	)
+	var cursors []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cursors = append(cursors, r.URL.Query().Get("cursor"))
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Query().Get("cursor") == "" {
+			_, _ = w.Write([]byte(txPageWithCursor(id1, "CURSOR2")))
+			return
+		}
+		// Terminal page is FULL and carries a page field: only next_cursor=""
+		// can safely stop the loop.
+		_, _ = w.Write([]byte(txTerminalFullPage(id2, 1)))
+	}))
+	defer srv.Close()
+
+	f := newTestTransactionsFacade(t, srv)
+	opts := models.TransactionsListOpts{CursorListOpts: models.CursorListOpts{Limit: 1}}
+
+	var got []string
+	pages := 0
+	for tx, err := range f.All(context.Background(), txOrgID, txLedgerID, opts) {
+		if err != nil {
+			t.Fatalf("All: %v", err)
+		}
+		got = append(got, tx.ID)
+		if pages++; pages > 10 {
+			t.Fatal("cursor iterator did not terminate (infinite loop) — page-based HasMore footgun")
+		}
+	}
+
+	if len(got) != 2 || got[0] != id1 || got[1] != id2 {
+		t.Fatalf("collected ids = %v, want [%s %s]", got, id1, id2)
+	}
+	// Two requests: first with empty cursor, second echoing the server cursor.
+	if len(cursors) != 2 || cursors[0] != "" || cursors[1] != "CURSOR2" {
+		t.Fatalf("cursors seen = %v, want [\"\" \"CURSOR2\"]", cursors)
+	}
+}
+
+// TestTransactionsFacade_ListFilters proves every TransactionsFilters field
+// reaches the wire query with the legacy wire name — none dropped silently —
+// alongside the native cursor/limit/sort/date params.
+func TestTransactionsFacade_ListFilters(t *testing.T) {
+	var q url.Values
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q = r.URL.Query()
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"items":[],"next_cursor":""}`))
+	}))
+	defer srv.Close()
+
+	opts := models.TransactionsListOpts{
+		CursorListOpts: models.CursorListOpts{
+			Limit:         25,
+			Cursor:        "CUR",
+			SortDirection: "desc",
+			StartDate:     "2026-01-01",
+			EndDate:       "2026-02-01",
+		},
+		Filters: models.TransactionsFilters{
+			AssetCode:          "USD",
+			Status:             "APPROVED",
+			Reference:          "inv-99",
+			SourceAccount:      "@src",
+			DestinationAccount: "@dst",
+			Route:              "cashin",
+			MetadataKey:        "transferId",
+			MetadataValue:      "abc-123",
+		},
+	}
+
+	if _, err := newTestTransactionsFacade(t, srv).List(context.Background(), txOrgID, txLedgerID, opts); err != nil {
+		t.Fatalf("List: %v", err)
+	}
+
+	want := map[string]string{
+		"limit":               "25",
+		"cursor":              "CUR",
+		"sort_order":          "desc",
+		"start_date":          "2026-01-01",
+		"end_date":            "2026-02-01",
+		"asset_code":          "USD",
+		"status":              "APPROVED",
+		"reference":           "inv-99",
+		"source_account":      "@src",
+		"destination_account": "@dst",
+		"route":               "cashin",
+		"metadata.transferId": "abc-123",
+	}
+	for k, v := range want {
+		if got := q.Get(k); got != v {
+			t.Fatalf("query[%q] = %q, want %q (full query: %v)", k, got, v, q)
+		}
+	}
+}
+
+// TestTransactionsFacade_Count parses X-Total-Count from the HEAD response and
+// sends only the filters the count endpoint honors (status/route/dates).
+func TestTransactionsFacade_Count(t *testing.T) {
+	var gotMethod string
+	var q url.Values
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		q = r.URL.Query()
+		w.Header().Set(HeaderTotalCount, "42")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	opts := models.TransactionsListOpts{
+		CursorListOpts: models.CursorListOpts{StartDate: "2026-01-01", EndDate: "2026-02-01"},
+		Filters:        models.TransactionsFilters{Status: "APPROVED", Route: "cashin"},
+	}
+
+	n, err := newTestTransactionsFacade(t, srv).Count(context.Background(), txOrgID, txLedgerID, opts)
+	if err != nil {
+		t.Fatalf("Count: %v", err)
+	}
+	if gotMethod != http.MethodHead {
+		t.Fatalf("method = %s, want HEAD", gotMethod)
+	}
+	if n != 42 {
+		t.Fatalf("count = %d, want 42", n)
+	}
+	for k, v := range map[string]string{"status": "APPROVED", "route": "cashin", "start_date": "2026-01-01", "end_date": "2026-02-01"} {
+		if got := q.Get(k); got != v {
+			t.Fatalf("count query[%q] = %q, want %q", k, got, v)
+		}
+	}
+}
+
+// TestTransactionsFacade_CountMissingHeader surfaces a missing/blank
+// X-Total-Count as an error rather than silently returning 0.
+func TestTransactionsFacade_CountMissingHeader(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK) // no X-Total-Count header
+	}))
+	defer srv.Close()
+
+	if _, err := newTestTransactionsFacade(t, srv).Count(context.Background(), txOrgID, txLedgerID, models.TransactionsListOpts{}); err == nil {
+		t.Fatal("expected error on missing X-Total-Count header")
+	}
+}
+
+// TestTransactionsFacade_CountError maps a non-2xx into the unified error.
+func TestTransactionsFacade_CountError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/problem+json")
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`{"code":"LEDGER-0403","title":"Forbidden","status":403}`))
+	}))
+	defer srv.Close()
+
+	if _, err := newTestTransactionsFacade(t, srv).Count(context.Background(), txOrgID, txLedgerID, models.TransactionsListOpts{}); err == nil {
+		t.Fatal("expected error on 403 count")
 	}
 }

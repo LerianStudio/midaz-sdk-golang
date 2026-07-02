@@ -6,8 +6,11 @@ package entities
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
+	"iter"
 	"net/http"
+	"strconv"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v4/internal/genledger"
 	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
@@ -217,6 +220,218 @@ func actionIdempotencyEditors(ctx context.Context) []genledger.RequestEditorFn {
 	}
 
 	return []genledger.RequestEditorFn{setHeader(idempotencyHeader, key)}
+}
+
+// Get retrieves one transaction by ID under an org+ledger. Like the onboarding
+// reads, it decodes the raw response body into models.Transaction (never the
+// generated genledger.Transaction, whose openapi_types.UUID would eager-validate
+// on 200), so the generated type never enters the public path.
+func (f *transactionsFacade) Get(ctx context.Context, orgID, ledgerID, transactionID string) (*models.Transaction, error) {
+	const operation = "Transactions.Get"
+
+	resp, err := f.ledger.GetTransactionWithResponse(ctx, orgID, ledgerID, transactionID)
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	return decodeOne[models.Transaction](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+}
+
+// List retrieves one cursor page of transactions under an org+ledger. The
+// endpoint is CURSOR-paginated: opts carry a Cursor (never a Page). The
+// generated GetAllTransactionsParams only exposes the cursor/limit/sort/date
+// slots — the six transaction filters (asset_code/status/reference/
+// source_account/destination_account/route) and the metadata predicate have no
+// slot, so they ride as query-param request editors rather than being dropped.
+func (f *transactionsFacade) List(ctx context.Context, orgID, ledgerID string, opts models.TransactionsListOpts) (*models.ListResponse[models.Transaction], error) {
+	const operation = "Transactions.List"
+
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+
+	resp, err := f.ledger.GetAllTransactionsWithResponse(ctx, orgID, ledgerID, listTransactionsParams(opts), listTransactionsReqEditors(opts)...)
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	if resp.StatusCode() != 200 {
+		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
+	}
+
+	var page models.ListResponse[models.Transaction]
+	if err := json.Unmarshal(resp.Body, &page); err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	return &page, nil
+}
+
+// Pages yields one cursor page per iteration, advancing by the response
+// next_cursor until it is empty.
+func (f *transactionsFacade) Pages(ctx context.Context, orgID, ledgerID string, opts models.TransactionsListOpts) iter.Seq2[*models.ListResponse[models.Transaction], error] {
+	return func(yield func(*models.ListResponse[models.Transaction], error) bool) {
+		current := opts
+
+		for {
+			if ctx.Err() != nil {
+				yield(nil, ctx.Err())
+				return
+			}
+
+			page, err := f.List(ctx, orgID, ledgerID, current)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			if !yield(page, nil) {
+				return
+			}
+
+			// Cursor-pure stop: this endpoint paginates by next_cursor, so the
+			// only sound terminal signal is an empty cursor. HasMore()'s
+			// page-based heuristic (branch 3) returns true on a full terminal
+			// page that carries a page field but no cursor, which would set
+			// current.Cursor = "" and refetch the first page forever.
+			if page.Pagination.NextCursor == "" {
+				return
+			}
+
+			current.Cursor = page.Pagination.NextCursor
+		}
+	}
+}
+
+// All yields every transaction across cursor pages, transparently advancing
+// pagination via the server-issued next_cursor.
+func (f *transactionsFacade) All(ctx context.Context, orgID, ledgerID string, opts models.TransactionsListOpts) iter.Seq2[models.Transaction, error] {
+	return flattenPages(f.Pages(ctx, orgID, ledgerID, opts))
+}
+
+// Count returns the number of transactions matching the count-endpoint filters
+// (status/route/date-range). The endpoint is HEAD .../transactions/metrics/count
+// and reports the total in the X-Total-Count header; the count params struct
+// mirrors exactly the four filters the endpoint honors, so no editor injection
+// is needed. A missing/blank/non-integer/negative header is an error, never a
+// silent zero.
+func (f *transactionsFacade) Count(ctx context.Context, orgID, ledgerID string, opts models.TransactionsListOpts) (int, error) {
+	const operation = "Transactions.Count"
+
+	if err := opts.Validate(); err != nil {
+		return 0, err
+	}
+
+	resp, err := f.ledger.CountTransactionsByFiltersWithResponse(ctx, orgID, ledgerID, countTransactionsParams(opts))
+	if err != nil {
+		return 0, errors.NewInternalError(operation, err)
+	}
+
+	if !isSuccess(resp.StatusCode()) {
+		return 0, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
+	}
+
+	count, err := parseTotalCountHeader(resp.HTTPResponse.Header)
+	if err != nil {
+		return 0, errors.NewInternalError(operation, err)
+	}
+
+	return count, nil
+}
+
+// listTransactionsParams renders the cursor/limit/sort/date fields into the
+// generated GetAllTransactionsParams. The filters have no slot here and are
+// carried by listTransactionsReqEditors.
+func listTransactionsParams(opts models.TransactionsListOpts) *genledger.GetAllTransactionsParams {
+	params := &genledger.GetAllTransactionsParams{}
+
+	if opts.Limit > 0 {
+		params.Limit = strPtr(strconv.Itoa(opts.Limit))
+	}
+
+	if opts.Cursor != "" {
+		params.Cursor = strPtr(opts.Cursor)
+	}
+
+	if opts.SortDirection != "" {
+		params.SortOrder = strPtr(string(opts.SortDirection))
+	}
+
+	if opts.StartDate != "" {
+		params.StartDate = strPtr(opts.StartDate)
+	}
+
+	if opts.EndDate != "" {
+		params.EndDate = strPtr(opts.EndDate)
+	}
+
+	return params
+}
+
+// listTransactionsReqEditors carries the transaction filters the generated
+// GetAllTransactionsParams cannot express. The ledger OAS omits every
+// TransactionsFilters field from the list params (it exposes only a single
+// opaque metadata JSON slot), so the SDK injects each filter as a query param
+// under its legacy wire name rather than dropping it silently — including the
+// single metadata predicate rendered as metadata.<key>=<value>. Returns nil
+// when no filter is set so the common path adds zero overhead.
+func listTransactionsReqEditors(opts models.TransactionsListOpts) []genledger.RequestEditorFn {
+	var editors []genledger.RequestEditorFn
+
+	if opts.Filters.AssetCode != "" {
+		editors = append(editors, setQueryParam("asset_code", opts.Filters.AssetCode))
+	}
+
+	if opts.Filters.Status != "" {
+		editors = append(editors, setQueryParam("status", opts.Filters.Status))
+	}
+
+	if opts.Filters.Reference != "" {
+		editors = append(editors, setQueryParam("reference", opts.Filters.Reference))
+	}
+
+	if opts.Filters.SourceAccount != "" {
+		editors = append(editors, setQueryParam("source_account", opts.Filters.SourceAccount))
+	}
+
+	if opts.Filters.DestinationAccount != "" {
+		editors = append(editors, setQueryParam("destination_account", opts.Filters.DestinationAccount))
+	}
+
+	if opts.Filters.Route != "" {
+		editors = append(editors, setQueryParam("route", opts.Filters.Route))
+	}
+
+	if opts.Filters.MetadataKey != "" && opts.Filters.MetadataValue != "" {
+		editors = append(editors, setQueryParam("metadata."+opts.Filters.MetadataKey, opts.Filters.MetadataValue))
+	}
+
+	return editors
+}
+
+// countTransactionsParams renders ONLY the four filters the HEAD count endpoint
+// honors (status/route/start_date/end_date) — parity with the legacy
+// transactionMetricsCountQueryParams. Cursor/limit/sort do not apply to a count.
+func countTransactionsParams(opts models.TransactionsListOpts) *genledger.CountTransactionsByFiltersParams {
+	params := &genledger.CountTransactionsByFiltersParams{}
+
+	if opts.Filters.Status != "" {
+		params.Status = strPtr(opts.Filters.Status)
+	}
+
+	if opts.Filters.Route != "" {
+		params.Route = strPtr(opts.Filters.Route)
+	}
+
+	if opts.StartDate != "" {
+		params.StartDate = strPtr(opts.StartDate)
+	}
+
+	if opts.EndDate != "" {
+		params.EndDate = strPtr(opts.EndDate)
+	}
+
+	return params
 }
 
 // applyIdempotency stamps the resolved key/TTL onto a generated create's params
