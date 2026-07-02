@@ -318,7 +318,10 @@ func TestTransactionsFacade_CreateOffStatusSucceeds(t *testing.T) {
 				gotBody, _ = io.ReadAll(r.Body)
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(status)
-				_, _ = w.Write([]byte(txResponseBody()))
+				// Server echoes an amount distinct from the request's send.value so
+				// the response assert below proves the decoded body carried it, not
+				// the request value.
+				_, _ = w.Write([]byte(txValueResponseBody("250")))
 			}))
 			defer srv.Close()
 
@@ -331,6 +334,11 @@ func TestTransactionsFacade_CreateOffStatusSucceeds(t *testing.T) {
 			}
 			if tx.Status.Code != "APPROVED" {
 				t.Fatalf("tx.Status.Code = %q, want APPROVED", tx.Status.Code)
+			}
+			// Response money assert: the amount the server returned must survive
+			// the raw-body decode into models.Transaction.
+			if tx.Amount != "250" {
+				t.Fatalf("tx.Amount = %q, want %q (response amount must survive decode)", tx.Amount, "250")
 			}
 
 			// Money assert: the posted send.value must be the amount we sent.
