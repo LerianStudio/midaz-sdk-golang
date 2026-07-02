@@ -45,113 +45,125 @@ func idempotencyCaptureServer() (*httptest.Server, func() string) {
 	}
 }
 
-// TestLedgerWritesStampIdempotency proves 5.2.4: every wired ledger write op
-// stamps an auto-generated X-Idempotency header (gate on, the default). One row
-// per stamped op — a missing wire on any op fails here.
+// assertGatedStamp fires an auto-gen write twice: gate ON must stamp an
+// X-Idempotency header, gate OFF (no ctx key) must stay header-free. This is
+// the shared check for every parametrized stamp table — it catches both a
+// missing wire and a hardcoded gate (a literal true instead of
+// f.enableIdempotency).
+func assertGatedStamp(t *testing.T, name string, fire func(t *testing.T, srv *httptest.Server, gate bool)) {
+	t.Helper()
+
+	srvOn, keyOn := idempotencyCaptureServer()
+	defer srvOn.Close()
+
+	fire(t, srvOn, true)
+
+	if keyOn() == "" {
+		t.Fatalf("%s gate on: no X-Idempotency (auto-gen expected)", name)
+	}
+
+	srvOff, keyOff := idempotencyCaptureServer()
+	defer srvOff.Close()
+
+	fire(t, srvOff, false)
+
+	if got := keyOff(); got != "" {
+		t.Fatalf("%s gate off: X-Idempotency=%q, want headerless", name, got)
+	}
+}
+
+// TestLedgerWritesStampIdempotency proves 5.2.4 + FW2: every wired ledger write
+// op stamps an auto-generated X-Idempotency header with the gate ON, and emits
+// nothing (no ctx key) with the gate OFF. Facades are built with the gate under
+// test, not the always-on helper.
 func TestLedgerWritesStampIdempotency(t *testing.T) {
 	cases := []struct {
 		name string
-		fire func(t *testing.T, srv *httptest.Server)
+		fire func(t *testing.T, srv *httptest.Server, gate bool)
 	}{
-		{"encryption.Provision", func(t *testing.T, srv *httptest.Server) {
+		{"encryption.Provision", func(t *testing.T, srv *httptest.Server, gate bool) {
 			t.Helper()
-			_, _ = newTestEncryptionFacade(t, srv).Provision(context.Background(), encryptionOrgID,
+			_, _ = newEncryptionFacade(newTestLedgerClient(t, srv), gate).Provision(context.Background(), encryptionOrgID,
 				models.NewProvisionEncryptionInput("svc-account", "p"))
 		}},
-		{"instruments.Create", func(t *testing.T, srv *httptest.Server) {
+		{"instruments.Create", func(t *testing.T, srv *httptest.Server, gate bool) {
 			t.Helper()
-			_, _ = newTestInstrumentsFacade(t, srv).Create(context.Background(), instrumentsFacadeOrgID, instrumentsFacadeHolderID,
+			_, _ = newInstrumentsFacade(newTestLedgerClient(t, srv), gate).Create(context.Background(), instrumentsFacadeOrgID, instrumentsFacadeHolderID,
 				models.NewCreateInstrumentInput("CHECKING").WithDocument("DOC-1"))
 		}},
-		{"instruments.Update", func(t *testing.T, srv *httptest.Server) {
+		{"instruments.Update", func(t *testing.T, srv *httptest.Server, gate bool) {
 			t.Helper()
-			_, _ = newTestInstrumentsFacade(t, srv).Update(context.Background(), instrumentsFacadeOrgID, instrumentsFacadeHolderID, stampID,
+			_, _ = newInstrumentsFacade(newTestLedgerClient(t, srv), gate).Update(context.Background(), instrumentsFacadeOrgID, instrumentsFacadeHolderID, stampID,
 				models.NewUpdateInstrumentInput().WithDocument("DOC-9"))
 		}},
-		{"instruments.Delete", func(t *testing.T, srv *httptest.Server) {
+		{"instruments.Delete", func(t *testing.T, srv *httptest.Server, gate bool) {
 			t.Helper()
-			_ = newTestInstrumentsFacade(t, srv).Delete(context.Background(), instrumentsFacadeOrgID, instrumentsFacadeHolderID, stampID)
+			_ = newInstrumentsFacade(newTestLedgerClient(t, srv), gate).Delete(context.Background(), instrumentsFacadeOrgID, instrumentsFacadeHolderID, stampID)
 		}},
-		{"composition.CreateHolderAccount", func(t *testing.T, srv *httptest.Server) {
+		{"instruments.DeleteRelatedParty", func(t *testing.T, srv *httptest.Server, gate bool) {
 			t.Helper()
-			_, _ = newTestCompositionFacade(t, srv).CreateHolderAccount(context.Background(), compositionFacadeOrgID, compositionFacadeLedgerID, compositionFacadeHolderID,
+			_ = newInstrumentsFacade(newTestLedgerClient(t, srv), gate).DeleteRelatedParty(context.Background(), instrumentsFacadeOrgID, instrumentsFacadeHolderID, stampID, stampID)
+		}},
+		{"composition.CreateHolderAccount", func(t *testing.T, srv *httptest.Server, gate bool) {
+			t.Helper()
+			_, _ = newCompositionFacade(newTestLedgerClient(t, srv), gate).CreateHolderAccount(context.Background(), compositionFacadeOrgID, compositionFacadeLedgerID, compositionFacadeHolderID,
 				&models.CreateHolderAccountInput{Name: "Ops Cash", AssetCode: "USD", Type: "deposit"})
 		}},
-		{"feePackages.Create", func(t *testing.T, srv *httptest.Server) {
+		{"feePackages.Create", func(t *testing.T, srv *httptest.Server, gate bool) {
 			t.Helper()
-			_, _ = newTestFeePackagesFacade(t, srv).Create(context.Background(), feePackagesOrgID,
+			_, _ = newFeePackagesFacade(newTestLedgerClient(t, srv), gate).Create(context.Background(), feePackagesOrgID,
 				models.NewCreatePackageInput("Std", feePackagesLedgerID, "100.00", "1000.00", map[string]models.Fee{"admin": validFee()}).WithEnable(true))
 		}},
-		{"feePackages.Update", func(t *testing.T, srv *httptest.Server) {
+		{"feePackages.Update", func(t *testing.T, srv *httptest.Server, gate bool) {
 			t.Helper()
-			_, _ = newTestFeePackagesFacade(t, srv).Update(context.Background(), feePackagesOrgID, stampID,
+			_, _ = newFeePackagesFacade(newTestLedgerClient(t, srv), gate).Update(context.Background(), feePackagesOrgID, stampID,
 				models.NewUpdatePackageInput().WithMaxAmount("5000.00"))
 		}},
-		{"feePackages.Delete", func(t *testing.T, srv *httptest.Server) {
+		{"feePackages.Delete", func(t *testing.T, srv *httptest.Server, gate bool) {
 			t.Helper()
-			_ = newTestFeePackagesFacade(t, srv).Delete(context.Background(), feePackagesOrgID, stampID)
+			_ = newFeePackagesFacade(newTestLedgerClient(t, srv), gate).Delete(context.Background(), feePackagesOrgID, stampID)
 		}},
-		{"billingPackages.Create", func(t *testing.T, srv *httptest.Server) {
+		{"billingPackages.Create", func(t *testing.T, srv *httptest.Server, gate bool) {
 			t.Helper()
-			_, _ = newTestBillingPackagesFacade(t, srv).Create(context.Background(), billingPkgOrgID,
+			_, _ = newBillingPackagesFacade(newTestLedgerClient(t, srv), gate).Create(context.Background(), billingPkgOrgID,
 				models.NewCreateVolumeBillingPackageInput("Vol", billingPkgLedgerID, "BRL", "@d", "@c").
 					WithEventFilter("route-1", "APPROVED").
 					WithPricingModel("tiered").
 					WithPricingTiers(models.BillingPricingTier{MinQuantity: 0, UnitPrice: "1.50"}).
 					WithEnable(true))
 		}},
-		{"billingPackages.Update", func(t *testing.T, srv *httptest.Server) {
+		{"billingPackages.Update", func(t *testing.T, srv *httptest.Server, gate bool) {
 			t.Helper()
-			_, _ = newTestBillingPackagesFacade(t, srv).Update(context.Background(), billingPkgOrgID, stampID,
+			_, _ = newBillingPackagesFacade(newTestLedgerClient(t, srv), gate).Update(context.Background(), billingPkgOrgID, stampID,
 				models.NewUpdateBillingPackageInput().WithLabel("Renamed"))
 		}},
-		{"billingPackages.Delete", func(t *testing.T, srv *httptest.Server) {
+		{"billingPackages.Delete", func(t *testing.T, srv *httptest.Server, gate bool) {
 			t.Helper()
-			_ = newTestBillingPackagesFacade(t, srv).Delete(context.Background(), billingPkgOrgID, stampID)
+			_ = newBillingPackagesFacade(newTestLedgerClient(t, srv), gate).Delete(context.Background(), billingPkgOrgID, stampID)
 		}},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			srv, key := idempotencyCaptureServer()
-			defer srv.Close()
-
-			tc.fire(t, srv)
-
-			if key() == "" {
-				t.Fatalf("%s: no X-Idempotency stamped (gate on, auto-gen expected)", tc.name)
-			}
+			assertGatedStamp(t, tc.name, tc.fire)
 		})
 	}
 }
 
-// TestLedgerWriteIdempotencyGate proves 5.2.4 gate semantics on a representative
-// ledger write (instruments.Create): gate on → auto-gen; gate off → suppressed;
-// gate off + explicit ctx key → the explicit key still stamps (the gate never
-// touches an explicit/ctx key).
+// TestLedgerWriteIdempotencyGate proves the explicit-key override on a
+// representative ledger write: gate off + sdkctx.WithIdempotencyKey → the key
+// still stamps (the gate never touches an explicit/ctx key). On/off auto-gen is
+// covered by the parametrized table above.
 func TestLedgerWriteIdempotencyGate(t *testing.T) {
 	input := models.NewCreateInstrumentInput("CHECKING").WithDocument("DOC-1")
 
-	create := func(gate bool, ctx context.Context) string {
-		srv, key := idempotencyCaptureServer()
-		defer srv.Close()
-
-		f := newInstrumentsFacade(newTestLedgerClient(t, srv), gate)
-		_, _ = f.Create(ctx, instrumentsFacadeOrgID, instrumentsFacadeHolderID, input)
-
-		return key()
-	}
-
-	if got := create(true, context.Background()); got == "" {
-		t.Fatal("gate on: want auto-generated X-Idempotency")
-	}
-
-	if got := create(false, context.Background()); got != "" {
-		t.Fatalf("gate off: want no auto-gen, got %q", got)
-	}
+	srv, key := idempotencyCaptureServer()
+	defer srv.Close()
 
 	ctx := sdkctx.WithIdempotencyKey(context.Background(), "explicit-key")
-	if got := create(false, ctx); got != "explicit-key" {
+	_, _ = newInstrumentsFacade(newTestLedgerClient(t, srv), false).Create(ctx, instrumentsFacadeOrgID, instrumentsFacadeHolderID, input)
+
+	if got := key(); got != "explicit-key" {
 		t.Fatalf("gate off + ctx key: got %q, want explicit-key", got)
 	}
 }
