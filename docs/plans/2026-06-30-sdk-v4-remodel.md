@@ -23,7 +23,7 @@
 | 2 | Money path completo: onboarding CRUD + ciclo de transação (json/inflow/outflow/annotation + commit/cancel/revert) + balances/operations/routes/asset-rates + counts | 2.1, 2.2, 2.R, 2.3 | **Complete** (2.1, 2.2, 2.R, 2.3 todos Done) |
 | 3 | Domínios novos do ledger: holders/instruments/composition, fees (packages/estimates), billing, encryption/protection | 3.1, 3.2, 3.3 | **Complete** (3.1, 3.2, 3.3 todos Done) |
 | 4 | Plano Tracer completo: rules (CEL), limits, reservations, validations, audit-events | 4.1, 4.2, 4.3 | ✅ **Complete** (4.1, 4.2, 4.3 Done) |
-| 5 | Ergonomia (builders, DSL, `WaitForSettlement`) + cutover do accessor/deleção do legado + docs/exemplos/mapping; `make ci` verde | 5.1, 5.2, 5.3 | Epic-level |
+| 5 | Cutover fatiado (A aditivo → paridade money-path → B swap → C delete) + ergonomia + docs; `make ci` verde | 5.1–5.6 | **5.1 Detailed (onda corrente)**; 5.2–5.6 Epic-level |
 | 6 | *(opcional / decisão de produto)* Consumidor de streaming Kafka/CloudEvents | 6.1 | Epic-level |
 
 ---
@@ -564,34 +564,87 @@ Exploração-fonte (efêmera, no scratchpad da sessão): `01-server-api-surface.
 
 ---
 
-## Phase 5 — Ergonomia, cutover, docs, contract tests
+## Phase 5 — Cutover, paridade money-path, ergonomia, docs
 
-**Milestone:** Helpers ergonômicos completos; **cutover do accessor + deleção do legado** (fim da coexistência, invariante #7); docs/exemplos/mapping atualizados; testes de contrato regenerados; `make ci` verde.
+**Milestone:** Superfície nova plugada em `client.X`; **paridade money-path re-homeada no path plane ANTES do delete** (retry + gate de idempotência — decisão Fred); coexistência encerrada (legado deletado); ergonomia + docs + `make ci` verde.
 
-### Epic 5.1: Cutover do accessor + deleção do legado
+> **RECON 5.1 (2026-07-02, verificado contra `entities/entity.go`/`midaz.go`/`plane_clients.go`) + 3 DECISÕES DO FRED — reestruturou a Phase 5.** As 26 fachadas estão prontas e **100% desconectadas** (0 call-sites de `newXFacade` fora dos testes; nenhum `client.X` alcança fachada). `entity.go` é o choke-point (campos `:108-123` + `initServices` `:244-282`); `Client` embute `*entities.Entity` (accessor promovido `c.Accounts.X`). O recon achou que **deletar o `HTTPClient` legado derruba 5 comportamentos** ausentes no path plane/facade: (1) **retry 5xx/408/425/429** (`auth_roundtripper` só faz auth+replay-401 → `WithRetryOptions`/`WithMaxRetries` virariam no-op); (2) **gate `MIDAZ_IDEMPOTENCY`** (`resolveIdempotency` sempre auto-gera → `WithIdempotency(false)` já é no-op); (3) idempotência ausente em onboarding/routes/asset-rates writes (só transaction tem); (4) config surface `SetDebug`/UserAgent/ExposeErrorBody/SlowCallThreshold/Logger (`midaz.go:448-481`); (5) observability HTTP spans. Também: **rename universal `Verb+Resource`→`Verb`** em 12 domínios (breaking em todo example; `CreateTransaction`→`CreateJSON`, `ListX`→`List`, `*MetricsCount`→`Count`; AssetRates é o único não-breaking). **Gaps sem fachada:** Balances CRUD standalone, `Operations.GetOperation`, Aliases (0 consumers → dropável; `pkg/integrity/checker.go:121` usa `Balances.ListBalancesAll` que `accountsFacade` cobre; `mass-demo-generator/main.go:926` usa `Accounts.GetBalance` DROPADO). **DECISÕES DO FRED (2026-07-02):** (1) **re-homear** retry + gate de idempotência no path plane ANTES de deletar (paridade); (2) idempotência em **TODOS os writes unsafe** (retrofit uniforme); (3) accessors **`client.AuditEvents`** (tracer hash-chain) + **`client.ProtectionAudit`** (ledger), sem renomear os modelos verdes. **Ordem das slices (cada uma build+test verde): A (aditivo) → Paridade → B (swap) → C (delete) → ergonomia → docs.** A Paridade PRECEDE o swap: é quando os money-writes passam a usar o path facade.
 
-**Goal:** As fachadas `entities/*_facade.go` (Phases 2–4) são plugadas em `client.X`; os serviços legados (`entities/*.go` sem `_facade`) e seu `*HTTPClient`/retry são deletados num passo atômico. Fim da coexistência.
-**Scope:** `entities/entity.go`, `entities/plane_clients.go`, remoção do path legado, `midaz.go`.
-**Dependencies:** Phases 2–4 (todas as fachadas existem e passam e2e)
-**Done when:** `client.X` roteia pras fachadas; nenhum serviço legado sobra; `examples/` e consumidores migram numa passada; build/test verdes.
+### Epic 5.1: Slice A — wiring aditivo dos accessors net-new (zero-breakage)
+
+**Goal:** Os accessors net-new (todo o plano tracer + fees/billing/encryption/instruments/composition + os dois audits) ficam plugados em `client.X`, SEM tocar nenhum accessor existente nem consumer. Extrai os 3 helpers presos em arquivos legados pra um arquivo sobrevivente (pré-requisito do delete futuro). Coexistência intacta.
+**Scope:** `entities/entity.go` (campos + assignments novos), novo `entities/transport.go`, `entities/http.go`/`http_retry_response.go` (só remoção dos helpers movidos).
+**Dependencies:** Phases 2–4 (todas as fachadas existem e passam e2e).
+**Done when:** os accessors novos roteiam pras fachadas; NENHUM accessor pré-existente ou consumer muda; legado ainda compila e passa (coexistência); build/vet/`golangci-lint`=0/test verdes.
+**Target:** midaz-sdk-golang
+**Status:** Detailed
+
+#### Task 5.1.1: Extrair os 3 helpers presos dos arquivos legados
+
+- [ ] Done
+
+**Context:** O cutover futuro (5.4) deleta `http.go`+`http_retry_response.go`, mas 3 funções ali são usadas pelo path PLANE (sobrevivente): `defaultHTTPClient` (`http.go:192`, `sync.OnceValue`, usado por `plane_clients.go:135` `transportOf`), `drainAndCloseResponseBody` (`http_retry_response.go:285`, usado por `auth_roundtripper.go:114`), `formatAuthorizationHeader` (`http_retry_response.go:991`, usado por `auth_roundtripper.go:116,142`). Deletar os arquivos sem extrair essas 3 quebraria o plane.
+
+**Implementation vision:** Mover as 3 funções (verbatim, sem mudança de comportamento) pra um novo `entities/transport.go`, removendo-as dos arquivos de origem. Refactor puro: legado E plane continuam compilando e passando. NÃO alterar assinatura, corpo, ou call-sites — só a localização. Isola o pré-requisito do delete num commit reversível.
+
+**Files:** Create `entities/transport.go`; Modify `entities/http.go` (remove `defaultHTTPClient`), `entities/http_retry_response.go` (remove os 2 helpers).
+**Verification:** `go build ./... && go vet ./entities/... && golangci-lint run entities/... && go test ./entities/... -count=1` — tudo verde; `git diff` mostra só relocação (0 mudança de corpo).
+**Done when:** os 3 helpers vivem em `transport.go`; build/test/lint verdes; nenhum call-site alterado.
+
+#### Task 5.1.2: Adicionar os accessors net-new plugados nas fachadas
+
+- [ ] Done
+
+**Context:** `entity.go:108-123` tem 16 accessors legados; 13 fachadas net-new não têm accessor (recon §B.4). `initServices` (`:244-282`) assign os legados via `newSharedServiceEntity(e.httpClient,...)`; as fachadas tomam SÓ o plane client (`newXFacade(e.planes.Ledger/.Tracer)`). O `Entity` já constrói `e.planes` (coexistência). Este é wiring PURAMENTE ADITIVO — nenhum accessor existente muda.
+
+**Implementation vision:** Adicionar campos ao `Entity` struct (tipo concreto `*xFacade`) + assignments em `initServices`, um por fachada net-new. Mapa accessor→fachada→plane: `Rules`→`newRulesFacade(e.planes.Tracer)`, `Limits`→tracer, `Validations`→tracer, `Reservations`→tracer, `AuditEvents`→`newAuditEventsFacade(e.planes.Tracer)` (tracer hash-chain — decisão Fred), `ProtectionAudit`→`newAuditFacade(e.planes.Ledger)` (ledger protection — decisão Fred), `Encryption`→`newEncryptionFacade(e.planes.Ledger)`, `Instruments`→ledger, `Composition`→ledger, `FeePackages`→`newFeePackagesFacade(e.planes.Ledger)`, `FeeEstimates`→`newFeeEstimateFacade(e.planes.Ledger)`, `BillingPackages`→ledger, `BillingCalculations`→`newBillingCalculateFacade(e.planes.Ledger)`. (Um accessor por struct de fachada — se dois métodos-sets couberem melhor num accessor combinado, decidir contra os structs reais na implementação, mas o default é um-por-fachada.) Exportar os accessors em `midaz.go` só se o embed promovido não bastar (embed já promove). NÃO tocar `initServices` dos 16 legados nem `midaz.go:448-481`.
+
+**Files:** Modify `entities/entity.go` (struct + `initServices`); possivelmente `midaz.go` (só se accessor não-promovido).
+**Verification:** `go build ./... && go vet ./... && golangci-lint run entities/... && go test ./... -count=1` verdes; um smoke test novo assertando que cada accessor novo é não-nil após `New(...)` e roteia pro plane certo (ex. `client.AuditEvents.Verify` existe). Legado + examples intocados compilam.
+**Done when:** os 13 accessors novos existem, não-nil, roteiam pras fachadas; coexistência (legado + consumers inalterados); build/test/lint verdes.
+
+### Epic 5.2: Paridade money-path no path plane (PRECEDE o swap)
+
+**Goal:** O path plane/facade ganha os comportamentos money-adjacent que o `HTTPClient` legado tinha, ANTES do swap (5.3) mudar os money-writes pra ele: (a) RoundTripper de retry (5xx/408/425/429 com backoff) sobre o transport do plane; (b) gate `MIDAZ_IDEMPOTENCY` ligado no `resolveIdempotency` (respeitar `WithIdempotency(false)`); (c) retrofit de idempotência em TODOS os writes unsafe (onboarding/routes/asset-rates, não só transaction — decisão Fred); (d) re-home do config surface (`SetDebug`/UserAgent/ExposeErrorBody/SlowCallThreshold/Logger) ou decisão explícita de drop; (e) decisão sobre observability spans.
+**Scope:** `entities/auth_roundtripper.go`/novo retry RT, `entities/idempotency.go`, `entities/plane_clients.go`, `midaz.go` (config surface), as fachadas de write (retrofit idempotência).
+**Dependencies:** Epic 5.1.
+**Done when:** um write via facade tem retry+idempotência equivalentes ao legado; `WithIdempotency(false)` respeitado; `MIDAZ_IDEMPOTENCY` honrado; testes provam retry em 503 e gate on/off; money-path revisado ISOLADO.
 **Target:** midaz-sdk-golang
 **Status:** Pending
 
-### Epic 5.2: Helpers ergonômicos
+### Epic 5.3: Slice B — swap dos accessors ledger + migração de consumers
 
-**Goal:** Builders fluentes (com `FieldErrors`), DSL de transação e `WaitForSettlement` (poll de balance, não de status) funcionam.
+**Goal:** Os ~13 accessors ledger com fachada (organizations/ledgers/accounts/assets/portfolios/segments/account-types/metadata/operation-routes/transaction-routes/holders/transactions + AssetRates não-breaking) repontam pros `*xFacade`; `examples/*`, `pkg/integrity` e docs migram os renames `Verb+Resource`→`Verb` no MESMO commit (senão não compila).
+**Scope:** `entities/entity.go` (troca de tipos + assignments), `examples/`, `pkg/integrity`, `docs/`.
+**Dependencies:** Epic 5.2 (paridade re-homeada antes dos money-writes usarem o facade).
+**Done when:** `client.X` roteia pras fachadas ledger; examples/integrity compilam e rodam; build/test verdes; money-path revisado.
+**Target:** midaz-sdk-golang
+**Status:** Pending
+
+### Epic 5.4: Slice C — deletar legado + regen tests/mocks + gaps
+
+**Goal:** Deletar os 16 serviços legados + machinery (`http.go`/`http_retry_response.go` pós-extração, `service.go`/`url.go`/`request.go`/`crm_shared.go`/`observability.go`/`internal_context.go`/`constants.go` verificados); regen/deletar os `*_contract_regression_test.go` + `entities/mocks` (usados por `09-testing-with-mocks`); reworkar `midaz.go:448-481`; resolver os gaps (Aliases drop; `Operations.GetOperation` — fachada nova ou migrar; Balances CRUD standalone — confirmar cobertura via `accountsFacade`).
+**Scope:** deleção em `entities/`, `midaz.go`, `entities/mocks`, contract tests.
+**Dependencies:** Epic 5.3.
+**Done when:** nenhum serviço legado sobra; build/test verdes; gaps resolvidos ou explicitamente dropados com sign-off; `make ci` verde.
+**Target:** midaz-sdk-golang
+**Status:** Pending
+
+### Epic 5.5: Helpers ergonômicos
+
+**Goal:** Builders fluentes (com `FieldErrors`), DSL de transação (`/json`) e `WaitForSettlement` (poll de balance, não de status) funcionam.
 **Scope:** `models/transaction_dsl.go`, builders, novo helper de settle em `pkg/transaction` ou `entities/`.
-**Dependencies:** Phases 2–4
+**Dependencies:** Epics 5.1–5.4.
 **Done when:** `WaitForSettlement` polla balance com backoff/timeout e documenta que 201 ≠ liquidado; DSL aponta `/json`; builders cobrem os recursos novos.
 **Target:** midaz-sdk-golang
 **Status:** Pending
 
-### Epic 5.3: Docs, exemplos, mapping, contract tests
+### Epic 5.6: Docs, exemplos, mapping, contract tests, catálogo de erro
 
-**Goal:** `README.md`, `docs/README.md`, `docs/mapping/`, `docs/examples.md` e o `mass-demo-generator` refletem a superfície nova; os `*_contract_regression_test.go` são regenerados/validados; cobertura ≥80% na lógica crítica nova; `make ci` verde.
-**Scope:** `docs/`, `examples/`, `README.md`, testes de contrato.
-**Dependencies:** Phases 2–4 + Epic 5.1
-**Done when:** exemplos rodam contra o stack novo; mapping atualizado; `make demo-data` funciona; `make ci` verde; testes de contrato batem com as specs versionadas.
+**Goal:** `README.md`, `docs/README.md`, `docs/mapping/`, `docs/examples.md` e o `mass-demo-generator` refletem a superfície nova; catálogo de erro tipado (0491/0490/CRM-0006/fee 0179-0233 + sentinel `IsFeatureNotAvailable` p/ 404-feature-unavailable); `*_contract_regression_test.go` regenerados/validados; cobertura ≥80% na lógica crítica nova; `make ci` verde.
+**Scope:** `docs/`, `examples/`, `README.md`, testes de contrato, `pkg/errors`.
+**Dependencies:** Epics 5.1–5.5.
+**Done when:** exemplos rodam contra o stack novo; mapping atualizado; `make demo-data` funciona; catálogo de erro + sentinels documentados; `make ci` verde; testes de contrato batem com as specs versionadas.
 **Target:** midaz-sdk-golang
 **Status:** Pending
 
