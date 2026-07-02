@@ -40,6 +40,47 @@ func TestTransactionsCreateIdempotencyGated(t *testing.T) {
 	}
 }
 
+// TestTransactionsUpdatesGated proves the fix: UpdateTransaction and
+// UpdateOperation (PATCH) honor the gate for auto-gen AND let a ctx/explicit
+// key ride — parity with the legacy PATCH (which carried auto-gen + honored the
+// ctx key), and with the retrofit's "explicit/ctx key always wins" contract.
+func TestTransactionsUpdatesGated(t *testing.T) {
+	updateTx := func(ctx context.Context, gate bool) string {
+		srv, key := idempotencyCaptureServer()
+		defer srv.Close()
+
+		_, _ = newTransactionsFacade(newTestLedgerClient(t, srv), gate).
+			UpdateTransaction(ctx, txOrgID, txLedgerID, txID, models.NewUpdateTransactionInput().WithDescription("x"))
+
+		return key()
+	}
+
+	updateOp := func(ctx context.Context, gate bool) string {
+		srv, key := idempotencyCaptureServer()
+		defer srv.Close()
+
+		_, _ = newTransactionsFacade(newTestLedgerClient(t, srv), gate).
+			UpdateOperation(ctx, txOrgID, txLedgerID, txID, "77777777-7777-7777-7777-777777777777", models.NewUpdateOperationInput().WithDescription("adjusted"))
+
+		return key()
+	}
+
+	for name, fn := range map[string]func(context.Context, bool) string{"UpdateTransaction": updateTx, "UpdateOperation": updateOp} {
+		if got := fn(context.Background(), true); got == "" {
+			t.Fatalf("%s gate on: want auto-generated X-Idempotency", name)
+		}
+
+		if got := fn(context.Background(), false); got != "" {
+			t.Fatalf("%s gate off: want no auto-gen, got %q", name, got)
+		}
+
+		ctx := sdkctx.WithIdempotencyKey(context.Background(), "k")
+		if got := fn(ctx, false); got != "k" {
+			t.Fatalf("%s gate off + ctx key: got %q, want k", name, got)
+		}
+	}
+}
+
 // TestTransactionsCommitUnaffectedByGate proves the lifecycle actions are
 // autoGen=false and thus unaffected by the flag: no key => header-free whether
 // the gate is on or off, and a ctx key still rides.

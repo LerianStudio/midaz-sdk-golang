@@ -242,8 +242,9 @@ func actionIdempotencyEditors(ctx context.Context) []genledger.RequestEditorFn {
 // after a 401 — but the wire body is the whole input object (json.Marshal),
 // sent as plain application/json (parity with the legacy PATCH; NOT merge-patch).
 // input.Validate rejects an empty payload before any request leaves the process.
-// Success is HTTP 200. No idempotency: a patch is not a balance mutation, and
-// the legacy path carried none.
+// Success is HTTP 200. Idempotency IS stamped (gated on enableIdempotency): the
+// legacy PATCH auto-generated a key and honored a caller's ctx key, so the
+// facade matches.
 func (f *transactionsFacade) UpdateTransaction(ctx context.Context, orgID, ledgerID, transactionID string, input *models.UpdateTransactionInput) (*models.Transaction, error) {
 	const operation = "Transactions.UpdateTransaction"
 
@@ -252,7 +253,7 @@ func (f *transactionsFacade) UpdateTransaction(ctx context.Context, orgID, ledge
 	}
 
 	return writeJSON[models.Transaction](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		return readRawResponse(f.ledger.UpdateTransactionWithBody(ctx, orgID, ledgerID, transactionID, jsonContentType, body))
+		return readRawResponse(f.ledger.UpdateTransactionWithBody(ctx, orgID, ledgerID, transactionID, jsonContentType, body, idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }
 
@@ -269,7 +270,7 @@ func (f *transactionsFacade) UpdateOperation(ctx context.Context, orgID, ledgerI
 	}
 
 	return writeJSON[models.Operation](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		return readRawResponse(f.ledger.UpdateOperationWithBody(ctx, orgID, ledgerID, transactionID, operationID, jsonContentType, body))
+		return readRawResponse(f.ledger.UpdateOperationWithBody(ctx, orgID, ledgerID, transactionID, operationID, jsonContentType, body, idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
 }
 
