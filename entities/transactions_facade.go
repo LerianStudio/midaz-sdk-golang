@@ -37,10 +37,37 @@ import (
 //     /outflow via ToMap(). The generated request body is opaque
 //     (openapi_types.File), so the facade owns the shape; it must match the
 //     legacy transactions service byte-for-byte (entities/transactions.go).
-//   - Success is HTTP 200 (not the 201 onboarding creates return). isSuccess
-//     (2xx) covers both, so nothing hardcodes the code.
+//   - Success is any HTTP 2xx, read from the RAW response. The writes bypass the
+//     generated typed parser (Parse{Op}Resp) on purpose: that parser gates on the
+//     one status code the OAS declares (creates 200, actions 201, updates 200)
+//     and routes every other status — including a 2xx the server really returned
+//     (async 202, or an OAS-vs-server drift) — into a json.Unmarshal against the
+//     Error type, whose status field is an int64. A real transaction body carries
+//     status as an object, so that unmarshal fails and a CONFIRMED write surfaces
+//     as a spurious internal error. Reading the raw bytes + isSuccess(2xx)
+//     accepts any 2xx and decodes into models.Transaction, matching the legacy
+//     transactions service (entities/http.go, StatusCode < 400).
 type transactionsFacade struct {
 	ledger *genledger.ClientWithResponses
+}
+
+// readRawResponse drains a generated lower-level call's raw response into bytes,
+// closing the body, so the write path can decide success on isSuccess(2xx) and
+// decode into models.* — never through the status-exact generated parser (see
+// the transactionsFacade doc). Threads any transport error straight through.
+func readRawResponse(resp *http.Response, err error) (*http.Response, []byte, error) {
+	if err != nil {
+		return nil, nil, err
+	}
+
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return resp, body, nil
 }
 
 // newTransactionsFacade wires the facade over a ledger plane client.
@@ -66,12 +93,7 @@ func (f *transactionsFacade) CreateJSON(ctx context.Context, orgID, ledgerID str
 	applyIdempotency(&params.XIdempotency, &params.XTTL, key, ttl)
 
 	return writeJSON[models.Transaction](ctx, operation, input.ToLibTransaction(), func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.CreateTransactionJSONWithBodyWithResponse(ctx, orgID, ledgerID, params, jsonContentType, body)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		return resp.HTTPResponse, resp.Body, nil
+		return readRawResponse(f.ledger.CreateTransactionJSONWithBody(ctx, orgID, ledgerID, params, jsonContentType, body))
 	})
 }
 
@@ -90,12 +112,7 @@ func (f *transactionsFacade) CreateInflow(ctx context.Context, orgID, ledgerID s
 	applyIdempotency(&params.XIdempotency, &params.XTTL, key, ttl)
 
 	return writeJSON[models.Transaction](ctx, operation, input.ToMap(), func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.CreateTransactionInflowWithBodyWithResponse(ctx, orgID, ledgerID, params, jsonContentType, body)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		return resp.HTTPResponse, resp.Body, nil
+		return readRawResponse(f.ledger.CreateTransactionInflowWithBody(ctx, orgID, ledgerID, params, jsonContentType, body))
 	})
 }
 
@@ -114,12 +131,7 @@ func (f *transactionsFacade) CreateOutflow(ctx context.Context, orgID, ledgerID 
 	applyIdempotency(&params.XIdempotency, &params.XTTL, key, ttl)
 
 	return writeJSON[models.Transaction](ctx, operation, input.ToMap(), func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.CreateTransactionOutflowWithBodyWithResponse(ctx, orgID, ledgerID, params, jsonContentType, body)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		return resp.HTTPResponse, resp.Body, nil
+		return readRawResponse(f.ledger.CreateTransactionOutflowWithBody(ctx, orgID, ledgerID, params, jsonContentType, body))
 	})
 }
 
@@ -138,12 +150,7 @@ func (f *transactionsFacade) CreateAnnotation(ctx context.Context, orgID, ledger
 	applyIdempotency(&params.XIdempotency, &params.XTTL, key, ttl)
 
 	return writeJSON[models.Transaction](ctx, operation, input.ToLibTransaction(), func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.CreateTransactionAnnotationWithBodyWithResponse(ctx, orgID, ledgerID, params, jsonContentType, body)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		return resp.HTTPResponse, resp.Body, nil
+		return readRawResponse(f.ledger.CreateTransactionAnnotationWithBody(ctx, orgID, ledgerID, params, jsonContentType, body))
 	})
 }
 
@@ -155,12 +162,12 @@ func (f *transactionsFacade) CreateAnnotation(ctx context.Context, orgID, ledger
 func (f *transactionsFacade) Commit(ctx context.Context, orgID, ledgerID, transactionID string) (*models.Transaction, error) {
 	const operation = "Transactions.Commit"
 
-	resp, err := f.ledger.CommitTransactionWithResponse(ctx, orgID, ledgerID, transactionID, actionIdempotencyEditors(ctx)...)
+	resp, body, err := readRawResponse(f.ledger.CommitTransaction(ctx, orgID, ledgerID, transactionID, actionIdempotencyEditors(ctx)...))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	return decodeOne[models.Transaction](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+	return decodeOne[models.Transaction](operation, resp.StatusCode, body, resp)
 }
 
 // Revert reverses a committed transaction via POST .../transactions/{id}/revert.
@@ -170,12 +177,12 @@ func (f *transactionsFacade) Commit(ctx context.Context, orgID, ledgerID, transa
 func (f *transactionsFacade) Revert(ctx context.Context, orgID, ledgerID, transactionID string) (*models.Transaction, error) {
 	const operation = "Transactions.Revert"
 
-	resp, err := f.ledger.RevertTransactionWithResponse(ctx, orgID, ledgerID, transactionID, actionIdempotencyEditors(ctx)...)
+	resp, body, err := readRawResponse(f.ledger.RevertTransaction(ctx, orgID, ledgerID, transactionID, actionIdempotencyEditors(ctx)...))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	return decodeOne[models.Transaction](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+	return decodeOne[models.Transaction](operation, resp.StatusCode, body, resp)
 }
 
 // Cancel aborts a PENDING transaction (PENDING → CANCELED) via
@@ -186,20 +193,20 @@ func (f *transactionsFacade) Revert(ctx context.Context, orgID, ledgerID, transa
 func (f *transactionsFacade) Cancel(ctx context.Context, orgID, ledgerID, transactionID string) (*models.Transaction, error) {
 	const operation = "Transactions.Cancel"
 
-	resp, err := f.ledger.CancelTransactionWithResponse(ctx, orgID, ledgerID, transactionID, actionIdempotencyEditors(ctx)...)
+	resp, body, err := readRawResponse(f.ledger.CancelTransaction(ctx, orgID, ledgerID, transactionID, actionIdempotencyEditors(ctx)...))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	if !isSuccess(resp.StatusCode()) {
-		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
+	if !isSuccess(resp.StatusCode) {
+		return nil, errors.DecodeProblemJSON(resp.StatusCode, body, requestIDOf(resp))
 	}
 
-	if isEmptyBody(resp.Body) {
+	if isEmptyBody(body) {
 		return &models.Transaction{ID: transactionID, Status: models.Status{Code: string(models.TransactionStatusCanceled)}}, nil
 	}
 
-	return decodeOne[models.Transaction](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+	return decodeOne[models.Transaction](operation, resp.StatusCode, body, resp)
 }
 
 // isEmptyBody reports whether a success body carries no transaction — an empty
@@ -238,12 +245,7 @@ func (f *transactionsFacade) UpdateTransaction(ctx context.Context, orgID, ledge
 	}
 
 	return writeJSON[models.Transaction](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.UpdateTransactionWithBodyWithResponse(ctx, orgID, ledgerID, transactionID, jsonContentType, body)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		return resp.HTTPResponse, resp.Body, nil
+		return readRawResponse(f.ledger.UpdateTransactionWithBody(ctx, orgID, ledgerID, transactionID, jsonContentType, body))
 	})
 }
 
@@ -260,12 +262,7 @@ func (f *transactionsFacade) UpdateOperation(ctx context.Context, orgID, ledgerI
 	}
 
 	return writeJSON[models.Operation](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
-		resp, err := f.ledger.UpdateOperationWithBodyWithResponse(ctx, orgID, ledgerID, transactionID, operationID, jsonContentType, body)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		return resp.HTTPResponse, resp.Body, nil
+		return readRawResponse(f.ledger.UpdateOperationWithBody(ctx, orgID, ledgerID, transactionID, operationID, jsonContentType, body))
 	})
 }
 

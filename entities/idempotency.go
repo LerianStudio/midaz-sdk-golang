@@ -34,14 +34,22 @@ import (
 //
 // ttl comes from sdkctx.WithIdempotencyTTL(ctx); it is "" when unset, in which
 // case the caller must omit X-TTL and let the server apply its default (300s).
+//
+// This resolver assumes idempotency is ENABLED: it does not consult the
+// client-level MIDAZ_IDEMPOTENCY flag (the legacy ensureIdempotencyHeader gates
+// on it). During coexistence the facade has no access to that flag; the enable
+// gate is applied one layer up, in the Phase 5 wiring cutover. Defaulting to
+// auto-generate errs toward more deduplication, which is the safe side for an
+// unsafe money write.
 func resolveIdempotency(ctx context.Context, explicitKey string, autoGen bool) (key, ttl string) {
 	ttl, _ = sdkctx.IdempotencyTTLFromContext(ctx)
+	ctxKey := sdkctx.IdempotencyKeyFromContext(ctx)
 
 	switch {
 	case explicitKey != "":
 		return explicitKey, ttl
-	case sdkctx.IdempotencyKeyFromContext(ctx) != "":
-		return sdkctx.IdempotencyKeyFromContext(ctx), ttl
+	case ctxKey != "":
+		return ctxKey, ttl
 	case autoGen && !sdkctx.AutoIdempotencySuppressed(ctx):
 		return uuid.NewString(), ttl
 	default:

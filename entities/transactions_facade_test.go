@@ -6,6 +6,7 @@ package entities
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +14,8 @@ import (
 	"strconv"
 	"sync/atomic"
 	"testing"
+
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/sdkctx"
@@ -163,6 +166,11 @@ func TestTransactionsFacade_Create(t *testing.T) {
 				if _, ok := send["distribute"]; ok != tt.hasDst {
 					t.Fatalf("send.distribute present = %v, want %v: %s", ok, tt.hasDst, gotBody)
 				}
+				// Money assert: the amount must reach the wire intact — a
+				// regression that zeroed send.value must fail here.
+				if send["value"] != "100" {
+					t.Fatalf("send.value = %v, want %q: %s", send["value"], "100", gotBody)
+				}
 			}
 
 			// Skip flags the SDK model previously dropped must decode.
@@ -264,10 +272,12 @@ func TestTransactionsFacade_CreateReplaySafe(t *testing.T) {
 }
 
 // TestTransactionsFacade_CreateError maps a non-2xx into the unified RFC 9457
-// error rather than decoding a transaction.
+// error rather than decoding a transaction, threading APICode/StatusCode/
+// RequestID so a regression that masked a 422 as an internal error fails here.
 func TestTransactionsFacade_CreateError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/problem+json")
+		w.Header().Set("X-Request-ID", "req-tx-422")
 		w.WriteHeader(http.StatusUnprocessableEntity)
 		_, _ = w.Write([]byte(`{"code":"LEDGER-0490","title":"Insufficient funds","status":422}`))
 	}))
@@ -276,6 +286,83 @@ func TestTransactionsFacade_CreateError(t *testing.T) {
 	tx, err := newTestTransactionsFacade(t, srv).CreateJSON(context.Background(), txOrgID, txLedgerID, sampleTransactionInput())
 	if err == nil {
 		t.Fatalf("expected error, got tx %+v", tx)
+	}
+
+	var sdkErr *sdkerrors.Error
+	if !errors.As(err, &sdkErr) {
+		t.Fatalf("error type = %T, want *errors.Error", err)
+	}
+	if sdkErr.APICode != "LEDGER-0490" || sdkErr.StatusCode != 422 || sdkErr.RequestID != "req-tx-422" {
+		t.Fatalf("decoded error = %+v, want APICode=LEDGER-0490 StatusCode=422 RequestID=req-tx-422", sdkErr)
+	}
+}
+
+// txValueResponseBody echoes the send.value the caller posted, plus a real id
+// and an object status, so a create test can assert the monetary amount survived
+// the round trip.
+func txValueResponseBody(value string) string {
+	return `{"id":"` + txID + `","assetCode":"USD","amount":"` + value + `","status":{"code":"APPROVED"}}`
+}
+
+// TestTransactionsFacade_CreateOffStatusSucceeds is the money-path RED: a create
+// CONFIRMED by the server with a 2xx that the OAS did not declare (async 202, or
+// a 201 divergence) carries a real Transaction body whose status is an OBJECT.
+// The generated status-exact parser would try to unmarshal that object into
+// Error.status (*int64) and fail, turning a confirmed write into a spurious
+// internal error. Any 2xx must decode as success.
+func TestTransactionsFacade_CreateOffStatusSucceeds(t *testing.T) {
+	for _, status := range []int{http.StatusCreated, http.StatusAccepted} {
+		t.Run("status="+strconv.Itoa(status), func(t *testing.T) {
+			var gotBody []byte
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				gotBody, _ = io.ReadAll(r.Body)
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(status)
+				_, _ = w.Write([]byte(txResponseBody()))
+			}))
+			defer srv.Close()
+
+			tx, err := newTestTransactionsFacade(t, srv).CreateJSON(context.Background(), txOrgID, txLedgerID, sampleTransactionInput())
+			if err != nil {
+				t.Fatalf("CreateJSON on %d: %v", status, err)
+			}
+			if tx.ID != txID {
+				t.Fatalf("tx.ID = %q, want %q", tx.ID, txID)
+			}
+			if tx.Status.Code != "APPROVED" {
+				t.Fatalf("tx.Status.Code = %q, want APPROVED", tx.Status.Code)
+			}
+
+			// Money assert: the posted send.value must be the amount we sent.
+			var wire map[string]any
+			if err := json.Unmarshal(gotBody, &wire); err != nil {
+				t.Fatalf("body not JSON object: %v (%s)", err, gotBody)
+			}
+			send, _ := wire["send"].(map[string]any)
+			if send["value"] != "100" {
+				t.Fatalf("send.value = %v, want %q: %s", send["value"], "100", gotBody)
+			}
+		})
+	}
+}
+
+// TestTransactionsFacade_CommitOffStatusSucceeds proves a commit CONFIRMED by
+// the server with a 200 (instead of the OAS-declared 201) carrying a real
+// Transaction body decodes as success, not a spurious internal error.
+func TestTransactionsFacade_CommitOffStatusSucceeds(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK) // server returns 200, OAS declares 201
+		_, _ = w.Write([]byte(txResponseBody()))
+	}))
+	defer srv.Close()
+
+	tx, err := newTestTransactionsFacade(t, srv).Commit(context.Background(), txOrgID, txLedgerID, txID)
+	if err != nil {
+		t.Fatalf("Commit on 200: %v", err)
+	}
+	if tx.ID != txID || tx.Status.Code != "APPROVED" {
+		t.Fatalf("tx = %+v, want id %q status APPROVED", tx, txID)
 	}
 }
 
@@ -429,17 +516,29 @@ func TestTransactionsFacade_LifecycleIdempotencyKey(t *testing.T) {
 	}
 }
 
-// TestTransactionsFacade_LifecycleError maps a non-2xx into the unified error.
+// TestTransactionsFacade_LifecycleError maps a non-2xx into the unified error,
+// threading APICode/StatusCode/RequestID (a regression masking the 409 as an
+// internal error must fail here).
 func TestTransactionsFacade_LifecycleError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/problem+json")
+		w.Header().Set("X-Request-ID", "req-commit-409")
 		w.WriteHeader(http.StatusConflict)
 		_, _ = w.Write([]byte(`{"code":"LEDGER-0088","title":"Transaction not pending","status":409}`))
 	}))
 	defer srv.Close()
 
-	if _, err := newTestTransactionsFacade(t, srv).Commit(context.Background(), txOrgID, txLedgerID, txID); err == nil {
+	_, err := newTestTransactionsFacade(t, srv).Commit(context.Background(), txOrgID, txLedgerID, txID)
+	if err == nil {
 		t.Fatal("expected error on 409 commit")
+	}
+
+	var sdkErr *sdkerrors.Error
+	if !errors.As(err, &sdkErr) {
+		t.Fatalf("error type = %T, want *errors.Error", err)
+	}
+	if sdkErr.APICode != "LEDGER-0088" || sdkErr.StatusCode != 409 || sdkErr.RequestID != "req-commit-409" {
+		t.Fatalf("decoded error = %+v, want APICode=LEDGER-0088 StatusCode=409 RequestID=req-commit-409", sdkErr)
 	}
 }
 
@@ -508,18 +607,29 @@ func TestTransactionsFacade_UpdateTransactionEmptyRejected(t *testing.T) {
 }
 
 // TestTransactionsFacade_UpdateTransactionError maps a non-2xx into the unified
-// error rather than decoding a transaction.
+// error rather than decoding a transaction, threading APICode/StatusCode/
+// RequestID.
 func TestTransactionsFacade_UpdateTransactionError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/problem+json")
+		w.Header().Set("X-Request-ID", "req-upd-404")
 		w.WriteHeader(http.StatusNotFound)
 		_, _ = w.Write([]byte(`{"code":"LEDGER-0007","title":"Transaction not found","status":404}`))
 	}))
 	defer srv.Close()
 
 	input := models.NewUpdateTransactionInput().WithDescription("x")
-	if _, err := newTestTransactionsFacade(t, srv).UpdateTransaction(context.Background(), txOrgID, txLedgerID, txID, input); err == nil {
+	_, err := newTestTransactionsFacade(t, srv).UpdateTransaction(context.Background(), txOrgID, txLedgerID, txID, input)
+	if err == nil {
 		t.Fatal("expected error on 404 update")
+	}
+
+	var sdkErr *sdkerrors.Error
+	if !errors.As(err, &sdkErr) {
+		t.Fatalf("error type = %T, want *errors.Error", err)
+	}
+	if sdkErr.APICode != "LEDGER-0007" || sdkErr.StatusCode != 404 || sdkErr.RequestID != "req-upd-404" {
+		t.Fatalf("decoded error = %+v, want APICode=LEDGER-0007 StatusCode=404 RequestID=req-upd-404", sdkErr)
 	}
 }
 
@@ -604,17 +714,28 @@ func TestTransactionsFacade_Get(t *testing.T) {
 	}
 }
 
-// TestTransactionsFacade_GetError maps a non-2xx into the unified error.
+// TestTransactionsFacade_GetError maps a non-2xx into the unified error,
+// threading APICode/StatusCode/RequestID.
 func TestTransactionsFacade_GetError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/problem+json")
+		w.Header().Set("X-Request-ID", "req-get-404")
 		w.WriteHeader(http.StatusNotFound)
 		_, _ = w.Write([]byte(`{"code":"LEDGER-0007","title":"Transaction not found","status":404}`))
 	}))
 	defer srv.Close()
 
-	if _, err := newTestTransactionsFacade(t, srv).Get(context.Background(), txOrgID, txLedgerID, txID); err == nil {
+	_, err := newTestTransactionsFacade(t, srv).Get(context.Background(), txOrgID, txLedgerID, txID)
+	if err == nil {
 		t.Fatal("expected error on 404 get")
+	}
+
+	var sdkErr *sdkerrors.Error
+	if !errors.As(err, &sdkErr) {
+		t.Fatalf("error type = %T, want *errors.Error", err)
+	}
+	if sdkErr.APICode != "LEDGER-0007" || sdkErr.StatusCode != 404 || sdkErr.RequestID != "req-get-404" {
+		t.Fatalf("decoded error = %+v, want APICode=LEDGER-0007 StatusCode=404 RequestID=req-get-404", sdkErr)
 	}
 }
 
@@ -786,7 +907,10 @@ func TestTransactionsFacade_CountMissingHeader(t *testing.T) {
 	}
 }
 
-// TestTransactionsFacade_CountError maps a non-2xx into the unified error.
+// TestTransactionsFacade_CountError maps a non-2xx into the unified error. Count
+// is a HEAD read (out of scope of the write-path fix), so this only asserts an
+// error surfaces — not the decoded APICode, which a HEAD never carries a body
+// for.
 func TestTransactionsFacade_CountError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/problem+json")
