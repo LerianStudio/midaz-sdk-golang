@@ -123,10 +123,11 @@ func (f *limitsFacade) GetUsage(ctx context.Context, id string) (*models.UsageSn
 
 // limitTransition runs a body-less lifecycle POST through the raw call so success
 // is decided on 2xx (never the status-exact generated parser) and the 200 body
-// decodes into models.Limit.
+// decodes into models.Limit. Lifecycle transitions are actions (autoGen=false):
+// no auto-gen key, but a caller-supplied ctx/explicit key still rides.
 func limitTransition(ctx context.Context, operation string, call func(context.Context, string, ...gentracer.RequestEditorFn) (*http.Response, error), id string) (*models.Limit, error) {
 	//nolint:bodyclose // readRawResponse closes resp.Body via defer before returning.
-	resp, body, err := readRawResponse(call(ctx, id))
+	resp, body, err := readRawResponse(call(ctx, id, idempotencyEditorsTracer(ctx, false)...))
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}

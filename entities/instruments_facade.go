@@ -211,7 +211,7 @@ func (f *instrumentsFacade) Delete(ctx context.Context, orgID, holderID, id stri
 func (f *instrumentsFacade) DeleteRelatedParty(ctx context.Context, orgID, holderID, instrumentID, relatedPartyID string) error {
 	const operation = "Instruments.DeleteRelatedParty"
 
-	resp, err := f.ledger.DeleteRelatedPartyWithResponse(ctx, orgID, holderID, instrumentID, relatedPartyID)
+	resp, err := f.ledger.DeleteRelatedPartyWithResponse(ctx, orgID, holderID, instrumentID, relatedPartyID, idempotencyEditors(ctx, f.enableIdempotency)...)
 	if err != nil {
 		return errors.NewInternalError(operation, err)
 	}
