@@ -128,7 +128,7 @@ func newRetryEnabledTxFacade(t *testing.T, srv *httptest.Server, maxRetries int)
 		t.Fatalf("newPlaneClients: %v", err)
 	}
 
-	return newTransactionsFacade(planes.Ledger)
+	return newTransactionsFacade(planes.Ledger, true)
 }
 
 // TestFacadeWriteRetriesWithStableAutoIdempotency is F2(b): a real facade WRITE

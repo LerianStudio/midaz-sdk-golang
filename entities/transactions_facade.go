@@ -49,6 +49,10 @@ import (
 //     transactions service (entities/http.go, StatusCode < 400).
 type transactionsFacade struct {
 	ledger *genledger.ClientWithResponses
+	// enableIdempotency gates auto-generated X-Idempotency keys on creates; an
+	// explicit input/context key stamps regardless, and lifecycle actions
+	// (commit/cancel/revert, autoGen=false) are unaffected.
+	enableIdempotency bool
 }
 
 // readRawResponse drains a generated lower-level call's raw response into bytes,
@@ -71,8 +75,8 @@ func readRawResponse(resp *http.Response, err error) (*http.Response, []byte, er
 }
 
 // newTransactionsFacade wires the facade over a ledger plane client.
-func newTransactionsFacade(ledger *genledger.ClientWithResponses) *transactionsFacade {
-	return &transactionsFacade{ledger: ledger}
+func newTransactionsFacade(ledger *genledger.ClientWithResponses, enableIdempotency bool) *transactionsFacade {
+	return &transactionsFacade{ledger: ledger, enableIdempotency: enableIdempotency}
 }
 
 // jsonContentType is the content type every create sends. The generated request
@@ -89,7 +93,7 @@ func (f *transactionsFacade) CreateJSON(ctx context.Context, orgID, ledgerID str
 	}
 
 	params := &genledger.CreateTransactionJSONParams{}
-	key, ttl := resolveIdempotency(ctx, input.IdempotencyKey, true)
+	key, ttl := resolveIdempotency(ctx, input.IdempotencyKey, f.enableIdempotency)
 	applyIdempotency(&params.XIdempotency, &params.XTTL, key, ttl)
 
 	return writeJSON[models.Transaction](ctx, operation, input.ToLibTransaction(), func(body io.Reader) (*http.Response, []byte, error) {
@@ -108,7 +112,7 @@ func (f *transactionsFacade) CreateInflow(ctx context.Context, orgID, ledgerID s
 	}
 
 	params := &genledger.CreateTransactionInflowParams{}
-	key, ttl := resolveIdempotency(ctx, "", true)
+	key, ttl := resolveIdempotency(ctx, "", f.enableIdempotency)
 	applyIdempotency(&params.XIdempotency, &params.XTTL, key, ttl)
 
 	return writeJSON[models.Transaction](ctx, operation, input.ToMap(), func(body io.Reader) (*http.Response, []byte, error) {
@@ -127,7 +131,7 @@ func (f *transactionsFacade) CreateOutflow(ctx context.Context, orgID, ledgerID 
 	}
 
 	params := &genledger.CreateTransactionOutflowParams{}
-	key, ttl := resolveIdempotency(ctx, "", true)
+	key, ttl := resolveIdempotency(ctx, "", f.enableIdempotency)
 	applyIdempotency(&params.XIdempotency, &params.XTTL, key, ttl)
 
 	return writeJSON[models.Transaction](ctx, operation, input.ToMap(), func(body io.Reader) (*http.Response, []byte, error) {
@@ -146,7 +150,7 @@ func (f *transactionsFacade) CreateAnnotation(ctx context.Context, orgID, ledger
 	}
 
 	params := &genledger.CreateTransactionAnnotationParams{}
-	key, ttl := resolveIdempotency(ctx, "", true)
+	key, ttl := resolveIdempotency(ctx, "", f.enableIdempotency)
 	applyIdempotency(&params.XIdempotency, &params.XTTL, key, ttl)
 
 	return writeJSON[models.Transaction](ctx, operation, input.ToLibTransaction(), func(body io.Reader) (*http.Response, []byte, error) {
