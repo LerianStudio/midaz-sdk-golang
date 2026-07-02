@@ -23,7 +23,7 @@
 | 2 | Money path completo: onboarding CRUD + ciclo de transação (json/inflow/outflow/annotation + commit/cancel/revert) + balances/operations/routes/asset-rates + counts | 2.1, 2.2, 2.R, 2.3 | **Complete** (2.1, 2.2, 2.R, 2.3 todos Done) |
 | 3 | Domínios novos do ledger: holders/instruments/composition, fees (packages/estimates), billing, encryption/protection | 3.1, 3.2, 3.3 | **Complete** (3.1, 3.2, 3.3 todos Done) |
 | 4 | Plano Tracer completo: rules (CEL), limits, reservations, validations, audit-events | 4.1, 4.2, 4.3 | ✅ **Complete** (4.1, 4.2, 4.3 Done) |
-| 5 | Cutover fatiado (A aditivo → paridade money-path → B swap → C delete) + ergonomia + docs; `make ci` verde | 5.1–5.6 | **5.1 ✅ Done**; **5.2 ✅ Done** (paridade money-path: retry RT + idempotência); **5.3 Epic-level (onda corrente)**; 5.4–5.6 Epic-level |
+| 5 | Cutover fatiado (A aditivo → paridade money-path → B swap → C delete) + ergonomia + docs; `make ci` verde | 5.1–5.6 | **5.1 ✅ Done**; **5.2 ✅ Done** (paridade money-path); **5.3 Detailed (onda corrente, swap atômico money-path)**; 5.4–5.6 Epic-level |
 | 6 | *(opcional / decisão de produto)* Consumidor de streaming Kafka/CloudEvents | 6.1 | Epic-level |
 
 ---
@@ -695,12 +695,58 @@ Exploração-fonte (efêmera, no scratchpad da sessão): `01-server-api-surface.
 
 ### Epic 5.3: Slice B — swap dos accessors ledger + migração de consumers
 
-**Goal:** Os ~13 accessors ledger com fachada (organizations/ledgers/accounts/assets/portfolios/segments/account-types/metadata/operation-routes/transaction-routes/holders/transactions + AssetRates não-breaking) repontam pros `*xFacade`; `examples/*`, `pkg/integrity` e docs migram os renames `Verb+Resource`→`Verb` no MESMO commit (senão não compila).
-**Scope:** `entities/entity.go` (troca de tipos + assignments), `examples/`, `pkg/integrity`, `docs/`.
+**Goal:** Os 13 accessors ledger com fachada (organizations/ledgers/accounts/assets/portfolios/segments/account-types/metadata/operation-routes/transaction-routes/holders/transactions + AssetRates não-breaking) repontam pros `*xFacade`; `pkg/generator`, `pkg/transaction`, `pkg/integrity`, `examples/*` e `docs/` migram os renames `Verb+Resource`→`Verb` no MESMO commit (módulo raiz → `go build ./...` inclui examples → não compila senão).
+**Scope:** `entities/entity.go` (troca de tipos + assignments), os 13 `entities/*_facade.go` (retrofit idempotência + 2-arg ctors), `pkg/generator`, `pkg/transaction`, `pkg/integrity`, `examples/` (incl. `workflow-with-entities` helpers interface-typed), `docs/`.
 **Dependencies:** Epic 5.2 (paridade re-homeada antes dos money-writes usarem o facade).
-**Done when:** `client.X` roteia pras fachadas ledger; examples/integrity compilam e rodam; build/test verdes; money-path revisado.
+**Done when:** `client.X` roteia os 13 accessors ledger pras fachadas (gated idempotency estampada em todos os writes); DSL→CreateJSON e GetBalance→ListBalances migrados; Balances/Operations/Aliases ficam legado; todos os consumers + docs migram no swap atômico; `go build ./... && go test ./... && golangci-lint run ./...` verdes; money-path (transactions) revisado ISOLADO.
 **Target:** midaz-sdk-golang
-**Status:** Pending
+**Status:** Detailed
+
+> **DECISÕES DE WAVE (Epic 5.3) — recon `recon-53` verificado por mim contra a fonte + 2 decisões do Fred (2026-07-02):**
+> - **É UM COMMIT ATÔMICO (módulo raiz):** só `.` e `contract/` têm `go.mod` → `examples/` vive no raiz → `go build ./...` inclui examples → o swap dos 13 campos de `entity.go` + TODOS os ~132 call-sites + docs migram JUNTOS ou não compila. Sem fatiamento cross-commit no módulo. `contract/` é módulo separado (verificar consumidores na impl; quebram à parte, não bloqueiam o raiz). O pré-commit não-breaking (5.3.1) isola o lado-facade e encolhe o commit-swap.
+> - **Superfície real = ~132 call-sites não-teste** (recon Q4): examples/ 105 (`workflow-with-entities` 67, com helpers TIPADOS em `entities.XService` que quebram na ASSINATURA — a facade é unexported E tem métodos renomeados, não satisfaz a interface antiga), pkg/generator 15, pkg/transaction 9 (money-path), pkg/integrity 1 (`checker.go:190` `Accounts.GetAccount`→`Get`; `:121` Balances fica legado, não quebra). O plano subestimava ("examples + integrity").
+> - **Rename `Verb+Resource`→`Verb`** em 12 domínios; **AssetRates é o ÚNICO não-breaking** (nomes batem, `asset_generator.go:207` compila intocado). `*MetricsCount`→`Count` muda RETORNO `*models.MetricsCount`→`int` (grep: 0 consumidores → seguro). Holders usa `ListPages`/`ListAll` (`holders_facade.go:91/126`, inconsistente) → **normalizar p/ `Pages`/`All`** na 5.3.1.
+> - **BLOCKER DSL (decisão Fred: MIGRAR P/ CreateJSON):** 2 consumidores (`pkg/generator/transaction_generator.go:61`, `examples/03-end-to-end/main.go:95`) chamam `CreateTransactionWithDSL(File)`; facade sem DSL, gerado sem op /dsl. Reescrever ambos p/ montar `models.CreateTransactionInput` estruturado + `CreateJSON` no 5.3.2; o helper DSL→/json polido continua na Epic 5.5. Sem ressuscitar wire /dsl.
+> - **BLOCKER GetBalance:** `accountsEntity.GetBalance` (`accounts.go:470`, retorna `*models.Balance`) dropado pela facade; consumidor `mass-demo-generator/main.go:926` (lê `bal.AssetCode/Available/OnHold`). Reescrever p/ `Accounts.ListBalances(...).Items[0]` (opts `models.CursorListOpts`) — list-then-pick.
+> - **DECISÃO FRED: tx-create gateia na flag (parity+uniforme):** `newTransactionsFacade` vira 2-arg `(ledger, enableIdempotency)`; os 4 creates trocam `resolveIdempotency(ctx, key, true)`→`resolveIdempotency(ctx, key, f.enableIdempotency)` (`transactions_facade.go:92/111/130/149`). Paridade com o legado `ensureIdempotencyHeader` (gateava na flag) + uniforme com os 12. Actions (`autoGen=false`, `:227`) INTOCADAS. Flag default=true → zero mudança pra quem não opta-out; chave explícita/ctx sempre vence. Money-path SAFE nas duas pontas (flag=false → sem auto-key → gate do retryRT → create 1× sem double-charge).
+> - **Retrofit de idempotência dos 12 (Q6, diferido de 5.2.4):** só transactions estampava; os outros 12 write-facades fazem writes EDITOR-FREE (verificado: `organizations_facade.go` Create/Update/Delete sem editor) → estampar `idempotencyEditors(ctx, f.enableIdempotency)...` em Create/Update/Delete (+ `CreateOrUpdateAssetRate` PUT) no 5.3.1. Template: os 5.1 net-new já estampam (`billing_packages_facade.go:136/162/172`, `newBillingPackagesFacade:49`).
+> - **GAPS ficam LEGADO (não swap):** Balances (sem facade; `checker.go:121` segue), Operations (sem `GetOperation` na facade; `04-listing-cursor:152` `ListOperationsAll` segue), Aliases (0 consumidores). Confirmar que os 3 accessors legados permanecem definidos + compilam pós-swap.
+> - **ESTA É MONEY-PATH (transactions migra pro path facade AQUI) → dispatch + review full + contrarian obrigatórios; NÃO hand-implementável. TDD contra o no-double-charge no path facade + a paridade de rename é o gate central.** ⚠️ dispatch pesado esteve flaky nesta sessão (memória): 5.3.1 é bounded/dispatchable; 5.3.2 é o commit atômico grande — dispatch focado, fatiar a IMPL internamente não é opção (um commit, working tree único).
+
+#### Task 5.3.1: Pré-swap não-breaking — retrofit idempotência gated + 2-arg ctors nos 13 write-facades ledger
+
+- [ ] Done
+
+**Context:** Os 13 facades ledger a swappar usam ctor 1-arg (`newTransactionsFacade:74`, `newOrganizationsFacade:33`, etc.) e 12 deles (todos menos transactions) NÃO estampam idempotência (Q6: writes editor-free). São usados HOJE só pelos próprios testes (não wired em `client.X` — os 13 accessors seguem legado). Os 5.1 net-new já mostram o padrão 2-arg + stamping (`billing_packages_facade.go:136`, `newBillingPackagesFacade:49`). `idempotencyEditors(ctx, autoGen) []genledger.RequestEditorFn` (`idempotency.go:81`) já existe. Holders usa `ListPages`/`ListAll` (inconsistente com `Pages`/`All`).
+
+**Implementation vision:** Para os 12 write-facades não-transaction (organizations/ledgers/accounts/assets/portfolios/segments/account_types/metadata_indexes/operation_routes/transaction_routes/holders/asset_rates): +campo `enableIdempotency bool`, ctor `newXFacade(ledger)` → `newXFacade(ledger, enableIdempotency bool)`, e append `idempotencyEditors(ctx, f.enableIdempotency)...` em cada Create/Update/Delete (+ `CreateOrUpdateAssetRate` PUT). Para `transactions`: ctor → 2-arg; os 4 creates trocam `resolveIdempotency(ctx, key, true)` → `resolveIdempotency(ctx, key, f.enableIdempotency)` (D2); commit/cancel/revert (`autoGen=false`) e updates INTOCADOS. Normalizar Holders `ListPages`/`ListAll` → `Pages`/`All`. Atualizar os `newTestXFacade` helpers p/ passar um gate bool (padrão 5.2 `newXxxFacade(client, gate)`). **NÃO tocar `entity.go`/`client.X`** — os 13 seguem legado-wired; a mudança é só facade-side + testes.
+
+**Files:** Modify os 13 `entities/{organizations,ledgers,accounts,assets,portfolios,segments,account_types,metadata_indexes,operation_routes,transaction_routes,holders,asset_rates,transactions}_facade.go` + os respectivos `_test.go`.
+
+**Verification:** tabela de stamp por-facade (gate on→`X-Idempotency` presente, gate off→headerless) espelhando `assertGatedStamp` da 5.2; transactions create gateado (flag off → sem auto-key); chave explícita/ctx sempre vence; `go build ./... && golangci-lint run ./entities/ && go test ./entities/ -count=1` verdes. `git diff -- entity.go plane_clients.go` vazio (não-breaking).
+
+**Done when:** os 13 facades estampam idempotência gated nos writes com ctor 2-arg; transactions create honra a flag; Holders normalizado; NÃO-breaking (client.X segue legado); lint/test verdes.
+
+#### Task 5.3.2: Swap atômico — 13 accessors + migração de todos os consumers + DSL/GetBalance + docs
+
+- [ ] Done
+
+**Context:** Com 5.3.1 pousado (13 facades 2-arg + stamping), flipar `entity.go`. `Client` embute `*entities.Entity` (`midaz.go:128`) → swappar os 13 campos auto-reponta `client.X`. Os campos são exported-interface-typed (`AccountsService` etc., `entity.go:166-200`) → viram concreto unexported `*xFacade` → quebram consumers typed em `entities.XService`. Superfície: ~132 call-sites (recon Q4, file:line enumerados). `initServices` assign em `:344-379`.
+
+**Implementation vision:**
+1. `entity.go`: trocar os 13 tipos de campo (`Accounts AccountsService`→`Accounts *accountsFacade`, etc.) + assignments em `initServices` (`newAccountsFacade(e.planes.Ledger, e.enableIdempotency)` etc., passando o gate 5.2). Balances/Operations/Aliases INTOCADOS (legado).
+2. Migrar os ~132 consumers pelo rename map (Q2): pkg/generator (15), pkg/transaction (9 — money-path), pkg/integrity (`checker.go:190` GetAccount→Get). `*MetricsCount`→`Count` (retorno vira `int`).
+3. **workflow-with-entities helpers interface-typed:** os helpers em `examples/workflow-with-entities/pkg/entities/*.go` são `func(svc entities.XService, ...)` e recebem `client.X` — pós-swap `client.X` é `*xFacade` (unexported, métodos renomeados) que NÃO satisfaz a interface antiga. Reescrever cada helper p/ (a) interface local mínima com os métodos renomeados que ele usa, OU (b) inline das chamadas. (Chamar métodos num valor de tipo unexported funciona; só não dá pra NOMEAR o tipo em outro pacote.)
+4. **DSL→CreateJSON (D1):** reescrever `pkg/generator/transaction_generator.go:61` (converter o `pattern.DSLTemplate` p/ `models.CreateTransactionInput` estruturado) + `examples/03-end-to-end/main.go:95` (+ `:57` param interface-typed) p/ `CreateJSON`.
+5. **GetBalance→list-then-pick:** `mass-demo-generator/main.go:926` `Accounts.GetBalance(...)` → `Accounts.ListBalances(ctx, org, ledger, accountID, models.CursorListOpts{}).Items[0]` (lê AssetCode/Available/OnHold).
+6. **examples/09-testing-with-mocks/reporter.go:26,31** (typed em `entities.AccountsService` + mock gerado): adaptar p/ compilar (regen do mock é 5.4 — aqui, mínimo p/ `./...` verde: interface local ou uso direto).
+7. **docs/** snippets (pagination/examples/multi-tenancy/errors/comprehensive-architecture/configuration/godoc/index + `docs/mapping/` por CLAUDE.md): migrar os renames + `examples.md:104` GetBalance + `:146/152`+configuration DSL/CreateTransaction.
+
+**Files:** `entities/entity.go` + ~30 arquivos de consumer (pkg/generator, pkg/transaction, pkg/integrity, examples/**) + docs/**. (Dispatch obrigatório — muito acima do 3-file rule + money-path.)
+
+**Verification:** `go build ./... && go test ./... -count=1 && golangci-lint run ./...` verdes (módulo inteiro); TDD RED p/ a conversão DSL→CreateJSON (assere o input gerado bate a intenção do template) + o GetBalance list-then-pick; money-path: o path facade de transactions exercido; grep confirma que nenhum accessor legado além de Balances/Operations/Aliases é referenciado; `contract/` (módulo separado) verificado. Review full + contrarian sobre o diff money-path.
+
+**Done when:** `client.X` roteia os 13 accessors ledger pras fachadas; todos os consumers + docs compilam e testam; DSL→CreateJSON e GetBalance→ListBalances migrados; Balances/Operations/Aliases legado; money-path (transactions) revisado isolado; build/test/lint do módulo verdes.
 
 ### Epic 5.4: Slice C — deletar legado + regen tests/mocks + gaps
 
