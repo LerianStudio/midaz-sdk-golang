@@ -20,7 +20,7 @@
 | Phase | Milestone | Epics | Status |
 |-------|-----------|-------|--------|
 | 1 | Núcleo gerado compila; Client de 2 planos lista `organizations` end-to-end com erro (RFC 9457) e paginação normalizados | 1.1, 1.2, 1.3, 1.4, 1.R | **Complete** |
-| 2 | Money path completo: onboarding CRUD + ciclo de transação (json/inflow/outflow/annotation + commit/cancel/revert) + balances/operations/routes/asset-rates + counts | 2.1, 2.2, 2.3 | **Detailed** (2.1 Done; 2.2 detalhada) |
+| 2 | Money path completo: onboarding CRUD + ciclo de transação (json/inflow/outflow/annotation + commit/cancel/revert) + balances/operations/routes/asset-rates + counts | 2.1, 2.2, 2.R, 2.3 | **Detailed** (2.1, 2.2 Done; 2.R lint-hardening = onda corrente; 2.3 pending) |
 | 3 | Domínios novos do ledger: holders/instruments/composition, fees (packages/estimates), billing, encryption/protection | 3.1, 3.2, 3.3 | Epic-level |
 | 4 | Plano Tracer completo: rules (CEL), limits, reservations, validations, audit-events | 4.1, 4.2, 4.3 | Epic-level |
 | 5 | Ergonomia (builders, DSL, `WaitForSettlement`) + cutover do accessor/deleção do legado + docs/exemplos/mapping; `make ci` verde | 5.1, 5.2, 5.3 | Epic-level |
@@ -115,7 +115,7 @@ Exploração-fonte (efêmera, no scratchpad da sessão): `01-server-api-surface.
 **Dependencies:** Epic 2.1 (write-facade pattern, cursor-stop lição, `authRefreshRoundTripper`).
 **Done when:** os 4 creates + commit/cancel/revert + get/list(cursor)/count + updates passam e2e; idempotência wired (paridade legada) e replay-safe; `feesSkipped`/`tracerSkipped` no model; nenhum filtro dropado; cursor termina em `NextCursor==""`; gerados intocados; build/vet/test verdes.
 **Target:** midaz-sdk-golang
-**Status:** Detailed (elaborado 2026-07-01 vs recon `recon-2-2`)
+**Status:** ✅ Done (2026-07-01 — commits `d80e47e` idempotência, `f685784` creates, `2a589c4` lifecycle, `bfe9992` reads, `3cf5839` updates; success-gate defect corrigido `970db6f` (wave `wogt1dh0p`, review 2 + contrarian 2); response-amount assert `b0c2348`).
 
 > **DECISÕES DE WAVE (supervisor, 2026-07-01, vs recon):**
 > - **Idempotência é o LINCHPIN (money-path, terceiro rail).** O path gerado NÃO herda a auto-geração/injeção ctx→header do `*HTTPClient` legado (`injectContextHeaders` http.go:553, `ensureIdempotencyHeader` http_retry_response.go:1021 são do legado); o `authRefreshRoundTripper` só PRESERVA no replay via `req.Clone()`+`GetBody`, não CRIA a chave. Sem wiring, um create de transação sai SEM chave → retry de rede = 2ª mutação de balance (violação double-entry). Os 4 creates gerados têm `params.XIdempotency`+`params.XTTL` (nomes `X-Idempotency`/`X-TTL` confirmados — NUNCA `-Key`); commit/cancel/revert NÃO têm params. **Task 2.2.0 constrói o helper ANTES dos creates.**
@@ -126,7 +126,7 @@ Exploração-fonte (efêmera, no scratchpad da sessão): `01-server-api-surface.
 > - **Coexistência mantida:** `transactions_facade.go` construída + e2e-testada, NÃO wired em `client.X`. Gerados intocados. **SERIAL** (money-write, arquivos compartilhados). Padrão-base: `entities/accounts_facade.go` + helpers package-level.
 
 #### Task 2.2.0: Idempotência no path de write gerado (linchpin money-path)
-- [ ] Done
+- [x] Done
 **Context:** o path gerado não herda a idempotência do `*HTTPClient` legado (recon: `injectContextHeaders` http.go:553, `ensureIdempotencyHeader` http_retry_response.go:1021 são legado; o `authRefreshRoundTripper` só preserva no replay). `pkg/sdkctx` já tem `WithIdempotencyKey`/`IdempotencyKeyFromContext`/`WithoutAutoIdempotency`/`AutoIdempotencySuppressed` (sdkctx.go:59/73/103/113). Constante `idempotencyHeader="X-Idempotency"` (http.go:65). Os 4 creates gerados têm `params.XIdempotency`+`params.XTTL`; commit/cancel/revert não têm params. Server: default TTL 300s.
 **Implementation vision:** helper package-level `resolveIdempotency(ctx, explicitKey string, autoGen bool) (key, ttl string)` na camada de fachada. Resolução (paridade legada): (1) chave explícita — `explicitKey` (input) OU `sdkctx.IdempotencyKeyFromContext(ctx)` — vence; (2) senão, se `autoGen && !sdkctx.AutoIdempotencySuppressed(ctx)`, gera `uuid.NewString()`; (3) senão vazio. TTL de knob novo `sdkctx.WithIdempotencyTTL(ctx, seconds)`+`IdempotencyTTLFromContext` (vazio = omitir X-TTL, server usa 300). Aplicação: ops com params (4 creates) → setar `params.XIdempotency=&key`/`params.XTTL=&ttl` quando não-vazios; ops sem params (commit/cancel/revert) → reqEditor `setHeader(k,v)` (irmão do `setQueryParam`). `autoGen=true` p/ creates (paridade: unsafe idempotente por default), `false` p/ actions (paridade `transactionActionContext`). Helper NÃO toca o body; chave estável sobrevive ao replay.
 **Files:** Create `entities/idempotency.go` + `entities/idempotency_test.go`; Modify `pkg/sdkctx/sdkctx.go` (+`WithIdempotencyTTL`/`IdempotencyTTLFromContext`).
@@ -134,7 +134,7 @@ Exploração-fonte (efêmera, no scratchpad da sessão): `01-server-api-surface.
 **Done when:** helper resolve chave/TTL com paridade legada, aplica via params (creates) e reqEditor (actions), headers `X-Idempotency`/`X-TTL`.
 
 #### Task 2.2.1: Transactions facade — 4 create paths
-- [ ] Done
+- [x] Done
 **Context:** `CreateTransaction{JSON,Inflow,Outflow,Annotation}WithBodyWithResponse(ctx, orgId, ledgerId, params, "application/json", body, reqEditors...)`→200→`genledger.Transaction`. Models SEPARADOS: `CreateTransactionInput` (transaction.go:262, `IdempotencyKey json:"-":312`), `CreateInflowInput`/`CreateOutflowInput`/`CreateAnnotationInput` (transaction_convenience.go:11/197/385) — inflow/outflow via `ToMap()`, json/annotation via `ToLibTransaction()` (mappers diferentes). `models.Transaction` dropa `FeesSkipped`/`TracerSkipped` do gerado (:720/731).
 **Implementation vision:** `CreateJSON/CreateInflow/CreateOutflow/CreateAnnotation(ctx, orgID, ledgerID, input) (*models.Transaction, error)`. Cada: valida, `resolveIdempotency(ctx, input.IdempotencyKey, true)`→params, marshal do wire shape do input (o que cada endpoint espera — confirmar no TDD contra `api/ledger.openapi.yaml`)→`bytes.NewReader`→Create* gerado. Decode bytes crus→`models.Transaction`. **Estender `models.Transaction`** aditivamente com os campos money-path que o server manda e o SDK dropa (`FeesSkipped`, `TracerSkipped` + fee-legs/valor-líquido presentes em `genledger.Transaction` — ler o struct e espelhar). Sucesso=200.
 **Files:** Create `entities/transactions_facade.go` + `_test.go`; Modify `models/transaction.go`.
@@ -142,7 +142,7 @@ Exploração-fonte (efêmera, no scratchpad da sessão): `01-server-api-surface.
 **Done when:** 4 creates passam e2e, idempotentes e replay-safe, resposta expõe skip flags.
 
 #### Task 2.2.2: Lifecycle — commit/cancel/revert
-- [ ] Done
+- [x] Done
 **Context:** `Commit/Cancel/RevertTransactionWithResponse(ctx, orgId, ledgerId, transactionId, reqEditors...)`→201→Transaction, SEM params/body. Legado: revert retorna FILHO (`ParentTransactionID`, não muta original, transactions.go:962); **cancel sintetiza** `&Transaction{ID, Status:{Code:"CANCELED"}}` se body vazio/null (:1067-1091). Actions não-idempotentes por default (`transactionActionContext`:1099).
 **Implementation vision:** `Commit/Cancel/Revert(ctx, orgID, ledgerID, transactionID) (*models.Transaction, error)`. Idempotência via 2.2.0 `autoGen=false` (só se caller passar chave no ctx → reqEditor `setHeader`). Cancel: 201 body vazio/`null` → sintetizar `models.Transaction{ID, Status: CANCELED}`. Sucesso=201.
 **Files:** Modify `entities/transactions_facade.go` + `_test.go`.
@@ -150,7 +150,7 @@ Exploração-fonte (efêmera, no scratchpad da sessão): `01-server-api-surface.
 **Done when:** as 3 ações passam e2e com semântica legada (revert-filho, cancel-sintetizado, non-idempotent por default).
 
 #### Task 2.2.3: Read path — Get + List (cursor) + Count
-- [ ] Done
+- [x] Done
 **Context:** `GetTransactionWithResponse`→200→Transaction; `GetAllTransactionsWithResponse(...params)`→200→`Pagination` (Items interface{}→unmarshal manual em `models.ListResponse[Transaction]`). List = CURSOR (`GetAllTransactionsParams`:1362 = Metadata/Limit/dates/SortOrder/Cursor, sem Page). `CountTransactionsByFiltersWithResponse` = HEAD (Route/Status/dates). Filtros de `models.TransactionsFilters` sem slot → `setQueryParam`.
 **Implementation vision:** `Get` (decode bytes→models.Transaction, evita UUID-eager-validate); `List/Pages/All` **cursor** (Pages para em `NextCursor==""` — NUNCA `HasMore()`); filtros sem slot via `setQueryParam` (asset_code/status/source/destination/route/reference — nomes wire de `TransactionsFilters.ToQueryParams`); `Count` HEAD lendo `X-Total-Count`.
 **Files:** Modify `entities/transactions_facade.go` + `_test.go`.
@@ -158,16 +158,38 @@ Exploração-fonte (efêmera, no scratchpad da sessão): `01-server-api-surface.
 **Done when:** get/list(cursor)/count passam e2e; nenhum filtro dropado; cursor termina em `NextCursor==""`.
 
 #### Task 2.2.4: Update transaction + update operation
-- [ ] Done
+- [x] Done
 **Context:** `UpdateTransactionWithBodyWithResponse(...contentType, body)`→200→Transaction; `UpdateOperationWithBodyWithResponse(...operationId, contentType, body)`→200→**Operation**. Legado: `UpdateTransactionInput` = só Metadata+Description (transaction.go:1221), PATCH objeto inteiro `application/json` (NÃO merge-patch), payload não-vazio exigido. `UpdateTransactionOperation` (operations.go:343) PATCH tx-scoped.
 **Implementation vision:** `UpdateTransaction(ctx, org, ledger, id, *UpdateTransactionInput) (*models.Transaction, error)` e `UpdateOperation(ctx, org, ledger, txID, opID, input) (*models.Operation, error)` via write-facade (`application/json`, NÃO merge-patch — paridade). Recusar payload vazio. UpdateOperation decoda `models.Operation`.
 **Files:** Modify `entities/transactions_facade.go` + `_test.go` (+ `models/operation.go` só se faltar campo money-path do gerado).
 **Verification:** `go test ./entities/ -run 'TestTransactionsFacade_Update' -count=1`.
 **Done when:** update de transação e de operation passam e2e; payload vazio recusado.
 
-**Done when (Epic 2.2):** 4 creates + commit/cancel/revert + get/list(cursor)/count + updates passam e2e; idempotência wired e replay-safe; `feesSkipped`/`tracerSkipped` no model; nenhum filtro dropado; cursor termina em `NextCursor==""`; gerados intocados; build/vet/test verdes. `/dsl` diferido p/ Epic 5.2.
+**Done when (Epic 2.2):** 4 creates + commit/cancel/revert + get/list(cursor)/count + updates passam e2e; idempotência wired e replay-safe; `feesSkipped`/`tracerSkipped` no model; nenhum filtro dropado; cursor termina em `NextCursor==""`; gerados intocados; build/vet/test verdes. `/dsl` diferido p/ Epic 5.2. ✔️
+
+> **Defeito money-path pego no gate (supervisor, 2026-07-01, wave `wogt1dh0p`):** os 8 writes roteavam pelo parser gerado `Parse{Op}Resp` (gate por status EXATO — creates 200 / actions 201 / updates 200); qualquer 2xx fora disso (202 async, drift OAS↔server) caía no ramo default que faz `json.Unmarshal` no `Error` gerado (`status *int64`), mas o body real de transação tem `status` OBJETO → unmarshal falha → write CONFIRMADO vira erro interno espúrio. `isSuccess` era dead code. **Fix:** rerotear os 8 writes pelos métodos lower-level (`...WithBody`/`Commit`/`Cancel`/`Revert`/`Update...WithBody`, todos retornam `*http.Response` cru) → `readRawResponse` (drena+fecha body) → `isSuccess(2xx)` como único gate → decode em `models.*`. Paridade com o legado (`StatusCode < 400`). RED capturado (create@201/@202, commit@200). Replay/idempotência/cancel-synthesis preservados; reads intocados.
 
 > **Follow-up p/ cutover (Epic 5.1):** as fachadas de write da 2.1 (organizations/ledgers/etc. Create/Update) passam `params` VAZIO → não setam idempotência no path gerado. Retrofitar pro helper 2.2.0 antes do cutover (confirmar se os create-params de onboarding expõem `X-Idempotency`; onboarding é menos crítico que money-write, mas o contrato do SDK é auto-idempotência em unsafe methods).
+
+### Epic 2.R: Hardening do baseline golangci (lint verde p/ o gate de make ci)
+
+**Goal:** `golangci-lint run ./...` fica verde (0 issues) — hoje **57 issues** (recon 2026-07-01), 100% código à mão introduzido no branch de consolidação (não regressão do baseline v4.1.0 released; `generated: lax` já isenta `*.gen.go`). Estabelece baseline limpo ANTES de 2.3 e vira gate de wave dali em diante.
+**Scope:** `entities/*_facade_test.go` (helpers de teste), `entities/transactions_facade.go`/`organizations_facade.go` (nolint bodyclose), style em `entities/*_facade*.go`, `internal/genledger/smoke_test.go`, `internal/cmd/specdowngrade/`.
+**Dependencies:** Epic 2.2 (não mexer em money-path em voo).
+**Target:** midaz-sdk-golang
+**Status:** Detailed
+
+> **Descoberta de processo (supervisor, 2026-07-01):** as waves 2.1/2.2 gatearam em `go build/vet/test` mas NÃO em `golangci-lint`. `go test` não vê função package-level não-usada (U1000) nem bodyclose. `.golangci.yml` tem `new:false` → o `make ci` terminal (Phase 5) tem ZERO tolerância. Debt acumulou invisível — mesma classe de falso-verde do defeito success-gate, um nível acima. **Correção: da wave 2.3 em diante o GREEN da harness inclui `golangci-lint run` nos pacotes tocados; a wave só retorna lint-clean.**
+
+**Escopo exato (57 findings):**
+- **entities/ (51):**
+  - `unused: 8` — os construtores `newXFacade` (8 recursos) não são chamados: nem `client.X` (cutover diferido p/ 5.1), nem os testes (montam struct literal `&xFacade{ledger:...}`). **Fix (não `nolint`):** rotear os helpers `newTestXFacade` pelos construtores reais (`return newXFacade(newTestLedgerClient(t, srv))`) — limpa unused, exercita o seam, e 5.1 chama os mesmos construtores em `client.X`. **Estabelece o padrão p/ 2.3+.**
+  - `bodyclose: 5` — 3 em `transactions_facade.go:165/180/196` (commit/revert/cancel via `readRawResponse`) são FALSO-POSITIVO: `readRawResponse` fecha via `defer resp.Body.Close()` (:63) — bodyclose não rastreia close através de helper. `//nolint:bodyclose // fechado em readRawResponse` justificado. Idem `organizations_facade.go:263` (helper de reads) e `auth_roundtripper_test.go:249`. **Provar o close em cada um antes do nolint — senão é leak real.**
+  - style (~37): `errorlint` (`errors.As/Is`), `mnd` (nomear números mágicos — status codes de teste), `usestdlibvars` (`http.StatusX`), `revive` (`_` p/ param não-usado). Mecânico, zero mudança de comportamento.
+- **internal/genledger/smoke_test.go (2):** `revive` (param `t`→`_`) + `staticcheck QF1011` (omitir tipo inferível). Trivial. NÃO é gerado (o gerado real é skip via `generated: lax`).
+- **internal/cmd/specdowngrade (4):** `goimports` (fmt), `mnd` (3 mágico), e **2 gosec** — `G703` path-traversal (`main.go:231`) + `G306` perms WriteFile (`main.go:241`). **gosec = julgamento de segurança, não carimbo:** G306→apertar perms se o spec de saída é artefato de build; G703→validar path OU `#nosec G703` justificado se o path é input fixo repo-relativo de build. security-reviewer adjudica.
+
+**Done when:** `golangci-lint run ./...` = 0 issues; nenhum gerado tocado à mão; nenhum comportamento money-path alterado (só test-helper routing + nolint justificado + style + gosec adjudicado); build/vet/test verdes; construtores `newXFacade` exercitados pelos testes.
 
 ### Epic 2.3: Routes, asset-rates, counts
 
