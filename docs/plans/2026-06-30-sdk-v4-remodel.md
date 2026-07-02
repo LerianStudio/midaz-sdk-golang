@@ -20,7 +20,7 @@
 | Phase | Milestone | Epics | Status |
 |-------|-----------|-------|--------|
 | 1 | Núcleo gerado compila; Client de 2 planos lista `organizations` end-to-end com erro (RFC 9457) e paginação normalizados | 1.1, 1.2, 1.3, 1.4, 1.R | **Complete** |
-| 2 | Money path completo: onboarding CRUD + ciclo de transação (json/inflow/outflow/annotation + commit/cancel/revert) + balances/operations/routes/asset-rates + counts | 2.1, 2.2, 2.R, 2.3 | **Detailed** (2.1, 2.2, 2.R Done; 2.3 = onda corrente) |
+| 2 | Money path completo: onboarding CRUD + ciclo de transação (json/inflow/outflow/annotation + commit/cancel/revert) + balances/operations/routes/asset-rates + counts | 2.1, 2.2, 2.R, 2.3 | **Complete** (2.1, 2.2, 2.R, 2.3 todos Done) |
 | 3 | Domínios novos do ledger: holders/instruments/composition, fees (packages/estimates), billing, encryption/protection | 3.1, 3.2, 3.3 | Epic-level |
 | 4 | Plano Tracer completo: rules (CEL), limits, reservations, validations, audit-events | 4.1, 4.2, 4.3 | Epic-level |
 | 5 | Ergonomia (builders, DSL, `WaitForSettlement`) + cutover do accessor/deleção do legado + docs/exemplos/mapping; `make ci` verde | 5.1, 5.2, 5.3 | Epic-level |
@@ -197,7 +197,7 @@ Exploração-fonte (efêmera, no scratchpad da sessão): `01-server-api-surface.
 **Scope:** `entities/operation_routes_facade.go` + `transaction_routes_facade.go` + `asset_rates_facade.go` (novos); extensão dos facades 2.1 (Count); `entities/transactions_facade.go` (harden Count). Models já existem.
 **Dependencies:** Epic 2.1 (write-facade pattern, cursor-stop, helpers), Epic 2.2 (`readRawResponse`, `parseTotalCountHeader`).
 **Target:** midaz-sdk-golang
-**Status:** Detailed (elaborado 2026-07-01 vs recon `a98fd5d0`, corrigido por verificação do supervisor)
+**Status:** ✅ Done (2026-07-01 — wave `w1z2n8xhn`, 4 commits `8ebc407` operation-routes, `7e99caf` transaction-routes, `4ad40ab` asset-rates, `a313fa6` readCount+counts; review logic/test/nil + contrarian wire-parity/cursor, ambos limpos; 9 agentes, ~884k tokens. Gate do supervisor PASS: build/vet/`golangci-lint`=0/test verdes; gerados+`entity.go`/`plane_clients.go`/`common.go` intocados (coexistência); 4 alegações de money-path re-derivadas do código pousado — (1) asset-rate rate/scale sem divisão por float, `json.Marshal` direto, `*decimal.Decimal` na leitura → sem truncamento; (2) cursor para em `NextCursor==""` nas 3 fachadas, `HasMore` só em comentários; (3) count error-path via `readCount`→`DecodeProblemJSON` mapeia HEAD-403 corpo-vazio p/ `*errors.Error`, não InternalError; (4) writes replay-safe via corpo rebobinável de `writeJSON`).
 
 > **DECISÕES DE WAVE (supervisor, 2026-07-01, vs recon verificada):**
 > - **Os arquivos `entities/{operation_routes,transaction_routes,asset_rates}.go` são LEGADO** (`e.httpClient.sendRequest`, struct `*Entity`, wired em `entity.go:270/277/281`) — shipam no v4.1.0. São a REFERÊNCIA COMPORTAMENTAL (mesmo server): a fachada nova reproduz o wire request equivalente. NÃO existe `*_facade.go` p/ eles ainda. Recon disse "tudo pronto" — FALSO; confundiu legado wired com fachada feita.
