@@ -387,6 +387,104 @@ func TestInstrumentsFacade_WriteReplaySafe(t *testing.T) {
 	}
 }
 
+// TestInstrumentsFacade_ListPagesConsumerStops covers the `if !yield(page,nil)
+// { return }` branch (instruments_facade.go ~L111) on the org-scoped instruments
+// list iterator: a consumer returning false after the first page stops the
+// iterator immediately. The first page carries a next_cursor, so a regression
+// ignoring yield's return would leak a second fetch — asserted absent by
+// counting server requests.
+func TestInstrumentsFacade_ListPagesConsumerStops(t *testing.T) {
+	var requests int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests++
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"items":[{"id":"33333333-3333-3333-3333-333333333333","holderId":"` + instrumentsFacadeHolderID + `","type":"CHECKING"}],"limit":1,"next_cursor":"c2"}`))
+	}))
+	defer srv.Close()
+
+	var pages int
+	for page, err := range newTestInstrumentsFacade(t, srv).ListPages(context.Background(), instrumentsFacadeOrgID, instrumentsFacadeHolderID, models.InstrumentsListOpts{
+		PageListOpts: models.PageListOpts{Limit: 1},
+	}) {
+		if err != nil {
+			t.Fatalf("unexpected err on first page: %v", err)
+		}
+		if page == nil || len(page.Items) != 1 {
+			t.Fatalf("first page = %+v", page)
+		}
+		pages++
+		break // yield false -> iterator must return without fetching page 2
+	}
+
+	if pages != 1 {
+		t.Fatalf("consumed pages = %d, want 1", pages)
+	}
+	if requests != 1 {
+		t.Fatalf("server requests = %d, want exactly 1 (consumer stop must not leak a second fetch)", requests)
+	}
+}
+
+// TestInstrumentsFacade_ListAccountsByHolderPagesConsumerStops covers the same
+// `if !yield(page,nil) { return }` branch (instruments_facade.go ~L281) on the
+// holder-in-path accounts iterator: a consumer returning false after the first
+// page stops it before the second next_cursor-driven fetch.
+func TestInstrumentsFacade_ListAccountsByHolderPagesConsumerStops(t *testing.T) {
+	var requests int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests++
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"items":[{"id":"77777777-7777-7777-7777-777777777777","name":"Checking","assetCode":"USD"}],"limit":1,"next_cursor":"a2"}`))
+	}))
+	defer srv.Close()
+
+	var pages int
+	for page, err := range newTestInstrumentsFacade(t, srv).ListAccountsByHolderPages(context.Background(), instrumentsFacadeOrgID, instrumentsFacadeHolderID, models.AccountsListOpts{
+		PageListOpts: models.PageListOpts{Limit: 1},
+	}) {
+		if err != nil {
+			t.Fatalf("unexpected err on first page: %v", err)
+		}
+		if page == nil || len(page.Items) != 1 {
+			t.Fatalf("first page = %+v", page)
+		}
+		pages++
+		break // yield false -> iterator must return without fetching page 2
+	}
+
+	if pages != 1 {
+		t.Fatalf("consumed pages = %d, want 1", pages)
+	}
+	if requests != 1 {
+		t.Fatalf("server requests = %d, want exactly 1 (consumer stop must not leak a second fetch)", requests)
+	}
+}
+
+// TestInstrumentsFacade_UpdateNullFieldThroughWire locks the end-to-end
+// PATCH-null contract: WithNullField("document") must marshal through
+// UpdateInstrumentInput.MarshalJSON and writeJSON as an explicit "document":null
+// on the wire — the RFC 7396 field-clear signal. A regression dropping the field
+// (omitempty) instead of emitting null would be caught here.
+func TestInstrumentsFacade_UpdateNullFieldThroughWire(t *testing.T) {
+	const id = "55555555-5555-5555-5555-555555555555"
+	var body string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		body = string(b)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"` + id + `","holderId":"` + instrumentsFacadeHolderID + `","type":"CHECKING"}`))
+	}))
+	defer srv.Close()
+
+	_, err := newTestInstrumentsFacade(t, srv).Update(context.Background(), instrumentsFacadeOrgID, instrumentsFacadeHolderID, id,
+		models.NewUpdateInstrumentInput().WithNullField("document"))
+	if err != nil {
+		t.Fatalf("Update with null field: %v", err)
+	}
+	if !strings.Contains(body, `"document":null`) {
+		t.Fatalf("body = %q, want explicit \"document\":null on the wire", body)
+	}
+}
+
 func newTestInstrumentsFacade(t *testing.T, srv *httptest.Server) *instrumentsFacade {
 	t.Helper()
 	return newInstrumentsFacade(newTestLedgerClient(t, srv))

@@ -303,6 +303,80 @@ func TestHoldersFacade_WriteReplaySafe(t *testing.T) {
 	}
 }
 
+// TestHoldersFacade_ListPagesContextCanceled covers the ctx.Err() escape hatch
+// (holders_facade.go ~L96-99): an already-cancelled context makes ListPages
+// yield context.Canceled and stop before touching the wire — no request reaches
+// the server.
+func TestHoldersFacade_ListPagesContextCanceled(t *testing.T) {
+	var requests int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests++
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"items":[],"limit":1}`))
+	}))
+	defer srv.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	var yielded error
+	var pages int
+	for _, err := range newTestHoldersFacade(t, srv).ListPages(ctx, holdersFacadeOrgID, models.HoldersListOpts{
+		PageListOpts: models.PageListOpts{Limit: 1},
+	}) {
+		pages++
+		yielded = err
+	}
+
+	if pages != 1 {
+		t.Fatalf("iterations = %d, want exactly 1 (the ctx.Err() yield)", pages)
+	}
+	if !errors.Is(yielded, context.Canceled) {
+		t.Fatalf("yielded err = %v, want context.Canceled", yielded)
+	}
+	if requests != 0 {
+		t.Fatalf("server requests = %d, want 0 (cancelled ctx must short-circuit before the wire)", requests)
+	}
+}
+
+// TestHoldersFacade_ListPagesConsumerStops covers the `if !yield(page,nil)
+// { return }` branch (holders_facade.go ~L107): a consumer that returns false
+// after the first page must stop the iterator immediately. The first page
+// carries a next_cursor, so a regression ignoring yield's return would fetch a
+// second page — asserted absent by counting server requests.
+func TestHoldersFacade_ListPagesConsumerStops(t *testing.T) {
+	var requests int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests++
+		w.Header().Set("Content-Type", "application/json")
+		// Non-empty next_cursor: the iterator would fetch again if the consumer
+		// did not stop it.
+		_, _ = w.Write([]byte(`{"items":[{"id":"33333333-3333-3333-3333-333333333333","name":"Alice"}],"limit":1,"next_cursor":"c2"}`))
+	}))
+	defer srv.Close()
+
+	var pages int
+	for page, err := range newTestHoldersFacade(t, srv).ListPages(context.Background(), holdersFacadeOrgID, models.HoldersListOpts{
+		PageListOpts: models.PageListOpts{Limit: 1},
+	}) {
+		if err != nil {
+			t.Fatalf("unexpected err on first page: %v", err)
+		}
+		if page == nil || len(page.Items) != 1 {
+			t.Fatalf("first page = %+v", page)
+		}
+		pages++
+		break // yield false -> iterator must return without fetching page 2
+	}
+
+	if pages != 1 {
+		t.Fatalf("consumed pages = %d, want 1", pages)
+	}
+	if requests != 1 {
+		t.Fatalf("server requests = %d, want exactly 1 (consumer stop must not leak a second fetch)", requests)
+	}
+}
+
 func newTestHoldersFacade(t *testing.T, srv *httptest.Server) *holdersFacade {
 	t.Helper()
 	return newHoldersFacade(newTestLedgerClient(t, srv))

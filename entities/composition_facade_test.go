@@ -117,6 +117,72 @@ func TestCompositionFacade_CreateHolderAccount_PartialFailure(t *testing.T) {
 	}
 }
 
+// TestCompositionFacade_CreateHolderAccount_Success200 locks the OTHER half of
+// the success gate: the server returns HTTP 200 (not 201) with a populated
+// {account, instrument} body. isSuccess(2xx) must accept it exactly like 201.
+// A regression narrowing the gate to 201-only (or re-adopting the JSON200-vs-
+// default parser) would still pass every 201 test — this is the only test that
+// catches it.
+func TestCompositionFacade_CreateHolderAccount_Success200(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{
+			"account":{"id":"44444444-4444-4444-4444-444444444444","name":"Ops Cash","assetCode":"USD"},
+			"instrument":{"id":"55555555-5555-5555-5555-555555555555","holderId":"` + compositionFacadeHolderID + `"}
+		}`))
+	}))
+	defer srv.Close()
+
+	resp, err := newTestCompositionFacade(t, srv).CreateHolderAccount(
+		context.Background(), compositionFacadeOrgID, compositionFacadeLedgerID, compositionFacadeHolderID, compositionInput())
+	if err != nil {
+		t.Fatalf("CreateHolderAccount (200 full success): %v", err)
+	}
+	if resp.Account == nil || resp.Account.ID != "44444444-4444-4444-4444-444444444444" {
+		t.Fatalf("Account = %+v, want populated on 200", resp.Account)
+	}
+	if resp.Instrument == nil || resp.Instrument.ID == nil {
+		t.Fatalf("Instrument = %+v, want populated on 200", resp.Instrument)
+	}
+	if resp.InstrumentError != nil {
+		t.Fatalf("InstrumentError = %+v, want nil on full success", resp.InstrumentError)
+	}
+}
+
+// TestCompositionFacade_CreateHolderAccount_AccountOnly is the account-only
+// success path: no instrument was requested, so the server returns 201 with
+// {account, instrument:null} and NO instrumentError. This is distinct from the
+// partial-failure path (null + instrumentError): a null instrument with no
+// error means "none requested", NOT "instrument failed". A future change that
+// mistreats null-instrument-no-error as a partial failure must be caught here.
+func TestCompositionFacade_CreateHolderAccount_AccountOnly(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{
+			"account":{"id":"44444444-4444-4444-4444-444444444444","name":"Ops Cash","assetCode":"USD"},
+			"instrument":null
+		}`))
+	}))
+	defer srv.Close()
+
+	resp, err := newTestCompositionFacade(t, srv).CreateHolderAccount(
+		context.Background(), compositionFacadeOrgID, compositionFacadeLedgerID, compositionFacadeHolderID, compositionInput())
+	if err != nil {
+		t.Fatalf("account-only creation must be a Go success, got err: %v", err)
+	}
+	if resp.Account == nil || resp.Account.ID != "44444444-4444-4444-4444-444444444444" {
+		t.Fatalf("Account = %+v, want persisted account", resp.Account)
+	}
+	if resp.Instrument != nil {
+		t.Fatalf("Instrument = %+v, want nil (none requested)", resp.Instrument)
+	}
+	if resp.InstrumentError != nil {
+		t.Fatalf("InstrumentError = %+v, want nil (no instrument failed — none was requested)", resp.InstrumentError)
+	}
+}
+
 // TestCompositionFacade_CreateHolderAccount_Error is verification (c): a
 // transport-level non-2xx surfaces as *errors.Error with RFC 9457 decode and
 // X-Request-ID correlation.
