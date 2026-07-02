@@ -1,0 +1,354 @@
+// Copyright 2025 Lerian Studio
+// SPDX-License-Identifier: Elastic-2.0
+
+package entities
+
+import (
+	"context"
+	"encoding/json"
+	"io"
+	"iter"
+	"net/http"
+	"strconv"
+
+	"github.com/LerianStudio/midaz-sdk-golang/v4/internal/genledger"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/sdkctx"
+)
+
+// instrumentsFacade is the Epic 3.1 (Task 3.1.3) hand-written facade over the
+// generated genledger.ClientWithResponses for CRM instruments.
+//
+// RE-HOMING: this targets the GENERATED ledger-plane surface. The
+// Create/Get/Update/Delete verbs are holder-in-path
+// (/organizations/{org}/holders/{holderId}/instruments); the List verb is
+// org-scoped (/organizations/{org}/instruments) and narrows to a holder via the
+// holder_id query param — NOT a path segment. It deliberately does NOT match the
+// superseded legacy entities/instruments wire; that legacy file is a
+// model/method-set reference only.
+//
+// Instruments are treated as CURSOR-paginated: ListPages advances by echoing the
+// response next_cursor back into the request as a query param and stops on an
+// empty cursor — never HasMore(), whose page-based heuristic can loop forever on
+// a full terminal page that carries no cursor. The generated ListInstrumentsParams
+// has no cursor slot, so the cursor is injected via a request editor (like the
+// type filter below); the caller's opts are never mutated.
+//
+// The generated ListInstrumentsParams exposes slots for holder_id/limit/
+// sort_order/include_deleted/document. The type filter has no slot, so the
+// facade injects it as a query param via a request editor.
+//
+// No idempotency is wired here: it is deferred to the Epic 5.1 retrofit. Writes
+// stay replay-safe regardless via the rewindable *bytes.Reader body in
+// writeJSON. The public surface stays models.* + *errors.Error; the generated
+// types never leak.
+type instrumentsFacade struct {
+	ledger *genledger.ClientWithResponses
+}
+
+// newInstrumentsFacade wires the facade over a ledger plane client.
+func newInstrumentsFacade(ledger *genledger.ClientWithResponses) *instrumentsFacade {
+	return &instrumentsFacade{ledger: ledger}
+}
+
+// List retrieves one cursor page of instruments for a holder. The generated list
+// endpoint is org-scoped, so the holder is carried as the holder_id query param.
+func (f *instrumentsFacade) List(ctx context.Context, orgID, holderID string, opts models.InstrumentsListOpts) (*models.ListResponse[models.Instrument], error) {
+	return f.listCursor(ctx, orgID, holderID, opts, "")
+}
+
+// listCursor fetches a single page, optionally seeded with a cursor injected as
+// a query param (the generated ListInstrumentsParams has no cursor slot). The
+// caller keeps the cursor as loop state so opts is never mutated.
+func (f *instrumentsFacade) listCursor(ctx context.Context, orgID, holderID string, opts models.InstrumentsListOpts, cursor string) (*models.ListResponse[models.Instrument], error) {
+	const operation = "Instruments.List"
+
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+
+	editors := listInstrumentsReqEditors(opts)
+	if cursor != "" {
+		editors = append(editors, setQueryParam("cursor", cursor))
+	}
+
+	resp, err := f.ledger.ListInstrumentsWithResponse(ctx, orgID, listInstrumentsParams(holderID, opts), editors...)
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	if resp.StatusCode() != http.StatusOK {
+		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
+	}
+
+	var page models.ListResponse[models.Instrument]
+	if err := json.Unmarshal(resp.Body, &page); err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	return &page, nil
+}
+
+// ListPages yields one cursor page per iteration, advancing by the response
+// next_cursor until it is empty.
+func (f *instrumentsFacade) ListPages(ctx context.Context, orgID, holderID string, opts models.InstrumentsListOpts) iter.Seq2[*models.ListResponse[models.Instrument], error] {
+	return func(yield func(*models.ListResponse[models.Instrument], error) bool) {
+		cursor := ""
+
+		for {
+			if ctx.Err() != nil {
+				yield(nil, ctx.Err())
+				return
+			}
+
+			page, err := f.listCursor(ctx, orgID, holderID, opts, cursor)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			if !yield(page, nil) {
+				return
+			}
+
+			// Cursor-pure stop: paginate by next_cursor, so the only sound
+			// terminal signal is an empty cursor. HasMore()'s page-based
+			// heuristic would loop forever on a full terminal page that carries
+			// no next_cursor.
+			if page.Pagination.NextCursor == "" {
+				return
+			}
+
+			cursor = page.Pagination.NextCursor
+		}
+	}
+}
+
+// ListAll yields every instrument for a holder across cursor pages, transparently
+// advancing pagination.
+func (f *instrumentsFacade) ListAll(ctx context.Context, orgID, holderID string, opts models.InstrumentsListOpts) iter.Seq2[models.Instrument, error] {
+	return flattenPages(f.ListPages(ctx, orgID, holderID, opts))
+}
+
+// Create registers a new instrument under a holder via the write-facade pattern
+// (marshal input -> rewindable *bytes.Reader -> WithBody variant). Idempotency
+// headers are deliberately not wired (Epic 5.1). The server returns 201 on
+// success.
+func (f *instrumentsFacade) Create(ctx context.Context, orgID, holderID string, input *models.CreateInstrumentInput) (*models.Instrument, error) {
+	const operation = "Instruments.Create"
+
+	if err := input.Validate(); err != nil {
+		return nil, err
+	}
+
+	return writeJSON[models.Instrument](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
+		return readRawResponse(f.ledger.CreateInstrumentWithBody(ctx, orgID, holderID, &genledger.CreateInstrumentParams{}, jsonContentType, body))
+	})
+}
+
+// Get retrieves one instrument by ID under a holder. When the context is tagged
+// with sdkctx.WithIncludeDeleted, soft-deleted instruments are included.
+func (f *instrumentsFacade) Get(ctx context.Context, orgID, holderID, id string) (*models.Instrument, error) {
+	const operation = "Instruments.Get"
+
+	params := &genledger.GetInstrumentByIDParams{}
+	if sdkctx.IncludeDeletedFromContext(ctx) {
+		params.IncludeDeleted = strPtr("true")
+	}
+
+	resp, err := f.ledger.GetInstrumentByIDWithResponse(ctx, orgID, holderID, id, params)
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	return decodeOne[models.Instrument](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+}
+
+// Update patches an instrument by ID under a holder. Same write-facade pattern as
+// Create; the server returns 200 on success.
+func (f *instrumentsFacade) Update(ctx context.Context, orgID, holderID, id string, input *models.UpdateInstrumentInput) (*models.Instrument, error) {
+	const operation = "Instruments.Update"
+
+	if err := input.Validate(); err != nil {
+		return nil, err
+	}
+
+	return writeJSON[models.Instrument](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
+		return readRawResponse(f.ledger.UpdateInstrumentWithBody(ctx, orgID, holderID, id, jsonContentType, body))
+	})
+}
+
+// Delete removes an instrument by ID under a holder. Soft delete by default; when
+// the context is tagged with sdkctx.WithHardDelete the deletion is permanent. The
+// server returns 204 with no body on success.
+func (f *instrumentsFacade) Delete(ctx context.Context, orgID, holderID, id string) error {
+	const operation = "Instruments.Delete"
+
+	params := &genledger.DeleteInstrumentParams{}
+	if sdkctx.HardDeleteFromContext(ctx) {
+		params.HardDelete = strPtr("true")
+	}
+
+	resp, err := f.ledger.DeleteInstrumentWithResponse(ctx, orgID, holderID, id, params)
+	if err != nil {
+		return errors.NewInternalError(operation, err)
+	}
+
+	if !isSuccess(resp.StatusCode()) {
+		return errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
+	}
+
+	return nil
+}
+
+// DeleteRelatedParty removes one related party from an instrument via
+// DELETE .../instruments/{instrumentId}/related-parties/{relatedPartyId}. The
+// server returns 204 with no body on success.
+func (f *instrumentsFacade) DeleteRelatedParty(ctx context.Context, orgID, holderID, instrumentID, relatedPartyID string) error {
+	const operation = "Instruments.DeleteRelatedParty"
+
+	resp, err := f.ledger.DeleteRelatedPartyWithResponse(ctx, orgID, holderID, instrumentID, relatedPartyID)
+	if err != nil {
+		return errors.NewInternalError(operation, err)
+	}
+
+	if !isSuccess(resp.StatusCode()) {
+		return errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
+	}
+
+	return nil
+}
+
+// ListAccountsByHolder retrieves one cursor page of accounts owned by a holder
+// via GET .../holders/{holderId}/accounts. Cursor injected via editor (the
+// generated ListAccountsByHolderParams has no cursor slot); stops on an empty
+// next_cursor.
+func (f *instrumentsFacade) ListAccountsByHolder(ctx context.Context, orgID, holderID string, opts models.AccountsListOpts) (*models.ListResponse[models.Account], error) {
+	return f.listAccountsCursor(ctx, orgID, holderID, opts, "")
+}
+
+// listAccountsCursor fetches a single accounts page, optionally seeded with a
+// cursor injected as a query param. The caller keeps the cursor as loop state so
+// opts is never mutated.
+func (f *instrumentsFacade) listAccountsCursor(ctx context.Context, orgID, holderID string, opts models.AccountsListOpts, cursor string) (*models.ListResponse[models.Account], error) {
+	const operation = "Instruments.ListAccountsByHolder"
+
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+
+	var editors []genledger.RequestEditorFn
+	if cursor != "" {
+		editors = append(editors, setQueryParam("cursor", cursor))
+	}
+
+	resp, err := f.ledger.ListAccountsByHolderWithResponse(ctx, orgID, holderID, listAccountsByHolderParams(opts), editors...)
+	if err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	if resp.StatusCode() != http.StatusOK {
+		return nil, errors.DecodeProblemJSON(resp.StatusCode(), resp.Body, requestIDOf(resp.HTTPResponse))
+	}
+
+	var page models.ListResponse[models.Account]
+	if err := json.Unmarshal(resp.Body, &page); err != nil {
+		return nil, errors.NewInternalError(operation, err)
+	}
+
+	return &page, nil
+}
+
+// ListAccountsByHolderPages yields one cursor page of holder accounts per
+// iteration, advancing by the response next_cursor until it is empty.
+func (f *instrumentsFacade) ListAccountsByHolderPages(ctx context.Context, orgID, holderID string, opts models.AccountsListOpts) iter.Seq2[*models.ListResponse[models.Account], error] {
+	return func(yield func(*models.ListResponse[models.Account], error) bool) {
+		cursor := ""
+
+		for {
+			if ctx.Err() != nil {
+				yield(nil, ctx.Err())
+				return
+			}
+
+			page, err := f.listAccountsCursor(ctx, orgID, holderID, opts, cursor)
+			if err != nil {
+				yield(nil, err)
+				return
+			}
+
+			if !yield(page, nil) {
+				return
+			}
+
+			if page.Pagination.NextCursor == "" {
+				return
+			}
+
+			cursor = page.Pagination.NextCursor
+		}
+	}
+}
+
+// ListAccountsByHolderAll yields every account owned by a holder across cursor
+// pages, transparently advancing pagination.
+func (f *instrumentsFacade) ListAccountsByHolderAll(ctx context.Context, orgID, holderID string, opts models.AccountsListOpts) iter.Seq2[models.Account, error] {
+	return flattenPages(f.ListAccountsByHolderPages(ctx, orgID, holderID, opts))
+}
+
+// listInstrumentsParams renders the fields that have a slot in the generated
+// ListInstrumentsParams. holder_id is always set (the list is org-scoped and
+// scopes to a holder via this query param). The type filter has no slot and is
+// carried by listInstrumentsReqEditors instead.
+func listInstrumentsParams(holderID string, opts models.InstrumentsListOpts) *genledger.ListInstrumentsParams {
+	params := &genledger.ListInstrumentsParams{HolderId: strPtr(holderID)}
+
+	if opts.Limit > 0 {
+		params.Limit = strPtr(strconv.Itoa(opts.Limit))
+	}
+
+	if opts.SortDirection != "" {
+		params.SortOrder = strPtr(string(opts.SortDirection))
+	}
+
+	if opts.Filters.Document != "" {
+		params.Document = strPtr(opts.Filters.Document)
+	}
+
+	if opts.Filters.IncludeDeleted {
+		params.IncludeDeleted = strPtr("true")
+	}
+
+	return params
+}
+
+// listInstrumentsReqEditors carries the filters the generated
+// ListInstrumentsParams cannot express. The ledger OAS omits type from the
+// instruments list endpoint, so the SDK injects it as a query param rather than
+// dropping it silently. Returns nil when none is set so the common path adds zero
+// overhead.
+func listInstrumentsReqEditors(opts models.InstrumentsListOpts) []genledger.RequestEditorFn {
+	if opts.Filters.Type == "" {
+		return nil
+	}
+
+	return []genledger.RequestEditorFn{setQueryParam("type", opts.Filters.Type)}
+}
+
+// listAccountsByHolderParams renders the fields that have a slot in the generated
+// ListAccountsByHolderParams (limit/sort_order). Cursor pagination is injected
+// separately via a request editor.
+func listAccountsByHolderParams(opts models.AccountsListOpts) *genledger.ListAccountsByHolderParams {
+	params := &genledger.ListAccountsByHolderParams{}
+
+	if opts.Limit > 0 {
+		params.Limit = strPtr(strconv.Itoa(opts.Limit))
+	}
+
+	if opts.SortDirection != "" {
+		params.SortOrder = strPtr(string(opts.SortDirection))
+	}
+
+	return params
+}
