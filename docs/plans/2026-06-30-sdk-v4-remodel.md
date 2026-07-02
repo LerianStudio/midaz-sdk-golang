@@ -21,7 +21,7 @@
 |-------|-----------|-------|--------|
 | 1 | Núcleo gerado compila; Client de 2 planos lista `organizations` end-to-end com erro (RFC 9457) e paginação normalizados | 1.1, 1.2, 1.3, 1.4, 1.R | **Complete** |
 | 2 | Money path completo: onboarding CRUD + ciclo de transação (json/inflow/outflow/annotation + commit/cancel/revert) + balances/operations/routes/asset-rates + counts | 2.1, 2.2, 2.R, 2.3 | **Complete** (2.1, 2.2, 2.R, 2.3 todos Done) |
-| 3 | Domínios novos do ledger: holders/instruments/composition, fees (packages/estimates), billing, encryption/protection | 3.1, 3.2, 3.3 | Detailed (3.1 Done; 3.2 = onda corrente; 3.3 Epic-level) |
+| 3 | Domínios novos do ledger: holders/instruments/composition, fees (packages/estimates), billing, encryption/protection | 3.1, 3.2, 3.3 | Detailed (3.1 Done; 3.2 Done; 3.3 = próxima onda) |
 | 4 | Plano Tracer completo: rules (CEL), limits, reservations, validations, audit-events | 4.1, 4.2, 4.3 | Epic-level |
 | 5 | Ergonomia (builders, DSL, `WaitForSettlement`) + cutover do accessor/deleção do legado + docs/exemplos/mapping; `make ci` verde | 5.1, 5.2, 5.3 | Epic-level |
 | 6 | *(opcional / decisão de produto)* Consumidor de streaming Kafka/CloudEvents | 6.1 | Epic-level |
@@ -339,7 +339,7 @@ Exploração-fonte (efêmera, no scratchpad da sessão): `01-server-api-surface.
 **Dependencies:** Phase 2 (write-facade + PageListOpts).
 **Done when:** CRUD de fee-packages + billing-packages passa (PAGE pagination via `PageListOpts`+`HasMore()`); `/estimates` retorna dry-run (`{message, feesApplied}`, feesApplied nil = sucesso); billing-calculate retorna `{results, summary}` com valores monetários preservados (string, sem float); models reusam transaction leg + shared; wire dos inputs bate com o server; gerados+untouchables intocados; `golangci-lint`=0; build/vet/test verdes.
 **Target:** midaz-sdk-golang
-**Status:** Detailed (elaborado 2026-07-01 vs recon `a8ca127` SDK+server, verificado por mim)
+**Status:** ✅ Done (2026-07-01 — wave `wi24yxdyj`, 4 commits `d4a3c5f` fee-packages / `7e7572c` fee-estimate / `b2a2e6f` billing-packages / `c56c8ea` billing-calculate + fix `29294a0` (wire-parity + test gaps). Review logic/test/nil + contrarian wire-success-gate; wave retornou ISSUES com 1 BUG DE FIO REAL (não só teste), fechado pelo fix. Gate do supervisor PASS: build/vet/`golangci-lint`=0/test verdes; coexistência limpa (`git diff a8d72c3..HEAD -- entity.go/plane_clients.go/common.go/internal/` = vazio). **Bug corrigido:** `CreatePackageInput.Validate()` não mergulhava no map `fees`, então um inner-fee incompleto (sem `isDeductibleFrom`, `referenceAmount` inválido, etc.) passava no SDK e tomava 400 no fio — o servidor roda `ValidateStruct` com `dive` via `DecodeAndValidate` ANTES da validação de negócio. Re-derivei contra a fonte: o dive espelha `feeshared/model/package.go` (FeeLabel/CalculationModel/ApplicationRule oneof/Calculations[].Type oneof/Value/ReferenceAmount oneof/IsDeductibleFrom non-nil/CreditAccount/Priority gte0), `UpdatePackageInput` fica exempto (PATCH parcial). **Tags alinhadas:** `Fee.IsDeductibleFrom`/`CreatePackageInput.SegmentID` perderam `,omitempty` (server não tem). Testes exercem o dive com 9 casos ancorados em `wantKey` real (`fees[admin].calculationModel.calculations[0].type` etc.), não `err != nil` genérico.)
 
 **DECISÕES DE WAVE (Epic 3.2):**
 - **Paginação = PAGE mode (NÃO offset, NÃO cursor):** `GetAllPackagesParams` (`ledger.gen.go:1452`) e `GetAllBillingPackagesParams` (`:801`) expõem `Page`+`Limit`, sem `Cursor`/`Offset`. Fachadas usam o padrão PAGE (avança `Page++`, para em `HasMore()`), reusam `models.PageListOpts` (`list_opts.go:80`). **O adaptador de offset adiado em 1.4.2 é DESNECESSÁRIO** (nunca foi construído; não precisa ser). ⚠️ NÃO usar `NextCursor==""` aqui — pararia após a página 1 (page-mode não emite cursor). É o INVERSO da regra cursor da Phase 2/3.1.
@@ -352,7 +352,7 @@ Exploração-fonte (efêmera, no scratchpad da sessão): `01-server-api-surface.
 
 #### Task 3.2.1: Fee-packages — models + facade
 
-- [ ] Done
+- [x] Done
 
 **Context:** ABSENT (net-new). Gerado: `GetAllPackages` (`ledger.gen.go:3839`, resp `*FeePackage`, `GetAllPackagesParams:1452` PAGE), `CreatePackage`/`WithBody` (`:3851/:3863`, resp `CreatePackageResp.JSON200=*FeePackage`), `DeletePackage` (`:3875`), `GetPackageByID` (`:3887`), `UpdatePackage`/`WithBody` (`:3899/:3911`). Server input DTO: `feeshared/model/create_package_input.go:15` `CreatePackageInput`. Gerados de resposta a espelhar: `FeePackage`, `Fee`, `FeeCalculationModel`, `FeeCalculation` (todos `ledger.gen.go`).
 
@@ -364,7 +364,7 @@ Exploração-fonte (efêmera, no scratchpad da sessão): `01-server-api-surface.
 
 #### Task 3.2.2: Fee-estimate (dry-run) — models + facade
 
-- [ ] Done
+- [x] Done
 
 **Context:** ABSENT. Gerado: `EstimateFeeCalculation`/`WithBody` (`ledger.gen.go:2375/2387`), resp OPACA `*[]byte` (spec binary). Server: req `feeshared/model/fees.go:29` `FeeEstimate{PackageID uuid(req), LedgerID uuid(req), Transaction transaction.Transaction}`; resp `fees.go:23` `FeeEstimateResponse{Message string, FeesApplied *FeeEstimateResult}`, `fee_estimate_result.go:30` `FeeEstimateResult{LedgerID, SegmentID *uuid, Transaction FeeAdjustedTransaction}`.
 
@@ -376,7 +376,7 @@ Exploração-fonte (efêmera, no scratchpad da sessão): `01-server-api-surface.
 
 #### Task 3.2.3: Billing-packages — models + facade
 
-- [ ] Done
+- [x] Done
 
 **Context:** ABSENT. Gerado: `GetAllBillingPackages` (`ledger.gen.go:2231`, `GetAllBillingPackagesParams:801` PAGE), `CreateBillingPackage`/`WithBody` (`:2243/:2255`, resp `CreateBillingPackageResp.JSON200=*FeeBillingPackage`), `DeleteBillingPackage` (`:2267`), `GetBillingPackageByID` (`:2279`), `UpdateBillingPackage`/`WithBody` (`:2291/:2303`). Resposta rica a espelhar: `FeeBillingPackage` (`ledger.gen.go` — nested `FeeAccountTarget`/`FeeDiscountTier`/`FeeEventFilter`/`FeePricingTier`; `FeeAmount *string`, `FreeQuota *int64`, tiers). Server create DTO: buscar em `components/ledger/pkg/feeshared/model/` (billing-package input).
 
@@ -388,7 +388,7 @@ Exploração-fonte (efêmera, no scratchpad da sessão): `01-server-api-surface.
 
 #### Task 3.2.4: Billing-calculate — models + facade
 
-- [ ] Done
+- [x] Done
 
 **Context:** ABSENT. Gerado: `CalculateBilling`/`WithBody` (`ledger.gen.go:2315/2327`, resp `CalculateBillingResp.JSON200=*FeeBillingCalculateResponse`). Server req `feeshared/model/billing_calculation.go:114` `BillingCalculateRequest{LedgerID(req), Period(req YYYY-MM), Type(omitempty volume/maintenance)}` (OrganizationID `json:"-"` = path). Resp compound gerada: `FeeBillingCalculateResponse{Results *[]FeeBillingCalculationResult, Summary FeeBillingCalculateSummary}` — `TotalNetAmount string`, `TotalAccounts/Charged/Skipped int64`, `TransactionPayload interface{}`.
 
