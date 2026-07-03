@@ -120,6 +120,29 @@ The full service list: `Organizations`, `Ledgers`, `Assets`, `AssetRates`,
 `Operations`, `OperationRoutes`, `Portfolios`, `Segments`, `Transactions`,
 `TransactionRoutes`.
 
+The v4 remodel adds plane-native accessors over the Tracer plane (`Rules`,
+`Limits`, `Validations`, `Reservations`, `AuditEvents`) and ledger-plane
+extensions (`ProtectionAudit`, `Encryption`, `Instruments`, `Composition`,
+`FeePackages`, `FeeEstimates`, `BillingPackages`, `BillingCalculations`). They
+expose the same generic CRUD shape and are documented in
+[`docs/mapping/external_apis.md`](docs/mapping/external_apis.md).
+
+### Settlement waits
+
+An accepted transaction (HTTP 201) is not settled. Wait on the balance effect
+with `transaction.WaitForSettlement(ctx, c.Balances, orgID, ledgerID,
+accountID, settled)`, passing a `func(models.Balance) bool` predicate (pin the
+asset on a multi-asset account). See
+[`pkg/transaction`](pkg/transaction/settlement.go).
+
+### Fee, billing, and composition builders
+
+`models.NewFeeEstimateInput(packageID, ledgerID, send)`,
+`models.NewBillingCalculateInput(ledgerID, period)`, and
+`models.NewCreateHolderAccountInput(assetCode, accountType)` (each with `With*`
+optionals) build the inputs for `FeeEstimates`, `BillingCalculations`, and
+`Composition` respectively.
+
 ### Pagination
 
 Every list method ships in three flavors:

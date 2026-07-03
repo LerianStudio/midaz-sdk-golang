@@ -45,14 +45,11 @@ func ValidateCurrencyCode(code string) error
 func ValidateDateRange(start, end time.Time) error
 func ValidateMetadata(metadata map[string]any) error
 func ValidateTransactionCode(code string) error
-func ValidateTransactionDSL(input TransactionDSLValidator) error
-type AccountReference interface{ ... }
 type Address struct{ ... }
 type Error struct{ ... }
 type FieldError struct{ ... }
     func BuildFieldError(field string, value any, message string) *FieldError
     func EnhancedValidateAccountAlias(alias string) *FieldError
-    func EnhancedValidateAccountReference(account string, transactionAsset string) *FieldError
     func EnhancedValidateAccountType(accountType string) *FieldError
     func EnhancedValidateAmount(amount, scale int64) *FieldError
     func EnhancedValidateAssetCode(assetCode string) *FieldError
@@ -67,7 +64,6 @@ type FieldErrors struct{ ... }
     func EnhancedValidateAddress(address *Address, fieldPrefix string) *FieldErrors
     func EnhancedValidateDateRange(start, end time.Time, startField, endField string) *FieldErrors
     func EnhancedValidateMetadata(metadata map[string]any) *FieldErrors
-    func EnhancedValidateTransactionDSL(input TransactionDSLValidator) *FieldErrors
     func EnhancedValidateTransactionInput(input map[string]any) *FieldErrors
     func NewFieldErrors() *FieldErrors
 type FieldOption func(*FieldError)
@@ -79,7 +75,6 @@ type SuggestionType string
     const Format SuggestionType = "format" ...
 type Summary struct{ ... }
     func ValidateCreateTransactionInput(input map[string]any) Summary
-type TransactionDSLValidator interface{ ... }
 type Validator struct{ ... }
     func DefaultValidator() *Validator
     func NewValidator(options ...core.ValidationOption) (*Validator, error)

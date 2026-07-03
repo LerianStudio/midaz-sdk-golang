@@ -118,9 +118,9 @@ type OperationRoute = models.OperationRoute
 type Option func(*Client) error
     func WithAccessManager(am AccessManager) Option
     func WithAllowInsecureAccessManagerHTTP(allow bool) Option
+    func WithAllowInsecureHTTP(allow bool) Option
     func WithAnonymous() Option
     func WithBaseURL(baseURL string) Option
-    func WithCRMURL(crmURL string) Option
     func WithConfig(cfg *config.Config) Option
     func WithContext(ctx context.Context) Option
     func WithCustomRetryPolicy(shouldRetry func(*http.Response, error) bool) Option
@@ -136,6 +136,8 @@ type Option func(*Client) error
     func WithRetryOptions(opts ...retry.Option) Option
     func WithSlowCallThreshold(threshold time.Duration) Option
     func WithTimeout(timeout time.Duration) Option
+    func WithTracerAPIKey(apiKey string) Option
+    func WithTracerURL(tracerURL string) Option
     func WithUserAgent(userAgent string) Option
     func WithoutRetries() Option
 type Organization = models.Organization

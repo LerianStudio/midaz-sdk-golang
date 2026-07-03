@@ -360,6 +360,7 @@ PACKAGES := \
 	$(MODULE)/pkg/format \
 	$(MODULE)/pkg/generator \
 	$(MODULE)/pkg/retry \
+	$(MODULE)/pkg/transaction \
 	$(MODULE)/pkg/performance
 
 godoc-static:

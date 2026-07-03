@@ -178,6 +178,71 @@ splitInput := models.NewCreateTransactionInput("USD", "100.00").
 tx, err := c.Transactions.CreateJSON(ctx, orgID, ledgerID, splitInput)
 ```
 
+## Waiting for settlement
+
+A `201` from `CreateJSON` means the transaction was recorded, not that the
+ledger balance reflects it. Wait on the balance effect with
+`transaction.WaitForSettlement`, passing a predicate that decides what
+"settled" means for your case (here, the account's `USD` balance version
+advancing). Pin the asset on a multi-asset account:
+
+```go
+import "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/transaction"
+
+settled, err := transaction.WaitForSettlement(
+    ctx,
+    c.Balances, // satisfies the balance reader structurally
+    orgID, ledgerID, accountID,
+    func(b models.Balance) bool {
+        return b.AssetCode == "USD" && b.Version >= 2
+    },
+    transaction.WithTimeout(15*time.Second),
+)
+if errors.Is(err, transaction.ErrSettlementTimeout) {
+    // balance did not settle within the deadline
+    return err
+}
+if err != nil {
+    return err
+}
+log.Printf("settled: available=%s version=%d", settled.Available, settled.Version)
+```
+
+## Fee estimation and billing
+
+Fee, billing, and holder-account composition inputs use fluent builders. Feed a
+billing period into `NewBillingCalculateInput` and call the `BillingCalculations`
+accessor; an empty result set (no packages matched) is a success, not an error:
+
+```go
+calcInput := models.NewBillingCalculateInput(ledgerID, "2026-06").
+    WithType("volume")
+
+result, err := c.BillingCalculations.CalculateBilling(ctx, orgID, calcInput)
+if err != nil {
+    return err
+}
+log.Printf("billing results=%d net=%s", len(result.Results), result.Summary.TotalNetAmount)
+```
+
+Open a holder-owned account (optionally with its instrument) in one call with
+`NewCreateHolderAccountInput` and the `Composition` accessor. A populated
+`InstrumentError` on success means the account committed but the instrument
+write did not — a success, not an error:
+
+```go
+acctInput := models.NewCreateHolderAccountInput("USD", "deposit").
+    WithName("Primary settlement account")
+
+resp, err := c.Composition.CreateHolderAccount(ctx, orgID, ledgerID, holderID, acctInput)
+if err != nil {
+    return err
+}
+if resp.InstrumentError != nil {
+    log.Printf("account created; instrument failed: %s", resp.InstrumentError.Reason)
+}
+```
+
 ## Using pagination
 
 The primary entity accessors ship every paginated list method in a trio: `List` (one page), `All` (every item across pages), and `Pages` (every page envelope). `MetadataIndexes.ListMetadataIndexes` is intentionally non-paginated. Use `iter.Seq2` for auto-paging — the SDK advances cursors and pages internally:

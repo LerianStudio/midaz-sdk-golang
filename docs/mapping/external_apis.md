@@ -141,6 +141,22 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v4/entities`. Consumers should pre
 - `Client.Transactions` (`Client.Entity.Transactions` compatibility path)
 - `Client.TransactionRoutes` (`Client.Entity.TransactionRoutes` compatibility path)
 
+Plane-native accessors added in the v4 remodel (Tracer plane and ledger-plane extensions):
+
+- `Client.Rules` (`Client.Entity.Rules` compatibility path)
+- `Client.Limits` (`Client.Entity.Limits` compatibility path)
+- `Client.Validations` (`Client.Entity.Validations` compatibility path)
+- `Client.Reservations` (`Client.Entity.Reservations` compatibility path)
+- `Client.AuditEvents` (`Client.Entity.AuditEvents` compatibility path)
+- `Client.ProtectionAudit` (`Client.Entity.ProtectionAudit` compatibility path)
+- `Client.Encryption` (`Client.Entity.Encryption` compatibility path)
+- `Client.Instruments` (`Client.Entity.Instruments` compatibility path)
+- `Client.Composition` (`Client.Entity.Composition` compatibility path)
+- `Client.FeePackages` (`Client.Entity.FeePackages` compatibility path)
+- `Client.FeeEstimates` (`Client.Entity.FeeEstimates` compatibility path)
+- `Client.BillingPackages` (`Client.Entity.BillingPackages` compatibility path)
+- `Client.BillingCalculations` (`Client.Entity.BillingCalculations` compatibility path)
+
 ### Organizations
 
 - `List(ctx, opts)`
@@ -305,7 +321,7 @@ Account balances are listed via `Accounts.ListBalances` (and its `All` / `Pages`
 - `CreateOutflow(ctx, orgID, ledgerID, input)`
 - `CreateAnnotation(ctx, orgID, ledgerID, input)`
 
-DSL-style structured splits (multiple sources/destinations in one transaction) are expressed through the send-based payload passed to `CreateJSON` (multiple `Distribute.To` entries); a dedicated DSL entry point (`POST /transactions/dsl`) is not currently exposed on the `Transactions` facade.
+Structured splits (multiple sources/destinations in one transaction) are expressed through the send-based payload passed to `CreateJSON` (multiple `Distribute.To` entries); there is no dedicated DSL endpoint on the `Transactions` facade.
 
 `List` (and the `All` / `Pages` iterators) can filter by a single metadata field via `TransactionsListOpts.Filters.MetadataKey` + `MetadataValue`, rendered on the wire as `metadata.<key>=<value>`. This is the supported way to correlate a ledger transaction back to a caller's business id (e.g. a `transferId` stamped into transaction metadata at create time) — useful for lost-response recovery where the Midaz transaction id was never received. Only one metadata predicate is honored per request (not AND-combinable). Metadata keys are not indexed by default; for a hot correlation key, create the index via `MetadataIndexes.Create(ctx, "transaction", input)` to avoid a backend collection scan at scale.
 
@@ -347,6 +363,150 @@ CRM services use the CRM base URL and set the organization through the `X-Organi
 - `UpdateAlias(ctx, organizationID, holderID, aliasID, input)`
 - `DeleteAlias(ctx, organizationID, holderID, aliasID)` - Use `sdkctx.WithHardDelete(ctx, true)` for irreversible hard delete.
 - `DeleteRelatedParty(ctx, organizationID, holderID, aliasID, relatedPartyID)`
+
+### Plane-native accessors (v4 remodel)
+
+Concrete facades added in the v4 remodel over the typed generated plane clients (`internal/gentracer` for the Tracer plane, `internal/genledger` for the ledger-plane extensions). Their public surface is exactly `models.*` + `*errors.Error`; the generated types never leak. Tracer-plane accessors (`Rules`, `Limits`, `Validations`, `Reservations`, `AuditEvents`) are flat — they are not scoped by organization/ledger path segments. The ledger-plane accessors carry organization (and where noted, ledger/holder) path scope.
+
+#### Rules
+
+Tracer plane. Rule definitions and their lifecycle.
+
+- `Create(ctx, input)`
+- `Get(ctx, id)`
+- `Update(ctx, id, input)`
+- `Delete(ctx, id)`
+- `Activate(ctx, id)`
+- `Deactivate(ctx, id)`
+- `Draft(ctx, id)`
+- `List(ctx, opts)`
+- `ListPages(ctx, opts)`
+- `ListAll(ctx, opts)`
+
+#### Limits
+
+Tracer plane. Limit definitions, their lifecycle, and point-in-time usage.
+
+- `Create(ctx, input)`
+- `Get(ctx, id)`
+- `Update(ctx, id, input)`
+- `Delete(ctx, id)`
+- `Activate(ctx, id)`
+- `Deactivate(ctx, id)`
+- `Draft(ctx, id)`
+- `GetUsage(ctx, id)`
+- `List(ctx, opts)`
+- `ListPages(ctx, opts)`
+- `ListAll(ctx, opts)`
+
+#### Validations
+
+Tracer plane. Evaluate a transaction against the active rules/limits and read stored verdicts.
+
+- `Evaluate(ctx, input)`
+- `Get(ctx, id)`
+- `List(ctx, opts)`
+- `ListPages(ctx, opts)`
+- `ListAll(ctx, opts)`
+
+#### Reservations
+
+Tracer plane. Two-phase capacity reservations, by reservation id or by transaction.
+
+- `Reserve(ctx, input)`
+- `Confirm(ctx, id)`
+- `Release(ctx, id)`
+- `ConfirmByTransaction(ctx, transactionID)`
+- `ReleaseByTransaction(ctx, transactionID)`
+
+#### AuditEvents
+
+Tracer plane. Read-only audit trail with a server-side hash-chain verdict (the SDK performs no crypto).
+
+- `List(ctx, opts)`
+- `ListPages(ctx, opts)`
+- `ListAll(ctx, opts)`
+- `Get(ctx, id)`
+- `Verify(ctx, id)`
+
+#### ProtectionAudit
+
+Ledger plane. Protection (envelope-encryption) audit trail. A `404` means the feature is disabled for the deployment (legacy mode), distinct from an empty result set.
+
+- `ListAuditEvents(ctx, organizationID, opts)`
+- `ListAuditEventsPages(ctx, organizationID, opts)`
+- `ListAuditEventsAll(ctx, organizationID, opts)`
+
+#### Encryption
+
+Ledger plane. Envelope-encryption provisioning. A `404` means the feature is disabled for the deployment (use `errors.IsFeatureNotAvailable`), distinct from a `provisioned:false` 200.
+
+- `Provision(ctx, organizationID, input)`
+- `GetProvisioningStatus(ctx, organizationID)`
+
+#### Instruments
+
+Ledger plane. CRM instruments under a holder, plus the holder's accounts.
+
+- `List(ctx, organizationID, holderID, opts)`
+- `ListPages(ctx, organizationID, holderID, opts)`
+- `ListAll(ctx, organizationID, holderID, opts)`
+- `Create(ctx, organizationID, holderID, input)`
+- `Get(ctx, organizationID, holderID, id)` - Use `sdkctx.WithIncludeDeleted(ctx, true)` to include soft-deleted instruments.
+- `Update(ctx, organizationID, holderID, id, input)`
+- `Delete(ctx, organizationID, holderID, id)` - Use `sdkctx.WithHardDelete(ctx, true)` for irreversible hard delete.
+- `DeleteRelatedParty(ctx, organizationID, holderID, instrumentID, relatedPartyID)`
+- `ListAccountsByHolder(ctx, organizationID, holderID, opts)`
+- `ListAccountsByHolderPages(ctx, organizationID, holderID, opts)`
+- `ListAccountsByHolderAll(ctx, organizationID, holderID, opts)`
+
+#### Composition
+
+Ledger plane. Opens a holder-owned account and, when instrument fields are present, its instrument in one call. A populated `InstrumentError` on a 2xx response means the account committed but the instrument write failed (no rollback) — that is a success, not an error.
+
+- `CreateHolderAccount(ctx, organizationID, ledgerID, holderID, input)`
+
+#### FeePackages
+
+Ledger plane, organization-scoped, page-mode paginated (`Pages` advances `Page++` and stops on `!HasMore()`).
+
+- `List(ctx, organizationID, opts)`
+- `Pages(ctx, organizationID, opts)`
+- `All(ctx, organizationID, opts)`
+- `Create(ctx, organizationID, input)`
+- `Get(ctx, organizationID, id)`
+- `Update(ctx, organizationID, id, input)`
+- `Delete(ctx, organizationID, id)`
+
+#### FeeEstimates
+
+Ledger plane, organization-scoped. Dry-run fee estimation; a 2xx with `feesApplied:null` (no rules matched) is a success, not an error.
+
+- `EstimateFee(ctx, organizationID, input)`
+
+#### BillingPackages
+
+Ledger plane, organization-scoped, page-mode paginated (`ListPages` advances `Page++` and stops on `!HasMore()`).
+
+- `List(ctx, organizationID, opts)`
+- `ListPages(ctx, organizationID, opts)`
+- `ListAll(ctx, organizationID, opts)`
+- `Create(ctx, organizationID, input)`
+- `Get(ctx, organizationID, id)`
+- `Update(ctx, organizationID, id, input)`
+- `Delete(ctx, organizationID, id)`
+
+#### BillingCalculations
+
+Ledger plane, organization-scoped. Period billing calculation; a 2xx with empty results (no packages matched) is a success, not an error.
+
+- `CalculateBilling(ctx, organizationID, input)`
+
+## Transaction helpers package
+
+Use `github.com/LerianStudio/midaz-sdk-golang/v4/pkg/transaction` for post-create settlement waits.
+
+- `transaction.WaitForSettlement(ctx, r, orgID, ledgerID, accountID, settled, opts...)` - Polls an account's balances via `r.ListAccountBalances` (satisfied structurally by `client.Balances`) until the caller-supplied `settled func(models.Balance) bool` predicate matches, then returns that `Balance`. An accepted transaction (HTTP 201) is NOT settled — 201 records the create; this waits on the balance effect. The predicate must pin the asset on a multi-asset account. Options: `transaction.WithPollInterval` (default 500ms), `transaction.WithMaxInterval` (default 5s), `transaction.WithTimeout` (default 30s). Returns `transaction.ErrSettlementTimeout` on deadline, or the caller's `ctx.Err()` on cancellation.
 
 ## Models package
 
@@ -433,6 +593,9 @@ Each per-entity opts struct exposes:
 - `models.NewUpdateHolderInput()` with field setters and `WithNullFields` / `WithNullField` for explicit JSON null removals. Empty holder updates are rejected by the SDK.
 - `models.NewCreateAliasInput(ledgerID, accountID)` with `WithMetadata`, `WithBankingDetails`, `WithRegulatoryFields`, and `WithRelatedParties`.
 - `models.NewUpdateAliasInput()` with field setters and `WithNullFields` for explicit JSON null removals. Repeated `WithRelatedParties` calls replace the in-builder related-party list; empty alias updates are rejected by the SDK.
+- `models.NewFeeEstimateInput(packageID, ledgerID, send)` with `WithChartOfAccountsGroupName`, `WithDescription`, `WithCode`, `WithPending`, and `WithMetadata`. Feeds `FeeEstimates.EstimateFee`.
+- `models.NewBillingCalculateInput(ledgerID, period)` with `WithType` (empty calculates all billing types). Feeds `BillingCalculations.CalculateBilling`.
+- `models.NewCreateHolderAccountInput(assetCode, accountType)` with account setters (`WithName`, `WithParentAccountID`, `WithEntityID`, `WithPortfolioID`, `WithSegmentID`, `WithStatus`, `WithAlias`, `WithMetadata`) and instrument setters (`WithBankingDetails`, `WithRegulatoryFields`, `WithRelatedParties`). An instrument is written if and only if any instrument setter is used. Feeds `Composition.CreateHolderAccount`.
 
 ## Errors package
 
@@ -442,6 +605,7 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors`.
 - Sentinel errors: `ErrValidation`, `ErrAuthentication`, `ErrPermission`, `ErrAuth`, `ErrNotFound`, `ErrAlreadyExists`, `ErrIdempotency`, `ErrRateLimit`, `ErrTimeout`, `ErrCancellation`, `ErrInternal`, `ErrUnprocessable`, `ErrConfiguration`, `ErrInsufficientBalance`, `ErrAccountEligibility`, `ErrAssetMismatch`.
 - Checkers: `IsValidationError`, `IsNotFoundError`, `IsAuthenticationError`, `IsAuthorizationError`, `IsAuthError`, `IsConfigurationError`, `IsBootstrapError`, `IsConflictError`, `IsRateLimitError`, `IsTimeoutError`, `IsNetworkError`, `IsCancellationError`, `IsInternalError`, `IsInsufficientBalanceError`, `IsAccountEligibilityError`, `IsAssetMismatchError`, `IsIdempotencyError`, `IsUnprocessableError`. (v3 — `IsPermissionError` and `IsAlreadyExistsError` were retired; use `IsAuthorizationError` and `IsConflictError` respectively.)
 - Accessors: `GetErrorCategory`, `GetStatusCode`, `GetErrorCode`, `GetErrorDetails`, `GetTransactionErrorContext`, `(*Error).GetUpstreamBody`, `(*Error).IsUpstreamBodyTruncated`, `(*Error).GetUpstreamBodyOriginalBytes`.
+- v4 plane predicates (added with the plane-native accessors): `IsSkipNotPermitted`, `IsHolderRequired`, `IsHolderNotFound`, `IsFeeError`, and `IsFeatureNotAvailable` (a `404` from `Encryption` / `ProtectionAudit` meaning the feature is disabled for the deployment, distinct from a generic not-found).
 - Constructors: `NewValidationError`, `NewInvalidInputError`, `NewMissingParameterError`, `NewNotFoundError`, `NewAuthenticationError`, `NewAuthorizationError`, `NewConflictError`, `NewRateLimitError`, `NewTimeoutError`, `NewCancellationError`, `NewNetworkError`, `NewUpstreamHTTPError`, `NewInternalError`, `NewConfigurationError`, `NewUnprocessableError`, `NewInsufficientBalanceError`, `NewAssetMismatchError`, `NewAccountEligibilityError`.
 - Midaz wire errors may include `code`, `title`, `message`, `entityType`, and `fields`; CRM errors may include `err`. The SDK preserves expanded envelope data on `Error.APICode`, `Error.Title`, `Error.EntityType`, `Error.Fields`, and `Error.Details` when available. Received upstream 4xx/5xx responses attach raw, unredacted, truncated body text on `Error.UpstreamBody` only when error body exposure is explicitly enabled.
 

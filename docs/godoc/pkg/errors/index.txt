@@ -143,12 +143,16 @@ arbitrary log lines.
 
 (Package documentation lives in doc.go.)
 
+const APICodeSkipNotPermitted = "0490" ...
+const APICodeParentTransactionIDNotFound = "0021" ...
 var ErrValidation = &Error{ ... } ...
+var ErrFeatureNotAvailable = errors.New("feature not available")
 func ActualHTTPStatus(err error) (int, bool)
 func AttachUpstreamBody(err error, body []byte, truncated bool) error
 func AttachUpstreamBodyWithLimit(err error, body []byte, truncated bool, maxBytes int) error
 func CategorizeTransactionError(err error) string
 func ClassifyTransportError(operation string, err error) error
+func DecodeProblemJSON(httpStatus int, body []byte, requestID string) error
 func ErrorFromHTTPResponse(statusCode int, requestID, message, apiCode, entityType, resourceID string) error
 func ErrorFromHTTPResponseWithDetails(statusCode int, ...) error
 func FormatErrorDetails(err error) string
@@ -166,8 +170,13 @@ func IsAuthenticationError(err error) bool
 func IsAuthorizationError(err error) bool
 func IsBootstrapError(err error) bool
 func IsCancellationError(err error) bool
+func IsCannotRevertError(err error) bool
 func IsConfigurationError(err error) bool
 func IsConflictError(err error) bool
+func IsFeatureNotAvailable(err error) bool
+func IsFeeError(err error) bool
+func IsHolderNotFound(err error) bool
+func IsHolderRequired(err error) bool
 func IsIdempotencyError(err error) bool
 func IsInsufficientBalanceError(err error) bool
 func IsInternalError(err error) bool
@@ -175,10 +184,14 @@ func IsNetworkError(err error) bool
 func IsNilInterfaceValue(value any) bool
 func IsNotFoundError(err error) bool
 func IsRateLimitError(err error) bool
+func IsRevertAlreadyExistsError(err error) bool
 func IsSensitiveFieldName(name string) bool
+func IsSkipNotPermitted(err error) bool
+func IsStatusPreconditionError(err error) bool
 func IsTimeoutError(err error) bool
 func IsUnprocessableError(err error) bool
 func IsValidationError(err error) bool
+func MarkFeatureNotAvailable(err error) error
 func RedactSensitiveDetails(details map[string]any) map[string]any
 func RedactSensitiveString(message string) string
 func RedactSensitiveStringSlice(values []string) []string

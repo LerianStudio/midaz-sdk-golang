@@ -17,6 +17,24 @@ Contributors: @fredcamaral,
 
 ## [Unreleased]
 
+### ⚠️ Breaking Changes (v4 remodel)
+
+The v4 remodel repoints the ledger accessors onto concrete facades over the generated plane clients and removes the legacy DSL surface.
+
+**Removed (breaking):**
+- The 13 legacy ledger `XService` interfaces and their generated mocks.
+- `models.TransactionDSLInput` and its DSL machinery (`FromTransactionMap`, and the DSL create paths `CreateTransactionWithDSL` / `CreateTransactionWithDSLFile`).
+- Five exported DSL validators from `pkg/validation`: `ValidateTransactionDSL`, `EnhancedValidateTransactionDSL`, `TransactionDSLValidator`, the `AccountReference` interface, and `EnhancedValidateAccountReference`.
+
+**Changed (breaking):**
+- `client.X` accessors now return concrete `*xFacade` structs exposing generic CRUD method names (`List` / `Get` / `Create` / `Update` / `Delete` / `All` / `Pages` / `Count`) instead of the old verbose `XService` methods — e.g. `ListAccounts` → `List`, `CreateTransaction` → `CreateJSON`.
+
+### ✨ Added (v4 remodel)
+- 13 plane-native accessors: Tracer plane (`Rules`, `Limits`, `Validations`, `Reservations`, `AuditEvents`) and ledger-plane extensions (`ProtectionAudit`, `Encryption`, `Instruments`, `Composition`, `FeePackages`, `FeeEstimates`, `BillingPackages`, `BillingCalculations`).
+- `transaction.WaitForSettlement` — polls an account's balances until a caller-supplied predicate matches (an accepted transaction returns HTTP 201, which is not the same as settled).
+- Model builders: `models.NewFeeEstimateInput`, `models.NewBillingCalculateInput`, and `models.NewCreateHolderAccountInput` (each with `With*` optionals).
+- Typed error predicates: `IsSkipNotPermitted`, `IsHolderRequired`, `IsHolderNotFound`, `IsFeeError`, and `IsFeatureNotAvailable`.
+
 ### ✨ Added
 - **`WithAllowInsecureHTTP` config option**: opt-in that permits plain `http://` Ledger and CRM service URLs for non-loopback hosts, both at config build time (`parseURL` / `WithLedgerURL` / `WithCRMURL` / `WithBaseURL`) and at every outbound request (`security.ValidateOutboundRequestWithInsecureHTTP`). DEFAULT IS FALSE — strict behavior is preserved for every existing caller. Intended for Kubernetes cluster-internal services reached over the cluster mesh (e.g. `http://midaz-ledger.midaz-mt.svc.cluster.local:3000`) and dev/test deployments behind a controlled network boundary. Independent from `WithAllowInsecureAccessManagerHTTP` (auth plane). Equivalent env var: `MIDAZ_ALLOW_INSECURE_HTTP=true` (loaded before URL env vars by `FromEnvironment` so ordering is automatic). Production environment rejects the flag at `Validate()` time. Public companion helpers: `pkg/config.WithAllowInsecureHTTP`, `pkg/config.Config.AllowInsecureHTTP`, `pkg/config.Config.GetAllowInsecureHTTP`, `pkg/security.ValidateOutboundRequestWithInsecureHTTP`, `entities.HTTPClient.SetAllowInsecureHTTP` / `AllowInsecureHTTP`. The redirect policy installed by the data-plane HTTPClient is automatically swapped to the permissive `ValidateRedirectWithInsecureHTTP` variant when the flag is on.
 
@@ -572,23 +590,4 @@ ianStudio/midaz-sdk-golang/compare/v1.0.7...v1.1.0-beta.1) (2025-04-09)
 ### Features
 
 * **sdk:** init repo ([709cb58](https://github.com/LerianStudio/midaz-sdk-golang/v2/commit/709cb5813927c4c505cd7d3da45cbf370cc67273))
-
-# Changelog
-
-All notable changes to the Midaz Go SDK will be documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
-import "github.com/LerianStudio/midaz-sdk-golang/v2"
-
-## [Unreleased]
-
-### Added
-- Initial SDK setup with core functionality
-- Entity models and client implementation
-- Validation, error handling, and configuration utilities
-- Concurrency utilities and pagination support
-- Retry mechanisms and observability integration
-- Comprehensive documentation and examples
 

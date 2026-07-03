@@ -243,7 +243,7 @@ The current entity surface has 16 services:
 | `Holders` | CRM | `crm` | Manage CRM holders. |
 | `Aliases` | CRM | `crm` | Manage CRM aliases and related parties. |
 
-Each public service field is an interface. Each concrete implementation is private to the `entities` package, such as `accountsEntity`, `transactionsEntity`, `holdersEntity`, and `aliasesEntity`.
+Most public service fields are concrete `*xFacade` structs over the generated plane client. Only `Balances`, `Operations`, and `Aliases` remain interface-backed, with private implementations (`balancesEntity`, `operationsEntity`, and `aliasesEntity`) in the `entities` package.
 
 All service implementations share the same parent `*entities.HTTPClient`. The service-specific structs hold cloned base URL maps, but auth token state, reactive 401 refresh, retry settings, idempotency settings, logger, debug flag, user agent, and observability all live on the shared HTTP client.
 

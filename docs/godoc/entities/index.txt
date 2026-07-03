@@ -28,3 +28,4 @@ type Entity struct{ ... }
 type HTTPClient struct{ ... }
     func NewHTTPClient(client *http.Client, authToken string, provider observability.Provider) *HTTPClient
 type OperationsService interface{ ... }
+type PlaneClients struct{ ... }
