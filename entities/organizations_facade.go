@@ -286,6 +286,11 @@ func writeJSON[T any](_ context.Context, operation string, input any, send func(
 // Shared by Get and the write path so the public surface is always models.T or
 // *errors.Error — the generated types never leak.
 func decodeOne[T any](operation string, status int, body []byte, httpResp *http.Response) (*T, error) {
+	// isSuccess accepts any 2xx from the raw body rather than the generated
+	// status-exact resp.JSON200: onboarding creates are OAS-declared 200 (client
+	// and server share the OAS, so they agree), but a server 2xx drift (201/202)
+	// must read as success, not a spurious error — the same 2xx tolerance the
+	// money path gets from readRawResponse.
 	if !isSuccess(status) {
 		return nil, errors.DecodeProblemJSON(status, body, requestIDOf(httpResp))
 	}

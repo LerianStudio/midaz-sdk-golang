@@ -137,6 +137,13 @@ func TestBusinessObservability_AccountAndTransactionLifecycle(t *testing.T) {
 }
 
 func TestBusinessObservability_ReadMethodsDoNotEmitMutationEvents(t *testing.T) {
+	// Epic 5.3: with business-event emission deferred to Task 5.2.6
+	// (docs/plans/2026-06-30-sdk-v4-remodel.md:621), the plane facade emits no
+	// midaz.* events on reads OR writes, so these NotContains assertions now pass
+	// vacuously and prove nothing. Skipped alongside its two siblings until 5.2.6
+	// restores write emission and the read-vs-write contrast has meaning again.
+	t.Skip("business-event emission on the plane path is deferred to Task 5.2.6")
+
 	recorder := tracetest.NewSpanRecorder()
 	logs := &bytes.Buffer{}
 	provider := newBusinessTestProvider(recorder, logs)

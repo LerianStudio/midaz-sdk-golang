@@ -23,10 +23,12 @@ import (
 // still-legacy services: Balances, Operations, Aliases. These tests are
 // narrowed to that trio.
 
-// TestSharedHTTPClient_AllServicesShareOneInstance verifies the still-legacy
+// TestSharedHTTPClient_LegacyServicesShareOneInstance verifies the still-legacy
 // services created by initServices point at the SAME *HTTPClient as the parent
-// Entity, so mid-lifetime Set* calls propagate and refresh dedup holds.
-func TestSharedHTTPClient_AllServicesShareOneInstance(t *testing.T) {
+// Entity, so mid-lifetime Set* calls propagate and refresh dedup holds. Scoped
+// to the legacy trio (Balances/Operations/Aliases) after the facade swap — the
+// facade accessors no longer route through the shared *HTTPClient.
+func TestSharedHTTPClient_LegacyServicesShareOneInstance(t *testing.T) {
 	entity := newTestEntity(t, &http.Client{Timeout: time.Second}, "token", map[string]string{
 		"onboarding":  "http://localhost",
 		"transaction": "http://localhost",

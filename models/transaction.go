@@ -824,9 +824,7 @@ func (input *FromToInput) Validate() error {
 		errs.Append("account", "is required")
 	}
 
-	if err := input.Amount.Validate(); err != nil {
-		errs.Append("amount", "invalid: "+err.Error())
-	}
+	input.appendValueErrors(&errs)
 
 	if input.RouteID != nil && strings.TrimSpace(*input.RouteID) != "" {
 		if !validation.IsValidUUID(*input.RouteID) {
@@ -841,6 +839,37 @@ func (input *FromToInput) Validate() error {
 	}
 
 	return errs.OrNil()
+}
+
+// appendValueErrors validates the leg's value mechanism: exactly one of a fixed
+// amount, a percentage share, a remaining-balance token, or an exchange rate.
+// Share/remaining/rate legs are resolved server-side (see sumFixedAmountEntries,
+// which skips the client balance check when any is present), so only a
+// fixed-amount leg is amount-validated here. Validating amount unconditionally
+// rejected every share leg and made GenerateWithDSL/GenerateBatch ship zero
+// transactions.
+func (input *FromToInput) appendValueErrors(errs *validation.FieldErrors) {
+	amountValue := strings.TrimSpace(decimalStringFromAny(input.Amount.Value))
+	hasAmount := input.Amount.Asset != "" || amountValue != ""
+
+	switch {
+	case hasAmount:
+		if err := input.Amount.Validate(); err != nil {
+			errs.Append("amount", "invalid: "+err.Error())
+		}
+	case input.Share != nil:
+		if input.Share.Percentage < 1 || input.Share.Percentage > 100 {
+			errs.Append("share.percentage", "must be between 1 and 100")
+		}
+
+		if input.Share.PercentageOfPercentage < 0 || input.Share.PercentageOfPercentage > 100 {
+			errs.Append("share.percentageOfPercentage", "must be between 0 and 100")
+		}
+	case strings.TrimSpace(input.Remaining) != "", input.Rate != nil:
+		// remaining/rate legs carry no client-checkable amount; the server resolves them.
+	default:
+		errs.Append("amount", "one of amount, share, remaining, or rate is required")
+	}
 }
 
 // Validate checks that the AmountInput meets all validation requirements.
@@ -1125,13 +1154,23 @@ func (input FromToInput) ToMap() map[string]any {
 // ToMap converts an AmountInput to a map.
 // This is used internally by the SDK to convert the input to the format expected by the backend.
 func (input *AmountInput) ToMap() map[string]any {
-	if input == nil || (input.Asset == "" && input.Value == "") {
+	if input == nil {
+		return nil
+	}
+
+	// Value is `any`, so the old `input.Value == ""` guard never fired for a
+	// nil Value (nil != ""). Render through decimalStringFromAny, which returns
+	// "" for both nil and "": an empty amount then omits the map entirely so a
+	// share/remaining/rate leg does not ship amount:{"asset":"","value":""}
+	// beside its share (which the /transactions/json contract rejects).
+	value := decimalStringFromAny(input.Value)
+	if input.Asset == "" && value == "" {
 		return nil
 	}
 
 	return map[string]any{
 		"asset": input.Asset,
-		"value": decimalStringFromAny(input.Value),
+		"value": value,
 	}
 }
 

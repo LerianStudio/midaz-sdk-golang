@@ -47,3 +47,58 @@ func TestDSLTemplateToInput(t *testing.T) {
 		t.Fatalf("shares = %v, want @merchant_main:97 @platform_fee:3", got)
 	}
 }
+
+// TestDSLTemplateToInput_ValidatesAndWireOmitsShareLegAmount is the money-path
+// guard the generator's mocked CreateJSON tests hide: a real percentage pattern
+// must (1) pass client-side CreateTransactionInput.Validate() so CreateJSON
+// actually sends it, and (2) serialize each share destination WITHOUT an
+// "amount" key. The Midaz /transactions/json contract rejects a distribute
+// entry that carries more than one of amount/share/remaining, so an empty
+// amount{} beside share is a server error (and, if silently zeroed, an
+// unbalanced double-entry). The source leg must still carry the full fixed
+// amount.
+func TestDSLTemplateToInput_ValidatesAndWireOmitsShareLegAmount(t *testing.T) {
+	p := data.PaymentPattern("USD", 100, "idem-1", "ext-1")
+
+	in, err := dslTemplateToInput(p.DSLTemplate)
+	if err != nil {
+		t.Fatalf("dslTemplateToInput: %v", err)
+	}
+
+	if err := in.Validate(); err != nil {
+		t.Fatalf("Validate() = %v, want nil (share-only legs must be valid)", err)
+	}
+
+	wire := in.ToLibTransaction()
+	send, ok := wire["send"].(map[string]any)
+	if !ok {
+		t.Fatalf("wire send = %T, want map", wire["send"])
+	}
+
+	// Source leg keeps the full fixed amount.
+	src := send["source"].(map[string]any)["from"].([]map[string]any)
+	if len(src) != 1 {
+		t.Fatalf("source.from = %d entries, want 1", len(src))
+	}
+
+	srcAmount, ok := src[0]["amount"].(map[string]any)
+	if !ok || srcAmount["value"] != "100" || srcAmount["asset"] != "USD" {
+		t.Fatalf("source amount = %v, want {asset:USD value:100}", src[0]["amount"])
+	}
+
+	// Every share destination must carry "share" and omit "amount".
+	to := send["distribute"].(map[string]any)["to"].([]map[string]any)
+	if len(to) != 2 {
+		t.Fatalf("distribute.to = %d entries, want 2", len(to))
+	}
+
+	for _, e := range to {
+		if _, hasShare := e["share"]; !hasShare {
+			t.Fatalf("distribute entry %v missing share", e["accountAlias"])
+		}
+
+		if amount, hasAmount := e["amount"]; hasAmount {
+			t.Fatalf("distribute entry %v carries amount=%v; share legs must omit amount", e["accountAlias"], amount)
+		}
+	}
+}
