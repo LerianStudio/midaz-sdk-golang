@@ -237,8 +237,7 @@ func main() {
 	// ephemeral mktemp dir). This is a developer/CI-only codegen tool under
 	// internal/cmd; the paths are never user- or network-supplied, so the
 	// G703 taint is a build-time constant.
-	//nolint:gosec // G703: os.Args paths are fixed build-time inputs from generate-clients.sh, not user/network controlled.
-	in, err := os.ReadFile(os.Args[1])
+	in, err := os.ReadFile(os.Args[1]) //#nosec G703 -- fixed build-time paths from generate-clients.sh, not user/network controlled
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "read %s: %v\n", os.Args[1], err)
 		os.Exit(1)
@@ -252,8 +251,7 @@ func main() {
 	// consumed immediately by oapi-codegen and deleted on exit (never
 	// committed). It needs no world readability, so 0600. The path, like the
 	// input, is a fixed build-time arg from generate-clients.sh (G703 taint).
-	//nolint:gosec // G703: os.Args[2] is a fixed build-time mktemp path from generate-clients.sh, not user/network controlled.
-	if err := os.WriteFile(os.Args[2], out, 0o600); err != nil {
+	if err := os.WriteFile(os.Args[2], out, 0o600); err != nil { //#nosec G703 -- fixed build-time mktemp path from generate-clients.sh, not user/network controlled
 		fmt.Fprintf(os.Stderr, "write %s: %v\n", os.Args[2], err)
 		os.Exit(1)
 	}
