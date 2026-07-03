@@ -23,7 +23,7 @@
 | 2 | Money path completo: onboarding CRUD + ciclo de transação (json/inflow/outflow/annotation + commit/cancel/revert) + balances/operations/routes/asset-rates + counts | 2.1, 2.2, 2.R, 2.3 | **Complete** (2.1, 2.2, 2.R, 2.3 todos Done) |
 | 3 | Domínios novos do ledger: holders/instruments/composition, fees (packages/estimates), billing, encryption/protection | 3.1, 3.2, 3.3 | **Complete** (3.1, 3.2, 3.3 todos Done) |
 | 4 | Plano Tracer completo: rules (CEL), limits, reservations, validations, audit-events | 4.1, 4.2, 4.3 | ✅ **Complete** (4.1, 4.2, 4.3 Done) |
-| 5 | Cutover fatiado (A aditivo → paridade money-path → B swap → C delete) + ergonomia + docs; `make ci` verde | 5.1–5.6 | **5.1 ✅ Done**; **5.2 ✅ Done** (paridade money-path); **5.3 Detailed (onda corrente, swap atômico money-path)**; 5.4–5.6 Epic-level |
+| 5 | Cutover fatiado (A aditivo → paridade money-path → B swap → C delete) + ergonomia + docs; `make ci` verde | 5.1–5.6 | **5.1 ✅ Done**; **5.2 ✅ Done** (paridade money-path); **5.3 ✅ Done** (swap atômico money-path + share-distribute fix); **5.4 Detailed (onda corrente, delete legado)**; 5.5–5.6 Epic-level |
 | 6 | *(opcional / decisão de produto)* Consumidor de streaming Kafka/CloudEvents | 6.1 | Epic-level |
 
 ---
@@ -700,7 +700,7 @@ Exploração-fonte (efêmera, no scratchpad da sessão): `01-server-api-surface.
 **Dependencies:** Epic 5.2 (paridade re-homeada antes dos money-writes usarem o facade).
 **Done when:** `client.X` roteia os 13 accessors ledger pras fachadas (gated idempotency estampada em todos os writes); DSL→CreateJSON e GetBalance→ListBalances migrados; Balances/Operations/Aliases ficam legado; todos os consumers + docs migram no swap atômico; `go build ./... && go test ./... && golangci-lint run ./...` verdes; money-path (transactions) revisado ISOLADO.
 **Target:** midaz-sdk-golang
-**Status:** Detailed
+**Status:** ✅ Done (2026-07-02 — Task 5.3.1 `d5a42e0` + Task 5.3.2 swap `a484847` + fix `0069a23`; ambas gated PASS pelo supervisor com claims money-path re-derivadas contra a fonte). `client.X` roteia os 13 accessors ledger pras fachadas; transactions migrou pro path facade com idempotência + gate no-double-charge INTACTOS; DSL→CreateJSON via share (fiel, server-resolved); Balances/Operations/Aliases seguem legado. 190 funcs legadas órfãs prontas p/ delete no 5.4.
 
 > **DECISÕES DE WAVE (Epic 5.3) — recon `recon-53` verificado por mim contra a fonte + 2 decisões do Fred (2026-07-02):**
 > - **É UM COMMIT ATÔMICO (módulo raiz):** só `.` e `contract/` têm `go.mod` → `examples/` vive no raiz → `go build ./...` inclui examples → o swap dos 13 campos de `entity.go` + TODOS os ~132 call-sites + docs migram JUNTOS ou não compila. Sem fatiamento cross-commit no módulo. `contract/` é módulo separado (verificar consumidores na impl; quebram à parte, não bloqueiam o raiz). O pré-commit não-breaking (5.3.1) isola o lado-facade e encolhe o commit-swap.
@@ -729,7 +729,7 @@ Exploração-fonte (efêmera, no scratchpad da sessão): `01-server-api-surface.
 
 #### Task 5.3.2: Swap atômico — 13 accessors + migração de todos os consumers + DSL/GetBalance + docs
 
-- [ ] Done
+- [x] Done — commit `a484847` (swap atômico, 81 arquivos +1139/−1658) + fix wave `0069a23` (share-based distribute na money path). Gate = 5 reviewers (logic/test/nil/dead-code + contrarian adversarial) → **ISSUES** → fix wave → re-gate **PASS**. **Critical achado (escondido pela suíte verde):** `GenerateWithDSL`/`GenerateBatch` produziam ZERO transações — `dslTemplateToInput` monta distribute share-only (Amount zerado), `FromToInput.Validate` (`transaction.go:827`) validava Amount incondicionalmente → CreateJSON rejeitava client-side; os testes do generator mockavam `CreateJSON` e escondiam. **Trap que o contrarian pegou (o fix ingênuo do logic-reviewer teria violado o terceiro trilho):** relaxar só a validação embarcaria `amount:{"asset":"","value":""}` junto com o share (bug no `AmountInput.ToMap:1128` — guard `Value==""` nunca dispara p/ `any` nil), que o contrato `/transactions/json` rejeita (one-of amount/share/remaining). **Fix (TDD):** `FromToInput.Validate` share-aware via `appendValueErrors` (amount OU share/remaining/rate; bounds share 1..100; leg sem nenhum rejeitado; amount-legs inalterados) + `ToMap` omite amount vazio + teste real rodando `PaymentPattern(97/3)` por `Validate()`+`ToLibTransaction()` (fecha o gap do mock). Contrato confirmado (Midaz docs + `sumFixedAmountEntries:750` isenta share do balance-check client-side → servidor resolve o split + enforça double-entry). **Money-path re-derivado por mim contra a fonte:** idempotência + gate no-double-charge preservados no path facade pra transactions (contrarian UPHELD claim A); DSL→CreateJSON fiel (share é a representação correta, sem computar amounts client-side); reconciliação de testes honesta (2 `t.Skip` de business-events DX não escondem cobertura money-path — lifecycle coberto em `transactions_facade_test.go`; SharedHTTPClient narrowed necessário — H4/H5 usavam serviços trocados). **§2 do logic-reviewer (onboarding creates status-exact) = FALSO-ALARME** resolvido contra a fonte: `organizations_facade.Create`→`writeJSON`→`decodeOne`→`isSuccess(2xx)` lê body raw, NUNCA `resp.JSON200`. Honesty fixes: teste vácuo `_ReadMethodsDoNotEmitMutationEvents` skipado; rename `AllServices`→`LegacyServices`; `//nolint:unparam` documentado no `newTestEntity` (param volta ao uso no 5.2.6). Build/vet/`golangci-lint`=0/test (30 pkgs) + `contract/` build verdes, re-rodados por mim. Residual LOW (note-only): exclusividade mútua amount+share não enforçada client-side (servidor pega). **190 funcs legadas agora órfãs = inventário preciso p/ Epic 5.4** (dead-code-reviewer).
 
 **Context:** Com 5.3.1 pousado (13 facades 2-arg + stamping), flipar `entity.go`. `Client` embute `*entities.Entity` (`midaz.go:128`) → swappar os 13 campos auto-reponta `client.X`. Os campos são exported-interface-typed (`AccountsService` etc., `entity.go:166-200`) → viram concreto unexported `*xFacade` → quebram consumers typed em `entities.XService`. Superfície: ~132 call-sites (recon Q4, file:line enumerados). `initServices` assign em `:344-379`.
 
@@ -750,14 +750,43 @@ Exploração-fonte (efêmera, no scratchpad da sessão): `01-server-api-surface.
 
 **Done when:** `client.X` roteia os 13 accessors ledger pras fachadas; todos os consumers + docs compilam e testam; DSL→CreateJSON e GetBalance→ListBalances migrados; Balances/Operations/Aliases legado; money-path (transactions) revisado isolado; build/test/lint do módulo verdes.
 
-### Epic 5.4: Slice C — deletar legado + regen tests/mocks + gaps
+### Epic 5.4: Slice C — deletar os 13 recursos-ledger legados mortos + interfaces + mocks
 
-**Goal:** Deletar os 16 serviços legados + machinery (`http.go`/`http_retry_response.go` pós-extração, `service.go`/`url.go`/`request.go`/`crm_shared.go`/`observability.go`/`internal_context.go`/`constants.go` verificados); regen/deletar os `*_contract_regression_test.go` + `entities/mocks` (usados por `09-testing-with-mocks`); reworkar `midaz.go:448-481`; resolver os gaps (Aliases drop; `Operations.GetOperation` — fachada nova ou migrar; Balances CRUD standalone — confirmar cobertura via `accountsFacade`).
-**Scope:** deleção em `entities/`, `midaz.go`, `entities/mocks`, contract tests.
+**Goal:** Deletar os **13 arquivos-recurso ledger legados** (accounts…transaction_routes) — mortos pós-swap 5.3 (órfãos de `client.X`, vivos só pelos próprios testes/exemplos) — + seus 13 `XService` interfaces + 13 mocks, com cirurgia nos testes/exemplos acoplados, num commit atômico verde. **O core `*HTTPClient` e o trio FICAM.**
+**Scope:** deleção em `entities/` (13 resource files + `entities/mocks`), cirurgia em testes compartilhados + `examples/workflow-with-entities/pkg/entities`, `examples/09-testing-with-mocks`, `pkg/integrity/checker_test.go`.
 **Dependencies:** Epic 5.3.
-**Done when:** nenhum serviço legado sobra; build/test verdes; gaps resolvidos ou explicitamente dropados com sign-off; `make ci` verde.
+**Done when:** os 13 recursos legados + interfaces + mocks deletados; trio (Balances/Operations/Aliases) + core `*HTTPClient` intocados e vivos; `go build ./... && go vet ./... && golangci-lint run ./... && go test ./... -count=1` + `contract/` build verdes; nenhuma referência de prod aos `XService` deletados.
 **Target:** midaz-sdk-golang
-**Status:** Pending
+**Status:** Detailed
+
+> **DECISÕES DE WAVE (Epic 5.4) — recon `a82a6cceec14248b1` verificado por mim contra a fonte (HEAD 0069a23):**
+> - **O core `*HTTPClient` NÃO é deletável na 5.4 — o plano super-dimensionava.** Balances/Operations/Aliases seguem legado e chamam `e.httpClient.sendRequest`/`doRequest` (`balances.go:204+`, `operations.go:195+`, `aliases.go:92+`) → `http.go`/`http_retry_response.go` + os 7 support files (`service.go`/`request.go`/`url.go`/`crm_shared.go`/`internal_context.go`/`constants.go`/`observability.go`) + os 3 helpers da Task 5.1.1 (`defaultHTTPClient:197`/`drainAndCloseResponseBody:285`/`formatAuthorizationHeader:999` — TAMBÉM no path plane via `transportOf`/`auth_roundtripper`) ficam TODOS vivos. **Task 5.1.1 CONTINUA DEFERIDA** (só é pré-requisito de deletar http.go, que não acontece aqui).
+> - **DEFERIDO PRO FRED (outward-facing — remoção de superfície pública `client.X`):** drop de `client.Aliases` (0 consumers) + drop de `client.Operations` (1 consumer: `examples/04:152` `ListOperationsAll`, migrável p/ `Accounts.ListOperationsAll`; `GetOperation`/`UpdateTransactionOperation` 0 consumers). NÃO executo remoção de API pública sem sign-off; a 5.4 deixa o trio 100% intocado.
+> - **Balances FICA legado (decisão minha — money-correctness):** `pkg/integrity/checker.go:135` usa `Balances.ListBalancesAll` LEDGER-WIDE (`BalancesListOpts`); a `accountsFacade.ListBalancesAll` é PER-ACCOUNT (`CursorListOpts`) → NÃO cobre. O checker soma balances p/ verificação double-entry → construir uma facade Balances ledger-wide é correctness-sensitive, épico próprio, NÃO num delete. Balances ancora o `*HTTPClient` vivo de qualquer forma.
+> - **Mocks são mockgen-gerados por-arquivo** (`//go:generate mockgen -source=X.go ...`, um por resource); SEM target Makefile nem drift-gate → deletar o mock é seguro (a diretiva morre com o arquivo-fonte). Trio mantém os seus.
+> - **`contract/` (módulo separado) LIMPO** — `contract/drift_test.go` importa só `models`/`pkg/errors`, zero `entities` → não afetado pelo delete.
+
+#### Task 5.4.1: Delete atômico dos 13 recursos-ledger legados + interfaces + mocks + cirurgia dos acoplados
+
+- [ ] Done
+
+**Context:** Pós-swap 5.3, os 13 accessors ledger roteiam pras fachadas (`entity.go:360-386`). Os impls legados (`accounts.go`…`transaction_routes.go`), seus `XService` interfaces e ctors `newXEntity` são inalcançáveis de `client.X` — vivos só por `_test.go` + os wrappers-exemplo. Recon `a82a6cceec14248b1` verificou o set deletável e o acoplamento. Módulo raiz inclui `examples/` → delete + cirurgia = UM commit atômico (não compila senão).
+
+**Implementation vision:**
+1. **DELETAR os 13 resource files:** `entities/{accounts,account_types,assets,asset_rates,holders,ledgers,metadata_indexes,operation_routes,organizations,portfolios,segments,transactions,transaction_routes}.go` (cada um carrega o `XService` interface + `xEntity` impl + `newXEntity` ctor + a diretiva `//go:generate`).
+2. **DELETAR os 13 mocks:** `entities/mocks/mock_{os mesmos}.go`.
+3. **DELETAR os `_test.go` dos recursos deletados** (`accounts_test.go`…`transaction_routes_test.go`) — MAS verificar antes que cada um testa o impl LEGADO (o equivalente facade tem seu `*_facade_test.go`); se um `_test.go` exercitar helper compartilhado sobrevivente, extrair/preservar essa parte.
+4. **CIRURGIA (não delete) nos testes compartilhados que constroem deletados E o trio:** `iter_behavior_test.go`, `list_opts_validation_test.go`, `contract_http_test.go`, `onboarding_contract_regression_test.go`, `transaction_contract_regression_test.go`, `crm_contract_regression_test.go`, `mockgen_smoke_test.go` — remover refs aos deletados, PRESERVAR cobertura do trio + facades.
+5. **REESCREVER/REMOVER os wrappers vivos** `examples/workflow-with-entities/pkg/entities/*.go` (8 arquivos, tipados em `entities.XService`, consumidos por `pkg/workflows/transaction_helpers.go:11`) — interface local narrow (padrão Option 2 da 5.3) ou inline das chamadas.
+6. **FIX `examples/09-testing-with-mocks`** (`reporter.go:26,31` + `reporter_test.go`, usam `entities.AccountsService` + `mocks.NewMockAccountsService`) → interface consumer-defined + mock local (passa a demonstrar o padrão idiomático v4).
+7. **FIX `pkg/integrity/checker_test.go:189`** (`testAccountsService implements entities.AccountsService`) → re-tipar pro `accountsGetter` consumer-defined (o `checker.go` de prod JÁ migrou).
+8. **NÃO TOCAR:** `balances.go`/`operations.go`/`aliases.go` (trio, vivo); `http.go`/`http_retry_response.go`/`service.go`/`request.go`/`url.go`/`crm_shared.go`/`internal_context.go`/`constants.go`/`observability.go`/`iter.go`/`idempotency.go` (vivos p/ trio/core/facades); `mock_{balances,operations,aliases}.go`.
+
+**Files:** Delete ~13 resource + 13 mock + ~13 resource `_test.go`; Modify ~7 testes compartilhados + ~10 arquivos de `examples/workflow-with-entities` + `examples/09-testing-with-mocks/*` + `pkg/integrity/checker_test.go`. (Dispatch obrigatório — muito acima do 3-file rule.)
+
+**Verification:** `go build ./... && go vet ./... && golangci-lint run ./... && go test ./... -count=1` verdes (módulo) + `cd contract && go build ./...` verde; `staticcheck` sem U1000 novo; grep confirma 0 referência de prod aos 13 `XService` deletados; `client.Balances/Operations/Aliases` compilam e seus testes passam (trio intocado).
+
+**Done when:** os 13 recursos legados + interfaces + mocks sumiram; testes/exemplos acoplados verdes; trio + core `*HTTPClient` intocados; build/test/lint módulo + `contract/` verdes.
 
 ### Epic 5.5: Helpers ergonômicos
 
