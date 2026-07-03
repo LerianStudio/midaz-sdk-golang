@@ -796,7 +796,7 @@ Exploração-fonte (efêmera, no scratchpad da sessão): `01-server-api-surface.
 **Dependencies:** Epics 5.1–5.4.
 **Done when:** os 4 builders seguem o exemplar `instrument.go` (constructor + `With*` nil-guarded + `Validate` via `validation.FieldErrors.OrNil()`); `WaitForSettlement` polla balance com backoff/timeout e documenta que 201 ≠ liquidado; a superfície DSL é decidida (5.5.3) e implementada ou explicitamente cortada.
 **Target:** midaz-sdk-golang
-**Status:** Detailed (5.5.1 + 5.5.2 dispatch-ready; 5.5.3 aguarda decisão do Fred)
+**Status:** Detailed (5.5.1/5.5.2/5.5.3 dispatch-ready; decisão DSL travada = Opção 1 remover)
 
 > **DECISÕES DE WAVE (Epic 5.5) — recon `a5da7287` (read-only) verificado contra a fonte (HEAD `df385fb`):**
 > - **`FieldErrors` accumulator JÁ EXISTE** (`pkg/validation/field_error.go:176`: `Append`/`AppendWith`/`OrNil()` — `OrNil` resolve o trap typed-nil-interface do Go). Uso canônico em `transaction_dsl.go:196-217` e `transaction_convenience.go`. **Exemplar limpo dos builders = `models/instrument.go`** (`NewCreateInstrumentInput:72` + `With*` nil-guarded `:77-107` + `Validate` via `FieldErrors.OrNil()`). fee_package/limit/rule seguem o mesmo shape.
@@ -835,22 +835,22 @@ Exploração-fonte (efêmera, no scratchpad da sessão): `01-server-api-surface.
 
 **Done when:** `WaitForSettlement` polla balance por interface narrow, para no predicado do caller, respeita backoff+timeout+ctx, documenta 201≠liquidado; testes cobrem match/timeout/cancel; módulo verde.
 
-#### Task 5.5.3: Superfície DSL de transação — DECISÃO DO FRED antes de implementar
+#### Task 5.5.3: Remover o tipo DSL morto `TransactionDSLInput` (preservando `Share`)
 
-- [ ] Done — **BLOQUEADA (aguarda decisão de superfície pública do Fred).**
+- [ ] Done
 
-**Context:** A premissa do plano ("DSL aponta `/json` em vez do `/dsl` multipart deprecado") foi invalidada pelo recon `a5da7287`: (a) o endpoint multipart `/transactions/dsl` **já não existe** no gerado nem no legado (nada a migrar *de*); (b) o único conversor DSL→CreateJSON vivo (`pkg/generator/dsl_convert.go:28` `dslTemplateToInput`, unexported, grammar do `pkg/data`) **já** roteia pro `CreateJSON`; (c) o tipo público `models.TransactionDSLInput` (`transaction_dsl.go:92`) está **morto** (0 consumidores de wire, só um doc-comment em `pkg/conversion/metadata.go:75`) e é **redundante** vs `CreateTransactionInput` + os builders da 5.5.1; seu `formatDSLDecimal:724` **rejeita fracionários** no render de texto.
+**Context:** A premissa do plano ("DSL aponta `/json` em vez do `/dsl` multipart deprecado") foi invalidada pelo recon `a5da7287`: (a) o endpoint multipart `/transactions/dsl` **já não existe** no gerado nem no legado (nada a migrar *de*); (b) o único conversor DSL→CreateJSON vivo (`pkg/generator/dsl_convert.go:28` `dslTemplateToInput`, unexported) **já** roteia pro `CreateJSON`; (c) o tipo público `models.TransactionDSLInput` (`transaction_dsl.go:92`) está **morto** (0 consumidores de wire, só um doc-comment em `pkg/conversion/metadata.go:75`) e é **redundante** vs `CreateTransactionInput` + os builders da 5.5.1; seu `formatDSLDecimal:724` **rejeita fracionários**. **DECISÃO DO FRED (2026-07-03): Opção 1 — REMOVER.** v4 é pré-release não-lançado → sem ciclo de deprecação, excisar direto (deprecar um tipo morto num major não-lançado é cerimônia vazia).
 
-**Decisão pendente (3 opções, recomendação = 1):**
-1. **(Recomendada) Deprecar/remover `TransactionDSLInput`** — `CreateTransactionInput` + builders fluentes JÁ são a superfície de autoria de transação via `/json`; o tipo DSL-texto é cruft redundante com um formatter que rejeita decimais. v4 já é breaking → cortar agora é limpo. Custo: ~deleção + doc.
-2. **Dar a `TransactionDSLInput` um `ToCreateTransactionInput()` + expor via facade** — preserva o tipo público, torna-o usável via `/json` (o mapper não passa por `formatDSLDecimal`, então fracionários funcionam no struct-path). Custo: mapper share-aware + método/wrapper. Mantém 2 representações concorrentes de transação no SDK.
-3. **Generalizar o `dslTemplateToInput` texto→público** — expõe um parser de string DSL. Custo maior; utilidade externa incerta (YAGNI provável).
+**Implementation vision:** Excisar `TransactionDSLInput` e TODA a maquinaria de DSL-texto que só ele usa (`Validate`, `RenderDSL`, `ToTransactionMap`, `validateDSLToken`, `formatDSLDecimal`, `sendToMap`/`sourceToMap`/`distributeToMap`/`fromToToMap` e helpers `TransactionDSLInput`-only) de `models/transaction_dsl.go`. **⚠️ GUARDA MONEY-PATH — `models.Share` (`transaction_dsl.go:180`) é VIVO:** é usado por `FromToInput.Share *Share` (`transaction.go:365-403`) no path share-based distribute (o fix money-path da 5.3.2 depende dele). NÃO deletar `Share` — **realocar** p/ `models/transaction.go` (junto do `FromToInput`) ou um novo `models/share.go` pequeno. **Antes de deletar, `grep` TODO símbolo exportado de `transaction_dsl.go` p/ consumidores externos** (não só `TransactionDSLInput`); preservar/realocar qualquer um com consumidor vivo (Share é o conhecido; verificar os demais). Deletar `transaction_dsl_test.go` (testa a maquinaria removida) MAS realocar testes de `Share` se houver. Atualizar o doc-comment em `pkg/conversion/metadata.go:75` p/ não referenciar o tipo removido. **NÃO tocar `dsl_convert.go`** (usa `models.Share` + `FromToInput`, NÃO `TransactionDSLInput`) — mas confirmar que ele + o path share-distribute seguem compilando e verdes (money-path).
 
-**Files:** (a decidir com a opção) — opção 1: `models/transaction_dsl.go` (deprecação/remoção) + refs; opção 2: `models/transaction_dsl.go` (novo `ToCreateTransactionInput`) + `entities/transactions_facade.go` (método) ou wrapper público.
+**Files:**
+- Modify: `models/transaction_dsl.go` (excisão) → possivelmente vira `models/share.go` (só `Share`) ou `Share` migra p/ `transaction.go`
+- Modify: `pkg/conversion/metadata.go:75` (doc-comment)
+- Delete: `models/transaction_dsl_test.go` (preservar testes de `Share` se existirem)
 
-**Verification:** a definir com a opção escolhida.
+**Verification:** `go build ./... && go vet ./... && golangci-lint run ./... && go test ./... -count=1` verdes (módulo) + `cd contract && go build ./...`; `grep -rn "TransactionDSLInput" --include='*.go' .` = 0 (fora de nada); `models.Share` + `FromToInput.Share` intactos e o path share-distribute (`dsl_convert.go` + testes de `PaymentPattern`/`Validate`) verdes; `staticcheck` sem U1000 novo.
 
-**Done when:** a superfície DSL do v4 está resolvida — implementada (opção 2/3) ou explicitamente cortada com deprecação documentada (opção 1); módulo verde; sem tipo público morto pendurado.
+**Done when:** `TransactionDSLInput` + maquinaria DSL-texto removidos; `Share` preservado/realocado e vivo em `FromToInput`; doc-comment atualizado; 0 referência a `TransactionDSLInput`; money-path share-distribute intacto; módulo + `contract/` verdes.
 
 ### Epic 5.6: Docs, exemplos, mapping, contract tests, catálogo de erro
 
