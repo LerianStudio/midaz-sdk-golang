@@ -46,6 +46,25 @@ func (input *BillingCalculateInput) Validate() error {
 	return errs.OrNil()
 }
 
+// NewBillingCalculateInput builds a BillingCalculateInput with the required
+// ledger ID and period. Type is optional (empty calculates all package types);
+// set it with WithType.
+func NewBillingCalculateInput(ledgerID, period string) *BillingCalculateInput {
+	return &BillingCalculateInput{LedgerID: ledgerID, Period: period}
+}
+
+// WithType restricts the calculation to a single billing type (e.g. "volume"
+// or "maintenance"). Empty (the default) calculates all types.
+func (input *BillingCalculateInput) WithType(billingType string) *BillingCalculateInput {
+	if input == nil {
+		return nil
+	}
+
+	input.Type = billingType
+
+	return input
+}
+
 // BillingCalculateResponse is the compound billing-calculation result. It mirrors
 // the generated genledger.FeeBillingCalculateResponse: a per-package Results slice
 // and a Summary. Results is empty when no packages matched the period.

@@ -61,6 +61,94 @@ func (input *FeeEstimateInput) Validate() error {
 	return errs.OrNil()
 }
 
+// NewFeeEstimateInput builds a FeeEstimateInput with the required package ID,
+// ledger ID, and the send leg the fee engine estimates against. Optional
+// transaction fields are set with the With* methods.
+func NewFeeEstimateInput(packageID, ledgerID string, send *SendInput) *FeeEstimateInput {
+	return &FeeEstimateInput{
+		PackageID:   packageID,
+		LedgerID:    ledgerID,
+		Transaction: FeeEstimateTransactionInput{Send: send},
+	}
+}
+
+// WithChartOfAccountsGroupName sets the estimate transaction's chart-of-accounts group name.
+func (input *FeeEstimateInput) WithChartOfAccountsGroupName(name string) *FeeEstimateInput {
+	if input == nil {
+		return nil
+	}
+
+	input.Transaction.ChartOfAccountsGroupName = name
+
+	return input
+}
+
+// WithDescription sets the estimate transaction's description.
+func (input *FeeEstimateInput) WithDescription(description string) *FeeEstimateInput {
+	if input == nil {
+		return nil
+	}
+
+	input.Transaction.Description = description
+
+	return input
+}
+
+// WithCode sets the estimate transaction's code.
+func (input *FeeEstimateInput) WithCode(code string) *FeeEstimateInput {
+	if input == nil {
+		return nil
+	}
+
+	input.Transaction.Code = code
+
+	return input
+}
+
+// WithPending sets the estimate transaction's pending flag.
+func (input *FeeEstimateInput) WithPending(pending bool) *FeeEstimateInput {
+	if input == nil {
+		return nil
+	}
+
+	input.Transaction.Pending = pending
+
+	return input
+}
+
+// WithMetadata sets the estimate transaction's metadata.
+func (input *FeeEstimateInput) WithMetadata(metadata map[string]any) *FeeEstimateInput {
+	if input == nil {
+		return nil
+	}
+
+	input.Transaction.Metadata = metadata
+
+	return input
+}
+
+// WithRouteID sets the estimate transaction's route ID.
+func (input *FeeEstimateInput) WithRouteID(routeID string) *FeeEstimateInput {
+	if input == nil {
+		return nil
+	}
+
+	input.Transaction.RouteID = &routeID
+
+	return input
+}
+
+// WithTransactionDate sets the estimate transaction's date (RFC3339).
+func (input *FeeEstimateInput) WithTransactionDate(date string) *FeeEstimateInput {
+	if input == nil {
+		return nil
+	}
+
+	input.Transaction.TransactionDate = date
+
+	return input
+}
+
 // FeeEstimateResponse is the dry-run fee-estimate response. It mirrors the server
 // DTO (fees.go FeeEstimateResponse): Message always carries a human-readable
 // outcome, and FeesApplied is nil when no fee or gratuity rules matched (a valid

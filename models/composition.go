@@ -79,6 +79,157 @@ func (input *CreateHolderAccountInput) Validate() error {
 	return errs.OrNil()
 }
 
+// NewCreateHolderAccountInput builds a CreateHolderAccountInput with the required
+// asset code and account type. Optional account and instrument fields are set
+// with the With* methods; the composition writes an instrument if and only if
+// any of WithBankingDetails/WithRegulatoryFields/WithRelatedParties is set.
+func NewCreateHolderAccountInput(assetCode, accountType string) *CreateHolderAccountInput {
+	return &CreateHolderAccountInput{AssetCode: assetCode, Type: accountType}
+}
+
+// WithName sets the account name.
+func (input *CreateHolderAccountInput) WithName(name string) *CreateHolderAccountInput {
+	if input == nil {
+		return nil
+	}
+
+	input.Name = name
+
+	return input
+}
+
+// WithParentAccountID sets the parent account ID.
+func (input *CreateHolderAccountInput) WithParentAccountID(id string) *CreateHolderAccountInput {
+	if input == nil {
+		return nil
+	}
+
+	input.ParentAccountID = &id
+
+	return input
+}
+
+// WithEntityID sets the entity ID.
+func (input *CreateHolderAccountInput) WithEntityID(id string) *CreateHolderAccountInput {
+	if input == nil {
+		return nil
+	}
+
+	input.EntityID = &id
+
+	return input
+}
+
+// WithPortfolioID sets the portfolio ID.
+func (input *CreateHolderAccountInput) WithPortfolioID(id string) *CreateHolderAccountInput {
+	if input == nil {
+		return nil
+	}
+
+	input.PortfolioID = &id
+
+	return input
+}
+
+// WithSegmentID sets the segment ID.
+func (input *CreateHolderAccountInput) WithSegmentID(id string) *CreateHolderAccountInput {
+	if input == nil {
+		return nil
+	}
+
+	input.SegmentID = &id
+
+	return input
+}
+
+// WithStatus sets the account status.
+func (input *CreateHolderAccountInput) WithStatus(status Status) *CreateHolderAccountInput {
+	if input == nil {
+		return nil
+	}
+
+	input.Status = status
+
+	return input
+}
+
+// WithAlias sets the account alias.
+func (input *CreateHolderAccountInput) WithAlias(alias string) *CreateHolderAccountInput {
+	if input == nil {
+		return nil
+	}
+
+	input.Alias = &alias
+
+	return input
+}
+
+// WithBlocked sets the account blocked flag.
+func (input *CreateHolderAccountInput) WithBlocked(blocked bool) *CreateHolderAccountInput {
+	if input == nil {
+		return nil
+	}
+
+	input.Blocked = &blocked
+
+	return input
+}
+
+// WithMetadata sets the account metadata.
+func (input *CreateHolderAccountInput) WithMetadata(metadata map[string]any) *CreateHolderAccountInput {
+	if input == nil {
+		return nil
+	}
+
+	input.Metadata = metadata
+
+	return input
+}
+
+// WithSkip sets the per-call control skips (honored only with the matching ledger override).
+func (input *CreateHolderAccountInput) WithSkip(skip *AccountSkip) *CreateHolderAccountInput {
+	if input == nil {
+		return nil
+	}
+
+	input.Skip = skip
+
+	return input
+}
+
+// WithBankingDetails sets the instrument banking details (triggers an instrument write).
+func (input *CreateHolderAccountInput) WithBankingDetails(bankingDetails *BankingDetails) *CreateHolderAccountInput {
+	if input == nil {
+		return nil
+	}
+
+	input.BankingDetails = bankingDetails
+
+	return input
+}
+
+// WithRegulatoryFields sets the instrument regulatory fields (triggers an instrument write).
+func (input *CreateHolderAccountInput) WithRegulatoryFields(regulatoryFields *RegulatoryFields) *CreateHolderAccountInput {
+	if input == nil {
+		return nil
+	}
+
+	input.RegulatoryFields = regulatoryFields
+
+	return input
+}
+
+// WithRelatedParties sets the instrument related parties (triggers an instrument write).
+func (input *CreateHolderAccountInput) WithRelatedParties(relatedParties []*RelatedParty) *CreateHolderAccountInput {
+	if input == nil {
+		return nil
+	}
+
+	input.RelatedParties = relatedParties
+
+	return input
+}
+
 // HolderAccountResponse is the composite response for opening a holder-owned
 // account. Account is always present on success. Instrument is null when none
 // was requested (account-only path) or when the instrument write failed.
