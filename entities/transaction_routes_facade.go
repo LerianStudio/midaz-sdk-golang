@@ -17,8 +17,8 @@ import (
 )
 
 // transactionRoutesFacade is the Phase 2 (Task 2.3.2) hand-written facade over
-// the generated genledger.ClientWithResponses. It mirrors the legacy
-// transactionRoutesEntity (entities/transaction_routes.go) wire byte-for-byte:
+// the generated genledger.ClientWithResponses. It preserves the prior wire
+// format byte-for-byte:
 // same org+ledger-scoped /transaction-routes path, same verbs (List/Get GET,
 // Create POST, Update PATCH, Delete DELETE), and the same query params.
 //

@@ -17,8 +17,8 @@ import (
 )
 
 // operationRoutesFacade is the Phase 2 (Task 2.3.1) hand-written facade over the
-// generated genledger.ClientWithResponses. It mirrors the legacy
-// operationRoutesEntity (entities/operation_routes.go) wire byte-for-byte: same
+// generated genledger.ClientWithResponses. It preserves the prior wire format
+// byte-for-byte: same
 // org+ledger-scoped /operation-routes path, same verbs (List/Get GET, Create
 // POST, Update PATCH, Delete DELETE), and the same query params.
 //

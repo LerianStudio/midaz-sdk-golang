@@ -186,7 +186,7 @@ func (*testBalancesService) GetAccountBalancesHistory(context.Context, string, s
 	return nil, errors.New("mock: GetAccountBalancesHistory not implemented")
 }
 
-// testAccountsService implements entities.AccountsService for testing
+// testAccountsService implements the consumer-defined accountsGetter for testing
 type testAccountsService struct {
 	getAccountFn func(ctx context.Context, orgID, ledgerID, id string) (*models.Account, error)
 }
@@ -1693,14 +1693,6 @@ func (*testBalancesService) ListBalancesByExternalCodeAll(_ context.Context, _, 
 
 func (*testBalancesService) ListBalancesByExternalCodePages(_ context.Context, _, _, _ string, _ models.BalancesListOpts) iter.Seq2[*models.ListResponse[models.Balance], error] {
 	return func(_ func(*models.ListResponse[models.Balance], error) bool) {}
-}
-
-func (*testAccountsService) ListAccountsAll(_ context.Context, _, _ string, _ models.AccountsListOpts) iter.Seq2[models.Account, error] {
-	return func(_ func(models.Account, error) bool) {}
-}
-
-func (*testAccountsService) ListAccountsPages(_ context.Context, _, _ string, _ models.AccountsListOpts) iter.Seq2[*models.ListResponse[models.Account], error] {
-	return func(_ func(*models.ListResponse[models.Account], error) bool) {}
 }
 
 // TestChecker_WithObservability_NilReceiver_DoesNotPanic verifies that the

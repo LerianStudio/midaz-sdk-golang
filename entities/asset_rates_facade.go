@@ -17,8 +17,8 @@ import (
 )
 
 // assetRatesFacade is the Phase 2 (Task 2.3.3) hand-written facade over the
-// generated genledger.ClientWithResponses. It mirrors the legacy
-// assetRatesEntity (entities/asset_rates.go) wire byte-for-byte: the upsert PUT
+// generated genledger.ClientWithResponses. It preserves the prior wire format
+// byte-for-byte: the upsert PUT
 // to .../asset-rates, the read GET .../asset-rates/{externalId}, and the
 // cursor-paginated list GET .../asset-rates/from/{assetCode}.
 //

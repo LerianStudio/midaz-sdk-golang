@@ -33,7 +33,7 @@ type Organization struct {
 // See also:
 //   - [CreateOrganizationInput.Validate] — multi-field validation accumulator.
 //   - [UpdateOrganizationInput] — partial-update shape.
-//   - [github.com/LerianStudio/midaz-sdk-golang/v4/entities.OrganizationsService.CreateOrganization]
+//   - Create it via the client's Organizations accessor: c.Organizations.Create.
 //   - [github.com/LerianStudio/midaz-sdk-golang/v4/pkg/sdkctx.WithIdempotencyKey] — make creation safe under retries.
 type CreateOrganizationInput struct {
 	LegalName            string         `json:"legalName" example:"Lerian Financial Services Ltd." maxLength:"256"`

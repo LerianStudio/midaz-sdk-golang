@@ -80,64 +80,6 @@ func pageBasedHandler[T any](t *testing.T, page1 []T, page2 []T) (http.Handler, 
 	return handler, &calls
 }
 
-func TestAccountsEntity_ListAccountsPages_AdvancesAndStops(t *testing.T) {
-	handler, calls := pageBasedHandler(t,
-		[]models.Account{{ID: "a-1"}, {ID: "a-2"}},
-		[]models.Account{{ID: "a-3"}},
-	)
-	server := httptest.NewServer(handler)
-	defer server.Close()
-
-	entity := newAccountsEntity(server.Client(), "tok", map[string]string{"onboarding": server.URL})
-	opts := models.AccountsListOpts{PageListOpts: models.PageListOpts{Limit: 2}}
-
-	var (
-		pages    []*models.ListResponse[models.Account]
-		hasMore1 bool
-	)
-
-	for page, err := range entity.ListAccountsPages(context.Background(), "org", "ledger", opts) {
-		require.NoError(t, err)
-		pages = append(pages, page)
-
-		if len(pages) == 1 {
-			hasMore1 = page.Pagination.HasMore()
-		}
-	}
-
-	require.Len(t, pages, 2, "iterator must yield exactly two pages")
-	assert.True(t, hasMore1, "page 1 must report HasMore() = true")
-	assert.False(t, pages[1].Pagination.HasMore(), "page 2 must report HasMore() = false")
-	assert.Equal(t, int32(2), calls.Load(), "exactly two HTTP requests")
-	assert.Equal(t, "a-1", pages[0].Items[0].ID)
-	assert.Equal(t, "a-3", pages[1].Items[0].ID)
-}
-
-func TestAccountTypesEntity_ListAccountTypesPages_AdvancesAndStops(t *testing.T) {
-	handler, calls := pageBasedHandler(t,
-		[]models.AccountType{{Name: "type-1"}, {Name: "type-2"}},
-		[]models.AccountType{{Name: "type-3"}},
-	)
-	server := httptest.NewServer(handler)
-	defer server.Close()
-
-	entity := newAccountTypesEntity(server.Client(), "tok", map[string]string{"onboarding": server.URL})
-	opts := models.AccountTypesListOpts{PageListOpts: models.PageListOpts{Limit: 2}}
-
-	var pages []*models.ListResponse[models.AccountType]
-
-	for page, err := range entity.ListAccountTypesPages(context.Background(), "org", "ledger", opts) {
-		require.NoError(t, err)
-		pages = append(pages, page)
-	}
-
-	require.Len(t, pages, 2)
-	assert.False(t, pages[1].Pagination.HasMore())
-	assert.Equal(t, int32(2), calls.Load())
-	assert.Equal(t, "type-1", pages[0].Items[0].Name)
-	assert.Equal(t, "type-3", pages[1].Items[0].Name)
-}
-
 func TestAliasesEntity_ListAliasesPages_AdvancesAndStops(t *testing.T) {
 	// Aliases is org-scoped (not ledger-scoped) and lives on the CRM service.
 	// Use zero-value Alias entries — we only test iteration shape, not field
@@ -168,29 +110,6 @@ func TestAliasesEntity_ListAliasesPages_AdvancesAndStops(t *testing.T) {
 	assert.Len(t, pages[1].Items, 1)
 }
 
-func TestAssetsEntity_ListAssetsPages_AdvancesAndStops(t *testing.T) {
-	handler, calls := pageBasedHandler(t,
-		[]models.Asset{{ID: "as-1", Code: "USD"}, {ID: "as-2", Code: "EUR"}},
-		[]models.Asset{{ID: "as-3", Code: "BRL"}},
-	)
-	server := httptest.NewServer(handler)
-	defer server.Close()
-
-	entity := newAssetsEntity(server.Client(), "tok", map[string]string{"onboarding": server.URL})
-	opts := models.AssetsListOpts{PageListOpts: models.PageListOpts{Limit: 2}}
-
-	var pages []*models.ListResponse[models.Asset]
-
-	for page, err := range entity.ListAssetsPages(context.Background(), "org", "ledger", opts) {
-		require.NoError(t, err)
-		pages = append(pages, page)
-	}
-
-	require.Len(t, pages, 2)
-	assert.False(t, pages[1].Pagination.HasMore())
-	assert.Equal(t, int32(2), calls.Load())
-}
-
 func TestBalancesEntity_ListBalancesPages_AdvancesAndStops(t *testing.T) {
 	handler, calls := pageBasedHandler(t,
 		[]models.Balance{{ID: "b-1"}, {ID: "b-2"}},
@@ -205,100 +124,6 @@ func TestBalancesEntity_ListBalancesPages_AdvancesAndStops(t *testing.T) {
 	var pages []*models.ListResponse[models.Balance]
 
 	for page, err := range entity.ListBalancesPages(context.Background(), "org", "ledger", opts) {
-		require.NoError(t, err)
-		pages = append(pages, page)
-	}
-
-	require.Len(t, pages, 2)
-	assert.False(t, pages[1].Pagination.HasMore())
-	assert.Equal(t, int32(2), calls.Load())
-}
-
-func TestHoldersEntity_ListHoldersPages_AdvancesAndStops(t *testing.T) {
-	handler, calls := pageBasedHandler(t,
-		[]models.Holder{{}, {}},
-		[]models.Holder{{}},
-	)
-	server := httptest.NewServer(handler)
-	defer server.Close()
-
-	entity := newHoldersEntity(server.Client(), "token", map[string]string{"crm": server.URL})
-	opts := models.HoldersListOpts{PageListOpts: models.PageListOpts{Limit: 2}}
-
-	var pages []*models.ListResponse[models.Holder]
-
-	for page, err := range entity.ListHoldersPages(context.Background(), "org", opts) {
-		require.NoError(t, err)
-		pages = append(pages, page)
-	}
-
-	require.Len(t, pages, 2)
-	assert.False(t, pages[1].Pagination.HasMore())
-	assert.Equal(t, int32(2), calls.Load())
-	assert.Len(t, pages[0].Items, 2)
-	assert.Len(t, pages[1].Items, 1)
-}
-
-func TestLedgersEntity_ListLedgersPages_AdvancesAndStops(t *testing.T) {
-	handler, calls := pageBasedHandler(t,
-		[]models.Ledger{{ID: "l-1"}, {ID: "l-2"}},
-		[]models.Ledger{{ID: "l-3"}},
-	)
-	server := httptest.NewServer(handler)
-	defer server.Close()
-
-	entity := newLedgersEntity(server.Client(), "token", map[string]string{"onboarding": server.URL})
-	opts := models.LedgersListOpts{PageListOpts: models.PageListOpts{Limit: 2}}
-
-	var pages []*models.ListResponse[models.Ledger]
-
-	for page, err := range entity.ListLedgersPages(context.Background(), "org", opts) {
-		require.NoError(t, err)
-		pages = append(pages, page)
-	}
-
-	require.Len(t, pages, 2)
-	assert.False(t, pages[1].Pagination.HasMore())
-	assert.Equal(t, int32(2), calls.Load())
-}
-
-func TestOrganizationsEntity_ListOrganizationsPages_AdvancesAndStops(t *testing.T) {
-	handler, calls := pageBasedHandler(t,
-		[]models.Organization{{ID: "o-1"}, {ID: "o-2"}},
-		[]models.Organization{{ID: "o-3"}},
-	)
-	server := httptest.NewServer(handler)
-	defer server.Close()
-
-	entity := newOrganizationsEntity(server.Client(), "tok", map[string]string{"onboarding": server.URL})
-	opts := models.OrganizationsListOpts{PageListOpts: models.PageListOpts{Limit: 2}}
-
-	var pages []*models.ListResponse[models.Organization]
-
-	for page, err := range entity.ListOrganizationsPages(context.Background(), opts) {
-		require.NoError(t, err)
-		pages = append(pages, page)
-	}
-
-	require.Len(t, pages, 2)
-	assert.False(t, pages[1].Pagination.HasMore())
-	assert.Equal(t, int32(2), calls.Load())
-}
-
-func TestSegmentsEntity_ListSegmentsPages_AdvancesAndStops(t *testing.T) {
-	handler, calls := pageBasedHandler(t,
-		[]models.Segment{{ID: "s-1"}, {ID: "s-2"}},
-		[]models.Segment{{ID: "s-3"}},
-	)
-	server := httptest.NewServer(handler)
-	defer server.Close()
-
-	entity := newSegmentsEntity(server.Client(), "tok", map[string]string{"onboarding": server.URL})
-	opts := models.SegmentsListOpts{PageListOpts: models.PageListOpts{Limit: 2}}
-
-	var pages []*models.ListResponse[models.Segment]
-
-	for page, err := range entity.ListSegmentsPages(context.Background(), "org", "ledger", opts) {
 		require.NoError(t, err)
 		pages = append(pages, page)
 	}
@@ -368,31 +193,6 @@ func cursorBasedHandler[T any](t *testing.T, page1 []T, page2 []T) (http.Handler
 	return handler, &calls, &secondReqCursor
 }
 
-func TestTransactionsEntity_ListTransactionsPages_CursorAdvances(t *testing.T) {
-	handler, calls, secondCursor := cursorBasedHandler(t,
-		[]models.Transaction{{ID: "tx-1"}, {ID: "tx-2"}},
-		[]models.Transaction{{ID: "tx-3"}},
-	)
-	server := httptest.NewServer(handler)
-	defer server.Close()
-
-	entity := newTransactionsEntity(server.Client(), map[string]string{"transaction": server.URL})
-	opts := models.TransactionsListOpts{CursorListOpts: models.CursorListOpts{Limit: 2}}
-
-	var pages []*models.ListResponse[models.Transaction]
-
-	for page, err := range entity.ListTransactionsPages(context.Background(), "org", "ledger", opts) {
-		require.NoError(t, err)
-		pages = append(pages, page)
-	}
-
-	require.Len(t, pages, 2, "iterator must drive both pages then stop")
-	assert.Equal(t, "c-2", pages[0].Pagination.NextCursor, "page 1 advertises cursor c-2")
-	assert.Empty(t, pages[1].Pagination.NextCursor, "page 2 advertises empty cursor (end)")
-	assert.Equal(t, int32(2), calls.Load(), "exactly two HTTP requests")
-	assert.Equal(t, "c-2", *secondCursor, "second request body must have actually carried cursor=c-2")
-}
-
 func TestOperationsEntity_ListOperationsPages_CursorAdvances(t *testing.T) {
 	handler, calls, secondCursor := cursorBasedHandler(t,
 		[]models.Operation{{ID: "op-1"}, {ID: "op-2"}},
@@ -407,56 +207,6 @@ func TestOperationsEntity_ListOperationsPages_CursorAdvances(t *testing.T) {
 	var pages []*models.ListResponse[models.Operation]
 
 	for page, err := range entity.ListOperationsPages(context.Background(), "org", "ledger", "acc", opts) {
-		require.NoError(t, err)
-		pages = append(pages, page)
-	}
-
-	require.Len(t, pages, 2)
-	assert.Equal(t, "c-2", pages[0].Pagination.NextCursor)
-	assert.Empty(t, pages[1].Pagination.NextCursor)
-	assert.Equal(t, int32(2), calls.Load())
-	assert.Equal(t, "c-2", *secondCursor)
-}
-
-func TestOperationRoutesEntity_ListOperationRoutesPages_CursorAdvances(t *testing.T) {
-	handler, calls, secondCursor := cursorBasedHandler(t,
-		[]models.OperationRoute{{Title: "or-1"}, {Title: "or-2"}},
-		[]models.OperationRoute{{Title: "or-3"}},
-	)
-	server := httptest.NewServer(handler)
-	defer server.Close()
-
-	entity := newOperationRoutesEntity(server.Client(), "tok", map[string]string{"transaction": server.URL})
-	opts := models.OperationRoutesListOpts{CursorListOpts: models.CursorListOpts{Limit: 2}}
-
-	var pages []*models.ListResponse[models.OperationRoute]
-
-	for page, err := range entity.ListOperationRoutesPages(context.Background(), "org", "ledger", opts) {
-		require.NoError(t, err)
-		pages = append(pages, page)
-	}
-
-	require.Len(t, pages, 2)
-	assert.Equal(t, "c-2", pages[0].Pagination.NextCursor)
-	assert.Empty(t, pages[1].Pagination.NextCursor)
-	assert.Equal(t, int32(2), calls.Load())
-	assert.Equal(t, "c-2", *secondCursor)
-}
-
-func TestTransactionRoutesEntity_ListTransactionRoutesPages_CursorAdvances(t *testing.T) {
-	handler, calls, secondCursor := cursorBasedHandler(t,
-		[]models.TransactionRoute{{Title: "tr-1"}, {Title: "tr-2"}},
-		[]models.TransactionRoute{{Title: "tr-3"}},
-	)
-	server := httptest.NewServer(handler)
-	defer server.Close()
-
-	entity := newTransactionRoutesEntity(server.Client(), "tok", map[string]string{"transaction": server.URL})
-	opts := models.TransactionRoutesListOpts{CursorListOpts: models.CursorListOpts{Limit: 2}}
-
-	var pages []*models.ListResponse[models.TransactionRoute]
-
-	for page, err := range entity.ListTransactionRoutesPages(context.Background(), "org", "ledger", opts) {
 		require.NoError(t, err)
 		pages = append(pages, page)
 	}
@@ -483,105 +233,6 @@ func TestTransactionRoutesEntity_ListTransactionRoutesPages_CursorAdvances(t *te
 // same cancellation pattern via requestContext + ctx.Err().
 // ─────────────────────────────────────────────────────────────────────────────
 
-func TestPortfoliosEntity_ListPortfoliosPages_StopsOnCtxCancel(t *testing.T) {
-	var calls atomic.Int32
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		calls.Add(1)
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		// Always claim more pages exist — the only way iteration stops is via
-		// the ctx.Err() check, NOT via HasMore.
-		_ = json.NewEncoder(w).Encode(models.ListResponse[models.Portfolio]{
-			Items: []models.Portfolio{{ID: "p-1"}},
-			Pagination: models.Pagination{
-				Total: 100,
-				Limit: 1,
-				Page:  int(calls.Load()),
-			},
-		})
-	}))
-	defer server.Close()
-
-	entity := newPortfoliosEntity(server.Client(), "tok", map[string]string{"onboarding": server.URL})
-	opts := models.PortfoliosListOpts{PageListOpts: models.PageListOpts{Limit: 1}}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel() // safety net for early-error paths
-
-	var (
-		pagesGot int
-		gotErr   error
-	)
-
-	for page, err := range entity.ListPortfoliosPages(ctx, "org", "ledger", opts) {
-		if err != nil {
-			gotErr = err
-			break
-		}
-
-		pagesGot++
-
-		require.NotNil(t, page)
-		// Cancel after the first page has been yielded — the next iteration of
-		// the closure must observe ctx.Err() and exit before issuing another
-		// HTTP request.
-		cancel()
-	}
-
-	require.ErrorIs(t, gotErr, context.Canceled, "iterator must surface the context cancellation as a context.Canceled error")
-	assert.Equal(t, 1, pagesGot, "exactly one page yielded before cancel")
-	// The strict invariant: no second request was issued after cancellation.
-	// The iterator either issued only the first request, or the second request
-	// raced past cancel — but typical happy-path is exactly 1 call.
-	assert.LessOrEqual(t, calls.Load(), int32(1), "no further HTTP request after cancel")
-}
-
-func TestTransactionsEntity_ListTransactionsPages_StopsOnCtxCancel(t *testing.T) {
-	var calls atomic.Int32
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		calls.Add(1)
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		// Always issue a NextCursor — the only way the iterator stops is via
-		// ctx.Err(), not via empty cursor.
-		_ = json.NewEncoder(w).Encode(models.ListResponse[models.Transaction]{
-			Items: []models.Transaction{{ID: "tx-1"}},
-			Pagination: models.Pagination{
-				NextCursor: "always-more",
-			},
-		})
-	}))
-	defer server.Close()
-
-	entity := newTransactionsEntity(server.Client(), map[string]string{"transaction": server.URL})
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel() // safety net for early-error paths
-
-	var (
-		pagesGot int
-		gotErr   error
-	)
-
-	for page, err := range entity.ListTransactionsPages(ctx, "org", "ledger", models.TransactionsListOpts{}) {
-		if err != nil {
-			gotErr = err
-			break
-		}
-
-		pagesGot++
-
-		require.NotNil(t, page)
-		cancel()
-	}
-
-	require.ErrorIs(t, gotErr, context.Canceled, "iterator must surface the context cancellation as a context.Canceled error")
-	assert.Equal(t, 1, pagesGot)
-	assert.LessOrEqual(t, calls.Load(), int32(1))
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Early-break / Stop semantics test (H28).
 //
@@ -590,72 +241,6 @@ func TestTransactionsEntity_ListTransactionsPages_StopsOnCtxCancel(t *testing.T)
 // returns false, and the iterator MUST stop without issuing any further
 // HTTP request. Coverage check: only one HTTP call observed by the server.
 // ─────────────────────────────────────────────────────────────────────────────
-
-func TestPortfoliosEntity_ListPortfoliosPages_StopsOnConsumerBreak(t *testing.T) {
-	var calls atomic.Int32
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		calls.Add(1)
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(models.ListResponse[models.Portfolio]{
-			Items: []models.Portfolio{{ID: "p-1"}},
-			// Always claim more pages so HasMore() = true; consumer must
-			// break to stop iteration.
-			Pagination: models.Pagination{
-				Total: 100,
-				Limit: 1,
-				Page:  int(calls.Load()),
-			},
-		})
-	}))
-	defer server.Close()
-
-	entity := newPortfoliosEntity(server.Client(), "tok", map[string]string{"onboarding": server.URL})
-	opts := models.PortfoliosListOpts{PageListOpts: models.PageListOpts{Limit: 1}}
-
-	pagesGot := 0
-
-	for _, err := range entity.ListPortfoliosPages(context.Background(), "org", "ledger", opts) {
-		require.NoError(t, err)
-		pagesGot++
-
-		break // exit on first page
-	}
-
-	assert.Equal(t, 1, pagesGot, "exactly one page yielded before break")
-	assert.Equal(t, int32(1), calls.Load(), "no second HTTP request after consumer break")
-}
-
-func TestTransactionsEntity_ListTransactionsPages_StopsOnConsumerBreak(t *testing.T) {
-	var calls atomic.Int32
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		calls.Add(1)
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(models.ListResponse[models.Transaction]{
-			Items: []models.Transaction{{ID: "tx-1"}},
-			// Always advertise a next cursor — consumer must break.
-			Pagination: models.Pagination{NextCursor: "always-more"},
-		})
-	}))
-	defer server.Close()
-
-	entity := newTransactionsEntity(server.Client(), map[string]string{"transaction": server.URL})
-
-	pagesGot := 0
-
-	for _, err := range entity.ListTransactionsPages(context.Background(), "org", "ledger", models.TransactionsListOpts{}) {
-		require.NoError(t, err)
-		pagesGot++
-
-		break
-	}
-
-	assert.Equal(t, 1, pagesGot)
-	assert.Equal(t, int32(1), calls.Load(), "no second HTTP request after consumer break")
-}
 
 // runListAllSubtest is the shared body for every TestListXxxAll_DelegatesToPages
 // subtest. It serves the given single-page payload from an httptest server,
@@ -714,19 +299,6 @@ func runListAllSubtest[T any](
 //
 //nolint:revive // cognitive-complexity: 16 ListXxxAll wrappers must each be drive-tested through a t.Run; the runListAllSubtest helper already collapses every subtest body to a single call, so the residual complexity is the unavoidable count of entities.
 func TestListXxxAll_DelegatesToPages(t *testing.T) {
-	t.Run("AccountTypesAll", func(t *testing.T) {
-		runListAllSubtest(t,
-			models.ListResponse[models.AccountType]{Items: []models.AccountType{{Name: "type-A"}}},
-			func(s *httptest.Server) iter.Seq2[models.AccountType, error] {
-				e := newAccountTypesEntity(s.Client(), "tok", map[string]string{"onboarding": s.URL})
-				return e.ListAccountTypesAll(context.Background(), "org", "ledger", models.AccountTypesListOpts{})
-			},
-			func(got []models.AccountType) {
-				assert.Len(t, got, 1)
-				assert.Equal(t, "type-A", got[0].Name)
-			},
-		)
-	})
 
 	t.Run("AliasesAll", func(t *testing.T) {
 		runListAllSubtest(t,
@@ -736,20 +308,6 @@ func TestListXxxAll_DelegatesToPages(t *testing.T) {
 				return e.ListAliasesAll(context.Background(), "org", models.AliasesListOpts{})
 			},
 			func(got []models.Alias) { assert.Len(t, got, 1) },
-		)
-	})
-
-	t.Run("AssetsAll", func(t *testing.T) {
-		runListAllSubtest(t,
-			models.ListResponse[models.Asset]{Items: []models.Asset{{ID: "a-1", Code: "USD"}}},
-			func(s *httptest.Server) iter.Seq2[models.Asset, error] {
-				e := newAssetsEntity(s.Client(), "tok", map[string]string{"onboarding": s.URL})
-				return e.ListAssetsAll(context.Background(), "org", "ledger", models.AssetsListOpts{})
-			},
-			func(got []models.Asset) {
-				assert.Len(t, got, 1)
-				assert.Equal(t, "USD", got[0].Code)
-			},
 		)
 	})
 
@@ -797,75 +355,6 @@ func TestListXxxAll_DelegatesToPages(t *testing.T) {
 		)
 	})
 
-	t.Run("HoldersAll", func(t *testing.T) {
-		runListAllSubtest(t,
-			models.ListResponse[models.Holder]{Items: []models.Holder{{}}},
-			func(s *httptest.Server) iter.Seq2[models.Holder, error] {
-				e := newHoldersEntity(s.Client(), "token", map[string]string{"crm": s.URL})
-				return e.ListHoldersAll(context.Background(), "org", models.HoldersListOpts{})
-			},
-			func(got []models.Holder) { assert.Len(t, got, 1) },
-		)
-	})
-
-	t.Run("LedgersAll", func(t *testing.T) {
-		runListAllSubtest(t,
-			models.ListResponse[models.Ledger]{Items: []models.Ledger{{ID: "l-1", Name: "Main"}}},
-			func(s *httptest.Server) iter.Seq2[models.Ledger, error] {
-				e := newLedgersEntity(s.Client(), "token", map[string]string{"onboarding": s.URL})
-				return e.ListLedgersAll(context.Background(), "org", models.LedgersListOpts{})
-			},
-			func(got []models.Ledger) {
-				assert.Len(t, got, 1)
-				assert.Equal(t, "Main", got[0].Name)
-			},
-		)
-	})
-
-	t.Run("OrganizationsAll", func(t *testing.T) {
-		runListAllSubtest(t,
-			models.ListResponse[models.Organization]{Items: []models.Organization{{ID: "o-1"}}},
-			func(s *httptest.Server) iter.Seq2[models.Organization, error] {
-				e := newOrganizationsEntity(s.Client(), "tok", map[string]string{"onboarding": s.URL})
-				return e.ListOrganizationsAll(context.Background(), models.OrganizationsListOpts{})
-			},
-			func(got []models.Organization) { assert.Len(t, got, 1) },
-		)
-	})
-
-	t.Run("PortfoliosAll", func(t *testing.T) {
-		runListAllSubtest(t,
-			models.ListResponse[models.Portfolio]{Items: []models.Portfolio{{ID: "p-1"}}},
-			func(s *httptest.Server) iter.Seq2[models.Portfolio, error] {
-				e := newPortfoliosEntity(s.Client(), "tok", map[string]string{"onboarding": s.URL})
-				return e.ListPortfoliosAll(context.Background(), "org", "ledger", models.PortfoliosListOpts{})
-			},
-			func(got []models.Portfolio) { assert.Len(t, got, 1) },
-		)
-	})
-
-	t.Run("SegmentsAll", func(t *testing.T) {
-		runListAllSubtest(t,
-			models.ListResponse[models.Segment]{Items: []models.Segment{{ID: "s-1"}}},
-			func(s *httptest.Server) iter.Seq2[models.Segment, error] {
-				e := newSegmentsEntity(s.Client(), "tok", map[string]string{"onboarding": s.URL})
-				return e.ListSegmentsAll(context.Background(), "org", "ledger", models.SegmentsListOpts{})
-			},
-			func(got []models.Segment) { assert.Len(t, got, 1) },
-		)
-	})
-
-	t.Run("TransactionsAll (cursor)", func(t *testing.T) {
-		runListAllSubtest(t,
-			models.ListResponse[models.Transaction]{Items: []models.Transaction{{ID: "tx-1"}}},
-			func(s *httptest.Server) iter.Seq2[models.Transaction, error] {
-				e := newTransactionsEntity(s.Client(), map[string]string{"transaction": s.URL})
-				return e.ListTransactionsAll(context.Background(), "org", "ledger", models.TransactionsListOpts{})
-			},
-			func(got []models.Transaction) { assert.Len(t, got, 1) },
-		)
-	})
-
 	t.Run("OperationsAll (cursor)", func(t *testing.T) {
 		runListAllSubtest(t,
 			models.ListResponse[models.Operation]{Items: []models.Operation{{ID: "op-1"}}},
@@ -877,30 +366,6 @@ func TestListXxxAll_DelegatesToPages(t *testing.T) {
 		)
 	})
 
-	t.Run("OperationRoutesAll (cursor)", func(t *testing.T) {
-		runListAllSubtest(t,
-			models.ListResponse[models.OperationRoute]{Items: []models.OperationRoute{{Title: "or-1"}}},
-			func(s *httptest.Server) iter.Seq2[models.OperationRoute, error] {
-				e := newOperationRoutesEntity(s.Client(), "tok", map[string]string{"transaction": s.URL})
-				return e.ListOperationRoutesAll(context.Background(), "org", "ledger", models.OperationRoutesListOpts{})
-			},
-			func(got []models.OperationRoute) {
-				assert.Len(t, got, 1)
-				assert.Equal(t, "or-1", got[0].Title)
-			},
-		)
-	})
-
-	t.Run("TransactionRoutesAll (cursor)", func(t *testing.T) {
-		runListAllSubtest(t,
-			models.ListResponse[models.TransactionRoute]{Items: []models.TransactionRoute{{Title: "tr-1"}}},
-			func(s *httptest.Server) iter.Seq2[models.TransactionRoute, error] {
-				e := newTransactionRoutesEntity(s.Client(), "tok", map[string]string{"transaction": s.URL})
-				return e.ListTransactionRoutesAll(context.Background(), "org", "ledger", models.TransactionRoutesListOpts{})
-			},
-			func(got []models.TransactionRoute) { assert.Len(t, got, 1) },
-		)
-	})
 }
 
 // TestBalancesByAccountAliasPages_AdvancesAndStops covers the
@@ -977,37 +442,3 @@ func TestBalancesEntity_ListAccountBalancesPages_AdvancesAndStops(t *testing.T) 
 // iterator (which routes through flattenPages). Returning false from yield
 // must propagate up through both layers and stop the underlying Pages
 // iterator.
-func TestAccountsEntity_ListAccountsAll_StopsOnConsumerBreak(t *testing.T) {
-	var calls atomic.Int32
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		calls.Add(1)
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		// Each page yields 3 items + claims more pages exist.
-		_ = json.NewEncoder(w).Encode(models.ListResponse[models.Account]{
-			Items: []models.Account{{ID: "a-1"}, {ID: "a-2"}, {ID: "a-3"}},
-			Pagination: models.Pagination{
-				Total: 100,
-				Limit: 3,
-				Page:  int(calls.Load()),
-			},
-		})
-	}))
-	defer server.Close()
-
-	entity := newAccountsEntity(server.Client(), "tok", map[string]string{"onboarding": server.URL})
-
-	itemsGot := 0
-
-	for _, err := range entity.ListAccountsAll(context.Background(), "org", "ledger", models.AccountsListOpts{PageListOpts: models.PageListOpts{Limit: 3}}) {
-		require.NoError(t, err)
-		itemsGot++
-		// Stop after first item — Pages must not advance, flattenPages must
-		// not consume the rest of page 1's items.
-		break
-	}
-
-	assert.Equal(t, 1, itemsGot)
-	assert.Equal(t, int32(1), calls.Load(), "Pages iterator must stop after consumer breaks out of All")
-}

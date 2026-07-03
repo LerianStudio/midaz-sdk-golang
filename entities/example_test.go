@@ -5,30 +5,19 @@ import (
 	"fmt"
 
 	client "github.com/LerianStudio/midaz-sdk-golang/v4"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config"
 )
 
-// Anchor identifiers that satisfy go vet's example-naming requirement
-// (Example<Type>_<Method> needs <Type> to be in scope from this test
-// package). The concrete implementations are unexported, so we cannot
-// assert they satisfy the interface here — see the corresponding _test.go
-// files in package entities for the concrete-type compile checks.
-var (
-	_ entities.AccountsService     = (entities.AccountsService)(nil)
-	_ entities.TransactionsService = (entities.TransactionsService)(nil)
-)
-
-// ExampleAccountsService_ListAccountsAll demonstrates the canonical v3
-// pattern for traversing every account in a ledger. ListAccountsAll
-// returns an iter.Seq2 that auto-advances pages and yields one Account
-// at a time, so a normal range-over-func loop just works.
+// Example_accountsListAll demonstrates the canonical v4 pattern for
+// traversing every account in a ledger. The Accounts facade's All method
+// returns an iter.Seq2 that auto-advances pages and yields one Account at a
+// time, so a normal range-over-func loop just works.
 //
 // For one-page-at-a-time access (page metadata, custom batching), use
-// ListAccounts; for page-level iteration with metadata, use
-// ListAccountsPages.
-func ExampleAccountsService_ListAccountsAll() {
+// c.Accounts.List; for page-level iteration with metadata, use
+// c.Accounts.Pages.
+func Example_accountsListAll() {
 	cfg, err := config.NewConfig(config.FromEnvironment())
 	if err != nil {
 		fmt.Println("config error")
@@ -61,15 +50,14 @@ func ExampleAccountsService_ListAccountsAll() {
 	fmt.Printf("traversed %d accounts\n", count)
 }
 
-// ExampleTransactionsService_ListTransactionsAll demonstrates cursor-based
-// iteration. Transactions use a cursor — the TransactionsListOpts struct
-// has Cursor but no Page/Offset by construction, so the v2 footgun where
-// setting WithPage on a cursor endpoint silently dropped the value is
-// structurally impossible (audit finding 5.5).
+// Example_transactionsListAll demonstrates cursor-based iteration. Transactions
+// use a cursor — the TransactionsListOpts struct has Cursor but no Page/Offset
+// by construction, so the v2 footgun where setting WithPage on a cursor
+// endpoint silently dropped the value is structurally impossible.
 //
-// The iterator handles cursor advance internally; the caller writes the
-// same shape of code regardless of pagination style.
-func ExampleTransactionsService_ListTransactionsAll() {
+// The iterator handles cursor advance internally; the caller writes the same
+// shape of code regardless of pagination style.
+func Example_transactionsListAll() {
 	cfg, err := config.NewConfig(config.FromEnvironment())
 	if err != nil {
 		fmt.Println("config error")

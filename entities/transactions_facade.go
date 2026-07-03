@@ -162,7 +162,7 @@ func (f *transactionsFacade) CreateAnnotation(ctx context.Context, orgID, ledger
 // POST .../transactions/{id}/commit. Success is HTTP 201. The action carries no
 // body and is not auto-idempotent: it stamps X-Idempotency only when the caller
 // supplied a key (input struct has none, so via sdkctx.WithIdempotencyKey) —
-// parity with the legacy transactionActionContext.
+// parity with the prior action-context idempotency handling.
 func (f *transactionsFacade) Commit(ctx context.Context, orgID, ledgerID, transactionID string) (*models.Transaction, error) {
 	const operation = "Transactions.Commit"
 
@@ -486,8 +486,8 @@ func listTransactionsReqEditors(opts models.TransactionsListOpts) []genledger.Re
 }
 
 // countTransactionsParams renders ONLY the four filters the HEAD count endpoint
-// honors (status/route/start_date/end_date) — parity with the legacy
-// transactionMetricsCountQueryParams. Cursor/limit/sort do not apply to a count.
+// honors (status/route/start_date/end_date). Cursor/limit/sort do not apply to
+// a count.
 func countTransactionsParams(opts models.TransactionsListOpts) *genledger.CountTransactionsByFiltersParams {
 	params := &genledger.CountTransactionsByFiltersParams{}
 

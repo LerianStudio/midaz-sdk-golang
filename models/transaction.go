@@ -241,7 +241,7 @@ func DecimalStringFromAny(value any) string {
 // CreateTransactionInput is the input for creating a transaction.
 // This structure contains all the fields needed to create a new transaction.
 //
-// CreateTransactionInput is used with the TransactionsService.CreateTransaction method
+// CreateTransactionInput is used with the Transactions accessor's CreateJSON method
 // to create new transactions in the standard format (as opposed to the DSL format).
 // It allows for specifying the transaction details including operations, metadata,
 // and other properties.
@@ -1247,7 +1247,7 @@ func (t *Transaction) ToTransactionMap() map[string]any {
 // UpdateTransactionInput represents the input for updating a transaction.
 // This structure contains the fields that can be updated on an existing transaction.
 //
-// UpdateTransactionInput is used with the TransactionsService.UpdateTransaction method
+// UpdateTransactionInput is used with the Transactions accessor's UpdateTransaction method
 // to update existing transactions. It allows for updating metadata and other mutable
 // properties of a transaction.
 //

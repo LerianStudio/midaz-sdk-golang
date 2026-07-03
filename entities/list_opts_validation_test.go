@@ -43,24 +43,6 @@ func TestPageListOpts_OverLimit_ValidatesBeforeRequest(t *testing.T) {
 		run func(t *testing.T, baseURL string) error
 	}{
 		{
-			name: "ListAccounts",
-			run: func(_ *testing.T, baseURL string) error {
-				e := newAccountsEntity(http.DefaultClient, "tok", map[string]string{"onboarding": baseURL})
-				_, err := e.ListAccounts(context.Background(), "org", "ledger",
-					models.AccountsListOpts{PageListOpts: models.PageListOpts{Limit: models.MaxLimit + 1}})
-				return err
-			},
-		},
-		{
-			name: "ListAccountTypes",
-			run: func(_ *testing.T, baseURL string) error {
-				e := newAccountTypesEntity(http.DefaultClient, "tok", map[string]string{"onboarding": baseURL})
-				_, err := e.ListAccountTypes(context.Background(), "org", "ledger",
-					models.AccountTypesListOpts{PageListOpts: models.PageListOpts{Limit: models.MaxLimit + 1}})
-				return err
-			},
-		},
-		{
 			name: "ListAliases",
 			run: func(_ *testing.T, baseURL string) error {
 				e := newAliasesEntity(http.DefaultClient, map[string]string{"crm": baseURL})
@@ -70,65 +52,11 @@ func TestPageListOpts_OverLimit_ValidatesBeforeRequest(t *testing.T) {
 			},
 		},
 		{
-			name: "ListAssets",
-			run: func(_ *testing.T, baseURL string) error {
-				e := newAssetsEntity(http.DefaultClient, "tok", map[string]string{"onboarding": baseURL})
-				_, err := e.ListAssets(context.Background(), "org", "ledger",
-					models.AssetsListOpts{PageListOpts: models.PageListOpts{Limit: models.MaxLimit + 1}})
-				return err
-			},
-		},
-		{
 			name: "ListBalances",
 			run: func(_ *testing.T, baseURL string) error {
 				e := newBalancesEntity(http.DefaultClient, "tok", map[string]string{"transaction": baseURL})
 				_, err := e.ListBalances(context.Background(), "org", "ledger",
 					models.BalancesListOpts{PageListOpts: models.PageListOpts{Limit: models.MaxLimit + 1}})
-				return err
-			},
-		},
-		{
-			name: "ListHolders",
-			run: func(_ *testing.T, baseURL string) error {
-				e := newHoldersEntity(http.DefaultClient, "token", map[string]string{"crm": baseURL})
-				_, err := e.ListHolders(context.Background(), "org",
-					models.HoldersListOpts{PageListOpts: models.PageListOpts{Limit: models.MaxLimit + 1}})
-				return err
-			},
-		},
-		{
-			name: "ListLedgers",
-			run: func(_ *testing.T, baseURL string) error {
-				e := newLedgersEntity(http.DefaultClient, "token", map[string]string{"onboarding": baseURL})
-				_, err := e.ListLedgers(context.Background(), "org",
-					models.LedgersListOpts{PageListOpts: models.PageListOpts{Limit: models.MaxLimit + 1}})
-				return err
-			},
-		},
-		{
-			name: "ListOrganizations",
-			run: func(_ *testing.T, baseURL string) error {
-				e := newOrganizationsEntity(http.DefaultClient, "tok", map[string]string{"onboarding": baseURL})
-				_, err := e.ListOrganizations(context.Background(),
-					models.OrganizationsListOpts{PageListOpts: models.PageListOpts{Limit: models.MaxLimit + 1}})
-				return err
-			},
-		},
-		{
-			name: "ListPortfolios",
-			run: func(_ *testing.T, baseURL string) error {
-				e := newPortfoliosEntity(http.DefaultClient, "tok", map[string]string{"onboarding": baseURL})
-				_, err := e.ListPortfolios(context.Background(), "org", "ledger",
-					models.PortfoliosListOpts{PageListOpts: models.PageListOpts{Limit: models.MaxLimit + 1}})
-				return err
-			},
-		},
-		{
-			name: "ListSegments",
-			run: func(_ *testing.T, baseURL string) error {
-				e := newSegmentsEntity(http.DefaultClient, "tok", map[string]string{"onboarding": baseURL})
-				_, err := e.ListSegments(context.Background(), "org", "ledger",
-					models.SegmentsListOpts{PageListOpts: models.PageListOpts{Limit: models.MaxLimit + 1}})
 				return err
 			},
 		},
@@ -167,38 +95,11 @@ func TestCursorListOpts_OverLimit_ValidatesBeforeRequest(t *testing.T) {
 		run  func(_ *testing.T, baseURL string) error
 	}{
 		{
-			name: "ListTransactions",
-			run: func(_ *testing.T, baseURL string) error {
-				e := newTransactionsEntity(http.DefaultClient, map[string]string{"transaction": baseURL})
-				_, err := e.ListTransactions(context.Background(), "org", "ledger",
-					models.TransactionsListOpts{CursorListOpts: models.CursorListOpts{Limit: models.MaxLimit + 1}})
-				return err
-			},
-		},
-		{
 			name: "ListOperations",
 			run: func(_ *testing.T, baseURL string) error {
 				e := newOperationsEntity(http.DefaultClient, "tok", map[string]string{"transaction": baseURL})
 				_, err := e.ListOperations(context.Background(), "org", "ledger", "acc",
 					models.OperationsListOpts{CursorListOpts: models.CursorListOpts{Limit: models.MaxLimit + 1}})
-				return err
-			},
-		},
-		{
-			name: "ListOperationRoutes",
-			run: func(_ *testing.T, baseURL string) error {
-				e := newOperationRoutesEntity(http.DefaultClient, "tok", map[string]string{"transaction": baseURL})
-				_, err := e.ListOperationRoutes(context.Background(), "org", "ledger",
-					models.OperationRoutesListOpts{CursorListOpts: models.CursorListOpts{Limit: models.MaxLimit + 1}})
-				return err
-			},
-		},
-		{
-			name: "ListTransactionRoutes",
-			run: func(_ *testing.T, baseURL string) error {
-				e := newTransactionRoutesEntity(http.DefaultClient, "tok", map[string]string{"transaction": baseURL})
-				_, err := e.ListTransactionRoutes(context.Background(), "org", "ledger",
-					models.TransactionRoutesListOpts{CursorListOpts: models.CursorListOpts{Limit: models.MaxLimit + 1}})
 				return err
 			},
 		},

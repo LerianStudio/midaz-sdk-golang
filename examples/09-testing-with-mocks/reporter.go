@@ -1,44 +1,55 @@
 // Package main demonstrates unit-testing your code against the Midaz
-// SDK using go.uber.org/mock.
+// SDK using a consumer-defined interface.
 //
-// The pattern: depend on the SDK's service INTERFACE (e.g.,
-// entities.AccountsService) rather than the concrete *midaz.Client.
-// In production you pass c.Accounts; in tests you pass a generated mock.
+// The idiomatic v4 pattern: depend on a NARROW interface you declare
+// yourself — only the methods you actually call — rather than the
+// concrete *midaz.Client or a broad SDK interface. In production you
+// pass c.Accounts (the facade satisfies your interface structurally);
+// in tests you pass a tiny local mock. "Accept interfaces, return
+// structs."
 //
 // This file defines a small AccountReporter that totals balances across
 // every account in a ledger. The companion reporter_test.go exercises
-// it against MockAccountsService — no network, no Midaz instance, no
+// it against a hand-written mock — no network, no Midaz instance, no
 // flaky integration tests.
 package main
 
 import (
 	"context"
 	"fmt"
+	"iter"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
 )
 
-// AccountReporter computes summary statistics across a ledger's
-// accounts. It depends only on the SDK's AccountsService interface,
-// which makes it trivially mockable.
-type AccountReporter struct {
-	accounts entities.AccountsService
+// accountSource is the narrow slice of the Accounts facade this reporter
+// needs. c.Accounts satisfies it in production; a local stub satisfies it
+// in tests. Declaring the interface on the consumer side (not importing a
+// broad SDK interface) is the idiomatic v4 testing pattern.
+type accountSource interface {
+	All(ctx context.Context, orgID, ledgerID string, opts models.AccountsListOpts) iter.Seq2[models.Account, error]
+	GetByAlias(ctx context.Context, orgID, ledgerID, alias string) (*models.Account, error)
 }
 
-// NewAccountReporter wires a reporter to any AccountsService —
-// in production, c.Accounts; in tests, a generated mock.
-func NewAccountReporter(svc entities.AccountsService) *AccountReporter {
+// AccountReporter computes summary statistics across a ledger's
+// accounts. It depends only on the narrow accountSource interface,
+// which makes it trivially mockable.
+type AccountReporter struct {
+	accounts accountSource
+}
+
+// NewAccountReporter wires a reporter to any accountSource —
+// in production, c.Accounts; in tests, a local mock.
+func NewAccountReporter(svc accountSource) *AccountReporter {
 	return &AccountReporter{accounts: svc}
 }
 
 // CountAccounts walks every account in a ledger using the iter.Seq2
-// trio's ListAccountsAll variant. It demonstrates the recommended
-// shape for code that needs collection-level totals: think 'collection,'
-// not 'page.'
+// trio's All variant. It demonstrates the recommended shape for code
+// that needs collection-level totals: think 'collection,' not 'page.'
 func (r *AccountReporter) CountAccounts(ctx context.Context, organizationID, ledgerID string) (int, error) {
 	count := 0
-	for _, err := range r.accounts.ListAccountsAll(ctx, organizationID, ledgerID, models.AccountsListOpts{
+	for _, err := range r.accounts.All(ctx, organizationID, ledgerID, models.AccountsListOpts{
 		PageListOpts: models.PageListOpts{Limit: 50},
 	}) {
 		if err != nil {
@@ -53,7 +64,7 @@ func (r *AccountReporter) CountAccounts(ctx context.Context, organizationID, led
 // straightforward error propagation and the typed *models.Account
 // return shape.
 func (r *AccountReporter) FindByAlias(ctx context.Context, organizationID, ledgerID, alias string) (*models.Account, error) {
-	acc, err := r.accounts.GetAccountByAlias(ctx, organizationID, ledgerID, alias)
+	acc, err := r.accounts.GetByAlias(ctx, organizationID, ledgerID, alias)
 	if err != nil {
 		return nil, fmt.Errorf("get account by alias %q: %w", alias, err)
 	}
