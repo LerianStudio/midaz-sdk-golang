@@ -23,7 +23,7 @@
 | 2 | Money path completo: onboarding CRUD + ciclo de transação (json/inflow/outflow/annotation + commit/cancel/revert) + balances/operations/routes/asset-rates + counts | 2.1, 2.2, 2.R, 2.3 | **Complete** (2.1, 2.2, 2.R, 2.3 todos Done) |
 | 3 | Domínios novos do ledger: holders/instruments/composition, fees (packages/estimates), billing, encryption/protection | 3.1, 3.2, 3.3 | **Complete** (3.1, 3.2, 3.3 todos Done) |
 | 4 | Plano Tracer completo: rules (CEL), limits, reservations, validations, audit-events | 4.1, 4.2, 4.3 | ✅ **Complete** (4.1, 4.2, 4.3 Done) |
-| 5 | Cutover fatiado (A aditivo → paridade money-path → B swap → C delete) + ergonomia + docs; `make ci` verde | 5.1–5.6 | **5.1 ✅ Done**; **5.2 ✅ Done** (paridade money-path); **5.3 ✅ Done** (swap atômico money-path + share-distribute fix); **5.4 ✅ Done** (delete legado); **5.5 Epic-level (próxima onda)**; 5.6 Epic-level |
+| 5 | Cutover fatiado (A aditivo → paridade money-path → B swap → C delete) + ergonomia + docs; `make ci` verde | 5.1–5.6 | **5.1 ✅ Done**; **5.2 ✅ Done** (paridade money-path); **5.3 ✅ Done** (swap atômico money-path + share-distribute fix); **5.4 ✅ Done** (delete legado); **5.5 ✅ Done** (ergonomia: builders + WaitForSettlement + excisão DSL); **5.6 Epic-level (próxima onda — última da Phase 5)** |
 | 6 | *(opcional / decisão de produto)* Consumidor de streaming Kafka/CloudEvents | 6.1 | Epic-level |
 
 ---
@@ -796,7 +796,7 @@ Exploração-fonte (efêmera, no scratchpad da sessão): `01-server-api-surface.
 **Dependencies:** Epics 5.1–5.4.
 **Done when:** os 4 builders seguem o exemplar `instrument.go` (constructor + `With*` nil-guarded + `Validate` via `validation.FieldErrors.OrNil()`); `WaitForSettlement` polla balance com backoff/timeout e documenta que 201 ≠ liquidado; a superfície DSL é decidida (5.5.3) e implementada ou explicitamente cortada.
 **Target:** midaz-sdk-golang
-**Status:** 5.5.1 ✅ Done + 5.5.2 ✅ Done; 5.5.3 em implementação (excisão DSL completa, escopo A)
+**Status:** ✅ Done (2026-07-03) — 5.5.1 builders + 5.5.2 WaitForSettlement + 5.5.3 excisão DSL completa
 
 > **DECISÕES DE WAVE (Epic 5.5) — recon `a5da7287` (read-only) verificado contra a fonte (HEAD `df385fb`):**
 > - **`FieldErrors` accumulator JÁ EXISTE** (`pkg/validation/field_error.go:176`: `Append`/`AppendWith`/`OrNil()` — `OrNil` resolve o trap typed-nil-interface do Go). Uso canônico em `transaction_dsl.go:196-217` e `transaction_convenience.go`. **Exemplar limpo dos builders = `models/instrument.go`** (`NewCreateInstrumentInput:72` + `With*` nil-guarded `:77-107` + `Validate` via `FieldErrors.OrNil()`). fee_package/limit/rule seguem o mesmo shape.
@@ -837,7 +837,7 @@ Exploração-fonte (efêmera, no scratchpad da sessão): `01-server-api-surface.
 
 #### Task 5.5.3: Remover o tipo DSL morto `TransactionDSLInput` (preservando `Share`)
 
-- [ ] Done
+- [x] Done — commit `5aa4f59` (+19/−3087, 10 arquivos). Excisão completa (escopo A) do cluster DSL morto: `models.TransactionDSLInput` + maquinaria; `pkg/validation` (ifaces `TransactionDSLValidator`/`AccountReference` + `ValidateTransactionDSL`/`EnhancedValidateTransactionDSL` + `validateAccountReference(s)`/`validateAssetConsistency`/`validateTransactionDSL{Source,Destination}Accounts`/`EnhancedValidateAccountReference`). `Share`+`Rate` RELOCADOS p/ `transaction.go:418/426` (vivos em `FromToInput` + `fee_estimate.FeeAdjusted*` + `dsl_convert.go`). **2 correções ao meu boundary (protocolo re-verify do retry-core pegou):** (1) `isPositiveDecimalString` era cluster-dead, não live — eu over-incluí no PRESERVE (mesma forma do audit builder); staticcheck U1000 pegou → removido; (2) 2 test-orphans (`newDecimal`/`mockAccountReference`). Gate = dead-code-reviewer (PASS, Ring 0/1/2=0, tabela de callers live dos PRESERVE) + contrarian (0 refutações) + minha re-derivação. **Money-path INTACTA:** diff do `transaction.go` = 18 inserções / 0 deleções; `appendValueErrors` (fix 5.3.2) byte-unchanged; `TestDSLTemplateToInput` (share-distribute) verde. Green re-rodado por mim (build/vet/test 30pkgs/golangci 0/contract/staticcheck U1000=0; os 11 SA1012 são pré-existentes fora do diff). **⚠️ FLAG (contrarian, não-blocking, registrar no 5.6):** removeu símbolos EXPORTADOS de `pkg/validation` — breaking de API pública, MAS v4 é major não-lançado (0 consumers) + eram dead + validação de conta live coberta por `EnhancedValidateExternalAccount*`. Recomendação = manter removido; override lane aberto pro Fred.
 
 **Context:** A premissa do plano ("DSL aponta `/json` em vez do `/dsl` multipart deprecado") foi invalidada pelo recon `a5da7287`: (a) o endpoint multipart `/transactions/dsl` **já não existe** no gerado nem no legado (nada a migrar *de*); (b) o único conversor DSL→CreateJSON vivo (`pkg/generator/dsl_convert.go:28` `dslTemplateToInput`, unexported) **já** roteia pro `CreateJSON`; (c) o tipo público `models.TransactionDSLInput` (`transaction_dsl.go:92`) está **morto** (0 consumidores de wire, só um doc-comment em `pkg/conversion/metadata.go:75`) e é **redundante** vs `CreateTransactionInput` + os builders da 5.5.1; seu `formatDSLDecimal:724` **rejeita fracionários**. **DECISÃO DO FRED (2026-07-03): Opção 1 — REMOVER.** v4 é pré-release não-lançado → sem ciclo de deprecação, excisar direto (deprecar um tipo morto num major não-lançado é cerimônia vazia).
 
