@@ -57,9 +57,13 @@ func (f *encryptionFacade) Provision(ctx context.Context, orgID string, input *m
 		return nil, err
 	}
 
-	return writeJSON[models.ProvisionEncryptionResponse](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
+	resp, err := writeJSON[models.ProvisionEncryptionResponse](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
 		return readRawResponse(f.ledger.ProvisionEncryptionWithBody(ctx, orgID, &genledger.ProvisionEncryptionParams{}, jsonContentType, body, idempotencyEditors(ctx, f.enableIdempotency)...))
 	})
+
+	// A 404 here means envelope encryption is disabled (legacy mode); tag it so
+	// callers can IsFeatureNotAvailable it, distinct from a generic NotFound.
+	return resp, errors.MarkFeatureNotAvailable(err)
 }
 
 // GetProvisioningStatus reports whether an organization has provisioned envelope
@@ -77,5 +81,9 @@ func (f *encryptionFacade) GetProvisioningStatus(ctx context.Context, orgID stri
 		return nil, errors.NewInternalError(operation, err)
 	}
 
-	return decodeOne[models.ProvisioningStatusResponse](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+	res, err := decodeOne[models.ProvisioningStatusResponse](operation, resp.StatusCode(), resp.Body, resp.HTTPResponse)
+
+	// A 404 here means envelope encryption is disabled (legacy mode); tag it so
+	// callers can IsFeatureNotAvailable it, distinct from a generic NotFound.
+	return res, errors.MarkFeatureNotAvailable(err)
 }

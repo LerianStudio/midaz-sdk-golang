@@ -73,6 +73,12 @@ func TestLifecycleErrorCodesMatchServer(t *testing.T) {
 		{"parent-id-same-id", sdkerrors.APICodeParentIDSameID, srvconst.ErrParentIDSameID},
 		{"status-precondition", sdkerrors.APICodeStatusPreconditionFailed, srvconst.ErrCommitTransactionNotPending},
 		{"revert-only-bidirectional", sdkerrors.APICodeRevertOnlyBidirectional, srvconst.ErrRevertOnlyBidirectional},
+		{"holder-not-found", sdkerrors.APICodeHolderNotFound, srvconst.ErrHolderNotFound},
+		// 0490 (ErrSkipNotPermitted) and 0491 (ErrHolderRequired) exist only in
+		// unreleased midaz — absent from the pinned v3.7.5 AND v3.8.0-rc.3, so they
+		// cannot be pinned here yet. The SDK-side literals are asserted in
+		// pkg/errors/catalog_test.go; add the server pins when a midaz/v3 release
+		// ships ErrSkipNotPermitted/ErrHolderRequired.
 	}
 
 	for _, c := range cases {
