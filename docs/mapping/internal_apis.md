@@ -101,10 +101,9 @@ transactions, metadata indexes) are facade-only — see [external_apis.md](./ext
 
 ### CRM services
 
-- `HoldersService` implemented by `holdersEntity`
 - `AliasesService` implemented by `aliasesEntity`
 
-CRM requests set `X-Organization-Id` and use paths under `/holders` and `/aliases`. Tenant scope comes from Access Manager/JWT claims; the shared HTTP client does not add `X-Tenant-ID`.
+CRM requests set `X-Organization-Id` and use paths under `/aliases` and holder-scoped `/holders/{holderID}/aliases`. Tenant scope comes from Access Manager/JWT claims; the shared HTTP client does not add `X-Tenant-ID`.
 
 ## Transport pattern
 
@@ -137,7 +136,6 @@ Important path groups:
 - Operations: account-scoped reads use `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/{accountID}/operations` and `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/{accountID}/operations/{operationID}`. Updates are transaction-scoped through `PATCH /organizations/{organizationID}/ledgers/{ledgerID}/transactions/{transactionID}/operations/{operationID}`.
 - Routes: operation route endpoints use `/organizations/{organizationID}/ledgers/{ledgerID}/operation-routes`; transaction route endpoints use `/organizations/{organizationID}/ledgers/{ledgerID}/transaction-routes`.
 - Metadata indexes: list uses `/settings/metadata-indexes` with optional `entity_name`; create uses `/settings/metadata-indexes/entities/{entityName}`; delete uses `/settings/metadata-indexes/entities/{entityName}/key/{metadataKey}`. The list endpoint returns a raw `[]MetadataIndex` slice, not a paginated `ListResponse`.
-- CRM holders: `/holders`, `/holders/{holderID}`
 - CRM aliases: `/aliases`, `/holders/{holderID}/aliases`, `/holders/{holderID}/aliases/{aliasID}`, `/holders/{holderID}/aliases/{aliasID}/related-parties/{relatedPartyID}`
 
 Supported count paths use `HEAD` and read `X-Total-Count`:
@@ -152,7 +150,7 @@ Supported count paths use `HEAD` and read `X-Total-Count`:
 | Accounts | `GetAccountsMetricsCount` | `/organizations/{organizationID}/ledgers/{ledgerID}/accounts/metrics/count` |
 | Transactions | `GetTransactionsMetricsCount` | `/organizations/{organizationID}/ledgers/{ledgerID}/transactions/metrics/count` |
 
-`doCountRequest` returns an internal SDK error when `X-Total-Count` is missing, blank, non-integer, negative, or overflowing. AccountTypesService does not expose a metrics-count method because the Midaz Ledger API does not provide that endpoint for account types.
+`doCountRequest` returns an internal SDK error when `X-Total-Count` is missing, blank, non-integer, negative, or overflowing. Account types do not expose a metrics-count method because the Midaz Ledger API does not provide that endpoint for account types.
 
 ## Model compatibility layer
 
