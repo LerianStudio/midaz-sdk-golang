@@ -412,6 +412,24 @@ type AmountInput struct {
 	Value any `json:"value"`
 }
 
+// Share specifies proportional (percentage) distribution on a transaction leg.
+// It is a live money-path type used by FromToInput.Share (share-based distribute);
+// relocated here from the removed transaction_dsl.go in Task 5.5.3.
+type Share struct {
+	Percentage             int64 `json:"percentage"`
+	PercentageOfPercentage int64 `json:"percentageOfPercentage,omitempty"`
+}
+
+// Rate specifies exchange-rate information on a transaction leg. It is a live
+// money-path type used by FromToInput.Rate; relocated here from the removed
+// transaction_dsl.go in Task 5.5.3.
+type Rate struct {
+	From       string `json:"from"`
+	To         string `json:"to"`
+	Value      any    `json:"value"`
+	ExternalID string `json:"externalId"`
+}
+
 const (
 	maxTransactionDescriptionLength = 256
 	maxTransactionCodeLength        = 100

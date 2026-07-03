@@ -9,14 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type nilAccountDSL struct{}
-
-func (nilAccountDSL) GetAsset() string                           { return "USD" }
-func (nilAccountDSL) GetValue() string                           { return "1" }
-func (nilAccountDSL) GetSourceAccounts() []AccountReference      { return []AccountReference{nil} }
-func (nilAccountDSL) GetDestinationAccounts() []AccountReference { return []AccountReference{nil} }
-func (nilAccountDSL) GetMetadata() map[string]any                { return nil }
-
 func TestValidationContracts(t *testing.T) {
 	t.Run("send based transaction payload is accepted", func(t *testing.T) {
 		input := map[string]any{
@@ -108,8 +100,6 @@ func TestValidationContracts(t *testing.T) {
 		var validator *Validator
 		require.Error(t, validator.ValidateMetadata(map[string]any{"a": "b"}))
 		require.Error(t, validator.ValidateAddress(&Address{}))
-		require.Error(t, ValidateTransactionDSL(nilAccountDSL{}))
-		require.True(t, EnhancedValidateTransactionDSL(nilAccountDSL{}).HasErrors())
 
 		summary := Summary{Valid: true}
 		summary.AddError(nil)

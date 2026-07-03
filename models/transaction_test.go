@@ -10,12 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// newDecimal is a helper function to create a decimal value from a string
-func newDecimal(value string) decimal.Decimal {
-	d, _ := decimal.NewFromString(value)
-	return d
-}
-
 func newValidSendInput(value float64) *SendInput {
 	asset := "USD"
 
