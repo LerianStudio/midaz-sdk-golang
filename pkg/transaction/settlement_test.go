@@ -148,3 +148,65 @@ func TestWaitForSettlement_PropagatesReadError(t *testing.T) {
 
 	require.ErrorIs(t, err, wantErr)
 }
+
+func TestResolveSettlementConfig_ClampsMisuse(t *testing.T) {
+	tests := []struct {
+		name             string
+		opts             []SettlementOption
+		wantPollInterval time.Duration
+		wantMaxInterval  time.Duration
+	}{
+		{
+			name:             "zero poll interval falls back to default (no busy-loop)",
+			opts:             []SettlementOption{WithPollInterval(0)},
+			wantPollInterval: 500 * time.Millisecond,
+			wantMaxInterval:  5 * time.Second,
+		},
+		{
+			name:             "negative poll interval falls back to default",
+			opts:             []SettlementOption{WithPollInterval(-time.Second)},
+			wantPollInterval: 500 * time.Millisecond,
+			wantMaxInterval:  5 * time.Second,
+		},
+		{
+			name:             "max below poll interval is raised to poll interval",
+			opts:             []SettlementOption{WithPollInterval(2 * time.Second), WithMaxInterval(time.Second)},
+			wantPollInterval: 2 * time.Second,
+			wantMaxInterval:  2 * time.Second,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := resolveSettlementConfig(tt.opts)
+			assert.Equal(t, tt.wantPollInterval, cfg.pollInterval)
+			assert.Equal(t, tt.wantMaxInterval, cfg.maxInterval)
+			assert.GreaterOrEqual(t, cfg.maxInterval, cfg.pollInterval,
+				"maxInterval must never sit below pollInterval or the backoff cap defeats itself")
+			assert.Positive(t, cfg.pollInterval, "a non-positive poll interval would busy-loop")
+		})
+	}
+}
+
+func TestMatchBalance_NilPage(t *testing.T) {
+	// A nil page must read as "no match", never a nil-deref on page.Items.
+	got, ok := matchBalance(nil, settledAtV2)
+
+	assert.False(t, ok)
+	assert.Equal(t, models.Balance{}, got)
+}
+
+func TestWaitForSettlement_NilPageKeepsPollingUntilTimeout(t *testing.T) {
+	// A reader returning (nil, nil) — no page, no error — must not panic; the
+	// poller keeps going across nil pages until the deadline fires.
+	r := &fakeBalanceReader{fn: func(int) (*models.ListResponse[models.Balance], error) {
+		//nolint:nilnil // deliberately models a (nil page, nil error) transport response — the exact input matchBalance's nil-page guard defends against.
+		return nil, nil
+	}}
+
+	_, err := WaitForSettlement(context.Background(), r, "org", "ledger", "acc", settledAtV2,
+		WithPollInterval(time.Millisecond), WithTimeout(20*time.Millisecond))
+
+	require.ErrorIs(t, err, ErrSettlementTimeout)
+	assert.Greater(t, r.calls, 1, "must keep polling across nil pages, not bail after one read")
+}

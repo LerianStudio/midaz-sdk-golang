@@ -452,12 +452,20 @@ func (e *Entity) GetObservabilityProvider() observability.Provider {
 	return e.observability
 }
 
-// SetHTTPClient sets the HTTP client for the entity.
-// This allows for replacing the HTTP client after the entity is created.
-// The tenant ID configured on the entity is preserved across the replacement.
+// SetHTTPClient replaces the HTTP client used by the LEGACY per-service surface
+// only — Balances, Operations, and Aliases — and preserves the entity's tenant
+// ID and auth token across the swap.
+//
+// LIMITATION: it does NOT re-transport the 18 plane facades (Organizations,
+// Ledgers, Accounts, Transactions, Encryption, and the rest). initServices
+// rebuilds those facades over the already-constructed e.planes.Ledger /
+// e.planes.Tracer clients, whose transport is fixed at construction and is not
+// rebuilt here; only the legacy trio picks up the new client. To control the
+// transport for the facades/planes, pass config.WithHTTPClient(client) when the
+// client is constructed rather than swapping it afterward.
 //
 // Parameters:
-//   - client: The HTTP client to use for API requests.
+//   - client: The HTTP client to use for API requests (legacy trio only).
 func (e *Entity) SetHTTPClient(client *http.Client) {
 	if e == nil {
 		return

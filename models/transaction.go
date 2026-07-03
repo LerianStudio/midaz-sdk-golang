@@ -870,6 +870,16 @@ func (input *FromToInput) appendValueErrors(errs *validation.FieldErrors) {
 	amountValue := strings.TrimSpace(decimalStringFromAny(input.Amount.Value))
 	hasAmount := input.Amount.Asset != "" || amountValue != ""
 
+	// A leg specifies exactly ONE value mechanism. The /transactions/json server
+	// rejects a leg carrying more than one of amount/share/remaining/rate with a
+	// 422; enforce it client-side so the two agree (there is no valid amount+share
+	// combination).
+	if hasAmount && (input.Share != nil || strings.TrimSpace(input.Remaining) != "" || input.Rate != nil) {
+		errs.Append("amount", "cannot be combined with share, remaining, or rate")
+
+		return
+	}
+
 	switch {
 	case hasAmount:
 		if err := input.Amount.Validate(); err != nil {

@@ -157,6 +157,14 @@ func TestEncryptionFacade_Status_LegacyMode404(t *testing.T) {
 	if sdkErr.Category == sdkerrors.CategoryInternal {
 		t.Fatalf("Category = internal, want a status-mapped category for a clean 404")
 	}
+	// The sentinel-join (MarkFeatureNotAvailable over the mapped 404) must satisfy
+	// BOTH classifiers: the feature-not-available signal AND the underlying 404.
+	if !sdkerrors.IsFeatureNotAvailable(err) {
+		t.Errorf("IsFeatureNotAvailable(err) = false, want true (legacy-mode 404 must be tagged)")
+	}
+	if !sdkerrors.IsNotFoundError(err) {
+		t.Errorf("IsNotFoundError(err) = false, want true (sentinel-join must not drop the 404)")
+	}
 }
 
 // TestEncryptionFacade_Provision_LegacyMode404 covers case (d) on the write path
@@ -181,6 +189,13 @@ func TestEncryptionFacade_Provision_LegacyMode404(t *testing.T) {
 	}
 	if sdkErr.StatusCode != http.StatusNotFound {
 		t.Fatalf("StatusCode = %d, want 404 (legacy mode)", sdkErr.StatusCode)
+	}
+	// The sentinel-join must satisfy BOTH classifiers on the write path too.
+	if !sdkerrors.IsFeatureNotAvailable(err) {
+		t.Errorf("IsFeatureNotAvailable(err) = false, want true (legacy-mode 404 must be tagged)")
+	}
+	if !sdkerrors.IsNotFoundError(err) {
+		t.Errorf("IsNotFoundError(err) = false, want true (sentinel-join must not drop the 404)")
 	}
 }
 
