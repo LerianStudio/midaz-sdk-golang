@@ -864,7 +864,58 @@ Exploração-fonte (efêmera, no scratchpad da sessão): `01-server-api-surface.
 **Dependencies:** Epics 5.1–5.5.
 **Done when:** exemplos rodam contra o stack novo; mapping atualizado; `make demo-data` funciona; catálogo de erro + sentinels documentados; `make ci` verde; testes de contrato batem com as specs versionadas.
 **Target:** midaz-sdk-golang
-**Status:** Pending
+**Status:** Detailed (recon `a31d2619` + make ci/coverage medidos por mim, HEAD `5943cb2`)
+
+> **DECISÕES DE WAVE (Epic 5.6):**
+> - **`make ci` está RED em 2 gates, AMBOS fixáveis por CONFIG (não por escrever teste/código):** (1) **gosec 6 issues** = 4× G101 (hardcoded-credential) FALSO-POSITIVO nos scope-constants gerados (`{ledger,tracer}.gen.go:22-23` `ApiKeyAuthScopes`/`BearerAuthScopes`) + 2× G703 (path-traversal) em `internal/cmd/specdowngrade/main.go:241/256` cujo `//nolint:gosec` NÃO vale p/ gosec standalone (`make gosec` = `$(GOSEC) -quiet ./...`, honra só `#nosec Gxxx`). (2) **coverage 47.7% < 80%** pq `internal/genledger`+`internal/gentracer` (GERADOS, 0% cobertura, milhares de linhas) estão no denominador (`Makefile:200` `go list ./... | grep -v -E '(examples|mocks)'`). **Total sans gen* = 80.7% (medido) → limpa o floor.** Fix dos dois = excluir gerado (prática padrão; gerado é exercitado via as facades testadas a 80.1%, não unit-tested). **Margem fina (0.7%)** → o error-catalog net-new (5.6.2) DEVE vir bem-testado (vai pra `pkg/errors` que é 93.1%, então ok se testado).
+> - **Error catalog: NENHUM código-alvo existe** (`pkg/errors`); a semântica (categoria+retryabilidade) de cada código é MONEY-PATH (retry indevido de erro de dinheiro) → **derivar da fonte do servidor** (`/Users/fredamaral/repos/lerianstudio/midaz/` local — `pkg/constant` + defs de erro) e **pinar via `contract/drift_test.go`**. `IsFeatureNotAvailable` (404-feature-unavailable, ex. encryption legacy-mode) NÃO pode aliasar `IsNotFoundError` (`errors.go:1471`).
+> - **`test-contract` (o módulo `contract/`) NÃO está no `make ci`** (`Makefile:194`); como o 5.6.2 adiciona códigos ao `drift_test` que pinam ao server, **promover `test-contract` pro `ci`** (enforça os pins). Confirmar que o CI resolve a dep `midaz/v3` do módulo contract.
+> - **Sem MIGRATION.md** (v4 é major NÃO-LANÇADO — sem consumers a migrar; YAGNI). Registro breaking-change = entrada no `CHANGELOG.md [Unreleased]` (`:18`) + conserta o `[Unreleased]` duplicado (`:585`).
+
+#### Task 5.6.1: `make ci` verde — excluir gerado de gosec + coverage; `#nosec` no specdowngrade
+
+- [ ] Done
+
+**Context:** `make ci` (`Makefile:67-70` = tidy→fmt→lint→gosec→test→coverage→verify-sdk) para no `gosec` (6 issues) e falharia no `coverage` (47.7% < 80%). Diagnóstico (medido por mim): os 6 gosec são 4 G101 falso-positivo em `internal/gen*` gerado + 2 G703 em `specdowngrade` com nolint errado; o coverage é afundado por `internal/gen*` (0%, gerado) no denominador — **sans gen* = 80.7%**. Lint/test/build/verify-sdk já passam (verificados isolados).
+
+**Implementation vision:** (a) **gosec:** excluir código gerado — `make gosec` (`Makefile:244`) passa a usar `$(GOSEC) -exclude-generated -quiet ./...` (autodetecta o header `// Code generated ... DO NOT EDIT.` dos `.gen.go` → mata os 4 G101). (b) **specdowngrade G703:** trocar os `//nolint:gosec` (`main.go:240/255`) por `#nosec G703` inline (o formato que o gosec standalone honra) — mantendo a justificativa (os args são paths de build-time fixos do `generate-clients.sh`, não user/network). Confirmar `make gosec` = 0 issues. (c) **coverage:** `Makefile:200` exclui gerado — `go list ./... | grep -v -E '(examples|mocks|internal/gen)'`. Confirmar `make coverage` ≥80% (deve dar ~80.7%). (d) rodar `make ci` COMPLETO → verde (ou identificar o próximo gate que morde). NÃO baixar o threshold; NÃO tocar código de produção.
+
+**Files:**
+- Modify: `Makefile` (gosec + coverage targets), `internal/cmd/specdowngrade/main.go` (nolint→#nosec)
+
+**Verification:** `make gosec` = 0 issues; `make coverage` ≥80.0%; `make ci` exit 0 (verde end-to-end). Se algum sub-gate ainda morder (ex. `check-codegen-drift`), reportar.
+
+**Done when:** `make ci` verde end-to-end; gosec/coverage excluem gerado com justificativa; specdowngrade usa `#nosec`; threshold 80% intacto.
+
+#### Task 5.6.2: Catálogo de erro tipado + sentinel `IsFeatureNotAvailable`
+
+- [ ] Done
+
+**Context:** `pkg/errors` tem o padrão `APICode` const + `Is*` predicate (`lifecycle_codes.go:15-45`, `apiCodeOf:51`) + os maps `apiErrorCodeMappings`/`apiCodeSuffixMappings` (`errors.go:2043/2062`, hoje só `0084/0177/0178`). NENHUM dos códigos-alvo (0490/0491/CRM-0006/fee 0179-0233) existe; `0490` hoje só resolve via HTTP-status→422. A semântica 404-feature-unavailable JÁ é produzida por `encryption_facade.go:21-27,50-51,66-70` (404 = envelope encryption disabled/legacy) mas sem sentinel — `IsNotFoundError` (`errors.go:1471`) engoliria.
+
+**Implementation vision:** **MONEY-PATH — a categoria/retryabilidade de cada código deve casar o SERVIDOR** (retry indevido = risco). Derivar de `/Users/fredamaral/repos/lerianstudio/midaz/` (local: `pkg/constant` + as defs de erro dos serviços/CRM/fees) o significado + retryabilidade de `0490`, `0491`, `CRM-0006`, e a faixa fee `0179-0233`. Adicionar constantes `APICode` + predicados `Is*` (padrão `lifecycle_codes.go`; ou um `catalog.go` novo) + as entradas nos maps de categoria/retryabilidade (`apiCodeSuffixMappings` p/ a faixa fee se contígua, ou discretas). Adicionar `IsFeatureNotAvailable(err) bool` keyed no 404-legacy-mode do encryption (distinguir de NotFound genérico — NÃO aliasar `IsNotFoundError`; provavelmente um marcador no path do `encryption_facade` ou um code/sentinel próprio). Tests table-driven por código (categoria + retryabilidade + o predicado). Pinar os códigos novos em `contract/drift_test.go:62` (tabela `TestLifecycleErrorCodesMatchServer`) contra `midaz/v3/pkg/constant`. Código vai pra `pkg/errors` (93.1% cov) — manter testado p/ proteger a margem de coverage.
+
+**Files:**
+- Modify/Create: `pkg/errors/` (novo `catalog.go` ou estender `lifecycle_codes.go` + `errors.go` maps), `pkg/errors/*_test.go`; `entities/encryption_facade.go` (marcador p/ IsFeatureNotAvailable se necessário); `contract/drift_test.go`
+
+**Verification:** `go test ./pkg/errors/... ./entities/... -count=1` verde; TDD por código (retryabilidade + categoria asseridas contra o esperado do server); `IsFeatureNotAvailable` distingue do `IsNotFoundError` (teste que um 404-legacy-mode casa o primeiro e o segundo NÃO cria ambiguidade); `contract/drift_test` pina os novos códigos.
+
+**Done when:** 0490/0491/CRM-0006/fee-0179-0233 têm const+predicado+categoria/retryabilidade casando o servidor; `IsFeatureNotAvailable` funciona sem aliasar NotFound; contract-drift pina os novos; testado.
+
+#### Task 5.6.3: Docs sweep + CHANGELOG (superfície nova + breaking-change)
+
+- [ ] Done
+
+**Context:** Recon `a31d2619` mapeou o drift: as 13 accessors net-new (`entity.go:191-203`) + `WaitForSettlement` + os builders NÃO estão documentados; refs stale a símbolos deletados persistem.
+
+**Implementation vision:** (a) **`docs/mapping/external_apis.md`** (`:127-142` "Entity access point" + seções por-accessor): adicionar as 13 net-new (tracer Rules/Limits/Validations/Reservations/AuditEvents + ledger ProtectionAudit/Encryption/Instruments/Composition/Fee*/Billing*). (b) **`docs/mapping/internal_apis.md`**: descrever tracer-plane + as 8 facades ledger novas; FIX stale — `:12` (nomes de impl privados → `*xFacade`), `:135` (remover `/transactions/dsl`, reconciliar com `external_apis.md:308`), `:310` (checklist facade-only). (c) **`README.md:105-115`** + **`docs/examples.md`**: adicionar as accessors novas + `WaitForSettlement` + os 3 builders. (d) **godoc**: rodar `make godoc-static` (dropa os símbolos DSL stale de `docs/godoc/{models,pkg/validation}/index.txt`) — ou remover à mão. (e) **`Makefile:348-363`**: adicionar `pkg/transaction` à lista PACKAGES do godoc. (f) **`CHANGELOG.md`**: entrada em `[Unreleased]` (`:18`) enumerando o remodel v4 — REMOVED (13 XService+mocks, `TransactionDSLInput`, 5 DSL validators exportados de `pkg/validation`), ADDED (13 accessors, `WaitForSettlement`, builders); consertar o `[Unreleased]` duplicado (`:585`). Sem MIGRATION.md.
+
+**Files:**
+- Modify: `docs/mapping/{external_apis,internal_apis}.md`, `README.md`, `docs/examples.md`, `docs/godoc/**` (regen), `Makefile`, `CHANGELOG.md`
+
+**Verification:** `grep -rn "TransactionDSLInput\|/transactions/dsl\|accountsEntity\|transactionsEntity" docs/ --include='*.md' --include='*.txt'` = 0 (fora de `docs/plans/`); as 13 accessors + WaitForSettlement + builders aparecem em external_apis.md + README; `make docs`/`make godoc-static` roda limpo; CHANGELOG tem a entrada v4 + sem `[Unreleased]` duplicado.
+
+**Done when:** docs/mapping/README/examples refletem a superfície nova; 0 ref stale a símbolos deletados; godoc regenerado; CHANGELOG registra o breaking-change v4.
 
 ---
 
