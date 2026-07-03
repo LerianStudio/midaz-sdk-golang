@@ -39,16 +39,62 @@ func TestWaitForSettlement_PollsUntilSettled(t *testing.T) {
 		if call < 3 {
 			return balancePage(models.Balance{ID: "b-1", Version: 1}), nil
 		}
-		return balancePage(models.Balance{ID: "b-1", Version: 2, AssetCode: "USD"}), nil
+		return balancePage(models.Balance{ID: "b-settled", Version: 2, AssetCode: "USD"}), nil
 	}}
 
 	got, err := WaitForSettlement(context.Background(), r, "org", "ledger", "acc", settledAtV2,
 		WithPollInterval(time.Millisecond), WithMaxInterval(2*time.Millisecond), WithTimeout(time.Second))
 
 	require.NoError(t, err)
+	assert.Equal(t, "b-settled", got.ID, "must return the balance that satisfied the predicate")
 	assert.Equal(t, int64(2), got.Version)
 	assert.Equal(t, "USD", got.AssetCode)
 	assert.Equal(t, 3, r.calls, "should stop reading once the predicate matched")
+}
+
+func TestWaitForSettlement_ReturnsMatchingBalanceAmongMany(t *testing.T) {
+	// Money-path regression guard: a page where Items[0] is NOT settled and
+	// Items[1] IS. REDs on a regression to `return page.Items[0]`.
+	r := &fakeBalanceReader{fn: func(int) (*models.ListResponse[models.Balance], error) {
+		return balancePage(
+			models.Balance{ID: "b-unsettled", Version: 1},
+			models.Balance{ID: "b-settled", Version: 2},
+		), nil
+	}}
+
+	got, err := WaitForSettlement(context.Background(), r, "org", "ledger", "acc", settledAtV2,
+		WithPollInterval(time.Millisecond), WithTimeout(time.Second))
+
+	require.NoError(t, err)
+	assert.Equal(t, "b-settled", got.ID, "must return the balance that satisfied the predicate, not Items[0]")
+}
+
+func TestWaitForSettlement_NormalizesDeadlineDuringRead(t *testing.T) {
+	// Deadline already elapsed → the read returns a wrapped DeadlineExceeded.
+	// The read-error path must normalize it to ErrSettlementTimeout, matching
+	// the sleep-select path. REDs on the raw-return.
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+	defer cancel()
+
+	r := &fakeBalanceReader{fn: func(int) (*models.ListResponse[models.Balance], error) {
+		return nil, context.DeadlineExceeded
+	}}
+
+	_, err := WaitForSettlement(ctx, r, "org", "ledger", "acc", settledAtV2,
+		WithPollInterval(time.Millisecond), WithTimeout(time.Second))
+
+	require.ErrorIs(t, err, ErrSettlementTimeout)
+}
+
+func TestWaitForSettlement_NilPredicateReturnsError(t *testing.T) {
+	r := &fakeBalanceReader{fn: func(int) (*models.ListResponse[models.Balance], error) {
+		return balancePage(), nil
+	}}
+
+	_, err := WaitForSettlement(context.Background(), r, "org", "ledger", "acc", nil)
+
+	require.ErrorContains(t, err, "predicate must not be nil")
+	assert.Equal(t, 0, r.calls, "nil predicate must be rejected before any read")
 }
 
 func TestWaitForSettlement_TimesOutWhenNeverSettled(t *testing.T) {

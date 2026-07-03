@@ -58,6 +58,10 @@ func WithTimeout(d time.Duration) SettlementOption {
 // the server does not dictate (e.g. wait on Version advancing, on Available
 // crossing a threshold, or on OnHold releasing).
 //
+// It returns the FIRST balance matching the predicate in server page order, so
+// on a multi-asset account the predicate MUST pin the asset — e.g.
+// b.AssetCode == "USD" && b.Version >= 2 — or it may match the wrong balance.
+//
 // It reads via ListAccountBalances with bounded-exponential backoff between
 // polls (WithPollInterval start, doubling up to WithMaxInterval) until:
 //   - the predicate matches one of the returned balances → returns that Balance;
@@ -78,14 +82,11 @@ func WaitForSettlement(
 	settled func(models.Balance) bool,
 	opts ...SettlementOption,
 ) (models.Balance, error) {
-	cfg := settlementConfig{
-		pollInterval: 500 * time.Millisecond,
-		maxInterval:  5 * time.Second,
-		timeout:      30 * time.Second,
+	if settled == nil {
+		return models.Balance{}, errors.New("wait for settlement: settled predicate must not be nil")
 	}
-	for _, opt := range opts {
-		opt(&cfg)
-	}
+
+	cfg := resolveSettlementConfig(opts)
 
 	ctx, cancel := context.WithTimeout(ctx, cfg.timeout)
 	defer cancel()
@@ -95,15 +96,18 @@ func WaitForSettlement(
 	for {
 		page, err := r.ListAccountBalances(ctx, orgID, ledgerID, accountID, models.BalancesListOpts{})
 		if err != nil {
+			// A deadline that fires mid-read surfaces as a wrapped
+			// DeadlineExceeded; normalize it to the same ErrSettlementTimeout the
+			// sleep-select path returns so a caller's errors.Is works either way.
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				return models.Balance{}, ErrSettlementTimeout
+			}
+
 			return models.Balance{}, err
 		}
 
-		if page != nil {
-			for _, b := range page.Items {
-				if settled(b) {
-					return b, nil
-				}
-			}
+		if b, ok := matchBalance(page, settled); ok {
+			return b, nil
 		}
 
 		select {
@@ -116,8 +120,50 @@ func WaitForSettlement(
 		case <-time.After(interval):
 		}
 
+		// ponytail: local exponential backoff. pkg/retry exposes only Option
+		// setters (no standalone next-interval helper) and is HTTP-error-oriented,
+		// so a 3-liner here beats force-fitting it.
 		if interval *= 2; interval > cfg.maxInterval {
 			interval = cfg.maxInterval
 		}
 	}
+}
+
+// resolveSettlementConfig applies defaults, the caller's options, then clamps
+// against misuse (a non-positive poll interval would busy-loop; a max below the
+// poll interval would defeat the backoff cap).
+func resolveSettlementConfig(opts []SettlementOption) settlementConfig {
+	cfg := settlementConfig{
+		pollInterval: 500 * time.Millisecond,
+		maxInterval:  5 * time.Second,
+		timeout:      30 * time.Second,
+	}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
+	if cfg.pollInterval <= 0 {
+		cfg.pollInterval = 500 * time.Millisecond
+	}
+
+	if cfg.maxInterval < cfg.pollInterval {
+		cfg.maxInterval = cfg.pollInterval
+	}
+
+	return cfg
+}
+
+// matchBalance returns the first balance in the page that satisfies settled.
+func matchBalance(page *models.ListResponse[models.Balance], settled func(models.Balance) bool) (models.Balance, bool) {
+	if page == nil {
+		return models.Balance{}, false
+	}
+
+	for _, b := range page.Items {
+		if settled(b) {
+			return b, true
+		}
+	}
+
+	return models.Balance{}, false
 }
