@@ -23,7 +23,7 @@
 | 2 | Money path completo: onboarding CRUD + ciclo de transação (json/inflow/outflow/annotation + commit/cancel/revert) + balances/operations/routes/asset-rates + counts | 2.1, 2.2, 2.R, 2.3 | **Complete** (2.1, 2.2, 2.R, 2.3 todos Done) |
 | 3 | Domínios novos do ledger: holders/instruments/composition, fees (packages/estimates), billing, encryption/protection | 3.1, 3.2, 3.3 | **Complete** (3.1, 3.2, 3.3 todos Done) |
 | 4 | Plano Tracer completo: rules (CEL), limits, reservations, validations, audit-events | 4.1, 4.2, 4.3 | ✅ **Complete** (4.1, 4.2, 4.3 Done) |
-| 5 | Cutover fatiado (A aditivo → paridade money-path → B swap → C delete) + ergonomia + docs; `make ci` verde | 5.1–5.6 | **5.1 ✅ Done**; **5.2 ✅ Done** (paridade money-path); **5.3 ✅ Done** (swap atômico money-path + share-distribute fix); **5.4 ✅ Done** (delete legado); **5.5 ✅ Done** (ergonomia: builders + WaitForSettlement + excisão DSL); **5.6 Epic-level (próxima onda — última da Phase 5)** |
+| 5 | Cutover fatiado (A aditivo → paridade money-path → B swap → C delete) + ergonomia + docs; `make ci` verde | 5.1–5.6 | **5.1 ✅ Done**; **5.2 ✅ Done** (paridade money-path); **5.3 ✅ Done** (swap atômico money-path + share-distribute fix); **5.4 ✅ Done** (delete legado); **5.5 ✅ Done** (ergonomia: builders + WaitForSettlement + excisão DSL); **5.6 ✅ Done** (make ci verde + catálogo de erro + docs) — **PHASE 5 COMPLETE = Plano B fechado** |
 | 6 | *(opcional / decisão de produto)* Consumidor de streaming Kafka/CloudEvents | 6.1 | Epic-level |
 
 ---
@@ -864,7 +864,7 @@ Exploração-fonte (efêmera, no scratchpad da sessão): `01-server-api-surface.
 **Dependencies:** Epics 5.1–5.5.
 **Done when:** exemplos rodam contra o stack novo; mapping atualizado; `make demo-data` funciona; catálogo de erro + sentinels documentados; `make ci` verde; testes de contrato batem com as specs versionadas.
 **Target:** midaz-sdk-golang
-**Status:** Detailed (recon `a31d2619` + make ci/coverage medidos por mim, HEAD `5943cb2`)
+**Status:** ✅ Done (2026-07-02) — 5.6.1 `2a8b30b` (make ci verde), 5.6.2 `7fc47e8` (catálogo de erro), 5.6.3 `316f7f6` (docs + CHANGELOG). Gates de supervisor PASS em cada task; `make ci` verde end-to-end (RC=0, coverage 80.7%). **Fecha a Phase 5 = Plano B.**
 
 > **DECISÕES DE WAVE (Epic 5.6):**
 > - **`make ci` está RED em 2 gates, AMBOS fixáveis por CONFIG (não por escrever teste/código):** (1) **gosec 6 issues** = 4× G101 (hardcoded-credential) FALSO-POSITIVO nos scope-constants gerados (`{ledger,tracer}.gen.go:22-23` `ApiKeyAuthScopes`/`BearerAuthScopes`) + 2× G703 (path-traversal) em `internal/cmd/specdowngrade/main.go:241/256` cujo `//nolint:gosec` NÃO vale p/ gosec standalone (`make gosec` = `$(GOSEC) -quiet ./...`, honra só `#nosec Gxxx`). (2) **coverage 47.7% < 80%** pq `internal/genledger`+`internal/gentracer` (GERADOS, 0% cobertura, milhares de linhas) estão no denominador (`Makefile:200` `go list ./... | grep -v -E '(examples|mocks)'`). **Total sans gen* = 80.7% (medido) → limpa o floor.** Fix dos dois = excluir gerado (prática padrão; gerado é exercitado via as facades testadas a 80.1%, não unit-tested). **Margem fina (0.7%)** → o error-catalog net-new (5.6.2) DEVE vir bem-testado (vai pra `pkg/errors` que é 93.1%, então ok se testado).
@@ -908,7 +908,9 @@ Exploração-fonte (efêmera, no scratchpad da sessão): `01-server-api-surface.
 
 #### Task 5.6.3: Docs sweep + CHANGELOG (superfície nova + breaking-change)
 
-- [ ] Done
+- [x] Done — commit `316f7f6`
+
+**GATE (supervisor — PASS):** 15 files, **zero production .go** (docs/Makefile/CHANGELOG/godoc só); stale-ref grep (`.md` **+** godoc `.txt`) = **0** (TransactionDSLInput/`/transactions/dsl`/accountsEntity/transactionsEntity/FromTransactionMap); 13 accessors + WaitForSettlement presentes em `external_apis.md` (+ WaitForSettlement no README); 5 predicados de erro documentados; símbolos DSL mortos sumiram do godoc; `make ci` full independente RC=0 / coverage 80.7%.
 
 **Context:** Recon `a31d2619` mapeou o drift: as 13 accessors net-new (`entity.go:191-203`) + `WaitForSettlement` + os builders NÃO estão documentados; refs stale a símbolos deletados persistem.
 
