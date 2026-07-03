@@ -12,15 +12,15 @@
 
 # Midaz Go SDK
 
-The Midaz Go SDK is the idiomatic v3 client for the Midaz financial-ledger
-APIs. v3 is a clean major version: typed list-opts, `iter.Seq2`-based
+The Midaz Go SDK is the idiomatic v4 client for the Midaz financial-ledger
+APIs. v4 is a clean major version: typed list-opts, `iter.Seq2`-based
 pagination, structured errors with retry classification, `*slog.Logger`
 canonical logging, OpenTelemetry observability, and a single canonical
 auth surface (Access Manager OAuth or anonymous local-stack mode).
 
-## What's new in v3
+## What's new in v4
 
-v3 is the result of a 9-track DX overhaul. Highlights:
+v4 is the current major version. Highlights:
 
 - **One auth source, enforced**: `WithAccessManager` for production OAuth,
   `WithAnonymous` for local stacks. Calling `New()` with neither returns a
@@ -45,8 +45,6 @@ v3 is the result of a 9-track DX overhaul. Highlights:
   caller-supplied keys; suppress per-call with `WithoutAutoIdempotency`.
 - **Mocks via `go.uber.org/mock`**: pre-generated mocks for every service
   ship under `entities/mocks/`. Regenerate with `go generate ./entities/...`.
-
-Historical planning artifact — see [`docs/v3-dx-plan.md`](docs/v3-dx-plan.md) for the original design rationale (note: file:line refs may be stale).
 
 ## Installation
 
@@ -116,7 +114,7 @@ tx, err := c.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
 ```
 
 The full service list: `Organizations`, `Ledgers`, `Assets`, `AssetRates`,
-`Accounts`, `AccountTypes`, `Balances`, `Holders`, `MetadataIndexes`,
+`Accounts`, `AccountTypes`, `Aliases`, `Balances`, `Holders`, `MetadataIndexes`,
 `Operations`, `OperationRoutes`, `Portfolios`, `Segments`, `Transactions`,
 `TransactionRoutes`.
 
@@ -289,8 +287,8 @@ c, err := midaz.New(
 
 The SDK emits one HTTP span per outbound request with proper W3C
 `traceparent` propagation. Business logs carry safe IDs only — never
-payloads, names, addresses, or auth headers. See [`docs/tracing.md`](docs/tracing.md)
-and [`examples/10-observability-otel/`](examples/10-observability-otel/).
+payloads, names, addresses, or auth headers. See
+[`examples/10-observability-otel/`](examples/10-observability-otel/).
 
 ### Multi-tenancy
 
@@ -354,7 +352,8 @@ templates are [`.env.example`](.env.example) (alias of
 | `MIDAZ_ENVIRONMENT` | `local\|development\|production` | Selects per-environment URL defaults |
 | `MIDAZ_BASE_URL` | URL | Host base; the SDK appends `/v1` for service routes |
 | `MIDAZ_LEDGER_URL` | URL | Specific override for the Ledger plane (onboarding + transactions). Wins over `MIDAZ_BASE_URL` |
-| `MIDAZ_CRM_URL` | URL | Specific override for the CRM service |
+| `MIDAZ_TRACER_URL` | URL | Specific override for the Tracer plane. Derived from `MIDAZ_BASE_URL` when unset |
+| `MIDAZ_TRACER_API_KEY` | string | **Optional** `X-API-Key` for the Tracer plane. When unset, the Tracer plane shares the Ledger Bearer token |
 | `MIDAZ_TIMEOUT` | int (seconds) | HTTP client timeout |
 | `MIDAZ_MAX_RETRIES` | int | Maximum retry attempts |
 | `MIDAZ_DEBUG` | bool | Verbose SDK logging |
@@ -365,7 +364,7 @@ templates are [`.env.example`](.env.example) (alias of
 | `MIDAZ_CLIENT_ID` | string | OAuth client ID |
 | `MIDAZ_CLIENT_SECRET` | string | OAuth client secret |
 | `MIDAZ_ACCESS_MANAGER_ALLOW_INSECURE_HTTP` | bool | Permit plain HTTP to the Access Manager. Local development only |
-| `MIDAZ_ALLOW_INSECURE_HTTP` | bool | Permit plain HTTP to the Ledger / CRM service URLs for non-loopback hosts. Intended for Kubernetes cluster-internal services (`*.svc.cluster.local`) reached over the cluster mesh and dev/test deployments behind a controlled network boundary. Leave false for public-internet deployments; rejected at validation time when `MIDAZ_ENVIRONMENT=production` |
+| `MIDAZ_ALLOW_INSECURE_HTTP` | bool | Permit plain HTTP to the Ledger / Tracer service URLs for non-loopback hosts. Intended for Kubernetes cluster-internal services (`*.svc.cluster.local`) reached over the cluster mesh and dev/test deployments behind a controlled network boundary. Leave false for public-internet deployments; rejected at validation time when `MIDAZ_ENVIRONMENT=production` |
 
 The `User-Agent` header is fixed by the SDK to `midaz-go-sdk/<version>`;
 override programmatically with `midaz.WithUserAgent` if needed. See
@@ -378,11 +377,9 @@ precedence rules.
 - [`docs/configuration.md`](docs/configuration.md) — every available SDK option, both layers
 - [`docs/multi-tenancy.md`](docs/multi-tenancy.md) — tenant routing
 - [`docs/logging.md`](docs/logging.md) — `*slog.Logger` contract + adapter recipes
-- [`docs/tracing.md`](docs/tracing.md) — OpenTelemetry tracing + metrics + business logs
 - [`docs/pagination.md`](docs/pagination.md) — pagination contract
 - [`docs/errors.md`](docs/errors.md) — error categories, codes, retry boundaries
 - [`docs/examples.md`](docs/examples.md) — runnable example index
-- [`docs/v3-dx-plan.md`](docs/v3-dx-plan.md) — historical v3 planning artifact (file:line refs may be stale)
 - [`pkg.go.dev/github.com/LerianStudio/midaz-sdk-golang/v4`](https://pkg.go.dev/github.com/LerianStudio/midaz-sdk-golang/v4) — generated API reference
 
 Generate docs locally:

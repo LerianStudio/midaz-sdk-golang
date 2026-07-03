@@ -216,7 +216,8 @@ Pagination behavior differs by API family:
 | --- | --- |
 | Ledger page-based resources | Common serialization sends `page`, `limit`, filters, and `sort_order`. |
 | Ledger cursor-based resources | Transactions, operations, operation routes, transaction routes, and asset rates advance with `Pagination.NextCursor`; typed opts never emit page-style parameters. |
-| CRM holders and aliases | CRM services use page-based list calls plus CRM-specific filters stored in `AdditionalParams`. |
+| CRM aliases | Legacy CRM plane. Page-based list calls: the iterator advances `Page++` and stops on `!HasMore()`. Organization is sent as the `X-Organization-Id` header. |
+| CRM holders | Ledger plane (re-homed in v4). Cursor-based: `Pages`/`All` inject the response `next_cursor` as a `cursor` query param and stop on an empty cursor. Despite `HoldersListOpts` embedding `PageListOpts`, the facade never emits `page`. Organization is a path segment, not a header. |
 
 ## Error model internals
 

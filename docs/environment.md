@@ -35,9 +35,10 @@ All variables below are read by `config.FromEnvironment()`. Standard library rea
 | Variable | Purpose | Default |
 | --- | --- | --- |
 | `MIDAZ_ENVIRONMENT` | Environment label. Valid values: `local`, `development`, `production`. | unset |
-| `MIDAZ_BASE_URL` | Base URL used to derive Ledger and CRM service URLs. | env-derived |
+| `MIDAZ_BASE_URL` | Base URL used to derive Ledger and Tracer plane URLs. | env-derived |
 | `MIDAZ_LEDGER_URL` | Explicit Ledger service URL (onboarding + transactions). | derived from `MIDAZ_BASE_URL` |
-| `MIDAZ_CRM_URL` | Explicit CRM service URL. | derived from `MIDAZ_BASE_URL` |
+| `MIDAZ_TRACER_URL` | Explicit Tracer plane URL. Derived from `MIDAZ_BASE_URL` when unset. | derived from `MIDAZ_BASE_URL` |
+| `MIDAZ_TRACER_API_KEY` | Optional X-API-Key for the Tracer plane; unset ⇒ shares the Ledger Bearer token. | unset |
 | `MIDAZ_TIMEOUT` | HTTP timeout in seconds. | `60` |
 | `MIDAZ_DEBUG` | Enables debug logging when set to `true`. | `false` |
 | `MIDAZ_MAX_RETRIES` | Maximum retry attempts. Set to `0` to disable retries entirely. | `3` |
@@ -48,6 +49,8 @@ All variables below are read by `config.FromEnvironment()`. Standard library rea
 | `MIDAZ_CLIENT_ID` | Access Manager client ID. | empty |
 | `MIDAZ_CLIENT_SECRET` | Access Manager client secret. | empty |
 | `MIDAZ_ACCESS_MANAGER_ALLOW_INSECURE_HTTP` | Allows non-loopback `http://` Access Manager URLs for trusted in-cluster networks. Not allowed with `MIDAZ_ENVIRONMENT=production`. | `false` |
+| `MIDAZ_ALLOW_INSECURE_HTTP` | Permits non-loopback `http://` Ledger / Tracer service URLs (`MIDAZ_LEDGER_URL` / `MIDAZ_TRACER_URL` / `MIDAZ_BASE_URL`) for trusted in-cluster networks. Not allowed with `MIDAZ_ENVIRONMENT=production`. | `false` |
+
 `MIDAZ_AUTH_TOKEN` is **not** a configuration environment variable. `config.FromEnvironment()` does not read it, and v3 deliberately exposes no `WithAuthToken` option. The two sanctioned auth paths are `midaz.WithAccessManager(...)` (OAuth via the Lerian Access Manager service) and `midaz.WithAnonymous()` (explicit auth-less mode for local development and tests). Static-token deployments configure their access manager to mint tokens.
 
 ## Removed in v3
@@ -91,13 +94,17 @@ Access Manager URLs are strict by default. Use `https://` for remote targets. Pl
 
 ## Service URLs and precedence
 
+The consolidated server exposes two planes: the **Ledger plane** (port `3002`,
+serving what used to be split as onboarding + transactions) and the **Tracer
+plane** (port `4020`). Both are served under `/v1`.
+
 `config.FromEnvironment()` applies URL variables in this order:
 
 1. `MIDAZ_BASE_URL`
-2. Service-specific overrides: `MIDAZ_LEDGER_URL`, `MIDAZ_CRM_URL`
-3. Existing config defaults for any service you do not override
+2. Plane-specific overrides: `MIDAZ_LEDGER_URL`, `MIDAZ_TRACER_URL`
+3. Existing config defaults for any plane you do not override
 
-Service-specific URLs override `MIDAZ_BASE_URL` for their service.
+Plane-specific URLs override `MIDAZ_BASE_URL` for their plane.
 
 ```env
 MIDAZ_BASE_URL=https://midaz.example.com
@@ -107,9 +114,9 @@ MIDAZ_LEDGER_URL=https://ledger.example.com/v1
 With this configuration:
 
 - Ledger (onboarding + transactions) uses `https://ledger.example.com/v1`
-- CRM uses `https://midaz.example.com/v1`
+- Tracer uses `https://midaz.example.com/v1`
 
-`MIDAZ_BASE_URL` derives service URLs and appends `/v1` when needed. For localhost without a port, the SDK uses port `3002` for Ledger services and port `4003` for CRM.
+`MIDAZ_BASE_URL` derives plane URLs and appends `/v1` when needed. For localhost without a port, the SDK uses port `3002` for the Ledger plane and port `4020` for the Tracer plane.
 
 ```env
 MIDAZ_BASE_URL=http://localhost
@@ -118,12 +125,11 @@ MIDAZ_BASE_URL=http://localhost
 This resolves to:
 
 ```text
-Onboarding:  http://localhost:3002/v1
-Transaction: http://localhost:3002/v1
-CRM:         http://localhost:4003/v1
+Ledger:  http://localhost:3002/v1
+Tracer:  http://localhost:4020/v1
 ```
 
-`MIDAZ_ENVIRONMENT` recomputes default service URLs unless you explicitly set `MIDAZ_BASE_URL` or service-specific URLs. Explicit URLs always win.
+`MIDAZ_ENVIRONMENT` recomputes default plane URLs unless you explicitly set `MIDAZ_BASE_URL` or plane-specific URLs. Explicit URLs always win.
 
 ## HTTP behavior
 
@@ -222,7 +228,7 @@ MIDAZ_ENVIRONMENT=local
 # Service URLs
 MIDAZ_BASE_URL=http://localhost
 MIDAZ_LEDGER_URL=http://localhost:3002/v1
-MIDAZ_CRM_URL=http://localhost:4003/v1
+MIDAZ_TRACER_URL=http://localhost:4020/v1
 
 # Access Manager authentication
 PLUGIN_AUTH_ENABLED=true
