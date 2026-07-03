@@ -796,7 +796,7 @@ Exploração-fonte (efêmera, no scratchpad da sessão): `01-server-api-surface.
 **Dependencies:** Epics 5.1–5.4.
 **Done when:** os 4 builders seguem o exemplar `instrument.go` (constructor + `With*` nil-guarded + `Validate` via `validation.FieldErrors.OrNil()`); `WaitForSettlement` polla balance com backoff/timeout e documenta que 201 ≠ liquidado; a superfície DSL é decidida (5.5.3) e implementada ou explicitamente cortada.
 **Target:** midaz-sdk-golang
-**Status:** Detailed (5.5.1/5.5.2/5.5.3 dispatch-ready; decisão DSL travada = Opção 1 remover)
+**Status:** 5.5.1 ✅ Done + 5.5.2 ✅ Done; 5.5.3 em implementação (excisão DSL completa, escopo A)
 
 > **DECISÕES DE WAVE (Epic 5.5) — recon `a5da7287` (read-only) verificado contra a fonte (HEAD `df385fb`):**
 > - **`FieldErrors` accumulator JÁ EXISTE** (`pkg/validation/field_error.go:176`: `Append`/`AppendWith`/`OrNil()` — `OrNil` resolve o trap typed-nil-interface do Go). Uso canônico em `transaction_dsl.go:196-217` e `transaction_convenience.go`. **Exemplar limpo dos builders = `models/instrument.go`** (`NewCreateInstrumentInput:72` + `With*` nil-guarded `:77-107` + `Validate` via `FieldErrors.OrNil()`). fee_package/limit/rule seguem o mesmo shape.
@@ -806,7 +806,7 @@ Exploração-fonte (efêmera, no scratchpad da sessão): `01-server-api-surface.
 
 #### Task 5.5.1: Builders fluentes p/ os 3 recursos de create sem builder
 
-- [ ] Done
+- [x] Done — commit `b21b2b1`. 3 builders (fee_estimate/billing_calculate/composition) seguindo `instrument.go` (constructor seta required + `With*` nil-guarded). Os required-args batem EXATAMENTE o que cada `Validate()` imperativo rejeita (NÃO tags — os structs não usam `validate:"required"`; verificado por mim contra os corpos de `Validate`): FeeEstimate(packageID/ledgerID/send), BillingCalculate(ledgerID/period), HolderAccount(assetCode/type). audit_event_record + encryption FORA (read-only sem create path / YAGNI — retry-core flagou o audit no pre-commit, verifiquei e concedi). Gate: logic/test/nil/contrarian + minha re-derivação → builders limpos (0 defeito).
 
 **Context:** O accumulator `validation.FieldErrors` (`pkg/validation/field_error.go:176`, `OrNil()` em `:421`) e o padrão de builder já estão firmados; `models/instrument.go` é o exemplar (constructor retorna struct, cada `With*` nil-guarda o receiver e retorna-o p/ chaining, `Validate` acumula via `FieldErrors` + `OrNil`). fee_package/limit/rule/reservation/validation já têm builder completo. Faltam 3 recursos COM create input: `models/{fee_estimate,billing_calculate,composition}.go`.
 
@@ -822,7 +822,7 @@ Exploração-fonte (efêmera, no scratchpad da sessão): `01-server-api-surface.
 
 #### Task 5.5.2: `WaitForSettlement` — poll de balance com backoff/timeout
 
-- [ ] Done
+- [x] Done — commits `334c738` (helper) + `3c6ee59` (fix wave). Gate = 4 reviewers (logic/test/nil/contrarian) + minha re-derivação → **ISSUES** (0 Critical/High) → fix wave → re-gate **PASS**. **MEDIUM-1 (tripla-convergência eu+logic+contrarian):** deadline disparando DURANTE o read retornava `context.DeadlineExceeded` cru em vez do `ErrSettlementTimeout` tipado → um caller com `errors.Is(err, ErrSettlementTimeout)` misclassificava o timeout; fix normaliza o read-error path pra espelhar o select-path (ambos `DeadlineExceeded→ErrSettlementTimeout`, `Canceled→ctx.Err()`). **M1 (gap money-path):** os 5 testes usavam página de 1-item só → `return matched_b` indistinguível de regressão `return Items[0]`; add `TestWaitForSettlement_ReturnsMatchingBalanceAmongMany` (Items[0] não-settled, Items[1] settla, asserta `.ID`) — **RED reproduzido POR MIM** (`matchBalance`→`Items[0]` → FALHA "expected b-settled" → revertido). + clamp de interval (LOW-1: `WithPollInterval(0)` busy-loopava), guard nil-predicate (regra no-panic do repo), doc de asset-pinning (LOW-2: predicado DEVE fixar asset em conta multi-asset). Extração `resolveSettlementConfig`+`matchBalance` (orçamento de complexidade) behavior-preserving (re-derivada). L4 skipado (ponytail — `ErrorContains` já fixa a chave). `balanceReader` satisfeito estruturalmente por `client.Balances` (assinatura idêntica, verificada). **Money third-rail intacto:** zero false-settle (único `return b,nil` sob `settled(b)`), decimais value-type, sem float. Green re-rodado por mim (build/vet/8 testes settlement/lint 0/contract).
 
 **Context:** Não existe helper de settlement/wait no SDK (grep só acha backoff de retry não-relacionado). Pós-swap, `accountsFacade` NÃO tem `GetBalance` single; a leitura account-scoped viva é `client.Balances.ListAccountBalances(ctx,orgID,ledgerID,accountID,opts) (*models.ListResponse[models.Balance],error)` (`entities/balances.go:216`, trio legacy vivo) e `client.Accounts.ListBalances` (facade, `accounts_facade.go:197`). `models.Balance` carrega `Available`/`OnHold` como `decimal.Decimal` (`balance.go:22-23`). Um create de transação retorna 201 mas pode estar pending (two-phase tracer) → "201 ≠ liquidado".
 
