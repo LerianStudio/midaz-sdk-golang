@@ -27,10 +27,20 @@ plugins:
       - breaking: true
         release: major
         
-  # Plugin to version the CHANGELOG.md
+  # Bump the in-source SDK version before the release commit. This is a library
+  # (goreleaser builds no binary), so `go get` compiles the tagged source tree —
+  # the version consumers see is whatever pkg/version/version.go holds at the
+  # tag. prepareCmd runs before @semantic-release/git so the rewrite lands in
+  # the release commit.
+  - path: "@semantic-release/exec"
+    prepareCmd: |-
+      sed -i -E 's/Version = "[^"]*"/Version = "${nextRelease.version}"/' pkg/version/version.go
+
+  # Plugin to version the CHANGELOG.md and the bumped SDK version constant
   - path: "@semantic-release/git"
     assets:
       - CHANGELOG.md
+      - pkg/version/version.go
     message: "chore(release): ${nextRelease.version}\n\nChangelog atualizado."
 
   # Plugin to publish the CHANGELOG.md as an asset in the GitHub release
@@ -48,8 +58,6 @@ plugins:
       - from: main
         to: develop
     message: "chore(release): Preparations for next release [skip ci]"
-
-  - path: "@semantic-release/exec"
 
 branches:
   - name: main

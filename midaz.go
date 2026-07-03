@@ -93,11 +93,12 @@ import (
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
 	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/observability"
 	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/version"
 )
 
-// Version is the current version of the SDK.
-// This is automatically updated during the release process.
-const Version = "3.0.0-beta.1"
+// Version is the current version of the SDK. It mirrors the single source of
+// truth in pkg/version so midaz.Version and version.Version never drift.
+const Version = version.Version
 
 // Client is the main entry point for using the Midaz API.
 // It provides access to all API services, connection management,
