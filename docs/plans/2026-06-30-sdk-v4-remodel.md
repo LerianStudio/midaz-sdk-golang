@@ -791,12 +791,66 @@ Exploração-fonte (efêmera, no scratchpad da sessão): `01-server-api-surface.
 
 ### Epic 5.5: Helpers ergonômicos
 
-**Goal:** Builders fluentes (com `FieldErrors`), DSL de transação (`/json`) e `WaitForSettlement` (poll de balance, não de status) funcionam.
-**Scope:** `models/transaction_dsl.go`, builders, novo helper de settle em `pkg/transaction` ou `entities/`.
+**Goal:** Builders fluentes (com `FieldErrors`) cobrem os 4 recursos novos sem builder; `WaitForSettlement` (poll de BALANCE, não de status) com backoff/timeout; superfície DSL de transação resolvida.
+**Scope:** `models/{fee_estimate,billing_calculate,composition,audit_event_record}.go` (builders), novo `pkg/transaction/settlement.go` (WaitForSettlement), `models/transaction_dsl.go` (DSL — pendente decisão).
 **Dependencies:** Epics 5.1–5.4.
-**Done when:** `WaitForSettlement` polla balance com backoff/timeout e documenta que 201 ≠ liquidado; DSL aponta `/json`; builders cobrem os recursos novos.
+**Done when:** os 4 builders seguem o exemplar `instrument.go` (constructor + `With*` nil-guarded + `Validate` via `validation.FieldErrors.OrNil()`); `WaitForSettlement` polla balance com backoff/timeout e documenta que 201 ≠ liquidado; a superfície DSL é decidida (5.5.3) e implementada ou explicitamente cortada.
 **Target:** midaz-sdk-golang
-**Status:** Pending
+**Status:** Detailed (5.5.1 + 5.5.2 dispatch-ready; 5.5.3 aguarda decisão do Fred)
+
+> **DECISÕES DE WAVE (Epic 5.5) — recon `a5da7287` (read-only) verificado contra a fonte (HEAD `df385fb`):**
+> - **`FieldErrors` accumulator JÁ EXISTE** (`pkg/validation/field_error.go:176`: `Append`/`AppendWith`/`OrNil()` — `OrNil` resolve o trap typed-nil-interface do Go). Uso canônico em `transaction_dsl.go:196-217` e `transaction_convenience.go`. **Exemplar limpo dos builders = `models/instrument.go`** (`NewCreateInstrumentInput:72` + `With*` nil-guarded `:77-107` + `Validate` via `FieldErrors.OrNil()`). fee_package/limit/rule seguem o mesmo shape.
+> - **Só 4 recursos NÃO têm builder fluente:** `fee_estimate.go`, `billing_calculate.go`, `composition.go` (os 3 já têm `Validate` com `FieldErrors`, falta constructor + `With*`) e `audit_event_record.go` (falta builder E validação acumuladora). **Encryption FICA de fora** (`NewProvisionEncryptionInput:25` já existe; só 2 campos required, zero opcionais → `With*` é YAGNI).
+> - **WaitForSettlement — `accountsFacade` DROPOU o `GetBalance` single;** reads disponíveis: `client.Balances.ListAccountBalances(ctx,orgID,ledgerID,accountID,opts)` (legacy trio, VIVO, `balances.go:216`) e `client.Accounts.ListBalances` (facade, `accounts_facade.go:197`). Ambos account-scoped. `models.Balance.Available`/`OnHold` são `decimal.Decimal` (`balance.go:22-23`). Decisão: helper aceita **interface narrow** (`accept interfaces` — Option 2), predicado de "liquidado" **fornecido pelo caller** (`func(models.Balance) bool`) — NÃO inventar modelo de settlement que o servidor não dita; backoff+timeout via functional options.
+> - **DSL (5.5.3) — PREMISSA DO PLANO INVALIDADA PELA REALIDADE:** o endpoint multipart `/transactions/dsl` **já não existe** (nada a migrar *de*); o único conversor DSL→CreateJSON (`pkg/generator/dsl_convert.go:28`, unexported) **já** roteia pro `/json`. O tipo público `models.TransactionDSLInput` (`transaction_dsl.go:92`) é **morto** (0 wire path) e **redundante** vs `CreateTransactionInput` (que já cobre multi-source/remaining/rate/share); pior, seu `formatDSLDecimal:724` **rejeita decimais fracionários** (inadequado p/ money no path de render de texto). → decisão de superfície pública = **do Fred** (deprecar o tipo morto vs. dar-lhe um `ToCreateTransactionInput()` e expor).
+
+#### Task 5.5.1: Builders fluentes p/ os 4 recursos sem builder
+
+- [ ] Done
+
+**Context:** O accumulator `validation.FieldErrors` (`pkg/validation/field_error.go:176`, `OrNil()` em `:421`) e o padrão de builder já estão firmados; `models/instrument.go` é o exemplar (constructor retorna struct, cada `With*` nil-guarda o receiver e retorna-o p/ chaining, `Validate` acumula via `FieldErrors` + `OrNil`). fee_package/limit/rule/reservation/validation já têm builder completo. Faltam 4: `models/{fee_estimate,billing_calculate,composition,audit_event_record}.go`.
+
+**Implementation vision:** Para cada um dos 4, adicionar `NewCreate{X}Input(<campos required>)` + métodos `With*` (um por campo opcional), seguindo `instrument.go` byte-a-byte no estilo. **Campos required (args do constructor) = os tagueados `validate:"required"` no struct de input** (espelhar o servidor, NÃO inventar); campos opcionais → `With*`. Para `fee_estimate.go`/`billing_calculate.go`/`composition.go` (já têm `Validate` com `FieldErrors`) adicionar SÓ constructor + `With*` (não tocar `Validate`). Para `audit_event_record.go` (não tem builder nem validação acumuladora) adicionar constructor + `With*` E um `Validate()` no mesmo padrão `FieldErrors.OrNil()`. **NÃO adicionar builder ao encryption** (só 2 required, zero opcionais — YAGNI, declarar no commit). Nil-guard em todo `With*` (receiver pode ser nil pós-erro de constructor). Zero mudança nos structs existentes ou no wire.
+
+**Files:**
+- Modify: `models/fee_estimate.go`, `models/billing_calculate.go`, `models/composition.go`, `models/audit_event_record.go`
+- Test: os `_test.go` correspondentes (table-driven)
+
+**Verification:** `go build ./... && go vet ./... && golangci-lint run ./... && go test ./models/... -count=1` verdes. TDD: cada builder tem teste table-driven asserindo (a) happy-path constrói input válido (`Validate()==nil`) e (b) required faltando acumula `FieldErrors` (assere a chave do campo, não só `err!=nil`).
+
+**Done when:** os 4 recursos têm constructor + `With*` fluentes seguindo `instrument.go`; `audit_event_record` ganha `Validate` acumuladora; encryption intocado (documentado); módulo verde.
+
+#### Task 5.5.2: `WaitForSettlement` — poll de balance com backoff/timeout
+
+- [ ] Done
+
+**Context:** Não existe helper de settlement/wait no SDK (grep só acha backoff de retry não-relacionado). Pós-swap, `accountsFacade` NÃO tem `GetBalance` single; a leitura account-scoped viva é `client.Balances.ListAccountBalances(ctx,orgID,ledgerID,accountID,opts) (*models.ListResponse[models.Balance],error)` (`entities/balances.go:216`, trio legacy vivo) e `client.Accounts.ListBalances` (facade, `accounts_facade.go:197`). `models.Balance` carrega `Available`/`OnHold` como `decimal.Decimal` (`balance.go:22-23`). Um create de transação retorna 201 mas pode estar pending (two-phase tracer) → "201 ≠ liquidado".
+
+**Implementation vision:** Novo `pkg/transaction/settlement.go`. Helper que aceita uma **interface narrow** (`accept interfaces, return structs` — Option 2 do Fred), NÃO um `*Client` concreto: `type balanceReader interface { ListAccountBalances(ctx, orgID, ledgerID, accountID string, opts models.BalancesListOpts) (*models.ListResponse[models.Balance], error) }` (assinatura que `client.Balances` satisfaz estruturalmente em prod). Assinatura: `WaitForSettlement(ctx, r balanceReader, orgID, ledgerID, accountID string, settled func(models.Balance) bool, opts ...SettlementOption) (models.Balance, error)`. **O predicado `settled` é do caller** (ex. `OnHold` zerado, `Available >= alvo`) — NÃO hardcodar semântica de settlement que o servidor não dita. Loop: lê balances da conta, aplica `settled` a cada `Balance`; se algum casa → retorna; senão backoff (exponencial limitado) até `ctx.Done()` OU timeout → retorna erro de timeout tipado. Options: `WithPollInterval`, `WithMaxInterval`, `WithTimeout` (defaults sãos). Backoff local pequeno (o `pkg/retry` é orientado a erro-HTTP; não force o encaixe — ponytail). **godoc DEVE documentar "HTTP 201 ≠ liquidado; este helper espera o efeito de balance, não o status".**
+
+**Files:**
+- Create: `pkg/transaction/settlement.go`, `pkg/transaction/settlement_test.go`
+
+**Verification:** `go build ./... && go vet ./... && golangci-lint run ./... && go test ./pkg/transaction/... -count=1` verdes. TDD: fake `balanceReader` que retorna balances mudando entre chamadas → assere (a) poll até o predicado virar true retorna o `Balance` casado; (b) timeout com predicado sempre-false retorna erro de timeout tipado; (c) `ctx` cancelado retorna com erro de contexto; (d) sem chamada extra após o casamento. Sem `time.Sleep` real na suíte (injetar clock/interval mínimo ou usar `ctx` deadline curto).
+
+**Done when:** `WaitForSettlement` polla balance por interface narrow, para no predicado do caller, respeita backoff+timeout+ctx, documenta 201≠liquidado; testes cobrem match/timeout/cancel; módulo verde.
+
+#### Task 5.5.3: Superfície DSL de transação — DECISÃO DO FRED antes de implementar
+
+- [ ] Done — **BLOQUEADA (aguarda decisão de superfície pública do Fred).**
+
+**Context:** A premissa do plano ("DSL aponta `/json` em vez do `/dsl` multipart deprecado") foi invalidada pelo recon `a5da7287`: (a) o endpoint multipart `/transactions/dsl` **já não existe** no gerado nem no legado (nada a migrar *de*); (b) o único conversor DSL→CreateJSON vivo (`pkg/generator/dsl_convert.go:28` `dslTemplateToInput`, unexported, grammar do `pkg/data`) **já** roteia pro `CreateJSON`; (c) o tipo público `models.TransactionDSLInput` (`transaction_dsl.go:92`) está **morto** (0 consumidores de wire, só um doc-comment em `pkg/conversion/metadata.go:75`) e é **redundante** vs `CreateTransactionInput` + os builders da 5.5.1; seu `formatDSLDecimal:724` **rejeita fracionários** no render de texto.
+
+**Decisão pendente (3 opções, recomendação = 1):**
+1. **(Recomendada) Deprecar/remover `TransactionDSLInput`** — `CreateTransactionInput` + builders fluentes JÁ são a superfície de autoria de transação via `/json`; o tipo DSL-texto é cruft redundante com um formatter que rejeita decimais. v4 já é breaking → cortar agora é limpo. Custo: ~deleção + doc.
+2. **Dar a `TransactionDSLInput` um `ToCreateTransactionInput()` + expor via facade** — preserva o tipo público, torna-o usável via `/json` (o mapper não passa por `formatDSLDecimal`, então fracionários funcionam no struct-path). Custo: mapper share-aware + método/wrapper. Mantém 2 representações concorrentes de transação no SDK.
+3. **Generalizar o `dslTemplateToInput` texto→público** — expõe um parser de string DSL. Custo maior; utilidade externa incerta (YAGNI provável).
+
+**Files:** (a decidir com a opção) — opção 1: `models/transaction_dsl.go` (deprecação/remoção) + refs; opção 2: `models/transaction_dsl.go` (novo `ToCreateTransactionInput`) + `entities/transactions_facade.go` (método) ou wrapper público.
+
+**Verification:** a definir com a opção escolhida.
+
+**Done when:** a superfície DSL do v4 está resolvida — implementada (opção 2/3) ou explicitamente cortada com deprecação documentada (opção 1); módulo verde; sem tipo público morto pendurado.
 
 ### Epic 5.6: Docs, exemplos, mapping, contract tests, catálogo de erro
 
