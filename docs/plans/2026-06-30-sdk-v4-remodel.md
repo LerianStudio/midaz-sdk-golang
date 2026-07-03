@@ -874,7 +874,7 @@ Exploração-fonte (efêmera, no scratchpad da sessão): `01-server-api-surface.
 
 #### Task 5.6.1: `make ci` verde — excluir gerado de gosec + coverage; `#nosec` no specdowngrade
 
-- [ ] Done
+- [x] Done — commit `2a8b30b` (config+test only, 0 código de prod). gosec `-exclude-generated` (mata os 4 G101 falso-positivo do gerado) + specdowngrade `//nolint:gosec`→`//#nosec G703` (formato honrado pelo gosec standalone); coverage exclui `internal/gen` (`Makefile:200`) → **80.7% ≥ 80** (threshold intacto). Gate seguinte que mordeu: `internal/gentracer` sem test (genledger tinha smoke_test) → retry-core adicionou `gentracer/smoke_test.go` (pin de superfície GENUÍNO — assinatura do `NewClient` + `ListAuditEventsParams`/`Resp`/`Response`, espelha genledger; codegen drift quebra o build) em vez de exemptar `/gen` (certo — genledger É testado). `test-contract` promovido pro `ci`. **`make ci` RC=0 end-to-end re-rodado POR MIM** numa janela sem golangci-lint concorrente (a 1ª tentativa deu RC=2 por colisão de lock do golangci com o retry-core, NÃO issue de lint — falso-negativo transiente).
 
 **Context:** `make ci` (`Makefile:67-70` = tidy→fmt→lint→gosec→test→coverage→verify-sdk) para no `gosec` (6 issues) e falharia no `coverage` (47.7% < 80%). Diagnóstico (medido por mim): os 6 gosec são 4 G101 falso-positivo em `internal/gen*` gerado + 2 G703 em `specdowngrade` com nolint errado; o coverage é afundado por `internal/gen*` (0%, gerado) no denominador — **sans gen* = 80.7%**. Lint/test/build/verify-sdk já passam (verificados isolados).
 
