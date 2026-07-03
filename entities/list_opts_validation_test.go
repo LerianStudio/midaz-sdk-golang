@@ -15,26 +15,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestPageListOpts_OverLimit_ValidatesBeforeRequest covers H29: ALL ListXxx
-// entity methods must short-circuit on Validate() before issuing any HTTP
-// request when opts.Limit > MaxLimit. This is the entity-side regression
-// pinning the contract that backs ValidatePageListOpts and
-// ValidateCursorListOpts (already covered at the model level).
+// TestPageListOpts_OverLimit_ValidatesBeforeRequest covers H29: the surviving
+// interface-backed page-list methods (Aliases, Balances) must short-circuit on
+// Validate() before issuing any HTTP request when opts.Limit > MaxLimit. This
+// is the entity-side regression pinning the contract that backs
+// ValidatePageListOpts and ValidateCursorListOpts (already covered at the model
+// level).
 //
 // The contract under test:
 //   - opts.Limit = MaxLimit + 1 → entity returns "limit exceeds maximum"
 //   - The httptest server's request counter stays at 0 (no wire traffic)
 //
-// The asset_rates entity is already covered by
-// TestListAssetRatesByAssetCode_ValidatesOptsBeforeRequest. The portfolios
-// entity is partially covered by
-// TestPortfoliosEntity_ListPortfolios_ValidationBeforeRequest (org/ledger
-// validation). This test fills in the limit-exceeds path for the
-// remaining entities — the gap H29 was opened to close.
-//
-// Cursor entities (transactions, operations, operation_routes,
-// transaction_routes) get the same treatment in
-// TestCursorListOpts_OverLimit_ValidatesBeforeRequest below.
+// The facade-backed resources (accounts, assets, ledgers, portfolios, ...)
+// enforce the same pre-flight in their own *_facade_test.go. Cursor entities
+// get the same treatment in TestCursorListOpts_OverLimit_ValidatesBeforeRequest
+// below.
 func TestPageListOpts_OverLimit_ValidatesBeforeRequest(t *testing.T) {
 	tests := []struct {
 		name string
@@ -80,15 +75,13 @@ func TestPageListOpts_OverLimit_ValidatesBeforeRequest(t *testing.T) {
 }
 
 // TestCursorListOpts_OverLimit_ValidatesBeforeRequest mirrors
-// TestPageListOpts_OverLimit_ValidatesBeforeRequest for the cursor-paginated
-// entities. asset_rates is intentionally omitted here — it has its own
-// dedicated test (TestListAssetRatesByAssetCode_ValidatesOptsBeforeRequest).
+// TestPageListOpts_OverLimit_ValidatesBeforeRequest for the surviving
+// interface-backed cursor entity (Operations). The facade-backed cursor
+// resources (transactions, asset rates, operation/transaction routes) enforce
+// the same opts.Validate() pre-flight in their own *_facade_test.go.
 //
-// Coverage history: the four cursor entities (transactions, operations,
-// operation_routes, transaction_routes) all sit on the same opts.Validate()
-// pre-flight contract. ListTransactions adopted it first; the other three
-// were brought into line by the M23 fix that added the missing call to each
-// entity method. This test pins the post-M23 behavior across all four.
+// This pins the pre-flight short-circuit: opts.Validate() runs before any HTTP
+// request, so an over-limit request never reaches the wire.
 func TestCursorListOpts_OverLimit_ValidatesBeforeRequest(t *testing.T) {
 	tests := []struct {
 		name string

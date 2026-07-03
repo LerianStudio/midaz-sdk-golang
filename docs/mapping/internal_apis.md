@@ -81,24 +81,23 @@ The `onboarding` and `transaction` keys are internal path-dispatch labels for Le
 
 ## Entity service implementations
 
-Each service has a public interface and a private implementation type, with explicit method names (`ListAccounts`, `CreateOrganization`, `CreateTransactionWithDSL`) rather than generic CRUD (`List`, `Create`). The public facade accessors described in [external_apis.md](./external_apis.md) expose generic CRUD (`List`, `Create`, ...) instead; for the 14 facade-backed resources those generic methods call the plane client directly and do not route through these interfaces/implementations.
+Most ledger resources are served by the facade accessors described in
+[external_apis.md](./external_apis.md) — concrete `*xFacade` structs exposing
+generic CRUD (`List`/`Get`/`Create`/...) directly over the generated plane
+client, with no separate public interface or private implementation type. Only
+the legacy trio (Balances, Operations, Aliases) is still interface-backed with a
+private implementation and explicit method names (`ListBalances`, etc.).
 
 ### Ledger API services
 
-- `OrganizationsService` implemented by `organizationsEntity`
-- `LedgersService` implemented by `ledgersEntity`
-- `AccountsService` implemented by `accountsEntity`
-- `AccountTypesService` implemented by `accountTypesEntity`
-- `AssetsService` implemented by `assetsEntity`
-- `AssetRatesService` implemented by `assetRatesEntity`
+Interface-backed (legacy trio members on the ledger/transaction plane):
+
 - `BalancesService` implemented by `balancesEntity`
-- `PortfoliosService` implemented by `portfoliosEntity`
-- `SegmentsService` implemented by `segmentsEntity`
 - `OperationsService` implemented by `operationsEntity`
-- `OperationRoutesService` implemented by `operationRoutesEntity`
-- `TransactionRoutesService` implemented by `transactionRoutesEntity`
-- `TransactionsService` implemented by `transactionsEntity`
-- `MetadataIndexesService` implemented by `metadataIndexesEntity`
+
+All other ledger resources (organizations, ledgers, accounts, account types,
+assets, asset rates, portfolios, segments, operation routes, transaction routes,
+transactions, metadata indexes) are facade-only — see [external_apis.md](./external_apis.md).
 
 ### CRM services
 

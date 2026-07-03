@@ -50,8 +50,8 @@ The SDK is designed with a clean, layered architecture to provide different leve
 
 **Interface**:
 
-- Service interfaces like `entities.AccountsService`, `entities.TransactionsService`, etc.
-- Entity implementations that communicate with the API
+- Facade accessors like `c.Accounts` and `c.Transactions` — concrete `*xFacade` structs over the generated plane client
+- The legacy Balances/Operations/Aliases services, still interface-backed with entity implementations
 
 ### 3. Client Layer
 

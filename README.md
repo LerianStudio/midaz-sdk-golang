@@ -287,26 +287,35 @@ See [`docs/multi-tenancy.md`](docs/multi-tenancy.md).
 
 ### Testing with mocks
 
-Every service has a generated mock under `entities/mocks/`:
+Depend on a narrow interface you declare yourself — only the methods you call.
+`c.Accounts` (and the other accessors) satisfy it structurally in production, and
+a tiny local mock satisfies it in tests ("accept interfaces, return structs"):
 
 ```go
-import (
-    "github.com/LerianStudio/midaz-sdk-golang/v4/entities/mocks"
-    "go.uber.org/mock/gomock"
-)
+// The narrow slice of the Accounts accessor your code needs.
+type accountSource interface {
+    GetByAlias(ctx context.Context, orgID, ledgerID, alias string) (*models.Account, error)
+}
+
+type mockAccounts struct {
+    getByAlias func(ctx context.Context, orgID, ledgerID, alias string) (*models.Account, error)
+}
+
+func (m *mockAccounts) GetByAlias(ctx context.Context, orgID, ledgerID, alias string) (*models.Account, error) {
+    return m.getByAlias(ctx, orgID, ledgerID, alias)
+}
 
 func TestMyHandler(t *testing.T) {
-    ctrl := gomock.NewController(t)
-    mockSvc := mocks.NewMockAccountsService(ctrl)
-    mockSvc.EXPECT().
-        GetAccount(gomock.Any(), "org-1", "ledger-1", "acc-1").
-        Return(&models.Account{ID: "acc-1"}, nil)
-    // ... use mockSvc as entities.AccountsService in your code under test
+    svc := &mockAccounts{
+        getByAlias: func(_ context.Context, _, _, _ string) (*models.Account, error) {
+            return &models.Account{ID: "acc-1"}, nil
+        },
+    }
+    // ... inject svc into your code under test; in production pass c.Accounts.
 }
 ```
 
-Mocks are regenerated via `go generate ./entities/...` (each service
-file has a `//go:generate mockgen` directive). See [`examples/09-testing-with-mocks/`](examples/09-testing-with-mocks/).
+See [`examples/09-testing-with-mocks/`](examples/09-testing-with-mocks/) for a full worked example.
 
 ## Environment variables
 

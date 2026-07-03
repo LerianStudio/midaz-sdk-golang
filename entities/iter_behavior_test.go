@@ -251,9 +251,9 @@ func TestOperationsEntity_ListOperationsPages_CursorAdvances(t *testing.T) {
 // terse.
 //
 // Extracted to keep TestListXxxAll_DelegatesToPages under revive's
-// cognitive-complexity budget — 16 mechanically-uniform subtests against
-// 16 different ListXxxAll entry points add up fast at the function level
-// even though each subtest is trivial in isolation.
+// cognitive-complexity budget — the mechanically-uniform subtests against the
+// surviving ListXxxAll entry points add up at the function level even though
+// each subtest is trivial in isolation.
 func runListAllSubtest[T any](
 	t *testing.T,
 	payload models.ListResponse[T],
@@ -281,23 +281,18 @@ func runListAllSubtest[T any](
 	check(got)
 }
 
-// TestListXxxAll_DelegatesToPages covers H30: the All-variant iterators
-// across every entity are 1-line wrappers over `flattenPages(Pages(...))`.
-// Without a single drive-through, every All variant sits at 0% coverage
-// despite being ALL the work flattenPages was extracted to share. This
-// parametrized test exercises each All iterator over a single-page mock
-// response to confirm wiring.
+// TestListXxxAll_DelegatesToPages covers H30: the All-variant iterators for the
+// surviving trio (Aliases, Balances, Operations) are 1-line wrappers over
+// `flattenPages(Pages(...))`. Without a single drive-through, every All variant
+// sits at 0% coverage despite being ALL the work flattenPages was extracted to
+// share. This parametrized test exercises each surviving All iterator over a
+// single-page mock response to confirm wiring. The facade-backed resources'
+// All variants are covered in their own *_facade_test.go.
 //
-// Skipped entities here are covered elsewhere:
-//   - AccountsAll: TestAccountsEntity_ListAccountsAll_StopsOnConsumerBreak
-//   - AssetRates*All: existing coverage in asset_rates_test.go
-//   - PortfoliosAll: implicit via TestAccountsEntity flow (page-based shared)
+// The Operations All variant is cursor-based, so the same flattenPages wiring
+// is confirmed on a cursor-paginated upstream too.
 //
-// Cursor-based All variants (operations, transactions, operation_routes,
-// transaction_routes) are also exercised here so the same flattenPages
-// wiring works on a cursor-paginated upstream.
-//
-//nolint:revive // cognitive-complexity: 16 ListXxxAll wrappers must each be drive-tested through a t.Run; the runListAllSubtest helper already collapses every subtest body to a single call, so the residual complexity is the unavoidable count of entities.
+//nolint:revive // cognitive-complexity: the surviving ListXxxAll wrappers are each drive-tested through a t.Run; the runListAllSubtest helper collapses every subtest body to a single call, so the residual complexity is the unavoidable count of entities.
 func TestListXxxAll_DelegatesToPages(t *testing.T) {
 
 	t.Run("AliasesAll", func(t *testing.T) {

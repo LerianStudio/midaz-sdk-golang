@@ -963,3 +963,69 @@ func TestTransactionsFacade_CountErrorEmptyBody(t *testing.T) {
 		t.Fatalf("403 empty-body count must map to authorization error, got: %v", err)
 	}
 }
+
+// TestTransactionsFacade_CreateJSON_DecodesOperationFinancialFields is the
+// money-path wire-decode regression retargeted from the deleted
+// transactions_http_test.go (Epic 5.4): a hand-written /transactions/json
+// response whose operations[] carry STRING decimals must decode into the typed
+// operation money fields. It REDs on a json-tag or type regression on
+// Operation.Amount/Balance/BalanceAfter — a struct round-trip would hide that;
+// the hand-written body pins the real wire shape.
+func TestTransactionsFacade_CreateJSON_DecodesOperationFinancialFields(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.URL.EscapedPath(); got != txBase()+"/json" {
+			t.Errorf("path = %q, want %q", got, txBase()+"/json")
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_, err := w.Write([]byte(`{
+			"id":"` + txID + `",
+			"amount":"100",
+			"assetCode":"USD",
+			"operations":[{
+				"id":"op-1",
+				"type":"DEBIT",
+				"assetCode":"USD",
+				"amount":{"value":"100"},
+				"balance":{"available":"900","onHold":"0"},
+				"balanceAfter":{"available":"800","onHold":"0"},
+				"status":{"code":"APPROVED"}
+			}]
+		}`))
+		if err != nil {
+			t.Errorf("write response: %v", err)
+		}
+	}))
+	defer srv.Close()
+
+	result, err := newTestTransactionsFacade(t, srv).CreateJSON(context.Background(), txOrgID, txLedgerID, sampleTransactionInput())
+	if err != nil {
+		t.Fatalf("CreateJSON: %v", err)
+	}
+
+	if len(result.Operations) != 1 {
+		t.Fatalf("operations = %d, want 1", len(result.Operations))
+	}
+
+	op := result.Operations[0]
+	if op.Amount.Value == nil || op.Balance.Available == nil || op.BalanceAfter.Available == nil {
+		t.Fatalf("nil money field(s): amount=%v balance=%v after=%v",
+			op.Amount.Value, op.Balance.Available, op.BalanceAfter.Available)
+	}
+
+	if got := op.Amount.Value.String(); got != "100" {
+		t.Errorf("operation amount.value = %q, want 100", got)
+	}
+
+	if got := op.Balance.Available.String(); got != "900" {
+		t.Errorf("operation balance.available = %q, want 900", got)
+	}
+
+	if got := op.BalanceAfter.Available.String(); got != "800" {
+		t.Errorf("operation balanceAfter.available = %q, want 800", got)
+	}
+
+	if op.Status.Code != "APPROVED" {
+		t.Errorf("operation status.code = %q, want APPROVED", op.Status.Code)
+	}
+}
