@@ -52,27 +52,19 @@ func newHoldersFacade(ledger *genledger.ClientWithResponses, enableIdempotency b
 	return &holdersFacade{ledger: ledger, enableIdempotency: enableIdempotency}
 }
 
-// List retrieves one cursor page of holders under an organization.
+// List retrieves one cursor page of holders under an organization. The cursor is
+// seeded from opts.Cursor (empty means the first page); Pages advances it by
+// echoing the response next_cursor. The generated ListHoldersParams has no cursor
+// slot, so the cursor is injected as a query param via listHoldersReqEditors; the
+// caller's opts are never mutated.
 func (f *holdersFacade) List(ctx context.Context, orgID string, opts models.HoldersListOpts) (*models.ListResponse[models.Holder], error) {
-	return f.listCursor(ctx, orgID, opts, "")
-}
-
-// listCursor fetches a single page, optionally seeded with a cursor injected as
-// a query param (the generated ListHoldersParams has no cursor slot). The caller
-// keeps the cursor as loop state so opts is never mutated.
-func (f *holdersFacade) listCursor(ctx context.Context, orgID string, opts models.HoldersListOpts, cursor string) (*models.ListResponse[models.Holder], error) {
 	const operation = "Holders.List"
 
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
 
-	editors := listHoldersReqEditors(opts)
-	if cursor != "" {
-		editors = append(editors, setQueryParam("cursor", cursor))
-	}
-
-	resp, err := f.ledger.ListHoldersWithResponse(ctx, orgID, listHoldersParams(opts), editors...)
+	resp, err := f.ledger.ListHoldersWithResponse(ctx, orgID, listHoldersParams(opts), listHoldersReqEditors(opts)...)
 	if err != nil {
 		return nil, errors.NewInternalError(operation, err)
 	}
@@ -90,10 +82,11 @@ func (f *holdersFacade) listCursor(ctx context.Context, orgID string, opts model
 }
 
 // Pages yields one cursor page per iteration, advancing by the response
-// next_cursor until it is empty.
+// next_cursor until it is empty. current is a value copy seeded from opts, so the
+// caller's opts is never mutated.
 func (f *holdersFacade) Pages(ctx context.Context, orgID string, opts models.HoldersListOpts) iter.Seq2[*models.ListResponse[models.Holder], error] {
 	return func(yield func(*models.ListResponse[models.Holder], error) bool) {
-		cursor := ""
+		current := opts
 
 		for {
 			if ctx.Err() != nil {
@@ -101,7 +94,7 @@ func (f *holdersFacade) Pages(ctx context.Context, orgID string, opts models.Hol
 				return
 			}
 
-			page, err := f.listCursor(ctx, orgID, opts, cursor)
+			page, err := f.List(ctx, orgID, current)
 			if err != nil {
 				yield(nil, err)
 				return
@@ -119,7 +112,7 @@ func (f *holdersFacade) Pages(ctx context.Context, orgID string, opts models.Hol
 				return
 			}
 
-			cursor = page.Pagination.NextCursor
+			current.Cursor = page.Pagination.NextCursor
 		}
 	}
 }
@@ -231,12 +224,21 @@ func listHoldersParams(opts models.HoldersListOpts) *genledger.ListHoldersParams
 	return params
 }
 
-// listHoldersReqEditors carries the filters the generated ListHoldersParams
-// cannot express. The ledger OAS omits name and status from the holders list
-// endpoint, so the SDK injects each as a query param rather than dropping it
-// silently. Returns nil when none is set so the common path adds zero overhead.
+// listHoldersReqEditors carries the cursor pagination token and the name/status
+// filters — none of which the generated ListHoldersParams has a slot for. The
+// ledger OAS omits cursor, name, and status from the holders list endpoint, so
+// the SDK injects each as a query param rather than dropping it silently. Dates
+// are intentionally NOT emitted: the endpoint declares no start_date/end_date
+// and there is no evidence the server honors them, so HoldersListOpts.Validate
+// (ValidateCursorListOptsNoDates) rejects a set date rather than sending a
+// silently-ignored filter. Returns nil when none is set so the common path adds
+// zero overhead.
 func listHoldersReqEditors(opts models.HoldersListOpts) []genledger.RequestEditorFn {
 	var editors []genledger.RequestEditorFn
+
+	if opts.Cursor != "" {
+		editors = append(editors, setQueryParam("cursor", opts.Cursor))
+	}
 
 	if opts.Filters.Name != "" {
 		editors = append(editors, setQueryParam("name", opts.Filters.Name))

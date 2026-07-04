@@ -112,10 +112,15 @@ func TestInstrumentUnmarshalUsesSharedTypes(t *testing.T) {
 
 func TestInstrumentsListOptsToQueryParams(t *testing.T) {
 	opts := InstrumentsListOpts{
-		Filters: InstrumentFilters{Type: "CHECKING", IncludeDeleted: true},
+		CursorListOpts: CursorListOpts{Cursor: "c-1"},
+		Filters:        InstrumentFilters{Type: "CHECKING", IncludeDeleted: true},
 	}
 
 	params := opts.ToQueryParams()
 	assert.Equal(t, "CHECKING", params["type"])
 	assert.Equal(t, "true", params["include_deleted"])
+	// Cursor renders via CursorQueryParams. Dates are NOT exercised here: this is a
+	// NoDates endpoint (see TestHoldersInstrumentsListOpts_RejectDates), so a valid
+	// opts never carries StartDate/EndDate.
+	assert.Equal(t, "c-1", params["cursor"])
 }

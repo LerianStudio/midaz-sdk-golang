@@ -63,7 +63,7 @@ func TestInstrumentsFacade_ListAndPaginate(t *testing.T) {
 	facade := newTestInstrumentsFacade(t, srv)
 
 	all, err := CollectAll(facade.ListAll(context.Background(), instrumentsFacadeOrgID, instrumentsFacadeHolderID, models.InstrumentsListOpts{
-		PageListOpts: models.PageListOpts{Limit: 1},
+		CursorListOpts: models.CursorListOpts{Limit: 1},
 	}))
 	if err != nil {
 		t.Fatalf("CollectAll: %v", err)
@@ -83,6 +83,51 @@ func TestInstrumentsFacade_ListAndPaginate(t *testing.T) {
 		if p != instrumentsListBase() {
 			t.Fatalf("request %d path = %q, want %q (org-scoped list)", i, p, instrumentsListBase())
 		}
+	}
+}
+
+// TestInstrumentsFacade_ListSeedsCursorAndDates locks the two knobs the cursor
+// migration restored. Before the migration InstrumentsListOpts embedded
+// PageListOpts and the facade always seeded the cursor with "", so a
+// caller-supplied cursor was ignored (no way to resume a mid-stream page) and
+// StartDate/EndDate never reached the wire. Now opts.Cursor seeds the first
+// request and start_date/end_date are injected as query params (the generated
+// ListInstrumentsParams has no slot for any of the three). holder_id must still
+// ride along on the same request.
+func TestInstrumentsFacade_ListSeedsCursorRejectsDates(t *testing.T) {
+	var q url.Values
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q = r.URL.Query()
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"items":[],"limit":1}`))
+	}))
+	defer srv.Close()
+
+	facade := newTestInstrumentsFacade(t, srv)
+
+	// Cursor seeds the first request; no dates set, so Validate passes.
+	_, err := facade.List(context.Background(), instrumentsFacadeOrgID, instrumentsFacadeHolderID, models.InstrumentsListOpts{
+		CursorListOpts: models.CursorListOpts{Limit: 1, Cursor: "seed-cursor"},
+	})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if got := q.Get("cursor"); got != "seed-cursor" {
+		t.Fatalf("cursor = %q, want seed-cursor (opts.Cursor must seed the first request)", got)
+	}
+	if got := q.Get("holder_id"); got != instrumentsFacadeHolderID {
+		t.Fatalf("holder_id = %q, want %q (must ride along on the seeded request)", got, instrumentsFacadeHolderID)
+	}
+	if q.Has("start_date") || q.Has("end_date") {
+		t.Fatalf("date params leaked to the wire: start_date=%q end_date=%q (instruments endpoint has no date slot)", q.Get("start_date"), q.Get("end_date"))
+	}
+
+	// A set date is rejected by Validate (NoDates) before any request.
+	_, err = facade.List(context.Background(), instrumentsFacadeOrgID, instrumentsFacadeHolderID, models.InstrumentsListOpts{
+		CursorListOpts: models.CursorListOpts{Limit: 1, StartDate: "2026-01-01"},
+	})
+	if err == nil {
+		t.Fatal("List with StartDate: want a validation error (date filtering unsupported), got nil")
 	}
 }
 
@@ -300,7 +345,7 @@ func TestInstrumentsFacade_Filters(t *testing.T) {
 	defer srv.Close()
 
 	_, err := newTestInstrumentsFacade(t, srv).List(context.Background(), instrumentsFacadeOrgID, instrumentsFacadeHolderID, models.InstrumentsListOpts{
-		PageListOpts: models.PageListOpts{Limit: 7, SortDirection: models.SortAscending},
+		CursorListOpts: models.CursorListOpts{Limit: 7, SortDirection: models.SortAscending},
 		Filters: models.InstrumentFilters{
 			Type:           "CHECKING",
 			Document:       "DOC-1",
@@ -404,7 +449,7 @@ func TestInstrumentsFacade_ListPagesConsumerStops(t *testing.T) {
 
 	var pages int
 	for page, err := range newTestInstrumentsFacade(t, srv).ListPages(context.Background(), instrumentsFacadeOrgID, instrumentsFacadeHolderID, models.InstrumentsListOpts{
-		PageListOpts: models.PageListOpts{Limit: 1},
+		CursorListOpts: models.CursorListOpts{Limit: 1},
 	}) {
 		if err != nil {
 			t.Fatalf("unexpected err on first page: %v", err)

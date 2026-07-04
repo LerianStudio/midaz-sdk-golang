@@ -48,7 +48,7 @@ func TestHoldersFacade_ListAndPaginate(t *testing.T) {
 	facade := newTestHoldersFacade(t, srv)
 
 	all, err := CollectAll(facade.All(context.Background(), holdersFacadeOrgID, models.HoldersListOpts{
-		PageListOpts: models.PageListOpts{Limit: 1},
+		CursorListOpts: models.CursorListOpts{Limit: 1},
 	}))
 	if err != nil {
 		t.Fatalf("CollectAll: %v", err)
@@ -58,6 +58,47 @@ func TestHoldersFacade_ListAndPaginate(t *testing.T) {
 	}
 	if len(seenCursors) != 2 || seenCursors[0] != "" || seenCursors[1] != "c2" {
 		t.Fatalf("cursor chain = %v, want ['' 'c2'] and exactly 2 requests", seenCursors)
+	}
+}
+
+// TestHoldersFacade_ListSeedsCursorRejectsDates locks two properties of the
+// cursor migration: opts.Cursor seeds the first request (the mid-stream resume
+// knob the page-based opts could not express), and the NoDates guard holds — the
+// holders list endpoint has no start_date/end_date slot, so a set date is
+// rejected by Validate before any request rather than shipped as a
+// silently-ignored filter, and no date param ever reaches the wire.
+func TestHoldersFacade_ListSeedsCursorRejectsDates(t *testing.T) {
+	var q url.Values
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		q = r.URL.Query()
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"items":[],"limit":1}`))
+	}))
+	defer srv.Close()
+
+	facade := newTestHoldersFacade(t, srv)
+
+	// Cursor seeds the first request; no dates set, so Validate passes.
+	_, err := facade.List(context.Background(), holdersFacadeOrgID, models.HoldersListOpts{
+		CursorListOpts: models.CursorListOpts{Limit: 1, Cursor: "seed-cursor"},
+	})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if got := q.Get("cursor"); got != "seed-cursor" {
+		t.Fatalf("cursor = %q, want seed-cursor (opts.Cursor must seed the first request)", got)
+	}
+	if q.Has("start_date") || q.Has("end_date") {
+		t.Fatalf("date params leaked to the wire: start_date=%q end_date=%q (holders endpoint has no date slot)", q.Get("start_date"), q.Get("end_date"))
+	}
+
+	// A set date is rejected by Validate (NoDates) before any request — a
+	// silently-ignored date filter would be worse than a loud error.
+	_, err = facade.List(context.Background(), holdersFacadeOrgID, models.HoldersListOpts{
+		CursorListOpts: models.CursorListOpts{Limit: 1, StartDate: "2026-01-01"},
+	})
+	if err == nil {
+		t.Fatal("List with StartDate: want a validation error (date filtering unsupported), got nil")
 	}
 }
 
@@ -174,7 +215,7 @@ func TestHoldersFacade_Filters(t *testing.T) {
 	defer srv.Close()
 
 	_, err := newTestHoldersFacade(t, srv).List(context.Background(), holdersFacadeOrgID, models.HoldersListOpts{
-		PageListOpts: models.PageListOpts{Limit: 7, SortDirection: models.SortAscending},
+		CursorListOpts: models.CursorListOpts{Limit: 7, SortDirection: models.SortAscending},
 		Filters: models.HoldersFilters{
 			Name:       "Alice",
 			Document:   "123",
@@ -322,7 +363,7 @@ func TestHoldersFacade_ListPagesContextCanceled(t *testing.T) {
 	var yielded error
 	var pages int
 	for _, err := range newTestHoldersFacade(t, srv).Pages(ctx, holdersFacadeOrgID, models.HoldersListOpts{
-		PageListOpts: models.PageListOpts{Limit: 1},
+		CursorListOpts: models.CursorListOpts{Limit: 1},
 	}) {
 		pages++
 		yielded = err
@@ -357,7 +398,7 @@ func TestHoldersFacade_ListPagesConsumerStops(t *testing.T) {
 
 	var pages int
 	for page, err := range newTestHoldersFacade(t, srv).Pages(context.Background(), holdersFacadeOrgID, models.HoldersListOpts{
-		PageListOpts: models.PageListOpts{Limit: 1},
+		CursorListOpts: models.CursorListOpts{Limit: 1},
 	}) {
 		if err != nil {
 			t.Fatalf("unexpected err on first page: %v", err)

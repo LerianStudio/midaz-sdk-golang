@@ -6,14 +6,22 @@ package models
 // HoldersListOpts is the typed options struct for ListHolders and
 // the ListHoldersAll / ListHoldersPages iterators.
 //
-// Embeds PageListOpts for the shared pagination/sort/date-range
-// fields; attaches a HoldersFilters sub-struct carrying only the
-// filter fields the holders endpoint actually honors.
+// Embeds CursorListOpts for the shared cursor/sort fields; attaches a
+// HoldersFilters sub-struct carrying only the filter fields the holders
+// endpoint actually honors.
 //
 // HoldersListOpts is a value type. Concurrent-safe by construction —
 // the entity layer never mutates a caller's opts.
+//
+// IMPORTANT: This is a CURSOR-PAGINATED endpoint. The struct does NOT
+// expose Page or Offset fields. Seed Cursor to resume a mid-stream page,
+// or read the NextCursor from the previous response's Pagination to fetch
+// the next page. v3 compile-time prevents the v2 footgun where setting
+// WithPage on a cursor endpoint silently dropped the value (audit finding 5.5).
+// The endpoint has no start_date/end_date slot, so Validate REJECTS any date
+// filter rather than shipping a silently-ignored one.
 type HoldersListOpts struct {
-	PageListOpts
+	CursorListOpts
 
 	// Filters narrows the result set. Zero value means no narrowing.
 	Filters HoldersFilters
@@ -40,9 +48,12 @@ type HoldersFilters struct {
 	IncludeDeleted bool
 }
 
-// Validate enforces SDK-side preconditions on HoldersListOpts.
+// Validate enforces the shared cursor-list preconditions (limit bounds, sort
+// direction) and REJECTS any date filter: the generated ListHoldersParams has no
+// start_date/end_date slot, so a date would validate then silently drop,
+// returning the full unfiltered set.
 func (o HoldersListOpts) Validate() error {
-	return ValidatePageListOpts("HoldersListOpts.Validate", o.PageListOpts)
+	return ValidateCursorListOptsNoDates("HoldersListOpts.Validate", o.CursorListOpts)
 }
 
 // ToQueryParams renders an HoldersListOpts into the wire query map.
@@ -50,7 +61,7 @@ func (o HoldersListOpts) Validate() error {
 // Exported because the entity layer in package entities calls it.
 // Treat as an internal contract; not part of the user-facing API.
 func (o HoldersListOpts) ToQueryParams() map[string]string {
-	params := PageQueryParams(o.PageListOpts)
+	params := CursorQueryParams(o.CursorListOpts)
 
 	if o.Filters.Name != "" {
 		params["name"] = o.Filters.Name

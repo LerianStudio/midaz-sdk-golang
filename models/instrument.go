@@ -356,14 +356,22 @@ func instrumentStringPtr(value string) *string {
 }
 
 // InstrumentsListOpts is the typed options struct for listing instruments and
-// its All/Pages iterators. Mirrors HoldersListOpts: embeds PageListOpts for the
-// shared pagination/sort/date-range fields and attaches an InstrumentFilters
-// sub-struct with only the filters the endpoint honors.
+// its All/Pages iterators. Mirrors HoldersListOpts: embeds CursorListOpts for
+// the shared cursor/sort fields and attaches an InstrumentFilters sub-struct
+// with only the filters the endpoint honors.
 //
 // InstrumentsListOpts is a value type. Concurrent-safe by construction — the
 // entity layer never mutates a caller's opts.
+//
+// IMPORTANT: This is a CURSOR-PAGINATED endpoint. The struct does NOT expose
+// Page or Offset fields. Seed Cursor to resume a mid-stream page, or read the
+// NextCursor from the previous response's Pagination to fetch the next page.
+// v3 compile-time prevents the v2 footgun where setting WithPage on a cursor
+// endpoint silently dropped the value (audit finding 5.5). The endpoint has no
+// start_date/end_date slot, so Validate REJECTS any date filter rather than
+// shipping a silently-ignored one.
 type InstrumentsListOpts struct {
-	PageListOpts
+	CursorListOpts
 
 	// Filters narrows the result set. Zero value means no narrowing.
 	Filters InstrumentFilters
@@ -381,9 +389,12 @@ type InstrumentFilters struct {
 	IncludeDeleted bool
 }
 
-// Validate enforces SDK-side preconditions on InstrumentsListOpts.
+// Validate enforces the shared cursor-list preconditions (limit bounds, sort
+// direction) and REJECTS any date filter: the generated ListInstrumentsParams has
+// no start_date/end_date slot, so a date would validate then silently drop,
+// returning the full unfiltered set.
 func (o InstrumentsListOpts) Validate() error {
-	return ValidatePageListOpts("InstrumentsListOpts.Validate", o.PageListOpts)
+	return ValidateCursorListOptsNoDates("InstrumentsListOpts.Validate", o.CursorListOpts)
 }
 
 // ToQueryParams renders an InstrumentsListOpts into the wire query map.
@@ -391,7 +402,7 @@ func (o InstrumentsListOpts) Validate() error {
 // Exported because the entity layer in package entities calls it. Treat as an
 // internal contract; not part of the user-facing API.
 func (o InstrumentsListOpts) ToQueryParams() map[string]string {
-	params := PageQueryParams(o.PageListOpts)
+	params := CursorQueryParams(o.CursorListOpts)
 
 	if o.Filters.Type != "" {
 		params["type"] = o.Filters.Type
