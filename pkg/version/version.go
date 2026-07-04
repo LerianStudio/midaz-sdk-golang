@@ -8,7 +8,7 @@ const (
 	// Version is the current version of the SDK. The release pipeline
 	// (semantic-release prepare step) rewrites this string on each release; it
 	// is the single source of truth for both version.Version and midaz.Version.
-	Version = "4.1.0"
+	Version = "4.2.0-beta.1"
 
 	// SDKName is the name identifier for the SDK.
 	SDKName = "midaz-go-sdk"
