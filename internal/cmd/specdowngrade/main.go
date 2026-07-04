@@ -229,7 +229,7 @@ const wantArgs = 3
 
 func main() {
 	if len(os.Args) != wantArgs {
-		fmt.Fprintln(os.Stderr, "usage: specdowngrade <input-3.1.yaml> <output-3.0.3.yaml>")
+		_, _ = fmt.Fprintln(os.Stderr, "usage: specdowngrade <input-3.1.yaml> <output-3.0.3.yaml>")
 		os.Exit(2)
 	}
 	// The input and output paths are fixed, repo-relative build-time inputs

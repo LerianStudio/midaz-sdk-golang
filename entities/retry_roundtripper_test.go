@@ -511,7 +511,7 @@ func TestRetryRoundTripper_ContextDeadlineDuringBackoffSurfaces(t *testing.T) {
 	}
 
 	if resp != nil {
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		t.Fatalf("resp = %v, want nil (context error must not be masked by the buffered 503)", resp)
 	}
 
