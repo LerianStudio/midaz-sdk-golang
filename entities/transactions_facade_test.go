@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -356,6 +357,67 @@ func TestTransactionsFacade_CreateOffStatusSucceeds(t *testing.T) {
 			}
 		})
 	}
+}
+
+// txBodyOfSize builds a valid transaction JSON of exactly size bytes by padding
+// a description field, so a test can pin the response-body cap boundary (accept
+// == cap, reject > cap) without depending on the production cap value or reading
+// an unbounded body into the test.
+func txBodyOfSize(t *testing.T, size int) string {
+	t.Helper()
+
+	const (
+		prefix = `{"id":"` + txID + `","status":{"code":"APPROVED"},"description":"`
+		suffix = `"}`
+	)
+
+	pad := size - len(prefix) - len(suffix)
+	if pad < 0 {
+		t.Fatalf("size %d below minimum envelope %d", size, len(prefix)+len(suffix))
+	}
+
+	return prefix + strings.Repeat("A", pad) + suffix
+}
+
+// TestTransactionsFacade_CreateResponseBodyCap proves the money-path write drain
+// (readRawResponse) bounds the response read: a hostile/broken server returning
+// a 2xx body larger than maxHTTPResponseBodyBytes is rejected rather than read
+// into unbounded memory (the legacy path caps at http_retry_response.go:186; the
+// plane write path must match), while a body exactly at the cap still decodes.
+func TestTransactionsFacade_CreateResponseBodyCap(t *testing.T) {
+	writeBody := func(body string) *httptest.Server {
+		return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = io.WriteString(w, body)
+		}))
+	}
+
+	t.Run("over-cap rejected", func(t *testing.T) {
+		srv := writeBody(txBodyOfSize(t, int(maxHTTPResponseBodyBytes)+1))
+		defer srv.Close()
+
+		tx, err := newTestTransactionsFacade(t, srv).CreateJSON(context.Background(), txOrgID, txLedgerID, sampleTransactionInput())
+		if err == nil {
+			t.Fatalf("over-cap response accepted (memory-exhaustion risk); got tx id %q", tx.ID)
+		}
+		if !strings.Contains(err.Error(), "exceeds") {
+			t.Fatalf("error = %v, want over-limit rejection mentioning 'exceeds'", err)
+		}
+	})
+
+	t.Run("at-cap decodes", func(t *testing.T) {
+		srv := writeBody(txBodyOfSize(t, int(maxHTTPResponseBodyBytes)))
+		defer srv.Close()
+
+		tx, err := newTestTransactionsFacade(t, srv).CreateJSON(context.Background(), txOrgID, txLedgerID, sampleTransactionInput())
+		if err != nil {
+			t.Fatalf("at-cap response rejected: %v", err)
+		}
+		if tx.ID != txID {
+			t.Fatalf("tx.ID = %q, want %q", tx.ID, txID)
+		}
+	})
 }
 
 // TestTransactionsFacade_CommitOffStatusSucceeds proves a commit CONFIRMED by

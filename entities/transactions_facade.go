@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"iter"
 	"net/http"
@@ -66,9 +67,18 @@ func readRawResponse(resp *http.Response, err error) (*http.Response, []byte, er
 
 	defer func() { _ = resp.Body.Close() }()
 
-	body, err := io.ReadAll(resp.Body)
+	// Bound the read so a hostile/broken server cannot pin arbitrary memory on
+	// the plane write path. The plane retry round tripper returns 2xx untouched
+	// (retry_roundtripper.go), so this shared drain is the only cap point for
+	// the money-path writes — mirroring the legacy client's overflow rejection
+	// (http_retry_response.go:186). Read one byte past the cap to detect overflow.
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxHTTPResponseBodyBytes+1))
 	if err != nil {
 		return nil, nil, err
+	}
+
+	if int64(len(body)) > maxHTTPResponseBodyBytes {
+		return nil, nil, fmt.Errorf("response body exceeds %d bytes", maxHTTPResponseBodyBytes)
 	}
 
 	return resp, body, nil
