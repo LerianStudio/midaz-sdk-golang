@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v4/internal/genledger"
 	"github.com/LerianStudio/midaz-sdk-golang/v4/internal/gentracer"
 	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/auth"
 	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/security"
 )
 
 // PlaneClients holds the two generated, typed plane clients that back the
@@ -114,7 +116,7 @@ func newPlaneClients(cfg planeClientsConfig) (*PlaneClients, error) {
 
 	ledger, err := genledger.NewClientWithResponses(
 		cfg.ledgerURL,
-		genledger.WithHTTPClient(&http.Client{Transport: retryLedgerRT}),
+		genledger.WithHTTPClient(newPlaneHTTPClient(retryLedgerRT, cfg.httpClient)),
 	)
 	if err != nil {
 		return nil, err
@@ -122,7 +124,7 @@ func newPlaneClients(cfg planeClientsConfig) (*PlaneClients, error) {
 
 	tracer, err := gentracer.NewClientWithResponses(
 		cfg.tracerURL,
-		gentracer.WithHTTPClient(&http.Client{Transport: retryTracerRT}),
+		gentracer.WithHTTPClient(newPlaneHTTPClient(retryTracerRT, cfg.httpClient)),
 	)
 	if err != nil {
 		return nil, err
@@ -171,6 +173,48 @@ func (e *Entity) Planes() *PlaneClients {
 	}
 
 	return e.planes
+}
+
+// newPlaneHTTPClient wraps the composed plane RoundTripper (retry → auth →
+// pooled transport) in an *http.Client that restores the two client-level
+// policies the bare &http.Client{Transport: rt} form silently dropped:
+//
+//   - Timeout: copied from the configured client (WithTimeout / MIDAZ_TIMEOUT),
+//     falling back to the SDK default when src is nil or unset. Because retries
+//     live INSIDE rt, this Timeout bounds the TOTAL wall-clock across every
+//     retry attempt + backoff — one deadline for the whole call, NOT a
+//     per-attempt budget. Dropping it made WithTimeout a no-op on all plane
+//     traffic (incl. the money path): a hung server would block forever.
+//
+//   - CheckRedirect: FIXED to [security.ValidatePlaneRedirect] regardless of
+//     src — the planes talk to a single fixed, configured Midaz host, so a
+//     cross-origin 302 is never legitimate and is refused outright. This is
+//     stricter than the legacy path's validateSDKRedirect (which refuses only
+//     credential-bearing cross-origin hops): the plane auth round tripper
+//     injects the Bearer / X-API-Key BELOW net/http's redirect-header-stripping
+//     layer, so a followed cross-host redirect would re-stamp the token onto
+//     the foreign host — a leak that safe-method (GET) reads would otherwise
+//     hit. Same-host http→https upgrades are still allowed.
+//
+// The base transport is NOT cloned here (rt already wraps the shared pooled
+// transport), so both planes keep sharing one connection pool.
+func newPlaneHTTPClient(rt http.RoundTripper, src *http.Client) *http.Client {
+	var timeout time.Duration
+	if src != nil {
+		timeout = src.Timeout
+	}
+
+	if timeout == 0 {
+		if def := defaultHTTPClient(); def != nil {
+			timeout = def.Timeout
+		}
+	}
+
+	return &http.Client{
+		Transport:     rt,
+		Timeout:       timeout,
+		CheckRedirect: security.ValidatePlaneRedirect,
+	}
 }
 
 // transportOf extracts the pooled Transport from the supplied client, falling

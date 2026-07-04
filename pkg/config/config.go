@@ -1504,12 +1504,17 @@ func NewDefaultHTTPClient(timeout time.Duration) *http.Client {
 		Timeout:       timeout,
 		CheckRedirect: security.ValidateRedirect,
 		Transport: &http.Transport{
-			Proxy:                 http.ProxyFromEnvironment,
-			MaxIdleConns:          100,
-			MaxIdleConnsPerHost:   10,
-			MaxConnsPerHost:       100,
-			IdleConnTimeout:       90 * time.Second,
-			TLSHandshakeTimeout:   10 * time.Second,
+			Proxy:               http.ProxyFromEnvironment,
+			MaxIdleConns:        100,
+			MaxIdleConnsPerHost: 10,
+			MaxConnsPerHost:     100,
+			IdleConnTimeout:     90 * time.Second,
+			TLSHandshakeTimeout: 10 * time.Second,
+			// Hard-guard against a server that accepts the connection but
+			// stalls before sending response headers. Set on the SDK's OWN
+			// default transport so both planes and the legacy path inherit it
+			// via the shared pool.
+			ResponseHeaderTimeout: 30 * time.Second,
 			ExpectContinueTimeout: time.Second,
 			TLSClientConfig: &tls.Config{
 				MinVersion: tls.VersionTLS12,
