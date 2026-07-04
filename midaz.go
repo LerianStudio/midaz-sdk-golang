@@ -13,11 +13,11 @@
 //	if err != nil { return err }
 //	defer c.Shutdown(ctx)
 //
-//	org, err := c.Organizations.GetOrganization(ctx, "org-id")
+//	org, err := c.Organizations.Get(ctx, "org-id")
 //
 // # Authentication
 //
-// v3 requires exactly one auth source at construction time:
+// v4 requires exactly one auth source at construction time:
 //   - [WithAccessManager] — production-shape OAuth via the Lerian
 //     Access Manager. Recommended for any non-local stack.
 //   - [WithAnonymous] — opt out of authentication. Suitable only for
@@ -93,20 +93,21 @@ import (
 	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
 	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/observability"
 	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/version"
 )
 
-// Version is the current version of the SDK.
-// This is automatically updated during the release process.
-const Version = "3.0.0-beta.1"
+// Version is the current version of the SDK. It mirrors the single source of
+// truth in pkg/version so midaz.Version and version.Version never drift.
+const Version = version.Version
 
 // Client is the main entry point for using the Midaz API.
 // It provides access to all API services, connection management,
 // authentication, rate limiting, and retry handling.
 //
 // All services are exposed as promoted fields via the embedded *entities.Entity.
-// In v3, prefer c.Accounts.X over c.Entity.Accounts.X — they refer to the same
+// In v4, prefer c.Accounts.X over c.Entity.Accounts.X — they refer to the same
 // instance, but the shorter form is the canonical idiom. The embedded Entity
-// pointer remains accessible as c.Entity for back-compat during the v2 → v3
+// pointer remains accessible as c.Entity for back-compat during the v2 → v4
 // migration window.
 //
 // Client wraps a small subset of Entity methods (SetObservability,
@@ -169,7 +170,7 @@ type Option func(*Client) error
 // New validates configuration eagerly. If any required field is missing or any
 // option fails, it returns a typed error so callers can distinguish setup
 // mistakes from runtime API failures. The "naked SDK" footgun where
-// c.Entity could be nil after construction is gone in v3 — every service is
+// c.Entity could be nil after construction is gone in v4 — every service is
 // initialized and ready to use upon successful return.
 //
 // Default observability provider: New always installs a default
@@ -290,8 +291,21 @@ func New(options ...Option) (*Client, error) {
 		)
 	}
 
+	// The DATA-PLANE insecure-HTTP flag (WithAllowInsecureHTTP /
+	// MIDAZ_ALLOW_INSECURE_HTTP) disables the same gate for the Ledger and
+	// Tracer plane URLs. The Bearer token and idempotency keys transit the data
+	// plane, so it earns the same auditable Warn as the Access Manager flag.
+	if c.config.AllowInsecureHTTP {
+		c.logger.Warn(
+			"Data plane (Ledger/Tracer) configured with insecure HTTP. Only valid for trusted in-cluster networks. Production deployments must use HTTPS.",
+			slog.String("sdk.name", "midaz-go-sdk"),
+			slog.String("sdk.component", "bootstrap"),
+			slog.String("operation", operation),
+		)
+	}
+
 	// Always initialize the Entity surface. The "naked SDK" footgun
-	// (c.Entity == nil after New) is gone in v3.
+	// (c.Entity == nil after New) is gone in v4.
 	if err := c.setupEntity(); err != nil {
 		c.logBootstrapSetupFailure(err)
 		return nil, classifyBootstrapSetupError(operation, err)
@@ -300,7 +314,7 @@ func New(options ...Option) (*Client, error) {
 	return c, nil
 }
 
-// resolveLogger applies the v3 logger-priority rule:
+// resolveLogger applies the v4 logger-priority rule:
 //
 //  1. If WithLogger was explicitly called (loggerSet=true), use that logger
 //     (even if it's nil — caller asked for silence).
@@ -433,10 +447,43 @@ func (c *Client) setupEntity() error {
 		return fmt.Errorf("failed to configure observability provider: %w", err)
 	}
 
+	// Retry chain construction: config seeds first, user overrides last.
+	// Override-on-conflict semantics — see [WithRetryOptions] godoc.
+	// MaxRetries == 0 (set via [WithoutRetries] or pkg/config.WithMaxRetries(0))
+	// flows through naturally; no separate enable flag is consulted.
+	//
+	// Built BEFORE Entity construction and resolved ONCE so the plane retry
+	// round tripper and the legacy *HTTPClient derive from the same seed. The
+	// plane clients are built inside NewEntityWithConfigContext — before the
+	// legacy WithRetryOptions/SetCustomRetryPolicy calls below — so the
+	// resolved policy must be threaded through construction, otherwise plane
+	// money-writes would silently ignore WithRetryOptions/WithCustomRetryPolicy.
+	retryChain := append(
+		[]retry.Option{
+			retry.WithMaxRetries(c.config.MaxRetries),
+			retry.WithInitialDelay(c.config.RetryWaitMin),
+			retry.WithMaxDelay(c.config.RetryWaitMax),
+		},
+		c.retryOpts...,
+	)
+
+	resolvedRetry, err := resolveRetryOptions(retryChain)
+	if err != nil {
+		return fmt.Errorf("failed to resolve retry options: %w", err)
+	}
+
 	// Construct the Entity from the resolved Config. NewEntityWithConfig
 	// runs initServices() internally during construction, seeding every
-	// per-service HTTPClient with the entity-level snapshot.
-	entity, err := entities.NewEntityWithConfigContext(c.ctx, c.config)
+	// per-service HTTPClient with the entity-level snapshot. The config is
+	// wrapped so the plane-client builder can read the resolved retry policy
+	// (see [entities.planeRetryConfig]).
+	entityConfig := planeRetryConfigWrapper{
+		Config:            c.config,
+		planeRetryOptions: resolvedRetry,
+		planeCustomRetry:  c.customRetryPolicy,
+	}
+
+	entity, err := entities.NewEntityWithConfigContext(c.ctx, entityConfig)
 	if err != nil {
 		return err
 	}
@@ -451,18 +498,8 @@ func (c *Client) setupEntity() error {
 	httpClient.SetEnableIdempotency(c.config.EnableIdempotency)
 	httpClient.SetExposeErrorBody(c.config.ExposeErrorBody)
 
-	// Retry chain construction: config seeds first, user overrides last.
-	// Override-on-conflict semantics — see [WithRetryOptions] godoc.
-	// MaxRetries == 0 (set via [WithoutRetries] or pkg/config.WithMaxRetries(0))
-	// flows through naturally; no separate enable flag is consulted.
-	retryChain := append(
-		[]retry.Option{
-			retry.WithMaxRetries(c.config.MaxRetries),
-			retry.WithInitialDelay(c.config.RetryWaitMin),
-			retry.WithMaxDelay(c.config.RetryWaitMax),
-		},
-		c.retryOpts...,
-	)
+	// Legacy per-service *HTTPClient path (unchanged): the SAME retryChain
+	// feeds WithRetryOptions so the two paths resolve from one seed.
 	if err := httpClient.WithRetryOptions(retryChain...); err != nil {
 		return fmt.Errorf("failed to configure retry options: %w", err)
 	}
@@ -472,7 +509,7 @@ func (c *Client) setupEntity() error {
 	}
 
 	// Push the resolved logger and slow-call threshold into the entity-level
-	// HTTPClient. With the v3 per-service HTTPClient consolidation, every
+	// HTTPClient. With the v4 per-service HTTPClient consolidation, every
 	// service shares this same *HTTPClient instance — there's no per-service
 	// snapshot to refresh, so the mutation propagates immediately to every
 	// service's next request. The v2-era double-init pattern
@@ -483,6 +520,52 @@ func (c *Client) setupEntity() error {
 	c.Entity = entity
 
 	return nil
+}
+
+// resolveRetryOptions folds an option chain onto retry.DefaultOptions() using
+// the same apply mechanism as retry.Do and HTTPClient.WithRetryOptions, so the
+// plane retry round tripper and the legacy *HTTPClient resolve identical
+// effective options from one seed. It is the single conversion point from
+// []retry.Option to a concrete retry.Options for plane-client construction.
+func resolveRetryOptions(opts []retry.Option) (*retry.Options, error) {
+	resolved := retry.DefaultOptions()
+
+	for i, opt := range opts {
+		if opt == nil {
+			return nil, fmt.Errorf("retry option at index %d cannot be nil", i)
+		}
+
+		if err := opt(resolved); err != nil {
+			return nil, fmt.Errorf("retry option at index %d failed: %w", i, err)
+		}
+	}
+
+	return resolved, nil
+}
+
+// planeRetryConfigWrapper adapts *config.Config into an entities.Config that
+// ALSO exposes the effective plane retry policy (entities.planeRetryConfig).
+// The embedded *config.Config promotes every base and optional Config method
+// (GetHTTPClient, GetBaseURLs, GetObservabilityProvider, GetPluginAuth,
+// GetTracerAPIKey, GetAllowInsecureHTTP); this wrapper adds only the resolved
+// retry policy, which lives on the midaz.Client rather than on config.Config.
+type planeRetryConfigWrapper struct {
+	*config.Config
+
+	planeRetryOptions *retry.Options
+	planeCustomRetry  func(*http.Response, error) bool
+}
+
+// GetPlaneRetryOptions returns the effective plane retry policy resolved at
+// construction. Never nil in practice (setupEntity always resolves it).
+func (w planeRetryConfigWrapper) GetPlaneRetryOptions() *retry.Options {
+	return w.planeRetryOptions
+}
+
+// GetPlaneCustomRetryPolicy returns the caller-supplied plane custom retry
+// policy, or nil when none was configured.
+func (w planeRetryConfigWrapper) GetPlaneCustomRetryPolicy() func(*http.Response, error) bool {
+	return w.planeCustomRetry
 }
 
 // Shutdown gracefully shuts down the client, releasing any resources.
@@ -562,7 +645,7 @@ func (c *Client) Trace(name string, fn func(context.Context) error) error {
 // Client.Logger() for application code; reach for Provider.Logger() only when
 // you need span-aware logging within an SDK call.
 //
-// In v3 the return type changed from observability.Logger to *slog.Logger.
+// In v4 the return type changed from observability.Logger to *slog.Logger.
 // Code that needs the bespoke observability.Logger interface should reach
 // for c.GetObservabilityProvider().Logger() instead.
 //
@@ -619,7 +702,7 @@ func (c *Client) GetObservabilityProvider() observability.Provider {
 // SetObservability replaces the metrics collector if the new provider reports
 // IsEnabled() == true. A nil provider is a no-op.
 //
-// In v3 this is the canonical post-construction observability mutator. It
+// In v4 this is the canonical post-construction observability mutator. It
 // supersedes the v2 pattern where the promoted *Entity.SetObservability was
 // the only entry point but Client kept its own duplicate observability field —
 // callers occasionally hit the drift footgun where Client.GetObservabilityProvider

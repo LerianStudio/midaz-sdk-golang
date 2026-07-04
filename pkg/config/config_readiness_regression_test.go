@@ -36,8 +36,8 @@ func TestAccessManagerRequiresExplicitTarget(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("explicit crm URL counts", func(t *testing.T) {
-		_, err := NewConfig(WithCRMURL("https://api.example.com/crm"), WithAccessManager(accessManager))
+	t.Run("explicit tracer URL counts", func(t *testing.T) {
+		_, err := NewConfig(WithTracerURL("https://tracer.example.com/v1"), WithAccessManager(accessManager))
 		require.NoError(t, err)
 	})
 

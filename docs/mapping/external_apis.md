@@ -141,68 +141,89 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v4/entities`. Consumers should pre
 - `Client.Transactions` (`Client.Entity.Transactions` compatibility path)
 - `Client.TransactionRoutes` (`Client.Entity.TransactionRoutes` compatibility path)
 
-### OrganizationsService
+Plane-native accessors added in the v4 remodel (Tracer plane and ledger-plane extensions):
 
-- `ListOrganizations(ctx, opts)`
-- `ListOrganizationsAll(ctx, opts)`
-- `ListOrganizationsPages(ctx, opts)`
-- `GetOrganization(ctx, id)`
-- `CreateOrganization(ctx, input)`
-- `UpdateOrganization(ctx, id, input)`
-- `DeleteOrganization(ctx, id)`
-- `GetOrganizationsMetricsCount(ctx)`
+- `Client.Rules` (`Client.Entity.Rules` compatibility path)
+- `Client.Limits` (`Client.Entity.Limits` compatibility path)
+- `Client.Validations` (`Client.Entity.Validations` compatibility path)
+- `Client.Reservations` (`Client.Entity.Reservations` compatibility path)
+- `Client.AuditEvents` (`Client.Entity.AuditEvents` compatibility path)
+- `Client.ProtectionAudit` (`Client.Entity.ProtectionAudit` compatibility path)
+- `Client.Encryption` (`Client.Entity.Encryption` compatibility path)
+- `Client.Instruments` (`Client.Entity.Instruments` compatibility path)
+- `Client.Composition` (`Client.Entity.Composition` compatibility path)
+- `Client.FeePackages` (`Client.Entity.FeePackages` compatibility path)
+- `Client.FeeEstimates` (`Client.Entity.FeeEstimates` compatibility path)
+- `Client.BillingPackages` (`Client.Entity.BillingPackages` compatibility path)
+- `Client.BillingCalculations` (`Client.Entity.BillingCalculations` compatibility path)
 
-### LedgersService
+### Organizations
 
-- `ListLedgers(ctx, organizationID, opts)`
-- `ListLedgersAll(ctx, organizationID, opts)`
-- `ListLedgersPages(ctx, organizationID, opts)`
-- `GetLedger(ctx, organizationID, id)`
-- `CreateLedger(ctx, organizationID, input)`
-- `UpdateLedger(ctx, organizationID, id, input)`
-- `GetLedgerSettings(ctx, organizationID, id)` - `GET /organizations/{organizationID}/ledgers/{ledgerID}/settings`.
-- `UpdateLedgerSettings(ctx, organizationID, id, input)` - `PATCH /organizations/{organizationID}/ledgers/{ledgerID}/settings`; allowed fields are `accounting.validateAccountType` and `accounting.validateRoutes`.
-- `DeleteLedger(ctx, organizationID, id)`
-- `GetLedgersMetricsCount(ctx, organizationID)`
+- `List(ctx, opts)`
+- `All(ctx, opts)`
+- `Pages(ctx, opts)`
+- `Get(ctx, id)`
+- `Create(ctx, input)`
+- `Update(ctx, id, input)`
+- `Delete(ctx, id)`
+- `Count(ctx)`
 
-### AccountsService
+### Ledgers
 
-- `ListAccounts(ctx, organizationID, ledgerID, opts)`
-- `ListAccountsAll(ctx, organizationID, ledgerID, opts)`
-- `ListAccountsPages(ctx, organizationID, ledgerID, opts)`
-- `GetAccount(ctx, organizationID, ledgerID, id)`
-- `GetAccountByAlias(ctx, organizationID, ledgerID, alias)`
-- `CreateAccount(ctx, organizationID, ledgerID, input)`
-- `UpdateAccount(ctx, organizationID, ledgerID, id, input)`
-- `DeleteAccount(ctx, organizationID, ledgerID, id)`
-- `GetBalance(ctx, organizationID, ledgerID, accountID)` - Convenience helper for accounts with exactly one balance; returns not found for zero balances and a validation error when multiple balances exist. Use `BalancesService.ListAccountBalances` for full balance lists.
-- `GetAccountsMetricsCount(ctx, organizationID, ledgerID)`
-- `GetExternalAccount(ctx, organizationID, ledgerID, assetCode)`
-- `GetExternalAccountBalance(ctx, organizationID, ledgerID, assetCode)` - Convenience helper for external accounts with exactly one balance; returns not found for zero balances and a validation error when multiple balances exist. Use `BalancesService.ListBalancesByExternalCode` for full balance lists.
-- `GetAccountByAliasPath(ctx, organizationID, ledgerID, alias)` - Deprecated compatibility alias for `GetAccountByAlias`.
+- `List(ctx, organizationID, opts)`
+- `All(ctx, organizationID, opts)`
+- `Pages(ctx, organizationID, opts)`
+- `Get(ctx, organizationID, id)`
+- `Create(ctx, organizationID, input)`
+- `Update(ctx, organizationID, id, input)`
+- `GetSettings(ctx, organizationID, id)` - `GET /organizations/{organizationID}/ledgers/{ledgerID}/settings`.
+- `UpdateSettings(ctx, organizationID, id, input)` - `PATCH /organizations/{organizationID}/ledgers/{ledgerID}/settings`; allowed fields are `accounting.validateAccountType` and `accounting.validateRoutes`.
+- `Delete(ctx, organizationID, id)`
+- `Count(ctx, organizationID)`
 
-### AccountTypesService
+### Accounts
 
-- `ListAccountTypes(ctx, organizationID, ledgerID, opts)`
-- `ListAccountTypesAll(ctx, organizationID, ledgerID, opts)`
-- `ListAccountTypesPages(ctx, organizationID, ledgerID, opts)`
-- `GetAccountType(ctx, organizationID, ledgerID, id)`
-- `CreateAccountType(ctx, organizationID, ledgerID, input)`
-- `UpdateAccountType(ctx, organizationID, ledgerID, id, input)`
-- `DeleteAccountType(ctx, organizationID, ledgerID, id)`
+- `List(ctx, organizationID, ledgerID, opts)`
+- `All(ctx, organizationID, ledgerID, opts)`
+- `Pages(ctx, organizationID, ledgerID, opts)`
+- `Get(ctx, organizationID, ledgerID, id)`
+- `GetByAlias(ctx, organizationID, ledgerID, alias)`
+- `Create(ctx, organizationID, ledgerID, input)`
+- `Update(ctx, organizationID, ledgerID, id, input)`
+- `Delete(ctx, organizationID, ledgerID, id)`
+- `ListBalances(ctx, organizationID, ledgerID, accountID, opts)`
+- `ListBalancesAll(ctx, organizationID, ledgerID, accountID, opts)`
+- `ListBalancesPages(ctx, organizationID, ledgerID, accountID, opts)`
+- `ListOperations(ctx, organizationID, ledgerID, accountID, opts)`
+- `ListOperationsAll(ctx, organizationID, ledgerID, accountID, opts)`
+- `ListOperationsPages(ctx, organizationID, ledgerID, accountID, opts)`
+- `BalancesAtTimestamp(ctx, organizationID, ledgerID, accountID, timestamp)` - Point-in-time balance snapshot.
+- `Count(ctx, organizationID, ledgerID)`
 
-### AssetsService
+Account balances are listed via `Accounts.ListBalances` (and its `All` / `Pages` variants); there is no single-balance convenience getter on the `Accounts` facade. For cross-account or external-account balance queries, use the legacy `Balances` accessor (`ListAccountBalances`, `ListBalancesByExternalCode`, etc.).
 
-- `ListAssets(ctx, organizationID, ledgerID, opts)`
-- `ListAssetsAll(ctx, organizationID, ledgerID, opts)`
-- `ListAssetsPages(ctx, organizationID, ledgerID, opts)`
-- `GetAsset(ctx, organizationID, ledgerID, id)`
-- `CreateAsset(ctx, organizationID, ledgerID, input)`
-- `UpdateAsset(ctx, organizationID, ledgerID, id, input)`
-- `DeleteAsset(ctx, organizationID, ledgerID, id)`
-- `GetAssetsMetricsCount(ctx, organizationID, ledgerID)`
+### AccountTypes
 
-### AssetRatesService
+- `List(ctx, organizationID, ledgerID, opts)`
+- `All(ctx, organizationID, ledgerID, opts)`
+- `Pages(ctx, organizationID, ledgerID, opts)`
+- `Get(ctx, organizationID, ledgerID, id)`
+- `Create(ctx, organizationID, ledgerID, input)`
+- `Update(ctx, organizationID, ledgerID, id, input)`
+- `Delete(ctx, organizationID, ledgerID, id)`
+
+### Assets
+
+- `List(ctx, organizationID, ledgerID, opts)`
+- `All(ctx, organizationID, ledgerID, opts)`
+- `Pages(ctx, organizationID, ledgerID, opts)`
+- `Get(ctx, organizationID, ledgerID, id)`
+- `Create(ctx, organizationID, ledgerID, input)`
+- `Update(ctx, organizationID, ledgerID, id, input)`
+- `Delete(ctx, organizationID, ledgerID, id)`
+- `Count(ctx, organizationID, ledgerID)`
+
+### AssetRates
 
 - `CreateOrUpdateAssetRate(ctx, organizationID, ledgerID, input)`
 - `GetAssetRate(ctx, organizationID, ledgerID, externalID)`
@@ -233,27 +254,27 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v4/entities`. Consumers should pre
 - `ListBalancesByExternalCodePages(ctx, orgID, ledgerID, code, opts)`
 - `GetAccountBalancesHistory(ctx, orgID, ledgerID, accountID, date)`
 
-### PortfoliosService
+### Portfolios
 
-- `ListPortfolios(ctx, organizationID, ledgerID, opts)`
-- `ListPortfoliosAll(ctx, organizationID, ledgerID, opts)`
-- `ListPortfoliosPages(ctx, organizationID, ledgerID, opts)`
-- `GetPortfolio(ctx, organizationID, ledgerID, id)`
-- `CreatePortfolio(ctx, organizationID, ledgerID, input)`
-- `UpdatePortfolio(ctx, organizationID, ledgerID, id, input)`
-- `DeletePortfolio(ctx, organizationID, ledgerID, id)`
-- `GetPortfoliosMetricsCount(ctx, organizationID, ledgerID)`
+- `List(ctx, organizationID, ledgerID, opts)`
+- `All(ctx, organizationID, ledgerID, opts)`
+- `Pages(ctx, organizationID, ledgerID, opts)`
+- `Get(ctx, organizationID, ledgerID, id)`
+- `Create(ctx, organizationID, ledgerID, input)`
+- `Update(ctx, organizationID, ledgerID, id, input)`
+- `Delete(ctx, organizationID, ledgerID, id)`
+- `Count(ctx, organizationID, ledgerID)`
 
-### SegmentsService
+### Segments
 
-- `ListSegments(ctx, organizationID, ledgerID, opts)`
-- `ListSegmentsAll(ctx, organizationID, ledgerID, opts)`
-- `ListSegmentsPages(ctx, organizationID, ledgerID, opts)`
-- `GetSegment(ctx, organizationID, ledgerID, id)`
-- `CreateSegment(ctx, organizationID, ledgerID, input)`
-- `UpdateSegment(ctx, organizationID, ledgerID, id, input)`
-- `DeleteSegment(ctx, organizationID, ledgerID, id)`
-- `GetSegmentsMetricsCount(ctx, organizationID, ledgerID)`
+- `List(ctx, organizationID, ledgerID, opts)`
+- `All(ctx, organizationID, ledgerID, opts)`
+- `Pages(ctx, organizationID, ledgerID, opts)`
+- `Get(ctx, organizationID, ledgerID, id)`
+- `Create(ctx, organizationID, ledgerID, input)`
+- `Update(ctx, organizationID, ledgerID, id, input)`
+- `Delete(ctx, organizationID, ledgerID, id)`
+- `Count(ctx, organizationID, ledgerID)`
 
 ### OperationsService
 
@@ -263,76 +284,74 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v4/entities`. Consumers should pre
 - `GetOperation(ctx, orgID, ledgerID, accountID, operationID)`
 - `UpdateTransactionOperation(ctx, orgID, ledgerID, transactionID, operationID, input)`
 
-### OperationRoutesService
+### OperationRoutes
 
-- `ListOperationRoutes(ctx, organizationID, ledgerID, opts)`
-- `ListOperationRoutesAll(ctx, organizationID, ledgerID, opts)`
-- `ListOperationRoutesPages(ctx, organizationID, ledgerID, opts)`
-- `GetOperationRoute(ctx, organizationID, ledgerID, operationRouteID)`
-- `CreateOperationRoute(ctx, organizationID, ledgerID, input)`
-- `UpdateOperationRoute(ctx, organizationID, ledgerID, operationRouteID, input)`
-- `DeleteOperationRoute(ctx, organizationID, ledgerID, operationRouteID)`
+- `List(ctx, organizationID, ledgerID, opts)`
+- `All(ctx, organizationID, ledgerID, opts)`
+- `Pages(ctx, organizationID, ledgerID, opts)`
+- `Get(ctx, organizationID, ledgerID, operationRouteID)`
+- `Create(ctx, organizationID, ledgerID, input)`
+- `Update(ctx, organizationID, ledgerID, operationRouteID, input)`
+- `Delete(ctx, organizationID, ledgerID, operationRouteID)`
 
-### TransactionRoutesService
+### TransactionRoutes
 
-- `ListTransactionRoutes(ctx, organizationID, ledgerID, opts)`
-- `ListTransactionRoutesAll(ctx, organizationID, ledgerID, opts)`
-- `ListTransactionRoutesPages(ctx, organizationID, ledgerID, opts)`
-- `GetTransactionRoute(ctx, organizationID, ledgerID, transactionRouteID)`
-- `CreateTransactionRoute(ctx, organizationID, ledgerID, input)`
-- `UpdateTransactionRoute(ctx, organizationID, ledgerID, transactionRouteID, input)`
-- `DeleteTransactionRoute(ctx, organizationID, ledgerID, transactionRouteID)`
+- `List(ctx, organizationID, ledgerID, opts)`
+- `All(ctx, organizationID, ledgerID, opts)`
+- `Pages(ctx, organizationID, ledgerID, opts)`
+- `Get(ctx, organizationID, ledgerID, transactionRouteID)`
+- `Create(ctx, organizationID, ledgerID, input)`
+- `Update(ctx, organizationID, ledgerID, transactionRouteID, input)`
+- `Delete(ctx, organizationID, ledgerID, transactionRouteID)`
 
-### TransactionsService
+### Transactions
 
-- `CreateTransaction(ctx, orgID, ledgerID, input)`
-- `CreateTransactionWithDSL(ctx, orgID, ledgerID, input)`
-- `CreateTransactionWithDSLFile(ctx, orgID, ledgerID, dslContent)`
-- `GetTransaction(ctx, orgID, ledgerID, transactionID)`
-- `ListTransactions(ctx, orgID, ledgerID, opts)`
-- `ListTransactionsAll(ctx, orgID, ledgerID, opts)`
-- `ListTransactionsPages(ctx, orgID, ledgerID, opts)`
-- `GetTransactionsMetricsCount(ctx, orgID, ledgerID, opts)`
+- `CreateJSON(ctx, orgID, ledgerID, input)`
+- `Get(ctx, orgID, ledgerID, transactionID)`
+- `List(ctx, orgID, ledgerID, opts)`
+- `All(ctx, orgID, ledgerID, opts)`
+- `Pages(ctx, orgID, ledgerID, opts)`
+- `Count(ctx, orgID, ledgerID, opts)`
 - `UpdateTransaction(ctx, orgID, ledgerID, transactionID, input)`
-- `RevertTransaction(ctx, orgID, ledgerID, transactionID)`
-- `CommitTransaction(ctx, orgID, ledgerID, transactionID)`
-- `CancelTransaction(ctx, orgID, ledgerID, transactionID)`
-- `CancelTransactionWithResponse(ctx, orgID, ledgerID, transactionID)`
-- `CreateInflowTransaction(ctx, orgID, ledgerID, input)`
-- `CreateOutflowTransaction(ctx, orgID, ledgerID, input)`
-- `CreateAnnotationTransaction(ctx, orgID, ledgerID, input)`
+- `UpdateOperation(ctx, orgID, ledgerID, transactionID, operationID, input)`
+- `Revert(ctx, orgID, ledgerID, transactionID)`
+- `Commit(ctx, orgID, ledgerID, transactionID)`
+- `Cancel(ctx, orgID, ledgerID, transactionID)`
+- `CreateInflow(ctx, orgID, ledgerID, input)`
+- `CreateOutflow(ctx, orgID, ledgerID, input)`
+- `CreateAnnotation(ctx, orgID, ledgerID, input)`
 
-`CreateTransactionWithDSLFile` sends `POST /transactions/dsl` as multipart form data with field name `transaction`, filename `transaction.dsl`, and UTF-8 DSL content. The SDK rejects empty, invalid UTF-8, and over-limit DSL payloads before network I/O.
+Structured splits (multiple sources/destinations in one transaction) are expressed through the send-based payload passed to `CreateJSON` (multiple `Distribute.To` entries); there is no dedicated DSL endpoint on the `Transactions` facade.
 
-`ListTransactions` (and the `*All` / `*Pages` iterators) can filter by a single metadata field via `TransactionsListOpts.Filters.MetadataKey` + `MetadataValue`, rendered on the wire as `metadata.<key>=<value>`. This is the supported way to correlate a ledger transaction back to a caller's business id (e.g. a `transferId` stamped into transaction metadata at create time) — useful for lost-response recovery where the Midaz transaction id was never received. Only one metadata predicate is honored per request (not AND-combinable). Metadata keys are not indexed by default; for a hot correlation key, create the index via `MetadataIndexesService.CreateMetadataIndex(ctx, "transaction", input)` to avoid a backend collection scan at scale.
+`List` (and the `All` / `Pages` iterators) can filter by a single metadata field via `TransactionsListOpts.Filters.MetadataKey` + `MetadataValue`, rendered on the wire as `metadata.<key>=<value>`. This is the supported way to correlate a ledger transaction back to a caller's business id (e.g. a `transferId` stamped into transaction metadata at create time) — useful for lost-response recovery where the Midaz transaction id was never received. Only one metadata predicate is honored per request (not AND-combinable). Metadata keys are not indexed by default; for a hot correlation key, create the index via `MetadataIndexes.Create(ctx, "transaction", input)` to avoid a backend collection scan at scale.
 
 ### Count method behavior
 
-The supported count methods are `GetOrganizationsMetricsCount`, `GetLedgersMetricsCount`, `GetAssetsMetricsCount`, `GetPortfoliosMetricsCount`, `GetSegmentsMetricsCount`, `GetAccountsMetricsCount`, and `GetTransactionsMetricsCount`.
+The supported count is exposed as the `Count(...)` method on the `Organizations`, `Ledgers`, `Assets`, `Portfolios`, `Segments`, `Accounts`, and `Transactions` accessors.
 
 These methods call Midaz `metrics/count` endpoints with `HEAD` and read the integer count from the `X-Total-Count` response header. If the header is missing, blank, non-integer, negative, or overflowing, the SDK returns an internal count-request error.
 
-### MetadataIndexesService
+### MetadataIndexes
 
-- `ListMetadataIndexes(ctx, entityName)`
-- `CreateMetadataIndex(ctx, entityName, input)`
-- `DeleteMetadataIndex(ctx, entityName, metadataKey)`
+- `List(ctx, entityName)`
+- `Create(ctx, entityName, input)`
+- `Delete(ctx, entityName, metadataKey)`
 
-`ListMetadataIndexes` returns a non-paginated `[]models.MetadataIndex` slice. There are no `ListMetadataIndexesAll` or `ListMetadataIndexesPages` helpers because the service does not use the SDK `ListResponse` pagination envelope.
+`List` returns a non-paginated `[]models.MetadataIndex` slice. There are no `All` or `Pages` helpers because the service does not use the SDK `ListResponse` pagination envelope.
 
 ### CRM services
 
 CRM services use the CRM base URL and set the organization through the `X-Organization-Id` header. Tenant scope is derived from Access Manager/JWT claims; the SDK does not expose or send `X-Tenant-ID`.
 
-#### HoldersService
+#### Holders
 
-- `ListHolders(ctx, organizationID, opts)`
-- `ListHoldersAll(ctx, organizationID, opts)`
-- `ListHoldersPages(ctx, organizationID, opts)`
-- `CreateHolder(ctx, organizationID, input)`
-- `GetHolder(ctx, organizationID, holderID)` - Use `sdkctx.WithIncludeDeleted(ctx, true)` to include soft-deleted holders.
-- `UpdateHolder(ctx, organizationID, holderID, input)`
-- `DeleteHolder(ctx, organizationID, holderID)` - Use `sdkctx.WithHardDelete(ctx, true)` for irreversible hard delete.
+- `List(ctx, organizationID, opts)`
+- `All(ctx, organizationID, opts)`
+- `Pages(ctx, organizationID, opts)`
+- `Create(ctx, organizationID, input)`
+- `Get(ctx, organizationID, holderID)` - Use `sdkctx.WithIncludeDeleted(ctx, true)` to include soft-deleted holders.
+- `Update(ctx, organizationID, holderID, input)`
+- `Delete(ctx, organizationID, holderID)` - Use `sdkctx.WithHardDelete(ctx, true)` for irreversible hard delete.
 
 #### AliasesService
 
@@ -344,6 +363,150 @@ CRM services use the CRM base URL and set the organization through the `X-Organi
 - `UpdateAlias(ctx, organizationID, holderID, aliasID, input)`
 - `DeleteAlias(ctx, organizationID, holderID, aliasID)` - Use `sdkctx.WithHardDelete(ctx, true)` for irreversible hard delete.
 - `DeleteRelatedParty(ctx, organizationID, holderID, aliasID, relatedPartyID)`
+
+### Plane-native accessors (v4 remodel)
+
+Concrete facades added in the v4 remodel over the typed generated plane clients (`internal/gentracer` for the Tracer plane, `internal/genledger` for the ledger-plane extensions). Their public surface is exactly `models.*` + `*errors.Error`; the generated types never leak. Tracer-plane accessors (`Rules`, `Limits`, `Validations`, `Reservations`, `AuditEvents`) are flat — they are not scoped by organization/ledger path segments. The ledger-plane accessors carry organization (and where noted, ledger/holder) path scope.
+
+#### Rules
+
+Tracer plane. Rule definitions and their lifecycle.
+
+- `Create(ctx, input)`
+- `Get(ctx, id)`
+- `Update(ctx, id, input)`
+- `Delete(ctx, id)`
+- `Activate(ctx, id)`
+- `Deactivate(ctx, id)`
+- `Draft(ctx, id)`
+- `List(ctx, opts)`
+- `ListPages(ctx, opts)`
+- `ListAll(ctx, opts)`
+
+#### Limits
+
+Tracer plane. Limit definitions, their lifecycle, and point-in-time usage.
+
+- `Create(ctx, input)`
+- `Get(ctx, id)`
+- `Update(ctx, id, input)`
+- `Delete(ctx, id)`
+- `Activate(ctx, id)`
+- `Deactivate(ctx, id)`
+- `Draft(ctx, id)`
+- `GetUsage(ctx, id)`
+- `List(ctx, opts)`
+- `ListPages(ctx, opts)`
+- `ListAll(ctx, opts)`
+
+#### Validations
+
+Tracer plane. Evaluate a transaction against the active rules/limits and read stored verdicts.
+
+- `Evaluate(ctx, input)`
+- `Get(ctx, id)`
+- `List(ctx, opts)`
+- `ListPages(ctx, opts)`
+- `ListAll(ctx, opts)`
+
+#### Reservations
+
+Tracer plane. Two-phase capacity reservations, by reservation id or by transaction.
+
+- `Reserve(ctx, input)`
+- `Confirm(ctx, id)`
+- `Release(ctx, id)`
+- `ConfirmByTransaction(ctx, transactionID)`
+- `ReleaseByTransaction(ctx, transactionID)`
+
+#### AuditEvents
+
+Tracer plane. Read-only audit trail with a server-side hash-chain verdict (the SDK performs no crypto).
+
+- `List(ctx, opts)`
+- `ListPages(ctx, opts)`
+- `ListAll(ctx, opts)`
+- `Get(ctx, id)`
+- `Verify(ctx, id)`
+
+#### ProtectionAudit
+
+Ledger plane. Protection (envelope-encryption) audit trail. A `404` means the feature is disabled for the deployment (legacy mode), distinct from an empty result set.
+
+- `ListAuditEvents(ctx, organizationID, opts)`
+- `ListAuditEventsPages(ctx, organizationID, opts)`
+- `ListAuditEventsAll(ctx, organizationID, opts)`
+
+#### Encryption
+
+Ledger plane. Envelope-encryption provisioning. A `404` means the feature is disabled for the deployment (use `errors.IsFeatureNotAvailable`), distinct from a `provisioned:false` 200.
+
+- `Provision(ctx, organizationID, input)`
+- `GetProvisioningStatus(ctx, organizationID)`
+
+#### Instruments
+
+Ledger plane. CRM instruments under a holder, plus the holder's accounts.
+
+- `List(ctx, organizationID, holderID, opts)`
+- `ListPages(ctx, organizationID, holderID, opts)`
+- `ListAll(ctx, organizationID, holderID, opts)`
+- `Create(ctx, organizationID, holderID, input)`
+- `Get(ctx, organizationID, holderID, id)` - Use `sdkctx.WithIncludeDeleted(ctx, true)` to include soft-deleted instruments.
+- `Update(ctx, organizationID, holderID, id, input)`
+- `Delete(ctx, organizationID, holderID, id)` - Use `sdkctx.WithHardDelete(ctx, true)` for irreversible hard delete.
+- `DeleteRelatedParty(ctx, organizationID, holderID, instrumentID, relatedPartyID)`
+- `ListAccountsByHolder(ctx, organizationID, holderID, opts)`
+- `ListAccountsByHolderPages(ctx, organizationID, holderID, opts)`
+- `ListAccountsByHolderAll(ctx, organizationID, holderID, opts)`
+
+#### Composition
+
+Ledger plane. Opens a holder-owned account and, when instrument fields are present, its instrument in one call. A populated `InstrumentError` on a 2xx response means the account committed but the instrument write failed (no rollback) — that is a success, not an error.
+
+- `CreateHolderAccount(ctx, organizationID, ledgerID, holderID, input)`
+
+#### FeePackages
+
+Ledger plane, organization-scoped, page-mode paginated (`Pages` advances `Page++` and stops on `!HasMore()`).
+
+- `List(ctx, organizationID, opts)`
+- `Pages(ctx, organizationID, opts)`
+- `All(ctx, organizationID, opts)`
+- `Create(ctx, organizationID, input)`
+- `Get(ctx, organizationID, id)`
+- `Update(ctx, organizationID, id, input)`
+- `Delete(ctx, organizationID, id)`
+
+#### FeeEstimates
+
+Ledger plane, organization-scoped. Dry-run fee estimation; a 2xx with `feesApplied:null` (no rules matched) is a success, not an error.
+
+- `EstimateFee(ctx, organizationID, input)`
+
+#### BillingPackages
+
+Ledger plane, organization-scoped, page-mode paginated (`ListPages` advances `Page++` and stops on `!HasMore()`).
+
+- `List(ctx, organizationID, opts)`
+- `ListPages(ctx, organizationID, opts)`
+- `ListAll(ctx, organizationID, opts)`
+- `Create(ctx, organizationID, input)`
+- `Get(ctx, organizationID, id)`
+- `Update(ctx, organizationID, id, input)`
+- `Delete(ctx, organizationID, id)`
+
+#### BillingCalculations
+
+Ledger plane, organization-scoped. Period billing calculation; a 2xx with empty results (no packages matched) is a success, not an error.
+
+- `CalculateBilling(ctx, organizationID, input)`
+
+## Transaction helpers package
+
+Use `github.com/LerianStudio/midaz-sdk-golang/v4/pkg/transaction` for post-create settlement waits.
+
+- `transaction.WaitForSettlement(ctx, r, orgID, ledgerID, accountID, settled, opts...)` - Polls an account's balances via `r.ListAccountBalances` (satisfied structurally by `client.Balances`) until the caller-supplied `settled func(models.Balance) bool` predicate matches, then returns that `Balance`. An accepted transaction (HTTP 201) is NOT settled — 201 records the create; this waits on the balance effect. The predicate must pin the asset on a multi-asset account. Options: `transaction.WithPollInterval` (default 500ms), `transaction.WithMaxInterval` (default 5s), `transaction.WithTimeout` (default 30s). Returns `transaction.ErrSettlementTimeout` on deadline, or the caller's `ctx.Err()` on cancellation.
 
 ## Models package
 
@@ -430,6 +593,9 @@ Each per-entity opts struct exposes:
 - `models.NewUpdateHolderInput()` with field setters and `WithNullFields` / `WithNullField` for explicit JSON null removals. Empty holder updates are rejected by the SDK.
 - `models.NewCreateAliasInput(ledgerID, accountID)` with `WithMetadata`, `WithBankingDetails`, `WithRegulatoryFields`, and `WithRelatedParties`.
 - `models.NewUpdateAliasInput()` with field setters and `WithNullFields` for explicit JSON null removals. Repeated `WithRelatedParties` calls replace the in-builder related-party list; empty alias updates are rejected by the SDK.
+- `models.NewFeeEstimateInput(packageID, ledgerID, send)` with `WithChartOfAccountsGroupName`, `WithDescription`, `WithCode`, `WithPending`, and `WithMetadata`. Feeds `FeeEstimates.EstimateFee`.
+- `models.NewBillingCalculateInput(ledgerID, period)` with `WithType` (empty calculates all billing types). Feeds `BillingCalculations.CalculateBilling`.
+- `models.NewCreateHolderAccountInput(assetCode, accountType)` with account setters (`WithName`, `WithParentAccountID`, `WithEntityID`, `WithPortfolioID`, `WithSegmentID`, `WithStatus`, `WithAlias`, `WithMetadata`) and instrument setters (`WithBankingDetails`, `WithRegulatoryFields`, `WithRelatedParties`). An instrument is written if and only if any instrument setter is used. Feeds `Composition.CreateHolderAccount`.
 
 ## Errors package
 
@@ -439,6 +605,7 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors`.
 - Sentinel errors: `ErrValidation`, `ErrAuthentication`, `ErrPermission`, `ErrAuth`, `ErrNotFound`, `ErrAlreadyExists`, `ErrIdempotency`, `ErrRateLimit`, `ErrTimeout`, `ErrCancellation`, `ErrInternal`, `ErrUnprocessable`, `ErrConfiguration`, `ErrInsufficientBalance`, `ErrAccountEligibility`, `ErrAssetMismatch`.
 - Checkers: `IsValidationError`, `IsNotFoundError`, `IsAuthenticationError`, `IsAuthorizationError`, `IsAuthError`, `IsConfigurationError`, `IsBootstrapError`, `IsConflictError`, `IsRateLimitError`, `IsTimeoutError`, `IsNetworkError`, `IsCancellationError`, `IsInternalError`, `IsInsufficientBalanceError`, `IsAccountEligibilityError`, `IsAssetMismatchError`, `IsIdempotencyError`, `IsUnprocessableError`. (v3 — `IsPermissionError` and `IsAlreadyExistsError` were retired; use `IsAuthorizationError` and `IsConflictError` respectively.)
 - Accessors: `GetErrorCategory`, `GetStatusCode`, `GetErrorCode`, `GetErrorDetails`, `GetTransactionErrorContext`, `(*Error).GetUpstreamBody`, `(*Error).IsUpstreamBodyTruncated`, `(*Error).GetUpstreamBodyOriginalBytes`.
+- v4 plane predicates (added with the plane-native accessors): `IsSkipNotPermitted`, `IsHolderRequired`, `IsHolderNotFound`, `IsFeeError`, and `IsFeatureNotAvailable` (a `404` from `Encryption` / `ProtectionAudit` meaning the feature is disabled for the deployment, distinct from a generic not-found).
 - Constructors: `NewValidationError`, `NewInvalidInputError`, `NewMissingParameterError`, `NewNotFoundError`, `NewAuthenticationError`, `NewAuthorizationError`, `NewConflictError`, `NewRateLimitError`, `NewTimeoutError`, `NewCancellationError`, `NewNetworkError`, `NewUpstreamHTTPError`, `NewInternalError`, `NewConfigurationError`, `NewUnprocessableError`, `NewInsufficientBalanceError`, `NewAssetMismatchError`, `NewAccountEligibilityError`.
 - Midaz wire errors may include `code`, `title`, `message`, `entityType`, and `fields`; CRM errors may include `err`. The SDK preserves expanded envelope data on `Error.APICode`, `Error.Title`, `Error.EntityType`, `Error.Fields`, and `Error.Details` when available. Received upstream 4xx/5xx responses attach raw, unredacted, truncated body text on `Error.UpstreamBody` only when error body exposure is explicitly enabled.
 

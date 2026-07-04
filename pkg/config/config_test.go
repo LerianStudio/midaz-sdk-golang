@@ -73,24 +73,16 @@ func TestDefaultConstants(t *testing.T) {
 func TestServiceTypeConstants(t *testing.T) {
 	assert.Equal(t, ServiceOnboarding, ServiceType("onboarding"))
 	assert.Equal(t, ServiceTransaction, ServiceType("transaction"))
-	assert.Equal(t, ServiceCRM, ServiceType("crm"))
+	assert.Equal(t, ServiceTracer, ServiceType("tracer"))
 }
 
-func TestWithCRMURL(t *testing.T) {
-	cfg := DefaultConfig()
-	err := WithCRMURL("https://crm.example.com/v1")(cfg)
-
-	require.NoError(t, err)
-	assert.Equal(t, "https://crm.example.com/v1", cfg.ServiceURLs[ServiceCRM])
-}
-
-func TestConfigureURLsReadsCRMURL(t *testing.T) {
-	t.Setenv("MIDAZ_CRM_URL", "https://crm.example.com/v1")
+func TestConfigureURLsReadsTracerURL(t *testing.T) {
+	t.Setenv("MIDAZ_TRACER_URL", "https://tracer.example.com/v1")
 
 	cfg := DefaultConfig()
 	require.NoError(t, configureURLs(cfg))
 
-	assert.Equal(t, "https://crm.example.com/v1", cfg.ServiceURLs[ServiceCRM])
+	assert.Equal(t, "https://tracer.example.com/v1", cfg.ServiceURLs[ServiceTracer])
 }
 
 func TestEnvironmentConstants(t *testing.T) {
@@ -743,6 +735,62 @@ func TestValidateConfig_AuthCheckSkipped(t *testing.T) {
 	assert.True(t, config.AccessManager.Enabled)
 }
 
+func TestFromEnvironment_TwoPlanes(t *testing.T) {
+	t.Setenv("MIDAZ_LEDGER_URL", "https://ledger.example.com/v1")
+	t.Setenv("MIDAZ_TRACER_URL", "https://tracer.example.com/v1")
+
+	config, err := NewConfig(FromEnvironment(), WithAnonymous())
+	require.NoError(t, err)
+
+	// Ledger plane feeds both onboarding and transaction internal routes.
+	assert.Equal(t, "https://ledger.example.com/v1", config.LedgerURL)
+	assert.Equal(t, "https://ledger.example.com/v1", config.ServiceURLs[ServiceOnboarding])
+	assert.Equal(t, "https://ledger.example.com/v1", config.ServiceURLs[ServiceTransaction])
+
+	// Tracer plane is its own explicit URL.
+	assert.Equal(t, "https://tracer.example.com/v1", config.TracerURL)
+	assert.Equal(t, "https://tracer.example.com/v1", config.ServiceURLs[ServiceTracer])
+
+	// No X-API-Key configured: tracer shares the ledger Bearer (empty key).
+	assert.Empty(t, config.TracerAPIKey)
+}
+
+func TestFromEnvironment_TracerAPIKey(t *testing.T) {
+	t.Setenv("MIDAZ_LEDGER_URL", "https://ledger.example.com/v1")
+	t.Setenv("MIDAZ_TRACER_URL", "https://tracer.example.com/v1")
+	t.Setenv("MIDAZ_TRACER_API_KEY", "trk-secret")
+
+	config, err := NewConfig(FromEnvironment(), WithAnonymous())
+	require.NoError(t, err)
+
+	assert.Equal(t, "trk-secret", config.TracerAPIKey)
+}
+
+func TestWithTracerURL(t *testing.T) {
+	cfg := DefaultConfig()
+	require.NoError(t, WithTracerURL("https://tracer.example.com/v1")(cfg))
+
+	assert.Equal(t, "https://tracer.example.com/v1", cfg.TracerURL)
+	assert.Equal(t, "https://tracer.example.com/v1", cfg.ServiceURLs[ServiceTracer])
+}
+
+func TestWithTracerAPIKey(t *testing.T) {
+	cfg := DefaultConfig()
+	require.NoError(t, WithTracerAPIKey("trk-secret")(cfg))
+
+	assert.Equal(t, "trk-secret", cfg.TracerAPIKey)
+}
+
+func TestWithBaseURL_FansOutToBothPlanes(t *testing.T) {
+	cfg, err := NewConfig(WithBaseURL("https://api.example.com"), WithAnonymous())
+	require.NoError(t, err)
+
+	// A single base URL seeds both the ledger and tracer planes under /v1.
+	assert.Equal(t, "https://api.example.com/v1", cfg.ServiceURLs[ServiceOnboarding])
+	assert.Equal(t, "https://api.example.com/v1", cfg.ServiceURLs[ServiceTransaction])
+	assert.Equal(t, "https://api.example.com/v1", cfg.ServiceURLs[ServiceTracer])
+}
+
 func TestFromEnvironment_AllVariables(t *testing.T) {
 	t.Setenv("MIDAZ_ENVIRONMENT", "development")
 	t.Setenv("PLUGIN_AUTH_ENABLED", "true")
@@ -1285,25 +1333,25 @@ func TestWithAllowInsecureHTTP_LedgerURL(t *testing.T) {
 	})
 }
 
-// TestWithAllowInsecureHTTP_CRMURL mirrors the LedgerURL coverage on
-// the CRM URL path so both setters are pinned.
-func TestWithAllowInsecureHTTP_CRMURL(t *testing.T) {
-	const crmURL = "http://midaz-crm.midaz-mt.svc.cluster.local:4003"
+// TestWithAllowInsecureHTTP_TracerURL mirrors the LedgerURL coverage on
+// the Tracer URL path so both plane setters are pinned.
+func TestWithAllowInsecureHTTP_TracerURL(t *testing.T) {
+	const tracerURL = "http://midaz-tracer.midaz-mt.svc.cluster.local:4020"
 
 	cfg, err := NewConfig(
 		disableAuthCheck(t),
 		WithEnvironment(EnvironmentDevelopment),
 		WithAllowInsecureHTTP(true),
 		WithLedgerURL("http://midaz-ledger.midaz-mt.svc.cluster.local:3000"),
-		WithCRMURL(crmURL),
+		WithTracerURL(tracerURL),
 	)
 	require.NoError(t, err)
 	assert.True(t, cfg.AllowInsecureHTTP)
-	assert.Equal(t, crmURL, cfg.ServiceURLs[ServiceCRM])
+	assert.Equal(t, tracerURL, cfg.ServiceURLs[ServiceTracer])
 }
 
 // TestWithAllowInsecureHTTP_BaseURL covers WithBaseURL, which fans out
-// to all ServiceURLs via buildLedgerServiceURL / buildCRMServiceURL —
+// to both planes via buildLedgerServiceURL / buildTracerServiceURL —
 // each of those internally parses the same base URL.
 func TestWithAllowInsecureHTTP_BaseURL(t *testing.T) {
 	const baseURL = "http://midaz-api.midaz-mt.svc.cluster.local:3000"
@@ -1317,7 +1365,7 @@ func TestWithAllowInsecureHTTP_BaseURL(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, cfg.AllowInsecureHTTP)
 	assert.NotEmpty(t, cfg.ServiceURLs[ServiceOnboarding])
-	assert.NotEmpty(t, cfg.ServiceURLs[ServiceCRM])
+	assert.NotEmpty(t, cfg.ServiceURLs[ServiceTracer])
 }
 
 // TestValidateConfig_RejectsInsecureHTTPInProduction mirrors the

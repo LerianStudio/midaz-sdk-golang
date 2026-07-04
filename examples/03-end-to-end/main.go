@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v4"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/entities"
 	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config"
 	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/observability"
@@ -51,48 +50,41 @@ func main() {
 	fmt.Printf("Created transaction: %q\n", tx.ID)
 }
 
-// createDSLTransaction demonstrates creating a transaction using the DSL format
-// This function only uses the public SDK API, with no reference to internal
-// implementation details.
-func createDSLTransaction(ctx context.Context, txService entities.TransactionsService) (*models.Transaction, error) {
-	// Create a DSL transaction input
-	input := &models.TransactionDSLInput{
+// transactionCreator is the narrow slice of the transactions accessor this
+// example needs. Accepting a small consumer-side interface (rather than naming
+// the concrete, unexported facade) is the idiomatic v4 pattern and keeps the
+// helper trivially mockable.
+type transactionCreator interface {
+	CreateJSON(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionInput) (*models.Transaction, error)
+}
+
+// createDSLTransaction demonstrates creating a transaction with the structured
+// input posted to /transactions/json. This function only uses the public SDK
+// API, with no reference to internal implementation details.
+func createDSLTransaction(ctx context.Context, txService transactionCreator) (*models.Transaction, error) {
+	input := &models.CreateTransactionInput{
 		Description: "Test DSL Transaction",
 		Metadata: map[string]any{
 			"source": "sdk-example",
 			"time":   time.Now().Format(time.RFC3339),
 		},
-		Send: &models.DSLSend{
+		Send: &models.SendInput{
 			Asset: "USD",
-			Value: 100.00, // $100.00
-			Source: &models.DSLSource{
-				From: []models.DSLFromTo{
-					{
-						Account: "account123",
-						Amount: &models.DSLAmount{
-							Asset: "USD",
-							Value: 100.00, // $100.00
-						},
-					},
+			Value: "100",
+			Source: &models.SourceInput{
+				From: []models.FromToInput{
+					{Account: "account123", Amount: models.AmountInput{Asset: "USD", Value: "100"}},
 				},
 			},
-			Distribute: &models.DSLDistribute{
-				To: []models.DSLFromTo{
-					{
-						Account: "account456",
-						Amount: &models.DSLAmount{
-							Asset: "USD",
-							Value: 100.00, // $100.00
-						},
-					},
+			Distribute: &models.DistributeInput{
+				To: []models.FromToInput{
+					{Account: "account456", Amount: models.AmountInput{Asset: "USD", Value: "100"}},
 				},
 			},
 		},
 	}
 
-	// Create the transaction
-	// Note that the SDK handles all internal conversion behind the scenes
-	return txService.CreateTransactionWithDSL(ctx, "org123", "ledger456", input)
+	return txService.CreateJSON(ctx, "org123", "ledger456", input)
 }
 
 // This example demonstrates that users of the SDK never need to know about

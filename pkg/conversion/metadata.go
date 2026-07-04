@@ -72,7 +72,7 @@ func ConvertMetadataToTags(metadata map[string]any) []string {
 // Example:
 //
 //	// Adding tags to a transaction
-//	txInput := &models.TransactionDSLInput{
+//	txInput := &models.CreateTransactionInput{
 //	    Description: "Monthly subscription payment",
 //	    Metadata: map[string]any{
 //	        "reference": "INV-123",

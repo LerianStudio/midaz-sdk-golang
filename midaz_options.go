@@ -36,7 +36,7 @@ func (c *Client) markConfigMutated() {
 //
 // See also:
 //   - [WithEnvironment] — preferred for production stacks.
-//   - [WithLedgerURL], [WithCRMURL] — per-service overrides.
+//   - [WithLedgerURL], [WithTracerURL] — per-plane overrides.
 func WithBaseURL(baseURL string) Option {
 	return func(c *Client) error {
 		// Validate URL
@@ -153,6 +153,20 @@ func validateRetryOptions(opts ...retry.Option) error {
 
 // WithCustomRetryPolicy sets a custom retry policy for the client.
 // This allows for more fine-grained control over when to retry requests.
+//
+// The policy is SUBSTITUTIVE, not additive: once set, it fully decides
+// retryability on a failed response (status >= 400) or a transport error, and
+// the default retryable-status set is IGNORED. Returning false suppresses the
+// retry even for a status the default policy would retry (e.g. a 503) — the
+// intended "don't replay, I can't tell if the write landed" escape hatch. A
+// 2xx is never passed to the policy and is never retried.
+//
+// Layer note: on the two-plane path the policy runs at the transport layer,
+// BELOW the facade's error parsing. So the error argument carries only the HTTP
+// status (via a StatusCode() int method) on a >=400 response, or the raw
+// transport error — not the fully parsed *pkg/errors.Error the legacy
+// per-service path passes. Key your policy off the *http.Response (available on
+// both paths) rather than the error's concrete type.
 //
 // Parameters:
 //   - shouldRetry: A function that decides whether to retry a request based on response and error
@@ -486,17 +500,46 @@ func WithLedgerURL(ledgerURL string) Option {
 	}
 }
 
-// WithCRMURL sets the URL for the CRM API.
+// WithTracerURL sets the URL for the Tracer plane — the second of the two
+// consolidated server planes (Ledger being the first).
+//
 // Two-layer surface: this is the user-facing wrapper. It delegates to
-// [github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config.WithCRMURL], which most
+// [github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config.WithTracerURL], which most
 // callers should not invoke directly. Prefer this option when constructing the
 // client via [New].
 //
 // This overrides any URL derived from the Environment setting.
-func WithCRMURL(crmURL string) Option {
+//
+// Parameters:
+//   - tracerURL: The URL for the Tracer plane
+//
+// Returns:
+//   - Option: A function that sets the Tracer URL on the Client
+func WithTracerURL(tracerURL string) Option {
 	return func(c *Client) error {
 		c.markConfigMutated()
-		return config.WithCRMURL(crmURL)(c.config)
+		return config.WithTracerURL(tracerURL)(c.config)
+	}
+}
+
+// WithTracerAPIKey configures the Tracer plane to authenticate with an
+// "X-API-Key" header carrying the supplied value, instead of sharing the
+// Ledger's Access Manager Bearer token. When absent (the default), the Tracer
+// plane reuses the same Bearer token as the Ledger.
+//
+// Two-layer surface: this is the user-facing wrapper. It delegates to
+// [github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config.WithTracerAPIKey],
+// which most callers should not invoke directly.
+//
+// Parameters:
+//   - apiKey: The X-API-Key value for the Tracer plane. Empty is a no-op.
+//
+// Returns:
+//   - Option: A function that sets the Tracer API key on the Client
+func WithTracerAPIKey(apiKey string) Option {
+	return func(c *Client) error {
+		c.markConfigMutated()
+		return config.WithTracerAPIKey(apiKey)(c.config)
 	}
 }
 
@@ -684,10 +727,10 @@ func WithAllowInsecureAccessManagerHTTP(allow bool) Option {
 	}
 }
 
-// WithAllowInsecureHTTP opts the configured Ledger and CRM service URLs
+// WithAllowInsecureHTTP opts the configured Ledger and Tracer plane URLs
 // out of the SDK's "http:// only for localhost" gate. DEFAULT IS FALSE
 // (strict). Set this for the canonical Kubernetes cluster-internal
-// pattern where the SDK reaches midaz-ledger / midaz-crm via Service DNS
+// pattern where the SDK reaches midaz-ledger / midaz-tracer via Service DNS
 // (e.g. http://midaz-ledger.midaz-mt.svc.cluster.local:3000) over a
 // service-mesh-protected network. Also valid for dev/test deployments
 // behind a controlled network boundary.
@@ -704,7 +747,7 @@ func WithAllowInsecureAccessManagerHTTP(allow bool) Option {
 // ([pkg/security.ValidateOutboundRequestWithInsecureHTTP]).
 //
 // ORDERING NOTE: this option mutates a flag read by [WithLedgerURL],
-// [WithCRMURL], and [WithBaseURL] when those options run. Apply
+// [WithTracerURL], and [WithBaseURL] when those options run. Apply
 // WithAllowInsecureHTTP BEFORE the URL setters in your option chain:
 //
 //	client, err := midaz.New(
@@ -713,7 +756,7 @@ func WithAllowInsecureAccessManagerHTTP(allow bool) Option {
 //	    midaz.WithAccessManager(am),
 //	)
 //
-// Env-loaded callers (MIDAZ_LEDGER_URL / MIDAZ_CRM_URL / MIDAZ_BASE_URL via
+// Env-loaded callers (MIDAZ_LEDGER_URL / MIDAZ_TRACER_URL / MIDAZ_BASE_URL via
 // FromEnvironment) get the right ordering automatically — FromEnvironment
 // loads MIDAZ_ALLOW_INSECURE_HTTP before processing URLs.
 //
@@ -725,13 +768,13 @@ func WithAllowInsecureAccessManagerHTTP(allow bool) Option {
 // Manager and the Ledger live behind the cluster mesh.
 //
 // Parameters:
-//   - allow: Whether to permit plain http:// for non-loopback Ledger/CRM hosts.
+//   - allow: Whether to permit plain http:// for non-loopback Ledger/Tracer hosts.
 //
 // Returns:
 //   - Option: A function that wires the flag onto the underlying Config.
 //
 // See also:
-//   - [WithLedgerURL], [WithCRMURL], [WithBaseURL] — URL setters this flag relaxes.
+//   - [WithLedgerURL], [WithTracerURL], [WithBaseURL] — URL setters this flag relaxes.
 //   - [WithAllowInsecureAccessManagerHTTP] — the auth-plane equivalent.
 func WithAllowInsecureHTTP(allow bool) Option {
 	return func(c *Client) error {

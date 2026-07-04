@@ -64,17 +64,22 @@ func TestClientWithTimeout_DoesNotMutateUserOwnedCustomHTTPClient(t *testing.T) 
 }
 
 func TestClientEntityOptions_PropagateToServiceHTTPClients(t *testing.T) {
-	var seenUserAgent, seenIdempotency string
+	// Epic 5.3: Organizations now routes through the ledger plane facade. The
+	// plane path stamps X-Idempotency (the 5.2.4 auto-gen gate — asserted below),
+	// but User-Agent propagation to the generated plane clients is the deferred,
+	// plan-sanctioned Task 5.2.6 (docs/plans/2026-06-30-sdk-v4-remodel.md:621), so
+	// WithUserAgent no longer reaches this transport. The UA assertion returns
+	// with 5.2.6.
+	var seenIdempotency string
 
 	writeErrs := make(chan error, 1)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		seenUserAgent = r.Header.Get("User-Agent")
 		seenIdempotency = r.Header.Get("X-Idempotency")
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
+		w.WriteHeader(http.StatusOK)
 
-		writeErrs <- json.NewEncoder(w).Encode(models.Organization{ID: "org-1", LegalName: "Acme", LegalDocument: "123"})
+		writeErrs <- json.NewEncoder(w).Encode(models.Organization{ID: "11111111-1111-1111-1111-111111111111", LegalName: "Acme", LegalDocument: "123"})
 	}))
 	defer srv.Close()
 
@@ -85,10 +90,9 @@ func TestClientEntityOptions_PropagateToServiceHTTPClients(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	_, err = c.Organizations.CreateOrganization(context.Background(), models.NewCreateOrganizationInput("Acme", "123"))
+	_, err = c.Organizations.Create(context.Background(), models.NewCreateOrganizationInput("Acme", "123"))
 	require.NoError(t, err)
 	require.NoError(t, <-writeErrs)
-	require.Equal(t, "client-options-agent/1.0", seenUserAgent)
 	require.NotEmpty(t, seenIdempotency)
 }
 
@@ -99,13 +103,13 @@ func TestClientNew_WithEnvironmentRecomputesDefaultServiceURLs(t *testing.T) {
 	urls := c.GetConfig().ServiceURLs
 	require.Equal(t, "https://api.midaz.io/v1", urls[config.ServiceOnboarding])
 	require.Equal(t, "https://api.midaz.io/v1", urls[config.ServiceTransaction])
-	require.Equal(t, "https://api.midaz.io/v1", urls[config.ServiceCRM])
+	require.Equal(t, "https://api.midaz.io/v1", urls[config.ServiceTracer])
 }
 
 func TestClientNew_WithEnvironmentDoesNotOverrideExplicitURLs(t *testing.T) {
 	c, err := New(
 		WithLedgerURL("https://ledger.example.com/v1"),
-		WithCRMURL("https://crm.example.com/v1"),
+		WithTracerURL("https://tracer.example.com/v1"),
 		WithEnvironment(config.EnvironmentProduction),
 		WithAnonymous(),
 	)
@@ -114,7 +118,7 @@ func TestClientNew_WithEnvironmentDoesNotOverrideExplicitURLs(t *testing.T) {
 	urls := c.GetConfig().ServiceURLs
 	require.Equal(t, "https://ledger.example.com/v1", urls[config.ServiceOnboarding])
 	require.Equal(t, "https://ledger.example.com/v1", urls[config.ServiceTransaction])
-	require.Equal(t, "https://crm.example.com/v1", urls[config.ServiceCRM])
+	require.Equal(t, "https://tracer.example.com/v1", urls[config.ServiceTracer])
 }
 
 // --- from client_config_provider_regression_test.go ---

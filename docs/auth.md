@@ -103,6 +103,22 @@ The SDK emits no `Authorization` header in this mode. Treat this as a caller-own
 
 The HTTP client otherwise behaves identically — retries, idempotency, slow-call logging, and observability all work.
 
+## Tracer plane authentication
+
+The two paths above choose credentials for `midaz.New` as a whole. Within that, the Tracer plane has an independent per-plane override.
+
+By default the Tracer plane shares the Ledger's Access Manager Bearer token (or sends no `Authorization` header in anonymous mode). Setting `midaz.WithTracerAPIKey(...)`, or the `MIDAZ_TRACER_API_KEY` environment variable, makes Tracer-plane calls authenticate with an `X-API-Key` header carrying that value instead of the shared Bearer token:
+
+```go
+c, err := midaz.New(
+    midaz.WithEnvironment(midaz.EnvironmentProduction),
+    midaz.WithAccessManager(midaz.AccessManager{ /* ... */ }),
+    midaz.WithTracerAPIKey(os.Getenv("MIDAZ_TRACER_API_KEY")),
+)
+```
+
+This is a per-plane override, not a third construction-time auth gate: it does not satisfy the auth-required gate on its own, and an empty key is a no-op that leaves the Tracer plane on the shared Bearer token.
+
 ## Retry and idempotency boundaries
 
 The SDK sends only `X-Idempotency`; it does not send `Idempotency-Key`. The Midaz server contract currently accepts `X-Idempotency`.

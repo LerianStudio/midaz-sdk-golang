@@ -26,31 +26,85 @@ type Ledger struct {
 	Settings       *LedgerSettings `json:"settings,omitempty"`
 }
 
-// LedgerSettings is the SDK-native ledger settings response type.
+// LedgerSettings is the SDK-native ledger settings response type. It mirrors the
+// generated tri-block wire shape: accounting validation, transaction-level
+// override policy, and tracer behavior. All blocks are required (non-pointer).
 type LedgerSettings struct {
 	Accounting AccountingValidation `json:"accounting"`
+	Overrides  OverridePolicy       `json:"overrides"`
+	Tracer     TracerSettings       `json:"tracer"`
 }
 
 // AccountingValidation is the accounting-related validation settings struct.
 type AccountingValidation struct {
+	RequireHolder       bool `json:"requireHolder"`
 	ValidateAccountType bool `json:"validateAccountType"`
 	ValidateRoutes      bool `json:"validateRoutes"`
 }
 
+// OverridePolicy gates which transaction-level skips a ledger permits.
+type OverridePolicy struct {
+	AllowFeeSkip    bool `json:"allowFeeSkip"`
+	AllowHolderSkip bool `json:"allowHolderSkip"`
+	AllowTracerSkip bool `json:"allowTracerSkip"`
+}
+
+// TracerSettings configures the ledger's tracer failure posture, mode, and
+// timeout.
+type TracerSettings struct {
+	FailPosture string `json:"failPosture"`
+	Mode        string `json:"mode"`
+	TimeoutMs   int64  `json:"timeoutMs"`
+}
+
 // UpdateLedgerSettingsAccountingInput is the partial accounting settings payload.
 type UpdateLedgerSettingsAccountingInput struct {
+	RequireHolder       *bool `json:"requireHolder,omitempty"`
 	ValidateAccountType *bool `json:"validateAccountType,omitempty"`
 	ValidateRoutes      *bool `json:"validateRoutes,omitempty"`
 }
 
-// UpdateLedgerSettingsInput is the partial ledger settings patch payload.
+// UpdateLedgerSettingsOverridesInput is the partial override-policy payload.
+type UpdateLedgerSettingsOverridesInput struct {
+	AllowFeeSkip    *bool `json:"allowFeeSkip,omitempty"`
+	AllowHolderSkip *bool `json:"allowHolderSkip,omitempty"`
+	AllowTracerSkip *bool `json:"allowTracerSkip,omitempty"`
+}
+
+// UpdateLedgerSettingsTracerInput is the partial tracer-settings payload.
+type UpdateLedgerSettingsTracerInput struct {
+	FailPosture *string `json:"failPosture,omitempty"`
+	Mode        *string `json:"mode,omitempty"`
+	TimeoutMs   *int64  `json:"timeoutMs,omitempty"`
+}
+
+// UpdateLedgerSettingsInput is the partial ledger settings patch payload. It
+// carries the three settings blocks; each is omitted from the wire body until a
+// setter touches it.
 type UpdateLedgerSettingsInput struct {
 	Accounting *UpdateLedgerSettingsAccountingInput `json:"accounting,omitempty"`
+	Overrides  *UpdateLedgerSettingsOverridesInput  `json:"overrides,omitempty"`
+	Tracer     *UpdateLedgerSettingsTracerInput     `json:"tracer,omitempty"`
 }
 
 // NewUpdateLedgerSettingsInput creates a new empty ledger settings patch.
 func NewUpdateLedgerSettingsInput() *UpdateLedgerSettingsInput {
 	return &UpdateLedgerSettingsInput{}
+}
+
+// WithRequireHolder sets the requireHolder accounting flag.
+func (input *UpdateLedgerSettingsInput) WithRequireHolder(enabled bool) *UpdateLedgerSettingsInput {
+	if input == nil {
+		return nil
+	}
+
+	if input.Accounting == nil {
+		input.Accounting = &UpdateLedgerSettingsAccountingInput{}
+	}
+
+	input.Accounting.RequireHolder = &enabled
+
+	return input
 }
 
 // WithValidateAccountType sets the validateAccountType accounting flag.
@@ -83,14 +137,121 @@ func (input *UpdateLedgerSettingsInput) WithValidateRoutes(enabled bool) *Update
 	return input
 }
 
+// WithAllowFeeSkip sets the allowFeeSkip override flag.
+func (input *UpdateLedgerSettingsInput) WithAllowFeeSkip(enabled bool) *UpdateLedgerSettingsInput {
+	if input == nil {
+		return nil
+	}
+
+	if input.Overrides == nil {
+		input.Overrides = &UpdateLedgerSettingsOverridesInput{}
+	}
+
+	input.Overrides.AllowFeeSkip = &enabled
+
+	return input
+}
+
+// WithAllowHolderSkip sets the allowHolderSkip override flag.
+func (input *UpdateLedgerSettingsInput) WithAllowHolderSkip(enabled bool) *UpdateLedgerSettingsInput {
+	if input == nil {
+		return nil
+	}
+
+	if input.Overrides == nil {
+		input.Overrides = &UpdateLedgerSettingsOverridesInput{}
+	}
+
+	input.Overrides.AllowHolderSkip = &enabled
+
+	return input
+}
+
+// WithAllowTracerSkip sets the allowTracerSkip override flag.
+func (input *UpdateLedgerSettingsInput) WithAllowTracerSkip(enabled bool) *UpdateLedgerSettingsInput {
+	if input == nil {
+		return nil
+	}
+
+	if input.Overrides == nil {
+		input.Overrides = &UpdateLedgerSettingsOverridesInput{}
+	}
+
+	input.Overrides.AllowTracerSkip = &enabled
+
+	return input
+}
+
+// WithTracerFailPosture sets the tracer failPosture.
+func (input *UpdateLedgerSettingsInput) WithTracerFailPosture(posture string) *UpdateLedgerSettingsInput {
+	if input == nil {
+		return nil
+	}
+
+	if input.Tracer == nil {
+		input.Tracer = &UpdateLedgerSettingsTracerInput{}
+	}
+
+	input.Tracer.FailPosture = &posture
+
+	return input
+}
+
+// WithTracerMode sets the tracer mode.
+func (input *UpdateLedgerSettingsInput) WithTracerMode(mode string) *UpdateLedgerSettingsInput {
+	if input == nil {
+		return nil
+	}
+
+	if input.Tracer == nil {
+		input.Tracer = &UpdateLedgerSettingsTracerInput{}
+	}
+
+	input.Tracer.Mode = &mode
+
+	return input
+}
+
+// WithTracerTimeoutMs sets the tracer timeoutMs.
+func (input *UpdateLedgerSettingsInput) WithTracerTimeoutMs(ms int64) *UpdateLedgerSettingsInput {
+	if input == nil {
+		return nil
+	}
+
+	if input.Tracer == nil {
+		input.Tracer = &UpdateLedgerSettingsTracerInput{}
+	}
+
+	input.Tracer.TimeoutMs = &ms
+
+	return input
+}
+
 // hasChanges reports whether any field on the patch has been set.
 func (input *UpdateLedgerSettingsInput) hasChanges() bool {
-	if input == nil || input.Accounting == nil {
+	if input == nil {
 		return false
 	}
 
-	return input.Accounting.ValidateAccountType != nil ||
-		input.Accounting.ValidateRoutes != nil
+	if input.Accounting != nil && (input.Accounting.RequireHolder != nil ||
+		input.Accounting.ValidateAccountType != nil ||
+		input.Accounting.ValidateRoutes != nil) {
+		return true
+	}
+
+	if input.Overrides != nil && (input.Overrides.AllowFeeSkip != nil ||
+		input.Overrides.AllowHolderSkip != nil ||
+		input.Overrides.AllowTracerSkip != nil) {
+		return true
+	}
+
+	if input.Tracer != nil && (input.Tracer.FailPosture != nil ||
+		input.Tracer.Mode != nil ||
+		input.Tracer.TimeoutMs != nil) {
+		return true
+	}
+
+	return false
 }
 
 // Validate validates the UpdateLedgerSettingsInput fields.

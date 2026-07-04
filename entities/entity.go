@@ -26,6 +26,7 @@ import (
 	"github.com/LerianStudio/midaz-sdk-golang/v4/internal/reflectutil"
 	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/auth"
 	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/observability"
+	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/retry"
 	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/security"
 )
 
@@ -66,6 +67,77 @@ func configAllowsInsecureHTTP(config Config) bool {
 	return false
 }
 
+// tracerAPIKeyConfig is an OPTIONAL extension of [Config] exposing the Tracer
+// plane's X-API-Key. Read via a type assertion (same pattern as
+// [insecureHTTPConfig]) so test-fixture Config implementations that predate
+// the two-plane remodel keep compiling; a missing method means "no API key",
+// i.e. the Tracer shares the Ledger Bearer.
+type tracerAPIKeyConfig interface {
+	GetTracerAPIKey() string
+}
+
+// configTracerAPIKey reads the optional Tracer X-API-Key from a Config
+// implementation. Empty for nil or for implementations that do not satisfy
+// [tracerAPIKeyConfig].
+func configTracerAPIKey(config Config) string {
+	if ext, ok := config.(tracerAPIKeyConfig); ok {
+		return ext.GetTracerAPIKey()
+	}
+
+	return ""
+}
+
+// enableIdempotencyConfig is an OPTIONAL extension of [Config] exposing whether
+// automatic idempotency-key generation is enabled. Read via a type assertion
+// (same pattern as [tracerAPIKeyConfig]); a Config that does not satisfy it is
+// treated as ENABLED — parity with the legacy default (DefaultEnableIdempotency
+// == true) so test fixtures and pre-gate Config implementations keep auto-gen.
+type enableIdempotencyConfig interface {
+	GetEnableIdempotency() bool
+}
+
+// configEnableIdempotency reads the optional idempotency gate from a Config
+// implementation, defaulting to true (enabled) when the method is absent.
+func configEnableIdempotency(config Config) bool {
+	if ext, ok := config.(enableIdempotencyConfig); ok {
+		return ext.GetEnableIdempotency()
+	}
+
+	return true
+}
+
+// planeRetryConfig is an OPTIONAL extension of [Config] carrying the effective
+// retry policy for the plane money-path, resolved ONCE by the caller
+// (midaz.Client) so the plane retry round tripper and the legacy *HTTPClient
+// agree on the effective values. It exists because the caller's retry option
+// chain and custom policy live on the midaz.Client — assembled AFTER Entity
+// construction — and are not reachable through the base [Config] methods. Read
+// via a type assertion (same pattern as [tracerAPIKeyConfig]); a Config that
+// does not satisfy it falls back to retry.DefaultOptions() + nil policy.
+type planeRetryConfig interface {
+	GetPlaneRetryOptions() *retry.Options
+	GetPlaneCustomRetryPolicy() func(*http.Response, error) bool
+}
+
+// configPlaneRetry reads the optional plane retry policy from a Config
+// implementation. Returns retry.DefaultOptions() + nil policy for nil or for
+// implementations that do not satisfy [planeRetryConfig], or when the exposed
+// options are nil.
+func configPlaneRetry(config Config) (retry.Options, func(*http.Response, error) bool) {
+	ext, ok := config.(planeRetryConfig)
+	if !ok {
+		return *retry.DefaultOptions(), nil
+	}
+
+	opts := ext.GetPlaneRetryOptions()
+	if opts == nil {
+		return *retry.DefaultOptions(), nil
+	}
+
+	//nolint:bodyclose // returns a retry-policy func (which has *http.Response in its signature), not an HTTP response.
+	return *opts, ext.GetPlaneCustomRetryPolicy()
+}
+
 // Entity provides a centralized access point to all entity types in the Midaz SDK.
 // It acts as a factory for creating specific entity interfaces for different resource types
 // and operations.
@@ -74,26 +146,62 @@ type Entity struct {
 	httpClient *HTTPClient
 	baseURLs   map[string]string
 
+	// planes holds the two generated, typed plane clients (Ledger + Tracer).
+	// They are the low-level surface the hand-written facade migrates onto in
+	// Phases 2-4; during the transition the legacy per-service *HTTPClient
+	// above still serves the 3 legacy services (Balances, Operations, Aliases).
+	// Nil only when construction never reached the plane-client build step.
+	planes *PlaneClients
+
 	// Observability provider for tracing, metrics, and logging
 	observability observability.Provider
 
-	// Service interfaces for different resource types
-	Accounts          AccountsService
-	AccountTypes      AccountTypesService
-	Assets            AssetsService
-	AssetRates        AssetRatesService
+	// enableIdempotency gates auto-generated X-Idempotency keys on the wired
+	// plane write-facades (parity with the legacy SetEnableIdempotency gate).
+	// Resolved once at construction from the Config; threaded into each write
+	// facade's constructor by initServices.
+	enableIdempotency bool
+
+	// Ledger-plane resource accessors. Epic 5.3 swap: these 13 now route to the
+	// concrete plane facades (*xFacade) over e.planes.Ledger, not the legacy
+	// per-service interfaces. Balances/Operations/Aliases stay legacy (no facade
+	// exists yet — Epic 5.4 gap resolution).
+	Accounts          *accountsFacade
+	AccountTypes      *accountTypesFacade
+	Assets            *assetsFacade
+	AssetRates        *assetRatesFacade
 	Balances          BalancesService
-	Holders           HoldersService
+	Holders           *holdersFacade
 	Aliases           AliasesService
-	Ledgers           LedgersService
-	MetadataIndexes   MetadataIndexesService
+	Ledgers           *ledgersFacade
+	MetadataIndexes   *metadataIndexesFacade
 	Operations        OperationsService
-	OperationRoutes   OperationRoutesService
-	Organizations     OrganizationsService
-	Portfolios        PortfoliosService
-	Segments          SegmentsService
-	Transactions      TransactionsService
-	TransactionRoutes TransactionRoutesService
+	OperationRoutes   *operationRoutesFacade
+	Organizations     *organizationsFacade
+	Portfolios        *portfoliosFacade
+	Segments          *segmentsFacade
+	Transactions      *transactionsFacade
+	TransactionRoutes *transactionRoutesFacade
+
+	// Plane-native facades (Phases 3-4). Additive accessors over the typed
+	// generated plane clients; they coexist with the resource accessors above
+	// (13 already plane facades, plus the legacy Balances/Operations/Aliases
+	// trio) until the Phase 5 cutover repoints the remaining trio too. Reached
+	// fluently via client.X.Method (promoted through the embedded *Entity). Nil
+	// when the Entity was built without plane clients.
+	Rules               *rulesFacade
+	Limits              *limitsFacade
+	Validations         *validationsFacade
+	Reservations        *reservationsFacade
+	AuditEvents         *auditEventsFacade
+	ProtectionAudit     *auditFacade
+	Encryption          *encryptionFacade
+	Instruments         *instrumentsFacade
+	Composition         *compositionFacade
+	FeePackages         *feePackagesFacade
+	FeeEstimates        *feeEstimateFacade
+	BillingPackages     *billingPackagesFacade
+	BillingCalculations *billingCalculateFacade
 }
 
 // NewEntityWithConfig creates a new Entity using a Config object.
@@ -165,10 +273,15 @@ func NewEntityWithConfigContext(ctx context.Context, config Config) (*Entity, er
 		normalizedBaseURLs["crm"] = normalizedBaseURLs["onboarding"]
 	}
 
+	if strings.TrimSpace(normalizedBaseURLs["tracer"]) == "" {
+		normalizedBaseURLs["tracer"] = normalizedBaseURLs["onboarding"]
+	}
+
 	entity := &Entity{
-		httpClient:    httpClient,
-		baseURLs:      normalizedBaseURLs,
-		observability: config.GetObservabilityProvider(),
+		httpClient:        httpClient,
+		baseURLs:          normalizedBaseURLs,
+		observability:     config.GetObservabilityProvider(),
+		enableIdempotency: configEnableIdempotency(config),
 	}
 	if pluginAuth.Enabled {
 		entity.httpClient.setAuthTokenProvider(
@@ -179,6 +292,13 @@ func NewEntityWithConfigContext(ctx context.Context, config Config) (*Entity, er
 		)
 	}
 
+	planes, err := buildPlaneClients(config, pluginAuth, normalizedBaseURLs)
+	if err != nil {
+		return nil, err
+	}
+
+	entity.planes = planes
+
 	// Initialize service interfaces
 	entity.initServices()
 
@@ -187,10 +307,11 @@ func NewEntityWithConfigContext(ctx context.Context, config Config) (*Entity, er
 
 // initServices initializes the service interfaces for the entity.
 //
-// All 16 service entities share the SAME parent [*HTTPClient] — passed via
-// [newSharedServiceEntity]. That single instance owns the auth-token cache,
-// the singleflight token-refresh group, the customRetryPolicy, the
-// observability surface, and the userAgent/debug/idempotency knobs. Sharing
+// The 3 legacy service entities (Balances, Operations, Aliases) share the SAME
+// parent [*HTTPClient] — passed via [newSharedServiceEntity]. That single
+// instance owns the auth-token cache, the singleflight token-refresh group,
+// the customRetryPolicy, the observability surface, and the
+// userAgent/debug/idempotency knobs. Sharing
 // the client matters in three places:
 //
 //   - Token refresh on 401: when one service refreshes via [HTTPClient.refreshAuthToken]
@@ -198,7 +319,7 @@ func NewEntityWithConfigContext(ctx context.Context, config Config) (*Entity, er
 //     they read from the same authToken field under c.mu.
 //   - Singleflight dedup: a 401 burst hitting multiple services collapses
 //     onto one underlying tokenProvider call, since [HTTPClient.tokenRefreshGroup]
-//     is one [singleflight.Group] not 16.
+//     is one [singleflight.Group] not three.
 //   - Set* propagation: [Entity.GetEntityHTTPClient] returns the same client
 //     that every service uses, so SetDebug / SetUserAgent / SetLogger and
 //     friends take effect on the next request from any service — no
@@ -217,7 +338,7 @@ func (e *Entity) initServices() {
 	}
 
 	// Build the shared base once per service. The *HTTPClient is a pointer,
-	// so all 16 services see the same mutable state (auth token, refresh
+	// so all 3 legacy services see the same mutable state (auth token, refresh
 	// group, customRetryPolicy, etc.); baseURLs is cloned per service via
 	// prepareServiceBaseURLs so per-service mutation cannot bleed across
 	// services.
@@ -225,22 +346,50 @@ func (e *Entity) initServices() {
 		return newSharedServiceEntity(e.httpClient, e.baseURLs)
 	}
 
-	e.Transactions = &transactionsEntity{serviceEntity: shared()}
-	e.Accounts = &accountsEntity{serviceEntity: shared()}
-	e.AccountTypes = &accountTypesEntity{serviceEntity: shared()}
-	e.Assets = &assetsEntity{serviceEntity: shared()}
-	e.AssetRates = &assetRatesEntity{serviceEntity: shared()}
+	// Legacy per-service surface. Epic 5.3 repointed the 13 ledger resources to
+	// facades (below); only Balances/Operations/Aliases remain legacy-wired
+	// (no facade exists yet — Epic 5.4 gap).
 	e.Balances = &balancesEntity{serviceEntity: shared()}
-	e.Holders = &holdersEntity{serviceEntity: shared()}
 	e.Aliases = &aliasesEntity{serviceEntity: shared()}
-	e.Ledgers = &ledgersEntity{serviceEntity: shared()}
-	e.MetadataIndexes = &metadataIndexesEntity{serviceEntity: shared()}
 	e.Operations = &operationsEntity{serviceEntity: shared()}
-	e.OperationRoutes = &operationRoutesEntity{serviceEntity: shared()}
-	e.Organizations = &organizationsEntity{serviceEntity: shared()}
-	e.Portfolios = &portfoliosEntity{serviceEntity: shared()}
-	e.Segments = &segmentsEntity{serviceEntity: shared()}
-	e.TransactionRoutes = &transactionRoutesEntity{serviceEntity: shared()}
+
+	// Plane-native facades. The 13 ledger resource accessors (Epic 5.3 swap)
+	// join the Phase 3-4 additive facades here — all route over the typed plane
+	// clients, not the legacy *HTTPClient. The e.planes != nil guard is
+	// defensive: no first-party constructor reaches this with planes == nil
+	// (buildPlaneClients either errors or returns a non-nil PlaneClients, and
+	// NewEntityWithConfigContext always assigns e.planes before initServices).
+	// It exists only so a hand-rolled zero-value &Entity{} — legal because
+	// Entity and InitServices are exported — cannot nil-deref the plane clients.
+	if e.planes != nil {
+		e.Organizations = newOrganizationsFacade(e.planes.Ledger, e.enableIdempotency)
+		e.Ledgers = newLedgersFacade(e.planes.Ledger, e.enableIdempotency)
+		e.Accounts = newAccountsFacade(e.planes.Ledger, e.enableIdempotency)
+		e.Assets = newAssetsFacade(e.planes.Ledger, e.enableIdempotency)
+		e.AssetRates = newAssetRatesFacade(e.planes.Ledger, e.enableIdempotency)
+		e.Portfolios = newPortfoliosFacade(e.planes.Ledger, e.enableIdempotency)
+		e.Segments = newSegmentsFacade(e.planes.Ledger, e.enableIdempotency)
+		e.AccountTypes = newAccountTypesFacade(e.planes.Ledger, e.enableIdempotency)
+		e.MetadataIndexes = newMetadataIndexesFacade(e.planes.Ledger, e.enableIdempotency)
+		e.OperationRoutes = newOperationRoutesFacade(e.planes.Ledger, e.enableIdempotency)
+		e.TransactionRoutes = newTransactionRoutesFacade(e.planes.Ledger, e.enableIdempotency)
+		e.Holders = newHoldersFacade(e.planes.Ledger, e.enableIdempotency)
+		e.Transactions = newTransactionsFacade(e.planes.Ledger, e.enableIdempotency)
+
+		e.Rules = newRulesFacade(e.planes.Tracer, e.enableIdempotency)
+		e.Limits = newLimitsFacade(e.planes.Tracer, e.enableIdempotency)
+		e.Validations = newValidationsFacade(e.planes.Tracer)
+		e.Reservations = newReservationsFacade(e.planes.Tracer)
+		e.AuditEvents = newAuditEventsFacade(e.planes.Tracer)
+		e.ProtectionAudit = newAuditFacade(e.planes.Ledger)
+		e.Encryption = newEncryptionFacade(e.planes.Ledger, e.enableIdempotency)
+		e.Instruments = newInstrumentsFacade(e.planes.Ledger, e.enableIdempotency)
+		e.Composition = newCompositionFacade(e.planes.Ledger, e.enableIdempotency)
+		e.FeePackages = newFeePackagesFacade(e.planes.Ledger, e.enableIdempotency)
+		e.FeeEstimates = newFeeEstimateFacade(e.planes.Ledger)
+		e.BillingPackages = newBillingPackagesFacade(e.planes.Ledger, e.enableIdempotency)
+		e.BillingCalculations = newBillingCalculateFacade(e.planes.Ledger)
+	}
 }
 
 // InitServices initializes the service interfaces for the entity.
@@ -308,12 +457,20 @@ func (e *Entity) GetObservabilityProvider() observability.Provider {
 	return e.observability
 }
 
-// SetHTTPClient sets the HTTP client for the entity.
-// This allows for replacing the HTTP client after the entity is created.
-// The tenant ID configured on the entity is preserved across the replacement.
+// SetHTTPClient replaces the HTTP client used by the LEGACY per-service surface
+// only — Balances, Operations, and Aliases — and preserves the entity's tenant
+// ID and auth token across the swap.
+//
+// LIMITATION: it does NOT re-transport the 18 plane facades (Organizations,
+// Ledgers, Accounts, Transactions, Encryption, and the rest). initServices
+// rebuilds those facades over the already-constructed e.planes.Ledger /
+// e.planes.Tracer clients, whose transport is fixed at construction and is not
+// rebuilt here; only the legacy trio picks up the new client. To control the
+// transport for the facades/planes, pass config.WithHTTPClient(client) when the
+// client is constructed rather than swapping it afterward.
 //
 // Parameters:
-//   - client: The HTTP client to use for API requests.
+//   - client: The HTTP client to use for API requests (legacy trio only).
 func (e *Entity) SetHTTPClient(client *http.Client) {
 	if e == nil {
 		return

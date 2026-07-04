@@ -59,17 +59,17 @@ orgInput := models.NewCreateOrganizationInput("Example Organization", "123456789
         "size":     "startup",
     })
 
-org, err := c.Organizations.CreateOrganization(ctx, orgInput)
+org, err := c.Organizations.Create(ctx, orgInput)
 if err != nil {
     return err
 }
 
-org, err = c.Organizations.GetOrganization(ctx, org.ID)
+org, err = c.Organizations.Get(ctx, org.ID)
 if err != nil {
     return err
 }
 
-orgs, err := c.Organizations.ListOrganizations(ctx, models.OrganizationsListOpts{
+orgs, err := c.Organizations.List(ctx, models.OrganizationsListOpts{
     PageListOpts: models.PageListOpts{Limit: 20},
     Filters:      models.OrganizationsFilters{Status: "ACTIVE"},
 })
@@ -84,7 +84,7 @@ assetInput := models.NewCreateAssetInputWithType("US Dollar", "USD", "currency")
         "country": "US",
     })
 
-asset, err := c.Assets.CreateAsset(ctx, orgID, ledgerID, assetInput)
+asset, err := c.Assets.Create(ctx, orgID, ledgerID, assetInput)
 if err != nil {
     return err
 }
@@ -96,12 +96,17 @@ accountInput := models.NewCreateAccountInput("Customer Checking Account", asset.
         "tier":        "premium",
     })
 
-account, err := c.Accounts.CreateAccount(ctx, orgID, ledgerID, accountInput)
+account, err := c.Accounts.Create(ctx, orgID, ledgerID, accountInput)
 if err != nil {
     return err
 }
 
-balance, err := c.Accounts.GetBalance(ctx, orgID, ledgerID, account.ID)
+// Account balances are listed (cursor-paginated); pick the first for a single-asset account.
+balances, err := c.Accounts.ListBalances(ctx, orgID, ledgerID, account.ID, models.CursorListOpts{})
+if err != nil {
+    return err
+}
+balance := balances.Items[0]
 ```
 
 Use `BalancesService` when you need balance records by balance ID, all balances for an account, history, alias lookup, or external-code lookup:
@@ -143,39 +148,104 @@ txInput := models.NewCreateTransactionInput("USD", "100.00").
 	})
 txInput.IdempotencyKey = "payment-2026-05-03-0001"
 
-tx, err := c.Transactions.CreateTransaction(ctx, orgID, ledgerID, txInput)
+tx, err := c.Transactions.CreateJSON(ctx, orgID, ledgerID, txInput)
 ```
 
-For DSL-style structured transactions, use `TransactionDSLInput`:
+Structured splits (one source funding several destinations) use the same
+send-based payload — add multiple entries to `Distribute.To`. A dedicated DSL
+entry point is not currently exposed on the `Transactions` facade:
 
 ```go
-tx, err := c.Transactions.CreateTransactionWithDSL(ctx, orgID, ledgerID, &models.TransactionDSLInput{
-    ChartOfAccountsGroupName: "FUNDING",
-    Description: "Split payment transaction",
-    Send: &models.DSLSend{
+splitInput := models.NewCreateTransactionInput("USD", "100.00").
+    WithDescription("Split payment transaction").
+    WithSend(&models.SendInput{
         Asset: "USD",
-        Value: "10000",
-        Source: &models.DSLSource{
-            From: []models.DSLFromTo{
-                {Account: customerAccountAlias, Amount: &models.DSLAmount{Asset: "USD", Value: "10000"}},
+        Value: "100.00",
+        Source: &models.SourceInput{
+            From: []models.FromToInput{
+                {Account: customerAccountAlias, Amount: models.AmountInput{Asset: "USD", Value: "100.00"}},
             },
         },
-        Distribute: &models.DSLDistribute{
-            To: []models.DSLFromTo{
-                {Account: merchantAccountAlias, Amount: &models.DSLAmount{Asset: "USD", Value: "8500"}},
-                {Account: platformFeeAlias, Amount: &models.DSLAmount{Asset: "USD", Value: "1000"}},
-                {Account: processorFeeAlias, Amount: &models.DSLAmount{Asset: "USD", Value: "500"}},
+        Distribute: &models.DistributeInput{
+            To: []models.FromToInput{
+                {Account: merchantAccountAlias, Amount: models.AmountInput{Asset: "USD", Value: "85.00"}},
+                {Account: platformFeeAlias, Amount: models.AmountInput{Asset: "USD", Value: "10.00"}},
+                {Account: processorFeeAlias, Amount: models.AmountInput{Asset: "USD", Value: "5.00"}},
             },
         },
-    },
-})
+    })
+
+tx, err := c.Transactions.CreateJSON(ctx, orgID, ledgerID, splitInput)
 ```
 
-For raw DSL file content, use `CreateTransactionWithDSLFile(ctx, orgID, ledgerID, []byte(content))`. The SDK sends `POST /transactions/dsl` as multipart form data using field name `transaction`, filename `transaction.dsl`, and UTF-8 DSL content; empty, invalid UTF-8, and over-limit payloads are rejected before network I/O.
+## Waiting for settlement
+
+A `201` from `CreateJSON` means the transaction was recorded, not that the
+ledger balance reflects it. Wait on the balance effect with
+`transaction.WaitForSettlement`, passing a predicate that decides what
+"settled" means for your case (here, the account's `USD` balance version
+advancing). Pin the asset on a multi-asset account:
+
+```go
+import "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/transaction"
+
+settled, err := transaction.WaitForSettlement(
+    ctx,
+    c.Balances, // satisfies the balance reader structurally
+    orgID, ledgerID, accountID,
+    func(b models.Balance) bool {
+        return b.AssetCode == "USD" && b.Version >= 2
+    },
+    transaction.WithTimeout(15*time.Second),
+)
+if errors.Is(err, transaction.ErrSettlementTimeout) {
+    // balance did not settle within the deadline
+    return err
+}
+if err != nil {
+    return err
+}
+log.Printf("settled: available=%s version=%d", settled.Available, settled.Version)
+```
+
+## Fee estimation and billing
+
+Fee, billing, and holder-account composition inputs use fluent builders. Feed a
+billing period into `NewBillingCalculateInput` and call the `BillingCalculations`
+accessor; an empty result set (no packages matched) is a success, not an error:
+
+```go
+calcInput := models.NewBillingCalculateInput(ledgerID, "2026-06").
+    WithType("volume")
+
+result, err := c.BillingCalculations.CalculateBilling(ctx, orgID, calcInput)
+if err != nil {
+    return err
+}
+log.Printf("billing results=%d net=%s", len(result.Results), result.Summary.TotalNetAmount)
+```
+
+Open a holder-owned account (optionally with its instrument) in one call with
+`NewCreateHolderAccountInput` and the `Composition` accessor. A populated
+`InstrumentError` on success means the account committed but the instrument
+write did not — a success, not an error:
+
+```go
+acctInput := models.NewCreateHolderAccountInput("USD", "deposit").
+    WithName("Primary settlement account")
+
+resp, err := c.Composition.CreateHolderAccount(ctx, orgID, ledgerID, holderID, acctInput)
+if err != nil {
+    return err
+}
+if resp.InstrumentError != nil {
+    log.Printf("account created; instrument failed: %s", resp.InstrumentError.Reason)
+}
+```
 
 ## Using pagination
 
-v3 ships every paginated entity list method in a trio: `List` (one page), `ListXxxAll` (every item across pages), and `ListXxxPages` (every page envelope). `MetadataIndexes.ListMetadataIndexes` is intentionally non-paginated. Use `iter.Seq2` for auto-paging — the SDK advances cursors and pages internally:
+The primary entity accessors ship every paginated list method in a trio: `List` (one page), `All` (every item across pages), and `Pages` (every page envelope). `MetadataIndexes.ListMetadataIndexes` is intentionally non-paginated. Use `iter.Seq2` for auto-paging — the SDK advances cursors and pages internally:
 
 ```go
 opts := models.AccountsListOpts{
@@ -186,7 +256,7 @@ opts := models.AccountsListOpts{
     Filters: models.AccountsFilters{Status: "ACTIVE"},
 }
 
-for account, err := range c.Accounts.ListAccountsAll(ctx, orgID, ledgerID, opts) {
+for account, err := range c.Accounts.All(ctx, orgID, ledgerID, opts) {
     if err != nil {
         return fmt.Errorf("list accounts: %w", err)
     }
@@ -197,7 +267,7 @@ for account, err := range c.Accounts.ListAccountsAll(ctx, orgID, ledgerID, opts)
 When you need page-level metadata (cursor, total, page number) — for checkpointing, batching, or stopping mid-collection — use the `Pages` variant:
 
 ```go
-for page, err := range c.Accounts.ListAccountsPages(ctx, orgID, ledgerID, opts) {
+for page, err := range c.Accounts.Pages(ctx, orgID, ledgerID, opts) {
     if err != nil {
         return err
     }
@@ -212,7 +282,7 @@ for page, err := range c.Accounts.ListAccountsPages(ctx, orgID, ledgerID, opts) 
 For one-page-at-a-time control (UI pagination, manual replay), call `List` directly and inspect `page.Pagination.HasMore()`:
 
 ```go
-page, err := c.Accounts.ListAccounts(ctx, orgID, ledgerID, opts)
+page, err := c.Accounts.List(ctx, orgID, ledgerID, opts)
 if err != nil {
     return err
 }

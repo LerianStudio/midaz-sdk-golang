@@ -138,6 +138,18 @@ type Transaction struct {
 	// Description is a human-readable description of the transaction
 	// This should provide context about the purpose or nature of the transaction
 	Description string `json:"description,omitempty"`
+
+	// FeesSkipped reports whether fee calculation was skipped for this
+	// transaction (the server applies it based on ledger settings). The server
+	// always emits this flag; the SDK surfaces it so callers can tell whether a
+	// fee package was bypassed.
+	FeesSkipped bool `json:"feesSkipped,omitempty"`
+
+	// TracerSkipped reports whether tracer-plane validation (limits, rules,
+	// reservations) was skipped for this transaction. Emitted by the server and
+	// surfaced here so callers can tell an unvalidated transaction from a
+	// validated one.
+	TracerSkipped bool `json:"tracerSkipped,omitempty"`
 }
 
 func validatePositiveDecimalString(value any, field string) error {
@@ -229,7 +241,7 @@ func DecimalStringFromAny(value any) string {
 // CreateTransactionInput is the input for creating a transaction.
 // This structure contains all the fields needed to create a new transaction.
 //
-// CreateTransactionInput is used with the TransactionsService.CreateTransaction method
+// CreateTransactionInput is used with the Transactions accessor's CreateJSON method
 // to create new transactions in the standard format (as opposed to the DSL format).
 // It allows for specifying the transaction details including operations, metadata,
 // and other properties.
@@ -258,7 +270,7 @@ func DecimalStringFromAny(value any) string {
 //	input = input.WithSend(&models.SendInput{/* source and distribute omitted for brevity */})
 //
 //	// Later, after approval:
-//	// c.Transactions.CommitTransaction(ctx, orgID, ledgerID, tx.ID)
+//	// c.Transactions.Commit(ctx, orgID, ledgerID, tx.ID)
 type CreateTransactionInput struct {
 	// Template is retained for backwards compatibility with the pre-send API.
 	Template string `json:"template,omitempty"`
@@ -398,6 +410,24 @@ type AmountInput struct {
 
 	// Value is the exact decimal value of the amount.
 	Value any `json:"value"`
+}
+
+// Share specifies proportional (percentage) distribution on a transaction leg.
+// It is a live money-path type used by FromToInput.Share (share-based distribute);
+// relocated here from the removed transaction_dsl.go in Task 5.5.3.
+type Share struct {
+	Percentage             int64 `json:"percentage"`
+	PercentageOfPercentage int64 `json:"percentageOfPercentage,omitempty"`
+}
+
+// Rate specifies exchange-rate information on a transaction leg. It is a live
+// money-path type used by FromToInput.Rate; relocated here from the removed
+// transaction_dsl.go in Task 5.5.3.
+type Rate struct {
+	From       string `json:"from"`
+	To         string `json:"to"`
+	Value      any    `json:"value"`
+	ExternalID string `json:"externalId"`
 }
 
 const (
@@ -812,9 +842,7 @@ func (input *FromToInput) Validate() error {
 		errs.Append("account", "is required")
 	}
 
-	if err := input.Amount.Validate(); err != nil {
-		errs.Append("amount", "invalid: "+err.Error())
-	}
+	input.appendValueErrors(&errs)
 
 	if input.RouteID != nil && strings.TrimSpace(*input.RouteID) != "" {
 		if !validation.IsValidUUID(*input.RouteID) {
@@ -829,6 +857,47 @@ func (input *FromToInput) Validate() error {
 	}
 
 	return errs.OrNil()
+}
+
+// appendValueErrors validates the leg's value mechanism: exactly one of a fixed
+// amount, a percentage share, a remaining-balance token, or an exchange rate.
+// Share/remaining/rate legs are resolved server-side (see sumFixedAmountEntries,
+// which skips the client balance check when any is present), so only a
+// fixed-amount leg is amount-validated here. Validating amount unconditionally
+// rejected every share leg and made GenerateWithDSL/GenerateBatch ship zero
+// transactions.
+func (input *FromToInput) appendValueErrors(errs *validation.FieldErrors) {
+	amountValue := strings.TrimSpace(decimalStringFromAny(input.Amount.Value))
+	hasAmount := input.Amount.Asset != "" || amountValue != ""
+
+	// A leg specifies exactly ONE value mechanism. The /transactions/json server
+	// rejects a leg carrying more than one of amount/share/remaining/rate with a
+	// 422; enforce it client-side so the two agree (there is no valid amount+share
+	// combination).
+	if hasAmount && (input.Share != nil || strings.TrimSpace(input.Remaining) != "" || input.Rate != nil) {
+		errs.Append("amount", "cannot be combined with share, remaining, or rate")
+
+		return
+	}
+
+	switch {
+	case hasAmount:
+		if err := input.Amount.Validate(); err != nil {
+			errs.Append("amount", "invalid: "+err.Error())
+		}
+	case input.Share != nil:
+		if input.Share.Percentage < 1 || input.Share.Percentage > 100 {
+			errs.Append("share.percentage", "must be between 1 and 100")
+		}
+
+		if input.Share.PercentageOfPercentage < 0 || input.Share.PercentageOfPercentage > 100 {
+			errs.Append("share.percentageOfPercentage", "must be between 0 and 100")
+		}
+	case strings.TrimSpace(input.Remaining) != "", input.Rate != nil:
+		// remaining/rate legs carry no client-checkable amount; the server resolves them.
+	default:
+		errs.Append("amount", "one of amount, share, remaining, or rate is required")
+	}
 }
 
 // Validate checks that the AmountInput meets all validation requirements.
@@ -1113,13 +1182,23 @@ func (input FromToInput) ToMap() map[string]any {
 // ToMap converts an AmountInput to a map.
 // This is used internally by the SDK to convert the input to the format expected by the backend.
 func (input *AmountInput) ToMap() map[string]any {
-	if input == nil || (input.Asset == "" && input.Value == "") {
+	if input == nil {
+		return nil
+	}
+
+	// Value is `any`, so the old `input.Value == ""` guard never fired for a
+	// nil Value (nil != ""). Render through decimalStringFromAny, which returns
+	// "" for both nil and "": an empty amount then omits the map entirely so a
+	// share/remaining/rate leg does not ship amount:{"asset":"","value":""}
+	// beside its share (which the /transactions/json contract rejects).
+	value := decimalStringFromAny(input.Value)
+	if input.Asset == "" && value == "" {
 		return nil
 	}
 
 	return map[string]any{
 		"asset": input.Asset,
-		"value": decimalStringFromAny(input.Value),
+		"value": value,
 	}
 }
 
@@ -1196,7 +1275,7 @@ func (t *Transaction) ToTransactionMap() map[string]any {
 // UpdateTransactionInput represents the input for updating a transaction.
 // This structure contains the fields that can be updated on an existing transaction.
 //
-// UpdateTransactionInput is used with the TransactionsService.UpdateTransaction method
+// UpdateTransactionInput is used with the Transactions accessor's UpdateTransaction method
 // to update existing transactions. It allows for updating metadata and other mutable
 // properties of a transaction.
 //

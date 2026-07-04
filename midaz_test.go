@@ -68,7 +68,7 @@ func TestNewClient(t *testing.T) {
 		WithConfig(testCfg),
 		WithHTTPClient(customHTTPClient),
 		WithLedgerURL("https://test.example.com/v1"),
-		WithCRMURL("https://test.example.com/crm"),
+		WithTracerURL("https://test.example.com/tracer/v1"),
 		WithTimeout(30*time.Second),
 		WithDebug(true),
 		WithEnvironment(config.EnvironmentDevelopment),
@@ -106,8 +106,8 @@ func TestNewClient(t *testing.T) {
 		t.Error("Expected debug to be true")
 	}
 
-	if got := client.config.ServiceURLs[config.ServiceCRM]; got != "https://test.example.com/crm" {
-		t.Errorf("Expected CRM URL to be applied, got %q", got)
+	if got := client.config.ServiceURLs[config.ServiceTracer]; got != "https://test.example.com/tracer/v1" {
+		t.Errorf("Expected Tracer URL to be applied, got %q", got)
 	}
 
 	require.NotNil(t, client.Entity)
@@ -471,7 +471,7 @@ func TestNewAccessManagerTokenFetchError_IsClassifiedAsAuth(t *testing.T) {
 // move is to use the models package directly:
 //
 //	in := &models.CreateAccountInput{...}
-//	c.Accounts.CreateAccount(ctx, ...)
+//	c.Accounts.Create(ctx, ...)
 //
 // instead of the empty trap that NewAccount used to return.
 func TestFactoryTrapMethodsRemoved_AtCompileTime(t *testing.T) {
@@ -959,4 +959,22 @@ func TestAccessManagerAndAnonymousMutualExclusion(t *testing.T) {
 			"WithAccessManager must clear a previous Anonymous flag")
 		assert.True(t, cfg.AccessManager.Enabled)
 	})
+}
+
+// TestNewClientWiresTwoPlaneClients is the Task 1.3.2 construction guard:
+// midaz.New produces a Client whose embedded Entity carries both generated
+// plane clients (Ledger + Tracer), promoted via Planes().
+func TestNewClientWiresTwoPlaneClients(t *testing.T) {
+	c, err := New(
+		WithEnvironment(config.EnvironmentLocal),
+		WithAnonymous(),
+		WithLedgerURL("http://localhost:3002/v1"),
+		WithTracerURL("http://localhost:4020/v1"),
+	)
+	require.NoError(t, err)
+
+	planes := c.Planes()
+	require.NotNil(t, planes, "Planes() must be non-nil after New")
+	assert.NotNil(t, planes.Ledger, "ledger plane client must be wired")
+	assert.NotNil(t, planes.Tracer, "tracer plane client must be wired")
 }

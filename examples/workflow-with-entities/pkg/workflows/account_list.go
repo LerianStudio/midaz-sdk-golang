@@ -52,7 +52,7 @@ func demonstrateBasicListing(ctx context.Context, midazClient *midaz.Client, org
 		Filters: models.AccountsFilters{Status: models.StatusActive},
 	}
 
-	resp, err := midazClient.Accounts.ListAccounts(ctx, orgID, ledgerID, opts)
+	resp, err := midazClient.Accounts.List(ctx, orgID, ledgerID, opts)
 	if err != nil {
 		return fmt.Errorf("failed to list accounts: %w", err)
 	}
@@ -82,7 +82,7 @@ func demonstrateAllAccountsIteration(ctx context.Context, midazClient *midaz.Cli
 	}
 
 	all, err := entities.Collect(
-		midazClient.Accounts.ListAccountsAll(listCtx, orgID, ledgerID, opts),
+		midazClient.Accounts.All(listCtx, orgID, ledgerID, opts),
 		1000, // hard cap; example workload is bounded
 	)
 	if err != nil {
@@ -106,7 +106,7 @@ func demonstrateContextCancellation(ctx context.Context, midazClient *midaz.Clie
 	cancelCtx, cancel := context.WithCancel(ctx)
 	cancel() // cancel immediately
 
-	_, err := midazClient.Accounts.ListAccounts(cancelCtx, orgID, ledgerID, models.AccountsListOpts{})
+	_, err := midazClient.Accounts.List(cancelCtx, orgID, ledgerID, models.AccountsListOpts{})
 	if err == nil {
 		return errors.New("expected cancellation error but got nil")
 	}

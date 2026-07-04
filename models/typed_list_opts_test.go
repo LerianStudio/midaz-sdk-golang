@@ -399,11 +399,6 @@ func TestPageListOpts_TypedShape_AllPageBased(t *testing.T) {
 			overMax: BalancesListOpts{PageListOpts: PageListOpts{Limit: MaxLimit + 1}},
 		},
 		{
-			name:    "HoldersListOpts",
-			atMax:   HoldersListOpts{PageListOpts: PageListOpts{Limit: MaxLimit}},
-			overMax: HoldersListOpts{PageListOpts: PageListOpts{Limit: MaxLimit + 1}},
-		},
-		{
 			name:    "LedgersListOpts",
 			atMax:   LedgersListOpts{PageListOpts: PageListOpts{Limit: MaxLimit}},
 			overMax: LedgersListOpts{PageListOpts: PageListOpts{Limit: MaxLimit + 1}},
@@ -459,6 +454,16 @@ func TestCursorListOpts_TypedShape_AllCursorBased(t *testing.T) {
 			overMax: AssetRatesListOpts{CursorListOpts: CursorListOpts{Limit: MaxLimit + 1}},
 		},
 		{
+			name:    "HoldersListOpts",
+			atMax:   HoldersListOpts{CursorListOpts: CursorListOpts{Limit: MaxLimit}},
+			overMax: HoldersListOpts{CursorListOpts: CursorListOpts{Limit: MaxLimit + 1}},
+		},
+		{
+			name:    "InstrumentsListOpts",
+			atMax:   InstrumentsListOpts{CursorListOpts: CursorListOpts{Limit: MaxLimit}},
+			overMax: InstrumentsListOpts{CursorListOpts: CursorListOpts{Limit: MaxLimit + 1}},
+		},
+		{
 			name:    "OperationsListOpts",
 			atMax:   OperationsListOpts{CursorListOpts: CursorListOpts{Limit: MaxLimit}},
 			overMax: OperationsListOpts{CursorListOpts: CursorListOpts{Limit: MaxLimit + 1}},
@@ -491,6 +496,31 @@ func TestCursorListOpts_TypedShape_AllCursorBased(t *testing.T) {
 			err := tt.overMax.Validate()
 			require.Error(t, err, "Limit=MaxLimit+1 must be rejected")
 			assert.Contains(t, err.Error(), "limit exceeds maximum")
+		})
+	}
+}
+
+// TestHoldersInstrumentsListOpts_RejectDates proves the two CRM cursor endpoints
+// use the NoDates validator: their generated params (ListHoldersParams,
+// ListInstrumentsParams) have no start_date/end_date slot, so a date filter must
+// fail loud rather than validate-then-silently-drop and return the full
+// unfiltered set. Cursor pagination is honored (proven by the wire tests); dates
+// are not.
+func TestHoldersInstrumentsListOpts_RejectDates(t *testing.T) {
+	tests := []struct {
+		name string
+		opts interface{ Validate() error }
+	}{
+		{"HoldersListOpts StartDate", HoldersListOpts{CursorListOpts: CursorListOpts{StartDate: "2026-01-01"}}},
+		{"HoldersListOpts EndDate", HoldersListOpts{CursorListOpts: CursorListOpts{EndDate: "2026-01-31"}}},
+		{"InstrumentsListOpts StartDate", InstrumentsListOpts{CursorListOpts: CursorListOpts{StartDate: "2026-01-01"}}},
+		{"InstrumentsListOpts EndDate", InstrumentsListOpts{CursorListOpts: CursorListOpts{EndDate: "2026-01-31"}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.opts.Validate()
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "date filtering is not supported")
 		})
 	}
 }

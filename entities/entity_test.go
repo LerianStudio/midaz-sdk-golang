@@ -1,6 +1,7 @@
 package entities
 
 import (
+	"context"
 	"net/http"
 	"testing"
 
@@ -23,19 +24,45 @@ func TestMainFunction(_ *testing.T) {
 // uses: (*HTTPClient).SetDebug, SetUserAgent and (*Entity).SetObservability.
 // Tests that previously passed entities.WithDebug/WithUserAgent/WithObservability
 // as options must invoke the equivalent setter on the returned *Entity directly.
+//
+//nolint:unparam // provider's only non-nil callers are the business_observability tests, all t.Skip'd pending Task 5.2.6 (plan:621); unparam treats the calls after t.Skip as unreachable and sees only the nil callers. The param stays so those tests keep compiling and exercise it again when 5.2.6 restores plane-path business events.
 func newTestEntity(t *testing.T, client *http.Client, authToken string, baseURLs map[string]string, provider observability.Provider) *Entity {
 	t.Helper()
 
 	normalizedBaseURLs, err := normalizeBaseURLs(baseURLs, false)
 	require.NoError(t, err)
 
+	tracerURL := normalizedBaseURLs["tracer"]
+	if tracerURL == "" {
+		tracerURL = normalizedBaseURLs["onboarding"]
+	}
+
+	authCfg := authRoundTripperConfig{}
+	if authToken != "" {
+		authCfg.tokenProvider = func(context.Context) (string, error) { return authToken, nil }
+	}
+
+	// Epic 5.3: the ledger accessors are now plane facades, so a test entity
+	// needs plane clients pointed at the same server. Retries stay off for
+	// deterministic single-attempt behavior.
+	planes, err := newPlaneClients(planeClientsConfig{
+		ledgerURL:    normalizedBaseURLs["onboarding"],
+		tracerURL:    tracerURL,
+		auth:         authCfg,
+		httpClient:   client,
+		retryOptions: planeTestRetryOptions(),
+	})
+	require.NoError(t, err)
+
 	entity := &Entity{
 		httpClient:    NewHTTPClient(client, authToken, provider),
 		baseURLs:      normalizedBaseURLs,
+		planes:        planes,
 		observability: provider,
 	}
 
 	entity.initServices()
+
 	return entity
 }
 

@@ -60,7 +60,7 @@ func ExampleNewConfig_withAccessManager() {
 }
 
 // ExampleNewConfig_customEndpoint targets a self-hosted Midaz stack. WithBaseURL
-// derives both the Ledger and CRM service URLs from a single base, which is
+// derives both the Ledger and Tracer plane URLs from a single base, which is
 // the right knob for in-cluster deployments behind a single ingress.
 func ExampleNewConfig_customEndpoint() {
 	cfg, err := config.NewConfig(

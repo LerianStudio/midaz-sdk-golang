@@ -3,7 +3,6 @@ package generator
 import (
 	"context"
 	"errors"
-	"iter"
 	"testing"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v4/entities"
@@ -17,36 +16,12 @@ type mockAccountTypesService struct {
 	createFunc func(ctx context.Context, orgID, ledgerID string, input *models.CreateAccountTypeInput) (*models.AccountType, error)
 }
 
-func (m *mockAccountTypesService) CreateAccountType(ctx context.Context, orgID, ledgerID string, input *models.CreateAccountTypeInput) (*models.AccountType, error) {
+func (m *mockAccountTypesService) Create(ctx context.Context, orgID, ledgerID string, input *models.CreateAccountTypeInput) (*models.AccountType, error) {
 	if m.createFunc != nil {
 		return m.createFunc(ctx, orgID, ledgerID, input)
 	}
 
 	return &models.AccountType{ID: uuid.New(), Name: input.Name, KeyValue: input.KeyValue}, nil
-}
-
-func (*mockAccountTypesService) GetAccountType(_ context.Context, _, _, _ string) (*models.AccountType, error) {
-	return nil, errors.New("mock: GetAccountType not implemented")
-}
-
-func (*mockAccountTypesService) ListAccountTypes(_ context.Context, _, _ string, _ models.AccountTypesListOpts) (*models.ListResponse[models.AccountType], error) {
-	return nil, errors.New("mock: ListAccountTypes not implemented")
-}
-
-func (*mockAccountTypesService) ListAccountTypesAll(_ context.Context, _, _ string, _ models.AccountTypesListOpts) iter.Seq2[models.AccountType, error] {
-	return func(_ func(models.AccountType, error) bool) {}
-}
-
-func (*mockAccountTypesService) ListAccountTypesPages(_ context.Context, _, _ string, _ models.AccountTypesListOpts) iter.Seq2[*models.ListResponse[models.AccountType], error] {
-	return func(_ func(*models.ListResponse[models.AccountType], error) bool) {}
-}
-
-func (*mockAccountTypesService) UpdateAccountType(_ context.Context, _, _, _ string, _ *models.UpdateAccountTypeInput) (*models.AccountType, error) {
-	return nil, errors.New("mock: UpdateAccountType not implemented")
-}
-
-func (*mockAccountTypesService) DeleteAccountType(_ context.Context, _, _, _ string) error {
-	return nil
 }
 
 func TestNewAccountTypeGenerator(t *testing.T) {
@@ -91,11 +66,7 @@ func TestAccountTypeGenerator_Generate_Success(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		AccountTypes: mockSvc,
-	}
-
-	gen := NewAccountTypeGenerator(e, nil)
+	gen := &accountTypeGenerator{accountTypes: mockSvc}
 	metadata := map[string]any{
 		"category":  "deposit",
 		"overdraft": false,
@@ -115,11 +86,7 @@ func TestAccountTypeGenerator_Generate_Error(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		AccountTypes: mockSvc,
-	}
-
-	gen := NewAccountTypeGenerator(e, nil)
+	gen := &accountTypeGenerator{accountTypes: mockSvc}
 
 	result, err := gen.Generate(context.Background(), "org-123", "ledger-123", "Checking", AccountTypeKeyChecking, nil)
 	require.Error(t, err)
@@ -137,11 +104,7 @@ func TestAccountTypeGenerator_Generate_NilMetadata(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		AccountTypes: mockSvc,
-	}
-
-	gen := NewAccountTypeGenerator(e, nil)
+	gen := &accountTypeGenerator{accountTypes: mockSvc}
 
 	_, err := gen.Generate(context.Background(), "org-123", "ledger-123", "Test", "TEST", nil)
 	require.NoError(t, err)
@@ -170,11 +133,7 @@ func TestAccountTypeGenerator_GenerateDefaults_Success(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		AccountTypes: mockSvc,
-	}
-
-	gen := NewAccountTypeGenerator(e, nil)
+	gen := &accountTypeGenerator{accountTypes: mockSvc}
 
 	results, err := gen.GenerateDefaults(context.Background(), "org-123", "ledger-123")
 	require.NoError(t, err)
@@ -198,11 +157,7 @@ func TestAccountTypeGenerator_GenerateDefaults_PartialFailure(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		AccountTypes: mockSvc,
-	}
-
-	gen := NewAccountTypeGenerator(e, nil)
+	gen := &accountTypeGenerator{accountTypes: mockSvc}
 
 	results, err := gen.GenerateDefaults(context.Background(), "org-123", "ledger-123")
 	require.Error(t, err)
@@ -217,11 +172,7 @@ func TestAccountTypeGenerator_GenerateDefaults_AllFailure(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		AccountTypes: mockSvc,
-	}
-
-	gen := NewAccountTypeGenerator(e, nil)
+	gen := &accountTypeGenerator{accountTypes: mockSvc}
 
 	results, err := gen.GenerateDefaults(context.Background(), "org-123", "ledger-123")
 	require.Error(t, err)
@@ -251,11 +202,7 @@ func TestAccountTypeGenerator_GenerateDefaults_VerifyInput(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		AccountTypes: mockSvc,
-	}
-
-	gen := NewAccountTypeGenerator(e, nil)
+	gen := &accountTypeGenerator{accountTypes: mockSvc}
 
 	_, err := gen.GenerateDefaults(context.Background(), "org-123", "ledger-123")
 	require.NoError(t, err)
@@ -292,11 +239,7 @@ func TestAccountTypeGenerator_GenerateDefaults_Metadata(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		AccountTypes: mockSvc,
-	}
-
-	gen := NewAccountTypeGenerator(e, nil)
+	gen := &accountTypeGenerator{accountTypes: mockSvc}
 
 	_, err := gen.GenerateDefaults(context.Background(), "org-123", "ledger-123")
 	require.NoError(t, err)
@@ -338,11 +281,7 @@ func TestAccountTypeGenerator_Generate_VerifyIDs(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		AccountTypes: mockSvc,
-	}
-
-	gen := NewAccountTypeGenerator(e, nil)
+	gen := &accountTypeGenerator{accountTypes: mockSvc}
 
 	_, err := gen.Generate(context.Background(), "test-org", "test-ledger", "Test", "TEST", nil)
 	require.NoError(t, err)

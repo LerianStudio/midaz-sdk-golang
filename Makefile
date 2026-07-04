@@ -66,7 +66,7 @@ endif
 
 ci:
 	$(call print_header,"Running SDK CI pipeline")
-	@$(MAKE) tidy fmt lint gosec test coverage verify-sdk
+	@$(MAKE) tidy fmt lint gosec test test-contract coverage verify-sdk
 	@echo "$(GREEN)[ok]$(NC) SDK CI pipeline completed successfully$(GREEN) ✔️$(NC)"
 
 help:
@@ -165,7 +165,7 @@ check-config-parity:
 	@./scripts/check-config-parity.sh
 
 # Verify our implementation
-verify-sdk: check-references check-mmodel-references check-api-compatibility check-config-parity examples-test
+verify-sdk: check-references check-mmodel-references check-api-compatibility check-config-parity check-codegen-drift examples-test
 	@echo "$(GREEN)✅ All SDK quality checks passed!$(NC)"
 
 # Install git hooks
@@ -197,7 +197,7 @@ test-contract:
 
 coverage:
 	$(call print_header,"Generating test coverage")
-	@$(GOTEST) -coverprofile=$(ARTIFACTS_DIR)/coverage.out $$(go list ./... | grep -v -E '(examples|mocks)')
+	@$(GOTEST) -coverprofile=$(ARTIFACTS_DIR)/coverage.out $$(go list ./... | grep -v -E '(examples|mocks|internal/gen)')
 	@coverage=$$($(GOTOOL) cover -func=$(ARTIFACTS_DIR)/coverage.out | awk '/^total:/ {print $$3}' | tr -d '%'); \
 		echo "Total coverage: $${coverage}% (threshold: $(COVERAGE_THRESHOLD)%)"; \
 		awk -v coverage="$$coverage" -v threshold="$(COVERAGE_THRESHOLD)" 'BEGIN { exit !(coverage + 0 >= threshold + 0) }' || { \
@@ -241,7 +241,7 @@ tidy:
 gosec:
 	$(call print_header,"Running security checks")
 	@echo "$(CYAN)Running gosec security scanner ($(GOSEC_VERSION))...$(NC)"
-	@$(GOSEC) -quiet ./...
+	@$(GOSEC) -exclude-generated -quiet ./...
 	@echo "$(GREEN)[ok]$(NC) Security checks completed successfully$(GREEN) ✔️$(NC)"
 
 gosec-audit:
@@ -262,6 +262,25 @@ clean:
 	@$(GOCLEAN)
 	@rm -rf $(BIN_DIR)/ $(ARTIFACTS_DIR)/coverage.out $(ARTIFACTS_DIR)/coverage.html
 	@echo "$(GREEN)[ok]$(NC) Artifacts cleaned successfully$(GREEN) ✔️$(NC)"
+
+#-------------------------------------------------------
+# Codegen Commands
+#-------------------------------------------------------
+
+.PHONY: generate check-codegen-drift
+
+generate:
+	$(call print_header,"Regenerating OpenAPI clients")
+	@./scripts/generate-clients.sh
+	@$(GO) mod tidy
+	@echo "$(GREEN)[ok]$(NC) OpenAPI clients regenerated successfully$(GREEN) ✔️$(NC)"
+
+# Determinism gate: regenerate the clients and fail if the committed output
+# drifts from the source specs. The analogue of the docs-pipeline drift gate.
+# See scripts/check-codegen-drift.sh.
+check-codegen-drift:
+	$(call print_header,"Checking OpenAPI codegen drift")
+	@./scripts/check-codegen-drift.sh
 
 #-------------------------------------------------------
 # Example Commands
@@ -341,6 +360,7 @@ PACKAGES := \
 	$(MODULE)/pkg/format \
 	$(MODULE)/pkg/generator \
 	$(MODULE)/pkg/retry \
+	$(MODULE)/pkg/transaction \
 	$(MODULE)/pkg/performance
 
 godoc-static:

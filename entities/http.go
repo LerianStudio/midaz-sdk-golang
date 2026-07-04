@@ -64,6 +64,11 @@ const (
 
 const idempotencyHeader = "X-Idempotency"
 
+// ttlHeader carries the idempotency-slot TTL (seconds) set via
+// sdkctx.WithIdempotencyTTL. Omitted when unset — the server applies its
+// default (300s).
+const ttlHeader = "X-TTL"
+
 // defaultUserAgent returns the SDK's centralized user-agent string.
 // The configured value flows in via (*HTTPClient).SetUserAgent (driven
 // from pkg/config.Config.UserAgent, which callers may override
@@ -194,12 +199,17 @@ var defaultHTTPClient = sync.OnceValue(func() *http.Client {
 		Timeout:       30 * time.Second,
 		CheckRedirect: validateSDKRedirect,
 		Transport: &http.Transport{
-			Proxy:                 http.ProxyFromEnvironment,
-			MaxIdleConns:          100,
-			MaxIdleConnsPerHost:   10,
-			MaxConnsPerHost:       100,
-			IdleConnTimeout:       90 * time.Second,
-			TLSHandshakeTimeout:   10 * time.Second,
+			Proxy:               http.ProxyFromEnvironment,
+			MaxIdleConns:        100,
+			MaxIdleConnsPerHost: 10,
+			MaxConnsPerHost:     100,
+			IdleConnTimeout:     90 * time.Second,
+			TLSHandshakeTimeout: 10 * time.Second,
+			// Hard-guard against a server that accepts the connection but
+			// stalls before sending response headers. Set on the SDK's OWN
+			// shared default transport so both planes and the legacy path
+			// inherit it via the shared pool.
+			ResponseHeaderTimeout: 30 * time.Second,
 			ExpectContinueTimeout: time.Second,
 		},
 	}

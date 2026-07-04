@@ -3,7 +3,6 @@ package generator
 import (
 	"context"
 	"errors"
-	"iter"
 	"testing"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v4/entities"
@@ -12,40 +11,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// mockOperationRoutesService satisfies the generator's narrow operationRoutesAPI (Create only).
 type mockOperationRoutesService struct {
 	createFunc func(ctx context.Context, orgID, ledgerID string, input *models.CreateOperationRouteInput) (*models.OperationRoute, error)
 }
 
-func (m *mockOperationRoutesService) CreateOperationRoute(ctx context.Context, orgID, ledgerID string, input *models.CreateOperationRouteInput) (*models.OperationRoute, error) {
+func (m *mockOperationRoutesService) Create(ctx context.Context, orgID, ledgerID string, input *models.CreateOperationRouteInput) (*models.OperationRoute, error) {
 	if m.createFunc != nil {
 		return m.createFunc(ctx, orgID, ledgerID, input)
 	}
 
 	return &models.OperationRoute{Title: input.Title}, nil
-}
-
-func (*mockOperationRoutesService) GetOperationRoute(_ context.Context, _, _, _ string) (*models.OperationRoute, error) {
-	return nil, errors.New("mock: GetOperationRoute not implemented")
-}
-
-func (*mockOperationRoutesService) ListOperationRoutes(_ context.Context, _, _ string, _ models.OperationRoutesListOpts) (*models.ListResponse[models.OperationRoute], error) {
-	return nil, errors.New("mock: ListOperationRoutes not implemented")
-}
-
-func (*mockOperationRoutesService) ListOperationRoutesAll(_ context.Context, _, _ string, _ models.OperationRoutesListOpts) iter.Seq2[models.OperationRoute, error] {
-	return func(_ func(models.OperationRoute, error) bool) {}
-}
-
-func (*mockOperationRoutesService) ListOperationRoutesPages(_ context.Context, _, _ string, _ models.OperationRoutesListOpts) iter.Seq2[*models.ListResponse[models.OperationRoute], error] {
-	return func(_ func(*models.ListResponse[models.OperationRoute], error) bool) {}
-}
-
-func (*mockOperationRoutesService) UpdateOperationRoute(_ context.Context, _, _, _ string, _ *models.UpdateOperationRouteInput) (*models.OperationRoute, error) {
-	return nil, errors.New("mock: UpdateOperationRoute not implemented")
-}
-
-func (*mockOperationRoutesService) DeleteOperationRoute(_ context.Context, _, _, _ string) error {
-	return nil
 }
 
 func TestNewOperationRouteGenerator(t *testing.T) {
@@ -99,11 +75,7 @@ func TestOperationRouteGenerator_Generate_Success(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		OperationRoutes: mockSvc,
-	}
-
-	gen := NewOperationRouteGenerator(e, nil)
+	gen := &operationRouteGenerator{operationRoutes: mockSvc}
 
 	input := models.NewCreateOperationRouteInput(
 		"Source Route",
@@ -123,11 +95,7 @@ func TestOperationRouteGenerator_Generate_Error(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		OperationRoutes: mockSvc,
-	}
-
-	gen := NewOperationRouteGenerator(e, nil)
+	gen := &operationRouteGenerator{operationRoutes: mockSvc}
 
 	input := models.NewCreateOperationRouteInput(
 		"Test Route",
@@ -162,11 +130,7 @@ func TestOperationRouteGenerator_GenerateDefaults_Success(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		OperationRoutes: mockSvc,
-	}
-
-	gen := NewOperationRouteGenerator(e, nil)
+	gen := &operationRouteGenerator{operationRoutes: mockSvc}
 
 	results, err := gen.GenerateDefaults(context.Background(), "org-123", "ledger-123")
 	require.NoError(t, err)
@@ -181,11 +145,7 @@ func TestOperationRouteGenerator_GenerateDefaults_Error(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		OperationRoutes: mockSvc,
-	}
-
-	gen := NewOperationRouteGenerator(e, nil)
+	gen := &operationRouteGenerator{operationRoutes: mockSvc}
 
 	results, err := gen.GenerateDefaults(context.Background(), "org-123", "ledger-123")
 	require.Error(t, err)
@@ -205,11 +165,7 @@ func TestOperationRouteGenerator_Generate_VerifyIDs(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		OperationRoutes: mockSvc,
-	}
-
-	gen := NewOperationRouteGenerator(e, nil)
+	gen := &operationRouteGenerator{operationRoutes: mockSvc}
 
 	input := models.NewCreateOperationRouteInput(
 		"Test Route",
@@ -237,11 +193,7 @@ func TestOperationRouteGenerator_GenerateDefaults_VerifyTemplates(t *testing.T) 
 		},
 	}
 
-	e := &entities.Entity{
-		OperationRoutes: mockSvc,
-	}
-
-	gen := NewOperationRouteGenerator(e, nil)
+	gen := &operationRouteGenerator{operationRoutes: mockSvc}
 
 	_, err := gen.GenerateDefaults(context.Background(), "org-123", "ledger-123")
 	require.NoError(t, err)

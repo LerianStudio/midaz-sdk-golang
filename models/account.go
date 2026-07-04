@@ -77,7 +77,7 @@ func GetAccountIdentifier(account Account) string {
 // See also:
 //   - [CreateAccountInput.Validate] — multi-field validation accumulator.
 //   - [UpdateAccountInput] — partial-update shape.
-//   - [github.com/LerianStudio/midaz-sdk-golang/v4/entities.AccountsService.CreateAccount]
+//   - Create it via the client's Accounts accessor: c.Accounts.Create.
 //   - [github.com/LerianStudio/midaz-sdk-golang/v4/pkg/sdkctx.WithIdempotencyKey] — make creation safe under retries.
 type CreateAccountInput struct {
 	// Name is the human-readable name of the account.

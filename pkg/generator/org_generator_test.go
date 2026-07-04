@@ -3,7 +3,6 @@ package generator
 import (
 	"context"
 	"errors"
-	"iter"
 	"math/rand"
 	"testing"
 
@@ -259,40 +258,12 @@ type mockOrganizationsService struct {
 	createFunc func(ctx context.Context, input *models.CreateOrganizationInput) (*models.Organization, error)
 }
 
-func (m *mockOrganizationsService) CreateOrganization(ctx context.Context, input *models.CreateOrganizationInput) (*models.Organization, error) {
+func (m *mockOrganizationsService) Create(ctx context.Context, input *models.CreateOrganizationInput) (*models.Organization, error) {
 	if m.createFunc != nil {
 		return m.createFunc(ctx, input)
 	}
 
 	return &models.Organization{ID: "org-123"}, nil
-}
-
-func (*mockOrganizationsService) GetOrganization(_ context.Context, _ string) (*models.Organization, error) {
-	return nil, errors.New("mock: GetOrganization not implemented")
-}
-
-func (*mockOrganizationsService) ListOrganizations(_ context.Context, _ models.OrganizationsListOpts) (*models.ListResponse[models.Organization], error) {
-	return nil, errors.New("mock: ListOrganizations not implemented")
-}
-
-func (*mockOrganizationsService) ListOrganizationsAll(_ context.Context, _ models.OrganizationsListOpts) iter.Seq2[models.Organization, error] {
-	return func(_ func(models.Organization, error) bool) {}
-}
-
-func (*mockOrganizationsService) ListOrganizationsPages(_ context.Context, _ models.OrganizationsListOpts) iter.Seq2[*models.ListResponse[models.Organization], error] {
-	return func(_ func(*models.ListResponse[models.Organization], error) bool) {}
-}
-
-func (*mockOrganizationsService) UpdateOrganization(_ context.Context, _ string, _ *models.UpdateOrganizationInput) (*models.Organization, error) {
-	return nil, errors.New("mock: UpdateOrganization not implemented")
-}
-
-func (*mockOrganizationsService) DeleteOrganization(_ context.Context, _ string) error {
-	return nil
-}
-
-func (*mockOrganizationsService) GetOrganizationsMetricsCount(_ context.Context) (*models.MetricsCount, error) {
-	return nil, errors.New("mock: GetOrganizationsMetricsCount not implemented")
 }
 
 func TestOrgGenerator_Generate_Success(t *testing.T) {
@@ -305,11 +276,7 @@ func TestOrgGenerator_Generate_Success(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		Organizations: mockSvc,
-	}
-
-	gen := NewOrganizationGenerator(e, nil)
+	gen := &orgGenerator{orgs: mockSvc}
 	template := data.OrgTemplate{
 		LegalName: "Test Corporation",
 		TradeName: "TestCo",
@@ -334,11 +301,7 @@ func TestOrgGenerator_Generate_Error(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		Organizations: mockSvc,
-	}
-
-	gen := NewOrganizationGenerator(e, nil)
+	gen := &orgGenerator{orgs: mockSvc}
 	template := data.OrgTemplate{
 		LegalName: "Test Corporation",
 	}

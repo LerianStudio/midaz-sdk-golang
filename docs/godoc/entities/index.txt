@@ -19,11 +19,7 @@ const HeaderTotalCount = "X-Total-Count"
 func Collect[T any](seq iter.Seq2[T, error], maxItems int) ([]T, error)
 func CollectAll[T any](seq iter.Seq2[T, error]) ([]T, error)
 func HTTPPhase(err error) (string, bool)
-type AccountTypesService interface{ ... }
-type AccountsService interface{ ... }
 type AliasesService interface{ ... }
-type AssetRatesService interface{ ... }
-type AssetsService interface{ ... }
 type BalancesService interface{ ... }
 type Config interface{ ... }
 type Entity struct{ ... }
@@ -31,13 +27,5 @@ type Entity struct{ ... }
     func NewEntityWithConfigContext(ctx context.Context, config Config) (*Entity, error)
 type HTTPClient struct{ ... }
     func NewHTTPClient(client *http.Client, authToken string, provider observability.Provider) *HTTPClient
-type HoldersService interface{ ... }
-type LedgersService interface{ ... }
-type MetadataIndexesService interface{ ... }
-type OperationRoutesService interface{ ... }
 type OperationsService interface{ ... }
-type OrganizationsService interface{ ... }
-type PortfoliosService interface{ ... }
-type SegmentsService interface{ ... }
-type TransactionRoutesService interface{ ... }
-type TransactionsService interface{ ... }
+type PlaneClients struct{ ... }

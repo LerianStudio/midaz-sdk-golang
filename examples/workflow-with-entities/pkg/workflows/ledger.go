@@ -28,7 +28,7 @@ func CreateLedger(ctx context.Context, midazClient *midaz.Client, orgID string) 
 	fmt.Println("\nCreating ledger...")
 
 	// Create a ledger with the organization ID
-	ledger, err := midazClient.Ledgers.CreateLedger(ctx, orgID,
+	ledger, err := midazClient.Ledgers.Create(ctx, orgID,
 		models.NewCreateLedgerInput("Main Ledger").
 			WithMetadata(map[string]any{
 				"purpose": "example",

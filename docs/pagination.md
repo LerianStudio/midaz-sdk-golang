@@ -1,25 +1,27 @@
 # Pagination in the Midaz Go SDK
 
 v3 uses typed list-opts per endpoint and ships paginated entity list methods in a trio:
-`List` (one page), `ListAll` (every item across pages, as `iter.Seq2`), and
-`ListPages` (every page envelope, as `iter.Seq2`). Cursor-based and
+`List` (one page), `All` (every item across pages, as `iter.Seq2`), and
+`Pages` (every page envelope, as `iter.Seq2`). Cursor-based and
 page-based endpoints have separate opts types — wrong-shape opts don't
 compile. Metadata index listing is not paginated and does not use this trio.
 
 ## The list-method trio
 
-Paginated entity list methods in `entities` ship in three flavors. Using `Accounts`
+Paginated entity list methods ship in three flavors. Using `Accounts`
 as the worked example:
 
 | Method | Returns | Use when |
 | --- | --- | --- |
-| `ListAccounts` | `*models.ListResponse[Account]` (one page) | You want exactly one page and decide when to advance. |
-| `ListAccountsAll` | `iter.Seq2[Account, error]` | You want to consume every item linearly; the SDK handles paging. |
-| `ListAccountsPages` | `iter.Seq2[*ListResponse[Account], error]` | You need page-level metadata (cursor, total, page number) for checkpointing or stopping mid-page. |
+| `List` | `*models.ListResponse[Account]` (one page) | You want exactly one page and decide when to advance. |
+| `All` | `iter.Seq2[Account, error]` | You want to consume every item linearly; the SDK handles paging. |
+| `Pages` | `iter.Seq2[*ListResponse[Account], error]` | You need page-level metadata (cursor, total, page number) for checkpointing or stopping mid-page. |
 
-The same trio shape applies to paginated entity list endpoints such as `ListLedgers` /
-`ListLedgersAll` / `ListLedgersPages`, `ListTransactions` /
-`ListTransactionsAll` / `ListTransactionsPages`, and so on. `MetadataIndexes.ListMetadataIndexes` returns a slice and accepts only an optional entity-name filter, so it has no `All` or `Pages` variant.
+The primary entity accessors (`Accounts`, `Ledgers`, `Organizations`, `Assets`,
+`Portfolios`, `Segments`, `Transactions`, `AssetRates`) share this uniform
+`List` / `All` / `Pages` trio. The remaining legacy services (`Balances`,
+`Operations`, `Aliases`) keep the older prefixed form (`ListBalances` /
+`ListBalancesAll` / `ListBalancesPages`, and so on). `MetadataIndexes.ListMetadataIndexes` returns a slice and accepts only an optional entity-name filter, so it has no `All` or `Pages` variant.
 
 ## Page-based vs cursor-based endpoints
 
@@ -56,7 +58,7 @@ opts := models.AccountsListOpts{
     Filters:      models.AccountsFilters{Status: "ACTIVE"},
 }
 
-for account, err := range c.Accounts.ListAccountsAll(ctx, orgID, ledgerID, opts) {
+for account, err := range c.Accounts.All(ctx, orgID, ledgerID, opts) {
     if err != nil {
         return fmt.Errorf("list accounts: %w", err)
     }
@@ -79,7 +81,7 @@ opts := models.AccountsListOpts{
     PageListOpts: models.PageListOpts{Limit: 100},
 }
 
-for page, err := range c.Accounts.ListAccountsPages(ctx, orgID, ledgerID, opts) {
+for page, err := range c.Accounts.Pages(ctx, orgID, ledgerID, opts) {
     if err != nil {
         return fmt.Errorf("list accounts pages: %w", err)
     }
@@ -106,7 +108,7 @@ opts := models.TransactionsListOpts{
     CursorListOpts: models.CursorListOpts{Limit: 50},
 }
 
-for tx, err := range c.Transactions.ListTransactionsAll(ctx, orgID, ledgerID, opts) {
+for tx, err := range c.Transactions.All(ctx, orgID, ledgerID, opts) {
     if err != nil {
         return fmt.Errorf("list transactions: %w", err)
     }
@@ -124,7 +126,7 @@ Use `entities.Collect` or `entities.CollectAll` when you need a slice instead of
 
 ```go
 accounts, err := entities.Collect(
-    c.Accounts.ListAccountsAll(ctx, orgID, ledgerID, opts),
+    c.Accounts.All(ctx, orgID, ledgerID, opts),
     1000,
 )
 if err != nil {
@@ -145,7 +147,7 @@ opts := models.AccountsListOpts{
     PageListOpts: models.PageListOpts{Limit: 25, Page: 1},
 }
 
-page, err := c.Accounts.ListAccounts(ctx, orgID, ledgerID, opts)
+page, err := c.Accounts.List(ctx, orgID, ledgerID, opts)
 if err != nil {
     return err
 }

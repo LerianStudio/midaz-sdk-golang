@@ -189,7 +189,7 @@ The config package uses three service names internally:
 | --- | --- |
 | `onboarding` | Ledger API resources historically grouped under onboarding, such as organizations, ledgers, accounts, assets, portfolios, and segments. |
 | `transaction` | Ledger API transaction-side resources, such as transactions, operations, balances, routes, metadata indexes, and asset rates. |
-| `crm` | CRM resources, currently holders and aliases. |
+| `crm` | CRM aliases. Holders moved to the Ledger `onboarding` URL in the v4 remodel. |
 
 For local defaults:
 
@@ -217,7 +217,7 @@ if err != nil {
     return err
 }
 
-orgs, err := c.Organizations.ListOrganizations(ctx, models.OrganizationsListOpts{
+orgs, err := c.Organizations.List(ctx, models.OrganizationsListOpts{
     PageListOpts: models.PageListOpts{Limit: 20},
 })
 ```
@@ -240,12 +240,58 @@ The current entity surface has 16 services:
 | `MetadataIndexes` | Ledger | `transaction` | Manage metadata indexes. |
 | `Portfolios` | Ledger | `onboarding` | Manage portfolios. |
 | `Segments` | Ledger | `onboarding` | Manage segments. |
-| `Holders` | CRM | `crm` | Manage CRM holders. |
+| `Holders` | Ledger | `onboarding` | Manage holders (organization-in-path; re-homed to the Ledger plane in v4). |
 | `Aliases` | CRM | `crm` | Manage CRM aliases and related parties. |
 
-Each public service field is an interface. Each concrete implementation is private to the `entities` package, such as `accountsEntity`, `transactionsEntity`, `holdersEntity`, and `aliasesEntity`.
+Most public service fields are concrete `*xFacade` structs over the generated plane client. Only `Balances`, `Operations`, and `Aliases` remain interface-backed, with private implementations (`balancesEntity`, `operationsEntity`, and `aliasesEntity`) in the `entities` package.
 
-All service implementations share the same parent `*entities.HTTPClient`. The service-specific structs hold cloned base URL maps, but auth token state, reactive 401 refresh, retry settings, idempotency settings, logger, debug flag, user agent, and observability all live on the shared HTTP client.
+The legacy interface-backed trio (Balances, Operations, Aliases) shares the same parent `*entities.HTTPClient`. Their service-specific structs hold cloned base URL maps, but auth token state, reactive 401 refresh, retry settings, idempotency settings, logger, debug flag, user agent, and observability all live on the shared HTTP client. The facade-backed resources route through the two generated plane clients instead — see [Two-plane architecture](#two-plane-architecture) below.
+
+## Two-plane architecture
+
+The v4 remodel routes most traffic through two generated, typed plane clients instead of the single legacy transport. This is the current backbone of the SDK.
+
+- `internal/genledger` — the Ledger plane client (oapi-codegen `ClientWithResponses`). Serves onboarding, transaction, CRM-domain (holders), fee, and billing resources. Backed by the `onboarding` service URL.
+- `internal/gentracer` — the Tracer plane client (oapi-codegen `ClientWithResponses`). Serves rules, limits, validations, reservations, and audit-event resources. Backed by the `tracer` service URL, which falls back to `onboarding` when unset.
+
+`entities.PlaneClients` (`entities/plane_clients.go`) holds both clients, assembled once during entity construction by `buildPlaneClients(...)`:
+
+```go
+type PlaneClients struct {
+    Ledger *genledger.ClientWithResponses
+    Tracer *gentracer.ClientWithResponses
+}
+```
+
+Each plane client wraps the shared pooled transport in an auth round tripper, then a retry round tripper. The Ledger plane always authenticates with the shared Access Manager Bearer; the Tracer plane switches to `X-API-Key` when a Tracer API key is configured, otherwise it reuses the same Bearer. A 401 on either plane triggers one shared token refresh-and-replay.
+
+The public SDK surface stays hand-written. The `entities/*_facade.go` files (for example `holders_facade.go`, `accountsFacade`, `rulesFacade`) wrap the generated `ClientWithResponses`, layering `models.*` inputs/outputs, `*errors.Error` normalization from RFC 9457 problem-json envelopes, and pagination helpers on top. The generated types never leak into the public API.
+
+Two categories of facade sit on the plane clients:
+
+1. The 13 ledger-plane resources from the entity-services table above (Organizations, Ledgers, Accounts, AccountTypes, Assets, AssetRates, Portfolios, Segments, OperationRoutes, TransactionRoutes, MetadataIndexes, Transactions, and Holders) were repointed onto `genledger` facades, bypassing `entities.HTTPClient` entirely. Only `Balances`, `Operations`, and `Aliases` remain on the legacy transport.
+2. Thirteen additional plane-native accessors are additive — new public surface with no legacy counterpart:
+
+**Tracer plane (flat — not organization/ledger-scoped):**
+
+- `Rules` — rule definitions and lifecycle (create/get/update/delete, activate/deactivate/draft, list trio).
+- `Limits` — limit definitions, lifecycle, and point-in-time usage (`GetUsage`).
+- `Validations` — evaluate a transaction against active rules/limits and read stored verdicts.
+- `Reservations` — two-phase capacity reservations, by reservation id or by transaction.
+- `AuditEvents` — read-only audit trail with a server-side hash-chain verdict (`Verify`); the SDK performs no crypto.
+
+**Ledger-plane extensions (organization-scoped; some also ledger/holder-scoped):**
+
+- `ProtectionAudit` — protection (envelope-encryption) audit trail; a `404` means the feature is disabled for the deployment.
+- `Encryption` — envelope-encryption provisioning (`Provision`, `GetProvisioningStatus`).
+- `Instruments` — CRM instruments under a holder, plus the holder's accounts.
+- `Composition` — opens a holder-owned account and, when instrument fields are present, its instrument in one call.
+- `FeePackages` — organization-scoped, page-mode fee package CRUD.
+- `FeeEstimates` — dry-run fee estimation (`EstimateFee`).
+- `BillingPackages` — organization-scoped, page-mode billing package CRUD.
+- `BillingCalculations` — period billing calculation (`CalculateBilling`).
+
+These accessors are nil when the entity was constructed without plane clients. See [docs/mapping/external_apis.md](./mapping/external_apis.md) for the full method signatures.
 
 ## Conceptual resource hierarchy
 
@@ -286,7 +332,7 @@ sequenceDiagram
     Client->>Entity: setupEntity()
     Entity->>Service: initServices()
 
-    App->>Service: c.Accounts.GetAccount(ctx, orgID, ledgerID, accountID)
+    App->>Service: c.Accounts.Get(ctx, orgID, ledgerID, accountID)
     Service->>Service: validate required parameters
     Service->>Service: build resource URL
     Service->>HTTP: doRequest(ctx, method, url, headers, body, result)
@@ -311,7 +357,7 @@ The HTTP layer adds these standard headers:
 | `User-Agent` | Uses config user agent or version default. |
 | `Authorization: Bearer <token>` | Added only when an Access Manager token is available or an entity has an auth token. |
 | `X-Idempotency` | Added for unsafe methods from an explicit input/header value, from context, or from automatic UUID generation when enabled. |
-| `X-Organization-Id` | Added by CRM holder and alias requests. |
+| `X-Organization-Id` | Added by CRM alias requests. Holders use organization-in-path on the Ledger plane and send no such header. |
 
 Tenant scope is derived from Access Manager/JWT claims. The SDK does not expose tenant configuration and does not send `X-Tenant-ID`.
 
@@ -423,7 +469,7 @@ Use the helper checkers for common branches:
 ```go
 import sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
 
-account, err := c.Accounts.GetAccount(ctx, orgID, ledgerID, accountID)
+account, err := c.Accounts.Get(ctx, orgID, ledgerID, accountID)
 if err != nil {
     switch {
     case sdkerrors.IsNotFoundError(err):
@@ -541,7 +587,7 @@ You can attach an idempotency key to any request context:
 ```go
 ctx := sdkctx.WithIdempotencyKey(context.Background(), "payment-2026-04-27-0001")
 
-tx, err := c.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
+tx, err := c.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
 ```
 
 For transaction creation, `models.CreateTransactionInput` also has an idempotency field used by the transaction service:
@@ -566,7 +612,7 @@ input := models.NewCreateTransactionInput("USD", "100.00").
 
 input.IdempotencyKey = "payment-2026-04-27-0001"
 
-tx, err := c.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
+tx, err := c.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
 ```
 
 Idempotency key precedence is first non-empty source wins:
@@ -675,7 +721,7 @@ opts := models.AccountsListOpts{
 }
 
 // Single page:
-page, err := c.Accounts.ListAccounts(ctx, orgID, ledgerID, opts)
+page, err := c.Accounts.List(ctx, orgID, ledgerID, opts)
 if err != nil {
     return err
 }
@@ -690,7 +736,7 @@ if page.Pagination.HasMore() {
 }
 
 // All items across every page (iter.Seq2):
-for account, err := range c.Accounts.ListAccountsAll(ctx, orgID, ledgerID, opts) {
+for account, err := range c.Accounts.All(ctx, orgID, ledgerID, opts) {
     if err != nil {
         return err
     }
@@ -700,35 +746,36 @@ for account, err := range c.Accounts.ListAccountsAll(ctx, orgID, ledgerID, opts)
 
 Cursor-based endpoints (Transactions, Operations, OperationRoutes, TransactionRoutes, AssetRates) use `models.CursorListOpts` instead of `PageListOpts`. The type system prevents mixing them. See [docs/pagination.md](./pagination.md) for the full contract.
 
+Sharp edge: `Holders` and `Instruments` are cursor-paginated. Their opts (`HoldersListOpts`, `InstrumentsListOpts`) embed `CursorListOpts`, so `Cursor` seeds the first page and resumes a later one, and `Pages`/`All` inject the response `next_cursor` as a `cursor` query param and stop on an empty cursor. Dates are rejected (`ValidateCursorListOptsNoDates`) — these endpoints declare no `start_date`/`end_date`. Prefer `Pages`/`All` for full iteration; drive `List` with `Cursor` only when advancing the cursor yourself.
+
 ## CRM support
 
-CRM support is implemented through two entity services:
+CRM-domain support spans two entity accessors that no longer share a transport. The v4 remodel re-homed `Holders` onto the Ledger plane (organization-in-path, `onboarding` URL); `Aliases` remains on the legacy CRM path (`X-Organization-Id` header, `crm` URL). Configure and reason about them separately.
 
-- `Holders`
-- `Aliases`
+### Holders (Ledger plane)
 
-CRM requests use the `crm` service URL and send the organization context through:
+`Holders` is a hand-written facade (`entities/holders_facade.go`) over the generated `genledger` client. It targets the Ledger-plane surface `/organizations/{org}/holders`: the organization is a positional path segment, not the `X-Organization-Id` header, and the backing URL is `onboarding`, not `crm`. Holder listing is cursor-based: `HoldersListOpts` embeds `CursorListOpts`, so `Cursor` seeds/resumes the page and `Pages`/`All` echo the response `next_cursor` back as a query param and stop on an empty cursor. Dates are rejected (`ValidateCursorListOptsNoDates`).
 
-```text
-X-Organization-Id: <organizationID>
-```
-
-Holder and alias methods still require `organizationID` and send it as `X-Organization-Id`. Tenant scope comes from Access Manager/JWT claims, not from request headers.
-
-Example:
+The public method is `List` (not `ListHolders`, which exists only on the low-level generated client):
 
 ```go
-holders, err := c.Holders.ListHolders(
+holders, err := c.Holders.List(
     ctx,
     orgID,
     models.HoldersListOpts{
-        PageListOpts: models.PageListOpts{Limit: 20},
+        CursorListOpts: models.CursorListOpts{Limit: 20},
     },
 )
 if err != nil {
     return err
 }
+```
 
+### Aliases (legacy CRM plane)
+
+`Aliases` stays interface-backed (`aliasesEntity`) on the shared legacy `entities.HTTPClient`. Every alias method requires `organizationID` and sends it as the `X-Organization-Id` header (via `crmHeaders`), using the `crm` service URL. Alias listing is page-based: the iterator advances `Page++` and stops on `!HasMore()`. Tenant scope still comes from Access Manager/JWT claims, not from `X-Organization-Id`.
+
+```go
 alias, err := c.Aliases.CreateAlias(
     ctx,
     orgID,
@@ -743,7 +790,7 @@ alias, err := c.Aliases.CreateAlias(
 )
 ```
 
-If no CRM URL is configured, the entity layer falls back to the onboarding URL. For local development, prefer setting `MIDAZ_CRM_URL=http://localhost:4003/v1` or using `midaz.WithCRMURL(...)`.
+If no CRM URL is configured, the entity layer falls back to the onboarding URL — which is also where holders live. For local development, prefer setting `MIDAZ_CRM_URL=http://localhost:4003/v1` or using `midaz.WithCRMURL(...)` for the alias path.
 
 ## Security boundaries
 

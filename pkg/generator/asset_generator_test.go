@@ -3,7 +3,6 @@ package generator
 import (
 	"context"
 	"errors"
-	"iter"
 	"testing"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v4/entities"
@@ -13,44 +12,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// mockAssetsService satisfies the generator's narrow assetsAPI (Create only).
 type mockAssetsService struct {
 	createFunc func(ctx context.Context, orgID, ledgerID string, input *models.CreateAssetInput) (*models.Asset, error)
 }
 
-func (m *mockAssetsService) CreateAsset(ctx context.Context, orgID, ledgerID string, input *models.CreateAssetInput) (*models.Asset, error) {
+func (m *mockAssetsService) Create(ctx context.Context, orgID, ledgerID string, input *models.CreateAssetInput) (*models.Asset, error) {
 	if m.createFunc != nil {
 		return m.createFunc(ctx, orgID, ledgerID, input)
 	}
 
 	return &models.Asset{ID: "asset-123", Name: input.Name, Code: input.Code}, nil
-}
-
-func (*mockAssetsService) GetAsset(_ context.Context, _, _, _ string) (*models.Asset, error) {
-	return nil, errors.New("mock: GetAsset not implemented")
-}
-
-func (*mockAssetsService) ListAssets(_ context.Context, _, _ string, _ models.AssetsListOpts) (*models.ListResponse[models.Asset], error) {
-	return nil, errors.New("mock: ListAssets not implemented")
-}
-
-func (*mockAssetsService) ListAssetsAll(_ context.Context, _, _ string, _ models.AssetsListOpts) iter.Seq2[models.Asset, error] {
-	return func(_ func(models.Asset, error) bool) {}
-}
-
-func (*mockAssetsService) ListAssetsPages(_ context.Context, _, _ string, _ models.AssetsListOpts) iter.Seq2[*models.ListResponse[models.Asset], error] {
-	return func(_ func(*models.ListResponse[models.Asset], error) bool) {}
-}
-
-func (*mockAssetsService) UpdateAsset(_ context.Context, _, _, _ string, _ *models.UpdateAssetInput) (*models.Asset, error) {
-	return nil, errors.New("mock: UpdateAsset not implemented")
-}
-
-func (*mockAssetsService) DeleteAsset(_ context.Context, _, _, _ string) error {
-	return nil
-}
-
-func (*mockAssetsService) GetAssetsMetricsCount(_ context.Context, _, _ string) (*models.MetricsCount, error) {
-	return nil, errors.New("mock: GetAssetsMetricsCount not implemented")
 }
 
 func TestNewAssetGenerator(t *testing.T) {
@@ -97,10 +69,7 @@ func TestAssetGenerator_Generate_NilAssetsService(t *testing.T) {
 
 func TestAssetGenerator_Generate_MissingOrgID(t *testing.T) {
 	mockSvc := &mockAssetsService{}
-	e := &entities.Entity{
-		Assets: mockSvc,
-	}
-	gen := NewAssetGenerator(e, nil)
+	gen := &assetGenerator{assets: mockSvc}
 	template := data.AssetTemplate{
 		Name: "US Dollar",
 		Code: "USD",
@@ -123,11 +92,7 @@ func TestAssetGenerator_Generate_Success(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		Assets: mockSvc,
-	}
-
-	gen := NewAssetGenerator(e, nil)
+	gen := &assetGenerator{assets: mockSvc}
 	template := data.AssetTemplate{
 		Name:  "US Dollar",
 		Code:  "USD",
@@ -153,11 +118,7 @@ func TestAssetGenerator_Generate_Error(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		Assets: mockSvc,
-	}
-
-	gen := NewAssetGenerator(e, nil)
+	gen := &assetGenerator{assets: mockSvc}
 	template := data.AssetTemplate{
 		Name: "US Dollar",
 		Code: "USD",
@@ -172,7 +133,7 @@ func TestAssetGenerator_Generate_Error(t *testing.T) {
 }
 
 func TestAssetGenerator_GenerateWithRates_MissingService(t *testing.T) {
-	gen := NewAssetGenerator(&entities.Entity{Assets: &mockAssetsService{}}, nil)
+	gen := &assetGenerator{assets: &mockAssetsService{}}
 
 	err := gen.GenerateWithRates(context.Background(), "ledger-123", "USD")
 	require.Error(t, err)
@@ -180,7 +141,7 @@ func TestAssetGenerator_GenerateWithRates_MissingService(t *testing.T) {
 }
 
 func TestAssetGenerator_UpdateRates_MissingService(t *testing.T) {
-	gen := NewAssetGenerator(&entities.Entity{Assets: &mockAssetsService{}}, nil)
+	gen := &assetGenerator{assets: &mockAssetsService{}}
 
 	rates := map[string]float64{
 		"EUR": 0.85,
@@ -256,11 +217,7 @@ func TestAssetGenerator_Generate_VerifyInput(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		Assets: mockSvc,
-	}
-
-	gen := NewAssetGenerator(e, nil)
+	gen := &assetGenerator{assets: mockSvc}
 	template := data.AssetTemplate{
 		Name:  "Euro",
 		Code:  "EUR",
@@ -297,11 +254,7 @@ func TestAssetGenerator_Generate_WithCircuitBreaker(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		Assets: mockSvc,
-	}
-
-	gen := NewAssetGenerator(e, nil)
+	gen := &assetGenerator{assets: mockSvc}
 	template := data.AssetTemplate{
 		Name: "Test Asset",
 		Code: "TEST",
@@ -325,11 +278,7 @@ func TestAssetGenerator_Generate_MetadataPassthrough(t *testing.T) {
 		},
 	}
 
-	e := &entities.Entity{
-		Assets: mockSvc,
-	}
-
-	gen := NewAssetGenerator(e, nil)
+	gen := &assetGenerator{assets: mockSvc}
 	template := data.AssetTemplate{
 		Name:  "Japanese Yen",
 		Code:  "JPY",

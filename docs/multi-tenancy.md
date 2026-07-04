@@ -21,7 +21,7 @@ if err != nil {
 }
 
 // Tenant is implied by the access token returned by Access Manager.
-acc, err := c.Accounts.GetAccount(ctx, orgID, ledgerID, accountID)
+acc, err := c.Accounts.Get(ctx, orgID, ledgerID, accountID)
 ```
 
 ## Migration from tenant-header based code

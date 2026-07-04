@@ -64,7 +64,7 @@ func CreateSegments(ctx context.Context, midazClient *midaz.Client, orgID, ledge
 
 		// Attempt to create the segment
 		// Note: portfolioID is passed for backward compatibility but not used by the API
-		segment, err := midazClient.Segments.CreateSegment(
+		segment, err := midazClient.Segments.Create(
 			ctx, orgID, ledgerID, segmentInput,
 		)
 		if err != nil {

@@ -2048,20 +2048,66 @@ var apiErrorCodeMappings = map[string]httpErrorMapping{
 	string(CodeAssetMismatch):       {CategoryValidation, CodeAssetMismatch, true},
 }
 
+// apiCodeSuffixMappings overrides retryability for domain codes whose
+// semantics the HTTP status cannot express, keyed on the four-digit suffix
+// of the RFC 9457 <SERVICE>-NNNN code (robust to the service prefix):
+//   - 0178: transient unavailability → retryable (CategoryNetwork), even
+//     when the status is a non-retryable 4xx.
+//   - 0177: domain denial → non-retryable (CategoryUnprocessable), even
+//     when the status is a retryable 5xx.
+//   - 0084: idempotency conflict → non-retryable (CategoryConflict) and
+//     classified as CodeIdempotency. On the wire the code arrives prefixed
+//     ("LEDGER-0084"), so the exact-match apiErrorCodeMappings["0084"] never
+//     fires; the suffix lookup is the only path that catches the prefixed form.
+var apiCodeSuffixMappings = map[string]httpErrorMapping{
+	"0178": {CategoryNetwork, CodeServiceUnavailable, false},
+	"0177": {CategoryUnprocessable, CodeUnprocessable, false},
+	"0084": {CategoryConflict, CodeIdempotency, false},
+}
+
+// apiCodeSuffixLen is the fixed width of the NNNN suffix in an
+// <SERVICE>-NNNN RFC 9457 error code.
+const apiCodeSuffixLen = 4
+
+// apiCodeSuffix returns the trailing four-digit numeric suffix of an
+// <SERVICE>-NNNN error code, or "" if the code has no such suffix.
+func apiCodeSuffix(apiCode string) string {
+	if i := strings.LastIndex(apiCode, "-"); i >= 0 {
+		apiCode = apiCode[i+1:]
+	}
+
+	if len(apiCode) != apiCodeSuffixLen {
+		return ""
+	}
+
+	for _, r := range apiCode {
+		if r < '0' || r > '9' {
+			return ""
+		}
+	}
+
+	return apiCode
+}
+
 func applyAPICodeMapping(mapping httpErrorMapping, apiCode string) httpErrorMapping {
 	apiCode = strings.TrimSpace(apiCode)
 	if apiCode == "" {
 		return mapping
 	}
 
-	apiMapping, ok := apiErrorCodeMappings[apiCode]
-	if !ok {
-		return mapping
+	if apiMapping, ok := apiErrorCodeMappings[apiCode]; ok {
+		apiMapping.withResource = apiMapping.withResource || mapping.withResource
+
+		return apiMapping
 	}
 
-	apiMapping.withResource = apiMapping.withResource || mapping.withResource
+	if apiMapping, ok := apiCodeSuffixMappings[apiCodeSuffix(apiCode)]; ok {
+		apiMapping.withResource = apiMapping.withResource || mapping.withResource
 
-	return apiMapping
+		return apiMapping
+	}
+
+	return mapping
 }
 
 // ErrorFromHTTPResponse creates an appropriate error based on the HTTP response

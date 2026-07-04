@@ -10,12 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// newDecimal is a helper function to create a decimal value from a string
-func newDecimal(value string) decimal.Decimal {
-	d, _ := decimal.NewFromString(value)
-	return d
-}
-
 func newValidSendInput(value float64) *SendInput {
 	asset := "USD"
 
@@ -499,6 +493,25 @@ func TestSendInput_Validate(t *testing.T) {
 			wantErr: true,
 			errMsg:  "to is required",
 		},
+		{
+			// Cross-asset money-path guard: a USD send whose distribute leg carries
+			// a fixed BRL amount. sumFixedAmountEntries flags the mismatched asset and
+			// appendSendBalanceErrors rejects it — the client must not ship a leg whose
+			// asset disagrees with the send asset.
+			name: "distribute leg asset mismatches send asset",
+			input: &SendInput{
+				Asset:  "USD",
+				Value:  100,
+				Source: validSource,
+				Distribute: &DistributeInput{
+					To: []FromToInput{
+						{Account: "dest-acc", Amount: AmountInput{Asset: "BRL", Value: 100}},
+					},
+				},
+			},
+			wantErr: true,
+			errMsg:  "amount assets must match send asset",
+		},
 	}
 
 	for _, tt := range tests {
@@ -794,6 +807,65 @@ func TestFromToInput_Validate(t *testing.T) {
 			wantErr: true,
 			errMsg:  "value must be greater than zero",
 		},
+		{
+			name:    "valid share leg (no amount)",
+			input:   &FromToInput{Account: "acc-123", Share: &Share{Percentage: 50}},
+			wantErr: false,
+		},
+		{
+			name:    "share percentage below 1",
+			input:   &FromToInput{Account: "acc-123", Share: &Share{Percentage: 0}},
+			wantErr: true,
+			errMsg:  "share.percentage",
+		},
+		{
+			name:    "share percentage above 100",
+			input:   &FromToInput{Account: "acc-123", Share: &Share{Percentage: 101}},
+			wantErr: true,
+			errMsg:  "share.percentage",
+		},
+		{
+			name:    "share percentage negative",
+			input:   &FromToInput{Account: "acc-123", Share: &Share{Percentage: -1}},
+			wantErr: true,
+			errMsg:  "share.percentage",
+		},
+		{
+			name:    "share percentageOfPercentage negative",
+			input:   &FromToInput{Account: "acc-123", Share: &Share{Percentage: 50, PercentageOfPercentage: -1}},
+			wantErr: true,
+			errMsg:  "share.percentageOfPercentage",
+		},
+		{
+			name:    "share percentageOfPercentage above 100",
+			input:   &FromToInput{Account: "acc-123", Share: &Share{Percentage: 50, PercentageOfPercentage: 101}},
+			wantErr: true,
+			errMsg:  "share.percentageOfPercentage",
+		},
+		{
+			name:    "no value mechanism",
+			input:   &FromToInput{Account: "acc-123"},
+			wantErr: true,
+			errMsg:  "one of amount, share, remaining, or rate is required",
+		},
+		{
+			name:    "amount combined with share rejected",
+			input:   &FromToInput{Account: "acc-123", Amount: AmountInput{Asset: "USD", Value: 100}, Share: &Share{Percentage: 50}},
+			wantErr: true,
+			errMsg:  "cannot be combined with share, remaining, or rate",
+		},
+		{
+			name:    "amount combined with remaining rejected",
+			input:   &FromToInput{Account: "acc-123", Amount: AmountInput{Asset: "USD", Value: 100}, Remaining: "remaining"},
+			wantErr: true,
+			errMsg:  "cannot be combined with share, remaining, or rate",
+		},
+		{
+			name:    "amount combined with rate rejected",
+			input:   &FromToInput{Account: "acc-123", Amount: AmountInput{Asset: "USD", Value: 100}, Rate: &Rate{From: "USD", To: "BRL", Value: "5.00", ExternalID: "fx-1"}},
+			wantErr: true,
+			errMsg:  "cannot be combined with share, remaining, or rate",
+		},
 	}
 
 	for _, tt := range tests {
@@ -833,6 +905,28 @@ func TestFromToInput_ToMap(t *testing.T) {
 		result := input.ToMap()
 
 		assert.Equal(t, "main-route", result["route"])
+	})
+
+	t.Run("rate leg carries rate key", func(t *testing.T) {
+		input := FromToInput{
+			Account: "acc-123",
+			Rate:    &Rate{From: "USD", To: "BRL", Value: "5.00", ExternalID: "fx-1"},
+		}
+		result := input.ToMap()
+
+		assert.Equal(t, input.Rate, result["rate"], "a rate leg must serialize its rate on the wire")
+		assert.Nil(t, result["amount"], "a rate leg must not ship an empty amount alongside it")
+	})
+
+	t.Run("remaining leg carries remaining key", func(t *testing.T) {
+		input := FromToInput{
+			Account:   "acc-123",
+			Remaining: "remaining",
+		}
+		result := input.ToMap()
+
+		assert.Equal(t, "remaining", result["remaining"], "a remaining leg must serialize its remaining token")
+		assert.Nil(t, result["amount"], "a remaining leg must not ship an empty amount alongside it")
 	})
 }
 

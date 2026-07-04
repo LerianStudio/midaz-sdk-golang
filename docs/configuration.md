@@ -60,12 +60,11 @@ The full list (v3):
 |---|---|
 | `WithAccessManager` | Plugin-based authentication (OAuth M2M) |
 | `WithAllowInsecureAccessManagerHTTP` | Permit non-loopback `http://` Access Manager URLs for trusted in-cluster networks |
-| `WithAllowInsecureHTTP` | Permit non-loopback `http://` Ledger / CRM URLs for trusted in-cluster networks (e.g. `*.svc.cluster.local`); apply BEFORE the URL setters |
+| `WithAllowInsecureHTTP` | Permit non-loopback `http://` Ledger / Tracer URLs for trusted in-cluster networks (e.g. `*.svc.cluster.local`); apply BEFORE the URL setters |
 | `WithAnonymous` | Disable authentication (testing/local) |
 | `WithBaseURL` | Override service base URL |
 | `WithConfig` | Use a pre-built `*config.Config` (advanced) |
 | `WithContext` | Override the client's default context |
-| `WithCRMURL` | Override CRM service URL |
 | `WithCustomRetryPolicy` | Per-response retry decision callback |
 | `WithDebug` | Enable verbose request/response logging |
 | `WithEnvironment` | Select production / development / local |
@@ -80,6 +79,8 @@ The full list (v3):
 | `WithRetryOptions` | Thread `retry.Option` chain onto entity HTTPClient |
 | `WithSlowCallThreshold` | Warn-level log when request exceeds duration |
 | `WithTimeout` | HTTP request timeout |
+| `WithTracerAPIKey` | Optional X-API-Key auth override for the Tracer plane (defaults to sharing the Ledger Bearer token) |
+| `WithTracerURL` | Override the Tracer plane base URL |
 | `WithUserAgent` | Override `User-Agent` header |
 
 ### 1.2 `pkg/config.With*` — the internal/test layer
@@ -172,7 +173,7 @@ import "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/sdkctx"
 ctx := sdkctx.WithIdempotencyKey(context.Background(), "user-action-42-2026-05-06")
 
 // This single call uses the explicit key instead of an auto-generated UUID.
-_, err := client.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
+_, err := client.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
 ```
 
 The full list:
@@ -258,7 +259,8 @@ environment.
 | `MIDAZ_ENVIRONMENT` | enum | `local` | One of `production`, `development`, `local` |
 | `MIDAZ_BASE_URL` | URL | (env-derived) | Override the unified base URL for all services |
 | `MIDAZ_LEDGER_URL` | URL | (env-derived) | Override the Ledger service URL (onboarding + transactions). Wins over `MIDAZ_BASE_URL` |
-| `MIDAZ_CRM_URL` | URL | (env-derived) | Override only the CRM service URL |
+| `MIDAZ_TRACER_URL` | URL | (env-derived) | Override the Tracer plane URL. Derived from `MIDAZ_BASE_URL` when unset. Wins over `MIDAZ_BASE_URL` |
+| `MIDAZ_TRACER_API_KEY` | string | — | Optional X-API-Key for the Tracer plane; unset ⇒ shares the Ledger Bearer token |
 | `MIDAZ_TIMEOUT` | duration | `60s` | HTTP request timeout |
 | `MIDAZ_DEBUG` | bool | `false` | Enable verbose request/response logging (also upgrades the default logger to stderr) |
 | `MIDAZ_MAX_RETRIES` | int | `3` | Maximum retry attempts; `0` disables retries |
@@ -269,7 +271,7 @@ environment.
 | `MIDAZ_CLIENT_ID` | string | — | OAuth M2M client ID (required when `PLUGIN_AUTH_ENABLED=true`) |
 | `MIDAZ_CLIENT_SECRET` | string | — | OAuth M2M client secret (required when `PLUGIN_AUTH_ENABLED=true`) |
 | `MIDAZ_ACCESS_MANAGER_ALLOW_INSECURE_HTTP` | bool | `false` | Permit non-loopback `http://` Access Manager URLs for trusted in-cluster networks. Not allowed with `MIDAZ_ENVIRONMENT=production`. |
-| `MIDAZ_ALLOW_INSECURE_HTTP` | bool | `false` | Permit non-loopback `http://` Ledger / CRM service URLs (`MIDAZ_LEDGER_URL` / `MIDAZ_CRM_URL` / `MIDAZ_BASE_URL`). Intended for Kubernetes cluster-internal services (e.g. `http://midaz-ledger.<ns>.svc.cluster.local:3000`) reached over the cluster mesh and dev/test deployments behind a controlled network boundary. Loaded before the URL env vars so ordering is automatic. Not allowed with `MIDAZ_ENVIRONMENT=production`. Independent of `MIDAZ_ACCESS_MANAGER_ALLOW_INSECURE_HTTP` (auth-plane). |
+| `MIDAZ_ALLOW_INSECURE_HTTP` | bool | `false` | Permit non-loopback `http://` Ledger / Tracer service URLs (`MIDAZ_LEDGER_URL` / `MIDAZ_TRACER_URL` / `MIDAZ_BASE_URL`). Intended for Kubernetes cluster-internal services (e.g. `http://midaz-ledger.<ns>.svc.cluster.local:3000`) reached over the cluster mesh and dev/test deployments behind a controlled network boundary. Loaded before the URL env vars so ordering is automatic. Not allowed with `MIDAZ_ENVIRONMENT=production`. Independent of `MIDAZ_ACCESS_MANAGER_ALLOW_INSECURE_HTTP` (auth-plane). |
 
 > Boolean parsing uses Go's [`strconv.ParseBool`](https://pkg.go.dev/strconv#ParseBool)
 > and accepts only its canonical forms: `1`, `t`, `T`, `TRUE`, `true`, `True`,
@@ -322,11 +324,11 @@ auto-generated key for a specific call:
 // Use an explicit key (e.g. derived from a user-action ID):
 ctx := sdkctx.WithIdempotencyKey(context.Background(),
     fmt.Sprintf("user-%d-action-%s", userID, actionUUID))
-_, err := client.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
+_, err := client.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
 
 // Skip auto-generation entirely (caller does NOT want the header):
 ctx := sdkctx.WithoutAutoIdempotency(context.Background())
-_, err = client.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
+_, err = client.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
 ```
 
 ### 4.2 Retry suppression
@@ -336,7 +338,7 @@ budget and you need to avoid retry amplification:
 
 ```go
 ctx := sdkctx.WithoutHTTPRetries(context.Background())
-_, err := client.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
+_, err := client.Transactions.CreateJSON(ctx, orgID, ledgerID, input)
 ```
 
 ### 4.3 Soft-delete vs hard-delete
@@ -344,11 +346,11 @@ _, err := client.Transactions.CreateTransaction(ctx, orgID, ledgerID, input)
 ```go
 // Include soft-deleted records in a list response:
 ctx := sdkctx.WithIncludeDeleted(context.Background(), true)
-list, _ := client.Accounts.ListAccounts(ctx, orgID, ledgerID, opts)
+list, _ := client.Accounts.List(ctx, orgID, ledgerID, opts)
 
 // Hard-delete instead of soft-delete (irreversible; admin only):
 ctx := sdkctx.WithHardDelete(context.Background(), true)
-err := client.Accounts.DeleteAccount(ctx, orgID, ledgerID, accountID)
+err := client.Accounts.Delete(ctx, orgID, ledgerID, accountID)
 ```
 
 ---

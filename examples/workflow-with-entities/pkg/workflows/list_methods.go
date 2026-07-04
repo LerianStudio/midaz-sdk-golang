@@ -65,7 +65,7 @@ func testListOrganizations(ctx context.Context, midazClient *midaz.Client) error
 		},
 	}
 
-	orgsResponse, err := midazClient.Organizations.ListOrganizations(ctx, orgOptions)
+	orgsResponse, err := midazClient.Organizations.List(ctx, orgOptions)
 	if err != nil {
 		return handleOrganizationError(err)
 	}
@@ -139,7 +139,7 @@ func testListLedgers(ctx context.Context, midazClient *midaz.Client, orgID strin
 		Filters: models.LedgersFilters{Status: models.StatusActive},
 	}
 
-	ledgersResponse, err := midazClient.Ledgers.ListLedgers(ctx, orgID, ledgerOptions)
+	ledgersResponse, err := midazClient.Ledgers.List(ctx, orgID, ledgerOptions)
 	if err != nil {
 		return fmt.Errorf("ledger listing failed: %s", pkgerrors.FormatErrorDetails(err))
 	}
@@ -167,7 +167,7 @@ func testListAccountsWithPagination(ctx context.Context, midazClient *midaz.Clie
 		Filters: models.AccountsFilters{Type: "CUSTOMER"},
 	}
 
-	accountsResponse, err := midazClient.Accounts.ListAccounts(ctx, orgID, ledgerID, accountOptions)
+	accountsResponse, err := midazClient.Accounts.List(ctx, orgID, ledgerID, accountOptions)
 	if err != nil {
 		return handleAccountError(err)
 	}
@@ -215,7 +215,7 @@ func demonstrateAccountPagination(ctx context.Context, midazClient *midaz.Client
 	fmt.Println("\n📚 Demonstrating multi-page iteration through accounts...")
 
 	pageCount := 0
-	for currentPage, err := range midazClient.Accounts.ListAccountsPages(ctx, orgID, ledgerID, opts) {
+	for currentPage, err := range midazClient.Accounts.Pages(ctx, orgID, ledgerID, opts) {
 		if err != nil {
 			return fmt.Errorf("failed to fetch page %d: %w", pageCount+1, err)
 		}
@@ -243,7 +243,7 @@ func demonstrateAccountPagination(ctx context.Context, midazClient *midaz.Client
 func testListPortfolios(ctx context.Context, midazClient *midaz.Client, orgID, ledgerID string) error {
 	fmt.Println("\n🔍 Testing ListPortfolios...")
 
-	portfoliosResponse, err := midazClient.Portfolios.ListPortfolios(ctx, orgID, ledgerID, models.PortfoliosListOpts{})
+	portfoliosResponse, err := midazClient.Portfolios.List(ctx, orgID, ledgerID, models.PortfoliosListOpts{})
 	if err != nil {
 		return fmt.Errorf("failed to list portfolios: %w", err)
 	}
@@ -268,7 +268,7 @@ func testListSegments(ctx context.Context, midazClient *midaz.Client, orgID, led
 		},
 	}
 
-	segmentsResponse, err := midazClient.Segments.ListSegments(ctx, orgID, ledgerID, segmentOptions)
+	segmentsResponse, err := midazClient.Segments.List(ctx, orgID, ledgerID, segmentOptions)
 	if err != nil {
 		return fmt.Errorf("failed to list segments: %w", err)
 	}
