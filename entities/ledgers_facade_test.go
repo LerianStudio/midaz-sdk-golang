@@ -382,6 +382,21 @@ func TestLedgersFacade_CountErrorEmptyBody(t *testing.T) {
 	}
 }
 
+// TestLedgersFacade_CreateValidation proves Create runs input.Validate() before
+// touching the wire: an empty input (missing name) must fail locally, so the
+// server is never hit.
+func TestLedgersFacade_CreateValidation(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		t.Error("server must not be hit on invalid input")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	if _, err := newTestLedgersFacade(t, srv).Create(context.Background(), ledgersOrgID, &models.CreateLedgerInput{}); err == nil {
+		t.Fatal("expected validation error for empty input")
+	}
+}
+
 func newTestLedgersFacade(t *testing.T, srv *httptest.Server) *ledgersFacade {
 	t.Helper()
 	return newLedgersFacade(newTestLedgerClient(t, srv), true)

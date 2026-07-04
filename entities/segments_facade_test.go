@@ -295,6 +295,21 @@ func TestSegmentsFacade_CountErrorEmptyBody(t *testing.T) {
 	}
 }
 
+// TestSegmentsFacade_CreateValidation proves Create runs input.Validate() before
+// touching the wire: an empty input (missing name) must fail locally, so the
+// server is never hit.
+func TestSegmentsFacade_CreateValidation(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		t.Error("server must not be hit on invalid input")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	if _, err := newTestSegmentsFacade(t, srv).Create(context.Background(), segmentsOrgID, segmentsLedgerID, &models.CreateSegmentInput{}); err == nil {
+		t.Fatal("expected validation error for empty input")
+	}
+}
+
 func newTestSegmentsFacade(t *testing.T, srv *httptest.Server) *segmentsFacade {
 	t.Helper()
 	return newSegmentsFacade(newTestLedgerClient(t, srv), true)

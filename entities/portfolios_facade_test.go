@@ -302,6 +302,21 @@ func TestPortfoliosFacade_CountErrorEmptyBody(t *testing.T) {
 	}
 }
 
+// TestPortfoliosFacade_CreateValidation proves Create runs input.Validate()
+// before touching the wire: an empty input (missing name) must fail locally, so
+// the server is never hit.
+func TestPortfoliosFacade_CreateValidation(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		t.Error("server must not be hit on invalid input")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	if _, err := newTestPortfoliosFacade(t, srv).Create(context.Background(), portfoliosOrgID, portfoliosLedgerID, &models.CreatePortfolioInput{}); err == nil {
+		t.Fatal("expected validation error for empty input")
+	}
+}
+
 func newTestPortfoliosFacade(t *testing.T, srv *httptest.Server) *portfoliosFacade {
 	t.Helper()
 	return newPortfoliosFacade(newTestLedgerClient(t, srv), true)

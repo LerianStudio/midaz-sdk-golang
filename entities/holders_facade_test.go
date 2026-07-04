@@ -377,6 +377,21 @@ func TestHoldersFacade_ListPagesConsumerStops(t *testing.T) {
 	}
 }
 
+// TestHoldersFacade_CreateValidation proves Create runs input.Validate() before
+// touching the wire: an empty input (missing type/name/document) must fail
+// locally, so the server is never hit.
+func TestHoldersFacade_CreateValidation(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		t.Error("server must not be hit on invalid input")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	if _, err := newTestHoldersFacade(t, srv).Create(context.Background(), holdersFacadeOrgID, &models.CreateHolderInput{}); err == nil {
+		t.Fatal("expected validation error for empty input")
+	}
+}
+
 func newTestHoldersFacade(t *testing.T, srv *httptest.Server) *holdersFacade {
 	t.Helper()
 	return newHoldersFacade(newTestLedgerClient(t, srv), true)

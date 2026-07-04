@@ -76,6 +76,21 @@ func TestAccountsFacade_CountErrorEmptyBody(t *testing.T) {
 	}
 }
 
+// TestAccountsFacade_CreateValidation proves Create runs input.Validate() before
+// touching the wire: an empty input (missing assetCode/type) must fail locally,
+// so the server is never hit.
+func TestAccountsFacade_CreateValidation(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		t.Error("server must not be hit on invalid input")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	if _, err := newTestAccountsFacade(t, srv).Create(context.Background(), accountsOrgID, accountsLedgerID, &models.CreateAccountInput{}); err == nil {
+		t.Fatal("expected validation error for empty input")
+	}
+}
+
 func newTestAccountsFacade(t *testing.T, srv *httptest.Server) *accountsFacade {
 	t.Helper()
 	return newAccountsFacade(newTestLedgerClient(t, srv), true)
