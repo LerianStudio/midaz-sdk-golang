@@ -102,3 +102,39 @@ func TestDSLTemplateToInput_ValidatesAndWireOmitsShareLegAmount(t *testing.T) {
 		}
 	}
 }
+
+// TestDSLTemplateToInput_RejectsMultiAsset guards the FX money path: a template
+// whose distribute clause names a different asset than its send clause (e.g.
+// CurrencyExchangePattern's send [USD n] / distribute [EUR n]) must be rejected.
+// The converter only ever read the send asset, so it silently produced a
+// balanced USD->USD self-transfer and dropped EUR entirely — a "conversion"
+// that moved nothing yet returned 201.
+func TestDSLTemplateToInput_RejectsMultiAsset(t *testing.T) {
+	p := data.CurrencyExchangePattern("USD", "EUR", 100, "idem-fx", "ext-fx")
+
+	_, err := dslTemplateToInput(p.DSLTemplate)
+	if err == nil {
+		t.Fatal("dslTemplateToInput accepted a multi-asset template; want rejection")
+	}
+
+	want := `dsl: multi-asset templates are not supported (send asset "USD" != distribute asset "EUR")`
+	if err.Error() != want {
+		t.Fatalf("error = %q, want %q", err.Error(), want)
+	}
+}
+
+// TestDSLTemplateToInput_SingleAssetWithMatchingDistributeAsset is the
+// regression guard for the new multi-asset check's happy path: a template whose
+// distribute clause repeats the send asset must still convert exactly as before.
+func TestDSLTemplateToInput_SingleAssetWithMatchingDistributeAsset(t *testing.T) {
+	p := data.FeeCollectionPattern("BRL", 100, 3, "idem-fee", "ext-fee")
+
+	in, err := dslTemplateToInput(p.DSLTemplate)
+	if err != nil {
+		t.Fatalf("dslTemplateToInput: %v", err)
+	}
+
+	if in.AssetCode != "BRL" || in.Send == nil || in.Send.Asset != "BRL" {
+		t.Fatalf("assetCode/send = %q/%+v, want BRL", in.AssetCode, in.Send)
+	}
+}
