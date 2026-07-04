@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -188,13 +189,9 @@ func TestSharedHTTPClient_TokenRefreshVisibleAcrossServices(t *testing.T) {
 // legacy path: concurrent 401s collapse onto ONE tokenProvider call via the
 // shared singleflight.
 func TestSharedHTTPClient_ConcurrentRefreshDeduplicates(t *testing.T) {
-	var (
-		tokenProviderCalls   atomic.Int32
-		tokenProviderEntered = make(chan struct{}, 4)
-	)
+	var tokenProviderCalls atomic.Int32
 
 	tokenProvider := func(_ context.Context) (string, error) {
-		tokenProviderEntered <- struct{}{}
 		tokenProviderCalls.Add(1)
 		time.Sleep(50 * time.Millisecond)
 		return "refreshed", nil
@@ -251,5 +248,5 @@ func TestSharedHTTPClient_ConcurrentRefreshDeduplicates(t *testing.T) {
 }
 
 func formatToken(seq int32) string {
-	return "fresh-token-" + string('0'+seq)
+	return "fresh-token-" + strconv.Itoa(int(seq))
 }

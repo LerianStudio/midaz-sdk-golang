@@ -39,10 +39,12 @@ import (
 // sort_order/include_deleted/document. The type filter has no slot, so the
 // facade injects it as a query param via a request editor.
 //
-// No idempotency is wired here: it is deferred to the Epic 5.1 retrofit. Writes
-// stay replay-safe regardless via the rewindable *bytes.Reader body in
-// writeJSON. The public surface stays models.* + *errors.Error; the generated
-// types never leak.
+// Auto-idempotency IS wired: each write threads idempotencyEditors(ctx,
+// f.enableIdempotency), which stamps X-Idempotency (and X-TTL when set) on the
+// outbound request, gated on enableIdempotency. An explicit or context-supplied
+// key (sdkctx.WithIdempotencyKey) stamps regardless of the gate. Writes stay
+// replay-safe via the rewindable *bytes.Reader body in writeJSON. The public
+// surface stays models.* + *errors.Error; the generated types never leak.
 type instrumentsFacade struct {
 	ledger *genledger.ClientWithResponses
 	// enableIdempotency gates auto-generated X-Idempotency keys on writes; an
@@ -128,9 +130,9 @@ func (f *instrumentsFacade) ListAll(ctx context.Context, orgID, holderID string,
 }
 
 // Create registers a new instrument under a holder via the write-facade pattern
-// (marshal input -> rewindable *bytes.Reader -> WithBody variant). Idempotency
-// headers are deliberately not wired (Epic 5.1). The server returns 201 on
-// success.
+// (marshal input -> rewindable *bytes.Reader -> WithBody variant). Auto-
+// idempotency is wired via idempotencyEditors (gated on enableIdempotency). The
+// server returns 201 on success.
 func (f *instrumentsFacade) Create(ctx context.Context, orgID, holderID string, input *models.CreateInstrumentInput) (*models.Instrument, error) {
 	const operation = "Instruments.Create"
 

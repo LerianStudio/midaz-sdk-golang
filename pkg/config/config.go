@@ -152,6 +152,11 @@ type Config struct {
 
 	// ExposeErrorBody controls whether upstream 4xx/5xx response bodies are
 	// attached to SDK errors. The attached body is raw and only truncated.
+	//
+	// Scope: this affects ONLY the legacy *HTTPClient path (Balances,
+	// Operations, Aliases). The two-plane facades decode errors via
+	// errors.DecodeProblemJSON, which parses the RFC 9457 problem document and
+	// never attaches the raw upstream body — so this flag has no effect on them.
 	ExposeErrorBody bool
 
 	baseURLSet      bool
@@ -169,7 +174,7 @@ type Config struct {
 	// this via [github.com/LerianStudio/midaz-sdk-golang/v4.WithAnonymous] (the
 	// midaz package re-export) to prove that omitting AccessManager was
 	// intentional — typically for local development against an unsecured
-	// midaz-onboarding/midaz-transaction stack, or for tests. v3 rejects
+	// midaz-onboarding/midaz-transaction stack, or for tests. v4 rejects
 	// construction with no auth source AND no Anonymous=true via validateConfig.
 	Anonymous bool
 
@@ -523,6 +528,10 @@ func WithDebug(enabled bool) Option {
 // WithErrorBodyExposure enables or disables raw upstream error response body
 // exposure on SDK errors. When enabled, upstream 4xx/5xx response bodies are
 // attached without redaction and only truncated.
+//
+// This affects ONLY the legacy *HTTPClient path (Balances, Operations,
+// Aliases). The two-plane facades decode errors via errors.DecodeProblemJSON,
+// which never attaches the raw upstream body, so the flag is a no-op for them.
 func WithErrorBodyExposure(enabled bool) Option {
 	return func(c *Config) error {
 		if c == nil {
@@ -1212,7 +1221,7 @@ func applyDefaultServiceURLs(config *Config, serviceURLs defaultServiceURLs) {
 //
 // Returns nil on success or an error describing the first problem encountered.
 // Use [Config.ValidateAll] for an accumulated multi-problem view (planned for
-// v3 Track 8).
+// v4 Track 8).
 //
 // Validation rules:
 //   - ServiceURLs[ServiceOnboarding] and ServiceURLs[ServiceTransaction] must

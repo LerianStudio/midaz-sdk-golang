@@ -36,10 +36,12 @@ import (
 // include_deleted/external_id/document. The name and status filters have no
 // slot, so the facade injects each as a query param via a request editor.
 //
-// No idempotency is wired here: it is deferred to the Epic 5.1 retrofit. Writes
-// stay replay-safe regardless via the rewindable *bytes.Reader body in
-// writeJSON. The public surface stays models.* + *errors.Error; the generated
-// types never leak.
+// Auto-idempotency IS wired: each write threads idempotencyEditors(ctx,
+// f.enableIdempotency), which stamps X-Idempotency (and X-TTL when set) on the
+// outbound request, gated on enableIdempotency. An explicit or context-supplied
+// key (sdkctx.WithIdempotencyKey) stamps regardless of the gate. Writes stay
+// replay-safe via the rewindable *bytes.Reader body in writeJSON. The public
+// surface stays models.* + *errors.Error; the generated types never leak.
 type holdersFacade struct {
 	ledger *genledger.ClientWithResponses
 	// enableIdempotency gates auto-generated X-Idempotency keys on writes; an
@@ -125,8 +127,8 @@ func (f *holdersFacade) All(ctx context.Context, orgID string, opts models.Holde
 
 // Create registers a new holder under an organization via the write-facade
 // pattern (marshal input -> rewindable *bytes.Reader -> WithBody variant).
-// Idempotency headers are deliberately not wired (Epic 5.1). The server returns
-// 201 on success.
+// Auto-idempotency is wired via idempotencyEditors (gated on enableIdempotency).
+// The server returns 201 on success.
 func (f *holdersFacade) Create(ctx context.Context, orgID string, input *models.CreateHolderInput) (*models.Holder, error) {
 	const operation = "Holders.Create"
 

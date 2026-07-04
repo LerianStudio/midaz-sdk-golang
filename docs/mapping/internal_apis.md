@@ -193,7 +193,7 @@ Common builders:
 
 ## List options and pagination internals
 
-v3 deleted the old `models.ListOptions` mega-struct. List methods now accept endpoint-specific option structs embedding either `models.PageListOpts` or `models.CursorListOpts`; wrong-shape pagination does not compile.
+v4 deleted the old `models.ListOptions` mega-struct. List methods now accept endpoint-specific option structs embedding either `models.PageListOpts` or `models.CursorListOpts`; wrong-shape pagination does not compile.
 
 Query serialization rules:
 
@@ -217,7 +217,7 @@ Pagination behavior differs by API family:
 | Ledger page-based resources | Common serialization sends `page`, `limit`, filters, and `sort_order`. |
 | Ledger cursor-based resources | Transactions, operations, operation routes, transaction routes, and asset rates advance with `Pagination.NextCursor`; typed opts never emit page-style parameters. |
 | CRM aliases | Legacy CRM plane. Page-based list calls: the iterator advances `Page++` and stops on `!HasMore()`. Organization is sent as the `X-Organization-Id` header. |
-| CRM holders | Ledger plane (re-homed in v4). Cursor-based: `Pages`/`All` inject the response `next_cursor` as a `cursor` query param and stop on an empty cursor. Despite `HoldersListOpts` embedding `PageListOpts`, the facade never emits `page`. Organization is a path segment, not a header. |
+| CRM holders | Ledger plane (re-homed in v4). Cursor-based: `HoldersListOpts` embeds `CursorListOpts`, so `Cursor` seeds/resumes pagination and `Pages`/`All` inject the response `next_cursor` as a `cursor` query param, stopping on an empty cursor. Dates are rejected (`ValidateCursorListOptsNoDates`); the facade never emits `page`. Organization is a path segment, not a header. |
 
 ## Error model internals
 

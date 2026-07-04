@@ -854,6 +854,18 @@ func TestFromToInput_Validate(t *testing.T) {
 			wantErr: true,
 			errMsg:  "cannot be combined with share, remaining, or rate",
 		},
+		{
+			name:    "amount combined with remaining rejected",
+			input:   &FromToInput{Account: "acc-123", Amount: AmountInput{Asset: "USD", Value: 100}, Remaining: "remaining"},
+			wantErr: true,
+			errMsg:  "cannot be combined with share, remaining, or rate",
+		},
+		{
+			name:    "amount combined with rate rejected",
+			input:   &FromToInput{Account: "acc-123", Amount: AmountInput{Asset: "USD", Value: 100}, Rate: &Rate{From: "USD", To: "BRL", Value: "5.00", ExternalID: "fx-1"}},
+			wantErr: true,
+			errMsg:  "cannot be combined with share, remaining, or rate",
+		},
 	}
 
 	for _, tt := range tests {

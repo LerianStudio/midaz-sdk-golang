@@ -34,11 +34,14 @@ import (
 // become a Go error. ONLY a transport error or a non-2xx status becomes
 // *errors.Error.
 //
-// No idempotency is wired: the endpoint has no idempotency slot and the retrofit
-// is deferred to Epic 5.1. The write stays 401-replay safe regardless via the
-// rewindable *bytes.Reader body in writeJSON. Authorization is passed as nil so
-// the client-level auth round tripper injects the Bearer token. The public
-// surface stays models.* + *errors.Error; the generated types never leak.
+// Auto-idempotency IS wired: this endpoint has no native idempotency param
+// slot, so the write threads idempotencyEditors(ctx, f.enableIdempotency),
+// which stamps X-Idempotency (and X-TTL when set) as a request-editor header,
+// gated on enableIdempotency; an explicit or context key stamps regardless. The
+// write stays 401-replay safe via the rewindable *bytes.Reader body in
+// writeJSON. Authorization is passed as nil so the client-level auth round
+// tripper injects the Bearer token. The public surface stays models.* +
+// *errors.Error; the generated types never leak.
 type compositionFacade struct {
 	ledger *genledger.ClientWithResponses
 	// enableIdempotency gates auto-generated X-Idempotency keys on writes; an

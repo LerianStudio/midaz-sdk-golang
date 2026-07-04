@@ -17,7 +17,7 @@
 //
 // # Authentication
 //
-// v3 requires exactly one auth source at construction time:
+// v4 requires exactly one auth source at construction time:
 //   - [WithAccessManager] — production-shape OAuth via the Lerian
 //     Access Manager. Recommended for any non-local stack.
 //   - [WithAnonymous] — opt out of authentication. Suitable only for
@@ -105,9 +105,9 @@ const Version = version.Version
 // authentication, rate limiting, and retry handling.
 //
 // All services are exposed as promoted fields via the embedded *entities.Entity.
-// In v3, prefer c.Accounts.X over c.Entity.Accounts.X — they refer to the same
+// In v4, prefer c.Accounts.X over c.Entity.Accounts.X — they refer to the same
 // instance, but the shorter form is the canonical idiom. The embedded Entity
-// pointer remains accessible as c.Entity for back-compat during the v2 → v3
+// pointer remains accessible as c.Entity for back-compat during the v2 → v4
 // migration window.
 //
 // Client wraps a small subset of Entity methods (SetObservability,
@@ -170,7 +170,7 @@ type Option func(*Client) error
 // New validates configuration eagerly. If any required field is missing or any
 // option fails, it returns a typed error so callers can distinguish setup
 // mistakes from runtime API failures. The "naked SDK" footgun where
-// c.Entity could be nil after construction is gone in v3 — every service is
+// c.Entity could be nil after construction is gone in v4 — every service is
 // initialized and ready to use upon successful return.
 //
 // Default observability provider: New always installs a default
@@ -291,8 +291,21 @@ func New(options ...Option) (*Client, error) {
 		)
 	}
 
+	// The DATA-PLANE insecure-HTTP flag (WithAllowInsecureHTTP /
+	// MIDAZ_ALLOW_INSECURE_HTTP) disables the same gate for the Ledger and
+	// Tracer plane URLs. The Bearer token and idempotency keys transit the data
+	// plane, so it earns the same auditable Warn as the Access Manager flag.
+	if c.config.AllowInsecureHTTP {
+		c.logger.Warn(
+			"Data plane (Ledger/Tracer) configured with insecure HTTP. Only valid for trusted in-cluster networks. Production deployments must use HTTPS.",
+			slog.String("sdk.name", "midaz-go-sdk"),
+			slog.String("sdk.component", "bootstrap"),
+			slog.String("operation", operation),
+		)
+	}
+
 	// Always initialize the Entity surface. The "naked SDK" footgun
-	// (c.Entity == nil after New) is gone in v3.
+	// (c.Entity == nil after New) is gone in v4.
 	if err := c.setupEntity(); err != nil {
 		c.logBootstrapSetupFailure(err)
 		return nil, classifyBootstrapSetupError(operation, err)
@@ -301,7 +314,7 @@ func New(options ...Option) (*Client, error) {
 	return c, nil
 }
 
-// resolveLogger applies the v3 logger-priority rule:
+// resolveLogger applies the v4 logger-priority rule:
 //
 //  1. If WithLogger was explicitly called (loggerSet=true), use that logger
 //     (even if it's nil — caller asked for silence).
@@ -496,7 +509,7 @@ func (c *Client) setupEntity() error {
 	}
 
 	// Push the resolved logger and slow-call threshold into the entity-level
-	// HTTPClient. With the v3 per-service HTTPClient consolidation, every
+	// HTTPClient. With the v4 per-service HTTPClient consolidation, every
 	// service shares this same *HTTPClient instance — there's no per-service
 	// snapshot to refresh, so the mutation propagates immediately to every
 	// service's next request. The v2-era double-init pattern
@@ -632,7 +645,7 @@ func (c *Client) Trace(name string, fn func(context.Context) error) error {
 // Client.Logger() for application code; reach for Provider.Logger() only when
 // you need span-aware logging within an SDK call.
 //
-// In v3 the return type changed from observability.Logger to *slog.Logger.
+// In v4 the return type changed from observability.Logger to *slog.Logger.
 // Code that needs the bespoke observability.Logger interface should reach
 // for c.GetObservabilityProvider().Logger() instead.
 //
@@ -689,7 +702,7 @@ func (c *Client) GetObservabilityProvider() observability.Provider {
 // SetObservability replaces the metrics collector if the new provider reports
 // IsEnabled() == true. A nil provider is a no-op.
 //
-// In v3 this is the canonical post-construction observability mutator. It
+// In v4 this is the canonical post-construction observability mutator. It
 // supersedes the v2 pattern where the promoted *Entity.SetObservability was
 // the only entry point but Client kept its own duplicate observability field —
 // callers occasionally hit the drift footgun where Client.GetObservabilityProvider

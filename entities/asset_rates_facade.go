@@ -42,10 +42,12 @@ import (
 // comma-joined param (to=BRL,EUR), byte-identical to the legacy ToQueryParams
 // strings.Join, so no request editor is needed.
 //
-// No idempotency is wired here: asset-rates are deferred to the Epic 5.1
-// retrofit. Writes stay replay-safe regardless via the rewindable *bytes.Reader
-// body in writeJSON. The public surface stays models.* + *errors.Error; the
-// generated types never leak.
+// Auto-idempotency IS wired: each write threads idempotencyEditors(ctx,
+// f.enableIdempotency), which stamps X-Idempotency (and X-TTL when set) on the
+// outbound request, gated on enableIdempotency. An explicit or context-supplied
+// key (sdkctx.WithIdempotencyKey) stamps regardless of the gate. Writes stay
+// replay-safe via the rewindable *bytes.Reader body in writeJSON. The public
+// surface stays models.* + *errors.Error; the generated types never leak.
 type assetRatesFacade struct {
 	ledger *genledger.ClientWithResponses
 	// enableIdempotency gates auto-generated X-Idempotency keys on writes; an

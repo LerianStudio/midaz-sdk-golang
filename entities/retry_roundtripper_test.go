@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/retry"
 	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/sdkctx"
 )
@@ -548,5 +549,59 @@ func TestRetryRoundTripper_ContextCancelStops(t *testing.T) {
 
 	if got := atomic.LoadInt32(&count); got != 0 {
 		t.Fatalf("request count = %d, want 0 (cancelled before first attempt)", got)
+	}
+}
+
+// TestPlaneWrite_RequestCarriesGetBody proves the money-path rewind
+// precondition: a generated plane WRITE (Holders.Create -> CreateHolderWithBody)
+// leaves the wire with req.GetBody != nil. That is exactly what lets the inner
+// auth-refresh round tripper replay after a 401, and the retry round tripper
+// rewind after a retryable 5xx, resending the identical JSON body. A nil GetBody
+// would replay an empty body — a corrupted balance-affecting write. The request
+// is captured at the base transport (below auth + retry) because GetBody is a
+// client-side field, invisible to an httptest handler.
+func TestPlaneWrite_RequestCarriesGetBody(t *testing.T) {
+	var sawRequest, sawGetBody bool
+
+	base := &countingRoundTripper{
+		response: func(req *http.Request) *http.Response {
+			sawRequest = true
+			sawGetBody = req.GetBody != nil
+
+			return &http.Response{
+				StatusCode: http.StatusCreated,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       io.NopCloser(bytes.NewReader([]byte(`{"id":"11111111-1111-1111-1111-111111111111","name":"Alice"}`))),
+			}
+		},
+	}
+
+	planes, err := newPlaneClients(planeClientsConfig{
+		ledgerURL: "http://ledger.invalid/v1",
+		tracerURL: "http://tracer.invalid/v1",
+		auth: authRoundTripperConfig{
+			tokenProvider: func(context.Context) (string, error) { return "tok-1", nil },
+		},
+		httpClient:   &http.Client{Transport: base},
+		retryOptions: fastRetryOpts(),
+	})
+	if err != nil {
+		t.Fatalf("newPlaneClients: %v", err)
+	}
+
+	_, err = newHoldersFacade(planes.Ledger, true).Create(
+		context.Background(),
+		holdersFacadeOrgID,
+		models.NewCreateHolderInput(models.HolderTypeNaturalPerson, "Alice", "123"),
+	)
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	if !sawRequest {
+		t.Fatal("capturing transport never observed the outbound write request")
+	}
+	if !sawGetBody {
+		t.Fatal("plane write request had GetBody == nil; a 401/5xx replay would resend an empty body")
 	}
 }

@@ -37,10 +37,12 @@ import (
 // the ledger OAS, so the facade injects each as a query param via a request
 // editor (matching the legacy ToQueryParams wire keys).
 //
-// No idempotency is wired here: routes are deferred to the Epic 5.1 retrofit.
-// Writes stay replay-safe regardless via the rewindable *bytes.Reader body in
-// writeJSON. The public surface stays models.* + *errors.Error; the generated
-// types never leak.
+// Auto-idempotency IS wired: each write threads idempotencyEditors(ctx,
+// f.enableIdempotency), which stamps X-Idempotency (and X-TTL when set) on the
+// outbound request, gated on enableIdempotency. An explicit or context-supplied
+// key (sdkctx.WithIdempotencyKey) stamps regardless of the gate. Writes stay
+// replay-safe via the rewindable *bytes.Reader body in writeJSON. The public
+// surface stays models.* + *errors.Error; the generated types never leak.
 type transactionRoutesFacade struct {
 	ledger *genledger.ClientWithResponses
 	// enableIdempotency gates auto-generated X-Idempotency keys on writes; an

@@ -67,7 +67,7 @@ func setOpenAPIVersion(doc *yaml.Node) {
 	}
 }
 
-// walk applies the two schema transforms to every mapping node in the tree.
+// walk applies the three schema transforms to every mapping node in the tree.
 func walk(n *yaml.Node) {
 	switch n.Kind {
 	case yaml.DocumentNode, yaml.SequenceNode:

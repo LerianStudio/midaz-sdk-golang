@@ -746,7 +746,7 @@ for account, err := range c.Accounts.All(ctx, orgID, ledgerID, opts) {
 
 Cursor-based endpoints (Transactions, Operations, OperationRoutes, TransactionRoutes, AssetRates) use `models.CursorListOpts` instead of `PageListOpts`. The type system prevents mixing them. See [docs/pagination.md](./pagination.md) for the full contract.
 
-Sharp edge: a few facades manage the cursor internally and cannot be hand-advanced through `List` alone. `Holders` and `Instruments` inject the response `next_cursor` themselves inside `Pages`/`All` and expose no cursor knob on their opts (despite `HoldersListOpts` embedding `PageListOpts`), so iterate them with `Pages`/`All` rather than incrementing `opts.Page` or copying `NextCursor` by hand.
+Sharp edge: `Holders` and `Instruments` are cursor-paginated. Their opts (`HoldersListOpts`, `InstrumentsListOpts`) embed `CursorListOpts`, so `Cursor` seeds the first page and resumes a later one, and `Pages`/`All` inject the response `next_cursor` as a `cursor` query param and stop on an empty cursor. Dates are rejected (`ValidateCursorListOptsNoDates`) — these endpoints declare no `start_date`/`end_date`. Prefer `Pages`/`All` for full iteration; drive `List` with `Cursor` only when advancing the cursor yourself.
 
 ## CRM support
 
@@ -754,7 +754,7 @@ CRM-domain support spans two entity accessors that no longer share a transport. 
 
 ### Holders (Ledger plane)
 
-`Holders` is a hand-written facade (`entities/holders_facade.go`) over the generated `genledger` client. It targets the Ledger-plane surface `/organizations/{org}/holders`: the organization is a positional path segment, not the `X-Organization-Id` header, and the backing URL is `onboarding`, not `crm`. Holder listing is cursor-based — `Pages`/`All` echo the response `next_cursor` back as a query param and stop on an empty cursor, even though `HoldersListOpts` embeds `PageListOpts` at the type level.
+`Holders` is a hand-written facade (`entities/holders_facade.go`) over the generated `genledger` client. It targets the Ledger-plane surface `/organizations/{org}/holders`: the organization is a positional path segment, not the `X-Organization-Id` header, and the backing URL is `onboarding`, not `crm`. Holder listing is cursor-based: `HoldersListOpts` embeds `CursorListOpts`, so `Cursor` seeds/resumes the page and `Pages`/`All` echo the response `next_cursor` back as a query param and stop on an empty cursor. Dates are rejected (`ValidateCursorListOptsNoDates`).
 
 The public method is `List` (not `ListHolders`, which exists only on the low-level generated client):
 
@@ -763,7 +763,7 @@ holders, err := c.Holders.List(
     ctx,
     orgID,
     models.HoldersListOpts{
-        PageListOpts: models.PageListOpts{Limit: 20},
+        CursorListOpts: models.CursorListOpts{Limit: 20},
     },
 )
 if err != nil {

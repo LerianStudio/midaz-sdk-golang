@@ -149,8 +149,8 @@ type Entity struct {
 	// planes holds the two generated, typed plane clients (Ledger + Tracer).
 	// They are the low-level surface the hand-written facade migrates onto in
 	// Phases 2-4; during the transition the legacy per-service *HTTPClient
-	// above still serves the 16 services. Nil only when construction never
-	// reached the plane-client build step.
+	// above still serves the 3 legacy services (Balances, Operations, Aliases).
+	// Nil only when construction never reached the plane-client build step.
 	planes *PlaneClients
 
 	// Observability provider for tracing, metrics, and logging
@@ -184,10 +184,11 @@ type Entity struct {
 	TransactionRoutes *transactionRoutesFacade
 
 	// Plane-native facades (Phases 3-4). Additive accessors over the typed
-	// generated plane clients; they coexist with the 16 legacy services above
-	// until the Phase 5 cutover repoints those too. Reached fluently via
-	// client.X.Method (promoted through the embedded *Entity). Nil when the
-	// Entity was built without plane clients.
+	// generated plane clients; they coexist with the resource accessors above
+	// (13 already plane facades, plus the legacy Balances/Operations/Aliases
+	// trio) until the Phase 5 cutover repoints the remaining trio too. Reached
+	// fluently via client.X.Method (promoted through the embedded *Entity). Nil
+	// when the Entity was built without plane clients.
 	Rules               *rulesFacade
 	Limits              *limitsFacade
 	Validations         *validationsFacade
@@ -306,10 +307,11 @@ func NewEntityWithConfigContext(ctx context.Context, config Config) (*Entity, er
 
 // initServices initializes the service interfaces for the entity.
 //
-// All 16 service entities share the SAME parent [*HTTPClient] — passed via
-// [newSharedServiceEntity]. That single instance owns the auth-token cache,
-// the singleflight token-refresh group, the customRetryPolicy, the
-// observability surface, and the userAgent/debug/idempotency knobs. Sharing
+// The 3 legacy service entities (Balances, Operations, Aliases) share the SAME
+// parent [*HTTPClient] — passed via [newSharedServiceEntity]. That single
+// instance owns the auth-token cache, the singleflight token-refresh group,
+// the customRetryPolicy, the observability surface, and the
+// userAgent/debug/idempotency knobs. Sharing
 // the client matters in three places:
 //
 //   - Token refresh on 401: when one service refreshes via [HTTPClient.refreshAuthToken]
@@ -317,7 +319,7 @@ func NewEntityWithConfigContext(ctx context.Context, config Config) (*Entity, er
 //     they read from the same authToken field under c.mu.
 //   - Singleflight dedup: a 401 burst hitting multiple services collapses
 //     onto one underlying tokenProvider call, since [HTTPClient.tokenRefreshGroup]
-//     is one [singleflight.Group] not 16.
+//     is one [singleflight.Group] not three.
 //   - Set* propagation: [Entity.GetEntityHTTPClient] returns the same client
 //     that every service uses, so SetDebug / SetUserAgent / SetLogger and
 //     friends take effect on the next request from any service — no
@@ -336,7 +338,7 @@ func (e *Entity) initServices() {
 	}
 
 	// Build the shared base once per service. The *HTTPClient is a pointer,
-	// so all 16 services see the same mutable state (auth token, refresh
+	// so all 3 legacy services see the same mutable state (auth token, refresh
 	// group, customRetryPolicy, etc.); baseURLs is cloned per service via
 	// prepareServiceBaseURLs so per-service mutation cannot bleed across
 	// services.
@@ -353,9 +355,12 @@ func (e *Entity) initServices() {
 
 	// Plane-native facades. The 13 ledger resource accessors (Epic 5.3 swap)
 	// join the Phase 3-4 additive facades here — all route over the typed plane
-	// clients, not the legacy *HTTPClient. Guarded because some construction
-	// paths build the Entity without planes; when planes is nil these accessors
-	// stay nil.
+	// clients, not the legacy *HTTPClient. The e.planes != nil guard is
+	// defensive: no first-party constructor reaches this with planes == nil
+	// (buildPlaneClients either errors or returns a non-nil PlaneClients, and
+	// NewEntityWithConfigContext always assigns e.planes before initServices).
+	// It exists only so a hand-rolled zero-value &Entity{} — legal because
+	// Entity and InitServices are exported — cannot nil-deref the plane clients.
 	if e.planes != nil {
 		e.Organizations = newOrganizationsFacade(e.planes.Ledger, e.enableIdempotency)
 		e.Ledgers = newLedgersFacade(e.planes.Ledger, e.enableIdempotency)

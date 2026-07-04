@@ -218,30 +218,6 @@ func TestOperationsEntity_ListOperationsPages_CursorAdvances(t *testing.T) {
 	assert.Equal(t, "c-2", *secondCursor)
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Mid-iteration ctx.Cancel test (H27).
-//
-// Every iterator has `if ctx.Err() != nil { yield(nil, ctx.Err()); return }`
-// inside its per-page loop. Without coverage, this branch is dead from a
-// verification standpoint. We test that:
-//   1. A canceled context, observed mid-iteration, stops the iterator cleanly.
-//   2. No further page request is issued after cancellation.
-//   3. The error surfaced to the consumer is context.Canceled (or wraps it).
-//
-// We pick portfolios as the representative page-based iterator and
-// transactions as the representative cursor-based iterator. Both share the
-// same cancellation pattern via requestContext + ctx.Err().
-// ─────────────────────────────────────────────────────────────────────────────
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Early-break / Stop semantics test (H28).
-//
-// The `if !yield(...) { return }` branch in every iterator is untested. When
-// the consumer breaks out of the for-range loop, the iterator's yield func
-// returns false, and the iterator MUST stop without issuing any further
-// HTTP request. Coverage check: only one HTTP call observed by the server.
-// ─────────────────────────────────────────────────────────────────────────────
-
 // runListAllSubtest is the shared body for every TestListXxxAll_DelegatesToPages
 // subtest. It serves the given single-page payload from an httptest server,
 // hands the server URL to buildSeq so the caller can wire the per-entity
@@ -432,8 +408,3 @@ func TestBalancesEntity_ListAccountBalancesPages_AdvancesAndStops(t *testing.T) 
 	require.Len(t, pages, 2)
 	assert.Equal(t, int32(2), calls.Load())
 }
-
-// TestListAccountsAll_StopsOnConsumerBreak covers the All variant of an
-// iterator (which routes through flattenPages). Returning false from yield
-// must propagate up through both layers and stop the underlying Pages
-// iterator.
