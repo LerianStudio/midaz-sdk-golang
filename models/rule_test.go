@@ -173,7 +173,7 @@ func TestRulesListOpts_RejectsDateFilter(t *testing.T) {
 // TestUpdateRuleInput_RejectsNoOp proves an empty PATCH is rejected (mirrors the
 // server ErrNothingToUpdate probe).
 func TestUpdateRuleInput_RejectsNoOp(t *testing.T) {
-	if !NewUpdateRuleInput().IsEmpty() {
+	if !NewUpdateRuleInput().isEmpty() {
 		t.Fatalf("fresh update input should be empty")
 	}
 	if err := NewUpdateRuleInput().Validate(); err == nil {

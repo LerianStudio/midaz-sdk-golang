@@ -124,4 +124,41 @@ func TestHolderAccountResponseSuccessNoError(t *testing.T) {
 	assert.Nil(t, response.InstrumentError)
 }
 
+// TestCreateHolderAccountInput_BuilderClonesCollections proves the With*
+// builders defensively copy caller-supplied collections: mutating the original
+// map or slice (or a related party's pointer fields) after the build must not
+// leak into the built input. Mirrors the clone guarantee CreateInstrumentInput
+// already makes.
+func TestCreateHolderAccountInput_BuilderClonesCollections(t *testing.T) {
+	metadata := map[string]any{"tier": "gold"}
+	endDate := "2026-12-31"
+	parties := []*RelatedParty{{
+		Document:  "D",
+		Name:      "N",
+		Role:      RelatedPartyRolePrimaryHolder,
+		StartDate: "2026-01-01",
+		EndDate:   &endDate,
+	}}
+
+	input := NewCreateHolderAccountInput("USD", "deposit").
+		WithMetadata(metadata).
+		WithRelatedParties(parties)
+
+	// Mutate the caller's originals AFTER the build; nothing should leak in.
+	metadata["tier"] = "bronze"
+	metadata["injected"] = true
+	parties[0].Name = "mutated"
+	*parties[0].EndDate = "1999-01-01"
+	parties[0] = nil
+
+	assert.Equal(t, "gold", input.Metadata["tier"], "metadata value must be cloned")
+	assert.NotContains(t, input.Metadata, "injected", "metadata keys must be cloned")
+
+	require.Len(t, input.RelatedParties, 1)
+	require.NotNil(t, input.RelatedParties[0], "slice element must be cloned")
+	assert.Equal(t, "N", input.RelatedParties[0].Name, "party field must be cloned")
+	require.NotNil(t, input.RelatedParties[0].EndDate)
+	assert.Equal(t, "2026-12-31", *input.RelatedParties[0].EndDate, "party pointer field must be deep-cloned")
+}
+
 func strPtr(s string) *string { return &s }

@@ -231,8 +231,8 @@ func (input *UpdateRuleInput) WithScopes(scopes []Scope) *UpdateRuleInput {
 	return input
 }
 
-// IsEmpty reports whether the PATCH carries no changes (a no-op update).
-func (input *UpdateRuleInput) IsEmpty() bool {
+// isEmpty reports whether the PATCH carries no changes (a no-op update).
+func (input *UpdateRuleInput) isEmpty() bool {
 	if input == nil {
 		return true
 	}
@@ -251,7 +251,7 @@ func (input *UpdateRuleInput) Validate() error {
 		return errors.New("input cannot be nil")
 	}
 
-	if input.IsEmpty() {
+	if input.isEmpty() {
 		return errors.New("empty update payload not allowed")
 	}
 

@@ -43,6 +43,14 @@ func (input *BillingCalculateInput) Validate() error {
 		errs.Append("period", "is required")
 	}
 
+	// Type is optional (empty calculates all package types); when set it must be
+	// a valid billing type. Mirrors CreateBillingPackageInput's closed-set check.
+	switch input.Type {
+	case "", BillingPackageTypeVolume, BillingPackageTypeMaintenance:
+	default:
+		errs.Append("type", "must be one of: volume, maintenance")
+	}
+
 	return errs.OrNil()
 }
 

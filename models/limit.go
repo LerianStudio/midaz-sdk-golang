@@ -311,8 +311,8 @@ func (input *UpdateLimitInput) WithCustomDateRange(start, end string) *UpdateLim
 	return input
 }
 
-// IsEmpty reports whether the PATCH carries no changes (a no-op update).
-func (input *UpdateLimitInput) IsEmpty() bool {
+// isEmpty reports whether the PATCH carries no changes (a no-op update).
+func (input *UpdateLimitInput) isEmpty() bool {
 	if input == nil {
 		return true
 	}
@@ -334,7 +334,7 @@ func (input *UpdateLimitInput) Validate() error {
 		return errors.New("input cannot be nil")
 	}
 
-	if input.IsEmpty() {
+	if input.isEmpty() {
 		return errors.New("empty update payload not allowed")
 	}
 

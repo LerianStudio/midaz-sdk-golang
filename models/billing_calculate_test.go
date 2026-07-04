@@ -63,6 +63,19 @@ func TestBillingCalculateInput_Validate(t *testing.T) {
 	if err := (*BillingCalculateInput)(nil).Validate(); err == nil {
 		t.Fatal("nil input must fail")
 	}
+	// Type is optional but closed-set when present: empty calculates all types.
+	if err := (&BillingCalculateInput{LedgerID: "l", Period: "2026-01", Type: BillingPackageTypeVolume}).Validate(); err != nil {
+		t.Fatalf("valid volume type errored: %v", err)
+	}
+	if err := (&BillingCalculateInput{LedgerID: "l", Period: "2026-01", Type: BillingPackageTypeMaintenance}).Validate(); err != nil {
+		t.Fatalf("valid maintenance type errored: %v", err)
+	}
+	if err := (&BillingCalculateInput{LedgerID: "l", Period: "2026-01", Type: ""}).Validate(); err != nil {
+		t.Fatalf("empty type must pass (calculates all): %v", err)
+	}
+	if err := (&BillingCalculateInput{LedgerID: "l", Period: "2026-01", Type: "bogus"}).Validate(); err == nil {
+		t.Fatal("invalid type must fail")
+	}
 }
 
 func containsSub(s, sub string) bool {

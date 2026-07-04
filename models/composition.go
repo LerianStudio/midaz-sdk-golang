@@ -181,7 +181,7 @@ func (input *CreateHolderAccountInput) WithMetadata(metadata map[string]any) *Cr
 		return nil
 	}
 
-	input.Metadata = metadata
+	input.Metadata = cloneAnyMap(metadata)
 
 	return input
 }
@@ -225,7 +225,7 @@ func (input *CreateHolderAccountInput) WithRelatedParties(relatedParties []*Rela
 		return nil
 	}
 
-	input.RelatedParties = relatedParties
+	input.RelatedParties = cloneRelatedParties(relatedParties)
 
 	return input
 }
