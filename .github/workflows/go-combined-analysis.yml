@@ -27,7 +27,7 @@ env:
 jobs:
   GolangCI-Lint:
     name: Run GolangCI-Lint to SDK
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v6.0.2
@@ -43,7 +43,7 @@ jobs:
 
   GoSec:
     name: Run GoSec to SDK
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@v6.0.2
 
@@ -57,7 +57,7 @@ jobs:
 
   GoSec-Audit:
     name: Run Scheduled GoSec Audit to SDK
-    runs-on: ubuntu-24.04
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     if: github.event_name == 'schedule'
     steps:
       - uses: actions/checkout@v6.0.2
@@ -72,7 +72,7 @@ jobs:
 
   test:
     name: Test
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - name: Checkout code
         uses: actions/checkout@v6.0.2
@@ -97,7 +97,7 @@ jobs:
 
   verify:
     name: Verify SDK
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - name: Checkout code
         uses: actions/checkout@v6.0.2
@@ -113,7 +113,7 @@ jobs:
 
   docs:
     name: Generate Docs
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/feature/')
     steps:
       - name: Checkout code
