@@ -1202,6 +1202,46 @@ func (input *AmountInput) ToMap() map[string]any {
 	}
 }
 
+// The transaction create inputs are wire-authoritative: MarshalJSON routes each
+// of them through its endpoint mapper (ToLibTransaction for /json, ToMap for the
+// nested nodes), so json.Marshal(input) IS the body the SDK sends. Struct tags
+// cannot drift from the wire because nothing serializes through them any more —
+// anyone logging, diffing, or persisting a marshaled input sees exactly what the
+// ledger received. Receivers are values so a leg copied out of a slice marshals
+// identically to a pointer to it.
+
+// MarshalJSON emits the /transactions/json request body (ToLibTransaction).
+func (input CreateTransactionInput) MarshalJSON() ([]byte, error) {
+	return json.Marshal(input.ToLibTransaction())
+}
+
+// MarshalJSON emits the send envelope as the transaction endpoints accept it.
+func (input SendInput) MarshalJSON() ([]byte, error) {
+	return json.Marshal(input.ToMap())
+}
+
+// MarshalJSON emits the source envelope as the transaction endpoints accept it.
+func (input SourceInput) MarshalJSON() ([]byte, error) {
+	return json.Marshal(input.ToMap())
+}
+
+// MarshalJSON emits the distribute envelope as the transaction endpoints accept it.
+func (input DistributeInput) MarshalJSON() ([]byte, error) {
+	return json.Marshal(input.ToMap())
+}
+
+// MarshalJSON emits a transaction leg as the transaction endpoints accept it:
+// one account identity (accountAlias), never the Account/AccountAlias pair.
+func (input FromToInput) MarshalJSON() ([]byte, error) {
+	return json.Marshal(input.ToMap())
+}
+
+// MarshalJSON emits a leg amount, or null when the leg carries no amount (a
+// share, remaining, or rate leg — the endpoints reject an empty amount object).
+func (input AmountInput) MarshalJSON() ([]byte, error) {
+	return json.Marshal(input.ToMap())
+}
+
 // ToTransactionMap converts an SDK Transaction to a map for API requests.
 // This method is used internally to prepare data for the backend API.
 func (t *Transaction) ToTransactionMap() map[string]any {

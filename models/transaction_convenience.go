@@ -1,6 +1,7 @@
 package models
 
 import (
+	"encoding/json"
 	"errors"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/validation"
@@ -192,6 +193,12 @@ func (input *CreateInflowInput) ToMap() map[string]any {
 	return tx
 }
 
+// MarshalJSON emits the /transactions/inflow request body (ToMap), keeping
+// json.Marshal(input) identical to what the SDK puts on the wire.
+func (input CreateInflowInput) MarshalJSON() ([]byte, error) {
+	return json.Marshal(input.ToMap())
+}
+
 // CreateOutflowInput represents input for creating an outflow transaction.
 // Outflow transactions have no destination - funds flow out of the system (e.g., withdrawals, payouts).
 type CreateOutflowInput struct {
@@ -381,6 +388,12 @@ func (input *CreateOutflowInput) ToMap() map[string]any {
 	return tx
 }
 
+// MarshalJSON emits the /transactions/outflow request body (ToMap), keeping
+// json.Marshal(input) identical to what the SDK puts on the wire.
+func (input CreateOutflowInput) MarshalJSON() ([]byte, error) {
+	return json.Marshal(input.ToMap())
+}
+
 // CreateAnnotationInput is the payload for creating an annotation transaction.
 type CreateAnnotationInput struct {
 	ChartOfAccountsGroupName string         `json:"chartOfAccountsGroupName,omitempty"`
@@ -439,6 +452,12 @@ func (input *CreateAnnotationInput) ToLibTransaction() map[string]any {
 	}
 
 	return tx
+}
+
+// MarshalJSON emits the /transactions/annotation request body
+// (ToLibTransaction), keeping json.Marshal(input) identical to the wire.
+func (input CreateAnnotationInput) MarshalJSON() ([]byte, error) {
+	return json.Marshal(input.ToLibTransaction())
 }
 
 // WithCode sets the annotation transaction code.
