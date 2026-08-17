@@ -27,15 +27,12 @@ func TestCRMAndResponseModelsCreateHolderInputOmitsUnsetOptionalFields(t *testin
 func TestCRMAndResponseModelsCreateTransactionInputDoesNotMarshalHeaderOnlyFields(t *testing.T) {
 	input := NewCreateTransactionInput("USD", "10.00")
 	input.IdempotencyKey = "idem-123"
-	input.ExternalID = "external-123"
 
 	data, err := json.Marshal(input)
 	require.NoError(t, err)
 
 	assert.NotContains(t, string(data), "IdempotencyKey")
 	assert.NotContains(t, string(data), "idempotency")
-	assert.NotContains(t, string(data), "ExternalID")
-	assert.NotContains(t, string(data), "external")
 }
 
 func TestCRMAndResponseModelsListResponseUnmarshalHTTPPaginationEnvelope(t *testing.T) {

@@ -66,8 +66,6 @@ type TransferOptions struct {
 	IdempotencyKey string
 	// Pending indicates whether the transaction should be created in a pending state
 	Pending bool
-	// ExternalID is an optional identifier for linking to external systems
-	ExternalID string
 	// ChartOfAccountsGroupName specifies the chart of accounts group to use
 	ChartOfAccountsGroupName string
 }
@@ -135,7 +133,6 @@ func Transfer(
 		Metadata:                 opts.Metadata,
 		Pending:                  opts.Pending,
 		IdempotencyKey:           idempotencyKey,
-		ExternalID:               opts.ExternalID,
 		ChartOfAccountsGroupName: opts.ChartOfAccountsGroupName,
 		Send: &models.SendInput{
 			Asset: assetCode,
@@ -184,8 +181,6 @@ type DepositOptions struct {
 	IdempotencyKey string
 	// Pending indicates whether the transaction should be created in a pending state
 	Pending bool
-	// ExternalID is an optional identifier for linking to external systems
-	ExternalID string
 	// ChartOfAccountsGroupName specifies the chart of accounts group to use
 	ChartOfAccountsGroupName string
 	// ExternalAccountID overrides the default external account ID
@@ -262,7 +257,6 @@ func Deposit(
 		Metadata:                 opts.Metadata,
 		Pending:                  opts.Pending,
 		IdempotencyKey:           idempotencyKey,
-		ExternalID:               opts.ExternalID,
 		ChartOfAccountsGroupName: opts.ChartOfAccountsGroupName,
 		Send: &models.SendInput{
 			Asset: assetCode,
@@ -311,8 +305,6 @@ type WithdrawalOptions struct {
 	IdempotencyKey string
 	// Pending indicates whether the transaction should be created in a pending state
 	Pending bool
-	// ExternalID is an optional identifier for linking to external systems
-	ExternalID string
 	// ChartOfAccountsGroupName specifies the chart of accounts group to use
 	ChartOfAccountsGroupName string
 	// ExternalAccountID overrides the default external account ID
@@ -389,7 +381,6 @@ func Withdrawal(
 		Metadata:                 opts.Metadata,
 		Pending:                  opts.Pending,
 		IdempotencyKey:           idempotencyKey,
-		ExternalID:               opts.ExternalID,
 		ChartOfAccountsGroupName: opts.ChartOfAccountsGroupName,
 		Send: &models.SendInput{
 			Asset: assetCode,
@@ -438,8 +429,6 @@ type MultiTransferOptions struct {
 	IdempotencyKey string
 	// Pending indicates whether the transaction should be created in a pending state
 	Pending bool
-	// ExternalID is an optional identifier for linking to external systems
-	ExternalID string
 	// ChartOfAccountsGroupName specifies the chart of accounts group to use
 	ChartOfAccountsGroupName string
 }
@@ -589,7 +578,6 @@ func buildMultiTransferInput(opts *MultiTransferOptions, idempotencyKey string, 
 		Metadata:                 opts.Metadata,
 		Pending:                  opts.Pending,
 		IdempotencyKey:           idempotencyKey,
-		ExternalID:               opts.ExternalID,
 		ChartOfAccountsGroupName: opts.ChartOfAccountsGroupName,
 		Send: &models.SendInput{
 			Asset: assetCode,

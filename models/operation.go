@@ -296,8 +296,7 @@ type CreateOperationInput struct {
 
 	// Amount is the exact decimal value of the operation. Use Amount or *Amount
 	// when decimal scaling is required, or pass an already-formatted decimal
-	// string. Raw numeric types such as int and float are treated as literal
-	// decimal strings by normalizedOperationAmount through decimalStringFromAny.
+	// string.
 	Amount any `json:"amount"`
 
 	// AssetCode identifies the currency or asset type for this operation

@@ -17,11 +17,11 @@ func TestDSLTemplateToInput(t *testing.T) {
 		t.Fatalf("dslTemplateToInput: %v", err)
 	}
 
-	if in.AssetCode != "USD" || in.Amount != "100" {
-		t.Fatalf("asset/amount = %q/%q, want USD/100", in.AssetCode, in.Amount)
+	if in.Send == nil || in.Send.Asset != "USD" || in.Send.Value != "100" {
+		t.Fatalf("send asset/value = %+v, want USD/100", in.Send)
 	}
 
-	if in.Send == nil || in.Send.Source == nil || len(in.Send.Source.From) != 1 {
+	if in.Send.Source == nil || len(in.Send.Source.From) != 1 {
 		t.Fatalf("send/source = %+v, want 1 source", in.Send)
 	}
 
@@ -134,7 +134,7 @@ func TestDSLTemplateToInput_SingleAssetWithMatchingDistributeAsset(t *testing.T)
 		t.Fatalf("dslTemplateToInput: %v", err)
 	}
 
-	if in.AssetCode != "BRL" || in.Send == nil || in.Send.Asset != "BRL" {
-		t.Fatalf("assetCode/send = %q/%+v, want BRL", in.AssetCode, in.Send)
+	if in.Send == nil || in.Send.Asset != "BRL" {
+		t.Fatalf("send = %+v, want asset BRL", in.Send)
 	}
 }

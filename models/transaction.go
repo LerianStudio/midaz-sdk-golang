@@ -242,9 +242,8 @@ func DecimalStringFromAny(value any) string {
 // This structure contains all the fields needed to create a new transaction.
 //
 // CreateTransactionInput is used with the Transactions accessor's CreateJSON method
-// to create new transactions in the standard format (as opposed to the DSL format).
-// It allows for specifying the transaction details including operations, metadata,
-// and other properties.
+// to create new transactions in the standard format. The money movement lives in
+// Send; the rest of the fields carry presentation, routing, and metadata.
 //
 // When creating a transaction, the send payload must include a source and a
 // distribution whose values balance for each asset. Set IdempotencyKey or use
@@ -275,14 +274,6 @@ type CreateTransactionInput struct {
 	// Template is retained for backwards compatibility with the pre-send API.
 	Template string `json:"template,omitempty"`
 
-	// Amount is retained for backwards compatibility with operation-based callers.
-	// Prefer Send.Value for new integrations.
-	Amount string `json:"amount,omitempty"`
-
-	// AssetCode is retained for backwards compatibility with operation-based callers.
-	// Prefer Send.Asset for new integrations.
-	AssetCode string `json:"assetCode,omitempty"`
-
 	// ChartOfAccountsGroupName optionally categorizes the transaction under a chart of accounts group.
 	ChartOfAccountsGroupName string `json:"chartOfAccountsGroupName,omitempty"`
 
@@ -311,12 +302,6 @@ type CreateTransactionInput struct {
 	// such as references to external systems, tags, or other contextual data
 	Metadata map[string]any `json:"metadata,omitempty"`
 
-	// ExternalID is retained for backward compatibility only. It is not part of
-	// the current Midaz CreateTransaction contract, is never serialized, and does
-	// not provide deduplication. Use X-Idempotency via sdkctx.WithIdempotencyKey
-	// or IdempotencyKey for duplicate protection.
-	ExternalID string `json:"-"`
-
 	// IdempotencyKey is a client-generated key to ensure transaction uniqueness
 	// If a transaction with the same idempotency key already exists, that transaction
 	// will be returned instead of creating a new one
@@ -324,10 +309,9 @@ type CreateTransactionInput struct {
 	IdempotencyKey string `json:"-"`
 
 	// Send contains the source and distribution information for the transaction.
+	// It is the only way to describe the money movement of a create; the legacy
+	// Operations list was removed in v4.2.
 	Send *SendInput `json:"send"`
-
-	// Operations is retained for backwards compatibility with the pre-send API.
-	Operations []CreateOperationInput `json:"operations,omitempty"`
 }
 
 // SendInput represents the send information for a transaction.
@@ -448,15 +432,13 @@ func (input *CreateTransactionInput) Validate() error {
 		return errors.New("input cannot be nil")
 	}
 
-	input.ensureSendFromLegacyOperations()
-
 	var errs validation.FieldErrors
 
 	appendTransactionCreateCommon(&errs, input.Description, input.Code, input.Metadata,
 		input.Route, input.RouteID, input.TransactionDate, input.Pending)
 
 	if input.Send == nil {
-		errs.Append("send", "is required")
+		errs.Append("send", "is required; legacy Operations input was removed in v4.2")
 	} else if err := input.Send.Validate(); err != nil {
 		errs.Append("send", "invalid: "+err.Error())
 	}
@@ -556,8 +538,6 @@ func NewCreateTransactionInput(assetCode string, amount any) *CreateTransactionI
 	amountValue := decimalStringFromAny(amount)
 
 	return &CreateTransactionInput{
-		AssetCode: assetCode,
-		Amount:    amountValue,
 		Send: &SendInput{
 			Asset: assetCode,
 			Value: amountValue,
@@ -585,20 +565,6 @@ func (input *CreateTransactionInput) WithMetadata(metadata map[string]any) *Crea
 	}
 
 	input.Metadata = cloneAnyMap(metadata)
-
-	return input
-}
-
-// WithExternalID stores a legacy client-side external ID value.
-// Deprecated: externalId is unsupported by the current Midaz CreateTransaction
-// contract. The value is not sent in JSON and does not deduplicate requests;
-// use X-Idempotency via sdkctx.WithIdempotencyKey or IdempotencyKey instead.
-func (input *CreateTransactionInput) WithExternalID(externalID string) *CreateTransactionInput {
-	if input == nil {
-		return nil
-	}
-
-	input.ExternalID = externalID
 
 	return input
 }
@@ -644,19 +610,6 @@ func (input *CreateTransactionInput) WithSend(send *SendInput) *CreateTransactio
 	}
 
 	input.Send = send
-
-	return input
-}
-
-// WithOperations sets legacy operation inputs and adapts them to the canonical send payload.
-func (input *CreateTransactionInput) WithOperations(operations []CreateOperationInput) *CreateTransactionInput {
-	if input == nil {
-		return nil
-	}
-
-	input.Operations = append([]CreateOperationInput(nil), operations...)
-	input.Send = nil
-	input.ensureSendFromLegacyOperations()
 
 	return input
 }
@@ -932,8 +885,6 @@ func (input *CreateTransactionInput) ToLibTransaction() map[string]any {
 		return nil
 	}
 
-	input.ensureSendFromLegacyOperations()
-
 	// Create a map to hold the transaction data
 	tx := map[string]any{}
 
@@ -980,76 +931,6 @@ func (input *CreateTransactionInput) ToLibTransaction() map[string]any {
 	}
 
 	return tx
-}
-
-func (input *CreateTransactionInput) ensureSendFromLegacyOperations() {
-	if input == nil || input.Send != nil || len(input.Operations) == 0 {
-		return
-	}
-
-	asset := input.AssetCode
-	if asset == "" && len(input.Operations) > 0 {
-		asset = input.Operations[0].AssetCode
-	}
-
-	send := &SendInput{
-		Asset:      asset,
-		Value:      normalizedOperationAmount(input.Amount),
-		Source:     &SourceInput{},
-		Distribute: &DistributeInput{},
-	}
-
-	for _, operation := range input.Operations {
-		entry := FromToInput{
-			AccountAlias: operation.AccountID,
-			Amount: AmountInput{
-				Asset: operation.AssetCode,
-				Value: normalizedOperationAmount(operation.Amount),
-			},
-			Route: operation.Route,
-		}
-		if entry.Amount.Asset == "" {
-			entry.Amount.Asset = asset
-		}
-
-		if operation.AccountAlias != nil && *operation.AccountAlias != "" {
-			entry.AccountAlias = *operation.AccountAlias
-		}
-
-		switch strings.ToLower(operation.Type) {
-		case "debit", "source":
-			send.Source.From = append(send.Source.From, entry)
-		case "credit", "destination":
-			send.Distribute.To = append(send.Distribute.To, entry)
-		}
-	}
-
-	input.Send = send
-}
-
-func normalizedOperationAmount(amount any) string {
-	switch value := amount.(type) {
-	case Amount:
-		if value.Value == nil {
-			return ""
-		}
-
-		return value.Value.String()
-	case *Amount:
-		if value == nil || value.Value == nil {
-			return ""
-		}
-
-		return value.Value.String()
-	case *decimal.Decimal:
-		if value == nil {
-			return ""
-		}
-
-		return value.String()
-	default:
-		return decimalStringFromAny(amount)
-	}
 }
 
 // ToMap converts a SendInput to a map.

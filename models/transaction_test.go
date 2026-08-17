@@ -1,12 +1,10 @@
 package models
 
 import (
-	"encoding/json"
 	"reflect"
 	"strings"
 	"testing"
 
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -73,17 +71,20 @@ func TestNewCreateTransactionInput(t *testing.T) {
 	}
 }
 
-func TestCreateTransactionInputExternalIDIsNeverSerialized(t *testing.T) {
-	input := NewCreateTransactionInput("USD", "10.00").WithExternalID("external-id-is-client-only")
-	input.Send.Source = &SourceInput{From: []FromToInput{{AccountAlias: "source", Amount: AmountInput{Asset: "USD", Value: "10.00"}}}}
-	input.Send.Distribute = &DistributeInput{To: []FromToInput{{AccountAlias: "destination", Amount: AmountInput{Asset: "USD", Value: "10.00"}}}}
+func TestCreateTransactionInputHasNoLegacyCreateSurface(t *testing.T) {
+	present := map[string]bool{}
+	for _, field := range reflect.VisibleFields(reflect.TypeOf(CreateTransactionInput{})) {
+		present[field.Name] = true
+	}
 
-	body, err := json.Marshal(input)
-	require.NoError(t, err)
+	for _, removed := range []string{"ExternalID", "Amount", "AssetCode", "Operations"} {
+		assert.Falsef(t, present[removed],
+			"CreateTransactionInput.%s was removed in v4.2 and must not come back", removed)
+	}
 
-	require.NotContains(t, string(body), "externalId")
-	require.NotContains(t, string(body), "ExternalID")
-	require.NotContains(t, string(body), "external-id-is-client-only")
+	err := (&CreateTransactionInput{Description: "no send"}).Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "legacy Operations input was removed in v4.2")
 }
 
 func TestCreateTransactionInput_Validate(t *testing.T) {
@@ -240,13 +241,6 @@ func TestCreateTransactionInput_WithMethods(t *testing.T) {
 		assert.Same(t, input, result)
 	})
 
-	t.Run("WithExternalID", func(t *testing.T) {
-		input := NewCreateTransactionInput("USD", 100)
-		result := input.WithExternalID("ext-123")
-		assert.Equal(t, "ext-123", result.ExternalID)
-		assert.Same(t, input, result)
-	})
-
 	t.Run("WithCode", func(t *testing.T) {
 		input := NewCreateTransactionInput("USD", 100)
 		result := input.WithCode("TX-001")
@@ -266,12 +260,10 @@ func TestCreateTransactionInput_WithMethods(t *testing.T) {
 		input := NewCreateTransactionInput("USD", 100).
 			WithDescription("Payment").
 			WithCode("TX-CHAIN").
-			WithExternalID("ext-1").
 			WithMetadata(map[string]any{"ref": "123"})
 
 		assert.Equal(t, "Payment", input.Description)
 		assert.Equal(t, "TX-CHAIN", input.Code)
-		assert.Equal(t, "ext-1", input.ExternalID)
 		assert.Equal(t, map[string]any{"ref": "123"}, input.Metadata)
 	})
 }
@@ -344,39 +336,6 @@ func TestCreateTransactionInput_ToLibTransaction(t *testing.T) {
 		assert.False(t, hasRoute)
 		assert.False(t, hasMetadata)
 		assert.False(t, hasSend)
-	})
-
-	t.Run("normalizes legacy operation amount wrappers", func(t *testing.T) {
-		value := decimal.NewFromInt(50)
-		input := &CreateTransactionInput{
-			AssetCode: "USD",
-			Amount:    "50",
-			Operations: []CreateOperationInput{
-				{Type: string(OperationTypeDebit), AccountID: "source", Amount: Amount{Value: &value}, AssetCode: "USD"},
-				{Type: string(OperationTypeCredit), AccountID: "dest", Amount: &Amount{Value: &value}, AssetCode: "USD"},
-			},
-		}
-
-		result := input.ToLibTransaction()
-		send, ok := result["send"].(map[string]any)
-		require.True(t, ok)
-		assert.Equal(t, "50", send["value"])
-
-		source, ok := send["source"].(map[string]any)
-		require.True(t, ok)
-		from, ok := source["from"].([]map[string]any)
-		require.True(t, ok)
-		sourceAmount, ok := from[0]["amount"].(map[string]any)
-		require.True(t, ok)
-		assert.Equal(t, "50", sourceAmount["value"])
-
-		distribute, ok := send["distribute"].(map[string]any)
-		require.True(t, ok)
-		to, ok := distribute["to"].([]map[string]any)
-		require.True(t, ok)
-		destinationAmount, ok := to[0]["amount"].(map[string]any)
-		require.True(t, ok)
-		assert.Equal(t, "50", destinationAmount["value"])
 	})
 }
 

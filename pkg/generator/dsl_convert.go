@@ -69,8 +69,6 @@ func dslTemplateToInput(tmpl string) (*models.CreateTransactionInput, error) {
 	}
 
 	return &models.CreateTransactionInput{
-		AssetCode: asset,
-		Amount:    amount,
 		Send: &models.SendInput{
 			Asset: asset,
 			Value: amount,

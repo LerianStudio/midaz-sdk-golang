@@ -110,7 +110,6 @@ func TestDefaultTransferOptions(t *testing.T) {
 	assert.Equal(t, "go-sdk-transaction-helper", opts.Metadata["source"])
 	assert.False(t, opts.Pending)
 	assert.Empty(t, opts.IdempotencyKey)
-	assert.Empty(t, opts.ExternalID)
 	assert.Empty(t, opts.ChartOfAccountsGroupName)
 }
 
@@ -305,7 +304,6 @@ func TestTransferOptionsFields(t *testing.T) {
 		Metadata:                 map[string]any{"key": "value"},
 		IdempotencyKey:           "test-key-123",
 		Pending:                  true,
-		ExternalID:               "ext-123",
 		ChartOfAccountsGroupName: "chart-group-1",
 	}
 
@@ -313,7 +311,6 @@ func TestTransferOptionsFields(t *testing.T) {
 	assert.Equal(t, "value", opts.Metadata["key"])
 	assert.Equal(t, "test-key-123", opts.IdempotencyKey)
 	assert.True(t, opts.Pending)
-	assert.Equal(t, "ext-123", opts.ExternalID)
 	assert.Equal(t, "chart-group-1", opts.ChartOfAccountsGroupName)
 }
 
@@ -324,7 +321,6 @@ func TestDepositOptionsFields(t *testing.T) {
 		Metadata:                 map[string]any{"key": "value"},
 		IdempotencyKey:           "deposit-key-123",
 		Pending:                  true,
-		ExternalID:               "ext-deposit-123",
 		ChartOfAccountsGroupName: "deposit-chart",
 		ExternalAccountID:        "@external/USD",
 	}
@@ -333,7 +329,6 @@ func TestDepositOptionsFields(t *testing.T) {
 	assert.Equal(t, "value", opts.Metadata["key"])
 	assert.Equal(t, "deposit-key-123", opts.IdempotencyKey)
 	assert.True(t, opts.Pending)
-	assert.Equal(t, "ext-deposit-123", opts.ExternalID)
 	assert.Equal(t, "deposit-chart", opts.ChartOfAccountsGroupName)
 	assert.Equal(t, "@external/USD", opts.ExternalAccountID)
 }
@@ -345,7 +340,6 @@ func TestWithdrawalOptionsFields(t *testing.T) {
 		Metadata:                 map[string]any{"key": "value"},
 		IdempotencyKey:           "withdrawal-key-123",
 		Pending:                  true,
-		ExternalID:               "ext-withdrawal-123",
 		ChartOfAccountsGroupName: "withdrawal-chart",
 		ExternalAccountID:        "@external/EUR",
 	}
@@ -354,7 +348,6 @@ func TestWithdrawalOptionsFields(t *testing.T) {
 	assert.Equal(t, "value", opts.Metadata["key"])
 	assert.Equal(t, "withdrawal-key-123", opts.IdempotencyKey)
 	assert.True(t, opts.Pending)
-	assert.Equal(t, "ext-withdrawal-123", opts.ExternalID)
 	assert.Equal(t, "withdrawal-chart", opts.ChartOfAccountsGroupName)
 	assert.Equal(t, "@external/EUR", opts.ExternalAccountID)
 }
@@ -366,7 +359,6 @@ func TestMultiTransferOptionsFields(t *testing.T) {
 		Metadata:                 map[string]any{"key": "value"},
 		IdempotencyKey:           "multi-key-123",
 		Pending:                  true,
-		ExternalID:               "ext-multi-123",
 		ChartOfAccountsGroupName: "multi-chart",
 	}
 
@@ -374,7 +366,6 @@ func TestMultiTransferOptionsFields(t *testing.T) {
 	assert.Equal(t, "value", opts.Metadata["key"])
 	assert.Equal(t, "multi-key-123", opts.IdempotencyKey)
 	assert.True(t, opts.Pending)
-	assert.Equal(t, "ext-multi-123", opts.ExternalID)
 	assert.Equal(t, "multi-chart", opts.ChartOfAccountsGroupName)
 }
 
