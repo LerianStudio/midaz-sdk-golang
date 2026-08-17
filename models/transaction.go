@@ -271,9 +271,6 @@ func DecimalStringFromAny(value any) string {
 //	// Later, after approval:
 //	// c.Transactions.Commit(ctx, orgID, ledgerID, tx.ID)
 type CreateTransactionInput struct {
-	// Template is retained for backwards compatibility with the pre-send API.
-	Template string `json:"template,omitempty"`
-
 	// ChartOfAccountsGroupName optionally categorizes the transaction under a chart of accounts group.
 	ChartOfAccountsGroupName string `json:"chartOfAccountsGroupName,omitempty"`
 

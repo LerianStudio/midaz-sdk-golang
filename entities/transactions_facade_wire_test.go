@@ -25,8 +25,8 @@ const (
 )
 
 // wireTransactionInput is a deliberately full /json create: every field whose
-// struct tag disagrees with the endpoint mapper is set (Template and
-// IdempotencyKey at the transaction level), plus the fields that must survive.
+// struct tag disagrees with the endpoint mapper is set (IdempotencyKey, which
+// travels as a header), plus the fields that must survive.
 func wireTransactionInput() *models.CreateTransactionInput {
 	legRouteID := wireLegRouteID
 
@@ -37,7 +37,6 @@ func wireTransactionInput() *models.CreateTransactionInput {
 		RouteID:                  wireRouteID,
 		TransactionDate:          "2026-01-15T10:00:00Z",
 		Metadata:                 map[string]any{"aggregateId": "agg-1"},
-		Template:                 "legacy-template",
 		IdempotencyKey:           "idem-1",
 		Send: &models.SendInput{
 			Asset: "USD",
