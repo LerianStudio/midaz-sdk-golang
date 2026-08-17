@@ -5,10 +5,12 @@ package entities
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -114,6 +116,60 @@ func TestFeeEstimateFacade_Applied(t *testing.T) {
 	}
 	if tx.RouteID == nil || *tx.RouteID != "55555555-5555-5555-5555-555555555555" {
 		t.Fatalf("routeId = %v", tx.RouteID)
+	}
+}
+
+// TestFeeEstimateFacade_GoldenRequestBody pins the estimate request body against
+// a hand-written payload. The estimate reuses the transaction leg types, so any
+// change to their serialization moves this endpoint too — and the quote it
+// returns drives real fee-bearing transactions. The leg identity is accountAlias,
+// matching the ledger DTO the engine unmarshals into
+// (components/ledger/pkg/feeshared/model.FeeEstimate embeds
+// pkg/mtransaction.Transaction, whose FromTo carries only accountAlias); money
+// rides as decimal strings; a nil source/distribute is omitted, never null.
+func TestFeeEstimateFacade_GoldenRequestBody(t *testing.T) {
+	want := map[string]any{
+		"packageId": feeEstimatePackageID,
+		"ledgerId":  feeEstimateLedgerID,
+		"transaction": map[string]any{
+			"description": "estimate",
+			"send": map[string]any{
+				"asset": "BRL",
+				"value": "100.00",
+				"source": map[string]any{"from": []any{map[string]any{
+					"accountAlias": "@source",
+					"amount":       map[string]any{"asset": "BRL", "value": "100.00"},
+				}}},
+				"distribute": map[string]any{"to": []any{map[string]any{
+					"accountAlias": "@dest",
+					"amount":       map[string]any{"asset": "BRL", "value": "100.00"},
+				}}},
+			},
+		},
+	}
+
+	var gotBody []byte
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotBody, _ = io.ReadAll(r.Body)
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"message":"Successfully estimated fee.","feesApplied":null}`))
+	}))
+	defer srv.Close()
+
+	if _, err := newTestFeeEstimateFacade(t, srv).EstimateFee(
+		context.Background(), feeEstimateOrgID, feeEstimateInput()); err != nil {
+		t.Fatalf("EstimateFee: %v", err)
+	}
+
+	var got map[string]any
+	if err := json.Unmarshal(gotBody, &got); err != nil {
+		t.Fatalf("request body is not a JSON object: %v (%s)", err, gotBody)
+	}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("estimate request body is not the golden payload\n got: %s\nwant: %v", gotBody, want)
 	}
 }
 
