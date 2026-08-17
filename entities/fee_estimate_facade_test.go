@@ -65,8 +65,8 @@ func TestFeeEstimateFacade_Applied(t *testing.T) {
 		`"routeId":"55555555-5555-5555-5555-555555555555",` +
 		`"metadata":{"packageAppliedID":"pkg-1"},` +
 		`"send":{"asset":"BRL","value":"` + precise + `",` +
-		`"source":{"from":[{"account":"@source","amount":{"asset":"BRL","value":"` + precise + `"}}]},` +
-		`"distribute":{"to":[{"account":"@dest","amount":{"asset":"BRL","value":"` + precise + `"}}]}}}}}`
+		`"source":{"from":[{"accountAlias":"@source","amount":{"asset":"BRL","value":"` + precise + `"}}]},` +
+		`"distribute":{"to":[{"accountAlias":"@dest","amount":{"asset":"BRL","value":"` + precise + `"}}]}}}}}`
 
 	var m, p, body string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -110,6 +110,9 @@ func TestFeeEstimateFacade_Applied(t *testing.T) {
 	}
 	if len(tx.Send.Source.From) != 1 || tx.Send.Source.From[0].Amount.Value != precise {
 		t.Fatalf("source amount = %+v, want %q", tx.Send.Source, precise)
+	}
+	if tx.Send.Source.From[0].AccountAlias != "@source" {
+		t.Fatalf("source leg accountAlias = %q, want %q", tx.Send.Source.From[0].AccountAlias, "@source")
 	}
 	if len(tx.Send.Distribute.To) != 1 || tx.Send.Distribute.To[0].Amount.Value != precise {
 		t.Fatalf("distribute amount = %+v, want %q", tx.Send.Distribute, precise)

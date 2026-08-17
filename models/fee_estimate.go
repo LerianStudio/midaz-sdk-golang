@@ -207,15 +207,20 @@ type FeeAdjustedDistribute struct {
 
 // FeeAdjustedFromTo is one read-side source/destination entry of a fee-adjusted
 // transaction. Amount.Value is string (never float) — the money third rail.
+//
+// AccountAlias mirrors the leg identity the fee engine returns: its response
+// projects the same DTO the request carries (feeshared/model.FeeEstimateResult
+// over pkg/mtransaction.Transaction, whose FromTo exposes accountAlias only), so
+// there is no account key to read on either side.
 type FeeAdjustedFromTo struct {
-	Account     string            `json:"account,omitempty"`
-	Amount      FeeAdjustedAmount `json:"amount"`
-	Share       *Share            `json:"share,omitempty"`
-	Remaining   string            `json:"remaining,omitempty"`
-	Rate        *Rate             `json:"rate,omitempty"`
-	Description string            `json:"description,omitempty"`
-	Metadata    map[string]any    `json:"metadata,omitempty"`
-	RouteID     *string           `json:"routeId,omitempty"`
+	AccountAlias string            `json:"accountAlias,omitempty"`
+	Amount       FeeAdjustedAmount `json:"amount"`
+	Share        *Share            `json:"share,omitempty"`
+	Remaining    string            `json:"remaining,omitempty"`
+	Rate         *Rate             `json:"rate,omitempty"`
+	Description  string            `json:"description,omitempty"`
+	Metadata     map[string]any    `json:"metadata,omitempty"`
+	RouteID      *string           `json:"routeId,omitempty"`
 }
 
 // FeeAdjustedAmount is a read-side amount. Value is string (never float) so a
