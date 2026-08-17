@@ -168,6 +168,11 @@ func (c Correlation) Validate() error {
 // contract version plus every non-blank field, under the canonical camelCase
 // keys. Blank fields are omitted entirely — the ledger never receives an empty
 // value. Callers should Validate first; ToMetadata renders whatever it holds.
+//
+// Values are emitted trimmed, matching the presence rule Validate applies: a
+// padded identifier passes validation, so emitting it verbatim would ship
+// " agg-1 " as the aggregate id and break the exact-match lookup that is the
+// key's whole purpose.
 func (c Correlation) ToMetadata() map[string]any {
 	metadata := map[string]any{"contractVersion": ContractVersion}
 
@@ -182,8 +187,8 @@ func (c Correlation) ToMetadata() map[string]any {
 		"originalAggregateId": c.OriginalAggregateID,
 		"direction":           string(c.Direction),
 	} {
-		if !isBlank(value) {
-			metadata[key] = value
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			metadata[key] = trimmed
 		}
 	}
 

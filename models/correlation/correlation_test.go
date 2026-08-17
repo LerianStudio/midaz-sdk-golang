@@ -172,6 +172,26 @@ func TestToMetadataOmitsEmptyAndBlankOptionalKeys(t *testing.T) {
 	}, c.ToMetadata())
 }
 
+// A padded identifier passes Validate (presence is decided after trimming), so
+// the emitter has to trim too: aggregateId is the exact-match join key from the
+// ledger back to the plugin, and " agg-1 " matches nothing.
+func TestToMetadataTrimsEmittedValues(t *testing.T) {
+	c := canonical()
+	c.Plugin = "  br-bank-transfer  "
+	c.AggregateID = " 7f1c9e2a-0b45-4a1e-9f3d-2c8b5d6e7a10\t"
+	c.EndToEndID = " E1234567820260817120000abcdef123 "
+	require.NoError(t, c.Validate())
+
+	assert.Equal(t, map[string]any{
+		"contractVersion": ContractVersion,
+		"plugin":          "br-bank-transfer",
+		"rail":            "TED",
+		"flow":            "CASH_OUT",
+		"aggregateId":     "7f1c9e2a-0b45-4a1e-9f3d-2c8b5d6e7a10",
+		"endToEndId":      "E1234567820260817120000abcdef123",
+	}, c.ToMetadata())
+}
+
 func TestContractVersionIsOne(t *testing.T) {
 	assert.Equal(t, "1", ContractVersion)
 }
