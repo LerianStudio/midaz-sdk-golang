@@ -857,6 +857,60 @@ func TestFromToInput_SingleAccountIdentity(t *testing.T) {
 	assert.Contains(t, err.Error(), "accountAlias is required")
 }
 
+// route (a server-side alias) and routeId (a UUID) express the same routing
+// decision, and the serializers emit whichever is non-empty — so a payload
+// carrying both leaves the ledger to choose. Every create validator rejects the
+// pair, at the transaction level and on each leg, which makes a valid payload
+// carry at most one of them by construction.
+func TestValidateRejectsRouteAndRouteIDTogether(t *testing.T) {
+	const routeID = "11111111-1111-1111-1111-111111111111"
+
+	t.Run("transaction level", func(t *testing.T) {
+		txBoth := &CreateTransactionInput{Route: "alias-route", RouteID: routeID, Send: newValidSendInput(100)}
+		err := txBoth.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "transaction-level")
+		assert.Contains(t, err.Error(), "routeId")
+
+		inflowBoth := &CreateInflowInput{
+			Route:   "alias-route",
+			RouteID: routeID,
+			Send: &SendInflowInput{
+				Asset:      "USD",
+				Value:      100,
+				Distribute: &DistributeInput{To: []FromToInput{{AccountAlias: "dest", Amount: AmountInput{Asset: "USD", Value: 100}}}},
+			},
+		}
+		err = inflowBoth.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "transaction-level")
+	})
+
+	t.Run("leg level", func(t *testing.T) {
+		legRouteID := routeID
+		leg := &FromToInput{
+			AccountAlias: "acc-123",
+			Amount:       AmountInput{Asset: "USD", Value: 100},
+			Route:        "alias-route",
+			RouteID:      &legRouteID,
+		}
+
+		err := leg.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "leg accountAlias=acc-123")
+		assert.Contains(t, err.Error(), "routeId")
+	})
+
+	t.Run("one identifier alone is valid", func(t *testing.T) {
+		legRouteID := routeID
+
+		require.NoError(t, (&CreateTransactionInput{RouteID: routeID, Send: newValidSendInput(100)}).Validate())
+		require.NoError(t, (&CreateTransactionInput{Route: "alias-route", Send: newValidSendInput(100)}).Validate())
+		require.NoError(t, (&FromToInput{AccountAlias: "acc-123", Amount: AmountInput{Asset: "USD", Value: 100}, RouteID: &legRouteID}).Validate())
+		require.NoError(t, (&FromToInput{AccountAlias: "acc-123", Amount: AmountInput{Asset: "USD", Value: 100}, Route: "alias-route"}).Validate())
+	})
+}
+
 func TestFromToInput_ToMap(t *testing.T) {
 	t.Run("basic input", func(t *testing.T) {
 		input := FromToInput{

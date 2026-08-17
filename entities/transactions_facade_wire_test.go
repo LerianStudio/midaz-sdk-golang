@@ -16,7 +16,9 @@ import (
 )
 
 // Route ids are UUID-validated by every create validator, so the fixtures below
-// use real ones at both the transaction and the leg level.
+// use real ones at both the transaction and the leg level. route and routeId are
+// mutually exclusive, so no fixture sets both: the annotation fixture pins the
+// route alias on the wire, the others pin routeId.
 const (
 	wireRouteID    = "44444444-4444-4444-4444-444444444444"
 	wireLegRouteID = "55555555-5555-5555-5555-555555555555"
@@ -32,7 +34,6 @@ func wireTransactionInput() *models.CreateTransactionInput {
 		ChartOfAccountsGroupName: "settlement-group",
 		Description:              "wire golden transaction",
 		Code:                     "TX-CODE-1",
-		Route:                    "transfer-route",
 		RouteID:                  wireRouteID,
 		TransactionDate:          "2026-01-15T10:00:00Z",
 		Metadata:                 map[string]any{"aggregateId": "agg-1"},
@@ -48,7 +49,6 @@ func wireTransactionInput() *models.CreateTransactionInput {
 					BalanceKey:      "settlement",
 					Description:     "primary leg",
 					ChartOfAccounts: "1.1.1",
-					Route:           "leg-route",
 					RouteID:         &legRouteID,
 					Metadata:        map[string]any{"legId": "leg-1"},
 				},
@@ -70,7 +70,6 @@ func wireInflowInput() *models.CreateInflowInput {
 		Description:              "wire golden inflow",
 		Code:                     "IN-CODE-1",
 		Metadata:                 map[string]any{"aggregateId": "agg-2"},
-		Route:                    "inflow-route",
 		RouteID:                  wireRouteID,
 		TransactionDate:          "2026-01-15T10:00:00Z",
 		Send: &models.SendInflowInput{
@@ -91,7 +90,6 @@ func wireOutflowInput() *models.CreateOutflowInput {
 		Description:              "wire golden outflow",
 		Code:                     "OUT-CODE-1",
 		Metadata:                 map[string]any{"aggregateId": "agg-3"},
-		Route:                    "outflow-route",
 		RouteID:                  wireRouteID,
 		Pending:                  true,
 		Send: &models.SendOutflowInput{
@@ -111,7 +109,6 @@ func wireAnnotationInput() *models.CreateAnnotationInput {
 		Code:                     "AN-CODE-1",
 		Metadata:                 map[string]any{"aggregateId": "agg-4"},
 		Route:                    "annotation-route",
-		RouteID:                  wireRouteID,
 	}
 }
 

@@ -288,10 +288,13 @@ type CreateTransactionInput struct {
 	Code string `json:"code,omitempty"`
 
 	// Route is the transaction route identifier (optional)
-	// This defines the overall flow of the transaction structure
+	// This defines the overall flow of the transaction structure.
+	// Prefer RouteID (UUID); Route is retained for server-side alias
+	// compatibility. Setting both is rejected by Validate.
 	Route string `json:"route,omitempty"`
 
-	// RouteID is the UUID transaction route identifier.
+	// RouteID is the UUID transaction route identifier and the preferred way to
+	// address a transaction route. Mutually exclusive with Route.
 	RouteID string `json:"routeId,omitempty"`
 
 	// TransactionDate is the effective date/time for the transaction.
@@ -355,11 +358,14 @@ type FromToInput struct {
 	// Amount specifies the amount details for this operation
 	Amount AmountInput `json:"amount"`
 
-	// Route is the operation route identifier for this operation (optional)
-	// This links the operation to a specific routing rule
+	// Route is the operation route identifier for this operation (optional).
+	// Prefer RouteID (UUID); Route is retained for server-side alias
+	// compatibility. Setting both is rejected by Validate.
 	Route string `json:"route,omitempty"`
 
-	// RouteID is the operation route UUID used by canonical Midaz route validation.
+	// RouteID is the operation route UUID used by canonical Midaz route
+	// validation and the preferred way to address an operation route.
+	// Mutually exclusive with Route.
 	RouteID *string `json:"routeId,omitempty"`
 
 	// BalanceKey targets a non-default balance for this entry.
@@ -465,6 +471,12 @@ func appendTransactionCreateCommon(errs *validation.FieldErrors, description, co
 
 	if routeID != "" && !validation.IsValidUUID(routeID) {
 		errs.Append("routeId", "must be a valid UUID")
+	}
+
+	// The serializers emit whichever of route/routeId is non-empty, so a payload
+	// carrying both hands the routing decision to the ledger. Reject the pair.
+	if route != "" && routeID != "" {
+		errs.Append("route", "transaction-level route and routeId are mutually exclusive; keep routeId")
 	}
 
 	if transactionDate != "" {
@@ -799,6 +811,11 @@ func (input *FromToInput) Validate() error {
 		if !validation.IsValidUUID(*input.RouteID) {
 			errs.Append("routeId", "must be a valid UUID")
 		}
+	}
+
+	if input.Route != "" && input.RouteID != nil && *input.RouteID != "" {
+		errs.Append("route", fmt.Sprintf(
+			"leg accountAlias=%s: route and routeId are mutually exclusive; keep routeId", input.AccountAlias))
 	}
 
 	if len(input.Metadata) > 0 {

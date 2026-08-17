@@ -29,6 +29,7 @@ The v4 remodel repoints the ledger accessors onto concrete facades over the gene
 
 **Changed (breaking):**
 - `client.X` accessors now return concrete `*xFacade` structs exposing generic CRUD method names (`List` / `Get` / `Create` / `Update` / `Delete` / `All` / `Pages` / `Count`) instead of the old verbose `XService` methods — e.g. `ListAccounts` → `List`, `CreateTransaction` → `CreateJSON`.
+- `route` and `routeId` are now mutually exclusive on every transaction create. Both fields serialize whenever set, so a payload carrying the pair left the ledger to pick which routing decision applied. Validation now rejects it at the transaction level (`transaction-level route and routeId are mutually exclusive; keep routeId`, enforced for `CreateJSON`, inflow, outflow, and annotation) and on each leg (`leg accountAlias=<alias>: route and routeId are mutually exclusive; keep routeId`). Migration: send `RouteID` (UUID) and drop `Route`; `Route` remains supported alone for server-side alias compatibility.
 - `models.FromToInput` now carries a single account identity: `AccountAlias`. The `Account` field is removed. It never reached the wire — the leg mapper copied it into `accountAlias` whenever `AccountAlias` was empty, so a caller setting `Account` to an account ID had it silently reinterpreted as an alias. Migration: rename `Account:` to `AccountAlias:` in every source and destination leg; a leg with an empty `AccountAlias` now fails validation with `accountAlias is required`.
 
 ### ✨ Added (v4 remodel)
