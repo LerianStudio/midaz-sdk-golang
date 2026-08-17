@@ -23,10 +23,13 @@ type CreateInflowInput struct {
 	// Metadata contains custom key-value data
 	Metadata map[string]any `json:"metadata,omitempty"`
 
-	// Route is the transaction route identifier
+	// Route is the transaction route identifier. Prefer RouteID (UUID); Route is
+	// retained for server-side alias compatibility. Setting both is rejected by
+	// Validate.
 	Route string `json:"route,omitempty"`
 
-	// RouteID is the UUID transaction route identifier.
+	// RouteID is the UUID transaction route identifier and the preferred way to
+	// address a transaction route. Mutually exclusive with Route.
 	RouteID string `json:"routeId,omitempty"`
 
 	// TransactionDate is the effective date/time for the transaction.
@@ -216,10 +219,13 @@ type CreateOutflowInput struct {
 	// Metadata contains custom key-value data
 	Metadata map[string]any `json:"metadata,omitempty"`
 
-	// Route is the transaction route identifier
+	// Route is the transaction route identifier. Prefer RouteID (UUID); Route is
+	// retained for server-side alias compatibility. Setting both is rejected by
+	// Validate.
 	Route string `json:"route,omitempty"`
 
-	// RouteID is the UUID transaction route identifier.
+	// RouteID is the UUID transaction route identifier and the preferred way to
+	// address a transaction route. Mutually exclusive with Route.
 	RouteID string `json:"routeId,omitempty"`
 
 	// Pending indicates whether the transaction should be created in a pending state.
@@ -398,15 +404,18 @@ func (input CreateOutflowInput) MarshalJSON() ([]byte, error) {
 
 // CreateAnnotationInput is the payload for creating an annotation transaction.
 type CreateAnnotationInput struct {
-	ChartOfAccountsGroupName string         `json:"chartOfAccountsGroupName,omitempty"`
-	Description              string         `json:"description,omitempty"`
-	Pending                  bool           `json:"pending,omitempty"`
-	Code                     string         `json:"code,omitempty"`
-	Route                    string         `json:"route,omitempty"`
-	RouteID                  string         `json:"routeId,omitempty"`
-	TransactionDate          string         `json:"transactionDate,omitempty"`
-	Metadata                 map[string]any `json:"metadata,omitempty"`
-	Send                     *SendInput     `json:"send,omitempty"`
+	ChartOfAccountsGroupName string `json:"chartOfAccountsGroupName,omitempty"`
+	Description              string `json:"description,omitempty"`
+	Pending                  bool   `json:"pending,omitempty"`
+	Code                     string `json:"code,omitempty"`
+	// Route is retained for server-side alias compatibility; prefer RouteID.
+	// Setting both is rejected by Validate.
+	Route string `json:"route,omitempty"`
+	// RouteID is the preferred way to address a transaction route.
+	RouteID         string         `json:"routeId,omitempty"`
+	TransactionDate string         `json:"transactionDate,omitempty"`
+	Metadata        map[string]any `json:"metadata,omitempty"`
+	Send            *SendInput     `json:"send,omitempty"`
 }
 
 // NewCreateAnnotationInput creates a new CreateAnnotationInput.
