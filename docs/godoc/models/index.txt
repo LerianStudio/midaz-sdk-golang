@@ -154,8 +154,6 @@ type CreateLimitInput struct{ ... }
     func NewCreateLimitInput(name, limitType string, maxAmount decimal.Decimal, currency string) *CreateLimitInput
 type CreateMetadataIndexInput struct{ ... }
     func NewCreateMetadataIndexInput(metadataKey string) *CreateMetadataIndexInput
-type CreateOperationInput struct{ ... }
-    func NewCreateOperationInput(operationType, accountID string, amount any, assetCode string) *CreateOperationInput
 type CreateOperationRouteInput struct{ ... }
     func NewCreateOperationRouteInput(title, description, operationType string) *CreateOperationRouteInput
 type CreateOrganizationInput struct{ ... }

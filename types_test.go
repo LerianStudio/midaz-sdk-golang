@@ -52,7 +52,6 @@ func TestTypeAliasesAreIdentical(t *testing.T) {
 		{"CreateHolderInput", midaz.CreateHolderInput{}, models.CreateHolderInput{}},
 		{"CreateLedgerInput", midaz.CreateLedgerInput{}, models.CreateLedgerInput{}},
 		{"CreateMetadataIndexInput", midaz.CreateMetadataIndexInput{}, models.CreateMetadataIndexInput{}},
-		{"CreateOperationInput", midaz.CreateOperationInput{}, models.CreateOperationInput{}},
 		{"CreateOperationRouteInput", midaz.CreateOperationRouteInput{}, models.CreateOperationRouteInput{}},
 		{"CreateOrganizationInput", midaz.CreateOrganizationInput{}, models.CreateOrganizationInput{}},
 		{"CreatePortfolioInput", midaz.CreatePortfolioInput{}, models.CreatePortfolioInput{}},

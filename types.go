@@ -73,7 +73,6 @@ type (
 	CreateHolderInput           = models.CreateHolderInput
 	CreateLedgerInput           = models.CreateLedgerInput
 	CreateMetadataIndexInput    = models.CreateMetadataIndexInput
-	CreateOperationInput        = models.CreateOperationInput
 	CreateOperationRouteInput   = models.CreateOperationRouteInput
 	CreateOrganizationInput     = models.CreateOrganizationInput
 	CreatePortfolioInput        = models.CreatePortfolioInput
