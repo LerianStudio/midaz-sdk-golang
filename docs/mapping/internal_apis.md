@@ -175,7 +175,7 @@ Common builders:
 - `models.NewUpdatePortfolioInput()`
 - `models.NewCreateSegmentInput(name)`
 - `models.NewUpdateSegmentInput()`
-- `models.NewCreateTransactionInput(assetCode, amount)` - Must include `send.source` and `send.distribute` before sending, either through `WithSend(...)` or legacy operation adaptation. Unsafe SDK requests receive an auto-generated `X-Idempotency` header by default; set `IdempotencyKey` or use `sdkctx.WithIdempotencyKey` when the caller needs a stable key or has disabled auto-idempotency.
+- `models.NewCreateTransactionInput(assetCode, amount)` - Must include `send.source` and `send.distribute` before sending, through `WithSend(...)` — the legacy operation-adaptation path was removed in v4.2. Unsafe SDK requests receive an auto-generated `X-Idempotency` header by default; set `IdempotencyKey` or use `sdkctx.WithIdempotencyKey` when the caller needs a stable key or has disabled auto-idempotency.
 - `models.NewCreateInflowInput(assetCode, value, distribute)` - Requires a non-empty `distribute.to` payload.
 - `models.NewCreateOutflowInput(assetCode, value, source)` - Requires a non-empty `source.from` payload.
 - `models.NewCreateAnnotationInput(description, send...)` - `send` is optional. Omit it for metadata-only annotation transactions, or pass it for backend deployments that still require a send payload.

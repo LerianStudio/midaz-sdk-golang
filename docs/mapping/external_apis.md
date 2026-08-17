@@ -578,7 +578,7 @@ Each per-entity opts struct exposes:
 - `models.NewUpdatePortfolioInput()`
 - `models.NewCreateSegmentInput(name)`
 - `models.NewUpdateSegmentInput()`
-- `models.NewCreateTransactionInput(assetCode, amount)` - Must include `send.source` and `send.distribute` before sending, either through `WithSend(...)` or legacy operation adaptation. Set `IdempotencyKey` or use `sdkctx.WithIdempotencyKey` for retry-safe unsafe requests.
+- `models.NewCreateTransactionInput(assetCode, amount)` - Must include `send.source` and `send.distribute` before sending, through `WithSend(...)` — the legacy operation-adaptation path was removed in v4.2. Set `IdempotencyKey` or use `sdkctx.WithIdempotencyKey` for retry-safe unsafe requests.
 - `models.NewCreateInflowInput(assetCode, value, distribute)` - Requires a non-empty `distribute.to` payload.
 - `models.NewCreateOutflowInput(assetCode, value, source)` - Requires a non-empty `source.from` payload.
 - `models.NewCreateAnnotationInput(description, send...)` - `send` is optional. Omit it for metadata-only annotation transactions, or pass it for backend deployments that still require a send payload.

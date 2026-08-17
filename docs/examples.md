@@ -128,7 +128,7 @@ txInput := models.NewCreateTransactionInput("USD", "100.00").
         Source: &models.SourceInput{
             From: []models.FromToInput{
                 {
-                    Account: customerAccountAlias,
+                    AccountAlias: customerAccountAlias,
                     Amount: models.AmountInput{Asset: "USD", Value: "100.00"},
                 },
             },
@@ -136,7 +136,7 @@ txInput := models.NewCreateTransactionInput("USD", "100.00").
         Distribute: &models.DistributeInput{
             To: []models.FromToInput{
                 {
-                    Account: merchantAccountAlias,
+                    AccountAlias: merchantAccountAlias,
                     Amount: models.AmountInput{Asset: "USD", Value: "100.00"},
                 },
             },
