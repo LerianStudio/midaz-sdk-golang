@@ -284,7 +284,14 @@ type CreateTransactionInput struct {
 	// Pending transactions require explicit commitment before affecting account balances
 	Pending bool `json:"pending,omitempty"`
 
-	// Code is a transaction reference code.
+	// Code is a human-readable reference label for display and reporting
+	// (at most 100 characters).
+	//
+	// Code is NOT a query handle: TransactionsFilters exposes no code filter
+	// and Get addresses a transaction only by its Midaz UUID. The ledger does
+	// not enforce uniqueness on it either. For searchable correlation back to
+	// a producer's own aggregate, put the identifier in Metadata — that is the
+	// only field the transactions endpoint can filter on.
 	Code string `json:"code,omitempty"`
 
 	// Route is the transaction route identifier (optional)
@@ -305,10 +312,29 @@ type CreateTransactionInput struct {
 	// such as references to external systems, tags, or other contextual data
 	Metadata map[string]any `json:"metadata,omitempty"`
 
-	// IdempotencyKey is a client-generated key to ensure transaction uniqueness
-	// If a transaction with the same idempotency key already exists, that transaction
-	// will be returned instead of creating a new one
-	// Note: This is sent as a header (X-Idempotency), not in the request body
+	// IdempotencyKey is a client-generated key that makes a retry of THIS create
+	// safe. It is a short-lived retry guard, not a durable correlation handle:
+	// it is never persisted on the transaction, never returned in a response,
+	// and never queryable. Use Metadata for correlation that has to survive.
+	//
+	// Behavior by case:
+	//
+	//   - Exact replay inside the server's TTL — server-dependent. The ledger
+	//     may return the original transaction; this SDK does not verify that
+	//     behavior. Treat a returned error as authoritative and never assume
+	//     replay-success.
+	//   - Same key, different payload — conflict. The SDK surfaces
+	//     pkg/errors.IsIdempotencyError (HTTP 409, code idempotency_error),
+	//     non-retryable.
+	//   - Concurrent in-flight request with the same key — same conflict as
+	//     above: 409, non-retryable.
+	//   - After the TTL expires — the key is forgotten and a NEW transaction is
+	//     created. A key is not a uniqueness constraint over time.
+	//
+	// Never read pkg/errors.IsIdempotencyError as "the original succeeded"; it
+	// only says the server refused this request as a conflict.
+	//
+	// Note: This is sent as a header (X-Idempotency), not in the request body.
 	IdempotencyKey string `json:"-"`
 
 	// Send contains the source and distribution information for the transaction.

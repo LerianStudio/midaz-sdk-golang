@@ -1631,7 +1631,10 @@ func IsConfigurationError(err error) bool {
 	return errors.Is(err, ErrConfiguration)
 }
 
-// IsIdempotencyError checks if an error is an idempotency error.
+// IsIdempotencyError reports whether an error is an idempotency conflict:
+// the key was reused with a different payload, or an earlier request with the
+// same key is still in flight. It is a 409 conflict and non-retryable — it
+// never means the original request succeeded or was replayed.
 func IsIdempotencyError(err error) bool {
 	if isNilError(err) {
 		return false

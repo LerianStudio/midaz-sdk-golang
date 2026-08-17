@@ -16,7 +16,8 @@ type CreateInflowInput struct {
 	// Description provides a human-readable explanation
 	Description string `json:"description,omitempty"`
 
-	// Code is a transaction reference code
+	// Code is a human-readable reference label for display and reporting.
+	// It is not a query handle — see CreateTransactionInput.Code.
 	Code string `json:"code,omitempty"`
 
 	// Metadata contains custom key-value data
@@ -208,7 +209,8 @@ type CreateOutflowInput struct {
 	// Description provides a human-readable explanation
 	Description string `json:"description,omitempty"`
 
-	// Code is a transaction reference code
+	// Code is a human-readable reference label for display and reporting.
+	// It is not a query handle — see CreateTransactionInput.Code.
 	Code string `json:"code,omitempty"`
 
 	// Metadata contains custom key-value data

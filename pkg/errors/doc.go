@@ -45,6 +45,11 @@
 //	│ configuration      │ configuration_error           │ no (fatal)   │
 //	└────────────────────┴───────────────────────────────┴──────────────┘
 //
+// idempotency_error (wire code 0084) is a conflict, never a success. The
+// server emits it when a key is reused with a different payload or while an
+// earlier request with the same key is still in flight. It never means "the
+// original transaction was returned" — see [IsIdempotencyError].
+//
 // # Recognising an error
 //
 // Three idioms cover every use case:
@@ -93,7 +98,7 @@
 //	errors.IsTimeoutError(err)         // request deadline exceeded
 //	errors.IsCancellationError(err)    // context cancelled by caller
 //	errors.IsNetworkError(err)         // DNS, conn-refused, TLS, broken pipe — pre-response
-//	errors.IsConflictError(err)        // 409 — already exists or idempotency conflict
+//	errors.IsConflictError(err)        // 409 — already exists, or an idempotency key reused with a different payload (never a replay success)
 //	errors.IsUnprocessableError(err)   // 422 — domain rule violation
 //	errors.IsInternalError(err)        // 5xx
 //	errors.IsConfigurationError(err)   // SDK setup mistake (eager, from client.New)
