@@ -887,6 +887,28 @@ func TestValidateRejectsRouteAndRouteIDTogether(t *testing.T) {
 		err = inflowBoth.Validate()
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "transaction-level")
+
+		outflowBoth := &CreateOutflowInput{
+			Route:   "alias-route",
+			RouteID: routeID,
+			Send: &SendOutflowInput{
+				Asset:  "USD",
+				Value:  100,
+				Source: &SourceInput{From: []FromToInput{{AccountAlias: "source", Amount: AmountInput{Asset: "USD", Value: 100}}}},
+			},
+		}
+		err = outflowBoth.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "transaction-level")
+
+		annotationBoth := &CreateAnnotationInput{
+			Description: "annotation",
+			Route:       "alias-route",
+			RouteID:     routeID,
+		}
+		err = annotationBoth.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "transaction-level")
 	})
 
 	t.Run("leg level", func(t *testing.T) {
