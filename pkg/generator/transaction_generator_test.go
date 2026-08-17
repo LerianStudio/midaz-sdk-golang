@@ -230,9 +230,9 @@ func TestTransactionGenerator_GenerateWithDSL_ConvertsTemplate(t *testing.T) {
 	assert.Equal(t, "500", captured.Amount)
 	require.NotNil(t, captured.Send)
 	require.Len(t, captured.Send.Source.From, 1)
-	assert.Equal(t, "@customer", captured.Send.Source.From[0].Account)
+	assert.Equal(t, "@customer", captured.Send.Source.From[0].AccountAlias)
 	require.Len(t, captured.Send.Distribute.To, 1)
-	assert.Equal(t, "@merchant", captured.Send.Distribute.To[0].Account)
+	assert.Equal(t, "@merchant", captured.Send.Distribute.To[0].AccountAlias)
 }
 
 func TestTransactionGenerator_GenerateBatch_EmptyPatterns(t *testing.T) {

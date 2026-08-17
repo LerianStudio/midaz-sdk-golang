@@ -185,12 +185,12 @@ func buildBatchTransactionInputs(customerAccount, merchantAccount *models.Accoun
 				Value: amount,
 				Source: &models.SourceInput{
 					From: []models.FromToInput{
-						{Account: customerAccount.ID, Amount: models.AmountInput{Asset: "USD", Value: amount}},
+						{AccountAlias: customerAccount.ID, Amount: models.AmountInput{Asset: "USD", Value: amount}},
 					},
 				},
 				Distribute: &models.DistributeInput{
 					To: []models.FromToInput{
-						{Account: merchantAccount.ID, Amount: models.AmountInput{Asset: "USD", Value: amount}},
+						{AccountAlias: merchantAccount.ID, Amount: models.AmountInput{Asset: "USD", Value: amount}},
 					},
 				},
 			},

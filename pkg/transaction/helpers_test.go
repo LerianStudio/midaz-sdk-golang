@@ -382,12 +382,12 @@ func TestMultiTransferOptionsFields(t *testing.T) {
 func TestTemplateFields(t *testing.T) {
 	buildSources := func(_ int64) []models.FromToInput {
 		return []models.FromToInput{
-			{Account: "source-account"},
+			{AccountAlias: "source-account"},
 		}
 	}
 	buildDests := func(_ int64) []models.FromToInput {
 		return []models.FromToInput{
-			{Account: "dest-account"},
+			{AccountAlias: "dest-account"},
 		}
 	}
 
@@ -414,11 +414,11 @@ func TestTemplateFields(t *testing.T) {
 	// Test the functions work
 	sources := template.BuildSources(1000)
 	assert.Len(t, sources, 1)
-	assert.Equal(t, "source-account", sources[0].Account)
+	assert.Equal(t, "source-account", sources[0].AccountAlias)
 
 	dests := template.BuildDestinations(1000)
 	assert.Len(t, dests, 1)
-	assert.Equal(t, "dest-account", dests[0].Account)
+	assert.Equal(t, "dest-account", dests[0].AccountAlias)
 }
 
 // TestDefaultOptionsDoNotPinIdempotencyKeys verifies defaults do not bake a

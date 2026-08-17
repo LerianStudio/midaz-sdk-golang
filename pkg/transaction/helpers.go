@@ -143,7 +143,7 @@ func Transfer(
 			Source: &models.SourceInput{
 				From: []models.FromToInput{
 					{
-						Account: fromAccountID,
+						AccountAlias: fromAccountID,
 						Amount: models.AmountInput{
 							Asset: assetCode,
 							Value: amountValue,
@@ -154,7 +154,7 @@ func Transfer(
 			Distribute: &models.DistributeInput{
 				To: []models.FromToInput{
 					{
-						Account: toAccountID,
+						AccountAlias: toAccountID,
 						Amount: models.AmountInput{
 							Asset: assetCode,
 							Value: amountValue,
@@ -270,7 +270,7 @@ func Deposit(
 			Source: &models.SourceInput{
 				From: []models.FromToInput{
 					{
-						Account: externalAccountID,
+						AccountAlias: externalAccountID,
 						Amount: models.AmountInput{
 							Asset: assetCode,
 							Value: amountValue,
@@ -281,7 +281,7 @@ func Deposit(
 			Distribute: &models.DistributeInput{
 				To: []models.FromToInput{
 					{
-						Account: toAccountID,
+						AccountAlias: toAccountID,
 						Amount: models.AmountInput{
 							Asset: assetCode,
 							Value: amountValue,
@@ -397,7 +397,7 @@ func Withdrawal(
 			Source: &models.SourceInput{
 				From: []models.FromToInput{
 					{
-						Account: fromAccountID,
+						AccountAlias: fromAccountID,
 						Amount: models.AmountInput{
 							Asset: assetCode,
 							Value: amountValue,
@@ -408,7 +408,7 @@ func Withdrawal(
 			Distribute: &models.DistributeInput{
 				To: []models.FromToInput{
 					{
-						Account: externalAccountID,
+						AccountAlias: externalAccountID,
 						Amount: models.AmountInput{
 							Asset: assetCode,
 							Value: amountValue,
@@ -556,7 +556,7 @@ func buildAccountInputList(accounts map[string]int64, scale int64, assetCode, ac
 
 		amountValue := formatAmount(amount, scale)
 		inputList = append(inputList, models.FromToInput{
-			Account: accountID,
+			AccountAlias: accountID,
 			Amount: models.AmountInput{
 				Asset: assetCode,
 				Value: amountValue,

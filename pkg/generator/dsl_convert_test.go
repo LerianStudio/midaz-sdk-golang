@@ -26,7 +26,7 @@ func TestDSLTemplateToInput(t *testing.T) {
 	}
 
 	src := in.Send.Source.From[0]
-	if src.Account != "@customer" || src.Amount.Value != "100" {
+	if src.AccountAlias != "@customer" || src.Amount.Value != "100" {
 		t.Fatalf("source = %+v, want @customer/100", src)
 	}
 
@@ -38,9 +38,9 @@ func TestDSLTemplateToInput(t *testing.T) {
 	got := map[string]int64{}
 	for _, d := range to {
 		if d.Share == nil {
-			t.Fatalf("destination %q has no Share", d.Account)
+			t.Fatalf("destination %q has no Share", d.AccountAlias)
 		}
-		got[d.Account] = d.Share.Percentage
+		got[d.AccountAlias] = d.Share.Percentage
 	}
 
 	if got["@merchant_main"] != 97 || got["@platform_fee"] != 3 {

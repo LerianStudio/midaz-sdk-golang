@@ -92,8 +92,8 @@ func TestBusinessObservability_AccountAndTransactionLifecycle(t *testing.T) {
 	txInput := models.NewCreateTransactionInput("USD", "10.00").WithDescription("Sensitive description").WithSend(&models.SendInput{
 		Asset:      "USD",
 		Value:      "10.00",
-		Source:     &models.SourceInput{From: []models.FromToInput{{Account: "11111111-1111-1111-1111-111111111111", Amount: models.AmountInput{Asset: "USD", Value: "10.00"}}}},
-		Distribute: &models.DistributeInput{To: []models.FromToInput{{Account: "merchant", Amount: models.AmountInput{Asset: "USD", Value: "10.00"}}}},
+		Source:     &models.SourceInput{From: []models.FromToInput{{AccountAlias: "11111111-1111-1111-1111-111111111111", Amount: models.AmountInput{Asset: "USD", Value: "10.00"}}}},
+		Distribute: &models.DistributeInput{To: []models.FromToInput{{AccountAlias: "merchant", Amount: models.AmountInput{Asset: "USD", Value: "10.00"}}}},
 	})
 	txInput.IdempotencyKey = "must-not-log"
 

@@ -15,10 +15,10 @@ func sampleFeeEstimateSend() *SendInput {
 		Asset: "USD",
 		Value: "100",
 		Source: &SourceInput{From: []FromToInput{
-			{Account: "@src", Amount: AmountInput{Asset: "USD", Value: "100"}},
+			{AccountAlias: "@src", Amount: AmountInput{Asset: "USD", Value: "100"}},
 		}},
 		Distribute: &DistributeInput{To: []FromToInput{
-			{Account: "@dst", Amount: AmountInput{Asset: "USD", Value: "100"}},
+			{AccountAlias: "@dst", Amount: AmountInput{Asset: "USD", Value: "100"}},
 		}},
 	}
 }

@@ -308,16 +308,16 @@ func buildC2MTransactionInput(index int, customerAccount, merchantAccount *midaz
 			Source: &midazmodels.SourceInput{
 				From: []midazmodels.FromToInput{
 					{
-						Account: customerAccount.ID,
-						Amount:  midazmodels.AmountInput{Asset: "USD", Value: 0.01},
+						AccountAlias: customerAccount.ID,
+						Amount:       midazmodels.AmountInput{Asset: "USD", Value: 0.01},
 					},
 				},
 			},
 			Distribute: &midazmodels.DistributeInput{
 				To: []midazmodels.FromToInput{
 					{
-						Account: merchantAccount.ID,
-						Amount:  midazmodels.AmountInput{Asset: "USD", Value: 0.01},
+						AccountAlias: merchantAccount.ID,
+						Amount:       midazmodels.AmountInput{Asset: "USD", Value: 0.01},
 					},
 				},
 			},
@@ -435,16 +435,16 @@ func buildM2CTransactionInput(index int, merchantAccount, customerAccount *midaz
 			Source: &midazmodels.SourceInput{
 				From: []midazmodels.FromToInput{
 					{
-						Account: merchantAccount.ID,
-						Amount:  midazmodels.AmountInput{Asset: "USD", Value: 0.01},
+						AccountAlias: merchantAccount.ID,
+						Amount:       midazmodels.AmountInput{Asset: "USD", Value: 0.01},
 					},
 				},
 			},
 			Distribute: &midazmodels.DistributeInput{
 				To: []midazmodels.FromToInput{
 					{
-						Account: customerAccount.ID,
-						Amount:  midazmodels.AmountInput{Asset: "USD", Value: 0.01},
+						AccountAlias: customerAccount.ID,
+						Amount:       midazmodels.AmountInput{Asset: "USD", Value: 0.01},
 					},
 				},
 			},

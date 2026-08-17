@@ -28,6 +28,7 @@ The v4 remodel repoints the ledger accessors onto concrete facades over the gene
 
 **Changed (breaking):**
 - `client.X` accessors now return concrete `*xFacade` structs exposing generic CRUD method names (`List` / `Get` / `Create` / `Update` / `Delete` / `All` / `Pages` / `Count`) instead of the old verbose `XService` methods — e.g. `ListAccounts` → `List`, `CreateTransaction` → `CreateJSON`.
+- `models.FromToInput` now carries a single account identity: `AccountAlias`. The `Account` field is removed. It never reached the wire — the leg mapper copied it into `accountAlias` whenever `AccountAlias` was empty, so a caller setting `Account` to an account ID had it silently reinterpreted as an alias. Migration: rename `Account:` to `AccountAlias:` in every source and destination leg; a leg with an empty `AccountAlias` now fails validation with `accountAlias is required`.
 
 ### ✨ Added (v4 remodel)
 - 13 plane-native accessors: Tracer plane (`Rules`, `Limits`, `Validations`, `Reservations`, `AuditEvents`) and ledger-plane extensions (`ProtectionAudit`, `Encryption`, `Instruments`, `Composition`, `FeePackages`, `FeeEstimates`, `BillingPackages`, `BillingCalculations`).

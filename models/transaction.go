@@ -256,10 +256,10 @@ func DecimalStringFromAny(value any) string {
 //	    Asset: "USD",
 //	    Value: "100.00",
 //	    Source: &models.SourceInput{From: []models.FromToInput{
-//	        {Account: "customer_john_doe", Amount: models.AmountInput{Asset: "USD", Value: "100.00"}},
+//	        {AccountAlias: "customer_john_doe", Amount: models.AmountInput{Asset: "USD", Value: "100.00"}},
 //	    }},
 //	    Distribute: &models.DistributeInput{To: []models.FromToInput{
-//	        {Account: "merchant_primary", Amount: models.AmountInput{Asset: "USD", Value: "100.00"}},
+//	        {AccountAlias: "merchant_primary", Amount: models.AmountInput{Asset: "USD", Value: "100.00"}},
 //	    }},
 //	}).WithMetadata(map[string]any{"invoice_id": "inv-123"})
 //	input.IdempotencyKey = "payment-inv123-20230401"
@@ -363,9 +363,10 @@ type DistributeInput struct {
 // FromToInput represents a single source or destination account in a transaction.
 // This structure contains the account and amount details.
 type FromToInput struct {
-	// Account identifies the account affected by this operation. It is mapped to
-	// accountAlias for Midaz transaction requests.
-	Account string `json:"account"`
+	// AccountAlias identifies the account affected by this operation. It is the
+	// leg's only account identity and is sent as accountAlias; the Midaz
+	// transaction endpoints resolve an alias or an account ID from it.
+	AccountAlias string `json:"accountAlias"`
 
 	// Amount specifies the amount details for this operation
 	Amount AmountInput `json:"amount"`
@@ -394,9 +395,6 @@ type FromToInput struct {
 
 	// ChartOfAccounts specifies the chart of accounts for this operation (optional)
 	ChartOfAccounts string `json:"chartOfAccounts,omitempty"`
-
-	// AccountAlias provides an alternative account identifier (optional)
-	AccountAlias string `json:"accountAlias,omitempty"`
 
 	// Metadata contains additional custom data for this operation
 	Metadata map[string]any `json:"metadata,omitempty"`
@@ -838,8 +836,8 @@ func (input *FromToInput) Validate() error {
 
 	var errs validation.FieldErrors
 
-	if input.Account == "" && input.AccountAlias == "" {
-		errs.Append("account", "is required")
+	if strings.TrimSpace(input.AccountAlias) == "" {
+		errs.Append("accountAlias", "is required")
 	}
 
 	input.appendValueErrors(&errs)
@@ -1003,7 +1001,7 @@ func (input *CreateTransactionInput) ensureSendFromLegacyOperations() {
 
 	for _, operation := range input.Operations {
 		entry := FromToInput{
-			Account: operation.AccountID,
+			AccountAlias: operation.AccountID,
 			Amount: AmountInput{
 				Asset: operation.AssetCode,
 				Value: normalizedOperationAmount(operation.Amount),
@@ -1015,7 +1013,6 @@ func (input *CreateTransactionInput) ensureSendFromLegacyOperations() {
 		}
 
 		if operation.AccountAlias != nil && *operation.AccountAlias != "" {
-			entry.Account = *operation.AccountAlias
 			entry.AccountAlias = *operation.AccountAlias
 		}
 
@@ -1127,13 +1124,8 @@ func (input *DistributeInput) ToMap() map[string]any {
 // ToMap converts a FromToInput to a map.
 // This is used internally by the SDK to convert the input to the format expected by the backend.
 func (input FromToInput) ToMap() map[string]any {
-	accountAlias := input.AccountAlias
-	if accountAlias == "" {
-		accountAlias = input.Account
-	}
-
 	fromTo := map[string]any{
-		"accountAlias": accountAlias,
+		"accountAlias": input.AccountAlias,
 	}
 
 	if input.BalanceKey != "" {

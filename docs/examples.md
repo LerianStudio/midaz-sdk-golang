@@ -163,14 +163,14 @@ splitInput := models.NewCreateTransactionInput("USD", "100.00").
         Value: "100.00",
         Source: &models.SourceInput{
             From: []models.FromToInput{
-                {Account: customerAccountAlias, Amount: models.AmountInput{Asset: "USD", Value: "100.00"}},
+                {AccountAlias: customerAccountAlias, Amount: models.AmountInput{Asset: "USD", Value: "100.00"}},
             },
         },
         Distribute: &models.DistributeInput{
             To: []models.FromToInput{
-                {Account: merchantAccountAlias, Amount: models.AmountInput{Asset: "USD", Value: "85.00"}},
-                {Account: platformFeeAlias, Amount: models.AmountInput{Asset: "USD", Value: "10.00"}},
-                {Account: processorFeeAlias, Amount: models.AmountInput{Asset: "USD", Value: "5.00"}},
+                {AccountAlias: merchantAccountAlias, Amount: models.AmountInput{Asset: "USD", Value: "85.00"}},
+                {AccountAlias: platformFeeAlias, Amount: models.AmountInput{Asset: "USD", Value: "10.00"}},
+                {AccountAlias: processorFeeAlias, Amount: models.AmountInput{Asset: "USD", Value: "5.00"}},
             },
         },
     })

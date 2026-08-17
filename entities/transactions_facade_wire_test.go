@@ -47,7 +47,7 @@ func wireTransactionInput() *models.CreateTransactionInput {
 			Value: "150.00",
 			Source: &models.SourceInput{From: []models.FromToInput{
 				{
-					Account:         "@src-primary",
+					AccountAlias:    "@src-primary",
 					Amount:          models.AmountInput{Asset: "USD", Value: "100.00"},
 					BalanceKey:      "settlement",
 					Description:     "primary leg",
@@ -62,7 +62,7 @@ func wireTransactionInput() *models.CreateTransactionInput {
 				},
 			}},
 			Distribute: &models.DistributeInput{To: []models.FromToInput{
-				{Account: "@dst", Amount: models.AmountInput{Asset: "USD", Value: "150.00"}},
+				{AccountAlias: "@dst", Amount: models.AmountInput{Asset: "USD", Value: "150.00"}},
 			}},
 		},
 	}
@@ -81,7 +81,7 @@ func wireInflowInput() *models.CreateInflowInput {
 			Asset: "USD",
 			Value: "75.00",
 			Distribute: &models.DistributeInput{To: []models.FromToInput{
-				{Account: "@dst", Amount: models.AmountInput{Asset: "USD", Value: "75.00"}},
+				{AccountAlias: "@dst", Amount: models.AmountInput{Asset: "USD", Value: "75.00"}},
 			}},
 		},
 	}
@@ -102,7 +102,7 @@ func wireOutflowInput() *models.CreateOutflowInput {
 			Asset: "USD",
 			Value: "25.00",
 			Source: &models.SourceInput{From: []models.FromToInput{
-				{Account: "@src", Amount: models.AmountInput{Asset: "USD", Value: "25.00"}},
+				{AccountAlias: "@src", Amount: models.AmountInput{Asset: "USD", Value: "25.00"}},
 			}},
 		},
 	}

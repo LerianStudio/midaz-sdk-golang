@@ -266,10 +266,10 @@ func TestTransactionHelpers_MultiTransferTemplateAndLifecycle(t *testing.T) {
 		Scale:       2,
 		Metadata:    map[string]any{"template": "funding"},
 		BuildSources: func(amount int64) []models.FromToInput {
-			return []models.FromToInput{{Account: "template-source", Amount: models.AmountInput{Asset: "USD", Value: formatAmount(amount, 2)}}}
+			return []models.FromToInput{{AccountAlias: "template-source", Amount: models.AmountInput{Asset: "USD", Value: formatAmount(amount, 2)}}}
 		},
 		BuildDestinations: func(amount int64) []models.FromToInput {
-			return []models.FromToInput{{Account: "template-dest", Amount: models.AmountInput{Asset: "USD", Value: formatAmount(amount, 2)}}}
+			return []models.FromToInput{{AccountAlias: "template-dest", Amount: models.AmountInput{Asset: "USD", Value: formatAmount(amount, 2)}}}
 		},
 	}
 

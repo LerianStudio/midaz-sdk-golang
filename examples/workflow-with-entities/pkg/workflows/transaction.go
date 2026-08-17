@@ -136,7 +136,6 @@ func executeInitialDeposit(ctx context.Context, midazClient *midaz.Client, orgID
 			Source: &models.SourceInput{
 				From: []models.FromToInput{
 					{
-						Account:      externalAccountID,
 						AccountAlias: externalAccountID,
 						Amount: models.AmountInput{
 							Asset: "USD",
@@ -148,7 +147,6 @@ func executeInitialDeposit(ctx context.Context, midazClient *midaz.Client, orgID
 			Distribute: &models.DistributeInput{
 				To: []models.FromToInput{
 					{
-						Account:      customerAccountID,
 						AccountAlias: customerAccountID,
 						Amount: models.AmountInput{
 							Asset: "USD",
@@ -197,7 +195,6 @@ func executeTransfer(ctx context.Context, midazClient *midaz.Client, orgID, ledg
 			Source: &models.SourceInput{
 				From: []models.FromToInput{
 					{
-						Account:      customerAccountID,
 						AccountAlias: customerAccountID,
 						Amount: models.AmountInput{
 							Asset: "USD",
@@ -209,7 +206,6 @@ func executeTransfer(ctx context.Context, midazClient *midaz.Client, orgID, ledg
 			Distribute: &models.DistributeInput{
 				To: []models.FromToInput{
 					{
-						Account:      merchantAccountID,
 						AccountAlias: merchantAccountID,
 						Amount: models.AmountInput{
 							Asset: "USD",
@@ -326,7 +322,6 @@ func executeInitialDepositWithRoutes(ctx context.Context, midazClient *midaz.Cli
 			Source: &models.SourceInput{
 				From: []models.FromToInput{
 					{
-						Account:      externalAccountID,
 						AccountAlias: externalAccountID,
 						Route:        operationRouteID(sourceOperationRoute),
 						Amount: models.AmountInput{
@@ -339,7 +334,6 @@ func executeInitialDepositWithRoutes(ctx context.Context, midazClient *midaz.Cli
 			Distribute: &models.DistributeInput{
 				To: []models.FromToInput{
 					{
-						Account:      customerAccountID,
 						AccountAlias: customerAccountID,
 						Route:        operationRouteID(destinationOperationRoute),
 						Amount: models.AmountInput{
@@ -406,7 +400,6 @@ func executeTransferWithRoutes(ctx context.Context, midazClient *midaz.Client, o
 			Source: &models.SourceInput{
 				From: []models.FromToInput{
 					{
-						Account:      customerAccountID,
 						AccountAlias: customerAccountID,
 						Route:        operationRouteID(destinationOperationRoute), // Customer account uses destination route
 						Amount: models.AmountInput{
@@ -419,7 +412,6 @@ func executeTransferWithRoutes(ctx context.Context, midazClient *midaz.Client, o
 			Distribute: &models.DistributeInput{
 				To: []models.FromToInput{
 					{
-						Account:      merchantAccountID,
 						AccountAlias: merchantAccountID,
 						Route:        operationRouteID(destinationOperationRoute), // Merchant account also uses destination route
 						Amount: models.AmountInput{
@@ -475,7 +467,6 @@ func CreateTransferInput(description string, amount float64, fromAccountID, toAc
 			Source: &models.SourceInput{
 				From: []models.FromToInput{
 					{
-						Account:      fromAccountID,
 						AccountAlias: fromAccountID,
 						Amount: models.AmountInput{
 							Asset: "USD",
@@ -487,7 +478,6 @@ func CreateTransferInput(description string, amount float64, fromAccountID, toAc
 			Distribute: &models.DistributeInput{
 				To: []models.FromToInput{
 					{
-						Account:      toAccountID,
 						AccountAlias: toAccountID,
 						Amount: models.AmountInput{
 							Asset: "USD",
@@ -596,7 +586,6 @@ func buildParallelTransactionInput(index int, amount float64, customerAccountID,
 			Source: &models.SourceInput{
 				From: []models.FromToInput{
 					{
-						Account:      customerAccountID,
 						AccountAlias: customerAccountID,
 						Route:        destRouteID,
 						Amount:       models.AmountInput{Asset: "USD", Value: amount},
@@ -606,7 +595,6 @@ func buildParallelTransactionInput(index int, amount float64, customerAccountID,
 			Distribute: &models.DistributeInput{
 				To: []models.FromToInput{
 					{
-						Account:      merchantAccountID,
 						AccountAlias: merchantAccountID,
 						Route:        destRouteID,
 						Amount:       models.AmountInput{Asset: "USD", Value: amount},
@@ -626,16 +614,16 @@ func buildOptimizedTransferInput(chartGroup, description, routeID, customerAccou
 			Asset: "USD", Value: amount,
 			Source: &models.SourceInput{
 				From: []models.FromToInput{{
-					Account: customerAccountID, AccountAlias: customerAccountID,
-					Route:  destinationRouteID,
-					Amount: models.AmountInput{Asset: "USD", Value: amount},
+					AccountAlias: customerAccountID,
+					Route:        destinationRouteID,
+					Amount:       models.AmountInput{Asset: "USD", Value: amount},
 				}},
 			},
 			Distribute: &models.DistributeInput{
 				To: []models.FromToInput{{
-					Account: merchantAccountID, AccountAlias: merchantAccountID,
-					Route:  destinationRouteID,
-					Amount: models.AmountInput{Asset: "USD", Value: amount},
+					AccountAlias: merchantAccountID,
+					Route:        destinationRouteID,
+					Amount:       models.AmountInput{Asset: "USD", Value: amount},
 				}},
 			},
 		},
@@ -755,16 +743,16 @@ func demonstrateHighWorkerCount(ctx context.Context, midazClient *midaz.Client, 
 				Value: amounts[index],
 				Source: &models.SourceInput{
 					From: []models.FromToInput{{
-						Account: customerAccountID, AccountAlias: customerAccountID,
-						Route:  operationRouteID(destinationOperationRoute),
-						Amount: models.AmountInput{Asset: "USD", Value: amounts[index]},
+						AccountAlias: customerAccountID,
+						Route:        operationRouteID(destinationOperationRoute),
+						Amount:       models.AmountInput{Asset: "USD", Value: amounts[index]},
 					}},
 				},
 				Distribute: &models.DistributeInput{
 					To: []models.FromToInput{{
-						Account: merchantAccountID, AccountAlias: merchantAccountID,
-						Route:  operationRouteID(destinationOperationRoute),
-						Amount: models.AmountInput{Asset: "USD", Value: amounts[index]},
+						AccountAlias: merchantAccountID,
+						Route:        operationRouteID(destinationOperationRoute),
+						Amount:       models.AmountInput{Asset: "USD", Value: amounts[index]},
 					}},
 				},
 			},
@@ -836,16 +824,16 @@ func demonstrateConnectionPooling(ctx context.Context, midazClient *midaz.Client
 				Asset: "USD", Value: amount,
 				Source: &models.SourceInput{
 					From: []models.FromToInput{{
-						Account: customerAccountID, AccountAlias: customerAccountID,
-						Route:  operationRouteID(destinationOperationRoute),
-						Amount: models.AmountInput{Asset: "USD", Value: amount},
+						AccountAlias: customerAccountID,
+						Route:        operationRouteID(destinationOperationRoute),
+						Amount:       models.AmountInput{Asset: "USD", Value: amount},
 					}},
 				},
 				Distribute: &models.DistributeInput{
 					To: []models.FromToInput{{
-						Account: merchantAccountID, AccountAlias: merchantAccountID,
-						Route:  operationRouteID(destinationOperationRoute),
-						Amount: models.AmountInput{Asset: "USD", Value: amount},
+						AccountAlias: merchantAccountID,
+						Route:        operationRouteID(destinationOperationRoute),
+						Amount:       models.AmountInput{Asset: "USD", Value: amount},
 					}},
 				},
 			},
@@ -996,16 +984,16 @@ func demonstrateCombinedOptimizations(ctx context.Context, midazClient *midaz.Cl
 				Asset: "USD", Value: amount,
 				Source: &models.SourceInput{
 					From: []models.FromToInput{{
-						Account: customerAccountID, AccountAlias: customerAccountID,
-						Route:  operationRouteID(destinationOperationRoute),
-						Amount: models.AmountInput{Asset: "USD", Value: amount},
+						AccountAlias: customerAccountID,
+						Route:        operationRouteID(destinationOperationRoute),
+						Amount:       models.AmountInput{Asset: "USD", Value: amount},
 					}},
 				},
 				Distribute: &models.DistributeInput{
 					To: []models.FromToInput{{
-						Account: merchantAccountID, AccountAlias: merchantAccountID,
-						Route:  operationRouteID(destinationOperationRoute),
-						Amount: models.AmountInput{Asset: "USD", Value: amount},
+						AccountAlias: merchantAccountID,
+						Route:        operationRouteID(destinationOperationRoute),
+						Amount:       models.AmountInput{Asset: "USD", Value: amount},
 					}},
 				},
 			},

@@ -37,12 +37,12 @@ func feeEstimateInput() *models.FeeEstimateInput {
 				Value: "100.00",
 				Source: &models.SourceInput{
 					From: []models.FromToInput{
-						{Account: "@source", Amount: models.AmountInput{Asset: "BRL", Value: "100.00"}},
+						{AccountAlias: "@source", Amount: models.AmountInput{Asset: "BRL", Value: "100.00"}},
 					},
 				},
 				Distribute: &models.DistributeInput{
 					To: []models.FromToInput{
-						{Account: "@dest", Amount: models.AmountInput{Asset: "BRL", Value: "100.00"}},
+						{AccountAlias: "@dest", Amount: models.AmountInput{Asset: "BRL", Value: "100.00"}},
 					},
 				},
 			},

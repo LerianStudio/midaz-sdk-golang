@@ -14,10 +14,10 @@ func validEstimateSend() *SendInput {
 		Asset: "BRL",
 		Value: "100.00",
 		Source: &SourceInput{
-			From: []FromToInput{{Account: "@source", Amount: AmountInput{Asset: "BRL", Value: "100.00"}}},
+			From: []FromToInput{{AccountAlias: "@source", Amount: AmountInput{Asset: "BRL", Value: "100.00"}}},
 		},
 		Distribute: &DistributeInput{
-			To: []FromToInput{{Account: "@dest", Amount: AmountInput{Asset: "BRL", Value: "100.00"}}},
+			To: []FromToInput{{AccountAlias: "@dest", Amount: AmountInput{Asset: "BRL", Value: "100.00"}}},
 		},
 	}
 }
