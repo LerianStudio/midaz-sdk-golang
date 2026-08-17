@@ -3,6 +3,12 @@
 // canonical correlation contract is verified in one place instead of being
 // re-implemented — and re-diverged — per plugin.
 //
+// The check keeps no copy of the contract. It rebuilds a correlation.Correlation
+// from the transaction metadata and runs the emitter's own Validate, and it takes
+// the whitelist from correlation.Keys, so a contract change lands in one package
+// and the checker follows automatically instead of quietly disagreeing with the
+// producer.
+//
 // Usage in a plugin producer test:
 //
 //	input := adapter.BuildTransaction(transfer)
@@ -12,42 +18,28 @@ package correlationtest
 import (
 	"fmt"
 	"slices"
-	"strings"
 	"testing"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
 	"github.com/LerianStudio/midaz-sdk-golang/v4/models/correlation"
 )
 
-// requiredKeys are the metadata keys every conformant transaction carries.
-var requiredKeys = []string{
-	"contractVersion",
-	"plugin",
-	"rail",
-	"flow",
-	"aggregateId",
-}
-
-// optionalKeys are the remaining keys of the correlation contract: allowed when
-// present, never required.
-var optionalKeys = []string{
-	"endToEndId",
-	"providerMessageId",
-	"providerMessageCode",
-	"originalAggregateId",
-	"direction",
-}
-
-// feePrefix is the metadata namespace reserved for the embedded-fees contract.
-// Keys under it are tolerated but are not part of the correlation whitelist.
-const feePrefix = "fee"
+// contractKeys is the closed whitelist, taken from the emitter. There is no
+// namespace escape hatch on purpose: an extra key (a fee key, a client's own
+// field) is admitted by extending the contract in models/correlation and bumping
+// its version, never by a prefix match here. A "fee" prefix would also admit
+// feePayerDocument and feedbackFromCustomer — precisely the counterparty PII the
+// closed whitelist exists to keep out of the ledger.
+var contractKeys = correlation.Keys()
 
 // AssertCanonical fails tb unless input conforms to the canonical correlation
-// contract: the transaction metadata carries every required key of contract
-// version ContractVersion, no metadata key on the transaction or on any leg
-// falls outside the contract whitelist (the fee namespace aside), and no level
-// of the payload sets both route and routeId. Every violation is reported, so a
-// single run names all of them.
+// contract: the transaction metadata declares contract version
+// correlation.ContractVersion and rebuilds into a valid correlation.Correlation
+// (required fields present, rail/flow/direction inside their enums, a refund
+// naming the aggregate it returns), no metadata key on the transaction or on any
+// leg falls outside correlation.Keys, and no level of the payload sets both route
+// and routeId. Every whitelist and route violation is reported, so a single run
+// names all of them.
 func AssertCanonical(tb testing.TB, input *models.CreateTransactionInput) {
 	tb.Helper()
 
@@ -63,7 +55,7 @@ func violations(input *models.CreateTransactionInput) []string {
 		return []string{"transaction input is nil"}
 	}
 
-	found := requiredViolations(input.Metadata)
+	found := contractViolations(input.Metadata)
 	found = append(found, whitelistViolations("transaction", input.Metadata)...)
 
 	if input.Route != "" && input.RouteID != "" {
@@ -82,28 +74,26 @@ func violations(input *models.CreateTransactionInput) []string {
 	return found
 }
 
-// requiredViolations reports required keys that are absent, blank, or not
-// strings, plus a contractVersion that names another version of the contract.
-func requiredViolations(metadata map[string]any) []string {
+// contractViolations reports metadata that does not carry a valid correlation of
+// this contract version. The correlation rules are not re-implemented here: the
+// payload is rebuilt into a Correlation and validated by the package that emits
+// it, so this check can never accept metadata the producer's own Validate would
+// have refused — a refund with no original aggregate, or rail "TEF", fails both.
+func contractViolations(metadata map[string]any) []string {
 	var found []string
 
-	for _, key := range requiredKeys {
-		value, present := metadata[key]
-		if !present {
-			found = append(found, fmt.Sprintf("transaction metadata is missing required key %q", key))
+	version, _ := metadata["contractVersion"].(string)
 
-			continue
-		}
-
-		text, isText := value.(string)
-		if !isText || strings.TrimSpace(text) == "" {
-			found = append(found, fmt.Sprintf("transaction metadata key %q is empty", key))
-		}
-	}
-
-	if version, isText := metadata["contractVersion"].(string); isText && version != correlation.ContractVersion {
+	switch {
+	case version == "":
+		found = append(found, `transaction metadata is missing required key "contractVersion"`)
+	case version != correlation.ContractVersion:
 		found = append(found, fmt.Sprintf(
 			"transaction metadata declares contractVersion %q, want %q", version, correlation.ContractVersion))
+	}
+
+	if err := correlation.FromMetadata(metadata).Validate(); err != nil {
+		found = append(found, "transaction metadata is not a valid correlation: "+err.Error())
 	}
 
 	return found
@@ -114,8 +104,7 @@ func whitelistViolations(label string, metadata map[string]any) []string {
 	var unknown []string
 
 	for key := range metadata {
-		if slices.Contains(requiredKeys, key) || slices.Contains(optionalKeys, key) ||
-			strings.HasPrefix(key, feePrefix) {
+		if slices.Contains(contractKeys, key) {
 			continue
 		}
 

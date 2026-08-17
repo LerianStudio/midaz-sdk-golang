@@ -1,6 +1,7 @@
 package correlation
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -190,6 +191,58 @@ func TestToMetadataTrimsEmittedValues(t *testing.T) {
 		"aggregateId":     "7f1c9e2a-0b45-4a1e-9f3d-2c8b5d6e7a10",
 		"endToEndId":      "E1234567820260817120000abcdef123",
 	}, c.ToMetadata())
+}
+
+// Keys is the whitelist every conformance checker consumes, and it is derived
+// from allFieldsSet through ToMetadata — so allFieldsSet must populate every
+// field of Correlation, or a real contract key would silently drop out of the
+// whitelist and become "unknown" to the checkers.
+func TestKeysCoverEveryContractField(t *testing.T) {
+	value := reflect.ValueOf(allFieldsSet)
+	for i := range value.NumField() {
+		assert.NotEmpty(t, value.Field(i).String(),
+			"allFieldsSet leaves %s empty, so Keys() would omit its metadata key",
+			value.Type().Field(i).Name)
+	}
+
+	assert.Equal(t, []string{
+		"aggregateId",
+		"contractVersion",
+		"direction",
+		"endToEndId",
+		"flow",
+		"originalAggregateId",
+		"plugin",
+		"providerMessageCode",
+		"providerMessageId",
+		"rail",
+	}, Keys())
+}
+
+// The emitter and the reader are two halves of one contract: anything ToMetadata
+// writes, FromMetadata must read back, so a checker rebuilding a Correlation
+// from ledger metadata sees what the producer put there.
+func TestFromMetadataRoundTripsEveryField(t *testing.T) {
+	require.NoError(t, allFieldsSet.Validate())
+
+	assert.Equal(t, allFieldsSet, FromMetadata(allFieldsSet.ToMetadata()))
+}
+
+// A metadata map that is missing keys, or carries non-string values under them,
+// rebuilds into an invalid Correlation instead of a plausible-looking one.
+func TestFromMetadataTreatsMissingAndNonStringKeysAsEmpty(t *testing.T) {
+	rebuilt := FromMetadata(map[string]any{
+		"plugin":      "br-bank-transfer",
+		"rail":        42,
+		"flow":        nil,
+		"aggregateId": "7f1c9e2a-0b45-4a1e-9f3d-2c8b5d6e7a10",
+	})
+
+	assert.Equal(t, Correlation{
+		Plugin:      "br-bank-transfer",
+		AggregateID: "7f1c9e2a-0b45-4a1e-9f3d-2c8b5d6e7a10",
+	}, rebuilt)
+	require.Error(t, rebuilt.Validate())
 }
 
 func TestContractVersionIsOne(t *testing.T) {

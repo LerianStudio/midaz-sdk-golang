@@ -25,6 +25,7 @@ package correlation
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 )
@@ -193,6 +194,60 @@ func (c Correlation) ToMetadata() map[string]any {
 	}
 
 	return metadata
+}
+
+// FromMetadata rebuilds a Correlation from a metadata payload ToMetadata
+// produced. A key that is absent, or present with a non-string value, becomes an
+// empty field — so the rebuilt correlation is exactly as valid as the payload,
+// and FromMetadata(m).Validate() is the canonical way to check that a metadata
+// map carries a conformant correlation (that is what
+// correlationtest.AssertCanonical does, instead of re-implementing the rules).
+//
+// contractVersion is not a Correlation field: compare it to ContractVersion
+// separately.
+func FromMetadata(metadata map[string]any) Correlation {
+	return Correlation{
+		Plugin:              metadataString(metadata, "plugin"),
+		Rail:                Rail(metadataString(metadata, "rail")),
+		Flow:                Flow(metadataString(metadata, "flow")),
+		AggregateID:         metadataString(metadata, "aggregateId"),
+		EndToEndID:          metadataString(metadata, "endToEndId"),
+		ProviderMessageID:   metadataString(metadata, "providerMessageId"),
+		ProviderMessageCode: metadataString(metadata, "providerMessageCode"),
+		OriginalAggregateID: metadataString(metadata, "originalAggregateId"),
+		Direction:           Direction(metadataString(metadata, "direction")),
+	}
+}
+
+// allFieldsSet is a Correlation with every field populated. Keys derives the
+// contract's key set from it through ToMetadata, so the whitelist has one
+// definition — the emitter — and no checker can hold a hand-copied second copy
+// that drifts when the contract grows. TestKeysCoverEveryContractField pins the
+// population.
+var allFieldsSet = Correlation{
+	Plugin:              "plugin",
+	Rail:                RailTED,
+	Flow:                FlowRefund,
+	AggregateID:         "aggregateId",
+	EndToEndID:          "endToEndId",
+	ProviderMessageID:   "providerMessageId",
+	ProviderMessageCode: "providerMessageCode",
+	OriginalAggregateID: "originalAggregateId",
+	Direction:           DirectionIn,
+}
+
+// Keys returns every metadata key contract version ContractVersion emits,
+// sorted. It is the closed whitelist: a metadata key outside it is not part of
+// this contract, and admitting one is a versioned contract change, never a
+// per-plugin decision.
+func Keys() []string {
+	return slices.Sorted(maps.Keys(allFieldsSet.ToMetadata()))
+}
+
+func metadataString(metadata map[string]any, key string) string {
+	text, _ := metadata[key].(string)
+
+	return text
 }
 
 func isBlank(value string) bool {
