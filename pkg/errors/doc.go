@@ -45,10 +45,11 @@
 //	│ configuration      │ configuration_error           │ no (fatal)   │
 //	└────────────────────┴───────────────────────────────┴──────────────┘
 //
-// idempotency_error (wire code 0084) is a conflict, never a success. The
-// server emits it when a key is reused with a different payload or while an
-// earlier request with the same key is still in flight. It never means "the
-// original transaction was returned" — see [IsIdempotencyError].
+// idempotency_error (wire code 0084) is a conflict, never a success. The server
+// emits it while an earlier request with the same key is still in flight. It
+// never means "the original transaction was returned" — a replay of a finished
+// create comes back as HTTP 200 with the original transaction, not as an error.
+// See [IsIdempotencyError].
 //
 // # Recognising an error
 //

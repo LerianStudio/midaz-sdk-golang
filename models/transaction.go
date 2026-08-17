@@ -319,24 +319,32 @@ type CreateTransactionInput struct {
 	// it is never persisted on the transaction, never returned in a response,
 	// and never queryable. Use Metadata for correlation that has to survive.
 	//
-	// Behavior by case:
+	// Behavior by case, as the vendored ledger contract states it
+	// (api/ledger.openapi.yaml, createTransactionJSON: X-Idempotency, X-TTL
+	// "default 300" seconds, and the X-Idempotency-Replayed response header):
 	//
-	//   - Exact replay inside the server's TTL — server-dependent. The ledger
-	//     may return the original transaction; this SDK does not verify that
-	//     behavior. Treat a returned error as authoritative and never assume
-	//     replay-success.
-	//   - Same key, different payload — conflict. The SDK surfaces
-	//     pkg/errors.IsIdempotencyError (HTTP 409, code idempotency_error),
-	//     non-retryable.
-	//   - Concurrent in-flight request with the same key — same conflict as
-	//     above: 409, non-retryable.
+	//   - Retry with the same key inside the TTL, after the first create
+	//     finished — the ledger returns the ORIGINAL transaction and marks the
+	//     response X-Idempotency-Replayed: true. It is a success, not an error.
+	//     This SDK discards that header, so a replay is indistinguishable from a
+	//     fresh create in the returned model; compare the returned ID with the
+	//     one already recorded when the difference matters.
+	//   - Same key, DIFFERENT payload, inside the TTL — also the original
+	//     transaction. The idempotency slot is keyed on the key alone, so the
+	//     second payload is ignored rather than rejected. Never reuse a key
+	//     across different money movements.
+	//   - A concurrent request with the same key, while the first is still in
+	//     flight — HTTP 409, surfaced as pkg/errors.IsIdempotencyError
+	//     (code idempotency_error), non-retryable. That is the case that yields
+	//     an idempotency error.
 	//   - After the TTL expires — the key is forgotten and a NEW transaction is
 	//     created. A key is not a uniqueness constraint over time.
 	//
 	// Never read pkg/errors.IsIdempotencyError as "the original succeeded"; it
-	// only says the server refused this request as a conflict.
+	// says the server refused this request while another one held the slot.
 	//
-	// Note: This is sent as a header (X-Idempotency), not in the request body.
+	// Note: This is sent as a header (X-Idempotency), not in the request body;
+	// the TTL rides X-TTL (sdkctx.WithIdempotencyTTL).
 	IdempotencyKey string `json:"-"`
 
 	// Send contains the source and distribution information for the transaction.
@@ -379,8 +387,13 @@ type DistributeInput struct {
 // This structure contains the account and amount details.
 type FromToInput struct {
 	// AccountAlias identifies the account affected by this operation. It is the
-	// leg's only account identity and is sent as accountAlias; the Midaz
-	// transaction endpoints resolve an alias or an account ID from it.
+	// leg's only account identity and is sent as accountAlias.
+	//
+	// The ledger resolves it as an ALIAS: the balance lookup matches the alias
+	// column for exact equality (optionally in the composite "alias#balanceKey"
+	// form). A raw account UUID does not resolve unless that UUID literally is
+	// the account's alias — passing an account ID here is a failed lookup, not an
+	// alternative way to address the account.
 	AccountAlias string `json:"accountAlias"`
 
 	// Amount specifies the amount details for this operation
