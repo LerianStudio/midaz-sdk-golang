@@ -82,7 +82,7 @@ func violations(input *models.CreateTransactionInput) []string {
 func contractViolations(metadata map[string]any) []string {
 	var found []string
 
-	version, _ := metadata["contractVersion"].(string)
+	version, _ := metadata["contractVersion"].(string) //nolint:errcheck // an absent or non-string version is reported below
 
 	switch {
 	case version == "":

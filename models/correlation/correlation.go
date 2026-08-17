@@ -245,9 +245,11 @@ func Keys() []string {
 }
 
 func metadataString(metadata map[string]any, key string) string {
-	text, _ := metadata[key].(string)
+	if text, isText := metadata[key].(string); isText {
+		return text
+	}
 
-	return text
+	return ""
 }
 
 func isBlank(value string) bool {

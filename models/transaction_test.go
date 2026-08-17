@@ -9,8 +9,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newValidSendInput(value float64) *SendInput {
-	asset := "USD"
+func newValidSendInput() *SendInput {
+	const (
+		asset = "USD"
+		value = 100.00
+	)
 
 	return &SendInput{
 		Asset: asset,
@@ -88,7 +91,7 @@ func TestCreateTransactionInputHasNoLegacyCreateSurface(t *testing.T) {
 }
 
 func TestCreateTransactionInput_Validate(t *testing.T) {
-	validSend := newValidSendInput(100)
+	validSend := newValidSendInput()
 
 	tests := []struct {
 		name    string
@@ -250,7 +253,7 @@ func TestCreateTransactionInput_WithMethods(t *testing.T) {
 
 	t.Run("WithSend", func(t *testing.T) {
 		input := NewCreateTransactionInput("USD", 100)
-		send := newValidSendInput(100)
+		send := newValidSendInput()
 		result := input.WithSend(send)
 		assert.Equal(t, send, result.Send)
 		assert.Same(t, input, result)
@@ -866,7 +869,7 @@ func TestValidateRejectsRouteAndRouteIDTogether(t *testing.T) {
 	const routeID = "11111111-1111-1111-1111-111111111111"
 
 	t.Run("transaction level", func(t *testing.T) {
-		txBoth := &CreateTransactionInput{Route: "alias-route", RouteID: routeID, Send: newValidSendInput(100)}
+		txBoth := &CreateTransactionInput{Route: "alias-route", RouteID: routeID, Send: newValidSendInput()}
 		err := txBoth.Validate()
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "transaction-level")
@@ -904,8 +907,8 @@ func TestValidateRejectsRouteAndRouteIDTogether(t *testing.T) {
 	t.Run("one identifier alone is valid", func(t *testing.T) {
 		legRouteID := routeID
 
-		require.NoError(t, (&CreateTransactionInput{RouteID: routeID, Send: newValidSendInput(100)}).Validate())
-		require.NoError(t, (&CreateTransactionInput{Route: "alias-route", Send: newValidSendInput(100)}).Validate())
+		require.NoError(t, (&CreateTransactionInput{RouteID: routeID, Send: newValidSendInput()}).Validate())
+		require.NoError(t, (&CreateTransactionInput{Route: "alias-route", Send: newValidSendInput()}).Validate())
 		require.NoError(t, (&FromToInput{AccountAlias: "acc-123", Amount: AmountInput{Asset: "USD", Value: 100}, RouteID: &legRouteID}).Validate())
 		require.NoError(t, (&FromToInput{AccountAlias: "acc-123", Amount: AmountInput{Asset: "USD", Value: 100}, Route: "alias-route"}).Validate())
 	})

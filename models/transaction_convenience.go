@@ -155,7 +155,7 @@ func (input *CreateInflowInput) Validate() error {
 		errs.Append("asset", "is required")
 	}
 
-	if err := validatePositiveDecimalString(input.Send.Value, "value"); err != nil {
+	if err := validatePositiveDecimalString(input.Send.Value); err != nil {
 		errs.Append("value", err.Error())
 	}
 
@@ -351,7 +351,7 @@ func (input *CreateOutflowInput) Validate() error {
 		errs.Append("asset", "is required")
 	}
 
-	if err := validatePositiveDecimalString(input.Send.Value, "value"); err != nil {
+	if err := validatePositiveDecimalString(input.Send.Value); err != nil {
 		errs.Append("value", err.Error())
 	}
 

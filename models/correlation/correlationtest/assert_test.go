@@ -58,7 +58,7 @@ type recordingTB struct {
 	reported []string
 }
 
-func (tb *recordingTB) Helper() {}
+func (*recordingTB) Helper() {}
 
 func (tb *recordingTB) Errorf(format string, args ...any) {
 	tb.reported = append(tb.reported, fmt.Sprintf(format, args...))

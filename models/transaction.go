@@ -152,7 +152,12 @@ type Transaction struct {
 	TracerSkipped bool `json:"tracerSkipped,omitempty"`
 }
 
-func validatePositiveDecimalString(value any, field string) error {
+// validatePositiveDecimalString rejects anything that is not a positive decimal
+// money value. Every caller validates a field named "value" — send.value or a
+// leg amount's value — so the name is fixed here instead of threaded through.
+func validatePositiveDecimalString(value any) error {
+	const field = "value"
+
 	if err := validateDecimalInputBound(value, field); err != nil {
 		return err
 	}
@@ -663,7 +668,7 @@ func (input *SendInput) Validate() error {
 		errs.Append("asset", "is required")
 	}
 
-	if err := validatePositiveDecimalString(input.Value, "value"); err != nil {
+	if err := validatePositiveDecimalString(input.Value); err != nil {
 		errs.Append("value", err.Error())
 	}
 
@@ -903,7 +908,7 @@ func (input *AmountInput) Validate() error {
 		errs.Append("asset", "is required")
 	}
 
-	if err := validatePositiveDecimalString(input.Value, "value"); err != nil {
+	if err := validatePositiveDecimalString(input.Value); err != nil {
 		errs.Append("value", err.Error())
 	}
 
