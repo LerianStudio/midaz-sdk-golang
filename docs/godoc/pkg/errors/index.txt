@@ -191,6 +191,7 @@ func IsNetworkError(err error) bool
 func IsNilInterfaceValue(value any) bool
 func IsNotFoundError(err error) bool
 func IsRateLimitError(err error) bool
+func IsResponseDecodeError(err error) bool
 func IsRevertAlreadyExistsError(err error) bool
 func IsSensitiveFieldName(name string) bool
 func IsSkipNotPermitted(err error) bool
@@ -218,6 +219,7 @@ type Error struct{ ... }
     func NewNetworkError(operation string, err error) *Error
     func NewNotFoundError(operation, resource, resourceID string, err error) *Error
     func NewRateLimitError(operation, message string, err error) *Error
+    func NewResponseDecodeError(operation string, status int, err error) *Error
     func NewTimeoutError(operation, message string, err error) *Error
     func NewUnprocessableError(operation, resource string, err error) *Error
     func NewUpstreamHTTPError(operation, message string, statusCode int, err error) *Error
