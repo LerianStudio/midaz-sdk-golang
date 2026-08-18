@@ -20,7 +20,7 @@ func canonical() Correlation {
 }
 
 func TestValidateAcceptsEveryRail(t *testing.T) {
-	for _, rail := range []Rail{RailTED, RailPix} {
+	for _, rail := range []Rail{RailTED, RailPix, RailInternal} {
 		t.Run(string(rail), func(t *testing.T) {
 			c := canonical()
 			c.Rail = rail
@@ -95,9 +95,9 @@ func TestValidateRejects(t *testing.T) {
 			wantParts: []string{"aggregateId", "required"},
 		},
 		{
-			name:      "unknown rail names the value",
+			name:      "unknown rail names the value and the accepted set",
 			mutate:    func(c *Correlation) { c.Rail = "TEF" },
-			wantParts: []string{"rail", `"TEF"`},
+			wantParts: []string{"rail", `"TEF"`, "want TED, PIX or INTERNAL"},
 		},
 		{
 			name:      "unknown flow names the value",
@@ -156,6 +156,27 @@ func TestToMetadataEmitsEveryWhitelistedKey(t *testing.T) {
 		"providerMessageCode": "PACS008",
 		"originalAggregateId": "0c2d4f6a-8b1e-4c3d-9a5f-1e7b3d9c2f40",
 		"direction":           "IN",
+	}, c.ToMetadata())
+}
+
+// A book transfer between two accounts of the same institution touches no
+// external rail, and Rail is required — RailInternal is the value that lets such
+// a transfer emit a conformant correlation instead of borrowing TED or PIX.
+func TestToMetadataEmitsInternalRailForBookTransfer(t *testing.T) {
+	c := Correlation{
+		Plugin:      "br-bank-transfer",
+		Rail:        RailInternal,
+		Flow:        FlowP2P,
+		AggregateID: "7f1c9e2a-0b45-4a1e-9f3d-2c8b5d6e7a10",
+	}
+	require.NoError(t, c.Validate())
+
+	assert.Equal(t, map[string]any{
+		"contractVersion": ContractVersion,
+		"plugin":          "br-bank-transfer",
+		"rail":            "INTERNAL",
+		"flow":            "P2P",
+		"aggregateId":     "7f1c9e2a-0b45-4a1e-9f3d-2c8b5d6e7a10",
 	}, c.ToMetadata())
 }
 

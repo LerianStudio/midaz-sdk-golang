@@ -602,7 +602,7 @@ Each per-entity opts struct exposes:
 Use `github.com/LerianStudio/midaz-sdk-golang/v4/models/correlation` — the versioned, closed contract for the ledger metadata a transactional plugin (Bank Transfer, Pix) attaches to the transactions it creates.
 
 - `correlation.Correlation` - identifiers and classification only: `Plugin`, `Rail`, `Flow`, `AggregateID` (required), plus optional `EndToEndID`, `ProviderMessageID`, `ProviderMessageCode`, `OriginalAggregateID`, `Direction`. Never amounts, names, or documents.
-- Typed enums: `RailTED` / `RailPix`; `FlowCashOut`, `FlowCashIn`, `FlowP2P`, `FlowRefund`, `FlowMED`, `FlowAutomaticDebit`; `DirectionIn` / `DirectionOut`.
+- Typed enums: `RailTED` / `RailPix` / `RailInternal` (book transfer inside the same institution, no external rail); `FlowCashOut`, `FlowCashIn`, `FlowP2P`, `FlowRefund`, `FlowMED`, `FlowAutomaticDebit`; `DirectionIn` / `DirectionOut`.
 - `(Correlation).Validate()` - required fields present, enums known, and `FlowRefund` requires `OriginalAggregateID`.
 - `(Correlation).ToMetadata()` - the ledger payload: `contractVersion` (`correlation.ContractVersion`, currently `"1"`) plus every non-blank field, trimmed, under camelCase keys. Assign it to `CreateTransactionInput.Metadata`.
 - `correlation.FromMetadata(metadata)` - reads a payload back into a `Correlation`; `correlation.Keys()` - the whitelist, derived from the emitter so no consumer keeps a second copy.

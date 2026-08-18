@@ -43,6 +43,10 @@ const (
 
 	// RailPix is the Brazilian instant payment rail (SPI).
 	RailPix Rail = "PIX"
+
+	// RailInternal is a book transfer between accounts of the same institution;
+	// no external rail is involved.
+	RailInternal Rail = "INTERNAL"
 )
 
 // Flow is the business flow of the transaction. It is a separate dimension from
@@ -83,7 +87,7 @@ const (
 )
 
 var (
-	rails      = []Rail{RailTED, RailPix}
+	rails      = []Rail{RailTED, RailPix, RailInternal}
 	flows      = []Flow{FlowCashOut, FlowCashIn, FlowP2P, FlowRefund, FlowMED, FlowAutomaticDebit}
 	directions = []Direction{DirectionIn, DirectionOut}
 )
@@ -144,7 +148,7 @@ func (c Correlation) Validate() error {
 	}
 
 	if !slices.Contains(rails, c.Rail) {
-		return fmt.Errorf("rail %q is not a known rail: want TED or PIX", c.Rail)
+		return fmt.Errorf("rail %q is not a known rail: want TED, PIX or INTERNAL", c.Rail)
 	}
 
 	if !slices.Contains(flows, c.Flow) {
