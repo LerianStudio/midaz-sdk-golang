@@ -392,10 +392,14 @@ type FromToInput struct {
 	// leg's only account identity and is sent as accountAlias.
 	//
 	// The ledger resolves it as an ALIAS: the balance lookup matches the alias
-	// column for exact equality (optionally in the composite "alias#balanceKey"
-	// form). A raw account UUID does not resolve unless that UUID literally is
-	// the account's alias — passing an account ID here is a failed lookup, not an
-	// alternative way to address the account.
+	// column for exact equality. A raw account UUID does not resolve unless that
+	// UUID literally is the account's alias — passing an account ID here is a
+	// failed lookup, not an alternative way to address the account.
+	//
+	// Balance selection is BalanceKey's job and only BalanceKey's: the server
+	// discards anything after a "#" in the alias and resolves the account's
+	// default balance, so embedding "alias#key" here silently moves the money on
+	// the default balance instead of the one named after the "#".
 	AccountAlias string `json:"accountAlias"`
 
 	// Amount specifies the amount details for this operation
