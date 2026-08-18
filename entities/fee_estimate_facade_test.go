@@ -176,6 +176,92 @@ func TestFeeEstimateFacade_GoldenRequestBody(t *testing.T) {
 	}
 }
 
+// TestFeeEstimateFacade_GoldenRequestBodyNumericValueAndShareLeg pins the two
+// estimate inputs where the leg struct tags and the leg mappers DISAGREE — the
+// only reason the request is well formed is that the leg types marshal through
+// their mappers:
+//
+//   - a NUMERIC Value. Every Value field is `any`, so a caller may hand over an
+//     int or a float; the mapper renders money as a decimal STRING, while the
+//     tags would ship a JSON number and reopen a float hop on the money path.
+//   - a leg priced by Share instead of Amount. The mapper omits the amount key,
+//     while the tags would ship amount:{"asset":"","value":null} next to the
+//     share, which the /transactions/json contract rejects.
+//
+// The pre-existing golden uses decimal strings and full amount legs — inputs
+// where tags and mappers happen to agree — so it cannot see either regression.
+func TestFeeEstimateFacade_GoldenRequestBodyNumericValueAndShareLeg(t *testing.T) {
+	input := &models.FeeEstimateInput{
+		PackageID: feeEstimatePackageID,
+		LedgerID:  feeEstimateLedgerID,
+		Transaction: models.FeeEstimateTransactionInput{
+			Description: "estimate",
+			Send: &models.SendInput{
+				Asset: "BRL",
+				Value: 100,
+				Source: &models.SourceInput{
+					From: []models.FromToInput{
+						{AccountAlias: "@source", Amount: models.AmountInput{Asset: "BRL", Value: 100}},
+					},
+				},
+				Distribute: &models.DistributeInput{
+					To: []models.FromToInput{
+						{AccountAlias: "@dest", Share: &models.Share{Percentage: 100}},
+					},
+				},
+			},
+		},
+	}
+
+	want := map[string]any{
+		"packageId": feeEstimatePackageID,
+		"ledgerId":  feeEstimateLedgerID,
+		"transaction": map[string]any{
+			"description": "estimate",
+			"send": map[string]any{
+				"asset": "BRL",
+				"value": "100",
+				"source": map[string]any{"from": []any{map[string]any{
+					"accountAlias": "@source",
+					"amount":       map[string]any{"asset": "BRL", "value": "100"},
+				}}},
+				"distribute": map[string]any{"to": []any{map[string]any{
+					"accountAlias": "@dest",
+					"share":        map[string]any{"percentage": float64(100)},
+				}}},
+			},
+		},
+	}
+
+	var gotBody []byte
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotBody, _ = io.ReadAll(r.Body)
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"message":"Successfully estimated fee.","feesApplied":null}`))
+	}))
+	defer srv.Close()
+
+	if _, err := newTestFeeEstimateFacade(t, srv).EstimateFee(
+		context.Background(), feeEstimateOrgID, input); err != nil {
+		t.Fatalf("EstimateFee: %v", err)
+	}
+
+	if !strings.Contains(string(gotBody), `"value":"100"`) {
+		t.Errorf("body = %s, want a numeric Value rendered as the decimal string \"100\"", gotBody)
+	}
+
+	var got map[string]any
+	if err := json.Unmarshal(gotBody, &got); err != nil {
+		t.Fatalf("request body is not a JSON object: %v (%s)", err, gotBody)
+	}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("estimate request body is not the golden payload\n got: %s\nwant: %v", gotBody, want)
+	}
+}
+
 // TestFeeEstimateFacade_NoRules is the critical branch: a 2xx with feesApplied
 // null (no fee/gratuity rules matched) is a SUCCESS, not an error. The facade
 // must return (resp, nil) with FeesApplied == nil and the message intact.
