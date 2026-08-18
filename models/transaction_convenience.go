@@ -1,6 +1,7 @@
 package models
 
 import (
+	"encoding/json"
 	"errors"
 
 	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/validation"
@@ -15,16 +16,23 @@ type CreateInflowInput struct {
 	// Description provides a human-readable explanation
 	Description string `json:"description,omitempty"`
 
-	// Code is a transaction reference code
+	// Code is an optional caller-supplied label. It is write-only: the ledger
+	// stores it in the transaction body and never returns it, and it cannot be
+	// filtered on. Use Metadata for searchable correlation (see
+	// CreateTransactionInput.Code).
+	// It is not a query handle — see CreateTransactionInput.Code.
 	Code string `json:"code,omitempty"`
 
 	// Metadata contains custom key-value data
 	Metadata map[string]any `json:"metadata,omitempty"`
 
-	// Route is the transaction route identifier
+	// Route is the transaction route identifier. Prefer RouteID (UUID); Route is
+	// retained for server-side alias compatibility. Setting both is rejected by
+	// Validate.
 	Route string `json:"route,omitempty"`
 
-	// RouteID is the UUID transaction route identifier.
+	// RouteID is the UUID transaction route identifier and the preferred way to
+	// address a transaction route. Mutually exclusive with Route.
 	RouteID string `json:"routeId,omitempty"`
 
 	// TransactionDate is the effective date/time for the transaction.
@@ -153,7 +161,7 @@ func (input *CreateInflowInput) Validate() error {
 		errs.Append("asset", "is required")
 	}
 
-	if err := validatePositiveDecimalString(input.Send.Value, "value"); err != nil {
+	if err := validatePositiveDecimalString(input.Send.Value); err != nil {
 		errs.Append("value", err.Error())
 	}
 
@@ -192,6 +200,12 @@ func (input *CreateInflowInput) ToMap() map[string]any {
 	return tx
 }
 
+// MarshalJSON emits the /transactions/inflow request body (ToMap), keeping
+// json.Marshal(input) identical to what the SDK puts on the wire.
+func (input CreateInflowInput) MarshalJSON() ([]byte, error) {
+	return json.Marshal(input.ToMap())
+}
+
 // CreateOutflowInput represents input for creating an outflow transaction.
 // Outflow transactions have no destination - funds flow out of the system (e.g., withdrawals, payouts).
 type CreateOutflowInput struct {
@@ -201,16 +215,23 @@ type CreateOutflowInput struct {
 	// Description provides a human-readable explanation
 	Description string `json:"description,omitempty"`
 
-	// Code is a transaction reference code
+	// Code is an optional caller-supplied label. It is write-only: the ledger
+	// stores it in the transaction body and never returns it, and it cannot be
+	// filtered on. Use Metadata for searchable correlation (see
+	// CreateTransactionInput.Code).
+	// It is not a query handle — see CreateTransactionInput.Code.
 	Code string `json:"code,omitempty"`
 
 	// Metadata contains custom key-value data
 	Metadata map[string]any `json:"metadata,omitempty"`
 
-	// Route is the transaction route identifier
+	// Route is the transaction route identifier. Prefer RouteID (UUID); Route is
+	// retained for server-side alias compatibility. Setting both is rejected by
+	// Validate.
 	Route string `json:"route,omitempty"`
 
-	// RouteID is the UUID transaction route identifier.
+	// RouteID is the UUID transaction route identifier and the preferred way to
+	// address a transaction route. Mutually exclusive with Route.
 	RouteID string `json:"routeId,omitempty"`
 
 	// Pending indicates whether the transaction should be created in a pending state.
@@ -342,7 +363,7 @@ func (input *CreateOutflowInput) Validate() error {
 		errs.Append("asset", "is required")
 	}
 
-	if err := validatePositiveDecimalString(input.Send.Value, "value"); err != nil {
+	if err := validatePositiveDecimalString(input.Send.Value); err != nil {
 		errs.Append("value", err.Error())
 	}
 
@@ -381,17 +402,26 @@ func (input *CreateOutflowInput) ToMap() map[string]any {
 	return tx
 }
 
+// MarshalJSON emits the /transactions/outflow request body (ToMap), keeping
+// json.Marshal(input) identical to what the SDK puts on the wire.
+func (input CreateOutflowInput) MarshalJSON() ([]byte, error) {
+	return json.Marshal(input.ToMap())
+}
+
 // CreateAnnotationInput is the payload for creating an annotation transaction.
 type CreateAnnotationInput struct {
-	ChartOfAccountsGroupName string         `json:"chartOfAccountsGroupName,omitempty"`
-	Description              string         `json:"description,omitempty"`
-	Pending                  bool           `json:"pending,omitempty"`
-	Code                     string         `json:"code,omitempty"`
-	Route                    string         `json:"route,omitempty"`
-	RouteID                  string         `json:"routeId,omitempty"`
-	TransactionDate          string         `json:"transactionDate,omitempty"`
-	Metadata                 map[string]any `json:"metadata,omitempty"`
-	Send                     *SendInput     `json:"send,omitempty"`
+	ChartOfAccountsGroupName string `json:"chartOfAccountsGroupName,omitempty"`
+	Description              string `json:"description,omitempty"`
+	Pending                  bool   `json:"pending,omitempty"`
+	Code                     string `json:"code,omitempty"`
+	// Route is retained for server-side alias compatibility; prefer RouteID.
+	// Setting both is rejected by Validate.
+	Route string `json:"route,omitempty"`
+	// RouteID is the preferred way to address a transaction route.
+	RouteID         string         `json:"routeId,omitempty"`
+	TransactionDate string         `json:"transactionDate,omitempty"`
+	Metadata        map[string]any `json:"metadata,omitempty"`
+	Send            *SendInput     `json:"send,omitempty"`
 }
 
 // NewCreateAnnotationInput creates a new CreateAnnotationInput.
@@ -439,6 +469,12 @@ func (input *CreateAnnotationInput) ToLibTransaction() map[string]any {
 	}
 
 	return tx
+}
+
+// MarshalJSON emits the /transactions/annotation request body
+// (ToLibTransaction), keeping json.Marshal(input) identical to the wire.
+func (input CreateAnnotationInput) MarshalJSON() ([]byte, error) {
+	return json.Marshal(input.ToLibTransaction())
 }
 
 // WithCode sets the annotation transaction code.

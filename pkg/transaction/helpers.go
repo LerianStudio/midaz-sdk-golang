@@ -62,12 +62,13 @@ type TransferOptions struct {
 	Description string
 	// Metadata contains additional custom data for the transaction
 	Metadata map[string]any
-	// IdempotencyKey is a client-generated key to ensure transaction uniqueness
+	// IdempotencyKey is a client-generated key that makes a RETRY of this create
+	// safe. It is a short-lived retry guard, not a uniqueness constraint: the
+	// ledger forgets it once the idempotency TTL expires (default 300s). See
+	// models.CreateTransactionInput.IdempotencyKey for the full matrix.
 	IdempotencyKey string
 	// Pending indicates whether the transaction should be created in a pending state
 	Pending bool
-	// ExternalID is an optional identifier for linking to external systems
-	ExternalID string
 	// ChartOfAccountsGroupName specifies the chart of accounts group to use
 	ChartOfAccountsGroupName string
 }
@@ -88,8 +89,9 @@ func DefaultTransferOptions() *TransferOptions {
 //   - entity: The Midaz SDK entity client
 //   - orgID: The organization ID
 //   - ledgerID: The ledger ID
-//   - fromAccountID: The source account ID
-//   - toAccountID: The destination account ID
+//   - fromAlias: The source account ALIAS (the ledger resolves a leg by alias,
+//     never by account ID)
+//   - toAlias: The destination account ALIAS
 //   - amount: The amount to transfer (as a fixed-point integer, e.g., 1000 for $10.00 with scale 2)
 //   - scale: The scale/precision of the amount (e.g., 2 for cents)
 //   - assetCode: The asset code (e.g., "USD")
@@ -102,7 +104,7 @@ func Transfer(
 	ctx context.Context,
 	entity *entities.Entity,
 	orgID, ledgerID string,
-	fromAccountID, toAccountID string,
+	fromAlias, toAlias string,
 	amount int64,
 	scale int64,
 	assetCode string,
@@ -135,7 +137,6 @@ func Transfer(
 		Metadata:                 opts.Metadata,
 		Pending:                  opts.Pending,
 		IdempotencyKey:           idempotencyKey,
-		ExternalID:               opts.ExternalID,
 		ChartOfAccountsGroupName: opts.ChartOfAccountsGroupName,
 		Send: &models.SendInput{
 			Asset: assetCode,
@@ -143,7 +144,7 @@ func Transfer(
 			Source: &models.SourceInput{
 				From: []models.FromToInput{
 					{
-						Account: fromAccountID,
+						AccountAlias: fromAlias,
 						Amount: models.AmountInput{
 							Asset: assetCode,
 							Value: amountValue,
@@ -154,7 +155,7 @@ func Transfer(
 			Distribute: &models.DistributeInput{
 				To: []models.FromToInput{
 					{
-						Account: toAccountID,
+						AccountAlias: toAlias,
 						Amount: models.AmountInput{
 							Asset: assetCode,
 							Value: amountValue,
@@ -180,15 +181,18 @@ type DepositOptions struct {
 	Description string
 	// Metadata contains additional custom data for the transaction
 	Metadata map[string]any
-	// IdempotencyKey is a client-generated key to ensure transaction uniqueness
+	// IdempotencyKey is a client-generated key that makes a RETRY of this create
+	// safe. It is a short-lived retry guard, not a uniqueness constraint: the
+	// ledger forgets it once the idempotency TTL expires (default 300s). See
+	// models.CreateTransactionInput.IdempotencyKey for the full matrix.
 	IdempotencyKey string
 	// Pending indicates whether the transaction should be created in a pending state
 	Pending bool
-	// ExternalID is an optional identifier for linking to external systems
-	ExternalID string
 	// ChartOfAccountsGroupName specifies the chart of accounts group to use
 	ChartOfAccountsGroupName string
-	// ExternalAccountID overrides the default external account ID
+	// ExternalAccountID overrides the default external account alias
+	// (@external/<assetCode>). It is used as an ALIAS on the leg, so an account
+	// UUID here does not resolve.
 	ExternalAccountID string
 }
 
@@ -209,7 +213,8 @@ func DefaultDepositOptions() *DepositOptions {
 //   - entity: The Midaz SDK entity client
 //   - orgID: The organization ID
 //   - ledgerID: The ledger ID
-//   - toAccountID: The destination account ID
+//   - toAlias: The destination account ALIAS (the ledger resolves a leg by
+//     alias, never by account ID)
 //   - amount: The amount to deposit (as a fixed-point integer, e.g., 1000 for $10.00 with scale 2)
 //   - scale: The scale/precision of the amount (e.g., 2 for cents)
 //   - assetCode: The asset code (e.g., "USD")
@@ -222,7 +227,7 @@ func Deposit(
 	ctx context.Context,
 	entity *entities.Entity,
 	orgID, ledgerID string,
-	toAccountID string,
+	toAlias string,
 	amount int64,
 	scale int64,
 	assetCode string,
@@ -262,7 +267,6 @@ func Deposit(
 		Metadata:                 opts.Metadata,
 		Pending:                  opts.Pending,
 		IdempotencyKey:           idempotencyKey,
-		ExternalID:               opts.ExternalID,
 		ChartOfAccountsGroupName: opts.ChartOfAccountsGroupName,
 		Send: &models.SendInput{
 			Asset: assetCode,
@@ -270,7 +274,7 @@ func Deposit(
 			Source: &models.SourceInput{
 				From: []models.FromToInput{
 					{
-						Account: externalAccountID,
+						AccountAlias: externalAccountID,
 						Amount: models.AmountInput{
 							Asset: assetCode,
 							Value: amountValue,
@@ -281,7 +285,7 @@ func Deposit(
 			Distribute: &models.DistributeInput{
 				To: []models.FromToInput{
 					{
-						Account: toAccountID,
+						AccountAlias: toAlias,
 						Amount: models.AmountInput{
 							Asset: assetCode,
 							Value: amountValue,
@@ -307,15 +311,18 @@ type WithdrawalOptions struct {
 	Description string
 	// Metadata contains additional custom data for the transaction
 	Metadata map[string]any
-	// IdempotencyKey is a client-generated key to ensure transaction uniqueness
+	// IdempotencyKey is a client-generated key that makes a RETRY of this create
+	// safe. It is a short-lived retry guard, not a uniqueness constraint: the
+	// ledger forgets it once the idempotency TTL expires (default 300s). See
+	// models.CreateTransactionInput.IdempotencyKey for the full matrix.
 	IdempotencyKey string
 	// Pending indicates whether the transaction should be created in a pending state
 	Pending bool
-	// ExternalID is an optional identifier for linking to external systems
-	ExternalID string
 	// ChartOfAccountsGroupName specifies the chart of accounts group to use
 	ChartOfAccountsGroupName string
-	// ExternalAccountID overrides the default external account ID
+	// ExternalAccountID overrides the default external account alias
+	// (@external/<assetCode>). It is used as an ALIAS on the leg, so an account
+	// UUID here does not resolve.
 	ExternalAccountID string
 }
 
@@ -336,7 +343,8 @@ func DefaultWithdrawalOptions() *WithdrawalOptions {
 //   - entity: The Midaz SDK entity client
 //   - orgID: The organization ID
 //   - ledgerID: The ledger ID
-//   - fromAccountID: The source account ID
+//   - fromAlias: The source account ALIAS (the ledger resolves a leg by alias,
+//     never by account ID)
 //   - amount: The amount to withdraw (as a fixed-point integer, e.g., 1000 for $10.00 with scale 2)
 //   - scale: The scale/precision of the amount (e.g., 2 for cents)
 //   - assetCode: The asset code (e.g., "USD")
@@ -349,7 +357,7 @@ func Withdrawal(
 	ctx context.Context,
 	entity *entities.Entity,
 	orgID, ledgerID string,
-	fromAccountID string,
+	fromAlias string,
 	amount int64,
 	scale int64,
 	assetCode string,
@@ -389,7 +397,6 @@ func Withdrawal(
 		Metadata:                 opts.Metadata,
 		Pending:                  opts.Pending,
 		IdempotencyKey:           idempotencyKey,
-		ExternalID:               opts.ExternalID,
 		ChartOfAccountsGroupName: opts.ChartOfAccountsGroupName,
 		Send: &models.SendInput{
 			Asset: assetCode,
@@ -397,7 +404,7 @@ func Withdrawal(
 			Source: &models.SourceInput{
 				From: []models.FromToInput{
 					{
-						Account: fromAccountID,
+						AccountAlias: fromAlias,
 						Amount: models.AmountInput{
 							Asset: assetCode,
 							Value: amountValue,
@@ -408,7 +415,7 @@ func Withdrawal(
 			Distribute: &models.DistributeInput{
 				To: []models.FromToInput{
 					{
-						Account: externalAccountID,
+						AccountAlias: externalAccountID,
 						Amount: models.AmountInput{
 							Asset: assetCode,
 							Value: amountValue,
@@ -434,12 +441,13 @@ type MultiTransferOptions struct {
 	Description string
 	// Metadata contains additional custom data for the transaction
 	Metadata map[string]any
-	// IdempotencyKey is a client-generated key to ensure transaction uniqueness
+	// IdempotencyKey is a client-generated key that makes a RETRY of this create
+	// safe. It is a short-lived retry guard, not a uniqueness constraint: the
+	// ledger forgets it once the idempotency TTL expires (default 300s). See
+	// models.CreateTransactionInput.IdempotencyKey for the full matrix.
 	IdempotencyKey string
 	// Pending indicates whether the transaction should be created in a pending state
 	Pending bool
-	// ExternalID is an optional identifier for linking to external systems
-	ExternalID string
 	// ChartOfAccountsGroupName specifies the chart of accounts group to use
 	ChartOfAccountsGroupName string
 }
@@ -460,8 +468,8 @@ func DefaultMultiTransferOptions() *MultiTransferOptions {
 //   - entity: The Midaz SDK entity client
 //   - orgID: The organization ID
 //   - ledgerID: The ledger ID
-//   - sourceAccounts: Map of source account IDs to their amounts (must sum to totalAmount)
-//   - destAccounts: Map of destination account IDs to their amounts (must sum to totalAmount)
+//   - sourceAccounts: Map of source account ALIASES to their amounts (must sum to totalAmount)
+//   - destAccounts: Map of destination account ALIASES to their amounts (must sum to totalAmount)
 //   - totalAmount: The total amount of the transaction
 //   - scale: The scale/precision of the amount (e.g., 2 for cents)
 //   - assetCode: The asset code (e.g., "USD")
@@ -544,19 +552,22 @@ func validateMultiTransferAccounts(sourceAccounts, destAccounts map[string]int64
 	return nil
 }
 
+// buildAccountInputList turns an alias-keyed amount map into transaction legs.
+// The map keys are account ALIASES: they land in FromToInput.AccountAlias, which
+// the ledger resolves by alias equality, never as an account ID.
 func buildAccountInputList(accounts map[string]int64, scale int64, assetCode, accountType string) ([]models.FromToInput, int64, error) {
 	inputList := make([]models.FromToInput, 0, len(accounts))
 
 	var sum int64
 
-	for accountID, amount := range accounts {
+	for alias, amount := range accounts {
 		if amount <= 0 {
-			return nil, 0, fmt.Errorf("amount for %s account %s must be positive", accountType, accountID)
+			return nil, 0, fmt.Errorf("amount for %s account %s must be positive", accountType, alias)
 		}
 
 		amountValue := formatAmount(amount, scale)
 		inputList = append(inputList, models.FromToInput{
-			Account: accountID,
+			AccountAlias: alias,
 			Amount: models.AmountInput{
 				Asset: assetCode,
 				Value: amountValue,
@@ -589,7 +600,6 @@ func buildMultiTransferInput(opts *MultiTransferOptions, idempotencyKey string, 
 		Metadata:                 opts.Metadata,
 		Pending:                  opts.Pending,
 		IdempotencyKey:           idempotencyKey,
-		ExternalID:               opts.ExternalID,
 		ChartOfAccountsGroupName: opts.ChartOfAccountsGroupName,
 		Send: &models.SendInput{
 			Asset: assetCode,

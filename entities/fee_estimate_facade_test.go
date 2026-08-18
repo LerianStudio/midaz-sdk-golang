@@ -5,10 +5,12 @@ package entities
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -37,12 +39,12 @@ func feeEstimateInput() *models.FeeEstimateInput {
 				Value: "100.00",
 				Source: &models.SourceInput{
 					From: []models.FromToInput{
-						{Account: "@source", Amount: models.AmountInput{Asset: "BRL", Value: "100.00"}},
+						{AccountAlias: "@source", Amount: models.AmountInput{Asset: "BRL", Value: "100.00"}},
 					},
 				},
 				Distribute: &models.DistributeInput{
 					To: []models.FromToInput{
-						{Account: "@dest", Amount: models.AmountInput{Asset: "BRL", Value: "100.00"}},
+						{AccountAlias: "@dest", Amount: models.AmountInput{Asset: "BRL", Value: "100.00"}},
 					},
 				},
 			},
@@ -63,8 +65,8 @@ func TestFeeEstimateFacade_Applied(t *testing.T) {
 		`"routeId":"55555555-5555-5555-5555-555555555555",` +
 		`"metadata":{"packageAppliedID":"pkg-1"},` +
 		`"send":{"asset":"BRL","value":"` + precise + `",` +
-		`"source":{"from":[{"account":"@source","amount":{"asset":"BRL","value":"` + precise + `"}}]},` +
-		`"distribute":{"to":[{"account":"@dest","amount":{"asset":"BRL","value":"` + precise + `"}}]}}}}}`
+		`"source":{"from":[{"accountAlias":"@source","amount":{"asset":"BRL","value":"` + precise + `"}}]},` +
+		`"distribute":{"to":[{"accountAlias":"@dest","amount":{"asset":"BRL","value":"` + precise + `"}}]}}}}}`
 
 	var m, p, body string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -109,11 +111,154 @@ func TestFeeEstimateFacade_Applied(t *testing.T) {
 	if len(tx.Send.Source.From) != 1 || tx.Send.Source.From[0].Amount.Value != precise {
 		t.Fatalf("source amount = %+v, want %q", tx.Send.Source, precise)
 	}
+	if tx.Send.Source.From[0].AccountAlias != "@source" {
+		t.Fatalf("source leg accountAlias = %q, want %q", tx.Send.Source.From[0].AccountAlias, "@source")
+	}
 	if len(tx.Send.Distribute.To) != 1 || tx.Send.Distribute.To[0].Amount.Value != precise {
 		t.Fatalf("distribute amount = %+v, want %q", tx.Send.Distribute, precise)
 	}
 	if tx.RouteID == nil || *tx.RouteID != "55555555-5555-5555-5555-555555555555" {
 		t.Fatalf("routeId = %v", tx.RouteID)
+	}
+}
+
+// TestFeeEstimateFacade_GoldenRequestBody pins the estimate request body against
+// a hand-written payload. The estimate reuses the transaction leg types, so any
+// change to their serialization moves this endpoint too — and the quote it
+// returns drives real fee-bearing transactions. The leg identity is accountAlias,
+// matching the ledger DTO the engine unmarshals into
+// (components/ledger/pkg/feeshared/model.FeeEstimate embeds
+// pkg/mtransaction.Transaction, whose FromTo carries only accountAlias); money
+// rides as decimal strings; a nil source/distribute is omitted, never null.
+func TestFeeEstimateFacade_GoldenRequestBody(t *testing.T) {
+	want := map[string]any{
+		"packageId": feeEstimatePackageID,
+		"ledgerId":  feeEstimateLedgerID,
+		"transaction": map[string]any{
+			"description": "estimate",
+			"send": map[string]any{
+				"asset": "BRL",
+				"value": "100.00",
+				"source": map[string]any{"from": []any{map[string]any{
+					"accountAlias": "@source",
+					"amount":       map[string]any{"asset": "BRL", "value": "100.00"},
+				}}},
+				"distribute": map[string]any{"to": []any{map[string]any{
+					"accountAlias": "@dest",
+					"amount":       map[string]any{"asset": "BRL", "value": "100.00"},
+				}}},
+			},
+		},
+	}
+
+	var gotBody []byte
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotBody, _ = io.ReadAll(r.Body)
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"message":"Successfully estimated fee.","feesApplied":null}`))
+	}))
+	defer srv.Close()
+
+	if _, err := newTestFeeEstimateFacade(t, srv).EstimateFee(
+		context.Background(), feeEstimateOrgID, feeEstimateInput()); err != nil {
+		t.Fatalf("EstimateFee: %v", err)
+	}
+
+	var got map[string]any
+	if err := json.Unmarshal(gotBody, &got); err != nil {
+		t.Fatalf("request body is not a JSON object: %v (%s)", err, gotBody)
+	}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("estimate request body is not the golden payload\n got: %s\nwant: %v", gotBody, want)
+	}
+}
+
+// TestFeeEstimateFacade_GoldenRequestBodyNumericValueAndShareLeg pins the two
+// estimate inputs where the leg struct tags and the leg mappers DISAGREE — the
+// only reason the request is well formed is that the leg types marshal through
+// their mappers:
+//
+//   - a NUMERIC Value. Every Value field is `any`, so a caller may hand over an
+//     int or a float; the mapper renders money as a decimal STRING, while the
+//     tags would ship a JSON number and reopen a float hop on the money path.
+//   - a leg priced by Share instead of Amount. The mapper omits the amount key,
+//     while the tags would ship amount:{"asset":"","value":null} next to the
+//     share, which the /transactions/json contract rejects.
+//
+// The pre-existing golden uses decimal strings and full amount legs — inputs
+// where tags and mappers happen to agree — so it cannot see either regression.
+func TestFeeEstimateFacade_GoldenRequestBodyNumericValueAndShareLeg(t *testing.T) {
+	input := &models.FeeEstimateInput{
+		PackageID: feeEstimatePackageID,
+		LedgerID:  feeEstimateLedgerID,
+		Transaction: models.FeeEstimateTransactionInput{
+			Description: "estimate",
+			Send: &models.SendInput{
+				Asset: "BRL",
+				Value: 100,
+				Source: &models.SourceInput{
+					From: []models.FromToInput{
+						{AccountAlias: "@source", Amount: models.AmountInput{Asset: "BRL", Value: 100}},
+					},
+				},
+				Distribute: &models.DistributeInput{
+					To: []models.FromToInput{
+						{AccountAlias: "@dest", Share: &models.Share{Percentage: 100}},
+					},
+				},
+			},
+		},
+	}
+
+	want := map[string]any{
+		"packageId": feeEstimatePackageID,
+		"ledgerId":  feeEstimateLedgerID,
+		"transaction": map[string]any{
+			"description": "estimate",
+			"send": map[string]any{
+				"asset": "BRL",
+				"value": "100",
+				"source": map[string]any{"from": []any{map[string]any{
+					"accountAlias": "@source",
+					"amount":       map[string]any{"asset": "BRL", "value": "100"},
+				}}},
+				"distribute": map[string]any{"to": []any{map[string]any{
+					"accountAlias": "@dest",
+					"share":        map[string]any{"percentage": float64(100)},
+				}}},
+			},
+		},
+	}
+
+	var gotBody []byte
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotBody, _ = io.ReadAll(r.Body)
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"message":"Successfully estimated fee.","feesApplied":null}`))
+	}))
+	defer srv.Close()
+
+	if _, err := newTestFeeEstimateFacade(t, srv).EstimateFee(
+		context.Background(), feeEstimateOrgID, input); err != nil {
+		t.Fatalf("EstimateFee: %v", err)
+	}
+
+	if !strings.Contains(string(gotBody), `"value":"100"`) {
+		t.Errorf("body = %s, want a numeric Value rendered as the decimal string \"100\"", gotBody)
+	}
+
+	var got map[string]any
+	if err := json.Unmarshal(gotBody, &got); err != nil {
+		t.Fatalf("request body is not a JSON object: %v (%s)", err, gotBody)
+	}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("estimate request body is not the golden payload\n got: %s\nwant: %v", gotBody, want)
 	}
 }
 

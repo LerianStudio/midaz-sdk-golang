@@ -33,11 +33,16 @@ import (
 //
 // Two subtleties distinguish transactions from the onboarding resources:
 //
-//   - Wire shape is the endpoint-specific mapper output, NOT json.Marshal(input).
-//     /json and /annotation serialize via ToLibTransaction(); /inflow and
-//     /outflow via ToMap(). The generated request body is opaque
-//     (openapi_types.File), so the facade owns the shape; it must match the
-//     legacy transactions service byte-for-byte (entities/transactions.go).
+//   - Wire shape is the endpoint-specific mapper output, and json.Marshal(input)
+//     now IS that output: every create input implements MarshalJSON delegating to
+//     its mapper (ToLibTransaction for /json and /annotation, ToMap for /inflow
+//     and /outflow), so the facade hands the input straight to writeJSON. One
+//     path, no second serialization to drift from — the struct tags describe
+//     nothing and cannot lie about what moved money. The generated request body
+//     is opaque (openapi_types.File), so the shape stays the facade's contract
+//     and must match the legacy transactions service byte-for-byte
+//     (entities/transactions.go); entities/transactions_facade_wire_test.go pins
+//     the equivalence per endpoint.
 //   - Success is any HTTP 2xx, read from the RAW response. The writes bypass the
 //     generated typed parser (Parse{Op}Resp) on purpose: that parser gates on the
 //     one status code the OAS declares (creates 200, actions 201, updates 200)
@@ -94,7 +99,8 @@ func newTransactionsFacade(ledger *genledger.ClientWithResponses, enableIdempote
 const jsonContentType = "application/json"
 
 // CreateJSON creates a standard transaction (source + distribute) via
-// POST .../transactions/json. The wire body is input.ToLibTransaction().
+// POST .../transactions/json. The wire body is json.Marshal(input), which the
+// input's MarshalJSON routes through ToLibTransaction().
 func (f *transactionsFacade) CreateJSON(ctx context.Context, orgID, ledgerID string, input *models.CreateTransactionInput) (*models.Transaction, error) {
 	const operation = "Transactions.CreateJSON"
 
@@ -106,14 +112,14 @@ func (f *transactionsFacade) CreateJSON(ctx context.Context, orgID, ledgerID str
 	key, ttl := resolveIdempotency(ctx, input.IdempotencyKey, f.enableIdempotency)
 	applyIdempotency(&params.XIdempotency, &params.XTTL, key, ttl)
 
-	return writeJSON[models.Transaction](ctx, operation, input.ToLibTransaction(), func(body io.Reader) (*http.Response, []byte, error) {
+	return writeJSON[models.Transaction](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
 		return readRawResponse(f.ledger.CreateTransactionJSONWithBody(ctx, orgID, ledgerID, params, jsonContentType, body))
 	})
 }
 
 // CreateInflow creates an inflow transaction (no source; funds flow into
 // destination accounts) via POST .../transactions/inflow. The wire body is
-// input.ToMap().
+// json.Marshal(input), which the input's MarshalJSON routes through ToMap().
 func (f *transactionsFacade) CreateInflow(ctx context.Context, orgID, ledgerID string, input *models.CreateInflowInput) (*models.Transaction, error) {
 	const operation = "Transactions.CreateInflow"
 
@@ -125,14 +131,14 @@ func (f *transactionsFacade) CreateInflow(ctx context.Context, orgID, ledgerID s
 	key, ttl := resolveIdempotency(ctx, "", f.enableIdempotency)
 	applyIdempotency(&params.XIdempotency, &params.XTTL, key, ttl)
 
-	return writeJSON[models.Transaction](ctx, operation, input.ToMap(), func(body io.Reader) (*http.Response, []byte, error) {
+	return writeJSON[models.Transaction](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
 		return readRawResponse(f.ledger.CreateTransactionInflowWithBody(ctx, orgID, ledgerID, params, jsonContentType, body))
 	})
 }
 
 // CreateOutflow creates an outflow transaction (no destination; funds flow out
 // of source accounts) via POST .../transactions/outflow. The wire body is
-// input.ToMap().
+// json.Marshal(input), which the input's MarshalJSON routes through ToMap().
 func (f *transactionsFacade) CreateOutflow(ctx context.Context, orgID, ledgerID string, input *models.CreateOutflowInput) (*models.Transaction, error) {
 	const operation = "Transactions.CreateOutflow"
 
@@ -144,14 +150,15 @@ func (f *transactionsFacade) CreateOutflow(ctx context.Context, orgID, ledgerID 
 	key, ttl := resolveIdempotency(ctx, "", f.enableIdempotency)
 	applyIdempotency(&params.XIdempotency, &params.XTTL, key, ttl)
 
-	return writeJSON[models.Transaction](ctx, operation, input.ToMap(), func(body io.Reader) (*http.Response, []byte, error) {
+	return writeJSON[models.Transaction](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
 		return readRawResponse(f.ledger.CreateTransactionOutflowWithBody(ctx, orgID, ledgerID, params, jsonContentType, body))
 	})
 }
 
 // CreateAnnotation creates an annotation transaction (metadata-only, no balance
 // impact) via POST .../transactions/annotation. The wire body is
-// input.ToLibTransaction().
+// json.Marshal(input), which the input's MarshalJSON routes through
+// ToLibTransaction().
 func (f *transactionsFacade) CreateAnnotation(ctx context.Context, orgID, ledgerID string, input *models.CreateAnnotationInput) (*models.Transaction, error) {
 	const operation = "Transactions.CreateAnnotation"
 
@@ -163,7 +170,7 @@ func (f *transactionsFacade) CreateAnnotation(ctx context.Context, orgID, ledger
 	key, ttl := resolveIdempotency(ctx, "", f.enableIdempotency)
 	applyIdempotency(&params.XIdempotency, &params.XTTL, key, ttl)
 
-	return writeJSON[models.Transaction](ctx, operation, input.ToLibTransaction(), func(body io.Reader) (*http.Response, []byte, error) {
+	return writeJSON[models.Transaction](ctx, operation, input, func(body io.Reader) (*http.Response, []byte, error) {
 		return readRawResponse(f.ledger.CreateTransactionAnnotationWithBody(ctx, orgID, ledgerID, params, jsonContentType, body))
 	})
 }

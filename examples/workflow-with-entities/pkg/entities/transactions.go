@@ -147,7 +147,7 @@ func newTransferFundsInput(sourceAccountAlias, destAccountAlias, assetCode strin
 			Source: &models.SourceInput{
 				From: []models.FromToInput{
 					{
-						Account: sourceAccountAlias,
+						AccountAlias: sourceAccountAlias,
 						Amount: models.AmountInput{
 							Asset: assetCode,
 							Value: amountValue,
@@ -158,7 +158,7 @@ func newTransferFundsInput(sourceAccountAlias, destAccountAlias, assetCode strin
 			Distribute: &models.DistributeInput{
 				To: []models.FromToInput{
 					{
-						Account: destAccountAlias,
+						AccountAlias: destAccountAlias,
 						Amount: models.AmountInput{
 							Asset: assetCode,
 							Value: amountValue,

@@ -226,13 +226,13 @@ func TestTransactionGenerator_GenerateWithDSL_ConvertsTemplate(t *testing.T) {
 	_, err := gen.GenerateWithDSL(context.Background(), "org-123", "ledger-123", pattern)
 	require.NoError(t, err)
 	require.NotNil(t, captured)
-	assert.Equal(t, "BRL", captured.AssetCode)
-	assert.Equal(t, "500", captured.Amount)
 	require.NotNil(t, captured.Send)
+	assert.Equal(t, "BRL", captured.Send.Asset)
+	assert.Equal(t, "500", captured.Send.Value)
 	require.Len(t, captured.Send.Source.From, 1)
-	assert.Equal(t, "@customer", captured.Send.Source.From[0].Account)
+	assert.Equal(t, "@customer", captured.Send.Source.From[0].AccountAlias)
 	require.Len(t, captured.Send.Distribute.To, 1)
-	assert.Equal(t, "@merchant", captured.Send.Distribute.To[0].Account)
+	assert.Equal(t, "@merchant", captured.Send.Distribute.To[0].AccountAlias)
 }
 
 func TestTransactionGenerator_GenerateBatch_EmptyPatterns(t *testing.T) {

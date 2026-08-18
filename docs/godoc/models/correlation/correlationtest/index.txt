@@ -1,0 +1,19 @@
+package correlationtest // import "github.com/LerianStudio/midaz-sdk-golang/v4/models/correlation/correlationtest"
+
+Package correlationtest provides the shared conformance check that every
+transactional plugin runs against the transaction inputs it produces,
+so the canonical correlation contract is verified in one place instead of being
+re-implemented — and re-diverged — per plugin.
+
+The check keeps no copy of the contract. It rebuilds a correlation.Correlation
+from the transaction metadata and runs the emitter's own Validate, and it takes
+the whitelist from correlation.Keys, so a contract change lands in one package
+and the checker follows automatically instead of quietly disagreeing with the
+producer.
+
+Usage in a plugin producer test:
+
+    input := adapter.BuildTransaction(transfer)
+    correlationtest.AssertCanonical(t, input)
+
+func AssertCanonical(tb testing.TB, input *models.CreateTransactionInput)

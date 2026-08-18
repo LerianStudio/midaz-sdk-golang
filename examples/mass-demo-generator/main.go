@@ -801,9 +801,13 @@ func buildAccountTransactions(state *workflowState, accounts []*models.Account, 
 			continue
 		}
 
+		// Transaction legs address accounts by ALIAS only: the ledger's balance
+		// lookup matches the alias column exactly, so an account ID is a failed
+		// lookup, not a fallback identity. Skip and report alias-less accounts.
 		alias := models.GetAccountAlias(*account)
 		if alias == "" {
-			alias = account.ID
+			log.Printf("skipping account %s: it has no alias, and transaction legs address accounts by alias", account.ID)
+			continue
 		}
 
 		for i := 0; i < perAccount; i++ {
@@ -823,14 +827,14 @@ func buildAccountTransactions(state *workflowState, accounts []*models.Account, 
 					Asset: state.demoConfig.assetCodeVal,
 					Value: amountStr,
 					Source: &models.SourceInput{From: []models.FromToInput{{
-						Account: extAlias,
-						Amount:  models.AmountInput{Asset: state.demoConfig.assetCodeVal, Value: amountStr},
-						RouteID: stringPtrIfNotEmpty(routes.sourceRouteID),
+						AccountAlias: extAlias,
+						Amount:       models.AmountInput{Asset: state.demoConfig.assetCodeVal, Value: amountStr},
+						RouteID:      stringPtrIfNotEmpty(routes.sourceRouteID),
 					}}},
 					Distribute: &models.DistributeInput{To: []models.FromToInput{{
-						Account: alias,
-						Amount:  models.AmountInput{Asset: state.demoConfig.assetCodeVal, Value: amountStr},
-						RouteID: stringPtrIfNotEmpty(routes.destinationRouteID),
+						AccountAlias: alias,
+						Amount:       models.AmountInput{Asset: state.demoConfig.assetCodeVal, Value: amountStr},
+						RouteID:      stringPtrIfNotEmpty(routes.destinationRouteID),
 					}}},
 				},
 				Metadata: map[string]any{

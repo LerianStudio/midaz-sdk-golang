@@ -63,20 +63,18 @@ func dslTemplateToInput(tmpl string) (*models.CreateTransactionInput, error) {
 		}
 
 		to = append(to, models.FromToInput{
-			Account: d[2],
-			Share:   &models.Share{Percentage: pct},
+			AccountAlias: d[2],
+			Share:        &models.Share{Percentage: pct},
 		})
 	}
 
 	return &models.CreateTransactionInput{
-		AssetCode: asset,
-		Amount:    amount,
 		Send: &models.SendInput{
 			Asset: asset,
 			Value: amount,
 			Source: &models.SourceInput{
 				From: []models.FromToInput{
-					{Account: src[1], Amount: models.AmountInput{Asset: asset, Value: amount}},
+					{AccountAlias: src[1], Amount: models.AmountInput{Asset: asset, Value: amount}},
 				},
 			},
 			Distribute: &models.DistributeInput{To: to},

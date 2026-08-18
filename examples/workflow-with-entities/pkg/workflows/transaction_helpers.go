@@ -168,6 +168,15 @@ func buildBatchTransactionInputs(customerAccount, merchantAccount *models.Accoun
 	if customerAccount == nil || merchantAccount == nil {
 		return nil, errors.New("customer and merchant accounts are required")
 	}
+
+	// Transaction legs address accounts by alias; the ledger does not resolve
+	// account IDs there.
+	customerAlias := models.GetAccountAlias(*customerAccount)
+	merchantAlias := models.GetAccountAlias(*merchantAccount)
+	if customerAlias == "" || merchantAlias == "" {
+		return nil, errors.New("customer and merchant accounts must have aliases: transaction legs address accounts by alias")
+	}
+
 	batchInputs := make([]*models.CreateTransactionInput, 0, 5)
 
 	for i := 1; i <= 5; i++ {
@@ -185,12 +194,12 @@ func buildBatchTransactionInputs(customerAccount, merchantAccount *models.Accoun
 				Value: amount,
 				Source: &models.SourceInput{
 					From: []models.FromToInput{
-						{Account: customerAccount.ID, Amount: models.AmountInput{Asset: "USD", Value: amount}},
+						{AccountAlias: customerAlias, Amount: models.AmountInput{Asset: "USD", Value: amount}},
 					},
 				},
 				Distribute: &models.DistributeInput{
 					To: []models.FromToInput{
-						{Account: merchantAccount.ID, Amount: models.AmountInput{Asset: "USD", Value: amount}},
+						{AccountAlias: merchantAlias, Amount: models.AmountInput{Asset: "USD", Value: amount}},
 					},
 				},
 			},

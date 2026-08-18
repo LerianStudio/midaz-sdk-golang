@@ -226,6 +226,12 @@ func ExecuteCustomerToMerchantConcurrent(ctx context.Context, midazClient *midaz
 		return errors.New("customer and merchant accounts are required")
 	}
 
+	// Transaction legs address accounts by alias; the ledger does not resolve
+	// account IDs there.
+	if midazmodels.GetAccountAlias(*customerAccount) == "" || midazmodels.GetAccountAlias(*merchantAccount) == "" {
+		return errors.New("customer and merchant accounts must have aliases: transaction legs address accounts by alias")
+	}
+
 	rateLimiter := concurrent.NewRateLimiter(20000, 20000)
 	defer rateLimiter.Stop()
 
@@ -308,16 +314,16 @@ func buildC2MTransactionInput(index int, customerAccount, merchantAccount *midaz
 			Source: &midazmodels.SourceInput{
 				From: []midazmodels.FromToInput{
 					{
-						Account: customerAccount.ID,
-						Amount:  midazmodels.AmountInput{Asset: "USD", Value: 0.01},
+						AccountAlias: midazmodels.GetAccountAlias(*customerAccount),
+						Amount:       midazmodels.AmountInput{Asset: "USD", Value: 0.01},
 					},
 				},
 			},
 			Distribute: &midazmodels.DistributeInput{
 				To: []midazmodels.FromToInput{
 					{
-						Account: merchantAccount.ID,
-						Amount:  midazmodels.AmountInput{Asset: "USD", Value: 0.01},
+						AccountAlias: midazmodels.GetAccountAlias(*merchantAccount),
+						Amount:       midazmodels.AmountInput{Asset: "USD", Value: 0.01},
 					},
 				},
 			},
@@ -412,6 +418,14 @@ func buildM2CTransactionInputs(ctx context.Context, merchantAccount, customerAcc
 		return nil, err
 	}
 
+	// Transaction legs address accounts by alias; the ledger does not resolve
+	// account IDs there.
+	if midazmodels.GetAccountAlias(*merchantAccount) == "" || midazmodels.GetAccountAlias(*customerAccount) == "" {
+		err := errors.New("merchant and customer accounts must have aliases: transaction legs address accounts by alias")
+		observability.RecordError(ctx, err, "missing_account_aliases")
+		return nil, err
+	}
+
 	inputs := make([]*midazmodels.CreateTransactionInput, count)
 	for i := 0; i < count; i++ {
 		inputs[i] = buildM2CTransactionInput(i, merchantAccount, customerAccount, GenerateUniqueIdempotencyKey("m2c", i))
@@ -435,16 +449,16 @@ func buildM2CTransactionInput(index int, merchantAccount, customerAccount *midaz
 			Source: &midazmodels.SourceInput{
 				From: []midazmodels.FromToInput{
 					{
-						Account: merchantAccount.ID,
-						Amount:  midazmodels.AmountInput{Asset: "USD", Value: 0.01},
+						AccountAlias: midazmodels.GetAccountAlias(*merchantAccount),
+						Amount:       midazmodels.AmountInput{Asset: "USD", Value: 0.01},
 					},
 				},
 			},
 			Distribute: &midazmodels.DistributeInput{
 				To: []midazmodels.FromToInput{
 					{
-						Account: customerAccount.ID,
-						Amount:  midazmodels.AmountInput{Asset: "USD", Value: 0.01},
+						AccountAlias: midazmodels.GetAccountAlias(*customerAccount),
+						Amount:       midazmodels.AmountInput{Asset: "USD", Value: 0.01},
 					},
 				},
 			},

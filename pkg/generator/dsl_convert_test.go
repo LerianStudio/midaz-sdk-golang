@@ -17,16 +17,16 @@ func TestDSLTemplateToInput(t *testing.T) {
 		t.Fatalf("dslTemplateToInput: %v", err)
 	}
 
-	if in.AssetCode != "USD" || in.Amount != "100" {
-		t.Fatalf("asset/amount = %q/%q, want USD/100", in.AssetCode, in.Amount)
+	if in.Send == nil || in.Send.Asset != "USD" || in.Send.Value != "100" {
+		t.Fatalf("send asset/value = %+v, want USD/100", in.Send)
 	}
 
-	if in.Send == nil || in.Send.Source == nil || len(in.Send.Source.From) != 1 {
+	if in.Send.Source == nil || len(in.Send.Source.From) != 1 {
 		t.Fatalf("send/source = %+v, want 1 source", in.Send)
 	}
 
 	src := in.Send.Source.From[0]
-	if src.Account != "@customer" || src.Amount.Value != "100" {
+	if src.AccountAlias != "@customer" || src.Amount.Value != "100" {
 		t.Fatalf("source = %+v, want @customer/100", src)
 	}
 
@@ -38,9 +38,9 @@ func TestDSLTemplateToInput(t *testing.T) {
 	got := map[string]int64{}
 	for _, d := range to {
 		if d.Share == nil {
-			t.Fatalf("destination %q has no Share", d.Account)
+			t.Fatalf("destination %q has no Share", d.AccountAlias)
 		}
-		got[d.Account] = d.Share.Percentage
+		got[d.AccountAlias] = d.Share.Percentage
 	}
 
 	if got["@merchant_main"] != 97 || got["@platform_fee"] != 3 {
@@ -134,7 +134,7 @@ func TestDSLTemplateToInput_SingleAssetWithMatchingDistributeAsset(t *testing.T)
 		t.Fatalf("dslTemplateToInput: %v", err)
 	}
 
-	if in.AssetCode != "BRL" || in.Send == nil || in.Send.Asset != "BRL" {
-		t.Fatalf("assetCode/send = %q/%+v, want BRL", in.AssetCode, in.Send)
+	if in.Send == nil || in.Send.Asset != "BRL" {
+		t.Fatalf("send = %+v, want asset BRL", in.Send)
 	}
 }

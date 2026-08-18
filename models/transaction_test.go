@@ -1,28 +1,30 @@
 package models
 
 import (
-	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func newValidSendInput(value float64) *SendInput {
-	asset := "USD"
+func newValidSendInput() *SendInput {
+	const (
+		asset = "USD"
+		value = 100.00
+	)
 
 	return &SendInput{
 		Asset: asset,
 		Value: value,
 		Source: &SourceInput{From: []FromToInput{{
-			Account: "source-account",
-			Amount:  AmountInput{Asset: asset, Value: value},
+			AccountAlias: "source-account",
+			Amount:       AmountInput{Asset: asset, Value: value},
 		}}},
 		Distribute: &DistributeInput{To: []FromToInput{{
-			Account: "dest-account",
-			Amount:  AmountInput{Asset: asset, Value: value},
+			AccountAlias: "dest-account",
+			Amount:       AmountInput{Asset: asset, Value: value},
 		}}},
 	}
 }
@@ -72,21 +74,24 @@ func TestNewCreateTransactionInput(t *testing.T) {
 	}
 }
 
-func TestCreateTransactionInputExternalIDIsNeverSerialized(t *testing.T) {
-	input := NewCreateTransactionInput("USD", "10.00").WithExternalID("external-id-is-client-only")
-	input.Send.Source = &SourceInput{From: []FromToInput{{Account: "source", Amount: AmountInput{Asset: "USD", Value: "10.00"}}}}
-	input.Send.Distribute = &DistributeInput{To: []FromToInput{{Account: "destination", Amount: AmountInput{Asset: "USD", Value: "10.00"}}}}
+func TestCreateTransactionInputHasNoLegacyCreateSurface(t *testing.T) {
+	present := map[string]bool{}
+	for _, field := range reflect.VisibleFields(reflect.TypeOf(CreateTransactionInput{})) {
+		present[field.Name] = true
+	}
 
-	body, err := json.Marshal(input)
-	require.NoError(t, err)
+	for _, removed := range []string{"ExternalID", "Amount", "AssetCode", "Operations"} {
+		assert.Falsef(t, present[removed],
+			"CreateTransactionInput.%s was removed in v4.2 and must not come back", removed)
+	}
 
-	require.NotContains(t, string(body), "externalId")
-	require.NotContains(t, string(body), "ExternalID")
-	require.NotContains(t, string(body), "external-id-is-client-only")
+	err := (&CreateTransactionInput{Description: "no send"}).Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "legacy Operations input was removed in v4.2")
 }
 
 func TestCreateTransactionInput_Validate(t *testing.T) {
-	validSend := newValidSendInput(100)
+	validSend := newValidSendInput()
 
 	tests := []struct {
 		name    string
@@ -193,12 +198,12 @@ func TestCreateTransactionInput_ValidateBalancedFixedAmounts(t *testing.T) {
 			Asset: "USD",
 			Value: "100.00",
 			Source: &SourceInput{From: []FromToInput{{
-				Account: "source-account",
-				Amount:  AmountInput{Asset: "USD", Value: "100.00"},
+				AccountAlias: "source-account",
+				Amount:       AmountInput{Asset: "USD", Value: "100.00"},
 			}}},
 			Distribute: &DistributeInput{To: []FromToInput{{
-				Account: "dest-account",
-				Amount:  AmountInput{Asset: "USD", Value: "90.00"},
+				AccountAlias: "dest-account",
+				Amount:       AmountInput{Asset: "USD", Value: "90.00"},
 			}}},
 		})
 
@@ -210,12 +215,12 @@ func TestCreateTransactionInput_ValidateBalancedFixedAmounts(t *testing.T) {
 			Asset: "USD",
 			Value: "100.00",
 			Source: &SourceInput{From: []FromToInput{{
-				Account: "source-account",
-				Amount:  AmountInput{Asset: "USD", Value: "90.00"},
+				AccountAlias: "source-account",
+				Amount:       AmountInput{Asset: "USD", Value: "90.00"},
 			}}},
 			Distribute: &DistributeInput{To: []FromToInput{{
-				Account: "dest-account",
-				Amount:  AmountInput{Asset: "USD", Value: "90.00"},
+				AccountAlias: "dest-account",
+				Amount:       AmountInput{Asset: "USD", Value: "90.00"},
 			}}},
 		})
 
@@ -239,13 +244,6 @@ func TestCreateTransactionInput_WithMethods(t *testing.T) {
 		assert.Same(t, input, result)
 	})
 
-	t.Run("WithExternalID", func(t *testing.T) {
-		input := NewCreateTransactionInput("USD", 100)
-		result := input.WithExternalID("ext-123")
-		assert.Equal(t, "ext-123", result.ExternalID)
-		assert.Same(t, input, result)
-	})
-
 	t.Run("WithCode", func(t *testing.T) {
 		input := NewCreateTransactionInput("USD", 100)
 		result := input.WithCode("TX-001")
@@ -255,7 +253,7 @@ func TestCreateTransactionInput_WithMethods(t *testing.T) {
 
 	t.Run("WithSend", func(t *testing.T) {
 		input := NewCreateTransactionInput("USD", 100)
-		send := newValidSendInput(100)
+		send := newValidSendInput()
 		result := input.WithSend(send)
 		assert.Equal(t, send, result.Send)
 		assert.Same(t, input, result)
@@ -265,12 +263,10 @@ func TestCreateTransactionInput_WithMethods(t *testing.T) {
 		input := NewCreateTransactionInput("USD", 100).
 			WithDescription("Payment").
 			WithCode("TX-CHAIN").
-			WithExternalID("ext-1").
 			WithMetadata(map[string]any{"ref": "123"})
 
 		assert.Equal(t, "Payment", input.Description)
 		assert.Equal(t, "TX-CHAIN", input.Code)
-		assert.Equal(t, "ext-1", input.ExternalID)
 		assert.Equal(t, map[string]any{"ref": "123"}, input.Metadata)
 	})
 }
@@ -308,12 +304,12 @@ func TestCreateTransactionInput_ToLibTransaction(t *testing.T) {
 				Value: 100,
 				Source: &SourceInput{
 					From: []FromToInput{
-						{Account: "source", Amount: AmountInput{Asset: "USD", Value: 100}},
+						{AccountAlias: "source", Amount: AmountInput{Asset: "USD", Value: 100}},
 					},
 				},
 				Distribute: &DistributeInput{
 					To: []FromToInput{
-						{Account: "dest", Amount: AmountInput{Asset: "USD", Value: 100}},
+						{AccountAlias: "dest", Amount: AmountInput{Asset: "USD", Value: 100}},
 					},
 				},
 			},
@@ -344,39 +340,6 @@ func TestCreateTransactionInput_ToLibTransaction(t *testing.T) {
 		assert.False(t, hasMetadata)
 		assert.False(t, hasSend)
 	})
-
-	t.Run("normalizes legacy operation amount wrappers", func(t *testing.T) {
-		value := decimal.NewFromInt(50)
-		input := &CreateTransactionInput{
-			AssetCode: "USD",
-			Amount:    "50",
-			Operations: []CreateOperationInput{
-				{Type: string(OperationTypeDebit), AccountID: "source", Amount: Amount{Value: &value}, AssetCode: "USD"},
-				{Type: string(OperationTypeCredit), AccountID: "dest", Amount: &Amount{Value: &value}, AssetCode: "USD"},
-			},
-		}
-
-		result := input.ToLibTransaction()
-		send, ok := result["send"].(map[string]any)
-		require.True(t, ok)
-		assert.Equal(t, "50", send["value"])
-
-		source, ok := send["source"].(map[string]any)
-		require.True(t, ok)
-		from, ok := source["from"].([]map[string]any)
-		require.True(t, ok)
-		sourceAmount, ok := from[0]["amount"].(map[string]any)
-		require.True(t, ok)
-		assert.Equal(t, "50", sourceAmount["value"])
-
-		distribute, ok := send["distribute"].(map[string]any)
-		require.True(t, ok)
-		to, ok := distribute["to"].([]map[string]any)
-		require.True(t, ok)
-		destinationAmount, ok := to[0]["amount"].(map[string]any)
-		require.True(t, ok)
-		assert.Equal(t, "50", destinationAmount["value"])
-	})
 }
 
 // =============================================================================
@@ -386,13 +349,13 @@ func TestCreateTransactionInput_ToLibTransaction(t *testing.T) {
 func TestSendInput_Validate(t *testing.T) {
 	validSource := &SourceInput{
 		From: []FromToInput{
-			{Account: "source-acc", Amount: AmountInput{Asset: "USD", Value: 100}},
+			{AccountAlias: "source-acc", Amount: AmountInput{Asset: "USD", Value: 100}},
 		},
 	}
 
 	validDistribute := &DistributeInput{
 		To: []FromToInput{
-			{Account: "dest-acc", Amount: AmountInput{Asset: "USD", Value: 100}},
+			{AccountAlias: "dest-acc", Amount: AmountInput{Asset: "USD", Value: 100}},
 		},
 	}
 
@@ -505,7 +468,7 @@ func TestSendInput_Validate(t *testing.T) {
 				Source: validSource,
 				Distribute: &DistributeInput{
 					To: []FromToInput{
-						{Account: "dest-acc", Amount: AmountInput{Asset: "BRL", Value: 100}},
+						{AccountAlias: "dest-acc", Amount: AmountInput{Asset: "BRL", Value: 100}},
 					},
 				},
 			},
@@ -544,12 +507,12 @@ func TestSendInput_ToMap(t *testing.T) {
 			Value: 100,
 			Source: &SourceInput{
 				From: []FromToInput{
-					{Account: "source", Amount: AmountInput{Asset: "USD", Value: 100}},
+					{AccountAlias: "source", Amount: AmountInput{Asset: "USD", Value: 100}},
 				},
 			},
 			Distribute: &DistributeInput{
 				To: []FromToInput{
-					{Account: "dest", Amount: AmountInput{Asset: "USD", Value: 100}},
+					{AccountAlias: "dest", Amount: AmountInput{Asset: "USD", Value: 100}},
 				},
 			},
 		}
@@ -577,7 +540,7 @@ func TestSourceInput_Validate(t *testing.T) {
 			name: "valid source",
 			input: &SourceInput{
 				From: []FromToInput{
-					{Account: "acc-1", Amount: AmountInput{Asset: "USD", Value: 100}},
+					{AccountAlias: "acc-1", Amount: AmountInput{Asset: "USD", Value: 100}},
 				},
 			},
 			wantErr: false,
@@ -586,8 +549,8 @@ func TestSourceInput_Validate(t *testing.T) {
 			name: "multiple from entries",
 			input: &SourceInput{
 				From: []FromToInput{
-					{Account: "acc-1", Amount: AmountInput{Asset: "USD", Value: 50}},
-					{Account: "acc-2", Amount: AmountInput{Asset: "USD", Value: 50}},
+					{AccountAlias: "acc-1", Amount: AmountInput{Asset: "USD", Value: 50}},
+					{AccountAlias: "acc-2", Amount: AmountInput{Asset: "USD", Value: 50}},
 				},
 			},
 			wantErr: false,
@@ -604,11 +567,11 @@ func TestSourceInput_Validate(t *testing.T) {
 			name: "invalid from entry",
 			input: &SourceInput{
 				From: []FromToInput{
-					{Account: "", Amount: AmountInput{Asset: "USD", Value: 100}},
+					{AccountAlias: "", Amount: AmountInput{Asset: "USD", Value: 100}},
 				},
 			},
 			wantErr: true,
-			errMsg:  "account is required",
+			errMsg:  "accountAlias is required",
 		},
 	}
 
@@ -639,7 +602,7 @@ func TestSourceInput_ToMap(t *testing.T) {
 	t.Run("with from entries", func(t *testing.T) {
 		input := &SourceInput{
 			From: []FromToInput{
-				{Account: "acc-1", Amount: AmountInput{Asset: "USD", Value: 100}},
+				{AccountAlias: "acc-1", Amount: AmountInput{Asset: "USD", Value: 100}},
 			},
 		}
 		result := input.ToMap()
@@ -675,7 +638,7 @@ func TestDistributeInput_Validate(t *testing.T) {
 			name: "valid distribute",
 			input: &DistributeInput{
 				To: []FromToInput{
-					{Account: "acc-1", Amount: AmountInput{Asset: "USD", Value: 100}},
+					{AccountAlias: "acc-1", Amount: AmountInput{Asset: "USD", Value: 100}},
 				},
 			},
 			wantErr: false,
@@ -684,8 +647,8 @@ func TestDistributeInput_Validate(t *testing.T) {
 			name: "multiple to entries",
 			input: &DistributeInput{
 				To: []FromToInput{
-					{Account: "acc-1", Amount: AmountInput{Asset: "USD", Value: 50}},
-					{Account: "acc-2", Amount: AmountInput{Asset: "USD", Value: 50}},
+					{AccountAlias: "acc-1", Amount: AmountInput{Asset: "USD", Value: 50}},
+					{AccountAlias: "acc-2", Amount: AmountInput{Asset: "USD", Value: 50}},
 				},
 			},
 			wantErr: false,
@@ -702,11 +665,11 @@ func TestDistributeInput_Validate(t *testing.T) {
 			name: "invalid to entry",
 			input: &DistributeInput{
 				To: []FromToInput{
-					{Account: "", Amount: AmountInput{Asset: "USD", Value: 100}},
+					{AccountAlias: "", Amount: AmountInput{Asset: "USD", Value: 100}},
 				},
 			},
 			wantErr: true,
-			errMsg:  "account is required",
+			errMsg:  "accountAlias is required",
 		},
 	}
 
@@ -737,7 +700,7 @@ func TestDistributeInput_ToMap(t *testing.T) {
 	t.Run("with to entries", func(t *testing.T) {
 		input := &DistributeInput{
 			To: []FromToInput{
-				{Account: "acc-1", Amount: AmountInput{Asset: "USD", Value: 100}},
+				{AccountAlias: "acc-1", Amount: AmountInput{Asset: "USD", Value: 100}},
 			},
 		}
 		result := input.ToMap()
@@ -753,6 +716,9 @@ func TestDistributeInput_ToMap(t *testing.T) {
 // =============================================================================
 
 func TestFromToInput_Validate(t *testing.T) {
+	blankRouteID := " "
+	paddedRouteID := " 11111111-1111-1111-1111-111111111111 "
+
 	tests := []struct {
 		name    string
 		input   *FromToInput
@@ -762,38 +728,71 @@ func TestFromToInput_Validate(t *testing.T) {
 		{
 			name: "valid from/to",
 			input: &FromToInput{
-				Account: "acc-123",
-				Amount:  AmountInput{Asset: "USD", Value: 100},
+				AccountAlias: "acc-123",
+				Amount:       AmountInput{Asset: "USD", Value: 100},
 			},
 			wantErr: false,
 		},
 		{
 			name: "with optional fields",
 			input: &FromToInput{
-				Account:         "acc-123",
+				AccountAlias:    "acc-123",
 				Amount:          AmountInput{Asset: "USD", Value: 100},
 				Route:           "route-1",
 				Description:     "Test description",
 				ChartOfAccounts: "ASSETS",
-				AccountAlias:    "main-account",
 				Metadata:        map[string]any{"key": "value"},
 			},
 			wantErr: false,
 		},
 		{
-			name: "missing account",
+			name: "missing accountAlias",
 			input: &FromToInput{
-				Account: "",
-				Amount:  AmountInput{Asset: "USD", Value: 100},
+				AccountAlias: "",
+				Amount:       AmountInput{Asset: "USD", Value: 100},
 			},
 			wantErr: true,
-			errMsg:  "account is required",
+			errMsg:  "accountAlias is required",
+		},
+		{
+			// The ledger discards anything after "#" and resolves the default
+			// balance, so a balance selector smuggled into the alias would move
+			// money on the wrong balance. Balance selection is BalanceKey's job.
+			name: "accountAlias with balance selector rejected",
+			input: &FromToInput{
+				AccountAlias: "merchant#reserve",
+				Amount:       AmountInput{Asset: "USD", Value: 100},
+			},
+			wantErr: true,
+			errMsg:  `must not contain "#"`,
+		},
+		{
+			// ToMap serializes *RouteID verbatim, so a whitespace-only value
+			// must not slip past the UUID check by trimming to empty.
+			name: "whitespace-only routeId rejected",
+			input: &FromToInput{
+				AccountAlias: "acc-123",
+				Amount:       AmountInput{Asset: "USD", Value: 100},
+				RouteID:      &blankRouteID,
+			},
+			wantErr: true,
+			errMsg:  "routeId must be a valid UUID",
+		},
+		{
+			name: "padded routeId rejected",
+			input: &FromToInput{
+				AccountAlias: "acc-123",
+				Amount:       AmountInput{Asset: "USD", Value: 100},
+				RouteID:      &paddedRouteID,
+			},
+			wantErr: true,
+			errMsg:  "routeId must be a valid UUID",
 		},
 		{
 			name: "invalid amount - missing asset",
 			input: &FromToInput{
-				Account: "acc-123",
-				Amount:  AmountInput{Asset: "", Value: 100},
+				AccountAlias: "acc-123",
+				Amount:       AmountInput{Asset: "", Value: 100},
 			},
 			wantErr: true,
 			errMsg:  "asset is required",
@@ -801,68 +800,68 @@ func TestFromToInput_Validate(t *testing.T) {
 		{
 			name: "invalid amount - missing value",
 			input: &FromToInput{
-				Account: "acc-123",
-				Amount:  AmountInput{Asset: "USD", Value: 0},
+				AccountAlias: "acc-123",
+				Amount:       AmountInput{Asset: "USD", Value: 0},
 			},
 			wantErr: true,
 			errMsg:  "value must be greater than zero",
 		},
 		{
 			name:    "valid share leg (no amount)",
-			input:   &FromToInput{Account: "acc-123", Share: &Share{Percentage: 50}},
+			input:   &FromToInput{AccountAlias: "acc-123", Share: &Share{Percentage: 50}},
 			wantErr: false,
 		},
 		{
 			name:    "share percentage below 1",
-			input:   &FromToInput{Account: "acc-123", Share: &Share{Percentage: 0}},
+			input:   &FromToInput{AccountAlias: "acc-123", Share: &Share{Percentage: 0}},
 			wantErr: true,
 			errMsg:  "share.percentage",
 		},
 		{
 			name:    "share percentage above 100",
-			input:   &FromToInput{Account: "acc-123", Share: &Share{Percentage: 101}},
+			input:   &FromToInput{AccountAlias: "acc-123", Share: &Share{Percentage: 101}},
 			wantErr: true,
 			errMsg:  "share.percentage",
 		},
 		{
 			name:    "share percentage negative",
-			input:   &FromToInput{Account: "acc-123", Share: &Share{Percentage: -1}},
+			input:   &FromToInput{AccountAlias: "acc-123", Share: &Share{Percentage: -1}},
 			wantErr: true,
 			errMsg:  "share.percentage",
 		},
 		{
 			name:    "share percentageOfPercentage negative",
-			input:   &FromToInput{Account: "acc-123", Share: &Share{Percentage: 50, PercentageOfPercentage: -1}},
+			input:   &FromToInput{AccountAlias: "acc-123", Share: &Share{Percentage: 50, PercentageOfPercentage: -1}},
 			wantErr: true,
 			errMsg:  "share.percentageOfPercentage",
 		},
 		{
 			name:    "share percentageOfPercentage above 100",
-			input:   &FromToInput{Account: "acc-123", Share: &Share{Percentage: 50, PercentageOfPercentage: 101}},
+			input:   &FromToInput{AccountAlias: "acc-123", Share: &Share{Percentage: 50, PercentageOfPercentage: 101}},
 			wantErr: true,
 			errMsg:  "share.percentageOfPercentage",
 		},
 		{
 			name:    "no value mechanism",
-			input:   &FromToInput{Account: "acc-123"},
+			input:   &FromToInput{AccountAlias: "acc-123"},
 			wantErr: true,
 			errMsg:  "one of amount, share, remaining, or rate is required",
 		},
 		{
 			name:    "amount combined with share rejected",
-			input:   &FromToInput{Account: "acc-123", Amount: AmountInput{Asset: "USD", Value: 100}, Share: &Share{Percentage: 50}},
+			input:   &FromToInput{AccountAlias: "acc-123", Amount: AmountInput{Asset: "USD", Value: 100}, Share: &Share{Percentage: 50}},
 			wantErr: true,
 			errMsg:  "cannot be combined with share, remaining, or rate",
 		},
 		{
 			name:    "amount combined with remaining rejected",
-			input:   &FromToInput{Account: "acc-123", Amount: AmountInput{Asset: "USD", Value: 100}, Remaining: "remaining"},
+			input:   &FromToInput{AccountAlias: "acc-123", Amount: AmountInput{Asset: "USD", Value: 100}, Remaining: "remaining"},
 			wantErr: true,
 			errMsg:  "cannot be combined with share, remaining, or rate",
 		},
 		{
 			name:    "amount combined with rate rejected",
-			input:   &FromToInput{Account: "acc-123", Amount: AmountInput{Asset: "USD", Value: 100}, Rate: &Rate{From: "USD", To: "BRL", Value: "5.00", ExternalID: "fx-1"}},
+			input:   &FromToInput{AccountAlias: "acc-123", Amount: AmountInput{Asset: "USD", Value: 100}, Rate: &Rate{From: "USD", To: "BRL", Value: "5.00", ExternalID: "fx-1"}},
 			wantErr: true,
 			errMsg:  "cannot be combined with share, remaining, or rate",
 		},
@@ -884,11 +883,101 @@ func TestFromToInput_Validate(t *testing.T) {
 	}
 }
 
+// A transaction leg carries exactly one account identity: AccountAlias. The
+// former Account field was copied into accountAlias by ToMap whenever
+// AccountAlias was empty, so a caller that set Account believing it addressed an
+// account ID had it silently reinterpreted as an alias. Reflection pins the
+// removal: re-adding the field brings the ambiguity back.
+func TestFromToInput_SingleAccountIdentity(t *testing.T) {
+	_, hasAccount := reflect.TypeOf(FromToInput{}).FieldByName("Account")
+	assert.False(t, hasAccount, "FromToInput must expose accountAlias only")
+
+	err := (&FromToInput{Amount: AmountInput{Asset: "USD", Value: 100}}).Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "accountAlias is required")
+}
+
+// route (a server-side alias) and routeId (a UUID) express the same routing
+// decision, and the serializers emit whichever is non-empty — so a payload
+// carrying both leaves the ledger to choose. Every create validator rejects the
+// pair, at the transaction level and on each leg, which makes a valid payload
+// carry at most one of them by construction.
+func TestValidateRejectsRouteAndRouteIDTogether(t *testing.T) {
+	const routeID = "11111111-1111-1111-1111-111111111111"
+
+	t.Run("transaction level", func(t *testing.T) {
+		txBoth := &CreateTransactionInput{Route: "alias-route", RouteID: routeID, Send: newValidSendInput()}
+		err := txBoth.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "transaction-level")
+		assert.Contains(t, err.Error(), "routeId")
+
+		inflowBoth := &CreateInflowInput{
+			Route:   "alias-route",
+			RouteID: routeID,
+			Send: &SendInflowInput{
+				Asset:      "USD",
+				Value:      100,
+				Distribute: &DistributeInput{To: []FromToInput{{AccountAlias: "dest", Amount: AmountInput{Asset: "USD", Value: 100}}}},
+			},
+		}
+		err = inflowBoth.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "transaction-level")
+
+		outflowBoth := &CreateOutflowInput{
+			Route:   "alias-route",
+			RouteID: routeID,
+			Send: &SendOutflowInput{
+				Asset:  "USD",
+				Value:  100,
+				Source: &SourceInput{From: []FromToInput{{AccountAlias: "source", Amount: AmountInput{Asset: "USD", Value: 100}}}},
+			},
+		}
+		err = outflowBoth.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "transaction-level")
+
+		annotationBoth := &CreateAnnotationInput{
+			Description: "annotation",
+			Route:       "alias-route",
+			RouteID:     routeID,
+		}
+		err = annotationBoth.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "transaction-level")
+	})
+
+	t.Run("leg level", func(t *testing.T) {
+		legRouteID := routeID
+		leg := &FromToInput{
+			AccountAlias: "acc-123",
+			Amount:       AmountInput{Asset: "USD", Value: 100},
+			Route:        "alias-route",
+			RouteID:      &legRouteID,
+		}
+
+		err := leg.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "leg accountAlias=acc-123")
+		assert.Contains(t, err.Error(), "routeId")
+	})
+
+	t.Run("one identifier alone is valid", func(t *testing.T) {
+		legRouteID := routeID
+
+		require.NoError(t, (&CreateTransactionInput{RouteID: routeID, Send: newValidSendInput()}).Validate())
+		require.NoError(t, (&CreateTransactionInput{Route: "alias-route", Send: newValidSendInput()}).Validate())
+		require.NoError(t, (&FromToInput{AccountAlias: "acc-123", Amount: AmountInput{Asset: "USD", Value: 100}, RouteID: &legRouteID}).Validate())
+		require.NoError(t, (&FromToInput{AccountAlias: "acc-123", Amount: AmountInput{Asset: "USD", Value: 100}, Route: "alias-route"}).Validate())
+	})
+}
+
 func TestFromToInput_ToMap(t *testing.T) {
 	t.Run("basic input", func(t *testing.T) {
 		input := FromToInput{
-			Account: "acc-123",
-			Amount:  AmountInput{Asset: "USD", Value: 100},
+			AccountAlias: "acc-123",
+			Amount:       AmountInput{Asset: "USD", Value: 100},
 		}
 		result := input.ToMap()
 
@@ -898,9 +987,9 @@ func TestFromToInput_ToMap(t *testing.T) {
 
 	t.Run("with route", func(t *testing.T) {
 		input := FromToInput{
-			Account: "acc-123",
-			Amount:  AmountInput{Asset: "USD", Value: 100},
-			Route:   "main-route",
+			AccountAlias: "acc-123",
+			Amount:       AmountInput{Asset: "USD", Value: 100},
+			Route:        "main-route",
 		}
 		result := input.ToMap()
 
@@ -909,8 +998,8 @@ func TestFromToInput_ToMap(t *testing.T) {
 
 	t.Run("rate leg carries rate key", func(t *testing.T) {
 		input := FromToInput{
-			Account: "acc-123",
-			Rate:    &Rate{From: "USD", To: "BRL", Value: "5.00", ExternalID: "fx-1"},
+			AccountAlias: "acc-123",
+			Rate:         &Rate{From: "USD", To: "BRL", Value: "5.00", ExternalID: "fx-1"},
 		}
 		result := input.ToMap()
 
@@ -920,13 +1009,27 @@ func TestFromToInput_ToMap(t *testing.T) {
 
 	t.Run("remaining leg carries remaining key", func(t *testing.T) {
 		input := FromToInput{
-			Account:   "acc-123",
-			Remaining: "remaining",
+			AccountAlias: "acc-123",
+			Remaining:    "remaining",
 		}
 		result := input.ToMap()
 
 		assert.Equal(t, "remaining", result["remaining"], "a remaining leg must serialize its remaining token")
 		assert.Nil(t, result["amount"], "a remaining leg must not ship an empty amount alongside it")
+	})
+
+	t.Run("padded alias goes out trimmed", func(t *testing.T) {
+		input := FromToInput{
+			AccountAlias: "  @external/USD  ",
+			Amount:       AmountInput{Asset: "USD", Value: 100},
+		}
+
+		require.NoError(t, input.Validate(), "Validate ignores surrounding whitespace, so the wire must too")
+
+		result := input.ToMap()
+
+		assert.Equal(t, "@external/USD", result["accountAlias"],
+			"the ledger resolves the alias by exact equality: padding accepted here is rejected there")
 	})
 }
 
@@ -1136,7 +1239,7 @@ func TestUpdateTransactionInput_WithMethods(t *testing.T) {
 func TestNewCreateInflowInput(t *testing.T) {
 	distribute := &DistributeInput{
 		To: []FromToInput{
-			{Account: "dest-acc", Amount: AmountInput{Asset: "USD", Value: 100}},
+			{AccountAlias: "dest-acc", Amount: AmountInput{Asset: "USD", Value: 100}},
 		},
 	}
 
@@ -1152,7 +1255,7 @@ func TestNewCreateInflowInput(t *testing.T) {
 func TestCreateInflowInput_Validate(t *testing.T) {
 	validDistribute := &DistributeInput{
 		To: []FromToInput{
-			{Account: "dest-acc", Amount: AmountInput{Asset: "USD", Value: 100}},
+			{AccountAlias: "dest-acc", Amount: AmountInput{Asset: "USD", Value: 100}},
 		},
 	}
 
@@ -1262,7 +1365,7 @@ func TestCreateInflowInput_Validate(t *testing.T) {
 func TestCreateInflowInput_WithMethods(t *testing.T) {
 	distribute := &DistributeInput{
 		To: []FromToInput{
-			{Account: "acc", Amount: AmountInput{Asset: "USD", Value: 100}},
+			{AccountAlias: "acc", Amount: AmountInput{Asset: "USD", Value: 100}},
 		},
 	}
 
@@ -1330,7 +1433,7 @@ func TestCreateInflowInput_WithMethods(t *testing.T) {
 func TestNewCreateOutflowInput(t *testing.T) {
 	source := &SourceInput{
 		From: []FromToInput{
-			{Account: "source-acc", Amount: AmountInput{Asset: "USD", Value: 100}},
+			{AccountAlias: "source-acc", Amount: AmountInput{Asset: "USD", Value: 100}},
 		},
 	}
 
@@ -1346,7 +1449,7 @@ func TestNewCreateOutflowInput(t *testing.T) {
 func TestCreateOutflowInput_Validate(t *testing.T) {
 	validSource := &SourceInput{
 		From: []FromToInput{
-			{Account: "source-acc", Amount: AmountInput{Asset: "USD", Value: 100}},
+			{AccountAlias: "source-acc", Amount: AmountInput{Asset: "USD", Value: 100}},
 		},
 	}
 
@@ -1456,7 +1559,7 @@ func TestCreateOutflowInput_Validate(t *testing.T) {
 func TestCreateOutflowInput_WithMethods(t *testing.T) {
 	source := &SourceInput{
 		From: []FromToInput{
-			{Account: "acc", Amount: AmountInput{Asset: "USD", Value: 100}},
+			{AccountAlias: "acc", Amount: AmountInput{Asset: "USD", Value: 100}},
 		},
 	}
 

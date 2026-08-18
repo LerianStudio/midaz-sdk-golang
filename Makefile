@@ -349,6 +349,8 @@ PACKAGES := \
 	$(MODULE) \
 	$(MODULE)/entities \
 	$(MODULE)/models \
+	$(MODULE)/models/correlation \
+	$(MODULE)/models/correlation/correlationtest \
 	$(MODULE)/pkg/auth \
 	$(MODULE)/pkg/config \
 	$(MODULE)/pkg/concurrent \

@@ -19,7 +19,7 @@ Package midaz is the entry point for the Midaz Go SDK.
 
 # Authentication
 
-v3 requires exactly one auth source at construction time:
+v4 requires exactly one auth source at construction time:
   - WithAccessManager — production-shape OAuth via the Lerian Access Manager.
     Recommended for any non-local stack.
   - WithAnonymous — opt out of authentication. Suitable only for a local Midaz
@@ -78,7 +78,7 @@ See examples/ for runnable demos. Start with examples/01-hello-world for the
 minimum-viable shape; examples/03-end-to-end walks the full resource hierarchy.
 
 const EnvironmentLocal = config.EnvironmentLocal ...
-const Version = "3.0.0-beta.1"
+const Version = version.Version
 type AccessManager = auth.AccessManager
 type Account = models.Account
 type AccountType = models.AccountType
@@ -99,7 +99,6 @@ type CreateBalanceInput = models.CreateBalanceInput
 type CreateHolderInput = models.CreateHolderInput
 type CreateLedgerInput = models.CreateLedgerInput
 type CreateMetadataIndexInput = models.CreateMetadataIndexInput
-type CreateOperationInput = models.CreateOperationInput
 type CreateOperationRouteInput = models.CreateOperationRouteInput
 type CreateOrganizationInput = models.CreateOrganizationInput
 type CreatePortfolioInput = models.CreatePortfolioInput

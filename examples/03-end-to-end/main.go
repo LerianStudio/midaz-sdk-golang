@@ -73,12 +73,12 @@ func createDSLTransaction(ctx context.Context, txService transactionCreator) (*m
 			Value: "100",
 			Source: &models.SourceInput{
 				From: []models.FromToInput{
-					{Account: "account123", Amount: models.AmountInput{Asset: "USD", Value: "100"}},
+					{AccountAlias: "account123", Amount: models.AmountInput{Asset: "USD", Value: "100"}},
 				},
 			},
 			Distribute: &models.DistributeInput{
 				To: []models.FromToInput{
-					{Account: "account456", Amount: models.AmountInput{Asset: "USD", Value: "100"}},
+					{AccountAlias: "account456", Amount: models.AmountInput{Asset: "USD", Value: "100"}},
 				},
 			},
 		},

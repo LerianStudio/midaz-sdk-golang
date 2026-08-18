@@ -51,10 +51,10 @@ func sampleTransactionInput() *models.CreateTransactionInput {
 		Asset: "USD",
 		Value: "100",
 		Source: &models.SourceInput{From: []models.FromToInput{
-			{Account: "@src", Amount: models.AmountInput{Asset: "USD", Value: "100"}},
+			{AccountAlias: "@src", Amount: models.AmountInput{Asset: "USD", Value: "100"}},
 		}},
 		Distribute: &models.DistributeInput{To: []models.FromToInput{
-			{Account: "@dst", Amount: models.AmountInput{Asset: "USD", Value: "100"}},
+			{AccountAlias: "@dst", Amount: models.AmountInput{Asset: "USD", Value: "100"}},
 		}},
 	})
 }
@@ -90,7 +90,7 @@ func TestTransactionsFacade_Create(t *testing.T) {
 			call: func(f *transactionsFacade, ctx context.Context) (*models.Transaction, error) {
 				return f.CreateInflow(ctx, txOrgID, txLedgerID, models.NewCreateInflowInput("USD", "100",
 					&models.DistributeInput{To: []models.FromToInput{
-						{Account: "@dst", Amount: models.AmountInput{Asset: "USD", Value: "100"}},
+						{AccountAlias: "@dst", Amount: models.AmountInput{Asset: "USD", Value: "100"}},
 					}}))
 			},
 			hasSend: true,
@@ -102,7 +102,7 @@ func TestTransactionsFacade_Create(t *testing.T) {
 			call: func(f *transactionsFacade, ctx context.Context) (*models.Transaction, error) {
 				return f.CreateOutflow(ctx, txOrgID, txLedgerID, models.NewCreateOutflowInput("USD", "100",
 					&models.SourceInput{From: []models.FromToInput{
-						{Account: "@src", Amount: models.AmountInput{Asset: "USD", Value: "100"}},
+						{AccountAlias: "@src", Amount: models.AmountInput{Asset: "USD", Value: "100"}},
 					}}))
 			},
 			hasSend: true,

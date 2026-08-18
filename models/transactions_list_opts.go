@@ -14,8 +14,9 @@ import (
 // the ListTransactionsAll / ListTransactionsPages iterators.
 //
 // Embeds CursorListOpts for the shared cursor/sort/date-range fields;
-// attaches a TransactionsFilters sub-struct carrying only the filter
-// fields the transactions endpoint actually honors.
+// attaches a TransactionsFilters sub-struct carrying the filter fields the
+// transactions endpoints accept (see TransactionsFilters for which endpoint
+// honors which).
 //
 // TransactionsListOpts is a value type. Concurrent-safe by construction.
 //
@@ -31,34 +32,64 @@ type TransactionsListOpts struct {
 	Filters TransactionsFilters
 }
 
-// TransactionsFilters is the typed filter set for the transactions endpoint.
-// Only fields the endpoint actually honors are exposed (replaces the
-// v2 mega-struct ListOptions with its 30+ fluent setters that mostly
-// no-op'd on this endpoint — audit finding 5.12).
+// TransactionsFilters is the typed filter set for the transactions endpoints. It
+// replaces the v2 mega-struct ListOptions and its 30+ fluent setters that mostly
+// no-op'd here (audit finding 5.12), but the ledger honors different subsets per
+// endpoint, so treat the field docs below as the contract:
+//
+//   - List: the metadata predicate and the inherited date range are the only
+//     narrowing the ledger applies. The vendored contract
+//     (api/ledger.openapi.yaml, getAllTransactions) declares exactly metadata,
+//     start_date, end_date, sort_order and cursor.
+//   - Count: Status and Route, plus the date range (countTransactionsByFilters
+//     declares both filters).
+//
+// The remaining fields are still sent on List under their legacy query-param
+// names, but the pinned ledger contract neither declares nor applies them —
+// narrow client-side, or carry the identifier in metadata, rather than relying on
+// them.
 type TransactionsFilters struct {
 	// AssetCode narrows by asset code (e.g. "USD").
+	//
+	// NOT honored by the pinned ledger on either endpoint: it is sent as
+	// asset_code and ignored.
 	AssetCode string
 
 	// Status narrows by transaction status (e.g. "APPROVED").
 	// Valid values mirror TransactionStatusCode:
 	// CREATED, PENDING, APPROVED, CANCELED, NOTED.
+	//
+	// Honored by Count. Sent on List and ignored there.
 	Status string
 
 	// Reference narrows by external transaction reference.
+	//
+	// NOT honored by the pinned ledger on either endpoint: it is sent as
+	// reference and ignored.
 	Reference string
 
 	// DestinationAccount narrows to transactions targeting a specific account.
+	//
+	// NOT honored by the pinned ledger on either endpoint: it is sent as
+	// destination_account and ignored.
 	DestinationAccount string
 
 	// SourceAccount narrows to transactions originating from a specific account.
+	//
+	// NOT honored by the pinned ledger on either endpoint: it is sent as
+	// source_account and ignored.
 	SourceAccount string
 
 	// Route narrows by transaction route name (e.g. "cashin", "cashout").
-	// Honored on both List and the metrics-count endpoint.
+	//
+	// Honored by Count. Sent on List and ignored there.
 	Route string
 
 	// MetadataKey and MetadataValue filter transactions by a single metadata
 	// field, rendered on the wire as `metadata.<MetadataKey>=<MetadataValue>`.
+	// This is the ONLY content filter the List endpoint honors, which is why
+	// correlation identifiers belong in metadata (see
+	// CreateTransactionInput.Metadata and models/correlation).
 	// The ledger honors ONE metadata predicate per request (it does not
 	// AND-combine multiple metadata keys), so this is a single pair by design.
 	// Both must be set together; MetadataKey must obey the storage-layer key

@@ -1,0 +1,36 @@
+package correlation // import "github.com/LerianStudio/midaz-sdk-golang/v4/models/correlation"
+
+Package correlation is the single source of truth for the correlation metadata
+that transactional plugins attach to Midaz ledger transactions.
+
+The ledger metadata is a closed, versioned whitelist: only the fields
+of Correlation ever reach the ledger, and every emitted payload carries
+ContractVersion. Arbitrary client metadata is never forwarded — a plugin that
+needs an extra field is asking for a contract change (a new version of this
+package), not for a free-form map. That closure is what keeps PII out of the
+ledger by construction instead of by inspection.
+
+Typical use in a plugin producer:
+
+    c := correlation.Correlation{
+        Plugin:      "br-bank-transfer",
+        Rail:        correlation.RailTED,
+        Flow:        correlation.FlowCashOut,
+        AggregateID: transfer.ID,
+        Direction:   correlation.DirectionOut,
+    }
+    if err := c.Validate(); err != nil {
+        return err
+    }
+    input.Metadata = c.ToMetadata()
+
+const ContractVersion = "1"
+func Keys() []string
+type Correlation struct{ ... }
+    func FromMetadata(metadata map[string]any) Correlation
+type Direction string
+    const DirectionIn Direction = "IN" ...
+type Flow string
+    const FlowCashOut Flow = "CASH_OUT" ...
+type Rail string
+    const RailTED Rail = "TED" ...

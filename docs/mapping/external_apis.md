@@ -578,7 +578,7 @@ Each per-entity opts struct exposes:
 - `models.NewUpdatePortfolioInput()`
 - `models.NewCreateSegmentInput(name)`
 - `models.NewUpdateSegmentInput()`
-- `models.NewCreateTransactionInput(assetCode, amount)` - Must include `send.source` and `send.distribute` before sending, either through `WithSend(...)` or legacy operation adaptation. Set `IdempotencyKey` or use `sdkctx.WithIdempotencyKey` for retry-safe unsafe requests.
+- `models.NewCreateTransactionInput(assetCode, amount)` - Must include `send.source` and `send.distribute` before sending, through `WithSend(...)` — the legacy operation-adaptation path was removed in v4.2. Set `IdempotencyKey` or use `sdkctx.WithIdempotencyKey` for retry-safe unsafe requests.
 - `models.NewCreateInflowInput(assetCode, value, distribute)` - Requires a non-empty `distribute.to` payload.
 - `models.NewCreateOutflowInput(assetCode, value, source)` - Requires a non-empty `source.from` payload.
 - `models.NewCreateAnnotationInput(description, send...)` - `send` is optional. Omit it for metadata-only annotation transactions, or pass it for backend deployments that still require a send payload.
@@ -596,6 +596,18 @@ Each per-entity opts struct exposes:
 - `models.NewFeeEstimateInput(packageID, ledgerID, send)` with `WithChartOfAccountsGroupName`, `WithDescription`, `WithCode`, `WithPending`, and `WithMetadata`. Feeds `FeeEstimates.EstimateFee`.
 - `models.NewBillingCalculateInput(ledgerID, period)` with `WithType` (empty calculates all billing types). Feeds `BillingCalculations.CalculateBilling`.
 - `models.NewCreateHolderAccountInput(assetCode, accountType)` with account setters (`WithName`, `WithParentAccountID`, `WithEntityID`, `WithPortfolioID`, `WithSegmentID`, `WithStatus`, `WithAlias`, `WithMetadata`) and instrument setters (`WithBankingDetails`, `WithRegulatoryFields`, `WithRelatedParties`). An instrument is written if and only if any instrument setter is used. Feeds `Composition.CreateHolderAccount`.
+
+## Correlation contract package
+
+Use `github.com/LerianStudio/midaz-sdk-golang/v4/models/correlation` — the versioned, closed contract for the ledger metadata a transactional plugin (Bank Transfer, Pix) attaches to the transactions it creates.
+
+- `correlation.Correlation` - identifiers and classification only: `Plugin`, `Rail`, `Flow`, `AggregateID` (required), plus optional `EndToEndID`, `ProviderMessageID`, `ProviderMessageCode`, `OriginalAggregateID`, `Direction`. Never amounts, names, or documents.
+- Typed enums: `RailTED` / `RailPix` / `RailInternal` (book transfer inside the same institution, no external rail); `FlowCashOut`, `FlowCashIn`, `FlowP2P`, `FlowRefund`, `FlowMED`, `FlowAutomaticDebit`; `DirectionIn` / `DirectionOut`.
+- `(Correlation).Validate()` - required fields present, enums known, and `FlowRefund` requires `OriginalAggregateID`.
+- `(Correlation).ToMetadata()` - the ledger payload: `contractVersion` (`correlation.ContractVersion`, currently `"1"`) plus every non-blank field, trimmed, under camelCase keys. Assign it to `CreateTransactionInput.Metadata`.
+- `correlation.FromMetadata(metadata)` - reads a payload back into a `Correlation`; `correlation.Keys()` - the whitelist, derived from the emitter so no consumer keeps a second copy.
+- Extending the whitelist is a versioned change to this package, never a free-form map: that closure is what keeps counterparty PII out of the ledger.
+- `models/correlation/correlationtest.AssertCanonical(tb, input)` - the shared conformance gate for plugin producer tests: metadata declares the current contract version and rebuilds into a valid `Correlation`, every metadata key (transaction and legs) is inside `correlation.Keys()`, and no level sets both `route` and `routeId`.
 
 ## Errors package
 
