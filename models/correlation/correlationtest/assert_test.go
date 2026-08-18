@@ -194,6 +194,31 @@ func TestViolations(t *testing.T) {
 			wantParts: []string{"aggregateId", "required"},
 		},
 		{
+			// Validate trims before checking presence, so a padded id is a
+			// "valid" correlation. The raw map is what the create request
+			// serializes, and the ledger lookup is exact-match, so padding must
+			// be rejected as non-canonical.
+			name: "padded required value is not canonically serialized",
+			mutate: func(input *models.CreateTransactionInput) {
+				input.Metadata["aggregateId"] = " 7f1c9e2a-0b45-4a1e-9f3d-2c8b5d6e7a10 "
+			},
+			wantParts: []string{"aggregateId", "canonical"},
+		},
+		{
+			name: "present-but-blank optional value is not canonically serialized",
+			mutate: func(input *models.CreateTransactionInput) {
+				input.Metadata["endToEndId"] = ""
+			},
+			wantParts: []string{"endToEndId", "canonical"},
+		},
+		{
+			name: "padded optional value is not canonically serialized",
+			mutate: func(input *models.CreateTransactionInput) {
+				input.Metadata["endToEndId"] = " E2E123 "
+			},
+			wantParts: []string{"endToEndId", "canonical"},
+		},
+		{
 			name: "nil metadata reports the contract version and the first missing field",
 			mutate: func(input *models.CreateTransactionInput) {
 				input.Metadata = nil

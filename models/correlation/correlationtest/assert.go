@@ -17,6 +17,7 @@ package correlationtest
 
 import (
 	"fmt"
+	"reflect"
 	"slices"
 	"testing"
 
@@ -36,10 +37,11 @@ var contractKeys = correlation.Keys()
 // contract: the transaction metadata declares contract version
 // correlation.ContractVersion and rebuilds into a valid correlation.Correlation
 // (required fields present, rail/flow/direction inside their enums, a refund
-// naming the aggregate it returns), no metadata key on the transaction or on any
-// leg falls outside correlation.Keys, and no level of the payload sets both route
-// and routeId. Every whitelist and route violation is reported, so a single run
-// names all of them.
+// naming the aggregate it returns), every contract key holds exactly what
+// correlation.ToMetadata would emit (trimmed values, blank fields omitted), no
+// metadata key on the transaction or on any leg falls outside correlation.Keys,
+// and no level of the payload sets both route and routeId. Every whitelist and
+// route violation is reported, so a single run names all of them.
 func AssertCanonical(tb testing.TB, input *models.CreateTransactionInput) {
 	tb.Helper()
 
@@ -79,6 +81,11 @@ func violations(input *models.CreateTransactionInput) []string {
 // payload is rebuilt into a Correlation and validated by the package that emits
 // it, so this check can never accept metadata the producer's own Validate would
 // have refused — a refund with no original aggregate, or rail "TEF", fails both.
+//
+// Validation alone is not enough: Validate accepts a padded aggregateId, but the
+// create request serializes the raw map, and the ledger lookup is an exact
+// match. So each contract key must also hold exactly what ToMetadata would emit
+// (trimmed values, blank fields omitted entirely).
 func contractViolations(metadata map[string]any) []string {
 	var found []string
 
@@ -94,6 +101,23 @@ func contractViolations(metadata map[string]any) []string {
 
 	if err := correlation.FromMetadata(metadata).Validate(); err != nil {
 		found = append(found, "transaction metadata is not a valid correlation: "+err.Error())
+	}
+
+	canonical := correlation.FromMetadata(metadata).ToMetadata()
+
+	for _, key := range contractKeys {
+		if key == "contractVersion" {
+			// Fully checked above, presence and exact value.
+			continue
+		}
+
+		raw, rawPresent := metadata[key]
+		want, wantPresent := canonical[key]
+
+		if rawPresent && (!wantPresent || !reflect.DeepEqual(raw, want)) {
+			found = append(found, fmt.Sprintf(
+				"transaction metadata key %q holds %#v, not its canonical ToMetadata serialization", key, raw))
+		}
 	}
 
 	return found
