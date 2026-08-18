@@ -89,7 +89,7 @@ type TransactionsFilters struct {
 	// field, rendered on the wire as `metadata.<MetadataKey>=<MetadataValue>`.
 	// This is the ONLY content filter the List endpoint honors, which is why
 	// correlation identifiers belong in metadata (see
-	// CreateTransactionInput.Code).
+	// CreateTransactionInput.Metadata and models/correlation).
 	// The ledger honors ONE metadata predicate per request (it does not
 	// AND-combine multiple metadata keys), so this is a single pair by design.
 	// Both must be set together; MetadataKey must obey the storage-layer key
