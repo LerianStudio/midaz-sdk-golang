@@ -848,13 +848,22 @@ func (input *FromToInput) Validate() error {
 
 	var errs validation.FieldErrors
 
-	if strings.TrimSpace(input.AccountAlias) == "" {
+	// The ledger discards anything after a "#" in the alias and resolves the
+	// account's DEFAULT balance, so "alias#key" would silently move money on the
+	// wrong balance. Balance selection belongs to BalanceKey alone.
+	switch accountAlias := strings.TrimSpace(input.AccountAlias); {
+	case accountAlias == "":
 		errs.Append("accountAlias", "is required")
+	case strings.Contains(accountAlias, "#"):
+		errs.Append("accountAlias", `must not contain "#"; use balanceKey to select a balance`)
 	}
 
 	input.appendValueErrors(&errs)
 
-	if input.RouteID != nil && strings.TrimSpace(*input.RouteID) != "" {
+	// Any non-empty raw value must be a UUID: ToMap serializes *RouteID verbatim,
+	// so a value that only trims to empty (" ") would otherwise skip validation
+	// and still be sent as routeId.
+	if input.RouteID != nil && *input.RouteID != "" {
 		if !validation.IsValidUUID(*input.RouteID) {
 			errs.Append("routeId", "must be a valid UUID")
 		}

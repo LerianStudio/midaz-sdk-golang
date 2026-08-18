@@ -716,6 +716,9 @@ func TestDistributeInput_ToMap(t *testing.T) {
 // =============================================================================
 
 func TestFromToInput_Validate(t *testing.T) {
+	blankRouteID := " "
+	paddedRouteID := " 11111111-1111-1111-1111-111111111111 "
+
 	tests := []struct {
 		name    string
 		input   *FromToInput
@@ -750,6 +753,40 @@ func TestFromToInput_Validate(t *testing.T) {
 			},
 			wantErr: true,
 			errMsg:  "accountAlias is required",
+		},
+		{
+			// The ledger discards anything after "#" and resolves the default
+			// balance, so a balance selector smuggled into the alias would move
+			// money on the wrong balance. Balance selection is BalanceKey's job.
+			name: "accountAlias with balance selector rejected",
+			input: &FromToInput{
+				AccountAlias: "merchant#reserve",
+				Amount:       AmountInput{Asset: "USD", Value: 100},
+			},
+			wantErr: true,
+			errMsg:  `must not contain "#"`,
+		},
+		{
+			// ToMap serializes *RouteID verbatim, so a whitespace-only value
+			// must not slip past the UUID check by trimming to empty.
+			name: "whitespace-only routeId rejected",
+			input: &FromToInput{
+				AccountAlias: "acc-123",
+				Amount:       AmountInput{Asset: "USD", Value: 100},
+				RouteID:      &blankRouteID,
+			},
+			wantErr: true,
+			errMsg:  "routeId must be a valid UUID",
+		},
+		{
+			name: "padded routeId rejected",
+			input: &FromToInput{
+				AccountAlias: "acc-123",
+				Amount:       AmountInput{Asset: "USD", Value: 100},
+				RouteID:      &paddedRouteID,
+			},
+			wantErr: true,
+			errMsg:  "routeId must be a valid UUID",
 		},
 		{
 			name: "invalid amount - missing asset",
