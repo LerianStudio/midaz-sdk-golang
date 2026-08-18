@@ -1069,8 +1069,11 @@ func (input *DistributeInput) ToMap() map[string]any {
 // ToMap converts a FromToInput to a map.
 // This is used internally by the SDK to convert the input to the format expected by the backend.
 func (input FromToInput) ToMap() map[string]any {
+	// Trim the alias on the way out. Validate only trims to decide presence, so a
+	// padded alias passes SDK validation and then fails the ledger's exact-equality
+	// balance lookup — same emitter-side trim the correlation metadata takes.
 	fromTo := map[string]any{
-		"accountAlias": input.AccountAlias,
+		"accountAlias": strings.TrimSpace(input.AccountAlias),
 	}
 
 	if input.BalanceKey != "" {

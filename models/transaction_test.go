@@ -980,6 +980,20 @@ func TestFromToInput_ToMap(t *testing.T) {
 		assert.Equal(t, "remaining", result["remaining"], "a remaining leg must serialize its remaining token")
 		assert.Nil(t, result["amount"], "a remaining leg must not ship an empty amount alongside it")
 	})
+
+	t.Run("padded alias goes out trimmed", func(t *testing.T) {
+		input := FromToInput{
+			AccountAlias: "  @external/USD  ",
+			Amount:       AmountInput{Asset: "USD", Value: 100},
+		}
+
+		require.NoError(t, input.Validate(), "Validate ignores surrounding whitespace, so the wire must too")
+
+		result := input.ToMap()
+
+		assert.Equal(t, "@external/USD", result["accountAlias"],
+			"the ledger resolves the alias by exact equality: padding accepted here is rejected there")
+	})
 }
 
 // =============================================================================
