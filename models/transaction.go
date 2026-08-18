@@ -286,14 +286,16 @@ type CreateTransactionInput struct {
 	// Pending transactions require explicit commitment before affecting account balances
 	Pending bool `json:"pending,omitempty"`
 
-	// Code is a human-readable reference label for display and reporting
-	// (at most 100 characters).
+	// Code is an optional caller-supplied label (at most 100 characters). It is
+	// WRITE-ONLY: the ledger stores it inside the transaction body but the
+	// Transaction response schema has no code field, so nothing reads it back —
+	// not this SDK, not the API. It is also not a query handle (no code filter on
+	// the list endpoint, Get addresses a transaction only by its Midaz UUID) and
+	// the ledger does not enforce uniqueness on it.
 	//
-	// Code is NOT a query handle: TransactionsFilters exposes no code filter
-	// and Get addresses a transaction only by its Midaz UUID. The ledger does
-	// not enforce uniqueness on it either. For searchable correlation back to
-	// a producer's own aggregate, put the identifier in Metadata — that is the
-	// only field the transactions endpoint can filter on.
+	// For a correlation handle that survives and can be searched, put the
+	// identifier in Metadata — that is the only field the transactions endpoint
+	// can filter on (see models/correlation for the canonical shape).
 	Code string `json:"code,omitempty"`
 
 	// Route is the transaction route identifier (optional)

@@ -16,7 +16,10 @@ type CreateInflowInput struct {
 	// Description provides a human-readable explanation
 	Description string `json:"description,omitempty"`
 
-	// Code is a human-readable reference label for display and reporting.
+	// Code is an optional caller-supplied label. It is write-only: the ledger
+	// stores it in the transaction body and never returns it, and it cannot be
+	// filtered on. Use Metadata for searchable correlation (see
+	// CreateTransactionInput.Code).
 	// It is not a query handle — see CreateTransactionInput.Code.
 	Code string `json:"code,omitempty"`
 
@@ -212,7 +215,10 @@ type CreateOutflowInput struct {
 	// Description provides a human-readable explanation
 	Description string `json:"description,omitempty"`
 
-	// Code is a human-readable reference label for display and reporting.
+	// Code is an optional caller-supplied label. It is write-only: the ledger
+	// stores it in the transaction body and never returns it, and it cannot be
+	// filtered on. Use Metadata for searchable correlation (see
+	// CreateTransactionInput.Code).
 	// It is not a query handle — see CreateTransactionInput.Code.
 	Code string `json:"code,omitempty"`
 
