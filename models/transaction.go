@@ -325,25 +325,26 @@ type CreateTransactionInput struct {
 	// (api/ledger.openapi.yaml, createTransactionJSON: X-Idempotency, X-TTL
 	// "default 300" seconds, and the X-Idempotency-Replayed response header):
 	//
-	//   - Retry with the same key inside the TTL, after the first create
-	//     finished — the ledger returns the ORIGINAL transaction and marks the
-	//     response X-Idempotency-Replayed: true. It is a success, not an error.
-	//     This SDK discards that header, so a replay is indistinguishable from a
-	//     fresh create in the returned model; compare the returned ID with the
-	//     one already recorded when the difference matters.
-	//   - Same key, DIFFERENT payload, inside the TTL — also the original
-	//     transaction. The idempotency slot is keyed on the key alone, so the
-	//     second payload is ignored rather than rejected. Never reuse a key
-	//     across different money movements.
+	//   - Retry with the same key AND the same payload inside the TTL, after
+	//     the first create finished: the ledger returns the ORIGINAL
+	//     transaction and marks the response X-Idempotency-Replayed: true. It
+	//     is a success, not an error. This SDK discards that header, so a
+	//     replay is indistinguishable from a fresh create in the returned
+	//     model; compare the returned ID with the one already recorded when the
+	//     difference matters.
+	//   - Same key, DIFFERENT payload, inside the TTL: HTTP 409 (wire code
+	//     0084), surfaced as pkg/errors.IsIdempotencyError. The slot stores the
+	//     hash of the original body and refuses a mismatched reuse. Never reuse
+	//     a key across different money movements.
 	//   - A concurrent request with the same key, while the first is still in
-	//     flight — HTTP 409, surfaced as pkg/errors.IsIdempotencyError
-	//     (code idempotency_error), non-retryable. That is the case that yields
-	//     an idempotency error.
-	//   - After the TTL expires — the key is forgotten and a NEW transaction is
+	//     flight: also HTTP 409, pkg/errors.IsIdempotencyError
+	//     (code idempotency_error), non-retryable.
+	//   - After the TTL expires: the key is forgotten and a NEW transaction is
 	//     created. A key is not a uniqueness constraint over time.
 	//
 	// Never read pkg/errors.IsIdempotencyError as "the original succeeded"; it
-	// says the server refused this request while another one held the slot.
+	// says the server refused this request, either because another one held the
+	// slot or because the payload did not match the original.
 	//
 	// Note: This is sent as a header (X-Idempotency), not in the request body;
 	// the TTL rides X-TTL (sdkctx.WithIdempotencyTTL).

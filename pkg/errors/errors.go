@@ -1631,13 +1631,16 @@ func IsConfigurationError(err error) bool {
 	return errors.Is(err, ErrConfiguration)
 }
 
-// IsIdempotencyError reports whether an error is an idempotency conflict: an
-// earlier request with the same key is still in flight, so the ledger's slot is
-// taken but holds no result yet. It is a 409 conflict and non-retryable — it
-// never means the original request succeeded or was replayed. A key reused with
-// a different payload does NOT land here: the slot is keyed on the key alone, so
-// the ledger replays the original transaction with HTTP 200 and ignores the new
-// payload (see models.CreateTransactionInput.IdempotencyKey).
+// IsIdempotencyError reports whether an error is an idempotency conflict:
+// HTTP 409 with wire code 0084 (idempotency_error), non-retryable. The ledger
+// emits it in two cases: an earlier request with the same key is still in
+// flight (the slot is taken but holds no result yet), or a finished request's
+// key is reused with a DIFFERENT payload (the slot stores the original body's
+// hash and refuses the mismatch). It never means the original request
+// succeeded or was replayed: only an identical retry, same key AND same
+// payload, replays the original transaction as a success marked
+// X-Idempotency-Replayed: true (see
+// models.CreateTransactionInput.IdempotencyKey).
 func IsIdempotencyError(err error) bool {
 	if isNilError(err) {
 		return false
