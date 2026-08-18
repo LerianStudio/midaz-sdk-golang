@@ -801,9 +801,13 @@ func buildAccountTransactions(state *workflowState, accounts []*models.Account, 
 			continue
 		}
 
+		// Transaction legs address accounts by ALIAS only: the ledger's balance
+		// lookup matches the alias column exactly, so an account ID is a failed
+		// lookup, not a fallback identity. Skip and report alias-less accounts.
 		alias := models.GetAccountAlias(*account)
 		if alias == "" {
-			alias = account.ID
+			log.Printf("skipping account %s: it has no alias, and transaction legs address accounts by alias", account.ID)
+			continue
 		}
 
 		for i := 0; i < perAccount; i++ {
