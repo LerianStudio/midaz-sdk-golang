@@ -35,6 +35,9 @@ jobs:
         tests
       go_version: "1.26.3"
       go_private_modules: "github.com/LerianStudio/*"
+      enable_custom_checks: true
+      custom_checks: |
+        verify-sdk
       shared_paths: |
         go.mod
         go.sum

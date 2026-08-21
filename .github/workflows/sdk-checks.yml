@@ -1,8 +1,6 @@
 name: SDK Checks
 
 on:
-  pull_request:
-    branches: [develop, main]
   push:
     branches: [main]
   schedule:
@@ -15,23 +13,6 @@ env:
   GO_VERSION: "1.26.3"
 
 jobs:
-  verify-sdk:
-    name: Verify SDK
-    runs-on: blacksmith-4vcpu-ubuntu-2404
-    if: github.event_name == 'pull_request'
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-
-      - name: Set up Go
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          cache: true
-
-      - name: Verify SDK
-        run: make verify-sdk
-
   docs:
     name: Generate Docs
     runs-on: blacksmith-4vcpu-ubuntu-2404
