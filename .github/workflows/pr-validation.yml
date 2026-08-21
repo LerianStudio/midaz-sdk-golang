@@ -29,6 +29,7 @@ jobs:
         models
         pkg
         scripts
+        config
         ci
         deps
         tests

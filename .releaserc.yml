@@ -7,7 +7,22 @@ plugins:
 
   - path: "@semantic-release/github"
 
+  # Bump the in-source SDK version before the release commit. This is a library
+  # (goreleaser builds no binary), so `go get` compiles the tagged source tree —
+  # the version consumers see is whatever pkg/version/version.go holds at the
+  # tag. prepareCmd runs before @semantic-release/git so the rewrite lands in
+  # the release commit.
   - path: "@semantic-release/exec"
+    prepareCmd: |-
+      sed -i -E 's/Version = "[^"]*"/Version = "${nextRelease.version}"/' pkg/version/version.go
+
+  # Commits the bumped SDK version constant. CHANGELOG.md is intentionally not
+  # an asset here — that file is generated separately by the AI-powered
+  # gptchangelog job in release.yml, not by this npm plugin.
+  - path: "@semantic-release/git"
+    assets:
+      - pkg/version/version.go
+    message: "chore(release): ${nextRelease.version} [skip ci]"
 
 branches:
   - name: main
