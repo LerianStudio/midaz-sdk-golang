@@ -1,0 +1,74 @@
+# Pull Request Labeler configuration
+#
+# Labels are aligned with the pr_title_scopes in pr-validation.yml.
+
+# OpenAPI/vocabulary contract tracked against midaz upstream
+contract:
+  - changed-files:
+      - any-glob-to-any-file: 'contract/**/*'
+
+# Entity types exposed by the SDK
+entities:
+  - changed-files:
+      - any-glob-to-any-file: 'entities/**/*'
+
+# Domain/response models
+models:
+  - changed-files:
+      - any-glob-to-any-file: 'models/**/*'
+
+# Internal (non-exported) implementation
+internal:
+  - changed-files:
+      - any-glob-to-any-file: 'internal/**/*'
+
+# Reusable public packages
+pkg:
+  - changed-files:
+      - any-glob-to-any-file: 'pkg/**/*'
+
+# Example programs and demo data
+examples:
+  - changed-files:
+      - any-glob-to-any-file: 'examples/**/*'
+
+# Build and tooling scripts
+scripts:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'scripts/**/*'
+          - 'Makefile'
+
+# Application and tooling configuration
+config:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.golangci.yml'
+          - '.goreleaser.yml'
+          - '.releaserc.yml'
+          - '.releaserc.hotfix.yml'
+
+# Continuous integration pipelines and shared workflows
+ci:
+  - changed-files:
+      - any-glob-to-any-file: '.github/workflows/**/*'
+
+# Markdown docs and generated godoc
+docs:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/*.md'
+          - 'docs/**/*'
+
+# Unit, integration and contract tests
+tests:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/*_test.go'
+
+# Go module dependencies
+deps:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'go.mod'
+          - 'go.sum'
