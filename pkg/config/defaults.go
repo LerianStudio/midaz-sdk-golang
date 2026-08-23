@@ -4,7 +4,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/version"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/version"
 )
 
 // DefaultConfig creates a new Config with default values.

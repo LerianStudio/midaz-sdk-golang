@@ -7,7 +7,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/validation"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/validation"
 )
 
 // FeeEstimateInput is the dry-run fee-estimate request. It mirrors the server

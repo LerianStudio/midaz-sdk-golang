@@ -8,7 +8,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/validation"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/validation"
 )
 
 // BillingCalculateInput is the billing-calculation request. It mirrors the server

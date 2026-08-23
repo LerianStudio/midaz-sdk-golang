@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
 )
 
 func nilContext() context.Context {

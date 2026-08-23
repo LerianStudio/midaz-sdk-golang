@@ -7,8 +7,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/validation"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/validation/core"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/validation"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/validation/core"
 )
 
 const maxOrganizationFieldLength = 256
@@ -34,7 +34,7 @@ type Organization struct {
 //   - [CreateOrganizationInput.Validate] — multi-field validation accumulator.
 //   - [UpdateOrganizationInput] — partial-update shape.
 //   - Create it via the client's Organizations accessor: c.Organizations.Create.
-//   - [github.com/LerianStudio/midaz-sdk-golang/v4/pkg/sdkctx.WithIdempotencyKey] — make creation safe under retries.
+//   - [github.com/LerianStudio/midaz-sdk-golang/v5/pkg/sdkctx.WithIdempotencyKey] — make creation safe under retries.
 type CreateOrganizationInput struct {
 	LegalName            string         `json:"legalName" example:"Lerian Financial Services Ltd." maxLength:"256"`
 	ParentOrganizationID *string        `json:"parentOrganizationId" format:"uuid"`

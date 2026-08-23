@@ -1,4 +1,4 @@
-package correlationtest // import "github.com/LerianStudio/midaz-sdk-golang/v4/models/correlation/correlationtest"
+package correlationtest // import "github.com/LerianStudio/midaz-sdk-golang/v5/models/correlation/correlationtest"
 
 Package correlationtest provides the shared conformance check that every
 transactional plugin runs against the transaction inputs it produces,

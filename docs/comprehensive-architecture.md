@@ -2,7 +2,7 @@
 
 This document explains how the current Midaz Go SDK is organized, how requests move through the SDK, and which extension points are available. It focuses on the implemented codebase, not planned architecture.
 
-The SDK is an idiomatic Go client for Midaz Ledger and CRM APIs. The root module is `github.com/LerianStudio/midaz-sdk-golang/v4`, and the root package name is `midaz` in `midaz.go`.
+The SDK is an idiomatic Go client for Midaz Ledger and CRM APIs. The root module is `github.com/LerianStudio/midaz-sdk-golang/v5`, and the root package name is `midaz` in `midaz.go`.
 
 ## Architecture at a glance
 
@@ -369,7 +369,7 @@ The SDK supports client-credentials token fetching through `midaz.WithAccessMana
 
 ```go
 import (
-    "github.com/LerianStudio/midaz-sdk-golang/v4"
+    "github.com/LerianStudio/midaz-sdk-golang/v5"
 )
 
 c, err := midaz.New(
@@ -425,7 +425,7 @@ Important boundaries:
 
 ## Errors
 
-Most SDK operational errors use `*errors.Error` from `github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors`.
+Most SDK operational errors use `*errors.Error` from `github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors`.
 
 The actual error shape is:
 
@@ -467,7 +467,7 @@ type Error struct {
 Use the helper checkers for common branches:
 
 ```go
-import sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
+import sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
 
 account, err := c.Accounts.Get(ctx, orgID, ledgerID, accountID)
 if err != nil {
@@ -531,7 +531,7 @@ Default retryable network error text includes:
 Configure retries at the client level via `pkg/retry` options:
 
 ```go
-import "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/retry"
+import "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/retry"
 
 c, err := midaz.New(
     midaz.WithAnonymous(),

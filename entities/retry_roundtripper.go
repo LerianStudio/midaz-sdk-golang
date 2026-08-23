@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/retry"
 )
 
 // retryRoundTripper is the OUTERMOST transport layer on the two generated plane

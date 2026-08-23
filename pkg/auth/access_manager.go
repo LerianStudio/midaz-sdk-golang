@@ -17,8 +17,8 @@ import (
 	"sync"
 	"time"
 
-	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/security"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/security"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -205,10 +205,10 @@ var (
 
 // AccessManager represents the configuration for plugin-based authentication.
 //
-// Construct one and pass it via [github.com/LerianStudio/midaz-sdk-golang/v4.WithAccessManager]
-// (or [github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config.WithAccessManager]
+// Construct one and pass it via [github.com/LerianStudio/midaz-sdk-golang/v5.WithAccessManager]
+// (or [github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config.WithAccessManager]
 // when building a *config.Config directly). The midaz package re-exports this
-// type as [github.com/LerianStudio/midaz-sdk-golang/v4.AccessManager] so a
+// type as [github.com/LerianStudio/midaz-sdk-golang/v5.AccessManager] so a
 // typical setup needs only one import.
 //
 // The Enabled field is auto-populated by WithAccessManager — callers do not

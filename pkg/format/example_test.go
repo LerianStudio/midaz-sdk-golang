@@ -3,8 +3,8 @@ package format_test
 import (
 	"fmt"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/format"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/format"
 )
 
 // ExampleAmount converts an integer amount in minor units to its decimal string

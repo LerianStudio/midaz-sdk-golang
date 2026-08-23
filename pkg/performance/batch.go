@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	pkgerrors "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/security"
+	pkgerrors "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/security"
 )
 
 // BatchRequest represents a single request in a batch.
@@ -240,8 +240,8 @@ type BatchProcessorOption func(*BatchProcessor) error
 // WithBatchHTTPClient sets the HTTP client for the batch processor.
 //
 // In v2/early-v3 this was named WithHTTPClient, which collided in
-// autocomplete with [github.com/LerianStudio/midaz-sdk-golang/v4.WithHTTPClient]
-// and [github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config.WithHTTPClient]
+// autocomplete with [github.com/LerianStudio/midaz-sdk-golang/v5.WithHTTPClient]
+// and [github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config.WithHTTPClient]
 // despite returning a different Option type ([BatchProcessorOption], not
 // [Option]). Track 6 Batch 6E renamed it to break the collision.
 func WithBatchHTTPClient(client *http.Client) BatchProcessorOption {

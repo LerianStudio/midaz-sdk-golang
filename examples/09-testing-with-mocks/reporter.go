@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"iter"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
 )
 
 // accountSource is the narrow slice of the Accounts facade this reporter

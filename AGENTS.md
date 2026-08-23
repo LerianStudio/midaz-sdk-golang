@@ -2,7 +2,7 @@
 
 ## Project structure and module organization
 
-- `midaz.go` - Root SDK entry point (`github.com/LerianStudio/midaz-sdk-golang/v4`, package name `midaz`). Defines `Client`, `New`, and the user-facing `With*` options.
+- `midaz.go` - Root SDK entry point (`github.com/LerianStudio/midaz-sdk-golang/v5`, package name `midaz`). Defines `Client`, `New`, and the user-facing `With*` options.
 - `types.go` - Re-exports of the most commonly used `models.*` types (Account, Ledger, Transaction, etc.) and the `Environment` constants under the `midaz` package.
 - `entities/` - Entity service interfaces, HTTP transport, request helpers, and service accessors.
 - `models/` - Public API types, request builders, response wrappers, pagination options, and Midaz model aliases.

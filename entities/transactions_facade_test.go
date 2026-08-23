@@ -16,10 +16,10 @@ import (
 	"sync/atomic"
 	"testing"
 
-	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/sdkctx"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/sdkctx"
 )
 
 // Real UUIDs: the /json and /inflow etc. responses decode into
