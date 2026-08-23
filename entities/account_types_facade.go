@@ -11,9 +11,9 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/internal/genledger"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/internal/genledger"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
 )
 
 // accountTypesFacade is the Phase 2 (Task 2.1.b) hand-written facade over the

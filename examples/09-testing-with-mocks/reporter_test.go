@@ -6,7 +6,7 @@ import (
 	"iter"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
 )
 
 // mockAccountSource is a hand-written test double for the consumer-defined

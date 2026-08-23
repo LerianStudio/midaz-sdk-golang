@@ -12,8 +12,8 @@ The SDK does **not** load `.env` files automatically. If you keep configuration 
 import (
     "github.com/joho/godotenv"
 
-    midaz "github.com/LerianStudio/midaz-sdk-golang/v4"
-    "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config"
+    midaz "github.com/LerianStudio/midaz-sdk-golang/v5"
+    "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config"
 )
 
 func newClient() (*midaz.Client, error) {
@@ -180,7 +180,7 @@ The SDK sends only the public `X-Idempotency` header; it does not emit internal 
 You can also provide an explicit key through context:
 
 ```go
-import "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/sdkctx"
+import "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/sdkctx"
 
 ctx := sdkctx.WithIdempotencyKey(context.Background(), "transaction-2026-04-27-001")
 ```

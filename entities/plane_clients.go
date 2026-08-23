@@ -6,11 +6,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/internal/genledger"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/internal/gentracer"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/auth"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/retry"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/security"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/internal/genledger"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/internal/gentracer"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/auth"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/retry"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/security"
 )
 
 // PlaneClients holds the two generated, typed plane clients that back the

@@ -1,6 +1,6 @@
 # Midaz Go SDK public API map
 
-This map documents the recommended public SDK surface that consumers should use. It is not a replacement for generated Go docs. The root module is `github.com/LerianStudio/midaz-sdk-golang/v4`; the Go package name is `midaz`.
+This map documents the recommended public SDK surface that consumers should use. It is not a replacement for generated Go docs. The root module is `github.com/LerianStudio/midaz-sdk-golang/v5`; the Go package name is `midaz`.
 
 ## Root package
 
@@ -50,7 +50,7 @@ This map documents the recommended public SDK surface that consumers should use.
 
 ## Validation package
 
-Use `github.com/LerianStudio/midaz-sdk-golang/v4/pkg/validation` for optional client-side validation helpers.
+Use `github.com/LerianStudio/midaz-sdk-golang/v5/pkg/validation` for optional client-side validation helpers.
 
 - `validation.NewValidator(options ...core.ValidationOption) (*validation.Validator, error)`
 - `validation.DefaultValidator() *validation.Validator`
@@ -65,7 +65,7 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v4/pkg/validation` for optional cl
 
 ## Configuration package
 
-Use `github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config`.
+Use `github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config`.
 
 ### Constructors and options
 
@@ -110,7 +110,7 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config`.
 
 ## Access Manager package
 
-Use `github.com/LerianStudio/midaz-sdk-golang/v4/pkg/auth` (no alias needed; package name is `auth`).
+Use `github.com/LerianStudio/midaz-sdk-golang/v5/pkg/auth` (no alias needed; package name is `auth`).
 
 - `auth.AccessManager` - Plugin authentication configuration with `Enabled`, `Address`, `ClientID`, `ClientSecret`, and `AllowInsecureHTTP`. Re-exported as `midaz.AccessManager` so a typical setup needs only the root import.
 - `config.WithAccessManager(auth.AccessManager)` / `midaz.WithAccessManager(midaz.AccessManager)` - Configure plugin auth. The Enabled field is auto-set to true; callers populate Address/ClientID/ClientSecret only.
@@ -120,7 +120,7 @@ v3 contract: `midaz.New()` requires exactly one of `WithAccessManager` or `WithA
 
 ## Entity package
 
-Use `github.com/LerianStudio/midaz-sdk-golang/v4/entities`. Consumers should prefer promoted client services such as `c.Accounts`, `c.Transactions`, and `c.Organizations`; `c.Entity.Accounts` remains available as the embedded back-compat access path.
+Use `github.com/LerianStudio/midaz-sdk-golang/v5/entities`. Consumers should prefer promoted client services such as `c.Accounts`, `c.Transactions`, and `c.Organizations`; `c.Entity.Accounts` remains available as the embedded back-compat access path.
 
 ### Entity access point
 
@@ -504,13 +504,13 @@ Ledger plane, organization-scoped. Period billing calculation; a 2xx with empty 
 
 ## Transaction helpers package
 
-Use `github.com/LerianStudio/midaz-sdk-golang/v4/pkg/transaction` for post-create settlement waits.
+Use `github.com/LerianStudio/midaz-sdk-golang/v5/pkg/transaction` for post-create settlement waits.
 
 - `transaction.WaitForSettlement(ctx, r, orgID, ledgerID, accountID, settled, opts...)` - Polls an account's balances via `r.ListAccountBalances` (satisfied structurally by `client.Balances`) until the caller-supplied `settled func(models.Balance) bool` predicate matches, then returns that `Balance`. An accepted transaction (HTTP 201) is NOT settled — 201 records the create; this waits on the balance effect. The predicate must pin the asset on a multi-asset account. Options: `transaction.WithPollInterval` (default 500ms), `transaction.WithMaxInterval` (default 5s), `transaction.WithTimeout` (default 30s). Returns `transaction.ErrSettlementTimeout` on deadline, or the caller's `ctx.Err()` on cancellation.
 
 ## Models package
 
-Use `github.com/LerianStudio/midaz-sdk-golang/v4/models`.
+Use `github.com/LerianStudio/midaz-sdk-golang/v5/models`.
 
 ### List and pagination
 
@@ -599,7 +599,7 @@ Each per-entity opts struct exposes:
 
 ## Correlation contract package
 
-Use `github.com/LerianStudio/midaz-sdk-golang/v4/models/correlation` — the versioned, closed contract for the ledger metadata a transactional plugin (Bank Transfer, Pix) attaches to the transactions it creates.
+Use `github.com/LerianStudio/midaz-sdk-golang/v5/models/correlation` — the versioned, closed contract for the ledger metadata a transactional plugin (Bank Transfer, Pix) attaches to the transactions it creates.
 
 - `correlation.Correlation` - identifiers and classification only: `Plugin`, `Rail`, `Flow`, `AggregateID` (required), plus optional `EndToEndID`, `ProviderMessageID`, `ProviderMessageCode`, `OriginalAggregateID`, `Direction`. Never amounts, names, or documents.
 - Typed enums: `RailTED` / `RailPix` / `RailInternal` (book transfer inside the same institution, no external rail); `FlowCashOut`, `FlowCashIn`, `FlowP2P`, `FlowRefund`, `FlowMED`, `FlowAutomaticDebit`; `DirectionIn` / `DirectionOut`.
@@ -611,7 +611,7 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v4/models/correlation` — the ver
 
 ## Errors package
 
-Use `github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors`.
+Use `github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors`.
 
 - Core type: `*errors.Error`.
 - Sentinel errors: `ErrValidation`, `ErrAuthentication`, `ErrPermission`, `ErrAuth`, `ErrNotFound`, `ErrAlreadyExists`, `ErrIdempotency`, `ErrRateLimit`, `ErrTimeout`, `ErrCancellation`, `ErrInternal`, `ErrUnprocessable`, `ErrConfiguration`, `ErrInsufficientBalance`, `ErrAccountEligibility`, `ErrAssetMismatch`.
@@ -623,7 +623,7 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors`.
 
 ## Observability package
 
-Use `github.com/LerianStudio/midaz-sdk-golang/v4/pkg/observability`.
+Use `github.com/LerianStudio/midaz-sdk-golang/v5/pkg/observability`.
 
 - `observability.New(ctx, opts...)`
 - `observability.WithServiceName(string)`
@@ -649,7 +649,7 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v4/pkg/observability`.
 
 ## Retry package
 
-Use `github.com/LerianStudio/midaz-sdk-golang/v4/pkg/retry`.
+Use `github.com/LerianStudio/midaz-sdk-golang/v5/pkg/retry`.
 
 - `retry.Do(ctx, fn, opts...)`
 - `retry.DoWithContext(ctx, fn)`
@@ -665,7 +665,7 @@ Use `github.com/LerianStudio/midaz-sdk-golang/v4/pkg/retry`.
 
 ## Generator package
 
-Use `github.com/LerianStudio/midaz-sdk-golang/v4/pkg/generator` for demo-data workflows and example tooling.
+Use `github.com/LerianStudio/midaz-sdk-golang/v5/pkg/generator` for demo-data workflows and example tooling.
 
 - `generator.DefaultConfig() generator.GeneratorConfig`
 - `(*generator.GeneratorConfig).WithOverrides(generator.GeneratorConfig)` - Additive merge helper. Numeric zero values and empty slices do not override; boolean fields are additive and cannot disable an already-enabled value.

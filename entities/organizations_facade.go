@@ -12,9 +12,9 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/internal/genledger"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/internal/genledger"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
 )
 
 // organizationsFacade is the Phase 1 exemplar (Task 1.P1): a hand-written

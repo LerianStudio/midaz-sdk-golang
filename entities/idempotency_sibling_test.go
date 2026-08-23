@@ -7,7 +7,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/sdkctx"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/sdkctx"
 )
 
 // TestTracerTransitionsRideCtxKey proves FW1: lifecycle transitions

@@ -1,7 +1,7 @@
 # Plan: expose transaction metadata filtering on `ListTransactions`
 
 **Status:** Draft for review
-**Repo:** `github.com/LerianStudio/midaz-sdk-golang/v4` (branch develop)
+**Repo:** `github.com/LerianStudio/midaz-sdk-golang/v5` (branch develop)
 **Scope:** `models/transactions_list_opts.go`, `entities/transactions.go` (wiring only), validation, tests, docs. **No new SDK method; no server change.**
 
 ---

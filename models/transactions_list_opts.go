@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/validation/core"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/validation/core"
 )
 
 // TransactionsListOpts is the typed options struct for ListTransactions and

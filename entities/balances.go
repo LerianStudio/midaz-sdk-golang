@@ -13,8 +13,8 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
 )
 
 // BalancesService defines the interface for balance-related operations.
@@ -22,8 +22,8 @@ import (
 // for both ledgers and specific accounts.
 //
 // See also:
-//   - [github.com/LerianStudio/midaz-sdk-golang/v4.Client.Balances] — the production wiring.
-//   - [github.com/LerianStudio/midaz-sdk-golang/v4/entities/mocks.NewMockBalancesService] — generated mock for unit tests.
+//   - [github.com/LerianStudio/midaz-sdk-golang/v5.Client.Balances] — the production wiring.
+//   - [github.com/LerianStudio/midaz-sdk-golang/v5/entities/mocks.NewMockBalancesService] — generated mock for unit tests.
 //   - examples/concurrency/balance-fetch — concurrent balance fetching pattern.
 type BalancesService interface {
 	// ListBalances retrieves one page of balances for a specified ledger.

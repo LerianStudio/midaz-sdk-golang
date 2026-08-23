@@ -3,8 +3,8 @@ package midaz_test
 import (
 	"fmt"
 
-	midaz "github.com/LerianStudio/midaz-sdk-golang/v4"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config"
+	midaz "github.com/LerianStudio/midaz-sdk-golang/v5"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config"
 )
 
 // ExampleNew demonstrates the simplest valid v4 client construction:

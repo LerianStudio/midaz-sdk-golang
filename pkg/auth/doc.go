@@ -15,7 +15,7 @@
 //
 // # Quickstart
 //
-//	import "github.com/LerianStudio/midaz-sdk-golang/v4"
+//	import "github.com/LerianStudio/midaz-sdk-golang/v5"
 //
 //	c, err := midaz.New(
 //	    midaz.WithEnvironment(midaz.EnvironmentProduction),
@@ -29,15 +29,15 @@
 // # When to use this package directly
 //
 // Almost never. The root midaz package re-exports [AccessManager]
-// and the [github.com/LerianStudio/midaz-sdk-golang/v4.WithAccessManager]
+// and the [github.com/LerianStudio/midaz-sdk-golang/v5.WithAccessManager]
 // option. Reach into pkg/auth only when you need to manipulate the
 // auth surface in tests or build a custom transport that wraps the
 // SDK's HTTP client.
 //
 // # See also
 //
-//   - [github.com/LerianStudio/midaz-sdk-golang/v4.WithAccessManager]
-//   - [github.com/LerianStudio/midaz-sdk-golang/v4.WithAnonymous]
+//   - [github.com/LerianStudio/midaz-sdk-golang/v5.WithAccessManager]
+//   - [github.com/LerianStudio/midaz-sdk-golang/v5.WithAnonymous]
 //   - docs/auth.md — authentication setup and migration walkthrough
 //   - examples/02-auth — runnable Access Manager demo
 package auth

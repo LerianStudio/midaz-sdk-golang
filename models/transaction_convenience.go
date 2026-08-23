@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/validation"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/validation"
 )
 
 // CreateInflowInput represents input for creating an inflow transaction.

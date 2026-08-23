@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	client "github.com/LerianStudio/midaz-sdk-golang/v4"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/config"
+	client "github.com/LerianStudio/midaz-sdk-golang/v5"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/config"
 )
 
 // Example_accountsListAll demonstrates the canonical v4 pattern for

@@ -4,7 +4,7 @@
 package models
 
 import (
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/validation"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/validation"
 )
 
 // AuditEvent is a single protection audit event as surfaced by the ledger

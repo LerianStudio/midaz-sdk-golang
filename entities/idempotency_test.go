@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/sdkctx"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/sdkctx"
 )
 
 func TestResolveIdempotency_KeyPrecedence(t *testing.T) {

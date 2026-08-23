@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
-	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/retry"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/retry"
 )
 
 // retryEnabledOptions is the retry-enabled variant used ONLY by the composition

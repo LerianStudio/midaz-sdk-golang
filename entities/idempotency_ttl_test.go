@@ -10,8 +10,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/pkg/sdkctx"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/pkg/sdkctx"
 )
 
 // idemTTLCaptureServer records both X-Idempotency and X-TTL of the request.

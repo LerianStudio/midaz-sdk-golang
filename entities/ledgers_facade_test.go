@@ -13,9 +13,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/LerianStudio/midaz-sdk-golang/v4/internal/genledger"
-	"github.com/LerianStudio/midaz-sdk-golang/v4/models"
-	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v4/pkg/errors"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/internal/genledger"
+	"github.com/LerianStudio/midaz-sdk-golang/v5/models"
+	sdkerrors "github.com/LerianStudio/midaz-sdk-golang/v5/pkg/errors"
 )
 
 const ledgersOrgID = "11111111-1111-1111-1111-111111111111"
