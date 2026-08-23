@@ -160,6 +160,16 @@ const (
 	// CategoryInternal represents internal SDK or server errors
 	CategoryInternal ErrorCategory = "internal"
 
+	// CategoryResponseDecode represents a response whose body the SDK could
+	// not decode. It is deliberately NOT [CategoryInternal], and the reason is
+	// money: [IsInternalError] is documented as an upstream blip where the
+	// request did not take effect, so a caller reading it that way replays the
+	// operation. A response-decode failure proves the opposite -- the request
+	// was sent AND the server answered -- so the outcome is UNKNOWN and a
+	// replay may post the same transaction twice. Recognise it with
+	// [IsResponseDecodeError].
+	CategoryResponseDecode ErrorCategory = "response_decode"
+
 	// CategoryUnprocessable represents unprocessable operations
 	CategoryUnprocessable ErrorCategory = "unprocessable"
 
@@ -1337,7 +1347,7 @@ func NewResponseDecodeError(operation string, status int, err error) *Error {
 	}
 
 	return withDiagnostics(&Error{
-		Category:  CategoryInternal,
+		Category:  CategoryResponseDecode,
 		Code:      CodeResponseDecode,
 		Message:   redactMessage(message),
 		Operation: redactSensitive(operation),
@@ -1933,6 +1943,10 @@ func categorizeByErrorChecks(err error) ErrorCategory {
 		{IsCancellationError, CategoryCancellation},
 		{IsTimeoutError, CategoryTimeout},
 		{IsNetworkError, CategoryNetwork},
+		// Before IsInternalError: a decode failure is no longer Internal, and
+		// without this it would fall through to the CategoryInternal default
+		// and be re-labelled as the very thing it is not.
+		{IsResponseDecodeError, CategoryResponseDecode},
 		{IsInternalError, CategoryInternal},
 	}
 
