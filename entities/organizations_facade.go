@@ -297,7 +297,11 @@ func decodeOne[T any](operation string, status int, body []byte, httpResp *http.
 
 	var out T
 	if err := json.Unmarshal(body, &out); err != nil {
-		return nil, errors.NewInternalError(operation, err)
+		// The server answered and we could not read it. That is NOT an internal
+		// error: on the write path the operation may already have taken effect,
+		// so the error must carry "request sent, response received" instead of
+		// the opposite. See errors.NewResponseDecodeError.
+		return nil, errors.NewResponseDecodeError(operation, status, err)
 	}
 
 	return &out, nil

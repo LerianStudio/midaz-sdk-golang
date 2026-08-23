@@ -60,6 +60,16 @@ const (
 	// CodeInternal indicates an internal server error
 	CodeInternal ErrorCode = "internal_error"
 
+	// CodeResponseDecode indicates the SDK received a successful HTTP response
+	// whose body it could not decode. It is deliberately distinct from
+	// [CodeInternal]: the two carry opposite money-path facts. An internal
+	// error covers failures BEFORE the request leaves the SDK (nothing
+	// happened upstream); a response-decode error proves the request was sent
+	// AND the server answered — so the operation may already have taken
+	// effect, and replaying it is unsafe. Recognise it with
+	// [IsResponseDecodeError].
+	CodeResponseDecode ErrorCode = "response_decode_error"
+
 	// CodeNetwork indicates a network-related error
 	CodeNetwork ErrorCode = "network_error"
 
@@ -149,6 +159,16 @@ const (
 
 	// CategoryInternal represents internal SDK or server errors
 	CategoryInternal ErrorCategory = "internal"
+
+	// CategoryResponseDecode represents a response whose body the SDK could
+	// not decode. It is deliberately NOT [CategoryInternal], and the reason is
+	// money: [IsInternalError] is documented as an upstream blip where the
+	// request did not take effect, so a caller reading it that way replays the
+	// operation. A response-decode failure proves the opposite -- the request
+	// was sent AND the server answered -- so the outcome is UNKNOWN and a
+	// replay may post the same transaction twice. Recognise it with
+	// [IsResponseDecodeError].
+	CategoryResponseDecode ErrorCategory = "response_decode"
 
 	// CategoryUnprocessable represents unprocessable operations
 	CategoryUnprocessable ErrorCategory = "unprocessable"
@@ -1303,6 +1323,59 @@ func NewInternalError(operation string, err error) *Error {
 	}, ErrorSourceSDK, false)
 }
 
+// NewResponseDecodeError reports a response that arrived and could not be
+// decoded: the request WAS sent and the server DID answer with status, the SDK
+// simply could not read the body into its model.
+//
+// This is a distinct constructor rather than an [NewInternalError] because the
+// two say opposite things about the money path. An internal error is stamped
+// with HTTPRequestSent=false: nothing reached the server, so the caller may
+// safely retry. A response we could not decode carries no such licence — a
+// create whose response is unreadable may already have moved money, so the
+// caller must treat the outcome as unknown and never replay it blindly.
+//
+// The status the server answered with stays in the message (operators need it)
+// but NOT in StatusCode: an unreadable 201 body is not an upstream error status,
+// and [ActualHTTPStatus] must not hand callers a code to classify by.
+// Recognise this shape with [IsResponseDecodeError].
+func NewResponseDecodeError(operation string, status int, err error) *Error {
+	err = normalizeError(err)
+
+	message := fmt.Sprintf("decode response body (HTTP %d)", status)
+	if err != nil {
+		message = fmt.Sprintf("decode response body (HTTP %d): %v", status, err)
+	}
+
+	return withDiagnostics(&Error{
+		Category:  CategoryResponseDecode,
+		Code:      CodeResponseDecode,
+		Message:   redactMessage(message),
+		Operation: redactSensitive(operation),
+		Err:       err,
+	}, ErrorSourceHTTPResponse, true, true, StatusCodeSourceNone)
+}
+
+// IsResponseDecodeError reports whether err is a response the SDK received and
+// could not decode (see [NewResponseDecodeError]). Callers on an unsafe path
+// (any create) MUST treat it as "outcome unknown": the server answered, so the
+// operation may have taken effect, and the request must not be replayed on the
+// assumption that it did not.
+//
+// Matched strictly by error code — no fallback that could report true for an
+// unrelated error.
+func IsResponseDecodeError(err error) bool {
+	if isNilError(err) {
+		return false
+	}
+
+	var sdkErr *Error
+	if !errors.As(err, &sdkErr) || sdkErr == nil {
+		return false
+	}
+
+	return sdkErr.Code == CodeResponseDecode
+}
+
 // NewConfigurationError creates a configuration error for SDK setup failures.
 //
 // Use this for client construction problems: missing required options,
@@ -1870,6 +1943,10 @@ func categorizeByErrorChecks(err error) ErrorCategory {
 		{IsCancellationError, CategoryCancellation},
 		{IsTimeoutError, CategoryTimeout},
 		{IsNetworkError, CategoryNetwork},
+		// Before IsInternalError: a decode failure is no longer Internal, and
+		// without this it would fall through to the CategoryInternal default
+		// and be re-labelled as the very thing it is not.
+		{IsResponseDecodeError, CategoryResponseDecode},
 		{IsInternalError, CategoryInternal},
 	}
 
